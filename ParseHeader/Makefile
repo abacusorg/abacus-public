@@ -1,5 +1,5 @@
-#export CXX = icc
-#export CXXFLAGS = -g
+CXX = icc
+CXXFLAGS = -g
 CPPFLAGS = -I../util
 LEX = flex
 YACC = bison
