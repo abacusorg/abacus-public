@@ -10,7 +10,7 @@ VPATH = ../util
 LIBRARY = libparseheader.a
 
 # these are the object files which will make up the object archive
-CXXFILES =  phParser.tab.cc phScanner.cc ParseHeader.cc phDriver.cc HeaderStream.cc 
+CXXFILES =  stringutil.cc phParser.tab.cc phScanner.cc ParseHeader.cc phDriver.cc HeaderStream.cc 
 OFILES =  ${addprefix $(LIBRARY)(, ${addsuffix ), ${CXXFILES:.cc=.o}}}
 HFILES = ParseHeader.hh  phDriver.hh  stringutil.hh phScanner.hh phParser.tab.hh
 
@@ -20,7 +20,7 @@ HFILES = ParseHeader.hh  phDriver.hh  stringutil.hh phScanner.hh phParser.tab.hh
 (%.o):%.cc;
 	$(CXX) ${CXFLAGS} $(CPPFLAGS) -c $< 
 	$(AR) rv $@ $%
-	- @ $(RM) -f $%
+	#- @ $(RM) -f $%
 
 # the library
 $(LIBRARY): $(OFILES) $(HFILES)
