@@ -1,4 +1,4 @@
-CXX = gcc
+CXX = gcc-4
 CXXFLAGS = 
 CPPFLAGS = -I../util
 LEX = flex
@@ -6,7 +6,7 @@ YACC = bison
 
 VPATH = ../util
 
-# the lobrary name
+# the library name
 LIBRARY = libparseheader.a
 
 # these are the object files which will make up the object archive

@@ -15,11 +15,6 @@
 #include <complex>
 #include <omp.h>
 
-#ifndef MACOS
-#include <malloc.h>
-#include <syscall.h>
-#endif
-
 #include <sys/time.h>
 #include <errno.h>
 #include <string.h>

@@ -23,7 +23,9 @@ public:
 PTimer::PTimer(void) { 
 
     nprocs = omp_get_num_procs();
-    timeron = false;
+    // In gcc4.7 this line caused a compile warning.
+    // We don't see any value to the line.
+    // timeron = false;
     tuse = new timeval[nprocs];
     tstart = new timeval[nprocs];
     timer = new timeval[nprocs];
