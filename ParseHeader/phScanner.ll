@@ -264,6 +264,7 @@ token_type screen(char* intext, int len) {
     int len_key_table, i;
     char *text;
     text = strdup(intext);
+    // text = strndup(intext, len);
     strnlwr(text, len);
     len_key_table = (int) (sizeof(key_table)/sizeof(key_table[0]));
     
