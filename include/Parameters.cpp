@@ -1,4 +1,3 @@
-
 #define FSYM "f"
 #define ESYM "e"
 #define ISYM "d"
@@ -15,9 +14,7 @@
      printf("Can't find paramter <"#variable"> in the parameter file\n");  \
      assert(1==0); }
 
-#include "ParseHeader.hh"
-
-class Parameters: public ParseHeader {
+class Parameters {
 public:
     
     int np;
@@ -118,25 +115,121 @@ public:
         GroupRadius                         = 1;
         Eta                                 = -1.0;
         Dlna                                = -1.0;
-        register_vars();
+
     }
 
     void ReadParameters(char *paramaterfile, int icflag);
     void DumpParameters(void);
     void CheckVariablesPresent(void);
     void ValidateParameters(void);
-    void register_vars();
 
 };
 
 void Parameters::ReadParameters(char *parameterfile, int icflag) {
-    HeaderStream hs(parameterfile);
-    ReadHeader(hs);
+    char *rawline;
+    char *line;
+
+    rawline = new char[ MAX_LINE_LENGTH ];
+
+    char *rawlinebase = rawline;
+
+    FILE *fp;
+    fp = fopen(parameterfile,"r");
+    if(fp==NULL) { 
+        printf("Cannot find parameterfile %s\n", parameterfile);
+        assert(1==0);
+    }
+    assert(fp!=NULL);
+
+    int ret=0;
+
+    int lineno = 1;
+
+    while (fgets(rawline, MAX_LINE_LENGTH, fp) != NULL) {
+        ret = 0;
+
+        line = rawline;
+        int l = strlen(rawline);
+        int i =0;
+        while( (*rawline == ' ' || *rawline == '\t' || *rawline == '\n') && (i < l) ) {
+            rawline++;
+            i++;
+        }
+        line = rawline;
+        
+        SCANLINE(np,d);
+        SCANLINE(cpd,d);
+        SCANLINE(order,d);
+
+        SCANLINE(NearFieldRadius,d);
+        SCANLINE(SofteningLength,f);
+
+        SCANLINE(DirectDoublePrecision,d);
+        SCANLINE(DirectNewtonRaphson,d);
+
+        SCANLINE(DerivativeExpansionRadius,d);
+        SCANLINE(MAXConvolutionRAMMB,d);
+        SCANLINE(ConvolutionCacheSizeMB,d);
+        STRSCANLINE(DerivativesDirectory);
+
+        STRSCANLINE(InitialConditionsFile);
+
+        STRSCANLINE(ReadStateDirectory);
+        STRSCANLINE(WriteStateDirectory);
+        STRSCANLINE(PastStateDirectory);
+        STRSCANLINE(LogFileDirectory);
+        STRSCANLINE(OutputDirectory);
+        STRSCANLINE(BaseDistributionDirectory);
+
+        STRSCANLINE(DumpFilePrefix);
+        STRSCANLINE(GroupFilePrefix);
+        STRSCANLINE(LightFilePrefix);
+
+        SCANLINE(nDumpz,d);
+        SCANLINE(H0,f);
+        SCANLINE(Omega_M,f);
+        SCANLINE(Omega_DE,f);
+        SCANLINE(Omega_K,f);
+        SCANLINE(w0,f);
+        SCANLINE(wa,f);
+
+        SCANLINE(BoxSize,f);
+        SCANLINE(hMpc,d);
+        SCANLINE(InitialRedshift,f);
+        SCANLINE(LagrangianPTOrder,d);
+
+        SCANLINE(GroupRadius,d);
+        SCANLINE(Eta,f);
+        SCANLINE(Dlna,f);
+
+        int allwhitespace=0;
+        int whitespace = 0;
+        int sl = strlen(line);
+        for(int i=0;i<sl;i++) whitespace += (line[i] == ' ');
+        if(whitespace==sl-1) allwhitespace = 1;
+
+        char firstnonspacecharacter;
+        for(i=0;i<sl;i++) if(line[i]!=' ') break;
+        firstnonspacecharacter = line[i];
+
+        if( (ret==0) && !allwhitespace ) {
+            if( firstnonspacecharacter == '#' ) { }
+            else {
+                fprintf(stderr, 
+                   "[ERROR] line<#%d>:%s   was NOT interpreted\n", lineno, line);
+                assert(1==0);
+            }
+        }
+
+        lineno++;
+    }
+
+    delete[] rawlinebase;
+    fclose(fp);
+
     CheckVariablesPresent();
     if(!icflag) ValidateParameters();
 }
-
-
 
 void Parameters::CheckVariablesPresent(void) {
 
@@ -354,54 +447,4 @@ void Parameters::DumpParameters(void) {
     
 }
 
-void Parameters::register_vars(){
-	installscalar("NP",np, MUST_DEFINE);
-	installscalar("CPD",cpd,MUST_DEFINE);
-	installscalar("Order",order,MUST_DEFINE);
-
-	installscalar("NearFieldRadius",NearFieldRadius,MUST_DEFINE);    // Radius of cells in the near-field
-	installscalar("SofteningLength", SofteningLength,MUST_DEFINE); // Softening length in units of interparticle spacing
-
-	installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
-	installscalar("MAXConvolutionRAMMB", MAXConvolutionRAMMB,MUST_DEFINE);
-	installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB,MUST_DEFINE);
-
-	installscalar("DirectNewtonRaphson",DirectNewtonRaphson,MUST_DEFINE);  // 0 or 1
-	installscalar("DirectDoublePrecision",DirectDoublePrecision,MUST_DEFINE); // 0 or 1
-
-	installscalar("DerivativesDirectory",DerivativesDirectory,MUST_DEFINE);
-
-	installscalar("InitialConditionsFile",InitialConditionsFile,MUST_DEFINE);   // The initial condition file name
-
-	installscalar("ReadStateDirectory",ReadStateDirectory,MUST_DEFINE);  // Where the input State lives
-	installscalar("WriteStateDirectory",WriteStateDirectory,MUST_DEFINE); // Where the output State lives
-	installscalar("PastStateDirectory",PastStateDirectory,MUST_DEFINE);  // Where the old input State lives
-	installscalar("LogFileDirectory",LogFileDirectory,MUST_DEFINE);
-	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
-	installscalar("BaseDistributionDirectory",BaseDistributionDirectory,MUST_DEFINE);
-
-	installscalar("DumpFilePrefix",DumpFilePrefix,MUST_DEFINE);      // What the outputs are called
-	installscalar("GroupFilePrefix",GroupFilePrefix,MUST_DEFINE);     // What the group outputs are called
-	installscalar("LightFilePrefix",LightFilePrefix,MUST_DEFINE);
-
-	installvector("Dumpz",Dumpz,1024,1,MUST_DEFINE);
-	installscalar("nDumpz",nDumpz,MUST_DEFINE);
-
-	installscalar("H0", H0, MUST_DEFINE);
-	installscalar("Omega_M", Omega_M, MUST_DEFINE);
-	installscalar("Omega_DE", Omega_DE, MUST_DEFINE);
-	installscalar("Omega_K", Omega_K, MUST_DEFINE);
-	installscalar("w0", w0, MUST_DEFINE);
-	installscalar("wa", wa, MUST_DEFINE);
-
-	installscalar("BoxSize",BoxSize,MUST_DEFINE);
-	installscalar("hMpc",hMpc,MUST_DEFINE);           // =1 if we're using Mpc/h units.  =0 if Mpc units
-	installscalar("InitialRedshift",InitialRedshift,MUST_DEFINE);
-	installscalar("LagrangianPTOrder",LagrangianPTOrder,MUST_DEFINE);  // =1 for Zel'dovich, =2 for 2LPT, =3 for 3LPT
-
-	installscalar("GroupRadius",GroupRadius,MUST_DEFINE);        // Maximum size of a group, in units of cell sizes
-	installscalar("Eta",Eta,MUST_DEFINE);         // Time-step parameter based on accelerations
-	installscalar("Dlna",Dlna,MUST_DEFINE);        // Maximum time step in d(ln a)
-
-}
 Parameters P;

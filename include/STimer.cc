@@ -1,3 +1,7 @@
+#ifndef INCLUDE_STIMER
+#define INCLUDE_STIMER
+
+
 class STimer {
 public:
     STimer();
@@ -46,3 +50,5 @@ void STimer::Clear(void) {
 double STimer::Elapsed(void) {
     return  timer.tv_sec + 1e-6*timer.tv_usec;
 }
+
+#endif // INCLUDE_STIMER

@@ -1,3 +1,6 @@
+#ifndef INCLUDE_FACTORIAL
+#define INCLUDE_FACTORIAL
+
 double fact(int n) {
     double f = 1.0;
     for(int i=2;i<=n;i++) f *= i;
@@ -19,3 +22,4 @@ double fact2(int n) {
 
 
 
+#endif // INCLUDE_FACTORIAL

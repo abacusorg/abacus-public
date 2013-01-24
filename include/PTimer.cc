@@ -1,3 +1,7 @@
+#ifndef INCLUDE_PTIMER
+#define INCLUDE_PTIMER
+
+
 class PTimer {
 public:
     PTimer(void); 
@@ -66,3 +70,5 @@ double PTimer::Elapsed(void) {
     for(int g=0; g<nprocs; g++) sum += timer[g].tv_sec + 1e-6*timer[g].tv_usec;
     return sum;
 }
+
+#endif // INCLUDE_PTIMER
