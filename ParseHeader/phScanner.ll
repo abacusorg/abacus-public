@@ -263,7 +263,7 @@ include                 BEGIN(incl);
 token_type screen(char* intext, int len) {
     int len_key_table, i;
     char *text;
-    text = strndup(intext, len);
+    text = strdup(intext);
     strnlwr(text, len);
     len_key_table = (int) (sizeof(key_table)/sizeof(key_table[0]));
     
