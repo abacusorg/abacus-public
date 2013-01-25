@@ -22,6 +22,7 @@
 
 #include <ctype.h>
 #include <sys/select.h>
+#include <stdlib.h>
 
 typedef std::complex<double> Complex;
 
