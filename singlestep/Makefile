@@ -5,6 +5,7 @@ export CXXFLAGS = -O2  -Wall -fopenmp  -I../avx -I../include -I../Multipoles -I.
 
 singlestep: singlestep.o
 	$(CXX) $(CXXFLAGS) -o $@ $< -L../ParseHeader/ -lparseheader
+	
 
 clean:
 	rm -f *.o singlestep
