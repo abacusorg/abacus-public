@@ -1,0 +1,269 @@
+\documentclass[11pt,preprint]{aastex}
+\usepackage{epsf}
+
+\newcommand{\Peff}{\ensuremath{P_{\rm eff}}}
+
+\newcommand{\mpc}{\ensuremath{{\rm\,Mpc}}}
+\newcommand{\impc}{\ensuremath{{\rm\,Mpc}^{-1}}}
+\newcommand{\hmpc}{\ensuremath{h^{-1}{\rm\,Mpc}}}
+\newcommand{\ihmpc}{\ensuremath{h{\rm\,Mpc}^{-1}}}
+\newcommand{\hmpcC}{\ensuremath{h^{-3}{\rm\,Mpc^3}}}
+\newcommand{\hgpcC}{\ensuremath{h^{-3}{\rm\,Gpc^3}}}
+\newcommand{\ihmpcC}{\ensuremath{h^3 {\rm\,Mpc}^{-3}}}
+\newcommand{\kmsmpc}{\ensuremath{{\rm\ km\ s^{-1}\ Mpc^{-1}}}}
+\newcommand{\kms}{\ensuremath{\rm\ km\ s^{-1}}}
+\newcommand{\msun}{\ensuremath{\rm M_\odot}}
+
+\newcommand{\beq}{\begin{equation}}
+\newcommand{\eeq}{\end{equation}}
+\newcommand{\beqa}{\begin{eqnarray}}
+\newcommand{\eeqa}{\end{eqnarray}}
+
+\newcommand{\bfr}{\ensuremath{{\bf r}}}
+\newcommand{\bfv}{\ensuremath{{\bf v}}}
+\newcommand{\bfg}{\ensuremath{{\bf g}}}
+\newcommand{\bfx}{\ensuremath{{\bf x}}}
+\newcommand{\bfq}{\ensuremath{{\bf q}}}
+\newcommand{\bfS}{\ensuremath{{\bf S}}}
+\newcommand{\bfT}{\ensuremath{{\bf T}}}
+
+\begin{document}
+
+\title{Lagrangian Perturbation Theory from Direct Force Calculations}
+\author{Daniel Eisenstein, \today}
+
+\section{Introduction}
+
+Taking $\bfr$ and $\bfv$ to be the comoving position and velocity,
+respectively, the equations of motion are
+\beqa
+{d\bfr\over dt} &=& \bfv \\
+{d\bfv\over dt} + 2H\bfv &=& \bfg \\
+\nabla_r \cdot \bfg &=& - 4\pi G \rho_{comoving} a^{-3} \delta
+\eeqa
+In other words, \bfg\ is $a^{-3}$ times the acceleration that one would
+derive from the inverse square law computed with comoving (not proper) 
+separations.
+
+We define $\bfr = \bfx + \bfq$ where \bfx\ is the 
+initial grid and \bfq\ is the comoving Lagrangian displacement.
+
+In linear theory, $\bfg = (3/2) \Omega_m H^2 \bfq$.  This gives rise
+to the equation of motion
+\beq
+{d^2\bfq\over dt^2} + 2H {d\bfq\over dt} = {3\Omega_m H^2\over 2} \bfq
+\eeq
+For $\Omega_m = 1$, we have $a \propto t^{2/3}$ and $H = 2/3t$.  This 
+gives the growing mode solution $\bfq \propto t^{2/3} \propto a$.
+
+\section{Perturbation Theory}
+
+Let's now write 
+\beq
+\bfq = \epsilon d_1(t) \bfq_1 + \epsilon^2 d_2(t) \bfq_2 + 
+	\epsilon^3 d_3(t) \bfq_3 + O(\epsilon^4)
+\eeq
+This particle distribution produces a gravitational force at the 
+location of the particles that we can write
+\beq
+\bfg = {3\Omega_m H^2\over 2}\left[\epsilon d_1(t) \bfg_1 + 
+\epsilon^2 d_2(t) \bfg_2 + \epsilon^3 d_3(t) \bfg_3 + O(\epsilon^4) \right]
+\eeq
+From linear theory, we know that $\bfg_1 = \bfq_1$.
+At this point, these time dependences are just hypotheses; we'll see that 
+they hold in $\Omega_m=1$, but not in other cases.
+
+\subsection{Second order}
+In particular, for the case of $\bfq = \epsilon d_1(t) \bfq_1$, we must
+have a force series of the form
+\beq
+\bfg = {3\Omega_m H^2\over 2} \left[ \epsilon d_1(t) \bfq_1
+	+ \epsilon^2 d_1^2(t) \bfS(\bfq_1)
+	+ O(\epsilon^3)\right]
+\eeq
+where the \bfS\ function is some complicated mode-coupled thing
+that is second order in \bfq.  
+
+Considering \bfq\ to second-order, we must have
+\beq\label{eq:S}
+\bfg = {3\Omega_m H^2\over 2} \left[ \epsilon d_1(t) \bfq_1
+	+ \epsilon^2 d_2(t) \bfq_2
+	+ \epsilon^2 d_1^2(t) \bfS(\bfq_1)
+	+ O(\epsilon^3)\right]
+\eeq
+Inserting this into the equation of motion, we have
+\beq
+(\partial_t^2 + 2H\partial_t) (\epsilon d_1 \bfq_1 + \epsilon^2 d_2 \bfq_2)
+= {3\Omega_m H^2\over 2} ( \epsilon d_1 \bfq_1 + \epsilon^2 d_2 \bfq_2
+	+ \epsilon^2 d_1^2 \bfS(\bfq_1)
+\eeq
+where $\partial_t$ indicates a derivative with respect to time.
+Separating by orders, we recover the linear growth equation
+\beq
+(\partial_t^2 + 2H\partial_t - {3\Omega_m H^2\over 2}) d_1 \bfq_1 = 0
+\eeq
+For $\Omega_m = 1$, this has the solution $d_1\propto t^{2/3}$.
+The next order is
+\beq
+(\partial_t^2 + 2H\partial_t - {3\Omega_m H^2\over 2}) d_2 \bfq_2 = 
+	{3\Omega_m H^2\over 2} d_1^2 \bfS(\bfq_1)
+\eeq
+Hence $\bfq_2 = \bfS(\bfq_1)$, and we have a simple ODE for $d_2(t)$.
+For $\Omega_m = 1$, the power-law ansatz works and 
+we find $d_2(t) = (3/7) d_1^2(t)$, a familiar result.
+
+How to find $\bfS(\bfq_1)$?  If we write the force from
+$\bfr = \bfx+d_1 \bfq_1$ as $\bfg[d_1\bfq_1]$, then quick inspection of
+(\ref{eq:S}) says that we must have
+\beq
+d_2 \bfq_2 = {3\over 7} d_1^2 \bfS(\bfq_1) = {3\over 7} {2\over 3\Omega_m H^2} {1\over 2}
+	\left( \bfg[d_1\bfq_1] + \bfg[-d_1\bfq_1] \right)
+\eeq 
+This sum cancels out the $O(\epsilon^3)$ terms.
+Hence, two force calculations with opposing first-order displacements isolates
+second-order displacement to third-order accuracy.
+
+\subsection{Third order}
+
+Let's continue to third order.  Using the third order \bfq, we must
+have
+\beq\label{eq:T}
+\bfg = {3\Omega_m H^2\over 2} \left[ \epsilon d_1(t) \bfq_1
+	+ \epsilon^2 d_2(t) \bfq_2
+	+ \epsilon^3 d_3(t) \bfq_3
+	+ \epsilon^2 d_1^2(t) \bfS(\bfq_1)
+	+ \epsilon^3 d_1^3(t) \bfT_{111}(\bfq_1)
+	+ \epsilon^3 d_1(t) d_2(t) \bfT_{12}(\bfq_1)
+	+ O(\epsilon^4)\right]
+\eeq
+For the case of $\Omega_m=1$, we have $d_2\propto d_1^2$, so these
+two third order terms have the same time dependence and we can combine
+the two vectors into a single vector $\bfT(\bfq_1)$.  Note that this
+mode-coupling does depend on the second-order vector \bfS; we suppress
+this dependence because we assume that we are using the \bfS\ that comes
+from $\bfq_1$.  
+
+Inserting into the equation of motion, we have the third-order terms
+\beq
+(\partial_t^2 + 2H\partial_t - {3\Omega_m H^2\over 2}) d_3 \bfq_3 = 
+	{3\Omega_m H^2\over 2} d_1^3 \bfT(\bfq_1)
+\eeq
+As before, we find $\bfq_3 = \bfT(\bfq_1)$ and an ODE for $d_3(t)$.
+For $\Omega_m = 1$, we find $d_3 = (1/6) d_1^3(t)$.
+
+To find $\bfT$, we use
+\beq
+\bfg[d_1 \bfq_1 + d_2 \bfq_2] = {3\Omega_m H^2\over 2}
+	\left[ d_1 \bfq_1 + d_2 \bfq_2 + d_1^2 \bfS(\bfq_1) + d_1^3 \bfT(\bfq_1)
+	\right]
+\eeq
+So we have
+\beq
+d_3 \bfq_3 = {1\over 6} d_1^3 \bfT(\bfq_1) = 
+	{1\over 6} \left({2\over 3\Omega_m H^2} \bfg[d_1\bfq_1+ d_2\bfq_2]
+		- d_1 \bfq_1 - (10/3) d_2 \bfq_2 \right)
+\eeq
+This difference has errors at $O(\epsilon^4)$, but it is not worth cancelling
+them out because we had these errors in our formula for $d_2 \bfq_2$.
+
+Note that we did use the $\Omega_m=1$ assumption here.  At second
+order for $\Omega_m \ne 1$, we would not have $d_2 \propto d_1^2$,
+but we could still solve the ODE for $d_2$ and proceed.  But at
+third order, we needed to use $d_2\propto d_1^2$ to combine two
+terms that would otherwise have different time dependences.
+
+For our applications, $\Omega_m$ at high redshift is very close to 1, so
+that we are not making a big error.  Still, we should assess the size of it.
+Bouchet et al.\ (1995) assert that the $\Omega$ dependence of $d_2$ is amazingly
+weak, $\Omega_m^{1/143}$, relative to the $(3/7) d_1^2$ factor.  If so, 
+then we are completely fine at high redshift and only 1\% off even at
+$z=0$!  The behavior of $d_3$ is likely similar, but I haven't checked.
+
+\subsection{Velocities}
+
+Because our expansion for \bfq\ has known time dependence, we can easily
+compute the comoving velocities from $\bfv = \partial_t \bfr$.  We generally
+have 
+\beq
+\partial_t d_j = d_j {1\over d_j}{d\,d_j\over da}{da\over dt} = d_j H f_j
+\eeq
+where $f_j$ is the familiar $d\ln d_j/d\ln a$.  For $\Omega_m=1$, we
+have $d_1 \propto a$ and so $f_1 = 1$, $f_2 = 2$, $f_3 = 3$.
+For a comoving displacement $\bfq = \sum d_j \bfq_j$, we then have the 
+comoving velocity $\bfv = \sum f_j H d_j \bfq_j$.
+
+\subsection{Implementation}
+
+One can implement this as follows.
+
+\begin{enumerate}
+\item Generate the initial Fourier modes and Fourier transform 
+$i{\bf k} \hat\delta_{\bf k}$ to get the linear displacement field
+at the desired redshift.  Apply to the positions.
+
+\item Compute the force $\bfg[d_1 \bfq_1]$.  Store in the velocity.
+This is like a Kick.
+
+\item Rearrange the positions to generate $\bfr = \bfx-d_1 \bfq_1$.  This 
+can be done because we know the initial grid location (e.g., from the particle
+id number).  This can be a surrogate Drift.
+
+\item Compute the force $\bfg[-d_1 \bfq_1]$.  Add to the velocity.
+This is like a Kick.
+
+\item Take the position (currently holding the displacement $-d_1\bfq_1$)
+and the velocity (currently holding $7H^2 d_2 \bfq_2$) and manipulate
+to form the second-order position $\bfx + d_1\bfq_1 + d_2 \bfq_2$ and
+second-order velocity $H d_1 \bfq_1 + 2H d_2 \bfq_2$.  Store in the 
+position and velocity.  This can be a surrogate Drift.
+
+\item Compute the force from the new position $\bfg[d_1\bfq_1+ d_2\bfq_2]$.
+Multiply by $2/3H^2$.
+Subtract the quantity $d_1 \bfq_1 - (10/3) d_2 \bfq_2$, which is currently
+encoded as $(7/3)\bfv/H - (4/3)\bfq$.  
+Divide by 6 to get $d_3 \bfq_3$.
+Add this to the position and 3 times this to the velocity.
+
+\end{enumerate}
+
+The result is third-order Lagrangian perturbation theory for the cost of 
+3 force evaluations and memory requirements equal to the normal simulation
+code.
+
+One should be wary, however, that third-order accuracy doesn't
+necessarily change the redshift where one can start by very much.
+If one wants 1% precision in the initial conditions, then 2LPT
+allows one to advance by a factor of 10 in scale factor relative
+to Zel'dovich.  3LPT only gets another factor of 2.
+
+What the accuracy actually is, i.e. what the small parameter of the 
+perturbation expansion is, is not so clear.  The Lagrangian displacement
+in CDM cosmologies is dominated by scales around 50 Mpc.  So one can have
+displacements that are large compared to the grid spacing even though the
+overdensity is small.  Putting this another way, nothing in the above
+formalism knows about the grid spacing.  The breakdown in perturbation
+theory presumably occurs as we approach shell crossing, i.e., so that 
+$\Delta q \sim \Delta x$.  This also corresponds to overdensities of order
+unity.
+
+Eisenstein, Seo, \& White (2006) equation 9 gives a formula for the rms 
+pairwise Lagrangian displacement as a function of separation.  The result
+for the variance of the parallel displacement is 
+\beq
+{V(\Delta q)\over r_{12}^2} = \int {k^2\,dk\over 2\pi^2} P(k) f_\parallel(kr_{12})
+\eeq
+where 
+\beq
+f_\parallel(x) = {2\over x^2} \left({1\over3} - {\sin x\over x} - {2\cos x\over x^2}
++ {2\sin x\over x^3} \right)
+\eeq 
+which converges to $1/5-x^2/84$ at small $x$.  I think that we want this
+variance to be small on the grid spacing, using the full power spectrum (just to be conservative).  At $z=0$ for $\sigma_8=0.8$, this value is about 1.7 Mpc/h
+for $r_{12}=0.5$ Mpc/h, growing to 2.1 Mpc/h for 0.25 Mpc/h and dropping
+to 1.05 Mpc/h for 2 Mpc/h.  To be conservative, we could use 2 Mpc/h as the
+rms displacement on the grid scale.  We probably want this to be more like
+10\% of the grid spacing, which would be $z=40$!
+
+We'll need to test this in practice to see what comes out.
+
+\end{document}

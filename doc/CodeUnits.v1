@@ -1,0 +1,121 @@
+Internal code units:
+
+The code uses dimensionless comoving positions and canonical velocities.
+The state is written in these code units; we only translate back to physical
+units when writing *output*.
+
+Canonical velocities (or momenta) are a^2 * dx_comoving/dt = a * dr_proper/dt.
+
+We call the box size B.
+
+The length of the dimensionless position unit will be L.  This might
+be the box size B or the cell size B/CPD.
+
+The dimensionless time scale will be the Hubble time: 1/H_0.
+
+The particle masses are set to unity.  There are N^3 particles in 
+the simulation.  Using the comoving density, the particle mass is
+(B/N)^3 (3 Omega_m H_0^2/8\pi G).
+
+The acceleration calculation produces answers that are simply the summation
+of 1/x^2, where x is in code length units.  We'll call this the raw
+acceleration.
+
+Converting this to the acceleration needed by the code (the comoving
+gradient of the potential) requires multiplying by (G*M_particle/ L^3 H_0^2).
+Two of the L's come from converting 1/x^2 to physical distance; one
+comes from converting the physical acceleration to code lengths.
+
+This prefactor can be simplified to (3 \Omega_m /8 \pi) (B/LN)^3.
+The latter factor is the number of particles per unit code volume;
+it would be N^-3 if we use the full box as the unit length or 
+(CPD/N)^3 if we use the cells as the unit length.
+
+So the conversion from raw acceleration to code acceleration depends
+only on simple dimensionless numbers.
+
+
+Of course, we must use drift and kick factors that have the correct
+time units.  We have 
+
+	x -> x + p \Delta \eta_D
+	p -> p + accel \Delta \eta_K
+
+where \eta_K = int dt/a  and \eta_D = int dt/a^2.  These dt need to
+be in units of (1/H_0), which means that these integrals are really
+\eta_K = int H_0 dt/a  and \eta_D = int H_0 dt/a^2.
+
+
+DJE continues to advocate for code units in which particle positions
+are always stored relative to the cell centers, with the cells being
+unit volume (so L = B/CPD).  The code should be written so that
+particles have no separate access save through their parent cells.
+Any code that can handle the periodic wraps can also handle offsets
+due to different cell membership.  Tying to cell centers would
+increase the single-precision reach of the code down to pc scales,
+about a factor of 1000 improvement.  The Redlack computation is 
+probably the only non-trivial alteration for this.
+
+
+Input units:
+
+The code velocities are canonical and are in code units, so one has 
+to convert.  From v_proper, this means 
+
+    code velocity = a * (v_proper/H_0)/L = v_proper * (a/L H_0)
+
+Note that L*H_0 is the proper Hubble velocity across the unit length 
+at z=0.
+
+The code positions of course must be converted from comoving positions
+by the unit length L.  Moreover, one must decide on the periodic wrap,
+as this impacts the mapping to cells.
+
+Since cells are numbered from 0 to CPD-1, it is probably simplest if
+the box geometry is [0,B) in each dimension, rather than being centered
+on the origin.  That means that the cell centers are on the half-spacings:
+(i+0.5)*(B/CPD).
+
+Note that when we input from Zel'dovich, we will probably only get the 
+position displacements.  For Omega=1, these are related to the displacements
+as follows: the comoving displacements are x = a*X, where X is a constant.
+The comoving velocity is therefore (da/dt)*X = H(z)*x, i.e., H(z) times
+the given displacement.  In H_0 time units, this will be H(z)*x/H_0.  
+The canonical velocity is a^2 times this, so we are scaling the comoving
+displacements by (a^2 H(z)/H_0).
+
+
+Output units:
+
+Code output will be in Mpc or h^-1 Mpc, depending on whether the Param.hMpc
+flag is false or true.
+
+Positions will be comoving positions.  We do not necessarily guarantee
+a particular wrapping of the periodic box relative to the initial data.
+
+Velocities will be in redshift-space comoving position offset.  
+That means that the proper comoving velocity is found by multiplying
+by a*H(z).
+
+	v_proper = H(z) * r_proper = H(z) * a * x_comoving
+
+To get from code velocities to output velocities, we have 
+
+    v_output = v_proper/(a*H(z))  = v_code (L H_0/a) / (a*H(z))
+    	     = v_code * (L H_0/H(z) a^2)
+
+
+Compressed Output:
+
+We will compress the output of individual particles by subtracting
+the cell centers and then converting all positions and velocities
+to 12-bit numbers, e.g., on the scale -2000 to +2000.
+
+For the positions, this is trivial: scale to the cell size.
+But one does need to know the position of the cell centers in the
+reference cell.
+
+For the velocities, we'll need to store the scaling factor, probably as
+a term in the output file header.
+
+

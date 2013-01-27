@@ -1,3 +1,4 @@
+// TODO: Is it ok that this uses floats not doubles?
 
 #define FSYM "f"
 #define ESYM "e"
@@ -11,7 +12,10 @@
 
 #define TESTSTRINGUNDEFINED(X) if(strcmp(X,"NotDefined")==0) { fprintf(stderr,QUOTEME(You didnt define X\n)); assert(1==0); }
 
-#define TestVariablePresent(variable) if(variable<0) { \
+// This had been testing against 0, but that would exclude legal negative entries!
+// This code will crash any entries less than -1 million.
+#define NO_ENTRY -1237654
+#define TestVariablePresent(variable) if(variable<=NO_ENTRY+0.1) { \
      printf("Can't find paramter <"#variable"> in the parameter file\n");  \
      assert(1==0); }
 
@@ -37,6 +41,11 @@ public:
     char DerivativesDirectory[1024];
 
     char InitialConditionsFile[1024];   // The initial condition file name
+    char ICFormat[1024];		// The format of the IC files
+    float ICPositionRange;		// The box size of the IC positions, 
+    	// in file units.  If ==0, then will default to BoxSize;
+    float ICVelocity2Displacement;	// The conversion factor from file velocities
+    	// to redshift-space comoving displacements (at the IC redshift!).
 
     char ReadStateDirectory[1024];  // Where the input State lives
     char WriteStateDirectory[1024]; // Where the output State lives
@@ -73,22 +82,25 @@ public:
 
     Parameters() {
 
-        np                                  = -1;
-        cpd                                 = -1;
-        order                               = -1;
+        np                                  = NO_ENTRY;
+        cpd                                 = NO_ENTRY;
+        order                               = NO_ENTRY;
 
-        NearFieldRadius                     = -1;
-        SofteningLength                     = -1.0;
+        NearFieldRadius                     = NO_ENTRY;
+        SofteningLength                     = NO_ENTRY;
 
-        DirectDoublePrecision               = -1;
-        DirectNewtonRaphson                 = -1;
+        DirectDoublePrecision               = NO_ENTRY;
+        DirectNewtonRaphson                 = NO_ENTRY;
 
-        DerivativeExpansionRadius           = -1;
-        MAXConvolutionRAMMB                 = -1;
-        ConvolutionCacheSizeMB              = -1;
+        DerivativeExpansionRadius           = NO_ENTRY;
+        MAXConvolutionRAMMB                 = NO_ENTRY;
+        ConvolutionCacheSizeMB              = NO_ENTRY;
         sprintf(DerivativesDirectory,"NotDefined");
 
         sprintf(InitialConditionsFile,"NotDefined");
+        sprintf(ICFormat,"NotDefined");
+	ICPositionRange = NO_ENTRY;
+	ICVelocity2Displacement = NO_ENTRY;
 
         sprintf(ReadStateDirectory,"NotDefined");
         sprintf(WriteStateDirectory,"NotDefined");
@@ -101,23 +113,23 @@ public:
         sprintf(GroupFilePrefix,"NotDefined");
         sprintf(LightFilePrefix,"NotDefined");
     
-        nDumpz                              = -1;
+        nDumpz                              = NO_ENTRY;
     
-        H0                                  = -1.0;
-        Omega_M                             = -1.0;
-        Omega_DE                            = -1.0;
-        Omega_K                             = -1.0;
-        w0                                  = -1.0;
-        wa                                  = -1.0;
+        H0                                  = NO_ENTRY;
+        Omega_M                             = NO_ENTRY;
+        Omega_DE                            = NO_ENTRY;
+        Omega_K                             = NO_ENTRY;
+        w0                                  = NO_ENTRY;
+        wa                                  = NO_ENTRY;
 
-        BoxSize                             = -1.0;
-        hMpc                                = -1;
-        InitialRedshift                     = -1.0;
-        LagrangianPTOrder                   = -1.0;
+        BoxSize                             = NO_ENTRY;
+        hMpc                                = NO_ENTRY;
+        InitialRedshift                     = NO_ENTRY;
+        LagrangianPTOrder                   = NO_ENTRY;
 
-        GroupRadius                         = 1;
-        Eta                                 = -1.0;
-        Dlna                                = -1.0;
+        GroupRadius                         = NO_ENTRY;
+        Eta                                 = NO_ENTRY;
+        Dlna                                = NO_ENTRY;
         register_vars();
     }
 
@@ -169,8 +181,12 @@ void Parameters::CheckVariablesPresent(void) {
     TestVariablePresent( Eta                          );
     TestVariablePresent( Dlna                         );
 
+    TestVariablePresent( ICPositionRange              );
+    TestVariablePresent( ICVelocity2Displacement      );
+
     TESTSTRINGUNDEFINED(DerivativesDirectory);
     TESTSTRINGUNDEFINED(InitialConditionsFile);
+    TESTSTRINGUNDEFINED(ICFormat);
 
     TESTSTRINGUNDEFINED(ReadStateDirectory);
     TESTSTRINGUNDEFINED(WriteStateDirectory);
@@ -229,6 +245,12 @@ void Parameters::ValidateParameters(void) {
         assert(1==0);
     }
 
+    if(GroupRadius<=0) {
+        fprintf(stderr, "[ERROR] GroupRadius = %d  must be greater than 0\n",
+            GroupRadius );
+        assert(1==0);
+    }
+
     if(order>16 || order < 2 ) {
         fprintf(stderr,
             "[ERROR] order = %d must be less than or equal to 16 and greater than 1\n",
@@ -243,7 +265,7 @@ void Parameters::ValidateParameters(void) {
         assert(1==0);
     }
 
-    if(ConvolutionCacheSizeMB<0) {
+    if(ConvolutionCacheSizeMB<=0) {
         fprintf(stderr,
             "[ERROR] ConvolutionCacheSizeMB = %d must be greater than 0 \n",
                 ConvolutionCacheSizeMB);
@@ -267,6 +289,11 @@ void Parameters::ValidateParameters(void) {
                 SofteningLength);
         assert(1==0);
     }
+
+    // Note: Not putting a requirement that ICVelocity2Displacement>0,
+    // because one might use 0 or negative values to play with the ICs.
+
+    // Illegal ICFormat's will crash in loadIC.cpp; no need to crash here.
 
     ExpandPathName(DerivativesDirectory);
     ExpandPathName(ReadStateDirectory);
@@ -322,6 +349,9 @@ void Parameters::DumpParameters(void) {
     DUMPVAR( DerivativesDirectory         , s);
 
     DUMPVAR( InitialConditionsFile        , s);
+    DUMPVAR( ICFormat                     , s);
+    DUMPVAR( ICPositionRange              , f);
+    DUMPVAR( ICVelocity2Displacement      , f);
 
     DUMPVAR( ReadStateDirectory           , s);
     DUMPVAR( WriteStateDirectory          , s);
@@ -372,6 +402,9 @@ void Parameters::register_vars(){
 	installscalar("DerivativesDirectory",DerivativesDirectory,MUST_DEFINE);
 
 	installscalar("InitialConditionsFile",InitialConditionsFile,MUST_DEFINE);   // The initial condition file name
+	installscalar("ICFormat",ICFormat,MUST_DEFINE);   // The initial condition file format
+	installscalar("ICPositionRange",ICPositionRange,MUST_DEFINE);   // The initial condition file position convention
+	installscalar("ICVelocity2Displacement",ICVelocity2Displacement,MUST_DEFINE);   // The initial condition file velocity convention 
 
 	installscalar("ReadStateDirectory",ReadStateDirectory,MUST_DEFINE);  // Where the input State lives
 	installscalar("WriteStateDirectory",WriteStateDirectory,MUST_DEFINE); // Where the output State lives
