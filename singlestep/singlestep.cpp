@@ -1,6 +1,6 @@
 #include "proepi.cpp"
 
-state ReadState, WriteState;
+
 
 
 Cosmology * InitializeCosmology(double ScaleFactor) {
@@ -137,7 +137,7 @@ int main(int argc, char **argv) {
 
     Epilogue(P,0);
 
-    WriteState(WriteState,P.WriteStateDirectory);
+    writestate(&WriteState,P.WriteStateDirectory);
     STDLOG("Wrote WriteState to %s\n",P.WriteStateDirectory);
 
     stdlog.close();  

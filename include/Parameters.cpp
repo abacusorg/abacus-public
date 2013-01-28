@@ -145,7 +145,6 @@ public:
 void Parameters::ReadParameters(char *parameterfile, int icflag) {
     HeaderStream hs(parameterfile);
     ReadHeader(hs);
-    CheckVariablesPresent();
     if(!icflag) ValidateParameters();
 }
 
