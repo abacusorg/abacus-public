@@ -128,11 +128,6 @@ int main(int argc, char **argv) {
     STDLOG("Chose Time Step da = $5.4f\n",da);
     BuildWriteState(HadReadState,da);
 
-    GlobalKickFactor    = cosm->KickFactor(ReadState.ScaleFactor,da);
-    GlobalDriftFactor   = cosm->DriftFactor(ReadState.ScaleFactor,da);
-    STDLOG("GlobalKickFactor = %f\n", GlobalKickFactor);
-    STDLOG("GlobalDriftFactor = %f\n", GlobalDriftFactor);
-
     Prologue(P,0);
 
     timestep(); 
