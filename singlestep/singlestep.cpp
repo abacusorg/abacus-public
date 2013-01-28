@@ -3,7 +3,7 @@
 state ReadState, WriteState;
 
 
-Cosmology * InitializeCosmology() {
+Cosmology * InitializeCosmology(double ScaleFactor) {
     MyCosmology cosmo;
     cosmo.Omega_m = P.Omega_M;
     cosmo.Omega_K = P.Omega_K;
@@ -11,14 +11,19 @@ Cosmology * InitializeCosmology() {
     cosmo.H0 = P.H0;
     cosmo.w0 = P.w0;
     cosmo.wa = P.wa;
-    return new Cosmology(ReadState.ScaleFactor,cosmo);
+    return new Cosmology(ScaleFactor,cosmo);
 }
 
 double ChooseTimeStep(){
 	return .01;
 }
 
-void BuildWriteState(double da){
+void BuildWriteState(bool HasReadState,double da){
+
+	//make the WriteState directory
+	char cmd[2048];
+	sprintf(cmd,"mkdir %s",P.WriteStateDirectory);
+
 	//get the next timestep and build the cosmology for it
 	double nexta = cosm->current.a + da;
 	cosm->BuildEpoch(cosm->current, cosm->next, nexta);
@@ -42,8 +47,20 @@ void BuildWriteState(double da){
 	WriteState.OmegaNow_K = cosm->next.OmegaHat_K/total;
 	WriteState.OmegaNow_DE = cosm->next.OmegaHat_DE/total;
 
-	WriteState.ParticleMass = ReadState.ParticleMass; //FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
-	WriteState.RedshiftSpaceConversion =ReadState.RedshiftSpaceConversion;//FIXME: Another placeholder until the actual math is worked out
+	if(HasReadState){
+		WriteState.ParticleMass = ReadState.ParticleMass; //FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
+		WriteState.RedshiftSpaceConversion =ReadState.RedshiftSpaceConversion;//FIXME: Another placeholder until the actual math is worked out
+		WriteState.LPTstatus = ReadState.LPTstatus;
+		WriteState.FullStepNumber = ReadState.FullStepNumber +1;
+	}
+	else{
+		WriteState.ParticleMass = 1.0/P.np; //FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
+		WriteState.RedshiftSpaceConversion = 1.0 ;//FIXME: Another placeholder until the actual math is worked out
+		WriteState.LPTstatus = 0; //TODO: Should this come from parameters?
+		WriteState.FullStepNumber = 0;
+	}
+
+
 	WriteState.DeltaTime = cosm->next.t - cosm->current.t;
 	WriteState.DeltaRedshift = -(cosm->next.z - cosm->current.z);
 	WriteState.DeltaScaleFactor = cosm->next.a - cosm->current.a;
@@ -56,8 +73,7 @@ void BuildWriteState(double da){
 	WriteState.LastHalfEtaKick = cosm->KickFactor(cosm->search.a,WriteState.ScaleFactor-cosm->search.a);
 	WriteState.FirstHalfEtaKick = cosm->KickFactor(cosm->current.a,cosm->search.a-cosm->current.a);
 
-	WriteState.LPTstatus = ReadState.LPTstatus;
-	WriteState.FullStepNumber = ReadState.FullStepNumber +1;
+
 }
 
 
@@ -73,10 +89,10 @@ int main(int argc, char **argv) {
     int AllowIC = atoi(argv[2]);
 
     P.ReadParameters(argv[1],1);
-    stdlog.open("mylog");   // Need a real name for this.
+    stdlog.open("mylog");   // TODO:Need a real name for this.
     STDLOG("Read Parameter file %s\n", argv[1]);
 
-
+    bool HadReadState;
     //Check if ReadStateDirectory is accessible, or if we should build a new state from the IC file
     if(access(P.ReadStateDirectory,0) ==-1){
     	if(AllowIC != 1){
@@ -84,25 +100,33 @@ int main(int argc, char **argv) {
     		fprintf(stderr,"ERROR: Read State Directory ( %s ) is inaccessible and initial state creation is prohibited. Terminating.\n",P.ReadStateDirectory);
     	}
     	else{
+    		HadReadState = false;
     		//Make initial conditions
+
     	}
     }
     else{
     	CheckDirectoryExists(P.ReadStateDirectory);
     	readstate(ReadState,P.ReadStateDirectory);
     	STDLOG("Read ReadState from %s\n",P.ReadStateDirectory);
+    	HadReadState = true;
     }
 
 
     //Check if WriteStateDirectory exists, and fail if it does
     assert(access(P.WriteStateDirectory,0) ==-1);
 
-    cosm = InitializeCosmology();
-    STDLOG("Initialized Cosmology at a= %4.2f\n",ReadState.ScaleFactor);
+    double a;
+
+    if(HadReadState) a = ReadState.ScaleFactor;
+    else a = 1.0/1+(P.InitialRedshift);
+
+    cosm = InitializeCosmology(a);
+    STDLOG("Initialized Cosmology at a= %4.2f\n",a);
 
     double da = ChooseTimeStep();
     STDLOG("Chose Time Step da = $5.4f\n",da);
-    BuildWriteState(da);
+    BuildWriteState(HadReadState,da);
 
     GlobalKickFactor    = cosm->KickFactor(ReadState.ScaleFactor,da);
     GlobalDriftFactor   = cosm->DriftFactor(ReadState.ScaleFactor,da);

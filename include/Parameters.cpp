@@ -82,55 +82,56 @@ public:
 
     Parameters() {
 
-        np                                  = NO_ENTRY;
-        cpd                                 = NO_ENTRY;
-        order                               = NO_ENTRY;
+    	installscalar("NP",np, MUST_DEFINE);
+    	installscalar("CPD",cpd,MUST_DEFINE);
+    	installscalar("Order",order,MUST_DEFINE);
 
-        NearFieldRadius                     = NO_ENTRY;
-        SofteningLength                     = NO_ENTRY;
+    	installscalar("NearFieldRadius",NearFieldRadius,MUST_DEFINE);    // Radius of cells in the near-field
+    	installscalar("SofteningLength", SofteningLength,MUST_DEFINE); // Softening length in units of interparticle spacing
 
-        DirectDoublePrecision               = NO_ENTRY;
-        DirectNewtonRaphson                 = NO_ENTRY;
+    	installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
+    	installscalar("MAXConvolutionRAMMB", MAXConvolutionRAMMB,MUST_DEFINE);
+    	installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB,MUST_DEFINE);
 
-        DerivativeExpansionRadius           = NO_ENTRY;
-        MAXConvolutionRAMMB                 = NO_ENTRY;
-        ConvolutionCacheSizeMB              = NO_ENTRY;
-        sprintf(DerivativesDirectory,"NotDefined");
+    	installscalar("DirectNewtonRaphson",DirectNewtonRaphson,MUST_DEFINE);  // 0 or 1
+    	installscalar("DirectDoublePrecision",DirectDoublePrecision,MUST_DEFINE); // 0 or 1
 
-        sprintf(InitialConditionsFile,"NotDefined");
-        sprintf(ICFormat,"NotDefined");
-	ICPositionRange = NO_ENTRY;
-	ICVelocity2Displacement = NO_ENTRY;
+    	installscalar("DerivativesDirectory",DerivativesDirectory,MUST_DEFINE);
 
-        sprintf(ReadStateDirectory,"NotDefined");
-        sprintf(WriteStateDirectory,"NotDefined");
-        sprintf(PastStateDirectory,"NotDefined");
-        sprintf(LogFileDirectory,"NotDefined");
-        sprintf(OutputDirectory,"NotDefined");
-        sprintf(BaseDistributionDirectory,"NotDefined");
+    	installscalar("InitialConditionsFile",InitialConditionsFile,MUST_DEFINE);   // The initial condition file name
+    	installscalar("ICFormat",ICFormat,MUST_DEFINE);   // The initial condition file format
+    	installscalar("ICPositionRange",ICPositionRange,MUST_DEFINE);   // The initial condition file position convention
+    	installscalar("ICVelocity2Displacement",ICVelocity2Displacement,MUST_DEFINE);   // The initial condition file velocity convention
 
-        sprintf(DumpFilePrefix,"NotDefined");
-        sprintf(GroupFilePrefix,"NotDefined");
-        sprintf(LightFilePrefix,"NotDefined");
-    
-        nDumpz                              = NO_ENTRY;
-    
-        H0                                  = NO_ENTRY;
-        Omega_M                             = NO_ENTRY;
-        Omega_DE                            = NO_ENTRY;
-        Omega_K                             = NO_ENTRY;
-        w0                                  = NO_ENTRY;
-        wa                                  = NO_ENTRY;
+    	installscalar("ReadStateDirectory",ReadStateDirectory,MUST_DEFINE);  // Where the input State lives
+    	installscalar("WriteStateDirectory",WriteStateDirectory,MUST_DEFINE); // Where the output State lives
+    	installscalar("PastStateDirectory",PastStateDirectory,MUST_DEFINE);  // Where the old input State lives
+    	installscalar("LogFileDirectory",LogFileDirectory,MUST_DEFINE);
+    	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
+    	installscalar("BaseDistributionDirectory",BaseDistributionDirectory,MUST_DEFINE);
 
-        BoxSize                             = NO_ENTRY;
-        hMpc                                = NO_ENTRY;
-        InitialRedshift                     = NO_ENTRY;
-        LagrangianPTOrder                   = NO_ENTRY;
+    	installscalar("DumpFilePrefix",DumpFilePrefix,MUST_DEFINE);      // What the outputs are called
+    	installscalar("GroupFilePrefix",GroupFilePrefix,MUST_DEFINE);     // What the group outputs are called
+    	installscalar("LightFilePrefix",LightFilePrefix,MUST_DEFINE);
 
-        GroupRadius                         = NO_ENTRY;
-        Eta                                 = NO_ENTRY;
-        Dlna                                = NO_ENTRY;
-        register_vars();
+    	installvector("Dumpz",Dumpz,1024,1,MUST_DEFINE);
+    	installscalar("nDumpz",nDumpz,MUST_DEFINE);
+
+    	installscalar("H0", H0, MUST_DEFINE);
+    	installscalar("Omega_M", Omega_M, MUST_DEFINE);
+    	installscalar("Omega_DE", Omega_DE, MUST_DEFINE);
+    	installscalar("Omega_K", Omega_K, MUST_DEFINE);
+    	installscalar("w0", w0, MUST_DEFINE);
+    	installscalar("wa", wa, MUST_DEFINE);
+
+    	installscalar("BoxSize",BoxSize,MUST_DEFINE);
+    	installscalar("hMpc",hMpc,MUST_DEFINE);           // =1 if we're using Mpc/h units.  =0 if Mpc units
+    	installscalar("InitialRedshift",InitialRedshift,MUST_DEFINE);
+    	installscalar("LagrangianPTOrder",LagrangianPTOrder,MUST_DEFINE);  // =1 for Zel'dovich, =2 for 2LPT, =3 for 3LPT
+
+    	installscalar("GroupRadius",GroupRadius,MUST_DEFINE);        // Maximum size of a group, in units of cell sizes
+    	installscalar("Eta",Eta,MUST_DEFINE);         // Time-step parameter based on accelerations
+    	installscalar("Dlna",Dlna,MUST_DEFINE);        // Maximum time step in d(ln a)
     }
 
     void ReadParameters(char *paramaterfile, int icflag);
@@ -146,59 +147,6 @@ void Parameters::ReadParameters(char *parameterfile, int icflag) {
     ReadHeader(hs);
     CheckVariablesPresent();
     if(!icflag) ValidateParameters();
-}
-
-
-
-void Parameters::CheckVariablesPresent(void) {
-
-    TestVariablePresent( np                           );
-    TestVariablePresent( cpd                          );
-    TestVariablePresent( order                        );
-
-    TestVariablePresent( NearFieldRadius              );
-    TestVariablePresent( SofteningLength              );
-
-    TestVariablePresent( DirectDoublePrecision        );
-    TestVariablePresent( DirectNewtonRaphson          );
-
-    TestVariablePresent( DerivativeExpansionRadius    );
-    TestVariablePresent( MAXConvolutionRAMMB          );
-    TestVariablePresent( ConvolutionCacheSizeMB       );
-
-    TestVariablePresent( H0                           );
-    TestVariablePresent( Omega_M                      );
-    TestVariablePresent( Omega_DE                     );
-    TestVariablePresent( Omega_K                      );
-    TestVariablePresent( w0                           );
-    TestVariablePresent( wa                           );
-
-    TestVariablePresent( BoxSize                      );
-    TestVariablePresent( hMpc                         );
-    TestVariablePresent( InitialRedshift              );
-    TestVariablePresent( LagrangianPTOrder            );
-    TestVariablePresent( GroupRadius                  );
-    TestVariablePresent( Eta                          );
-    TestVariablePresent( Dlna                         );
-
-    TestVariablePresent( ICPositionRange              );
-    TestVariablePresent( ICVelocity2Displacement      );
-
-    TESTSTRINGUNDEFINED(DerivativesDirectory);
-    TESTSTRINGUNDEFINED(InitialConditionsFile);
-    TESTSTRINGUNDEFINED(ICFormat);
-
-    TESTSTRINGUNDEFINED(ReadStateDirectory);
-    TESTSTRINGUNDEFINED(WriteStateDirectory);
-    TESTSTRINGUNDEFINED(PastStateDirectory);
-    TESTSTRINGUNDEFINED(LogFileDirectory);
-    TESTSTRINGUNDEFINED(OutputDirectory);
-    TESTSTRINGUNDEFINED(BaseDistributionDirectory);
-
-    TESTSTRINGUNDEFINED(DumpFilePrefix);
-    TESTSTRINGUNDEFINED(GroupFilePrefix);
-    TESTSTRINGUNDEFINED(LightFilePrefix);
-
 }
 
 void Parameters::ValidateParameters(void) {
@@ -327,114 +275,6 @@ void Parameters::ValidateParameters(void) {
         CheckFileExists(dfn);
     }
 
-
-}
-
-
-void Parameters::DumpParameters(void) {
-
-    DUMPVAR( np                           , d);
-    DUMPVAR( cpd                          , d);
-    DUMPVAR( order                        , d);
-
-    DUMPVAR( NearFieldRadius              , d);
-    DUMPVAR( SofteningLength              , e);
-
-    DUMPVAR( DirectNewtonRaphson          , d);
-    DUMPVAR( DirectDoublePrecision        , d);
-
-    DUMPVAR( DerivativeExpansionRadius    , d);
-    DUMPVAR( MAXConvolutionRAMMB          , d);
-    DUMPVAR( ConvolutionCacheSizeMB       , d);
-    DUMPVAR( DerivativesDirectory         , s);
-
-    DUMPVAR( InitialConditionsFile        , s);
-    DUMPVAR( ICFormat                     , s);
-    DUMPVAR( ICPositionRange              , f);
-    DUMPVAR( ICVelocity2Displacement      , f);
-
-    DUMPVAR( ReadStateDirectory           , s);
-    DUMPVAR( WriteStateDirectory          , s);
-    DUMPVAR( PastStateDirectory           , s);
-    DUMPVAR( LogFileDirectory             , s);
-    DUMPVAR( OutputDirectory              , s);
-    DUMPVAR( BaseDistributionDirectory    , s);
-
-    DUMPVAR( DumpFilePrefix               , s);
-    DUMPVAR( GroupFilePrefix              , s);
-    DUMPVAR( LightFilePrefix              , s);
-
-    DUMPVAR( nDumpz                       , d);
-    
-    DUMPVAR( H0                           , e);
-    DUMPVAR( Omega_M                      , e);
-    DUMPVAR( Omega_DE                     , e);
-    DUMPVAR( Omega_K                      , e);
-    DUMPVAR( w0                           , e);
-    DUMPVAR( wa                           , e);
-
-    DUMPVAR( BoxSize                      , e);
-    DUMPVAR( hMpc                         , d);
-    DUMPVAR( InitialRedshift              , e);
-    DUMPVAR( LagrangianPTOrder            , d);
-    DUMPVAR( GroupRadius                  , d);
-    DUMPVAR( Eta                          , e);
-    DUMPVAR( Dlna                         , e);
-
-    
-}
-
-void Parameters::register_vars(){
-	installscalar("NP",np, MUST_DEFINE);
-	installscalar("CPD",cpd,MUST_DEFINE);
-	installscalar("Order",order,MUST_DEFINE);
-
-	installscalar("NearFieldRadius",NearFieldRadius,MUST_DEFINE);    // Radius of cells in the near-field
-	installscalar("SofteningLength", SofteningLength,MUST_DEFINE); // Softening length in units of interparticle spacing
-
-	installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
-	installscalar("MAXConvolutionRAMMB", MAXConvolutionRAMMB,MUST_DEFINE);
-	installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB,MUST_DEFINE);
-
-	installscalar("DirectNewtonRaphson",DirectNewtonRaphson,MUST_DEFINE);  // 0 or 1
-	installscalar("DirectDoublePrecision",DirectDoublePrecision,MUST_DEFINE); // 0 or 1
-
-	installscalar("DerivativesDirectory",DerivativesDirectory,MUST_DEFINE);
-
-	installscalar("InitialConditionsFile",InitialConditionsFile,MUST_DEFINE);   // The initial condition file name
-	installscalar("ICFormat",ICFormat,MUST_DEFINE);   // The initial condition file format
-	installscalar("ICPositionRange",ICPositionRange,MUST_DEFINE);   // The initial condition file position convention
-	installscalar("ICVelocity2Displacement",ICVelocity2Displacement,MUST_DEFINE);   // The initial condition file velocity convention 
-
-	installscalar("ReadStateDirectory",ReadStateDirectory,MUST_DEFINE);  // Where the input State lives
-	installscalar("WriteStateDirectory",WriteStateDirectory,MUST_DEFINE); // Where the output State lives
-	installscalar("PastStateDirectory",PastStateDirectory,MUST_DEFINE);  // Where the old input State lives
-	installscalar("LogFileDirectory",LogFileDirectory,MUST_DEFINE);
-	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
-	installscalar("BaseDistributionDirectory",BaseDistributionDirectory,MUST_DEFINE);
-
-	installscalar("DumpFilePrefix",DumpFilePrefix,MUST_DEFINE);      // What the outputs are called
-	installscalar("GroupFilePrefix",GroupFilePrefix,MUST_DEFINE);     // What the group outputs are called
-	installscalar("LightFilePrefix",LightFilePrefix,MUST_DEFINE);
-
-	installvector("Dumpz",Dumpz,1024,1,MUST_DEFINE);
-	installscalar("nDumpz",nDumpz,MUST_DEFINE);
-
-	installscalar("H0", H0, MUST_DEFINE);
-	installscalar("Omega_M", Omega_M, MUST_DEFINE);
-	installscalar("Omega_DE", Omega_DE, MUST_DEFINE);
-	installscalar("Omega_K", Omega_K, MUST_DEFINE);
-	installscalar("w0", w0, MUST_DEFINE);
-	installscalar("wa", wa, MUST_DEFINE);
-
-	installscalar("BoxSize",BoxSize,MUST_DEFINE);
-	installscalar("hMpc",hMpc,MUST_DEFINE);           // =1 if we're using Mpc/h units.  =0 if Mpc units
-	installscalar("InitialRedshift",InitialRedshift,MUST_DEFINE);
-	installscalar("LagrangianPTOrder",LagrangianPTOrder,MUST_DEFINE);  // =1 for Zel'dovich, =2 for 2LPT, =3 for 3LPT
-
-	installscalar("GroupRadius",GroupRadius,MUST_DEFINE);        // Maximum size of a group, in units of cell sizes
-	installscalar("Eta",Eta,MUST_DEFINE);         // Time-step parameter based on accelerations
-	installscalar("Dlna",Dlna,MUST_DEFINE);        // Maximum time step in d(ln a)
 
 }
 Parameters P;
