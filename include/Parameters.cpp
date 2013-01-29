@@ -40,7 +40,7 @@ public:
 
     char DerivativesDirectory[1024];
 
-    char InitialConditionsFile[1024];   // The initial condition file name
+    char InitialConditionsDirectory[1024];   // The initial condition file name
     char ICFormat[1024];		// The format of the IC files
     float ICPositionRange;		// The box size of the IC positions, 
     	// in file units.  If ==0, then will default to BoxSize;
@@ -98,7 +98,7 @@ public:
 
     	installscalar("DerivativesDirectory",DerivativesDirectory,MUST_DEFINE);
 
-    	installscalar("InitialConditionsFile",InitialConditionsFile,MUST_DEFINE);   // The initial condition file name
+    	installscalar("InitialConditionsDirectory",InitialConditionsDirectory,MUST_DEFINE);   // The initial condition file name
     	installscalar("ICFormat",ICFormat,MUST_DEFINE);   // The initial condition file format
     	installscalar("ICPositionRange",ICPositionRange,MUST_DEFINE);   // The initial condition file position convention
     	installscalar("ICVelocity2Displacement",ICVelocity2Displacement,MUST_DEFINE);   // The initial condition file velocity convention
@@ -248,7 +248,7 @@ void Parameters::ValidateParameters(void) {
     ExpandPathName(PastStateDirectory);
     ExpandPathName(OutputDirectory);
     ExpandPathName(LogFileDirectory);
-    ExpandPathName(InitialConditionsFile);
+    ExpandPathName(InitialConditionsDirectory);
 
     CheckDirectoryExists(DerivativesDirectory);
     CheckDirectoryExists(ReadStateDirectory);
@@ -258,7 +258,7 @@ void Parameters::ValidateParameters(void) {
     CheckDirectoryExists(LogFileDirectory);
     CheckDirectoryExists(BaseDistributionDirectory);
 
-    CheckFileExists(InitialConditionsFile);
+    CheckDirectoryExists(InitialConditionsDirectory);
 
 
     char dfn[1024];

@@ -18,7 +18,7 @@ double ChooseTimeStep(){
 	return .01;
 }
 
-void BuildWriteState(bool HasReadState,double da){
+void BuildWriteState(double da){
 
 	//make the WriteState directory
 	char cmd[2048];
@@ -47,18 +47,10 @@ void BuildWriteState(bool HasReadState,double da){
 	WriteState.OmegaNow_K = cosm->next.OmegaHat_K/total;
 	WriteState.OmegaNow_DE = cosm->next.OmegaHat_DE/total;
 
-	if(HasReadState){
-		WriteState.ParticleMass = ReadState.ParticleMass; //FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
-		WriteState.RedshiftSpaceConversion =ReadState.RedshiftSpaceConversion;//FIXME: Another placeholder until the actual math is worked out
-		WriteState.LPTstatus = ReadState.LPTstatus;
-		WriteState.FullStepNumber = ReadState.FullStepNumber +1;
-	}
-	else{
-		WriteState.ParticleMass = 1.0/P.np; //FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
-		WriteState.RedshiftSpaceConversion = 1.0 ;//FIXME: Another placeholder until the actual math is worked out
-		WriteState.LPTstatus = 0; //TODO: Should this come from parameters?
-		WriteState.FullStepNumber = 0;
-	}
+	WriteState.ParticleMass = 1.0/P.np; //FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
+	WriteState.RedshiftSpaceConversion = 1.0 ;//FIXME: Another placeholder until the actual math is worked out
+	WriteState.LPTstatus = 0; //TODO: Should this come from parameters?
+	WriteState.FullStepNumber = 0;
 
 
 	WriteState.DeltaTime = cosm->next.t - cosm->current.t;
@@ -92,48 +84,54 @@ int main(int argc, char **argv) {
     stdlog.open("mylog");   // TODO:Need a real name for this.
     STDLOG("Read Parameter file %s\n", argv[1]);
 
-    bool HadReadState;
+    double a;
+    double da;
+    bool MakeIC; //True if we should make the initial state instead of doing a real timestep
     //Check if ReadStateDirectory is accessible, or if we should build a new state from the IC file
     if(access(P.ReadStateDirectory,0) ==-1){
     	if(AllowIC != 1){
-    		STDLOG("ERROR: Read State Directory ( %s ) is inaccessible and initial state creation is prohibited. Terminating.\n",P.ReadStateDirectory);
     		fprintf(stderr,"ERROR: Read State Directory ( %s ) is inaccessible and initial state creation is prohibited. Terminating.\n",P.ReadStateDirectory);
+    		QUIT("Read State Directory ( %s ) is inaccessible and initial state creation is prohibited. Terminating.\n",P.ReadStateDirectory);
+
     	}
     	else{
-    		HadReadState = false;
-    		//Make initial conditions
-
+    		STDLOG("ReadState not found... Generating initial State from initial conditions\n");
+    		ReadState.ParticleMass = 1.0/P.np; //FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
+    		ReadState.RedshiftSpaceConversion = 1.0 ;//FIXME: Another placeholder until the actual math is worked out
+    		ReadState.LPTstatus = P.LagrangianPTOrder;
+    		ReadState.FullStepNumber = -1;
+        	a = 1.0/1+(P.InitialRedshift);
+        	da = 0;
+        	MakeIC = true;
     	}
     }
     else{
     	CheckDirectoryExists(P.ReadStateDirectory);
     	readstate(ReadState,P.ReadStateDirectory);
     	STDLOG("Read ReadState from %s\n",P.ReadStateDirectory);
-    	HadReadState = true;
+    	a = ReadState.ScaleFactor;
+    	da = ChooseTimeStep();
+    	MakeIC = false;
     }
 
-
-    //Check if WriteStateDirectory exists, and fail if it does
-    assert(access(P.WriteStateDirectory,0) ==-1);
-
-    double a;
-
-    if(HadReadState) a = ReadState.ScaleFactor;
-    else a = 1.0/1+(P.InitialRedshift);
 
     cosm = InitializeCosmology(a);
     STDLOG("Initialized Cosmology at a= %4.2f\n",a);
 
-    double da = ChooseTimeStep();
-    STDLOG("Chose Time Step da = $5.4f\n",da);
-    BuildWriteState(HadReadState,da);
+    //Check if WriteStateDirectory exists, and fail if it does
+    if(access(P.WriteStateDirectory,0) !=-1) QUIT("WriteState exists and would be overwritten. Please move or delete it to continue\n");
+
+
+    STDLOG("Chose Time Step da = %5.4f\n",da);
+    BuildWriteState(da);
 
     Prologue(P,0);
 
-    timestep(); 
+    /*if (MakeIC) timestepIC();
+    else timestep();*/
 
     WallClockDirect.Stop();
-    ReportTimings();
+    //ReportTimings();
 
     Epilogue(P,0);
 
