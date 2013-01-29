@@ -83,6 +83,7 @@ int main(int argc, char **argv) {
     P.ReadParameters(argv[1],1);
     stdlog.open("mylog");   // TODO:Need a real name for this.
     STDLOG("Read Parameter file %s\n", argv[1]);
+    stdlog.flush();
 
     double a;
     double da;
@@ -100,7 +101,7 @@ int main(int argc, char **argv) {
     		ReadState.RedshiftSpaceConversion = 1.0 ;//FIXME: Another placeholder until the actual math is worked out
     		ReadState.LPTstatus = P.LagrangianPTOrder;
     		ReadState.FullStepNumber = -1;
-        	a = 1.0/1+(P.InitialRedshift);
+        	a = 1.0/(1+P.InitialRedshift);
         	da = 0;
         	MakeIC = true;
     	}
@@ -127,8 +128,8 @@ int main(int argc, char **argv) {
 
     Prologue(P,0);
 
-    /*if (MakeIC) timestepIC();
-    else timestep();*/
+    if (MakeIC) timestepIC();
+    else timestep();
 
     WallClockDirect.Stop();
     //ReportTimings();
