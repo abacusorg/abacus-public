@@ -4,6 +4,8 @@ CPPFLAGS = -I../util
 LEX = flex
 YACC = bison
 
+-include Makefile.local
+
 VPATH = ../util
 
 # the library name
