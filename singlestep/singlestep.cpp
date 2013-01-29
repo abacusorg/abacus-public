@@ -23,7 +23,7 @@ void BuildWriteState(double da){
 	//make the WriteState directory
 	char cmd[2048];
 	sprintf(cmd,"mkdir %s",P.WriteStateDirectory);
-
+	system(cmd);
 	//get the next timestep and build the cosmology for it
 	double nexta = cosm->current.a + da;
 	cosm->BuildEpoch(cosm->current, cosm->next, nexta);
