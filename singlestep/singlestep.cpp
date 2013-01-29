@@ -29,7 +29,10 @@ void BuildWriteState(double da){
 	cosm->BuildEpoch(cosm->current, cosm->next, nexta);
 
 	//fill in WriteState
-
+	WriteState.ParameterFileName = ReadState.ParameterFileName;
+	WriteState.np =P.np;
+	WriteState.cpd = P.cpd;
+	WriteState.order = P.order;
 	WriteState.ScaleFactor = cosm->next.a;
 	WriteState.Redshift = cosm->next.z;
 	WriteState.Time = cosm->next.t;                // In Gyr or Gyr/h, depending on hMpc flag
@@ -47,10 +50,10 @@ void BuildWriteState(double da){
 	WriteState.OmegaNow_K = cosm->next.OmegaHat_K/total;
 	WriteState.OmegaNow_DE = cosm->next.OmegaHat_DE/total;
 
-	WriteState.ParticleMass = 1.0/P.np; //FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
-	WriteState.RedshiftSpaceConversion = 1.0 ;//FIXME: Another placeholder until the actual math is worked out
-	WriteState.LPTstatus = 0; //TODO: Should this come from parameters?
-	WriteState.FullStepNumber = 0;
+	WriteState.ParticleMass = ReadState.ParticleMass; //FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
+	WriteState.RedshiftSpaceConversion = ReadState.RedshiftSpaceConversion ;//FIXME: Another placeholder until the actual math is worked out
+	WriteState.LPTstatus = ReadState.LPTstatus; //TODO: Should this come from parameters?
+	WriteState.FullStepNumber = ReadState.FullStepNumber+1;
 
 
 	WriteState.DeltaTime = cosm->next.t - cosm->current.t;
@@ -100,7 +103,8 @@ int main(int argc, char **argv) {
     		ReadState.ParticleMass = 1.0/P.np; //FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
     		ReadState.RedshiftSpaceConversion = 1.0 ;//FIXME: Another placeholder until the actual math is worked out
     		ReadState.LPTstatus = P.LagrangianPTOrder;
-    		ReadState.FullStepNumber = -1;
+    		ReadState.FullStepNumber = 0;
+    		sprintf(ReadState.ParameterFileName,"%s",argv[1]);
         	a = 1.0/(1+P.InitialRedshift);
         	da = 0;
         	MakeIC = true;
@@ -109,6 +113,13 @@ int main(int argc, char **argv) {
     else{
     	CheckDirectoryExists(P.ReadStateDirectory);
     	readstate(ReadState,P.ReadStateDirectory);
+
+    	//make sure read state and parameters are compatible
+    	assert(ReadState.order == P.order);
+    	assert(ReadState.cpd == P.cpd);
+    	assert(ReadState.np == P.np);
+
+
     	STDLOG("Read ReadState from %s\n",P.ReadStateDirectory);
     	a = ReadState.ScaleFactor;
     	da = ChooseTimeStep();
