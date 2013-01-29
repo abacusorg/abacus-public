@@ -200,7 +200,7 @@ void Cosmology::Deriv(double lna, double *vars, double *dvars) {
     // TODO: this is recomputing things that are done in Unpack()
     // and taking Omega values from Cosmology rather than Epoch.
     // For now, this is fine, but it is a bug risk in the future.
-    double a, a2, a3, OmX, thisw, E2, dlnH2dx;
+    double a, a2, a3, OmX, E2, dlnH2dx;
     a = exp(lna);
     a2 = a*a;
     a3 = a*a2;
