@@ -3,7 +3,7 @@ export CXXFLAGS = -O2 -std=c++0x -Wall -fopenmp  -I../avx -I../include -I../Mult
 #export FFTWLIB = -L/home/drdre/gccfftw3/lib 
 #export ASMLIB = ../Multipoles/C2R.a ../Multipoles/ETASM.o ../Multipoles/CMASM.o
 
--include Makefile.local
+-include ../Makefile.local
 
 singlestep: singlestep.o
 	$(CXX) $(CXXFLAGS) -o $@ $< -L../ParseHeader/ -lparseheader
