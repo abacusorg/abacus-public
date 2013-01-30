@@ -1,6 +1,6 @@
 CXX = gcc
-CXXFLAGS = 
-CPPFLAGS = -I../util
+CXXFLAGS = -g
+CPPFLAGS = -I../util 
 LEX = flex
 YACC = bison
 
@@ -20,7 +20,7 @@ HFILES = ParseHeader.hh  phDriver.hh  stringutil.hh phScanner.hh phParser.tab.hh
 	$(CXX) ${CXXFLAGS} $(CPPFLAGS) -c $< $*.o
 
 (%.o):%.cc;
-	$(CXX) ${CXFLAGS} $(CPPFLAGS) -c $< 
+	$(CXX) ${CXXFLAGS} $(CPPFLAGS) -c $< 
 	$(AR) rv $@ $%
 	#- @ $(RM) -f $%
 

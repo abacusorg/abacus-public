@@ -29,7 +29,8 @@ void BuildWriteState(double da){
 	cosm->BuildEpoch(cosm->current, cosm->next, nexta);
 
 	//fill in WriteState
-	sprintf(WriteState.ParameterFileName,ReadState.ParameterFileName);
+	// strcpy(WriteState.ParameterFileName, ReadState.ParameterFileName);
+	// We opt to fill in from the given Parameter Name rather than the original.
 	WriteState.np =P.np;
 	WriteState.cpd = P.cpd;
 	WriteState.order = P.order;
@@ -86,7 +87,7 @@ int main(int argc, char **argv) {
     P.ReadParameters(argv[1],1);
     stdlog.open("mylog");   // TODO:Need a real name for this.
     STDLOG("Read Parameter file %s\n", argv[1]);
-    stdlog.flush();
+    strcpy(WriteState.ParameterFileName, argv[1]);
 
     double a;
     double da;
