@@ -29,7 +29,7 @@ void BuildWriteState(double da){
 	cosm->BuildEpoch(cosm->current, cosm->next, nexta);
 
 	//fill in WriteState
-	WriteState.ParameterFileName = ReadState.ParameterFileName;
+	sprintf(WriteState.ParameterFileName,ReadState.ParameterFileName);
 	WriteState.np =P.np;
 	WriteState.cpd = P.cpd;
 	WriteState.order = P.order;
