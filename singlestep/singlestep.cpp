@@ -4,18 +4,22 @@
 
 
 Cosmology * InitializeCosmology(double ScaleFactor) {
+    // Be warned that all of the Cosmology routines quote time units
+    // by what is entered as H0.  The code wants to use H0=1 units.
+    // But P.H0 is defined to be in km/s/Mpc!
+    // If you want to compare any times or H(z), remember that H0=1.
     MyCosmology cosmo;
     cosmo.Omega_m = P.Omega_M;
     cosmo.Omega_K = P.Omega_K;
     cosmo.Omega_DE = P.Omega_DE;
-    cosmo.H0 = P.H0;
+    cosmo.H0 = 1.0;	
     cosmo.w0 = P.w0;
     cosmo.wa = P.wa;
     return new Cosmology(ScaleFactor,cosmo);
 }
 
 double ChooseTimeStep(){
-	return .01;
+	return ReadState.ScaleFactor*P.Dlna;
 }
 
 void BuildWriteState(double da){
