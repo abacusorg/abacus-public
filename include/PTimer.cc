@@ -1,6 +1,6 @@
 #ifndef INCLUDE_PTIMER
 #define INCLUDE_PTIMER
-
+#include <omp.h>
 
 class PTimer {
 public:
