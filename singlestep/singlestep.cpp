@@ -104,7 +104,9 @@ int main(int argc, char **argv) {
     		ReadState.ParticleMass = 1.0/P.np; //FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
     		ReadState.RedshiftSpaceConversion = 1.0 ;//FIXME: Another placeholder until the actual math is worked out
     		ReadState.LPTstatus = P.LagrangianPTOrder;
-    		ReadState.FullStepNumber = 0;
+    		ReadState.FullStepNumber = -1;  
+			// So that this number is the number of times
+			// forces have been computed.
     		sprintf(ReadState.ParameterFileName,"%s",argv[1]);
         	a = 1.0/(1+P.InitialRedshift);
         	da = 0;
