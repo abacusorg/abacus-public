@@ -81,9 +81,11 @@ int main(int argc, char **argv) {
     WallClockDirect.Clear();
     WallClockDirect.Start();
 
-    if(argc!=3) {
-        printf("usage: singlestep <parameter file name> <allow creation of initial conditions 1/0>\n");
-        assert(1==0);
+
+    if (argc!=3) {
+       // Can't use assertf() or QUIT here: stdlog not yet defined!
+       fprintf(stderr, "singlestep(): command line must have 3 parameters given, not %d.\nLegal usage: singlestep <parameter_file> <allow creation of initial conditions 1/0>\n", argc);
+       assert(0==99);
     }
     
     int AllowIC = atoi(argv[2]);
@@ -92,19 +94,20 @@ int main(int argc, char **argv) {
     stdlog.open("mylog");   // TODO:Need a real name for this.
     STDLOG("Read Parameter file %s\n", argv[1]);
     strcpy(WriteState.ParameterFileName, argv[1]);
+    STDLOG("AllowIC = %d\n", AllowIC);
 
     double a;
     double da;
     bool MakeIC; //True if we should make the initial state instead of doing a real timestep
     //Check if ReadStateDirectory is accessible, or if we should build a new state from the IC file
     if(access(P.ReadStateDirectory,0) ==-1){
+	STDLOG("Can't find ReadStateDirectory %s\n", P.ReadStateDirectory);
     	if(AllowIC != 1){
-    		fprintf(stderr,"ERROR: Read State Directory ( %s ) is inaccessible and initial state creation is prohibited. Terminating.\n",P.ReadStateDirectory);
     		QUIT("Read State Directory ( %s ) is inaccessible and initial state creation is prohibited. Terminating.\n",P.ReadStateDirectory);
 
     	}
     	else{
-    		STDLOG("ReadState not found... Generating initial State from initial conditions\n");
+    		STDLOG("Generating initial State from initial conditions\n");
     		ReadState.ParticleMass = 1.0/P.np; //FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
     		ReadState.RedshiftSpaceConversion = 1.0 ;//FIXME: Another placeholder until the actual math is worked out
     		ReadState.LPTstatus = P.LagrangianPTOrder;
@@ -119,13 +122,19 @@ int main(int argc, char **argv) {
     }
     else{
     	CheckDirectoryExists(P.ReadStateDirectory);
+	STDLOG("Reading ReadState\n");
     	readstate(ReadState,P.ReadStateDirectory);
 
     	//make sure read state and parameters are compatible
-    	assert(ReadState.order == P.order);
-    	assert(ReadState.cpd == P.cpd);
-    	assert(ReadState.np == P.np);
-
+    	assertf(ReadState.order == P.order, 
+		"ReadState and Parameter order do not match, %d != %d\n", 
+		ReadState.order, P.order);
+    	assertf(ReadState.cpd == P.cpd, 
+		"ReadState and Parameter cpd do not match, %d != %d\n", 
+		ReadState.cpd, P.cpd);
+    	assertf(ReadState.np == P.np, 
+		"ReadState and Parameter np do not match, %d != %d\n", 
+		ReadState.np, P.np);
 
     	STDLOG("Read ReadState from %s\n",P.ReadStateDirectory);
     	a = ReadState.ScaleFactor;
@@ -138,7 +147,8 @@ int main(int argc, char **argv) {
     STDLOG("Initialized Cosmology at a= %4.2f\n",a);
 
     //Check if WriteStateDirectory exists, and fail if it does
-    if(access(P.WriteStateDirectory,0) !=-1) QUIT("WriteState exists and would be overwritten. Please move or delete it to continue\n");
+    if(access(P.WriteStateDirectory,0) !=-1) 
+    	QUIT("WriteState exists and would be overwritten. Please move or delete it to continue.\n");
 
 
     STDLOG("Chose Time Step da = %5.4f\n",da);
