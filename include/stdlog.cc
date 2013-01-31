@@ -8,6 +8,11 @@
 
 // Please don't be bashful about writing to the Log!
 
+// Please try to assure (via any of these mechanisms) that failures
+// that could result from user errors or plausible dynamical events
+// generate errors in the Log.  Try to limit bald assert() statements 
+// to "these should never happen save by code bug" cases.
+
 #include "log.cc"
 std::ofstream stdlog;
 #define STDLOG(...) { LOG(stdlog,__VA_ARGS__); stdlog.flush(); }
