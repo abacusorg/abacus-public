@@ -46,6 +46,15 @@ public:
     	// in file units.  If ==0, then will default to BoxSize;
     float ICVelocity2Displacement;	// The conversion factor from file velocities
     	// to redshift-space comoving displacements (at the IC redshift!).
+    float NumSlabsInsertList;		
+         // The amount of space to allocate for the insert list, in units 
+	 // of np/cpd particles.  Set =0 to allocate the full np particles.
+	 // Default is 2.
+    float NumSlabsInsertListIC;		
+         // The amount of space to allocate for the insert list, in units 
+	 // of np/cpd particles.  Set =0 to allocate the full np particles.
+	 // This parameter applies only to the IC step.
+	 // Recommend either 4 or 0.
 
     char ReadStateDirectory[1024];  // Where the input State lives
     char WriteStateDirectory[1024]; // Where the output State lives
@@ -103,6 +112,11 @@ public:
     	installscalar("ICPositionRange",ICPositionRange,MUST_DEFINE);   // The initial condition file position convention
     	installscalar("ICVelocity2Displacement",ICVelocity2Displacement,MUST_DEFINE);   // The initial condition file velocity convention
 
+	NumSlabsInsertList = 2.0;
+    	installscalar("NumSlabsInsertList",NumSlabsInsertList,DONT_CARE);   
+	NumSlabsInsertListIC = 0.0;
+    	installscalar("NumSlabsInsertListIC",NumSlabsInsertListIC,DONT_CARE);   
+
     	installscalar("ReadStateDirectory",ReadStateDirectory,MUST_DEFINE);  // Where the input State lives
     	installscalar("WriteStateDirectory",WriteStateDirectory,MUST_DEFINE); // Where the output State lives
     	installscalar("PastStateDirectory",PastStateDirectory,MUST_DEFINE);  // Where the old input State lives
@@ -135,8 +149,8 @@ public:
     }
 
     void ReadParameters(char *paramaterfile, int icflag);
-    void DumpParameters(void);
-    void CheckVariablesPresent(void);
+    // void DumpParameters(void);
+    // void CheckVariablesPresent(void);
     void ValidateParameters(void);
     void register_vars();
 
@@ -149,6 +163,8 @@ void Parameters::ReadParameters(char *parameterfile, int icflag) {
 }
 
 void Parameters::ValidateParameters(void) {
+    // Warning: Can't use STDLOG(), QUIT(), or assertf() calls in here:
+    // We haven't opened the stdlog file yet!
 
     if(np<0) {
         fprintf(stderr,
@@ -164,12 +180,12 @@ void Parameters::ValidateParameters(void) {
     }
 
     if( !( (DirectNewtonRaphson == 1) ||  (DirectNewtonRaphson == 0) ) ) {
-        printf("DirectNewtonRapson must be 0 or 1\n");
+        fprintf(stderr,"DirectNewtonRapson must be 0 or 1\n");
         assert(1==0);
     }
 
     if( !( (DirectDoublePrecision == 1) || (DirectDoublePrecision==0) ) ) {
-        printf("DirectDoublePrecision must be 0 or 1 \n");
+        fprintf(stderr,"DirectDoublePrecision must be 0 or 1 \n");
         assert(1==0);
     }
 
@@ -234,6 +250,20 @@ void Parameters::ValidateParameters(void) {
         fprintf(stderr,
             "[ERROR] SofteningLength = %e has to be in (0,1)\n",
                 SofteningLength);
+        assert(1==0);
+    }
+
+    if (NumSlabsInsertList<0.0 || NumSlabsInsertList>cpd) {
+        fprintf(stderr,
+            "[ERROR] NumslabsInsertList = %e must be in range [0..CPD]\n",
+                NumSlabsInsertList);
+        assert(1==0);
+    }
+
+    if (NumSlabsInsertListIC<0.0 || NumSlabsInsertListIC>cpd) {
+        fprintf(stderr,
+            "[ERROR] NumslabsInsertListIC = %e must be in range [0..CPD]\n",
+                NumSlabsInsertListIC);
         assert(1==0);
     }
 

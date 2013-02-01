@@ -154,15 +154,15 @@ int main(int argc, char **argv) {
     STDLOG("Chose Time Step da = %5.4f\n",da);
     BuildWriteState(da);
 
-    Prologue(P,0);
+    Prologue(P,MakeIC);
 
-    if (MakeIC) timestepIC();
-    else timestep();
+    if (MakeIC)  timestepIC();
+	    else timestep();
 
     WallClockDirect.Stop();
     //ReportTimings();
 
-    Epilogue(P,0);
+    Epilogue(P,MakeIC);
 
     writestate(&WriteState,P.WriteStateDirectory);
     STDLOG("Wrote WriteState to %s\n",P.WriteStateDirectory);
