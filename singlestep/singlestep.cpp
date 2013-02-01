@@ -57,7 +57,7 @@ void BuildWriteState(double da){
 
 	WriteState.ParticleMass = ReadState.ParticleMass; //FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
 	WriteState.RedshiftSpaceConversion = ReadState.RedshiftSpaceConversion ;//FIXME: Another placeholder until the actual math is worked out
-	WriteState.LPTstatus = ReadState.LPTstatus; //TODO: Should this come from parameters?
+	WriteState.LPTstatus = ReadState.LPTstatus; //TODO: Depricated?
 	WriteState.FullStepNumber = ReadState.FullStepNumber+1;
 
 
