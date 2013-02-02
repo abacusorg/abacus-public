@@ -73,7 +73,9 @@ void BuildWriteState(double da){
 	WriteState.LastHalfEtaKick = cosm->KickFactor(cosm->search.a,WriteState.ScaleFactor-cosm->search.a);
 	WriteState.FirstHalfEtaKick = cosm->KickFactor(cosm->current.a,cosm->search.a-cosm->current.a);
 
-
+	// Some statistics to accumulate
+	WriteState.MaxCellSize = 0;
+	WriteState.StdDevCellSize = 0;
 }
 
 
@@ -124,6 +126,7 @@ int main(int argc, char **argv) {
     	CheckDirectoryExists(P.ReadStateDirectory);
 	STDLOG("Reading ReadState\n");
     	readstate(ReadState,P.ReadStateDirectory);
+	// Strange :: to stdout during this step.
 
     	//make sure read state and parameters are compatible
     	assertf(ReadState.order == P.order, 
@@ -164,6 +167,7 @@ int main(int argc, char **argv) {
 
     Epilogue(P,MakeIC);
 
+    WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
     writestate(&WriteState,P.WriteStateDirectory);
     STDLOG("Wrote WriteState to %s\n",P.WriteStateDirectory);
 
