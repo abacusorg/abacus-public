@@ -37,9 +37,9 @@ void BuildWriteState(double da){
 	strncpy(WriteState.CodeVersion, GITVERSION, 1024);
 #endif
 	time_t timet = time(0);
-    	string now = string(asctime(localtime(&timet)));
-    	sprintf(WriteState.RunTime,"%s",now.substr(0,now.length()-1).c_str()); 
-    	gethostname(WriteState.MachineName,1024); 
+    string now = string(asctime(localtime(&timet)));
+    sprintf(WriteState.RunTime,"%s",now.substr(0,now.length()-1).c_str());
+    gethostname(WriteState.MachineName,1024);
 	STDLOG("Host machine name is %s\n", WriteState.MachineName);
 
 	//fill in WriteState from the Parameter file

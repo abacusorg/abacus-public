@@ -1,5 +1,6 @@
 // TODO: Is it ok that this uses floats not doubles?
-
+// NB: When adding parameters, you should add an installscalar/vector line to the constructor, as well as a
+//     validation check in ValidateParameters
 #define FSYM "f"
 #define ESYM "e"
 #define ISYM "d"
@@ -15,6 +16,7 @@
 // This had been testing against 0, but that would exclude legal negative entries!
 // This code will crash any entries less than -1 million.
 #define NO_ENTRY -1237654
+#define STRUNDEF "NONE"
 #define TestVariablePresent(variable) if(variable<=NO_ENTRY+0.1) { \
      printf("Can't find paramter <"#variable"> in the parameter file\n");  \
      assert(1==0); }
@@ -59,6 +61,7 @@ public:
     char ReadStateDirectory[1024];  // Where the input State lives
     char WriteStateDirectory[1024]; // Where the output State lives
     char PastStateDirectory[1024];  // Where the old input State lives
+    char WorkingDirectory[1024];	// If Read/Write/Past not specified, where to put the states
     char LogFileDirectory[1024];
     char OutputDirectory[1024];     // Where the outputs go
     char BaseDistributionDirectory[1024];
@@ -117,11 +120,17 @@ public:
 	NumSlabsInsertListIC = 0.0;
     	installscalar("NumSlabsInsertListIC",NumSlabsInsertListIC,DONT_CARE);   
 
-    	installscalar("ReadStateDirectory",ReadStateDirectory,MUST_DEFINE);  // Where the input State lives
-    	installscalar("WriteStateDirectory",WriteStateDirectory,MUST_DEFINE); // Where the output State lives
-    	installscalar("PastStateDirectory",PastStateDirectory,MUST_DEFINE);  // Where the old input State lives
+    	sprintf(ReadStateDirectory,STRUNDEF);
+    	sprintf(WriteStateDirectory,STRUNDEF);
+    	sprintf(PastStateDirectory,STRUNDEF);
+    	sprintf(WorkingDirectory,STRUNDEF);
+    	installscalar("ReadStateDirectory",ReadStateDirectory,DONT_CARE);  // Where the input State lives
+    	installscalar("WriteStateDirectory",WriteStateDirectory,DONT_CARE); // Where the output State lives
+    	installscalar("PastStateDirectory",PastStateDirectory,DONT_CARE);  // Where the old input State lives
+    	installscalar("WorkingDirectory",WorkingDirectory,DONT_CARE);
     	installscalar("LogFileDirectory",LogFileDirectory,MUST_DEFINE);
     	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
+
     	installscalar("BaseDistributionDirectory",BaseDistributionDirectory,MUST_DEFINE);
 
     	installscalar("DumpFilePrefix",DumpFilePrefix,MUST_DEFINE);      // What the outputs are called
@@ -153,12 +162,28 @@ public:
     // void CheckVariablesPresent(void);
     void ValidateParameters(void);
     void register_vars();
-
+private:
+    void ProcessStateDirectories();
 };
+
+void Parameters::ProcessStateDirectories(){
+	if (strcmp(WorkingDirectory,STRUNDEF) !=0){
+		if ( strcmp(ReadStateDirectory,STRUNDEF)!=0 || strcmp(WriteStateDirectory,STRUNDEF)!=0 || strcmp(PastStateDirectory,STRUNDEF)!=0   ){
+			QUIT("If WorkingDirectory is defined, Read/Write/PastStateDirectory should be undefined. Terminating\n")
+		}
+		else{
+			sprintf(ReadStateDirectory,"%s/read",WorkingDirectory);
+			sprintf(WriteStateDirectory,"%s/write",WorkingDirectory);
+			sprintf(PastStateDirectory,"%s/past",WorkingDirectory);
+		}
+	}
+}
+
 
 void Parameters::ReadParameters(char *parameterfile, int icflag) {
     HeaderStream hs(parameterfile);
     ReadHeader(hs);
+    ProcessStateDirectories();
     if(!icflag) ValidateParameters();
 }
 
