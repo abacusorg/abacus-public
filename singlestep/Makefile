@@ -18,11 +18,6 @@ singlestep.o: singlestep.cpp
 	    -DGITVERSION=\"`git rev-parse HEAD`\" \
 	    -c -o $@ $< 
 
-gittest: gittest.c
-	$(CXX) \
-	    -DGITVERSION=\"`git rev-parse HEAD`\" \
-	    -o $@ $< \
-	
 clean:
 	rm -f *.o 
 
