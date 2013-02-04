@@ -23,21 +23,34 @@ double ChooseTimeStep(){
 }
 
 void BuildWriteState(double da){
+	STDLOG("Building WriteState for a step %f\n", da);
 
 	//make the WriteState directory
 	char cmd[2048];
 	sprintf(cmd,"mkdir %s",P.WriteStateDirectory);
 	system(cmd);
+	STDLOG("Making Write State at %s\n", P.WriteStateDirectory);
+
+	// Fill in the logistical reporting fields
+#ifdef GITVERSION	
+	STDLOG("Git Hash = %s\n", GITVERSION);
+	strncpy(WriteState.CodeVersion, GITVERSION, 1024);
+#endif
+	time_t timet = time(0);
+    	string now = string(asctime(localtime(&timet)));
+    	sprintf(WriteState.RunTime,"%s",now.substr(0,now.length()-1).c_str()); 
+    	gethostname(WriteState.MachineName,1024); 
+	STDLOG("Host machine name is %s\n", WriteState.MachineName);
+
+	//fill in WriteState from the Parameter file
+	WriteState.np =P.np;
+	WriteState.cpd = P.cpd;
+	WriteState.order = P.order;
+
 	//get the next timestep and build the cosmology for it
 	double nexta = cosm->current.a + da;
 	cosm->BuildEpoch(cosm->current, cosm->next, nexta);
 
-	//fill in WriteState
-	// strcpy(WriteState.ParameterFileName, ReadState.ParameterFileName);
-	// We opt to fill in from the given Parameter Name rather than the original.
-	WriteState.np =P.np;
-	WriteState.cpd = P.cpd;
-	WriteState.order = P.order;
 	WriteState.ScaleFactor = cosm->next.a;
 	WriteState.Redshift = cosm->next.z;
 	WriteState.Time = cosm->next.t;                // In Gyr or Gyr/h, depending on hMpc flag
@@ -147,14 +160,14 @@ int main(int argc, char **argv) {
 
 
     cosm = InitializeCosmology(a);
-    STDLOG("Initialized Cosmology at a= %4.2f\n",a);
+    STDLOG("Initialized Cosmology at a= %6.4f\n",a);
 
     //Check if WriteStateDirectory exists, and fail if it does
     if(access(P.WriteStateDirectory,0) !=-1) 
     	QUIT("WriteState exists and would be overwritten. Please move or delete it to continue.\n");
 
 
-    STDLOG("Chose Time Step da = %5.4f\n",da);
+    STDLOG("Chose Time Step da = %6.4f\n",da);
     BuildWriteState(da);
 
     Prologue(P,MakeIC);
