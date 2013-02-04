@@ -1,7 +1,9 @@
 export CXX = g++ 
-export CXXFLAGS = -g -O0 -fopenmp  -std=c++0x -Wall  -I../avx -I../include -I../Multipoles -I../singlestep  -DMAXCPD=8192 -I../ParseHeader
+export CXXFLAGS = -g -O0 -fopenmp -std=c++0x -Wall \
+	-DMAXCPD=8192 \
+	-I../Direct -I../include -I../Multipoles -I../ParseHeader
 
-#export FFTWLIB = -L/home/drdre/gccfftw3/lib 
+export FFTW = /Users/eisenste/fftw3
 #export ASMLIB = ../Multipoles/C2R.a ../Multipoles/ETASM.o ../Multipoles/CMASM.o
 
 -include ../Makefile.local
