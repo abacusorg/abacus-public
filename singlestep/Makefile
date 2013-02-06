@@ -1,6 +1,6 @@
 export CXX = g++ 
 export CXXFLAGS = -g -O0 -fopenmp -std=c++0x -Wall \
-	-DMAXCPD=8192 \
+	-DMAXCPD=8192 -DDOUBLE_PRECISION \
 	-I../Direct -I../include -I../Multipoles -I../ParseHeader -I../Convolution
 
 export FFTW = /Users/eisenste/fftw3
