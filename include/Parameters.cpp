@@ -91,6 +91,10 @@ public:
     // Could have microstepping instructions
     // Could have group finding or coevolution set instructions
 
+    int  NLightCones;
+    double LightConeOrigins[24];
+    char LightConeDirectory[1024];
+
 
     Parameters() {
 
