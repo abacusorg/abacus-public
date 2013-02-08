@@ -1,8 +1,10 @@
 export CXX = g++ 
-export CXXFLAGS = -g -O0 -fopenmp  -std=c++0x -Wall  -I../avx -I../include -I../Multipoles -I../singlestep  -DMAXCPD=8192 -I../ParseHeader
+export CXXFLAGS = -g -O0 -fopenmp -mavx -Wall \
+	-DMAXCPD=8192 -DDOUBLE_PRECISION \
+	-I../Direct -I../include -I../Multipoles -I../ParseHeader -I../Convolution
 
-#export FFTWLIB = -L/home/drdre/gccfftw3/lib 
-#export ASMLIB = ../Multipoles/C2R.a ../Multipoles/ETASM.o ../Multipoles/CMASM.o
+#export FFTW = /Users/eisenste/fftw3 -std=c++0x
+export ASMLIB = ../Multipoles/C2R.a ../Multipoles/ETASM.o ../Multipoles/CMASM.o
 
 -include ../Makefile.local
 
@@ -10,11 +12,11 @@ default: singlestep
 
 singlestep: singlestep.o
 	$(CXX) $(CXXFLAGS) \
-	    -o $@ $< \
-	    -L../ParseHeader/ -lparseheader -lgomp
+	    -o $@ $< $(ASMLIB)\
+	    -L../ParseHeader/ -lparseheader -lfftw3 -lgomp
 
 singlestep.o: singlestep.cpp
-	$(CXX) $(CXXFLAGS) \
+	$(CXX) $(CXXFLAGS) -I$(FFTW)/include \
 	    -DGITVERSION=\"`git rev-parse HEAD`\" \
 	    -c -o $@ $< 
 
