@@ -1,5 +1,5 @@
 export CXX = g++ 
-export CXXFLAGS = -g -O0 -fopenmp -mavx -Wall \
+export CXXFLAGS = -g -O0 -fopenmp -mavx -Wall -std=c++0x\
 	-DMAXCPD=8192 -DDOUBLE_PRECISION \
 	-I../Direct -I../include -I../Multipoles -I../ParseHeader -I../Convolution
 
