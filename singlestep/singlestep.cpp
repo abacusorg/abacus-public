@@ -87,7 +87,7 @@ void BuildWriteState(double da){
 	WriteState.FirstHalfEtaKick = cosm->KickFactor(cosm->current.a,cosm->search.a-cosm->current.a);
 
 	// Some statistics to accumulate
-	WriteState.MaxCellSize = 0;
+	WriteState.MaxCellSize = ReadState.MaxCellSize;
 	WriteState.StdDevCellSize = 0;
 }
 
