@@ -25,12 +25,6 @@ double ChooseTimeStep(){
 void BuildWriteState(double da){
 	STDLOG("Building WriteState for a step %f\n", da);
 
-	//make the WriteState directory
-	char cmd[2048];
-	sprintf(cmd,"mkdir %s",P.WriteStateDirectory);
-	system(cmd);
-	STDLOG("Making Write State at %s\n", P.WriteStateDirectory);
-
 	// Fill in the logistical reporting fields
 #ifdef GITVERSION	
 	STDLOG("Git Hash = %s\n", GITVERSION);
@@ -162,8 +156,10 @@ int main(int argc, char **argv) {
     cosm = InitializeCosmology(a);
     STDLOG("Initialized Cosmology at a= %6.4f\n",a);
 
-    //Check if WriteStateDirectory exists, and fail if it does
-    if(access(P.WriteStateDirectory,0) !=-1) 
+    //Check if WriteStateDirectory/state exists, and fail if it does
+    char wstatefn[1050];
+    sprintf(wstatefn,"%s/state",P.WriteStateDirectory);
+    if(access(wstatefn,0) !=-1)
     	QUIT("WriteState exists and would be overwritten. Please move or delete it to continue.\n");
 
 
