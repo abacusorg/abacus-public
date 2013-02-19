@@ -95,6 +95,9 @@ public:
     double LightConeOrigins[24];
     char LightConeDirectory[1024];
 
+    int ForcesOnly; //If 1, do not drift or kick
+    int ForceOutputDebug; // If 1, output near and far forces seperately. Should only be set if ForcesOnly is also set
+
 
     Parameters() {
 
@@ -159,6 +162,13 @@ public:
     	installscalar("GroupRadius",GroupRadius,MUST_DEFINE);        // Maximum size of a group, in units of cell sizes
     	installscalar("Eta",Eta,MUST_DEFINE);         // Time-step parameter based on accelerations
     	installscalar("Dlna",Dlna,MUST_DEFINE);        // Maximum time step in d(ln a)
+
+    	ForcesOnly = 0;
+    	installscalar("ForcesOnly",ForcesOnly, DONT_CARE);
+    	ForceOutputDebug = 0;
+    	installscalar("ForceOutputDebug",ForceOutputDebug,DONT_CARE);
+
+
     }
 
     void ReadParameters(char *paramaterfile, int icflag);
@@ -332,6 +342,11 @@ void Parameters::ValidateParameters(void) {
 
         CheckFileExists(dfn);
     }
+
+    if (ForceOutputDebug && !ForcesOnly){
+    	QUIT("ForcesOutputDebug set to on, but ForcesOnly was not set. This is not supported.\n")
+    }
+
 
 
 }
