@@ -87,6 +87,7 @@ void BuildWriteState(double da){
 
 
 int main(int argc, char **argv) {
+	feenableexcept(FE_INVALID | FE_DIVBYZERO);
     WallClockDirect.Clear();
     WallClockDirect.Start();
 
