@@ -150,6 +150,10 @@ int main(int argc, char **argv) {
     	STDLOG("Read ReadState from %s\n",P.ReadStateDirectory);
     	a = ReadState.ScaleFactor;
     	da = ChooseTimeStep();
+	if (P.ForcesOnly==1) {
+	    STDLOG("ForcesOnly option invoked; setting time step to 0.\n");
+	    da = 0;
+	}
     	MakeIC = false;
     }
 
