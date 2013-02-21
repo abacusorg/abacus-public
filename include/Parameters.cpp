@@ -95,6 +95,7 @@ public:
     double LightConeOrigins[24];
     char LightConeDirectory[1024];
 
+    int StoreForces; // If 1, store the accelerations
     int ForcesOnly; //If 1, do not drift or kick
     int ForceOutputDebug; // If 1, output near and far forces seperately. Should only be set if ForcesOnly is also set
 
@@ -163,6 +164,8 @@ public:
     	installscalar("Eta",Eta,MUST_DEFINE);         // Time-step parameter based on accelerations
     	installscalar("Dlna",Dlna,MUST_DEFINE);        // Maximum time step in d(ln a)
 
+    	StoreForces = 1;
+    	installscalar("StoreForces",StoreForces, DONT_CARE);
     	ForcesOnly = 0;
     	installscalar("ForcesOnly",ForcesOnly, DONT_CARE);
     	ForceOutputDebug = 0;
@@ -343,6 +346,9 @@ void Parameters::ValidateParameters(void) {
         CheckFileExists(dfn);
     }
 
+    if (ForceOutputDebug && !StoreForces){
+    	QUIT("ForcesOutputDebug set to on, but StoreForces was not set. This is not supported.\n")
+    }
     if (ForceOutputDebug && !ForcesOnly){
     	QUIT("ForcesOutputDebug set to on, but ForcesOnly was not set. This is not supported.\n")
     }
