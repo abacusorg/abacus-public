@@ -271,6 +271,7 @@ double Cosmology::t2a(double t) {
         n++;
         //    } while(fabs(f)/t>1.0e-15 || fabs(da)>1e-13);
     } while(fabs(da)>1e-14);
+    BuildEpoch(search,search,a);
     return a;
 
 }
