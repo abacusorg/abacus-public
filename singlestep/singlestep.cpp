@@ -23,7 +23,7 @@ double ChooseTimeStep(){
 }
 
 void BuildWriteState(double da){
-	STDLOG("Building WriteState for a step %f\n", da);
+	STDLOG("Building WriteState for a step from a=%f by da=%f\n", cosm->current.a, da);
 
 	// Fill in the logistical reporting fields
 #ifdef GITVERSION	
@@ -43,6 +43,7 @@ void BuildWriteState(double da){
 
 	//get the next timestep and build the cosmology for it
 	double nexta = cosm->current.a + da;
+	STDLOG("Next scale factor is %f\n", nexta);
 	cosm->BuildEpoch(cosm->current, cosm->next, nexta);
 
 	WriteState.ScaleFactor = cosm->next.a;
@@ -75,6 +76,7 @@ void BuildWriteState(double da){
 	// Might also compute the Scale Factor for the halfway time, since
 	// we'll need that.
 	cosm->t2a(0.5*(cosm->next.t+cosm->current.t));
+	STDLOG("Scale factor halfway in between is %f\n", cosm->search.a);
 	// cosm->search now has the midpoint epoch.
 	WriteState.ScaleFactorHalf = cosm->search.a;
 	WriteState.LastHalfEtaKick = cosm->KickFactor(cosm->search.a,WriteState.ScaleFactor-cosm->search.a);
