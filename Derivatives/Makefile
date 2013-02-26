@@ -1,11 +1,14 @@
-CXX = g++ 
-CXXFLAGS = -O2 -fopenmp -mavx -fopenmp -I../include 
+#CXX = g++ 
+CXXFLAGS = -O2 -openmp -mavx -I../include 
 
-#FFTW = /Users/eisenste/fftw3
-
+CPPFLAGS = -I../include
 -include ../Makefile.local
 
 CreateDerivatives: CreateDerivatives.cpp
-	$(CXX) $(CXXFLAGS) \
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) \
 	-o $@ $< \
 	-lfftw3 
+
+
+clean: 
+	rm -f CreateDerivatives *.o

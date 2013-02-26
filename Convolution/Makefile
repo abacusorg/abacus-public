@@ -1,12 +1,12 @@
-export CXX = g++
-export CXXFLAGS = -mavx -O3 -fopenmp -I../include -I../Multipoles -DMAXCPD=81922 -fopenmp
+#export CXX = g++
+#export CXXFLAGS = -mavx -O3 -fopenmp -DMAXCPD=81922 -fopenmp
 
-#FFTW = /Users/eisenste/fftw3
+CPPFLAGS = -I../include -I../Multipoles
 
 -include ../Makefile.local
 
 ConvolutionDriver: ConvolutionDriver.cpp
-	$(CXX) $(CXXFLAGS) \
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) \
 	-o $@ $< \
 	-L$(FFTW)/lib -lfftw3 
 

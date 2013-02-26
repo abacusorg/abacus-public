@@ -1,0 +1,67 @@
+export CXX = icc
+export CXXFLAGS = -mavx -O3 -openmp -DMAXCPD=8192 -DDOUBLE_PRECISION -DGITVERSION=\"`git rev-parse HEAD`\"
+
+CPPFLAGS = -I Direct -I include -I Derivatives -I Multipoles -I Convolution -I ParseHeader
+CC_SRC = singlestep.cpp
+
+
+-include ../Makefile.local
+
+LIBS = -LParseHeader -lparseheader -liomp5 -lfftw3
+
+GEN_HDRS = externalmultipoles.h externaltaylor.h
+GEN_OBJ = CMASM.o ETASM.o C2R.a
+
+VPATH = singlestep : Direct : Multipoles : Convolution : Derivatives : python/clibs
+
+CLIBS = libpermute.so
+
+all: singlestep CreateDerivatives ConvolutionDriver $(CLIBS)
+
+singlestep: singlestep.o $(GEN_OBJ) libparseheader.a
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(addprefix Multipoles/,$(GEN_OBJ)) $(LIBS)
+
+
+%.o: %.cpp | generated_headers
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -c -o $@ $<
+	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
+	
+CMASM.o: generateCartesianMultipolesASM.c
+	cd Multipoles && $(MAKE) $@
+
+
+ETASM.o: generateCartesianTaylorASM.c
+	cd Multipoles && $(MAKE) $@
+
+
+C2R.a: CreateCartesian2Reduced.cpp
+	cd Multipoles && $(MAKE) $@
+	
+$(GEN_HDRS):
+	cd Multipoles && $(MAKE) externaltaylor.h
+	
+generated_headers: $(GEN_HDRS)
+
+libparseheader.a:
+	cd ParseHeader && $(MAKE) libparseheader.a
+	
+clean:
+	cd Multipoles && $(MAKE) $@
+	cd ParseHeader && $(MAKE) $@
+	cd Derivatives && $(MAKE) $@
+	cd Convolution && $(MAKE) $@
+	cd python/clibs && $(MAKE) $@
+	-$(RM) *.o *.d *~
+
+CreateDerivatives: CreateDerivatives.cpp
+	cd Derivatives && $(MAKE) $@
+
+ConvolutionDriver: ConvolutionDriver.cpp
+	cd Convolution && $(MAKE) $@
+	
+libpermute.so: perm.cpp
+	cd python/clibs && $(MAKE) $@
+	
+.PHONY: clean generated_headers all
+
+-include $(CC_SRC:.cpp=.d)
