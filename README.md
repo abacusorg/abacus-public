@@ -7,31 +7,25 @@ abacus
 
 Code directories:
 
-* abacus -- The primary abacus timestepping and convolve code
+* singlestep -- The primary abacus timestepping code
 
-* derivatives -- Code to generate derivatives
+* python -- Drivers for the code
 
-* multipoles -- Code to generate the ASM for the multipoles & Taylors
+* Test -- Code for small test cases.
 
-* parseheader -- For the ParseHeader utility
+* Direct -- Code for the direct forces
 
-* setup -- Code to turn external particle sets into legal initial conditions.
+* Convolution -- Code to compute the multipoles, Taylors, and convolutions
 
-* spiral -- Code to generate spiral initial conditions, run the
-tests, and analyze outputs.
+* Derivatives -- Code to generate derivatives
 
-* test -- Code for other small test cases.
+* Multipoles -- Code to generate the ASM for the multipoles & Taylors
 
-* util -- Small utility functions (timing, FFT, threevectors, files)
+* Parseheader -- For the ParseHeader utility
+
+* include -- Small utility functions (timing, FFT, threevectors, files)
 
 * zeldovich -- The Zel'dovich initial condition generator
-
-* bin -- Where executables should go
-
-Do we need a separate include directory?  Perhaps not: we're tending
-to build the code in one inline format anyways, so how are includes
-different than source files?  Plus we have the util directory for little
-snippets.
 
 ------
 
@@ -42,3 +36,29 @@ Documentation directories:
 * notes -- Musings about the algorithms, computers, etc.
 
 * papers -- Journal & conference papers (make subdirectories for each one)
+
+------
+
+Installation:
+
+# Get the $ABACUS shell variable set
+cd [top-level directory]
+export ABACUS=`pwd`
+
+# The code is set up for gcc, except for python/clibs, which is icc.
+cd Derivatives;   make;   
+./CreateDerivatives 15 16 2 8
+cd ..
+cd Multipoles;    make;   cd ..
+cd ParseHeader;   make;   cd ..
+cd singlestep;    make;   cd ..
+cd python/clibs;  make;   cd ../..
+
+# Now can run the Ewald test
+cd Tests/Ewald
+./runewaldtest.py
+
+
+
+
+
