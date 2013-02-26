@@ -128,7 +128,6 @@ void OutofCoreConvolution::ReadDiskDerivatives(int z) {
     s = sizeof(double);
     s *= rml;
     s *= CompressedMultipoleLengthXY;
-    printf("CompressedMultipoleLengthXY = %d \n", CompressedMultipoleLengthXY );
     RD_RDD->BlockingRead( fn, (char *) &(CompressedDerivatives[0]), s, 0 );
     ReadDerivativesBytes += s;
     ReadDerivatives.Stop();

@@ -1,9 +1,6 @@
 // TODO: Is it ok that this uses floats not doubles?
 // NB: When adding parameters, you should add an installscalar/vector line to the constructor, as well as a
 //     validation check in ValidateParameters
-#define FSYM "f"
-#define ESYM "e"
-#define ISYM "d"
 #define MAX_LINE_LENGTH 1024
 
 #define QUOTEME(X) #X
@@ -26,6 +23,8 @@
 class Parameters: public ParseHeader {
 public:
     
+	char RunName[1024]; //What to call this run
+
     int np;
     int cpd;
     int order;
@@ -143,7 +142,7 @@ public:
 
     	installscalar("DumpFilePrefix",DumpFilePrefix,MUST_DEFINE);      // What the outputs are called
     	installscalar("GroupFilePrefix",GroupFilePrefix,MUST_DEFINE);     // What the group outputs are called
-    	installscalar("LightFilePrefix",LightFilePrefix,MUST_DEFINE);
+    	installscalar("LightConeDirectory",LightConeDirectory,MUST_DEFINE); //Where the lightcones go. Generally will be the same as the Output directory
 
     	installvector("Dumpz",Dumpz,1024,1,MUST_DEFINE);
     	installscalar("nDumpz",nDumpz,MUST_DEFINE);
@@ -170,6 +169,7 @@ public:
     	installscalar("ForcesOnly",ForcesOnly, DONT_CARE);
     	ForceOutputDebug = 0;
     	installscalar("ForceOutputDebug",ForceOutputDebug,DONT_CARE);
+    	installscalar("RunName",RunName,MUST_DEFINE);
 
 
     }

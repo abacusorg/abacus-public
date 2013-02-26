@@ -19,7 +19,7 @@ OutputDirectory, "./out"
 BaseDistributionDirectory, "/abacus"
 DumpFilePrefix, "dump"
 GroupFilePrefix, "group"
-LightFilePrefix, "light"
+LightConeDirectory, "./out"
 Dumpz, 0
 nDumpz, 1
 H0, 70
@@ -37,3 +37,4 @@ Eta, 0.1
 Dlna, 0.0534
 ForcesOnly, 0
 ForceOutputDebug, 0
+RunName, "Test"

@@ -103,7 +103,9 @@ int main(int argc, char **argv) {
     int AllowIC = atoi(argv[2]);
 
     P.ReadParameters(argv[1],1);
-    stdlog.open("mylog");   // TODO:Need a real name for this.
+    char logfn[1050];
+    sprintf(logfn,"%s/lastrun.log", P.LogFileDirectory);
+    stdlog.open(logfn);
     STDLOG("Read Parameter file %s\n", argv[1]);
     strcpy(WriteState.ParameterFileName, argv[1]);
     STDLOG("AllowIC = %d\n", AllowIC);

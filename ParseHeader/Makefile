@@ -1,4 +1,4 @@
-CXX = gcc
+#CXX = gcc
 CXXFLAGS = -g
 CPPFLAGS = -I../util 
 LEX = flex
