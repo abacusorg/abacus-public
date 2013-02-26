@@ -143,6 +143,7 @@ public:
     	installscalar("DumpFilePrefix",DumpFilePrefix,MUST_DEFINE);      // What the outputs are called
     	installscalar("GroupFilePrefix",GroupFilePrefix,MUST_DEFINE);     // What the group outputs are called
     	installscalar("LightConeDirectory",LightConeDirectory,MUST_DEFINE); //Where the lightcones go. Generally will be the same as the Output directory
+    	installscalar("NLightCones",NLightCones,DONT_CARE); //if not set, we assume 0
 
     	installvector("Dumpz",Dumpz,1024,1,MUST_DEFINE);
     	installscalar("nDumpz",nDumpz,MUST_DEFINE);

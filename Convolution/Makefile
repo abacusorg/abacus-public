@@ -1,5 +1,5 @@
 #export CXX = g++
-#export CXXFLAGS = -mavx -O3 -fopenmp -DMAXCPD=81922 -fopenmp
+CXXFLAGS = -mavx -O3 -openmp -DMAXCPD=81922
 
 CPPFLAGS = -I../include -I../Multipoles
 

@@ -1,5 +1,5 @@
 export CXX = icc
-export CXXFLAGS = -mavx -O3 -openmp -DMAXCPD=8192 -DDOUBLE_PRECISION -DGITVERSION=\"`git rev-parse HEAD`\"
+export CXXFLAGS = -mavx -g3 -O0 -openmp -DMAXCPD=8192 -DDOUBLE_PRECISION -DGITVERSION=\"`git rev-parse HEAD`\"
 
 CPPFLAGS = -I Direct -I include -I Derivatives -I Multipoles -I Convolution -I ParseHeader
 CC_SRC = singlestep.cpp
