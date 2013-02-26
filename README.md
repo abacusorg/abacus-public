@@ -3,6 +3,8 @@ abacus
 
 abacus
 
+See installation instructions in INSTALL.
+
 ------
 
 Code directories:
@@ -38,27 +40,3 @@ Documentation directories:
 * papers -- Journal & conference papers (make subdirectories for each one)
 
 ------
-
-Installation:
-
-# Get the $ABACUS shell variable set
-cd [top-level directory]
-export ABACUS=`pwd`
-
-# The code is set up for gcc, except for python/clibs, which is icc.
-cd Derivatives;   make;   
-./CreateDerivatives 15 16 2 8
-cd ..
-cd Multipoles;    make;   cd ..
-cd ParseHeader;   make;   cd ..
-cd singlestep;    make;   cd ..
-cd python/clibs;  make;   cd ../..
-
-# Now can run the Ewald test
-cd Tests/Ewald
-./runewaldtest.py
-
-
-
-
-
