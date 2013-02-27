@@ -16,7 +16,7 @@ VPATH = singlestep : Direct : Multipoles : Convolution : Derivatives : python/cl
 
 CLIBS = libpermute.so liblightcones.so
 
-all: singlestep CreateDerivatives ConvolutionDriver $(CLIBS)
+all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS)
 
 singlestep: singlestep.o $(GEN_OBJ) libparseheader.a
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(addprefix Multipoles/,$(GEN_OBJ)) $(LIBS)
@@ -79,6 +79,6 @@ liblightcones.so: lc.cpp
 zeldovich:zeldovich.cpp
 	cd zeldovich && $(MAKE) $@
 	
-.PHONY: clean distclean generated_headers all
+.PHONY: clean distclean generated_headers all zeldovich
 
 -include $(CC_SRC:.cpp=.d)
