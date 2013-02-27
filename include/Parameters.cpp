@@ -47,6 +47,7 @@ public:
     int np;
     int cpd;
     int order;
+    int ppd; //Exact only if np is a perfect cube
 
     int NearFieldRadius;    // Radius of cells in the near-field
     float SofteningLength; // Softening length in units of interparticle spacing
@@ -190,6 +191,9 @@ public:
     	ForceOutputDebug = 0;
     	installscalar("ForceOutputDebug",ForceOutputDebug,DONT_CARE);
     	installscalar("RunName",RunName,MUST_DEFINE);
+
+    	double npcr = pow(np,1.0/3.0);
+    	ppd = (long long int) floor(npcr+0.5);
 
 
     }
