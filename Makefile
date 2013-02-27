@@ -14,7 +14,7 @@ GEN_OBJ = CMASM.o ETASM.o C2R.a
 
 VPATH = singlestep : Direct : Multipoles : Convolution : Derivatives : python/clibs
 
-CLIBS = libpermute.so
+CLIBS = libpermute.so liblightcones.so
 
 all: singlestep CreateDerivatives ConvolutionDriver $(CLIBS)
 
@@ -60,6 +60,9 @@ ConvolutionDriver: ConvolutionDriver.cpp
 	cd Convolution && $(MAKE) $@
 	
 libpermute.so: perm.cpp
+	cd python/clibs && $(MAKE) $@
+	
+liblightcones.so: lc.cpp
 	cd python/clibs && $(MAKE) $@
 	
 .PHONY: clean generated_headers all
