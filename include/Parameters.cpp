@@ -194,6 +194,7 @@ public:
 
     	double npcr = pow(np,1.0/3.0);
     	ppd = (long long int) floor(npcr+0.5);
+    	assert(ppd >0);
 
 
     }
