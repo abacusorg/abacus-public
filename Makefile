@@ -53,6 +53,15 @@ clean:
 	cd python/clibs && $(MAKE) $@
 	-$(RM) *.o *.d *~
 
+distclean:
+	cd Multipoles && $(MAKE) $@
+	cd ParseHeader && $(MAKE) $@
+	cd Derivatives && $(MAKE) $@
+	cd Convolution && $(MAKE) $@
+	cd python/clibs && $(MAKE) $@
+	-$(RM) *.o *.d *~ a.out
+
+
 CreateDerivatives: CreateDerivatives.cpp
 	cd Derivatives && $(MAKE) $@
 
@@ -65,6 +74,6 @@ libpermute.so: perm.cpp
 liblightcones.so: lc.cpp
 	cd python/clibs && $(MAKE) $@
 	
-.PHONY: clean generated_headers all
+.PHONY: clean distclean generated_headers all
 
 -include $(CC_SRC:.cpp=.d)

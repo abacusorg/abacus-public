@@ -11,4 +11,7 @@ CreateDerivatives: CreateDerivatives.cpp
 
 
 clean: 
+	rm -f *.o
+	
+distclean: 
 	rm -f CreateDerivatives *.o
