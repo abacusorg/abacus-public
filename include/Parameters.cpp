@@ -1,8 +1,20 @@
-// TODO: Is it ok that this uses floats not doubles?
-// NB: When adding parameters, you should add an installscalar/vector line to the constructor, as well as a
-//     validation check in ValidateParameters
-#define MAX_LINE_LENGTH 1024
+/* Parameters.cpp
 
+The Parameters class contains the time-independent global variables
+for the simulation.  These get read from an ASCII parameter file
+via ParseHeader.
+
+NB: When adding parameters, you should add:
+
+1) a variable to the class definition,
+2) an installscalar/vector line to the constructor, 
+3) (optional) a validation check in ValidateParameters.
+
+*/
+
+
+
+#ifdef OLD_STUFF
 #define QUOTEME(X) #X
 #define SCANLINE(X, XSYM)   ret += sscanf(line, QUOTEME(X  =  %XSYM),   &X);
 #define STRSCANLINE(X)      ret += sscanf(line, QUOTEME(X  =  %s), X);
@@ -13,10 +25,17 @@
 // This had been testing against 0, but that would exclude legal negative entries!
 // This code will crash any entries less than -1 million.
 #define NO_ENTRY -1237654
-#define STRUNDEF "NONE"
 #define TestVariablePresent(variable) if(variable<=NO_ENTRY+0.1) { \
      printf("Can't find paramter <"#variable"> in the parameter file\n");  \
      assert(1==0); }
+#endif // OLD_STUFF
+
+
+
+
+// TODO: Is it ok that this uses floats not doubles?
+#define MAX_LINE_LENGTH 1024
+#define STRUNDEF "NONE"
 
 #include "ParseHeader.hh"
 
