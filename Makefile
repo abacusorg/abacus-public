@@ -12,7 +12,7 @@ LIBS = -LParseHeader -lparseheader -liomp5 -lfftw3
 GEN_HDRS = externalmultipoles.h externaltaylor.h
 GEN_OBJ = CMASM.o ETASM.o C2R.a
 
-VPATH = singlestep : Direct : Multipoles : Convolution : Derivatives : python/clibs
+VPATH = singlestep : Direct : Multipoles : Convolution : Derivatives : python/clibs : zeldovich
 
 CLIBS = libpermute.so liblightcones.so
 
@@ -51,6 +51,7 @@ clean:
 	cd Derivatives && $(MAKE) $@
 	cd Convolution && $(MAKE) $@
 	cd python/clibs && $(MAKE) $@
+	cd zeldovich && $(MAKE) $@
 	-$(RM) *.o *.d *~
 
 distclean:
@@ -59,6 +60,7 @@ distclean:
 	cd Derivatives && $(MAKE) $@
 	cd Convolution && $(MAKE) $@
 	cd python/clibs && $(MAKE) $@
+	cd zeldovich && $(MAKE) $@
 	-$(RM) *.o *.d *~ a.out
 
 
@@ -73,6 +75,9 @@ libpermute.so: perm.cpp
 	
 liblightcones.so: lc.cpp
 	cd python/clibs && $(MAKE) $@
+	
+zeldovich:zeldovich.cpp
+	cd zeldovich && $(MAKE) $@
 	
 .PHONY: clean distclean generated_headers all
 
