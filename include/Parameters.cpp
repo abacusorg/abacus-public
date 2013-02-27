@@ -192,9 +192,7 @@ public:
     	installscalar("ForceOutputDebug",ForceOutputDebug,DONT_CARE);
     	installscalar("RunName",RunName,MUST_DEFINE);
 
-    	double npcr = pow(np,1.0/3.0);
-    	ppd = (long long int) floor(npcr+0.5);
-    	assert(ppd >0);
+
 
 
     }
@@ -227,6 +225,9 @@ void Parameters::ReadParameters(char *parameterfile, int icflag) {
     ReadHeader(hs);
     ProcessStateDirectories();
     if(!icflag) ValidateParameters();
+    double npcr = pow(np,1.0/3.0);
+    ppd = (long long int) floor(npcr+0.5);
+    assertf(ppd >0);
 }
 
 void Parameters::ValidateParameters(void) {
