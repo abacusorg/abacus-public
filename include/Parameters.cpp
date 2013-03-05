@@ -142,9 +142,9 @@ public:
     	installscalar("ICPositionRange",ICPositionRange,MUST_DEFINE);   // The initial condition file position convention
     	installscalar("ICVelocity2Displacement",ICVelocity2Displacement,MUST_DEFINE);   // The initial condition file velocity convention
 
-	NumSlabsInsertList = 2.0;
+    	NumSlabsInsertList = 2.0;
     	installscalar("NumSlabsInsertList",NumSlabsInsertList,DONT_CARE);   
-	NumSlabsInsertListIC = 0.0;
+    	NumSlabsInsertListIC = 0.0;
     	installscalar("NumSlabsInsertListIC",NumSlabsInsertListIC,DONT_CARE);   
 
     	sprintf(ReadStateDirectory,STRUNDEF);
