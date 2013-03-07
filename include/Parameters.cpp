@@ -85,12 +85,12 @@ public:
     char OutputDirectory[1024];     // Where the outputs go
     char BaseDistributionDirectory[1024];
 
-    char DumpFilePrefix[1024];      // What the outputs are called
+    char TimeSliceFilePrefix[1024];      // What the outputs are called
     char GroupFilePrefix[1024];     // What the group outputs are called
     char LightFilePrefix[1024];
 
-    float Dumpz[1024];
-    int nDumpz;
+    float TimeSlicez[1024];
+    int nTimeSlice;
 
     float H0;          // The Hubble constant in km/s/Mpc
     float Omega_M;
@@ -160,13 +160,13 @@ public:
 
     	installscalar("BaseDistributionDirectory",BaseDistributionDirectory,MUST_DEFINE);
 
-    	installscalar("DumpFilePrefix",DumpFilePrefix,MUST_DEFINE);      // What the outputs are called
+    	installscalar("TimeSliceFilePrefix",TimeSliceFilePrefix,MUST_DEFINE);      // What the outputs are called
     	installscalar("GroupFilePrefix",GroupFilePrefix,MUST_DEFINE);     // What the group outputs are called
     	installscalar("LightConeDirectory",LightConeDirectory,MUST_DEFINE); //Where the lightcones go. Generally will be the same as the Output directory
     	installscalar("NLightCones",NLightCones,DONT_CARE); //if not set, we assume 0
 
-    	installvector("Dumpz",Dumpz,1024,1,MUST_DEFINE);
-    	installscalar("nDumpz",nDumpz,MUST_DEFINE);
+    	installvector("TimeSlicez",TimeSlicez,1024,1,MUST_DEFINE);
+    	installscalar("nTimeSlice",nTimeSlice,MUST_DEFINE);
 
     	installscalar("H0", H0, MUST_DEFINE);
     	installscalar("Omega_M", Omega_M, MUST_DEFINE);
@@ -198,8 +198,6 @@ public:
     }
 
     void ReadParameters(char *paramaterfile, int icflag);
-    // void DumpParameters(void);
-    // void CheckVariablesPresent(void);
     void ValidateParameters(void);
     void register_vars();
 private:
