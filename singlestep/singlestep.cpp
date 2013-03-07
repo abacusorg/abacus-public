@@ -185,6 +185,13 @@ int main(int argc, char **argv) {
 
     Epilogue(P,MakeIC);
 
+
+
+    char timingfn[1050];
+    sprintf(timingfn,"%s/lastrun.steptiming", P.LogFileDirectory);
+    FILE * timingfile = fopen(timingfn,"w");
+    ReportTimings(timingfile);
+    STDLOG("Wrote Timing File to %s\n",timingfn);
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
     writestate(&WriteState,P.WriteStateDirectory);
     STDLOG("Wrote WriteState to %s\n",P.WriteStateDirectory);
