@@ -31,9 +31,9 @@ void BuildWriteState(double da){
 	strncpy(WriteState.CodeVersion, GITVERSION, 1024);
 #endif
 	time_t timet = time(0);
-    string now = string(asctime(localtime(&timet)));
-    sprintf(WriteState.RunTime,"%s",now.substr(0,now.length()-1).c_str());
-    gethostname(WriteState.MachineName,1024);
+	string now = string(asctime(localtime(&timet)));
+	sprintf(WriteState.RunTime,"%s",now.substr(0,now.length()-1).c_str());
+	gethostname(WriteState.MachineName,1024);
 	STDLOG("Host machine name is %s\n", WriteState.MachineName);
 
 	//fill in WriteState from the Parameter file
@@ -81,6 +81,8 @@ void BuildWriteState(double da){
 	WriteState.ScaleFactorHalf = cosm->search.a;
 	WriteState.LastHalfEtaKick = cosm->KickFactor(cosm->search.a,WriteState.ScaleFactor-cosm->search.a);
 	WriteState.FirstHalfEtaKick = cosm->KickFactor(cosm->current.a,cosm->search.a-cosm->current.a);
+	WriteState.DeltaEtaDrift = cosm->next.etaD - cosm->current.etaD;
+		// WriteState.etaD - ReadState.etaD;
 
 	// Some statistics to accumulate
 	WriteState.MaxCellSize = ReadState.MaxCellSize;
