@@ -81,8 +81,14 @@ void BuildWriteState(double da){
 	WriteState.ScaleFactorHalf = cosm->search.a;
 	WriteState.LastHalfEtaKick = cosm->KickFactor(cosm->search.a,WriteState.ScaleFactor-cosm->search.a);
 	WriteState.FirstHalfEtaKick = cosm->KickFactor(cosm->current.a,cosm->search.a-cosm->current.a);
-	WriteState.DeltaEtaDrift = cosm->next.etaD - cosm->current.etaD;
+	WriteState.DeltaEtaDrift = cosm->DriftFactor(cosm->current.a, cosm->next.a-cosm->current.a);
+		// cosm->next.etaD - cosm->current.etaD;
 		// WriteState.etaD - ReadState.etaD;
+
+	// Just truncate some underflow cases
+	if (fabs(WriteState.DeltaEtaDrift)   <1e-14*fabs(cosm->current.etaD)) WriteState.DeltaEtaDrift = 0.;
+	if (fabs(WriteState.FirstHalfEtaKick)<1e-14*fabs(cosm->current.etaK)) WriteState.FirstHalfEtaKick = 0.;
+	if (fabs(WriteState.LastHalfEtaKick) <1e-14*fabs(cosm->current.etaK)) WriteState.LastHalfEtaKick = 0.;
 
 	// Some statistics to accumulate
 	WriteState.MaxCellSize = ReadState.MaxCellSize;
