@@ -98,8 +98,8 @@ void BuildWriteState(double da){
 
 int main(int argc, char **argv) {
 	feenableexcept(FE_INVALID | FE_DIVBYZERO);
-    WallClockDirect.Clear();
     WallClockDirect.Start();
+    SingleStepSetup.Start();
 
 
     if (argc!=3) {
@@ -183,23 +183,26 @@ int main(int argc, char **argv) {
     STDLOG("Chose Time Step da = %6.4f\n",da);
     BuildWriteState(da);
 
+    SingleStepSetup.Stop();
+
     Prologue(P,MakeIC);
 
     if (MakeIC)  timestepIC();
 	    else timestep();
 
+    // The timings need to proceed the epilogue, because they need to look inside 
+    // some instances of classes.
     WallClockDirect.Stop();
-    //ReportTimings();
-
-    Epilogue(P,MakeIC);
-
-
-
     char timingfn[1050];
     sprintf(timingfn,"%s/lastrun.steptiming", P.LogFileDirectory);
     FILE * timingfile = fopen(timingfn,"w");
     ReportTimings(timingfile);
     STDLOG("Wrote Timing File to %s\n",timingfn);
+
+    // The epilogue contains some tests of success.
+    Epilogue(P,MakeIC);
+
+    // The state should be written last, since that officially signals success.
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
     writestate(&WriteState,P.WriteStateDirectory);
     STDLOG("Wrote WriteState to %s\n",P.WriteStateDirectory);
