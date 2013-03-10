@@ -1,0 +1,7 @@
+#!/bin/bash
+
+greparg=$1
+shift 1
+#echo ${greparg}
+#echo $@
+phheader $@ | perl -ne "@F = split(/=/); print if \$F[0]=~/$greparg/i;"
