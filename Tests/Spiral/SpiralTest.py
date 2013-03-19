@@ -53,7 +53,8 @@ def run(basedir = "NONE"):
     ainitial = 0.1
     across = 0.16666666
     
-    params = GenParam.makeInput(basedir+"spiral.par", defFilename = "../test.def", strict = False, NP = n1d**3,InitialConditionsDirectory = basedir +"/read/")
+    params = GenParam.makeInput(basedir+"spiral.par", defFilename = "../test.def", strict = False, NP = n1d**3,InitialConditionsDirectory = basedir +"/read/",
+                                nTimeSlice = 2, TimeSlicez = [2,0], SofteningLength = .1/n1d,InitialRedshift = 1/ainitial -1, StoreForces = 0,CPD = 35)
     os.makedirs(params["InitialConditionsDirectory"])
     #make the spiral initial conditions
     subprocess.call([abacuspath+"/Tests/Spiral/makespiralics",str(n1d), str(ainitial),str(across),
@@ -64,6 +65,11 @@ def run(basedir = "NONE"):
         f = open(params["InitialConditionsDirectory"]+"/ic_"+str(i),"wb")
         f.close()
     
+    #run the problem
+    os.chdir(basedir)
+    abacus.run("spiral.par",1000,1)
+    
+    #plot the results and check the answer
 
 
 if __name__ == '__main__':

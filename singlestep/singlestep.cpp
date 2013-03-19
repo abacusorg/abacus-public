@@ -1,6 +1,6 @@
 #include "proepi.cpp"
 
-
+#define BIGNUM 1000000.0
 
 
 Cosmology * InitializeCosmology(double ScaleFactor) {
@@ -19,7 +19,53 @@ Cosmology * InitializeCosmology(double ScaleFactor) {
 }
 
 double ChooseTimeStep(){
-	return ReadState.ScaleFactor*P.Dlna;
+	//choose the maximum allowable timestep
+	//we start with the absolute maximum timestep allowed by the parameter file
+
+	MyCosmology cosmo;
+	cosmo.Omega_m = P.Omega_M;
+	cosmo.Omega_K = P.Omega_K;
+	cosmo.Omega_DE = P.Omega_DE;
+	cosmo.H0 = 1.0;
+	cosmo.w0 = P.w0;
+	cosmo.wa = P.wa;
+	cosm =  new Cosmology(ReadState.ScaleFactor,cosmo);
+
+	double da_max = ReadState.ScaleFactor*P.Dlna;
+
+	//first we calculate the maximum timesteps in time units, then choose the minimum and convert to da
+
+	//limit imposed by acceleration
+	double dt_acc = P.Eta * sqrt(P.SofteningLength/ReadState.MaxAcceleration);
+	if (isnan(dt_acc)) dt_acc = BIGNUM;
+	//particles should move only one cell per timestep
+	double dt_v = 1.0/P.cpd *1.0/(ReadState.MaxVelocity);
+	if (isnan(dt_v)) dt_v = BIGNUM;
+	if (ReadState.MaxAcceleration <= 0) dt_acc = 10000000.0;
+	//limit imposed by acceleration on velocity
+	/*double dt_vona = .5 * ReadState.MinVrmsOnAmax;
+	if (isnan(dt_vona)) dt_vona = BIGNUM;
+	*/
+	double dt_vona  = BIGNUM;
+	printf("dt_acc: %f \t dt_v: %f \t dt_vona: %f \n ", dt_acc,dt_v,dt_vona);
+	double dtmin = min(min(dt_acc,dt_v),dt_vona);
+	double da;
+	if (dtmin > 100000.0) da = BIGNUM;
+	else da = cosm->t2a(ReadState.Time+dtmin) - ReadState.ScaleFactor; //TODO: This is essentially from Marc's code. Is it kosher?
+
+	da = min(da,da_max);
+
+	for (int i = 0; i < P.nTimeSlice; i ++){
+		double tsa = 1.0/(1+P.TimeSlicez[i]);
+		if (ReadState.ScaleFactor < tsa && ReadState.ScaleFactor + da > tsa){
+			da = tsa - ReadState.ScaleFactor;
+			break;
+		}
+	}
+
+	assertf(da > 0,"Maximum da:%f was not > 0\n",da);
+	delete cosm;
+	return da;
 }
 
 void BuildWriteState(double da){
@@ -97,7 +143,7 @@ void BuildWriteState(double da){
 
 
 int main(int argc, char **argv) {
-	feenableexcept(FE_INVALID | FE_DIVBYZERO);
+
     WallClockDirect.Start();
     SingleStepSetup.Start();
 
@@ -122,7 +168,11 @@ int main(int argc, char **argv) {
     double da;
     bool MakeIC; //True if we should make the initial state instead of doing a real timestep
     //Check if ReadStateDirectory is accessible, or if we should build a new state from the IC file
-    if(access(P.ReadStateDirectory,0) ==-1){
+
+    char rstatefn[1050];
+    sprintf(rstatefn,"%s/state",P.ReadStateDirectory);
+
+    if(access(rstatefn,0) ==-1){
 	STDLOG("Can't find ReadStateDirectory %s\n", P.ReadStateDirectory);
     	if(AllowIC != 1){
     		QUIT("Read State Directory ( %s ) is inaccessible and initial state creation is prohibited. Terminating.\n",P.ReadStateDirectory);
@@ -168,7 +218,7 @@ int main(int argc, char **argv) {
 	}
     	MakeIC = false;
     }
-
+    feenableexcept(FE_INVALID | FE_DIVBYZERO);
 
     cosm = InitializeCosmology(a);
     STDLOG("Initialized Cosmology at a= %6.4f\n",a);
@@ -206,6 +256,7 @@ int main(int argc, char **argv) {
 
     // The epilogue contains some tests of success.
     Epilogue(P,MakeIC);
+    delete cosm;
 
     // The state should be written last, since that officially signals success.
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
