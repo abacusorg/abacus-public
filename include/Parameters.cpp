@@ -44,7 +44,7 @@ public:
     
 	char RunName[1024]; //What to call this run
 
-    int np;
+    long long int np;
     int cpd;
     int order;
     int ppd; //Exact only if np is a perfect cube
