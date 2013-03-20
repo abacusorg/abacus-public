@@ -22,7 +22,7 @@ GroupFilePrefix, "group"
 LightConeDirectory, "./out"
 TimeSlicez, 0
 nTimeSlice, 1
-H0, 70
+H0, 50
 Omega_M,  1	
 Omega_DE,  0
 Omega_K,  0
