@@ -1,0 +1,391 @@
+\documentclass[11pt,preprint]{aastex}
+
+\newcommand{\param}[2]{\medskip\noindent{\bf #1:} (#2) }
+\newcommand{\todo}[1]{{\bf TODO: #1}}
+\newcommand{\future}[1]{{\it Future: #1}}
+
+\begin{document}
+\title{ABACUS User Guide}
+\author{\today}
+
+\section{Introduction to Abacus}
+
+Abacus is a cosmology N-body code intended for large cosmological
+simulations with high-force accuracy.  It utilizes fast near-field
+computations using GPUs and AVX instructions, as well as a novel
+method for solving the far field.
+
+The Abacus computation is organized into a 3-dimensional grid of
+cells.  Particles belong to cells.  The near-field force is computed
+within a cell and its near neighbors.  Set finding also happens
+within a fixed maximum number of cells.  The far-field force is
+computed from the multipole moments of particles in the cells.
+
+Abacus is built to run out-of-core, so that the particles are read
+only once per full time step.  The computation occurs through a
+pipeline that takes a 1-dimensional sweep through the simulation
+volume.  The plane of cells perpendicular to the sweep direction
+are called a slab.  This is the $x$ direction in the simulation
+units.
+
+Abacus evolves through a series of states.  Every full time step
+reads a state, evolves the particles, and then writes a new state.
+The states are the restart files.  Because of the leapfrog time
+evolution, the states are generally not time-synchronous between
+the positions and velocities: the velocities will require an
+additional kick by the listed kick factor to be synchronous with
+the positions.
+
+Because of this leapfrogging, the state files are generally not
+intended for long-term storage of the outputs.  Instead, Abacus
+generates output files during full steps.  Time slice outputs will
+occur at the redshift of the ``read'' state (so the full time step
+will be shortened so as not to overshoot the requested time slice).
+Light cone outputs are interpolated to the time when the past light
+cone from an observer crosses the particle or the coevolution set.
+
+Within a full step, microstepping may occur.  This means that
+particles in higher density regions with shorter dynamical times
+will use shorter leapfrog steps.  However, to avoid needing to load
+the particles more than once from disk, the regions requiring finer
+time steps are identified on the fly so that all of the microsteps
+occur at once.  The regions requiring mutually finer time resolution
+of the forces are known as coevolution sets.  By definition, all
+particles outside of a given coevolution set have forces that are
+sufficiently constant over the full step as to be applied with only
+the top-level leapfrog.  Note that one can always pick a short
+enough full time-step to satisfy one's accuracy criterion for this.
+Inside the coevolution set, a variety of time steps may be used.
+
+In addition to their utility in time stepping, co-evolution sets
+also define the maximum boundaries of our halo and subhalo finding.
+In other words, halo finding never extends beyond the set boundary.
+Finally, co-evolution sets are cohesive for light-cone outputs: we
+will always output a snapshot of a co-evolution set at the ``read''
+state epoch, but shifting the center of mass position and velocity
+drift to the exact epoch when the past light cone sweeps by.
+
+Coevolution sets are found by performing friends-of-friends with a
+fairly large linking length.
+
+\section{Coevolution Sets and Group Finding}
+
+More on co-evolution sets.
+
+\section{Light cone Outputs}
+
+Describe light cones here.
+
+
+\section{Parameter file description}
+
+The parameter file holds values that should be constant throughout the
+simulation.  In principle, one could change the file when restarting
+from a state, but behavior is not guaranteed.  Still, this could be
+useful for adjusting output parameters, for example.
+
+Values that change with time as the simulation evolves or that are 
+calculated by the abacus code or cosmology module are in the state
+file.
+
+Both headers are incorporated into output file headers. 
+
+\subsection{Basic simulation parameters}
+
+\param{NP}{long long int} The number of particles in the simulation.
+\todo{np needs to be a long long int.  Does ParseHeader support this?}
+\todo{Code currently also has `ppd'.  Do we want to support this?}
+
+\param{CPD}{int} The cells per dimension.  This number must be odd.
+
+\param{BoxSize}{float} The size of the box in physical units.
+
+\param{hMpc}{int} =1 if we're using Mpc/h units.  =0 if Mpc units.
+
+\param{Eta}{float} Time-step parameter based on accelerations.
+\todo{Match Doug's choice of name.}
+
+\param{Dlna}{float} Maximum $\Delta(\ln a)$ allowed for a full step.
+\todo{Match Doug's choice of name.}
+
+\param{BaseDistributionDirectory}{string} The directory head of the
+executable distribution.  \todo{Do we need this?}
+
+\param{FinalRedshift}{float} The final redshift of the simulation.
+If not supplied, then we use the lowest redshift TimeSlice output.
+However, one might want to run further to complete light cones.
+
+\subsection{Set and Group Finding}
+
+\param{GroupRadius}{int} The maximum size of a coevolution set, 
+in units of cells (i.e., BoxSize/cpd).
+
+
+\subsection{Memory Allocation and other Execution Parameters}
+
+\param{NumSlabsInsertList}{float} The amount of space to allocate for
+the insert list.  This is supplied as a multiple (not necessarily integral)
+of np/cpd particles, i.e., the average number of particles per slab.
+The default is 2.
+
+\param{NumSlabsInsertListIC}{float} The amount of space to allocate
+for the insert list in the initial ingestion of IC particles.  Here
+we typically have much less memory required elsewhere in the code.  
+Again, this is supplied as a multiple of np/cpd particles, i.e., the
+average number of particles per slab.  Choosing 0 causes this parameter
+to be set to cpd, so that the insert list can contain all of the particles
+in the simulation.  This is appropriate for small problems where the
+particles aren't sorted into slabs in the IC file.  For large problems,
+one should use at least 4.  Default is 4.
+
+
+\subsection{Far-field parameters}
+
+\param{order}{int} The multipole order to use for the far-field.  Typical
+choices would be 8 or 16.  One really should not use low orders such
+as 2!
+
+\param{DerivativeExpansionRadius}{int} \todo{Don't know what this is.}
+
+\param{MAXConvolutionRAMMB}{int} \todo{Don't know what this is.  Should
+we really be phrasing our memory limit this way?  Perhaps we should be
+saying how much memory we have available and let the driver code figure
+out how much to use for this.}
+
+\param{ConvolutionCacheSizeMB}{int} \todo{See previous.}
+
+\param{DerivativesDirectory}{string} The directory where the derivative
+files are stored.  One expects to reuse derivatives between
+simulations, rather than regenerating them each time.  The derivative
+files are about 1/16 the size of the multipoles, so one would like
+the I/O rate on this device to be 1/32 of the rate of the device
+for the multipoles and Taylors.  Because the derivative files are
+not slab-ordered, the latency issue is much reduced.  So in many
+cases, the derivatives can be stored on a normal hard disk.  
+\todo{Is this true?}
+
+
+\subsection{Near-field parameters}
+
+\param{NearFieldRadius}{int} The radius of cells to be solved in the
+near-field.  Radius 1 means that each cell is acted on by itself and
+26 neighbors.  Radius 2 means 124 neighbors.  One really should not
+use radius 0!
+
+\param{SofteningLength}{float} The softening length used in the near-field
+force.  
+
+\param{DirectNewtonRaphson}{int} Choice of 1 means that we use a
+Newton-Raphson step to improve the precision of the forces.
+\todo{Is this really a choice that we want to offer?}
+
+\param{DirectDoublePrecision}{int} \todo{This seems ill-posed to me.  We're
+choosing the precision when we compile the program.  What use case would
+have us storing positions in float but then computing in double, or 
+vice versa?  Is there value in demanding that the parameter file meet
+the compile settings?  Or should the compile setting simply be reported
+in the state file?}
+
+\future{We will eventually have parameters for choices of softening model, 
+trees, etc.}
+
+
+\subsection{State Directories}
+
+\param{WorkingDirectory}{string} Unless countermanded by the choices below,
+this is where the states will be created.  This should be a very fast disk.
+
+\param{ReadStateDirectory}{string} The name of the read state directory.
+Starting the name with + indicates a path from the WorkingDirectory.
+This defaults to ``+read''.
+
+\param{WriteStateDirectory}{string} The name of the write state directory.
+Starting the name with + indicates a path from the WorkingDirectory.
+This defaults to ``+write''.
+
+\param{PastStateDirectory}{string} The name of the past state directory.
+Starting the name with + indicates a path from the WorkingDirectory.
+This defaults to ``+past''.
+
+
+\subsection{Initial Conditions}
+
+\param{InitialRedshift}{float} The initial redshift of the simulation.
+
+\param{LagrangianPTOrder}{int} Instruction for how to use the initial 
+Zel'dovich dispacements.  =1 for Zel'dovich, =2 for 2LPT, =3 for 3LPT.
+The higher-order Lagrangian Perturbation Theory is performed by using
+Abacus to compute forces, which then get scaled to the LPT displacements
+at the given redshift.  See doc/lpt.pdf for more detail.
+
+\param{InitialConditionsDirectory}{string} The directory where the 
+initial condition files will be found.  This defaults to ReadStateDirectory.
+
+These files must be named ``IC\_0000'', ``IC\_0001'', etc.  The number
+indicates the slab number; file $N-1$, $N$, and $N+1$ will be read
+before slab $N$ is finished.  File $N=0$ is the first file read;
+slab 1 is the first slab finished.  This means that the particles
+in slab $N$ must appear no later than file $N+1$.  However, if the
+particles appear in a much earlier file, then the insert list will
+become very large.  This is acceptable if the simulation fits entirely
+into memory.  For large sims, we expect that the particles will be 
+sorted into slabs, with no more than $\pm 1$ tolerance.  This tolerance
+is likely sufficient, e.g., for Zel'dovich displacements, so that particles
+can be placed in slab files by their grid position rather than their
+true initial position.
+
+\param{ICFormat}{string} The format of the IC files. \todo{List these.}
+
+\param{ICPositionRange}{float} The size of the periodic box for the 
+IC positions, in the units supplied in the IC file.  For example, 
+ICPositionRange of 1 means that the positions are all 0..1.  A choice
+of 0 causes this parameter to be set equal to BoxSize.
+
+\param{ICVelocity2Displacement}{float} The conversion factor by which
+to multiply the supplied velocities so as to convert them to redshift-space
+comoving displacements, in the same units as the supplied positions (see
+ICPositionRange) and at the initial redshift.
+
+
+\subsection{Output Parameters}
+
+\param{RunName}{string} The name of the simulation, intended to be unique
+for each simulation.  This is used both as the primary path of the directory
+where output will occur, but also in filenames.
+
+\param{OutputDirectory}{string} The directory where the outputs are to
+be placed.  This defaults to WorkingDirectory.  Outputs will actually
+be placed in a subdirectory of OutputDirectory named RunName, so that
+multiple simulations of the same set can share the same OutputDirectory.
+
+\param{LogFileDirectory}{string} The directory where the logs are to be
+stored.  Starting the name with + indicates a path from 
+OutputDirectory/RunName/.  The default is ``+log".  Each time step
+generates several log files.
+
+\param{GroupFilePrefix}{string} Each time step may generate 
+group-finding files.  
+\todo{What is the purpose of this renaming?  I think that we want
+these to be based on RunName.}
+
+
+\param{nTimeSlice}{int} The number of time slice outputs.
+
+\param{TimeSlicez}{float vector} The redshift of the requested time slices.
+Note that although we enter redshifts, we will probably store the files
+by scale factor, using \%5.3f.  
+\todo{Might prefer a name like TimeSliceRedshift}.
+
+\param{TimeSliceFilePrefix}{string} 
+\todo{What is the purpose of this renaming?  I think that we want
+these to be based on RunName.}
+\todo{Do we need some directory parameter?}
+
+
+\param{NLightCones}{int} The number of light cones.  We support up to 8.
+
+\param{LightConeOrigins}{float vector} The observation point
+of the light cones, in triples $(x,y,z)$.  Up to eight light cones 
+can be supplied.  The position need not be inside the primary 
+wrapping of the box.  The position should be in the same unit
+as BoxSize.
+
+\param{LightConeDirectory}{string} The directory where the light
+cones should get written.  Starting the name with + indicates a path
+from OutputDirectory/RunName.  The default is ``+lc''.  The number
+of the light cone 0..7 will get postpended to the name.  Inside
+this directory, the outputs will be further divided with one subdirectory
+per time step.
+
+\param{LightFilePrefix}{string} The prefix of the file name for the
+light cone.  The default is RunName.  This will get postpended by
+lcN.stepNNNN.slabNNNN, where the $N$ are the obvious numbers.
+
+
+
+\subsection{Cosmological parameters}
+
+\param{H0}{float} The Hubble constant in km/s/Mpc
+
+\param{Omega\_M}{float} At $z=0$.
+
+\param{Omega\_DE}{float} At $z=0$.
+
+\param{Omega\_K}{float} At $z=0$.
+
+\param{w0}{float} Dark energy equation of state $w(z) = w_0 + (1-a)*w_a$.
+
+\param{wa}{float} See above.
+
+
+\subsection{Debugging and Special Cases}
+
+\param{StoreForces}{int} If 1, store the accelerations in the OutputDirectory.
+
+\param{ForceOutputDebug}{int} If 1, output near and far forces
+seperately.  The time step is set to zero, so there is no other
+action and other outputs (e.g., group finding) may be garbled.
+Should only be set if StoreForces is not set.
+
+\param{ForcesOnly}{int} If 1, do not drift or kick.
+\todo{I think this is defunct and should be removed.}
+
+
+\end{document}
+\section{State parameters}
+
+The State file contains information that is computed by the Abacus code,
+particularly values that are epoch-dependent.
+
+int np;
+int cpd;
+int order;
+
+char ParameterFileName[1024];   // State must contain a pointer to the Parameter file
+char CodeVersion[1024];
+char RunTime[1024];
+char MachineName[1024];
+
+double ScaleFactor;
+int FullStepNumber; // Counting the full steps
+
+
+double ParticleMass;    // In Msun or Msun/h, depending on hMpc flag
+double RedshiftSpaceConversion; // What to multiply the velocity outputs
+// by to get to km/s
+
+double LPTstatus;   // =0 if we're evolving normally; // =1..3 if we're deriving LPT initial conditions
+double LastHalfEtaKick; // What one should kick by to get the velocities to synchronous
+double ScaleFactorHalf;
+double FirstHalfEtaKick;
+double DeltaEtaDrift;
+
+// Derived quantities for the cosmology
+double Redshift;
+double Time;        // In Gyr or Gyr/h, depending on hMpc flag
+double etaK;
+double etaD;
+double Growth;
+double Growth_on_a;
+double f_growth;
+double w;
+double HubbleNow;   // In km/s/Mpc
+double Htime;       // Time*H(z)
+double OmegaNow_m;
+double OmegaNow_K;
+double OmegaNow_DE;
+
+// More description of the last time step
+double DeltaTime;
+double DeltaScaleFactor;
+double DeltaRedshift;
+
+// Some statistics about the particle distribution that might be useful.
+float MaxVelocity;
+float MaxAcceleration;
+float MinVrmsOnAmax;
+int MaxCellSize;
+double StdDevCellSize;
+
+
+\end{document}
