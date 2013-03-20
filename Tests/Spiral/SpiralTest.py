@@ -49,17 +49,17 @@ def run(basedir = "NONE"):
         
     kvec = (1,0,0)
     phase = (np.pi,0,0)
-    n1d = 128
+    n1d = 64
     ainitial = 0.1
     across = 0.16666666
-    sf = .1/n1d
+    sf = .05/n1d
     
     
     #check if we are done
     if not os.path.exists(basedir+"write/state"):
     
         params = GenParam.makeInput(basedir+"spiral.par", defFilename = "../test.def", strict = False, NP = n1d**3,InitialConditionsDirectory = basedir +"/read/",
-                                    nTimeSlice = 2, TimeSlicez = [1,0], SofteningLength = sf,InitialRedshift = 1/ainitial -1, StoreForces = 0,CPD = 55,BoxSize = 17.3205080756888)
+                                    nTimeSlice = 1, TimeSlicez = 0, SofteningLength = sf,InitialRedshift = 1/ainitial -1, StoreForces = 0,CPD = 15,BoxSize = 17.3205080756888, Eta = 0.05,Dlna = 0.05,DerivativesDirectory = tmpdir+"/Derivatives/")
         os.makedirs(params["InitialConditionsDirectory"])
         #make the spiral initial conditions
         subprocess.call([abacuspath+"/Tests/Spiral/makespiralics",str(n1d), str(ainitial),str(across),
@@ -80,8 +80,7 @@ def run(basedir = "NONE"):
     laststep = writestate.FullStepNumber
     
     timeslice = "final.ts"
-    if not os.path.exists(timeslice):
-        os.system("cat out/timeslicestep%.4d* > %s"%(laststep,timeslice))
+    os.system("cat out/timeslicestep%.4d* > %s"%(laststep,timeslice))
     
     data = np.fromfile(timeslice,dtype = np.float64)
     
@@ -92,6 +91,8 @@ def run(basedir = "NONE"):
     print xv.shape
     p.plot(xv[:,0],xv[:,3],".")
     p.plot(analytic[:,0], analytic[:,1])
+    p.xlabel("X")
+    p.ylabel("Vx")
     p.show()
 
 

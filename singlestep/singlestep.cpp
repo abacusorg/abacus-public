@@ -63,7 +63,7 @@ double ChooseTimeStep(){
 		}
 	}
 
-	assertf(da > .0000001,"Maximum da:%f was not > 0. dt_acc: %f \t dt_v: %f \n",da,dt_acc,dt_v);
+	assertf(da >= 0,"Maximum da:%f was not > 0. dt_acc: %f \t dt_v: %f \n",da,dt_acc,dt_v);
 	delete cosm;
 	return da;
 }
