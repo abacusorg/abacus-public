@@ -262,7 +262,7 @@ double Cosmology::t2a(double t) {
     do {
         BuildEpoch(search,search,a);
         f = search.t - t;
-	// STDLOG("t2a(): a=%12.8f   t=%12.8f\n", a, search.t);
+	// STDLOG(1,"t2a(): a=%12.8f   t=%12.8f\n", a, search.t);
         BuildEpoch(search,search,a-dela);
         fp = search.t;
         BuildEpoch(search,search,a+dela);
@@ -270,7 +270,7 @@ double Cosmology::t2a(double t) {
         da = - f/fp;
         a += da;
         n++;
-	// STDLOG("t2a(): a=%12.8f    da=%12.4e\n", a, da);
+	// STDLOG(1,"t2a(): a=%12.8f    da=%12.4e\n", a, da);
         //    } while(fabs(f)/t>1.0e-15 || fabs(da)>1e-13);
     } while(fabs(da)>1e-14);
     BuildEpoch(next,search,a);

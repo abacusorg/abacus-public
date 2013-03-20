@@ -69,18 +69,18 @@ double ChooseTimeStep(){
 }
 
 void BuildWriteState(double da){
-	STDLOG("Building WriteState for a step from a=%f by da=%f\n", cosm->current.a, da);
+	STDLOG(1,"Building WriteState for a step from a=%f by da=%f\n", cosm->current.a, da);
 
 	// Fill in the logistical reporting fields
 #ifdef GITVERSION	
-	STDLOG("Git Hash = %s\n", GITVERSION);
+	STDLOG(1,"Git Hash = %s\n", GITVERSION);
 	strncpy(WriteState.CodeVersion, GITVERSION, 1024);
 #endif
 	time_t timet = time(0);
 	string now = string(asctime(localtime(&timet)));
 	sprintf(WriteState.RunTime,"%s",now.substr(0,now.length()-1).c_str());
 	gethostname(WriteState.MachineName,1024);
-	STDLOG("Host machine name is %s\n", WriteState.MachineName);
+	STDLOG(1,"Host machine name is %s\n", WriteState.MachineName);
 
 	//fill in WriteState from the Parameter file
 	WriteState.np =P.np;
@@ -89,7 +89,7 @@ void BuildWriteState(double da){
 
 	//get the next timestep and build the cosmology for it
 	double nexta = cosm->current.a + da;
-	STDLOG("Next scale factor is %f\n", nexta);
+	STDLOG(1,"Next scale factor is %f\n", nexta);
 	cosm->BuildEpoch(cosm->current, cosm->next, nexta);
 
 	WriteState.ScaleFactor = cosm->next.a;
@@ -122,7 +122,7 @@ void BuildWriteState(double da){
 	// Might also compute the Scale Factor for the halfway time, since
 	// we'll need that.
 	cosm->t2a(0.5*(cosm->next.t+cosm->current.t));
-	STDLOG("Scale factor halfway in between is %f\n", cosm->search.a);
+	STDLOG(1,"Scale factor halfway in between is %f\n", cosm->search.a);
 	// cosm->search now has the midpoint epoch.
 	WriteState.ScaleFactorHalf = cosm->search.a;
 	WriteState.LastHalfEtaKick = cosm->KickFactor(cosm->search.a,WriteState.ScaleFactor-cosm->search.a);
@@ -160,9 +160,9 @@ int main(int argc, char **argv) {
     char logfn[1050];
     sprintf(logfn,"%s/lastrun.log", P.LogFileDirectory);
     stdlog.open(logfn);
-    STDLOG("Read Parameter file %s\n", argv[1]);
+    STDLOG(1,"Read Parameter file %s\n", argv[1]);
     strcpy(WriteState.ParameterFileName, argv[1]);
-    STDLOG("AllowIC = %d\n", AllowIC);
+    STDLOG(1,"AllowIC = %d\n", AllowIC);
 
     double a;
     double da;
@@ -173,13 +173,13 @@ int main(int argc, char **argv) {
     sprintf(rstatefn,"%s/state",P.ReadStateDirectory);
 
     if(access(rstatefn,0) ==-1){
-	STDLOG("Can't find ReadStateDirectory %s\n", P.ReadStateDirectory);
+	STDLOG(1,"Can't find ReadStateDirectory %s\n", P.ReadStateDirectory);
     	if(AllowIC != 1){
     		QUIT("Read State Directory ( %s ) is inaccessible and initial state creation is prohibited. Terminating.\n",P.ReadStateDirectory);
 
     	}
     	else{
-    		STDLOG("Generating initial State from initial conditions\n");
+    		STDLOG(1,"Generating initial State from initial conditions\n");
     		ReadState.ParticleMass = 1.0/P.np; //FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
     		ReadState.RedshiftSpaceConversion = 1.0 ;//FIXME: Another placeholder until the actual math is worked out
     		ReadState.LPTstatus = P.LagrangianPTOrder;
@@ -194,7 +194,7 @@ int main(int argc, char **argv) {
     }
     else{
     	CheckDirectoryExists(P.ReadStateDirectory);
-	STDLOG("Reading ReadState\n");
+	STDLOG(1,"Reading ReadState\n");
     	readstate(ReadState,P.ReadStateDirectory);
 	// Strange :: to stdout during this step.
 
@@ -209,11 +209,11 @@ int main(int argc, char **argv) {
 		"ReadState and Parameter np do not match, %d != %d\n", 
 		ReadState.np, P.np);
 
-    	STDLOG("Read ReadState from %s\n",P.ReadStateDirectory);
+    	STDLOG(1,"Read ReadState from %s\n",P.ReadStateDirectory);
     	a = ReadState.ScaleFactor;
     	da = ChooseTimeStep();
 	if (P.ForcesOnly==1) {
-	    STDLOG("ForcesOnly option invoked; setting time step to 0.\n");
+	    STDLOG(1,"ForcesOnly option invoked; setting time step to 0.\n");
 	    da = 0;
 	}
     	MakeIC = false;
@@ -221,7 +221,7 @@ int main(int argc, char **argv) {
     feenableexcept(FE_INVALID | FE_DIVBYZERO);
 
     cosm = InitializeCosmology(a);
-    STDLOG("Initialized Cosmology at a= %6.4f\n",a);
+    STDLOG(1,"Initialized Cosmology at a= %6.4f\n",a);
 
     //Check if WriteStateDirectory/state exists, and fail if it does
     char wstatefn[1050];
@@ -230,7 +230,7 @@ int main(int argc, char **argv) {
     	QUIT("WriteState exists and would be overwritten. Please move or delete it to continue.\n");
 
 
-    STDLOG("Chose Time Step da = %6.4f\n",da);
+    STDLOG(1,"Chose Time Step da = %6.4f\n",da);
     BuildWriteState(da);
 
     SingleStepSetup.Stop();
@@ -251,7 +251,7 @@ int main(int argc, char **argv) {
     	sprintf(timingfn,"%s/lastrun.steptiming", P.LogFileDirectory);
     	FILE * timingfile = fopen(timingfn,"w");
     	ReportTimings(timingfile);
-    	STDLOG("Wrote Timing File to %s\n",timingfn);
+    	STDLOG(1,"Wrote Timing File to %s\n",timingfn);
     }
 
     // The epilogue contains some tests of success.
@@ -261,7 +261,7 @@ int main(int argc, char **argv) {
     // The state should be written last, since that officially signals success.
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
     writestate(&WriteState,P.WriteStateDirectory);
-    STDLOG("Wrote WriteState to %s\n",P.WriteStateDirectory);
+    STDLOG(1,"Wrote WriteState to %s\n",P.WriteStateDirectory);
 
     stdlog.close();  
     exit(0);
