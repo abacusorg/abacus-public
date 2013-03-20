@@ -17,6 +17,13 @@
 std::ofstream stdlog;
 #define STDLOG(...) { LOG(stdlog,__VA_ARGS__); stdlog.flush(); }
 
+// Include a statement to put a global time stamp in the log.
+#define STDLOG_TIMESTAMP do { \
+	time_t tnow = time(NULL); \
+	std::string time( ctime(&tnow) ); \
+	STDLOG("Timestamp %s\n", time.substr(0,time.length()-1)); \
+    } while (0)
+
 #define QUIT(...) { STDLOG("Fatal error (QUIT)\n"); STDLOG(__VA_ARGS__); stdlog.flush(); \
         fprintf(stderr,"Fatal error (QUIT): "); \
 	fpprint(std::cerr, __VA_ARGS__); \
