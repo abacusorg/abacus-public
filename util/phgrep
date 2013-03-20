@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# phgrep <pattern> <files>
+# Search the header of the given files for the listed pattern.
+# The pattern can be either in the keys or values
+
 greparg=$1
 shift 1
 #echo ${greparg}
