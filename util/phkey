@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# phkey <key> <files>
+# Searches the headers of the given files, printing any lines that contain 
+# the given key.  The search is by a case-insensitive pattern match, so this 
+# need not be an exact match.
+
+greparg=$1
+shift 1
+#echo ${greparg}
+#echo $@
+phheader $@ | perl -ne "@F = split(/=/); print if \$F[0]=~/$greparg/i;"
