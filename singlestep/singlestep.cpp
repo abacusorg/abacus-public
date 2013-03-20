@@ -47,7 +47,7 @@ double ChooseTimeStep(){
 	if (isnan(dt_vona)) dt_vona = BIGNUM;
 	*/
 	double dt_vona  = BIGNUM;
-	printf("dt_acc: %f \t dt_v: %f \t dt_vona: %f \n ", dt_acc,dt_v,dt_vona);
+//	printf("dt_acc: %f \t dt_v: %f \t dt_vona: %f \n ", dt_acc,dt_v,dt_vona);
 	double dtmin = min(min(dt_acc,dt_v),dt_vona);
 	double da;
 	if (dtmin > 100000.0) da = BIGNUM;
@@ -63,7 +63,7 @@ double ChooseTimeStep(){
 		}
 	}
 
-	assertf(da > 0,"Maximum da:%f was not > 0\n",da);
+	assertf(da > .0000001,"Maximum da:%f was not > 0. dt_acc: %f \t dt_v: %f \n",da,dt_acc,dt_v);
 	delete cosm;
 	return da;
 }

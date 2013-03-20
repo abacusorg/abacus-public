@@ -164,8 +164,8 @@ void GenSpiral( int n1d, double ainitial, double across, double3 *pp, double3 *v
 void writespiral(char *fn, double3 * pos, double3 * vel, long long int np){
 	FILE *outfile = fopen(fn,"wb");
 	for(long long int i = 0; i < np; i++){
-		fwrite(pos,1,sizeof(double3),outfile);
-		fwrite(vel,1,sizeof(double3),outfile);
+		fwrite(pos+i,1,sizeof(double3),outfile);
+		fwrite(vel+i,1,sizeof(double3),outfile);
 	}
 	fclose(outfile);
 }

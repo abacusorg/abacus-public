@@ -38,38 +38,61 @@ def run(basedir = "NONE"):
             tmpdir = "/tmp/abacus/"
         basedir = tmpdir +"/spiral/"
         
-        if os.path.exists(basedir):
-        
-            erase = raw_input("Test Directory exists! Erase? (y/n)")
-            if erase =="y":   
-                shutil.rmtree(basedir)
-                print "Erased previous test directory"
-        if not os.path.exists(basedir):
-            os.makedirs(basedir)
+    if os.path.exists(basedir):
+    
+        erase = raw_input("Test Directory exists! Erase? (y/n)")
+        if erase =="y":   
+            shutil.rmtree(basedir)
+            print "Erased previous test directory"
+    if not os.path.exists(basedir):
+        os.makedirs(basedir)
         
     kvec = (1,0,0)
     phase = (np.pi,0,0)
     n1d = 128
     ainitial = 0.1
     across = 0.16666666
+    sf = .1/n1d
     
-    params = GenParam.makeInput(basedir+"spiral.par", defFilename = "../test.def", strict = False, NP = n1d**3,InitialConditionsDirectory = basedir +"/read/",
-                                nTimeSlice = 2, TimeSlicez = [2,0], SofteningLength = .1/n1d,InitialRedshift = 1/ainitial -1, StoreForces = 0,CPD = 35)
-    os.makedirs(params["InitialConditionsDirectory"])
-    #make the spiral initial conditions
-    subprocess.call([abacuspath+"/Tests/Spiral/makespiralics",str(n1d), str(ainitial),str(across),
-                     str(kvec[0]),str(kvec[1]),str(kvec[2]),
-                     str(phase[0]),str(phase[1]),str(phase[2]),
-                     params["InitialConditionsDirectory"] + "/ic_0"])
-    for i in range(1,params["CPD"]):
-        f = open(params["InitialConditionsDirectory"]+"/ic_"+str(i),"wb")
-        f.close()
     
-    #run the problem
-    os.chdir(basedir)
-    abacus.run("spiral.par",1000,1)
+    #check if we are done
+    if not os.path.exists(basedir+"write/state"):
     
+        params = GenParam.makeInput(basedir+"spiral.par", defFilename = "../test.def", strict = False, NP = n1d**3,InitialConditionsDirectory = basedir +"/read/",
+                                    nTimeSlice = 2, TimeSlicez = [1,0], SofteningLength = sf,InitialRedshift = 1/ainitial -1, StoreForces = 0,CPD = 55,BoxSize = 17.3205080756888)
+        os.makedirs(params["InitialConditionsDirectory"])
+        #make the spiral initial conditions
+        subprocess.call([abacuspath+"/Tests/Spiral/makespiralics",str(n1d), str(ainitial),str(across),
+                         str(kvec[0]),str(kvec[1]),str(kvec[2]),
+                         str(phase[0]),str(phase[1]),str(phase[2]),
+                         params["InitialConditionsDirectory"] + "/ic_0"])
+        for i in range(1,params["CPD"]):
+            f = open(params["InitialConditionsDirectory"]+"/ic_"+str(i),"wb")
+            f.close()
+        
+        #run the problem
+        os.chdir(basedir)
+        abacus.run("spiral.par",1000,1)
+        
     #plot the results and check the answer
+    os.chdir(basedir)
+    writestate = InputFile.InputFile("write/state")
+    laststep = writestate.FullStepNumber
+    
+    timeslice = "final.ts"
+    if not os.path.exists(timeslice):
+        os.system("cat out/timeslicestep%.4d* > %s"%(laststep,timeslice))
+    
+    data = np.fromfile(timeslice,dtype = np.float64)
+    
+    analytic = np.fromfile(abacuspath+"/Tests/Spiral/analyticspiral",sep = " ")
+    analytic = np.reshape(analytic,(-1,2))
+    
+    xv = np.reshape(data, (-1,6))
+    print xv.shape
+    p.plot(xv[:,0],xv[:,3],".")
+    p.plot(analytic[:,0], analytic[:,1])
+    p.show()
 
 
 if __name__ == '__main__':
