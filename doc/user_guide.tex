@@ -93,8 +93,10 @@ Both headers are incorporated into output file headers.
 \subsection{Basic simulation parameters}
 
 \param{NP}{long long int} The number of particles in the simulation.
-\todo{np needs to be a long long int.  Does ParseHeader support this?}
-\todo{Code currently also has `ppd'.  Do we want to support this?}
+Note that math is allowed in inputs to GenParam, so you might opt to
+set this to a perfect cube, e.g., to 1024**3.
+
+\todo{The State should compute ppd.  Drop from Parameter.}
 
 \param{CPD}{int} The cells per dimension.  This number must be odd.
 
@@ -102,18 +104,20 @@ Both headers are incorporated into output file headers.
 
 \param{hMpc}{int} =1 if we're using Mpc/h units.  =0 if Mpc units.
 
-\param{Eta}{float} Time-step parameter based on accelerations.
-\todo{Match Doug's choice of name.}
+\param{TimeStepAccel}{float} Time-step parameter based on accelerations.
+\todo{Was called Eta.}
 
-\param{Dlna}{float} Maximum $\Delta(\ln a)$ allowed for a full step.
-\todo{Match Doug's choice of name.}
+\param{TimeStepDlna}{float} Maximum $\Delta(\ln a)$ allowed for a full step.
+\todo{Was called Dlna.}
 
 \param{BaseDistributionDirectory}{string} The directory head of the
-executable distribution.  \todo{Do we need this?}
+executable distribution.  \todo{Drop this.}
 
 \param{FinalRedshift}{float} The final redshift of the simulation.
 If not supplied, then we use the lowest redshift TimeSlice output.
 However, one might want to run further to complete light cones.
+
+\todo{State should include a FloatPrecision field.}
 
 \subsection{Set and Group Finding}
 
@@ -145,7 +149,10 @@ one should use at least 4.  Default is 4.
 choices would be 8 or 16.  One really should not use low orders such
 as 2!
 
-\param{DerivativeExpansionRadius}{int} \todo{Don't know what this is.}
+\param{DerivativeExpansionRadius}{int} The number of periodic replicas
+to sum over explicitly before switching to the asymptotic value.
+\todo{Suggest a good value!}
+\todo{Is this the right definition?}
 
 \param{MAXConvolutionRAMMB}{int} \todo{Don't know what this is.  Should
 we really be phrasing our memory limit this way?  Perhaps we should be
@@ -162,7 +169,7 @@ the I/O rate on this device to be 1/32 of the rate of the device
 for the multipoles and Taylors.  Because the derivative files are
 not slab-ordered, the latency issue is much reduced.  So in many
 cases, the derivatives can be stored on a normal hard disk.  
-\todo{Is this true?}
+\future{Is this true?}
 
 
 \subsection{Near-field parameters}
@@ -178,13 +185,10 @@ force.
 \param{DirectNewtonRaphson}{int} Choice of 1 means that we use a
 Newton-Raphson step to improve the precision of the forces.
 \todo{Is this really a choice that we want to offer?}
+\todo{Implement in the directdriver code?}
 
-\param{DirectDoublePrecision}{int} \todo{This seems ill-posed to me.  We're
-choosing the precision when we compile the program.  What use case would
-have us storing positions in float but then computing in double, or 
-vice versa?  Is there value in demanding that the parameter file meet
-the compile settings?  Or should the compile setting simply be reported
-in the state file?}
+\param{DirectDoublePrecision}{int} \todo{Remove this; it should be tied
+to the compile precision and included in the WriteState.}
 
 \future{We will eventually have parameters for choices of softening model, 
 trees, etc.}
@@ -249,37 +253,46 @@ ICPositionRange) and at the initial redshift.
 
 \subsection{Output Parameters}
 
-\param{RunName}{string} The name of the simulation, intended to be unique
+\param{SimName}{string} The name of the simulation, intended to be unique
 for each simulation.  This is used both as the primary path of the directory
 where output will occur, but also in filenames.
 
-\param{OutputDirectory}{string} The directory where the outputs are to
-be placed.  This defaults to WorkingDirectory.  Outputs will actually
-be placed in a subdirectory of OutputDirectory named RunName, so that
-multiple simulations of the same set can share the same OutputDirectory.
+\param{ParentDirectory}{string} The directory where the outputs are to
+be placed.  This defaults to WorkingDirectory, but often would be on
+a different (more long-term stable) disk.  
 
-\param{LogFileDirectory}{string} The directory where the logs are to be
+\param{OutputDirectory}{string} This is where the outputs will be
+placed; in particular, the time slices will be here.  Starting the
+name with + indicates a path from ParentDirectory.  The default is
++SimName, i.e., ParentDirectory/SimName, so that multiple simulations
+of the same set can share the same ParentDirectory.
+
+\param{LogDirectory}{string} The directory where the logs are to be
 stored.  Starting the name with + indicates a path from 
-OutputDirectory/RunName/.  The default is ``+log".  Each time step
-generates several log files.
+OutputDirectory.  The default is ``+log".  Each time step
+generates several log files, but these all go in the same directory.
+\todo{Was LogFileDirectory.}
 
-\param{GroupFilePrefix}{string} Each time step may generate 
-group-finding files.  
-\todo{What is the purpose of this renaming?  I think that we want
-these to be based on RunName.}
+\param{LightConeDirectory}{string} The directory where the light
+cones should get written.  Starting the name with + indicates a path
+from OutputDirectory.  The default is ``+lc''.  The number
+of the light cone 0..7 will get postpended to the name, so if you give
+a value here you probably don't want a trailing slash.  
+Inside this directory, the outputs will be further divided with one 
+subdirectory per time step; these names are fixed to be ``stepNNNN''.
+
+\param{GroupDirectory}{string} The directory where group information
+will be written.  Starting the name with + indicates a path from
+OutputDirectory.  The default is ``+groups''.  Inside this directory,
+the outputs will be further divided with one subdirectory per time
+step; these names are fixed to be ``stepNNNN''.
 
 
 \param{nTimeSlice}{int} The number of time slice outputs.
 
-\param{TimeSlicez}{float vector} The redshift of the requested time slices.
-Note that although we enter redshifts, we will probably store the files
-by scale factor, using \%5.3f.  
-\todo{Might prefer a name like TimeSliceRedshift}.
-
-\param{TimeSliceFilePrefix}{string} 
-\todo{What is the purpose of this renaming?  I think that we want
-these to be based on RunName.}
-\todo{Do we need some directory parameter?}
+\param{TimeSliceRedshift}{float vector} The redshift of the requested 
+time slices.  When redshifts appear in file names, it will be as ``z\%5.3f''.
+\todo{Was named TimeSlicez}.
 
 
 \param{NLightCones}{int} The number of light cones.  We support up to 8.
@@ -290,17 +303,38 @@ can be supplied.  The position need not be inside the primary
 wrapping of the box.  The position should be in the same unit
 as BoxSize.
 
-\param{LightConeDirectory}{string} The directory where the light
-cones should get written.  Starting the name with + indicates a path
-from OutputDirectory/RunName.  The default is ``+lc''.  The number
-of the light cone 0..7 will get postpended to the name.  Inside
-this directory, the outputs will be further divided with one subdirectory
-per time step.
 
-\param{LightFilePrefix}{string} The prefix of the file name for the
-light cone.  The default is RunName.  This will get postpended by
-lcN.stepNNNN.slabNNNN, where the $N$ are the obvious numbers.
+\todo{Delete GroupFilePrefix, TimeSliceFilePrefix, LightFilePrefix.  
+We will hardcode these names.}
 
+
+These choices produce the following hierarchy of files:
+
+\newcommand{\fdir}[1]{\noindent\makebox[4in][l]{#1}}
+\fdir{ParentDirectory}			(default to WorkingDirectory)
+
+\fdir{ParentDirectory/RunName}		(aka OutputDirectory) \\
+ParentDirectory/RunName/sliceZ.ZZZ/RunName.zZ.ZZZ.slabNNNN.php14
+
+\fdir{ParentDirectory/RunName/log}	(aka LogDirectory) \\
+ParentDirectory/RunName/log/RunName.stepNNNN.log \\
+ParentDirectory/RunName/log/RunName.stepNNNN.iolog \\
+ParentDirectory/RunName/log/RunName.stepNNNN.timing \\
+ParentDirectory/RunName/log/RunName.stepNNNN.convolve
+
+\fdir{ParentDirectory/RunName/group}	(aka GroupDirectory) \\
+ParentDirectory/RunName/group/stepNNNN/RunName.stepNNNN.slabNNNN.grp
+
+\fdir{ParentDirectory/RunName/lcN}	(aka LightConeDirectory + N) \\
+ParentDirectory/RunName/lcN/stepNNNN/RunName.lcN.stepNNNN.slabNNNN.php14
+
+The RunName is used both in the output path and as the file name prefix.
+Redshifts are written in names with format \%5.3f.
+Slabs and Steps are written with \%04d.
+Light cones are written with \%1d.
+
+The php14 suffix is just a place-holder, but this is to indicate the 
+file format.
 
 
 \subsection{Cosmological parameters}
@@ -327,12 +361,16 @@ seperately.  The time step is set to zero, so there is no other
 action and other outputs (e.g., group finding) may be garbled.
 Should only be set if StoreForces is not set.
 
-\param{ForcesOnly}{int} If 1, do not drift or kick.
-\todo{I think this is defunct and should be removed.}
+In addition, using TimeStepDlna=0 forces the next time step to be 0, which
+implies that the particles won't advance (although forces and groups
+will still be computed).
 
+\todo{Remove ForcesOnly}
+
+\subsection{Zel'dovich parameters}
 
 \end{document}
-\section{State parameters}
+\section{State values}
 
 The State file contains information that is computed by the Abacus code,
 particularly values that are epoch-dependent.
