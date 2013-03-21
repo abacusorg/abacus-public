@@ -14,6 +14,7 @@
 #include <float.h>
 #include <complex>
 #include <omp.h>
+#include <stdint.h>
 
 #include <sys/time.h>
 #include <errno.h>
