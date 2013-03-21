@@ -17,7 +17,15 @@
 std::ofstream stdlog;
 #define STDLOG(a,...) { LOG(stdlog,__VA_ARGS__); stdlog.flush(); }
 
-#define QUIT(...) { STDLOG(1,"Fatal error (QUIT)\n"); STDLOG(1,__VA_ARGS__); stdlog.flush(); \
+
+// Include a statement to put a global time stamp in the log.
+#define STDLOG_TIMESTAMP do { \
+	time_t tnow = time(NULL); \
+	std::string time( ctime(&tnow) ); \
+	STDLOG(0,"Timestamp %s\n", time.substr(0,time.length()-1)); \
+    } while (0)
+
+#define QUIT(...) { STDLOG(0,"Fatal error (QUIT)\n"); STDLOG(0,__VA_ARGS__); stdlog.flush(); \
         fprintf(stderr,"Fatal error (QUIT): "); \
 	fpprint(std::cerr, __VA_ARGS__); \
 	assert(0==98); }
@@ -29,7 +37,7 @@ std::ofstream stdlog;
 
 #define assertf(_mytest,...) do { \
     if (!(_mytest)) { \
-        STDLOG(1,"Failed Assertion: %s\n", #_mytest); STDLOG(1,__VA_ARGS__); \
+        STDLOG(0,"Failed Assertion: %s\n", #_mytest); STDLOG(1,__VA_ARGS__); \
         fprintf(stderr,"Failed Assertion: %s\n", #_mytest); \
 	fpprint(std::cerr, __VA_ARGS__); \
         assert(0==99); \

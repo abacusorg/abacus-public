@@ -8,17 +8,36 @@
 
 using namespace std;
 
+// We will load this with the time at the beginning of the sim
+struct timeval log_global_zero = { 0, 0 };
+
+#define SETUP_LOG do { \
+	gettimeofday(&log_global_zero, (struct timezone *)NULL); \
+    } while (0)
+
 template<typename IO, typename... Args>
 void _log(IO &out, const char *name, const char *s, Args... args) {
     std::string ss(s);
     if(s[0]=='+') {
         ss.erase(0,1);
-        out << "+" << std::setw(45) << std::left << " ";
+        out << "+" << std::setw(38) << std::left << " ";
     }
     else {
-        time_t tnow = time(NULL);
-        std::string time( ctime(&tnow) );
-        out << time.substr(0,time.length()-1) << "  " << std::setw(20) << std::left << name+std::string("()  ");
+	if (log_global_zero.tv_sec == 0) {
+	    // First time, so initialize the global time reference
+	    gettimeofday(&log_global_zero, (struct timezone *)NULL); 
+	}
+	struct timeval tnow, elapsed;
+	gettimeofday(&tnow, (struct timezone *)NULL);
+	timersub(&tnow, &log_global_zero, &elapsed);
+	double t = elapsed.tv_sec + 1e-6*elapsed.tv_usec;
+	out << std::right;
+	fpprint(out, "%11.5f   ", t);
+        out << std::setw(25) << std::left << name+std::string("()  ");
+
+        // time_t tnow = time(NULL);
+        // std::string time( ctime(&tnow) );
+        // out << time.substr(0,time.length()-1) << "  " << std::setw(20) << std::left << name+std::string("()  ");
     }
     fpprint(out, ss.c_str(), args...);
 }

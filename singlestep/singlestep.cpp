@@ -160,7 +160,9 @@ int main(int argc, char **argv) {
     char logfn[1050];
     sprintf(logfn,"%s/lastrun.log", P.LogFileDirectory);
     stdlog.open(logfn);
+    STDLOG_TIMESTAMP;
     STDLOG(1,"Read Parameter file %s\n", argv[1]);
+
     strcpy(WriteState.ParameterFileName, argv[1]);
     STDLOG(1,"AllowIC = %d\n", AllowIC);
 
@@ -239,6 +241,9 @@ int main(int argc, char **argv) {
 
     if (MakeIC)  timestepIC();
 	    else timestep();
+
+    // Let the IO finish, so that it is included in the time log.
+    IO_Terminate();
 
     // The timings need to proceed the epilogue, because they need to look inside 
     // some instances of classes.
