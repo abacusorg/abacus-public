@@ -13,9 +13,19 @@
 // generate errors in the Log.  Try to limit bald assert() statements 
 // to "these should never happen save by code bug" cases.
 
+// STDLOG entries carry a verbosity flag.  Messages will be printed if the
+// verbosity level is equal to or less than the global threshold value.
+// verbosity=0 should be messages that we always want to print in production runs.
+// verbosity=1 should be more detailed, e.g. listing the execution of major 
+// 	portions of the code.
+// verbosity=2 should be used for very detailed debugging.
+
 #include "log.cc"
 std::ofstream stdlog;
-#define STDLOG(a,...) { LOG(stdlog,__VA_ARGS__); stdlog.flush(); }
+int stdlog_threshold_global = 0;
+
+#define STDLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
+	LOG(stdlog,__VA_ARGS__); stdlog.flush(); } }
 
 
 // Include a statement to put a global time stamp in the log.
