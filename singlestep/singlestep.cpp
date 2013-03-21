@@ -157,6 +157,7 @@ int main(int argc, char **argv) {
     int AllowIC = atoi(argv[2]);
 
     P.ReadParameters(argv[1],1);
+    stdlog_threshold_global = P.LogVerbosity;
     char logfn[1050];
     sprintf(logfn,"%s/lastrun.log", P.LogFileDirectory);
     stdlog.open(logfn);
