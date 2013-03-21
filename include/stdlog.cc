@@ -17,7 +17,7 @@
 std::ofstream stdlog;
 #define STDLOG(a,...) { LOG(stdlog,__VA_ARGS__); stdlog.flush(); }
 
-#define QUIT(...) { STDLOG(1,"Fatal error (QUIT)\n"); STDLOG(__VA_ARGS__); stdlog.flush(); \
+#define QUIT(...) { STDLOG(1,"Fatal error (QUIT)\n"); STDLOG(1,__VA_ARGS__); stdlog.flush(); \
         fprintf(stderr,"Fatal error (QUIT): "); \
 	fpprint(std::cerr, __VA_ARGS__); \
 	assert(0==98); }
@@ -29,7 +29,7 @@ std::ofstream stdlog;
 
 #define assertf(_mytest,...) do { \
     if (!(_mytest)) { \
-        STDLOG(1,"Failed Assertion: %s\n", #_mytest); STDLOG(__VA_ARGS__); \
+        STDLOG(1,"Failed Assertion: %s\n", #_mytest); STDLOG(1,__VA_ARGS__); \
         fprintf(stderr,"Failed Assertion: %s\n", #_mytest); \
 	fpprint(std::cerr, __VA_ARGS__); \
         assert(0==99); \
