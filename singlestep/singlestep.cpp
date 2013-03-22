@@ -141,6 +141,9 @@ void BuildWriteState(double da){
 	// Some statistics to accumulate
 	WriteState.MaxCellSize = ReadState.MaxCellSize;
 	WriteState.StdDevCellSize = 0;
+
+	// Build the output header
+	WriteState.make_output_header();
 }
 
 
@@ -200,7 +203,7 @@ int main(int argc, char **argv) {
     else{
     	CheckDirectoryExists(P.ReadStateDirectory);
 	STDLOG(0,"Reading ReadState\n");
-    	readstate(ReadState,P.ReadStateDirectory);
+    	ReadState.read_from_file(P.ReadStateDirectory);
 	// Strange :: to stdout during this step.
 
     	//make sure read state and parameters are compatible
@@ -268,7 +271,7 @@ int main(int argc, char **argv) {
 
     // The state should be written last, since that officially signals success.
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
-    writestate(&WriteState,P.WriteStateDirectory);
+    WriteState.write_to_file(P.WriteStateDirectory);
     STDLOG(0,"Wrote WriteState to %s\n",P.WriteStateDirectory);
 
     stdlog.close();  
