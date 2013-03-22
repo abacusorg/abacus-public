@@ -217,8 +217,8 @@ int main(int argc, char **argv) {
     	STDLOG(0,"Read ReadState from %s\n",P.ReadStateDirectory);
     	a = ReadState.ScaleFactor;
     	da = ChooseTimeStep();
-	if (P.ForcesOnly==1) {
-	    STDLOG(0,"ForcesOnly option invoked; setting time step to 0.\n");
+	if (P.ForceOutputDebug==1) {
+	    STDLOG(0,"ForceOutputDebug option invoked; setting time step to 0.\n");
 	    da = 0;
 	}
     	MakeIC = false;

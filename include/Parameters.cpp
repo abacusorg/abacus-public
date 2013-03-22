@@ -117,8 +117,7 @@ public:
 
     int LogVerbosity;   // If 0, production-level log; higher numbers are more verbose
     int StoreForces; // If 1, store the accelerations
-    int ForcesOnly; //If 1, do not drift or kick
-    int ForceOutputDebug; // If 1, output near and far forces seperately. Should only be set if ForcesOnly is also set
+    int ForceOutputDebug; // If 1, output near and far forces seperately. 
 
 
     Parameters() {
@@ -186,10 +185,8 @@ public:
 
     	LogVerbosity = 0;
     	installscalar("LogVerbosity",LogVerbosity, DONT_CARE);
-    	StoreForces = 1;
+    	StoreForces = 0;
     	installscalar("StoreForces",StoreForces, DONT_CARE);
-    	ForcesOnly = 0;
-    	installscalar("ForcesOnly",ForcesOnly, DONT_CARE);
     	ForceOutputDebug = 0;
     	installscalar("ForceOutputDebug",ForceOutputDebug,DONT_CARE);
     	installscalar("RunName",RunName,MUST_DEFINE);
@@ -373,13 +370,8 @@ void Parameters::ValidateParameters(void) {
         CheckFileExists(dfn);
     }
 
-    if (ForceOutputDebug && !StoreForces) {
-    	fprintf(stderr,"ForcesOutputDebug set to on, but StoreForces was not set. This is not supported.\n");
-	assert(1==0);
-    }
-
-    if (ForceOutputDebug && !ForcesOnly) {
-    	fprintf(stderr,"ForcesOutputDebug set to on, but ForcesOnly was not set. This is not supported.\n");
+    if (ForceOutputDebug && StoreForces) {
+    	fprintf(stderr,"ForcesOutputDebug and StoreForces both set. This is not supported.\n");
 	assert(1==0);
     }
 

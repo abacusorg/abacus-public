@@ -35,6 +35,5 @@ LagrangianPTOrder, 0
 GroupRadius, 2
 Eta, 0.1
 Dlna, 0.0534
-ForcesOnly, 0
 ForceOutputDebug, 0
 RunName, "Test"
