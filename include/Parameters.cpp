@@ -42,12 +42,12 @@ NB: When adding parameters, you should add:
 class Parameters: public ParseHeader {
 public:
     
-	char RunName[1024]; //What to call this run
+    char RunName[1024]; //What to call this run
+    // TODO: Rename this to SimName
 
     long long int np;
     int cpd;
     int order;
-    int ppd; //Exact only if np is a perfect cube
 
     int NearFieldRadius;    // Radius of cells in the near-field
     float SofteningLength; // Softening length in units of interparticle spacing
@@ -57,7 +57,6 @@ public:
     int  ConvolutionCacheSizeMB;
 
     int  DirectNewtonRaphson;  // 0 or 1 
-    int  DirectDoublePrecision; // 0 or 1 
 
     char DerivativesDirectory[1024];
 
@@ -134,7 +133,6 @@ public:
     	installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB,MUST_DEFINE);
 
     	installscalar("DirectNewtonRaphson",DirectNewtonRaphson,MUST_DEFINE);  // 0 or 1
-    	installscalar("DirectDoublePrecision",DirectDoublePrecision,MUST_DEFINE); // 0 or 1
 
     	installscalar("DerivativesDirectory",DerivativesDirectory,MUST_DEFINE);
 
@@ -194,15 +192,25 @@ public:
     	ForceOutputDebug = 0;
     	installscalar("ForceOutputDebug",ForceOutputDebug,DONT_CARE);
     	installscalar("RunName",RunName,MUST_DEFINE);
-
-
-
-
     }
 
     void ReadParameters(char *paramaterfile, int icflag);
     void ValidateParameters(void);
     void register_vars();
+
+    double ppd() {
+        // return the cube root of np, but be careful to avoid round-off 
+	// of perfect cubes.
+	double _ppd = pow((double)np, 1.0/3.0);
+	if ( fabs(_ppd-floor(_ppd+0.1))<1e-10 ) _ppd = floor(_ppd+0.1);
+	return _ppd;
+    }
+    int is_np_perfect_cube() {
+	// Return 1 if np is a perfect cube.
+        int n = floor(ppd());
+	if (n*n*n!=np) return 1; else return 0;
+    }
+
 private:
     void ProcessStateDirectories();
 };
@@ -226,9 +234,6 @@ void Parameters::ReadParameters(char *parameterfile, int icflag) {
     ReadHeader(hs);
     ProcessStateDirectories();
     if(!icflag) ValidateParameters();
-    double npcr = pow(np,1.0/3.0);
-    ppd = (long long int) floor(npcr+0.5);
-
 }
 
 void Parameters::ValidateParameters(void) {
@@ -250,11 +255,6 @@ void Parameters::ValidateParameters(void) {
 
     if( !( (DirectNewtonRaphson == 1) ||  (DirectNewtonRaphson == 0) ) ) {
         fprintf(stderr,"DirectNewtonRapson must be 0 or 1\n");
-        assert(1==0);
-    }
-
-    if( !( (DirectDoublePrecision == 1) || (DirectDoublePrecision==0) ) ) {
-        fprintf(stderr,"DirectDoublePrecision must be 0 or 1 \n");
         assert(1==0);
     }
 
