@@ -22,7 +22,7 @@
 
 #include "log.cc"
 std::ofstream stdlog;
-int stdlog_threshold_global = 0;
+int stdlog_threshold_global = 1;
 
 #define STDLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
 	LOG(stdlog,__VA_ARGS__); stdlog.flush(); } }

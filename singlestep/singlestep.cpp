@@ -3,7 +3,7 @@
 #define BIGNUM 1000000.0
 
 
-Cosmology * InitializeCosmology(double ScaleFactor) {
+Cosmology *InitializeCosmology(double ScaleFactor) {
     // Be warned that all of the Cosmology routines quote time units
     // by what is entered as H0.  The code wants to use H0=1 units.
     // But P.H0 is defined to be in km/s/Mpc!
@@ -15,6 +15,7 @@ Cosmology * InitializeCosmology(double ScaleFactor) {
     cosmo.H0 = 1.0;	
     cosmo.w0 = P.w0;
     cosmo.wa = P.wa;
+    STDLOG(0,"Initialized Cosmology at a= %6.4f\n",ScaleFactor);
     return new Cosmology(ScaleFactor,cosmo);
 }
 
@@ -22,14 +23,14 @@ double ChooseTimeStep(){
 	//choose the maximum allowable timestep
 	//we start with the absolute maximum timestep allowed by the parameter file
 
-	MyCosmology cosmo;
-	cosmo.Omega_m = P.Omega_M;
-	cosmo.Omega_K = P.Omega_K;
-	cosmo.Omega_DE = P.Omega_DE;
-	cosmo.H0 = 1.0;
-	cosmo.w0 = P.w0;
-	cosmo.wa = P.wa;
-	cosm =  new Cosmology(ReadState.ScaleFactor,cosmo);
+	// MyCosmology cosmo;
+	// cosmo.Omega_m = P.Omega_M;
+	// cosmo.Omega_K = P.Omega_K;
+	// cosmo.Omega_DE = P.Omega_DE;
+	// cosmo.H0 = 1.0;
+	// cosmo.w0 = P.w0;
+	// cosmo.wa = P.wa;
+	// cosm =  new Cosmology(ReadState.ScaleFactor,cosmo);
 
 	double da_max = ReadState.ScaleFactor*P.Dlna;
 
@@ -64,7 +65,7 @@ double ChooseTimeStep(){
 	}
 
 	assertf(da >= 0,"Maximum da:%f was not > 0. dt_acc: %f \t dt_v: %f \n",da,dt_acc,dt_v);
-	delete cosm;
+	// delete cosm;
 	return da;
 }
 
@@ -172,11 +173,11 @@ int main(int argc, char **argv) {
     strcpy(WriteState.ParameterFileName, argv[1]);
     STDLOG(0,"AllowIC = %d\n", AllowIC);
 
-    double a;
-    double da;
+    double da = -1.0;   // If we set this to zero, it will skip the timestep choice
     bool MakeIC; //True if we should make the initial state instead of doing a real timestep
-    //Check if ReadStateDirectory is accessible, or if we should build a new state from the IC file
 
+    // Check if ReadStateDirectory is accessible, or if we should 
+    // build a new state from the IC file
     char rstatefn[1050];
     sprintf(rstatefn,"%s/state",P.ReadStateDirectory);
 
@@ -195,7 +196,7 @@ int main(int argc, char **argv) {
 			// So that this number is the number of times
 			// forces have been computed.
     		sprintf(ReadState.ParameterFileName,"%s",argv[1]);
-        	a = 1.0/(1+P.InitialRedshift);
+        	ReadState.ScaleFactor = 1.0/(1+P.InitialRedshift);
         	da = 0;
         	MakeIC = true;
     	}
@@ -204,7 +205,6 @@ int main(int argc, char **argv) {
     	CheckDirectoryExists(P.ReadStateDirectory);
 	STDLOG(0,"Reading ReadState\n");
     	ReadState.read_from_file(P.ReadStateDirectory);
-	// Strange :: to stdout during this step.
 
     	//make sure read state and parameters are compatible
     	assertf(ReadState.order_state == P.order, 
@@ -216,20 +216,14 @@ int main(int argc, char **argv) {
     	assertf(ReadState.np_state == P.np, 
 		"ReadState and Parameter np do not match, %d != %d\n", 
 		ReadState.np_state, P.np);
-
     	STDLOG(0,"Read ReadState from %s\n",P.ReadStateDirectory);
-    	a = ReadState.ScaleFactor;
-    	da = ChooseTimeStep();
+
 	if (P.ForceOutputDebug==1) {
 	    STDLOG(0,"ForceOutputDebug option invoked; setting time step to 0.\n");
 	    da = 0;
 	}
     	MakeIC = false;
     }
-    feenableexcept(FE_INVALID | FE_DIVBYZERO);
-
-    cosm = InitializeCosmology(a);
-    STDLOG(0,"Initialized Cosmology at a= %6.4f\n",a);
 
     //Check if WriteStateDirectory/state exists, and fail if it does
     char wstatefn[1050];
@@ -237,8 +231,11 @@ int main(int argc, char **argv) {
     if(access(wstatefn,0) !=-1)
     	QUIT("WriteState exists and would be overwritten. Please move or delete it to continue.\n");
 
-
+    cosm = InitializeCosmology(ReadState.ScaleFactor);
+    if (da!=0) da = ChooseTimeStep();
     STDLOG(0,"Chose Time Step da = %6.4f\n",da);
+
+    feenableexcept(FE_INVALID | FE_DIVBYZERO);
     BuildWriteState(da);
 
     SingleStepSetup.Stop();
