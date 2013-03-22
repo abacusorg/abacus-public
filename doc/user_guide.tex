@@ -4,6 +4,8 @@
 \newcommand{\todo}[1]{{\bf TODO: #1}}
 \newcommand{\future}[1]{{\it Future: #1}}
 
+\newcommand{\fdir}[1]{\noindent\makebox[4in][l]{#1}}
+
 \begin{document}
 \title{ABACUS User Guide}
 \author{\today}
@@ -96,8 +98,6 @@ Both headers are incorporated into output file headers.
 Note that math is allowed in inputs to GenParam, so you might opt to
 set this to a perfect cube, e.g., to 1024**3.
 
-\todo{The State should compute ppd.  Drop from Parameter.}
-
 \param{CPD}{int} The cells per dimension.  This number must be odd.
 
 \param{BoxSize}{float} The size of the box in physical units.
@@ -110,14 +110,9 @@ set this to a perfect cube, e.g., to 1024**3.
 \param{TimeStepDlna}{float} Maximum $\Delta(\ln a)$ allowed for a full step.
 \todo{Was called Dlna.}
 
-\param{BaseDistributionDirectory}{string} The directory head of the
-executable distribution.  \todo{Drop this.}
-
 \param{FinalRedshift}{float} The final redshift of the simulation.
 If not supplied, then we use the lowest redshift TimeSlice output.
 However, one might want to run further to complete light cones.
-
-\todo{State should include a FloatPrecision field.}
 
 \subsection{Set and Group Finding}
 
@@ -184,11 +179,7 @@ force.
 
 \param{DirectNewtonRaphson}{int} Choice of 1 means that we use a
 Newton-Raphson step to improve the precision of the forces.
-\todo{Is this really a choice that we want to offer?}
-\todo{Implement in the directdriver code?}
-
-\param{DirectDoublePrecision}{int} \todo{Remove this; it should be tied
-to the compile precision and included in the WriteState.}
+\future{Is this really a choice that we want to offer?}
 
 \future{We will eventually have parameters for choices of softening model, 
 trees, etc.}
@@ -310,7 +301,6 @@ We will hardcode these names.}
 
 These choices produce the following hierarchy of files:
 
-\newcommand{\fdir}[1]{\noindent\makebox[4in][l]{#1}}
 \fdir{ParentDirectory}			(default to WorkingDirectory)
 
 \fdir{ParentDirectory/RunName}		(aka OutputDirectory) \\
@@ -364,8 +354,6 @@ Should only be set if StoreForces is not set.
 In addition, using TimeStepDlna=0 forces the next time step to be 0, which
 implies that the particles won't advance (although forces and groups
 will still be computed).
-
-\todo{Remove ForcesOnly}
 
 \subsection{Zel'dovich parameters}
 
