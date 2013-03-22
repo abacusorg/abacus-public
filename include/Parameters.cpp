@@ -82,7 +82,6 @@ public:
     char WorkingDirectory[1024];	// If Read/Write/Past not specified, where to put the states
     char LogFileDirectory[1024];
     char OutputDirectory[1024];     // Where the outputs go
-    char BaseDistributionDirectory[1024];
 
     char TimeSliceFilePrefix[1024];      // What the outputs are called
     char GroupFilePrefix[1024];     // What the group outputs are called
@@ -105,7 +104,10 @@ public:
 
     int GroupRadius;        // Maximum size of a group, in units of cell sizes
     float Eta;         // Time-step parameter based on accelerations
+    	// TODO: Rename to TimeStepAccel
     float Dlna;        // Maximum time step in d(ln a)
+    	// Rename to TimeStepDlna
+
     // Could have microstepping instructions
     // Could have group finding or coevolution set instructions
 
@@ -157,7 +159,6 @@ public:
     	installscalar("LogFileDirectory",LogFileDirectory,MUST_DEFINE);
     	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
 
-    	installscalar("BaseDistributionDirectory",BaseDistributionDirectory,MUST_DEFINE);
 
     	installscalar("TimeSliceFilePrefix",TimeSliceFilePrefix,MUST_DEFINE);      // What the outputs are called
     	installscalar("GroupFilePrefix",GroupFilePrefix,MUST_DEFINE);     // What the group outputs are called
@@ -355,7 +356,6 @@ void Parameters::ValidateParameters(void) {
     CheckDirectoryExists(PastStateDirectory);
     CheckDirectoryExists(OutputDirectory);
     CheckDirectoryExists(LogFileDirectory);
-    CheckDirectoryExists(BaseDistributionDirectory);
 
     CheckDirectoryExists(InitialConditionsDirectory);
 
