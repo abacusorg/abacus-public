@@ -83,9 +83,9 @@ void BuildWriteState(double da){
 	STDLOG(0,"Host machine name is %s\n", WriteState.MachineName);
 
 	//fill in WriteState from the Parameter file
-	WriteState.np =P.np;
-	WriteState.cpd = P.cpd;
-	WriteState.order = P.order;
+	WriteState.np_state =P.np;
+	WriteState.cpd_state = P.cpd;
+	WriteState.order_state = P.order;
 	WriteState.ppd = P.ppd();
 	WriteState.DoublePrecision = (sizeof(FLOAT)==8)?1:0;
 
@@ -204,15 +204,15 @@ int main(int argc, char **argv) {
 	// Strange :: to stdout during this step.
 
     	//make sure read state and parameters are compatible
-    	assertf(ReadState.order == P.order, 
+    	assertf(ReadState.order_state == P.order, 
 		"ReadState and Parameter order do not match, %d != %d\n", 
-		ReadState.order, P.order);
-    	assertf(ReadState.cpd == P.cpd, 
+		ReadState.order_state, P.order);
+    	assertf(ReadState.cpd_state == P.cpd, 
 		"ReadState and Parameter cpd do not match, %d != %d\n", 
-		ReadState.cpd, P.cpd);
-    	assertf(ReadState.np == P.np, 
+		ReadState.cpd_state, P.cpd);
+    	assertf(ReadState.np_state == P.np, 
 		"ReadState and Parameter np do not match, %d != %d\n", 
-		ReadState.np, P.np);
+		ReadState.np_state, P.np);
 
     	STDLOG(0,"Read ReadState from %s\n",P.ReadStateDirectory);
     	a = ReadState.ScaleFactor;
