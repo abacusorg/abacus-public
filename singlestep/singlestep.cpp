@@ -86,6 +86,8 @@ void BuildWriteState(double da){
 	WriteState.np =P.np;
 	WriteState.cpd = P.cpd;
 	WriteState.order = P.order;
+	WriteState.ppd = P.ppd();
+	WriteState.DoublePrecision = (sizeof(FLOAT)==8)?1:0;
 
 	//get the next timestep and build the cosmology for it
 	double nexta = cosm->current.a + da;
@@ -215,8 +217,8 @@ int main(int argc, char **argv) {
     	STDLOG(0,"Read ReadState from %s\n",P.ReadStateDirectory);
     	a = ReadState.ScaleFactor;
     	da = ChooseTimeStep();
-	if (P.ForcesOnly==1) {
-	    STDLOG(0,"ForcesOnly option invoked; setting time step to 0.\n");
+	if (P.ForceOutputDebug==1) {
+	    STDLOG(0,"ForceOutputDebug option invoked; setting time step to 0.\n");
 	    da = 0;
 	}
     	MakeIC = false;

@@ -42,12 +42,12 @@ NB: When adding parameters, you should add:
 class Parameters: public ParseHeader {
 public:
     
-	char RunName[1024]; //What to call this run
+    char RunName[1024]; //What to call this run
+    // TODO: Rename this to SimName
 
     long long int np;
     int cpd;
     int order;
-    int ppd; //Exact only if np is a perfect cube
 
     int NearFieldRadius;    // Radius of cells in the near-field
     float SofteningLength; // Softening length in units of interparticle spacing
@@ -57,7 +57,6 @@ public:
     int  ConvolutionCacheSizeMB;
 
     int  DirectNewtonRaphson;  // 0 or 1 
-    int  DirectDoublePrecision; // 0 or 1 
 
     char DerivativesDirectory[1024];
 
@@ -83,7 +82,6 @@ public:
     char WorkingDirectory[1024];	// If Read/Write/Past not specified, where to put the states
     char LogFileDirectory[1024];
     char OutputDirectory[1024];     // Where the outputs go
-    char BaseDistributionDirectory[1024];
 
     char TimeSliceFilePrefix[1024];      // What the outputs are called
     char GroupFilePrefix[1024];     // What the group outputs are called
@@ -106,7 +104,10 @@ public:
 
     int GroupRadius;        // Maximum size of a group, in units of cell sizes
     float Eta;         // Time-step parameter based on accelerations
+    	// TODO: Rename to TimeStepAccel
     float Dlna;        // Maximum time step in d(ln a)
+    	// Rename to TimeStepDlna
+
     // Could have microstepping instructions
     // Could have group finding or coevolution set instructions
 
@@ -116,8 +117,7 @@ public:
 
     int LogVerbosity;   // If 0, production-level log; higher numbers are more verbose
     int StoreForces; // If 1, store the accelerations
-    int ForcesOnly; //If 1, do not drift or kick
-    int ForceOutputDebug; // If 1, output near and far forces seperately. Should only be set if ForcesOnly is also set
+    int ForceOutputDebug; // If 1, output near and far forces seperately. 
 
 
     Parameters() {
@@ -134,7 +134,6 @@ public:
     	installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB,MUST_DEFINE);
 
     	installscalar("DirectNewtonRaphson",DirectNewtonRaphson,MUST_DEFINE);  // 0 or 1
-    	installscalar("DirectDoublePrecision",DirectDoublePrecision,MUST_DEFINE); // 0 or 1
 
     	installscalar("DerivativesDirectory",DerivativesDirectory,MUST_DEFINE);
 
@@ -159,7 +158,6 @@ public:
     	installscalar("LogFileDirectory",LogFileDirectory,MUST_DEFINE);
     	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
 
-    	installscalar("BaseDistributionDirectory",BaseDistributionDirectory,MUST_DEFINE);
 
     	installscalar("TimeSliceFilePrefix",TimeSliceFilePrefix,MUST_DEFINE);      // What the outputs are called
     	installscalar("GroupFilePrefix",GroupFilePrefix,MUST_DEFINE);     // What the group outputs are called
@@ -187,22 +185,30 @@ public:
 
     	LogVerbosity = 0;
     	installscalar("LogVerbosity",LogVerbosity, DONT_CARE);
-    	StoreForces = 1;
+    	StoreForces = 0;
     	installscalar("StoreForces",StoreForces, DONT_CARE);
-    	ForcesOnly = 0;
-    	installscalar("ForcesOnly",ForcesOnly, DONT_CARE);
     	ForceOutputDebug = 0;
     	installscalar("ForceOutputDebug",ForceOutputDebug,DONT_CARE);
     	installscalar("RunName",RunName,MUST_DEFINE);
-
-
-
-
     }
 
     void ReadParameters(char *paramaterfile, int icflag);
     void ValidateParameters(void);
     void register_vars();
+
+    double ppd() {
+        // return the cube root of np, but be careful to avoid round-off 
+	// of perfect cubes.
+	double _ppd = pow((double)np, 1.0/3.0);
+	if ( fabs(_ppd-floor(_ppd+0.1))<1e-10 ) _ppd = floor(_ppd+0.1);
+	return _ppd;
+    }
+    int is_np_perfect_cube() {
+	// Return 1 if np is a perfect cube.
+        int n = floor(ppd());
+	if (n*n*n!=np) return 1; else return 0;
+    }
+
 private:
     void ProcessStateDirectories();
 };
@@ -226,9 +232,6 @@ void Parameters::ReadParameters(char *parameterfile, int icflag) {
     ReadHeader(hs);
     ProcessStateDirectories();
     if(!icflag) ValidateParameters();
-    double npcr = pow(np,1.0/3.0);
-    ppd = (long long int) floor(npcr+0.5);
-
 }
 
 void Parameters::ValidateParameters(void) {
@@ -250,11 +253,6 @@ void Parameters::ValidateParameters(void) {
 
     if( !( (DirectNewtonRaphson == 1) ||  (DirectNewtonRaphson == 0) ) ) {
         fprintf(stderr,"DirectNewtonRapson must be 0 or 1\n");
-        assert(1==0);
-    }
-
-    if( !( (DirectDoublePrecision == 1) || (DirectDoublePrecision==0) ) ) {
-        fprintf(stderr,"DirectDoublePrecision must be 0 or 1 \n");
         assert(1==0);
     }
 
@@ -355,7 +353,6 @@ void Parameters::ValidateParameters(void) {
     CheckDirectoryExists(PastStateDirectory);
     CheckDirectoryExists(OutputDirectory);
     CheckDirectoryExists(LogFileDirectory);
-    CheckDirectoryExists(BaseDistributionDirectory);
 
     CheckDirectoryExists(InitialConditionsDirectory);
 
@@ -373,13 +370,8 @@ void Parameters::ValidateParameters(void) {
         CheckFileExists(dfn);
     }
 
-    if (ForceOutputDebug && !StoreForces) {
-    	fprintf(stderr,"ForcesOutputDebug set to on, but StoreForces was not set. This is not supported.\n");
-	assert(1==0);
-    }
-
-    if (ForceOutputDebug && !ForcesOnly) {
-    	fprintf(stderr,"ForcesOutputDebug set to on, but ForcesOnly was not set. This is not supported.\n");
+    if (ForceOutputDebug && StoreForces) {
+    	fprintf(stderr,"ForcesOutputDebug and StoreForces both set. This is not supported.\n");
 	assert(1==0);
     }
 
