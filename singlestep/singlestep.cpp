@@ -87,6 +87,7 @@ void BuildWriteState(double da){
 	WriteState.cpd = P.cpd;
 	WriteState.order = P.order;
 	WriteState.ppd = P.ppd();
+	WriteState.DoublePrecision = (sizeof(FLOAT)==8)?1:0;
 
 	//get the next timestep and build the cosmology for it
 	double nexta = cosm->current.a + da;
