@@ -55,6 +55,7 @@ public:
     int  DerivativeExpansionRadius;
     int  MAXConvolutionRAMMB;
     int  ConvolutionCacheSizeMB;
+    int RamDisk;	// ==0 for a normal disk, ==1 for a ramdisk (which don't have DIO support)
 
     int  DirectNewtonRaphson;  // 0 or 1 
 
@@ -132,6 +133,8 @@ public:
     	installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
     	installscalar("MAXConvolutionRAMMB", MAXConvolutionRAMMB,MUST_DEFINE);
     	installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB,MUST_DEFINE);
+	RamDisk = 0;
+    	installscalar("RamDisk",RamDisk,DONT_CARE);
 
     	installscalar("DirectNewtonRaphson",DirectNewtonRaphson,MUST_DEFINE);  // 0 or 1
 
