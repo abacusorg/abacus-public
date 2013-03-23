@@ -51,6 +51,8 @@ double ChooseTimeStep(){
 
 	// Particles should not be able to move more than one cell per timestep
 	double maxdrift = cosm->DriftFactor(cosm->current.a, da)*ReadState.MaxVelocity;
+	maxdrift *= P.cpd;
+	STDLOG(1,"Maximum velocity would drift %f cells in this time step\n", maxdrift);
 	if (maxdrift>0.8) {
 	    da *= 0.8/maxdrift;   // Just linearly interpolate
 	    STDLOG(0,"da based on not letting particles drift more than a cell is %f.\n", da);
@@ -59,7 +61,10 @@ double ChooseTimeStep(){
 	// Perhaps the acceleration limits us more than this?
 	// dt = eta*sqrt(epsilon/amax) is a time.  So epsilon ~ amax*(dt/eta)^2
 	// Since accel beget velocities, which beget positions, we use one Kick and one Drift.
+	// But this is not appropriate at early times, when particles are separated by
+	// much more than a softening length!
 
+	/*
 	maxdrift = cosm->KickFactor(cosm->current.a, da);
 	maxdrift *= cosm->DriftFactor(cosm->current.a, da);
 	maxdrift *= ReadState.MaxAcceleration;
@@ -68,20 +73,23 @@ double ChooseTimeStep(){
 	    da *= sqrt(P.SofteningLength/maxdrift);
 	    STDLOG(0,"da based on sqrt(epsilon/amax) is %f.\n", da);
 	}
+	*/
 
 	// Perhaps the acceleration compared to the velocity is too big?
 	// We want amax*dt = eta*vrms, or 
 	double maxkick = cosm->KickFactor(cosm->current.a, da);
 	double goal = ReadState.MinVrmsOnAmax;
-	// double goal = P.TimeStepVonA*ReadState.MinVrmsOnAmax;
-	STDLOG(0,"da based on vrms/amax would differ by %f\n", goal/maxkick);
+	double goal2 = ReadState.rms_velocity/ReadState.MaxAcceleration;
+	STDLOG(1,"Cell-based Vrms/Amax = %f\n", goal);
+	STDLOG(1,"Global     Vrms/Amax = %f\n", goal2);
+	// We have both a global value and a cell value.  Take the maximum of these,
+	// to guard against abnormally cold cells.
+	goal = max(goal,goal2) * P.Eta;
 
-	/* 
 	if (maxkick>goal) {
 	    da *= goal/maxkick;
-	    STDLOG(0,"da based on vrms/amax is %f.\n", da_acc2);
+	    STDLOG(0,"da based on vrms/amax is %f.\n", da);
 	}
-	*/
 
 	return da;
 }

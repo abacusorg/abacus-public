@@ -186,7 +186,7 @@ public:
     	installscalar("Eta",Eta,MUST_DEFINE);         // Time-step parameter based on accelerations
     	installscalar("Dlna",Dlna,MUST_DEFINE);        // Maximum time step in d(ln a)
 
-    	LogVerbosity = 0;
+    	LogVerbosity = 1;
     	installscalar("LogVerbosity",LogVerbosity, DONT_CARE);
     	StoreForces = 0;
     	installscalar("StoreForces",StoreForces, DONT_CARE);
