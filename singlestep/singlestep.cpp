@@ -20,50 +20,72 @@ Cosmology *InitializeCosmology(double ScaleFactor) {
 }
 
 double ChooseTimeStep(){
-	//choose the maximum allowable timestep
-	//we start with the absolute maximum timestep allowed by the parameter file
+	// Choose the maximum allowable timestep
+	// We start with the absolute maximum timestep allowed by the parameter file,
+	// then see if it needs to be shorter.
+
 	// cosm has already been loaded with the ReadState.ScaleFactor.
 
-	double da_max = ReadState.ScaleFactor*P.Dlna;
+	double da = ReadState.ScaleFactor*P.Dlna;
+	STDLOG(0,"da from Hubble Dlna limit is %f\n", da);
+	if (da==0.0) return da;
+
 	// TODO: I think below might be simplified if we tried to construct
 	// cosm->BuildEpoch(cosm->current, cosm->next, cosm->current.a+da_max);
 	// and then did interpolations with that.  Or after each attempt, 
 	// call BuildEpoch and *test* whether cosm->next is acceptable,
 	// then interpolate down.
 
-	//first we calculate the maximum timesteps in time units, then choose the minimum and convert to da
-
-	//limit imposed by acceleration
-	double dt_acc = P.Eta * sqrt(P.SofteningLength/ReadState.MaxAcceleration);
-	if (isnan(dt_acc)) dt_acc = BIGNUM;
-	//particles should move only one cell per timestep
-	double dt_v = 1.0/P.cpd *1.0/(ReadState.MaxVelocity);
-	if (isnan(dt_v)) dt_v = BIGNUM;
-	if (ReadState.MaxAcceleration <= 0) dt_acc = 10000000.0;
-	//limit imposed by acceleration on velocity
-	/*double dt_vona = .5 * ReadState.MinVrmsOnAmax;
-	if (isnan(dt_vona)) dt_vona = BIGNUM;
-	*/
-	double dt_vona  = BIGNUM;
-//	printf("dt_acc: %f \t dt_v: %f \t dt_vona: %f \n ", dt_acc,dt_v,dt_vona);
-	double dtmin = min(min(dt_acc,dt_v),dt_vona);
-	double da;
-	if (dtmin > 100000.0) da = BIGNUM;
-	else da = cosm->t2a(ReadState.Time+dtmin) - ReadState.ScaleFactor; //TODO: This is essentially from Marc's code. Is it kosher?
-
-	da = min(da,da_max);
-
+	// Perhaps the next output is sooner than this?
+	// TimeSlizez array might not be in order!  Look at all of them.
 	for (int i = 0; i < P.nTimeSlice; i ++){
 		double tsa = 1.0/(1+P.TimeSlicez[i]);
-		if (ReadState.ScaleFactor < tsa && ReadState.ScaleFactor + da > tsa){
+		if (ReadState.ScaleFactor < tsa-1e-12 && ReadState.ScaleFactor + da > tsa) {
+			// Need to guard against round-off in this comparison
 			da = tsa - ReadState.ScaleFactor;
-			break;
+			STDLOG(0,"da to reach next output is %f\n", da);
 		}
 	}
 
-	assertf(da >= 0,"Maximum da:%f was not > 0. dt_acc: %f \t dt_v: %f \n",da,dt_acc,dt_v);
+	if (da<1e-12) return da;
+
+	// Particles should not be able to move more than one cell per timestep
+	double maxdrift = cosm->DriftFactor(cosm->current.a, da)*ReadState.MaxVelocity;
+	if (maxdrift>0.8) {
+	    da *= 0.8/maxdrift;   // Just linearly interpolate
+	    STDLOG(0,"da based on not letting particles drift more than a cell is %f.\n", da);
+	}
+
+	// Perhaps the acceleration limits us more than this?
+	// dt = eta*sqrt(epsilon/amax) is a time.  So epsilon ~ amax*(dt/eta)^2
+	// Since accel beget velocities, which beget positions, we use one Kick and one Drift.
+
+	maxdrift = cosm->KickFactor(cosm->current.a, da);
+	maxdrift *= cosm->DriftFactor(cosm->current.a, da);
+	maxdrift *= ReadState.MaxAcceleration;
+	maxdrift /= P.Eta*P.Eta;
+	if (maxdrift>P.SofteningLength) {
+	    da *= sqrt(P.SofteningLength/maxdrift);
+	    STDLOG(0,"da based on sqrt(epsilon/amax) is %f.\n", da);
+	}
+
+	// Perhaps the acceleration compared to the velocity is too big?
+	// We want amax*dt = eta*vrms, or 
+	double maxkick = cosm->KickFactor(cosm->current.a, da);
+	double goal = ReadState.MinVrmsOnAmax;
+	// double goal = P.TimeStepVonA*ReadState.MinVrmsOnAmax;
+	STDLOG(0,"da based on vrms/amax would differ by %f\n", goal/maxkick);
+
+	/* 
+	if (maxkick>goal) {
+	    da *= goal/maxkick;
+	    STDLOG(0,"da based on vrms/amax is %f.\n", da_acc2);
+	}
+	*/
+
 	return da;
 }
+
 
 void BuildWriteState(double da){
 	STDLOG(0,"Building WriteState for a step from a=%f by da=%f\n", cosm->current.a, da);
