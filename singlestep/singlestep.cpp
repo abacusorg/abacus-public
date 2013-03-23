@@ -201,6 +201,7 @@ int main(int argc, char **argv) {
     	CheckDirectoryExists(P.ReadStateDirectory);
 	STDLOG(0,"Reading ReadState\n");
     	ReadState.read_from_file(P.ReadStateDirectory);
+    	STDLOG(0,"Read ReadState from %s\n",P.ReadStateDirectory);
 
     	//make sure read state and parameters are compatible
     	assertf(ReadState.order_state == P.order, 
@@ -212,7 +213,9 @@ int main(int argc, char **argv) {
     	assertf(ReadState.np_state == P.np, 
 		"ReadState and Parameter np do not match, %d != %d\n", 
 		ReadState.np_state, P.np);
-    	STDLOG(0,"Read ReadState from %s\n",P.ReadStateDirectory);
+	assertf(ReadState.MaxCellSize < (2.048e9)/3,
+		"The largest cell has %d particles, exceeding the allowed amount.\n",
+		ReadState.MaxCellSize);
 
 	if (P.ForceOutputDebug==1) {
 	    STDLOG(0,"ForceOutputDebug option invoked; setting time step to 0.\n");
