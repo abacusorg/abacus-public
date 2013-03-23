@@ -25,11 +25,11 @@ double ChooseTimeStep(){
 	// cosm has already been loaded with the ReadState.ScaleFactor.
 
 	double da_max = ReadState.ScaleFactor*P.Dlna;
-	// TODO: I think below might be simplified if we tried to construct
-	// cosm->BuildEpoch(cosm->current, cosm->next, cosm->current.a+da_max);
-	// and then did interpolations with that.  Or after each attempt, 
-	// call BuildEpoch and *test* whether cosm->next is acceptable,
-	// then interpolate down.
+	// TODO: I think below might be simplified if we used the kickfactor and
+	// driftfactor methods from the cosmology function.  Also, we need to be
+	// careful that our velocities and accelerations are in code (canonical) units,
+	// so there are redshift factors slinging around.  Using kicks and drifts
+	// helps to avoid problems.
 
 	//first we calculate the maximum timesteps in time units, then choose the minimum and convert to da
 
