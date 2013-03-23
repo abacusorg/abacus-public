@@ -106,7 +106,7 @@ void BuildWriteState(double da){
 	double total = cosm->next.OmegaHat_m+cosm->next.OmegaHat_X+cosm->next.OmegaHat_K;
 	WriteState.OmegaNow_m = cosm->next.OmegaHat_m/total;
 	WriteState.OmegaNow_K = cosm->next.OmegaHat_K/total;
-	WriteState.OmegaNow_DE = cosm->next.OmegaHat_DE/total;
+	WriteState.OmegaNow_DE = cosm->next.OmegaHat_X/total;
 
 	WriteState.ParticleMass = ReadState.ParticleMass; //FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
 	WriteState.RedshiftSpaceConversion = ReadState.RedshiftSpaceConversion ;//FIXME: Another placeholder until the actual math is worked out

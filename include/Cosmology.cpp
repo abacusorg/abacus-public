@@ -25,7 +25,7 @@ public:
 
     typedef struct {
         double a, z, t, etaK, etaD, growth, f_growth;
-        double w, H, OmegaHat_X, OmegaHat_m, OmegaHat_K, OmegaHat_DE;
+        double w, H, OmegaHat_X, OmegaHat_m, OmegaHat_K;
     } Epoch;
 
     Cosmology(double a_initial, MyCosmology& cos);
