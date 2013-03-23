@@ -14,7 +14,6 @@
 #include <float.h>
 #include <complex>
 #include <omp.h>
-#include <stdint.h>
 
 #include <sys/time.h>
 #include <errno.h>
@@ -24,6 +23,9 @@
 #include <ctype.h>
 #include <sys/select.h>
 #include <stdlib.h>
+
+#include <stdint.h>
+#define uint64 uint64_t
 
 typedef std::complex<double> Complex;
 
