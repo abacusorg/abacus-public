@@ -193,7 +193,17 @@ public:
     	ForceOutputDebug = 0;
     	installscalar("ForceOutputDebug",ForceOutputDebug,DONT_CARE);
     	installscalar("RunName",RunName,MUST_DEFINE);
+	hs = NULL;
     }
+
+    // We're going to keep the HeaderStream, so that we can output it later.
+    HeaderStream *hs;
+    ~Parameters(void) { delete hs; }
+    char *header() { 
+	assert(hs!=NULL); assert(hs->buffer!=NULL);
+        return hs->buffer;	// This is just a standard C-style string.
+    }
+
 
     void ReadParameters(char *paramaterfile, int icflag);
     void ValidateParameters(void);
@@ -231,8 +241,9 @@ void Parameters::ProcessStateDirectories(){
 
 
 void Parameters::ReadParameters(char *parameterfile, int icflag) {
-    HeaderStream hs(parameterfile);
-    ReadHeader(hs);
+    hs = new HeaderStream(parameterfile);
+    ReadHeader(*hs);
+    hs->Close();
     ProcessStateDirectories();
     if(!icflag) ValidateParameters();
 }
