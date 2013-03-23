@@ -1,7 +1,7 @@
 #include "proepi.cpp"
 
 #define BIGNUM 1000000.0
-
+#define DATOLERANCE 1.e-12
 
 Cosmology *InitializeCosmology(double ScaleFactor) {
     // Be warned that all of the Cosmology routines quote time units
