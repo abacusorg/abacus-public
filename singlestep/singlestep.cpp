@@ -65,7 +65,7 @@ void FillStateWithCosmology(State &S) {
     // However, our output standard is redshift-space comoving displacements, again
     // in units where the box is one.
     // The conversion is v_canon = v_zspace * a^2 H(z)/H_0
-    S.VelCanonical_to_Zspace = S.ScaleFactor * S.ScaleFactor * (S.HubbleNow/cosm->C.H0);
+    S.VelZSpace_to_Canonical = S.ScaleFactor * S.ScaleFactor * (S.HubbleNow/cosm->C.H0);
 
     // After output, one might want to convert to km/s.  
     // Here, we quote the number of km/s across the full box.
