@@ -43,21 +43,24 @@ void FillStateWithCosmology(State &S) {
     // pulled from epoch cosm->next.
     S.ScaleFactor = cosm->next.a;
     S.Redshift = cosm->next.z;
-    S.Time = cosm->next.t;                // In Gyr or Gyr/h, depending on hMpc flag
+    S.Time = cosm->next.t;                // In same units as H_0 was given
     S.etaK = cosm->next.etaK;
     S.etaD = cosm->next.etaD;
     S.Growth = cosm->next.growth;
     S.Growth_on_a = cosm->next.growth/cosm->next.a;
     S.f_growth = cosm->next.f_growth;
     S.w = cosm->next.w;
-    S.HubbleNow = cosm->next.H;           // In km/s/Mpc
-    S.Htime = cosm->next.H*cosm->next.t;               // Time*H(z)
+    S.HubbleNow = cosm->next.H;           // In same units as H_0 was given
+    S.Htime = cosm->next.H*cosm->next.t;               // Time*H(z), in code units
 
     double total = cosm->next.OmegaHat_m+cosm->next.OmegaHat_X+cosm->next.OmegaHat_K;
     S.OmegaNow_m = cosm->next.OmegaHat_m/total;
     S.OmegaNow_K = cosm->next.OmegaHat_K/total;
     S.OmegaNow_DE = cosm->next.OmegaHat_X/total;
 
+    S.HubbleTime = 1.0; 	
+    	// The code always uses H_0=1, so here's the true 1/H_0 in Gyr or Gyr/h, depending on hMpc flag
+	// TODO: Not yet in place.
     S.ParticleMass = 1.0/P.np;
     	//FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
 
