@@ -3,11 +3,29 @@
 #define BIGNUM 1000000.0
 #define DATOLERANCE 1.e-12
 
+
+void AssertStateLegal() {
+    //make sure read state and parameters are compatible
+    assertf(ReadState.order_state == P.order, 
+	    "ReadState and Parameter order do not match, %d != %d\n", 
+	    ReadState.order_state, P.order);
+    assertf(ReadState.cpd_state == P.cpd, 
+	    "ReadState and Parameter cpd do not match, %d != %d\n", 
+	    ReadState.cpd_state, P.cpd);
+    assertf(ReadState.np_state == P.np, 
+	    "ReadState and Parameter np do not match, %d != %d\n", 
+	    ReadState.np_state, P.np);
+    assertf(ReadState.MaxCellSize < (2.048e9)/3,
+	    "The largest cell has %d particles, exceeding the allowed amount.\n",
+	    ReadState.MaxCellSize);
+}
+
 Cosmology *InitializeCosmology(double ScaleFactor) {
     // Be warned that all of the Cosmology routines quote time units
     // by what is entered as H0.  The code wants to use H0=1 units.
     // But P.H0 is defined to be in km/s/Mpc!
     // If you want to compare any times or H(z), remember that H0=1.
+    // This routine should only be called once.
     MyCosmology cosmo;
     cosmo.Omega_m = P.Omega_M;
     cosmo.Omega_K = P.Omega_K;
@@ -17,7 +35,46 @@ Cosmology *InitializeCosmology(double ScaleFactor) {
     cosmo.wa = P.wa;
     STDLOG(0,"Initialized Cosmology at a= %6.4f\n",ScaleFactor);
     return new Cosmology(ScaleFactor,cosmo);
+    	// This will set cosm->current and cosm->next to epoch a=ScaleFactor.
 }
+
+void FillStateWithCosmology(State &S) {
+    // Fill up the given state with information about the Cosmology cosm,
+    // pulled from epoch cosm->next.
+    S.ScaleFactor = cosm->next.a;
+    S.Redshift = cosm->next.z;
+    S.Time = cosm->next.t;                // In Gyr or Gyr/h, depending on hMpc flag
+    S.etaK = cosm->next.etaK;
+    S.etaD = cosm->next.etaD;
+    S.Growth = cosm->next.growth;
+    S.Growth_on_a = cosm->next.growth/cosm->next.a;
+    S.f_growth = cosm->next.f_growth;
+    S.w = cosm->next.w;
+    S.HubbleNow = cosm->next.H;           // In km/s/Mpc
+    S.Htime = cosm->next.H*cosm->next.t;               // Time*H(z)
+
+    double total = cosm->next.OmegaHat_m+cosm->next.OmegaHat_X+cosm->next.OmegaHat_K;
+    S.OmegaNow_m = cosm->next.OmegaHat_m/total;
+    S.OmegaNow_K = cosm->next.OmegaHat_K/total;
+    S.OmegaNow_DE = cosm->next.OmegaHat_X/total;
+
+    S.ParticleMass = 1.0/P.np;
+    	//FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
+
+    // The code uses canonical velocities, for the unit box and 1/H_0 time unit.
+    // However, our output standard is redshift-space comoving displacements, again
+    // in units where the box is one.
+    // The conversion is v_canon = v_zspace * a^2 H(z)/H_0
+    S.VelCanonical_to_Zspace = S.ScaleFactor * S.ScaleFactor * (S.HubbleNow/cosm->C.H0);
+
+    // After output, one might want to convert to km/s.  
+    // Here, we quote the number of km/s across the full box.
+    S.RedshiftSpaceConversion = 1.0;
+    	//FIXME: Another placeholder until the actual math is worked out
+	// What are we doing about the hMpc flag?
+}
+
+
 
 double ChooseTimeStep(){
 	//choose the maximum allowable timestep
@@ -65,8 +122,16 @@ double ChooseTimeStep(){
 	return da;
 }
 
+
+
 void BuildWriteState(double da){
 	STDLOG(0,"Building WriteState for a step from a=%f by da=%f\n", cosm->current.a, da);
+
+	// fill in WriteState from the Parameter file
+	WriteState.np_state = P.np;
+	WriteState.cpd_state = P.cpd;
+	WriteState.order_state = P.order;
+	WriteState.ppd = P.ppd();
 
 	// Fill in the logistical reporting fields
 #ifdef GITVERSION	
@@ -79,68 +144,53 @@ void BuildWriteState(double da){
 	gethostname(WriteState.MachineName,1024);
 	STDLOG(0,"Host machine name is %s\n", WriteState.MachineName);
 
-	//fill in WriteState from the Parameter file
-	WriteState.np_state =P.np;
-	WriteState.cpd_state = P.cpd;
-	WriteState.order_state = P.order;
-	WriteState.ppd = P.ppd();
 	WriteState.DoublePrecision = (sizeof(FLOAT)==8)?1:0;
+	WriteState.FullStepNumber = ReadState.FullStepNumber+1;
 
 	//get the next timestep and build the cosmology for it
 	double nexta = cosm->current.a + da;
 	STDLOG(0,"Next scale factor is %f\n", nexta);
 	cosm->BuildEpoch(cosm->current, cosm->next, nexta);
+	FillStateWithCosmology(WriteState);
 
-	WriteState.ScaleFactor = cosm->next.a;
-	WriteState.Redshift = cosm->next.z;
-	WriteState.Time = cosm->next.t;                // In Gyr or Gyr/h, depending on hMpc flag
-	WriteState.etaK = cosm->next.etaK;
-	WriteState.etaD = cosm->next.etaD;
-	WriteState.Growth = cosm->next.growth;
-	WriteState.Growth_on_a = cosm->next.growth/cosm->next.a;
-	WriteState.f_growth = cosm->next.f_growth;
-	WriteState.w = cosm->next.w;
-	WriteState.HubbleNow = cosm->next.H;           // In km/s/Mpc
-	WriteState.Htime = cosm->next.H*cosm->next.t;               // Time*H(z)
-
-	double total = cosm->next.OmegaHat_m+cosm->next.OmegaHat_X+cosm->next.OmegaHat_K;
-	WriteState.OmegaNow_m = cosm->next.OmegaHat_m/total;
-	WriteState.OmegaNow_K = cosm->next.OmegaHat_K/total;
-	WriteState.OmegaNow_DE = cosm->next.OmegaHat_X/total;
-
-	WriteState.ParticleMass = ReadState.ParticleMass; //FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
-	WriteState.RedshiftSpaceConversion = ReadState.RedshiftSpaceConversion ;//FIXME: Another placeholder until the actual math is worked out
-	WriteState.LPTstatus = ReadState.LPTstatus; //TODO: Depricated?
-	WriteState.FullStepNumber = ReadState.FullStepNumber+1;
-
-
+	// Get differences between the two cosmological epochs
 	WriteState.DeltaTime = cosm->next.t - cosm->current.t;
 	WriteState.DeltaRedshift = -(cosm->next.z - cosm->current.z);
 	WriteState.DeltaScaleFactor = cosm->next.a - cosm->current.a;
 
-	// Might also compute the Scale Factor for the halfway time, since
-	// we'll need that.
 	cosm->t2a(0.5*(cosm->next.t+cosm->current.t));
 	STDLOG(0,"Scale factor halfway in between is %f\n", cosm->search.a);
 	// cosm->search now has the midpoint epoch.
 	WriteState.ScaleFactorHalf = cosm->search.a;
-	WriteState.LastHalfEtaKick = cosm->KickFactor(cosm->search.a,WriteState.ScaleFactor-cosm->search.a);
-	WriteState.FirstHalfEtaKick = cosm->KickFactor(cosm->current.a,cosm->search.a-cosm->current.a);
-	WriteState.DeltaEtaDrift = cosm->DriftFactor(cosm->current.a, cosm->next.a-cosm->current.a);
-		// cosm->next.etaD - cosm->current.etaD;
-		// WriteState.etaD - ReadState.etaD;
+	WriteState.LastHalfEtaKick = 
+		cosm->KickFactor(cosm->search.a,WriteState.ScaleFactor-cosm->search.a);
+	WriteState.FirstHalfEtaKick = 
+		cosm->KickFactor(cosm->current.a,cosm->search.a-cosm->current.a);
+	WriteState.DeltaEtaDrift = 
+		cosm->DriftFactor(cosm->current.a, cosm->next.a-cosm->current.a);
 
 	// Just truncate some underflow cases
-	if (fabs(WriteState.DeltaEtaDrift)   <1e-14*fabs(cosm->current.etaD)) WriteState.DeltaEtaDrift = 0.;
-	if (fabs(WriteState.FirstHalfEtaKick)<1e-14*fabs(cosm->current.etaK)) WriteState.FirstHalfEtaKick = 0.;
-	if (fabs(WriteState.LastHalfEtaKick) <1e-14*fabs(cosm->current.etaK)) WriteState.LastHalfEtaKick = 0.;
+	if (fabs(WriteState.DeltaEtaDrift)   <1e-14*fabs(cosm->current.etaD)) 
+		WriteState.DeltaEtaDrift = 0.;
+	if (fabs(WriteState.FirstHalfEtaKick)<1e-14*fabs(cosm->current.etaK)) 
+		WriteState.FirstHalfEtaKick = 0.;
+	if (fabs(WriteState.LastHalfEtaKick) <1e-14*fabs(cosm->current.etaK)) 
+		WriteState.LastHalfEtaKick = 0.;
 
-	// Some statistics to accumulate
-	WriteState.MaxCellSize = ReadState.MaxCellSize;
-	WriteState.StdDevCellSize = 0;
+	// Initialize some statistics to accumulate
+	WriteState.MaxCellSize = 0;
+	WriteState.StdDevCellSize = 0.0;
+	WriteState.MaxVelocity = 0.0;
+	WriteState.MaxAcceleration = 0.0;
+	WriteState.rms_velocity = 0.0;
+	WriteState.MinVrmsOnAmax = 1e10;
 
 	// Build the output header
 	WriteState.make_output_header();
+}
+
+void PlanOutput() {
+    // Check the time slice and decide whether to do output.
 }
 
 
@@ -149,7 +199,6 @@ int main(int argc, char **argv) {
     WallClockDirect.Start();
     SingleStepSetup.Start();
 
-
     if (argc!=3) {
        // Can't use assertf() or QUIT here: stdlog not yet defined!
        fprintf(stderr, "singlestep(): command line must have 3 parameters given, not %d.\nLegal usage: singlestep <parameter_file> <allow creation of initial conditions 1/0>\n", argc);
@@ -157,16 +206,16 @@ int main(int argc, char **argv) {
     }
     
     int AllowIC = atoi(argv[2]);
-
     P.ReadParameters(argv[1],1);
+    strcpy(WriteState.ParameterFileName, argv[1]);
+
+    // Setup the log
     stdlog_threshold_global = P.LogVerbosity;
     char logfn[1050];
     sprintf(logfn,"%s/lastrun.log", P.LogFileDirectory);
     stdlog.open(logfn);
     STDLOG_TIMESTAMP;
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
-
-    strcpy(WriteState.ParameterFileName, argv[1]);
     STDLOG(0,"AllowIC = %d\n", AllowIC);
 
     double da = -1.0;   // If we set this to zero, it will skip the timestep choice
@@ -180,48 +229,31 @@ int main(int argc, char **argv) {
     if(access(rstatefn,0) ==-1){
 	STDLOG(0,"Can't find ReadStateDirectory %s\n", P.ReadStateDirectory);
     	if(AllowIC != 1){
-    		QUIT("Read State Directory ( %s ) is inaccessible and initial state creation is prohibited. Terminating.\n",P.ReadStateDirectory);
+	    QUIT("Read State Directory ( %s ) is inaccessible and initial state creation is prohibited. Terminating.\n",P.ReadStateDirectory);
 
-    	}
-    	else{
-    		STDLOG(0,"Generating initial State from initial conditions\n");
-    		ReadState.ParticleMass = 1.0/P.np; //FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
-    		ReadState.RedshiftSpaceConversion = 1.0 ;//FIXME: Another placeholder until the actual math is worked out
-    		ReadState.LPTstatus = P.LagrangianPTOrder;
-    		ReadState.FullStepNumber = -1;  
-			// So that this number is the number of times
-			// forces have been computed.
-    		sprintf(ReadState.ParameterFileName,"%s",argv[1]);
-        	ReadState.ScaleFactor = 1.0/(1+P.InitialRedshift);
-        	da = 0;
-        	MakeIC = true;
-    	}
-    }
-    else{
+    	} else{
+	    STDLOG(0,"Generating initial State from initial conditions\n");
+	    // We have to fill in a few items, just to bootstrap the rest of the code.
+	    ReadState.ScaleFactor = 1.0/(1+P.InitialRedshift);
+	    ReadState.FullStepNumber = -1;  
+		// So that this number is the number of times forces have been computed.
+		// The IC construction will yield a WriteState that is number 0,
+		// so our first time computing forces will read from 0 and write to 1.
+	    da = 0;
+	    MakeIC = true;
+	}
+    } else {
+	// We're doing a normal step
     	CheckDirectoryExists(P.ReadStateDirectory);
-	STDLOG(0,"Reading ReadState\n");
+    	STDLOG(0,"Reading ReadState from %s\n",P.ReadStateDirectory);
     	ReadState.read_from_file(P.ReadStateDirectory);
-    	STDLOG(0,"Read ReadState from %s\n",P.ReadStateDirectory);
-
-    	//make sure read state and parameters are compatible
-    	assertf(ReadState.order_state == P.order, 
-		"ReadState and Parameter order do not match, %d != %d\n", 
-		ReadState.order_state, P.order);
-    	assertf(ReadState.cpd_state == P.cpd, 
-		"ReadState and Parameter cpd do not match, %d != %d\n", 
-		ReadState.cpd_state, P.cpd);
-    	assertf(ReadState.np_state == P.np, 
-		"ReadState and Parameter np do not match, %d != %d\n", 
-		ReadState.np_state, P.np);
-	assertf(ReadState.MaxCellSize < (2.048e9)/3,
-		"The largest cell has %d particles, exceeding the allowed amount.\n",
-		ReadState.MaxCellSize);
-
+	AssertStateLegal();
+    	MakeIC = false;
+	// Handle some special cases
 	if (P.ForceOutputDebug==1) {
 	    STDLOG(0,"ForceOutputDebug option invoked; setting time step to 0.\n");
 	    da = 0;
 	}
-    	MakeIC = false;
     }
 
     //Check if WriteStateDirectory/state exists, and fail if it does
@@ -230,29 +262,31 @@ int main(int argc, char **argv) {
     if(access(wstatefn,0) !=-1)
     	QUIT("WriteState exists and would be overwritten. Please move or delete it to continue.\n");
 
+    // Initialize the Cosmology and set up the State epochs and the time step
     cosm = InitializeCosmology(ReadState.ScaleFactor);
+    if (MakeIC) FillStateWithCosmology(ReadState);
     if (da!=0) da = ChooseTimeStep();
     STDLOG(0,"Chose Time Step da = %6.4f\n",da);
-
     feenableexcept(FE_INVALID | FE_DIVBYZERO);
     BuildWriteState(da);
 
+    // Make a plan for output
+    PlanOutput();
+
     SingleStepSetup.Stop();
 
+    // Now execute the timestep
     Prologue(P,MakeIC);
-
     if (MakeIC)  timestepIC();
 	    else timestep();
 
     // Let the IO finish, so that it is included in the time log.
     IO_Terminate();
-
-    // The timings need to proceed the epilogue, because they need to look inside 
-    // some instances of classes.
-    WallClockDirect.Stop();
-
     fedisableexcept(FE_INVALID | FE_DIVBYZERO);
 
+    // Write out the timings.  This must precede the epilogue, because 
+    // we need to look inside some instances of classes for runtimes.
+    WallClockDirect.Stop();
     if (!MakeIC){
     	char timingfn[1050];
     	sprintf(timingfn,"%s/lastrun.steptiming", P.LogFileDirectory);
