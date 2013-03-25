@@ -1,13 +1,13 @@
 #include "$ABACUS$/python/param.def"
-NP, 128**3
-H0, 50
-Omega_M,  1	
-Omega_DE,  0
-Omega_K,  0
-w0,  -1
-wa,  0
-BoxSize, 128
-hMpc, 1
-InitialRedshift, 99
-LagrangianPTOrder, 0
-SimName, "Test"
+NP = 128**3
+H0 = 50
+Omega_M =  1	
+Omega_DE =  0
+Omega_K = 0
+w0 = -1
+wa = 0
+BoxSize = 128
+hMpc =1
+InitialRedshift = 99
+LagrangianPTOrder = 0
+SimName = "Test"
