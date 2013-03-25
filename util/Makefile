@@ -5,7 +5,9 @@ LIBS =
 
 CFLAGS = -O1 ${INCLUDES}
 
-TARGET = phheader phdata dump_double3 dump_float3 dump_rvdouble
+TARGET = phheader phdata \
+dump_double3 dump_float3 dump_uint64 \
+dump_rvdouble 
 
 all: ${TARGET}
 
