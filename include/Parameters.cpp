@@ -88,6 +88,9 @@ public:
     char GroupFilePrefix[1024];     // What the group outputs are called
     char LightFilePrefix[1024];
 
+    char OutputFormat[1024];		// The format of the Output files
+    int  OmitOutputHeader;		// =1 if you want to skip the ascii header
+
     float TimeSlicez[1024];
     int nTimeSlice;
 
@@ -169,6 +172,11 @@ public:
 
     	installvector("TimeSlicez",TimeSlicez,1024,1,MUST_DEFINE);
     	installscalar("nTimeSlice",nTimeSlice,MUST_DEFINE);
+
+	strcpy(OutputFormat,"RVdouble");
+    	installscalar("OutputFormat",OutputFormat,DONT_CARE);
+	OmitOutputHeader = 0;
+    	installscalar("OmitOutputHeader",OmitOutputHeader,DONT_CARE);
 
     	installscalar("H0", H0, MUST_DEFINE);
     	installscalar("Omega_M", Omega_M, MUST_DEFINE);

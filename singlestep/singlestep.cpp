@@ -189,12 +189,38 @@ void BuildWriteState(double da){
 	WriteState.rms_velocity = 0.0;
 	WriteState.MinVrmsOnAmax = 1e10;
 
-	// Build the output header
+	// Build the output header.
+	// Note we actually will output from ReadState,
+	// but we build this to write the write/state file from the same code.
 	WriteState.make_output_header();
 }
 
-void PlanOutput() {
+void PlanOutput(bool MakeIC) {
     // Check the time slice and decide whether to do output.
+    ReadState.DoTimeSliceOutput = 0;
+    if (MakeIC) return;   // Do no output on this slice.
+
+    // Build the output header.  The cosmology is from ReadState,
+    // but we'd like to use some elements from WriteState.  So we 
+    // overwrite some ReadState elements.
+    // We will call this output by the WriteState FullStepNumber, as that
+    // is what is required for the velocities (and is the run writing the output). 
+    strncpy(ReadState.ParameterFileName, WriteState.ParameterFileName, 1024);
+    strncpy(ReadState.CodeVersion, WriteState.CodeVersion, 1024);
+    strncpy(ReadState.MachineName, WriteState.MachineName, 1024);
+    strncpy(ReadState.RunTime,     WriteState.RunTime, 1024);
+    ReadState.FullStepNumber = WriteState.FullStepNumber;
+    ReadState.make_output_header();
+
+    // Now check whether we're asked to do a TimeSlice.
+    for (int nn = 0; nn < P.nTimeSlice; nn++) {
+	if (1 || fabs(ReadState.Redshift-P.TimeSlicez[nn])<1e-12) {
+	    STDLOG(0,"Planning to output a TimeSlice, element %d\n", nn);
+	    ReadState.DoTimeSliceOutput = 1;
+	    // Might also create a directory here.
+	    break;
+	}
+    }
 }
 
 
@@ -275,7 +301,7 @@ int main(int argc, char **argv) {
     BuildWriteState(da);
 
     // Make a plan for output
-    PlanOutput();
+    PlanOutput(MakeIC);
 
     SingleStepSetup.Stop();
 

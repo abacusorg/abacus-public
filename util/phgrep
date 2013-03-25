@@ -8,4 +8,4 @@ greparg=$1
 shift 1
 #echo ${greparg}
 #echo $@
-phheader $@ | grep ${greparg}
+${ABACUS}/util/phheader $@ | grep ${greparg}
