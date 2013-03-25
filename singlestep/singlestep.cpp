@@ -148,7 +148,11 @@ void BuildWriteState(double da){
 	STDLOG(0,"Host machine name is %s\n", WriteState.MachineName);
 
 	WriteState.DoublePrecision = (sizeof(FLOAT)==8)?1:0;
+	STDLOG(0,"Bytes per float is %d\n", (WriteState.DoublePrecision+1)*4);
+	STDLOG(0,"Bytes per auxstruct is %d\n", sizeof(auxstruct));
+	STDLOG(0,"Bytes per cellinfo is %d\n", sizeof(cellinfo));
 	WriteState.FullStepNumber = ReadState.FullStepNumber+1;
+	STDLOG(0,"This is step number %d\n", WriteState.FullStepNumber);
 
 	//get the next timestep and build the cosmology for it
 	double nexta = cosm->current.a + da;
