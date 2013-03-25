@@ -192,8 +192,18 @@ void BuildWriteState(double da){
 	WriteState.make_output_header();
 }
 
-void PlanOutput() {
+void PlanOutput(bool MakeIC) {
     // Check the time slice and decide whether to do output.
+    ReadState.DoTimeSliceOutput = 0;
+    if (MakeIC) return;   // Do no output on this slice.
+    for (int nn = 0; nn < P.nTimeSlice; nn++) {
+	if (fabs(ReadState.Redshift-P.TimeSlicez[nn])<1e-12) {
+	    STDLOG(0,"Planning to output a TimeSlice, element %d\n", nn);
+	    ReadState.DoTimeSliceOutput = 1;
+	    // Might also create a directory here.
+	    break;
+	}
+    }
 }
 
 
@@ -274,7 +284,7 @@ int main(int argc, char **argv) {
     BuildWriteState(da);
 
     // Make a plan for output
-    PlanOutput();
+    PlanOutput(MakeIC);
 
     SingleStepSetup.Stop();
 
