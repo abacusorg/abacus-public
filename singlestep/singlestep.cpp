@@ -182,6 +182,7 @@ void BuildWriteState(double da){
 
 	// Initialize some statistics to accumulate
 	WriteState.MaxCellSize = 0;
+	WriteState.MinCellSize = 1e9;
 	WriteState.StdDevCellSize = 0.0;
 	WriteState.MaxVelocity = 0.0;
 	WriteState.MaxAcceleration = 0.0;
