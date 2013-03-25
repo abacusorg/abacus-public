@@ -88,6 +88,9 @@ public:
     char GroupFilePrefix[1024];     // What the group outputs are called
     char LightFilePrefix[1024];
 
+    char OutputFormat[1024];		// The format of the Output files
+    int  OmitOutputHeader;		// =1 if you want to skip the ascii header
+
     float TimeSlicez[1024];
     int nTimeSlice;
 
@@ -170,6 +173,11 @@ public:
     	installvector("TimeSlicez",TimeSlicez,1024,1,MUST_DEFINE);
     	installscalar("nTimeSlice",nTimeSlice,MUST_DEFINE);
 
+	strcpy(OutputFormat,"RVdouble");
+    	installscalar("OutputFormat",OutputFormat,DONT_CARE);
+	OmitOutputHeader = 0;
+    	installscalar("OmitOutputHeader",OmitOutputHeader,DONT_CARE);
+
     	installscalar("H0", H0, MUST_DEFINE);
     	installscalar("Omega_M", Omega_M, MUST_DEFINE);
     	installscalar("Omega_DE", Omega_DE, MUST_DEFINE);
@@ -186,14 +194,24 @@ public:
     	installscalar("Eta",Eta,MUST_DEFINE);         // Time-step parameter based on accelerations
     	installscalar("Dlna",Dlna,MUST_DEFINE);        // Maximum time step in d(ln a)
 
-    	LogVerbosity = 0;
+    	LogVerbosity = 1;
     	installscalar("LogVerbosity",LogVerbosity, DONT_CARE);
     	StoreForces = 0;
     	installscalar("StoreForces",StoreForces, DONT_CARE);
     	ForceOutputDebug = 0;
     	installscalar("ForceOutputDebug",ForceOutputDebug,DONT_CARE);
     	installscalar("RunName",RunName,MUST_DEFINE);
+	hs = NULL;
     }
+
+    // We're going to keep the HeaderStream, so that we can output it later.
+    HeaderStream *hs;
+    ~Parameters(void) { delete hs; }
+    char *header() { 
+	assert(hs!=NULL); assert(hs->buffer!=NULL);
+        return hs->buffer;	// This is just a standard C-style string.
+    }
+
 
     void ReadParameters(char *paramaterfile, int icflag);
     void ValidateParameters(void);
@@ -231,8 +249,9 @@ void Parameters::ProcessStateDirectories(){
 
 
 void Parameters::ReadParameters(char *parameterfile, int icflag) {
-    HeaderStream hs(parameterfile);
-    ReadHeader(hs);
+    hs = new HeaderStream(parameterfile);
+    ReadHeader(*hs);
+    hs->Close();
     ProcessStateDirectories();
     if(!icflag) ValidateParameters();
 }
