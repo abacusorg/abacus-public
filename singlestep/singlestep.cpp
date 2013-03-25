@@ -186,7 +186,7 @@ void BuildWriteState(double da){
 	WriteState.StdDevCellSize = 0.0;
 	WriteState.MaxVelocity = 0.0;
 	WriteState.MaxAcceleration = 0.0;
-	WriteState.rms_velocity = 0.0;
+	WriteState.RMS_Velocity = 0.0;
 	WriteState.MinVrmsOnAmax = 1e10;
 
 	// Build the output header.
@@ -217,7 +217,9 @@ void PlanOutput(bool MakeIC) {
 	if (1 || fabs(ReadState.Redshift-P.TimeSlicez[nn])<1e-12) {
 	    STDLOG(0,"Planning to output a TimeSlice, element %d\n", nn);
 	    ReadState.DoTimeSliceOutput = 1;
-	    // Might also create a directory here.
+	    char slicedir[128];
+	    sprintf(slicedir,"slice%5.3f", ReadState.Redshift);
+	    CreateSubDirectory(P.OutputDirectory,slicedir);
 	    break;
 	}
     }
