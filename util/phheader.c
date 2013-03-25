@@ -13,11 +13,10 @@ void print_header(FILE *fp) {
     int c, clast;
     if ((clast=getc(fp))==EOF) return;
     while ((c=getc(fp))!=EOF) {
-        if (clast==''&&c=='\n') return;
+        if (clast==''&&c=='\n') { putchar('\n'); return; }
         putchar(clast); clast = c;
     }
     putchar(clast);   // If the demarker hasn't been found, we still have one more char
-    putchar('\n');    // Add a \n as a formatting guard.
     putchar('\n');    // Add a \n as a formatting guard.
 }
 
