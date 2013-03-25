@@ -4,6 +4,6 @@
 all: spiral
 
 spiral:
-	cd Spiral &&(MAKE)
+	cd Spiral &&$(MAKE)
 	
 .PHONY: spiral
