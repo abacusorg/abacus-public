@@ -42,7 +42,7 @@ NB: When adding parameters, you should add:
 class Parameters: public ParseHeader {
 public:
     
-    char RunName[1024]; //What to call this run
+    char SimName[1024]; //What to call this run
     // TODO: Rename this to SimName
 
     long long int np;
@@ -200,7 +200,7 @@ public:
     	installscalar("StoreForces",StoreForces, DONT_CARE);
     	ForceOutputDebug = 0;
     	installscalar("ForceOutputDebug",ForceOutputDebug,DONT_CARE);
-    	installscalar("RunName",RunName,MUST_DEFINE);
+    	installscalar("SimName",SimName,MUST_DEFINE);
 	hs = NULL;
     }
 
