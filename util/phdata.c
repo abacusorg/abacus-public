@@ -11,7 +11,7 @@ void print_data(FILE *fp) {
     int c, clast;
     if ((clast=getc(fp))==EOF) return;
     while ((c=getc(fp))!=EOF) {
-        if (clast==''&&c=='') break;
+        if (clast==''&&c=='\n') break;
         clast = c;
     }
     // Now we're found the end of the header; continue.
