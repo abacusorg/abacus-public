@@ -49,7 +49,7 @@ def run(basedir = "NONE"):
         
     kvec = (1,0,0)
     phase = (np.pi,0,0)
-    n1d = 16
+    n1d = 64
     ainitial = 0.1
     across = 4
     astop =  1.0
