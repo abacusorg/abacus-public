@@ -18,7 +18,7 @@ CLIBS = libpermute.so liblightcones.so
 
 all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS)
 
-singlestep: singlestep.o $(GEN_OBJ) libparseheader.a
+singlestep: singlestep.o $(GEN_OBJ) libparseheader.a Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(addprefix Multipoles/,$(GEN_OBJ)) $(LIBS)
 
 
