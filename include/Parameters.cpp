@@ -63,15 +63,15 @@ public:
 
     char InitialConditionsDirectory[1024];   // The initial condition file name
     char ICFormat[1024];		// The format of the IC files
-    float ICPositionRange;		// The box size of the IC positions, 
+    double ICPositionRange;		// The box size of the IC positions, 
     	// in file units.  If ==0, then will default to BoxSize;
-    float ICVelocity2Displacement;	// The conversion factor from file velocities
+    double ICVelocity2Displacement;	// The conversion factor from file velocities
     	// to redshift-space comoving displacements (at the IC redshift!).
-    float NumSlabsInsertList;		
+    double NumSlabsInsertList;		
          // The amount of space to allocate for the insert list, in units 
 	 // of np/cpd particles.  Set =0 to allocate the full np particles.
 	 // Default is 2.
-    float NumSlabsInsertListIC;		
+    double NumSlabsInsertListIC;		
          // The amount of space to allocate for the insert list, in units 
 	 // of np/cpd particles.  Set =0 to allocate the full np particles.
 	 // This parameter applies only to the IC step.
@@ -91,25 +91,25 @@ public:
     char OutputFormat[1024];		// The format of the Output files
     int  OmitOutputHeader;		// =1 if you want to skip the ascii header
 
-    float TimeSlicez[1024];
+    double TimeSlicez[1024];
     int nTimeSlice;
 
-    float H0;          // The Hubble constant in km/s/Mpc
-    float Omega_M;
-    float Omega_DE;
-    float Omega_K;
-    float w0;          // w(z) = w_0 + (1-a)*w_a
-    float wa;
+    double H0;          // The Hubble constant in km/s/Mpc
+    double Omega_M;
+    double Omega_DE;
+    double Omega_K;
+    double w0;          // w(z) = w_0 + (1-a)*w_a
+    double wa;
 
-    float BoxSize;
+    double BoxSize;
     int hMpc;           // =1 if we're using Mpc/h units.  =0 if Mpc units
-    float InitialRedshift;
+    double InitialRedshift;
     int LagrangianPTOrder;  // =1 for Zel'dovich, =2 for 2LPT, =3 for 3LPT
 
     int GroupRadius;        // Maximum size of a group, in units of cell sizes
-    float Eta;         // Time-step parameter based on accelerations
+    double Eta;         // Time-step parameter based on accelerations
     	// TODO: Rename to TimeStepAccel
-    float Dlna;        // Maximum time step in d(ln a)
+    double Dlna;        // Maximum time step in d(ln a)
     	// Rename to TimeStepDlna
 
     // Could have microstepping instructions
