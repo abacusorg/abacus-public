@@ -59,7 +59,7 @@ def run(basedir = "NONE"):
     #check if we are done
     if not os.path.exists(basedir+"write/state"):
     
-        params = GenParam.makeInput(basedir+"spiral.par", defFilename = "../test.def", strict = False, NP = n1d**3,nTimeSlice = 1, TimeSlicez = 1/astop -1, SofteningLength = sf,InitialRedshift = 1/ainitial -1,CPD = 35,BoxSize = 17.3205080756888)
+        params = GenParam.makeInput(basedir+"spiral.par", abacuspath +"/Tests/Spiral/spiral.par2", NP = n1d**3,nTimeSlice = 1, TimeSlicez = 1/astop -1, SofteningLength = sf,InitialRedshift = 1/ainitial -1,CPD = 35,BoxSize = 17.3205080756888)
         os.makedirs(params["InitialConditionsDirectory"])
         #make the spiral initial conditions
         subprocess.call([abacuspath+"/Tests/Spiral/makespiralics",str(n1d), str(ainitial),str(across),
