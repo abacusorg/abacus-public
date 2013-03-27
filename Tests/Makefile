@@ -6,4 +6,10 @@ all: spiral
 spiral:
 	cd Spiral &&$(MAKE)
 	
-.PHONY: spiral
+clean:
+	cd Spiral &&$(MAKE) $@
+
+distclean:
+	cd Spiral &&$(MAKE) $@
+
+.PHONY: spiral clean distclean
