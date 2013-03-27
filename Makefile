@@ -52,6 +52,8 @@ clean:
 	cd Convolution && $(MAKE) $@
 	cd python/clibs && $(MAKE) $@
 	cd zeldovich && $(MAKE) $@
+	cd Tests/Spiral && $(MAKE) $@
+	cd util && $(MAKE) $@
 	-$(RM) *.o *.d *~
 
 distclean:
@@ -61,6 +63,8 @@ distclean:
 	cd Convolution && $(MAKE) $@
 	cd python/clibs && $(MAKE) $@
 	cd zeldovich && $(MAKE) $@
+	cd Tests/Spiral && $(MAKE) $@
+	cd util && $(MAKE) $@
 	-$(RM) *.o *.d *~ a.out
 
 
