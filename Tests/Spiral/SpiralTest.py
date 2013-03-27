@@ -77,11 +77,12 @@ def run(basedir = "NONE"):
     #plot the results and check the answer
     os.chdir(basedir)
     writestate = InputFile.InputFile("write/state")
+    ReadState = InputFile.InputFile("read/state")
     laststep = writestate.FullStepNumber
     
     timeslice = "final.ts"
-    os.system("cat out/timeslicestep%.4d* > %s"%(laststep,timeslice))
-    
+    infile = open(timeslice,"w")
+    subprocess.call([abacuspath+"/util/phdata","%s/slice%5.3f/%s.z%5.3f.*.dat", P.OutputDirectory, ReadState.Redshift, params["SimName"],ReadState.Redshift])    
     data = np.fromfile(timeslice,dtype = np.float64)
     
     
