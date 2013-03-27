@@ -82,7 +82,7 @@ def run(basedir = "NONE"):
     
     timeslice = "final.ts"
     infile = open(timeslice,"w")
-    subprocess.call([abacuspath+"/util/phdata","%s/slice%5.3f/%s.z%5.3f.*.dat", P.OutputDirectory, ReadState.Redshift, params["SimName"],ReadState.Redshift])    
+    subprocess.call([abacuspath+"/util/phdata","%s/slice%5.3f/%s.z%5.3f.*.dat", params["OutputDirectory"], ReadState.Redshift, params["SimName"],ReadState.Redshift])    
     data = np.fromfile(timeslice,dtype = np.float64)
     
     
