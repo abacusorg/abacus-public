@@ -33,7 +33,6 @@ NB: When adding parameters, you should add:
 
 
 
-// TODO: Is it ok that this uses floats not doubles?
 #define MAX_LINE_LENGTH 1024
 #define STRUNDEF "NONE"
 
@@ -50,12 +49,13 @@ public:
     int order;
 
     int NearFieldRadius;    // Radius of cells in the near-field
-    float SofteningLength; // Softening length in units of interparticle spacing
+    double SofteningLength; // Softening length in units of interparticle spacing
 
     int  DerivativeExpansionRadius;
     int  MAXConvolutionRAMMB;
     int  ConvolutionCacheSizeMB;
     int RamDisk;	// ==0 for a normal disk, ==1 for a ramdisk (which don't have DIO support)
+    int ForceBlockingIO;   // ==1 if you want to force all IO to be blocking.
 
     int  DirectNewtonRaphson;  // 0 or 1 
 
@@ -138,6 +138,8 @@ public:
     	installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB,MUST_DEFINE);
 	RamDisk = 0;
     	installscalar("RamDisk",RamDisk,DONT_CARE);
+	ForceBlockingIO = 0;
+    	installscalar("ForceBlockingIO",ForceBlockingIO,DONT_CARE);
 
     	installscalar("DirectNewtonRaphson",DirectNewtonRaphson,MUST_DEFINE);  // 0 or 1
 
