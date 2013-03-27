@@ -73,16 +73,16 @@ def run(basedir = "NONE"):
         #run the problem
         os.chdir(basedir)
         abacus.run("spiral.par",1000,1)
-        
+    else:
+        os.chdir(basedir)
+        params = GenParam.parseInput("spiral.par") 
     #plot the results and check the answer
-    os.chdir(basedir)
     writestate = InputFile.InputFile("write/state")
     ReadState = InputFile.InputFile("read/state")
     laststep = writestate.FullStepNumber
     
     timeslice = "final.ts"
-    infile = open(timeslice,"w")
-    subprocess.call([abacuspath+"/util/phdata","%s/slice%5.3f/%s.z%5.3f.*.dat", params["OutputDirectory"], ReadState.Redshift, params["SimName"],ReadState.Redshift])    
+    os.system(abacuspath+"/util/phdata " + "%s/slice%5.3f/%s.z%5.3f.*"%(params["OutputDirectory"], ReadState.Redshift, params["SimName"],ReadState.Redshift) + " > " +timeslice)
     data = np.fromfile(timeslice,dtype = np.float64)
     
     
