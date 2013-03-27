@@ -1,10 +1,8 @@
-/* dump_uint64 -- Convert binary to ASCII
-*/
+#define PROGNAME "dump_uint64"
 
-#include <stdio.h>
-#include <assert.h>
-#include <stdlib.h>
-#include <math.h>
+#include "util_header.h"
+#include "util_main.c"
+
 #include <stdint.h>
 
 #define uint64 uint64_t
@@ -16,24 +14,4 @@ void print_data(FILE *fp) {
 	printf("%6d   0x%08lx %08lx  %15ld\n", count, rv>>32, rv&0xffff, rv);
 	count++;
     }
-}
-
-int main(int argc, char *argv[]) {
-    if (argc==1) print_data(stdin);
-    else {
-	int f;
-        for (f=1; f<argc; f++) {
-	    FILE *fp;
-	    fp = fopen(argv[f],"r");
-	    if (fp==NULL) {
-	        fprintf(stderr, "File %s not found or cannot be opened.\n", argv[f]);
-		exit(1);
-	    } else {
-	        // fprintf(stderr, "Opened file %s.\n", argv[f]);
-	    }
-	    print_data(fp);
-	    fclose(fp);
-	}
-    }
-    return 0;
 }
