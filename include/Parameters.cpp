@@ -67,6 +67,8 @@ public:
     	// in file units.  If ==0, then will default to BoxSize;
     double ICVelocity2Displacement;	// The conversion factor from file velocities
     	// to redshift-space comoving displacements (at the IC redshift!).
+	// =-1 to instead supply file velocities in km/s.
+	// =0 to force the initial velocities to zero!
     double NumSlabsInsertList;		
          // The amount of space to allocate for the insert list, in units 
 	 // of np/cpd particles.  Set =0 to allocate the full np particles.
@@ -357,9 +359,6 @@ void Parameters::ValidateParameters(void) {
                 NumSlabsInsertListIC);
         assert(1==0);
     }
-
-    // Note: Not putting a requirement that ICVelocity2Displacement>0,
-    // because one might use 0 or negative values to play with the ICs.
 
     // Illegal ICFormat's will crash in loadIC.cpp; no need to crash here.
 
