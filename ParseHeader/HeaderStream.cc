@@ -53,12 +53,12 @@ void HeaderStream::SkipHeader(void) {
         buf[0] = buf[1];
         if(fread(&(buf[1]), 1, 1, fp)<=0) goto error;
         len++;
-    } while(!(buf[0]==0x2 && buf[1]==0x2));
+    } while(!(buf[0]==0x2 && buf[1]=='\n'));
     bufferlength = len;
     return;
 
  error:
-    std::cerr << "HeaderStream::SkipHeader: error in skipping header (no ^B^B at end?)\n";
+    std::cerr << "HeaderStream::SkipHeader: error in skipping header (no ^B\\n at end?)\n";
     fclose(fp);
     exit(1);
 }
@@ -77,7 +77,7 @@ void HeaderStream::ReadHeader(void) {
     do {
         fread(&(buffer[len]), 1, 1, fp);
         len++;
-    } while(!(buffer[len-1]==0x2 && buffer[len-2]==0x2));
+    } while(!(buffer[len-2]==0x2 && buffer[len-1]=='\n'));
     assert(len == bufferlength);
     // replace the end-of-header token with two nulls as required by the parser
     buffer[len-2] = 0x0;
@@ -162,7 +162,7 @@ void FinalizeHeader(FILE *fout) {
         std::cerr << "FinalizeHeader: file pointer is NULL\n";
         exit(1);
     }
-    char tag[2] = {0x02, 0x02};
+    char tag[2] = {0x02, '\n'};
     fwrite(tag, sizeof(char), 2, fout);
 }
 

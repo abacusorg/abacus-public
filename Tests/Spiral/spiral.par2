@@ -1,0 +1,7 @@
+#level 2 parameter file for spiral test
+#include "$ABACUS$/Tests/test.def"
+
+SimName = "spiral"
+#include "$ABACUS$/python/directory.def"
+Eta = 0.05
+Dlna = 0.05

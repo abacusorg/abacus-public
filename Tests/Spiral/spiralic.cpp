@@ -70,7 +70,7 @@ void Spiral::Create(double3 *pp, double3 *vv, int *id, int _n, double Ainitial, 
                 perturbation.z = direction.z*Amplitude*sin(kdotq+phase.z);
                 
                 double3 pos = q + DofA*perturbation; WrapPosition(pos);
-                double3 vel = DdotofA*perturbation;
+                double3 vel = DofA*perturbation;
                 pp[p] = pos;
                 vv[p] = vel;
                 id[p] = p;

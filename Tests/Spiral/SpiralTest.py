@@ -49,17 +49,17 @@ def run(basedir = "NONE"):
         
     kvec = (1,0,0)
     phase = (np.pi,0,0)
-    n1d = 64
+    n1d = 16
     ainitial = 0.1
-    across = 0.16666666
-    sf = .05/n1d
+    across = 4
+    astop =  1.0
+    sf = .1/n1d#7.5e-03
     
     
     #check if we are done
     if not os.path.exists(basedir+"write/state"):
     
-        params = GenParam.makeInput(basedir+"spiral.par", defFilename = "../test.def", strict = False, NP = n1d**3,InitialConditionsDirectory = basedir +"/read/",
-                                    nTimeSlice = 1, TimeSlicez = 0, SofteningLength = sf,InitialRedshift = 1/ainitial -1, StoreForces = 0,CPD = 15,BoxSize = 17.3205080756888, Eta = 0.05,Dlna = 0.05,DerivativesDirectory = tmpdir+"/Derivatives/")
+        params = GenParam.makeInput(basedir+"spiral.par", abacuspath +"/Tests/Spiral/spiral.par2", NP = n1d**3,nTimeSlice = 1, TimeSlicez = 1/astop -1, SofteningLength = sf,InitialRedshift = 1/ainitial -1,CPD = 35,BoxSize = 17.3205080756888)
         os.makedirs(params["InitialConditionsDirectory"])
         #make the spiral initial conditions
         subprocess.call([abacuspath+"/Tests/Spiral/makespiralics",str(n1d), str(ainitial),str(across),
@@ -73,18 +73,21 @@ def run(basedir = "NONE"):
         #run the problem
         os.chdir(basedir)
         abacus.run("spiral.par",1000,1)
-        
+    else:
+        os.chdir(basedir)
+        params = GenParam.parseInput("spiral.par") 
     #plot the results and check the answer
-    os.chdir(basedir)
     writestate = InputFile.InputFile("write/state")
+    ReadState = InputFile.InputFile("read/state")
     laststep = writestate.FullStepNumber
     
     timeslice = "final.ts"
-    os.system("cat out/timeslicestep%.4d* > %s"%(laststep,timeslice))
-    
+    os.system(abacuspath+"/util/phdata " + "%s/slice%5.3f/%s.z%5.3f.*"%(params["OutputDirectory"], ReadState.Redshift, params["SimName"],ReadState.Redshift) + " > " +timeslice)
     data = np.fromfile(timeslice,dtype = np.float64)
     
-    analytic = np.fromfile(abacuspath+"/Tests/Spiral/analyticspiral",sep = " ")
+    
+    subprocess.call([abacuspath+"/Tests/Spiral/makeanalytic",str(ainitial),str(across),str(astop)])
+    analytic = np.fromfile("./analytic",sep = " ")
     analytic = np.reshape(analytic,(-1,2))
     
     xv = np.reshape(data, (-1,6))

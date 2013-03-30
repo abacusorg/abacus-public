@@ -16,9 +16,9 @@ VPATH = singlestep : Direct : Multipoles : Convolution : Derivatives : python/cl
 
 CLIBS = libpermute.so liblightcones.so
 
-all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS)
+all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum
 
-singlestep: singlestep.o $(GEN_OBJ) libparseheader.a
+singlestep: singlestep.o $(GEN_OBJ) libparseheader.a Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(addprefix Multipoles/,$(GEN_OBJ)) $(LIBS)
 
 
@@ -52,6 +52,9 @@ clean:
 	cd Convolution && $(MAKE) $@
 	cd python/clibs && $(MAKE) $@
 	cd zeldovich && $(MAKE) $@
+	cd Tests/Spiral && $(MAKE) $@
+	cd util && $(MAKE) $@
+	cd Analysis/PowerSpectrum &&$(MAKE) $@
 	-$(RM) *.o *.d *~
 
 distclean:
@@ -61,6 +64,9 @@ distclean:
 	cd Convolution && $(MAKE) $@
 	cd python/clibs && $(MAKE) $@
 	cd zeldovich && $(MAKE) $@
+	cd Tests/Spiral && $(MAKE) $@
+	cd util && $(MAKE) $@
+	cd Analysis/PowerSpectrum &&$(MAKE) $@
 	-$(RM) *.o *.d *~ a.out
 
 
@@ -75,10 +81,19 @@ libpermute.so: perm.cpp
 	
 liblightcones.so: lc.cpp
 	cd python/clibs && $(MAKE) $@
-	
+
+util:
+	cd util && $(MAKE) all
+
+tests:
+	cd Tests && $(MAKE) all	
+
+powerspectrum:
+	cd Analysis/PowerSpectrum &&$(MAKE)
+
 zeldovich:zeldovich.cpp
 	cd zeldovich && $(MAKE) $@
 	
-.PHONY: clean distclean generated_headers all zeldovich
+.PHONY: clean distclean generated_headers all zeldovich util tests powerspectrum
 
 -include $(CC_SRC:.cpp=.d)
