@@ -149,7 +149,7 @@ double ChooseTimeStep(){
 	// We want amax*dt = eta*vrms, or 
 	double maxkick = cosm->KickFactor(cosm->current.a, da);
 	double goal = ReadState.MinVrmsOnAmax;
-	double goal2 = ReadState.rms_velocity/ReadState.MaxAcceleration;
+	double goal2 = ReadState.RMS_Velocity/ReadState.MaxAcceleration;
 	STDLOG(1,"Cell-based Vrms/Amax = %f\n", goal);
 	STDLOG(1,"Global     Vrms/Amax = %f\n", goal2);
 	// We have both a global value and a cell value.  Take the maximum of these,
