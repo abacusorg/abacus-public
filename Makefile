@@ -1,13 +1,14 @@
 export CXX = icc
 export CXXFLAGS = -mavx -O0 -g3 -openmp -DMAXCPD=8192 -DDOUBLE_PRECISION -DGITVERSION=\"`git rev-parse HEAD`\"
 
-CPPFLAGS = -I Direct -I include -I Derivatives -I Multipoles -I Convolution -I ParseHeader
+CPPFLAGS = -I Direct -I include -I Derivatives -I Multipoles -I Convolution -I ParseHeader -ILibrary/include
 CC_SRC = singlestep.cpp
 
 
 -include ../Makefile.local
+ABACUS_VER = abacus_avx
 
-LIBS = -LParseHeader -lparseheader -liomp5 -lfftw3
+LIBS = -LParseHeader -LLibrary -lparseheader -liomp5 -lfftw3 -l$(ABACUS_VER)
 
 GEN_HDRS = externalmultipoles.h externaltaylor.h
 GEN_OBJ = CMASM.o ETASM.o C2R.a
@@ -16,9 +17,9 @@ VPATH = singlestep : Direct : Multipoles : Convolution : Derivatives : python/cl
 
 CLIBS = libpermute.so liblightcones.so
 
-all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum
+all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum libabacus
 
-singlestep: singlestep.o $(GEN_OBJ) libparseheader.a Makefile
+singlestep: singlestep.o $(GEN_OBJ) libparseheader.a lib$(ABACUS_VER).a Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(addprefix Multipoles/,$(GEN_OBJ)) $(LIBS)
 
 
