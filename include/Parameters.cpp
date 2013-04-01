@@ -177,8 +177,8 @@ public:
     	installvector("TimeSlicez",TimeSlicez,1024,1,MUST_DEFINE);
     	installscalar("nTimeSlice",nTimeSlice,MUST_DEFINE);
 
-	// strcpy(OutputFormat,"RVdouble");
-	strcpy(OutputFormat,"Packed");
+	strcpy(OutputFormat,"RVdouble");
+	// strcpy(OutputFormat,"Packed");
     	installscalar("OutputFormat",OutputFormat,DONT_CARE);
 	OmitOutputHeader = 0;
     	installscalar("OmitOutputHeader",OmitOutputHeader,DONT_CARE);
