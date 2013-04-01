@@ -43,7 +43,7 @@ clean:
 	cd Tests/Spiral && $(MAKE) $@
 	cd util && $(MAKE) $@
 	cd Analysis/PowerSpectrum &&$(MAKE) $@
-	-$(RM) *.o *.d *~
+	-$(RM) *.o *.d *.a *~
 
 distclean:
 	cd Library && $(MAKE) $@
@@ -55,7 +55,7 @@ distclean:
 	cd Tests/Spiral && $(MAKE) $@
 	cd util && $(MAKE) $@
 	cd Analysis/PowerSpectrum &&$(MAKE) $@
-	-$(RM) *.o *.d *~ a.out
+	-$(RM) *.o *.d *~ *.a a.out
 
 
 CreateDerivatives: CreateDerivatives.cpp
