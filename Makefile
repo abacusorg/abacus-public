@@ -8,14 +8,14 @@ CC_SRC = singlestep.cpp
 -include ../Makefile.local
 ABACUS_VER = abacus_avx
 
-LIBS = -LParseHeader -LLibrary -lparseheader -liomp5 -lfftw3 $(ABACUS_VER).a 
+LIBS = -LParseHeader -LLibrary -lparseheader -liomp5 -lfftw3 $(ABACUS_VER).a
 
 
 VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich
 
 CLIBS = libpermute.so liblightcones.so
 
-all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum libabacus
+all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum
 
 singlestep: singlestep.o $(GEN_OBJ) libparseheader.a $(ABACUS_VER).a Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(LIBS)
@@ -24,9 +24,9 @@ singlestep: singlestep.o $(GEN_OBJ) libparseheader.a $(ABACUS_VER).a Makefile
 %.o: %.cpp Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -c -o $@ $<
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
-	
 
-
+abacus_%.a:
+	cd Library && $(MAKE) $@
 	
 #$(GEN_HDRS):
 #	cd Multipoles && $(MAKE) externaltaylor.h
@@ -37,6 +37,7 @@ libparseheader.a:
 	
 clean:
 
+	cd Library && $(MAKE) $@
 	cd ParseHeader && $(MAKE) $@
 	cd Derivatives && $(MAKE) $@
 	cd Convolution && $(MAKE) $@
@@ -48,6 +49,7 @@ clean:
 	-$(RM) *.o *.d *~
 
 distclean:
+	cd Library && $(MAKE) $@
 	cd ParseHeader && $(MAKE) $@
 	cd Derivatives && $(MAKE) $@
 	cd Convolution && $(MAKE) $@
@@ -83,6 +85,6 @@ powerspectrum:
 zeldovich:zeldovich.cpp
 	cd zeldovich && $(MAKE) $@
 	
-.PHONY: clean distclean generated_headers all zeldovich util tests powerspectrum
+.PHONY: clean distclean generated_headers all zeldovich util tests powerspectrum 
 
 -include $(CC_SRC:.cpp=.d)
