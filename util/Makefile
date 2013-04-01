@@ -7,7 +7,7 @@ CFLAGS = -O1 ${INCLUDES}
 
 TARGET = phheader phdata \
 dump_double3 dump_float3 dump_uint64 \
-dump_rvdouble 
+dump_rvdouble dump_pack14
 
 all: ${TARGET}
 
