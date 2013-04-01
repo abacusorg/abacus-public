@@ -58,11 +58,18 @@ void FillStateWithCosmology(State &S) {
     S.OmegaNow_K = cosm->next.OmegaHat_K/total;
     S.OmegaNow_DE = cosm->next.OmegaHat_X/total;
 
-    S.HubbleTime = 1.0; 	
-    	// The code always uses H_0=1, so here's the true 1/H_0 in Gyr or Gyr/h, depending on hMpc flag
-	// TODO: Not yet in place.
-    S.ParticleMass = 1.0/P.np;
-    	//FIXME: This is just a place holder // In Msun or Msun/h, depending on hMpc flag
+    S.HubbleTimeHGyr = 9.7782;
+	// The Hubble Time is 9.7782 h^-1 Gyr
+    S.HubbleTimeGyr = S.HubbleTimeHGyr*(100.0/P.H0);
+    	// This is in Gyr
+    S.BoxSizeMpc = P.BoxSize*(P.hMpc?(100.0/P.H0):1.0);
+    S.BoxSizeHMpc = P.BoxSize*(P.H0/100.0);
+    	// Redundant, but we might as well be explicit.
+    S.ParticleMassMsun = 2.7746e11*P.Omega_M*pow(P.H0/100,2.0)*pow(S.BoxSizeMpc,3.0)/P.np;
+    	// This is in Msun.  
+	// The critical density is 2.7746e11 h^2 Msun/Mpc^3
+    S.ParticleMassHMsun = S.ParticleMassMsun*(P.H0/100);
+    	// This is in h^-1 Msun.  
 
     // The code uses canonical velocities, for the unit box and 1/H_0 time unit.
     // However, our output standard is redshift-space comoving displacements, again
