@@ -1,13 +1,13 @@
 #CXX = icc
 CXXFLAGS = -O1
-INCLUDES = -I../../include/ -lm
+INCLUDES = -I../include/ -lm
 LIBS = 
 
 CFLAGS = -O1 ${INCLUDES}
 
 TARGET = phheader phdata \
 dump_double3 dump_float3 dump_uint64 \
-dump_rvdouble dump_pack14
+dump_rvdouble dump_pack14 pack14_to_rvdouble
 
 all: ${TARGET}
 

@@ -1,4 +1,6 @@
-#define PROGNAME "dump_pack14"
+// This takes the input and outputs binary RVdouble format.
+
+#define PROGNAME "pack14_to_rvdouble"
 
 #include "util_header.h"
 #include "util_main.c"
@@ -29,32 +31,11 @@ void print_data(FILE *fp) {
     while (fread(&p, sizeof(pack14), 1, fp)==1) {
 	if (p.iscell()) {
 	    current_cell = p.unpack_cell();
-	    printf("# Cell %d %d %d\n", current_cell.i, current_cell.j, current_cell.k);
+	    // printf("# Cell %d %d %d\n", current_cell.i, current_cell.j, current_cell.k);
 	} else {
 	    assert(current_cell.islegal());
 	    p.unpack(rv.pos, rv.vel, &id, current_cell);
-
-	    if (RVrange(&rv)) {
-		printf("%6d   %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %lu\n",
-		    count,
-		    rv.pos[0],
-		    rv.pos[1],
-		    rv.pos[2],
-		    rv.vel[0],
-		    rv.vel[1],
-		    rv.vel[2], id
-		);
-	    } else {
-		printf("%6d   %10.7f %10.7f %10.7f %10.7f %10.7f %10.7f %lu\n",
-		    count,
-		    rv.pos[0],
-		    rv.pos[1],
-		    rv.pos[2],
-		    rv.vel[0],
-		    rv.vel[1],
-		    rv.vel[2], id
-		);
-	    }
+	    fwrite(&rv, sizeof(RVdouble), 1, stdout);
 	    count++;
 	}
     }
