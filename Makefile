@@ -8,7 +8,7 @@ CC_SRC = singlestep.cpp
 -include ../Makefile.local
 ABACUS_VER = abacus_avx
 
-LIBS = -LParseHeader -LLibrary -lparseheader -liomp5 -lfftw3 -l$(ABACUS_VER)
+LIBS = -LParseHeader -LLibrary -lparseheader -liomp5 -lfftw3 $(ABACUS_VER).a 
 
 
 VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich
@@ -17,7 +17,7 @@ CLIBS = libpermute.so liblightcones.so
 
 all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum libabacus
 
-singlestep: singlestep.o $(GEN_OBJ) libparseheader.a lib$(ABACUS_VER).a Makefile
+singlestep: singlestep.o $(GEN_OBJ) libparseheader.a $(ABACUS_VER).a Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(LIBS)
 
 
