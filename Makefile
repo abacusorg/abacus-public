@@ -11,7 +11,6 @@ ABACUS_VER = abacus_avx
 LIBS = -LParseHeader -LLibrary -lparseheader -liomp5 -lfftw3 -l$(ABACUS_VER)
 
 
-
 VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich
 
 CLIBS = libpermute.so liblightcones.so
@@ -22,7 +21,7 @@ singlestep: singlestep.o $(GEN_OBJ) libparseheader.a lib$(ABACUS_VER).a Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(LIBS)
 
 
-%.o: %.cpp | generated_headers Makefile
+%.o: %.cpp Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -c -o $@ $<
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
 	
