@@ -63,7 +63,7 @@ void FillStateWithCosmology(State &S) {
     S.HubbleTimeGyr = S.HubbleTimeHGyr*(100.0/P.H0);
     	// This is in Gyr
     S.BoxSizeMpc = P.BoxSize*(P.hMpc?(100.0/P.H0):1.0);
-    S.BoxSizeHMpc = P.BoxSize*(P.H0/100.0);
+    S.BoxSizeHMpc = S.BoxSizeMpc*(P.H0/100.0);
     	// Redundant, but we might as well be explicit.
     S.ParticleMassMsun = 2.7746e11*P.Omega_M*pow(P.H0/100,2.0)*pow(S.BoxSizeMpc,3.0)/P.np;
     	// This is in Msun.  
