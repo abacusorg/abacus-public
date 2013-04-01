@@ -28,9 +28,6 @@ singlestep: singlestep.o $(GEN_OBJ) libparseheader.a $(ABACUS_VER).a Makefile
 abacus_%.a:
 	cd Library && $(MAKE) $@
 	
-#$(GEN_HDRS):
-#	cd Multipoles && $(MAKE) externaltaylor.h
-	
 
 libparseheader.a:
 	cd ParseHeader && $(MAKE) libparseheader.a
