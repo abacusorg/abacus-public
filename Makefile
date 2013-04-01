@@ -1,7 +1,7 @@
 export CXX = icc
 export CXXFLAGS = -mavx -O0 -g3 -openmp -DMAXCPD=8192 -DDOUBLE_PRECISION -mavx -DAVXDIRECT -DAVXMULTIPOLES -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -DGITVERSION=\"`git rev-parse HEAD`\"
 
-CPPFLAGS = -I include -I Derivatives -I library/Multipoles -I ParseHeader -ILibrary/include
+CPPFLAGS = -I include -I Derivatives -I ParseHeader -ILibrary/include
 CC_SRC = singlestep.cpp
 
 
