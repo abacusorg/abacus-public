@@ -10,44 +10,34 @@ ABACUS_VER = abacus_avx
 
 LIBS = -LParseHeader -LLibrary -lparseheader -liomp5 -lfftw3 -l$(ABACUS_VER)
 
-GEN_HDRS = externalmultipoles.h externaltaylor.h
-GEN_OBJ = CMASM.o ETASM.o C2R.a
 
-VPATH = singlestep : Direct : Multipoles : Convolution : Derivatives : python/clibs : zeldovich
+
+VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich
 
 CLIBS = libpermute.so liblightcones.so
 
 all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum libabacus
 
 singlestep: singlestep.o $(GEN_OBJ) libparseheader.a lib$(ABACUS_VER).a Makefile
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(addprefix Multipoles/,$(GEN_OBJ)) $(LIBS)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(LIBS)
 
 
 %.o: %.cpp | generated_headers Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -c -o $@ $<
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
 	
-CMASM.o: generateCartesianMultipolesASM.c
-	cd Multipoles && $(MAKE) $@
 
 
-ETASM.o: generateCartesianTaylorASM.c
-	cd Multipoles && $(MAKE) $@
-
-
-C2R.a: CreateCartesian2Reduced.cpp
-	cd Multipoles && $(MAKE) $@
 	
 #$(GEN_HDRS):
 #	cd Multipoles && $(MAKE) externaltaylor.h
 	
-generated_headers: $(GEN_HDRS)
 
 libparseheader.a:
 	cd ParseHeader && $(MAKE) libparseheader.a
 	
 clean:
-	cd Multipoles && $(MAKE) $@
+
 	cd ParseHeader && $(MAKE) $@
 	cd Derivatives && $(MAKE) $@
 	cd Convolution && $(MAKE) $@
@@ -59,7 +49,6 @@ clean:
 	-$(RM) *.o *.d *~
 
 distclean:
-	cd Multipoles && $(MAKE) $@
 	cd ParseHeader && $(MAKE) $@
 	cd Derivatives && $(MAKE) $@
 	cd Convolution && $(MAKE) $@
