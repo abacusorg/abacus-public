@@ -1,11 +1,11 @@
 #export CXX = g++
 CXXFLAGS = -mavx -O3 -openmp -DMAXCPD=81922
 
-CPPFLAGS = -I../include -I../Library/include -I../Library/Multipoles
+CPPFLAGS = -I../include -I../Library/include -I../Library/Multipoles -I../singlestep
 
 -include ../Makefile.local
 
-ConvolutionDriver: ConvolutionDriver.cpp
+ConvolutionDriver: convolutionwrapper.cpp
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) \
 	-o $@ $< \
 	-L$(FFTW)/lib -lfftw3 

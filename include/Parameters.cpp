@@ -12,27 +12,6 @@ NB: When adding parameters, you should add:
 
 */
 
-
-
-#ifdef OLD_STUFF
-#define QUOTEME(X) #X
-#define SCANLINE(X, XSYM)   ret += sscanf(line, QUOTEME(X  =  %XSYM),   &X);
-#define STRSCANLINE(X)      ret += sscanf(line, QUOTEME(X  =  %s), X);
-#define DUMPVAR(X, XSYM)    fprintf(stderr, QUOTEME(X  =  %XSYM\n), X);
-
-#define TESTSTRINGUNDEFINED(X) if(strcmp(X,"NotDefined")==0) { fprintf(stderr,QUOTEME(You didnt define X\n)); assert(1==0); }
-
-// This had been testing against 0, but that would exclude legal negative entries!
-// This code will crash any entries less than -1 million.
-#define NO_ENTRY -1237654
-#define TestVariablePresent(variable) if(variable<=NO_ENTRY+0.1) { \
-     printf("Can't find paramter <"#variable"> in the parameter file\n");  \
-     assert(1==0); }
-#endif // OLD_STUFF
-
-
-
-
 #define MAX_LINE_LENGTH 1024
 #define STRUNDEF "NONE"
 
@@ -42,8 +21,6 @@ class Parameters: public ParseHeader {
 public:
     
     char SimName[1024]; //What to call this run
-    // TODO: Rename this to SimName
-
     long long int np;
     int cpd;
     int order;
