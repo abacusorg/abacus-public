@@ -1,52 +1,40 @@
 export CXX = icc
-export CXXFLAGS = -mavx -O0 -g3 -openmp -DMAXCPD=8192 -DDOUBLE_PRECISION -DGITVERSION=\"`git rev-parse HEAD`\"
+export CXXFLAGS = -mavx -O0 -g3 -openmp -DMAXCPD=8192 -DDOUBLE_PRECISION -mavx -DAVXDIRECT -DAVXMULTIPOLES -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -DGITVERSION=\"`git rev-parse HEAD`\"
 
-CPPFLAGS = -I Direct -I include -I Derivatives -I Multipoles -I Convolution -I ParseHeader
+CPPFLAGS = -I include -I Derivatives -I ParseHeader -ILibrary/include
 CC_SRC = singlestep.cpp
 
 
 -include ../Makefile.local
+ABACUS_VER = abacus_avx
 
-LIBS = -LParseHeader -lparseheader -liomp5 -lfftw3
+LIBS = -LParseHeader -LLibrary -lparseheader -liomp5 -lfftw3 $(ABACUS_VER).a
 
-GEN_HDRS = externalmultipoles.h externaltaylor.h
-GEN_OBJ = CMASM.o ETASM.o C2R.a
 
-VPATH = singlestep : Direct : Multipoles : Convolution : Derivatives : python/clibs : zeldovich
+VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich
 
 CLIBS = libpermute.so liblightcones.so
 
 all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum
 
-singlestep: singlestep.o $(GEN_OBJ) libparseheader.a Makefile
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(addprefix Multipoles/,$(GEN_OBJ)) $(LIBS)
+singlestep: singlestep.o $(GEN_OBJ) libparseheader.a $(ABACUS_VER).a Makefile
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(LIBS)
 
 
-%.o: %.cpp | generated_headers Makefile
+%.o: %.cpp Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -c -o $@ $<
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
+
+abacus_%.a:
+	cd Library && $(MAKE) $@
 	
-CMASM.o: generateCartesianMultipolesASM.c
-	cd Multipoles && $(MAKE) $@
-
-
-ETASM.o: generateCartesianTaylorASM.c
-	cd Multipoles && $(MAKE) $@
-
-
-C2R.a: CreateCartesian2Reduced.cpp
-	cd Multipoles && $(MAKE) $@
-	
-#$(GEN_HDRS):
-#	cd Multipoles && $(MAKE) externaltaylor.h
-	
-generated_headers: $(GEN_HDRS)
 
 libparseheader.a:
 	cd ParseHeader && $(MAKE) libparseheader.a
 	
 clean:
-	cd Multipoles && $(MAKE) $@
+
+	cd Library && $(MAKE) $@
 	cd ParseHeader && $(MAKE) $@
 	cd Derivatives && $(MAKE) $@
 	cd Convolution && $(MAKE) $@
@@ -55,10 +43,10 @@ clean:
 	cd Tests/Spiral && $(MAKE) $@
 	cd util && $(MAKE) $@
 	cd Analysis/PowerSpectrum &&$(MAKE) $@
-	-$(RM) *.o *.d *~
+	-$(RM) *.o *.d *.a *~
 
 distclean:
-	cd Multipoles && $(MAKE) $@
+	cd Library && $(MAKE) $@
 	cd ParseHeader && $(MAKE) $@
 	cd Derivatives && $(MAKE) $@
 	cd Convolution && $(MAKE) $@
@@ -67,7 +55,7 @@ distclean:
 	cd Tests/Spiral && $(MAKE) $@
 	cd util && $(MAKE) $@
 	cd Analysis/PowerSpectrum &&$(MAKE) $@
-	-$(RM) *.o *.d *~ a.out
+	-$(RM) *.o *.d *~ *.a a.out
 
 
 CreateDerivatives: CreateDerivatives.cpp
@@ -94,6 +82,6 @@ powerspectrum:
 zeldovich:zeldovich.cpp
 	cd zeldovich && $(MAKE) $@
 	
-.PHONY: clean distclean generated_headers all zeldovich util tests powerspectrum
+.PHONY: clean distclean generated_headers all zeldovich util tests powerspectrum 
 
 -include $(CC_SRC:.cpp=.d)
