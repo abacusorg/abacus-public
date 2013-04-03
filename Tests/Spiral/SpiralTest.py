@@ -50,9 +50,9 @@ def run(basedir = "NONE"):
     kvec = (1,0,0)
     phase = (np.pi,0,0)
     n1d = 64
-    ainitial = 0.1
+    ainitial = 0.09
     across = 4
-    astop =  1.0
+    astop =  .1
     sf = .1/n1d#7.5e-03
     
     
@@ -92,8 +92,9 @@ def run(basedir = "NONE"):
     
     xv = np.reshape(data, (-1,6))
     print xv.shape
-    p.plot(xv[:,0],xv[:,3],".")
-    p.plot(analytic[:,0], analytic[:,1])
+    p.plot(xv[:,0],xv[:,3]*ReadState.VelZSpace_to_Canonical,".")
+    p.plot(analytic[:,0], 1/np.sqrt(2)* analytic[:,1])
+    print np.max(analytic[:,1])/np.max(xv[:,3]*ReadState.VelZSpace_to_Canonical*np.sqrt(2))
     p.xlabel("X")
     p.ylabel("Vx")
     p.show()
