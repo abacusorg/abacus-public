@@ -77,7 +77,6 @@ int main(int argc, char ** argv){
 	    }
 
 	    P.ReadParameters(argv[1],1);
-	    strcpy(WriteState.ParameterFileName, argv[1]);
 
 	    // Setup the log
 	    stdlog_threshold_global = P.LogVerbosity;
@@ -90,15 +89,15 @@ int main(int argc, char ** argv){
 	    ConvolutionWallClock.Start();
 	    STDLOG(1,"Starting Convolution\n");
 	    OCC.Convolve( P.cpd, P.order, P.NearFieldRadius, P.DerivativeExpansionRadius,
-	                      P.RamDisk, 1024,  P.ConvolutionCacheSizeMB, P.MaxConvolutionRAMMB,
+	                      P.RamDisk, 1024,  P.ConvolutionCacheSizeMB, P.MAXConvolutionRAMMB,
 	                      P.DerivativesDirectory, P.ReadStateDirectory, P.WriteStateDirectory,
 	                      "Multipoles", "Taylor" );
 	    STDLOG(1,"Convolution Complete\n")
 	    ConvolutionWallClock.Stop();
 	    TotalWallClock.Stop();
 	    char timingfn[1050];
-	    sprintf(timingfn,"%s/lastconvolution.timing");
-	    dumpstats(OCC,timingfn);
+	    sprintf(timingfn,"%s/lastconvolution.timing",P.LogFileDirectory);
+	    dumpstats(&OCC,timingfn);
 	    stdlog.close();
 	        exit(0);
 

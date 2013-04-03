@@ -6,7 +6,7 @@ CC_SRC = singlestep.cpp
 
 
 -include ../Makefile.local
-ABACUS_VER = abacus_avx
+export ABACUS_VER = abacus_avx
 
 LIBS = -LParseHeader -LLibrary -lparseheader -liomp5 -lfftw3 $(ABACUS_VER).a
 
@@ -61,7 +61,7 @@ distclean:
 CreateDerivatives: CreateDerivatives.cpp
 	cd Derivatives && $(MAKE) $@
 
-ConvolutionDriver: ConvolutionDriver.cpp
+ConvolutionDriver: convolutionwrapper.cpp
 	cd Convolution && $(MAKE) $@
 	
 libpermute.so: perm.cpp

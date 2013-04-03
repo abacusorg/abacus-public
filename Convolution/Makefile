@@ -1,14 +1,14 @@
 #export CXX = g++
-CXXFLAGS = -mavx -O3 -openmp -DMAXCPD=81922
+CXXFLAGS = -mavx -O3 -openmp -DMAXCPD=81922 -L../ParseHeader
 
-CPPFLAGS = -I../include -I../Library/include -I../Library/Multipoles -I../singlestep
+CPPFLAGS = -I../include -I../Library/include -I../Library/Multipoles -I../singlestep -I../ParseHeader
 
 -include ../Makefile.local
 
 ConvolutionDriver: convolutionwrapper.cpp
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) \
-	-o $@ $< \
-	-L$(FFTW)/lib -lfftw3 
+	-o $@ $< ../$(ABACUS_VER).a \
+	-L$(FFTW)/lib -lfftw3 -lparseheader 
 
 distclean:
 	$(RM) -f *.o ConvolutionDriver
