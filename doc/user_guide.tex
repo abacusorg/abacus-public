@@ -363,55 +363,142 @@ will still be computed).
 The State file contains information that is computed by the Abacus code,
 particularly values that are epoch-dependent.
 
-int np;
-int cpd;
-int order;
+\param{np\_state, cpd\_state, order\_state}{int} These are just
+copied from the parameter file, so that we can be sure to be able
+to read the state files.
 
-char ParameterFileName[1024];   // State must contain a pointer to the Parameter file
-char CodeVersion[1024];
-char RunTime[1024];
-char MachineName[1024];
+\param{ParameterFileName}{string} The name of the Parameter file
+on which the state was invoked.
 
-double ScaleFactor;
-int FullStepNumber; // Counting the full steps
+\param{CodeVersion}{string} The git hash label of the executable.
 
+\param{RunTime}{string} The time stamp of the start of this invocation
+of singlestep().
 
-double ParticleMass;    // In Msun or Msun/h, depending on hMpc flag
-double RedshiftSpaceConversion; // What to multiply the velocity outputs
-// by to get to km/s
+\param{MachineName}{string} The machine name where this step is
+being run.
 
-double LPTstatus;   // =0 if we're evolving normally; // =1..3 if we're deriving LPT initial conditions
-double LastHalfEtaKick; // What one should kick by to get the velocities to synchronous
-double ScaleFactorHalf;
-double FirstHalfEtaKick;
-double DeltaEtaDrift;
+\param{ppd}{double} The cube root of the number of particles.  We
+take care to round this off to an integer if it is very close.
 
-// Derived quantities for the cosmology
-double Redshift;
-double Time;        // In Gyr or Gyr/h, depending on hMpc flag
-double etaK;
-double etaD;
-double Growth;
-double Growth_on_a;
-double f_growth;
-double w;
-double HubbleNow;   // In km/s/Mpc
-double Htime;       // Time*H(z)
-double OmegaNow_m;
-double OmegaNow_K;
-double OmegaNow_DE;
+\param{DoublePrecision}{int} Whether the internal positions,
+velocities, and forces are being computed in single precision (==0)
+or double precision (==1).
 
-// More description of the last time step
-double DeltaTime;
-double DeltaScaleFactor;
-double DeltaRedshift;
+\param{FullStepNumber}{int} The full step number.  The initial
+conditions get translated into a state (with multipoles) that is
+defined as step number 0.  So the full step number is also the
+number of times that full forces have been computed.
 
-// Some statistics about the particle distribution that might be useful.
-float MaxVelocity;
-float MaxAcceleration;
-float MinVrmsOnAmax;
-int MaxCellSize;
-double StdDevCellSize;
+\param{BoxSizeMpc, BoxSizeHMpc}{double} The comoving size of the
+box, in Mpc and $h^{-1}$ Mpc.
 
+\param{HubbleTimeGyr, HubbleTimeHGyr}{double} The value of $1/H_0$
+in Gyr and $h^{-1}$ Gyr.  This is important because all of the times
+below will be reported in units of $H_0=1$.
+
+\param{ParticleMassMsun, ParticleMassHMsun}{double} The mass of a
+single particle, in $M_\odot$ and $h^{-1}\ M_\odot$.
+
+\subsection{Properties of the Epoch}
+
+\param{ScaleFactor}{double} The scale factor $a$, normalized to $a=1$ 
+at the present day.
+
+\param{Redshift}{double} The redshift $1+z = 1/a$.
+
+\param{RedshiftSpaceConversion}{double} The Hubble velocity across
+the full box in km/s.  In other words, this is $H(z)L/(1+z)$, in
+km/s.  If one has velocities in redshift-space displacement unit-box 
+units (our default), then multiplying by this factor will convert the
+velocity to km/s.
+
+\param{VelZSpace_to_Canonical}{double} The conversion from our basic
+output velocity unit of redshift-space displacement (in unit box
+length units) to the code canonical velocities.
+\todo{Dig up this formula}
+
+\param{Time}{double} The proper time, in $1/H_0$ units.
+
+\param{etaK}{double} The integral $\int_0^t dt/a$, which is used
+in kicking the particles.  This is also the conformal time.  In
+$1/H_0$ units.
+
+\param{etaD}{double} The integral $\int_0^t dt/a^2$, which is used
+in drifting the particles.  In $1/H_0$ units.  \todo{Check boundaries
+of integral}
+
+\param{Growth}{double} The linear growth function, normalized to $a$ at early times.
+
+\param{Growth_on_a}{double} The linear growth function divided by
+$a$, which is unity in Einstein-de Sitter.
+
+\param{f_growth}{double} The growth rate $d\ln D/d\ln a$.
+
+\param{w}{double} The equation of state of dark energy at the present epoch.
+
+\param{HubbleNow}{double} The Hubble parameter at the current epoch,
+in $H_0$ units, i.e., $H(z)/H_0$.
+
+\param{Htime}{double} The product of the Hubble parameter and the
+current time, $H(z) t(z)$.  This is 2/3 in Einstein-de Sitter.
+
+\param{OmegaNow_m}{double} The value of $\Omega_m$ that an observer
+at this epoch would measure.
+
+\param{OmegaNow_K}{double} The value of $\Omega_K$ that an observer
+at this epoch would measure.
+
+\param{OmegaNow_DE}{double} The value of $\Omega_{DE}$ that an
+observer at this epoch would measure.
+
+\subsection{Properties of the Timestep}
+
+\param{DeltaTime}{double} The time difference between this state
+and the previous one.
+
+\param{DeltaScaleFactor}{double} The scale factor difference between
+this state and the previous one.
+
+\param{DeltaRedshift}{double} The redshift difference between this
+state and the previous one.  \todo{Is this positive or negative?}
+
+\param{ScaleFactorHalf}{double} The scale factor of the time halfway
+between this state and the previous one.
+
+\param{LastHalfEtaKick}{double} The $\Delta\eta_K$ kick that remains
+to be applied to the velocities in this state to bring them up to
+the epoch in this state.  Recall that the velocities are stored a 
+half-step before and will be leaped over to be a half-step ahead, 
+before they are drifted again.  Note that when the particles are in
+the Read state, this is the $\Delta\eta_K$ we will apply, yet we 
+no longer have access to the state epoch {\it before} this Read state,
+hence the need to save this quantity.
+
+\param{FirstHalfEtaKick}{double} The $\Delta\eta_K$ kick that will
+be applied to move the velocities halfway from the previous epoch
+to the current epoch.
+
+\param{DeltaEtaDrift}{double} The $\Delta\eta_D$ drift that will
+be applied to move the positions from the previous epoch
+to the current epoch.
+
+\subsection{Statistics of the particle distribution}
+These are used to compute the time step and to monitor the code.
+
+\param{MaxVelocity}{float}
+
+\param{MaxAcceleration}{float}
+
+\param{MinVrmsOnAmax}{float}
+\todo{Why are these still floats?  DJE should check.}
+
+\param{MaxCellSize}{int}
+
+\param{MinCellSize}{int}
+
+\param{StdDevCellSize}{double}
+
+\param{RMS_Velocity}{double}
 
 \end{document}
