@@ -771,9 +771,6 @@ is adequate for output analyses.  We track the maximum velocity
 in unit-cell lengths and rescale the velocities by a factor $A$ 
 so that their displacements are always contained within the unit cell.
 
-\todo{I think I could apply the max velocities on a cell basis after
-all.}
-
 So our standard pack14 class stores 12 bits for each of the 6 phase
 space components, a total of 9 bytes.  We then add 5 bytes of ID
 numbers or group IDs, for a total of 14 bytes per particle.  We call
