@@ -816,8 +816,6 @@ that good A's will be of order 30.  There is not much value in
 making A smaller than 1, since this would mean more resolution 
 in velocity than position, so we store $A$ as an integer. 
 
-\todo{But we should pick the endian status of intel, for simplicity.}
-
 We provide routines to unpack these files to double-precision lists of
 positions and velocities.  Note that 12 bits intra-cell, plus 10-12 bits
 of cell ids implies 22-24 bits of precision, comparable to single precision.
@@ -825,11 +823,6 @@ of cell ids implies 22-24 bits of precision, comparable to single precision.
 Note that were the data stored in single precision, we would require
 24 bytes for the phase space data, plus 5-8 bytes for ids, a total of 
 29-32 bytes.  So the packing saves a factor of 2 in disk space.
-
-\todo{Should provide single precision too.}
-
-\todo{DJE didn't write the packing correctly.  I want the upper 8 bits
-of the first number to go into the first byte.}
 
 \section{Logging}
 
