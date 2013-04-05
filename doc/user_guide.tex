@@ -74,12 +74,56 @@ fairly large linking length.
 
 More on co-evolution sets.
 
-\section{Light cone Outputs}
+\section{Light Cone Outputs}
 
 Describe light cones here.
 
+\section{Zel'dovich Initial Conditions}
 
-\section{Parameter file description}
+The zeldovich code creates displacement vectors appropriate to 
+the given power spectrum.  It normalizes and scales the input
+power spectrum as instructed.  Interpolation to the needed wavenumbers
+is done by spline, so one should input a reasonably fine grid.
+
+\todo{We should be setting the modes at $|k|>k_{nyq}$ to zero.}
+
+Displacement vectors are output along with the grid position (as
+integers).  The abacus IC loader maps this information to positions
+and velocities.  Recall that in $\Omega_m=1$, the comoving displacement
+vector is the same as the velocity in redshift-space displacement
+units.  In other cosmologies, the scaling is $f = d\ln D/d\ln a$.
+
+Displacement vectors are computed by multiplying by $\vec{ik}$ in
+Fourier space, rather by differencing in configuration space.  In
+addition, we compute the density field grid itself, although this
+is not output by default.  The 4 real FFTs are done by pairing into
+2 complex FFTs.
+
+Unfortunately, the zeldovich code labels the slab direction by $z$.
+It flips zyx to xyz as it outputs.
+
+The zeldovich code is built to work out-of-core.  It splits the 3-d
+computational volume in two directions, $y$ and $z$, into NumBlocks
+each.  It then performs the 3-d FFT in two parts, first loading
+slabs in $y$ and doing the $z$ FFT (and establishing the Hermitian
+symmetries), and then considering slabs in $z$, doing the $xy$ FFTs,
+and outputing in $z$ order (which becomes the abacus slab order).
+Between the two parts, we write the slabs to disk in $yz$ blocks.
+In this way, we require only $2/{\rm NumBlocks}$ fraction of the
+problem to be in memory.
+
+Currently a fast 1-d FFT routine computes of order 500 Mcells/sec,
+which implies a memory access requirement of 8 GB/sec.  Hence, the
+zeldovich code is likely to be I/O limited.  However, total I/O is 
+only 32+32+18 bytes per particle.  This is comparable to the I/O 
+of a single abacus step.  So unless the disk latency is noticeable,
+we expect the run-time to be comparable to one abacus step.
+
+\todo{Ok to output zeldovich displacements as floats.}
+
+\todo{We may need to put a packed pragma on the ICparticle class.}
+
+\section{Parameter File Description}
 
 The parameter file holds values that should be constant throughout the
 simulation.  In principle, one could change the file when restarting
@@ -92,7 +136,7 @@ file.
 
 Both headers are incorporated into output file headers. 
 
-\subsection{Basic simulation parameters}
+\subsection{Basic Simulation Parameters}
 
 \param{NP}{long long int} The number of particles in the simulation.
 Note that math is allowed in inputs to GenParam, so you might opt to
@@ -138,7 +182,7 @@ particles aren't sorted into slabs in the IC file.  For large problems,
 one should use at least 4.  Default is 4.
 
 
-\subsection{Far-field parameters}
+\subsection{Far-field Parameters}
 
 \param{order}{int} The multipole order to use for the far-field.  Typical
 choices would be 8 or 16.  One really should not use low orders such
@@ -167,7 +211,7 @@ cases, the derivatives can be stored on a normal hard disk.
 \future{Is this true?}
 
 
-\subsection{Near-field parameters}
+\subsection{Near-field Parameters}
 
 \param{NearFieldRadius}{int} The radius of cells to be solved in the
 near-field.  Radius 1 means that each cell is acted on by itself and
@@ -327,7 +371,7 @@ The php14 suffix is just a place-holder, but this is to indicate the
 file format.
 
 
-\subsection{Cosmological parameters}
+\subsection{Cosmological Parameters}
 
 \param{H0}{float} The Hubble constant in km/s/Mpc
 
@@ -355,13 +399,153 @@ In addition, using TimeStepDlna=0 forces the next time step to be 0, which
 implies that the particles won't advance (although forces and groups
 will still be computed).
 
-\subsection{Zel'dovich parameters}
+\subsection{Zel'dovich Initial Condition Generation Parameters}
 
-\end{document}
-\section{State values}
+\param{ZD\_Seed}{int} The random number seed.  
 
-The State file contains information that is computed by the Abacus code,
-particularly values that are epoch-dependent.
+\param{NumBlock}{int} This is the number of blocks to break the FFT
+into, per linear dimension.  This must be an even number; moreover,
+it must divide PPD (NP$^{1/3}$) evenly.  The default is 2, but you
+may need a higher number.  
+
+This is a key tuning parameter for the code.  The full problem
+requires $32\times NP$ bytes, which may exceed the amount of RAM.
+The zeldovich code holds $2/{\rm NumBlock}$ of the full volume in memory,
+by splitting the problem in 2 dimensions into NumBlock$^2$ parts.
+Each block therefore is $32\times NP/{\rm NumBlock}^2$ bytes.  It
+is important that these blocks be larger than the latency of the
+disk, so sizes of order 100 MB are useful.  We are holding
+$2\times$NumBlock such blocks in memory.
+
+Hence, for a computer with $M$ bytes of available memory and a
+problem of $NP$ particles, we need NumBlock $>64\times NP/M$
+(preferably to be the next larger even number that divides evenly
+into $NP^{1/3}$) and we prefer that $32 NP/{\rm NumBlock}^2$ is 
+larger than the latency.
+
+For example, for a $4096^3$ simulation, $M$ is 2 TB.  If we use
+NumBlock of 128, then we will need 32 GB of RAM and each block saved
+to disk will be 128 MB.  For a $2048^3$ simulation, $M$ is 256 GB
+and NumBlock of 16 will require 32 GB of RAM and each block will
+be 1024 MB.  For a $8192^3$ simulation, $M$ is 16 TB and NumBlock
+of 512 will require 64 GB of RAM and a block size of 256 MB.
+
+\todo{Probably this should be ZD\_NumBlock?  It's the lone exception.}
+
+
+\todo{We need a parameter to set the directory for the temporary files.}
+
+
+\param{ZD\_Pk\_filename}{string} The file name of the input power spectrum.
+
+\param{ZD\_Pk\_scale}{double} This is the quantity by which to multiply the 
+wavenumbers in the input file to place them in the units that will be used
+in the zeldovich code, in which the fundamental wavenumber is $2\pi$ divided
+by BoxSize.  For example, one might need to convert between Mpc$^{-1}$ and
+$h$~Mpc$^{-1}$ units.  Default value is 1.0.
+
+\param{ZD\_Pk\_norm}{double} The scale at which to normalize the input
+$P(k)$, in the same units as BoxSize.  For example, if BoxSize is
+given in $h^{-1}$~Mpc, then one might choose 8 to select $\sigma_8$.
+If this value is 0, then the power spectrum will not be renormalized
+(but ZD\_Pk\_scale will be applied to the wavevectors, so beware that
+the power isn't thrown off, as it does have units of volume).  The
+default is 0, but we recommend controlling the normalization.
+
+\param{ZD\_Pk\_sigma}{double} The amplitude to use to normalize the
+fluctuations of the density field, with a tophat of radius ZD\_Pk\_norm.
+This must be scaled to the initial redshift by the growth function; 
+the zeldovich code does not know about cosmology.  The default is 0,
+but one almost certainly wants to change this!
+
+\param{ZD\_Pk\_smooth}{double} The length scale by which to smooth the input 
+power spectrum before generating the density field.  This is applied as
+a Gaussian smoothing as $\exp(-r^2/2a^2)$ on the density field, which is
+ $\exp(-k^2 a^2)$ on the power spectrum.  Smoothing the power spectrum 
+is useful for testing, as it reduces grid artifacts.  The smooth occurs
+after the power spectrum has been normalized.  Default is 0.
+
+\param{ZD\_qoneslab}{int} If $\ge0$, output only one PPD slab.  For debugging only.
+The default is $-1$.
+
+\bigskip
+
+In addition, the Zel'dovich code expects the following parameters, 
+defined above.
+
+\param{BoxSize}{double}
+\todo{We're being inconsistent about hMpc choices.  Shouldn't we be getting that too?}
+
+\param{NP}{long long int} This must be a perfect cube for the zeldovich code to work.
+
+\param{CPD}{int} Zeldovich will output in slabs.  These slabs are only defined by the 
+initial grid position; we do not guarantee that the initial displacement may not have
+taken the particle out of the slab.  Usually the deviations will be small enough that 
+particles move by at most 1 slab.
+
+\param{InitialConditionsDirectory}{string}
+
+\param{InitialRedshift}{double}
+
+\bigskip
+
+The following options have been disabled in the current code:
+
+\param{ZD\_density\_filename}{string} The file name where to write the density
+field.  \todo{The program will not create any directories.}
+\todo{This option may be disabled.}
+
+\param{ZD\_qdensity}{int} If non-zero, output the grid densities that generate
+the Zel'dovich displacements.  Default is 0.
+\todo{This option may be disabled, but I think that we should eventually restore 
+this feature.}
+
+\param{ZD\_qnoheader}{int} If non-zero, don't generate a file header.
+Default is 0.  
+\todo{This option may be disabled?}
+
+\param{ZD\_qvelocity}{int} 
+\todo{This option may be disabled.}
+
+
+\clearpage
+
+\section{State file formats}
+
+A State is actually a full sub-directory, with all of the files
+describing the simulation's particles.
+
+The file called `state' is an ASCII file in ParseHeader format.  It
+is described in the next section.  This file is created last: if
+it exists, then the code singlestep completed properly and the state
+is ready to be used (read-only) by the next time step of abacus.
+If it does not exist, then the state is invalid.  singlestep will
+not proceed if the WriteState state file exists, since it presumes
+it would overwriting valid data.  However, deleting only the state
+file will allow singlestep to run, using the read state and the
+write state Taylors, but overwriting all else.
+
+Many quantities are stored in slabs, implying CPD files each.  These
+include the positions, velocities, auxillary variables, cellinfo
+structures, multipoles, and Taylors.  Notably positions and velocities
+are stored as float[3] or double[3] arrays (so one particle's x,
+y, and z, then the next, etc.).  Multipoles and Taylors are stored
+in YZ Fourier space, so these rather cryptic.  Auxillary and cellinfo
+structures are defined in the code.
+
+There are also a few smaller files.  `slabsize' is ASCII and holds
+the number of particles in each slab (after opening with CPD).  The
+`redlack\_\{x,y,z\}' and globaldipole files contain information for
+the Redlack-Grindlay term.
+
+Accelerations can also be written on request.
+
+\section{State File Description}
+
+The State file contains information that is computed by the Abacus
+code, particularly values that are epoch-dependent.
+
+\subsection{Properties of the Simulation}
 
 \param{np\_state, cpd\_state, order\_state}{int} These are just
 copied from the parameter file, so that we can be sure to be able
@@ -390,6 +574,8 @@ conditions get translated into a state (with multipoles) that is
 defined as step number 0.  So the full step number is also the
 number of times that full forces have been computed.
 
+\subsection{Computed Properties of the Cosmology}
+
 \param{BoxSizeMpc, BoxSizeHMpc}{double} The comoving size of the
 box, in Mpc and $h^{-1}$ Mpc.
 
@@ -412,8 +598,9 @@ the full box in km/s.  In other words, this is $H(z)L/(1+z)$, in
 km/s.  If one has velocities in redshift-space displacement unit-box 
 units (our default), then multiplying by this factor will convert the
 velocity to km/s.
+\todo{Should change name to VelZSpace\_to\_kms!}
 
-\param{VelZSpace_to_Canonical}{double} The conversion from our basic
+\param{VelZSpace\_to\_Canonical}{double} The conversion from our basic
 output velocity unit of redshift-space displacement (in unit box
 length units) to the code canonical velocities.
 \todo{Dig up this formula}
@@ -430,10 +617,10 @@ of integral}
 
 \param{Growth}{double} The linear growth function, normalized to $a$ at early times.
 
-\param{Growth_on_a}{double} The linear growth function divided by
+\param{Growth\_on\_a}{double} The linear growth function divided by
 $a$, which is unity in Einstein-de Sitter.
 
-\param{f_growth}{double} The growth rate $d\ln D/d\ln a$.
+\param{f\_growth}{double} The growth rate $d\ln D/d\ln a$.
 
 \param{w}{double} The equation of state of dark energy at the present epoch.
 
@@ -443,13 +630,13 @@ in $H_0$ units, i.e., $H(z)/H_0$.
 \param{Htime}{double} The product of the Hubble parameter and the
 current time, $H(z) t(z)$.  This is 2/3 in Einstein-de Sitter.
 
-\param{OmegaNow_m}{double} The value of $\Omega_m$ that an observer
+\param{OmegaNow\_m}{double} The value of $\Omega_m$ that an observer
 at this epoch would measure.
 
-\param{OmegaNow_K}{double} The value of $\Omega_K$ that an observer
+\param{OmegaNow\_K}{double} The value of $\Omega_K$ that an observer
 at this epoch would measure.
 
-\param{OmegaNow_DE}{double} The value of $\Omega_{DE}$ that an
+\param{OmegaNow\_DE}{double} The value of $\Omega_{DE}$ that an
 observer at this epoch would measure.
 
 \subsection{Properties of the Timestep}
@@ -483,22 +670,185 @@ to the current epoch.
 be applied to move the positions from the previous epoch
 to the current epoch.
 
-\subsection{Statistics of the particle distribution}
+\subsection{Statistics of the Particle Distribution}
 These are used to compute the time step and to monitor the code.
 
-\param{MaxVelocity}{float}
+\param{RMS\_Velocity}{double}
+The rms velocity in the entire simulation ($\left<|\vec{v}|\right>$),
+in simulation units (canonical velocities, unit box length, $1/H_0$
+time unit).  One can use the VelZSpace\_to\_Canonical and
+RedshiftSpaceConversion values to convert the units.  Important:
+this is the rms velocity at the epoch in ReadState: the velocities
+in the ReadState are kicked to be synchronous with the positions,
+then this maximum is tracked and written into WriteState.
 
-\param{MaxAcceleration}{float}
+\param{MaxVelocity}{float} The maximum velocity component
+($v_{\{x,y,z\}}$), in simulation units (canonical velocities, unit
+box length, $1/H_0$ time unit).  One can use the VelZSpace\_to\_Canonical
+and RedshiftSpaceConversion values to convert the units.  Note that
+this is not the maximum $|\vec{v}|$.  Important: this is the maximum
+velocity at the epoch in ReadState: the velocities in the ReadState
+are kicked to be synchronous with the positions, then this maximum
+is tracked and written into WriteState.
+
+\param{MaxAcceleration}{float} The maximum acceleration component
+($a_{\{x,y,z\}}$), in simulation units (unit box length, $1/H_0$
+time unit).  Note that this is not the maximum $|\vec{a}|$.  Important:
+this is the maximum acceleration at the epoch in ReadState: the
+positions in the ReadState are used to compute accelerations, on
+which this maximum is tracked and written into WriteState.
 
 \param{MinVrmsOnAmax}{float}
+In each cell, we compute the ratio of the rms velocity and the
+maximum acceleration.  The rms velocity is $\left<|\vec{v}|^2\right>$,
+i.e., the mean velocity has not been removed before computing the
+second moment, so this is not Galilean invariant.  The maximum
+acceleration is done by component ($a_{\{x,y,z\}}$).  After this
+ratio is computed for each cell, the minimum over all cells is
+computed and reported.
+
 \todo{Why are these still floats?  DJE should check.}
 
-\param{MaxCellSize}{int}
+\todo{Reconsider whether computing the full norms or proper variances 
+would actually be expensive.}
 
-\param{MinCellSize}{int}
+\param{MaxCellSize, MinCellSize}{int} The maximum and minumum number
+of particles in a cell.  These are computed at the positions in
+WriteState.
 
-\param{StdDevCellSize}{double}
+\param{StdDevCellSize}{double} The standard deviation of the the
+number of particles in a cell.  These are computed at the positions
+in WriteState.
 
-\param{RMS_Velocity}{double}
+
+\clearpage
+\section{Output Files}
+
+Abacus can produce both time slice and light cone files.  
+
+Time slices are divided into CPD slab files, for reasonable
+portability.  These files are all written into one directory, with
+a different directory for each time slice.
+
+Light cones span many steps.  To keep the files organized, we write
+one directory per time step, with CPD slab files in each directory.
+Of course, these files will be notably smaller than the time slice
+files (only a fraction of particles in each slab are output in a
+given time step).  But since we are reading and writing a half-dozen
+large files per slab per step, writing one more, even if small, is
+negligible overhead.
+
+For both types of output, we write a ParseHeader format header at
+the top of the file.  The Parameter file is in this header, as is
+a large portion of the State variables (those not known at the time
+of output are omitted).  After the ParseHeader end-of-header token,
+the particles, velocities, and perhaps auxillary variables are written
+in a binary format.
+
+In addition, the power spectrum file used in the Zel'dovich code
+is copied into the Output and Log directory when the ICs are created.
+
+\section{Packed Outputs (pack14)}
+
+The cell-oriented structure of abacus allows for an efficient way
+to compress the particle data.  We output particles in sets for a
+given cell, and the positions are stored relative to the cell center.
+A typical cell size is a few Mpc.  12 bits of precision will yield
+a part in 4000 precision, which is about 1 kpc.  This is adequate
+for all reasonable output analysis tasks.  Note that abacus output
+files are not intended to be adequate for dynamical restarts; one
+always has the option to save states for restart.
+
+Abacus always outputs its velocities in redshift-space units, i.e.,
+the comoving displacement that the particle would appear to be in
+redshift space.  This avoids a need to choose a second set of units
+for velocities.  We have $v_{\rm proper} = Hx_{\rm proper} =
+Hax_{\rm comoving}$, so $v_{\rm zspace} = v_{\rm proper}(1+z)/H(z)$.
+
+Velocities rarely get above 6000 km/s, so a part in 4000 means 1-2
+km/s precision, which is 10 kpc in zspace displacement.  Again, this
+is adequate for output analyses.  We track the maximum velocity 
+in unit-cell lengths and rescale the velocities by a factor $A$ 
+so that their displacements are always contained within the unit cell.
+
+\todo{I think I could apply the max velocities on a cell basis after
+all.}
+
+So our standard pack14 class stores 12 bits for each of the 6 phase
+space components, a total of 9 bytes.  We then add 5 bytes of ID
+numbers or group IDs, for a total of 14 bytes per particle.  We call
+this the pack14 format.
+
+The 12 bits are stored as unsigned.  However, phase space quantities
+are signed, so we add 2048 before storing.  We scale the unit cell 
+to a range of $\pm2000$.  Phase space quantities are permitted to 
+be in the range of $\pm2030$, to allow some small overflow beyond 
+the cell.
+
+The id numbers are stored explicitly as unsigned characters, so
+that the standard is endian-independent.
+
+Cells are begun with a structure of the same 14-byte length.  This
+structure can be identified because the first byte is 0xff, which
+makes the first position value 2032-2047.  The remaining 5
+12-bit numbers are filled with the cell $i$, $j$, $k$, the CPD 
+of the calculation, and the velocity rescaling $A$ (which must be
+a positive integer).  Note that all of these quantities are notionally
+unsigned, but it might be convenient to allow the  $ijk$ to go slightly
+negative (e.g., for a periodic wrap).  Therefore, we add 30 to these
+quantities before storing.  Values outside of 16..4080 are still illegal, 
+so these values must lie between $-30$ and 4020.  Hence, the standard
+only works to CPD of 4020.  The 5 bytes for ID are currently unused
+in the cell headers.
+
+After a cell element, all elements are taken to be particles in
+that cell, until the next cell element is read.  We do not insist
+on knowing the number of particles in the cell before writing the
+cell header.  Since we are likely to have dozens to hundreds of
+particles per cell, the cost of the cell header is small.
+
+The global position is then (cellx + particlex/2000.0)*B, where B
+is the box size divided by CPD.  
+
+The global velocity is (particlevx/2000.0)*A*B, where A is the
+scaling factor chosen when packing the velocities.  We expect
+that good A's will be of order 30.  There is not much value in 
+making A smaller than 1, since this would mean more resolution 
+in velocity than position, so we store $A$ as an integer. 
+
+\todo{But we should pick the endian status of intel, for simplicity.}
+
+We provide routines to unpack these files to double-precision lists of
+positions and velocities.  Note that 12 bits intra-cell, plus 10-12 bits
+of cell ids implies 22-24 bits of precision, comparable to single precision.
+
+Note that were the data stored in single precision, we would require
+24 bytes for the phase space data, plus 5-8 bytes for ids, a total of 
+29-32 bytes.  So the packing saves a factor of 2 in disk space.
+
+\todo{Should provide single precision too.}
+
+\todo{DJE didn't write the packing correctly.  I want the upper 8 bits
+of the first number to go into the first byte.}
+
+\section{Logging}
+
+Abacus produces an extensive set of log files for each simulation.
+These are written into the log directory, with separate files for
+each time step. 
+
+\todo{In addition, there is a top-level summary log that is updated
+after each successful time step.}
+
+The singlestep code produces 2 or 3 logs: a primary log, a report
+on timings, and a log on the actions of the I/O thread, if that
+thread is running.  The convolution code produces a timing log.
+
+The log contains a millisecond-level record of the elapsed time
+since the log was initiated.  Log verbosity can be controlled with
+a parameter choice.
+
+If the program has crashed, then the files laststep.\{suffix\} contains
+the logs.
 
 \end{document}
