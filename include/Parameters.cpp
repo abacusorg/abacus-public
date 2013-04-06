@@ -155,6 +155,7 @@ public:
     	installscalar("nTimeSlice",nTimeSlice,MUST_DEFINE);
 
 	strcpy(OutputFormat,"RVdouble");
+	// strcpy(OutputFormat,"Packed");
     	installscalar("OutputFormat",OutputFormat,DONT_CARE);
 	OmitOutputHeader = 0;
     	installscalar("OmitOutputHeader",OmitOutputHeader,DONT_CARE);
