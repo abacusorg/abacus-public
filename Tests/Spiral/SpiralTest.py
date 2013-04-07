@@ -8,6 +8,8 @@ import sys
 import os
 import shutil
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as p
 from mpl_toolkits.mplot3d import Axes3D
 import ctypes as ct
@@ -97,7 +99,7 @@ def run(basedir = "NONE"):
     print np.max(analytic[:,1])/np.max(xv[:,3]*ReadState.VelZSpace_to_Canonical*np.sqrt(2))
     p.xlabel("X")
     p.ylabel("Vx")
-    p.show()
+    p.savefig("spiral.png")
 
 
 if __name__ == '__main__':
