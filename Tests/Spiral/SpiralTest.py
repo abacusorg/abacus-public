@@ -53,7 +53,7 @@ def run(basedir = "NONE"):
     phase = (np.pi,0,0)
     n1d = 64
     ainitial = 0.09
-    across = 0.6
+    across = 4.00
     astop =  0.40 
     sf = .1/n1d#7.5e-03
     
@@ -100,14 +100,9 @@ def run(basedir = "NONE"):
     print analytic.shape
     p.plot(xv[:,0],xv[:,3],".")
     p.plot(analytic[:,0], analytic[:,1])
-    print "Ratio of max velocity (analytic/computed): %f"%(np.max(analytic[:,1])/np.max(xv[:,3]))
     p.xlabel("X")
     p.ylabel("Vx")
     p.savefig("spiral.png")
-
-    print "Vx: rms %f, max %f"%( np.std(xv[:,3]), np.max(np.absolute(xv[:,3])) )
-    print "Vy: rms %e, max %e"%( np.std(xv[:,4]), np.max(np.absolute(xv[:,4])) )
-    print "Vz: rms %e, max %e"%( np.std(xv[:,5]), np.max(np.absolute(xv[:,5])) )
 
     if astop<across:
 	# There's a skewer of particles that always starts at -0.50, but it might have wrapped to +0.5
@@ -115,6 +110,7 @@ def run(basedir = "NONE"):
 	print
 	print "Selecting one skewer of %d points."%(len(sel[0]))
 	print "The following will only make sense before shell crossing:"
+	print "The deviation is relative to Zel'dovich, so one expects breakdowns approaching shell crossing"
 	print "Grid position     X_final    VX_final     (X-VX-grid) deviation"
 	xsel = xv[sel[0],0]
 	vsel = xv[sel[0],3]
@@ -130,7 +126,14 @@ def run(basedir = "NONE"):
 	#print startguess, residual
 	np.set_printoptions(precision=4)
 	print np.transpose([startguess,xsel,vsel,residual])
+	print
+	print "RMS of deviations from Zeldovich %e compared to rms Vx of %f." % (np.std(residual), np.std(xv[:,3]))
+	print
 
+    print "Vx: rms %f, max %f"%( np.std(xv[:,3]), np.max(np.absolute(xv[:,3])) )
+    print "Vy: rms %e, max %e"%( np.std(xv[:,4]), np.max(np.absolute(xv[:,4])) )
+    print "Vz: rms %e, max %e"%( np.std(xv[:,5]), np.max(np.absolute(xv[:,5])) )
+    print "Ratio of max velocity (analytic/computed): %f"%(np.max(analytic[:,1])/np.max(xv[:,3]))
 
 
 
