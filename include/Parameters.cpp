@@ -70,7 +70,8 @@ public:
     char OutputFormat[1024];		// The format of the Output files
     int  OmitOutputHeader;		// =1 if you want to skip the ascii header
 
-    double TimeSlicez[1024];
+    double FinalRedshift;	// When to stop.  This will override TimeSliceRedshifts.
+    double TimeSliceRedshifts[1024];
     int nTimeSlice;
 
     double H0;          // The Hubble constant in km/s/Mpc
@@ -151,7 +152,9 @@ public:
     	installscalar("LightConeDirectory",LightConeDirectory,MUST_DEFINE); //Where the lightcones go. Generally will be the same as the Output directory
     	installscalar("NLightCones",NLightCones,DONT_CARE); //if not set, we assume 0
 
-    	installvector("TimeSlicez",TimeSlicez,1024,1,MUST_DEFINE);
+	FinalRedshift = -2.0;	// If <-1, then we will cascade back to the minimum of the TimeSliceRedshifts list
+    	installscalar("FinalRedshift",FinalRedshift,DONT_CARE);
+    	installvector("TimeSliceRedshifts",TimeSliceRedshifts,1024,1,MUST_DEFINE);
     	installscalar("nTimeSlice",nTimeSlice,MUST_DEFINE);
 
 	strcpy(OutputFormat,"RVdouble");
@@ -210,6 +213,21 @@ public:
 	// Return 1 if np is a perfect cube.
         int n = floor(ppd());
 	if (n*n*n!=np) return 1; else return 0;
+    }
+
+    double FinishingRedshift() {
+	// Return the redshift where the code should halt.
+	// FinalRedshift is the controlling item, but if that's
+	// not set (value<=-1), then we will run to the minimum of the TimeSliceRedshifts list.
+	// If no TimeSlices are requested, then z=0.
+        if (FinalRedshift>-1) return FinalRedshift;
+	if (nTimeSlice) {
+	    double minz = 1e10;
+	    for (int i=0; i<nTimeSlice; i++)
+		if (TimeSliceRedshifts[i]<minz) minz = TimeSliceRedshifts[i];
+	    return minz;
+	}
+	return 0.0;
     }
 
 private:
@@ -336,6 +354,11 @@ void Parameters::ValidateParameters(void) {
             "[ERROR] NumslabsInsertListIC = %e must be in range [0..CPD]\n",
                 NumSlabsInsertListIC);
         assert(1==0);
+    }
+
+    if (nTimeSlice<0) {
+        fprintf(stderr,"nTimeSlice must be >=0\n");
+	assert(1==0);
     }
 
     // Illegal ICFormat's will crash in loadIC.cpp; no need to crash here.

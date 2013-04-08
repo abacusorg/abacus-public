@@ -116,15 +116,21 @@ double ChooseTimeStep(){
 	// Perhaps the next output is sooner than this?
 	// TimeSlizez array might not be in order!  Look at all of them.
 	for (int i = 0; i < P.nTimeSlice; i ++){
-		double tsa = 1.0/(1+P.TimeSlicez[i]);
-		if (ReadState.ScaleFactor < tsa-1e-12 && ReadState.ScaleFactor + da > tsa) {
+		double tsa = 1.0/(1+P.TimeSliceRedshifts[i]);
+		if (ReadState.Redshift > P.TimeSliceRedshifts[i]+1e-12 && ReadState.ScaleFactor + da > tsa) {
 			// Need to guard against round-off in this comparison
+			// Doing that in Redshift, to match in PlanOutput()
 			da = tsa - ReadState.ScaleFactor;
 			STDLOG(0,"da to reach next output is %f\n", da);
 		}
 	}
-
 	if (da<1e-12) return da;
+
+	// We might have already reached the FinishingRedshift.
+	if (ReadState.Redshift < P.FinishingRedshift()+1e-12) {
+	    STDLOG(0,"We have reached the Finishing Redshift of %f\n", P.FinishingRedshift());
+	    da = 0.0; return da;
+	}
 
 	// Particles should not be able to move more than one cell per timestep
 	double maxdrift = cosm->DriftFactor(cosm->current.a, da)*ReadState.MaxVelocity;
@@ -165,7 +171,7 @@ double ChooseTimeStep(){
 
 	if (maxkick>goal) {
 	    da *= goal/maxkick;
-	    STDLOG(0,"da based on vrms/amax is %f.\n", da);
+	    STDLOG(0,"da based on vrms/amax is %f. dlna = %f.\n", da, da/ReadState.ScaleFactor);
 	}
 
 	return da;
@@ -264,7 +270,7 @@ void PlanOutput(bool MakeIC) {
 
     // Now check whether we're asked to do a TimeSlice.
     for (int nn = 0; nn < P.nTimeSlice; nn++) {
-	if (fabs(ReadState.Redshift-P.TimeSlicez[nn])<1e-12) {
+	if (fabs(ReadState.Redshift-P.TimeSliceRedshifts[nn])<1e-12) {
 	    STDLOG(0,"Planning to output a TimeSlice, element %d\n", nn);
 	    ReadState.DoTimeSliceOutput = 1;
 	    char slicedir[128];
