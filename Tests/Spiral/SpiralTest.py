@@ -91,16 +91,48 @@ def run(basedir = "NONE"):
     subprocess.call([abacuspath+"/Tests/Spiral/makeanalytic",str(ainitial),str(across),str(astop)])
     analytic = np.fromfile("./analytic",sep = " ")
     analytic = np.reshape(analytic,(-1,2))
+    # The makeanalytic program returns canonical velocities, whereas abacus returns ZSpace velocities.
+    # Let's standardize on ZSpace, because that connects to the displacements
+    analytic[:,1] /= ReadState.VelZSpace_to_Canonical
     
     xv = np.reshape(data, (-1,6))
     print xv.shape
-    p.plot(xv[:,0],xv[:,3]*ReadState.VelZSpace_to_Canonical,".")
+    print analytic.shape
+    p.plot(xv[:,0],xv[:,3],".")
     p.plot(analytic[:,0], analytic[:,1])
-    print "Ratio of max velocity (analytic/computed): %f"%(
-    	np.max(analytic[:,1]) / np.max(xv[:,3]*ReadState.VelZSpace_to_Canonical) )
+    print "Ratio of max velocity (analytic/computed): %f"%(np.max(analytic[:,1])/np.max(xv[:,3]))
     p.xlabel("X")
     p.ylabel("Vx")
     p.savefig("spiral.png")
+
+    print "Vx: rms %f, max %f"%( np.std(xv[:,3]), np.max(np.absolute(xv[:,3])) )
+    print "Vy: rms %e, max %e"%( np.std(xv[:,4]), np.max(np.absolute(xv[:,4])) )
+    print "Vz: rms %e, max %e"%( np.std(xv[:,5]), np.max(np.absolute(xv[:,5])) )
+
+    if astop<across:
+	# There's a skewer of particles that always starts at -0.50, but it might have wrapped to +0.5
+	sel = np.where(np.logical_and(abs(xv[:,1])>0.5-1e-3, abs(xv[:,2])>0.5-1e-3))
+	print
+	print "Selecting one skewer of %d points."%(len(sel[0]))
+	print "The following will only make sense before shell crossing:"
+	print "Grid position     X_final    VX_final     (X-VX-grid) deviation"
+	xsel = xv[sel[0],0]
+	vsel = xv[sel[0],3]
+	#print xsel, vsel
+	index = np.argsort(xsel)
+	#print index
+	xsel = xsel[index]
+	vsel = vsel[index]
+	#print xsel, vsel
+	trackback = (xsel-vsel)*n1d
+	startguess = np.round(trackback)
+	residual = trackback - startguess
+	#print startguess, residual
+	np.set_printoptions(precision=4)
+	print np.transpose([startguess,xsel,vsel,residual])
+
+
+
 
 
 if __name__ == '__main__':

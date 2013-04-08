@@ -150,6 +150,13 @@ void AnalyticSpiral::PMintegrate( float Aexpn, float Astep ) {
         g[i] = -(phi[ip1][0]-phi[im1][0]);
     }
 
+    // Aexpn is the current scale factor.
+    // For Omega=1 and H0=1, the kickfactor is da/sqrt(a).
+    // The driftfactor is da/a**1.5.
+    // The code below implements this, accounting for the factor of Aexpn
+    // in the 'cc' normalization of the accelerations!
+    // The resulting px is the canonical momentum, not the comoving velocity!
+
     cc = -(3.0*1.0/8.0/Aexpn)/(float)(blitzNX);
 
     ahalf=Aexpn+0.5*Astep;
