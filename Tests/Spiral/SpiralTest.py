@@ -53,8 +53,8 @@ def run(basedir = "NONE"):
     phase = (np.pi,0,0)
     n1d = 64
     ainitial = 0.09
-    across = 4.00
-    astop =  0.40 
+    across = 0.6
+    astop =  0.097 
     sf = .1/n1d#7.5e-03
     
     
