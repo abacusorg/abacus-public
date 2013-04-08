@@ -53,15 +53,15 @@ def run(basedir = "NONE"):
     phase = (np.pi,0,0)
     n1d = 64
     ainitial = 0.09
-    across = 4
-    astop =  .1
+    across = 0.6
+    astop =  0.40 
     sf = .1/n1d#7.5e-03
     
     
     #check if we are done
     if not os.path.exists(basedir+"write/state"):
     
-        params = GenParam.makeInput(basedir+"spiral.par", abacuspath +"/Tests/Spiral/spiral.par2", NP = n1d**3,nTimeSlice = 1, TimeSlicez = 1/astop -1, SofteningLength = sf,InitialRedshift = 1/ainitial -1,CPD = 35,BoxSize = 17.3205080756888)
+        params = GenParam.makeInput(basedir+"spiral.par", abacuspath +"/Tests/Spiral/spiral.par2", NP = n1d**3,nTimeSlice = 1, TimeSliceRedshifts = 1/astop -1, SofteningLength = sf,InitialRedshift = 1/ainitial -1,CPD = 15,BoxSize = 17.3205080756888)
         os.makedirs(params["InitialConditionsDirectory"])
         #make the spiral initial conditions
         subprocess.call([abacuspath+"/Tests/Spiral/makespiralics",str(n1d), str(ainitial),str(across),
@@ -95,8 +95,9 @@ def run(basedir = "NONE"):
     xv = np.reshape(data, (-1,6))
     print xv.shape
     p.plot(xv[:,0],xv[:,3]*ReadState.VelZSpace_to_Canonical,".")
-    p.plot(analytic[:,0], 1/np.sqrt(2)* analytic[:,1])
-    print np.max(analytic[:,1])/np.max(xv[:,3]*ReadState.VelZSpace_to_Canonical*np.sqrt(2))
+    p.plot(analytic[:,0], analytic[:,1])
+    print "Ratio of max velocity (analytic/computed): %f"%(
+    	np.max(analytic[:,1]) / np.max(xv[:,3]*ReadState.VelZSpace_to_Canonical) )
     p.xlabel("X")
     p.ylabel("Vx")
     p.savefig("spiral.png")
