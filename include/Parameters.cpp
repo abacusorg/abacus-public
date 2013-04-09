@@ -87,10 +87,8 @@ public:
     int LagrangianPTOrder;  // =1 for Zel'dovich, =2 for 2LPT, =3 for 3LPT
 
     int GroupRadius;        // Maximum size of a group, in units of cell sizes
-    double Eta;         // Time-step parameter based on accelerations
-    	// TODO: Rename to TimeStepAccel
-    double Dlna;        // Maximum time step in d(ln a)
-    	// Rename to TimeStepDlna
+    double TimeStepAccel;         // Time-step parameter based on accelerations
+    double TimeStepDlna;        // Maximum time step in d(ln a)
 
     // Could have microstepping instructions
     // Could have group finding or coevolution set instructions
@@ -176,8 +174,8 @@ public:
     	installscalar("LagrangianPTOrder",LagrangianPTOrder,MUST_DEFINE);  // =1 for Zel'dovich, =2 for 2LPT, =3 for 3LPT
 
     	installscalar("GroupRadius",GroupRadius,MUST_DEFINE);        // Maximum size of a group, in units of cell sizes
-    	installscalar("Eta",Eta,MUST_DEFINE);         // Time-step parameter based on accelerations
-    	installscalar("Dlna",Dlna,MUST_DEFINE);        // Maximum time step in d(ln a)
+    	installscalar("TimeStepAccel",TimeStepAccel,MUST_DEFINE);         // Time-step parameter based on accelerations
+    	installscalar("TimeStepDlna",TimeStepDlna,MUST_DEFINE);        // Maximum time step in d(ln a)
 
     	LogVerbosity = 1;
     	installscalar("LogVerbosity",LogVerbosity, DONT_CARE);

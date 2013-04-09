@@ -96,7 +96,7 @@ double ChooseTimeStep(){
 	// cosm has already been loaded with the ReadState.ScaleFactor.
 
 
-	double da = ReadState.ScaleFactor*P.Dlna;
+	double da = ReadState.ScaleFactor*P.TimeStepDlna;
 	STDLOG(0,"da from Hubble Dlna limit is %f\n", da);
 	if (da==0.0) return da;
 
@@ -105,13 +105,6 @@ double ChooseTimeStep(){
 	// and then did interpolations with that.  Or after each attempt, 
 	// call BuildEpoch and *test* whether cosm->next is acceptable,
 	// then interpolate down.
-
-	double da_max = ReadState.ScaleFactor*P.Dlna;
-	// TODO: I think below might be simplified if we used the kickfactor and
-	// driftfactor methods from the cosmology function.  Also, we need to be
-	// careful that our velocities and accelerations are in code (canonical) units,
-	// so there are redshift factors slinging around.  Using kicks and drifts
-	// helps to avoid problems.
 
 	// Perhaps the next output is sooner than this?
 	// TimeSlizez array might not be in order!  Look at all of them.
@@ -151,7 +144,7 @@ double ChooseTimeStep(){
 	maxdrift = cosm->KickFactor(cosm->current.a, da);
 	maxdrift *= cosm->DriftFactor(cosm->current.a, da);
 	maxdrift *= ReadState.MaxAcceleration;
-	maxdrift /= P.Eta*P.Eta;
+	maxdrift /= P.TimeStepAccel*P.TimeStepAccel;
 	if (maxdrift>P.SofteningLength) {
 	    da *= sqrt(P.SofteningLength/maxdrift);
 	    STDLOG(0,"da based on sqrt(epsilon/amax) is %f.\n", da);
@@ -170,7 +163,7 @@ double ChooseTimeStep(){
 	STDLOG(1,"Global     Vrms/Amax = %f\n", goal2);
 	// We have both a global value and a cell value.  Take the maximum of these,
 	// to guard against abnormally cold cells.
-	goal = max(goal,goal2) * P.Eta;
+	goal = max(goal,goal2) * P.TimeStepAccel;
 
 	if (maxkick>goal) {
 	    da *= goal/maxkick;

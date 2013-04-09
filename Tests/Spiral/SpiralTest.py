@@ -54,7 +54,7 @@ def run(basedir = "NONE"):
     n1d = 64
     ainitial = 0.09
     across = 4.00
-    astop =  0.40 
+    astop =  0.15 
     sf = .1/n1d#7.5e-03
     
     
