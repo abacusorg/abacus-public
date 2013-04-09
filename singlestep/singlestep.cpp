@@ -250,7 +250,9 @@ void BuildWriteState(double da){
 void PlanOutput(bool MakeIC) {
     // Check the time slice and decide whether to do output.
     ReadState.DoTimeSliceOutput = 0;
+    ReadState.OutputIsAllowed = 0;
     if (MakeIC) return;   // Do no output on this slice.
+    if (LPTStepNumber()>0) return;  // We're doing IC work; no output
 
     // Build the output header.  The cosmology is from ReadState,
     // but we'd like to use some elements from WriteState.  So we 
@@ -263,6 +265,10 @@ void PlanOutput(bool MakeIC) {
     strncpy(ReadState.RunTime,     WriteState.RunTime, 1024);
     ReadState.FullStepNumber = WriteState.FullStepNumber;
     ReadState.make_output_header();
+
+    // Just let later routines know that this is a valid epoch
+    // for output, e.g., not a LPT IC epoch.
+    ReadState.OutputIsAllowed = 1;
 
     // Now check whether we're asked to do a TimeSlice.
     for (int nn = 0; nn < P.nTimeSlice; nn++) {
