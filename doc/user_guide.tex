@@ -305,7 +305,7 @@ of the same set can share the same ParentDirectory.
 stored.  Starting the name with + indicates a path from 
 OutputDirectory.  The default is ``+log".  Each time step
 generates several log files, but these all go in the same directory.
-\todo{Was LogFileDirectory.}
+\todo{Currently called LogFileDirectory.}
 
 \param{LightConeDirectory}{string} The directory where the light
 cones should get written.  Starting the name with + indicates a path
@@ -425,10 +425,6 @@ and NumBlock of 16 will require 32 GB of RAM and each block will
 be 1024 MB.  For a $8192^3$ simulation, $M$ is 16 TB and NumBlock
 of 512 will require 64 GB of RAM and a block size of 256 MB.
 
-\todo{Probably this should be ZD\_NumBlock?  It's the lone exception.}
-
-
-\todo{We need a parameter to set the directory for the temporary files.}
 
 
 \param{ZD\_Pk\_filename}{string} The file name of the input power spectrum.
@@ -436,8 +432,18 @@ of 512 will require 64 GB of RAM and a block size of 256 MB.
 \param{ZD\_Pk\_scale}{double} This is the quantity by which to multiply the 
 wavenumbers in the input file to place them in the units that will be used
 in the zeldovich code, in which the fundamental wavenumber is $2\pi$ divided
-by BoxSize.  For example, one might need to convert between Mpc$^{-1}$ and
-$h$~Mpc$^{-1}$ units.  Default value is 1.0.
+by BoxSize.  Default value is 1.0.
+
+As a common example, one might need to convert between Mpc$^{-1}$ and
+$h$~Mpc$^{-1}$ units.  The zeldovich code does not use the hMpc value,
+so it doesn't know what the units of BoxSize are.  If BoxSize is in 
+$h^{-1}$~Mpc units, so that hMpc=1, and if the $P(k)$ file had $k$
+in $h$~Mpc$^{-1}$ units, then all is well: use the value of 1.0.
+
+However, if BoxSize were in Mpc units and the input power were in 
+$h$~Mpc$^{-1}$ units, then we want to convert the wavenumbers to 
+Mpc$^{-1}$ units.  That means multiplying by $h$, so we should use
+ZD\_Pk\_scale $=h$.
 
 \param{ZD\_Pk\_norm}{double} The scale at which to normalize the input
 $P(k)$, in the same units as BoxSize.  For example, if BoxSize is
@@ -452,6 +458,10 @@ fluctuations of the density field, with a tophat of radius ZD\_Pk\_norm.
 This must be scaled to the initial redshift by the growth function; 
 the zeldovich code does not know about cosmology.  The default is 0,
 but one almost certainly wants to change this!
+
+Note that using this parameter means that the choice of unit of power 
+in the input power spectrum file is irrelevant (but we do care about
+the unit of wavenumber, see above).
 
 \param{ZD\_Pk\_smooth}{double} The length scale by which to smooth the input 
 power spectrum before generating the density field.  This is applied as
@@ -468,8 +478,9 @@ The default is $-1$.
 In addition, the Zel'dovich code expects the following parameters, 
 defined above.
 
-\param{BoxSize}{double}
-\todo{We're being inconsistent about hMpc choices.  Shouldn't we be getting that too?}
+\param{BoxSize}{double} This is the box size, either in Mpc or $h^{-1}$~Mpc,
+depending on the setting of the hMpc key.  However, the zeldovich code does
+not use the hMpc value.  See ZD\_Pk\_scale for further discussion.
 
 \param{NP}{long long int} This must be a perfect cube for the zeldovich code to work.
 
@@ -478,7 +489,10 @@ initial grid position; we do not guarantee that the initial displacement may not
 taken the particle out of the slab.  Usually the deviations will be small enough that 
 particles move by at most 1 slab.
 
-\param{InitialConditionsDirectory}{string}
+\param{InitialConditionsDirectory}{string} In addition to the usual usage,
+the zeldovich code will use this for the swap space for the block transpose.
+This will generate files of the name `zeldovich.\%d.\%d'.  These can be deleted
+after the code has run.
 
 \param{InitialRedshift}{double}
 
