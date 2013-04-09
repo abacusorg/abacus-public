@@ -149,10 +149,8 @@ set this to a perfect cube, e.g., to 1024**3.
 \param{hMpc}{int} =1 if we're using Mpc/h units.  =0 if Mpc units.
 
 \param{TimeStepAccel}{float} Time-step parameter based on accelerations.
-\todo{Was called Eta.}
 
 \param{TimeStepDlna}{float} Maximum $\Delta(\ln a)$ allowed for a full step.
-\todo{Was called Dlna.}
 
 \param{FinalRedshift}{float} The final redshift of the simulation.
 If not supplied, then we use the lowest redshift TimeSlice output.
@@ -273,7 +271,8 @@ is likely sufficient, e.g., for Zel'dovich displacements, so that particles
 can be placed in slab files by their grid position rather than their
 true initial position.
 
-\param{ICFormat}{string} The format of the IC files. \todo{List these.}
+\param{ICFormat}{string} The format of the IC files.  Current formats
+are: `RVdouble', `Heitmann', and `Zeldovich'.
 
 \param{ICPositionRange}{float} The size of the periodic box for the 
 IC positions, in the units supplied in the IC file.  For example, 
@@ -327,7 +326,6 @@ step; these names are fixed to be ``stepNNNN''.
 
 \param{TimeSliceRedshift}{float vector} The redshift of the requested 
 time slices.  When redshifts appear in file names, it will be as ``z\%5.3f''.
-\todo{Was named TimeSlicez}.
 
 
 \param{NLightCones}{int} The number of light cones.  We support up to 8.
@@ -338,9 +336,6 @@ can be supplied.  The position need not be inside the primary
 wrapping of the box.  The position should be in the same unit
 as BoxSize.
 
-
-\todo{Delete GroupFilePrefix, TimeSliceFilePrefix, LightFilePrefix.  
-We will hardcode these names.}
 
 
 These choices produce the following hierarchy of files:
@@ -593,12 +588,11 @@ at the present day.
 
 \param{Redshift}{double} The redshift $1+z = 1/a$.
 
-\param{RedshiftSpaceConversion}{double} The Hubble velocity across
+\param{VelZSpace\_to\_kms}{double} The Hubble velocity across
 the full box in km/s.  In other words, this is $H(z)L/(1+z)$, in
 km/s.  If one has velocities in redshift-space displacement unit-box 
 units (our default), then multiplying by this factor will convert the
 velocity to km/s.
-\todo{Should change name to VelZSpace\_to\_kms!}
 
 \param{VelZSpace\_to\_Canonical}{double} The conversion from our basic
 output velocity unit of redshift-space displacement (in unit box
@@ -648,7 +642,8 @@ and the previous one.
 this state and the previous one.
 
 \param{DeltaRedshift}{double} The redshift difference between this
-state and the previous one.  \todo{Is this positive or negative?}
+state and the previous one (flipped to be a positive number for increasing
+time).
 
 \param{ScaleFactorHalf}{double} The scale factor of the time halfway
 between this state and the previous one.
