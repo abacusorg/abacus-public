@@ -62,7 +62,7 @@ distclean:
 CreateDerivatives: CreateDerivatives.cpp
 	cd Derivatives && $(MAKE) $@
 
-ConvolutionDriver: convolutionwrapper.cpp
+ConvolutionDriver: convolutionwrapper.cpp include/Parameters.cpp
 	cd Convolution && $(MAKE) $@
 	
 libpermute.so: perm.cpp

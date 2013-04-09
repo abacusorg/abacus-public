@@ -5,7 +5,7 @@ CPPFLAGS = -I../include -I../Library/include -I../Library/Multipoles -I../single
 
 -include ../Makefile.local
 
-ConvolutionDriver: convolutionwrapper.cpp
+ConvolutionDriver: convolutionwrapper.cpp ../include/Parameters.cpp
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) \
 	-o $@ $< ../$(ABACUS_VER).a \
 	-L$(FFTW)/lib -lfftw3 -lparseheader 

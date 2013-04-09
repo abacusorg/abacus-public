@@ -60,12 +60,9 @@ public:
     char WriteStateDirectory[1024]; // Where the output State lives
     char PastStateDirectory[1024];  // Where the old input State lives
     char WorkingDirectory[1024];	// If Read/Write/Past not specified, where to put the states
-    char LogFileDirectory[1024];
+    char LogFileDirectory[1024];	
+    	// TODO: User guide suggest changing name to LogDirectory
     char OutputDirectory[1024];     // Where the outputs go
-
-    char TimeSliceFilePrefix[1024];      // What the outputs are called
-    char GroupFilePrefix[1024];     // What the group outputs are called
-    char LightFilePrefix[1024];
 
     char OutputFormat[1024];		// The format of the Output files
     int  OmitOutputHeader;		// =1 if you want to skip the ascii header
@@ -145,8 +142,6 @@ public:
     	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
 
 
-    	installscalar("TimeSliceFilePrefix",TimeSliceFilePrefix,MUST_DEFINE);      // What the outputs are called
-    	installscalar("GroupFilePrefix",GroupFilePrefix,MUST_DEFINE);     // What the group outputs are called
     	installscalar("LightConeDirectory",LightConeDirectory,MUST_DEFINE); //Where the lightcones go. Generally will be the same as the Output directory
     	installscalar("NLightCones",NLightCones,DONT_CARE); //if not set, we assume 0
 

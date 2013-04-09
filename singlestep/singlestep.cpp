@@ -82,7 +82,7 @@ void FillStateWithCosmology(State &S) {
     // The proper size of the box is BoxSize/(1+z).
     // The Hubble parameter is (HubbleNow/cosm->C.H0)*H_0.
     // If hMpc is set, then we should use 100 km/s/Mpc instead of H_0.
-    S.RedshiftSpaceConversion = P.BoxSize*S.ScaleFactor*(S.HubbleNow/cosm->C.H0)*
+    S.VelZSpace_to_kms = P.BoxSize*S.ScaleFactor*(S.HubbleNow/cosm->C.H0)*
     	(P.hMpc?100:P.H0);
 }
 
