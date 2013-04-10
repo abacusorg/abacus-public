@@ -285,6 +285,8 @@ void PlanOutput(bool MakeIC) {
 
 
 int main(int argc, char **argv) {
+	std::setvbuf(stdout,(char *)__IONBF,0,0);
+	std::setvbuf(stderr,(char *)_IONBF,0,0);
 
     WallClockDirect.Start();
     SingleStepSetup.Start();
