@@ -84,8 +84,8 @@ The zeldovich code creates displacement vectors appropriate to
 the given power spectrum.  It normalizes and scales the input
 power spectrum as instructed.  Interpolation to the needed wavenumbers
 is done by spline, so one should input a reasonably fine grid.
-
-\todo{We should be setting the modes at $|k|>k_{nyq}$ to zero.}
+Modes with wavenumbers $|\vec{k}|$ above the Nyquist frequency are
+set to zero to avoid grid directionality artifacts.
 
 Displacement vectors are output along with the grid position (as
 integers).  The abacus IC loader maps this information to positions
@@ -612,8 +612,11 @@ velocity to km/s.
 
 \param{VelZSpace\_to\_Canonical}{double} The conversion from our basic
 output velocity unit of redshift-space displacement (in unit box
-length units) to the code canonical velocities.
-\todo{Dig up this formula}
+length units) to the code canonical velocities. 
+We have $v_{\rm canon} = a v_{\rm proper} = a^2 v_{\rm comoving}$
+and $v_{\rm proper} = H(z) a v_{\rm zspace}$, so
+$v_{\rm canon} = v_{\rm zspace} a^2 H(z)/H_0$ (remembering that
+the code uses $1/H_0$ time units).
 
 \param{Time}{double} The proper time, in $1/H_0$ units.
 
@@ -621,9 +624,11 @@ length units) to the code canonical velocities.
 in kicking the particles.  This is also the conformal time.  In
 $1/H_0$ units.
 
-\param{etaD}{double} The integral $\int_0^t dt/a^2$, which is used
-in drifting the particles.  In $1/H_0$ units.  \todo{Check boundaries
-of integral}
+\param{etaD}{double} The integral $\int^t dt/a^2$, which is used
+in drifting the particles.  In $1/H_0$ units.  This integral diverges
+as $a\rightarrow0$, but we initialize at an early time with the 
+quantity $\eta_D = -2/a^2 H(z)$.  Although $\eta_D$ is negative,
+it increases with time and our $\Delta\eta_D$ are positive.
 
 \param{Growth}{double} The linear growth function, normalized to $a$ at early times.
 
