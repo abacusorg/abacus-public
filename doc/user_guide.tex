@@ -698,7 +698,7 @@ this is the rms velocity at the epoch in ReadState: the velocities
 in the ReadState are kicked to be synchronous with the positions,
 then this maximum is tracked and written into WriteState.
 
-\param{MaxVelocity}{float} The maximum velocity component
+\param{MaxVelocity}{double} The maximum velocity component
 ($v_{\{x,y,z\}}$), in simulation units (canonical velocities, unit
 box length, $1/H_0$ time unit).  One can use the VelZSpace\_to\_Canonical
 and RedshiftSpaceConversion values to convert the units.  Note that
@@ -707,14 +707,14 @@ velocity at the epoch in ReadState: the velocities in the ReadState
 are kicked to be synchronous with the positions, then this maximum
 is tracked and written into WriteState.
 
-\param{MaxAcceleration}{float} The maximum acceleration component
+\param{MaxAcceleration}{double} The maximum acceleration component
 ($a_{\{x,y,z\}}$), in simulation units (unit box length, $1/H_0$
 time unit).  Note that this is not the maximum $|\vec{a}|$.  Important:
 this is the maximum acceleration at the epoch in ReadState: the
 positions in the ReadState are used to compute accelerations, on
 which this maximum is tracked and written into WriteState.
 
-\param{MinVrmsOnAmax}{float}
+\param{MinVrmsOnAmax}{double}
 In each cell, we compute the ratio of the rms velocity and the
 maximum acceleration.  The rms velocity is $\left<|\vec{v}|^2\right>$,
 i.e., the mean velocity has not been removed before computing the
@@ -722,8 +722,6 @@ second moment, so this is not Galilean invariant.  The maximum
 acceleration is done by component ($a_{\{x,y,z\}}$).  After this
 ratio is computed for each cell, the minimum over all cells is
 computed and reported.
-
-\todo{Why are these still floats?  DJE should check.}
 
 \todo{Reconsider whether computing the full norms or proper variances 
 would actually be expensive.}
