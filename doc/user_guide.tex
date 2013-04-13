@@ -84,8 +84,8 @@ The zeldovich code creates displacement vectors appropriate to
 the given power spectrum.  It normalizes and scales the input
 power spectrum as instructed.  Interpolation to the needed wavenumbers
 is done by spline, so one should input a reasonably fine grid.
-
-\todo{We should be setting the modes at $|k|>k_{nyq}$ to zero.}
+Modes with wavenumbers $|\vec{k}|$ above the Nyquist frequency are
+set to zero to avoid grid directionality artifacts.
 
 Displacement vectors are output along with the grid position (as
 integers).  The abacus IC loader maps this information to positions
@@ -612,8 +612,11 @@ velocity to km/s.
 
 \param{VelZSpace\_to\_Canonical}{double} The conversion from our basic
 output velocity unit of redshift-space displacement (in unit box
-length units) to the code canonical velocities.
-\todo{Dig up this formula}
+length units) to the code canonical velocities. 
+We have $v_{\rm canon} = a v_{\rm proper} = a^2 v_{\rm comoving}$
+and $v_{\rm proper} = H(z) a v_{\rm zspace}$, so
+$v_{\rm canon} = v_{\rm zspace} a^2 H(z)/H_0$ (remembering that
+the code uses $1/H_0$ time units).
 
 \param{Time}{double} The proper time, in $1/H_0$ units.
 
@@ -621,9 +624,11 @@ length units) to the code canonical velocities.
 in kicking the particles.  This is also the conformal time.  In
 $1/H_0$ units.
 
-\param{etaD}{double} The integral $\int_0^t dt/a^2$, which is used
-in drifting the particles.  In $1/H_0$ units.  \todo{Check boundaries
-of integral}
+\param{etaD}{double} The integral $\int^t dt/a^2$, which is used
+in drifting the particles.  In $1/H_0$ units.  This integral diverges
+as $a\rightarrow0$, but we initialize at an early time with the 
+quantity $\eta_D = -2/a^2 H(z)$.  Although $\eta_D$ is negative,
+it increases with time and our $\Delta\eta_D$ are positive.
 
 \param{Growth}{double} The linear growth function, normalized to $a$ at early times.
 
@@ -693,7 +698,7 @@ this is the rms velocity at the epoch in ReadState: the velocities
 in the ReadState are kicked to be synchronous with the positions,
 then this maximum is tracked and written into WriteState.
 
-\param{MaxVelocity}{float} The maximum velocity component
+\param{MaxVelocity}{double} The maximum velocity component
 ($v_{\{x,y,z\}}$), in simulation units (canonical velocities, unit
 box length, $1/H_0$ time unit).  One can use the VelZSpace\_to\_Canonical
 and RedshiftSpaceConversion values to convert the units.  Note that
@@ -702,14 +707,14 @@ velocity at the epoch in ReadState: the velocities in the ReadState
 are kicked to be synchronous with the positions, then this maximum
 is tracked and written into WriteState.
 
-\param{MaxAcceleration}{float} The maximum acceleration component
+\param{MaxAcceleration}{double} The maximum acceleration component
 ($a_{\{x,y,z\}}$), in simulation units (unit box length, $1/H_0$
 time unit).  Note that this is not the maximum $|\vec{a}|$.  Important:
 this is the maximum acceleration at the epoch in ReadState: the
 positions in the ReadState are used to compute accelerations, on
 which this maximum is tracked and written into WriteState.
 
-\param{MinVrmsOnAmax}{float}
+\param{MinVrmsOnAmax}{double}
 In each cell, we compute the ratio of the rms velocity and the
 maximum acceleration.  The rms velocity is $\left<|\vec{v}|^2\right>$,
 i.e., the mean velocity has not been removed before computing the
@@ -717,8 +722,6 @@ second moment, so this is not Galilean invariant.  The maximum
 acceleration is done by component ($a_{\{x,y,z\}}$).  After this
 ratio is computed for each cell, the minimum over all cells is
 computed and reported.
-
-\todo{Why are these still floats?  DJE should check.}
 
 \todo{Reconsider whether computing the full norms or proper variances 
 would actually be expensive.}
