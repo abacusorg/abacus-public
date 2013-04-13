@@ -89,7 +89,7 @@ int main(int argc, char ** argv){
 	    ConvolutionWallClock.Start();
 	    STDLOG(1,"Starting Convolution\n");
 	    OCC.Convolve( P.cpd, P.order, P.NearFieldRadius, P.DerivativeExpansionRadius,
-	                      P.RamDisk, 1024,  P.ConvolutionCacheSizeMB, P.MAXConvolutionRAMMB,
+	                      P.RamDisk, 4,  P.ConvolutionCacheSizeMB, P.MAXConvolutionRAMMB,
 	                      P.DerivativesDirectory, P.ReadStateDirectory, P.WriteStateDirectory,
 	                      "Multipoles", "Taylor" );
 	    STDLOG(1,"Convolution Complete\n")
