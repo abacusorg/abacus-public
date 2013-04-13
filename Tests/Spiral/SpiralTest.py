@@ -85,7 +85,7 @@ def run(basedir = "NONE"):
     
     timeslice = "final.ts"
     os.system(abacuspath+"/util/phdata " + "%s/slice%5.3f/%s.z%5.3f.*"%(params["OutputDirectory"], ReadState.Redshift, params["SimName"],ReadState.Redshift) + " > " +timeslice)
-    data = np.fromfile(timeslice,dtype = np.float64)
+    data = np.fromfile(timeslice,dtype = np.float32)
     
     
     subprocess.call([abacuspath+"/Tests/Spiral/makeanalytic",str(ainitial),str(across),str(astop)])

@@ -95,7 +95,7 @@ int main(int argc, char ** argv){
 	    p.runtime_IsRamDisk = P.RamDisk;
 	    p.runtime_MaxConvolutionRAMMB = P.MAXConvolutionRAMMB;
 	    strcpy(P.ReadStateDirectory,p.runtime_MultipoleDirectory);
-	    p.runtime_MultipolePrefix = "Multipoles";
+	    sprintf(p.runtime_MultipolePrefix, "Multipoles");
 	    p.runtime_NearFieldRadius = P.NearFieldRadius;
 	    strcpy(P.WriteStateDirectory,p.runtime_TaylorDirectory);
 	    p.runtime_cpd = P.cpd;
