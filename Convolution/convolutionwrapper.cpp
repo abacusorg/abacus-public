@@ -90,17 +90,17 @@ int main(int argc, char ** argv){
 	    ConvolutionParameters p;
 	    p.runtime_ConvolutionCacheSizeMB = P.ConvolutionCacheSizeMB;
 	    p.runtime_DerivativeExpansionRadius = P.DerivativeExpansionRadius;
-	    strcpy(P.DerivativesDirectory,p.runtime_DerivativesDirectory);
+	    strcpy(p.runtime_DerivativesDirectory,P.DerivativesDirectory);
 	    p.runtime_DiskBufferSizeKB = 4;
 	    p.runtime_IsRamDisk = P.RamDisk;
 	    p.runtime_MaxConvolutionRAMMB = P.MAXConvolutionRAMMB;
-	    strcpy(P.ReadStateDirectory,p.runtime_MultipoleDirectory);
+	    strcpy(p.runtime_MultipoleDirectory,P.ReadStateDirectory);
 	    sprintf(p.runtime_MultipolePrefix, "Multipoles");
 	    p.runtime_NearFieldRadius = P.NearFieldRadius;
-	    strcpy(P.WriteStateDirectory,p.runtime_TaylorDirectory);
+	    strcpy(p.runtime_TaylorDirectory,P.WriteStateDirectory);
 	    p.runtime_cpd = P.cpd;
 	    p.runtime_order = P.order;
-
+	    sprintf(p.runtime_TaylorPrefix, "Taylors");
 
 	    ConvolutionWallClock.Start();
 	    STDLOG(1,"Starting Convolution\n");

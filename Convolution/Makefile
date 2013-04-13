@@ -1,5 +1,5 @@
 #export CXX = g++
-CXXFLAGS = -mavx -O3 -openmp -DMAXCPD=81922 -L../ParseHeader
+CXXFLAGS = -mavx -O0 -g3 -openmp -DMAXCPD=81922 -L../ParseHeader $(VERSIONFLAGS)
 
 CPPFLAGS = -I../include -I../Library/include -I../Library/Multipoles -I../singlestep -I../ParseHeader
 
