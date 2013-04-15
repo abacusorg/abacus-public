@@ -60,10 +60,10 @@ public:
     char WriteStateDirectory[1024]; // Where the output State lives
     char PastStateDirectory[1024];  // Where the old input State lives
     char WorkingDirectory[1024];	// If Read/Write/Past not specified, where to put the states
-    char LogFileDirectory[1024];	
+    char LogDirectory[1024];
     	// TODO: User guide suggest changing name to LogDirectory
     char OutputDirectory[1024];     // Where the outputs go
-
+    int OutputEveryStep; //Force timeslices to be output every step if 1
     char OutputFormat[1024];		// The format of the Output files
     int  OmitOutputHeader;		// =1 if you want to skip the ascii header
 
@@ -138,9 +138,10 @@ public:
     	installscalar("WriteStateDirectory",WriteStateDirectory,DONT_CARE); // Where the output State lives
     	installscalar("PastStateDirectory",PastStateDirectory,DONT_CARE);  // Where the old input State lives
     	installscalar("WorkingDirectory",WorkingDirectory,DONT_CARE);
-    	installscalar("LogFileDirectory",LogFileDirectory,MUST_DEFINE);
+    	installscalar("LogDirectory",LogDirectory,MUST_DEFINE);
     	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
-
+    	OutputEveryStep = 0;
+    	installscalar("OutputEveryStep",OutputEveryStep,DONT_CARE);
 
     	installscalar("LightConeDirectory",LightConeDirectory,MUST_DEFINE); //Where the lightcones go. Generally will be the same as the Output directory
     	installscalar("NLightCones",NLightCones,DONT_CARE); //if not set, we assume 0
