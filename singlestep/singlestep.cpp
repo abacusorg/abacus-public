@@ -304,7 +304,7 @@ int main(int argc, char **argv) {
     // Setup the log
     stdlog_threshold_global = P.LogVerbosity;
     char logfn[1050];
-    sprintf(logfn,"%s/lastrun.log", P.LogFileDirectory);
+    sprintf(logfn,"%s/lastrun.log", P.LogDirectory);
     stdlog.open(logfn);
     STDLOG_TIMESTAMP;
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
@@ -381,7 +381,7 @@ int main(int argc, char **argv) {
     WallClockDirect.Stop();
     if (!MakeIC){
     	char timingfn[1050];
-    	sprintf(timingfn,"%s/lastrun.steptiming", P.LogFileDirectory);
+    	sprintf(timingfn,"%s/lastrun.steptiming", P.LogDirectory);
     	FILE * timingfile = fopen(timingfn,"w");
     	ReportTimings(timingfile);
     	STDLOG(0,"Wrote Timing File to %s\n",timingfn);

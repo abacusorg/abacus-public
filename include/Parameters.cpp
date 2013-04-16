@@ -362,7 +362,7 @@ void Parameters::ValidateParameters(void) {
     ExpandPathName(WriteStateDirectory);
     ExpandPathName(PastStateDirectory);
     ExpandPathName(OutputDirectory);
-    ExpandPathName(LogFileDirectory);
+    ExpandPathName(LogDirectory);
     ExpandPathName(InitialConditionsDirectory);
 
     CheckDirectoryExists(DerivativesDirectory);
@@ -370,7 +370,7 @@ void Parameters::ValidateParameters(void) {
     CheckDirectoryExists(WriteStateDirectory);
     CheckDirectoryExists(PastStateDirectory);
     CheckDirectoryExists(OutputDirectory);
-    CheckDirectoryExists(LogFileDirectory);
+    CheckDirectoryExists(LogDirectory);
 
     CheckDirectoryExists(InitialConditionsDirectory);
 
