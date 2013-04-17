@@ -272,7 +272,7 @@ void PlanOutput(bool MakeIC) {
 
     // Now check whether we're asked to do a TimeSlice.
     for (int nn = 0; nn < P.nTimeSlice; nn++) {
-	if (fabs((ReadState.Redshift-P.TimeSliceRedshifts[nn])<1e-12) || P.OutputEveryStep ==1) {
+	if ((fabs(ReadState.Redshift-P.TimeSliceRedshifts[nn])<1e-12) || P.OutputEveryStep == 1) {
 	    STDLOG(0,"Planning to output a TimeSlice, element %d\n", nn);
 	    ReadState.DoTimeSliceOutput = 1;
 	    char slicedir[128];

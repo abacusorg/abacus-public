@@ -1,5 +1,5 @@
 #CXX = g++ 
-CXXFLAGS = -O3 -openmp -mavx -I../include  -I../Library/Multipoles -I../Library/include
+CXXFLAGS = -O2 -openmp -mavx -I../include  -I../Library/Multipoles -I../Library/include
 
 CPPFLAGS = -I../include
 -include ../Makefile.local
