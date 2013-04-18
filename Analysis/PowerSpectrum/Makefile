@@ -11,7 +11,7 @@ libpower.so: power.o
 	$(CXX) ${CXXFLAGS} $(CPPFLAGS) -o $@ $^ $(LIBS)
 
 
-%.o:%.cpp;
+%.o:%.cpp Makefile
 	$(CXX) ${CXXFLAGS} $(CPPFLAGS) -c $< $(INCLUDES)	
 
 clean:
