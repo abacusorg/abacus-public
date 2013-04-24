@@ -2,7 +2,7 @@ CXX = icc
 CXXFLAGS = -O3 -openmp -DDOUBLE_PRECISION
 CPPFLAGS = -shared -fPIC
 INCLUDES = -I../../include/
-LIBS = -liomp5 -lgsl -lgslcblas -lm -lfftw3
+LIBS = -liomp5 -lgsl -lgslcblas -lfftw3_omp -lfftw3 -lm
 
 
 all: libpower.so
