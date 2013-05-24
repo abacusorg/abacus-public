@@ -1,6 +1,6 @@
 #export CXX = icc -openmp -liomp5 -no-ipo -xHost
 export CXX = g++ -fopenmp -lgomp
-export VERSIONFLAGS = -DDOUBLEPRECISION -DAVXDIRECT -DAVXMULTIPOLES -mavx -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576
+export VERSIONFLAGS = -DFLOATPRECISION -DAVXDIRECT -DAVXMULTIPOLES -mavx -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576
 
 export CXXFLAGS = -O1 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS)
 # Could add -DGLOBALPOS here to switch the code to global positions.

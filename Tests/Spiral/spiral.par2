@@ -3,5 +3,5 @@
 
 SimName = "spiral"
 #include "$ABACUS$/python/directory.def"
-TimeStepAccel = 0.05
+TimeStepAccel = 0.02
 TimeStepDlna = 0.025
