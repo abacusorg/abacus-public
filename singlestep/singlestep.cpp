@@ -361,7 +361,7 @@ int main(int argc, char **argv) {
     STDLOG(0,"Chose Time Step da = %6.4f, dlna = %6.4f\n",da, da/ReadState.ScaleFactor);
     feenableexcept(FE_INVALID | FE_DIVBYZERO);
     BuildWriteState(da);
-
+    LCOrigin = (FLOAT3 *) P.LightConeOrigins;
     // Make a plan for output
     PlanOutput(MakeIC);
 
