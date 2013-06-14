@@ -1,8 +1,8 @@
 #export CXX = icc -openmp -liomp5 -no-ipo -xHost
-export CXX = g++ -fopenmp -lgomp
-export VERSIONFLAGS = -DFLOATPRECISION -DAVXDIRECT -DAVXMULTIPOLES -mavx -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576
+export CXX = g++
+export VERSIONFLAGS = -DFLOATPRECISION -DAVXDIRECT -DAVXMULTIPOLES -mavx -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -lgomp
 
-export CXXFLAGS = -O2  -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS)
+export CXXFLAGS = -O0 -g3  -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS)
 # Could add -DGLOBALPOS here to switch the code to global positions.
 
 CPPFLAGS = -I include -I Derivatives -I ParseHeader -ILibrary/include
@@ -12,7 +12,7 @@ CC_SRC = singlestep.cpp
 -include ../Makefile.local
 export ABACUS_VER = abacus_avx
 
-LIBS =  -LParseHeader -LLibrary -lparseheader $(ABACUS_VER).a -lfftw3
+LIBS =  -LParseHeader -LLibrary -lparseheader $(ABACUS_VER).a -lfftw3 -lgomp
 
 
 VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich

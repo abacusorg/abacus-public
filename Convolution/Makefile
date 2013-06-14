@@ -1,4 +1,4 @@
-#export CXX = g++
+export CXX = g++
 CXXFLAGS = -mavx -O3 -openmp -DMAXCPD=81922 -L../ParseHeader $(VERSIONFLAGS)
 
 CPPFLAGS = -I../include -I../Library/include -I../Library/Multipoles -I../singlestep -I../ParseHeader
@@ -8,7 +8,7 @@ CPPFLAGS = -I../include -I../Library/include -I../Library/Multipoles -I../single
 ConvolutionDriver: convolutionwrapper.cpp ../include/Parameters.cpp
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) \
 	-o $@ $< ../$(ABACUS_VER).a \
-	-L$(FFTW)/lib -lfftw3 -lparseheader 
+	-L$(FFTW)/lib -lfftw3 -lparseheader -lgomp
 
 distclean:
 	$(RM) -f *.o ConvolutionDriver
