@@ -1,8 +1,8 @@
 #export CXX = icc -openmp -liomp5 -no-ipo -xHost
-export CXX = g++
+export CXX = g++ -fopenmp -lgomp
 export VERSIONFLAGS = -DFLOATPRECISION -DAVXDIRECT -DAVXMULTIPOLES -mavx -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -lgomp
 
-export CXXFLAGS = -O0 -g3  -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS)
+export CXXFLAGS = -O2  -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS)
 # Could add -DGLOBALPOS here to switch the code to global positions.
 
 CPPFLAGS = -I include -I Derivatives -I ParseHeader -I Library/include
