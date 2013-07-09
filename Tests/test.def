@@ -11,3 +11,6 @@ hMpc =1
 InitialRedshift = 99
 LagrangianPTOrder = 0
 SimName = "Test"
+#include "$ABACUS$/python/directory.def"
+#include "$ABACUS$/python/zel.def"
+

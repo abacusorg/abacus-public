@@ -1,4 +1,4 @@
-#CXX = g++ 
+CXX = g++ 
 CXXFLAGS = -O2 -openmp -mavx -I../include  -I../Library/Multipoles -I../Library/include
 
 CPPFLAGS = -I../include
@@ -7,7 +7,7 @@ CPPFLAGS = -I../include
 CreateDerivatives: CreateDerivatives.cpp
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) \
 	-o $@ $< \
-	-lfftw3 
+	-lfftw3 -lgomp 
 
 
 clean: 
