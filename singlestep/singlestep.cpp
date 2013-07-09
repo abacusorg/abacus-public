@@ -140,16 +140,17 @@ double ChooseTimeStep(){
 	// But this is not appropriate at early times, when particles are separated by
 	// much more than a softening length!
 
-	/*
+	
 	maxdrift = cosm->KickFactor(cosm->current.a, da);
 	maxdrift *= cosm->DriftFactor(cosm->current.a, da);
 	maxdrift *= ReadState.MaxAcceleration;
 	maxdrift /= P.TimeStepAccel*P.TimeStepAccel;
+	double da_eona = da;
 	if (maxdrift>P.SofteningLength) {
-	    da *= sqrt(P.SofteningLength/maxdrift);
-	    STDLOG(0,"da based on sqrt(epsilon/amax) is %f.\n", da);
+	    if(maxdrift >1e-12) da_eona *= sqrt(P.SofteningLength/maxdrift);
+	    STDLOG(0,"da based on sqrt(epsilon/amax) is %f.\n", da_eona);
 	}
-	*/
+	
 
 	// Perhaps the acceleration compared to the velocity is too big?
 	// We want amax*dt = eta*vrms, or 
