@@ -1,11 +1,11 @@
 #export CXX = icc -openmp -liomp5 -no-ipo -xHost
 export CXX = g++ -fopenmp -lgomp
-export VERSIONFLAGS = -DFLOATPRECISION -DAVXDIRECT -DAVXMULTIPOLES -mavx -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -lgomp
+export VERSIONFLAGS = -DFLOATPRECISION -DAVXDIRECT -DAVXMULTIPOLES -mavx -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576
 
 export CXXFLAGS = -O2  -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS)
 # Could add -DGLOBALPOS here to switch the code to global positions.
 
-CPPFLAGS = -I include -I Derivatives -I ParseHeader -I Library/include
+CPPFLAGS = -I include -I Derivatives -I ParseHeader -I Library/include -I Library/lib/direct -I Library/common
 CC_SRC = singlestep.cpp
 
 
@@ -25,12 +25,12 @@ singlestep: singlestep.o $(GEN_OBJ) libparseheader.a $(ABACUS_VER).a Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(LIBS)
 
 
-%.o: %.cpp Makefile
+%.o: %.cpp $(ABACUS_VER).a Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -c -o $@ $<
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
 
 abacus_%.a:
-	cd Library && $(MAKE) $@
+	cd Library && COMP=g++ _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=abacus_avx.a ./buildlibrary -O3 -static -mavx -DMAXCPD=8192 -lfftw3 -DAVXMULTIPOLES
 	
 
 libparseheader.a:
