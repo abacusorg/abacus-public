@@ -5,23 +5,23 @@ export VERSIONFLAGS = -DFLOATPRECISION -DAVXDIRECT -DAVXMULTIPOLES -mavx -DMAXCP
 export CXXFLAGS = -O2  -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS)
 # Could add -DGLOBALPOS here to switch the code to global positions.
 
-CPPFLAGS = -I include -I Derivatives -I ParseHeader -I Library/include -I Library/lib/direct -I Library/common
+CPPFLAGS = -I include -I Derivatives -I ParseHeader -I Library/include -I Library/lib/direct -I Library/lib/common
 CC_SRC = singlestep.cpp
 
 
 -include ../Makefile.local
 export ABACUS_VER = abacus_avx
 
-LIBS =  -LParseHeader -LLibrary -lparseheader $(ABACUS_VER).a -lfftw3 -lgomp
+LIBS =  -LParseHeader -LLibrary/lib -lparseheader -l$(ABACUS_VER) -lfftw3 -lgomp
 
 
-VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich
+VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich: Library/lib
 
 CLIBS = libpermute.so liblightcones.so
 
 all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum
 
-singlestep: singlestep.o $(GEN_OBJ) libparseheader.a $(ABACUS_VER).a Makefile
+singlestep: singlestep.o $(GEN_OBJ) libparseheader.a lib$(ABACUS_VER).a Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(LIBS)
 
 
@@ -29,8 +29,8 @@ singlestep: singlestep.o $(GEN_OBJ) libparseheader.a $(ABACUS_VER).a Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -c -o $@ $<
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
 
-abacus_%.a:
-	cd Library && COMP=g++ _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=abacus_avx.a ./buildlibrary -O3 -static -mavx -DMAXCPD=8192 -lfftw3 -DAVXMULTIPOLES
+libabacus_%.a:
+	cd Library/lib && COMP=g++ _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=libabacus_avx.a ./buildlibrary -O3 -static $(VERSIONFLAGS) -lfftw3
 	
 
 libparseheader.a:
@@ -50,7 +50,7 @@ clean:
 	-$(RM) *.o *.d *.a *~
 
 distclean:
-	cd Library && $(MAKE) $@
+	#cd Library && $(MAKE) $@
 	cd ParseHeader && $(MAKE) $@
 	cd Derivatives && $(MAKE) $@
 	cd Convolution && $(MAKE) $@
@@ -62,8 +62,8 @@ distclean:
 	-$(RM) *.o *.d *~ *.a a.out
 
 
-CreateDerivatives: CreateDerivatives.cpp
-	cd Derivatives && $(MAKE) $@
+CreateDerivatives: lib$(ABACUS_VER).a
+	cp Library/derivatives/* Derivatives/
 
 ConvolutionDriver: convolutionwrapper.cpp include/Parameters.cpp
 	cd Convolution && $(MAKE) $@
