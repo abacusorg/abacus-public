@@ -374,11 +374,13 @@ int main(int argc, char **argv) {
 	    else timestep();
 
     // Let the IO finish, so that it is included in the time log.
+    SingleStepTearDown.Start();
     IO_Terminate();
     fedisableexcept(FE_INVALID | FE_DIVBYZERO);
 
     // Write out the timings.  This must precede the epilogue, because 
     // we need to look inside some instances of classes for runtimes.
+    SingleStepTearDown.Stop();
     WallClockDirect.Stop();
     if (!MakeIC){
     	char timingfn[1050];
