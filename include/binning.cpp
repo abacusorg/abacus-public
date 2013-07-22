@@ -4,16 +4,26 @@
  *  Created on: Jul 20, 2013
  *      Author: dferrer
  */
+#ifndef BINNING_CPP
+#define BINNING_CPP
 #define arr(a,x,y,z) a[gridN1D*gridN1D *x + gridN1D*y + z]
 #define den(x,y,z) arr(density,x,y,z)
 #define squ(x) ((x)*(x))
 
+int wrap(int input, int max){
+	int result = input % max;
+	while(result <0){
+		result += max;
+	}
+	return result;
+}
+
 void tsc(FLOAT3 * positions,double3 cc, FLOAT * density, long long int NP, int gridN1D,double boxsize){
 	long long int n;
 	for(n = 0; n < NP; n++){
-		double px = (positions[n].x+cc)/boxsize * gridN1D;
-		double py = (positions[n].y+cc)/boxsize * gridN1D;
-		double pz = (positions[n].z+cc)/boxsize * gridN1D;
+		double px = (positions[n].x+cc.x)/boxsize * gridN1D;
+		double py = (positions[n].y+cc.y)/boxsize * gridN1D;
+		double pz = (positions[n].z+cc.z)/boxsize * gridN1D;
 
 		//round to nearest cell center (we offset the grid .5 so we can use floor instead of round)
 		int ix = floor(px+.5);
@@ -85,3 +95,4 @@ void tsc(FLOAT3 * positions,double3 cc, FLOAT * density, long long int NP, int g
 		den(ixp1,iyp1,izp1) += wxp1*wyp1*wzp1;
 	}
 }
+#endif
