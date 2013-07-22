@@ -94,6 +94,9 @@ public:
     double LightConeOrigins[24];
     char LightConeDirectory[1024];
 
+    int PowerSpectrumStepInterval;
+    int PowerSpectrumN1d; //1D number of bins to use in the powerspectrum
+
     int LogVerbosity;   // If 0, production-level log; higher numbers are more verbose
     int StoreForces; // If 1, store the accelerations
     int ForceOutputDebug; // If 1, output near and far forces seperately. 
@@ -180,7 +183,11 @@ public:
     	ForceOutputDebug = 0;
     	installscalar("ForceOutputDebug",ForceOutputDebug,DONT_CARE);
     	installscalar("SimName",SimName,MUST_DEFINE);
-	hs = NULL;
+    	installscalar("PowerSpectrumStepInterval",PowerSpectrumStepInterval,DONT_CARE);
+    	installscalar("PowerSpectrumN1d",PowerSpectrumN1d,DONT_CARE);
+    	PowerSpectrumStepInterval = -1; //Do not calculate OTF powerspectra
+    	PowerSpectrumN1d = 1;
+	    hs = NULL;
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.

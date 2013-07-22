@@ -252,6 +252,8 @@ void PlanOutput(bool MakeIC) {
     // Check the time slice and decide whether to do output.
     ReadState.DoTimeSliceOutput = 0;
     ReadState.OutputIsAllowed = 0;
+    ReadState.DoBinning = 0;
+    density = 0;
     if (MakeIC) return;   // Do no output on this slice.
     if (LPTStepNumber()>0) return;  // We're doing IC work; no output
 
@@ -282,6 +284,13 @@ void PlanOutput(bool MakeIC) {
 	    break;
 	}
     }
+
+    //check if we should bin
+    if (P.PowerSpectrumStepInterval >0 && ReadState.FullStepNumber %P.PowerSpectrumStepInterval == 0){
+    	density = new FLOAT[P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d];
+    	ReadState.DoBinning = 1;
+    }
+
 }
 
 
