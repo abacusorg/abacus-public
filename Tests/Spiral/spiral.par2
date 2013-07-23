@@ -6,3 +6,5 @@ SimName = "spiral"
 TimeStepAccel = 0.02
 TimeStepDlna = 0.025
 Order = 8
+PowerSpectrumN1d = 256
+PowerSpectrumStepInterval = 1
