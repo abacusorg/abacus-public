@@ -19,19 +19,17 @@ VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich: Libra
 
 CLIBS = libpermute.so liblightcones.so
 
+%.o: %.cpp $(ABACUS_VER).a Makefile
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -c -o $@ $<
+	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
+	
+libabacus_%.a:
+	cd Library/lib && COMP=g++ _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=libabacus_avx.a ./buildlibrary -O3 -static $(VERSIONFLAGS) -lfftw3
+
 all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum
 
 singlestep: singlestep.o $(GEN_OBJ) libparseheader.a lib$(ABACUS_VER).a Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(LIBS)
-
-
-%.o: %.cpp $(ABACUS_VER).a Makefile
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -c -o $@ $<
-	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
-
-libabacus_%.a:
-	cd Library/lib && COMP=g++ _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=libabacus_avx.a ./buildlibrary -O3 -static $(VERSIONFLAGS) -lfftw3
-	
 
 libparseheader.a:
 	cd ParseHeader && $(MAKE) libparseheader.a
