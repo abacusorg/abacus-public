@@ -12,10 +12,9 @@ CC_SRC = singlestep.cpp
 -include ../Makefile.local
 export ABACUS_VER = abacus_avx
 
-LIBS =  -LParseHeader -LLibrary/lib -lparseheader -l$(ABACUS_VER) -lfftw3_omp -lgomp -lfftw3
+LIBS =  -LParseHeader -LLibrary/lib -lparseheader -l$(ABACUS_VER) -lfftw3_omp -lgomp -lfftw3 gpudirect.o -L/usr/local/cuda-5.0/lib64  -lcudart  -lGL -lGLU
 
-
-VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich: Library/lib
+VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich: Library/lib : Library/lib/direct
 
 CLIBS = libpermute.so liblightcones.so
 
@@ -24,12 +23,15 @@ all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util test
 singlestep.o: singlestep.cpp lib$(ABACUS_VER).a Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -c -o $@ $<
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
+
+gpudirect.o: gpu.cu
+	nvcc --compiler-options -fno-strict-aliasing  -I. -I/usr/local/cuda-5.0/include  -DUNIX -O2 -o $@ -c $<
 	
 libabacus_%.a:
 	cd Library/lib && COMP=g++ _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=libabacus_avx.a ./buildlibrary -O3 -static $(VERSIONFLAGS) -lfftw3
 
 
-singlestep: singlestep.o $(GEN_OBJ) libparseheader.a lib$(ABACUS_VER).a Makefile
+singlestep: singlestep.o gpudirect.o $(GEN_OBJ) libparseheader.a lib$(ABACUS_VER).a Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(LIBS)
 
 libparseheader.a:
