@@ -10,7 +10,7 @@
 #define den(x,y,z) arr(density,x,y,z)
 #define squ(x) ((x)*(x))
 
-int wrap(int input, int max){
+inline int wrap(int input, int max){
 	int result = input % max;
 	while(result <0){
 		result += max;
@@ -18,33 +18,50 @@ int wrap(int input, int max){
 	return result;
 }
 
-void tsc(FLOAT3 * positions,double3 cc, FLOAT * density, long long int NP, int gridN1D,double boxsize){
+void tsc(FLOAT3 * positions,FLOAT3 cc, FLOAT * density, long long int NP, int gridN1D,FLOAT boxsize){
 	long long int n;
 	for(n = 0; n < NP; n++){
-		double px = (positions[n].x+cc.x)/boxsize * gridN1D;
-		double py = (positions[n].y+cc.y)/boxsize * gridN1D;
-		double pz = (positions[n].z+cc.z)/boxsize * gridN1D;
+		FLOAT px = (positions[n].x+cc.x)/boxsize * gridN1D;
+		FLOAT py = (positions[n].y+cc.y)/boxsize * gridN1D;
+		FLOAT pz = (positions[n].z+cc.z)/boxsize * gridN1D;
 
 		//round to nearest cell center (we offset the grid .5 so we can use floor instead of round)
+#ifdef DOUBLEPRECISION
 		int ix = floor(px+.5);
 		int iy = floor(py+.5);
 		int iz = floor(pz+.5);
-
+#else
+		int ix = floor(px+.5f);
+		int iy = floor(py+.5f);
+		int iz = floor(pz+.5f);
+#endif
 		//calculate distance to cell center
-		double dx = ix - px;
-		double dy = iy - py;
-		double dz = iz - pz;
+		FLOAT dx = ix - px;
+		FLOAT dy = iy - py;
+		FLOAT dz = iz - pz;
 
 		//find the tsc weights for each dimension
-		double wx = .75 -       squ(dx);
-		double wxm1 = .5 * squ(.5 + dx);
-		double wxp1 = .5 * squ(.5 - dx);
-		double wy = .75 -       squ(dy);
-		double wym1 = .5 * squ(.5 + dy);
-		double wyp1 = .5 * squ(.5 - dy);
-		double wz = .75 -       squ(dz);
-		double wzm1 = .5 * squ(.5 + dz);
-		double wzp1 = .5 * squ(.5 - dz);
+#ifdef DOUBLEPRECISION
+		FLOAT wx =  .75 -      squ(dx);
+		FLOAT wxm1 = .5 * squ(.5 + dx);
+		FLOAT wxp1 = .5 * squ(.5 - dx);
+		FLOAT wy =  .75 -      squ(dy);
+		FLOAT wym1 = .5 * squ(.5 + dy);
+		FLOAT wyp1 = .5 * squ(.5 - dy);
+		FLOAT wz =  .75 -      squ(dz);
+		FLOAT wzm1 = .5 * squ(.5 + dz);
+		FLOAT wzp1 = .5 * squ(.5 - dz);
+#else
+		FLOAT wx =  .75f -       squ(dx);
+		FLOAT wxm1 = .5f * squ(.5f + dx);
+		FLOAT wxp1 = .5f * squ(.5f - dx);
+		FLOAT wy =  .75f -       squ(dy);
+		FLOAT wym1 = .5f * squ(.5f + dy);
+		FLOAT wyp1 = .5f * squ(.5f - dy);
+		FLOAT wz =  .75f -       squ(dz);
+		FLOAT wzm1 = .5f * squ(.5f + dz);
+		FLOAT wzp1 = .5f * squ(.5f - dz);
+#endif
 
 		//find the wrapped x,y,z grid locations of the points we need to change
 		int ixm1 =wrap(ix-1,gridN1D);
