@@ -1,4 +1,4 @@
-export CXX = icc -openmp -liomp5 -xHost -mp1 -fbuiltin -ip #-prof-use=weighted
+export CXX = icc -openmp -liomp5 -xHost -fp-model precise -fbuiltin -ip #-prof-use=weighted
 #export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction 
 export VERSIONFLAGS = -DFLOATPRECISION -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES -mavx -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576
 
@@ -19,6 +19,8 @@ VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich: Libra
 
 CLIBS = libpermute.so liblightcones.so
 
+all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum
+
 singlestep.o: singlestep.cpp lib$(ABACUS_VER).a Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -c -o $@ $<
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
@@ -26,7 +28,6 @@ singlestep.o: singlestep.cpp lib$(ABACUS_VER).a Makefile
 libabacus_%.a:
 	cd Library/lib && COMP=g++ _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=libabacus_avx.a ./buildlibrary -O3 -static $(VERSIONFLAGS) -lfftw3
 
-all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum
 
 singlestep: singlestep.o $(GEN_OBJ) libparseheader.a lib$(ABACUS_VER).a Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(LIBS)
