@@ -7,11 +7,11 @@ LIBS = -liomp5 -lgsl -lgslcblas -lfftw3_omp -lfftw3f -lfftw3 -lm -L../../Library
 
 all: libpowerf.so libpowerd.so
 
-libpowerf.so: power.cc
-	$(CXX) ${CXXFLAGS} $(CPPFLAGS) -o $@ $^ $(LIBS)
+libpowerf.so: power.cpp
+	$(CXX) ${CXXFLAGS} $(CPPFLAGS) $(INCLUDES) -o $@ $^ $(LIBS)
 	
-libpowerd.so: power.cc
-	$(CXX) ${CXXFLAGS} -DDOUBLE_PRECISION $(CPPFLAGS) -o $@ $^ $(LIBS)
+libpowerd.so: power.cpp
+	$(CXX) ${CXXFLAGS} -DDOUBLE_PRECISION $(CPPFLAGS) $(INCLUDES) -o $@ $^ $(LIBS)
 
 
 #%.o:%.cpp Makefile

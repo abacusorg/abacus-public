@@ -2,7 +2,7 @@ export CXX = icc -openmp -liomp5 -xHost -fp-model precise -fbuiltin -ip #-prof-u
 #export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction 
 export VERSIONFLAGS = -DFLOATPRECISION -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES -DCUDADIRECT -mavx -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576
 
-export CXXFLAGS= -O3 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) #-debug -debug parallel
+export CXXFLAGS= -O0 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) -debug -debug parallel
 # Could add -DGLOBALPOS here to switch the code to global positions.
 
 CPPFLAGS = -I include -I Derivatives -I ParseHeader -I Library/include -I Library/lib/direct -I Library/lib/common
@@ -38,10 +38,9 @@ libparseheader.a:
 	cd ParseHeader && $(MAKE) libparseheader.a
 	
 clean:
-
-	cd Library && $(MAKE) $@
+	#cd Library && $(MAKE) $@
 	cd ParseHeader && $(MAKE) $@
-	cd Derivatives && $(MAKE) $@
+	#cd Derivatives && $(MAKE) $@
 	cd Convolution && $(MAKE) $@
 	cd python/clibs && $(MAKE) $@
 	cd zeldovich && $(MAKE) $@
@@ -53,7 +52,7 @@ clean:
 distclean:
 	#cd Library && $(MAKE) $@
 	cd ParseHeader && $(MAKE) $@
-	cd Derivatives && $(MAKE) $@
+	#cd Derivatives && $(MAKE) $@
 	cd Convolution && $(MAKE) $@
 	cd python/clibs && $(MAKE) $@
 	cd zeldovich && $(MAKE) $@
