@@ -19,7 +19,7 @@ VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich: Libra
 
 CLIBS = libpermute.so liblightcones.so
 
-%.o: %.cpp $(ABACUS_VER).a Makefile
+singlestep.o: singlestep.cpp lib$(ABACUS_VER).a Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -c -o $@ $<
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
 	
