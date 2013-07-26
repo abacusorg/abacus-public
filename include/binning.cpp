@@ -20,7 +20,6 @@ inline int wrap(int input, int max){
 
 void tsc(FLOAT3 * positions,FLOAT3 cc, FLOAT * density, long long int NP, int gridN1D,FLOAT boxsize){
 	long long int n;
-	assert(sizeof(FLOAT) == sizeof(tbb::atomic<FLOAT>));
 #ifdef PARALLELBIN
 	#pragma omp parallel for schedule(dynamic,128)
 	#endif
@@ -81,7 +80,7 @@ void tsc(FLOAT3 * positions,FLOAT3 cc, FLOAT * density, long long int NP, int gr
 		//change the 27 cells that the cloud touches
 		den(ixm1,iym1,izm1) += wxm1*wym1*wzm1;
 		den(ixw, iym1,izm1) += wx  *wym1*wzm1;
-		den(ixp1,iym1,izm1) += wxp1*wym1*wzm1);
+		den(ixp1,iym1,izm1) += wxp1*wym1*wzm1;
 
 		den(ixm1,iyw ,izm1) += wxm1*wy  *wzm1;
 		den(ixw, iyw ,izm1) += wx  *wy  *wzm1;
