@@ -12,7 +12,7 @@ CC_SRC = singlestep.cpp
 -include ../Makefile.local
 export ABACUS_VER = abacus_avx
 
-LIBS =  -LParseHeader -LLibrary/lib -lparseheader -l$(ABACUS_VER) -lfftw3_omp -lgomp -lfftw3 gpudirect.o -L/usr/local/cuda-5.0/lib64  -lcudart  -lGL -lGLU
+LIBS =  -LParseHeader -LLibrary/lib -lparseheader -l$(ABACUS_VER) -lfftw3_omp -lgomp -lfftw3 gpudirect.o -L/usr/local/cuda-5.0/lib64  -lcudart  -lGL -lGLU  -ltbb
 
 VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich: Library/lib : Library/lib/direct
 
