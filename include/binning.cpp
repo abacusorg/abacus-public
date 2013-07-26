@@ -10,8 +10,6 @@
 #define den(x,y,z) arr(density,x,y,z)
 #define squ(x) ((x)*(x))
 
-#include <stdatomic.h>
-
 inline int wrap(int input, int max){
 	int result = input % max;
 	while(result <0){
@@ -22,7 +20,7 @@ inline int wrap(int input, int max){
 
 void tsc(FLOAT3 * positions,FLOAT3 cc, FLOAT * density, long long int NP, int gridN1D,FLOAT boxsize){
 	long long int n;
-	
+	assert(sizeof(FLOAT) == sizeof(tbb::atomic<FLOAT>));
 #ifdef PARALLELBIN
 	#pragma omp parallel for schedule(dynamic,128)
 	#endif
@@ -81,64 +79,40 @@ void tsc(FLOAT3 * positions,FLOAT3 cc, FLOAT * density, long long int NP, int gr
 		int izp1 =wrap(iz+1,gridN1D);
 
 		//change the 27 cells that the cloud touches
-		atomic_fetch_add( den(ixm1,iym1,izm1) , wxm1*wym1*wzm1);
-		atomic_fetch_add( den(ixw, iym1,izm1) , wx  *wym1*wzm1);
-		atomic_fetch_add( den(ixp1,iym1,izm1) , wxp1*wym1*wzm1);
+		den(ixm1,iym1,izm1) += wxm1*wym1*wzm1;
+		den(ixw, iym1,izm1) += wx  *wym1*wzm1;
+		den(ixp1,iym1,izm1) += wxp1*wym1*wzm1);
 
-#pragma omp atomic
 		den(ixm1,iyw ,izm1) += wxm1*wy  *wzm1;
-#pragma omp atomic
 		den(ixw, iyw ,izm1) += wx  *wy  *wzm1;
-#pragma omp atomic
 		den(ixp1,iyw ,izm1) += wxp1*wy  *wzm1;
 
-#pragma omp atomic
 		den(ixm1,iyp1,izm1) += wxm1*wyp1*wzm1;
-#pragma omp atomic
 		den(ixw, iyp1,izm1) += wx  *wyp1*wzm1;
-#pragma omp atomic
 		den(ixp1,iyp1,izm1) += wxp1*wyp1*wzm1;
 
-#pragma omp atomic
 		den(ixm1,iym1,izw ) += wxm1*wym1*wz  ;
-#pragma omp atomic
 		den(ixw, iym1,izw ) += wx  *wym1*wz  ;
-#pragma omp atomic
 		den(ixp1,iym1,izw ) += wxp1*wym1*wz  ;
 
-#pragma omp atomic
 		den(ixm1,iyw ,izw ) += wxm1*wy  *wz  ;
-#pragma omp atomic
 		den(ixw, iyw ,izw ) += wx  *wy  *wz  ;
-#pragma omp atomic
 		den(ixp1,iyw ,izw ) += wxp1*wy  *wz  ;
 
-#pragma omp atomic
 		den(ixm1,iyp1,izw ) += wxm1*wyp1*wz  ;
-#pragma omp atomic
 		den(ixw, iyp1,izw ) += wx  *wyp1*wz  ;
-#pragma omp atomic
 		den(ixp1,iyp1,izw ) += wxp1*wyp1*wz  ;
 
-#pragma omp atomic
 		den(ixm1,iym1,izp1) += wxm1*wym1*wzp1;
-#pragma omp atomic
 		den(ixw, iym1,izp1) += wx  *wym1*wzp1;
-#pragma omp atomic
 		den(ixp1,iym1,izp1) += wxp1*wym1*wzp1;
 
-#pragma omp atomic
 		den(ixm1,iyw ,izp1) += wxm1*wy  *wzp1;
-#pragma omp atomic
 		den(ixw, iyw ,izp1) += wx  *wy  *wzp1;
-#pragma omp atomic
 		den(ixp1,iyw ,izp1) += wxp1*wy  *wzp1;
 
-#pragma omp atomic
 		den(ixm1,iyp1,izp1) += wxm1*wyp1*wzp1;
-#pragma omp atomic
 		den(ixw, iyp1,izp1) += wx  *wyp1*wzp1;
-#pragma omp atomic
 		den(ixp1,iyp1,izp1) += wxp1*wyp1*wzp1;
 	}
 }
