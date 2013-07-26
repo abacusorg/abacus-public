@@ -1,8 +1,8 @@
 CXX = icc
 CXXFLAGS = -O3 -fbuiltin -fp-model fast=2  -ip -xHost -mavx -openmp 
 CPPFLAGS = -shared -fPIC
-INCLUDES = -I../../include/ -I../../Library/include
-LIBS = -liomp5 -lgsl -lgslcblas -lfftw3_omp -lfftw3f -lfftw3 -lm -L../../Library/lib -labacus_avx
+INCLUDES = -I../../include/ -I../../Library/include -I../../Library/lib/convolution -I../../Library/lib/common
+LIBS = -liomp5 -lgsl -lgslcblas -lfftw3_omp -lfftw3f_omp -lfftw3f -lfftw3 -lm
 
 
 all: libpowerf.so libpowerd.so
