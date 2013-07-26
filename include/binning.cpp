@@ -10,6 +10,8 @@
 #define den(x,y,z) arr(density,x,y,z)
 #define squ(x) ((x)*(x))
 
+#include <stdatomic.h>
+
 inline int wrap(int input, int max){
 	int result = input % max;
 	while(result <0){
@@ -79,12 +81,9 @@ void tsc(FLOAT3 * positions,FLOAT3 cc, FLOAT * density, long long int NP, int gr
 		int izp1 =wrap(iz+1,gridN1D);
 
 		//change the 27 cells that the cloud touches
-#pragma omp atomic
-		den(ixm1,iym1,izm1) += wxm1*wym1*wzm1;
-#pragma omp atomic
-		den(ixw, iym1,izm1) += wx  *wym1*wzm1;
-#pragma omp atomic
-		den(ixp1,iym1,izm1) += wxp1*wym1*wzm1;
+		atomic_fetch_add( den(ixm1,iym1,izm1) , wxm1*wym1*wzm1);
+		atomic_fetch_add( den(ixw, iym1,izm1) , wx  *wym1*wzm1);
+		atomic_fetch_add( den(ixp1,iym1,izm1) , wxp1*wym1*wzm1);
 
 #pragma omp atomic
 		den(ixm1,iyw ,izm1) += wxm1*wy  *wzm1;
