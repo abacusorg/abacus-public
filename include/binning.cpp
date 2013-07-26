@@ -20,8 +20,9 @@ inline int wrap(int input, int max){
 
 void tsc(FLOAT3 * positions,FLOAT3 cc, FLOAT * density, long long int NP, int gridN1D,FLOAT boxsize){
 	long long int n;
+	
 #ifdef PARALLELBIN
-	#pragma omp parallel for schedule(dynamic,1)
+	#pragma omp parallel for schedule(dynamic,128)
 	#endif
 	for(n = 0; n < NP; n++){
 		FLOAT px = (positions[n].x+cc.x)/boxsize * gridN1D;
