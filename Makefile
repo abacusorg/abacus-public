@@ -2,7 +2,7 @@ export CXX = icc -openmp -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-us
 #export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction 
 export VERSIONFLAGS = -DFLOATPRECISION -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES -DCUDADIRECT -mavx -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576
 
-export CXXFLAGS= -O3 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) #-ggdb3#-debug -debug parallel
+export CXXFLAGS= -O3 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) #-debug -debug parallel
 # Could add -DGLOBALPOS here to switch the code to global positions.
 
 CPPFLAGS = -I include -I Derivatives -I ParseHeader -I Library/include -I Library/lib/direct -I Library/lib/common -I/usr/local/cuda-5.0/include
