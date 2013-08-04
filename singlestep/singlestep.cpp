@@ -394,6 +394,7 @@ int main(int argc, char **argv) {
     SingleStepTearDown.Stop();
     WallClockDirect.Stop();
     if (!MakeIC){
+	JJ->Cleanup();
     	char timingfn[1050];
     	sprintf(timingfn,"%s/lastrun.steptiming", P.LogDirectory);
     	FILE * timingfile = fopen(timingfn,"w");
