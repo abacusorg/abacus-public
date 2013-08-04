@@ -409,7 +409,8 @@ int main(int argc, char **argv) {
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
     WriteState.write_to_file(P.WriteStateDirectory);
     STDLOG(0,"Wrote WriteState to %s\n",P.WriteStateDirectory);
-
+    //for profiling
+    //system("rm -r write/state write/position_00* write/Multipoles_* write/velocity_00* write/auxillary_00* write/cellinfo_00* write/globaldipole write/redlack write/slabsize out/*");
     stdlog.close();  
     exit(0);
 }
