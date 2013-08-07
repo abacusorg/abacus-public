@@ -35,7 +35,7 @@ Spiral::~Spiral() {
 // Create a one-d wave of perturbations with a given wave vector and phase.
 // Positions are in dimensionless units and "velocity" is in specific congugate momentum
 // (dx/dt) / a^2, in dimensionless units.
-void Spiral::Create(double3 *pp, double3 *vv, int *id, int _n, double Ainitial, double Across) {
+void Spiral::Create(double3 *pp, double3 *vv, int *id, long long int _n, double Ainitial, double Across) {
 
     assert(N==_n);
 
