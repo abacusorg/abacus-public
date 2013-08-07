@@ -1,4 +1,4 @@
-export CXX = icc -gcc-version=470 -openmp -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
+export CXX = icc -openmp -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
 #export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction 
 export VERSIONFLAGS = -DFLOATPRECISION -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES -DCUDADIRECT -mavx -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576
 
