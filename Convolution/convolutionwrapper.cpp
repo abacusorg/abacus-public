@@ -91,7 +91,7 @@ int main(int argc, char ** argv){
 	    p.runtime_ConvolutionCacheSizeMB = P.ConvolutionCacheSizeMB;
 	    p.runtime_DerivativeExpansionRadius = P.DerivativeExpansionRadius;
 	    strcpy(p.runtime_DerivativesDirectory,P.DerivativesDirectory);
-	    p.runtime_DiskBufferSizeKB = 4;
+	    p.runtime_DiskBufferSizeKB = 1<<20;
 	    p.runtime_IsRamDisk = P.RamDisk;
 	    p.runtime_MaxConvolutionRAMMB = P.MAXConvolutionRAMMB;
 	    strcpy(p.runtime_MultipoleDirectory,P.ReadStateDirectory);
@@ -116,5 +116,5 @@ int main(int argc, char ** argv){
 
 
 
-
+ 
 }
