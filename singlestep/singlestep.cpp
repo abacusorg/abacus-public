@@ -298,7 +298,7 @@ int main(int argc, char **argv) {
 	std::setvbuf(stdout,(char *)_IONBF,0,0);
 	std::setvbuf(stderr,(char *)_IONBF,0,0);
 
-	omp_set_num_threads(5);
+	omp_set_num_threads(6);
 
     WallClockDirect.Start();
     SingleStepSetup.Start();
