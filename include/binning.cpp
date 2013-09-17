@@ -18,7 +18,7 @@ inline int wrap(int input, int max){
 	return result;
 }
 
-void tsc(FLOAT3 * positions,FLOAT3 cc, FLOAT * density, long long int NP, int gridN1D,FLOAT boxsize){
+void tsc(FLOAT3 * positions,FLOAT3 cc, FLOAT * density, long long int NP, long long int gridN1D,FLOAT boxsize){
 	long long int n;
 #ifdef PARALLELBIN
 	#pragma omp parallel for schedule(dynamic,128)
