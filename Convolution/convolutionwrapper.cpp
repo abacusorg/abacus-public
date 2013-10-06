@@ -91,9 +91,9 @@ int main(int argc, char ** argv){
 	    p.runtime_ConvolutionCacheSizeMB = P.ConvolutionCacheSizeMB;
 	    p.runtime_DerivativeExpansionRadius = P.DerivativeExpansionRadius;
 	    strcpy(p.runtime_DerivativesDirectory,P.DerivativesDirectory);
-	    p.runtime_DiskBufferSizeKB = 1<<20;
+	    p.runtime_DiskBufferSizeKB = 1LL<<23;
 	    p.runtime_IsRamDisk = P.RamDisk;
-	    p.runtime_MaxConvolutionRAMMB = P.MAXConvolutionRAMMB;
+	    p.runtime_MaxConvolutionRAMMB = P.MAXRAMMB;
 	    strcpy(p.runtime_MultipoleDirectory,P.ReadStateDirectory);
 	    sprintf(p.runtime_MultipolePrefix, "Multipoles");
 	    p.runtime_NearFieldRadius = P.NearFieldRadius;

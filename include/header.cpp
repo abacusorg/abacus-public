@@ -25,6 +25,8 @@
 #include <stdlib.h>
 
 #include <stdint.h>
+#include <unistd.h>
+
 #define uint64 uint64_t
 
 typedef std::complex<double> Complex;
