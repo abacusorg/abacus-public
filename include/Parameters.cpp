@@ -59,6 +59,7 @@ public:
     char ReadStateDirectory[1024];  // Where the input State lives
     char WriteStateDirectory[1024]; // Where the output State lives
     char PastStateDirectory[1024];  // Where the old input State lives
+    char MultipoleDirectory[1024];
     char WorkingDirectory[1024];	// If Read/Write/Past not specified, where to put the states
     char LogDirectory[1024];
     char OutputDirectory[1024];     // Where the outputs go
@@ -90,7 +91,7 @@ public:
     // Could have group finding or coevolution set instructions
 
     int  NLightCones;
-    double LightConeOrigins[24];
+    float LightConeOrigins[24];
     char LightConeDirectory[1024];
 
     int PowerSpectrumStepInterval;
@@ -139,6 +140,7 @@ public:
     	installscalar("ReadStateDirectory",ReadStateDirectory,DONT_CARE);  // Where the input State lives
     	installscalar("WriteStateDirectory",WriteStateDirectory,DONT_CARE); // Where the output State lives
     	installscalar("PastStateDirectory",PastStateDirectory,DONT_CARE);  // Where the old input State lives
+	installscalar("MultipoleDirectory",MultipoleDirectory,DONT_CARE);
     	installscalar("WorkingDirectory",WorkingDirectory,DONT_CARE);
     	installscalar("LogDirectory",LogDirectory,MUST_DEFINE);
     	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
@@ -369,6 +371,7 @@ void Parameters::ValidateParameters(void) {
     ExpandPathName(WriteStateDirectory);
     ExpandPathName(PastStateDirectory);
     ExpandPathName(OutputDirectory);
+    ExpandPathName(MultipoleDirectory);
     ExpandPathName(LogDirectory);
     ExpandPathName(InitialConditionsDirectory);
 
