@@ -6,15 +6,14 @@
  */
 #ifndef BINNING_CPP
 #define BINNING_CPP
-#define arr(a,x,y,z) a[gridN1D*gridN1D *x + gridN1D*y + z]
+#define arr(a,x,y,z) a[gridN1D*gridN1D *(x) + gridN1D*(y) + (z)]
 #define den(x,y,z) arr(density,x,y,z)
 #define squ(x) ((x)*(x))
 
-inline int wrap(int input, int max){
-	int result = input % max;
-	while(result <0){
-		result += max;
-	}
+inline int wrap(int result, int max){
+	while(result <0) result += max;
+	while(result >= max) result-=max;
+	assert(result >=0);
 	return result;
 }
 
