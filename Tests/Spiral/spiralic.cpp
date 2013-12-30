@@ -11,21 +11,21 @@ using namespace std;
 class Spiral {
 public:
 
-    Spiral(int N1D, double3 kvec, double3 phase); 
+    Spiral(long long int N1D, double3 kvec, double3 phase); 
     ~Spiral();
 
-    void Create(double3 *pp, double3 *vv, int *id, int np, double Ainitial, double Across);
-    void Project(double3 *pp, double3 *vv, int *id,  int np);
+    void Create(double3 *pp, double3 *vv, int *id, long long int np, double Ainitial, double Across);
+    void Project(double3 *pp, double3 *vv, int *id, long long int np);
 
     void WrapPosition(double3 &p);
     double3 cross(double3 v1, double3 v2);
     double3 RotatePointAboutLine(double3 p, double3 n, double angle);
 
-    int N1D, N;
+    long long int N1D, N;
     double3 kvec, phase;
 };
 
-Spiral::Spiral(int N1D, double3 kvec, double3 phase) : N1D(N1D), kvec(kvec), phase(phase) {
+Spiral::Spiral(long long int N1D, double3 kvec, double3 phase) : N1D(N1D), kvec(kvec), phase(phase) {
     N = N1D*N1D*N1D;
 }
 
@@ -39,8 +39,8 @@ void Spiral::Create(double3 *pp, double3 *vv, int *id, long long int _n, double 
 
     assert(N==_n);
 
-    printf("   N1D: %d\n", N1D);
-    printf("     N: %d\n", N);
+    printf("   N1D: %lld\n", N1D);
+    printf("     N: %lld\n", N);
     printf("  kvec: % e  % e  % e\n", kvec.x, kvec.y, kvec.z);
     printf(" phase: % e  % e  % e\n", phase.x, phase.y, phase.z);
     printf(" Ainit: % e\n", Ainitial);
@@ -106,7 +106,7 @@ double3 Spiral::RotatePointAboutLine(double3 p, double3 n, double angle) {
     return pp;
 }
 
-void Spiral::Project(double3 *pp, double3 *vv, int *id, int np) {
+void Spiral::Project(double3 *pp, double3 *vv, int *id, long long int np) {
 
     // we want sol'm along kvec rotated parallel to xhat
     double3 xhat; xhat.x = 1; xhat.y = 0; xhat.z = 0;
@@ -150,9 +150,9 @@ void Spiral::Project(double3 *pp, double3 *vv, int *id, int np) {
     }
 }
 
-void GenSpiral( int n1d, double ainitial, double across, double3 *pp, double3 *vv, int *id,double3 kvec,double3 phase) {
+void GenSpiral( long long int n1d, double ainitial, double across, double3 *pp, double3 *vv, int *id,double3 kvec,double3 phase) {
 
-    int np = n1d*n1d*n1d;
+    long long int np = n1d*n1d*n1d;
     assert(np>0);
 
 
@@ -176,7 +176,7 @@ int main(int argc, char **argv){
 		printf("Usage: makespiralic <n1d> <a initial> <across> <kvec x y z> <phase x y z> <output filename> ");
 		return 1;
 	}
-	int n1d = atoi(argv[1]);
+	long long int n1d = atoi(argv[1]);
 	double3 kvec,phase;
 	double ainitial = atof(argv[2]);
 	double across = atof(argv[3]);
