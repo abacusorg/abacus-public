@@ -3,7 +3,6 @@
 
 SimName = "spiral"
 #include "$ABACUS$/python/directory.def"
-<<<<<<< HEAD
 DerivativesDirectory= "$ABACUS_TMP$/Derivatives/"
 TimeStepAccel = 0.02
 TimeStepDlna = 0.025
