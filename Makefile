@@ -60,6 +60,7 @@ distclean:
 	cd util && $(MAKE) $@
 	cd Analysis/PowerSpectrum &&$(MAKE) $@
 	-$(RM) *.o *.d *~ *.a a.out
+	-$(RM) Library/lib/*.a
 
 
 CreateDerivatives: lib$(ABACUS_VER).a
