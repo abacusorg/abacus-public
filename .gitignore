@@ -1,1 +1,7 @@
 /teststate
+*.o
+*.pyc
+*~
+*.so
+*.a
+*.d
