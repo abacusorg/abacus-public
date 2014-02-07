@@ -1,9 +1,10 @@
 export CXX = icc -openmp -pthread -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
 #export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction 
-export GPUSPINFLAG = -DGPUTHREADFORCESPIN
-export VERSIONFLAGS = -mavx -DFLOATPRECISION -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES -DCUDADIRECT -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 $(GPUSPINFLAG)
+GPUSPINFLAG = -DGPUTHREADFORCESPIN
+# Use -DCUDADIRECT to use GPU; defaults to CPU otherwise
+export VERSIONFLAGS = -mavx -DFLOATPRECISION -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 $(GPUSPINFLAG) #-DCUDADIRECT
 
-export CXXFLAGS= -O3 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) #-DGLOBALPOS# -debug -debug parallel
+export CXXFLAGS= -O3 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) #-g -debug #-debug parallel #-DGLOBALPOS
 # Could add -DGLOBALPOS here to switch the code to global positions.
 
 CPPFLAGS = -I include -I Derivatives -I ParseHeader -I Library/include -I Library/lib/direct -I Library/lib/common -I/usr/local/cuda/include
