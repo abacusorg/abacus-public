@@ -15,7 +15,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import ctypes as ct
 import subprocess
 
-    
+
 
 #we have to do a little bit of trickery to import things from the abacus/python directory
 abacuspath = os.getenv("ABACUS","NONE")
@@ -39,29 +39,28 @@ def run(basedir = "NONE"):
         if tmpdir == "NONE":
             tmpdir = "/tmp/abacus/"
         basedir = tmpdir +"/spiral/"
-        
+
     if os.path.exists(basedir):
-    
-        erase = raw_input("Test Directory exists! Erase? (y/n)")
-        if erase =="y":   
+
+        erase = "n"#raw_input("Test Directory exists! Erase? (y/n)")
+        if erase =="y":
             shutil.rmtree(basedir)
             print "Erased previous test directory"
     if not os.path.exists(basedir):
         os.makedirs(basedir)
-        
+
     kvec = (1,0,0)
     phase = (np.pi,0,0)
-    n1d = 256 # 2048
+    n1d = 64
     ainitial = 0.09
     across = 0.2
     astop =  1.0
     sf = .1/n1d#7.5e-03
-    
-    
+
+
     #check if we are done
     if not os.path.exists(basedir+"write/state"):
-    
-        params = GenParam.makeInput(basedir+"spiral.par", abacuspath +"/Tests/Spiral/spiral.par2", NP = n1d**3,nTimeSlice = 1, TimeSliceRedshifts = 1/astop -1, SofteningLength = sf,InitialRedshift = 1/ainitial -1,CPD = 505,BoxSize = 17.3205080756888,WorkingDirectory = basedir)
+        params = GenParam.makeInput(basedir+"spiral.par", abacuspath +"/Tests/Spiral/spiral.par2", NP = n1d**3,nTimeSlice = 1, TimeSliceRedshifts = 1/astop -1, SofteningLength = sf,InitialRedshift = 1/ainitial -1,CPD = 15,BoxSize = 17.3205080756888,WorkingDirectory = basedir)
         os.makedirs(params["InitialConditionsDirectory"])
         #make the spiral initial conditions
         subprocess.call([abacuspath+"/Tests/Spiral/makespiralics",str(n1d), str(ainitial),str(across),
@@ -71,44 +70,50 @@ def run(basedir = "NONE"):
         for i in range(1,params["CPD"]):
             f = open(params["InitialConditionsDirectory"]+"/ic_"+str(i),"wb")
             f.close()
-        
+
         #run the problem
         os.chdir(basedir)
-        abacus.run("spiral.par",2,1)
-	return
+        abacus.run("spiral.par",2000,1)
     else:
         os.chdir(basedir)
-        params = GenParam.parseInput("spiral.par") 
+        params = GenParam.parseInput("spiral.par")
     #plot the results and check the answer
     writestate = InputFile.InputFile("write/state")
     ReadState = InputFile.InputFile("read/state")
     laststep = writestate.FullStepNumber
-    
+
     timeslice = "final.ts"
     os.system(abacuspath+"/util/phdata " + "%s/slice%5.3f/%s.z%5.3f.*"%(params["OutputDirectory"], ReadState.Redshift, params["SimName"],ReadState.Redshift) + " > " +timeslice)
     data = np.fromfile(timeslice,dtype = np.float64)
-    
-    
+
+
     subprocess.call([abacuspath+"/Tests/Spiral/makeanalytic",str(ainitial),str(across),str(astop)])
     analytic = np.fromfile("./analytic",sep = " ")
     analytic = np.reshape(analytic,(-1,2))
     # The makeanalytic program returns canonical velocities, whereas abacus returns ZSpace velocities.
     # Let's standardize on ZSpace, because that connects to the displacements
     analytic[:,1] /= ReadState.VelZSpace_to_Canonical
-    
+
     xv = np.reshape(data, (-1,6))
     print xv.shape
     print analytic.shape
-    p.plot(xv[:,0],xv[:,3],".")
     p.plot(analytic[:,0], analytic[:,1])
+    p.scatter(xv[:,0],xv[:,3],marker=".",s = 10*(4 * np.abs(xv[0]) + 1), c= "r",linewidth=0 )
     p.xlabel("X")
     p.ylabel("Vx")
-    p.savefig("spiral.png")
+    p.savefig("spiral.png", dpi=500)
+    p.figure()
+    p.xlim(-.1,.1)
+    p.ylim(-.05,.05)
+    p.plot(analytic[:,0], analytic[:,1])
+    p.scatter(xv[:,0],xv[:,3],marker=".",s = 10*(4 * np.abs(xv[0]) + 1), c= "r",linewidth=0 )
+    p.xlabel("X")
+    p.ylabel("Vx")
+    p.savefig("spiral-zoomed.png",dpi=500)
 
     if astop<across:
 	# There's a skewer of particles that always starts at -0.50, but it might have wrapped to +0.5
 	sel = np.where(np.logical_and(abs(xv[:,1])>0.5-1e-3, abs(xv[:,2])>0.5-1e-3))
-	print
 	print "Selecting one skewer of %d points."%(len(sel[0]))
 	print "The following will only make sense before shell crossing:"
 	print "The deviation is relative to Zel'dovich, so one expects breakdowns approaching shell crossing"
@@ -140,7 +145,7 @@ def run(basedir = "NONE"):
 
 
 if __name__ == '__main__':
-    
+
     args = sys.argv
     if len(args) == 1:
         run()

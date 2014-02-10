@@ -29,7 +29,7 @@ public:
     double SofteningLength; // Softening length in units of interparticle spacing
 
     int  DerivativeExpansionRadius;
-    int  MAXConvolutionRAMMB;
+    int  MAXRAMMB;
     int  ConvolutionCacheSizeMB;
     int RamDisk;	// ==0 for a normal disk, ==1 for a ramdisk (which don't have DIO support)
     int ForceBlockingIO;   // ==1 if you want to force all IO to be blocking.
@@ -59,9 +59,9 @@ public:
     char ReadStateDirectory[1024];  // Where the input State lives
     char WriteStateDirectory[1024]; // Where the output State lives
     char PastStateDirectory[1024];  // Where the old input State lives
+    char MultipoleDirectory[1024];
     char WorkingDirectory[1024];	// If Read/Write/Past not specified, where to put the states
     char LogDirectory[1024];
-    	// TODO: User guide suggest changing name to LogDirectory
     char OutputDirectory[1024];     // Where the outputs go
     int OutputEveryStep; //Force timeslices to be output every step if 1
     char OutputFormat[1024];		// The format of the Output files
@@ -91,7 +91,7 @@ public:
     // Could have group finding or coevolution set instructions
 
     int  NLightCones;
-    double LightConeOrigins[24];
+    float LightConeOrigins[24];
     char LightConeDirectory[1024];
 
     int PowerSpectrumStepInterval;
@@ -112,7 +112,7 @@ public:
     	installscalar("SofteningLength", SofteningLength,MUST_DEFINE); // Softening length in units of interparticle spacing
 
     	installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
-    	installscalar("MAXConvolutionRAMMB", MAXConvolutionRAMMB,MUST_DEFINE);
+    	installscalar("MAXRAMMB", MAXRAMMB,MUST_DEFINE);
     	installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB,MUST_DEFINE);
 	RamDisk = 0;
     	installscalar("RamDisk",RamDisk,DONT_CARE);
@@ -140,6 +140,7 @@ public:
     	installscalar("ReadStateDirectory",ReadStateDirectory,DONT_CARE);  // Where the input State lives
     	installscalar("WriteStateDirectory",WriteStateDirectory,DONT_CARE); // Where the output State lives
     	installscalar("PastStateDirectory",PastStateDirectory,DONT_CARE);  // Where the old input State lives
+	installscalar("MultipoleDirectory",MultipoleDirectory,DONT_CARE);
     	installscalar("WorkingDirectory",WorkingDirectory,DONT_CARE);
     	installscalar("LogDirectory",LogDirectory,MUST_DEFINE);
     	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
@@ -148,6 +149,7 @@ public:
 
     	installscalar("LightConeDirectory",LightConeDirectory,MUST_DEFINE); //Where the lightcones go. Generally will be the same as the Output directory
     	installscalar("NLightCones",NLightCones,DONT_CARE); //if not set, we assume 0
+        installvector("LightConeOrigins",LightConeOrigins,24,1,DONT_CARE);
 
 	FinalRedshift = -2.0;	// If <-1, then we will cascade back to the minimum of the TimeSliceRedshifts list
     	installscalar("FinalRedshift",FinalRedshift,DONT_CARE);
@@ -311,10 +313,10 @@ void Parameters::ValidateParameters(void) {
         assert(1==0);
     }
 
-    if(MAXConvolutionRAMMB<0) {
+    if(MAXRAMMB<0) {
         fprintf(stderr,
             "[ERROR] MAXConvolutionRAMMB = %d must be greater than 0 \n",
-                MAXConvolutionRAMMB);
+                MAXRAMMB);
         assert(1==0);
     }
 
@@ -369,6 +371,7 @@ void Parameters::ValidateParameters(void) {
     ExpandPathName(WriteStateDirectory);
     ExpandPathName(PastStateDirectory);
     ExpandPathName(OutputDirectory);
+    ExpandPathName(MultipoleDirectory);
     ExpandPathName(LogDirectory);
     ExpandPathName(InitialConditionsDirectory);
 

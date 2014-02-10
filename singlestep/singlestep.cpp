@@ -298,7 +298,6 @@ int main(int argc, char **argv) {
 	std::setvbuf(stdout,(char *)_IONBF,0,0);
 	std::setvbuf(stderr,(char *)_IONBF,0,0);
 
-	omp_set_num_threads(6);
 
     WallClockDirect.Start();
     SingleStepSetup.Start();
@@ -359,7 +358,7 @@ int main(int argc, char **argv) {
 	    da = 0;
 	}
     }
-
+    if(!MakeIC) omp_set_num_threads(5);
     //Check if WriteStateDirectory/state exists, and fail if it does
     char wstatefn[1050];
     sprintf(wstatefn,"%s/state",P.WriteStateDirectory);
@@ -410,8 +409,7 @@ int main(int argc, char **argv) {
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
     WriteState.write_to_file(P.WriteStateDirectory);
     STDLOG(0,"Wrote WriteState to %s\n",P.WriteStateDirectory);
-    //for profiling
-    //system("rm -r write/state write/position_* write/Multipoles_* write/velocity_* write/auxillary* write/cellinfo_* write/globaldipole write/redlack write/slabsize out/*");
+    //if (!MakeIC) system("rm -r write/state write/position_* write/Multipoles_* write/velocity_* write/auxillary* write/cellinfo_* write/globaldipole write/redlack write/slabsize out/*");
     stdlog.close();  
     exit(0);
 }
