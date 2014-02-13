@@ -1,8 +1,15 @@
+# Use 'True' or 'False' to toggle between GPU and CPU mode
+USE_GPU='False'
+
 export CXX = icc -openmp -pthread -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
 #export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction 
 GPUSPINFLAG = -DGPUTHREADFORCESPIN
+VERSIONFLAGS = -mavx -DFLOATPRECISION -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 $(GPUSPINFLAG)
+ifeq ($(USE_GPU),'True')
 # Use -DCUDADIRECT to use GPU; defaults to CPU otherwise
-export VERSIONFLAGS = -mavx -DFLOATPRECISION -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 $(GPUSPINFLAG) #-DCUDADIRECT
+VERSIONFLAGS += -DCUDADIRECT
+endif
+export VERSIONFLAGS
 
 export CXXFLAGS= -O3 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) #-g -debug #-debug parallel #-DGLOBALPOS
 # Could add -DGLOBALPOS here to switch the code to global positions.
@@ -14,7 +21,10 @@ CC_SRC = singlestep.cpp
 -include ../Makefile.local
 export ABACUS_VER = abacus_avx
 
-LIBS =  -LParseHeader -LLibrary/lib -lparseheader -l$(ABACUS_VER) -lfftw3_omp -lfftw3 -ltbb gpudirect.o -L/usr/local/cuda/lib64  -lcudart -ltbb
+LIBS =  -LParseHeader -LLibrary/lib -lparseheader -l$(ABACUS_VER) -lfftw3_omp -lfftw3 -ltbb
+ifeq ($(USE_GPU),'True')
+LIBS += gpudirect.o -L/usr/local/cuda/lib64  -lcudart -ltbb
+endif
 
 VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich: Library/lib : Library/lib/direct
 
@@ -30,10 +40,12 @@ gpudirect.o: gpu.cu Makefile
 	nvcc --compiler-options $(GPUSPINFLAG) -DNFRADIUS=2  -I. -I/usr/local/cuda/include -ILibrary/include -arch compute_30 -code sm_30 -O3 -lineinfo -maxrregcount=32 -Xptxas="-v" -DUNIX -o $@ -c $<
 	
 libabacus_%.a:
-	cd Library/lib && COMP=g++ _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=libabacus_avx.a ./buildlibrary -static $(VERSIONFLAGS) -O3 -lfftw3
+	#module unload hpc/intel-latest
+	cd Library/lib && COMP=icc _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=libabacus_avx.a ./buildlibrary -static $(VERSIONFLAGS) -O3 -lfftw3
+	#module load hpc/intel-latest
 
 
-singlestep: singlestep.o $(GEN_OBJ) libparseheader.a lib$(ABACUS_VER).a Makefile gpudirect.o
+singlestep: singlestep.o $(GEN_OBJ) libparseheader.a lib$(ABACUS_VER).a Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o singlestep/$@ $< $(LIBS)
 
 libparseheader.a:

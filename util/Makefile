@@ -1,4 +1,5 @@
-#CXX = icc
+CC = icc
+CXX = icc
 CXXFLAGS = -O1
 INCLUDES = -I../include/ -lm
 LIBS = 
