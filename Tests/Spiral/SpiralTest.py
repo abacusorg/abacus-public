@@ -80,6 +80,7 @@ def run(basedir = "NONE"):
         os.chdir(basedir)
         params = GenParam.parseInput("spiral.par")
     #plot the results and check the answer
+    print 'Finished abacus run, post-processing results'
     #writestate = InputFile.InputFile("write/state")
     ReadState = InputFile.InputFile("read/state")
     #laststep = writestate.FullStepNumber
