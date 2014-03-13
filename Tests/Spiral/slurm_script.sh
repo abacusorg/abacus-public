@@ -11,6 +11,5 @@
 # Check this directory for a file named slurm-jobid.out, which should
 # contain stderr and stdout
 
-echo "started" > /n/home04/lgarrison/abacus_tmp/started
 ~/abacus/Tests/Spiral/SpiralTest.py
 
