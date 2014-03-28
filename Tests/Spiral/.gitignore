@@ -1,3 +1,4 @@
 makeanalytic
 makespiralics
 nohup.out
+slurm-*.out
