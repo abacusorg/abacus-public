@@ -4,14 +4,14 @@ USE_GPU='False'
 export CXX = icc -openmp -pthread -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
 #export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction 
 GPUSPINFLAG = -DGPUTHREADFORCESPIN
-VERSIONFLAGS = -mavx -DFLOATPRECISION -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 $(GPUSPINFLAG)
+VERSIONFLAGS = -mavx -DDOUBLEPRECISION -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 $(GPUSPINFLAG)
 ifeq ($(USE_GPU),'True')
 # Use -DCUDADIRECT to use GPU; defaults to CPU otherwise
 VERSIONFLAGS += -DCUDADIRECT
 endif
 export VERSIONFLAGS
 
-export CXXFLAGS= -O3 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) #-g -debug #-debug parallel #-DGLOBALPOS
+export CXXFLAGS= -O0 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) -g -debug #-debug parallel #-DGLOBALPOS
 # Could add -DGLOBALPOS here to switch the code to global positions.
 
 CPPFLAGS = -I include -I Derivatives -I ParseHeader -I Library/include -I Library/lib/direct -I Library/lib/common -I/usr/local/cuda/include

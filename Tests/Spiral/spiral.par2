@@ -8,4 +8,4 @@ TimeStepAccel = 0.02
 TimeStepDlna = 0.025
 Order = 8
 NumSlabsInsertList = 55
-
+LogVerbosity = 2
