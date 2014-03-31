@@ -4,10 +4,12 @@ USE_GPU='False'
 export CXX = icc -openmp -pthread -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
 #export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction 
 GPUSPINFLAG = -DGPUTHREADFORCESPIN
-VERSIONFLAGS = -mavx -DDOUBLEPRECISION -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 $(GPUSPINFLAG)
+#AVXFLAGS = -mavx -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES
+VERSIONFLAGS = -DFLOATPRECISION -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 $(GPUSPINFLAG) $(AVXFLAGS)
 ifeq ($(USE_GPU),'True')
 # Use -DCUDADIRECT to use GPU; defaults to CPU otherwise
 VERSIONFLAGS += -DCUDADIRECT
+GPUDIRECT = gpudirect.o
 endif
 export VERSIONFLAGS
 
@@ -32,7 +34,7 @@ CLIBS = libpermute.so liblightcones.so
 
 all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum
 
-singlestep.o: singlestep.cpp lib$(ABACUS_VER).a Makefile
+singlestep.o: singlestep.cpp lib$(ABACUS_VER).a Makefile $(GPUDIRECT)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -c -o $@ $<
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
 
