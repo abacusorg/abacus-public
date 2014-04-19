@@ -1,5 +1,5 @@
 # Use 'True' or 'False' to toggle between GPU and CPU mode
-USE_GPU='True'
+USE_GPU='False'
 
 export CXX = icc -openmp -pthread -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
 #export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction -openmp
