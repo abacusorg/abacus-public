@@ -1,11 +1,14 @@
 # Use 'True' or 'False' to toggle between GPU and CPU mode
-USE_GPU='False'
+USE_GPU='True'
 
 export CXX = icc -openmp -pthread -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
 #export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction -openmp
 GPUSPINFLAG = -DGPUTHREADFORCESPIN
 #AVXFLAGS = -mavx -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES
-VERSIONFLAGS = -DDOUBLEPRECISION -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 $(GPUSPINFLAG) $(AVXFLAGS)
+GPUBLOCKINGFLAG = -DGPUBLOCKING
+VERSIONFLAGS = -DDOUBLEPRECISION -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 $(GPUSPINFLAG) $(AVXFLAGS) $(GPUBLOCKINGFLAG)
+
+
 ifeq ($(USE_GPU),'True')
 # Use -DCUDADIRECT to use GPU; defaults to CPU otherwise
 VERSIONFLAGS += -DCUDADIRECT -DCUDA4
