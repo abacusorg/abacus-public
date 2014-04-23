@@ -2,7 +2,7 @@
 USE_GPU='True'
 
 export CXX = icc -openmp -pthread -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
-#export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction -openmp
+#export CXX = g++ -fopenmp -lgomp -openmp #-fprofile-use -fprofile-correction
 GPUSPINFLAG = -DGPUTHREADFORCESPIN
 #AVXFLAGS = -mavx -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES
 GPUBLOCKINGFLAG = -DGPUBLOCKING
@@ -11,7 +11,8 @@ VERSIONFLAGS = -DDOUBLEPRECISION -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 $(GPUSP
 
 ifeq ($(USE_GPU),'True')
 # Use -DCUDADIRECT to use GPU; defaults to CPU otherwise
-VERSIONFLAGS += -DCUDADIRECT -DCUDA4
+VERSIONFLAGS += -DCUDADIRECT
+#VERSIONFLAGS += -DCUDA4
 GPUDIRECT = gpudirect.o
 endif
 export VERSIONFLAGS
@@ -42,12 +43,10 @@ singlestep.o: singlestep.cpp lib$(ABACUS_VER).a Makefile $(GPUDIRECT)
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
 
 gpudirect.o: gpu.cu Makefile
-	nvcc --compiler-options $(GPUSPINFLAG) -DNFRADIUS=2  -I. -I/usr/local/cuda/include -ILibrary/include -arch compute_20 -code sm_20 -O3 -lineinfo -maxrregcount=32 -Xptxas="-v" -DUNIX -o $@ -c $<
+	nvcc --compiler-options $(GPUSPINFLAG) -DNFRADIUS=3  -I. -I/usr/local/cuda/include -ILibrary/include -arch compute_30 -code sm_30 -O3 -lineinfo -maxrregcount=48 -Xptxas="-v" -DUNIX -o $@ -c $<
 	
 libabacus_%.a:
-	#module unload hpc/intel-latest
 	cd Library/lib && COMP=icc _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=libabacus_avx.a ./buildlibrary -static $(VERSIONFLAGS) -O3 -lfftw3 -openmp
-	#module load hpc/intel-latest
 
 
 singlestep: singlestep.o $(GEN_OBJ) libparseheader.a lib$(ABACUS_VER).a Makefile
