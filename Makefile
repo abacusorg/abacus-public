@@ -2,7 +2,7 @@
 USE_GPU='False'
 
 export CXX = icc -openmp -pthread -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
-#export CXX = g++ -fopenmp -lgomp -openmp #-fprofile-use -fprofile-correction
+#export CXX = g++ -fopenmp -lgomp #-openmp #-fprofile-use -fprofile-correction
 GPUSPINFLAG = -DGPUTHREADFORCESPIN
 #AVXFLAGS = -mavx -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES
 GPUBLOCKINGFLAG = -DGPUBLOCKING
@@ -17,7 +17,7 @@ GPUDIRECT = gpudirect.o
 endif
 export VERSIONFLAGS
 
-export CXXFLAGS= -O3 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) -g -debug #-debug parallel #-DGLOBALPOS
+export CXXFLAGS= -O0 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) -g -debug #-debug parallel #-DGLOBALPOS
 # Could add -DGLOBALPOS here to switch the code to global positions.
 
 CPPFLAGS = -I include -I Derivatives -I ParseHeader -I Library/include -I Library/lib/direct -I Library/lib/common -I/usr/local/cuda/include
@@ -43,7 +43,7 @@ singlestep.o: singlestep.cpp lib$(ABACUS_VER).a Makefile $(GPUDIRECT)
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
 
 gpudirect.o: gpu.cu Makefile
-	nvcc --compiler-options $(GPUSPINFLAG) -DNFRADIUS=3  -I. -I/usr/local/cuda/include -ILibrary/include -arch compute_30 -code sm_30 -O3 -lineinfo -maxrregcount=48 -Xptxas="-v" -DUNIX -o $@ -c $<
+	nvcc --compiler-options $(GPUSPINFLAG) -DNFRADIUS=2  -I. -I/usr/local/cuda/include -ILibrary/include -arch compute_30 -code sm_30 -O3 -lineinfo -maxrregcount=48 -Xptxas="-v" -DUNIX -o $@ -c $<
 	
 libabacus_%.a:
 	cd Library/lib && COMP=icc _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=libabacus_avx.a ./buildlibrary -static $(VERSIONFLAGS) -O3 -lfftw3 -openmp
