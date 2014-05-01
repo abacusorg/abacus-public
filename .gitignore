@@ -1,1 +1,8 @@
 /teststate
+*.o
+*.pyc
+*~
+*.so
+*.a
+*.d
+Library/derivatives
