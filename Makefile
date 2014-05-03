@@ -1,6 +1,6 @@
 #export CXX = icc -openmp -pthread -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
 export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction 
-export VERSIONFLAGS = -mavx -DFLOATPRECISION -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES -DCUDADIRECT -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576
+export VERSIONFLAGS = -mavx -DDOUBLEPRECISION -DDOUBLE -DAVXMULTIPOLES -DCUDADIRECT -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576
 
 export CXXFLAGS= -O0 -ggdb3 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS)# -debug -debug parallel
 # Could add -DGLOBALPOS here to switch the code to global positions.
@@ -25,10 +25,10 @@ singlestep.o: singlestep.cpp lib$(ABACUS_VER).a gpudirect.o Makefile
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
 
 gpudirect.o: gpu.cu Makefile
-	nvcc --compiler-options  -DNFRADIUS=2 -I. -I/usr/local/cuda/include -ILibrary/include -arch compute_30 -code sm_30 -O3 -lineinfo -maxrregcount=48 -Xptxas="-v" -o $@ -c $<
+	nvcc --compiler-options  -DNFRADIUS=3 -DDOUBLEPRECISION -I. -I/usr/local/cuda/include -ILibrary/include -arch compute_30 -code sm_30 -O3 -lineinfo -maxrregcount=63 -Xptxas="-v" -o $@ -c $<
 	
 libabacus_%.a:
-	cd Library/lib && COMP=g++ _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=libabacus_avx.a ./buildlibrary -static $(VERSIONFLAGS) -O3 -g -lfftw3
+	cd Library/lib && COMP=g++ _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=libabacus_avx.a ./buildlibrary -static $(VERSIONFLAGS) -g -lfftw3
 
 
 singlestep: singlestep.o $(GEN_OBJ) libparseheader.a lib$(ABACUS_VER).a Makefile

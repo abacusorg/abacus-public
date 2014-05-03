@@ -91,7 +91,13 @@ public:
     // Could have group finding or coevolution set instructions
 
     int  NLightCones;
+
+#ifdef DOUBLEPRECISION
+    double LightConeOrigins[24];
+#else
     float LightConeOrigins[24];
+#endif
+
     char LightConeDirectory[1024];
 
     int PowerSpectrumStepInterval;
