@@ -25,7 +25,7 @@ singlestep.o: singlestep.cpp lib$(ABACUS_VER).a gpudirect.o Makefile
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
 
 gpudirect.o: gpu.cu Makefile
-	nvcc --compiler-options  -DNFRADIUS=$(NFRADIUS) -DDOUBLEPRECISION  -DGPUTHREADFORCESPIN -I. -I/usr/local/cuda/include -ILibrary/include -arch compute_30 -code sm_30 -O3 -lineinfo -maxrregcount=63 -Xptxas="-v" -o $@ -c $<
+	nvcc --compiler-options  -DNFRADIUS=9 -DDOUBLEPRECISION  -DGPUTHREADFORCESPIN -I. -I/usr/local/cuda/include -ILibrary/include -arch compute_30 -code sm_30 -O3 -lineinfo -maxrregcount=63 -Xptxas="-v" -o $@ -c $<
 	
 libabacus_%.a:
 	cd Library/lib && COMP=g++ _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=libabacus_avx.a ./buildlibrary -static $(VERSIONFLAGS) -g -lfftw3
