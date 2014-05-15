@@ -1,11 +1,11 @@
 # Use 'True' or 'False' to toggle between GPU and CPU mode
-USE_GPU='False'
+USE_GPU='True'
 
 #export CXX = icc -openmp -pthread -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
 export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction
 GPUSPINFLAG = -DGPUTHREADFORCESPIN
 #AVXFLAGS = -mavx -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES
-GPUBLOCKINGFLAG = -DGPUBLOCKING
+#GPUBLOCKINGFLAG = -DGPUBLOCKING
 VERSIONFLAGS = -DDOUBLEPRECISION -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 $(GPUSPINFLAG) $(AVXFLAGS) $(GPUBLOCKINGFLAG)
 
 
@@ -17,7 +17,7 @@ GPUDIRECT = gpudirect.o
 endif
 export VERSIONFLAGS
 
-export CXXFLAGS= -O0 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) -g #-debug #-debug parallel #-DGLOBALPOS
+export CXXFLAGS= -O0 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) -g #-DGLOBALPOS #-debug #-debug parallel 
 # Could add -DGLOBALPOS here to switch the code to global positions.
 
 CPPFLAGS = -I include -I Derivatives -I ParseHeader -I Library/include -I Library/lib/direct -I Library/lib/common -I/usr/local/cuda/include
@@ -43,7 +43,7 @@ singlestep.o: singlestep.cpp lib$(ABACUS_VER).a Makefile $(GPUDIRECT)
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
 
 gpudirect.o: gpu.cu Makefile
-	nvcc --compiler-options $(GPUSPINFLAG) -DNFRADIUS=3  -I. -I/usr/local/cuda/include -ILibrary/include -arch compute_30 -code sm_30 -O3 -lineinfo -maxrregcount=48 -Xptxas="-v" -DUNIX -o $@ -c $<
+	nvcc --compiler-options $(GPUSPINFLAG) -DNFRADIUS=3 -I. -I/usr/local/cuda/include -ILibrary/include -arch compute_30 -code sm_30 -O3 -lineinfo -maxrregcount=48 -Xptxas="-v" -DUNIX -o $@ -c $<
 	
 libabacus_%.a:
 	cd Library/lib && COMP=g++ _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=libabacus_avx.a ./buildlibrary -static $(VERSIONFLAGS) -O3 -lfftw3
