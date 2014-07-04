@@ -1,5 +1,5 @@
 # Use 'True' or 'False' to toggle between GPU and CPU mode
-USE_GPU='True'
+USE_GPU='False'
 
 #export CXX = icc -openmp -pthread -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
 export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction
@@ -17,7 +17,7 @@ GPUDIRECT = gpudirect.o
 endif
 export VERSIONFLAGS
 
-export CXXFLAGS= -O0 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) -g #-DGLOBALPOS #-debug #-debug parallel 
+export CXXFLAGS= -O3 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) #-g #-DGLOBALPOS #-debug #-debug parallel 
 # Could add -DGLOBALPOS here to switch the code to global positions.
 
 CPPFLAGS = -I include -I Derivatives -I ParseHeader -I Library/include -I Library/lib/direct -I Library/lib/common -I/usr/local/cuda/include
