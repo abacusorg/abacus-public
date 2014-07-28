@@ -1,5 +1,5 @@
-# Use 'True' or 'False' to toggle between GPU and CPU mode
-USE_GPU='False'
+# Use 'GPU' or 'CPU' to toggle between GPU and CPU mode
+DEVICE='CPU'
 
 #export CXX = icc -openmp -pthread -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
 export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction
@@ -10,7 +10,7 @@ PRECISIONFLAG = -DDOUBLEPRECISION
 VERSIONFLAGS = $(PRECISIONFLAG) -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 $(GPUSPINFLAG) $(AVXFLAGS) $(GPUBLOCKINGFLAG)
 
 
-ifeq ($(USE_GPU),'True')
+ifeq ($(DEVICE),'GPU')
 # Use -DCUDADIRECT to use GPU; defaults to CPU otherwise
 VERSIONFLAGS += -DCUDADIRECT
 #VERSIONFLAGS += -DCUDA4
@@ -29,7 +29,7 @@ CC_SRC = singlestep.cpp
 export ABACUS_VER = abacus_avx
 
 LIBS =  -LParseHeader -LLibrary/lib -lparseheader -l$(ABACUS_VER) -lfftw3_omp -lfftw3 -ltbb
-ifeq ($(USE_GPU),'True')
+ifeq ($(DEVICE),'GPU')
 LIBS += gpudirect.o -L/usr/local/cuda/lib64  -lcudart -ltbb
 endif
 
@@ -44,7 +44,7 @@ singlestep.o: singlestep.cpp lib$(ABACUS_VER).a Makefile $(GPUDIRECT)
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
 
 gpudirect.o: gpu.cu Makefile
-	nvcc --compiler-options $(GPUSPINFLAG) -DNFRADIUS=3 $(PRECISIONFLAG) -I. -I/usr/local/cuda/include -ILibrary/include -arch compute_30 -code sm_30 -O3 -lineinfo -maxrregcount=48 -Xptxas="-v" -DUNIX -o $@ -c $<
+	nvcc --compiler-options $(GPUSPINFLAG) -DNFRADIUS=3 $(PRECISIONFLAG) -I. -I/usr/local/cuda/include -ILibrary/include -arch compute_30 -code sm_30 -O3 -lineinfo -maxrregcount=48 -Xptxas="-v" -o $@ -c $<
 	
 libabacus_%.a:
 	cd Library/lib && COMP=g++ _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=libabacus_avx.a ./buildlibrary -static $(VERSIONFLAGS) -O3 -lfftw3

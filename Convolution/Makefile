@@ -1,5 +1,6 @@
 export CXX = icc
 CXXFLAGS = -O3 -openmp -DMAXCPD=8192 -L../ParseHeader $(VERSIONFLAGS)
+#CXXFLAGS += -mavx
 
 CPPFLAGS = -I../include -I../Library/include -I../Library/lib/Multipoles -I../singlestep -I../ParseHeader
 
