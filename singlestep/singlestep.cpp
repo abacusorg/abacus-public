@@ -417,7 +417,6 @@ int main(int argc, char **argv) {
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
     WriteState.write_to_file(P.WriteStateDirectory);
     STDLOG(0,"Wrote WriteState to %s\n",P.WriteStateDirectory);
-    //for profiling
     //if (!MakeIC) system("rm -r write/state write/position_* write/Multipoles_* write/velocity_* write/auxillary* write/cellinfo_* write/globaldipole write/redlack write/slabsize out/*");
     stdlog.close();  
     exit(0);

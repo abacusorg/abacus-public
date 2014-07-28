@@ -52,7 +52,7 @@ def run(basedir = "NONE"):
 
     kvec = (1,0,0)
     phase = (np.pi,0,0)
-    n1d = 64
+    n1d = 128
     ainitial = 0.09
     across = 0.2
     astop =  1.0
@@ -62,7 +62,6 @@ def run(basedir = "NONE"):
     #check if we are done
     if not os.path.exists(basedir+"write/state"):
         params = GenParam.makeInput(basedir+"spiral.par", abacuspath +"/Tests/Spiral/spiral.par2", NP = n1d**3,nTimeSlice = 1, TimeSliceRedshifts = 1/astop -1, SofteningLength = sf,InitialRedshift = 1/ainitial -1,CPD = 15,BoxSize = 17.3205080756888,WorkingDirectory = basedir)
-
         os.makedirs(params["InitialConditionsDirectory"])
         #make the spiral initial conditions
         subprocess.call([abacuspath+"/Tests/Spiral/makespiralics",str(n1d), str(ainitial),str(across),
@@ -144,7 +143,23 @@ def run(basedir = "NONE"):
     print "Vz: rms %e, max %e"%( np.std(xv[:,5]), np.max(np.absolute(xv[:,5])) )
     print "Ratio of max velocity (analytic/computed): %f"%(np.max(analytic[:,1])/np.max(xv[:,3]))
 
-
+def animate_analytic(astart,astop,across,npoints):
+    os.chdir("/tmp/")
+    a_out = np.linspace(astart,astop,npoints)
+    ReadState = InputFile.InputFile("/mnt/raid/doug/spiral/read/state")
+    i = 0
+    for a in a_out:
+        subprocess.call([abacuspath+"/Tests/Spiral/makeanalytic",str(astart),str(across),str(a)])
+        analytic = np.fromfile("./analytic",sep = " ")
+        analytic = np.reshape(analytic,(-1,2))
+        analytic[:,1] /= ReadState.VelZSpace_to_Canonical
+        p.plot(analytic[:,0], analytic[:,1])
+        p.xlabel("X")
+        p.ylabel("Vx")
+        p.title("a={:4.3f}".format(a))
+        p.savefig("spiral{:05d}.png".format(i))
+        p.cla()
+        i+=1
 
 
 if __name__ == '__main__':
