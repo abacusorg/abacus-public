@@ -1,9 +1,9 @@
 # Use 'GPU' or 'CPU' to toggle between GPU and CPU mode
-DEVICE='CPU'
+DEVICE='GPU'
 
 #export CXX = icc -openmp -pthread -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
 export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction
-GPUSPINFLAG = -DGPUTHREADFORCESPIN
+#GPUSPINFLAG = -DGPUTHREADFORCESPIN
 #AVXFLAGS = -mavx -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES
 #GPUBLOCKINGFLAG = -DGPUBLOCKING
 PRECISIONFLAG = -DDOUBLEPRECISION
