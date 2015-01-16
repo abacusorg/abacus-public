@@ -1,4 +1,10 @@
-#define PROGNAME "dump_pack14"
+#define PROGNAME "cellcount_pack14"
+
+// This simply outputs the counts in each cell.
+// The cell number is provided in a comment line, but this does add a lot 
+// of space.  
+// Doing 'grep -v #' would remove those, which might then allow a 
+// simple pipe to some kind of 2d plotting utility.
 
 #include "util_header.h"
 #include "util_main.c"
