@@ -7,6 +7,9 @@ If many file names are given, perform on all of them.
 #include "util_header.h"
 #include "util_main.c"
 
+// Nothing to do at the beginning or end
+void start() { return; }
+void end() { return; }
 
 void print_data(FILE *fp) {
     int c, clast;

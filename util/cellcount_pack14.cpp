@@ -17,9 +17,15 @@ int RVrange(RVdouble *rv) {
     	+range(rv->vel[0]) +range(rv->vel[1]) +range(rv->vel[2]);
 }
 
+long long int count;
+long long int cellcount;
+
 // Nothing to do at the beginning or end
-void start() { return; }
-void end() { return; }
+void start() { count = 0; cellcount = -1; return; }
+void end() { 
+    printf("%lld\n", cellcount);
+    printf("# Total count: %lld\n", count); 
+}
 
 void print_data(FILE *fp) {
     cell_header current_cell;
@@ -29,36 +35,17 @@ void print_data(FILE *fp) {
     RVdouble rv;
     uint64_t id;
 
-    int count = 0;
     while (fread(&p, sizeof(pack14), 1, fp)==1) {
 	if (p.iscell()) {
 	    current_cell = p.unpack_cell();
+	    if (cellcount>=0) 
+	    	printf("%lld\n", cellcount);
 	    printf("# Cell %d %d %d\n", current_cell.i, current_cell.j, current_cell.k);
+	    cellcount=0;
 	} else {
 	    assert(current_cell.islegal());
 	    p.unpack(rv.pos, rv.vel, &id, current_cell);
-
-	    if (RVrange(&rv)) {
-		printf("%6d   %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %llu\n",
-		    count,
-		    rv.pos[0],
-		    rv.pos[1],
-		    rv.pos[2],
-		    rv.vel[0],
-		    rv.vel[1],
-		    rv.vel[2], id
-		);
-	    } else {
-		printf("%6d   %10.7f %10.7f %10.7f %10.7f %10.7f %10.7f %llu\n",
-		    count,
-		    rv.pos[0],
-		    rv.pos[1],
-		    rv.pos[2],
-		    rv.vel[0],
-		    rv.vel[1],
-		    rv.vel[2], id
-		);
-	    }
+	    cellcount++;
 	    count++;
 	}
     }

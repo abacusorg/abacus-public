@@ -4,10 +4,13 @@
 // All output should go to stdout to encourage piping.
 
 int main(int argc, char *argv[]) {
+    void start();
+    void end();
     if (argc==1) {
 	fprintf(stderr,"No input given to %s.  Use - for stdin.\n", PROGNAME);
         return 1;
     }
+    start();
     if (argc==2&&strcmp(argv[1],"-")==0) print_data(stdin);
     else {
 	int f;
@@ -24,5 +27,6 @@ int main(int argc, char *argv[]) {
 	    fclose(fp);
 	}
     }
+    end();
     return 0;
 }
