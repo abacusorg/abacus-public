@@ -188,6 +188,16 @@ void BuildWriteState(double da){
 	WriteState.cpd_state = P.cpd;
 	WriteState.order_state = P.order;
 	WriteState.ppd = P.ppd();
+#if defined DIRECT_KS
+    strcpy(WriteState.SofteningType, "ks");
+#elif defined DIRECT_SPLINE_KS
+    strcpy(WriteState.SofteningType, "spline_ks");
+#elif defined DIRECT_INTERLEAVED
+    strcpy(WriteState.SofteningType, "interleaved");
+#else
+    strcpy(WriteState.SofteningType, "vanilla");
+#endif
+
 
 	// Fill in the logistical reporting fields
 #ifdef GITVERSION	

@@ -6,9 +6,10 @@ export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction
 #GPUSPINFLAG = -DGPUTHREADFORCESPIN
 #AVXFLAGS = -mavx -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES
 #GPUBLOCKINGFLAG = -DGPUBLOCKING
-PRECISIONFLAG = -DDOUBLEPRECISION
-VERSIONFLAGS = $(PRECISIONFLAG) -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 $(GPUSPINFLAG) $(AVXFLAGS) $(GPUBLOCKINGFLAG)
-
+#PRECISIONFLAG = -DDOUBLEPRECISION
+#SOFTENINGFLAG = -DDIRECT_KS
+SOFTENINGFLAG = -DDIRECT_SPLINE_KS
+VERSIONFLAGS = $(PRECISIONFLAG) -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 $(GPUSPINFLAG) $(AVXFLAGS) $(GPUBLOCKINGFLAG) $(SOFTENINGFLAG)
 
 ifeq ($(DEVICE),'GPU')
 # Use -DCUDADIRECT to use GPU; defaults to CPU otherwise
@@ -44,7 +45,7 @@ singlestep.o: singlestep.cpp lib$(ABACUS_VER).a Makefile $(GPUDIRECT)
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
 
 gpudirect.o: gpu.cu Makefile
-	nvcc --compiler-options $(GPUSPINFLAG) -DNFRADIUS=3 $(PRECISIONFLAG) -I. -I/usr/local/cuda/include -ILibrary/include -arch compute_30 -code sm_30 -O3 -lineinfo -maxrregcount=48 -Xptxas="-v" -o $@ -c $<
+	nvcc --compiler-options $(GPUSPINFLAG) $(SOFTENINGFLAG) -DNFRADIUS=2 $(PRECISIONFLAG) -I. -I/usr/local/cuda/include -ILibrary/include -arch compute_30 -code sm_30 -O3 -lineinfo -maxrregcount=48 -Xptxas="-v" -o $@ -c $<
 	
 libabacus_%.a:
 	cd Library/lib && COMP=g++ _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=libabacus_avx.a ./buildlibrary -static $(VERSIONFLAGS) -O3 -lfftw3

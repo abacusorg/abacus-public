@@ -8,5 +8,5 @@ TimeStepAccel = 0.02
 TimeStepDlna = 0.025
 Order = 16 
 NumSlabsInsertList = 55
-NearFieldRadius = 3
+NearFieldRadius = 2
 

@@ -26,7 +26,7 @@ public:
     int order;
 
     int NearFieldRadius;    // Radius of cells in the near-field
-    double SofteningLength; // Softening length in units of interparticle spacing
+    double SofteningLength; // Softening length in units of interparticle spacing (is this true anymore?)
 
     int  DerivativeExpansionRadius;
     int  MAXRAMMB;
@@ -352,7 +352,7 @@ void Parameters::ValidateParameters(void) {
                 SofteningLength);
         assert(1==0);
     }
-
+	
     if (NumSlabsInsertList<0.0 || NumSlabsInsertList>cpd) {
         fprintf(stderr,
             "[ERROR] NumslabsInsertList = %e must be in range [0..CPD]\n",
