@@ -372,7 +372,7 @@ int main(int argc, char **argv) {
 	    da = 0;
 	}
     }
-    if(!MakeIC) omp_set_num_threads(5);
+    if(!MakeIC) omp_set_num_threads(ABACUS_MAX_THREADS);
     //omp_set_num_threads(1);
     //Check if WriteStateDirectory/state exists, and fail if it does
     char wstatefn[1050];
