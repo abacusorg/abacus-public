@@ -1,8 +1,26 @@
-#export CXX = icc -openmp -pthread -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
-export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction 
-export VERSIONFLAGS = -mavx -DDOUBLEPRECISION -DDOUBLE -DAVXMULTIPOLES -DCUDADIRECT -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -DGPUTHREADFORCESPIN
+# Use 'GPU' or 'CPU' to toggle between GPU and CPU mode
+DEVICE='GPU'
 
-export CXXFLAGS= -O3 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS)# -debug -debug parallel
+#export CXX = icc -openmp -pthread -liomp5 -xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
+export CXX = g++ -fopenmp -lgomp #-fprofile-use -fprofile-correction
+#GPUSPINFLAG = -DGPUTHREADFORCESPIN
+#AVXFLAGS = -mavx -DAVXDIRECT -DAVXDIREC -DAVXMULTIPOLES
+#GPUBLOCKINGFLAG = -DGPUBLOCKING
+PRECISIONFLAG = -DDOUBLEPRECISION
+#SOFTENINGFLAG = -DDIRECT_KS
+SOFTENINGFLAG = -DDIRECT_SPLINE_KS
+VERSIONFLAGS = $(PRECISIONFLAG) -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 $(GPUSPINFLAG) $(AVXFLAGS) $(GPUBLOCKINGFLAG) $(SOFTENINGFLAG) -DABACUS_MAX_THREADS=5
+NFRADIUS = 3  # Must set this value to match the NearFieldRadius in the simulation parameter file
+
+ifeq ($(DEVICE),'GPU')
+# Use -DCUDADIRECT to use GPU; defaults to CPU otherwise
+VERSIONFLAGS += -DCUDADIRECT
+#VERSIONFLAGS += -DCUDA4
+GPUDIRECT = gpudirect.o
+endif
+export VERSIONFLAGS
+
+export CXXFLAGS= -O3 -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) #-g #-DGLOBALPOS #-debug #-debug parallel 
 # Could add -DGLOBALPOS here to switch the code to global positions.
 
 CPPFLAGS = -I include -I Derivatives -I ParseHeader -I Library/include -I Library/lib/direct -I Library/lib/common -I/usr/local/cuda/include
@@ -12,7 +30,10 @@ CC_SRC = singlestep.cpp
 -include ../Makefile.local
 export ABACUS_VER = abacus_avx
 
-LIBS =  -LParseHeader -LLibrary/lib -lparseheader -l$(ABACUS_VER) -lfftw3_omp -lfftw3 -ltbb  gpudirect.o -L/usr/local/cuda/lib64  -lcudart -ltbb
+LIBS =  -LParseHeader -LLibrary/lib -lparseheader -l$(ABACUS_VER) -lfftw3_omp -lfftw3 -ltbb
+ifeq ($(DEVICE),'GPU')
+LIBS += gpudirect.o -L/usr/local/cuda/lib64  -lcudart -ltbb
+endif
 
 VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich: Library/lib : Library/lib/direct
 
@@ -20,15 +41,15 @@ CLIBS = libpermute.so liblightcones.so
 
 all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum
 
-singlestep.o: singlestep.cpp lib$(ABACUS_VER).a gpudirect.o Makefile
+singlestep.o: singlestep.cpp lib$(ABACUS_VER).a Makefile $(GPUDIRECT)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -c -o $@ $<
 	@sed -i 's,\($*\.o\)[ :]*\(.*\),$@ : $$\(wildcard \2\)\n\1 : \2,g' $*.d
 
 gpudirect.o: gpu.cu Makefile
-	nvcc --compiler-options  -DNFRADIUS=9 -DDOUBLEPRECISION  -DGPUTHREADFORCESPIN -I. -I/usr/local/cuda/include -ILibrary/include -arch compute_30 -code sm_30 -O3 -lineinfo -maxrregcount=63 -Xptxas="-v" -o $@ -c $<
+	nvcc --compiler-options $(GPUSPINFLAG) $(SOFTENINGFLAG) -DNFRADIUS=$(NFRADIUS) $(PRECISIONFLAG) -I. -I/usr/local/cuda/include -ILibrary/include -arch compute_30 -code sm_30 -O3 -lineinfo -maxrregcount=48 -Xptxas="-v" -o $@ -c $<
 	
 libabacus_%.a:
-	cd Library/lib && COMP=g++ _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=libabacus_avx.a ./buildlibrary -static $(VERSIONFLAGS) -g -lfftw3
+	cd Library/lib && COMP=g++ _ABACUSDISTRIBUTION=$(ABACUS)/Library _ABACUSLIBRARY=libabacus_avx.a ./buildlibrary -static $(VERSIONFLAGS) -O3 -lfftw3
 
 
 singlestep: singlestep.o $(GEN_OBJ) libparseheader.a lib$(ABACUS_VER).a Makefile

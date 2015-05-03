@@ -76,6 +76,10 @@ int main(int argc, char ** argv){
 	       assert(0==99);
 	    }
 
+		// Sanity check that we did not compile with AVX on a non-AVX machine
+		if(strcmp(argv[1],"--test-avx") == 0)
+			exit(0);
+
 	    P.ReadParameters(argv[1],1);
 
 	    // Setup the log

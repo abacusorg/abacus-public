@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 '''
 'Runs the spiral test and compares the result to the analytic answer
 '
@@ -42,7 +42,8 @@ def run(basedir = "NONE"):
 
     if os.path.exists(basedir):
 
-        erase = "n"#raw_input("Test Directory exists! Erase? (y/n)")
+        #erase = raw_input("Test Directory exists! Erase? (y/n) ")
+        erase = 'y'
         if erase =="y":
             shutil.rmtree(basedir)
             print "Erased previous test directory"
@@ -51,7 +52,7 @@ def run(basedir = "NONE"):
 
     kvec = (1,0,0)
     phase = (np.pi,0,0)
-    n1d = 128
+    n1d = 64
     ainitial = 0.09
     across = 0.2
     astop =  1.0
@@ -73,14 +74,15 @@ def run(basedir = "NONE"):
 
         #run the problem
         os.chdir(basedir)
-        abacus.run("spiral.par",2000,1)
+        abacus.run("spiral.par",50000,1)
     else:
         os.chdir(basedir)
         params = GenParam.parseInput("spiral.par")
     #plot the results and check the answer
-    writestate = InputFile.InputFile("write/state")
+    print 'Finished abacus run, post-processing results'
+    #writestate = InputFile.InputFile("write/state")
     ReadState = InputFile.InputFile("read/state")
-    laststep = writestate.FullStepNumber
+    #laststep = writestate.FullStepNumber
 
     timeslice = "final.ts"
     os.system(abacuspath+"/util/phdata " + "%s/slice%5.3f/%s.z%5.3f.*"%(params["OutputDirectory"], ReadState.Redshift, params["SimName"],ReadState.Redshift) + " > " +timeslice)
