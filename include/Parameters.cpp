@@ -26,7 +26,7 @@ public:
     int order;
 
     int NearFieldRadius;    // Radius of cells in the near-field
-    double SofteningLength; // Softening length in units of interparticle spacing
+    double SofteningLength; // Softening length in units of interparticle spacing (is this true anymore?)
 
     int  DerivativeExpansionRadius;
     int  MAXRAMMB;
@@ -40,6 +40,7 @@ public:
 
     char InitialConditionsDirectory[1024];   // The initial condition file name
     char ICFormat[1024];		// The format of the IC files
+    int FlipZelDisp;            // If non-zero and using ICFormat = Zeldovich, flip the Zeldovich displacements
     double ICPositionRange;		// The box size of the IC positions, 
     	// in file units.  If ==0, then will default to BoxSize;
     double ICVelocity2Displacement;	// The conversion factor from file velocities
@@ -131,6 +132,7 @@ public:
 
     	installscalar("InitialConditionsDirectory",InitialConditionsDirectory,MUST_DEFINE);   // The initial condition file name
     	installscalar("ICFormat",ICFormat,MUST_DEFINE);   // The initial condition file format
+    	installscalar("FlipZelDisp",FlipZelDisp,DONT_CARE);   // Flip Zeldovich ICs
     	installscalar("ICPositionRange",ICPositionRange,MUST_DEFINE);   // The initial condition file position convention
     	installscalar("ICVelocity2Displacement",ICVelocity2Displacement,MUST_DEFINE);   // The initial condition file velocity convention
 
@@ -221,7 +223,7 @@ public:
     int is_np_perfect_cube() {
 	// Return 1 if np is a perfect cube.
         int n = floor(ppd());
-	if (n*n*n!=np) return 1; else return 0;
+	if (n*n*n==np) return 1; else return 0;
     }
 
     double FinishingRedshift() {
@@ -350,7 +352,7 @@ void Parameters::ValidateParameters(void) {
                 SofteningLength);
         assert(1==0);
     }
-
+	
     if (NumSlabsInsertList<0.0 || NumSlabsInsertList>cpd) {
         fprintf(stderr,
             "[ERROR] NumslabsInsertList = %e must be in range [0..CPD]\n",

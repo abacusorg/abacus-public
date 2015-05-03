@@ -1,5 +1,6 @@
 export CXX = icc
-CXXFLAGS = -mavx -O3 -openmp -DMAXCPD=8192 -L../ParseHeader $(VERSIONFLAGS)
+CXXFLAGS = -O3 -openmp -DMAXCPD=8192 -L../ParseHeader $(VERSIONFLAGS)
+#CXXFLAGS += -mavx
 
 CPPFLAGS = -I../include -I../Library/include -I../Library/lib/Multipoles -I../singlestep -I../ParseHeader
 
@@ -9,6 +10,7 @@ ConvolutionDriver: convolutionwrapper.cpp ../include/Parameters.cpp
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) \
 	-o $@ $< -L../Library/lib -l$(ABACUS_VER) \
 	-L$(FFTW)/lib -lfftw3 -lparseheader -liomp5
+	./ConvolutionDriver --test-avx
 
 distclean:
 	$(RM) -f *.o ConvolutionDriver

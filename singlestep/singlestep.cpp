@@ -94,6 +94,10 @@ double ChooseTimeStep(){
 	// then see if it needs to be shorter.
 
 	// cosm has already been loaded with the ReadState.ScaleFactor.
+	
+	// Don't advance time if we are still doing LPT
+	STDLOG(0,"LPTStepNumber = %d, FullStepNumber = %d, PTO = %d\n",LPTStepNumber(), WriteState.FullStepNumber, P.LagrangianPTOrder);
+	if(LPTStepNumber()>0) return 0.;
 
 
 	double da = ReadState.ScaleFactor*P.TimeStepDlna;
@@ -184,6 +188,16 @@ void BuildWriteState(double da){
 	WriteState.cpd_state = P.cpd;
 	WriteState.order_state = P.order;
 	WriteState.ppd = P.ppd();
+#if defined DIRECT_KS
+    strcpy(WriteState.SofteningType, "ks");
+#elif defined DIRECT_SPLINE_KS
+    strcpy(WriteState.SofteningType, "spline_ks");
+#elif defined DIRECT_INTERLEAVED
+    strcpy(WriteState.SofteningType, "interleaved");
+#else
+    strcpy(WriteState.SofteningType, "vanilla");
+#endif
+
 
 	// Fill in the logistical reporting fields
 #ifdef GITVERSION	
@@ -358,7 +372,8 @@ int main(int argc, char **argv) {
 	    da = 0;
 	}
     }
-    if(!MakeIC) omp_set_num_threads(5);
+    if(!MakeIC) omp_set_num_threads(ABACUS_MAX_THREADS);
+    //omp_set_num_threads(1);
     //Check if WriteStateDirectory/state exists, and fail if it does
     char wstatefn[1050];
     sprintf(wstatefn,"%s/state",P.WriteStateDirectory);
@@ -368,6 +383,9 @@ int main(int argc, char **argv) {
     // Initialize the Cosmology and set up the State epochs and the time step
     cosm = InitializeCosmology(ReadState.ScaleFactor);
     if (MakeIC) FillStateWithCosmology(ReadState);
+    // Even though we do this in BuildWriteState, we want to have the step number
+    // available when we choose the time step.
+    WriteState.FullStepNumber = ReadState.FullStepNumber+1;
     if (da!=0) da = ChooseTimeStep();
     STDLOG(0,"Chose Time Step da = %6.4f, dlna = %6.4f\n",da, da/ReadState.ScaleFactor);
     feenableexcept(FE_INVALID | FE_DIVBYZERO);

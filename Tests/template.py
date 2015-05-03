@@ -62,6 +62,6 @@ if __name__ == '__main__':
     elif len(args) == 2:
         run(basedir = sys.argv[1])
     else:
-        #change this line to reflect the name of your test
-        print("Usage: ./TEST.py <directory to run test in>")
+        print("Usage: ./%s [directory to run test in]"%sys.argv[0])
         sys.exit(1)
+
