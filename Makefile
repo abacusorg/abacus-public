@@ -10,7 +10,7 @@ PRECISIONFLAG = -DDOUBLEPRECISION
 #SOFTENINGFLAG = -DDIRECT_KS
 SOFTENINGFLAG = -DDIRECT_SPLINE_KS
 VERSIONFLAGS = $(PRECISIONFLAG) -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 $(GPUSPINFLAG) $(AVXFLAGS) $(GPUBLOCKINGFLAG) $(SOFTENINGFLAG) -DABACUS_MAX_THREADS=5
-NFRADIUS = 2  # Must set the NearFieldRadius to match the parameter file
+NFRADIUS = 3  # Must set this value to match the NearFieldRadius in the simulation parameter file
 
 ifeq ($(DEVICE),'GPU')
 # Use -DCUDADIRECT to use GPU; defaults to CPU otherwise
