@@ -76,6 +76,12 @@ void AVXDirectFloatNR::compute(int nsrc, ThreeVector<float> *psrc,
             ipdata->z[j] = psink[p+j].z;
             ipdata->eps2[j] = eps2;
         }
+        for(int j =e; j <4; j++){
+            ipdata->x[j] = 0.0f;
+            ipdata->y[j] = 0.0f;
+            ipdata->z[j] = 0.0f;
+            ipdata->eps2[j] = 1.0f;
+        }
 
         // applied all of the sources to these sinks
         KernelAccPot(ipdata, jpdata, nsrc, deltas, eps2, accdata);

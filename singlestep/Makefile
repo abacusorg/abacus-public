@@ -2,8 +2,7 @@
 export CXX = g++ -fopenmp -lgomp --std=c++0x  #-fprofile-use -fprofile-correction 
 export GLOBALVERSIONFLAGS = -DFLOATPRECISION -DNFRADIUS=2
 export VERSIONFLAGS = $(GLOBALVERSIONFLAGS) -mavx -DAVXMULTIPOLES\
-	-DCUDADIRECT -DAVXDIRECT  -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -O3
-export PRECISIONFLAG = -DFLOATPRECISION
+	-DCUDADIRECT -DAVXDIRECT  -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -O0 -ggdb3
 export CXXFLAGS= -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) -Wformat=0
 # Could add -DGLOBALPOS here to switch the code to global positions.
 
