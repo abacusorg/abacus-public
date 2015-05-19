@@ -48,7 +48,7 @@ void dumpstats(OutofCoreConvolution *OCC, char *fn) {
            accountedtime += OCC->CS.ArraySwizzle;
     double discrepency = OCC->CS.ConvolveWallClock - accountedtime;
 
-    int computecores = omp_get_num_procs()/2;
+    int computecores = omp_get_max_threads();
     fprintf(fp,"Convolution parameters:  RamAllocated = %dMB CacheSizeMB = %dMB nreal_cores=%d blocksize=%d zwidth=%d cpd=%d order=%d\n\n",
         (int) (OCC->CS.totalMemoryAllocated/(1<<20)), OCC->CS.runtime_ConvolutionCacheSizeMB, computecores, OCC->CS.blocksize, OCC->CS.zwidth, OCC->CP.runtime_cpd, OCC->CP.runtime_order);
 

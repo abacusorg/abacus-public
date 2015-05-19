@@ -191,10 +191,7 @@ to sum over explicitly before switching to the asymptotic value.
 \todo{Suggest a good value!}
 \todo{Is this the right definition?}
 
-\param{MAXConvolutionRAMMB}{int} \todo{Don't know what this is.  Should
-we really be phrasing our memory limit this way?  Perhaps we should be
-saying how much memory we have available and let the driver code figure
-out how much to use for this.}
+\param{MAXConvolutionRAMMB}{int} The amount of RAM to allocate to the convolution. The convolution is a seperate 
 
 \param{ConvolutionCacheSizeMB}{int} \todo{See previous.}
 
@@ -244,6 +241,9 @@ This defaults to ``+write''.
 Starting the name with + indicates a path from the WorkingDirectory.
 This defaults to ``+past''.
 
+\param{MultipoleDirectory}{string} The name of the multipole directory.
+Starting the name with + indicates a path from the WorkingDirectory.
+This defaults to ``+multipoles''.
 
 \subsection{Initial Conditions}
 

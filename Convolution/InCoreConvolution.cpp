@@ -8,7 +8,7 @@ public:
         CompressedMultipoleLengthXY  = ((1+cpd)*(3+cpd))/8;
         nblocks = (cpd*cpd)/blocksize;
         cpdhalf = (cpd-1)/2;
-        int cs = omp_get_num_procs() * completemultipolelength * blocksize;
+        int cs = omp_get_max_threads() * completemultipolelength * blocksize;
         _mcache = new Complex[cs]; 
         _dcache = new  double[cs]; 
         _tcache = new Complex[cs];

@@ -11,7 +11,7 @@ void (*CMptr[24])( d4 *ip1x, d4 *ip2x, d4 *ip1y, d4 *ip2y, d4 *ip1z, d4 *ip2z,
 
 Multipoles::Multipoles(int order) : basemultipoles(order) {
 #ifdef AVXMULTIPOLES
-for(int g=0;g<omp_get_num_procs();g++) {
+for(int g=0;g<omp_get_max_procs();g++) {
     int rv;
     rv = posix_memalign( (void **) &(ip1x[g]), 256, 512 ); assert(rv==0);
     rv = posix_memalign( (void **) &(ip2x[g]), 256, 512 ); assert(rv==0);

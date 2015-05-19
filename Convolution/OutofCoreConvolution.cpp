@@ -71,7 +71,7 @@ void OutofCoreConvolution::BlockConvolve(void) {
     ConvolveWallClock.Start();
 
     int cml = ((order+1)*(order+2)*(order+3))/6; 
-    int nprocs = omp_get_num_procs();
+    int nprocs = omp_get_max_threads();
     size_t cacherambytes = CP.runtime_ConvolutionCacheSizeMB*(1024LL*1024LL);
 
     blocksize = 0;

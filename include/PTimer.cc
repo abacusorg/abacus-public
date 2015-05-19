@@ -5,7 +5,7 @@
 
 PTimer::PTimer(void) { 
 
-    nprocs = omp_get_num_procs();
+    nprocs = omp_get_max_threads();
     tuse = new timeval[nprocs];
     tstart = new timeval[nprocs];
     timer = new timeval[nprocs];

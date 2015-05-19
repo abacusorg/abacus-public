@@ -244,8 +244,8 @@ void OutputAction(int slab) {
 
     OutputBin.Start();
     if(ReadState.DoBinning){
-    	int zstride = PP->cpd /omp_get_num_procs();
-        int ystride = PP->cpd /omp_get_num_procs();
+    	int zstride = PP->cpd /omp_get_max_threads();
+        int ystride = PP->cpd /omp_get_max_threads();
 	int minstride = 12;
     	if (ystride < minstride) ystride = minstride;
     	if (zstride < minstride) zstride = minstride;
