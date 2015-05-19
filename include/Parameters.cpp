@@ -26,7 +26,7 @@ public:
     int order;
 
     int NearFieldRadius;    // Radius of cells in the near-field
-    double SofteningLength; // Softening length in units of interparticle spacing (is this true anymore?)
+    double SofteningLength; // Softening length in unit box length
 
     int  DerivativeExpansionRadius;
     int  MAXRAMMB;
@@ -40,7 +40,7 @@ public:
 
     char InitialConditionsDirectory[1024];   // The initial condition file name
     char ICFormat[1024];		// The format of the IC files
-    int FlipZelDisp;            // If non-zero and using ICFormat = Zeldovich, flip the Zeldovich displacements
+    int FlipZelDisp;                    // If non-zero and using ICFormat = Zeldovich, flip the Zeldovich displacements
     double ICPositionRange;		// The box size of the IC positions, 
     	// in file units.  If ==0, then will default to BoxSize;
     double ICVelocity2Displacement;	// The conversion factor from file velocities
@@ -108,6 +108,10 @@ public:
     int StoreForces; // If 1, store the accelerations
     int ForceOutputDebug; // If 1, output near and far forces seperately. 
 
+    int ForceCPU; //IF 1, force directs to be executed exclusively on cpu even if cuda is available
+    int GPUMinCellSinks;// If AVX directs are compiled, cells with less than this many particles go to cpu
+    int ProfilingMode;//If 1, enable profiling mode, i.e. delete the write-state after creating it to run repeatedly on same dat
+
 
     Parameters() {
 
@@ -116,8 +120,7 @@ public:
     	installscalar("Order",order,MUST_DEFINE);
 
     	installscalar("NearFieldRadius",NearFieldRadius,MUST_DEFINE);    // Radius of cells in the near-field
-    	installscalar("SofteningLength", SofteningLength,MUST_DEFINE); // Softening length in units of interparticle spacing
-
+    	installscalar("SofteningLength", SofteningLength,MUST_DEFINE); // Softening length in unit box lengths
     	installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
     	installscalar("MAXRAMMB", MAXRAMMB,MUST_DEFINE);
     	installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB,MUST_DEFINE);
@@ -132,7 +135,6 @@ public:
 
     	installscalar("InitialConditionsDirectory",InitialConditionsDirectory,MUST_DEFINE);   // The initial condition file name
     	installscalar("ICFormat",ICFormat,MUST_DEFINE);   // The initial condition file format
-    	installscalar("FlipZelDisp",FlipZelDisp,DONT_CARE);   // Flip Zeldovich ICs
     	installscalar("ICPositionRange",ICPositionRange,MUST_DEFINE);   // The initial condition file position convention
     	installscalar("ICVelocity2Displacement",ICVelocity2Displacement,MUST_DEFINE);   // The initial condition file velocity convention
 
@@ -191,7 +193,15 @@ public:
     	StoreForces = 0;
     	installscalar("StoreForces",StoreForces, DONT_CARE);
     	ForceOutputDebug = 0;
+
     	installscalar("ForceOutputDebug",ForceOutputDebug,DONT_CARE);
+        ForceCPU = 0;
+        installscalar("ForceCPU",ForceCPU,DONT_CARE);
+        GPUMinCellSinks = 0;
+        installscalar("GPUMinCellSinks",GPUMinCellSinks,DONT_CARE);
+        ProfilingMode=0;
+        installscalar("ProfilingMode",ProfilingMode,DONT_CARE);
+
     	installscalar("SimName",SimName,MUST_DEFINE);
     	installscalar("PowerSpectrumStepInterval",PowerSpectrumStepInterval,DONT_CARE);
     	installscalar("PowerSpectrumN1d",PowerSpectrumN1d,DONT_CARE);
@@ -352,7 +362,7 @@ void Parameters::ValidateParameters(void) {
                 SofteningLength);
         assert(1==0);
     }
-	
+
     if (NumSlabsInsertList<0.0 || NumSlabsInsertList>cpd) {
         fprintf(stderr,
             "[ERROR] NumslabsInsertList = %e must be in range [0..CPD]\n",

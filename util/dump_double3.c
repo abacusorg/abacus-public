@@ -11,11 +11,6 @@ int RVrange(double3 *rv) {
     return range(rv->pos[0]) +range(rv->pos[1]) +range(rv->pos[2]);
 }
 
-
-// Nothing to do at the beginning or end
-void start() { return; }
-void end() { return; }
-
 void print_data(FILE *fp) {
     double3 rv;
     int count = 0;

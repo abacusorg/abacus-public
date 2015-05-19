@@ -2,21 +2,36 @@
 #include "threevector.hh"
 
 
-#include "STimer.h"
-#include "PTimer.h"
+#include "STimer.cc"
+#include "PTimer.cc"
 
 STimer TotalWallClock;
 STimer Setup;
 STimer ConvolutionWallClock;
 
-#include "file.h"
-#include "factorial.h"
+#include "file.cpp"
+#include "factorial.cpp"
+#include "iolib.cpp"
 
 #include "stdlog.cc"
 
 #include "Parameters.cpp"
 
-#include "OutofCoreConvolution.h"
+#ifdef GPUFFT
+namespace cuda{
+    #include <cuda.h>
+    #include <cuda_runtime_api.h>
+    #include <cufft.h>
+}
+#include "CufftErrors.h"
+#else
+#include <fftw3.h>
+#endif
+
+
+
+#include "ConvolutionLibrary.cpp"
+#include "basemultipoles.cpp"
 
 #include <fenv.h>
 
@@ -75,10 +90,6 @@ int main(int argc, char ** argv){
 	       fprintf(stderr, "singlestep(): command line must have 2 parameters given, not %d.\nLegal usage: convolve <parameter_file>\n", argc);
 	       assert(0==99);
 	    }
-
-		// Sanity check that we did not compile with AVX on a non-AVX machine
-		if(strcmp(argv[1],"--test-avx") == 0)
-			exit(0);
 
 	    P.ReadParameters(argv[1],1);
 

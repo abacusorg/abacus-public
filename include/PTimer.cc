@@ -1,31 +1,11 @@
-#ifndef INCLUDE_PTIMER
-#define INCLUDE_PTIMER
 #include <omp.h>
-
-class PTimer {
-public:
-    PTimer(void); 
-    ~PTimer();
-
-    void Start(void);
-    void Stop(void);
-
-    double Elapsed(void);
-    void Clear(void);
-
-    int nprocs;
-
-    int *timeron;
-
-    struct timeval *tuse, *tstart, *timer;
-};
+#include <cstdio>
+#include <cstdlib>
+#include "PTimer.h"
 
 PTimer::PTimer(void) { 
 
     nprocs = omp_get_num_procs();
-    // In gcc4.7 this line caused a compile warning.
-    // We don't see any value to the line.
-    // timeron = false;
     tuse = new timeval[nprocs];
     tstart = new timeval[nprocs];
     timer = new timeval[nprocs];
@@ -73,4 +53,9 @@ double PTimer::Elapsed(void) {
     return sum;
 }
 
-#endif // INCLUDE_PTIMER
+struct timeval PTimer::get_timer_seq(void) {
+    struct timeval t;
+    timerclear(&t);
+    for(int g=0; g<nprocs; g++) timeradd(&(timer[g]), &t, &t); 
+    return t;
+}

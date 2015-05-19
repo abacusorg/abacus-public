@@ -15,10 +15,6 @@ int RVrange(RVdouble *rv) {
     	+range(rv->vel[0]) +range(rv->vel[1]) +range(rv->vel[2]);
 }
 
-// Nothing to do at the beginning or end
-void start() { return; }
-void end() { return; }
-
 void print_data(FILE *fp) {
     RVdouble rv;
     int count = 0;

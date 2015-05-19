@@ -2,7 +2,7 @@ CXX = icc -liomp5 -openmp
 #CXX = g++ -lgomp -fopenmp
 CXXFLAGS = -O3 -fbuiltin -fp-model fast=2  -ip -xHost -openmp 
 CPPFLAGS = -shared -fPIC
-INCLUDES = -I../../include/ -I../../Library/include -I../../Library/lib/convolution -I../../Library/lib/common
+INCLUDES = -I../../include/ -I../../Convolution
 LIBS = -lgsl -lgslcblas -lfftw3_omp -lfftw3f_omp -lfftw3f -lfftw3 -lm
 
 

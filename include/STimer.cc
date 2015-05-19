@@ -1,30 +1,29 @@
-#ifndef INCLUDE_STIMER
-#define INCLUDE_STIMER
+#include <cstdio>
+#include <cstdlib>
+#include "STimer.h"
 
-
-class STimer {
-public:
-    STimer();
-    ~STimer();
-    void Start(void);
-    void Stop(void);
-    double Elapsed(void);
-    void Clear(void);
-
-    int timeron;
-
-    struct timeval tuse, tstart, timer;
-};
+struct timeval scale_timer(double s, struct timeval t) {
+    struct timeval tp;
+    tp.tv_sec = t.tv_sec * s;
+    tp.tv_usec = t.tv_usec * s;
+    return tp;
+}
 
 STimer::STimer(void) { 
-
-    timeron = false;
 
     timerclear(&timer);
     timeron = 0;
 }
 
 STimer::~STimer() {
+}
+
+struct timeval STimer::get_timer(void) {
+    return timer;
+}
+
+void STimer::increment(struct timeval dt) {
+    timeradd(&dt, &(timer), &(timer));
 }
 
 void STimer::Start() {
@@ -50,5 +49,3 @@ void STimer::Clear(void) {
 double STimer::Elapsed(void) {
     return  timer.tv_sec + 1e-6*timer.tv_usec;
 }
-
-#endif // INCLUDE_STIMER

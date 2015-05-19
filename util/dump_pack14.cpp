@@ -17,10 +17,6 @@ int RVrange(RVdouble *rv) {
     	+range(rv->vel[0]) +range(rv->vel[1]) +range(rv->vel[2]);
 }
 
-// Nothing to do at the beginning or end
-void start() { return; }
-void end() { return; }
-
 void print_data(FILE *fp) {
     cell_header current_cell;
     pack14 p;
@@ -39,7 +35,7 @@ void print_data(FILE *fp) {
 	    p.unpack(rv.pos, rv.vel, &id, current_cell);
 
 	    if (RVrange(&rv)) {
-		printf("%6d   %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %llu\n",
+		printf("%6d   %10.3e %10.3e %10.3e %10.3e %10.3e %10.3e %lu\n",
 		    count,
 		    rv.pos[0],
 		    rv.pos[1],
@@ -49,7 +45,7 @@ void print_data(FILE *fp) {
 		    rv.vel[2], id
 		);
 	    } else {
-		printf("%6d   %10.7f %10.7f %10.7f %10.7f %10.7f %10.7f %llu\n",
+		printf("%6d   %10.7f %10.7f %10.7f %10.7f %10.7f %10.7f %lu\n",
 		    count,
 		    rv.pos[0],
 		    rv.pos[1],
