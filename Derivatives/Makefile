@@ -1,4 +1,4 @@
-CXX= g++ -O3 -I../include
+CXX= g++ -O3 -fopenmp -I../include -I../singlestep/Multipoles/ 
 
 CreateDerivatives:CreateDerivatives.cpp
-	$(CXX) $< -o $@
+	$(CXX) $< -o $@ -lfftw3 -lgomp
