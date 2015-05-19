@@ -10,7 +10,7 @@ build multipoles to form a legal state. We probably should call
 that FullStepNumber==0.
 
 An easy convention would be that if 
-	LagrangianPTOrder>1 && FullStepNumber<=LagrangianPTOrder,
+    LagrangianPTOrder>1 && FullStepNumber<=LagrangianPTOrder,
 then we have more LPT work to do.  E.g., if we're going 2LPT, then
 FullStepNumber 1 and 2 are not normal step.  This has implication for
 group finding.  But it's reasonable because each LPT step really does
@@ -33,7 +33,7 @@ int LPTStepNumber() {
     // The step number for the LPT work will be returned.
     int step = WriteState.FullStepNumber;
     if (P.LagrangianPTOrder>1 && step<=P.LagrangianPTOrder)
-        return step;
+    return step;
     else return 0;
 }
 
@@ -43,7 +43,7 @@ int LPTStepNumber() {
 
 uint64 ZelPID(integer3 ijk) {
     // This will set the PID to be stored in aux.
-    uint64 ppd = WriteState.ppd;		// Must ensure promotion to 64-bit
+    uint64 ppd = WriteState.ppd;                // Must ensure promotion to 64-bit
     return (ppd*ijk.x+ijk.y)*ppd+ijk.z;
 }
 
@@ -57,14 +57,19 @@ double3 ZelPos(integer3 ijk) {
     return p;
 }
 
-double3 ZelPos(uint64 PID) {
-    // Given a PID, unwrap it base-CPD and return the position.
+integer3 ZelIJK(uint64 PID) {
+    // Given a PID, unwrap it base-PPD and return the grid indices
     integer3 ijk;
     uint64 residual = PID/WriteState.ppd;
     ijk.z = PID-residual*WriteState.ppd;
     ijk.x = residual/WriteState.ppd;
     ijk.y = residual-ijk.x*WriteState.ppd;
-    return ZelPos(ijk);
+    return ijk;
+}
+
+double3 ZelPos(uint64 PID) {
+    // Given a PID, unwrap it base-PPD and return the position.
+    return ZelPos(ZelIJK(PID));
 }
 
 
@@ -81,7 +86,7 @@ void KickCell_2LPT_1(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
 }
 
 void DriftCell_2LPT_1(Cell c, FLOAT driftfactor) {
-    assertf(P.is_np_perfect_cube(), "LPT reconstruction requires np to be a perfect cube.\n");
+    assertf(P.is_np_perfect_cube(), "LPT reconstruction requires np (%d) to be a perfect cube.\n",P.np);
     int e = c.count();
 #ifdef GLOBALPOS
     // Set cellcenter to zero to return to box-centered positions
@@ -92,9 +97,12 @@ void DriftCell_2LPT_1(Cell c, FLOAT driftfactor) {
 
     for (int b = 0; b<e; b++) {
         // Flip the displacement: q = pos-grid; new = grid-q = grid*2-pos
-	// Need to be careful in cell-centered case.  Now pos is cell-centered,
-	// and grid is global.  We should subtract the cell-center from ZelPos.
-        c.pos[b] = 2.0*(ZelPos(c.aux[b].pid())-cellcenter) - c.pos[b];
+        // Need to be careful in cell-centered case.  Now pos is cell-centered,
+        // and grid is global.  We should subtract the cell-center from ZelPos.
+        c.pos[b] = 2.0*(ZelPos(c.aux[b].pid())-cellcenter) - c.pos[b]; // Does abacus automatically box wrap this?
+        for (int i = 0; i < 3; i++){
+            c.pos[b][i] -= round(c.pos[b][i]);
+        }
     }
 }
 
@@ -109,7 +117,7 @@ void KickCell_2LPT_2(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
 void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
     // Now we have to adjust the positions and velocities
     // The following probably assumes Omega_m = 1
-    assertf(P.is_np_perfect_cube(), "LPT reconstruction requires np to be a perfect cube.\n");
+    assertf(P.is_np_perfect_cube(), "LPT reconstruction requires np (%d) to be a perfect cube.\n",P.np);
     int e = c.count();
     double3 displ1, displ2;
     // This is the factor to convert from redshift-space displacements
@@ -125,20 +133,78 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
     double3 cellcenter = PP->WrapCellCenter(c.ijk);
 #endif
     
+    //double H = WriteState.HubbleNow*P.H0;
+    //double H = WriteState.HubbleNow;
+    double H = 1;
+    //printf("HubbleNow: %f\ncosm->C.H0: %f\nP.H0: %f\nH: %f\n", WriteState.HubbleNow, cosm->C.H0, P.H0, H);
     for (int b = 0; b<e; b++) {
-	// The first order displacement
-	displ1 = ZelPos(c.aux[b].pid())-cellcenter-c.pos[b];
-	// The second order displacement is vel/7H^2
-	// TODO: Is this line ok if we don't have cosm.H0=1?
-	displ2 = c.vel[b]/7/WriteState.HubbleNow/WriteState.HubbleNow;
-	//
-        c.pos[b] = ZelPos(c.aux[b].pid())-cellcenter+displ1+displ2;
-	c.vel[b] = WriteState.f_growth*(displ1 + 2*displ2)*convert_velocity;
+        // The first order displacement
+        displ1 = ZelPos(c.aux[b].pid())-cellcenter-c.pos[b];
+        // The second order displacement is vel/7H^2Omega_m
+        displ2 = c.vel[b]/7/H/H/P.Omega_M;
+        
+        for (int i = 0; i < 3; i++){
+            // Internally, everything is in a unit box, so we actually don't need to normalize
+            //displ1[i] -= P.BoxSize*round(displ1[i]/P.BoxSize);
+            //displ2[i] -= P.BoxSize*round(displ2[i]/P.BoxSize);
+            displ1[i] -= round(displ1[i]);
+            displ2[i] -= round(displ2[i]);
+        }
+
+        double3 total_disp = displ1 + displ2;
+        for (int i = 0; i < 3; i++)
+            total_disp[i] -= round(total_disp[i]);
+        double max_comp = total_disp.maxcomponent() > (-total_disp).maxcomponent() ? total_disp.maxcomponent() : -((-total_disp).maxcomponent());
+        /*if(max_comp >= 1./33){
+            printf("max_comp of total_disp: %g\n", max_comp);
+        }*/
+
+        c.pos[b] = ZelPos(c.aux[b].pid())-cellcenter + displ1+displ2;
+        for(int i = 0; i < 3; i++)
+        c.pos[b][i] -= round(c.pos[b][i]);
+    
+        // If we were only supplied with Zel'dovich displacements, then construct the linear theory velocity:
+        double3 vel1;
+        if(strcmp(P.ICFormat, "Zeldovich") == 0){
+            vel1 = WriteState.f_growth*displ1;
+        }
+        // If we were supplied with Zel'dovich velocities and displacements,
+        // we want to re-read the IC files to restore the velocities, which were overwritten above
+        else
+        #pragma omp critical
+        if(strcmp(P.ICFormat, "RVdoubleZel") == 0){
+            STDLOG(1,"Re-reading initial conditions files to restore 1st order velocities for 2LPT\n");
+            integer3 ijk = ZelIJK(c.aux[b].pid());
+            int slab = ijk.x*P.cpd / WriteState.ppd;  // slab number
+            int slab_offset = ijk.x - ceil(((double)slab)*WriteState.ppd/P.cpd);  // number of planes into slab
+            assertf(ceil((double)slab*WriteState.ppd/P.cpd) + slab_offset == ijk.x, "Wrong slab offset!\n");
+            // We know the exact slab number and position of the velocity we want.
+            long int offset = ijk.z + WriteState.ppd*(ijk.y + WriteState.ppd*slab_offset);
+            offset *= sizeof(ICfile_RVdoubleZel::ICparticle);
+            int seek_status = fseek(ic_fp[slab], offset, SEEK_SET);
+            assertf(seek_status == 0, "Seek to position %ld failed in IC file %d\n", offset, slab);
+            ICfile_RVdoubleZel::ICparticle p;
+            int count = fread(&p, sizeof(ICfile_RVdoubleZel::ICparticle), 1, ic_fp[slab]);
+            if(count != 1){
+                perror("Error message");
+            }
+            assertf(count == 1, "Error reading IC file %d. Count = %d, expected 1\n", slab, count);
+            vel1.x = p.vel[0];
+            vel1.y = p.vel[1];
+            vel1.z = p.vel[2];
+            vel1 /= P.BoxSize;
+        }
+        // Unexpected IC format; fail.
+        else {
+            assertf(false, "Unexpected ICformat in 2LPT code.  Must be one of: Zeldovich, RVdoubleZel\n");
+        }
+        c.vel[b] = (vel1 + WriteState.f_growth*2*displ2)*convert_velocity;
     }
 }
 
 // Going to 3LPT requires one more force calculation, which then gets
 // used for both velocity and positions.  This requires that the acceleration
 // be preserved until the Drift step and then used to adjust both.
+
 
 
