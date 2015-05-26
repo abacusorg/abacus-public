@@ -360,8 +360,6 @@ int main(int argc, char **argv) {
 	    da = 0;
 	}
     }
-    if(!MakeIC) omp_set_num_threads(12);
-    else omp_set_num_threads(12);
     //Check if WriteStateDirectory/state exists, and fail if it does
     char wstatefn[1050];
     sprintf(wstatefn,"%s/state",P.WriteStateDirectory);

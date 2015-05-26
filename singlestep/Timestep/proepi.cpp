@@ -137,7 +137,7 @@ FLOAT * density;
 
 
 void Prologue(Parameters &P, bool ic) {
-    
+    omp_set_nested(true);    
 
     STDLOG(1,"Entering Prologue()\n");
     prologue.Clear();
