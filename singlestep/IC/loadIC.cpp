@@ -106,9 +106,10 @@ public:
 };
 
 /*
-Same binary format as RVdouble, but positions are interpreted
-as Zel-format displacements.  Velocity is only divided by the BoxSize,
-just like the displacements.
+Almost the same binary format as RVdouble,
+but with additional fields for the Zeldovich grid index
+and positions are interpreted as Zel-format displacements.
+Velocity is only divided by the BoxSize, just like the displacements.
 */
 class ICfile_RVdoubleZel: public ICfile {
 public:

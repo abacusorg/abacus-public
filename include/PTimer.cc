@@ -24,7 +24,8 @@ PTimer::~PTimer() {
 
 void PTimer::Start() {
     int g = omp_get_thread_num();
-
+    
+    assert(g < nprocs);  // If this fails omp_get_max_threads() may not be returning the global max # of threads
     assert(!timeron[g]);
     assert( gettimeofday( &(tstart[g]), (struct timezone *)NULL ) == 0 );
     timeron[g] = 1;

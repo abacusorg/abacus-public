@@ -4,7 +4,7 @@
 void OutofCoreConvolution::ReadDiskMultipoles(int z) { 
     for(int x=0;x<cpd;x++) {
         char fn[1024];
-        sprintf(fn,"%s/%s_%d", CP.runtime_MultipoleDirectory, 
+        sprintf(fn,"%s/%s_%04d", CP.runtime_MultipoleDirectory, 
                                CP.runtime_MultipolePrefix, 
                                mapM[(x +(cpd-1)/2)%cpd]  );
 
@@ -37,7 +37,7 @@ void OutofCoreConvolution::WriteDiskTaylor(int z) {
         ArraySwizzle.Stop();
 
         char fn[1024];
-        sprintf(fn,"%s/%s_%d",  CP.runtime_TaylorDirectory, 
+        sprintf(fn,"%s/%s_%04d",  CP.runtime_TaylorDirectory, 
                                 CP.runtime_TaylorPrefix, 
                                 remap[ (x + (cpd-1)/2)%cpd] );
 
@@ -339,7 +339,7 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
 
     for(int i=0;i<cpd;i++) {
         char cmd[1024];
-        sprintf(cmd,"touch %s/Taylor_%d", CP.runtime_TaylorDirectory, i);
+        sprintf(cmd,"touch %s/Taylor_%04d", CP.runtime_TaylorDirectory, i);
         int rv = system(cmd);
         assert(rv!=-1);
     }
