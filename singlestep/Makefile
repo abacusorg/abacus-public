@@ -5,6 +5,7 @@ export VERSIONFLAGS = $(GLOBALVERSIONFLAGS) -mavx -DAVXMULTIPOLES\
 	-DCUDADIRECT -DAVXDIRECT  -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -O0 -ggdb3
 export CXXFLAGS= -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) -Wformat=0
 # Could add -DGLOBALPOS here to switch the code to global positions.
+# Use -DDIRECTSPLINE for spline softening
 
 
 CPPFLAGS = -I ../include -I ../Derivatives -I ../ParseHeader -I../Convolution\
