@@ -95,6 +95,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 }
 
 void NearFieldDriver::CheckGPUCPU(int slabID){
+#ifndef DIRECTSPLINE // Spline softening isn't implemented for the CPU yet, so it doesn't make sense to compare the two
     size_t len = Slab->size(slabID) *sizeof(accstruct);
     accstruct * a_gpu = (accstruct *)malloc(len);
     accstruct * a_cpu = (accstruct *) LBW->ReturnIDPtr(NearAccSlab,slabID);
@@ -118,6 +119,7 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
         }
     }
     free(a_gpu);
+#endif
 }
 
 void NearFieldDriver::ExecuteSlabCPU(int slabID){

@@ -38,6 +38,7 @@ public:
     char MachineName[1024];
     double ppd;		// Particles per dimension
     int DoublePrecision;  // =1 if code is using double precision positions
+    char SofteningType[128];
 
     double ScaleFactor;
     int FullStepNumber; // Counting the full steps
@@ -114,6 +115,7 @@ public:
     	installscalar("order_state",order_state,MUST_DEFINE);
     	installscalar("ParameterFileName",ParameterFileName,DONT_CARE);
     	installscalar("ppd",ppd,DONT_CARE);
+        installscalar("SofteningType", SofteningType,DONT_CARE);
 
     	sprintf(CodeVersion,"version_not_defined");
     	installscalar("CodeVersion",CodeVersion,DONT_CARE);
@@ -207,6 +209,7 @@ void State::make_output_header() {
 
     WPRS(ParameterFileName        , s);
     WPRS(CodeVersion              , s);
+    WPRS(SofteningType            , s);
     WPRS(RunTime                  , s);
     WPRS(MachineName              , s);
     WPR(DoublePrecision          , ISYM);

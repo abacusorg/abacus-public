@@ -186,6 +186,12 @@ void BuildWriteState(double da){
 	WriteState.cpd_state = P.cpd;
 	WriteState.order_state = P.order;
 	WriteState.ppd = P.ppd();
+        
+#if defined DIRECTSPLINE
+    strcpy(WriteState.SofteningType, "spline");
+#else
+    strcpy(WriteState.SofteningType, "plummer");
+#endif 
 
 	// Fill in the logistical reporting fields
 #ifdef GITVERSION	
