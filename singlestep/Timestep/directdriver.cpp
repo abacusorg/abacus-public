@@ -182,5 +182,8 @@ int NearFieldDriver::SlabDone(int slab){
 }
 
 uint64 NearFieldDriver::DirectInteractions_GPU(){
+    #ifdef CUDADIRECT
     return DeviceGetDI();
+    #endif
+    return 0;
 }
