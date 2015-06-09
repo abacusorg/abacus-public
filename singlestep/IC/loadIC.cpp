@@ -48,6 +48,7 @@ public:
 class ICfile_RVdouble: public ICfile {
 private:
     double convert_pos, convert_vel;
+    long unsigned int pid;
     FILE *fp;
     class ICparticle {
     public:
@@ -77,6 +78,8 @@ public:
         convert_vel = P.ICVelocity2Displacement*convert_pos;
         else convert_vel = 1.0/ReadState.VelZSpace_to_kms;
         // This gets to the unit box in redshift-space displacement.
+        
+        pid = 0;
     }
 
     ~ICfile_RVdouble(void) {
@@ -101,6 +104,8 @@ public:
         vel->z = p.vel[2];
         *vel = *vel * convert_vel;
         aux->clear(); aux->setpid(0); // Set aux too.
+        aux->setpid(pid++);  // Somewhat useful for debugging
+        
         return 1;
     }
 };

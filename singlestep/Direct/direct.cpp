@@ -29,7 +29,7 @@ void Direct::AVXExecute(FLOAT3 *sinks, FLOAT3 *sources, int nsinks, int nsources
 
 void Direct::Execute(FLOAT3 *sinks, FLOAT3 *sources, int nsinks, int nsources, FLOAT3 delta, FLOAT eps2, FLOAT3 *SA) {
     for(int q=0;q<nsinks;q++) {
-        FLOAT3 acc = SA[q];
+        FLOAT3 acc = FLOAT3(0);
         FLOAT3 x = delta+sinks[q];
         for(int p=0;p<nsources;p++) {
             FLOAT3 rr = sources[p] - x;

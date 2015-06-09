@@ -95,13 +95,20 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 }
 
 void NearFieldDriver::CheckGPUCPU(int slabID){
+    return;
+// Computes the CPU result to compare to the GPU result
+// but does not overwrite the GPU forces.
 #ifndef DIRECTSPLINE // Spline softening isn't implemented for the CPU yet, so it doesn't make sense to compare the two
     size_t len = Slab->size(slabID) *sizeof(accstruct);
-    accstruct * a_gpu = (accstruct *)malloc(len);
-    accstruct * a_cpu = (accstruct *) LBW->ReturnIDPtr(NearAccSlab,slabID);
-    memcpy(a_gpu,a_cpu,len);
-    memset(a_cpu,0,len);
-    ExecuteSlabCPU(slabID);
+    accstruct * a_cpu = (accstruct *)malloc(len);
+    accstruct * a_tmp = (accstruct *)malloc(len);
+    accstruct * a_gpu = (accstruct *) LBW->ReturnIDPtr(NearAccSlab,slabID);
+    auxstruct * aux = (auxstruct *)LBW->ReturnIDPtr(AuxSlab,slabID);
+    memcpy(a_tmp,a_gpu,len);  // Save the GPU result in tmp
+    memset(a_gpu,0,len);
+    ExecuteSlabCPU(slabID);  // Compute the CPU result
+    memcpy(a_cpu,a_gpu,len);  // Save the CPU result
+    memcpy(a_gpu,a_tmp,len); // Load the GPU result
     #ifdef DOUBLEPRECISION
     FLOAT target = 1e-10;
     #else
@@ -113,12 +120,13 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
         accstruct ai_c = a_cpu[i];
         FLOAT delta =2* (ai_g-ai_c).norm()/(ai_g.norm() + ai_c.norm());
         if(!(delta < target)){
-            printf("Error:\n\ta_gpu[%d]: (%5.4f,%5.4f,%5.4f)\n\ta_cpu[%d]: (%5.4f,%5.4f,%5.4f)\n\tdelta:%f\n",
-                    i,ai_g.x,ai_g.y,ai_g.z,i,ai_c.x,ai_c.y,ai_c.z,delta);
-            assert(delta < target);
+            printf("Error in slab %d:\n\ta_gpu[%d]: (%5.4f,%5.4f,%5.4f)\n\ta_cpu[%d]: (%5.4f,%5.4f,%5.4f)\n\tdelta:%f\n",
+                    slabID,i,ai_g.x,ai_g.y,ai_g.z,i,ai_c.x,ai_c.y,ai_c.z,delta);
+            //assert(delta < target);
         }
     }
-    free(a_gpu);
+    free(a_cpu);
+    free(a_tmp);
 #endif
 }
 

@@ -176,7 +176,7 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
             STDLOG(1,"Re-reading initial conditions files to restore 1st order velocities for 2LPT\n");
             integer3 ijk = ZelIJK(c.aux[b].pid());
             int slab = ijk.x*P.cpd / WriteState.ppd;  // slab number
-            int slab_offset = ijk.x - ceil(((double)slab)*WriteState.ppd/P.cpd);  // number of planes into slab
+            int slab_offset = ijk.x - ceil(((double)slab)*WriteState.ppd/P.cpd);  // number of planes into slab  (todo: triple check this.  Is the plane at x = 0 or x=-.99 in slab 0?)
             assertf(ceil((double)slab*WriteState.ppd/P.cpd) + slab_offset == ijk.x, "Wrong slab offset!\n");
             // We know the exact slab number and position of the velocity we want.
             long int offset = ijk.z + WriteState.ppd*(ijk.y + WriteState.ppd*slab_offset);
