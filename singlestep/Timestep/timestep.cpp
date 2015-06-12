@@ -169,10 +169,10 @@ void KickAction(int slab) {
     if (step) {
         // We have LPT IC work to do
 	if (step==1) {
-	    STDLOG(1,"Kicking slab %d as LPT step 1\n");
+	    STDLOG(1,"Kicking slab %d as LPT step 1\n", slab);
 	    KickSlab(slab, 0, 0, KickCell_2LPT_1);
 	} else if (step==2) {
-	    STDLOG(1,"Kicking slab %d as LPT step 2\n");
+	    STDLOG(1,"Kicking slab %d as LPT step 2\n", slab);
 	    KickSlab(slab, 0, 0, KickCell_2LPT_2);
 	} else QUIT("LPT Kick %d not implemented\n", step);
     } else {
@@ -280,10 +280,10 @@ void DriftAction(int slab) {
     if (step) {
         // We have LPT IC work to do
 	if (step==1) {
-	    STDLOG(1,"Drifting slab %d as LPT step 1\n");
+	    STDLOG(1,"Drifting slab %d as LPT step 1\n", slab);
 	    DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_1);
 	} else if (step==2) {
-	    STDLOG(1,"Drifting slab %d as LPT step 2\n");
+	    STDLOG(1,"Drifting slab %d as LPT step 2\n", slab);
 	    DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_2);
 	} else QUIT("LPT Drift %d not implemented\n", step);
     } else {

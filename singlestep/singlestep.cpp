@@ -375,6 +375,9 @@ int main(int argc, char **argv) {
     // Initialize the Cosmology and set up the State epochs and the time step
     cosm = InitializeCosmology(ReadState.ScaleFactor);
     if (MakeIC) FillStateWithCosmology(ReadState);
+    // Even though we do this in BuildWriteState, we want to have the step number
+    // available when we choose the time step.
+    WriteState.FullStepNumber = ReadState.FullStepNumber+1;
     if (da!=0) da = ChooseTimeStep();
     STDLOG(0,"Chose Time Step da = %6.4f, dlna = %6.4f\n",da, da/ReadState.ScaleFactor);
     

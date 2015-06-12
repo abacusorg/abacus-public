@@ -147,9 +147,9 @@ public:
         if (P.ICPositionRange>0) convert_pos = 1.0/P.ICPositionRange;
         else convert_pos = 1.0/P.BoxSize;
         if (P.FlipZelDisp)
-        convert_pos *= -1;
+            convert_pos *= -1;
         if (P.ICVelocity2Displacement>-0.99) // Should always be 1 for IC from zel.cpp
-        convert_vel = P.ICVelocity2Displacement*convert_pos;
+            convert_vel = P.ICVelocity2Displacement*convert_pos;
         else convert_vel = 1.0/ReadState.VelZSpace_to_kms;
         // This gets to the unit box in redshift-space displacement.
     }

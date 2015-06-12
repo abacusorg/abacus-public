@@ -33,7 +33,7 @@ int LPTStepNumber() {
     // The step number for the LPT work will be returned.
     int step = WriteState.FullStepNumber;
     if (P.LagrangianPTOrder>1 && step<=P.LagrangianPTOrder)
-    return step;
+        return step;
     else return 0;
 }
 
@@ -125,6 +125,15 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
     // HubbleNow is H(z)/H_0.
     double convert_velocity = WriteState.VelZSpace_to_Canonical;
     // WriteState.ScaleFactor*WriteState.ScaleFactor *WriteState.HubbleNow;
+    
+    double convert_reread_velocity = 1.;  // An additional factor for when we re-read the IC files
+    if (P.ICPositionRange>0) convert_reread_velocity *= 1.0/P.ICPositionRange;
+    else convert_reread_velocity *= 1.0/P.BoxSize;
+    if (P.ICVelocity2Displacement>-0.99) // Should always be 1 for IC from zel.cpp
+        convert_reread_velocity *= P.ICVelocity2Displacement;
+    else convert_reread_velocity = 1.0/ReadState.VelZSpace_to_kms;  // Doesn't use BoxSize
+    // This gets to the unit box in redshift-space displacement.
+    if (P.FlipZelDisp) convert_reread_velocity *= -1;    
 
 #ifdef GLOBALPOS
     // Set cellcenter to zero to return to box-centered positions
@@ -133,10 +142,7 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
     double3 cellcenter = PP->WrapCellCenter(c.ijk);
 #endif
     
-    //double H = WriteState.HubbleNow*P.H0;
-    //double H = WriteState.HubbleNow;
     double H = 1;
-    //printf("HubbleNow: %f\ncosm->C.H0: %f\nP.H0: %f\nH: %f\n", WriteState.HubbleNow, cosm->C.H0, P.H0, H);
     for (int b = 0; b<e; b++) {
         // The first order displacement
         displ1 = ZelPos(c.aux[b].pid())-cellcenter-c.pos[b];
@@ -144,24 +150,14 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
         displ2 = c.vel[b]/7/H/H/P.Omega_M;
         
         for (int i = 0; i < 3; i++){
-            // Internally, everything is in a unit box, so we actually don't need to normalize
-            //displ1[i] -= P.BoxSize*round(displ1[i]/P.BoxSize);
-            //displ2[i] -= P.BoxSize*round(displ2[i]/P.BoxSize);
+            // Internally, everything is in a unit box, so we actually don't need to normalize by BoxSize before rounding
             displ1[i] -= round(displ1[i]);
             displ2[i] -= round(displ2[i]);
         }
 
-        double3 total_disp = displ1 + displ2;
-        for (int i = 0; i < 3; i++)
-            total_disp[i] -= round(total_disp[i]);
-        double max_comp = total_disp.maxcomponent() > (-total_disp).maxcomponent() ? total_disp.maxcomponent() : -((-total_disp).maxcomponent());
-        /*if(max_comp >= 1./33){
-            printf("max_comp of total_disp: %g\n", max_comp);
-        }*/
-
         c.pos[b] = ZelPos(c.aux[b].pid())-cellcenter + displ1+displ2;
         for(int i = 0; i < 3; i++)
-        c.pos[b][i] -= round(c.pos[b][i]);
+            c.pos[b][i] -= round(c.pos[b][i]);
     
         // If we were only supplied with Zel'dovich displacements, then construct the linear theory velocity:
         double3 vel1;
@@ -176,7 +172,7 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
             STDLOG(1,"Re-reading initial conditions files to restore 1st order velocities for 2LPT\n");
             integer3 ijk = ZelIJK(c.aux[b].pid());
             int slab = ijk.x*P.cpd / WriteState.ppd;  // slab number
-            int slab_offset = ijk.x - ceil(((double)slab)*WriteState.ppd/P.cpd);  // number of planes into slab  (todo: triple check this.  Is the plane at x = 0 or x=-.99 in slab 0?)
+            int slab_offset = ijk.x - ceil(((double)slab)*WriteState.ppd/P.cpd);  // number of planes into slab
             assertf(ceil((double)slab*WriteState.ppd/P.cpd) + slab_offset == ijk.x, "Wrong slab offset!\n");
             // We know the exact slab number and position of the velocity we want.
             long int offset = ijk.z + WriteState.ppd*(ijk.y + WriteState.ppd*slab_offset);
@@ -192,12 +188,13 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
             vel1.x = p.vel[0];
             vel1.y = p.vel[1];
             vel1.z = p.vel[2];
-            vel1 /= P.BoxSize;
+            vel1 *= convert_reread_velocity;
         }
         // Unexpected IC format; fail.
         else {
             assertf(false, "Unexpected ICformat in 2LPT code.  Must be one of: Zeldovich, RVdoubleZel\n");
         }
+        
         c.vel[b] = (vel1 + WriteState.f_growth*2*displ2)*convert_velocity;
     }
 }
