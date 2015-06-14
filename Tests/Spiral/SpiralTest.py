@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 '''
 'Runs the spiral test and compares the result to the analytic answer
 '

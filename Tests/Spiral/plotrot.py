@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 import time, sys
 from numpy import *
 from matplotlib.font_manager import FontProperties

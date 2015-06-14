@@ -19,6 +19,6 @@ clean:
 	rm -f *.o
 
 distclean:
-	rm -f *.o
+	rm -f *.o *.d
 
 .PHONY: clean distclean gpudirect
