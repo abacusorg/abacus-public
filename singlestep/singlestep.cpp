@@ -317,7 +317,7 @@ int main(int argc, char **argv) {
     }
     
     int AllowIC = atoi(argv[2]);
-    P.ReadParameters(argv[1],1);
+    P.ReadParameters(argv[1],0);
     strcpy(WriteState.ParameterFileName, argv[1]);
 
     // Setup the log

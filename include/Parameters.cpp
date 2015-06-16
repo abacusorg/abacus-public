@@ -381,9 +381,14 @@ void Parameters::ValidateParameters(void) {
         fprintf(stderr,"nTimeSlice must be >=0\n");
 	assert(1==0);
     }
+    
+    if(abs(Omega_M + Omega_DE + Omega_K - 1.) > 1e-6){
+        fprintf(stderr,"Omega_M + Omega_DE + Omega_K must equal 1, but is %g\n", Omega_M + Omega_DE + Omega_K);
+        assert(1==0);
+    }
 
     // Illegal ICFormat's will crash in loadIC.cpp; no need to crash here.
-
+    /*
     ExpandPathName(DerivativesDirectory);
     ExpandPathName(ReadStateDirectory);
     ExpandPathName(WriteStateDirectory);
@@ -401,6 +406,7 @@ void Parameters::ValidateParameters(void) {
     CheckDirectoryExists(LogDirectory);
 
     CheckDirectoryExists(InitialConditionsDirectory);
+    */
 
 
     char dfn[1024];
