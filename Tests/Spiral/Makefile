@@ -1,8 +1,8 @@
-CXX = icc
-CXXFLAGS = -O0 -g3 -openmp -DDOUBLE_PRECISION
+CXX = g++
+CXXFLAGS = -O0 -g3 -fopenmp -DDOUBLE_PRECISION
 CPPFLAGS = 
 INCLUDES = -I../../include/
-LIBS = -liomp5 -lfftw3
+LIBS = -lfftw3 -lgomp #-liomp5
 
 all:makespiralics makeanalytic
 
