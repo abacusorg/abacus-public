@@ -2,7 +2,7 @@
 export CXX = g++ -fopenmp -lgomp --std=c++0x  #-fprofile-use -fprofile-correction 
 export GLOBALVERSIONFLAGS = -DNFRADIUS=2 -DDIRECTSPLINE #-DDOUBLEPRECISION
 export VERSIONFLAGS = $(GLOBALVERSIONFLAGS) -mavx -DAVXMULTIPOLES\
-	       -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -O3 #-DCUDADIRECT #-ggdb3 #-DAVXDIRECT
+	       -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -O3 -DCUDADIRECT #-ggdb3 #-DAVXDIRECT
 export CXXFLAGS= -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) -Wformat=0
 # Could add -DGLOBALPOS here to switch the code to global positions.
 # Use -DDIRECTSPLINE for spline softening

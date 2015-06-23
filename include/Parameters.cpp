@@ -32,6 +32,7 @@ public:
     int  MAXRAMMB;
     int  ConvolutionCacheSizeMB;
     int RamDisk;	// ==0 for a normal disk, ==1 for a ramdisk (which don't have DIO support)
+    int OverwriteState; // 0 for normal, separate read and write states; 1 to overwrite the read state to save space
     int ForceBlockingIO;   // ==1 if you want to force all IO to be blocking.
 
     int  DirectNewtonRaphson;  // 0 or 1 
@@ -124,9 +125,11 @@ public:
     	installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
     	installscalar("MAXRAMMB", MAXRAMMB,MUST_DEFINE);
     	installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB,MUST_DEFINE);
-	RamDisk = 0;
+        RamDisk = 0;
     	installscalar("RamDisk",RamDisk,DONT_CARE);
-	ForceBlockingIO = 0;
+        OverwriteState = 0;
+    	installscalar("OverwriteState",OverwriteState,DONT_CARE);
+        ForceBlockingIO = 0;
     	installscalar("ForceBlockingIO",ForceBlockingIO,DONT_CARE);
 
     	installscalar("DirectNewtonRaphson",DirectNewtonRaphson,MUST_DEFINE);  // 0 or 1
@@ -256,16 +259,19 @@ private:
 };
 
 void Parameters::ProcessStateDirectories(){
-	if (strcmp(WorkingDirectory,STRUNDEF) !=0){
-		if ( strcmp(ReadStateDirectory,STRUNDEF)!=0 || strcmp(WriteStateDirectory,STRUNDEF)!=0 || strcmp(PastStateDirectory,STRUNDEF)!=0   ){
-			QUIT("If WorkingDirectory is defined, Read/Write/PastStateDirectory should be undefined. Terminating\n")
-		}
-		else{
-			sprintf(ReadStateDirectory,"%s/read",WorkingDirectory);
-			sprintf(WriteStateDirectory,"%s/write",WorkingDirectory);
-			sprintf(PastStateDirectory,"%s/past",WorkingDirectory);
-		}
-	}
+    if (strcmp(WorkingDirectory,STRUNDEF) !=0){
+        if ( strcmp(ReadStateDirectory,STRUNDEF)!=0 || strcmp(WriteStateDirectory,STRUNDEF)!=0 || strcmp(PastStateDirectory,STRUNDEF)!=0   ){
+            QUIT("If WorkingDirectory is defined, Read/Write/PastStateDirectory should be undefined. Terminating\n")
+        }
+        else{
+            sprintf(ReadStateDirectory,"%s/read",WorkingDirectory);
+            sprintf(WriteStateDirectory,"%s/write",WorkingDirectory);
+            sprintf(PastStateDirectory,"%s/past",WorkingDirectory);
+            if(OverwriteState){
+                strcpy(WriteStateDirectory, ReadStateDirectory);
+            }
+        }
+    }
 }
 
 

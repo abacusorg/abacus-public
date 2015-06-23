@@ -6,6 +6,7 @@ SimName = "spiral"
 DerivativesDirectory= "$ABACUS_TMP$/Derivatives/"
 TimeStepAccel = 0.02
 TimeStepDlna = 0.025
-Order = 16 
-NumSlabsInsertList = 55
-
+Order = 16
+NearFieldRadius = 2
+NumSlabsInsertList = 0
+OverwriteState = 0
