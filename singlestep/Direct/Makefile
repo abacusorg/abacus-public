@@ -1,3 +1,5 @@
+ifneq ($(DISABLE_GPU),1)
+
 CUDACC=nvcc
 CUDAFLAGS= -I/usr/local/cuda/include -m64\
 	    --generate-code arch=compute_35,code=sm_35\
@@ -14,6 +16,8 @@ include gpudirect.d
 
 gpudirect.o: $(CUDASRC) gpudirect.d Makefile ../Makefile
 	$(CUDACC) $(CUDAFLAGS) $(GLOBALVERSIONFLAGS) -c $< -o $@
+
+endif
 
 clean:
 	rm -f *.o

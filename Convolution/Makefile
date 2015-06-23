@@ -1,9 +1,11 @@
 #export CXX = icc -openmp -liomp5
 export CXX = g++ -fopenmp -lgomp
+ifneq ($(DISABLE_GPU),1)
 CUDAFLAGS = -DGPUFFT  -lcufft -lcudart -L/usr/local/cuda/lib64 -I/usr/local/cuda/include
+endif
 FFTWFLAGS = -lfftw3 -L$(FFTW)/lib 
 
-VERSIONFLAGS = -mavx -Ofast $(CUDAFLAGS)
+VERSIONFLAGS = -mavx -Ofast $(CUDAFLAGS) $(FFTWFLAGS)
 CXXFLAGS = -DMAXCPD=8192 -L../ParseHeader -lparseheader $(VERSIONFLAGS)
 
 CPPFLAGS = -MMD -I../include -I../singlestep/Multipoles -I../singlestep -I../ParseHeader
