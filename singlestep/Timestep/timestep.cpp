@@ -269,6 +269,7 @@ int DriftPrecondition(int slab) {
     // We cannot move these particles until they have been fully used as gravity sources
     for(int j=-FORCE_WIDTH;j<=FORCE_WIDTH;j++)  {
         if( TaylorForce.notdone(slab+j) ) return 0;
+        if( !JJ->SlabDone(slab+j) ) return 0;
     }
     // We also must have Outputted this slab 
     if (Output.notdone(slab)) return 0;

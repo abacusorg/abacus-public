@@ -180,6 +180,7 @@ void NearFieldDriver::ExecuteSlab(int slabID, int blocking){
 
 
 int NearFieldDriver::SlabDone(int slab){
+    slab = PP->WrapSlab(slab);
     if (slabcomplete[slab] == 1) {
         #ifdef CUDADIRECT
         if(!P.ForceCPU) DeviceSlabCleanUp((accstruct *)LBW->ReturnIDPtr(NearAccSlab,slab));

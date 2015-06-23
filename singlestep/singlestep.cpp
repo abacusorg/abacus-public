@@ -369,7 +369,7 @@ int main(int argc, char **argv) {
     //Check if WriteStateDirectory/state exists, and fail if it does
     char wstatefn[1050];
     sprintf(wstatefn,"%s/state",P.WriteStateDirectory);
-    if(access(wstatefn,0) !=-1)
+    if(access(wstatefn,0) !=-1 && !P.OverwriteState)
     	QUIT("WriteState exists and would be overwritten. Please move or delete it to continue.\n");
 
     // Initialize the Cosmology and set up the State epochs and the time step

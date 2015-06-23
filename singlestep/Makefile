@@ -1,6 +1,6 @@
 #export CXX = icc  -openmp-stubs -pthread -liomp5 #-xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
 export CXX = g++ -fopenmp -lgomp --std=c++0x  #-fprofile-use -fprofile-correction 
-export GLOBALVERSIONFLAGS = -DDOUBLEPRECISION -DNFRADIUS=3 -DDIRECTSPLINE
+export GLOBALVERSIONFLAGS = -DDOUBLEPRECISION -DNFRADIUS=2 -DDIRECTSPLINE
 export VERSIONFLAGS = $(GLOBALVERSIONFLAGS) -mavx -DAVXMULTIPOLES\
 	       -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -O3 -DCUDADIRECT #-ggdb3 #-DAVXDIRECT
 export CXXFLAGS= -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) -Wformat=0
