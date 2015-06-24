@@ -1,7 +1,7 @@
 #include "InCoreConvolution.cpp"
 #include "OutofCoreConvolution.h"
 
-void OutofCoreConvolution::ReadDiskMultipoles(int z) { 
+void OutofCoreConvolution::ReadDiskMultipoles(int z, int delete_after_read) { 
     for(int x=0;x<cpd;x++) {
         char fn[1024];
         sprintf(fn,"%s/%s_%04d", CP.runtime_MultipoleDirectory, 
@@ -13,6 +13,10 @@ void OutofCoreConvolution::ReadDiskMultipoles(int z) {
         size_t offset = z; 
         offset *= cpd; offset *= rml; offset *= sizeof(Complex);
         RD_RDM->BlockingRead( fn, (char *) &(TemporarySpace[0]), s, offset );
+        if(delete_after_read){
+            if (remove(fn) != 0)
+                perror("Error deleting file");
+        }
         CS.ReadMultipolesBytes += s;
         ReadMultipoles.Stop();
 
@@ -134,8 +138,14 @@ void OutofCoreConvolution::BlockConvolve(void) {
     #endif
 
     for(int zblock=0;zblock<(cpd+1)/2;zblock+=zwidth) {
-    	if (zblock +zwidth >= (cpd+1)/2) zwidth = (cpd+1)/2 -zblock;
-        ReadDiskMultipoles(zblock);
+        int delete_after_read = 0;
+    	if (zblock +zwidth >= (cpd+1)/2){
+            zwidth = (cpd+1)/2 -zblock;
+            // If this is the last loop iteration, we're safe to delete the multipoles
+            if(CP.delete_multipoles_after_read)
+                delete_after_read = 1;
+        }
+        ReadDiskMultipoles(zblock, delete_after_read);
         for(int z=zblock;z<zblock+zwidth; z++) {
 	           
             ReadDiskDerivatives(z);
@@ -311,6 +321,7 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     for(zwidth=n;zwidth>=2;zwidth--) {
         /*if(n%zwidth==0)*/ if( zwidth*zslabbytes < rambytes) break;
     }
+    
     printf("Resulting zwidth: %llu \n",zwidth);
     ssize_t s;
 
