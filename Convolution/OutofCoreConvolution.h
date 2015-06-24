@@ -43,6 +43,8 @@ typedef struct {
 
     char runtime_MultipolePrefix[1024];
     char runtime_TaylorPrefix[1024];
+    
+    int delete_multipoles_after_read;
 } ConvolutionParameters;
 
 class OutofCoreConvolution { 
@@ -78,7 +80,7 @@ private:
     void BlockConvolve(void);
     void WriteDiskTaylor(int z);
     void ReadDiskDerivatives(int z);
-    void ReadDiskMultipoles(int z);
+    void ReadDiskMultipoles(int z, int delete_after_read);
 
     int mapM[8192];
     int remap[8192];

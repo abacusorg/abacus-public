@@ -116,6 +116,7 @@ int main(int argc, char ** argv){
 	    p.runtime_cpd = P.cpd;
 	    p.runtime_order = P.order;
 	    sprintf(p.runtime_TaylorPrefix, "Taylor");
+        p.delete_multipoles_after_read = P.OverwriteState;
 
 	    ConvolutionWallClock.Start();
 	    STDLOG(1,"Starting Convolution\n");
