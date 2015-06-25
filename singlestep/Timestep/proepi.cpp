@@ -233,13 +233,15 @@ void Epilogue(Parameters &P, bool ic) {
 
 
     if(!ic) {
-        /*if(P.ForceOutputDebug){
+        if(P.ForceOutputDebug){
+            STDLOG(1,"Direct Interactions: CPU (%llu) and GPU (%llu)\n",
+                        JJ->DirectInteractions_CPU,JJ->DirectInteractions_GPU());
             if(!(JJ->DirectInteractions_CPU == JJ->DirectInteractions_GPU())){
                 printf("Error:\n\tDirect Interactions differ between CPU (%llu) and GPU (%llu)\n",
                         JJ->DirectInteractions_CPU,JJ->DirectInteractions_GPU());
                 assert(JJ->DirectInteractions_CPU == JJ->DirectInteractions_GPU());
             }
-        }*/
+        }
     	delete TY;
     	delete RL;
     	delete[] SlabForceLatency;

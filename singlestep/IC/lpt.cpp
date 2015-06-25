@@ -134,9 +134,8 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
     else convert_reread_velocity = 1.0/ReadState.VelZSpace_to_kms;  // Doesn't use BoxSize
     // This gets to the unit box in redshift-space displacement.
     if (P.FlipZelDisp) convert_reread_velocity *= -1;
-    STDLOG(1,"Velocity conversion factor for re-read velocities: %g\n",convert_reread_velocity);
     if(strcmp(P.ICFormat, "RVdoubleZel") == 0)
-        STDLOG(1,"Re-reading initial conditions files to restore 1st order velocities for 2LPT\n");
+        STDLOG(1,"Re-reading initial conditions files to restore 1st order velocities for 2LPT (velocity conversion factor %g)\n", convert_reread_velocity);
 
 #ifdef GLOBALPOS
     // Set cellcenter to zero to return to box-centered positions

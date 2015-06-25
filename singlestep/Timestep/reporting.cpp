@@ -206,7 +206,7 @@ void ReportTimings(FILE * timingfile) {
     }
     fclose(slabtimefile);
     slabforcetimesigma =  sqrt(slabforcetimesigma    - slabforcetimemean*slabforcetimemean);
-    slabforcelatencysigma=sqrt(slabforcelatencysigma - slabforcelatencysigma*slabforcelatencysigma);
+    slabforcelatencysigma=sqrt(slabforcelatencysigma - slabforcelatencymean*slabforcelatencymean);
 
     denom = WallClockDirect.Elapsed()/P.cpd;
     REPORT(1,"Mean Force Computation",slabforcetimemean);

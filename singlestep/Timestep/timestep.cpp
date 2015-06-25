@@ -127,17 +127,17 @@ void TaylorFetchAction(int slab) {
 
 int TaylorForcePrecondition(int slab) {
     if( NearForce.notdone(slab) ) return 0;
-    if( !LBW->IOCompleted(TaylorSlab,slab) )
-        return 0;
-    else // We finished reading this TaylorSlab, so we can delete it to save space
-        if (P.OverwriteState){
-            STDLOG(1, "Deleting TaylorSlab %d since we have finished reading it\n",slab);
-            assertf(remove(LBW->ReadSlabDescriptorName(TaylorSlab,slab).c_str()) == 0, "Could not remove TaylorSlab %d\n",slab);
-        }
+    if( !LBW->IOCompleted(TaylorSlab,slab) ) return 0;
     return 1;
 }
 
 void TaylorForceAction(int slab) {
+    // We finished reading this TaylorSlab, so we can delete it to save space
+    if (P.OverwriteState){
+        STDLOG(1, "Deleting TaylorSlab %d since we have finished reading it\n",slab);
+        assertf(remove(LBW->ReadSlabDescriptorName(TaylorSlab,slab).c_str()) == 0, "Could not remove TaylorSlab %d\n",slab);
+    }
+    
     STDLOG(1,"Computing far-field force for slab %d\n", slab);
     SlabFarForceTime[slab].Start();
     LBW->AllocateArena(AccSlab,slab);
@@ -274,7 +274,7 @@ void OutputAction(int slab) {
 int DriftPrecondition(int slab) {
     // We cannot move these particles until they have been fully used as gravity sources
     for(int j=-FORCE_WIDTH;j<=FORCE_WIDTH;j++)  {
-        if( TaylorForce.notdone(slab+j) ) return 0;
+        //if( TaylorForce.notdone(slab+j) ) return 0;
         if( !JJ->SlabDone(slab+j) ) return 0;
     }
     // We also must have Outputted this slab 

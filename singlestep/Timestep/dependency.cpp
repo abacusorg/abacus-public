@@ -62,6 +62,7 @@ public:
     int wrap(int s) { while(s<0) s += cpd; while(s>=cpd) s -= cpd; return s; }
 
     void Attempt(void) {
+        //Start();
 	// Take at most one action.
         if(number_of_slabs_executed==0) {
             // never executed anything before 
@@ -78,6 +79,7 @@ public:
             int ws = wrap(last_slab_executed+1);
             if( notdone(ws) && precondition(ws) ) do_action(ws);
         }
+        //Stop();
     }
 };
 
