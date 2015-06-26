@@ -114,28 +114,19 @@ void KickCell_2LPT_2(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     }
 }
 
-FLOAT3 get_ic_vel(int slab, uint64 offset){
+velstruct get_ic_vel(int slabnum, uint64 offset){
     // If we request an unloaded slab, load it
-    if (vel_ics[slab].slab == NULL){
-        assertf(vel_ics[slab].n_part == 0, "Trying to load velocity IC slab %d, which should have already been completely re-read for 2LPT.\n", slab);
+    if (!LBW->IDPresent(VelLPTSlab, slabnum)){
+        assertf(vel_ics[slabnum].n_part == 0, "Trying to load velocity IC slab %d, which should have already been completely re-read for 2LPT.\n", slabnum);
+        STDLOG(1, "Re-reading velocity IC slab %d\n", slabnum);
         
-        // Build the filename
-        char filename[1024];
-        sprintf(filename,"%s/ic_%d",P.InitialConditionsDirectory,slab);
-        STDLOG(1, "Re-reading velocity IC slab %s\n", filename);
-        
-        // Get the file size and number of particles
-        struct stat st;
-        stat(filename, &st);
-        uint64 n_part = st.st_size / sizeof(ICfile_RVdoubleZel::ICparticle);
-        
-        // Initialize the VelIC struct
-        vel_ics[slab].slab = (FLOAT3*) malloc(n_part*sizeof(FLOAT3));
-        vel_ics[slab].n_part = n_part;
-        vel_ics[slab].n_read = 0;
+        // Initialize the VelIC struct and arena
+        velstruct* slab = (velstruct*) LBW->AllocateArena(VelLPTSlab, slabnum);  // Automatically determines the arena size from the IC file size 
+        vel_ics[slabnum].n_part = LBW->IDSizeBytes(VelLPTSlab, slabnum) / sizeof(velstruct);
+        vel_ics[slabnum].n_read = 0;
         
         // Use the LoadIC module to do the reading
-        ICfile* ic_file = new ICfile_RVdoubleZel(filename);
+        ICfile* ic_file = new ICfile_RVdoubleZel((char*)LBW->ReadSlabDescriptorName(VelLPTSlab, slabnum).c_str());
         
         uint64 count = 0;
         double3 pos;
@@ -143,23 +134,24 @@ FLOAT3 get_ic_vel(int slab, uint64 offset){
         auxstruct aux;
         while (ic_file->getparticle(&pos, &vel, &aux)) {
             vel *= WriteState.VelZSpace_to_Canonical;
-            vel_ics[slab].slab[count] = vel;
+            slab[count] = vel;
             count++;
         }
-        assertf(count == vel_ics[slab].n_part, "The number of particles (%d) read from %s did not match the number computed from its file size (%d)\n", filename, count, vel_ics[slab].n_part);
+        assertf(count == vel_ics[slabnum].n_part, "The number of particles (%d) read from slab %d did not match the number computed from its file size (%d)\n", slabnum, count, vel_ics[slabnum].n_part);
         delete ic_file;
     }
     
-    // We call this method for every particle we request, so increment the particle counter
-    vel_ics[slab].n_read++;
+    velstruct* slab = (velstruct*) LBW->ReturnIDPtr(VelLPTSlab, slabnum);
     
-    FLOAT3 vel = vel_ics[slab].slab[offset];
+    // We call this method for every particle we request, so increment the particle counter
+    vel_ics[slabnum].n_read++;
+    
+    velstruct vel = slab[offset];
     
     // We just read the last particle, so free the slab memory
-    if(vel_ics[slab].n_read == vel_ics[slab].n_part){
-        STDLOG(1, "Finished re-reading all velocities from slab %d; unloading slab.\n", slab);
-        free(vel_ics[slab].slab);
-        vel_ics[slab].slab = NULL;
+    if(vel_ics[slabnum].n_read == vel_ics[slabnum].n_part){
+        STDLOG(1, "Finished re-reading all velocities from slab %d; unloading slab.\n", slabnum);
+        LBW->DeAllocate(VelLPTSlab, slabnum);
     }
     
     return vel;
@@ -170,7 +162,7 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
     // The following probably assumes Omega_m = 1
     assertf(P.is_np_perfect_cube(), "LPT reconstruction requires np (%d) to be a perfect cube.\n",P.np);
     int e = c.count();
-    double3 displ1, displ2;
+    posstruct displ1, displ2;
     // This is the factor to convert from redshift-space displacements
     // to canonical velocities.
     // HubbleNow is H(z)/H_0.
@@ -202,7 +194,7 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
             c.pos[b][i] -= round(c.pos[b][i]);
     
         // If we were only supplied with Zel'dovich displacements, then construct the linear theory velocity:
-        double3 vel1;
+        velstruct vel1;
         if(strcmp(P.ICFormat, "Zeldovich") == 0){
             vel1 = WriteState.f_growth*displ1;
         }
@@ -217,7 +209,7 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
             int slab_offset = ijk.x - ceil(((double)slab)*WriteState.ppd/P.cpd);  // number of planes into slab
             // We know the exact slab number and position of the velocity we want.
             uint64 offset = ijk.z + WriteState.ppd*(ijk.y + WriteState.ppd*slab_offset);
-            FLOAT3 vel = get_ic_vel(slab, offset);
+            velstruct vel = get_ic_vel(slab, offset);
             
             vel1.x = vel[0];
             vel1.y = vel[1];

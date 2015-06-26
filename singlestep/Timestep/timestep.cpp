@@ -366,12 +366,11 @@ void timestep(void) {
     STDLOG(0,"Adopting FORCE_WIDTH = %d\n", FORCE_WIDTH);
     STDLOG(0,"Adopting GROUP_WIDTH = %d\n", GROUP_WIDTH);
 
-    // Construct IC file pointers if we'll need them in 2LPT
+    // Allocate 2LPT velocity bookkeeping
     int step = LPTStepNumber();
-    if(step && strcmp(P.ICFormat, "RVdoubleZel") == 0){
+    if(step == 2 && strcmp(P.ICFormat, "RVdoubleZel") == 0){
         vel_ics = (VelIC*) malloc(sizeof(VelIC)*P.cpd);
         for(int i = 0; i < P.cpd; i++){
-            vel_ics[i].slab = NULL;
             vel_ics[i].n_part = 0;
             vel_ics[i].n_read = 0;
         }
@@ -404,10 +403,10 @@ void timestep(void) {
                 Drift.Attempt();
                Finish.Attempt();
     }
-    // Close IC file pointers
-    if(step && strcmp(P.ICFormat, "RVdoubleZel") == 0){
+    // Free 2LPT velocity bookkeeping
+    if(step == 2 && strcmp(P.ICFormat, "RVdoubleZel") == 0){
         for(int i = 0; i < P.cpd; i++)
-            assertf(vel_ics[i].slab == NULL, "Velocity IC slab %d was left loaded after 2LPT re-reading\n", i);
+            assertf(!LBW->IDPresent(VelLPTSlab, i), "A 2LPT velocity slab was left loaded\n");
         free(vel_ics);
     }
 

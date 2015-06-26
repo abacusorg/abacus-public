@@ -62,6 +62,7 @@ State ReadState, WriteState;
 
 // #include "ParticleCellInfoStructure.cpp"
 // #include "maxcellsize.cpp"
+#include "IC_classes.h"
 #include "slabtypes.cpp"
 SlabBuffer *LBW;
 
@@ -117,18 +118,15 @@ Cosmology *cosm;
 #include "output_timeslice.cpp"
 #include "LightCones.cpp"
 
-//FIXME:These will be slow for any large problem and should be refactored
+// Bookkeeping for 2LPT velocity re-reading
 typedef struct {
-    FLOAT3* slab;
     uint64 n_part;
     uint64 n_read;
 } VelIC;
 VelIC* vel_ics;  // Array of VelIC structs
 
-// Forward declarations
-uint64 ZelPID(integer3 ijk);
-double3 ZelPos(integer3 ijk);
-double3 ZelPos(uint64 PID);
+//FIXME:These will be slow for any large problem and should be refactored
+
 #include "loadIC.cpp"
 #include "lpt.cpp"
 
