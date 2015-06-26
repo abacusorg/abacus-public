@@ -127,17 +127,17 @@ void TaylorFetchAction(int slab) {
 
 int TaylorForcePrecondition(int slab) {
     if( NearForce.notdone(slab) ) return 0;
-    if( !LBW->IOCompleted(TaylorSlab,slab) )
-        return 0;
-    else // We finished reading this TaylorSlab, so we can delete it to save space
-        if (P.OverwriteState){
-            STDLOG(1, "Deleting TaylorSlab %d since we have finished reading it\n",slab);
-            assertf(remove(LBW->ReadSlabDescriptorName(TaylorSlab,slab).c_str()) == 0, "Could not remove TaylorSlab %d\n",slab);
-        }
+    if( !LBW->IOCompleted(TaylorSlab,slab) ) return 0;
     return 1;
 }
 
 void TaylorForceAction(int slab) {
+    // We finished reading this TaylorSlab, so we can delete it to save space
+    if (P.OverwriteState){
+        STDLOG(1, "Deleting TaylorSlab %d since we have finished reading it\n",slab);
+        assertf(remove(LBW->ReadSlabDescriptorName(TaylorSlab,slab).c_str()) == 0, "Could not remove TaylorSlab %d\n",slab);
+    }
+    
     STDLOG(1,"Computing far-field force for slab %d\n", slab);
     SlabFarForceTime[slab].Start();
     LBW->AllocateArena(AccSlab,slab);
@@ -274,7 +274,7 @@ void OutputAction(int slab) {
 int DriftPrecondition(int slab) {
     // We cannot move these particles until they have been fully used as gravity sources
     for(int j=-FORCE_WIDTH;j<=FORCE_WIDTH;j++)  {
-        if( TaylorForce.notdone(slab+j) ) return 0;
+        //if( TaylorForce.notdone(slab+j) ) return 0;
         if( !JJ->SlabDone(slab+j) ) return 0;
     }
     // We also must have Outputted this slab 
@@ -366,16 +366,13 @@ void timestep(void) {
     STDLOG(0,"Adopting FORCE_WIDTH = %d\n", FORCE_WIDTH);
     STDLOG(0,"Adopting GROUP_WIDTH = %d\n", GROUP_WIDTH);
 
-    // Construct IC file pointers if we'll need them in 2LPT
+    // Allocate 2LPT velocity bookkeeping
     int step = LPTStepNumber();
-    if(step && strcmp(P.ICFormat, "RVdoubleZel") == 0){
-        char filename[1024];
-        ic_fp = (FILE**) malloc(sizeof(FILE*)*P.cpd);
-        assertf(ic_fp, "ic_fp malloc failed\n");
+    if(step == 2 && strcmp(P.ICFormat, "RVdoubleZel") == 0){
+        vel_ics = (VelIC*) malloc(sizeof(VelIC)*P.cpd);
         for(int i = 0; i < P.cpd; i++){
-            sprintf(filename,"%s/ic_%d",P.InitialConditionsDirectory,i);
-            ic_fp[i] = fopen(filename,"r");
-            assertf(ic_fp[i], "fopen %s failed\n", filename);
+            vel_ics[i].n_part = 0;
+            vel_ics[i].n_read = 0;
         }
     }
 
@@ -406,11 +403,11 @@ void timestep(void) {
                 Drift.Attempt();
                Finish.Attempt();
     }
-    // Close IC file pointers
-    if(step && strcmp(P.ICFormat, "RVdoubleZel") == 0){
+    // Free 2LPT velocity bookkeeping
+    if(step == 2 && strcmp(P.ICFormat, "RVdoubleZel") == 0){
         for(int i = 0; i < P.cpd; i++)
-            fclose(ic_fp[i]);
-        free(ic_fp);
+            assertf(!LBW->IDPresent(VelLPTSlab, i), "A 2LPT velocity slab was left loaded\n");
+        free(vel_ics);
     }
 
     assertf(IL->length==0, 

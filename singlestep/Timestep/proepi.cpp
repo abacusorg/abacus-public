@@ -62,6 +62,7 @@ State ReadState, WriteState;
 
 // #include "ParticleCellInfoStructure.cpp"
 // #include "maxcellsize.cpp"
+#include "IC_classes.h"
 #include "slabtypes.cpp"
 SlabBuffer *LBW;
 
@@ -117,12 +118,15 @@ Cosmology *cosm;
 #include "output_timeslice.cpp"
 #include "LightCones.cpp"
 
+// Bookkeeping for 2LPT velocity re-reading
+typedef struct {
+    uint64 n_part;
+    uint64 n_read;
+} VelIC;
+VelIC* vel_ics;  // Array of VelIC structs
+
 //FIXME:These will be slow for any large problem and should be refactored
-FILE **ic_fp; // Array of pointers to IC files
-// Forward declarations
-uint64 ZelPID(integer3 ijk);
-double3 ZelPos(integer3 ijk);
-double3 ZelPos(uint64 PID);
+
 #include "loadIC.cpp"
 #include "lpt.cpp"
 
@@ -233,13 +237,17 @@ void Epilogue(Parameters &P, bool ic) {
 
 
     if(!ic) {
-        /*if(P.ForceOutputDebug){
+        if(P.ForceOutputDebug){
+            #ifndef DIRECTSPLINE
+            STDLOG(1,"Direct Interactions: CPU (%llu) and GPU (%llu)\n",
+                        JJ->DirectInteractions_CPU,JJ->DirectInteractions_GPU());
             if(!(JJ->DirectInteractions_CPU == JJ->DirectInteractions_GPU())){
                 printf("Error:\n\tDirect Interactions differ between CPU (%llu) and GPU (%llu)\n",
                         JJ->DirectInteractions_CPU,JJ->DirectInteractions_GPU());
                 assert(JJ->DirectInteractions_CPU == JJ->DirectInteractions_GPU());
             }
-        }*/
+            #endif
+        }
     	delete TY;
     	delete RL;
     	delete[] SlabForceLatency;
