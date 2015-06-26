@@ -369,13 +369,11 @@ void timestep(void) {
     // Construct IC file pointers if we'll need them in 2LPT
     int step = LPTStepNumber();
     if(step && strcmp(P.ICFormat, "RVdoubleZel") == 0){
-        char filename[1024];
-        ic_fp = (FILE**) malloc(sizeof(FILE*)*P.cpd);
-        assertf(ic_fp, "ic_fp malloc failed\n");
+        vel_ics = (VelIC*) malloc(sizeof(VelIC)*P.cpd);
         for(int i = 0; i < P.cpd; i++){
-            sprintf(filename,"%s/ic_%d",P.InitialConditionsDirectory,i);
-            ic_fp[i] = fopen(filename,"r");
-            assertf(ic_fp[i], "fopen %s failed\n", filename);
+            vel_ics[i].slab = NULL;
+            vel_ics[i].n_part = 0;
+            vel_ics[i].n_read = 0;
         }
     }
 
@@ -409,8 +407,8 @@ void timestep(void) {
     // Close IC file pointers
     if(step && strcmp(P.ICFormat, "RVdoubleZel") == 0){
         for(int i = 0; i < P.cpd; i++)
-            fclose(ic_fp[i]);
-        free(ic_fp);
+            assertf(vel_ics[i].slab == NULL, "Velocity IC slab %d was left loaded after 2LPT re-reading\n", i);
+        free(vel_ics);
     }
 
     assertf(IL->length==0, 

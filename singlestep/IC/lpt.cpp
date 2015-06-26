@@ -114,6 +114,57 @@ void KickCell_2LPT_2(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     }
 }
 
+FLOAT3 get_ic_vel(int slab, uint64 offset){
+    // If we request an unloaded slab, load it
+    if (vel_ics[slab].slab == NULL){
+        assertf(vel_ics[slab].n_part == 0, "Trying to load velocity IC slab %d, which should have already been completely re-read for 2LPT.\n", slab);
+        
+        // Build the filename
+        char filename[1024];
+        sprintf(filename,"%s/ic_%d",P.InitialConditionsDirectory,slab);
+        STDLOG(1, "Re-reading velocity IC slab %s\n", filename);
+        
+        // Get the file size and number of particles
+        struct stat st;
+        stat(filename, &st);
+        uint64 n_part = st.st_size / sizeof(ICfile_RVdoubleZel::ICparticle);
+        
+        // Initialize the VelIC struct
+        vel_ics[slab].slab = (FLOAT3*) malloc(n_part*sizeof(FLOAT3));
+        vel_ics[slab].n_part = n_part;
+        vel_ics[slab].n_read = 0;
+        
+        // Use the LoadIC module to do the reading
+        ICfile* ic_file = new ICfile_RVdoubleZel(filename);
+        
+        uint64 count = 0;
+        double3 pos;
+        velstruct vel;
+        auxstruct aux;
+        while (ic_file->getparticle(&pos, &vel, &aux)) {
+            vel *= WriteState.VelZSpace_to_Canonical;
+            vel_ics[slab].slab[count] = vel;
+            count++;
+        }
+        assertf(count == vel_ics[slab].n_part, "The number of particles (%d) read from %s did not match the number computed from its file size (%d)\n", filename, count, vel_ics[slab].n_part);
+        delete ic_file;
+    }
+    
+    // We call this method for every particle we request, so increment the particle counter
+    vel_ics[slab].n_read++;
+    
+    FLOAT3 vel = vel_ics[slab].slab[offset];
+    
+    // We just read the last particle, so free the slab memory
+    if(vel_ics[slab].n_read == vel_ics[slab].n_part){
+        STDLOG(1, "Finished re-reading all velocities from slab %d; unloading slab.\n", slab);
+        free(vel_ics[slab].slab);
+        vel_ics[slab].slab = NULL;
+    }
+    
+    return vel;
+}
+
 void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
     // Now we have to adjust the positions and velocities
     // The following probably assumes Omega_m = 1
@@ -125,17 +176,6 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
     // HubbleNow is H(z)/H_0.
     double convert_velocity = WriteState.VelZSpace_to_Canonical;
     // WriteState.ScaleFactor*WriteState.ScaleFactor *WriteState.HubbleNow;
-    
-    double convert_reread_velocity = 1.;  // An additional factor for when we re-read the IC files
-    if (P.ICPositionRange>0) convert_reread_velocity *= 1.0/P.ICPositionRange;
-    else convert_reread_velocity *= 1.0/P.BoxSize;
-    if (P.ICVelocity2Displacement>-0.99) // Should always be 1 for IC from zel.cpp
-        convert_reread_velocity *= P.ICVelocity2Displacement;
-    else convert_reread_velocity = 1.0/ReadState.VelZSpace_to_kms;  // Doesn't use BoxSize
-    // This gets to the unit box in redshift-space displacement.
-    if (P.FlipZelDisp) convert_reread_velocity *= -1;
-    if(strcmp(P.ICFormat, "RVdoubleZel") == 0)
-        STDLOG(1,"Re-reading initial conditions files to restore 1st order velocities for 2LPT (velocity conversion factor %g)\n", convert_reread_velocity);
 
 #ifdef GLOBALPOS
     // Set cellcenter to zero to return to box-centered positions
@@ -173,30 +213,22 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
         if(strcmp(P.ICFormat, "RVdoubleZel") == 0){
             integer3 ijk = ZelIJK(c.aux[b].pid());
             int slab = ijk.x*P.cpd / WriteState.ppd;  // slab number
+            
             int slab_offset = ijk.x - ceil(((double)slab)*WriteState.ppd/P.cpd);  // number of planes into slab
-            assertf(ceil((double)slab*WriteState.ppd/P.cpd) + slab_offset == ijk.x, "Wrong slab offset!\n");
             // We know the exact slab number and position of the velocity we want.
-            long int offset = ijk.z + WriteState.ppd*(ijk.y + WriteState.ppd*slab_offset);
-            offset *= sizeof(ICfile_RVdoubleZel::ICparticle);
-            int seek_status = fseek(ic_fp[slab], offset, SEEK_SET);
-            assertf(seek_status == 0, "Seek to position %ld failed in IC file %d\n", offset, slab);
-            ICfile_RVdoubleZel::ICparticle p;
-            int count = fread(&p, sizeof(ICfile_RVdoubleZel::ICparticle), 1, ic_fp[slab]);
-            if(count != 1){
-                perror("Error message");
-            }
-            assertf(count == 1, "Error reading IC file %d. Count = %d, expected 1\n", slab, count);
-            vel1.x = p.vel[0];
-            vel1.y = p.vel[1];
-            vel1.z = p.vel[2];
-            vel1 *= convert_reread_velocity;
+            uint64 offset = ijk.z + WriteState.ppd*(ijk.y + WriteState.ppd*slab_offset);
+            FLOAT3 vel = get_ic_vel(slab, offset);
+            
+            vel1.x = vel[0];
+            vel1.y = vel[1];
+            vel1.z = vel[2];
         }
         // Unexpected IC format; fail.
         else {
             assertf(false, "Unexpected ICformat in 2LPT code.  Must be one of: Zeldovich, RVdoubleZel\n");
         }
         
-        c.vel[b] = (vel1 + WriteState.f_growth*2*displ2)*convert_velocity;
+        c.vel[b] = vel1 + WriteState.f_growth*2*displ2*convert_velocity;
     }
 }
 

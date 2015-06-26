@@ -118,7 +118,13 @@ Cosmology *cosm;
 #include "LightCones.cpp"
 
 //FIXME:These will be slow for any large problem and should be refactored
-FILE **ic_fp; // Array of pointers to IC files
+typedef struct {
+    FLOAT3* slab;
+    uint64 n_part;
+    uint64 n_read;
+} VelIC;
+VelIC* vel_ics;  // Array of VelIC structs
+
 // Forward declarations
 uint64 ZelPID(integer3 ijk);
 double3 ZelPos(integer3 ijk);
@@ -234,6 +240,7 @@ void Epilogue(Parameters &P, bool ic) {
 
     if(!ic) {
         if(P.ForceOutputDebug){
+            #ifndef DIRECTSPLINE
             STDLOG(1,"Direct Interactions: CPU (%llu) and GPU (%llu)\n",
                         JJ->DirectInteractions_CPU,JJ->DirectInteractions_GPU());
             if(!(JJ->DirectInteractions_CPU == JJ->DirectInteractions_GPU())){
@@ -241,6 +248,7 @@ void Epilogue(Parameters &P, bool ic) {
                         JJ->DirectInteractions_CPU,JJ->DirectInteractions_GPU());
                 assert(JJ->DirectInteractions_CPU == JJ->DirectInteractions_GPU());
             }
+            #endif
         }
     	delete TY;
     	delete RL;
