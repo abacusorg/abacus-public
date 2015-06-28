@@ -121,7 +121,7 @@ Cosmology *cosm;
 // Bookkeeping for 2LPT velocity re-reading
 typedef struct {
     uint64 n_part;
-    uint64 n_read;
+    //uint64 n_read;
 } VelIC;
 VelIC* vel_ics;  // Array of VelIC structs
 

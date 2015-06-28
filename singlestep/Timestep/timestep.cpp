@@ -168,30 +168,29 @@ int KickPrecondition(int slab) {
 }
 
 void KickAction(int slab) {
-	SlabForceTime[slab].Stop();
-	SlabForceLatency[slab].Stop();
-	RescaleAndCoAddAcceleration(slab);
+    SlabForceTime[slab].Stop();
+    SlabForceLatency[slab].Stop();
+    RescaleAndCoAddAcceleration(slab);
     int step = LPTStepNumber();
     if (step) {
         // We have LPT IC work to do
-	if (step==1) {
-	    STDLOG(1,"Kicking slab %d as LPT step 1\n", slab);
-	    KickSlab(slab, 0, 0, KickCell_2LPT_1);
-	} else if (step==2) {
-	    STDLOG(1,"Kicking slab %d as LPT step 2\n", slab);
-	    KickSlab(slab, 0, 0, KickCell_2LPT_2);
-	} else QUIT("LPT Kick %d not implemented\n", step);
+        if (step==1) {
+            STDLOG(1,"Kicking slab %d as LPT step 1\n", slab);
+            KickSlab(slab, 0, 0, KickCell_2LPT_1);
+        } else if (step==2) {
+            STDLOG(1,"Kicking slab %d as LPT step 2\n", slab);
+            KickSlab(slab, 0, 0, KickCell_2LPT_2);
+        } else QUIT("LPT Kick %d not implemented\n", step);
     } else {
-	// This is just a standard step
-	FLOAT kickfactor1 =  ReadState.LastHalfEtaKick;
-	FLOAT kickfactor2 =  WriteState.FirstHalfEtaKick;
-	STDLOG(1,"Kicking slab %d by %f + %f\n", slab, kickfactor1, kickfactor2);
-	KickSlab(slab, kickfactor1, kickfactor2, KickCell);
+        // This is just a standard step
+        FLOAT kickfactor1 =  ReadState.LastHalfEtaKick;
+        FLOAT kickfactor2 =  WriteState.FirstHalfEtaKick;
+        STDLOG(1,"Kicking slab %d by %f + %f\n", slab, kickfactor1, kickfactor2);
+        KickSlab(slab, kickfactor1, kickfactor2, KickCell);
     }
-    
+
     //tell the near force threads it's ok to start cleaning up
     //if (NearForce.number_of_slabs_executed == P.cpd) JJ->ShutDownWhenReady();
-
 }
 
 // -----------------------------------------------------------------
@@ -205,8 +204,7 @@ int GroupPrecondition(int slab) {
 }
 
 void GroupAction(int slab) {
-    int step = WriteState.FullStepNumber;
-    if (P.LagrangianPTOrder>1 && step<=P.LagrangianPTOrder) return;
+    if (LPTStepNumber()) return;
     	// We can't be doing group finding during an IC step
 
     STDLOG(1,"Finding groups for slab %d\n", slab);
@@ -286,27 +284,34 @@ void DriftAction(int slab) {
     int step = LPTStepNumber();
     if (step) {
         // We have LPT IC work to do
-	if (step==1) {
-	    STDLOG(1,"Drifting slab %d as LPT step 1\n", slab);
-	    DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_1);
-	} else if (step==2) {
-	    STDLOG(1,"Drifting slab %d as LPT step 2\n", slab);
-	    DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_2);
-	} else QUIT("LPT Drift %d not implemented\n", step);
+        if (step==1) {
+            STDLOG(1,"Drifting slab %d as LPT step 1\n", slab);
+            DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_1);
+        } else if (step==2) {
+            STDLOG(1,"Drifting slab %d as LPT step 2\n", slab);
+            
+            // Load the neighboring velocity IC slabs
+            load_ic_vel_neighbors(slab);
+            
+            DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_2);
+            
+            // Unload any finished velocity IC slabs
+            unload_finished_ic_vel_neighbors(slab, &Drift);
+        } else QUIT("LPT Drift %d not implemented\n", step);
     } else {
-//         This is just a normal drift
-	FLOAT driftfactor = WriteState.DeltaEtaDrift;
-		// WriteState.etaD-ReadState.etaD; 
-	STDLOG(1,"Drifting slab %d by %f\n", slab, driftfactor);
-	DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
+        //         This is just a normal drift
+        FLOAT driftfactor = WriteState.DeltaEtaDrift;
+        // WriteState.etaD-ReadState.etaD; 
+        STDLOG(1,"Drifting slab %d by %f\n", slab, driftfactor);
+        DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
     }
 
     // We kept the accelerations until here because of third-order LPT
     if (P.StoreForces && !P.ForceOutputDebug) {
-	STDLOG(1,"Storing Forces in slab %d\n", slab);
-	LBW->StoreArenaNonBlocking(AccSlab,slab);
+        STDLOG(1,"Storing Forces in slab %d\n", slab);
+        LBW->StoreArenaNonBlocking(AccSlab,slab);
     } else {
-	LBW->DeAllocate(AccSlab,slab);
+        LBW->DeAllocate(AccSlab,slab);
         LBW->DeAllocate(NearAccSlab,slab);
     }
 }
@@ -372,7 +377,6 @@ void timestep(void) {
         vel_ics = (VelIC*) malloc(sizeof(VelIC)*P.cpd);
         for(int i = 0; i < P.cpd; i++){
             vel_ics[i].n_part = 0;
-            vel_ics[i].n_read = 0;
         }
     }
 

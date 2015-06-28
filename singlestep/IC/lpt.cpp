@@ -114,45 +114,74 @@ void KickCell_2LPT_2(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     }
 }
 
-velstruct get_ic_vel(int slabnum, uint64 offset){
-    // If we request an unloaded slab, load it
-    if (!LBW->IDPresent(VelLPTSlab, slabnum)){
-        assertf(vel_ics[slabnum].n_part == 0, "Trying to load velocity IC slab %d, which should have already been completely re-read for 2LPT.\n", slabnum);
-        STDLOG(1, "Re-reading velocity IC slab %d\n", slabnum);
-        
-        // Initialize the VelIC struct and arena
-        velstruct* slab = (velstruct*) LBW->AllocateArena(VelLPTSlab, slabnum);  // Automatically determines the arena size from the IC file size 
-        vel_ics[slabnum].n_part = LBW->IDSizeBytes(VelLPTSlab, slabnum) / sizeof(velstruct);
-        vel_ics[slabnum].n_read = 0;
-        
-        // Use the LoadIC module to do the reading
-        ICfile* ic_file = new ICfile_RVdoubleZel((char*)LBW->ReadSlabDescriptorName(VelLPTSlab, slabnum).c_str());
-        
-        uint64 count = 0;
-        double3 pos;
-        velstruct vel;
-        auxstruct aux;
-        while (ic_file->getparticle(&pos, &vel, &aux)) {
-            vel *= WriteState.VelZSpace_to_Canonical;
-            slab[count] = vel;
-            count++;
-        }
-        assertf(count == vel_ics[slabnum].n_part, "The number of particles (%d) read from slab %d did not match the number computed from its file size (%d)\n", slabnum, count, vel_ics[slabnum].n_part);
-        delete ic_file;
+// Load an IC velocity slab into an arena through the LoadIC module
+void load_ic_vel_slab(int slabnum){
+    slabnum = PP->WrapSlab(slabnum);
+    assertf(!LBW->IDPresent(VelLPTSlab, slabnum), "Trying to re-load velocity IC slab %d, which is already loaded.\n", slabnum);
+    
+    assertf(vel_ics[slabnum].n_part == 0, "Trying to load velocity IC slab %d, which should have already been completely re-read for 2LPT.\n", slabnum);
+    STDLOG(1, "Re-reading velocity IC slab %d\n", slabnum);
+    
+    // Initialize the arena
+    velstruct* slab = (velstruct*) LBW->AllocateArena(VelLPTSlab, slabnum);  // Automatically determines the arena size from the IC file size 
+    
+    // Use the LoadIC module to do the reading
+    ICfile* ic_file = new ICfile_RVdoubleZel((char*)LBW->ReadSlabDescriptorName(VelLPTSlab, slabnum).c_str());
+    
+    uint64 count = 0;
+    double3 pos;
+    velstruct vel;
+    auxstruct aux;
+    while (ic_file->getparticle(&pos, &vel, &aux)) {
+        vel *= WriteState.VelZSpace_to_Canonical;
+        slab[count] = vel;
+        count++;
     }
     
-    velstruct* slab = (velstruct*) LBW->ReturnIDPtr(VelLPTSlab, slabnum);
+    // Initialize the VelIC struct, as a signal that the slab is truly ready
+    vel_ics[slabnum].n_part = LBW->IDSizeBytes(VelLPTSlab, slabnum) / sizeof(velstruct);
     
-    // We call this method for every particle we request, so increment the particle counter
-    vel_ics[slabnum].n_read++;
-    
-    velstruct vel = slab[offset];
-    
-    // We just read the last particle, so free the slab memory
-    if(vel_ics[slabnum].n_read == vel_ics[slabnum].n_part){
+    assertf(count == vel_ics[slabnum].n_part, "The number of particles (%d) read from slab %d did not match the number computed from its file size (%d)\n", slabnum, count, vel_ics[slabnum].n_part);
+    delete ic_file;
+}
+
+// Loads the neighboring IC vel slabs if they are unloaded
+void load_ic_vel_neighbors(int slabnum){
+    for(int i = slabnum-1; i <= slabnum+1; i++){
+        int wi = PP->WrapSlab(i);
+        if (vel_ics[wi].n_part == 0){
+            load_ic_vel_slab(wi);
+        }
+    }
+}
+
+// Unloaded neighboring IC vel slabs, if they are finished being used
+// Note that Drift->done(slabnum) will not be true, even though it is for our purposes
+void unload_finished_ic_vel_neighbors(int slabnum, Dependency* Drift){
+    // Previous slab
+    if(Drift->done(slabnum-1) && Drift->done(slabnum-2)){ // the other neighbor is the current slab
+        STDLOG(1, "Finished re-reading all velocities from slab %d; unloading slab.\n", slabnum-1);
+        LBW->DeAllocate(VelLPTSlab, slabnum-1);
+    }
+    // Current slab
+    if(Drift->done(slabnum-1) && Drift->done(slabnum+1)){ // the middle is the current slab
         STDLOG(1, "Finished re-reading all velocities from slab %d; unloading slab.\n", slabnum);
         LBW->DeAllocate(VelLPTSlab, slabnum);
     }
+    // Next slab
+    if(Drift->done(slabnum+1) && Drift->done(slabnum+2)){ // the other neighbor is the current slab
+        STDLOG(1, "Finished re-reading all velocities from slab %d; unloading slab.\n", slabnum+1);
+        LBW->DeAllocate(VelLPTSlab, slabnum+1);
+    }
+}
+
+// Returns the IC velocity of particle number "offset" relative to the beginning of the slab
+velstruct get_ic_vel(int slabnum, uint64 offset){
+    assertf(LBW->IDPresent(VelLPTSlab, slabnum), "IC vel slab %d not loaded.  Possibly an IC particle crossed two slab boundaries?\n", slabnum);
+    
+    velstruct* slab = (velstruct*) LBW->ReturnIDPtr(VelLPTSlab, slabnum);
+    
+    velstruct vel = slab[offset];
     
     return vel;
 }
@@ -196,12 +225,11 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
         // If we were only supplied with Zel'dovich displacements, then construct the linear theory velocity:
         velstruct vel1;
         if(strcmp(P.ICFormat, "Zeldovich") == 0){
-            vel1 = WriteState.f_growth*displ1;
+            vel1 = WriteState.f_growth*displ1*convert_velocity;
         }
         // If we were supplied with Zel'dovich velocities and displacements,
         // we want to re-read the IC files to restore the velocities, which were overwritten above
         else
-        #pragma omp critical
         if(strcmp(P.ICFormat, "RVdoubleZel") == 0){
             integer3 ijk = ZelIJK(c.aux[b].pid());
             int slab = ijk.x*P.cpd / WriteState.ppd;  // slab number
