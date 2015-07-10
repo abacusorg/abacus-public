@@ -32,8 +32,7 @@ void CrashIO() {
 // The actual read/write commands
 
 #include "file.cpp"
-#include "read_dio.h"
-#include "write_dio.h"
+#include "iolib.cpp"
 
 ReadDirect * RD;
 WriteDirect * WD;

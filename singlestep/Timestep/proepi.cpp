@@ -32,6 +32,7 @@ STimer *SlabFarForceTime;
 STimer TaylorCompute;
 
 STimer DriftMoveRebin, DriftInsert;
+STimer LPTDriftICReRead;
 PTimer DriftMove, DriftRebin;
 
 STimer prologue;

@@ -51,6 +51,9 @@ void LoadSlab2IL(int slab) {
     } else if (strcmp(P.ICFormat,"RVdoubleZel")==0) {
         STDLOG(1,"Using format RVdoubleZel\n");
         ic = new ICfile_RVdoubleZel(filename);
+    } else if (strcmp(P.ICFormat,"RVZel")==0) {
+        STDLOG(1,"Using format RVZel\n");
+        ic = new ICfile_RVZel(filename);
     } else if (strcmp(P.ICFormat,"Zeldovich")==0) {
         STDLOG(1,"Using format Zeldovich\n");
         ic = new ICfile_Zel(filename);

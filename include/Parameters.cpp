@@ -235,7 +235,7 @@ public:
     }
     int is_np_perfect_cube() {
 	// Return 1 if np is a perfect cube.
-        int n = floor(ppd());
+        long long int n = floor(ppd());
 	if (n*n*n==np) return 1; else return 0;
     }
 

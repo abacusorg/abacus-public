@@ -126,7 +126,12 @@ void load_ic_vel_slab(int slabnum){
     velstruct* slab = (velstruct*) LBW->AllocateArena(VelLPTSlab, slabnum);  // Automatically determines the arena size from the IC file size 
     
     // Use the LoadIC module to do the reading
-    ICfile* ic_file = new ICfile_RVdoubleZel((char*)LBW->ReadSlabDescriptorName(VelLPTSlab, slabnum).c_str());
+    ICfile* ic_file;
+    if(strcmp(P.ICFormat, "RVdoubleZel") == 0){
+        ic_file = new ICfile_RVdoubleZel((char*)LBW->ReadSlabDescriptorName(VelLPTSlab, slabnum).c_str());
+    } else if(strcmp(P.ICFormat, "RVZel") == 0){
+        ic_file = new ICfile_RVZel((char*)LBW->ReadSlabDescriptorName(VelLPTSlab, slabnum).c_str());
+    }
     
     uint64 count = 0;
     double3 pos;
@@ -176,12 +181,12 @@ void unload_finished_ic_vel_neighbors(int slabnum, Dependency* Drift){
 }
 
 // Returns the IC velocity of particle number "offset" relative to the beginning of the slab
-velstruct get_ic_vel(int slabnum, uint64 offset){
+inline velstruct* get_ic_vel(int slabnum, uint64 offset){
     assertf(LBW->IDPresent(VelLPTSlab, slabnum), "IC vel slab %d not loaded.  Possibly an IC particle crossed two slab boundaries?\n", slabnum);
     
     velstruct* slab = (velstruct*) LBW->ReturnIDPtr(VelLPTSlab, slabnum);
     
-    velstruct vel = slab[offset];
+    velstruct* vel = slab + offset;
     
     return vel;
 }
@@ -230,22 +235,22 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
         // If we were supplied with Zel'dovich velocities and displacements,
         // we want to re-read the IC files to restore the velocities, which were overwritten above
         else
-        if(strcmp(P.ICFormat, "RVdoubleZel") == 0){
+        if(strcmp(P.ICFormat, "RVdoubleZel") == 0 || strcmp(P.ICFormat, "RVZel") == 0){
             integer3 ijk = ZelIJK(c.aux[b].pid());
             int slab = ijk.x*P.cpd / WriteState.ppd;  // slab number
             
             int slab_offset = ijk.x - ceil(((double)slab)*WriteState.ppd/P.cpd);  // number of planes into slab
             // We know the exact slab number and position of the velocity we want.
             uint64 offset = ijk.z + WriteState.ppd*(ijk.y + WriteState.ppd*slab_offset);
-            velstruct vel = get_ic_vel(slab, offset);
+            velstruct* vel = get_ic_vel(slab, offset);
             
-            vel1.x = vel[0];
-            vel1.y = vel[1];
-            vel1.z = vel[2];
+            vel1.x = vel->x;
+            vel1.y = vel->y;
+            vel1.z = vel->z;
         }
         // Unexpected IC format; fail.
         else {
-            assertf(false, "Unexpected ICformat in 2LPT code.  Must be one of: Zeldovich, RVdoubleZel\n");
+            assertf(false, "Unexpected ICformat in 2LPT code.  Must be one of: Zeldovich, RVdoubleZel, RVZel\n");
         }
         
         c.vel[b] = vel1 + WriteState.f_growth*2*displ2*convert_velocity;

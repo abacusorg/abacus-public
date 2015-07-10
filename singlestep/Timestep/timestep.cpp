@@ -291,7 +291,9 @@ void DriftAction(int slab) {
             STDLOG(1,"Drifting slab %d as LPT step 2\n", slab);
             
             // Load the neighboring velocity IC slabs
+            LPTDriftICReRead.Start();
             load_ic_vel_neighbors(slab);
+            LPTDriftICReRead.Stop();
             
             DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_2);
             
@@ -373,7 +375,7 @@ void timestep(void) {
 
     // Allocate 2LPT velocity bookkeeping
     int step = LPTStepNumber();
-    if(step == 2 && strcmp(P.ICFormat, "RVdoubleZel") == 0){
+    if(step == 2){
         vel_ics = (VelIC*) malloc(sizeof(VelIC)*P.cpd);
         for(int i = 0; i < P.cpd; i++){
             vel_ics[i].n_part = 0;
@@ -408,7 +410,7 @@ void timestep(void) {
                Finish.Attempt();
     }
     // Free 2LPT velocity bookkeeping
-    if(step == 2 && strcmp(P.ICFormat, "RVdoubleZel") == 0){
+    if(step == 2){
         for(int i = 0; i < P.cpd; i++)
             assertf(!LBW->IDPresent(VelLPTSlab, i), "A 2LPT velocity slab was left loaded\n");
         free(vel_ics);

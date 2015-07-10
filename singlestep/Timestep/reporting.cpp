@@ -159,7 +159,7 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "TaylorFetch", TaylorFetch.Elapsed()); total += thistime;
     REPORT(1, "NearForce", NearForce.Elapsed()); total += thistime;
         double total_di = (JJ->DirectInteractions_CPU +JJ->DirectInteractions_GPU())/1e9;
-	fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects", total_di/(thistime+1e-15), total_di );
+	fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", total_di/(thistime+1e-15), total_di, P.np/(thistime+1e-15)/1e6);
       //fprintf(timingfile,"\n DJE: %lld,  MVM: %lld,  ratio = %f", naive_directinteractions, JJ->directinteractions,
 	//	 1.0*naive_directinteractions/JJ->directinteractions);
     REPORT(1, "TaylorForce", TaylorForce.Elapsed()); total += thistime;
@@ -240,6 +240,7 @@ void ReportTimings(FILE * timingfile) {
     denom = Drift.Elapsed();
     REPORT(2, "Move & Rebin (S)", DriftMoveRebin.Elapsed());
     REPORT(2, "Inserting (S)",    DriftInsert.Elapsed());
+    REPORT(2, "LPT IC Re-reading (S)",   LPTDriftICReRead.Elapsed());
     REPORT(2, "Move (P)",         DriftMove.Elapsed());
     REPORT(2, "Rebin (P)",        DriftRebin.Elapsed());
     

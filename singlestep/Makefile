@@ -1,12 +1,13 @@
 #export CXX = icc  -openmp-stubs -pthread -liomp5 #-xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
 export CXX = g++ -fopenmp -lgomp --std=c++0x  #-fprofile-use -fprofile-correction 
-export GLOBALVERSIONFLAGS = -DNFRADIUS=2 -DDIRECTSPLINE #-DDOUBLEPRECISION
+export GLOBALVERSIONFLAGS = -DFLOATPRECISION -DNFRADIUS=2 -DDIRECTSPLINE
 export VERSIONFLAGS = $(GLOBALVERSIONFLAGS) -mavx -DAVXMULTIPOLES\
-	       -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -O3 -DCUDADIRECT #-ggdb3 #-DAVXDIRECT
+	       -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -O3 -DCUDADIRECT -DIOTHREADED #-ggdb3 #-DAVXDIRECT
 export CXXFLAGS= -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) -Wformat=0
 # Could add -DGLOBALPOS here to switch the code to global positions.
 # Use -DDIRECTSPLINE for spline softening
 
+-include ../Makefile.local
 
 CPPFLAGS = -I ../include -I ../Derivatives -I ../ParseHeader -I../Convolution\
 	   -I DataModel -I Direct/ -I IC -I Multipoles -I Output -I Timestep\
@@ -14,16 +15,14 @@ CPPFLAGS = -I ../include -I ../Derivatives -I ../ParseHeader -I../Convolution\
 
 
 LIBS =  -L../ParseHeader -lparseheader -lfftw3_omp -lfftw3 -ltbb\
-	Multipoles/ETASM.o Multipoles/CMASM.o Multipoles/Cartesian2Reduced.a\
-	-ltbb
-	
-# Avoid looking for CUDA libraries on a system that doesn't have them
+	Multipoles/ETASM.o Multipoles/CMASM.o Multipoles/Cartesian2Reduced.a
+    
 ifneq ($(DISABLE_GPU),1)
 LIBS += Direct/gpudirect.o -L/usr/local/cuda/lib64 -lcudart
 endif
 
+
 GEN_OBJ = ETASM.o CMASM.o Cartesian2Reduced.a
--include ../Makefile.local
 
 VPATH = Direct : Multipoles
 
