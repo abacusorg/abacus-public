@@ -27,7 +27,9 @@ class NearFieldDriver{
 
 
 NearFieldDriver::NearFieldDriver(){
-    DD = new Direct[omp_get_max_threads()];
+    int nthread = omp_get_max_threads();
+    STDLOG(1,"Initializing NearFieldDriver with %d OMP threads.\n",nthread);
+    DD = new Direct[nthread];
     DirectInteractions_CPU = 0;
 
     assert(NFRADIUS==P.NearFieldRadius);
