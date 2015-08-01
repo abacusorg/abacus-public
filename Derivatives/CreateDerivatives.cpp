@@ -38,9 +38,11 @@ ULLI linearFFTW(int i, int j, int k) {
 
 
 void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber) {
-    double rdfar[32][1024];
-    double rdnear[32][1024];
-    double FD[32][1024];
+    int nthread = omp_get_max_threads();
+    printf("Initializing CreateDerivatives with %d OMP threads.\n", nthread);
+    double rdfar[nthread][1024];
+    double rdnear[nthread][1024];
+    double FD[nthread][1024];
 
     Order32Derivatives OD(far_radius);
 
