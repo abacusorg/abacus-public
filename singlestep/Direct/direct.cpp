@@ -14,7 +14,10 @@ Direct::Direct(void) {
 Direct::~Direct(void) { }
 
 void Direct::AVXExecute(FLOAT3 *sinks, FLOAT3 *sources, int nsinks, int nsources, FLOAT3 delta, FLOAT eps2, FLOAT3 *SA) {
-    #ifdef AVXDIRECT 
+    #ifdef AVXDIRECT
+        #ifdef DIRECTSPLINE
+            #error "Spline softening is not implemented in AVX yet."
+        #endif
     
         #ifdef DOUBLEPRECISION
             directdouble->compute(nsources, sources, nsinks, sinks, delta, eps2, SA);
