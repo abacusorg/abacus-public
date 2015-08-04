@@ -10,3 +10,4 @@ Order = 16
 NearFieldRadius = 2
 NumSlabsInsertList = 0
 OverwriteState = 0
+RamDisk = 1

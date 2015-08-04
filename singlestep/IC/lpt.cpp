@@ -80,7 +80,8 @@ double3 ZelPos(uint64 PID) {
 
 void KickCell_2LPT_1(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     // Just store the acceleration
-    for (int i=0;i<c.count();i++) {
+    int N = c.count();
+    for (int i = 0; i < N; i++) {
         c.vel[i] = cellacc[i];
     }
 }

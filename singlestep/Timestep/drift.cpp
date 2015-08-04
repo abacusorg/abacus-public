@@ -7,10 +7,11 @@
 */
 
 void DriftCell(Cell c, FLOAT driftfactor) {
-    int e = c.count();
-	#pragma simd
-    for (int b = 0; b<e; b++) {
-	// Drift the position
+    int N = c.count();
+
+	//#pragma simd
+    for (int b = 0; b<N; b++) {
+        // Drift the position
         c.pos[b] += c.vel[b] * driftfactor;
     }
 }

@@ -31,18 +31,19 @@ void KickCell(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     FLOAT *acc = (FLOAT *)cellacc;	// These are flattened arrays, not triples.
 
     uint64 N = c.count()*3;
-	#pragma simd
+	//#pragma simd
+    // The maxvel/acc reduction precludes vectorization without -funsafe-math-optimizations
     for (uint64 i=0;i<N;i++) {
+        FLOAT _acc = fabs(acc[i]);
     	// First half kick, to get synchronous
-    	vel[i] += kick1 * acc[i];
+    	vel[i] += kick1 * _acc;
     	// Some simple stats
     	FLOAT _vel = fabs(vel[i]);
-    	FLOAT _acc = fabs(acc[i]);
     	if (_vel>maxvel) maxvel = _vel;
     	if (_acc>maxacc) maxacc = _acc;
     	sumvel2 += _vel*_vel;
     	// Second half kick, to advance to time i+1/2
-    	vel[i] += kick2 * acc[i];
+    	vel[i] += kick2 * _acc;
     }
 
     if (c.count()>0) sumvel2/=c.count();  // Now this has the mean square velocity 
@@ -81,7 +82,7 @@ void RescaleAndCoAddAcceleration(int slab) {
     
     uint64 N = Slab->size(slab)*3;
     
-    #pragma simd
+    //#pragma simd
     for (uint64 j=0; j<N;j++) {
         faccxyz[j] += naccxyz[j];
         faccxyz[j] *= rescale;
