@@ -31,19 +31,19 @@ void KickCell(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     FLOAT *acc = (FLOAT *)cellacc;	// These are flattened arrays, not triples.
 
     uint64 N = c.count()*3;
-	//#pragma simd
+    //#pragma simd
     // The maxvel/acc reduction precludes vectorization without -funsafe-math-optimizations
     for (uint64 i=0;i<N;i++) {
+        // First half kick, to get synchronous
+        vel[i] += kick1 * acc[i];
+        // Some simple stats
+        FLOAT _vel = fabs(vel[i]);
         FLOAT _acc = fabs(acc[i]);
-    	// First half kick, to get synchronous
-    	vel[i] += kick1 * _acc;
-    	// Some simple stats
-    	FLOAT _vel = fabs(vel[i]);
-    	if (_vel>maxvel) maxvel = _vel;
-    	if (_acc>maxacc) maxacc = _acc;
-    	sumvel2 += _vel*_vel;
-    	// Second half kick, to advance to time i+1/2
-    	vel[i] += kick2 * _acc;
+        if (_vel>maxvel) maxvel = _vel;
+        if (_acc>maxacc) maxacc = _acc;
+        sumvel2 += _vel*_vel;
+        // Second half kick, to advance to time i+1/2
+        vel[i] += kick2 * acc[i];
     }
 
     if (c.count()>0) sumvel2/=c.count();  // Now this has the mean square velocity 
@@ -55,17 +55,17 @@ void KickCell(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
 
 
 void KickSlab(int slab, FLOAT kick1, FLOAT kick2,
-	void (*KickCell)(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2)) {
+void (*KickCell)(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2)) {
     accstruct *acc = (accstruct *) LBW->ReturnIDPtr(AccSlab,slab);
     int cpd = PP->cpd;
     for (int y=0;y<cpd;y++) {
 
-	#pragma omp parallel for schedule(dynamic,1) 
-	for (int z=0;z<cpd;z++) {
-	    Cell c = PP->GetCell(slab, y, z);
-	    accstruct *cellacc = acc+c.ci->startindex;
-	    (*KickCell)(c,cellacc,kick1,kick2);
-	}
+        #pragma omp parallel for schedule(dynamic,1) 
+        for (int z=0;z<cpd;z++) {
+            Cell c = PP->GetCell(slab, y, z);
+            accstruct *cellacc = acc+c.ci->startindex;
+            (*KickCell)(c,cellacc,kick1,kick2);
+        }
 
     }
 }
