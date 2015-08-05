@@ -1,4 +1,4 @@
--include ../Makefile.local
+-include Makefile.local
 
 VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich
 
