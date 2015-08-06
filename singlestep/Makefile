@@ -26,7 +26,7 @@ GEN_OBJ = ETASM.o CMASM.o Cartesian2Reduced.a
 
 VPATH = Direct : Multipoles
 
-singlestep: singlestep.o $(GEN_OBJ) gpudirect.o | singlestep.d 
+singlestep: singlestep.o $(GEN_OBJ) gpudirect.a | singlestep.d 
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ $< $(LIBS)
 
 singlestep.d: singlestep.cpp
@@ -37,7 +37,7 @@ include singlestep.d
 singlestep.o: singlestep.cpp Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS)  -c -o $@ $<
 
-gpudirect.o:
+gpudirect.a:
 	cd Direct && $(MAKE)
 
 $(GEN_OBJ):
