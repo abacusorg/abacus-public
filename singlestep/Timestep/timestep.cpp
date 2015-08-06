@@ -282,6 +282,7 @@ int DriftPrecondition(int slab) {
 
 void DriftAction(int slab) {
     int step = LPTStepNumber();
+    JJ->CleanupSlab(slab);
     if (step) {
         // We have LPT IC work to do
         if (step==1) {

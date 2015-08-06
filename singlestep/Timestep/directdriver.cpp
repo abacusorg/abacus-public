@@ -8,6 +8,7 @@ class NearFieldDriver{
 
         void ExecuteSlab(int slabID, int blocking);
         int SlabDone(int slabID);
+        void CleanupSlab(int slabID);
         uint64 DirectInteractions_CPU;
         uint64 DirectInteractions_GPU();
 
@@ -68,9 +69,10 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
         cellinfo * SlabCI = (cellinfo *) LBW->ReturnIDPtr(CellInfoSlab,sid);
         SlabNP[i] = Slab->size(sid);
         SlabPos[i] = (posstruct *) LBW->ReturnIDPtr(PosSlab,sid);
+        PinSlab(SlabPos[i],sid,SlabNP[i],P.cpd);
 
-        CellStart[i] = (int *) malloc(P.cpd* P.cpd *sizeof(int));
-        CellNP[i] = (int *) malloc(P.cpd* P.cpd *sizeof(int));
+        CellStart[i] = GetCellStart(P.cpd,i);
+        CellNP[i] = GetCellNP(P.cpd,i);
 
         #pragma omp parallel for schedule(dynamic,1)
         for(int y = 0; y <P.cpd*P.cpd;y++){
@@ -83,10 +85,6 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
         }
     }
     SetupGPU(SlabIDs,SlabPos,SlabNP,CellStart,CellNP,P.cpd);
-    for(int i = 0; i < WIDTH; i++){
-        free(CellStart[i]);
-        free(CellNP[i]);
-    }
 
     DeviceAcceleration((accstruct *)LBW->ReturnIDPtr(NearAccSlab,slabID), slabID, Slab->size(slabID),
             P.cpd, P.SofteningLength*P.SofteningLength, slabcomplete+slabID, blocking,pred);
@@ -177,12 +175,21 @@ void NearFieldDriver::ExecuteSlab(int slabID, int blocking){
         }
 }
 
+void NearFieldDriver::CleanupSlab(int slab){
+#ifdef CUDADIRECT
+    if(!P.ForceCPU) UnpinSlab((accstruct *)LBW->ReturnIDPtr(PosSlab,slab),slab);
+#endif
+}
+
 
 int NearFieldDriver::SlabDone(int slab){
     slab = PP->WrapSlab(slab);
     if (slabcomplete[slab] == 1) {
         #ifdef CUDADIRECT
-        if(!P.ForceCPU) DeviceSlabCleanUp((accstruct *)LBW->ReturnIDPtr(NearAccSlab,slab));
+        if(!P.ForceCPU) {
+            DeviceSlabCleanUp((accstruct *)LBW->ReturnIDPtr(NearAccSlab,slab));
+        }
+
         #endif
         slabcomplete[slab] = 2;
     }
