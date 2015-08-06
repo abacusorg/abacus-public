@@ -2,22 +2,20 @@
 #define INCLUDE_FACTORIAL
 
 double fact(int n) {
-    double f = 1.0;
+    uint64 f = 1;  // Do this as an int to get GCC vectorization
     for(int i=2;i<=n;i++) f *= i;
-    return f;
+    return (double) f;
 }
 
 double fact2(int n) {
-    double f;
+    uint64 f;
     int i;
-
-    f = 1.0;
-    i = n;
-    while(i>0) {
-        f = f*i;
-        i -= 2;
-    }
-    return f;
+    
+    f = 1;
+    for(int i = n; i > 0; i -= 2)
+        f *= i;
+    
+    return (double) f;
 }
 
 

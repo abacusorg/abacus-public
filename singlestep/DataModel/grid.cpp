@@ -74,8 +74,8 @@ public:
         while(c.x>=cpd) c.x -= cpd; while(c.x<0) c.x += cpd;
         while(c.y>=cpd) c.y -= cpd; while(c.y<0) c.y += cpd;
         while(c.z>=cpd) c.z -= cpd; while(c.z<0) c.z += cpd;
-    assertf(c.x < cpd && c.y < cpd && c.z < cpd, "Wrapped cell index (%d, %d, %d) >= cpd (%d)\n", c.x, c.y, c.z, cpd);
-    assertf(c.x >= 0 && c.y >= 0 && c.z >= 0, "Wrapped cell index (%d, %d, %d) < 0\n", c.x, c.y, c.z);
+    //assertf(c.x < cpd && c.y < cpd && c.z < cpd, "Wrapped cell index (%d, %d, %d) >= cpd (%d)\n", c.x, c.y, c.z, cpd);
+    //assertf(c.x >= 0 && c.y >= 0 && c.z >= 0, "Wrapped cell index (%d, %d, %d) < 0\n", c.x, c.y, c.z);
 	return c;
     }
     inline integer3 WrapCell(integer3 ijk) {

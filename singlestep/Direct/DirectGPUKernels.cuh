@@ -18,11 +18,12 @@ __device__ __inline__ void direct(
 
     r *=r*r;
 
+    // Cubic spline from Hernquist & Katz, ApjS Vol 70 p 419, 1989?
     if(u >= (FLOAT)(2.0))
         spf = r;
     else if (u >= (FLOAT)(1.0)){
         spf = r * ( (FLOAT)(-1.0/15.0)              +
-                    (FLOAT)(8.0/15.0)*  u*u*u       -
+                    (FLOAT)(8.0/3.0)*   u*u*u       -
                     (FLOAT)(3.0) *      u*u*u*u     +
                     (FLOAT)(6.0/5.0)*   u*u*u*u*u   -
                     (FLOAT)(1.0/6.0)*   u*u*u*u*u*u);

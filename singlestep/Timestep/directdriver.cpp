@@ -28,7 +28,9 @@ class NearFieldDriver{
 
 
 NearFieldDriver::NearFieldDriver(){
-    DD = new Direct[omp_get_max_threads()];
+    int nthread = omp_get_max_threads();
+    STDLOG(1,"Initializing NearFieldDriver with %d OMP threads (OMP is aware of %d procs).\n",nthread, omp_get_num_procs());
+    DD = new Direct[nthread];
     DirectInteractions_CPU = 0;
 
     assert(NFRADIUS==P.NearFieldRadius);
@@ -137,6 +139,7 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
     #pragma omp parallel for schedule(dynamic,1) reduction(+:DI_slab)
     for(int y = 0; y < P.cpd; y++){
         int g = omp_get_thread_num();
+        //STDLOG(1,"Executing directs on pencil y=%d in slab %d, in OMP thread %d on CPU %d (nprocs: %d)\n", y, slabID, g, sched_getcpu(), omp_get_num_procs());
         for(int z = 0; z < P.cpd; z++){
             if(predicate != NULL && !predicate[y*P.cpd +z]) continue;
             posstruct * sink_pos = PP->PosCell(slabID,y,z);

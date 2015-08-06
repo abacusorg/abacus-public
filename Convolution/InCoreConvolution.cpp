@@ -60,7 +60,8 @@ unsigned long long int InCoreConvolution::ConvolutionArithmeticCount(void) {
 }
 
 void MVM(Complex *t, Complex *m, double *d, int n) { 
-    #pragma simd
+    //#pragma simd
+    // __builtin_assume_aligned
     #pragma vector aligned
     for(int i=0;i<n;i++) t[i] += m[i] * d[i]; 
 }
