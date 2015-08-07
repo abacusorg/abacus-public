@@ -97,7 +97,6 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 void NearFieldDriver::CheckGPUCPU(int slabID){
 // Computes the CPU result to compare to the GPU result
 // but does not overwrite the GPU forces.
-#ifndef DIRECTSPLINE // Spline softening isn't implemented for the CPU yet, so it doesn't make sense to compare the two
     size_t len = Slab->size(slabID) *sizeof(accstruct);
     accstruct * a_cpu = (accstruct *)malloc(len);
     accstruct * a_tmp = (accstruct *)malloc(len);
@@ -121,12 +120,18 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
         if(!(delta < target)){
             printf("Error in slab %d:\n\ta_gpu[%d]: (%5.4f,%5.4f,%5.4f)\n\ta_cpu[%d]: (%5.4f,%5.4f,%5.4f)\n\tdelta:%f\n",
                     slabID,i,ai_g.x,ai_g.y,ai_g.z,i,ai_c.x,ai_c.y,ai_c.z,delta);
-            //assert(delta < target);
+            assert(delta < target);
         }
+        assert(isfinite(ai_g.x));
+        assert(isfinite(ai_g.y));
+        assert(isfinite(ai_g.z));
+
+        assert(isfinite(ai_c.x));
+        assert(isfinite(ai_c.y));
+        assert(isfinite(ai_c.z));
     }
     free(a_cpu);
     free(a_tmp);
-#endif
 }
 
 void NearFieldDriver::ExecuteSlabCPU(int slabID){

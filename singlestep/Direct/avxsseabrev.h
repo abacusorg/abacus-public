@@ -78,6 +78,11 @@
 
 #define VANDPS(reg1, reg2, dst)      asm("vandps " reg1 "," reg2 "," dst);
 #define VCMPPS(reg1, reg2, dst, imm) asm("vcmpps %0, %" reg1 ", %" reg2 ", %" dst " "::"g"(imm));
+#define VCMPPD(reg1, reg2, dst, imm) asm("vcmppd %0, %" reg1 ", %" reg2 ", %" dst " "::"g"(imm));
+
+#define VBLENDVPD(reg1, reg2, reg3, dst) asm("vblendvpd " reg1 "," reg2 "," reg3 "," dst);
+
+#define VBLENDVPS(reg1, reg2, reg3, dst) asm("vblendvps " reg1 "," reg2 "," reg3 ","  dst);
 
 #define PREFETCH(mem)            asm ("prefetcht0 %0"::"m"(mem))
 

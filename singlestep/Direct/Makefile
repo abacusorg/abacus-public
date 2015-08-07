@@ -13,9 +13,9 @@ ILP = 1
 Unroll = 1
 Tilesize = $(shell echo $(Blocksize)\*$(Tile) | bc)
 
-OPTIONS=-DDirectNT=$(Blocksize) -DDirectCPT=$(Tile) -DPTXDIRECT
-KERNELPTXFLAGS=-v -g -O1 --compile-only  -maxrregcount=54 --generate-line-info
-PTXFLAGS= -v -O1 -g --compile-only  -maxrregcount=54 --generate-line-info
+OPTIONS=-DDirectNT=$(Blocksize) -DDirectCPT=$(Tile) #-DPTXDIRECT
+KERNELPTXFLAGS=-v -O1 --compile-only  -maxrregcount=54 --generate-line-info
+PTXFLAGS= -v -O1 --compile-only  -maxrregcount=54 --generate-line-info
 CUDASM= sm_35
 CUDAFLAGS= $(OPTIONS) $(GLOBALVERSIONFLAGS) -m64 -arch compute_35 -code $(CUDASM) -Xcompiler -fpic -Xptxas="$(PTXFLAGS)"
 
