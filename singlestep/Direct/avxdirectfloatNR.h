@@ -8,14 +8,14 @@ public:
 private:
   void storejpdata(int nsrc, ThreeVector<float> *psrc);
 
-  void KernelAccPot(ipstruct<float> *ipdata, jpstruct<float> *jpdata, int nsrc,
-                      ipstruct<float> *deltas, float eps2, apstruct<float> *accdata);
+  void KernelAccPot(ipstruct<float,8> *ipdata, jpstruct<float> *jpdata, int nsrc,
+                      ipstruct<float,8> *deltas, float eps2, apstruct<float,8> *accdata);
 
   int maxsrc;
   jpstruct<float> *jpdata;
-  ipstruct<float> *ipdata;
-  ipstruct<float> *deltas;
-  apstruct<float> *accdata;
+  ipstruct<float,8> *ipdata;
+  ipstruct<float,8 > *deltas;
+  apstruct<float,8> *accdata;
 };
 
 

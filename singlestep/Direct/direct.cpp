@@ -1,6 +1,11 @@
 #ifdef AVXDIRECT
+    #ifdef DIRECTSPLINE
+    #include "avxdirectdouble_spline.cc"
+    #include "avxdirectfloatNR_spline.cc"
+    #else
     #include "avxdirectdouble.cc"
     #include "avxdirectfloatNR.cc"
+    #endif
 #endif
 
 
@@ -15,10 +20,6 @@ Direct::~Direct(void) { }
 
 void Direct::AVXExecute(FLOAT3 *sinks, FLOAT3 *sources, int nsinks, int nsources, FLOAT3 delta, FLOAT eps2, FLOAT3 *SA) {
     #ifdef AVXDIRECT
-        #ifdef DIRECTSPLINE
-            #error "Spline softening is not implemented in AVX yet."
-        #endif
-    
         #ifdef DOUBLEPRECISION
             directdouble->compute(nsources, sources, nsinks, sinks, delta, eps2, SA);
         #else  
@@ -30,16 +31,16 @@ void Direct::AVXExecute(FLOAT3 *sinks, FLOAT3 *sources, int nsinks, int nsources
     #endif
 }
 
+#include "DirectCPUKernels.cc"
+
 void Direct::Execute(FLOAT3 *sinks, FLOAT3 *sources, int nsinks, int nsources, FLOAT3 delta, FLOAT eps2, FLOAT3 *SA) {
     for(int q=0;q<nsinks;q++) {
         FLOAT3 acc = FLOAT3(0);
-        FLOAT3 x = delta+sinks[q];
+        FLOAT3 sink = delta+sinks[q];
+        #pragma simd
         for(int p=0;p<nsources;p++) {
-            FLOAT3 rr = sources[p] - x;
-            double ir = 1.0/sqrt(rr.norm2() + eps2);
-            double ir3 = ir*ir*ir;
-            acc -= ir3*rr;
-        }
+            directkernel<0>(sink,sources[p],acc,eps2);
+        }     
         SA[q] += acc;
     }
 }

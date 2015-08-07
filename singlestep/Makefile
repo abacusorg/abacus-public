@@ -1,8 +1,8 @@
 #export CXX = icc  -openmp-stubs -pthread -liomp5 #-xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
 export CXX = g++ -fopenmp -lgomp --std=c++0x
-export GLOBALVERSIONFLAGS = -DFLOATPRECISION -DNFRADIUS=2 #-DDIRECTSPLINE
+export GLOBALVERSIONFLAGS = -DFLOATPRECISION -DNFRADIUS=2 -DDIRECTSPLINE
 export VERSIONFLAGS = $(GLOBALVERSIONFLAGS) -march=native -mavx -DAVXMULTIPOLES\
-	       -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -O3 -DIOTHREADED  -DAVXDIRECT #-ggdb3 #-DCUDADIRECT
+	       -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -DIOTHREADED  -DAVXDIRECT -O0 -ggdb3 -DCUDADIRECT
 export CXXFLAGS= -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) -Wformat=0
 # Could add -DGLOBALPOS here to switch the code to global positions.
 # Use -DDIRECTSPLINE for spline softening
@@ -18,7 +18,7 @@ LIBS =  -L../ParseHeader -lparseheader  -lfftw3 -lm -ltbb\
 	Multipoles/ETASM.o Multipoles/CMASM.o Multipoles/Cartesian2Reduced.a
     
 ifneq ($(DISABLE_GPU),1)
-LIBS += Direct/gpudirect.o -L/usr/local/cuda/lib64 -lcudart
+LIBS += Direct/gpudirect.a -L/usr/local/cuda/lib64 -lcudart
 endif
 
 
@@ -26,7 +26,7 @@ GEN_OBJ = ETASM.o CMASM.o Cartesian2Reduced.a
 
 VPATH = Direct : Multipoles
 
-singlestep: singlestep.o $(GEN_OBJ) gpudirect.o | singlestep.d 
+singlestep: singlestep.o $(GEN_OBJ) gpudirect.a | singlestep.d 
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ $< $(LIBS)
 
 singlestep.d: singlestep.cpp
@@ -37,7 +37,7 @@ include singlestep.d
 singlestep.o: singlestep.cpp Makefile
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS)  -c -o $@ $<
 
-gpudirect.o:
+gpudirect.a:
 	cd Direct && $(MAKE)
 
 $(GEN_OBJ):

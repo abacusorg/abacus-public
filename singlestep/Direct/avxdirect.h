@@ -3,13 +3,13 @@ template <typename U>
         U x, y, z, m;
     };
 
-    template <typename U>
+    template <typename U, int size>
     struct ipstruct {
-        U x[4], y[4], z[4], eps2[4];
+        U x[size], y[size], z[size], eps2[size];
     };
 
-    template <typename U>
+    template <typename U,int size>
     struct apstruct {
-        U x[4], y[4], z[4], pot[4];
+        U x[size], y[size], z[size], pot[size];
     };
 
