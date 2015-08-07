@@ -329,7 +329,7 @@ void CreateC2R(int order) {
     fclose(fp);
 
     char cmd[1024];
-    sprintf(cmd,"g++ -O -c %s", fn); 
+    sprintf(cmd,"g++ -O1 -c %s", fn); 
     int rv = system(cmd);
     assert(rv!=-1);
 }
