@@ -27,8 +27,11 @@
 #define accstruct FLOAT3
 #endif
 
-#include "header.cpp"
+#ifdef CUDADIRECT
 #include "DeviceFunctions.h"
+#endif
+
+#include "header.cpp"
 #include "direct.h"
 #include "direct.cpp"
 
@@ -202,7 +205,7 @@ void BenchmarkGPU(FLOAT3 ** pos, int ** c_start, int ** c_np, FLOAT3 ** acc,
         int cpd, int nslabs,
         int *NPslab,
         FLOAT eps ){
-    
+#ifdef CUDADIRECT
     printf("\tRunning GPU benchmark...\n");
     STimer wc;
     wc.Clear();
@@ -217,6 +220,9 @@ void BenchmarkGPU(FLOAT3 ** pos, int ** c_start, int ** c_np, FLOAT3 ** acc,
     //printf("\t\tGPU reports %lld DI for slabs %d - %d\n",GPUDI,NFR,nslabs-NFR-1);
     wc.Stop();
     printf("\t\tDone.\n");
+#else
+    printf("\tNot compiled with CUDA directs; skipping GPU benchmark.\n");
+#endif
 }
 
 void BenchmarkCPU(FLOAT3 ** pos, int ** c_start, int ** c_np, FLOAT3 ** acc,

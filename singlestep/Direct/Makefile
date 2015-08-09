@@ -17,7 +17,7 @@ OPTIONS=-DDirectNT=$(Blocksize) -DDirectCPT=$(Tile) #-DPTXDIRECT
 KERNELPTXFLAGS=-v -O1 --compile-only  -maxrregcount=54 --generate-line-info
 PTXFLAGS= -v -O1 --compile-only  -maxrregcount=54 --generate-line-info
 CUDASM= sm_35
-CUDAFLAGS= $(OPTIONS) $(GLOBALVERSIONFLAGS) -m64 -arch compute_35 -code $(CUDASM) -Xptxas="$(PTXFLAGS)" -Xcompiler -fpic,-DCUDADIRECT,-O3,-march=native,-mavx
+CUDAFLAGS= $(OPTIONS) $(GLOBALVERSIONFLAGS) -m64 -arch compute_35 -code $(CUDASM) -Xptxas="$(PTXFLAGS)" -Xcompiler -fpic,-O3,-march=native,-mavx
 
 gpudirect: gpudirect.a gpudirect.d bench
 
