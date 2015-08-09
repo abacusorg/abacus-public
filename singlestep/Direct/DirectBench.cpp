@@ -162,6 +162,8 @@ void ExecuteSlabCPU(int slabID, int * predicate,
 }
 int slabcomplete[WIDTH];
 
+int GPUMinCellSinks = 0;
+
 void ExecuteSlabGPU(FLOAT3 ** pos, int ** c_start, int ** c_np,int cpd,int slabID, int *NPslab, FLOAT3 * acc,FLOAT eps){
     #ifdef CUDADIRECT
     int * CellStart[WIDTH];
