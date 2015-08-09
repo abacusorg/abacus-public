@@ -2,7 +2,7 @@
 export CXX = g++ -fopenmp -lgomp --std=c++0x
 export GLOBALVERSIONFLAGS = -DFLOATPRECISION -DNFRADIUS=2 -DDIRECTSPLINE
 export VERSIONFLAGS = $(GLOBALVERSIONFLAGS) -march=native -mavx -DAVXMULTIPOLES\
-	       -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -DIOTHREADED  -DAVXDIRECT -O0 -ggdb3 -DCUDADIRECT
+	       -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -DIOTHREADED  -DAVXDIRECT -O3 -DCUDADIRECT #-ggdb3
 export CXXFLAGS= -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) -Wformat=0
 # Could add -DGLOBALPOS here to switch the code to global positions.
 # Use -DDIRECTSPLINE for spline softening
@@ -43,6 +43,8 @@ gpudirect.a:
 $(GEN_OBJ):
 	cd Multipoles && $(MAKE) $@
 
+bench:
+	cd Direct && $(MAKE) $@
 
 clean:
 	cd Direct && $(MAKE) $@

@@ -17,9 +17,9 @@ OPTIONS=-DDirectNT=$(Blocksize) -DDirectCPT=$(Tile) #-DPTXDIRECT
 KERNELPTXFLAGS=-v -O1 --compile-only  -maxrregcount=54 --generate-line-info
 PTXFLAGS= -v -O1 --compile-only  -maxrregcount=54 --generate-line-info
 CUDASM= sm_35
-CUDAFLAGS= $(OPTIONS) $(GLOBALVERSIONFLAGS) -m64 -arch compute_35 -code $(CUDASM) -Xcompiler -fpic -Xptxas="$(PTXFLAGS)"
+CUDAFLAGS= $(OPTIONS) $(GLOBALVERSIONFLAGS) -m64 -arch compute_35 -code $(CUDASM) -Xptxas="$(PTXFLAGS)" -Xcompiler -fpic,-DCUDADIRECT,-O3,-march=native,-mavx
 
-gpudirect: gpudirect.a gpudirect.d
+gpudirect: gpudirect.a gpudirect.d bench
 
 gpudirect.d:
 	$(CUDACC) -E -Xcompiler "-isystem $(CUDA_INSTALL_PATH)/include -MM" -o $@ $(CUDASRC)
@@ -58,12 +58,17 @@ devkernel.o: gpudirect.dev.o ASMDirectTile.o
 gpudirect.a: devkernel.o gpudirect.dev.o ASMDirectTile.o
 	$(CUDACC) $(CUDAFLAGS) -lib $^ -o $@
 
+bench: DirectBench.cpp gpudirect.a
+	$(CUDACC) $(CUDAFLAGS) -I$(ABACUS)/include $^ -o DirectBench -lm -lgsl -lgslcblas -Xcompiler -fopenmp
+	#./DirectBench 147 42 5 1
+	#./DirectBench 275 125 40 2
+
 endif
 
 clean:
-	rm -f *.o
+	rm -f *.o DirectBench
 
 distclean:
-	rm -f *.o *.d *.a
+	rm -f *.o *.d *.a DirectBench
 
 .PHONY: clean distclean gpudirect
