@@ -1,8 +1,8 @@
 #export CXX = icc  -openmp-stubs -pthread -liomp5 #-xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
 export CXX = g++ -fopenmp -lgomp --std=c++0x
-export GLOBALVERSIONFLAGS = -DFLOATPRECISION -DNFRADIUS=2 -DDIRECTSPLINE
-export VERSIONFLAGS = $(GLOBALVERSIONFLAGS) -march=native -mavx -DAVXMULTIPOLES\
-	       -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -DIOTHREADED  -DAVXDIRECT -O0 -ggdb3 -DCUDADIRECT
+export GLOBALVERSIONFLAGS = -DFLOATPRECISION -DNFRADIUS=2 -DAVXMULTIPOLES -DDIRECTSPLINE\
+           -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -DIOTHREADED -DAVXDIRECT -DCUDADIRECT
+export VERSIONFLAGS = $(GLOBALVERSIONFLAGS) -march=native -mavx -O3 -ggdb3
 export CXXFLAGS= -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) -Wformat=0
 # Could add -DGLOBALPOS here to switch the code to global positions.
 # Use -DDIRECTSPLINE for spline softening
@@ -14,7 +14,7 @@ CPPFLAGS = -I ../include -I ../Derivatives -I ../ParseHeader -I../Convolution\
 	   -I/usr/local/cuda/include
 
 
-LIBS =  -L../ParseHeader -lparseheader -lfftw3_omp -lfftw3 -ltbb\
+LIBS =  -L../ParseHeader -lparseheader  -lfftw3 -lm -ltbb\
 	Multipoles/ETASM.o Multipoles/CMASM.o Multipoles/Cartesian2Reduced.a
     
 ifneq ($(DISABLE_GPU),1)
@@ -43,13 +43,17 @@ gpudirect.a:
 $(GEN_OBJ):
 	cd Multipoles && $(MAKE) $@
 
+bench:
+	cd Direct && $(MAKE) $@
 
 clean:
 	cd Direct && $(MAKE) $@
+	cd Multipoles && $(MAKE) $@
 	-$(RM) *.o *.d
 
 distclean:
 	cd Direct && $(MAKE) $@
+	cd Multipoles && $(MAKE) $@
 	-$(RM) *.o *.d singlestep
 
 

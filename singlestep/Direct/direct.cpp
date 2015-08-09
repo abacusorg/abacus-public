@@ -37,7 +37,7 @@ void Direct::Execute(FLOAT3 *sinks, FLOAT3 *sources, int nsinks, int nsources, F
     for(int q=0;q<nsinks;q++) {
         FLOAT3 acc = FLOAT3(0);
         FLOAT3 sink = delta+sinks[q];
-        #pragma simd
+        //#pragma simd
         for(int p=0;p<nsources;p++) {
             directkernel<0>(sink,sources[p],acc,eps2);
         }     

@@ -1,4 +1,4 @@
-CXX=g++ -O -DAVXMULTIPOLES
+CXX=g++ -O1 -DAVXMULTIPOLES
 INCLUDES=-I../../include
 
 ETASM.o: cartesian2reduced.cpp
