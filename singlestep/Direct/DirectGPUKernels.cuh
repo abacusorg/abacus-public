@@ -3,7 +3,7 @@ template<int R>
 __device__ __inline__ void direct(
         FLOAT   &sinkx,     FLOAT &sinky,    FLOAT &sinkz,
         FLOAT   &sourcex,   FLOAT &sourcey,  FLOAT &sourcez,
-        FLOAT3   &a,
+        FLOAT &ax, FLOAT &ay, FLOAT &az,
         FLOAT &eps2){
 
     FLOAT drx, dry, drz, r,u,spf;
@@ -34,9 +34,9 @@ __device__ __inline__ void direct(
                 (FLOAT)(1.0/2.0)*   u*u*u);
     }
 
-    a.x -= spf*drx;
-    a.y -= spf*dry;
-    a.z -= spf*drz;
+    ax -= spf*drx;
+    ay -= spf*dry;
+    az -= spf*drz;
 }
 
 #else
@@ -44,7 +44,7 @@ template <int R>
 __device__ __inline__ void direct(
         FLOAT   &sinkx,     FLOAT &sinky,    FLOAT &sinkz,
         FLOAT   &sourcex,   FLOAT &sourcey,  FLOAT &sourcez,
-        FLOAT3   &a,
+        FLOAT &ax, FLOAT &ay, FLOAT &az,
         FLOAT &eps2){
 
     FLOAT drx, dry, drz, r;
@@ -55,9 +55,9 @@ __device__ __inline__ void direct(
     r = RSQRT( drx*drx + dry*dry + drz*drz  + eps2);
     r *=r*r;//*source.w;// * r * r * r;
 
-    a.x -= r * drx;
-    a.y -= r * dry;
-    a.z -= r * drz;
+    ax -= r * drx;
+    ay -= r * dry;
+    az -= r * drz;
 
 }
 #endif

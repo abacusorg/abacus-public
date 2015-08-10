@@ -61,10 +61,10 @@ ld.param.b64 addr,[pa_x];
 ld.f32 a_x,[addr];
 
 ld.param.b64 addr,[pa_y];
-ld.f32 a_x,[addr];
+ld.f32 a_y,[addr];
 
 ld.param.b64 addr,[pa_z];
-ld.f32 a_x,[addr];
+ld.f32 a_z,[addr];
 
 ld.param.b64 cache_x,[pcache_x];
 ld.param.b64 cache_y,[pcache_y];
@@ -145,11 +145,11 @@ epilogue = '''
 ld.param.b64 addr,[pa_x];
 st.f32 [addr],a_x;
 
-ld.param.b64 addr,[pa_x];
-st.f32 [addr],a_x;
+ld.param.b64 addr,[pa_y];
+st.f32 [addr],a_y;
 
-ld.param.b64 addr,[pa_x];
-st.f32 [addr],a_x;
+ld.param.b64 addr,[pa_z];
+st.f32 [addr],a_z;
 
 ret;
 }

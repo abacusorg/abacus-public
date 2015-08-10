@@ -1,8 +1,8 @@
 AVXDirectDouble::AVXDirectDouble(int maxsrc) : maxsrc(maxsrc) {
     assert( posix_memalign((void **)&jpdata,  64, sizeof(jpstruct<double>)*maxsrc)     == 0 );
-    assert( posix_memalign((void **)&ipdata,  64, sizeof(ipstruct<double>))  == 0 );
-    assert( posix_memalign((void **)&deltas,  64, sizeof(ipstruct<double>))  == 0 );
-    assert( posix_memalign((void **)&accdata, 64, sizeof(apstruct<double>)) == 0 );
+    assert( posix_memalign((void **)&ipdata,  64, sizeof(ipstruct<double,4>))  == 0 );
+    assert( posix_memalign((void **)&deltas,  64, sizeof(ipstruct<double,4>))  == 0 );
+    assert( posix_memalign((void **)&accdata, 64, sizeof(apstruct<double,4>)) == 0 );
 }
 
 AVXDirectDouble::~AVXDirectDouble() {
@@ -91,9 +91,9 @@ void AVXDirectDouble::compute(int nsrc, ThreeVector<double> *psrc,
 #define ALIGN64 __attribute__ ((aligned(64)))
 
 // do one xj on four xi's per loop
-void AVXDirectDouble::KernelAccPot(ipstruct<double> *ipdata, jpstruct<double> *jpdata, int nsrc, 
-                                     ipstruct<double> *deltas, double eps2, 
-                                     apstruct<double> *accdata) {
+void AVXDirectDouble::KernelAccPot(ipstruct<double,4> *ipdata, jpstruct<double> *jpdata, int nsrc, 
+                                     ipstruct<double,4> *deltas, double eps2, 
+                                     apstruct<double,4> *accdata) {
     int j;
 
     double threehalf ALIGN64;
