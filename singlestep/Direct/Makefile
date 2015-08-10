@@ -58,7 +58,6 @@ devkernel.o: gpudirect.dev.o ASMDirectTile.o
 gpudirect.a: devkernel.o gpudirect.dev.o ASMDirectTile.o
 	$(CUDACC) $(CUDAFLAGS) -lib $^ -o $@
 
-<<<<<<< HEAD
 BENCHOPTIONS= -DNFRADIUS=2 -DGPUMinCellSinks=20 -DMAXSOURCELENGTH=1048576\
 	      -DAVXDIRECT  -DFLOATPRECISION -DCUDADIRECT\
 	      -I../../include\
@@ -66,12 +65,12 @@ BENCHOPTIONS= -DNFRADIUS=2 -DGPUMinCellSinks=20 -DMAXSOURCELENGTH=1048576\
 
 DirectBench: DirectBench.cpp gpudirect.a
 	g++ $< -o $@ $(BENCHOPTIONS) gpudirect.a -L/usr/local/cuda/lib64 -lcudart -lfftw3 -lgsl -lgslcblas -lstdc++ -lgomp
-=======
-bench: DirectBench.cpp gpudirect.a
-	$(CUDACC) $(CUDAFLAGS) -I$(ABACUS)/include $^ -o DirectBench -lm -lgsl -lgslcblas -Xcompiler -fopenmp
+#=======
+#bench: DirectBench.cpp gpudirect.a
+#	$(CUDACC) $(CUDAFLAGS) -I$(ABACUS)/include $^ -o DirectBench -lm -lgsl -lgslcblas -Xcompiler -fopenmp
 	#./DirectBench 147 42 5 1
 	#./DirectBench 275 125 40 2
->>>>>>> 7bc239ef295aa27c75fa2d63dd0be7fb8ebed7a2
+#>>>>>>> 7bc239ef295aa27c75fa2d63dd0be7fb8ebed7a2
 
 endif
 
