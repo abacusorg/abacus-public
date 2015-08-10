@@ -173,6 +173,10 @@ void ReportTimings(FILE * timingfile) {
 	fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
     REPORT(1, "Finish", Finish.Elapsed()); total += thistime;
 	fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
+#ifdef CUDADIRECT
+    REPORT(1, "GPU Memory Unpinning", Unpinning.Elapsed()); total += thistime;
+	fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
+#endif
     REPORT(1, "Unaccounted (spinning?)", TimeStepWallClock.Elapsed()-total);
 
     fprintf(timingfile, "\n\n Breakdown per slab (Wall Clock)");

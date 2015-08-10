@@ -24,6 +24,8 @@ STimer NearForceDirects;
 STimer NearForceSetup;
 STimer NearForceDirectsOnly;
 
+STimer Unpinning;
+
 STimer *SlabForceTime;
 STimer *SlabForceLatency;
 STimer *SlabFarForceTime;
