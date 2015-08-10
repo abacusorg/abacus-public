@@ -24,6 +24,8 @@ STimer NearForceDirects;
 STimer NearForceSetup;
 STimer NearForceDirectsOnly;
 
+STimer Unpinning;
+
 STimer *SlabForceTime;
 STimer *SlabForceLatency;
 STimer *SlabFarForceTime;
@@ -239,7 +241,7 @@ void Epilogue(Parameters &P, bool ic) {
 
     if(!ic) {
         if(P.ForceOutputDebug){
-            #ifndef DIRECTSPLINE
+            #ifdef CUDADIRECT
             STDLOG(1,"Direct Interactions: CPU (%llu) and GPU (%llu)\n",
                         JJ->DirectInteractions_CPU,JJ->DirectInteractions_GPU());
             if(!(JJ->DirectInteractions_CPU == JJ->DirectInteractions_GPU())){

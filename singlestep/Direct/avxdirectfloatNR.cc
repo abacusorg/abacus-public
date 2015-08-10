@@ -118,9 +118,15 @@ void AVXDirectFloatNR::compute(int nsrc, ThreeVector<float> *psrc,
 #include "avxsseabrev.h"
 #define ALIGN64 __attribute__ ((aligned(64)))
 
+<<<<<<< HEAD
 void AVXDirectFloatNR::KernelAccPot(ipstruct<float,4> *ipdata, jpstruct<float> *jpdata, int nsrc, 
                                     ipstruct<float,4> *deltas, float eps2,
                                     apstruct<float,4> *accdata) {
+=======
+void AVXDirectFloatNR::KernelAccPot(ipstruct<float,8> *ipdata, jpstruct<float> *jpdata, int nsrc, 
+                                    ipstruct<float,8> *deltas, float eps2,
+                                    apstruct<float,8> *accdata) {
+>>>>>>> 7bc239ef295aa27c75fa2d63dd0be7fb8ebed7a2
     int j;
 
     float three ALIGN64;

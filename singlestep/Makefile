@@ -14,7 +14,7 @@ CPPFLAGS = -I ../include -I ../Derivatives -I ../ParseHeader -I../Convolution\
 	   -I/usr/local/cuda/include
 
 
-LIBS =  -L../ParseHeader -lparseheader -lfftw3_omp -lfftw3 -ltbb\
+LIBS =  -L../ParseHeader -lparseheader  -lfftw3 -lm -ltbb\
 	Multipoles/ETASM.o Multipoles/CMASM.o Multipoles/Cartesian2Reduced.a
     
 ifneq ($(DISABLE_GPU),1)
@@ -43,13 +43,17 @@ gpudirect.a:
 $(GEN_OBJ):
 	cd Multipoles && $(MAKE) $@
 
+bench:
+	cd Direct && $(MAKE) $@
 
 clean:
 	cd Direct && $(MAKE) $@
+	cd Multipoles && $(MAKE) $@
 	-$(RM) *.o *.d
 
 distclean:
 	cd Direct && $(MAKE) $@
+	cd Multipoles && $(MAKE) $@
 	-$(RM) *.o *.d singlestep
 
 

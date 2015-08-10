@@ -185,7 +185,11 @@ void NearFieldDriver::ExecuteSlab(int slabID, int blocking){
 
 void NearFieldDriver::CleanupSlab(int slab){
 #ifdef CUDADIRECT
-    if(!P.ForceCPU) UnpinSlab((accstruct *)LBW->ReturnIDPtr(PosSlab,slab),slab);
+    if(!P.ForceCPU){
+        Unpinning.Start();
+        UnpinSlab((accstruct *)LBW->ReturnIDPtr(PosSlab,slab),slab);
+        Unpinning.Stop();
+    }
 #endif
 }
 

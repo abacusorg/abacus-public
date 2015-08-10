@@ -55,6 +55,9 @@ util:
 
 tests:
 	cd Tests && $(MAKE) all	
+    
+bench:
+	cd singlestep && $(MAKE) $@
 
 powerspectrum:
 	cd Analysis/PowerSpectrum &&$(MAKE)
