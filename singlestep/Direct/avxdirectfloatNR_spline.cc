@@ -30,10 +30,6 @@ void AVXDirectFloatNR::compute(int nsrc, ThreeVector<float> *psrc,
                            float3 &delta, float eps2, 
                            ThreeVector<float> *pacc) {
     
-    float conpot = sqrt(2.0);
-
-
-    float conacc = conpot*conpot*conpot;
     
     eps2 = sqrt(eps2);
 

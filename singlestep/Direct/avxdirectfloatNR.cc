@@ -1,8 +1,8 @@
 AVXDirectFloatNR::AVXDirectFloatNR(int maxsrc) : maxsrc(maxsrc) {
     assert( posix_memalign((void **)&jpdata,  64, sizeof(jpstruct<float>)*maxsrc)     == 0 );
-    assert( posix_memalign((void **)&ipdata,  64, sizeof(ipstruct<float,8>))  == 0 );
-    assert( posix_memalign((void **)&deltas,  64, sizeof(ipstruct<float,8>))  == 0 );
-    assert( posix_memalign((void **)&accdata, 64, sizeof(apstruct<float,8>)) == 0 );
+    assert( posix_memalign((void **)&ipdata,  64, sizeof(ipstruct<float,4>))  == 0 );
+    assert( posix_memalign((void **)&deltas,  64, sizeof(ipstruct<float,4>))  == 0 );
+    assert( posix_memalign((void **)&accdata, 64, sizeof(apstruct<float,4>)) == 0 );
 
     for(int i=0;i<maxsrc;i++) {
         jpdata[i].x = 0;
@@ -118,9 +118,15 @@ void AVXDirectFloatNR::compute(int nsrc, ThreeVector<float> *psrc,
 #include "avxsseabrev.h"
 #define ALIGN64 __attribute__ ((aligned(64)))
 
+<<<<<<< HEAD
+void AVXDirectFloatNR::KernelAccPot(ipstruct<float,4> *ipdata, jpstruct<float> *jpdata, int nsrc, 
+                                    ipstruct<float,4> *deltas, float eps2,
+                                    apstruct<float,4> *accdata) {
+=======
 void AVXDirectFloatNR::KernelAccPot(ipstruct<float,8> *ipdata, jpstruct<float> *jpdata, int nsrc, 
                                     ipstruct<float,8> *deltas, float eps2,
                                     apstruct<float,8> *accdata) {
+>>>>>>> 7bc239ef295aa27c75fa2d63dd0be7fb8ebed7a2
     int j;
 
     float three ALIGN64;
