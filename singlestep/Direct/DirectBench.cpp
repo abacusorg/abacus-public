@@ -162,8 +162,6 @@ void ExecuteSlabCPU(int slabID, int * predicate,
 }
 int slabcomplete[WIDTH];
 
-int GPUMinCellSinks = 0;
-
 void ExecuteSlabGPU(FLOAT3 ** pos, int ** c_start, int ** c_np,int cpd,int slabID, int *NPslab, FLOAT3 * acc,FLOAT eps){
     #ifdef CUDADIRECT
     int * CellStart[WIDTH];
@@ -176,6 +174,9 @@ void ExecuteSlabGPU(FLOAT3 ** pos, int ** c_start, int ** c_np,int cpd,int slabI
     int SlabNP[WIDTH];
     int SlabIDs[WIDTH];
     FLOAT3 *SlabPos[WIDTH];
+    
+    STimer* GPUTimers = new STimer[GetNGPU()];
+    STimer* SetupGPUTimers = new STimer[4];
 
     for(int i = 0; i < WIDTH; i++){
         int sid = wrap(slabID+i-NFRADIUS);
@@ -195,10 +196,11 @@ void ExecuteSlabGPU(FLOAT3 ** pos, int ** c_start, int ** c_np,int cpd,int slabI
             #endif
         }
     }
-    SetupGPU(SlabIDs,SlabPos,SlabNP,CellStart,CellNP,cpd);
+    
+    SetupGPU(SlabIDs,SlabPos,SlabNP,CellStart,CellNP,cpd, SetupGPUTimers);
 
     DeviceAcceleration(acc, slabID, NPslab[slabID],
-            cpd, eps*eps, slabcomplete, 0,pred);
+            cpd, eps*eps, slabcomplete, 0,pred, GPUTimers);
     if(pred != NULL) ExecuteSlabCPU(slabID,pred,pos,c_start,c_np,cpd,acc,eps);
     #endif
 }
@@ -216,7 +218,7 @@ void BenchmarkGPU(FLOAT3 ** pos, int ** c_start, int ** c_np, FLOAT3 ** acc,
     for(int i = NFR; i < nslabs - NFR; i++){
 
         ExecuteSlabGPU(pos,c_start,c_np,cpd,i,NPslab, acc[i], eps);
-        UnpinSlab(pos[i],i);
+        UnpinSlab(pos[i],i);  // This blocks until the execution is finished
     }
     long long unsigned int GPUDI = DeviceGetDI();
     //printf("\t\tGPU reports %lld DI for slabs %d - %d\n",GPUDI,NFR,nslabs-NFR-1);

@@ -1,5 +1,8 @@
 //driver for directs
 
+#ifdef CUDADIRECT
+#include "DeviceFunctions.h"
+#endif
 
 class NearFieldDriver{
     public:
@@ -8,15 +11,23 @@ class NearFieldDriver{
 
         void ExecuteSlab(int slabID, int blocking);
         int SlabDone(int slabID);
+        int UnpinStatus(int slab);
+        void** FindUnpinnableSlabs();
         void CleanupSlab(int slabID);
         uint64 DirectInteractions_CPU;
         uint64 DirectInteractions_GPU();
+        uint64 DirectInteractions_GPU(int g);
+        uint64 NSink_CPU;
+        uint64 NSink_GPU();
+        uint64 NSink_GPU(int g);
 
     private:
         int *slabcomplete;
         int WIDTH;
         int RADIUS;
         Direct *DD;
+        int NGPU;
+        uint64 *NSink_GPU_final;
 
         void ExecuteSlabGPU(int slabID, int blocking);
         void ExecuteSlabCPU(int slabID,int * predicate);
@@ -32,28 +43,70 @@ NearFieldDriver::NearFieldDriver(){
     STDLOG(1,"Initializing NearFieldDriver with %d OMP threads (OMP is aware of %d procs).\n",nthread, omp_get_num_procs());
     DD = new Direct[nthread];
     DirectInteractions_CPU = 0;
+    NSink_CPU = 0;
 
     assert(NFRADIUS==P.NearFieldRadius);
     slabcomplete = new int[P.cpd];
     for(int i = 0; i < P.cpd;i++) slabcomplete[i]=0;
     WIDTH = P.NearFieldRadius*2+1;
     RADIUS = P.NearFieldRadius;
+    
+#ifdef CUDADIRECT
+    NGPU = GetNGPU();
+    GPUTimers = new STimer[NGPU+1];
+    SetupGPUTimers = new STimer[4];
+    NSink_GPU_final = (uint64*) malloc(NGPU*sizeof(uint64));
+    for(int g = 0; g < NGPU; g++)
+        NSink_GPU_final[g] = 0;
+#endif
 }
 
 NearFieldDriver::~NearFieldDriver()
 {
     delete[] DD;
     delete[] slabcomplete;
+#ifdef CUDADIRECT
+    delete[] GPUTimers;
+    delete[] SetupGPUTimers;
+#endif
 }
 
-
-
-#ifdef CUDADIRECT
-#include "DeviceFunctions.h"
-#endif
+void** NearFieldDriver::FindUnpinnableSlabs(){
+    // Return an array of pointers to slabs that can be unpinned
+    void** slabs_to_unpin = (void**) malloc((2*P.cpd)*sizeof(void*));
+    for(int s = 0; s < P.cpd; s++){
+        slabs_to_unpin[2*s] = NULL;  // PosSlab
+        slabs_to_unpin[2*s+1] = NULL;  // NearAccSlab
+        
+        // slabcomplete == 0: nothing ready to unpin
+        // slabcomplete == 1: ready, but nothing has been unpinned
+        // slabcomplete == 2: NearAcc has been unpinned
+        // slabcomplete == 3: NearAcc and PosSlab have been unpinned; all done
+        if(slabcomplete[s] == 1){
+            slabs_to_unpin[2*s+1] = LBW->ReturnIDPtr(NearAccSlab,s);
+            slabcomplete[s] = 2;
+        }
+        
+        if(slabcomplete[s] == 1 || slabcomplete[s] == 2){
+            slabs_to_unpin[2*s] = LBW->ReturnIDPtr(PosSlab,s);
+            slabcomplete[s] = 3;
+            
+            // We can only unpin the PosSlab if it has been fully used as a source
+            for(int j = -P.NearFieldRadius; j <= P.NearFieldRadius; j++)  {
+                if( !SlabDone(s+j) ){
+                    slabs_to_unpin[2*s] = NULL;
+                    slabcomplete[s] = 2;
+                }
+            }
+        }
+    }
+    
+    return slabs_to_unpin;
+}
 
 void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     #ifdef CUDADIRECT
+    CellBookkeeping.Start();
     int * CellStart[WIDTH];
     int * CellNP[WIDTH];
     #ifdef AVXDIRECT
@@ -86,11 +139,59 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 
         }
     }
-    SetupGPU(SlabIDs,SlabPos,SlabNP,CellStart,CellNP,P.cpd);
-
+    CellBookkeeping.Stop();
+    
+    CountSinks.Start();
+    // Count sink particles per GPU
+    cellinfo * ThisSlabCI = (cellinfo *) LBW->ReturnIDPtr(CellInfoSlab,PP->WrapSlab(slabID));
+    for(int g = 0; g < NGPU; g++){
+        int ystart = (P.cpd/NGPU)*g;
+        int ystart_next = (P.cpd/NGPU)*(g+1);
+        
+        // Last GPU gets the leftover cells
+        if(g == NGPU -1)
+            ystart_next = P.cpd;
+        
+        uint64 NSink_GPU_cell = 0;
+        #pragma omp parallel for schedule(dynamic,1) reduction(+:NSink_GPU_cell)
+        for(int idx = ystart*P.cpd; idx < ystart_next*P.cpd; idx++){
+            if(pred != NULL && pred[idx])
+                continue;
+            NSink_GPU_cell += ThisSlabCI[idx].count;
+        }
+        
+        NSink_GPU_final[g] += NSink_GPU_cell;
+    }
+    CountSinks.Stop();
+    
+    FindUnpin.Start();
+    // Tell SetupGPU to unpin any Pos or NearAcc slabs that are finished
+    void** slabs_to_unpin = FindUnpinnableSlabs();
+    FindUnpin.Stop();
+        
+    SetupGPUTimers[0].Start();
+    SetupGPU(SlabIDs,SlabPos,SlabNP,CellStart,CellNP,P.cpd, SetupGPUTimers);
+    SetupGPUTimers[0].Stop();
+    
+    // Now that we've just synchronized (in SetupGPU), unpin any slabs
+    GPUUnpinTimer.Start();
+    UnpinSlabs(slabs_to_unpin, P.cpd);
+    GPUUnpinTimer.Stop();
+    
+    // The "total throughput" timer
+    // Only for the GPU
+    GPUTimers[NGPU].Start();
+    
+    GPUDirectsLaunchTimer.Start();
     DeviceAcceleration((accstruct *)LBW->ReturnIDPtr(NearAccSlab,slabID), slabID, Slab->size(slabID),
-            P.cpd, P.SofteningLength*P.SofteningLength, slabcomplete+slabID, blocking,pred);
-    if(pred != NULL) ExecuteSlabCPU(slabID,pred);
+            P.cpd, P.SofteningLength*P.SofteningLength, slabcomplete+slabID, blocking,pred, GPUTimers);
+    GPUDirectsLaunchTimer.Stop();
+    
+    if(pred != NULL){
+        CPUFallbackTimer.Start();
+        ExecuteSlabCPU(slabID,pred);
+        CPUFallbackTimer.Stop();
+    }
     #endif
 }
 
@@ -141,7 +242,8 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID){
 
 void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
     uint64 DI_slab = 0;
-    #pragma omp parallel for schedule(dynamic,1) reduction(+:DI_slab)
+    uint64 NSink_CPU_slab = 0;
+    #pragma omp parallel for schedule(dynamic,1) reduction(+:DI_slab,NSink_CPU_slab)
     for(int y = 0; y < P.cpd; y++){
         int g = omp_get_thread_num();
         //STDLOG(1,"Executing directs on pencil y=%d in slab %d, in OMP thread %d on CPU %d (nprocs: %d)\n", y, slabID, g, sched_getcpu(), omp_get_num_procs());
@@ -150,6 +252,7 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
             posstruct * sink_pos = PP->PosCell(slabID,y,z);
             accstruct * sink_acc = PP->NearAccCell(slabID,y,z);
             uint64 np_sink = PP->NumberParticle(slabID,y,z);
+            NSink_CPU_slab += np_sink;
             if (np_sink == 0) continue;
             for(int i = slabID - RADIUS; i <= slabID + RADIUS; i++){
                 for(int j = y - RADIUS; j <= y + RADIUS; j++){
@@ -165,7 +268,8 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
             }
         }
     }
-    DirectInteractions_CPU+=DI_slab;
+    DirectInteractions_CPU += DI_slab;
+    NSink_CPU += NSink_CPU_slab;
 }
 
 void NearFieldDriver::ExecuteSlab(int slabID, int blocking){
@@ -186,9 +290,7 @@ void NearFieldDriver::ExecuteSlab(int slabID, int blocking){
 void NearFieldDriver::CleanupSlab(int slab){
 #ifdef CUDADIRECT
     if(!P.ForceCPU){
-        Unpinning.Start();
         UnpinSlab((accstruct *)LBW->ReturnIDPtr(PosSlab,slab),slab);
-        Unpinning.Stop();
     }
 #endif
 }
@@ -196,21 +298,43 @@ void NearFieldDriver::CleanupSlab(int slab){
 
 int NearFieldDriver::SlabDone(int slab){
     slab = PP->WrapSlab(slab);
-    if (slabcomplete[slab] == 1) {
-        #ifdef CUDADIRECT
-        if(!P.ForceCPU) {
-            DeviceSlabCleanUp((accstruct *)LBW->ReturnIDPtr(NearAccSlab,slab));
-        }
-
-        #endif
-        slabcomplete[slab] = 2;
-    }
     return slabcomplete[slab] != 0;
+}
+
+int NearFieldDriver::UnpinStatus(int slab){
+    slab = PP->WrapSlab(slab);
+    return slabcomplete[slab];
 }
 
 uint64 NearFieldDriver::DirectInteractions_GPU(){
     #ifdef CUDADIRECT
     return DeviceGetDI();
+    #endif
+    return 0;
+}
+
+uint64 NearFieldDriver::DirectInteractions_GPU(int g){
+    #ifdef CUDADIRECT
+    assert(g < NGPU);
+    return DeviceGetOneDI(g);
+    #endif
+    return 0;
+}
+
+uint64 NearFieldDriver::NSink_GPU(){
+    #ifdef CUDADIRECT
+    uint64 n = 0;
+    for(int g = 0; g < NGPU; g++)
+        n += NSink_GPU_final[g];
+    return n;
+    #endif
+    return 0;
+}
+
+uint64 NearFieldDriver::NSink_GPU(int g){
+    #ifdef CUDADIRECT
+    assert(g < NGPU);
+    return NSink_GPU_final[g];
     #endif
     return 0;
 }

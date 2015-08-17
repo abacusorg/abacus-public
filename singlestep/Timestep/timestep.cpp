@@ -23,7 +23,6 @@ int GROUP_WIDTH = -1;
 // to measure the amount of time spent on Actions.
 Dependency FetchSlabs;
 Dependency NearForce;
-Dependency TaylorFetch;
 Dependency TaylorForce;
 Dependency Kick;
 Dependency Drift;
@@ -95,6 +94,7 @@ void NearForceAction(int slab) {
 
     STDLOG(1,"Computing near-field force for slab %d\n", slab);
     SlabForceTime[slab].Start();
+        
     accstruct *SA = (accstruct *) LBW->AllocateArena(NearAccSlab,slab);
     ZeroAcceleration(slab,NearAccSlab);
 
@@ -109,18 +109,8 @@ void NearForceAction(int slab) {
     	LBW->WriteArena(NearAccSlab, slab, IO_KEEP, IO_BLOCKING,
     	LBW->WriteSlabDescriptorName(NearAccSlab,slab).c_str());
     }
-}
-
-// -----------------------------------------------------------------
-
-int TaylorFetchPrecondition(int s) {
-    return 1;
-}
-
-void TaylorFetchAction(int slab) {
-    //STDLOG(1,"Fetching Taylors for slab %d\n", slab);
-
-    //LBW->LoadArenaNonBlocking(TaylorSlab,slab);
+    
+    //
 }
 
 // -----------------------------------------------------------------
@@ -162,8 +152,30 @@ void TaylorForceAction(int slab) {
 // -----------------------------------------------------------------
 
 int KickPrecondition(int slab) {
-    if( TaylorForce.notdone(slab)) return 0; // must have far forces
-    if (!JJ->SlabDone(slab)) return 0; //must have near forces
+    // must have far forces
+    if(TaylorForce.notdone(slab)){
+        return 0;
+    }
+    
+    //must have near forces
+    if (!JJ->SlabDone(slab)) {
+#ifdef CUDADIRECT
+        // Start the timer if we've gone one full loop without executing anything
+        if(Dependency::spinning){
+            if(!WaitingForGPU.timeron)
+                WaitingForGPU.Start();
+        } else {
+            Dependency::spinning = 1;
+        }
+#endif
+        return 0;
+    }
+
+#ifdef CUDADIRECT
+    if(WaitingForGPU.timeron)
+        WaitingForGPU.Stop();
+#endif
+
     return 1;
 }
 
@@ -277,12 +289,23 @@ int DriftPrecondition(int slab) {
     }
     // We also must have Outputted this slab 
     if (Output.notdone(slab)) return 0;
+    
+#ifdef CUDADIRECT
+    // Also must have unpinned the NearAcc slab, or be done with NearForce
+    if(!NearForce.alldone()){
+        if(JJ->UnpinStatus(slab) < 2){
+            STDLOG(1,"Drifting slab %d blocked because NearAcc not unpinned\n", slab);
+            return 0;
+        }
+    }
+#endif
+    
     return 1;
 }
 
 void DriftAction(int slab) {
     int step = LPTStepNumber();
-    JJ->CleanupSlab(slab);
+    //JJ->CleanupSlab(slab);
     if (step) {
         // We have LPT IC work to do
         if (step==1) {
@@ -308,6 +331,17 @@ void DriftAction(int slab) {
         STDLOG(1,"Drifting slab %d by %f\n", slab, driftfactor);
         DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
     }
+    
+    // If the actual GPU computations are finished
+    // (which is guaranteed by JJ being done and NearForce.alldone())
+    // then any remaining slabs will be ready for unpinning
+#ifdef CUDADIRECT
+    if(NearForce.alldone()){
+        STDLOG(1,"Unpinning any leftover slabs.\n");
+        void** slabs_to_unpin = JJ->FindUnpinnableSlabs();
+        UnpinSlabs(slabs_to_unpin, P.cpd);
+    }
+#endif
 
     // We kept the accelerations until here because of third-order LPT
     if (P.StoreForces && !P.ForceOutputDebug) {
@@ -325,6 +359,16 @@ int FinishPrecondition(int slab) {
     for(int j=-1;j<=1;j++) {
         if( Drift.notdone(slab+j) ) return 0;
     }
+    
+#ifdef CUDADIRECT
+    // Also must have unpinned PosSlab
+    if(JJ != NULL){
+        if(JJ->UnpinStatus(slab) < 3){
+            STDLOG(1,"Finish slab %d blocked because PosSlab not unpinned\n", slab);
+            return 0;
+        }
+    }
+#endif
 
     return 1;
 }
@@ -390,7 +434,6 @@ void timestep(void) {
 
        FetchSlabs.instantiate(cpd, first, &FetchSlabPrecondition,     &FetchSlabAction     );
         NearForce.instantiate(cpd, first, &NearForcePrecondition,     &NearForceAction     );
-      TaylorFetch.instantiate(cpd, first, &TaylorFetchPrecondition,   &TaylorFetchAction   );
       TaylorForce.instantiate(cpd, first, &TaylorForcePrecondition,   &TaylorForceAction   );
              Kick.instantiate(cpd, first, &KickPrecondition,          &KickAction          );
             Group.instantiate(cpd, first, &GroupPrecondition,         &GroupAction         );
@@ -402,7 +445,6 @@ void timestep(void) {
     while( !Finish.alldone() ) {
            for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
             NearForce.Attempt();
-          TaylorFetch.Attempt();
           TaylorForce.Attempt();
                  Kick.Attempt();
                 Group.Attempt();

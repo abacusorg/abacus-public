@@ -139,29 +139,39 @@ void ReportTimings(FILE * timingfile) {
     REPORT(0, "Unaccounted", WallClockDirect.Elapsed()-total);
 
     fprintf(timingfile, "\n");
-    REPORT(0, "Total Disk Blocking Reads", TotalRead.Elapsed());
+    REPORT(0, "Total Blocking Disk Reads", TotalRead.Elapsed());
 	fprintf(timingfile, "---> %6.2f MB/sec on %6.3f GB", total_disk_read_blocking/(thistime+1e-15)/1e6, total_disk_read_blocking/1e9);
-    REPORT(0, "Total Disk Blocking Writes", TotalWrite.Elapsed());
+    REPORT(0, "Total Blocking Disk Writes", TotalWrite.Elapsed());
 	fprintf(timingfile, "---> %6.2f MB/sec on %6.3f GB", total_disk_write_blocking/(thistime+1e-15)/1e6, total_disk_write_blocking/1e9);
 
     if (IOWriteTime.Elapsed()>0) {
 	// These are only set if using IO_thread.
 	fprintf(timingfile, "\n");
-	REPORT(0, "Total Disk Reads", IOReadTime.Elapsed());
+	REPORT(0, "Total Non-blocking Disk Reads", IOReadTime.Elapsed());
 	    fprintf(timingfile, "---> %6.2f MB/sec on %6.3f GB", total_disk_read_nonblocking/(thistime+1e-15)/1e6, total_disk_read_nonblocking/1e9);
-	REPORT(0, "Total Disk Writes", IOWriteTime.Elapsed());
+	REPORT(0, "Total Non-blocking Disk Writes", IOWriteTime.Elapsed());
 	    fprintf(timingfile, "---> %6.2f MB/sec on %6.3f GB", total_disk_write_nonblocking/(thistime+1e-15)/1e6, total_disk_write_nonblocking/1e9);
     }
 
     fprintf(timingfile, "\n\nBreakdown of TimeStep: ");
     total = 0.0;
     REPORT(1, "FetchSlabs", FetchSlabs.Elapsed()); total += thistime;
-    REPORT(1, "TaylorFetch", TaylorFetch.Elapsed()); total += thistime;
-    REPORT(1, "NearForce", NearForce.Elapsed()); total += thistime;
-        double total_di = (JJ->DirectInteractions_CPU +JJ->DirectInteractions_GPU())/1e9;
-	fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", total_di/(thistime+1e-15), total_di, P.np/(thistime+1e-15)/1e6);
+#ifdef CUDADIRECT
+    int NGPU = GetNGPU();
+    REPORT(1, "NearForce [blocking]", NearForce.Elapsed()); total += thistime;
+    fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
+    REPORT(1, "NearForce [non-blocking]", GPUTimers[NGPU].Elapsed()); //total += thistime;
+    double gdi_gpu = JJ->DirectInteractions_GPU()/1e9;
+    fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, JJ->NSink_GPU()/(thistime+1e-15)/1e6);
+    double total_di = (JJ->DirectInteractions_CPU +JJ->DirectInteractions_GPU())/1e9;
+	//fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", total_di/(thistime+1e-15), total_di, P.np/(thistime+1e-15)/1e6);
       //fprintf(timingfile,"\n DJE: %lld,  MVM: %lld,  ratio = %f", naive_directinteractions, JJ->directinteractions,
 	//	 1.0*naive_directinteractions/JJ->directinteractions);
+    REPORT(1, "Spinning while waiting for GPU", WaitingForGPU.Elapsed()); total += thistime;
+#else
+    REPORT(1, "NearForce", NearForce.Elapsed()); total += thistime;
+    fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
+#endif
     REPORT(1, "TaylorForce", TaylorForce.Elapsed()); total += thistime;
 	fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
     REPORT(1, "Kick", Kick.Elapsed()); total += thistime;
@@ -173,10 +183,6 @@ void ReportTimings(FILE * timingfile) {
 	fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
     REPORT(1, "Finish", Finish.Elapsed()); total += thistime;
 	fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
-#ifdef CUDADIRECT
-    REPORT(1, "GPU Memory Unpinning", Unpinning.Elapsed()); total += thistime;
-	fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
-#endif
     REPORT(1, "Unaccounted (spinning?)", TimeStepWallClock.Elapsed()-total);
 
     fprintf(timingfile, "\n\n Breakdown per slab (Wall Clock)");
@@ -249,6 +255,35 @@ void ReportTimings(FILE * timingfile) {
     REPORT(2, "Rebin (P)",        DriftRebin.Elapsed());
     
     fprintf(timingfile, "\n\n Subdivisions of Near Force:");
+#ifdef CUDADIRECT
+    denom = NearForce.Elapsed();
+    
+    REPORT(2, "Blocking (Setup/Memcpy/Output/CPU/Launch GPU)", NearForce.Elapsed());
+    REPORT(3, "Cell bookkeeping", CellBookkeeping.Elapsed());
+    REPORT(3, "Sink counting", CountSinks.Elapsed());
+    REPORT(3, "Find unpinnable slabs", FindUnpin.Elapsed());
+    REPORT(3, "Setup GPU", SetupGPUTimers[0].Elapsed());
+    REPORT(4, "Init and Launch Setup Kernels", SetupGPUTimers[1].Elapsed());
+    REPORT(4, "Waiting for GPU", SetupGPUTimers[2].Elapsed());
+    REPORT(3, "Unpin slabs", GPUUnpinTimer.Elapsed());
+    REPORT(3, "GPU Directs Launch", GPUDirectsLaunchTimer.Elapsed());
+    REPORT(3, "CPU Fallback", CPUFallbackTimer.Elapsed());
+    double gdi_cpu = JJ->DirectInteractions_CPU/1e9;
+    fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_cpu/(thistime+1e-15), gdi_cpu, JJ->NSink_CPU/(thistime+1e-15)/1e6);
+    
+    REPORT(2, "Non-blocking (GPU Directs)", GPUTimers[NGPU].Elapsed());
+    //double gdi_gpu = JJ->DirectInteractions_GPU()/1e9;
+    fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, JJ->NSink_GPU()/(thistime+1e-15)/1e6);
+    
+    for(int g = 0; g < NGPU; g++){
+        char buffer[100];
+        const char* fmt = "GPU %d Directs:";
+        sprintf(buffer, fmt, g);
+        REPORT(3, buffer, GPUTimers[g].Elapsed());
+        double gdi_gpu = JJ->DirectInteractions_GPU(g)/1e9;
+        fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, JJ->NSink_GPU(g)/(thistime+1e-15)/1e6);
+    }
+#else
     denom = NearForce.Elapsed();
     //REPORT(2, "NearForce Setup", JJ->Setup.Elapsed());
     //REPORT(2, "NearForce Fill Source", JJ->FillSourceLists.Elapsed());
@@ -287,6 +322,7 @@ void ReportTimings(FILE * timingfile) {
     //fprintf(timingfile, "\n\t\t\t -->Inferred PCI-E Bandwith (~8GB/s Min) Limited Kernel Time: %6.3f s",JJ->MeanGPUDataSizePerKernel/1e9 *(1/8.0));
     //fprintf(timingfile, "\n\t\t\t GPU Data Transfer Size Range: %6.3f GB",JJ->GPUDataSizeRange/1e9);
     //fprintf(timingfile, "\n\t\t\t Kernels Per Device Range: %6.3f",JJ->GPUKernelsRange);
+#endif
 
     fprintf(timingfile, "\n\n Subdivisions of Compute Multipole:");
     denom = ComputeMultipoles.Elapsed();

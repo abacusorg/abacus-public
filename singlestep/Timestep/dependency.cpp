@@ -20,6 +20,7 @@ public:
     int last_slab_executed;         // The last slab we did
     int (*precondition)(int slab);
     void (*action)(int slab);
+    static int spinning;  // If this is set to 1, Dependency will set it to 0 if it executes an action
 
     ~Dependency(void) { 
         if(_executed_status != NULL) 
@@ -57,6 +58,7 @@ public:
 	    _executed_status[slab] = 1;
 	    last_slab_executed = slab;
 	    number_of_slabs_executed++;
+        spinning = 0;
     }
 
     int wrap(int s) { while(s<0) s += cpd; while(s>=cpd) s -= cpd; return s; }
@@ -82,5 +84,7 @@ public:
         //Stop();
     }
 };
+
+int Dependency::spinning = 0;
 
 #endif  // INCLUDE_DEPENDENCY

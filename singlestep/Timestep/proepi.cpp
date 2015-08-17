@@ -24,7 +24,17 @@ STimer NearForceDirects;
 STimer NearForceSetup;
 STimer NearForceDirectsOnly;
 
-STimer Unpinning;
+#ifdef CUDADIRECT
+STimer CellBookkeeping;
+STimer CountSinks;
+STimer FindUnpin;
+STimer* GPUTimers;
+STimer GPUDirectsLaunchTimer;
+STimer CPUFallbackTimer;
+STimer WaitingForGPU;
+STimer* SetupGPUTimers;
+STimer GPUUnpinTimer;
+#endif
 
 STimer *SlabForceTime;
 STimer *SlabForceLatency;
