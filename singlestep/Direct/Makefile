@@ -17,12 +17,12 @@ OPTIONS=-DDirectNT=$(Blocksize) -DDirectCPT=$(Tile) #-DPTXDIRECT
 KERNELPTXFLAGS=-v -O3 -maxrregcount 54  --compile-only --generate-line-info
 PTXFLAGS= -v -maxrregcount 54
 CUDASM= sm_35
-CUDAFLAGS= $(OPTIONS) $(GLOBALVERSIONFLAGS) -m64 -arch compute_35 -code $(CUDASM) -Xptxas="$(PTXFLAGS)" -Xcompiler -fpic,-O3,-march=native,-mavx
+CUDAFLAGS= $(OPTIONS) $(GLOBALVERSIONFLAGS) -I$(ABACUS)/include -m64 -arch compute_35 -code $(CUDASM) -Xptxas="$(PTXFLAGS)" -Xcompiler -fpic,-O3,-march=native,-mavx
 
-gpudirect: gpudirect.a gpudirect.d bench
+gpudirect: gpudirect.a gpudirect.d DirectBench
 
 gpudirect.d:
-	$(CUDACC) -E -Xcompiler "-isystem $(CUDA_INSTALL_PATH)/include -MM" -o $@ $(CUDASRC)
+	$(CUDACC) -E -Xcompiler "-isystem $(CUDA_INSTALL_PATH)/include -MM" -I$(ABACUS)/include -o $@ $(CUDASRC)
 
 include gpudirect.d
 
