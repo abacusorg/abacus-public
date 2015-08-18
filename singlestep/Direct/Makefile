@@ -8,18 +8,18 @@ CUDACC=nvcc
 CUDASRC= gpudirect.cu
 
 Blocksize = 64
-Tile = 3
-ILP = 12 
-Unroll = 4
+Tile = 2  
+ILP = 4 
+Unroll = 8
 Tilesize = $(shell echo $(Blocksize)\*$(Tile) | bc)
 
 OPTIONS=-DDirectNT=$(Blocksize) -DDirectCPT=$(Tile) #-DPTXDIRECT
-KERNELPTXFLAGS=-v -O3 -maxrregcount 54  --compile-only --generate-line-info
-PTXFLAGS= -v -maxrregcount 54
+KERNELPTXFLAGS=-v --compile-only --generate-line-info -maxrregcount 47
+PTXFLAGS= -v -maxrregcount 47
 CUDASM= sm_35
 CUDAFLAGS= $(OPTIONS) $(GLOBALVERSIONFLAGS) -m64 -arch compute_35 -code $(CUDASM) -Xptxas="$(PTXFLAGS)" -Xcompiler -fpic,-O3,-march=native,-mavx
 
-gpudirect: gpudirect.a gpudirect.d bench
+gpudirect: gpudirect.a gpudirect.d
 
 gpudirect.d:
 	$(CUDACC) -E -Xcompiler "-isystem $(CUDA_INSTALL_PATH)/include -MM" -o $@ $(CUDASRC)
@@ -61,7 +61,7 @@ gpudirect.a: devkernel.o gpudirect.dev.o ASMDirectTile.o
 BENCHOPTIONS= -DNFRADIUS=2 -DGPUMinCellSinks=20 -DMAXSOURCELENGTH=1048576\
 	      -DAVXDIRECT  -DFLOATPRECISION -DCUDADIRECT\
 	      -I../../include\
-	      -O3 -march=native -mavx -fopenmp
+	      -O3 -march=native -mavx
 
 DirectBench: DirectBench.cpp gpudirect.a
 	g++ $< -o $@ $(BENCHOPTIONS) gpudirect.a -L/usr/local/cuda/lib64 -lcudart -lfftw3 -lgsl -lgslcblas -lstdc++ -lgomp
@@ -75,16 +75,9 @@ DirectBench: DirectBench.cpp gpudirect.a
 endif
 
 clean:
-<<<<<<< HEAD
 	rm -rf *.o *.ptx *.fatbin *.cubin nvtemp
 
 distclean:
-	rm -rf *.o *.d *.a *.ptx *.fatbin *.cubin nvtemp
-=======
-	rm -f *.o DirectBench
-
-distclean:
-	rm -f *.o *.d *.a DirectBench
->>>>>>> 7bc239ef295aa27c75fa2d63dd0be7fb8ebed7a2
+	rm -rf *.o *.d *.a *.ptx *.fatbin *.cubin nvtemp DirectBench
 
 .PHONY: clean distclean gpudirect
