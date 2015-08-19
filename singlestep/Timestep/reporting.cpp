@@ -263,6 +263,7 @@ void ReportTimings(FILE * timingfile) {
     REPORT(3, "Sink counting", CountSinks.Elapsed());
     REPORT(3, "Find unpinnable slabs", FindUnpin.Elapsed());
     REPORT(3, "Setup GPU", SetupGPUTimers[0].Elapsed());
+    //REPORT(4, "Waiting for GPU", SetupGPUTimers[3].Elapsed());
     REPORT(4, "Init and Launch Setup Kernels", SetupGPUTimers[1].Elapsed());
     REPORT(4, "Waiting for GPU", SetupGPUTimers[2].Elapsed());
     REPORT(3, "Unpin slabs", GPUUnpinTimer.Elapsed());
