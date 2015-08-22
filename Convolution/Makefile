@@ -1,7 +1,7 @@
 #export CXX = icc -openmp -liomp5
 export CXX = g++ -fopenmp -lgomp
 ifneq ($(DISABLE_GPU),1)
-CUDAFLAGS = -DGPUFFT  -lcufft -lcudart -L/usr/local/cuda/lib64 -I/usr/local/cuda/include
+CUDAFLAGS = #-DGPUFFT  -lcufft -lcudart -L/usr/local/cuda/lib64 -I/usr/local/cuda/include
 endif
 FFTWFLAGS = -lfftw3 -lm -L$(FFTW)/lib 
 

@@ -375,9 +375,19 @@ int main(int argc, char **argv) {
     // Initialize the Cosmology and set up the State epochs and the time step
     cosm = InitializeCosmology(ReadState.ScaleFactor);
     if (MakeIC) FillStateWithCosmology(ReadState);
+    
     // Even though we do this in BuildWriteState, we want to have the step number
     // available when we choose the time step.
     WriteState.FullStepNumber = ReadState.FullStepNumber+1;
+    
+    // Decrease the softening length if we are doing a 2LPT step
+    // This helps ensure that we are using the true 1/r^2 force
+    if(LPTStepNumber()>0){
+        double old_soft = P.SofteningLength;
+        P.SofteningLength /= 1e4;
+        STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", old_soft, P.SofteningLength);
+    }
+    
     if (da!=0) da = ChooseTimeStep();
     STDLOG(0,"Chose Time Step da = %6.4f, dlna = %6.4f\n",da, da/ReadState.ScaleFactor);
     

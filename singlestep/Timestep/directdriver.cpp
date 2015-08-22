@@ -54,7 +54,7 @@ NearFieldDriver::NearFieldDriver(){
 #ifdef CUDADIRECT
     NGPU = GetNGPU();
     GPUTimers = new STimer[NGPU+1];
-    SetupGPUTimers = new STimer[4];
+    SetupGPUTimers = new STimer[6];
     NSink_GPU_final = (uint64*) malloc(NGPU*sizeof(uint64));
     for(int g = 0; g < NGPU; g++)
         NSink_GPU_final[g] = 0;

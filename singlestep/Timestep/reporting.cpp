@@ -265,6 +265,8 @@ void ReportTimings(FILE * timingfile) {
     REPORT(3, "Setup GPU", SetupGPUTimers[0].Elapsed());
     //REPORT(4, "Waiting for GPU", SetupGPUTimers[3].Elapsed());
     REPORT(4, "Init and Launch Setup Kernels", SetupGPUTimers[1].Elapsed());
+    REPORT(5, "Launch memcpy kernels", SetupGPUTimers[4].Elapsed());
+    REPORT(5, "cudaFree (implicit sync)", SetupGPUTimers[5].Elapsed());
     REPORT(4, "Waiting for GPU", SetupGPUTimers[2].Elapsed());
     REPORT(3, "Unpin slabs", GPUUnpinTimer.Elapsed());
     REPORT(3, "GPU Directs Launch", GPUDirectsLaunchTimer.Elapsed());

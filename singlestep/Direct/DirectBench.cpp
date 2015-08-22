@@ -175,8 +175,10 @@ void ExecuteSlabGPU(FLOAT3 ** pos, int ** c_start, int ** c_np,int cpd,int slabI
     int SlabIDs[WIDTH];
     FLOAT3 *SlabPos[WIDTH];
     
-    STimer* GPUTimers = new STimer[GetNGPU()];
-    STimer* SetupGPUTimers = new STimer[4];
+    int NGPU = GetNGPU();
+    
+    STimer* GPUTimers = new STimer[NGPU+1];
+    STimer* SetupGPUTimers = new STimer[6];
 
     for(int i = 0; i < WIDTH; i++){
         int sid = wrap(slabID+i-NFRADIUS);
@@ -199,6 +201,7 @@ void ExecuteSlabGPU(FLOAT3 ** pos, int ** c_start, int ** c_np,int cpd,int slabI
     
     SetupGPU(SlabIDs,SlabPos,SlabNP,CellStart,CellNP,cpd, SetupGPUTimers);
 
+    GPUTimers[NGPU].Start();
     DeviceAcceleration(acc, slabID, NPslab[slabID],
             cpd, eps*eps, slabcomplete, 0,pred, GPUTimers);
     if(pred != NULL) ExecuteSlabCPU(slabID,pred,pos,c_start,c_np,cpd,acc,eps);
