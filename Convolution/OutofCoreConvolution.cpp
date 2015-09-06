@@ -302,8 +302,8 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
 
     rml = (order+1)*(order+1);
     unsigned long long int zslabbytes = rml*cpd*cpd*sizeof(Complex);
-    printf("Each slab requires      %lld bytes\n",zslabbytes);
-    printf("You allow a maximum of  %lld bytes\n",rambytes);
+    STDLOG(0,"Each slab requires      %lld bytes\n",zslabbytes);
+    STDLOG(0,"You allow a maximum of  %lld bytes\n",rambytes);
     if(rambytes<zslabbytes) { 
         printf("Each slab requires      %lld bytes\n",zslabbytes);
         printf("You allow a maximum of  %lld bytes\n",rambytes);
@@ -322,7 +322,7 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
         /*if(n%zwidth==0)*/ if( zwidth*zslabbytes < rambytes) break;
     }
     
-    printf("Resulting zwidth: %llu \n",zwidth);
+    STDLOG(0,"Resulting zwidth: %llu \n",zwidth);
     ssize_t s;
 
     s = sizeof(Complex);

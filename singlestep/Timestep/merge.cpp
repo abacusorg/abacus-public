@@ -36,6 +36,12 @@ void FillMergeSlab(int slab) {
 
     LBW->AllocateArena(MergeCellInfoSlab, slab);
     LBW->AllocateArena(InsertCellInfoSlab, slab);   // Will delete at bottom
+    
+    for (int y=0; y < P.cpd; y++)
+        for (int z=0; z < P.cpd; z++){
+            PP->MergeCellInfo(slab,y,z)->makenull();
+            PP->InsertCellInfo(slab,y,z)->makenull();
+        }
 
     // Build the InsertCellInfo and MergeCellInfo indexing
     ilstruct *ilread = IL->il + head;

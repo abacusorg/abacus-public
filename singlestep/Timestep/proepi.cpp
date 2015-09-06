@@ -111,6 +111,9 @@ SlabSize *Slab;
 #include "directdriver.cpp"
 NearFieldDriver *JJ;
 
+// Need this for both insert.cpp and timestep.cpp.
+int FINISH_WAIT_RADIUS = 1;
+
 #include "insert.cpp"
 #include "drift.cpp"
 #include "merge.cpp"

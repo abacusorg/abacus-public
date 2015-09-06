@@ -14,7 +14,8 @@ for its *new* cell.
 */
 
 //for intel's fast parallel sort
-#include "tbb/parallel_sort.h"
+//#include "tbb/parallel_sort.h"
+#include "parallel_stable_sort.h"
 typedef struct {
     posstruct pos;
     velstruct vel;
@@ -24,11 +25,11 @@ typedef struct {
 
 struct GlobalSortOperator {
     inline bool operator() (const  ilstruct &pi, const ilstruct &pj ) const {
-	// We must sort on pi.xyz.y*cpd+pi.xyz.z < pj.xyz.y*cpd+pj.xyz.z
-	// Warning: This will get more complicated in the parallel code with 
-	// the periodic wrap.
+        // We must sort on pi.xyz.y*cpd+pi.xyz.z < pj.xyz.y*cpd+pj.xyz.z
+        // Warning: This will get more complicated in the parallel code with 
+        // the periodic wrap.
         return  ( (pi.xyz.y*P.cpd+pi.xyz.z
-		  <pj.xyz.y*P.cpd+pj.xyz.z) ) ; 
+        <pj.xyz.y*P.cpd+pj.xyz.z) ) ; 
     }
 };
 
@@ -69,60 +70,83 @@ public:
     }
 
     inline integer3 WrapToNewCell(posstruct *pos, int oldx, int oldy, int oldz) {
-    	// We have been given a particle that has drifted out of its cell.
-    	// Find the new cell, changing the position as appropriate.
-    	integer3 newcell = Position2Cell(*pos);
-    	// Important: this mapping does not apply a wrap.
-    	// Now we wrap, coordinating cell index and position
-    	while (newcell.x<0)    { newcell.x+=cpd; pos->x+=1.0; }
-    	while (newcell.x>=cpd) { newcell.x-=cpd; pos->x-=1.0; }
-    	while (newcell.y<0)    { newcell.y+=cpd; pos->y+=1.0; }
-    	while (newcell.y>=cpd) { newcell.y-=cpd; pos->y-=1.0; }
-    	while (newcell.z<0)    { newcell.z+=cpd; pos->z+=1.0; }
-    	while (newcell.z>=cpd) { newcell.z-=cpd; pos->z-=1.0; }
-    	return newcell;
+        // We have been given a particle that has drifted out of its cell.
+        // Find the new cell, changing the position as appropriate.
+        integer3 newcell = Position2Cell(*pos);
+        // Important: this mapping does not apply a wrap.
+        // Now we wrap, coordinating cell index and position
+        while (newcell.x<0)    { newcell.x+=cpd; pos->x+=1.0; }
+        while (newcell.x>=cpd) { newcell.x-=cpd; pos->x-=1.0; }
+        while (newcell.y<0)    { newcell.y+=cpd; pos->y+=1.0; }
+        while (newcell.y>=cpd) { newcell.y-=cpd; pos->y-=1.0; }
+        while (newcell.z<0)    { newcell.z+=cpd; pos->z+=1.0; }
+        while (newcell.z>=cpd) { newcell.z-=cpd; pos->z-=1.0; }
+        return newcell;
     }
 
     inline integer3 LocalWrapToNewCell(posstruct *pos,
-    		int oldx, int oldy, int oldz) {
-    	// We have been given a particle that has drifted out of its cell.
-    	// Find the new cell, changing the position as appropriate.
-    	// This is for cell-referenced positions
-    	while (pos->x>halfinvcpd) {
-    		oldx+=1; pos->x-=invcpd;
-    	}
-    	while (pos->x<-halfinvcpd) {
-    		oldx-=1; pos->x+=invcpd;
-    	}
-    	while (pos->y>halfinvcpd) {
-    		oldy+=1; pos->y-=invcpd;
-    	}
-    	while (pos->y<-halfinvcpd) {
-    		oldy-=1; pos->y+=invcpd;
-    	}
-    	while (pos->z>halfinvcpd) {
-    		oldz+=1; pos->z-=invcpd;
-    	}
-    	while (pos->z<-halfinvcpd) {
-    		oldz-=1; pos->z+=invcpd;
-    	}
-    	return WrapCell(oldx, oldy, oldz);
+    int oldx, int oldy, int oldz) {
+        // We have been given a particle that has drifted out of its cell.
+        // Find the new cell, changing the position as appropriate.
+        // This is for cell-referenced positions
+        while (pos->x>halfinvcpd) {
+            oldx+=1; pos->x-=invcpd;
+        }
+        while (pos->x<-halfinvcpd) {
+            oldx-=1; pos->x+=invcpd;
+        }
+        while (pos->y>halfinvcpd) {
+            oldy+=1; pos->y-=invcpd;
+        }
+        while (pos->y<-halfinvcpd) {
+            oldy-=1; pos->y+=invcpd;
+        }
+        while (pos->z>halfinvcpd) {
+            oldz+=1; pos->z-=invcpd;
+        }
+        while (pos->z<-halfinvcpd) {
+            oldz-=1; pos->z+=invcpd;
+        }
+        return WrapCell(oldx, oldy, oldz);
     }
 
     void WrapAndPush(posstruct *pos, velstruct *vel, auxstruct *aux,
-    			int x, int y, int z) {
+    int x, int y, int z) {
+        integer3 newcell;
+        
 #ifdef GLOBALPOS
-	Push(pos,vel,aux,WrapToNewCell(pos,x,y,z));
+        newcell = WrapToNewCell(pos,x,y,z);
 #else
-	// Could replace this with LocalWrapToNewCell if we want cell-referenced positions
-	Push(pos,vel,aux,LocalWrapToNewCell(pos,x,y,z));
+        // Use LocalWrapToNewCell for cell-referenced positions
+        newcell = LocalWrapToNewCell(pos,x,y,z);
 #endif
+
+        // Ensure that we are not trying to push a particle to a slab
+        // that might already have finished
+        int slab_distance = abs(x - newcell.x);
+        if(slab_distance >= (P.cpd+1)/2){
+            slab_distance = P.cpd - slab_distance;
+        }
+        if (slab_distance > FINISH_WAIT_RADIUS){
+        posstruct p = *pos;
+        velstruct v = *vel;
+        auxstruct a = *aux;
+        integer3 c = newcell;
+        printf("Trying to push a particle to slab %d from slab %d.  This is larger than FINISH_WAIT_RADIUS = %d.\n",
+            newcell.x, x, FINISH_WAIT_RADIUS);
+        printf("pos: %e %e %e; vel: %e %e %e; aux: %llu; cell: %d %d %d\n", p.x, p.y, p.z, v.x, v.y, v.z, a.aux, c.x, c.y, c.z);
+        /*assertf(slab_distance <= FINISH_WAIT_RADIUS,
+            "Trying to push a particle to slab %d from slab %d.  This is larger than FINISH_WAIT_RADIUS = %d.",
+            x, newcell.x, FINISH_WAIT_RADIUS);*/
+        }
+        
+        Push(pos,vel,aux,newcell);
     }
 
     void ResetILlength(uint64 newlength) { 
-	assertf(newlength>=0&&newlength<=length, 
-		"Illegal resizing of Insert List\n");
-    	length = newlength; 
+        assertf(newlength>=0&&newlength<=length, 
+        "Illegal resizing of Insert List\n");
+        length = newlength; 
     }
 
     void PartitionAndSort(int slab, uint64 *slabstart, uint64 *slablength);
@@ -168,15 +192,19 @@ void InsertList::PartitionAndSort(int slab, uint64 *slabstart, uint64 *slablengt
     FinishPartition.Stop();
     FinishSort.Start();
 
-    tbb::parallel_sort( &(il[t]), &(il[length]), GlobalSortOperator() );
+    //tbb::parallel_sort( &(il[t]), &(il[length]), GlobalSortOperator() );
+    pss::parallel_stable_sort( &(il[t]), &(il[length]), GlobalSortOperator() );
     TotalLength += length;
     FinishSort.Stop();
 }
 
 void InsertList::DumpParticles(void) {
     for(uint64 i=0;i<length;i++) {
-	posstruct p = il[i].pos;
-	printf("%e %e %e\n", p.x, p.y, p.z);
+        posstruct p = il[i].pos;
+        velstruct v = il[i].vel;
+        auxstruct a = il[i].aux;
+        integer3 c = il[i].xyz;
+        printf("pos: %e %e %e; vel: %e %e %e; aux: %llu; cell: %d %d %d\n", p.x, p.y, p.z, v.x, v.y, v.z, a.aux, c.x, c.y, c.z);
     }
 }
 

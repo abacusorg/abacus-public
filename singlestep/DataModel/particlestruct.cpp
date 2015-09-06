@@ -106,12 +106,13 @@ public:
     FLOAT max_component_acceleration;  // The maximum x,y,z component of a
 
     void makenull() {
+        memset(this,0,sizeof(cellinfo));
         startindex = 0;
-	count = 0;
-	active = 0;
-	mean_square_velocity = 0;
-	max_component_velocity  = 0;
-	max_component_acceleration = 0;
+        count = 0;
+        active = 0;
+        mean_square_velocity = 0;
+        max_component_velocity  = 0;
+        max_component_acceleration = 0;
     }
     int legalvalue(uint64 slabsize) {
         // Do a sanity check on the cellinfo values; return 1 if ok, 0 if not.

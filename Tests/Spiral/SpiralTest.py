@@ -51,7 +51,7 @@ def run(basedir = "NONE"):
 
     kvec = (1,0,0)
     phase = (np.pi,0,0)
-    n1d = 64
+    n1d = 128
     ainitial = 0.09
     across = 0.2
     astop =  0.19
@@ -73,7 +73,7 @@ def run(basedir = "NONE"):
 
         #run the problem
         os.chdir(basedir)
-        abacus.run("spiral.par",5000,1)
+        abacus.run("spiral.par",2,1)
     else:
         os.chdir(basedir)
         params = GenParam.parseInput("spiral.par")
@@ -81,7 +81,7 @@ def run(basedir = "NONE"):
     #writestate = InputFile.InputFile("write/state")
     ReadState = InputFile.InputFile("read/state")
     #laststep = writestate.FullStepNumber
-
+    return
     timeslice = "final.ts"
     os.system(abacuspath+"/util/phdata " + "%s/slice%5.3f/%s.z%5.3f.*"%(params["OutputDirectory"], ReadState.Redshift, params["SimName"],ReadState.Redshift) + " > " +timeslice)
     data = np.fromfile(timeslice,dtype = np.float64)

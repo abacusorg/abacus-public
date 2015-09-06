@@ -1,9 +1,8 @@
 #export CXX = icc  -openmp-stubs -pthread -liomp5 #-xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
-export CXX = g++ -fopenmp -lgomp --std=c++0x
-export GLOBALVERSIONFLAGS = -DFLOATPRECISION -DNFRADIUS=2 #-DDIRECTCUBIC #-DDIRECTSPLINE
-export VERSIONFLAGS = $(GLOBALVERSIONFLAGS) -march=native -mavx -DAVXMULTIPOLES\
-	       -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -DIOTHREADED -DCUDADIRECT -O3 -DAVXDIRECT #-ggdb3
-export CXXFLAGS= -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS) -Wformat=0
+export CXX = g++ -march=native -mavx -fopenmp -lgomp --std=c++0x -Wformat=0
+export VERSIONFLAGS = -DFLOATPRECISION -DNFRADIUS=2 -DAVXDIRECT\
+            -DAVXMULTIPOLES -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -O3 -DCUDADIRECT #-DIOTHREADED #-ggdb3 #-DDIRECTCUBIC -DDIRECTSPLINE
+export CXXFLAGS= -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS)
 # Could add -DGLOBALPOS here to switch the code to global positions.
 # Use -DDIRECTSPLINE for spline softening
 

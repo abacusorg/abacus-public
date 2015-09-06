@@ -2,6 +2,8 @@
     #ifdef DIRECTSPLINE
     #include "avxdirectdouble_spline.cc"
     #include "avxdirectfloatNR_spline.cc"
+    #elif defined DIRECTCUBIC
+    #error "AVX cubic softening not implemented yet"
     #else
     #include "avxdirectdouble.cc"
     #include "avxdirectfloatNR.cc"

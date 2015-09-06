@@ -17,7 +17,7 @@ to the insert list and then calls finish.
 int FORCE_WIDTH = -1;
 int GROUP_WIDTH = -1;
 
-#define FETCHAHEAD 3*FORCE_WIDTH +3
+#define FETCHAHEAD (3*FORCE_WIDTH +3)
 #define FETCHPERSTEP 1
 // Recall that all of these Dependencies have a built-in STimer
 // to measure the amount of time spent on Actions.
@@ -158,7 +158,7 @@ int KickPrecondition(int slab) {
     }
     
     //must have near forces
-    if (!JJ->SlabDone(slab)) {
+    if (NearForce.notdone(slab) || !JJ->SlabDone(slab)) {
 #ifdef CUDADIRECT
         // Start the timer if we've gone one full loop without executing anything
         if(Dependency::spinning){
@@ -182,6 +182,7 @@ int KickPrecondition(int slab) {
 void KickAction(int slab) {
     SlabForceTime[slab].Stop();
     SlabForceLatency[slab].Stop();
+    
     RescaleAndCoAddAcceleration(slab);
     int step = LPTStepNumber();
     if (step) {
@@ -356,7 +357,7 @@ void DriftAction(int slab) {
 // -----------------------------------------------------------------
 
 int FinishPrecondition(int slab) {
-    for(int j=-1;j<=1;j++) {
+    for(int j=-FINISH_WAIT_RADIUS;j<=FINISH_WAIT_RADIUS;j++) {
         if( Drift.notdone(slab+j) ) return 0;
     }
     
@@ -386,7 +387,7 @@ void FinishAction(int slab) {
     // Make the multipoles
     LBW->AllocateArena(MultipoleSlab,slab);
     ComputeMultipoleSlab(slab);
-
+    
     // Write out the particles and multipoles and delete
     WriteMergeSlab.Start();
     LBW->StoreArenaNonBlocking(MergePosSlab,slab);
@@ -459,6 +460,9 @@ void timestep(void) {
         free(vel_ics);
     }
 
+    if(IL->length!=0)
+        IL->DumpParticles();
+    
     assertf(IL->length==0, 
     	"Insert List not empty (%d) at the end of timestep().  Time step too big?\n", IL->length);
 
