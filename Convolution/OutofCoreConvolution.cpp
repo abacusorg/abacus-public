@@ -129,11 +129,12 @@ void OutofCoreConvolution::BlockConvolve(void) {
         plan_forward_1d[g] = fftw_plan_dft_1d(cpd, 
                                 (fftw_complex *) &(in_1d[g*cpd]), 
                                 (fftw_complex *) &(out_1d[g*cpd]), 
-                                FFTW_FORWARD, FFTW_MEASURE);
+                                FFTW_FORWARD, FFTW_PATIENT);
+        
         plan_backward_1d[g] = fftw_plan_dft_1d(cpd, 
                                 (fftw_complex *) &(in_1d[g*cpd]), 
                                 (fftw_complex *) &(out_1d[g*cpd]), 
-                                FFTW_BACKWARD, FFTW_MEASURE);
+                                FFTW_BACKWARD, FFTW_PATIENT);
     }
     #endif
 
@@ -176,9 +177,10 @@ void OutofCoreConvolution::BlockConvolve(void) {
                         in_1d[g*cpd + x] = Mtmp[m*cpd*cpd + x*cpd + y];
                     fftw_execute(plan_forward_1d[g]);
                     for(int x=0;x<cpd;x++) 
-                        Mtmp[m*cpd*cpd + x*cpd +  y] = out_1d[g*cpd + x];
+                        Mtmp[m*cpd*cpd + x*cpd + y] = out_1d[g*cpd + x];
                 }
             }
+            
             #endif
             ForwardZFFTMultipoles.Stop();
 
@@ -207,10 +209,10 @@ void OutofCoreConvolution::BlockConvolve(void) {
                 int g = omp_get_thread_num();
                 for(int y=0;y<cpd;y++) {
                     for(int x=0;x<cpd;x++) 
-                        in_1d[g*cpd + x] = Mtmp[ m*cpd*cpd + x*cpd + y];
+                        in_1d[g*cpd + x] = Mtmp[m*cpd*cpd + x*cpd + y];
                     fftw_execute(plan_backward_1d[g]);
                     for(int x=0;x<cpd;x++) 
-                        Mtmp[  m*cpd*cpd + x*cpd + y ]  = out_1d[g*cpd + x];
+                        Mtmp[m*cpd*cpd + x*cpd + y] = out_1d[g*cpd + x];
                 }
             }
             #endif
@@ -354,6 +356,13 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
         int rv = system(cmd);
         assert(rv!=-1);
     }
+    
+    /*// Load fftw wisdom
+    char wisdom_fn[1024];
+    sprintf(wisdom_fn, "%s/fftw.wisdom", CP.runtime_TaylorDirectory);
+    int rv = fftw_import_wisdom_from_filename(wisdom_fn);
+    if(rv == 0) STDLOG(0, "Failed to load FFTW wisdom from %s\n", wisdom_fn);
+    else STDLOG(0, "Loaded FFTW wisdom from %s\n", wisdom_fn);*/
 
     BlockConvolve();
 
@@ -382,4 +391,10 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     free(CompressedDerivatives);
     free(TemporarySpace);
     free(DiskBuffer);
+    
+    /*// Store wisdom.  This is useful for producing identical plans in the future,
+    // which is necessary to get bitwise identical results
+    int rv = fftw_export_wisdom_to_filename(wisdom_fn);
+    if(rv == 0) { STDLOG(0, "Failed to save FFTW wisdom to %s\n", wisdom_fn); }
+    else { STDLOG(0, "Saved FFTW wisdom from %s\n", wisdom_fn); }*/
 }

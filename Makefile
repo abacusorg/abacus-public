@@ -62,8 +62,8 @@ bench:
 powerspectrum:
 	cd Analysis/PowerSpectrum &&$(MAKE)
 
-zeldovich:zeldovich.cpp
-	cd zeldovich && $(MAKE) $@
+zeldovich: zeldovich.cpp
+	cd zeldovich && $(MAKE) all
 	
 .PHONY: clean distclean generated_headers all zeldovich util tests powerspectrum singlestep
 

@@ -21,3 +21,5 @@ extern "C" unsigned long long int DeviceGetDI();
 extern "C" unsigned long long int DeviceGetOneDI(int g);
 
 extern "C" int GetNGPU();
+
+extern "C" void print_gpu_mem_usage();

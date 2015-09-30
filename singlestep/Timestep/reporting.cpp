@@ -144,14 +144,14 @@ void ReportTimings(FILE * timingfile) {
     REPORT(0, "Total Blocking Disk Writes", TotalWrite.Elapsed());
 	fprintf(timingfile, "---> %6.2f MB/sec on %6.3f GB", total_disk_write_blocking/(thistime+1e-15)/1e6, total_disk_write_blocking/1e9);
 
-    if (IOWriteTime.Elapsed()>0) {
+    //if (IOWriteTime.Elapsed()>0) {
 	// These are only set if using IO_thread.
 	fprintf(timingfile, "\n");
 	REPORT(0, "Total Non-blocking Disk Reads", IOReadTime.Elapsed());
 	    fprintf(timingfile, "---> %6.2f MB/sec on %6.3f GB", total_disk_read_nonblocking/(thistime+1e-15)/1e6, total_disk_read_nonblocking/1e9);
 	REPORT(0, "Total Non-blocking Disk Writes", IOWriteTime.Elapsed());
 	    fprintf(timingfile, "---> %6.2f MB/sec on %6.3f GB", total_disk_write_nonblocking/(thistime+1e-15)/1e6, total_disk_write_nonblocking/1e9);
-    }
+    //}
 
     fprintf(timingfile, "\n\nBreakdown of TimeStep: ");
     total = 0.0;

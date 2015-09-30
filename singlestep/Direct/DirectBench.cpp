@@ -201,7 +201,7 @@ void ExecuteSlabGPU(FLOAT3 ** pos, int ** c_start, int ** c_np,int cpd,int slabI
     }
     
     SetupGPU(SlabIDs,SlabPos,SlabNP,CellStart,CellNP,cpd, SetupGPUTimers);
-
+    
     GPUTimers[NGPU].Start();
     DeviceAcceleration(acc, slabID, NPslab[slabID],
             cpd, eps*eps, slabcomplete, 0,pred, GPUTimers);
@@ -223,6 +223,11 @@ void BenchmarkGPU(FLOAT3 ** pos, int ** c_start, int ** c_np, FLOAT3 ** acc,
 
         ExecuteSlabGPU(pos,c_start,c_np,cpd,i,NPslab, acc[i], eps);
         UnpinSlab(pos[i],i);  // This blocks until the execution is finished
+        
+        void** slabs_to_unpin = (void**) malloc(2*sizeof(void*));
+        slabs_to_unpin[0] = acc[i];
+        slabs_to_unpin[1] = NULL;
+        UnpinSlabs(slabs_to_unpin, 1);
     }
     long long unsigned int GPUDI = DeviceGetDI();
     //printf("\t\tGPU reports %lld DI for slabs %d - %d\n",GPUDI,NFR,nslabs-NFR-1);
@@ -254,7 +259,7 @@ void CheckGPUCPU(int nslab, int *NPslab, FLOAT3 ** a_gpu, FLOAT3 ** a_cpu, int m
 
     double delta_m = 0.0;
     double delta_m_bad = 0.0;
-    int NP = 0;
+    long long unsigned int NP = 0;
     int nfail = 0;
     
     if (mode == 1)
@@ -315,7 +320,7 @@ int main(int argc, char ** argv){
     int     * c_np[slabs];
     int       NPslab[slabs];
     long long unsigned int DIslab[slabs];
-    int NPTotal = 0;
+    long long unsigned int NPTotal = 0;
     long long unsigned int DITotal = 0;
 
     double GDirect;

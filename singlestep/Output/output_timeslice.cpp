@@ -32,13 +32,32 @@ void Output_TimeSlice(int slab) {
     if (!P.OmitOutputHeader) {
         AA->addheader((const char *) P.header());
         AA->addheader((const char *) ReadState.header());
-	char head[1024];
-	sprintf(head, "\nOutputType = \"TimeSlice\"\n"); 
-	AA->addheader((const char *) head);
-	sprintf(head, "SlabNumber = %d\n", slab);
-	AA->addheader((const char *) head);
-	// For sanity, be careful that the previous lines end with a \n!
-	AA->finalize_header();
+        char head[1024];
+        sprintf(head, "\nOutputType = \"TimeSlice\"\n"); 
+        AA->addheader((const char *) head);
+        sprintf(head, "SlabNumber = %d\n", slab);
+        AA->addheader((const char *) head);
+        // For sanity, be careful that the previous lines end with a \n!
+        AA->finalize_header();
+    } else if (slab == 0){  // Write the header to a separate file
+        char filename[1024];
+        sprintf(filename, "%s/slice%5.3f/header",  
+    	P.OutputDirectory, 
+        ReadState.Redshift,
+        P.SimName,
+        ReadState.Redshift,
+        slab);
+        
+        std::ofstream headerfile;
+        headerfile.open(filename);
+        headerfile << P.header();
+        headerfile << ReadState.header();
+        char head[1024];
+        sprintf(head, "\nOutputType = \"TimeSlice\"\n"); 
+        headerfile << head;
+        sprintf(head, "SlabNumber = %d\n", slab);
+        headerfile << head;
+        headerfile.close();
     }
 
     // Now scan through the cells
