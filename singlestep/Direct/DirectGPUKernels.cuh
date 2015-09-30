@@ -60,6 +60,7 @@ __device__ __inline__ void direct(
 
     r = drx*drx + dry*dry + drz*drz + TAU2;
     r *= r*RSQRT(r);  //r^3
+
     r+=eps2;
     r=(FLOAT)(1.0)/r;
 

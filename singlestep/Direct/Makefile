@@ -16,6 +16,7 @@ Tilesize = $(shell echo $(Blocksize)\*$(Tile) | bc)
 OPTIONS=-DDirectNT=$(Blocksize) -DDirectCPT=$(Tile) #-DPTXDIRECT
 KERNELPTXFLAGS=-v --compile-only --generate-line-info -maxrregcount 56
 PTXFLAGS= -v -maxrregcount 56
+
 CUDASM= sm_35
 CUDAFLAGS= $(VERSIONFLAGS) $(OPTIONS) -I$(ABACUS)/include -m64 -arch compute_35 -code $(CUDASM) -Xptxas="$(PTXFLAGS)" -Xcompiler -O3,-march=native,-mavx
 
@@ -67,7 +68,7 @@ DirectBench: DirectBench.cpp gpudirect.a
 endif
 
 clean:
-	rm -rf *.o *.ptx *.fatbin *.cubin nvtemp DirectBench
+	rm -rf *.o *.ptx *.fatbin *.cubin nvtemp
 
 distclean:
 	rm -rf *.o *.d *.a *.ptx *.fatbin *.cubin nvtemp DirectBench
