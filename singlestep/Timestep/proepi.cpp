@@ -211,6 +211,7 @@ void Prologue(Parameters &P, bool ic) {
 
     	JJ = new NearFieldDriver();
     	RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
+        
     } else {
     	TY = NULL;
     	RL = NULL;
@@ -247,6 +248,9 @@ void Epilogue(Parameters &P, bool ic) {
     	fclose(densout);
     	delete density; density = 0;
     }
+    
+    if(WriteState.Do2LPTVelocityRereading)
+        finish_2lpt_rereading();
 
     delete MF;
     delete LBW;
@@ -267,6 +271,7 @@ void Epilogue(Parameters &P, bool ic) {
             }
             #endif
         }
+        
     	delete TY;
     	delete RL;
     	delete[] SlabForceLatency;

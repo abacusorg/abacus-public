@@ -29,6 +29,7 @@ Dependency Drift;
 Dependency Finish;
 Dependency Output;
 Dependency Group;
+Dependency LPTVelocityReRead;
 
 
 // The wall-clock time minus all of the above Timers might be a measure
@@ -282,6 +283,16 @@ void OutputAction(int slab) {
 
 // -----------------------------------------------------------------
 
+int LPTVelPrecondition(int slab){
+    return 1;
+}
+
+void LPTVelAction(int slab){
+    return;
+}
+
+// -----------------------------------------------------------------
+
 int DriftPrecondition(int slab) {
     // We cannot move these particles until they have been fully used as gravity sources
     for(int j=-FORCE_WIDTH;j<=FORCE_WIDTH;j++)  {
@@ -316,14 +327,18 @@ void DriftAction(int slab) {
             STDLOG(1,"Drifting slab %d as LPT step 2\n", slab);
             
             // Load the neighboring velocity IC slabs
-            LPTDriftICReRead.Start();
-            load_ic_vel_neighbors(slab);
-            LPTDriftICReRead.Stop();
+            if (WriteState.Do2LPTVelocityRereading){
+                LPTDriftICReRead.Start();
+                load_ic_vel_neighbors(slab);
+                LPTDriftICReRead.Stop();
+            }
             
             DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_2);
             
             // Unload any finished velocity IC slabs
-            unload_finished_ic_vel_neighbors(slab, &Drift);
+            if (WriteState.Do2LPTVelocityRereading){
+                unload_finished_ic_vel_neighbors(slab, &Drift);
+            }
         } else QUIT("LPT Drift %d not implemented\n", step);
     } else {
         //         This is just a normal drift
@@ -419,15 +434,6 @@ void timestep(void) {
     STDLOG(0,"Adopting FORCE_WIDTH = %d\n", FORCE_WIDTH);
     STDLOG(0,"Adopting GROUP_WIDTH = %d\n", GROUP_WIDTH);
 
-    // Allocate 2LPT velocity bookkeeping
-    int step = LPTStepNumber();
-    if(step == 2){
-        vel_ics = (VelIC*) malloc(sizeof(VelIC)*P.cpd);
-        for(int i = 0; i < P.cpd; i++){
-            vel_ics[i].n_part = 0;
-        }
-    }
-
     int cpd = P.cpd;
     int first_slab_to_load = 0;   // Might eventually be different
     int first = first_slab_to_load; 
@@ -441,6 +447,9 @@ void timestep(void) {
            Output.instantiate(cpd, first, &OutputPrecondition,        &OutputAction        );
             Drift.instantiate(cpd, first, &DriftPrecondition,         &DriftAction         );
            Finish.instantiate(cpd, first, &FinishPrecondition,        &FinishAction        );
+           
+   //if(WriteState.Do2LPTVelocityRereading)
+   //    LPTVelocityReRead.instantiate(cpd, first, &LPTVelPrecondition, &LPTVelAction        );
 
 
     while( !Finish.alldone() ) {
@@ -452,12 +461,6 @@ void timestep(void) {
                Output.Attempt();
                 Drift.Attempt();
                Finish.Attempt();
-    }
-    // Free 2LPT velocity bookkeeping
-    if(step == 2){
-        for(int i = 0; i < P.cpd; i++)
-            assertf(!LBW->IDPresent(VelLPTSlab, i), "A 2LPT velocity slab was left loaded\n");
-        free(vel_ics);
     }
 
     if(IL->length!=0)

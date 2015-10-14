@@ -39,9 +39,11 @@ public:
     double ppd;		// Particles per dimension
     int DoublePrecision;  // =1 if code is using double precision positions
     char SofteningType[128];
+    double SofteningLength;
 
     double ScaleFactor;
     int FullStepNumber; // Counting the full steps
+    int LPTStepNumber; // Counting the full steps
 
     double BoxSizeMpc; 		// In Mpc
     double BoxSizeHMpc;		// In h^-1 Mpc
@@ -101,6 +103,8 @@ public:
     int DoTimeSliceOutput;
     int OutputIsAllowed;
     int DoBinning;
+    
+    int Do2LPTVelocityRereading;
 
     void read_from_file(const char *fn);
     void write_to_file(const char *dir);
@@ -116,6 +120,7 @@ public:
     	installscalar("ParameterFileName",ParameterFileName,DONT_CARE);
     	installscalar("ppd",ppd,DONT_CARE);
         installscalar("SofteningType", SofteningType,DONT_CARE);
+        installscalar("SofteningLength", SofteningLength,DONT_CARE);
 
     	sprintf(CodeVersion,"version_not_defined");
     	installscalar("CodeVersion",CodeVersion,DONT_CARE);
@@ -129,6 +134,7 @@ public:
 
 	installscalar("ScaleFactor",ScaleFactor, MUST_DEFINE);
 	installscalar("FullStepNumber",FullStepNumber,MUST_DEFINE);
+    installscalar("LPTStepNumber",LPTStepNumber,DONT_CARE);
 	installscalar("BoxSizeMpc",BoxSizeMpc,DONT_CARE);
 	installscalar("BoxSizeHMpc",BoxSizeHMpc,DONT_CARE);
 	installscalar("HubbleTimeGyr",HubbleTimeGyr,DONT_CARE);
@@ -176,6 +182,8 @@ public:
 	// Initialize helper variables
 	DoTimeSliceOutput = 0;
      	OutputIsAllowed = 0;
+        
+    Do2LPTVelocityRereading = 0;
     }
 
 
@@ -209,13 +217,13 @@ void State::make_output_header() {
 
     WPRS(ParameterFileName        , s);
     WPRS(CodeVersion              , s);
-    WPRS(SofteningType            , s);
     WPRS(RunTime                  , s);
     WPRS(MachineName              , s);
     WPR(DoublePrecision          , ISYM);
     WPR(ppd                      , FSYM);
 
     WPR(FullStepNumber           , ISYM);
+    WPR(LPTStepNumber           , ISYM);
     WPR(ScaleFactor              , FSYM);
     WPR(BoxSizeMpc               , FSYM);
     WPR(BoxSizeHMpc              , FSYM);
@@ -239,6 +247,9 @@ void State::make_output_header() {
     WPR(OmegaNow_m               , FSYM);
     WPR(OmegaNow_K               , FSYM);
     WPR(OmegaNow_DE              , FSYM);
+    
+    WPRS(SofteningType            , s);
+    WPR(SofteningLength            , FSYM);
 
     WPR(DeltaTime                , FSYM);
     WPR(DeltaScaleFactor         , FSYM);
@@ -248,6 +259,8 @@ void State::make_output_header() {
     WPR(FirstHalfEtaKick         , ESYM);
     WPR(LastHalfEtaKick          , ESYM);
     WPR(ScaleFactorHalf          , ESYM);
+    
+    WPR(Do2LPTVelocityRereading  , ISYM);
 
     output_header = ss.str();
 }

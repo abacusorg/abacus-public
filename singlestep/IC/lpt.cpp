@@ -115,6 +115,21 @@ void KickCell_2LPT_2(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     }
 }
 
+// Allocate 2LPT velocity bookkeeping
+void init_2lpt_rereading(){
+    vel_ics = (VelIC*) malloc(sizeof(VelIC)*P.cpd);
+    for(int i = 0; i < P.cpd; i++){
+        vel_ics[i].n_part = 0;
+    }
+}
+
+// Free 2LPT velocity bookkeeping
+void finish_2lpt_rereading(){
+    for(int i = 0; i < P.cpd; i++)
+        assertf(!LBW->IDPresent(VelLPTSlab, i), "A 2LPT velocity slab was left loaded\n");
+    free(vel_ics);
+}
+
 // Load an IC velocity slab into an arena through the LoadIC module
 void load_ic_vel_slab(int slabnum){
     slabnum = PP->WrapSlab(slabnum);
@@ -236,8 +251,7 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
         }
         // If we were supplied with Zel'dovich velocities and displacements,
         // we want to re-read the IC files to restore the velocities, which were overwritten above
-        else
-        if(strcmp(P.ICFormat, "RVdoubleZel") == 0 || strcmp(P.ICFormat, "RVZel") == 0){
+        else if(WriteState.Do2LPTVelocityRereading){
             integer3 ijk = ZelIJK(c.aux[b].pid());
             int slab = ijk.x*P.cpd / WriteState.ppd;  // slab number
             
@@ -249,13 +263,13 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
             vel1.x = vel->x;
             vel1.y = vel->y;
             vel1.z = vel->z;
-            assertf(!isnan(vel1.x), "vel1.x is nan: %f\n", vel1.x);
-            assertf(!isnan(vel1.y), "vel1.y is nan: %f\n", vel1.y);
-            assertf(!isnan(vel1.z), "vel1.z is nan: %f\n", vel1.z);
+            assertf(!isnan(vel1.x) && isfinite(vel1.x), "vel1.x bad value: %f\n", vel1.x);
+            assertf(!isnan(vel1.y) && isfinite(vel1.y), "vel1.y bad value: %f\n", vel1.y);
+            assertf(!isnan(vel1.z) && isfinite(vel1.z), "vel1.z bad value: %f\n", vel1.z);
         }
         // Unexpected IC format; fail.
         else {
-            assertf(false, "Unexpected ICformat in 2LPT code.  Must be one of: Zeldovich, RVdoubleZel, RVZel\n");
+            assertf(false, "Unexpected ICformat \"%s\" in 2LPT code.  Must be one of: Zeldovich, RVdoubleZel, RVZel\n", P.ICFormat);
         }
         
         c.vel[b] = vel1 + WriteState.f_growth*2*displ2*convert_velocity;

@@ -148,8 +148,8 @@ double ChooseTimeStep(){
 	maxdrift *= ReadState.MaxAcceleration;
 	maxdrift /= P.TimeStepAccel*P.TimeStepAccel;
 	double da_eona = da;
-	if (maxdrift>P.SofteningLength) {
-	    if(maxdrift >1e-12) da_eona *= sqrt(P.SofteningLength/maxdrift);
+	if (maxdrift>WriteState.SofteningLength) {
+	    if(maxdrift >1e-12) da_eona *= sqrt(WriteState.SofteningLength/maxdrift);
 	    STDLOG(0,"da based on sqrt(epsilon/amax) is %f.\n", da_eona);
 	}
 	
@@ -176,7 +176,31 @@ double ChooseTimeStep(){
 	return da;
 }
 
+// A few actions that we need to do before choosing the timestep
+void InitWriteState(){
+    // Even though we do this in BuildWriteState, we want to have the step number
+    // available when we choose the time step.
+    WriteState.FullStepNumber = ReadState.FullStepNumber+1;
+    WriteState.LPTStepNumber = LPTStepNumber();
+    
+    WriteState.Do2LPTVelocityRereading = 0;
+    if (LPTStepNumber() == 2 && (strcmp(P.ICFormat, "RVdoubleZel") == 0 || strcmp(P.ICFormat, "RVZel") == 0))
+        WriteState.Do2LPTVelocityRereading = 1;
+    
+    // Decrease the softening length if we are doing a 2LPT step
+    // This helps ensure that we are using the true 1/r^2 force
+    if(LPTStepNumber()>0){
+        WriteState.SofteningLength = P.SofteningLength / 1e4;
+        STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLength);
+    }
+    else{
+        WriteState.SofteningLength = P.SofteningLength;
+    }
+    
+    if(WriteState.Do2LPTVelocityRereading)
+        init_2lpt_rereading();
 
+}
 
 void BuildWriteState(double da){
 	STDLOG(0,"Building WriteState for a step from a=%f by da=%f\n", cosm->current.a, da);
@@ -189,6 +213,8 @@ void BuildWriteState(double da){
         
 #if defined DIRECTSPLINE
     strcpy(WriteState.SofteningType, "spline");
+#elif defined DIRECTCUBIC
+    strcpy(WriteState.SofteningType, "cubic");
 #else
     strcpy(WriteState.SofteningType, "plummer");
 #endif 
@@ -376,17 +402,8 @@ int main(int argc, char **argv) {
     cosm = InitializeCosmology(ReadState.ScaleFactor);
     if (MakeIC) FillStateWithCosmology(ReadState);
     
-    // Even though we do this in BuildWriteState, we want to have the step number
-    // available when we choose the time step.
-    WriteState.FullStepNumber = ReadState.FullStepNumber+1;
-    
-    // Decrease the softening length if we are doing a 2LPT step
-    // This helps ensure that we are using the true 1/r^2 force
-    if(LPTStepNumber()>0){
-        double old_soft = P.SofteningLength;
-        P.SofteningLength /= 1e4;
-        STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", old_soft, P.SofteningLength);
-    }
+    // Set some WriteState values before ChooseTimeStep()
+    InitWriteState();
     
     if (da!=0) da = ChooseTimeStep();
     STDLOG(0,"Chose Time Step da = %6.4f, dlna = %6.4f\n",da, da/ReadState.ScaleFactor);

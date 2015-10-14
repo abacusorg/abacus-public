@@ -184,7 +184,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     
     GPUDirectsLaunchTimer.Start();
     DeviceAcceleration((accstruct *)LBW->ReturnIDPtr(NearAccSlab,slabID), slabID, Slab->size(slabID),
-            P.cpd, P.SofteningLength*P.SofteningLength, slabcomplete+slabID, blocking,pred, GPUTimers);
+            P.cpd, WriteState.SofteningLength*WriteState.SofteningLength, slabcomplete+slabID, blocking,pred, GPUTimers);
     GPUDirectsLaunchTimer.Stop();
     
     if(pred != NULL){
@@ -261,7 +261,7 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
                         FLOAT3 delta = PP->CellCenter(slabID,y,z)-PP->CellCenter(i,j,k);
                         uint64 np_source = PP->NumberParticle(i,j,k);
                         if(np_source >0) DD[g].AVXExecute(sink_pos,source_pos,np_sink,np_source,
-                                delta,P.SofteningLength*P.SofteningLength,sink_acc);
+                                delta,WriteState.SofteningLength*WriteState.SofteningLength,sink_acc);
                         DI_slab+=np_sink*np_source;
                     }
                 }
