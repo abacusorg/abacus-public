@@ -112,7 +112,7 @@ SlabSize *Slab;
 NearFieldDriver *JJ;
 
 // Need this for both insert.cpp and timestep.cpp.
-int FINISH_WAIT_RADIUS = 1;
+int FINISH_WAIT_RADIUS = 2;
 
 #include "insert.cpp"
 #include "drift.cpp"
@@ -260,7 +260,7 @@ void Epilogue(Parameters &P, bool ic) {
 
 
     if(!ic) {
-        if(P.ForceOutputDebug){
+        if(0 and P.ForceOutputDebug){
             #ifdef CUDADIRECT
             STDLOG(1,"Direct Interactions: CPU (%llu) and GPU (%llu)\n",
                         JJ->DirectInteractions_CPU,JJ->DirectInteractions_GPU());

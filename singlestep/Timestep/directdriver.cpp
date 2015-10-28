@@ -196,6 +196,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 }
 
 void NearFieldDriver::CheckGPUCPU(int slabID){
+    return;
 // Computes the CPU result to compare to the GPU result
 // but does not overwrite the GPU forces.
     size_t len = Slab->size(slabID) *sizeof(accstruct);
