@@ -284,7 +284,7 @@ void NearFieldDriver::ExecuteSlab(int slabID, int blocking){
         {
     #endif
         ExecuteSlabCPU(slabID);
-        slabcomplete[slabID] = 1;
+        slabcomplete[slabID] = 3;
         }
 }
 

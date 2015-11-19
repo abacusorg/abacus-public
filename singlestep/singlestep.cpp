@@ -192,6 +192,11 @@ void InitWriteState(){
     if(LPTStepNumber()>0){
         WriteState.SofteningLength = P.SofteningLength / 1e4;
         STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLength);
+        
+        // Only have to do this because GPU gives bad forces sometimes, causing particles to shoot off.
+        // Remove this once the GPU is reliable again
+        P.ForceCPU = 1;
+        STDLOG(0,"Forcing CPU because this is a 2LPT step.\n");
     }
     else{
         WriteState.SofteningLength = P.SofteningLength;
