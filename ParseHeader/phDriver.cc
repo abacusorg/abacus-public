@@ -13,6 +13,7 @@ using std::endl;
 phDriver::phDriver (int _Warnings, int _No_Undefined) 
     : trace_scanning (false), trace_parsing (false), 
       Warnings(_Warnings), no_undefined(_No_Undefined) {
+    InitSymtab();
     ResetParser();
 }
      
@@ -356,8 +357,8 @@ void phDriver::ResetParser(void) {
  
     init_symtab = 1;
     for (i=0; i<NSYMS; i++) {
-        if(symtab[i].name != 0) free(symtab[i].name);
-        if(symtab[i].mapped == 0) free(symtab[i].init);
+        if(symtab[i].name != NULL) free(symtab[i].name);
+        if(symtab[i].init != NULL) free(symtab[i].init);
         symtab[i].pval.d = (double *) NULL;
         symtab[i].pvalorig.d = (double *) NULL;
         symtab[i].type = -1;                   // don't care
