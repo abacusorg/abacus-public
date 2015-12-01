@@ -126,6 +126,15 @@ void *check_realloc(void *ptr, size_t size, char *reason) {
   return(NULL);
 }
 
+int check_posix_memalign(void **memptr, size_t alignment, size_t size){
+    int retcode = posix_memalign(memptr, alignment, size);
+    if(retcode != 0){
+        fprintf(stderr, "[Error] posix_memalign %ld bytes with a %ld alignment failed with error code %d\n", size, alignment, retcode);
+        exit(retcode);
+    }
+    return retcode;
+}
+
 
 void _io_err(int rw, size_t size, size_t nitems, FILE *stream) {
   char *verb = (rw) ? "write" : "read";

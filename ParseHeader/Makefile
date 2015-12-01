@@ -1,5 +1,5 @@
 #CXX = gcc
-CXXFLAGS = -g
+CXXFLAGS = -g -gdwarf-2
 CPPFLAGS = -I../util 
 LEX = flex
 YACC = bison

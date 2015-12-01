@@ -1,15 +1,23 @@
-CFLAGS=-m64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_BSD_SOURCE -D_POSIX_SOURCE -D_POSIX_C_SOURCE=200809L -D_SVID_SOURCE -D_DARWIN_C_SOURCE -Wall -fno-math-errno -fPIC
+FLAGS=-m64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_BSD_SOURCE -D_POSIX_SOURCE -D_POSIX_C_SOURCE=200809L -D_SVID_SOURCE -D_DARWIN_C_SOURCE -Wall -fno-math-errno -fPIC -I../../ParseHeader -L../../ParseHeader -I../../Convolution -I../../include/ -lm -lparseheader
+CFLAGS = $(FLAGS) -std=c99
+CPPFLAGS = $(FLAGS)
 LDFLAGS=-shared
-OFLAGS = -lm -O3 -std=c99
-DEBUGFLAGS = -lm -g -O0 -std=c99 -Dinline= 
-PROFFLAGS = -lm -g -pg -O2 -std=c99
+OFLAGS = -O3
+DEBUGFLAGS = -g -gdwarf-2 -O0 -Dinline= 
+PROFFLAGS = -g -pg -O2
 CC = gcc
-CFILES = rockstar.c check_syscalls.c fof.c groupies.c subhalo_metric.c potential.c nfw.c jacobi.c fun_times.c interleaving.c universe_time.c hubble.c integrate.c distance.c config_vars.c config.c bounds.c inthash.c io/read_config.c client.c server.c merger.c inet/socket.c inet/rsocket.c inet/address.c io/meta_io.c io/io_internal.c io/io_ascii.c io/stringparse.c io/io_gadget.c io/io_generic.c io/io_art.c io/io_tipsy.c io/io_bgc2.c io/io_util.c io/io_arepo.c io/io_hdf5.c
+CPP = g++
+CFILES = rockstar.c check_syscalls.c fof.c groupies.c subhalo_metric.c potential.c nfw.c jacobi.c fun_times.c interleaving.c universe_time.c hubble.c integrate.c distance.c config_vars.c config.c bounds.c inthash.c io/read_config.c client.c server.c merger.c inet/socket.c inet/rsocket.c inet/address.c io/meta_io.c io/io_internal.c io/io_ascii.c io/stringparse.c io/io_gadget.c io/io_generic.c io/io_art.c io/io_tipsy.c io/io_bgc2.c io/io_util.c io/io_arepo.c io/io_hdf5.c io/io_pack14.c
+CPPFILES = io/io_pack14_helper.cpp
 DIST_FLAGS =
 HDF5_FLAGS = -DH5_USE_16_API -lhdf5 -DENABLE_HDF5 -I/opt/local/include -L/opt/local/lib
 
 all:
-	@make reg EXTRA_FLAGS="$(OFLAGS)"
+	@make reg EXTRA_FLAGS="$(DEBUGFLAGS)"
+	@make parents
+    
+posix:
+	g++ -o posix_test posix_test.cpp $(CPPFLAGS) $(DEBUGFLAGS)
 
 with_hdf5:
 	@make reg EXTRA_FLAGS="$(OFLAGS) $(HDF5_FLAGS)"
@@ -35,7 +43,9 @@ versiondist:
 	cd dist; tar xzf ../rockstar.tar.gz ; perl -ne '/\#define.*VERSION\D*([\d\.rcRC-]+)/ && print $$1' Rockstar/version.h > NUMBER ; mv Rockstar Rockstar-`cat NUMBER`; tar czf rockstar-`cat NUMBER`.tar.gz Rockstar-`cat NUMBER`
 
 reg:
-	$(CC) $(CFLAGS) main.c $(CFILES) -o rockstar  $(EXTRA_FLAGS)
+	$(CC)  -c main.c $(CFILES) $(CFLAGS) $(EXTRA_FLAGS)
+	$(CPP) -c $(CPPFILES) $(CPPFLAGS) $(EXTRA_FLAGS)
+	$(CPP) -o rockstar *.o $(FLAGS) $(EXTRA_FLAGS)
 
 lib:
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CFILES) -o librockstar.so $(OFLAGS)
@@ -52,5 +62,5 @@ substats:
 
 
 clean:
-	rm -f *~ io/*~ inet/*~ util/*~ rockstar util/redo_bgc2 util/subhalo_stats
+	rm -f *~ io/*~ inet/*~ util/*~ rockstar util/redo_bgc2 util/subhalo_stats util/find_parents *.o
 

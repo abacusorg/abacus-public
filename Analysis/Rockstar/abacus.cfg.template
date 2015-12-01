@@ -1,0 +1,79 @@
+#Rockstar Halo Finder
+#Abacus config file
+#Note that periodic boundary conditions are assumed for NUM_WRITERS > 1.
+#See README for details.
+
+#Once compiled ("make"), run Rockstar as
+# ./rockstar -c abacus.cfg
+#Then launch the reading/analysis tasks with:
+# ./rockstar -c auto-rockstar.cfg
+#You will have to launch at least NUM_READERS+NUM_WRITERS processes.
+
+
+FILE_FORMAT = "PACK14"
+# We should read this from the header
+#PARTICLE_MASS = 0       # must specify (in Msun/h) for ART or ASCII
+
+#This specifies the use of multiple processors:
+PARALLEL_IO=0
+
+# Filenames setup
+INBASE="{slice_dir}"
+
+FILENAME = "{fn}"  # This should contain <block>, which will be substituted with the slab number
+# Going to assume one snapshot at a time for now, since our time resolution is pretty low
+# Also, our snapshots do not have convenient names for iteration
+NUM_SNAPS = 1
+NUM_BLOCKS={cpd}
+NUM_READERS={ncpu}
+
+#This specifies how many CPUs you want to analyze the particles:
+NUM_WRITERS = {ncpu}
+
+# This means we only have to launch 1 process, and {ncpu} will automatically be started (each with a reader and writer)
+FORK_READERS_FROM_WRITERS = 1
+FORK_PROCESSORS_PER_MACHINE = {ncpu}
+
+# Not sure what this does precisely; is this thread-safe?
+PRELOAD_PARTICLES = 0
+
+# Not sure of the exact usage of this either.  Probably a distance in Mpc/h for particle transfer between processors.
+# or possibly something to do with temporal halo finding
+# or possibly mering halos
+#OVERLAP_LENGTH = 3.0
+
+OUTBASE = "{outdir}" # default is current directory
+OUTPUT_FORMAT = ASCII # "BOTH" or "ASCII" or "BINARY"
+
+MIN_HALO_OUTPUT_SIZE = {minmembers}  # Minimum number of particles in a halo
+#MIN_HALO_PARTICLES = <minimum number of halo particles> #default: 10.  Minimum particles for a halo "seed"
+UNBOUND_THRESHOLD = 0.5  # default 0.5; lower values keep less bound objects
+#FULL_PARTICLE_CHUNKS =  # number of writers which will output particles, between 1 and NUM_WRITERS (is this the downsampling Ben Wibking warned about?)
+#BOUND_OUT_TO_HALO_EDGE = 0  # Some sort of unbinding option --- maybe don't do unbinding?
+#EXACT_LL_CALC = 0  # Enables "more deterministic", but slower, halo property calculation.  Maybe this addresses Ben Wibking's concerns?
+
+DOWNSAMPLE = {downsample}  # Downsample by this factor before halo finding
+
+#MASS_DEFINITION = <"vir" or "XXXc" or "XXXb" etc.> #default: vir
+STRICT_SO_MASSES = 1 #default: 0, includes all unbound particles and particles not in the FoF group
+TEMPORAL_HALO_FINDING = 0 #default: 1.  We turn this off because we have poor time resolution
+
+#FOF_FRACTION = <FOF refinement fraction> #default 0.7 (is this the downsampling?)
+#FOF_LINKING_LENGTH = <FOF linking length> #default 0.28
+
+# For GADGET2, you may need to specify conversion parameters.
+# Rockstar's internal units are Mpc/h (lengths) and Msun/h (masses)
+#GADGET_LENGTH_CONVERSION = 1
+#GADGET_MASS_CONVERSION = 1e+10
+
+# For AREPO / GADGET2 HDF5, you would use the following instead:
+# Make sure to compile with "make with_hdf5"!
+#AREPO_LENGTH_CONVERSION = 1
+#AREPO_MASS_CONVERSION = 1e+10
+
+# For TIPSY, you would use:
+#TIPSY_LENGTH_CONVERSION = 10    #Typically, box size in Mpc/h
+#TIPSY_VELOCITY_CONVERSION = 1e6 #Conversion from TIPSY units to km/s at z=0
+
+# For ascii files, the file format is assumed to be:
+# X Y Z VX VY VZ ID

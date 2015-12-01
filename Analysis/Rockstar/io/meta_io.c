@@ -19,6 +19,7 @@
 #include "io_generic.h"
 #include "io_internal.h"
 #include "io_tipsy.h"
+#include "io_pack14.h"
 #include "meta_io.h"
 #include "../distance.h"
 #include "../version.h"
@@ -72,12 +73,14 @@ void get_input_filename(char *buffer, int maxlen, int64_t snap, int64_t block) {
 	      !strncasecmp(FILE_FORMAT, "LGADGET", 7) ||
 	      !strncasecmp(FILE_FORMAT, "AREPO", 5))
 	    snprintf(buffer+out, maxlen-out, "%03"PRId64, snap);
-	  else snprintf(buffer+out, maxlen-out, "%"PRId64, snap);
+      else snprintf(buffer+out, maxlen-out, "%"PRId64, snap);
 	}
       } 
       else if (!strncmp(FILENAME+i, "<block>", 7)) {
 	i+=6;
 	if (blocknames) snprintf(buffer+out, maxlen-out,"%s",blocknames[block]);
+    else if (!strncasecmp(FILE_FORMAT, "PACK14", 6))
+          snprintf(buffer+out, maxlen-out, "%04"PRId64, block);
 	else snprintf(buffer+out, maxlen-out, "%"PRId64, block);
       }
       else buffer[out] = FILENAME[i];
@@ -128,6 +131,9 @@ void read_particles(char *filename) {
     fprintf(stderr, "[Error] AREPO needs HDF5 support.  Recompile Rockstar using \"make with_hdf5\".\n");
     exit(1);
 #endif
+  }
+  else if (!strncasecmp(FILE_FORMAT, "PACK14", 6)) {
+    load_particles_pack14(filename, &p, &num_p);
   }
   else {
     fprintf(stderr, "[Error] Unknown filetype %s!\n", FILE_FORMAT);

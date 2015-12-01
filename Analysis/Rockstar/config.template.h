@@ -113,3 +113,5 @@ real3(DUMP_PARTICLES, "0 0 0");
 string(ROCKSTAR_CONFIG_FILENAME, "");
 real(AVG_PARTICLE_SPACING, 0); //Auto-generated
 integer(SINGLE_SNAP, 0);
+
+integer(DOWNSAMPLE, 1);
