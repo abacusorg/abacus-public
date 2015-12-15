@@ -20,6 +20,7 @@
 #include "io_internal.h"
 #include "io_tipsy.h"
 #include "io_pack14.h"
+#include "io_subsample.h"
 #include "meta_io.h"
 #include "../distance.h"
 #include "../version.h"
@@ -338,6 +339,9 @@ void output_halos(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
   if (!strcasecmp(OUTPUT_FORMAT, "BOTH") || !strcasecmp(OUTPUT_FORMAT, "BINARY")
       || (TEMPORAL_HALO_FINDING && !LIGHTCONE))
     output_binary(id_offset, snap, chunk, bounds, 1);
+    
+  if (!strcasecmp(OUTPUT_FORMAT, "HDF5_SUBSAMPLE"))
+    output_hdf5_subsample(id_offset, snap, chunk, bounds);
 
   if (chunk<FULL_PARTICLE_CHUNKS)
     output_full_particles(id_offset, snap, chunk, bounds);

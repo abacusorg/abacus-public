@@ -7,17 +7,15 @@ DEBUGFLAGS = -g -gdwarf-2 -O0 -Dinline=
 PROFFLAGS = -g -pg -O2
 CC = gcc
 CPP = g++
-CFILES = rockstar.c check_syscalls.c fof.c groupies.c subhalo_metric.c potential.c nfw.c jacobi.c fun_times.c interleaving.c universe_time.c hubble.c integrate.c distance.c config_vars.c config.c bounds.c inthash.c io/read_config.c client.c server.c merger.c inet/socket.c inet/rsocket.c inet/address.c io/meta_io.c io/io_internal.c io/io_ascii.c io/stringparse.c io/io_gadget.c io/io_generic.c io/io_art.c io/io_tipsy.c io/io_bgc2.c io/io_util.c io/io_arepo.c io/io_hdf5.c io/io_pack14.c
+CFILES = rockstar.c check_syscalls.c fof.c groupies.c subhalo_metric.c potential.c nfw.c jacobi.c fun_times.c interleaving.c universe_time.c hubble.c integrate.c distance.c config_vars.c config.c bounds.c inthash.c io/read_config.c client.c server.c merger.c inet/socket.c inet/rsocket.c inet/address.c io/meta_io.c io/io_internal.c io/io_ascii.c io/stringparse.c io/io_gadget.c io/io_generic.c io/io_art.c io/io_tipsy.c io/io_bgc2.c io/io_util.c io/io_arepo.c io/io_hdf5.c io/io_pack14.c io/io_subsample.c
 CPPFILES = io/io_pack14_helper.cpp
 DIST_FLAGS =
-HDF5_FLAGS = -DH5_USE_16_API -lhdf5 -DENABLE_HDF5 -I/opt/local/include -L/opt/local/lib
+#HDF5_FLAGS = -DH5_USE_16_API -lhdf5 -DENABLE_HDF5 -I/opt/local/include -L/opt/local/lib
+HDF5_FLAGS = -lhdf5_hl -lhdf5 -DENABLE_HDF5_18
 
 all:
-	@make reg EXTRA_FLAGS="$(DEBUGFLAGS)"
+	@make reg EXTRA_FLAGS="$(OFLAGS)"
 	@make parents
-    
-posix:
-	g++ -o posix_test posix_test.cpp $(CPPFLAGS) $(DEBUGFLAGS)
 
 with_hdf5:
 	@make reg EXTRA_FLAGS="$(OFLAGS) $(HDF5_FLAGS)"
@@ -43,16 +41,26 @@ versiondist:
 	cd dist; tar xzf ../rockstar.tar.gz ; perl -ne '/\#define.*VERSION\D*([\d\.rcRC-]+)/ && print $$1' Rockstar/version.h > NUMBER ; mv Rockstar Rockstar-`cat NUMBER`; tar czf rockstar-`cat NUMBER`.tar.gz Rockstar-`cat NUMBER`
 
 reg:
+	rm -f *.o
 	$(CC)  -c main.c $(CFILES) $(CFLAGS) $(EXTRA_FLAGS)
 	$(CPP) -c $(CPPFILES) $(CPPFLAGS) $(EXTRA_FLAGS)
 	$(CPP) -o rockstar *.o $(FLAGS) $(EXTRA_FLAGS)
+	rm -f main.o
+	$(CC)  -c util/subsample_find_parents.c $(CFILES) $(CFLAGS) $(EXTRA_FLAGS)
+	$(CPP) -o util/subsample_find_parents *.o $(FLAGS) $(EXTRA_FLAGS)
 
 lib:
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CFILES) -o librockstar.so $(OFLAGS)
 
 bgc2:
-	$(CC) $(CFLAGS) io/extra_bgc2.c util/redo_bgc2.c $(CFILES) -o util/finish_bgc2  $(OFLAGS)
-	$(CC) $(CFLAGS) io/extra_bgc2.c util/bgc2_to_ascii.c $(CFILES) -o util/bgc2_to_ascii  $(OFLAGS)
+	rm -f *.o
+	$(CC) -c io/extra_bgc2.c util/redo_bgc2.c $(CFILES) $(CFLAGS) $(OFLAGS)
+	$(CPP) -c $(CPPFILES) $(CPPFLAGS) $(OFLAGS)
+	$(CPP) -o util/finish_bgc2 *.o $(FLAGS) $(OFLAGS)
+	rm -f *.o
+	$(CC) -c io/extra_bgc2.c util/bgc2_to_ascii.c $(CFILES) $(CFLAGS) $(OFLAGS)
+	$(CPP) -c $(CPPFILES) $(CPPFLAGS) $(OFLAGS)
+	$(CPP) -o util/bgc2_to_ascii *.o $(FLAGS) $(OFLAGS)
 
 parents:
 	$(CC) $(CFLAGS) util/find_parents.c io/stringparse.c check_syscalls.c  -o util/find_parents $(OFLAGS)

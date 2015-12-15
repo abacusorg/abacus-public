@@ -9,13 +9,13 @@
 # ./rockstar -c auto-rockstar.cfg
 #You will have to launch at least NUM_READERS+NUM_WRITERS processes.
 
-
 FILE_FORMAT = "PACK14"
 # We should read this from the header
 #PARTICLE_MASS = 0       # must specify (in Msun/h) for ART or ASCII
 
 #This specifies the use of multiple processors:
-PARALLEL_IO=0
+PARALLEL_IO=1
+PERIODIC=1
 
 # Filenames setup
 INBASE="{slice_dir}"
@@ -39,23 +39,27 @@ PRELOAD_PARTICLES = 0
 
 # Not sure of the exact usage of this either.  Probably a distance in Mpc/h for particle transfer between processors.
 # or possibly something to do with temporal halo finding
-# or possibly mering halos
+# or possibly merging halos
 #OVERLAP_LENGTH = 3.0
 
 OUTBASE = "{outdir}" # default is current directory
-OUTPUT_FORMAT = ASCII # "BOTH" or "ASCII" or "BINARY"
+OUTPUT_FORMAT = {out_fmt} # "BOTH" or "ASCII" or "BINARY", or "HDF5_SUBSAMPLE"
+SUBSAMPLE_FRAC = .1  # If using HDF5_SUBSAMPLE, the fraction of particles included in the subsample
+
+#BGC2_SNAPNAMES = "{bgc2_snapnames}"  # We only do one snap at a time, so we just need a file with snap "0"
+RUN_ON_SUCCESS = "{rockdir}/finish_subsample.sh {rockdir} {outdir}"  # This is called for every snapshot with an additional arg for the snapnum (always 0 for us)
 
 MIN_HALO_OUTPUT_SIZE = {minmembers}  # Minimum number of particles in a halo
 #MIN_HALO_PARTICLES = <minimum number of halo particles> #default: 10.  Minimum particles for a halo "seed"
 UNBOUND_THRESHOLD = 0.5  # default 0.5; lower values keep less bound objects
 #FULL_PARTICLE_CHUNKS =  # number of writers which will output particles, between 1 and NUM_WRITERS (is this the downsampling Ben Wibking warned about?)
 #BOUND_OUT_TO_HALO_EDGE = 0  # Some sort of unbinding option --- maybe don't do unbinding?
-#EXACT_LL_CALC = 0  # Enables "more deterministic", but slower, halo property calculation.  Maybe this addresses Ben Wibking's concerns?
+EXACT_LL_CALC = 0  # Enables "more deterministic", but slower, halo property calculation.  Maybe this addresses Ben Wibking's concerns?
 
 DOWNSAMPLE = {downsample}  # Downsample by this factor before halo finding
 
 #MASS_DEFINITION = <"vir" or "XXXc" or "XXXb" etc.> #default: vir
-STRICT_SO_MASSES = 1 #default: 0, includes all unbound particles and particles not in the FoF group
+STRICT_SO_MASSES = {SO} #default: 0, includes all unbound particles and particles not in the FoF group
 TEMPORAL_HALO_FINDING = 0 #default: 1.  We turn this off because we have poor time resolution
 
 #FOF_FRACTION = <FOF refinement fraction> #default 0.7 (is this the downsampling?)

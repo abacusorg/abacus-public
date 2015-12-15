@@ -582,7 +582,7 @@ int server(void) {
       find_halos(snap);
       if (server_error_state) { reset_error(); reload_parts = 1; continue; }
     }
-    if (((strcasecmp(OUTPUT_FORMAT, "ASCII") != 0) || TEMPORAL_HALO_FINDING)
+    if (((strcasecmp(OUTPUT_FORMAT, "BINARY") == 0) || (strcasecmp(OUTPUT_FORMAT, "BOTH") == 0) || TEMPORAL_HALO_FINDING)
 	&& !DUMP_PARTICLES[0] && !IGNORE_PARTICLE_IDS)
       do_merger_tree(snap);
     if (server_error_state) { reset_error(); reload_parts = 1; continue; }
