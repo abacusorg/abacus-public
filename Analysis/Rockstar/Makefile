@@ -46,8 +46,11 @@ reg:
 	$(CPP) -c $(CPPFILES) $(CPPFLAGS) $(EXTRA_FLAGS)
 	$(CPP) -o rockstar *.o $(FLAGS) $(EXTRA_FLAGS)
 	rm -f main.o
-	$(CC)  -c util/subsample_find_parents.c $(CFILES) $(CFLAGS) $(EXTRA_FLAGS)
+	$(CC)  -c util/subsample_find_parents.c $(CFLAGS) $(EXTRA_FLAGS)
 	$(CPP) -o util/subsample_find_parents *.o $(FLAGS) $(EXTRA_FLAGS)
+	rm -f subsample_find_parents.o
+	$(CC)  -c util/make_uniform_subsample.c  $(CFLAGS) $(EXTRA_FLAGS)
+	$(CPP) -o util/make_uniform_subsample *.o $(FLAGS) $(EXTRA_FLAGS)
 
 lib:
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CFILES) -o librockstar.so $(OFLAGS)

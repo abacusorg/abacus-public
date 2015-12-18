@@ -1228,7 +1228,7 @@ void client(int64_t type) {
   random_sleep(5*(NUM_WRITERS+NUM_READERS)/512);
   c = connect_to_addr(PARALLEL_IO_SERVER_ADDRESS, PARALLEL_IO_SERVER_PORT);
   recv_from_socket(c, &magic, sizeof(uint64_t));
-  if (magic != ROCKSTAR_MAGIC) {
+  if (magic != PARALLEL_IO_MAGIC) {
     fprintf(stderr, "[Error] Received invalid client responses.  Check network connectivity.\n");
     exit(1);
   }

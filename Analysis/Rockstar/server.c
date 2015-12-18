@@ -62,7 +62,7 @@ void send_to_writers(void *data, int64_t length) {
 void accept_clients(int64_t s) {
   int port;
   int64_t c, num_writers=0, num_readers=0, accepted_client;
-  uint64_t magic = ROCKSTAR_MAGIC;
+  uint64_t magic = PARALLEL_IO_MAGIC;
   char cmd[5] = {0};
 
   timed_output("Accepting connections...\n");
@@ -73,7 +73,7 @@ void accept_clients(int64_t s) {
     send_to_socket_noconfirm(c, &magic, sizeof(uint64_t));
     recv_from_socket(c, &magic, sizeof(uint64_t));
 
-    if (magic != ROCKSTAR_MAGIC) {
+    if (magic != PARALLEL_IO_MAGIC) {
       fprintf(stderr, "[Error] Received invalid client responses.  Check network connectivity.\n");
       shutdown_clients();
       exit(1);

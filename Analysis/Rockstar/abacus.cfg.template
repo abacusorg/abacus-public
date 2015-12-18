@@ -33,6 +33,7 @@ NUM_WRITERS = {ncpu}
 # This means we only have to launch 1 process, and {ncpu} will automatically be started (each with a reader and writer)
 FORK_READERS_FROM_WRITERS = 1
 FORK_PROCESSORS_PER_MACHINE = {ncpu}
+PARALLEL_IO_MAGIC = {magic}
 
 # Not sure what this does precisely; is this thread-safe?
 PRELOAD_PARTICLES = 0
@@ -65,19 +66,3 @@ TEMPORAL_HALO_FINDING = 0 #default: 1.  We turn this off because we have poor ti
 #FOF_FRACTION = <FOF refinement fraction> #default 0.7 (is this the downsampling?)
 #FOF_LINKING_LENGTH = <FOF linking length> #default 0.28
 
-# For GADGET2, you may need to specify conversion parameters.
-# Rockstar's internal units are Mpc/h (lengths) and Msun/h (masses)
-#GADGET_LENGTH_CONVERSION = 1
-#GADGET_MASS_CONVERSION = 1e+10
-
-# For AREPO / GADGET2 HDF5, you would use the following instead:
-# Make sure to compile with "make with_hdf5"!
-#AREPO_LENGTH_CONVERSION = 1
-#AREPO_MASS_CONVERSION = 1e+10
-
-# For TIPSY, you would use:
-#TIPSY_LENGTH_CONVERSION = 10    #Typically, box size in Mpc/h
-#TIPSY_VELOCITY_CONVERSION = 1e6 #Conversion from TIPSY units to km/s at z=0
-
-# For ascii files, the file format is assumed to be:
-# X Y Z VX VY VZ ID

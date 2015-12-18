@@ -92,11 +92,15 @@ void get_input_filename(char *buffer, int maxlen, int64_t snap, int64_t block) {
 }
 
 void get_output_filename(char *buffer, int maxlen, int64_t snap, int64_t chunk, char *type) {
+  get_output_filename_prefix(buffer, maxlen, snap, chunk, type, "halos");
+}
+
+void get_output_filename_prefix(char *buffer, int maxlen, int64_t snap, int64_t chunk, char *type, char* prefix) {
   int64_t out = 0;
   snprintf(buffer, maxlen, "%s/", OUTBASE);
   out = strlen(buffer);
-  if (snapnames) snprintf(buffer+out, maxlen-out, "halos_%s", snapnames[snap]);
-  else snprintf(buffer+out, maxlen-out, "halos_%"PRId64, snap);
+  if (snapnames) snprintf(buffer+out, maxlen-out, "%s_%s", prefix, snapnames[snap]);
+  else snprintf(buffer+out, maxlen-out, "%s_%"PRId64, prefix, snap);
   out = strlen(buffer);
   snprintf(buffer+out, maxlen-out, ".%"PRId64".%s", chunk, type);
 }

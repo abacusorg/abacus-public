@@ -12,6 +12,8 @@ void read_input_names(char *filename, char ***stringnames, int64_t *num_names);
 void get_input_filename(char *buffer, int maxlen, int64_t snap, int64_t block);
 void get_output_filename(char *buffer, int maxlen, int64_t snap, 
 			 int64_t chunk, char *type);
+void get_output_filename_prefix(char *buffer, int maxlen, int64_t snap, 
+			 int64_t chunk, char *type, char* prefix);
 void read_particles(char *filename);
 int64_t count_halos_to_print(float *bounds);
 void delete_binary(int64_t snap, int64_t chunk);
