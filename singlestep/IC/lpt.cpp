@@ -249,9 +249,9 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
             vel1.x = vel->x;
             vel1.y = vel->y;
             vel1.z = vel->z;
-            assertf(!isnan(vel1.x), "vel1.x is nan: %f\n", vel1.x);
-            assertf(!isnan(vel1.y), "vel1.y is nan: %f\n", vel1.y);
-            assertf(!isnan(vel1.z), "vel1.z is nan: %f\n", vel1.z);
+            assertf(!std::isnan(vel1.x), "vel1.x is nan: %f\n", vel1.x);
+            assertf(!std::isnan(vel1.y), "vel1.y is nan: %f\n", vel1.y);
+            assertf(!std::isnan(vel1.z), "vel1.z is nan: %f\n", vel1.z);
         }
         // Unexpected IC format; fail.
         else {
