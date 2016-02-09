@@ -104,7 +104,7 @@ void NearForceAction(int slab) {
 
     SlabForceLatency[slab].Start();
     if (P.ForceOutputDebug) {
-    	// We want to output the AccSlab to the NearAcc file.
+    	// We want to output the NearAccSlab to the NearAcc file.
     	// This must be a blocking write.
     	//We must first wait for the direct thread to finish
     	LBW->WriteArena(NearAccSlab, slab, IO_KEEP, IO_BLOCKING,
@@ -143,7 +143,6 @@ void TaylorForceAction(int slab) {
     	// This must be a blocking write.
     	LBW->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
     			LBW->WriteSlabDescriptorName(FarAccSlab,slab).c_str());
-    	// We'll let things continue, but of course the near-force is missing!
     }
     LBW->DeAllocate(TaylorSlab,slab);
     SlabFarForceTime[slab].Stop();
@@ -362,11 +361,12 @@ void DriftAction(int slab) {
     // We kept the accelerations until here because of third-order LPT
     if (P.StoreForces && !P.ForceOutputDebug) {
         STDLOG(1,"Storing Forces in slab %d\n", slab);
-        LBW->StoreArenaNonBlocking(AccSlab,slab);
-    } else {
-        LBW->DeAllocate(AccSlab,slab);
-        LBW->DeAllocate(NearAccSlab,slab);
+        LBW->StoreArenaBlocking(AccSlab,slab);
     }
+    else{
+        LBW->DeAllocate(AccSlab,slab);
+    }
+    LBW->DeAllocate(NearAccSlab,slab);
 }
 
 // -----------------------------------------------------------------
@@ -476,6 +476,8 @@ void timestep(void) {
 
 // ===================================================================
 
+uint64 NP_from_IC = 0;
+
 int FetchICPrecondition(int slab) {
     // We always do this.
     return 1;
@@ -483,7 +485,8 @@ int FetchICPrecondition(int slab) {
 void FetchICAction(int slab) {
     STDLOG(1,"Fetching slab %d\n", slab);
     // Get a slab of particles and put them on the InsertList
-    LoadSlab2IL(slab);
+    NP_from_IC += LoadSlab2IL(slab);
+    
     // We also need to create a null slab
     LBW->AllocateSpecificSize(PosSlab,slab, 0);
     LBW->AllocateSpecificSize(VelSlab,slab, 0);
@@ -515,6 +518,8 @@ void timestepIC(void) {
        Finish.Attempt();
     }
 
+    assertf(NP_from_IC == P.np, "Expected to read a total of %llu particles from IC files, but only read %llu.\n", P.np, NP_from_IC);
+    
     char filename[1024];
     sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
     Slab->write(filename);

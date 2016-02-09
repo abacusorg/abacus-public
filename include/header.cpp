@@ -29,6 +29,9 @@
 
 #define uint64 uint64_t
 
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
+
 typedef std::complex<double> Complex;
 
 using namespace std;

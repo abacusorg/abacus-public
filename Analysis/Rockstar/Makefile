@@ -1,4 +1,5 @@
-FLAGS=-m64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_BSD_SOURCE -D_POSIX_SOURCE -D_POSIX_C_SOURCE=200809L -D_SVID_SOURCE -D_DARWIN_C_SOURCE -Wall -fno-math-errno -fPIC -I../../ParseHeader -L../../ParseHeader -I../../Convolution -I../../include/ -lm -lparseheader
+# On some systems, CPPFLAGS contains the HDF5 libraries, so we want it for C and CPP
+FLAGS:=-m64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_BSD_SOURCE -D_POSIX_SOURCE -D_POSIX_C_SOURCE=200809L -D_SVID_SOURCE -D_DARWIN_C_SOURCE -Wall -fno-math-errno -fPIC -I../../ParseHeader -L../../ParseHeader -I../../Convolution -I../../include/ -lm -lparseheader $(CPPFLAGS)
 CFLAGS = $(FLAGS) -std=c99
 CPPFLAGS = $(FLAGS)
 LDFLAGS=-shared
@@ -14,8 +15,8 @@ DIST_FLAGS =
 HDF5_FLAGS = -lhdf5_hl -lhdf5 -DENABLE_HDF5_18
 
 all:
-	@make reg EXTRA_FLAGS="$(OFLAGS)"
-	@make parents
+	@make reg EXTRA_FLAGS="$(OFLAGS) $(HDF5_FLAGS)"
+	#@make parents
 
 with_hdf5:
 	@make reg EXTRA_FLAGS="$(OFLAGS) $(HDF5_FLAGS)"

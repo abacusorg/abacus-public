@@ -277,6 +277,8 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
       if (cur_dens > dens_thresh[0]) {
         if (STRICT_SO_MASSES) halos[i].m = total_mass;
         npart = j;
+        if(j == ep_res->num_points-1)
+            fprintf(stderr, "[Warning] Reached the end of the SO halo particle list (length %" PRId64 ") without dropping below the SO density threshold.  Might need to increase BGC2 search radius.\n", ep_res->num_points);
       }
     }
 

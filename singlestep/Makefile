@@ -1,7 +1,7 @@
 #export CXX = icc  -openmp-stubs -pthread -liomp5 #-xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
 export CXX = g++ -march=native -mavx -fopenmp -lgomp --std=c++0x -Wformat=0 #-ggdb3
 export VERSIONFLAGS = -DDOUBLEPRECISION -DNFRADIUS=3 -DAVXDIRECT \
-            -DAVXMULTIPOLES -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -O3 -DIOTHREADED -DDIRECTSPLINE #-DCUDADIRECT #-DDIRECTCUBIC #-g
+            -DAVXMULTIPOLES -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -O3 -DIOTHREADED -DCUDADIRECT -DDIRECTSPLINE #-DDIRECTCUBIC
 export CXXFLAGS= -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS)
 # Could add -DGLOBALPOS here to switch the code to global positions.
 # Use -DDIRECTSPLINE for spline softening
@@ -13,7 +13,7 @@ CPPFLAGS = -I ../include -I ../Derivatives -I ../ParseHeader -I../Convolution\
 	   -I/usr/local/cuda/include
 
 
-LIBS =  -L../ParseHeader -lparseheader  -lfftw3 -lm -ltbb\
+LIBS =  -L../ParseHeader -lparseheader  -lfftw3 -lm -ltbb -lgsl -lgslcblas\
 	Multipoles/ETASM.o Multipoles/CMASM.o Multipoles/Cartesian2Reduced.a
     
 ifneq ($(DISABLE_GPU),1)
