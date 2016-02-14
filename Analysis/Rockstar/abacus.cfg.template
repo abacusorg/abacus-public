@@ -25,10 +25,10 @@ FILENAME = "{fn}"  # This should contain <block>, which will be substituted with
 # Also, our snapshots do not have convenient names for iteration
 NUM_SNAPS = 1
 NUM_BLOCKS={cpd}
-NUM_READERS={ncpu}
+NUM_READERS={ncpu_total}
 
 #This specifies how many CPUs you want to analyze the particles:
-NUM_WRITERS = {ncpu}
+NUM_WRITERS = {ncpu_total}
 
 # This means we only have to launch 1 process, and {ncpu} will automatically be started (each with a reader and writer)
 FORK_READERS_FROM_WRITERS = 1
@@ -55,7 +55,7 @@ MIN_HALO_OUTPUT_SIZE = {minmembers}  # Minimum number of particles in a halo
 UNBOUND_THRESHOLD = 0.5  # default 0.5; lower values keep less bound objects
 #FULL_PARTICLE_CHUNKS =  # number of writers which will output particles, between 1 and NUM_WRITERS (is this the downsampling Ben Wibking warned about?)
 #BOUND_OUT_TO_HALO_EDGE = 0  # Some sort of unbinding option --- maybe don't do unbinding?
-EXACT_LL_CALC = 0  # Enables "more deterministic", but slower, halo property calculation.  Maybe this addresses Ben Wibking's concerns?
+EXACT_LL_CALC = 1  # Enables "more deterministic", but slower, halo property calculation.  Maybe this addresses Ben Wibking's concerns?
 
 DOWNSAMPLE = {downsample}  # Downsample by this factor before halo finding
 
