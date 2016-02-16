@@ -224,7 +224,7 @@ void State::make_output_header() {
 
     WPR(FullStepNumber           , ISYM);
     WPR(LPTStepNumber           , ISYM);
-    WPR(ScaleFactor              , FSYM);
+    WPR(ScaleFactor              , ESYM);
     WPR(BoxSizeMpc               , FSYM);
     WPR(BoxSizeHMpc              , FSYM);
     WPR(HubbleTimeGyr            , FSYM);

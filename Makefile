@@ -2,7 +2,7 @@
 
 VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich
 
-CLIBS = libpermute.so liblightcones.so
+CLIBS = libpermute.so liblightcones.so libreadabacus.so
 
 all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum
 
@@ -45,10 +45,13 @@ ConvolutionDriver: convolutionwrapper.cpp include/Parameters.cpp
 	cd Convolution && $(MAKE) $@
 	
 libpermute.so: perm.cpp
-	cd python/clibs && $(MAKE) $@
+	$(MAKE) -C python/clibs $@
 	
 liblightcones.so: lc.cpp
-	cd python/clibs && $(MAKE) $@
+	$(MAKE) -C python/clibs $@
+	
+libreadabacus.so:
+	$(MAKE) -C python/clibs $@
 
 util:
 	cd util && $(MAKE) all

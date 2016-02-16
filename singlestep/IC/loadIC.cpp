@@ -21,7 +21,7 @@
 // To resolve a circular dependency issue, all of the IC classes are defined in this header
 #include "IC_classes.h"
 
-void LoadSlab2IL(int slab) {
+uint64 LoadSlab2IL(int slab) {
     double3 global_pos;
     posstruct pos;
     velstruct vel;
@@ -60,6 +60,10 @@ void LoadSlab2IL(int slab) {
     } else if (strcmp(P.ICFormat,"Heitmann") == 0){
         STDLOG(1,"Using format Heitmann\n");
         ic = new ICfile_Heitmann(filename);
+    } else if (strcmp(P.ICFormat, "Glass") == 0){
+        STDLOG(1,"Using format Glass\n");
+        STDLOG(1,"Note: ICFormat \"Glass\" means that we ignore any IC files and generate the glass in memory.\n");
+        ic = new ICfile_Glass(slab);
     }
     else {
         // We weren't given a legal format name.
@@ -79,7 +83,7 @@ void LoadSlab2IL(int slab) {
         // For cell-centered positions:
         integer3 newcell = PP->LocalPosition2Cell(&global_pos);
 #endif
-        pos = global_pos;    
+        pos = global_pos;
 
         vel *= convert_velocity;
         IL->Push(&pos, &vel, &aux, newcell);
@@ -87,5 +91,5 @@ void LoadSlab2IL(int slab) {
     }
     delete ic;    // Call the destructor.
     STDLOG(0,"Read %d particles from IC file %s\n", count, filename);
-    return;
+    return count; 
 }

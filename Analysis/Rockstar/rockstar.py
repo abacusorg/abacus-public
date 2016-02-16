@@ -44,9 +44,9 @@ def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=20, downsample=1, confi
         # Set the output directory
         split = slabs[0].split('/')[:-1]
         split[-1] = split[-1].replace('slice', 'z')
+        split[-2] = split[-2] + '_rockstar_halos'
         if downsample > 1:
             split[-2] = split[-2] + '_downsampled'
-        split[-2] = split[-2] + '_rockstar_halos'
         outdir = '/'.join(split)
         
         if not os.path.exists(outdir):
@@ -59,7 +59,8 @@ def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=20, downsample=1, confi
             config = template_file.read()
             rockdir = os.getcwd()
             bgc2_snapnames = '{rockdir}/bgc2_snapnames.txt'.format(rockdir=rockdir) if SO else ''
-            out_fmt = 'ASCII' if SO else 'HDF5_SUBSAMPLE'  # If we are producing SO catalogs, let's use ASCII to avoid a full particle dump (or subsample)
+            #out_fmt = 'ASCII' if SO else 'HDF5_SUBSAMPLE'  # If we are producing SO catalogs, let's use ASCII to avoid a full particle dump (or subsample)
+            out_fmt = 'HDF5_SUBSAMPLE'
             magic = np.random.randint(2**31);  # A magic value to ensure that the client and server are using the same config file
             config = config.format(slice_dir=slice_dir, fn=fn, cpd=cpd, ncpu_total=ncpu*nnode, ncpu=ncpu, outdir=outdir, minmembers=minmembers, downsample=downsample, rockdir=os.getcwd(),
                                    SO=SO, bgc2_snapnames=bgc2_snapnames, out_fmt=out_fmt, magic=magic)
@@ -83,7 +84,7 @@ if __name__ == '__main__':
     #parser.add_argument('--eps', help='The FoF linking length, in units of the interparticle spacing (post-downsampling)', type=float, default=.2)
     parser.add_argument('--downsample', help='Downsample by this factor on each dimension before finding halos.  Outputs will have "_downsampled" appended', default=1, type=int)
     parser.add_argument('--minmembers', help='Minimum halo size to search for', default=20, type=int)
-    parser.add_argument('--SO', help='Produce spherical overdensity halo masses in binary catalogs', action='store_true')
+    parser.add_argument('--SO', help='Produce spherical overdensity halo masses in binary catalogs', action='store_const', const=1)
     #parser.add_argument('--format', help='Format of the Abacus timeslice outputs', default='Pack14', choices=['RVdouble', 'LC', 'Pack14'])
     
     args = parser.parse_args()

@@ -44,6 +44,7 @@ void KickCell(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
         sumvel2 += _vel*_vel;
         // Second half kick, to advance to time i+1/2
         vel[i] += kick2 * acc[i];
+        //vel[i] *= .9;
     }
 
     if (c.count()>0) sumvel2/=c.count();  // Now this has the mean square velocity 
@@ -79,6 +80,10 @@ void RescaleAndCoAddAcceleration(int slab) {
     accstruct *facc = (accstruct *) LBW->ReturnIDPtr(AccSlab,slab);
     FLOAT *naccxyz = (FLOAT *) nacc;
     FLOAT *faccxyz = (FLOAT *) facc;
+    
+    // Reverse the sign of the acceleration if we are making glass
+    if(strcmp(P.ICFormat, "Glass") == 0)
+        rescale *= -1;
     
     uint64 N = Slab->size(slab)*3;
     

@@ -96,7 +96,7 @@ void output_binary(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds
 
   get_output_filename(buffer, 1024, snap, chunk, "bin");
   if (output_particles) output = check_fopen(buffer, "wb");
-  else output = check_fopen(buffer, "r+b");
+  else output = check_fopen(buffer, "wb");  // check_fopen(buffer, "r+b");  // We don't require that the file exist
 
   memset(&bheader, 0, sizeof(struct binary_output_header));
   _append_to_buffer(&bheader, sizeof(struct binary_output_header), output);

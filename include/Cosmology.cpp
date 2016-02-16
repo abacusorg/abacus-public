@@ -197,27 +197,42 @@ double Cosmology::H(double a) {
 double Cosmology::t2a(double t) {
     CopyEpoch(search,next);
     double a;
-    int n = 0;
-
-    a = 0.5;
-
-    double f, fp, da;
-    double dela = 1e-6;
-    n = 0;
-    do {
-        BuildEpoch(search,search,a);
-        f = search.t - t;
-	// STDLOG(1,"t2a(): a=%12.8f   t=%12.8f\n", a, search.t);
-        BuildEpoch(search,search,a-dela);
-        fp = search.t;
-        BuildEpoch(search,search,a+dela);
-        fp = (search.t-fp)/(2*dela);
-        da = - f/fp;
-        a += da;
-        n++;
-	// STDLOG(1,"t2a(): a=%12.8f    da=%12.4e\n", a, da);
-        //    } while(fabs(f)/t>1.0e-15 || fabs(da)>1e-13);
-    } while(fabs(da)>1e-14);
+    
+    // If the cosmology is EdS, we know the answer
+    if(C.Omega_m == 1 && C.Omega_K == 0 && C.Omega_DE == 0){
+        a = pow(3*C.H0*t/2, 2./3);
+    }
+    // otherwise do an iterative search
+    else {
+        int n = 0;
+        a = 0.5;
+        double f, fp, da;
+        double dela = 1e-6;
+        n = 0;
+        do {
+            BuildEpoch(search,search,a);
+            f = search.t - t;
+            // STDLOG(1,"t2a(): a=%12.8f   t=%12.8f\n", a, search.t);
+            // Choose 'dela' based on the current 'a'
+            // This avoids negative (a-dela)
+            // and fp underflow for extremely large 'a'
+            dela = 1e-6*a;
+            BuildEpoch(search,search,a-dela);
+            fp = search.t;
+            BuildEpoch(search,search,a+dela);
+            fp = (search.t-fp)/(2*dela);
+            da = - f/fp;
+            // If 'da' would make 'a' negative, instead just shrink 'a'
+            if(a + da <= 0)
+                a /= 10;
+            else
+                a += da;
+            n++;
+        // STDLOG(1,"t2a(): a=%12.8f    da=%12.4e\n", a, da);
+        } while(fabs(f)/t>1.0e-13 || (fabs(da)/a)>1e-13);
+        //} while(fabs(da)>1e-14);
+    }
+    
     BuildEpoch(next,search,a);
     return a;
 
