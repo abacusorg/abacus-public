@@ -5,10 +5,10 @@ CUDACC=nvcc
 	    --generate-code arch=compute_35,code=sm_35\
 	    --generate-code arch=compute_30,code=sm_30\
 	    -lineinfo
-CUDASRC= gpudirect.cu
+CUDASRC= GPUPencilDirect.cu
 
 Blocksize = 64
-Tile = 3
+Tile = 1
 ILP = 8
 Unroll = 16
 Tilesize = $(shell echo $(Blocksize)\*$(Tile) | bc)
@@ -20,7 +20,7 @@ PTXFLAGS= -v -maxrregcount 56
 CUDASM= sm_35
 CUDAFLAGS= $(VERSIONFLAGS) $(OPTIONS) -I$(ABACUS)/include -m64 -arch compute_35 -code $(CUDASM) -Xptxas="$(PTXFLAGS)" -Xcompiler -O3,-march=native,-mavx
 
-gpudirect: gpudirect.a gpudirect.d DirectBench
+gpudirect: gpudirect.a gpudirect.d
 
 gpudirect.d:
 	$(CUDACC) -E -Xcompiler "-isystem $(CUDA_INSTALL_PATH)/include -MM" -I$(ABACUS)/include -o $@ $(CUDASRC)

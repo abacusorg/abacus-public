@@ -1,5 +1,5 @@
 //from direct_gpu_driver.cu
-extern "C"
+/*extern "C"
 void DeviceAcceleration(accstruct* acc,int slab, int slabNP,int cpd,FLOAT eps2, int *whendone,int blocking, int * pred, STimer* timers);
 
 extern "C"
@@ -16,7 +16,7 @@ extern "C" void UnpinSlabs(void** slabs_to_unpin, int cpd);
 extern "C" int * GetCellStart(int cpd,int s);
 
 extern "C" int * GetCellNP(int cpd,int s);
-
+*/
 extern "C" unsigned long long int DeviceGetDI();
 extern "C" unsigned long long int DeviceGetOneDI(int g);
 
