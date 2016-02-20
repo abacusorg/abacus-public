@@ -18,16 +18,16 @@ class NearFieldDriver{
         uint64 DirectInteractions_GPU;
         uint64 NSink_CPU;
 
-        double  Construction=0;
-        double      FillSinkLists=0;
-        double          CountSinks=0;
-        double          CalcSinkBlocks=0;
-        double          FillSinks=0;
-        double      FillSourceLists=0;
-        double          CountSources=0;
-        double          CalcSourceBlocks=0;
-        double          FillSources=0;
-        double      FillInteractionList=0;
+        double  Construction;
+        double      FillSinkLists;
+        double          CountSinks;
+        double          CalcSinkBlocks;
+        double          FillSinks;
+        double      FillSourceLists;
+        double          CountSources;
+        double          CalcSourceBlocks;
+        double          FillSources;
+        double      FillInteractionList;
 
         STimer SICExecute;
 
@@ -55,7 +55,18 @@ class NearFieldDriver{
 
 
 
-NearFieldDriver::NearFieldDriver(){
+NearFieldDriver::NearFieldDriver() :         
+        Construction{0},
+              FillSinkLists{0},
+                  CountSinks{0},
+                  CalcSinkBlocks{0},
+                  FillSinks{0},
+              FillSourceLists{0},
+                  CountSources{0},
+                  CalcSourceBlocks{0},
+                  FillSources{0},
+        FillInteractionList{0}
+{
     int nthread = omp_get_max_threads();
     STDLOG(1,
             "Initializing NearFieldDriver with %d OMP threads (OMP is aware of %d procs).\n",
