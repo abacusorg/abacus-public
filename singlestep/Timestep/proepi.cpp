@@ -53,16 +53,6 @@ STimer WallClockDirect;
 STimer SingleStepSetup;
 STimer SingleStepTearDown;
 
-STimer TotalRead;
-STimer TotalWrite;
-uint64 total_disk_read = 0;
-uint64 total_disk_read_blocking = 0;
-uint64 total_disk_read_nonblocking = 0;
-uint64 total_disk_write = 0;
-uint64 total_disk_write_blocking = 0;
-uint64 total_disk_write_nonblocking = 0;
-
-
 uint64 naive_directinteractions = 0;    
 
 #include "file.h"

@@ -117,3 +117,5 @@ real(AVG_PARTICLE_SPACING, 0); //Auto-generated
 integer(SINGLE_SNAP, 0);
 
 integer(DOWNSAMPLE, 1);
+
+real(BGC2_R, 40e-3);

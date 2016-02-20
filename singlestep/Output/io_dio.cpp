@@ -21,7 +21,13 @@ void ReadFile(char *ram, uint64 sizebytes, int arena,
     int ramdisk = io_ramdisk_global;
     int diskbuffer = 1024*512;
     ReadDirect RD(ramdisk, diskbuffer);
+    
+    BlockingIOReadTime.Start();
+    
     RD.BlockingRead( fn, ram, sizebytes, fileoffset);
+    
+    BlockingIOReadTime.Stop();
+    blocking_read_bytes += sizebytes;
 
     STDLOG(1,"Done reading file\n");
     IO_SetIOCompleted(arena);
@@ -49,7 +55,13 @@ void WriteFile(char *ram, uint64 sizebytes, int arena,
     int ramdisk = io_ramdisk_global;
     int diskbuffer = 1024*512;
     WriteDirect WD(ramdisk, diskbuffer);
+    
+    BlockingIOWriteTime.Start();
+    
     WD.BlockingAppend( fn, ram, sizebytes);
+    
+    BlockingIOWriteTime.Stop();
+    blocking_write_bytes += sizebytes;
 
     STDLOG(1,"Done writing file\n");
     if (deleteafter==IO_DELETE) IO_DeleteArena(arena);

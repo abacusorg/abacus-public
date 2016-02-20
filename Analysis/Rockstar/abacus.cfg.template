@@ -38,9 +38,8 @@ PARALLEL_IO_MAGIC = {magic}
 # Not sure what this does precisely; is this thread-safe?
 PRELOAD_PARTICLES = 0
 
-# Not sure of the exact usage of this either.  Probably a distance in Mpc/h for particle transfer between processors.
-# or possibly something to do with temporal halo finding
-# or possibly merging halos
+# Not sure of the exact usage of this either, but it's something to do with
+# temporal halo tracking/halo merger trees
 #OVERLAP_LENGTH = 3.0
 
 OUTBASE = "{outdir}" # default is current directory
@@ -56,11 +55,13 @@ UNBOUND_THRESHOLD = 0.0  # default 0.5; lower values keep less bound objects
 #FULL_PARTICLE_CHUNKS =  # number of writers which will output particles, between 1 and NUM_WRITERS (is this the downsampling Ben Wibking warned about?)
 #BOUND_OUT_TO_HALO_EDGE = 0  # Some sort of unbinding option --- maybe don't do unbinding?
 EXACT_LL_CALC = 0  # Enables "more deterministic", but slower, halo property calculation.  Maybe this addresses Ben Wibking's concerns?
+BOUND_PROPS = 0  # Might only work for the alternate masses?
 
 DOWNSAMPLE = {downsample}  # Downsample by this factor before halo finding
 
 #MASS_DEFINITION = <"vir" or "XXXc" or "XXXb" etc.> #default: vir
 STRICT_SO_MASSES = {SO} #default: 0, includes all unbound particles and particles not in the FoF group
+BGC2_R = 40e-3  # The search radius for SO particles, in units of the FoF radius (as computed from the FoF mass assuming constant density).  Should have a factor of 1e-3 to convert to Mpc.  Default 1.1e-3, but that is WAY too small.  100e-3 is too big and breaks the code.  40e-3 seems mostly converged.
 TEMPORAL_HALO_FINDING = 0 #default: 1.  We turn this off because we have poor time resolution
 
 #FOF_FRACTION = <FOF refinement fraction> #default 0.7 (is this the downsampling?)

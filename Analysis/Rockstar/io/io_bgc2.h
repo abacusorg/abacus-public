@@ -15,8 +15,6 @@ struct sphere_request {
   float cen[3], r;
 };
 
-#define BGC2_R (100.1/1e3)
-
 extern struct extended_particle *ep, *ep2;
 extern int64_t num_ep2;
 
