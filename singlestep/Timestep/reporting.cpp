@@ -161,9 +161,9 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "NearForce [blocking]", NearForce.Elapsed()); total += thistime;
     fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
     REPORT(1, "NearForce [non-blocking]", GPUTimers[NGPU].Elapsed()); //total += thistime;
-    double gdi_gpu = JJ->DirectInteractions_GPU()/1e9;
-    fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, JJ->NSink_GPU()/(thistime+1e-15)/1e6);
-    double total_di = (JJ->DirectInteractions_CPU +JJ->DirectInteractions_GPU())/1e9;
+    double gdi_gpu = JJ->DirectInteractions_GPU/1e9;
+    fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, P.np/(thistime+1e-15)/1e6);
+    double total_di = (JJ->DirectInteractions_CPU +JJ->DirectInteractions_GPU)/1e9;
 	//fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", total_di/(thistime+1e-15), total_di, P.np/(thistime+1e-15)/1e6);
       //fprintf(timingfile,"\n DJE: %lld,  MVM: %lld,  ratio = %f", naive_directinteractions, JJ->directinteractions,
 	//	 1.0*naive_directinteractions/JJ->directinteractions);
@@ -276,32 +276,35 @@ void ReportTimings(FILE * timingfile) {
     
     REPORT(2, "Non-blocking (GPU Directs)", GPUTimers[NGPU].Elapsed());
     //double gdi_gpu = JJ->DirectInteractions_GPU()/1e9;
-    fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, JJ->NSink_GPU()/(thistime+1e-15)/1e6);
+    fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, P.np/(thistime+1e-15)/1e6);
     
     for(int g = 0; g < NGPU; g++){
         char buffer[100];
         const char* fmt = "GPU %d Directs:";
         sprintf(buffer, fmt, g);
         REPORT(3, buffer, GPUTimers[g].Elapsed());
-        double gdi_gpu = JJ->DirectInteractions_GPU(g)/1e9;
-        fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, JJ->NSink_GPU(g)/(thistime+1e-15)/1e6);
+        double gdi_gpu = JJ->DirectInteractions_GPU/1e9;
+        fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, P.np/(thistime+1e-15)/1e6);
     }
-#else
+
     denom = NearForce.Elapsed();
-    //REPORT(2, "NearForce Setup", JJ->Setup.Elapsed());
-    //REPORT(2, "NearForce Fill Source", JJ->FillSourceLists.Elapsed());
-    //denom = JJ->FillSourceLists.Elapsed();
-    //REPORT(3, "Count Sources",JJ->CountSources.Elapsed());
-    //REPORT(3, "Calc Source Offset",JJ->CalcSourceOffset.Elapsed());
-    //REPORT(3, "Fill Sources",JJ->FillSources.Elapsed());
-    //denom = NearForce.Elapsed();
-    //REPORT(2, "NearForce Fill Sink", JJ->FillSinkLists.Elapsed());
-    //denom = JJ->FillSinkLists.Elapsed();
-    //REPORT(3, "Count Sinks",JJ->CountSinks.Elapsed());
-    //REPORT(3, "Calc Sink Offset",JJ->CalcSinkOffset.Elapsed());
-    //REPORT(3, "Fill Sinks",JJ->FillSinks.Elapsed());
-    //denom = NearForce.Elapsed();
-    //REPORT(2, "NearForce Fill Interaction", JJ->FillInteractionList.Elapsed());
+    REPORT(2, "NearForce Setup", JJ->Construction);
+    denom = JJ->Construction;
+    REPORT(3, "NearForce Fill Source", JJ->FillSourceLists);
+    denom = JJ->FillSourceLists;
+    REPORT(4, "Count Sources",JJ->CountSources);
+    REPORT(4, "Calc Source Offset",JJ->CalcSourceBlocks);
+    REPORT(4, "Fill Sources",JJ->FillSources);
+    denom = JJ->Construction;
+    REPORT(3, "NearForce Fill Sink", JJ->FillSinkLists);
+    denom = JJ->FillSinkLists;
+    REPORT(4, "Count Sinks",JJ->CountSinks);
+    REPORT(4, "Calc Sink Offset",JJ->CalcSinkBlocks);
+    REPORT(4, "Fill Sinks",JJ->FillSinks);
+    denom = JJ->Construction;
+    REPORT(3, "NearForce Fill Interaction", JJ->FillInteractionList);
+    denom = NearForce.Elapsed();
+    REPORT(2, "SIC Execution", JJ->SICExecute.Elapsed());
     //REPORT(2, "NearForce Core", JJ->DeviceAcceleration.Elapsed());
     //REPORT(2, "NearForce Thread Sort", JJ->GPUThreadSort);
     //REPORT(2, "NearForce Thread Spin", JJ->GPUThreadSpin);

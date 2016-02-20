@@ -1,7 +1,7 @@
 //holds information about an group of interactions (i.e. pencil on pencil) to compute directs for 
 //These sets can be any arbitrary collections of particles (e.g. groups), but frequently are 5 cell pencils
 
-
+#include <vector>
 
 class SetInteractionCollection{
     public:
@@ -30,6 +30,8 @@ class SetInteractionCollection{
 
         volatile int CompletionFlag;
 
+        int         SlabId;
+        int         W;
         int         K_low;
         int         K_high;
         int         InteractionCount;//How many source on sink interactions are in this set
@@ -46,10 +48,8 @@ class SetInteractionCollection{
 
 
         int         NSinkList;
-
         int         NSourceSets;
 
-        int *       SinkSetInteractionListStart;
         int *       SinkSourceInteractionList;
 
         uint64 DirectTotal; //Number of directs for this interection collection
@@ -69,6 +69,7 @@ class SetInteractionCollection{
 
         //execute this collection on the GPU
         void GPUExecute(int blocking);
+        void CPUExecute();
 
         //check if this collection has been completed;
         int CheckCompletion();
@@ -76,8 +77,11 @@ class SetInteractionCollection{
         //Mark this collection as completed and clean up everything but results
         void SetCompleted();
 
-        //Writes the computed Accelerations for the InteractionCollection back into the main arena
-        void WriteAccelerations(int w); 
+        //Prints debugging information for this interaction set to stdout
+        void PrintInteractions();
+
+        //Fill a cell on cell interaction list with the interactions in this SIC (debugging only)
+        void  AddInteractionList( std::vector<int> ** il);
 
 };
 

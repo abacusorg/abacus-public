@@ -19,7 +19,9 @@ extern "C" int * GetCellNP(int cpd,int s);
 */
 extern "C" unsigned long long int DeviceGetDI();
 extern "C" unsigned long long int DeviceGetOneDI(int g);
+extern "C" double GetDeviceMemory();
 
 extern "C" int GetNGPU();
+extern "C" void GPUSetup(int cpd, int kwidth, int maxsinkblocks, int maxsourceblocks);
 
 extern "C" void print_gpu_mem_usage();

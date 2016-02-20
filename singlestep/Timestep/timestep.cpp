@@ -105,7 +105,7 @@ void NearForceAction(int slab) {
     if (P.ForceOutputDebug) {
     	// We want to output the AccSlab to the NearAcc file.
     	// This must be a blocking write.
-    	//We must first wait for the direct thread to finish
+    	JJ->Finalize(slab);
     	LBW->WriteArena(NearAccSlab, slab, IO_KEEP, IO_BLOCKING,
     	LBW->WriteSlabDescriptorName(NearAccSlab,slab).c_str());
     }
@@ -182,7 +182,9 @@ int KickPrecondition(int slab) {
 void KickAction(int slab) {
     SlabForceTime[slab].Stop();
     SlabForceLatency[slab].Stop();
-    
+    //If we are doing blocking forces, the finalization happens in NearForceAction
+    if(!P.ForceOutputDebug)
+        JJ->Finalize(slab);    
     RescaleAndCoAddAcceleration(slab);
     int step = LPTStepNumber();
     if (step) {
@@ -285,28 +287,17 @@ void OutputAction(int slab) {
 int DriftPrecondition(int slab) {
     // We cannot move these particles until they have been fully used as gravity sources
     for(int j=-FORCE_WIDTH;j<=FORCE_WIDTH;j++)  {
-        //if( TaylorForce.notdone(slab+j) ) return 0;
-        if( !JJ->SlabDone(slab+j) ) return 0;
+        if( TaylorForce.notdone(slab+j) ) return 0;
+        if( NearForce.notdone(slab+j) ) return 0;
     }
-    // We also must have Outputted this slab 
+    // We also must have Output this slab 
     if (Output.notdone(slab)) return 0;
-    
-#ifdef CUDADIRECT
-    // Also must have unpinned the NearAcc slab, or be done with NearForce
-    if(!NearForce.alldone()){
-        if(JJ->UnpinStatus(slab) < 2){
-            STDLOG(1,"Drifting slab %d blocked because NearAcc not unpinned\n", slab);
-            return 0;
-        }
-    }
-#endif
-    
+        
     return 1;
 }
 
 void DriftAction(int slab) {
     int step = LPTStepNumber();
-    //JJ->CleanupSlab(slab);
     if (step) {
         // We have LPT IC work to do
         if (step==1) {
@@ -333,17 +324,6 @@ void DriftAction(int slab) {
         DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
     }
     
-    // If the actual GPU computations are finished
-    // (which is guaranteed by JJ being done and NearForce.alldone())
-    // then any remaining slabs will be ready for unpinning
-#ifdef CUDADIRECT
-    if(NearForce.alldone()){
-        STDLOG(1,"Unpinning any leftover slabs.\n");
-        void** slabs_to_unpin = JJ->FindUnpinnableSlabs();
-        UnpinSlabs(slabs_to_unpin, P.cpd);
-    }
-#endif
-
     // We kept the accelerations until here because of third-order LPT
     if (P.StoreForces && !P.ForceOutputDebug) {
         STDLOG(1,"Storing Forces in slab %d\n", slab);
@@ -361,16 +341,6 @@ int FinishPrecondition(int slab) {
         if( Drift.notdone(slab+j) ) return 0;
     }
     
-#ifdef CUDADIRECT
-    // Also must have unpinned PosSlab
-    if(JJ != NULL){
-        if(JJ->UnpinStatus(slab) < 3){
-            STDLOG(1,"Finish slab %d blocked because PosSlab not unpinned\n", slab);
-            return 0;
-        }
-    }
-#endif
-
     return 1;
 }
 

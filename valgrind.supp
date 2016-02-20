@@ -1,0 +1,104 @@
+#suppression file for valgrind to make it ignore the "errors" it finds in parseheader
+
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Cond
+   fun:_ZN8phDriver11ResetParserEv
+   fun:_ZN8phDriverC1Eii
+   fun:_ZN11ParseHeaderC1Ev
+   fun:_ZN10ParametersC1Ev
+   fun:_Z41__static_initialization_and_destruction_0ii
+   fun:_GLOBAL__sub_I__Z6pprintPKc
+   fun:__libc_csu_init
+   fun:(below main)
+}
+
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Cond
+   fun:_ZN8phDriver11ResetParserEv
+   fun:_ZN8phDriverC1Eii
+   fun:_ZN11ParseHeaderC1Ev
+   fun:_ZN10ParametersC1Ev
+   fun:_Z41__static_initialization_and_destruction_0ii
+   fun:_GLOBAL__sub_I__Z6pprintPKc
+   fun:__libc_csu_init
+   fun:(below main)
+}
+
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Cond
+   fun:free
+   fun:_ZN8phDriver11ResetParserEv
+   fun:_ZN8phDriverC1Eii
+   fun:_ZN11ParseHeaderC1Ev
+   fun:_ZN10ParametersC1Ev
+   fun:_Z41__static_initialization_and_destruction_0ii
+   fun:_GLOBAL__sub_I__Z6pprintPKc
+   fun:__libc_csu_init
+   fun:(below main)
+}
+
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Cond
+   fun:_ZN8phDriver11ResetParserEv
+   fun:_ZN8phDriverC1Eii
+   fun:_ZN11ParseHeaderC1Ev
+   fun:_ZN5StateC1Ev
+   fun:_Z41__static_initialization_and_destruction_0ii
+   fun:_GLOBAL__sub_I__Z6pprintPKc
+   fun:__libc_csu_init
+   fun:(below main)
+}
+
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Cond
+   fun:_ZN8phDriver11ResetParserEv
+   fun:_ZN8phDriverC1Eii
+   fun:_ZN11ParseHeaderC1Ev
+   fun:_ZN5StateC1Ev
+   fun:_Z41__static_initialization_and_destruction_0ii
+   fun:_GLOBAL__sub_I__Z6pprintPKc
+   fun:__libc_csu_init
+   fun:(below main)
+}
+
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Addr1
+   fun:_ZN12HeaderStream10ReadHeaderEv
+   fun:_ZN11ParseHeader10ReadHeaderER12HeaderStream
+   fun:_ZN10Parameters14ReadParametersEPci
+   fun:main
+}
+
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Addr4
+   fun:_ZN8phDriver5parseEPKciSsbib
+   fun:_ZN11ParseHeader10ReadHeaderER12HeaderStream
+   fun:_ZN10Parameters14ReadParametersEPci
+   fun:main
+}
+
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Addr1
+   fun:_ZN12HeaderStream10ReadHeaderEv
+   fun:_ZN11ParseHeader10ReadHeaderER12HeaderStream
+   fun:_ZN5State14read_from_fileEPKc
+   fun:main
+}
+
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Addr4
+   fun:_ZN8phDriver5parseEPKciSsbib
+   fun:_ZN11ParseHeader10ReadHeaderER12HeaderStream
+   fun:_ZN5State14read_from_fileEPKc
+   fun:main
+}
+

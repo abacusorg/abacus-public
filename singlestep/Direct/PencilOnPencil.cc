@@ -6,20 +6,25 @@
 #include "SetInteractionCollection.hh"
 
 SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, int k_high){
-    eps2 = P.SofteningLength;
-    int k_width = k_high-k_low;
+    //set known classs variables
+    eps2 = P.SofteningLength * P.SofteningLength;
     CompletionFlag = 0;
-    //Allocate regions of known size
     K_low = k_low;
     K_high = k_high;
-    SinkSetStart = (int *) malloc(sizeof(int) * P.cpd*k_width);
-    SinkSetCount = (int *) malloc(sizeof(int) * P.cpd*k_width);
-    memset(SinkSetCount,0,sizeof(int) * P.cpd*P.cpd);
-
-    SinkSetInteractionListStart = (int *) malloc(sizeof(int) * P.cpd*k_width);
-
-    int width = 2*P.NearFieldRadius+1;
+    W = w;
+    SlabId = slab;
     
+    //usefull construction constants
+    int width = 2*P.NearFieldRadius+1;
+    int k_width = k_high-k_low;
+    int Nj = (P.cpd - w)/width;
+    int Nr = (P.cpd - w)%width;
+    Nj += Nr&&Nr;
+
+    SinkSetStart = (int *) malloc(sizeof(int) * k_width*Nj);
+    SinkSetCount = (int *) malloc(sizeof(int) * k_width*Nj);
+    memset(SinkSetCount,0,sizeof(int) * k_width*Nj);
+
     SourceSetStart = (int *) malloc(sizeof(int) * P.cpd*(P.cpd+width));
     SourceSetCount = (int *) malloc(sizeof(int) * P.cpd*(P.cpd+width));
 
@@ -30,76 +35,63 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     //Count the Sinks
     CountSinks.Clear(); CountSinks.Start();
     #pragma omp parallel for schedule(dynamic,1)
-    for(int k = K_low; k < K_high; k++){
-        for(int j = w; j < P.cpd; j += width) {
-            int zmid = PP->WrapSlab(j + P.NearFieldRadius);
-            int sinkindex = k * P.cpd + zmid;
-            int pencilsize = SinkPencilCount(slab, k, zmid );
+    for(int k = 0; k < k_width; k++){
+        for(int j = 0; j < Nj; j ++) {
+            int jj = w + j * width;
+            int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
+            int sinkindex = k * Nj + j;
+            int pencilsize = SinkPencilCount(slab, k + k_low, zmid );
             SinkSetCount[sinkindex] = pencilsize;
         }
     }
     CountSinks.Stop();
+    NSinkList = k_width *Nj;
     
-    //Calculate the starting index for each sink set's positions 
-    //TODO:This is a classic prefix sum and can be parallelized if it is a time sink
-    CalcSinkOffset.Clear(); CalcSinkOffset.Start();
-    int nsinksets = 0;
-    int CountSinkPencilPositions = 0;
-    for(int sinkindex = 0; sinkindex < P.cpd*k_width; sinkindex++) {
-        int sinklength = SinkSetCount[sinkindex];          
-        nsinksets++;
-        SinkSetStart[sinkindex] = CountSinkPencilPositions;
-        CountSinkPencilPositions += SinkSetCount[sinkindex];
-    }
-    NSinkList = nsinksets;
-    CalcSinkOffset.Stop();
-
     CalcSinkBlocks.Clear(); CalcSinkBlocks.Start();
     //Count the total number of sink blocks we will require
     //TODO: Another non-trivialy parallelizable sum
     int NPaddedSinks = 0;
     NSinkBlocks = 0;
     for(int sinkset=0; sinkset < NSinkList; sinkset++) {
-        int sinkindex = sinkset;
-        int sinklength = SinkSetCount[sinkindex];
-        SinkSetStart[sinkindex] = NPaddedSinks; 
+        int sinklength = SinkSetCount[sinkset];
+        SinkSetStart[sinkset] = NPaddedSinks; 
 
-        NPaddedSinks += sinklength;
         int PencilBlocks = sinklength/NFBlockSize;
-
         int remaining = (NFBlockSize - (sinklength%NFBlockSize))%NFBlockSize;
-        NPaddedSinks += remaining;
-        //SinkSetCount[sinkindex] += remaining;
         PencilBlocks+= remaining&&remaining;
         NSinkBlocks += PencilBlocks;
+        NPaddedSinks+= NFBlockSize*PencilBlocks;
     }
     assert(NPaddedSinks==NFBlockSize*NSinkBlocks);
 
     SinkBlockParentPencil = (int *) malloc(sizeof(int) * NSinkBlocks);
     for(int sinkset=0; sinkset < NSinkList; sinkset++) {
+        if(SinkSetCount[sinkset] == 0) continue;
         int PencilBlocks = SinkSetCount[sinkset]/NFBlockSize;
         int remaining = (NFBlockSize - (SinkSetCount[sinkset]%NFBlockSize))%NFBlockSize;
         PencilBlocks+= remaining&&remaining;
-        for(int b = SinkSetStart[sinkset]/NFBlockSize; b < PencilBlocks; b++)
+        int b0 =  SinkSetStart[sinkset]/NFBlockSize;
+        for(int b = b0; b < b0 + PencilBlocks; b++)
             SinkBlockParentPencil[b] = sinkset;
     }
 
 
     SinkSetPositions = new List3<FLOAT>(NPaddedSinks);
-    SinkSetPositions->SetZero(0,NPaddedSinks);
 
-    SinkSetAccelerations = (FLOAT3 *) malloc(sizeof(FLOAT3) * CountSinkPencilPositions);
-    memset(SinkSetAccelerations, 0 , sizeof(FLOAT3)*CountSinkPencilPositions);
+    SinkSetAccelerations = (FLOAT3 *) malloc(sizeof(FLOAT3) * NPaddedSinks);
+    //memset(SinkSetAccelerations, 0 , sizeof(FLOAT3)*NPaddedSinks);
     CalcSinkBlocks.Stop();
 
     FillSinks.Start();
 
     #pragma omp parallel for schedule(dynamic,1) 
-    for(int sinkset = 0; sinkset < nsinksets; sinkset++) {
-        int sinkindex = sinkset;
-        int zmid = sinkindex%P.cpd;
-        int k = (sinkindex - zmid)/P.cpd;
-        CreateSinkPencil(slab, k, zmid, SinkSetStart[sinkindex] );
+    for(int sinkset = 0; sinkset < NSinkList; sinkset++) {
+        int j = sinkset%Nj;
+        int k = sinkset/Nj + k_low;
+        int jj = w + j * width;
+        int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
+        CreateSinkPencil(slab, k, zmid, SinkSetStart[sinkset] );
+        memset(&(SinkSetAccelerations[SinkSetStart[sinkset]]), 0 , sizeof(FLOAT3)*SinkSetCount[sinkset]);
     }
 
     FillSinks.Stop();
@@ -108,31 +100,19 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     //Fill in source data
     FillSourceLists.Start();
     CountSources.Start();
-    NSourceSets = P.cpd * (k_width + width);
+    NSourceSets = Nj * (k_width + width);
     memset(SourceSetCount, 0, sizeof(int) * NSourceSets );
     #pragma omp parallel for schedule(dynamic,1)
-    for(int j = w; j < P.cpd; j += width) {
-        int zmid = PP->WrapSlab(j + P.NearFieldRadius);
-        for(int y = K_low - P.NearFieldRadius; y <= K_high + P.NearFieldRadius; y++) {
-            int sourceindex = (y + P.NearFieldRadius) * (P.cpd) + (zmid);
-            int sourcelength = SourcePencilCount( slab, y, zmid);
+    for(int j = 0; j < Nj; j ++) {
+        int jj = w + j * width;
+        int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
+        for(int y = k_low; y < k_high + width; y++) {
+            int sourceindex = (y - k_low) * Nj + j;
+            int sourcelength = SourcePencilCount( slab, y - P.NearFieldRadius, zmid);
             SourceSetCount[sourceindex] = sourcelength;
         }
     }
     CountSources.Stop();
-
-    CalcSourceOffset.Start();
-    //TODO: As with the sinks, this is a prefix sum which can be done efficiently in parallel
-    int CountSourcePencilPositions = 0;
-    for(int y = K_low - P.NearFieldRadius; y <= K_high + P.NearFieldRadius; y++) {
-        for(int j = w; j < P.cpd; j += width){
-            int zmid = PP->WrapSlab(j + P.NearFieldRadius);
-            int sourceindex = (y + P.NearFieldRadius)*(P.cpd) + (zmid);
-            SourceSetStart[sourceindex] = CountSourcePencilPositions;
-            CountSourcePencilPositions += SourceSetCount[sourceindex];
-        }
-    }
-    CalcSourceOffset.Stop();
 
     CalcSourceBlocks.Clear(); CalcSourceBlocks.Start();
     //Count the total number of sink blocks we will require
@@ -141,31 +121,29 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     NSourceBlocks = 0;
     for(int sourceset=0; sourceset < NSourceSets; sourceset++) {
         int sourcelength = SourceSetCount[sourceset];
-        SinkSetStart[sourceset] = NPaddedSources;
+        SourceSetStart[sourceset] = NPaddedSources;
 
         NPaddedSources += sourcelength;
         NSourceBlocks  += sourcelength/NFBlockSize;
 
         int remaining = (NFBlockSize - (sourcelength%NFBlockSize))%NFBlockSize;
         NPaddedSources += remaining;
-        //SourceSetCount[sourceindex] += remaining;
         NSourceBlocks += remaining&&remaining;
     }
     assert(NPaddedSources==NFBlockSize*NSourceBlocks);
 
     SourceSetPositions = new List3<FLOAT>(NPaddedSources);
-    SourceSetPositions->SetZero(0,NPaddedSources);
 
     CalcSourceBlocks.Stop();
 
     FillSources.Start();
     #pragma omp parallel for schedule(dynamic,1)
-    for(int j = w; j < P.cpd; j+= 2 * P.NearFieldRadius + 1) {
-        for(int y= K_low - P.NearFieldRadius; y <= K_high + P.NearFieldRadius; y++) {
-            int zmid = PP->WrapSlab(j + P.NearFieldRadius);
-            int sourceindex = (y + P.NearFieldRadius) * (P.cpd) + zmid;
-            CreateSourcePencil(slab, y, zmid, SourceSetStart[sourceindex]);
-        }
+    for(int sourceIdx = 0; sourceIdx < NSourceSets; sourceIdx ++){
+        int j = sourceIdx%Nj;
+        int jj = w + j * width;
+        int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
+        int y = sourceIdx/Nj + k_low - P.NearFieldRadius;
+        CreateSourcePencil(slab, y, zmid, SourceSetStart[sourceIdx]);
     }
     FillSources.Stop();
 
@@ -175,34 +153,25 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     //fill the interaction lists for the sink sets
     FillInteractionList.Start();
 
-    #pragma omp parallel for schedule(dynamic,1)
-    for(int k = K_low; k < K_high; k++){
-        for(int j = w; j < P.cpd; j += width) {
-            int zmid = PP->WrapSlab(j + P.NearFieldRadius);
-            int sinkindex = k*P.cpd + zmid;
-            SinkSetInteractionListStart[sinkindex] = width*((k-k_low)*((P.cpd-w)/width+1) +((j-w)/width))  ;
-        }
-    }
-
-    int InteractionCount = width*((k_high-k_low)*((P.cpd-w)/width+1));
+    InteractionCount = width*k_width*Nj;
     SinkSourceInteractionList = (int *) malloc(sizeof(int) * InteractionCount);
     
-    int nfr = P.NearFieldRadius;
     int cpd = P.cpd;
     int nprocs = omp_get_max_threads();
     uint64 threadDI[nprocs];
     memset(threadDI,0,sizeof(uint64)*nprocs);
     #pragma omp parallel for schedule(dynamic,1)
-    for(int k = K_low; k <= K_high; k++){
+    for(int k = 0; k < k_width; k++){
         int g = omp_get_thread_num();
-        for(int j=w;j<cpd;j+=2*nfr+1) {
-            int zmid = PP->WrapSlab(j+nfr);
-            int sinkindex = k*P.cpd + zmid;
-            int l = SinkSetInteractionListStart[ sinkindex ];
-            
+        for(int j=0; j < Nj; j++) {
+            int jj = w + j * width;
+            int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
+
+            int sinkindex = k*Nj + j;
+            int l = width * sinkindex;
+
             for(int y=0;y<width;y++) {
-                int yy = y + k-nfr;
-                int sourceindex = (yy+nfr)*(cpd) +  zmid;
+                int sourceindex = (k + y)*(Nj) +  j;
                 SinkSourceInteractionList[l+y] = sourceindex;
                 threadDI[g] += SinkSetCount[sinkindex] * SourceSetCount[sourceindex];
             }
@@ -217,15 +186,18 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
 SetInteractionCollection::~SetInteractionCollection(){
     free(SinkSetStart);
     free(SinkSetCount);
+    free(SourceSetStart);
+    free(SourceSetCount);
+    free(SinkSourceInteractionList);
 
     free(SinkSetAccelerations);
 }
 
 void SetInteractionCollection::SetCompleted(){
-    free(SinkSetInteractionListStart);
-    free(SourceSetStart);
-    free(SourceSetCount);
-    free(SinkSourceInteractionList);
+    STDLOG(1,"Completed SIC for slab %d w: %d k: %d - %d",SlabId,W,K_low,K_high); 
+    //free(SourceSetStart);
+    //free(SourceSetCount);
+    //free(SinkSourceInteractionList);
 
     delete SinkSetPositions;
     delete SourceSetPositions;
@@ -252,7 +224,6 @@ inline int SetInteractionCollection::SourcePencilCount(int slab, int ymid, int z
 }
 
 inline void SetInteractionCollection::CreateSinkPencil(int sinkx, int sinky, int sinkz, uint64 start){
-    int offset = 0;
     int zmax = sinkz+P.NearFieldRadius;
     for(int z=sinkz-P.NearFieldRadius;z<=zmax;z++) {
         posstruct * pos = PP->PosCell(sinkx,sinky,z);
@@ -266,18 +237,18 @@ inline void SetInteractionCollection::CreateSinkPencil(int sinkx, int sinky, int
             FLOAT * Z = &(SinkSetPositions->Z[start]);
 
             for(int p = 0; p < count; p++){
-                X[p+offset] = pos[p].x;
-                Y[p+offset] = pos[p].y;
-                Z[p+offset] = pos[p].z;
+                X[p] = pos[p].x; 
+                Y[p] = pos[p].y;
+                Z[p] = pos[p].z;
             }
 
             #pragma simd
-            for(int p=offset;p<count + offset;p++){
+            for(int p=0;p<count;p++){
                 X[p] += newsinkcenter.x;
                 Y[p] += newsinkcenter.y;
                 Z[p] += newsinkcenter.z;
             }
-            offset+=count;
+            start+=count;
         }
     }
 }
@@ -315,3 +286,205 @@ inline void SetInteractionCollection::CreateSourcePencil(int sx, int sy, int nz,
 int SetInteractionCollection::CheckCompletion(){
     return CompletionFlag;
 }
+
+void SetInteractionCollection::CPUExecute(){
+    int WIDTH = 2*P.NearFieldRadius + 1;
+
+    for(int blockIdx = 0; blockIdx < NSinkBlocks; blockIdx++){
+        #pragma omp parallel for schedule(dynamic,1)
+        for(int threadIdx = 0; threadIdx < NFBlockSize; threadIdx++){
+
+            int id = NFBlockSize*blockIdx + threadIdx;
+            int sinkIdx = SinkBlockParentPencil[blockIdx];
+
+            FLOAT sinkX, sinkY, sinkZ;
+            if(id <  SinkSetStart[sinkIdx] + SinkSetCount[sinkIdx]){
+                sinkX = SinkSetPositions->X[id];
+                sinkY = SinkSetPositions->Y[id];
+                sinkZ = SinkSetPositions->Z[id];
+            }
+
+
+            FLOAT3 a(0,0,0);
+
+            int InteractionStart = sinkIdx*WIDTH;
+            int InteractionMax = InteractionStart + WIDTH;
+
+            for(int c = InteractionStart; c < InteractionMax; c++){
+                int sourceIdx = SinkSourceInteractionList[c];
+                int sourceStart = SourceSetStart[sourceIdx];
+                int sourceCount = SourceSetCount[sourceIdx];
+                assert(sourceCount > 0);
+                int nB = sourceCount/NFBlockSize;
+
+                for(int b = 0; b < nB; b+=1){
+                    int idx = sourceStart + b*NFBlockSize;
+
+                    for(int i = 0; i < NFBlockSize; i++){
+                        FLOAT sourceX = SourceSetPositions->X[idx + i];
+                        FLOAT sourceY = SourceSetPositions->Y[idx + i];
+                        FLOAT sourceZ = SourceSetPositions->Z[idx + i];
+
+                        FLOAT drx, dry, drz, r;
+                        drx = sourceX - sinkX;
+                        dry = sourceY - sinkY;
+                        drz = sourceZ - sinkZ;
+
+                        r = RSQRT( drx*drx + dry*dry + drz*drz  + eps2);
+                        r *=r*r;
+                        a.x -= r * drx;
+                        a.y -= r * dry;
+                        a.z -= r * drz;
+                    }
+                }
+
+                int remaining = sourceCount%NFBlockSize;
+
+                //if(threadIdx < remaining){
+                    int idx = sourceStart + nB*NFBlockSize;
+
+                    for(int i = 0; i < remaining; i++){
+                        FLOAT sourceX = SourceSetPositions->X[idx + i];
+                        FLOAT sourceY = SourceSetPositions->Y[idx + i];
+                        FLOAT sourceZ = SourceSetPositions->Z[idx + i];
+
+                        FLOAT drx, dry, drz, r;
+                        drx = sourceX - sinkX;
+                        dry = sourceY - sinkY;
+                        drz = sourceZ - sinkZ;
+
+                        r = RSQRT( drx*drx + dry*dry + drz*drz  + eps2);
+                        r *=r*r;
+                        a.x -= r * drx;
+                        a.y -= r * dry;
+                        a.z -= r * drz;
+                    }
+                //}
+
+            }
+
+            if(id < SinkSetStart[sinkIdx] + SinkSetCount[sinkIdx]){
+                assert(isfinite(a.x));
+                assert(isfinite(a.y));
+                assert(isfinite(a.z));
+                SinkSetAccelerations[id] = a;
+            }
+        }
+    }
+    SetCompleted();
+}
+
+void SetInteractionCollection::PrintInteractions(){
+
+    int width = 2*P.NearFieldRadius+1;
+    int k_width = K_high-K_low;
+    int Nj = (P.cpd - W)/width;
+    int Nr = (P.cpd - W)%width;
+    Nj += Nr&&Nr;
+    int nfr = P.NearFieldRadius;
+
+    printf("SIC for slab: %d w: %d, k: %d - %d\n",SlabId,W,K_low,K_high);
+
+    printf("\t%d Sink pencils and %d Source pencils\n\n",NSinkList,NSourceSets);
+
+    printf("\tSink Pencils:\n");
+
+    for(int i = 0; i < NSinkList; i++){
+        int j = i%Nj;
+        int k = i/Nj;
+        int jj = W + j * width;
+        int zmid = PP->WrapSlab(jj + nfr);
+        printf("\t\t%d: %d, %d, %d - %d\n", i, SlabId, k + K_low, zmid-nfr,zmid+nfr);
+    }
+
+    printf("\tSourcePencils:\n");
+    for(int i = 0; i < NSourceSets; i++){
+        int j = i%Nj;
+        int jj = W + j * width;
+        int zmid = PP->WrapSlab(jj + nfr);
+        int y = i/Nj + K_low - nfr;
+        printf("\t\t%d: %d - %d, %d, %d\n", i, SlabId-nfr,SlabId+nfr, y, zmid);
+    }
+
+
+    printf("\n\tInteractionList (sinkIdx<-sourceIdx ||sink | source):\n");
+
+    for(int i = 0; i < InteractionCount; i++){
+        int sinkIdx = i/width;
+        int sinkj = sinkIdx%Nj;
+        int sinkk = sinkIdx/Nj;
+        int sinkjj = W + sinkj * width;
+        int sinkzmid = PP->WrapSlab(sinkjj + nfr);
+
+        int sourceIdx = SinkSourceInteractionList[i];
+        int sourcej = sourceIdx%Nj;
+        int sourcey = sourceIdx/Nj + K_low - nfr;
+        int sourcejj =  W + sourcej * width;
+        int sourcezmid =  PP->WrapSlab(sourcejj + nfr);
+                
+        printf("\t\t%d: %d<-)%d|| %d: %d, %d, %d - %d | %d: %d - %d, %d, %d\n",
+            i, sinkIdx, sourceIdx,
+            sinkIdx,SlabId, sinkk + K_low, sinkzmid-nfr,sinkzmid+nfr,
+            sourceIdx,SlabId-nfr,SlabId+nfr, sourcey, sourcezmid);
+    }    
+}
+
+void SetInteractionCollection::AddInteractionList( std::vector<int> ** il){
+
+    int width = 2*P.NearFieldRadius+1;
+    int k_width = K_high-K_low;
+    int Nj = (P.cpd - W)/width;
+    int Nr = (P.cpd - W)%width;
+    Nj += Nr&&Nr;
+    int nfr = P.NearFieldRadius;
+    int cpd = P.cpd;
+
+    for(int i = 0; i < InteractionCount; i++){
+        int sinkIdx = i/width;
+        int sinkj = sinkIdx%Nj;
+        int sinkk = sinkIdx/Nj;
+        int sinkjj = W + sinkj * width;
+        int sinkzmid = PP->WrapSlab(sinkjj + nfr);
+
+        int sourceIdx = SinkSourceInteractionList[i];
+        int sourcej = sourceIdx%Nj;
+        int sourcey = sourceIdx/Nj + K_low - nfr;
+        int sourcejj =  W + sourcej * width;
+        int sourcezmid =  PP->WrapSlab(sourcejj + nfr);
+
+        for(int sinkz = sinkzmid - nfr; sinkz <= sinkzmid+nfr; sinkz++){
+            for(int sourcex = SlabId - nfr; sourcex <= SlabId + nfr; sourcex++){
+                int sinky = PP->WrapSlab(sinkk + K_low);
+                int sinkzw = PP->WrapSlab(sinkz);
+
+                int sourcexw = PP->WrapSlab(sourcex);
+                int sourceyw = PP->WrapSlab(sourcey);
+                int sourcez = sourcezmid;
+
+                int sinkSlabCellIdx = cpd*sinky + sinkzw;
+                int sourceCellIdx = cpd*cpd*sourcex + cpd*sourceyw + sourcez;
+
+                il[sinkSlabCellIdx]->push_back(sourceCellIdx);
+
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
