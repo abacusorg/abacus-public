@@ -296,7 +296,7 @@ void NearFieldDriver::Finalize(int slab){
     assertf(SlabDone(slab) != 0,
             "Finalize called for slab %d but it is not complete\n",slab);
 
-    //CheckInteractionList(slab);
+    CheckInteractionList(slab);
 
     SetInteractionCollection ** Slices = SlabInteractionCollections[slab];
     int NSplit = SlabNSplit[slab];
@@ -426,11 +426,13 @@ void NearFieldDriver::CheckInteractionList(int slab){
         assert(il[i]->size() == il_test[i]->size());
 
         for(int j = 0; j < il[i]->size(); j ++)
-                assert(il[i]->at(j) == il_test[i]->at(j));
+                assertf(il[i]->at(j) == il_test[i]->at(j), "Interaction list %d at %d failed in slab %d\n", i, j, slab);
         delete il[i];
         delete il_test[i];
     }
 
     delete[] il;
     delete[] il_test;
+    
+    STDLOG(1,"Checking the interaction list for slab %d passed.\n", slab);
 }

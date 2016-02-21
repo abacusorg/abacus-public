@@ -194,7 +194,7 @@ SetInteractionCollection::~SetInteractionCollection(){
 }
 
 void SetInteractionCollection::SetCompleted(){
-    STDLOG(1,"Completed SIC for slab %d w: %d k: %d - %d",SlabId,W,K_low,K_high); 
+    STDLOG(1,"Completed SIC for slab %d w: %d k: %d - %d\n",SlabId,W,K_low,K_high); 
     //free(SourceSetStart);
     //free(SourceSetCount);
     //free(SinkSourceInteractionList);
@@ -462,7 +462,7 @@ void SetInteractionCollection::AddInteractionList( std::vector<int> ** il){
                 int sourcez = sourcezmid;
 
                 int sinkSlabCellIdx = cpd*sinky + sinkzw;
-                int sourceCellIdx = cpd*cpd*sourcex + cpd*sourceyw + sourcez;
+                int sourceCellIdx = cpd*cpd*sourcexw + cpd*sourceyw + sourcez;
 
                 il[sinkSlabCellIdx]->push_back(sourceCellIdx);
 
