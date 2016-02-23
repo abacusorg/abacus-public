@@ -263,7 +263,7 @@ void Epilogue(Parameters &P, bool ic) {
             if(!(JJ->DirectInteractions_CPU == JJ->DirectInteractions_GPU)){
                 printf("Error:\n\tDirect Interactions differ between CPU (%llu) and GPU (%llu)\n",
                         JJ->DirectInteractions_CPU,JJ->DirectInteractions_GPU);
-                assert(JJ->DirectInteractions_CPU == JJ->DirectInteractions_GPU);
+                //assert(JJ->DirectInteractions_CPU == JJ->DirectInteractions_GPU);
             }
             #endif
         }

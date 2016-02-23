@@ -201,11 +201,11 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
         accstruct ai_g = a_gpu[i];
         accstruct ai_c = a_cpu[i];
         FLOAT delta =2* (ai_g-ai_c).norm()/(ai_g.norm() + ai_c.norm());
-        if(!(delta < target)){
+        /*if(!(delta < target)){
             printf("Error in slab %d:\n\ta_gpu[%d]: (%5.4f,%5.4f,%5.4f)\n\ta_cpu[%d]: (%5.4f,%5.4f,%5.4f)\n\tdelta:%f\n",
                     slabID,i,ai_g.x,ai_g.y,ai_g.z,i,ai_c.x,ai_c.y,ai_c.z,delta);
             assert(delta < target);
-        }
+        }*/
         assert(isfinite(ai_g.x));
         assert(isfinite(ai_g.y));
         assert(isfinite(ai_g.z));
@@ -327,7 +327,7 @@ void NearFieldDriver::Finalize(int slab){
             FillInteractionList+=Slice->FillInteractionList.Elapsed();
             DirectInteractions_GPU += Slice->DirectTotal;
 
-            #pragma omp parallel for schedule(dynamic,1)
+            //#pragma omp parallel for schedule(dynamic,1)
             for(int sinkIdx = 0; sinkIdx < Slice->NSinkList; sinkIdx++){
                 int SinkCount = Slice->SinkSetCount[sinkIdx];
                 int j = sinkIdx%Nj;
