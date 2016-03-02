@@ -1,7 +1,7 @@
 #export CXX = icc  -openmp-stubs -pthread -liomp5 #-xHost -fp-model precise -fbuiltin -ip#-prof-use=weighted
-export CXX = g++ -march=native -mavx -fopenmp -lgomp --std=c++0x -Wformat=0
-VERSIONFLAGS ?= -DFLOATPRECISION -DNFRADIUS=2 -DNFBlockSize=32 -DCUDADIRECT -DAVXDIRECT\
-            -DAVXMULTIPOLES -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -O3 #-ggdb3 -DIOTHREADED -DDIRECTCUBIC -DDIRECTSPLINE
+export CXX = g++ -march=native -mavx -fopenmp -lgomp --std=c++0x -Wformat=0 -O3 #-ggdb3
+VERSIONFLAGS ?= -DFLOATPRECISION -DNFRADIUS=3 -DNFBlockSize=96 -DCUDADIRECT -DAVXDIRECT\
+            -DAVXMULTIPOLES -DMAXCPD=8192 -DMAXSOURCELENGTH=1048576 -DIOTHREADED -DDIRECTCUBIC -DDIRECTSPLINE
 export VERSIONFLAGS
 export CXXFLAGS= -DGITVERSION=\"`git rev-parse HEAD`\" $(VERSIONFLAGS)
 # Could add -DGLOBALPOS here to switch the code to global positions.

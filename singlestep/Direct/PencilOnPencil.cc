@@ -18,8 +18,9 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     int width = 2*P.NearFieldRadius+1;
     int k_width = k_high-k_low;
     int Nj = (P.cpd - w)/width;
-    int Nr = (P.cpd - w)%width;
-    Nj += Nr&&Nr;
+    if(Nj * width + w < P.cpd)
+        Nj++;
+    
 
     SinkSetStart = (int *) malloc(sizeof(int) * k_width*Nj);
     SinkSetCount = (int *) malloc(sizeof(int) * k_width*Nj);
@@ -79,6 +80,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     SinkSetPositions = new List3<FLOAT>(NPaddedSinks);
 
     SinkSetAccelerations = (FLOAT3 *) malloc(sizeof(FLOAT3) * NPaddedSinks);
+    //to make valgrind more accurate, we only zero the regions we use
     //memset(SinkSetAccelerations, 0 , sizeof(FLOAT3)*NPaddedSinks);
     CalcSinkBlocks.Stop();
 
@@ -379,8 +381,8 @@ void SetInteractionCollection::PrintInteractions(){
     int width = 2*P.NearFieldRadius+1;
     int k_width = K_high-K_low;
     int Nj = (P.cpd - W)/width;
-    int Nr = (P.cpd - W)%width;
-    Nj += Nr&&Nr;
+    if(Nj * width + W < P.cpd)
+        Nj++;
     int nfr = P.NearFieldRadius;
 
     printf("SIC for slab: %d w: %d, k: %d - %d\n",SlabId,W,K_low,K_high);
@@ -434,8 +436,8 @@ void SetInteractionCollection::AddInteractionList( std::vector<int> ** il){
     int width = 2*P.NearFieldRadius+1;
     int k_width = K_high-K_low;
     int Nj = (P.cpd - W)/width;
-    int Nr = (P.cpd - W)%width;
-    Nj += Nr&&Nr;
+    if(Nj*width + W < P.cpd)
+        Nj++;
     int nfr = P.NearFieldRadius;
     int cpd = P.cpd;
 

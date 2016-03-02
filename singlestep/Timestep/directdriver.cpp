@@ -44,6 +44,7 @@ class NearFieldDriver{
         int MaxSourceBlocks;
         int MaxSinkBlocks;
         uint64 *NSink_GPU_final;
+        pthread_mutex_t * CellLock;
 
         void ExecuteSlabGPU(int slabID, int blocking);
         void ExecuteSlabCPU(int slabID,int * predicate);
@@ -82,6 +83,8 @@ NearFieldDriver::NearFieldDriver() :
     for(int i = 0; i < P.cpd;i++) slabcomplete[i]=0;
     WIDTH = P.NearFieldRadius*2+1;
     RADIUS = P.NearFieldRadius;
+    CellLock = (pthread_mutex_t *) malloc(P.cpd*P.cpd*sizeof(pthread_mutex_t));
+    for(int i =0; i < P.cpd*P.cpd; i ++) pthread_mutex_init(&CellLock[i],NULL);
     
 #ifdef CUDADIRECT
     NGPU = GetNGPU();
@@ -111,6 +114,9 @@ NearFieldDriver::~NearFieldDriver()
     delete[] GPUTimers;
     delete[] SetupGPUTimers;
 #endif
+    for(int i =0; i < P.cpd*P.cpd; i++)
+        pthread_mutex_destroy(&CellLock[i]);
+    free(CellLock);
 }
 
 void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
@@ -201,11 +207,11 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
         accstruct ai_g = a_gpu[i];
         accstruct ai_c = a_cpu[i];
         FLOAT delta =2* (ai_g-ai_c).norm()/(ai_g.norm() + ai_c.norm());
-        /*if(!(delta < target)){
+        if(!(delta < target)){
             printf("Error in slab %d:\n\ta_gpu[%d]: (%5.4f,%5.4f,%5.4f)\n\ta_cpu[%d]: (%5.4f,%5.4f,%5.4f)\n\tdelta:%f\n",
                     slabID,i,ai_g.x,ai_g.y,ai_g.z,i,ai_c.x,ai_c.y,ai_c.z,delta);
             assert(delta < target);
-        }*/
+        }
         assert(isfinite(ai_g.x));
         assert(isfinite(ai_g.y));
         assert(isfinite(ai_g.z));
@@ -296,7 +302,8 @@ void NearFieldDriver::Finalize(int slab){
     assertf(SlabDone(slab) != 0,
             "Finalize called for slab %d but it is not complete\n",slab);
 
-    CheckInteractionList(slab);
+    if(P.ForceOutputDebug)
+        CheckInteractionList(slab);
 
     SetInteractionCollection ** Slices = SlabInteractionCollections[slab];
     int NSplit = SlabNSplit[slab];
@@ -314,7 +321,9 @@ void NearFieldDriver::Finalize(int slab){
             int kh = Slice->K_high;
             int Nj = (cpd - w)/width;
             int jr = (cpd - w)%width;
-            Nj += jr&&jr;
+            if(Nj * width + w < cpd)
+                Nj++;
+            //Slice->PrintInteractions();
             Construction +=Slice->Construction.Elapsed();
             FillSinkLists+=Slice->FillSinkLists.Elapsed();
             CountSinks+=Slice->CountSinks.Elapsed();
@@ -327,7 +336,9 @@ void NearFieldDriver::Finalize(int slab){
             FillInteractionList+=Slice->FillInteractionList.Elapsed();
             DirectInteractions_GPU += Slice->DirectTotal;
 
-            //#pragma omp parallel for schedule(dynamic,1)
+            int NThread = omp_get_max_threads();
+
+            #pragma omp parallel for schedule(dynamic,1)
             for(int sinkIdx = 0; sinkIdx < Slice->NSinkList; sinkIdx++){
                 int SinkCount = Slice->SinkSetCount[sinkIdx];
                 int j = sinkIdx%Nj;
@@ -336,7 +347,10 @@ void NearFieldDriver::Finalize(int slab){
                 int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
                 int Start = Slice->SinkSetStart[sinkIdx];
 
+
                 for(int z=zmid-nfr; z <= zmid+nfr;z++){
+                    int cid = PP->CellID(k,z);
+                    pthread_mutex_lock(&CellLock[cid]);
                     int CellNP = PP->NumberParticle(slab,k,z);
                     accstruct *a = PP->NearAccCell(slab,k,z);
 
@@ -351,6 +365,7 @@ void NearFieldDriver::Finalize(int slab){
                     #pragma simd
                     for(int p = 0; p <CellNP; p++)
                         a[p] += Slice->SinkSetAccelerations[Start +p];
+                    pthread_mutex_unlock(&CellLock[cid]);
 
                     Start+=CellNP;
                     SinkCount-=CellNP;
@@ -434,5 +449,7 @@ void NearFieldDriver::CheckInteractionList(int slab){
     delete[] il;
     delete[] il_test;
     
-    STDLOG(1,"Checking the interaction list for slab %d passed.\n", slab);
+    //STDLOG(1,"Checking the interaction list for slab %d passed.\n", slab);
+    //Checking the interaction list is time-consuming
+    //it should never be done in an actual run
 }
