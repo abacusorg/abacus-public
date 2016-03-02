@@ -1,6 +1,6 @@
 ifneq ($(DISABLE_GPU),1)
 
-CUDACC=nvcc
+CUDACC=nvcc -O3
 
 ARCHFLAGS=  --generate-code arch=compute_35,code=sm_35\
 	    --generate-code arch=compute_30,code=sm_30\
@@ -15,7 +15,7 @@ gpudirect.d:
 
 include gpudirect.d
 
-GPUPencilDirect.o: gpudirect.d Makefile
+GPUPencilDirect.o: gpudirect.d Makefile ../Makefile
 	$(CUDACC) $(CUDAFLAGS) -o $@ -c $(@:.o=.cu)
 
 gpudirect.a: GPUPencilDirect.o

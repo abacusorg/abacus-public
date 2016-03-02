@@ -62,8 +62,9 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps2){
             SourceCacheX[threadIdx.x] = d.SourceSetPositions.X[idx];
             SourceCacheY[threadIdx.x] = d.SourceSetPositions.Y[idx];
             SourceCacheZ[threadIdx.x] = d.SourceSetPositions.Z[idx];
-            __syncthreads();
         }
+        __syncthreads();
+        
         myDI += remaining;
         PartialDirectTile(SourceCacheX, SourceCacheY, SourceCacheZ,
                 &sinkX, &sinkY, &sinkZ,
@@ -76,6 +77,9 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps2){
         assert(isfinite(a.x));
         assert(isfinite(a.y));
         assert(isfinite(a.z));
+        //atomicAdd(&(d.SinkSetAccelerations[id].x),a.x);
+        //atomicAdd(&(d.SinkSetAccelerations[id].y),a.y);
+        //atomicAdd(&(d.SinkSetAccelerations[id].z),a.z);
         d.SinkSetAccelerations[id] = a;
         atomicAdd(&DI, myDI);
     }
