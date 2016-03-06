@@ -373,10 +373,10 @@ void NearFieldDriver::Finalize(int slab){
                 assert(SinkCount == 0);
             }
 
-            //delete Slice;
+            delete Slice;
         }
     }
-    //delete[] Slices;
+    delete[] Slices;
     if(P.ForceOutputDebug) CheckGPUCPU(slab);
     #endif
 }
