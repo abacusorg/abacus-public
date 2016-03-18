@@ -84,7 +84,7 @@ public:
     // These wrap the given cell index to the primary zone.
 
     inline int WrapSlab(int i) {
-        while (i>=cpd) i-=cpd; if (i<0) i+=cpd;
+        while (i>=cpd) i-=cpd; while (i<0) i+=cpd;
 	return i;
     }
     int WrapSlab(integer3 ijk) {

@@ -20,7 +20,7 @@ def chdir(dirname=None):
   finally:
     os.chdir(curdir)
 
-def run_rockstar(slice_dirs, ncpu=1, minmembers=20, downsample=1, config_template_fn='abacus.cfg.template', SO=False):
+def run_rockstar(slice_dirs, ncpu=1, minmembers=20, downsample=1, config_template_fn='abacus.cfg.template', SO=False, suffix=''):
     if downsample < 1:
         raise ValueError(downsample)
     if ncpu < 1:
@@ -44,7 +44,7 @@ def run_rockstar(slice_dirs, ncpu=1, minmembers=20, downsample=1, config_templat
         # Set the output directory
         split = slabs[0].split('/')[:-1]
         split[-1] = split[-1].replace('slice', 'z')
-        split[-2] = split[-2] + '_rockstar_halos'
+        split[-2] = split[-2] + '_rockstar_halos' + suffix
         if downsample > 1:
             split[-2] = split[-2] + '_downsampled'
         outdir = '/'.join(split)
@@ -85,9 +85,10 @@ if __name__ == '__main__':
     parser.add_argument('--minmembers', help='Minimum halo size to search for', default=20, type=int)
     parser.add_argument('--SO', help='Produce spherical overdensity halo masses in binary catalogs', action='store_const', const=1)
     #parser.add_argument('--format', help='Format of the Abacus timeslice outputs', default='Pack14', choices=['RVdouble', 'LC', 'Pack14'])
+    parser.add_argument('--suffix', help='Label the rockstar folders with "_rockstar_halosSUFFIX".', default='')
     
     args = parser.parse_args()
 
     with chdir('{abacus}/Analysis/Rockstar'.format(abacus=os.getenv('ABACUS'))):
-        retcode = run_rockstar(args.slice_folders, ncpu=args.ncpu, minmembers=args.minmembers, downsample=args.downsample, SO=args.SO)
+        retcode = run_rockstar(args.slice_folders, ncpu=args.ncpu, minmembers=args.minmembers, downsample=args.downsample, SO=args.SO, suffix=args.suffix)
         exit(retcode)

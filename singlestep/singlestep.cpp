@@ -195,8 +195,8 @@ void InitWriteState(){
         
         // Only have to do this because GPU gives bad forces sometimes, causing particles to shoot off.
         // Remove this once the GPU is reliable again
-        P.ForceCPU = 1;
-        STDLOG(0,"Forcing CPU because this is a 2LPT step.\n");
+        //P.ForceCPU = 1;
+        //STDLOG(0,"Forcing CPU because this is a 2LPT step.\n");
     }
     else{
         WriteState.SofteningLength = P.SofteningLength;

@@ -12,12 +12,15 @@ inline void directkernel(
         FLOAT3   &a,
         FLOAT &eps2){
 
-    FLOAT drx, dry, drz, r,u,spf;
+    FLOAT drx, dry, drz, r,u,spf,r2;
     drx = source.x - sink.x;
     dry = source.y - sink.y;
     drz = source.z - sink.z;
 
-    r = RSQRT( drx*drx + dry*dry + drz*drz);
+    r2 = drx*drx + dry*dry + drz*drz;
+    if(r2 == 0)
+        return;
+    r = RSQRT(r2);
     FLOAT eps_inv = RSQRT(eps2);
     u = eps_inv/r;
     u = isfinite(u)? u : 0;

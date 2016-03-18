@@ -1,5 +1,7 @@
 //driver for directs
 
+#include "PencilOnPencil.cc"
+
 #ifdef CUDADIRECT
 #include "DeviceFunctions.h"
 #endif
@@ -11,48 +13,91 @@ class NearFieldDriver{
 
         void ExecuteSlab(int slabID, int blocking);
         int SlabDone(int slabID);
-        int UnpinStatus(int slab);
-        void** FindUnpinnableSlabs();
-        void CleanupSlab(int slabID);
+        void Finalize(int slabID);
         uint64 DirectInteractions_CPU;
-        uint64 DirectInteractions_GPU();
-        uint64 DirectInteractions_GPU(int g);
+        uint64 DirectInteractions_GPU;
         uint64 NSink_CPU;
-        uint64 NSink_GPU();
-        uint64 NSink_GPU(int g);
+
+        double  Construction;
+        double      FillSinkLists;
+        double          CountSinks;
+        double          CalcSinkBlocks;
+        double          FillSinks;
+        double      FillSourceLists;
+        double          CountSources;
+        double          CalcSourceBlocks;
+        double          FillSources;
+        double      FillInteractionList;
+
+        STimer SICExecute;
 
     private:
         int *slabcomplete;
+        int * SlabNSplit;
+
+        SetInteractionCollection *** SlabInteractionCollections; 
         int WIDTH;
         int RADIUS;
         Direct *DD;
         int NGPU;
+        double GPUMemoryGB;
+        int MaxSourceBlocks;
+        int MaxSinkBlocks;
         uint64 *NSink_GPU_final;
+        pthread_mutex_t * CellLock;
 
         void ExecuteSlabGPU(int slabID, int blocking);
         void ExecuteSlabCPU(int slabID,int * predicate);
         void ExecuteSlabCPU(int slabID);
         void CheckGPUCPU(int slabID);
+        void CheckInteractionList(int slabID);
         
 };
 
 
 
-NearFieldDriver::NearFieldDriver(){
+NearFieldDriver::NearFieldDriver() :         
+        Construction{0},
+              FillSinkLists{0},
+                  CountSinks{0},
+                  CalcSinkBlocks{0},
+                  FillSinks{0},
+              FillSourceLists{0},
+                  CountSources{0},
+                  CalcSourceBlocks{0},
+                  FillSources{0},
+        FillInteractionList{0}
+{
     int nthread = omp_get_max_threads();
-    STDLOG(1,"Initializing NearFieldDriver with %d OMP threads (OMP is aware of %d procs).\n",nthread, omp_get_num_procs());
+    STDLOG(1,
+            "Initializing NearFieldDriver with %d OMP threads (OMP is aware of %d procs).\n",
+            nthread, omp_get_num_procs());
     DD = new Direct[nthread];
     DirectInteractions_CPU = 0;
-    NSink_CPU = 0;
+    DirectInteractions_GPU = 0;
 
     assert(NFRADIUS==P.NearFieldRadius);
-    slabcomplete = new int[P.cpd];
+    slabcomplete = new int [P.cpd];
+    SlabNSplit = new int[P.cpd];
+    SlabInteractionCollections = new SetInteractionCollection **[P.cpd];
     for(int i = 0; i < P.cpd;i++) slabcomplete[i]=0;
     WIDTH = P.NearFieldRadius*2+1;
     RADIUS = P.NearFieldRadius;
+    CellLock = (pthread_mutex_t *) malloc(P.cpd*P.cpd*sizeof(pthread_mutex_t));
+    for(int i =0; i < P.cpd*P.cpd; i ++) pthread_mutex_init(&CellLock[i],NULL);
     
 #ifdef CUDADIRECT
     NGPU = GetNGPU();
+    GPUMemoryGB = GetDeviceMemory();
+    GPUMemoryGB = std::min(5.0e-9*P.np*sizeof(FLOAT3),GPUMemoryGB);
+    size_t BlockSizeBytes = sizeof(FLOAT) *3 * NFBlockSize;
+    MaxSinkBlocks = floor(1e9 * GPUMemoryGB/(6*BlockSizeBytes));
+    MaxSourceBlocks = 5 * MaxSinkBlocks;
+    STDLOG(1,"Initializing GPU with %f x10^6 sink blocks and %f x10^6 source blocks\n",
+            MaxSinkBlocks/1e6,MaxSourceBlocks/1e6);
+    GPUSetup(P.cpd,P.cpd,MaxSinkBlocks,MaxSourceBlocks);
+    SICExecute.Clear();
+
     GPUTimers = new STimer[NGPU+1];
     SetupGPUTimers = new STimer[6];
     NSink_GPU_final = (uint64*) malloc(NGPU*sizeof(uint64));
@@ -69,130 +114,74 @@ NearFieldDriver::~NearFieldDriver()
     delete[] GPUTimers;
     delete[] SetupGPUTimers;
 #endif
-}
-
-void** NearFieldDriver::FindUnpinnableSlabs(){
-    // Return an array of pointers to slabs that can be unpinned
-    void** slabs_to_unpin = (void**) malloc((2*P.cpd)*sizeof(void*));
-    for(int s = 0; s < P.cpd; s++){
-        slabs_to_unpin[2*s] = NULL;  // PosSlab
-        slabs_to_unpin[2*s+1] = NULL;  // NearAccSlab
-        
-        // slabcomplete == 0: nothing ready to unpin
-        // slabcomplete == 1: ready, but nothing has been unpinned
-        // slabcomplete == 2: NearAcc has been unpinned
-        // slabcomplete == 3: NearAcc and PosSlab have been unpinned; all done
-        if(slabcomplete[s] == 1){
-            slabs_to_unpin[2*s+1] = LBW->ReturnIDPtr(NearAccSlab,s);
-            slabcomplete[s] = 2;
-        }
-        
-        if(slabcomplete[s] == 1 || slabcomplete[s] == 2){
-            slabs_to_unpin[2*s] = LBW->ReturnIDPtr(PosSlab,s);
-            slabcomplete[s] = 3;
-            
-            // We can only unpin the PosSlab if it has been fully used as a source
-            for(int j = -P.NearFieldRadius; j <= P.NearFieldRadius; j++)  {
-                if( !SlabDone(s+j) ){
-                    slabs_to_unpin[2*s] = NULL;
-                    slabcomplete[s] = 2;
-                }
-            }
-        }
-    }
-    
-    return slabs_to_unpin;
+    for(int i =0; i < P.cpd*P.cpd; i++)
+        pthread_mutex_destroy(&CellLock[i]);
+    free(CellLock);
 }
 
 void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
-    #ifdef CUDADIRECT
-    CellBookkeeping.Start();
-    int * CellStart[WIDTH];
-    int * CellNP[WIDTH];
-    #ifdef AVXDIRECT
-    int pred[P.cpd*P.cpd];
-    #else
-    int * pred = NULL;
-    #endif
-    int SlabNP[WIDTH];
-    int SlabIDs[WIDTH];
-    posstruct *SlabPos[WIDTH];
+    //calculate the required subdivisions of the slab to fit in GPU memory
+    
+    //Add up the sources
+    uint64 NSource = 0;
+    for(int i = slabID-RADIUS; i <= slabID + RADIUS; i++) NSource+=Slab->size(i);
 
-    for(int i = 0; i < WIDTH; i++){
-        int sid = PP->WrapSlab(slabID+i-RADIUS);
-        SlabIDs[i] = sid;
-        cellinfo * SlabCI = (cellinfo *) LBW->ReturnIDPtr(CellInfoSlab,sid);
-        SlabNP[i] = Slab->size(sid);
-        SlabPos[i] = (posstruct *) LBW->ReturnIDPtr(PosSlab,sid);
-        PinSlab(SlabPos[i],sid,SlabNP[i],P.cpd);
+    uint64 NSink = Slab->size(slabID);
 
-        CellStart[i] = GetCellStart(P.cpd,i);
-        CellNP[i] = GetCellNP(P.cpd,i);
+    //Pencils are aligned to GPUBlocksize boundaries
+    //In the best case we will have ~NSource/GPUBlocksize blocks
+    //Worst case:
+    //      We have all but one pencil GPUBlocksize + 1 long with last pencil holding the rest
+    int N1 = 2*( P.cpd*(P.cpd + WIDTH) -1 );
+    int N2 =std::ceil( (NSource -( NFBlockSize + 1.0) * ( P.cpd*(P.cpd + WIDTH) -1 ))/(1.0*NFBlockSize) + 1);
+    if (N2 < 0) N2 = 0; //if we don't have at least GPUBlocksize particles per pencil, this calculation fails
+    
+    int SourceBlocks = N1 + N2;
+    
+    N1 = 2*(P.cpd*P.cpd -1);
+    N2 =std::ceil( (NSink -( NFBlockSize + 1.0) * ( P.cpd*(P.cpd + WIDTH) -1 ))/(1.0*NFBlockSize) + 1);
+    if (N2 < 0) N2 = 0;
+    int SinkBlocks = N1 + N2;
+    
+    int NSplitSource = std::ceil((1.0*SourceBlocks)/MaxSourceBlocks);
+    int NSplitSink = std::ceil((1.0*SinkBlocks)/MaxSinkBlocks);
+    int NSplit = std::max(NSplitSource,NSplitSink);
+    STDLOG(1,"Splitting slab %d into %d blocks for directs.\n",slabID,NSplit);
+    SlabNSplit[slabID] = NSplit;
+    
+    uint64 NPTarget = NSink/NSplit;
+    SlabInteractionCollections[slabID] = new SetInteractionCollection *[WIDTH*NSplit];
+    int SplitPoint[NSplit];
 
-        #pragma omp parallel for schedule(dynamic,1)
-        for(int y = 0; y <P.cpd*P.cpd;y++){
-            (CellStart[i])[y] = SlabCI[y].startindex;
-            (CellNP[i])[y] = SlabCI[y].count;
-            #ifdef AVXDIRECT
-            pred[y] = (SlabCI[y].count < P.GPUMinCellSinks);
-            #endif
+    int yl = 0;
+    for(int i =0; i < NSplit -1; i++){
+        uint64 NPBlock = 0;
+        int yh = yl;
+        while(NPBlock < NPTarget && yh < P.cpd){
+            for(int k =0; k < P.cpd; k++) NPBlock+=PP->NumberParticle(slabID,yh,k);
+            yh++;
+        }
+        SplitPoint[i] = yh;
+    }
+    SplitPoint[NSplit-1] = P.cpd;
 
+    STDLOG(1,"Direct splits for slab %d are at: \n",slabID);
+    for(int i = 0; i < NSplit -1; i++) STDLOG(2,"\t\t\t\t %d: %d \n",i,SplitPoint[i]);
+
+    for(int w = 0; w < WIDTH; w++){
+        int kl =0;
+        for(int n = 0; n < NSplit; n++){
+            int kh = SplitPoint[n];
+            SlabInteractionCollections[slabID][w*NSplit + n] = 
+                new SetInteractionCollection(slabID,w,kl,kh);
+            STDLOG(1,"Executing directs for slab %d w = %d k: %d - %d\n",slabID,w,kl,kh);
+            SICExecute.Start();
+            SlabInteractionCollections[slabID][w*NSplit + n]->GPUExecute(blocking);
+            SICExecute.Stop();
+            kl = kh;
         }
     }
-    CellBookkeeping.Stop();
-    
-    CountSinks.Start();
-    // Count sink particles per GPU
-    cellinfo * ThisSlabCI = (cellinfo *) LBW->ReturnIDPtr(CellInfoSlab,PP->WrapSlab(slabID));
-    for(int g = 0; g < NGPU; g++){
-        int ystart = (P.cpd/NGPU)*g;
-        int ystart_next = (P.cpd/NGPU)*(g+1);
-        
-        // Last GPU gets the leftover cells
-        if(g == NGPU -1)
-            ystart_next = P.cpd;
-        
-        uint64 NSink_GPU_cell = 0;
-        #pragma omp parallel for schedule(dynamic,1) reduction(+:NSink_GPU_cell)
-        for(int idx = ystart*P.cpd; idx < ystart_next*P.cpd; idx++){
-            if(pred != NULL && pred[idx])
-                continue;
-            NSink_GPU_cell += ThisSlabCI[idx].count;
-        }
-        
-        NSink_GPU_final[g] += NSink_GPU_cell;
-    }
-    CountSinks.Stop();
-    
-    FindUnpin.Start();
-    // Tell SetupGPU to unpin any Pos or NearAcc slabs that are finished
-    void** slabs_to_unpin = FindUnpinnableSlabs();
-    FindUnpin.Stop();
-        
-    SetupGPUTimers[0].Start();
-    SetupGPU(SlabIDs,SlabPos,SlabNP,CellStart,CellNP,P.cpd, SetupGPUTimers);
-    SetupGPUTimers[0].Stop();
-    
-    // Now that we've just synchronized (in SetupGPU), unpin any slabs
-    GPUUnpinTimer.Start();
-    UnpinSlabs(slabs_to_unpin, P.cpd);
-    GPUUnpinTimer.Stop();
-    
-    // The "total throughput" timer
-    // Only for the GPU
-    GPUTimers[NGPU].Start();
-    
-    GPUDirectsLaunchTimer.Start();
-    DeviceAcceleration((accstruct *)LBW->ReturnIDPtr(NearAccSlab,slabID), slabID, Slab->size(slabID),
-            P.cpd, WriteState.SofteningLength*WriteState.SofteningLength, slabcomplete+slabID, blocking,pred, GPUTimers);
-    GPUDirectsLaunchTimer.Stop();
-    
-    if(pred != NULL){
-        CPUFallbackTimer.Start();
-        ExecuteSlabCPU(slabID,pred);
-        CPUFallbackTimer.Stop();
-    }
-    #endif
+
 }
 
 void NearFieldDriver::CheckGPUCPU(int slabID){
@@ -277,65 +266,191 @@ void NearFieldDriver::ExecuteSlab(int slabID, int blocking){
     #ifdef CUDADIRECT
     if(!P.ForceCPU){
         ExecuteSlabGPU(slabID,blocking);
-        if(P.ForceOutputDebug) CheckGPUCPU(slabID);
     }
     else{
     #else
         {
     #endif
         ExecuteSlabCPU(slabID);
-        slabcomplete[slabID] = 3;
+        slabcomplete[slabID] = 1;
         }
-}
-
-void NearFieldDriver::CleanupSlab(int slab){
-#ifdef CUDADIRECT
-    if(!P.ForceCPU){
-        UnpinSlab((accstruct *)LBW->ReturnIDPtr(PosSlab,slab),slab);
-    }
-#endif
 }
 
 
 int NearFieldDriver::SlabDone(int slab){
     slab = PP->WrapSlab(slab);
-    return slabcomplete[slab] != 0;
+
+    if (slabcomplete[slab] == 0){
+
+        int NSplit = SlabNSplit[slab];
+
+        int complete = 1;
+        for(int i = 0; i < WIDTH*NSplit; i++)
+            complete = complete && SlabInteractionCollections[slab][i]->CheckCompletion();
+
+        slabcomplete[slab] = complete;
+        return complete;
+    }
+
+    return 1;
 }
 
-int NearFieldDriver::UnpinStatus(int slab){
+void NearFieldDriver::Finalize(int slab){
     slab = PP->WrapSlab(slab);
-    return slabcomplete[slab];
+
+    #ifdef CUDADIRECT
+
+    assertf(SlabDone(slab) != 0,
+            "Finalize called for slab %d but it is not complete\n",slab);
+
+    if(P.ForceOutputDebug)
+        CheckInteractionList(slab);
+
+    SetInteractionCollection ** Slices = SlabInteractionCollections[slab];
+    int NSplit = SlabNSplit[slab];
+
+    int cpd = P.cpd;
+    int nfr = P.NearFieldRadius;
+    int width = 2*nfr +1;
+
+
+    for(int n = 0; n < NSplit; n++){
+        for(int w = 0; w < WIDTH; w++){
+            int sliceIdx = w*NSplit + n;
+            SetInteractionCollection *Slice = Slices[sliceIdx];
+            int kl = Slice->K_low;
+            int kh = Slice->K_high;
+            int Nj = (cpd - w)/width;
+            int jr = (cpd - w)%width;
+            if(Nj * width + w < cpd)
+                Nj++;
+            //Slice->PrintInteractions();
+            Construction +=Slice->Construction.Elapsed();
+            FillSinkLists+=Slice->FillSinkLists.Elapsed();
+            CountSinks+=Slice->CountSinks.Elapsed();
+            CalcSinkBlocks+=Slice->CalcSinkBlocks.Elapsed();
+            FillSinks+=Slice->FillSinks.Elapsed();          
+            FillSourceLists+=Slice->FillSourceLists.Elapsed();
+            CountSources+=Slice->CountSources.Elapsed();
+            CalcSourceBlocks+=Slice->CalcSinkBlocks.Elapsed();
+            FillSources+=Slice->FillSources.Elapsed();
+            FillInteractionList+=Slice->FillInteractionList.Elapsed();
+            DirectInteractions_GPU += Slice->DirectTotal;
+
+            int NThread = omp_get_max_threads();
+
+            #pragma omp parallel for schedule(dynamic,1)
+            for(int sinkIdx = 0; sinkIdx < Slice->NSinkList; sinkIdx++){
+                int SinkCount = Slice->SinkSetCount[sinkIdx];
+                int j = sinkIdx%Nj;
+                int k = sinkIdx/Nj + Slice->K_low;
+                int jj = w + j * width;
+                int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
+                int Start = Slice->SinkSetStart[sinkIdx];
+
+
+                for(int z=zmid-nfr; z <= zmid+nfr;z++){
+                    int cid = PP->CellID(k,z);
+                    pthread_mutex_lock(&CellLock[cid]);
+                    int CellNP = PP->NumberParticle(slab,k,z);
+                    accstruct *a = PP->NearAccCell(slab,k,z);
+
+                    if(P.ForceOutputDebug == 1){
+                        for(int p =0; p < CellNP; p++){
+                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].x));
+                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].y));
+                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].z));
+                        }
+                    }
+
+                    #pragma simd
+                    for(int p = 0; p <CellNP; p++)
+                        a[p] += Slice->SinkSetAccelerations[Start +p];
+                    pthread_mutex_unlock(&CellLock[cid]);
+
+                    Start+=CellNP;
+                    SinkCount-=CellNP;
+                }
+                assert(SinkCount == 0);
+            }
+
+            delete Slice;
+        }
+    }
+    delete[] Slices;
+    if(P.ForceOutputDebug) CheckGPUCPU(slab);
+    #endif
 }
 
-uint64 NearFieldDriver::DirectInteractions_GPU(){
-    #ifdef CUDADIRECT
-    return DeviceGetDI();
-    #endif
-    return 0;
-}
+#include <vector>
+#include <algorithm>
+void NearFieldDriver::CheckInteractionList(int slab){
 
-uint64 NearFieldDriver::DirectInteractions_GPU(int g){
-    #ifdef CUDADIRECT
-    assert(g < NGPU);
-    return DeviceGetOneDI(g);
-    #endif
-    return 0;
-}
+    vector<int> ** il = new std::vector<int> *[P.cpd*P.cpd];
 
-uint64 NearFieldDriver::NSink_GPU(){
-    #ifdef CUDADIRECT
-    uint64 n = 0;
-    for(int g = 0; g < NGPU; g++)
-        n += NSink_GPU_final[g];
-    return n;
-    #endif
-    return 0;
-}
+    for(int i = 0; i < P.cpd*P.cpd; i++){
+        il[i] = new vector<int>();
+        il[i]->reserve(WIDTH*WIDTH*WIDTH);
+    }
 
-uint64 NearFieldDriver::NSink_GPU(int g){
-    #ifdef CUDADIRECT
-    assert(g < NGPU);
-    return NSink_GPU_final[g];
-    #endif
-    return 0;
+    SetInteractionCollection ** Slices = SlabInteractionCollections[slab];
+    int NSplit = SlabNSplit[slab];
+
+    for(int s = 0; s < WIDTH*NSplit; s++)
+        Slices[s]->AddInteractionList(il);
+
+
+    //check number of interactions
+    for(int i = 0; i < P.cpd*P.cpd; i++){
+        if (il[i]->size() != WIDTH*WIDTH*WIDTH){
+            printf("Error: cell %d has %d =/= %d interactions\n",i,il[i]->size(),WIDTH*WIDTH*WIDTH);
+            assert(il[i]->size() == WIDTH*WIDTH*WIDTH);
+        }
+    }
+
+    //Now we do a full check of the interaction list
+    
+    //build a correct interaction list for comparison
+    
+    vector<int> ** il_test = new std::vector<int> *[P.cpd*P.cpd];
+    for(int i = 0; i < P.cpd*P.cpd; i++){
+        il_test[i] = new vector<int>();
+        il_test[i]->reserve(WIDTH*WIDTH*WIDTH);
+    }
+    for(int y = 0; y < P.cpd; y++){
+        for(int z = 0; z < P.cpd; z++){
+            for(int i = slab - RADIUS; i <= slab + RADIUS; i++){
+                for(int j = y - RADIUS; j <= y + RADIUS; j++){
+                    for(int k = z - RADIUS; k <= z + RADIUS; k++){
+                        int sinkCellId = y*P.cpd + z;
+                        int sourceCellId = P.cpd*P.cpd * PP->WrapSlab(i) +
+                            P.cpd*PP->WrapSlab(j) +
+                            PP->WrapSlab(k);
+                        il_test[sinkCellId]->push_back(sourceCellId);
+                    }
+                }
+            }
+        }
+    }
+    
+    
+    //sort the lists and check them
+    for(int i=0; i <P.cpd*P.cpd; i++){
+        std::sort(il[i]->begin(),il[i]->end());
+        std::sort(il_test[i]->begin(),il_test[i]->end());
+
+        assert(il[i]->size() == il_test[i]->size());
+
+        for(int j = 0; j < il[i]->size(); j ++)
+                assertf(il[i]->at(j) == il_test[i]->at(j), "Interaction list %d at %d failed in slab %d\n", i, j, slab);
+        delete il[i];
+        delete il_test[i];
+    }
+
+    delete[] il;
+    delete[] il_test;
+    
+    //STDLOG(1,"Checking the interaction list for slab %d passed.\n", slab);
+    //Checking the interaction list is time-consuming
+    //it should never be done in an actual run
 }
