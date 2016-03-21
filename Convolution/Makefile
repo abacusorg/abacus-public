@@ -5,8 +5,8 @@ CUDAFLAGS = #-DGPUFFT  -lcufft -lcudart -L/usr/local/cuda/lib64 -I/usr/local/cud
 endif
 FFTWFLAGS = -lfftw3 -lm -L$(FFTW)/lib 
 
-VERSIONFLAGS = -march=native -mavx -O3 $(CUDAFLAGS) $(FFTWFLAGS)
-CXXFLAGS = -DMAXCPD=8192 -L../ParseHeader -lparseheader $(VERSIONFLAGS)
+OPTIONS = -march=native -mavx -O3 $(CUDAFLAGS) $(FFTWFLAGS)
+CXXFLAGS = -DMAXCPD=8192 -L../ParseHeader -lparseheader $(OPTIONS)
 
 CPPFLAGS = -MMD -I../include -I../singlestep/Multipoles -I../singlestep -I../ParseHeader
 

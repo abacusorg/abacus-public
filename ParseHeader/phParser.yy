@@ -119,7 +119,7 @@ vec_list       : vec_list vec_stmt
                 ;
 
 vec_stmt       : value_list EOS
-                  { driver.ProcessValue_List(yylloc); }
+                  { driver.ProcessValue_List(yyla.location); }
                 ;
 
 id_stmt

@@ -40,19 +40,16 @@ WriteDirect * WD;
 void ReadIOR(iorequest *ior) {
     // Read the file, wait to complete.
     IOLOG(0,"Reading file %s\n", ior->filename);
-    IOReadTime.Start();
 
     RD->BlockingRead( ior->filename, ior->memory, ior->sizebytes, ior->fileoffset);
 
     IOLOG(1,"Done reading file\n");
     IO_SetIOCompleted(ior->arena);
-    IOReadTime.Stop();
     return;
 }
 
 void WriteIOR(iorequest *ior) {
     IOLOG(0,"Writing file %s\n", ior->filename);
-    IOWriteTime.Start();
     // Write the file
     //ioassertf(FileExists(ior->filename)==0, 
     //	"File %s already exists; not the intended use of WriteFile.\n", ior->filename);
@@ -68,7 +65,6 @@ void WriteIOR(iorequest *ior) {
 
     IOLOG(1,"Done writing file\n");
     if (ior->deleteafterwriting==IO_DELETE) IO_DeleteArena(ior->arena);
-    IOWriteTime.Stop();
     return;
 }
 
@@ -146,15 +142,25 @@ void *io_thread(void *magic) {
 	if (write_blocking.isnotempty()) {
 	    IOLOG(1,"Starting blocking write\n"); 
 	    iorequest ior = write_blocking.pop(); 
+		
+		BlockingIOWriteTime.Start();
 	    WriteIOR(&ior);
+		BlockingIOWriteTime.Stop();
+		blocking_write_bytes += ior.sizebytes;
+		
 	    // Send an acknowledgement
 	    ioacknowledge ioack(IO_WRITE,ior.arena);
 	    write(fifo_ack,&ioack, sizeof(ioacknowledge) );
 	    IOLOG(1,"IO_WRITE acknowledgement sent\n");
 	} else if (read_blocking.isnotempty()) {
 	    IOLOG(1,"Starting blocking read\n"); 
-	    iorequest ior = read_blocking.pop(); 
+	    iorequest ior = read_blocking.pop();
+		
+		BlockingIOReadTime.Start();
 	    ReadIOR(&ior);
+		BlockingIOReadTime.Stop();
+		blocking_read_bytes += ior.sizebytes;
+		
 	    // Send an acknowledgement
 	    ioacknowledge ioack(IO_READ,ior.arena);
 	    write(fifo_ack,&ioack, sizeof(ioacknowledge) );
@@ -162,11 +168,19 @@ void *io_thread(void *magic) {
 	} else if (write_nonblocking.isnotempty()) {
 	    IOLOG(1,"Starting nonblocking write\n"); 
 	    iorequest ior = write_nonblocking.pop(); 
+		
+		NonBlockingIOWriteTime.Start();
 	    WriteIOR(&ior);
+		NonBlockingIOWriteTime.Stop();
+		non_blocking_write_bytes += ior.sizebytes;
 	} else if (read_nonblocking.isnotempty()) {
-	    IOLOG(1,"Starting nonblocking read\n"); 
-	    iorequest ior = read_nonblocking.pop(); 
+	    IOLOG(1,"Starting nonblocking read\n");
+	    iorequest ior = read_nonblocking.pop();
+		
+		NonBlockingIOReadTime.Start();
 	    ReadIOR(&ior);
+		NonBlockingIOReadTime.Stop();
+		non_blocking_read_bytes += ior.sizebytes;
 	} else if (quitflag) break;
 	else wait_for_cmd = 1;	
 	    // We have no work to do, so we should read the cmd pipe to avoid spinlocking
@@ -206,26 +220,25 @@ void makeiopipes(void) {
 // Removes io pipes, with flag to force sudo for stubborn files
 // i.e. those created by other users
 // Will automatically try sudo if non-sudo fails
-void remove_io_pipes(bool sudo) {
+void remove_io_pipes(void) {
     // Must remove old files
-    STDLOG(1,"Deleting io pipe files (%susing sudo).\n",sudo?"":"not ");
+    STDLOG(1,"Deleting io pipe files\n");
     char cmd[1024];
-    const char* rm_fmt = ( sudo ? "sudo rm -f %s" : "rm -f %s" );
+    const char* rm_fmt = "rm -f %s";
     int ret = 0;
     if (FileExists(IO_ACK_PIPE)) {
 	sprintf(cmd, rm_fmt, IO_ACK_PIPE);
-        ret += system(cmd);
+        ret = system(cmd);
     }
+    assertf((ret!=-1)||(errno==EEXIST),
+    	"Error removing pipe IO_ACK_PIPE\n");
+    
     if (FileExists(IO_CMD_PIPE)) {
 	sprintf(cmd, rm_fmt, IO_CMD_PIPE);
         ret += system(cmd);
     }
-    if (ret > 0)
-        remove_io_pipes(true);
-}
-
-void remove_io_pipes(){
-    remove_io_pipes(false);
+    assertf((ret!=-1)||(errno==EEXIST),
+    	"Error removing pipe IO_CMD_PIPE\n");
 }
 
 int io_cmd, io_ack;     // The pipe descriptor numbers

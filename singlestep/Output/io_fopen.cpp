@@ -61,21 +61,36 @@ DirectIO DIO;
 void ReadFile(char *ram, uint64 sizebytes, int arena,
 	    const char *filename, off_t fileoffset, int blocking) {
     STDLOG(1,"Using IO_fopen library to read file %f\n", filename);
+    
+    BlockingIOReadTime.Start();
+    
     // Read the file, wait to complete.
     DIO.directreadfd( ram, sizebytes, fileoffset, 
 	    0,      // memory offset
 	    filename);
+    
+    BlockingIOReadTime.Stop();
+    blocking_read_bytes += sizebytes;
+
     IO_SetIOCompleted(arena);
+    
     return;
 }
 
 void WriteFile(char *ram, uint64 sizebytes, int arena, 
 	    const char *filename, off_t fileoffset, int deleteafter, int blocking) {
     STDLOG(1,"Using IO_fopen library to write file %f\n", filename);
+    
+    BlockingIOWriteTime.Start();
+
     // Write the file
     DIO.directwritefd( ram, sizebytes, fileoffset, 
     	0, // memory offset
 	filename);
+    
+    BlockingIOWriteTime.Stop();
+    blocking_write_bytes += sizebytes;
+    
     if (deleteafter==IO_DELETE) IO_DeleteArena(arena);
     return;
 }
