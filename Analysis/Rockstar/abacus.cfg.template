@@ -25,10 +25,10 @@ FILENAME = "{fn}"  # This should contain <block>, which will be substituted with
 # Also, our snapshots do not have convenient names for iteration
 NUM_SNAPS = 1
 NUM_BLOCKS={cpd}
-NUM_READERS={ncpu}
+NUM_READERS={ncpu_total}
 
 #This specifies how many CPUs you want to analyze the particles:
-NUM_WRITERS = {ncpu}
+NUM_WRITERS = {ncpu_total}
 
 # This means we only have to launch 1 process, and {ncpu} will automatically be started (each with a reader and writer)
 FORK_READERS_FROM_WRITERS = 1
