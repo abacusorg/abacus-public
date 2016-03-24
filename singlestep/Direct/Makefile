@@ -6,7 +6,7 @@ ARCHFLAGS=  --generate-code arch=compute_35,code=sm_35\
 	    --generate-code arch=compute_30,code=sm_30\
 	    --generate-code arch=compute_52,code=sm_52
 
-CUDAFLAGS= $(VERSIONFLAGS) $(ARCHFLAGS) -I$(ABACUS)/include -lineinfo -m64 -Xptxas="-v" -maxrregcount 47
+CUDAFLAGS= $(VERSIONFLAGS) $(ARCHFLAGS) -I$(ABACUS)/include -lineinfo -m64 -Xptxas="-v" -maxrregcount 63 --default-stream per-thread
 
 
 gpudirect.d: 
