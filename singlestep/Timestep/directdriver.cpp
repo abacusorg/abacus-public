@@ -89,13 +89,13 @@ NearFieldDriver::NearFieldDriver() :
 #ifdef CUDADIRECT
     NGPU = GetNGPU();
     GPUMemoryGB = GetDeviceMemory();
-    GPUMemoryGB = std::min(5.0e-9*P.np*sizeof(FLOAT3),GPUMemoryGB);
+    GPUMemoryGB = std::min(5.0e-9*P.np*sizeof(FLOAT3),GPUMemoryGB/(DirectBPD));
     size_t BlockSizeBytes = sizeof(FLOAT) *3 * NFBlockSize;
     MaxSinkBlocks = floor(1e9 * GPUMemoryGB/(6*BlockSizeBytes));
     MaxSourceBlocks = 5 * MaxSinkBlocks;
     STDLOG(1,"Initializing GPU with %f x10^6 sink blocks and %f x10^6 source blocks\n",
             MaxSinkBlocks/1e6,MaxSourceBlocks/1e6);
-    GPUSetup(P.cpd,P.cpd,MaxSinkBlocks,MaxSourceBlocks);
+    GPUSetup(P.cpd,P.cpd,MaxSinkBlocks,MaxSourceBlocks,DirectBPD);
     SICExecute.Clear();
 
     GPUTimers = new STimer[NGPU+1];

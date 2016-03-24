@@ -55,6 +55,9 @@ class SetInteractionCollection{
         uint64 DirectTotal; //Number of directs for this interection collection
         FLOAT eps2;
 
+        int AssignedDevice;
+        int Blocking;
+
         //Methods
         //Count the number of particles in the specified pencil
         int SourcePencilCount(int slab, int ymid, int zz);
