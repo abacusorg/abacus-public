@@ -4,7 +4,7 @@ VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich
 
 CLIBS = libpermute.so liblightcones.so libreadabacus.so
 
-all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum
+all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum FoF
 
 singlestep: libparseheader.a
 	cd singlestep && $(MAKE) $@
@@ -24,7 +24,8 @@ clean:
 	cd zeldovich && $(MAKE) $@
 	cd Tests/Spiral && $(MAKE) $@
 	cd util && $(MAKE) $@
-	cd Analysis/PowerSpectrum &&$(MAKE) $@
+	cd Analysis/PowerSpectrum && $(MAKE) $@
+	cd Analysis/FoF && $(MAKE) $@
 	-$(RM) *.o *.d *.a *~
 
 distclean:	
@@ -37,6 +38,7 @@ distclean:
 	cd Tests/Spiral && $(MAKE) $@
 	cd util && $(MAKE) $@
 	cd Analysis/PowerSpectrum &&$(MAKE) $@
+	cd Analysis/FoF && $(MAKE) $@
 	-$(RM) *.o *.d *~ *.a a.out
 
 
@@ -63,7 +65,10 @@ bench:
 	cd singlestep && $(MAKE) $@
 
 powerspectrum:
-	cd Analysis/PowerSpectrum &&$(MAKE)
+	cd Analysis/PowerSpectrum && $(MAKE)
+    
+FoF:
+	cd Analysis/FoF && $(MAKE)
 
 zeldovich: zeldovich.cpp
 	cd zeldovich && $(MAKE) all
