@@ -75,4 +75,6 @@ substats:
 
 clean:
 	rm -f *~ io/*~ inet/*~ util/*~ rockstar util/redo_bgc2 util/subhalo_stats util/find_parents *.o
+	
+distclean: clean
 

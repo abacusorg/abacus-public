@@ -4,7 +4,7 @@ VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich
 
 CLIBS = libpermute.so liblightcones.so libreadabacus.so
 
-all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests powerspectrum FoF
+all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests analysis
 
 singlestep: libparseheader.a
 	cd singlestep && $(MAKE) $@
@@ -24,8 +24,7 @@ clean:
 	cd zeldovich && $(MAKE) $@
 	cd Tests/Spiral && $(MAKE) $@
 	cd util && $(MAKE) $@
-	cd Analysis/PowerSpectrum && $(MAKE) $@
-	cd Analysis/FoF && $(MAKE) $@
+	cd Analysis/ && $(MAKE) $@
 	-$(RM) *.o *.d *.a *~
 
 distclean:	
@@ -37,8 +36,7 @@ distclean:
 	cd zeldovich && $(MAKE) $@
 	cd Tests/Spiral && $(MAKE) $@
 	cd util && $(MAKE) $@
-	cd Analysis/PowerSpectrum &&$(MAKE) $@
-	cd Analysis/FoF && $(MAKE) $@
+	cd Analysis/ && $(MAKE) $@
 	-$(RM) *.o *.d *~ *.a a.out
 
 
@@ -64,15 +62,12 @@ tests:
 bench:
 	cd singlestep && $(MAKE) $@
 
-powerspectrum:
-	cd Analysis/PowerSpectrum && $(MAKE)
-    
-FoF:
-	cd Analysis/FoF && $(MAKE)
+analysis:
+	$(MAKE) -C Analysis/
 
 zeldovich: zeldovich.cpp
 	cd zeldovich && $(MAKE) all
 	
-.PHONY: clean distclean generated_headers all zeldovich util tests powerspectrum singlestep
+.PHONY: clean distclean generated_headers all zeldovich util tests analysis singlestep
 
 -include $(CC_SRC:.cpp=.d)
