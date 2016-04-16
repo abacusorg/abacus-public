@@ -1,12 +1,8 @@
-#CXX = gcc
-CXXFLAGS = -g -gdwarf-2
-CPPFLAGS = -I../util 
+CXX = g++
+CXXFLAGS = -O2
+CPPFLAGS =
 LEX = flex
 YACC = bison
-
--include ../Makefile.local
-
-VPATH = ../util
 
 # the library name
 LIBRARY = libparseheader.a
