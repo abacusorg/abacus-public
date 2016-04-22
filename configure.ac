@@ -1,23 +1,35 @@
+# This is the autoconf template file for ./configure
+# Run ./autogen.sh to re-create ./configure from this file
+
 # This approach to Abacus's configure system was inspired by
 # Athena (https://trac.princeton.edu/Athena/)
 
 AC_INIT([abacus], [0.9], [], [], [github.com/nbody/abacus])
 AC_PROG_CC
 AC_PROG_CXX
-#AC_CONFIG_HEADERS([config.h])
+AC_HEADER_STDC
+AC_PROG_INSTALL
 AC_CONFIG_FILES([
  singlestep/Makefile
  singlestep/Direct/Makefile
+ Convolution/Makefile
 ])
 
-m4_include(ax_check_cuda.m4)
+m4_include(m4/ax_check_cuda.m4)
+m4_include(m4/ax_check_compile_flag.m4)
+m4_include(m4/ax_gcc_x86_avx_xgetbv.m4)
+m4_include(m4/ax_gcc_x86_cpuid.m4)
+m4_include(m4/ax_ext.m4)
 AC_SEARCH_LIBS(fftw_execute, [fftw3], [], [AC_MSG_ERROR([unable to find fftw3!])])
 AC_SEARCH_LIBS(fftw_init_threads, [fftw3_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
 AC_SEARCH_LIBS([cos],[m])
 AC_SEARCH_LIBS(cblas_dgemm, [gslcblas], [], [AC_MSG_ERROR([unable to find gslcblas!])])
 AC_SEARCH_LIBS(gsl_rng_uniform, [gsl], [], [AC_MSG_ERROR([unable to find gsl!])])
-AC_PROG_LEX
-AC_PROG_YACC
+AC_SEARCH_LIBS(ITT_DoOneTimeInitialization, [tbb], [], [AC_MSG_ERROR([unable to find tbb!])])
+AC_CHECK_PROGS(LEX, flex)
+AC_CHECK_PROGS(YACC, bison)
+AC_CHECK_PROGS(AR, ar)
+AX_EXT  # Check for AVX
 
 AC_ARG_ENABLE(double,
 [AS_HELP_STRING([--enable-double], [Double precision [no]])],
@@ -37,18 +49,18 @@ AC_ARG_WITH(block-size,
 AC_DEFINE_UNQUOTED(NFBlockSize,$with_block_size)
 
 AC_ARG_ENABLE(avx,
-[AS_HELP_STRING([--enable-avx], [All AVX (overridden by individual options) [yes]])],
-	[], enable_avx="yes")
+[AS_HELP_STRING([--enable-avx], [All AVX (overridden by individual options) [yes if AVX present]])],
+	[], enable_avx=$ax_cv_have_avx_cpu_ext)
 
 AC_ARG_ENABLE(avx-directs,
-[AS_HELP_STRING([--enable-avx-directs], [AVX directs [yes]])],
+[AS_HELP_STRING([--enable-avx-directs], [AVX directs [yes if AVX present]])],
 	[], enable_avx_directs=$enable_avx)
 if test x$enable_avx_directs == xyes; then
 	AC_DEFINE_UNQUOTED(AVXDIRECT)
 fi
 
 AC_ARG_ENABLE(avx-multipoles,
-[AS_HELP_STRING([--enable-avx-multipoles], [AVX multipoles [yes]])],
+[AS_HELP_STRING([--enable-avx-multipoles], [AVX multipoles [yes if AVX present]])],
 	[], enable_avx_multipoles=$enable_avx)
 if test x$enable_avx_multipoles == xyes; then
 	AC_DEFINE_UNQUOTED(AVXMULTIPOLES)
@@ -57,7 +69,7 @@ fi
 AC_ARG_WITH(max-cpd,
 [AS_HELP_STRING([--with-max-cpd=CPD], [Maximum cells-per-dimension [8192]])],
 	[], with_max_cpd="8192")
-AC_DEFINE_UNQUOTED(NFBlockSize,$with_max_cpd)
+AC_DEFINE_UNQUOTED(MAXCPD,$with_max_cpd)
 
 AC_ARG_WITH(max-source-length,
 [AS_HELP_STRING([--with-max-source-length=S], [Maximum source length [1048576]])],
@@ -75,9 +87,9 @@ AC_ARG_ENABLE(gpu-directs,
 [AS_HELP_STRING([--enable-gpu-directs], [GPU directs [yes if CUDA detected]])],
 	[], enable_gpu_directs="check")
 if test x$enable_gpu_directs == xcheck -o x$enable_gpu_directs == xyes; then
-	AX_CHECK_CUDA
-	if test x$VALID_CUDA == xyes; then
-		enable_gpu_directs="yes"
+	AX_CHECK_CUDA([no-define])
+	if test x$enable_gpu_directs == xcheck; then
+		enable_gpu_directs=$VALID_CUDA
 	fi
 fi
 AC_SUBST(CUDA_MODE)
@@ -87,14 +99,27 @@ if test x$enable_gpu_directs == xyes; then
 	CUDA_MODE="CUDA_ENABLED"
 fi
 
+AC_ARG_ENABLE(gpu-convolution,
+[AS_HELP_STRING([--enable-gpu-convolution], [Convolution FFT on GPU [no]])],
+	[], enable_gpu_convolution="no")
+if test x$enable_gpu_convolution == xyes; then
+	AC_DEFINE_UNQUOTED(GPUFFT)
+fi
+
 # Get the number of GPUs
-NGPU=1
 if test x$enable_gpu_directs == xyes; then
 	AC_MSG_CHECKING([number of GPUs])
 	NGPU=m4_esyscmd([nvidia-smi -q | grep 'Attached GPUs'| awk -F ':' '{print $NF}' | tr -d [[:space:]]])
+    if test x$NGPU == x""; then
+        NGPU=0
+    fi
 	AC_MSG_RESULT([$NGPU found])
 fi
 
+# If we don't have any GPUs, pretend there's one for BPD
+if test x$NGPU == x -o x$NGPU == x0; then
+    NGPU=1
+fi
 DEFAULT_BPD=$((2*$with_radius/$NGPU + 1))
 AC_ARG_WITH(direct-bpd,
 [AS_HELP_STRING([--with-direct-bpd=B],

@@ -17,7 +17,7 @@ clean:
 	cd ParseHeader && $(MAKE) $@
 	cd Derivatives && $(MAKE) $@
 	-cd singlestep && $(MAKE) $@
-	cd Convolution && $(MAKE) $@
+	-cd Convolution && $(MAKE) $@
 	cd python/clibs && $(MAKE) $@
 	cd zeldovich && $(MAKE) $@
 	cd Tests && $(MAKE) $@
@@ -29,14 +29,14 @@ distclean:
 	cd ParseHeader && $(MAKE) $@
 	cd Derivatives && $(MAKE) $@
 	-cd singlestep && $(MAKE) $@
-	cd Convolution && $(MAKE) $@
+	-cd Convolution && $(MAKE) $@
 	cd python/clibs && $(MAKE) $@
 	cd zeldovich && $(MAKE) $@
 	cd Tests && $(MAKE) $@
 	cd util && $(MAKE) $@
 	cd Analysis/ && $(MAKE) $@
 	-$(RM) *.o *.d *~ *.a a.out abacus.tar.gz
-	-$(RM) -rf aclocal.m4 autom4te.cache/ compile config.log config.status install-sh missing singlestep/.deps/ singlestep/Makefile singlestep/Direct/Makefile
+	-$(RM) -rf aclocal.m4 autom4te.cache/ compile config.log config.status install-sh missing singlestep/.deps/ singlestep/Makefile singlestep/Direct/Makefile Convolution/Makefile config.guess config.sub
 
 ConvolutionDriver: convolutionwrapper.cpp include/Parameters.cpp
 	cd Convolution && $(MAKE) $@
