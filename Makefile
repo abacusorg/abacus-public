@@ -59,7 +59,7 @@ zeldovich: zeldovich.cpp
 	cd zeldovich && $(MAKE) all
     
 AbacusCosmo:
-	cd python/AbacusCosmo && $(MAKE) all
+	#cd python/AbacusCosmo && $(MAKE) all
 
 dist:
 	$(RM) -rf .dist

@@ -124,7 +124,7 @@ fi
 # Get the number of GPUs
 if test x$enable_gpu_directs == xyes; then
 	AC_MSG_CHECKING([number of GPUs])
-	NGPU=m4_esyscmd([nvidia-smi -q | grep 'Attached GPUs'| awk -F ':' '{print $NF}' | tr -d [[:space:]]])
+	NGPU=$(nvidia-smi -q | grep 'Attached GPUs'| awk -F ':' '{print $NF}' | tr -d [[:space:]])
     if test x$NGPU == x""; then
         NGPU=0
     fi

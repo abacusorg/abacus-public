@@ -6017,7 +6017,7 @@ fi
 if test x$enable_gpu_directs == xyes; then
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking number of GPUs" >&5
 $as_echo_n "checking number of GPUs... " >&6; }
-	NGPU=2
+	NGPU=$(nvidia-smi -q | grep 'Attached GPUs'| awk -F ':' '{print $NF}' | tr -d [:space:])
     if test x$NGPU == x""; then
         NGPU=0
     fi
