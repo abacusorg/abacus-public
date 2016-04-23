@@ -5,9 +5,7 @@
 *.so
 *.a
 *.d
-Library/derivatives
 singlestep/singlestep
-Makefile.local
 singlestep/Makefile
 singlestep/Direct/Makefile
 Analysis/PowerSpectrum/Makefile

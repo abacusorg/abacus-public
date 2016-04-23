@@ -1,8 +1,6 @@
-VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich
+VPATH = singlestep : Convolution : Derivatives : clibs : zeldovich
 
-CLIBS = libpermute.so liblightcones.so libreadabacus.so
-
-all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests analysis
+all: clibs singlestep CreateDerivatives ConvolutionDriver zeldovich util tests analysis AbacusCosmo
 
 singlestep: libparseheader.a
 	cd singlestep && $(MAKE) $@
@@ -18,7 +16,7 @@ clean:
 	cd Derivatives && $(MAKE) $@
 	-cd singlestep && $(MAKE) $@
 	-cd Convolution && $(MAKE) $@
-	cd python/clibs && $(MAKE) $@
+	cd python/AbacusCosmo && $(MAKE) $@
 	cd zeldovich && $(MAKE) $@
 	cd Tests && $(MAKE) $@
 	cd util && $(MAKE) $@
@@ -30,25 +28,21 @@ distclean:
 	cd Derivatives && $(MAKE) $@
 	-cd singlestep && $(MAKE) $@
 	-cd Convolution && $(MAKE) $@
-	cd python/clibs && $(MAKE) $@
+	cd python/AbacusCosmo && $(MAKE) $@
 	cd zeldovich && $(MAKE) $@
 	cd Tests && $(MAKE) $@
 	cd util && $(MAKE) $@
 	cd Analysis/ && $(MAKE) $@
-	-$(RM) *.o *.d *~ *.a a.out abacus.tar.gz
-	-$(RM) -rf aclocal.m4 autom4te.cache/ compile config.log config.status install-sh missing singlestep/.deps/ singlestep/Makefile singlestep/Direct/Makefile Convolution/Makefile config.guess config.sub
+	-$(RM) *.o *.d *~ *.a abacus.tar.gz
+	-$(RM) singlestep/Makefile singlestep/Direct/Makefile Convolution/Makefile Analysis/PowerSpectrum/Makefile
+	-$(RM) -rf autom4te.cache/ config.log config.status Configuration/config.guess Configuration/config.sub
+    -$(RM) modulefiles/abacus.lua
 
 ConvolutionDriver: convolutionwrapper.cpp include/Parameters.cpp
 	cd Convolution && $(MAKE) $@
-	
-libpermute.so: perm.cpp
-	$(MAKE) -C python/clibs $@
-	
-liblightcones.so: lc.cpp
-	$(MAKE) -C python/clibs $@
-	
-libreadabacus.so:
-	$(MAKE) -C python/clibs $@
+		
+clibs:
+	$(MAKE) -C clibs all
 
 util:
 	cd util && $(MAKE) all
@@ -64,6 +58,9 @@ analysis:
 
 zeldovich: zeldovich.cpp
 	cd zeldovich && $(MAKE) all
+    
+AbacusCosmo:
+	cd python/AbacusCosmo && $(MAKE) all
 
 dist:
 	$(RM) -rf .dist
@@ -73,6 +70,6 @@ dist:
 	tar -C .dist -czf abacus.tar.gz --exclude='.*' abacus
 	$(RM) -rf .dist
 	
-.PHONY:all clean distclean zeldovich util tests analysis singlestep dist
+.PHONY:all clean distclean zeldovich util tests analysis singlestep dist AbacusCosmo clibs
 
 -include $(CC_SRC:.cpp=.d)
