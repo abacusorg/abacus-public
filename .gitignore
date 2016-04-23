@@ -11,7 +11,5 @@ singlestep/Direct/Makefile
 Analysis/PowerSpectrum/Makefile
 Convolution/Makefile
 autom4te.cache/
-config.guess
 config.log
 config.status
-config.sub

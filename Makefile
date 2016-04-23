@@ -36,7 +36,6 @@ distclean:
 	-$(RM) *.o *.d *~ *.a abacus.tar.gz
 	-$(RM) singlestep/Makefile singlestep/Direct/Makefile Convolution/Makefile Analysis/PowerSpectrum/Makefile
 	-$(RM) -rf autom4te.cache/ config.log config.status Configuration/config.guess Configuration/config.sub
-    -$(RM) modulefiles/abacus.lua
 
 ConvolutionDriver: convolutionwrapper.cpp include/Parameters.cpp
 	cd Convolution && $(MAKE) $@
