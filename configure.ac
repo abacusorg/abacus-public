@@ -17,7 +17,10 @@ AC_CONFIG_FILES([
  singlestep/Makefile
  singlestep/Direct/Makefile
  Analysis/PowerSpectrum/Makefile
+ Analysis/FoF/Makefile
  Convolution/Makefile
+ Derivatives/Makefile
+ singlestep/Multipoles/Makefile
 ])
 
 # Imports
@@ -41,6 +44,7 @@ AC_SEARCH_LIBS(ITT_DoOneTimeInitialization, [tbb], [], [AC_MSG_ERROR([unable to 
 AC_CHECK_PROGS(LEX, flex)
 AC_CHECK_PROGS(YACC, bison)
 AC_CHECK_PROGS(AR, ar)
+AC_CHECK_PROGS(SWIG, swig)
 
 # Check for AVX
 AX_EXT([no-define])

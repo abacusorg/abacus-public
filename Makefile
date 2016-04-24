@@ -34,7 +34,7 @@ distclean:
 	cd util && $(MAKE) $@
 	cd Analysis/ && $(MAKE) $@
 	-$(RM) *.o *.d *~ *.a abacus.tar.gz
-	-$(RM) singlestep/Makefile singlestep/Direct/Makefile Convolution/Makefile Analysis/PowerSpectrum/Makefile
+	-$(RM) singlestep/Makefile singlestep/Direct/Makefile singlestep/Multipoles/Makefile Convolution/Makefile Derivatives/Makefile Analysis/PowerSpectrum/Makefile Analysis/FoF/Makefile
 	-$(RM) -rf autom4te.cache/ config.log config.status
 
 ConvolutionDriver: convolutionwrapper.cpp include/Parameters.cpp
@@ -59,7 +59,7 @@ zeldovich: zeldovich.cpp
 	cd zeldovich && $(MAKE) all
     
 AbacusCosmo:
-	#cd python/AbacusCosmo && $(MAKE) all
+	cd python/AbacusCosmo && $(MAKE) all
 
 dist:
 	$(RM) -rf .dist
