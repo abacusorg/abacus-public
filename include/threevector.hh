@@ -7,6 +7,7 @@ Time-stamp: <threevector.cc on Saturday, 8 September, 2012 at 16:05:45 MST (phil
 
 #ifndef __THREEVECTOR_CC__
 #define __THREEVECTOR_CC__
+#include <cmath>
 #include <iostream>
 #include <iomanip>
 #include <limits>

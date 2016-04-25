@@ -473,9 +473,12 @@ void SetInteractionCollection::AddInteractionList( std::vector<int> ** il){
     }
 }
 
-
-
-
+#ifndef CUDADIRECT
+// If we're not compiling the GPU code, need a stub for this function
+void SetInteractionCollection::GPUExecute(int){
+    assertf(0, "Abacus was not compiled with CUDA.  Try running ./configure again?\n");
+}
+#endif
 
 
 

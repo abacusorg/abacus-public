@@ -1,42 +1,48 @@
-abacus
+# abacus
 ======
 
-abacus
+A high-performance N-body code for cosmological simulations.
 
 See installation instructions in INSTALL.
 
 ------
 
-Code directories:
+## Code directories:
 
-* singlestep -- The primary abacus timestepping code
+* **singlestep**: the primary abacus timestepping code
 
-* python -- Drivers for the code
+* **python**: drivers for the code and related utilies
 
-* Test -- Code for small test cases.
+* **Test**: code for small test cases
 
-* Direct -- Code for the direct forces
+* **Convolution**: code to compute the multipoles, Taylors, and convolutions
 
-* Convolution -- Code to compute the multipoles, Taylors, and convolutions
+* **Derivatives**: code to generate derivatives used by the far force
 
-* Derivatives -- Code to generate derivatives
+* **ParseHeader**: library to read/write headers on each output file
 
-* Multipoles -- Code to generate the ASM for the multipoles & Taylors
+* **include**: small utility functions (timing, threevectors, files, cosmology)
 
-* Parseheader -- For the ParseHeader utility
+* **zeldovich**: the Zel'dovich initial condition generator
 
-* include -- Small utility functions (timing, FFT, threevectors, files)
+* **Analysis**: code for generating power spectra, running halo finders, etc
 
-* zeldovich -- The Zel'dovich initial condition generator
+* **clibs**: libraries that codes may want to link against for various analysis tasks
 
-------
+* **Configuration**: files related to the autoconf build system
 
-Documentation directories:
+* **modulefiles**: modules for easy loading/unloading of abacus environmental vars
 
-* doc -- Code documentation
+* **Production**: various configurations used for major production runs
 
-* notes -- Musings about the algorithms, computers, etc.
-
-* papers -- Journal & conference papers (make subdirectories for each one)
+* **util**: utilities to deal with the pack14 output format
 
 ------
+
+## Documentation directories:
+
+* **doc**: Code documentation
+
+* **notes**: Musings about the algorithms, computers, etc.
+
+* **papers**: Journal & conference papers (make subdirectories for each one)

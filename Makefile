@@ -1,10 +1,6 @@
--include Makefile.local
+VPATH = singlestep : Convolution : Derivatives : clibs : zeldovich
 
-VPATH = singlestep : Convolution : Derivatives : python/clibs : zeldovich
-
-CLIBS = libpermute.so liblightcones.so libreadabacus.so
-
-all: singlestep CreateDerivatives ConvolutionDriver zeldovich $(CLIBS) util tests analysis
+all: clibs singlestep CreateDerivatives ConvolutionDriver zeldovich util tests analysis AbacusCosmo
 
 singlestep: libparseheader.a
 	cd singlestep && $(MAKE) $@
@@ -13,16 +9,16 @@ CreateDerivatives:
 	cd Derivatives && $(MAKE) $@
 
 libparseheader.a:
-	cd ParseHeader && $(MAKE) libparseheader.a
+	cd ParseHeader && $(MAKE) $@
 	
 clean:
 	cd ParseHeader && $(MAKE) $@
 	cd Derivatives && $(MAKE) $@
-	cd singlestep && $(MAKE) $@
-	cd Convolution && $(MAKE) $@
-	cd python/clibs && $(MAKE) $@
+	-cd singlestep && $(MAKE) $@
+	-cd Convolution && $(MAKE) $@
+	cd python/AbacusCosmo && $(MAKE) $@
 	cd zeldovich && $(MAKE) $@
-	cd Tests/Spiral && $(MAKE) $@
+	cd Tests && $(MAKE) $@
 	cd util && $(MAKE) $@
 	cd Analysis/ && $(MAKE) $@
 	-$(RM) *.o *.d *.a *~
@@ -30,28 +26,22 @@ clean:
 distclean:	
 	cd ParseHeader && $(MAKE) $@
 	cd Derivatives && $(MAKE) $@
-	cd singlestep && $(MAKE) $@
-	cd Convolution && $(MAKE) $@
-	cd python/clibs && $(MAKE) $@
+	-cd singlestep && $(MAKE) $@
+	-cd Convolution && $(MAKE) $@
+	cd python/AbacusCosmo && $(MAKE) $@
 	cd zeldovich && $(MAKE) $@
-	cd Tests/Spiral && $(MAKE) $@
+	cd Tests && $(MAKE) $@
 	cd util && $(MAKE) $@
 	cd Analysis/ && $(MAKE) $@
-	-$(RM) *.o *.d *~ *.a a.out
-
-
+	-$(RM) *.o *.d *~ *.a abacus.tar.gz
+	-$(RM) singlestep/Makefile singlestep/Direct/Makefile singlestep/Multipoles/Makefile Convolution/Makefile Derivatives/Makefile Analysis/PowerSpectrum/Makefile Analysis/FoF/Makefile
+	-$(RM) -rf autom4te.cache/ config.log config.status
 
 ConvolutionDriver: convolutionwrapper.cpp include/Parameters.cpp
 	cd Convolution && $(MAKE) $@
-	
-libpermute.so: perm.cpp
-	$(MAKE) -C python/clibs $@
-	
-liblightcones.so: lc.cpp
-	$(MAKE) -C python/clibs $@
-	
-libreadabacus.so:
-	$(MAKE) -C python/clibs $@
+		
+clibs:
+	$(MAKE) -C clibs all
 
 util:
 	cd util && $(MAKE) all
@@ -67,7 +57,18 @@ analysis:
 
 zeldovich: zeldovich.cpp
 	cd zeldovich && $(MAKE) all
+    
+AbacusCosmo:
+	cd python/AbacusCosmo && $(MAKE) all
+
+dist:
+	$(RM) -rf .dist
+	mkdir -p .dist/abacus
+	cp -r * .dist/abacus
+	$(MAKE) -C .dist/abacus distclean
+	tar -C .dist -czf abacus.tar.gz --exclude='.*' abacus
+	$(RM) -rf .dist
 	
-.PHONY: clean distclean generated_headers all zeldovich util tests analysis singlestep
+.PHONY:all clean distclean zeldovich util tests analysis singlestep dist AbacusCosmo clibs
 
 -include $(CC_SRC:.cpp=.d)
