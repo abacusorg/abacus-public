@@ -41,7 +41,7 @@ versiondist:
 	mkdir dist
 	cd dist; tar xzf ../rockstar.tar.gz ; perl -ne '/\#define.*VERSION\D*([\d\.rcRC-]+)/ && print $$1' Rockstar/version.h > NUMBER ; mv Rockstar Rockstar-`cat NUMBER`; tar czf rockstar-`cat NUMBER`.tar.gz Rockstar-`cat NUMBER`
 
-reg:
+reg: $(CFILES) $(CPPFILES)
 	rm -f *.o
 	$(CC)  -c main.c $(CFILES) $(CFLAGS) $(EXTRA_FLAGS)
 	$(CPP) -c $(CPPFILES) $(CPPFLAGS) $(EXTRA_FLAGS)
@@ -72,9 +72,9 @@ parents:
 substats:
 	$(CC) $(CFLAGS) util/subhalo_stats.c $(CFILES) -o util/subhalo_stats  $(OFLAGS)
 
-
 clean:
 	rm -f *~ io/*~ inet/*~ util/*~ rockstar util/redo_bgc2 util/subhalo_stats util/find_parents *.o
 	
 distclean: clean
 
+.PHONY: all with_hdf5 debug with_hdf5_debug prof dist versiondist reg lib bgc2 parents substats clean distclean

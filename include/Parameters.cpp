@@ -30,7 +30,7 @@ public:
 
     int  DerivativeExpansionRadius;
     int  MAXRAMMB;
-    int  ConvolutionCacheSizeMB;
+    int  ConvolutionCacheSizeMB; // Set to manually override the detected cache size
     int RamDisk;	// ==0 for a normal disk, ==1 for a ramdisk (which don't have DIO support)
     int OverwriteState; // 0 for normal, separate read and write states; 1 to overwrite the read state to save space
     int ForceBlockingIO;   // ==1 if you want to force all IO to be blocking.
@@ -113,6 +113,18 @@ public:
     int GPUMinCellSinks;// If AVX directs are compiled, cells with less than this many particles go to cpu
     int ProfilingMode;//If 1, enable profiling mode, i.e. delete the write-state after creating it to run repeatedly on same dat
 
+    // in MB
+    unsigned int getCacheSize(){
+        unsigned int cache_size = 0;
+        FILE *fp = 0;
+        fp = fopen("/sys/devices/system/cpu/cpu0/cache/index3/size", "r");  // L3 cache size in KB
+        if(fp){
+            fscanf(fp, "%dK", &cache_size);
+            fclose(fp);
+        }
+        cache_size /= 1024; // to MB
+        return cache_size;
+    }
 
     Parameters() {
 
@@ -124,7 +136,8 @@ public:
     	installscalar("SofteningLength", SofteningLength,MUST_DEFINE); // Softening length in unit box lengths
     	installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
     	installscalar("MAXRAMMB", MAXRAMMB,MUST_DEFINE);
-    	installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB,MUST_DEFINE);
+        ConvolutionCacheSizeMB = getCacheSize();
+    	installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB,DONT_CARE);
         RamDisk = 0;
     	installscalar("RamDisk",RamDisk,DONT_CARE);
         OverwriteState = 0;
