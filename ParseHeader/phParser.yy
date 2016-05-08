@@ -2,7 +2,7 @@
 %skeleton "lalr1.cc"
 %require "2.4"
 %defines
-%define parser_class_name "phParser"
+%define parser_class_name { phParser }
 %expect 3
 
 // declarations/inclusions needed to define the %union. 

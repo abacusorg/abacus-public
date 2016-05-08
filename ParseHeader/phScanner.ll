@@ -50,7 +50,7 @@
 
   // reserved keyword table
   static struct key_table {
-      char * key_name;                       // keyword name
+      char const * key_name;                       // keyword name
       token_type key_yylex;                         // value returned by yylex
   }  key_table [] = {                      // NB: in sorted order
       {"eos",          token::EOS},
