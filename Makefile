@@ -13,7 +13,7 @@ libparseheader.a:
 	
 clean:
 	cd ParseHeader && $(MAKE) $@
-	cd Derivatives && $(MAKE) $@
+	-cd Derivatives && $(MAKE) $@
 	-cd singlestep && $(MAKE) $@
 	-cd Convolution && $(MAKE) $@
 	cd python/AbacusCosmo && $(MAKE) $@
@@ -25,7 +25,7 @@ clean:
 
 distclean:	
 	cd ParseHeader && $(MAKE) $@
-	cd Derivatives && $(MAKE) $@
+	-cd Derivatives && $(MAKE) $@
 	-cd singlestep && $(MAKE) $@
 	-cd Convolution && $(MAKE) $@
 	cd python/AbacusCosmo && $(MAKE) $@
