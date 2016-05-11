@@ -1,4 +1,4 @@
-VPATH = singlestep : Convolution : Derivatives : clibs : zeldovich
+VPATH = singlestep : Convolution : Derivatives : clibs : zeldovich-PLT
 
 all: clibs singlestep CreateDerivatives ConvolutionDriver zeldovich util tests analysis AbacusCosmo
 
@@ -17,7 +17,7 @@ clean:
 	-cd singlestep && $(MAKE) $@
 	-cd Convolution && $(MAKE) $@
 	cd python/AbacusCosmo && $(MAKE) $@
-	cd zeldovich && $(MAKE) $@
+	cd zeldovich-PLT && $(MAKE) $@
 	cd Tests && $(MAKE) $@
 	cd util && $(MAKE) $@
 	cd Analysis/ && $(MAKE) $@
@@ -29,7 +29,7 @@ distclean:
 	-cd singlestep && $(MAKE) $@
 	-cd Convolution && $(MAKE) $@
 	cd python/AbacusCosmo && $(MAKE) $@
-	cd zeldovich && $(MAKE) $@
+	cd zeldovich-PLT && $(MAKE) $@
 	cd Tests && $(MAKE) $@
 	cd util && $(MAKE) $@
 	cd Analysis/ && $(MAKE) $@
@@ -56,7 +56,7 @@ analysis:
 	$(MAKE) -C Analysis/
 
 zeldovich: zeldovich.cpp
-	cd zeldovich && $(MAKE) all
+	cd zeldovich-PLT && $(MAKE) all
     
 AbacusCosmo:
 	cd python/AbacusCosmo && $(MAKE) all
