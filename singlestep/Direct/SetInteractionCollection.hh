@@ -5,24 +5,26 @@
 
 class SetInteractionCollection{
     public:
-        //Timers
+        // Synchronous Timers
         STimer  Construction;
         STimer      FillSinkLists;
         STimer          CountSinks;
-        STimer          CalcSinkOffset;
         STimer          CalcSinkBlocks;
         STimer          FillSinks;
         STimer      FillSourceLists;
         STimer          CountSources;
-        STimer          CalcSourceOffset;
         STimer          CalcSourceBlocks;
         STimer          FillSources;
         STimer      FillInteractionList;
-        STimer      BlockifySets;
-
-        float DeviceCopy;
-        float DeviceExecute;
-        float DeviceResults;
+    
+        // Asynchronous, CPU side
+        STimer LaunchDeviceKernels;
+    
+        // Asynchronous, GPU side
+        float CopyTime;  // These are recorded by cudaEvents
+        float ExecutionTime;
+        float CopybackTime;
+        float TotalTime;
 
         int *           SinkSetStart; //The index in the Sink Pos/Acc lists where this set begins
         int *           SinkSetCount; //The number of particles in the SinkSet

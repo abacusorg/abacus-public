@@ -15,9 +15,12 @@ class NearFieldDriver{
         int SlabDone(int slabID);
         void Finalize(int slabID);
         uint64 DirectInteractions_CPU;
-        uint64 DirectInteractions_GPU;
+        uint64 *DirectInteractions_GPU;
+        uint64 TotalDirectInteractions_GPU;
         uint64 NSink_CPU;
 
+        // Total timings from building and running the SetInteractionCollections
+        // These are gathered in Finalize(slab)
         double  Construction;
         double      FillSinkLists;
         double          CountSinks;
@@ -28,8 +31,17 @@ class NearFieldDriver{
         double          CalcSourceBlocks;
         double          FillSources;
         double      FillInteractionList;
-
+        
+        double LaunchDeviceKernels;
+        double *DeviceCopyTimes;
+        double *DeviceExecutionTimes;
+        double *DeviceCopybackTimes;
+        double *DeviceTotalTimes;
+        
+        STimer CalcSplitDirects;
         STimer SICExecute;
+        STimer CPUFallbackTimer;
+        STimer FinalizeTimer;
 
     private:
         int *slabcomplete;
@@ -66,7 +78,9 @@ NearFieldDriver::NearFieldDriver() :
                   CountSources{0},
                   CalcSourceBlocks{0},
                   FillSources{0},
-        FillInteractionList{0}
+        FillInteractionList{0},
+        LaunchDeviceKernels{0},
+        TotalDirectInteractions_GPU{0}
 {
     int nthread = omp_get_max_threads();
     STDLOG(1,
@@ -74,7 +88,7 @@ NearFieldDriver::NearFieldDriver() :
             nthread, omp_get_num_procs());
     DD = new Direct[nthread];
     DirectInteractions_CPU = 0;
-    DirectInteractions_GPU = 0;
+    DirectInteractions_GPU = new uint64[NGPU*DirectBPD]();
 
     assert(NFRADIUS==P.NearFieldRadius);
     slabcomplete = new int [P.cpd];
@@ -98,11 +112,14 @@ NearFieldDriver::NearFieldDriver() :
     GPUSetup(P.cpd,P.cpd,MaxSinkBlocks,MaxSourceBlocks,DirectBPD);
     SICExecute.Clear();
 
-    GPUTimers = new STimer[NGPU+1];
-    SetupGPUTimers = new STimer[6];
     NSink_GPU_final = (uint64*) malloc(NGPU*sizeof(uint64));
     for(int g = 0; g < NGPU; g++)
         NSink_GPU_final[g] = 0;
+    
+    DeviceCopyTimes = new double[NGPU*DirectBPD]();
+    DeviceExecutionTimes = new double[NGPU*DirectBPD]();
+    DeviceCopybackTimes = new double[NGPU*DirectBPD]();
+    DeviceTotalTimes = new double[NGPU*DirectBPD]();
 #endif
 }
 
@@ -111,8 +128,11 @@ NearFieldDriver::~NearFieldDriver()
     delete[] DD;
     delete[] slabcomplete;
 #ifdef CUDADIRECT
-    delete[] GPUTimers;
-    delete[] SetupGPUTimers;
+    delete[] DirectInteractions_GPU;
+    delete[] DeviceCopyTimes;
+    delete[] DeviceExecutionTimes;
+    delete[] DeviceCopybackTimes;
+    delete[] DeviceTotalTimes;
 #endif
     for(int i =0; i < P.cpd*P.cpd; i++)
         pthread_mutex_destroy(&CellLock[i]);
@@ -121,7 +141,7 @@ NearFieldDriver::~NearFieldDriver()
 
 void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     //calculate the required subdivisions of the slab to fit in GPU memory
-    
+    CalcSplitDirects.Start();
     //Add up the sources
     uint64 NSource = 0;
     for(int i = slabID-RADIUS; i <= slabID + RADIUS; i++) NSource+=Slab->size(i);
@@ -167,11 +187,15 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 
     STDLOG(1,"Direct splits for slab %d are at: \n",slabID);
     for(int i = 0; i < NSplit -1; i++) STDLOG(2,"\t\t\t\t %d: %d \n",i,SplitPoint[i]);
+    
+    CalcSplitDirects.Stop();
 
+    
     for(int w = 0; w < WIDTH; w++){
         int kl =0;
         for(int n = 0; n < NSplit; n++){
             int kh = SplitPoint[n];
+            // The construction and execution are timed internally in each SIC then reduced in Finalize(slab)
             SlabInteractionCollections[slabID][w*NSplit + n] = 
                 new SetInteractionCollection(slabID,w,kl,kh);
             STDLOG(1,"Executing directs for slab %d w = %d k: %d - %d\n",slabID,w,kl,kh);
@@ -296,6 +320,7 @@ int NearFieldDriver::SlabDone(int slab){
 }
 
 void NearFieldDriver::Finalize(int slab){
+    FinalizeTimer.Start();
     slab = PP->WrapSlab(slab);
 
     #ifdef CUDADIRECT
@@ -325,17 +350,28 @@ void NearFieldDriver::Finalize(int slab){
             if(Nj * width + w < cpd)
                 Nj++;
             //Slice->PrintInteractions();
+            
+            // Gather timings from each SlabInteractionCollection
             Construction +=Slice->Construction.Elapsed();
-            FillSinkLists+=Slice->FillSinkLists.Elapsed();
-            CountSinks+=Slice->CountSinks.Elapsed();
-            CalcSinkBlocks+=Slice->CalcSinkBlocks.Elapsed();
-            FillSinks+=Slice->FillSinks.Elapsed();          
-            FillSourceLists+=Slice->FillSourceLists.Elapsed();
-            CountSources+=Slice->CountSources.Elapsed();
-            CalcSourceBlocks+=Slice->CalcSinkBlocks.Elapsed();
-            FillSources+=Slice->FillSources.Elapsed();
-            FillInteractionList+=Slice->FillInteractionList.Elapsed();
-            DirectInteractions_GPU += Slice->DirectTotal;
+                FillSinkLists+=Slice->FillSinkLists.Elapsed();
+                    CountSinks+=Slice->CountSinks.Elapsed();
+                    CalcSinkBlocks+=Slice->CalcSinkBlocks.Elapsed();
+                    FillSinks+=Slice->FillSinks.Elapsed();          
+                FillSourceLists+=Slice->FillSourceLists.Elapsed();
+                    CountSources+=Slice->CountSources.Elapsed();
+                    CalcSourceBlocks+=Slice->CalcSinkBlocks.Elapsed();
+                    FillSources+=Slice->FillSources.Elapsed();
+                FillInteractionList+=Slice->FillInteractionList.Elapsed();
+            LaunchDeviceKernels += Slice->LaunchDeviceKernels.Elapsed();
+            
+            int g = Slice->AssignedDevice;
+            DeviceCopyTimes[g] += Slice->CopyTime;
+            DeviceExecutionTimes[g] += Slice->ExecutionTime;
+            DeviceCopybackTimes[g] += Slice->CopybackTime;
+            DeviceTotalTimes[g] += Slice->TotalTime;
+            
+            DirectInteractions_GPU[g] += Slice->DirectTotal;
+            TotalDirectInteractions_GPU += Slice->DirectTotal;
 
             int NThread = omp_get_max_threads();
 
@@ -380,6 +416,7 @@ void NearFieldDriver::Finalize(int slab){
     delete[] Slices;
     if(P.ForceOutputDebug) CheckGPUCPU(slab);
     #endif
+    FinalizeTimer.Stop();
 }
 
 #include <vector>

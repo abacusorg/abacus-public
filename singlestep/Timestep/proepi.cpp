@@ -24,22 +24,9 @@ STimer NearForceDirects;
 STimer NearForceSetup;
 STimer NearForceDirectsOnly;
 
-#ifdef CUDADIRECT
-STimer CellBookkeeping;
-STimer CountSinks;
-STimer FindUnpin;
-STimer* GPUTimers;
-STimer GPUDirectsLaunchTimer;
-STimer CPUFallbackTimer;
-STimer WaitingForGPU;
-STimer* SetupGPUTimers;
-STimer GPUUnpinTimer;
-#endif
-
 STimer *SlabForceTime;
 STimer *SlabForceLatency;
 STimer *SlabFarForceTime;
-
 
 STimer TaylorCompute;
 
@@ -253,11 +240,11 @@ void Epilogue(Parameters &P, bool ic) {
         if(0 and P.ForceOutputDebug){
             #ifdef CUDADIRECT
             STDLOG(1,"Direct Interactions: CPU (%llu) and GPU (%llu)\n",
-                        JJ->DirectInteractions_CPU,JJ->DirectInteractions_GPU);
-            if(!(JJ->DirectInteractions_CPU == JJ->DirectInteractions_GPU)){
+                        JJ->DirectInteractions_CPU,JJ->TotalDirectInteractions_GPU);
+            if(!(JJ->DirectInteractions_CPU == JJ->TotalDirectInteractions_GPU)){
                 printf("Error:\n\tDirect Interactions differ between CPU (%llu) and GPU (%llu)\n",
-                        JJ->DirectInteractions_CPU,JJ->DirectInteractions_GPU);
-                //assert(JJ->DirectInteractions_CPU == JJ->DirectInteractions_GPU);
+                        JJ->DirectInteractions_CPU,JJ->TotalDirectInteractions_GPU);
+                //assert(JJ->DirectInteractions_CPU == JJ->TotalDirectInteractions_GPU);
             }
             #endif
         }
