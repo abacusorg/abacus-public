@@ -35,6 +35,7 @@ Dependency LPTVelocityReRead;
 // The wall-clock time minus all of the above Timers might be a measure
 // of the spin-locked time in the timestep() loop.
 STimer TimeStepWallClock;
+STimer WaitingForGPU;
 
 // -----------------------------------------------------------------
 

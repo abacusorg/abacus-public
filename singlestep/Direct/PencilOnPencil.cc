@@ -6,6 +6,12 @@
 #include "SetInteractionCollection.hh"
 
 SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, int k_high){
+    Construction.Start();
+    CopyTime = 0.;
+    ExecutionTime = 0.;
+    CopybackTime = 0.;
+
+    
     //set known classs variables
     eps2 = P.SofteningLength * P.SofteningLength;
     CompletionFlag = 0;
@@ -183,6 +189,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     for(int g = 0; g< nprocs; g++) DirectTotal+= threadDI[g];
 
     FillInteractionList.Stop();
+    Construction.Stop();
 }
 
 SetInteractionCollection::~SetInteractionCollection(){
@@ -479,17 +486,4 @@ void SetInteractionCollection::GPUExecute(int){
     assertf(0, "Abacus was not compiled with CUDA.  Try running ./configure again?\n");
 }
 #endif
-
-
-
-
-
-
-
-
-
-
-
-
-
 
