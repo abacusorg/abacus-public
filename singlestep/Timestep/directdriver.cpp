@@ -174,6 +174,15 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             int kh = SplitPoint[n];
             SlabInteractionCollections[slabID][w*NSplit + n] = 
                 new SetInteractionCollection(slabID,w,kl,kh);
+            
+            // Check that we have enough blocks
+            int NSinkBlocks = SlabInteractionCollections[slabID][w*NSplit + n]->NSinkBlocks;
+            int NSourceBlocks = SlabInteractionCollections[slabID][w*NSplit + n]->NSourceBlocks;
+            assertf(NSinkBlocks <= MaxSinkBlocks,
+                    "NSinkBlocks (%d) is larger than MaxSinkBlocks (%d)\n", NSinkBlocks, MaxSinkBlocks);
+            assertf(NSourceBlocks <= MaxSourceBlocks,
+                    "NSourceBlocks (%d) is larger than MaxSourceBlocks (%d)\n", NSourceBlocks, MaxSourceBlocks);
+            
             STDLOG(1,"Executing directs for slab %d w = %d k: %d - %d\n",slabID,w,kl,kh);
             SICExecute.Start();
             SlabInteractionCollections[slabID][w*NSplit + n]->GPUExecute(blocking);
