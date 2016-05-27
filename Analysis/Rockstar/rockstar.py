@@ -53,6 +53,11 @@ def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=20, downsample=1, confi
             os.makedirs(outdir)
         shutil.copy(slice_dir+'/header', outdir)
         
+        # Copy the sim-level parameter files
+        for pf in glob(slice_dir+'/../*'):
+            if os.path.isfile(pf):
+                shutil.copy(pf, outdir+'/..')
+        
         
         # Read in the Rockstar config template and fill in the required fields
         with open(config_template_fn) as template_file:
