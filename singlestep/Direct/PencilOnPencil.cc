@@ -6,6 +6,13 @@
 #include "SetInteractionCollection.hh"
 
 SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, int k_high){
+    Construction.Start();
+    CopyTime = 0.;
+    ExecutionTime = 0.;
+    CopybackTime = 0.;
+    TotalTime = 0.;
+
+    
     //set known classs variables
     eps2 = P.SofteningLength * P.SofteningLength;
     CompletionFlag = 0;
@@ -25,6 +32,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     SinkSetStart = (int *) malloc(sizeof(int) * k_width*Nj);
     SinkSetCount = (int *) malloc(sizeof(int) * k_width*Nj);
     memset(SinkSetCount,0,sizeof(int) * k_width*Nj);
+    SinkTotal = 0;
 
     SourceSetStart = (int *) malloc(sizeof(int) * P.cpd*(P.cpd+width));
     SourceSetCount = (int *) malloc(sizeof(int) * P.cpd*(P.cpd+width));
@@ -43,6 +51,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
             int sinkindex = k * Nj + j;
             int pencilsize = SinkPencilCount(slab, k + k_low, zmid );
             SinkSetCount[sinkindex] = pencilsize;
+            SinkTotal += pencilsize;
         }
     }
     CountSinks.Stop();
@@ -183,6 +192,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     for(int g = 0; g< nprocs; g++) DirectTotal+= threadDI[g];
 
     FillInteractionList.Stop();
+    Construction.Stop();
 }
 
 SetInteractionCollection::~SetInteractionCollection(){
@@ -480,16 +490,6 @@ void SetInteractionCollection::GPUExecute(int){
 }
 #endif
 
-
-
-
-
-
-
-
-
-
-
-
-
+int SetInteractionCollection::ActiveThreads = 0;
+STimer SetInteractionCollection::GPUThroughputTimer;
 

@@ -17,8 +17,6 @@ extern "C" int * GetCellStart(int cpd,int s);
 
 extern "C" int * GetCellNP(int cpd,int s);
 */
-extern "C" unsigned long long int DeviceGetDI();
-extern "C" unsigned long long int DeviceGetOneDI(int g);
 extern "C" double GetDeviceMemory();
 
 extern "C" int GetNGPU();
