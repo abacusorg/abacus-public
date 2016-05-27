@@ -25,6 +25,12 @@ class SetInteractionCollection{
         float ExecutionTime;
         float CopybackTime;
         float TotalTime;
+    
+        // Data transfer metrics
+        uint64 bytes_to_device, bytes_from_device;
+    
+        static int ActiveThreads;
+        static STimer GPUThroughputTimer;
 
         int *           SinkSetStart; //The index in the Sink Pos/Acc lists where this set begins
         int *           SinkSetCount; //The number of particles in the SinkSet
@@ -55,6 +61,7 @@ class SetInteractionCollection{
         int *       SinkSourceInteractionList;
 
         uint64 DirectTotal; //Number of directs for this interection collection
+        uint64 SinkTotal;
         FLOAT eps2;
 
         int AssignedDevice;

@@ -10,6 +10,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     CopyTime = 0.;
     ExecutionTime = 0.;
     CopybackTime = 0.;
+    TotalTime = 0.;
 
     
     //set known classs variables
@@ -31,6 +32,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     SinkSetStart = (int *) malloc(sizeof(int) * k_width*Nj);
     SinkSetCount = (int *) malloc(sizeof(int) * k_width*Nj);
     memset(SinkSetCount,0,sizeof(int) * k_width*Nj);
+    SinkTotal = 0;
 
     SourceSetStart = (int *) malloc(sizeof(int) * P.cpd*(P.cpd+width));
     SourceSetCount = (int *) malloc(sizeof(int) * P.cpd*(P.cpd+width));
@@ -49,6 +51,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
             int sinkindex = k * Nj + j;
             int pencilsize = SinkPencilCount(slab, k + k_low, zmid );
             SinkSetCount[sinkindex] = pencilsize;
+            SinkTotal += pencilsize;
         }
     }
     CountSinks.Stop();
@@ -486,4 +489,7 @@ void SetInteractionCollection::GPUExecute(int){
     assertf(0, "Abacus was not compiled with CUDA.  Try running ./configure again?\n");
 }
 #endif
+
+int SetInteractionCollection::ActiveThreads = 0;
+STimer SetInteractionCollection::GPUThroughputTimer;
 

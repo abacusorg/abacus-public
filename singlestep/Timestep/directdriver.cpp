@@ -37,6 +37,9 @@ class NearFieldDriver{
         double *DeviceExecutionTimes;
         double *DeviceCopybackTimes;
         double *DeviceTotalTimes;
+    
+        double *GB_to_device, *GB_from_device;
+        uint64 *DeviceSinks;
         
         STimer CalcSplitDirects;
         STimer SICExecute;
@@ -88,7 +91,7 @@ NearFieldDriver::NearFieldDriver() :
             nthread, omp_get_num_procs());
     DD = new Direct[nthread];
     DirectInteractions_CPU = 0;
-    DirectInteractions_GPU = new uint64[NGPU*DirectBPD]();
+    NSink_CPU = 0;
 
     assert(NFRADIUS==P.NearFieldRadius);
     slabcomplete = new int [P.cpd];
@@ -120,6 +123,10 @@ NearFieldDriver::NearFieldDriver() :
     DeviceExecutionTimes = new double[NGPU*DirectBPD]();
     DeviceCopybackTimes = new double[NGPU*DirectBPD]();
     DeviceTotalTimes = new double[NGPU*DirectBPD]();
+    DirectInteractions_GPU = new uint64[NGPU*DirectBPD]();
+    GB_to_device = new double[NGPU*DirectBPD]();
+    GB_from_device = new double[NGPU*DirectBPD]();
+    DeviceSinks = new uint64[NGPU*DirectBPD]();
 #endif
 }
 
@@ -133,6 +140,9 @@ NearFieldDriver::~NearFieldDriver()
     delete[] DeviceExecutionTimes;
     delete[] DeviceCopybackTimes;
     delete[] DeviceTotalTimes;
+    delete[] GB_to_device;
+    delete[] GB_from_device;
+    delete[] DeviceSinks;
 #endif
     for(int i =0; i < P.cpd*P.cpd; i++)
         pthread_mutex_destroy(&CellLock[i]);
@@ -182,6 +192,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             yh++;
         }
         SplitPoint[i] = yh;
+        yl = yh;
     }
     SplitPoint[NSplit-1] = P.cpd;
 
@@ -381,6 +392,10 @@ void NearFieldDriver::Finalize(int slab){
             
             DirectInteractions_GPU[g] += Slice->DirectTotal;
             TotalDirectInteractions_GPU += Slice->DirectTotal;
+            
+            GB_to_device[g] += Slice->bytes_to_device/1e9;
+            GB_from_device[g] += Slice->bytes_from_device/1e9;
+            DeviceSinks[g] += Slice->SinkTotal;
 
             int NThread = omp_get_max_threads();
 
