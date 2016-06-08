@@ -31,7 +31,6 @@ STimer *SlabFarForceTime;
 STimer TaylorCompute;
 
 STimer DriftMoveRebin, DriftInsert;
-STimer LPTDriftICReRead;
 PTimer DriftMove, DriftRebin;
 
 STimer prologue;
@@ -113,15 +112,6 @@ Redlack *RL;
 Cosmology *cosm;
 #include "output_timeslice.cpp"
 #include "LightCones.cpp"
-
-// Bookkeeping for 2LPT velocity re-reading
-typedef struct {
-    uint64 n_part;
-    //uint64 n_read;
-} VelIC;
-VelIC* vel_ics;  // Array of VelIC structs
-
-//FIXME:These will be slow for any large problem and should be refactored
 
 #include "loadIC.cpp"
 #include "lpt.cpp"

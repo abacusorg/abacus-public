@@ -153,6 +153,8 @@ public:
     	installscalar("ICFormat",ICFormat,MUST_DEFINE);   // The initial condition file format
     	installscalar("ICPositionRange",ICPositionRange,MUST_DEFINE);   // The initial condition file position convention
     	installscalar("ICVelocity2Displacement",ICVelocity2Displacement,MUST_DEFINE);   // The initial condition file velocity convention
+        FlipZelDisp = 0;
+        installscalar("FlipZelDisp",FlipZelDisp,DONT_CARE);   // Flip Zeldovich ICs
 
     	NumSlabsInsertList = 2.0;
     	installscalar("NumSlabsInsertList",NumSlabsInsertList,DONT_CARE);   

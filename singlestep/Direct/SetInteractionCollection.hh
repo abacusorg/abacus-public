@@ -29,7 +29,9 @@ class SetInteractionCollection{
         // Data transfer metrics
         uint64 bytes_to_device, bytes_from_device;
     
+        // These are shared by all threads
         static int ActiveThreads;
+        static pthread_mutex_t GPUTimerMutex;
         static STimer GPUThroughputTimer;
 
         int *           SinkSetStart; //The index in the Sink Pos/Acc lists where this set begins

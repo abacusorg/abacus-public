@@ -192,6 +192,10 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Output", Output.Elapsed()); total += thistime;
     fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
     REPORT(1, "Group", Group.Elapsed()); total += thistime;
+    if(WriteState.Do2LPTVelocityRereading){
+        REPORT(1, "Velocity Re-reading for LPT", LPTVelocityReRead.Elapsed()); total += thistime;
+        fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
+    }
     REPORT(1, "Drift", Drift.Elapsed()); total += thistime;
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
     REPORT(1, "Finish", Finish.Elapsed()); total += thistime;
@@ -345,7 +349,6 @@ void ReportTimings(FILE * timingfile) {
     denom = Drift.Elapsed();
     REPORT(2, "Move & Rebin (S)", DriftMoveRebin.Elapsed());
     REPORT(2, "Inserting (S)",    DriftInsert.Elapsed());
-    REPORT(2, "LPT IC Re-reading (S)",   LPTDriftICReRead.Elapsed());
     REPORT(2, "Move (P)",         DriftMove.Elapsed());
     REPORT(2, "Rebin (P)",        DriftRebin.Elapsed());
 

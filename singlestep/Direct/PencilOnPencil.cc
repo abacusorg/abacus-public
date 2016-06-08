@@ -491,5 +491,6 @@ void SetInteractionCollection::GPUExecute(int){
 #endif
 
 int SetInteractionCollection::ActiveThreads = 0;
+pthread_mutex_t SetInteractionCollection::GPUTimerMutex = PTHREAD_MUTEX_INITIALIZER;
 STimer SetInteractionCollection::GPUThroughputTimer;
 

@@ -25,6 +25,8 @@ be consistent with loadIC.  Best to force that with a function!
 
 */
 
+// Bookkeeping for 2LPT velocity re-reading
+uint64 *vel_ics_npart;
 
 // Provide a simple routine to check that this is an LPT IC step.
 
@@ -101,9 +103,7 @@ void DriftCell_2LPT_1(Cell c, FLOAT driftfactor) {
         // Need to be careful in cell-centered case.  Now pos is cell-centered,
         // and grid is global.  We should subtract the cell-center from ZelPos.
         c.pos[b] = 2.0*(ZelPos(c.aux[b].pid())-cellcenter) - c.pos[b]; // Does abacus automatically box wrap this?
-        for (int i = 0; i < 3; i++){
-            c.pos[b][i] -= round(c.pos[b][i]);
-        }
+        c.pos[b] -= c.pos[b].round();
     }
 }
 
@@ -117,17 +117,14 @@ void KickCell_2LPT_2(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
 
 // Allocate 2LPT velocity bookkeeping
 void init_2lpt_rereading(){
-    vel_ics = (VelIC*) malloc(sizeof(VelIC)*P.cpd);
-    for(int i = 0; i < P.cpd; i++){
-        vel_ics[i].n_part = 0;
-    }
+    vel_ics_npart = new uint64[P.cpd]();
 }
 
 // Free 2LPT velocity bookkeeping
 void finish_2lpt_rereading(){
     for(int i = 0; i < P.cpd; i++)
         assertf(!LBW->IDPresent(VelLPTSlab, i), "A 2LPT velocity slab was left loaded\n");
-    free(vel_ics);
+    delete[] vel_ics_npart;
 }
 
 // Load an IC velocity slab into an arena through the LoadIC module
@@ -135,7 +132,7 @@ void load_ic_vel_slab(int slabnum){
     slabnum = PP->WrapSlab(slabnum);
     assertf(!LBW->IDPresent(VelLPTSlab, slabnum), "Trying to re-load velocity IC slab %d, which is already loaded.\n", slabnum);
     
-    assertf(vel_ics[slabnum].n_part == 0, "Trying to load velocity IC slab %d, which should have already been completely re-read for 2LPT.\n", slabnum);
+    assertf(vel_ics_npart[slabnum] == 0, "Trying to load velocity IC slab %d, which should have already been completely re-read for 2LPT.\n", slabnum);
     STDLOG(1, "Re-reading velocity IC slab %d\n", slabnum);
     
     // Initialize the arena
@@ -160,57 +157,37 @@ void load_ic_vel_slab(int slabnum){
     }
     
     // Initialize the VelIC struct, as a signal that the slab is truly ready
-    vel_ics[slabnum].n_part = LBW->IDSizeBytes(VelLPTSlab, slabnum) / sizeof(velstruct);
+    vel_ics_npart[slabnum] = LBW->IDSizeBytes(VelLPTSlab, slabnum) / sizeof(velstruct);
     
-    assertf(count == vel_ics[slabnum].n_part, "The number of particles (%d) read from slab %d did not match the number computed from its file size (%d)\n", slabnum, count, vel_ics[slabnum].n_part);
+    assertf(count == vel_ics_npart[slabnum], "The number of particles (%d) read from slab %d did not match the number computed from its file size (%d)\n", slabnum, count, vel_ics_npart[slabnum]);
     delete ic_file;
 }
 
-// Loads the neighboring IC vel slabs if they are unloaded
-void load_ic_vel_neighbors(int slabnum){
-    for(int i = slabnum-1; i <= slabnum+1; i++){
-        int wi = PP->WrapSlab(i);
-        if (vel_ics[wi].n_part == 0){
-            load_ic_vel_slab(wi);
-        }
-    }
-}
+// Returns the IC velocity of the particle with the given PID
+inline velstruct* get_ic_vel(uint64 pid){
+    integer3 ijk = ZelIJK(pid);
+    int slabnum = ijk.x*P.cpd / WriteState.ppd;  // slab number
 
-// Unloaded neighboring IC vel slabs, if they are finished being used
-// Note that Drift->done(slabnum) will not be true, even though it is for our purposes
-void unload_finished_ic_vel_neighbors(int slabnum, Dependency* Drift){
-    // Previous slab
-    if(Drift->done(slabnum-1) && Drift->done(slabnum-2)){ // the other neighbor is the current slab
-        STDLOG(1, "Finished re-reading all velocities from slab %d; unloading slab.\n", slabnum-1);
-        LBW->DeAllocate(VelLPTSlab, slabnum-1);
-    }
-    // Current slab
-    if(Drift->done(slabnum-1) && Drift->done(slabnum+1)){ // the middle is the current slab
-        STDLOG(1, "Finished re-reading all velocities from slab %d; unloading slab.\n", slabnum);
-        LBW->DeAllocate(VelLPTSlab, slabnum);
-    }
-    // Next slab
-    if(Drift->done(slabnum+1) && Drift->done(slabnum+2)){ // the other neighbor is the current slab
-        STDLOG(1, "Finished re-reading all velocities from slab %d; unloading slab.\n", slabnum+1);
-        LBW->DeAllocate(VelLPTSlab, slabnum+1);
-    }
-}
-
-// Returns the IC velocity of particle number "offset" relative to the beginning of the slab
-inline velstruct* get_ic_vel(int slabnum, uint64 offset){
+    uint64 slab_offset = ijk.x - ceil(((double)slabnum)*WriteState.ppd/P.cpd);  // number of planes into slab
+    // We know the exact slab number and position of the velocity we want.
+    uint64 offset = ijk.z + WriteState.ppd*(ijk.y + WriteState.ppd*slab_offset);
+    
     assertf(LBW->IDPresent(VelLPTSlab, slabnum), "IC vel slab %d not loaded.  Possibly an IC particle crossed two slab boundaries?\n", slabnum);
     
     velstruct* slab = (velstruct*) LBW->ReturnIDPtr(VelLPTSlab, slabnum);
     
-    assertf(offset < vel_ics[slabnum].n_part, "Tried to read particle %lld from IC slab %d, which only has %d particles\n", offset, slabnum, vel_ics[slabnum].n_part);  // Ensure that we're not reading past the end of the slab
+    assertf(offset < vel_ics_npart[slabnum], "Tried to read particle %lld from IC slab %d, which only has %d particles\n", offset, slabnum, vel_ics_npart[slabnum]);  // Ensure that we're not reading past the end of the slab
     velstruct* vel = slab + offset;
     
+    assertf(std::isfinite(vel->x), "vel.x bad value: %f\n", vel->x);
+    assertf(std::isfinite(vel->y), "vel.y bad value: %f\n", vel->y);
+    assertf(std::isfinite(vel->z), "vel.z bad value: %f\n", vel->z);
+
     return vel;
 }
 
 void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
     // Now we have to adjust the positions and velocities
-    // The following probably assumes Omega_m = 1
     assertf(P.is_np_perfect_cube(), "LPT reconstruction requires np (%d) to be a perfect cube.\n",P.np);
     int e = c.count();
     posstruct displ1, displ2;
@@ -234,39 +211,23 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
         // The second order displacement is vel/7H^2Omega_m
         displ2 = c.vel[b]/7/H/H/P.Omega_M;
         
-        for (int i = 0; i < 3; i++){
-            // Internally, everything is in a unit box, so we actually don't need to normalize by BoxSize before rounding
-            displ1[i] -= round(displ1[i]);
-            displ2[i] -= round(displ2[i]);
-        }
+        // Internally, everything is in a unit box, so we actually don't need to normalize by BoxSize before rounding
+        displ1 -= displ1.round();
+        displ2 -= displ2.round();
 
         c.pos[b] = ZelPos(c.aux[b].pid())-cellcenter + displ1+displ2;
-        for(int i = 0; i < 3; i++)
-            c.pos[b][i] -= round(c.pos[b][i]);
+        c.pos[b] -= c.pos[b].round();
     
-        // If we were only supplied with Zel'dovich displacements, then construct the linear theory velocity:
+        // If we were only supplied with Zel'dovich displacements, then construct the linear theory velocity
+        // Or, if we're doing 3LPT, then we also want the ZA velocity for the next step
         velstruct vel1;
-        if(strcmp(P.ICFormat, "Zeldovich") == 0){
+        if(strcmp(P.ICFormat, "Zeldovich") == 0 || P.LagrangianPTOrder > 2){
             vel1 = WriteState.f_growth*displ1*convert_velocity;
         }
         // If we were supplied with Zel'dovich velocities and displacements,
         // we want to re-read the IC files to restore the velocities, which were overwritten above
         else if(WriteState.Do2LPTVelocityRereading){
-            integer3 ijk = ZelIJK(c.aux[b].pid());
-            int slab = ijk.x*P.cpd / WriteState.ppd;  // slab number
-            
-            int slab_offset = ijk.x - ceil(((double)slab)*WriteState.ppd/P.cpd);  // number of planes into slab
-            // We know the exact slab number and position of the velocity we want.
-            uint64 offset = ijk.z + WriteState.ppd*(ijk.y + WriteState.ppd*slab_offset);
-            velstruct* vel = get_ic_vel(slab, offset);
-            
-            vel1.x = vel->x;
-            vel1.y = vel->y;
-            vel1.z = vel->z;
-            
-            assertf(std::isfinite(vel1.x), "vel1.x bad value: %f\n", vel1.x);
-            assertf(std::isfinite(vel1.y), "vel1.y bad value: %f\n", vel1.y);
-            assertf(std::isfinite(vel1.z), "vel1.z bad value: %f\n", vel1.z);
+            vel1 = *get_ic_vel(c.aux[b].pid());
         }
         // Unexpected IC format; fail.
         else {
@@ -277,9 +238,63 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
     }
 }
 
-// Going to 3LPT requires one more force calculation, which then gets
-// used for both velocity and positions.  This requires that the acceleration
-// be preserved until the Drift step and then used to adjust both.
+// 3LPT kick and drift
 
+void KickCell_2LPT_3(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
+    // We could update the 3LPT velocity from the acceleration here,
+    // but then we'd be repeating the same calculations for the position update in the Drift
+    return;
+}
 
+void DriftCell_2LPT_3(Cell c, FLOAT driftfactor) {
+    // Now we have to adjust the positions and velocities    
+    // Usually, Drift doesn't need accelerations, but 3LPT does
+    int slab = c.ijk.x;
+    accstruct *cellacc = ((accstruct *) LBW->ReturnIDPtr(AccSlab,slab)) + c.ci->startindex;
+    
+    int e = c.count();
+    posstruct displ12, displ3;
+    // This is the factor to convert from redshift-space displacements
+    // to canonical velocities.
+    // HubbleNow is H(z)/H_0.
+    double convert_velocity = WriteState.VelZSpace_to_Canonical;
+    // WriteState.ScaleFactor*WriteState.ScaleFactor *WriteState.HubbleNow;
 
+#ifdef GLOBALPOS
+    // Set cellcenter to zero to return to box-centered positions
+    double3 cellcenter = double3(0.0);
+#else
+    double3 cellcenter = PP->WrapCellCenter(c.ijk);
+#endif
+    
+    double H = 1;
+    for (int b = 0; b<e; b++) {
+        // The first+second order displacement
+        displ12 = c.pos[b] - (ZelPos(c.aux[b].pid())-cellcenter);
+        displ12 -= displ12.round();
+            
+        // Third order displacement
+        displ3 = (2./(3*H*H*P.Omega_M)*cellacc[b] - (7./(3*H*WriteState.f_growth*convert_velocity)*c.vel[b] - 4./3*displ12))/6;
+        displ3 -= displ3.round();
+        assertf(displ3.norm() < displ12.norm(), "Error: 3rd-order LPT displacement (%f, %f, %f) is larger than 1st+2nd order (%f, %f, %f)!\n",
+               displ3.x, displ3.y, displ3.z, displ12.x, displ12.y, displ12.z);
+
+        c.pos[b] = ZelPos(c.aux[b].pid())-cellcenter + displ12 + displ3;
+        c.pos[b] -= c.pos[b].round();
+        
+        velstruct vel3 = 3*WriteState.f_growth*displ3*convert_velocity;
+        
+        // If we were supplied with Zel'dovich velocities and displacements,
+        // we want to re-read the 1st order velocity
+        if(WriteState.Do2LPTVelocityRereading){
+            velstruct vel1, vel1_ic, vel2;
+            vel1_ic = *get_ic_vel(c.aux[b].pid());
+            vel2 = c.vel[b] - displ12*WriteState.f_growth*convert_velocity;  // Isolate the 2nd order vel from the linear 1st order
+            c.vel[b] = vel1_ic + vel2;
+            
+        }
+        // If we were only supplied with Zel'dovich displacements,
+        // then nothing special to be done here
+        c.vel[b] += vel3;
+    }
+}

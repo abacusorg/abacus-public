@@ -138,6 +138,10 @@ public:
         return maxxy<z?maxxy:z;
     }
 
+    inline ThreeVector<T> round() const {
+        return ThreeVector<T>(::round(x), ::round(y), ::round(z));
+    }
+
     template<class U>
     inline typename PromoteNumeric<T, U>::type dot(const ThreeVector<U>& rhs) const {
         return x * rhs.x + y * rhs.y + z * rhs.z;

@@ -196,6 +196,9 @@ void KickAction(int slab) {
         } else if (step==2) {
             STDLOG(1,"Kicking slab %d as LPT step 2\n", slab);
             KickSlab(slab, 0, 0, KickCell_2LPT_2);
+        } else if (step==3) {
+            STDLOG(1,"Kicking slab %d as LPT step 3\n", slab);
+            KickSlab(slab, 0, 0, KickCell_2LPT_3);
         } else QUIT("LPT Kick %d not implemented\n", step);
     } else {
         // This is just a standard step
@@ -204,9 +207,6 @@ void KickAction(int slab) {
         STDLOG(1,"Kicking slab %d by %f + %f\n", slab, kickfactor1, kickfactor2);
         KickSlab(slab, kickfactor1, kickfactor2, KickCell);
     }
-
-    //tell the near force threads it's ok to start cleaning up
-    //if (NearForce.number_of_slabs_executed == P.cpd) JJ->ShutDownWhenReady();
 }
 
 // -----------------------------------------------------------------
@@ -285,12 +285,13 @@ void OutputAction(int slab) {
 
 // -----------------------------------------------------------------
 
-int LPTVelPrecondition(int slab){
+int FetchLPTVelPrecondition(int slab){
     return 1;
 }
 
-void LPTVelAction(int slab){
-    return;
+void FetchLPTVelAction(int slab){
+    // This is blocking because it uses the LoadIC module, not LBW
+    load_ic_vel_slab(slab);
 }
 
 // -----------------------------------------------------------------
@@ -303,6 +304,12 @@ int DriftPrecondition(int slab) {
     }
     // We also must have Output this slab 
     if (Output.notdone(slab)) return 0;
+    
+    // We also must have the 2LPT velocities
+    // The finish radius is a good guess of how ordered the ICs are
+    if (WriteState.Do2LPTVelocityRereading)
+        for(int i=-FINISH_WAIT_RADIUS;i<=FINISH_WAIT_RADIUS;i++) 
+            if (LPTVelocityReRead.notdone(slab+i)) return 0;
         
     return 1;
 }
@@ -316,20 +323,10 @@ void DriftAction(int slab) {
             DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_1);
         } else if (step==2) {
             STDLOG(1,"Drifting slab %d as LPT step 2\n", slab);
-            
-            // Load the neighboring velocity IC slabs
-            if (WriteState.Do2LPTVelocityRereading){
-                LPTDriftICReRead.Start();
-                load_ic_vel_neighbors(slab);
-                LPTDriftICReRead.Stop();
-            }
-            
             DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_2);
-            
-            // Unload any finished velocity IC slabs
-            if (WriteState.Do2LPTVelocityRereading){
-                unload_finished_ic_vel_neighbors(slab, &Drift);
-            }
+        } else if (step==3) {
+            STDLOG(1,"Drifting slab %d as LPT step 3\n", slab);
+            DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_3);
         } else QUIT("LPT Drift %d not implemented\n", step);
     } else {
         //         This is just a normal drift
@@ -362,6 +359,10 @@ int FinishPrecondition(int slab) {
 
 void FinishAction(int slab) {
     STDLOG(1,"Finishing slab %d\n", slab);
+    
+    if (WriteState.Do2LPTVelocityRereading)
+        LBW->DeAllocate(VelLPTSlab, slab);
+    
     // Gather particles from the insert list and make the merge slabs
     FillMergeSlab(slab);
     // Now delete the original particles
@@ -419,8 +420,8 @@ void timestep(void) {
             Drift.instantiate(cpd, first, &DriftPrecondition,         &DriftAction         );
            Finish.instantiate(cpd, first, &FinishPrecondition,        &FinishAction        );
            
-   //if(WriteState.Do2LPTVelocityRereading)
-   //    LPTVelocityReRead.instantiate(cpd, first, &LPTVelPrecondition, &LPTVelAction        );
+if(WriteState.Do2LPTVelocityRereading)
+LPTVelocityReRead.instantiate(cpd, first, &FetchLPTVelPrecondition,   &FetchLPTVelAction     );
 
 
     while( !Finish.alldone() ) {
@@ -430,6 +431,8 @@ void timestep(void) {
                  Kick.Attempt();
                 Group.Attempt();
                Output.Attempt();
+  if(WriteState.Do2LPTVelocityRereading)
+    LPTVelocityReRead.Attempt();
                 Drift.Attempt();
                Finish.Attempt();
     }
