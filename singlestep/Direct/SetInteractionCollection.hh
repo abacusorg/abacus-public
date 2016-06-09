@@ -3,6 +3,10 @@
 
 #include <vector>
 
+#ifdef CUDADIRECT
+#include "driver_types.h"
+#endif
+
 class SetInteractionCollection{
     public:
         // Synchronous Timers
@@ -21,7 +25,10 @@ class SetInteractionCollection{
         STimer LaunchDeviceKernels;
     
         // Asynchronous, GPU side
-        float CopyTime;  // These are recorded by cudaEvents
+#ifdef CUDADIRECT
+        cudaEvent_t CopyStart,CopyStopExecStart,ExecStopResStart,ResStop;
+#endif
+        float CopyTime;
         float ExecutionTime;
         float CopybackTime;
         float TotalTime;
@@ -44,7 +51,7 @@ class SetInteractionCollection{
         int         W;
         int         K_low;
         int         K_high;
-        int         InteractionCount;//How many source on sink interactions are in this set
+        int         InteractionCount;//How many source cell on sink cell interactions are in this set
 
         List3<FLOAT> *  SinkSetPositions; //Position data for particles in all sink sets in the collection
         int             NSinkBlocks; //The number of gpu blocks the sink sets translate into
