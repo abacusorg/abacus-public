@@ -371,7 +371,8 @@ void NearFieldDriver::Finalize(int slab){
                 Nj++;
             //Slice->PrintInteractions();
             
-            // Gather timings from each SlabInteractionCollection
+            get_cuda_timers(Slice);
+            
             Construction +=Slice->Construction.Elapsed();
                 FillSinkLists+=Slice->FillSinkLists.Elapsed();
                     CountSinks+=Slice->CountSinks.Elapsed();

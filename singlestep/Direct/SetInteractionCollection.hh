@@ -1,6 +1,9 @@
 //holds information about an group of interactions (i.e. pencil on pencil) to compute directs for 
 //These sets can be any arbitrary collections of particles (e.g. groups), but frequently are 5 cell pencils
 
+#ifndef __SIC_HH
+#define __SIC_HH
+
 #include <vector>
 
 #ifdef CUDADIRECT
@@ -106,3 +109,4 @@ class SetInteractionCollection{
 
 };
 
+#endif

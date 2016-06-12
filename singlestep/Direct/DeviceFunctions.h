@@ -23,3 +23,5 @@ extern "C" int GetNGPU();
 extern "C" void GPUSetup(int cpd, int kwidth, int maxsinkblocks, int maxsourceblocks, int bufferperdevice);
 
 extern "C" void print_gpu_mem_usage();
+
+extern "C" void get_cuda_timers(void*);
