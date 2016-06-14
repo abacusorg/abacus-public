@@ -41,6 +41,8 @@ def run_PS(folders, **kwargs):
         ps_fn += '.csv'
         
         # Change emulator_00 to emulator_00_power
+        split[-3] += '_products'
+        split.insert(-3,split[-2])
         split[-2] += '_power'
         outdir = '/'.join(split) + '/'
         

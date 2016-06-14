@@ -372,6 +372,11 @@ void NearFieldDriver::Finalize(int slab){
             //Slice->PrintInteractions();
             
             get_cuda_timers(Slice);
+            // Fetching the times in the callback didn't work, possibly because the timing information
+            // didn't have time to be sync'd to the host.  By this point, it should have had time, but
+            // let's notify if not.
+            if(Slice->CopyTime == 0 || Slice->ExecutionTime == 0 || Slice->CopybackTime == 0 || Slice->TotalTime == 0)
+                STDLOG(1, "Warning: one or more CUDA timers returned 0.  Timings might not be reliable.\n");
             
             Construction +=Slice->Construction.Elapsed();
                 FillSinkLists+=Slice->FillSinkLists.Elapsed();
