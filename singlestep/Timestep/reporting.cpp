@@ -362,7 +362,7 @@ void ReportTimings(FILE * timingfile) {
     denom = Finish.Elapsed();
     REPORT(2, "Partition Insert List", FinishPartition.Elapsed());
     REPORT(2, "Sort Insert List", FinishSort.Elapsed());
-    fprintf(timingfile,"---> %6.3f Mitem/sec (%lld items)",IL->TotalLength/(thistime+1e-15)/1e6, IL->TotalLength);
+    fprintf(timingfile,"---> %6.3f Mitem/sec (%.2g items)",IL->TotalLength/(thistime+1e-15)/1e6, IL->TotalLength);
     REPORT(2, "Index Cells", FinishCellIndex.Elapsed());
     REPORT(2, "Merge", FinishMerge.Elapsed());
     REPORT(2, "Compute Multipoles", ComputeMultipoles.Elapsed());
