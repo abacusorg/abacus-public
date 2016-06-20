@@ -42,7 +42,7 @@ def run_PS(folders, **kwargs):
         
         # Change emulator_00 to emulator_00_power
         split[-3] += '_products'
-        split.insert(-3,split[-2])
+        split.insert(-2,split[-2] + '_products')
         split[-2] += '_power'
         outdir = '/'.join(split) + '/'
         
@@ -61,6 +61,11 @@ def run_PS(folders, **kwargs):
         k,s,nmodes = PS.CalculateBySlab(pattern, header.BoxSize, kwargs.pop('nfft'), **kwargs)
         np.savetxt(outdir + ps_fn, zip(k,s), delimiter=',')
         print 'Finished.'
+        
+        # Touch .ps_done
+        with open(folder + '/ps_done', 'a'):
+            os.utime(folder + '/ps_done', None)
+
         
 def vector_arg(s):
     try:

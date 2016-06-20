@@ -44,7 +44,7 @@ def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=20, downsample=1, confi
         # Set the output directory
         split = slabs[0].split('/')[:-1]
         split[-3] += '_products'
-        split.insert(-3, split[-2])
+        split.insert(-2,split[-2] + '_products')
         split[-1] = split[-1].replace('slice', 'z')
         split[-2] += '_rockstar_halos' + suffix
         if downsample > 1:
@@ -79,6 +79,11 @@ def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=20, downsample=1, confi
             
         # Launch Rockstar server
         retcode = subprocess32.check_call(['./rockstar', '-c', outdir+'/abacus-auto-server.cfg', '-s', '0'])
+        
+        if retcode == 0:
+            # Touch rockstar_done
+            with open(slice_dir + '/rockstar_done', 'a'):
+                os.utime(slice_dir + '/rockstar_done', None)
 
         return retcode
         
