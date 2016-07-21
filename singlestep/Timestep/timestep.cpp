@@ -98,8 +98,9 @@ void NearForceAction(int slab) {
     SlabForceTime[slab].Start();
         
     accstruct *SA = (accstruct *) LBW->AllocateArena(NearAccSlab,slab);
+    JJ->ZeroAccel.Start();
     ZeroAcceleration(slab,NearAccSlab);
-
+    JJ->ZeroAccel.Stop();
 
     JJ->ExecuteSlab(slab,P.ForceOutputDebug);
 

@@ -251,6 +251,7 @@ void ReportTimings(FILE * timingfile) {
     fprintf(timingfile, "\t\t For performance reasons, the only wall-clock throughput we measure is for the overall GPU code.  \n");
     denom = NearForce.Elapsed();
     REPORT(2, "Blocking", NearForce.Elapsed());
+    REPORT(3, "Zero Acceleration", JJ->ZeroAccel.Elapsed());
     REPORT(3, "Calculate Direct Splits", JJ->CalcSplitDirects.Elapsed());
     
     REPORT(3, "Construct Pencils", JJ->Construction);

@@ -9,7 +9,7 @@ Author: Lehman Garrison
 import sys
 import os
 import PowerSpectrum as PS
-import InputFile
+from Abacus import InputFile
 import pdb
 import shutil
 import argparse

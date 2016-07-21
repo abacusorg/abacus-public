@@ -45,6 +45,7 @@ class NearFieldDriver{
         STimer SICExecute;
         STimer CPUFallbackTimer;
         STimer FinalizeTimer;
+        STimer ZeroAccel;
 
     private:
         int *slabcomplete;

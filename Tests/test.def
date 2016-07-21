@@ -1,4 +1,4 @@
-#include "$ABACUS$/python/param.def"
+#include "$ABACUS$/python/Abacus/param.def"
 NP = 128**3
 H0 = 50
 Omega_M =  1	
@@ -11,6 +11,6 @@ hMpc =1
 InitialRedshift = 99
 LagrangianPTOrder = 0
 SimName = "Test"
-#include "$ABACUS$/python/directory.def"
-#include "$ABACUS$/python/zel.def"
+#include "$ABACUS$/python/Abacus/directory.def"
+#include "$ABACUS$/python/Abacus/zel.def"
 
