@@ -11,6 +11,7 @@
 class Multipoles : public  basemultipoles { 
 public:
     Multipoles(int order);
+    ~Multipoles();
 
 #ifdef AVXMULTIPOLES
     d4 *ip1x[128];

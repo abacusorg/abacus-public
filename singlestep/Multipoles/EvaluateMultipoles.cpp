@@ -30,7 +30,28 @@ for(int g=0;g<omp_get_max_threads();g++) {
 }
 #endif
 }
-
+
+Multipoles::~Multipoles(){
+#ifdef AVXMULTIPOLES
+    for(int g=0;g<omp_get_max_threads();g++) {
+        free(ip1x[g]);
+        free(ip2x[g]);
+        free(ip1y[g]);
+        free(ip2y[g]);
+        free(ip1z[g]);
+        free(ip2z[g]);
+
+        free(cx[g]);
+        free(cy[g]);
+        free(cz[g]);
+
+        free(masses1[g]);
+        free(masses2[g]);
+        free(globalM[g]);
+    }
+#endif
+}
+
 void Multipoles::AnalyticCartesianMultipoles(double3 *p, int n, double3 center, 
                                              double *cm) {
 

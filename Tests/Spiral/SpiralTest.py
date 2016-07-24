@@ -27,10 +27,10 @@ if abacuspythondir not in sys.path:
     sys.path.insert(0, abacuspythondir)
 
 
-import abacus
-import GenParam
-import InputFile
-import Tools
+from Abacus import abacus
+from Abacus import GenParam
+from Abacus import InputFile
+from Abacus import Tools
 
 def run(basedir = "NONE"):
     tmpdir = ""

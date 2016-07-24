@@ -96,7 +96,7 @@ int main(int argc, char ** argv){
 	    // Setup the log
 	    stdlog_threshold_global = P.LogVerbosity;
 	    char logfn[1050];
-	    sprintf(logfn,"%s/lastconvolution.log", P.LogDirectory);
+	    sprintf(logfn,"%s/last.convlog", P.LogDirectory);
 	    stdlog.open(logfn);
 	    OutofCoreConvolution OCC;
 	    STDLOG(1,"Read parameter file\n");
@@ -126,7 +126,7 @@ int main(int argc, char ** argv){
 	    ConvolutionWallClock.Stop();
 	    TotalWallClock.Stop();
 	    char timingfn[1050];
-	    sprintf(timingfn,"%s/lastconvolution.timing",P.LogDirectory);
+	    sprintf(timingfn,"%s/last.convtime",P.LogDirectory);
 	    dumpstats(&OCC,timingfn);
 	    stdlog.close();
 	        exit(0);

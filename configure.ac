@@ -96,7 +96,7 @@ AC_ARG_WITH(max-source-length,
 AC_DEFINE_UNQUOTED(MAXSOURCELENGTH,$with_max_source_length)
 
 AC_ARG_ENABLE(threaded-io,
-[AS_HELP_STRING([--enable-thread-io], [Threaded IO [yes]])],
+[AS_HELP_STRING([--enable-threaded-io], [Threaded IO [yes]])],
 	[], enable_threaded_io="yes")
 if test x$enable_threaded_io == xyes; then
 	AC_DEFINE_UNQUOTED(IOTHREADED)

@@ -282,6 +282,14 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     CheckDirectoryExists(CP.runtime_TaylorDirectory);
     CheckDirectoryExists(CP.runtime_MultipoleDirectory);
     CheckDirectoryExists(CP.runtime_DerivativesDirectory);
+    
+    // Check that all the multipole files exists
+    // This is to prevent losing Taylors by accidentally convolving after an interrupted singlestep
+    for(int i=0;i<cpd;i++) {
+        char fn[1024];
+        sprintf(fn, "%s/%s_%04d", CP.runtime_MultipoleDirectory, CP.runtime_MultipolePrefix, i);
+        CheckFileExists(fn);
+    }
 
     size_t  sdb = CP.runtime_DiskBufferSizeKB;
     sdb *= 1024LLU;
@@ -351,10 +359,11 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     CS.totalMemoryAllocated += s;
 
     for(int i=0;i<cpd;i++) {
-        char cmd[1024];
-        sprintf(cmd,"touch %s/Taylor_%04d", CP.runtime_TaylorDirectory, i);
-        int rv = system(cmd);
-        assert(rv!=-1);
+        char fn[1024];
+        sprintf(fn, "%s/%s_%04d", CP.runtime_TaylorDirectory, CP.runtime_TaylorPrefix, i);
+        FILE *f = fopen(fn, "wb");
+        assert(f != NULL);
+        fclose(f);
     }
     
     /*// Load fftw wisdom

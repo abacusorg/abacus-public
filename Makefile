@@ -16,7 +16,7 @@ clean:
 	-cd Derivatives && $(MAKE) $@
 	-cd singlestep && $(MAKE) $@
 	-cd Convolution && $(MAKE) $@
-	cd python/AbacusCosmo && $(MAKE) $@
+	cd python/Abacus/Cosmology && $(MAKE) $@
 	cd zeldovich-PLT && $(MAKE) $@
 	cd Tests && $(MAKE) $@
 	cd util && $(MAKE) $@
@@ -29,7 +29,7 @@ distclean:
 	-cd Derivatives && $(MAKE) $@
 	-cd singlestep && $(MAKE) $@
 	-cd Convolution && $(MAKE) $@
-	cd python/AbacusCosmo && $(MAKE) $@
+	cd python/Abacus/Cosmology && $(MAKE) $@
 	cd zeldovich-PLT && $(MAKE) $@
 	cd Tests && $(MAKE) $@
 	cd util && $(MAKE) $@
@@ -61,7 +61,7 @@ zeldovich: zeldovich.cpp
 	cd zeldovich-PLT && $(MAKE) all
     
 AbacusCosmo:
-	cd python/AbacusCosmo && $(MAKE) all
+	cd python/Abacus/Cosmology && $(MAKE) all
 
 dist:
 	$(RM) -rf .dist

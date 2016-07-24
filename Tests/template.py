@@ -10,10 +10,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 #put imports from the abacus/python directory here
-import abacus
-import GenParam
-import InputFile
-import Tools
+from Abacus import abacus
+from Abacus import GenParam
+from Abacus import InputFile
+from Abacus import Tools
 
 #you can define any functions needed for the test here
 

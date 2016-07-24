@@ -2,7 +2,7 @@
 #include "$ABACUS$/Tests/test.def"
 
 SimName = "spiral"
-#include "$ABACUS$/python/directory.def"
+#include "$ABACUS$/python/Abacus/directory.def"
 DerivativesDirectory= "$ABACUS_TMP$/Derivatives/"
 TimeStepAccel = 0.02
 TimeStepDlna = 0.025
