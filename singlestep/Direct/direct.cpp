@@ -18,7 +18,12 @@ Direct::Direct(void) {
 #endif
 }
 
-Direct::~Direct(void) { }
+Direct::~Direct(void) {
+#ifdef AVXDIRECT
+    delete directdouble;
+    delete directfloatnr;
+#endif
+}
 
 void Direct::AVXExecute(FLOAT3 *sinks, FLOAT3 *sources, int nsinks, int nsources, FLOAT3 delta, FLOAT eps2, FLOAT3 *SA) {
     #ifdef AVXDIRECT

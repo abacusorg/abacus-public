@@ -8,7 +8,27 @@ void (*Tptr[17])(d4 * px, d4 * py, d4 * pz, d4 * cx, d4 * cy, d4 * cz,
 #endif
 
 
-Taylor::~Taylor(void) { }
+Taylor::~Taylor(void) {
+#ifdef AVXMULTIPOLES
+    for(int g=0;g<omp_get_max_threads();g++) {
+        free(cx[g]);
+        free(cy[g]);
+        free(cz[g]);
+        
+        free(ax[g]);
+        free(ay[g]);
+        free(az[g]);
+        
+        free(px[g]);
+        free(py[g]);
+        free(pz[g]);
+
+        free(Qx[g]);
+        free(Qy[g]);
+        free(Qz[g]);
+    }
+#endif
+}
 
 Taylor::Taylor(int order) : basemultipoles(order) {
 #ifdef AVXMULTIPOLES
@@ -33,7 +53,7 @@ Taylor::Taylor(int order) : basemultipoles(order) {
 #endif
 }
 
-
+
 void Taylor::AnalyticEvaluateTaylor(double *CT, double3 expansioncenter, int np,
                                     double3 *ps, double3 *acc) {
     assert(np>=0);

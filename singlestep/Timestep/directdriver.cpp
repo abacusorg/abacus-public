@@ -135,12 +135,15 @@ NearFieldDriver::~NearFieldDriver()
 {
     delete[] DD;
     delete[] slabcomplete;
+    delete[] SlabNSplit;
+    delete[] SlabInteractionCollections;
 #ifdef CUDADIRECT
-    delete[] DirectInteractions_GPU;
+    free(NSink_GPU_final);
     delete[] DeviceCopyTimes;
     delete[] DeviceExecutionTimes;
     delete[] DeviceCopybackTimes;
     delete[] DeviceTotalTimes;
+    delete[] DirectInteractions_GPU;
     delete[] GB_to_device;
     delete[] GB_from_device;
     delete[] DeviceSinks;
@@ -148,6 +151,8 @@ NearFieldDriver::~NearFieldDriver()
     for(int i =0; i < P.cpd*P.cpd; i++)
         pthread_mutex_destroy(&CellLock[i]);
     free(CellLock);
+    
+    GPUReset();
 }
 
 void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){

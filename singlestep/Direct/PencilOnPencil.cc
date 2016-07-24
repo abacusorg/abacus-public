@@ -200,9 +200,9 @@ SetInteractionCollection::~SetInteractionCollection(){
     free(SinkSetCount);
     free(SourceSetStart);
     free(SourceSetCount);
-    free(SinkSourceInteractionList);
-
+    free(SinkBlockParentPencil);
     free(SinkSetAccelerations);
+    free(SinkSourceInteractionList);
 }
 
 void SetInteractionCollection::SetCompleted(){
