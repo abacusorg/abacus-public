@@ -151,8 +151,10 @@ NearFieldDriver::~NearFieldDriver()
     for(int i =0; i < P.cpd*P.cpd; i++)
         pthread_mutex_destroy(&CellLock[i]);
     free(CellLock);
-    
+
+#ifdef CUDADIRECT
     GPUReset();
+#endif
 }
 
 void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){

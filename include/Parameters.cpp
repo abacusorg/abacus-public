@@ -158,7 +158,7 @@ public:
 
     	NumSlabsInsertList = 2.0;
     	installscalar("NumSlabsInsertList",NumSlabsInsertList,DONT_CARE);   
-    	NumSlabsInsertListIC = 0.0;
+    	NumSlabsInsertListIC = 4.0;
     	installscalar("NumSlabsInsertListIC",NumSlabsInsertListIC,DONT_CARE);   
 
     	sprintf(ReadStateDirectory,STRUNDEF);
