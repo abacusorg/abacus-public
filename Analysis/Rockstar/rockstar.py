@@ -8,17 +8,22 @@ import contextlib
 import shutil
 import pdb
 import numpy as np
+from Tools import chdir
+import tarfile
 
-# This is the greatest use of a context manager ever.
-@contextlib.contextmanager
-def chdir(dirname=None):
-  curdir = os.getcwd()
-  try:
-    if dirname is not None:
-      os.chdir(dirname)
-    yield
-  finally:
-    os.chdir(curdir)
+def get_outdir(slice_dir, downsample, suffix=''):
+    split = slice_dir.split('/')
+    split = [''] + [s for s in split if len(s)]
+    
+    split[-3] += '_products'
+    split.insert(-2,split[-2] + '_products')
+    split[-1] = split[-1].replace('slice', 'z')
+    split[-2] += '_rockstar_halos' + suffix
+    if downsample > 1:
+        split[-2] += '_downsample{}'.format(downsample)
+    outdir = '/'.join(split)
+
+    return outdir
 
 def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=20, downsample=1, config_template_fn='abacus.cfg.template', SO=False, suffix=''):
     if downsample < 1:
@@ -42,23 +47,18 @@ def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=20, downsample=1, confi
         fn = slabs[0].split('/')[-1].replace('0000.dat','<block>.dat')
         
         # Set the output directory
-        split = slabs[0].split('/')[:-1]
-        split[-3] += '_products'
-        split.insert(-2,split[-2] + '_products')
-        split[-1] = split[-1].replace('slice', 'z')
-        split[-2] += '_rockstar_halos' + suffix
-        if downsample > 1:
-            split[-2] += '_downsample{}'.format(downsample)
-        outdir = '/'.join(split)
+        outdir = get_outdir(slice_dir, downsample, suffix=suffix)
         
         if not os.path.exists(outdir):
             os.makedirs(outdir)
         shutil.copy(slice_dir+'/header', outdir)
         
         # Copy the sim-level parameter files
-        for pf in glob(slice_dir+'/../*'):
-            if os.path.isfile(pf):
-                shutil.copy(pf, outdir+'/..')
+        if not os.path.isdir(outdir + '/../info'):
+            try:
+                shutil.copytree(slice_dir+'/../info', outdir + '/../info')
+            except:
+                print 'Could not copy ../info'
         
         
         # Read in the Rockstar config template and fill in the required fields
@@ -87,6 +87,19 @@ def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=20, downsample=1, confi
 
         return retcode
         
+def make_tar(slice_folders, downsample, cleanup):
+    for slice_folder in slice_folders:
+        halo_slice = get_outdir(slice_folder, downsample)
+        with chdir(halo_slice):
+            fns = glob('halo*')
+            with tarfile.open('halos.tar.gz', 'w:gz') as tar:
+                for fn in fns:
+                    tar.add(fn)
+            if cleanup:
+                for fn in fns:
+                    os.remove(fn)
+
+        
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run the Rockstar halo finder on Abacus outputs', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('slice_folders', help='The timeslice outputs on which to run Rockstar', nargs='+')
@@ -99,9 +112,20 @@ if __name__ == '__main__':
     parser.add_argument('--SO', help='Produce spherical overdensity halo masses in binary catalogs', action='store_const', const=1)
     #parser.add_argument('--format', help='Format of the Abacus timeslice outputs', default='Pack14', choices=['RVdouble', 'LC', 'Pack14'])
     parser.add_argument('--suffix', help='Label the rockstar folders with "_rockstar_halosSUFFIX".', default='')
+    parser.add_argument('--tar-mode', help='Compress the halo catalogs and subsamples.  ONLY_TAR will skip halo finding.  Default: None', choices=['TAR', 'ONLY_TAR'])
+    parser.add_argument('--tar-remove-source-files', action='store_true', help='Remove the files that were placed the in the tar.  Must be used with --tar-mode.')
     
     args = parser.parse_args()
+    
+    if args.tar_remove_source_files:
+        assert args.tar_mode, "--tar-remove-source-files can only be used with --tar-mode"
 
-    with chdir('{abacus}/Analysis/Rockstar'.format(abacus=os.getenv('ABACUS'))):
-        retcode = run_rockstar(args.slice_folders, ncpu=args.ncpu, minmembers=args.minmembers, downsample=args.downsample, SO=args.SO, suffix=args.suffix)
-        exit(retcode)
+    retcode = 0
+    if args.tar_mode != 'ONLY_TAR':
+        with chdir('{abacus}/Analysis/Rockstar'.format(abacus=os.getenv('ABACUS'))):
+            retcode = run_rockstar(args.slice_folders, ncpu=args.ncpu, minmembers=args.minmembers, downsample=args.downsample, SO=args.SO, suffix=args.suffix)
+    
+    if args.tar_mode:
+        make_tar(args.slice_folders, args.downsample, args.tar_remove_source_files)
+        
+    exit(retcode)
