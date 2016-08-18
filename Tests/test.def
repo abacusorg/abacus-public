@@ -12,5 +12,5 @@ InitialRedshift = 99
 LagrangianPTOrder = 0
 SimName = "Test"
 #include "$ABACUS$/python/Abacus/directory.def"
+OutputDirectory = @WorkingDirectory@ + "/out"
 #include "$ABACUS$/python/Abacus/zel.def"
-

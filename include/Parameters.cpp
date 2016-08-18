@@ -145,7 +145,8 @@ public:
         ForceBlockingIO = 0;
     	installscalar("ForceBlockingIO",ForceBlockingIO,DONT_CARE);
 
-    	installscalar("DirectNewtonRaphson",DirectNewtonRaphson,MUST_DEFINE);  // 0 or 1
+        DirectNewtonRaphson = 1;
+    	installscalar("DirectNewtonRaphson",DirectNewtonRaphson,DONT_CARE);  // 0 or 1
 
     	installscalar("DerivativesDirectory",DerivativesDirectory,MUST_DEFINE);
 

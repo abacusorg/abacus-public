@@ -73,7 +73,7 @@ def run(basedir = "NONE"):
 
         #run the problem
         os.chdir(basedir)
-        abacus.run("spiral.par",2,1)
+        abacus.singlestep("spiral.par",2,1)
     else:
         os.chdir(basedir)
         params = GenParam.parseInput("spiral.par")
