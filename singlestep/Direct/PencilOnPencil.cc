@@ -1,7 +1,7 @@
 //code related to direct pencil interaction creation for directdriver
 
 //Collection of Interactions of all 5 cell pencils in a specified region of a slab
-//TODO:This is simmilar enough to the group multistep interaction list that they could share an interface/superclass
+//TODO:This is similar enough to the group multistep interaction list that they could share an interface/superclass
 #include "StructureOfLists.cc"
 #include "SetInteractionCollection.hh"
 
@@ -13,7 +13,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     TotalTime = 0.;
 
     
-    //set known classs variables
+    //set known class variables
     eps2 = P.SofteningLength * P.SofteningLength;
     CompletionFlag = 0;
     K_low = k_low;
@@ -28,12 +28,13 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     if(Nj * width + w < P.cpd)
         Nj++;
     
-
-    SinkSetStart = (int *) malloc(sizeof(int) * k_width*Nj);
-    SinkSetCount = (int *) malloc(sizeof(int) * k_width*Nj);
-    memset(SinkSetCount,0,sizeof(int) * k_width*Nj);
+    NSinkList = k_width * Nj;
+    SinkSetStart = (int *) malloc(sizeof(int) * NSinkList);
+    SinkSetCount = (int *) malloc(sizeof(int) * NSinkList);
     SinkTotal = 0;
 
+    NSourceSets = Nj * (k_width + width);
+    assertf(NSourceSets <= P.cpd*(P.cpd+width), "NSourceSets (%d) exceeds SourceSet array allocation (%d)\n", NSourceSets, P.cpd*(P.cpd+width));
     SourceSetStart = (int *) malloc(sizeof(int) * P.cpd*(P.cpd+width));
     SourceSetCount = (int *) malloc(sizeof(int) * P.cpd*(P.cpd+width));
 
@@ -55,7 +56,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
         }
     }
     CountSinks.Stop();
-    NSinkList = k_width *Nj;
     
     CalcSinkBlocks.Clear(); CalcSinkBlocks.Start();
     //Count the total number of sink blocks we will require
@@ -81,6 +81,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
         int remaining = (NFBlockSize - (SinkSetCount[sinkset]%NFBlockSize))%NFBlockSize;
         PencilBlocks+= remaining&&remaining;
         int b0 =  SinkSetStart[sinkset]/NFBlockSize;
+        assertf(b0 + PencilBlocks <= NSinkBlocks, "SinkBlockParentPencil array access at index %d will exceed allocation %d.\n",b0 + PencilBlocks, NSinkBlocks);
         for(int b = b0; b < b0 + PencilBlocks; b++)
             SinkBlockParentPencil[b] = sinkset;
     }
@@ -111,7 +112,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     //Fill in source data
     FillSourceLists.Start();
     CountSources.Start();
-    NSourceSets = Nj * (k_width + width);
     memset(SourceSetCount, 0, sizeof(int) * NSourceSets );
     #pragma omp parallel for schedule(dynamic,1)
     for(int j = 0; j < Nj; j ++) {
@@ -174,6 +174,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     #pragma omp parallel for schedule(dynamic,1)
     for(int k = 0; k < k_width; k++){
         int g = omp_get_thread_num();
+        assertf(k*Nj + Nj <= NSinkList, "SinkSetCount array access at %d would exceed allocation %d\n", k*Nj + Nj, NSinkList);
         for(int j=0; j < Nj; j++) {
             int jj = w + j * width;
             int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
@@ -181,6 +182,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
             int sinkindex = k*Nj + j;
             int l = width * sinkindex;
 
+            assertf(l + width <= InteractionCount, "SinkSourceInteractionList array access at %d would exceed allocation %d\n", l + width, InteractionCount);
+            assertf((k + width)*(Nj) +  j <= P.cpd*(P.cpd+width), "SourceSetCount array access at %d would exceed allocation %d\n", (k + width)*(Nj), P.cpd*(P.cpd+width));
             for(int y=0;y<width;y++) {
                 int sourceindex = (k + y)*(Nj) +  j;
                 SinkSourceInteractionList[l+y] = sourceindex;
@@ -263,6 +266,7 @@ inline void SetInteractionCollection::CreateSinkPencil(int sinkx, int sinky, int
             start+=count;
         }
     }
+    assertf(start <= SinkSetPositions->N, "Wrote %d particles. This overruns SinkSetPositions (length %d)\n", start, SinkSetPositions->N);
 }
 
 inline void SetInteractionCollection::CreateSourcePencil(int sx, int sy, int nz, uint64 start){
@@ -293,6 +297,7 @@ inline void SetInteractionCollection::CreateSourcePencil(int sx, int sy, int nz,
             offset+=count;
         }
     }
+    assertf(start + offset <= SourceSetPositions->N, "Wrote %d particles starting at %d. This overruns SourceSetPositions (length %d)\n", offset, start, SourceSetPositions->N);
 }
 
 int SetInteractionCollection::CheckCompletion(){
@@ -490,7 +495,7 @@ void SetInteractionCollection::GPUExecute(int){
 }
 #endif
 
-int SetInteractionCollection::ActiveThreads = 0;
+volatile int SetInteractionCollection::ActiveThreads = 0;
 pthread_mutex_t SetInteractionCollection::GPUTimerMutex = PTHREAD_MUTEX_INITIALIZER;
 STimer SetInteractionCollection::GPUThroughputTimer;
 

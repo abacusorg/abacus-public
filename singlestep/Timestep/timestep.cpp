@@ -489,7 +489,7 @@ void timestepIC(void) {
     Finish.instantiate(cpd, first,  &FinishPrecondition,  &FinishAction );
 
     while( !Finish.alldone() ) {
-	Drift.Attempt();
+        Drift.Attempt();
        Finish.Attempt();
     }
 

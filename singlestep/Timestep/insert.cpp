@@ -193,6 +193,7 @@ void InsertList::PartitionAndSort(int slab, uint64 *slabstart, uint64 *slablengt
     FinishSort.Start();
 
     //tbb::parallel_sort( &(il[t]), &(il[length]), GlobalSortOperator() );
+    //std::sort( &(il[t]), &(il[length]), GlobalSortOperator() );
     pss::parallel_stable_sort( &(il[t]), &(il[length]), GlobalSortOperator() );
     TotalLength += length;
     FinishSort.Stop();
