@@ -2,7 +2,7 @@ SimName = "example"
 #include "$ABACUS$/python/Abacus/directory.def"
 
 # For performance reasons, the following will often be in different locations than the default WorkingDirectory
-MultipoleDirectory = "$ABACUS_TMP$" + @SimName@ + "/multipoles/"
+MultipoleDirectory = "$ABACUS_TMP$/" + @SimName@ + "/multipoles/"
 RamDisk = 0
 OverwriteState = 0
 ICFormat = "RVZel"

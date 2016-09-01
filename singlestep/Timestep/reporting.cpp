@@ -180,7 +180,6 @@ void ReportTimings(FILE * timingfile) {
     double gdi_gpu = JJ->TotalDirectInteractions_GPU/1e9;
     fprintf(timingfile,"---> %6.3f effective GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, P.np/(thistime+1e-15)/1e6);
     double total_di = (JJ->DirectInteractions_CPU +JJ->TotalDirectInteractions_GPU)/1e9;
-    REPORT(1, "Spinning while waiting for GPU", WaitingForGPU.Elapsed()); total += thistime;
 #else
     REPORT(1, "NearForce", NearForce.Elapsed()); total += thistime;
     fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
@@ -370,6 +369,11 @@ void ReportTimings(FILE * timingfile) {
     fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
     REPORT(2, "Write Particles", WriteMergeSlab.Elapsed());
     REPORT(2, "Write Multipoles", WriteMultipoleSlab.Elapsed());
-
+    
+    fprintf(timingfile, "\n\n Breakdown of Spinning Time (approximate):");
+    denom = TimeStepWallClock.Elapsed()-total;
+    REPORT(2, "Not enough RAM to load slabs", Dependency::spin_timers[0].Elapsed());
+    REPORT(2, "Waiting for GPU", Dependency::spin_timers[1].Elapsed());
+    
     return;
 }
