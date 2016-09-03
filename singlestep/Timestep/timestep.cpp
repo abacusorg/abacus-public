@@ -39,6 +39,13 @@ STimer TimeStepWallClock;
 // -----------------------------------------------------------------
 
 int FetchSlabPrecondition(int slab) {
+    if(FetchSlabs.number_of_slabs_executed > 
+            Kick.number_of_slabs_executed + FETCHAHEAD ) {
+        // This was +1, but for non-blocking reads 
+        // I think we want to work one more ahead
+        return 0;
+    }
+
     if(LBW->total_allocation > .5*P.MAXRAMMB*1024LLU*1024LLU){
         // Are we spinning because we need more RAM?
         if(Dependency::spin_flags[0]){
@@ -50,12 +57,6 @@ int FetchSlabPrecondition(int slab) {
         return 0;
     }
     
-    if(FetchSlabs.number_of_slabs_executed > 
-            Kick.number_of_slabs_executed + FETCHAHEAD ) {
-        // This was +1, but for non-blocking reads 
-        // I think we want to work one more ahead
-        return 0;
-    }
     return 1;
 }
 
@@ -284,6 +285,23 @@ void OutputAction(int slab) {
 // -----------------------------------------------------------------
 
 int FetchLPTVelPrecondition(int slab){
+    // Don't read too far ahead
+    if(LPTVelocityReRead.number_of_slabs_executed > 
+            Drift.number_of_slabs_executed + 2*FINISH_WAIT_RADIUS) {
+        return 0;
+    }
+    
+    if(LBW->total_allocation > .5*P.MAXRAMMB*1024LLU*1024LLU){
+        // Are we spinning because we need more RAM?
+        if(Dependency::spin_flags[0]){
+            if(!Dependency::spin_timers[0].timeron)
+                Dependency::spin_timers[0].Start();
+        } else {
+            Dependency::spin_flags[0] = 1;
+        }
+        return 0;
+    }
+
     return 1;
 }
 
