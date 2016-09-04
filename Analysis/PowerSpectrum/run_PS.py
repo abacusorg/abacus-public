@@ -36,23 +36,7 @@ def ps_suffix(**kwargs):
 # we put the result in the same directory
 def get_output_path_ps(input):
     return os.path.dirname(input)
-
-# If the input is a directory,
-# we put the output in a new "_products" path
-def get_output_path(folder):
-    split = folder.split('/')
-    split = [''] + [s for s in split if len(s)]
-        
-    split[-1] = split[-1].replace('slice', 'z')
     
-    # Change emulator_00 to emulator_00_power
-    split[-3] += '_products'
-    split.insert(-2,split[-2] + '_products')
-    split[-2] += '_power'
-    outdir = '/'.join(split) + '/'
-    
-    return outdir
-
     
 def run_PS_on_dir(folder, **kwargs):
     patterns = [folder + '/*.dat', folder + '/ic_*', folder + '/position_*']
@@ -63,7 +47,7 @@ def run_PS_on_dir(folder, **kwargs):
     else:
         assert len(glob(pattern)) > 0, 'Could not find any matches to ' + str(patterns)
 
-    outdir = get_output_path(folder)
+    outdir = common.get_output_dir('power', folder)
     ps_fn = 'power'
 
     # Read the header
