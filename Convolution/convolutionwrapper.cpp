@@ -113,7 +113,7 @@ int main(int argc, char ** argv){
 	    strcpy(p.runtime_MultipoleDirectory,P.MultipoleDirectory);
 	    sprintf(p.runtime_MultipolePrefix, "Multipoles");
 	    p.runtime_NearFieldRadius = P.NearFieldRadius;
-	    strcpy(p.runtime_TaylorDirectory,P.WriteStateDirectory);
+	    strcpy(p.runtime_TaylorDirectory,P.TaylorDirectory);
 	    p.runtime_cpd = P.cpd;
 	    p.runtime_order = P.order;
 	    sprintf(p.runtime_TaylorPrefix, "Taylor");

@@ -124,10 +124,15 @@ FLOAT * density;
 
 #include <fenv.h>
 
-
+void load_slabsize(Parameters &P){
+    char filename[1024];
+    sprintf(filename,"%s/slabsize",P.ReadStateDirectory);
+    Slab->read(filename);
+    STDLOG(1,"Reading SlabSize file from %s\n", filename);
+}
 
 void Prologue(Parameters &P, bool ic) {
-    omp_set_nested(true);    
+    omp_set_nested(true);
 
     STDLOG(1,"Entering Prologue()\n");
     prologue.Clear();
@@ -165,11 +170,8 @@ void Prologue(Parameters &P, bool ic) {
 
     if(!ic) {
     	// ReadMaxCellSize(P);
-    	char filename[1024];
-    	sprintf(filename,"%s/slabsize",P.ReadStateDirectory);
-    	Slab->read(filename);
-    	STDLOG(1,"Reading SlabSize file from %s\n", filename);
-    	TY  = new SlabTaylor(order,cpd);
+        load_slabsize(P);
+        TY  = new SlabTaylor(order,cpd);
     	RL = new Redlack(cpd);
 
     	SlabForceTime = new STimer[cpd];

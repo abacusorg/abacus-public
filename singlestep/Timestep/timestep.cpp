@@ -395,8 +395,6 @@ void timestep(void) {
     TimeStepWallClock.Start();
     STDLOG(1,"Initiating timestep()\n");
 
-
-
     FORCE_WIDTH = P.NearFieldRadius;
     GROUP_WIDTH = 0;
     assertf(FORCE_WIDTH != -1, "Illegal FORCE_WIDTH: %d\n", FORCE_WIDTH);
@@ -501,6 +499,75 @@ void timestepIC(void) {
     TimeStepWallClock.Stop();
 }
 
+// ===================================================================
+// Multipole recovery mode
+
+int FetchPosSlabPrecondition(int slab) {
+    if(LBW->total_allocation > .5*P.MAXRAMMB*1024LLU*1024LLU){
+        // Are we spinning because we need more RAM?
+        if(Dependency::spin_flags[0]){
+            if(!Dependency::spin_timers[0].timeron)
+                Dependency::spin_timers[0].Start();
+        } else {
+            Dependency::spin_flags[0] = 1;
+        }
+        return 0;
+    }
+    return 1;
+}
+
+void FetchPosSlabAction(int slab) {
+    STDLOG(0,"Fetching slab %d with %d particles\n", slab, Slab->size(slab));
+    // Load all of the particle files together
+    LBW->LoadArenaNonBlocking(MergeCellInfoSlab,slab);
+    LBW->LoadArenaNonBlocking(MergePosSlab,slab);  // Load directly into the merge slabs
+    assertf(Slab->size(slab)*sizeof(posstruct)<=
+        fsize(LBW->ReadSlabDescriptorName(MergePosSlab,slab).c_str()),
+        "PosSlab size doesn't match prediction\n");
+    /*LBW->LoadArenaNonBlocking(AuxSlab,slab);
+    assertf(Slab->size(slab)*sizeof(auxstruct)<=
+        fsize(LBW->ReadSlabDescriptorName(AuxSlab,slab).c_str()),
+        "AuxSlab size doesn't match prediction\n");*/
+}
+
+int FinishMultipolesPrecondition(int slab) {
+    if( !LBW->IOCompleted( MergePosSlab,      slab )
+        || !LBW->IOCompleted( MergeCellInfoSlab, slab )
+        //|| !LBW->IOCompleted( AuxSlab,      slab )
+        ) return 0;
+    return 1;
+}
+
+void FinishMultipolesAction(int slab) {
+    STDLOG(1,"Finishing multipole slab %d\n", slab);
+        
+    // Make the multipoles
+    LBW->AllocateArena(MultipoleSlab,slab);
+    ComputeMultipoleSlab(slab);
+    
+    WriteMultipoleSlab.Start();
+    LBW->StoreArenaNonBlocking(MultipoleSlab,slab);
+    WriteMultipoleSlab.Stop();
+    
+    LBW->DeAllocate(MergePosSlab,slab);
+    LBW->DeAllocate(MergeCellInfoSlab,slab);
+}
 
 
+void timestepMultipoles(void) {
+    STDLOG(0,"Initiating timestepMultipoles()\n");
+    TimeStepWallClock.Clear();
+    TimeStepWallClock.Start();
 
+    int cpd = P.cpd; int first = 0;
+    FetchSlabs.instantiate(cpd, first, &FetchPosSlabPrecondition, &FetchPosSlabAction );
+    Finish.instantiate(cpd, first,  &FinishMultipolesPrecondition,  &FinishMultipolesAction );
+
+    while( !Finish.alldone() ) {
+        FetchSlabs.Attempt();
+            Finish.Attempt();
+    }
+
+    STDLOG(1,"Completing timestepMultipoles()\n");
+    TimeStepWallClock.Stop();
+}

@@ -3,7 +3,7 @@ VPATH = singlestep : Convolution : Derivatives : clibs : zeldovich-PLT
 all: clibs singlestep CreateDerivatives ConvolutionDriver zeldovich util tests analysis AbacusCosmo
 
 singlestep: libparseheader.a
-	cd singlestep && $(MAKE) $@
+	cd singlestep && $(MAKE) all
 
 CreateDerivatives:
 	cd Derivatives && $(MAKE) $@
