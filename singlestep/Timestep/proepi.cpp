@@ -81,12 +81,6 @@ SlabSize *Slab;
 
 #include "dependency.cpp"
 
-
-#include "direct.h"
-#include "direct.cpp"
-#include "directdriver.cpp"
-NearFieldDriver *JJ;
-
 // Need this for both insert.cpp and timestep.cpp.
 int FINISH_WAIT_RADIUS = 1;
 
@@ -94,6 +88,11 @@ int FINISH_WAIT_RADIUS = 1;
 #include "drift.cpp"
 #include "merge.cpp"
 #include "kick.cpp"
+
+#include "direct.h"
+#include "direct.cpp"
+#include "directdriver.cpp"
+NearFieldDriver *JJ;
 
 #include "basemultipoles.cpp"
 #include "redlack.cpp"

@@ -100,11 +100,6 @@ void NearForceAction(int slab) {
     STDLOG(1,"Computing near-field force for slab %d\n", slab);
     SlabForceTime[slab].Start();
         
-    accstruct *SA = (accstruct *) LBW->AllocateArena(NearAccSlab,slab);
-    JJ->ZeroAccel.Start();
-    ZeroAcceleration(slab,NearAccSlab);
-    JJ->ZeroAccel.Stop();
-
     JJ->ExecuteSlab(slab,P.ForceOutputDebug);
 
     SlabForceLatency[slab].Start();

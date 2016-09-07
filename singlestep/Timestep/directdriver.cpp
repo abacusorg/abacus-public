@@ -359,6 +359,12 @@ void NearFieldDriver::Finalize(int slab){
 
     if(P.ForceOutputDebug)
         CheckInteractionList(slab);
+    
+    LBW->AllocateArena(NearAccSlab,slab);
+    ZeroAccel.Start();
+    ZeroAcceleration(slab,NearAccSlab);
+    ZeroAccel.Stop();
+
 
     SetInteractionCollection ** Slices = SlabInteractionCollections[slab];
     int NSplit = SlabNSplit[slab];

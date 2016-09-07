@@ -250,7 +250,6 @@ void ReportTimings(FILE * timingfile) {
     fprintf(timingfile, "\t\t For performance reasons, the only wall-clock throughput we measure is for the overall GPU code.  \n");
     denom = NearForce.Elapsed();
     REPORT(1, "Blocking", NearForce.Elapsed());
-    REPORT(2, "Zero Acceleration", JJ->ZeroAccel.Elapsed());
     REPORT(2, "Calculate Direct Splits", JJ->CalcSplitDirects.Elapsed());
     
     REPORT(2, "Construct Pencils", JJ->Construction);
@@ -299,7 +298,7 @@ void ReportTimings(FILE * timingfile) {
             char buffer[500];
             const char* fmt = "Virtual device %d (GPU %d)";
             sprintf(buffer, fmt, g, g % NGPU);
-            REPORT(4, buffer, JJ->DeviceExecutionTimes[g]);
+            REPORT(3, buffer, JJ->DeviceExecutionTimes[g]);
             fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Msink/sec", JJ->DirectInteractions_GPU[g]/1e9/(thistime+1e-15), JJ->DirectInteractions_GPU[g]/1e9, JJ->DeviceSinks[g]/(thistime+1e-15)/1e6);
         }
     denom = total_gpu_time;
@@ -310,7 +309,7 @@ void ReportTimings(FILE * timingfile) {
             char buffer[500];
             const char* fmt = "Virtual device %d (GPU %d)";
             sprintf(buffer, fmt, g, g % NGPU);
-            REPORT(4, buffer, JJ->DeviceCopybackTimes[g]);
+            REPORT(3, buffer, JJ->DeviceCopybackTimes[g]);
             fprintf(timingfile,"---> %6.2f GB/s, %6.2f GB, %6.3f Msink/sec", JJ->GB_from_device[g]/(thistime+1e-15), JJ->GB_from_device[g], JJ->DeviceSinks[g]/(thistime+1e-15)/1e6);
         }
     
@@ -334,6 +333,8 @@ void ReportTimings(FILE * timingfile) {
     fprintf(timingfile, "\n\n Subdivisions of Kick:");
     denom = Kick.Elapsed();
     REPORT(1, "Finalize accelerations", JJ->FinalizeTimer.Elapsed());
+    denom = thistime;
+    REPORT(2, "Zero Acceleration", JJ->ZeroAccel.Elapsed());
     
     fprintf(timingfile, "\n");
     fprintf(timingfile, "\n\n Breakdown of Output Step:");
