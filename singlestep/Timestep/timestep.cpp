@@ -282,11 +282,16 @@ void OutputAction(int slab) {
 int FetchLPTVelPrecondition(int slab){
     // Don't read too far ahead
     if(LPTVelocityReRead.number_of_slabs_executed > 
-            Drift.number_of_slabs_executed + 2*FINISH_WAIT_RADIUS) {
+            Drift.number_of_slabs_executed + 2*FINISH_WAIT_RADIUS + 1) {
         return 0;
     }
     
-    if(LBW->total_allocation > .5*P.MAXRAMMB*1024LLU*1024LLU){
+    // Allow .75 instead of .5 here because FetchSlabs might
+    // eat up all the RAM.  The right way to do this is really to
+    // make load_ic_vel_slab non-blocking through the IO module,
+    // which first requires routing loadIC through the IO module.
+    // Then, we can move load_ic_vel_slab to FetchSlabs.
+    if(LBW->total_allocation > .75*P.MAXRAMMB*1024LLU*1024LLU){
         // Are we spinning because we need more RAM?
         if(Dependency::spin_flags[0]){
             if(!Dependency::spin_timers[0].timeron)
@@ -430,7 +435,8 @@ void timestep(void) {
            Finish.instantiate(cpd, first, &FinishPrecondition,        &FinishAction        );
            
 if(WriteState.Do2LPTVelocityRereading)
-LPTVelocityReRead.instantiate(cpd, first, &FetchLPTVelPrecondition,   &FetchLPTVelAction   );
+LPTVelocityReRead.instantiate(cpd, first + 2*FORCE_WIDTH + 1 - FINISH_WAIT_RADIUS,
+                                          &FetchLPTVelPrecondition,   &FetchLPTVelAction   );
 
     while( !Finish.alldone() ) {
            for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
