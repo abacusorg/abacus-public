@@ -20,7 +20,7 @@ public:
     int last_slab_executed;         // The last slab we did
     int (*precondition)(int slab);
     void (*action)(int slab);
-    #define NUM_SPIN_FLAGS 2
+    #define NUM_SPIN_FLAGS 3
     static int *spin_flags;
     static STimer *spin_timers;
 

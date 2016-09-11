@@ -30,6 +30,9 @@ STimer *SlabFarForceTime;
 
 STimer TaylorCompute;
 
+STimer AddAccel;
+STimer KickCellTimer;
+
 STimer DriftMoveRebin, DriftInsert;
 PTimer DriftMove, DriftRebin;
 

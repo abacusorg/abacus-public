@@ -45,6 +45,8 @@ class NearFieldDriver{
         STimer SICExecute;
         STimer CPUFallbackTimer;
         STimer FinalizeTimer;
+        STimer FinalizeBookkeeping;
+        STimer CopyPencilToSlab;
         STimer ZeroAccel;
 
     private:
@@ -376,6 +378,7 @@ void NearFieldDriver::Finalize(int slab){
 
     for(int n = 0; n < NSplit; n++){
         for(int w = 0; w < WIDTH; w++){
+            FinalizeBookkeeping.Start();
             int sliceIdx = w*NSplit + n;
             SetInteractionCollection *Slice = Slices[sliceIdx];
             int kl = Slice->K_low;
@@ -387,6 +390,7 @@ void NearFieldDriver::Finalize(int slab){
             //Slice->PrintInteractions();
             
             get_cuda_timers(Slice);
+            
             // Fetching the times in the callback didn't work, possibly because the timing information
             // didn't have time to be sync'd to the host.  By this point, it should have had time, but
             // let's notify if not.
@@ -417,9 +421,11 @@ void NearFieldDriver::Finalize(int slab){
             GB_to_device[g] += Slice->bytes_to_device/1e9;
             GB_from_device[g] += Slice->bytes_from_device/1e9;
             DeviceSinks[g] += Slice->SinkTotal;
+            
+            FinalizeBookkeeping.Stop();
 
+            CopyPencilToSlab.Start();
             int NThread = omp_get_max_threads();
-
             #pragma omp parallel for schedule(dynamic,1)
             for(int sinkIdx = 0; sinkIdx < Slice->NSinkList; sinkIdx++){
                 int SinkCount = Slice->SinkSetCount[sinkIdx];
@@ -428,7 +434,6 @@ void NearFieldDriver::Finalize(int slab){
                 int jj = w + j * width;
                 int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
                 int Start = Slice->SinkSetStart[sinkIdx];
-
 
                 for(int z=zmid-nfr; z <= zmid+nfr;z++){
                     int cid = PP->CellID(k,z);
@@ -454,6 +459,7 @@ void NearFieldDriver::Finalize(int slab){
                 }
                 assert(SinkCount == 0);
             }
+            CopyPencilToSlab.Stop();
 
             delete Slice;
         }

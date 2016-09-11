@@ -335,6 +335,11 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Finalize accelerations", JJ->FinalizeTimer.Elapsed());
     denom = thistime;
     REPORT(2, "Zero Acceleration", JJ->ZeroAccel.Elapsed());
+    REPORT(2, "Bookkeeping/Fetch Timings", JJ->FinalizeBookkeeping.Elapsed());
+    REPORT(2, "Copy Pencil to Slab", JJ->CopyPencilToSlab.Elapsed());
+    denom = Kick.Elapsed();
+    REPORT(1, "Add Near + Far Accel", AddAccel.Elapsed());
+    REPORT(1, "Kick Cell", KickCellTimer.Elapsed());
     
     fprintf(timingfile, "\n");
     fprintf(timingfile, "\n\n Breakdown of Output Step:");
@@ -374,6 +379,7 @@ void ReportTimings(FILE * timingfile) {
     fprintf(timingfile, "\n\n Breakdown of Spinning Time (approximate):");
     denom = TimeStepWallClock.Elapsed()-total;
     REPORT(1, "Not enough RAM to load slabs", Dependency::spin_timers[0].Elapsed());
+    REPORT(1, "Waiting for slab IO", Dependency::spin_timers[2].Elapsed());
     REPORT(1, "Waiting for GPU", Dependency::spin_timers[1].Elapsed());
     
     return;

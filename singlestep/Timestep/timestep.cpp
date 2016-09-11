@@ -86,7 +86,16 @@ int NearForcePrecondition(int slab) {
         if( !LBW->IOCompleted( CellInfoSlab, slab+i ) ||
             !LBW->IOCompleted( PosSlab,      slab+i ) ||
             !LBW->IOCompleted( VelSlab,      slab+i ) ||
-            !LBW->IOCompleted( AuxSlab,      slab+i ) ) return 0;
+            !LBW->IOCompleted( AuxSlab,      slab+i ) ) {
+            // Are we spinning because we're waiting for slab IO?
+            if(Dependency::spin_flags[2]){
+                if(!Dependency::spin_timers[2].timeron)
+                    Dependency::spin_timers[2].Start();
+            } else {
+                Dependency::spin_flags[2] = 1;
+            }
+            return 0;
+        }
     
     return 1;
 }
@@ -118,7 +127,16 @@ void NearForceAction(int slab) {
 
 int TaylorForcePrecondition(int slab) {
     if( NearForce.notdone(slab) ) return 0;
-    if( !LBW->IOCompleted(TaylorSlab,slab) ) return 0;
+    if( !LBW->IOCompleted(TaylorSlab,slab) ){
+        // Are we spinning because we're waiting for slab IO?
+        if(Dependency::spin_flags[2]){
+            if(!Dependency::spin_timers[2].timeron)
+                Dependency::spin_timers[2].Start();
+        } else {
+            Dependency::spin_flags[2] = 1;
+        }
+        return 0;
+    }
     return 1;
 }
 
@@ -179,9 +197,12 @@ void KickAction(int slab) {
     SlabForceLatency[slab].Stop();
     //If we are doing blocking forces, the finalization happens in NearForceAction
     if(!P.ForceOutputDebug && !P.ForceCPU)
-        JJ->Finalize(slab);    
+        JJ->Finalize(slab);
+    AddAccel.Start();
     RescaleAndCoAddAcceleration(slab);
+    AddAccel.Stop();
     int step = LPTStepNumber();
+    KickCellTimer.Start();
     if (step) {
         // We have LPT IC work to do
         if (step==1) {
@@ -201,6 +222,7 @@ void KickAction(int slab) {
         STDLOG(1,"Kicking slab %d by %f + %f\n", slab, kickfactor1, kickfactor2);
         KickSlab(slab, kickfactor1, kickfactor2, KickCell);
     }
+    KickCellTimer.Stop();
 }
 
 // -----------------------------------------------------------------
