@@ -286,6 +286,9 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID){
 
 
 void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
+    LBW->AllocateArena(NearAccSlab,slabID);
+    ZeroAcceleration(slabID,NearAccSlab);
+
     uint64 DI_slab = 0;
     uint64 NSink_CPU_slab = 0;
     #pragma omp parallel for schedule(dynamic,1) reduction(+:DI_slab,NSink_CPU_slab)
