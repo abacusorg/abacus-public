@@ -12,6 +12,9 @@ NB: When adding parameters, you should add:
 
 */
 
+#ifndef __PARAMETERS_CPP
+#define __PARAMETERS_CPP
+
 #define MAX_LINE_LENGTH 1024
 #define STRUNDEF "NONE"
 
@@ -62,6 +65,7 @@ public:
     char WriteStateDirectory[1024]; // Where the output State lives
     char PastStateDirectory[1024];  // Where the old input State lives
     char MultipoleDirectory[1024];
+    char TaylorDirectory[1024];
     char WorkingDirectory[1024];	// If Read/Write/Past not specified, where to put the states
     char LogDirectory[1024];
     char OutputDirectory[1024];     // Where the outputs go
@@ -145,7 +149,8 @@ public:
         ForceBlockingIO = 0;
     	installscalar("ForceBlockingIO",ForceBlockingIO,DONT_CARE);
 
-    	installscalar("DirectNewtonRaphson",DirectNewtonRaphson,MUST_DEFINE);  // 0 or 1
+        DirectNewtonRaphson = 1;
+    	installscalar("DirectNewtonRaphson",DirectNewtonRaphson,DONT_CARE);  // 0 or 1
 
     	installscalar("DerivativesDirectory",DerivativesDirectory,MUST_DEFINE);
 
@@ -158,18 +163,20 @@ public:
 
     	NumSlabsInsertList = 2.0;
     	installscalar("NumSlabsInsertList",NumSlabsInsertList,DONT_CARE);   
-    	NumSlabsInsertListIC = 0.0;
+    	NumSlabsInsertListIC = 4.0;
     	installscalar("NumSlabsInsertListIC",NumSlabsInsertListIC,DONT_CARE);   
 
     	sprintf(ReadStateDirectory,STRUNDEF);
     	sprintf(WriteStateDirectory,STRUNDEF);
     	sprintf(PastStateDirectory,STRUNDEF);
-    	sprintf(WorkingDirectory,STRUNDEF);
+        sprintf(WorkingDirectory,STRUNDEF);
+        
     	installscalar("ReadStateDirectory",ReadStateDirectory,DONT_CARE);  // Where the input State lives
     	installscalar("WriteStateDirectory",WriteStateDirectory,DONT_CARE); // Where the output State lives
     	installscalar("PastStateDirectory",PastStateDirectory,DONT_CARE);  // Where the old input State lives
-	installscalar("MultipoleDirectory",MultipoleDirectory,DONT_CARE);
-    	installscalar("WorkingDirectory",WorkingDirectory,DONT_CARE);
+        installscalar("WorkingDirectory",WorkingDirectory,DONT_CARE);
+        installscalar("MultipoleDirectory",MultipoleDirectory,MUST_DEFINE);
+        installscalar("TaylorDirectory",TaylorDirectory,MUST_DEFINE);
     	installscalar("LogDirectory",LogDirectory,MUST_DEFINE);
     	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
     	OutputEveryStep = 0;
@@ -457,3 +464,5 @@ void Parameters::ValidateParameters(void) {
 
 }
 Parameters P;
+
+#endif

@@ -35,26 +35,29 @@ Dependency LPTVelocityReRead;
 // The wall-clock time minus all of the above Timers might be a measure
 // of the spin-locked time in the timestep() loop.
 STimer TimeStepWallClock;
-STimer WaitingForGPU;
 
 // -----------------------------------------------------------------
 
 int FetchSlabPrecondition(int slab) {
-    if( FetchSlabs.number_of_slabs_executed == 0 ) {
-        return 1;
+    if(FetchSlabs.number_of_slabs_executed > 
+            Kick.number_of_slabs_executed + FETCHAHEAD ) {
+        // This was +1, but for non-blocking reads 
+        // I think we want to work one more ahead
+        return 0;
     }
-    else {
-	if (LBW->total_allocation > .5*P.MAXRAMMB*1024LLU*1024LLU) return 0;
-        if( FetchSlabs.number_of_slabs_executed > 
-                Kick.number_of_slabs_executed + FETCHAHEAD ) {
-		// This was +1, but for non-blocking reads 
-		// I think we want to work one more ahead
-            return 0;
+
+    if(LBW->total_allocation > .5*P.MAXRAMMB*1024LLU*1024LLU){
+        // Are we spinning because we need more RAM?
+        if(Dependency::spin_flags[0]){
+            if(!Dependency::spin_timers[0].timeron)
+                Dependency::spin_timers[0].Start();
+        } else {
+            Dependency::spin_flags[0] = 1;
         }
-        else {
-                return 1;
-        }
+        return 0;
     }
+    
+    return 1;
 }
 
 void FetchSlabAction(int slab) {
@@ -63,16 +66,16 @@ void FetchSlabAction(int slab) {
     LBW->LoadArenaNonBlocking(CellInfoSlab,slab);
     LBW->LoadArenaNonBlocking(PosSlab,slab);
     assertf(Slab->size(slab)*sizeof(posstruct)<=
-    	fsize(LBW->ReadSlabDescriptorName(PosSlab,slab).c_str()),
-	"PosSlab size doesn't match prediction\n");
+        fsize(LBW->ReadSlabDescriptorName(PosSlab,slab).c_str()),
+        "PosSlab size doesn't match prediction\n");
     LBW->LoadArenaNonBlocking(VelSlab,slab);
     assertf(Slab->size(slab)*sizeof(velstruct)<=
-    	fsize(LBW->ReadSlabDescriptorName(VelSlab,slab).c_str()),
-	"VelSlab size doesn't match prediction\n");
+        fsize(LBW->ReadSlabDescriptorName(VelSlab,slab).c_str()),
+        "VelSlab size doesn't match prediction\n");
     LBW->LoadArenaNonBlocking(AuxSlab,slab);
     assertf(Slab->size(slab)*sizeof(auxstruct)<=
-    	fsize(LBW->ReadSlabDescriptorName(AuxSlab,slab).c_str()),
-	"AuxSlab size doesn't match prediction\n");
+        fsize(LBW->ReadSlabDescriptorName(AuxSlab,slab).c_str()),
+        "AuxSlab size doesn't match prediction\n");
     LBW->LoadArenaNonBlocking(TaylorSlab,slab+FORCE_WIDTH);
 }
 
@@ -81,9 +84,18 @@ void FetchSlabAction(int slab) {
 int NearForcePrecondition(int slab) {
     for(int i=-FORCE_WIDTH;i<=FORCE_WIDTH;i++) 
         if( !LBW->IOCompleted( CellInfoSlab, slab+i ) ||
-	    !LBW->IOCompleted( PosSlab, slab+i ) ||
-	    !LBW->IOCompleted( VelSlab, slab+i ) ||
-	    !LBW->IOCompleted( AuxSlab, slab+i ) ) return 0;
+            !LBW->IOCompleted( PosSlab,      slab+i ) ||
+            !LBW->IOCompleted( VelSlab,      slab+i ) ||
+            !LBW->IOCompleted( AuxSlab,      slab+i ) ) {
+            // Are we spinning because we're waiting for slab IO?
+            if(Dependency::spin_flags[2]){
+                if(!Dependency::spin_timers[2].timeron)
+                    Dependency::spin_timers[2].Start();
+            } else {
+                Dependency::spin_flags[2] = 1;
+            }
+            return 0;
+        }
     
     return 1;
 }
@@ -91,26 +103,21 @@ int NearForcePrecondition(int slab) {
 void NearForceAction(int slab) {
     // Do some data checks
     assertf(are_cellinfo_legal(slab, Slab->size(slab)),
-        	"Cell info of slab %d contain out of bounds data\n", slab);
+            "Cell info of slab %d contain out of bounds data\n", slab);
     // Could also check that the sum of the cell counts add up to Slab.size
 
     STDLOG(1,"Computing near-field force for slab %d\n", slab);
     SlabForceTime[slab].Start();
         
-    accstruct *SA = (accstruct *) LBW->AllocateArena(NearAccSlab,slab);
-    JJ->ZeroAccel.Start();
-    ZeroAcceleration(slab,NearAccSlab);
-    JJ->ZeroAccel.Stop();
-
     JJ->ExecuteSlab(slab,P.ForceOutputDebug);
 
     SlabForceLatency[slab].Start();
     if (P.ForceOutputDebug) {
-    	// We want to output the NearAccSlab to the NearAcc file.
-    	// This must be a blocking write.
-    	JJ->Finalize(slab);
-    	LBW->WriteArena(NearAccSlab, slab, IO_KEEP, IO_BLOCKING,
-    	LBW->WriteSlabDescriptorName(NearAccSlab,slab).c_str());
+        // We want to output the NearAccSlab to the NearAcc file.
+        // This must be a blocking write.
+        JJ->Finalize(slab);
+        LBW->WriteArena(NearAccSlab, slab, IO_KEEP, IO_BLOCKING,
+        LBW->WriteSlabDescriptorName(NearAccSlab,slab).c_str());
     }
     
     //
@@ -120,7 +127,16 @@ void NearForceAction(int slab) {
 
 int TaylorForcePrecondition(int slab) {
     if( NearForce.notdone(slab) ) return 0;
-    if( !LBW->IOCompleted(TaylorSlab,slab) ) return 0;
+    if( !LBW->IOCompleted(TaylorSlab,slab) ){
+        // Are we spinning because we're waiting for slab IO?
+        if(Dependency::spin_flags[2]){
+            if(!Dependency::spin_timers[2].timeron)
+                Dependency::spin_timers[2].Start();
+        } else {
+            Dependency::spin_flags[2] = 1;
+        }
+        return 0;
+    }
     return 1;
 }
 
@@ -141,10 +157,10 @@ void TaylorForceAction(int slab) {
     TaylorCompute.Stop();
 
     if(P.ForceOutputDebug){
-    	// We want to output the AccSlab to the FarAcc file.
-    	// This must be a blocking write.
-    	LBW->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
-    			LBW->WriteSlabDescriptorName(FarAccSlab,slab).c_str());
+        // We want to output the AccSlab to the FarAcc file.
+        // This must be a blocking write.
+        LBW->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
+                LBW->WriteSlabDescriptorName(FarAccSlab,slab).c_str());
     }
     LBW->DeAllocate(TaylorSlab,slab);
     SlabFarForceTime[slab].Stop();
@@ -163,20 +179,15 @@ int KickPrecondition(int slab) {
     if (NearForce.notdone(slab) || !JJ->SlabDone(slab)) {
 #ifdef CUDADIRECT
         // Start the timer if we've gone one full loop without executing anything
-        if(Dependency::spinning){
-            if(!WaitingForGPU.timeron)
-                WaitingForGPU.Start();
+        if(Dependency::spin_flags[1]){
+            if(!Dependency::spin_timers[1].timeron)
+                Dependency::spin_timers[1].Start();
         } else {
-            Dependency::spinning = 1;
+            Dependency::spin_flags[1] = 1;
         }
 #endif
         return 0;
     }
-
-#ifdef CUDADIRECT
-    if(WaitingForGPU.timeron)
-        WaitingForGPU.Stop();
-#endif
 
     return 1;
 }
@@ -186,9 +197,12 @@ void KickAction(int slab) {
     SlabForceLatency[slab].Stop();
     //If we are doing blocking forces, the finalization happens in NearForceAction
     if(!P.ForceOutputDebug && !P.ForceCPU)
-        JJ->Finalize(slab);    
+        JJ->Finalize(slab);
+    AddAccel.Start();
     RescaleAndCoAddAcceleration(slab);
+    AddAccel.Stop();
     int step = LPTStepNumber();
+    KickCellTimer.Start();
     if (step) {
         // We have LPT IC work to do
         if (step==1) {
@@ -208,6 +222,7 @@ void KickAction(int slab) {
         STDLOG(1,"Kicking slab %d by %f + %f\n", slab, kickfactor1, kickfactor2);
         KickSlab(slab, kickfactor1, kickfactor2, KickCell);
     }
+    KickCellTimer.Stop();
 }
 
 // -----------------------------------------------------------------
@@ -222,7 +237,7 @@ int GroupPrecondition(int slab) {
 
 void GroupAction(int slab) {
     if (LPTStepNumber()) return;
-    	// We can't be doing group finding during an IC step
+    // We can't be doing group finding during an IC step
 
     STDLOG(1,"Finding groups for slab %d\n", slab);
     // No action yet, but this is where one would find groups and coevolution sets
@@ -243,42 +258,42 @@ void OutputAction(int slab) {
 
     int step = WriteState.FullStepNumber;
     if (LPTStepNumber()>0) return;
-    	// Some output might want to be skipped during an IC step,
-	// e.g., no light cones
+    // Some output might want to be skipped during an IC step,
+    // e.g., no light cones
 
     OutputTimeSlice.Start();
 
     if (ReadState.DoTimeSliceOutput) {
-    	STDLOG(1,"Outputting slab %d\n",slab);
-    	Output_TimeSlice(slab);
+        STDLOG(1,"Outputting slab %d\n",slab);
+        Output_TimeSlice(slab);
     }
     OutputTimeSlice.Stop();
 
     OutputLightCone.Start();
     if (ReadState.OutputIsAllowed) {
-    	for(int i = 0; i < P.NLightCones; i++){
-    		STDLOG(1,"Outputting LightCone %d (origin (%f,%f,%f)) for slab %d\n",i,LCOrigin[i].x,LCOrigin[i].y,LCOrigin[i].z,slab);
-    		makeLightCone(slab,i);
-    	}
+        for(int i = 0; i < P.NLightCones; i++){
+            STDLOG(1,"Outputting LightCone %d (origin (%f,%f,%f)) for slab %d\n",i,LCOrigin[i].x,LCOrigin[i].y,LCOrigin[i].z,slab);
+            makeLightCone(slab,i);
+        }
     }
     OutputLightCone.Stop();
 
     OutputBin.Start();
     if(ReadState.DoBinning){
-    	int zstride = PP->cpd /omp_get_max_threads();
+        int zstride = PP->cpd /omp_get_max_threads();
         int ystride = PP->cpd /omp_get_max_threads();
-	int minstride = 12;
-    	if (ystride < minstride) ystride = minstride;
-    	if (zstride < minstride) zstride = minstride;
-	int cpd = PP->cpd;
-    	STDLOG(1,"Binning particles for slab %d\n",slab);
-    #pragma omp parallel for schedule(dynamic,ystride)
-	for (int y=0;y<cpd;y++) {
-    		for (int z=0;z<cpd;z++) {
-    			Cell c = PP->GetCell(slab, y, z);
-    			tsc(c.pos,PP->CellCenter(slab,y,z),density,c.count(),P.PowerSpectrumN1d,1.0);
-    		}
-   	}
+        int minstride = 12;
+        if (ystride < minstride) ystride = minstride;
+        if (zstride < minstride) zstride = minstride;
+        int cpd = PP->cpd;
+        STDLOG(1,"Binning particles for slab %d\n",slab);
+        #pragma omp parallel for schedule(dynamic,ystride)
+        for (int y=0;y<cpd;y++) {
+            for (int z=0;z<cpd;z++) {
+                Cell c = PP->GetCell(slab, y, z);
+                tsc(c.pos,PP->CellCenter(slab,y,z),density,c.count(),P.PowerSpectrumN1d,1.0);
+            }
+        }
     }
     OutputBin.Stop();
 
@@ -287,6 +302,28 @@ void OutputAction(int slab) {
 // -----------------------------------------------------------------
 
 int FetchLPTVelPrecondition(int slab){
+    // Don't read too far ahead
+    if(LPTVelocityReRead.number_of_slabs_executed > 
+            Drift.number_of_slabs_executed + 2*FINISH_WAIT_RADIUS + 1) {
+        return 0;
+    }
+    
+    // Allow .75 instead of .5 here because FetchSlabs might
+    // eat up all the RAM.  The right way to do this is really to
+    // make load_ic_vel_slab non-blocking through the IO module,
+    // which first requires routing loadIC through the IO module.
+    // Then, we can move load_ic_vel_slab to FetchSlabs.
+    if(LBW->total_allocation > .75*P.MAXRAMMB*1024LLU*1024LLU){
+        // Are we spinning because we need more RAM?
+        if(Dependency::spin_flags[0]){
+            if(!Dependency::spin_timers[0].timeron)
+                Dependency::spin_timers[0].Start();
+        } else {
+            Dependency::spin_flags[0] = 1;
+        }
+        return 0;
+    }
+
     return 1;
 }
 
@@ -398,8 +435,6 @@ void timestep(void) {
     TimeStepWallClock.Start();
     STDLOG(1,"Initiating timestep()\n");
 
-
-
     FORCE_WIDTH = P.NearFieldRadius;
     GROUP_WIDTH = 0;
     assertf(FORCE_WIDTH != -1, "Illegal FORCE_WIDTH: %d\n", FORCE_WIDTH);
@@ -422,8 +457,8 @@ void timestep(void) {
            Finish.instantiate(cpd, first, &FinishPrecondition,        &FinishAction        );
            
 if(WriteState.Do2LPTVelocityRereading)
-LPTVelocityReRead.instantiate(cpd, first, &FetchLPTVelPrecondition,   &FetchLPTVelAction     );
-
+LPTVelocityReRead.instantiate(cpd, first + 2*FORCE_WIDTH + 1 - FINISH_WAIT_RADIUS,
+                                          &FetchLPTVelPrecondition,   &FetchLPTVelAction   );
 
     while( !Finish.alldone() ) {
            for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
@@ -442,7 +477,7 @@ LPTVelocityReRead.instantiate(cpd, first, &FetchLPTVelPrecondition,   &FetchLPTV
         IL->DumpParticles();
     
     assertf(IL->length==0, 
-    	"Insert List not empty (%d) at the end of timestep().  Time step too big?\n", IL->length);
+        "Insert List not empty (%d) at the end of timestep().  Time step too big?\n", IL->length);
 
     STDLOG(1,"Completing timestep()\n");
     TimeStepWallClock.Stop();
@@ -469,9 +504,9 @@ void FetchICAction(int slab) {
     LBW->AllocateArena(CellInfoSlab,slab);
     int cpd = PP->cpd;
     for (int y=0; y<cpd; y++)
-	for (int z=0; z<cpd; z++) {
-	    PP->CellInfo(slab,y,z)->makenull();
-	}
+        for (int z=0; z<cpd; z++) {
+            PP->CellInfo(slab,y,z)->makenull();
+        }
     return;
 }
 
@@ -489,7 +524,7 @@ void timestepIC(void) {
     Finish.instantiate(cpd, first,  &FinishPrecondition,  &FinishAction );
 
     while( !Finish.alldone() ) {
-	Drift.Attempt();
+        Drift.Attempt();
        Finish.Attempt();
     }
 
@@ -499,12 +534,81 @@ void timestepIC(void) {
     sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
     Slab->write(filename);
     assertf(IL->length==0,
-    	"Insert List not empty (%d) at the end of timestep().  Particles in IC files not sufficiently sorted?\n", IL->length);
+        "Insert List not empty (%d) at the end of timestep().  Particles in IC files not sufficiently sorted?\n", IL->length);
 
     STDLOG(1,"Completing timestepIC()\n");
     TimeStepWallClock.Stop();
 }
 
+// ===================================================================
+// Multipole recovery mode
+
+int FetchPosSlabPrecondition(int slab) {
+    if(LBW->total_allocation > .5*P.MAXRAMMB*1024LLU*1024LLU){
+        // Are we spinning because we need more RAM?
+        if(Dependency::spin_flags[0]){
+            if(!Dependency::spin_timers[0].timeron)
+                Dependency::spin_timers[0].Start();
+        } else {
+            Dependency::spin_flags[0] = 1;
+        }
+        return 0;
+    }
+    return 1;
+}
+
+void FetchPosSlabAction(int slab) {
+    STDLOG(0,"Fetching slab %d with %d particles\n", slab, Slab->size(slab));
+    // Load all of the particle files together
+    LBW->LoadArenaNonBlocking(MergeCellInfoSlab,slab);
+    LBW->LoadArenaNonBlocking(MergePosSlab,slab);  // Load directly into the merge slabs
+    assertf(Slab->size(slab)*sizeof(posstruct)<=
+        fsize(LBW->ReadSlabDescriptorName(MergePosSlab,slab).c_str()),
+        "PosSlab size doesn't match prediction\n");
+    /*LBW->LoadArenaNonBlocking(AuxSlab,slab);
+    assertf(Slab->size(slab)*sizeof(auxstruct)<=
+        fsize(LBW->ReadSlabDescriptorName(AuxSlab,slab).c_str()),
+        "AuxSlab size doesn't match prediction\n");*/
+}
+
+int FinishMultipolesPrecondition(int slab) {
+    if( !LBW->IOCompleted( MergePosSlab,      slab )
+        || !LBW->IOCompleted( MergeCellInfoSlab, slab )
+        //|| !LBW->IOCompleted( AuxSlab,      slab )
+        ) return 0;
+    return 1;
+}
+
+void FinishMultipolesAction(int slab) {
+    STDLOG(1,"Finishing multipole slab %d\n", slab);
+        
+    // Make the multipoles
+    LBW->AllocateArena(MultipoleSlab,slab);
+    ComputeMultipoleSlab(slab);
+    
+    WriteMultipoleSlab.Start();
+    LBW->StoreArenaNonBlocking(MultipoleSlab,slab);
+    WriteMultipoleSlab.Stop();
+    
+    LBW->DeAllocate(MergePosSlab,slab);
+    LBW->DeAllocate(MergeCellInfoSlab,slab);
+}
 
 
+void timestepMultipoles(void) {
+    STDLOG(0,"Initiating timestepMultipoles()\n");
+    TimeStepWallClock.Clear();
+    TimeStepWallClock.Start();
 
+    int cpd = P.cpd; int first = 0;
+    FetchSlabs.instantiate(cpd, first, &FetchPosSlabPrecondition, &FetchPosSlabAction );
+    Finish.instantiate(cpd, first,  &FinishMultipolesPrecondition,  &FinishMultipolesAction );
+
+    while( !Finish.alldone() ) {
+        FetchSlabs.Attempt();
+            Finish.Attempt();
+    }
+
+    STDLOG(1,"Completing timestepMultipoles()\n");
+    TimeStepWallClock.Stop();
+}

@@ -20,7 +20,9 @@ public:
     int last_slab_executed;         // The last slab we did
     int (*precondition)(int slab);
     void (*action)(int slab);
-    static int spinning;  // If this is set to 1, Dependency will set it to 0 if it executes an action
+    #define NUM_SPIN_FLAGS 3
+    static int *spin_flags;
+    static STimer *spin_timers;
 
     ~Dependency(void) { 
         if(_executed_status != NULL) 
@@ -51,20 +53,25 @@ public:
     int notdone(int s) { return _executed_status[wrap(s)]?0:1;  }
     int alldone(void) { return number_of_slabs_executed==cpd?1:0; }
 
-    void do_action(int slab) {  
+    void do_action(int slab) {
+        // We're taking an action!  Stop any spin timers
+        for(int i = 0; i < NUM_SPIN_FLAGS; i++){
+            spin_flags[i] = 0;
+            if(spin_timers[i].timeron)
+                spin_timers[i].Stop();
+        }
+        
         Start();
         (*action)(slab);
         Stop();
 	    _executed_status[slab] = 1;
 	    last_slab_executed = slab;
 	    number_of_slabs_executed++;
-        spinning = 0;
     }
 
     int wrap(int s) { while(s<0) s += cpd; while(s>=cpd) s -= cpd; return s; }
 
     void Attempt(void) {
-        //Start();
 	// Take at most one action.
         if(number_of_slabs_executed==0) {
             // never executed anything before 
@@ -81,10 +88,10 @@ public:
             int ws = wrap(last_slab_executed+1);
             if( notdone(ws) && precondition(ws) ) do_action(ws);
         }
-        //Stop();
     }
 };
 
-int Dependency::spinning = 0;
+int *Dependency::spin_flags = new int[NUM_SPIN_FLAGS];
+STimer *Dependency::spin_timers = new STimer[NUM_SPIN_FLAGS];
 
 #endif  // INCLUDE_DEPENDENCY

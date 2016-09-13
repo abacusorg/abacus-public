@@ -6,6 +6,7 @@
 *.a
 *.d
 singlestep/singlestep
+singlestep/make_multipoles
 singlestep/Makefile
 singlestep/Direct/Makefile
 singlestep/Multipoles/Makefile

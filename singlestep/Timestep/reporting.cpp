@@ -180,7 +180,6 @@ void ReportTimings(FILE * timingfile) {
     double gdi_gpu = JJ->TotalDirectInteractions_GPU/1e9;
     fprintf(timingfile,"---> %6.3f effective GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, P.np/(thistime+1e-15)/1e6);
     double total_di = (JJ->DirectInteractions_CPU +JJ->TotalDirectInteractions_GPU)/1e9;
-    REPORT(1, "Spinning while waiting for GPU", WaitingForGPU.Elapsed()); total += thistime;
 #else
     REPORT(1, "NearForce", NearForce.Elapsed()); total += thistime;
     fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
@@ -250,73 +249,72 @@ void ReportTimings(FILE * timingfile) {
     fprintf(timingfile, "\t\t \"Effective\" GDIPS is a wall-clock rate, but includes all copying time.\n");
     fprintf(timingfile, "\t\t For performance reasons, the only wall-clock throughput we measure is for the overall GPU code.  \n");
     denom = NearForce.Elapsed();
-    REPORT(2, "Blocking", NearForce.Elapsed());
-    REPORT(3, "Zero Acceleration", JJ->ZeroAccel.Elapsed());
-    REPORT(3, "Calculate Direct Splits", JJ->CalcSplitDirects.Elapsed());
+    REPORT(1, "Blocking", NearForce.Elapsed());
+    REPORT(2, "Calculate Direct Splits", JJ->CalcSplitDirects.Elapsed());
     
-    REPORT(3, "Construct Pencils", JJ->Construction);
+    REPORT(2, "Construct Pencils", JJ->Construction);
         denom = JJ->Construction;
-        REPORT(4, "Fill Source", JJ->FillSourceLists);
+        REPORT(3, "Fill Source", JJ->FillSourceLists);
             denom = JJ->FillSourceLists;
-            REPORT(5, "Count Sources",JJ->CountSources);
-            REPORT(5, "Calc Source Blocks",JJ->CalcSourceBlocks);
-            REPORT(5, "Fill Sources",JJ->FillSources);
+            REPORT(4, "Count Sources",JJ->CountSources);
+            REPORT(4, "Calc Source Blocks",JJ->CalcSourceBlocks);
+            REPORT(4, "Fill Sources",JJ->FillSources);
         denom = JJ->Construction;
-        REPORT(4, "Fill Sink", JJ->FillSinkLists);
+        REPORT(3, "Fill Sink", JJ->FillSinkLists);
             denom = JJ->FillSinkLists;
-            REPORT(5, "Count Sinks",JJ->CountSinks);
-            REPORT(5, "Calc Sink Blocks",JJ->CalcSinkBlocks);
-            REPORT(5, "Fill Sinks",JJ->FillSinks);
+            REPORT(4, "Count Sinks",JJ->CountSinks);
+            REPORT(4, "Calc Sink Blocks",JJ->CalcSinkBlocks);
+            REPORT(4, "Fill Sinks",JJ->FillSinks);
         denom = JJ->Construction;
-        REPORT(4, "Fill Interaction", JJ->FillInteractionList);
+        REPORT(3, "Fill Interaction", JJ->FillInteractionList);
     denom = NearForce.Elapsed();
-    REPORT(3, "Launch Interaction", JJ->SICExecute.Elapsed());
-    REPORT(3, "Launch Kernels [Non-blocking]", JJ->LaunchDeviceKernels);
-    REPORT(3, "CPU Fallback", JJ->CPUFallbackTimer.Elapsed());
+    REPORT(2, "Launch Interaction/No Free Device Thread", JJ->SICExecute.Elapsed());
+    REPORT(2, "Launch Kernels [Non-blocking]", JJ->LaunchDeviceKernels);
+    REPORT(2, "CPU Fallback", JJ->CPUFallbackTimer.Elapsed());
         fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_cpu/(thistime+1e-15), gdi_cpu, JJ->NSink_CPU/(thistime+1e-15)/1e6);
     
-    REPORT(2, "Non-Blocking Directs Throughput (Wall Clock)", GPUThroughputTime);
+    REPORT(1, "Non-Blocking Directs Throughput (Wall Clock)", GPUThroughputTime);
         fprintf(timingfile,"---> %6.3f effective GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, P.np/(thistime+1e-15)/1e6);
-    REPORT(2, "Non-Blocking Directs (GPU-seconds)", total_gpu_time);
+    REPORT(1, "Non-Blocking Directs (GPU-seconds)", total_gpu_time);
     fprintf(timingfile,"---> with NGPU = %d, estimate %.1f%% multi-threading overlap", NGPU,(total_gpu_time - GPUThroughputTime)/(total_gpu_time - total_gpu_time/NGPU)*100);
     denom = thistime;
     
-    REPORT(3, "Copy to device", total_copy_time);
+    REPORT(2, "Copy to device", total_copy_time);
     fprintf(timingfile,"---> %6.2f GB/s/GPU (%6.2f GB/s with perfect overlap), %6.2f GB, %6.3f Msink/sec/GPU", total_GB_to/(thistime+1e-15), total_GB_to/(thistime+1e-15)*NGPU, total_GB_to, total_sinks/(thistime+1e-15)/1e6);
         denom = thistime;
         for(int g = 0; g < NGPU*DirectBPD; g++){
             char buffer[500];
             const char* fmt = "Virtual device %d (GPU %d)";
             sprintf(buffer, fmt, g, g % NGPU);
-            REPORT(4, buffer, JJ->DeviceCopyTimes[g]);
+            REPORT(3, buffer, JJ->DeviceCopyTimes[g]);
             fprintf(timingfile,"---> %6.2f GB/s, %6.2f GB, %6.3f Msink/sec", JJ->GB_to_device[g]/(thistime+1e-15), JJ->GB_to_device[g], JJ->DeviceSinks[g]/(thistime+1e-15)/1e6);
         }
             
     denom = total_gpu_time;
-    REPORT(3, "Directs execution", total_execution_time);
+    REPORT(2, "Directs execution", total_execution_time);
     fprintf(timingfile,"---> %6.3f GDIPS/GPU (%6.3f GDIPS with perfect overlap), %6.3f Gdirects, %6.3f Msink/sec/GPU", gdi_gpu/(thistime+1e-15),gdi_gpu/(thistime+1e-15)*NGPU, gdi_gpu, P.np/(thistime+1e-15)/1e6);
         denom = thistime;
         for(int g = 0; g < NGPU*DirectBPD; g++){
             char buffer[500];
             const char* fmt = "Virtual device %d (GPU %d)";
             sprintf(buffer, fmt, g, g % NGPU);
-            REPORT(4, buffer, JJ->DeviceExecutionTimes[g]);
+            REPORT(3, buffer, JJ->DeviceExecutionTimes[g]);
             fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Msink/sec", JJ->DirectInteractions_GPU[g]/1e9/(thistime+1e-15), JJ->DirectInteractions_GPU[g]/1e9, JJ->DeviceSinks[g]/(thistime+1e-15)/1e6);
         }
     denom = total_gpu_time;
-    REPORT(3, "Copy to host", total_copyback_time);
+    REPORT(2, "Copy to host", total_copyback_time);
     fprintf(timingfile,"---> %6.2f GB/s/GPU (%6.2f GB/s with perfect overlap), %6.2f GB, %6.3f Msink/sec/GPU", total_GB_from/(thistime+1e-15), total_GB_from/(thistime+1e-15)*NGPU, total_GB_from, total_sinks/(thistime+1e-15)/1e6);
         denom = thistime;
         for(int g = 0; g < NGPU*DirectBPD; g++){
             char buffer[500];
             const char* fmt = "Virtual device %d (GPU %d)";
             sprintf(buffer, fmt, g, g % NGPU);
-            REPORT(4, buffer, JJ->DeviceCopybackTimes[g]);
+            REPORT(3, buffer, JJ->DeviceCopybackTimes[g]);
             fprintf(timingfile,"---> %6.2f GB/s, %6.2f GB, %6.3f Msink/sec", JJ->GB_from_device[g]/(thistime+1e-15), JJ->GB_from_device[g], JJ->DeviceSinks[g]/(thistime+1e-15)/1e6);
         }
     
 #else
-    REPORT(2, "CPU directs", NearForce.Elapsed());
+    REPORT(1, "CPU directs", NearForce.Elapsed());
         fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_cpu/(thistime+1e-15), gdi_cpu, JJ->NSink_CPU/(thistime+1e-15)/1e6);
 
 #endif
@@ -324,52 +322,65 @@ void ReportTimings(FILE * timingfile) {
     if (TY!=NULL) {    // Not in IC steps
         denom = TaylorCompute.Elapsed();
         fprintf(timingfile, "\n\n Subdivisions of Taylor Evaluate:");
-        REPORT(2, "Taylor Computation (S)", TaylorCompute.Elapsed());
+        REPORT(1, "Taylor Computation (S)", TaylorCompute.Elapsed());
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
-        REPORT(2, "Taylor FFT (S)", TY->FFTTaylor.Elapsed());
-        REPORT(2, "Taylor R to C (P)", TY->TaylorR2C.Elapsed());
-        REPORT(2, "Taylor ASM (P)", TY->TaylorASM.Elapsed());
-        REPORT(2, "Taylor Redlack (P)", RL->TaylorRedlack.Elapsed());
+        REPORT(1, "Taylor FFT (S)", TY->FFTTaylor.Elapsed());
+        REPORT(1, "Taylor R to C (P)", TY->TaylorR2C.Elapsed());
+        REPORT(1, "Taylor ASM (P)", TY->TaylorASM.Elapsed());
+        REPORT(1, "Taylor Redlack (P)", RL->TaylorRedlack.Elapsed());
     }
 
     fprintf(timingfile, "\n\n Subdivisions of Kick:");
     denom = Kick.Elapsed();
-    REPORT(2, "Finalize accelerations", JJ->FinalizeTimer.Elapsed());
+    REPORT(1, "Finalize accelerations", JJ->FinalizeTimer.Elapsed());
+    denom = thistime;
+    REPORT(2, "Zero Acceleration", JJ->ZeroAccel.Elapsed());
+    REPORT(2, "Bookkeeping/Fetch Timings", JJ->FinalizeBookkeeping.Elapsed());
+    REPORT(2, "Copy Pencil to Slab", JJ->CopyPencilToSlab.Elapsed());
+    denom = Kick.Elapsed();
+    REPORT(1, "Add Near + Far Accel", AddAccel.Elapsed());
+    REPORT(1, "Kick Cell", KickCellTimer.Elapsed());
     
     fprintf(timingfile, "\n");
     fprintf(timingfile, "\n\n Breakdown of Output Step:");
     denom = Output.Elapsed();
-    REPORT(2, "TimeSlice", OutputTimeSlice.Elapsed());
+    REPORT(1, "TimeSlice", OutputTimeSlice.Elapsed());
     fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
-    REPORT(2, "LightCone", OutputLightCone.Elapsed());
+    REPORT(1, "LightCone", OutputLightCone.Elapsed());
     fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
-    REPORT(2, "Binning", OutputBin.Elapsed());
+    REPORT(1, "Binning", OutputBin.Elapsed());
     fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
 
     fprintf(timingfile, "\n\n Subdivisions of Drift:");
     denom = Drift.Elapsed();
-    REPORT(2, "Move & Rebin (S)", DriftMoveRebin.Elapsed());
-    REPORT(2, "Inserting (S)",    DriftInsert.Elapsed());
-    REPORT(2, "Move (P)",         DriftMove.Elapsed());
-    REPORT(2, "Rebin (P)",        DriftRebin.Elapsed());
+    REPORT(1, "Move & Rebin (S)", DriftMoveRebin.Elapsed());
+    REPORT(1, "Inserting (S)",    DriftInsert.Elapsed());
+    REPORT(1, "Move (P)",         DriftMove.Elapsed());
+    REPORT(1, "Rebin (P)",        DriftRebin.Elapsed());
 
     fprintf(timingfile, "\n\n Subdivisions of Compute Multipole:");
     denom = ComputeMultipoles.Elapsed();
-    REPORT(2, "Multipole ASM (P)", MF->MultipoleASM.Elapsed());
-    REPORT(2, "Multipole C to R (S)", MF->MultipoleC2R.Elapsed());
-    REPORT(2, "Multipole FFT (S)", MF->FFTMultipole.Elapsed());
+    REPORT(1, "Multipole ASM (P)", MF->MultipoleASM.Elapsed());
+    REPORT(1, "Multipole C to R (S)", MF->MultipoleC2R.Elapsed());
+    REPORT(1, "Multipole FFT (S)", MF->FFTMultipole.Elapsed());
     
     fprintf(timingfile, "\n\n Breakdown of Finish Step:");
     denom = Finish.Elapsed();
-    REPORT(2, "Partition Insert List", FinishPartition.Elapsed());
-    REPORT(2, "Sort Insert List", FinishSort.Elapsed());
+    REPORT(1, "Partition Insert List", FinishPartition.Elapsed());
+    REPORT(1, "Sort Insert List", FinishSort.Elapsed());
     fprintf(timingfile,"---> %6.3f Mitem/sec (%.2g items)",IL->TotalLength/(thistime+1e-15)/1e6, IL->TotalLength);
-    REPORT(2, "Index Cells", FinishCellIndex.Elapsed());
-    REPORT(2, "Merge", FinishMerge.Elapsed());
-    REPORT(2, "Compute Multipoles", ComputeMultipoles.Elapsed());
+    REPORT(1, "Index Cells", FinishCellIndex.Elapsed());
+    REPORT(1, "Merge", FinishMerge.Elapsed());
+    REPORT(1, "Compute Multipoles", ComputeMultipoles.Elapsed());
     fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
-    REPORT(2, "Write Particles", WriteMergeSlab.Elapsed());
-    REPORT(2, "Write Multipoles", WriteMultipoleSlab.Elapsed());
-
+    REPORT(1, "Write Particles", WriteMergeSlab.Elapsed());
+    REPORT(1, "Write Multipoles", WriteMultipoleSlab.Elapsed());
+    
+    fprintf(timingfile, "\n\n Breakdown of Spinning Time (approximate):");
+    denom = TimeStepWallClock.Elapsed()-total;
+    REPORT(1, "Not enough RAM to load slabs", Dependency::spin_timers[0].Elapsed());
+    REPORT(1, "Waiting for slab IO", Dependency::spin_timers[2].Elapsed());
+    REPORT(1, "Waiting for GPU", Dependency::spin_timers[1].Elapsed());
+    
     return;
 }

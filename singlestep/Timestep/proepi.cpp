@@ -30,6 +30,9 @@ STimer *SlabFarForceTime;
 
 STimer TaylorCompute;
 
+STimer AddAccel;
+STimer KickCellTimer;
+
 STimer DriftMoveRebin, DriftInsert;
 PTimer DriftMove, DriftRebin;
 
@@ -81,12 +84,6 @@ SlabSize *Slab;
 
 #include "dependency.cpp"
 
-
-#include "direct.h"
-#include "direct.cpp"
-#include "directdriver.cpp"
-NearFieldDriver *JJ;
-
 // Need this for both insert.cpp and timestep.cpp.
 int FINISH_WAIT_RADIUS = 1;
 
@@ -94,6 +91,11 @@ int FINISH_WAIT_RADIUS = 1;
 #include "drift.cpp"
 #include "merge.cpp"
 #include "kick.cpp"
+
+#include "direct.h"
+#include "direct.cpp"
+#include "directdriver.cpp"
+NearFieldDriver *JJ;
 
 #include "basemultipoles.cpp"
 #include "redlack.cpp"
@@ -124,10 +126,15 @@ FLOAT * density;
 
 #include <fenv.h>
 
-
+void load_slabsize(Parameters &P){
+    char filename[1024];
+    sprintf(filename,"%s/slabsize",P.ReadStateDirectory);
+    Slab->read(filename);
+    STDLOG(1,"Reading SlabSize file from %s\n", filename);
+}
 
 void Prologue(Parameters &P, bool ic) {
-    omp_set_nested(true);    
+    omp_set_nested(true);
 
     STDLOG(1,"Entering Prologue()\n");
     prologue.Clear();
@@ -165,11 +172,8 @@ void Prologue(Parameters &P, bool ic) {
 
     if(!ic) {
     	// ReadMaxCellSize(P);
-    	char filename[1024];
-    	sprintf(filename,"%s/slabsize",P.ReadStateDirectory);
-    	Slab->read(filename);
-    	STDLOG(1,"Reading SlabSize file from %s\n", filename);
-    	TY  = new SlabTaylor(order,cpd);
+        load_slabsize(P);
+        TY  = new SlabTaylor(order,cpd);
     	RL = new Redlack(cpd);
 
     	SlabForceTime = new STimer[cpd];

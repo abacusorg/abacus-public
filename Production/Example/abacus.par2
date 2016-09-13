@@ -1,0 +1,55 @@
+SimName = "example"
+#include "$ABACUS$/python/Abacus/directory.def"
+
+# For performance reasons, the following will often be in different locations than the default WorkingDirectory
+MultipoleDirectory = "$ABACUS_TMP$/" + @SimName@ + "/multipoles/"
+RamDisk = 0
+OverwriteState = 0
+ICFormat = "RVZel"
+BoxSize = 256
+InitialRedshift = 49
+LagrangianPTOrder = 2
+NP = 512**3
+CPD = 135
+TimeStepAccel = .15
+TimeStepDlna = .03
+NumSlabsInsertList = 2
+NumSlabsInsertListIC = 8
+PowerSpectrumN1d = 256
+PowerSpectrumStepInterval = 30
+TimeSliceRedshifts = [1.0, 0.7, 0.57, 0.5, 0.3, 0.1]
+nTimeSlice = 6
+LightConeOrigins = ()
+NLightCones = 0
+OutputFormat = "Packed"
+SofteningLength = .0625 / @BoxSize@  # 62.5 kpc/h
+NearFieldRadius = 2
+Order = 8
+#GPUMinCellSinks = 20  # Currently non-functional
+H0 = 67.77
+hMpc = 1
+Omega_M = 0.3071
+Omega_DE = 1-@Omega_M@
+Omega_K = 0.
+w0 = -1
+wa = 0
+MAXRAMMB = 60000
+ICVelocity2Displacement = 1.0
+GroupRadius=2
+ICPositionRange = @BoxSize@
+DerivativeExpansionRadius = 8
+
+# Zeldovich parameters
+ZD_NumBlock = 4
+ZD_Pk_filename = "$ABACUS$/Production/camb_smallbox_new_pk_out.txt"
+ZD_Pk_scale = 1.0
+ZD_Pk_norm = 8.0
+Sigma8 = .817
+#ZD_Pk_sigma = @Sigma8@/(1+@InitialRedshift@)  # This will be calculated from Sigma8
+ZD_Pk_smooth = 0.0
+ZD_Seed = 12345
+ZD_qPLT = 1
+ZD_PLT_filename = "$ABACUS$/zeldovich-PLT/eigmodes128"
+ZD_qPLT_rescale = 1
+ZD_PLT_target_z = 5
+ZD_k_cutoff = 1.

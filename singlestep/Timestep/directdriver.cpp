@@ -45,6 +45,8 @@ class NearFieldDriver{
         STimer SICExecute;
         STimer CPUFallbackTimer;
         STimer FinalizeTimer;
+        STimer FinalizeBookkeeping;
+        STimer CopyPencilToSlab;
         STimer ZeroAccel;
 
     private:
@@ -108,6 +110,7 @@ NearFieldDriver::NearFieldDriver() :
     NGPU = GetNGPU();
     GPUMemoryGB = GetDeviceMemory();
     GPUMemoryGB = std::min(5.0e-9*P.np*sizeof(FLOAT3),GPUMemoryGB/(DirectBPD));
+    STDLOG(1, "Using %f GB of GPU memory (per device)\n", GPUMemoryGB);
     size_t BlockSizeBytes = sizeof(FLOAT) *3 * NFBlockSize;
     MaxSinkBlocks = floor(1e9 * GPUMemoryGB/(6*BlockSizeBytes));
     MaxSourceBlocks = 5 * MaxSinkBlocks;
@@ -281,6 +284,9 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID){
 
 
 void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
+    LBW->AllocateArena(NearAccSlab,slabID);
+    ZeroAcceleration(slabID,NearAccSlab);
+
     uint64 DI_slab = 0;
     uint64 NSink_CPU_slab = 0;
     #pragma omp parallel for schedule(dynamic,1) reduction(+:DI_slab,NSink_CPU_slab)
@@ -356,6 +362,12 @@ void NearFieldDriver::Finalize(int slab){
 
     if(P.ForceOutputDebug)
         CheckInteractionList(slab);
+    
+    LBW->AllocateArena(NearAccSlab,slab);
+    ZeroAccel.Start();
+    ZeroAcceleration(slab,NearAccSlab);
+    ZeroAccel.Stop();
+
 
     SetInteractionCollection ** Slices = SlabInteractionCollections[slab];
     int NSplit = SlabNSplit[slab];
@@ -367,6 +379,7 @@ void NearFieldDriver::Finalize(int slab){
 
     for(int n = 0; n < NSplit; n++){
         for(int w = 0; w < WIDTH; w++){
+            FinalizeBookkeeping.Start();
             int sliceIdx = w*NSplit + n;
             SetInteractionCollection *Slice = Slices[sliceIdx];
             int kl = Slice->K_low;
@@ -378,6 +391,7 @@ void NearFieldDriver::Finalize(int slab){
             //Slice->PrintInteractions();
             
             get_cuda_timers(Slice);
+            
             // Fetching the times in the callback didn't work, possibly because the timing information
             // didn't have time to be sync'd to the host.  By this point, it should have had time, but
             // let's notify if not.
@@ -408,9 +422,11 @@ void NearFieldDriver::Finalize(int slab){
             GB_to_device[g] += Slice->bytes_to_device/1e9;
             GB_from_device[g] += Slice->bytes_from_device/1e9;
             DeviceSinks[g] += Slice->SinkTotal;
+            
+            FinalizeBookkeeping.Stop();
 
+            CopyPencilToSlab.Start();
             int NThread = omp_get_max_threads();
-
             #pragma omp parallel for schedule(dynamic,1)
             for(int sinkIdx = 0; sinkIdx < Slice->NSinkList; sinkIdx++){
                 int SinkCount = Slice->SinkSetCount[sinkIdx];
@@ -419,7 +435,6 @@ void NearFieldDriver::Finalize(int slab){
                 int jj = w + j * width;
                 int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
                 int Start = Slice->SinkSetStart[sinkIdx];
-
 
                 for(int z=zmid-nfr; z <= zmid+nfr;z++){
                     int cid = PP->CellID(k,z);
@@ -445,6 +460,7 @@ void NearFieldDriver::Finalize(int slab){
                 }
                 assert(SinkCount == 0);
             }
+            CopyPencilToSlab.Stop();
 
             delete Slice;
         }

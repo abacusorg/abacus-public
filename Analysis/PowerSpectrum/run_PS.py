@@ -36,44 +36,31 @@ def ps_suffix(**kwargs):
 # we put the result in the same directory
 def get_output_path_ps(input):
     return os.path.dirname(input)
-
-# If the input is a directory,
-# we put the output in a new "_products" path
-def get_output_path(folder):
-    split = folder.split('/')
-    split = [''] + [s for s in split if len(s)]
-        
-    split[-1] = split[-1].replace('slice', 'z')
     
-    # Change emulator_00 to emulator_00_power
-    split[-3] += '_products'
-    split.insert(-2,split[-2] + '_products')
-    split[-2] += '_power'
-    outdir = '/'.join(split) + '/'
-    
-    return outdir
-
     
 def run_PS_on_dir(folder, **kwargs):
-    pattern = '{}/*.dat'.format(folder)
-    # Test the pattern
-    if len(glob(pattern)) == 0:
-        pattern = '{}/ic_*'.format(folder)
-    assert len(glob(pattern)) > 0, 'Could not find any *.dat or ic_* files'
+    patterns = [folder + '/*.dat', folder + '/ic_*', folder + '/position_*']
+    # Decide which pattern to use
+    for pattern in patterns:
+        if glob(pattern.format(folder)):
+            break
+    else:
+        assert len(glob(pattern)) > 0, 'Could not find any matches to ' + str(patterns)
 
-    outdir = get_output_path(folder)
+    outdir = common.get_output_dir('power', folder)
     ps_fn = 'power'
 
     # Read the header
-    try:
-        header_fn = folder+'/header'
-        header = InputFile.InputFile(folder+'/header')
-    except IOError:
+    header_pats = [folder + '/header', folder + '../info/*.par', folder + '/../*.par']
+    headers = sum([glob(h) for h in header_pats], [])
+    for header_fn in headers:
         try:
-            header_fn = glob(folder+'/../info/*.par')[0]
             header = InputFile.InputFile(header_fn)
-        except:
-            print 'Could not find "header" or "../info/*.par"'
+        except IOError:
+            continue
+        break
+    else:
+        print 'Could not find a header in ' + str(header_pats)
             
     # Make the output dir and store the header
     if not os.path.exists(outdir):
@@ -146,7 +133,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Compute power spectra on Abacus outputs or ICs.  Can also evaluate a power spectrum on an FFT mesh.')
     parser.add_argument('input', help='The timeslice outputs (or IC directories, or power spectrum file) on which to run PS', nargs='+')
     parser.add_argument('--nfft', help='The size of the FFT (side length of the FFT cube).  Default: 1024', default=1024, type=int)
-    parser.add_argument('--format', help='Format of the data to be read.  Default: Pack14', default='Pack14', choices=['RVdouble', 'Pack14', 'RVZel'])
+    parser.add_argument('--format', help='Format of the data to be read.  Default: Pack14', default='Pack14', choices=['RVdouble', 'Pack14', 'RVZel', 'state'])
     parser.add_argument('--rotate-to', help='Rotate the z-axis to the given axis [e.g. (1,2,3)].  Rotations will shrink the FFT domain by sqrt(3) to avoid cutting off particles.', default=False, type=vector_arg, metavar='(X,Y,Z)')
     parser.add_argument('--projected', help='Project the simulation along the z-axis.  Projections are done after rotations.', action='store_true')
     parser.add_argument('--zspace', help='Displace the particles according to their redshift-space positions.', action='store_true')

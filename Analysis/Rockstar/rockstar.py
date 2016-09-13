@@ -11,19 +11,16 @@ import numpy as np
 from Abacus.Tools import chdir
 import tarfile
 
-def get_outdir(slice_dir, downsample, suffix=''):
-    split = slice_dir.split('/')
-    split = [''] + [s for s in split if len(s)]
+def get_output_dir(indir, downsample, suffix=''):
+    outdir = common.output_dir('rockstar_halos', indir)
     
-    split[-3] += '_products'
-    split.insert(-2,split[-2] + '_products')
-    split[-1] = split[-1].replace('slice', 'z')
-    split[-2] += '_rockstar_halos' + suffix
-    if downsample > 1:
-        split[-2] += '_downsample{}'.format(downsample)
-    outdir = '/'.join(split)
-
+    if downsample != 1:
+        outdir += '_downsample{}'.format(downsample)
+        
+    outdir += suffix
+    
     return outdir
+
 
 def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=20, downsample=1, config_template_fn='abacus.cfg.template', SO=False, suffix=''):
     if downsample < 1:
@@ -47,7 +44,7 @@ def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=20, downsample=1, confi
         fn = slabs[0].split('/')[-1].replace('0000.dat','<block>.dat')
         
         # Set the output directory
-        outdir = get_outdir(slice_dir, downsample, suffix=suffix)
+        outdir = get_output_dir(slice_dir, downsample, suffix=suffix)
         
         if not os.path.exists(outdir):
             os.makedirs(outdir)
@@ -87,19 +84,6 @@ def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=20, downsample=1, confi
 
         return retcode
         
-def make_tar(slice_folders, downsample, cleanup):
-    for slice_folder in slice_folders:
-        halo_slice = get_outdir(slice_folder, downsample)
-        with chdir(halo_slice):
-            fns = glob('halo*')
-            with tarfile.open('halos.tar.gz', 'w:gz') as tar:
-                for fn in fns:
-                    tar.add(fn)
-            if cleanup:
-                for fn in fns:
-                    os.remove(fn)
-
-        
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run the Rockstar halo finder on Abacus outputs', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('slice_folders', help='The timeslice outputs on which to run Rockstar', nargs='+')
@@ -126,6 +110,8 @@ if __name__ == '__main__':
             retcode = run_rockstar(args.slice_folders, ncpu=args.ncpu, minmembers=args.minmembers, downsample=args.downsample, SO=args.SO, suffix=args.suffix)
     
     if args.tar_mode:
-        make_tar(args.slice_folders, args.downsample, args.tar_remove_source_files)
+        outdirs = [get_output_dir(s, args.downsample, suffix=args.suffix) for s in args.slice_folders]
+        common.make_tar(outdirs, 'halo*', 'halos.tar.gz', delete_source=args.tar_remove_source_files)
+
         
     exit(retcode)

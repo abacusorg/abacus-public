@@ -40,7 +40,7 @@ class SetInteractionCollection{
         uint64 bytes_to_device, bytes_from_device;
     
         // These are shared by all threads
-        static int ActiveThreads;
+        static volatile int ActiveThreads;
         static pthread_mutex_t GPUTimerMutex;
         static STimer GPUThroughputTimer;
 

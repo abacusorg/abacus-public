@@ -358,6 +358,7 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     assert( TemporarySpace != NULL);
     CS.totalMemoryAllocated += s;
 
+    // Create the Taylor files, erasing them if they existed
     for(int i=0;i<cpd;i++) {
         char fn[1024];
         sprintf(fn, "%s/%s_%04d", CP.runtime_TaylorDirectory, CP.runtime_TaylorPrefix, i);

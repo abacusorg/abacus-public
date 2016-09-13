@@ -3,23 +3,6 @@
 #define BIGNUM 1000000.0
 #define DATOLERANCE 1.e-12
 
-
-void AssertStateLegal() {
-    //make sure read state and parameters are compatible
-    assertf(ReadState.order_state == P.order, 
-	    "ReadState and Parameter order do not match, %d != %d\n", 
-	    ReadState.order_state, P.order);
-    assertf(ReadState.cpd_state == P.cpd, 
-	    "ReadState and Parameter cpd do not match, %d != %d\n", 
-	    ReadState.cpd_state, P.cpd);
-    assertf(ReadState.np_state == P.np, 
-	    "ReadState and Parameter np do not match, %d != %d\n", 
-	    ReadState.np_state, P.np);
-    assertf(ReadState.MaxCellSize < (2.048e9)/3,
-	    "The largest cell has %d particles, exceeding the allowed amount.\n",
-	    ReadState.MaxCellSize);
-}
-
 Cosmology *InitializeCosmology(double ScaleFactor) {
     // Be warned that all of the Cosmology routines quote time units
     // by what is entered as H0.  The code wants to use H0=1 units.
@@ -391,7 +374,7 @@ int main(int argc, char **argv) {
     	CheckDirectoryExists(P.ReadStateDirectory);
     	STDLOG(0,"Reading ReadState from %s\n",P.ReadStateDirectory);
     	ReadState.read_from_file(P.ReadStateDirectory);
-	AssertStateLegal();
+        ReadState.AssertStateLegal(P);
     	MakeIC = false;
 	// Handle some special cases
 	if (P.ForceOutputDebug==1) {
