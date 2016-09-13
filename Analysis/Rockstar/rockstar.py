@@ -8,7 +8,7 @@ import contextlib
 import shutil
 import pdb
 import numpy as np
-from Tools import chdir
+from Abacus.Tools import chdir
 import tarfile
 
 def get_outdir(slice_dir, downsample, suffix=''):

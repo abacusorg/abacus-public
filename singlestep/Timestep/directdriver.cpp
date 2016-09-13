@@ -147,12 +147,12 @@ NearFieldDriver::~NearFieldDriver()
     delete[] GB_to_device;
     delete[] GB_from_device;
     delete[] DeviceSinks;
+    
+    GPUReset();
 #endif
     for(int i =0; i < P.cpd*P.cpd; i++)
         pthread_mutex_destroy(&CellLock[i]);
     free(CellLock);
-    
-    GPUReset();
 }
 
 void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){

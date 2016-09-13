@@ -20,7 +20,7 @@ public:
     SHORT vscale, cpd;
     SHORT i,j,k;
 
-    cell_header() { vscale = 0; }
+    cell_header() { vscale = 0; cpd = 0; i = 0; j = 0; k = 0; }
     cell_header(SHORT ijk[3], SHORT _cpd, SHORT _vscale) { 
     	cpd = _cpd; vscale = _vscale; i = ijk[0]; j = ijk[1]; k = ijk[2];
     }
