@@ -48,12 +48,7 @@ int FetchSlabPrecondition(int slab) {
 
     if(LBW->total_allocation > .5*P.MAXRAMMB*1024LLU*1024LLU){
         // Are we spinning because we need more RAM?
-        if(Dependency::spin_flags[0]){
-            if(!Dependency::spin_timers[0].timeron)
-                Dependency::spin_timers[0].Start();
-        } else {
-            Dependency::spin_flags[0] = 1;
-        }
+        Dependency::NotifySpinning(0);
         return 0;
     }
     
@@ -88,12 +83,7 @@ int NearForcePrecondition(int slab) {
             !LBW->IOCompleted( VelSlab,      slab+i ) ||
             !LBW->IOCompleted( AuxSlab,      slab+i ) ) {
             // Are we spinning because we're waiting for slab IO?
-            if(Dependency::spin_flags[2]){
-                if(!Dependency::spin_timers[2].timeron)
-                    Dependency::spin_timers[2].Start();
-            } else {
-                Dependency::spin_flags[2] = 1;
-            }
+            Dependency::NotifySpinning(2);
             return 0;
         }
     
@@ -129,12 +119,7 @@ int TaylorForcePrecondition(int slab) {
     if( NearForce.notdone(slab) ) return 0;
     if( !LBW->IOCompleted(TaylorSlab,slab) ){
         // Are we spinning because we're waiting for slab IO?
-        if(Dependency::spin_flags[2]){
-            if(!Dependency::spin_timers[2].timeron)
-                Dependency::spin_timers[2].Start();
-        } else {
-            Dependency::spin_flags[2] = 1;
-        }
+        Dependency::NotifySpinning(2);
         return 0;
     }
     return 1;
@@ -179,12 +164,7 @@ int KickPrecondition(int slab) {
     if (NearForce.notdone(slab) || !JJ->SlabDone(slab)) {
 #ifdef CUDADIRECT
         // Start the timer if we've gone one full loop without executing anything
-        if(Dependency::spin_flags[1]){
-            if(!Dependency::spin_timers[1].timeron)
-                Dependency::spin_timers[1].Start();
-        } else {
-            Dependency::spin_flags[1] = 1;
-        }
+        Dependency::NotifySpinning(1);
 #endif
         return 0;
     }
@@ -315,12 +295,7 @@ int FetchLPTVelPrecondition(int slab){
     // Then, we can move load_ic_vel_slab to FetchSlabs.
     if(LBW->total_allocation > .75*P.MAXRAMMB*1024LLU*1024LLU){
         // Are we spinning because we need more RAM?
-        if(Dependency::spin_flags[0]){
-            if(!Dependency::spin_timers[0].timeron)
-                Dependency::spin_timers[0].Start();
-        } else {
-            Dependency::spin_flags[0] = 1;
-        }
+        Dependency::NotifySpinning(0);
         return 0;
     }
 
@@ -546,12 +521,7 @@ void timestepIC(void) {
 int FetchPosSlabPrecondition(int slab) {
     if(LBW->total_allocation > .5*P.MAXRAMMB*1024LLU*1024LLU){
         // Are we spinning because we need more RAM?
-        if(Dependency::spin_flags[0]){
-            if(!Dependency::spin_timers[0].timeron)
-                Dependency::spin_timers[0].Start();
-        } else {
-            Dependency::spin_flags[0] = 1;
-        }
+        Dependency::NotifySpinning(0);
         return 0;
     }
     return 1;

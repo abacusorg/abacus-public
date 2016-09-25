@@ -33,8 +33,6 @@ void AVXDirectDouble::compute(int nsrc, ThreeVector<double> *psrc,
 
     double conacc = conpot*conpot*conpot;
     
-    //double eps2 = eps*eps;
-
     for(int i=0; i<4; i++) {
         deltas->x[i] = delta.x;
         deltas->y[i] = delta.y;

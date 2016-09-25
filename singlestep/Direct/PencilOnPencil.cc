@@ -12,9 +12,9 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     CopybackTime = 0.;
     TotalTime = 0.;
 
+    eps = JJ->eps;
     
     //set known class variables
-    eps2 = P.SofteningLength * P.SofteningLength;
     CompletionFlag = 0;
     K_low = k_low;
     K_high = k_high;
@@ -304,8 +304,11 @@ int SetInteractionCollection::CheckCompletion(){
     return CompletionFlag;
 }
 
+// Currently Plummer only
 void SetInteractionCollection::CPUExecute(){
     int WIDTH = 2*P.NearFieldRadius + 1;
+    
+    FLOAT cpu_eps = JJ->SofteningLengthInternal*JJ->SofteningLengthInternal;
 
     for(int blockIdx = 0; blockIdx < NSinkBlocks; blockIdx++){
         #pragma omp parallel for schedule(dynamic,1)
@@ -347,7 +350,7 @@ void SetInteractionCollection::CPUExecute(){
                         dry = sourceY - sinkY;
                         drz = sourceZ - sinkZ;
 
-                        r = RSQRT( drx*drx + dry*dry + drz*drz  + eps2);
+                        r = RSQRT( drx*drx + dry*dry + drz*drz  + cpu_eps);
                         r *=r*r;
                         a.x -= r * drx;
                         a.y -= r * dry;
@@ -370,7 +373,7 @@ void SetInteractionCollection::CPUExecute(){
                         dry = sourceY - sinkY;
                         drz = sourceZ - sinkZ;
 
-                        r = RSQRT( drx*drx + dry*dry + drz*drz  + eps2);
+                        r = RSQRT( drx*drx + dry*dry + drz*drz  + cpu_eps);
                         r *=r*r;
                         a.x -= r * drx;
                         a.y -= r * dry;

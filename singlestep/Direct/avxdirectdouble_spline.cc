@@ -25,16 +25,14 @@ void AVXDirectDouble::storejpdata(int nsrc, ThreeVector<double> *psrc) {
 
 void AVXDirectDouble::compute(int nsrc, ThreeVector<double> *psrc, 
                            int nsink, ThreeVector<double> *psink, 
-                           double3 &delta, double eps2, 
+                           double3 &delta, double eps_inv, 
                            ThreeVector<double> *pacc) {
     
     double conpot = sqrt(2.0);
-
+    double eps = 1./eps_inv;  // Should change kernels to accept eps_inv
 
     double conacc = conpot*conpot*conpot;
     
-    eps2 = sqrt(eps2);
-
     for(int i=0; i<4; i++) {
         deltas->x[i] = delta.x;
         deltas->y[i] = delta.y;
@@ -50,13 +48,13 @@ void AVXDirectDouble::compute(int nsrc, ThreeVector<double> *psrc,
             ipdata->x[j] = psink[p+j].x;
             ipdata->y[j] = psink[p+j].y;
             ipdata->z[j] = psink[p+j].z;
-            ipdata->eps2[j] = eps2;
+            ipdata->eps2[j] = eps;
         }
         for(int j = e; j < 4; j++)
-            ipdata->eps2[j] = eps2;
+            ipdata->eps2[j] = eps;
 
         // applied all of the sources to these sinks
-        KernelAccPot(ipdata, jpdata, nsrc, deltas, eps2, accdata);
+        KernelAccPot(ipdata, jpdata, nsrc, deltas, eps, accdata);
 
         for(int j=0; j<e; j++) {
             pacc[p+j].x -= accdata->x[j];

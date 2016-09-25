@@ -27,11 +27,10 @@ void AVXDirectFloatNR::storejpdata(int nsrc, ThreeVector<float> *psrc) {
 
 void AVXDirectFloatNR::compute(int nsrc, ThreeVector<float> *psrc, 
                            int nsink, ThreeVector<float> *psink, 
-                           float3 &delta, float eps2, 
+                           float3 &delta, float eps_inv, 
                            ThreeVector<float> *pacc) {
     
-    
-    eps2 = sqrt(eps2);
+    float eps = 1./eps_inv;  // Should change kernels to accept eps_inv
 
     for(int i=0; i<8; i++) {
         deltas->x[i] = delta.x;
@@ -48,13 +47,13 @@ void AVXDirectFloatNR::compute(int nsrc, ThreeVector<float> *psrc,
             ipdata->x[j] = psink[p+j].x;
             ipdata->y[j] = psink[p+j].y;
             ipdata->z[j] = psink[p+j].z;
-            ipdata->eps2[j] = eps2;
+            ipdata->eps2[j] = eps;
         }
         for(int j = e; j < 8; j++)
-            ipdata->eps2[j] = eps2;
+            ipdata->eps2[j] = eps;
 
         // applied all of the sources to these sinks
-        KernelAccPot(ipdata, jpdata, nsrc, deltas, eps2, accdata);
+        KernelAccPot(ipdata, jpdata, nsrc, deltas, eps, accdata);
 
         for(int j=0; j<e; j++) {
             pacc[p+j].x -= accdata->x[j];

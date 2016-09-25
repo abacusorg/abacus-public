@@ -1353,7 +1353,7 @@ Optional Features:
   --enable-double         Double precision [no]
   --enable-avx            All AVX (overridden by individual options) [yes if
                           AVX present]
-  --enable-avx-directs    AVX directs [yes if AVX present]
+  --enable-avx-directs    AVX directs [no]
   --enable-avx-multipoles AVX multipoles [yes if AVX present]
   --enable-threaded-io    Threaded IO [yes]
   --enable-gpu-directs    GPU directs [yes if CUDA detected]
@@ -1371,7 +1371,7 @@ Optional Packages:
   --with-cuda=PREFIX      Prefix of your CUDA installation [/usr/local/cuda]
   --with-direct-bpd=B     Direct buffers-per-device [ceil((2*NFR+1)/NGPU) = 3]
   --with-max-gpus=M       Maximum number of GPUs to use [no limit]
-  --with-softening={plummer | spline | cubic}
+  --with-softening={plummer | single_spline | cubic_spline | cubic_plummer}
                           Near-force softening technique [plummer]
 
 Some influential environment variables:
@@ -5691,7 +5691,7 @@ fi
 if test "${enable_avx_directs+set}" = set; then :
   enableval=$enable_avx_directs;
 else
-  enable_avx_directs=$enable_avx
+  enable_avx_directs=no
 fi
 
 if test x$enable_avx_directs == xyes; then
@@ -6118,17 +6118,22 @@ fi
 if test "${with_softening+set}" = set; then :
   withval=$with_softening;
 else
-  with_softening="plummer"
+  with_softening="single_spline"
 fi
 
-if test "x$with_softening" == xcubic; then
+if test "x$with_softening" == xcubic_plummer; then
 	cat >>confdefs.h <<_ACEOF
-#define DIRECTCUBIC 1
+#define DIRECTCUBICPLUMMER 1
 _ACEOF
 
-elif test "x$with_softening" == xspline; then
+elif test "x$with_softening" == xcubic_spline; then
 	cat >>confdefs.h <<_ACEOF
-#define DIRECTSPLINE 1
+#define DIRECTCUBICSPLINE 1
+_ACEOF
+
+elif test "x$with_softening" == xsingle_spline; then
+	cat >>confdefs.h <<_ACEOF
+#define DIRECTSINGLESPLINE 1
 _ACEOF
 
 fi

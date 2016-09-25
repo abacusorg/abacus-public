@@ -131,8 +131,8 @@ double ChooseTimeStep(){
 	maxdrift *= ReadState.MaxAcceleration;
 	maxdrift /= P.TimeStepAccel*P.TimeStepAccel;
 	double da_eona = da;
-	if (maxdrift>WriteState.SofteningLength) {
-	    if(maxdrift >1e-12) da_eona *= sqrt(WriteState.SofteningLength/maxdrift);
+	if (maxdrift>JJ->SofteningLength) {  // Plummer-equivalent softening length
+	    if(maxdrift >1e-12) da_eona *= sqrt(JJ->SofteningLength/maxdrift);
 	    STDLOG(0,"da based on sqrt(epsilon/amax) is %f.\n", da_eona);
 	}
 	
@@ -160,7 +160,7 @@ double ChooseTimeStep(){
 }
 
 // A few actions that we need to do before choosing the timestep
-void InitWriteState(){
+void InitWriteState(int ic){
     // Even though we do this in BuildWriteState, we want to have the step number
     // available when we choose the time step.
     WriteState.FullStepNumber = ReadState.FullStepNumber+1;
@@ -172,11 +172,11 @@ void InitWriteState(){
         && (strcmp(P.ICFormat, "RVdoubleZel") == 0 || strcmp(P.ICFormat, "RVZel") == 0))
         WriteState.Do2LPTVelocityRereading = 1;
     
-    // Decrease the softening length if we are doing a 2LPT step
+    /*// Decrease the softening length if we are doing a 2LPT step
     // This helps ensure that we are using the true 1/r^2 force
     if(LPTStepNumber()>0){
-        WriteState.SofteningLength = P.SofteningLength / 1e4;
-        STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLength);
+        WriteState.SofteningLength = P.SofteningLength / 1e4;  // This might not be in the growing mode for this choice of softening, though
+        //STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLength);
         
         // Only have to do this because GPU gives bad forces sometimes, causing particles to shoot off.
         // Remove this once the GPU is reliable again
@@ -185,11 +185,30 @@ void InitWriteState(){
     }
     else{
         WriteState.SofteningLength = P.SofteningLength;
-    }
+    }*/
+    
+    WriteState.SofteningLength = P.SofteningLength;
+    
+    // Now scale the softening to match the minimum Plummer orbital period
+#if defined DIRECTCUBICSPLINE
+    strcpy(WriteState.SofteningType, "cubic_spline");
+    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 1.10064;
+#elif defined DIRECTSINGLESPLINE
+    strcpy(WriteState.SofteningType, "single_spline");
+    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 2.15517;
+#elif defined DIRECTCUBICPLUMMER
+    strcpy(WriteState.SofteningType, "cubic_plummer");
+    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 1.;
+#else
+    strcpy(WriteState.SofteningType, "plummer");
+    WriteState.SofteningLengthInternal = WriteState.SofteningLength;
+#endif
     
     if(WriteState.Do2LPTVelocityRereading)
         init_2lpt_rereading();
 
+    if(!ic)
+        JJ = new NearFieldDriver();
 }
 
 void BuildWriteState(double da){
@@ -201,14 +220,6 @@ void BuildWriteState(double da){
 	WriteState.order_state = P.order;
 	WriteState.ppd = P.ppd();
         
-#if defined DIRECTSPLINE
-    strcpy(WriteState.SofteningType, "spline");
-#elif defined DIRECTCUBIC
-    strcpy(WriteState.SofteningType, "cubic");
-#else
-    strcpy(WriteState.SofteningType, "plummer");
-#endif 
-
 	// Fill in the logistical reporting fields
 #ifdef GITVERSION	
 	STDLOG(0,"Git Hash = %s\n", GITVERSION);
@@ -393,7 +404,7 @@ int main(int argc, char **argv) {
     if (MakeIC) FillStateWithCosmology(ReadState);
     
     // Set some WriteState values before ChooseTimeStep()
-    InitWriteState();
+    InitWriteState(MakeIC);
     
     if (da!=0) da = ChooseTimeStep();
     STDLOG(0,"Chose Time Step da = %6.4f, dlna = %6.4f\n",da, da/ReadState.ScaleFactor);
@@ -403,7 +414,10 @@ int main(int argc, char **argv) {
     else fedisableexcept(FE_INVALID | FE_DIVBYZERO);
     
     BuildWriteState(da);
-    LCOrigin = (FLOAT3 *) P.LightConeOrigins;
+    LCOrigin = (FLOAT3 *) malloc(8*sizeof(FLOAT3));  // max 8 light cones
+    for(int i = 0; i < 8; i++)
+        LCOrigin[i] = ((FLOAT3*) P.LightConeOrigins)[i]/P.BoxSize;  // convert to unit-box units
+    
     // Make a plan for output
     PlanOutput(MakeIC);
 
@@ -435,6 +449,7 @@ int main(int argc, char **argv) {
     // The epilogue contains some tests of success.
     Epilogue(P,MakeIC);
     delete cosm;
+    free(LCOrigin);
 
     // The state should be written last, since that officially signals success.
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);

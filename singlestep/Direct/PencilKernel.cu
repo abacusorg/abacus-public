@@ -1,4 +1,5 @@
-__global__ void ComputeDirects(DeviceData d, FLOAT eps2){
+// eps may be 1/eps, eps^2, eps^3, etc, depending on the type of softening
+__global__ void ComputeDirects(DeviceData d, FLOAT eps){
 
     __shared__ FLOAT SourceCacheX[NFBlockSize];
     __shared__ FLOAT SourceCacheY[NFBlockSize];
@@ -22,12 +23,6 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps2){
 
 
     FLOAT3 a = {(FLOAT) 0.0,(FLOAT) 0.0,(FLOAT) 0.0};
-
-    #ifdef DIRECTSPLINE
-    eps2 = RSQRT(eps2);  // Direct spline uses 1/eps instead of eps^2
-    #elif defined DIRECTCUBIC
-    eps2 = eps2*eps2*RSQRT(eps2); // Direct cubic uses eps^3 instead of eps^2
-    #endif
     
     int InteractionStart = sinkIdx * WIDTH;
     int InteractionMax =  InteractionStart + WIDTH;
@@ -50,7 +45,7 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps2){
             FullDirectTile( SourceCacheX, SourceCacheY, SourceCacheZ,
                     &sinkX, &sinkY, &sinkZ,
                     &(a.x),&(a.y),&(a.z),
-                    &eps2);
+                    &eps);  // try non-pointer?
             __syncthreads();
 
         }
@@ -69,7 +64,7 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps2){
         PartialDirectTile(SourceCacheX, SourceCacheY, SourceCacheZ,
                 &sinkX, &sinkY, &sinkZ,
                 &(a.x),&(a.y),&(a.z),
-                &eps2, remaining);
+                &eps, remaining);
         __syncthreads();
     }
 

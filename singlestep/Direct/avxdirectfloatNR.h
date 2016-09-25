@@ -10,7 +10,7 @@ private:
 
   jpstruct<float> *jpdata;
   
-#ifdef DIRECTSPLINE
+#ifdef DIRECTCUBICSPLINE
   ipstruct<float,8> *ipdata;
   ipstruct<float,8> *deltas;
   apstruct<float,8> *accdata;

@@ -222,7 +222,12 @@ near-field.  Radius 1 means that each cell is acted on by itself and
 use radius 0!
 
 \param{SofteningLength}{float} The softening length used in the near-field
-force, in unit-box units. For example, .05/@BoxSize@ would yield a 50 kpc softening length.
+force, in the same units as BoxSize. For example, .05 would yield a 50 kpc softening length.
+This is the Plummer-equivalent length and maybe be internally converted to a different
+value depending on the softening technique being used.  This value is stored in the state as
+SofteningLengthInternal.  The conversion ensures that the minimum orbital period is always
+$\sqrt{GM/\epsilon}$ (i.e.~the minimum Plummer orbital period) independent of the
+softening technqiue being used.
 
 \param{DirectNewtonRaphson}{int} Choice of 1 means that we use a
 Newton-Raphson step to improve the precision of the forces.
@@ -349,7 +354,7 @@ time slices.  When redshifts appear in file names, it will be as ``z\%5.3f''.
 \param{LightConeOrigins}{float vector} The observation point
 of the light cones, in triples $(x,y,z)$.  Up to eight light cones 
 can be supplied.  The position need not be inside the primary 
-wrapping of the box.  The units are unit-box units.
+wrapping of the box.  The units are the same units as BoxSize.
 
 \param{OutputFormat}{string} Format for the time slice outputs.
 Options are: RVdouble, Packed, Heitmann, RVdoubleTag
@@ -780,6 +785,17 @@ WriteState.
 \param{StdDevCellSize}{double} The standard deviation of the the
 number of particles in a cell.  These are computed at the positions
 in WriteState.
+
+\param{SofteningTechnique}{string} The force law being employed.  Possible
+values are: ``plummer'', ``cubic\_plummer'', ``cubic\_spline'', ``single\_spline''.
+
+\param{SofteningLength}{double} The Plummer-equivalent softening length
+that the user inputs.  See the description in the Parameters section.
+Same units as BoxSize.
+
+\param{SofteningLengthInternal}{double} The softening length scaled
+for this particular softening technique to produce a minimum orbital
+period that matches Plummer.  Same units as BoxSize.
 
 
 \clearpage

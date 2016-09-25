@@ -3,6 +3,7 @@ SimName = "example"
 
 # For performance reasons, the following will often be in different locations than the default WorkingDirectory
 MultipoleDirectory = "$ABACUS_TMP$/" + @SimName@ + "/multipoles/"
+LightConeDirectory = "$ABACUS_TMP$/" + @SimName@ + "/"
 RamDisk = 0
 OverwriteState = 0
 ICFormat = "RVZel"
@@ -19,10 +20,10 @@ PowerSpectrumN1d = 256
 PowerSpectrumStepInterval = 30
 TimeSliceRedshifts = [1.0, 0.7, 0.57, 0.5, 0.3, 0.1]
 nTimeSlice = 6
-LightConeOrigins = ()
+LightConeOrigins = (0.,0.,0.)
 NLightCones = 0
 OutputFormat = "Packed"
-SofteningLength = .0625 / @BoxSize@  # 62.5 kpc/h
+SofteningLength = .0625  # 62.5 kpc/h, Plummer-equivalent
 NearFieldRadius = 2
 Order = 8
 #GPUMinCellSinks = 20  # Currently non-functional

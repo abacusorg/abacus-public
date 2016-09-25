@@ -74,7 +74,9 @@ class SetInteractionCollection{
 
         uint64 DirectTotal; //Number of directs for this interection collection
         uint64 SinkTotal;
-        FLOAT eps2;
+    
+        // Different softenings use different eps
+        FLOAT eps;
 
         int AssignedDevice;
         int Blocking;

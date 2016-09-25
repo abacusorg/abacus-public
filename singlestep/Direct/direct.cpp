@@ -1,9 +1,11 @@
 #ifdef AVXDIRECT
-    #ifdef DIRECTSPLINE
+    #ifdef DIRECTCUBICSPLINE
     #include "avxdirectdouble_spline.cc"
     #include "avxdirectfloatNR_spline.cc"
-    #elif defined DIRECTCUBIC
-    #error "AVX cubic softening not implemented yet"
+    #elif defined DIRECTCUBICPLUMMER
+    #error "AVX cubic plummer softening not implemented yet"
+    #elif defined DIRECTSINGLESPLINE
+    #error "AVX single spline not implemented yet"
     #else
     #include "avxdirectdouble.cc"
     #include "avxdirectfloatNR.cc"
@@ -25,28 +27,28 @@ Direct::~Direct(void) {
 #endif
 }
 
-void Direct::AVXExecute(FLOAT3 *sinks, FLOAT3 *sources, int nsinks, int nsources, FLOAT3 delta, FLOAT eps2, FLOAT3 *SA) {
+void Direct::AVXExecute(FLOAT3 *sinks, FLOAT3 *sources, int nsinks, int nsources, FLOAT3 delta, FLOAT eps, FLOAT3 *SA) {
     #ifdef AVXDIRECT
         #ifdef DOUBLEPRECISION
-            directdouble->compute(nsources, sources, nsinks, sinks, delta, eps2, SA);
+            directdouble->compute(nsources, sources, nsinks, sinks, delta, eps, SA);
         #else  
-            directfloatnr->compute(nsources, sources, nsinks, sinks, delta, eps2, SA);
+            directfloatnr->compute(nsources, sources, nsinks, sinks, delta, eps, SA);
         #endif
     
     #else 
-        Execute(sinks, sources, nsinks, nsources, delta, eps2, SA); 
+        Execute(sinks, sources, nsinks, nsources, delta, eps, SA); 
     #endif
 }
 
 #include "DirectCPUKernels.cc"
 
-void Direct::Execute(FLOAT3 *sinks, FLOAT3 *sources, int nsinks, int nsources, FLOAT3 delta, FLOAT eps2, FLOAT3 *SA) {
+void Direct::Execute(FLOAT3 *sinks, FLOAT3 *sources, int nsinks, int nsources, FLOAT3 delta, FLOAT eps, FLOAT3 *SA) {
     for(int q=0;q<nsinks;q++) {
         FLOAT3 acc = FLOAT3(0);
         FLOAT3 sink = delta+sinks[q];
         //#pragma simd
         for(int p=0;p<nsources;p++) {
-            directkernel<0>(sink,sources[p],acc,eps2);
+            directkernel<0>(sink,sources[p],acc,eps);
         }     
         SA[q] += acc;
     }

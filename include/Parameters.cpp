@@ -29,7 +29,7 @@ public:
     int order;
 
     int NearFieldRadius;    // Radius of cells in the near-field
-    double SofteningLength; // Softening length in unit box length
+    double SofteningLength; // Softening length in the same units as BoxSize
 
     int  DerivativeExpansionRadius;
     int  MAXRAMMB;
@@ -99,7 +99,7 @@ public:
     int  NLightCones;
 
 #ifdef DOUBLEPRECISION
-    double LightConeOrigins[24];
+    double LightConeOrigins[24];  // Same units as BoxSize
 #else
     float LightConeOrigins[24];
 #endif
@@ -137,7 +137,7 @@ public:
     	installscalar("Order",order,MUST_DEFINE);
 
     	installscalar("NearFieldRadius",NearFieldRadius,MUST_DEFINE);    // Radius of cells in the near-field
-    	installscalar("SofteningLength", SofteningLength,MUST_DEFINE); // Softening length in unit box lengths
+    	installscalar("SofteningLength", SofteningLength,MUST_DEFINE); // Softening length in the same units as BoxSize
     	installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
     	installscalar("MAXRAMMB", MAXRAMMB,MUST_DEFINE);
         ConvolutionCacheSizeMB = getCacheSize();
@@ -384,9 +384,9 @@ void Parameters::ValidateParameters(void) {
         assert(1==0);
     }
 
-    if( (SofteningLength <= 0) || (SofteningLength>1) ) {
+    if( (SofteningLength < 0) || (SofteningLength>BoxSize) ) {
         fprintf(stderr,
-            "[ERROR] SofteningLength = %e has to be in (0,1)\n",
+            "[ERROR] SofteningLength = %e has to be in [0,BoxSize)\n",
                 SofteningLength);
         assert(1==0);
     }

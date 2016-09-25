@@ -72,8 +72,8 @@ AC_ARG_ENABLE(avx,
 	[], enable_avx=$ax_cv_have_avx_cpu_ext)
 
 AC_ARG_ENABLE(avx-directs,
-[AS_HELP_STRING([--enable-avx-directs], [AVX directs [yes if AVX present]])],
-	[], enable_avx_directs=$enable_avx)
+[AS_HELP_STRING([--enable-avx-directs], [AVX directs [no]])],
+	[], enable_avx_directs=no)
 if test x$enable_avx_directs == xyes; then
 	AC_DEFINE_UNQUOTED(AVXDIRECT)
 fi
@@ -154,12 +154,14 @@ if test x"$with_max_gpus" != x"no limit"; then
 fi
 
 AC_ARG_WITH(softening,
-[AS_HELP_STRING([--with-softening={plummer | spline | cubic}], [Near-force softening technique [plummer]])],
-	[], with_softening="plummer")
-if test "x$with_softening" == xcubic; then
-	AC_DEFINE_UNQUOTED(DIRECTCUBIC)
-elif test "x$with_softening" == xspline; then
-	AC_DEFINE_UNQUOTED(DIRECTSPLINE)
+[AS_HELP_STRING([--with-softening={plummer | single_spline | cubic_spline | cubic_plummer}], [Near-force softening technique [plummer]])],
+	[], with_softening="single_spline")
+if test "x$with_softening" == xcubic_plummer; then
+	AC_DEFINE_UNQUOTED(DIRECTCUBICPLUMMER)
+elif test "x$with_softening" == xcubic_spline; then
+	AC_DEFINE_UNQUOTED(DIRECTCUBICSPLINE)
+elif test "x$with_softening" == xsingle_spline; then
+	AC_DEFINE_UNQUOTED(DIRECTSINGLESPLINE)
 fi
 
 # These will be added to the 

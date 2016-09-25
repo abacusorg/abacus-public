@@ -12,6 +12,8 @@ Also provides a timing wrapper to the actions.
 #ifndef INCLUDE_DEPENDENCY
 #define INCLUDE_DEPENDENCY
 
+#define NUM_SPIN_FLAGS 3
+
 class Dependency : public STimer {
 public:
     int cpd;
@@ -20,9 +22,10 @@ public:
     int last_slab_executed;         // The last slab we did
     int (*precondition)(int slab);
     void (*action)(int slab);
-    #define NUM_SPIN_FLAGS 3
+    
     static int *spin_flags;
     static STimer *spin_timers;
+    static STimer global_spin_timer;
 
     ~Dependency(void) { 
         if(_executed_status != NULL) 
@@ -60,6 +63,8 @@ public:
             if(spin_timers[i].timeron)
                 spin_timers[i].Stop();
         }
+        if(global_spin_timer.timeron)
+            global_spin_timer.Stop();
         
         Start();
         (*action)(slab);
@@ -89,9 +94,26 @@ public:
             if( notdone(ws) && precondition(ws) ) do_action(ws);
         }
     }
+    
+    static void NotifySpinning(int s){
+        assertf(s < NUM_SPIN_FLAGS, "Tried to use spin flag %d (only NUM_SPIN_FLAGS=%d exist)!", s, NUM_SPIN_FLAGS);
+        // If this is the first notification, we may not actually
+        // be spinning yet.
+        if(spin_flags[s]){
+            // If it's the second time, start the timer.
+            if(!spin_timers[s].timeron){
+                spin_timers[s].Start();
+                if(!global_spin_timer.timeron)
+                    global_spin_timer.Start();
+            }
+        } else {
+            spin_flags[s] = 1;
+        }
+    }
 };
 
-int *Dependency::spin_flags = new int[NUM_SPIN_FLAGS];
-STimer *Dependency::spin_timers = new STimer[NUM_SPIN_FLAGS];
+int *Dependency::spin_flags = new int[NUM_SPIN_FLAGS+1];
+STimer *Dependency::spin_timers = new STimer[NUM_SPIN_FLAGS+1];
+STimer Dependency::global_spin_timer;
 
 #endif  // INCLUDE_DEPENDENCY

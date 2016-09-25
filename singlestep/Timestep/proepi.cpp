@@ -95,7 +95,6 @@ int FINISH_WAIT_RADIUS = 1;
 #include "direct.h"
 #include "direct.cpp"
 #include "directdriver.cpp"
-NearFieldDriver *JJ;
 
 #include "basemultipoles.cpp"
 #include "redlack.cpp"
@@ -180,7 +179,6 @@ void Prologue(Parameters &P, bool ic) {
     	SlabForceLatency = new STimer[cpd];
     	SlabFarForceTime = new STimer[cpd];
 
-    	JJ = new NearFieldDriver();
     	RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
         
     } else {

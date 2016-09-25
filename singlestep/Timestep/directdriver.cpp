@@ -1,6 +1,7 @@
 //driver for directs
 
-#include "PencilOnPencil.cc"
+#include "StructureOfLists.cc"
+#include "SetInteractionCollection.hh"
 
 #ifdef CUDADIRECT
 #include "DeviceFunctions.h"
@@ -10,6 +11,10 @@ class NearFieldDriver{
     public:
         NearFieldDriver();
         ~NearFieldDriver();
+    
+        double SofteningLength;  // Effective Plummer length, used for timestepping.  Unit-box units.
+        double SofteningLengthInternal;  // The equivalent length for the current softening technique.  Unit-box units.
+        double eps; // Some power of SofteningLengthInternal, like ^2 or ^3, precomputed for the softening kernel
 
         void ExecuteSlab(int slabID, int blocking);
         int SlabDone(int slabID);
@@ -86,7 +91,20 @@ NearFieldDriver::NearFieldDriver() :
                   FillSources{0},
         FillInteractionList{0},
         LaunchDeviceKernels{0},
-        TotalDirectInteractions_GPU{0}
+        TotalDirectInteractions_GPU{0},
+            
+        SofteningLength{WriteState.SofteningLength/P.BoxSize},
+        SofteningLengthInternal{WriteState.SofteningLengthInternal/P.BoxSize},
+            
+        #ifdef DIRECTCUBICSPLINE
+        eps{1./SofteningLengthInternal}
+        #elif defined DIRECTCUBICPLUMMER
+        eps{SofteningLengthInternal*SofteningLengthInternal*SofteningLengthInternal}
+        #elif defined DIRECTSINGLESPLINE
+        eps{1./(SofteningLengthInternal*SofteningLengthInternal)}
+        #else
+        eps{SofteningLengthInternal*SofteningLengthInternal}
+        #endif
 {
     int nthread = omp_get_max_threads();
     STDLOG(1,
@@ -238,7 +256,6 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 }
 
 void NearFieldDriver::CheckGPUCPU(int slabID){
-    return;
 // Computes the CPU result to compare to the GPU result
 // but does not overwrite the GPU forces.
     size_t len = Slab->size(slabID) *sizeof(accstruct);
@@ -276,6 +293,8 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
     }
     free(a_cpu);
     free(a_tmp);
+    
+    STDLOG(1,"GPU-CPU comparison passed for slab %d\n", slabID);
 }
 
 void NearFieldDriver::ExecuteSlabCPU(int slabID){
@@ -284,8 +303,13 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID){
 
 
 void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
-    LBW->AllocateArena(NearAccSlab,slabID);
+    if(!LBW->IDPresent(NearAccSlab, slabID))
+        LBW->AllocateArena(NearAccSlab,slabID);
     ZeroAcceleration(slabID,NearAccSlab);
+    
+    #ifdef DIRECTSINGLESPLINE
+    FLOAT inv_eps3 = 1./(SofteningLengthInternal*SofteningLengthInternal*SofteningLengthInternal);
+    #endif
 
     uint64 DI_slab = 0;
     uint64 NSink_CPU_slab = 0;
@@ -307,11 +331,15 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
                         FLOAT3 delta = PP->CellCenter(slabID,y,z)-PP->CellCenter(i,j,k);
                         uint64 np_source = PP->NumberParticle(i,j,k);
                         if(np_source >0) DD[g].AVXExecute(sink_pos,source_pos,np_sink,np_source,
-                                delta,WriteState.SofteningLength*WriteState.SofteningLength,sink_acc);
-                        DI_slab+=np_sink*np_source;
+                                delta,eps,sink_acc);
+                        DI_slab += np_sink*np_source;
                     }
                 }
             }
+            #ifdef DIRECTSINGLESPLINE
+            for(uint64 i = 0; i < np_sink; i++)
+                sink_acc[i] *= inv_eps3;
+            #endif
         }
     }
     DirectInteractions_CPU += DI_slab;
@@ -359,6 +387,10 @@ void NearFieldDriver::Finalize(int slab){
 
     assertf(SlabDone(slab) != 0,
             "Finalize called for slab %d but it is not complete\n",slab);
+            
+    #ifdef DIRECTSINGLESPLINE
+    FLOAT inv_eps3 = 1./(SofteningLengthInternal*SofteningLengthInternal*SofteningLengthInternal);
+    #endif
 
     if(P.ForceOutputDebug)
         CheckInteractionList(slab);
@@ -367,7 +399,6 @@ void NearFieldDriver::Finalize(int slab){
     ZeroAccel.Start();
     ZeroAcceleration(slab,NearAccSlab);
     ZeroAccel.Stop();
-
 
     SetInteractionCollection ** Slices = SlabInteractionCollections[slab];
     int NSplit = SlabNSplit[slab];
@@ -451,8 +482,14 @@ void NearFieldDriver::Finalize(int slab){
                     }
 
                     #pragma simd
-                    for(int p = 0; p <CellNP; p++)
+                    for(int p = 0; p <CellNP; p++){
+                        // It's not good to know about spline here, but it's likely the most efficient way
+                        #ifdef DIRECTSINGLESPLINE
+                        a[p] += Slice->SinkSetAccelerations[Start +p]*inv_eps3;
+                        #else
                         a[p] += Slice->SinkSetAccelerations[Start +p];
+                        #endif
+                    }
                     pthread_mutex_unlock(&CellLock[cid]);
 
                     Start+=CellNP;
@@ -539,7 +576,11 @@ void NearFieldDriver::CheckInteractionList(int slab){
     delete[] il;
     delete[] il_test;
     
-    //STDLOG(1,"Checking the interaction list for slab %d passed.\n", slab);
+    STDLOG(1,"Checking the interaction list for slab %d passed.\n", slab);
     //Checking the interaction list is time-consuming
     //it should never be done in an actual run
 }
+    
+NearFieldDriver *JJ;
+    
+#include "PencilOnPencil.cc"

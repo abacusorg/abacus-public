@@ -154,6 +154,10 @@ void ReportTimings(FILE * timingfile) {
     total = 0.0;
     denom = TimeStepWallClock.Elapsed();
     REPORT(1, "FetchSlabs", FetchSlabs.Elapsed()); total += thistime;
+    
+    // Add up the time spent spinning
+    double spinning = Dependency::global_spin_timer.Elapsed();
+    
 #ifdef CUDADIRECT
     int NGPU = GetNGPU();
     
@@ -199,7 +203,8 @@ void ReportTimings(FILE * timingfile) {
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
     REPORT(1, "Finish", Finish.Elapsed()); total += thistime;
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
-    REPORT(1, "Unaccounted (spinning?)", TimeStepWallClock.Elapsed()-total);
+    REPORT(1, "Spinning", spinning); total += thistime;
+    REPORT(1, "Unaccounted", TimeStepWallClock.Elapsed()-total);
 
     fprintf(timingfile, "\n\n Breakdown per slab (Wall Clock)");
     double slabforcetimemean = 0;
@@ -276,7 +281,7 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Non-Blocking Directs Throughput (Wall Clock)", GPUThroughputTime);
         fprintf(timingfile,"---> %6.3f effective GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, P.np/(thistime+1e-15)/1e6);
     REPORT(1, "Non-Blocking Directs (GPU-seconds)", total_gpu_time);
-    fprintf(timingfile,"---> with NGPU = %d, estimate %.1f%% multi-threading overlap", NGPU,(total_gpu_time - GPUThroughputTime)/(total_gpu_time - total_gpu_time/NGPU)*100);
+    fprintf(timingfile,"---> with NGPU = %d, estimate %.1f%% GPU concurrency", NGPU,(total_gpu_time - GPUThroughputTime)/(total_gpu_time - total_gpu_time/NGPU)*100);
     denom = thistime;
     
     REPORT(2, "Copy to device", total_copy_time);
@@ -376,8 +381,9 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Write Particles", WriteMergeSlab.Elapsed());
     REPORT(1, "Write Multipoles", WriteMultipoleSlab.Elapsed());
     
-    fprintf(timingfile, "\n\n Breakdown of Spinning Time (approximate):");
-    denom = TimeStepWallClock.Elapsed()-total;
+    fprintf(timingfile, "\n\n Reasons for Spinning:");
+    fprintf(timingfile, "\n\t\t Note: may add up to > 100%%");
+    denom = spinning;
     REPORT(1, "Not enough RAM to load slabs", Dependency::spin_timers[0].Elapsed());
     REPORT(1, "Waiting for slab IO", Dependency::spin_timers[2].Elapsed());
     REPORT(1, "Waiting for GPU", Dependency::spin_timers[1].Elapsed());

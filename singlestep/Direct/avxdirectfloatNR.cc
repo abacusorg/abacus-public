@@ -47,8 +47,6 @@ void AVXDirectFloatNR::compute(int nsrc, ThreeVector<float> *psrc,
 
     float conacc = conpot*conpot*conpot;
     
-    //float eps2 = eps*eps;
-
     for(int i=0; i<4; i++) {
         deltas->x[i] = (float)delta.x;
         deltas->y[i] = (float)delta.y;
