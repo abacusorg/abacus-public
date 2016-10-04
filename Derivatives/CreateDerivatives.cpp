@@ -26,7 +26,7 @@ ULLI linearFFTW(int i, int j, int k) {
     int indx_j = j<0?CPD+j:j;
     int indx_k = k<0?CPD+k:k;
 
-    int l = indx_i*CPD*CPD + indx_j*CPD + indx_k;
+    ULLI l = indx_i*CPD*CPD + indx_j*CPD + indx_k;
     assert(l>=0);
     assert(l<CPD*CPD*CPD);
     return l;
