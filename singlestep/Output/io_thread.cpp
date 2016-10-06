@@ -217,9 +217,6 @@ void makeiopipes(void) {
     	"Error creating pipe IO_ACK_PIPE\n");
 }
 
-// Removes io pipes, with flag to force sudo for stubborn files
-// i.e. those created by other users
-// Will automatically try sudo if non-sudo fails
 void remove_io_pipes(void) {
     // Must remove old files
     STDLOG(1,"Deleting io pipe files\n");
@@ -227,18 +224,16 @@ void remove_io_pipes(void) {
     const char* rm_fmt = "rm -f %s";
     int ret = 0;
     if (FileExists(IO_ACK_PIPE)) {
-	sprintf(cmd, rm_fmt, IO_ACK_PIPE);
+        sprintf(cmd, rm_fmt, IO_ACK_PIPE);
         ret = system(cmd);
     }
-    assertf((ret!=-1)||(errno==EEXIST),
-    	"Error removing pipe IO_ACK_PIPE\n");
+    assertf(ret == 0, "Error removing pipe IO_ACK_PIPE=\"%s\"\n", IO_ACK_PIPE);
     
     if (FileExists(IO_CMD_PIPE)) {
-	sprintf(cmd, rm_fmt, IO_CMD_PIPE);
-        ret += system(cmd);
+        sprintf(cmd, rm_fmt, IO_CMD_PIPE);
+        ret = system(cmd);
     }
-    assertf((ret!=-1)||(errno==EEXIST),
-    	"Error removing pipe IO_CMD_PIPE\n");
+    assertf(ret == 0, "Error removing pipe IO_CMD_PIPE=\"%s\"\n", IO_CMD_PIPE);
 }
 
 int io_cmd, io_ack;     // The pipe descriptor numbers

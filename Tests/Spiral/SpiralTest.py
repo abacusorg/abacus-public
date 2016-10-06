@@ -15,22 +15,11 @@ from mpl_toolkits.mplot3d import Axes3D
 import ctypes as ct
 import subprocess
 
-
-
-#we have to do a little bit of trickery to import things from the abacus/python directory
-abacuspath = os.getenv("ABACUS","NONE")
-if abacuspath == "NONE":
-    print("Error: Please define $ABACUS to be the absolute path to your abacus distribution")
-    sys.exit(1)
-abacuspythondir = abacuspath+"/python/"
-if abacuspythondir not in sys.path:
-    sys.path.insert(0, abacuspythondir)
-
-
 from Abacus import abacus
 from Abacus import GenParam
 from Abacus import InputFile
 from Abacus import Tools
+abacuspath = abacus.abacuspath
 
 def run(basedir = "NONE"):
     tmpdir = ""
@@ -51,19 +40,19 @@ def run(basedir = "NONE"):
 
     kvec = (1,0,0)
     phase = (np.pi,0,0)
-    n1d = 128
+    n1d = 512
     ainitial = 0.09
     across = 0.2
-    astop =  0.19
+    astop =  0.11
     sf = .1/n1d#7.5e-03
 
 
     #check if we are done
     if not os.path.exists(basedir+"write/state"):
-        params = GenParam.makeInput(basedir+"spiral.par", abacuspath +"/Tests/Spiral/spiral.par2", NP = n1d**3,nTimeSlice = 1, TimeSliceRedshifts = 1/astop -1, SofteningLength = sf,InitialRedshift = 1/ainitial -1,CPD = 15,BoxSize = 17.3205080756888,WorkingDirectory = basedir)
+        params = GenParam.makeInput(basedir+"spiral.par", abacuspath +"/Tests/Spiral/spiral.par2", NP = n1d**3,nTimeSlice = 1, TimeSliceRedshifts = 1/astop -1, SofteningLength = sf,InitialRedshift = 1/ainitial -1,CPD = 135,BoxSize = 17.3205080756888,WorkingDirectory = basedir)
         os.makedirs(params["InitialConditionsDirectory"])
         #make the spiral initial conditions
-        subprocess.call([abacuspath+"/Tests/Spiral/makespiralics",str(n1d), str(ainitial),str(across),
+        subprocess.check_call([abacuspath+"/Tests/Spiral/makespiralics",str(n1d), str(ainitial),str(across),
                          str(kvec[0]),str(kvec[1]),str(kvec[2]),
                          str(phase[0]),str(phase[1]),str(phase[2]),
                          params["InitialConditionsDirectory"] + "/ic_0"])
@@ -73,7 +62,7 @@ def run(basedir = "NONE"):
 
         #run the problem
         os.chdir(basedir)
-        abacus.singlestep("spiral.par",2,1)
+        abacus.singlestep("spiral.par",1000,1)
     else:
         os.chdir(basedir)
         params = GenParam.parseInput("spiral.par")

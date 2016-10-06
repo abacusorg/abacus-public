@@ -1,7 +1,7 @@
 #level 2 parameter file for spiral test
+SimName = "spiral"
 #include "$ABACUS$/Tests/test.def"
 
-SimName = "spiral"
 #include "$ABACUS$/python/Abacus/directory.def"
 DerivativesDirectory= "$ABACUS_TMP$/Derivatives/"
 TimeStepAccel = 0.02
@@ -9,6 +9,7 @@ TimeStepDlna = 0.025
 Order = 8
 NearFieldRadius = 2
 NumSlabsInsertList = 0
+NumSlabsInsertListIC = 0
 OverwriteState = 0
 RamDisk = 1
 ForceOutputDebug = 0
