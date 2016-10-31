@@ -49,6 +49,8 @@ int FetchSlabPrecondition(int slab) {
     if(LBW->total_allocation > .5*P.MAXRAMMB*1024LLU*1024LLU){
         // Are we spinning because we need more RAM?
         Dependency::NotifySpinning(0);
+        STDLOG(0,"Warning: unable to load more slabs due to RAM limits. Currently using %.2f GB, and the limit is 0.5*MAXRAMMB = %.2f GB.\n",
+                LBW->total_allocation/1024./1024./1024., .5*P.MAXRAMMB/1024);
         return 0;
     }
     

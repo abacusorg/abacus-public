@@ -134,6 +134,7 @@ double ChooseTimeStep(){
 	if (maxdrift>JJ->SofteningLength) {  // Plummer-equivalent softening length
 	    if(maxdrift >1e-12) da_eona *= sqrt(JJ->SofteningLength/maxdrift);
 	    STDLOG(0,"da based on sqrt(epsilon/amax) is %f.\n", da_eona);
+        // We deliberately do not limit the timestep based on this criterion
 	}
 	
 
@@ -172,11 +173,11 @@ void InitWriteState(int ic){
         && (strcmp(P.ICFormat, "RVdoubleZel") == 0 || strcmp(P.ICFormat, "RVZel") == 0))
         WriteState.Do2LPTVelocityRereading = 1;
     
-    /*// Decrease the softening length if we are doing a 2LPT step
+    // Decrease the softening length if we are doing a 2LPT step
     // This helps ensure that we are using the true 1/r^2 force
-    if(LPTStepNumber()>0){
+    /*if(LPTStepNumber()>0){
         WriteState.SofteningLength = P.SofteningLength / 1e4;  // This might not be in the growing mode for this choice of softening, though
-        //STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLength);
+        STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLength);
         
         // Only have to do this because GPU gives bad forces sometimes, causing particles to shoot off.
         // Remove this once the GPU is reliable again
@@ -407,7 +408,11 @@ int main(int argc, char **argv) {
     InitWriteState(MakeIC);
     
     if (da!=0) da = ChooseTimeStep();
-    STDLOG(0,"Chose Time Step da = %6.4f, dlna = %6.4f\n",da, da/ReadState.ScaleFactor);
+    double dlna = da/ReadState.ScaleFactor;
+    STDLOG(0,"Chose Time Step da = %6.4f, dlna = %6.4f\n", da, dlna);
+    if(dlna > 0){
+        STDLOG(0, "\t\tAt the current rate, this implies %d more steps to z_final=%f\n", (int)ceil(log(1./ReadState.ScaleFactor/(1. + P.FinishingRedshift()))/dlna), P.FinishingRedshift());
+    }
     
     //Enable floating point exceptions unless we are doing profiling (where they tend to break the profilier)
     if(!P.ProfilingMode)feenableexcept(FE_INVALID | FE_DIVBYZERO);

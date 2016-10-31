@@ -512,10 +512,10 @@ void NearFieldDriver::Finalize(int slab){
 #include <algorithm>
 void NearFieldDriver::CheckInteractionList(int slab){
 
-    vector<int> ** il = new std::vector<int> *[P.cpd*P.cpd];
+    vector<uint64> ** il = new std::vector<uint64> *[P.cpd*P.cpd];
 
     for(int i = 0; i < P.cpd*P.cpd; i++){
-        il[i] = new vector<int>();
+        il[i] = new vector<uint64>();
         il[i]->reserve(WIDTH*WIDTH*WIDTH);
     }
 
@@ -538,9 +538,9 @@ void NearFieldDriver::CheckInteractionList(int slab){
     
     //build a correct interaction list for comparison
     
-    vector<int> ** il_test = new std::vector<int> *[P.cpd*P.cpd];
+    vector<uint64> ** il_test = new std::vector<uint64> *[P.cpd*P.cpd];
     for(int i = 0; i < P.cpd*P.cpd; i++){
-        il_test[i] = new vector<int>();
+        il_test[i] = new vector<uint64>();
         il_test[i]->reserve(WIDTH*WIDTH*WIDTH);
     }
     for(int y = 0; y < P.cpd; y++){
@@ -548,8 +548,8 @@ void NearFieldDriver::CheckInteractionList(int slab){
             for(int i = slab - RADIUS; i <= slab + RADIUS; i++){
                 for(int j = y - RADIUS; j <= y + RADIUS; j++){
                     for(int k = z - RADIUS; k <= z + RADIUS; k++){
-                        int sinkCellId = y*P.cpd + z;
-                        int sourceCellId = P.cpd*P.cpd * PP->WrapSlab(i) +
+                        uint64 sinkCellId = y*P.cpd + z;
+                        uint64 sourceCellId = P.cpd*P.cpd * PP->WrapSlab(i) +
                             P.cpd*PP->WrapSlab(j) +
                             PP->WrapSlab(k);
                         il_test[sinkCellId]->push_back(sourceCellId);
