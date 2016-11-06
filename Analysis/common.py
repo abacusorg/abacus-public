@@ -12,11 +12,11 @@ def get_output_dir(product_name, slice_dir):
     The directory in which to store outputs for this product.
     """
     # Rename 'slice' to 'z'
-    dirname, slicename = os.path.split(os.path.normpath(slice_dir))
+    dirname, slicename = os.path.split(os.path.abspath(slice_dir))
     slicename = slicename.replace('slice', 'z')
     
     # Turn 'sim' into 'sim_products/sim_[product]'
-    dirname, simname = os.path.split(os.path.normpath(dirname))
+    dirname, simname = os.path.split(os.path.abspath(dirname))
     simname += '_products/' + simname + '_' + product_name
     
     # Join
