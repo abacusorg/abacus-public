@@ -449,7 +449,7 @@ void SetInteractionCollection::PrintInteractions(){
     }    
 }
 
-void SetInteractionCollection::AddInteractionList( std::vector<int> ** il){
+void SetInteractionCollection::AddInteractionList( std::vector<uint64> ** il){
 
     int width = 2*P.NearFieldRadius+1;
     int k_width = K_high-K_low;
@@ -481,8 +481,8 @@ void SetInteractionCollection::AddInteractionList( std::vector<int> ** il){
                 int sourceyw = PP->WrapSlab(sourcey);
                 int sourcez = sourcezmid;
 
-                int sinkSlabCellIdx = cpd*sinky + sinkzw;
-                int sourceCellIdx = cpd*cpd*sourcexw + cpd*sourceyw + sourcez;
+                uint64 sinkSlabCellIdx = cpd*sinky + sinkzw;
+                uint64 sourceCellIdx = cpd*cpd*sourcexw + cpd*sourceyw + sourcez;
 
                 il[sinkSlabCellIdx]->push_back(sourceCellIdx);
 

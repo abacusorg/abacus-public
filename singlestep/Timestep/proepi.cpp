@@ -85,7 +85,7 @@ SlabSize *Slab;
 #include "dependency.cpp"
 
 // Need this for both insert.cpp and timestep.cpp.
-int FINISH_WAIT_RADIUS = 1;
+int FINISH_WAIT_RADIUS = 2;
 
 #include "insert.cpp"
 #include "drift.cpp"
@@ -144,9 +144,7 @@ void Prologue(Parameters &P, bool ic) {
     long long int np = P.np;
     assert(np>0);
 
-
-    // TODO: Need a better number to set the maximum size of the linear buffer
-    LBW = new SlabBuffer(cpd, order, cpd*MAXIDS, 64e9);
+    LBW = new SlabBuffer(cpd, order, cpd*MAXIDS, P.MAXRAMMB*1024*1024);
     PP = new Particles(cpd, LBW);
     Slab = new SlabSize(cpd);
     STDLOG(1,"Initializing Multipoles()\n");

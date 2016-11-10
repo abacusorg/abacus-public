@@ -107,7 +107,7 @@ class SetInteractionCollection{
         void PrintInteractions();
 
         //Fill a cell on cell interaction list with the interactions in this SIC (debugging only)
-        void  AddInteractionList( std::vector<int> ** il);
+        void  AddInteractionList( std::vector<uint64> ** il);
 
 };
 
