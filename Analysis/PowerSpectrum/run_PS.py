@@ -15,6 +15,8 @@ import shutil
 import argparse
 import numpy as np
 from glob import glob
+from Abacus.Analysis import common
+import pynbody
 
 # A label for the power spectrum based on the properties
 def ps_suffix(**kwargs):
@@ -39,10 +41,10 @@ def get_output_path_ps(input):
     
     
 def run_PS_on_dir(folder, **kwargs):
-    patterns = [folder + '/*.dat', folder + '/ic_*', folder + '/position_*']
+    patterns = [folder + '/*.dat', folder + '/ic_*', folder + '/position_*', folder + r'/*.[0-9]*']
     # Decide which pattern to use
     for pattern in patterns:
-        if glob(pattern.format(folder)):
+        if glob(pattern):
             break
     else:
         assert len(glob(pattern)) > 0, 'Could not find any matches to ' + str(patterns)
@@ -50,22 +52,40 @@ def run_PS_on_dir(folder, **kwargs):
     outdir = common.get_output_dir('power', folder)
     ps_fn = 'power'
 
-    # Read the header
+    # Read the header to get the boxsize
     header_pats = [folder + '/header', folder + '../info/*.par', folder + '/../*.par']
     headers = sum([glob(h) for h in header_pats], [])
     for header_fn in headers:
         try:
             header = InputFile.InputFile(header_fn)
+            BoxSize = header['BoxSize']
+            del header
         except IOError:
             continue
         break
     else:
-        print 'Could not find a header in ' + str(header_pats)
+        try:
+            del header_fn
+        except:
+            pass  # Maybe no headers were found 
+        # Maybe it's a gadget file?
+        try:
+            gadget_fn = sorted(glob(pattern))[0]
+            f = pynbody.load(gadget_fn)
+            BoxSize = f.properties['boxsize']
+        except:
+            print 'Could not find a header in ' + str(header_pats)
+            print 'or as a gadget file'
+            raise
             
     # Make the output dir and store the header
     if not os.path.exists(outdir):
         os.makedirs(outdir)
-    shutil.copy(header_fn, outdir + '/header')
+    try:
+        shutil.copy(header_fn, outdir + '/header')
+    except:
+        # If a normal header doesn't exist, try copying an example gadget file
+        shutil.copy(gadget_fn, outdir + '/gadget_header')
 
     # Copy the sim-level parameter files
     if not os.path.isdir(outdir + '/../info'):
@@ -80,7 +100,7 @@ def run_PS_on_dir(folder, **kwargs):
     print 'Starting PS on {}'.format(pattern)
     print 'and saving to {}/{}'.format(outdir, ps_fn)
     
-    k,s,nmodes = PS.CalculateBySlab(pattern, header.BoxSize, kwargs.pop('nfft'), **kwargs)
+    k,s,nmodes = PS.CalculateBySlab(pattern, BoxSize, kwargs.pop('nfft'), **kwargs)
     np.savetxt(outdir + ps_fn, zip(k,s,nmodes), delimiter=',', header='k, P(k), N_modes')
 
     # Touch ps_done
@@ -105,7 +125,7 @@ def run_PS_on_PS(input_ps_fn, **kwargs):
     # Load the input PS
     input_ps = np.loadtxt(input_ps_fn)
     
-    k,s,nmodes = PS.Bin3DPS(input_ps, header.BoxSize, kwargs['nfft'], nbins=kwargs['nbins'], log=kwargs['log'], dtype=kwargs['dtype'])
+    k,s,nmodes = PS.RebinTheoryPS(input_ps, header.BoxSize, kwargs['nfft'], nbins=kwargs['nbins'], log=kwargs['log'], dtype=kwargs['dtype'])
     np.savetxt(outdir + '/' + output_ps_fn, zip(k,s,nmodes), delimiter=',',header='k, P(k), N_modes')
 
     
@@ -133,7 +153,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Compute power spectra on Abacus outputs or ICs.  Can also evaluate a power spectrum on an FFT mesh.')
     parser.add_argument('input', help='The timeslice outputs (or IC directories, or power spectrum file) on which to run PS', nargs='+')
     parser.add_argument('--nfft', help='The size of the FFT (side length of the FFT cube).  Default: 1024', default=1024, type=int)
-    parser.add_argument('--format', help='Format of the data to be read.  Default: Pack14', default='Pack14', choices=['RVdouble', 'Pack14', 'RVZel', 'state'])
+    parser.add_argument('--format', help='Format of the data to be read.  Default: Pack14', default='Pack14', choices=['RVdouble', 'Pack14', 'RVZel', 'state', 'gadget'])
     parser.add_argument('--rotate-to', help='Rotate the z-axis to the given axis [e.g. (1,2,3)].  Rotations will shrink the FFT domain by sqrt(3) to avoid cutting off particles.', default=False, type=vector_arg, metavar='(X,Y,Z)')
     parser.add_argument('--projected', help='Project the simulation along the z-axis.  Projections are done after rotations.', action='store_true')
     parser.add_argument('--zspace', help='Displace the particles according to their redshift-space positions.', action='store_true')

@@ -14,7 +14,7 @@ class NearFieldDriver{
     
         double SofteningLength;  // Effective Plummer length, used for timestepping.  Unit-box units.
         double SofteningLengthInternal;  // The equivalent length for the current softening technique.  Unit-box units.
-        double eps; // Some power of SofteningLengthInternal, like ^2 or ^3, precomputed for the softening kernel
+        FLOAT eps; // Some power of SofteningLengthInternal, like ^2 or ^3, precomputed for the softening kernel
 
         void ExecuteSlab(int slabID, int blocking);
         int SlabDone(int slabID);
@@ -106,6 +106,8 @@ NearFieldDriver::NearFieldDriver() :
         eps{SofteningLengthInternal*SofteningLengthInternal}
         #endif
 {
+    assertf(isfinite(eps), "Infinite eps!  Softening length too small for this precision?\n");
+    
     int nthread = omp_get_max_threads();
     STDLOG(1,
             "Initializing NearFieldDriver with %d OMP threads (OMP is aware of %d procs).\n",
