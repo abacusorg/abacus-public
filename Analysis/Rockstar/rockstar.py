@@ -11,8 +11,10 @@ import numpy as np
 from Abacus.Tools import chdir
 import tarfile
 
+from Abacus.Analysis import common
+
 def get_output_dir(indir, downsample, suffix=''):
-    outdir = common.output_dir('rockstar_halos', indir)
+    outdir = common.get_output_dir('rockstar_halos', indir)
     
     if downsample != 1:
         outdir += '_downsample{}'.format(downsample)

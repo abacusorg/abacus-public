@@ -97,13 +97,13 @@ NearFieldDriver::NearFieldDriver() :
         SofteningLengthInternal{WriteState.SofteningLengthInternal/P.BoxSize},
             
         #ifdef DIRECTCUBICSPLINE
-        eps{1./SofteningLengthInternal}
+        eps{(FLOAT) (1./SofteningLengthInternal)}
         #elif defined DIRECTCUBICPLUMMER
-        eps{SofteningLengthInternal*SofteningLengthInternal*SofteningLengthInternal}
+        eps{(FLOAT) (SofteningLengthInternal*SofteningLengthInternal*SofteningLengthInternal)}
         #elif defined DIRECTSINGLESPLINE
-        eps{1./(SofteningLengthInternal*SofteningLengthInternal)}
+        eps{(FLOAT) (1./(SofteningLengthInternal*SofteningLengthInternal))}
         #else
-        eps{SofteningLengthInternal*SofteningLengthInternal}
+        eps{(FLOAT) (SofteningLengthInternal*SofteningLengthInternal)}
         #endif
 {
     assertf(isfinite(eps), "Infinite eps!  Softening length too small for this precision?\n");
