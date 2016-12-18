@@ -34,11 +34,13 @@ Omega_DE = 1-@Omega_M@
 Omega_K = 0.
 w0 = -1
 wa = 0
-MAXRAMMB = 60000
 ICVelocity2Displacement = 1.0
 GroupRadius=2
 ICPositionRange = @BoxSize@
 DerivativeExpansionRadius = 8
+OMPNumThreads = 0  # All threads
+# MAXRAMMB = 60000  # This will be automatically detected
+# ConvolutionCacheSizeMB = 30  # This will be automatically detected
 
 # Zeldovich parameters
 ZD_NumBlock = 4

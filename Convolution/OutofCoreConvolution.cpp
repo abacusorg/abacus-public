@@ -337,15 +337,17 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
 
     s = sizeof(Complex);
     s *= zwidth * rml * cpd * cpd;
-    posix_memalign((void **) &DiskBuffer, 4096,s);
+    int memalign_ret = posix_memalign((void **) &DiskBuffer, 4096,s);
+    assert(memalign_ret == 0);
     //DiskBuffer = (Complex *) malloc(s);
-    if(DiskBuffer == NULL) printf("Tried to alloc aligned %llu bytes\n",s);
+    if(DiskBuffer == NULL) printf("Tried to alloc aligned %ld bytes\n",s);
     assert(DiskBuffer != NULL);
     CS.totalMemoryAllocated += s;
 
     s = sizeof(double);
     s *= rml*CompressedMultipoleLengthXY;
-    posix_memalign((void **) &CompressedDerivatives,4096,s);
+    memalign_ret = posix_memalign((void **) &CompressedDerivatives,4096,s);
+    assert(memalign_ret == 0);
     //CompressedDerivatives  = (double *) malloc(s);
     assert(CompressedDerivatives != NULL);
     CS.totalMemoryAllocated += s;
@@ -353,7 +355,8 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     s = sizeof(Complex);
     s *= zwidth * rml;
     s *= cpd;
-    posix_memalign((void **) &TemporarySpace,4096,s);
+    memalign_ret = posix_memalign((void **) &TemporarySpace,4096,s);
+    assert(memalign_ret == 0);
     //TemporarySpace  = (Complex *) malloc(s);
     assert( TemporarySpace != NULL);
     CS.totalMemoryAllocated += s;

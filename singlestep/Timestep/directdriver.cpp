@@ -45,6 +45,7 @@ class NearFieldDriver{
     
         double *GB_to_device, *GB_from_device;
         uint64 *DeviceSinks;
+        uint64 *DeviceSources;
         
         STimer CalcSplitDirects;
         STimer SICExecute;
@@ -149,6 +150,7 @@ NearFieldDriver::NearFieldDriver() :
     GB_to_device = new double[NGPU*DirectBPD]();
     GB_from_device = new double[NGPU*DirectBPD]();
     DeviceSinks = new uint64[NGPU*DirectBPD]();
+    DeviceSources = new uint64[NGPU*DirectBPD]();
 #endif
 }
 
@@ -168,6 +170,7 @@ NearFieldDriver::~NearFieldDriver()
     delete[] GB_to_device;
     delete[] GB_from_device;
     delete[] DeviceSinks;
+    delete[] DeviceSources;
     
     GPUReset();
 #endif
@@ -453,6 +456,7 @@ void NearFieldDriver::Finalize(int slab){
             GB_to_device[g] += Slice->bytes_to_device/1e9;
             GB_from_device[g] += Slice->bytes_from_device/1e9;
             DeviceSinks[g] += Slice->SinkTotal;
+            DeviceSources[g] += Slice->SourceTotal;
             
             FinalizeBookkeeping.Stop();
 

@@ -163,7 +163,7 @@ void ReportTimings(FILE * timingfile) {
     
     // Compute some GPU timing totals
     double total_copy_time = 0, total_execution_time = 0, total_copyback_time = 0, total_gpu_time = 0;
-    double total_GB_to = 0, total_GB_from = 0, total_sinks =0;
+    double total_GB_to = 0, total_GB_from = 0, total_sinks = 0, total_sources = 0;
     for(int g = 0; g < NGPU*DirectBPD; g++){
         total_copy_time += JJ->DeviceCopyTimes[g];
         total_execution_time += JJ->DeviceExecutionTimes[g];
@@ -172,6 +172,7 @@ void ReportTimings(FILE * timingfile) {
         total_GB_to += JJ->GB_to_device[g];
         total_GB_from += JJ->GB_from_device[g];
         total_sinks += JJ->DeviceSinks[g];
+        total_sources += JJ->DeviceSources[g];
     }
     
     // Measures the total amount of time we have at least one GPU thread running
@@ -264,12 +265,14 @@ void ReportTimings(FILE * timingfile) {
             REPORT(4, "Count Sources",JJ->CountSources);
             REPORT(4, "Calc Source Blocks",JJ->CalcSourceBlocks);
             REPORT(4, "Fill Sources",JJ->FillSources);
+                fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSource/sec", total_sources*sizeof(FLOAT3)/1e6/thistime, total_sources/1e6/thistime);
         denom = JJ->Construction;
         REPORT(3, "Fill Sink", JJ->FillSinkLists);
             denom = JJ->FillSinkLists;
             REPORT(4, "Count Sinks",JJ->CountSinks);
             REPORT(4, "Calc Sink Blocks",JJ->CalcSinkBlocks);
             REPORT(4, "Fill Sinks",JJ->FillSinks);
+                fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", total_sinks*sizeof(FLOAT3)/1e6/thistime, total_sinks/1e6/thistime);
         denom = JJ->Construction;
         REPORT(3, "Fill Interaction", JJ->FillInteractionList);
     denom = NearForce.Elapsed();

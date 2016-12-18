@@ -74,6 +74,7 @@ class SetInteractionCollection{
 
         uint64 DirectTotal; //Number of directs for this interection collection
         uint64 SinkTotal;
+        uint64 SourceTotal;
     
         // Different softenings use different eps
         FLOAT eps;

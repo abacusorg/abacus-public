@@ -36,7 +36,7 @@ unsigned long long int InCoreConvolution::ConvolutionArithmeticCount(void) {
 
     unsigned long long int l = 0;
 
-    unsigned long long int cpd3 = cpd*cpd*cpd;
+    unsigned long long int cpd3 = ((unsigned long long int ) cpd)*cpd*cpd;
 
     FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
 

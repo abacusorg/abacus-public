@@ -41,8 +41,8 @@ void getLightConeFN(int i,int slab, char * fn){ //ensure the necessary directori
 
 }
 
-#define etaktoMpc 4000.
 #define c_kms 299792.0
+#define etaktoMpc (c_kms/P.H0)
 inline int inLightCone(posstruct pos, velstruct vel, int lcn, double tol1,double tol2){ //check if this position is in the current lightcone.
 	double r1 = (cosm->today.etaK - cosm->current.etaK)*etaktoMpc/ReadState.BoxSizeMpc;
 	double r2 = (cosm->today.etaK - cosm->next.etaK)*etaktoMpc/ReadState.BoxSizeMpc;

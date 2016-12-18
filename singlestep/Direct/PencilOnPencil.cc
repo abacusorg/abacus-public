@@ -31,12 +31,13 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     NSinkList = k_width * Nj;
     SinkSetStart = (int *) malloc(sizeof(int) * NSinkList);
     SinkSetCount = (int *) malloc(sizeof(int) * NSinkList);
-    SinkTotal = 0;
+    int localSinkTotal = 0;
 
     NSourceSets = Nj * (k_width + width);
     assertf(NSourceSets <= P.cpd*(P.cpd+width), "NSourceSets (%d) exceeds SourceSet array allocation (%d)\n", NSourceSets, P.cpd*(P.cpd+width));
     SourceSetStart = (int *) malloc(sizeof(int) * P.cpd*(P.cpd+width));
     SourceSetCount = (int *) malloc(sizeof(int) * P.cpd*(P.cpd+width));
+    int localSourceTotal = 0;
 
     DirectTotal = 0;
 
@@ -44,7 +45,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     FillSinkLists.Clear(); FillSinkLists.Start();
     //Count the Sinks
     CountSinks.Clear(); CountSinks.Start();
-    #pragma omp parallel for schedule(dynamic,1)
+    #pragma omp parallel for schedule(dynamic,1) reduction(+:localSinkTotal)
     for(int k = 0; k < k_width; k++){
         for(int j = 0; j < Nj; j ++) {
             int jj = w + j * width;
@@ -52,9 +53,10 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
             int sinkindex = k * Nj + j;
             int pencilsize = SinkPencilCount(slab, k + k_low, zmid );
             SinkSetCount[sinkindex] = pencilsize;
-            SinkTotal += pencilsize;
+            localSinkTotal += pencilsize;
         }
     }
+    SinkTotal = localSinkTotal;  // OpenMP can't do reductions directly on member variables
     CountSinks.Stop();
     
     CalcSinkBlocks.Clear(); CalcSinkBlocks.Start();
@@ -113,7 +115,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     FillSourceLists.Start();
     CountSources.Start();
     memset(SourceSetCount, 0, sizeof(int) * NSourceSets );
-    #pragma omp parallel for schedule(dynamic,1)
+    #pragma omp parallel for schedule(dynamic,1) reduction(+:localSourceTotal)
     for(int j = 0; j < Nj; j ++) {
         int jj = w + j * width;
         int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
@@ -121,8 +123,10 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
             int sourceindex = (y - k_low) * Nj + j;
             int sourcelength = SourcePencilCount( slab, y - P.NearFieldRadius, zmid);
             SourceSetCount[sourceindex] = sourcelength;
+            localSourceTotal += sourcelength;
         }
     }
+    SourceTotal = localSourceTotal;  // OpenMP can't do reductions directly on member variables
     CountSources.Stop();
 
     CalcSourceBlocks.Clear(); CalcSourceBlocks.Start();

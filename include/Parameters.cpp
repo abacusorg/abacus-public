@@ -20,6 +20,8 @@ NB: When adding parameters, you should add:
 
 #include "ParseHeader.hh"
 
+#include <sys/sysinfo.h>
+
 class Parameters: public ParseHeader {
 public:
     
@@ -37,6 +39,9 @@ public:
     int RamDisk;	// ==0 for a normal disk, ==1 for a ramdisk (which don't have DIO support)
     int OverwriteState; // 0 for normal, separate read and write states; 1 to overwrite the read state to save space
     int ForceBlockingIO;   // ==1 if you want to force all IO to be blocking.
+    
+    int OMPNumThreads;  // Number of OpenMP threads.  0 does not modify the system value (usually OMP_NUM_THREADS, or all threads).
+                        // Negative values use that many fewer than the max.
 
     int  DirectNewtonRaphson;  // 0 or 1 
 
@@ -123,11 +128,20 @@ public:
         FILE *fp = 0;
         fp = fopen("/sys/devices/system/cpu/cpu0/cache/index3/size", "r");  // L3 cache size in KB
         if(fp){
-            fscanf(fp, "%dK", &cache_size);
+            int nscan = fscanf(fp, "%dK", &cache_size);
+            assert(nscan == 1);
             fclose(fp);
         }
         cache_size /= 1024; // to MB
         return cache_size;
+    }
+    
+    // in MB
+    int getRAMSize(){
+        struct sysinfo info;
+        int status = sysinfo(&info);
+        assert(status == 0);
+        return (int) ((double) info.totalram*info.mem_unit / 1024./1024.);
     }
 
     Parameters() {
@@ -139,15 +153,19 @@ public:
     	installscalar("NearFieldRadius",NearFieldRadius,MUST_DEFINE);    // Radius of cells in the near-field
     	installscalar("SofteningLength", SofteningLength,MUST_DEFINE); // Softening length in the same units as BoxSize
     	installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
-    	installscalar("MAXRAMMB", MAXRAMMB,MUST_DEFINE);
+        MAXRAMMB = getRAMSize();
+    	installscalar("MAXRAMMB", MAXRAMMB, DONT_CARE);
         ConvolutionCacheSizeMB = getCacheSize();
-    	installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB,DONT_CARE);
+    	installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB, DONT_CARE);
         RamDisk = 0;
     	installscalar("RamDisk",RamDisk,DONT_CARE);
         OverwriteState = 0;
     	installscalar("OverwriteState",OverwriteState,DONT_CARE);
         ForceBlockingIO = 0;
     	installscalar("ForceBlockingIO",ForceBlockingIO,DONT_CARE);
+        
+        OMPNumThreads = 0;
+        installscalar("OMPNumThreads",OMPNumThreads,DONT_CARE);
 
         DirectNewtonRaphson = 1;
     	installscalar("DirectNewtonRaphson",DirectNewtonRaphson,DONT_CARE);  // 0 or 1
@@ -311,7 +329,7 @@ void Parameters::ValidateParameters(void) {
 
     if(np<0) {
         fprintf(stderr,
-            "[ERROR] np = %d must be greater than zero!\n", np);
+            "[ERROR] np = %lld must be greater than zero!\n", np);
         assert(1==0);
     }
 
@@ -361,7 +379,7 @@ void Parameters::ValidateParameters(void) {
 
     if(MAXRAMMB<0) {
         fprintf(stderr,
-            "[ERROR] MAXConvolutionRAMMB = %d must be greater than 0 \n",
+            "[ERROR] MAXRAMMB = %d must be greater than 0 \n",
                 MAXRAMMB);
         assert(1==0);
     }

@@ -356,6 +356,14 @@ int main(int argc, char **argv) {
     STDLOG_TIMESTAMP;
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
     STDLOG(0,"AllowIC = %d\n", AllowIC);
+    
+    
+    // Set up OpenMP
+    int max_threads = omp_get_max_threads();
+    int nthreads = P.OMPNumThreads > 0 ? P.OMPNumThreads : max_threads + P.OMPNumThreads;
+    assertf(nthreads <= max_threads, "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n");
+    omp_set_num_threads(nthreads);
+    STDLOG(0, "Initializing OpenMP with %d threads (system max is %d; P.OMPNumThreads is %d)\n", nthreads, max_threads, P.OMPNumThreads);
 
     double da = -1.0;   // If we set this to zero, it will skip the timestep choice
     bool MakeIC; //True if we should make the initial state instead of doing a real timestep

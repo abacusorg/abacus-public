@@ -187,6 +187,14 @@ in the simulation.  This is appropriate for small problems where the
 particles aren't sorted into slabs in the IC file.  For large problems,
 one should use at least 4.  Default is 4.
 
+\param{MAXRAMMB}{int} The maximum amount of RAM to use for internal slab 
+allocations.  Default is to detect the total (not free) amount of RAM.
+
+\param{OMPNumThreads}{int} Number of OpenMP threads.  The default, 0, does not modify the system value
+(usually OMP_NUM_THREADS, or all threads).  Negative values use that many fewer than the max.
+For example, use $-4$ to use all but 4 cores.
+
+
 
 \subsection{Far-field Parameters}
 
@@ -199,9 +207,8 @@ to sum over explicitly before switching to the asymptotic value.
 \todo{Suggest a good value!}
 \todo{Is this the right definition?}
 
-\param{MAXConvolutionRAMMB}{int} The amount of RAM to allocate to the convolution. The convolution is a seperate 
-
-\param{ConvolutionCacheSizeMB}{int} \todo{See previous.}
+\param{ConvolutionCacheSizeMB}{int} The size of the convolution cache.  Should fit within L2 or L3,
+so this value will be around ~10 MB.  Default is to detect the L3 cache size.
 
 \param{DerivativesDirectory}{string} The directory where the derivative
 files are stored.  One expects to reuse derivatives between
