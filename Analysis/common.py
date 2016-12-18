@@ -6,6 +6,9 @@ import os
 import os.path
 import tarfile
 import shutil
+from glob import glob
+
+from Abacus import Tools
 
 def get_output_dir(product_name, slice_dir):
     """
@@ -20,7 +23,7 @@ def get_output_dir(product_name, slice_dir):
     simname += '_products/' + simname + '_' + product_name
     
     # Join
-    outdir = os.path.join(dirname, simname, slicename)
+    outdir = os.path.join(dirname, simname, slicename, '')  # include trailing slash
     return outdir
 
 
