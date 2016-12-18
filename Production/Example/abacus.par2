@@ -23,6 +23,7 @@ nTimeSlice = 6
 LightConeOrigins = (0.,0.,0.)
 NLightCones = 0
 OutputFormat = "Packed"
+BackupStepInterval = 100
 SofteningLength = .0625  # 62.5 kpc/h, Plummer-equivalent
 NearFieldRadius = 2
 Order = 8
