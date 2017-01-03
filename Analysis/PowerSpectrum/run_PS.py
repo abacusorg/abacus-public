@@ -98,10 +98,11 @@ def run_PS_on_dir(folder, **kwargs):
     ps_fn += ps_suffix(**kwargs)
     
     print 'Starting PS on {}'.format(pattern)
-    print 'and saving to {}/{}'.format(outdir, ps_fn)
+    save_fn = os.path.join(outdir, ps_fn)
+    print 'and saving to {}'.format(save_fn)
     
     k,s,nmodes = PS.CalculateBySlab(pattern, BoxSize, kwargs.pop('nfft'), **kwargs)
-    np.savetxt(outdir + ps_fn, zip(k,s,nmodes), delimiter=',', header='k, P(k), N_modes')
+    np.savetxt(save_fn, zip(k,s,nmodes), delimiter=',', header='k, P(k), N_modes')
 
     # Touch ps_done
     with open(folder + '/ps_done', 'a'):
@@ -154,7 +155,7 @@ if __name__ == '__main__':
     parser.add_argument('input', help='The timeslice outputs (or IC directories, or power spectrum file) on which to run PS', nargs='+')
     parser.add_argument('--nfft', help='The size of the FFT (side length of the FFT cube).  Default: 1024', default=1024, type=int)
     parser.add_argument('--format', help='Format of the data to be read.  Default: Pack14', default='Pack14', choices=['RVdouble', 'Pack14', 'RVZel', 'state', 'gadget'])
-    parser.add_argument('--rotate-to', help='Rotate the z-axis to the given axis [e.g. (1,2,3)].  Rotations will shrink the FFT domain by sqrt(3) to avoid cutting off particles.', default=False, type=vector_arg, metavar='(X,Y,Z)')
+    parser.add_argument('--rotate-to', help='Rotate the z-axis to the given axis [e.g. (1,2,3)].  Rotations will shrink the FFT domain by sqrt(3) to avoid cutting off particles.', default=None, type=vector_arg, metavar='(X,Y,Z)')
     parser.add_argument('--projected', help='Project the simulation along the z-axis.  Projections are done after rotations.', action='store_true')
     parser.add_argument('--zspace', help='Displace the particles according to their redshift-space positions.', action='store_true')
     parser.add_argument('--nbins', help='Number of k bins.  Default: nfft/4.', default=-1, type=int)
