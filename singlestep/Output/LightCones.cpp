@@ -37,7 +37,7 @@ void getLightConeFN(int i,int slab, char * fn){ //ensure the necessary directori
 			mkdir(dir2,0777);
 		}
 		CheckDirectoryExists(dir2);
-		sprintf(fn,"%s/LC%.2d/Step%.4d/slab%.5d.lc",P.LightConeDirectory,i,WriteState.FullStepNumber,slab);
+		sprintf(fn,"%s/LC%.2d/Step%.4d/slab%.4d.lc",P.LightConeDirectory,i,WriteState.FullStepNumber,slab);
 
 }
 
@@ -141,12 +141,17 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
 			}
 
 		}
-	    // Write out this filename
-	    char filename[1024];
-	    getLightConeFN(lcn,slab,filename);
-	    if(slabtotal) STDLOG(1,"Slab %d had %d particles in lightcone %lld\n",slab,slabtotal,lcn);
-	    LBW->ResizeSlab(lightcone, slab, AA->bytes_written());
-	    LBW->WriteArena(lightcone, slab, IO_DELETE, IO_NONBLOCKING, filename);
+        STDLOG(1,"Slab %d had %d particles in lightcone %lld\n",slab,slabtotal,lcn);
+	    if(slabtotal) {
+            // Write out this filename
+            char filename[1024];
+            getLightConeFN(lcn,slab,filename);
+            LBW->ResizeSlab(lightcone, slab, AA->bytes_written());
+            LBW->WriteArena(lightcone, slab, IO_DELETE, IO_NONBLOCKING, filename);
+        } else {
+            // No particles in this lc; don't write anything
+            LBW->DeAllocate(lightcone, slab);
+        }
 	    delete AA;
 }
 

@@ -105,7 +105,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
         int jj = w + j * width;
         int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
         CreateSinkPencil(slab, k, zmid, SinkSetStart[sinkset] );
-        memset(&(SinkSetAccelerations[SinkSetStart[sinkset]]), 0 , sizeof(FLOAT3)*SinkSetCount[sinkset]);
+        // We only ever assign (not add) accelerations
+        //memset(&(SinkSetAccelerations[SinkSetStart[sinkset]]), 0 , sizeof(FLOAT3)*SinkSetCount[sinkset]);
     }
 
     FillSinks.Stop();
@@ -261,7 +262,7 @@ inline void SetInteractionCollection::CreateSinkPencil(int sinkx, int sinky, int
                 Z[p] = pos[p].z;
             }
 
-            #pragma simd
+            //#pragma simd
             for(int p=0;p<count;p++){
                 X[p] += newsinkcenter.x;
                 Y[p] += newsinkcenter.y;
@@ -292,7 +293,7 @@ inline void SetInteractionCollection::CreateSourcePencil(int sx, int sy, int nz,
                 Z[p+offset] = pos[p].z;
             }
 
-            #pragma simd
+            //#pragma simd
             for(int p=offset;p<count + offset;p++){
                 X[p] += newsourcecenter.x;
                 Y[p] += newsourcecenter.y;

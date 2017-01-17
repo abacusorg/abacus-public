@@ -406,7 +406,7 @@ int main(int argc, char **argv) {
     char wstatefn[1050];
     sprintf(wstatefn,"%s/state",P.WriteStateDirectory);
     if(access(wstatefn,0) !=-1 && !P.OverwriteState)
-    	QUIT("WriteState exists and would be overwritten. Please move or delete it to continue.\n");
+    	QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
 
     // Initialize the Cosmology and set up the State epochs and the time step
     cosm = InitializeCosmology(ReadState.ScaleFactor);

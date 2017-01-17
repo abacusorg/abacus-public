@@ -1,6 +1,6 @@
 /* phheader -- Print the ParseHeader header of a file to stdout.
 This routine doesn't do any parsing -- just echos the text, 
-stripping out the final demarker (^B^B).  We add a \n to the end of the file.
+stripping out the final demarker (^B\n).  We add a \n to the end of the file.
 If no filename is given, read from stdin.  
 If many file names are given, perform on all of them.
 */

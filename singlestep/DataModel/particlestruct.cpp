@@ -63,7 +63,7 @@ public:
     // Light cones need 1 byte
     uint64 lightconemask(int number) {
         assert (number<8 && number>=0);
-	return 1<<(number+AUXLCZEROBIT);
+        return 1<<(number+AUXLCZEROBIT);
     }
 
     bool lightconedone(uint64 mask) {
