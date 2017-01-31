@@ -26,6 +26,25 @@ def get_output_dir(product_name, slice_dir):
     # Join
     outdir = path.join(dirname, simname, slicename, '')  # include trailing slash
     return outdir
+    
+
+def prompt_removal(dir, make_new=False, noprompt=False):
+    """
+    Ask the user if they want to delete `dir`.  Fail if they do no answer yes.
+    Optionally create an empty directory with the same name after the removal.
+    """
+    if path.exists(dir):
+        if not noprompt:
+            yn = raw_input('Output directory "{}" exists.  Delete (y/[n])? '.format(dir))
+        if noprompt or yn.lower() in ('y', 'yes'):
+            print 'Removing {}'.format(dir)
+            shutil.rmtree(dir)
+        else:
+            raise RuntimeError('Cannot continue if "{}" exists.'.format(dir))
+    
+    if make_new:
+        os.makedirs(dir)
+
 
 import multiprocessing
 def make_tar(dir, pattern, tarfn, delete_source=False, nthreads=1):
