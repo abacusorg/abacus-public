@@ -103,11 +103,7 @@ public:
 
     int  NLightCones;
 
-#ifdef DOUBLEPRECISION
     double LightConeOrigins[24];  // Same units as BoxSize
-#else
-    float LightConeOrigins[24];
-#endif
 
     char LightConeDirectory[1024];
 

@@ -427,9 +427,9 @@ int main(int argc, char **argv) {
     else fedisableexcept(FE_INVALID | FE_DIVBYZERO);
     
     BuildWriteState(da);
-    LCOrigin = (FLOAT3 *) malloc(8*sizeof(FLOAT3));  // max 8 light cones
+    LCOrigin = (double3 *) malloc(8*sizeof(double3));  // max 8 light cones
     for(int i = 0; i < 8; i++)
-        LCOrigin[i] = ((FLOAT3*) P.LightConeOrigins)[i]/P.BoxSize;  // convert to unit-box units
+        LCOrigin[i] = ((double3*) P.LightConeOrigins)[i]/P.BoxSize;  // convert to unit-box units
     
     // Make a plan for output
     PlanOutput(MakeIC);

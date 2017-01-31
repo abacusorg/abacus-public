@@ -50,7 +50,7 @@ public:
     void setpid(uint64 pid) { 
     	assertf(pid<=AUXPID,
 		"PID %d is too big\n", pid); 
-	aux = pid + (aux&!AUXPID);
+        aux = pid + (aux&~AUXPID);
     }
 
     // We will provide a group ID too; this may overwrite the PID.
@@ -61,12 +61,13 @@ public:
     // not want to construct for every particle.
 
     // Light cones need 1 byte
-    uint64 lightconemask(int number) {
-        assert (number<8 && number>=0);
-        return 1<<(number+AUXLCZEROBIT);
+    static uint64 lightconemask(int number) {
+        assertf(number<8 && number>=0, "Lightcone number lcn = %d must satisfy 0 <= lcn < 8.", number);
+        return (uint64)1 << (number+AUXLCZEROBIT);
     }
 
     bool lightconedone(uint64 mask) {
+        assert (mask<=AUXLC && mask >= AUXPID);  // better way to do this...
         return (aux&mask);
     }
     bool lightconedone(int number) {

@@ -1,25 +1,33 @@
 #include "appendarena.cpp"
 
+AppendArena *get_AA_by_format(const char* format){
+    AppendArena *AA;
+
+    if (strcmp(format,"RVdouble")==0) {
+        STDLOG(1,"Using Output Format RVdouble\n");
+        AA = new OutputRVdouble();
+    } else if (strcmp(format,"Packed")==0) {
+        STDLOG(1,"Using Output Format Packed\n");
+        AA = new OutputPacked();
+    } else if (strcmp(format,"Heitmann")==0) {
+        STDLOG(1,"Using Output Format Heitmann\n");
+        AA = new OutputHeitmann();
+    } else if (strcmp(format,"RVdoubleTag")==0) {
+        STDLOG(1,"Using Output Format RVdoubleTag\n");
+        AA = new OutputRVdoubleTag();
+    }
+    else {
+        QUIT("Unrecognized case: OutputFormat = %s\n", format);
+    }
+    
+    return AA;
+}
+
 void Output_TimeSlice(int slab) {
     AppendArena *AA;
     FLOAT vscale;
 
-    if (strcmp(P.OutputFormat,"RVdouble")==0) {
-	STDLOG(1,"Using Output Format RVdouble\n");
-        AA = new OutputRVdouble();
-    } else if (strcmp(P.OutputFormat,"Packed")==0) {
-	STDLOG(1,"Using Output Format Packed\n");
-        AA = new OutputPacked();
-    } else if (strcmp(P.OutputFormat,"Heitmann")==0) {
-	STDLOG(1,"Using Output Format Heitmann\n");
-        AA = new OutputHeitmann();
-    } else if (strcmp(P.OutputFormat,"RVdoubleTag")==0) {
-	STDLOG(1,"Using Output Format RVdoubleTag\n");
-        AA = new OutputRVdoubleTag();
-    }
-    else {
-        QUIT("Unrecognized case: OutputFormat = %s\n", P.OutputFormat);
-    }
+    AA = get_AA_by_format(P.OutputFormat);
 
     // Setup the Arena
     int headersize = 1024*1024;

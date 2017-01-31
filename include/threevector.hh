@@ -137,6 +137,10 @@ public:
         T maxxy = (x<y)?x:y;
         return maxxy<z?maxxy:z;
     }
+    inline T maxabscomponent() const {
+        T maxxy = (fabs(x)>fabs(y))?fabs(x):fabs(y);
+        return maxxy>fabs(z)?maxxy:fabs(z);
+    }
 
     inline ThreeVector<T> round() const {
         return ThreeVector<T>(::round(x), ::round(y), ::round(z));
