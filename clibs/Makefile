@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -O3 -DDOUBLEPRECISION -fopenmp -shared -fPIC #-xhost
+CXXFLAGS = -Wall -g -O3 -DDOUBLEPRECISION -fopenmp -shared -fPIC #-xhost
 CPPFLAGS = -I../include/ -I../Convolution
 LIBS = -lgomp #-liomp5
 
