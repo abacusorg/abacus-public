@@ -54,7 +54,7 @@ tests:
 bench:
 	cd singlestep && $(MAKE) $@
 
-analysis:
+analysis: clibs libparseheader.a util
 	$(MAKE) -C Analysis/
 
 zeldovich: zeldovich.cpp

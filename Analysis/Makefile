@@ -1,11 +1,12 @@
-SUBDIRS = FoF PowerSpectrum Rockstar
+# Default: just make PowerSpectrum
+SUBDIRS = PowerSpectrum FoF Rockstar
 
-.PHONY: subdirs $(SUBDIRS)
-
-subdirs: $(SUBDIRS)
+.PHONY: $(SUBDIRS) all
 
 $(SUBDIRS):
 	$(MAKE) -C $@
+	
+all: $(SUBDIRS)
 
 %:
 	for DIR in $(SUBDIRS); do \
