@@ -41,19 +41,33 @@ void getLightConeFN(int i,int slab, char * fn){ //ensure the necessary directori
 
 }
 
+// The positive (rightward) distance between two points (a to b) in a periodic domain
+// Essentially implements Python's modulo behavior
+inline double positive_dist(double a, double b, double period){
+   return fmod(fmod(b - a, period) + period, period);
+}
+
 #define c_kms 299792.0
-#define etaktoMpc (c_kms/P.H0)
-inline int inLightCone(double3 pos, velstruct vel, int lcn, double tol1,double tol2){ //check if this position is in the current lightcone.
-    double r1 = (cosm->today.etaK - cosm->current.etaK)*etaktoMpc/ReadState.BoxSizeMpc;
-    double r2 = (cosm->today.etaK - cosm->next.etaK)*etaktoMpc/ReadState.BoxSizeMpc;
+#define etaktoMpc (c_kms/100.)
+inline int inLightCone(double3 pos, velstruct vel, int lcn, double tol1, double tol2){ //check if this position is in the current lightcone.
+    double r1 = (cosm->today.etaK - cosm->current.etaK)*etaktoMpc/ReadState.BoxSizeHMpc;  // lightcone start
+    double r2 = (cosm->today.etaK - cosm->next.etaK)*etaktoMpc/ReadState.BoxSizeHMpc;  // lightcone end
     if (r1 ==r2) return false;
     double r = (pos-LCOrigin[lcn]).norm();
-    double vronc  = 0;
+    double vronc = 0;
     if(r >1e-12) vronc = vel.dot(pos-LCOrigin[lcn])/r * ReadState.VelZSpace_to_kms /c_kms ;
     r = (r-r1) *1/(1+vronc) +r1; //apply velocity correction
-    int result = ((r < r1+tol1) && (r > r2 - tol2));
+    
+    // Expand the valid range by the upper and lower tolerances
+    double rmax = r1 + tol1;
+    double rmin = r2 - tol2;
+    double lcwidth = rmax - rmin;
+    // The lightcone has an absolute output range that is never periodically wrapped
+    // We want the lightcone to include particles 
+    double drbound = positive_dist(rmin, r, 1.);
+    
+    int result = (r < rmax) && (r > rmin);
     return result;
-
 }
 
 inline void interpolateParticle(double3 &pos, velstruct &vel, const accstruct acc, const int lcn){
@@ -61,8 +75,8 @@ inline void interpolateParticle(double3 &pos, velstruct &vel, const accstruct ac
     double r2 = (cosm->today.etaK - cosm->next.etaK)*etaktoMpc/ReadState.BoxSizeMpc;
 
     double r = (pos-LCOrigin[lcn]).norm();
-    double vronc  = 0;
-    if(r >1e-12) vronc = vel.dot(pos-LCOrigin[lcn])/r * ReadState.VelZSpace_to_kms /c_kms;
+    double vronc = 0;
+    if(r > 1e-12) vronc = vel.dot(pos-LCOrigin[lcn])/r * ReadState.VelZSpace_to_kms /c_kms;
     double deltar= (r-r1)/(r2-r1) *1/(1+vronc); //apply velocity correction
     if(deltar >=0 or ReadState.DeltaScaleFactor ==0){ //check that we are doing valid interpolation
         double delta_etaK = (WriteState.FirstHalfEtaKick+WriteState.LastHalfEtaKick)*deltar; //how much we need to kick the particle
