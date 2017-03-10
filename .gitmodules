@@ -1,3 +1,6 @@
 [submodule "zeldovich-PLT"]
 	path = zeldovich-PLT
 	url = https://github.com/lgarrison/zeldovich-PLT
+[submodule "doc/light_cones"]
+	path = doc/light_cones
+	url = https://git.overleaf.com/8462300bgpgfsdvrhvf
