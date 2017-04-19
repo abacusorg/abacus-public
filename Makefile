@@ -54,7 +54,7 @@ tests:
 bench:
 	cd singlestep && $(MAKE) $@
 
-analysis: clibs libparseheader.a util
+analysis: clibs libparseheader.a util AbacusCosmo
 	$(MAKE) -C Analysis/
 
 zeldovich: zeldovich.cpp

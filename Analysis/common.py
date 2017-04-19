@@ -11,7 +11,7 @@ from itertools import izip
 
 from Abacus import Tools
 
-def get_output_dir(product_name, slice_dir):
+def get_output_dir(product_name, slice_dir, out_parent=None):
     """
     The directory in which to store outputs for this product.
     """
@@ -23,8 +23,12 @@ def get_output_dir(product_name, slice_dir):
     dirname, simname = path.split(path.abspath(dirname))
     simname = path.join(simname + '_products', simname + '_' + product_name)
     
+    # Replace the parent directory with the given one
+    if out_parent:
+        dirname = path.abspath(out_parent)
+        
     # Join
-    outdir = path.join(dirname, simname, slicename, '')  # include trailing slash
+    outdir = path.join(dirname, simname, slicename)  # no trailing slash
     return outdir
     
 
@@ -107,6 +111,8 @@ class _make_tar_worker(object):
         dir, pattern, tarfn = args
         with Tools.chdir(dir):
             fns = glob(pattern)
+            if not fns:
+                return fns
             with tarfile.open(tarfn, 'w:gz') as tar:
                 for fn in fns:
                     tar.add(fn)

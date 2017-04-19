@@ -301,6 +301,17 @@ operator * ( const T lhs, const ThreeVector<U>& rhs ) {
                                                        );
 }
 
+// element-wise multiplication
+template <class T, class U>
+inline ThreeVector<typename PromoteNumeric<T, U>::type>
+operator * ( const ThreeVector<T>& lhs, const ThreeVector<U>& rhs ) {
+    return ThreeVector<typename PromoteNumeric<T, U>::type> (
+                                                       lhs.x * rhs.x,
+                                                       lhs.y * rhs.y,
+                                                       lhs.z * rhs.z
+                                                       );
+}
+
 // right division by a scalar
 template <class T, class U>
 inline ThreeVector<typename PromoteNumeric<T, U>::type>
