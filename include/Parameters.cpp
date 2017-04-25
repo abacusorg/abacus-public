@@ -74,6 +74,7 @@ public:
     char WorkingDirectory[1024];	// If Read/Write/Past not specified, where to put the states
     char LogDirectory[1024];
     char OutputDirectory[1024];     // Where the outputs go
+    char GroupDirectory[1024]; //Where the Group files go
     int OutputEveryStep; //Force timeslices to be output every step if 1
     char OutputFormat[1024];		// The format of the Output files
     int  OmitOutputHeader;		// =1 if you want to skip the ascii header
@@ -117,6 +118,7 @@ public:
     int ForceCPU; //IF 1, force directs to be executed exclusively on cpu even if cuda is available
     int GPUMinCellSinks;// If AVX directs are compiled, cells with less than this many particles go to cpu
     int ProfilingMode;//If 1, enable profiling mode, i.e. delete the write-state after creating it to run repeatedly on same dat
+    double FoFLinkingLength[3]; //Linking lengths for level 0,1,2 groupfinding in fractional interparticle spacing 
 
     // in MB
     unsigned int getCacheSize(){
@@ -193,6 +195,8 @@ public:
         installscalar("TaylorDirectory",TaylorDirectory,MUST_DEFINE);
     	installscalar("LogDirectory",LogDirectory,MUST_DEFINE);
     	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
+        installscalar("GroupDirectory",GroupDirectory,MUST_DEFINE);
+
     	OutputEveryStep = 0;
     	installscalar("OutputEveryStep",OutputEveryStep,DONT_CARE);
 
@@ -244,6 +248,10 @@ public:
     	installscalar("SimName",SimName,MUST_DEFINE);
     	installscalar("PowerSpectrumStepInterval",PowerSpectrumStepInterval,DONT_CARE);
     	installscalar("PowerSpectrumN1d",PowerSpectrumN1d,DONT_CARE);
+        FoFLinkingLength[0] = .25;
+        FoFLinkingLength[1] = .168;
+        FoFLinkingLength[2] = .15;
+        installvector("FoFLinkingLength",FoFLinkingLength,3,1,DONT_CARE);
     	PowerSpectrumStepInterval = -1; //Do not calculate OTF powerspectra
     	PowerSpectrumN1d = 1;
 	    hs = NULL;

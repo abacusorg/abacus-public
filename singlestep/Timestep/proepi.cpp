@@ -28,6 +28,8 @@ STimer *SlabForceTime;
 STimer *SlabForceLatency;
 STimer *SlabFarForceTime;
 
+STimer OutputGroup,GroupExecute;
+
 STimer TaylorCompute;
 
 STimer AddAccel;
@@ -120,6 +122,12 @@ Cosmology *cosm;
 #include "binning.cpp"
 FLOAT * density;
 
+#include "groupfinder.hh"
+#include "abacusoutputstrategy.cc"
+#include "groupfinder.cc"
+
+GroupFinder<AbacusOutputStrategy> * GF;
+
 #include "timestep.cpp"
 #include "reporting.cpp"
 
@@ -178,6 +186,11 @@ void Prologue(Parameters &P, bool ic) {
     	SlabFarForceTime = new STimer[cpd];
 
     	RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
+
+        FLOAT lambda = P.FoFLinkingLength[0]/pow(P.np,1./3);
+        
+        AbacusOutputStrategy *groupout = new AbacusOutputStrategy();
+        GF = new GroupFinder<AbacusOutputStrategy>(lambda, P.cpd, groupout);
         
     } else {
     	TY = NULL;

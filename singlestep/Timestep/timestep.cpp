@@ -222,7 +222,10 @@ void GroupAction(int slab) {
     // We can't be doing group finding during an IC step
 
     STDLOG(1,"Finding groups for slab %d\n", slab);
-    // No action yet, but this is where one would find groups and coevolution sets
+
+    GroupExecute.Start();
+    GF->ExecuteSlab(slab);
+    GroupExectute.Stop();
     // One could also use the Accelerations to set individual particle microstep levels.
     // (one could imagine doing this in Force, but perhaps one wants the group context?)
 }
@@ -232,6 +235,7 @@ void GroupAction(int slab) {
 int OutputPrecondition(int slab) {
     if (Kick.notdone(slab)) return 0;  // Must have kicked
     if (Group.notdone(slab)) return 0;  // Must have found groups
+    if (!GF->SlabClosed(slab)) return 0;
     return 1;
 }
 
@@ -278,6 +282,10 @@ void OutputAction(int slab) {
         }
     }
     OutputBin.Stop();
+
+    OutputGroup.Start();
+    GF->OutputSlab(slab);
+    OutputGroup.Stop();
 
 }
 
@@ -360,6 +368,7 @@ void DriftAction(int slab) {
         LBW->DeAllocate(AccSlab,slab);
     }
     LBW->DeAllocate(NearAccSlab,slab);
+
 }
 
 // -----------------------------------------------------------------
@@ -385,6 +394,8 @@ void FinishAction(int slab) {
     LBW->DeAllocate(PosSlab,slab);
     LBW->DeAllocate(VelSlab,slab);
     LBW->DeAllocate(AuxSlab,slab);
+    LBW->DeAllocate(GroupDataSlab,slab);
+    GF->PurgeSlab(slab);
 
     // Make the multipoles
     LBW->AllocateArena(MultipoleSlab,slab);
