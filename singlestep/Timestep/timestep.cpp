@@ -228,7 +228,7 @@ void GroupAction(int slab) {
         for(int k = 0; k < PP->cpd; k++){
             Cell c = PP->GetCell(integer3(slab, j, k));
             uint64 mask = ~(1llu<<AUXINL0BIT);
-            for(int x = 0; x < c.count(); x++) c.aux[x] = c.aux[x] & mask;
+            for(int x = 0; x < c.count(); x++) c.aux[x].aux = c.aux[x].aux & mask;
         }
     }
 

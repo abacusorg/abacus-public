@@ -121,6 +121,8 @@ public:
     double FoFLinkingLength[3]; //Linking lengths for level 0,1,2 groupfinding in fractional interparticle spacing 
     int TaggableL0Threshold; //Number of particles above which a L0 halo is eligible for tagging
     int TaggableL1Threshold; //Number of particles above which a L0 halo is eligible for tagging
+    int MinL1NP;
+    int MinL2NP;
 
     // in MB
     unsigned int getCacheSize(){
