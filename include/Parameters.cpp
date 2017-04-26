@@ -119,6 +119,8 @@ public:
     int GPUMinCellSinks;// If AVX directs are compiled, cells with less than this many particles go to cpu
     int ProfilingMode;//If 1, enable profiling mode, i.e. delete the write-state after creating it to run repeatedly on same dat
     double FoFLinkingLength[3]; //Linking lengths for level 0,1,2 groupfinding in fractional interparticle spacing 
+    int TaggableL0Threshold; //Number of particles above which a L0 halo is eligible for tagging
+    int TaggableL1Threshold; //Number of particles above which a L0 halo is eligible for tagging
 
     // in MB
     unsigned int getCacheSize(){
@@ -252,6 +254,16 @@ public:
         FoFLinkingLength[1] = .168;
         FoFLinkingLength[2] = .15;
         installvector("FoFLinkingLength",FoFLinkingLength,3,1,DONT_CARE);
+        MinL1NP = 10;
+        MinL2NP = 10;
+        TaggableL0Threshold = 1;
+        TaggableL1Threshold = 1;
+        installscalar("TaggableL0Threshold",TaggableL0Threshold, DONT_CARE);
+        installscalar("TaggableL1Threshold",TaggableL1Threshold, DONT_CARE);
+        installscalar("MinL1NP", MinL1NP, DONT_CARE);
+        installscalar("MinL2NP", MinL2NP, DONT_CARE);
+
+        
     	PowerSpectrumStepInterval = -1; //Do not calculate OTF powerspectra
     	PowerSpectrumN1d = 1;
 	    hs = NULL;

@@ -32,6 +32,9 @@ So we actually are limited to about 680 million particles in a cell.
 #define AUXPID (uint64)  0xffffffffff	// The lower 5 bytes, bits 0..39
 #define AUXLCZEROBIT 40		// The LC bits are 40..47
 #define AUXLC  (uint64)0xff0000000000	// The next byte
+#define AUXTAGABLEBIT 48llu //Can the particle be tagged.
+#define AUXTAGGEDBIT 49llu //Has the particle been tagged
+#define AUXINL0BIT 50llu //Is the particle in a level 0 group
 
 class auxstruct {
 public:

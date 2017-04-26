@@ -220,6 +220,18 @@ int GroupPrecondition(int slab) {
 void GroupAction(int slab) {
     if (LPTStepNumber()) return;
     // We can't be doing group finding during an IC step
+    
+    STDLOG(1,"Zeroing Aux L0 field");
+
+    #pragma omp parallel for schedule(dynamic, 1)
+    for(int j = 0; j < PP->cpd; j++){
+        for(int k = 0; k < PP->cpd; k++){
+            Cell c = PP->GetCell(integer3(slab, j, k));
+            uint64 mask = ~(1llu<<AUXINL0BIT);
+            for(int x = 0; x < c.count(); x++) c.aux[x] = c.aux[x] & mask;
+        }
+    }
+
 
     STDLOG(1,"Finding groups for slab %d\n", slab);
 
