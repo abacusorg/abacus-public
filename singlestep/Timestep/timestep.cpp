@@ -225,7 +225,7 @@ void GroupAction(int slab) {
 
     GroupExecute.Start();
     GF->ExecuteSlab(slab);
-    GroupExectute.Stop();
+    GroupExecute.Stop();
     // One could also use the Accelerations to set individual particle microstep levels.
     // (one could imagine doing this in Force, but perhaps one wants the group context?)
 }
