@@ -233,6 +233,7 @@ void GroupAction(int slab) {
     }
 
 
+
     STDLOG(1,"Finding groups for slab %d\n", slab);
 
     GroupExecute.Start();
@@ -381,6 +382,8 @@ void DriftAction(int slab) {
     }
     LBW->DeAllocate(NearAccSlab,slab);
 
+    GF->PurgeSlab(slab);
+
 }
 
 // -----------------------------------------------------------------
@@ -406,9 +409,7 @@ void FinishAction(int slab) {
     LBW->DeAllocate(PosSlab,slab);
     LBW->DeAllocate(VelSlab,slab);
     LBW->DeAllocate(AuxSlab,slab);
-    LBW->DeAllocate(GroupDataSlab,slab);
-    GF->PurgeSlab(slab);
-
+    
     // Make the multipoles
     LBW->AllocateArena(MultipoleSlab,slab);
     ComputeMultipoleSlab(slab);
