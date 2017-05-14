@@ -8,8 +8,11 @@ import tarfile
 import shutil
 from glob import glob
 from itertools import izip
+import contextlib
 
 from Abacus import Tools
+from Abacus.Tools import ContextTimer
+from Abacus.InputFile import InputFile
 
 def get_output_dir(product_name, slice_dir, out_parent=None):
     """
@@ -125,3 +128,62 @@ class _make_tar_worker(object):
             # make absolute while still in chdir context
             fns = [path.abspath(fn) for fn in fns]
         return fns
+
+
+def get_slab_fmt_str(slice_dir, simname):
+    slice_z = path.basename(path.abspath(slice_dir)).replace('slice', 'z')
+    fmt_str = path.join(slice_dir, '{}.{}.slab'.format(simname, slice_z) + '{slab:04d}.dat')
+    return fmt_str
+
+
+@contextlib.contextmanager
+def extract_slabs(dir, verbose=True, tarfn='slabs.tar.gz'):
+    '''
+    The directory we want to process on may have its
+    slabs archived in a tarball.  First check if all
+    the files we may need are already available.
+    If not, we want to extract these files
+    but clean up when leaving the context.
+    
+    Assumes tarballs do not contain directories.
+    
+    Parameters
+    ----------
+    dir: str
+        The directory 
+    tarfn: str, optional
+        The name of the tarfile in `dir` to expand
+        Default: 'slabs.tar.gz'
+    verbose: bool, optional
+        Print the extraction time.  Default: True
+    '''
+    header = InputFile(path.join(dir, 'header'))
+    cpd = int(round(header.CPD))
+    fmt_str = get_slab_fmt_str(dir, header.SimName)
+    
+    # Check that all the files we need exist
+    for slab in xrange(cpd):
+        fn = fmt_str.format(slab=slab)
+        if not path.isfile(fn):
+            break
+    else:
+        # All files present; do nothing
+        yield
+        return
+    
+    if verbose:
+        print 'Extracting slabs...'
+    # If something is missing, extract the tarball
+    extract_timer = ContextTimer()
+    with extract_timer:
+        with tarfile.open(path.join(dir, tarfn)) as tfp:
+            tfp.extractall(path=dir)
+            fns = tfp.getnames()  # this is smart enough to cache the result from extractall()!
+    if verbose:
+        print 'Extract time: {:.3f}s'.format(extract_timer.elapsed)
+    yield
+
+    # Now remove the extracted files
+    for fn in fns:
+        os.remove(path.join(dir,fn))
+        
