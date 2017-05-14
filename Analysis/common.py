@@ -54,7 +54,7 @@ def prompt_removal(dir, make_new=False, noprompt=False):
 
 
 import multiprocessing
-def make_tar(dir, pattern, tarfn, delete_source=False, nthreads=1):
+def make_tar(dir, pattern, tarfn, delete_source=False, nthreads=1, out_parent=''):
     """
     Makes a compressed tar file named `tarfn` inside each
     directory specified in `dirs`.  Files and directories
@@ -77,6 +77,9 @@ def make_tar(dir, pattern, tarfn, delete_source=False, nthreads=1):
         the tar.  Default: False.
     nthreads: int, optional
         Maximum number of threads to use.  Default: 1.
+    out_parent: str, optional
+        Place the outputs in a directory rooted at out_parent.
+        Default is to make the tarballs in-place.
     
     Returns
     -------
@@ -101,17 +104,26 @@ def make_tar(dir, pattern, tarfn, delete_source=False, nthreads=1):
     assert len(dir) == len(pattern) == len(tarfn)
     
     pool = multiprocessing.Pool(nthreads)
-    allfns = pool.map(_make_tar_worker(delete_source), zip(dir, pattern, tarfn))
+    allfns = pool.map(_make_tar_worker(delete_source, out_parent), zip(dir, pattern, tarfn))
     fns = sum(allfns, [])
     
     return fns
 
 class _make_tar_worker(object):
-    def __init__(self, delete_source):
+    def __init__(self, delete_source, out_parent):
         self.delete_source = delete_source
+        self.out_parent = out_parent
     
     def __call__(self, args):
         dir, pattern, tarfn = args
+        
+        # Make the parent directories for the output file
+        tarfn = path.join(self.out_parent, dir, tarfn)
+        try:
+            os.makedirs(os.path.dirname(tarfn))
+        except OSError as exc:
+            pass
+            
         with Tools.chdir(dir):
             fns = glob(pattern)
             if not fns:
