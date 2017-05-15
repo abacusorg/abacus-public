@@ -8,7 +8,7 @@
 
 // The cosmology:
 // Must include Omega_m, Omega_K, Omega_DE, H0
-// and the functions OmegaX(a) and dOmegaXda(a)
+// and the functions OmegaX(a) and dOmegaXdlna(a)
 class MyCosmology {
 public:
     double Omega_m, Omega_K, Omega_DE, H0;
