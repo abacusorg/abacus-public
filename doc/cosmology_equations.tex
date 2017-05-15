@@ -61,14 +61,21 @@ $\eta_D$ as $a\rightarrow0$.  Defining
 \begin{equation}
 f_n(a) = a^n H(a) \int {dt\over a^n} = a^n H(a) \int {da\over a^{n+1} H(a)},
 \end{equation}
-we have $f_1 = aH\eta_K$ and $f_2 = a^2 H\eta_D$.  In EdS, the solutions
+we have $f_1 = aH\eta_K$ and $f_2 = a^2 H\eta_D$.  
+Further, $f_0 = H t$, which is also useful to compute.  
+In EdS, the solutions
 are a constant $2/(3-2n)$.  Note that $f_2$ is negative: $\eta_D = -2a^{-1/2}$.
 This is ok: $\eta_D$ is singular at $a=0$, but we only care about differences
 in $\eta_D$, which are positive for increasing time.
 
+
 For $f_n$, we have the differential equation 
 \begin{equation}
-{df_n\over dt} = H(a)\left[1+nf_n + {1\over 2}f_n {d\ln H^2\over d\ln a}\right].
+{df_n\over dt} = H(a)\left[1+nf_n + {1\over 2}f_n {d\ln H^2\over d\ln a}\right]
+\end{equation}
+or equivalently
+\begin{equation}
+{df_n\over d(\ln a)} = \left[1+nf_n + {1\over 2}f_n {d\ln H^2\over d\ln a}\right]
 \end{equation}
 We will write an ODE for $a(t)$ below.  As usual, $H(a)$ has a 
 simple form
@@ -100,22 +107,6 @@ solution
 
 \bigskip
 
-To integrate $a(t)$, we follow a similar plan to define a scaled function
-so that the EdS solution is constant.  We define 
-\begin{equation}
-\alpha = {2\over 3t} {a^{3/2}\over H_0\sqrt{\Omega_m}},
-\end{equation}
-which evolves as
-\begin{equation}
-{d\alpha\over dt} = H\alpha \left({3\over2} - {1\over Ht}\right).
-\end{equation}
-We have $\alpha=1$ in EdS.  Once solved, we have
-\begin{equation}
-a = \left({3\alpha t\over 2} H_0\sqrt{\Omega_m}\right)^{2/3}.
-\end{equation}
-
-\bigskip
-
 For the growth function $D(a)$, we again define a scaled function $\gamma = D/a$
 so that we have a constant in the EdS limit.  However, because the linear
 growth function equation is second-order, we need to track $d\gamma/dt$
@@ -132,6 +123,18 @@ The equation for $\gamma$ is
 \end{equation}
 which can quickly be split into a coupled first-order ODE for $\gamma$ and 
 $d\gamma/dt$.
+
+We prefer to integrate against $\ln a$, where we have 
+\begin{equation}
+f = {1\over \gamma}{d\gamma\over d\ln a} +1.
+\end{equation}
+The equation for the evolution of $\gamma$ becomes
+\begin{equation}
+{d^2\gamma\over d(\ln a)^2} = 
+-{d\gamma\over d\ln a}\left[ 4 + {1\over 2}{d\ln H^2\over d\ln a}\right]
+- \gamma \left[ 3 + {1\over2}{d\ln H^2\over d\ln a} - {3\over 2} {\Omega_m H_0^2 \over H^2 a^3}
+\right],
+\end{equation}
 
 We choose $\gamma=1$ for the EdS limit.
 
@@ -210,4 +213,20 @@ affect the simulation science, as modes just beyond Nyquist have
 already been ignored!  But it avoids the bookkeeping headache of
 handling the aliasing constraints at the Nyquist frequency.
 
+
+\section{Depricated}
+
+To integrate $a(t)$, we follow a similar plan to define a scaled function
+so that the EdS solution is constant.  We define 
+\begin{equation}
+\alpha = {2\over 3t} {a^{3/2}\over H_0\sqrt{\Omega_m}},
+\end{equation}
+which evolves as
+\begin{equation}
+{d\alpha\over dt} = H\alpha \left({3\over2} - {1\over Ht}\right).
+\end{equation}
+We have $\alpha=1$ in EdS.  Once solved, we have
+\begin{equation}
+a = \left({3\alpha t\over 2} H_0\sqrt{\Omega_m}\right)^{2/3}.
+\end{equation}
 \end{document}
