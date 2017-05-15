@@ -7,9 +7,9 @@
 #define MAX(a,b) ((a)>(b)?(a):(b))
 
 class MyCosmology {
-/// The statement of the cosmology.
-/// This class must include Omega_m, Omega_K, Omega_DE, H0
-/// and the functions OmegaX(a) and dOmegaXda(a).
+// The cosmology:
+// Must include Omega_m, Omega_K, Omega_DE, H0
+// and the functions OmegaX(a) and dOmegaXdlna(a)
 public:
     double Omega_m, Omega_K, Omega_DE, H0;
 
