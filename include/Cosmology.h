@@ -6,10 +6,10 @@
 
 #define MAX(a,b) ((a)>(b)?(a):(b))
 
-// The cosmology:
-// Must include Omega_m, Omega_K, Omega_DE, H0
-// and the functions OmegaX(a) and dOmegaXda(a)
 class MyCosmology {
+/// The statement of the cosmology.
+/// This class must include Omega_m, Omega_K, Omega_DE, H0
+/// and the functions OmegaX(a) and dOmegaXda(a).
 public:
     double Omega_m, Omega_K, Omega_DE, H0;
 
@@ -25,13 +25,17 @@ public:
     }
 };
 
+/// This structure contains the cosmological variables at any single epoch.
 typedef struct {
         double a, z, t, etaK, etaD, growth, f_growth;
         double w, H, OmegaHat_X, OmegaHat_m, OmegaHat_K;
 } Epoch;
 
-// Cosmological integrations
 class Cosmology {
+/// This class carries out the cosmological integrations.
+/// One instantiates with a given cosmology and initial redshift.
+/// One then can integrate to any chosen epoch.
+/// There are functions for the usual time-step applications.
 public:
 
     Cosmology(double a_initial, MyCosmology& cos);
@@ -46,12 +50,12 @@ public:
     void printepoch(Epoch& E);
 
     Epoch early, today, current, next, search;
-    // In normal usage: 
-    //    today will be a=1
-    //    early will be some very early epoch, e.g., z=1e6
-    //    current will be the previous time step
-    //    next will be the next time step
-    //    search holds the result of bisection searches for a(t)
+    /// In normal usage: 
+    ///    today will be a=1
+    ///    early will be some very early epoch, e.g., z=1e6
+    ///    current will be the previous time step
+    ///    next will be the next time step
+    ///    search holds the result of bisection searches for a(t)
     MyCosmology C;
 
 private:

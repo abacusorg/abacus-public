@@ -1,7 +1,8 @@
 #include "Cosmology.h"
 
 Cosmology::Cosmology(double a_initial, MyCosmology& _C) {
-    // This sets epoch current and next to a_initial
+    /// This sets epoch current and next to a_initial, 
+    /// as well as initializing the 'early' epoch.
     C = _C;
 
     InitializeEarly(0.000001);
@@ -15,13 +16,14 @@ Cosmology::Cosmology(double a_initial, MyCosmology& _C) {
     return;
 }
 
-// standard "copy(dest, source)"
 void Cosmology::CopyEpoch(Epoch& dest, Epoch& source) {
+    /// standard "copy(dest, source)"
     Epoch tmp = source; // need to make tmp copy to allow source<-source copies
     dest = tmp;
 }
 
 void Cosmology::printepoch(Epoch& E) {
+    /// This does a screen dump of an epoch, for debugging purposes.
     FILE *fp = stdout;
     fprintf(fp, "\n");
     fprintf(fp, "         Scale factor = %15.13lf\n", E.a);
@@ -48,9 +50,11 @@ void Cosmology::printepoch(Epoch& E) {
 }
 
 void Cosmology::InitializeEarly(double a_early) {
+    /// This starts with the EdS solution at very early times
+    /// TODO: This version is ok for things near LCDM, but will be inaccurate
+    /// for models in which dark energy isn't negligible at redshift million.
     double vars[5];
 
-    // Start with EdS solution at very early time
     vars[0] = 2.0/3.0;       // = Ht
     vars[1] = 2.0;           // = a*H*etaK
     vars[2] = -2.0;          // = a*a*H*etaD
@@ -62,15 +66,17 @@ void Cosmology::InitializeEarly(double a_early) {
 }
 
 void Cosmology::BuildEpoch(Epoch& start, Epoch& end, double a) {
-    // This will construct epoch 'end' at scale factor 'a', starting
-    // the integration from 'start'.  The epoch 'start' is not altered
-    // by this routine.  It is legal to use end==start, in which case
-    // the epoch is updated to the new one.
+    /// This will construct epoch 'end' at scale factor 'a', starting
+    /// the integration from 'start'.  The epoch 'start' is not altered
+    /// by this routine.  It is legal to use end==start, in which case
+    /// the epoch is updated to the new one.
     double  vars0[5],  vars1[5],  vars2[5],  vars3[5], varsfinal[5];
     double dvars0[5], dvars1[5], dvars2[5], dvars3[5];
     double step, delta_lna, lna0, lna1, lna2, lna3;
     int nstep, j, k;
 
+    /// We are doing all integrations with small steps in ln(a) and
+    /// with scaled variables that hold EdS constant.
     const double DLNA = 0.0025;
     const int MIN_STEPS = 1;
 
@@ -87,6 +93,7 @@ void Cosmology::BuildEpoch(Epoch& start, Epoch& end, double a) {
     for (j=0;j<nstep;j++) {
         Pack(end, &lna0, vars0);
 
+	// Fourth-order Runga-Kutta
         Deriv(lna0, vars0, dvars0);
         for (k=0; k<5; k++) vars1[k] = vars0[k] + dvars0[k]*0.5*step; 
         lna1 = lna0 + 0.5*step;
@@ -107,6 +114,8 @@ void Cosmology::BuildEpoch(Epoch& start, Epoch& end, double a) {
 
 
 void Cosmology::Pack(Epoch& epoch, double *lna, double *vars) {
+    /// This converts normal cosmological quantities into the EdS-scaled quantities 
+    /// that we want to use in our integrals, for stability reasons.
 
     *lna = log(epoch.a);
     vars[0] = (epoch.H)*(epoch.t);
@@ -119,6 +128,7 @@ void Cosmology::Pack(Epoch& epoch, double *lna, double *vars) {
 }
 
 void Cosmology::Unpack(Epoch& epoch, double lna, double *vars) {
+    /// This converts EdS-scaled quantities back into the normal cosmological variables.
 
     epoch.a = exp(lna);
     double a2 = epoch.a*epoch.a;
@@ -141,10 +151,10 @@ void Cosmology::Unpack(Epoch& epoch, double lna, double *vars) {
 }
 
 void Cosmology::Deriv(double lna, double *vars, double *dvars) {
-    // Compute the derivative dvars/dx (where x = ln(a)) at the given time
-    // TODO: this is recomputing things that are done in Unpack()
-    // and taking Omega values from Cosmology rather than Epoch.
-    // For now, this is fine, but it is a bug risk in the future.
+    /// Compute the derivative dvars/dx (where x = ln(a)) at the given time
+    /// TODO: this is recomputing things that are done in Unpack()
+    /// and taking Omega values from Cosmology rather than Epoch.
+    /// For now, this is fine, but it is a bug risk in the future.
     double a, a2, a3, OmX, E2, dlnH2dx;
     a = exp(lna);
     a2 = a*a;
@@ -163,6 +173,7 @@ void Cosmology::Deriv(double lna, double *vars, double *dvars) {
 }
 
 double Cosmology::KickFactor(double a, double da) {
+    /// This reports the KickFactor required in the time stepper
     //    CopyEpoch(next, early);  // this increases execution time w/o increasing accuracy
     Epoch tmp;
     BuildEpoch(current,tmp,a);
@@ -172,6 +183,7 @@ double Cosmology::KickFactor(double a, double da) {
 }
 
 double Cosmology::DriftFactor(double a, double da) {
+    /// This reports the DriftFactor required in the time stepper
     //    CopyEpoch(next, early);  // this increases execution time w/o increasing accuracy
     Epoch tmp;
     BuildEpoch(current,tmp,a);
@@ -181,6 +193,7 @@ double Cosmology::DriftFactor(double a, double da) {
 }
 
 double Cosmology::a2t(double a) {
+    /// Return the time for a given scale factor
     //    CopyEpoch(next, early);  // this increases execution time w/o increasing accuracy
     Epoch tmp;
     BuildEpoch(current,tmp,a);
@@ -188,6 +201,7 @@ double Cosmology::a2t(double a) {
 }
 
 double Cosmology::H(double a) {
+    /// Return the Hubble parameter for a given scale factor
     Epoch tmp;
     BuildEpoch(current,tmp,a);
     return tmp.H;
@@ -195,6 +209,8 @@ double Cosmology::H(double a) {
 
 #define sign(x) ((x)<0?-1:1)
 double Cosmology::t2a(double t) {
+    /// Return the scale factor for a given time, which requires a search
+    /// We do the search by Newton-Raphson.
     CopyEpoch(search,next);
     double a;
     int n = 0;
