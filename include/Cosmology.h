@@ -20,8 +20,8 @@ public:
     double OmegaX(double a) {
         return Omega_DE*pow(a,-3.0*(1.0+w0+wa))*exp(3.0*wa*(a-1.0));
     }
-    double dOmegaXda(double a) {
-        return -3*(1+w(a))*OmegaX(a)/a;
+    double dOmegaXdlna(double a) {
+        return -3*(1+w(a))*OmegaX(a);
     }
 };
 

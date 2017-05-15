@@ -151,7 +151,7 @@ void Cosmology::Deriv(double lna, double *vars, double *dvars) {
     a3 = a*a2;
     OmX = C.OmegaX(a);
     E2 = C.Omega_m/a3 + C.Omega_K/a2 + OmX;
-    dlnH2dx = ( -3*C.Omega_m/a3 - 2*C.Omega_K/a2 + C.dOmegaXda(a) ) / E2;
+    dlnH2dx = ( -3*C.Omega_m/a3 - 2*C.Omega_K/a2 + C.dOmegaXdlna(a) ) / E2;
 
     dvars[0] = 1 + 0.5*vars[0]*dlnH2dx;
     dvars[1] = 1 + 0.5*vars[1]*dlnH2dx + vars[1];
