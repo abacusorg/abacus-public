@@ -11,7 +11,7 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
 
     FLOAT sinkX, sinkY, sinkZ;
     int sinkIdx = d.SinkBlockParentPencil[blockIdx.x];
-    if(id < d.SinkSetStart[sinkIdx] + d.SinkSetCount[sinkIdx]){
+    if(id < d.SinkSetIdMax[sinkIdx]){
         sinkX = d.SinkSetPositions.X[id];
         sinkY = d.SinkSetPositions.Y[id];
         sinkZ = d.SinkSetPositions.Z[id];
@@ -68,7 +68,7 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
         __syncthreads();
     }
 
-    if(id < d.SinkSetStart[sinkIdx] + d.SinkSetCount[sinkIdx]){
+    if(id < d.SinkSetIdMax[sinkIdx]){
         assert(isfinite(a.x));
         assert(isfinite(a.y));
         assert(isfinite(a.z));

@@ -342,7 +342,6 @@ void ReportTimings(FILE * timingfile) {
     denom = Kick.Elapsed();
     REPORT(1, "Finalize accelerations", JJ->FinalizeTimer.Elapsed());
     denom = thistime;
-    REPORT(2, "Zero Acceleration", JJ->ZeroAccel.Elapsed());
     REPORT(2, "Bookkeeping/Fetch Timings", JJ->FinalizeBookkeeping.Elapsed());
     REPORT(2, "Copy Pencil to Slab", JJ->CopyPencilToSlab.Elapsed());
     denom = Kick.Elapsed();

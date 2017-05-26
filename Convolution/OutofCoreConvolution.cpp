@@ -21,6 +21,7 @@ void OutofCoreConvolution::ReadDiskMultipoles(int z, int delete_after_read) {
         ReadMultipoles.Stop();
 
         ArraySwizzle.Start();
+        #pragma omp parallel for schedule(dynamic,1)
         for(int zb=0;zb<zwidth;zb++)
             for(int m=0;m<rml;m++)
                 for(int y=0;y<cpd;y++)
@@ -33,6 +34,7 @@ void OutofCoreConvolution::ReadDiskMultipoles(int z, int delete_after_read) {
 void OutofCoreConvolution::WriteDiskTaylor(int z) {
     for(int x=0;x<cpd;x++) {
         ArraySwizzle.Start();
+        #pragma omp parallel for schedule(dynamic,1)
         for(int zb=0;zb<zwidth;zb++)
             for(int m=0;m<rml;m++)
                 for(int y=0;y<cpd;y++)
@@ -169,7 +171,7 @@ void OutofCoreConvolution::BlockConvolve(void) {
                 cudaStreamSynchronize(dev_stream[g]);
             }
             #else
-            #pragma omp parallel for schedule(dynamic,1) 
+            #pragma omp parallel for schedule(dynamic,1)
             for(int m=0;m<rml;m++) {
                 int g = omp_get_thread_num();
                 for(int y=0;y<cpd;y++) {

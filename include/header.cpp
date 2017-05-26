@@ -1,3 +1,6 @@
+// First include global definitions from ./configure
+#include "config.h"
+
 #include <iostream>
 #include <iomanip>
 #include <fstream>

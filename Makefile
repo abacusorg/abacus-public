@@ -34,9 +34,9 @@ distclean:
 	cd Tests && $(MAKE) $@
 	cd util && $(MAKE) $@
 	cd Analysis/ && $(MAKE) $@
-	cd clibs/ && $(MAKE) $@
+	-cd clibs/ && $(MAKE) $@
 	-$(RM) *.o *.d *~ *.a abacus.tar.gz
-	-$(RM) singlestep/Makefile singlestep/Direct/Makefile singlestep/Multipoles/Makefile Convolution/Makefile Derivatives/Makefile Analysis/PowerSpectrum/Makefile Analysis/FoF/Makefile
+	-$(RM) singlestep/Makefile singlestep/Direct/Makefile singlestep/Multipoles/Makefile Convolution/Makefile Derivatives/Makefile Analysis/PowerSpectrum/Makefile Analysis/FoF/Makefile clibs/Makefile
 	-$(RM) -rf autom4te.cache/ config.log config.status
 
 ConvolutionDriver: convolutionwrapper.cpp include/Parameters.cpp

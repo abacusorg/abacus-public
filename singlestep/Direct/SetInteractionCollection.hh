@@ -46,6 +46,7 @@ class SetInteractionCollection{
 
         int *           SinkSetStart; //The index in the Sink Pos/Acc lists where this set begins
         int *           SinkSetCount; //The number of particles in the SinkSet
+        int *           SinkSetIdMax; //The sum of the above.  We may even be able to get rid of them and just send this to the GPU.
         FLOAT3 *        SinkSetAccelerations; //Where the computed accelerations for the collection will be stored
 
         volatile int CompletionFlag;

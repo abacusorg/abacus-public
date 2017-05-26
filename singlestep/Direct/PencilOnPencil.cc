@@ -31,6 +31,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     NSinkList = k_width * Nj;
     SinkSetStart = (int *) malloc(sizeof(int) * NSinkList);
     SinkSetCount = (int *) malloc(sizeof(int) * NSinkList);
+    SinkSetIdMax = (int *) malloc(sizeof(int) * NSinkList);
     int localSinkTotal = 0;
 
     NSourceSets = Nj * (k_width + width);
@@ -45,7 +46,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     FillSinkLists.Clear(); FillSinkLists.Start();
     //Count the Sinks
     CountSinks.Clear(); CountSinks.Start();
-    #pragma omp parallel for schedule(dynamic,1) reduction(+:localSinkTotal)
+    #pragma omp parallel for schedule(static) reduction(+:localSinkTotal)
     for(int k = 0; k < k_width; k++){
         for(int j = 0; j < Nj; j ++) {
             int jj = w + j * width;
@@ -66,7 +67,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     NSinkBlocks = 0;
     for(int sinkset=0; sinkset < NSinkList; sinkset++) {
         int sinklength = SinkSetCount[sinkset];
-        SinkSetStart[sinkset] = NPaddedSinks; 
+        SinkSetStart[sinkset] = NPaddedSinks;
+        SinkSetIdMax[sinkset] = SinkSetStart[sinkset] + SinkSetCount[sinkset];
 
         int PencilBlocks = sinklength/NFBlockSize;
         int remaining = (NFBlockSize - (sinklength%NFBlockSize))%NFBlockSize;
@@ -98,7 +100,9 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
 
     FillSinks.Start();
 
-    #pragma omp parallel for schedule(dynamic,1) 
+    // Pencil filling should use static scheduling
+    // so threads aren't trying to write next to each other
+    #pragma omp parallel for schedule(static)
     for(int sinkset = 0; sinkset < NSinkList; sinkset++) {
         int j = sinkset%Nj;
         int k = sinkset/Nj + k_low;
@@ -116,7 +120,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     FillSourceLists.Start();
     CountSources.Start();
     memset(SourceSetCount, 0, sizeof(int) * NSourceSets );
-    #pragma omp parallel for schedule(dynamic,1) reduction(+:localSourceTotal)
+    #pragma omp parallel for schedule(static) reduction(+:localSourceTotal)
     for(int j = 0; j < Nj; j ++) {
         int jj = w + j * width;
         int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
@@ -153,7 +157,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     CalcSourceBlocks.Stop();
 
     FillSources.Start();
-    #pragma omp parallel for schedule(dynamic,1)
+    #pragma omp parallel for schedule(static)
     for(int sourceIdx = 0; sourceIdx < NSourceSets; sourceIdx ++){
         int j = sourceIdx%Nj;
         int jj = w + j * width;
@@ -176,7 +180,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     int nprocs = omp_get_max_threads();
     uint64 threadDI[nprocs];
     memset(threadDI,0,sizeof(uint64)*nprocs);
-    #pragma omp parallel for schedule(dynamic,1)
+    #pragma omp parallel for schedule(static)
     for(int k = 0; k < k_width; k++){
         int g = omp_get_thread_num();
         assertf(k*Nj + Nj <= NSinkList, "SinkSetCount array access at %d would exceed allocation %d\n", k*Nj + Nj, NSinkList);
@@ -206,6 +210,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
 SetInteractionCollection::~SetInteractionCollection(){
     free(SinkSetStart);
     free(SinkSetCount);
+    free(SinkSetIdMax);
     free(SourceSetStart);
     free(SourceSetCount);
     free(SinkBlockParentPencil);
@@ -227,7 +232,8 @@ void SetInteractionCollection::SetCompleted(){
 
 inline int SetInteractionCollection::SinkPencilCount(int sinkx, int sinky, int sinkz) {
     int s = 0;
-    for(int z=sinkz-P.NearFieldRadius;z<=sinkz+P.NearFieldRadius;z++) {
+    int zmax = sinkz + P.NearFieldRadius;
+    for(int z = sinkz - P.NearFieldRadius; z <= zmax; z++) {
         s += PP->NumberParticle(sinkx,sinky,z);
     }
     return s;
@@ -236,8 +242,8 @@ inline int SetInteractionCollection::SinkPencilCount(int sinkx, int sinky, int s
 
 inline int SetInteractionCollection::SourcePencilCount(int slab, int ymid, int zz) { 
     int s = 0;
-    int xmax = slab+P.NearFieldRadius;
-    for(int x=slab-P.NearFieldRadius;x<=xmax;x++)  {
+    int xmax = slab + P.NearFieldRadius;
+    for(int x = slab - P.NearFieldRadius; x <= xmax; x++) {
         s += PP->NumberParticle(x,ymid,zz);
     }
     return s;
@@ -246,23 +252,25 @@ inline int SetInteractionCollection::SourcePencilCount(int slab, int ymid, int z
 inline void SetInteractionCollection::CreateSinkPencil(int sinkx, int sinky, int sinkz, uint64 start){
     int zmax = sinkz+P.NearFieldRadius;
     for(int z=sinkz-P.NearFieldRadius;z<=zmax;z++) {
-        posstruct * pos = PP->PosCell(sinkx,sinky,z);
         int count = PP->NumberParticle(sinkx,sinky,z);
 
         if(count>0) {
+            posstruct * pos = PP->PosCell(sinkx,sinky,z);
+            
             //memcpy(&(sinkpositions[offset],&pos,sizeof(FLOAT3)*count));
             FLOAT3 newsinkcenter = PP->CellCenter(sinkx, sinky, z);
             FLOAT * X = &(SinkSetPositions->X[start]);
             FLOAT * Y = &(SinkSetPositions->Y[start]);
             FLOAT * Z = &(SinkSetPositions->Z[start]);
 
+            #pragma ivdep  // tell to ignore vector dependencies
             for(int p = 0; p < count; p++){
                 X[p] = pos[p].x; 
                 Y[p] = pos[p].y;
                 Z[p] = pos[p].z;
             }
 
-            //#pragma simd
+            #pragma ivdep
             for(int p=0;p<count;p++){
                 X[p] += newsinkcenter.x;
                 Y[p] += newsinkcenter.y;
@@ -271,38 +279,39 @@ inline void SetInteractionCollection::CreateSinkPencil(int sinkx, int sinky, int
             start+=count;
         }
     }
-    assertf(start <= SinkSetPositions->N, "Wrote %d particles. This overruns SinkSetPositions (length %d)\n", start, SinkSetPositions->N);
+    assertf(start <= SinkSetPositions->N, "Wrote to particle %d. This overruns SinkSetPositions (length %d)\n", start, SinkSetPositions->N);
 }
 
 inline void SetInteractionCollection::CreateSourcePencil(int sx, int sy, int nz, uint64 start){
-    int offset = 0;
     int xmax = sx+P.NearFieldRadius;
     for(int x=sx-P.NearFieldRadius;x<=xmax;x++)  {
-        posstruct * pos = PP->PosCell(x,sy,nz);
         int count = PP->NumberParticle(x,sy,nz);
         if(count>0) {
+            posstruct * pos = PP->PosCell(x,sy,nz);
+            
             //memcpy(&(sourcepositions[offset],&pos,sizeof(FLOAT3)*count));
             FLOAT3 newsourcecenter = PP->CellCenter(x,sy,nz);
             FLOAT * X = &(SourceSetPositions->X[start]);
             FLOAT * Y = &(SourceSetPositions->Y[start]);
             FLOAT * Z = &(SourceSetPositions->Z[start]);
 
+            #pragma ivdep
             for(int p = 0; p < count; p++){
-                X[p+offset] = pos[p].x;
-                Y[p+offset] = pos[p].y;
-                Z[p+offset] = pos[p].z;
+                X[p] = pos[p].x;
+                Y[p] = pos[p].y;
+                Z[p] = pos[p].z;
             }
 
-            //#pragma simd
-            for(int p=offset;p<count + offset;p++){
+            #pragma ivdep
+            for(int p=0; p<count; p++){
                 X[p] += newsourcecenter.x;
                 Y[p] += newsourcecenter.y;
                 Z[p] += newsourcecenter.z;
             }
-            offset+=count;
+            start += count;
         }
     }
-    assertf(start + offset <= SourceSetPositions->N, "Wrote %d particles starting at %d. This overruns SourceSetPositions (length %d)\n", offset, start, SourceSetPositions->N);
+    assertf(start <= SourceSetPositions->N, "Wrote to particle %d. This overruns SourceSetPositions (length %d)\n", start, SourceSetPositions->N);
 }
 
 int SetInteractionCollection::CheckCompletion(){

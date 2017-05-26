@@ -401,9 +401,6 @@ void NearFieldDriver::Finalize(int slab){
         CheckInteractionList(slab);
     
     LBW->AllocateArena(NearAccSlab,slab);
-    ZeroAccel.Start();
-    ZeroAcceleration(slab,NearAccSlab);
-    ZeroAccel.Stop();
 
     SetInteractionCollection ** Slices = SlabInteractionCollections[slab];
     int NSplit = SlabNSplit[slab];
@@ -412,6 +409,11 @@ void NearFieldDriver::Finalize(int slab){
     int nfr = P.NearFieldRadius;
     int width = 2*nfr +1;
 
+    // Ideally we would zero-initialize all cell acclerations then add accelerations to that
+    // but zeroing every cell is really expensive, so we instead *set* the acceleration
+    // instead of add if it's the first time touching the cell
+    int CellAccInit[cpd*cpd];
+    memset(CellAccInit, 0, cpd*cpd*sizeof(int));
 
     for(int n = 0; n < NSplit; n++){
         for(int w = 0; w < WIDTH; w++){
@@ -463,8 +465,7 @@ void NearFieldDriver::Finalize(int slab){
             FinalizeBookkeeping.Stop();
 
             CopyPencilToSlab.Start();
-            int NThread = omp_get_max_threads();
-            #pragma omp parallel for schedule(dynamic,1)
+            #pragma omp parallel for schedule(static)
             for(int sinkIdx = 0; sinkIdx < Slice->NSinkList; sinkIdx++){
                 int SinkCount = Slice->SinkSetCount[sinkIdx];
                 int j = sinkIdx%Nj;
@@ -487,14 +488,28 @@ void NearFieldDriver::Finalize(int slab){
                         }
                     }
 
-                    #pragma simd
-                    for(int p = 0; p <CellNP; p++){
-                        // It's not good to know about spline here, but it's likely the most efficient way
-                        #ifdef DIRECTSINGLESPLINE
-                        a[p] += Slice->SinkSetAccelerations[Start +p]*inv_eps3;
-                        #else
-                        a[p] += Slice->SinkSetAccelerations[Start +p];
-                        #endif
+                    // Should rewrite the following to avoid so much repetition
+                    if(CellAccInit[cid]){
+                        #pragma ivdep
+                        for(int p = 0; p <CellNP; p++){
+                            // It's not good to know about spline here, but it's likely the most efficient way
+                            #ifdef DIRECTSINGLESPLINE
+                            a[p] += Slice->SinkSetAccelerations[Start +p]*inv_eps3;
+                            #else
+                            a[p] += Slice->SinkSetAccelerations[Start +p];
+                            #endif
+                        }
+                    } else {
+                        #pragma ivdep
+                        for(int p = 0; p <CellNP; p++){
+                            // It's not good to know about spline here, but it's likely the most efficient way
+                            #ifdef DIRECTSINGLESPLINE
+                            a[p] = Slice->SinkSetAccelerations[Start +p]*inv_eps3;
+                            #else
+                            a[p] = Slice->SinkSetAccelerations[Start +p];
+                            #endif
+                        }
+                        CellAccInit[cid] = 1;
                     }
                     pthread_mutex_unlock(&CellLock[cid]);
 

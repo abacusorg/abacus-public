@@ -70,7 +70,7 @@ void WriteIOR(iorequest *ior) {
 
 
 // ================================================================
-#define NINSTRUCTIONS 1024
+#define NINSTRUCTIONS 65536
 void *io_thread(void *magic) {
     // This function runs as a stand-alone thread.
     // It must receive commands from the main program.

@@ -9,7 +9,7 @@ their cell.  This is done in two steps:
 void DriftCell(Cell c, FLOAT driftfactor) {
     int N = c.count();
 
-	//#pragma simd
+	#pragma simd assert
     for (int b = 0; b<N; b++) {
         // Drift the position
         c.pos[b] += c.vel[b] * driftfactor;

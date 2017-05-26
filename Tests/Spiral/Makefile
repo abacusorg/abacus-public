@@ -2,7 +2,7 @@ CXX = g++
 CXXFLAGS = -O0 -g3 -fopenmp -DDOUBLE_PRECISION
 CPPFLAGS = 
 INCLUDES = -I../../include/
-LIBS = -lfftw3 -lgomp #-liomp5
+LIBS = -lfftw3
 
 all:makespiralics makeanalytic
 
