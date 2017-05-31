@@ -237,7 +237,8 @@ void GroupAction(int slab) {
     STDLOG(1,"Finding groups for slab %d\n", slab);
 
     GroupExecute.Start();
-    GF->ExecuteSlab(slab);
+    if(P.ForceOutputDebug)
+        GF->ExecuteSlab(slab);
     GroupExecute.Stop();
     // One could also use the Accelerations to set individual particle microstep levels.
     // (one could imagine doing this in Force, but perhaps one wants the group context?)
@@ -297,7 +298,8 @@ void OutputAction(int slab) {
     OutputBin.Stop();
 
     OutputGroup.Start();
-    GF->OutputSlab(slab);
+    if(P.ForceOutputDebug)
+        GF->OutputSlab(slab);
     OutputGroup.Stop();
 
 }
@@ -437,7 +439,7 @@ void timestep(void) {
     STDLOG(1,"Initiating timestep()\n");
 
     FORCE_WIDTH = P.NearFieldRadius;
-    GROUP_WIDTH = 0;
+    GROUP_WIDTH = P.GroupRadius;
     assertf(FORCE_WIDTH != -1, "Illegal FORCE_WIDTH: %d\n", FORCE_WIDTH);
     assertf(GROUP_WIDTH != -1, "Illegal GROUP_WIDTH: %d\n", GROUP_WIDTH); 
     STDLOG(0,"Adopting FORCE_WIDTH = %d\n", FORCE_WIDTH);
