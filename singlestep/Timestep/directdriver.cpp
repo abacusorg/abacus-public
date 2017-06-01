@@ -67,6 +67,7 @@ class NearFieldDriver{
         double GPUMemoryGB;
         int MaxSourceBlocks;
         int MaxSinkBlocks;
+        int MinSplits;
         uint64 *NSink_GPU_final;
         pthread_mutex_t * CellLock;
 
@@ -75,6 +76,7 @@ class NearFieldDriver{
         void ExecuteSlabCPU(int slabID);
         void CheckGPUCPU(int slabID);
         void CheckInteractionList(int slabID);
+        int GetNSplit(uint64 NSource, uint64 NSink);
         
 };
 
@@ -137,7 +139,15 @@ NearFieldDriver::NearFieldDriver() :
     MaxSourceBlocks = 5 * MaxSinkBlocks;
     STDLOG(1,"Initializing GPU with %f x10^6 sink blocks and %f x10^6 source blocks\n",
             MaxSinkBlocks/1e6,MaxSourceBlocks/1e6);
-    GPUSetup(P.cpd,P.cpd,MaxSinkBlocks,MaxSourceBlocks,DirectBPD);
+    
+    // We want to compute maxkwidth for GPUSetup
+    // maxkwidth will occur when we have the fewest splits
+    // The fewest splits will occur when we are operating on the smallest slabs
+    //MinSplits = GetNSplit(WIDTH*Slab->min, Slab->min);
+    // This may not account for unequal splits, though.  Unless we really need to save GPU memory, just use maxkwidth=cpd
+    MinSplits = 1;
+    STDLOG(1,"MinSplits = %d\n", MinSplits);
+    GPUSetup(P.cpd, std::ceil(1.*P.cpd/MinSplits), MaxSinkBlocks, MaxSourceBlocks, DirectBPD);
     SICExecute.Clear();
 
     NSink_GPU_final = (uint64*) malloc(NGPU*sizeof(uint64));
@@ -181,15 +191,8 @@ NearFieldDriver::~NearFieldDriver()
     free(CellLock);
 }
 
-void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
-    //calculate the required subdivisions of the slab to fit in GPU memory
-    CalcSplitDirects.Start();
-    //Add up the sources
-    uint64 NSource = 0;
-    for(int i = slabID-RADIUS; i <= slabID + RADIUS; i++) NSource+=Slab->size(i);
-
-    uint64 NSink = Slab->size(slabID);
-
+// Compute the number of splits for a given number of sources and sinks
+int NearFieldDriver::GetNSplit(uint64 NSource, uint64 NSink){
     //Pencils are aligned to GPUBlocksize boundaries
     //In the best case we will have ~NSource/GPUBlocksize blocks
     //Worst case:
@@ -207,7 +210,22 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     
     int NSplitSource = std::ceil((1.0*SourceBlocks)/MaxSourceBlocks);
     int NSplitSink = std::ceil((1.0*SinkBlocks)/MaxSinkBlocks);
-    int NSplit = std::max(NSplitSource,NSplitSink);
+    const int NSplit = std::max(NSplitSource,NSplitSink);
+    
+    return NSplit;
+}
+
+void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
+    //calculate the required subdivisions of the slab to fit in GPU memory
+    CalcSplitDirects.Start();
+    //Add up the sources
+    uint64 NSource = 0;
+    for(int i = slabID-RADIUS; i <= slabID + RADIUS; i++) NSource+=Slab->size(i);
+
+    uint64 NSink = Slab->size(slabID);
+
+    const int NSplit = GetNSplit(NSource, NSink);
+    assertf(NSplit >= MinSplits, "NSplit (%d) is less than MinSplits (%d)\n", NSplit, MinSplits);
     STDLOG(1,"Splitting slab %d into %d blocks for directs.\n",slabID,NSplit);
     SlabNSplit[slabID] = NSplit;
     
@@ -388,7 +406,7 @@ void NearFieldDriver::Finalize(int slab){
     FinalizeTimer.Start();
     slab = PP->WrapSlab(slab);
 
-    #ifdef CUDADIRECT
+#ifdef CUDADIRECT
 
     assertf(SlabDone(slab) != 0,
             "Finalize called for slab %d but it is not complete\n",slab);
@@ -412,8 +430,7 @@ void NearFieldDriver::Finalize(int slab){
     // Ideally we would zero-initialize all cell acclerations then add accelerations to that
     // but zeroing every cell is really expensive, so we instead *set* the acceleration
     // instead of add if it's the first time touching the cell
-    int CellAccInit[cpd*cpd];
-    memset(CellAccInit, 0, cpd*cpd*sizeof(int));
+    int *CellAccInit = new int[cpd*cpd]();
 
     for(int n = 0; n < NSplit; n++){
         for(int w = 0; w < WIDTH; w++){
@@ -524,6 +541,7 @@ void NearFieldDriver::Finalize(int slab){
         }
     }
     delete[] Slices;
+    delete[] CellAccInit;
     if(P.ForceOutputDebug) CheckGPUCPU(slab);
     #endif
     FinalizeTimer.Stop();

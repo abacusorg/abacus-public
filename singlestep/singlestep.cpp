@@ -208,6 +208,7 @@ void InitWriteState(int ic){
     if(WriteState.Do2LPTVelocityRereading)
         init_2lpt_rereading();
 
+    Slab = new SlabSize(P.cpd);
     if(!ic)
         JJ = new NearFieldDriver();
 }

@@ -10,9 +10,11 @@ class SlabSize: public grid {
     uint64 *_size;
     public:
     uint64 max;
+    uint64 min;
     SlabSize(int cpd): grid(cpd) {
 	_size = new uint64[cpd];
 	max = 0;
+    min = UINT64_MAX;
     }
     ~SlabSize(void) { delete[] _size; }
 
@@ -35,6 +37,7 @@ class SlabSize: public grid {
 	for (int j = 0; j<cpd; j++) {
 	    fscanf(fp, "%lld", _size+j);
 	    if(_size[j] > max) max = _size[j];
+        if(_size[j] < min) min = _size[j];
 	    assertf(nread==1, "SlabSize file ended prematurely\n");
 	}
 	fclose(fp);

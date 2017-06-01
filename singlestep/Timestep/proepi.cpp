@@ -146,7 +146,6 @@ void Prologue(Parameters &P, bool ic) {
 
     LBW = new SlabBuffer(cpd, order, cpd*MAXIDS, P.MAXRAMMB*1024*1024);
     PP = new Particles(cpd, LBW);
-    Slab = new SlabSize(cpd);
     STDLOG(1,"Initializing Multipoles()\n");
     MF  = new SlabMultipoles(order, cpd);
 
