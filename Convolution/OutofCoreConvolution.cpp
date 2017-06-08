@@ -21,10 +21,10 @@ void OutofCoreConvolution::ReadDiskMultipoles(int z, int delete_after_read) {
         ReadMultipoles.Stop();
 
         ArraySwizzle.Start();
-        #pragma omp parallel for schedule(dynamic,1)
+        #pragma omp parallel for schedule(static)
         for(int zb=0;zb<zwidth;zb++)
-            for(int m=0;m<rml;m++)
-                for(int y=0;y<cpd;y++)
+            for(int y=0;y<cpd;y++)
+                for(int m=0;m<rml;m++)
                     DiskBuffer[zb*rml*cpd*cpd + m*cpd*cpd + x*cpd + y] = 
                         TemporarySpace[ zb*cpd*rml + y*rml + m ];
         ArraySwizzle.Stop();
@@ -34,7 +34,7 @@ void OutofCoreConvolution::ReadDiskMultipoles(int z, int delete_after_read) {
 void OutofCoreConvolution::WriteDiskTaylor(int z) {
     for(int x=0;x<cpd;x++) {
         ArraySwizzle.Start();
-        #pragma omp parallel for schedule(dynamic,1)
+        #pragma omp parallel for schedule(static)
         for(int zb=0;zb<zwidth;zb++)
             for(int m=0;m<rml;m++)
                 for(int y=0;y<cpd;y++)
@@ -107,8 +107,12 @@ void OutofCoreConvolution::BlockConvolve(void) {
     fftw_plan plan_forward_1d[nprocs];
     fftw_plan plan_backward_1d[nprocs];
 
-    Complex *in_1d = new Complex[nprocs*cpd];
-    Complex *out_1d = new Complex[nprocs*cpd];
+    Complex **in_1d = new Complex*[nprocs];
+    Complex **out_1d = new Complex*[nprocs];
+    for(int g = 0; g < nprocs; g++){
+        in_1d[g] = new Complex[cpd];
+        out_1d[g] = new Complex[cpd];
+    }
 
     #endif
 
@@ -129,13 +133,13 @@ void OutofCoreConvolution::BlockConvolve(void) {
     #else
     for(int g=0;g<nprocs;g++) {
         plan_forward_1d[g] = fftw_plan_dft_1d(cpd, 
-                                (fftw_complex *) &(in_1d[g*cpd]), 
-                                (fftw_complex *) &(out_1d[g*cpd]), 
+                                (fftw_complex *) in_1d[g]), 
+                                (fftw_complex *) out_1d[g]), 
                                 FFTW_FORWARD, FFTW_PATIENT);
         
         plan_backward_1d[g] = fftw_plan_dft_1d(cpd, 
-                                (fftw_complex *) &(in_1d[g*cpd]), 
-                                (fftw_complex *) &(out_1d[g*cpd]), 
+                                (fftw_complex *) in_1d[g]), 
+                                (fftw_complex *) out_1d[g]), 
                                 FFTW_BACKWARD, FFTW_PATIENT);
     }
     #endif
@@ -171,15 +175,15 @@ void OutofCoreConvolution::BlockConvolve(void) {
                 cudaStreamSynchronize(dev_stream[g]);
             }
             #else
-            #pragma omp parallel for schedule(dynamic,1)
+            #pragma omp parallel for schedule(static)
             for(int m=0;m<rml;m++) {
                 int g = omp_get_thread_num();
                 for(int y=0;y<cpd;y++) {
                     for(int x=0;x<cpd;x++) 
-                        in_1d[g*cpd + x] = Mtmp[m*cpd*cpd + x*cpd + y];
+                        in_1d[g][x] = Mtmp[m*cpd*cpd + x*cpd + y];
                     fftw_execute(plan_forward_1d[g]);
                     for(int x=0;x<cpd;x++) 
-                        Mtmp[m*cpd*cpd + x*cpd + y] = out_1d[g*cpd + x];
+                        Mtmp[m*cpd*cpd + x*cpd + y] = out_1d[g][x];
                 }
             }
             
@@ -206,15 +210,15 @@ void OutofCoreConvolution::BlockConvolve(void) {
                 cudaStreamSynchronize(dev_stream[g]);
             }
             #else
-            #pragma omp parallel for schedule(dynamic,1)
+            #pragma omp parallel for schedule(static)
             for(int m=0;m<rml;m++) {
                 int g = omp_get_thread_num();
                 for(int y=0;y<cpd;y++) {
                     for(int x=0;x<cpd;x++) 
-                        in_1d[g*cpd + x] = Mtmp[m*cpd*cpd + x*cpd + y];
+                        in_1d[g][x] = Mtmp[m*cpd*cpd + x*cpd + y];
                     fftw_execute(plan_backward_1d[g]);
                     for(int x=0;x<cpd;x++) 
-                        Mtmp[m*cpd*cpd + x*cpd + y] = out_1d[g*cpd + x];
+                        Mtmp[m*cpd*cpd + x*cpd + y] = out_1d[g][x];
                 }
             }
             #endif
@@ -234,12 +238,14 @@ void OutofCoreConvolution::BlockConvolve(void) {
         cuda::cudaDeviceReset();
     }
     #else
-    delete[] in_1d;
-    delete[] out_1d;
     for(int g=0;g<nprocs;g++) {
         fftw_destroy_plan(plan_forward_1d[g]);
         fftw_destroy_plan(plan_backward_1d[g]);
+        delete[] in_1d[g];
+        delete[] out_1d[g];
     }
+    delete[] in_1d;
+    delete[] out_1d;
     #endif
     
 
