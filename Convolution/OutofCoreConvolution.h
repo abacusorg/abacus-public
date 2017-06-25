@@ -91,5 +91,7 @@ private:
 
     Complex *DiskBuffer;
     double *CompressedDerivatives;
-    Complex *TemporarySpace;
+    COMPLEX *TemporarySpace;
+    
+    double invcpd3;
 };

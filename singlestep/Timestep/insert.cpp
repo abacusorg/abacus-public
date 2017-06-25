@@ -14,8 +14,9 @@ for its *new* cell.
 */
 
 //for intel's fast parallel sort
-//#include "tbb/parallel_sort.h"
+#include "tbb/parallel_sort.h"
 #include "parallel_stable_sort.h"
+
 typedef struct {
     posstruct pos;
     velstruct vel;
@@ -28,6 +29,7 @@ struct GlobalSortOperator {
         // We must sort on pi.xyz.y*cpd+pi.xyz.z < pj.xyz.y*cpd+pj.xyz.z
         // Warning: This will get more complicated in the parallel code with 
         // the periodic wrap.
+        // two conditionals instead of multiplication?
         return  ( (pi.xyz.y*P.cpd+pi.xyz.z
         <pj.xyz.y*P.cpd+pj.xyz.z) ) ; 
     }
@@ -46,19 +48,20 @@ public:
 
     // Possibly these should be PTimer??
     STimer ILsort;
-    double TotalLength;
+    uint64 n_sorted;
 
     InsertList(int cpd, uint64 maxilsize) : grid(cpd)  { 
         length = 0; 
         maxil = maxilsize;
-        il = (ilstruct *) malloc(sizeof(ilstruct) * maxilsize);
-        assertf(il!=NULL,"Failed to allocate Insert List\n");
-        TotalLength = 0;
+        int ret = posix_memalign((void **) &il, 4096, sizeof(ilstruct) * maxilsize);
+        assertf(ret==0,"Failed to allocate Insert List\n");
+        n_sorted = 0;
     }
     ~InsertList(void) { 
         free(il);
     }
 
+    // Push to the end of the list and grow
     inline void Push(posstruct  *pos, velstruct *vel, auxstruct *aux, integer3 xyz) {
         //assertf(length>=0, "Insert list has negative size!\n"); length is now unsigned so this is pointless
         assertf(length<maxil+1, "Push overflows Insert List length\n");
@@ -67,6 +70,15 @@ public:
         il[length].aux = *aux;
         il[length].xyz = xyz;
         length++;
+    }
+    
+    // Push to a given location; don't grow
+    inline void PushAt(posstruct  *pos, velstruct *vel, auxstruct *aux, integer3 xyz, uint64 i) {
+        assertf(i<length, "Push overflows Insert List length\n");
+        il[i].pos = *pos;
+        il[i].vel = *vel;
+        il[i].aux = *aux;
+        il[i].xyz = xyz;
     }
 
     inline integer3 WrapToNewCell(posstruct *pos, int oldx, int oldy, int oldz) {
@@ -110,8 +122,8 @@ public:
         return WrapCell(oldx, oldy, oldz);
     }
 
-    void WrapAndPush(posstruct *pos, velstruct *vel, auxstruct *aux,
-    int x, int y, int z) {
+    inline void WrapAndPush(posstruct *pos, velstruct *vel, auxstruct *aux,
+    int x, int y, int z, uint64 i) {
         integer3 newcell;
         
 #ifdef GLOBALPOS
@@ -128,23 +140,24 @@ public:
             slab_distance = P.cpd - slab_distance;
         }
         if (slab_distance > FINISH_WAIT_RADIUS){
-        posstruct p = *pos;
-        velstruct v = *vel;
-        auxstruct a = *aux;
-        integer3 c = newcell;
-        printf("Trying to push a particle to slab %d from slab %d.  This is larger than FINISH_WAIT_RADIUS = %d.\n",
-            newcell.x, x, FINISH_WAIT_RADIUS);
-        printf("pos: %e %e %e; vel: %e %e %e; aux: %llu; cell: %d %d %d\n", p.x, p.y, p.z, v.x, v.y, v.z, a.aux, c.x, c.y, c.z);
-        /*assertf(slab_distance <= FINISH_WAIT_RADIUS,
-            "Trying to push a particle to slab %d from slab %d.  This is larger than FINISH_WAIT_RADIUS = %d.",
-            x, newcell.x, FINISH_WAIT_RADIUS);*/
+            posstruct p = *pos;
+            velstruct v = *vel;
+            auxstruct a = *aux;
+            integer3 c = newcell;
+            printf("Trying to push a particle to slab %d from slab %d.  This is larger than FINISH_WAIT_RADIUS = %d.\n",
+                newcell.x, x, FINISH_WAIT_RADIUS);
+            printf("pos: %e %e %e; vel: %e %e %e; aux: %llu; cell: %d %d %d\n", p.x, p.y, p.z, v.x, v.y, v.z, a.aux, c.x, c.y, c.z);
+            /*assertf(slab_distance <= FINISH_WAIT_RADIUS,
+                "Trying to push a particle to slab %d from slab %d.  This is larger than FINISH_WAIT_RADIUS = %d.",
+                x, newcell.x, FINISH_WAIT_RADIUS);*/
         }
         
-        Push(pos,vel,aux,newcell);
+        //Push(pos,vel,aux,newcell);
+        PushAt(pos,vel,aux,newcell,i);
     }
 
     void ResetILlength(uint64 newlength) { 
-        assertf(newlength>=0&&newlength<=length, 
+        assertf(newlength<=length, 
         "Illegal resizing of Insert List\n");
         length = newlength; 
     }
@@ -160,42 +173,37 @@ public:
 void InsertList::PartitionAndSort(int slab, uint64 *slabstart, uint64 *slablength) {
 
     FinishPartition.Start();
-    assert(length>=0);
 
     uint64 h = 0;
     uint64 t = length;   // This will be one more than the last value
 
     while(h<t) {
-        if( il[h].xyz.x != slab ) {
-            h++;
-        }
-        else {
-            t--;
-            if(t==h) break;
+        if( il[h].xyz.x == slab ) {
+            // If the particle at the end of the list is already in the right place, don't swap
+            do {
+                t--;
+            } while(t > h && il[t].xyz.x == slab);
             ilstruct tmp;
             tmp = il[t];
             il[t] = il[h];
             il[h] = tmp;
         }
+        h++;
     }
-    // At the end of this loop h==t
 
-    //assert(t>=0); t is now unsigned so this is impossible
-    assert(t<=length);
-
-    // invariant 0 .. h - 1 (=t-1)   are not in slab 
-    // t .. length-1        are in slab 
+    // invariant 0 .. t-1   are not in slab 
+    // t .. length-1        are in slab
 
     *slabstart = t;
-    *slablength = (length-1) - (t) + 1;
+    *slablength = length - t;
 
     FinishPartition.Stop();
     FinishSort.Start();
 
-    //tbb::parallel_sort( &(il[t]), &(il[length]), GlobalSortOperator() );
+    tbb::parallel_sort( &(il[t]), &(il[length]), GlobalSortOperator() );
     //std::sort( &(il[t]), &(il[length]), GlobalSortOperator() );
-    pss::parallel_stable_sort( &(il[t]), &(il[length]), GlobalSortOperator() );
-    TotalLength += length;
+    //pss::parallel_stable_sort( &(il[t]), &(il[length]), GlobalSortOperator() );
+    n_sorted += *slablength;
     FinishSort.Stop();
 }
 

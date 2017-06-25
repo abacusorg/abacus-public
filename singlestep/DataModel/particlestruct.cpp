@@ -163,22 +163,22 @@ public:
     inline int active() { return ci->active; }
 
     inline void swap(int a, int b) {
-	// Swap two particles in the list
-	assertf(a>=0&&a<ci->count,
-	    "Particle a = %d is out of range %d\n", a, ci->count);
-	assertf(b>=0&&b<ci->count,
-	    "Particle b = %d is out of range %d\n", b, ci->count);
-	posstruct ptmp; ptmp = pos[b]; pos[b] = pos[a]; pos[a] = ptmp; 
-	velstruct vtmp; vtmp = vel[b]; vel[b] = vel[a]; vel[a] = vtmp; 
-	auxstruct atmp; atmp = aux[b]; aux[b] = aux[a]; aux[a] = atmp;
+        // Swap two particles in the list
+        /*assertf(a>=0&&a<ci->count,
+            "Particle a = %d is out of range %d\n", a, ci->count);
+        assertf(b>=0&&b<ci->count,
+            "Particle b = %d is out of range %d\n", b, ci->count);*/
+        posstruct ptmp; ptmp = pos[b]; pos[b] = pos[a]; pos[a] = ptmp; 
+        velstruct vtmp; vtmp = vel[b]; vel[b] = vel[a]; vel[a] = vtmp; 
+        auxstruct atmp; atmp = aux[b]; aux[b] = aux[a]; aux[a] = atmp;
     }
 
     // Routines to copy information in and out of the lists
     inline void getparticle(int n, posstruct *p, velstruct *v, auxstruct *a) {
-    	*p = pos[n]; *v = vel[n]; *a = aux[n];
+        *p = pos[n]; *v = vel[n]; *a = aux[n];
     }
     inline void putparticle(int n, posstruct *p, velstruct *v, auxstruct *a) {
-    	pos[n] = *p; vel[n] = *v; aux[n] = *a;
+        pos[n] = *p; vel[n] = *v; aux[n] = *a;
     }
 };
 

@@ -37,5 +37,11 @@
 
 typedef std::complex<double> Complex;
 
+#ifdef DOUBLEPRECISION
+typedef std::complex<double> COMPLEX;
+#else
+typedef std::complex<float> COMPLEX;
+#endif
+
 using namespace std;
 

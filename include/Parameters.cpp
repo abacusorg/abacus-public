@@ -40,7 +40,7 @@ public:
     int OverwriteState; // 0 for normal, separate read and write states; 1 to overwrite the read state to save space
     int ForceBlockingIO;   // ==1 if you want to force all IO to be blocking.
     
-    int OMPNumThreads;  // Number of OpenMP threads.  0 does not modify the system value (usually OMP_NUM_THREADS, or all threads).
+    int OMP_NUM_THREADS;  // Number of OpenMP threads.  0 does not modify the system value (usually OMP_NUM_THREADS, or all threads).
                         // Negative values use that many fewer than the max.
 
     int  DirectNewtonRaphson;  // 0 or 1 
@@ -160,8 +160,8 @@ public:
         ForceBlockingIO = 0;
     	installscalar("ForceBlockingIO",ForceBlockingIO,DONT_CARE);
         
-        OMPNumThreads = 0;
-        installscalar("OMPNumThreads",OMPNumThreads,DONT_CARE);
+        OMP_NUM_THREADS = 0;
+        installscalar("OMP_NUM_THREADS",OMP_NUM_THREADS,DONT_CARE);
 
         DirectNewtonRaphson = 1;
     	installscalar("DirectNewtonRaphson",DirectNewtonRaphson,DONT_CARE);  // 0 or 1

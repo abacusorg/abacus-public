@@ -132,7 +132,7 @@ void ReportTimings(FILE * timingfile) {
 
     total = 0.0;
     REPORT(0, "Prologue", prologue.Elapsed()); total += thistime;
-    // REPORT(0, "Epilogue", epilogue.Elapsed()); total += thistime;
+    //REPORT(0, "Epilogue", epilogue.Elapsed()); total += thistime;
     REPORT(0, "TimeStep", TimeStepWallClock.Elapsed()); total += thistime;
     REPORT(0, "SingleStep Setup", SingleStepSetup.Elapsed()); total += thistime;
     REPORT(0, "SingleStep TearDown", SingleStepTearDown.Elapsed()); total += thistime;
@@ -276,7 +276,7 @@ void ReportTimings(FILE * timingfile) {
         denom = JJ->Construction;
         REPORT(3, "Fill Interaction", JJ->FillInteractionList);
     denom = NearForce.Elapsed();
-    REPORT(2, "Launch Interaction/No Free Device Thread", JJ->SICExecute.Elapsed());
+    REPORT(2, "Dispatch Interaction", JJ->SICExecute.Elapsed());
     REPORT(2, "Launch Kernels [Non-blocking]", JJ->LaunchDeviceKernels);
     REPORT(2, "CPU Fallback", JJ->CPUFallbackTimer.Elapsed());
         fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_cpu/(thistime+1e-15), gdi_cpu, JJ->NSink_CPU/(thistime+1e-15)/1e6);
@@ -332,10 +332,11 @@ void ReportTimings(FILE * timingfile) {
         fprintf(timingfile, "\n\n Subdivisions of Taylor Evaluate:");
         REPORT(1, "Taylor Computation (S)", TaylorCompute.Elapsed());
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
+        REPORT(1, "Compute Cell Offsets (S)", TY->ConstructOffsets.Elapsed());
         REPORT(1, "Taylor FFT (S)", TY->FFTTaylor.Elapsed());
         REPORT(1, "Taylor R to C (P)", TY->TaylorR2C.Elapsed());
         REPORT(1, "Taylor ASM (P)", TY->TaylorASM.Elapsed());
-        REPORT(1, "Taylor Redlack (P)", RL->TaylorRedlack.Elapsed());
+        REPORT(1, "Taylor Redlack (S)", RL->TaylorRedlack.Elapsed());
     }
 
     fprintf(timingfile, "\n\n Subdivisions of Kick:");
@@ -360,13 +361,13 @@ void ReportTimings(FILE * timingfile) {
 
     fprintf(timingfile, "\n\n Subdivisions of Drift:");
     denom = Drift.Elapsed();
-    REPORT(1, "Move & Rebin (S)", DriftMoveRebin.Elapsed());
-    REPORT(1, "Inserting (S)",    DriftInsert.Elapsed());
     REPORT(1, "Move (P)",         DriftMove.Elapsed());
     REPORT(1, "Rebin (P)",        DriftRebin.Elapsed());
+    REPORT(1, "Inserting (S)",    DriftInsert.Elapsed());
 
     fprintf(timingfile, "\n\n Subdivisions of Compute Multipole:");
     denom = ComputeMultipoles.Elapsed();
+    REPORT(1, "Compute Cell Offsets", MF->ConstructOffsets.Elapsed());
     REPORT(1, "Multipole ASM (P)", MF->MultipoleASM.Elapsed());
     REPORT(1, "Multipole C to R (S)", MF->MultipoleC2R.Elapsed());
     REPORT(1, "Multipole FFT (S)", MF->FFTMultipole.Elapsed());
@@ -375,7 +376,7 @@ void ReportTimings(FILE * timingfile) {
     denom = Finish.Elapsed();
     REPORT(1, "Partition Insert List", FinishPartition.Elapsed());
     REPORT(1, "Sort Insert List", FinishSort.Elapsed());
-    fprintf(timingfile,"---> %6.3f Mitem/sec (%.2g items)",IL->TotalLength/(thistime+1e-15)/1e6, IL->TotalLength);
+    fprintf(timingfile,"---> %6.3f Mpart/sec (%.2g items)",IL->n_sorted/(thistime+1e-15)/1e6, IL->n_sorted);
     REPORT(1, "Index Cells", FinishCellIndex.Elapsed());
     REPORT(1, "Merge", FinishMerge.Elapsed());
     REPORT(1, "Compute Multipoles", ComputeMultipoles.Elapsed());
@@ -384,7 +385,7 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Write Multipoles", WriteMultipoleSlab.Elapsed());
     
     fprintf(timingfile, "\n\n Reasons for Spinning:");
-    fprintf(timingfile, "\n\t\t Note: may add up to > 100%%");
+    fprintf(timingfile, "\n\t Note: may add up to > 100%%");
     denom = spinning;
     REPORT(1, "Not enough RAM to load slabs", Dependency::spin_timers[0].Elapsed());
     REPORT(1, "Waiting for slab IO", Dependency::spin_timers[2].Elapsed());

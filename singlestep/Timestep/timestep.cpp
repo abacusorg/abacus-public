@@ -101,7 +101,7 @@ void NearForceAction(int slab) {
     STDLOG(1,"Computing near-field force for slab %d\n", slab);
     SlabForceTime[slab].Start();
         
-    JJ->ExecuteSlab(slab,P.ForceOutputDebug);
+    JJ->ExecuteSlab(slab, P.ForceOutputDebug);
 
     SlabForceLatency[slab].Start();
     if (P.ForceOutputDebug) {
@@ -137,7 +137,7 @@ void TaylorForceAction(int slab) {
     STDLOG(1,"Computing far-field force for slab %d\n", slab);
     SlabFarForceTime[slab].Start();
     LBW->AllocateArena(AccSlab,slab);
-    ZeroAcceleration(slab,AccSlab);
+    //ZeroAcceleration(slab,AccSlab);  // do we need this?  might be slow
     
     TaylorCompute.Start();
     ComputeTaylorForce(slab);
@@ -235,6 +235,7 @@ int OutputPrecondition(int slab) {
     return 1;
 }
 
+uint64 n_output = 0;
 void OutputAction(int slab) {
     STDLOG(1,"Output slab %d\n", slab);
 
@@ -247,7 +248,7 @@ void OutputAction(int slab) {
 
     if (ReadState.DoTimeSliceOutput) {
         STDLOG(1,"Outputting slab %d\n",slab);
-        Output_TimeSlice(slab);
+        n_output += Output_TimeSlice(slab);
     }
     OutputTimeSlice.Stop();
 
@@ -372,6 +373,7 @@ int FinishPrecondition(int slab) {
     return 1;
 }
 
+uint64 merged_particles = 0;
 void FinishAction(int slab) {
     STDLOG(1,"Finishing slab %d\n", slab);
     
@@ -379,7 +381,9 @@ void FinishAction(int slab) {
         LBW->DeAllocate(VelLPTSlab, slab);
     
     // Gather particles from the insert list and make the merge slabs
-    FillMergeSlab(slab);
+    uint64 n_merge = FillMergeSlab(slab);
+    merged_particles += n_merge;
+    
     // Now delete the original particles
     LBW->DeAllocate(CellInfoSlab,slab);
     LBW->DeAllocate(PosSlab,slab);
@@ -455,6 +459,11 @@ LPTVelocityReRead.instantiate(cpd, first + 2*FORCE_WIDTH + 1 - FINISH_WAIT_RADIU
     
     assertf(IL->length==0, 
         "Insert List not empty (%d) at the end of timestep().  Time step too big?\n", IL->length);
+    
+    assertf(merged_particles == P.np, "Merged slabs contain %"PRIu64" particles instead of %"PRIu64"!\n", merged_particles, P.np);
+    
+    if(ReadState.DoTimeSliceOutput)
+        assertf(n_output == P.np, "TimeSlice output contains %"PRIu64" particles instead of %"PRIu64"!\n", n_output, P.np);
 
     STDLOG(1,"Completing timestep()\n");
     TimeStepWallClock.Stop();

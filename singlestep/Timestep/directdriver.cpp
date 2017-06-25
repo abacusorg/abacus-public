@@ -143,9 +143,10 @@ NearFieldDriver::NearFieldDriver() :
     // We want to compute maxkwidth for GPUSetup
     // maxkwidth will occur when we have the fewest splits
     // The fewest splits will occur when we are operating on the smallest slabs
-    //MinSplits = GetNSplit(WIDTH*Slab->min, Slab->min);
+    MinSplits = GetNSplit(WIDTH*Slab->min, Slab->min);
+    MinSplits = max(1, MinSplits/2);  // fudge factor
     // This may not account for unequal splits, though.  Unless we really need to save GPU memory, just use maxkwidth=cpd
-    MinSplits = 1;
+    //MinSplits = 1;
     STDLOG(1,"MinSplits = %d\n", MinSplits);
     GPUSetup(P.cpd, std::ceil(1.*P.cpd/MinSplits), MaxSinkBlocks, MaxSourceBlocks, DirectBPD);
     SICExecute.Clear();
@@ -246,8 +247,11 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     }
     SplitPoint[NSplit-1] = P.cpd;
 
-    STDLOG(1,"Direct splits for slab %d are at: \n",slabID);
-    for(int i = 0; i < NSplit -1; i++) STDLOG(2,"\t\t\t\t %d: %d \n",i,SplitPoint[i]);
+    if (NSplit > 1) {
+        STDLOG(1,"Direct splits for slab %d are at: \n",slabID);
+        for(int i = 0; i < NSplit -1; i++)
+            STDLOG(1,"\t\t\t\t %d: %d \n",i,SplitPoint[i]);
+    }
     
     CalcSplitDirects.Stop();
 
@@ -404,6 +408,7 @@ int NearFieldDriver::SlabDone(int slab){
 
 void NearFieldDriver::Finalize(int slab){
     FinalizeTimer.Start();
+    FinalizeBookkeeping.Start();
     slab = PP->WrapSlab(slab);
 
 #ifdef CUDADIRECT
@@ -432,114 +437,113 @@ void NearFieldDriver::Finalize(int slab){
     // instead of add if it's the first time touching the cell
     int *CellAccInit = new int[cpd*cpd]();
 
-    for(int n = 0; n < NSplit; n++){
-        for(int w = 0; w < WIDTH; w++){
-            FinalizeBookkeeping.Start();
-            int sliceIdx = w*NSplit + n;
-            SetInteractionCollection *Slice = Slices[sliceIdx];
-            int kl = Slice->K_low;
-            int kh = Slice->K_high;
-            int Nj = (cpd - w)/width;
-            int jr = (cpd - w)%width;
-            if(Nj * width + w < cpd)
-                Nj++;
-            //Slice->PrintInteractions();
-            
-            get_cuda_timers(Slice);
-            
-            // Fetching the times in the callback didn't work, possibly because the timing information
-            // didn't have time to be sync'd to the host.  By this point, it should have had time, but
-            // let's notify if not.
-            if(Slice->CopyTime == 0 || Slice->ExecutionTime == 0 || Slice->CopybackTime == 0 || Slice->TotalTime == 0)
-                STDLOG(1, "Warning: one or more CUDA timers returned 0.  Timings might not be reliable.\n");
-            
-            Construction +=Slice->Construction.Elapsed();
-                FillSinkLists+=Slice->FillSinkLists.Elapsed();
-                    CountSinks+=Slice->CountSinks.Elapsed();
-                    CalcSinkBlocks+=Slice->CalcSinkBlocks.Elapsed();
-                    FillSinks+=Slice->FillSinks.Elapsed();          
-                FillSourceLists+=Slice->FillSourceLists.Elapsed();
-                    CountSources+=Slice->CountSources.Elapsed();
-                    CalcSourceBlocks+=Slice->CalcSinkBlocks.Elapsed();
-                    FillSources+=Slice->FillSources.Elapsed();
-                FillInteractionList+=Slice->FillInteractionList.Elapsed();
-            LaunchDeviceKernels += Slice->LaunchDeviceKernels.Elapsed();
-            
-            int g = Slice->AssignedDevice;
-            DeviceCopyTimes[g] += Slice->CopyTime;
-            DeviceExecutionTimes[g] += Slice->ExecutionTime;
-            DeviceCopybackTimes[g] += Slice->CopybackTime;
-            DeviceTotalTimes[g] += Slice->TotalTime;
-            
-            DirectInteractions_GPU[g] += Slice->DirectTotal;
-            TotalDirectInteractions_GPU += Slice->DirectTotal;
-            
-            GB_to_device[g] += Slice->bytes_to_device/1e9;
-            GB_from_device[g] += Slice->bytes_from_device/1e9;
-            DeviceSinks[g] += Slice->SinkTotal;
-            DeviceSources[g] += Slice->SourceTotal;
-            
-            FinalizeBookkeeping.Stop();
+    // There's an annoying number of reductions here, would be a lot of overhead to do in parallel
+    // Let's do them serially here; hopefully this is quick.
+    for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
+        SetInteractionCollection *Slice = Slices[sliceIdx];
 
-            CopyPencilToSlab.Start();
-            #pragma omp parallel for schedule(static)
-            for(int sinkIdx = 0; sinkIdx < Slice->NSinkList; sinkIdx++){
-                int SinkCount = Slice->SinkSetCount[sinkIdx];
-                int j = sinkIdx%Nj;
-                int k = sinkIdx/Nj + Slice->K_low;
-                int jj = w + j * width;
-                int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
-                int Start = Slice->SinkSetStart[sinkIdx];
+        get_cuda_timers(Slice);
 
-                for(int z=zmid-nfr; z <= zmid+nfr;z++){
-                    int cid = PP->CellID(k,z);
-                    pthread_mutex_lock(&CellLock[cid]);
-                    int CellNP = PP->NumberParticle(slab,k,z);
-                    accstruct *a = PP->NearAccCell(slab,k,z);
+        // Fetching the times in the callback didn't work, possibly because the timing information
+        // didn't have time to be sync'd to the host.  By this point, it should have had time, but
+        // let's notify if not.
+        if(Slice->CopyTime == 0 || Slice->ExecutionTime == 0 || Slice->CopybackTime == 0 || Slice->TotalTime == 0)
+            STDLOG(1, "Warning: one or more CUDA timers returned 0.  Timings might not be reliable.\n");
 
-                    if(P.ForceOutputDebug == 1){
-                        for(int p =0; p < CellNP; p++){
-                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].x));
-                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].y));
-                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].z));
-                        }
-                    }
+        Construction +=Slice->Construction.Elapsed();
+            FillSinkLists+=Slice->FillSinkLists.Elapsed();
+                CountSinks+=Slice->CountSinks.Elapsed();
+                CalcSinkBlocks+=Slice->CalcSinkBlocks.Elapsed();
+                FillSinks+=Slice->FillSinks.Elapsed();          
+            FillSourceLists+=Slice->FillSourceLists.Elapsed();
+                CountSources+=Slice->CountSources.Elapsed();
+                CalcSourceBlocks+=Slice->CalcSourceBlocks.Elapsed();
+                FillSources+=Slice->FillSources.Elapsed();
+            FillInteractionList+=Slice->FillInteractionList.Elapsed();
+        LaunchDeviceKernels += Slice->LaunchDeviceKernels.Elapsed();
 
-                    // Should rewrite the following to avoid so much repetition
-                    if(CellAccInit[cid]){
-                        #pragma ivdep
-                        for(int p = 0; p <CellNP; p++){
-                            // It's not good to know about spline here, but it's likely the most efficient way
-                            #ifdef DIRECTSINGLESPLINE
-                            a[p] += Slice->SinkSetAccelerations[Start +p]*inv_eps3;
-                            #else
-                            a[p] += Slice->SinkSetAccelerations[Start +p];
-                            #endif
-                        }
-                    } else {
-                        #pragma ivdep
-                        for(int p = 0; p <CellNP; p++){
-                            // It's not good to know about spline here, but it's likely the most efficient way
-                            #ifdef DIRECTSINGLESPLINE
-                            a[p] = Slice->SinkSetAccelerations[Start +p]*inv_eps3;
-                            #else
-                            a[p] = Slice->SinkSetAccelerations[Start +p];
-                            #endif
-                        }
-                        CellAccInit[cid] = 1;
-                    }
-                    pthread_mutex_unlock(&CellLock[cid]);
+        int g = Slice->AssignedDevice;
+        DeviceCopyTimes[g] += Slice->CopyTime;
+        DeviceExecutionTimes[g] += Slice->ExecutionTime;
+        DeviceCopybackTimes[g] += Slice->CopybackTime;
+        DeviceTotalTimes[g] += Slice->TotalTime;
 
-                    Start+=CellNP;
-                    SinkCount-=CellNP;
-                }
-                assert(SinkCount == 0);
-            }
-            CopyPencilToSlab.Stop();
+        DirectInteractions_GPU[g] += Slice->DirectTotal;
+        TotalDirectInteractions_GPU += Slice->DirectTotal;
 
-            delete Slice;
-        }
+        assert(Slice->bytes_to_device/1e9 < 10);
+        GB_to_device[g] += Slice->bytes_to_device/1e9;
+        GB_from_device[g] += Slice->bytes_from_device/1e9;
+        DeviceSinks[g] += Slice->SinkTotal;
+        DeviceSources[g] += Slice->SourceTotal;
     }
+    FinalizeBookkeeping.Stop();
+    
+    CopyPencilToSlab.Start();
+    #pragma omp parallel for schedule(static)
+    for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
+        int w = sliceIdx / NSplit;
+        SetInteractionCollection *Slice = Slices[sliceIdx];
+        int Nj = (cpd - w)/width;
+        if(Nj * width + w < cpd)
+            Nj++;
+
+        for(int sinkIdx = 0; sinkIdx < Slice->NSinkList; sinkIdx++){
+            int SinkCount = Slice->SinkSetCount[sinkIdx];
+            int j = sinkIdx%Nj;
+            int k = sinkIdx/Nj + Slice->K_low;
+            int jj = w + j * width;
+            int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
+            int Start = Slice->SinkSetStart[sinkIdx];
+
+            for(int z=zmid-nfr; z <= zmid+nfr;z++){
+                int cid = PP->CellID(k,z);
+                int CellNP = PP->NumberParticle(slab,k,z);
+                accstruct *a = PP->NearAccCell(slab,k,z);
+
+                if(P.ForceOutputDebug == 1){
+                    for(int p =0; p < CellNP; p++){
+                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].x));
+                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].y));
+                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].z));
+                    }
+                }
+
+                pthread_mutex_lock(&CellLock[cid]);
+                // Should rewrite the following to avoid so much repetition
+                if(CellAccInit[cid]){
+                    #pragma simd assert
+                    for(int p = 0; p <CellNP; p++){
+                        // It's not good to know about spline here, but it's likely the most efficient way
+                        #ifdef DIRECTSINGLESPLINE
+                        a[p] += Slice->SinkSetAccelerations[Start +p]*inv_eps3;
+                        #else
+                        a[p] += Slice->SinkSetAccelerations[Start +p];
+                        #endif
+                    }
+                } else {
+                    #pragma simd assert
+                    for(int p = 0; p <CellNP; p++){
+                        // It's not good to know about spline here, but it's likely the most efficient way
+                        #ifdef DIRECTSINGLESPLINE
+                        a[p] = Slice->SinkSetAccelerations[Start +p]*inv_eps3;
+                        #else
+                        a[p] = Slice->SinkSetAccelerations[Start +p];
+                        #endif
+                    }
+                    CellAccInit[cid] = 1;
+                }
+                pthread_mutex_unlock(&CellLock[cid]);
+
+                Start+=CellNP;
+                SinkCount-=CellNP;
+            }
+            assert(SinkCount == 0);
+        }
+        delete Slice;
+    }
+    CopyPencilToSlab.Stop();
+    
     delete[] Slices;
     delete[] CellAccInit;
     if(P.ForceOutputDebug) CheckGPUCPU(slab);

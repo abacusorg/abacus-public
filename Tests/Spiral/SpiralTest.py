@@ -30,7 +30,6 @@ def run(basedir = "NONE"):
         basedir = tmpdir +"/spiral/"
 
     if os.path.exists(basedir):
-
         erase = "y"#raw_input("Test Directory exists! Erase? (y/n)")
         if erase =="y":
             shutil.rmtree(basedir)
@@ -59,6 +58,10 @@ def run(basedir = "NONE"):
         for i in range(1,params["CPD"]):
             f = open(params["InitialConditionsDirectory"]+"/ic_"+str(i),"wb")
             f.close()
+            
+        if os.path.exists(params['OutputDirectory']):
+            shutil.rmtree(params['OutputDirectory'])
+        os.makedirs(params['OutputDirectory'])
 
         #run the problem
         os.chdir(basedir)
@@ -70,7 +73,7 @@ def run(basedir = "NONE"):
     #writestate = InputFile.InputFile("write/state")
     ReadState = InputFile.InputFile("read/state")
     #laststep = writestate.FullStepNumber
-    return
+    
     timeslice = "final.ts"
     os.system(abacuspath+"/util/phdata " + "%s/slice%5.3f/%s.z%5.3f.*"%(params["OutputDirectory"], ReadState.Redshift, params["SimName"],ReadState.Redshift) + " > " +timeslice)
     data = np.fromfile(timeslice,dtype = np.float64)
@@ -84,18 +87,19 @@ def run(basedir = "NONE"):
     analytic[:,1] /= ReadState.VelZSpace_to_Canonical
 
     xv = np.reshape(data, (-1,6))
+    assert len(xv) == n1d**3
     print xv.shape
     print analytic.shape
-    p.plot(analytic[:,0], analytic[:,1])
-    p.scatter(xv[:,0],xv[:,3],marker=".",s = 10*(4 * np.abs(xv[0]) + 1), c= "r",linewidth=0 )
+    #p.plot(analytic[:,0], analytic[:,1])
+    #p.scatter(xv[:,0],xv[:,3],marker=".",s = 10*(4 * np.abs(xv[0]) + 1), c= "r",linewidth=0 )
     p.xlabel("X")
     p.ylabel("Vx")
     p.savefig("spiral.png", dpi=500)
     p.figure()
     p.xlim(-.1,.1)
     p.ylim(-.05,.05)
-    p.plot(analytic[:,0], analytic[:,1])
-    p.scatter(xv[:,0],xv[:,3],marker=".",s = 10*(4 * np.abs(xv[0]) + 1), c= "r",linewidth=0 )
+    #p.plot(analytic[:,0], analytic[:,1])
+    #p.scatter(xv[:,0],xv[:,3],marker=".",s = 10*(4 * np.abs(xv[0]) + 1), c= "r",linewidth=0 )
     p.xlabel("X")
     p.ylabel("Vx")
     p.savefig("spiral-zoomed.png",dpi=500)

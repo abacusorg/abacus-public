@@ -71,13 +71,22 @@ void WriteIOR(iorequest *ior) {
 
 // ================================================================
 #define NINSTRUCTIONS 65536
-void *io_thread(void *magic) {
+void *io_thread(void *data) {
     // This function runs as a stand-alone thread.
     // It must receive commands from the main program.
     // It inserts these commands into a set of ring buffers.
     // It then executes these commands in a priority order.
 
-    set_core_affinity(11);
+    if(data != NULL){
+        const int assigned_core = *(int *) data;
+        free(data);
+        set_core_affinity(assigned_core);
+        STDLOG(1, "IO thread assigned to core %d\n", assigned_core);
+    }
+    else{
+        STDLOG(1, "IO thread not bound to core\n");
+    }
+    
     IOLOG(0,"Opening IO pipes\n");
     fifo_cmd = open(IO_CMD_PIPE, O_RDONLY);
     fifo_ack = open(IO_ACK_PIPE, O_WRONLY);
@@ -254,14 +263,27 @@ void IO_Initialize(char *logfn) {
 
 
     int ramdisk = io_ramdisk_global;
-    int diskbuffer = 1<<20;
+    size_t diskbuffer = ((size_t) 1) << 29;
     RD = new ReadDirect(ramdisk, diskbuffer);
     WD = new WriteDirect(ramdisk,diskbuffer);
+    
+    // Determine core for IO thread
+    int *io_core = (int*) malloc(sizeof(int));
+    *io_core = 11;
+    /*if(!free_cores.empty()){
+        // look for a free core, starting from the last socket
+        for(auto core_list
+        
+        // last free core on the last socket
+        io_core = (int*) malloc(sizeof(int));
+        *io_core = free_cores.back().back();
+    }*/
+    
     // Launch io_thread() as a separate thread
     int rc;
     rc = pthread_attr_init(&io_attr1);
     rc = pthread_attr_setdetachstate(&io_attr1, PTHREAD_CREATE_JOINABLE);
-    int res = pthread_create(&io_t1, &io_attr1, io_thread, NULL);
+    int res = pthread_create(&io_t1, &io_attr1, io_thread, io_core);
     if(res) {
         printf("error %d\n", res);
     }

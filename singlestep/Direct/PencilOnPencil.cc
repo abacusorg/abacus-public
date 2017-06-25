@@ -29,15 +29,17 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
         Nj++;
     
     NSinkList = k_width * Nj;
-    SinkSetStart = (int *) malloc(sizeof(int) * NSinkList);
-    SinkSetCount = (int *) malloc(sizeof(int) * NSinkList);
-    SinkSetIdMax = (int *) malloc(sizeof(int) * NSinkList);
+    assert(posix_memalign((void **) &SinkSetStart, 4096, sizeof(int) * NSinkList) == 0);
+    assert(posix_memalign((void **) &SinkSetCount, 4096, sizeof(int) * NSinkList) == 0);
+    assert(posix_memalign((void **) &SinkSetIdMax, 4096, sizeof(int) * NSinkList) == 0);
+    //checkCudaErrors(cudaHostAlloc((void **) &SinkSetIdMax, sizeof(int) * NSinkList));
+    
     int localSinkTotal = 0;
 
     NSourceSets = Nj * (k_width + width);
     assertf(NSourceSets <= P.cpd*(P.cpd+width), "NSourceSets (%d) exceeds SourceSet array allocation (%d)\n", NSourceSets, P.cpd*(P.cpd+width));
-    SourceSetStart = (int *) malloc(sizeof(int) * P.cpd*(P.cpd+width));
-    SourceSetCount = (int *) malloc(sizeof(int) * P.cpd*(P.cpd+width));
+    assert(posix_memalign((void **) &SourceSetStart, 4096, sizeof(int) * P.cpd*(P.cpd+width)) == 0);
+    assert(posix_memalign((void **) &SourceSetCount, 4096, sizeof(int) * P.cpd*(P.cpd+width)) == 0);
     int localSourceTotal = 0;
 
     DirectTotal = 0;
@@ -78,7 +80,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     }
     assert(NPaddedSinks==NFBlockSize*NSinkBlocks);
 
-    SinkBlockParentPencil = (int *) malloc(sizeof(int) * NSinkBlocks);
+    assert(posix_memalign((void **) &SinkBlockParentPencil, 4096, sizeof(int) * NSinkBlocks) == 0);
+    
     for(int sinkset=0; sinkset < NSinkList; sinkset++) {
         if(SinkSetCount[sinkset] == 0) continue;
         int PencilBlocks = SinkSetCount[sinkset]/NFBlockSize;
@@ -93,7 +96,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
 
     SinkSetPositions = new List3<FLOAT>(NPaddedSinks);
 
-    SinkSetAccelerations = (FLOAT3 *) malloc(sizeof(FLOAT3) * NPaddedSinks);
+    assert(posix_memalign((void **) &SinkSetAccelerations, 4096, sizeof(FLOAT3) * NPaddedSinks) == 0);
+    
     //to make valgrind more accurate, we only zero the regions we use
     //memset(SinkSetAccelerations, 0 , sizeof(FLOAT3)*NPaddedSinks);
     CalcSinkBlocks.Stop();
@@ -119,7 +123,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     //Fill in source data
     FillSourceLists.Start();
     CountSources.Start();
-    memset(SourceSetCount, 0, sizeof(int) * NSourceSets );
     #pragma omp parallel for schedule(static) reduction(+:localSourceTotal)
     for(int j = 0; j < Nj; j ++) {
         int jj = w + j * width;
@@ -174,13 +177,10 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     FillInteractionList.Start();
 
     InteractionCount = width*k_width*Nj;
-    SinkSourceInteractionList = (int *) malloc(sizeof(int) * InteractionCount);
+    assert(posix_memalign((void **) &SinkSourceInteractionList, 4096, sizeof(int) * InteractionCount) == 0);
     
-    int cpd = P.cpd;
-    int nprocs = omp_get_max_threads();
-    uint64 threadDI[nprocs];
-    memset(threadDI,0,sizeof(uint64)*nprocs);
-    #pragma omp parallel for schedule(static)
+    uint64 localDirectTotal = 0;
+    #pragma omp parallel for schedule(static) reduction(+:localDirectTotal)
     for(int k = 0; k < k_width; k++){
         int g = omp_get_thread_num();
         assertf(k*Nj + Nj <= NSinkList, "SinkSetCount array access at %d would exceed allocation %d\n", k*Nj + Nj, NSinkList);
@@ -196,18 +196,18 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
             for(int y=0;y<width;y++) {
                 int sourceindex = (k + y)*(Nj) +  j;
                 SinkSourceInteractionList[l+y] = sourceindex;
-                threadDI[g] += SinkSetCount[sinkindex] * SourceSetCount[sourceindex];
+                localDirectTotal += SinkSetCount[sinkindex] * SourceSetCount[sourceindex];
             }
         }
     }
-    DirectTotal = 0;
-    for(int g = 0; g< nprocs; g++) DirectTotal+= threadDI[g];
+    DirectTotal = localDirectTotal;
 
     FillInteractionList.Stop();
     Construction.Stop();
 }
 
 SetInteractionCollection::~SetInteractionCollection(){
+    Unpin();
     free(SinkSetStart);
     free(SinkSetCount);
     free(SinkSetIdMax);
@@ -262,20 +262,15 @@ inline void SetInteractionCollection::CreateSinkPencil(int sinkx, int sinky, int
             FLOAT * X = &(SinkSetPositions->X[start]);
             FLOAT * Y = &(SinkSetPositions->Y[start]);
             FLOAT * Z = &(SinkSetPositions->Z[start]);
-
-            #pragma ivdep  // tell to ignore vector dependencies
+            
+            #pragma simd assert
             for(int p = 0; p < count; p++){
-                X[p] = pos[p].x; 
-                Y[p] = pos[p].y;
-                Z[p] = pos[p].z;
+                float3 tmp = pos[p] + newsinkcenter;
+                X[p] = tmp.x;
+                Y[p] = tmp.y;
+                Z[p] = tmp.z;
             }
-
-            #pragma ivdep
-            for(int p=0;p<count;p++){
-                X[p] += newsinkcenter.x;
-                Y[p] += newsinkcenter.y;
-                Z[p] += newsinkcenter.z;
-            }
+            
             start+=count;
         }
     }
@@ -294,19 +289,13 @@ inline void SetInteractionCollection::CreateSourcePencil(int sx, int sy, int nz,
             FLOAT * X = &(SourceSetPositions->X[start]);
             FLOAT * Y = &(SourceSetPositions->Y[start]);
             FLOAT * Z = &(SourceSetPositions->Z[start]);
-
-            #pragma ivdep
+            
+            #pragma simd assert
             for(int p = 0; p < count; p++){
-                X[p] = pos[p].x;
-                Y[p] = pos[p].y;
-                Z[p] = pos[p].z;
-            }
-
-            #pragma ivdep
-            for(int p=0; p<count; p++){
-                X[p] += newsourcecenter.x;
-                Y[p] += newsourcecenter.y;
-                Z[p] += newsourcecenter.z;
+                float3 tmp = pos[p] + newsourcecenter;
+                X[p] = tmp.x;
+                Y[p] = tmp.y;
+                Z[p] = tmp.z;
             }
             start += count;
         }

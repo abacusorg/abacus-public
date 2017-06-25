@@ -22,7 +22,7 @@ however!).
 #define TRACK_MAX(maxsofar,newvalue) if ((newvalue)>maxsofar) maxsofar=newvalue
 #define TRACK_MIN(minsofar,newvalue) if ((newvalue)<minsofar) minsofar=newvalue
 
-void FillMergeSlab(int slab) {
+uint64 FillMergeSlab(int slab) {
     // This routine allocates the MergePos, MergeVel, MergeAux, 
     // and MergeCellInfo slabs.  They will be destroyed when written.
 
@@ -37,6 +37,7 @@ void FillMergeSlab(int slab) {
     LBW->AllocateArena(MergeCellInfoSlab, slab);
     LBW->AllocateArena(InsertCellInfoSlab, slab);   // Will delete at bottom
     
+    #pragma omp parallel for schedule(static)
     for (int y=0; y < P.cpd; y++)
         for (int z=0; z < P.cpd; z++){
             PP->MergeCellInfo(slab,y,z)->makenull();
@@ -67,43 +68,43 @@ void FillMergeSlab(int slab) {
             cellinfo *mci = PP->MergeCellInfo(slab,y,z);
             cellinfo *ci =  PP->CellInfo(slab,y,z);
 
-	    // Now count the particles on the insert list
-	    // Note that this requires the insert list sorted to be in y,z order
-	    ici->startindex = il_index;
-	    ici->count=0;
+            // Now count the particles on the insert list
+            // Note that this requires the insert list sorted to be in y,z order
+            ici->startindex = il_index;
+            ici->count=0;
             while( ilread<ilend && ((ilread->xyz.x == slab) && 
                     (ilread->xyz.y == y   ) && 
                     (ilread->xyz.z == z   )) ) {
-		ici->count++;
-		il_index++; ilread++;    // Move along the insert list
-	    }
-	    // STDLOG(1,"Counted %d particles in cell %d, %d, %d\n", 
-	    	// ici->count, slab, y, z);
+                ici->count++;
+                il_index++; ilread++;    // Move along the insert list
+            }
+            // STDLOG(1,"Counted %d particles in cell %d, %d, %d\n", 
+            // ici->count, slab, y, z);
 
-	    // Now count the particles in the original cell
+            // Now count the particles in the original cell
             inslab += ci->active;
 
-	    // Setup the MergeCellInfo index
-	    mci->startindex = mci_index;
-	    mci->count = ci->active + ici->count;
-	    mci->active = mci->count;
-	    mci_index += mci->count;
+            // Setup the MergeCellInfo index
+            mci->startindex = mci_index;
+            mci->count = ci->active + ici->count;
+            mci->active = mci->count;
+            mci_index += mci->count;
 
-	    // Track some statistics
-	    TRACK_MAX(maxcellsize, mci->count);
-	    TRACK_MIN(mincellsize, mci->count);
-	    TRACK_MAX(max_acceleration, ci->max_component_acceleration);
-	    TRACK_MAX(max_velocity, ci->max_component_velocity);
+            // Track some statistics
+            TRACK_MAX(maxcellsize, mci->count);
+            TRACK_MIN(mincellsize, mci->count);
+            TRACK_MAX(max_acceleration, ci->max_component_acceleration);
+            TRACK_MAX(max_velocity, ci->max_component_velocity);
 
-	    if (ci->max_component_acceleration>0) {
-		FLOAT vrms_on_amax = sqrt(ci->mean_square_velocity)/
-					ci->max_component_acceleration;
-		TRACK_MIN(min_vrms_on_amax, vrms_on_amax);
-	    }
-	    double res = mci->count/mean_cellsize-1;
-	    stddev_cellsize += res*res;		// Fractional overdensity
-	    sum_square_velocity += (double) ci->mean_square_velocity*(ci->count);
-	}
+            if (ci->max_component_acceleration>0) {
+                FLOAT vrms_on_amax = sqrt(ci->mean_square_velocity)/
+                            ci->max_component_acceleration;
+                TRACK_MIN(min_vrms_on_amax, vrms_on_amax);
+            }
+            double res = mci->count/mean_cellsize-1;
+            stddev_cellsize += res*res;		// Fractional overdensity
+            sum_square_velocity += (double) ci->mean_square_velocity*(ci->count);
+    }
     STDLOG(0,"Slab %d contains %d old particles and %d new particles\n", slab, inslab, il_index);
 
     STDLOG(1,"Cell in slab %d range from %d to %d particles\n", slab, mincellsize, maxcellsize);
@@ -143,17 +144,18 @@ void FillMergeSlab(int slab) {
 
     ilstruct *ilhead = IL->il+head;
 
-    #pragma omp parallel for schedule(dynamic,1)
+    #pragma omp parallel for schedule(static)
     for(int y=0;y<cpd;y++)
         for(int z=0;z<cpd;z++) {
-	    Cell c  = PP->GetCell(slab, y, z);
-	    Cell mc = PP->GetMergeCell(slab, y, z);
+            Cell c  = PP->GetCell(slab, y, z);
+            Cell mc = PP->GetMergeCell(slab, y, z);
             cellinfo *ici = PP->InsertCellInfo(slab,y,z);
+            int insert_count = ici->count;
 
-	    assertf(ici->count + c.active() == mc.count(),
-	    	"Predicted merge cell size doesn't match insert list plus old particles\n");
+            assertf(insert_count + c.active() == mc.count(),
+                "Predicted merge cell size doesn't match insert list plus old particles\n");
 
-	    	// Copy the active particles from the old cell
+            // Copy the active particles from the old cell
             memcpy(mc.pos, c.pos, c.active()*sizeof(posstruct));
             memcpy(mc.vel, c.vel, c.active()*sizeof(velstruct));
             memcpy(mc.aux, c.aux, c.active()*sizeof(auxstruct));
@@ -163,12 +165,12 @@ void FillMergeSlab(int slab) {
 
             // Now copy the particles from the insert list
             ilstruct *ilpart = ilhead+ici->startindex;
-            for (int j = 0; j<ici->count; j++) {
-            	mc.pos[j] = ilpart[j].pos;
-            	mc.vel[j] = ilpart[j].vel;
-            	mc.aux[j] = ilpart[j].aux;
+            #pragma ivdep
+            for (int j = 0; j<insert_count; j++) {
+                mc.pos[j] = ilpart[j].pos;
+                mc.vel[j] = ilpart[j].vel;
+                mc.aux[j] = ilpart[j].aux;
             }
-
 
             // Copy the stats, just to have
             mc.ci->mean_square_velocity = c.ci->mean_square_velocity;
@@ -181,5 +183,5 @@ void FillMergeSlab(int slab) {
     STDLOG(1,"After merge, insert list contains a total of %d particles.\n", IL->length);
     LBW->DeAllocate(InsertCellInfoSlab, slab);
     FinishMerge.Stop();
-    return;
+    return inslab;
 }

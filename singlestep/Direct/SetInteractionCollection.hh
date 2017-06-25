@@ -98,6 +98,7 @@ class SetInteractionCollection{
         //execute this collection on the GPU
         void GPUExecute(int blocking);
         void CPUExecute();
+        void Unpin();
 
         //check if this collection has been completed;
         int CheckCompletion();

@@ -9,9 +9,9 @@ void OutofCoreConvolution::ReadDiskMultipoles(int z, int delete_after_read) {
                                mapM[(x +(cpd-1)/2)%cpd]  );
 
         ReadMultipoles.Start();
-        size_t s = sizeof(Complex); s *= zwidth; s *= cpd*rml;
+        size_t s = sizeof(COMPLEX); s *= zwidth; s *= cpd*rml;
         size_t offset = z; 
-        offset *= cpd; offset *= rml; offset *= sizeof(Complex);
+        offset *= cpd; offset *= rml; offset *= sizeof(COMPLEX);
         RD_RDM->BlockingRead( fn, (char *) &(TemporarySpace[0]), s, offset );
         if(delete_after_read){
             if (remove(fn) != 0)
@@ -23,10 +23,10 @@ void OutofCoreConvolution::ReadDiskMultipoles(int z, int delete_after_read) {
         ArraySwizzle.Start();
         #pragma omp parallel for schedule(static)
         for(int zb=0;zb<zwidth;zb++)
-            for(int y=0;y<cpd;y++)
-                for(int m=0;m<rml;m++)
+            for(int m=0;m<rml;m++)
+                for(int y=0;y<cpd;y++)
                     DiskBuffer[zb*rml*cpd*cpd + m*cpd*cpd + x*cpd + y] = 
-                        TemporarySpace[ zb*cpd*rml + y*rml + m ];
+                        TemporarySpace[ zb*cpd*rml + m*cpd + y ];
         ArraySwizzle.Stop();
     }
 }
@@ -38,8 +38,8 @@ void OutofCoreConvolution::WriteDiskTaylor(int z) {
         for(int zb=0;zb<zwidth;zb++)
             for(int m=0;m<rml;m++)
                 for(int y=0;y<cpd;y++)
-                    TemporarySpace[ zb*cpd*rml + y*rml + m ] = 
-                        DiskBuffer[  zb*rml*cpd*cpd + m*cpd*cpd + x*cpd + y];
+                    TemporarySpace[ zb*cpd*rml + m*cpd + y ] = 
+                        DiskBuffer[  zb*rml*cpd*cpd + m*cpd*cpd + x*cpd + y]*invcpd3;
         ArraySwizzle.Stop();
 
         char fn[1024];
@@ -48,7 +48,7 @@ void OutofCoreConvolution::WriteDiskTaylor(int z) {
                                 remap[ (x + (cpd-1)/2)%cpd] );
 
         WriteTaylor.Start();
-        size_t s = sizeof(Complex); s *= zwidth; s *= cpd*rml; 
+        size_t s = sizeof(COMPLEX); s *= zwidth; s *= cpd*rml; 
         WD_WDT->BlockingAppend(fn, (char *) &(TemporarySpace[0]), s);
         CS.WriteTaylorBytes += s;
         WriteTaylor.Stop(); 
@@ -133,13 +133,13 @@ void OutofCoreConvolution::BlockConvolve(void) {
     #else
     for(int g=0;g<nprocs;g++) {
         plan_forward_1d[g] = fftw_plan_dft_1d(cpd, 
-                                (fftw_complex *) in_1d[g]), 
-                                (fftw_complex *) out_1d[g]), 
+                                (fftw_complex *) in_1d[g], 
+                                (fftw_complex *) out_1d[g], 
                                 FFTW_FORWARD, FFTW_PATIENT);
         
         plan_backward_1d[g] = fftw_plan_dft_1d(cpd, 
-                                (fftw_complex *) in_1d[g]), 
-                                (fftw_complex *) out_1d[g]), 
+                                (fftw_complex *) in_1d[g], 
+                                (fftw_complex *) out_1d[g], 
                                 FFTW_BACKWARD, FFTW_PATIENT);
     }
     #endif
@@ -251,7 +251,7 @@ void OutofCoreConvolution::BlockConvolve(void) {
 
     ConvolveWallClock.Stop();
 }
-
+
 void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
 
     CP = _CP;
@@ -310,6 +310,7 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
 
     cpd = CP.runtime_cpd;
     order = CP.runtime_order;    
+    invcpd3 = 1./cpd/cpd/cpd;
 
     CompressedMultipoleLengthXY  = ((1+cpd)*(3+cpd))/8;
 
@@ -360,7 +361,7 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     assert(CompressedDerivatives != NULL);
     CS.totalMemoryAllocated += s;
 
-    s = sizeof(Complex);
+    s = sizeof(COMPLEX);
     s *= zwidth * rml;
     s *= cpd;
     memalign_ret = posix_memalign((void **) &TemporarySpace,4096,s);

@@ -330,6 +330,43 @@ void PlanOutput(bool MakeIC) {
 
 }
 
+std::vector<std::vector<int>> free_cores;  // list of free cores for each socket
+void init_openmp(){
+    // Tell singlestep to use the desired number of threads
+    int max_threads = omp_get_max_threads();
+    int ncores = omp_get_num_procs();
+    int nthreads = P.OMP_NUM_THREADS > 0 ? P.OMP_NUM_THREADS : max_threads + P.OMP_NUM_THREADS;
+    
+    assertf(nthreads <= max_threads, "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n");
+    assertf(nthreads <= ncores, "Trying to use more threads (%d) than cores (%d).  This will probably be very slow.\n", nthreads, ncores);
+    
+    omp_set_num_threads(nthreads);
+    STDLOG(1, "Initializing OpenMP with %d threads (system max is %d; P.OMP_NUM_THREADS is %d)\n", nthreads, max_threads, P.OMP_NUM_THREADS);
+    
+    // If threads are bound to cores via OMP_PROC_BIND,
+    // then identify free cores for use by GPU and IO threads
+    if(omp_get_proc_bind() == omp_proc_bind_false){
+        //free_cores = NULL;  // signal that cores are not bound to threads
+        STDLOG(1, "OMP_PROC_BIND = false; threads will not be bound to cores\n");
+    }
+    else{
+        int thread_assignments[nthreads];
+        int core_assignments[nthreads];
+        //bool is_core_free[ncores] = {true};
+        #pragma omp parallel for schedule(static)
+        for(int g = 0; g < nthreads; g++){
+            assertf(g == omp_get_thread_num(), "OpenMP thread %d is executing wrong loop ieration (%d)\n", omp_get_thread_num(), g);
+            core_assignments[g] = sched_getcpu();
+        }
+        std::ostringstream core_log;
+        core_log << "Thread->core assignments:";
+        for(int g = 0; g < nthreads; g++)
+            core_log << " " << g << "->" << core_assignments[g];
+        core_log << "\n";
+        STDLOG(1, core_log.str().c_str());
+    }
+}
+
 
 int main(int argc, char **argv) {
 	std::setvbuf(stdout,(char *)_IONBF,0,0);
@@ -360,12 +397,10 @@ int main(int argc, char **argv) {
     
     
     // Set up OpenMP
-    int max_threads = omp_get_max_threads();
-    int nthreads = P.OMPNumThreads > 0 ? P.OMPNumThreads : max_threads + P.OMPNumThreads;
-    assertf(nthreads <= max_threads, "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n");
-    omp_set_num_threads(nthreads);
-    STDLOG(0, "Initializing OpenMP with %d threads (system max is %d; P.OMPNumThreads is %d)\n", nthreads, max_threads, P.OMPNumThreads);
-
+    init_openmp();
+    
+    
+    // Decide what kind of step to do
     double da = -1.0;   // If we set this to zero, it will skip the timestep choice
     bool MakeIC; //True if we should make the initial state instead of doing a real timestep
 
@@ -452,7 +487,7 @@ int main(int argc, char **argv) {
     SingleStepTearDown.Stop();
     WallClockDirect.Stop();
     if (!MakeIC){
-	//JJ->Cleanup();
+        //JJ->Cleanup();
     	char timingfn[1050];
     	sprintf(timingfn,"%s/lastrun.steptiming", P.LogDirectory);
     	FILE * timingfile = fopen(timingfn,"w");

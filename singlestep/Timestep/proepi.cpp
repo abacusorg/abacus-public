@@ -33,8 +33,7 @@ STimer TaylorCompute;
 STimer AddAccel;
 STimer KickCellTimer;
 
-STimer DriftMoveRebin, DriftInsert;
-PTimer DriftMove, DriftRebin;
+STimer DriftMove, DriftRebin, DriftInsert;
 
 STimer prologue;
 STimer epilogue;
@@ -72,8 +71,8 @@ void IO_DeleteArena(int arena)    { LBW->DeAllocateArena(arena); }
 #ifdef IOTHREADED
 #include "io_thread.cpp"
 #else
-//#include "io_dio.cpp"
-#include "io_fopen.cpp"
+#include "io_dio.cpp"
+//#include "io_fopen.cpp"
 #endif
 
 #include "particles.cpp"
