@@ -27,15 +27,6 @@ class SetInteractionCollection{
         // Asynchronous, CPU side
         STimer LaunchDeviceKernels;
     
-        // Asynchronous, GPU side
-#ifdef CUDADIRECT
-        cudaEvent_t CopyStart,CopyStopExecStart,ExecStopResStart,ResStop;
-#endif
-        float CopyTime;
-        float ExecutionTime;
-        float CopybackTime;
-        float TotalTime;
-    
         // Data transfer metrics
         uint64 bytes_to_device, bytes_from_device;
     

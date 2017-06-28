@@ -38,10 +38,6 @@ class NearFieldDriver{
         double      FillInteractionList;
         
         double LaunchDeviceKernels;
-        double *DeviceCopyTimes;
-        double *DeviceExecutionTimes;
-        double *DeviceCopybackTimes;
-        double *DeviceTotalTimes;
     
         double *GB_to_device, *GB_from_device;
         uint64 *DeviceSinks;
@@ -155,10 +151,6 @@ NearFieldDriver::NearFieldDriver() :
     for(int g = 0; g < NGPU; g++)
         NSink_GPU_final[g] = 0;
     
-    DeviceCopyTimes = new double[NGPU*DirectBPD]();
-    DeviceExecutionTimes = new double[NGPU*DirectBPD]();
-    DeviceCopybackTimes = new double[NGPU*DirectBPD]();
-    DeviceTotalTimes = new double[NGPU*DirectBPD]();
     DirectInteractions_GPU = new uint64[NGPU*DirectBPD]();
     GB_to_device = new double[NGPU*DirectBPD]();
     GB_from_device = new double[NGPU*DirectBPD]();
@@ -175,10 +167,6 @@ NearFieldDriver::~NearFieldDriver()
     delete[] SlabInteractionCollections;
 #ifdef CUDADIRECT
     free(NSink_GPU_final);
-    delete[] DeviceCopyTimes;
-    delete[] DeviceExecutionTimes;
-    delete[] DeviceCopybackTimes;
-    delete[] DeviceTotalTimes;
     delete[] DirectInteractions_GPU;
     delete[] GB_to_device;
     delete[] GB_from_device;
@@ -255,7 +243,6 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     
     CalcSplitDirects.Stop();
 
-    
     for(int w = 0; w < WIDTH; w++){
         int kl =0;
         for(int n = 0; n < NSplit; n++){
@@ -442,14 +429,6 @@ void NearFieldDriver::Finalize(int slab){
     for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
         SetInteractionCollection *Slice = Slices[sliceIdx];
 
-        get_cuda_timers(Slice);
-
-        // Fetching the times in the callback didn't work, possibly because the timing information
-        // didn't have time to be sync'd to the host.  By this point, it should have had time, but
-        // let's notify if not.
-        if(Slice->CopyTime == 0 || Slice->ExecutionTime == 0 || Slice->CopybackTime == 0 || Slice->TotalTime == 0)
-            STDLOG(1, "Warning: one or more CUDA timers returned 0.  Timings might not be reliable.\n");
-
         Construction +=Slice->Construction.Elapsed();
             FillSinkLists+=Slice->FillSinkLists.Elapsed();
                 CountSinks+=Slice->CountSinks.Elapsed();
@@ -463,11 +442,6 @@ void NearFieldDriver::Finalize(int slab){
         LaunchDeviceKernels += Slice->LaunchDeviceKernels.Elapsed();
 
         int g = Slice->AssignedDevice;
-        DeviceCopyTimes[g] += Slice->CopyTime;
-        DeviceExecutionTimes[g] += Slice->ExecutionTime;
-        DeviceCopybackTimes[g] += Slice->CopybackTime;
-        DeviceTotalTimes[g] += Slice->TotalTime;
-
         DirectInteractions_GPU[g] += Slice->DirectTotal;
         TotalDirectInteractions_GPU += Slice->DirectTotal;
 

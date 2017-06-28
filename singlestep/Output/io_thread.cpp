@@ -25,7 +25,7 @@ void CrashIO() {
     IOLOG(0,"Crashing the IO thread; sending IO_ERROR to client!\n");
     ioacknowledge ioack(IO_ERROR,-1);
     write(fifo_ack,&ioack, sizeof(ioacknowledge) );
-    pthread_exit(NULL);    // Is this right?
+    pthread_exit(NULL);
 }
 
 // =====================================================================
@@ -151,11 +151,12 @@ void *io_thread(void *data) {
 	if (write_blocking.isnotempty()) {
 	    IOLOG(1,"Starting blocking write\n"); 
 	    iorequest ior = write_blocking.pop(); 
+        const char *dir = ior.dir;
 		
-		BlockingIOWriteTime.Start();
+		BlockingIOWriteTime[dir].Start();
 	    WriteIOR(&ior);
-		BlockingIOWriteTime.Stop();
-		blocking_write_bytes += ior.sizebytes;
+		BlockingIOWriteTime[dir].Stop();
+		blocking_write_bytes[dir] += ior.sizebytes;
 		
 	    // Send an acknowledgement
 	    ioacknowledge ioack(IO_WRITE,ior.arena);
@@ -164,11 +165,12 @@ void *io_thread(void *data) {
 	} else if (read_blocking.isnotempty()) {
 	    IOLOG(1,"Starting blocking read\n"); 
 	    iorequest ior = read_blocking.pop();
+        const char *dir = ior.dir;
 		
-		BlockingIOReadTime.Start();
+		BlockingIOReadTime[dir].Start();
 	    ReadIOR(&ior);
-		BlockingIOReadTime.Stop();
-		blocking_read_bytes += ior.sizebytes;
+		BlockingIOReadTime[dir].Stop();
+		blocking_read_bytes[dir] += ior.sizebytes;
 		
 	    // Send an acknowledgement
 	    ioacknowledge ioack(IO_READ,ior.arena);
@@ -177,19 +179,21 @@ void *io_thread(void *data) {
 	} else if (write_nonblocking.isnotempty()) {
 	    IOLOG(1,"Starting nonblocking write\n"); 
 	    iorequest ior = write_nonblocking.pop(); 
+        const char *dir = ior.dir;
 		
-		NonBlockingIOWriteTime.Start();
+		NonBlockingIOWriteTime[dir].Start();
 	    WriteIOR(&ior);
-		NonBlockingIOWriteTime.Stop();
-		non_blocking_write_bytes += ior.sizebytes;
+		NonBlockingIOWriteTime[dir].Stop();
+		non_blocking_write_bytes[dir] += ior.sizebytes;
 	} else if (read_nonblocking.isnotempty()) {
 	    IOLOG(1,"Starting nonblocking read\n");
 	    iorequest ior = read_nonblocking.pop();
+        const char *dir = ior.dir;
 		
-		NonBlockingIOReadTime.Start();
+		NonBlockingIOReadTime[dir].Start();
 	    ReadIOR(&ior);
-		NonBlockingIOReadTime.Stop();
-		non_blocking_read_bytes += ior.sizebytes;
+		NonBlockingIOReadTime[dir].Stop();
+		non_blocking_read_bytes[dir] += ior.sizebytes;
 	} else if (quitflag) break;
 	else wait_for_cmd = 1;	
 	    // We have no work to do, so we should read the cmd pipe to avoid spinlocking

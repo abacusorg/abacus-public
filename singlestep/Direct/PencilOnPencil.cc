@@ -7,10 +7,6 @@
 
 SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, int k_high){
     Construction.Start();
-    CopyTime = 0.;
-    ExecutionTime = 0.;
-    CopybackTime = 0.;
-    TotalTime = 0.;
 
     eps = JJ->eps;
     
@@ -113,8 +109,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
         int jj = w + j * width;
         int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
         CreateSinkPencil(slab, k, zmid, SinkSetStart[sinkset] );
-        // We only ever assign (not add) accelerations
-        //memset(&(SinkSetAccelerations[SinkSetStart[sinkset]]), 0 , sizeof(FLOAT3)*SinkSetCount[sinkset]);
     }
 
     FillSinks.Stop();
@@ -207,7 +201,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
 }
 
 SetInteractionCollection::~SetInteractionCollection(){
-    Unpin();
     free(SinkSetStart);
     free(SinkSetCount);
     free(SinkSetIdMax);
@@ -220,9 +213,6 @@ SetInteractionCollection::~SetInteractionCollection(){
 
 void SetInteractionCollection::SetCompleted(){
     STDLOG(1,"Completed SIC for slab %d w: %d k: %d - %d\n",SlabId,W,K_low,K_high); 
-    //free(SourceSetStart);
-    //free(SourceSetCount);
-    //free(SinkSourceInteractionList);
 
     delete SinkSetPositions;
     delete SourceSetPositions;

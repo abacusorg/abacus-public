@@ -137,18 +137,74 @@ void ReportTimings(FILE * timingfile) {
     REPORT(0, "SingleStep Setup", SingleStepSetup.Elapsed()); total += thistime;
     REPORT(0, "SingleStep TearDown", SingleStepTearDown.Elapsed()); total += thistime;
     REPORT(0, "Unaccounted", WallClockDirect.Elapsed()-total);
+    fprintf(timingfile, "\n");
+    
+    // Collect stats on IO
+    double total_blocking_io_read_time = 0, total_blocking_io_write_time = 0;
+    double total_nonblocking_io_read_time = 0, total_nonblocking_io_write_time = 0;
+    double total_blocking_read_bytes = 0, total_blocking_write_bytes = 0;
+    double total_nonblocking_read_bytes = 0, total_nonblocking_write_bytes = 0;
+    for(auto &iter : BlockingIOReadTime){
+        total_blocking_io_read_time += iter.second.Elapsed();
+        total_blocking_read_bytes += blocking_read_bytes[iter.first];
+    }
+    for(auto &iter : BlockingIOWriteTime){
+        total_blocking_io_write_time += iter.second.Elapsed();
+        total_blocking_write_bytes += blocking_write_bytes[iter.first];
+    }
+    for(auto &iter : NonBlockingIOReadTime){
+        total_nonblocking_io_read_time += iter.second.Elapsed();
+        total_nonblocking_read_bytes += non_blocking_read_bytes[iter.first];
+    }
+    for(auto &iter : NonBlockingIOWriteTime){
+        total_nonblocking_io_write_time += iter.second.Elapsed();
+        total_nonblocking_write_bytes += non_blocking_write_bytes[iter.first];
+    }
+    
+    denom = WallClockDirect.Elapsed();
+    REPORT(0, "Blocking Disk Reads", total_blocking_io_read_time);
+        denom = thistime+1e-15;
+        fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", total_blocking_read_bytes/(thistime+1e-15)/1e6, total_blocking_read_bytes/1e9);
+        for(auto &iter : BlockingIOReadTime){
+            double time = iter.second.Elapsed();
+            auto bytes = blocking_read_bytes[iter.first];
+            REPORT(1, iter.first.c_str(), time);
+            fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", bytes/(time+1e-15)/1e6, bytes/1e9);
+        }
+    
+    denom = WallClockDirect.Elapsed();
+    REPORT(0, "Blocking Disk Writes", total_blocking_io_write_time);
+        denom = thistime+1e-15;
+        fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", total_blocking_write_bytes/(thistime+1e-15)/1e6, total_blocking_write_bytes/1e9);
+        for(auto &iter : BlockingIOWriteTime){
+            double time = iter.second.Elapsed();
+            auto bytes = blocking_write_bytes[iter.first];
+            REPORT(1, iter.first.c_str(), time);
+            fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", bytes/(time+1e-15)/1e6, bytes/1e9);
+        }
 
     fprintf(timingfile, "\n");
-    REPORT(0, "Total Blocking Disk Reads", BlockingIOReadTime.Elapsed());
-        fprintf(timingfile, "---> %6.2f MB/sec on %6.3f GB", blocking_read_bytes/(thistime+1e-15)/1e6, blocking_read_bytes/1e9);
-    REPORT(0, "Total Blocking Disk Writes", BlockingIOWriteTime.Elapsed());
-        fprintf(timingfile, "---> %6.2f MB/sec on %6.3f GB", blocking_write_bytes/(thistime+1e-15)/1e6, blocking_write_bytes/1e9);
-
-    fprintf(timingfile, "\n");
-    REPORT(0, "Total Non-blocking Disk Reads", NonBlockingIOReadTime.Elapsed());
-        fprintf(timingfile, "---> %6.2f MB/sec on %6.3f GB", non_blocking_read_bytes/(thistime+1e-15)/1e6, non_blocking_read_bytes/1e9);
-    REPORT(0, "Total Non-blocking Disk Writes", NonBlockingIOWriteTime.Elapsed());
-        fprintf(timingfile, "---> %6.2f MB/sec on %6.3f GB", non_blocking_write_bytes/(thistime+1e-15)/1e6, non_blocking_write_bytes/1e9);
+    denom = WallClockDirect.Elapsed();
+    REPORT(0, "Non-blocking Disk Reads", total_nonblocking_io_read_time);
+        denom = thistime+1e-15;
+        fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", total_nonblocking_read_bytes/(thistime+1e-15)/1e6, total_nonblocking_read_bytes/1e9);
+        for(auto &iter : NonBlockingIOReadTime){
+            double time = iter.second.Elapsed();
+            auto bytes = non_blocking_read_bytes[iter.first];
+            REPORT(1, iter.first.c_str(), time);
+            fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", bytes/(time+1e-15)/1e6, bytes/1e9);
+        }
+    
+    denom = WallClockDirect.Elapsed();
+    REPORT(0, "Non-blocking Disk Writes", total_nonblocking_io_write_time);
+        denom = thistime+1e-15;
+        fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", total_nonblocking_write_bytes/(thistime+1e-15)/1e6, total_nonblocking_write_bytes/1e9);
+        for(auto &iter : NonBlockingIOWriteTime){
+            double time = iter.second.Elapsed();
+            auto bytes = non_blocking_write_bytes[iter.first];
+            REPORT(1, iter.first.c_str(), time);
+            fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", bytes/(time+1e-15)/1e6, bytes/1e9);
+        }
 
     fprintf(timingfile, "\n\nBreakdown of TimeStep: ");
     total = 0.0;
@@ -165,10 +221,6 @@ void ReportTimings(FILE * timingfile) {
     double total_copy_time = 0, total_execution_time = 0, total_copyback_time = 0, total_gpu_time = 0;
     double total_GB_to = 0, total_GB_from = 0, total_sinks = 0, total_sources = 0;
     for(int g = 0; g < NGPU*DirectBPD; g++){
-        total_copy_time += JJ->DeviceCopyTimes[g];
-        total_execution_time += JJ->DeviceExecutionTimes[g];
-        total_copyback_time += JJ->DeviceCopybackTimes[g];
-        total_gpu_time += JJ->DeviceTotalTimes[g];
         total_GB_to += JJ->GB_to_device[g];
         total_GB_from += JJ->GB_from_device[g];
         total_sinks += JJ->DeviceSinks[g];
@@ -250,10 +302,8 @@ void ReportTimings(FILE * timingfile) {
     double gdi_cpu = JJ->DirectInteractions_CPU/1e9;  // Measure per-core load balancing?
 #ifdef CUDADIRECT
     fprintf(timingfile, "\n\t Notes about non-blocking timing:\n");
-    fprintf(timingfile, "\t\t \"Throughputs\" are wall-clock times while at least one thread is running.\n");
-    fprintf(timingfile, "\t\t \"GPU-seconds\" are the sum of the individual wall-clock thread execution times, which may overlap.\n");
-    fprintf(timingfile, "\t\t \"Effective\" GDIPS is a wall-clock rate, but includes all copying time.\n");
-    fprintf(timingfile, "\t\t For performance reasons, the only wall-clock throughput we measure is for the overall GPU code.  \n");
+    fprintf(timingfile, "\t -\"Directs Throughput\" is the wall clock time while at least one GPU thread is running (copy or compute).\n");
+    fprintf(timingfile, "\t -\"Effective\" GDIPS is based on this throughput.\n");
     denom = NearForce.Elapsed();
     REPORT(1, "Blocking", NearForce.Elapsed());
     REPORT(2, "Calculate Direct Splits", JJ->CalcSplitDirects.Elapsed());
@@ -277,50 +327,17 @@ void ReportTimings(FILE * timingfile) {
         REPORT(3, "Fill Interaction", JJ->FillInteractionList);
     denom = NearForce.Elapsed();
     REPORT(2, "Dispatch Interaction", JJ->SICExecute.Elapsed());
-    REPORT(2, "Launch Kernels [Non-blocking]", JJ->LaunchDeviceKernels);
+    REPORT(2, "Copy-to-pinned & kernel launch [non-blocking CPU-seconds]", JJ->LaunchDeviceKernels);
     REPORT(2, "CPU Fallback", JJ->CPUFallbackTimer.Elapsed());
         fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_cpu/(thistime+1e-15), gdi_cpu, JJ->NSink_CPU/(thistime+1e-15)/1e6);
     
     REPORT(1, "Non-Blocking Directs Throughput (Wall Clock)", GPUThroughputTime);
-        fprintf(timingfile,"---> %6.3f effective GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, P.np/(thistime+1e-15)/1e6);
-    REPORT(1, "Non-Blocking Directs (GPU-seconds)", total_gpu_time);
-    fprintf(timingfile,"---> with NGPU = %d, estimate %.1f%% GPU concurrency", NGPU,(total_gpu_time - GPUThroughputTime)/(total_gpu_time - total_gpu_time/NGPU)*100);
-    denom = thistime;
-    
-    REPORT(2, "Copy to device", total_copy_time);
-    fprintf(timingfile,"---> %6.2f GB/s/GPU (%6.2f GB/s with perfect overlap), %6.2f GB, %6.3f Msink/sec/GPU", total_GB_to/(thistime+1e-15), total_GB_to/(thistime+1e-15)*NGPU, total_GB_to, total_sinks/(thistime+1e-15)/1e6);
-        denom = thistime;
-        for(int g = 0; g < NGPU*DirectBPD; g++){
-            char buffer[500];
-            const char* fmt = "Virtual device %d (GPU %d)";
-            sprintf(buffer, fmt, g, g % NGPU);
-            REPORT(3, buffer, JJ->DeviceCopyTimes[g]);
-            fprintf(timingfile,"---> %6.2f GB/s, %6.2f GB, %6.3f Msink/sec", JJ->GB_to_device[g]/(thistime+1e-15), JJ->GB_to_device[g], JJ->DeviceSinks[g]/(thistime+1e-15)/1e6);
-        }
-            
-    denom = total_gpu_time;
-    REPORT(2, "Directs execution", total_execution_time);
-    fprintf(timingfile,"---> %6.3f GDIPS/GPU (%6.3f GDIPS with perfect overlap), %6.3f Gdirects, %6.3f Msink/sec/GPU", gdi_gpu/(thistime+1e-15),gdi_gpu/(thistime+1e-15)*NGPU, gdi_gpu, P.np/(thistime+1e-15)/1e6);
-        denom = thistime;
-        for(int g = 0; g < NGPU*DirectBPD; g++){
-            char buffer[500];
-            const char* fmt = "Virtual device %d (GPU %d)";
-            sprintf(buffer, fmt, g, g % NGPU);
-            REPORT(3, buffer, JJ->DeviceExecutionTimes[g]);
-            fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Msink/sec", JJ->DirectInteractions_GPU[g]/1e9/(thistime+1e-15), JJ->DirectInteractions_GPU[g]/1e9, JJ->DeviceSinks[g]/(thistime+1e-15)/1e6);
-        }
-    denom = total_gpu_time;
-    REPORT(2, "Copy to host", total_copyback_time);
-    fprintf(timingfile,"---> %6.2f GB/s/GPU (%6.2f GB/s with perfect overlap), %6.2f GB, %6.3f Msink/sec/GPU", total_GB_from/(thistime+1e-15), total_GB_from/(thistime+1e-15)*NGPU, total_GB_from, total_sinks/(thistime+1e-15)/1e6);
-        denom = thistime;
-        for(int g = 0; g < NGPU*DirectBPD; g++){
-            char buffer[500];
-            const char* fmt = "Virtual device %d (GPU %d)";
-            sprintf(buffer, fmt, g, g % NGPU);
-            REPORT(3, buffer, JJ->DeviceCopybackTimes[g]);
-            fprintf(timingfile,"---> %6.2f GB/s, %6.2f GB, %6.3f Msink/sec", JJ->GB_from_device[g]/(thistime+1e-15), JJ->GB_from_device[g], JJ->DeviceSinks[g]/(thistime+1e-15)/1e6);
-        }
-    
+        fprintf(timingfile,"\n\t\t\t\t---> %6.3f effective GDIPS, %6.3f Gdirects, %6.3f Mpart/sec, %6.3f Msink/sec\n", gdi_gpu/(thistime+1e-15), gdi_gpu, P.np/(thistime+1e-15)/1e6, total_sinks/(thistime+1e-15)/1e6);
+    fprintf(timingfile, "    Device stats\n");
+    for(int g = 0; g < NGPU*DirectBPD; g++){
+        fprintf(timingfile, "        Virtual device %d (GPU %d):", g, g % NGPU);
+        fprintf(timingfile, "%6.2f GB to device, %6.2f GB from device, %6.2f Msink, %6.2f Gdirects\n", JJ->GB_to_device[g], JJ->GB_from_device[g], JJ->DeviceSinks[g]/1e6, JJ->DirectInteractions_GPU[g]/1e9);
+    }
 #else
     REPORT(1, "CPU directs", NearForce.Elapsed());
         fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_cpu/(thistime+1e-15), gdi_cpu, JJ->NSink_CPU/(thistime+1e-15)/1e6);
@@ -330,13 +347,13 @@ void ReportTimings(FILE * timingfile) {
     if (TY!=NULL) {    // Not in IC steps
         denom = TaylorCompute.Elapsed();
         fprintf(timingfile, "\n\n Subdivisions of Taylor Evaluate:");
-        REPORT(1, "Taylor Computation (S)", TaylorCompute.Elapsed());
+        REPORT(1, "Taylor Computation", TaylorCompute.Elapsed());
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
-        REPORT(1, "Compute Cell Offsets (S)", TY->ConstructOffsets.Elapsed());
-        REPORT(1, "Taylor FFT (S)", TY->FFTTaylor.Elapsed());
-        REPORT(1, "Taylor R to C (P)", TY->TaylorR2C.Elapsed());
-        REPORT(1, "Taylor ASM (P)", TY->TaylorASM.Elapsed());
-        REPORT(1, "Taylor Redlack (S)", RL->TaylorRedlack.Elapsed());
+        REPORT(1, "Compute Cell Offsets", TY->ConstructOffsets.Elapsed());
+        REPORT(1, "Taylor FFT", TY->FFTTaylor.Elapsed());
+        REPORT(1, "Taylor R to C", TY->TaylorR2C.Elapsed());
+        REPORT(1, "Taylor ASM", TY->TaylorASM.Elapsed());
+        REPORT(1, "Taylor Redlack", RL->TaylorRedlack.Elapsed());
     }
 
     fprintf(timingfile, "\n\n Subdivisions of Kick:");
@@ -361,22 +378,22 @@ void ReportTimings(FILE * timingfile) {
 
     fprintf(timingfile, "\n\n Subdivisions of Drift:");
     denom = Drift.Elapsed();
-    REPORT(1, "Move (P)",         DriftMove.Elapsed());
-    REPORT(1, "Rebin (P)",        DriftRebin.Elapsed());
-    REPORT(1, "Inserting (S)",    DriftInsert.Elapsed());
+    REPORT(1, "Move",         DriftMove.Elapsed());
+    REPORT(1, "Rebin",        DriftRebin.Elapsed());
+    REPORT(1, "Inserting",    DriftInsert.Elapsed());
 
     fprintf(timingfile, "\n\n Subdivisions of Compute Multipole:");
     denom = ComputeMultipoles.Elapsed();
     REPORT(1, "Compute Cell Offsets", MF->ConstructOffsets.Elapsed());
-    REPORT(1, "Multipole ASM (P)", MF->MultipoleASM.Elapsed());
-    REPORT(1, "Multipole C to R (S)", MF->MultipoleC2R.Elapsed());
-    REPORT(1, "Multipole FFT (S)", MF->FFTMultipole.Elapsed());
+    REPORT(1, "Multipole ASM", MF->MultipoleASM.Elapsed());
+    REPORT(1, "Multipole C to R", MF->MultipoleC2R.Elapsed());
+    REPORT(1, "Multipole FFT", MF->FFTMultipole.Elapsed());
     
     fprintf(timingfile, "\n\n Breakdown of Finish Step:");
     denom = Finish.Elapsed();
     REPORT(1, "Partition Insert List", FinishPartition.Elapsed());
     REPORT(1, "Sort Insert List", FinishSort.Elapsed());
-    fprintf(timingfile,"---> %6.3f Mpart/sec (%.2g items)",IL->n_sorted/(thistime+1e-15)/1e6, IL->n_sorted);
+    fprintf(timingfile,"---> %6.3f Mitems/sec (%.2g items)",IL->n_sorted/(thistime+1e-15)/1e6, IL->n_sorted);
     REPORT(1, "Index Cells", FinishCellIndex.Elapsed());
     REPORT(1, "Merge", FinishMerge.Elapsed());
     REPORT(1, "Compute Multipoles", ComputeMultipoles.Elapsed());
@@ -385,7 +402,7 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Write Multipoles", WriteMultipoleSlab.Elapsed());
     
     fprintf(timingfile, "\n\n Reasons for Spinning:");
-    fprintf(timingfile, "\n\t Note: may add up to > 100%%");
+    fprintf(timingfile, "\n\t Note: may add up to >100%% if there are multiple simultaneous reasons for spinning");
     denom = spinning;
     REPORT(1, "Not enough RAM to load slabs", Dependency::spin_timers[0].Elapsed());
     REPORT(1, "Waiting for slab IO", Dependency::spin_timers[2].Elapsed());

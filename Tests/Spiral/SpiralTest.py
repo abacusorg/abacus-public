@@ -58,10 +58,6 @@ def run(basedir = "NONE"):
         for i in range(1,params["CPD"]):
             f = open(params["InitialConditionsDirectory"]+"/ic_"+str(i),"wb")
             f.close()
-            
-        if os.path.exists(params['OutputDirectory']):
-            shutil.rmtree(params['OutputDirectory'])
-        os.makedirs(params['OutputDirectory'])
 
         #run the problem
         os.chdir(basedir)
