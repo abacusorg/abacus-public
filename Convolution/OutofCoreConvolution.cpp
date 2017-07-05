@@ -9,9 +9,9 @@ void OutofCoreConvolution::ReadDiskMultipoles(int z, int delete_after_read) {
                                mapM[(x +(cpd-1)/2)%cpd]  );
 
         ReadMultipoles.Start();
-        size_t s = sizeof(COMPLEX); s *= zwidth; s *= cpd*rml;
+        size_t s = sizeof(MTCOMPLEX); s *= zwidth; s *= cpd*rml;
         size_t offset = z; 
-        offset *= cpd; offset *= rml; offset *= sizeof(COMPLEX);
+        offset *= cpd; offset *= rml; offset *= sizeof(MTCOMPLEX);
         RD_RDM->BlockingRead( fn, (char *) &(TemporarySpace[0]), s, offset );
         if(delete_after_read){
             if (remove(fn) != 0)
@@ -48,7 +48,7 @@ void OutofCoreConvolution::WriteDiskTaylor(int z) {
                                 remap[ (x + (cpd-1)/2)%cpd] );
 
         WriteTaylor.Start();
-        size_t s = sizeof(COMPLEX); s *= zwidth; s *= cpd*rml; 
+        size_t s = sizeof(MTCOMPLEX); s *= zwidth; s *= cpd*rml; 
         WD_WDT->BlockingAppend(fn, (char *) &(TemporarySpace[0]), s);
         CS.WriteTaylorBytes += s;
         WriteTaylor.Stop(); 
@@ -144,16 +144,16 @@ void OutofCoreConvolution::BlockConvolve(void) {
     }
     #endif
 
-    for(int zblock=0;zblock<(cpd+1)/2;zblock+=zwidth) {
+    for(int zblock = 0; zblock < (cpd + 1)/2; zblock += zwidth) {
         int delete_after_read = 0;
-    	if (zblock +zwidth >= (cpd+1)/2){
-            zwidth = (cpd+1)/2 -zblock;
+    	if (zblock + zwidth >= (cpd + 1)/2){
+            zwidth = (cpd+1)/2 - zblock;
             // If this is the last loop iteration, we're safe to delete the multipoles
             if(CP.delete_multipoles_after_read)
                 delete_after_read = 1;
         }
         ReadDiskMultipoles(zblock, delete_after_read);
-        for(int z=zblock;z<zblock+zwidth; z++) {
+        for(int z = zblock; z < zblock + zwidth; z++) {
 	           
             ReadDiskDerivatives(z);
 
@@ -321,12 +321,12 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
 
     rml = (order+1)*(order+1);
     unsigned long long int zslabbytes = rml*cpd*cpd*sizeof(Complex);
-    STDLOG(0,"Each slab requires      %lld bytes\n",zslabbytes);
-    STDLOG(0,"You allow a maximum of  %lld bytes\n",rambytes);
+    STDLOG(0,"Each slab requires      %.2f MB\n",zslabbytes/1024/1024.);
+    STDLOG(0,"You allow a maximum of  %.2f MB\n",rambytes/1024/1024.);
     if(rambytes<zslabbytes) { 
-        printf("Each slab requires      %lld bytes\n",zslabbytes);
-        printf("You allow a maximum of  %lld bytes\n",rambytes);
-        printf("[ERROR] rambytes<zlabbtes\n");
+        fprintf(stderr, "Each slab requires      %.2f MB\n", zslabbytes/1024/1024.);
+        fprintf(stderr, "You allow a maximum of  %.2f MB\n", rambytes/1024/1024.);
+        fprintf(stderr, "[ERROR] rambytes<zslabbytes\n");
         exit(1);
     }
 
@@ -341,15 +341,14 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
         /*if(n%zwidth==0)*/ if( zwidth*zslabbytes < rambytes) break;
     }
     
-    STDLOG(0,"Resulting zwidth: %llu \n",zwidth);
+    STDLOG(0,"Resulting zwidth: %d \n",zwidth);
     ssize_t s;
 
     s = sizeof(Complex);
     s *= zwidth * rml * cpd * cpd;
     int memalign_ret = posix_memalign((void **) &DiskBuffer, 4096,s);
     assert(memalign_ret == 0);
-    //DiskBuffer = (Complex *) malloc(s);
-    if(DiskBuffer == NULL) printf("Tried to alloc aligned %ld bytes\n",s);
+    if(DiskBuffer == NULL) printf("Tried to alloc aligned %.2f MB\n", s/1024/1024.);
     assert(DiskBuffer != NULL);
     CS.totalMemoryAllocated += s;
 
@@ -357,16 +356,14 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     s *= rml*CompressedMultipoleLengthXY;
     memalign_ret = posix_memalign((void **) &CompressedDerivatives,4096,s);
     assert(memalign_ret == 0);
-    //CompressedDerivatives  = (double *) malloc(s);
     assert(CompressedDerivatives != NULL);
     CS.totalMemoryAllocated += s;
 
-    s = sizeof(COMPLEX);
+    s = sizeof(MTCOMPLEX);
     s *= zwidth * rml;
     s *= cpd;
     memalign_ret = posix_memalign((void **) &TemporarySpace,4096,s);
     assert(memalign_ret == 0);
-    //TemporarySpace  = (Complex *) malloc(s);
     assert( TemporarySpace != NULL);
     CS.totalMemoryAllocated += s;
 

@@ -140,10 +140,12 @@ NearFieldDriver::NearFieldDriver() :
     // maxkwidth will occur when we have the fewest splits
     // The fewest splits will occur when we are operating on the smallest slabs
     MinSplits = GetNSplit(WIDTH*Slab->min, Slab->min);
-    MinSplits = max(1, MinSplits/2);  // fudge factor
+    MinSplits = ceil(.8*MinSplits);  // fudge factor to account for uneven slabs
     // This may not account for unequal splits, though.  Unless we really need to save GPU memory, just use maxkwidth=cpd
     //MinSplits = 1;
     STDLOG(1,"MinSplits = %d\n", MinSplits);
+    if(MinSplits*WIDTH < omp_get_num_threads())
+        STDLOG(1, "*** WARNING: MinSplits*WIDTH is less than the number of threads! Finalize() might be inefficient\n");
     GPUSetup(P.cpd, std::ceil(1.*P.cpd/MinSplits), MaxSinkBlocks, MaxSourceBlocks, DirectBPD);
     SICExecute.Clear();
 

@@ -26,3 +26,8 @@ extern "C" void GPUReset();
 extern "C" void print_gpu_mem_usage();
 
 extern "C" void get_cuda_timers(void*);
+
+// These are the sizes we allocate on the GPU/pinned memory
+extern int MaxSinkBlocks, MaxSourceBlocks;
+extern int MaxNSink, MaxNSource;
+extern size_t MaxSinkSize, MaxSourceSize;

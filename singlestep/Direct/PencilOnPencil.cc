@@ -25,6 +25,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
         Nj++;
     
     NSinkList = k_width * Nj;
+    assertf(NSinkList <= MaxNSink, "NSinkList (%d) larger than allocated space (MaxNSink = %d)\n", NSinkList, MaxNSink);
+        
     assert(posix_memalign((void **) &SinkSetStart, 4096, sizeof(int) * NSinkList) == 0);
     assert(posix_memalign((void **) &SinkSetCount, 4096, sizeof(int) * NSinkList) == 0);
     assert(posix_memalign((void **) &SinkSetIdMax, 4096, sizeof(int) * NSinkList) == 0);
@@ -33,8 +35,9 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     int localSinkTotal = 0;
 
     NSourceSets = Nj * (k_width + width);
+    assertf(NSourceSets <= MaxNSource, "NSourceSets (%d) larger than allocated space (MaxNSource = %d)\n", NSourceSets, MaxNSource);
     assertf(NSourceSets <= P.cpd*(P.cpd+width), "NSourceSets (%d) exceeds SourceSet array allocation (%d)\n", NSourceSets, P.cpd*(P.cpd+width));
-    assert(posix_memalign((void **) &SourceSetStart, 4096, sizeof(int) * P.cpd*(P.cpd+width)) == 0);
+    assert(posix_memalign((void **) &SourceSetStart, 4096, sizeof(int) * P.cpd*(P.cpd+width)) == 0);  // can this be of size NSourceSets?
     assert(posix_memalign((void **) &SourceSetCount, 4096, sizeof(int) * P.cpd*(P.cpd+width)) == 0);
     int localSourceTotal = 0;
 
@@ -76,6 +79,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     }
     assert(NPaddedSinks==NFBlockSize*NSinkBlocks);
 
+    assertf(NSinkBlocks <= MaxSinkBlocks, "NSinkBlocks (%d) larger than allocated space (MaxSinkBlocks = %d)\n", NSinkBlocks, MaxSinkBlocks);
     assert(posix_memalign((void **) &SinkBlockParentPencil, 4096, sizeof(int) * NSinkBlocks) == 0);
     
     for(int sinkset=0; sinkset < NSinkList; sinkset++) {
@@ -89,7 +93,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
             SinkBlockParentPencil[b] = sinkset;
     }
 
-
+    assertf(NPaddedSinks <= MaxSinkSize, "NPaddedSinks (%d) larger than allocated space (MaxSinkSize = %d)\n", NPaddedSinks, MaxSinkSize);
     SinkSetPositions = new List3<FLOAT>(NPaddedSinks);
 
     assert(posix_memalign((void **) &SinkSetAccelerations, 4096, sizeof(FLOAT3) * NPaddedSinks) == 0);
@@ -149,6 +153,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     }
     assert(NPaddedSources==NFBlockSize*NSourceBlocks);
 
+    assertf(NPaddedSources <= MaxSourceSize, "NPaddedSources (%d) larger than allocated space (MaxSourceSize = %d)\n", NPaddedSources, MaxSourceSize);
     SourceSetPositions = new List3<FLOAT>(NPaddedSources);
 
     CalcSourceBlocks.Stop();
@@ -171,6 +176,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     FillInteractionList.Start();
 
     InteractionCount = width*k_width*Nj;
+    assertf(InteractionCount <= MaxNSink*width, "InteractionCount (%d) larger than allocated space (MaxNSink * width = %d)\n", InteractionCount, MaxNSink * width);
     assert(posix_memalign((void **) &SinkSourceInteractionList, 4096, sizeof(int) * InteractionCount) == 0);
     
     uint64 localDirectTotal = 0;
