@@ -2,6 +2,10 @@
 
 //Collection of Interactions of all 5 cell pencils in a specified region of a slab
 //TODO:This is similar enough to the group multistep interaction list that they could share an interface/superclass
+
+// TODO: There is heavy use of signed 32-bit integers in this package.
+// For now, DJE has simply added a lot of asserts.
+
 #include "StructureOfLists.cc"
 #include "SetInteractionCollection.hh"
 
@@ -38,6 +42,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     if(Nj * width + w < P.cpd)
         Nj++;
     
+    assertf( (uint64)k_width*Nj<0x7fffffff, 
+    	"The number of sink sets will overflow a 32-bit signed int");
     NSinkList = k_width * Nj;
     assert(posix_memalign((void **) &SinkSetStart, 4096, sizeof(int) * NSinkList) == 0);
     assert(posix_memalign((void **) &SinkSetCount, 4096, sizeof(int) * NSinkList) == 0);
@@ -46,6 +52,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     
     int localSinkTotal = 0;
 
+    assertf( (uint64)Nj * (k_width + width) < 0x7fffffff,
+        "The number of source sets will overflow a 32-bit signed int");
     NSourceSets = Nj * (k_width + width);
     assertf(NSourceSets <= P.cpd*(P.cpd+width), "NSourceSets (%d) exceeds SourceSet array allocation (%d)\n", NSourceSets, P.cpd*(P.cpd+width));
     assert(posix_memalign((void **) &SourceSetStart, 4096, sizeof(int) * P.cpd*(P.cpd+width)) == 0);
@@ -59,7 +67,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     //Count the Sinks
     CountSinks.Clear(); CountSinks.Start();
 
-    int skewer_blocks[k_width+width];   // Number of blocks in this k-skewer
+    uint64 skewer_blocks[k_width+width];   // Number of blocks in this k-skewer
     	// This is oversized because we'll re-use for Sources
 
     #pragma omp parallel for schedule(static) reduction(+:localSinkTotal)
@@ -83,13 +91,15 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
 
     // Cumulate the number of blocks in each skewer, so we know how 
     // to start enumerating.
-    int skewer_blocks_start[k_width+1+width]; 
+    uint64 skewer_blocks_start[k_width+1+width]; 
     	// This is oversized because we'll re-use for Sources
     skewer_blocks_start[0] = 0;
     for (int k=0; k<k_width; k++) 
     	skewer_blocks_start[k+1] = skewer_blocks_start[k]+skewer_blocks[k];
 
     NSinkBlocks = skewer_blocks_start[k_width];   // The total for all skewers
+    assertf(skewer_blocks_start[k_width]*NFBlockSize<0x7fffffff, 
+    	"The number of padded sink particles will overflow a 32-bit signed int");
 
     assert(posix_memalign((void **) &SinkBlockParentPencil, 4096, sizeof(int) * NSinkBlocks) == 0);
 
@@ -219,6 +229,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
 
     NSourceBlocks = skewer_blocks_start[k_width+width];   
     	// The total for all skewers
+    assertf(skewer_blocks_start[k_width_width]*NFBlockSize<0x7fffffff, 
+    	"The number of padded source particles will overflow a 32-bit signed int");
 
     // SourceSetStart[set] holds the padded particle index
     #pragma omp parallel for schedule(static) 
@@ -275,6 +287,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     FillInteractionList.Start();
 
     InteractionCount = width*k_width*Nj;
+    assertf((uint64)width*k_width*Nj<0x7fffffff, 
+    	"Interaction Count exceeds 32-bit signed int");
     assert(posix_memalign((void **) &SinkSourceInteractionList, 4096, sizeof(int) * InteractionCount) == 0);
     
     uint64 localDirectTotal = 0;
