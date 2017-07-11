@@ -11,7 +11,7 @@
 
 
 
-int SetInteractionCollection::NumPaddedBlocks(int nparticles) {
+inline int SetInteractionCollection::NumPaddedBlocks(int nparticles) {
     // Given the number of particles, compute and return the number of blocks
     // required.  1..N means 1, N+1..2N means 2, etc.  0 means 0.
     return (nparticles+NFBlockSize-1)/NFBlockSize;
