@@ -83,6 +83,8 @@ class SetInteractionCollection{
         void CreateSinkPencil(int sinkx, int sinky, int sinkz, uint64 OutputOffset);
         void CreateSourcePencil(int sx, int sy, int nz, uint64 OutputOffset);
 
+	int NumPaddedBlocks(int nparticles);
+
         SetInteractionCollection(int slab, int w, int k_low, int k_high);
         ~SetInteractionCollection();
 

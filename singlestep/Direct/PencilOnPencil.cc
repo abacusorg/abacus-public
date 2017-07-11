@@ -5,6 +5,20 @@
 #include "StructureOfLists.cc"
 #include "SetInteractionCollection.hh"
 
+
+
+int SetInteractionCollection::NumPaddedBlocks(int nparticles) {
+    // Given the number of particles, compute and return the number of blocks
+    // required.  1..N means 1, N+1..2N means 2, etc.  0 means 0.
+    return (nparticles+NFBlockSize-1)/NFBlockSize;
+
+    // Old formula:
+    //    int PencilBlocks = sinklength/NFBlockSize;
+    //    int remaining = (NFBlockSize - (sinklength%NFBlockSize))%NFBlockSize;
+    //    PencilBlocks+= remaining&&remaining;
+}
+
+
 SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, int k_high){
     Construction.Start();
 
@@ -44,8 +58,13 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     FillSinkLists.Clear(); FillSinkLists.Start();
     //Count the Sinks
     CountSinks.Clear(); CountSinks.Start();
+
+    int skewer_blocks[k_width+width];   // Number of blocks in this k-skewer
+    	// This is oversized because we'll re-use for Sources
+
     #pragma omp parallel for schedule(static) reduction(+:localSinkTotal)
     for(int k = 0; k < k_width; k++){
+	int this_skewer_blocks = 0;   // Just to have a local variable
         for(int j = 0; j < Nj; j ++) {
             int jj = w + j * width;
             int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
@@ -53,42 +72,91 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
             int pencilsize = SinkPencilCount(slab, k + k_low, zmid );
             SinkSetCount[sinkindex] = pencilsize;
             localSinkTotal += pencilsize;
+	    this_skewer_blocks += NumPaddedBlocks(pencilsize);
         }
+	skewer_blocks[k] = this_skewer_blocks;
     }
     SinkTotal = localSinkTotal;  // OpenMP can't do reductions directly on member variables
     CountSinks.Stop();
     
     CalcSinkBlocks.Clear(); CalcSinkBlocks.Start();
-    //Count the total number of sink blocks we will require
-    //TODO: Another non-trivialy parallelizable sum
-    int NPaddedSinks = 0;
-    NSinkBlocks = 0;
-    for(int sinkset=0; sinkset < NSinkList; sinkset++) {
-        int sinklength = SinkSetCount[sinkset];
-        SinkSetStart[sinkset] = NPaddedSinks;
-        SinkSetIdMax[sinkset] = SinkSetStart[sinkset] + SinkSetCount[sinkset];
 
-        int PencilBlocks = sinklength/NFBlockSize;
-        int remaining = (NFBlockSize - (sinklength%NFBlockSize))%NFBlockSize;
-        PencilBlocks+= remaining&&remaining;
-        NSinkBlocks += PencilBlocks;
-        NPaddedSinks+= NFBlockSize*PencilBlocks;
-    }
-    assert(NPaddedSinks==NFBlockSize*NSinkBlocks);
+    // Cumulate the number of blocks in each skewer, so we know how 
+    // to start enumerating.
+    int skewer_blocks_start[k_width+1+width]; 
+    	// This is oversized because we'll re-use for Sources
+    skewer_blocks_start[0] = 0;
+    for (int k=0; k<k_width; k++) 
+    	skewer_blocks_start[k+1] = skewer_blocks_start[k]+skewer_blocks[k];
+
+    NSinkBlocks = skewer_blocks_start[k_width];   // The total for all skewers
 
     assert(posix_memalign((void **) &SinkBlockParentPencil, 4096, sizeof(int) * NSinkBlocks) == 0);
-    
-    for(int sinkset=0; sinkset < NSinkList; sinkset++) {
-        if(SinkSetCount[sinkset] == 0) continue;
-        int PencilBlocks = SinkSetCount[sinkset]/NFBlockSize;
-        int remaining = (NFBlockSize - (SinkSetCount[sinkset]%NFBlockSize))%NFBlockSize;
-        PencilBlocks+= remaining&&remaining;
-        int b0 =  SinkSetStart[sinkset]/NFBlockSize;
-        assertf(b0 + PencilBlocks <= NSinkBlocks, "SinkBlockParentPencil array access at index %d will exceed allocation %d.\n",b0 + PencilBlocks, NSinkBlocks);
-        for(int b = b0; b < b0 + PencilBlocks; b++)
-            SinkBlockParentPencil[b] = sinkset;
-    }
 
+    // Loop over the pencils to set these:
+    //   SinkSetStart[set] points to where the padded particles starts
+    //   SinkSetIdMax[set] points to where the padded particles end
+    //   SinkBlockParentPencil[block] points back to the (k,j) sinkset enumeration
+    // 
+    #pragma omp parallel for schedule(static) 
+    for(int k = 0; k < k_width; k++){
+	// Figure out where to start the enumeration in this skewer
+	int block_start = skewer_blocks_start[k];
+	int NPaddedSinks = NFBlockSize*block_start; 
+
+        for(int j = 0; j < Nj; j ++) {
+            int sinkset = k * Nj + j;
+	    int sinklength = SinkSetCount[sinkset];    // num particles
+	    SinkSetStart[sinkset] = NPaddedSinks;
+	    SinkSetIdMax[sinkset] = SinkSetStart[sinkset] + sinklength;
+	    int nblocks = NumPaddedBlocks(sinklength);
+	    NPaddedSinks += nblocks*NFBlockSize;
+
+	    int block_end = block_start+nblocks;
+	    for (int b=block_start; b<block_end; b++)
+		SinkBlockParentPencil[b] = sinkset;
+	    block_start=b;
+	}
+    }
+ 
+//    int NPaddedSinks = 0;
+//    NSinkBlocks = 0;
+//    
+//    for(int sinkset=0; sinkset < NSinkList; sinkset++) {
+//        int sinklength = SinkSetCount[sinkset];
+//        SinkSetStart[sinkset] = NPaddedSinks;
+//        SinkSetIdMax[sinkset] = SinkSetStart[sinkset] + SinkSetCount[sinkset];
+//
+//        // int PencilBlocks = sinklength/NFBlockSize;
+//        // int remaining = (NFBlockSize - (sinklength%NFBlockSize))%NFBlockSize;
+//        // PencilBlocks+= remaining&&remaining;
+//
+//	int PencilBlocks = NumPaddedBlocks(sinklength);
+//
+//        NSinkBlocks += PencilBlocks;
+//        NPaddedSinks+= NFBlockSize*PencilBlocks;
+//    }
+//    assert(NPaddedSinks==NFBlockSize*NSinkBlocks);
+
+    
+//    for(int sinkset=0; sinkset < NSinkList; sinkset++) {
+//        if(SinkSetCount[sinkset] == 0) continue;
+//
+//        // int PencilBlocks = SinkSetCount[sinkset]/NFBlockSize;
+//        // int remaining = (NFBlockSize - (SinkSetCount[sinkset]%NFBlockSize))%NFBlockSize;
+//        // PencilBlocks+= remaining&&remaining;
+//
+//        int PencilBlocks = NumPaddedBlocks(SinkSetCount[sinkset]);
+//
+//        int b0 =  SinkSetStart[sinkset]/NFBlockSize;
+//        assertf(b0 + PencilBlocks <= NSinkBlocks, "SinkBlockParentPencil array access at index %d will exceed allocation %d.\n",b0 + PencilBlocks, NSinkBlocks);
+//        for(int b = b0; b < b0 + PencilBlocks; b++)
+//            SinkBlockParentPencil[b] = sinkset;
+//    }
+
+
+    int NPaddedSinks = NFBlockSize*NSinkBlocks;   
+    	// The total padded number of particles
 
     SinkSetPositions = new List3<FLOAT>(NPaddedSinks);
 
@@ -114,40 +182,76 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     FillSinks.Stop();
     FillSinkLists.Stop();
 
-    //Fill in source data
+    // All done with the Sinks.  Now for the Sources.
     FillSourceLists.Start();
     CountSources.Start();
+
+    // Notice that the Source Pencils go from [k_low-NFR, k_high+NFR).
+
+    // We once again need to precompute the enumeration of the padded
+    // blocks, totaled by skewer.  
+    // DJE chose to reverse this loop ordering, to match the sink case.
+
     #pragma omp parallel for schedule(static) reduction(+:localSourceTotal)
-    for(int j = 0; j < Nj; j ++) {
-        int jj = w + j * width;
-        int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
-        for(int y = k_low; y < k_high + width; y++) {
-            int sourceindex = (y - k_low) * Nj + j;
-            int sourcelength = SourcePencilCount( slab, y - P.NearFieldRadius, zmid);
+    for(int k = 0; k<k_width+width; k++) {
+	int this_skewer_blocks = 0;   // Just to have a local variable
+	for(int j = 0; j < Nj; j ++) {
+            int sourceindex = k * Nj + j;
+	    int jj = w + j * width;
+	    int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
+            int sourcelength = SourcePencilCount( slab, k+k_low - P.NearFieldRadius, zmid);
             SourceSetCount[sourceindex] = sourcelength;
             localSourceTotal += sourcelength;
+	    this_skewer_blocks += NumPaddedBlocks(sourcelength);
         }
+	skewer_blocks[k] = this_skewer_blocks;
     }
     SourceTotal = localSourceTotal;  // OpenMP can't do reductions directly on member variables
     CountSources.Stop();
 
     CalcSourceBlocks.Clear(); CalcSourceBlocks.Start();
-    //Count the total number of sink blocks we will require
-    //TODO: Another non-trivialy parallelizable sum
-    int NPaddedSources = 0;
-    NSourceBlocks = 0;
-    for(int sourceset=0; sourceset < NSourceSets; sourceset++) {
-        int sourcelength = SourceSetCount[sourceset];
-        SourceSetStart[sourceset] = NPaddedSources;
 
-        NPaddedSources += sourcelength;
-        NSourceBlocks  += sourcelength/NFBlockSize;
+    // Cumulate the number of blocks in each skewer, so we know how 
+    // to start enumerating.
+    skewer_blocks_start[0] = 0;
+    for (int k=0; k<k_width+width; k++) 
+    	skewer_blocks_start[k+1] = skewer_blocks_start[k]+skewer_blocks[k];
 
-        int remaining = (NFBlockSize - (sourcelength%NFBlockSize))%NFBlockSize;
-        NPaddedSources += remaining;
-        NSourceBlocks += remaining&&remaining;
+    NSourceBlocks = skewer_blocks_start[k_width+width];   
+    	// The total for all skewers
+
+    // SourceSetStart[set] holds the padded particle index
+    #pragma omp parallel for schedule(static) 
+    for(int k = 0; k<k_width+width; k++) {
+	int block_start = skewer_blocks_start[k];
+	int NPaddedSources = NFBlockSize*block_start; 
+	for(int j = 0; j < Nj; j ++) {
+            int sourceset = k * Nj + j;
+	    int sourcelength = SourceSetCount[sourceset];
+	    SourceSetStart[sourceset] = NPaddedSources;
+	    int nblocks = NumPaddedBlocks(sourcelength);
+	    NPaddedSources += nblocks*NFBlockSize;
+        }
     }
-    assert(NPaddedSources==NFBlockSize*NSourceBlocks);
+
+
+//    int NPaddedSources = 0;
+//    NSourceBlocks = 0;
+//    for(int sourceset=0; sourceset < NSourceSets; sourceset++) {
+//        int sourcelength = SourceSetCount[sourceset];
+//        SourceSetStart[sourceset] = NPaddedSources;
+//
+//        NPaddedSources += sourcelength;
+//        NSourceBlocks  += sourcelength/NFBlockSize;
+//
+//        int remaining = (NFBlockSize - (sourcelength%NFBlockSize))%NFBlockSize;
+//        NPaddedSources += remaining;
+//        NSourceBlocks += remaining&&remaining;
+//    }
+//    assert(NPaddedSources==NFBlockSize*NSourceBlocks);
+
+    int NPaddedSources = NFBlockSize*NSourceBlocks;    
+    	// The total number of padded sources
 
     SourceSetPositions = new List3<FLOAT>(NPaddedSources);
 
