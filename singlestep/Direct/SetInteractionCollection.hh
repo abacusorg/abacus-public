@@ -6,6 +6,8 @@
 
 #include <vector>
 
+#include "PencilPlan.cc"
+
 #ifdef CUDADIRECT
 #include "driver_types.h"
 #endif
