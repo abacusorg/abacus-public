@@ -37,8 +37,8 @@ class SetInteractionCollection{
 
         int *           SinkSetStart; //The index in the Sink Pos/Acc lists where this set begins
         int *           SinkSetCount; //The number of particles in the SinkSet
-        SinkPencilPlan *           SinkPlan; // The plan for this pencil
         int *           SinkSetIdMax; //The sum of the above.  We may even be able to get rid of them and just send this to the GPU.
+        SinkPencilPlan *           SinkPlan; // The plan for this pencil
         FLOAT3 *        SinkSetAccelerations; //Where the computed accelerations for the collection will be stored
 
         volatile int CompletionFlag;
@@ -65,7 +65,11 @@ class SetInteractionCollection{
         int         NSourceSets;
 
         int *       SinkSourceInteractionList;
+		// Each SinkPencil will interact with width SourcePencil.
+		// This is where we enumerate those interactions.
         FLOAT *       SinkSourceYOffset;
+		// Each interaction requires a different Delta(y) to
+		// shift the particle positions from the Pencil center.
 
         uint64 DirectTotal; //Number of directs for this interection collection
         uint64 SinkTotal;
@@ -79,16 +83,19 @@ class SetInteractionCollection{
 
         //Methods
         //Count the number of particles in the specified pencil
-        int SourcePencilCount(int slab, int ymid, int zz);
-        int SinkPencilCount(int slab, int ymid, int zz);
+        // int SourcePencilCount(int slab, int ymid, int zz);
+        // int SinkPencilCount(int slab, int ymid, int zz);
 
         //Copy the particle data for a pencil into the given memory
-        void CreateSinkPencil(int sinkx, int sinky, int sinkz, uint64 OutputOffset);
-        void CreateSourcePencil(int sx, int sy, int nz, uint64 OutputOffset);
+        // void CreateSinkPencil(int sinkx, int sinky, int sinkz, uint64 OutputOffset);
+        // void CreateSourcePencil(int sx, int sy, int nz, uint64 OutputOffset);
 
 	int NumPaddedBlocks(int nparticles);
+		// Returns the number of padded blocks for a given true number of particles
 	int PaddedSinkCount(int sinkindex);
-	int PaddedSourceCount(int sinkindex);
+		// Returns the padded length of the array for this pencil
+	int PaddedSourceCount(int sourceindex);
+		// Returns the padded length of the array for this pencil
 
         SetInteractionCollection(int slab, int w, int k_low, int k_high);
         ~SetInteractionCollection();

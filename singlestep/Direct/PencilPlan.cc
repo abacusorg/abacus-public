@@ -46,7 +46,7 @@ class SinkPencilPlan {
 	FLOAT cellsize = PP->invcpd;
 	for (int c=0; c<= 2*NFWIDTH+1; c++) {
 	    int zc = z+c-NFWIDTH;
-	    cell[c].pos = (FLOAT *)PP->PosCell(x,y,zc);
+	    cell[c].pos = (FLOAT *)PP->PosXYZCell(x,y,zc);
 	    cell[c].num = PP->NumberParticle(x,y,zc);
 	    total += cell[c].num;
 	    #ifndef GLOBAL_POS
