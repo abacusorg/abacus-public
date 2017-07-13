@@ -37,6 +37,7 @@ class SetInteractionCollection{
 
         int *           SinkSetStart; //The index in the Sink Pos/Acc lists where this set begins
         int *           SinkSetCount; //The number of particles in the SinkSet
+        SinkPencilPlan *           SinkPlan; // The plan for this pencil
         int *           SinkSetIdMax; //The sum of the above.  We may even be able to get rid of them and just send this to the GPU.
         FLOAT3 *        SinkSetAccelerations; //Where the computed accelerations for the collection will be stored
 
@@ -48,14 +49,15 @@ class SetInteractionCollection{
         int         K_high;
         int         InteractionCount;//How many source cell on sink cell interactions are in this set
 
-        List3<FLOAT> *  SinkSetPositions; //Position data for particles in all sink sets in the collection
+        // List3<FLOAT> *  SinkSetPositions; //Position data for particles in all sink sets in the collection
         int             NSinkBlocks; //The number of gpu blocks the sink sets translate into
         int *           SinkBlockParentPencil; //What sink pencil each sink block come from
 
 
         int *           SourceSetStart;
         int *           SourceSetCount;
-        List3<FLOAT>*   SourceSetPositions;
+        SourcePencilPlan *           SourcePlan;
+        // List3<FLOAT>*   SourceSetPositions;
         int             NSourceBlocks;
 
 
@@ -63,6 +65,7 @@ class SetInteractionCollection{
         int         NSourceSets;
 
         int *       SinkSourceInteractionList;
+        FLOAT *       SinkSourceYOffset;
 
         uint64 DirectTotal; //Number of directs for this interection collection
         uint64 SinkTotal;
@@ -84,6 +87,8 @@ class SetInteractionCollection{
         void CreateSourcePencil(int sx, int sy, int nz, uint64 OutputOffset);
 
 	int NumPaddedBlocks(int nparticles);
+	int PaddedSinkCount(int sinkindex);
+	int PaddedSourceCount(int sinkindex);
 
         SetInteractionCollection(int slab, int w, int k_low, int k_high);
         ~SetInteractionCollection();
