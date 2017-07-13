@@ -27,9 +27,10 @@ uint64 FillMergeSlab(int slab) {
     // and MergeCellInfo slabs.  They will be destroyed when written.
 
     // Sort the insert list
-    uint64 head, ilslablength;
-    IL->PartitionAndSort(slab,&head,&ilslablength);
+    uint64 ilslablength;
+
     STDLOG(1,"Insert list contains a total of %d particles.\n", IL->length);
+    ilstruct *ILnew = IL->PartitionAndSort(slab,&ilslablength);
     STDLOG(1,"Insert list contains %d new particles for slab %d\n", ilslablength, slab);
 
     FinishCellIndex.Start();
@@ -45,11 +46,11 @@ uint64 FillMergeSlab(int slab) {
         }
 
     // Build the InsertCellInfo and MergeCellInfo indexing
-    ilstruct *ilread = IL->il + head;
+    ilstruct *ilread = ILnew;
         // This pointer will walk along the insert list
     ilstruct *ilend = ilread + ilslablength;
 	// The end of the insert list
-    uint64 il_index = 0;		// We will index from IL->il+head, not IL->il
+    uint64 il_index = 0;		// We will index from ILnew, not IL->il
     uint64 mci_index = 0;
     uint64 inslab = 0;
 
@@ -142,7 +143,7 @@ uint64 FillMergeSlab(int slab) {
     LBW->AllocateSpecificSize(MergeAuxSlab, slab, inslab*sizeof(auxstruct));
     STDLOG(1,"Allocating Merge Slabs to contain %d particles\n", inslab);
 
-    ilstruct *ilhead = IL->il+head;
+    ilstruct *ilhead = ILnew;
 
     #pragma omp parallel for schedule(static)
     for(int y=0;y<cpd;y++)
@@ -179,7 +180,8 @@ uint64 FillMergeSlab(int slab) {
         }
 
     // Delete the particles from the insert list.
-    IL->ResetILlength(IL->length - ilslablength);
+    free(ILnew);   // Need to free this space!
+    // IL->ResetILlength(IL->length - ilslablength);
     STDLOG(1,"After merge, insert list contains a total of %d particles.\n", IL->length);
     LBW->DeAllocate(InsertCellInfoSlab, slab);
     FinishMerge.Stop();

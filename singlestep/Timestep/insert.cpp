@@ -14,16 +14,29 @@ for its *new* cell.
 */
 
 //for intel's fast parallel sort
-#include "tbb/parallel_sort.h"
-#include "parallel_stable_sort.h"
+// #include "tbb/parallel_sort.h"
+// #include "parallel_stable_sort.h"
 
-typedef struct {
+#include "multimergesort.cpp"
+
+
+class ilstruct {
+  public:
+    unsigned int k;   // The key based on y*cpd+z
+    integer3 xyz;	// The new cell, wrapped
     posstruct pos;
     velstruct vel;
     auxstruct aux;
-    integer3 xyz;	// The new cell, wrapped
-} ilstruct;
 
+    // Some methods require for sorting
+    inline unsigned int key() { return k; }
+    inline void set_max_key() { k = MM_MAX_UINT; }
+    bool operator< (const ilstruct& b) const { return (k<b.k); }
+};   // end ilstruct
+
+
+
+// The following routine is vestigial
 struct GlobalSortOperator {
     inline bool operator() (const  ilstruct &pi, const ilstruct &pj ) const {
         // We must sort on pi.xyz.y*cpd+pi.xyz.z < pj.xyz.y*cpd+pj.xyz.z
@@ -69,6 +82,7 @@ public:
         il[length].vel = *vel;
         il[length].aux = *aux;
         il[length].xyz = xyz;
+	il[length].k = xyz.y*(P->cpd)+xyz.z;
         length++;
     }
     
@@ -79,6 +93,7 @@ public:
         il[i].vel = *vel;
         il[i].aux = *aux;
         il[i].xyz = xyz;
+	il[i].k = xyz.y*(P->cpd)+xyz.z;
     }
 
     inline integer3 WrapToNewCell(posstruct *pos, int oldx, int oldy, int oldz) {
@@ -162,7 +177,7 @@ public:
         length = newlength; 
     }
 
-    void PartitionAndSort(int slab, uint64 *slabstart, uint64 *slablength);
+    ilstruct * PartitionAndSort(int slab, uint64 *slablength);
 
     void DumpParticles(void);		// Debugging only
 };
@@ -170,7 +185,11 @@ public:
 
 
 
-void InsertList::PartitionAndSort(int slab, uint64 *slabstart, uint64 *slablength) {
+ilstruct * InsertList::PartitionAndSort(int slab, uint64 *slablength) {
+    // We've changed to an out-of-place sort.
+    // This will return a pointer to NEWLY ALLOCATED memory that contains
+    // the sorted particles for the slab.  These particles will be removed
+    // from the InsertList.
 
     FinishPartition.Start();
 
@@ -200,11 +219,22 @@ void InsertList::PartitionAndSort(int slab, uint64 *slabstart, uint64 *slablengt
     FinishPartition.Stop();
     FinishSort.Start();
 
-    tbb::parallel_sort( &(il[t]), &(il[length]), GlobalSortOperator() );
+    ilstruct *ilnew;
+    assert(posix_memalign((void **)&ilnew, 64, sizeof(ilstruct)*(*slablength)==0);
+
+    MultiMergeSort<ilstruct> mm;
+    mm.mmsort(&(il[t]), ilnew, *slablength, P->cpd*P->cpd, 2e6, 16);
+
+    // tbb::parallel_sort( &(il[t]), &(il[length]), GlobalSortOperator() );
     //std::sort( &(il[t]), &(il[length]), GlobalSortOperator() );
     //pss::parallel_stable_sort( &(il[t]), &(il[length]), GlobalSortOperator() );
+
     n_sorted += *slablength;
     FinishSort.Stop();
+
+    // Delete the slab particle from the insert list, since they're now in ilnew[]
+    IL->ResetILlength(IL->length - ilslablength);
+    return ilnew;
 }
 
 void InsertList::DumpParticles(void) {
