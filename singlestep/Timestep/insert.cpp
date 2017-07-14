@@ -16,6 +16,7 @@ for its *new* cell.
 //for intel's fast parallel sort
 #include "tbb/parallel_sort.h"
 #include "parallel_stable_sort.h"
+#include "parallel.partition.cpp"
 
 typedef struct {
     posstruct pos;
@@ -29,11 +30,18 @@ struct GlobalSortOperator {
         // We must sort on pi.xyz.y*cpd+pi.xyz.z < pj.xyz.y*cpd+pj.xyz.z
         // Warning: This will get more complicated in the parallel code with 
         // the periodic wrap.
-        // two conditionals instead of multiplication?
-        return  ( (pi.xyz.y*P.cpd+pi.xyz.z
-        <pj.xyz.y*P.cpd+pj.xyz.z) ) ; 
+        if(pi.xyz.y - pj.xyz.y == 0)
+            return pi.xyz.z < pj.xyz.z;
+        return pi.xyz.y < pj.xyz.y;
+        //return  pi.xyz.y*P.cpd + pi.xyz.z < pj.xyz.y*P.cpd + pj.xyz.z; 
     }
 };
+
+
+// Partition function; returns true if `particle` belongs in `slab`
+inline bool is_in_slab(ilstruct *particle, int slab){
+    return particle->xyz.x == slab;
+}
 
 
 // WARNING: The insert list is written to accept uint64 sizes in its list.
@@ -46,8 +54,6 @@ public:
     uint64 length;
     uint64 maxil;
 
-    // Possibly these should be PTimer??
-    STimer ILsort;
     uint64 n_sorted;
 
     InsertList(int cpd, uint64 maxilsize) : grid(cpd)  { 
@@ -174,33 +180,15 @@ void InsertList::PartitionAndSort(int slab, uint64 *slabstart, uint64 *slablengt
 
     FinishPartition.Start();
 
-    uint64 h = 0;
-    uint64 t = length;   // This will be one more than the last value
+    uint64 mid = ParallelPartition(il, length, slab, is_in_slab);  // [0..mid-1] are not in slab, [mid..length-1] are in slab
 
-    while(h<t) {
-        if( il[h].xyz.x == slab ) {
-            // If the particle at the end of the list is already in the right place, don't swap
-            do {
-                t--;
-            } while(t > h && il[t].xyz.x == slab);
-            ilstruct tmp;
-            tmp = il[t];
-            il[t] = il[h];
-            il[h] = tmp;
-        }
-        h++;
-    }
-
-    // invariant 0 .. t-1   are not in slab 
-    // t .. length-1        are in slab
-
-    *slabstart = t;
-    *slablength = length - t;
+    *slabstart = mid;
+    *slablength = length - mid;
 
     FinishPartition.Stop();
     FinishSort.Start();
 
-    tbb::parallel_sort( &(il[t]), &(il[length]), GlobalSortOperator() );
+    tbb::parallel_sort( &(il[mid]), &(il[length]), GlobalSortOperator() );
     //std::sort( &(il[t]), &(il[length]), GlobalSortOperator() );
     //pss::parallel_stable_sort( &(il[t]), &(il[length]), GlobalSortOperator() );
     n_sorted += *slablength;
