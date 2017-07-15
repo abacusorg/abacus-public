@@ -195,6 +195,7 @@ private:
 unsigned int bisection_search(MergeType *in, unsigned int size, unsigned int minvalue) {
     // Return the index of in[0..size) of the lowest element that is >= minvalue.
     // Return size if all of the elements are below minvalue
+    if (size==0) return 0;
     unsigned int low = 0, high = size-1, mid;
     if (in[low].key()>=minvalue) return low;
     if (in[high].key()<minvalue) return high+1;
@@ -320,7 +321,7 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
 	std::sort(a+start, a+start+size);
 	MM_SortPart.Stop();
 
-	assert(a[start+size-1].key()<=maxkey);
+	if (size>0) assert(a[start+size-1].key()<=maxkey);
 	    // Just checking for input that would break the merge step
 
 	// While this sublist may still be in cache, search for the breakpoints
@@ -488,7 +489,7 @@ int main() {
     printf("Wall-clock Time to Merge the Partitions: %f\n", MM_Merging.Elapsed());
     printf("    Popping (P):      %f\n", MM_Popping.Elapsed()/omp_get_max_threads());
 
-    for (int j=0;j<N-1;j++) if(out[j].key()>out[j+1].key())
+    for (int j=0;j+1<N;j++) if(out[j].key()>out[j+1].key())
 	{ printf("Failed key(%d) = %d, key(%d) = %d\n", j, out[j].key(), j+1, out[j+1].key());
 	return 1;
 	}
