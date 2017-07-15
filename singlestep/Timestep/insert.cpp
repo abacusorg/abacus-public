@@ -48,6 +48,14 @@ struct GlobalSortOperator {
     }
 };
 
+void ConfirmSorting(ilstruct *il, uint64 len) {
+    for (j=0; j+1<len; j++) 
+    assertf(il[j].key()<=il[j+1].key(), 
+    	"Insert list sorting failed: il[%d]=%d,  il[%d]=%d\n",
+	j, il[j].key(), j+1, il[j+1].key());
+    return;
+}
+
 
 // WARNING: The insert list is written to accept uint64 sizes in its list.
 // So be careful when using the indices you receive from it! 
