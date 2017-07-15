@@ -38,10 +38,16 @@ this will default to 1 MB.
 
 fifosize is the length of the fifo queues in the merge sort.  Ideally,
 these would fit into a single threads cache, but this is not required.
-There will be 1-1.5 queues per sublist, so one can estimate from
+There will be N-1 queues per sublist, so one can estimate from
 the size of the objects whether this will fit in cache.  We suspect
 that values of order 8-16 are well chosen.  Smaller values will
 defeat the sequential memory access opportunities.
+
+If we fit M particles into cache, then for F=fifo, we can use about
+M/F queues.  Doing more partitions than this is probably unwise,
+even if it means that the first single-threaded quicksort doesn't
+fit in cache.
+
 
 
 Future possible work:  Could set maxkey (and minkey) adaptively after the first
@@ -117,15 +123,16 @@ class MergeFIFO {
 	if (left!=NULL) {
 	    // We're in a FIFO queue
 	    *out = buf[ptr];
-	    if (ptr<len-1) ptr++; else refill(); 
+	    if (ptr+1<len) ptr++; else refill(); 
 	    nextkey = buf[ptr].key();
 	    return;
 	} else {
 	    // Else we're in an input list
-	    if (ptr<len-1) {
+	    // Beware: unsigned int can't do ptr<len-1, since len=0 would underflow
+	    if (ptr+1<len) {    
 		*out=buf[ptr++]; 
 		nextkey = buf[ptr].key();
-	    } else if (ptr==len-1) {
+	    } else if (ptr+1==len) {
 		*out=buf[ptr++]; 
 		nextkey = MM_MAX_UINT;
 	    } else {
@@ -216,10 +223,12 @@ void accumulate_partition_boundaries(unsigned int *index,
 unsigned int interpolate(unsigned int minvalue[], unsigned int pstart[], unsigned int goal) {
     // Goal is the number of particles we're trying to find.
     // Look in the (minvalue,pstart) list to estimate where the goal would be.
+    if (goal==0) return 0;
     for (int i=0; i<Nparts; i++) {
 	if (pstart[i+1]>=goal) {
 	    // The goal is between pstart[i] and pstart[i+1].
 	    // Also guaranteed that pstart[i+1]>pstart[i], else we would have already stopped
+	    // printf("Seeking %d.  pstart[%d]=%d, pstart[+]=%d\n", goal, i, pstart[i], pstart[i+1]);
 	    return minvalue[i]+int((float)(minvalue[i+1]-minvalue[i])*(goal-pstart[i])/(pstart[i+1]-pstart[i]));
 	}
     }
@@ -258,12 +267,28 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     // We will sort each one.
 
     MM_Indexing.Start();
-    sublistsize /= sizeof(MergeType);   // Convert this to list units
-    Nsublist = ceil((float)N/sublistsize);
     Nparts = omp_get_max_threads();
 
+    if (N<Nparts*4) {
+	// Probably no point in doing multi-threaded stuff.  Just make this simple.
+	std::sort(a, a+N);
+	memcpy(out, a, sizeof(MergeType)*N);
+	return;
+    }
+
+    int Nmerge = sublistsize/(sizeof(MergeType)*FIFO_SIZE+sizeof(MergeFIFO<MergeType>));  
+    	// Could fit this many merging FIFO into cache.
+    sublistsize /= sizeof(MergeType);   // Convert this to list units
+    Nsublist = ceil((float)N/sublistsize);
+
+    // There's no point in having Nsublist less than the number of threads (Nparts).
+    // We'd also like it less than Nmerge.  A multiple of Nparts is best.
+    if (Nsublist>Nmerge) Nsublist = (Nmerge/Nparts)*Nparts;
+    if (Nsublist<Nparts) Nsublist = Nparts;
+    sublistsize = N/Nsublist;
+
     // printf("For %d particles, planning %d sublists of %d particles. %d partitions.\n", 
-    //      N, Nsublist, sublistsize, Nparts);
+	// N, Nsublist, sublistsize, Nparts);
 
     // We aim to divide each sublist into Nparts parts, with partition values 
     // chosen to approximately balance the number of points in each partition when
@@ -324,7 +349,8 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     // re-search for the index[] values.  
 
     // for (int k=0; k<Nparts; k++) 
-        // printf("Partition %2d at key %7d has %7d particles\n", k, minvalue[k], partsize[k]);
+        // printf("Partition %02d at key %7d has %7d particles, starting at %7d\n", 
+		// k, minvalue[k], partsize[k], pstart[k]);
 
     MM_RefinePartition.Start();
 
@@ -348,9 +374,10 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
 
     MM_RefinePartition.Stop();
 
-    // printf("Rebalancing the partition\");
+    // printf("Rebalancing the partition\n");
     // for (int k=0; k<Nparts; k++) 
-        // printf("Partition %02d at key %7d has %7d particles\n", k, newminvalue[k], partsize[k]);
+        // printf("Partition %02d at key %7d has %7d particles, starting at %7d\n", 
+		// k, newminvalue[k], partsize[k], pstart[k]);
 
 
 
@@ -362,11 +389,14 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     for (int k=0; k<Nparts; k++) {
         MergeType *outpart = out+pstart[k]; 
 
-	MergeFIFO<MergeType> *m = new MergeFIFO<MergeType>[3*Nsublist];;
+	MergeFIFO<MergeType> *m = new MergeFIFO<MergeType>[2*Nsublist];
+		// There are N input and N-1 merging lists to be used
 
 	int j;
-	for (j=0; j<Nsublist; j++)
+	for (j=0; j<Nsublist; j++) {
 	    m[j].Setup(a+index[j*Nparts+k], index[j*Nparts+k+1]-index[j*Nparts+k]);
+	    // printf("FIFO input %d:  %d %d   %d\n", j, index[j*Nparts+k], index[j*Nparts+k+1], index[j*Nparts+k+1]-index[j*Nparts+k]);
+	    }
 	    // This loads the leaf-level input lists 
 	    // with direct pointers to the partitions.
 	    
@@ -374,8 +404,10 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
 	int n=Nsublist;
 	while (n>1) {
 	    int jj = j-n;    // Starting point of the last cycle
-	    for (int i=0; i<n-1; i+=2, j++)
+	    for (int i=0; i<n-1; i+=2, j++) {
 		m[j].Setup(m+jj+i, m+jj+i+1, FIFO_SIZE);
+		// printf("FIFO merge %d: %d %d\n", j, jj+i, jj+i+1);
+	    }
 		// We define a new queue that will merge two of the previous set
 
 		// If n was odd, then we will only have added n/2 (round down) merges.
@@ -438,6 +470,7 @@ int main() {
 	#pragma omp parallel for schedule(static)
 	for (int j=0;j<N;j++) il[j].set_key(floor(pow(drand48(),0.9)*1485*1485));
 	    // Setting this up to be a little inhomogeneous, to see if the rebalancing is working.
+	il[N/3].set_key(0);   // Just to check if this is trouble
 	printf("."); fflush(NULL);
 	time.Start();
 	mm.mmsort(il, out, N, 1485*1485, 2e6, 16);
