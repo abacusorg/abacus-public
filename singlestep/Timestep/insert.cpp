@@ -50,6 +50,14 @@ struct GlobalSortOperator {
     }
 };
 
+void ConfirmSorting(ilstruct *il, uint64 len) {
+    for (uint64 j=0; j+1<len; j++) 
+    assertf(il[j].key()<=il[j+1].key(), 
+    	"Insert list sorting failed: il[%d]=%d,  il[%d]=%d\n",
+	j, il[j].key(), j+1, il[j+1].key());
+    return;
+}
+
 
 // Partition function; returns true if `particle` belongs in `slab`
 inline bool is_in_slab(ilstruct *particle, int slab){
@@ -197,9 +205,9 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     uint64 slablength = 0;
     FinishPartition.Start();
 
-    //uint64 mid = ParallelPartition(il, length, slab, is_in_slab);  // [0..mid-1] are not in slab, [mid..length-1] are in slab
+    uint64 mid = ParallelPartition(il, length, slab, is_in_slab);  // [0..mid-1] are not in slab, [mid..length-1] are in slab
     
-    uint64 h = 0;
+    /*uint64 h = 0;
     uint64 mid = length;   // This will be one more than the last value
 
     while(h<mid) {
@@ -214,7 +222,7 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
             il[h] = tmp;
         }
         h++;
-    }
+    }*/
 
     slablength = length - mid;
 
@@ -246,6 +254,8 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
 
     n_sorted += slablength;
     FinishSort.Stop();
+
+    //ConfirmSorting(ilnew, slablength);
 
     // Delete the slab particle from the insert list, since they're now in ilnew[]
     ResetILlength(length - slablength);

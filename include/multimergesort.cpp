@@ -38,10 +38,16 @@ this will default to 1 MB.
 
 fifosize is the length of the fifo queues in the merge sort.  Ideally,
 these would fit into a single threads cache, but this is not required.
-There will be 1-1.5 queues per sublist, so one can estimate from
+There will be N-1 queues per sublist, so one can estimate from
 the size of the objects whether this will fit in cache.  We suspect
 that values of order 8-16 are well chosen.  Smaller values will
 defeat the sequential memory access opportunities.
+
+If we fit M particles into cache, then for F=fifo, we can use about
+M/F queues.  Doing more partitions than this is probably unwise,
+even if it means that the first single-threaded quicksort doesn't
+fit in cache.
+
 
 
 Future possible work:  Could set maxkey (and minkey) adaptively after the first
@@ -96,84 +102,85 @@ class MergeFIFO {
     MergeType *buf;     // Pointer to [0,len) of space.
 
     MergeFIFO<MergeType> *left, *right;    // Where we could refill the buffer
-    	// If these are NULL, then it means we're at a leaf.
+            // If these are NULL, then it means we're at a leaf.
 
     inline void refill() {
         // Refill the buffer with as many points as available.
-	// This routine is never called with an input list (left==NULL)
-	for (unsigned int j=0; j<len; j++) {
-	    if (leftkey<rightkey) left->pop(buf+j, leftkey);
-	        else right->pop(buf+j, rightkey);
-	}
+        // This routine is never called with an input list (left==NULL)
+        for (unsigned int j=0; j<len; j++) {
+            if (leftkey<rightkey) left->pop(buf+j, leftkey);
+                else right->pop(buf+j, rightkey);
+        }
         ptr = 0;
-	return;
+        return;
     }
     
   public:
 
     inline void pop(MergeType *out, unsigned int &nextkey) {
         // Return the next object, refilling the list if we can.
-	// Return a peek at the following key
-	// For an input list, return maximal keys at the end of the list.
-	if (left!=NULL) {
-	    // We're in a FIFO queue
-	    *out = buf[ptr];
-	    if (ptr<len-1) ptr++; else refill(); 
-	    nextkey = buf[ptr].key();
-	    return;
-	} else {
-	    // Else we're in an input list
-	    if (ptr<len-1) {
-		*out=buf[ptr++]; 
-		nextkey = buf[ptr].key();
-	    } else if (ptr==len-1) {
-		*out=buf[ptr++]; 
-		nextkey = MM_MAX_UINT;
-	    } else {
-		out->set_max_key(); nextkey = MM_MAX_UINT;
-	    }
-	    return;
-	}
+        // Return a peek at the following key
+        // For an input list, return maximal keys at the end of the list.
+        if (left!=NULL) {
+            // We're in a FIFO queue
+            *out = buf[ptr];
+            if (ptr+1<len) ptr++; else refill(); 
+            nextkey = buf[ptr].key();
+            return;
+        } else {
+            // Else we're in an input list
+            // Beware: unsigned int can't do ptr<len-1, since len=0 would underflow
+            if (ptr+1<len) {    
+                *out=buf[ptr++]; 
+                nextkey = buf[ptr].key();
+            } else if (ptr+1==len) {
+                *out=buf[ptr++]; 
+                nextkey = MM_MAX_UINT;
+            } else {
+                out->set_max_key(); nextkey = MM_MAX_UINT;
+            }
+            return;
+        }
     }
 
     inline void pop(MergeType *out) {
-	// When popping the head node, we may not need to look at the following key
+        // When popping the head node, we may not need to look at the following key
         unsigned int tmp;
-	pop(out, tmp);
-	return;
+        pop(out, tmp);
+        return;
     }
 
     void Setup(MergeFIFO<MergeType> *_left, MergeFIFO<MergeType> *_right, unsigned int _len) {
-	// Given two input lists, set up the buffer.
-	// The two input lists must already their buffers full.
-	len = _len;
-	buf = (MergeType *) malloc(len*sizeof(MergeType));
-	left = _left;
-	right = _right;
-	// Need to initialize leftkey and rightkey, before the
-	// first call to refill.  Note that the branch might be empty!
-	if (left->len==0) leftkey = MM_MAX_UINT; else leftkey = left->buf[0].key();
-	if (right->len==0) rightkey = MM_MAX_UINT; else rightkey = right->buf[0].key();
-	// Now fill up the list
-	refill();    
+        // Given two input lists, set up the buffer.
+        // The two input lists must already their buffers full.
+        len = _len;
+        buf = (MergeType *) malloc(len*sizeof(MergeType));
+        left = _left;
+        right = _right;
+        // Need to initialize leftkey and rightkey, before the
+        // first call to refill.  Note that the branch might be empty!
+        if (left->len==0) leftkey = MM_MAX_UINT; else leftkey = left->buf[0].key();
+        if (right->len==0) rightkey = MM_MAX_UINT; else rightkey = right->buf[0].key();
+        // Now fill up the list
+        refill();    
     }
 
     void Setup(MergeType *data, unsigned int _len) {
         // Set up a leaf that just points into the original data set
-	buf = data;
-	len = _len;
-	ptr = 0;
-	left = right = NULL;  // This signals that it is an input list, with no malloc.
-	leftkey = rightkey = 0;   // These aren't used in this case, since refill() never called.
+        buf = data;
+        len = _len;
+        ptr = 0;
+        left = right = NULL;  // This signals that it is an input list, with no malloc.
+        leftkey = rightkey = 0;   // These aren't used in this case, since refill() never called.
     }
 
     // The NULL constructor is not useful; must overwrite with Setup()
     MergeFIFO<MergeType>() { left = right = NULL; }
 
     ~MergeFIFO<MergeType>() { 
-	// Free the buffer space.
-	// Note that we are not freeing the input branches!
-    	if (left!=NULL) free(buf); return; 
+        // Free the buffer space.
+        // Note that we are not freeing the input branches!
+            if (left!=NULL) free(buf); return; 
     }
 
 };   // End MergeFIFO
@@ -189,26 +196,27 @@ private:
 unsigned int bisection_search(MergeType *in, unsigned int size, unsigned int minvalue) {
     // Return the index of in[0..size) of the lowest element that is >= minvalue.
     // Return size if all of the elements are below minvalue
+    if (size==0) return 0;
     unsigned int low = 0, high = size-1, mid;
     if (in[low].key()>=minvalue) return low;
     if (in[high].key()<minvalue) return high+1;
     // Otherwise, we search.
     while (high-low>1) {
         mid = (low+high)/2;
-	if (in[mid].key()>=minvalue) high = mid; else low = mid;
+        if (in[mid].key()>=minvalue) high = mid; else low = mid;
     }
     return high;
 }
 
 void accumulate_partition_boundaries(unsigned int *index, 
-		unsigned int partsize[], unsigned int pstart[]) {
+                unsigned int partsize[], unsigned int pstart[]) {
     // Just sum over the sub-list to find the partition lengths and 
     // cumulation of them.
     for (int k=0; k<Nparts; k++) partsize[k] = 0;
     #pragma omp parallel for schedule(MM_OMP_PLAN)
     for (int k=0; k<Nparts; k++) 
-	for (int j=0; j<Nsublist; j++) 
-	    partsize[k] += index[j*Nparts+k+1]-index[j*Nparts+k];
+        for (int j=0; j<Nsublist; j++) 
+            partsize[k] += index[j*Nparts+k+1]-index[j*Nparts+k];
     pstart[0]=0; 
     for (int k=0; k<Nparts; k++) pstart[k+1] = pstart[k]+partsize[k];
     return;
@@ -217,12 +225,14 @@ void accumulate_partition_boundaries(unsigned int *index,
 unsigned int interpolate(unsigned int minvalue[], unsigned int pstart[], unsigned int goal) {
     // Goal is the number of particles we're trying to find.
     // Look in the (minvalue,pstart) list to estimate where the goal would be.
+    if (goal==0) return 0;
     for (int i=0; i<Nparts; i++) {
-	if (pstart[i+1]>=goal) {
-	    // The goal is between pstart[i] and pstart[i+1].
-	    // Also guaranteed that pstart[i+1]>pstart[i], else we would have already stopped
-	    return minvalue[i]+int((float)(minvalue[i+1]-minvalue[i])*(goal-pstart[i])/(pstart[i+1]-pstart[i]));
-	}
+        if (pstart[i+1]>=goal) {
+            // The goal is between pstart[i] and pstart[i+1].
+            // Also guaranteed that pstart[i+1]>pstart[i], else we would have already stopped
+            // printf("Seeking %d.  pstart[%d]=%d, pstart[+]=%d\n", goal, i, pstart[i], pstart[i+1]);
+            return minvalue[i]+int((float)(minvalue[i+1]-minvalue[i])*(goal-pstart[i])/(pstart[i+1]-pstart[i]));
+        }
     }
 }
 
@@ -249,8 +259,8 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     if (FIFO_SIZE==0) FIFO_SIZE = 16;
     assert(FIFO_SIZE<257);   // Don't go crazy
     if (sublistsize<1e4) sublistsize = 1e6;
-	// The user has probably entered MB or objects instead of
-	// bytes; give them a reasonable modern number.
+        // The user has probably entered MB or objects instead of
+        // bytes; give them a reasonable modern number.
 
     if (N==0) return;    // No work to be done.
     if (N==1) {*out = *a; return;}  // That was quick too!
@@ -258,13 +268,30 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     // First step is to divide into N sub-lists, each to fit in sublistsize.
     // We will sort each one.
 
+    Nparts = omp_get_max_threads();
+
+    if (N<Nparts*4) {
+        // Probably no point in doing multi-threaded stuff.  Just make this simple.
+        std::sort(a, a+N);
+        memcpy(out, a, sizeof(MergeType)*N);
+        return;
+    }
+    
     MM_Indexing.Start();
+
+    int Nmerge = sublistsize/(sizeof(MergeType)*FIFO_SIZE+sizeof(MergeFIFO<MergeType>));  
+            // Could fit this many merging FIFO into cache.
     sublistsize /= sizeof(MergeType);   // Convert this to list units
     Nsublist = ceil((float)N/sublistsize);
-    Nparts = std::min(N/Nsublist,(unsigned int) omp_get_max_threads());  // don't try to make more partitions than elements
+
+    // There's no point in having Nsublist less than the number of threads (Nparts).
+    // We'd also like it less than Nmerge.  A multiple of Nparts is best.
+    if (Nsublist>Nmerge) Nsublist = (Nmerge/Nparts)*Nparts;
+    if (Nsublist<Nparts) Nsublist = Nparts;
+    sublistsize = N/Nsublist;
 
     // printf("For %d particles, planning %d sublists of %d particles. %d partitions.\n", 
-    //      N, Nsublist, sublistsize, Nparts);
+        // N, Nsublist, sublistsize, Nparts);
 
     // We aim to divide each sublist into Nparts parts, with partition values 
     // chosen to approximately balance the number of points in each partition when
@@ -273,8 +300,8 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
 
     unsigned int minvalue[Nparts+1];  // The minimum key value for each partition.
     for (int k=0; k<Nparts; k++) minvalue[k] = ((float)maxkey/Nparts)*k;
-    	// Here we assume that the keys are approximately homogenouesly distributed 
-	// between 0 and maxkey.
+            // Here we assume that the keys are approximately homogenouesly distributed 
+        // between 0 and maxkey.
     minvalue[Nparts] = maxkey;    // Just for interpolation
 
     unsigned int *index;
@@ -288,22 +315,22 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     #pragma omp parallel for schedule(MM_OMP_PLAN)
     for (int j=0; j<Nsublist; j++) {
         // Now we loop over each sublist.
-	unsigned int start = index[j*Nparts];
-	unsigned int size = index[(j+1)*Nparts]-start;
+        unsigned int start = index[j*Nparts];
+        unsigned int size = index[(j+1)*Nparts]-start;
 
-	// Sort, moving the result into the work list
-	MM_SortPart.Start();
-	std::sort(a+start, a+start+size);
-	MM_SortPart.Stop();
+        // Sort, moving the result into the work list
+        MM_SortPart.Start();
+        std::sort(a+start, a+start+size);
+        MM_SortPart.Stop();
 
-	assert(a[start+size-1].key()<=maxkey);
-	    // Just checking for input that would break the merge step
+        if (size>0) assert(a[start+size-1].key()<=maxkey);
+            // Just checking for input that would break the merge step
 
-	// While this sublist may still be in cache, search for the breakpoints
-	MM_Bisect.Start();
-	for (int k=1; k<Nparts; k++) 
-	    index[j*Nparts+k] = start + bisection_search(a+start, size, minvalue[k]);
-	MM_Bisect.Stop();
+        // While this sublist may still be in cache, search for the breakpoints
+        MM_Bisect.Start();
+        for (int k=1; k<Nparts; k++) 
+            index[j*Nparts+k] = start + bisection_search(a+start, size, minvalue[k]);
+        MM_Bisect.Stop();
     }
     MM_Sorting.Stop();
 
@@ -312,9 +339,9 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
 
     MM_Indexing.Start();
     unsigned int partsize[Nparts];
-	// This is the size of the partition, summed over sublists.
+        // This is the size of the partition, summed over sublists.
     unsigned int pstart[Nparts+1];
-	// And here's the cumulation of these to find the starting point for each partition.
+        // And here's the cumulation of these to find the starting point for each partition.
     accumulate_partition_boundaries(index, partsize, pstart);
     MM_Indexing.Stop();
 
@@ -325,7 +352,8 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     // re-search for the index[] values.  
 
     // for (int k=0; k<Nparts; k++) 
-        // printf("Partition %2d at key %7d has %7d particles\n", k, minvalue[k], partsize[k]);
+        // printf("Partition %02d at key %7d has %7d particles, starting at %7d\n", 
+                // k, minvalue[k], partsize[k], pstart[k]);
 
     MM_RefinePartition.Start();
 
@@ -340,18 +368,19 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     // Now we have our new partition points.  Repeat the bisection.
     #pragma omp parallel for schedule(MM_OMP_PLAN)
     for (int j=0; j<Nsublist; j++) {
-	unsigned int start = index[j*Nparts];
-	unsigned int size = index[(j+1)*Nparts]-start;
-	for (int k=1; k<Nparts; k++) 
-	    index[j*Nparts+k] = start + bisection_search(a+start, size, newminvalue[k]);
+        unsigned int start = index[j*Nparts];
+        unsigned int size = index[(j+1)*Nparts]-start;
+        for (int k=1; k<Nparts; k++) 
+            index[j*Nparts+k] = start + bisection_search(a+start, size, newminvalue[k]);
     }
     accumulate_partition_boundaries(index, partsize, pstart);
 
     MM_RefinePartition.Stop();
 
-    // printf("Rebalancing the partition\");
+    // printf("Rebalancing the partition\n");
     // for (int k=0; k<Nparts; k++) 
-        // printf("Partition %02d at key %7d has %7d particles\n", k, newminvalue[k], partsize[k]);
+        // printf("Partition %02d at key %7d has %7d particles, starting at %7d\n", 
+                // k, newminvalue[k], partsize[k], pstart[k]);
 
 
 
@@ -363,36 +392,41 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     for (int k=0; k<Nparts; k++) {
         MergeType *outpart = out+pstart[k]; 
 
-	MergeFIFO<MergeType> *m = new MergeFIFO<MergeType>[3*Nsublist];;
+        MergeFIFO<MergeType> *m = new MergeFIFO<MergeType>[2*Nsublist];
+                // There are N input and N-1 merging lists to be used
 
-	int j;
-	for (j=0; j<Nsublist; j++)
-	    m[j].Setup(a+index[j*Nparts+k], index[j*Nparts+k+1]-index[j*Nparts+k]);
-	    // This loads the leaf-level input lists 
-	    // with direct pointers to the partitions.
-	    
-	// Now we continue with a binary aggregation
-	int n=Nsublist;
-	while (n>1) {
-	    int jj = j-n;    // Starting point of the last cycle
-	    for (int i=0; i<n-1; i+=2, j++)
-		m[j].Setup(m+jj+i, m+jj+i+1, FIFO_SIZE);
-		// We define a new queue that will merge two of the previous set
+        int j;
+        for (j=0; j<Nsublist; j++) {
+            m[j].Setup(a+index[j*Nparts+k], index[j*Nparts+k+1]-index[j*Nparts+k]);
+            // printf("FIFO input %d:  %d %d   %d\n", j, index[j*Nparts+k], index[j*Nparts+k+1], index[j*Nparts+k+1]-index[j*Nparts+k]);
+            }
+            // This loads the leaf-level input lists 
+            // with direct pointers to the partitions.
+            
+        // Now we continue with a binary aggregation
+        int n=Nsublist;
+        while (n>1) {
+            int jj = j-n;    // Starting point of the last cycle
+            for (int i=0; i<n-1; i+=2, j++) {
+                m[j].Setup(m+jj+i, m+jj+i+1, FIFO_SIZE);
+                // printf("FIFO merge %d: %d %d\n", j, jj+i, jj+i+1);
+            }
+                // We define a new queue that will merge two of the previous set
 
-		// If n was odd, then we will only have added n/2 (round down) merges.
-		// The last of the last round is unmatched.  
-		// So we carry forward (n/2) (round up) to the next round
-	    n=ceil((float)n/2);
-	}
-	MergeFIFO<MergeType> *head = m+j-1;
+                // If n was odd, then we will only have added n/2 (round down) merges.
+                // The last of the last round is unmatched.  
+                // So we carry forward (n/2) (round up) to the next round
+            n=ceil((float)n/2);
+        }
+        MergeFIFO<MergeType> *head = m+j-1;
 
-	// Now we zip the lists together!
-	MM_Popping.Start();
-	for (unsigned int p=0; p<partsize[k]; p++) head->pop(outpart+p);
-	MM_Popping.Stop();
+        // Now we zip the lists together!
+        MM_Popping.Start();
+        for (unsigned int p=0; p<partsize[k]; p++) head->pop(outpart+p);
+        MM_Popping.Stop();
 
-	// Clean up
-	delete[] m;
+        // Clean up
+        delete[] m;
     }
     MM_Merging.Stop();
 
@@ -444,20 +478,15 @@ int main() {
     MultiMergeSort<MyMergeType> mm;
 
     for (int i=0;i<Iter;i++) {
-	//#pragma omp parallel for schedule(static)
-	//for (int j=0;j<N;j++) il[j].set_key(floor(pow(drand48(),0.9)*1485*1485));
-	    // Setting this up to be a little inhomogeneous, to see if the rebalancing is working.
-        
-    // Optional: read particles from a file instead
-    FILE *f = fopen(fn, "rb");  assert(f != NULL);
-    for (int j=0;j<N;j++) { unsigned int k; fread(&k, sizeof(unsigned int), 1, f); il[j].set_key(k); assert(k < 65*65); }
-    printf("Read %u keys from %s\n", N, fn);
+        #pragma omp parallel for schedule(static)
+        for (int j=0;j<N;j++) il[j].set_key(floor(pow(drand48(),0.9)*1485*1485));
+            // Setting this up to be a little inhomogeneous, to see if the rebalancing is working.
+        il[N/3].set_key(0);   // Just to check if this is trouble
 
-    
-	printf("."); fflush(NULL);
-	time.Start();
-	mm.mmsort(il, out, N, 1485*1485, 2e6, 16);
-	time.Stop();
+        printf("."); fflush(NULL);
+        time.Start();
+        mm.mmsort(il, out, N, 1485*1485, 2e6, 16);
+        time.Stop();
     
     }
 
@@ -472,10 +501,10 @@ int main() {
     printf("Wall-clock Time to Merge the Partitions: %f\n", MM_Merging.Elapsed());
     printf("    Popping (P):      %f\n", MM_Popping.Elapsed()/omp_get_max_threads());
 
-    for (int j=0;j<N-1;j++) if(out[j].key()>out[j+1].key())
-	{ printf("**** FAILED key(%d) = %d, key(%d) = %d\n", j, out[j].key(), j+1, out[j+1].key());
-	return 1;
-	}
+    for (int j=0;j+1<N;j++) if(out[j].key()>out[j+1].key())
+        { printf("Failed key(%d) = %d, key(%d) = %d\n", j, out[j].key(), j+1, out[j+1].key());
+        return 1;
+        }
     printf("List is verified to be sorted!\n");
     return 0;
 }
