@@ -122,9 +122,10 @@ uint64 FillMergeSlab(int slab) {
     int cpd = P.cpd;
 
     // Sort the insert list
-    uint64 head, ilslablength;
-    IL->PartitionAndSort(slab,&head,&ilslablength);
+    uint64 ilslablength;
+
     STDLOG(1,"Insert list contains a total of %d particles.\n", IL->length);
+    ilstruct *ILnew = IL->PartitionAndSort(slab,&ilslablength);
     STDLOG(1,"Insert list contains %d new particles for slab %d\n", ilslablength, slab);
 
     FinishCellIndex.Start();
@@ -134,8 +135,7 @@ uint64 FillMergeSlab(int slab) {
 
     // Make the SkewerIndex objects
     SkewerIndex *skewer = new SkewerIndex[cpd];
-    ilstruct *ilhead = IL->il + head;     // The start of the slab's IL 
-            // We will index from IL->il+head, not IL->il
+    ilstruct *ilhead = ILnew;     // The start of the slab's IL 
     uint64 inslab = 0;    // Total particles in the slab
 
     // Search the insert list to find the start of each skewer
@@ -185,7 +185,7 @@ uint64 FillMergeSlab(int slab) {
         ilstruct *ilend = ilread + skewer[y].ilskewerlength;
             // The end of the insert list for this skewer
         uint64 il_index = skewer[y].ilskewerstart;                
-        uint64 mci_index = skewer[y].mergestart;;
+        uint64 mci_index = skewer[y].mergestart;
 
         for(int z=0;z<cpd;z++) {
             cellinfo *ici = PP->InsertCellInfo(slab,y,z);
@@ -296,7 +296,8 @@ uint64 FillMergeSlab(int slab) {
     //DoYRowMultipoles(slab, z);
 
     // Delete the particles from the insert list.
-    IL->ResetILlength(IL->length - ilslablength);
+    free(ILnew);   // Need to free this space!
+    // IL->ResetILlength(IL->length - ilslablength);
     STDLOG(1,"After merge, insert list contains a total of %d particles.\n", IL->length);
     LBW->DeAllocate(InsertCellInfoSlab, slab);
     FinishMerge.Stop();
