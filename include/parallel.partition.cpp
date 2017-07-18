@@ -37,9 +37,7 @@ initial passes and we'd be better off hard-coding equality.
 #include <vector>
 #include <assert.h>
 #include <stdio.h>
-#ifdef OMP
-    #include <omp.h>
-#endif
+#include <omp.h>
 
 #include <inttypes.h>
 #ifndef uint64
@@ -87,6 +85,7 @@ class PartitionBlock {
     template <typename ListType, typename ValType>
     void Partition(uint64 _begin, uint64 _end, ListType *list, ValType slab, 
             bool (is_high)(ListType *obj, ValType val)) {
+        assert(_begin < _end);
         begin=_begin; end=_end;
         // Then do the partitioning, loading up mid
         uint64 a = begin, b = end-1;
@@ -120,19 +119,16 @@ uint64 ParallelPartition(ListType *list, uint64 N, ValType slab, bool (is_high)(
     
     if (N == 0)
         return 0;
-#ifdef OMP
     int nthread = omp_get_max_threads();
     #ifdef TEST
     printf("Running on %d OMP threads\n", nthread);
     #endif
-#else
-    int nthread = 6;     // Code can execute thread work serially, for testing
-#endif
 
     if (2*N<nthread) nthread = 1;    // If the list is too small, just do scalar
-    PartitionBlock *sublist = new PartitionBlock[nthread];
     std::vector<SwapBlock> plan;
     uint64 width = N/nthread+1;
+    nthread = (int) ceil(1.*N/width);  // only use threads that will have work to do
+    PartitionBlock *sublist = new PartitionBlock[nthread];
 
     // Split the list and partition the sub-lists
     #pragma omp parallel for schedule(static)
@@ -247,8 +243,8 @@ inline bool int_equal(int *obj, int val) {
 }
 
 int main() {
-    uint64 N = 200000000;
-    uint64 max = 4;
+    uint64 N = 1001;
+    uint64 max = 135;
     int *list;
     list = (int *)malloc(sizeof(int)*N);
     for (uint64 j=0; j<N; j++) list[j] = j%max;

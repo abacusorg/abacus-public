@@ -245,6 +245,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     
     CalcSplitDirects.Stop();
 
+    // If we thread over y-splits, would that help with NUMA locality?
     for(int w = 0; w < WIDTH; w++){
         int kl =0;
         for(int n = 0; n < NSplit; n++){

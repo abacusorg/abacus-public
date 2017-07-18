@@ -251,21 +251,22 @@ inline void SetInteractionCollection::CreateSinkPencil(int sinkx, int sinky, int
         int count = PP->NumberParticle(sinkx,sinky,z);
 
         if(count>0) {
-            posstruct * pos = PP->PosCell(sinkx,sinky,z);
+            List3<FLOAT> pos = PP->PosXYZCell(sinkx,sinky,z);
             
-            //memcpy(&(sinkpositions[offset],&pos,sizeof(FLOAT3)*count));
             FLOAT3 newsinkcenter = PP->CellCenter(sinkx, sinky, z);
             FLOAT * X = &(SinkSetPositions->X[start]);
             FLOAT * Y = &(SinkSetPositions->Y[start]);
             FLOAT * Z = &(SinkSetPositions->Z[start]);
             
             #pragma simd assert
-            for(int p = 0; p < count; p++){
-                float3 tmp = pos[p] + newsinkcenter;
-                X[p] = tmp.x;
-                Y[p] = tmp.y;
-                Z[p] = tmp.z;
-            }
+            for(int p = 0; p < count; p++)
+                X[p] = pos.X[p] + newsinkcenter.x;
+            #pragma simd assert
+            for(int p = 0; p < count; p++)
+                Y[p] = pos.Y[p] + newsinkcenter.y;
+            #pragma simd assert
+            for(int p = 0; p < count; p++)
+                Z[p] = pos.Z[p] + newsinkcenter.z;
             
             start+=count;
         }
@@ -278,21 +279,23 @@ inline void SetInteractionCollection::CreateSourcePencil(int sx, int sy, int nz,
     for(int x=sx-P.NearFieldRadius;x<=xmax;x++)  {
         int count = PP->NumberParticle(x,sy,nz);
         if(count>0) {
-            posstruct * pos = PP->PosCell(x,sy,nz);
+            List3<FLOAT> pos = PP->PosXYZCell(x,sy,nz);
             
-            //memcpy(&(sourcepositions[offset],&pos,sizeof(FLOAT3)*count));
             FLOAT3 newsourcecenter = PP->CellCenter(x,sy,nz);
             FLOAT * X = &(SourceSetPositions->X[start]);
             FLOAT * Y = &(SourceSetPositions->Y[start]);
             FLOAT * Z = &(SourceSetPositions->Z[start]);
             
             #pragma simd assert
-            for(int p = 0; p < count; p++){
-                float3 tmp = pos[p] + newsourcecenter;
-                X[p] = tmp.x;
-                Y[p] = tmp.y;
-                Z[p] = tmp.z;
-            }
+            for(int p = 0; p < count; p++)
+                X[p] = pos.X[p] + newsourcecenter.x;
+            #pragma simd assert
+            for(int p = 0; p < count; p++)
+                Y[p] = pos.Y[p] + newsourcecenter.y;
+            #pragma simd assert
+            for(int p = 0; p < count; p++)
+                Z[p] = pos.Z[p] + newsourcecenter.z;
+            
             start += count;
         }
     }

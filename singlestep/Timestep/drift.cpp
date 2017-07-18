@@ -7,15 +7,20 @@ their cell.  This is done in two steps:
 */
 
 void DriftCell(Cell c, FLOAT driftfactor) {
-    int N = c.count()*3;
+    int N = c.count();
 
-    FLOAT *pos = (FLOAT*) c.pos;
-    FLOAT *vel = (FLOAT*) c.vel;
+    FLOAT3 *pos = (FLOAT3*) c.pos;
+    FLOAT3 *vel = (FLOAT3*) c.vel;
+    auxstruct *aux = c.aux;
     
-	#pragma simd assert
+    #pragma simd assert
     for (int b = 0; b<N; b++) {
         // Drift the position
         pos[b] += vel[b] * driftfactor;
+        
+        // set unused bit 48 to zero to force loading.
+        // hopefully this makes rebinning faster?
+        aux[b].aux &= ~((uint64) 1 << 48);
     }
 }
 

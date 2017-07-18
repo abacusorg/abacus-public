@@ -1,6 +1,11 @@
 //#include "read_dio.h"
 //#include "write_dio.h"
 
+// used by both serial and parallel io
+ReadDirect *RD_RDD;
+ReadDirect *RD_RDM;
+WriteDirect *WD_WDT;
+
 typedef struct { 
     double ReadDerivatives;
     double ReadMultipoles;
@@ -9,21 +14,19 @@ typedef struct {
     double InverseZFFTTaylor;
     double ConvolutionArithmetic;
     double ArraySwizzle;
+#ifdef CONVIOTHREADED
+    double WaitForIO;
+#endif
     
     double ConvolveWallClock;
     double Discrepency;
 
-    unsigned long long int ReadDerivativesBytes;
-    unsigned long long int ReadMultipolesBytes;
-    unsigned long long int WriteTaylorBytes;
-    unsigned long long int ops;
-    unsigned long long int totalMemoryAllocated;
+    uint64_t ReadDerivativesBytes, ReadMultipolesBytes, WriteTaylorBytes;
+    uint64_t ops;
+    uint64_t totalMemoryAllocated;
 
     int runtime_ConvolutionCacheSizeMB;
-    int blocksize, zwidth;
-    int runtime_order;
-    int runtime_cpd;
-
+    int ComputeCores;
 } ConvolutionStatistics;
 
 typedef struct {
@@ -35,7 +38,7 @@ typedef struct {
     int runtime_IsRamDisk;
     int runtime_DiskBufferSizeKB;
     int runtime_ConvolutionCacheSizeMB;
-    long long unsigned int runtime_MaxConvolutionRAMMB;
+    int runtime_MaxConvolutionRAMMB;
 
     char runtime_DerivativesDirectory[1024];
     char runtime_MultipoleDirectory[1024];
@@ -45,7 +48,16 @@ typedef struct {
     char runtime_TaylorPrefix[1024];
     
     int delete_multipoles_after_read;
+    
+    uint64_t blocksize, zwidth, rml, CompressedMultipoleLengthXY;
+    int io_core;
 } ConvolutionParameters;
+
+#include "block_io_utils.cpp"
+
+#ifdef CONVIOTHREADED
+#include "ConvolutionIOThread.cpp"
+#endif
 
 class OutofCoreConvolution { 
 public: 
@@ -56,16 +68,11 @@ public:
     ConvolutionParameters CP;
     void Convolve( ConvolutionParameters CP );
 
-    long long unsigned int blocksize, zwidth;
+    uint64_t blocksize, zwidth;
 
     ConvolutionStatistics CS; 
 
 private:
-
-    STimer ReadDerivatives;
-    STimer ReadMultipoles;
-    STimer WriteTaylor;
-
     STimer ForwardZFFTMultipoles;
     STimer InverseZFFTTaylor;
 
@@ -74,24 +81,24 @@ private:
 
     STimer ConvolveWallClock;
 
+#ifdef CONVIOTHREADED
+    // Can use more of these for simultaneous IO on multiple devices
+    ConvIOThread *iothread;
+    STimer WaitForIO;
+#endif
 
-    long long unsigned int cpd,order,rml,CompressedMultipoleLengthXY;
+    uint64_t cpd,order,rml,CompressedMultipoleLengthXY;
 
     void BlockConvolve(void);
     void WriteDiskTaylor(int z);
-    void ReadDiskDerivatives(int z);
-    void ReadDiskMultipoles(int z, int delete_after_read);
-
-    int mapM[8192];
-    int remap[8192];
-
-    ReadDirect *RD_RDD;
-    ReadDirect *RD_RDM;
-    WriteDirect *WD_WDT;
+    void ReadDiskMultipolesAndDerivs(int z);
+    void SwizzleMultipoles(int z);
+    void SwizzleTaylors(int z);
 
     Complex *DiskBuffer;
-    double *CompressedDerivatives;
-    COMPLEX *TemporarySpace;
+    DFLOAT **CompressedDerivatives;
+    MTCOMPLEX **PlaneBuffer;
+    Block *CurrentBlock;
     
     double invcpd3;
 };

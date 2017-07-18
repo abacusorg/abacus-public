@@ -117,6 +117,15 @@ public:
     int ForceCPU; //IF 1, force directs to be executed exclusively on cpu even if cuda is available
     int GPUMinCellSinks;// If AVX directs are compiled, cells with less than this many particles go to cpu
     int ProfilingMode;//If 1, enable profiling mode, i.e. delete the write-state after creating it to run repeatedly on same dat
+    
+    int IOCore;  // The core that the IO thread will be bound to.  -1 means don't bind
+    #define MAX_2ND_IOTHREAD_DIRS 100
+    char **SecondIOThreadDirs; //[MAX_2ND_IOTHREAD_DIRS][1024];
+    int nSecondIOThreadDirs;
+    
+    int Conv_OMP_NUM_THREADS;
+    int Conv_IOCore;
+
 
     // in MB
     unsigned int getCacheSize(){
@@ -247,11 +256,35 @@ public:
     	PowerSpectrumStepInterval = -1; //Do not calculate OTF powerspectra
     	PowerSpectrumN1d = 1;
 	    hs = NULL;
+        
+        IOCore = -1;
+        installscalar("IOCore", IOCore, DONT_CARE);
+        
+        Conv_IOCore = -1;
+        installscalar("Conv_IOCore", Conv_IOCore, DONT_CARE);
+        
+        Conv_OMP_NUM_THREADS = 0;
+        installscalar("Conv_OMP_NUM_THREADS", Conv_OMP_NUM_THREADS, DONT_CARE);
+        
+        // Using staticly allocated memory didn't seem to work with installvector
+        SecondIOThreadDirs = (char**) malloc(MAX_2ND_IOTHREAD_DIRS*sizeof(char*));
+        char *block = (char *) malloc(MAX_2ND_IOTHREAD_DIRS*1024*sizeof(char));
+        for(int i = 0; i < MAX_2ND_IOTHREAD_DIRS; i++){
+            SecondIOThreadDirs[i] = block + 1024*i;
+            strcpy(SecondIOThreadDirs[i], "");
+        }
+        installvector("SecondIOThreadDirs", SecondIOThreadDirs, MAX_2ND_IOTHREAD_DIRS, 1024, DONT_CARE);
+        nSecondIOThreadDirs = 0;
+        installscalar("nSecondIOThreadDirs", nSecondIOThreadDirs, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.
     HeaderStream *hs;
-    ~Parameters(void) { delete hs; }
+    ~Parameters(void) {
+        delete hs;
+        free(SecondIOThreadDirs[0]);
+        free(SecondIOThreadDirs);
+    }
     char *header() { 
 	assert(hs!=NULL); assert(hs->buffer!=NULL);
         return hs->buffer;	// This is just a standard C-style string.
@@ -474,8 +507,7 @@ void Parameters::ValidateParameters(void) {
 	assert(1==0);
     }
 
-
-
+    assert(nSecondIOThreadDirs < MAX_2ND_IOTHREAD_DIRS);
 }
 Parameters P;
 

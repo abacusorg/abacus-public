@@ -1,5 +1,10 @@
+/*
+ proepi.cpp: Prologue and epilogue
+*/
+
 #include "header.cpp"
 #include "threevector.hh"
+#include "StructureOfLists.cc"
 
 #include "stdlog.cc"
 
@@ -75,11 +80,11 @@ void IO_DeleteArena(int arena)    { LBW->DeAllocateArena(arena); }
 //#include "io_fopen.cpp"
 #endif
 
-#include "particles.cpp"
-Particles *PP;
-
 #include "slabsize.cpp"
 SlabSize *Slab;
+
+#include "particles.cpp"
+Particles *PP;
 
 #include "dependency.cpp"
 

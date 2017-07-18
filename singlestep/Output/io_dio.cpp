@@ -27,7 +27,7 @@ void ReadFile(char *ram, uint64 sizebytes, int arena,
     RD.BlockingRead( fn, ram, sizebytes, fileoffset);
     
     BlockingIOReadTime.Stop();
-    blocking_read_bytes += sizebytes;
+    BlockingIOReadBytes += sizebytes;
 
     STDLOG(1,"Done reading file\n");
     IO_SetIOCompleted(arena);
@@ -61,7 +61,7 @@ void WriteFile(char *ram, uint64 sizebytes, int arena,
     WD.BlockingAppend( fn, ram, sizebytes);
     
     BlockingIOWriteTime.Stop();
-    blocking_write_bytes += sizebytes;
+    BlockingIOWriteBytes += sizebytes;
 
     STDLOG(1,"Done writing file\n");
     if (deleteafter==IO_DELETE) IO_DeleteArena(arena);

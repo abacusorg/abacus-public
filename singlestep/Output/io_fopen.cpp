@@ -70,7 +70,7 @@ void ReadFile(char *ram, uint64 sizebytes, int arena,
 	    filename);
     
     BlockingIOReadTime.Stop();
-    blocking_read_bytes += sizebytes;
+    BlockingIOReadBytes += sizebytes;
 
     IO_SetIOCompleted(arena);
     
@@ -89,7 +89,7 @@ void WriteFile(char *ram, uint64 sizebytes, int arena,
 	filename);
     
     BlockingIOWriteTime.Stop();
-    blocking_write_bytes += sizebytes;
+    BlockingIOWriteBytes += sizebytes;
     
     if (deleteafter==IO_DELETE) IO_DeleteArena(arena);
     return;
