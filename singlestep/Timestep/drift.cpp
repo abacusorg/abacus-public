@@ -1,10 +1,12 @@
 /* drift.cpp
 This drifts the particles by a specified drift factor.  
 It then checks to see if the particles have drifted outside of
-their cell.  This is done in two steps: 
-1) swap moving particles to the end of their cell list (multi-threaded)
-2) add those particles to the insert list (single-threaded)
+their cell.  If so, particle is moved to the insert list.
 */
+
+
+// TODO: Would it be faster to pass Cell's by reference?  i.e., Cell &c
+// They are 44 byte objects.
 
 void DriftCell(Cell c, FLOAT driftfactor) {
     int N = c.count();
@@ -22,66 +24,69 @@ void DriftCell(Cell c, FLOAT driftfactor) {
         // hopefully this makes rebinning faster?
         aux[b].aux &= ~((uint64) 1 << 48);
     }
+    return;
 }
 
 
-int RebinCell(Cell c, int x, int y, int z) {
+int RebinCell(Cell &c, int x, int y, int z, ilgap *gap) {
     // This should be ok regardless of box-center vs cell-center.
+    // When a particle is found to be out of the cell, then it is
+    // moved to the insert list immediately.  A particle from the
+    // end is then moved in.
+
     #ifdef GLOBALPOS
-    posstruct cellcenter = PP->LocalCellCenter(x,y,z);
+	posstruct cellcenter = PP->LocalCellCenter(x,y,z);
     #endif
+    FLOAT halfinvcpd = PP->halfinvcpd;
     int b = 0;
     int e = c.count();
 
-    FLOAT halfinvcpd = PP->halfinvcpd;
     while(b<e) {
+	// List is not yet done
         // Check if this particle is still in the cell
         posstruct residual = c.pos[b];
         #ifdef GLOBALPOS
-        residual -= cellcenter;
+	    residual -= cellcenter;
         #endif
         if (    std::abs(residual.x) > halfinvcpd
              || std::abs(residual.y) > halfinvcpd
              || std::abs(residual.z) > halfinvcpd) {
-            // We will need to rebin this particle
-            
-            // It's possible the particle at the end of the list needs to be rebinned too
-            // Keep it there if so (i.e don't swap it)
-            posstruct eresidual;
-            do {
-                e--;
-                eresidual = c.pos[e];
-                // if (e <= b) break outer;  // faster to do here or in loop condition?
-            } while(e > b && (   std::abs(eresidual.x) > halfinvcpd
-                              || std::abs(eresidual.y) > halfinvcpd
-                              || std::abs(eresidual.z) > halfinvcpd));
-            c.swap(b, e);
-        }
-        // We know the particle we swapped with does not need rebinning,
-        // so don't check it again
-        b++;
+            // This particle is outside the cell and must be rebinned.
+	    // Push it onto the insert list at the location indicated 
+	    // by the ilgap controller.
+	    IL->WrapAndPush( c.pos+b, c.vel+b, c.aux+b, slab, y, z, 
+		    gap->nextid());
+	    // Now move the end particle into this location
+	    c.pos[b] = c.pos[e];
+	    c.vel[b] = c.vel[e];
+	    c.aux[b] = c.aux[e];
+	    e--;    // Don't increment b, as we'll need to try again
+	} else b++;    // Particle was ok; keep moving along
     }
-    
     c.ci->active = e;
     return c.count() - e;
 }
 
 void DriftAndCopy2InsertList(int slab, FLOAT driftfactor, 
-void (*DriftCell)(Cell c, FLOAT driftfactor)) {
+	    void (*DriftCell)(Cell c, FLOAT driftfactor)) {
+    // Drift an entire slab
     STimer wc;
     PTimer move;
     PTimer rebin;
     
     int cpd = PP->cpd;
-    
-    // Number of rebinned particles in a given z-pencil
-    uint32_t row_rebinned[cpd];  // false sharing hazard?
-    uint64_t n_rebinned = 0;
+
+    int nthreads = omp_get_max_threads();
+    ilgap *gaps = new ilgap[nthreads];
+	// This reserves space on the insert list for each thread to use.
+	// This class silently gets new space as needed.
+    uint64 ILbefore = IL->length;
     
     wc.Start();
     #pragma omp parallel for schedule(static)
     for(int y=0;y<cpd;y++){
-        row_rebinned[y] = 0;
+	ilgap *thisgap = gaps + omp_get_thread_num();
+	    // The space pointer for this list
         for(int z=0;z<cpd;z++) {
             // We'll do the drifting and rebinning separately because
             // sometimes we'll want special rules for drifting.
@@ -90,18 +95,20 @@ void (*DriftCell)(Cell c, FLOAT driftfactor)) {
             (*DriftCell)(c,driftfactor);
             move.Stop();
             rebin.Start();
-            row_rebinned[y] += RebinCell(c, slab, y, z);
+            RebinCell(c, slab, y, z, thisgap);
             rebin.Stop();
         }
     }
     wc.Stop();
+
+    DriftInsert.Start();
+    IL->CollectGaps(gaps, nthreads);
+    DriftInsert.Stop();
+    STDLOG(1,"Drifting slab %d has rebinned %d particles.\n",
+	slab, IL->length-ILbefore);
     
-    uint64_t row_offset[cpd];
-    for(int y = 0; y < cpd; y++){
-        row_offset[y] = n_rebinned;
-        n_rebinned += row_rebinned[y];
-    }
-    
+    // Compute timing by prorating the total wall-clock time 
+    // by the time of the two major parts
     double seq = move.Elapsed() + rebin.Elapsed();
     double f_move = move.Elapsed()/seq;
     double f_rebin = rebin.Elapsed()/seq;
@@ -111,29 +118,7 @@ void (*DriftCell)(Cell c, FLOAT driftfactor)) {
     
     DriftMove.increment(seq_move);
     DriftRebin.increment(seq_rebin);
-
-    DriftInsert.Start();
-    
-    // Grow the insert list by the total number of rebinned particles
-    uint64 ILbefore = IL->length;
-    IL->length += n_rebinned;
-    
-    // Now let each thread write into the insert list, starting at its row offset
-    #pragma omp parallel for schedule(static)
-    for(int y=0;y<cpd;y++){
-        uint32_t this_row_rebinned = 0;
-        uint64_t this_row_offset = row_offset[y];
-        for(int z=0;z<cpd;z++) {
-            Cell c = PP->GetCell(slab,y,z);
-            int e = c.count();
-            for(int q=c.active(); q<e; q++) {
-                IL->WrapAndPush( c.pos+q, c.vel+q, c.aux+q, slab, y, z, ILbefore + this_row_offset + this_row_rebinned);
-                this_row_rebinned++;
-            }
-        }
-        assert(this_row_rebinned == row_rebinned[y]);
-    }
-    DriftInsert.Stop();
-    STDLOG(1,"Drifting slab %d has rebinned %d particles.\n",
-    slab, IL->length-ILbefore);
+    return;
 }
+
+
