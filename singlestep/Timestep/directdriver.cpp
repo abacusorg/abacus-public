@@ -3,9 +3,7 @@
 #include "StructureOfLists.cc"
 #include "SetInteractionCollection.hh"
 
-#ifdef CUDADIRECT
 #include "DeviceFunctions.h"
-#endif
 
 class NearFieldDriver{
     public:
@@ -398,10 +396,10 @@ int NearFieldDriver::SlabDone(int slab){
 
 void NearFieldDriver::Finalize(int slab){
     FinalizeTimer.Start();
-    FinalizeBookkeeping.Start();
     slab = PP->WrapSlab(slab);
 
 #ifdef CUDADIRECT
+    FinalizeBookkeeping.Start();
 
     assertf(SlabDone(slab) != 0,
             "Finalize called for slab %d but it is not complete\n",slab);

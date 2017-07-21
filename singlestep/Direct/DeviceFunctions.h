@@ -1,3 +1,5 @@
+#ifdef CUDADIRECT
+
 //from direct_gpu_driver.cu
 /*extern "C"
 void DeviceAcceleration(accstruct* acc,int slab, int slabNP,int cpd,FLOAT eps2, int *whendone,int blocking, int * pred, STimer* timers);
@@ -31,3 +33,10 @@ extern "C" void get_cuda_timers(void*);
 extern int MaxSinkBlocks, MaxSourceBlocks;
 extern int MaxNSink, MaxNSource;
 extern size_t MaxSinkSize, MaxSourceSize;
+
+#else
+// No GPU memory limits; could be RAM limits if we wanted
+extern int MaxSinkBlocks = INT32_MAX, MaxSourceBlocks = INT32_MAX;
+extern int MaxNSink = INT32_MAX, MaxNSource = INT32_MAX;
+extern size_t MaxSinkSize = INT32_MAX, MaxSourceSize = INT32_MAX;
+#endif

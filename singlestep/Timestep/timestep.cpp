@@ -92,7 +92,7 @@ int TransposePosPrecondition(int slab){
 }
 
 void TransposePosAction(int slab){
-#ifdef CUDADIRECT
+    // This originally was done only for the GPU, but I think we'll have CPU uses for it too
     STDLOG(0,"Transposing position slab %d with %d particles\n", slab, Slab->size(slab));
     
     LBW->AllocateArena(PosXYZSlab, slab);
@@ -114,7 +114,6 @@ void TransposePosAction(int slab){
             }
         }
     }
-#endif
 }
 
 
