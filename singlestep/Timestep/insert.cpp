@@ -347,6 +347,12 @@ void ILstruct::CollectGaps(ilgap *gaps, int Ngaps) {
 	// Order the gaps by their end index
     int low = 0;          // low[next:end) is unfilled space
     int high = Ngaps-1;   // high[start:next) is filled space
+    // We can assume that the highest gap is the end of the IL.
+    // But that doesn't always stay true, unless we do something about it.
+    // Extend the filled part of each gap to the last unfilled point of the 
+    // one below it.  
+    for (int j=1;j<Ngaps;j++) gaps[j].start = gaps[j-1].end;
+
     while (high>low) {
 	// When high==low, then there are no more gaps to fill
 	if (gaps[low].gapsize() <= gaps[high].size()) {
@@ -369,6 +375,6 @@ void ILstruct::CollectGaps(ilgap *gaps, int Ngaps) {
 	    high--;
 	}
     }
-    IL->ResetILlength(gaps[low].start);
+    IL->ResetILlength(gaps[low].next);
     return;
 }
