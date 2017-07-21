@@ -21,6 +21,9 @@ for its *new* cell.
 #include "multimergesort.cpp"
 
 
+
+
+
 class ilstruct {
   public:
     unsigned int k;   // The key based on y*cpd+z
@@ -35,6 +38,44 @@ class ilstruct {
     bool operator< (const ilstruct& b) const { return (k<b.k); }
 };   // end ilstruct
 
+
+class ilgap {
+    // The gap will be defined as [start,end)
+    // As we fill in from the front, start will be incremented
+    // nextid() will return a valid index number, where we can place a new 
+    // particle.
+    // size() and gapsize() return the used and unused sizes of this block.
+  private:
+    void ilgap::make_next_gap();
+  public:
+
+    uint64 start;
+    uint64 end;
+    uint64 next;
+    uint64 pad[5];   // We want fill a 64-byte cache line to avoid contention
+    #define ILGAP_SIZE 512
+    // We want something big enough that we don't have threads
+    // waiting for the mutex to clear.  But small enough that 
+    // the gap collection at the end doesn't have big copies.
+
+    // When sorting, we sort by end, which is unique across gaps.
+    // In principle, two gaps could have the same start
+    bool operator< (const gap& b) const { return (end<b.end); }
+  
+    ilgap() { make_next_gap(); return; }
+    ~ilgap();
+
+    uint64 nextid() {
+        // Return the next index in line
+	uint64 val = next;   // The index we will return
+	next++;
+	if (next==end) make_next_gap();
+	    // Done with this gap; need a new allocation
+	return val;
+    }
+    uint64 gapsize() { return end-next; }
+    uint64 size() { return next-start; }
+};  // End ilgap class
 
 
 // The following routine is vestigial
@@ -275,3 +316,59 @@ void InsertList::DumpParticles(void) {
 
 
 InsertList *IL;
+
+
+std::mutex ilgap_mutex;
+
+void ilgap::make_next_gap() {
+    // Adjustments to the IL list length can only happen one at a time
+    ilgap_mutex.lock();
+    next = start = IL->length;
+    IL->ResetILlength(start+ILGAP_SIZE);
+    end = IL->length;
+    ilgap_mutex.unlock();
+}
+
+void ILstruct::CollectGaps(ilgap *gaps, int Ngaps) {
+    // Given a list of gaps, we want to fill them in and reduce the 
+    // size of the insert list.  This routine will change both the
+    // order and the contents of the input vector; essentially,
+    // the vector is inapplicable after use.
+
+    // This routine is entirely serial.
+    // In principle, it could be parallelized by recording a set of
+    // planned moves, then splitting them up to balance the work 
+    // across threads, then executing.  See parallel partitioning 
+    // for an example.
+    // However, the expected amount of work here seems modest,
+    // of order NThreads * ILGAP_SIZE / 4 objects to copy.
+
+    std::sort( gaps, gaps+Ngaps );
+	// Order the gaps by their end index
+    int low = 0;          // low[next:end) is unfilled space
+    int high = Ngaps-1;   // high[start:next) is filled space
+    while (high>low) {
+	// When high==low, then there are no more gaps to fill
+	if (gaps[low].gapsize() <= gaps[high].size()) {
+	    // We have enough particles to fill the gap
+	    uint64 copysize = gaps[low].gapsize();   // Number to move
+	    memcpy(IL->head+gaps[low].next, 
+	    	   IL->head+gaps[high].next-copysize,
+		   sizeof(ilstruct)*copysize);
+	    // And this means we're done with this low gap.
+	    gaps[high].next -= copysize;
+	    low++;
+	} else {
+	    // The gap is more than the particles we have.
+	    uint64 copysize = gaps[high].size();   // Number to move
+	    memcpy(IL->head+gaps[low].next, 
+	    	   IL->head+gaps[high].next-copysize,
+		   sizeof(ilstruct)*copysize);
+	    // And this means we're done with the high set
+	    gaps[low].next += copysize;
+	    high--;
+	}
+    }
+    IL->ResetILlength(gaps[low].start);
+    return;
+}
