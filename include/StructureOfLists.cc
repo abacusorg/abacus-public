@@ -10,6 +10,7 @@ template<typename T> class List3
         List3(uint64 count){
             N = count;
             size_t size = sizeof(T)*N;
+            
             assert(posix_memalign((void **) &X, 4096, size) == 0);
             assert(posix_memalign((void **) &Y, 4096, size) == 0);
             assert(posix_memalign((void **) &Z, 4096, size) == 0);

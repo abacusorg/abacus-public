@@ -132,7 +132,7 @@ NearFieldDriver::NearFieldDriver() :
     STDLOG(1, "Using %f GB of GPU memory (per device)\n", GPUMemoryGB);
     size_t BlockSizeBytes = sizeof(FLOAT) *3 * NFBlockSize;
     MaxSinkBlocks = floor(1e9 * GPUMemoryGB/(6*BlockSizeBytes));
-    MaxSourceBlocks = 5 * MaxSinkBlocks;
+    MaxSourceBlocks = WIDTH * MaxSinkBlocks;
     STDLOG(1,"Initializing GPU with %f x10^6 sink blocks and %f x10^6 source blocks\n",
             MaxSinkBlocks/1e6,MaxSourceBlocks/1e6);
     

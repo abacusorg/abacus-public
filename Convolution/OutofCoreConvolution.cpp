@@ -55,8 +55,6 @@ void OutofCoreConvolution::WriteDiskTaylor(int z) {
 }
 
 void OutofCoreConvolution::BlockConvolve(void) {
-    ConvolveWallClock.Start();
-
     int nprocs = omp_get_max_threads();
     size_t cacherambytes = CP.runtime_ConvolutionCacheSizeMB*(1024LL*1024LL);
 
@@ -227,7 +225,6 @@ void OutofCoreConvolution::BlockConvolve(void) {
     
     delete ICC;
 
-    ConvolveWallClock.Stop();
 }
 
 void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
@@ -250,7 +247,6 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     InverseZFFTTaylor.Clear();
     ConvolutionArithmetic.Clear();
     ArraySwizzle.Clear();
-    ConvolveWallClock.Clear();
     
     CS.ReadDerivativesBytes=0;
     CS.ReadMultipolesBytes=0;
@@ -324,7 +320,10 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     BlockConvolve();
 
 #ifdef CONVIOTHREADED
+    WaitForIO.Start();
     iothread->join();  // wait for io to terminate
+    WaitForIO.Stop();
+    
     CS.WaitForIO = WaitForIO.Elapsed();
     CS.ReadDerivatives       = iothread->get_deriv_read_time();
     CS.ReadMultipoles        = iothread->get_multipole_read_time();
@@ -348,14 +347,6 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     CS.InverseZFFTTaylor     = InverseZFFTTaylor.Elapsed();
     CS.ConvolutionArithmetic = ConvolutionArithmetic.Elapsed();
     CS.ArraySwizzle          = ArraySwizzle.Elapsed();
-    CS.ConvolveWallClock     = ConvolveWallClock.Elapsed();
-
-    double accountedtime  = CS.ConvolutionArithmetic;
-           accountedtime += CS.ForwardZFFTMultipoles + CS.InverseZFFTTaylor;
-           accountedtime += CS.ReadDerivatives + CS.ReadMultipoles + CS.WriteTaylor;
-           accountedtime += CS.ArraySwizzle;
-
-    CS.Discrepency = CS.ConvolveWallClock - accountedtime;
 
     delete RD_RDD;
     delete RD_RDM;

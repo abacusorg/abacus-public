@@ -255,7 +255,7 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     n_sorted += slablength;
     FinishSort.Stop();
 
-    //ConfirmSorting(ilnew, slablength);
+    ConfirmSorting(ilnew, slablength);
 
     // Delete the slab particle from the insert list, since they're now in ilnew[]
     ResetILlength(length - slablength);

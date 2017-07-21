@@ -247,13 +247,13 @@ int main(int argc, char ** argv){
 	    STDLOG(1,"Convolution Complete\n");
 	    ConvolutionWallClock.Stop();
 	    TotalWallClock.Stop();
+        
+        OCC.CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
+        
+        
 	    char timingfn[1050];
 	    sprintf(timingfn,"%s/last.convtime",P.LogDirectory);
 	    dumpstats(&OCC,timingfn);
 	    stdlog.close();
-	        exit(0);
-
-
-
- 
+        exit(0);
 }
