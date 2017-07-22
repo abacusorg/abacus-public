@@ -172,7 +172,7 @@ if test x"$with_max_gpus" != x"no limit"; then
 fi
 
 AC_ARG_WITH(softening,
-[AS_HELP_STRING([--with-softening={plummer | single_spline | cubic_spline | cubic_plummer}], [Near-force softening technique [plummer]])],
+[AS_HELP_STRING([--with-softening={plummer | single_spline | cubic_spline | cubic_plummer}], [Near-force softening technique [single_spline]])],
 	[], with_softening="single_spline")
 if test "x$with_softening" == xcubic_plummer; then
 	AC_DEFINE_UNQUOTED(DIRECTCUBICPLUMMER, [], "Cubic variant of Plummer softening")
@@ -180,6 +180,10 @@ elif test "x$with_softening" == xcubic_spline; then
 	AC_DEFINE_UNQUOTED(DIRECTCUBICSPLINE, [], "Cubic Hernquist spline softening")
 elif test "x$with_softening" == xsingle_spline; then
 	AC_DEFINE_UNQUOTED(DIRECTSINGLESPLINE, [], "Single-branch spline softening")
+elif test "x$with_softening" == xplummer; then
+	AC_DEFINE_UNQUOTED(DIRECTPLUMMER, [], "Plummer softening")
+else
+    AC_MSG_ERROR([Unknown softening "$with_softening"!])
 fi
 
 # If not using MKL, look for FFTW

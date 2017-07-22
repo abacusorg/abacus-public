@@ -86,7 +86,7 @@ NearFieldDriver::NearFieldDriver() :
                   CountSources{0},
                   CalcSourceBlocks{0},
                   FillSources{0},
-        FillInteractionList{0},
+              FillInteractionList{0},
         LaunchDeviceKernels{0},
         TotalDirectInteractions_GPU{0},
             
@@ -263,6 +263,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             STDLOG(1,"Executing directs for slab %d w = %d k: %d - %d\n",slabID,w,kl,kh);
             SICExecute.Start();
             SlabInteractionCollections[slabID][w*NSplit + n]->GPUExecute(blocking);
+            //SlabInteractionCollections[slabID][w*NSplit + n]->CPUExecute();
             SICExecute.Stop();
             kl = kh;
         }
@@ -446,7 +447,6 @@ void NearFieldDriver::Finalize(int slab){
         DirectInteractions_GPU[g] += Slice->DirectTotal;
         TotalDirectInteractions_GPU += Slice->DirectTotal;
 
-        assert(Slice->bytes_to_device/1e9 < 10);
         GB_to_device[g] += Slice->bytes_to_device/1e9;
         GB_from_device[g] += Slice->bytes_from_device/1e9;
         DeviceSinks[g] += Slice->SinkTotal;
