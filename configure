@@ -1374,7 +1374,7 @@ Optional Packages:
   --with-direct-bpd=B     Direct buffers per device [ceil((2*NFR+1)/NGPU) = 3]
   --with-max-gpus=M       Maximum number of GPUs to use [no limit]
   --with-softening={plummer | single_spline | cubic_spline | cubic_plummer}
-                          Near-force softening technique [plummer]
+                          Near-force softening technique [single_spline]
 
 Some influential environment variables:
   CXX         C++ compiler command
@@ -6013,6 +6013,14 @@ cat >>confdefs.h <<_ACEOF
 #define DIRECTSINGLESPLINE /**/
 _ACEOF
 
+elif test "x$with_softening" == xplummer; then
+
+cat >>confdefs.h <<_ACEOF
+#define DIRECTPLUMMER /**/
+_ACEOF
+
+else
+    as_fn_error $? "Unknown softening \"$with_softening\"!" "$LINENO" 5
 fi
 
 # If not using MKL, look for FFTW

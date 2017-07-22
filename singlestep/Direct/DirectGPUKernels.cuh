@@ -94,7 +94,7 @@ __device__ __inline__ void direct(
     az -= r * drz;
 
 }
-#else
+#elif defined DIRECTPLUMMER
 // Default (plummer kernel)
 template <int R>
 __device__ __inline__ void direct(
@@ -116,4 +116,7 @@ __device__ __inline__ void direct(
     az -= r * drz;
 
 }
+
+#else
+    #error "Must have defined a DIRECT* technique!"
 #endif

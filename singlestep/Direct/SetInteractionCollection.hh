@@ -59,7 +59,7 @@ class SetInteractionCollection{
         STimer LaunchDeviceKernels;
     
         // Data transfer metrics
-        uint64 bytes_to_device, bytes_from_device;
+        uint64 bytes_to_device = 0, bytes_from_device = 0;
     
         // These are shared by all threads
         static volatile int ActiveThreads;
@@ -109,7 +109,7 @@ class SetInteractionCollection{
         // Different softenings use different eps
         FLOAT eps;
 
-        int AssignedDevice;
+        int AssignedDevice = 0;
         int Blocking;
 
         //Methods

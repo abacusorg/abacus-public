@@ -399,8 +399,12 @@ int SetInteractionCollection::CheckCompletion(){
     return CompletionFlag;
 }
 
-// Currently Plummer only
 void SetInteractionCollection::CPUExecute(){
+    // Currently Plummer only
+#ifndef DIRECTPLUMMER
+    QUIT("Error: executing CPU pencils with non-Plummer softening is not currently supported.\n");
+#endif
+    
     int WIDTH = 2*P.NearFieldRadius + 1;
     
     FLOAT cpu_eps = JJ->SofteningLengthInternal*JJ->SofteningLengthInternal;
@@ -430,7 +434,7 @@ void SetInteractionCollection::CPUExecute(){
             int sinkIdx = SinkBlockParentPencil[blockIdx];
 
             FLOAT sinkX, sinkY, sinkZ;
-            if(id <  SinkSetStart[sinkIdx] + SinkSetCount[sinkIdx]){
+            if(id <  SinkSetIdMax[sinkIdx]){
                 sinkX = SinkSetPositions->X[id];
                 sinkY = SinkSetPositions->Y[id];
                 sinkZ = SinkSetPositions->Z[id];
@@ -496,7 +500,7 @@ void SetInteractionCollection::CPUExecute(){
 
             }
 
-            if(id < SinkSetStart[sinkIdx] + SinkSetCount[sinkIdx]){
+            if(id < SinkSetIdMax[sinkIdx]){
                 assert(isfinite(a.x));
                 assert(isfinite(a.y));
                 assert(isfinite(a.z));
