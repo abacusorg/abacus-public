@@ -20,14 +20,14 @@ for its *new* cell.
 
 #include "multimergesort.cpp"
 
-
+#include <mutex>
 
 
 
 class ilstruct {
   public:
     unsigned int k;   // The key based on y*cpd+z
-    integer3 xyz;	// The new cell, wrapped
+    integer3 xyz;        // The new cell, wrapped
     posstruct pos;
     velstruct vel;
     auxstruct aux;
@@ -46,7 +46,7 @@ class ilgap {
     // particle.
     // size() and gapsize() return the used and unused sizes of this block.
   private:
-    void ilgap::make_next_gap();
+    void make_next_gap();
   public:
 
     uint64 start;
@@ -60,18 +60,18 @@ class ilgap {
 
     // When sorting, we sort by end, which is unique across gaps.
     // In principle, two gaps could have the same start
-    bool operator< (const gap& b) const { return (end<b.end); }
+    bool operator< (const ilgap& b) const { return (end<b.end); }
   
     ilgap() { make_next_gap(); return; }
-    ~ilgap();
+    ~ilgap() {} ;
 
     uint64 nextid() {
         // Return the next index in line
-	uint64 val = next;   // The index we will return
-	next++;
-	if (next==end) make_next_gap();
-	    // Done with this gap; need a new allocation
-	return val;
+        uint64 val = next;   // The index we will return
+        next++;
+        if (next==end) make_next_gap();
+            // Done with this gap; need a new allocation
+        return val;
     }
     uint64 gapsize() { return end-next; }
     uint64 size() { return next-start; }
@@ -94,8 +94,8 @@ struct GlobalSortOperator {
 void ConfirmSorting(ilstruct *il, uint64 len) {
     for (uint64 j=0; j+1<len; j++) 
     assertf(il[j].key()<=il[j+1].key(), 
-    	"Insert list sorting failed: il[%d]=%d,  il[%d]=%d\n",
-	j, il[j].key(), j+1, il[j+1].key());
+            "Insert list sorting failed: il[%d]=%d,  il[%d]=%d\n",
+        j, il[j].key(), j+1, il[j+1].key());
     return;
 }
 
@@ -120,7 +120,8 @@ public:
 
     InsertList(int cpd, uint64 maxilsize) : grid(cpd)  { 
         length = 0; 
-        maxil = maxilsize;
+        // we may try to grow the list by an extra block per thread
+        maxil = maxilsize + ILGAP_SIZE*omp_get_max_threads();
         int ret = posix_memalign((void **) &il, 4096, sizeof(ilstruct) * maxilsize);
         assertf(ret==0,"Failed to allocate Insert List\n");
         n_sorted = 0;
@@ -216,24 +217,33 @@ public:
             printf("Trying to push a particle to slab %d from slab %d.  This is larger than FINISH_WAIT_RADIUS = %d.\n",
                 newcell.x, x, FINISH_WAIT_RADIUS);
             printf("pos: %e %e %e; vel: %e %e %e; aux: %llu; cell: %d %d %d\n", p.x, p.y, p.z, v.x, v.y, v.z, a.aux, c.x, c.y, c.z);
-            /*assertf(slab_distance <= FINISH_WAIT_RADIUS,
+            assertf(slab_distance <= FINISH_WAIT_RADIUS,
                 "Trying to push a particle to slab %d from slab %d.  This is larger than FINISH_WAIT_RADIUS = %d.",
-                x, newcell.x, FINISH_WAIT_RADIUS);*/
+                x, newcell.x, FINISH_WAIT_RADIUS);
         }
         
         //Push(pos,vel,aux,newcell);
         PushAt(pos,vel,aux,newcell,i);
     }
 
-    void ResetILlength(uint64 newlength) { 
+    void ShrinkIL(uint64 newlength) { 
         assertf(newlength<=length, 
+        "Illegal shrinking of Insert List\n");
+        length = newlength; 
+    }
+    
+    void GrowIL(uint64 newlength) { 
+        assertf(newlength>=length, 
+        "Illegal growing of Insert List\n");
+        assertf(newlength < maxil, 
         "Illegal resizing of Insert List\n");
         length = newlength; 
     }
 
     ilstruct * PartitionAndSort(int slab, uint64 *slablength);
+    void CollectGaps(ilgap *gaps, int Ngaps);
 
-    void DumpParticles(void);		// Debugging only
+    void DumpParticles(void);                // Debugging only
 };
 
 
@@ -299,7 +309,7 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     ConfirmSorting(ilnew, slablength);
 
     // Delete the slab particle from the insert list, since they're now in ilnew[]
-    ResetILlength(length - slablength);
+    ShrinkIL(length - slablength);
     *_slablength = slablength;
     return ilnew;
 }
@@ -317,19 +327,18 @@ void InsertList::DumpParticles(void) {
 
 InsertList *IL;
 
-
 std::mutex ilgap_mutex;
 
 void ilgap::make_next_gap() {
     // Adjustments to the IL list length can only happen one at a time
     ilgap_mutex.lock();
     next = start = IL->length;
-    IL->ResetILlength(start+ILGAP_SIZE);
+    IL->GrowIL(start+ILGAP_SIZE);
     end = IL->length;
     ilgap_mutex.unlock();
 }
 
-void ILstruct::CollectGaps(ilgap *gaps, int Ngaps) {
+void InsertList::CollectGaps(ilgap *gaps, int Ngaps) {
     // Given a list of gaps, we want to fill them in and reduce the 
     // size of the insert list.  This routine will change both the
     // order and the contents of the input vector; essentially,
@@ -344,7 +353,7 @@ void ILstruct::CollectGaps(ilgap *gaps, int Ngaps) {
     // of order NThreads * ILGAP_SIZE / 4 objects to copy.
 
     std::sort( gaps, gaps+Ngaps );
-	// Order the gaps by their end index
+        // Order the gaps by their end index
     int low = 0;          // low[next:end) is unfilled space
     int high = Ngaps-1;   // high[start:next) is filled space
     // We can assume that the highest gap is the end of the IL.
@@ -354,27 +363,29 @@ void ILstruct::CollectGaps(ilgap *gaps, int Ngaps) {
     for (int j=1;j<Ngaps;j++) gaps[j].start = gaps[j-1].end;
 
     while (high>low) {
-	// When high==low, then there are no more gaps to fill
-	if (gaps[low].gapsize() <= gaps[high].size()) {
-	    // We have enough particles to fill the gap
-	    uint64 copysize = gaps[low].gapsize();   // Number to move
-	    memcpy(IL->head+gaps[low].next, 
-	    	   IL->head+gaps[high].next-copysize,
-		   sizeof(ilstruct)*copysize);
-	    // And this means we're done with this low gap.
-	    gaps[high].next -= copysize;
-	    low++;
-	} else {
-	    // The gap is more than the particles we have.
-	    uint64 copysize = gaps[high].size();   // Number to move
-	    memcpy(IL->head+gaps[low].next, 
-	    	   IL->head+gaps[high].next-copysize,
-		   sizeof(ilstruct)*copysize);
-	    // And this means we're done with the high set
-	    gaps[low].next += copysize;
-	    high--;
-	}
+        // When high==low, then there are no more gaps to fill
+        if (gaps[low].gapsize() <= gaps[high].size()) {
+            // We have enough particles to fill the gap
+            uint64 copysize = gaps[low].gapsize();   // Number to move
+            assert(gaps[high].next >= copysize);
+            memcpy(IL->il+gaps[low].next, 
+                       IL->il+gaps[high].next-copysize,
+                   sizeof(ilstruct)*copysize);
+            // And this means we're done with this low gap.
+            gaps[high].next -= copysize;
+            low++;
+        } else {
+            // The gap is more than the particles we have.
+            uint64 copysize = gaps[high].size();   // Number to move
+            assert(gaps[high].next >= copysize);
+            memcpy(IL->il+gaps[low].next, 
+                       IL->il+gaps[high].next-copysize,
+                   sizeof(ilstruct)*copysize);
+            // And this means we're done with the high set
+            gaps[low].next += copysize;
+            high--;
+        }
     }
-    IL->ResetILlength(gaps[low].next);
+    IL->ShrinkIL(gaps[low].next);
     return;
 }

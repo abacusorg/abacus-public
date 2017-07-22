@@ -25,7 +25,7 @@ it would eventually be AVX-able.  That's considerably faster.
 */
 
 
-void KickCell(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
+void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     FLOAT maxacc = 0.0, maxvel = 0.0, sumvel2 = 0.0;
     FLOAT *vel = (FLOAT *)c.vel; 
     FLOAT *acc = (FLOAT *)cellacc;	// These are flattened arrays, not triples.
@@ -54,7 +54,7 @@ void KickCell(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
 
 
 void KickSlab(int slab, FLOAT kick1, FLOAT kick2,
-void (*KickCell)(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2)) {
+void (*KickCell)(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2)) {
     accstruct *acc = (accstruct *) LBW->ReturnIDPtr(AccSlab,slab);
     int cpd = PP->cpd;
     #pragma omp parallel for schedule(static)
