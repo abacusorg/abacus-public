@@ -31,7 +31,7 @@ void ComputeTaylorForce(int slab) {
     accstruct *acc = (accstruct *) LBW->ReturnIDPtr(AccSlab,slab);
     uint64 slabsize;
 
-    COMPLEX *TaylorCoefficients = (COMPLEX *) LBW->ReturnIDPtr(TaylorSlab,slab);
+    MTCOMPLEX *TaylorCoefficients = (MTCOMPLEX *) LBW->ReturnIDPtr(TaylorSlab,slab);
     TY->EvaluateSlabTaylor( slab, acc, pos, count, offset, cc, TaylorCoefficients);
     RL->ApplyRedlack(slab, acc, pos, count, offset, cc,P.np);
 
@@ -68,7 +68,7 @@ void ComputeMultipoleSlab(int slab) {
     posstruct *pos = (posstruct *) LBW->ReturnIDPtr(MergePosSlab,slab);
     uint64 slabsize;
     STDLOG(1,"Calling multipole module.\n");
-    COMPLEX *slabmultipoles = (COMPLEX *) LBW->ReturnIDPtr(MultipoleSlab,slab);
+    MTCOMPLEX *slabmultipoles = (MTCOMPLEX *) LBW->ReturnIDPtr(MultipoleSlab,slab);
     MF->ComputeMultipoleFFTYZ( slab, pos, count, offset, cc, slabmultipoles);
 
     delete[] count;
@@ -77,3 +77,8 @@ void ComputeMultipoleSlab(int slab) {
     ComputeMultipoles.Stop();
     STDLOG(1,"Done with multipoles.\n");
 }
+
+
+void DoCellMultipoles(int slab, int y, int z){ return;};
+void DoZRowMultipoles(int slab, int y){ return;};
+void DoYRowMultipoles(int slab, int z){ return;};

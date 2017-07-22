@@ -17,15 +17,15 @@ inline int SetInteractionCollection::NumPaddedBlocks(int nparticles) {
     return (nparticles+NFBlockSize-1)/NFBlockSize;
 }
 
-inline int PaddedSinkCount(int sinkindex) {
+inline int SetInteractionCollection::PaddedSinkCount(int sinkindex) {
     // The GPU thread needs to figure out how much space has been allocated.
     // No point to allocate a big array when it's so easy to compute.
-    return NFBlockSize*NumPaddedBlocks(SinkCount[sinkindex]);
+    return NFBlockSize*NumPaddedBlocks(SinkSetCount[sinkindex]);
 }
 
-inline int PaddedSourceCount(int sourceindex) {
+inline int SetInteractionCollection::PaddedSourceCount(int sourceindex) {
     // The GPU thread needs to figure out how much space has been allocated
-    return NFBlockSize*NumPaddedBlocks(SourceCount[sourceindex]);
+    return NFBlockSize*NumPaddedBlocks(SourceSetCount[sourceindex]);
 }
 
 SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, int k_high){
@@ -47,9 +47,11 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     if(Nj * width + w < P.cpd)
         Nj++;
     
-    assertf( (uint64)k_width*Nj<0x7fffffff, 
-    	"The number of sink sets will overflow a 32-bit signed int");
+    assertf( (uint64)k_width*Nj < INT32_MAX, 
+            "The number of sink sets will overflow a 32-bit signed int");
     NSinkList = k_width * Nj;
+    assertf(NSinkList <= MaxNSink, "NSinkList (%d) larger than allocated space (MaxNSink = %d)\n", NSinkList, MaxNSink);
+    
     assert(posix_memalign((void **) &SinkSetStart, 4096, sizeof(int) * NSinkList) == 0);
     assert(posix_memalign((void **) &SinkSetCount, 4096, sizeof(int) * NSinkList) == 0);
     assert(posix_memalign((void **) &SinkPlan, 4096, sizeof(SinkPencilPlan) * NSinkList) == 0);
@@ -57,20 +59,20 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     // TODO: Need SinkPlan and SourcePlan in the class
 
     assert(posix_memalign((void **) &SinkSetIdMax, 4096, sizeof(int) * NSinkList) == 0);
-    //checkCudaErrors(cudaHostAlloc((void **) &SinkSetIdMax, sizeof(int) * NSinkList));
     
     int localSinkTotal = 0;
 
-    assertf( (uint64)Nj * (k_width + width) < 0x7fffffff,
+    assertf( (uint64)Nj * (k_width + width) < INT32_MAX,
         "The number of source sets will overflow a 32-bit signed int");
     NSourceSets = Nj * (k_width + width);
-
-    // TODO: Why are these scoped to CPD*(CPD+width)?!  Is this vestigial?
     
+    assertf(NSourceSets <= MaxNSource, "NSourceSets (%d) larger than allocated space (MaxNSource = %d)\n", NSourceSets, MaxNSource);
     assertf(NSourceSets <= P.cpd*(P.cpd+width), "NSourceSets (%d) exceeds SourceSet array allocation (%d)\n", NSourceSets, P.cpd*(P.cpd+width));
-    assert(posix_memalign((void **) &SourceSetStart, 4096, sizeof(int) * P.cpd*(P.cpd+width)) == 0);
-    assert(posix_memalign((void **) &SourceSetCount, 4096, sizeof(int) * P.cpd*(P.cpd+width)) == 0);
-    assert(posix_memalign((void **) &SourcePlan, 4096, sizeof(SourcePencilPlan) * NSourceList) == 0);
+    
+    assert(posix_memalign((void **) &SourceSetStart, 4096, sizeof(int) * NSourceSets) == 0);  // can this be of size NSourceSets?
+    assert(posix_memalign((void **) &SourceSetCount, 4096, sizeof(int) * NSourceSets) == 0);
+    assert(posix_memalign((void **) &SourcePlan, 4096, sizeof(SourcePencilPlan) * NSourceSets) == 0);
+    
     int localSourceTotal = 0;
 
     DirectTotal = 0;
@@ -81,23 +83,23 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     CountSinks.Clear(); CountSinks.Start();
 
     uint64 skewer_blocks[k_width+width];   // Number of blocks in this k-skewer
-    	// This is oversized because we'll re-use for Sources
+            // This is oversized because we'll re-use for Sources
 
     #pragma omp parallel for schedule(static) reduction(+:localSinkTotal)
     for(int k = 0; k < k_width; k++){
-	int this_skewer_blocks = 0;   // Just to have a local variable
+        int this_skewer_blocks = 0;   // Just to have a local variable
         for(int j = 0; j < Nj; j ++) {
             int jj = w + j * width;
             int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
             int sinkindex = k * Nj + j;
-	    // This loads all of the position pointers into the Plan,
-	    // but also returns the total size.
+            // This loads all of the position pointers into the Plan,
+            // but also returns the total size.
             int pencilsize = SinkPlan[sinkindex].load(slab, k + k_low, zmid);
             SinkSetCount[sinkindex] = pencilsize;
             localSinkTotal += pencilsize;
-	    this_skewer_blocks += NumPaddedBlocks(pencilsize);
+            this_skewer_blocks += NumPaddedBlocks(pencilsize);
         }
-	skewer_blocks[k] = this_skewer_blocks;
+        skewer_blocks[k] = this_skewer_blocks;
     }
     SinkTotal = localSinkTotal;  // OpenMP can't do reductions directly on member variables
     CountSinks.Stop();
@@ -107,55 +109,55 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     // Cumulate the number of blocks in each skewer, so we know how 
     // to start enumerating.
     uint64 skewer_blocks_start[k_width+1+width]; 
-    	// This is oversized because we'll re-use for Sources
+            // This is oversized because we'll re-use for Sources
     skewer_blocks_start[0] = 0;
     for (int k=0; k<k_width; k++) 
-    	skewer_blocks_start[k+1] = skewer_blocks_start[k]+skewer_blocks[k];
+            skewer_blocks_start[k+1] = skewer_blocks_start[k]+skewer_blocks[k];
 
     NSinkBlocks = skewer_blocks_start[k_width];   // The total for all skewers
-    assertf(skewer_blocks_start[k_width]*NFBlockSize<0x7fffffff, 
-    	"The number of padded sink particles will overflow a 32-bit signed int");
+    assertf(skewer_blocks_start[k_width]*NFBlockSize < INT32_MAX, 
+            "The number of padded sink particles will overflow a 32-bit signed int");
 
+    assertf(NSinkBlocks <= MaxSinkBlocks, "NSinkBlocks (%d) larger than allocated space (MaxSinkBlocks = %d)\n", NSinkBlocks, MaxSinkBlocks);
     assert(posix_memalign((void **) &SinkBlockParentPencil, 4096, sizeof(int) * NSinkBlocks) == 0);
 
     // Loop over the pencils to set these:
     //   SinkSetStart[set] points to where the padded particles starts
     //   SinkSetIdMax[set] points to where the padded particles end
     //   SinkBlockParentPencil[block] points back to the (k,j) sinkset enumeration
-    // 
+    //
+    
     #pragma omp parallel for schedule(static) 
     for(int k = 0; k < k_width; k++){
-	// Figure out where to start the enumeration in this skewer
-	int block_start = skewer_blocks_start[k];
-	int NPaddedSinks = NFBlockSize*block_start; 
+        // Figure out where to start the enumeration in this skewer
+        int block_start = skewer_blocks_start[k];
+        int NPaddedSinks = NFBlockSize*block_start; 
 
         for(int j = 0; j < Nj; j ++) {
             int sinkset = k * Nj + j;
-	    int sinklength = SinkSetCount[sinkset];    // num particles
-	    SinkSetStart[sinkset] = NPaddedSinks;
-	    SinkSetIdMax[sinkset] = SinkSetStart[sinkset] + sinklength;
-	    int nblocks = NumPaddedBlocks(sinklength);
-	    NPaddedSinks += nblocks*NFBlockSize;
+            int sinklength = SinkSetCount[sinkset];    // num particles
+            SinkSetStart[sinkset] = NPaddedSinks;
+            SinkSetIdMax[sinkset] = SinkSetStart[sinkset] + sinklength;
+            int nblocks = NumPaddedBlocks(sinklength);
+            NPaddedSinks += nblocks*NFBlockSize;
 
-	    int block_end = block_start+nblocks;
-	    for (int b=block_start; b<block_end; b++)
-		SinkBlockParentPencil[b] = sinkset;
-	    block_start=b;
-	}
+            int block_end = block_start+nblocks;
+            for (int b=block_start; b<block_end; b++)
+                SinkBlockParentPencil[b] = sinkset;
+            block_start=block_end;
+        }
     }
 
-
     int NPaddedSinks = NFBlockSize*NSinkBlocks;   
-    	// The total padded number of particles
+            // The total padded number of particles
+    assertf(NPaddedSinks <= MaxSinkSize, "NPaddedSinks (%d) larger than allocated space (MaxSinkSize = %d)\n", NPaddedSinks, MaxSinkSize);
 
 //    SinkSetPositions = new List3<FLOAT>(NPaddedSinks);
 
     assert(posix_memalign((void **) &SinkSetAccelerations, 4096, sizeof(FLOAT3) * NPaddedSinks) == 0);
     
-    //to make valgrind more accurate, we only zero the regions we use
-    //memset(SinkSetAccelerations, 0 , sizeof(FLOAT3)*NPaddedSinks);
     CalcSinkBlocks.Stop();
-
+    
 //    FillSinks.Start();
 //    // Pencil filling should use static scheduling
 //    // so threads aren't trying to write next to each other
@@ -183,19 +185,19 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
 
     #pragma omp parallel for schedule(static) reduction(+:localSourceTotal)
     for(int k = 0; k<k_width+width; k++) {
-	int this_skewer_blocks = 0;   // Just to have a local variable
-	for(int j = 0; j < Nj; j ++) {
+        int this_skewer_blocks = 0;   // Just to have a local variable
+        for(int j = 0; j < Nj; j ++) {
             int sourceindex = k * Nj + j;
-	    int jj = w + j * width;
-	    int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
-	    // This loads the Plan and returns the length
+            int jj = w + j * width;
+            int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
+            // This loads the Plan and returns the length
             int sourcelength = SourcePlan[sourceindex].load(slab,
-	    		k+k_low-P.NearFieldRadius, zmid);
+                            k+k_low-P.NearFieldRadius, zmid);
             SourceSetCount[sourceindex] = sourcelength;
             localSourceTotal += sourcelength;
-	    this_skewer_blocks += NumPaddedBlocks(sourcelength);
+            this_skewer_blocks += NumPaddedBlocks(sourcelength);
         }
-	skewer_blocks[k] = this_skewer_blocks;
+        skewer_blocks[k] = this_skewer_blocks;
     }
     SourceTotal = localSourceTotal;  // OpenMP can't do reductions directly on member variables
     CountSources.Stop();
@@ -206,33 +208,32 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     // to start enumerating.
     skewer_blocks_start[0] = 0;
     for (int k=0; k<k_width+width; k++) 
-    	skewer_blocks_start[k+1] = skewer_blocks_start[k]+skewer_blocks[k];
+            skewer_blocks_start[k+1] = skewer_blocks_start[k]+skewer_blocks[k];
 
     NSourceBlocks = skewer_blocks_start[k_width+width];   
-    	// The total for all skewers
-    assertf(skewer_blocks_start[k_width_width]*NFBlockSize<0x7fffffff, 
-    	"The number of padded source particles will overflow a 32-bit signed int");
+            // The total for all skewers
+    assertf(skewer_blocks_start[k_width+width]*NFBlockSize < INT32_MAX, 
+            "The number of padded source particles will overflow a 32-bit signed int");
 
     // SourceSetStart[set] holds the padded particle index
     #pragma omp parallel for schedule(static) 
     for(int k = 0; k<k_width+width; k++) {
-	int block_start = skewer_blocks_start[k];
-	int NPaddedSources = NFBlockSize*block_start; 
-	for(int j = 0; j < Nj; j ++) {
+        int block_start = skewer_blocks_start[k];
+        int NPaddedSources = NFBlockSize*block_start; 
+        for(int j = 0; j < Nj; j ++) {
             int sourceset = k * Nj + j;
-	    int sourcelength = SourceSetCount[sourceset];
-	    SourceSetStart[sourceset] = NPaddedSources;
-	    int nblocks = NumPaddedBlocks(sourcelength);
-	    NPaddedSources += nblocks*NFBlockSize;
+            int sourcelength = SourceSetCount[sourceset];
+            SourceSetStart[sourceset] = NPaddedSources;
+            int nblocks = NumPaddedBlocks(sourcelength);
+            NPaddedSources += nblocks*NFBlockSize;
         }
     }
-
-
-    int NPaddedSources = NFBlockSize*NSourceBlocks;    
-    	// The total number of padded sources
+    
+    int NPaddedSources = NFBlockSize*NSourceBlocks;
+            // The total number of padded sources
 
 //    SourceSetPositions = new List3<FLOAT>(NPaddedSources);
-
+    assertf(NPaddedSources <= MaxSourceSize, "NPaddedSources (%d) larger than allocated space (MaxSourceSize = %d)\n", NPaddedSources, MaxSourceSize);
     CalcSourceBlocks.Stop();
 
 //    FillSources.Start();
@@ -253,8 +254,9 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     FillInteractionList.Start();
 
     InteractionCount = width*k_width*Nj;
-    assertf((uint64)width*k_width*Nj<0x7fffffff, 
-    	"Interaction Count exceeds 32-bit signed int");
+    assertf(InteractionCount <= MaxNSink*width, "InteractionCount (%d) larger than allocated space (MaxNSink * width = %d)\n", InteractionCount, MaxNSink * width);
+    assertf((uint64)width*k_width*Nj < INT32_MAX, 
+            "Interaction Count exceeds 32-bit signed int");
     assert(posix_memalign((void **) &SinkSourceInteractionList, 4096, sizeof(int) * InteractionCount) == 0);
     assert(posix_memalign((void **) &SinkSourceYOffset, 4096, sizeof(FLOAT) * InteractionCount) == 0);
     FLOAT cellsize = PP->invcpd;
@@ -276,13 +278,13 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
             for(int y=0;y<width;y++) {
                 int sourceindex = (k + y)*(Nj) +  j;
                 SinkSourceInteractionList[l+y] = sourceindex;
-		#ifndef GLOBAL_POS
-		    SinkSourceYOffset[l+y] = (y-width/2)*cellsize;
-		#else
-		    // The y coordinate is (k_low+k+y-width/2)
-		    int tmpy = k_low+k+y-width/2;
-		    SinkSourceYOffset[l+y] = (tmpy-PP->WrapSlab(tmpy))*cellsize;
-		#endif
+                #ifndef GLOBAL_POS
+                    SinkSourceYOffset[l+y] = (y-width/2)*cellsize;
+                #else
+                    // The y coordinate is (k_low+k+y-width/2)
+                    int tmpy = k_low+k+y-width/2;
+                    SinkSourceYOffset[l+y] = (tmpy-PP->WrapSlab(tmpy))*cellsize;
+                #endif
                 localDirectTotal += SinkSetCount[sinkindex] * SourceSetCount[sourceindex];
             }
         }
@@ -336,59 +338,62 @@ void SetInteractionCollection::SetCompleted(){
 //}
 
 
-//inline void SetInteractionCollection::CreateSinkPencil(int sinkx, int sinky, int sinkz, uint64 start){
-//    int zmax = sinkz+P.NearFieldRadius;
-//    for(int z=sinkz-P.NearFieldRadius;z<=zmax;z++) {
-//        int count = PP->NumberParticle(sinkx,sinky,z);
-//
-//        if(count>0) {
-//            posstruct * pos = PP->PosCell(sinkx,sinky,z);
-//            
-//            //memcpy(&(sinkpositions[offset],&pos,sizeof(FLOAT3)*count));
-//            FLOAT3 newsinkcenter = PP->CellCenter(sinkx, sinky, z);
-//            FLOAT * X = &(SinkSetPositions->X[start]);
-//            FLOAT * Y = &(SinkSetPositions->Y[start]);
-//            FLOAT * Z = &(SinkSetPositions->Z[start]);
-//            
-//            #pragma simd assert
-//            for(int p = 0; p < count; p++){
-//                float3 tmp = pos[p] + newsinkcenter;
-//                X[p] = tmp.x;
-//                Y[p] = tmp.y;
-//                Z[p] = tmp.z;
-//            }
-//            
-//            start+=count;
-//        }
-//    }
-//    assertf(start <= SinkSetPositions->N, "Wrote to particle %d. This overruns SinkSetPositions (length %d)\n", start, SinkSetPositions->N);
-//}
+/*inline void SetInteractionCollection::CreateSinkPencil(int sinkx, int sinky, int sinkz, uint64 start){
+    int zmax = sinkz+P.NearFieldRadius;
+    for(int z=sinkz-P.NearFieldRadius;z<=zmax;z++) {
+        int count = PP->NumberParticle(sinkx,sinky,z);
 
-//inline void SetInteractionCollection::CreateSourcePencil(int sx, int sy, int nz, uint64 start){
-//    int xmax = sx+P.NearFieldRadius;
-//    for(int x=sx-P.NearFieldRadius;x<=xmax;x++)  {
-//        int count = PP->NumberParticle(x,sy,nz);
-//        if(count>0) {
-//            posstruct * pos = PP->PosCell(x,sy,nz);
-//            
-//            //memcpy(&(sourcepositions[offset],&pos,sizeof(FLOAT3)*count));
-//            FLOAT3 newsourcecenter = PP->CellCenter(x,sy,nz);
-//            FLOAT * X = &(SourceSetPositions->X[start]);
-//            FLOAT * Y = &(SourceSetPositions->Y[start]);
-//            FLOAT * Z = &(SourceSetPositions->Z[start]);
-//            
-//            #pragma simd assert
-//            for(int p = 0; p < count; p++){
-//                float3 tmp = pos[p] + newsourcecenter;
-//                X[p] = tmp.x;
-//                Y[p] = tmp.y;
-//                Z[p] = tmp.z;
-//            }
-//            start += count;
-//        }
-//    }
-//    assertf(start <= SourceSetPositions->N, "Wrote to particle %d. This overruns SourceSetPositions (length %d)\n", start, SourceSetPositions->N);
-//}
+        if(count>0) {
+            List3<FLOAT> pos = PP->PosXYZCell(sinkx,sinky,z);
+            
+            FLOAT3 newsinkcenter = PP->CellCenter(sinkx, sinky, z);
+            FLOAT * X = &(SinkSetPositions->X[start]);
+            FLOAT * Y = &(SinkSetPositions->Y[start]);
+            FLOAT * Z = &(SinkSetPositions->Z[start]);
+            
+            #pragma simd assert
+            for(int p = 0; p < count; p++)
+                X[p] = pos.X[p] + newsinkcenter.x;
+            #pragma simd assert
+            for(int p = 0; p < count; p++)
+                Y[p] = pos.Y[p] + newsinkcenter.y;
+            #pragma simd assert
+            for(int p = 0; p < count; p++)
+                Z[p] = pos.Z[p] + newsinkcenter.z;
+            
+            start+=count;
+        }
+    }
+    assertf(start <= SinkSetPositions->N, "Wrote to particle %d. This overruns SinkSetPositions (length %d)\n", start, SinkSetPositions->N);
+}
+
+inline void SetInteractionCollection::CreateSourcePencil(int sx, int sy, int nz, uint64 start){
+    int xmax = sx+P.NearFieldRadius;
+    for(int x=sx-P.NearFieldRadius;x<=xmax;x++)  {
+        int count = PP->NumberParticle(x,sy,nz);
+        if(count>0) {
+            List3<FLOAT> pos = PP->PosXYZCell(x,sy,nz);
+            
+            FLOAT3 newsourcecenter = PP->CellCenter(x,sy,nz);
+            FLOAT * X = &(SourceSetPositions->X[start]);
+            FLOAT * Y = &(SourceSetPositions->Y[start]);
+            FLOAT * Z = &(SourceSetPositions->Z[start]);
+            
+            #pragma simd assert
+            for(int p = 0; p < count; p++)
+                X[p] = pos.X[p] + newsourcecenter.x;
+            #pragma simd assert
+            for(int p = 0; p < count; p++)
+                Y[p] = pos.Y[p] + newsourcecenter.y;
+            #pragma simd assert
+            for(int p = 0; p < count; p++)
+                Z[p] = pos.Z[p] + newsourcecenter.z;
+            
+            start += count;
+        }
+    }
+    assertf(start <= SourceSetPositions->N, "Wrote to particle %d. This overruns SourceSetPositions (length %d)\n", start, SourceSetPositions->N);
+}*/
 
 int SetInteractionCollection::CheckCompletion(){
     return CompletionFlag;
@@ -405,7 +410,7 @@ void SetInteractionCollection::CPUExecute(){
     List3<FLOAT> *SinkSetPositions = new List3<FLOAT>(NSinkBlocks*NFBlockSize);
     #pragma omp parallel for schedule(dynamic,1)
     for (int j=0; j<NSinkList; j++) {
-        SinkPlan[j].copy_to_pinned(SinkSetPositions, SinkSetStart[j], NPaddedSink[j])
+        SinkPlan[j].copy_into_pinned_memory(*SinkSetPositions, SinkSetStart[j], SinkSetCount[j]);
     }
     FillSinks.Stop();
 
@@ -413,7 +418,7 @@ void SetInteractionCollection::CPUExecute(){
     List3<FLOAT> *SourceSetPositions = new List3<FLOAT>(NSourceBlocks*NFBlockSize);
     #pragma omp parallel for schedule(dynamic,1)
     for (int j=0; j<NSourceSets; j++) {
-        SourcePlan[j].copy_to_pinned(SourceSetPositions, SourceSetStart[j], NPaddedSource[j])
+        SourcePlan[j].copy_into_pinned_memory(*SourceSetPositions, SourceSetStart[j], SourceSetCount[j]);
     }
     FillSources.Stop();
 
@@ -441,7 +446,7 @@ void SetInteractionCollection::CPUExecute(){
                 int sourceIdx = SinkSourceInteractionList[c];
                 int sourceStart = SourceSetStart[sourceIdx];
                 int sourceCount = SourceSetCount[sourceIdx];
-		FLOAT yoffset = SinkSourceYOffset[c];
+                FLOAT yoffset = SinkSourceYOffset[c];
                 assert(sourceCount > 0);
                 int nB = sourceCount/NFBlockSize;
 
@@ -551,7 +556,7 @@ void SetInteractionCollection::PrintInteractions(){
         int sourcey = sourceIdx/Nj + K_low - nfr;
         int sourcejj =  W + sourcej * width;
         int sourcezmid =  PP->WrapSlab(sourcejj + nfr);
-	FLOAT yoffset = SinkSourceYOffset[i];
+        FLOAT yoffset = SinkSourceYOffset[i];
                 
         printf("\t\t%d: %d<-)%d|| %d: %d, %d, %d - %d | %d: %d - %d, %d, %d, %f\n",
             i, sinkIdx, sourceIdx,

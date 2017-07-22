@@ -3,9 +3,7 @@
 #include "StructureOfLists.cc"
 #include "SetInteractionCollection.hh"
 
-#ifdef CUDADIRECT
 #include "DeviceFunctions.h"
-#endif
 
 class NearFieldDriver{
     public:
@@ -132,7 +130,7 @@ NearFieldDriver::NearFieldDriver() :
     STDLOG(1, "Using %f GB of GPU memory (per device)\n", GPUMemoryGB);
     size_t BlockSizeBytes = sizeof(FLOAT) *3 * NFBlockSize;
     MaxSinkBlocks = floor(1e9 * GPUMemoryGB/(6*BlockSizeBytes));
-    MaxSourceBlocks = 5 * MaxSinkBlocks;
+    MaxSourceBlocks = WIDTH * MaxSinkBlocks;
     STDLOG(1,"Initializing GPU with %f x10^6 sink blocks and %f x10^6 source blocks\n",
             MaxSinkBlocks/1e6,MaxSourceBlocks/1e6);
     
@@ -140,10 +138,12 @@ NearFieldDriver::NearFieldDriver() :
     // maxkwidth will occur when we have the fewest splits
     // The fewest splits will occur when we are operating on the smallest slabs
     MinSplits = GetNSplit(WIDTH*Slab->min, Slab->min);
-    MinSplits = max(1, MinSplits/2);  // fudge factor
+    MinSplits = ceil(.8*MinSplits);  // fudge factor to account for uneven slabs
     // This may not account for unequal splits, though.  Unless we really need to save GPU memory, just use maxkwidth=cpd
     //MinSplits = 1;
     STDLOG(1,"MinSplits = %d\n", MinSplits);
+    if(MinSplits*WIDTH < omp_get_num_threads())
+        STDLOG(1, "*** WARNING: MinSplits*WIDTH is less than the number of threads! Finalize() might be inefficient\n");
     GPUSetup(P.cpd, std::ceil(1.*P.cpd/MinSplits), MaxSinkBlocks, MaxSourceBlocks, DirectBPD);
     SICExecute.Clear();
 
@@ -243,6 +243,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     
     CalcSplitDirects.Stop();
 
+    // If we thread over y-splits, would that help with NUMA locality?
     for(int w = 0; w < WIDTH; w++){
         int kl =0;
         for(int n = 0; n < NSplit; n++){
@@ -395,10 +396,10 @@ int NearFieldDriver::SlabDone(int slab){
 
 void NearFieldDriver::Finalize(int slab){
     FinalizeTimer.Start();
-    FinalizeBookkeeping.Start();
     slab = PP->WrapSlab(slab);
 
 #ifdef CUDADIRECT
+    FinalizeBookkeeping.Start();
 
     assertf(SlabDone(slab) != 0,
             "Finalize called for slab %d but it is not complete\n",slab);
@@ -601,3 +602,4 @@ void NearFieldDriver::CheckInteractionList(int slab){
 NearFieldDriver *JJ;
     
 #include "PencilOnPencil.cc"
+#include "PencilPlan.cc"

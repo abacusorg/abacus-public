@@ -140,71 +140,30 @@ void ReportTimings(FILE * timingfile) {
     fprintf(timingfile, "\n");
     
     // Collect stats on IO
-    double total_blocking_io_read_time = 0, total_blocking_io_write_time = 0;
-    double total_nonblocking_io_read_time = 0, total_nonblocking_io_write_time = 0;
-    double total_blocking_read_bytes = 0, total_blocking_write_bytes = 0;
-    double total_nonblocking_read_bytes = 0, total_nonblocking_write_bytes = 0;
-    for(auto &iter : BlockingIOReadTime){
-        total_blocking_io_read_time += iter.second.Elapsed();
-        total_blocking_read_bytes += blocking_read_bytes[iter.first];
-    }
-    for(auto &iter : BlockingIOWriteTime){
-        total_blocking_io_write_time += iter.second.Elapsed();
-        total_blocking_write_bytes += blocking_write_bytes[iter.first];
-    }
-    for(auto &iter : NonBlockingIOReadTime){
-        total_nonblocking_io_read_time += iter.second.Elapsed();
-        total_nonblocking_read_bytes += non_blocking_read_bytes[iter.first];
-    }
-    for(auto &iter : NonBlockingIOWriteTime){
-        total_nonblocking_io_write_time += iter.second.Elapsed();
-        total_nonblocking_write_bytes += non_blocking_write_bytes[iter.first];
-    }
     
-    denom = WallClockDirect.Elapsed();
-    REPORT(0, "Blocking Disk Reads", total_blocking_io_read_time);
-        denom = thistime+1e-15;
-        fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", total_blocking_read_bytes/(thistime+1e-15)/1e6, total_blocking_read_bytes/1e9);
-        for(auto &iter : BlockingIOReadTime){
-            double time = iter.second.Elapsed();
-            auto bytes = blocking_read_bytes[iter.first];
-            REPORT(1, iter.first.c_str(), time);
-            fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", bytes/(time+1e-15)/1e6, bytes/1e9);
-        }
+#define IOSTATS(NAME, DESC)\
+    do { \
+        double total_##NAME##_time = 0, total_##NAME##_bytes = 0; \
+        for(auto &iter : NAME##Time){ \
+            total_##NAME##_time += iter.second.Elapsed(); \
+            total_##NAME##_bytes += NAME##Bytes[iter.first]; \
+        } \
+        denom = WallClockDirect.Elapsed(); \
+        REPORT(0, DESC, total_##NAME##_time); \
+        denom = thistime+1e-15; \
+        fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", total_##NAME##_bytes/(thistime+1e-15)/1e6, total_##NAME##_bytes/1e9); \
+        for(auto &iter : NAME##Time){ \
+            double time = iter.second.Elapsed(); \
+            auto bytes = NAME##Bytes[iter.first]; \
+            REPORT(1, iter.first.c_str(), time); \
+            fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", bytes/(time+1e-15)/1e6, bytes/1e9); \
+        } \
+    } while (0)
     
-    denom = WallClockDirect.Elapsed();
-    REPORT(0, "Blocking Disk Writes", total_blocking_io_write_time);
-        denom = thistime+1e-15;
-        fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", total_blocking_write_bytes/(thistime+1e-15)/1e6, total_blocking_write_bytes/1e9);
-        for(auto &iter : BlockingIOWriteTime){
-            double time = iter.second.Elapsed();
-            auto bytes = blocking_write_bytes[iter.first];
-            REPORT(1, iter.first.c_str(), time);
-            fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", bytes/(time+1e-15)/1e6, bytes/1e9);
-        }
-
-    fprintf(timingfile, "\n");
-    denom = WallClockDirect.Elapsed();
-    REPORT(0, "Non-blocking Disk Reads", total_nonblocking_io_read_time);
-        denom = thistime+1e-15;
-        fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", total_nonblocking_read_bytes/(thistime+1e-15)/1e6, total_nonblocking_read_bytes/1e9);
-        for(auto &iter : NonBlockingIOReadTime){
-            double time = iter.second.Elapsed();
-            auto bytes = non_blocking_read_bytes[iter.first];
-            REPORT(1, iter.first.c_str(), time);
-            fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", bytes/(time+1e-15)/1e6, bytes/1e9);
-        }
-    
-    denom = WallClockDirect.Elapsed();
-    REPORT(0, "Non-blocking Disk Writes", total_nonblocking_io_write_time);
-        denom = thistime+1e-15;
-        fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", total_nonblocking_write_bytes/(thistime+1e-15)/1e6, total_nonblocking_write_bytes/1e9);
-        for(auto &iter : NonBlockingIOWriteTime){
-            double time = iter.second.Elapsed();
-            auto bytes = non_blocking_write_bytes[iter.first];
-            REPORT(1, iter.first.c_str(), time);
-            fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", bytes/(time+1e-15)/1e6, bytes/1e9);
-        }
+    IOSTATS(BlockingIORead, "Blocking Disk Reads");
+    IOSTATS(BlockingIOWrite, "Blocking Disk Writes");
+    IOSTATS(NonBlockingIORead, "Non-Blocking Disk Reads");
+    IOSTATS(NonBlockingIOWrite, "Non-Blocking Disk Writes");
 
     fprintf(timingfile, "\n\nBreakdown of TimeStep: ");
     total = 0.0;
@@ -215,6 +174,8 @@ void ReportTimings(FILE * timingfile) {
     double spinning = Dependency::global_spin_timer.Elapsed();
     
 #ifdef CUDADIRECT
+    REPORT(1, "Transpose Positions", TransposePos.Elapsed()); total += thistime;
+    
     int NGPU = GetNGPU();
     
     // Compute some GPU timing totals
@@ -393,7 +354,7 @@ void ReportTimings(FILE * timingfile) {
     denom = Finish.Elapsed();
     REPORT(1, "Partition Insert List", FinishPartition.Elapsed());
     REPORT(1, "Sort Insert List", FinishSort.Elapsed());
-    fprintf(timingfile,"---> %6.3f Mitems/sec (%.2g items)",IL->n_sorted/(thistime+1e-15)/1e6, IL->n_sorted);
+    fprintf(timingfile,"---> %6.3f Mitems/sec (%.2g items)",IL->n_sorted/(thistime+1e-15)/1e6, (double) IL->n_sorted);
     REPORT(1, "Index Cells", FinishCellIndex.Elapsed());
     REPORT(1, "Merge", FinishMerge.Elapsed());
     REPORT(1, "Compute Multipoles", ComputeMultipoles.Elapsed());
@@ -404,9 +365,9 @@ void ReportTimings(FILE * timingfile) {
     fprintf(timingfile, "\n\n Reasons for Spinning:");
     fprintf(timingfile, "\n\t Note: may add up to >100%% if there are multiple simultaneous reasons for spinning");
     denom = spinning;
-    REPORT(1, "Not enough RAM to load slabs", Dependency::spin_timers[0].Elapsed());
-    REPORT(1, "Waiting for slab IO", Dependency::spin_timers[2].Elapsed());
-    REPORT(1, "Waiting for GPU", Dependency::spin_timers[1].Elapsed());
+    REPORT(1, "Not enough RAM to load slabs", Dependency::spin_timers[NOT_ENOUGH_RAM].Elapsed());
+    REPORT(1, "Waiting for slab IO", Dependency::spin_timers[WAITING_FOR_IO].Elapsed());
+    REPORT(1, "Waiting for GPU", Dependency::spin_timers[WAITING_FOR_GPU].Elapsed());
     
     return;
 }

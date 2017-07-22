@@ -12,7 +12,7 @@ Also provides a timing wrapper to the actions.
 #ifndef INCLUDE_DEPENDENCY
 #define INCLUDE_DEPENDENCY
 
-#define NUM_SPIN_FLAGS 3
+enum SpinFlag { NOT_ENOUGH_RAM, WAITING_FOR_IO, WAITING_FOR_GPU, NUM_SPIN_FLAGS };
 
 class Dependency : public STimer {
 public:
@@ -95,7 +95,7 @@ public:
         }
     }
     
-    static void NotifySpinning(int s){
+    static void NotifySpinning(enum SpinFlag s){
         assertf(s < NUM_SPIN_FLAGS, "Tried to use spin flag %d (only NUM_SPIN_FLAGS=%d exist)!", s, NUM_SPIN_FLAGS);
         // If this is the first notification, we may not actually
         // be spinning yet.
@@ -112,8 +112,8 @@ public:
     }
 };
 
-int *Dependency::spin_flags = new int[NUM_SPIN_FLAGS+1];
-STimer *Dependency::spin_timers = new STimer[NUM_SPIN_FLAGS+1];
+int *Dependency::spin_flags = new int[NUM_SPIN_FLAGS];
+STimer *Dependency::spin_timers = new STimer[NUM_SPIN_FLAGS];
 STimer Dependency::global_spin_timer;
 
 #endif  // INCLUDE_DEPENDENCY

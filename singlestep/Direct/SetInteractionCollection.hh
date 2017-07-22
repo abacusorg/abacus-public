@@ -6,11 +6,40 @@
 
 #include <vector>
 
-#include "PencilPlan.cc"
-
 #ifdef CUDADIRECT
 #include "driver_types.h"
 #endif
+
+class CellPencilPlan {
+public:
+    FLOAT *pos;
+    // Cells are assumed to be x[0..N), y[0..N), z[0..N), contiguous,
+    // with x[0] being the given position.
+    int num;
+    // Number of particles in the cell
+    FLOAT offset;
+    // The offset to be applied to x or z, relative to the center cell
+};
+
+class SinkPencilPlan {
+  public:
+    CellPencilPlan cell[2*NFRADIUS+1];
+    // The cells are not assumed to be contiguous (e.g., periodic wraps)
+
+    void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total);
+    int load(int x, int y, int z);
+};
+
+
+class SourcePencilPlan {
+    // The same as above, but with motion in the x direction
+  public:
+    CellPencilPlan cell[2*NFRADIUS+1];
+    // The cells are not assumed to be contiguous (e.g., periodic wraps)
+
+    void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total);
+    int load(int x, int y, int z);
+};
 
 class SetInteractionCollection{
     public:

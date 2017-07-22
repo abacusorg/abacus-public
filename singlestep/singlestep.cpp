@@ -365,6 +365,11 @@ void init_openmp(){
         core_log << "\n";
         STDLOG(1, core_log.str().c_str());
     }
+    
+    // Assign the main CPU thread to core 0 to avoid the GPU/IO threads during serial parts of the code
+    int main_thread_core = 0;
+    set_core_affinity(main_thread_core);
+    STDLOG(1, "Assigning main singlestep thread to core %d\n", main_thread_core);
 }
 
 
