@@ -297,7 +297,7 @@ uint64 FillMergeSlab(int slab) {
 
     // Delete the particles from the insert list.
     free(ILnew);   // Need to free this space!
-    // IL->ResetILlength(IL->length - ilslablength);
+    // IL->ShrinkIL(IL->length - ilslablength);
     STDLOG(1,"After merge, insert list contains a total of %d particles.\n", IL->length);
     LBW->DeAllocate(InsertCellInfoSlab, slab);
     FinishMerge.Stop();
