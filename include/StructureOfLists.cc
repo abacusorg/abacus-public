@@ -3,10 +3,15 @@
 #ifndef __STRUCTUREOFLISTS_CC
 #define __STRUCTUREOFLISTS_CC
 
+// TODO: we could probably make template specializations of this instead of an owndata field
 template<typename T> class List3
 {
     public:
-        List3(){ }
+        // This constructor simply makes an empty wrapper object
+        // that will not try to free memory on destruction
+        List3(){  }
+        
+        // This constructor allocates memory and frees it on destruction
         List3(uint64 count){
             N = count;
             size_t size = sizeof(T)*N;
@@ -14,9 +19,10 @@ template<typename T> class List3
             assert(posix_memalign((void **) &X, 4096, size) == 0);
             assert(posix_memalign((void **) &Y, 4096, size) == 0);
             assert(posix_memalign((void **) &Z, 4096, size) == 0);
+            owndata = true;
         }
         ~List3(){
-            if(N == 0)
+            if(!owndata)
                 return;
             free(X);
             free(Y);
@@ -47,6 +53,7 @@ template<typename T> class List3
         T* X = NULL;
         T* Y = NULL;
         T* Z = NULL;
+        bool owndata = false;
 };
 
 #endif

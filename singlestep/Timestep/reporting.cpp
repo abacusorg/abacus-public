@@ -154,9 +154,14 @@ void ReportTimings(FILE * timingfile) {
         fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", total_##NAME##_bytes/(thistime+1e-15)/1e6, total_##NAME##_bytes/1e9); \
         for(auto &iter : NAME##Time){ \
             double time = iter.second.Elapsed(); \
+            const char* dir = iter.first.c_str(); \
+            int thread = 1; \
+            for(int i = 0; i < P.nSecondIOThreadDirs; i++) \
+                if(strcmp(dir, P.SecondIOThreadDirs[i]) == 0) \
+                    thread = 2; \
             auto bytes = NAME##Bytes[iter.first]; \
-            REPORT(1, iter.first.c_str(), time); \
-            fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", bytes/(time+1e-15)/1e6, bytes/1e9); \
+            REPORT(1, dir, time); \
+            fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB [thread %d]", bytes/(time+1e-15)/1e6, bytes/1e9, thread); \
         } \
     } while (0)
     
@@ -271,34 +276,45 @@ void ReportTimings(FILE * timingfile) {
     
     REPORT(2, "Construct Pencils", JJ->Construction);
         denom = JJ->Construction;
-        REPORT(3, "Fill Source", JJ->FillSourceLists);
-            denom = JJ->FillSourceLists;
-            REPORT(4, "Count Sources",JJ->CountSources);
-            REPORT(4, "Calc Source Blocks",JJ->CalcSourceBlocks);
-            REPORT(4, "Fill Sources",JJ->FillSources);
-                fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSource/sec", total_sources*sizeof(FLOAT3)/1e6/thistime, total_sources/1e6/thistime);
-        denom = JJ->Construction;
-        REPORT(3, "Fill Sink", JJ->FillSinkLists);
+        REPORT(3, "Plan Sinks", JJ->FillSinkLists);
             denom = JJ->FillSinkLists;
             REPORT(4, "Count Sinks",JJ->CountSinks);
             REPORT(4, "Calc Sink Blocks",JJ->CalcSinkBlocks);
-            REPORT(4, "Fill Sinks",JJ->FillSinks);
-                fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", total_sinks*sizeof(FLOAT3)/1e6/thistime, total_sinks/1e6/thistime);
+            REPORT(4, "Allocate Acceleration Memory", JJ->AllocAccels);
+        denom = JJ->Construction;
+        REPORT(3, "Plan Sources", JJ->FillSourceLists);
+            denom = JJ->FillSourceLists;
+            REPORT(4, "Count Sources",JJ->CountSources);
+            REPORT(4, "Calc Source Blocks",JJ->CalcSourceBlocks);
         denom = JJ->Construction;
         REPORT(3, "Fill Interaction", JJ->FillInteractionList);
     denom = NearForce.Elapsed();
     REPORT(2, "Dispatch Interaction", JJ->SICExecute.Elapsed());
-    REPORT(2, "Copy-to-pinned & kernel launch [non-blocking CPU-seconds]", JJ->LaunchDeviceKernels);
     REPORT(2, "CPU Fallback", JJ->CPUFallbackTimer.Elapsed());
-        fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_cpu/(thistime+1e-15), gdi_cpu, JJ->NSink_CPU/(thistime+1e-15)/1e6);
+            fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_cpu/(thistime+1e-15), gdi_cpu, JJ->NSink_CPU/(thistime+1e-15)/1e6);
     
-    REPORT(1, "Non-Blocking Directs Throughput (Wall Clock)", GPUThroughputTime);
-        fprintf(timingfile,"\n\t\t\t\t---> %6.3f effective GDIPS, %6.3f Gdirects, %6.3f Mpart/sec, %6.3f Msink/sec\n", gdi_gpu/(thistime+1e-15), gdi_gpu, P.np/(thistime+1e-15)/1e6, total_sinks/(thistime+1e-15)/1e6);
-    fprintf(timingfile, "    Device stats\n");
-    for(int g = 0; g < NGPU*DirectBPD; g++){
-        fprintf(timingfile, "        Virtual device %d (GPU %d):", g, g % NGPU);
-        fprintf(timingfile, "%6.2f GB to device, %6.2f GB from device, %6.2f Msink, %6.2f Gdirects\n", JJ->GB_to_device[g], JJ->GB_from_device[g], JJ->DeviceSinks[g]/1e6, JJ->DirectInteractions_GPU[g]/1e9);
-    }
+    denom = JJ->DeviceThreadTimer;
+    char str[1024];  sprintf(str, "Non-Blocking (thread-seconds, %d threads)", NGPU*DirectBPD);
+    REPORT(1, str, JJ->DeviceThreadTimer);
+        REPORT(2, "Fill Sinks", JJ->FillSinks);
+                fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", total_sinks*sizeof(FLOAT3)/1e6/thistime, total_sinks/1e6/thistime);
+        REPORT(2, "Fill Sources", JJ->FillSources);
+                fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSource/sec", total_sources*sizeof(FLOAT3)/1e6/thistime, total_sources/1e6/thistime);
+        REPORT(2, "Launch Kernels", JJ->LaunchDeviceKernels);
+        REPORT(2, "Wait for GPU Result", JJ->WaitForResult);
+        REPORT(2, "Copy Accel from Pinned", JJ->CopyAccelFromPinned);
+                fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", total_sinks*sizeof(FLOAT3)/1e6/thistime, total_sinks/1e6/thistime);  // same number of accels as sinks
+        
+    denom = GPUThroughputTime;
+    REPORT(1, "Non-Blocking Throughput (Wall Clock)", GPUThroughputTime);
+            fprintf(timingfile,"\n\t\t\t\t---> %6.3f effective GDIPS, %6.3f Gdirects, %6.3f Mpart/sec, %6.3f Msink/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, P.np/(thistime+1e-15)/1e6, total_sinks/(thistime+1e-15)/1e6);
+            fprintf(timingfile,"\n\t\t\t\t---> with %d device threads, estimate %.1f%% thread concurrency", NGPU*DirectBPD, (JJ->DeviceThreadTimer - GPUThroughputTime)/(JJ->DeviceThreadTimer - JJ->DeviceThreadTimer/(NGPU*DirectBPD))*100);
+            
+        fprintf(timingfile, "\n    Device stats:\n");
+        for(int g = 0; g < NGPU*DirectBPD; g++){
+            fprintf(timingfile, "        Device thread %d (GPU %d):", g, g % NGPU);
+            fprintf(timingfile, " %.2f GB to device, %.2f GB from device, %.2f Msink, %.2f Gdirects\n", JJ->GB_to_device[g], JJ->GB_from_device[g], JJ->DeviceSinks[g]/1e6, JJ->DirectInteractions_GPU[g]/1e9);
+        }
 #else
     REPORT(1, "CPU directs", NearForce.Elapsed());
         fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_cpu/(thistime+1e-15), gdi_cpu, JJ->NSink_CPU/(thistime+1e-15)/1e6);
@@ -307,7 +323,7 @@ void ReportTimings(FILE * timingfile) {
     
     if (TY!=NULL) {    // Not in IC steps
         denom = TaylorCompute.Elapsed();
-        fprintf(timingfile, "\n\n Subdivisions of Taylor Evaluate:");
+        fprintf(timingfile, "\n Subdivisions of Taylor Evaluate:");
         REPORT(1, "Taylor Computation", TaylorCompute.Elapsed());
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
         REPORT(1, "Compute Cell Offsets", TY->ConstructOffsets.Elapsed());
@@ -327,7 +343,6 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Add Near + Far Accel", AddAccel.Elapsed());
     REPORT(1, "Kick Cell", KickCellTimer.Elapsed());
     
-    fprintf(timingfile, "\n");
     fprintf(timingfile, "\n\n Breakdown of Output Step:");
     denom = Output.Elapsed();
     REPORT(1, "TimeSlice", OutputTimeSlice.Elapsed());
@@ -361,6 +376,9 @@ void ReportTimings(FILE * timingfile) {
     fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
     REPORT(1, "Write Particles", WriteMergeSlab.Elapsed());
     REPORT(1, "Write Multipoles", WriteMultipoleSlab.Elapsed());
+    
+    denom = TimeStepWallClock.Elapsed();
+    REPORT(0, "\nAllocate Arena Memory", LBW->ArenaMalloc.Elapsed());
     
     fprintf(timingfile, "\n\n Reasons for Spinning:");
     fprintf(timingfile, "\n\t Note: may add up to >100%% if there are multiple simultaneous reasons for spinning");

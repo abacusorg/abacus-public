@@ -73,10 +73,10 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
     int cpd = PP->cpd;
 
     int nthreads = omp_get_max_threads();
+    uint64 ILbefore = IL->length;
     ilgap *gaps = new ilgap[nthreads];
         // This reserves space on the insert list for each thread to use.
         // This class silently gets new space as needed.
-    uint64 ILbefore = IL->length;
     
     wc.Start();
     #pragma omp parallel for schedule(static)
@@ -101,8 +101,8 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
     IL->CollectGaps(gaps, nthreads);
     delete[] gaps;
     DriftInsert.Stop();
-    STDLOG(1,"Drifting slab %d has rebinned %d particles.\n",
-        slab, IL->length-ILbefore);
+    STDLOG(1,"Drifting slab %d has rebinned %u particles.\n",
+        slab, (uint32_t)(IL->length-ILbefore));
     
     // Compute timing by prorating the total wall-clock time 
     // by the time of the two major parts
