@@ -10,13 +10,15 @@
 #include "driver_types.h"
 #endif
 
+#include "StructureOfLists.cc"
+
 class CellPencilPlan {
 public:
-    FLOAT *pos;
+    List3<FLOAT> pos;
     // Cells are assumed to be x[0..N), y[0..N), z[0..N), contiguous,
     // with x[0] being the given position.
-    int num;
-    // Number of particles in the cell
+    // pos.N holds the count
+    
     FLOAT offset;
     // The offset to be applied to x or z, relative to the center cell
 };
@@ -48,15 +50,19 @@ class SetInteractionCollection{
         STimer      FillSinkLists;
         STimer          CountSinks;
         STimer          CalcSinkBlocks;
-        STimer          FillSinks;
+        STimer          AllocAccels;
         STimer      FillSourceLists;
         STimer          CountSources;
         STimer          CalcSourceBlocks;
-        STimer          FillSources;
         STimer      FillInteractionList;
     
         // Asynchronous, CPU side
-        STimer LaunchDeviceKernels;
+        STimer DeviceThreadTimer;
+        STimer     LaunchDeviceKernels;
+        STimer     FillSinks;
+        STimer     FillSources;
+        STimer     WaitForResult;
+        STimer     CopyAccelFromPinned;
     
         // Data transfer metrics
         uint64 bytes_to_device = 0, bytes_from_device = 0;

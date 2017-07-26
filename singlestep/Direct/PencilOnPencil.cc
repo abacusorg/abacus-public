@@ -55,9 +55,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     assert(posix_memalign((void **) &SinkSetStart, 4096, sizeof(int) * NSinkList) == 0);
     assert(posix_memalign((void **) &SinkSetCount, 4096, sizeof(int) * NSinkList) == 0);
     assert(posix_memalign((void **) &SinkPlan, 4096, sizeof(SinkPencilPlan) * NSinkList) == 0);
-
-    // TODO: Need SinkPlan and SourcePlan in the class
-
     assert(posix_memalign((void **) &SinkSetIdMax, 4096, sizeof(int) * NSinkList) == 0);
     
     int localSinkTotal = 0;
@@ -153,24 +150,12 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     assertf(NPaddedSinks <= MaxSinkSize, "NPaddedSinks (%d) larger than allocated space (MaxSinkSize = %d)\n", NPaddedSinks, MaxSinkSize);
 
 //    SinkSetPositions = new List3<FLOAT>(NPaddedSinks);
-
-    assert(posix_memalign((void **) &SinkSetAccelerations, 4096, sizeof(FLOAT3) * NPaddedSinks) == 0);
-    
     CalcSinkBlocks.Stop();
     
-//    FillSinks.Start();
-//    // Pencil filling should use static scheduling
-//    // so threads aren't trying to write next to each other
-//    #pragma omp parallel for schedule(static)
-//    for(int sinkset = 0; sinkset < NSinkList; sinkset++) {
-//        int j = sinkset%Nj;
-//        int k = sinkset/Nj + k_low;
-//        int jj = w + j * width;
-//        int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
-//        CreateSinkPencil(slab, k, zmid, SinkSetStart[sinkset] );
-//    }
-//    FillSinks.Stop();
-
+    AllocAccels.Start();
+    assert(posix_memalign((void **) &SinkSetAccelerations, 4096, sizeof(FLOAT3) * NPaddedSinks) == 0);
+    AllocAccels.Stop();
+    
     FillSinkLists.Stop();
 
     // All done with the Sinks.  Now for the Sources.
@@ -235,18 +220,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
 //    SourceSetPositions = new List3<FLOAT>(NPaddedSources);
     assertf(NPaddedSources <= MaxSourceSize, "NPaddedSources (%d) larger than allocated space (MaxSourceSize = %d)\n", NPaddedSources, MaxSourceSize);
     CalcSourceBlocks.Stop();
-
-//    FillSources.Start();
-//    #pragma omp parallel for schedule(static)
-//    for(int sourceIdx = 0; sourceIdx < NSourceSets; sourceIdx ++){
-//        int j = sourceIdx%Nj;
-//        int jj = w + j * width;
-//        int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
-//        int y = sourceIdx/Nj + k_low - P.NearFieldRadius;
-//        CreateSourcePencil(slab, y, zmid, SourceSetStart[sourceIdx]);
-//    }
-//    FillSources.Stop();
-
     FillSourceLists.Stop();
 
 
@@ -312,88 +285,8 @@ SetInteractionCollection::~SetInteractionCollection(){
 void SetInteractionCollection::SetCompleted(){
     STDLOG(1,"Completed SIC for slab %d w: %d k: %d - %d\n",SlabId,W,K_low,K_high); 
 
-    // delete SinkSetPositions;
-    // delete SourceSetPositions;
-
     CompletionFlag = 1;
 }
-
-//inline int SetInteractionCollection::SinkPencilCount(int sinkx, int sinky, int sinkz) {
-//    int s = 0;
-//    int zmax = sinkz + P.NearFieldRadius;
-//    for(int z = sinkz - P.NearFieldRadius; z <= zmax; z++) {
-//        s += PP->NumberParticle(sinkx,sinky,z);
-//    }
-//    return s;
-//}
-
-
-//inline int SetInteractionCollection::SourcePencilCount(int slab, int ymid, int zz) { 
-//    int s = 0;
-//    int xmax = slab + P.NearFieldRadius;
-//    for(int x = slab - P.NearFieldRadius; x <= xmax; x++) {
-//        s += PP->NumberParticle(x,ymid,zz);
-//    }
-//    return s;
-//}
-
-
-/*inline void SetInteractionCollection::CreateSinkPencil(int sinkx, int sinky, int sinkz, uint64 start){
-    int zmax = sinkz+P.NearFieldRadius;
-    for(int z=sinkz-P.NearFieldRadius;z<=zmax;z++) {
-        int count = PP->NumberParticle(sinkx,sinky,z);
-
-        if(count>0) {
-            List3<FLOAT> pos = PP->PosXYZCell(sinkx,sinky,z);
-            
-            FLOAT3 newsinkcenter = PP->CellCenter(sinkx, sinky, z);
-            FLOAT * X = &(SinkSetPositions->X[start]);
-            FLOAT * Y = &(SinkSetPositions->Y[start]);
-            FLOAT * Z = &(SinkSetPositions->Z[start]);
-            
-            #pragma simd assert
-            for(int p = 0; p < count; p++)
-                X[p] = pos.X[p] + newsinkcenter.x;
-            #pragma simd assert
-            for(int p = 0; p < count; p++)
-                Y[p] = pos.Y[p] + newsinkcenter.y;
-            #pragma simd assert
-            for(int p = 0; p < count; p++)
-                Z[p] = pos.Z[p] + newsinkcenter.z;
-            
-            start+=count;
-        }
-    }
-    assertf(start <= SinkSetPositions->N, "Wrote to particle %d. This overruns SinkSetPositions (length %d)\n", start, SinkSetPositions->N);
-}
-
-inline void SetInteractionCollection::CreateSourcePencil(int sx, int sy, int nz, uint64 start){
-    int xmax = sx+P.NearFieldRadius;
-    for(int x=sx-P.NearFieldRadius;x<=xmax;x++)  {
-        int count = PP->NumberParticle(x,sy,nz);
-        if(count>0) {
-            List3<FLOAT> pos = PP->PosXYZCell(x,sy,nz);
-            
-            FLOAT3 newsourcecenter = PP->CellCenter(x,sy,nz);
-            FLOAT * X = &(SourceSetPositions->X[start]);
-            FLOAT * Y = &(SourceSetPositions->Y[start]);
-            FLOAT * Z = &(SourceSetPositions->Z[start]);
-            
-            #pragma simd assert
-            for(int p = 0; p < count; p++)
-                X[p] = pos.X[p] + newsourcecenter.x;
-            #pragma simd assert
-            for(int p = 0; p < count; p++)
-                Y[p] = pos.Y[p] + newsourcecenter.y;
-            #pragma simd assert
-            for(int p = 0; p < count; p++)
-                Z[p] = pos.Z[p] + newsourcecenter.z;
-            
-            start += count;
-        }
-    }
-    assertf(start <= SourceSetPositions->N, "Wrote to particle %d. This overruns SourceSetPositions (length %d)\n", start, SourceSetPositions->N);
-}*/
 
 int SetInteractionCollection::CheckCompletion(){
     return CompletionFlag;
@@ -615,7 +508,7 @@ void SetInteractionCollection::AddInteractionList( std::vector<uint64> ** il){
 #ifndef CUDADIRECT
 // If we're not compiling the GPU code, need a stub for this function
 void SetInteractionCollection::GPUExecute(int){
-    assertf(0, "Abacus was not compiled with CUDA.  Try running ./configure again?\n");
+    QUIT("Abacus was not compiled with CUDA.  Try running ./configure again?\n");
 }
 #endif
 

@@ -19,23 +19,28 @@ class NearFieldDriver{
         void Finalize(int slabID);
         uint64 DirectInteractions_CPU;
         uint64 *DirectInteractions_GPU;
-        uint64 TotalDirectInteractions_GPU;
+        uint64 TotalDirectInteractions_GPU = 0;
         uint64 NSink_CPU;
 
         // Total timings from building and running the SetInteractionCollections
         // These are gathered in Finalize(slab)
-        double  Construction;
-        double      FillSinkLists;
-        double          CountSinks;
-        double          CalcSinkBlocks;
-        double          FillSinks;
-        double      FillSourceLists;
-        double          CountSources;
-        double          CalcSourceBlocks;
-        double          FillSources;
-        double      FillInteractionList;
+        double  Construction = 0;
+        double      FillSinkLists = 0;
+        double          CountSinks = 0;
+        double          CalcSinkBlocks = 0;
+        double          AllocAccels = 0;
+        double      FillSourceLists = 0;
+        double          CountSources = 0;
+        double          CalcSourceBlocks = 0;
+        double      FillInteractionList = 0;
         
-        double LaunchDeviceKernels;
+        double DeviceThreadTimer = 0;
+        double     LaunchDeviceKernels = 0;
+        double     FillSinks = 0;
+        double     FillSources = 0;
+        double     WaitForResult = 0;
+        double     CopyAccelFromPinned = 0;
+
     
         double *GB_to_device, *GB_from_device;
         uint64 *DeviceSinks;
@@ -76,20 +81,7 @@ class NearFieldDriver{
 
 
 
-NearFieldDriver::NearFieldDriver() :         
-        Construction{0},
-              FillSinkLists{0},
-                  CountSinks{0},
-                  CalcSinkBlocks{0},
-                  FillSinks{0},
-              FillSourceLists{0},
-                  CountSources{0},
-                  CalcSourceBlocks{0},
-                  FillSources{0},
-              FillInteractionList{0},
-        LaunchDeviceKernels{0},
-        TotalDirectInteractions_GPU{0},
-            
+NearFieldDriver::NearFieldDriver() :
         SofteningLength{WriteState.SofteningLength/P.BoxSize},
         SofteningLengthInternal{WriteState.SofteningLengthInternal/P.BoxSize},
             
@@ -335,6 +327,8 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
         //STDLOG(1,"Executing directs on pencil y=%d in slab %d, in OMP thread %d on CPU %d (nprocs: %d)\n", y, slabID, g, sched_getcpu(), omp_get_num_procs());
         for(int z = 0; z < P.cpd; z++){
             if(predicate != NULL && !predicate[y*P.cpd +z]) continue;
+            
+            // We can use PosCell instead of PosXYZ here because it's for the sink positions
             posstruct * sink_pos = PP->PosCell(slabID,y,z);
             accstruct * sink_acc = PP->NearAccCell(slabID,y,z);
             uint64 np_sink = PP->NumberParticle(slabID,y,z);
@@ -343,11 +337,23 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
             for(int i = slabID - RADIUS; i <= slabID + RADIUS; i++){
                 for(int j = y - RADIUS; j <= y + RADIUS; j++){
                     for(int k = z - RADIUS; k <= z + RADIUS; k++){
-                        posstruct *source_pos = PP->PosCell(i,j,k);
-                        FLOAT3 delta = PP->CellCenter(slabID,y,z)-PP->CellCenter(i,j,k);
                         uint64 np_source = PP->NumberParticle(i,j,k);
+                        
+                        // We assume that PosXYZ is used for all sources
+                        // This lets us drift PosSlab much earlier
+                        List3<FLOAT> source_pos_xyz = PP->PosXYZCell(i,j,k);
+                        posstruct *source_pos = new posstruct[np_source];
+                        for(uint64 ii = 0; ii < np_source; ii++){
+                            source_pos[ii].x = source_pos_xyz.X[ii];
+                            source_pos[ii].y = source_pos_xyz.Y[ii];
+                            source_pos[ii].z = source_pos_xyz.Z[ii];
+                        }
+                        
+                        FLOAT3 delta = PP->CellCenter(slabID,y,z)-PP->CellCenter(i,j,k);
                         if(np_source >0) DD[g].AVXExecute(sink_pos,source_pos,np_sink,np_source,
                                 delta,eps,sink_acc);
+                        delete[] source_pos;
+                        
                         DI_slab += np_sink*np_source;
                     }
                 }
@@ -435,13 +441,17 @@ void NearFieldDriver::Finalize(int slab){
             FillSinkLists+=Slice->FillSinkLists.Elapsed();
                 CountSinks+=Slice->CountSinks.Elapsed();
                 CalcSinkBlocks+=Slice->CalcSinkBlocks.Elapsed();
-                FillSinks+=Slice->FillSinks.Elapsed();          
+                AllocAccels += Slice->AllocAccels.Elapsed();
             FillSourceLists+=Slice->FillSourceLists.Elapsed();
                 CountSources+=Slice->CountSources.Elapsed();
                 CalcSourceBlocks+=Slice->CalcSourceBlocks.Elapsed();
-                FillSources+=Slice->FillSources.Elapsed();
             FillInteractionList+=Slice->FillInteractionList.Elapsed();
-        LaunchDeviceKernels += Slice->LaunchDeviceKernels.Elapsed();
+        DeviceThreadTimer += Slice->DeviceThreadTimer.Elapsed();
+            LaunchDeviceKernels += Slice->LaunchDeviceKernels.Elapsed();
+            FillSinks += Slice->FillSinks.Elapsed();
+            FillSources += Slice->FillSources.Elapsed();
+            WaitForResult += Slice->WaitForResult.Elapsed();
+            CopyAccelFromPinned += Slice->CopyAccelFromPinned.Elapsed();
 
         int g = Slice->AssignedDevice;
         DirectInteractions_GPU[g] += Slice->DirectTotal;
