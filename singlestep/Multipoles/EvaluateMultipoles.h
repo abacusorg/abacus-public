@@ -33,11 +33,8 @@ public:
     d4 *globalM[128];
 #endif
 
-    void AnalyticCartesianMultipoles(double3 *p, int n, double3 expansioncenter, double *cm);
-    void      ASMCartesianMultipoles(double3 *p, int n, double3 expansioncenter, double *cm);
-    
-    void AnalyticCartesianMultipoles( float3 *p, int n,  float3 expansioncenter, double *cm);
-    void      ASMCartesianMultipoles( float3 *p, int n,  float3 expansioncenter, double *cm);
+    void AnalyticCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 expansioncenter, double *cm);
+    void      ASMCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 expansioncenter, double *cm);
 
 };
 

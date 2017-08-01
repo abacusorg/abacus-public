@@ -13,11 +13,8 @@ public:
     Taylor(int order);
     ~Taylor(void);
 
-    void AnalyticEvaluateTaylor(double *CT, double3 expansioncenter, int np, double3 *ps, double3 *a);
-    void      ASMEvaluateTaylor(double *CT, double3 expansioncenter, int np, double3 *ps, double3 *a);
-
-    void AnalyticEvaluateTaylor(double *CT,  float3 expansioncenter, int np,  float3 *ps,  float3 *a);
-    void      ASMEvaluateTaylor(double *CT,  float3 expansioncenter, int np,  float3 *ps,  float3 *a);
+    void AnalyticEvaluateTaylor(double *CT, FLOAT3 expansioncenter, int np, FLOAT3 *ps, FLOAT3 *a);
+    void      ASMEvaluateTaylor(double *CT, FLOAT3 expansioncenter, int np, FLOAT3 *ps, FLOAT3 *a);
 
 
 #ifdef AVXMULTIPOLES
