@@ -1,5 +1,10 @@
+/*
+ proepi.cpp: Prologue and epilogue
+*/
+
 #include "header.cpp"
 #include "threevector.hh"
+#include "StructureOfLists.cc"
 
 #include "stdlog.cc"
 
@@ -35,8 +40,7 @@ STimer TaylorCompute;
 STimer AddAccel;
 STimer KickCellTimer;
 
-STimer DriftMoveRebin, DriftInsert;
-PTimer DriftMove, DriftRebin;
+STimer DriftMove, DriftRebin, DriftInsert;
 
 STimer prologue;
 STimer epilogue;
@@ -74,15 +78,15 @@ void IO_DeleteArena(int arena)    { LBW->DeAllocateArena(arena); }
 #ifdef IOTHREADED
 #include "io_thread.cpp"
 #else
-//#include "io_dio.cpp"
-#include "io_fopen.cpp"
+#include "io_dio.cpp"
+//#include "io_fopen.cpp"
 #endif
-
-#include "particles.cpp"
-Particles *PP;
 
 #include "slabsize.cpp"
 SlabSize *Slab;
+
+#include "particles.cpp"
+Particles *PP;
 
 #include "dependency.cpp"
 
@@ -154,7 +158,6 @@ void Prologue(Parameters &P, bool ic) {
 
     LBW = new SlabBuffer(cpd, order, cpd*MAXIDS, P.MAXRAMMB*1024*1024);
     PP = new Particles(cpd, LBW);
-    Slab = new SlabSize(cpd);
     STDLOG(1,"Initializing Multipoles()\n");
     MF  = new SlabMultipoles(order, cpd);
 

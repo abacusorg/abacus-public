@@ -12,16 +12,23 @@ The bottom of this file contains a redacted version of the pipeline
 for the creation of the initial state.  This just loads particles
 to the insert list and then calls finish.
 
+We also provide another simplified pipeline to recover multipoles
+from position slabs.  This is invoked via the `make_multipoles`
+executable.
+
 */
 
-int FORCE_WIDTH = -1;
-int GROUP_WIDTH = -1;
+int FORCE_RADIUS = -1;
+int GROUP_RADIUS = -1;
 
-#define FETCHAHEAD (3*FORCE_WIDTH +3)
+// I think in most cases we would prefer to read ahead until memory limited
+//#define FETCHAHEAD (3*FORCE_RADIUS +3)
+#define FETCHAHEAD 1000
 #define FETCHPERSTEP 1
 // Recall that all of these Dependencies have a built-in STimer
 // to measure the amount of time spent on Actions.
 Dependency FetchSlabs;
+Dependency TransposePos;
 Dependency NearForce;
 Dependency TaylorForce;
 Dependency Kick;
@@ -47,10 +54,9 @@ int FetchSlabPrecondition(int slab) {
     }
 
     if(LBW->total_allocation > .5*P.MAXRAMMB*1024LLU*1024LLU){
-        // Are we spinning because we need more RAM?
-        Dependency::NotifySpinning(0);
-        STDLOG(0,"Warning: unable to load more slabs due to RAM limits. Currently using %.2f GB, and the limit is 0.5*MAXRAMMB = %.2f GB.\n",
-                LBW->total_allocation/1024./1024./1024., .5*P.MAXRAMMB/1024);
+        Dependency::NotifySpinning(NOT_ENOUGH_RAM);
+        //STDLOG(0,"Warning: unable to load more slabs due to RAM limits. Currently using %.2f GB, and the limit is 0.5*MAXRAMMB = %.2f GB.\n",
+        //        LBW->total_allocation/1024./1024./1024., .5*P.MAXRAMMB/1024);
         return 0;
     }
     
@@ -65,29 +71,64 @@ void FetchSlabAction(int slab) {
     assertf(Slab->size(slab)*sizeof(posstruct)<=
         fsize(LBW->ReadSlabDescriptorName(PosSlab,slab).c_str()),
         "PosSlab size doesn't match prediction\n");
-    LBW->LoadArenaNonBlocking(VelSlab,slab);
+    LBW->LoadArenaNonBlocking(VelSlab, slab+FORCE_RADIUS);
     assertf(Slab->size(slab)*sizeof(velstruct)<=
         fsize(LBW->ReadSlabDescriptorName(VelSlab,slab).c_str()),
         "VelSlab size doesn't match prediction\n");
-    LBW->LoadArenaNonBlocking(AuxSlab,slab);
+    LBW->LoadArenaNonBlocking(AuxSlab, slab+FORCE_RADIUS);
     assertf(Slab->size(slab)*sizeof(auxstruct)<=
-        fsize(LBW->ReadSlabDescriptorName(AuxSlab,slab).c_str()),
+        fsize(LBW->ReadSlabDescriptorName(AuxSlab, slab).c_str()),
         "AuxSlab size doesn't match prediction\n");
-    LBW->LoadArenaNonBlocking(TaylorSlab,slab+FORCE_WIDTH);
+    LBW->LoadArenaNonBlocking(TaylorSlab,slab+FORCE_RADIUS);
 }
 
 // -----------------------------------------------------------------
 
+int TransposePosPrecondition(int slab){
+    if(   !LBW->IOCompleted(PosSlab,      slab) ||
+          !LBW->IOCompleted(CellInfoSlab, slab)   ) {
+        Dependency::NotifySpinning(WAITING_FOR_IO);
+        return 0;
+    }
+        return 1;
+}
+
+void TransposePosAction(int slab){
+    STDLOG(0,"Transposing position slab %d with %d particles\n", slab, Slab->size(slab));
+    
+    LBW->AllocateArena(PosXYZSlab, slab);
+    int cpd = P.cpd;
+    
+    // Could do this over skewers; should make a skewersize(slab, y) function somewhere
+    #pragma omp parallel for schedule(static)
+    for(int y = 0; y < cpd; y++){
+        for(int z = 0; z < cpd; z++){
+            posstruct *pos = PP->PosCell(slab, y, z);
+            List3<FLOAT> posxyz = PP->PosXYZCell(slab, y, z);
+            int count = PP->NumberParticle(slab,y,z);
+            
+            #pragma ivdep
+            for(int i = 0; i < count; i++){
+                posxyz.X[i] = pos[i].x;
+                posxyz.Y[i] = pos[i].y;
+                posxyz.Z[i] = pos[i].z;
+            }
+        }
+    }
+}
+
+
+// -----------------------------------------------------------------
+
 int NearForcePrecondition(int slab) {
-    for(int i=-FORCE_WIDTH;i<=FORCE_WIDTH;i++) 
-        if( !LBW->IOCompleted( CellInfoSlab, slab+i ) ||
-            !LBW->IOCompleted( PosSlab,      slab+i ) ||
-            !LBW->IOCompleted( VelSlab,      slab+i ) ||
-            !LBW->IOCompleted( AuxSlab,      slab+i ) ) {
-            // Are we spinning because we're waiting for slab IO?
-            Dependency::NotifySpinning(2);
+    for(int i=-FORCE_RADIUS;i<=FORCE_RADIUS;i++){
+        if(TransposePos.notdone(slab+i))
+            return 0;
+        if( !LBW->IOCompleted( CellInfoSlab, slab+i ) ){
+            Dependency::NotifySpinning(WAITING_FOR_IO);
             return 0;
         }
+    }
     
     return 1;
 }
@@ -101,7 +142,7 @@ void NearForceAction(int slab) {
     STDLOG(1,"Computing near-field force for slab %d\n", slab);
     SlabForceTime[slab].Start();
         
-    JJ->ExecuteSlab(slab,P.ForceOutputDebug);
+    JJ->ExecuteSlab(slab, P.ForceOutputDebug);
 
     SlabForceLatency[slab].Start();
     if (P.ForceOutputDebug) {
@@ -111,17 +152,15 @@ void NearForceAction(int slab) {
         LBW->WriteArena(NearAccSlab, slab, IO_KEEP, IO_BLOCKING,
         LBW->WriteSlabDescriptorName(NearAccSlab,slab).c_str());
     }
-    
-    //
 }
 
 // -----------------------------------------------------------------
 
 int TaylorForcePrecondition(int slab) {
-    if( NearForce.notdone(slab) ) return 0;
-    if( !LBW->IOCompleted(TaylorSlab,slab) ){
-        // Are we spinning because we're waiting for slab IO?
-        Dependency::NotifySpinning(2);
+    if( !LBW->IOCompleted( CellInfoSlab,  slab ) ||
+        !LBW->IOCompleted( PosSlab,       slab ) ||
+        !LBW->IOCompleted( TaylorSlab,    slab ) ){
+        Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
     return 1;
@@ -137,7 +176,6 @@ void TaylorForceAction(int slab) {
     STDLOG(1,"Computing far-field force for slab %d\n", slab);
     SlabFarForceTime[slab].Start();
     LBW->AllocateArena(AccSlab,slab);
-    ZeroAcceleration(slab,AccSlab);
     
     TaylorCompute.Start();
     ComputeTaylorForce(slab);
@@ -157,18 +195,27 @@ void TaylorForceAction(int slab) {
 // -----------------------------------------------------------------
 
 int KickPrecondition(int slab) {
+    if( !LBW->IOCompleted( VelSlab, slab ) ) {
+        Dependency::NotifySpinning(WAITING_FOR_IO);
+        return 0;
+    }
+    
     // must have far forces
     if(TaylorForce.notdone(slab)){
         return 0;
     }
     
     //must have near forces
-    if (NearForce.notdone(slab) || !JJ->SlabDone(slab)) {
-#ifdef CUDADIRECT
-        // Start the timer if we've gone one full loop without executing anything
-        Dependency::NotifySpinning(1);
-#endif
+    if (NearForce.notdone(slab)) 
         return 0;
+    else {
+        // If pencil construction (NearForce) is finished, but not JJ, then we're waiting for the GPU result
+        if(!JJ->SlabDone(slab)){
+#ifdef CUDADIRECT
+            Dependency::NotifySpinning(WAITING_FOR_GPU);
+#endif
+            return 0;
+        }
     }
 
     return 1;
@@ -177,6 +224,18 @@ int KickPrecondition(int slab) {
 void KickAction(int slab) {
     SlabForceTime[slab].Stop();
     SlabForceLatency[slab].Stop();
+    
+    // This may be the last time be need any of the PosXYZ slabs that we just used
+    // So check the FORCE_RADIUS vicinity of each of the WIDTH slabs that we just used
+    for(int j = -2*FORCE_RADIUS, consec = 0; j <= 2*FORCE_RADIUS; j++){
+        if(Kick.done(slab + j) || j == 0)
+            consec++;
+        else
+            consec = 0;
+        if (consec >= 2*FORCE_RADIUS + 1)
+            LBW->DeAllocate(PosXYZSlab,   slab + j - FORCE_RADIUS);
+    }
+    
     //If we are doing blocking forces, the finalization happens in NearForceAction
     if(!P.ForceOutputDebug && !P.ForceCPU)
         JJ->Finalize(slab);
@@ -210,18 +269,26 @@ void KickAction(int slab) {
 // -----------------------------------------------------------------
 
 int GroupPrecondition(int slab) {
-    // We need to have kicked everything that matters
-    for(int j=-GROUP_WIDTH;j<=GROUP_WIDTH;j++)  {
-        if( Kick.notdone(slab+j) ) return 0;
+    // TODO: are these the right dependencies?
+    // Only PosXYZ is used for sources, so we're free to rearrange PosSlab after the transpose
+    if( TransposePos.notdone(slab) ) return 0;
+    
+    // Need the accelerations in this slab because we're going to rearrange particles
+    if( Kick.notdone(slab) ) return 0;
+    
+    // We're probably going to need to move around PIDs as we create groups
+    if( !LBW->IOCompleted( AuxSlab, slab ) ) {
+        Dependency::NotifySpinning(WAITING_FOR_IO);
+        return 0;
     }
-    return 1;
 }
 
 void GroupAction(int slab) {
     if (LPTStepNumber()) return;
     // We can't be doing group finding during an IC step
+    if(P.ForceOutputDebug) return;  // can't rearrange the pos if we've already output the nearacc
     
-    STDLOG(1,"Zeroing Aux L0 field");
+    STDLOG(1,"Zeroing Aux L0 field\n");
 
     #pragma omp parallel for schedule(dynamic, 1)
     for(int j = 0; j < PP->cpd; j++){
@@ -232,13 +299,10 @@ void GroupAction(int slab) {
         }
     }
 
-
-
     STDLOG(1,"Finding groups for slab %d\n", slab);
 
     GroupExecute.Start();
-    if(P.ForceOutputDebug)
-        GF->ExecuteSlab(slab);
+    GF->ExecuteSlab(slab);
     GroupExecute.Stop();
     // One could also use the Accelerations to set individual particle microstep levels.
     // (one could imagine doing this in Force, but perhaps one wants the group context?)
@@ -247,12 +311,13 @@ void GroupAction(int slab) {
 // -----------------------------------------------------------------
 
 int OutputPrecondition(int slab) {
-    if (Kick.notdone(slab)) return 0;  // Must have kicked
+    if (Kick.notdone(slab)) return 0;  // Must have kicked because output does a half un-kick
     if (Group.notdone(slab)) return 0;  // Must have found groups
-    if (!GF->SlabClosed(slab)) return 0;
+    if (!P.ForceOutputDebug && !GF->SlabClosed(slab)) return 0;
     return 1;
 }
 
+uint64 n_output = 0;
 void OutputAction(int slab) {
     STDLOG(1,"Output slab %d\n", slab);
 
@@ -265,7 +330,7 @@ void OutputAction(int slab) {
 
     if (ReadState.DoTimeSliceOutput) {
         STDLOG(1,"Outputting slab %d\n",slab);
-        Output_TimeSlice(slab);
+        n_output += Output_TimeSlice(slab);
     }
     OutputTimeSlice.Stop();
 
@@ -298,7 +363,7 @@ void OutputAction(int slab) {
     OutputBin.Stop();
 
     OutputGroup.Start();
-    if(P.ForceOutputDebug)
+    if(!P.ForceOutputDebug)
         GF->OutputSlab(slab);
     OutputGroup.Stop();
 
@@ -314,13 +379,13 @@ int FetchLPTVelPrecondition(int slab){
     }
     
     // Allow .75 instead of .5 here because FetchSlabs might
-    // eat up all the RAM.  The right way to do this is really to
+    // eat up all the RAM.  TODO: The right way to do this is really to
     // make load_ic_vel_slab non-blocking through the IO module,
     // which first requires routing loadIC through the IO module.
     // Then, we can move load_ic_vel_slab to FetchSlabs.
     if(LBW->total_allocation > .75*P.MAXRAMMB*1024LLU*1024LLU){
         // Are we spinning because we need more RAM?
-        Dependency::NotifySpinning(0);
+        Dependency::NotifySpinning(NOT_ENOUGH_RAM);
         return 0;
     }
 
@@ -335,13 +400,11 @@ void FetchLPTVelAction(int slab){
 // -----------------------------------------------------------------
 
 int DriftPrecondition(int slab) {
-    // We cannot move these particles until they have been fully used as gravity sources
-    for(int j=-FORCE_WIDTH;j<=FORCE_WIDTH;j++)  {
-        if( TaylorForce.notdone(slab+j) ) return 0;
-        if( NearForce.notdone(slab+j) ) return 0;
-    }
-    // We also must have Output this slab 
+    // We must have Output this slab (and thus kicked it)
     if (Output.notdone(slab)) return 0;
+    
+    // We can't move particles until they've been used as gravity sources
+    // However, we only use PosXYZSlab as sources, so we're free to move PosSlab
     
     // We also must have the 2LPT velocities
     // The finish radius is a good guess of how ordered the ICs are
@@ -384,7 +447,8 @@ void DriftAction(int slab) {
     }
     LBW->DeAllocate(NearAccSlab,slab);
 
-    GF->PurgeSlab(slab);
+    if(!P.ForceOutputDebug)
+        GF->PurgeSlab(slab);
 
 }
 
@@ -398,6 +462,7 @@ int FinishPrecondition(int slab) {
     return 1;
 }
 
+uint64 merged_particles = 0;
 void FinishAction(int slab) {
     STDLOG(1,"Finishing slab %d\n", slab);
     
@@ -405,9 +470,22 @@ void FinishAction(int slab) {
         LBW->DeAllocate(VelLPTSlab, slab);
     
     // Gather particles from the insert list and make the merge slabs
-    FillMergeSlab(slab);
+    uint64 n_merge = FillMergeSlab(slab);
+    merged_particles += n_merge;
+    
+    // This may be the last time be need any of the CellInfo slabs that we just used
+    // We can't immediately free CellInfo before NearForce might need it until we're FORCE_RADIUS away
+    // An alternative to this would be to just wait for FORCE_RADIUS before finishing
+    for(int j = -2*FORCE_RADIUS, consec = 0; j <= 2*FORCE_RADIUS; j++){
+        if(Finish.done(slab + j) || j == 0)
+            consec++;
+        else
+            consec = 0;
+        if (consec >= 2*FORCE_RADIUS + 1)
+            LBW->DeAllocate(CellInfoSlab, slab + j - FORCE_RADIUS);
+    }
+    
     // Now delete the original particles
-    LBW->DeAllocate(CellInfoSlab,slab);
     LBW->DeAllocate(PosSlab,slab);
     LBW->DeAllocate(VelSlab,slab);
     LBW->DeAllocate(AuxSlab,slab);
@@ -438,12 +516,12 @@ void timestep(void) {
     TimeStepWallClock.Start();
     STDLOG(1,"Initiating timestep()\n");
 
-    FORCE_WIDTH = P.NearFieldRadius;
-    GROUP_WIDTH = P.GroupRadius;
-    assertf(FORCE_WIDTH != -1, "Illegal FORCE_WIDTH: %d\n", FORCE_WIDTH);
-    assertf(GROUP_WIDTH != -1, "Illegal GROUP_WIDTH: %d\n", GROUP_WIDTH); 
-    STDLOG(0,"Adopting FORCE_WIDTH = %d\n", FORCE_WIDTH);
-    STDLOG(0,"Adopting GROUP_WIDTH = %d\n", GROUP_WIDTH);
+    FORCE_RADIUS = P.NearFieldRadius;
+    GROUP_RADIUS = P.GroupRadius;
+    assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
+    assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS); 
+    STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
+    STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
 
     int cpd = P.cpd;
     int first_slab_to_load = 0;   // Might eventually be different
@@ -451,6 +529,7 @@ void timestep(void) {
     STDLOG(1,"First slab to load will be %d\n", first);
 
        FetchSlabs.instantiate(cpd, first, &FetchSlabPrecondition,     &FetchSlabAction     );
+     TransposePos.instantiate(cpd, first, &TransposePosPrecondition,  &TransposePosAction  );
         NearForce.instantiate(cpd, first, &NearForcePrecondition,     &NearForceAction     );
       TaylorForce.instantiate(cpd, first, &TaylorForcePrecondition,   &TaylorForceAction   );
              Kick.instantiate(cpd, first, &KickPrecondition,          &KickAction          );
@@ -460,11 +539,12 @@ void timestep(void) {
            Finish.instantiate(cpd, first, &FinishPrecondition,        &FinishAction        );
            
 if(WriteState.Do2LPTVelocityRereading)
-LPTVelocityReRead.instantiate(cpd, first + 2*FORCE_WIDTH + 1 - FINISH_WAIT_RADIUS,
+LPTVelocityReRead.instantiate(cpd, first + 2*FORCE_RADIUS + 1 - FINISH_WAIT_RADIUS,
                                           &FetchLPTVelPrecondition,   &FetchLPTVelAction   );
 
     while( !Finish.alldone() ) {
            for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
+         TransposePos.Attempt();
             NearForce.Attempt();
           TaylorForce.Attempt();
                  Kick.Attempt();
@@ -481,6 +561,11 @@ LPTVelocityReRead.instantiate(cpd, first + 2*FORCE_WIDTH + 1 - FINISH_WAIT_RADIU
     
     assertf(IL->length==0, 
         "Insert List not empty (%d) at the end of timestep().  Time step too big?\n", IL->length);
+    
+    assertf(merged_particles == P.np, "Merged slabs contain %"PRIu64" particles instead of %"PRIu64"!\n", merged_particles, P.np);
+    
+    if(ReadState.DoTimeSliceOutput)
+        assertf(n_output == P.np, "TimeSlice output contains %"PRIu64" particles instead of %"PRIu64"!\n", n_output, P.np);
 
     STDLOG(1,"Completing timestep()\n");
     TimeStepWallClock.Stop();
@@ -521,6 +606,8 @@ void timestepIC(void) {
     STDLOG(0,"Initiating timestepIC()\n");
     TimeStepWallClock.Clear();
     TimeStepWallClock.Start();
+    
+    FORCE_RADIUS = 0;  // so we know when we can free CellInfo in Finish
 
     int cpd = P.cpd; int first = 0;
     Drift.instantiate(cpd, first, &FetchICPrecondition, &FetchICAction );
@@ -532,6 +619,7 @@ void timestepIC(void) {
     }
 
     assertf(NP_from_IC == P.np, "Expected to read a total of %llu particles from IC files, but only read %llu.\n", P.np, NP_from_IC);
+    assertf(merged_particles == P.np, "Merged slabs contain %"PRIu64" particles instead of %"PRIu64"!\n", merged_particles, P.np);
     
     char filename[1024];
     sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
@@ -549,7 +637,7 @@ void timestepIC(void) {
 int FetchPosSlabPrecondition(int slab) {
     if(LBW->total_allocation > .5*P.MAXRAMMB*1024LLU*1024LLU){
         // Are we spinning because we need more RAM?
-        Dependency::NotifySpinning(0);
+        Dependency::NotifySpinning(NOT_ENOUGH_RAM);
         return 0;
     }
     return 1;
@@ -597,6 +685,8 @@ void timestepMultipoles(void) {
     STDLOG(0,"Initiating timestepMultipoles()\n");
     TimeStepWallClock.Clear();
     TimeStepWallClock.Start();
+    
+    FORCE_RADIUS = 0;  // so we know when we can free CellInfo in Finish
 
     int cpd = P.cpd; int first = 0;
     FetchSlabs.instantiate(cpd, first, &FetchPosSlabPrecondition, &FetchPosSlabAction );

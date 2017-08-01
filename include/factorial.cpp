@@ -9,7 +9,6 @@ double fact(int n) {
 
 double fact2(int n) {
     uint64 f;
-    int i;
     
     f = 1;
     for(int i = n; i > 0; i -= 2)

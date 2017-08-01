@@ -5,6 +5,7 @@
 *.so
 *.a
 *.d
+clibs/Makefile
 singlestep/singlestep
 singlestep/make_multipoles
 singlestep/Makefile
@@ -17,4 +18,6 @@ Derivatives/Makefile
 autom4te.cache/
 config.log
 config.status
+include/config.h
 nohup.out
+__pycache__/

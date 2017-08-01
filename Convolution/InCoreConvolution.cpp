@@ -8,7 +8,7 @@ public:
         CompressedMultipoleLengthXY  = ((1+cpd)*(3+cpd))/8;
         nblocks = (cpd*cpd)/blocksize;
         cpdhalf = (cpd-1)/2;
-        int cs = omp_get_max_threads() * completemultipolelength * blocksize;
+        int cs = omp_get_max_threads() * (completemultipolelength * blocksize + thread_padding);  // extra 1K padding between threads
         _mcache = new Complex[cs]; 
         _dcache = new  double[cs]; 
         _tcache = new Complex[cs];
@@ -22,13 +22,14 @@ public:
     ~InCoreConvolution(void) {
         delete[] _mcache; delete[] _dcache; delete[] _tcache; delete[] mfactor;
     }
-    void InCoreConvolve(Complex *FFTM, double *CompressedDerivatives);
+    void InCoreConvolve(Complex *FFTM, DFLOAT *CompressedDerivatives);
     unsigned long long int  ConvolutionArithmeticCount(void);
 
 private:
     Complex *_mcache,*_tcache;
     double *_dcache,*mfactor;
     int cpd,blocksize,nblocks,cpdhalf,CompressedMultipoleLengthXY;
+    const int thread_padding = 1024;
 };
 
 unsigned long long int InCoreConvolution::ConvolutionArithmeticCount(void) {
@@ -62,12 +63,14 @@ unsigned long long int InCoreConvolution::ConvolutionArithmeticCount(void) {
 void MVM(Complex *t, Complex *m, double *d, int n) { 
     //#pragma simd
     // __builtin_assume_aligned
-    #pragma vector aligned
+    //#pragma vector aligned
+    #pragma simd assert
     for(int i=0;i<n;i++) t[i] += m[i] * d[i]; 
 }
 
-void InCoreConvolution::InCoreConvolve(Complex *FFTM, double *CompressedD) {
-    #pragma omp parallel for schedule(dynamic,1) 
+void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
+    // why is this 50% faster with dynamic?
+    #pragma omp parallel for schedule(dynamic)
     for(int block=0;block<nblocks;block++) {
             
         Complex *FM, *FMabc, *FMap2bcm2, *FMabp2cm2;
@@ -76,7 +79,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, double *CompressedD) {
         double  *dcache;
         int xyz,a,b,c,i,j,k,xyzbegin;
 
-        int gindex = omp_get_thread_num()*blocksize*completemultipolelength;
+        int gindex = omp_get_thread_num()*(blocksize*completemultipolelength + thread_padding);
         dcache = &(_dcache[gindex]); 
         mcache = &(_mcache[gindex]);
         tcache = &(_tcache[gindex]);
@@ -115,11 +118,11 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, double *CompressedD) {
                 double xR;
                 if(yp>=xp)  {
                     int i = rmap(b,a,c)*CompressedMultipoleLengthXY;
-                    xR = CompressedD[ i + (yp*(yp+1))/2 + xp ];
+                    xR = (double) CompressedD[ i + (yp*(yp+1))/2 + xp ];
                 }
                 else {
                     int i = rmap(a,b,c)*CompressedMultipoleLengthXY;
-                    xR = CompressedD[ i + (xp*(xp+1))/2 + yp ];
+                    xR = (double) CompressedD[ i + (xp*(xp+1))/2 + yp ];
                 }
 
                 if( (yp!=y) && (b%2==1) ) xR *= -1;

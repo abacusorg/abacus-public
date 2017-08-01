@@ -30,7 +30,6 @@ def run(basedir = "NONE"):
         basedir = tmpdir +"/spiral/"
 
     if os.path.exists(basedir):
-
         erase = "y"#raw_input("Test Directory exists! Erase? (y/n)")
         if erase =="y":
             shutil.rmtree(basedir)
@@ -40,7 +39,8 @@ def run(basedir = "NONE"):
 
     kvec = (1,0,0)
     phase = (np.pi,0,0)
-    n1d = 512
+    n1d = 128
+    CPD = 33
     ainitial = 0.09
     across = 0.2
     astop =  0.11
@@ -49,7 +49,7 @@ def run(basedir = "NONE"):
 
     #check if we are done
     if not os.path.exists(basedir+"write/state"):
-        params = GenParam.makeInput(basedir+"spiral.par", abacuspath +"/Tests/Spiral/spiral.par2", NP = n1d**3,nTimeSlice = 1, TimeSliceRedshifts = 1/astop -1, SofteningLength = sf,InitialRedshift = 1/ainitial -1,CPD = 135,BoxSize = 17.3205080756888,WorkingDirectory = basedir)
+        params = GenParam.makeInput(basedir+"spiral.par", abacuspath +"/Tests/Spiral/spiral.par2", NP = n1d**3,nTimeSlice = 1, TimeSliceRedshifts = 1/astop -1, SofteningLength = sf,InitialRedshift = 1/ainitial -1,CPD = CPD,BoxSize = 17.3205080756888,WorkingDirectory = basedir)
         os.makedirs(params["InitialConditionsDirectory"])
         #make the spiral initial conditions
         subprocess.check_call([abacuspath+"/Tests/Spiral/makespiralics",str(n1d), str(ainitial),str(across),
@@ -70,7 +70,7 @@ def run(basedir = "NONE"):
     #writestate = InputFile.InputFile("write/state")
     ReadState = InputFile.InputFile("read/state")
     #laststep = writestate.FullStepNumber
-    return
+    
     timeslice = "final.ts"
     os.system(abacuspath+"/util/phdata " + "%s/slice%5.3f/%s.z%5.3f.*"%(params["OutputDirectory"], ReadState.Redshift, params["SimName"],ReadState.Redshift) + " > " +timeslice)
     data = np.fromfile(timeslice,dtype = np.float64)
@@ -84,18 +84,19 @@ def run(basedir = "NONE"):
     analytic[:,1] /= ReadState.VelZSpace_to_Canonical
 
     xv = np.reshape(data, (-1,6))
+    assert len(xv) == n1d**3
     print xv.shape
     print analytic.shape
-    p.plot(analytic[:,0], analytic[:,1])
-    p.scatter(xv[:,0],xv[:,3],marker=".",s = 10*(4 * np.abs(xv[0]) + 1), c= "r",linewidth=0 )
+    #p.plot(analytic[:,0], analytic[:,1])
+    #p.scatter(xv[:,0],xv[:,3],marker=".",s = 10*(4 * np.abs(xv[0]) + 1), c= "r",linewidth=0 )
     p.xlabel("X")
     p.ylabel("Vx")
     p.savefig("spiral.png", dpi=500)
     p.figure()
     p.xlim(-.1,.1)
     p.ylim(-.05,.05)
-    p.plot(analytic[:,0], analytic[:,1])
-    p.scatter(xv[:,0],xv[:,3],marker=".",s = 10*(4 * np.abs(xv[0]) + 1), c= "r",linewidth=0 )
+    #p.plot(analytic[:,0], analytic[:,1])
+    #p.scatter(xv[:,0],xv[:,3],marker=".",s = 10*(4 * np.abs(xv[0]) + 1), c= "r",linewidth=0 )
     p.xlabel("X")
     p.ylabel("Vx")
     p.savefig("spiral-zoomed.png",dpi=500)

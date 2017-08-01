@@ -20,6 +20,19 @@ import pynbody
 
 # A label for the power spectrum based on the properties
 def ps_suffix(**kwargs):
+    nfft = kwargs['nfft']
+    try:
+        len(nfft)
+    except TypeError:  # convert a plain int to a singlet array
+        nfft = [nfft]
+        
+    # if 2D, add a projected tag
+    projected = len(nfft) == 2
+    
+    # if all dimensions the same, collapse to single int
+    if (np.diff(nfft) == 0).all():
+        nfft = nfft[0]
+    
     ps_fn = ''
     ps_fn += '_nfft{}'.format(kwargs['nfft'])
     if kwargs['dtype'] != np.float32:
@@ -28,7 +41,7 @@ def ps_suffix(**kwargs):
         ps_fn += '_zspace'
     if kwargs['rotate_to']:
         ps_fn += '_rotate({2.1g},{2.1g},{2.1g})'.format(*rotate_to)
-    if kwargs['projected']:
+    if projected:
         ps_fn += '_projected'
     ps_fn += '.csv'
     return ps_fn
@@ -40,7 +53,7 @@ def get_output_path_ps(input):
     return os.path.dirname(input)
     
     
-def run_PS_on_dir(folder, **kwargs):
+def run_PS_on_dir(folder, **kwargs):    
     patterns = [folder + '/*.dat', folder + '/ic_*', folder + '/position_*', folder + r'/*.[0-9]*']
     # Decide which pattern to use
     for pattern in patterns:
@@ -72,7 +85,7 @@ def run_PS_on_dir(folder, **kwargs):
         try:
             gadget_fn = sorted(glob(pattern))[0]
             f = pynbody.load(gadget_fn)
-            BoxSize = f.properties['boxsize']
+            BoxSize = float(f.properties['boxsize'])
         except:
             print 'Could not find a header in ' + str(header_pats)
             print 'or as a gadget file'
@@ -135,7 +148,11 @@ def run_PS(inputs, **kwargs):
     for input in inputs:
         # If the input is an output or IC directory
         if os.path.isdir(input):
-            run_PS_on_dir(input, **kwargs)
+            if kwargs.get('format').lower() == 'pack14':
+                with common.extract_slabs(input):
+                    run_PS_on_dir(input, **kwargs)
+            else:  # pretty kludgy...
+                run_PS_on_dir(input, **kwargs)
         # If the input is a PS file
         elif os.path.isfile(input):
             run_PS_on_PS(input, **kwargs)
@@ -164,6 +181,9 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     args = vars(args)
+    
+    if args.pop('projected'):
+        args['nfft'] = [args['nfft'],]*2
     
     if args['dtype'] == 'float':
         args['dtype'] = np.float32

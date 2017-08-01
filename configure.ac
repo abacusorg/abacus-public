@@ -6,8 +6,9 @@
 
 # Initialization
 AC_INIT([abacus], [0.9], [], [], [github.com/nbody/abacus])
+AC_CONFIG_HEADERS([./include/config.h])  # this places DEFS in a global header file instead of Makefiles
 AC_CONFIG_AUX_DIR([./Configuration])
-AC_PROG_CC
+#AC_PROG_CC
 AC_PROG_CXX
 AC_HEADER_STDC
 AC_PROG_INSTALL
@@ -21,7 +22,12 @@ AC_CONFIG_FILES([
  Convolution/Makefile
  Derivatives/Makefile
  singlestep/Multipoles/Makefile
+ clibs/Makefile
 ])
+
+# git version
+GITVERSION=\"$(git rev-parse HEAD)\"
+AC_DEFINE_UNQUOTED(GITVERSION, $GITVERSION, "The current git revision")
 
 # Imports
 m4_include(Configuration/m4/ax_check_cuda.m4)
@@ -31,14 +37,11 @@ m4_include(Configuration/m4/ax_gcc_x86_cpuid.m4)
 m4_include(Configuration/m4/ax_ext.m4)
 
 # These will automatically add the appropriate -L and -l flags to LIBS
-AC_SEARCH_LIBS(fftw_execute, [fftw3], [], [AC_MSG_ERROR([unable to find fftw3!])])
-AC_SEARCH_LIBS(fftw_init_threads, [fftw3_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
-AC_SEARCH_LIBS(fftwf_execute, [fftw3f], [], [AC_MSG_ERROR([unable to find fftw3!])])
-AC_SEARCH_LIBS(fftwf_init_threads, [fftw3f_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
 AC_SEARCH_LIBS([cos],[m])
 AC_SEARCH_LIBS(cblas_dgemm, [gslcblas], [], [AC_MSG_ERROR([unable to find gslcblas!])])
 AC_SEARCH_LIBS(gsl_rng_uniform, [gsl], [], [AC_MSG_ERROR([unable to find gsl!])])
 AC_SEARCH_LIBS(ITT_DoOneTimeInitialization, [tbb], [], [AC_MSG_ERROR([unable to find tbb!])])
+AC_SEARCH_LIBS(numa_max_node, [numa], [], [AC_MSG_ERROR([unable to find numa!])])
 
 # Check for some utilities we use
 AC_CHECK_PROGS(LEX, flex)
@@ -54,18 +57,33 @@ AC_ARG_ENABLE(double,
 [AS_HELP_STRING([--enable-double], [Double precision [no]])],
 	[], enable_double="no")
 if test x$enable_double == xyes; then
-	AC_DEFINE_UNQUOTED(DOUBLEPRECISION)
+	AC_DEFINE_UNQUOTED(DOUBLEPRECISION, [], "Do all computations in double precision instead of single")
+fi
+
+if test x$enable_double == xyes; then
+	AC_DEFINE_UNQUOTED(DOUBLEPRECISION, [], "Do all computations in double precision instead of single")
+fi
+
+AC_ARG_ENABLE(mkl,
+[AS_HELP_STRING([--enable-mkl], [Intel Math Kernel Library FFT [yes if using icc]])],
+	[], enable_mkl="check")
+if test x$enable_mkl == xcheck; then
+    if test x$CXX == xicc; then
+        enable_mkl="yes"
+    else
+        enable_mkl="no"
+    fi
 fi
 
 AC_ARG_WITH(radius,
 	[AS_HELP_STRING([--with-radius=NFR], [Near field radius [2]])],
 	[], with_radius="2")
-AC_DEFINE_UNQUOTED(NFRADIUS,$with_radius)
+AC_DEFINE_UNQUOTED(NFRADIUS,$with_radius, "Radius of cells to compute with near-field force")
 
 AC_ARG_WITH(block-size,
 [AS_HELP_STRING([--with-block-size=B], [Near field block size [64]])],
 	[], with_block_size="64")
-AC_DEFINE_UNQUOTED(NFBlockSize,$with_block_size)
+AC_DEFINE_UNQUOTED(NFBlockSize,$with_block_size, "Near field block size")
 
 AC_ARG_ENABLE(avx,
 [AS_HELP_STRING([--enable-avx], [All AVX (overridden by individual options) [yes if AVX present]])],
@@ -75,31 +93,31 @@ AC_ARG_ENABLE(avx-directs,
 [AS_HELP_STRING([--enable-avx-directs], [AVX directs [no]])],
 	[], enable_avx_directs=no)
 if test x$enable_avx_directs == xyes; then
-	AC_DEFINE_UNQUOTED(AVXDIRECT)
+	AC_DEFINE_UNQUOTED(AVXDIRECT, [], "Use AVX directs")
 fi
 
 AC_ARG_ENABLE(avx-multipoles,
 [AS_HELP_STRING([--enable-avx-multipoles], [AVX multipoles [yes if AVX present]])],
 	[], enable_avx_multipoles=$enable_avx)
 if test x$enable_avx_multipoles == xyes; then
-	AC_DEFINE_UNQUOTED(AVXMULTIPOLES)
+	AC_DEFINE_UNQUOTED(AVXMULTIPOLES, [], "Use AVX multipoles")
 fi
 
 AC_ARG_WITH(max-cpd,
 [AS_HELP_STRING([--with-max-cpd=CPD], [Maximum cells-per-dimension [8192]])],
 	[], with_max_cpd="8192")
-AC_DEFINE_UNQUOTED(MAXCPD,$with_max_cpd)
+AC_DEFINE_UNQUOTED(MAXCPD,$with_max_cpd, "Maximum cells-per-dimension")
 
 AC_ARG_WITH(max-source-length,
 [AS_HELP_STRING([--with-max-source-length=S], [Maximum source length [1048576]])],
 	[], with_max_source_length="1048576")
-AC_DEFINE_UNQUOTED(MAXSOURCELENGTH,$with_max_source_length)
+AC_DEFINE_UNQUOTED(MAXSOURCELENGTH,$with_max_source_length, "Maximum source length")
 
 AC_ARG_ENABLE(threaded-io,
 [AS_HELP_STRING([--enable-threaded-io], [Threaded IO [yes]])],
 	[], enable_threaded_io="yes")
 if test x$enable_threaded_io == xyes; then
-	AC_DEFINE_UNQUOTED(IOTHREADED)
+	AC_DEFINE_UNQUOTED(IOTHREADED, [], 'Use a separate thread for IO")
 fi
 
 AC_ARG_ENABLE(gpu-directs,
@@ -114,7 +132,7 @@ fi
 AC_SUBST(CUDA_MODE)
 CUDA_MODE="CUDA_DISABLED"
 if test x$enable_gpu_directs == xyes; then
-	AC_DEFINE_UNQUOTED(CUDADIRECT)
+	AC_DEFINE_UNQUOTED(CUDADIRECT, [], "Do the near force on the GPU")
 	CUDA_MODE="CUDA_ENABLED"
 fi
 
@@ -122,7 +140,7 @@ AC_ARG_ENABLE(gpu-convolution,
 [AS_HELP_STRING([--enable-gpu-convolution], [Convolution FFT on GPU [no]])],
 	[], enable_gpu_convolution="no")
 if test x$enable_gpu_convolution == xyes; then
-	AC_DEFINE_UNQUOTED(GPUFFT)
+	AC_DEFINE_UNQUOTED(GPUFFT, [], "Do the convolution FFT on the GPU")
 fi
 
 # Get the number of GPUs
@@ -142,27 +160,38 @@ fi
 DEFAULT_BPD=$((2*$with_radius/$NGPU + 1))
 AC_ARG_WITH(direct-bpd,
 [AS_HELP_STRING([--with-direct-bpd=B],
-[Direct buffers-per-device [ceil((2*NFR+1)/NGPU) = 3]])],
+[Direct buffers per device [ceil((2*NFR+1)/NGPU) = 3]])],
 	[], with_direct_bpd=$DEFAULT_BPD)
-AC_DEFINE_UNQUOTED(DirectBPD,$with_direct_bpd)
+AC_DEFINE_UNQUOTED(DirectBPD,$with_direct_bpd, "Direct buffers per device")
 
 AC_ARG_WITH(max-gpus,
-[AS_HELP_STRING([--with-max-gpus=M], [Maximum number of GPUs to use [no limit]])],
-	[], with_max_gpus="no limit")
-if test x"$with_max_gpus" != x"no limit"; then
-    AC_DEFINE_UNQUOTED(MAX_GPUS,$with_max_gpus)
-fi
+[AS_HELP_STRING([--with-max-gpus=M], [Maximum number of GPUs to use [16]])],
+	[], with_max_gpus="16")
+AC_DEFINE_UNQUOTED(MAX_GPUS,$with_max_gpus, "Limit on the number of GPUs")
 
 AC_ARG_WITH(softening,
-[AS_HELP_STRING([--with-softening={plummer | single_spline | cubic_spline | cubic_plummer}], [Near-force softening technique [plummer]])],
+[AS_HELP_STRING([--with-softening={plummer | single_spline | cubic_spline | cubic_plummer}], [Near-force softening technique [single_spline]])],
 	[], with_softening="single_spline")
 if test "x$with_softening" == xcubic_plummer; then
-	AC_DEFINE_UNQUOTED(DIRECTCUBICPLUMMER)
+	AC_DEFINE_UNQUOTED(DIRECTCUBICPLUMMER, [], "Cubic variant of Plummer softening")
 elif test "x$with_softening" == xcubic_spline; then
-	AC_DEFINE_UNQUOTED(DIRECTCUBICSPLINE)
+	AC_DEFINE_UNQUOTED(DIRECTCUBICSPLINE, [], "Cubic Hernquist spline softening")
 elif test "x$with_softening" == xsingle_spline; then
-	AC_DEFINE_UNQUOTED(DIRECTSINGLESPLINE)
+	AC_DEFINE_UNQUOTED(DIRECTSINGLESPLINE, [], "Single-branch spline softening")
+elif test "x$with_softening" == xplummer; then
+	AC_DEFINE_UNQUOTED(DIRECTPLUMMER, [], "Plummer softening")
+else
+    AC_MSG_ERROR([Unknown softening "$with_softening"!])
 fi
+
+# If not using MKL, look for FFTW
+if test x$enable_mkl != xyes; then
+    AC_SEARCH_LIBS(fftw_execute, [fftw3], [], [AC_MSG_ERROR([unable to find fftw3!])])
+    AC_SEARCH_LIBS(fftw_init_threads, [fftw3_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
+    AC_SEARCH_LIBS(fftwf_execute, [fftw3f], [], [AC_MSG_ERROR([unable to find fftw3!])])
+    AC_SEARCH_LIBS(fftwf_init_threads, [fftw3f_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
+fi
+
 
 # These will be added to the 
 AC_SUBST(WARNING)
@@ -186,6 +215,8 @@ echo "GPU directs:                     $enable_gpu_directs"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Maximum GPUs:                    $with_max_gpus"
+echo "CXX:                             $CXX"
+echo "MKL FFT:                         $enable_mkl"
 echo "------------------------------------------------------"
 echo
 

@@ -34,12 +34,12 @@ distclean:
 	cd Tests && $(MAKE) $@
 	cd util && $(MAKE) $@
 	cd Analysis/ && $(MAKE) $@
-	cd clibs/ && $(MAKE) $@
+	-cd clibs/ && $(MAKE) $@
 	-$(RM) *.o *.d *~ *.a abacus.tar.gz
-	-$(RM) singlestep/Makefile singlestep/Direct/Makefile singlestep/Multipoles/Makefile Convolution/Makefile Derivatives/Makefile Analysis/PowerSpectrum/Makefile Analysis/FoF/Makefile
+	-$(RM) singlestep/Makefile singlestep/Direct/Makefile singlestep/Multipoles/Makefile Convolution/Makefile Derivatives/Makefile Analysis/PowerSpectrum/Makefile Analysis/FoF/Makefile clibs/Makefile
 	-$(RM) -rf autom4te.cache/ config.log config.status
 
-ConvolutionDriver: convolutionwrapper.cpp include/Parameters.cpp
+ConvolutionDriver: libparseheader.a
 	cd Convolution && $(MAKE) $@
 		
 clibs:
@@ -54,7 +54,7 @@ tests:
 bench:
 	cd singlestep && $(MAKE) $@
 
-analysis:
+analysis: clibs libparseheader.a util AbacusCosmo
 	$(MAKE) -C Analysis/
 
 zeldovich: zeldovich.cpp
@@ -71,6 +71,6 @@ dist:
 	tar -C .dist -czf abacus.tar.gz --exclude='.*' abacus
 	$(RM) -rf .dist
 	
-.PHONY:all clean distclean zeldovich util tests analysis singlestep dist AbacusCosmo clibs
+.PHONY:all clean distclean zeldovich util tests analysis singlestep dist AbacusCosmo clibs ConvolutionDriver
 
 -include $(CC_SRC:.cpp=.d)

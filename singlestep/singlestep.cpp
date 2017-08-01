@@ -208,6 +208,7 @@ void InitWriteState(int ic){
     if(WriteState.Do2LPTVelocityRereading)
         init_2lpt_rereading();
 
+    Slab = new SlabSize(P.cpd);
     if(!ic)
         JJ = new NearFieldDriver();
 }
@@ -329,6 +330,51 @@ void PlanOutput(bool MakeIC) {
 
 }
 
+std::vector<std::vector<int>> free_cores;  // list of free cores for each socket
+void init_openmp(){
+    // Tell singlestep to use the desired number of threads
+    int max_threads = omp_get_max_threads();
+    int ncores = omp_get_num_procs();
+    int nthreads = P.OMP_NUM_THREADS > 0 ? P.OMP_NUM_THREADS : max_threads + P.OMP_NUM_THREADS;
+    
+    assertf(nthreads <= max_threads, "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n");
+    assertf(nthreads <= ncores, "Trying to use more threads (%d) than cores (%d).  This will probably be very slow.\n", nthreads, ncores);
+    
+    omp_set_num_threads(nthreads);
+    STDLOG(1, "Initializing OpenMP with %d threads (system max is %d; P.OMP_NUM_THREADS is %d)\n", nthreads, max_threads, P.OMP_NUM_THREADS);
+    
+    // If threads are bound to cores via OMP_PROC_BIND,
+    // then identify free cores for use by GPU and IO threads
+    if(omp_get_proc_bind() == omp_proc_bind_false){
+        //free_cores = NULL;  // signal that cores are not bound to threads
+        STDLOG(1, "OMP_PROC_BIND = false; threads will not be bound to cores\n");
+    }
+    else{
+        int core_assignments[nthreads];
+        //bool is_core_free[ncores] = {true};
+        #pragma omp parallel for schedule(static)
+        for(int g = 0; g < nthreads; g++){
+            assertf(g == omp_get_thread_num(), "OpenMP thread %d is executing wrong loop ieration (%d)\n", omp_get_thread_num(), g);
+            core_assignments[g] = sched_getcpu();
+        }
+        std::ostringstream core_log;
+        core_log << "Thread->core assignments:";
+        for(int g = 0; g < nthreads; g++)
+            core_log << " " << g << "->" << core_assignments[g];
+        core_log << "\n";
+        STDLOG(1, core_log.str().c_str());
+        
+        for(int g = 0; g < nthreads; g++)
+            for(int h = 0; h < g; h++)
+                assertf(core_assignments[g] != core_assignments[h], "Two OpenMP threads were assigned to the same core! This will probably be very slow. Check OMP_NUM_THREADS and OMP_PLACES?\n");
+            
+        // Assign the main CPU thread to core 0 to avoid the GPU/IO threads during serial parts of the code
+        int main_thread_core = 0;
+        set_core_affinity(main_thread_core);
+        STDLOG(1, "Assigning main singlestep thread to core %d\n", main_thread_core);
+    }
+}
+
 
 int main(int argc, char **argv) {
 	std::setvbuf(stdout,(char *)_IONBF,0,0);
@@ -357,14 +403,10 @@ int main(int argc, char **argv) {
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
     STDLOG(0,"AllowIC = %d\n", AllowIC);
     
-    
     // Set up OpenMP
-    int max_threads = omp_get_max_threads();
-    int nthreads = P.OMPNumThreads > 0 ? P.OMPNumThreads : max_threads + P.OMPNumThreads;
-    assertf(nthreads <= max_threads, "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n");
-    omp_set_num_threads(nthreads);
-    STDLOG(0, "Initializing OpenMP with %d threads (system max is %d; P.OMPNumThreads is %d)\n", nthreads, max_threads, P.OMPNumThreads);
-
+    init_openmp();
+    
+    // Decide what kind of step to do
     double da = -1.0;   // If we set this to zero, it will skip the timestep choice
     bool MakeIC; //True if we should make the initial state instead of doing a real timestep
 
@@ -451,7 +493,7 @@ int main(int argc, char **argv) {
     SingleStepTearDown.Stop();
     WallClockDirect.Stop();
     if (!MakeIC){
-	//JJ->Cleanup();
+        //JJ->Cleanup();
     	char timingfn[1050];
     	sprintf(timingfn,"%s/lastrun.steptiming", P.LogDirectory);
     	FILE * timingfile = fopen(timingfn,"w");

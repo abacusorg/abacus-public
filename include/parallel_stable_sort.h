@@ -139,13 +139,6 @@ public:
 
 } // namespace internal
 
-//! Wrapper for sorting with default comparator.
-template<class RandomAccessIterator>
-void parallel_stable_sort( RandomAccessIterator xs, RandomAccessIterator xe ) {
-    typedef typename std::iterator_traits<RandomAccessIterator>::value_type T;
-    parallel_stable_sort( xs, xe, std::less<T>() );
-}
-
 } // namespace pss
 
 
@@ -249,6 +242,13 @@ void parallel_stable_sort( RandomAccessIterator xs, RandomAccessIterator xe, Com
     } else
         // Not enough memory available - fall back on serial sort
         std::stable_sort( xs, xe, comp );
+}
+    
+//! Wrapper for sorting with default comparator.
+template<class RandomAccessIterator>
+void parallel_stable_sort( RandomAccessIterator xs, RandomAccessIterator xe ) {
+    typedef typename std::iterator_traits<RandomAccessIterator>::value_type T;
+    parallel_stable_sort( xs, xe, std::less<T>() );
 }
 
 } // namespace pss

@@ -80,7 +80,7 @@ double3 ZelPos(uint64 PID) {
 
 // If we're doing 2LPT, then we will overwrite those initial velocities.
 
-void KickCell_2LPT_1(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
+void KickCell_2LPT_1(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     // Just store the acceleration
     int N = c.count();
     for (int i = 0; i < N; i++) {
@@ -88,7 +88,7 @@ void KickCell_2LPT_1(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     }
 }
 
-void DriftCell_2LPT_1(Cell c, FLOAT driftfactor) {
+void DriftCell_2LPT_1(Cell &c, FLOAT driftfactor) {
     assertf(P.is_np_perfect_cube(), "LPT reconstruction requires np (%d) to be a perfect cube.\n",P.np);
     int e = c.count();
 #ifdef GLOBALPOS
@@ -107,7 +107,7 @@ void DriftCell_2LPT_1(Cell c, FLOAT driftfactor) {
     }
 }
 
-void KickCell_2LPT_2(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
+void KickCell_2LPT_2(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     // Now we can co-add the first two kicks to isolate the second-order
     // part.  This will be stored in the velocity.
     for (int i=0;i<c.count();i++) {
@@ -186,7 +186,7 @@ inline velstruct* get_ic_vel(uint64 pid){
     return vel;
 }
 
-void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
+void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
     // Now we have to adjust the positions and velocities
     assertf(P.is_np_perfect_cube(), "LPT reconstruction requires np (%d) to be a perfect cube.\n",P.np);
     int e = c.count();
@@ -240,13 +240,13 @@ void DriftCell_2LPT_2(Cell c, FLOAT driftfactor) {
 
 // 3LPT kick and drift
 
-void KickCell_2LPT_3(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
+void KickCell_2LPT_3(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     // We could update the 3LPT velocity from the acceleration here,
     // but then we'd be repeating the same calculations for the position update in the Drift
     return;
 }
 
-void DriftCell_2LPT_3(Cell c, FLOAT driftfactor) {
+void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
     // Now we have to adjust the positions and velocities    
     // Usually, Drift doesn't need accelerations, but 3LPT does
     int slab = c.ijk.x;

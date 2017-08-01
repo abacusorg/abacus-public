@@ -48,10 +48,10 @@ void HeaderStream::SkipHeader(void) {
     OpenForRead();
     char buf[2];
     int len = 1;
-    fread(&(buf[1]),1,1,fp);
+    if(fread(&(buf[1]),1,1,fp) != 1) goto error;
     do {
         buf[0] = buf[1];
-        if(fread(&(buf[1]), 1, 1, fp)<=0) goto error;
+        if(fread(&(buf[1]), 1, 1, fp) != 1) goto error;
         len++;
     } while(!(buf[0]==0x2 && buf[1]=='\n'));
     bufferlength = len;
@@ -70,14 +70,16 @@ void HeaderStream::GetHeaderLength(void) {
 }
 
 void HeaderStream::ReadHeader(void) {
-    GetHeaderLength();
+    GetHeaderLength();  // this guarantees there is a valid header
     buffer = new char[bufferlength];
     OpenForRead();
     int len = 0;
     do {
-        fread(&(buffer[len]), 1, 1, fp);
-        len++;
-    } while(!(buffer[len-2]==0x2 && buffer[len-1]=='\n'));
+        size_t nread = fread(&(buffer[len]), 1, 1, fp);
+        if (nread != 1)
+            break;
+        len += nread;
+    } while(!(len >= 2 && buffer[len-2]==0x2 && buffer[len-1]=='\n'));
     assert(len == bufferlength);
     // replace the end-of-header token with two nulls as required by the parser
     buffer[len-2] = 0x0;

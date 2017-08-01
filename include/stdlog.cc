@@ -27,6 +27,9 @@ int stdlog_threshold_global = 1;
 #define STDLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
 	LOG(stdlog,__VA_ARGS__); stdlog.flush(); } }
 
+void stdlog_hook(int verbosity, const char* str){
+    STDLOG(verbosity, str);
+}
 
 // Include a statement to put a global time stamp in the log.
 #define STDLOG_TIMESTAMP do { \
