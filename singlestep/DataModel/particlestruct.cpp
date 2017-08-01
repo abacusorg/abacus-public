@@ -32,6 +32,10 @@ So we actually are limited to about 680 million particles in a cell.
 #define AUXPID (uint64)  0xffffffffff	// The lower 5 bytes, bits 0..39
 #define AUXLCZEROBIT 40		// The LC bits are 40..47
 #define AUXLC  (uint64)0xff0000000000	// The next byte
+#define AUXTAGABLEBIT 48llu //Can the particle be tagged.
+#define AUXTAGGEDBIT 49llu //Has the particle been tagged
+#define AUXINL0BIT 50llu //Is the particle in a level 0 group
+#define AUXINL1BIT 51llu //Is the particle in a levl 1 group
 
 class auxstruct {
 public:
@@ -158,6 +162,7 @@ public:
     posstruct *pos;
     velstruct *vel;
     auxstruct *aux;
+    accstruct *acc = NULL;
 
     inline int count() { return ci->count; }
     inline int active() { return ci->active; }
@@ -171,6 +176,9 @@ public:
         posstruct ptmp; ptmp = pos[b]; pos[b] = pos[a]; pos[a] = ptmp; 
         velstruct vtmp; vtmp = vel[b]; vel[b] = vel[a]; vel[a] = vtmp; 
         auxstruct atmp; atmp = aux[b]; aux[b] = aux[a]; aux[a] = atmp;
+        if(acc != NULL){
+            accstruct actmp; actmp = acc[b]; acc[b] = acc[a]; acc[a] = actmp;
+        }
     }
 
     // Routines to copy information in and out of the lists

@@ -284,9 +284,25 @@ int GroupPrecondition(int slab) {
 void GroupAction(int slab) {
     if (LPTStepNumber()) return;
     // We can't be doing group finding during an IC step
+    
+    STDLOG(1,"Zeroing Aux L0 field");
+
+    #pragma omp parallel for schedule(dynamic, 1)
+    for(int j = 0; j < PP->cpd; j++){
+        for(int k = 0; k < PP->cpd; k++){
+            Cell c = PP->GetCell(integer3(slab, j, k));
+            uint64 mask = ~(1llu<<AUXINL0BIT);
+            for(int x = 0; x < c.count(); x++) c.aux[x].aux = c.aux[x].aux & mask;
+        }
+    }
+
+
 
     STDLOG(1,"Finding groups for slab %d\n", slab);
-    // No action yet, but this is where one would find groups and coevolution sets
+
+    GroupExecute.Start();
+    GF->ExecuteSlab(slab);
+    GroupExecute.Stop();
     // One could also use the Accelerations to set individual particle microstep levels.
     // (one could imagine doing this in Force, but perhaps one wants the group context?)
 }
@@ -296,6 +312,7 @@ void GroupAction(int slab) {
 int OutputPrecondition(int slab) {
     if (Kick.notdone(slab)) return 0;  // Must have kicked because output does a half un-kick
     if (Group.notdone(slab)) return 0;  // Must have found groups
+    if (!GF->SlabClosed(slab)) return 0;
     return 1;
 }
 
@@ -343,6 +360,10 @@ void OutputAction(int slab) {
         }
     }
     OutputBin.Stop();
+
+    OutputGroup.Start();
+    GF->OutputSlab(slab);
+    OutputGroup.Stop();
 
 }
 
@@ -423,6 +444,9 @@ void DriftAction(int slab) {
         LBW->DeAllocate(AccSlab,slab);
     }
     LBW->DeAllocate(NearAccSlab,slab);
+
+    GF->PurgeSlab(slab);
+
 }
 
 // -----------------------------------------------------------------
@@ -462,7 +486,7 @@ void FinishAction(int slab) {
     LBW->DeAllocate(PosSlab,slab);
     LBW->DeAllocate(VelSlab,slab);
     LBW->DeAllocate(AuxSlab,slab);
-
+    
     // Make the multipoles
     LBW->AllocateArena(MultipoleSlab,slab);
     ComputeMultipoleSlab(slab);
