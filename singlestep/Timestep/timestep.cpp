@@ -269,23 +269,26 @@ void KickAction(int slab) {
 // -----------------------------------------------------------------
 
 int GroupPrecondition(int slab) {
-    // We need to have kicked everything that matters
-    for(int j=-GROUP_RADIUS;j<=GROUP_RADIUS;j++)  {
-        if( Kick.notdone(slab+j) ) return 0;
-        // We're probably going to need to move around PIDs as we create groups
-        if( !LBW->IOCompleted( AuxSlab,      slab+j ) ) {
-            Dependency::NotifySpinning(WAITING_FOR_IO);
-            return 0;
-        }
+    // TODO: are these the right dependencies?
+    // Only PosXYZ is used for sources, so we're free to rearrange PosSlab after the transpose
+    if( TransposePos.notdone(slab) ) return 0;
+    
+    // Need the accelerations in this slab because we're going to rearrange particles
+    if( Kick.notdone(slab) ) return 0;
+    
+    // We're probably going to need to move around PIDs as we create groups
+    if( !LBW->IOCompleted( AuxSlab, slab ) ) {
+        Dependency::NotifySpinning(WAITING_FOR_IO);
+        return 0;
     }
-    return 1;
 }
 
 void GroupAction(int slab) {
     if (LPTStepNumber()) return;
     // We can't be doing group finding during an IC step
+    if(P.ForceOutputDebug) return;  // can't rearrange the pos if we've already output the nearacc
     
-    STDLOG(1,"Zeroing Aux L0 field");
+    STDLOG(1,"Zeroing Aux L0 field\n");
 
     #pragma omp parallel for schedule(dynamic, 1)
     for(int j = 0; j < PP->cpd; j++){
@@ -296,13 +299,10 @@ void GroupAction(int slab) {
         }
     }
 
-
-
     STDLOG(1,"Finding groups for slab %d\n", slab);
 
     GroupExecute.Start();
-    if(P.ForceOutputDebug)
-        GF->ExecuteSlab(slab);
+    GF->ExecuteSlab(slab);
     GroupExecute.Stop();
     // One could also use the Accelerations to set individual particle microstep levels.
     // (one could imagine doing this in Force, but perhaps one wants the group context?)
@@ -313,7 +313,7 @@ void GroupAction(int slab) {
 int OutputPrecondition(int slab) {
     if (Kick.notdone(slab)) return 0;  // Must have kicked because output does a half un-kick
     if (Group.notdone(slab)) return 0;  // Must have found groups
-    if (!GF->SlabClosed(slab)) return 0;
+    if (!P.ForceOutputDebug && !GF->SlabClosed(slab)) return 0;
     return 1;
 }
 
@@ -363,7 +363,7 @@ void OutputAction(int slab) {
     OutputBin.Stop();
 
     OutputGroup.Start();
-    if(P.ForceOutputDebug)
+    if(!P.ForceOutputDebug)
         GF->OutputSlab(slab);
     OutputGroup.Stop();
 
@@ -447,7 +447,8 @@ void DriftAction(int slab) {
     }
     LBW->DeAllocate(NearAccSlab,slab);
 
-    GF->PurgeSlab(slab);
+    if(!P.ForceOutputDebug)
+        GF->PurgeSlab(slab);
 
 }
 
@@ -516,7 +517,7 @@ void timestep(void) {
     STDLOG(1,"Initiating timestep()\n");
 
     FORCE_RADIUS = P.NearFieldRadius;
-    GROUP_RADIUS = 0;
+    GROUP_RADIUS = P.GroupRadius;
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
     assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS); 
     STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
