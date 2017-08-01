@@ -136,7 +136,7 @@ NearFieldDriver::NearFieldDriver() :
     STDLOG(1,"MinSplits = %d\n", MinSplits);
     if(MinSplits*WIDTH < omp_get_num_threads())
         STDLOG(1, "*** WARNING: MinSplits*WIDTH is less than the number of threads! Finalize() might be inefficient\n");
-    GPUSetup(P.cpd, std::ceil(1.*P.cpd/MinSplits), MaxSinkBlocks, MaxSourceBlocks, DirectBPD);
+    GPUSetup(P.cpd, std::ceil(1.*P.cpd/MinSplits), MaxSinkBlocks, MaxSourceBlocks, DirectBPD, P.GPUThreadCoreStart, P.NGPUThreadCores);
     SICExecute.Clear();
 
     NSink_GPU_final = (uint64*) malloc(NGPU*sizeof(uint64));
@@ -311,6 +311,7 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID){
 
 
 void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
+    CPUFallbackTimer.Start();
     if(!LBW->IDPresent(NearAccSlab, slabID))
         LBW->AllocateArena(NearAccSlab,slabID);
     ZeroAcceleration(slabID,NearAccSlab);
@@ -366,6 +367,7 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
     }
     DirectInteractions_CPU += DI_slab;
     NSink_CPU += NSink_CPU_slab;
+    CPUFallbackTimer.Stop();
 }
 
 void NearFieldDriver::ExecuteSlab(int slabID, int blocking){

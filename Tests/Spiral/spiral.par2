@@ -13,7 +13,4 @@ NumSlabsInsertListIC = 0
 OverwriteState = 0
 RamDisk = 1
 ForceOutputDebug = 0
-OMP_NUM_THREADS = -4
 OutputFormat="RVdouble"
-SecondIOThreadDirs = ["multipoles/", "taylor/"]
-nSecondIOThreadDirs = 2

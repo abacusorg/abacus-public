@@ -206,12 +206,16 @@ int KickPrecondition(int slab) {
     }
     
     //must have near forces
-    if (NearForce.notdone(slab) || !JJ->SlabDone(slab)) {
-#ifdef CUDADIRECT
-        // Start the timer if we've gone one full loop without executing anything
-        Dependency::NotifySpinning(WAITING_FOR_GPU);
-#endif
+    if (NearForce.notdone(slab)) 
         return 0;
+    else {
+        // If pencil construction (NearForce) is finished, but not JJ, then we're waiting for the GPU result
+        if(!JJ->SlabDone(slab)){
+#ifdef CUDADIRECT
+            Dependency::NotifySpinning(WAITING_FOR_GPU);
+#endif
+            return 0;
+        }
     }
 
     return 1;

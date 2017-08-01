@@ -12,7 +12,7 @@
 // ICVelocity2Displacement: The initial velocities will be multiplied by
 //    ICVelocity2Displacement to get to redshift space displacements
 //    at the initial redshift in the box units of ICPositionRange in size.
-//    If ICVelocity2Displacement<=0, then the velocities are to be given in km/s.
+//    If ICVelocity2Displacement<=-1, then the velocities are to be given in km/s.
 
 
 

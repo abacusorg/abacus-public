@@ -350,7 +350,6 @@ void init_openmp(){
         STDLOG(1, "OMP_PROC_BIND = false; threads will not be bound to cores\n");
     }
     else{
-        int thread_assignments[nthreads];
         int core_assignments[nthreads];
         //bool is_core_free[ncores] = {true};
         #pragma omp parallel for schedule(static)
@@ -364,12 +363,16 @@ void init_openmp(){
             core_log << " " << g << "->" << core_assignments[g];
         core_log << "\n";
         STDLOG(1, core_log.str().c_str());
+        
+        for(int g = 0; g < nthreads; g++)
+            for(int h = 0; h < g; h++)
+                assertf(core_assignments[g] != core_assignments[h], "Two OpenMP threads were assigned to the same core! This will probably be very slow. Check OMP_NUM_THREADS and OMP_PLACES?\n");
+            
+        // Assign the main CPU thread to core 0 to avoid the GPU/IO threads during serial parts of the code
+        int main_thread_core = 0;
+        set_core_affinity(main_thread_core);
+        STDLOG(1, "Assigning main singlestep thread to core %d\n", main_thread_core);
     }
-    
-    // Assign the main CPU thread to core 0 to avoid the GPU/IO threads during serial parts of the code
-    int main_thread_core = 0;
-    set_core_affinity(main_thread_core);
-    STDLOG(1, "Assigning main singlestep thread to core %d\n", main_thread_core);
 }
 
 
@@ -400,10 +403,8 @@ int main(int argc, char **argv) {
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
     STDLOG(0,"AllowIC = %d\n", AllowIC);
     
-    
     // Set up OpenMP
     init_openmp();
-    
     
     // Decide what kind of step to do
     double da = -1.0;   // If we set this to zero, it will skip the timestep choice

@@ -1372,7 +1372,7 @@ Optional Packages:
                           Maximum source length [1048576]
   --with-cuda=PREFIX      Prefix of your CUDA installation [/usr/local/cuda]
   --with-direct-bpd=B     Direct buffers per device [ceil((2*NFR+1)/NGPU) = 3]
-  --with-max-gpus=M       Maximum number of GPUs to use [no limit]
+  --with-max-gpus=M       Maximum number of GPUs to use [16]
   --with-softening={plummer | single_spline | cubic_spline | cubic_plummer}
                           Near-force softening technique [single_spline]
 
@@ -5976,16 +5976,14 @@ _ACEOF
 if test "${with_max_gpus+set}" = set; then :
   withval=$with_max_gpus;
 else
-  with_max_gpus="no limit"
+  with_max_gpus="16"
 fi
 
-if test x"$with_max_gpus" != x"no limit"; then
 
 cat >>confdefs.h <<_ACEOF
 #define MAX_GPUS $with_max_gpus
 _ACEOF
 
-fi
 
 
 # Check whether --with-softening was given.

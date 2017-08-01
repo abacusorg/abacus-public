@@ -141,6 +141,12 @@ void ReportTimings(FILE * timingfile) {
     
     // Collect stats on IO
     
+#ifdef IOTHREADED
+    #define PRINT_IO_THREAD(dir) fprintf(timingfile, " [thread %d]", GetIOThread(dir));
+#else
+    #define PRINT_IO_THREAD(dir)
+#endif
+    
 #define IOSTATS(NAME, DESC)\
     do { \
         double total_##NAME##_time = 0, total_##NAME##_bytes = 0; \
@@ -155,20 +161,19 @@ void ReportTimings(FILE * timingfile) {
         for(auto &iter : NAME##Time){ \
             double time = iter.second.Elapsed(); \
             const char* dir = iter.first.c_str(); \
-            int thread = 1; \
-            for(int i = 0; i < P.nSecondIOThreadDirs; i++) \
-                if(strcmp(dir, P.SecondIOThreadDirs[i]) == 0) \
-                    thread = 2; \
             auto bytes = NAME##Bytes[iter.first]; \
             REPORT(1, dir, time); \
-            fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB [thread %d]", bytes/(time+1e-15)/1e6, bytes/1e9, thread); \
+            fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", bytes/(time+1e-15)/1e6, bytes/1e9); \
+            PRINT_IO_THREAD(dir); \
         } \
     } while (0)
     
     IOSTATS(BlockingIORead, "Blocking Disk Reads");
     IOSTATS(BlockingIOWrite, "Blocking Disk Writes");
+#ifdef IOTHREADED
     IOSTATS(NonBlockingIORead, "Non-Blocking Disk Reads");
     IOSTATS(NonBlockingIOWrite, "Non-Blocking Disk Writes");
+#endif
 
     fprintf(timingfile, "\n\nBreakdown of TimeStep: ");
     total = 0.0;

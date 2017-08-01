@@ -165,11 +165,9 @@ AC_ARG_WITH(direct-bpd,
 AC_DEFINE_UNQUOTED(DirectBPD,$with_direct_bpd, "Direct buffers per device")
 
 AC_ARG_WITH(max-gpus,
-[AS_HELP_STRING([--with-max-gpus=M], [Maximum number of GPUs to use [no limit]])],
-	[], with_max_gpus="no limit")
-if test x"$with_max_gpus" != x"no limit"; then
-    AC_DEFINE_UNQUOTED(MAX_GPUS,$with_max_gpus, "Limit on the number of GPUs")
-fi
+[AS_HELP_STRING([--with-max-gpus=M], [Maximum number of GPUs to use [16]])],
+	[], with_max_gpus="16")
+AC_DEFINE_UNQUOTED(MAX_GPUS,$with_max_gpus, "Limit on the number of GPUs")
 
 AC_ARG_WITH(softening,
 [AS_HELP_STRING([--with-softening={plummer | single_spline | cubic_spline | cubic_plummer}], [Near-force softening technique [single_spline]])],

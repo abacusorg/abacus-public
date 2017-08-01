@@ -1,59 +1,78 @@
+# Set up the simulation name and directory structure
 SimName = "example"
 #include "$ABACUS$/python/Abacus/directory.def"
 
-# For performance reasons, the following will often be in different locations than the default WorkingDirectory
-MultipoleDirectory = "$ABACUS_TMP$/" + @SimName@ + "/multipoles/"
-LightConeDirectory = "$ABACUS_TMP$/" + @SimName@ + "/"
-RamDisk = 0
-OverwriteState = 0
-ICFormat = "RVZel"
+# Cosmology and basic code parameters
 BoxSize = 256
 InitialRedshift = 49
-LagrangianPTOrder = 2
-NP = 512**3
-CPD = 135
-TimeStepAccel = .15
-TimeStepDlna = .03
-NumSlabsInsertList = 2
-NumSlabsInsertListIC = 8
-PowerSpectrumN1d = 256
-PowerSpectrumStepInterval = 30
-TimeSliceRedshifts = [1.0, 0.7, 0.57, 0.5, 0.3, 0.1]
-nTimeSlice = 6
-LightConeOrigins = (0.,0.,0.)
-NLightCones = 0
-OutputFormat = "Packed"
-BackupStepInterval = 100
-SofteningLength = .0625  # 62.5 kpc/h, Plummer-equivalent
-NearFieldRadius = 2
-Order = 8
-#GPUMinCellSinks = 20  # Currently non-functional
 H0 = 67.77
-hMpc = 1
 Omega_M = 0.3071
 Omega_DE = 1-@Omega_M@
 Omega_K = 0.
 w0 = -1
 wa = 0
-ICVelocity2Displacement = 1.0
-GroupRadius=2
-ICPositionRange = @BoxSize@
+NP = 512**3
+SofteningLength = .0625  # 62.5 kpc/h, Plummer-equivalent
+CPD = 135
+
+# Output parameters
+TimeSliceRedshifts = [1.0, 0.7, 0.57, 0.5, 0.3, 0.1]
+nTimeSlice = 6
+LightConeOrigins = (0.,0.,0.)
+NLightCones = 0
+# FinalRedshift = 0.  # Only needed if finishing light cones
+PowerSpectrumN1d = 256
+PowerSpectrumStepInterval = 30
+OutputFormat = "Packed"
+BackupStepInterval = 300
+
+# Advanced code parameters
+LagrangianPTOrder = 2
+TimeStepAccel = .15
+TimeStepDlna = .03
+NumSlabsInsertList = 2
+NumSlabsInsertListIC = 8
+NearFieldRadius = 2
+Order = 8
+hMpc = 1
+GroupRadius = 2
 DerivativeExpansionRadius = 8
-OMP_NUM_THREADS = 0  # All threads
+RamDisk = 0
+OverwriteState = 0
+SecondIOThreadDirs = ["multipole/", "taylor/"]
+nSecondIOThreadDirs = 2
+# GPUMinCellSinks = 20  # Currently non-functional
 # MAXRAMMB = 60000  # This will be automatically detected
 # ConvolutionCacheSizeMB = 30  # This will be automatically detected
 
-# Zeldovich parameters
+# OpenMP and thread parameters
+OMP_NUM_THREADS = 16
+OMP_PLACES = "{0}:8,{12}:8"
+OMP_PROC_BIND = "spread"
+IOCores = [11, 23]
+GPUThreadCoreStart = [8, 20]
+NGPUThreadCores = 3
+
+# Convolution OpenMP parameters
+Conv_OMP_NUM_THREADS = -1
+Conv_OMP_PLACES = "{1}:23"
+Conv_OMP_PROC_BIND = "close"
+Conv_IOCore = 0
+
+# Zeldovich and IC parameters
+ICVelocity2Displacement = 1.0
+ICPositionRange = @BoxSize@
+ICFormat = "RVZel"
 ZD_NumBlock = 4
 ZD_Pk_filename = "$ABACUS$/Production/camb_smallbox_new_pk_out.txt"
-ZD_Pk_scale = 1.0
-ZD_Pk_norm = 8.0
 sigma_8 = .817
 #ZD_Pk_sigma = @sigma_8@/(1+@InitialRedshift@)  # This will be calculated from sigma_8
-ZD_Pk_smooth = 0.0
 ZD_Seed = 12345
 ZD_qPLT = 1
 ZD_PLT_filename = "$ABACUS$/zeldovich-PLT/eigmodes128"
 ZD_qPLT_rescale = 1
 ZD_PLT_target_z = 5
 ZD_k_cutoff = 1.
+ZD_Pk_scale = 1.0
+ZD_Pk_norm = 8.0
+ZD_Pk_smooth = 0.0

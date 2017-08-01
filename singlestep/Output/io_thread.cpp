@@ -335,11 +335,11 @@ iothread *iothread1 = NULL, *iothread2 = NULL;
 
 void IO_Initialize(char *logfn) {
     STDLOG(1,"Initializing IO thread 1\n");
-    iothread1 = new iothread(logfn, 1, P.IOCore);
+    iothread1 = new iothread(logfn, 1, P.IOCores[0]);
     
     if(P.nSecondIOThreadDirs > 0){
         STDLOG(1,"Initializing IO thread 2\n");
-        iothread2 = new iothread(logfn, 2, P.IOCore + omp_get_num_procs()/2);
+        iothread2 = new iothread(logfn, 2, P.IOCores[1]);
     }
 }
 
@@ -352,22 +352,30 @@ void IO_Terminate() {
     }
 }
 
+// Return the ID of the IO thread that will handle this directory
+int GetIOThread(const char* dir){
+    // Should we dispatch this request to the secondary IO thread?
+    for(int i = 0; i < P.nSecondIOThreadDirs; i++){
+        if(strcmp(dir, P.SecondIOThreadDirs[i]) == 0){
+            return 2;
+        }
+    }
+    
+    return 1;
+}
+
+
 // Here are the actual interfaces for writing an arena
 void ReadFile(char *ram, uint64 sizebytes, int arena,
 	    const char *filename, off_t fileoffset, int blocking) {
     STDLOG(1,"Using IO_thread module to read file %f\n", filename);
     iorequest ior(ram, sizebytes, filename, IO_READ, arena, fileoffset, 0, blocking);
     
-    // Should we dispatch this request to the secondary IO thread?
-    for(int i = 0; i < P.nSecondIOThreadDirs; i++){
-        if(strcmp(ior.dir, P.SecondIOThreadDirs[i]) == 0){
-            iothread2->request(ior);
-            return;
-        }
-    }
-    
-    // Dispatch to default thread
-    iothread1->request(ior);
+    if(GetIOThread(ior.dir) == 2)
+        iothread2->request(ior);
+    else
+        // Dispatch to default thread
+        iothread1->request(ior);
 }
 
 void WriteFile(char *ram, uint64 sizebytes, int arena, 
@@ -376,16 +384,11 @@ void WriteFile(char *ram, uint64 sizebytes, int arena,
     STDLOG(1,"Using IO_thread module to write file %f\n", filename);
     iorequest ior(ram, sizebytes, filename, IO_WRITE, arena, fileoffset, deleteafter, blocking );
     
-    // Should we dispatch this request to the secondary IO thread?
-    for(int i = 0; i < P.nSecondIOThreadDirs; i++){
-        if(strcmp(ior.dir, P.SecondIOThreadDirs[i]) == 0){
-            iothread2->request(ior);
-            return;
-        }
-    }
-    
-    // Dispatch to default thread
-    iothread1->request(ior);
+    if(GetIOThread(ior.dir) == 2)
+        iothread2->request(ior);
+    else
+        // Dispatch to default thread
+        iothread1->request(ior);
 }
 
 

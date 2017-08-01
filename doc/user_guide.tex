@@ -1,6 +1,9 @@
 \documentclass[11pt,preprint]{aastex}
+\usepackage[T1]{fontenc}
 
-\newcommand{\param}[2]{\medskip\noindent{\bf #1:} (#2) }
+\usepackage{lmodern}
+
+\newcommand{\param}[2]{\medskip\noindent\textbf{\texttt{#1}}: ({\tt #2}) }
 \newcommand{\todo}[1]{{\bf TODO: #1}}
 \newcommand{\future}[1]{{\it Future: #1}}
 
@@ -86,6 +89,16 @@ power spectrum as instructed.  Interpolation to the needed wavenumbers
 is done by spline, so one should input a reasonably fine grid.
 Modes with wavenumbers $|\vec{k}|$ above the Nyquist frequency are
 set to zero to avoid grid directionality artifacts.
+The code is available as a separate module, along with extensive documentation,
+at \url{https://github.com/lgarrison/zeldovich-PLT}.
+
+The zeldovich code can also use the particle lattice eigenmodes
+instead of the usual continuum $\hat{k}$ modes to eliminiate
+the vorticity and decaying modes that usually enter on small scales.
+The code can also fudge the initial mode amplitudes to account for
+different growth rates as a function of $\vec{k}$, with the hope of
+seeding non-linear evolution with the correct linear displacements.
+These are the PLT (``Particle Linear Theory'') features of the code.
 
 Displacement vectors are output along with the grid position (as
 integers).  The abacus IC loader maps this information to positions
@@ -98,6 +111,11 @@ Fourier space, rather by differencing in configuration space.  In
 addition, we compute the density field grid itself, although this
 is not output by default.  The 4 real FFTs are done by pairing into
 2 complex FFTs.
+
+When using PLT features, the velocities are not simply a rescaling
+of the displacements and have to be calculated in Fourier space.
+We pack the three velocity components into another 2 complex FFTs.
+In this case, the outputs will include the displacement and velocity.
 
 Unfortunately, the zeldovich code labels the slab direction by $z$.
 It flips zyx to xyz as it outputs.
@@ -118,10 +136,6 @@ zeldovich code is likely to be I/O limited.  However, total I/O is
 only 32+32+18 bytes per particle.  This is comparable to the I/O 
 of a single abacus step.  So unless the disk latency is noticeable,
 we expect the run-time to be comparable to one abacus step.
-
-\todo{Ok to output zeldovich displacements as floats.}
-
-\todo{We may need to put a packed pragma on the ICparticle class.}
 
 \section{Parameter File Description}
 
@@ -144,8 +158,9 @@ set this to a perfect cube, e.g., to 1024**3.
 
 \param{CPD}{int} The cells per dimension.  This number must be odd.
 Should be a number with small prime factors.  Small numbers of distinct factors are good too.
+See the \texttt{python/choose\_cpd.py} utility for guidance on choosing this.
 
-\param{BoxSize}{float} The size of the box in physical units.
+\param{BoxSize}{float} The size of the box in comoving physical units.
 
 \param{hMpc}{int} =1 if we're using Mpc/h units.  =0 if Mpc units.
 
@@ -179,7 +194,8 @@ The default is 2.
 
 \param{NumSlabsInsertListIC}{float} The amount of space to allocate
 for the insert list in the initial ingestion of IC particles.  Here
-we typically have much less memory required elsewhere in the code.  
+we typically have much less memory required elsewhere in the code, so
+this number can be larger than NumSlabsInsertList.
 Again, this is supplied as a multiple of np/cpd particles, i.e., the
 average number of particles per slab.  Choosing 0 causes this parameter
 to be set to cpd, so that the insert list can contain all of the particles
@@ -188,11 +204,83 @@ particles aren't sorted into slabs in the IC file.  For large problems,
 one should use at least 4.  Default is 4.
 
 \param{MAXRAMMB}{int} The maximum amount of RAM to use for internal slab 
-allocations.  Default is to detect the total (not free) amount of RAM.
+allocations.  Default is to detect the total amount of RAM.  Internally,
+the code will load slabs until it reaches half this amount.  The other
+half is saved for incidental allocations, like source/sink pencils.
 
-\param{OMP_NUM_THREADS}{int} Number of OpenMP threads.  The default, 0, does not modify the system value
-(usually OMP_NUM_THREADS, or all threads).  Negative values use that many fewer than the max.
-For example, use $-4$ to use all but 4 cores.
+\param{OMP\_NUM\_THREADS}{int} Number of OpenMP threads.  The default, 0, does not modify the system value
+(set by the \$OMP\_NUM\_THREADS environment variable; if not given, default is to use all cores).
+Negative values use that many fewer than the max.
+For example, a value of $-4$ will use all but 4 cores.  If using OMP\_PLACES, this
+number should be equal to the total number of ``places'' (i.e.~cores) specified.
+
+\param{OMP\_PLACES}{string} Specifies on which cores to place OpenMP
+threads.  This is useful for keeping the OpenMP threads on separate
+cores from the non-OpenMP threads (like the IO and GPU threads).
+For example, to use the first 8 cores on each of two sockets that have
+12 cores each, use ``\{0\}:8,\{12\}:8''.  Syntax is "\{start\}:count".
+The total number of places (16 in this example) should equal the OMP\_NUM\_THREADS value.
+To have any effect, this parameter must be used in conjunction with
+OMP\_PROC\_BIND, which tells OpenMP how to assign threads to the
+``places'' (cores) listed here.  
+The default is an empty string, meaning no explicit core assignemnts.
+In this case, the kernel scheduler will just do its best to keep threads
+separate.
+
+Note that OpenMP offers no C/C++ interfaces to this
+functionality, so OMP\_PLACES is set as an environment variable by
+the Python wrapper.  This means that these parameters will have no
+effect if the singlestep binary is invoked outside the Python wrapper.
+The resulting thread-to-core assignments can be seen at the top of the log
+file.
+\todo{These are the only parameters need the Python wrapper to work.
+Can we change that?}
+
+\param{OMP\_PROC\_BIND}{string} Specifies how to assign OpenMP
+threads to the ``places'' (cores) that were specified in OMP\_PLACES.
+A value of "spread" seems to have the desired behavior of dividing
+threads betweeen sockets when on a NUMA machine.  The default (empty
+string) means do not bind threads to places.  The resulting placements
+can be seen at the top of the log file.
+
+\param{IOCores}{list of two ints} The cores to which to bind the IO thread(s).
+The default ([-1, -1]) means do not bind to a core.  This list should always
+have two elements (one for each IO thread); this does not mean that two
+IO threads will be started though.  That is determined by SecondIOThreadDirs.
+It usually seems advantageous to give each IO thread its own core.
+
+\param{GPUThreadCoreStart}{list of ints} The cores on which to start placing
+the threads that dispatch work to the GPUs.  NGPUThreadCores sets the count of cores
+to use immediately following these ``start cores'' to use.  There are DirectBPD*NGPU GPU threads
+total.  ``DirectBPD'' is ``buffers-per-device'' and is set by ``./configure --with-direct-bpd=BPD'' (default 3).
+The GPU threads are in charge of copying data to and from pinned memory (the GPU staging area);
+usually three threads per GPU can keep the GPUs fed.  These threads can be on the same core,
+but it usually incurrs 20\% performance hit to the effective GPU rate (because the copies get slower).
+This list of cores should be NGPU long; the idea is to keep all the threads that
+communicate with a given GPU on the same socket.  On a 24 core system divided into two sockets,
+something like "[9, 21]" and NGPUThreadCores = 3 will give each GPU thread its own core (assuming DirectBPD = 3
+and NGPU = 2).  "[11, 23]" and NGPUThreadCores = 1 would give 3 threads to each core.  In both
+cases, threads belonging to the same GPU will be on the same socket.  These
+cores should be separate from the OpenMP and IO cores specified by OMP\_PLACES
+and IOCores.  The default of all -1 means do not bind GPU threads to cores.
+
+\param{NGPUThreadCores}{int} The number of cores following each core specified in GPUThreadCoreStart
+that will be available for GPU threads.  Default of -1 means do not bind threads to cores.
+
+\param{Conv\_OMP\_NUM\_THREADS}{int} Same as OMP\_NUM\_THREADS, but for the Convolution step.
+A value of $-1$ is usually appropriate, since we only need to reserve one core for the IO thread.
+
+\param{Conv\_OMP\_PLACES}{string} Same as OMP\_PLACES, but for the Convolution step.
+You don't need to pay much attention to sockets here; the main thing is to make sure
+the OpenMP places don't overlap with Conv\_IOCore.  Something like ``\{0\}:23'' is fine if
+Conv\_IOCore is 23.
+
+\param{Conv\_OMP\_PROC\_BIND}{string} Same as OMP\_PROC\_BIND, but for the Convolution step.
+Either ``spread'' or ``close'' should be fine.
+
+\param{Conv\_IOCore}{int} Same as IOCores, but for the Convolution step.  Also, we only have
+one convolution IO thread presently, so this is just an int (not a list).  The important
+thing is to keep this separate from the cores specified in Conv\_OMP\_PLACES.
 
 
 
@@ -200,7 +288,7 @@ For example, use $-4$ to use all but 4 cores.
 
 \param{Order}{int} The multipole order to use for the far-field.  Typical
 choices would be 8 or 16.  One really should not use low orders such
-as 2!
+as 2!  Any integer between 2 and 16 is allowed.
 
 \param{DerivativeExpansionRadius}{int} The number of periodic replicas
 to sum over explicitly before switching to the asymptotic value.
@@ -217,8 +305,11 @@ files are about 1/16 the size of the multipoles, so one would like
 the I/O rate on this device to be 1/32 of the rate of the device
 for the multipoles and Taylors.  Because the derivative files are
 not slab-ordered, the latency issue is much reduced.  So in many
-cases, the derivatives can be stored on a normal hard disk.  
-\future{Is this true?}
+cases, the derivatives can be stored on a normal hard disk.  However,
+the convolution is presently almost entirely IO bound, so it's not a
+bad idea to put the derivatives on the fastest device available.
+\todo{We could add a second IO thread to handle the derivatives and
+overlap their IO with the M/T.}
 
 
 \subsection{Near-field Parameters}
@@ -229,9 +320,10 @@ near-field.  Radius 1 means that each cell is acted on by itself and
 use radius 0!
 
 \param{SofteningLength}{float} The softening length used in the near-field
-force, in the same units as BoxSize. For example, .05 would yield a 50 kpc softening length.
-This is the Plummer-equivalent length and maybe be internally converted to a different
-value depending on the softening technique being used.  This value is stored in the state as
+force, in the same units as BoxSize. For example, .05 would yield a 50 kpc/h comoving softening length,
+if BoxSize is given in comoving Mpc/h.
+This is the Plummer-equivalent length and may be internally converted to a different
+value depending on the softening technique being used.  That is stored in the state as
 SofteningLengthInternal.  The conversion ensures that the minimum orbital period is always
 $\sqrt{GM/\epsilon}$ (i.e.~the minimum Plummer orbital period) independent of the
 softening technqiue being used.
@@ -239,31 +331,38 @@ softening technqiue being used.
 \param{DirectNewtonRaphson}{int} Choice of 1 means that we use a
 Newton-Raphson step to improve the precision of the forces.
 \future{Is this really a choice that we want to offer?}
+\todo{This option appears to have no effect in the current code.}
 
-\future{We will eventually have parameters for choices of softening model, 
-trees, etc.}
+\param{GPUMinCellSinks}{int} Number of particles in a cell below which its forces will be computed on the CPU, not GPU.
+\todo{Currently disabled.  Check functionality in the group-finding code.}
 
+\future{We will eventually have parameters for such choice as trees, etc.}
 
 \subsection{State Directories}
+The following defaults are set in the \texttt{directory.def} file.  You usually want to ``\texttt{\#include directory.def}''
+just after setting SimName in your \texttt{abacus.par2} file.
 
 \param{WorkingDirectory}{string} Unless countermanded by the choices below,
-this is where the states will be created.  This should be a very fast disk.
+this is where the states will be created.  This should be a large disk capable
+of fast sequential IO, such as a large RAID array.  The default is read from
+the \$ABACUS\_TMP environment variable.
 
 \param{ReadStateDirectory}{string} The name of the read state directory.
-Starting the name with + indicates a path from the WorkingDirectory.
-This defaults to ``+read''.
+This defaults to ``WorkingDirectory/read''.
 
 \param{WriteStateDirectory}{string} The name of the write state directory.
-Starting the name with + indicates a path from the WorkingDirectory.
-This defaults to ``+write''.
+This defaults to ``WorkingDirectory/write''.
 
 \param{PastStateDirectory}{string} The name of the past state directory.
-Starting the name with + indicates a path from the WorkingDirectory.
-This defaults to ``+past''.
+This defaults to ``WorkingDirectory/past''.
 
 \param{MultipoleDirectory}{string} The name of the multipole directory.
-Starting the name with + indicates a path from the WorkingDirectory.
-This defaults to ``+multipoles''.
+This should be a fast, low-latency disk, like an SSD.  The default is
+``\$ABACUS\_SSD/multipoles'', where \$ABACUS\_SSD is an enviroment variable.
+
+\param{TaylorDirectory}{string} The name of the Taylors directory.
+This should be a fast, low-latency disk, like an SSD.  The default is
+``\$ABACUS\_SSD/taylor'', where \$ABACUS\_SSD is an enviroment variable.
 
 \subsection{Initial Conditions}
 
@@ -279,12 +378,18 @@ LagrangianPTOrder >= 2 may involve re-reading the IC files during the last LPT s
 because the velocities are used as scratch space in our in-place LPT scheme.  If the ICs included velocities
 (e.g.~because ZD\_qPLT was turned on the Zel'dovich code), then we re-read the IC files to recover these velocities.
 
-\param{InitialConditionsDirectory}{string} The directory where the 
-initial condition files will be found.  This defaults to ReadStateDirectory.
+2LPT is tested and works well; 3LPT is implemented but does not give the expected results.
 
-These files must be named ``IC\_0000'', ``IC\_0001'', etc.  The number
-indicates the slab number; file $N-1$, $N$, and $N+1$ will be read
-before slab $N$ is finished.  File $N=0$ is the first file read;
+\param{InitialConditionsDirectory}{string} The directory where the 
+initial condition files will be found.  This is also where the zeldovich
+code with write its outputs.
+This defaults to ``\$ABACUS\_PERSIST/ic'', where \$ABACUS\_PERSIST is an
+environment variable. We try to avoid fragmentation of the filesystem
+where the main state is stored (\$ABACUS\_TMP), hence the use of \$ABACUS\_PERSIST.
+
+These files must be named ``IC\_0'', ``IC\_1'', etc.  The number
+indicates the slab number; files $N-1$, $N$, and $N+1$ will be read
+before slab $N$ is finished. File $N=0$ is the first file read;
 slab 1 is the first slab finished.  This means that the particles
 in slab $N$ must appear no later than file $N+1$.  However, if the
 particles appear in a much earlier file, then the insert list will
@@ -295,8 +400,11 @@ is likely sufficient, e.g., for Zel'dovich displacements, so that particles
 can be placed in slab files by their grid position rather than their
 true initial position.
 
+If a larger tolerance is needed, one can give FINISH\_WAIT\_RADIUS a larger value, like 2, inside Abacus.
+
 \param{ICFormat}{string} The format of the IC files.  Current formats
 are: `RVdouble', `RVZel', `RVdoubleZel', `Heitmann', and `Zeldovich'.
+The binary formats are documented at \url{https://github.com/lgarrison/zeldovich-PLT}.
 
 \param{ICPositionRange}{float} The size of the periodic box for the 
 IC positions, in the units supplied in the IC file.  For example, 
@@ -306,11 +414,12 @@ of 0 causes this parameter to be set equal to BoxSize.
 \param{ICVelocity2Displacement}{float} The conversion factor by which
 to multiply the supplied velocities so as to convert them to redshift-space
 comoving displacements, in the same units as the supplied positions (see
-ICPositionRange) and at the initial redshift.
+ICPositionRange) and at the initial redshift.  A factor of 1.0 is appropriate
+for ICs received from the zeldovich code.  A factor of -1 will automatically
+handle proper km/s.
 
 \param{FlipZelDisp}{int} If $\ge0$, reverse the sign of the displacement, if we're using a Zel'dovich-style IC format.
 Useful for debugging the second-order forces used in 2LPT.
-
 
 \subsection{Output Parameters}
 
@@ -318,43 +427,37 @@ Useful for debugging the second-order forces used in 2LPT.
 for each simulation.  This is used both as the primary path of the directory
 where output will occur, but also in filenames.
 
-\param{ParentDirectory}{string} The directory where the outputs are to
-be placed.  This defaults to WorkingDirectory, but often would be on
-a different (more long-term stable) disk.  
-
 \param{OutputDirectory}{string} This is where the outputs will be
-placed; in particular, the time slices will be here.  Starting the
-name with + indicates a path from ParentDirectory.  The default is
-+SimName, i.e., ParentDirectory/SimName, so that multiple simulations
-of the same set can share the same ParentDirectory.
+placed; in particular, the time slices will be here.  The default is
+``\$ABACUS\_PERSIST/SimName'', where \$ABACUS\_PERSIST is an environment variable.
 
 \param{LogDirectory}{string} The directory where the logs are to be
-stored.  Starting the name with + indicates a path from 
-OutputDirectory.  The default is ``+log".  Each time step
+stored.  The default is ``\$ABACUS\_PERSIST/SimName/log''.  Each time step
 generates several log files, but these all go in the same directory.
-\todo{Currently called LogFileDirectory.}
 
 \param{LightConeDirectory}{string} The directory where the light
-cones should get written.  Starting the name with + indicates a path
-from OutputDirectory.  The default is ``+lc''.  The number
-of the light cone 0..7 will get postpended to the name, so if you give
-a value here you probably don't want a trailing slash.  
+cones should get written.  The default is ``\$ABACUS\_SSD/SimName/''.
+The individual LCs will be organized into directorys called ``lc\_rawN'', where N is the number
+of the light cone 0..7.
 Inside this directory, the outputs will be further divided with one 
 subdirectory per time step; these names are fixed to be ``stepNNNN''.
+\$ABACUS\_SSD is an environment variable; we default to this fast
+directory because we expect to do a merge of these many small files which is hard on the filesystem.
+The ``Analysis/LightCones/merge\_lightcones.py'' script will take the
+``lc\_rawN'' directory and create a ``lcN'' directory.
+
 
 \param{GroupDirectory}{string} The directory where group information
-will be written.  Starting the name with + indicates a path from
-OutputDirectory.  The default is ``+groups''.  Inside this directory,
+will be written.  The default is ``\$ABACUS\_PERSIST/SimName/groups''.  Inside this directory,
 the outputs will be further divided with one subdirectory per time
 step; these names are fixed to be ``stepNNNN''.
+\todo{Not used currently.  Check this after we implement OTF group finding.}
 
-
-\param{nTimeSlice}{int} The number of time slice outputs.
 
 \param{TimeSliceRedshift}{float vector} The redshift of the requested 
 time slices.  When redshifts appear in file names, it will be as ``z\%5.3f''.
 
-\param{OutputEveryStep}{int} If $\ge 0$, produce a time slice output at every step.
+\param{nTimeSlice}{int} The number of time slice outputs.
 
 \param{NLightCones}{int} The number of light cones.  We support up to 8.
 
@@ -364,38 +467,61 @@ can be supplied.  The position need not be inside the primary
 wrapping of the box.  The units are the same units as BoxSize.
 
 \param{OutputFormat}{string} Format for the time slice outputs.
-Options are: RVdouble, Packed, Heitmann, RVdoubleTag
+Options are: RVdouble, Packed, Heitmann, RVdoubleTag.  Packed outputs are described in \S\ref{sec:pack14}.  The other formats are mostly useful for debugging, and their binary formats can be found in ``DataModel/appendarena.cpp''.
 
-\param{BackupDirectory}{string} Location to write intermittent state backups.
+\param{BackupDirectory}{string} Location to write intermittent state backups.  Note that this does not need to include the multipoles, since a reliable ``multipole recovery'' utility is available as ``make\_multipoles''.
+\todo{Should this also be an environment variable (\$ABACUS\_BACKUP)?}
 
 \param{BackupStepInterval}{int} Number of steps between backups.
 
+\param{SecondIOThreadDirs}{list of string} The directory names whose files will be read/written by the second IO thread.  A typical value would be \verb|["multipole/", "taylor/"]| if the multipoles and Taylors are on a separate disk from the state and would thus benefit from having their IO overlapped with the primary IO thread.  The timings file will identify which directories were assigned to which threads.  The IO logs for each thread will have a ``.1'' or ``.2'' appended to them as appropriate.
+
+\param{nSecondIOThreadDirs}{int} The number of directories in \verb|SecondIOThreadDirs|.
+
+\param{PowerSpectrumStepInterval}{int} The number of steps between computing on-the-fly power spectra.  The 3D density field will be saved in the log directory and then converted to a 1D power spectrum after the step has finished.  The \verb|Analysis/PlotLinearTheory| contains some utilities to make plots from these spectra.
+
+\param{PowerSpectrumN1d}{int} The number of grid cells per dimension to use when computing the OTF density field.
+
 These choices produce the following hierarchy of files:
 
-\fdir{ParentDirectory}			(default to WorkingDirectory)
+\fdir{\$ABACUS\_PERSIST/SimName}	(\$ABACUS\_PERSIST is an enviroment variable) \\
 
-\fdir{ParentDirectory/RunName}		(aka OutputDirectory) \\
-ParentDirectory/RunName/sliceZ.ZZZ/RunName.zZ.ZZZ.slabNNNN.php14
+\fdir{\$ABACUS\_PERSIST/SimName}		(aka OutputDirectory) \\
+\$ABACUS\_PERSIST/SimName/sliceZ.ZZZ/SimName.zZ.ZZZ.slabNNNN.php14
 
-\fdir{ParentDirectory/RunName/log}	(aka LogDirectory) \\
-ParentDirectory/RunName/log/RunName.stepNNNN.log \\
-ParentDirectory/RunName/log/RunName.stepNNNN.iolog \\
-ParentDirectory/RunName/log/RunName.stepNNNN.timing \\
-ParentDirectory/RunName/log/RunName.stepNNNN.convolve
+\fdir{\$ABACUS\_PERSIST/SimName/log}	(aka LogDirectory) \\
+\$ABACUS\_PERSIST/SimName/log/SimName.stepNNNN.log \\
+\$ABACUS\_PERSIST/SimName/log/SimName.stepNNNN.iolog[.1|.2] \\
+\$ABACUS\_PERSIST/SimName/log/SimName.stepNNNN.time \\
+\$ABACUS\_PERSIST/SimName/log/SimName.stepNNNN.convtime \\
+\$ABACUS\_PERSIST/SimName/log/SimName.stepNNNN.convlog
 
-\fdir{ParentDirectory/RunName/group}	(aka GroupDirectory) \\
-ParentDirectory/RunName/group/stepNNNN/RunName.stepNNNN.slabNNNN.grp
+\fdir{\$ABACUS\_PERSIST/SimName/group}	(aka GroupDirectory) \\
+\$ABACUS\_PERSIST/SimName/group/stepNNNN/SimName.stepNNNN.slabNNNN.grp
 
-\fdir{ParentDirectory/RunName/lcN}	(aka LightConeDirectory + N) \\
-ParentDirectory/RunName/lcN/stepNNNN/RunName.lcN.stepNNNN.slabNNNN.php14
+\fdir{\$ABACUS\_PERSIST/SimName/lc\_rawN}	(aka LightConeDirectory + lc\_rawN) \\
+\$ABACUS\_PERSIST/SimName/lc\_rawN/stepNNNN/SimName.lcN.stepNNNN.slabNNNN.php14
 
-The RunName is used both in the output path and as the file name prefix.
+\fdir{\$ABACUS\_PERSIST/SimName/info}	(misc.~important files) \\
+
+The SimName is used both in the output path and as the file name prefix.
 Redshifts are written in names with format \%5.3f.
 Slabs and Steps are written with \%04d.
 Light cones are written with \%1d.
 
 The php14 suffix is just a place-holder, but this is to indicate the 
 file format.
+
+\subsection{Environment Variables}
+Some of the above default directories are set by enviroment variables.  These enviroment variables all begin with ``ABACUS\_'' and are optional if you manually specify all directory paths.  The \texttt{install.py} script will help you install these to \texttt{~/.bashrc} or some other suitable location (or set up an Abacus module if on a system that uses modules, like many HPC clusters).  N.B.: these are not parameter file parameters, but instead shell environment variables!
+
+\param{ABACUS}{string} Location of the Abacus source code. Not used by the main simulation code, only by some analysis utilities.
+
+\param{ABACUS\_TMP}{string} Large disk with fast sequential IO for storing state.
+
+\param{ABACUS\_PERSIST}{string} Large, stable disk for storing particle outputs and logs.
+
+\param{ABACUS\_SSD}{string}  Fast, low-latency disk like an SSD for storing multipoles/Taylors and light cones.
 
 
 \subsection{Cosmological Parameters}
@@ -410,12 +536,12 @@ file format.
 
 The sum of all the above Omegas must be 1.
 
-\param{w0}{float} Dark energy equation of state $w(z) = w_0 + (1-a)*w_a$.
+\param{w0}{float} Dark energy equation of state $w(z) = w_0 + (1-a)w_a$.
 
 \param{wa}{float} See above.
 
 
-\subsection{Debugging and Special Cases}
+\subsection{Debugging and Special Cases}\label{sec:special_params}
 
 \param{StoreForces}{int} If 1, store the accelerations in the OutputDirectory.
 
@@ -428,14 +554,17 @@ In addition, using TimeStepDlna=0 forces the next time step to be 0, which
 implies that the particles won't advance (although forces and groups
 will still be computed).
 
-\subsection{Zel'dovich Initial Condition Generation Parameters}
+\param{OutputEveryStep}{int} If $\ge 0$, produce a time slice output at every step.
 
-\param{ZD\_Seed}{int} The random number seed.  
+\subsection{Zel'dovich Initial Condition Generation Parameters}
+\param{ZD\_Seed}{int} The random number seed.  This, and ZD\_NumBlock, set the phases of the ICs.
 
 \param{ZD\_NumBlock}{int} This is the number of blocks to break the FFT
 into, per linear dimension.  This must be an even number; moreover,
 it must divide PPD (NP$^{1/3}$) evenly.  The default is 2, but you
-may need a higher number.  
+may need a higher number.  Changing ZD\_NumBlock will change the
+phases of the ICs for a given ZD\_Seed.\todo{Make phases independent
+of ZD\_NumBlock}
 
 This is a key tuning parameter for the code.  The full problem
 requires $32\times NP$ bytes, which may exceed the amount of RAM.
@@ -463,7 +592,7 @@ If ZD\_k\_cutoff $\ne 1$, then the actual ZD\_NumBlock will be ZD\_NumBlock*ZD\_
 See ZD\_k\_cutoff for details.
 
 
-\param{ZD\_Pk\_filename}{string} The file name of the input power spectrum.
+\param{ZD\_Pk\_filename}{string} The file name of the input power spectrum.  This can be a CAMB power spectrum.
 
 \param{ZD\_Pk\_scale}{double} This is the quantity by which to multiply the 
 wavenumbers in the input file to place them in the units that will be used
@@ -483,7 +612,7 @@ ZD\_Pk\_scale $=h$.
 
 \param{ZD\_Pk\_norm}{double} The scale at which to normalize the input
 $P(k)$, in the same units as BoxSize.  For example, if BoxSize is
-given in $h^{-1}$~Mpc, then one might choose 8 to select $\sigma_8$.
+given in $h^{-1}$~Mpc, then one might choose 8 to select $\sigma\_8$.
 If this value is 0, then the power spectrum will not be renormalized
 (but ZD\_Pk\_scale will be applied to the wavevectors, so beware that
 the power isn't thrown off, as it does have units of volume).  The
@@ -495,12 +624,13 @@ This must be scaled to the initial redshift by the growth function;
 the zeldovich code does not know about cosmology.  The default is 0,
 but one almost certainly wants to change this!
 
+The Abacus Python wrapper will compute this value based on the cosmology and \verb|sigma_8|.  You almost never want to specify \verb|ZD\_Pk\_sigma|; instead specify \verb|sigma_8|.
+
 Note that using this parameter means that the choice of unit of power 
 in the input power spectrum file is irrelevant (but we do care about
 the unit of wavenumber, see above).
 
-LHG has an abacus\_cosmo python module that wraps Cosmology.cpp and allows one to calculate growth functions.
-\todo{distribute this module with Abacus?}
+\param{sigma\_8}{double} The amplitude of present-day density fluctuations $\sigma_8$.  This value is not read by the zeldovich code, but instead processed by the Python wrapper to produce \verb|ZD\_Pk\_sigma| by scaling via the growth function.
 
 \param{ZD\_Pk\_smooth}{double} The length scale by which to smooth the input 
 power spectrum before generating the density field.  This is applied as
@@ -515,24 +645,24 @@ The default is $-1$.
 \param{ZD\_qonemode}{int} If $\ge0$, zero out all modes except the one with the wavevector specified in ZD\_one\_mode.
 
 \param{ZD\_one\_mode}{three ints} This is the one wavevector that will be inserted into the box if ZD\_qonemode $\ge0$.
-This is useful for automatically iterating through a series of wavevectors, for examining isotropy or Nyquist effects, for example.
+This is useful for automatically iterating through a series of wavevectors for examining isotropy or Nyquist effects, for example.
 Each component can be an integer in the range [-ppd/2,ppd/2].
 
 \param{ZD\_qPLT}{int} If $\ge0$, turn on particle linear theory corrections.
 This tweaks the displacements and velocities, mostly near $k_{\rm Nyquist}$, to ensure everything starts in the growing mode.
 The output format will include velocities if you turn this on, either in the RVZel or RVdoubleZel format (set by a Makefile flag).
-See Garrison \& Eisenstein, in prep.
+PLT features are described in Garrison, et al. (2016).
 
-\param{ZD\_PLT\_filename}{string} The file containing the PLT eigenmodes; i.e. the true growing modes for the grid.
-We generate this on something like a $128^3$ grid, and linearly interpolate the eigenmodes and eigenvalues as needed.
-The file is in~.npy (Numpy) format, which we read with the cnpy library.
+\param{ZD\_PLT\_filename}{string} The file containing the PLT eigenmodes; i.e.~the true growing modes for the grid.
+We generate this on something like a $128^3$ grid and linearly interpolate the eigenmodes and eigenvalues as needed.
 
 \param{ZD\_qPLT\_rescale}{int} If $\ge0$, increase the amplitude of the displacements on small scales (near $k_{\rm Nyquist}$)
-to preemptively compensate for future undergrowth that we know happens on a grid.  See Garrison \& Eisenstein, in prep.
+to compensate preemptively for future undergrowth that we know happens on a grid.
 
 \param{ZD\_PLT\_target\_z}{int} If ZD\_qPLT\_rescale $\ge0$, then increase the initial displacements such that they will match the linear theory prediction
 at this redshift.  Recall that modes on the grid (mostly) grow more slowly than linear theory, which is why we increase the initial displacements.
 This redshift should be before shell-crossing while linear theory is still mostly valid, e.g.~$z\sim 5$.
+\todo{Provide a heuristic for calculating this number based on pixel-level density fluctuations}
 
 \param{ZD\_k\_cutoff}{double} The wavenumber above which not to input any power, expressed such that $k_{\rm max} = k_{\rm Nyquist} / k_{\rm cutoff}$, e.g.~ZD\_k\_cutoff = 2 means we null out modes above half-Nyquist.  Non-whole numbers like 1.5 are allowed.  This is useful for doing convergence tests, e.g.~run once with PPD=64 and ZD\_k\_cutoff = 1, and again with PPD=128 and ZD\_k\_cutoff = 2.  This will produce two boxes with the exact same modes (although the PLT corrections will be slightly different), but the second box's modes are oversampled by a factor of two.  To keep the random number generation synchronized between the two boxes (fixed number of particle planes per block), ZD\_NumBlock is increased by a factor of ZD\_k\_cutoff.
 
@@ -554,17 +684,17 @@ particles move by at most 1 slab.
 
 \param{InitialConditionsDirectory}{string} In addition to the usual usage,
 the zeldovich code will use this for the swap space for the block transpose.
-This will generate files of the name `zeldovich.\%d.\%d'.  These can be deleted
+This will generate files of the name `zeldovich.\%d.\%d'.  These will be deleted
 after the code has run.
 
-\param{InitialRedshift}{double}
+\param{InitialRedshift}{double}  Starting redshift of the sim; i.e.~the output redshift for the zeldovich code.  Only used by the zeldovich code for PLT rescaling, although the Python wrapper will use it to compute the growth function.
 
 \bigskip
 
 The following options have been disabled in the current code:
 
 \param{ZD\_density\_filename}{string} The file name where to write the density
-field.  \todo{The program will not create any directories.}
+field.
 \todo{This option may be disabled.}
 
 \param{ZD\_qdensity}{int} If non-zero, output the grid densities that generate
@@ -573,14 +703,6 @@ the Zel'dovich displacements.  Default is 0.
 this feature.}
 
 \todo{Perhaps we make the output of densities standard?  E.g., four floats?}
-
-\param{ZD\_qnoheader}{int} If non-zero, don't generate a file header.
-Default is 0.  
-\todo{This option may be disabled?}
-
-\param{ZD\_qvelocity}{int} 
-\todo{This option may be disabled.}
-
 
 \clearpage
 
@@ -612,7 +734,7 @@ the number of particles in each slab (after opening with CPD).  The
 `redlack\_\{x,y,z\}' and globaldipole files contain information for
 the Redlack-Grindlay term.
 
-Accelerations can also be written on request.
+Accelerations can also be written on request (see \S\ref{sec:special_params}).
 
 \section{State File Description}
 
@@ -636,17 +758,33 @@ of singlestep().
 \param{MachineName}{string} The machine name where this step is
 being run.
 
-\param{ppd}{double} The cube root of the number of particles.  We
-take care to round this off to an integer if it is very close.
-
 \param{DoublePrecision}{int} Whether the internal positions,
 velocities, and forces are being computed in single precision (==0)
 or double precision (==1).
+
+\param{ppd}{double} The cube root of the number of particles.  We
+take care to round this off to an integer if it is very close.
 
 \param{FullStepNumber}{int} The full step number.  The initial
 conditions get translated into a state (with multipoles) that is
 defined as step number 0.  So the full step number is also the
 number of times that full forces have been computed.
+
+\param{LPTStepNumber}{int} How many steps into our Lagrangian Perturbation Theory computation we are.  0 if this is a normal time step; non-zero if this is an LPT step.
+
+\param{Do2LPTVelocityRereading}{int} Our 2LPT implementation overwrites the initial particle velocities which is fine if we are using the Zeldovich approximation (because they can be recomputed from the displacements).  If we are using PLT corrections (or any IC format that specifies a velocity), then we have to reread the IC files to restore the overwritten velocities.  This flag specifies whether that will happen during this step.
+
+\param{SofteningType}{string} The force law being employed.  Possible
+values are: ``plummer'', ``cubic\_plummer'', ``cubic\_spline'', ``single\_spline''.
+
+\param{SofteningLength}{double} The Plummer-equivalent softening length
+that the user inputs.  See the description in the Parameters section.
+Same units as BoxSize.
+
+\param{SofteningLengthInternal}{double} The softening length scaled
+for this particular softening technique to produce a minimum orbital
+period that matches Plummer.  Same units as BoxSize.
+
 
 \subsection{Computed Properties of the Cosmology}
 
@@ -793,20 +931,7 @@ would actually be expensive.}
 of particles in a cell.  These are computed at the positions in
 WriteState.
 
-\param{StdDevCellSize}{double} The standard deviation of the the
-number of particles in a cell.  These are computed at the positions
-in WriteState.
-
-\param{SofteningTechnique}{string} The force law being employed.  Possible
-values are: ``plummer'', ``cubic\_plummer'', ``cubic\_spline'', ``single\_spline''.
-
-\param{SofteningLength}{double} The Plummer-equivalent softening length
-that the user inputs.  See the description in the Parameters section.
-Same units as BoxSize.
-
-\param{SofteningLengthInternal}{double} The softening length scaled
-for this particular softening technique to produce a minimum orbital
-period that matches Plummer.  Same units as BoxSize.
+\param{StdDevCellSize}{double} The standard deviation of the density contrast (fractional overdensity $\rho/\bar\rho - 1$) within cells.
 
 
 \clearpage
@@ -836,7 +961,14 @@ in a binary format.
 In addition, the power spectrum file used in the Zel'dovich code
 is copied into the Output and Log directory when the ICs are created.
 
-\section{Packed Outputs (pack14)}
+Sometimes we have many auxillary files that we want to carry around
+with the outputs.  An example would be CAMB parameter files or simple
+diagnostic plots like the power spectrum evolution.  These can be placed
+in the \verb|info| directory in the simulation configuration directory;
+the Python wrappers will copy this info directory to any relevant
+output or data product directories.
+
+\section{Packed Outputs (pack14)}\label{sec:pack14}
 
 The cell-oriented structure of abacus allows for an efficient way
 to compress the particle data.  We output particles in sets for a
@@ -918,9 +1050,10 @@ each time step.
 \todo{In addition, there is a top-level summary log that is updated
 after each successful time step.}
 
-The singlestep code produces 2 or 3 logs: a primary log, a report
-on timings, and a log on the actions of the I/O thread, if that
-thread is running.  The convolution code produces a timing log.
+The singlestep code produces 2 to 4 logs: a primary log, a report
+on timings, and a log on the actions of the I/O thread(s), if those
+threads are running.  The convolution code produces a primary log
+and a timing log.
 
 The log contains a millisecond-level record of the elapsed time
 since the log was initiated.  Log verbosity can be controlled with
@@ -928,5 +1061,77 @@ a parameter choice.
 
 If the program has crashed, then the files laststep.\{suffix\} contains
 the logs.
+
+\section{Build System}
+Abacus uses an Autoconf-based \texttt{configure}/\texttt{make} build system.
+When building Abacus for the first time, use
+\begin{verbatim}
+./configure
+make
+\end{verbatim}
+The \verb|./configure| step will generate a \verb|Makefile| from each \verb|Makefile.in|
+and print a summary of the Abacus code options
+that were selected.  Running make again will build Abacus with those same code
+options until \verb|./configure| is run again, or until you run \verb|make distclean|.
+
+Use \verb|./configure --help| to see the various build options.  In particular,
+the \verb|Optional Features| and \verb|Optional Packages| contain most of the code
+options.  To compile Abacus with the Intel compiler, the synatx is \verb|./configure CXX=icc|.
+\todo{There's a fair number of unused options in ./configure --help.  Unclear
+how to get rid of them.}
+
+\verb|make analysis| will only build analysis packages and not the main simulation
+code.  Useful because the compiling singlestep can be slow.
+
+Most of the code is built as a single compilation unit via \verb|#include|s instead
+of as separate object files that are linked.  This leads to longer compilation times,
+but we rely on the agressive interprocedural optimizations that this allows.
+The exception is the GPU direct code \verb|gpudirect.a|, which is built as a separate
+static library by \verb|nvcc| and linked to the singlestep code.
+
+The build system can also create another binary called \verb|make_multipoles| via
+\verb|make make_multipoles|.  This is a redacted singlestep pipeline that simply loads positions
+and cell infos and generates the corresponding multipoles.  Useful for recovering from
+backups or lost/corrupted multipoles.  You probably never have to invoke this manually;
+the Python wrapper will invoke it as necessary.
+\todo{This could probably be a command line flag to singlestep, rather than a
+separately compiled executable.}
+
+\section{Analysis Codes}
+Some generally useful analysis utilities are included in the main code repository (primarily in \verb|Analysis/|,
+but also some useful utilities in \verb|python/Abacus|).
+They are largely stand-alone and documented inside their own directories; this section
+just serves as an overview.
+
+All of the utilities are designed to operate on Abacus outputs in pack14 format.  They
+will also try to create a useful directory structure for any data products.  Some of the
+utilities also support automatic tar ball creation to facilitate data product distribution.
+In general, use \verb|{./utility.py} --help| to see the available options.
+
+\subsection{FoF (\texttt{Analysis/FoF})}
+Friends-of-friends halo finding. Supports a subhalo detection by running FoF again with a smaller
+linking length.  Output catalogs include particle subsamples and PIDs.
+
+\subsection{Rockstar (\texttt{Analysis/Rockstar})}
+The standard Rockstar halo finder with support for Pack14.  Also produces particle subsamples.
+
+\subsection{Light Cones (\texttt{Analysis/LightCones})}
+Currently only contains a utility for merging the individual LC files into slabs.
+
+\subsection{Power Spectrum (\texttt{Analysis/PowerSpectrum})}
+A full Python-based power spectrum stack.  Takes particles (either from disk or memory),
+produces a density field, does the FFT, and bins in spherical annuli to produce a 1D power spectrum.
+Many other options/modes of operation related to density fields.
+
+Also contains scripts for histogramming and computing Gaussian 2PCF covariance matrices.
+
+
+\subsection{Halo Interfaces (\texttt{python/Abacus/[Halos.py|Halotools.py]})}
+Interfaces to wrangle the various halo catalogs Abacus produces (via FoF or Rockstar).
+\texttt{Halos.py} is pure Python; \texttt{Halotools.py} is just a wrapper that puts
+everything in Halotools format.
+
+\subsection{Abacus IO (\texttt{python/Abacus/ReadAbacus.py})}
+Interfaces to deal with the various Abacus particle formats.
 
 \end{document}

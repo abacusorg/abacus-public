@@ -22,7 +22,7 @@ extern "C" int * GetCellNP(int cpd,int s);
 extern "C" double GetDeviceMemory();
 
 extern "C" int GetNGPU();
-extern "C" void GPUSetup(int cpd, int kwidth, int maxsinkblocks, int maxsourceblocks, int bufferperdevice);
+extern "C" void GPUSetup(int cpd, int maxkwidth, int maxsinkblocks, int maxsourceblocks, int bufferperdevice, int *ThreadCoreStart, int NThreadCores);
 extern "C" void GPUReset();
 
 extern "C" void print_gpu_mem_usage();

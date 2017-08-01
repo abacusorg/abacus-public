@@ -36,7 +36,7 @@ public:
     int  DerivativeExpansionRadius;
     int  MAXRAMMB;
     int  ConvolutionCacheSizeMB; // Set to manually override the detected cache size
-    int RamDisk;	// ==0 for a normal disk, ==1 for a ramdisk (which don't have DIO support)
+    int RamDisk;        // ==0 for a normal disk, ==1 for a ramdisk (which don't have DIO support)
     int OverwriteState; // 0 for normal, separate read and write states; 1 to overwrite the read state to save space
     int ForceBlockingIO;   // ==1 if you want to force all IO to be blocking.
     
@@ -48,37 +48,37 @@ public:
     char DerivativesDirectory[1024];
 
     char InitialConditionsDirectory[1024];   // The initial condition file name
-    char ICFormat[1024];		// The format of the IC files
+    char ICFormat[1024];                // The format of the IC files
     int FlipZelDisp;                    // If non-zero and using ICFormat = Zeldovich, flip the Zeldovich displacements
-    double ICPositionRange;		// The box size of the IC positions, 
-    	// in file units.  If ==0, then will default to BoxSize;
-    double ICVelocity2Displacement;	// The conversion factor from file velocities
-    	// to redshift-space comoving displacements (at the IC redshift!).
-	// =-1 to instead supply file velocities in km/s.
-	// =0 to force the initial velocities to zero!
-    double NumSlabsInsertList;		
+    double ICPositionRange;                // The box size of the IC positions, 
+            // in file units.  If ==0, then will default to BoxSize;
+    double ICVelocity2Displacement;        // The conversion factor from file velocities
+            // to redshift-space comoving displacements (at the IC redshift!).
+        // =-1 to instead supply file velocities in km/s.
+        // =0 to force the initial velocities to zero!
+    double NumSlabsInsertList;                
          // The amount of space to allocate for the insert list, in units 
-	 // of np/cpd particles.  Set =0 to allocate the full np particles.
-	 // Default is 2.
-    double NumSlabsInsertListIC;		
+         // of np/cpd particles.  Set =0 to allocate the full np particles.
+         // Default is 2.
+    double NumSlabsInsertListIC;                
          // The amount of space to allocate for the insert list, in units 
-	 // of np/cpd particles.  Set =0 to allocate the full np particles.
-	 // This parameter applies only to the IC step.
-	 // Recommend either 4 or 0.
+         // of np/cpd particles.  Set =0 to allocate the full np particles.
+         // This parameter applies only to the IC step.
+         // Recommend either 4 or 0.
 
     char ReadStateDirectory[1024];  // Where the input State lives
     char WriteStateDirectory[1024]; // Where the output State lives
     char PastStateDirectory[1024];  // Where the old input State lives
     char MultipoleDirectory[1024];
     char TaylorDirectory[1024];
-    char WorkingDirectory[1024];	// If Read/Write/Past not specified, where to put the states
+    char WorkingDirectory[1024];        // If Read/Write/Past not specified, where to put the states
     char LogDirectory[1024];
     char OutputDirectory[1024];     // Where the outputs go
     int OutputEveryStep; //Force timeslices to be output every step if 1
-    char OutputFormat[1024];		// The format of the Output files
-    int  OmitOutputHeader;		// =1 if you want to skip the ascii header
+    char OutputFormat[1024];                // The format of the Output files
+    int  OmitOutputHeader;                // =1 if you want to skip the ascii header
 
-    double FinalRedshift;	// When to stop.  This will override TimeSliceRedshifts.
+    double FinalRedshift;        // When to stop.  This will override TimeSliceRedshifts.
     double TimeSliceRedshifts[1024];
     int nTimeSlice;
 
@@ -118,13 +118,17 @@ public:
     int GPUMinCellSinks;// If AVX directs are compiled, cells with less than this many particles go to cpu
     int ProfilingMode;//If 1, enable profiling mode, i.e. delete the write-state after creating it to run repeatedly on same dat
     
-    int IOCore;  // The core that the IO thread will be bound to.  -1 means don't bind
+    int IOCores[2];  // The cores that the IO threads will be bound to.  -1 means don't bind
     #define MAX_2ND_IOTHREAD_DIRS 100
     char **SecondIOThreadDirs; //[MAX_2ND_IOTHREAD_DIRS][1024];
     int nSecondIOThreadDirs;
     
     int Conv_OMP_NUM_THREADS;
     int Conv_IOCore;
+    
+    // TODO: this scheme doesn't account for more complicated NUMA architectures
+    int GPUThreadCoreStart[MAX_GPUS];  // The core on which to start placing GPU device threads.
+    int NGPUThreadCores;  // The number of free cores on which to place GPU device threads.
 
 
     // in MB
@@ -151,98 +155,98 @@ public:
 
     Parameters() {
 
-    	installscalar("NP",np, MUST_DEFINE);
-    	installscalar("CPD",cpd,MUST_DEFINE);
-    	installscalar("Order",order,MUST_DEFINE);
+        installscalar("NP",np, MUST_DEFINE);
+        installscalar("CPD",cpd,MUST_DEFINE);
+        installscalar("Order",order,MUST_DEFINE);
 
-    	installscalar("NearFieldRadius",NearFieldRadius,MUST_DEFINE);    // Radius of cells in the near-field
-    	installscalar("SofteningLength", SofteningLength,MUST_DEFINE); // Softening length in the same units as BoxSize
-    	installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
+        installscalar("NearFieldRadius",NearFieldRadius,MUST_DEFINE);    // Radius of cells in the near-field
+        installscalar("SofteningLength", SofteningLength,MUST_DEFINE); // Softening length in the same units as BoxSize
+        installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
         MAXRAMMB = getRAMSize();
-    	installscalar("MAXRAMMB", MAXRAMMB, DONT_CARE);
+        installscalar("MAXRAMMB", MAXRAMMB, DONT_CARE);
         ConvolutionCacheSizeMB = getCacheSize();
-    	installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB, DONT_CARE);
+        installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB, DONT_CARE);
         RamDisk = 0;
-    	installscalar("RamDisk",RamDisk,DONT_CARE);
+        installscalar("RamDisk",RamDisk,DONT_CARE);
         OverwriteState = 0;
-    	installscalar("OverwriteState",OverwriteState,DONT_CARE);
+        installscalar("OverwriteState",OverwriteState,DONT_CARE);
         ForceBlockingIO = 0;
-    	installscalar("ForceBlockingIO",ForceBlockingIO,DONT_CARE);
-        
+        installscalar("ForceBlockingIO",ForceBlockingIO,DONT_CARE);
+
         OMP_NUM_THREADS = 0;
         installscalar("OMP_NUM_THREADS",OMP_NUM_THREADS,DONT_CARE);
 
         DirectNewtonRaphson = 1;
-    	installscalar("DirectNewtonRaphson",DirectNewtonRaphson,DONT_CARE);  // 0 or 1
+        installscalar("DirectNewtonRaphson",DirectNewtonRaphson,DONT_CARE);  // 0 or 1
 
-    	installscalar("DerivativesDirectory",DerivativesDirectory,MUST_DEFINE);
+        installscalar("DerivativesDirectory",DerivativesDirectory,MUST_DEFINE);
 
-    	installscalar("InitialConditionsDirectory",InitialConditionsDirectory,MUST_DEFINE);   // The initial condition file name
-    	installscalar("ICFormat",ICFormat,MUST_DEFINE);   // The initial condition file format
-    	installscalar("ICPositionRange",ICPositionRange,MUST_DEFINE);   // The initial condition file position convention
-    	installscalar("ICVelocity2Displacement",ICVelocity2Displacement,MUST_DEFINE);   // The initial condition file velocity convention
+        installscalar("InitialConditionsDirectory",InitialConditionsDirectory,MUST_DEFINE);   // The initial condition file name
+        installscalar("ICFormat",ICFormat,MUST_DEFINE);   // The initial condition file format
+        installscalar("ICPositionRange",ICPositionRange,MUST_DEFINE);   // The initial condition file position convention
+        installscalar("ICVelocity2Displacement",ICVelocity2Displacement,MUST_DEFINE);   // The initial condition file velocity convention
         FlipZelDisp = 0;
         installscalar("FlipZelDisp",FlipZelDisp,DONT_CARE);   // Flip Zeldovich ICs
 
-    	NumSlabsInsertList = 2.0;
-    	installscalar("NumSlabsInsertList",NumSlabsInsertList,DONT_CARE);   
-    	NumSlabsInsertListIC = 4.0;
-    	installscalar("NumSlabsInsertListIC",NumSlabsInsertListIC,DONT_CARE);   
+        NumSlabsInsertList = 2.0;
+        installscalar("NumSlabsInsertList",NumSlabsInsertList,DONT_CARE);   
+        NumSlabsInsertListIC = 4.0;
+        installscalar("NumSlabsInsertListIC",NumSlabsInsertListIC,DONT_CARE);   
 
-    	sprintf(ReadStateDirectory,STRUNDEF);
-    	sprintf(WriteStateDirectory,STRUNDEF);
-    	sprintf(PastStateDirectory,STRUNDEF);
+        sprintf(ReadStateDirectory,STRUNDEF);
+        sprintf(WriteStateDirectory,STRUNDEF);
+        sprintf(PastStateDirectory,STRUNDEF);
         sprintf(WorkingDirectory,STRUNDEF);
-        
-    	installscalar("ReadStateDirectory",ReadStateDirectory,DONT_CARE);  // Where the input State lives
-    	installscalar("WriteStateDirectory",WriteStateDirectory,DONT_CARE); // Where the output State lives
-    	installscalar("PastStateDirectory",PastStateDirectory,DONT_CARE);  // Where the old input State lives
+
+        installscalar("ReadStateDirectory",ReadStateDirectory,DONT_CARE);  // Where the input State lives
+        installscalar("WriteStateDirectory",WriteStateDirectory,DONT_CARE); // Where the output State lives
+        installscalar("PastStateDirectory",PastStateDirectory,DONT_CARE);  // Where the old input State lives
         installscalar("WorkingDirectory",WorkingDirectory,DONT_CARE);
         installscalar("MultipoleDirectory",MultipoleDirectory,MUST_DEFINE);
         installscalar("TaylorDirectory",TaylorDirectory,MUST_DEFINE);
-    	installscalar("LogDirectory",LogDirectory,MUST_DEFINE);
-    	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
-    	OutputEveryStep = 0;
-    	installscalar("OutputEveryStep",OutputEveryStep,DONT_CARE);
+        installscalar("LogDirectory",LogDirectory,MUST_DEFINE);
+        installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
+        OutputEveryStep = 0;
+        installscalar("OutputEveryStep",OutputEveryStep,DONT_CARE);
 
-    	installscalar("LightConeDirectory",LightConeDirectory,MUST_DEFINE); //Where the lightcones go. Generally will be the same as the Output directory
-    	installscalar("NLightCones",NLightCones,DONT_CARE); //if not set, we assume 0
+        installscalar("LightConeDirectory",LightConeDirectory,MUST_DEFINE); //Where the lightcones go. Generally will be the same as the Output directory
+        installscalar("NLightCones",NLightCones,DONT_CARE); //if not set, we assume 0
         installvector("LightConeOrigins",LightConeOrigins,24,1,DONT_CARE);
 
-	FinalRedshift = -2.0;	// If <-1, then we will cascade back to the minimum of the TimeSliceRedshifts list
-    	installscalar("FinalRedshift",FinalRedshift,DONT_CARE);
-    	installvector("TimeSliceRedshifts",TimeSliceRedshifts,1024,1,MUST_DEFINE);
-    	installscalar("nTimeSlice",nTimeSlice,MUST_DEFINE);
+        FinalRedshift = -2.0;        // If <-1, then we will cascade back to the minimum of the TimeSliceRedshifts list
+        installscalar("FinalRedshift",FinalRedshift,DONT_CARE);
+        installvector("TimeSliceRedshifts",TimeSliceRedshifts,1024,1,MUST_DEFINE);
+        installscalar("nTimeSlice",nTimeSlice,MUST_DEFINE);
 
-	strcpy(OutputFormat,"RVdouble");
-	// strcpy(OutputFormat,"Packed");
-    	installscalar("OutputFormat",OutputFormat,DONT_CARE);
-	OmitOutputHeader = 0;
-    	installscalar("OmitOutputHeader",OmitOutputHeader,DONT_CARE);
+        strcpy(OutputFormat,"RVdouble");
+        // strcpy(OutputFormat,"Packed");
+        installscalar("OutputFormat",OutputFormat,DONT_CARE);
+        OmitOutputHeader = 0;
+        installscalar("OmitOutputHeader",OmitOutputHeader,DONT_CARE);
 
-    	installscalar("H0", H0, MUST_DEFINE);
-    	installscalar("Omega_M", Omega_M, MUST_DEFINE);
-    	installscalar("Omega_DE", Omega_DE, MUST_DEFINE);
-    	installscalar("Omega_K", Omega_K, MUST_DEFINE);
-    	installscalar("w0", w0, MUST_DEFINE);
-    	installscalar("wa", wa, MUST_DEFINE);
+        installscalar("H0", H0, MUST_DEFINE);
+        installscalar("Omega_M", Omega_M, MUST_DEFINE);
+        installscalar("Omega_DE", Omega_DE, MUST_DEFINE);
+        installscalar("Omega_K", Omega_K, MUST_DEFINE);
+        installscalar("w0", w0, MUST_DEFINE);
+        installscalar("wa", wa, MUST_DEFINE);
 
-    	installscalar("BoxSize",BoxSize,MUST_DEFINE);
-    	installscalar("hMpc",hMpc,MUST_DEFINE);           // =1 if we're using Mpc/h units.  =0 if Mpc units
-    	installscalar("InitialRedshift",InitialRedshift,MUST_DEFINE);
-    	installscalar("LagrangianPTOrder",LagrangianPTOrder,MUST_DEFINE);  // =1 for Zel'dovich, =2 for 2LPT, =3 for 3LPT
+        installscalar("BoxSize",BoxSize,MUST_DEFINE);
+        installscalar("hMpc",hMpc,MUST_DEFINE);           // =1 if we're using Mpc/h units.  =0 if Mpc units
+        installscalar("InitialRedshift",InitialRedshift,MUST_DEFINE);
+        installscalar("LagrangianPTOrder",LagrangianPTOrder,MUST_DEFINE);  // =1 for Zel'dovich, =2 for 2LPT, =3 for 3LPT
 
-    	installscalar("GroupRadius",GroupRadius,MUST_DEFINE);        // Maximum size of a group, in units of cell sizes
-    	installscalar("TimeStepAccel",TimeStepAccel,MUST_DEFINE);         // Time-step parameter based on accelerations
-    	installscalar("TimeStepDlna",TimeStepDlna,MUST_DEFINE);        // Maximum time step in d(ln a)
+        installscalar("GroupRadius",GroupRadius,MUST_DEFINE);        // Maximum size of a group, in units of cell sizes
+        installscalar("TimeStepAccel",TimeStepAccel,MUST_DEFINE);         // Time-step parameter based on accelerations
+        installscalar("TimeStepDlna",TimeStepDlna,MUST_DEFINE);        // Maximum time step in d(ln a)
 
-    	LogVerbosity = 10000;
-    	installscalar("LogVerbosity",LogVerbosity, DONT_CARE);
-    	StoreForces = 0;
-    	installscalar("StoreForces",StoreForces, DONT_CARE);
-    	ForceOutputDebug = 0;
+        LogVerbosity = 10000;
+        installscalar("LogVerbosity",LogVerbosity, DONT_CARE);
+        StoreForces = 0;
+        installscalar("StoreForces",StoreForces, DONT_CARE);
+        ForceOutputDebug = 0;
 
-    	installscalar("ForceOutputDebug",ForceOutputDebug,DONT_CARE);
+        installscalar("ForceOutputDebug",ForceOutputDebug,DONT_CARE);
         ForceCPU = 0;
         installscalar("ForceCPU",ForceCPU,DONT_CARE);
         GPUMinCellSinks = 0;
@@ -250,22 +254,23 @@ public:
         ProfilingMode=0;
         installscalar("ProfilingMode",ProfilingMode,DONT_CARE);
 
-    	installscalar("SimName",SimName,MUST_DEFINE);
-    	installscalar("PowerSpectrumStepInterval",PowerSpectrumStepInterval,DONT_CARE);
-    	installscalar("PowerSpectrumN1d",PowerSpectrumN1d,DONT_CARE);
-    	PowerSpectrumStepInterval = -1; //Do not calculate OTF powerspectra
-    	PowerSpectrumN1d = 1;
-	    hs = NULL;
-        
-        IOCore = -1;
-        installscalar("IOCore", IOCore, DONT_CARE);
-        
+        installscalar("SimName",SimName,MUST_DEFINE);
+        installscalar("PowerSpectrumStepInterval",PowerSpectrumStepInterval,DONT_CARE);
+        installscalar("PowerSpectrumN1d",PowerSpectrumN1d,DONT_CARE);
+        PowerSpectrumStepInterval = -1; //Do not calculate OTF powerspectra
+        PowerSpectrumN1d = 1;
+        hs = NULL;
+
+        // default means don't bind to core
+        IOCores[0] = -1; IOCores[1] = -1;
+        installvector("IOCores", IOCores, 2, 1, DONT_CARE);
+
         Conv_IOCore = -1;
         installscalar("Conv_IOCore", Conv_IOCore, DONT_CARE);
-        
+
         Conv_OMP_NUM_THREADS = 0;
         installscalar("Conv_OMP_NUM_THREADS", Conv_OMP_NUM_THREADS, DONT_CARE);
-        
+
         // Using staticly allocated memory didn't seem to work with installvector
         SecondIOThreadDirs = (char**) malloc(MAX_2ND_IOTHREAD_DIRS*sizeof(char*));
         char *block = (char *) malloc(MAX_2ND_IOTHREAD_DIRS*1024*sizeof(char));
@@ -276,6 +281,13 @@ public:
         installvector("SecondIOThreadDirs", SecondIOThreadDirs, MAX_2ND_IOTHREAD_DIRS, 1024, DONT_CARE);
         nSecondIOThreadDirs = 0;
         installscalar("nSecondIOThreadDirs", nSecondIOThreadDirs, DONT_CARE);
+
+        // If any of these are undefined, GPU threads will not be bound to cores
+        for(int i = 0; i < MAX_GPUS; i++)
+            GPUThreadCoreStart[i] = -1;
+        installvector("GPUThreadCoreStart", GPUThreadCoreStart, MAX_GPUS, 1, DONT_CARE);
+        NGPUThreadCores = -1;
+        installscalar("NGPUThreadCores", NGPUThreadCores, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.
@@ -286,8 +298,8 @@ public:
         free(SecondIOThreadDirs);
     }
     char *header() { 
-	assert(hs!=NULL); assert(hs->buffer!=NULL);
-        return hs->buffer;	// This is just a standard C-style string.
+        assert(hs!=NULL); assert(hs->buffer!=NULL);
+        return hs->buffer;        // This is just a standard C-style string.
     }
 
 
@@ -297,30 +309,30 @@ public:
 
     double ppd() {
         // return the cube root of np, but be careful to avoid round-off 
-	// of perfect cubes.
-	double _ppd = pow((double)np, 1.0/3.0);
-	if ( fabs(_ppd-floor(_ppd+0.1))<1e-10 ) _ppd = floor(_ppd+0.1);
-	return _ppd;
+        // of perfect cubes.
+        double _ppd = pow((double)np, 1.0/3.0);
+        if ( fabs(_ppd-floor(_ppd+0.1))<1e-10 ) _ppd = floor(_ppd+0.1);
+        return _ppd;
     }
     int is_np_perfect_cube() {
-	// Return 1 if np is a perfect cube.
+        // Return 1 if np is a perfect cube.
         long long int n = floor(ppd());
-	if (n*n*n==np) return 1; else return 0;
+        if (n*n*n==np) return 1; else return 0;
     }
 
     double FinishingRedshift() {
-	// Return the redshift where the code should halt.
-	// FinalRedshift is the controlling item, but if that's
-	// not set (value<=-1), then we will run to the minimum of the TimeSliceRedshifts list.
-	// If no TimeSlices are requested, then z=0.
+        // Return the redshift where the code should halt.
+        // FinalRedshift is the controlling item, but if that's
+        // not set (value<=-1), then we will run to the minimum of the TimeSliceRedshifts list.
+        // If no TimeSlices are requested, then z=0.
         if (FinalRedshift>-1) return FinalRedshift;
-	if (nTimeSlice) {
-	    double minz = 1e10;
-	    for (int i=0; i<nTimeSlice; i++)
-		if (TimeSliceRedshifts[i]<minz) minz = TimeSliceRedshifts[i];
-	    return minz;
-	}
-	return 0.0;
+        if (nTimeSlice) {
+            double minz = 1e10;
+            for (int i=0; i<nTimeSlice; i++)
+                if (TimeSliceRedshifts[i]<minz) minz = TimeSliceRedshifts[i];
+            return minz;
+        }
+        return 0.0;
     }
 
 private:
@@ -454,7 +466,7 @@ void Parameters::ValidateParameters(void) {
 
     if (nTimeSlice<0) {
         fprintf(stderr,"nTimeSlice must be >=0\n");
-	assert(1==0);
+        assert(1==0);
     }
     
     if(abs(Omega_M + Omega_DE + Omega_K - 1.) > 1e-6){
@@ -498,13 +510,13 @@ void Parameters::ValidateParameters(void) {
     }
 
     if (ForceOutputDebug && StoreForces) {
-    	fprintf(stderr,"ForcesOutputDebug and StoreForces both set. This is not supported.\n");
-	assert(1==0);
+            fprintf(stderr,"ForcesOutputDebug and StoreForces both set. This is not supported.\n");
+        assert(1==0);
     }
 
     if (LogVerbosity<0) {
         fprintf(stderr,"LogVerbosity must be >=0\n");
-	assert(1==0);
+        assert(1==0);
     }
 
     assert(nSecondIOThreadDirs < MAX_2ND_IOTHREAD_DIRS);
