@@ -1,17 +1,7 @@
 #Rockstar Halo Finder
 #Abacus config file
-#Note that periodic boundary conditions are assumed for NUM_WRITERS > 1.
-#See README for details.
-
-#Once compiled ("make"), run Rockstar as
-# ./rockstar -c abacus.cfg
-#Then launch the reading/analysis tasks with:
-# ./rockstar -c auto-rockstar.cfg
-#You will have to launch at least NUM_READERS+NUM_WRITERS processes.
 
 FILE_FORMAT = "PACK14"
-# We should read this from the header
-#PARTICLE_MASS = 0       # must specify (in Msun/h) for ART or ASCII
 
 #This specifies the use of multiple processors:
 PARALLEL_IO=1
@@ -33,37 +23,28 @@ NUM_WRITERS = {ncpu_total}
 # This means we only have to launch 1 process, and {ncpu} will automatically be started (each with a reader and writer)
 FORK_READERS_FROM_WRITERS = 1
 FORK_PROCESSORS_PER_MACHINE = {ncpu}
-PARALLEL_IO_MAGIC = {magic}
-
-# Not sure what this does precisely; is this thread-safe?
-PRELOAD_PARTICLES = 0
-
-# Not sure of the exact usage of this either, but it's something to do with
-# temporal halo tracking/halo merger trees
-#OVERLAP_LENGTH = 3.0
 
 OUTBASE = "{outdir}" # default is current directory
 OUTPUT_FORMAT = {out_fmt} # "BOTH" or "ASCII" or "BINARY", or "HDF5_SUBSAMPLE"
-SUBSAMPLE_FRAC = 0.1  # If using HDF5_SUBSAMPLE, the fraction of particles included in the subsample
+SUBSAMPLE_FRAC = 0.1
 
 #BGC2_SNAPNAMES = "{bgc2_snapnames}"  # We only do one snap at a time, so we just need a file with snap "0"
-RUN_ON_SUCCESS = "{rockdir}/finish_subsample.sh {rockdir} {outdir}"  # This is called for every snapshot with an additional arg for the snapnum (always 0 for us)
+RUN_ON_SUCCESS = "{rockdir}/util/finish_abacuscosmos.sh {rockdir} {outdir}"  # This is called for every snapshot with an additional arg for the snapnum (always 0 for us)
 
 MIN_HALO_OUTPUT_SIZE = {minmembers}  # Minimum number of particles in a halo
 MIN_HALO_PARTICLES = 10 #default: 10.  Minimum particles for a halo "seed"
 UNBOUND_THRESHOLD = 0.5  # default 0.5; lower values keep less bound objects
-#FULL_PARTICLE_CHUNKS =  # number of writers which will output particles, between 1 and NUM_WRITERS (is this the downsampling Ben Wibking warned about?)
+#FULL_PARTICLE_CHUNKS =  # number of writers which will output particles, between 1 and NUM_WRITERS
 #BOUND_OUT_TO_HALO_EDGE = 0  # Some sort of unbinding option --- maybe don't do unbinding?
-EXACT_LL_CALC = 0  # Enables "more deterministic", but slower, halo property calculation.  Maybe this addresses Ben Wibking's concerns?
+EXACT_LL_CALC = 1  # Enables more deterministic, but slower, halo property calculation.  Even with this on, halos (or at least halo files) are not full deterministic
 BOUND_PROPS = 1  # Might only work for the alternate masses?
 
 DOWNSAMPLE = {downsample}  # Downsample by this factor before halo finding
 
 #MASS_DEFINITION = <"vir" or "XXXc" or "XXXb" etc.> #default: vir
 STRICT_SO_MASSES = {SO} #default: 0, includes all unbound particles and particles not in the FoF group
-BGC2_R = 1.1e-3  # The search radius for SO particles, in units of the FoF radius (as computed from the FoF mass assuming constant density).  Should have a factor of 1e-3 to convert to Mpc.  Default 1.1e-3, but that is WAY too small.  100e-3 is too big and breaks the code.  40e-3 seems mostly converged.
-TEMPORAL_HALO_FINDING = 0 #default: 1.  We turn this off because we have poor time resolution
+BGC2_R = 5.0e-3  # The search radius for SO particles, in units of the FoF radius (as computed from the FoF mass assuming constant density).  Should have a factor of 1e-3 to convert to Mpc.  Default 1.1e-3, but that is WAY too small.  100e-3 is too big and breaks the code.  40e-3 seems mostly converged.
+TEMPORAL_HALO_FINDING = 0 #default: 1.  We turn this off because we have poor time slice resolution
 
 #FOF_FRACTION = <FOF refinement fraction> #default 0.7 (is this the downsampling?)
 #FOF_LINKING_LENGTH = <FOF linking length> #default 0.28
-
