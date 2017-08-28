@@ -71,7 +71,7 @@ void find_parents_binary(int64_t snap){
     for(i=0; i < total_groups; i++){
         if(ss_halos[i].parent_id == -100){
             //ss_halos[i].parent_id = -1;
-            fprintf(stderr, "[Error] Uninitialized parent_id " PRId64 " found at halo " PRId64 ".\n", ss_halos[i].parent_id, i);
+            fprintf(stderr, "[Error] Uninitialized parent_id %" PRId64 " found at halo %" PRId64 ".\n", ss_halos[i].parent_id, i);
             exit(1);
         }
     }

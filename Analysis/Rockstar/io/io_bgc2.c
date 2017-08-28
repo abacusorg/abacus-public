@@ -288,12 +288,14 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
             if (cur_dens > dens_thresh[0]) {
                 if (STRICT_SO_MASSES) halos[i].m_SO = total_mass;
                 npart = j;
-            } else
-                break;
+            }
+            // Uncomment these to report the mass of the first SO crossing
+            //else
+              //  break;
         }
         
         dens_at_last_particle = cur_dens;
-        local_BGC2_R *= 2;  // If the previous SO search radius wasn't wide enough, try again with double the radius
+        local_BGC2_R += 1e-3;  // If the previous SO search radius wasn't wide enough, try again with a larger radius
     } while (dens_at_last_particle > dens_thresh[0]);
 
     if (!write_bgc2_file) continue;

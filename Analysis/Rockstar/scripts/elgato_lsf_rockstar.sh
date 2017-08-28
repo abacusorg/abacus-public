@@ -5,8 +5,8 @@
 #BSUB -q medium
 ##BSUB -R select[type==any]
 #BSUB -x  # Request exclusive node
-#BSUB -J "AbacusCosmos[1-8,10-40]"  # Inclusive; must start from 1
-#BSUB -We 24:00  #Estimated runtime (non-binding)
+#BSUB -J "AbacusCosmos[15]"  # Inclusive; must start from 1
+#BSUB -We 8:00  #Estimated runtime (non-binding)
 #BSUB -R rusage[mem=200000]
 
 # Don't run this script directly; submit it to the queue with
@@ -20,8 +20,8 @@
 set -e
 
 # Set these if not running through LSF
-LSB_DJOB_NUMPROC=16  #"${LSB_DJOB_NUMPROC:-16}"
-LSB_JOBINDEX=1  #"${LSB_JOBINDEX:-1}"
+#LSB_DJOB_NUMPROC=16
+#LSB_JOBINDEX=6
 
 export OMP_NUM_THREADS=$LSB_DJOB_NUMPROC
 
@@ -59,13 +59,13 @@ rm -rf $ABACUS_TMP
 echo -e "* Checking if we need to run Rockstar:\n"
 if [ 0 ]; then
   echo -e "Running Rockstar."
-  for SLICE in $ABACUS_PERSIST/$SIM_DIR/slice1.000; do
+  for SLICE in $ABACUS_PERSIST/$SIM_DIR/slice*; do
     ZSLICE=$ABACUS_PERSIST/$PROJECT/$SIM_NAME\_products/$SIM_NAME\_rockstar_halos/$(echo "$SLICE" | awk -F '/' '{print $NF}' - | sed 's/slice/z/')
     CLI_CFG=$ZSLICE/auto-rockstar.cfg
     rm -f $CLI_CFG  # Always remove an existing config file
 
     echo "Starting slice $SLICE server"
-    $ABACUS/Analysis/Rockstar/rockstar.py --ncpu $LSB_DJOB_NUMPROC $SLICE --SO &  #--tar-mode TAR --tar-remove-source-files &
+    $ABACUS/Analysis/Rockstar/rockstar.py --ncpu $LSB_DJOB_NUMPROC $SLICE --SO --tar-mode TAR --tar-remove-source-files &
 
     # Wait for the server to generate the client config file
     while [ ! -f $CLI_CFG ]; do
@@ -82,8 +82,8 @@ echo -e "\n\n\n\n"
 
 
 echo -e "* Checking if we need to tarball the outputs:\n"
-if [ ]; then
-    $ABACUS/python/Abacus/archive_sim.py $ABACUS_PERSIST/$SIM_DIR --nthreads=$LSB_DJOB_NUMPROC --inplace
+if [ 0 ]; then
+    $ABACUS/python/Abacus/archive_sim.py $ABACUS_PERSIST/$SIM_DIR --nthreads=$LSB_DJOB_NUMPROC --inplace --remove-source
 else
   echo -e "No tar requested."
 fi
