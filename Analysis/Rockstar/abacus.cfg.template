@@ -25,7 +25,7 @@ FORK_READERS_FROM_WRITERS = 1
 FORK_PROCESSORS_PER_MACHINE = {ncpu}
 
 OUTBASE = "{outdir}" # default is current directory
-OUTPUT_FORMAT = {out_fmt} # "BOTH" or "ASCII" or "BINARY", or "HDF5_SUBSAMPLE"
+OUTPUT_FORMAT = {out_fmt} # "BOTH" or "ASCII" or "BINARY"
 SUBSAMPLE_FRAC = 0.1
 
 #BGC2_SNAPNAMES = "{bgc2_snapnames}"  # We only do one snap at a time, so we just need a file with snap "0"
@@ -43,7 +43,7 @@ DOWNSAMPLE = {downsample}  # Downsample by this factor before halo finding
 
 #MASS_DEFINITION = <"vir" or "XXXc" or "XXXb" etc.> #default: vir
 STRICT_SO_MASSES = {SO} #default: 0, includes all unbound particles and particles not in the FoF group
-BGC2_R = 5.0e-3  # The search radius for SO particles, in units of the FoF radius (as computed from the FoF mass assuming constant density).  Should have a factor of 1e-3 to convert to Mpc.  Default 1.1e-3, but that is WAY too small.  100e-3 is too big and breaks the code.  40e-3 seems mostly converged.
+BGC2_R = 5e-3  # The prefetch radius for SO particles.  Thus, this is the maximum search radius for SO masses
 TEMPORAL_HALO_FINDING = 0 #default: 1.  We turn this off because we have poor time slice resolution
 
 #FOF_FRACTION = <FOF refinement fraction> #default 0.7 (is this the downsampling?)
