@@ -66,7 +66,8 @@ halo_dt = np.dtype([('id',np.int64), ('parent_id',np.int64),
                              ('J',np.float32,3), ('energy',np.float32), ('spin',np.float32), ('alt_m',np.float32,4), ('alt_m_SO',np.float32,4), ('Xoff',np.float32), ('Voff',np.float32), ('b_to_a',np.float32), ('c_to_a',np.float32), ('A',np.float32,3), ('b_to_a2',np.float32), ('c_to_a2',np.float32), ('A2',np.float32,3),
                              ('bullock_spin',np.float32), ('kin_to_pot',np.float32), ('m_pe_b',np.float32), ('m_pe_d',np.float32), ('halfmass_radius',np.float32),
                              ('num_p',np.int64), ('num_child_particles',np.int64), ('p_start',np.int64), ('desc',np.int64), ('flags',np.int64), ('n_core',np.int64), ('subsamp_start',np.int64), ('subsamp_len',np.int64),
-                             ('min_pos_err',np.float32), ('min_vel_err',np.float32), ('min_bulkvel_err',np.float32)], align=True)
+                             ('min_pos_err',np.float32), ('min_vel_err',np.float32), ('min_bulkvel_err',np.float32)],
+                     align=True)
 
 '''
 struct particle {

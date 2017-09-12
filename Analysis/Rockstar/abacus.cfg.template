@@ -22,7 +22,7 @@ NUM_WRITERS = {ncpu_total}
 
 # This means we only have to launch 1 process, and {ncpu} will automatically be started (each with a reader and writer)
 FORK_READERS_FROM_WRITERS = 1
-FORK_PROCESSORS_PER_MACHINE = {ncpu}
+#FORK_PROCESSORS_PER_MACHINE = {ncpu}
 
 OUTBASE = "{outdir}" # default is current directory
 OUTPUT_FORMAT = {out_fmt} # "BOTH" or "ASCII" or "BINARY"
@@ -43,7 +43,7 @@ DOWNSAMPLE = {downsample}  # Downsample by this factor before halo finding
 
 #MASS_DEFINITION = <"vir" or "XXXc" or "XXXb" etc.> #default: vir
 STRICT_SO_MASSES = {SO} #default: 0, includes all unbound particles and particles not in the FoF group
-BGC2_R = 5e-3  # The prefetch radius for SO particles.  Thus, this is the maximum search radius for SO masses
+BGC2_R = 1.1e-3  # The prefetch radius for SO particles.  Thus, this is the maximum search radius for SO masses
 TEMPORAL_HALO_FINDING = 0 #default: 1.  We turn this off because we have poor time slice resolution
 
 #FOF_FRACTION = <FOF refinement fraction> #default 0.7 (is this the downsampling?)

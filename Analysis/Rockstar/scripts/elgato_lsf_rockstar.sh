@@ -1,11 +1,11 @@
 #!/bin/bash
-#BSUB -n 16  # Request 16 cores
+#BSUB -n 32  # Request number of cores
 #BSUB -R "span[ptile=16]"
 #BSUB -o lsf-%J_%I.out
 #BSUB -q medium
 ##BSUB -R select[type==any]
 #BSUB -x  # Request exclusive node
-#BSUB -J "AbacusCosmos[15]"  # Inclusive; must start from 1
+#BSUB -J "AbacusCosmos[1-40]"  # Inclusive; must start from 1
 #BSUB -We 8:00  #Estimated runtime (non-binding)
 #BSUB -R rusage[mem=200000]
 
@@ -73,7 +73,7 @@ if [ 0 ]; then
     done
 
     echo "Starting client in $ZSLICE"
-    $ABACUS/Analysis/Rockstar/rockstar -c $CLI_CFG
+    mpirun $ABACUS/Analysis/Rockstar/rockstar -c $CLI_CFG
   done
 else
   echo -e "No Rockstar requested."
@@ -82,7 +82,7 @@ echo -e "\n\n\n\n"
 
 
 echo -e "* Checking if we need to tarball the outputs:\n"
-if [ 0 ]; then
+if [ ]; then
     $ABACUS/python/Abacus/archive_sim.py $ABACUS_PERSIST/$SIM_DIR --nthreads=$LSB_DJOB_NUMPROC --inplace --remove-source
 else
   echo -e "No tar requested."

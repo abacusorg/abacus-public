@@ -79,7 +79,7 @@ void HeaderStream::ReadHeader(void) {
         if (nread != 1)
             break;
         len += nread;
-    } while(!(buffer[len-2]==0x2 && buffer[len-1]=='\n'));
+    } while(!(len >= 2 && buffer[len-2]==0x2 && buffer[len-1]=='\n'));
     assert(len == bufferlength);
     // replace the end-of-header token with two nulls as required by the parser
     buffer[len-2] = 0x0;

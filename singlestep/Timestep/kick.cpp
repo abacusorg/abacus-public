@@ -25,14 +25,14 @@ it would eventually be AVX-able.  That's considerably faster.
 */
 
 
-void KickCell(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
+void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     FLOAT maxacc = 0.0, maxvel = 0.0, sumvel2 = 0.0;
     FLOAT *vel = (FLOAT *)c.vel; 
     FLOAT *acc = (FLOAT *)cellacc;	// These are flattened arrays, not triples.
 
-    uint64 N = c.count()*3;
+    uint32_t N = c.count()*3;
     #pragma simd reduction(max:maxvel) reduction(max:maxacc) reduction(+:sumvel2) assert
-    for (uint64 i=0;i<N;i++) {
+    for (uint32_t i=0;i<N;i++) {
         // First half kick, to get synchronous
         vel[i] += kick1 * acc[i];
         // Some simple stats
@@ -43,23 +43,7 @@ void KickCell(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
         sumvel2 += _vel*_vel;
         // Second half kick, to advance to time i+1/2
         vel[i] += kick2 * acc[i];
-        //vel[i] *= .9;
     }
-    
-    /*
-    // Check that the simd vector reductions give the same answer as the serial version
-    FLOAT maxvel_check = 0., maxacc_check = 0., sumvel2_check = 0.;
-    for (uint64 i=0;i<N;i++) {
-        FLOAT _vel = fabs(vel[i]);
-        FLOAT _acc = fabs(acc[i]);
-        if (_vel>maxvel_check) maxvel_check = _vel;
-        if (_acc>maxacc_check) maxacc_check = _acc;
-        sumvel2_check += _vel*_vel;
-    }
-    assertf(maxvel == maxvel_check, "maxvel: %f, maxvel_check: %f\n", maxvel, maxvel_check);
-    assertf(maxacc == maxacc_check, "maxacc: %f, maxacc_check: %f\n", maxacc, maxacc_check);
-    //assertf(abs(sumvel2 - sumvel2_check)/sumvel2_check < 1e-4, "sumvel2: %f, sumvel2_check: %f\n", sumvel2, sumvel2_check);
-    */
 
     if (c.count()>0) sumvel2/=c.count();  // Now this has the mean square velocity 
     c.ci->mean_square_velocity = sumvel2;
@@ -70,18 +54,16 @@ void KickCell(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
 
 
 void KickSlab(int slab, FLOAT kick1, FLOAT kick2,
-void (*KickCell)(Cell c, accstruct *cellacc, FLOAT kick1, FLOAT kick2)) {
+void (*KickCell)(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2)) {
     accstruct *acc = (accstruct *) LBW->ReturnIDPtr(AccSlab,slab);
     int cpd = PP->cpd;
+    #pragma omp parallel for schedule(static)
     for (int y=0;y<cpd;y++) {
-
-        #pragma omp parallel for schedule(dynamic,1) 
         for (int z=0;z<cpd;z++) {
             Cell c = PP->GetCell(slab, y, z);
             accstruct *cellacc = acc+c.ci->startindex;
             (*KickCell)(c,cellacc,kick1,kick2);
         }
-
     }
 }
 
@@ -101,10 +83,10 @@ void RescaleAndCoAddAcceleration(int slab) {
     
     uint64 N = Slab->size(slab)*3;
     
+    #pragma omp parallel for schedule(static)
     #pragma simd assert
     for (uint64 j=0; j<N;j++) {
-        faccxyz[j] += naccxyz[j];
-        faccxyz[j] *= rescale;
+        faccxyz[j] = (faccxyz[j] + naccxyz[j])*rescale;
     }
 }
 

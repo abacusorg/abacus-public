@@ -30,6 +30,7 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
     #pragma unroll
     for(int c = InteractionStart; c < InteractionMax; c++){
         int sourceIdx = d.SinkSourceInteractionList[c];
+        FLOAT yOffset = d.SinkSourceYOffset[c];
         int sourceStart = d.SourceSetStart[sourceIdx];
         int sourceCount = d.SourceSetCount[sourceIdx];
         int nB = sourceCount/NFBlockSize;
@@ -37,7 +38,7 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
         for(int b = 0; b < nB; b+=1){
             int idx = sourceStart + b*NFBlockSize + threadIdx.x;
             SourceCacheX[threadIdx.x] = d.SourceSetPositions.X[idx];
-            SourceCacheY[threadIdx.x] = d.SourceSetPositions.Y[idx];
+            SourceCacheY[threadIdx.x] = d.SourceSetPositions.Y[idx]+yOffset;
             SourceCacheZ[threadIdx.x] = d.SourceSetPositions.Z[idx];
             __syncthreads();
             
@@ -55,7 +56,7 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
         if(threadIdx.x < remaining){
             int idx = sourceStart + nB*NFBlockSize + threadIdx.x;
             SourceCacheX[threadIdx.x] = d.SourceSetPositions.X[idx];
-            SourceCacheY[threadIdx.x] = d.SourceSetPositions.Y[idx];
+            SourceCacheY[threadIdx.x] = d.SourceSetPositions.Y[idx]+yOffset;
             SourceCacheZ[threadIdx.x] = d.SourceSetPositions.Z[idx];
         }
         __syncthreads();

@@ -3,9 +3,7 @@
 #include "StructureOfLists.cc"
 #include "SetInteractionCollection.hh"
 
-#ifdef CUDADIRECT
 #include "DeviceFunctions.h"
-#endif
 
 class NearFieldDriver{
     public:
@@ -21,27 +19,28 @@ class NearFieldDriver{
         void Finalize(int slabID);
         uint64 DirectInteractions_CPU;
         uint64 *DirectInteractions_GPU;
-        uint64 TotalDirectInteractions_GPU;
+        uint64 TotalDirectInteractions_GPU = 0;
         uint64 NSink_CPU;
 
         // Total timings from building and running the SetInteractionCollections
         // These are gathered in Finalize(slab)
-        double  Construction;
-        double      FillSinkLists;
-        double          CountSinks;
-        double          CalcSinkBlocks;
-        double          FillSinks;
-        double      FillSourceLists;
-        double          CountSources;
-        double          CalcSourceBlocks;
-        double          FillSources;
-        double      FillInteractionList;
+        double  Construction = 0;
+        double      FillSinkLists = 0;
+        double          CountSinks = 0;
+        double          CalcSinkBlocks = 0;
+        double          AllocAccels = 0;
+        double      FillSourceLists = 0;
+        double          CountSources = 0;
+        double          CalcSourceBlocks = 0;
+        double      FillInteractionList = 0;
         
-        double LaunchDeviceKernels;
-        double *DeviceCopyTimes;
-        double *DeviceExecutionTimes;
-        double *DeviceCopybackTimes;
-        double *DeviceTotalTimes;
+        double DeviceThreadTimer = 0;
+        double     LaunchDeviceKernels = 0;
+        double     FillSinks = 0;
+        double     FillSources = 0;
+        double     WaitForResult = 0;
+        double     CopyAccelFromPinned = 0;
+
     
         double *GB_to_device, *GB_from_device;
         uint64 *DeviceSinks;
@@ -82,20 +81,7 @@ class NearFieldDriver{
 
 
 
-NearFieldDriver::NearFieldDriver() :         
-        Construction{0},
-              FillSinkLists{0},
-                  CountSinks{0},
-                  CalcSinkBlocks{0},
-                  FillSinks{0},
-              FillSourceLists{0},
-                  CountSources{0},
-                  CalcSourceBlocks{0},
-                  FillSources{0},
-        FillInteractionList{0},
-        LaunchDeviceKernels{0},
-        TotalDirectInteractions_GPU{0},
-            
+NearFieldDriver::NearFieldDriver() :
         SofteningLength{WriteState.SofteningLength/P.BoxSize},
         SofteningLengthInternal{WriteState.SofteningLengthInternal/P.BoxSize},
             
@@ -136,28 +122,27 @@ NearFieldDriver::NearFieldDriver() :
     STDLOG(1, "Using %f GB of GPU memory (per device)\n", GPUMemoryGB);
     size_t BlockSizeBytes = sizeof(FLOAT) *3 * NFBlockSize;
     MaxSinkBlocks = floor(1e9 * GPUMemoryGB/(6*BlockSizeBytes));
-    MaxSourceBlocks = 5 * MaxSinkBlocks;
+    MaxSourceBlocks = WIDTH * MaxSinkBlocks;
     STDLOG(1,"Initializing GPU with %f x10^6 sink blocks and %f x10^6 source blocks\n",
             MaxSinkBlocks/1e6,MaxSourceBlocks/1e6);
     
     // We want to compute maxkwidth for GPUSetup
     // maxkwidth will occur when we have the fewest splits
     // The fewest splits will occur when we are operating on the smallest slabs
-    //MinSplits = GetNSplit(WIDTH*Slab->min, Slab->min);
+    MinSplits = GetNSplit(WIDTH*Slab->min, Slab->min);
+    MinSplits = ceil(.8*MinSplits);  // fudge factor to account for uneven slabs
     // This may not account for unequal splits, though.  Unless we really need to save GPU memory, just use maxkwidth=cpd
-    MinSplits = 1;
+    //MinSplits = 1;
     STDLOG(1,"MinSplits = %d\n", MinSplits);
-    GPUSetup(P.cpd, std::ceil(1.*P.cpd/MinSplits), MaxSinkBlocks, MaxSourceBlocks, DirectBPD);
+    if(MinSplits*WIDTH < omp_get_num_threads())
+        STDLOG(1, "*** WARNING: MinSplits*WIDTH is less than the number of threads! Finalize() might be inefficient\n");
+    GPUSetup(P.cpd, std::ceil(1.*P.cpd/MinSplits), MaxSinkBlocks, MaxSourceBlocks, DirectBPD, P.GPUThreadCoreStart, P.NGPUThreadCores);
     SICExecute.Clear();
 
     NSink_GPU_final = (uint64*) malloc(NGPU*sizeof(uint64));
     for(int g = 0; g < NGPU; g++)
         NSink_GPU_final[g] = 0;
     
-    DeviceCopyTimes = new double[NGPU*DirectBPD]();
-    DeviceExecutionTimes = new double[NGPU*DirectBPD]();
-    DeviceCopybackTimes = new double[NGPU*DirectBPD]();
-    DeviceTotalTimes = new double[NGPU*DirectBPD]();
     DirectInteractions_GPU = new uint64[NGPU*DirectBPD]();
     GB_to_device = new double[NGPU*DirectBPD]();
     GB_from_device = new double[NGPU*DirectBPD]();
@@ -174,10 +159,6 @@ NearFieldDriver::~NearFieldDriver()
     delete[] SlabInteractionCollections;
 #ifdef CUDADIRECT
     free(NSink_GPU_final);
-    delete[] DeviceCopyTimes;
-    delete[] DeviceExecutionTimes;
-    delete[] DeviceCopybackTimes;
-    delete[] DeviceTotalTimes;
     delete[] DirectInteractions_GPU;
     delete[] GB_to_device;
     delete[] GB_from_device;
@@ -246,12 +227,15 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     }
     SplitPoint[NSplit-1] = P.cpd;
 
-    STDLOG(1,"Direct splits for slab %d are at: \n",slabID);
-    for(int i = 0; i < NSplit -1; i++) STDLOG(2,"\t\t\t\t %d: %d \n",i,SplitPoint[i]);
+    if (NSplit > 1) {
+        STDLOG(1,"Direct splits for slab %d are at: \n",slabID);
+        for(int i = 0; i < NSplit -1; i++)
+            STDLOG(1,"\t\t\t\t %d: %d \n",i,SplitPoint[i]);
+    }
     
     CalcSplitDirects.Stop();
 
-    
+    // If we thread over y-splits, would that help with NUMA locality?
     for(int w = 0; w < WIDTH; w++){
         int kl =0;
         for(int n = 0; n < NSplit; n++){
@@ -271,6 +255,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             STDLOG(1,"Executing directs for slab %d w = %d k: %d - %d\n",slabID,w,kl,kh);
             SICExecute.Start();
             SlabInteractionCollections[slabID][w*NSplit + n]->GPUExecute(blocking);
+            //SlabInteractionCollections[slabID][w*NSplit + n]->CPUExecute();
             SICExecute.Stop();
             kl = kh;
         }
@@ -326,6 +311,7 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID){
 
 
 void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
+    CPUFallbackTimer.Start();
     if(!LBW->IDPresent(NearAccSlab, slabID))
         LBW->AllocateArena(NearAccSlab,slabID);
     ZeroAcceleration(slabID,NearAccSlab);
@@ -342,6 +328,8 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
         //STDLOG(1,"Executing directs on pencil y=%d in slab %d, in OMP thread %d on CPU %d (nprocs: %d)\n", y, slabID, g, sched_getcpu(), omp_get_num_procs());
         for(int z = 0; z < P.cpd; z++){
             if(predicate != NULL && !predicate[y*P.cpd +z]) continue;
+            
+            // We can use PosCell instead of PosXYZ here because it's for the sink positions
             posstruct * sink_pos = PP->PosCell(slabID,y,z);
             accstruct * sink_acc = PP->NearAccCell(slabID,y,z);
             uint64 np_sink = PP->NumberParticle(slabID,y,z);
@@ -350,11 +338,23 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
             for(int i = slabID - RADIUS; i <= slabID + RADIUS; i++){
                 for(int j = y - RADIUS; j <= y + RADIUS; j++){
                     for(int k = z - RADIUS; k <= z + RADIUS; k++){
-                        posstruct *source_pos = PP->PosCell(i,j,k);
-                        FLOAT3 delta = PP->CellCenter(slabID,y,z)-PP->CellCenter(i,j,k);
                         uint64 np_source = PP->NumberParticle(i,j,k);
+                        
+                        // We assume that PosXYZ is used for all sources
+                        // This lets us drift PosSlab much earlier
+                        List3<FLOAT> source_pos_xyz = PP->PosXYZCell(i,j,k);
+                        posstruct *source_pos = new posstruct[np_source];
+                        for(uint64 ii = 0; ii < np_source; ii++){
+                            source_pos[ii].x = source_pos_xyz.X[ii];
+                            source_pos[ii].y = source_pos_xyz.Y[ii];
+                            source_pos[ii].z = source_pos_xyz.Z[ii];
+                        }
+                        
+                        FLOAT3 delta = PP->CellCenter(slabID,y,z)-PP->CellCenter(i,j,k);
                         if(np_source >0) DD[g].AVXExecute(sink_pos,source_pos,np_sink,np_source,
                                 delta,eps,sink_acc);
+                        delete[] source_pos;
+                        
                         DI_slab += np_sink*np_source;
                     }
                 }
@@ -367,6 +367,7 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
     }
     DirectInteractions_CPU += DI_slab;
     NSink_CPU += NSink_CPU_slab;
+    CPUFallbackTimer.Stop();
 }
 
 void NearFieldDriver::ExecuteSlab(int slabID, int blocking){
@@ -407,6 +408,7 @@ void NearFieldDriver::Finalize(int slab){
     slab = PP->WrapSlab(slab);
 
 #ifdef CUDADIRECT
+    FinalizeBookkeeping.Start();
 
     assertf(SlabDone(slab) != 0,
             "Finalize called for slab %d but it is not complete\n",slab);
@@ -432,114 +434,103 @@ void NearFieldDriver::Finalize(int slab){
     // instead of add if it's the first time touching the cell
     int *CellAccInit = new int[cpd*cpd]();
 
-    for(int n = 0; n < NSplit; n++){
-        for(int w = 0; w < WIDTH; w++){
-            FinalizeBookkeeping.Start();
-            int sliceIdx = w*NSplit + n;
-            SetInteractionCollection *Slice = Slices[sliceIdx];
-            int kl = Slice->K_low;
-            int kh = Slice->K_high;
-            int Nj = (cpd - w)/width;
-            int jr = (cpd - w)%width;
-            if(Nj * width + w < cpd)
-                Nj++;
-            //Slice->PrintInteractions();
-            
-            get_cuda_timers(Slice);
-            
-            // Fetching the times in the callback didn't work, possibly because the timing information
-            // didn't have time to be sync'd to the host.  By this point, it should have had time, but
-            // let's notify if not.
-            if(Slice->CopyTime == 0 || Slice->ExecutionTime == 0 || Slice->CopybackTime == 0 || Slice->TotalTime == 0)
-                STDLOG(1, "Warning: one or more CUDA timers returned 0.  Timings might not be reliable.\n");
-            
-            Construction +=Slice->Construction.Elapsed();
-                FillSinkLists+=Slice->FillSinkLists.Elapsed();
-                    CountSinks+=Slice->CountSinks.Elapsed();
-                    CalcSinkBlocks+=Slice->CalcSinkBlocks.Elapsed();
-                    FillSinks+=Slice->FillSinks.Elapsed();          
-                FillSourceLists+=Slice->FillSourceLists.Elapsed();
-                    CountSources+=Slice->CountSources.Elapsed();
-                    CalcSourceBlocks+=Slice->CalcSinkBlocks.Elapsed();
-                    FillSources+=Slice->FillSources.Elapsed();
-                FillInteractionList+=Slice->FillInteractionList.Elapsed();
+    // There's an annoying number of reductions here, would be a lot of overhead to do in parallel
+    // Let's do them serially here; hopefully this is quick.
+    for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
+        SetInteractionCollection *Slice = Slices[sliceIdx];
+
+        Construction +=Slice->Construction.Elapsed();
+            FillSinkLists+=Slice->FillSinkLists.Elapsed();
+                CountSinks+=Slice->CountSinks.Elapsed();
+                CalcSinkBlocks+=Slice->CalcSinkBlocks.Elapsed();
+                AllocAccels += Slice->AllocAccels.Elapsed();
+            FillSourceLists+=Slice->FillSourceLists.Elapsed();
+                CountSources+=Slice->CountSources.Elapsed();
+                CalcSourceBlocks+=Slice->CalcSourceBlocks.Elapsed();
+            FillInteractionList+=Slice->FillInteractionList.Elapsed();
+        DeviceThreadTimer += Slice->DeviceThreadTimer.Elapsed();
             LaunchDeviceKernels += Slice->LaunchDeviceKernels.Elapsed();
-            
-            int g = Slice->AssignedDevice;
-            DeviceCopyTimes[g] += Slice->CopyTime;
-            DeviceExecutionTimes[g] += Slice->ExecutionTime;
-            DeviceCopybackTimes[g] += Slice->CopybackTime;
-            DeviceTotalTimes[g] += Slice->TotalTime;
-            
-            DirectInteractions_GPU[g] += Slice->DirectTotal;
-            TotalDirectInteractions_GPU += Slice->DirectTotal;
-            
-            GB_to_device[g] += Slice->bytes_to_device/1e9;
-            GB_from_device[g] += Slice->bytes_from_device/1e9;
-            DeviceSinks[g] += Slice->SinkTotal;
-            DeviceSources[g] += Slice->SourceTotal;
-            
-            FinalizeBookkeeping.Stop();
+            FillSinks += Slice->FillSinks.Elapsed();
+            FillSources += Slice->FillSources.Elapsed();
+            WaitForResult += Slice->WaitForResult.Elapsed();
+            CopyAccelFromPinned += Slice->CopyAccelFromPinned.Elapsed();
 
-            CopyPencilToSlab.Start();
-            #pragma omp parallel for schedule(static)
-            for(int sinkIdx = 0; sinkIdx < Slice->NSinkList; sinkIdx++){
-                int SinkCount = Slice->SinkSetCount[sinkIdx];
-                int j = sinkIdx%Nj;
-                int k = sinkIdx/Nj + Slice->K_low;
-                int jj = w + j * width;
-                int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
-                int Start = Slice->SinkSetStart[sinkIdx];
+        int g = Slice->AssignedDevice;
+        DirectInteractions_GPU[g] += Slice->DirectTotal;
+        TotalDirectInteractions_GPU += Slice->DirectTotal;
 
-                for(int z=zmid-nfr; z <= zmid+nfr;z++){
-                    int cid = PP->CellID(k,z);
-                    pthread_mutex_lock(&CellLock[cid]);
-                    int CellNP = PP->NumberParticle(slab,k,z);
-                    accstruct *a = PP->NearAccCell(slab,k,z);
-
-                    if(P.ForceOutputDebug == 1){
-                        for(int p =0; p < CellNP; p++){
-                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].x));
-                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].y));
-                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].z));
-                        }
-                    }
-
-                    // Should rewrite the following to avoid so much repetition
-                    if(CellAccInit[cid]){
-                        #pragma ivdep
-                        for(int p = 0; p <CellNP; p++){
-                            // It's not good to know about spline here, but it's likely the most efficient way
-                            #ifdef DIRECTSINGLESPLINE
-                            a[p] += Slice->SinkSetAccelerations[Start +p]*inv_eps3;
-                            #else
-                            a[p] += Slice->SinkSetAccelerations[Start +p];
-                            #endif
-                        }
-                    } else {
-                        #pragma ivdep
-                        for(int p = 0; p <CellNP; p++){
-                            // It's not good to know about spline here, but it's likely the most efficient way
-                            #ifdef DIRECTSINGLESPLINE
-                            a[p] = Slice->SinkSetAccelerations[Start +p]*inv_eps3;
-                            #else
-                            a[p] = Slice->SinkSetAccelerations[Start +p];
-                            #endif
-                        }
-                        CellAccInit[cid] = 1;
-                    }
-                    pthread_mutex_unlock(&CellLock[cid]);
-
-                    Start+=CellNP;
-                    SinkCount-=CellNP;
-                }
-                assert(SinkCount == 0);
-            }
-            CopyPencilToSlab.Stop();
-
-            delete Slice;
-        }
+        GB_to_device[g] += Slice->bytes_to_device/1e9;
+        GB_from_device[g] += Slice->bytes_from_device/1e9;
+        DeviceSinks[g] += Slice->SinkTotal;
+        DeviceSources[g] += Slice->SourceTotal;
     }
+    FinalizeBookkeeping.Stop();
+    
+    CopyPencilToSlab.Start();
+    #pragma omp parallel for schedule(static)
+    for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
+        int w = sliceIdx / NSplit;
+        SetInteractionCollection *Slice = Slices[sliceIdx];
+        int Nj = (cpd - w)/width;
+        if(Nj * width + w < cpd)
+            Nj++;
+
+        for(int sinkIdx = 0; sinkIdx < Slice->NSinkList; sinkIdx++){
+            int SinkCount = Slice->SinkSetCount[sinkIdx];
+            int j = sinkIdx%Nj;
+            int k = sinkIdx/Nj + Slice->K_low;
+            int jj = w + j * width;
+            int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
+            int Start = Slice->SinkSetStart[sinkIdx];
+
+            for(int z=zmid-nfr; z <= zmid+nfr;z++){
+                int cid = PP->CellID(k,z);
+                int CellNP = PP->NumberParticle(slab,k,z);
+                accstruct *a = PP->NearAccCell(slab,k,z);
+
+                if(P.ForceOutputDebug == 1){
+                    for(int p =0; p < CellNP; p++){
+                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].x));
+                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].y));
+                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].z));
+                    }
+                }
+
+                pthread_mutex_lock(&CellLock[cid]);
+                // Should rewrite the following to avoid so much repetition
+                if(CellAccInit[cid]){
+                    #pragma simd assert
+                    for(int p = 0; p <CellNP; p++){
+                        // It's not good to know about spline here, but it's likely the most efficient way
+                        #ifdef DIRECTSINGLESPLINE
+                        a[p] += Slice->SinkSetAccelerations[Start +p]*inv_eps3;
+                        #else
+                        a[p] += Slice->SinkSetAccelerations[Start +p];
+                        #endif
+                    }
+                } else {
+                    #pragma simd assert
+                    for(int p = 0; p <CellNP; p++){
+                        // It's not good to know about spline here, but it's likely the most efficient way
+                        #ifdef DIRECTSINGLESPLINE
+                        a[p] = Slice->SinkSetAccelerations[Start +p]*inv_eps3;
+                        #else
+                        a[p] = Slice->SinkSetAccelerations[Start +p];
+                        #endif
+                    }
+                    CellAccInit[cid] = 1;
+                }
+                pthread_mutex_unlock(&CellLock[cid]);
+
+                Start+=CellNP;
+                SinkCount-=CellNP;
+            }
+            assert(SinkCount == 0);
+        }
+        delete Slice;
+    }
+    CopyPencilToSlab.Stop();
+    
     delete[] Slices;
     delete[] CellAccInit;
     if(P.ForceOutputDebug) CheckGPUCPU(slab);
@@ -623,3 +614,4 @@ void NearFieldDriver::CheckInteractionList(int slab){
 NearFieldDriver *JJ;
     
 #include "PencilOnPencil.cc"
+#include "PencilPlan.cc"

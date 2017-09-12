@@ -232,14 +232,18 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
     if (BOX_SIZE > 0 && PERIODIC) _fast3tree_set_minmax(ep_tree2, 0, BOX_SIZE);
   }
 
+  //printf("dens_thresh[0]: %f\n", dens_thresh[0]);
   for (i=0; i<num_halos; i++) {
     if (!_should_print(halos+i, bounds)) continue;
     halos[i].flags |= ALWAYS_PRINT_FLAG;
     
     float local_BGC2_R = 1.1e-3;  // Local search radius that may be expanded as necessary
+    local_BGC2_R = BGC2_R; // override
     float dens_at_last_particle;
+    
+    //halos[i].max_halo_radius = max_halo_radius(halos+i);
         
-    do {
+    //do {
         // BGC2_R is the prefetch radius; i.e. the max safe radius
         if(local_BGC2_R > BGC2_R){
             fprintf(stderr, "[Error] Tried to increase SO search radius to local_BGC2_R = %f! This is beyond the safe limit of BGC2_R = %f.\n", local_BGC2_R, BGC2_R);
@@ -287,6 +291,7 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
                     if (cur_dens > dens_thresh[k]) halos[i].alt_m_SO[k-1] = total_mass;
             if (cur_dens > dens_thresh[0]) {
                 if (STRICT_SO_MASSES) halos[i].m_SO = total_mass;
+                //halos[i].max_SO_radius = r;
                 npart = j;
             }
             // Uncomment these to report the mass of the first SO crossing
@@ -295,8 +300,8 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
         }
         
         dens_at_last_particle = cur_dens;
-        local_BGC2_R += 1e-3;  // If the previous SO search radius wasn't wide enough, try again with a larger radius
-    } while (dens_at_last_particle > dens_thresh[0]);
+        //local_BGC2_R += 1e-3;  // If the previous SO search radius wasn't wide enough, try again with a larger radius
+    //} while (dens_at_last_particle > dens_thresh[0]);
 
     if (!write_bgc2_file) continue;
     j = npart;

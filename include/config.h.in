@@ -15,6 +15,9 @@
 /* "Cubic Hernquist spline softening" */
 #undef DIRECTCUBICSPLINE
 
+/* "Plummer softening" */
+#undef DIRECTPLUMMER
+
 /* "Single-branch spline softening" */
 #undef DIRECTSINGLESPLINE
 

@@ -37,5 +37,15 @@
 
 typedef std::complex<double> Complex;
 
+// dtype for Multipoles/Taylors and Derivatives on disk
+// might eventually be used for computations as well
+#ifdef DOUBLEPRECISION
+typedef std::complex<double> MTCOMPLEX;
+typedef double DFLOAT;
+#else
+typedef std::complex<float> MTCOMPLEX;
+typedef float DFLOAT;
+#endif
+
 using namespace std;
 

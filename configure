@@ -675,6 +675,7 @@ infodir
 docdir
 oldincludedir
 includedir
+runstatedir
 localstatedir
 sharedstatedir
 sysconfdir
@@ -698,6 +699,7 @@ ac_subst_files=''
 ac_user_opts='
 enable_option_checking
 enable_double
+enable_mkl
 with_radius
 with_block_size
 enable_avx
@@ -763,6 +765,7 @@ datadir='${datarootdir}'
 sysconfdir='${prefix}/etc'
 sharedstatedir='${prefix}/com'
 localstatedir='${prefix}/var'
+runstatedir='${localstatedir}/run'
 includedir='${prefix}/include'
 oldincludedir='/usr/include'
 docdir='${datarootdir}/doc/${PACKAGE_TARNAME}'
@@ -1015,6 +1018,15 @@ do
   | -silent | --silent | --silen | --sile | --sil)
     silent=yes ;;
 
+  -runstatedir | --runstatedir | --runstatedi | --runstated \
+  | --runstate | --runstat | --runsta | --runst | --runs \
+  | --run | --ru | --r)
+    ac_prev=runstatedir ;;
+  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
+  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
+  | --run=* | --ru=* | --r=*)
+    runstatedir=$ac_optarg ;;
+
   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
     ac_prev=sbindir ;;
   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
@@ -1152,7 +1164,7 @@ fi
 for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
 		datadir sysconfdir sharedstatedir localstatedir includedir \
 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
-		libdir localedir mandir
+		libdir localedir mandir runstatedir
 do
   eval ac_val=\$$ac_var
   # Remove trailing slashes.
@@ -1305,6 +1317,7 @@ Fine tuning of the installation directories:
   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
+  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
   --libdir=DIR            object code libraries [EPREFIX/lib]
   --includedir=DIR        C header files [PREFIX/include]
   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
@@ -1339,6 +1352,7 @@ Optional Features:
   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --enable-double         Double precision [no]
+  --enable-mkl            Intel Math Kernel Library FFT [yes if using icc]
   --enable-avx            All AVX (overridden by individual options) [yes if
                           AVX present]
   --enable-avx-directs    AVX directs [no]
@@ -1358,9 +1372,9 @@ Optional Packages:
                           Maximum source length [1048576]
   --with-cuda=PREFIX      Prefix of your CUDA installation [/usr/local/cuda]
   --with-direct-bpd=B     Direct buffers per device [ceil((2*NFR+1)/NGPU) = 3]
-  --with-max-gpus=M       Maximum number of GPUs to use [no limit]
+  --with-max-gpus=M       Maximum number of GPUs to use [16]
   --with-softening={plummer | single_spline | cubic_spline | cubic_plummer}
-                          Near-force softening technique [plummer]
+                          Near-force softening technique [single_spline]
 
 Some influential environment variables:
   CXX         C++ compiler command
@@ -4064,238 +4078,6 @@ _ACEOF
 
 
 # These will automatically add the appropriate -L and -l flags to LIBS
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing fftw_execute" >&5
-$as_echo_n "checking for library containing fftw_execute... " >&6; }
-if ${ac_cv_search_fftw_execute+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  ac_func_search_save_LIBS=$LIBS
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-/* Override any GCC internal prototype to avoid an error.
-   Use char because int might match the return type of a GCC
-   builtin and then its argument prototype would still apply.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-char fftw_execute ();
-int
-main ()
-{
-return fftw_execute ();
-  ;
-  return 0;
-}
-_ACEOF
-for ac_lib in '' fftw3; do
-  if test -z "$ac_lib"; then
-    ac_res="none required"
-  else
-    ac_res=-l$ac_lib
-    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
-  fi
-  if ac_fn_c_try_link "$LINENO"; then :
-  ac_cv_search_fftw_execute=$ac_res
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext
-  if ${ac_cv_search_fftw_execute+:} false; then :
-  break
-fi
-done
-if ${ac_cv_search_fftw_execute+:} false; then :
-
-else
-  ac_cv_search_fftw_execute=no
-fi
-rm conftest.$ac_ext
-LIBS=$ac_func_search_save_LIBS
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_fftw_execute" >&5
-$as_echo "$ac_cv_search_fftw_execute" >&6; }
-ac_res=$ac_cv_search_fftw_execute
-if test "$ac_res" != no; then :
-  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
-
-else
-  as_fn_error $? "unable to find fftw3!" "$LINENO" 5
-fi
-
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing fftw_init_threads" >&5
-$as_echo_n "checking for library containing fftw_init_threads... " >&6; }
-if ${ac_cv_search_fftw_init_threads+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  ac_func_search_save_LIBS=$LIBS
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-/* Override any GCC internal prototype to avoid an error.
-   Use char because int might match the return type of a GCC
-   builtin and then its argument prototype would still apply.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-char fftw_init_threads ();
-int
-main ()
-{
-return fftw_init_threads ();
-  ;
-  return 0;
-}
-_ACEOF
-for ac_lib in '' fftw3_omp; do
-  if test -z "$ac_lib"; then
-    ac_res="none required"
-  else
-    ac_res=-l$ac_lib
-    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
-  fi
-  if ac_fn_c_try_link "$LINENO"; then :
-  ac_cv_search_fftw_init_threads=$ac_res
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext
-  if ${ac_cv_search_fftw_init_threads+:} false; then :
-  break
-fi
-done
-if ${ac_cv_search_fftw_init_threads+:} false; then :
-
-else
-  ac_cv_search_fftw_init_threads=no
-fi
-rm conftest.$ac_ext
-LIBS=$ac_func_search_save_LIBS
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_fftw_init_threads" >&5
-$as_echo "$ac_cv_search_fftw_init_threads" >&6; }
-ac_res=$ac_cv_search_fftw_init_threads
-if test "$ac_res" != no; then :
-  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
-
-else
-  as_fn_error $? "unable to find fftw3_omp!" "$LINENO" 5
-fi
-
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing fftwf_execute" >&5
-$as_echo_n "checking for library containing fftwf_execute... " >&6; }
-if ${ac_cv_search_fftwf_execute+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  ac_func_search_save_LIBS=$LIBS
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-/* Override any GCC internal prototype to avoid an error.
-   Use char because int might match the return type of a GCC
-   builtin and then its argument prototype would still apply.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-char fftwf_execute ();
-int
-main ()
-{
-return fftwf_execute ();
-  ;
-  return 0;
-}
-_ACEOF
-for ac_lib in '' fftw3f; do
-  if test -z "$ac_lib"; then
-    ac_res="none required"
-  else
-    ac_res=-l$ac_lib
-    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
-  fi
-  if ac_fn_c_try_link "$LINENO"; then :
-  ac_cv_search_fftwf_execute=$ac_res
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext
-  if ${ac_cv_search_fftwf_execute+:} false; then :
-  break
-fi
-done
-if ${ac_cv_search_fftwf_execute+:} false; then :
-
-else
-  ac_cv_search_fftwf_execute=no
-fi
-rm conftest.$ac_ext
-LIBS=$ac_func_search_save_LIBS
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_fftwf_execute" >&5
-$as_echo "$ac_cv_search_fftwf_execute" >&6; }
-ac_res=$ac_cv_search_fftwf_execute
-if test "$ac_res" != no; then :
-  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
-
-else
-  as_fn_error $? "unable to find fftw3!" "$LINENO" 5
-fi
-
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing fftwf_init_threads" >&5
-$as_echo_n "checking for library containing fftwf_init_threads... " >&6; }
-if ${ac_cv_search_fftwf_init_threads+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  ac_func_search_save_LIBS=$LIBS
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-/* Override any GCC internal prototype to avoid an error.
-   Use char because int might match the return type of a GCC
-   builtin and then its argument prototype would still apply.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-char fftwf_init_threads ();
-int
-main ()
-{
-return fftwf_init_threads ();
-  ;
-  return 0;
-}
-_ACEOF
-for ac_lib in '' fftw3f_omp; do
-  if test -z "$ac_lib"; then
-    ac_res="none required"
-  else
-    ac_res=-l$ac_lib
-    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
-  fi
-  if ac_fn_c_try_link "$LINENO"; then :
-  ac_cv_search_fftwf_init_threads=$ac_res
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext
-  if ${ac_cv_search_fftwf_init_threads+:} false; then :
-  break
-fi
-done
-if ${ac_cv_search_fftwf_init_threads+:} false; then :
-
-else
-  ac_cv_search_fftwf_init_threads=no
-fi
-rm conftest.$ac_ext
-LIBS=$ac_func_search_save_LIBS
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_fftwf_init_threads" >&5
-$as_echo "$ac_cv_search_fftwf_init_threads" >&6; }
-ac_res=$ac_cv_search_fftwf_init_threads
-if test "$ac_res" != no; then :
-  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
-
-else
-  as_fn_error $? "unable to find fftw3_omp!" "$LINENO" 5
-fi
-
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing cos" >&5
 $as_echo_n "checking for library containing cos... " >&6; }
 if ${ac_cv_search_cos+:} false; then :
@@ -4524,6 +4306,64 @@ if test "$ac_res" != no; then :
 
 else
   as_fn_error $? "unable to find tbb!" "$LINENO" 5
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing numa_max_node" >&5
+$as_echo_n "checking for library containing numa_max_node... " >&6; }
+if ${ac_cv_search_numa_max_node+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_func_search_save_LIBS=$LIBS
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char numa_max_node ();
+int
+main ()
+{
+return numa_max_node ();
+  ;
+  return 0;
+}
+_ACEOF
+for ac_lib in '' numa; do
+  if test -z "$ac_lib"; then
+    ac_res="none required"
+  else
+    ac_res=-l$ac_lib
+    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
+  fi
+  if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_search_numa_max_node=$ac_res
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext
+  if ${ac_cv_search_numa_max_node+:} false; then :
+  break
+fi
+done
+if ${ac_cv_search_numa_max_node+:} false; then :
+
+else
+  ac_cv_search_numa_max_node=no
+fi
+rm conftest.$ac_ext
+LIBS=$ac_func_search_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_numa_max_node" >&5
+$as_echo "$ac_cv_search_numa_max_node" >&6; }
+ac_res=$ac_cv_search_numa_max_node
+if test "$ac_res" != no; then :
+  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
+
+else
+  as_fn_error $? "unable to find numa!" "$LINENO" 5
 fi
 
 
@@ -5653,6 +5493,29 @@ _ACEOF
 
 fi
 
+if test x$enable_double == xyes; then
+
+cat >>confdefs.h <<_ACEOF
+#define DOUBLEPRECISION /**/
+_ACEOF
+
+fi
+
+# Check whether --enable-mkl was given.
+if test "${enable_mkl+set}" = set; then :
+  enableval=$enable_mkl;
+else
+  enable_mkl="check"
+fi
+
+if test x$enable_mkl == xcheck; then
+    if test x$CXX == xicc; then
+        enable_mkl="yes"
+    else
+        enable_mkl="no"
+    fi
+fi
+
 
 # Check whether --with-radius was given.
 if test "${with_radius+set}" = set; then :
@@ -6113,16 +5976,14 @@ _ACEOF
 if test "${with_max_gpus+set}" = set; then :
   withval=$with_max_gpus;
 else
-  with_max_gpus="no limit"
+  with_max_gpus="16"
 fi
 
-if test x"$with_max_gpus" != x"no limit"; then
 
 cat >>confdefs.h <<_ACEOF
 #define MAX_GPUS $with_max_gpus
 _ACEOF
 
-fi
 
 
 # Check whether --with-softening was given.
@@ -6150,7 +6011,252 @@ cat >>confdefs.h <<_ACEOF
 #define DIRECTSINGLESPLINE /**/
 _ACEOF
 
+elif test "x$with_softening" == xplummer; then
+
+cat >>confdefs.h <<_ACEOF
+#define DIRECTPLUMMER /**/
+_ACEOF
+
+else
+    as_fn_error $? "Unknown softening \"$with_softening\"!" "$LINENO" 5
 fi
+
+# If not using MKL, look for FFTW
+if test x$enable_mkl != xyes; then
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing fftw_execute" >&5
+$as_echo_n "checking for library containing fftw_execute... " >&6; }
+if ${ac_cv_search_fftw_execute+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_func_search_save_LIBS=$LIBS
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char fftw_execute ();
+int
+main ()
+{
+return fftw_execute ();
+  ;
+  return 0;
+}
+_ACEOF
+for ac_lib in '' fftw3; do
+  if test -z "$ac_lib"; then
+    ac_res="none required"
+  else
+    ac_res=-l$ac_lib
+    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
+  fi
+  if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_search_fftw_execute=$ac_res
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext
+  if ${ac_cv_search_fftw_execute+:} false; then :
+  break
+fi
+done
+if ${ac_cv_search_fftw_execute+:} false; then :
+
+else
+  ac_cv_search_fftw_execute=no
+fi
+rm conftest.$ac_ext
+LIBS=$ac_func_search_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_fftw_execute" >&5
+$as_echo "$ac_cv_search_fftw_execute" >&6; }
+ac_res=$ac_cv_search_fftw_execute
+if test "$ac_res" != no; then :
+  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
+
+else
+  as_fn_error $? "unable to find fftw3!" "$LINENO" 5
+fi
+
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing fftw_init_threads" >&5
+$as_echo_n "checking for library containing fftw_init_threads... " >&6; }
+if ${ac_cv_search_fftw_init_threads+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_func_search_save_LIBS=$LIBS
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char fftw_init_threads ();
+int
+main ()
+{
+return fftw_init_threads ();
+  ;
+  return 0;
+}
+_ACEOF
+for ac_lib in '' fftw3_omp; do
+  if test -z "$ac_lib"; then
+    ac_res="none required"
+  else
+    ac_res=-l$ac_lib
+    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
+  fi
+  if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_search_fftw_init_threads=$ac_res
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext
+  if ${ac_cv_search_fftw_init_threads+:} false; then :
+  break
+fi
+done
+if ${ac_cv_search_fftw_init_threads+:} false; then :
+
+else
+  ac_cv_search_fftw_init_threads=no
+fi
+rm conftest.$ac_ext
+LIBS=$ac_func_search_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_fftw_init_threads" >&5
+$as_echo "$ac_cv_search_fftw_init_threads" >&6; }
+ac_res=$ac_cv_search_fftw_init_threads
+if test "$ac_res" != no; then :
+  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
+
+else
+  as_fn_error $? "unable to find fftw3_omp!" "$LINENO" 5
+fi
+
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing fftwf_execute" >&5
+$as_echo_n "checking for library containing fftwf_execute... " >&6; }
+if ${ac_cv_search_fftwf_execute+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_func_search_save_LIBS=$LIBS
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char fftwf_execute ();
+int
+main ()
+{
+return fftwf_execute ();
+  ;
+  return 0;
+}
+_ACEOF
+for ac_lib in '' fftw3f; do
+  if test -z "$ac_lib"; then
+    ac_res="none required"
+  else
+    ac_res=-l$ac_lib
+    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
+  fi
+  if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_search_fftwf_execute=$ac_res
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext
+  if ${ac_cv_search_fftwf_execute+:} false; then :
+  break
+fi
+done
+if ${ac_cv_search_fftwf_execute+:} false; then :
+
+else
+  ac_cv_search_fftwf_execute=no
+fi
+rm conftest.$ac_ext
+LIBS=$ac_func_search_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_fftwf_execute" >&5
+$as_echo "$ac_cv_search_fftwf_execute" >&6; }
+ac_res=$ac_cv_search_fftwf_execute
+if test "$ac_res" != no; then :
+  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
+
+else
+  as_fn_error $? "unable to find fftw3!" "$LINENO" 5
+fi
+
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing fftwf_init_threads" >&5
+$as_echo_n "checking for library containing fftwf_init_threads... " >&6; }
+if ${ac_cv_search_fftwf_init_threads+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_func_search_save_LIBS=$LIBS
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char fftwf_init_threads ();
+int
+main ()
+{
+return fftwf_init_threads ();
+  ;
+  return 0;
+}
+_ACEOF
+for ac_lib in '' fftw3f_omp; do
+  if test -z "$ac_lib"; then
+    ac_res="none required"
+  else
+    ac_res=-l$ac_lib
+    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
+  fi
+  if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_search_fftwf_init_threads=$ac_res
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext
+  if ${ac_cv_search_fftwf_init_threads+:} false; then :
+  break
+fi
+done
+if ${ac_cv_search_fftwf_init_threads+:} false; then :
+
+else
+  ac_cv_search_fftwf_init_threads=no
+fi
+rm conftest.$ac_ext
+LIBS=$ac_func_search_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_fftwf_init_threads" >&5
+$as_echo "$ac_cv_search_fftwf_init_threads" >&6; }
+ac_res=$ac_cv_search_fftwf_init_threads
+if test "$ac_res" != no; then :
+  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
+
+else
+  as_fn_error $? "unable to find fftw3_omp!" "$LINENO" 5
+fi
+
+fi
+
 
 # These will be added to the
 
@@ -6174,6 +6280,8 @@ echo "GPU directs:                     $enable_gpu_directs"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Maximum GPUs:                    $with_max_gpus"
+echo "CXX:                             $CXX"
+echo "MKL FFT:                         $enable_mkl"
 echo "------------------------------------------------------"
 echo
 

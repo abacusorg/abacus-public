@@ -1,5 +1,10 @@
+/*
+ proepi.cpp: Prologue and epilogue
+*/
+
 #include "header.cpp"
 #include "threevector.hh"
+#include "StructureOfLists.cc"
 
 #include "stdlog.cc"
 
@@ -28,13 +33,14 @@ STimer *SlabForceTime;
 STimer *SlabForceLatency;
 STimer *SlabFarForceTime;
 
+STimer OutputGroup,GroupExecute;
+
 STimer TaylorCompute;
 
 STimer AddAccel;
 STimer KickCellTimer;
 
-STimer DriftMoveRebin, DriftInsert;
-PTimer DriftMove, DriftRebin;
+STimer DriftMove, DriftRebin, DriftInsert;
 
 STimer prologue;
 STimer epilogue;
@@ -72,15 +78,15 @@ void IO_DeleteArena(int arena)    { LBW->DeAllocateArena(arena); }
 #ifdef IOTHREADED
 #include "io_thread.cpp"
 #else
-//#include "io_dio.cpp"
-#include "io_fopen.cpp"
+#include "io_dio.cpp"
+//#include "io_fopen.cpp"
 #endif
-
-#include "particles.cpp"
-Particles *PP;
 
 #include "slabsize.cpp"
 SlabSize *Slab;
+
+#include "particles.cpp"
+Particles *PP;
 
 #include "dependency.cpp"
 
@@ -119,6 +125,12 @@ Cosmology *cosm;
 
 #include "binning.cpp"
 FLOAT * density;
+
+#include "groupfinder.hh"
+#include "abacusoutputstrategy.cc"
+#include "groupfinder.cc"
+
+GroupFinder<AbacusOutputStrategy> * GF;
 
 #include "timestep.cpp"
 #include "reporting.cpp"
@@ -177,6 +189,11 @@ void Prologue(Parameters &P, bool ic) {
     	SlabFarForceTime = new STimer[cpd];
 
     	RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
+
+        FLOAT lambda = P.FoFLinkingLength[0]/pow(P.np,1./3);
+        
+        AbacusOutputStrategy *groupout = new AbacusOutputStrategy();
+        GF = new GroupFinder<AbacusOutputStrategy>(lambda, P.cpd, groupout);
         
     } else {
     	TY = NULL;

@@ -37,14 +37,11 @@ m4_include(Configuration/m4/ax_gcc_x86_cpuid.m4)
 m4_include(Configuration/m4/ax_ext.m4)
 
 # These will automatically add the appropriate -L and -l flags to LIBS
-AC_SEARCH_LIBS(fftw_execute, [fftw3], [], [AC_MSG_ERROR([unable to find fftw3!])])
-AC_SEARCH_LIBS(fftw_init_threads, [fftw3_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
-AC_SEARCH_LIBS(fftwf_execute, [fftw3f], [], [AC_MSG_ERROR([unable to find fftw3!])])
-AC_SEARCH_LIBS(fftwf_init_threads, [fftw3f_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
 AC_SEARCH_LIBS([cos],[m])
 AC_SEARCH_LIBS(cblas_dgemm, [gslcblas], [], [AC_MSG_ERROR([unable to find gslcblas!])])
 AC_SEARCH_LIBS(gsl_rng_uniform, [gsl], [], [AC_MSG_ERROR([unable to find gsl!])])
 AC_SEARCH_LIBS(ITT_DoOneTimeInitialization, [tbb], [], [AC_MSG_ERROR([unable to find tbb!])])
+AC_SEARCH_LIBS(numa_max_node, [numa], [], [AC_MSG_ERROR([unable to find numa!])])
 
 # Check for some utilities we use
 AC_CHECK_PROGS(LEX, flex)
@@ -61,6 +58,21 @@ AC_ARG_ENABLE(double,
 	[], enable_double="no")
 if test x$enable_double == xyes; then
 	AC_DEFINE_UNQUOTED(DOUBLEPRECISION, [], "Do all computations in double precision instead of single")
+fi
+
+if test x$enable_double == xyes; then
+	AC_DEFINE_UNQUOTED(DOUBLEPRECISION, [], "Do all computations in double precision instead of single")
+fi
+
+AC_ARG_ENABLE(mkl,
+[AS_HELP_STRING([--enable-mkl], [Intel Math Kernel Library FFT [yes if using icc]])],
+	[], enable_mkl="check")
+if test x$enable_mkl == xcheck; then
+    if test x$CXX == xicc; then
+        enable_mkl="yes"
+    else
+        enable_mkl="no"
+    fi
 fi
 
 AC_ARG_WITH(radius,
@@ -153,14 +165,12 @@ AC_ARG_WITH(direct-bpd,
 AC_DEFINE_UNQUOTED(DirectBPD,$with_direct_bpd, "Direct buffers per device")
 
 AC_ARG_WITH(max-gpus,
-[AS_HELP_STRING([--with-max-gpus=M], [Maximum number of GPUs to use [no limit]])],
-	[], with_max_gpus="no limit")
-if test x"$with_max_gpus" != x"no limit"; then
-    AC_DEFINE_UNQUOTED(MAX_GPUS,$with_max_gpus, "Limit on the number of GPUs")
-fi
+[AS_HELP_STRING([--with-max-gpus=M], [Maximum number of GPUs to use [16]])],
+	[], with_max_gpus="16")
+AC_DEFINE_UNQUOTED(MAX_GPUS,$with_max_gpus, "Limit on the number of GPUs")
 
 AC_ARG_WITH(softening,
-[AS_HELP_STRING([--with-softening={plummer | single_spline | cubic_spline | cubic_plummer}], [Near-force softening technique [plummer]])],
+[AS_HELP_STRING([--with-softening={plummer | single_spline | cubic_spline | cubic_plummer}], [Near-force softening technique [single_spline]])],
 	[], with_softening="single_spline")
 if test "x$with_softening" == xcubic_plummer; then
 	AC_DEFINE_UNQUOTED(DIRECTCUBICPLUMMER, [], "Cubic variant of Plummer softening")
@@ -168,7 +178,20 @@ elif test "x$with_softening" == xcubic_spline; then
 	AC_DEFINE_UNQUOTED(DIRECTCUBICSPLINE, [], "Cubic Hernquist spline softening")
 elif test "x$with_softening" == xsingle_spline; then
 	AC_DEFINE_UNQUOTED(DIRECTSINGLESPLINE, [], "Single-branch spline softening")
+elif test "x$with_softening" == xplummer; then
+	AC_DEFINE_UNQUOTED(DIRECTPLUMMER, [], "Plummer softening")
+else
+    AC_MSG_ERROR([Unknown softening "$with_softening"!])
 fi
+
+# If not using MKL, look for FFTW
+if test x$enable_mkl != xyes; then
+    AC_SEARCH_LIBS(fftw_execute, [fftw3], [], [AC_MSG_ERROR([unable to find fftw3!])])
+    AC_SEARCH_LIBS(fftw_init_threads, [fftw3_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
+    AC_SEARCH_LIBS(fftwf_execute, [fftw3f], [], [AC_MSG_ERROR([unable to find fftw3!])])
+    AC_SEARCH_LIBS(fftwf_init_threads, [fftw3f_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
+fi
+
 
 # These will be added to the 
 AC_SUBST(WARNING)
@@ -192,6 +215,8 @@ echo "GPU directs:                     $enable_gpu_directs"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Maximum GPUs:                    $with_max_gpus"
+echo "CXX:                             $CXX"
+echo "MKL FFT:                         $enable_mkl"
 echo "------------------------------------------------------"
 echo
 

@@ -23,7 +23,7 @@ AppendArena *get_AA_by_format(const char* format){
     return AA;
 }
 
-void Output_TimeSlice(int slab) {
+uint64 Output_TimeSlice(int slab) {
     AppendArena *AA;
     FLOAT vscale;
 
@@ -67,27 +67,29 @@ void Output_TimeSlice(int slab) {
     FLOAT kickfactor = WriteState.FirstHalfEtaKick;	   // Amount to unkick.
     velstruct vel;
     integer3 ijk(slab,0,0);
+    uint64 n_added = 0;
     for (ijk.y=0; ijk.y<PP->cpd; ijk.y++) 
-	for (ijk.z=0;ijk.z<PP->cpd;ijk.z++) {
-	    Cell c = PP->GetCell(ijk);
-	    accstruct *acc = PP->AccCell(ijk);
+        for (ijk.z=0;ijk.z<PP->cpd;ijk.z++) {
+            Cell c = PP->GetCell(ijk);
+            accstruct *acc = PP->AccCell(ijk);
 
-	    // We sometimes use the maximum velocity to scale.
-	    // But we do not yet have the global velocity (slab max will be set in Finish,
-	    // while the global max has to wait for all slabs to be done).
-	    // What is available after the kick is the max_component_velocity in each cell.
-	    vscale = c.ci->max_component_velocity/ReadState.VelZSpace_to_Canonical;	
-		// The maximum velocity of this cell, converted to ZSpace unit-box units.
+            // We sometimes use the maximum velocity to scale.
+            // But we do not yet have the global velocity (slab max will be set in Finish,
+            // while the global max has to wait for all slabs to be done).
+            // What is available after the kick is the max_component_velocity in each cell.
+            vscale = c.ci->max_component_velocity/ReadState.VelZSpace_to_Canonical;	
+            // The maximum velocity of this cell, converted to ZSpace unit-box units.
 
-	    // Start the cell
-	    AA->addcell(ijk, vscale);
-	    // Now pack the particles
-	    for (int p=0;p<c.count();p++) {
-		vel = (c.vel[p] - acc[p]*kickfactor);    // We supply in code units
-		AA->addparticle(c.pos[p], vel, c.aux[p]);
-	    }
-	    AA->endcell();
-	}
+            // Start the cell
+            AA->addcell(ijk, vscale);
+            // Now pack the particles
+            for (int p=0;p<c.count();p++) {
+                vel = (c.vel[p] - acc[p]*kickfactor);    // We supply in code units
+                AA->addparticle(c.pos[p], vel, c.aux[p]);
+            }
+            n_added += c.count();
+            AA->endcell();
+        }
 
     LBW->ResizeSlab(TimeSlice, slab, AA->bytes_written());
 
@@ -101,4 +103,6 @@ void Output_TimeSlice(int slab) {
 	slab);
     LBW->WriteArena(TimeSlice, slab, IO_DELETE, IO_NONBLOCKING, filename);
     delete AA;
+    
+    return n_added;
 }
