@@ -17,7 +17,7 @@ HFILES = ParseHeader.hh  phDriver.hh  stringutil.hh phScanner.hh phParser.tab.hh
 
 (%.o):%.cc;
 	$(CXX) ${CXXFLAGS} $(CPPFLAGS) -c $< 
-	$(AR) rvU $@ $%
+	$(AR) rv $@ $%
 	#- @ $(RM) -f $%
 
 # the library
