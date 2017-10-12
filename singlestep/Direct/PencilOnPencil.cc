@@ -39,6 +39,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     K_high = k_high;
     W = w;
     SlabId = slab;
+    bytes_to_device = 0, bytes_from_device = 0;
+    AssignedDevice = 0;
     
     //usefull construction constants
     int width = 2*P.NearFieldRadius+1;
