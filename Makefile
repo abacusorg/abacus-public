@@ -20,8 +20,8 @@ clean:
 	cd zeldovich-PLT && $(MAKE) $@
 	cd Tests && $(MAKE) $@
 	cd util && $(MAKE) $@
-	cd Analysis/ && $(MAKE) $@
-	cd clibs/ && $(MAKE) $@
+	-cd Analysis/ && $(MAKE) $@
+	-cd clibs/ && $(MAKE) $@
 	-$(RM) *.o *.d *.a *~
 
 distclean:	
@@ -33,7 +33,7 @@ distclean:
 	cd zeldovich-PLT && $(MAKE) $@
 	cd Tests && $(MAKE) $@
 	cd util && $(MAKE) $@
-	cd Analysis/ && $(MAKE) $@
+	-cd Analysis/ && $(MAKE) $@
 	-cd clibs/ && $(MAKE) $@
 	-$(RM) *.o *.d *~ *.a abacus.tar.gz
 	-$(RM) singlestep/Makefile singlestep/Direct/Makefile singlestep/Multipoles/Makefile Convolution/Makefile Derivatives/Makefile Analysis/PowerSpectrum/Makefile Analysis/FoF/Makefile clibs/Makefile

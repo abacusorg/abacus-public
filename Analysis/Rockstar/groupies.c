@@ -385,6 +385,7 @@ void _find_subs(struct fof *f, int64_t level) {
   //Find subFOFs
   p_start = f->particles - copies;
   f_index = f - subfofs;
+  int64_t f_np = f->num_p;
   _find_subfofs_better2(f, FOF_FRACTION);
   f_start = num_subfofs;
   copy_fullfofs(&subfofs, &num_subfofs, &num_alloced_subfofs);
@@ -392,7 +393,7 @@ void _find_subs(struct fof *f, int64_t level) {
 
   h_start = num_halos;
   for (i=f_start; i<f_end; i++)
-    if (subfofs[i].num_p > MIN_HALO_PARTICLES)
+    if (subfofs[i].num_p > MIN_HALO_PARTICLES && subfofs[i].num_p < f_np)
       _find_subs(subfofs + i, level+1);
 
   //Convert particle positions back to normal
@@ -583,7 +584,7 @@ int64_t rad_partition(float *rad, int64_t left, int64_t right, int64_t pivot_ind
 #undef SWAP
 }
 
-inline float random_unit(void) {
+float random_unit(void) {
   return(((float)(rand()%(RAND_MAX))/(float)(RAND_MAX)));
 }
 
@@ -631,7 +632,6 @@ void norm_sd(struct fof *f, float thresh) {
   if (f->num_p == num_copies) sig_x *= INITIAL_METRIC_SCALING;
 
   if (!sig_x || !sig_v) return;
-
   for (i=0; i<f->num_p; i++)
     for (j=0; j<6; j++)
       f->particles[i].pos[j] /= ((j < 3) ? sig_x : sig_v);

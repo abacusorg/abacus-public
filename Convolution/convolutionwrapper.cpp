@@ -233,8 +233,10 @@ int main(int argc, char ** argv){
         for(zwidth=(P.cpd+1)/2;zwidth >= 1;zwidth--) {
             if( zwidth*zslabbytes + swizzlebytes < rambytes) break;
         }
-        
+        // Always use at least two blocks.  Ensures overlap of IO/compute
+        zwidth = min((P.cpd+1)/4, zwidth);
         p.zwidth = zwidth;
+        
         
         p.io_core = P.Conv_IOCore;
     

@@ -284,6 +284,7 @@ int GroupPrecondition(int slab) {
 }
 
 void GroupAction(int slab) {
+    if (!P.AllowGroupFinding) return;
     if (LPTStepNumber()) return;
     // We can't be doing group finding during an IC step
     if(P.ForceOutputDebug) return;  // can't rearrange the pos if we've already output the nearacc
@@ -302,7 +303,7 @@ void GroupAction(int slab) {
     STDLOG(1,"Finding groups for slab %d\n", slab);
 
     GroupExecute.Start();
-    GF->ExecuteSlab(slab);
+    //GF->ExecuteSlab(slab);
     GroupExecute.Stop();
     // One could also use the Accelerations to set individual particle microstep levels.
     // (one could imagine doing this in Force, but perhaps one wants the group context?)
@@ -313,7 +314,7 @@ void GroupAction(int slab) {
 int OutputPrecondition(int slab) {
     if (Kick.notdone(slab)) return 0;  // Must have kicked because output does a half un-kick
     if (Group.notdone(slab)) return 0;  // Must have found groups
-    if (!P.ForceOutputDebug && !GF->SlabClosed(slab)) return 0;
+    //if (!P.ForceOutputDebug && P.AllowGroupFinding && !GF->SlabClosed(slab)) return 0;
     return 1;
 }
 
@@ -363,8 +364,8 @@ void OutputAction(int slab) {
     OutputBin.Stop();
 
     OutputGroup.Start();
-    if(!P.ForceOutputDebug)
-        GF->OutputSlab(slab);
+    //if(!P.ForceOutputDebug && P.AllowGroupFinding)
+    //    GF->OutputSlab(slab);
     OutputGroup.Stop();
 
 }
@@ -447,8 +448,8 @@ void DriftAction(int slab) {
     }
     LBW->DeAllocate(NearAccSlab,slab);
 
-    if(!P.ForceOutputDebug)
-        GF->PurgeSlab(slab);
+    //if(!P.ForceOutputDebug && P.AllowGroupFinding)
+    //    GF->PurgeSlab(slab);
 
 }
 

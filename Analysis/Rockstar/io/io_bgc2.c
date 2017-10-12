@@ -21,7 +21,7 @@ extern float *particle_r;
 extern double particle_thresh_dens[5];
 
 void populate_header(struct bgc2_header *hdr, int64_t id_offset, 
-                     int64_t snap, int64_t chunk, float *bounds) {
+		     int64_t snap, int64_t chunk, float *bounds) {
   memset(hdr, 0, sizeof(struct bgc2_header));
   hdr->magic = BGC_MAGIC;
   hdr->version = 2;
@@ -183,7 +183,7 @@ int64_t check_bgc2_snap(int64_t snap) {
 
   for (i=0; i<num_bgc2_snaps; i++)
     if ((snapnames && !strcmp(snapnames[snap], bgc2_snapnames[i])) ||
-        (!snapnames && atoi(bgc2_snapnames[i])==snap)) break;
+	(!snapnames && atoi(bgc2_snapnames[i])==snap)) break;
   if (i==num_bgc2_snaps) return 0;
   return 1;
 }
@@ -232,61 +232,76 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
     if (BOX_SIZE > 0 && PERIODIC) _fast3tree_set_minmax(ep_tree2, 0, BOX_SIZE);
   }
 
+  //printf("dens_thresh[0]: %f\n", dens_thresh[0]);
   for (i=0; i<num_halos; i++) {
     if (!_should_print(halos+i, bounds)) continue;
     halos[i].flags |= ALWAYS_PRINT_FLAG;
     
-    float r = BGC2_R * halos[i].r;
-    if (STRICT_SO_MASSES) r = BGC2_R*max_halo_radius(halos+i);
-    if (num_ep2) {
-      if (BOX_SIZE > 0 && PERIODIC) 
-        fast3tree_find_sphere_periodic(ep_tree2, ep_res, halos[i].pos, r);
-      else
-        fast3tree_find_sphere(ep_tree2, ep_res, halos[i].pos, r);
-    }
-    else ep_res->num_points = 0;
-    _fast3tree_find_sphere(ep_tree->root, ep_res, halos[i].pos, r);
-
-    check_realloc_var(particle_r, sizeof(float), num_particle_r, 
-                      ep_res->num_points);
-    for (j=0; j<ep_res->num_points; j++)
-      particle_r[j] = square_dist_from_center(ep_res->points[j], halos[i].pos);
-    sort_extended_particles(0, ep_res->num_points, ep_res->points, particle_r);
-
-    //Get rid of duplicated points
-    if (ep_res->num_points > 1) {
-      for (j=1,k=1; j<ep_res->num_points; j++) {
-        if (ep_res->points[j]->id != ep_res->points[j-1]->id) {
-          ep_res->points[k] = ep_res->points[j];
-          k++;
+    float local_BGC2_R = 1.1e-3;  // Local search radius that may be expanded as necessary
+    local_BGC2_R = BGC2_R; // override
+    float dens_at_last_particle;
+    
+    //halos[i].max_halo_radius = max_halo_radius(halos+i);
+        
+    //do {
+        // BGC2_R is the prefetch radius; i.e. the max safe radius
+        if(local_BGC2_R > BGC2_R){
+            fprintf(stderr, "[Error] Tried to increase SO search radius to local_BGC2_R = %f! This is beyond the safe limit of BGC2_R = %f.\n", local_BGC2_R, BGC2_R);
+            exit(EXIT_FAILURE);
         }
-      }
-      ep_res->num_points = k;
-    }
-           
-    double total_mass = 0;
-    npart = -1;
-    for (j=0; j<ep_res->num_points; j++) {
-      float r = sqrt(square_dist_from_center(ep_res->points[j], halos[i].pos));
-      if (r < FORCE_RES) r = FORCE_RES;
-      total_mass += PARTICLE_MASS;
-      float cur_dens = total_mass/(r*r*r);
-      if (STRICT_SO_MASSES)
-        for (k=1; k<5; k++)
-          if (cur_dens > dens_thresh[k]) halos[i].alt_m[k-1] = total_mass;
-      if (cur_dens > dens_thresh[0]) {
-        if (STRICT_SO_MASSES) halos[i].m = total_mass;
-        npart = j;
-        /*
-        // This warning is legitimate, but substructure will always trigger it because 1.1*subhalo_radius will never leave the
-        // parent halo's overdensity.  This is probably why the 1.1 factor exists in the first place: to prevent subhalos from
-        // having the same SO mass as their parents.  But, we don't know what's a parent and what's a child right now, so we have
-        // to turn this warning off.
-        if(j == ep_res->num_points-1)
-            fprintf(stderr, "[Warning] Reached the end of the SO halo particle list (length %" PRId64 ") without dropping below the SO density threshold.  Might need to increase BGC2 search radius.\n", ep_res->num_points);
-      */
-      }
-    }
+        
+        float r = local_BGC2_R * halos[i].r;
+        if (STRICT_SO_MASSES) r = local_BGC2_R*max_halo_radius(halos+i);
+        if (num_ep2) {
+            if (BOX_SIZE > 0 && PERIODIC) 
+                fast3tree_find_sphere_periodic(ep_tree2, ep_res, halos[i].pos, r);
+            else
+                fast3tree_find_sphere(ep_tree2, ep_res, halos[i].pos, r);
+        }
+        else ep_res->num_points = 0;
+        _fast3tree_find_sphere(ep_tree->root, ep_res, halos[i].pos, r);
+
+        check_realloc_var(particle_r, sizeof(float), num_particle_r, 
+        ep_res->num_points);
+        for (j=0; j<ep_res->num_points; j++)
+            particle_r[j] = square_dist_from_center(ep_res->points[j], halos[i].pos);
+        sort_extended_particles(0, ep_res->num_points, ep_res->points, particle_r);
+
+        //Get rid of duplicated points
+        if (ep_res->num_points > 1) {
+            for (j=1,k=1; j<ep_res->num_points; j++) {
+                if (ep_res->points[j]->id != ep_res->points[j-1]->id) {
+                    ep_res->points[k] = ep_res->points[j];
+                    k++;
+                }
+            }
+            ep_res->num_points = k;
+        }
+
+        double total_mass = 0;
+        float cur_dens = 0;
+        npart = -1;
+        for (j=0; j<ep_res->num_points; j++) {
+            float r = sqrt(square_dist_from_center(ep_res->points[j], halos[i].pos));
+            if (r < FORCE_RES) r = FORCE_RES;
+            total_mass += PARTICLE_MASS;
+            cur_dens = total_mass/(r*r*r);
+            if (STRICT_SO_MASSES)
+                for (k=1; k<5; k++)
+                    if (cur_dens > dens_thresh[k]) halos[i].alt_m_SO[k-1] = total_mass;
+            if (cur_dens > dens_thresh[0]) {
+                if (STRICT_SO_MASSES) halos[i].m_SO = total_mass;
+                //halos[i].max_SO_radius = r;
+                npart = j;
+            }
+            // Uncomment these to report the mass of the first SO crossing
+            //else
+              //  break;
+        }
+        
+        dens_at_last_particle = cur_dens;
+        //local_BGC2_R += 1e-3;  // If the previous SO search radius wasn't wide enough, try again with a larger radius
+    //} while (dens_at_last_particle > dens_thresh[0]);
 
     if (!write_bgc2_file) continue;
     j = npart;
@@ -294,8 +309,8 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
       j=0; //Almost certainly due to FP imprecision
       ep_res->num_points = 1;
       if (ep_res->num_allocated_points < 1) {
-        check_realloc_s(ep_res->points, sizeof(struct extended_particle *), 1);
-        ep_res->num_allocated_points = 1;
+	check_realloc_s(ep_res->points, sizeof(struct extended_particle *), 1);
+	ep_res->num_allocated_points = 1;
       }
       ep_res->points[0] = &temp_p;
       memcpy(temp_p.pos, halos[i].pos, sizeof(float)*6);
@@ -319,11 +334,11 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
     for (j=gd[id].npart-1; j>=(int64_t)gd[id].npart_self; j--) {
       struct extended_particle *tmp;
       if (ep_res->points[j]->hid == i) {
-        tmp = ep_res->points[gd[id].npart_self];
-        ep_res->points[gd[id].npart_self] = ep_res->points[j];
-        ep_res->points[j] = tmp;
-        gd[id].npart_self++;
-        j++;
+	tmp = ep_res->points[gd[id].npart_self];
+	ep_res->points[gd[id].npart_self] = ep_res->points[j];
+	ep_res->points[j] = tmp;
+	gd[id].npart_self++;
+	j++;
       }
     }
 
@@ -337,14 +352,14 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
       assert(j<ep_res->num_points);
       pd[j].part_id = ep_res->points[j]->id;
       for (k=0; k<3; k++) {
-        pd[j].pos[k] = ep_res->points[j]->pos[k];
-        if (PERIODIC) {
-          if ((pd[j].pos[k]-halos[i].pos[k])>BOX_SIZE/2.0)
-            pd[j].pos[k] -= BOX_SIZE;
-          else if ((pd[j].pos[k]-halos[i].pos[k])<-BOX_SIZE/2.0)
-            pd[j].pos[k] += BOX_SIZE;
-        }
-        pd[j].vel[k] = ep_res->points[j]->pos[k+3];
+	pd[j].pos[k] = ep_res->points[j]->pos[k];
+	if (PERIODIC) {
+	  if ((pd[j].pos[k]-halos[i].pos[k])>BOX_SIZE/2.0)
+	    pd[j].pos[k] -= BOX_SIZE;
+	  else if ((pd[j].pos[k]-halos[i].pos[k])<-BOX_SIZE/2.0)
+	    pd[j].pos[k] += BOX_SIZE;
+	}
+	pd[j].vel[k] = ep_res->points[j]->pos[k+3];
       }
     }
 
@@ -369,7 +384,7 @@ void output_bgc2(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds)
 
 
 void load_bgc2_groups(char *filename, struct bgc2_header *hdr,
-                    GROUP_DATA_RMPVMAX **groups, int64_t *num_groups)
+		    GROUP_DATA_RMPVMAX **groups, int64_t *num_groups)
 {
   FILE *input;
   int64_t new_group_size;
@@ -385,7 +400,7 @@ void load_bgc2_groups(char *filename, struct bgc2_header *hdr,
   new_group_size = sizeof(GROUP_DATA_RMPVMAX)*((*num_groups)+hdr->ngroups);
   *groups = check_realloc(*groups, new_group_size, "Allocating groups.");
   fread_fortran((*groups) + (*num_groups), sizeof(GROUP_DATA_RMPVMAX), 
-                hdr->ngroups, input, 0);
+		hdr->ngroups, input, 0);
   *num_groups += hdr->ngroups;
   fclose(input);
 }
