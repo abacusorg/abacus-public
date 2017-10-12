@@ -8,6 +8,7 @@ Author: Lehman Garrison
 
 import sys
 import os
+from os.path import join as pjoin
 import PowerSpectrum as PS
 from Abacus import InputFile
 import pdb
@@ -17,6 +18,7 @@ import numpy as np
 from glob import glob
 from Abacus.Analysis import common
 import pynbody
+import TSC
 
 # A label for the power spectrum based on the properties
 def ps_suffix(**kwargs):
@@ -34,7 +36,10 @@ def ps_suffix(**kwargs):
         nfft = nfft[0]
     
     ps_fn = ''
-    ps_fn += '_nfft{}'.format(kwargs['nfft'])
+    if not kwargs['just_density']:
+        ps_fn += '_nfft{}'.format(kwargs['nfft'])
+    else:
+        ps_fn += '_ngrid{}'.format(kwargs['nfft'])
     if kwargs['dtype'] != np.float32:
         ps_fn += '_{}bit'.format(np.dtype(kwargs['dtype']).itemsize*8)
     if kwargs['zspace']:
@@ -43,7 +48,9 @@ def ps_suffix(**kwargs):
         ps_fn += '_rotate({2.1g},{2.1g},{2.1g})'.format(*rotate_to)
     if projected:
         ps_fn += '_projected'
-    ps_fn += '.csv'
+        
+    if not kwargs['just_density']:
+        ps_fn += '.csv'
     return ps_fn
 
 
@@ -53,8 +60,8 @@ def get_output_path_ps(input):
     return os.path.dirname(input)
     
     
-def run_PS_on_dir(folder, **kwargs):    
-    patterns = [folder + '/*.dat', folder + '/ic_*', folder + '/position_*', folder + r'/*.[0-9]*']
+def run_PS_on_dir(folder, **kwargs):
+    patterns = [pjoin(folder, '*.dat'), pjoin(folder, 'ic_*'), pjoin(folder, 'position_*'), pjoin(folder, r'*.[0-9]*')]
     # Decide which pattern to use
     for pattern in patterns:
         if glob(pattern):
@@ -62,11 +69,16 @@ def run_PS_on_dir(folder, **kwargs):
     else:
         assert len(glob(pattern)) > 0, 'Could not find any matches to ' + str(patterns)
 
-    outdir = common.get_output_dir('power', folder)
-    ps_fn = 'power'
+    # Make a descriptive filename
+    this_suffix = ps_suffix(**kwargs)
+    
+    just_density = kwargs.pop('just_density')
+    product_name = 'power' if not just_density else 'density'
+    outdir = common.get_output_dir(product_name, folder)
+    ps_fn = product_name + this_suffix
 
     # Read the header to get the boxsize
-    header_pats = [folder + '/header', folder + '../info/*.par', folder + '/../*.par']
+    header_pats = [pjoin(folder, 'header'), pjoin(folder, os.pardir, 'info/*.par'), pjoin(folder, os.pardir, '*.par')]
     headers = sum([glob(h) for h in header_pats], [])
     for header_fn in headers:
         try:
@@ -106,16 +118,17 @@ def run_PS_on_dir(folder, **kwargs):
             shutil.copytree(folder+'/../info', outdir + '/../info')
         except:
             print 'Could not copy ../info'
-            
-    # Make a descriptive filename
-    ps_fn += ps_suffix(**kwargs)
     
-    print 'Starting PS on {}'.format(pattern)
+    print 'Starting {} on {}'.format('PS' if not just_density else 'density', pattern)
     save_fn = os.path.join(outdir, ps_fn)
     print 'and saving to {}'.format(save_fn)
     
-    k,s,nmodes = PS.CalculateBySlab(pattern, BoxSize, kwargs.pop('nfft'), **kwargs)
-    np.savetxt(save_fn, zip(k,s,nmodes), delimiter=',', header='k, P(k), N_modes')
+    if not just_density:
+        k,s,nmodes = PS.CalculateBySlab(pattern, BoxSize, kwargs.pop('nfft'), **kwargs)
+        np.savetxt(save_fn, zip(k,s,nmodes), delimiter=',', header='k, P(k), N_modes')
+    else:
+        density = TSC.BinParticlesFromFile(pattern, BoxSize, kwargs.pop('nfft'), **kwargs)
+        density.tofile(save_fn)
 
     # Touch ps_done
     with open(folder + '/ps_done', 'a'):
@@ -178,9 +191,14 @@ if __name__ == '__main__':
     parser.add_argument('--nbins', help='Number of k bins.  Default: nfft/4.', default=-1, type=int)
     parser.add_argument('--dtype', help='Data type for the binning and FFT.', choices=['float', 'double'], default='float')
     parser.add_argument('--log', help='Do the k-binning in log space.', action='store_true')
+    parser.add_argument('--just-density', help='Write the density cube out to disk instead of doing an FFT.', action='store_true')
     
     args = parser.parse_args()
     args = vars(args)
+    
+    if args['just_density']:
+        # No meaning for density cube
+        args.pop('nbins'); args.pop('log')
     
     if args.pop('projected'):
         args['nfft'] = [args['nfft'],]*2

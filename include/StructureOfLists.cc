@@ -9,7 +9,11 @@ template<typename T> class List3
     public:
         // This constructor simply makes an empty wrapper object
         // that will not try to free memory on destruction
-        List3(){  }
+        List3(){
+            N = 0;
+            X = NULL, Y = NULL, Z = NULL;
+            owndata = false;
+        }
         
         // This constructor allocates memory and frees it on destruction
         List3(uint64 count){
@@ -49,11 +53,9 @@ template<typename T> class List3
             memset(&(Z[start]), 0, sizeof(T) * count);
         }
  
-        uint64 N = 0;
-        T* X = NULL;
-        T* Y = NULL;
-        T* Z = NULL;
-        bool owndata = false;
+        uint64 N;
+        T *X, *Y, *Z;
+        bool owndata;
 };
 
 #endif

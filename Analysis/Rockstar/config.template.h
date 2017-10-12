@@ -16,6 +16,7 @@ integer(MIN_HALO_OUTPUT_SIZE, 20);
 real(FORCE_RES, 0.003); //In Mpc/h
 real(FORCE_RES_PHYS_MAX, 0);
 
+real(NON_COSMOLOGICAL, 0);
 real(SCALE_NOW, 1.0);
 real(h0, 0.7);
 real(Ol, 0.73);
@@ -46,7 +47,6 @@ string(PARALLEL_IO_SERVER_PORT, "auto");
 integer(PARALLEL_IO_WRITER_PORT, 32001);
 string(PARALLEL_IO_SERVER_INTERFACE, "");
 integer(PARALLEL_IO_CATALOGS, 0);
-integer(PARALLEL_IO_MAGIC, 0xBEEF);
 string(RUN_ON_SUCCESS, "");
 string(RUN_PARALLEL_ON_SUCCESS, "");
 string(LOAD_BALANCE_SCRIPT, "");
@@ -73,7 +73,8 @@ string(OUTPUT_FORMAT, "BOTH");
 integer(DELETE_BINARY_OUTPUT_AFTER_FINISHED, 0);
 integer(FULL_PARTICLE_CHUNKS, 0);
 string(BGC2_SNAPNAMES, "");
-real(SUBSAMPLE_FRAC, .1);
+real(WEAK_LENSING_FRACTION, 0);
+
 
 integer(SHAPE_ITERATIONS, 10);
 integer(WEIGHTED_SHAPES, 1);
@@ -119,3 +120,4 @@ integer(SINGLE_SNAP, 0);
 integer(DOWNSAMPLE, 1);
 
 real(BGC2_R, 40e-3);
+real(SUBSAMPLE_FRAC, 0.1);

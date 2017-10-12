@@ -131,6 +131,7 @@ public:
     int GPUThreadCoreStart[MAX_GPUS];  // The core on which to start placing GPU device threads.
     int NGPUThreadCores;  // The number of free cores on which to place GPU device threads.
 
+    int AllowGroupFinding;
     double FoFLinkingLength[3]; //Linking lengths for level 0,1,2 groupfinding in fractional interparticle spacing 
     int TaggableL0Threshold; //Number of particles above which a L0 halo is eligible for tagging
     int TaggableL1Threshold; //Number of particles above which a L0 halo is eligible for tagging
@@ -297,6 +298,8 @@ public:
         NGPUThreadCores = -1;
         installscalar("NGPUThreadCores", NGPUThreadCores, DONT_CARE);
 
+        AllowGroupFinding = 1;
+        installscalar("AllowGroupFinding",AllowGroupFinding, DONT_CARE);
         FoFLinkingLength[0] = .25;
         FoFLinkingLength[1] = .168;
         FoFLinkingLength[2] = .15;

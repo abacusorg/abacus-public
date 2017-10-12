@@ -325,11 +325,14 @@ void send_particles(int64_t c, float *bounds) {
   for (i=num_p-1; i>=0; i--) {
     for (j=0; j<num_recipients; j++)
       if (check_particle_bounds(p+i, recipients+j)) break;
-    if (!(i%PARTICLE_REALLOC_NUM)) 
+    if (!(i%PARTICLE_REALLOC_NUM)) {
       p = check_realloc(p,sizeof(struct particle)*i,"Freeing particle memory.");
+      check_mtrim();
+    }
   }
   num_p = 0;
   p = check_realloc(p,0,"Freeing particle memory.");
+  check_mtrim();
   for (j=0; j<num_recipients; j++) {
     clear_particle_rbuffer(recipients+j);
     send_to_socket(recipients[j].cs, "done", 4);
@@ -1228,7 +1231,7 @@ void client(int64_t type) {
   random_sleep(5*(NUM_WRITERS+NUM_READERS)/512);
   c = connect_to_addr(PARALLEL_IO_SERVER_ADDRESS, PARALLEL_IO_SERVER_PORT);
   recv_from_socket(c, &magic, sizeof(uint64_t));
-  if (magic != PARALLEL_IO_MAGIC) {
+  if (magic != ROCKSTAR_MAGIC) {
     fprintf(stderr, "[Error] Received invalid client responses.  Check network connectivity.\n");
     exit(1);
   }
@@ -1330,10 +1333,12 @@ void client(int64_t type) {
       assert(type == READER_TYPE);
       recv_from_socket(c, &num_proj, sizeof(int64_t));
       reset_projection_count();
-      recv_from_socket(c, prq, sizeof(struct projection_request)*num_proj);
-      if (CLIENT_DEBUG) fprintf(stderr, "Doing client projections for block %"PRId64"\n", block);
-      do_projections();
-      if (CLIENT_DEBUG) fprintf(stderr, "Done with client projections for block %"PRId64"\n", block);
+      if (num_proj) {
+	recv_from_socket(c, prq, sizeof(struct projection_request)*num_proj);
+	if (CLIENT_DEBUG) fprintf(stderr, "Doing client projections for block %"PRId64"\n", block);
+	do_projections();
+	if (CLIENT_DEBUG) fprintf(stderr, "Done with client projections for block %"PRId64"\n", block);
+      }
       send_to_socket(c, "cprj", 4);
       send_to_socket(c, &num_proj, sizeof(int64_t));
       for (i=0; i<num_proj; i++)
@@ -1527,6 +1532,7 @@ void client(int64_t type) {
       free_halos();
       particle_cleanup();
       clear_final_bg_data();
+      check_mtrim();
     }
 
     else if (!strcmp(cmd, "rpos")) {
