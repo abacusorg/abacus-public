@@ -152,7 +152,7 @@ void WriteHStream(FILE *fp, HeaderStream &in, std::string pre) {
     std::stringstream ss(std::stringstream::in | std::stringstream::out);
     std::string line;
     ss << in.buffer;
-    while(getline(ss,line)!=0) {
+    while(getline(ss,line)) {
         std::cout << pre + line + "\n";
         line = pre + line + "\n";
         fwrite(line.c_str(), sizeof(char), line.length(), fp);
