@@ -5,7 +5,8 @@
 #BSUB -q medium
 ##BSUB -R select[type==any]
 #BSUB -x  # Request exclusive node
-#BSUB -J "AbacusCosmos[1-40]"  # Inclusive; must start from 1
+#BSUB -J "AbacusCosmos[3-40]"  # Inclusive; must start from 1
+##BSUB -J "AbacusCosmos[1]"  # Inclusive; must start from 1
 #BSUB -We 8:00  #Estimated runtime (non-binding)
 #BSUB -R rusage[mem=200000]
 
@@ -38,8 +39,8 @@ export OMP_NUM_THREADS=$LSB_DJOB_NUMPROC
 #export SIM_DIR="emulator_1100box_planck_paired/emulator_1100box_planck_fixed_flipped_00-17"
 #export SIM_DIR=$(printf "2LPTic_cosmo_%02d" $(expr $LSB_JOBINDEX - 1))
 #export SIM_DIR=$(printf "emulator_720box_Neff3/emulator_720box_Neff3_%02d" $(expr $LSB_JOBINDEX - 1))
-#export SIM_DIR=$(printf "AbacusCosmos_720box/AbacusCosmos_720box_%02d" $(expr $LSB_JOBINDEX - 1))
-export SIM_DIR=$(printf "AbacusCosmos_1100box/AbacusCosmos_1100box_%02d" $(expr $LSB_JOBINDEX - 1))
+export SIM_DIR=$(printf "AbacusCosmos_720box/AbacusCosmos_720box_%02d" $(expr $LSB_JOBINDEX - 1))
+#export SIM_DIR=$(printf "AbacusCosmos_1100box/AbacusCosmos_1100box_%02d" $(expr $LSB_JOBINDEX - 1))
 CPD=385  # used for verifying the number of files
 
 # Split SIM_DIR into name and project
@@ -55,6 +56,28 @@ echo `hostname`
 echo -e "\n\n\n\n"
 
 rm -rf $ABACUS_TMP
+
+echo -e "* Checking if we want to make high-resolution power spectra:\n"
+if [ 0 ]; then
+  echo -e "Making power spectra."
+  for SLICE in $ABACUS_PERSIST/$SIM_DIR/slice*/; do
+    $ABACUS/Analysis/PowerSpectrum/run_PS.py --nfft 2048 $SLICE
+  done  
+else
+  echo -e "No PS requested."
+fi
+echo -e "\n\n\n\n"
+
+
+echo -e "* Checking if we need to run FoF:\n"
+if [ 0 ]; then
+  echo -e "Running FoF."
+  $ABACUS/Analysis/FoF/FoF.py $ABACUS_PERSIST/$SIM_DIR/slice* --tar-mode TAR --tar-remove-source-files
+else
+  echo -e "No FoF requested."
+fi
+echo -e "\n\n\n\n"
+
 
 echo -e "* Checking if we need to run Rockstar:\n"
 if [ 0 ]; then
@@ -82,7 +105,7 @@ echo -e "\n\n\n\n"
 
 
 echo -e "* Checking if we need to tarball the outputs:\n"
-if [ ]; then
+if [ 0 ]; then
     $ABACUS/python/Abacus/archive_sim.py $ABACUS_PERSIST/$SIM_DIR --nthreads=$LSB_DJOB_NUMPROC --inplace --remove-source
 else
   echo -e "No tar requested."
