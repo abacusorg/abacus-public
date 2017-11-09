@@ -99,7 +99,7 @@ def convert_cats(halo_dirs):
             # halo sanity checks
             assert len(bin_halos) == bin_header['num_halos']
             for field in bin_halos.dtype.fields:
-                if field not in ['m_pe_b']:  # m_pe_b is sometime inf; that's probably something we can ignore and just pass into the catalogs
+                if field not in ['m_pe_b', 'rs']:  # m_pe_b is sometime inf; that's probably something we can ignore and just pass into the catalogs
                     assert np.isfinite(bin_halos[field]).all(), (field, binfn)
 
             # Count the particles
