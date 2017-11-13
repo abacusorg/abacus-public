@@ -1,14 +1,34 @@
+//new
+#include <stdlib.h>
+
+#define QUAD_DOUBLE (0)
+#if QUAD_DOUBLE
+	#include "quad_double.cpp"
+
+#else 
+	typedef double qd_real;
+	#define to_double(x) x;
+	#define to_qd_real(x) x;
+	#define qd_real(x) atof(x);
+	
+#endif
+	
+//end new
+
 #include "header.cpp"
 #include "threevector.hh"
 #include "fftw3.h"
 #define MAXORDER 16
-#include "quad_double.cpp"
+//#include "quad_double.cpp"
 
 typedef ThreeVector<qd_real> qd_real3;
 
 #include "../Multipoles/basemultipoles.cpp"
 #include "derivatives.cpp"
 #include "order32derivatives.cpp"
+
+
+#include "../include/STimer.cc"
 
 #define ULLI unsigned long long int 
 
@@ -37,7 +57,8 @@ ULLI linearFFTW(int i, int j, int k) {
 #define sign(i)         (i>0?1:-1) 
 
 
-void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber) {
+
+void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber, STimer myTimer) {
     int nthread = omp_get_max_threads();
     printf("Initializing CreateDerivatives with %d OMP threads.\n", nthread);
     double rdfar[nthread][1024];
@@ -55,53 +76,58 @@ void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber
     double *FDSlab = (double *) malloc(fdsize);
 
     for(int k=0;k<=CPDHALF;k++) {
-	if (slabnumber>=0 && slabnumber!=k) continue;
-	    // We were asked to do only one slab
+		if (slabnumber>=0 && slabnumber!=k) continue;
+		    // We were asked to do only one slab
 
-	// Perhaps this file already exists?  If so, we'll skip.
-	char fn[1024];
-	sprintf(fn,"slabderiv_%llu_%d_%d_%d_%d__%d",CPD,order,inner_radius,far_radius, 0, k);
-	FILE *fp;
-	fp = fopen(fn,"rb");
-	if(fp!=NULL) {
-	    // Yes, we've found them!  Don't repeat the work.
-	    fclose(fp);
-	    continue;  
-	}
+		// Perhaps this file already exists?  If so, we'll skip.
+		char fn[1024];
+		sprintf(fn,"slabderiv_%llu_%d_%d_%d_%d__%d",CPD,order,inner_radius,far_radius, 0, k);
+		FILE *fp;
+		fp = fopen(fn,"rb");
+		if(fp!=NULL) {
+		    // Yes, we've found them!  Don't repeat the work.
+		    fclose(fp);
+		    continue;  
+		}
+		
+		
+		myTimer.Stop();
+		cout << "time elapsed inside FormDerivatives 1: " << myTimer.Elapsed() << endl;
+		myTimer.Start();
 
-	// Not on disk, so we have to make them.
-	#pragma omp parallel for schedule(dynamic,1) 
-        for(int i=0;i<=CPDHALF;i++) {
-            for(int j=0;j<=i;j++) {
-                int p = omp_get_thread_num();
+		// Not on disk, so we have to make them.
+		#pragma omp parallel for schedule(dynamic,1) 
+	        for(int i=0;i<=CPDHALF;i++) {
+	            for(int j=0;j<=i;j++) {
+	                int p = omp_get_thread_num();
 
-                for(int m=0;m<rml;m++) FD[p][m] = 0;
+	                for(int m=0;m<rml;m++) FD[p][m] = 0;
 
-                double3 r;
-                r.x = i; r.x = r.x/CPD;
-                r.y = j; r.y = r.y/CPD;
-                r.z = k; r.z = r.z/CPD;
+	                double3 r;
+	                r.x = i; r.x = r.x/CPD;
+	                r.y = j; r.y = r.y/CPD;
+	                r.z = k; r.z = r.z/CPD;
 
-                if( (abs(i)>inner_radius) || (abs(j)>inner_radius) || (abs(k)>inner_radius) ) {
-                    RD.ReducedDerivatives(r,&(FD[p][0]));
-                }
+	                if( (abs(i)>inner_radius) || (abs(j)>inner_radius) || (abs(k)>inner_radius) ) {
+	                    RD.ReducedDerivatives(r,&(FD[p][0]));
+	                }
 
-                OD.Derivative( r, &(rdnear[p][0]), &(rdfar[p][0]),  order );
+	                OD.Derivative( r, &(rdnear[p][0]), &(rdfar[p][0]),  order );
 
-                for(int m=0;m<rml;m++) {
-                    ULLI idx = m*CompressedMultipoleLengthXY + RINDEXY(i,j);
-                    FDSlab[idx] = FD[p][m] + rdnear[p][m] + rdfar[p][m];
-                }
-            }
-        }
-	// Now we store FDSlab to disk
-	fp = fopen(fn,"wb");
-	assert(fp!=NULL);
-	fwrite(&(FDSlab[0]), sizeof(double), rml*CompressedMultipoleLengthXY, fp); 
-	fclose(fp);
-    }
-    free(FDSlab);
-    return;
+	                for(int m=0;m<rml;m++) {
+	                    ULLI idx = m*CompressedMultipoleLengthXY + RINDEXY(i,j);
+	                    FDSlab[idx] = FD[p][m] + rdnear[p][m] + rdfar[p][m];
+	                }
+	            }
+	        }
+		// Now we store FDSlab to disk
+		fp = fopen(fn,"wb");
+		assert(fp!=NULL);
+		fwrite(&(FDSlab[0]), sizeof(double), rml*CompressedMultipoleLengthXY, fp); 
+		fclose(fp);
+	    }
+	    free(FDSlab);
+	    return;
 }
 
 
@@ -317,6 +343,14 @@ void CreateFourierFiles(int order, int inner_radius, int far_radius) {
 
 
 int main(int argc, char **argv) {
+	
+	printf("QUAD_DOUBLE defined = %d. If QUAD_DOUBLE == 1, running with quad double precision. Else, running with double precision.\n \n", QUAD_DOUBLE);
+	printf("Timer starting. \n\n");
+	STimer myTimer;
+	myTimer.Start();
+	
+	
+	
 
     if( argc!=5 && argc!=6 ) {
         printf("Usage: CreateDerivatives CPD ORDER INNERRADIUS FARRADIUS <slab>\n");
@@ -365,8 +399,17 @@ int main(int argc, char **argv) {
         printf("Derivatives already present \n");
         exit(0);
     }
-    FormDerivatives(inner_radius, order, far_radius, slabnumber);
+	
+	myTimer.Stop();
+	cout << "time elapsed 1: " << myTimer.Elapsed() << endl;
+	myTimer.Start();
+	
+    FormDerivatives(inner_radius, order, far_radius, slabnumber, myTimer);
     if (slabnumber>=0) exit(0);
+	
+	myTimer.Stop();
+	cout << "time elapsed 2: " << myTimer.Elapsed() << endl;
+	myTimer.Start();
     
     FILE *fpfar;
     char fpfar_fn[1024];
@@ -379,9 +422,13 @@ int main(int argc, char **argv) {
 	// We were only asked to do one slab.
     // Next we merge the individual files, effectively doing a big transpose
     ULLI fdsize = sizeof(double) * rml*CompressedMultipoleLengthXYZ;
+		
+	
     printf("Allocating %d GB\n", (int) (fdsize/(1<<30)) );
     double *FarDerivatives = (double *) malloc(fdsize);
     MergeDerivatives(inner_radius, order, far_radius, FarDerivatives);
+	
+	
 
     // write out FarDerivatives file
     fpfar = fopen(fpfar_fn,"wb");
@@ -390,8 +437,21 @@ int main(int argc, char **argv) {
     free(FarDerivatives);
     }
     fclose(fpfar);
+	
+	myTimer.Stop();
+	cout << "time elapsed 3: " << myTimer.Elapsed() << endl;
+	myTimer.Start();
 
     // Now do the FFTs based on seeking on the disk file
     CreateFourierFiles(order,inner_radius, far_radius);
+	
+	myTimer.Stop();
+	cout << "time elapsed 4: " << myTimer.Elapsed() << endl;
+	myTimer.Start();
+	
     Part2(order, inner_radius, far_radius);
+	
+	myTimer.Stop();
+	cout << "time elapsed 5: " << myTimer.Elapsed() << endl;
+	
 }
