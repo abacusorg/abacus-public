@@ -236,7 +236,14 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     assert(CP.runtime_NearFieldRadius>=1);
     assert(CP.runtime_NearFieldRadius<=(CP.runtime_cpd-1)/2);
 
-    assert( (CP.runtime_DerivativeExpansionRadius==8) || 
+    assert(	(CP.runtime_DerivativeExpansionRadius==1) ||
+			(CP.runtime_DerivativeExpansionRadius==2) ||
+			(CP.runtime_DerivativeExpansionRadius==3) ||
+			(CP.runtime_DerivativeExpansionRadius==4) || 
+			(CP.runtime_DerivativeExpansionRadius==5) || //note! added to change far radius 
+			(CP.runtime_DerivativeExpansionRadius==6) || 
+			(CP.runtime_DerivativeExpansionRadius==7) ||
+			(CP.runtime_DerivativeExpansionRadius==8) || 
             (CP.runtime_DerivativeExpansionRadius==16) );
     assert( (CP.runtime_IsRamDisk == 1) || (CP.runtime_IsRamDisk==0) );
     assert(CP.runtime_DiskBufferSizeKB>=1);

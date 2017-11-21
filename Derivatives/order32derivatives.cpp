@@ -1,3 +1,9 @@
+class Order32Derivatives;
+#include "../include/PTimer.cc"
+//double Runtime = 0.0;
+//double numLoops = 0.0;
+int OPTIMIZE = 1;
+
 class Order32Derivatives {
 public:
     Order32Derivatives(int inner);
@@ -12,6 +18,7 @@ private:
 
 
 #define ODIM 33
+
 
 Order32Derivatives::Order32Derivatives(int inner) : inner(inner)  {
     for(int a=0;a<ODIM;a++)
@@ -85,49 +92,110 @@ void Order32Derivatives::SumNearDerivatives(double3 r, int radius, double *rd, i
 
 
 void Order32Derivatives::InfiniteDerivativeSummation(double3 r, double *rd, int order) {
-
-    qd_real rx[33],ry[33],rz[33];
-
-    rx[0] = 1; rx[1] = to_qd_real(r.x);
-    ry[0] = 1; ry[1] = to_qd_real(r.y);
-    rz[0] = 1; rz[1] = to_qd_real(r.z);
-
-    for(int i=2;i<=32;i++) {
-        rx[i] = rx[i-1] * rx[1];
-        ry[i] = ry[i-1] * ry[1];
-        rz[i] = rz[i-1] * rz[1];
-    }
-
-    qd_real fmem[33];
-
-    fmem[0] = 1;
-    fmem[1] = 1;
-
-    for(int i=2;i<=32;i++) {
-        fmem[i] = fmem[i-1] * i;
-    }
-
-    int i,j,k;
-    int a,b,c;
+	if( !OPTIMIZE ){
+		 ////////////////////////////////////////////////////////////////////////
+		//NO OPTIMIZATION (factorial computed each loop, multipole bound = 32)
+		qd_real fmem[33];  
+		fmem[0] = 1;
+		fmem[1] = 1;
+		for(int i=2;i<=32;i++) { 
+			fmem[i] = fmem[i-1] * i;
+		}		
+	
+	    qd_real rx[33],ry[33],rz[33]; 
+	
+	    rx[0] = 1; rx[1] = to_qd_real(r.x);
+	    ry[0] = 1; ry[1] = to_qd_real(r.y);
+	    rz[0] = 1; rz[1] = to_qd_real(r.z);
+	
+	    for(int i=2;i<=32;i++) { 
+			rx[i] = rx[i-1] * rx[1] ; 
+			ry[i] = ry[i-1] * ry[1] ;
+			rz[i] = rz[i-1] * rz[1] ;
+	    }
+	
+	    int i,j,k;
+	    int a,b,c;
     
-    int m = 0;
-    FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
-        qd_real s = 0;
-        FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,32) {
-            if( a+i+b+j+c+k <= 32 )  {
-                if( ((a+i)%2==0) && ((b+j)%2==0) && ((c+k)%2==0) ) {
-                    qd_real x = rx[i] * ry[j] * rz[k] / (fmem[i] * fmem[j] * fmem[k]) * AnalyticDerivatives[a+i][b+j][c+k];
-                    s += x;
-                }
-            }
-        }
-        rd[m] = to_double(s);
-        m++;        
-    }
+	    int m = 0;
+	    FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
+	        qd_real s = 0;
+	        FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,32) { 
+	            if( a+i+b+j+c+k <= 32 )  {
+	                if( ((a+i)%2==0) && ((b+j)%2==0) && ((c+k)%2==0) ) {
+	                    qd_real x = rx[i] * ry[j] * rz[k] / (fmem[i] * fmem[j] * fmem[k]) * AnalyticDerivatives[a+i][b+j][c+k];
+	                    s += x;
+	                }
+	            }
+	        }
+	        rd[m] = to_double(s);
+	        m++;        
+	    }
+		////////////////////////////////////////////////////////////////////////
+	}
+	
+	else{
+		////////////////////////////////////////////////////////////////////////
+		//OPTIMIZED VERSION (factorial fixed, multipole bound = 24)
+	
+	    qd_real rx[9],ry[9],rz[9]; 
+
+	    rx[0] = 1; rx[1] = to_qd_real(r.x);
+	    ry[0] = 1; ry[1] = to_qd_real(r.y);
+	    rz[0] = 1; rz[1] = to_qd_real(r.z);
+	
+	    for(int i=2;i<=8;i++) {
+			rx[i] = rx[i-1] * rx[1] /i; 
+			ry[i] = ry[i-1] * ry[1] /i;
+			rz[i] = rz[i-1] * rz[1] /i;
+	    }
+	
+	    int i,j,k;
+	    int a,b,c;
+    
+	    int m = 0;
+	    FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
+	        qd_real s = 0;
+	        FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,8) { 
+	            if( a+i+b+j+c+k <= 8 )  {//change 32 to 24 // precompute kmax = 32 - a-i-b-j-c for innermost loop and remove if statement //--> k< kmax 
+	                if( ((a+i)%2==0) && ((b+j)%2==0) && ((c+k)%2==0) ) {
+						qd_real x = rx[i] * ry[j] * rz[k]  * AnalyticDerivatives[a+i][b+j][c+k];
+	                    s += x;
+	                }
+	            }
+	        }
+	        rd[m] = to_double(s);
+	        m++;        
+	    }
+		////////////////////////////////////////////////////////////////////////
+	}
 
 }
 
 void Order32Derivatives::Derivative(double3 r, double *rdfar, double *rdnear, int order) {
-    SumNearDerivatives( r, inner , rdnear, order );
-    InfiniteDerivativeSummation(r, rdfar, order );
+	//PTimer TIMER;
+	//TIMER.Clear();
+	//TIMER.Start();
+    SumNearDerivatives( r, inner , rdnear, order);
+	//TIMER.Stop();
+	//double timeElapsed = TIMER.Elapsed();
+	//printf("%f\n", timeElapsed); 
+	//Runtime = Runtime + timeElapsed;
+	//numLoops = numLoops + 1.0;
+	//printf("numLoops = %f, timeElapsed = %f, average runtime = %f\n", numLoops, Runtime, Runtime/numLoops);
+	//TIMER.Clear();
+	
+	//PTimer TIMER;
+	//TIMER.Clear();
+	//TIMER.Start();
+	
+    InfiniteDerivativeSummation(r, rdfar, order);
+	
+	//TIMER.Stop();
+	//double timeElapsed = TIMER.Elapsed();
+	//printf("%f\n", timeElapsed); 
+	//Runtime = Runtime + timeElapsed;
+	//numLoops = numLoops + 1.0;
+	//printf("numLoops = %f, timeElapsed = %f, average runtime = %f\n", numLoops, Runtime, Runtime/numLoops);
+	//TIMER.Clear();
 }

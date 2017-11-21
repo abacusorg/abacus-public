@@ -457,7 +457,14 @@ void Parameters::ValidateParameters(void) {
     }
 
 
-    if( (DerivativeExpansionRadius!=8) &&
+    if( (DerivativeExpansionRadius!=1) && 
+		(DerivativeExpansionRadius!=2) && 
+		(DerivativeExpansionRadius!=3) && //note! added to change far radius
+		(DerivativeExpansionRadius!=4) && 
+		(DerivativeExpansionRadius!=5) && 
+		(DerivativeExpansionRadius!=6) && 
+		(DerivativeExpansionRadius!=7) && 
+		(DerivativeExpansionRadius!=8) &&
         (DerivativeExpansionRadius!=16) &&
         (DerivativeExpansionRadius!=32) ) {
 

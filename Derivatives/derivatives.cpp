@@ -13,7 +13,7 @@ public:
 void Derivatives::ReducedDerivatives(double3 p, double *d) {
     int i,j;
     double x,y,z,Rm1,Rm2,Rm3,Rm5,Rm7;
-
+	
     x = p.x;
     y = p.y;
     z = p.z;
@@ -57,6 +57,7 @@ void Derivatives::ReducedDerivatives(double3 p, double *d) {
     for(i=2;i<=order-1;i++)
         for(j=2;j<=order-1-i;j++)
             d[rmap(i,j,1)] = -Rm2*( (2*(i)-1)*x*d[rmap(i-1,j,1)] + (i-1)*(i-1)*d[rmap(i-2,j,1)] + 2*(j)*y*d[rmap(i,j-1,1)] + (j)*(j-1)*d[rmap(i,j-2,1)] + 2*z*d[rmap(i,j,0)] );
+
 }
 
 void Derivatives::Reduced2Complete(double *rd, double *cd) {
