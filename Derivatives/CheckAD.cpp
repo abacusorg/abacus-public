@@ -352,7 +352,8 @@ int main(void) {
     cout.precision(qd_real::_ndigits);
 //     int nd = qd_real::_ndigits + 8;
 
-    for(int innerradius=5; innerradius<=7; innerradius+=1) {
+    for(int innerradius=1; innerradius<=9; innerradius+=1) {
+		if(innerradius==9){innerradius = 16;};
         printf("Acc:\n");
         TestAcc(32,innerradius);
     }

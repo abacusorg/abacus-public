@@ -151,8 +151,14 @@ int main(void) {
 
     makeEvenrmap();
 
+	//previous code: 
     //for(int innerradius=8; innerradius<=16; innerradius*=2) {
-	for(int innerradius=1; innerradius<=2; innerradius+=1) {
+
+	//update:
+	//do all possible farRadii 1 - 8, 16, (as opposed to 8 and 16 only).
+	for(int innerradius=1; innerradius<=9; innerradius+=1) {
+		if(innerradius == 9){innerradius = 16;};
+		
         printf("making innerradius = %d\n", innerradius);
 
         MakeAnalyticDerivatives(order, innerradius);
