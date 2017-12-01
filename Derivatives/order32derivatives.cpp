@@ -3,6 +3,9 @@ class Order32Derivatives;
 //double Runtime = 0.0;
 //double numLoops = 0.0;
 int OPTIMIZE = 1;
+int LOOP_OPTIMIZATION = 1;
+
+//NAM large chunks of debugging and timing code have been commented out for large CPD overnightrun. 
 
 class Order32Derivatives {
 public:
@@ -92,59 +95,61 @@ void Order32Derivatives::SumNearDerivatives(double3 r, int radius, double *rd, i
 
 
 void Order32Derivatives::InfiniteDerivativeSummation(double3 r, double *rd, int order) {
-	if( !OPTIMIZE ){
-		 ////////////////////////////////////////////////////////////////////////
-		//NO OPTIMIZATION (factorial computed each loop, multipole bound = 32)
-		qd_real fmem[33];  
-		fmem[0] = 1;
-		fmem[1] = 1;
-		for(int i=2;i<=32;i++) { 
-			fmem[i] = fmem[i-1] * i;
-		}		
+	//if( !OPTIMIZE ){
+	//	 ////////////////////////////////////////////////////////////////////////
+	//	//NO OPTIMIZATION (factorial computed each loop, multipole bound = 32)
+	//	qd_real fmem[33];  
+	//	fmem[0] = 1;
+	//	fmem[1] = 1;
+	//	for(int i=2;i<=32;i++) { 
+	//		fmem[i] = fmem[i-1] * i;
+	//	}		
 	
-	    qd_real rx[33],ry[33],rz[33]; 
+	//    qd_real rx[33],ry[33],rz[33]; 
+	//
+	//    rx[0] = 1; rx[1] = to_qd_real(r.x);
+	//    ry[0] = 1; ry[1] = to_qd_real(r.y);
+	//    rz[0] = 1; rz[1] = to_qd_real(r.z);
 	
-	    rx[0] = 1; rx[1] = to_qd_real(r.x);
-	    ry[0] = 1; ry[1] = to_qd_real(r.y);
-	    rz[0] = 1; rz[1] = to_qd_real(r.z);
+	//    for(int i=2;i<=32;i++) { 
+	//		rx[i] = rx[i-1] * rx[1] ; 
+	//		ry[i] = ry[i-1] * ry[1] ;
+	//		rz[i] = rz[i-1] * rz[1] ;
+	//    }
 	
-	    for(int i=2;i<=32;i++) { 
-			rx[i] = rx[i-1] * rx[1] ; 
-			ry[i] = ry[i-1] * ry[1] ;
-			rz[i] = rz[i-1] * rz[1] ;
-	    }
-	
-	    int i,j,k;
-	    int a,b,c;
+	//    int i,j,k;
+	//    int a,b,c;
     
-	    int m = 0;
-	    FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
-	        qd_real s = 0;
-	        FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,32) { 
-	            if( a+i+b+j+c+k <= 32 )  {
-	                if( ((a+i)%2==0) && ((b+j)%2==0) && ((c+k)%2==0) ) {
-	                    qd_real x = rx[i] * ry[j] * rz[k] / (fmem[i] * fmem[j] * fmem[k]) * AnalyticDerivatives[a+i][b+j][c+k];
-	                    s += x;
-	                }
-	            }
-	        }
-	        rd[m] = to_double(s);
-	        m++;        
-	    }
+	//    int m = 0;
+	//    FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
+	//        qd_real s = 0;
+	//        FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,32) { 
+	//            if( a+i+b+j+c+k <= 32 )  {
+	//                if( ((a+i)%2==0) && ((b+j)%2==0) && ((c+k)%2==0) ) {
+	//                    qd_real x = rx[i] * ry[j] * rz[k] / (fmem[i] * fmem[j] * fmem[k]) * AnalyticDerivatives[a+i][b+j][c+k];
+	//                    s += x;
+	//                }
+	//            }
+	//        }
+	//        rd[m] = to_double(s);
+	//        m++;        
+	//    }
 		////////////////////////////////////////////////////////////////////////
-	}
+	//}
 	
-	else{
+	//else{
 		////////////////////////////////////////////////////////////////////////
-		//OPTIMIZED VERSION (factorial fixed, multipole bound = 24)
-	
-	    qd_real rx[9],ry[9],rz[9]; 
+		//OPTIMIZED VERSION (factorial fixed, loop optimized,  multipole bound = maxLoopOrder. recommend 24.)
+		
+		int maxLoopOrder = 24; 
+		
+	    qd_real rx[maxLoopOrder+1],ry[maxLoopOrder+1],rz[maxLoopOrder+1]; 
 
 	    rx[0] = 1; rx[1] = to_qd_real(r.x);
 	    ry[0] = 1; ry[1] = to_qd_real(r.y);
 	    rz[0] = 1; rz[1] = to_qd_real(r.z);
 	
-	    for(int i=2;i<=8;i++) {
+	    for(int i=2;i<=maxLoopOrder;i++) {
 			rx[i] = rx[i-1] * rx[1] /i; 
 			ry[i] = ry[i-1] * ry[1] /i;
 			rz[i] = rz[i-1] * rz[1] /i;
@@ -154,21 +159,55 @@ void Order32Derivatives::InfiniteDerivativeSummation(double3 r, double *rd, int 
 	    int a,b,c;
     
 	    int m = 0;
-	    FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
-	        qd_real s = 0;
-	        FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,8) { 
-	            if( a+i+b+j+c+k <= 8 )  {//change 32 to 24 // precompute kmax = 32 - a-i-b-j-c for innermost loop and remove if statement //--> k< kmax 
-	                if( ((a+i)%2==0) && ((b+j)%2==0) && ((c+k)%2==0) ) {
-						qd_real x = rx[i] * ry[j] * rz[k]  * AnalyticDerivatives[a+i][b+j][c+k];
-	                    s += x;
-	                }
-	            }
-	        }
-	        rd[m] = to_double(s);
-	        m++;        
-	    }
+		
+		
+		//if(LOOP_OPTIMIZATION){
+	   
+		//NAM: loop optimization
+		for(int c = 0; c <= 1; c++){
+			for(int a = 0; a <= order - c; a++){
+				for(int b = 0; b <= order - c - a; b++){
+					
+					qd_real s = 0;
+					
+					for(int i = a%2; i <= maxLoopOrder; i+=2){
+						for(int j = b%2; j <= maxLoopOrder-i; j+=2){
+							int kmax = maxLoopOrder - a - b - c - i - j;
+							for(int k = c%2; k <= kmax; k+=2){
+								qd_real x = rx[i] * ry[j] * rz[k]  * AnalyticDerivatives[a+i][b+j][c+k];
+								s += x;
+									 }
+								}	
+							}
+							
+							rd[m] = to_double(s);
+							m++;  
+							
+						}
+					}
+				}
+				//}
+		//NAM end
+	   
+		//else{
+		//	FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
+		//		qd_real s = 0;
+		//		FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,32) { 
+		//			if( a+i+b+j+c+k <= 32 )  {//change 32 to 24/16/8 // precompute kmax = 32 - a-i-b-j-c for innermost loop and remove if statement //--> k< kmax 
+		//				if( ((a+i)%2==0) && ((b+j)%2==0) && ((c+k)%2==0) ) {
+		//					qd_real x = rx[i] * ry[j] * rz[k]  * AnalyticDerivatives[a+i][b+j][c+k];
+		//					s += x;
+		//				}
+		//			}
+		//		}
+		//		rd[m] = to_double(s);
+		//		m++;        
+		//	}
+		//}
+		
+		
 		////////////////////////////////////////////////////////////////////////
-	}
+	//}
 
 }
 

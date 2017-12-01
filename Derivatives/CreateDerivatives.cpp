@@ -21,6 +21,8 @@
 typedef ThreeVector<qd_real> qd_real3;
 
 #include "../Multipoles/basemultipoles.cpp"
+//include "../singlestep/Multipoles/basemultipoles.cpp" //NAM added
+//////NAM wth
 #include "derivatives.cpp"
 #include "order32derivatives.cpp"
 #include "../include/STimer.cc"
@@ -52,6 +54,7 @@ ULLI linearFFTW(int i, int j, int k) {
 #define RINDEXYZ(x,y,z) (((z)*(1+CPD)*(3+CPD))/8 + ((x)*((x)+1))/2 + y)
 #define sign(i)         (i>0?1:-1) 
 
+STimer myTimer; //NAM
 
 
 void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber) {
@@ -193,11 +196,41 @@ void Part2(int order, int inner_radius, int far_radius) {
     double   in_r2c[CPD];
     Complex out_r2c[CPD];
 
-     plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
+    //plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
+    //plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD,  &(in_r2c[0]), (fftw_complex *) &(out_r2c[0]), FFTW_PATIENT);
+	
+	
+	
+	//NAM: commented this out for large CPD run overnight.
+	//int wisdomExists = fftw_import_wisdom_from_filename("Part2.wisdom");
+	//if (!wisdomExists)
+	//     printf("No wisdom file exists!\n");
+	
+	
+    plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
     plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD,  &(in_r2c[0]), (fftw_complex *) &(out_r2c[0]), FFTW_PATIENT);
-
+	
+	//if(!wisdomExists)
+	//	printf("Exporting wisdom to file == %d\n", fftw_export_wisdom_to_filename("Part2.wisdom"));
+	//	
+	//NAM: end commented out section. 
+	
+	
+	
+	
 
     ULLI sizeread;
+	
+	
+	//myTimer.Start(); //NAM 
+	
+
+
+	
+
+
+
+
 
     int a,b,c;
     FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
@@ -343,9 +376,8 @@ int main(int argc, char **argv) {
 	
 	
 	printf("QUAD_DOUBLE defined = %d. If QUAD_DOUBLE == 1, running with quad double precision. Else, running with double precision.\n \n", QUAD_DOUBLE);
-	STimer myTimer;
-	printf("Timer starting\n");
-	myTimer.Start();
+	//printf("Timer starting\n");
+	//myTimer.Start();
 	
 
     if( argc!=5 && argc!=6 ) {
@@ -396,22 +428,24 @@ int main(int argc, char **argv) {
         exit(0);
     }
 	
-	myTimer.Stop();
-	printf("Time spent in set up = %f \n", myTimer.Elapsed());
-	myTimer.Clear();
-	myTimer.Start();
+	//myTimer.Stop();
+	//printf("Time spent in set up = %f \n", myTimer.Elapsed());
+	//myTimer.Clear();
+	//myTimer.Start();
 	
     FormDerivatives(inner_radius, order, far_radius, slabnumber);
     if (slabnumber>=0) exit(0);
-	myTimer.Stop();
-	printf("Time spent in FormDerivatives = %f \n", myTimer.Elapsed());
-	myTimer.Clear();
-	myTimer.Start();
+	//myTimer.Stop();
+	//double FormDerivsRuntime = myTimer.Elapsed();
+	//printf("Time spent in FormDerivatives = %f \n", FormDerivsRuntime);
+	//myTimer.Clear();
+	//myTimer.Start();
 	
     
     FILE *fpfar;
     char fpfar_fn[1024];
 
+	double mergeDerivsRuntime;
     sprintf(fpfar_fn,"farderivatives");
     fpfar = fopen(fpfar_fn,"rb");
     if (fpfar == NULL){
@@ -425,10 +459,11 @@ int main(int argc, char **argv) {
     printf("Allocating %d GB\n", (int) (fdsize/(1<<30)) );
     double *FarDerivatives = (double *) malloc(fdsize);
     MergeDerivatives(inner_radius, order, far_radius, FarDerivatives);
-	myTimer.Stop();
-	printf("Time spent in Merge Derivatives = %f \n", myTimer.Elapsed());
-	myTimer.Clear();
-	myTimer.Start();
+	//myTimer.Stop();
+	//mergeDerivsRuntime = myTimer.Elapsed();
+	//printf("Time spent in Merge Derivatives = %f \n", mergeDerivsRuntime);
+	//myTimer.Clear();
+	//myTimer.Start();
 	
 	
 
@@ -443,28 +478,29 @@ int main(int argc, char **argv) {
 
     // Now do the FFTs based on seeking on the disk file
     CreateFourierFiles(order,inner_radius, far_radius);
-	myTimer.Stop();
-	printf("Time spent in CreateFourierFiles = %f \n", myTimer.Elapsed());
-	myTimer.Clear();
-	myTimer.Start();
+	//myTimer.Stop();
+	//double CFFRuntime = myTimer.Elapsed();
+	//printf("Time spent in CreateFourierFiles = %f \n", CFFRuntime);
+	//myTimer.Clear();
+	//myTimer.Start();
 	
 	
     Part2(order, inner_radius, far_radius);
-	myTimer.Stop();
-	printf("Time spent in Part2 = %f \n", myTimer.Elapsed());
-	myTimer.Clear();
-	myTimer.Start();
+	//myTimer.Stop();
+	//double Part2Runtime = myTimer.Elapsed();
+	//printf("Time spent in Part2 (not including fftw plan)= %f \n", Part2Runtime);
+	//myTimer.Clear();
+	//myTimer.Start();
 	
 	
 	
-	myTimer.Stop();
-	double totalRuntime = myTimer.Elapsed();
-	cout << "total time elapsed: " << totalRuntime << endl;
-	
+	//myTimer.Stop();
+	//double totalRuntime = myTimer.Elapsed();
+	//cout << "total time elapsed: " << totalRuntime << endl;
 	
 	//FILE * outFile;
-	//outFile = fopen("/home/nam/AbacusProject/timing/alan_CreateDerivatives_InfiniteDerivativeSumOptimization_timing.txt", "a");
-	//fprintf(outFile, "%d %d %d %d %d %f\n", WritingToFile_  whatDoYouWantToPutHere, CPD, order, inner_radius, far_radius, totalRuntime);
+	//outFile = fopen("/home/nam/AbacusProject/timing/alan_CreateDerivatives_LoopOptimization_MultipoleOrder_vs_FR_timing.txt", "a");
+	//fprintf(outFile, "%d %d %d %d %d %f %f %f %f\n", 24, CPD, order, inner_radius, far_radius, FormDerivsRuntime, mergeDerivsRuntime, CFFRuntime, Part2Runtime);
 	//fclose (outFile); 
 	
 	
