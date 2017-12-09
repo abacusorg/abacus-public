@@ -130,7 +130,7 @@ NearFieldDriver::NearFieldDriver() :
     // maxkwidth will occur when we have the fewest splits
     // The fewest splits will occur when we are operating on the smallest slabs
     MinSplits = GetNSplit(WIDTH*Slab->min, Slab->min);
-    MinSplits = ceil(.8*MinSplits);  // fudge factor to account for uneven slabs
+    MinSplits = (int) max(1.,floor(.8*MinSplits));  // fudge factor to account for uneven slabs
     // This may not account for unequal splits, though.  Unless we really need to save GPU memory, just use maxkwidth=cpd
     //MinSplits = 1;
     STDLOG(1,"MinSplits = %d\n", MinSplits);
