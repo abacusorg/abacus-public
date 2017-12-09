@@ -22,7 +22,7 @@ int FORCE_RADIUS = -1;
 int GROUP_RADIUS = -1;
 
 // I think in most cases we would prefer to read ahead until memory limited
-//#define FETCHAHEAD (3*FORCE_RADIUS +3)
+//#define FETCHAHEAD (2*FORCE_RADIUS)
 #define FETCHAHEAD 1000
 #define FETCHPERSTEP 1
 // Recall that all of these Dependencies have a built-in STimer
