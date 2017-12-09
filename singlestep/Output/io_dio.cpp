@@ -22,12 +22,15 @@ void ReadFile(char *ram, uint64 sizebytes, int arena,
     int diskbuffer = 1024*512;
     ReadDirect RD(ramdisk, diskbuffer);
     
-    BlockingIOReadTime.Start();
+    char dir[1024];
+    containing_dirname(filename, dir);
+    
+    BlockingIOReadTime[dir].Start();
     
     RD.BlockingRead( fn, ram, sizebytes, fileoffset);
     
-    BlockingIOReadTime.Stop();
-    BlockingIOReadBytes += sizebytes;
+    BlockingIOReadTime[dir].Stop();
+    BlockingIOReadBytes[dir] += sizebytes;
 
     STDLOG(1,"Done reading file\n");
     IO_SetIOCompleted(arena);
@@ -40,28 +43,27 @@ void WriteFile(char *ram, uint64 sizebytes, int arena,
     STDLOG(1,"Using IO_dio module to write file %f\n", filename);
     // Write the file
     char fn[1024]; strcpy(fn, filename);
-    assertf(FileExists(fn)==0, "File %s already exists; not the intended use of WriteFile.\n", fn);
+    // When overwriting the state, we don't care if the file already exists
+    // If we wanted to enforce that WriteFile can never overwrite files, we could delete the state file elsewhere
+    //assertf(FileExists(fn)==0, "File %s already exists; not the intended use of WriteFile.\n", fn);
     assertf(fileoffset==0, "WriteFile fileoffest = %d.  Non-zero values not supported.\n", fileoffset);
 
-    //char cmd[1024];
-    //sprintf(cmd,"touch %s", fn);
-
-    //int rv = system(cmd);
-    //assertf(rv!=-1, "Touching file %s failed\n", fn);
-
-    FILE * outfile = fopen(fn,"a");
+    FILE * outfile = fopen(fn,"wb");
     assertf(outfile != NULL,"Touching file %s failed\n", fn);
     fclose(outfile);
     int ramdisk = io_ramdisk_global;
     int diskbuffer = 1024*512;
     WriteDirect WD(ramdisk, diskbuffer);
     
-    BlockingIOWriteTime.Start();
+    char dir[1024];
+    containing_dirname(filename, dir);
     
-    WD.BlockingAppend( fn, ram, sizebytes);
+    BlockingIOWriteTime[dir].Start();
     
-    BlockingIOWriteTime.Stop();
-    BlockingIOWriteBytes += sizebytes;
+    WD.BlockingAppend(fn, ram, sizebytes);
+    
+    BlockingIOWriteTime[dir].Stop();
+    BlockingIOWriteBytes[dir] += sizebytes;
 
     STDLOG(1,"Done writing file\n");
     if (deleteafter==IO_DELETE) IO_DeleteArena(arena);

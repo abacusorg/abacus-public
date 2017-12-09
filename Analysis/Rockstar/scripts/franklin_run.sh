@@ -25,8 +25,7 @@ export ABACUS_PERSIST="/mnt/gosling2/bigsims/"
 #export SIM_DIR=$(printf "emulator_720box_Neff3/emulator_720box_Neff3_%02d" $(expr $LSB_JOBINDEX - 1))
 #export SIM_DIR=$(printf "AbacusCosmos_720box/AbacusCosmos_720box_%02d" $(expr $LSB_JOBINDEX - 1))
 #export SIM_DIR=$(printf "AbacusCosmos_1100box/AbacusCosmos_1100box_%02d" $(expr $LSB_JOBINDEX - 1))
-export SIM_DIR=$(printf "emulator_1100box_planck/emulator_1100box_planck_spline_%02d" $(expr $LSB_JOBINDEX - 1))
-CPD=385  # used for verifying the number of files
+export SIM_DIR=$(printf "emulator_1100box_planck/emulator_1100box_planck_%02d" $(expr $LSB_JOBINDEX - 1))
 
 # Split SIM_DIR into name and project
 export SIM_NAME=$(echo "$SIM_DIR" | awk -F '/' -- '{print $2}' -)
@@ -35,13 +34,13 @@ export PROJECT=$(echo "$SIM_DIR" | awk -F '/' -- '{print $1}' -)
 echo -e "* Checking if we need to run Rockstar:\n"
 if [ 0 ]; then
   echo -e "Running Rockstar."
-  for SLICE in $ABACUS_PERSIST/$SIM_DIR/slice*; do
+  for SLICE in $ABACUS_PERSIST/$SIM_DIR/slice0.500; do
     ZSLICE=$ABACUS_PERSIST/$PROJECT/$SIM_NAME\_products/$SIM_NAME\_rockstar_halos/$(echo "$SLICE" | awk -F '/' '{print $NF}' - | sed 's/slice/z/')
     CLI_CFG=$ZSLICE/auto-rockstar.cfg
     rm -f $CLI_CFG  # Always remove an existing config file
 
     echo "Starting slice $SLICE server"
-    $ABACUS/Analysis/Rockstar/rockstar.py --ncpu $LSB_DJOB_NUMPROC $SLICE --SO --tar-mode TAR --tar-remove-source-files &
+    $ABACUS/Analysis/Rockstar/rockstar.py --ncpu $LSB_DJOB_NUMPROC $SLICE --SO &  #--tar-mode TAR --tar-remove-source-files &
 
     # Wait for the server to generate the client config file
     while [ ! -f $CLI_CFG ]; do
