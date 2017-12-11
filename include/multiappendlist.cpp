@@ -1,4 +1,4 @@
-/* multiappendlist.cpp
+// multiappendlist.cpp
 
 /* The class MultiAppendList is a multi-threaded append-in-place code.
 When the process is completed, the objects will be contiguous, but 
@@ -23,6 +23,16 @@ GrowMAL() would be an external way to add extra particles in bulk.
 There is no provision to grow the originally allocated buffer!  But the
 code will detect an overflow and throw an assertf().
 */
+
+#ifdef MALTEST
+#include <stdlib.h>
+#include <assert.h>
+#include <stdio.h>
+#include "stdlog.cc"
+typedef unsigned long long int uint64;
+int omp_get_max_threads() { return 1;}
+int omp_get_thread_num() { return 0;}
+#endif
 
 #include <mutex>
 
