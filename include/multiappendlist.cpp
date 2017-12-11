@@ -1,0 +1,182 @@
+/* multiappendlist.cpp
+
+/* The class MultiAppendList is a multi-threaded append-in-place code.
+When the process is completed, the objects will be contiguous, but 
+there is no expectation that the objects will remain in order (that 
+would be ill-defined in a multi-threaded context, but is not even 
+guaranteed within a thread).
+
+One allocates a big chunk of memory at the beginning.  Then the code
+gives each thread a small segment, currently MALGAP_SIZE = 512, of that 
+list in which to append.  New segments are created invisibly when the
+thread runs out of space.  One calls CollectGaps() when done; this 
+copies the filled fragments of segments into the empty parts of segments
+and creates a contiguous list.
+
+The basic operation to append to the list is Push().
+We also provide ShrinkMAL() and GrowMAL() in case one needs to adjust the
+amount of space used by fiat.  Note that these require unsigned int's 
+as input; there's not a check that these are >=0.  
+ShrinkMAL() is the way to remove particles from the end of the list.
+GrowMAL() would be an external way to add extra particles in bulk.
+
+There is no provision to grow the originally allocated buffer!  But the
+code will detect an overflow and throw an assertf().
+*/
+
+#include <mutex>
+
+// TODO: Need to define the class prototypes so that A can refer to B and vice versa.
+
+template <class T>
+class MALgap {
+    // The gap will be defined as [start,end)
+    // As we fill in from the front, start will be incremented
+    // nextid() will return a valid index number, where we can place a new 
+    // particle.
+    // size() and gapsize() return the used and unused sizes of this block.
+  private:
+    void make_next_gap(MultiAppendList<T> *mal);
+  public:
+
+    uint64 start;
+    uint64 end;
+    uint64 next;
+    uint64 pad[5];   // We want fill a 64-byte cache line to avoid contention
+    #define MALGAP_SIZE 512
+    // We want something big enough that we don't have threads
+    // waiting for the mutex to clear.  But small enough that 
+    // the gap collection at the end doesn't have big copies.
+
+    // When sorting, we sort by end, which is unique across gaps.
+    // In principle, two gaps could have the same start
+    bool operator< (const MALgap& b) const { return (end<b.end); }
+  
+    MALgap() { make_next_gap(); return; }
+    ~MALgap() {} ;
+
+    inline uint64 nextid(MultiAppendList<T> *mal) {
+        // Return the next index in line
+        uint64 val = next;   // The index we will return
+        next++;
+        if (next==end) make_next_gap(mal);
+            // Done with this gap; need a new allocation
+        return val;
+    }
+    inline uint64 gapsize() { return end-next; }
+    inline uint64 size() { return next-start; }
+};  // End MALgap class
+
+
+template <class T>
+class MultiAppendList {
+private:
+    MALgap<T> *MALgaps;
+    int Ngaps;
+    std::mutex MALgap_mutex;
+
+public: 
+    T *list;
+    uint64 length;
+    uint64 maxlist;
+
+    MultiAppendList(uint64 maxlistsize) { 
+        length = 0; 
+	Ngaps = omp_get_max_threads();
+        // we may try to grow the list by an extra block per thread
+        maxlist = maxlistsize + MALGAP_SIZE*Ngaps;
+        int ret = posix_memalign((void **) &list, 4096, sizeof(T) * maxlistsize);
+        assertf(ret==0,"Failed to allocate MultiAppendList\n");
+        ret = posix_memalign((void **) &MALgaps, 4096, sizeof(MALgaps<T>) * Ngaps);
+        assertf(ret==0,"Failed to allocate MultiAppendList gaps\n");
+	return;
+    }
+    ~MultiAppendList(void) { 
+        free(list);
+	free(MALgaps);
+    }
+    
+    // Push to the next allowed position in this thread.
+    inline void Push(T obj) {
+        list[MALgaps[omp_get_thread_num()].nextid()] = obj;
+	return;
+    }
+
+    inline void ShrinkMAL(uint64 newlength) { 
+        assertf(newlength<=length, 
+	    "Illegal shrinking of MultiAppendList\n");
+        length = newlength; 
+    }
+    
+    inline void GrowMAL(uint64 newlength) { 
+        assertf(newlength>=length, 
+	    "Illegal growing of MultiAppendList\n");
+        assertf(newlength < maxlist, 
+	    "Illegal resizing of MultiAppendList\n");
+        length = newlength; 
+    }
+
+    void CollectGaps() {
+	// Given a list of gaps, we want to fill them in and reduce the 
+	// size of the insert list.  This routine will change both the
+	// order and the contents of the input vector; essentially,
+	// the vector is inapplicable after use.
+
+	// This routine is entirely serial.
+	// In principle, it could be parallelized by recording a set of
+	// planned moves, then splitting them up to balance the work 
+	// across threads, then executing.  See parallel partitioning 
+	// for an example.
+	// However, the expected amount of work here seems modest,
+	// of order NThreads * MALGAP_SIZE / 4 objects to copy.
+
+	std::sort( MALgaps, MALgaps+Ngaps );
+	    // Order the gaps by their end index
+	int low = 0;          // low[next:end) is unfilled space
+	int high = Ngaps-1;   // high[start:next) is filled space
+	// We can assume that the highest gap is the end of the MAL.
+	// But that doesn't always stay true, unless we do something about it.
+	// Extend the filled part of each gap to the last unfilled point of the 
+	// one below it.  
+	for (int j=1;j<Ngaps;j++) MALgaps[j].start = MALgaps[j-1].end;
+
+	while (high>low) {
+	    // When high==low, then there are no more gaps to fill
+	    if (MALgaps[low].gapsize() <= MALgaps[high].size()) {
+		// We have enough particles to fill the gap
+		uint64 copysize = MALgaps[low].gapsize();   // Number to move
+		assert(MALgaps[high].next >= copysize);
+		memcpy(list+MALgaps[low].next, 
+			   list+MALgaps[high].next-copysize,
+		       sizeof(T)*copysize);
+		// And this means we're done with this low gap.
+		MALgaps[high].next -= copysize;
+		low++;
+	    } else {
+		// The gap is more than the particles we have.
+		uint64 copysize = MALgaps[high].size();   // Number to move
+		assert(MALgaps[high].next >= copysize);
+		memcpy(list+MALgaps[low].next, 
+			   list+MALgaps[high].next-copysize,
+		       sizeof(T)*copysize);
+		// And this means we're done with the high set
+		MALgaps[low].next += copysize;
+		high--;
+	    }
+	}
+	ShrinkMAL(MALgaps[low].next);
+	return;
+    }
+
+};
+
+template <class T>
+void MALgap<T>::make_next_gap(MultiAppendList<T> *MAL) {
+    // Adjustments to the MAL list length can only happen one at a time
+    MAL->MALgap_mutex.lock();
+    next = start = MAL->length;
+    MAL->GrowMAL(start+MALGAP_SIZE);
+    end = MAL->length;
+    MAL->MALgap_mutex.unlock();
+}
+
