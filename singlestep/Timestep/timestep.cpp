@@ -314,7 +314,8 @@ void GroupAction(int slab) {
 int OutputPrecondition(int slab) {
     if (Kick.notdone(slab)) return 0;  // Must have kicked because output does a half un-kick
     if (Group.notdone(slab)) return 0;  // Must have found groups
-    if (!P.ForceOutputDebug && P.AllowGroupFinding && !GF->SlabClosed(slab)) return 0;
+    //if (!P.ForceOutputDebug && P.AllowGroupFinding && !GF->SlabClosed(slab)) return 0;
+    if (!P.ForceOutputDebug && P.AllowGroupFinding && !GF->SlabClosed(slab) && !LPTStepNumber()) return 0; 
     return 1;
 }
 
@@ -364,7 +365,8 @@ void OutputAction(int slab) {
     OutputBin.Stop();
 
     OutputGroup.Start();
-    if(!P.ForceOutputDebug && P.AllowGroupFinding)
+    //if(!P.ForceOutputDebug && P.AllowGroupFinding)
+    if(!P.ForceOutputDebug && P.AllowGroupFinding && !LPTStepNumber())
         GF->OutputSlab(slab);
     OutputGroup.Stop();
 
@@ -448,8 +450,9 @@ void DriftAction(int slab) {
     }
     LBW->DeAllocate(NearAccSlab,slab);
 
-    if(!P.ForceOutputDebug && P.AllowGroupFinding)
-        GF->PurgeSlab(slab);
+    //if(!P.ForceOutputDebug && P.AllowGroupFinding)
+    if(!P.ForceOutputDebug && P.AllowGroupFinding && !LPTStepNumber()) 
+       GF->PurgeSlab(slab);
 
 }
 
