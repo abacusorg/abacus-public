@@ -108,8 +108,8 @@ void ReportTimings(FILE * timingfile) {
     a = ComputeMultipoles.Elapsed();    fprintf(timingfile,"\t \t \t \t      ComputeMultipoles: %e seconds (%2.2f %%) ---> %e pps \n", a, a*g, P.np/(a+1e-15) );
     DumpMultipoleStats(WallClockDirect.Elapsed(), P.np);
 
-    a = FinishSort.Elapsed();           fprintf(timingfile,"\t \t \t \t             FinishSort: %e seconds (%2.2f %%)\n", a, a*g );
-    a = FinishPartition.Elapsed();      fprintf(timingfile,"\t \t \t \t        FinishPartition: %e seconds (%2.2f %%)\n", a, a*g );
+    a = IL->FinishSort.Elapsed();           fprintf(timingfile,"\t \t \t \t             FinishSort: %e seconds (%2.2f %%)\n", a, a*g );
+    a = IL->FinishPartition.Elapsed();      fprintf(timingfile,"\t \t \t \t        FinishPartition: %e seconds (%2.2f %%)\n", a, a*g );
 
 }
 #endif
@@ -373,8 +373,8 @@ void ReportTimings(FILE * timingfile) {
     
     fprintf(timingfile, "\n\n Breakdown of Finish Step:");
     denom = Finish.Elapsed();
-    REPORT(1, "Partition Insert List", FinishPartition.Elapsed());
-    REPORT(1, "Sort Insert List", FinishSort.Elapsed());
+    REPORT(1, "Partition Insert List", IL->FinishPartition.Elapsed());
+    REPORT(1, "Sort Insert List", IL->FinishSort.Elapsed());
     fprintf(timingfile,"---> %6.3f Mitems/sec (%.2g items)",IL->n_sorted/(thistime+1e-15)/1e6, (double) IL->n_sorted);
     REPORT(1, "Index Cells", FinishCellIndex.Elapsed());
     REPORT(1, "Merge", FinishMerge.Elapsed());
