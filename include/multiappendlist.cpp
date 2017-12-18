@@ -30,6 +30,7 @@ code will detect an overflow and throw an assertf().
 #include <stdio.h>
 #include "stdlog.cc"
 typedef unsigned long long int uint64;
+int omp_get_max_threads() { return 1;}
 int omp_get_num_threads() { return 1;}
 int omp_get_thread_num() { return 0;}
 #endif
@@ -63,15 +64,16 @@ class MALgap {
     // In principle, two gaps could have the same start
     bool operator< (const MALgap& b) const { return (end<b.end); }
   
-    MALgap() { make_next_gap(); return; }
+    void reset_gap() { start = end = next = 0; }
+    MALgap() { reset_gap(); }
     ~MALgap() {} ;
 
+
     inline uint64 nextid(MultiAppendList<T> *mal) {
-        // Return the next index in line
+	// Return the next index in line
+        if (next==end) make_next_gap(mal);
         uint64 val = next;   // The index we will return
         next++;
-        if (next==end) make_next_gap(mal);
-            // Done with this gap; need a new allocation
         return val;
     }
     inline uint64 gapsize() { return end-next; }
@@ -93,7 +95,7 @@ public:
 
     MultiAppendList(uint64 maxlistsize) { 
         length = 0; 
-	Ngaps = omp_get_num_threads();
+	Ngaps = omp_get_max_threads();
         // we may try to grow the list by an extra block per thread
         maxlist = maxlistsize + MALGAP_SIZE*Ngaps;
         int ret = posix_memalign((void **) &list, 4096, sizeof(T) * maxlistsize);
@@ -176,6 +178,7 @@ public:
 	    }
 	}
 	ShrinkMAL(MALgaps[low].next);
+	for (int j=0;j<Ngaps;j++) MALgaps[j].reset_gap();
 	return;
     }
 
@@ -190,4 +193,3 @@ void MALgap<T>::make_next_gap(MultiAppendList<T> *MAL) {
     end = MAL->length;
     MAL->MALgap_mutex.unlock();
 }
-
