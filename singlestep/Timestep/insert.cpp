@@ -64,7 +64,7 @@ void ConfirmSorting(ilstruct *il, uint64 len) {
 }
 
 
-class InsertList : public grid, MultiAppendList<ilstruct> {
+class InsertList : public grid, public MultiAppendList<ilstruct> {
 public: 
     uint64 n_sorted;
 

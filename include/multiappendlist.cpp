@@ -30,13 +30,14 @@ code will detect an overflow and throw an assertf().
 #include <stdio.h>
 #include "stdlog.cc"
 typedef unsigned long long int uint64;
-int omp_get_max_threads() { return 1;}
+int omp_get_num_threads() { return 1;}
 int omp_get_thread_num() { return 0;}
 #endif
 
 #include <mutex>
 
-// TODO: Need to define the class prototypes so that A can refer to B and vice versa.
+template <class T>
+class MultiAppendList;
 
 template <class T>
 class MALgap {
@@ -83,21 +84,21 @@ class MultiAppendList {
 private:
     MALgap<T> *MALgaps;
     int Ngaps;
-    std::mutex MALgap_mutex;
 
 public: 
     T *list;
     uint64 length;
     uint64 maxlist;
+    std::mutex MALgap_mutex;
 
     MultiAppendList(uint64 maxlistsize) { 
         length = 0; 
-	Ngaps = omp_get_max_threads();
+	Ngaps = omp_get_num_threads();
         // we may try to grow the list by an extra block per thread
         maxlist = maxlistsize + MALGAP_SIZE*Ngaps;
         int ret = posix_memalign((void **) &list, 4096, sizeof(T) * maxlistsize);
         assertf(ret==0,"Failed to allocate MultiAppendList\n");
-        ret = posix_memalign((void **) &MALgaps, 4096, sizeof(MALgaps<T>) * Ngaps);
+        ret = posix_memalign((void **) &MALgaps, 4096, sizeof(MALgap<T>) * Ngaps);
         assertf(ret==0,"Failed to allocate MultiAppendList gaps\n");
 	return;
     }
@@ -108,7 +109,7 @@ public:
     
     // Push to the next allowed position in this thread.
     inline void Push(T obj) {
-        list[MALgaps[omp_get_thread_num()].nextid()] = obj;
+        list[MALgaps[omp_get_thread_num()].nextid(this)] = obj;
 	return;
     }
 
