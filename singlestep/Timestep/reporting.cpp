@@ -1,12 +1,33 @@
 /* reporting.cpp
-
-This writes timing outputs.  It should provide a nicely formatted
-summary of the timings from the various portions of the code.
-
-
-TODO: Need to uncomment the Multipole and Taylor portions.
-
-*/
+ *
+ * This writes timing outputs.  It should provide a nicely formatted
+ * summary of the timings from the various portions of the code.
+ *
+ *
+ * TODO: Need to uncomment the Multipole and Taylor portions.
+ *
+ * FIXME: DWF recommends a major refactor of how we handle reports. 
+ *  Ideally, we should have a top level class TimingReport that 
+ *  holds a registry of ModuleTimings objects (an interface
+ *  that is implemented by each "section" of the timings.
+ *  These ModuleTimings are responsible for supplying
+ *  formatted strings for each timing they are responsible.
+ *  These strings can inlcude any other information (like counts)
+ *  held by the timer class.
+ *
+ *  The TimingReport object itself is responsible for producing
+ *  the final timing report. Each ModuleTimings is registered along
+ *  with its format options---these should at least include desired
+ *  indentation level, but could also support some sort of nested timing
+ *  system.
+ *
+ *  This will allow timing reports to be defined closer to the code they are 
+ *  reporting on. This makes adding new sections to the timing file much easier, 
+ *  and allows seperation of timer setup from main code. This is much better
+ *  than the current solution, where the timings report requires knowledge
+ *  of every other class's deep implementation details. This makes the timing
+ *  report tend to lag the rest of the code, since changing it is a major process.
+ */
 
 int DOUBLECLOSE(double a, double b, double eps) {
     return ( fabs(a-b) < eps*fabs(a+b) );

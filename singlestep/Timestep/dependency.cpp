@@ -1,13 +1,21 @@
 /* dependency.cpp
-
-Class to handle slab-based preconditions and actions.  We load it
-up with precondition and action functions, then it will attempt
-to execute the slabs in order as their preconditions become satisfied.
-Slabs will never be executed more than once or out of order.
-
-Also provides a timing wrapper to the actions.
-
-*/
+ * 
+ * Class to handle slab-based preconditions and actions.  We load it
+ * up with precondition and action functions, then it will attempt
+ * to execute the slabs in order as their preconditions become satisfied.
+ * Slabs will never be executed more than once or out of order.
+ * 
+ * Also provides a timing wrapper to the actions.
+ * 
+ * TODO: DWF believes this to be a good starting point for implementing
+ * multi-node parallelism. Each node can a limited set of slabs stored
+ * locally, which it will execute normally. Slabs near the boundary
+ * between nodes will have modified preconditions that check that
+ * computation of the slab on the other node is complete *and* that
+ * the slab has been pushed to where we can locally access it. The actions
+ * for boundary slabs will also need to be modified to ensure the preconditions
+ * will be met. 
+ */
 
 #ifndef INCLUDE_DEPENDENCY
 #define INCLUDE_DEPENDENCY

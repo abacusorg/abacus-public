@@ -1,5 +1,7 @@
 /* check.cpp 
-Simple utilities  */
+ * Future general validation code may be placed here.
+ * Alternatively, this file could easily be refactored into the cellinfo class
+ */
 
 int are_cellinfo_legal(int slab, uint64 slabsize) {
     // Return 1 if ok, return 0 if not.
