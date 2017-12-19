@@ -5589,7 +5589,7 @@ done
 if test "${with_cuda+set}" = set; then :
   withval=$with_cuda; cuda_prefix=$withval
 else
-  cuda_prefix="/usr/local/cuda"
+  cuda_prefix=${CUDA_HOME:-/usr/local/cuda}
 fi
 
 
