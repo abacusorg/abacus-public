@@ -118,9 +118,12 @@ if __name__ == '__main__':
     
     if args.tar_mode:
         print 'Starting to make tar files of Rockstar outputs...'
-        outdirs = [get_output_dir(s, args.downsample, suffix=args.suffix) for s in args.slice_folders]
-        common.make_tar(outdirs, 'halo*.h5', 'halos.tar.gz', delete_source=args.tar_remove_source_files)
-        common.make_tar(outdirs, 'particle*.h5', 'halo_subsamples.tar.gz', delete_source=args.tar_remove_source_files)
+        if args.tar_mode == 'ONLY_TAR':
+            outdirs = args.slice_folders
+        else:
+            outdirs = [get_output_dir(s, args.downsample, suffix=args.suffix) for s in args.slice_folders]
+        common.make_tar(outdirs, 'halo*.h5', 'halos.tar.gz', delete_source=args.tar_remove_source_files, nthreads=args.nthreads)
+        common.make_tar(outdirs, 'particle*.h5', 'halo_subsamples.tar.gz', delete_source=args.tar_remove_source_files, nthreads=args.nthreads)
         print 'Finished making tar files.'
         
     exit(retcode)
