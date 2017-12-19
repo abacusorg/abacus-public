@@ -9,6 +9,8 @@
 #define IO_QUIT  3
 #define IO_ERROR 4		// To signal trouble!
 
+#include "file.cpp"
+
 class ioacknowledge {
   // A trivial class to respond
   public:
