@@ -93,6 +93,7 @@ Particles *PP;
 // Need this for both insert.cpp and timestep.cpp.
 int FINISH_WAIT_RADIUS = 1;
 
+#include "multiappendlist.cpp"
 #include "insert.cpp"
 #include "drift.cpp"
 #include "merge.cpp"
