@@ -1,8 +1,8 @@
 /* drift.cpp
-This drifts the particles by a specified drift factor.  
-It then checks to see if the particles have drifted outside of
-their cell.  If so, particle is moved to the insert list.
-*/
+ * This drifts the particles by a specified drift factor.  
+ * It then checks to see if the particles have drifted outside of
+ * their cell.  If so, particle is moved to the insert list.
+ */
 
 void DriftCell(Cell &c, FLOAT driftfactor) {
     int N = c.count();

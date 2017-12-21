@@ -1,5 +1,20 @@
-/*
- proepi.cpp: Prologue and epilogue
+/*! \brief Setup and teardown code for singlestep
+ * proepi.cpp has several responsibilities:
+ *  1.It is the root inclusion point for the entirety of Singlestep. All compile-time dependencies
+ *      must be included here.
+ *  2. Declaration of most global objects that are used between modules. Global objects used
+ *      only within a module are typically defined in that module. Some global declarations are
+ *      also non-conforming, and are dispersed throughout the code. TODO: This should be rectified
+ *      eventually. 
+ *      Conventionally, objects should be declared like 
+ *              #include "SomeObjectDefinition.cpp"
+ *              SomeObject * GlobalInstanceOfSomeObject;
+ *  3. The prologue function, which initializes global objects like the Parameters class that
+ *      must procede any useful work. All global objects declared in the beginning of the file
+ *      should be initialized here, preferrably by a simple call to their constructor.
+ *  4. The epilogue function, which handles teardown of most global objects. Conventionally, this 
+ *      should be done by deleting the object, with specific teardown code in the destructor 
+ *      for that module. 
 */
 
 #include "header.cpp"
@@ -8,10 +23,10 @@
 
 #include "stdlog.cc"
 
+//The following section declares a variety of global timers for several steps in the code
+//TODO: This should probably go in some sort of reporting class to clean up this section.
 #include "STimer.cc"
 #include "PTimer.cc"
-
-
 
 STimer FinishPartition;
 STimer FinishSort;
@@ -49,11 +64,10 @@ STimer SingleStepSetup;
 STimer SingleStepTearDown;
 
 uint64 naive_directinteractions = 0;    
+//********************************************************************************
 
 #include "file.h"
 #include "grid.cpp"
-
-
 
 #include "particlestruct.cpp"
 
@@ -68,7 +82,7 @@ State ReadState, WriteState;
 SlabBuffer *LBW;
 
 // Two quick functions so that the I/O routines don't need to know 
-// about the LBW object.
+// about the LBW object. TODO: Move these to an io specific file
 void IO_SetIOCompleted(int arena) { LBW->SetIOCompleted(arena); }
 void IO_DeleteArena(int arena)    { LBW->DeAllocateArena(arena); }
 
@@ -125,7 +139,7 @@ Cosmology *cosm;
 #include "lpt.cpp"
 
 #include "binning.cpp"
-FLOAT * density;
+FLOAT * density; //!< Array to accumulate gridded densities in for low resolution inline power-spectra.
 
 #include "groupfinder.hh"
 #include "abacusoutputstrategy.cc"
@@ -145,6 +159,10 @@ void load_slabsize(Parameters &P){
     STDLOG(1,"Reading SlabSize file from %s\n", filename);
 }
 
+
+/*! \brief Initializes global objects
+ *
+ */
 void Prologue(Parameters &P, bool ic) {
     omp_set_nested(true);
 
@@ -195,7 +213,17 @@ void Prologue(Parameters &P, bool ic) {
         
         AbacusOutputStrategy *groupout = new AbacusOutputStrategy();
         GF = new GroupFinder<AbacusOutputStrategy>(lambda, P.cpd, groupout);
-        
+       
+
+	if(P.AllowGroupFinding){
+	FLOAT lambda = P.FoFLinkingLength[0]/pow(P.np,1./3);
+	AbacusOutputStrategy *groupout = new AbacusOutputStrategy();
+	// GF will be null if group finding is disabled
+	// An alternative would be to create a stub GF where SlabClosed always returns true
+	GF = new GroupFinder<AbacusOutputStrategy>(lambda, P.cpd, groupout);
+	}
+
+ 
     } else {
     	TY = NULL;
     	RL = NULL;
@@ -206,6 +234,9 @@ void Prologue(Parameters &P, bool ic) {
     STDLOG(1,"Leaving Prologue()\n");
 }
 
+/*! \brief Tears down global objects
+ *
+ */
 void Epilogue(Parameters &P, bool ic) {
     STDLOG(1,"Entering Epilogue()\n");
     epilogue.Clear();

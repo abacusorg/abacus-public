@@ -1,17 +1,22 @@
 /* insert.cpp
+ *
+ *Class for the insert list.
+ *
+ *Particles are added to the end of the insert list, along with their
+ *new cell number.  When requested, a partioning is done to place particles 
+ *of a given slab at the end of the list; this slab is then sorted into
+ *cell order.  We will then copy those particles out and delete them from
+ *the insert list.
+ *
+ *Importantly, particle positions are adjusted when the particle is 
+ *added to the insert list, so that the particle has a legal position
+ *for its *new* cell.
+ */
 
-Class for the insert list.
-
-Particles are added to the end of the insert list, along with their
-new cell number.  When requested, a partioning is done to place particles 
-of a given slab at the end of the list; this slab is then sorted into
-cell order.  We will then copy those particles out and delete them from
-the insert list.
-
-Importantly, particle positions are adjusted when the particle is 
-added to the insert list, so that the particle has a legal position
-for its *new* cell.
-*/
+/*
+ * FIXME: Theres a lot of vestigial and commented out code that should be cleaned up.
+ *  We can rely on source control if it turns out later to be needed
+ */
 
 //for intel's fast parallel sort
 // #include "tbb/parallel_sort.h"
@@ -53,7 +58,6 @@ class ilstruct {
 inline bool is_in_slab(ilstruct *particle, int slab){
     return particle->xyz.x == slab;
 }
-
 void ConfirmSorting(ilstruct *il, uint64 len) {
     // Just an extra check that sorting is working
     for (uint64 j=0; j+1<len; j++) 
