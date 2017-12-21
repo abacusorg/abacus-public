@@ -212,7 +212,17 @@ void Prologue(Parameters &P, bool ic) {
         
         AbacusOutputStrategy *groupout = new AbacusOutputStrategy();
         GF = new GroupFinder<AbacusOutputStrategy>(lambda, P.cpd, groupout);
-        
+       
+
+	if(P.AllowGroupFinding){
+	FLOAT lambda = P.FoFLinkingLength[0]/pow(P.np,1./3);
+	AbacusOutputStrategy *groupout = new AbacusOutputStrategy();
+	// GF will be null if group finding is disabled
+	// An alternative would be to create a stub GF where SlabClosed always returns true
+	GF = new GroupFinder<AbacusOutputStrategy>(lambda, P.cpd, groupout);
+	}
+
+ 
     } else {
     	TY = NULL;
     	RL = NULL;
