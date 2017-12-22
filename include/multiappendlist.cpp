@@ -64,8 +64,8 @@ class MALgap {
     // In principle, two gaps could have the same start
     bool operator< (const MALgap& b) const { return (end<b.end); }
   
-    void reset_gap() { start = end = next = 0; }
-    MALgap() { reset_gap(); }
+    void reset_gap(uint64 length) { start = end = next = length; }
+    MALgap() { reset_gap(0); }
     ~MALgap() {} ;
 
 
@@ -98,15 +98,14 @@ public:
 	Ngaps = omp_get_max_threads();
         // we may try to grow the list by an extra block per thread
         maxlist = maxlistsize + MALGAP_SIZE*Ngaps;
-        int ret = posix_memalign((void **) &list, 4096, sizeof(T) * maxlistsize);
+        int ret = posix_memalign((void **) &list, 4096, sizeof(T) * maxlist);
         assertf(ret==0,"Failed to allocate MultiAppendList\n");
-        ret = posix_memalign((void **) &MALgaps, 4096, sizeof(MALgap<T>) * Ngaps);
-        assertf(ret==0,"Failed to allocate MultiAppendList gaps\n");
+	MALgaps = new MALgap<T>[Ngaps];
 	return;
     }
     ~MultiAppendList(void) { 
         free(list);
-	free(MALgaps);
+	delete[] MALgaps;
     }
     
     // Push to the next allowed position in this thread.
@@ -178,7 +177,7 @@ public:
 	    }
 	}
 	ShrinkMAL(MALgaps[low].next);
-	for (int j=0;j<Ngaps;j++) MALgaps[j].reset_gap();
+	for (int j=0;j<Ngaps;j++) MALgaps[j].reset_gap(length);
 	return;
     }
 
