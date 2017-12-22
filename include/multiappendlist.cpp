@@ -87,6 +87,10 @@ private:
     MALgap<T> *MALgaps;
     int Ngaps;
 
+    void reset_gaps() {
+	for (int j=0;j<Ngaps;j++) MALgaps[j].reset_gap(length);
+    }
+
 public: 
     T *list;
     uint64 length;
@@ -114,18 +118,30 @@ public:
 	return;
     }
 
-    inline void ShrinkMAL(uint64 newlength) { 
-        assertf(newlength<=length, 
-	    "Illegal shrinking of MultiAppendList\n");
-        length = newlength; 
-    }
-    
-    inline void GrowMAL(uint64 newlength) { 
+    inline void GrowMALGap(uint64 newlength) { 
+	// One probably shouldn't use this version outside of the
+	// MALgaps.
         assertf(newlength>=length, 
 	    "Illegal growing of MultiAppendList\n");
         assertf(newlength < maxlist, 
 	    "Illegal resizing of MultiAppendList\n");
         length = newlength; 
+    }
+
+    inline void ShrinkMAL(uint64 newlength) { 
+	// Call this after CollectGaps()
+        assertf(newlength<=length, 
+	    "Illegal shrinking of MultiAppendList\n");
+        length = newlength; 
+	reset_gaps();
+    }
+
+    inline void GrowMAL(uint64 newlength) { 
+	// This is the version to use if one wants to add length
+	// in an ad hoc manner.
+	// Call this after CollectGaps()
+	GrowMALGap(newlength);
+	reset_gaps();
     }
 
     void CollectGaps() {
@@ -177,7 +193,6 @@ public:
 	    }
 	}
 	ShrinkMAL(MALgaps[low].next);
-	for (int j=0;j<Ngaps;j++) MALgaps[j].reset_gap(length);
 	return;
     }
 
@@ -188,7 +203,7 @@ void MALgap<T>::make_next_gap(MultiAppendList<T> *MAL) {
     // Adjustments to the MAL list length can only happen one at a time
     MAL->MALgap_mutex.lock();
     next = start = MAL->length;
-    MAL->GrowMAL(start+MALGAP_SIZE);
+    MAL->GrowMALGap(start+MALGAP_SIZE);
     end = MAL->length;
     MAL->MALgap_mutex.unlock();
 }
