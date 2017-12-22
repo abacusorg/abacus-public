@@ -46,11 +46,11 @@ class ilstruct {
     bool operator< (const ilstruct& b) const { return (k<b.k); }
 
     // A method for dumping ASCII
-    inline void print {
+    inline void print () {
         printf("pos: %e %e %e; vel: %e %e %e; aux: %llu; cell: %d %d %d\n", 
-		pos.x, pos.y, pos.z, vel.x, vel.y, vel.z, 
-		aux.aux, xyz.x, xyz.y, xyz.z);
-	return;
+                pos.x, pos.y, pos.z, vel.x, vel.y, vel.z, 
+                aux.aux, xyz.x, xyz.y, xyz.z);
+        return  ;
     }
 };   // end ilstruct
 
@@ -76,20 +76,20 @@ public:
 
     InsertList(int cpd, uint64 maxilsize) : grid(cpd), MultiAppendList(maxilsize)  { 
         n_sorted = 0;
-	return;
+        return;
     }
     ~InsertList(void) { 
     }
 
     // Push to the end of the list and grow
     inline void Push(posstruct  *pos, velstruct *vel, auxstruct *aux, integer3 xyz) {
-	ilstruct il;
+        ilstruct il;
         il.pos = *pos;
         il.vel = *vel;
         il.aux = *aux;
         il.xyz = xyz;
         il.k = xyz.y*cpd + xyz.z;
-	Push(il);
+        MultiAppendList::Push(il);
     }
 
     inline integer3 WrapToNewCell(posstruct *pos, int oldx, int oldy, int oldz) {
@@ -134,7 +134,7 @@ public:
     }
 
     inline void WrapAndPush(posstruct *pos, velstruct *vel, auxstruct *aux,
-    int x, int y, int z, uint64 i) {
+    int x, int y, int z) {
         integer3 newcell;
         
 #ifdef GLOBALPOS
@@ -144,8 +144,8 @@ public:
         newcell = LocalWrapToNewCell(pos,x,y,z);
 #endif
 
-	/* REMOVING THIS CHECK, as it would be detected in another way,
-	   namely that the IL would not be empty at the end of the timestep.
+        /* REMOVING THIS CHECK, as it would be detected in another way,
+           namely that the IL would not be empty at the end of the timestep.
         // Ensure that we are not trying to push a particle to a slab
         // that might already have finished
         int slab_distance = abs(x - newcell.x);
@@ -164,7 +164,7 @@ public:
                 "Trying to push a particle to slab %d from slab %d.  This is larger than FINISH_WAIT_RADIUS = %d.",
                 x, newcell.x, FINISH_WAIT_RADIUS);
         }
-	*/   // DONE with REMOVED CHECK
+        */   // DONE with REMOVED CHECK
         
         Push(pos,vel,aux,newcell);
     }
@@ -172,8 +172,8 @@ public:
     ilstruct * PartitionAndSort(int slab, uint64 *slablength);
 
     void DumpParticles(void) {    // Debugging only
-	for(uint64 i=0;i<length;i++) list[i].print();
-	return;
+        for(uint64 i=0;i<length;i++) list[i].print();
+        return;
     }
 };
 
@@ -241,10 +241,10 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     n_sorted += slablength;
     FinishSort.Stop();
 
-    // ConfirmSorting(ilnew, slablength);
+    //ConfirmSorting(ilnew, slablength);
 
     // Delete the slab particle from the insert list, since they're now in ilnew[]
-    ShrinkIL(length - slablength);
+    ShrinkMAL(length - slablength);
     *_slablength = slablength;
     return ilnew;
 }

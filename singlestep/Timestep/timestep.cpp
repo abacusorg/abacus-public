@@ -288,6 +288,8 @@ int GroupPrecondition(int slab) {
         Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
+    
+    return 1;
 }
 
 void GroupAction(int slab) {
@@ -324,7 +326,6 @@ void GroupAction(int slab) {
 int OutputPrecondition(int slab) {
     if (Kick.notdone(slab)) return 0;  // Must have kicked because output does a half un-kick
     if (Group.notdone(slab)) return 0;  // Must have found groups
-    //if (!P.ForceOutputDebug && P.AllowGroupFinding && !GF->SlabClosed(slab)) return 0;
     if (!P.ForceOutputDebug && P.AllowGroupFinding && !GF->SlabClosed(slab) && !LPTStepNumber()) return 0; 
     return 1;
 }
