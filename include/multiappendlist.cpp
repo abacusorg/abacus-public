@@ -88,7 +88,7 @@ private:
     int Ngaps;
 
     void reset_gaps() {
-	for (int j=0;j<Ngaps;j++) MALgaps[j].reset_gap(length);
+        for (int j=0;j<Ngaps;j++) MALgaps[j].reset_gap(length);
     }
 
 public: 
@@ -119,29 +119,29 @@ public:
     }
 
     inline void GrowMALGap(uint64 newlength) { 
-	// One probably shouldn't use this version outside of the
-	// MALgaps.
+        // One probably shouldn't use this version outside of the
+        // MALgaps.
         assertf(newlength>=length, 
-	    "Illegal growing of MultiAppendList\n");
+            "Illegal growing of MultiAppendList\n");
         assertf(newlength < maxlist, 
-	    "Illegal resizing of MultiAppendList\n");
+            "Illegal resizing of MultiAppendList\n");
         length = newlength; 
     }
 
     inline void ShrinkMAL(uint64 newlength) { 
-	// Call this after CollectGaps()
+        // Call this after CollectGaps()
         assertf(newlength<=length, 
             "Illegal shrinking of MultiAppendList: length = %d, newlength = %d\n", length, newlength);
         length = newlength; 
-	reset_gaps();
+        reset_gaps();
     }
     
     inline void GrowMAL(uint64 newlength) { 
-	// This is the version to use if one wants to add length
-	// in an ad hoc manner.
-	// Call this after CollectGaps()
-	GrowMALGap(newlength);
-	reset_gaps();
+        // This is the version to use if one wants to add length
+        // in an ad hoc manner.
+        // Call this after CollectGaps()
+        GrowMALGap(newlength);
+        reset_gaps();
     }
 
     void CollectGaps() {
