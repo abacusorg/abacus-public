@@ -1,6 +1,6 @@
 /* 
 Compile with:
-g++ -O2 -DTEST -march=native -fopenmp -lgomp -DOMP parallel.partition.cpp
+g++ -O2 -DPPTEST -march=native -fopenmp -lgomp -DOMP parallel.partition.cpp
 
 This is a multi-threaded partition algorithm.  Given a list, a
 boolean selection function, and a value, all selected objects
@@ -31,8 +31,9 @@ in fact be compiled in-line.  If not, that could really slow down the
 initial passes and we'd be better off hard-coding equality.
 */
 
-// #define TEST     // Only if you want the unit-test (and verbose) executable
+// #define PPTEST     // Only if you want the unit-test (and verbose) executable
 
+#ifdef PPTEST
 #include <stdlib.h>
 #include <vector>
 #include <assert.h>
@@ -42,6 +43,8 @@ initial passes and we'd be better off hard-coding equality.
 #include <inttypes.h>
 #ifndef uint64
 #define uint64 uint64_t
+#endif
+
 #endif
 
 class SwapBlock {
@@ -120,7 +123,7 @@ uint64 ParallelPartition(ListType *list, uint64 N, ValType slab, bool (is_high)(
     if (N == 0)
         return 0;
     int nthread = omp_get_max_threads();
-    #ifdef TEST
+    #ifdef PPTEST
     printf("Running on %d OMP threads\n", nthread);
     #endif
 
@@ -135,7 +138,7 @@ uint64 ParallelPartition(ListType *list, uint64 N, ValType slab, bool (is_high)(
     for (int t=0; t<nthread; t++) 
         sublist[t].Partition(t*width, std::min((t+1)*width, N), list, slab, is_high);
 
-    #ifdef TEST
+    #ifdef PPTEST
     for (int t=0; t<nthread; t++) 
         printf("Thread %d: begin=%d, mid=%d, end=%d, %d low, %d high\n", t, 
                 sublist[t].begin, sublist[t].mid, sublist[t].end, 
@@ -183,7 +186,7 @@ uint64 ParallelPartition(ListType *list, uint64 N, ValType slab, bool (is_high)(
     }  
     // The first high point in the final list will be at highstart;
 
-    #ifdef TEST
+    #ifdef PPTEST
     for (uint64 j=0; j<plan.size(); j++) 
         printf("Plan %d: high=%d, low=%d, nswap=%d\n", 
                 j, plan[j].highstart, plan[j].lowstart, plan[j].nswap);
@@ -192,7 +195,7 @@ uint64 ParallelPartition(ListType *list, uint64 N, ValType slab, bool (is_high)(
     // We now want to spread the work more evenly over the threads.
     // We reuse the sublist class for this.
     uint64 perthread = totalswap/nthread+1;    // Seeking this much per thread
-    #ifdef TEST
+    #ifdef PPTEST
     printf("Total second-stage swaps = %d, seeking %d per thread\n", totalswap, perthread);
     #endif
     int thread = 0;
@@ -213,7 +216,7 @@ uint64 ParallelPartition(ListType *list, uint64 N, ValType slab, bool (is_high)(
         }
     }
 
-    #ifdef TEST
+    #ifdef PPTEST
     for (int t=0; t<nthread; t++)
         for (uint64 j=0; j<sublist[t].threadplan.size(); j++) 
             printf("Thread %d, Plan %d: high=%d, low=%d, nswap=%d\n", 
@@ -232,7 +235,7 @@ uint64 ParallelPartition(ListType *list, uint64 N, ValType slab, bool (is_high)(
 }
 
 
-#ifdef TEST
+#ifdef PPTEST
 
 #include <sys/time.h>
 #include "STimer.cc"

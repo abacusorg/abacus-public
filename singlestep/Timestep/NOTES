@@ -1,0 +1,5 @@
+The Timestep directory is responsible for the main "driver"-code of the program. The key files are proepi.cpp,
+which handles setup and teardown, and timestep.cpp, which handles directs execution of all stages of a single
+timestep. Each stage specified within timestep.cpp either:
+    1. Is handled by a file in this folder if it is relatively simple (drift.cpp, kick.cpp)
+    2. Invokes a module from the base singlestep directory if it is more complex (Direct, GroupFinding)

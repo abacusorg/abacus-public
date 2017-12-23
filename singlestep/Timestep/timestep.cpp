@@ -44,7 +44,10 @@ Dependency LPTVelocityReRead;
 STimer TimeStepWallClock;
 
 // -----------------------------------------------------------------
-
+/*
+ * The precondition for loading new slabs into memory
+ * We limit the additional slabs read to FETCHAHEAD
+ */
 int FetchSlabPrecondition(int slab) {
     if(FetchSlabs.number_of_slabs_executed > 
             Kick.number_of_slabs_executed + FETCHAHEAD ) {
@@ -63,6 +66,10 @@ int FetchSlabPrecondition(int slab) {
     return 1;
 }
 
+/*
+ * Loads a set of slabs at a common x slice into memory
+ * All "normal" slabtypes should be loaded here. Note that loads may be async.
+ */
 void FetchSlabAction(int slab) {
     STDLOG(0,"Fetching slab %d with %d particles\n", slab, Slab->size(slab));
     // Load all of the particle files together
@@ -281,6 +288,8 @@ int GroupPrecondition(int slab) {
         Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
+    
+    return 1;
 }
 
 void GroupAction(int slab) {
@@ -310,11 +319,14 @@ void GroupAction(int slab) {
 }
 
 // -----------------------------------------------------------------
-
+/*
+ * Checks if we are ready to do all outputs for this step
+ * Anything that modifies the particles at the current time should happen before here
+ */
 int OutputPrecondition(int slab) {
     if (Kick.notdone(slab)) return 0;  // Must have kicked because output does a half un-kick
     if (Group.notdone(slab)) return 0;  // Must have found groups
-    //if (!P.ForceOutputDebug && P.AllowGroupFinding && !GF->SlabClosed(slab)) return 0;
+    if (!P.ForceOutputDebug && P.AllowGroupFinding && !GF->SlabClosed(slab) && !LPTStepNumber()) return 0; 
     return 1;
 }
 
@@ -364,14 +376,17 @@ void OutputAction(int slab) {
     OutputBin.Stop();
 
     OutputGroup.Start();
-    //if(!P.ForceOutputDebug && P.AllowGroupFinding)
-    //    GF->OutputSlab(slab);
+    if(!P.ForceOutputDebug && P.AllowGroupFinding && !LPTStepNumber())
+        GF->OutputSlab(slab);
     OutputGroup.Stop();
 
 }
 
 // -----------------------------------------------------------------
-
+/*
+ * Checks if we are ready to load the LPT velocities during an IC step.
+ * Should not happen in normal execution
+ */
 int FetchLPTVelPrecondition(int slab){
     // Don't read too far ahead
     if(LPTVelocityReRead.number_of_slabs_executed > 
@@ -399,7 +414,10 @@ void FetchLPTVelAction(int slab){
 }
 
 // -----------------------------------------------------------------
-
+/* Checks if we are ready to apply a full-timestep drift to the particles
+ * Any operation that relies on the positions and velocities being synced
+ * should be checked for completion this year.
+ */
 int DriftPrecondition(int slab) {
     // We must have Output this slab (and thus kicked it)
     if (Output.notdone(slab)) return 0;
@@ -448,8 +466,8 @@ void DriftAction(int slab) {
     }
     LBW->DeAllocate(NearAccSlab,slab);
 
-    //if(!P.ForceOutputDebug && P.AllowGroupFinding)
-    //    GF->PurgeSlab(slab);
+    if(!P.ForceOutputDebug && P.AllowGroupFinding && !LPTStepNumber()) 
+       GF->PurgeSlab(slab);
 
 }
 
@@ -511,7 +529,10 @@ void FinishAction(int slab) {
 
 // ===================================================================
 
-
+/*
+ * Registers all of the dependencies and their associated actions.
+ * The Dependency module is responsible for running the registered steps.
+ */
 void timestep(void) {
     TimeStepWallClock.Clear();
     TimeStepWallClock.Start();
@@ -598,10 +619,12 @@ void FetchICAction(int slab) {
         }
     return;
 }
-
-// When doing IC loading, we require that the neighboring slabs be loaded
-// just to be sure that no particles have crossed the boundary.  This is trivial
-// if we overload the Drift dependency with the FetchIC condition/actions.
+/*
+ * Registers the preconditions and actions for an IC step
+ * When doing IC loading, we require that the neighboring slabs be loaded
+ * just to be sure that no particles have crossed the boundary.  This is trivial
+ * if we overload the Drift dependency with the FetchIC condition/actions.
+ */
 
 void timestepIC(void) {
     STDLOG(0,"Initiating timestepIC()\n");

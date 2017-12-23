@@ -1,0 +1,20 @@
+***Singlestep***
+This is the base directory for the singlestep executable. The file singlestep.cpp is the base source file
+for compilation. Almost all of the rest of the singlestep codebase is eventually included into
+singlestep.cpp durring compilation (as opposed to be compiled seperately and later linked).
+
+We will first give a brief overview of the contents of each subfolder, then descibe the outline of the
+program's control flow.
+
+
+DataModel:
+    Storage and layout of problem data in memory.
+        -Type definitions for all basic data like position, velocity, cellinfo
+        -Memory handling for large datablocks, i.e. *Slabs*
+        -General tools for working with Slabdata like Grid, CellInfo
+
+Direct:
+    Computation of near-field forces
+        -Only for singlestep nearfield computation, not microstepping
+        -
+
