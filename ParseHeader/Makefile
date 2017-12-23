@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -O2 -std=c++11
+CXXFLAGS = -O2 -std=c++0x
 CPPFLAGS =
 LEX = flex
 YACC = bison

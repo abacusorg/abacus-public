@@ -40,7 +40,7 @@
 AC_DEFUN([AX_CHECK_CUDA], [
 
 # Provide your CUDA path with this		
-AC_ARG_WITH(cuda, [AS_HELP_STRING([--with-cuda=PREFIX], [Prefix of your CUDA installation [/usr/local/cuda]])], [cuda_prefix=$withval], [cuda_prefix="/usr/local/cuda"])
+AC_ARG_WITH(cuda, [AS_HELP_STRING([--with-cuda=PREFIX], [Prefix of your CUDA installation [/usr/local/cuda]])], [cuda_prefix=$withval], [cuda_prefix=${CUDA_HOME:-/usr/local/cuda}])
 
 # Setting the prefix to the default if only --with-cuda was given
 if test "$cuda_prefix" == "yes"; then
