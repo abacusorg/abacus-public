@@ -130,6 +130,7 @@ NearFieldDriver::NearFieldDriver() :
     // maxkwidth will occur when we have the fewest splits
     // The fewest splits will occur when we are operating on the smallest slabs
     MinSplits = GetNSplit(WIDTH*Slab->min, Slab->min);
+    //TODO: this fudge factor fails sometimes (e.g. Ewald test for CPD 131).  What's the right way to compute this?
     MinSplits = (int) max(1.,floor(.8*MinSplits));  // fudge factor to account for uneven slabs
     // This may not account for unequal splits, though.  Unless we really need to save GPU memory, just use maxkwidth=cpd
     //MinSplits = 1;
@@ -285,6 +286,8 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
     for(int i = 0; i < Slab->size(slabID);i++){
         accstruct ai_g = a_gpu[i];
         accstruct ai_c = a_cpu[i];
+        if(ai_g.norm() == 0. && ai_c.norm() == 0.)
+            continue;
         FLOAT delta =2* (ai_g-ai_c).norm()/(ai_g.norm() + ai_c.norm());
         if(!(delta < target)){
             printf("Error in slab %d:\n\ta_gpu[%d]: (%5.4f,%5.4f,%5.4f)\n\ta_cpu[%d]: (%5.4f,%5.4f,%5.4f)\n\tdelta:%f\n",
