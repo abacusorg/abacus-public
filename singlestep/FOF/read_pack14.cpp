@@ -93,13 +93,16 @@ public:
 
 	// Skip the file head
 	int c, clast;
+	int numhead =0;
 	if ((clast=getc(fp))==EOF) return 0;
 	while ((c=getc(fp))!=EOF) {
-	    if (clast=='^B'&&c=='\n') break;
+	    numhead++;
+	    if (clast==''&&c=='\n') break;
 	    clast = c;
 	}
+	// printf("Skipped a %d byte header\n", numhead);
 
-	while (fread(&particle, sizeof(pack14), 1, fp)!=EOF) {
+	while (fread(&particle, sizeof(pack14), 1, fp)==1) {
 	    if (particle.iscell()) {
 		// Starting a new cell, so finish the old one.
 		if(thiscell>=0) n[thiscell] = nump-cell[thiscell];
@@ -117,9 +120,11 @@ public:
 		nump++;
 	    }
 	}
+	// Finish the last cell
+	if(thiscell>=0) n[thiscell] = nump-cell[thiscell];
 	fclose(fp);
         np += nump;
-	return np;
+	return nump;
     }
 
     Cell GetCell(int i, int j, int k) {
