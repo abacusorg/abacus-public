@@ -5,6 +5,7 @@
 // g++ -DTEST -fopenmp -lgomp -O2 slab_accum.cpp
 
 #include "test_driver_header.cpp"
+#include "test_driver_particles.cpp"
 
 #include "groupfinding.cpp"
 

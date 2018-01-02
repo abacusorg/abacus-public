@@ -37,7 +37,7 @@ class GroupFindingControl {
     GroupLinkList *GLL;
 
     STimer CellGroupTime, CreateFaceTime, FindLinkTime, 
-    	SortIndexLinks, FindGlobalGroupTime, GatherGroups;
+    	SortIndexLinks, FindGlobalGroupTime, GatherGroups, ScatterGroups;
 
     GroupFindingControl(FOFloat _linking_length, int _cpd, FOFloat _invcpd, int _GroupRadius, uint64 _np) {
 	cpd = _cpd; 
@@ -95,6 +95,8 @@ class GroupFindingControl {
 			FindGlobalGroupTime.Elapsed());
 	 printf("Gather Group Particles: %f sec\n",
 			GatherGroups.Elapsed());
+	 printf("Scatter Group Particles: %f sec\n",
+			ScatterGroups.Elapsed());
     }
 };
 
@@ -185,15 +187,18 @@ class GlobalGroupSlab {
     SlabAccum<GlobalGroup> globalgroups;
     SlabAccum<LinkID> globalgrouplist;
     
-    posstruct *pos;
+    int slab;    // This slab number
+    posstruct *pos;  // Big vectors of all of the pos/vel/aux for these global groups
     velstruct *vel;
     auxstruct *aux;
     uint64 np;
 
-    GlobalGroupSlab() {
+    GlobalGroupSlab(int _slab) {
         pos = NULL; vel = NULL; aux = NULL; np = 0;
+	slab = _slab;
     }
     void destroy() {
+	// TODO: If we use arenas, change this
         if (pos!=NULL) free(pos); pos = NULL;
         if (vel!=NULL) free(vel); vel = NULL;
         if (aux!=NULL) free(aux); aux = NULL;
@@ -213,20 +218,27 @@ class GlobalGroupSlab {
 	// Copy all of the particles into a single list
 	GFC->GatherGroups.Start();
 	int diam = 2*GFC->GroupRadius+1;
+	assert(GFC->cpd>2*diam);
+	// TODO: This registers the periodic wrap using the cells.
+	// However, this will misbehave if CPD is smaller than the group diameter,
+	// because the LinkIDs have already been wrapped.
 	uint64 total_particles = 0;
 	uint64 *pstart = new uint64[GFC->cpd];
-	// TODO: Can we parallelize this loop at all?  E.g., reduction over k loop?
 	for (int j=0; j<GFC->cpd; j++) {
 	    pstart[j] = total_particles;    // So we have the starting indices
+	    uint64 this_pencil = 0;
+	    // TODO: check this syntax
+	    #pragma omp parallel for schedule(static) reduction(this_pencil,+)
 	    for (int k=0; k<GFC->cpd; k++)
 		for (int n=0; n<globalgroups[j][k].size(); n++) 
-		    total_particles += globalgroups[j][k][n].np;
+		    this_pencil += globalgroups[j][k][n].np;
+	    total_particles += this_pencil;
 	}
 	// Now we can allocate these buffers
 	setup(total_particles);
 
 	// Now copy the particles into these structures
-	// TODO: Can we use openMP for this loop?
+	#pragma omp parallel for schedule(static)
 	for (int j=0; j<GFC->cpd; j++)
 	    for (int k=0; k<GFC->cpd; k++)
 		for (int n=0; n<globalgroups[j][k].size(); n++) {
@@ -238,11 +250,10 @@ class GlobalGroupSlab {
 		    LinkID *cglink = globalgrouplist.pencils[j].data
 		    			+globalgroups[j][k][n].cellgroupstart;
 		    	// This is where we'll find the CG LinkIDs for this GG
-		    integer3 firstcell;
+		    integer3 firstcell(slab,j,k);
 		    for (int c=0; c<globalgroups[j][k][n].ncellgroups; c++, cglink++) {
 		        // Loop over CellGroups
 			integer3 cellijk = cglink->cell();
-			if (c==0) firstcell = cellijk;
 			CellGroup *cg = LinkToCellGroup(*cglink);
 			// printf("%d %d %d %d in %d %d %d n=%d\n", 
 			    // j, k, n, c, cellijk.x, cellijk.y, cellijk.z, cg->size());
@@ -260,7 +271,6 @@ class GlobalGroupSlab {
 			if (cellijk.y<-diam) cellijk.y+=GFC->cpd;
 			if (cellijk.z> diam) cellijk.z-=GFC->cpd;
 			if (cellijk.z<-diam) cellijk.z+=GFC->cpd;
-			//posstruct offset = GFC->invcpd*(cellijk-firstcell);
 			posstruct offset = GFC->invcpd*(cellijk);
 			// printf("Using offset %f %f %f\n", offset.x, offset.y, offset.z);
 			for (int p=0; p<cg->size(); p++) pos[start+p] = offset+cell.pos[cg->start+p];
@@ -276,22 +286,100 @@ class GlobalGroupSlab {
     void ScatterGlobalGroups() {
         // Write the information from pos,vel,aux back into the original Slabs
 	int diam = 2*GFC->GroupRadius+1;
-	// TODO: Need to complete this routine
-	// TODO: Watch for contention between multiple GGs writing to the 
-	// same cell?  Or ignore it?
+	GFC->ScatterGroups.Start();
+
+	#pragma omp parallel for schedule(static)
+	for (int j=0; j<GFC->cpd; j++)
+	    for (int k=0; k<GFC->cpd; k++)
+		for (int n=0; n<globalgroups[j][k].size(); n++) {
+		    // Process globalgroups[j][k][n]
+		    // Recall where the particles start
+		    uint64 start = globalgroups[j][k][n].start;
+
+		    LinkID *cglink = globalgrouplist.pencils[j].data
+		    			+globalgroups[j][k][n].cellgroupstart;
+		    	// This is where we'll find the CG LinkIDs for this GG
+		    integer3 firstcell(slab,j,k);
+		    for (int c=0; c<globalgroups[j][k][n].ncellgroups; c++, cglink++) {
+		        // Loop over CellGroups
+			integer3 cellijk = cglink->cell();
+			CellGroup *cg = LinkToCellGroup(*cglink);
+			Cell cell = PP->GetCell(cellijk);
+			// Copy the particles, including changing positions to 
+			// the cell-centered coord of the first cell.  
+			// Note periodic wrap.
+			memcpy(cell.vel+cg->start, vel+start, sizeof(velstruct)*cg->size());
+			memcpy(cell.aux+cg->start, aux+start, sizeof(auxstruct)*cg->size());
+			cellijk -= firstcell;
+			if (cellijk.x> diam) cellijk.x-=GFC->cpd;
+			if (cellijk.x<-diam) cellijk.x+=GFC->cpd;
+			if (cellijk.y> diam) cellijk.y-=GFC->cpd;
+			if (cellijk.y<-diam) cellijk.y+=GFC->cpd;
+			if (cellijk.z> diam) cellijk.z-=GFC->cpd;
+			if (cellijk.z<-diam) cellijk.z+=GFC->cpd;
+			posstruct offset = GFC->invcpd*(cellijk);
+			// printf("Using offset %f %f %f\n", offset.x, offset.y, offset.z);
+			for (int p=0; p<cg->size(); p++) 
+			     cell.pos[cg->start+p] = pos[start+p] - offset;
+			start += cg->size();
+		    } // End loop over cellgroups in this global group
+		} // End loop over globalgroups in a cell
+	// End loop over cells
+	GFC->ScatterGroups.Stop();
+	return;
     }
+
+int minhalosize;
+
+    void FindSubGroups() {
+	// Process each group, looking for L1 and L2 subgroups.
+	FOFcell FOFlevel1[omp_get_max_threads()], FOFlevel2[omp_get_max_threads()];
+	#pragma omp parallel for schedule(static)
+	for (int g=0; g<omp_get_num_threads(); g++) {
+	    FOFlevel1[g].setup(GFC->linking_length_level1, 1e10);
+	    FOFlevel2[g].setup(GFC->linking_length_level2, 1e10);
+	}
+	
+	#pragma omp parallel for schedule(static)
+	for (int j=0; j<GFC->cpd; j++) {
+	    for (int k=0; k<GFC->cpd; k++) {
+		for (int n=0; n<GGS.globalgroups[j][k].size(); n++) {
+		    if (GGS.globalgroups[j][k][n].np<GFC->minhalosize) continue;
+		    // We have a large-enough global group to process
+		    FOFlevel1[g].findgroups(GGS.pos+GGS.globalgroups[j][k][n].start, NULL, NULL, GGS.globalgroups[j][k][n].np);
+		    // Now we've found the L1 groups
+		    for (int a=0; a<FOFlevel1[g].ngroups; a++) {
+			int size = FOFlevel1[g].groups[a].n;
+		        if (size<GFC->minhalosize) continue;
+			// The group is big enough.
+			FOFparticle *start = FOFlevel1[g].p+FOFlevel1[g].groups[a].start;
+			// Particle indices are in start[0,size)
+
+		    } // Done with this L1 halo
+		} // Done with this group
+	    }
+	}
+
+	// TODO: destroy the FOFcells, if needed
+    }
+
 };
 
+
 void SimpleOutput(int slab, GlobalGroupSlab &GGS) {
+    // This just writes two sets of ASCII files to see the outputs,
+    // but it also helps to document how the global group information is stored.
     char fname[200];
     sprintf(fname, "out.group.%03d", slab);
     FILE *fp = fopen(fname,"w");
     for (int j=0; j<GFC->cpd; j++)
 	for (int k=0; k<GFC->cpd; k++)
 	    for (int n=0; n<GGS.globalgroups[j][k].size(); n++)
-		fprintf(fp, "%d %d\n", (int)GGS.globalgroups[j][k][n].start,
-				GGS.globalgroups[j][k][n].np);
+		fprintf(fp, "%d %d %d %d %d\n", (int)GGS.globalgroups[j][k][n].start,
+				GGS.globalgroups[j][k][n].np, GGS.slab, j, k);
     fclose(fp);
+    // Remember that these positions are relative to the first-cell position,
+    // which is why we include that cell ijk in the first outputs
     sprintf(fname, "out.pos.%03d", slab);
     fp = fopen(fname,"w");
     for (int p=0; p<GGS.np; p++)
@@ -301,10 +389,10 @@ void SimpleOutput(int slab, GlobalGroupSlab &GGS) {
 
 void FindAndProcessGlobalGroups(int slab) {
     slab = GFC->WrapSlab(slab);
-    GlobalGroupSlab GGS;
+    GlobalGroupSlab GGS(slab);
     GGS.globalgroups.setup(GFC->cpd, 1024);   // TODO: Correct size to start?
     GGS.globalgrouplist.setup(GFC->cpd, 1024);   // TODO: Correct size to start?
-    CreateGlobalGroups(slab, GGS.globalgroups, GGS.globalgrouplist);
+    CreateGlobalGroups(GGS.slab, GGS.globalgroups, GGS.globalgrouplist);
     STDLOG(1,"Closed global groups in slab %d, finding %lld groups involving %lld cell groups\n", slab, GGS.globalgroups.size(), GGS.globalgrouplist.size());
     GFC->GGtot += GGS.globalgroups.get_slab_size();
 
@@ -318,6 +406,8 @@ void FindAndProcessGlobalGroups(int slab) {
     // For now, maybe we should just output the group multiplicity and the PIDs,
     // as a way of demonstrating that we have something.
     SimpleOutput(slab, GGS);
+
+    GGS.ScatterGlobalGroups();
 }
 
 

@@ -671,6 +671,10 @@ class FOFcell {
 	// Then perform the FOF and permutes the input arrays
 	// Return the number of multiplet groups.
 
+	// If vel==NULL, then the permutation is skipped; the calling routine
+	// is left responsible for dealing with the internal variables of the class.
+	// pos[] will be unchanged.
+
 	time_total.Start();
 	reset(np);
 	np = n;
@@ -690,9 +694,11 @@ class FOFcell {
 	// simpleFOF();
 
 	// Now we want to re-order the input arrays into the multiplets+singlet order
-	time_permute.Start();
-	permute(pos,vel,aux,np);
-	time_permute.Stop();
+	if (vel!=NULL) {
+	    time_permute.Start();
+	    permute(pos,vel,aux,np);
+	    time_permute.Stop();
+	}
 	time_total.Stop();
 
 	return ngroups;
