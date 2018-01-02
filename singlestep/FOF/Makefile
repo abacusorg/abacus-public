@@ -1,6 +1,6 @@
 CC = g++
 OMP = -DOMP -fopenmp -lgomp 
-CCFLAGS = $(OMP) -I../../include/ -I../Timestep -std=c++11 -g -mavx
+CCFLAGS = $(OMP) -I../../include/ -I../Timestep -std=c++11 -O2 -mavx
 
 test_driver: test_driver.cpp
 	$(CC) $(CCFLAGS) test_driver.cpp -o test_driver

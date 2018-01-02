@@ -676,7 +676,7 @@ class FOFcell {
 	// pos[] will be unchanged.
 
 	time_total.Start();
-	reset(np);
+	reset(n);
 	np = n;
 
 	// Load the particles

@@ -93,8 +93,8 @@ void CreateGlobalGroups(int slab,
     cells = (LinkIndex *)malloc(sizeof(LinkIndex)*diam*cpd*cpd);
     for (int s=0; s<diam; s++) {
 	int thisslab = GFC->WrapSlab(slab+s-diam/2);
-	assert(GFC->cellgroups[thisslab].is_setup());
-	    // Just to check that the CellGroups are present.
+	assert(GFC->cellgroups_status[thisslab]>0);
+	    // Just to check that the CellGroups are present or already closed.
 	#pragma omp parallel for schedule(static) 
 	for (int j=0; j<cpd; j++) {
 	    // Now find the starting point for this Pencil

@@ -34,11 +34,15 @@ class GroupFindingControl {
     // Parameters for finding subgroups
     FOFloat linking_length_level1;
     FOFloat linking_length_level2;
-    int minhalosize;	// The minimum size for a level 1 halo
+    int minhalosize;	// The minimum size for a level 1 halo to be outputted
 
     uint64 pPtot, fPtot, fGtot, CGtot, GGtot, Ltot;
 
     SlabAccum<CellGroup> *cellgroups;   // Allocated [0,cpd), one for each slab
+    int *cellgroups_status;     // Allocated [0,cpd) for each slab. 
+    	// 0 means CellGroups not found.
+    	// 1 means CellGroups found but slab not closed.
+    	// 2 means slab closed (so CellGroups may be deleted).
     GroupLinkList *GLL;
 
     STimer CellGroupTime, CreateFaceTime, FindLinkTime, 
@@ -52,6 +56,8 @@ class GroupFindingControl {
 	np = _np;
 	GroupRadius = _GroupRadius;
 	cellgroups = new SlabAccum<CellGroup>[cpd];
+	cellgroups_status = new int[cpd];
+	for (int j=0;j<cpd;j++) cellgroups_status[j] = 0;
 	GLL = new GroupLinkList(cpd, np/cpd*linking_length/_invcpd*3*15);    
 	// This is a MultiAppendList, so the buffer cannot grow. 
 	// It will be storing links between cells.  Most particles do 
@@ -64,6 +70,7 @@ class GroupFindingControl {
 
     ~GroupFindingControl() { 
         delete[] cellgroups;
+        delete[] cellgroups_status;
 	delete GLL;
     }
     int WrapSlab(int s) {
@@ -160,6 +167,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     	doFOF[g].destroy();
     uint64 tot = cellgroups[slab].get_slab_size();
     CGtot += tot;
+    cellgroups_status[slab] = 1;
     STDLOG(1,"Found %lld cell groups in slab %d\n", tot, slab);
     CellGroupTime.Stop();
     return;
@@ -168,6 +176,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 void GroupFindingControl::DestroyCellGroups(int slab) {
     slab = WrapSlab(slab);
     cellgroups[slab].destroy();
+    cellgroups_status[slab] = 2;
     return;
 }
 
@@ -384,11 +393,13 @@ void SimpleOutput(int slab, GlobalGroupSlab &GGS) {
     fclose(fp);
     // Remember that these positions are relative to the first-cell position,
     // which is why we include that cell ijk in the first outputs
+    /*
     sprintf(fname, "/tmp/out.pos.%03d", slab);
     fp = fopen(fname,"w");
     for (int p=0; p<GGS.np; p++)
 	fprintf(fp, "%f %f %f %d\n", GGS.pos[p].x, GGS.pos[p].y, GGS.pos[p].z, (int)GGS.aux[p].pid());
     fclose(fp);
+    */
 }
 
 void FindAndProcessGlobalGroups(int slab) {
