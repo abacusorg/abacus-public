@@ -1,0 +1,8 @@
+#!/bin/csh
+echo Checking that all PIDs are the same
+awk '{print $4}' out.pos.* | sort -n | cksum
+echo 3390917154 16088 is the correct answer
+
+echo Checking that the group multiplicity distribution is the same
+awk '{print $2}' out.group.* | sort -n | cksum
+echo 150173585 1670 is the correct answer
