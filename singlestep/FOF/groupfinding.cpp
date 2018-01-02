@@ -334,13 +334,22 @@ class GlobalGroupSlab {
 	return;
     }
 
+
+    // TODO: Need to alter GFC to initialize the params
+
     void FindSubGroups() {
 	// Process each group, looking for L1 and L2 subgroups.
 	FOFcell FOFlevel1[omp_get_max_threads()], FOFlevel2[omp_get_max_threads()];
+	posstruct **L1pos;
+	velstruct **L1vel;
+	auxstruct **L1aux;
 	#pragma omp parallel for schedule(static)
 	for (int g=0; g<omp_get_num_threads(); g++) {
 	    FOFlevel1[g].setup(GFC->linking_length_level1, 1e10);
 	    FOFlevel2[g].setup(GFC->linking_length_level2, 1e10);
+	    L1pos[g] = (posstruct *)malloc(sizeof(posstruct)*1e6);
+	    L1vel[g] = (velstruct *)malloc(sizeof(velstruct)*1e6);
+	    L1aux[g] = (auxstruct *)malloc(sizeof(auxstruct)*1e6);
 	}
 	
 	#pragma omp parallel for schedule(static)
@@ -350,15 +359,30 @@ class GlobalGroupSlab {
 		for (int n=0; n<globalgroups[j][k].size(); n++) {
 		    if (globalgroups[j][k][n].np<GFC->minhalosize) continue;
 		    // We have a large-enough global group to process
-		    FOFlevel1[g].findgroups(pos+globalgroups[j][k][n].start, NULL, NULL, globalgroups[j][k][n].np);
+		    posstruct *grouppos = pos+globalgroups[j][k][n].start;
+		    velstruct *groupvel = vel+globalgroups[j][k][n].start;
+		    auxstruct *groupaux = aux+globalgroups[j][k][n].start;
+		    int groupn = globalgroups[j][k][n].np;
+		    FOFlevel1[g].findgroups(grouppos, NULL, NULL, groupn);
 		    // Now we've found the L1 groups
 		    for (int a=0; a<FOFlevel1[g].ngroups; a++) {
 			int size = FOFlevel1[g].groups[a].n;
 		        if (size<GFC->minhalosize) continue;
 			// The group is big enough.
 			FOFparticle *start = FOFlevel1[g].p+FOFlevel1[g].groups[a].start;
-			// Particle indices are in start[0,size)
+			// Particle indices are in start[0,size).index()
+			// which deref the grouppos, groupvel, groupaux list.
 
+			// We now need to find the L2 subgroups.
+			// Make a temporary list of the particles in the L1 group
+			for (int b=0; b<size; b++) {
+			    L1pos[g][b] = grouppos[start[b].index()];
+			    L1vel[g][b] = groupvel[start[b].index()];
+			    L1aux[g][b] = groupaux[start[b].index()];
+			}
+			FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, size);
+
+			ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], slab, j, k);
 		    } // Done with this L1 halo
 		} // Done with this group
 	    }

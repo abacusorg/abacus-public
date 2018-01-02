@@ -148,6 +148,8 @@ class FOFgroup {
 	BBmin = _BBmin; BBmax = _BBmax;
     	start = _start; n = _n; 
     }
+    // We're setting up the comparand to sort in *descending* order
+    bool operator< (const FOFgroup& c) const { return (c.n<n); }
 };
 
 
