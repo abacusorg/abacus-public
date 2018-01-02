@@ -31,6 +31,11 @@ class GroupFindingControl {
     Float invcpd;
     uint64 np; // the number of particles in the simulation; used to compute buffers
 
+    // Parameters for finding subgroups
+    FOFloat linking_length_level1;
+    FOFloat linking_length_level2;
+    int minhalosize;	// The minimum size for a level 1 halo
+
     uint64 pPtot, fPtot, fGtot, CGtot, GGtot, Ltot;
 
     SlabAccum<CellGroup> *cellgroups;   // Allocated [0,cpd), one for each slab
@@ -218,7 +223,7 @@ class GlobalGroupSlab {
 	// Copy all of the particles into a single list
 	GFC->GatherGroups.Start();
 	int diam = 2*GFC->GroupRadius+1;
-	assert(GFC->cpd>2*diam);
+	assert(GFC->cpd>=4*GFC->GroupRadius+1);
 	// TODO: This registers the periodic wrap using the cells.
 	// However, this will misbehave if CPD is smaller than the group diameter,
 	// because the LinkIDs have already been wrapped.
@@ -228,7 +233,7 @@ class GlobalGroupSlab {
 	    pstart[j] = total_particles;    // So we have the starting indices
 	    uint64 this_pencil = 0;
 	    // TODO: check this syntax
-	    #pragma omp parallel for schedule(static) reduction(this_pencil,+)
+	    #pragma omp parallel for schedule(static) reduction(+:this_pencil)
 	    for (int k=0; k<GFC->cpd; k++)
 		for (int n=0; n<globalgroups[j][k].size(); n++) 
 		    this_pencil += globalgroups[j][k][n].np;
@@ -329,8 +334,6 @@ class GlobalGroupSlab {
 	return;
     }
 
-int minhalosize;
-
     void FindSubGroups() {
 	// Process each group, looking for L1 and L2 subgroups.
 	FOFcell FOFlevel1[omp_get_max_threads()], FOFlevel2[omp_get_max_threads()];
@@ -342,11 +345,12 @@ int minhalosize;
 	
 	#pragma omp parallel for schedule(static)
 	for (int j=0; j<GFC->cpd; j++) {
+	    int g = omp_get_thread_num();
 	    for (int k=0; k<GFC->cpd; k++) {
-		for (int n=0; n<GGS.globalgroups[j][k].size(); n++) {
-		    if (GGS.globalgroups[j][k][n].np<GFC->minhalosize) continue;
+		for (int n=0; n<globalgroups[j][k].size(); n++) {
+		    if (globalgroups[j][k][n].np<GFC->minhalosize) continue;
 		    // We have a large-enough global group to process
-		    FOFlevel1[g].findgroups(GGS.pos+GGS.globalgroups[j][k][n].start, NULL, NULL, GGS.globalgroups[j][k][n].np);
+		    FOFlevel1[g].findgroups(pos+globalgroups[j][k][n].start, NULL, NULL, globalgroups[j][k][n].np);
 		    // Now we've found the L1 groups
 		    for (int a=0; a<FOFlevel1[g].ngroups; a++) {
 			int size = FOFlevel1[g].groups[a].n;
