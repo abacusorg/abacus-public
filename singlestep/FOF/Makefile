@@ -14,6 +14,8 @@ slab_accum: slab_accum.cpp
 grouplink: grouplink.cpp
 	$(CC) -DTEST $(CCFLAGS) grouplink.cpp -o grouplink
 
+dependencies_fof: dependencies_fof.cpp
+	$(CC) $(CCFLAGS) dependencies_fof.cpp -o dependencies_fof
 
 default: test_driver
 
