@@ -374,7 +374,7 @@ void SimpleOutput(int slab, GlobalGroupSlab &GGS) {
     // This just writes two sets of ASCII files to see the outputs,
     // but it also helps to document how the global group information is stored.
     char fname[200];
-    sprintf(fname, "out.group.%03d", slab);
+    sprintf(fname, "/tmp/out.group.%03d", slab);
     FILE *fp = fopen(fname,"w");
     for (int j=0; j<GFC->cpd; j++)
 	for (int k=0; k<GFC->cpd; k++)
@@ -384,7 +384,7 @@ void SimpleOutput(int slab, GlobalGroupSlab &GGS) {
     fclose(fp);
     // Remember that these positions are relative to the first-cell position,
     // which is why we include that cell ijk in the first outputs
-    sprintf(fname, "out.pos.%03d", slab);
+    sprintf(fname, "/tmp/out.pos.%03d", slab);
     fp = fopen(fname,"w");
     for (int p=0; p<GGS.np; p++)
 	fprintf(fp, "%f %f %f %d\n", GGS.pos[p].x, GGS.pos[p].y, GGS.pos[p].z, (int)GGS.aux[p].pid());
