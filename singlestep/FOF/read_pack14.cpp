@@ -8,6 +8,7 @@
 class Particles {
 public:
     int cpd;
+    int cpdhalf;
     int cpd3;
     int np;
     float invcpd; 
@@ -22,6 +23,7 @@ public:
     Particles(int _cpd) {
 	cpd = _cpd;
 	invcpd = 1.0/cpd;
+	cpdhalf = cpd/2;
 	cpd3 = cpd*cpd*cpd;
 	np = 0;
 
@@ -139,7 +141,13 @@ public:
     Cell GetCell(integer3 ijk) {
         return GetCell(ijk.x, ijk.y, ijk.z);
     }
-
+    float3 CellCenter(int i, int j, int k) {
+	float3 v;
+	v.x = (i-cpdhalf)*invcpd;;
+	v.y = (j-cpdhalf)*invcpd;;
+	v.z = (k-cpdhalf)*invcpd;;
+	return v;
+    }
 };
 
 Particles *PP;

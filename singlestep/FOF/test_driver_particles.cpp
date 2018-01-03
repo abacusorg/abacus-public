@@ -13,6 +13,7 @@ class Particles {
     public:
     int cpd;
     int cpd3;
+    int cpdhalf;
     int np;
     float invcpd;
 
@@ -36,6 +37,7 @@ class Particles {
     void MakeParticles(int _cpd, int _np) {
         cpd = _cpd;
 	invcpd = 1.0/cpd;
+	cpdhalf = cpd/2;
 	np = _np;
 	cpd3 = cpd*cpd*cpd;
 	pos = (posstruct *)malloc(sizeof(posstruct)*np);
@@ -158,6 +160,14 @@ class Particles {
     }
     Cell GetCell(integer3 ijk) {
         return GetCell(ijk.x, ijk.y, ijk.z);
+    }
+
+    float3 CellCenter(int i, int j, int k) {
+        float3 v;
+	v.x = (i-cpdhalf)*invcpd;;
+	v.y = (j-cpdhalf)*invcpd;;
+	v.z = (k-cpdhalf)*invcpd;;
+	return v;
     }
 };
 
