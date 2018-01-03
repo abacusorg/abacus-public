@@ -391,6 +391,11 @@ class GlobalGroupSlab {
 			}
 			FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, size);
 
+			// TODO: Merger trees require tagging the L2 particles 
+			// in the original aux array.  This can be done:
+			// The L2 index() gives the position in the L1 array,
+			// and that index() gets back to aux.
+
 			ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], slab, j, k);
 		    } // Done with this L1 halo
 		} // Done with this group
