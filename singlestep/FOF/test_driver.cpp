@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
     float3 offset(0.0,0.0,0.0);
     if (argc==4) offset = float3(atof(argv[1])/cpd,atof(argv[2])/cpd,atof(argv[3])/cpd);
     PP->ReadParticles(cpd, "sample.dat", offset);
-    GFC = new GroupFindingControl(0.01, PP->cpd, PP->invcpd, 2, PP->np);
+    GFC = new GroupFindingControl(0.01, 0.007, 0.005, PP->cpd, PP->invcpd, 2, 20, PP->np);
 
     printf("CPD = %d, b = %f, b*CPD = %f\n", GFC->cpd, GFC->linking_length, GFC->linking_length*GFC->cpd);
 

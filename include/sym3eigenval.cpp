@@ -12,9 +12,9 @@ void FindEigenvalues(double vxx, double vxy, double vxz,
     // https://en.wikipedia.org/wiki/Eigenvalue_algorithm#3.C3.973_matrices
     // TODO: Do we really need this to be in double precision?
     double p1 = vxy*vxy+vxz*vxz+vyz*vyz;
-    printf("%f %f %f\n", vxx, vxy, vxz);
-    printf("%f %f %f\n", vxy, vyy, vyz);
-    printf("%f %f %f\n\n", vxz, vyz, vzz);
+    // printf("%f %f %f\n", vxx, vxy, vxz);
+    // printf("%f %f %f\n", vxy, vyy, vyz);
+    // printf("%f %f %f\n\n", vxz, vyz, vzz);
     if (p1==0) {   // Diagonal matrix
 	sigmav[0] = vxx; sigmav[1] = vyy; sigmav[2] = vzz;
 	// Put the eigenvalues in descending order

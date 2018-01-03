@@ -50,9 +50,14 @@ class GroupFindingControl {
     	SortLinks, IndexLinks, FindGlobalGroupTime, IndexGroups, 
 	GatherGroups, ScatterGroups, ProcessLevel1;
 
-    GroupFindingControl(FOFloat _linking_length, int _cpd, FOFloat _invcpd, int _GroupRadius, uint64 _np) {
+    GroupFindingControl(FOFloat _linking_length, 
+    	FOFloat _linking_length_level1, FOFloat _linking_length_level2,
+    int _cpd, FOFloat _invcpd, int _GroupRadius, int _minhalosize, uint64 _np) {
 	cpd = _cpd; 
 	linking_length = _linking_length;
+	linking_length_level1 = _linking_length_level1;
+	linking_length_level2 = _linking_length_level2;
+	minhalosize = _minhalosize;
 	invcpd = _invcpd;
 	boundary = (invcpd/2.0-linking_length);
 	np = _np;
@@ -225,6 +230,8 @@ class GlobalGroupSlab {
   public:
     SlabAccum<GlobalGroup> globalgroups;
     SlabAccum<LinkID> globalgrouplist;
+    SlabAccum<HaloStat> L1halos;
+    SlabAccum<TaggedPID> L1pids;
     
     int slab;    // This slab number
     posstruct *pos;  // Big vectors of all of the pos/vel/aux for these global groups
@@ -396,10 +403,12 @@ class GlobalGroupSlab {
     void FindSubGroups() {
 	// Process each group, looking for L1 and L2 subgroups.
 	GFC->ProcessLevel1.Start();
+	L1halos.setup(GFC->cpd, 1024);
+	L1pids.setup(GFC->cpd, 1024);
 	FOFcell FOFlevel1[omp_get_max_threads()], FOFlevel2[omp_get_max_threads()];
-	posstruct **L1pos;
-	velstruct **L1vel;
-	auxstruct **L1aux;
+	posstruct **L1pos = new posstruct *[omp_get_max_threads()];
+	velstruct **L1vel = new velstruct *[omp_get_max_threads()];
+	auxstruct **L1aux = new auxstruct *[omp_get_max_threads()];
 	#pragma omp parallel for schedule(static)
 	for (int g=0; g<omp_get_num_threads(); g++) {
 	    FOFlevel1[g].setup(GFC->linking_length_level1, 1e10);
@@ -412,7 +421,11 @@ class GlobalGroupSlab {
 	#pragma omp parallel for schedule(dynamic,1)
 	for (int j=0; j<GFC->cpd; j++) {
 	    int g = omp_get_thread_num();
+	    PencilAccum<HaloStat> *pL1halos = L1halos.StartPencil(j);
+	    PencilAccum<TaggedPID> *pL1pids = L1pids.StartPencil(j);
 	    for (int k=0; k<GFC->cpd; k++) {
+		uint64 groupid = ((slab*GFC->cpd+j)*GFC->cpd+k)*4096;
+			// A basic label for this group
 		for (int n=0; n<globalgroups[j][k].size(); n++) {
 		    if (globalgroups[j][k][n].np<GFC->minhalosize) continue;
 		    // We have a large-enough global group to process
@@ -443,11 +456,27 @@ class GlobalGroupSlab {
 			// in the original aux array.  This can be done:
 			// The L2 index() gives the position in the L1 array,
 			// and that index() gets back to aux.
+			uint64 npstart = pL1pids->get_pencil_size();
+			int taggable = 16;  // TODO: just a placeholder
+			for (int b=0; b<size; b++) {
+			    uint64 pid = L1aux[g][b].pid();
+			    if (pid%taggable==0) {
+			    	pL1pids->append(TaggedPID(pid));
+			    }
+			}
 
-			ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], slab, j, k);
+			HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], slab, j, k);
+			h.id = groupid+n*64+a;
+			h.npstart = npstart;
+			h.npout = pL1pids->get_pencil_size()-npstart;
+			pL1halos->append(h);
 		    } // Done with this L1 halo
 		} // Done with this group
+		pL1halos->FinishCell();
+		pL1pids->FinishCell();
 	    }
+	    pL1halos->FinishPencil();
+	    pL1pids->FinishPencil();
 	}
 
 	for (int g=0; g<omp_get_num_threads(); g++) {
@@ -455,6 +484,9 @@ class GlobalGroupSlab {
 	    free(L1vel[g]);
 	    free(L1aux[g]);
 	}
+	delete[] L1pos;
+	delete[] L1vel;
+	delete[] L1aux;
 	GFC->ProcessLevel1.Stop();
     }
 
@@ -473,6 +505,22 @@ void SimpleOutput(int slab, GlobalGroupSlab &GGS) {
 		fprintf(fp, "%d %d %d %d %d\n", (int)GGS.globalgroups[j][k][n].start,
 				GGS.globalgroups[j][k][n].np, GGS.slab, j, k);
     fclose(fp);
+
+    sprintf(fname, "/tmp/out.halo.%03d", slab);
+    fp = fopen(fname,"w");
+    for (int j=0; j<GFC->cpd; j++)
+	for (int k=0; k<GFC->cpd; k++)
+	    for (int n=0; n<GGS.L1halos[j][k].size(); n++) {
+		HaloStat h = GGS.L1halos[j][k][n];
+		fprintf(fp, "%d %f %f %f %f %d %d %d %f %f %f %f %lu %lu\n", 
+		    h.N, h.x[0], h.x[1], h.x[2], h.r50,
+		    h.subhalo_N[0], h.subhalo_N[1], h.subhalo_N[2], 
+		    h.subhalo_x[0], h.subhalo_x[1], h.subhalo_x[2], 
+		    h.subhalo_r50, h.id, h.npout);
+	    }
+    fclose(fp);
+
+
     // Remember that these positions are relative to the first-cell position,
     // which is why we include that cell ijk in the first outputs
     /*
@@ -504,6 +552,7 @@ void FindAndProcessGlobalGroups(int slab) {
     // TODO: Lots to do here
     // For now, maybe we should just output the group multiplicity and the PIDs,
     // as a way of demonstrating that we have something.
+    GGS.FindSubGroups();
     SimpleOutput(slab, GGS);
 
     GGS.ScatterGlobalGroups();
