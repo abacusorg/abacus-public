@@ -97,7 +97,7 @@ void CreateGlobalGroups(int slab,
 	int thisslab = GFC->WrapSlab(slab+s-diam/2);
 	assert(GFC->cellgroups_status[thisslab]>0);
 	    // Just to check that the CellGroups are present or already closed.
-	#pragma omp parallel for schedule(static) 
+	#pragma omp parallel for schedule(dynamic,1) 
 	for (int j=0; j<cpd; j++) {
 	    // Now find the starting point for this Pencil
 	    GroupLink *start = GFC->GLL->Search(thisslab, j);
