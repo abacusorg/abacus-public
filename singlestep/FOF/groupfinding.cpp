@@ -47,7 +47,8 @@ class GroupFindingControl {
     GroupLinkList *GLL;
 
     STimer CellGroupTime, CreateFaceTime, FindLinkTime, 
-    	SortLinks, IndexLinks, FindGlobalGroupTime, IndexGroups, GatherGroups, ScatterGroups;
+    	SortLinks, IndexLinks, FindGlobalGroupTime, IndexGroups, 
+	GatherGroups, ScatterGroups, ProcessLevel1;
 
     GroupFindingControl(FOFloat _linking_length, int _cpd, FOFloat _invcpd, int _GroupRadius, uint64 _np) {
 	cpd = _cpd; 
@@ -125,6 +126,8 @@ class GroupFindingControl {
 			RFORMAT(IndexGroups));
 	 printf("Gather Group Particles:  %8.4f sec (%5.2f%%)\n",
 			RFORMAT(GatherGroups));
+	 printf("Level 1 & 2 Processing:  %8.4f sec (%5.2f%%)\n",
+			RFORMAT(ProcessLevel1));
 	 printf("Scatter Group Particles: %8.4f sec (%5.2f%%)\n",
 			RFORMAT(ScatterGroups));
 	 printf("Total Booked Time:       %8.4f sec (%5.2f Mp/sec)\n", total_time, np/total_time*1e-6);
@@ -296,7 +299,7 @@ class GlobalGroupSlab {
 
 	GFC->GatherGroups.Start();
 	// Now copy the particles into these structures
-	#pragma omp parallel for schedule(static)
+	#pragma omp parallel for schedule(dynamic,1)
 	for (int j=0; j<GFC->cpd; j++)
 	    for (int k=0; k<GFC->cpd; k++)
 		for (int n=0; n<globalgroups[j][k].size(); n++) {
@@ -346,7 +349,7 @@ class GlobalGroupSlab {
 	int diam = 2*GFC->GroupRadius+1;
 	GFC->ScatterGroups.Start();
 
-	#pragma omp parallel for schedule(static)
+	#pragma omp parallel for schedule(dynamic,1)
 	for (int j=0; j<GFC->cpd; j++)
 	    for (int k=0; k<GFC->cpd; k++)
 		for (int n=0; n<globalgroups[j][k].size(); n++) {
@@ -392,6 +395,7 @@ class GlobalGroupSlab {
 
     void FindSubGroups() {
 	// Process each group, looking for L1 and L2 subgroups.
+	ProcessLevel1.Start();
 	FOFcell FOFlevel1[omp_get_max_threads()], FOFlevel2[omp_get_max_threads()];
 	posstruct **L1pos;
 	velstruct **L1vel;
@@ -405,7 +409,7 @@ class GlobalGroupSlab {
 	    L1aux[g] = (auxstruct *)malloc(sizeof(auxstruct)*largest_group);
 	}
 	
-	#pragma omp parallel for schedule(static)
+	#pragma omp parallel for schedule(dynamic,1)
 	for (int j=0; j<GFC->cpd; j++) {
 	    int g = omp_get_thread_num();
 	    for (int k=0; k<GFC->cpd; k++) {
@@ -446,7 +450,12 @@ class GlobalGroupSlab {
 	    }
 	}
 
-	// TODO: destroy the FOFcells, if needed
+	for (int g=0; g<omp_get_num_threads(); g++) {
+	    free(L1pos[g]);
+	    free(L1vel[g]);
+	    free(L1aux[g]);
+	}
+	ProcessLevel1.Stop();
     }
 
 };
