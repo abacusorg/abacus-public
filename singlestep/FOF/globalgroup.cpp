@@ -72,7 +72,7 @@ void CreateGlobalGroups(int slab,
 		SlabAccum<GlobalGroup> &globalgroups,
 		SlabAccum<LinkID> &globalgrouplist) {
     // For this slab, we want to traverse the graph of links to find all GlobalGroups
-    GFC->SortIndexLinks.Start();
+    GFC->SortLinks.Start();
     slab = GFC->WrapSlab(slab);
 
     // The groups can span 2*R+1 slabs, but we might be on either end,
@@ -84,6 +84,8 @@ void CreateGlobalGroups(int slab,
     // We're going to sort the GLL and then figure out the starting index 
     // of every cell in this slab.
     GFC->GLL->Sort();		// Sorts by LinkID
+    GFC->SortLinks.Stop();
+    GFC->IndexLinks.Start();
     // GFC->GLL->AsciiPrint();
     LinkPencil **links;		// For several slabs and all pencils in each
     links = (LinkPencil **)malloc(sizeof(LinkPencil *)*diam);
@@ -108,7 +110,7 @@ void CreateGlobalGroups(int slab,
 
 	}
     }
-    GFC->SortIndexLinks.Stop();
+    GFC->IndexLinks.Stop();
     GFC->FindGlobalGroupTime.Start();
 
     // Then need to go cell by cell to take unclosed groups and try to close them.

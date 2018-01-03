@@ -46,7 +46,7 @@ class GroupFindingControl {
     GroupLinkList *GLL;
 
     STimer CellGroupTime, CreateFaceTime, FindLinkTime, 
-    	SortIndexLinks, FindGlobalGroupTime, GatherGroups, ScatterGroups;
+    	SortLinks, IndexLinks, FindGlobalGroupTime, IndexGroups, GatherGroups, ScatterGroups;
 
     GroupFindingControl(FOFloat _linking_length, int _cpd, FOFloat _invcpd, int _GroupRadius, uint64 _np) {
 	cpd = _cpd; 
@@ -101,10 +101,14 @@ class GroupFindingControl {
 			CreateFaceTime.Elapsed());
 	 printf("Finding Group Links:    %f sec\n",
 			FindLinkTime.Elapsed());
-	 printf("Sort & Index Links:     %f sec\n",
-			SortIndexLinks.Elapsed());
+	 printf("Sort Links:     %f sec\n",
+			SortLinks.Elapsed());
+	 printf("Index Links:     %f sec\n",
+			IndexLinks.Elapsed());
 	 printf("Find Global Groups:     %f sec\n",
 			FindGlobalGroupTime.Elapsed());
+	 printf("Index Global Groups: %f sec\n",
+			GatherGroups.Elapsed());
 	 printf("Gather Group Particles: %f sec\n",
 			GatherGroups.Elapsed());
 	 printf("Scatter Group Particles: %f sec\n",
@@ -233,7 +237,7 @@ class GlobalGroupSlab {
 
     void GatherGlobalGroups() {
 	// Copy all of the particles into a single list
-	GFC->GatherGroups.Start();
+	GFC->IndexGroups.Start();
 	int diam = 2*GFC->GroupRadius+1;
 	assert(GFC->cpd>=4*GFC->GroupRadius+1);
 	// TODO: This registers the periodic wrap using the cells.
@@ -253,7 +257,9 @@ class GlobalGroupSlab {
 	}
 	// Now we can allocate these buffers
 	setup(total_particles);
+	GFC->IndexGroups.Stop();
 
+	GFC->GatherGroups.Start();
 	// Now copy the particles into these structures
 	#pragma omp parallel for schedule(static)
 	for (int j=0; j<GFC->cpd; j++)
