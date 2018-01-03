@@ -128,7 +128,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     #pragma omp parallel for schedule(dynamic,1)
     for (int j=0; j<cpd; j++) {
 	float *aligned;
-	posix_memalign((void **)&(aligned), 64, 8*sizeof(float));
+	int ret = posix_memalign((void **)&(aligned), 64, 8*sizeof(float)); assert(ret==0);
 	int g = omp_get_thread_num();
         PencilAccum<CellGroup> *cg = cellgroups[slab].StartPencil(j);
         for (int k=0; k<cpd; k++) {
@@ -192,6 +192,8 @@ GroupFindingControl *GFC;
 	// Code to traverse the links and find the GlobalGroups as 
 	// sets of CellGroups (stored by their LinkIDs).
 
+#include "halostat.cpp"
+	// Code to compute L1 halo properties
 
 // ===================== Global Groups: Find & Process ===============
 
@@ -223,9 +225,10 @@ class GlobalGroupSlab {
 	destroy();
 	np = _np;
 	// TODO: May eventually prefer these to be arenas.
-        posix_memalign((void **)&pos, 4096, sizeof(posstruct)*np);
-        posix_memalign((void **)&vel, 4096, sizeof(velstruct)*np);
-        posix_memalign((void **)&aux, 4096, sizeof(auxstruct)*np);
+	int ret;
+        ret = posix_memalign((void **)&pos, 4096, sizeof(posstruct)*np); assert(ret==0);
+        ret = posix_memalign((void **)&vel, 4096, sizeof(velstruct)*np); assert(ret==0);
+        ret = posix_memalign((void **)&aux, 4096, sizeof(auxstruct)*np); assert(ret==0);
     }
 
     void GatherGlobalGroups() {

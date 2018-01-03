@@ -126,7 +126,7 @@ class SlabAccumBuffer {
 	maxsize = _maxsize;
 	if (maxsize>MAXSlabAccumBuffer) maxsize = MAXSlabAccumBuffer;
 		// Save user from themselves
-	posix_memalign((void **)&data, 4096, maxsize*sizeof(T));
+	int ret = posix_memalign((void **)&data, 4096, maxsize*sizeof(T)); assert(ret==0);
 	#ifdef TEST
 	printf("Allocated %d at position %p\n", maxsize, data);
 	#endif
@@ -320,9 +320,10 @@ class SlabAccum {
 	// The arrays can grow.
 	if (pencils==NULL) {
 	    cpd = _cpd;
-	    posix_memalign((void **)&pencils, 4096, sizeof(PencilAccum<T>)*cpd);
-	    posix_memalign((void **)&cells, 4096, sizeof(CellAccum)*cpd*cpd);
-	    posix_memalign((void **)&pstart, 4096, sizeof(uint64)*cpd);
+	    int ret;
+	    ret = posix_memalign((void **)&pencils, 4096, sizeof(PencilAccum<T>)*cpd); assert(ret==0);
+	    ret = posix_memalign((void **)&cells, 4096, sizeof(CellAccum)*cpd*cpd); assert(ret==0);
+	    ret = posix_memalign((void **)&pstart, 4096, sizeof(uint64)*cpd); assert(ret==0);
 	    for (int j=0; j<cpd; j++) pencils[j].cells = cells+j*cpd;
 	}
 	if (buffers==NULL) {

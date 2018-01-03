@@ -89,8 +89,9 @@ class FaceSet {
     CellFaceSlab *face;
     FaceSet(CellFaceSlab *_face) { 
     	face = _face; 
-	posix_memalign((void **)&radius, 64, 4*sizeof(float));
-	posix_memalign((void **)&midpos, 64, sizeof(FacePseudoParticle));
+	int ret;
+	ret = posix_memalign((void **)&radius, 64, 4*sizeof(float)); assert(ret==0);
+	ret = posix_memalign((void **)&midpos, 64, sizeof(FacePseudoParticle)); assert(ret==0);
 	pP = NULL;
 	pR = NULL;
 	fP = NULL;
@@ -286,7 +287,7 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
 
     // We also need to account for the cell-centered positions
     FOFparticle *offset;
-    posix_memalign((void **)&offset, 64, sizeof(FOFparticle));   // Need this aligned
+    int ret = posix_memalign((void **)&offset, 64, sizeof(FOFparticle));   assert(ret==0); // Need this aligned
     int del_i = c2.slab_prewrap - c1.slab_prewrap;   // Need this info before wrapping
     offset->x = GFC->invcpd*FOF_RESCALE*(del_i);
     offset->y = GFC->invcpd*FOF_RESCALE*(j2-j1);
