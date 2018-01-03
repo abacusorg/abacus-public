@@ -299,7 +299,7 @@ class GlobalGroupSlab {
 
 	GFC->GatherGroups.Start();
 	// Now copy the particles into these structures
-	#pragma omp parallel for schedule(dynamic,1)
+	#pragma omp parallel for schedule(static)
 	for (int j=0; j<GFC->cpd; j++)
 	    for (int k=0; k<GFC->cpd; k++)
 		for (int n=0; n<globalgroups[j][k].size(); n++) {
@@ -349,7 +349,7 @@ class GlobalGroupSlab {
 	int diam = 2*GFC->GroupRadius+1;
 	GFC->ScatterGroups.Start();
 
-	#pragma omp parallel for schedule(dynamic,1)
+	#pragma omp parallel for schedule(static)
 	for (int j=0; j<GFC->cpd; j++)
 	    for (int k=0; k<GFC->cpd; k++)
 		for (int n=0; n<globalgroups[j][k].size(); n++) {

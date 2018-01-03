@@ -228,7 +228,7 @@ void CreateFaces( CellFaceSlab &xm, CellFaceSlab &xp,
     // This routine does all 5 at once for each cell, on the hopes that
     // we only load the particles into cache once.
 
-    #pragma omp parallel for schedule(dynamic,1)
+    #pragma omp parallel for schedule(static)
     for (int j=0; j<GFC->cpd; j++) {
 	// The FaceSet holds the PencilAccum for this face.
 	FaceSet fxm(&xm);
