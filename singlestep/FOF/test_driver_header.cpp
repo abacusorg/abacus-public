@@ -14,6 +14,7 @@
 
 #include <sys/time.h>
 #include "STimer.cc"
+#include "PTimer.cc"
 
 #ifdef OMP
     #include <omp.h>

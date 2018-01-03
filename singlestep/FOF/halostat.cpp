@@ -40,7 +40,9 @@ HaloStat ComputeStats(int size,
     	// Groups now in descending order of multiplicity
     for (int j=0; j<N_LARGEST_SUBHALOS; j++) 
 	if (j<L2.ngroups) h.subhalo_N[j] = L2.groups[j].n; 
-	    else h.subhalo_N[j] = 0;
+	    else h.subhalo_N[j] = 1;
+	    // TODO: Strictly speaking, there might not be any singlet particles,
+	    // but the far more likely case is that there are.
 
     FOFparticle *start = L2.p + L2.groups[0].start;
     com = double3(0.0, 0.0, 0.0);

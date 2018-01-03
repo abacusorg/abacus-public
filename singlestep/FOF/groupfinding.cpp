@@ -49,6 +49,7 @@ class GroupFindingControl {
     STimer CellGroupTime, CreateFaceTime, FindLinkTime, 
     	SortLinks, IndexLinks, FindGlobalGroupTime, IndexGroups, 
 	GatherGroups, ScatterGroups, ProcessLevel1;
+    PTimer L1FOF, L2FOF, L1Tot;
 
     GroupFindingControl(FOFloat _linking_length, 
     	FOFloat _linking_length_level1, FOFloat _linking_length_level2,
@@ -112,6 +113,7 @@ class GroupFindingControl {
 			FindGlobalGroupTime.Elapsed()+
 			IndexGroups.Elapsed()+
 			GatherGroups.Elapsed()+
+			ProcessLevel1.Elapsed()+
 			ScatterGroups.Elapsed();
 	 printf("\nTimings: \n");
 	 #define RFORMAT(a) a.Elapsed(), a.Elapsed()/total_time*100.0
@@ -133,6 +135,12 @@ class GroupFindingControl {
 			RFORMAT(GatherGroups));
 	 printf("Level 1 & 2 Processing:  %8.4f sec (%5.2f%%)\n",
 			RFORMAT(ProcessLevel1));
+	 printf("Level 1 FOF:                  %8.4f sec (%5.2f%%)\n",
+			RFORMAT(L1FOF));
+	 printf("Level 2 FOF:                  %8.4f sec (%5.2f%%)\n",
+			RFORMAT(L2FOF));
+	 printf("Level 1 Total:                %8.4f sec (%5.2f%%)\n",
+			RFORMAT(L1Tot));
 	 printf("Scatter Group Particles: %8.4f sec (%5.2f%%)\n",
 			RFORMAT(ScatterGroups));
 	 printf("Total Booked Time:       %8.4f sec (%5.2f Mp/sec)\n", total_time, np/total_time*1e-6);
@@ -420,11 +428,13 @@ class GlobalGroupSlab {
 	
 	#pragma omp parallel for schedule(dynamic,1)
 	for (int j=0; j<GFC->cpd; j++) {
+	    GFC->L1Tot.Start();
 	    int g = omp_get_thread_num();
 	    PencilAccum<HaloStat> *pL1halos = L1halos.StartPencil(j);
 	    PencilAccum<TaggedPID> *pL1pids = L1pids.StartPencil(j);
 	    for (int k=0; k<GFC->cpd; k++) {
-		uint64 groupid = ((slab*GFC->cpd+j)*GFC->cpd+k)*4096;
+		// uint64 groupid = ((slab*GFC->cpd+j)*GFC->cpd+k)*4096;
+		uint64 groupid = (((uint64)slab*10000+(uint64)j)*10000+(uint64)k)*1000;
 			// A basic label for this group
 		for (int n=0; n<globalgroups[j][k].size(); n++) {
 		    if (globalgroups[j][k][n].np<GFC->minhalosize) continue;
@@ -433,7 +443,9 @@ class GlobalGroupSlab {
 		    velstruct *groupvel = vel+globalgroups[j][k][n].start;
 		    auxstruct *groupaux = aux+globalgroups[j][k][n].start;
 		    int groupn = globalgroups[j][k][n].np;
+		    GFC->L1FOF.Start();
 		    FOFlevel1[g].findgroups(grouppos, NULL, NULL, groupn);
+		    GFC->L1FOF.Stop();
 		    // Now we've found the L1 groups
 		    for (int a=0; a<FOFlevel1[g].ngroups; a++) {
 			int size = FOFlevel1[g].groups[a].n;
@@ -450,7 +462,9 @@ class GlobalGroupSlab {
 			    L1vel[g][b] = groupvel[start[b].index()];
 			    L1aux[g][b] = groupaux[start[b].index()];
 			}
+			GFC->L2FOF.Start();
 			FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, size);
+			GFC->L2FOF.Stop();
 
 			// TODO: Merger trees require tagging the L2 particles 
 			// in the original aux array.  This can be done:
@@ -466,7 +480,7 @@ class GlobalGroupSlab {
 			}
 
 			HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], slab, j, k);
-			h.id = groupid+n*64+a;
+			h.id = groupid+n*50+a;
 			h.npstart = npstart;
 			h.npout = pL1pids->get_pencil_size()-npstart;
 			pL1halos->append(h);
@@ -477,6 +491,7 @@ class GlobalGroupSlab {
 	    }
 	    pL1halos->FinishPencil();
 	    pL1pids->FinishPencil();
+	    GFC->L1Tot.Stop();
 	}
 
 	for (int g=0; g<omp_get_num_threads(); g++) {
@@ -512,7 +527,7 @@ void SimpleOutput(int slab, GlobalGroupSlab &GGS) {
 	for (int k=0; k<GFC->cpd; k++)
 	    for (int n=0; n<GGS.L1halos[j][k].size(); n++) {
 		HaloStat h = GGS.L1halos[j][k][n];
-		fprintf(fp, "%d %f %f %f %f %d %d %d %f %f %f %f %lu %lu\n", 
+		fprintf(fp, "%4d %7.4f %7.4f %7.4f %f %4d %3d %3d %7.4f %7.4f %7.4f %f %lu %lu\n", 
 		    h.N, h.x[0], h.x[1], h.x[2], h.r50,
 		    h.subhalo_N[0], h.subhalo_N[1], h.subhalo_N[2], 
 		    h.subhalo_x[0], h.subhalo_x[1], h.subhalo_x[2], 
