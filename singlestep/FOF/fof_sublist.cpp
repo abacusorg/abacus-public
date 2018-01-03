@@ -1,5 +1,7 @@
 // Consider whether there are ways to accelerate the cell group FOF finding.
 
+#define FOFTimer DummyTimer
+
 #ifdef TEST
 
 #include <stdlib.h>
@@ -18,6 +20,7 @@
 #include <unistd.h>
 #include <string.h>
 #include "immintrin.h"
+#define FOFTimer STimer
 
 #include "promote_numeric.h"
 #include "threevector.hh"
@@ -28,6 +31,12 @@ typedef unsigned long long int  auxstruct;
 
 #endif 
 
+class DummyTimer {
+  public:
+    inline void Start() { }
+    inline void Stop() { }
+    inline double Elapsed() { return 0.0; }
+};
 
 //  Now we get into the specifics of the FOF code.
 
@@ -173,13 +182,13 @@ class FOFcell {
     		// So boundary singlets are in [nmultiplets, nsinglet_boundary)
 
     // Some internal timings (not all are implemented, for speed reasons)
-    STimer time_partition;
-    STimer time_permute;
-    STimer time_fof;
-    STimer time_d2;
-    STimer time_close;
-    STimer time_copy;
-    STimer time_total;
+    FOFTimer time_partition;
+    FOFTimer time_permute;
+    FOFTimer time_fof;
+    FOFTimer time_d2;
+    FOFTimer time_close;
+    FOFTimer time_copy;
+    FOFTimer time_total;
 
     // The linking lengths that we've been setup to use.
     FOFloat boundary;   // The location of the boundary, in FOF units
