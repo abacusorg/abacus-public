@@ -400,9 +400,9 @@ class GlobalGroupSlab {
 	for (int g=0; g<omp_get_num_threads(); g++) {
 	    FOFlevel1[g].setup(GFC->linking_length_level1, 1e10);
 	    FOFlevel2[g].setup(GFC->linking_length_level2, 1e10);
-	    L1pos[g] = (posstruct *)malloc(sizeof(posstruct)*1e6);
-	    L1vel[g] = (velstruct *)malloc(sizeof(velstruct)*1e6);
-	    L1aux[g] = (auxstruct *)malloc(sizeof(auxstruct)*1e6);
+	    L1pos[g] = (posstruct *)malloc(sizeof(posstruct)*largest_group);
+	    L1vel[g] = (velstruct *)malloc(sizeof(velstruct)*largest_group);
+	    L1aux[g] = (auxstruct *)malloc(sizeof(auxstruct)*largest_group);
 	}
 	
 	#pragma omp parallel for schedule(static)
