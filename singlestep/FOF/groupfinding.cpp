@@ -37,6 +37,7 @@ class GroupFindingControl {
     int minhalosize;	// The minimum size for a level 1 halo to be outputted
 
     uint64 pPtot, fPtot, fGtot, CGtot, GGtot, Ltot;
+    int largest_GG;
 
     SlabAccum<CellGroup> *cellgroups;   // Allocated [0,cpd), one for each slab
     int *cellgroups_status;     // Allocated [0,cpd) for each slab. 
@@ -65,6 +66,7 @@ class GroupFindingControl {
 	// But we will have up to 10 slabs worth in here.
 	// So we need to be a bit generous.
         pPtot = fPtot = fGtot = CGtot = GGtot = Ltot = 0;
+	largest_GG = 0;
 	return;
     }
 
@@ -93,26 +95,40 @@ class GroupFindingControl {
 	     pPtot, fPtot, fGtot);
 	 printf("Found %lld links between groups.\n", Ltot);
 	 printf("Found %lld global groups\n", GGtot);
+	 printf("Longest GroupLink list was %lld, compared to %lld allocation\n", GLL->longest, GLL->maxlist);
+	 printf("Largest Global Group has %d particles\n", largest_GG);
 
-	 printf("Timings: \n");
-	 printf("Finding Cell Groups:    %f sec\n",
-			CellGroupTime.Elapsed());
-	 printf("Creating Faces:         %f sec\n",
-			CreateFaceTime.Elapsed());
-	 printf("Finding Group Links:    %f sec\n",
-			FindLinkTime.Elapsed());
-	 printf("Sort Links:     %f sec\n",
-			SortLinks.Elapsed());
-	 printf("Index Links:     %f sec\n",
-			IndexLinks.Elapsed());
-	 printf("Find Global Groups:     %f sec\n",
-			FindGlobalGroupTime.Elapsed());
-	 printf("Index Global Groups: %f sec\n",
-			GatherGroups.Elapsed());
-	 printf("Gather Group Particles: %f sec\n",
-			GatherGroups.Elapsed());
-	 printf("Scatter Group Particles: %f sec\n",
-			ScatterGroups.Elapsed());
+	 float total_time = CellGroupTime.Elapsed()+
+			CreateFaceTime.Elapsed()+
+			FindLinkTime.Elapsed()+
+			SortLinks.Elapsed()+
+			IndexLinks.Elapsed()+
+			FindGlobalGroupTime.Elapsed()+
+			IndexGroups.Elapsed()+
+			GatherGroups.Elapsed()+
+			ScatterGroups.Elapsed();
+	 printf("\nTimings: \n");
+	 #define RFORMAT(a) a.Elapsed(), a.Elapsed()/total_time*100.0
+	 printf("Finding Cell Groups:     %f sec (%5.2f%%)\n",
+			RFORMAT(CellGroupTime));
+	 printf("Creating Faces:          %f sec (%5.2f%%)\n",
+			RFORMAT(CreateFaceTime));
+	 printf("Finding Group Links:     %f sec (%5.2f%%)\n",
+			RFORMAT(FindLinkTime));
+	 printf("Sort Links:              %f sec (%5.2f%%)\n",
+			RFORMAT(SortLinks));
+	 printf("Index Links:             %f sec (%5.2f%%)\n",
+			RFORMAT(IndexLinks));
+	 printf("Find Global Groups:      %f sec (%5.2f%%)\n",
+			RFORMAT(FindGlobalGroupTime));
+	 printf("Index Global Groups:     %f sec (%5.2f%%)\n",
+			RFORMAT(IndexGroups));
+	 printf("Gather Group Particles:  %f sec (%5.2f%%)\n",
+			RFORMAT(GatherGroups));
+	 printf("Scatter Group Particles: %f sec (%5.2f%%)\n",
+			RFORMAT(ScatterGroups));
+	 printf("Total Booked Time:       %f sec (%5.2f Mp/sec)\n", total_time, np/total_time*1e-6);
+	 #undef RFORMAT
     }
 };
 
@@ -213,9 +229,11 @@ class GlobalGroupSlab {
     auxstruct *aux;
     uint64 np;
 
+    int largest_group;
+
     GlobalGroupSlab(int _slab) {
         pos = NULL; vel = NULL; aux = NULL; np = 0;
-	slab = _slab;
+	slab = _slab; largest_group = 0;
     }
     void destroy() {
 	// TODO: If we use arenas, change this
@@ -243,18 +261,35 @@ class GlobalGroupSlab {
 	// TODO: This registers the periodic wrap using the cells.
 	// However, this will misbehave if CPD is smaller than the group diameter,
 	// because the LinkIDs have already been wrapped.
-	uint64 total_particles = 0;
+	uint64 *this_pencil = new uint64[GFC->cpd];
+	int *largest = new int[GFC->cpd];
+
+	#pragma omp parallel for schedule(static) 
+	for (int j=0; j<GFC->cpd; j++) {
+	    uint64 local_this_pencil = 0;
+	    int local_largest = 0;
+	    for (int k=0; k<GFC->cpd; k++)
+		for (int n=0; n<globalgroups[j][k].size(); n++) {
+		    int size = globalgroups[j][k][n].np;
+		    local_this_pencil += size;
+		    local_largest = std::max(local_largest, size);
+		}
+	    this_pencil[j] = local_this_pencil;
+	    largest[j] = local_largest;
+	}
+
+	// Now for the serial accumulation over the pencils
 	uint64 *pstart = new uint64[GFC->cpd];
+	uint64 total_particles = 0;
+	largest_group = 0;
 	for (int j=0; j<GFC->cpd; j++) {
 	    pstart[j] = total_particles;    // So we have the starting indices
-	    uint64 this_pencil = 0;
-	    // TODO: check this syntax
-	    #pragma omp parallel for schedule(static) reduction(+:this_pencil)
-	    for (int k=0; k<GFC->cpd; k++)
-		for (int n=0; n<globalgroups[j][k].size(); n++) 
-		    this_pencil += globalgroups[j][k][n].np;
-	    total_particles += this_pencil;
+	    total_particles += this_pencil[j];
+	    largest_group = std::max(largest[j], largest_group);
 	}
+	delete[] largest;
+	delete[] this_pencil;
+
 	// Now we can allocate these buffers
 	setup(total_particles);
 	GFC->IndexGroups.Stop();
@@ -453,6 +488,8 @@ void FindAndProcessGlobalGroups(int slab) {
     // Start by gathering all of the particles into a contiguous set.
     GGS.GatherGlobalGroups();
     STDLOG(1,"Gathered %lld particles from global groups in slab %d\n", GGS.np, slab);
+    GFC->largest_GG = std::max(GFC->largest_GG, GGS.largest_group);
+    // TODO: Write to STDLOG
     // The GGS.globalgroups[j][k][n] now reference these as [start,start+np)
 
     // TODO: Lots to do here
