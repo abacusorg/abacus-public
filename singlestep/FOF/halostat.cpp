@@ -11,6 +11,8 @@ inline void WrapPosition(float3 x) {
     return;
 }
 
+#define assign_to_vector(a,b) { a[0] = b.x; a[1] = b.y; a[2] = b.z; }
+
 HaloStat ComputeStats(int size, 
 	posstruct *L1pos, velstruct *L1vel, auxstruct *L1aux, 
 	FOFcell &L2, int ci, int cj, int ck) {
@@ -26,10 +28,12 @@ HaloStat ComputeStats(int size,
     // Compute the center of mass
     double3 com = double3(0.0, 0.0, 0.0);
     for (int p=0; p<size; p++) com += L1pos[p];
-    h.x = com/size;
+    double3 x = com/size;
+    h.x[0] = com.x; h.x[1] = com.y; h.x[2] = com.z; 
     com = double3(0.0, 0.0, 0.0);
     for (int p=0; p<size; p++) com += L1vel[p];
-    h.v = com/size;
+    double3 v = com/size;
+    assign_to_vector(h.v, v);
 
     // Find the largest L2 subhalos and the largest COM
     std::sort(L2.groups, L2.groups+L2.ngroups);
@@ -41,12 +45,13 @@ HaloStat ComputeStats(int size,
     FOFparticle *start = L2.p + L2.groups[0].start;
     com = double3(0.0, 0.0, 0.0);
     for (int p=0; p<L2.groups[0].n; p++) 
-    	com += L1pos[start[p].index()]
-    h.subhalo_x = com/h.subhalo_N[0];
+    	com += L1pos[start[p].index()];
+    double3 subhalo_x = com/h.subhalo_N[0];
     com = double3(0.0, 0.0, 0.0);
     for (int p=0; p<L2.groups[0].n; p++) 
-    	com += L1vel[start[p].index()]
-    h.subhalo_v = com/h.subhalo_N[0];
+    	com += L1vel[start[p].index()];
+    double3 subhalo_v = com/h.subhalo_N[0];
+    assign_to_vector(h.subhalo_v, subhalo_v);
 
     // Now we can go through the particles to compute radii and moments
     // We can use L2.d2buffer for scratch space; it is guaranteed to be big enough
@@ -54,9 +59,9 @@ HaloStat ComputeStats(int size,
     float vmax, rvmax;
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     for (int p=0; p<size; p++) {
-	posstruct dx = L1pos[p]-h.x;
-	L2.d2buffer[p] = dx.norm2;
-	velstruct dv = L1vel[p]-h.v;
+	posstruct dx = L1pos[p]-x;
+	L2.d2buffer[p] = dx.norm2();
+	velstruct dv = L1vel[p]-v;
 	vxx += dv.x*dv.x; vxy += dv.x*dv.y; vxz += dv.x*dv.z;
 	vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
     }
@@ -78,9 +83,9 @@ HaloStat ComputeStats(int size,
     // Repeat this, finding moments and radii around the largest subhalo COM
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     for (int p=0; p<size; p++) {
-	posstruct dx = L1pos[p]-h.subhalo_x;
-	L2.d2buffer[p] = dx.norm2;
-	velstruct dv = L1vel[p]-h.subhalo_v;
+	posstruct dx = L1pos[p]-subhalo_x;
+	L2.d2buffer[p] = dx.norm2();
+	velstruct dv = L1vel[p]-subhalo_v;
 	vxx += dv.x*dv.x; vxy += dv.x*dv.y; vxz += dv.x*dv.z;
 	vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
     }
@@ -103,7 +108,9 @@ HaloStat ComputeStats(int size,
 
     // TODO: Need to supply this method.  Might convert test driver to use grid.
     posstruct offset = PP->CellCenter(ci,cj,ck);
-    h.x += offset; WrapPosition(h.x);
-    h.subhalo_x += offset; WrapPosition(h.subhalo_x);
+    x += offset; WrapPosition(x);
+    subhalo_x += offset; WrapPosition(subhalo_x);
+    assign_to_vector(h.x, x);
+    assign_to_vector(h.subhalo_x, subhalo_x);
     return h;
 };

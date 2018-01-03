@@ -32,20 +32,20 @@ class TaggedPID {
     }
     TaggedPID(uint64_t p) {
 	uint64_t q = p/256;
-	v[0] = (unsigned_char)(p-q*256);
+	v[0] = (unsigned char)(p-q*256);
 	p = q;
 	q = p/256;
-	v[1] = (unsigned_char)(p-q*256);
+	v[1] = (unsigned char)(p-q*256);
 	p = q;
 	q = p/256;
-	v[2] = (unsigned_char)(p-q*256);
+	v[2] = (unsigned char)(p-q*256);
 	p = q;
 	q = p/256;
-	v[3] = (unsigned_char)(p-q*256);
+	v[3] = (unsigned char)(p-q*256);
 	p = q;
 	q = p/256;
-	v[4] = (unsigned_char)(p-q*256);
+	v[4] = (unsigned char)(p-q*256);
 	assert(q==0);
 	return;
     }
-}
+};
