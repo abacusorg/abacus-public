@@ -395,7 +395,7 @@ class GlobalGroupSlab {
 
     void FindSubGroups() {
 	// Process each group, looking for L1 and L2 subgroups.
-	ProcessLevel1.Start();
+	GFC->ProcessLevel1.Start();
 	FOFcell FOFlevel1[omp_get_max_threads()], FOFlevel2[omp_get_max_threads()];
 	posstruct **L1pos;
 	velstruct **L1vel;
@@ -455,7 +455,7 @@ class GlobalGroupSlab {
 	    free(L1vel[g]);
 	    free(L1aux[g]);
 	}
-	ProcessLevel1.Stop();
+	GFC->ProcessLevel1.Stop();
     }
 
 };
