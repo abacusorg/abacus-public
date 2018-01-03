@@ -109,25 +109,25 @@ class GroupFindingControl {
 			ScatterGroups.Elapsed();
 	 printf("\nTimings: \n");
 	 #define RFORMAT(a) a.Elapsed(), a.Elapsed()/total_time*100.0
-	 printf("Finding Cell Groups:     %f sec (%5.2f%%)\n",
+	 printf("Finding Cell Groups:     %7.4f sec (%5.2f%%)\n",
 			RFORMAT(CellGroupTime));
-	 printf("Creating Faces:          %f sec (%5.2f%%)\n",
+	 printf("Creating Faces:          %7.4f sec (%5.2f%%)\n",
 			RFORMAT(CreateFaceTime));
-	 printf("Finding Group Links:     %f sec (%5.2f%%)\n",
+	 printf("Finding Group Links:     %7.4f sec (%5.2f%%)\n",
 			RFORMAT(FindLinkTime));
-	 printf("Sort Links:              %f sec (%5.2f%%)\n",
+	 printf("Sort Links:              %7.4f sec (%5.2f%%)\n",
 			RFORMAT(SortLinks));
-	 printf("Index Links:             %f sec (%5.2f%%)\n",
+	 printf("Index Links:             %7.4f sec (%5.2f%%)\n",
 			RFORMAT(IndexLinks));
-	 printf("Find Global Groups:      %f sec (%5.2f%%)\n",
+	 printf("Find Global Groups:      %7.4f sec (%5.2f%%)\n",
 			RFORMAT(FindGlobalGroupTime));
-	 printf("Index Global Groups:     %f sec (%5.2f%%)\n",
+	 printf("Index Global Groups:     %7.4f sec (%5.2f%%)\n",
 			RFORMAT(IndexGroups));
-	 printf("Gather Group Particles:  %f sec (%5.2f%%)\n",
+	 printf("Gather Group Particles:  %7.4f sec (%5.2f%%)\n",
 			RFORMAT(GatherGroups));
-	 printf("Scatter Group Particles: %f sec (%5.2f%%)\n",
+	 printf("Scatter Group Particles: %7.4f sec (%5.2f%%)\n",
 			RFORMAT(ScatterGroups));
-	 printf("Total Booked Time:       %f sec (%5.2f Mp/sec)\n", total_time, np/total_time*1e-6);
+	 printf("Total Booked Time:       %7.4f sec (%5.2f Mp/sec)\n", total_time, np/total_time*1e-6);
 	 #undef RFORMAT
     }
 };
