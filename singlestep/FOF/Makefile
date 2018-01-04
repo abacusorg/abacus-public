@@ -4,7 +4,7 @@ TBB = -DTBB
 CCFLAGS = $(OMP) $(TBB) -I../../include/ -I../Timestep -std=c++11 -O2 -mavx
 
 test_driver: test_driver.cpp
-	$(CC) $(CCFLAGS) test_driver.cpp -o test_driver
+	$(CC) $(CCFLAGS) test_driver.cpp -ltbb -o test_driver
 
 fof_sublist: fof_sublist.cpp
 	$(CC) -DTEST $(CCFLAGS) fof_sublist.cpp -o fof_sublist

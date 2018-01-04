@@ -6,6 +6,7 @@ class SortStruct {
       auxstruct aux;
       posstruct pos;
       velstruct vel;
+      accstruct acc;
       bool operator< (const SortStruct& c) const { return (aux.val<c.aux.val); }
 };
 
@@ -20,16 +21,18 @@ class Particles {
     posstruct *pos;
     velstruct *vel;
     auxstruct *aux;
+    accstruct *acc;
     int *cell;   // Store the starting point of each cell
     int *n;      // Store the size of each cell
 
     Particles() {
-    	pos = NULL; vel = NULL; aux = NULL; cell = NULL; n = NULL;
+    	pos = NULL; vel = NULL; aux = NULL; acc = NULL; cell = NULL; n = NULL;
     }
     ~Particles() {
 	if (pos!=NULL) free(pos); pos=NULL;
 	if (vel!=NULL) free(vel); vel=NULL;
 	if (aux!=NULL) free(aux); aux=NULL;
+	if (acc!=NULL) free(acc); acc=NULL;
 	if (cell!=NULL) free(cell); cell=NULL;
 	if (n!=NULL) free(n); n=NULL;
     }
@@ -43,6 +46,7 @@ class Particles {
 	pos = (posstruct *)malloc(sizeof(posstruct)*np);
 	vel = (velstruct *)malloc(sizeof(velstruct)*np);
 	aux = (auxstruct *)malloc(sizeof(auxstruct)*np);
+	acc = (accstruct *)malloc(sizeof(accstruct)*np);
 	cell = (int *)malloc(sizeof(int)*cpd3);
 	n = (int *)malloc(sizeof(int)*cpd3);
 	// Now divide up the particles into cells
@@ -92,17 +96,22 @@ class Particles {
 	    assert(aux[k].val<cpd3&&aux[k].val>=0);
 	    aux[k].val <<= 20;
 	    aux[k].val += k;
+	    acc[k].x = 0.0;
+	    acc[k].y = 0.0;
+	    acc[k].z = 0.0;
 	}
 	// Now we have our particles.  Need to sort them by aux.
 	SortStruct *s = new SortStruct[np];
 	for (int j=0;j<np;j++) {
 	    s[j].aux = aux[j];
+	    s[j].acc = acc[j];
 	    s[j].pos = pos[j];
 	    s[j].vel = vel[j];
 	}
 	std::sort(s,s+np);
 	for (int j=0;j<np;j++) {
 	    aux[j] = s[j].aux;
+	    acc[j] = s[j].acc;
 	    pos[j] = s[j].pos;
 	    vel[j] = s[j].vel;
 	}
@@ -130,6 +139,7 @@ class Particles {
 	pos = (posstruct *)malloc(sizeof(posstruct)*np);
 	vel = (velstruct *)malloc(sizeof(velstruct)*np);
 	aux = (auxstruct *)malloc(sizeof(auxstruct)*np);
+	acc = (accstruct *)malloc(sizeof(accstruct)*np);
 	FILE *fp = fopen(fname,"r");
 	char line[200];
 	int k=0;
@@ -155,6 +165,7 @@ class Particles {
 	c.pos = pos+cell[id];
 	c.vel = vel+cell[id];
 	c.aux = aux+cell[id];
+	c.acc = acc+cell[id];
 	c.n = n[id];
 	return c;
     }

@@ -17,6 +17,7 @@ public:
     posstruct **posslab;
     velstruct **velslab;
     auxstruct **auxslab;
+    accstruct **accslab;
     int **cellslab;
     int **nslab;
 
@@ -30,12 +31,14 @@ public:
 	posslab = new posstruct *[cpd];
 	velslab = new velstruct *[cpd];
 	auxslab = new auxstruct *[cpd];
+	accslab = new accstruct *[cpd];
 	cellslab = new int *[cpd];
 	nslab    = new int *[cpd];
 	for (int j=0; j<cpd; j++) {
 	    posslab[j] = NULL;
 	    velslab[j] = NULL;
 	    auxslab[j] = NULL;
+	    accslab[j] = NULL;
 	    cellslab[j] = NULL;
 	    nslab[j] = NULL;
 	}
@@ -46,6 +49,7 @@ public:
 	if (posslab[slab] !=NULL) free(posslab[slab]);  posslab[slab] = NULL;
 	if (velslab[slab] !=NULL) free(velslab[slab]);  velslab[slab] = NULL;
 	if (auxslab[slab] !=NULL) free(auxslab[slab]);  auxslab[slab] = NULL;
+	if (accslab[slab] !=NULL) free(accslab[slab]);  accslab[slab] = NULL;
 	if (cellslab[slab]!=NULL) free(cellslab[slab]); cellslab[slab] = NULL;
 	if (nslab[slab]!=NULL) free(nslab[slab]); nslab[slab] = NULL;
 	return;
@@ -56,6 +60,7 @@ public:
 	delete[] posslab;
 	delete[] velslab;
 	delete[] auxslab;
+	delete[] accslab;
 	delete[] cellslab;
 	delete[] nslab;
 	return;
@@ -83,6 +88,7 @@ public:
 	posstruct *pos = posslab[slab] = (posstruct *)malloc(sizeof(posstruct)*max);
 	velstruct *vel = velslab[slab] = (velstruct *)malloc(sizeof(velstruct)*max);
 	auxstruct *aux = auxslab[slab] = (auxstruct *)malloc(sizeof(auxstruct)*max);
+	accstruct *acc = accslab[slab] = (accstruct *)malloc(sizeof(accstruct)*max);
 
 	int *cell = cellslab[slab] = (int *) malloc(sizeof(int)*cpd*cpd);
 	int *n = nslab[slab] = (int *) malloc(sizeof(int)*cpd*cpd);
@@ -119,6 +125,7 @@ public:
 		    // Move back to cell-centered positions
 		vel[nump] = veld;
 		aux[nump].val = id;
+		acc[nump] = accstruct(0.0,0.0,0.0);
 		nump++;
 	    }
 	}
@@ -135,6 +142,7 @@ public:
         c.pos = posslab[i]+cellslab[i][id];
         c.vel = velslab[i]+cellslab[i][id];
         c.aux = auxslab[i]+cellslab[i][id];
+        c.acc = accslab[i]+cellslab[i][id];
         c.n = nslab[i][id];
         return c;
     }

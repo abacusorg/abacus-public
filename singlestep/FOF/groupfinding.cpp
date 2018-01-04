@@ -170,7 +170,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
         for (int k=0; k<cpd; k++) {
 	    // Find CellGroups in (slab,j,k).  Append results to cg.
 	    Cell c = PP->GetCell(slab, j, k);
-	    doFOF[g].findgroups(c.pos, c.vel, c.aux, c.count());
+	    doFOF[g].findgroups(c.pos, c.vel, c.aux, c.acc, c.count());
 	    // printf("Cell %d %d %d: Found %d cell groups with %d particles, plus %d boundary singlets\n", slab,j,k,doFOF[g].ngroups, doFOF[g].nmultiplets, doFOF[g].nsinglet_boundary-doFOF[g].nmultiplets);
 	    for (int gr=0; gr<doFOF[g].ngroups; gr++) {
 		CellGroup tmp(doFOF[g].groups[gr], boundary, aligned);
@@ -245,12 +245,13 @@ class GlobalGroupSlab {
     posstruct *pos;  // Big vectors of all of the pos/vel/aux for these global groups
     velstruct *vel;
     auxstruct *aux;
+    accstruct *acc;
     uint64 np;
 
     int largest_group;
 
     GlobalGroupSlab(int _slab) {
-        pos = NULL; vel = NULL; aux = NULL; np = 0;
+        pos = NULL; vel = NULL; aux = NULL; acc = NULL; np = 0;
 	slab = _slab; largest_group = 0;
     }
     void destroy() {
@@ -258,6 +259,7 @@ class GlobalGroupSlab {
         if (pos!=NULL) free(pos); pos = NULL;
         if (vel!=NULL) free(vel); vel = NULL;
         if (aux!=NULL) free(aux); aux = NULL;
+        if (acc!=NULL) free(acc); acc = NULL;
 	np = 0;
     }
     ~GlobalGroupSlab() { destroy(); }
@@ -269,6 +271,7 @@ class GlobalGroupSlab {
         ret = posix_memalign((void **)&pos, 4096, sizeof(posstruct)*np); assert(ret==0);
         ret = posix_memalign((void **)&vel, 4096, sizeof(velstruct)*np); assert(ret==0);
         ret = posix_memalign((void **)&aux, 4096, sizeof(auxstruct)*np); assert(ret==0);
+        ret = posix_memalign((void **)&acc, 4096, sizeof(accstruct)*np); assert(ret==0);
     }
 
     void GatherGlobalGroups() {
@@ -340,6 +343,7 @@ class GlobalGroupSlab {
 			// Note periodic wrap.
 			memcpy(vel+start, cell.vel+cg->start, sizeof(velstruct)*cg->size());
 			memcpy(aux+start, cell.aux+cg->start, sizeof(auxstruct)*cg->size());
+			memcpy(acc+start, cell.acc+cg->start, sizeof(accstruct)*cg->size());
 			cellijk -= firstcell;
 			if (cellijk.x> diam) cellijk.x-=GFC->cpd;
 			if (cellijk.x<-diam) cellijk.x+=GFC->cpd;
@@ -386,6 +390,7 @@ class GlobalGroupSlab {
 			// Note periodic wrap.
 			memcpy(cell.vel+cg->start, vel+start, sizeof(velstruct)*cg->size());
 			memcpy(cell.aux+cg->start, aux+start, sizeof(auxstruct)*cg->size());
+			memcpy(cell.acc+cg->start, acc+start, sizeof(accstruct)*cg->size());
 			cellijk -= firstcell;
 			if (cellijk.x> diam) cellijk.x-=GFC->cpd;
 			if (cellijk.x<-diam) cellijk.x+=GFC->cpd;
@@ -417,6 +422,7 @@ class GlobalGroupSlab {
 	posstruct **L1pos = new posstruct *[omp_get_max_threads()];
 	velstruct **L1vel = new velstruct *[omp_get_max_threads()];
 	auxstruct **L1aux = new auxstruct *[omp_get_max_threads()];
+	accstruct **L1acc = new accstruct *[omp_get_max_threads()];
 	#pragma omp parallel for schedule(static)
 	for (int g=0; g<omp_get_num_threads(); g++) {
 	    FOFlevel1[g].setup(GFC->linking_length_level1, 1e10);
@@ -424,6 +430,7 @@ class GlobalGroupSlab {
 	    L1pos[g] = (posstruct *)malloc(sizeof(posstruct)*largest_group);
 	    L1vel[g] = (velstruct *)malloc(sizeof(velstruct)*largest_group);
 	    L1aux[g] = (auxstruct *)malloc(sizeof(auxstruct)*largest_group);
+	    L1acc[g] = (accstruct *)malloc(sizeof(accstruct)*largest_group);
 	}
 	
 	#pragma omp parallel for schedule(dynamic,1)
@@ -442,9 +449,10 @@ class GlobalGroupSlab {
 		    posstruct *grouppos = pos+globalgroups[j][k][n].start;
 		    velstruct *groupvel = vel+globalgroups[j][k][n].start;
 		    auxstruct *groupaux = aux+globalgroups[j][k][n].start;
+		    accstruct *groupacc = acc+globalgroups[j][k][n].start;
 		    int groupn = globalgroups[j][k][n].np;
 		    GFC->L1FOF.Start();
-		    FOFlevel1[g].findgroups(grouppos, NULL, NULL, groupn);
+		    FOFlevel1[g].findgroups(grouppos, NULL, NULL, NULL, groupn);
 		    GFC->L1FOF.Stop();
 		    // Now we've found the L1 groups
 		    for (int a=0; a<FOFlevel1[g].ngroups; a++) {
@@ -461,9 +469,10 @@ class GlobalGroupSlab {
 			    L1pos[g][b] = grouppos[start[b].index()];
 			    L1vel[g][b] = groupvel[start[b].index()];
 			    L1aux[g][b] = groupaux[start[b].index()];
+			    L1acc[g][b] = groupacc[start[b].index()];
 			}
 			GFC->L2FOF.Start();
-			FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, size);
+			FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, NULL, size);
 			GFC->L2FOF.Stop();
 
 			// TODO: Merger trees require tagging the L2 particles 
@@ -498,10 +507,12 @@ class GlobalGroupSlab {
 	    free(L1pos[g]);
 	    free(L1vel[g]);
 	    free(L1aux[g]);
+	    free(L1acc[g]);
 	}
 	delete[] L1pos;
 	delete[] L1vel;
 	delete[] L1aux;
+	delete[] L1acc;
 	GFC->ProcessLevel1.Stop();
     }
 

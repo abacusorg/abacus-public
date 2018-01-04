@@ -53,6 +53,7 @@ typedef unsigned long long uint64;
 
 typedef float3 posstruct;
 typedef float3 velstruct;
+typedef float3 accstruct;
 
 class auxstruct {
   public:
@@ -65,6 +66,7 @@ class Cell {
     posstruct *pos;
     velstruct *vel;
     auxstruct *aux;
+    accstruct *acc;
     int n;
     int count() { return n; }
 };

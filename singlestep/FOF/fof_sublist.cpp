@@ -27,6 +27,7 @@
 
 typedef float3 posstruct;
 typedef float3 velstruct;
+typedef float3 accstruct;
 typedef unsigned long long int  auxstruct;
 
 #endif 
@@ -266,7 +267,7 @@ class FOFcell {
 		else return false;
     }
 
-    inline void permute(posstruct *pos, velstruct *vel, auxstruct *aux, int n) {
+    inline void permute(posstruct *pos, velstruct *vel, auxstruct *aux, accstruct *acc, int n) {
         // After we have the FOFparticles sorted into groups, we need to 
 	// copy the pos/vel/aux into that order.  But we also want to 
 	// collect the singlets at the end.  Recall that only multiplets
@@ -334,6 +335,11 @@ class FOFcell {
 	auxstruct *tmp = (auxstruct *)p;
 	for (j=0;j<n;j++) tmp[index[j]] = aux[j];
 	memcpy(aux, tmp, n*sizeof(auxstruct));
+	}
+	{
+	accstruct *tmp = (accstruct *)p;
+	for (j=0;j<n;j++) tmp[index[j]] = acc[j];
+	memcpy(acc, tmp, n*sizeof(accstruct));
 	}
 
     }
@@ -674,7 +680,7 @@ class FOFcell {
 
     // ============  And here's the main driver routine
 
-    inline int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, int n) {
+    inline int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, accstruct *acc, int n) {
 	// This takes in all of the positions, velocities, and aux for 
 	// a cell of size n.
 
@@ -707,7 +713,7 @@ class FOFcell {
 	// Now we want to re-order the input arrays into the multiplets+singlet order
 	if (vel!=NULL) {
 	    time_permute.Start();
-	    permute(pos,vel,aux,np);
+	    permute(pos,vel,aux,acc,np);
 	    time_permute.Stop();
 	}
 	time_total.Stop();
