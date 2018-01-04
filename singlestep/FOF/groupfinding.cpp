@@ -231,6 +231,8 @@ GroupFindingControl *GFC;
 #include "halostat.cpp"
 	// Code to compute L1 halo properties
 
+#include "particle_subsample.cpp"
+
 // ===================== Global Groups: Find & Process ===============
 
 
@@ -480,10 +482,10 @@ class GlobalGroupSlab {
 			// The L2 index() gives the position in the L1 array,
 			// and that index() gets back to aux.
 			uint64 npstart = pL1pids->get_pencil_size();
-			int taggable = 16;  // TODO: just a placeholder
+			float taggable = 0.1;  // TODO: just a placeholder
 			for (int b=0; b<size; b++) {
 			    uint64 pid = L1aux[g][b].pid();
-			    if (pid%taggable==0) {
+			    if (is_subsample_particle((int64_t) pid, taggable)) {
 			    	pL1pids->append(TaggedPID(pid));
 			    }
 			}
