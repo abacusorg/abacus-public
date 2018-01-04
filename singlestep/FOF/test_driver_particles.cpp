@@ -115,6 +115,7 @@ class Particles {
 	    pos[j] = s[j].pos;
 	    vel[j] = s[j].vel;
 	}
+	delete[] s;
 	// Now divide up the particles into cells
 	cell = (int *)malloc(sizeof(int)*cpd3);
 	n = (int *)malloc(sizeof(int)*cpd3);
