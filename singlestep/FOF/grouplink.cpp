@@ -7,6 +7,9 @@
 #include "test_driver_header.cpp"
 #endif
 
+#ifdef TBB
+#include "tbb/parallel_sort.h"
+#endif
 
 class LinkID {
     // We pack 12 bytes of cell location (so CPD<4096!)
@@ -95,7 +98,11 @@ public:
 	GroupSort.Start();
 	// TODO: Put in a parallel sort
 	// pss::parallel_stable_sort( list, list+length, GroupLinkSortOperator() );
+	#ifdef TBB
+	tbb::parallel_sort(list, list+length);
+	#else
 	std::sort(list, list+length);
+	#endif
 	GroupSort.Stop();
 	// Our other stuff doesn't work because these keys are uint64.
 	// GroupLink *hlnew;

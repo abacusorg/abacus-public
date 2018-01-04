@@ -1,6 +1,7 @@
 CC = g++
 OMP = -DOMP -fopenmp -lgomp 
-CCFLAGS = $(OMP) -I../../include/ -I../Timestep -std=c++11 -O2 -mavx
+TBB = -DTBB
+CCFLAGS = $(OMP) $(TBB) -I../../include/ -I../Timestep -std=c++11 -O2 -mavx
 
 test_driver: test_driver.cpp
 	$(CC) $(CCFLAGS) test_driver.cpp -o test_driver
@@ -15,7 +16,7 @@ grouplink: grouplink.cpp
 	$(CC) -DTEST $(CCFLAGS) grouplink.cpp -o grouplink
 
 dependencies_fof: dependencies_fof.cpp
-	$(CC) $(CCFLAGS) dependencies_fof.cpp -o dependencies_fof
+	$(CC) $(CCFLAGS) dependencies_fof.cpp -ltbb -o dependencies_fof
 
 default: test_driver
 
