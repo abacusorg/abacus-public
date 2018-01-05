@@ -158,7 +158,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     cellgroups[slab].setup(cpd, 1024);     // TODO: Pick a better maxsize!
     FOFcell doFOF[omp_get_max_threads()];
     #pragma omp parallel for schedule(static)
-    for (int g=0; g<omp_get_num_threads(); g++) 
+    for (int g=0; g<omp_get_max_threads(); g++) 
     	doFOF[g].setup(linking_length, boundary);
 
     #pragma omp parallel for schedule(dynamic,1)
@@ -200,7 +200,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	free(aligned);
     }
     #pragma omp parallel for schedule(static)
-    for (int g=0; g<omp_get_num_threads(); g++) 
+    for (int g=0; g<omp_get_max_threads(); g++) 
     	doFOF[g].destroy();
     uint64 tot = cellgroups[slab].get_slab_size();
     CGtot += tot;
@@ -425,7 +425,7 @@ class GlobalGroupSlab {
 	auxstruct **L1aux = new auxstruct *[omp_get_max_threads()];
 	accstruct **L1acc = new accstruct *[omp_get_max_threads()];
 	#pragma omp parallel for schedule(static)
-	for (int g=0; g<omp_get_num_threads(); g++) {
+	for (int g=0; g<omp_get_max_threads(); g++) {
 	    FOFlevel1[g].setup(GFC->linking_length_level1, 1e10);
 	    FOFlevel2[g].setup(GFC->linking_length_level2, 1e10);
 	    L1pos[g] = (posstruct *)malloc(sizeof(posstruct)*largest_group);
@@ -505,7 +505,7 @@ class GlobalGroupSlab {
 	}
 
 	#pragma omp parallel for schedule(static)
-	for (int g=0; g<omp_get_num_threads(); g++) {
+	for (int g=0; g<omp_get_max_threads(); g++) {
 	    FOFlevel1[g].destroy();
 	    FOFlevel2[g].destroy();
 	    free(L1pos[g]);
