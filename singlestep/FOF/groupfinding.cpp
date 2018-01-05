@@ -199,6 +199,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	cg->FinishPencil();
 	free(aligned);
     }
+    #pragma omp parallel for schedule(static)
     for (int g=0; g<omp_get_num_threads(); g++) 
     	doFOF[g].destroy();
     uint64 tot = cellgroups[slab].get_slab_size();
@@ -413,13 +414,11 @@ class GlobalGroupSlab {
     }
 
 
-    // TODO: Need to alter GFC to initialize the params
-
     void FindSubGroups() {
 	// Process each group, looking for L1 and L2 subgroups.
 	GFC->ProcessLevel1.Start();
-	L1halos.setup(GFC->cpd, 1024);
-	L1pids.setup(GFC->cpd, 1024);
+	L1halos.setup(GFC->cpd, 1024);    // TODO: Need better start value
+	L1pids.setup(GFC->cpd, 1024);    // TODO: Need better start value
 	FOFcell FOFlevel1[omp_get_max_threads()], FOFlevel2[omp_get_max_threads()];
 	posstruct **L1pos = new posstruct *[omp_get_max_threads()];
 	velstruct **L1vel = new velstruct *[omp_get_max_threads()];
@@ -505,7 +504,10 @@ class GlobalGroupSlab {
 	    GFC->L1Tot.Stop();
 	}
 
+	#pragma omp parallel for schedule(static)
 	for (int g=0; g<omp_get_num_threads(); g++) {
+	    FOFlevel1[g].destroy();
+	    FOFlevel2[g].destroy();
 	    free(L1pos[g]);
 	    free(L1vel[g]);
 	    free(L1aux[g]);
@@ -548,10 +550,6 @@ void SimpleOutput(int slab, GlobalGroupSlab &GGS) {
 	    }
     fclose(fp);
 
-
-    sprintf(fname, "/tmp/out.pid.%03d", slab);
-    GGS.L1pids.dump_to_file(fname);
-
 /*
     fp = fopen(fname,"wb");
     for (int j=0; j<GFC->cpd; j++) {
@@ -563,13 +561,20 @@ void SimpleOutput(int slab, GlobalGroupSlab &GGS) {
 
     // Remember that these positions are relative to the first-cell position,
     // which is why we include that cell ijk in the first outputs
-    /*
     sprintf(fname, "/tmp/out.pos.%03d", slab);
     fp = fopen(fname,"w");
     for (int p=0; p<GGS.np; p++)
 	fprintf(fp, "%f %f %f %d\n", GGS.pos[p].x, GGS.pos[p].y, GGS.pos[p].z, (int)GGS.aux[p].pid());
     fclose(fp);
-    */
+}
+
+void HaloOutput(int slab, GlobalGroupSlab &GGS) {
+    char fname[200];
+    sprintf(fname, "/tmp/out.binhalo.%03d", slab);
+    GGS.L1halos.dump_to_file(fname);
+
+    sprintf(fname, "/tmp/out.pid.%03d", slab);
+    GGS.L1pids.dump_to_file(fname);
 }
 
 void FindAndProcessGlobalGroups(int slab) {
@@ -593,7 +598,10 @@ void FindAndProcessGlobalGroups(int slab) {
     // For now, maybe we should just output the group multiplicity and the PIDs,
     // as a way of demonstrating that we have something.
     GGS.FindSubGroups();
+    #ifdef ASCII_TEST_OUTPUT
     SimpleOutput(slab, GGS);
+    #endif
+    HaloOutput(slab, GGS);
 
     GGS.ScatterGlobalGroups();
     return;

@@ -7,6 +7,8 @@
 #include "test_driver_header.cpp"
 #include "test_driver_particles.cpp"
 
+#define ASCII_TEST_OUTPUT
+
 #include "groupfinding.cpp"
 
 int main(int argc, char *argv[]) {
