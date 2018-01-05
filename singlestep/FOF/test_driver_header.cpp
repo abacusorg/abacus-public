@@ -46,6 +46,7 @@
 
 
 typedef float Float;
+typedef float3 Float3;
 typedef unsigned long long uint64;
 
 #include "parallel.partition.cpp"

@@ -549,6 +549,18 @@ void SimpleOutput(int slab, GlobalGroupSlab &GGS) {
     fclose(fp);
 
 
+    sprintf(fname, "/tmp/out.pid.%03d", slab);
+    GGS.L1pids.dump_to_file(fname);
+
+/*
+    fp = fopen(fname,"wb");
+    for (int j=0; j<GFC->cpd; j++) {
+	PencilAccum<TaggedPID> pids = GGS.L1pids[j];
+	fwrite((void *)pids.data, sizeof(TaggedPID), pids.get_pencil_size(), fp);
+    }
+    fclose(fp);
+*/
+
     // Remember that these positions are relative to the first-cell position,
     // which is why we include that cell ijk in the first outputs
     /*
@@ -584,6 +596,7 @@ void FindAndProcessGlobalGroups(int slab) {
     SimpleOutput(slab, GGS);
 
     GGS.ScatterGlobalGroups();
+    return;
 }
 
 

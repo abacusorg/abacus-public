@@ -135,6 +135,7 @@ class Particles {
 	// This will be an ASCII file; first 3 numbers on each line are used.
         cpd = _cpd;
 	invcpd = 1.0/cpd;
+	cpdhalf = cpd/2;
 	np = 1e6;	// Just pick this as a maximum
 	cpd3 = cpd*cpd*cpd;
 	pos = (posstruct *)malloc(sizeof(posstruct)*np);
@@ -160,7 +161,7 @@ class Particles {
 	return;
     }
 
-    Cell GetCell(int i, int j, int k) {
+    inline Cell GetCell(int i, int j, int k) {
 	int id = (i*cpd+j)*cpd+k;
 	Cell c;
 	c.pos = pos+cell[id];
@@ -170,11 +171,11 @@ class Particles {
 	c.n = n[id];
 	return c;
     }
-    Cell GetCell(integer3 ijk) {
+    inline Cell GetCell(integer3 ijk) {
         return GetCell(ijk.x, ijk.y, ijk.z);
     }
 
-    float3 CellCenter(int i, int j, int k) {
+    inline float3 CellCenter(int i, int j, int k) {
         float3 v;
 	v.x = (i-cpdhalf)*invcpd;;
 	v.y = (j-cpdhalf)*invcpd;;

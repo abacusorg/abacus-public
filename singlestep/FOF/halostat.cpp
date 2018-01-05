@@ -1,14 +1,14 @@
 #include "halostat.hh"
 #include "sym3eigenval.cpp"
 
-inline void WrapPosition(float3 x) {
-    while (x.x> 0.5) x.x-=1.0;
-    while (x.x<-0.5) x.x+=1.0;
-    while (x.y> 0.5) x.y-=1.0;
-    while (x.y<-0.5) x.y+=1.0;
-    while (x.z> 0.5) x.z-=1.0;
-    while (x.z<-0.5) x.z+=1.0;
-    return;
+inline float3 WrapPosition(float3 a) {
+    while (a.x> 0.5) a.x-=1.0;
+    while (a.x<-0.5) a.x+=1.0;
+    while (a.y> 0.5) a.y-=1.0;
+    while (a.y<-0.5) a.y+=1.0;
+    while (a.z> 0.5) a.z-=1.0;
+    while (a.z<-0.5) a.z+=1.0;
+    return a;
 }
 
 #define assign_to_vector(a,b) { a[0] = b.x; a[1] = b.y; a[2] = b.z; }
@@ -28,11 +28,11 @@ HaloStat ComputeStats(int size,
     // Compute the center of mass
     double3 com = double3(0.0, 0.0, 0.0);
     for (int p=0; p<size; p++) com += L1pos[p];
-    double3 x = com/size;
+    float3 x = com/size;
     h.x[0] = com.x; h.x[1] = com.y; h.x[2] = com.z; 
     com = double3(0.0, 0.0, 0.0);
     for (int p=0; p<size; p++) com += L1vel[p];
-    double3 v = com/size;
+    float3 v = com/size;
     assign_to_vector(h.v, v);
 
     // Find the largest L2 subhalos and the largest COM
@@ -48,11 +48,11 @@ HaloStat ComputeStats(int size,
     com = double3(0.0, 0.0, 0.0);
     for (int p=0; p<L2.groups[0].n; p++) 
     	com += L1pos[start[p].index()];
-    double3 subhalo_x = com/h.subhalo_N[0];
+    float3 subhalo_x = com/h.subhalo_N[0];
     com = double3(0.0, 0.0, 0.0);
     for (int p=0; p<L2.groups[0].n; p++) 
     	com += L1vel[start[p].index()];
-    double3 subhalo_v = com/h.subhalo_N[0];
+    float3 subhalo_v = com/h.subhalo_N[0];
     assign_to_vector(h.subhalo_v, subhalo_v);
 
     // Now we can go through the particles to compute radii and moments
@@ -110,8 +110,9 @@ HaloStat ComputeStats(int size,
 
     // TODO: Need to supply this method.  Might convert test driver to use grid.
     posstruct offset = PP->CellCenter(ci,cj,ck);
-    x += offset; WrapPosition(x);
-    subhalo_x += offset; WrapPosition(subhalo_x);
+    x += offset; 
+    x = WrapPosition(x);
+    subhalo_x += offset; subhalo_x = WrapPosition(subhalo_x);
     assign_to_vector(h.x, x);
     assign_to_vector(h.subhalo_x, subhalo_x);
     return h;

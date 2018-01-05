@@ -25,6 +25,14 @@ class HaloStat {
 
 class TaggedPID {
   public:
+    uint64_t _pid;
+    uint64_t pid() { return _pid; }
+    TaggedPID(uint64_t p) { _pid = p; }
+};
+
+/*
+class TaggedPID {
+  public:
     // Cram the PID down into 5 bytes
     unsigned char v[5];
     uint64_t pid() {
@@ -49,3 +57,4 @@ class TaggedPID {
 	return;
     }
 };
+*/
