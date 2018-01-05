@@ -575,6 +575,7 @@ void HaloOutput(int slab, GlobalGroupSlab &GGS) {
 
     sprintf(fname, "/tmp/out.pid.%03d", slab);
     GGS.L1pids.dump_to_file(fname);
+    // TODO: When we're ready to send this to arenas, we can use copy_to_ptr()
 }
 
 void FindAndProcessGlobalGroups(int slab) {
