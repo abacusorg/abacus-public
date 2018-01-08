@@ -234,7 +234,7 @@ GroupFindingControl *GFC;
 #include "halostat.cpp"
 	// Code to compute L1 halo properties
 
-#include "particle_subsample.cpp"
+// #include "particle_subsample.cpp"
 
 // ===================== Global Groups: Find & Process ===============
 

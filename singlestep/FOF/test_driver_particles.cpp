@@ -63,7 +63,9 @@ class Particles {
 	printf("Made %d particles, often %d per cell, %d in the last\n", total, each, np-each*(cpd3-1));
 
 	srand48(123);
-	for (int p=0; p<np; p++) aux[p].val = p;
+	for (int p=0; p<np; p++) {
+		aux[p].val = p; aux[p].set_taggable();
+	}
 	for (int p=0; p<np; p++) vel[p] = velstruct(0.0,0.0,0.0);
 	for (int p=0; p<np; p++) {
 	    // Make some cell-centered positions
@@ -125,7 +127,10 @@ class Particles {
 	    while (p<np && (aux[p].val>>20)==c) p++;
 	    n[c] = p-cell[c];
 	}
-	for (int j=0;j<np;j++) aux[j].val &= 0xfffff;  // Remove the cell info
+	for (int j=0;j<np;j++) {
+		aux[j].val &= 0xfffff;  // Remove the cell info
+		aux[j].set_taggable();
+        }
 	return;
     }
 

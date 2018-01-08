@@ -5,6 +5,9 @@
 #include "pack14_storage.cpp"
 #include <sys/stat.h>
 
+#include "particle_subsample.cpp"
+
+
 class Particles {
 public:
     int cpd;
@@ -110,6 +113,8 @@ public:
 	}
 	// printf("Skipped a %d byte header\n", numhead);
 
+	float taggable = 0.1;
+
 	while (fread(&particle, sizeof(pack14), 1, fp)==1) {
 	    if (particle.iscell()) {
 		// Starting a new cell, so finish the old one.
@@ -125,6 +130,7 @@ public:
 		    // Move back to cell-centered positions
 		vel[nump] = veld;
 		aux[nump].val = id;
+		if (is_subsample_particle((int64_t) id, taggable)) aux[nump].set_taggable();
 		acc[nump] = accstruct(0.0,0.0,0.0);
 		nump++;
 	    }
