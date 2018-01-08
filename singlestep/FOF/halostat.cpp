@@ -15,13 +15,13 @@ inline float3 WrapPosition(float3 a) {
 
 HaloStat ComputeStats(int size, 
 	posstruct *L1pos, velstruct *L1vel, auxstruct *L1aux, 
-	FOFcell &L2, int ci, int cj, int ck) {
+	FOFcell &L2, posstruct offset) {
     // We are given the L1 particles as pos/vel/aux from [0,size).
     // These are in the original order; we don't care.
     // We are also given the L2 FOF results class.
     // Task is to fill a HaloStat object and return it.
-    // The particle positions have already been wrapped to the first cell,
-    // given as ci,cj,ck; we will wrap to global coords
+    // The particle positions have already been wrapped to the first cell;
+    // we will wrap to global coords, using offset
     HaloStat h;
 
     h.N = size;
@@ -107,8 +107,6 @@ HaloStat ComputeStats(int size,
     h.subhalo_vcirc_max = sqrt(sqrt(vmax));  // This is sqrt(N/R).
     	// TODO: Have to figure out what G*Mpart is in code units.
 
-    // TODO: Need to supply this method.  Might convert test driver to use grid.
-    posstruct offset = PP->CellCenter(ci,cj,ck);
     x += offset; 
     x = WrapPosition(x);
     subhalo_x += offset; subhalo_x = WrapPosition(subhalo_x);

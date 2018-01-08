@@ -33,8 +33,10 @@ s.size() will return the total elements in the slab.
 s[j].size will return the number in a pencil.
 
 s.copy_to_ptr(p) will copy the whole slab contents, in pencil order, to a 
-contiguous buffer at p, which must be pre-allocated to size().  This also
-provides an array s.pstart[j] that contains the starting offset for each pencil.
+contiguous buffer at p, which must be pre-allocated to size().  
+
+s.build_pstart() builds an array s.pstart[j] that contains the starting offset for each pencil,
+which is useful for indexing the contiguous buffer..
 
 */
 
@@ -355,6 +357,14 @@ class SlabAccum {
 	return total;
     }
 
+    void built_pstart() {
+	uint64 offset = 0;
+	for (int j=0; j<cpd; j++) {
+	    pstart[j] = offset;
+	    offset += pencils[j]._size;
+	}
+    }
+
     void copy_to_ptr(T *destination) {
         // Copy all of the data to a new buffer, making this contiguous 
 	// and in pencil order.  This does not allocate space; use size()
@@ -364,7 +374,6 @@ class SlabAccum {
 	for (int j=0; j<cpd; j++) {
 	    memcpy(destination+offset, pencils[j].data, 
 	    	sizeof(T)*pencils[j]._size);
-	    pstart[j] = offset;
 	    offset += pencils[j]._size;
 	}
     }
@@ -441,6 +450,7 @@ int main() {
 
     int *dest;
     dest = (int *) malloc(sizeof(INT)*s.get_slab_size()); 
+    s.build_pstart();
     s.copy_to_ptr(dest);
     for (int y=0; y<cpd; y+=20) {
 	for (int z=0; z<cpd; z+=20) {

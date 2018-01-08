@@ -242,9 +242,15 @@ GroupFindingControl *GFC;
 class GlobalGroupSlab {
   public:
     SlabAccum<GlobalGroup> globalgroups;
+    	// The global group information
     SlabAccum<LinkID> globalgrouplist;
-    SlabAccum<HaloStat> L1halos;
-    SlabAccum<TaggedPID> L1pids;
+    	// The cell group decompositions of these global groups
+
+    // The following accumulate possible output 
+    SlabAccum<HaloStat> L1halos;	// Stats about each L1 halo
+    SlabAccum<TaggedPID> TaggedPIDs;	// The tagged PIDs in each L1 halo
+    SlabAccum<RVfloat> L1Particles;     // The taggable subset in each L1 halo, pos/vel
+    SlabAccum<TaggedPID> L1PIDs;	// The taggable subset in each L1 halo, PID
     
     int slab;    // This slab number
     posstruct *pos;  // Big vectors of all of the pos/vel/aux for these global groups
@@ -454,7 +460,9 @@ class GlobalGroupSlab {
 	// Process each group, looking for L1 and L2 subgroups.
 	GFC->ProcessLevel1.Start();
 	L1halos.setup(GFC->cpd, 1024);    // TODO: Need better start value
-	L1pids.setup(GFC->cpd, 1024);    // TODO: Need better start value
+	TaggedPIDs.setup(GFC->cpd, 1024);    // TODO: Need better start value
+	L1Particles.setup(GFC->cpd, 1024);    // TODO: Need better start value
+	L1PIDs.setup(GFC->cpd, 1024);    // TODO: Need better start value
 	FOFcell FOFlevel1[omp_get_max_threads()], FOFlevel2[omp_get_max_threads()];
 	posstruct **L1pos = new posstruct *[omp_get_max_threads()];
 	velstruct **L1vel = new velstruct *[omp_get_max_threads()];
@@ -475,7 +483,9 @@ class GlobalGroupSlab {
 	    GFC->L1Tot.Start();
 	    int g = omp_get_thread_num();
 	    PencilAccum<HaloStat> *pL1halos = L1halos.StartPencil(j);
-	    PencilAccum<TaggedPID> *pL1pids = L1pids.StartPencil(j);
+	    PencilAccum<TaggedPID> *pTaggedPIDs = TaggedPIDs.StartPencil(j);
+	    PencilAccum<RVfloat> *pL1Particles = L1Particles.StartPencil(j);
+	    PencilAccum<TaggedPID> *pL1PIDs = L1PIDs.StartPencil(j);
 	    for (int k=0; k<GFC->cpd; k++) {
 		// uint64 groupid = ((slab*GFC->cpd+j)*GFC->cpd+k)*4096;
 		uint64 groupid = (((uint64)slab*10000+(uint64)j)*10000+(uint64)k)*1000;
@@ -526,43 +536,56 @@ class GlobalGroupSlab {
 				groupaux[start[L2start[p].index()].index()].set_tagged();
 			}
 
-			uint64 npstart = pL1pids->get_pencil_size();
-
-			/* 
-			float taggable = 0.1;  // TODO: just a placeholder
-			for (int b=0; b<size; b++) {
-			    uint64 pid = L1aux[g][b].pid();
-			    if (is_subsample_particle((int64_t) pid, taggable)) {
-			    	pL1pids->append(TaggedPID(pid));
-			    }
-			}
-			*/
-			// TODO: Replace the above with the is_taggable bit
-
+			uint64 taggedstart = pTaggedPIDs->get_pencil_size();
+			uint64 npstart = pL1Particles->get_pencil_size();
 
 			// Output the Tagged PIDs
 			for (int b=0; b<size; b++)
 			    if (groupaux[start[b].index()].is_tagged()) 
-			    	pL1pids->append(TaggedPID(groupaux[start[b].index()].pid()));
+			    	pTaggedPIDs->append(TaggedPID(groupaux[start[b].index()].pid()));
 
-			HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], slab, j, k);
+			// Output the Taggable Particles
+			posstruct offset = PP->CellCenter(slab, j, k);
+			for (int b=0; b<size; b++)
+			    if (groupaux[start[b].index()].is_taggable()) {
+				posstruct r = WrapPosition(grouppos[start[b].index()]+offset);
+				velstruct v = groupvel[start[b].index()];
+			    	pL1Particles->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
+			    	pL1PIDs->append(TaggedPID(groupaux[start[b].index()].pid()));
+			    }
+
+			HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], offset);
 			h.id = groupid+n*50+a;
+			h.taggedstart = taggedstart;
+			h.ntagged = pTaggedPIDs->get_pencil_size()-taggedstart;
 			h.npstart = npstart;
-			h.npout = pL1pids->get_pencil_size()-npstart;
+			h.npout = pL1Particles->get_pencil_size()-npstart;
 			pL1halos->append(h);
 		    } // Done with this L1 halo
 		} // Done with this group
 		pL1halos->FinishCell();
-		pL1pids->FinishCell();
+		pTaggedPIDs->FinishCell();
+		pL1Particles->FinishCell();
+		pL1PIDs->FinishCell();
 	    }
 	    pL1halos->FinishPencil();
-	    pL1pids->FinishPencil();
+	    pTaggedPIDs->FinishPencil();
+	    pL1Particles->FinishPencil();
+	    pL1PIDs->FinishPencil();
 	    GFC->L1Tot.Stop();
 	}
 
-	// TODO: Need to update the pL1halos.npstart values for their pencil starts!
+	// Need to update the pL1halos.npstart values for their pencil starts!
+	TaggedPIDs.build_pstart();
+	L1Particles.build_pstart();
+	for (int j=0; j<GFC->cpd; j++) 
+	    for (int k=0; k<GFC->cpd; k++) 
+		for (int n=0; n<L1halos[j][k].size(); n++) {
+		    L1halos[j][k][n].npstart += L1Particles.pstart[j];
+		    L1halos[j][k][n].taggedstart += TaggedPIDs.pstart[j];
+		}
 
-	#pragma omp parallel for schedule(static)
+	// Now delete all of the temporary storage!
 	for (int g=0; g<omp_get_max_threads(); g++) {
 	    FOFlevel1[g].destroy();
 	    FOFlevel2[g].destroy();
@@ -611,7 +634,7 @@ void SimpleOutput(int slab, GlobalGroupSlab &GGS) {
 /*
     fp = fopen(fname,"wb");
     for (int j=0; j<GFC->cpd; j++) {
-	PencilAccum<TaggedPID> pids = GGS.L1pids[j];
+	PencilAccum<TaggedPID> pids = GGS.TaggedPIDs[j];
 	fwrite((void *)pids.data, sizeof(TaggedPID), pids.get_pencil_size(), fp);
     }
     fclose(fp);
@@ -632,7 +655,7 @@ void HaloOutput(int slab, GlobalGroupSlab &GGS) {
     GGS.L1halos.dump_to_file(fname);
 
     sprintf(fname, "/tmp/out.pid.%03d", slab);
-    GGS.L1pids.dump_to_file(fname);
+    GGS.TaggedPIDs.dump_to_file(fname);
     // TODO: When we're ready to send this to arenas, we can use copy_to_ptr()
 }
 

@@ -4,9 +4,14 @@ class HaloStat {
   public:
     uint64_t id;	// A unique halo number.
     uint64_t npstart;	// Where to start counting in the particle output
-    uint64_t npout;	// Number of particles written out.
+    uint64_t npout;	// Number of taggable particles pos/vel/aux written out.
+
+    uint64_t taggedstart;   // Where to start counting in the tagged particle output
+    uint64_t ntagged;	    // Number of tagged particle PIDs written out.
+
     uint32_t N;	// The number of particles in this halo
     uint32_t subhalo_N[N_LARGEST_SUBHALOS];
+    uint32_t L0_N;    // The number of particles in the L0 parent group
 
     float x[3];      // Center of mass position
     float v[3];      // Center of mass velocity
@@ -21,6 +26,17 @@ class HaloStat {
     float subhalo_sigmav[3];
     float subhalo_r25, subhalo_r50, subhalo_r75, subhalo_r90;
     float subhalo_vcirc_max, subhalo_rvcirc_max;
+};
+
+
+class RVfloat {
+  public:
+    float pos[3];
+    float vel[3];
+    RVfloat(float px, float py, float pz, float vx, float vy, float vz) {
+    	pos[0] = px; pos[1] = py; pos[2] = pz;
+    	vel[0] = vx; vel[1] = vy; vel[2] = vz;
+    }
 };
 
 class TaggedPID {
