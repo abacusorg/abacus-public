@@ -341,6 +341,7 @@ class GlobalGroupSlab {
 		    			+globalgroups[j][k][n].cellgroupstart;
 		    	// This is where we'll find the CG LinkIDs for this GG
 		    integer3 firstcell(slab,j,k);
+
 		    for (int c=0; c<globalgroups[j][k][n].ncellgroups; c++, cglink++) {
 		        // Loop over CellGroups
 			integer3 cellijk = cglink->cell();
@@ -369,6 +370,8 @@ class GlobalGroupSlab {
 			for (int p=0; p<cg->size(); p++) pos[start+p] = offset+cell.pos[cg->start+p];
 			start += cg->size();
 		    } // End loop over cellgroups in this global group
+
+		    // TODO: Might need to compute the COM for light cone output
 		} // End loop over globalgroups in a cell
 	// End loop over cells
 	delete[] pstart;
@@ -556,6 +559,7 @@ class GlobalGroupSlab {
 
 			HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], offset);
 			h.id = groupid+n*50+a;
+			h.L0_N = groupn;
 			h.taggedstart = taggedstart;
 			h.ntagged = pTaggedPIDs->get_pencil_size()-taggedstart;
 			h.npstart = npstart;
@@ -581,8 +585,9 @@ class GlobalGroupSlab {
 	for (int j=0; j<GFC->cpd; j++) 
 	    for (int k=0; k<GFC->cpd; k++) 
 		for (int n=0; n<L1halos[j][k].size(); n++) {
-		    L1halos[j][k][n].npstart += L1Particles.pstart[j];
-		    L1halos[j][k][n].taggedstart += TaggedPIDs.pstart[j];
+		    HaloStat *h = L1halos[j][k].ptr(n);
+		    h->npstart += L1Particles.pstart[j];
+		    h->taggedstart += TaggedPIDs.pstart[j];
 		}
 
 	// Now delete all of the temporary storage!
@@ -654,8 +659,14 @@ void HaloOutput(int slab, GlobalGroupSlab &GGS) {
     sprintf(fname, "/tmp/out.binhalo.%03d", slab);
     GGS.L1halos.dump_to_file(fname);
 
-    sprintf(fname, "/tmp/out.pid.%03d", slab);
+    sprintf(fname, "/tmp/out.tagged.%03d", slab);
     GGS.TaggedPIDs.dump_to_file(fname);
+
+    sprintf(fname, "/tmp/out.L1rv.%03d", slab);
+    GGS.L1Particles.dump_to_file(fname);
+
+    sprintf(fname, "/tmp/out.L1pid.%03d", slab);
+    GGS.L1PIDs.dump_to_file(fname);
     // TODO: When we're ready to send this to arenas, we can use copy_to_ptr()
 }
 

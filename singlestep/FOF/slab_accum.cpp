@@ -357,7 +357,7 @@ class SlabAccum {
 	return total;
     }
 
-    void built_pstart() {
+    void build_pstart() {
 	uint64 offset = 0;
 	for (int j=0; j<cpd; j++) {
 	    pstart[j] = offset;
