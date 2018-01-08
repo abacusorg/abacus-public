@@ -173,7 +173,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	    doFOF[g].findgroups(c.pos, c.vel, c.aux, c.acc, c.count());
 	    // printf("Cell %d %d %d: Found %d cell groups with %d particles, plus %d boundary singlets\n", slab,j,k,doFOF[g].ngroups, doFOF[g].nmultiplets, doFOF[g].nsinglet_boundary-doFOF[g].nmultiplets);
 	    // We need to clear the L0 & L1 bits for this timestep
-	    for (int p=0; p<c.count(); p++) c.aux.reset_L01_bits();
+	    for (int p=0; p<c.count(); p++) c.aux[p].reset_L01_bits();
 	    for (int gr=0; gr<doFOF[g].ngroups; gr++) {
 		CellGroup tmp(doFOF[g].groups[gr], boundary, aligned);
 		// printf("Group %d: %d %d, %f %f %f to %f %f %f, %f %02x\n",
@@ -511,7 +511,7 @@ class GlobalGroupSlab {
 			}
 			GFC->L2FOF.Start();
 			FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, NULL, size);
-			std::sort(L2.groups, L2.groups+L2.ngroups);
+			std::sort(FOFlevel2[g].groups, FOFlevel2[g].groups+FOFlevel2[g].ngroups);
 			    // Groups now in descending order of multiplicity
 			GFC->L2FOF.Stop();
 
@@ -520,8 +520,8 @@ class GlobalGroupSlab {
 			// This can be done:
 			// The L2 index() gives the position in the L1 array,
 			// and that index() gets back to aux.
-			FOFparticle *L2start = L2.p + L2.groups[0].start;
-			for (int p=0; p<L2.groups[0].n; p++) {
+			FOFparticle *L2start = FOFlevel2[g].p + FOFlevel2[g].groups[0].start;
+			for (int p=0; p<FOFlevel2[g].groups[0].n; p++) {
 			    if (groupaux[start[L2start[p].index()].index()].is_taggable())
 				groupaux[start[L2start[p].index()].index()].set_tagged();
 			}

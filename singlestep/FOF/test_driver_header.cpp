@@ -56,10 +56,48 @@ typedef float3 posstruct;
 typedef float3 velstruct;
 typedef float3 accstruct;
 
+#define AUXTAGGABLEBIT 48llu //Can the particle be tagged.
+#define AUXTAGGEDBIT 49llu //Has the particle been tagged
+#define AUXL0BIT 50llu //Is the particle in a level 0 group
+#define AUXL1BIT 51llu //Is the particle in a levl 1 group
 class auxstruct {
   public:
     uint64 val;
     uint64 pid() { return val; }
+
+    // Group and subsample related bits
+    inline void set_taggable() {
+        // The TAGGABLE bit should be set at the beginning of the sim and not changed.
+        val |= ((uint64)1 << AUXTAGGABLEBIT);
+    }
+    inline bool is_taggable() {
+        return val & ((uint64)1 << AUXTAGGABLEBIT);
+    }
+    inline void set_tagged() {
+        // The TAGGED bit is a lasting tag, once set.
+        val |= ((uint64)1 << AUXTAGGEDBIT);
+    }
+    inline bool is_tagged() {
+        return val & ((uint64)1 << AUXTAGGEDBIT);
+    }
+
+    inline void reset_L01_bits() {
+        // We need to be able to unset these bits each time we run groupfinding
+        uint64 mask = ((uint64)1 << AUXL0BIT) + ((uint64)1 << AUXL1BIT);
+        val &= ~mask;
+    }
+    inline void set_L0() {
+        val |= ((uint64)1 << AUXL0BIT);
+    }
+    inline bool is_L0() {
+        return val & ((uint64)1 << AUXL0BIT);
+    }
+    inline void set_L1() {
+        val |= ((uint64)1 << AUXL1BIT);
+    }
+    inline bool is_L1() {
+        return val & ((uint64)1 << AUXL1BIT);
+    }
 };
 
 class Cell {
