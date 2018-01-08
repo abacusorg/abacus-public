@@ -36,8 +36,7 @@ HaloStat ComputeStats(int size,
     assign_to_vector(h.v, v);
 
     // Find the largest L2 subhalos and the largest COM
-    std::sort(L2.groups, L2.groups+L2.ngroups);
-    	// Groups now in descending order of multiplicity
+    // Groups are already in descending order of multiplicity
     for (int j=0; j<N_LARGEST_SUBHALOS; j++) 
 	if (j<L2.ngroups) h.subhalo_N[j] = L2.groups[j].n; 
 	    else h.subhalo_N[j] = 1;

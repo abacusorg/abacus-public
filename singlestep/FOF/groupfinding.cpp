@@ -511,13 +511,24 @@ class GlobalGroupSlab {
 			}
 			GFC->L2FOF.Start();
 			FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, NULL, size);
+			std::sort(L2.groups, L2.groups+L2.ngroups);
+			    // Groups now in descending order of multiplicity
 			GFC->L2FOF.Stop();
 
-			// TODO: Merger trees require tagging the L2 particles 
-			// in the original aux array.  This can be done:
+			// Merger trees require tagging the taggable particles 
+			// of the biggest L2 group in the original aux array.  
+			// This can be done:
 			// The L2 index() gives the position in the L1 array,
 			// and that index() gets back to aux.
+			FOFparticle *L2start = L2.p + L2.groups[0].start;
+			for (int p=0; p<L2.groups[0].n; p++) {
+			    if (groupaux[start[L2start[p].index()].index()].is_taggable())
+				groupaux[start[L2start[p].index()].index()].set_tagged();
+			}
+
 			uint64 npstart = pL1pids->get_pencil_size();
+
+			/* 
 			float taggable = 0.1;  // TODO: just a placeholder
 			for (int b=0; b<size; b++) {
 			    uint64 pid = L1aux[g][b].pid();
@@ -525,6 +536,14 @@ class GlobalGroupSlab {
 			    	pL1pids->append(TaggedPID(pid));
 			    }
 			}
+			*/
+			// TODO: Replace the above with the is_taggable bit
+
+
+			// Output the Tagged PIDs
+			for (int b=0; b<size; b++)
+			    if (groupaux[start[b].index()].is_tagged()) 
+			    	pL1pids->append(TaggedPID(groupaux[start[b].index()].pid()));
 
 			HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], slab, j, k);
 			h.id = groupid+n*50+a;
@@ -540,6 +559,8 @@ class GlobalGroupSlab {
 	    pL1pids->FinishPencil();
 	    GFC->L1Tot.Stop();
 	}
+
+	// TODO: Need to update the pL1halos.npstart values for their pencil starts!
 
 	#pragma omp parallel for schedule(static)
 	for (int g=0; g<omp_get_max_threads(); g++) {

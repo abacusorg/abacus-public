@@ -32,7 +32,7 @@ So we actually are limited to about 680 million particles in a cell.
 #define AUXPID (uint64)  0xffffffffff	// The lower 5 bytes, bits 0..39
 #define AUXLCZEROBIT 40		// The LC bits are 40..47
 #define AUXLC  (uint64)0xff0000000000	// The next byte
-#define AUXTAGABLEBIT 48llu //Can the particle be tagged.
+#define AUXTAGGABLEBIT 48llu //Can the particle be tagged.
 #define AUXTAGGEDBIT 49llu //Has the particle been tagged
 #define AUXINL0BIT 50llu //Is the particle in a level 0 group
 #define AUXINL1BIT 51llu //Is the particle in a levl 1 group
@@ -86,12 +86,12 @@ public:
     }
 
     // Group and subsample related bits
-    inline void set_tagable() {
-	// The TAGABLE bit should be set at the beginning of the sim and not changed.
-        aux |= ((uint64)1 << AUXTAGABLE);
+    inline void set_taggable() {
+	// The TAGGABLE bit should be set at the beginning of the sim and not changed.
+        aux |= ((uint64)1 << AUXTAGGABLE);
     }
-    inline void is_tagable() {
-        return aux & ((uint64)1 << AUXTAGABLE);
+    inline void is_taggable() {
+        return aux & ((uint64)1 << AUXTAGGABLE);
     }
     inline void set_tagged() {
 	// The TAGGED bit is a lasting tag, once set.
