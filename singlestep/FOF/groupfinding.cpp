@@ -706,6 +706,21 @@ void HaloOutput(int slab, GlobalGroupSlab &GGS) {
     // TODO: Need to add these arena names to slabtypes (or change them here).
     // DJE suspects there are duplications in function.
 
+    // Write out the taggable particles not in L1 halos
+    uint64 maxsize = PP->np*taggable_fraction*1.05;
+    uint64 nfield = GatherTaggableFieldParticles(slab,
+	(RVfloat *) LBW->AllocateSpecificSize(TaggableFieldSlab, slab, sizeof(RVfloat)
+	(TaggedPID *) LBW->AllocateSpecificSize(TaggableFieldPIDSlab, slab, sizeof(TaggedPID));
+    LBW->ResizeSlab(TaggableFieldSlab, slab, nfield*sizeof(RVfloat));
+    LBW->ResizeSlab(TaggableFieldPIDSlab, slab, nfield*sizeof(TaggedPID));
+    StoreArenaNonBlocking(TaggableFieldSlab, slab);
+    StoreArenaNonBlocking(TaggableFieldPIDSlab, slab);
+
+    if (GGS.L1halos.cpd==0) return;
+    	// If this is true, then FindSubgroups() wasn't run and
+	// nothing about L1 groups is even defined.  No point making
+	// empty files!
+
     // Write out the stats on the L1 halos
     GGS.L1halos.copy_to_ptr((HaloStat *)LBW->AllocateSpecificSize(L1halosSlab, 
     		slab, GGS.L1halos.get_slab_bytes());
@@ -726,15 +741,6 @@ void HaloOutput(int slab, GlobalGroupSlab &GGS) {
     		slab, GGS.L1PIDs.get_slab_bytes());
     StoreArenaNonBlocking(L1PIDsSlab, slab);
 
-    // Write out the taggable particles not in L1 halos
-    uint64 maxsize = PP->np*taggable_fraction*1.05;
-    uint64 nfield = GatherTaggableFieldParticles(slab,
-	(RVfloat *) LBW->AllocateSpecificSize(TaggableFieldSlab, slab, sizeof(RVfloat)
-	(TaggedPID *) LBW->AllocateSpecificSize(TaggableFieldPIDSlab, slab, sizeof(TaggedPID));
-    LBW->ResizeSlab(TaggableFieldSlab, slab, nfield*sizeof(RVfloat));
-    LBW->ResizeSlab(TaggableFieldPIDSlab, slab, nfield*sizeof(TaggedPID));
-    StoreArenaNonBlocking(TaggableFieldSlab, slab);
-    StoreArenaNonBlocking(TaggableFieldPIDSlab, slab);
     return;
 }
 #endif
