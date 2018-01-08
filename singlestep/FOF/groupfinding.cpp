@@ -172,6 +172,8 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	    Cell c = PP->GetCell(slab, j, k);
 	    doFOF[g].findgroups(c.pos, c.vel, c.aux, c.acc, c.count());
 	    // printf("Cell %d %d %d: Found %d cell groups with %d particles, plus %d boundary singlets\n", slab,j,k,doFOF[g].ngroups, doFOF[g].nmultiplets, doFOF[g].nsinglet_boundary-doFOF[g].nmultiplets);
+	    // We need to clear the L0 & L1 bits for this timestep
+	    for (int p=0; p<c.count(); p++) c.aux.reset_L01_bits();
 	    for (int gr=0; gr<doFOF[g].ngroups; gr++) {
 		CellGroup tmp(doFOF[g].groups[gr], boundary, aligned);
 		// printf("Group %d: %d %d, %f %f %f to %f %f %f, %f %02x\n",
@@ -346,6 +348,8 @@ class GlobalGroupSlab {
 			// Note periodic wrap.
 			memcpy(vel+start, cell.vel+cg->start, sizeof(velstruct)*cg->size());
 			memcpy(aux+start, cell.aux+cg->start, sizeof(auxstruct)*cg->size());
+			for (int p=0; p<cg->size(); p++) aux[p].set_L0();
+				// This particle is in L0
 			memcpy(acc+start, cell.acc+cg->start, sizeof(accstruct)*cg->size());
 			cellijk -= firstcell;
 			if (cellijk.x> diam) cellijk.x-=GFC->cpd;
@@ -366,8 +370,41 @@ class GlobalGroupSlab {
 	return;
     }
 
-    void ScatterGlobalGroups() {
+    void ScatterGlobalGroupsAux() {
         // Write the information from pos,vel,aux back into the original Slabs
+	int diam = 2*GFC->GroupRadius+1;
+	GFC->ScatterGroups.Start();
+
+	#pragma omp parallel for schedule(static)
+	for (int j=0; j<GFC->cpd; j++)
+	    for (int k=0; k<GFC->cpd; k++)
+		for (int n=0; n<globalgroups[j][k].size(); n++) {
+		    // Process globalgroups[j][k][n]
+		    // Recall where the particles start
+		    uint64 start = globalgroups[j][k][n].start;
+
+		    LinkID *cglink = globalgrouplist.pencils[j].data
+		    			+globalgroups[j][k][n].cellgroupstart;
+		    	// This is where we'll find the CG LinkIDs for this GG
+		    integer3 firstcell(slab,j,k);
+		    for (int c=0; c<globalgroups[j][k][n].ncellgroups; c++, cglink++) {
+		        // Loop over CellGroups
+			integer3 cellijk = cglink->cell();
+			CellGroup *cg = LinkToCellGroup(*cglink);
+			Cell cell = PP->GetCell(cellijk);
+			// Copy the aux back
+			memcpy(cell.aux+cg->start, aux+start, sizeof(auxstruct)*cg->size());
+			start += cg->size();
+		    } // End loop over cellgroups in this global group
+		} // End loop over globalgroups in a cell
+	// End loop over cells
+	GFC->ScatterGroups.Stop();
+	return;
+    }
+
+    void ScatterGlobalGroups() {
+        // Write the information from pos,vel,acc back into the original Slabs
+	// Note that aux is handled separately!
 	int diam = 2*GFC->GroupRadius+1;
 	GFC->ScatterGroups.Start();
 
@@ -392,7 +429,6 @@ class GlobalGroupSlab {
 			// the cell-centered coord of the first cell.  
 			// Note periodic wrap.
 			memcpy(cell.vel+cg->start, vel+start, sizeof(velstruct)*cg->size());
-			memcpy(cell.aux+cg->start, aux+start, sizeof(auxstruct)*cg->size());
 			memcpy(cell.acc+cg->start, acc+start, sizeof(accstruct)*cg->size());
 			cellijk -= firstcell;
 			if (cellijk.x> diam) cellijk.x-=GFC->cpd;
@@ -469,6 +505,7 @@ class GlobalGroupSlab {
 			for (int b=0; b<size; b++) {
 			    L1pos[g][b] = grouppos[start[b].index()];
 			    L1vel[g][b] = groupvel[start[b].index()];
+			    groupaux[start[b].index()].set_L1();
 			    L1aux[g][b] = groupaux[start[b].index()];
 			    L1acc[g][b] = groupacc[start[b].index()];
 			}
@@ -599,6 +636,8 @@ void FindAndProcessGlobalGroups(int slab) {
     // For now, maybe we should just output the group multiplicity and the PIDs,
     // as a way of demonstrating that we have something.
     GGS.FindSubGroups();
+    GGS.ScatterGlobalGroupsAux();
+
     #ifdef ASCII_TEST_OUTPUT
     SimpleOutput(slab, GGS);
     #endif
