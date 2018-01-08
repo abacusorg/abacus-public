@@ -4,6 +4,8 @@
 // g++ -DTEST -fopenmp -lgomp -O2 fof_sublist.cpp 
 // g++ -DTEST -fopenmp -lgomp -O2 slab_accum.cpp
 
+#define STANDALONE_FOF
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <cmath>

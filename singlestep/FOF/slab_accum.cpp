@@ -29,7 +29,8 @@ Then s[j] will return the PencilAccum<T>,
 s[j][k] will return the CellPtr<T>,
 and s[j][k][n] will return an individual element
 
-s.size() will return the total elements in the slab.
+s.get_slab_size() will return the total elements in the slab.
+s.get_slab_bytes() will return the total bytes in the slab.
 s[j].size will return the number in a pencil.
 
 s.copy_to_ptr(p) will copy the whole slab contents, in pencil order, to a 
@@ -355,6 +356,10 @@ class SlabAccum {
         uint64 total = 0;
 	for (int j=0; j<maxthreads; j++) total += buffers[j].get_buffer_size();
 	return total;
+    }
+
+    size_t get_slab_bytes() {
+        return sizeof(T)*get_slab_size();
     }
 
     void build_pstart() {
