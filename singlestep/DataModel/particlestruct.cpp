@@ -65,24 +65,58 @@ public:
     // not want to construct for every particle.
 
     // Light cones need 1 byte
-    static uint64 lightconemask(int number) {
+    inline static uint64 lightconemask(int number) {
         assertf(number<8 && number>=0, "Lightcone number lcn = %d must satisfy 0 <= lcn < 8.", number);
         return (uint64)1 << (number+AUXLCZEROBIT);
     }
 
-    bool lightconedone(uint64 mask) {
+    inline bool lightconedone(uint64 mask) {
         assert (mask<=AUXLC && mask >= AUXPID);  // better way to do this...
         return (aux&mask);
     }
-    bool lightconedone(int number) {
+    inline bool lightconedone(int number) {
         return lightconedone(lightconemask(number));
     }
 
-    void setlightconedone(uint64 mask) {
+    inline void setlightconedone(uint64 mask) {
         aux |= mask;
     }
-    void setlightconedone(int number) {
+    inline void setlightconedone(int number) {
         setlightconedone(lightconemask(number));
+    }
+
+    // Group and subsample related bits
+    inline void set_tagable() {
+	// The TAGABLE bit should be set at the beginning of the sim and not changed.
+        aux |= ((uint64)1 << AUXTAGABLE);
+    }
+    inline void is_tagable() {
+        return aux & ((uint64)1 << AUXTAGABLE);
+    }
+    inline void set_tagged() {
+	// The TAGGED bit is a lasting tag, once set.
+        aux |= ((uint64)1 << AUXTAGGED);
+    }
+    inline void is_tagged() {
+        return aux & ((uint64)1 << AUXTAGGED);
+    }
+
+    inline void reset_L01_bits() {
+	// We need to be able to unset these bits each time we run groupfinding
+	uint64 mask = ((uint64)1 << AUXL0BIT) + ((uint64)1 << AUXL1BIT);
+	aux &= ~mask;
+    }
+    inline void set_L0() {
+        aux |= ((uint64)1 << AUXL0BIT);
+    }
+    inline void is_L0() {
+        return aux & ((uint64)1 << AUXL0BIT);
+    }
+    inline void set_L1() {
+        aux |= ((uint64)1 << AUXL1BIT);
+    }
+    inline void is_L1() {
+        return aux & ((uint64)1 << AUXL1BIT);
     }
 
 
