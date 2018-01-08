@@ -88,35 +88,35 @@ public:
     // Group and subsample related bits
     inline void set_taggable() {
 	// The TAGGABLE bit should be set at the beginning of the sim and not changed.
-        aux |= ((uint64)1 << AUXTAGGABLE);
+        aux |= ((uint64)1 << AUXTAGGABLEBIT);
     }
-    inline void is_taggable() {
-        return aux & ((uint64)1 << AUXTAGGABLE);
+    inline bool is_taggable() {
+        return aux & ((uint64)1 << AUXTAGGABLEBIT);
     }
     inline void set_tagged() {
 	// The TAGGED bit is a lasting tag, once set.
-        aux |= ((uint64)1 << AUXTAGGED);
+        aux |= ((uint64)1 << AUXTAGGEDBIT);
     }
-    inline void is_tagged() {
-        return aux & ((uint64)1 << AUXTAGGED);
+    inline bool is_tagged() {
+        return aux & ((uint64)1 << AUXTAGGEDBIT);
     }
 
     inline void reset_L01_bits() {
 	// We need to be able to unset these bits each time we run groupfinding
-	uint64 mask = ((uint64)1 << AUXL0BIT) + ((uint64)1 << AUXL1BIT);
+	uint64 mask = ((uint64)1 << AUXINL0BIT) + ((uint64)1 << AUXINL1BIT);
 	aux &= ~mask;
     }
     inline void set_L0() {
-        aux |= ((uint64)1 << AUXL0BIT);
+        aux |= ((uint64)1 << AUXINL0BIT);
     }
-    inline void is_L0() {
-        return aux & ((uint64)1 << AUXL0BIT);
+    inline bool is_L0() {
+        return aux & ((uint64)1 << AUXINL0BIT);
     }
     inline void set_L1() {
-        aux |= ((uint64)1 << AUXL1BIT);
+        aux |= ((uint64)1 << AUXINL1BIT);
     }
-    inline void is_L1() {
-        return aux & ((uint64)1 << AUXL1BIT);
+    inline bool is_L1() {
+        return aux & ((uint64)1 << AUXINL1BIT);
     }
 
 
