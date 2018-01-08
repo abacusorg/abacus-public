@@ -659,7 +659,7 @@ uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid) {
     // converting to global positions.
     // Warning: This must be called after ScatterGlobalGroupsAux()
     // and before ScatterGlobalGroups()
-    slab = PP->WrapSlab(slab);
+    slab = GFC->WrapSlab(slab);
     uint64 nfield = 0;
     for (int j=0; j<GFC->cpd; j++)
 	for (int k=0; k<GFC->cpd; k++) {
