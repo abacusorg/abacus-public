@@ -478,7 +478,7 @@ class GlobalGroupSlab {
 	velstruct **L1vel = new velstruct *[omp_get_max_threads()];
 	auxstruct **L1aux = new auxstruct *[omp_get_max_threads()];
 	accstruct **L1acc = new accstruct *[omp_get_max_threads()];
-	MultiplicityStats L1stats[omp_get_max_threads];
+	MultiplicityStats L1stats[omp_get_max_threads()];
 
 	#pragma omp parallel for schedule(static)
 	for (int g=0; g<omp_get_max_threads(); g++) {
