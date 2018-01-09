@@ -18,6 +18,8 @@
 #include "cellgroup.cpp"
 	// Code to define and create CellGroups.
 
+#include "multiplicity_stats.cpp"
+
 
 
 class GroupFindingControl {
@@ -38,6 +40,8 @@ class GroupFindingControl {
 
     uint64 pPtot, fPtot, fGtot, CGtot, GGtot, Ltot;
     int largest_GG;
+
+    MultiplicityStats L0stats, L1stats, L2stats;
 
     SlabAccum<CellGroup> *cellgroups;   // Allocated [0,cpd), one for each slab
     int *cellgroups_status;     // Allocated [0,cpd) for each slab. 
@@ -104,6 +108,9 @@ class GroupFindingControl {
 	 printf("Found %lld global groups\n", GGtot);
 	 printf("Longest GroupLink list was %lld, compared to %lld allocation\n", GLL->longest, GLL->maxlist);
 	 printf("Largest Global Group has %d particles\n", largest_GG);
+
+	 printf("\nL1 group multiplicity distribution:\n");
+	 L1stats.report();
 
 	 float total_time = CellGroupTime.Elapsed()+
 			CreateFaceTime.Elapsed()+
@@ -471,6 +478,8 @@ class GlobalGroupSlab {
 	velstruct **L1vel = new velstruct *[omp_get_max_threads()];
 	auxstruct **L1aux = new auxstruct *[omp_get_max_threads()];
 	accstruct **L1acc = new accstruct *[omp_get_max_threads()];
+	MultiplicityStats L1stats[omp_get_max_threads];
+
 	#pragma omp parallel for schedule(static)
 	for (int g=0; g<omp_get_max_threads(); g++) {
 	    FOFlevel1[g].setup(GFC->linking_length_level1, 1e10);
@@ -508,6 +517,7 @@ class GlobalGroupSlab {
 		    for (int a=0; a<FOFlevel1[g].ngroups; a++) {
 			int size = FOFlevel1[g].groups[a].n;
 		        if (size<GFC->minhalosize) continue;
+			L1stats[g].push(size);
 			// The group is big enough.
 			FOFparticle *start = FOFlevel1[g].p+FOFlevel1[g].groups[a].start;
 			// Particle indices are in start[0,size).index()
@@ -589,6 +599,11 @@ class GlobalGroupSlab {
 		    h->npstart += L1Particles.pstart[j];
 		    h->taggedstart += TaggedPIDs.pstart[j];
 		}
+
+	// Coadd the stats
+	for (int g=0; g<omp_get_max_threads(); g++) {
+	    GFC->L1stats.add(L1stats[g]);
+	}
 
 	// Now delete all of the temporary storage!
 	for (int g=0; g<omp_get_max_threads(); g++) {
