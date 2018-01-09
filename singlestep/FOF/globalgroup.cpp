@@ -14,8 +14,9 @@ closed.
 // in the hopes that ordering the threads by this will yield better load balancing.
 class PencilStats {
   public:
-    int pnum; 	// The pencil number
     float work;   // The estimated amount of work this pencil will require
+    int pnum; 	// The pencil number
+    int pad[14];   // To avoid cache line contention.
     
     PencilStats() { pnum = -1; work = 0.0; }
     // We provide a sort operator that will yield a decreasing list
@@ -87,8 +88,8 @@ void CreateGlobalGroups(int slab,
 		SlabAccum<GlobalGroup> &globalgroups,
 		SlabAccum<LinkID> &globalgrouplist,
 		PencilStats *pstat) {
-    // For this slab, we want to traverse the graph of links to find all GlobalGroups
-    // pstat[0,cpd)
+    // For this slab, we want to traverse the graph of links to find all GlobalGroups.
+    // Given pstat[0,cpd)
     GFC->SortLinks.Start();
     slab = GFC->WrapSlab(slab);
 
@@ -210,8 +211,8 @@ void CreateGlobalGroups(int slab,
 				// (int)cglist.size(), start, ggsize, cumulative_np);
 			gg_pencil->append(GlobalGroup(cglist.size(), start, ggsize, cumulative_np));
 			cumulative_np += ggsize;
-			L0stats[omp_get_thread_num()].push(ggsize);
-			pstat[j].add(ggsize*ggsize);
+			// L0stats[omp_get_thread_num()].push(ggsize);
+			// pstat[j].add(ggsize*ggsize);
 			    // Track the later work, assuming scaling as N^2
 		    }
 		} // End this group

@@ -272,13 +272,14 @@ class GlobalGroupSlab {
     // We're going to accumulate an estimate of work in each pencil
     PencilStats *pstat;    // Will be [0,cpd)
 
-
     int largest_group;
 
     GlobalGroupSlab(int _slab) {
         pos = NULL; vel = NULL; aux = NULL; acc = NULL; np = 0;
-	pstat = NULL;
 	slab = _slab; largest_group = 0;
+	int ret = posix_memalign((void **) &pstat, 64, sizeof(PencilStats)*GFC->cpd);
+	assert(ret==0);
+	for (int j=0; j<GFC->cpd; j++) pstat[j].reset(j);
     }
     void destroy() {
 	// TODO: If we use arenas, change this
@@ -286,12 +287,11 @@ class GlobalGroupSlab {
         if (vel!=NULL) free(vel); vel = NULL;
         if (aux!=NULL) free(aux); aux = NULL;
         if (acc!=NULL) free(acc); acc = NULL;
-	if (pstat!=NULL) delete[] pstat; pstat = NULL;
+	if (pstat!=NULL) free(pstat); pstat = NULL;
 	np = 0;
     }
     ~GlobalGroupSlab() { destroy(); }
     void setup(uint64 _np) {
-	destroy();
 	np = _np;
 	// TODO: May eventually prefer these to be arenas.
 	int ret;
@@ -299,8 +299,6 @@ class GlobalGroupSlab {
         ret = posix_memalign((void **)&vel, 4096, sizeof(velstruct)*np); assert(ret==0);
         ret = posix_memalign((void **)&aux, 4096, sizeof(auxstruct)*np); assert(ret==0);
         ret = posix_memalign((void **)&acc, 4096, sizeof(accstruct)*np); assert(ret==0);
-	pstat = new PencilStats[GFC->cpd];
-	for (int j=0; j<GFC->cpd; j++) pstat[j].reset(j);
     }
 
     void GatherGlobalGroups() {
@@ -783,6 +781,7 @@ void FindAndProcessGlobalGroups(int slab) {
     GlobalGroupSlab GGS(slab);
     GGS.globalgroups.setup(GFC->cpd, 1024);   // TODO: Correct size to start?
     GGS.globalgrouplist.setup(GFC->cpd, 1024);   // TODO: Correct size to start?
+    assert(GGS.pstat!=NULL);
     CreateGlobalGroups(GGS.slab, GGS.globalgroups, GGS.globalgrouplist, GGS.pstat);
     STDLOG(1,"Closed global groups in slab %d, finding %lld groups involving %lld cell groups\n", slab, GGS.globalgroups.size(), GGS.globalgrouplist.size());
     GFC->GGtot += GGS.globalgroups.get_slab_size();
