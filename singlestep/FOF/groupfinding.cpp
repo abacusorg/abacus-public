@@ -41,7 +41,7 @@ class GroupFindingControl {
     uint64 pPtot, fPtot, fGtot, CGtot, GGtot, Ltot;
     int largest_GG;
 
-    MultiplicityStats L0stats, L1stats, L2stats;
+    MultiplicityStats L0stats, L1stats;
 
     SlabAccum<CellGroup> *cellgroups;   // Allocated [0,cpd), one for each slab
     int *cellgroups_status;     // Allocated [0,cpd) for each slab. 
@@ -108,6 +108,9 @@ class GroupFindingControl {
 	 printf("Found %lld global groups\n", GGtot);
 	 printf("Longest GroupLink list was %lld, compared to %lld allocation\n", GLL->longest, GLL->maxlist);
 	 printf("Largest Global Group has %d particles\n", largest_GG);
+
+	 printf("\nL0 group multiplicity distribution:\n");
+	 L0stats.report();
 
 	 printf("\nL1 group multiplicity distribution:\n");
 	 L1stats.report();
@@ -266,10 +269,15 @@ class GlobalGroupSlab {
     accstruct *acc;
     uint64 np;
 
+    // We're going to accumulate an estimate of work in each pencil
+    PencilStats *pstat;    // Will be [0,cpd)
+
+
     int largest_group;
 
     GlobalGroupSlab(int _slab) {
         pos = NULL; vel = NULL; aux = NULL; acc = NULL; np = 0;
+	pstat = NULL;
 	slab = _slab; largest_group = 0;
     }
     void destroy() {
@@ -278,6 +286,7 @@ class GlobalGroupSlab {
         if (vel!=NULL) free(vel); vel = NULL;
         if (aux!=NULL) free(aux); aux = NULL;
         if (acc!=NULL) free(acc); acc = NULL;
+	if (pstat!=NULL) delete[] pstat; pstat = NULL;
 	np = 0;
     }
     ~GlobalGroupSlab() { destroy(); }
@@ -290,6 +299,8 @@ class GlobalGroupSlab {
         ret = posix_memalign((void **)&vel, 4096, sizeof(velstruct)*np); assert(ret==0);
         ret = posix_memalign((void **)&aux, 4096, sizeof(auxstruct)*np); assert(ret==0);
         ret = posix_memalign((void **)&acc, 4096, sizeof(accstruct)*np); assert(ret==0);
+	pstat = new PencilStats[GFC->cpd];
+	for (int j=0; j<GFC->cpd; j++) pstat[j].reset(j);
     }
 
     void GatherGlobalGroups() {
@@ -489,9 +500,16 @@ class GlobalGroupSlab {
 	    L1aux[g] = (auxstruct *)malloc(sizeof(auxstruct)*largest_group);
 	    L1acc[g] = (accstruct *)malloc(sizeof(accstruct)*largest_group);
 	}
+
+	// It seems that the work between pencils is so heterogeneous that even the
+	// dynamic scheduling can't smooth it out.  So we're going to try ordering the
+	// pencils by the work estimate (largest first)
+	std::sort(pstat, pstat+GFC->cpd);
 	
+	// for (int j=0; j<GFC->cpd; j++) 
 	#pragma omp parallel for schedule(dynamic,1)
-	for (int j=0; j<GFC->cpd; j++) {
+	for (int jj=0; jj<GFC->cpd; jj++) {
+	    int j = pstat[jj].pnum;    // Get the pencil number from the list
 	    GFC->L1Tot.Start();
 	    int g = omp_get_thread_num();
 	    PencilAccum<HaloStat> *pL1halos = L1halos.StartPencil(j);
@@ -765,7 +783,7 @@ void FindAndProcessGlobalGroups(int slab) {
     GlobalGroupSlab GGS(slab);
     GGS.globalgroups.setup(GFC->cpd, 1024);   // TODO: Correct size to start?
     GGS.globalgrouplist.setup(GFC->cpd, 1024);   // TODO: Correct size to start?
-    CreateGlobalGroups(GGS.slab, GGS.globalgroups, GGS.globalgrouplist);
+    CreateGlobalGroups(GGS.slab, GGS.globalgroups, GGS.globalgrouplist, GGS.pstat);
     STDLOG(1,"Closed global groups in slab %d, finding %lld groups involving %lld cell groups\n", slab, GGS.globalgroups.size(), GGS.globalgrouplist.size());
     GFC->GGtot += GGS.globalgroups.get_slab_size();
 

@@ -10,6 +10,21 @@ closed.
 
 */
 
+// This class will accumulate an estimate of the amount of L1 work in each pencil,
+// in the hopes that ordering the threads by this will yield better load balancing.
+class PencilStats {
+  public:
+    int pnum; 	// The pencil number
+    float work;   // The estimated amount of work this pencil will require
+    
+    PencilStats() { pnum = -1; work = 0.0; }
+    // We provide a sort operator that will yield a decreasing list
+    bool operator< (const PencilStats& c) const { return (work>c.work); }
+
+    inline void add(float newwork) { work += newwork; }
+    void reset(int _pnum) { pnum = _pnum; work = 0.0; }
+};
+
 class GlobalGroup {
     public:
     int ncellgroups;    // The number of CellGroups in this GlobalGroup
@@ -70,8 +85,10 @@ inline CellGroup *LinkToCellGroup(LinkID link) {
 
 void CreateGlobalGroups(int slab,
 		SlabAccum<GlobalGroup> &globalgroups,
-		SlabAccum<LinkID> &globalgrouplist) {
+		SlabAccum<LinkID> &globalgrouplist,
+		PencilStats *pstat) {
     // For this slab, we want to traverse the graph of links to find all GlobalGroups
+    // pstat[0,cpd)
     GFC->SortLinks.Start();
     slab = GFC->WrapSlab(slab);
 
@@ -120,6 +137,7 @@ void CreateGlobalGroups(int slab,
     // Pick a division no less than diam that divides into CPD so that 
     // we can skip this issue.
     int split = diam;
+    MultiplicityStats L0stats[omp_get_max_threads()];
     while (split<cpd && cpd%split!=0) split++;
     for (int w=0; w<split; w++) {
 	#pragma omp parallel for schedule(dynamic,1) 
@@ -192,6 +210,9 @@ void CreateGlobalGroups(int slab,
 				// (int)cglist.size(), start, ggsize, cumulative_np);
 			gg_pencil->append(GlobalGroup(cglist.size(), start, ggsize, cumulative_np));
 			cumulative_np += ggsize;
+			L0stats[omp_get_thread_num()].push(ggsize);
+			pstat[j].add(ggsize*ggsize);
+			    // Track the later work, assuming scaling as N^2
 		    }
 		} // End this group
 		gg_pencil->FinishCell();
@@ -205,6 +226,9 @@ void CreateGlobalGroups(int slab,
 
     // Get rid of the links that have been used.
     GFC->GLL->PartitionAndDiscard();
+
+    // Cumulate the L0 statistics
+    for (int j=0; j<omp_get_max_threads(); j++) GFC->L0stats.add(L0stats[j]);
 
     // Free the indexing space
     free(cells);

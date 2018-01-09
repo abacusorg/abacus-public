@@ -27,8 +27,9 @@ class MultiplicityStats {
 	if (np>largest) largest=np;
 	ngroups++;
 	int j=0;
-	np = np>>1;
-	while (np!=0) { j++; np = np>>1; }
+	int n = np>>1;
+	while (n!=0) { j++; n = n>>1; }
+	assert(j<MS_NBIN);
 	count[j]++;
 	sumn[j] += np;
 	sumn2[j] += np*np;
@@ -43,12 +44,14 @@ class MultiplicityStats {
 	    tot += sumn[j];
 	    tot2 += sumn2[j];
 	}
-        printf("Particles in groups %llu\n", tot);
+        printf("Groups contain %llu particles\n", tot);
 	printf("Average group has %f particles and %f pairs\n", 
 		(float)tot/ngroups, (float)tot2/ngroups);
-	for (nbin==MS_NBIN-1; nbin>=0; nbin--) 
-	    if (count[nbin]>0) break;
+        printf("Largest Group contains %llu particles\n", largest);
+	for (nbin==MS_NBIN-1; count[nbin]==0 && nbin>=0; nbin--);
 	    // nbin is now the number of the highest non-empty bin
+	printf("Max bin is %d\n", nbin);
+	nbin = MS_NBIN-1;
 	for (j=0,m=1; j<=nbin; j++, m*=2)
 	    printf("%5d -- %5d: %7llu groups, %6.3f%% of particles, %6.3f%% of pairs\n",
 	    	m, m*2-1, count[j],
