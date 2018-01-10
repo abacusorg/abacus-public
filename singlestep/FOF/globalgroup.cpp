@@ -57,11 +57,12 @@ class LinkPencil {
   public:
     GroupLink *data;   // Where this pencil starts
     LinkIndex *cells; 	// [0,cpd)
+    // uint64 pad[6];	// To fill up 64 bytes
 
     LinkPencil() { data = NULL; cells = NULL; }
     ~LinkPencil() {}
 
-    void IndexPencil(LinkIndex *_cells, GroupLink *start, GroupLink *end, int slab, int j) {
+    inline void IndexPencilOld(LinkIndex *_cells, GroupLink *start, GroupLink *end, int slab, int j) {
 	// GroupLinks for this Pencil begin at *start, end at *end
 	// cells is where we put results, external array [0,cpd)
         cells = _cells;  // Copy the external pointer
@@ -76,6 +77,25 @@ class LinkPencil {
 	}
 	return;
     }
+
+    inline void IndexPencil(LinkIndex *_cells, GroupLink *start, GroupLink *end, int slab, int j) {
+	// GroupLinks for this Pencil begin at *start, end at *end
+	// cells is where we put results, external array [0,cpd)
+        cells = _cells;  // Copy the external pointer
+	data = start;    // Where we'll index this pencil from
+	uint64 iptr = 0, iend = end-start;
+	for (int k=0; k<GFC->cpd; k++) {
+	    GroupLink ref; 
+	    uint64 ibegin = iptr;
+	    cells[k].start = ibegin;
+	    // Now search for the end of this cell
+	    ref.a = LinkID(slab, j, k+1, 0);    // This is the starting point we're seeking
+	    while (iptr<iend && start[iptr]<ref) iptr++;   // Advance to the end
+	    cells[k].n = iptr-ibegin;
+	}
+	return;
+    }
+
 };
 
 inline CellGroup *LinkToCellGroup(LinkID link) {
@@ -98,6 +118,8 @@ void CreateGlobalGroups(int slab,
     int rad = GFC->GroupRadius;	
     int diam = 4*rad+1;
     int cpd = GFC->cpd;
+    // int cpdpad = (cpd/8+1)*8;   // A LinkIndex is 8 bytes, so let's get each pencil onto a different cacheline
+    int cpdpad = cpd;
     
     // We're going to sort the GLL and then figure out the starting index 
     // of every cell in this slab.
@@ -108,9 +130,12 @@ void CreateGlobalGroups(int slab,
     LinkPencil **links;		// For several slabs and all pencils in each
     links = (LinkPencil **)malloc(sizeof(LinkPencil *)*diam);
     links[0] = (LinkPencil *)malloc(sizeof(LinkPencil)*diam*cpd);
+
+    {int ret = posix_memalign((void **)&(links[0]), 64, sizeof(LinkPencil)*diam*cpd); assert(ret==0);}
     for (int j=1; j<diam; j++) links[j] = links[j-1]+cpd;
     LinkIndex *cells;
-    cells = (LinkIndex *)malloc(sizeof(LinkIndex)*diam*cpd*cpd);
+    {int ret = posix_memalign((void **)&cells, 64, sizeof(LinkIndex)*diam*cpd*cpdpad); assert(ret==0);}
+    // cells = (LinkIndex *)malloc(sizeof(LinkIndex)*diam*cpd*cpdpad);
     for (int s=0; s<diam; s++) {
 	int thisslab = GFC->WrapSlab(slab+s-diam/2);
 	assert(GFC->cellgroups_status[thisslab]>0);
@@ -121,7 +146,10 @@ void CreateGlobalGroups(int slab,
 	    GroupLink *start = GFC->GLL->Search(thisslab, j);
 	    // printf("Pencil %d %d starts at %d\n", thisslab, j, (int)(start-GFC->GLL->list));
 	    // Find the start for each Cell in the pencil
-	    links[s][j].IndexPencil(cells+(s*cpd+j)*cpd, start, GFC->GLL->list+GFC->GLL->length, thisslab, j);
+	    // This step does dominate the time
+	    GFC->IndexLinksIndex.Start();
+	    links[s][j].IndexPencil(cells+(s*cpd+j)*cpdpad, start, GFC->GLL->list+GFC->GLL->length, thisslab, j);
+	    GFC->IndexLinksIndex.Stop();
 
 	    // for (int k=0; k<cpd; k++) 
 		// printf("%d %d %d starts at %d %d\n", thisslab, j, k, links[s][j].cells[k].start, links[s][j].cells[k].n);
@@ -169,10 +197,10 @@ void CreateGlobalGroups(int slab,
 				// beyond 2*R+1 cells and something got closed
 				// prematurely.
 			thiscg->close_group();
-			if (searching>0) {
+			// if (searching>0) {
 			    // printf("Link to %d %d %d %d\n",
 			    	// thiscell.x, thiscell.y, thiscell.z, cglist[searching].cellgroup());
-			}
+			// }
 			// Now get these links
 			int s = GFC->WrapSlab(thiscell.x-slab+diam/2);  // Map to [0,diam)
 			LinkPencil *lp = links[s]+thiscell.y;
@@ -211,8 +239,8 @@ void CreateGlobalGroups(int slab,
 				// (int)cglist.size(), start, ggsize, cumulative_np);
 			gg_pencil->append(GlobalGroup(cglist.size(), start, ggsize, cumulative_np));
 			cumulative_np += ggsize;
-			// L0stats[omp_get_thread_num()].push(ggsize);
-			// pstat[j].add(ggsize*ggsize);
+			L0stats[omp_get_thread_num()].push(ggsize);
+			pstat[j].add(ggsize*ggsize);
 			    // Track the later work, assuming scaling as N^2
 		    }
 		} // End this group

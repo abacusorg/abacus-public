@@ -4,22 +4,22 @@ class MultiplicityStats {
   public:
     uint64 ngroups;
     uint64 largest;
-    uint64 totn, totn2;
+    uint64 tot, tot2;
     uint64 pad[4];
     uint64 count[MS_NBIN], sumn[MS_NBIN], sumn2[MS_NBIN];
 	// Count will be log2 bins.  np=1 is in bin 0.
 	// np = 2-3 in bin 1, 4-7 in bin 2, etc
 
     MultiplicityStats() {
-	ngroups = largest = totn = totn2 = 0;
+	ngroups = largest = tot = tot2 = 0;
 	for (int j=0; j<MS_NBIN; j++) count[j] = sumn[j] = sumn2[j] = 0;
     }
     void add(MultiplicityStats &b) {
         // Add b to this one
 	ngroups += b.ngroups;
 	largest = std::max(largest, b.largest);
-	totn += b.totn;
-	totn2 += b.totn2;
+	tot += b.tot;
+	tot2 += b.tot2;
 	for (int j=0; j<MS_NBIN; j++) {
 	    count[j] += b.count[j];
 	    sumn[j] += b.sumn[j];
@@ -31,8 +31,8 @@ class MultiplicityStats {
         // Given a group multiplicity, add it to the list
 	if (np>largest) largest=np;
 	ngroups++;
-	totn += np;
-	totn2 = += np*np;
+	tot += np;
+	tot2 += np*np;
 	if (np<MS_MIN) return;
 	int j=0;
 	int n = np>>1;

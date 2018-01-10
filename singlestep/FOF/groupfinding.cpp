@@ -32,6 +32,7 @@ class GroupFindingControl {
     int GroupRadius;    // Cell radius for group finding
     Float invcpd;
     uint64 np; // the number of particles in the simulation; used to compute buffers
+    uint64 particles_per_pencil;	// Typical number of particles per pencil
 
     // Parameters for finding subgroups
     FOFloat linking_length_level1;
@@ -54,6 +55,7 @@ class GroupFindingControl {
     	SortLinks, IndexLinks, FindGlobalGroupTime, IndexGroups, 
 	GatherGroups, ScatterGroups, ProcessLevel1;
     PTimer L1FOF, L2FOF, L1Tot;
+    PTimer IndexLinksSearch, IndexLinksIndex;
 
     GroupFindingControl(FOFloat _linking_length, 
     	FOFloat _linking_length_level1, FOFloat _linking_length_level2,
@@ -66,6 +68,7 @@ class GroupFindingControl {
 	invcpd = _invcpd;
 	boundary = (invcpd/2.0-linking_length);
 	np = _np;
+	particles_per_pencil = np/cpd/cpd;
 	GroupRadius = _GroupRadius;
 	cellgroups = new SlabAccum<CellGroup>[cpd];
 	cellgroups_status = new int[cpd];
@@ -137,6 +140,8 @@ class GroupFindingControl {
 			RFORMAT(SortLinks));
 	 printf("Index Links:             %8.4f sec (%5.2f%%)\n",
 			RFORMAT(IndexLinks));
+	 // printf("     Searching:               %8.4f sec\n", IndexLinksSearch.Elapsed());
+	 printf("Indexing (P):                %8.4f sec\n", IndexLinksIndex.Elapsed());
 	 printf("Find Global Groups:      %8.4f sec (%5.2f%%)\n",
 			RFORMAT(FindGlobalGroupTime));
 	 printf("Index Global Groups:     %8.4f sec (%5.2f%%)\n",
@@ -165,7 +170,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     // Construct the Cell Groups for this slab
     CellGroupTime.Start();
     slab = WrapSlab(slab);
-    cellgroups[slab].setup(cpd, 1024);     // TODO: Pick a better maxsize!
+    cellgroups[slab].setup(cpd, particles_per_pencil);     // TODO: Pick a better maxsize!
     FOFcell doFOF[omp_get_max_threads()];
     #pragma omp parallel for schedule(static)
     for (int g=0; g<omp_get_max_threads(); g++) 
@@ -478,10 +483,10 @@ class GlobalGroupSlab {
     void FindSubGroups() {
 	// Process each group, looking for L1 and L2 subgroups.
 	GFC->ProcessLevel1.Start();
-	L1halos.setup(GFC->cpd, 1024);    // TODO: Need better start value
-	TaggedPIDs.setup(GFC->cpd, 1024);    // TODO: Need better start value
-	L1Particles.setup(GFC->cpd, 1024);    // TODO: Need better start value
-	L1PIDs.setup(GFC->cpd, 1024);    // TODO: Need better start value
+	L1halos.setup(GFC->cpd, GFC->particles_per_pencil);    // TODO: Need better start value
+	TaggedPIDs.setup(GFC->cpd, GFC->particles_per_pencil);    // TODO: Need better start value
+	L1Particles.setup(GFC->cpd, GFC->particles_per_pencil);    // TODO: Need better start value
+	L1PIDs.setup(GFC->cpd, GFC->particles_per_pencil);    // TODO: Need better start value
 	FOFcell FOFlevel1[omp_get_max_threads()], FOFlevel2[omp_get_max_threads()];
 	posstruct **L1pos = new posstruct *[omp_get_max_threads()];
 	velstruct **L1vel = new velstruct *[omp_get_max_threads()];
@@ -779,8 +784,8 @@ void HaloOutput(int slab, GlobalGroupSlab &GGS) {
 void FindAndProcessGlobalGroups(int slab) {
     slab = GFC->WrapSlab(slab);
     GlobalGroupSlab GGS(slab);
-    GGS.globalgroups.setup(GFC->cpd, 1024);   // TODO: Correct size to start?
-    GGS.globalgrouplist.setup(GFC->cpd, 1024);   // TODO: Correct size to start?
+    GGS.globalgroups.setup(GFC->cpd, GFC->particles_per_pencil);   // TODO: Correct size to start?
+    GGS.globalgrouplist.setup(GFC->cpd, GFC->particles_per_pencil);   // TODO: Correct size to start?
     assert(GGS.pstat!=NULL);
     CreateGlobalGroups(GGS.slab, GGS.globalgroups, GGS.globalgrouplist, GGS.pstat);
     STDLOG(1,"Closed global groups in slab %d, finding %lld groups involving %lld cell groups\n", slab, GGS.globalgroups.size(), GGS.globalgrouplist.size());
