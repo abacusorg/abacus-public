@@ -21,6 +21,8 @@
 #include "multiplicity_stats.cpp"
 
 
+class GlobalGroupSlab;
+
 
 class GroupFindingControl {
     // This is the control class for all group finding.
@@ -51,11 +53,15 @@ class GroupFindingControl {
     	// 2 means slab closed (so CellGroups may be deleted).
     GroupLinkList *GLL;
 
+    GlobalGroupSlab *globalslabs;    // Allocated [0,cpd), one for each slab
+
     STimer CellGroupTime, CreateFaceTime, FindLinkTime, 
     	SortLinks, IndexLinks, FindGlobalGroupTime, IndexGroups, 
 	GatherGroups, ScatterGroups, ProcessLevel1;
     PTimer L1FOF, L2FOF, L1Tot;
     PTimer IndexLinksSearch, IndexLinksIndex;
+
+    void setupGGS();
 
     GroupFindingControl(FOFloat _linking_length, 
     	FOFloat _linking_length_level1, FOFloat _linking_length_level2,
@@ -74,6 +80,7 @@ class GroupFindingControl {
 	cellgroups_status = new int[cpd];
 	for (int j=0;j<cpd;j++) cellgroups_status[j] = 0;
 	GLL = new GroupLinkList(cpd, np/cpd*linking_length/_invcpd*3*15);    
+	setupGGS();
 	// This is a MultiAppendList, so the buffer cannot grow. 
 	// It will be storing links between cells.  Most particles do 
 	// not generate such a link; on average 3*linking_length/cellsize do. 
@@ -280,35 +287,39 @@ uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid) {
 	// Code to traverse the links and find the GlobalGroups as 
 	// sets of CellGroups (stored by their LinkIDs).
 
+void GroupFindingControl::setupGGS() {
+    globalslabs = new GlobalGroupSlab[cpd];
+}
+
 void FindAndProcessGlobalGroups(int slab) {
     slab = GFC->WrapSlab(slab);
-    GlobalGroupSlab GGS;
-    GGS.setup(slab);
-    GGS.CreateGlobalGroups();
-    STDLOG(1,"Closed global groups in slab %d, finding %lld groups involving %lld cell groups\n", slab, GGS.globalgroups.size(), GGS.globalgrouplist.size());
-    GFC->GGtot += GGS.globalgroups.get_slab_size();
+    GlobalGroupSlab *GGS = GFC->globalslabs+slab;
+    GGS->setup(slab);
+    GGS->CreateGlobalGroups();
+    STDLOG(1,"Closed global groups in slab %d, finding %lld groups involving %lld cell groups\n", slab, GGS->globalgroups.size(), GGS->globalgrouplist.size());
+    GFC->GGtot += GGS->globalgroups.get_slab_size();
 
     // Now process and output each one....
     // Start by gathering all of the particles into a contiguous set.
-    GGS.GatherGlobalGroups();
-    STDLOG(1,"Gathered %lld particles from global groups in slab %d\n", GGS.np, slab);
-    GFC->largest_GG = std::max(GFC->largest_GG, GGS.largest_group);
+    GGS->GatherGlobalGroups();
+    STDLOG(1,"Gathered %lld particles from global groups in slab %d\n", GGS->np, slab);
+    GFC->largest_GG = std::max(GFC->largest_GG, GGS->largest_group);
     // TODO: Write to STDLOG
-    // The GGS.globalgroups[j][k][n] now reference these as [start,start+np)
+    // The GGS->globalgroups[j][k][n] now reference these as [start,start+np)
 
     // TODO: Lots to do here
     // For now, maybe we should just output the group multiplicity and the PIDs,
     // as a way of demonstrating that we have something.
-    GGS.FindSubGroups();
-    GGS.ScatterGlobalGroupsAux();
+    GGS->FindSubGroups();
+    GGS->ScatterGlobalGroupsAux();
 
     #ifdef ASCII_TEST_OUTPUT
-    GGS.SimpleOutput();
+    GGS->SimpleOutput();
     #endif
-    GGS.HaloOutput();
+    GGS->HaloOutput();
 
-    GGS.ScatterGlobalGroups();
-    GGS.destroy();
+    GGS->ScatterGlobalGroups();
+    GGS->destroy();
     return;
 }
 
