@@ -253,6 +253,33 @@ GroupFindingControl *GFC;
 
 // ===================== Global Groups: Find & Process ===============
 
+uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid) {
+    // Gather all of the taggable particles that aren't in L1 groups into two vectors,
+    // converting to global positions.
+    // Space must be allocated beforehand.
+    // Returns the number of elements used.
+    // Warning: This must be called after ScatterGlobalGroupsAux()
+    // and before ScatterGlobalGroups()
+    slab = GFC->WrapSlab(slab);
+    uint64 nfield = 0;
+    for (int j=0; j<GFC->cpd; j++)
+	for (int k=0; k<GFC->cpd; k++) {
+	    // Loop over cells
+	    posstruct offset = PP->CellCenter(slab, j, k);
+	    Cell c = PP->GetCell(slab, j, k);
+	    for (int p=0; p<c.count(); p++)
+		if (c.aux[p].is_taggable() && !c.aux[p].is_L1()) {
+		    // We found a taggable field particle
+		    posstruct r = c.pos[p] + offset;
+		    velstruct v = c.vel[p];
+		    pv[nfield] = RVfloat(r.x, r.y, r.z, v.x, v.y, v.z);
+		    pid[nfield] = c.aux[p].pid();
+		    nfield++;
+		}
+	}
+    return nfield;
+}
+
 
 class GlobalGroupSlab {
   public:
@@ -281,7 +308,7 @@ class GlobalGroupSlab {
 
     GlobalGroupSlab(int _slab) {
         pos = NULL; vel = NULL; aux = NULL; acc = NULL; np = 0;
-	slab = _slab; largest_group = 0;
+	slab = GFC->WrapSlab(_slab); largest_group = 0;
 	int ret = posix_memalign((void **) &pstat, 64, sizeof(PencilStats)*GFC->cpd);
 	assert(ret==0);
 	for (int j=0; j<GFC->cpd; j++) pstat[j].reset(j);
@@ -642,151 +669,131 @@ class GlobalGroupSlab {
 	GFC->ProcessLevel1.Stop();
     }
 
-};
 
+    void SimpleOutput() {
+	// This just writes two sets of ASCII files to see the outputs,
+	// but it also helps to document how the global group information is stored.
+	char fname[200];
+	sprintf(fname, "/tmp/out.group.%03d", slab);
+	FILE *fp = fopen(fname,"w");
+	for (int j=0; j<GFC->cpd; j++)
+	    for (int k=0; k<GFC->cpd; k++)
+		for (int n=0; n<globalgroups[j][k].size(); n++)
+		    fprintf(fp, "%d %d %d %d %d\n", (int)globalgroups[j][k][n].start,
+				    globalgroups[j][k][n].np, slab, j, k);
+	fclose(fp);
 
-void SimpleOutput(int slab, GlobalGroupSlab &GGS) {
-    // This just writes two sets of ASCII files to see the outputs,
-    // but it also helps to document how the global group information is stored.
-    char fname[200];
-    sprintf(fname, "/tmp/out.group.%03d", slab);
-    FILE *fp = fopen(fname,"w");
-    for (int j=0; j<GFC->cpd; j++)
-	for (int k=0; k<GFC->cpd; k++)
-	    for (int n=0; n<GGS.globalgroups[j][k].size(); n++)
-		fprintf(fp, "%d %d %d %d %d\n", (int)GGS.globalgroups[j][k][n].start,
-				GGS.globalgroups[j][k][n].np, GGS.slab, j, k);
-    fclose(fp);
-
-    sprintf(fname, "/tmp/out.halo.%03d", slab);
-    fp = fopen(fname,"w");
-    for (int j=0; j<GFC->cpd; j++)
-	for (int k=0; k<GFC->cpd; k++)
-	    for (int n=0; n<GGS.L1halos[j][k].size(); n++) {
-		HaloStat h = GGS.L1halos[j][k][n];
-		fprintf(fp, "%4d %7.4f %7.4f %7.4f %f %4d %3d %3d %7.4f %7.4f %7.4f %f %lu %lu\n", 
-		    h.N, h.x[0], h.x[1], h.x[2], h.r50,
-		    h.subhalo_N[0], h.subhalo_N[1], h.subhalo_N[2], 
-		    h.subhalo_x[0], h.subhalo_x[1], h.subhalo_x[2], 
-		    h.subhalo_r50, h.id, h.npout);
-	    }
-    fclose(fp);
-
-/*
-    fp = fopen(fname,"wb");
-    for (int j=0; j<GFC->cpd; j++) {
-	PencilAccum<TaggedPID> pids = GGS.TaggedPIDs[j];
-	fwrite((void *)pids.data, sizeof(TaggedPID), pids.get_pencil_size(), fp);
-    }
-    fclose(fp);
-*/
-
-    // Remember that these positions are relative to the first-cell position,
-    // which is why we include that cell ijk in the first outputs
-    sprintf(fname, "/tmp/out.pos.%03d", slab);
-    fp = fopen(fname,"w");
-    for (int p=0; p<GGS.np; p++)
-	fprintf(fp, "%f %f %f %d\n", GGS.pos[p].x, GGS.pos[p].y, GGS.pos[p].z, (int)GGS.aux[p].pid());
-    fclose(fp);
-}
-
-uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid) {
-    // Gather all of the taggable particles that aren't in L1 groups into a file,
-    // converting to global positions.
-    // Warning: This must be called after ScatterGlobalGroupsAux()
-    // and before ScatterGlobalGroups()
-    slab = GFC->WrapSlab(slab);
-    uint64 nfield = 0;
-    for (int j=0; j<GFC->cpd; j++)
-	for (int k=0; k<GFC->cpd; k++) {
-	    // Loop over cells
-	    posstruct offset = PP->CellCenter(slab, j, k);
-	    Cell c = PP->GetCell(slab, j, k);
-	    for (int p=0; p<c.count(); p++)
-		if (c.aux[p].is_taggable() && !c.aux[p].is_L1()) {
-		    // We found a taggable field particle
-		    posstruct r = c.pos[p] + offset;
-		    velstruct v = c.vel[p];
-		    pv[nfield] = RVfloat(r.x, r.y, r.z, v.x, v.y, v.z);
-		    pid[nfield] = c.aux[p].pid();
-		    nfield++;
+	sprintf(fname, "/tmp/out.halo.%03d", slab);
+	fp = fopen(fname,"w");
+	for (int j=0; j<GFC->cpd; j++)
+	    for (int k=0; k<GFC->cpd; k++)
+		for (int n=0; n<L1halos[j][k].size(); n++) {
+		    HaloStat h = L1halos[j][k][n];
+		    fprintf(fp, "%4d %7.4f %7.4f %7.4f %f %4d %3d %3d %7.4f %7.4f %7.4f %f %lu %lu\n", 
+			h.N, h.x[0], h.x[1], h.x[2], h.r50,
+			h.subhalo_N[0], h.subhalo_N[1], h.subhalo_N[2], 
+			h.subhalo_x[0], h.subhalo_x[1], h.subhalo_x[2], 
+			h.subhalo_r50, h.id, h.npout);
 		}
+	fclose(fp);
 
+    /*
+	fp = fopen(fname,"wb");
+	for (int j=0; j<GFC->cpd; j++) {
+	    PencilAccum<TaggedPID> pids = TaggedPIDs[j];
+	    fwrite((void *)pids.data, sizeof(TaggedPID), pids.get_pencil_size(), fp);
 	}
-    return nfield;
-}
+	fclose(fp);
+    */
 
-#ifdef STANDALONE_FOF
-void HaloOutput(int slab, GlobalGroupSlab &GGS) {
-    char fname[200];
-    sprintf(fname, "/tmp/out.binhalo.%03d", slab);
-    GGS.L1halos.dump_to_file(fname);
+	// Remember that these positions are relative to the first-cell position,
+	// which is why we include that cell ijk in the first outputs
+	sprintf(fname, "/tmp/out.pos.%03d", slab);
+	fp = fopen(fname,"w");
+	for (int p=0; p<np; p++)
+	    fprintf(fp, "%f %f %f %d\n", pos[p].x, pos[p].y, pos[p].z, (int)aux[p].pid());
+	fclose(fp);
+    }
 
-    sprintf(fname, "/tmp/out.tagged.%03d", slab);
-    GGS.TaggedPIDs.dump_to_file(fname);
+    #ifdef STANDALONE_FOF
+    void HaloOutput() {
+	char fname[200];
+	sprintf(fname, "/tmp/out.binhalo.%03d", slab);
+	L1halos.dump_to_file(fname);
 
-    sprintf(fname, "/tmp/out.L1rv.%03d", slab);
-    GGS.L1Particles.dump_to_file(fname);
+	sprintf(fname, "/tmp/out.tagged.%03d", slab);
+	TaggedPIDs.dump_to_file(fname);
 
-    sprintf(fname, "/tmp/out.L1pid.%03d", slab);
-    GGS.L1PIDs.dump_to_file(fname);
-    // TODO: When we're ready to send this to arenas, we can use copy_to_ptr()
-}
+	sprintf(fname, "/tmp/out.L1rv.%03d", slab);
+	L1Particles.dump_to_file(fname);
 
-#else   // !STANDALONE_FOF
-void HaloOutput(int slab, GlobalGroupSlab &GGS) {
-    slab = LBW->WrapSlab(slab);
+	sprintf(fname, "/tmp/out.L1pid.%03d", slab);
+	L1PIDs.dump_to_file(fname);
+	// TODO: When we're ready to send this to arenas, we can use copy_to_ptr()
+    }
 
-    // TODO: Need to include the control logic regarding whether 
-    // a given file should be written.  
-    // TODO: Need to add these arena names to slabtypes (or change them here).
-    // DJE suspects there are duplications in function.
+    #else   // !STANDALONE_FOF
+    void HaloOutput() {
+	// TODO: Need to include the control logic regarding whether 
+	// a given file should be written.  
+	// TODO: Need to add these arena names to slabtypes (or change them here).
+	// DJE suspects there are duplications in function.
 
-    // Write out the taggable particles not in L1 halos
-    uint64 maxsize = PP->np*taggable_fraction*1.05;
-    uint64 nfield = GatherTaggableFieldParticles(slab,
-	(RVfloat *) LBW->AllocateSpecificSize(TaggableFieldSlab, slab, sizeof(RVfloat)
-	(TaggedPID *) LBW->AllocateSpecificSize(TaggableFieldPIDSlab, slab, sizeof(TaggedPID));
-    LBW->ResizeSlab(TaggableFieldSlab, slab, nfield*sizeof(RVfloat));
-    LBW->ResizeSlab(TaggableFieldPIDSlab, slab, nfield*sizeof(TaggedPID));
-    StoreArenaNonBlocking(TaggableFieldSlab, slab);
-    StoreArenaNonBlocking(TaggableFieldPIDSlab, slab);
+	// Write out the taggable particles not in L1 halos
+	uint64 maxsize = PP->np*taggable_fraction*1.05;
+	uint64 nfield = GatherTaggableFieldParticles(slab,
+	    (RVfloat *) LBW->AllocateSpecificSize(TaggableFieldSlab, slab, sizeof(RVfloat)
+	    (TaggedPID *) LBW->AllocateSpecificSize(TaggableFieldPIDSlab, slab, sizeof(TaggedPID));
+	LBW->ResizeSlab(TaggableFieldSlab, slab, nfield*sizeof(RVfloat));
+	LBW->ResizeSlab(TaggableFieldPIDSlab, slab, nfield*sizeof(TaggedPID));
+	StoreArenaNonBlocking(TaggableFieldSlab, slab);
+	StoreArenaNonBlocking(TaggableFieldPIDSlab, slab);
 
-    if (GGS.L1halos.cpd==0) return;
-    	// If this is true, then FindSubgroups() wasn't run and
-	// nothing about L1 groups is even defined.  No point making
-	// empty files!
+	if (L1halos.cpd==0) return;
+	    // If this is true, then FindSubgroups() wasn't run and
+	    // nothing about L1 groups is even defined.  No point making
+	    // empty files!
 
-    // Write out the stats on the L1 halos
-    GGS.L1halos.copy_to_ptr((HaloStat *)LBW->AllocateSpecificSize(L1halosSlab, 
-    		slab, GGS.L1halos.get_slab_bytes());
-    StoreArenaNonBlocking(L1halosSlab, slab);
+	// Write out the stats on the L1 halos
+	L1halos.copy_to_ptr((HaloStat *)LBW->AllocateSpecificSize(L1halosSlab, 
+		    slab, L1halos.get_slab_bytes());
+	StoreArenaNonBlocking(L1halosSlab, slab);
 
-    // Write out tagged PIDs from the L1 halos
-    GGS.TaggedPIDs.copy_to_ptr((TaggedPID *)LBW->AllocateSpecificSize(TaggedPIDsSlab, 
-    		slab, GGS.TaggedPIDs.get_slab_bytes());
-    StoreArenaNonBlocking(TaggedPIDsSlab, slab);
+	// Write out tagged PIDs from the L1 halos
+	TaggedPIDs.copy_to_ptr((TaggedPID *)LBW->AllocateSpecificSize(TaggedPIDsSlab, 
+		    slab, TaggedPIDs.get_slab_bytes());
+	StoreArenaNonBlocking(TaggedPIDsSlab, slab);
 
-    // Write out the pos/vel of the taggable particles in L1 halos
-    GGS.L1Particles.copy_to_ptr((RVfloat *)LBW->AllocateSpecificSize(L1ParticlesSlab, 
-    		slab, GGS.L1Particles.get_slab_bytes());
-    StoreArenaNonBlocking(L1ParticlesSlab, slab);
+	// Write out the pos/vel of the taggable particles in L1 halos
+	L1Particles.copy_to_ptr((RVfloat *)LBW->AllocateSpecificSize(L1ParticlesSlab, 
+		    slab, L1Particles.get_slab_bytes());
+	StoreArenaNonBlocking(L1ParticlesSlab, slab);
 
-    // Write out the PIDs of the taggable particles in the L1 halos
-    GGS.L1PIDs.copy_to_ptr((TaggedPID *)LBW->AllocateSpecificSize(L1PIDsSlab, 
-    		slab, GGS.L1PIDs.get_slab_bytes());
-    StoreArenaNonBlocking(L1PIDsSlab, slab);
+	// Write out the PIDs of the taggable particles in the L1 halos
+	L1PIDs.copy_to_ptr((TaggedPID *)LBW->AllocateSpecificSize(L1PIDsSlab, 
+		    slab, L1PIDs.get_slab_bytes());
+	StoreArenaNonBlocking(L1PIDsSlab, slab);
 
-    return;
-}
-#endif
+	return;
+    }
+    #endif
+
+};  // End GlobalGroupSlab class
+
+
+
+
+
+
+
+
+
 
 void FindAndProcessGlobalGroups(int slab) {
     slab = GFC->WrapSlab(slab);
     GlobalGroupSlab GGS(slab);
     GGS.globalgroups.setup(GFC->cpd, GFC->particles_per_pencil);   // TODO: Correct size to start?
     GGS.globalgrouplist.setup(GFC->cpd, GFC->particles_per_pencil);   // TODO: Correct size to start?
-    assert(GGS.pstat!=NULL);
     CreateGlobalGroups(GGS.slab, GGS.globalgroups, GGS.globalgrouplist, GGS.pstat);
     STDLOG(1,"Closed global groups in slab %d, finding %lld groups involving %lld cell groups\n", slab, GGS.globalgroups.size(), GGS.globalgrouplist.size());
     GFC->GGtot += GGS.globalgroups.get_slab_size();
@@ -806,9 +813,9 @@ void FindAndProcessGlobalGroups(int slab) {
     GGS.ScatterGlobalGroupsAux();
 
     #ifdef ASCII_TEST_OUTPUT
-    SimpleOutput(slab, GGS);
+    GGS.SimpleOutput();
     #endif
-    HaloOutput(slab, GGS);
+    GGS.HaloOutput();
 
     GGS.ScatterGlobalGroups();
     return;
