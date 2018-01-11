@@ -817,12 +817,12 @@ int main() {
 
     // Now to setup the FOF and then execute it
     
-    printf("Starting FoF\n"); fflush(NULL);
+    STDLOG(1,"Starting FoF\n"); fflush(NULL);
     FOFcell doFOF[64];
     #pragma omp parallel for schedule(static)
     for (int g=0; g<omp_get_num_threads(); g++) {
 	doFOF[g].setup(b, 0.5-b);
-	if (g==0) printf("Using %d threads\n", omp_get_num_threads());
+	if (g==0) STDLOG(2,"Using %d threads\n", omp_get_num_threads());
     }
 
     STimer FOFtime;
@@ -843,18 +843,18 @@ int main() {
     // For timing, the quantity of interest is probably pairs per second.
     float Npair = (float)Ncell*cellsize*cellsize;
 
-    printf("Found %f groups per cell, on average\n", (float)ngroup/Ncell);
-    printf("Used %lld pairwise calculations\n", doFOF[0].numdists);
-    printf("Time to do %d particles in %d cells: %f (%f Mp/sec, %f Gpair/sec)\n", 
+    STDLOG(2,"Found %f groups per cell, on average\n", (float)ngroup/Ncell);
+    STDLOG(2,"Used %lld pairwise calculations\n", doFOF[0].numdists);
+    STDLOG(2,"Time to do %d particles in %d cells: %f (%f Mp/sec, %f Gpair/sec)\n", 
     	cellsize, Ncell, FOFtime.Elapsed(), cellsize*Ncell/FOFtime.Elapsed()/1e6,
 	doFOF[0].numdists/doFOF[0].time_total.Elapsed()/1e9);
-    printf("Copy:      %f\n", doFOF[0].time_copy.Elapsed());
-    printf("   Distances: %f\n", doFOF[0].time_d2.Elapsed());
-    printf("   Partition: %f\n", doFOF[0].time_partition.Elapsed());
-    printf("   Close Groups: %f\n", doFOF[0].time_close.Elapsed());
-    printf("FOF:       %f\n", doFOF[0].time_fof.Elapsed());
-    printf("Permute:   %f\n", doFOF[0].time_permute.Elapsed());
-    printf("Total:     %f\n", doFOF[0].time_total.Elapsed());
+    STDLOG(2,"Copy:      %f\n", doFOF[0].time_copy.Elapsed());
+    STDLOG(2,"   Distances: %f\n", doFOF[0].time_d2.Elapsed());
+    STDLOG(2,"   Partition: %f\n", doFOF[0].time_partition.Elapsed());
+    STDLOG(2,"   Close Groups: %f\n", doFOF[0].time_close.Elapsed());
+    STDLOG(2,"FOF:       %f\n", doFOF[0].time_fof.Elapsed());
+    STDLOG(2,"Permute:   %f\n", doFOF[0].time_permute.Elapsed());
+    STDLOG(2,"Total:     %f\n", doFOF[0].time_total.Elapsed());
     return 0;
 }
 

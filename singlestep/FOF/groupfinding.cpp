@@ -28,7 +28,7 @@ class GroupFindingControl {
     FOFloat boundary;	// The distance from the origin that indicates that something
     		// is within linking_length of the edge
     int GroupRadius;    // Cell radius for group finding
-    Float invcpd;
+    FLOAT invcpd;
     uint64 np; // the number of particles in the simulation; used to compute buffers
 
     // Parameters for finding subgroups
@@ -96,14 +96,13 @@ class GroupFindingControl {
 
 
     void report() {
-	 // TODO: Eventually these should be STDLOG
-	 printf("Found %lld cell groups (including boundary singlets)\n", CGtot);
-	 printf("Used %lld pseudoParticles, %lld faceParticles, %lld faceGroups\n",
+	 STDLOG(2,"Found %lld cell groups (including boundary singlets)\n", CGtot);
+	 STDLOG(2,"Used %lld pseudoParticles, %lld faceParticles, %lld faceGroups\n",
 	     pPtot, fPtot, fGtot);
-	 printf("Found %lld links between groups.\n", Ltot);
-	 printf("Found %lld global groups\n", GGtot);
-	 printf("Longest GroupLink list was %lld, compared to %lld allocation\n", GLL->longest, GLL->maxlist);
-	 printf("Largest Global Group has %d particles\n", largest_GG);
+	 STDLOG(2,"Found %lld links between groups.\n", Ltot);
+	 STDLOG(2,"Found %lld global groups\n", GGtot);
+	 STDLOG(2,"Longest GroupLink list was %lld, compared to %lld allocation\n", GLL->longest, GLL->maxlist);
+	 STDLOG(2,"Largest Global Group has %d particles\n", largest_GG);
 
 	 float total_time = CellGroupTime.Elapsed()+
 			CreateFaceTime.Elapsed()+
@@ -115,35 +114,35 @@ class GroupFindingControl {
 			GatherGroups.Elapsed()+
 			ProcessLevel1.Elapsed()+
 			ScatterGroups.Elapsed();
-	 printf("\nTimings: \n");
+	 STDLOG(2,"\nTimings: \n");
 	 #define RFORMAT(a) a.Elapsed(), a.Elapsed()/total_time*100.0
-	 printf("Finding Cell Groups:     %8.4f sec (%5.2f%%)\n",
+	 STDLOG(2,"Finding Cell Groups:     %8.4f sec (%5.2f%%)\n",
 			RFORMAT(CellGroupTime));
-	 printf("Creating Faces:          %8.4f sec (%5.2f%%)\n",
+	 STDLOG(2,"Creating Faces:          %8.4f sec (%5.2f%%)\n",
 			RFORMAT(CreateFaceTime));
-	 printf("Finding Group Links:     %8.4f sec (%5.2f%%)\n",
+	 STDLOG(2,"Finding Group Links:     %8.4f sec (%5.2f%%)\n",
 			RFORMAT(FindLinkTime));
-	 printf("Sort Links:              %8.4f sec (%5.2f%%)\n",
+	 STDLOG(2,"Sort Links:              %8.4f sec (%5.2f%%)\n",
 			RFORMAT(SortLinks));
-	 printf("Index Links:             %8.4f sec (%5.2f%%)\n",
+	 STDLOG(2,"Index Links:             %8.4f sec (%5.2f%%)\n",
 			RFORMAT(IndexLinks));
-	 printf("Find Global Groups:      %8.4f sec (%5.2f%%)\n",
+	 STDLOG(2,"Find Global Groups:      %8.4f sec (%5.2f%%)\n",
 			RFORMAT(FindGlobalGroupTime));
-	 printf("Index Global Groups:     %8.4f sec (%5.2f%%)\n",
+	 STDLOG(2,"Index Global Groups:     %8.4f sec (%5.2f%%)\n",
 			RFORMAT(IndexGroups));
-	 printf("Gather Group Particles:  %8.4f sec (%5.2f%%)\n",
+	 STDLOG(2,"Gather Group Particles:  %8.4f sec (%5.2f%%)\n",
 			RFORMAT(GatherGroups));
-	 printf("Level 1 & 2 Processing:  %8.4f sec (%5.2f%%)\n",
+	 STDLOG(2,"Level 1 & 2 Processing:  %8.4f sec (%5.2f%%)\n",
 			RFORMAT(ProcessLevel1));
-	 printf("Level 1 FOF:                  %8.4f sec (%5.2f%%)\n",
+	 STDLOG(2,"Level 1 FOF:                  %8.4f sec (%5.2f%%)\n",
 			RFORMAT(L1FOF));
-	 printf("Level 2 FOF:                  %8.4f sec (%5.2f%%)\n",
+	 STDLOG(2,"Level 2 FOF:                  %8.4f sec (%5.2f%%)\n",
 			RFORMAT(L2FOF));
-	 printf("Level 1 Total:                %8.4f sec (%5.2f%%)\n",
+	 STDLOG(2,"Level 1 Total:                %8.4f sec (%5.2f%%)\n",
 			RFORMAT(L1Tot));
-	 printf("Scatter Group Particles: %8.4f sec (%5.2f%%)\n",
+	 STDLOG(2,"Scatter Group Particles: %8.4f sec (%5.2f%%)\n",
 			RFORMAT(ScatterGroups));
-	 printf("Total Booked Time:       %8.4f sec (%5.2f Mp/sec)\n", total_time, np/total_time*1e-6);
+	 STDLOG(2,"Total Booked Time:       %8.4f sec (%5.2f Mp/sec)\n", total_time, np/total_time*1e-6);
 	 #undef RFORMAT
     }
 };
@@ -705,47 +704,45 @@ void HaloOutput(int slab, GlobalGroupSlab &GGS) {
     // a given file should be written.  
     // TODO: Need to add these arena names to slabtypes (or change them here).
     // DJE suspects there are duplications in function.
+    // TODO: we talked about controlling the output by having top level action allocate these (or not).  Is that still the plan?
 
     // Write out the stats on the L1 halos
-    GGS.L1halos.copy_to_ptr((HaloStat *)LBW->AllocateSpecificSize(L1halosSlab, 
-    		slab, GGS.L1halos.get_slab_bytes());
-    StoreArenaNonBlocking(L1halosSlab, slab);
+    GGS.L1halos.copy_to_ptr((HaloStat *)LBW->AllocateArena(L1halosSlab, slab));
+    LBW->StoreArenaNonBlocking(L1halosSlab, slab);
 
     // Write out tagged PIDs from the L1 halos
-    GGS.TaggedPIDs.copy_to_ptr((TaggedPID *)LBW->AllocateSpecificSize(TaggedPIDsSlab, 
-    		slab, GGS.TaggedPIDs.get_slab_bytes());
-    StoreArenaNonBlocking(TaggedPIDsSlab, slab);
+    GGS.TaggedPIDs.copy_to_ptr((TaggedPID *)LBW->AllocateArena(TaggedPIDsSlab, slab));
+    LBW->StoreArenaNonBlocking(TaggedPIDsSlab, slab);
 
     // Write out the pos/vel of the taggable particles in L1 halos
-    GGS.L1Particles.copy_to_ptr((RVfloat *)LBW->AllocateSpecificSize(L1ParticlesSlab, 
-    		slab, GGS.L1Particles.get_slab_bytes());
-    StoreArenaNonBlocking(L1ParticlesSlab, slab);
+    GGS.L1Particles.copy_to_ptr((RVfloat *)LBW->AllocateArena(L1ParticlesSlab, slab));
+    LBW->StoreArenaNonBlocking(L1ParticlesSlab, slab);
 
     // Write out the PIDs of the taggable particles in the L1 halos
-    GGS.L1PIDs.copy_to_ptr((TaggedPID *)LBW->AllocateSpecificSize(L1PIDsSlab, 
-    		slab, GGS.L1PIDs.get_slab_bytes());
-    StoreArenaNonBlocking(L1PIDsSlab, slab);
+    GGS.L1PIDs.copy_to_ptr((TaggedPID *)LBW->AllocateArena(L1PIDsSlab, slab));
+    LBW->StoreArenaNonBlocking(L1PIDsSlab, slab);
 
     // Write out the taggable particles not in L1 halos
-    uint64 maxsize = PP->np*taggable_fraction*1.05;
     uint64 nfield = GatherTaggableFieldParticles(slab,
-	(RVfloat *) LBW->AllocateSpecificSize(TaggableFieldSlab, slab, sizeof(RVfloat)
-	(TaggedPID *) LBW->AllocateSpecificSize(TaggableFieldPIDSlab, slab, sizeof(TaggedPID));
+        (RVfloat *) LBW->AllocateArena(TaggableFieldSlab, slab)
+        (TaggedPID *) LBW->AllocateArena(TaggableFieldPIDSlab, slab));
     LBW->ResizeSlab(TaggableFieldSlab, slab, nfield*sizeof(RVfloat));
     LBW->ResizeSlab(TaggableFieldPIDSlab, slab, nfield*sizeof(TaggedPID));
-    StoreArenaNonBlocking(TaggableFieldSlab, slab);
-    StoreArenaNonBlocking(TaggableFieldPIDSlab, slab);
+    LBW->StoreArenaNonBlocking(TaggableFieldSlab, slab);
+    LBW->StoreArenaNonBlocking(TaggableFieldPIDSlab, slab);
     return;
 }
 #endif
 
 void FindAndProcessGlobalGroups(int slab) {
     slab = GFC->WrapSlab(slab);
-    GlobalGroupSlab GGS(slab);
+	GlobalGroupSlab GGS(slab);
+    // TODO: we might opt to initialize and destroy GGS(slab) outside this function
+    
     GGS.globalgroups.setup(GFC->cpd, 1024);   // TODO: Correct size to start?
     GGS.globalgrouplist.setup(GFC->cpd, 1024);   // TODO: Correct size to start?
     CreateGlobalGroups(GGS.slab, GGS.globalgroups, GGS.globalgrouplist);
-    STDLOG(1,"Closed global groups in slab %d, finding %lld groups involving %lld cell groups\n", slab, GGS.globalgroups.size(), GGS.globalgrouplist.size());
+    STDLOG(1,"Closed global groups in slab %d, finding %lld groups involving %lld cell groups\n", slab, GGS.globalgroups.get_slab_size(), GGS.globalgrouplist.get_slab_size());
     GFC->GGtot += GGS.globalgroups.get_slab_size();
 
     // Now process and output each one....
@@ -768,6 +765,7 @@ void FindAndProcessGlobalGroups(int slab) {
     HaloOutput(slab, GGS);
 
     GGS.ScatterGlobalGroups();
+    
     return;
 }
 

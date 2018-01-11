@@ -133,10 +133,8 @@ public:
 
     int AllowGroupFinding;
     double FoFLinkingLength[3]; //Linking lengths for level 0,1,2 groupfinding in fractional interparticle spacing 
-    int TaggableL0Threshold; //Number of particles above which a L0 halo is eligible for tagging
-    int TaggableL1Threshold; //Number of particles above which a L0 halo is eligible for tagging
-    int MinL1NP;
-    int MinL2NP;
+    int MinL1HaloNP; // minimum L1 halo size to output
+    double HaloTaggableFraction; // fraction of particles in a L2 halo to tag and output
 
     // in MB
     unsigned int getCacheSize(){
@@ -301,17 +299,13 @@ public:
         AllowGroupFinding = 0;
         installscalar("AllowGroupFinding",AllowGroupFinding, DONT_CARE);
         FoFLinkingLength[0] = .25;
-        FoFLinkingLength[1] = .168;
-        FoFLinkingLength[2] = .15;
+        FoFLinkingLength[1] = .186;
+        FoFLinkingLength[2] = .138;
         installvector("FoFLinkingLength",FoFLinkingLength,3,1,DONT_CARE);
-        MinL1NP = 10;
-        MinL2NP = 10;
-        TaggableL0Threshold = 1;
-        TaggableL1Threshold = 1;
-        installscalar("TaggableL0Threshold",TaggableL0Threshold, DONT_CARE);
-        installscalar("TaggableL1Threshold",TaggableL1Threshold, DONT_CARE);
-        installscalar("MinL1NP", MinL1NP, DONT_CARE);
-        installscalar("MinL2NP", MinL2NP, DONT_CARE);
+        MinL1HaloNP = 10;
+        installscalar("MinL1HaloNP", MinL1HaloNP, DONT_CARE);
+        HaloTaggableFraction = 0.1;
+        installscalar("HaloTaggableFraction", HaloTaggableFraction, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.

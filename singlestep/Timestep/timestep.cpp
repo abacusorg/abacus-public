@@ -35,7 +35,9 @@ Dependency Kick;
 Dependency Drift;
 Dependency Finish;
 Dependency Output;
-Dependency Group;
+Dependency MakeCellGroups;
+Dependency FindCellGroupLinks;
+Dependency DoGlobalGroups;
 Dependency LPTVelocityReRead;
 
 
@@ -275,7 +277,74 @@ void KickAction(int slab) {
 
 // -----------------------------------------------------------------
 
-int GroupPrecondition(int slab) {
+int MakeCellGroupsPrecondition(int slab) {
+    // Only PosXYZ is used for sources, so we're free to rearrange PosSlab
+    // in group finding after the transpose
+    if( TransposePos.notdone(slab) ) return 0;
+    
+    // Need the new velocities because we're going to rearrange particles
+    if( Kick.notdone(slab) ) return 0;
+    
+    // Also need the auxs, because we're going to re-order
+    if( !LBW->IOCompleted( AuxSlab, slab ) ) {
+        Dependency::NotifySpinning(WAITING_FOR_IO);
+        return 0;
+    }
+    return 1;
+    // TODO: Is it ok that the AccSlab is not being reordered now?
+    // LHG thinks this might be resolved now by the fact that the cells do contain acc pointers
+}
+
+void MakeCellGroupsAction(int slab) {
+    STDLOG(1,"Making Cell Groups in slab %d\n", slab);
+    GFC->ConstructCellGroups(slab);
+    return;
+}
+
+// -----------------------------------------------------------------
+
+int FindCellGroupLinksPrecondition(int slab) {
+    // We want to find all links between this slab and the one just behind
+    for (int j=-1; j<=0; j++) 
+        if (MakeCellGroups.notdone(slab+j)) return 0;
+    return 1;
+}
+
+void FindCellGroupLinksAction(int slab) {
+    // Find links between slab and slab-1
+    STDLOG(1,"Finding Group Links between slab %d and %d\n", slab, slab-1);
+    FindGroupLinks(slab);
+    return;
+}
+
+// -----------------------------------------------------------------
+
+int DoGlobalGroupsPrecondition(int slab) {
+    // We're going to close all CellGroups in this slab.
+    // GlobalGroups can span 2*GroupRadius+1.
+    // But even though we usually encounter a CellGroup in its minimum slab,
+    // we could be anywhere in the first instance.  So we have to query a big range.
+    // That said, if the nearby slab has already closed global groups, then
+    // we can proceed.
+    for (int j=-2*GFC->GroupRadius+1; j<=2*GFC->GroupRadius; j++) 
+        if (FindCellGroupLinks.notdone(slab+j) && DoGlobalGroups.notdone(slab+j)) return 0;
+    return 1;
+}
+void DoGlobalGroupsAction(int slab) {
+    STDLOG(0,"Finding Global Groups in slab %d\n", slab);
+    FindAndProcessGlobalGroups(slab);
+    // TODO: LightCone Outputs might have to go here, since we need the GlobalGroups
+    // or can they stay in OutputAction?
+
+    // At this point, all CellGroups in this slab have been closed and used
+    // so we can delete them.
+    GFC->DestroyCellGroups(slab);
+    return;
+}
+
+// -----------------------------------------------------------------
+
+/*int GroupPrecondition(int slab) {
     // TODO: are these the right dependencies?
     // Only PosXYZ is used for sources, so we're free to rearrange PosSlab after the transpose
     if( TransposePos.notdone(slab) ) return 0;
@@ -298,6 +367,7 @@ void GroupAction(int slab) {
     // We can't be doing group finding during an IC step
     if(P.ForceOutputDebug) return;  // can't rearrange the pos if we've already output the nearacc
     
+    // do we still need this in the new fof?
     STDLOG(1,"Zeroing Aux L0 field\n");
 
     #pragma omp parallel for schedule(dynamic, 1)
@@ -316,7 +386,7 @@ void GroupAction(int slab) {
     GroupExecute.Stop();
     // One could also use the Accelerations to set individual particle microstep levels.
     // (one could imagine doing this in Force, but perhaps one wants the group context?)
-}
+}*/
 
 // -----------------------------------------------------------------
 /*
@@ -325,8 +395,9 @@ void GroupAction(int slab) {
  */
 int OutputPrecondition(int slab) {
     if (Kick.notdone(slab)) return 0;  // Must have kicked because output does a half un-kick
-    if (Group.notdone(slab)) return 0;  // Must have found groups
-    if (!P.ForceOutputDebug && P.AllowGroupFinding && !GF->SlabClosed(slab) && !LPTStepNumber()) return 0; 
+    if (DoGlobalGroups.notdone(slab)) return 0;  // Must have found groups to be able to output light cones
+    // note that group outputs were already done
+    
     return 1;
 }
 
@@ -375,10 +446,10 @@ void OutputAction(int slab) {
     }
     OutputBin.Stop();
 
-    OutputGroup.Start();
+    /*OutputGroup.Start();
     if(!P.ForceOutputDebug && P.AllowGroupFinding && !LPTStepNumber())
         GF->OutputSlab(slab);
-    OutputGroup.Stop();
+    OutputGroup.Stop();*/
 
 }
 
@@ -466,8 +537,8 @@ void DriftAction(int slab) {
     }
     LBW->DeAllocate(NearAccSlab,slab);
 
-    if(!P.ForceOutputDebug && P.AllowGroupFinding && !LPTStepNumber()) 
-       GF->PurgeSlab(slab);
+    //if(!P.ForceOutputDebug && P.AllowGroupFinding && !LPTStepNumber()) 
+    //   GF->PurgeSlab(slab);
 
 }
 
@@ -550,15 +621,17 @@ void timestep(void) {
     int first = first_slab_to_load; 
     STDLOG(1,"First slab to load will be %d\n", first);
 
-       FetchSlabs.instantiate(cpd, first, &FetchSlabPrecondition,     &FetchSlabAction     );
-     TransposePos.instantiate(cpd, first, &TransposePosPrecondition,  &TransposePosAction  );
-        NearForce.instantiate(cpd, first, &NearForcePrecondition,     &NearForceAction     );
-      TaylorForce.instantiate(cpd, first, &TaylorForcePrecondition,   &TaylorForceAction   );
-             Kick.instantiate(cpd, first, &KickPrecondition,          &KickAction          );
-            Group.instantiate(cpd, first, &GroupPrecondition,         &GroupAction         );
-           Output.instantiate(cpd, first, &OutputPrecondition,        &OutputAction        );
-            Drift.instantiate(cpd, first, &DriftPrecondition,         &DriftAction         );
-           Finish.instantiate(cpd, first, &FinishPrecondition,        &FinishAction        );
+        FetchSlabs.instantiate(cpd, first, &FetchSlabPrecondition,          &FetchSlabAction         );
+      TransposePos.instantiate(cpd, first, &TransposePosPrecondition,       &TransposePosAction      );
+         NearForce.instantiate(cpd, first, &NearForcePrecondition,          &NearForceAction         );
+       TaylorForce.instantiate(cpd, first, &TaylorForcePrecondition,        &TaylorForceAction       );
+              Kick.instantiate(cpd, first, &KickPrecondition,               &KickAction              );
+    MakeCellGroups.instantiate(cpd, first, &MakeCellGroupsPrecondition,     &MakeCellGroupsAction    );
+FindCellGroupLinks.instantiate(cpd, first, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction);
+    DoGlobalGroups.instantiate(cpd, first, &DoGlobalGroupsPrecondition,     &DoGlobalGroupsAction    );
+            Output.instantiate(cpd, first, &OutputPrecondition,             &OutputAction            );
+             Drift.instantiate(cpd, first, &DriftPrecondition,              &DriftAction             );
+            Finish.instantiate(cpd, first, &FinishPrecondition,             &FinishAction            );
            
 if(WriteState.Do2LPTVelocityRereading)
 LPTVelocityReRead.instantiate(cpd, first + 2*FORCE_RADIUS + 1 - FINISH_WAIT_RADIUS,
@@ -570,7 +643,9 @@ LPTVelocityReRead.instantiate(cpd, first + 2*FORCE_RADIUS + 1 - FINISH_WAIT_RADI
             NearForce.Attempt();
           TaylorForce.Attempt();
                  Kick.Attempt();
-                Group.Attempt();
+       MakeCellGroups.Attempt();
+   FindCellGroupLinks.Attempt();
+       DoGlobalGroups.Attempt();
                Output.Attempt();
   if(WriteState.Do2LPTVelocityRereading)
     LPTVelocityReRead.Attempt();

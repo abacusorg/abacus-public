@@ -130,7 +130,7 @@ Redlack *RL;
 
 #include "check.cpp"
 
-#include"Cosmology.cpp"
+#include "Cosmology.cpp"
 Cosmology *cosm;
 #include "output_timeslice.cpp"
 #include "LightCones.cpp"
@@ -141,11 +141,7 @@ Cosmology *cosm;
 #include "binning.cpp"
 FLOAT * density; //!< Array to accumulate gridded densities in for low resolution inline power-spectra.
 
-#include "groupfinder.hh"
-#include "abacusoutputstrategy.cc"
-#include "groupfinder.cc"
-
-GroupFinder<AbacusOutputStrategy> * GF;
+#include "groupfinding.cpp"
 
 #include "timestep.cpp"
 #include "reporting.cpp"
@@ -210,9 +206,10 @@ void Prologue(Parameters &P, bool ic) {
             RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
         
         if(P.AllowGroupFinding){
-            AbacusOutputStrategy *groupout = new AbacusOutputStrategy();
-            FLOAT lambda = P.FoFLinkingLength[0]/pow(P.np,1./3);
-            GF = new GroupFinder<AbacusOutputStrategy>(lambda, P.cpd, groupout);
+            GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
+                                          P.FoFLinkingLength[1]/pow(P.np,1./3),
+                                          P.FoFLinkingLength[2]/pow(P.np,1./3),
+                                          P.cpd, PP->invcpd, P.GroupRadius, P.MinL1HaloNP, P.np);
         }
     } else {
             TY = NULL;

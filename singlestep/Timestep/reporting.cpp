@@ -239,8 +239,13 @@ void ReportTimings(FILE * timingfile) {
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
     REPORT(1, "Output", Output.Elapsed()); total += thistime;
     fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
-    REPORT(1, "Group", Group.Elapsed()); total += thistime;
+    REPORT(1, "MakeCellGroups", MakeCellGroups.Elapsed()); total += thistime;
     fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+    REPORT(1, "FindCellGroupLinks", FindCellGroupLinks.Elapsed()); total += thistime;
+    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+    REPORT(1, "DoGlobalGroups", DoGlobalGroups.Elapsed()); total += thistime;
+    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+   
     if(WriteState.Do2LPTVelocityRereading){
         REPORT(1, "Velocity Re-reading for LPT", LPTVelocityReRead.Elapsed()); total += thistime;
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
