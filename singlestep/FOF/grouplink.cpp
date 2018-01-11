@@ -73,7 +73,7 @@ public:
     ~GroupLinkList(void) { 
     }
     
-    void DoublePush(LinkID _a, LinkID _b) {
+    inline void DoublePush(LinkID _a, LinkID _b) {
 	// We push reciprocally
 	GroupLink gl(_a,_b);
 	Push(gl);

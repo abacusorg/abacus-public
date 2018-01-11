@@ -10,6 +10,22 @@ closed.
 
 */
 
+// This class will accumulate an estimate of the amount of L1 work in each pencil,
+// in the hopes that ordering the threads by this will yield better load balancing.
+class PencilStats {
+  public:
+    float work;   // The estimated amount of work this pencil will require
+    int pnum; 	// The pencil number
+    int pad[14];   // To avoid cache line contention.
+    
+    PencilStats() { pnum = -1; work = 0.0; }
+    // We provide a sort operator that will yield a decreasing list
+    bool operator< (const PencilStats& c) const { return (work>c.work); }
+
+    inline void add(float newwork) { work += newwork; }
+    void reset(int _pnum) { pnum = _pnum; work = 0.0; }
+};
+
 class GlobalGroup {
     public:
     int ncellgroups;    // The number of CellGroups in this GlobalGroup
@@ -41,11 +57,12 @@ class LinkPencil {
   public:
     GroupLink *data;   // Where this pencil starts
     LinkIndex *cells; 	// [0,cpd)
+    // uint64 pad[6];	// To fill up 64 bytes
 
     LinkPencil() { data = NULL; cells = NULL; }
     ~LinkPencil() {}
 
-    void IndexPencil(LinkIndex *_cells, GroupLink *start, GroupLink *end, int slab, int j) {
+    inline void IndexPencilOld(LinkIndex *_cells, GroupLink *start, GroupLink *end, int slab, int j) {
 	// GroupLinks for this Pencil begin at *start, end at *end
 	// cells is where we put results, external array [0,cpd)
         cells = _cells;  // Copy the external pointer
@@ -60,6 +77,25 @@ class LinkPencil {
 	}
 	return;
     }
+
+    inline void IndexPencil(LinkIndex *_cells, GroupLink *start, GroupLink *end, int slab, int j) {
+	// GroupLinks for this Pencil begin at *start, end at *end
+	// cells is where we put results, external array [0,cpd)
+        cells = _cells;  // Copy the external pointer
+	data = start;    // Where we'll index this pencil from
+	uint64 iptr = 0, iend = end-start;
+	for (int k=0; k<GFC->cpd; k++) {
+	    GroupLink ref; 
+	    uint64 ibegin = iptr;
+	    cells[k].start = ibegin;
+	    // Now search for the end of this cell
+	    ref.a = LinkID(slab, j, k+1, 0);    // This is the starting point we're seeking
+	    while (iptr<iend && start[iptr]<ref) iptr++;   // Advance to the end
+	    cells[k].n = iptr-ibegin;
+	}
+	return;
+    }
+
 };
 
 inline CellGroup *LinkToCellGroup(LinkID link) {
@@ -68,18 +104,96 @@ inline CellGroup *LinkToCellGroup(LinkID link) {
     return GFC->cellgroups[c.x][c.y][c.z].ptr(link.cellgroup());
 }
 
-void CreateGlobalGroups(int slab,
-		SlabAccum<GlobalGroup> &globalgroups,
-		SlabAccum<LinkID> &globalgrouplist) {
-    // For this slab, we want to traverse the graph of links to find all GlobalGroups
+
+
+/* =================  GlobalGroupSlab ======================== */
+
+
+class GlobalGroupSlab {
+  public:
+    SlabAccum<GlobalGroup> globalgroups;
+    	// The global group information
+    SlabAccum<LinkID> globalgrouplist;
+    	// The cell group decompositions of these global groups
+
+    // The following accumulate possible output 
+    SlabAccum<HaloStat> L1halos;	// Stats about each L1 halo
+    SlabAccum<TaggedPID> TaggedPIDs;	// The tagged PIDs in each L1 halo
+    SlabAccum<RVfloat> L1Particles;     // The taggable subset in each L1 halo, pos/vel
+    SlabAccum<TaggedPID> L1PIDs;	// The taggable subset in each L1 halo, PID
+    
+    int slab;    // This slab number
+    posstruct *pos;  // Big vectors of all of the pos/vel/aux for these global groups
+    velstruct *vel;
+    auxstruct *aux;
+    accstruct *acc;
+    uint64 np;
+
+    // We're going to accumulate an estimate of work in each pencil
+    PencilStats *pstat;    // Will be [0,cpd)
+
+    int largest_group;
+
+
+    void setup(int _slab) {
+	assert(pstat==NULL);    // Otherwise, we're re-allocating something!
+        pos = NULL; vel = NULL; aux = NULL; acc = NULL; np = 0;
+	slab = GFC->WrapSlab(_slab); largest_group = 0;
+	int ret = posix_memalign((void **) &pstat, 64, sizeof(PencilStats)*GFC->cpd);
+	assert(ret==0);
+	for (int j=0; j<GFC->cpd; j++) pstat[j].reset(j);
+	globalgroups.setup(GFC->cpd, GFC->particles_per_pencil);   
+	globalgrouplist.setup(GFC->cpd, GFC->particles_per_pencil);   
+    }
+    void destroy() {
+	// TODO: If we use arenas, change this
+        if (pos!=NULL) free(pos); pos = NULL;
+        if (vel!=NULL) free(vel); vel = NULL;
+        if (aux!=NULL) free(aux); aux = NULL;
+        if (acc!=NULL) free(acc); acc = NULL;
+	if (pstat!=NULL) free(pstat); pstat = NULL;
+	np = 0;
+    }
+
+    void allocate(uint64 _np) {
+	np = _np;
+	// TODO: May eventually prefer these to be arenas.
+	int ret;
+        ret = posix_memalign((void **)&pos, 4096, sizeof(posstruct)*np); assert(ret==0);
+        ret = posix_memalign((void **)&vel, 4096, sizeof(velstruct)*np); assert(ret==0);
+        ret = posix_memalign((void **)&aux, 4096, sizeof(auxstruct)*np); assert(ret==0);
+        ret = posix_memalign((void **)&acc, 4096, sizeof(accstruct)*np); assert(ret==0);
+    }
+
+    GlobalGroupSlab() { pstat = NULL; }    // We have a null constructor
+    ~GlobalGroupSlab() { destroy(); }
+
+    void CreateGlobalGroups();
+    void GatherGlobalGroups();
+    void ScatterGlobalGroupsAux();
+    void ScatterGlobalGroups();
+    void FindSubGroups();
+    void SimpleOutput();
+    void HaloOutput();
+
+};
+
+
+
+
+void GlobalGroupSlab::CreateGlobalGroups() {
+    // For this slab, we want to traverse the graph of links to find all GlobalGroups.
+    // Given pstat[0,cpd)
+    assert(pstat!=NULL);   // Setup not yet called!
     GFC->SortLinks.Start();
-    slab = GFC->WrapSlab(slab);
 
     // The groups can span 2*R+1 slabs, but we might be on either end,
     // so we have to consider 4*R+1.
     int rad = GFC->GroupRadius;	
     int diam = 4*rad+1;
     int cpd = GFC->cpd;
+    // int cpdpad = (cpd/8+1)*8;   // A LinkIndex is 8 bytes, so let's get each pencil onto a different cacheline
+    int cpdpad = cpd;
     
     // We're going to sort the GLL and then figure out the starting index 
     // of every cell in this slab.
@@ -90,9 +204,12 @@ void CreateGlobalGroups(int slab,
     LinkPencil **links;		// For several slabs and all pencils in each
     links = (LinkPencil **)malloc(sizeof(LinkPencil *)*diam);
     links[0] = (LinkPencil *)malloc(sizeof(LinkPencil)*diam*cpd);
+
+    {int ret = posix_memalign((void **)&(links[0]), 64, sizeof(LinkPencil)*diam*cpd); assert(ret==0);}
     for (int j=1; j<diam; j++) links[j] = links[j-1]+cpd;
     LinkIndex *cells;
-    cells = (LinkIndex *)malloc(sizeof(LinkIndex)*diam*cpd*cpd);
+    {int ret = posix_memalign((void **)&cells, 64, sizeof(LinkIndex)*diam*cpd*cpdpad); assert(ret==0);}
+    // cells = (LinkIndex *)malloc(sizeof(LinkIndex)*diam*cpd*cpdpad);
     for (int s=0; s<diam; s++) {
 	int thisslab = GFC->WrapSlab(slab+s-diam/2);
 	assert(GFC->cellgroups_status[thisslab]>0);
@@ -103,7 +220,10 @@ void CreateGlobalGroups(int slab,
 	    GroupLink *start = GFC->GLL->Search(thisslab, j);
 	    // printf("Pencil %d %d starts at %d\n", thisslab, j, (int)(start-GFC->GLL->list));
 	    // Find the start for each Cell in the pencil
-	    links[s][j].IndexPencil(cells+(s*cpd+j)*cpd, start, GFC->GLL->list+GFC->GLL->length, thisslab, j);
+	    // This step does dominate the time
+	    GFC->IndexLinksIndex.Start();
+	    links[s][j].IndexPencil(cells+(s*cpd+j)*cpdpad, start, GFC->GLL->list+GFC->GLL->length, thisslab, j);
+	    GFC->IndexLinksIndex.Stop();
 
 	    // for (int k=0; k<cpd; k++) 
 		// printf("%d %d %d starts at %d %d\n", thisslab, j, k, links[s][j].cells[k].start, links[s][j].cells[k].n);
@@ -120,6 +240,7 @@ void CreateGlobalGroups(int slab,
     // Pick a division no less than diam that divides into CPD so that 
     // we can skip this issue.
     int split = diam;
+    MultiplicityStats L0stats[omp_get_max_threads()];
     while (split<cpd && cpd%split!=0) split++;
     for (int w=0; w<split; w++) {
 	#pragma omp parallel for schedule(dynamic,1) 
@@ -150,10 +271,10 @@ void CreateGlobalGroups(int slab,
 				// beyond 2*R+1 cells and something got closed
 				// prematurely.
 			thiscg->close_group();
-			if (searching>0) {
+			// if (searching>0) {
 			    // printf("Link to %d %d %d %d\n",
 			    	// thiscell.x, thiscell.y, thiscell.z, cglist[searching].cellgroup());
-			}
+			// }
 			// Now get these links
 			int s = GFC->WrapSlab(thiscell.x-slab+diam/2);  // Map to [0,diam)
 			LinkPencil *lp = links[s]+thiscell.y;
@@ -192,6 +313,9 @@ void CreateGlobalGroups(int slab,
 				// (int)cglist.size(), start, ggsize, cumulative_np);
 			gg_pencil->append(GlobalGroup(cglist.size(), start, ggsize, cumulative_np));
 			cumulative_np += ggsize;
+			L0stats[omp_get_thread_num()].push(ggsize);
+			pstat[j].add(ggsize*ggsize);
+			    // Track the later work, assuming scaling as N^2
 		    }
 		} // End this group
 		gg_pencil->FinishCell();
@@ -206,9 +330,472 @@ void CreateGlobalGroups(int slab,
     // Get rid of the links that have been used.
     GFC->GLL->PartitionAndDiscard();
 
+    // Cumulate the L0 statistics
+    for (int j=0; j<omp_get_max_threads(); j++) GFC->L0stats.add(L0stats[j]);
+
     // Free the indexing space
     free(cells);
     free(links[0]);
     free(links);
     GFC->FindGlobalGroupTime.Stop();
 }
+
+
+
+
+void GlobalGroupSlab::GatherGlobalGroups() {
+    // Copy all of the particles into a single list
+    GFC->IndexGroups.Start();
+    int diam = 2*GFC->GroupRadius+1;
+    assert(GFC->cpd>=4*GFC->GroupRadius+1);
+    // TODO: This registers the periodic wrap using the cells.
+    // However, this will misbehave if CPD is smaller than the group diameter,
+    // because the LinkIDs have already been wrapped.
+    uint64 *this_pencil = new uint64[GFC->cpd];
+    int *largest = new int[GFC->cpd];
+
+    #pragma omp parallel for schedule(static) 
+    for (int j=0; j<GFC->cpd; j++) {
+	uint64 local_this_pencil = 0;
+	int local_largest = 0;
+	for (int k=0; k<GFC->cpd; k++)
+	    for (int n=0; n<globalgroups[j][k].size(); n++) {
+		int size = globalgroups[j][k][n].np;
+		local_this_pencil += size;
+		local_largest = std::max(local_largest, size);
+	    }
+	this_pencil[j] = local_this_pencil;
+	largest[j] = local_largest;
+    }
+
+    // Now for the serial accumulation over the pencils
+    uint64 *pstart = new uint64[GFC->cpd];
+    uint64 total_particles = 0;
+    largest_group = 0;
+    for (int j=0; j<GFC->cpd; j++) {
+	pstart[j] = total_particles;    // So we have the starting indices
+	total_particles += this_pencil[j];
+	largest_group = std::max(largest[j], largest_group);
+    }
+    delete[] largest;
+    delete[] this_pencil;
+
+    // Now we can allocate these buffers
+    allocate(total_particles);
+    GFC->IndexGroups.Stop();
+
+    GFC->GatherGroups.Start();
+    // Now copy the particles into these structures
+    #pragma omp parallel for schedule(static)
+    for (int j=0; j<GFC->cpd; j++)
+	for (int k=0; k<GFC->cpd; k++)
+	    for (int n=0; n<globalgroups[j][k].size(); n++) {
+		// Process globalgroups[j][k][n]
+		// Compute where we'll put the particles, and update this starting point
+		globalgroups[j][k].ptr(n)->start += pstart[j];
+		uint64 start = globalgroups[j][k][n].start;
+
+		LinkID *cglink = globalgrouplist.pencils[j].data
+				    +globalgroups[j][k][n].cellgroupstart;
+		    // This is where we'll find the CG LinkIDs for this GG
+		integer3 firstcell(slab,j,k);
+
+		for (int c=0; c<globalgroups[j][k][n].ncellgroups; c++, cglink++) {
+		    // Loop over CellGroups
+		    integer3 cellijk = cglink->cell();
+		    CellGroup *cg = LinkToCellGroup(*cglink);
+		    // printf("%d %d %d %d in %d %d %d n=%d\n", 
+			// j, k, n, c, cellijk.x, cellijk.y, cellijk.z, cg->size());
+		    // CellGroup cg = GFC->cellgroups[cellijk.x][cellijk.y][cellijk.z][cglink->cellgroup()];
+		    Cell cell = PP->GetCell(cellijk);
+		    // Copy the particles, including changing positions to 
+		    // the cell-centered coord of the first cell.  
+		    // Note periodic wrap.
+		    memcpy(vel+start, cell.vel+cg->start, sizeof(velstruct)*cg->size());
+		    memcpy(aux+start, cell.aux+cg->start, sizeof(auxstruct)*cg->size());
+		    for (int p=0; p<cg->size(); p++) aux[p].set_L0();
+			    // This particle is in L0
+		    memcpy(acc+start, cell.acc+cg->start, sizeof(accstruct)*cg->size());
+		    cellijk -= firstcell;
+		    if (cellijk.x> diam) cellijk.x-=GFC->cpd;
+		    if (cellijk.x<-diam) cellijk.x+=GFC->cpd;
+		    if (cellijk.y> diam) cellijk.y-=GFC->cpd;
+		    if (cellijk.y<-diam) cellijk.y+=GFC->cpd;
+		    if (cellijk.z> diam) cellijk.z-=GFC->cpd;
+		    if (cellijk.z<-diam) cellijk.z+=GFC->cpd;
+		    posstruct offset = GFC->invcpd*(cellijk);
+		    // printf("Using offset %f %f %f\n", offset.x, offset.y, offset.z);
+		    for (int p=0; p<cg->size(); p++) pos[start+p] = offset+cell.pos[cg->start+p];
+		    start += cg->size();
+		} // End loop over cellgroups in this global group
+
+		// TODO: Might need to compute the COM for light cone output
+	    } // End loop over globalgroups in a cell
+    // End loop over cells
+    delete[] pstart;
+    GFC->GatherGroups.Stop();
+    return;
+}
+
+
+
+
+void GlobalGroupSlab::ScatterGlobalGroupsAux() {
+    // Write the information from pos,vel,aux back into the original Slabs
+    int diam = 2*GFC->GroupRadius+1;
+    GFC->ScatterGroups.Start();
+
+    #pragma omp parallel for schedule(static)
+    for (int j=0; j<GFC->cpd; j++)
+	for (int k=0; k<GFC->cpd; k++)
+	    for (int n=0; n<globalgroups[j][k].size(); n++) {
+		// Process globalgroups[j][k][n]
+		// Recall where the particles start
+		uint64 start = globalgroups[j][k][n].start;
+
+		LinkID *cglink = globalgrouplist.pencils[j].data
+				    +globalgroups[j][k][n].cellgroupstart;
+		    // This is where we'll find the CG LinkIDs for this GG
+		integer3 firstcell(slab,j,k);
+		for (int c=0; c<globalgroups[j][k][n].ncellgroups; c++, cglink++) {
+		    // Loop over CellGroups
+		    integer3 cellijk = cglink->cell();
+		    CellGroup *cg = LinkToCellGroup(*cglink);
+		    Cell cell = PP->GetCell(cellijk);
+		    // Copy the aux back
+		    memcpy(cell.aux+cg->start, aux+start, sizeof(auxstruct)*cg->size());
+		    start += cg->size();
+		} // End loop over cellgroups in this global group
+	    } // End loop over globalgroups in a cell
+    // End loop over cells
+    GFC->ScatterGroups.Stop();
+    return;
+}
+
+
+
+
+void GlobalGroupSlab::ScatterGlobalGroups() {
+    // Write the information from pos,vel,acc back into the original Slabs
+    // Note that aux is handled separately!
+    int diam = 2*GFC->GroupRadius+1;
+    GFC->ScatterGroups.Start();
+
+    #pragma omp parallel for schedule(static)
+    for (int j=0; j<GFC->cpd; j++)
+	for (int k=0; k<GFC->cpd; k++)
+	    for (int n=0; n<globalgroups[j][k].size(); n++) {
+		// Process globalgroups[j][k][n]
+		// Recall where the particles start
+		uint64 start = globalgroups[j][k][n].start;
+
+		LinkID *cglink = globalgrouplist.pencils[j].data
+				    +globalgroups[j][k][n].cellgroupstart;
+		    // This is where we'll find the CG LinkIDs for this GG
+		integer3 firstcell(slab,j,k);
+		for (int c=0; c<globalgroups[j][k][n].ncellgroups; c++, cglink++) {
+		    // Loop over CellGroups
+		    integer3 cellijk = cglink->cell();
+		    CellGroup *cg = LinkToCellGroup(*cglink);
+		    Cell cell = PP->GetCell(cellijk);
+		    // Copy the particles, including changing positions to 
+		    // the cell-centered coord of the first cell.  
+		    // Note periodic wrap.
+		    memcpy(cell.vel+cg->start, vel+start, sizeof(velstruct)*cg->size());
+		    memcpy(cell.acc+cg->start, acc+start, sizeof(accstruct)*cg->size());
+		    cellijk -= firstcell;
+		    if (cellijk.x> diam) cellijk.x-=GFC->cpd;
+		    if (cellijk.x<-diam) cellijk.x+=GFC->cpd;
+		    if (cellijk.y> diam) cellijk.y-=GFC->cpd;
+		    if (cellijk.y<-diam) cellijk.y+=GFC->cpd;
+		    if (cellijk.z> diam) cellijk.z-=GFC->cpd;
+		    if (cellijk.z<-diam) cellijk.z+=GFC->cpd;
+		    posstruct offset = GFC->invcpd*(cellijk);
+		    // printf("Using offset %f %f %f\n", offset.x, offset.y, offset.z);
+		    for (int p=0; p<cg->size(); p++) 
+			 cell.pos[cg->start+p] = pos[start+p] - offset;
+		    start += cg->size();
+		} // End loop over cellgroups in this global group
+	    } // End loop over globalgroups in a cell
+    // End loop over cells
+    GFC->ScatterGroups.Stop();
+    return;
+}
+
+
+
+
+
+void GlobalGroupSlab::FindSubGroups() {
+    // Process each group, looking for L1 and L2 subgroups.
+    GFC->ProcessLevel1.Start();
+    L1halos.setup(GFC->cpd, GFC->particles_per_pencil);    // TODO: Need better start value
+    TaggedPIDs.setup(GFC->cpd, GFC->particles_per_pencil);    // TODO: Need better start value
+    L1Particles.setup(GFC->cpd, GFC->particles_per_pencil);    // TODO: Need better start value
+    L1PIDs.setup(GFC->cpd, GFC->particles_per_pencil);    // TODO: Need better start value
+    FOFcell FOFlevel1[omp_get_max_threads()], FOFlevel2[omp_get_max_threads()];
+    posstruct **L1pos = new posstruct *[omp_get_max_threads()];
+    velstruct **L1vel = new velstruct *[omp_get_max_threads()];
+    auxstruct **L1aux = new auxstruct *[omp_get_max_threads()];
+    accstruct **L1acc = new accstruct *[omp_get_max_threads()];
+    MultiplicityStats L1stats[omp_get_max_threads()];
+
+    #pragma omp parallel for schedule(static)
+    for (int g=0; g<omp_get_max_threads(); g++) {
+	FOFlevel1[g].setup(GFC->linking_length_level1, 1e10);
+	FOFlevel2[g].setup(GFC->linking_length_level2, 1e10);
+	L1pos[g] = (posstruct *)malloc(sizeof(posstruct)*largest_group);
+	L1vel[g] = (velstruct *)malloc(sizeof(velstruct)*largest_group);
+	L1aux[g] = (auxstruct *)malloc(sizeof(auxstruct)*largest_group);
+	L1acc[g] = (accstruct *)malloc(sizeof(accstruct)*largest_group);
+    }
+
+    // It seems that the work between pencils is so heterogeneous that even the
+    // dynamic scheduling can't smooth it out.  So we're going to try ordering the
+    // pencils by the work estimate (largest first)
+    std::sort(pstat, pstat+GFC->cpd);
+    
+    // for (int j=0; j<GFC->cpd; j++) 
+    #pragma omp parallel for schedule(dynamic,1)
+    for (int jj=0; jj<GFC->cpd; jj++) {
+	int j = pstat[jj].pnum;    // Get the pencil number from the list
+	GFC->L1Tot.Start();
+	int g = omp_get_thread_num();
+	PencilAccum<HaloStat> *pL1halos = L1halos.StartPencil(j);
+	PencilAccum<TaggedPID> *pTaggedPIDs = TaggedPIDs.StartPencil(j);
+	PencilAccum<RVfloat> *pL1Particles = L1Particles.StartPencil(j);
+	PencilAccum<TaggedPID> *pL1PIDs = L1PIDs.StartPencil(j);
+	for (int k=0; k<GFC->cpd; k++) {
+	    // uint64 groupid = ((slab*GFC->cpd+j)*GFC->cpd+k)*4096;
+	    uint64 groupid = (((uint64)slab*10000+(uint64)j)*10000+(uint64)k)*1000;
+		    // A basic label for this group
+	    for (int n=0; n<globalgroups[j][k].size(); n++) {
+		if (globalgroups[j][k][n].np<GFC->minhalosize) continue;
+		// We have a large-enough global group to process
+		posstruct *grouppos = pos+globalgroups[j][k][n].start;
+		velstruct *groupvel = vel+globalgroups[j][k][n].start;
+		auxstruct *groupaux = aux+globalgroups[j][k][n].start;
+		accstruct *groupacc = acc+globalgroups[j][k][n].start;
+		int groupn = globalgroups[j][k][n].np;
+		GFC->L1FOF.Start();
+		FOFlevel1[g].findgroups(grouppos, NULL, NULL, NULL, groupn);
+		GFC->L1FOF.Stop();
+		// Now we've found the L1 groups
+		for (int a=0; a<FOFlevel1[g].ngroups; a++) {
+		    int size = FOFlevel1[g].groups[a].n;
+		    if (size<GFC->minhalosize) continue;
+		    L1stats[g].push(size);
+		    // The group is big enough.
+		    FOFparticle *start = FOFlevel1[g].p+FOFlevel1[g].groups[a].start;
+		    // Particle indices are in start[0,size).index()
+		    // which deref the grouppos, groupvel, groupaux list.
+
+		    // We now need to find the L2 subgroups.
+		    // Make a temporary list of the particles in the L1 group
+		    for (int b=0; b<size; b++) {
+			L1pos[g][b] = grouppos[start[b].index()];
+			L1vel[g][b] = groupvel[start[b].index()];
+			groupaux[start[b].index()].set_L1();
+			L1aux[g][b] = groupaux[start[b].index()];
+			L1acc[g][b] = groupacc[start[b].index()];
+		    }
+		    GFC->L2FOF.Start();
+		    FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, NULL, size);
+		    std::sort(FOFlevel2[g].groups, FOFlevel2[g].groups+FOFlevel2[g].ngroups);
+			// Groups now in descending order of multiplicity
+		    GFC->L2FOF.Stop();
+
+		    // Merger trees require tagging the taggable particles 
+		    // of the biggest L2 group in the original aux array.  
+		    // This can be done:
+		    // The L2 index() gives the position in the L1 array,
+		    // and that index() gets back to aux.
+		    FOFparticle *L2start = FOFlevel2[g].p + FOFlevel2[g].groups[0].start;
+		    for (int p=0; p<FOFlevel2[g].groups[0].n; p++) {
+			if (groupaux[start[L2start[p].index()].index()].is_taggable())
+			    groupaux[start[L2start[p].index()].index()].set_tagged();
+		    }
+
+		    uint64 taggedstart = pTaggedPIDs->get_pencil_size();
+		    uint64 npstart = pL1Particles->get_pencil_size();
+
+		    // Output the Tagged PIDs
+		    for (int b=0; b<size; b++)
+			if (groupaux[start[b].index()].is_tagged()) 
+			    pTaggedPIDs->append(TaggedPID(groupaux[start[b].index()].pid()));
+
+		    // Output the Taggable Particles
+		    posstruct offset = PP->CellCenter(slab, j, k);
+		    for (int b=0; b<size; b++)
+			if (groupaux[start[b].index()].is_taggable()) {
+			    posstruct r = WrapPosition(grouppos[start[b].index()]+offset);
+			    velstruct v = groupvel[start[b].index()];
+			    pL1Particles->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
+			    pL1PIDs->append(TaggedPID(groupaux[start[b].index()].pid()));
+			}
+
+		    HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], offset);
+		    h.id = groupid+n*50+a;
+		    h.L0_N = groupn;
+		    h.taggedstart = taggedstart;
+		    h.ntagged = pTaggedPIDs->get_pencil_size()-taggedstart;
+		    h.npstart = npstart;
+		    h.npout = pL1Particles->get_pencil_size()-npstart;
+		    pL1halos->append(h);
+		} // Done with this L1 halo
+	    } // Done with this group
+	    pL1halos->FinishCell();
+	    pTaggedPIDs->FinishCell();
+	    pL1Particles->FinishCell();
+	    pL1PIDs->FinishCell();
+	}
+	pL1halos->FinishPencil();
+	pTaggedPIDs->FinishPencil();
+	pL1Particles->FinishPencil();
+	pL1PIDs->FinishPencil();
+	GFC->L1Tot.Stop();
+    }
+
+    // Need to update the pL1halos.npstart values for their pencil starts!
+    TaggedPIDs.build_pstart();
+    L1Particles.build_pstart();
+    for (int j=0; j<GFC->cpd; j++) 
+	for (int k=0; k<GFC->cpd; k++) 
+	    for (int n=0; n<L1halos[j][k].size(); n++) {
+		HaloStat *h = L1halos[j][k].ptr(n);
+		h->npstart += L1Particles.pstart[j];
+		h->taggedstart += TaggedPIDs.pstart[j];
+	    }
+
+    // Coadd the stats
+    for (int g=0; g<omp_get_max_threads(); g++) {
+	GFC->L1stats.add(L1stats[g]);
+    }
+
+    // Now delete all of the temporary storage!
+    for (int g=0; g<omp_get_max_threads(); g++) {
+	FOFlevel1[g].destroy();
+	FOFlevel2[g].destroy();
+	free(L1pos[g]);
+	free(L1vel[g]);
+	free(L1aux[g]);
+	free(L1acc[g]);
+    }
+    delete[] L1pos;
+    delete[] L1vel;
+    delete[] L1aux;
+    delete[] L1acc;
+    GFC->ProcessLevel1.Stop();
+}
+
+
+
+
+
+void GlobalGroupSlab::SimpleOutput() {
+    // This just writes two sets of ASCII files to see the outputs,
+    // but it also helps to document how the global group information is stored.
+    char fname[200];
+    sprintf(fname, "/tmp/out.group.%03d", slab);
+    FILE *fp = fopen(fname,"w");
+    for (int j=0; j<GFC->cpd; j++)
+	for (int k=0; k<GFC->cpd; k++)
+	    for (int n=0; n<globalgroups[j][k].size(); n++)
+		fprintf(fp, "%d %d %d %d %d\n", (int)globalgroups[j][k][n].start,
+				globalgroups[j][k][n].np, slab, j, k);
+    fclose(fp);
+
+    sprintf(fname, "/tmp/out.halo.%03d", slab);
+    fp = fopen(fname,"w");
+    for (int j=0; j<GFC->cpd; j++)
+	for (int k=0; k<GFC->cpd; k++)
+	    for (int n=0; n<L1halos[j][k].size(); n++) {
+		HaloStat h = L1halos[j][k][n];
+		fprintf(fp, "%4d %7.4f %7.4f %7.4f %f %4d %3d %3d %7.4f %7.4f %7.4f %f %lu %lu\n", 
+		    h.N, h.x[0], h.x[1], h.x[2], h.r50,
+		    h.subhalo_N[0], h.subhalo_N[1], h.subhalo_N[2], 
+		    h.subhalo_x[0], h.subhalo_x[1], h.subhalo_x[2], 
+		    h.subhalo_r50, h.id, h.npout);
+	    }
+    fclose(fp);
+
+/*
+    fp = fopen(fname,"wb");
+    for (int j=0; j<GFC->cpd; j++) {
+	PencilAccum<TaggedPID> pids = TaggedPIDs[j];
+	fwrite((void *)pids.data, sizeof(TaggedPID), pids.get_pencil_size(), fp);
+    }
+    fclose(fp);
+*/
+
+    // Remember that these positions are relative to the first-cell position,
+    // which is why we include that cell ijk in the first outputs
+    sprintf(fname, "/tmp/out.pos.%03d", slab);
+    fp = fopen(fname,"w");
+    for (int p=0; p<np; p++)
+	fprintf(fp, "%f %f %f %d\n", pos[p].x, pos[p].y, pos[p].z, (int)aux[p].pid());
+    fclose(fp);
+}
+
+#ifdef STANDALONE_FOF
+void GlobalGroupSlab::HaloOutput() {
+    char fname[200];
+    sprintf(fname, "/tmp/out.binhalo.%03d", slab);
+    L1halos.dump_to_file(fname);
+
+    sprintf(fname, "/tmp/out.tagged.%03d", slab);
+    TaggedPIDs.dump_to_file(fname);
+
+    sprintf(fname, "/tmp/out.L1rv.%03d", slab);
+    L1Particles.dump_to_file(fname);
+
+    sprintf(fname, "/tmp/out.L1pid.%03d", slab);
+    L1PIDs.dump_to_file(fname);
+    // TODO: When we're ready to send this to arenas, we can use copy_to_ptr()
+}
+
+#else   // !STANDALONE_FOF
+void GlobalGroupSlab::HaloOutput() {
+    // TODO: Need to include the control logic regarding whether 
+    // a given file should be written.  
+    // TODO: Need to add these arena names to slabtypes (or change them here).
+    // DJE suspects there are duplications in function.
+
+    // Write out the taggable particles not in L1 halos
+    uint64 nfield = GatherTaggableFieldParticles(slab,
+        (RVfloat *) LBW->AllocateArena(TaggableFieldSlab, slab)
+        (TaggedPID *) LBW->AllocateArena(TaggableFieldPIDSlab, slab));
+    LBW->ResizeSlab(TaggableFieldSlab, slab, nfield*sizeof(RVfloat));
+    LBW->ResizeSlab(TaggableFieldPIDSlab, slab, nfield*sizeof(TaggedPID));
+    LBW->StoreArenaNonBlocking(TaggableFieldSlab, slab);
+    LBW->StoreArenaNonBlocking(TaggableFieldPIDSlab, slab);
+
+    if (L1halos.cpd==0) return;
+	// If this is true, then FindSubgroups() wasn't run and
+	// nothing about L1 groups is even defined.  No point making
+	// empty files!
+
+    // Write out the stats on the L1 halos
+    L1halos.copy_to_ptr((HaloStat *)LBW->AllocateArena(L1halosSlab, slab));
+    LBW->StoreArenaNonBlocking(L1halosSlab, slab);
+
+    // Write out tagged PIDs from the L1 halos
+    TaggedPIDs.copy_to_ptr((TaggedPID *)LBW->AllocateArena(TaggedPIDsSlab, slab));
+    LBW->StoreArenaNonBlocking(TaggedPIDsSlab, slab);
+
+    // Write out the pos/vel of the taggable particles in L1 halos
+    L1Particles.copy_to_ptr((RVfloat *)LBW->AllocateArena(L1ParticlesSlab, slab));
+    LBW->StoreArenaNonBlocking(L1ParticlesSlab, slab);
+
+    // Write out the PIDs of the taggable particles in the L1 halos
+    L1PIDs.copy_to_ptr((TaggedPID *)LBW->AllocateArena(L1PIDsSlab, slab));
+    LBW->StoreArenaNonBlocking(L1PIDsSlab, slab);
+
+    return;
+}
+#endif
+
+
+
+
+

@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include <string.h>
 #include "immintrin.h"
+#undef FOFTimer
 #define FOFTimer STimer
 
 #include "promote_numeric.h"
@@ -790,13 +791,14 @@ int FOF(posstruct *pos, velstruct *vel, auxstruct *aux, int N, float b2) {
 
 
 int main() {
-    int cellsize = 40;
-    int Ncell = 1e7, Nindep = 1000;
+    int cellsize = 80000;
+    int Ncell = 1e3, Nindep = 10;
     // int Ncell = 1, Nindep = 1;
-    float b = 0.05;
+    float b = 0.03;
     srand48(124);
     posstruct *pos = (posstruct *)malloc(sizeof(posstruct)*cellsize*Ncell);
     velstruct *vel = (velstruct *)malloc(sizeof(velstruct)*cellsize*Ncell);
+    accstruct *acc = (accstruct *)malloc(sizeof(accstruct)*cellsize*Ncell);
     auxstruct *aux = (auxstruct *)malloc(sizeof(auxstruct)*cellsize*Ncell);
     for (int j=0; j<cellsize*Nindep; j++) {
 	// This causes the particles to be clustered (cubicly) near the origin
@@ -805,6 +807,7 @@ int main() {
         pos[j].y = (drand48()-0.5)*rescale;
         pos[j].z = (drand48()-0.5)*rescale;
 	vel[j].x = vel[j].y = vel[j].z = 0.0;
+	acc[j].x = acc[j].y = acc[j].z = 0.0;
 	aux[j] = 0;
     }
     #pragma omp parallel for schedule(static)
@@ -812,6 +815,7 @@ int main() {
 	int k = j%(cellsize*Nindep);
         pos[j] = pos[k];
 	vel[j].x = vel[j].y = vel[j].z = 0.0;
+	acc[j].x = acc[j].y = acc[j].z = 0.0;
 	aux[j] = 0;
     }
 
@@ -831,8 +835,8 @@ int main() {
     float b2 = b*b;
     #pragma omp parallel for schedule(static) reduction(+:ngroup)
     for (int j=0; j<Ncell; j++) {
-        // ngroup += FOF(pos+j*cellsize, vel+j*cellsize, aux+j*cellsize, cellsize, b2);
-        ngroup += doFOF[omp_get_thread_num()].findgroups(pos+j*cellsize, vel+j*cellsize, aux+j*cellsize, cellsize);
+        // ngroup += FOF(pos+j*cellsize, vel+j*cellsize, aux+j*cellsize, acc+j*cellsize, cellsize, b2);
+        ngroup += doFOF[omp_get_thread_num()].findgroups(pos+j*cellsize, vel+j*cellsize, aux+j*cellsize, acc+j*cellsize, cellsize);
 	// printf("\n");
     }
     FOFtime.Stop();
