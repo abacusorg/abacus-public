@@ -32,7 +32,7 @@ class GroupFindingControl {
     FOFloat boundary;	// The distance from the origin that indicates that something
     		// is within linking_length of the edge
     int GroupRadius;    // Cell radius for group finding
-    FLOAT invcpd;
+    FOFloat invcpd;
     uint64 np; // the number of particles in the simulation; used to compute buffers
     uint64 particles_per_pencil;	// Typical number of particles per pencil
 
@@ -295,7 +295,7 @@ void FindAndProcessGlobalGroups(int slab) {
     GlobalGroupSlab *GGS = GFC->globalslabs+slab;
     GGS->setup(slab);
     GGS->CreateGlobalGroups();
-    STDLOG(1,"Closed global groups in slab %d, finding %lld groups involving %lld cell groups\n", slab, GGS->globalgroups.size(), GGS->globalgrouplist.size());
+    STDLOG(1,"Closed global groups in slab %d, finding %lld groups involving %lld cell groups\n", slab, GGS->globalgroups.get_slab_size(), GGS->globalgrouplist.get_slab_size());
     GFC->GGtot += GGS->globalgroups.get_slab_size();
 
     // Now process and output each one....

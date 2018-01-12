@@ -762,33 +762,42 @@ void GlobalGroupSlab::HaloOutput() {
     // DJE suspects there are duplications in function.
 
     // Write out the taggable particles not in L1 halos
+	// TODO: better heuristic? what will happen in very small sims?  Also technically HaloTaggableFraction is only used in the IC step
+	uint64 maxsize = P.np*P.HaloTaggableFraction*1.05;
+	LBW->AllocateSpecificSize(TaggableFieldSlab, slab, maxsize*sizeof(RVfloat));
+	LBW->AllocateSpecificSize(TaggableFieldPIDSlab, slab, maxsize*sizeof(TaggedPID));
+	
     uint64 nfield = GatherTaggableFieldParticles(slab,
-        (RVfloat *) LBW->AllocateArena(TaggableFieldSlab, slab)
-        (TaggedPID *) LBW->AllocateArena(TaggableFieldPIDSlab, slab));
+        (RVfloat *) LBW->ReturnIDPtr(TaggableFieldSlab, slab),
+        (TaggedPID *) LBW->ReturnIDPtr(TaggableFieldPIDSlab, slab));
     LBW->ResizeSlab(TaggableFieldSlab, slab, nfield*sizeof(RVfloat));
     LBW->ResizeSlab(TaggableFieldPIDSlab, slab, nfield*sizeof(TaggedPID));
     LBW->StoreArenaNonBlocking(TaggableFieldSlab, slab);
     LBW->StoreArenaNonBlocking(TaggableFieldPIDSlab, slab);
 
-    if (L1halos.cpd==0) return;
+    if (L1halos.pencils == NULL) return;
 	// If this is true, then FindSubgroups() wasn't run and
 	// nothing about L1 groups is even defined.  No point making
 	// empty files!
 
     // Write out the stats on the L1 halos
-    L1halos.copy_to_ptr((HaloStat *)LBW->AllocateArena(L1halosSlab, slab));
+	LBW->AllocateSpecificSize(L1halosSlab, slab, L1halos.get_slab_bytes());
+    L1halos.copy_to_ptr((HaloStat *)LBW->ReturnIDPtr(L1halosSlab, slab));
     LBW->StoreArenaNonBlocking(L1halosSlab, slab);
 
     // Write out tagged PIDs from the L1 halos
-    TaggedPIDs.copy_to_ptr((TaggedPID *)LBW->AllocateArena(TaggedPIDsSlab, slab));
+	LBW->AllocateSpecificSize(TaggedPIDsSlab, slab, TaggedPIDs.get_slab_bytes());
+    TaggedPIDs.copy_to_ptr((TaggedPID *)LBW->ReturnIDPtr(TaggedPIDsSlab, slab));
     LBW->StoreArenaNonBlocking(TaggedPIDsSlab, slab);
 
     // Write out the pos/vel of the taggable particles in L1 halos
-    L1Particles.copy_to_ptr((RVfloat *)LBW->AllocateArena(L1ParticlesSlab, slab));
+	LBW->AllocateSpecificSize(L1ParticlesSlab, slab, L1Particles.get_slab_bytes());
+    L1Particles.copy_to_ptr((RVfloat *)LBW->ReturnIDPtr(L1ParticlesSlab, slab));
     LBW->StoreArenaNonBlocking(L1ParticlesSlab, slab);
 
     // Write out the PIDs of the taggable particles in the L1 halos
-    L1PIDs.copy_to_ptr((TaggedPID *)LBW->AllocateArena(L1PIDsSlab, slab));
+	LBW->AllocateSpecificSize(L1PIDsSlab, slab, L1PIDs.get_slab_bytes());
+    L1PIDs.copy_to_ptr((TaggedPID *)LBW->ReturnIDPtr(L1PIDsSlab, slab));
     LBW->StoreArenaNonBlocking(L1PIDsSlab, slab);
 
     return;

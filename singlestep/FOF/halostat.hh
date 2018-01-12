@@ -1,3 +1,6 @@
+#ifndef __HALOSTAT_HH
+#define __HALOSTAT_HH
+
 #define N_LARGEST_SUBHALOS 3
 
 class HaloStat {
@@ -74,3 +77,5 @@ class TaggedPID {
     }
 };
 */
+
+#endif

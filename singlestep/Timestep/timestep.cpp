@@ -296,8 +296,11 @@ int MakeCellGroupsPrecondition(int slab) {
 }
 
 void MakeCellGroupsAction(int slab) {
-    STDLOG(1,"Making Cell Groups in slab %d\n", slab);
-    GFC->ConstructCellGroups(slab);
+	// TODO: is this how we want to disable group finding? are we always allowed to disable group finding?
+	if(GFC == NULL)
+		return;
+	STDLOG(1,"Making Cell Groups in slab %d\n", slab);
+	GFC->ConstructCellGroups(slab);
     return;
 }
 
@@ -312,8 +315,10 @@ int FindCellGroupLinksPrecondition(int slab) {
 
 void FindCellGroupLinksAction(int slab) {
     // Find links between slab and slab-1
-    STDLOG(1,"Finding Group Links between slab %d and %d\n", slab, slab-1);
-    FindGroupLinks(slab);
+	if(GFC == NULL)
+		return;
+	STDLOG(1,"Finding Group Links between slab %d and %d\n", slab, slab-1);
+	FindGroupLinks(slab);
     return;
 }
 
@@ -326,11 +331,13 @@ int DoGlobalGroupsPrecondition(int slab) {
     // we could be anywhere in the first instance.  So we have to query a big range.
     // That said, if the nearby slab has already closed global groups, then
     // we can proceed.
-    for (int j=-2*GFC->GroupRadius+1; j<=2*GFC->GroupRadius; j++) 
+    for (int j=-2*GROUP_RADIUS+1; j<=2*GROUP_RADIUS; j++) 
         if (FindCellGroupLinks.notdone(slab+j) && DoGlobalGroups.notdone(slab+j)) return 0;
     return 1;
 }
 void DoGlobalGroupsAction(int slab) {
+	if(GFC == NULL)
+		return;
     STDLOG(0,"Finding Global Groups in slab %d\n", slab);
     FindAndProcessGlobalGroups(slab);
     // TODO: LightCone Outputs might have to go here, since we need the GlobalGroups

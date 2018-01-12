@@ -296,7 +296,7 @@ public:
         NGPUThreadCores = -1;
         installscalar("NGPUThreadCores", NGPUThreadCores, DONT_CARE);
 
-        AllowGroupFinding = 0;
+        AllowGroupFinding = 1;
         installscalar("AllowGroupFinding",AllowGroupFinding, DONT_CARE);
         FoFLinkingLength[0] = .25;
         FoFLinkingLength[1] = .186;
