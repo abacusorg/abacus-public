@@ -136,7 +136,7 @@ class GlobalGroupSlab {
 
 
     void setup(int _slab) {
-	assert(pstat==NULL);    // Otherwise, we're re-allocating something!
+	assertf(pstat==NULL, "GlobalGroupSlab setup is not legal");    // Otherwise, we're re-allocating something!
         pos = NULL; vel = NULL; aux = NULL; acc = NULL; np = 0;
 	slab = GFC->WrapSlab(_slab); largest_group = 0;
 	int ret = posix_memalign((void **) &pstat, 64, sizeof(PencilStats)*GFC->cpd);
@@ -184,7 +184,7 @@ class GlobalGroupSlab {
 void GlobalGroupSlab::CreateGlobalGroups() {
     // For this slab, we want to traverse the graph of links to find all GlobalGroups.
     // Given pstat[0,cpd)
-    assert(pstat!=NULL);   // Setup not yet called!
+    assertf(pstat!=NULL,"setup() not yet called\n");   // Setup not yet called!
     GFC->SortLinks.Start();
 
     // The groups can span 2*R+1 slabs, but we might be on either end,
@@ -212,7 +212,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
     // cells = (LinkIndex *)malloc(sizeof(LinkIndex)*diam*cpd*cpdpad);
     for (int s=0; s<diam; s++) {
 	int thisslab = GFC->WrapSlab(slab+s-diam/2);
-	assert(GFC->cellgroups_status[thisslab]>0);
+	assertf(GFC->cellgroups_status[thisslab]>0, "Cellgroup slab not present.  Something is wrong in dependencies!");
 	    // Just to check that the CellGroups are present or already closed.
 	#pragma omp parallel for schedule(dynamic,1)
 	for (int j=0; j<cpd; j++) {
@@ -266,7 +266,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
 			integer3 thiscell = cglist[searching].cell();  
 			CellGroup *thiscg = LinkToCellGroup(cglist[searching]);
 			ggsize += thiscg->size();
-			assert(thiscg->is_open());
+			assertf(thiscg->is_open(), "Cellgroup found to be closed.  Likely need to increase GroupRadius!\n");
 				// If this fails, probably a group has spanned
 				// beyond 2*R+1 cells and something got closed
 				// prematurely.

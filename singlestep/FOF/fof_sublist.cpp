@@ -207,7 +207,7 @@ class FOFcell {
 	np = ngroups = 0;
 	if (_size+16<maxsize) return;    // Do nothing if we have enough space
 	maxsize = _size*1.9+16;   // Oversize to limit the number of re-allocations
-	assert(maxsize<8e6);	
+	assertf(maxsize<8e6, "Maxsize %d is too large\n", maxsize);	
 	    // This is required because FOFparticle is storing the 
 	    // indices in a float.  We could in principle work around
 	    // this, by using additional bits in a negative exponent.
@@ -234,8 +234,8 @@ class FOFcell {
 	numdists = 0;
 	reset(32768);
 	// We will have terrible bugs if these aren't true!
-	assert(sizeof(FOFparticle)==16);
-	assert(sizeof(FOFgroup)%16==0);  
+	assertf(sizeof(FOFparticle)==16, "FOFparticle is illegal size!");
+	assertf(sizeof(FOFgroup)%16==0, "FOFgroup is illegal size!");  
         return; 
     }   
 
