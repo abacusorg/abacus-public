@@ -110,12 +110,12 @@ class GroupFindingControl {
 
 
     void report() {
-	 STDLOG(2,"Found %lld cell groups (including boundary singlets)\n", CGtot);
-	 STDLOG(2,"Used %lld pseudoParticles, %lld faceParticles, %lld faceGroups\n",
+	 STDLOG(2,"Found %d cell groups (including boundary singlets)\n", CGtot);
+	 STDLOG(2,"Used %d pseudoParticles, %d faceParticles, %d faceGroups\n",
 	     pPtot, fPtot, fGtot);
-	 STDLOG(2,"Found %lld links between groups.\n", Ltot);
-	 STDLOG(2,"Found %lld global groups\n", GGtot);
-	 STDLOG(2,"Longest GroupLink list was %lld, compared to %lld allocation\n", GLL->longest, GLL->maxlist);
+	 STDLOG(2,"Found %d links between groups.\n", Ltot);
+	 STDLOG(2,"Found %d global groups\n", GGtot);
+	 STDLOG(2,"Longest GroupLink list was %d, compared to %d allocation\n", GLL->longest, GLL->maxlist);
 	 STDLOG(2,"Largest Global Group has %d particles\n", largest_GG);
 
 	 printf("\nL0 group multiplicity distribution:\n");
@@ -228,7 +228,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     uint64 tot = cellgroups[slab].get_slab_size();
     CGtot += tot;
     cellgroups_status[slab] = 1;
-    STDLOG(1,"Found %lld cell groups in slab %d\n", tot, slab);
+    STDLOG(1,"Found %d cell groups in slab %d\n", tot, slab);
     CellGroupTime.Stop();
     return;
 }
@@ -295,13 +295,13 @@ void FindAndProcessGlobalGroups(int slab) {
     GlobalGroupSlab *GGS = GFC->globalslabs+slab;
     GGS->setup(slab);
     GGS->CreateGlobalGroups();
-    STDLOG(1,"Closed global groups in slab %d, finding %lld groups involving %lld cell groups\n", slab, GGS->globalgroups.get_slab_size(), GGS->globalgrouplist.get_slab_size());
+    STDLOG(1,"Closed global groups in slab %d, finding %d groups involving %d cell groups\n", slab, GGS->globalgroups.get_slab_size(), GGS->globalgrouplist.get_slab_size());
     GFC->GGtot += GGS->globalgroups.get_slab_size();
 
     // Now process and output each one....
     // Start by gathering all of the particles into a contiguous set.
     GGS->GatherGlobalGroups();
-    STDLOG(1,"Gathered %lld particles from global groups in slab %d\n", GGS->np, slab);
+    STDLOG(1,"Gathered %d particles from global groups in slab %d\n", GGS->np, slab);
     GFC->largest_GG = std::max(GFC->largest_GG, GGS->largest_group);
     // TODO: Write to STDLOG
     // The GGS->globalgroups[j][k][n] now reference these as [start,start+np)

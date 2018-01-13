@@ -13,6 +13,7 @@
 #include <vector>
 #include <cstdint>
 #include <assert.h>
+#include "stdlog.cc"
 
 #include <sys/time.h>
 #include "STimer.cc"
@@ -34,7 +35,7 @@
 #include "threevector.hh"
 #include "pprint.cc"
 
-#define STDLOG(...) { int a=0; }
+/* #define STDLOG(...) { int a=0; }
 
 #define assertf(_mytest,...) do { \
     if (!(_mytest)) { \
@@ -44,6 +45,7 @@
         assert(0==99); \
     }} while(0)
 
+*/
 
 
 
@@ -130,5 +132,8 @@ class grid {
     }
 };
 
-
-
+void setup_log() {
+    stdlog_threshold_global = 2;
+    stdlog.open("/tmp/fof.log");
+    STDLOG_TIMESTAMP;
+}

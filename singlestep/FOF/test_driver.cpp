@@ -12,6 +12,7 @@
 #include "groupfinding.cpp"
 
 int main(int argc, char *argv[]) {
+    setup_log();
     printf("Running with %d threads\n", omp_get_max_threads());
     int cpd = 9;
     PP = new Particles;
