@@ -119,10 +119,10 @@ class GroupFindingControl {
 	 STDLOG(0,"Largest Global Group has %d particles\n", largest_GG);
 
 	 STDLOG(0,"\nL0 group multiplicity distribution:\n");
-	 L0stats.report();
+	 L0stats.report_multiplicities();
 
 	 STDLOG(0,"\nL1 group multiplicity distribution:\n");
-	 L1stats.report();
+	 L1stats.report_multiplicities();
 
 	 float total_time = CellGroupTime.Elapsed()+
 			CreateFaceTime.Elapsed()+
