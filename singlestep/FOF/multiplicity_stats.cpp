@@ -45,19 +45,18 @@ class MultiplicityStats {
     }
 
     void report() {
-        printf("Total number of groups %llu\n", ngroups);
+        STDLOG(0,"Total number of groups %u\n", ngroups);
 	int j, m, nbin;
-        printf("Groups contain %llu particles\n", tot);
-	printf("Average group has %f particles and %f pairs\n", 
+        STDLOG(0,"Groups contain %u particles\n", tot);
+	STDLOG(0,"Average group has %f particles and %f pairs\n", 
 		(float)tot/ngroups, (float)tot2/ngroups);
-        printf("Largest Group contains %llu particles\n", largest);
+        STDLOG(0,"Largest Group contains %u particles\n", largest);
 	for (nbin=MS_NBIN-1; count[nbin]==0 && nbin>=0; nbin--);
 	    // nbin is now the number of the highest non-empty bin
-	printf("Max bin is %d\n", nbin);
-	nbin = MS_NBIN-1;
+	STDLOG(2,"Max bin is %d\n", nbin);
 	for (j=0,m=1; j<=nbin; j++, m*=2)
-	    printf("%5d -- %5d: %7llu groups, %6.3f%% of particles, %6.3f%% of pairs\n",
-	    	m, m*2-1, count[j],
+	    STDLOG(0,"%5d -- %5d: %7u groups, %6.3f%% of particles, %6.3f%% of pairs\n",
+	    	(m<MS_MIN?MS_MIN:m), m*2-1, count[j],
 		100.0*sumn[j]/tot, 100.0*sumn2[j]/tot2);
     }
 };

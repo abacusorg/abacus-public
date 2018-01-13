@@ -110,18 +110,18 @@ class GroupFindingControl {
 
 
     void report() {
-	 STDLOG(2,"Found %d cell groups (including boundary singlets)\n", CGtot);
-	 STDLOG(2,"Used %d pseudoParticles, %d faceParticles, %d faceGroups\n",
+	 STDLOG(0,"Found %d cell groups (including boundary singlets)\n", CGtot);
+	 STDLOG(0,"Used %d pseudoParticles, %d faceParticles, %d faceGroups\n",
 	     pPtot, fPtot, fGtot);
-	 STDLOG(2,"Found %d links between groups.\n", Ltot);
-	 STDLOG(2,"Found %d global groups\n", GGtot);
-	 STDLOG(2,"Longest GroupLink list was %d, compared to %d allocation\n", GLL->longest, GLL->maxlist);
-	 STDLOG(2,"Largest Global Group has %d particles\n", largest_GG);
+	 STDLOG(0,"Found %d links between groups.\n", Ltot);
+	 STDLOG(0,"Found %d global groups\n", GGtot);
+	 STDLOG(0,"Longest GroupLink list was %d, compared to %d allocation\n", GLL->longest, GLL->maxlist);
+	 STDLOG(0,"Largest Global Group has %d particles\n", largest_GG);
 
-	 printf("\nL0 group multiplicity distribution:\n");
+	 STDLOG(0,"\nL0 group multiplicity distribution:\n");
 	 L0stats.report();
 
-	 printf("\nL1 group multiplicity distribution:\n");
+	 STDLOG(0,"\nL1 group multiplicity distribution:\n");
 	 L1stats.report();
 
 	 float total_time = CellGroupTime.Elapsed()+
@@ -134,37 +134,37 @@ class GroupFindingControl {
 			GatherGroups.Elapsed()+
 			ProcessLevel1.Elapsed()+
 			ScatterGroups.Elapsed();
-	 STDLOG(2,"\nTimings: \n");
+	 STDLOG(0,"\nTimings: \n");
 	 #define RFORMAT(a) a.Elapsed(), a.Elapsed()/total_time*100.0
-	 STDLOG(2,"Finding Cell Groups:     %8.4f sec (%5.2f%%)\n",
+	 STDLOG(0,"Finding Cell Groups:     %8.4f sec (%5.2f%%)\n",
 			RFORMAT(CellGroupTime));
-	 STDLOG(2,"Creating Faces:          %8.4f sec (%5.2f%%)\n",
+	 STDLOG(0,"Creating Faces:          %8.4f sec (%5.2f%%)\n",
 			RFORMAT(CreateFaceTime));
-	 STDLOG(2,"Finding Group Links:     %8.4f sec (%5.2f%%)\n",
+	 STDLOG(0,"Finding Group Links:     %8.4f sec (%5.2f%%)\n",
 			RFORMAT(FindLinkTime));
-	 STDLOG(2,"Sort Links:              %8.4f sec (%5.2f%%)\n",
+	 STDLOG(0,"Sort Links:              %8.4f sec (%5.2f%%)\n",
 			RFORMAT(SortLinks));
-	 STDLOG(2,"Index Links:             %8.4f sec (%5.2f%%)\n",
+	 STDLOG(0,"Index Links:             %8.4f sec (%5.2f%%)\n",
 			RFORMAT(IndexLinks));
 	 // printf("     Searching:               %8.4f sec\n", IndexLinksSearch.Elapsed());
-	 STDLOG(2,"Indexing (P):                %8.4f sec\n", IndexLinksIndex.Elapsed());
-	 STDLOG(2,"Find Global Groups:      %8.4f sec (%5.2f%%)\n",
+	 STDLOG(0,"Indexing (P):                %8.4f sec\n", IndexLinksIndex.Elapsed());
+	 STDLOG(0,"Find Global Groups:      %8.4f sec (%5.2f%%)\n",
 			RFORMAT(FindGlobalGroupTime));
-	 STDLOG(2,"Index Global Groups:     %8.4f sec (%5.2f%%)\n",
+	 STDLOG(0,"Index Global Groups:     %8.4f sec (%5.2f%%)\n",
 			RFORMAT(IndexGroups));
-	 STDLOG(2,"Gather Group Particles:  %8.4f sec (%5.2f%%)\n",
+	 STDLOG(0,"Gather Group Particles:  %8.4f sec (%5.2f%%)\n",
 			RFORMAT(GatherGroups));
-	 STDLOG(2,"Level 1 & 2 Processing:  %8.4f sec (%5.2f%%)\n",
+	 STDLOG(0,"Level 1 & 2 Processing:  %8.4f sec (%5.2f%%)\n",
 			RFORMAT(ProcessLevel1));
-	 STDLOG(2,"Level 1 FOF:                  %8.4f sec (%5.2f%%)\n",
+	 STDLOG(0,"Level 1 FOF:                  %8.4f sec (%5.2f%%)\n",
 			RFORMAT(L1FOF));
-	 STDLOG(2,"Level 2 FOF:                  %8.4f sec (%5.2f%%)\n",
+	 STDLOG(0,"Level 2 FOF:                  %8.4f sec (%5.2f%%)\n",
 			RFORMAT(L2FOF));
-	 STDLOG(2,"Level 1 Total:                %8.4f sec (%5.2f%%)\n",
+	 STDLOG(0,"Level 1 Total:                %8.4f sec (%5.2f%%)\n",
 			RFORMAT(L1Tot));
-	 STDLOG(2,"Scatter Group Particles: %8.4f sec (%5.2f%%)\n",
+	 STDLOG(0,"Scatter Group Particles: %8.4f sec (%5.2f%%)\n",
 			RFORMAT(ScatterGroups));
-	 STDLOG(2,"Total Booked Time:       %8.4f sec (%5.2f Mp/sec)\n", total_time, np/total_time*1e-6);
+	 STDLOG(0,"Total Booked Time:       %8.4f sec (%5.2f Mp/sec)\n", total_time, np/total_time*1e-6);
 	 #undef RFORMAT
     }
 };

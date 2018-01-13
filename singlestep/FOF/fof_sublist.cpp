@@ -20,6 +20,8 @@
 #include <unistd.h>
 #include <string.h>
 #include "immintrin.h"
+#include "stdlog.cc"
+
 #undef FOFTimer
 #define FOFTimer STimer
 
@@ -791,6 +793,9 @@ int FOF(posstruct *pos, velstruct *vel, auxstruct *aux, int N, float b2) {
 
 
 int main() {
+    stdlog_threshold_global = 2;
+    stdlog.open("/tmp/foftest.log");
+    STDLOG_TIMESTAMP;
     int cellsize = 80000;
     int Ncell = 1e3, Nindep = 10;
     // int Ncell = 1, Nindep = 1;
