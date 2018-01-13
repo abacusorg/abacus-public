@@ -133,7 +133,7 @@ class grid {
 };
 
 void setup_log() {
-    stdlog_threshold_global = 2;
+    stdlog_threshold_global = 1;
     stdlog.open("/tmp/fof.log");
     STDLOG_TIMESTAMP;
 }
