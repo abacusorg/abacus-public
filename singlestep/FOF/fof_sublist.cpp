@@ -214,13 +214,14 @@ class FOFcell {
 	    // But current Abacus plans do not produce cells this big.
 	// printf("Allocating FOFCell to maxsize = %d\n", maxsize);
         if (p!=NULL) free(p);
-	ret = posix_memalign((void **)&p, 64, sizeof(FOFparticle)*maxsize);
+	ret = posix_memalign((void **)&p, 64, sizeof(FOFparticle)*maxsize);  assert(ret == 0);
+	memset(p, 0, sizeof(FOFparticle)*maxsize);
         if (d2buffer!=NULL) free(d2buffer);
-	ret = posix_memalign((void **)&d2buffer, 64, sizeof(float)*maxsize);
+	ret = posix_memalign((void **)&d2buffer, 64, sizeof(float)*maxsize);  assert(ret == 0);
         if (groups!=NULL) free(groups);
-	ret = posix_memalign((void **)&groups, 64, sizeof(FOFgroup)*maxsize);
+	ret = posix_memalign((void **)&groups, 64, sizeof(FOFgroup)*maxsize);  assert(ret == 0);
         if (index!=NULL) free(index);
-	ret = posix_memalign((void **)&index, 64, sizeof(int)*maxsize);
+	ret = posix_memalign((void **)&index, 64, sizeof(int)*maxsize);  assert(ret == 0);
     }
 
     // We have a null constructor, since we'll define one for each thread.
