@@ -205,7 +205,9 @@ void Prologue(Parameters &P, bool ic) {
 
             RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
         
-        if(P.AllowGroupFinding){
+		// ForceOutputDebug outputs accelerations as soon as we compute them
+		// i.e. before GroupFinding has a chance to rearrange them
+        if(P.AllowGroupFinding && !P.ForceOutputDebug){
             GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
                                           P.FoFLinkingLength[1]/pow(P.np,1./3),
                                           P.FoFLinkingLength[2]/pow(P.np,1./3),

@@ -759,10 +759,20 @@ void GlobalGroupSlab::HaloOutput() {
 
 #else   // !STANDALONE_FOF
 void GlobalGroupSlab::HaloOutput() {
+	/* Outputs a uniform subsample of the particles ("taggable particles")
+	 * and L1 halo stats and tagged particles. Currently we always output
+	 * taggable particles if we are also outputting halos. Halo outputs will
+	 * be skipped if no L1 halos were found (but taggable particles will still be written).
+	 */
+	 
     // TODO: Need to include the control logic regarding whether 
-    // a given file should be written.  
-    // TODO: Need to add these arena names to slabtypes (or change them here).
-    // DJE suspects there are duplications in function.
+    // a given file should be written.
+	STDLOG(0,"Beginning halo output for slab %d\n", slab);
+	
+	// Ensure the output directory for this step exists
+	char dir[16];
+	sprintf(dir, "Step%04d", ReadState.FullStepNumber);
+	CreateSubDirectory(P.GroupDirectory, dir);
 
     // Write out the taggable particles not in L1 halos
 	// TODO: better heuristic? what will happen in very small sims?  Also technically HaloTaggableFraction is only used in the IC step
@@ -773,15 +783,22 @@ void GlobalGroupSlab::HaloOutput() {
     uint64 nfield = GatherTaggableFieldParticles(slab,
         (RVfloat *) LBW->ReturnIDPtr(TaggableFieldSlab, slab),
         (TaggedPID *) LBW->ReturnIDPtr(TaggableFieldPIDSlab, slab));
-    LBW->ResizeSlab(TaggableFieldSlab, slab, nfield*sizeof(RVfloat));
-    LBW->ResizeSlab(TaggableFieldPIDSlab, slab, nfield*sizeof(TaggedPID));
-    LBW->StoreArenaNonBlocking(TaggableFieldSlab, slab);
-    LBW->StoreArenaNonBlocking(TaggableFieldPIDSlab, slab);
-
-    if (L1halos.pencils == NULL) return;
-	// If this is true, then FindSubgroups() wasn't run and
-	// nothing about L1 groups is even defined.  No point making
-	// empty files!
+	if(nfield > 0){
+		// only write the uniform subsample files if they will have non-zero size
+		LBW->ResizeSlab(TaggableFieldSlab, slab, nfield*sizeof(RVfloat));
+		LBW->ResizeSlab(TaggableFieldPIDSlab, slab, nfield*sizeof(TaggedPID));
+		LBW->StoreArenaNonBlocking(TaggableFieldSlab, slab);
+		LBW->StoreArenaNonBlocking(TaggableFieldPIDSlab, slab);
+	} else {
+		LBW->DeAllocate(TaggableFieldSlab, slab);
+		LBW->DeAllocate(TaggableFieldPIDSlab, slab);
+	}
+		
+    if (L1halos.pencils == NULL || L1halos.get_slab_size() == 0) return;
+	// If pencils is NULL, then FindSubgroups() wasn't run and
+	// nothing about L1 groups is even defined.
+	// And if get_slab_size() is 0, then we found ran FOF but found nothing.
+	// No point making empty files!
 
     // Write out the stats on the L1 halos
 	LBW->AllocateSpecificSize(L1halosSlab, slab, L1halos.get_slab_bytes());

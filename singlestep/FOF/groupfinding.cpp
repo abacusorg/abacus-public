@@ -309,13 +309,18 @@ void FindAndProcessGlobalGroups(int slab) {
     // TODO: Lots to do here
     // For now, maybe we should just output the group multiplicity and the PIDs,
     // as a way of demonstrating that we have something.
+	// TODO: can we safely skip FindSubGroups() if this is not an L1 output step?  Do we only ever tag L2 particles at L1 output steps?
     GGS->FindSubGroups();
     GGS->ScatterGlobalGroupsAux();
 
     #ifdef ASCII_TEST_OUTPUT
     GGS->SimpleOutput();
     #endif
-    GGS->HaloOutput();
+	// Check if, by going from ReadState to WriteState, we are crossing a L1Output_dlna checkpoint
+	// Due to C's mod behavior, this assumes log(a) < 0
+	if(fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna)
+		|| log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna)
+		GGS->HaloOutput();
 
     GGS->ScatterGlobalGroups();
     GGS->destroy();
