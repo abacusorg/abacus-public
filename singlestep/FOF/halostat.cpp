@@ -40,8 +40,9 @@ HaloStat ComputeStats(int size,
     for (int j=0; j<N_LARGEST_SUBHALOS; j++) 
 	if (j<L2.ngroups) h.subhalo_N[j] = L2.groups[j].n; 
 	    else h.subhalo_N[j] = 1;
-	    // TODO: Strictly speaking, there might not be any singlet particles,
+	    // Strictly speaking, there might not be any singlet particles,
 	    // but the far more likely case is that there are.
+	    // So this output could be in error, i.e., 0 and 1 are not distinguished
 
 	// We are always guaranteed to have some L2 singlet particles,
 	// but singlet particles do not have groups!

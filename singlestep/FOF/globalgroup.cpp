@@ -146,7 +146,6 @@ class GlobalGroupSlab {
 	globalgrouplist.setup(GFC->cpd, GFC->particles_per_pencil);   
     }
     void destroy() {
-	// TODO: If we use arenas, change this
         if (pos!=NULL) free(pos); pos = NULL;
         if (vel!=NULL) free(vel); vel = NULL;
         if (aux!=NULL) free(aux); aux = NULL;
@@ -157,7 +156,7 @@ class GlobalGroupSlab {
 
     void allocate(uint64 _np) {
 	np = _np;
-	// TODO: May eventually prefer these to be arenas.
+	// LONG-TERM: May eventually prefer these to be arenas.
 	int ret;
         ret = posix_memalign((void **)&pos, 4096, sizeof(posstruct)*np); assert(ret==0);
         ret = posix_memalign((void **)&vel, 4096, sizeof(velstruct)*np); assert(ret==0);
@@ -347,10 +346,11 @@ void GlobalGroupSlab::GatherGlobalGroups() {
     // Copy all of the particles into a single list
     GFC->IndexGroups.Start();
     int diam = 2*GFC->GroupRadius+1;
-    assert(GFC->cpd>=4*GFC->GroupRadius+1);
-    // TODO: This registers the periodic wrap using the cells.
+    assertf(GFC->cpd>=4*GFC->GroupRadius+1, "CPD is too small compared to GroupRadius\n");
+    // This registers the periodic wrap using the cells.
     // However, this will misbehave if CPD is smaller than the group diameter,
     // because the LinkIDs have already been wrapped.
+    // One just can't use a small CPD
     uint64 *this_pencil = new uint64[GFC->cpd];
     int *largest = new int[GFC->cpd];
 
@@ -529,10 +529,10 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
 void GlobalGroupSlab::FindSubGroups() {
     // Process each group, looking for L1 and L2 subgroups.
     GFC->ProcessLevel1.Start();
-    L1halos.setup(GFC->cpd, GFC->particles_per_pencil);    // TODO: Need better start value
-    TaggedPIDs.setup(GFC->cpd, GFC->particles_per_pencil);    // TODO: Need better start value
-    L1Particles.setup(GFC->cpd, GFC->particles_per_pencil);    // TODO: Need better start value
-    L1PIDs.setup(GFC->cpd, GFC->particles_per_pencil);    // TODO: Need better start value
+    L1halos.setup(GFC->cpd, GFC->particles_per_pencil);    // TUNING: This start value is a guess
+    TaggedPIDs.setup(GFC->cpd, GFC->particles_per_pencil);    
+    L1Particles.setup(GFC->cpd, GFC->particles_per_pencil);   
+    L1PIDs.setup(GFC->cpd, GFC->particles_per_pencil);    
     FOFcell FOFlevel1[omp_get_max_threads()], FOFlevel2[omp_get_max_threads()];
     posstruct **L1pos = new posstruct *[omp_get_max_threads()];
     velstruct **L1vel = new velstruct *[omp_get_max_threads()];
@@ -754,7 +754,6 @@ void GlobalGroupSlab::HaloOutput() {
 
     sprintf(fname, "/tmp/out.L1pid.%03d", slab);
     L1PIDs.dump_to_file(fname);
-    // TODO: When we're ready to send this to arenas, we can use copy_to_ptr()
 }
 
 #else   // !STANDALONE_FOF

@@ -1,5 +1,4 @@
-// TODO: We need a parallel sort, preferably done in place.
-//for intel's fast parallel sort
+// For intel's fast parallel sort
 // #include "tbb/parallel_sort.h"
 // #include "parallel_stable_sort.h"
 
@@ -49,12 +48,13 @@ class GroupLink {
     inline bool is_marked_for_deletion() { return (a.id==-1);}
 };
 
-// TODO: Not sure what's going on with this construction
+/* Not sure what's going on with this construction; vestigial from a parallel sort
 struct GroupLinkSortOperator {
     inline bool operator() (const  GroupLink &pi, const GroupLink &pj ) const {
 	return pi<pj;
     }
 };
+*/
 
 inline bool is_marked_for_deletion(GroupLink *gl, int val) {
     // This is the binary decision for whether a link will be swept
@@ -96,7 +96,7 @@ public:
     void Sort() {
 	// We sort the whole list of GroupLinks.
 	GroupSort.Start();
-	// TODO: Put in a parallel sort
+	// Put in a parallel sort
 	// pss::parallel_stable_sort( list, list+length, GroupLinkSortOperator() );
 	#ifdef TBB
 	tbb::parallel_sort(list, list+length);

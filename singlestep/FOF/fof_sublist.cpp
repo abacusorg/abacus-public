@@ -361,8 +361,6 @@ class FOFcell {
 	// This depends on the registration of unassigned.
 	// AVX requires the float4 list to be 32-byte aligned
 	// We assume that p is 32-byte aligned.
-	// TODO: Is there a faster way to decide if *list is 32-byte aligned?
-	// if ((uintptr_t)(unassigned)&16==0) {
 	if (((list-p)&1)==0) {
 	    // We have an even registration
 	    d2use = d2buf;

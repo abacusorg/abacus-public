@@ -2,8 +2,6 @@
 // We include this file in the program.
 
 
-// TODO: Are the SlabAccum maxsize set sensibly?
-
 #include "fof_sublist.cpp"
 	// Code to do FOF on a set (e.g., a cell)
 
@@ -176,7 +174,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     // Construct the Cell Groups for this slab
     CellGroupTime.Start();
     slab = WrapSlab(slab);
-    cellgroups[slab].setup(cpd, particles_per_pencil);     // TODO: Pick a better maxsize!
+    cellgroups[slab].setup(cpd, particles_per_pencil);     
     FOFcell doFOF[omp_get_max_threads()];
     #pragma omp parallel for schedule(static)
     for (int g=0; g<omp_get_max_threads(); g++) 
@@ -303,13 +301,9 @@ void FindAndProcessGlobalGroups(int slab) {
     GGS->GatherGlobalGroups();
     STDLOG(1,"Gathered %d particles from global groups in slab %d\n", GGS->np, slab);
     GFC->largest_GG = std::max(GFC->largest_GG, GGS->largest_group);
-    // TODO: Write to STDLOG
+    // TODO: This largest_GG work is now superceded by MultiplicityHalos
     // The GGS->globalgroups[j][k][n] now reference these as [start,start+np)
 
-    // TODO: Lots to do here
-    // For now, maybe we should just output the group multiplicity and the PIDs,
-    // as a way of demonstrating that we have something.
-	// TODO: can we safely skip FindSubGroups() if this is not an L1 output step?  Do we only ever tag L2 particles at L1 output steps?
     GGS->FindSubGroups();
     GGS->ScatterGlobalGroupsAux();
 
