@@ -601,8 +601,6 @@ void GlobalGroupSlab::FindSubGroups() {
 		    }
 		    GFC->L2FOF.Start();
 		    FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, NULL, size);
-		    std::sort(FOFlevel2[g].groups, FOFlevel2[g].groups+FOFlevel2[g].ngroups);
-			// Groups now in descending order of multiplicity
 		    GFC->L2FOF.Stop();
 
 		    // Merger trees require tagging the taggable particles 
@@ -610,11 +608,16 @@ void GlobalGroupSlab::FindSubGroups() {
 		    // This can be done:
 		    // The L2 index() gives the position in the L1 array,
 		    // and that index() gets back to aux.
-		    FOFparticle *L2start = FOFlevel2[g].p + FOFlevel2[g].groups[0].start;
-		    for (int p=0; p<FOFlevel2[g].groups[0].n; p++) {
-			if (groupaux[start[L2start[p].index()].index()].is_taggable())
-			    groupaux[start[L2start[p].index()].index()].set_tagged();
-		    }
+			if(FOFlevel2[g].ngroups > 0){
+				std::sort(FOFlevel2[g].groups, FOFlevel2[g].groups+FOFlevel2[g].ngroups);
+				// Groups now in descending order of multiplicity
+			
+				FOFparticle *L2start = FOFlevel2[g].p + FOFlevel2[g].groups[0].start;
+				for (int p=0; p<FOFlevel2[g].groups[0].n; p++) {
+				if (groupaux[start[L2start[p].index()].index()].is_taggable())
+					groupaux[start[L2start[p].index()].index()].set_tagged();
+				}
+			}
 
 		    uint64 taggedstart = pTaggedPIDs->get_pencil_size();
 		    uint64 npstart = pL1Particles->get_pencil_size();

@@ -43,13 +43,21 @@ HaloStat ComputeStats(int size,
 	    // TODO: Strictly speaking, there might not be any singlet particles,
 	    // but the far more likely case is that there are.
 
-    FOFparticle *start = L2.p + L2.groups[0].start;
+	// We are always guaranteed to have some L2 singlet particles,
+	// but singlet particles do not have groups!
+	int L2_largest_np = 1;
+    FOFparticle *start = L2.p;
+	if (L2.ngroups > 0){
+		start = L2.p + L2.groups[0].start;
+		L2_largest_np = L2.groups[0].n;
+	}
+
     com = double3(0.0, 0.0, 0.0);
-    for (int p=0; p<L2.groups[0].n; p++) 
+    for (int p=0; p<L2_largest_np; p++) 
     	com += L1pos[start[p].index()];
     float3 subhalo_x = com/h.subhalo_N[0];
     com = double3(0.0, 0.0, 0.0);
-    for (int p=0; p<L2.groups[0].n; p++) 
+    for (int p=0; p<L2_largest_np; p++) 
     	com += L1vel[start[p].index()];
     float3 subhalo_v = com/h.subhalo_N[0];
     assign_to_vector(h.subhalo_v, subhalo_v);
