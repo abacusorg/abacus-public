@@ -350,52 +350,6 @@ void DoGlobalGroupsAction(int slab) {
 }
 
 // -----------------------------------------------------------------
-
-/*int GroupPrecondition(int slab) {
-    // TODO: are these the right dependencies?
-    // Only PosXYZ is used for sources, so we're free to rearrange PosSlab after the transpose
-    if( TransposePos.notdone(slab) ) return 0;
-    
-    // Need the accelerations in this slab because we're going to rearrange particles
-    if( Kick.notdone(slab) ) return 0;
-    
-    // We're probably going to need to move around PIDs as we create groups
-    if( !LBW->IOCompleted( AuxSlab, slab ) ) {
-        Dependency::NotifySpinning(WAITING_FOR_IO);
-        return 0;
-    }
-    
-    return 1;
-}
-
-void GroupAction(int slab) {
-    if (!P.AllowGroupFinding) return;
-    if (LPTStepNumber()) return;
-    // We can't be doing group finding during an IC step
-    if(P.ForceOutputDebug) return;  // can't rearrange the pos if we've already output the nearacc
-    
-    // do we still need this in the new fof?
-    STDLOG(1,"Zeroing Aux L0 field\n");
-
-    #pragma omp parallel for schedule(dynamic, 1)
-    for(int j = 0; j < PP->cpd; j++){
-        for(int k = 0; k < PP->cpd; k++){
-            Cell c = PP->GetCell(integer3(slab, j, k));
-            uint64 mask = ~(1llu<<AUXINL0BIT);
-            for(int x = 0; x < c.count(); x++) c.aux[x].aux = c.aux[x].aux & mask;
-        }
-    }
-
-    STDLOG(1,"Finding groups for slab %d\n", slab);
-
-    GroupExecute.Start();
-    //GF->ExecuteSlab(slab);
-    GroupExecute.Stop();
-    // One could also use the Accelerations to set individual particle microstep levels.
-    // (one could imagine doing this in Force, but perhaps one wants the group context?)
-}*/
-
-// -----------------------------------------------------------------
 /*
  * Checks if we are ready to do all outputs for this step
  * Anything that modifies the particles at the current time should happen before here

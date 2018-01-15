@@ -303,17 +303,21 @@ void FindAndProcessGlobalGroups(int slab) {
     GFC->largest_GG = std::max(GFC->largest_GG, GGS->largest_group);
     // TODO: This largest_GG work is now superceded by MultiplicityHalos
     // The GGS->globalgroups[j][k][n] now reference these as [start,start+np)
-
-    GGS->FindSubGroups();
+	
+	// Check if, by going from ReadState to WriteState, we are crossing a L1Output_dlna checkpoint
+	// Also always output if we're doing a TimeSlice output
+	// Due to C's mod behavior, this assumes log(a) < 0
+	int do_output = fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna)
+					|| log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna
+					|| ReadState.DoTimeSliceOutput;
+	if(do_output)
+		GGS->FindSubGroups();
     GGS->ScatterGlobalGroupsAux();
 
     #ifdef ASCII_TEST_OUTPUT
     GGS->SimpleOutput();
     #endif
-	// Check if, by going from ReadState to WriteState, we are crossing a L1Output_dlna checkpoint
-	// Due to C's mod behavior, this assumes log(a) < 0
-	if(fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna)
-		|| log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna)
+	if(do_output)
 		GGS->HaloOutput();
 
     GGS->ScatterGlobalGroups();

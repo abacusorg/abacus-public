@@ -354,7 +354,7 @@ void init_openmp(){
         //bool is_core_free[ncores] = {true};
         #pragma omp parallel for schedule(static)
         for(int g = 0; g < nthreads; g++){
-            assertf(g == omp_get_thread_num(), "OpenMP thread %d is executing wrong loop ieration (%d)\n", omp_get_thread_num(), g);
+            assertf(g == omp_get_thread_num(), "OpenMP thread %d is executing wrong loop iteration (%d)\n", omp_get_thread_num(), g);
             core_assignments[g] = sched_getcpu();
         }
         std::ostringstream core_log;
