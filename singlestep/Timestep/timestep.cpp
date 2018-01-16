@@ -268,7 +268,8 @@ void KickAction(int slab) {
     } else {
         // This is just a standard step
         FLOAT kickfactor1 =  ReadState.LastHalfEtaKick;
-        FLOAT kickfactor2 =  WriteState.FirstHalfEtaKick;
+		// If we are doing group finding, we will do the second-half kick there
+        FLOAT kickfactor2 =  GFC == NULL ? WriteState.FirstHalfEtaKick : 0;
         STDLOG(1,"Kicking slab %d by %f + %f\n", slab, kickfactor1, kickfactor2);
         KickSlab(slab, kickfactor1, kickfactor2, KickCell);
     }
@@ -407,11 +408,6 @@ void OutputAction(int slab) {
     }
     OutputBin.Stop();
 
-    /*OutputGroup.Start();
-    if(!P.ForceOutputDebug && P.AllowGroupFinding && !LPTStepNumber())
-        GF->OutputSlab(slab);
-    OutputGroup.Stop();*/
-
 }
 
 // -----------------------------------------------------------------
@@ -497,10 +493,6 @@ void DriftAction(int slab) {
         LBW->DeAllocate(AccSlab,slab);
     }
     LBW->DeAllocate(NearAccSlab,slab);
-
-    //if(!P.ForceOutputDebug && P.AllowGroupFinding && !LPTStepNumber()) 
-    //   GF->PurgeSlab(slab);
-
 }
 
 // -----------------------------------------------------------------

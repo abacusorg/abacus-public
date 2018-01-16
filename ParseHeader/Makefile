@@ -17,7 +17,8 @@ HFILES = ParseHeader.hh  phDriver.hh  stringutil.hh phScanner.hh phParser.tab.hh
 
 (%.o):%.cc;
 	$(CXX) ${CXXFLAGS} $(CPPFLAGS) -c $< 
-	$(AR) rv $@ $%
+	# older versions of ar don't support the U flag, so try both
+	$(AR) rvU $@ $% || $(AR) rv $@ $%
 	#- @ $(RM) -f $%
 
 # the library

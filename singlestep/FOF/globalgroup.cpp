@@ -46,6 +46,10 @@ class GlobalGroup {
     	ncellgroups = _ncellgroups; cellgroupstart = _cellgroupstart; 
 	np = _np; start = _start;
     }
+	
+	bool operator>(const GlobalGroup &other) const {
+		return np > other.np;
+	}
 };
 
 class LinkIndex {     // These are the links for a given cell

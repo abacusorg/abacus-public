@@ -318,6 +318,11 @@ void FindAndProcessGlobalGroups(int slab) {
     #endif
 	if(do_output)
 		GGS->HaloOutput();
+	
+	// Now do the second-half kick
+	SimpleKickSlab(slab, WriteState.FirstHalfEtaKick);
+	
+	// Do microstepping here
 
     GGS->ScatterGlobalGroups();
     GGS->destroy();

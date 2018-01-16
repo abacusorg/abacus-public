@@ -41,7 +41,7 @@ void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
         if (_acc>maxacc) maxacc = _acc;
         sumvel2 += _vel*_vel;
         // Second half kick, to advance to time i+1/2
-        vel[i] += kick2 * acc[i];
+		vel[i] += kick2 * acc[i];
     }
 
     if (c.count()>0) sumvel2/=c.count();  // Now this has the mean square velocity 
@@ -49,8 +49,6 @@ void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     c.ci->max_component_acceleration = maxacc;
     c.ci->max_component_velocity = maxvel;
 }
-
-
 
 void KickSlab(int slab, FLOAT kick1, FLOAT kick2,
 void (*KickCell)(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2)) {
@@ -63,6 +61,21 @@ void (*KickCell)(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2)) {
             accstruct *cellacc = acc+c.ci->startindex;
             (*KickCell)(c,cellacc,kick1,kick2);
         }
+    }
+}
+
+// If we don't need to record velocity stats in cells, then we can do a slab kick
+// This assumes that VelSlab and AccSlab have the same ordering
+void SimpleKickSlab(int slab, FLOAT kickfactor) {
+	uint64 N = Slab->size(slab)*3;
+    FLOAT *acc = (FLOAT *) LBW->ReturnIDPtr(AccSlab,slab);
+	FLOAT *vel = (FLOAT *) LBW->ReturnIDPtr(VelSlab,slab);
+	
+	// Note we may lose some NUMA locality by abandoning the cell model
+    #pragma omp parallel for schedule(static)
+    #pragma simd assert
+    for (uint64 i=0; i<N; i++) {
+        vel[i] += kickfactor*acc[i];
     }
 }
 
