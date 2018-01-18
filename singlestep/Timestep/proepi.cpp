@@ -143,8 +143,6 @@ FLOAT * density; //!< Array to accumulate gridded densities in for low resolutio
 
 #include "groupfinding.cpp"
 
-#include "microstep.cpp"
-
 #include "timestep.cpp"
 #include "reporting.cpp"
 

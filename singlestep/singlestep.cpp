@@ -157,6 +157,8 @@ double ChooseTimeStep(){
 	    STDLOG(0,"da based on vrms/amax is %f. dlna = %f.\n", da, da/ReadState.ScaleFactor);
 	}
 
+    MicrostepEpochs = new MicrostepEpochTable(cosm, cosm->current.a, cosm->current.a + da);
+
 	return da;
 }
 
@@ -495,7 +497,7 @@ int main(int argc, char **argv) {
     if (!MakeIC){
         //JJ->Cleanup();
     	char timingfn[1050];
-    	sprintf(timingfn,"%s/lastrun.steptiming", P.LogDirectory);
+    	sprintf(timingfn,"%s/lastrun.time", P.LogDirectory);
     	FILE * timingfile = fopen(timingfn,"w");
     	ReportTimings(timingfile);
     	STDLOG(0,"Wrote Timing File to %s\n",timingfn);

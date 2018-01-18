@@ -105,21 +105,30 @@ class GroupFindingControl {
     
     void ConstructCellGroups(int slab);
     void DestroyCellGroups(int slab);
-
-
+	
     void report() {
-	 STDLOG(0,"Found %d cell groups (including boundary singlets)\n", CGtot);
-	 STDLOG(0,"Used %d pseudoParticles, %d faceParticles, %d faceGroups\n",
+#ifdef STANDALONE_FOF
+#define GLOG STDLOG
+#else
+#define GLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
+	LOG(glog,__VA_ARGS__); glog.flush(); } }
+	std::string glogfn = P.LogDirectory;
+	glogfn += "/lastrun.groupstats";
+	std::ofstream glog;
+    glog.open(glogfn);
+#endif
+	 GLOG(0,"Found %d cell groups (including boundary singlets)\n", CGtot);
+	 GLOG(0,"Used %d pseudoParticles, %d faceParticles, %d faceGroups\n",
 	     pPtot, fPtot, fGtot);
-	 STDLOG(0,"Found %d links between groups.\n", Ltot);
-	 STDLOG(0,"Found %d global groups\n", GGtot);
-	 STDLOG(0,"Longest GroupLink list was %d, compared to %d allocation\n", GLL->longest, GLL->maxlist);
-	 STDLOG(0,"Largest Global Group has %d particles\n", largest_GG);
+	 GLOG(0,"Found %d links between groups.\n", Ltot);
+	 GLOG(0,"Found %d global groups\n", GGtot);
+	 GLOG(0,"Longest GroupLink list was %d, compared to %d allocation\n", GLL->longest, GLL->maxlist);
+	 GLOG(0,"Largest Global Group has %d particles\n", largest_GG);
 
-	 STDLOG(0,"L0 group multiplicity distribution:\n");
+	 GLOG(0,"L0 group multiplicity distribution:\n");
 	 L0stats.report_multiplicities();
 
-	 STDLOG(0,"L1 group multiplicity distribution:\n");
+	 GLOG(0,"L1 group multiplicity distribution:\n");
 	 L1stats.report_multiplicities();
 
 	 float total_time = CellGroupTime.Elapsed()+
@@ -132,38 +141,42 @@ class GroupFindingControl {
 			GatherGroups.Elapsed()+
 			ProcessLevel1.Elapsed()+
 			ScatterGroups.Elapsed();
-	 STDLOG(0,"\nTimings: \n");
+	 GLOG(0,"Timings: \n");
 	 #define RFORMAT(a) a.Elapsed(), a.Elapsed()/total_time*100.0
-	 STDLOG(0,"Finding Cell Groups:     %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Finding Cell Groups:     %8.4f sec (%5.2f%%)\n",
 			RFORMAT(CellGroupTime));
-	 STDLOG(0,"Creating Faces:          %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Creating Faces:          %8.4f sec (%5.2f%%)\n",
 			RFORMAT(CreateFaceTime));
-	 STDLOG(0,"Finding Group Links:     %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Finding Group Links:     %8.4f sec (%5.2f%%)\n",
 			RFORMAT(FindLinkTime));
-	 STDLOG(0,"Sort Links:              %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Sort Links:              %8.4f sec (%5.2f%%)\n",
 			RFORMAT(SortLinks));
-	 STDLOG(0,"Index Links:             %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Index Links:             %8.4f sec (%5.2f%%)\n",
 			RFORMAT(IndexLinks));
 	 // printf("     Searching:               %8.4f sec\n", IndexLinksSearch.Elapsed());
-	 STDLOG(0,"Indexing (P):                %8.4f sec\n", IndexLinksIndex.Elapsed());
-	 STDLOG(0,"Find Global Groups:      %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Indexing (P):                %8.4f sec\n", IndexLinksIndex.Elapsed());
+	 GLOG(0,"Find Global Groups:      %8.4f sec (%5.2f%%)\n",
 			RFORMAT(FindGlobalGroupTime));
-	 STDLOG(0,"Index Global Groups:     %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Index Global Groups:     %8.4f sec (%5.2f%%)\n",
 			RFORMAT(IndexGroups));
-	 STDLOG(0,"Gather Group Particles:  %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Gather Group Particles:  %8.4f sec (%5.2f%%)\n",
 			RFORMAT(GatherGroups));
-	 STDLOG(0,"Level 1 & 2 Processing:  %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Level 1 & 2 Processing:  %8.4f sec (%5.2f%%)\n",
 			RFORMAT(ProcessLevel1));
-	 STDLOG(0,"Level 1 FOF:                  %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Level 1 FOF:                  %8.4f sec (%5.2f%%)\n",
 			RFORMAT(L1FOF));
-	 STDLOG(0,"Level 2 FOF:                  %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Level 2 FOF:                  %8.4f sec (%5.2f%%)\n",
 			RFORMAT(L2FOF));
-	 STDLOG(0,"Level 1 Total:                %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Level 1 Total:                %8.4f sec (%5.2f%%)\n",
 			RFORMAT(L1Tot));
-	 STDLOG(0,"Scatter Group Particles: %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Scatter Group Particles: %8.4f sec (%5.2f%%)\n",
 			RFORMAT(ScatterGroups));
-	 STDLOG(0,"Total Booked Time:       %8.4f sec (%5.2f Mp/sec)\n", total_time, np/total_time*1e-6);
+	 GLOG(0,"Total Booked Time:       %8.4f sec (%5.2f Mp/sec)\n", total_time, np/total_time*1e-6);
 	 #undef RFORMAT
+	 
+#ifndef STANDALONE_FOF
+	glog.close();
+#endif
     }
 };
 
@@ -281,6 +294,13 @@ uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid) {
 // ===================== Global Groups ===============
 
 #include "globalgroup.cpp"
+
+// TODO: if we want to include microstep.cpp in proepi instead of here, then we need move FindAndProcessGlobalGroups, probably to the GlobalGroup action
+// that would break the stand-alone code, though
+#ifndef STANDALONE_FOF
+#include "microstep.cpp"
+#endif
+
 	// Code to traverse the links and find the GlobalGroups as 
 	// sets of CellGroups (stored by their LinkIDs).
 
@@ -306,9 +326,13 @@ void FindAndProcessGlobalGroups(int slab) {
 	
 	// Check if, by going from ReadState to WriteState, we are crossing a L1Output_dlna checkpoint
 	// Also always output if we're doing a TimeSlice output
+#ifndef STANDALONE_FOF
 	int do_output = fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna)
 					|| log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna
 					|| ReadState.DoTimeSliceOutput;
+#else
+	int do_output = 1;
+#endif
 	if(do_output)
 		GGS->FindSubGroups();
     GGS->ScatterGlobalGroupsAux();
@@ -319,11 +343,21 @@ void FindAndProcessGlobalGroups(int slab) {
 	if(do_output)
 		GGS->HaloOutput();
 	
+#ifndef STANDALONE_FOF
 	// Now do the second-half kick
 	SimpleKickSlab(slab, WriteState.FirstHalfEtaKick);
 	
 	// Do microstepping here
+	// If da = 0, no point in microstepping!
+	if(MicrostepEpochs != NULL){
+		MicrostepControl MC;
+		MC.setup(GGS, *MicrostepEpochs);
+		MC.ComputeGroupsCPU();
+	}
+#endif 
 
+	// pos,vel have been updated in the group-local particle copies by microstepping
+	// now push these updates to the original slabs
     GGS->ScatterGlobalGroups();
     GGS->destroy();
     return;

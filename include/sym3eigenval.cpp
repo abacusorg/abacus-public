@@ -30,8 +30,9 @@ void FindEigenvalues(double vxx, double vxy, double vxz,
 	// Instead we'll compute det(A') and then divide by 2*p**3.
 	double r = vxx*vyy*vzz + 2.0*vxy*vxz*vyz - vxx*vyz*vyz - vyy*vxz*vxz - vzz*vxy*vxy;
 	r /= 2.0*p*p*p;
+	if (r > 1 && r < 1.00000001) r = 1.;
+	else if (r < -1 && r > -1.00000001) r = -1.;
 	assert(r>=-1 && r<=1);
-	    // TODO: If we only fail just a bit, then we could round these off.
 	double phi = acos(r)/3.0;
 	sigmav[0] = q + 2.0*p*cos(phi);
 	sigmav[2] = q + 2.0*p*cos(phi+2.0/3.0*M_PI);

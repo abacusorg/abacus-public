@@ -237,13 +237,10 @@ void ReportTimings(FILE * timingfile) {
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
     REPORT(1, "Kick", Kick.Elapsed()); total += thistime;
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
+	double gf_total = MakeCellGroups.Elapsed() + FindCellGroupLinks.Elapsed() + DoGlobalGroups.Elapsed();
+	REPORT(1, "Group Finding", gf_total); total += thistime;
+    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
     REPORT(1, "Output", Output.Elapsed()); total += thistime;
-    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
-    REPORT(1, "MakeCellGroups", MakeCellGroups.Elapsed()); total += thistime;
-    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
-    REPORT(1, "FindCellGroupLinks", FindCellGroupLinks.Elapsed()); total += thistime;
-    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
-    REPORT(1, "DoGlobalGroups", DoGlobalGroups.Elapsed()); total += thistime;
     fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
    
     if(WriteState.Do2LPTVelocityRereading){
@@ -375,6 +372,19 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Add Near + Far Accel", AddAccel.Elapsed());
     REPORT(1, "Kick Cell", KickCellTimer.Elapsed());
     
+	fprintf(timingfile, "\n\n Breakdown of Group Finding:");
+	denom = gf_total;
+	REPORT(1, "MakeCellGroups", MakeCellGroups.Elapsed());
+    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+    REPORT(1, "FindCellGroupLinks", FindCellGroupLinks.Elapsed());
+    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+    REPORT(1, "DoGlobalGroups", DoGlobalGroups.Elapsed());
+    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+	
+	// Now write some detailed multiplicity and timing stats to lastrun.grouplog
+	if(GFC != NULL)
+		GFC->report();
+	
     fprintf(timingfile, "\n\n Breakdown of Output Step:");
     denom = Output.Elapsed();
     REPORT(1, "TimeSlice", OutputTimeSlice.Elapsed());
