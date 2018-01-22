@@ -142,6 +142,7 @@ Cosmology *cosm;
 FLOAT * density; //!< Array to accumulate gridded densities in for low resolution inline power-spectra.
 
 #include "groupfinding.cpp"
+#include "microstep.cpp"
 
 #include "timestep.cpp"
 #include "reporting.cpp"

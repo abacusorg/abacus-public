@@ -348,7 +348,7 @@ class OutputRVdoubleTag: public AppendArena {
     struct ICparticle {
         double pos[3];		// Global position, unit box
 	    double vel[3];		// Zspace, unit box
-	    unsigned long tag;
+	    uint64 tag;
     };
 
     float velocity_conversion;
@@ -368,7 +368,7 @@ class OutputRVdoubleTag: public AppendArena {
 	p->vel[0] = vel.x*velocity_conversion;
 	p->vel[1] = vel.y*velocity_conversion;
 	p->vel[2] = vel.z*velocity_conversion;
-	p->tag = (unsigned int) aux.pid();
+	p->tag = aux.pid();
 	
     }
     void appendcell(char *c, integer3 ijk, float vscale) {

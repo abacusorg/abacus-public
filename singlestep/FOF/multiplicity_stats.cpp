@@ -43,20 +43,20 @@ class MultiplicityStats {
 	sumn2[j] += np*np;
 	return;
     }
-
-    void report_multiplicities() {
-        STDLOG(0,"Total number of groups %u\n", ngroups);
+	
+    void report_multiplicities(std::ofstream *grouplog) {
+        GLOG(0,"Total number of groups %u\n", ngroups);
 	int j, m, nbin;
-        STDLOG(0,"Groups contain %u particles\n", tot);
-	STDLOG(0,"Average group has %f particles and %f pairs\n", 
+        GLOG(0,"Groups contain %u particles\n", tot);
+	GLOG(0,"Average group has %f particles and %f pairs\n", 
 		(float)tot/ngroups, (float)tot2/ngroups);
-        STDLOG(0,"Largest Group contains %u particles\n", largest);
+        GLOG(0,"Largest Group contains %u particles\n", largest);
 	for (nbin=MS_NBIN-1; count[nbin]==0 && nbin>=0; nbin--);
 	    // nbin is now the number of the highest non-empty bin
-	STDLOG(2,"Max bin is %d\n", nbin);
+	GLOG(2,"Max bin is %d\n", nbin);
 	for (j=0,m=1; j<=nbin; j++, m*=2)
 	    if (count[j]>0) 
-		STDLOG(0,"%6d -- %6d: %7u groups, %6.3f%% of particles, %6.3f%% of pairs\n",
+		GLOG(0,"%6d -- %6d: %7u groups, %6.3f%% of particles, %6.3f%% of pairs\n",
 		    (m<MS_MIN?MS_MIN:m), m*2-1, count[j],
 		    100.0*sumn[j]/tot, 100.0*sumn2[j]/tot2);
     }

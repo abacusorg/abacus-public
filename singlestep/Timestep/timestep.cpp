@@ -35,6 +35,7 @@ Dependency Kick;
 Dependency Drift;
 Dependency Finish;
 Dependency Output;
+Dependency Microstep;
 Dependency MakeCellGroups;
 Dependency FindCellGroupLinks;
 Dependency DoGlobalGroups;
@@ -297,7 +298,6 @@ int MakeCellGroupsPrecondition(int slab) {
 }
 
 void MakeCellGroupsAction(int slab) {
-	// TODO: is this how we want to disable group finding? are we always allowed to disable group finding?
 	if(GFC == NULL)
 		return;
 	STDLOG(1,"Making Cell Groups in slab %d\n", slab);
@@ -336,17 +336,13 @@ int DoGlobalGroupsPrecondition(int slab) {
         if (FindCellGroupLinks.notdone(slab+j) && DoGlobalGroups.notdone(slab+j)) return 0;
     return 1;
 }
+
 void DoGlobalGroupsAction(int slab) {
 	if(GFC == NULL)
-		return;
+        return;
     STDLOG(0,"Finding Global Groups in slab %d\n", slab);
     FindAndProcessGlobalGroups(slab);
-    // TODO: LightCone Outputs might have to go here, since we need the GlobalGroups
-    // or can they stay in OutputAction?
 
-    // At this point, all CellGroups in this slab have been closed and used
-    // so we can delete them.
-    GFC->DestroyCellGroups(slab);
     return;
 }
 
@@ -375,13 +371,18 @@ void OutputAction(int slab) {
     OutputTimeSlice.Start();
 
     if (ReadState.DoTimeSliceOutput) {
-        STDLOG(1,"Outputting slab %d\n",slab);
-        n_output += Output_TimeSlice(slab);
+        // If we're doing group finding, then Output is called at synchrony
+        // If not, we've already done a K(1) and thus need a K(-1/2)
+        FLOAT unkickfactor = GFC == NULL ? WriteState.FirstHalfEtaKick : 0;
+        STDLOG(1,"Outputting slab %d with unkick factor %f\n",slab, unkickfactor);
+        n_output += Output_TimeSlice(slab, unkickfactor);
     }
     OutputTimeSlice.Stop();
 
     OutputLightCone.Start();
     if (ReadState.OutputIsAllowed) {
+        // TODO: LightCones may need a half un-kick if GFC == NULL
+        // but we can probably handle that in the interpolation
         for(int i = 0; i < P.NLightCones; i++){
             STDLOG(1,"Outputting LightCone %d (origin (%f,%f,%f)) for slab %d\n",i,LCOrigin[i].x,LCOrigin[i].y,LCOrigin[i].z,slab);
             makeLightCone(slab,i);
@@ -408,6 +409,44 @@ void OutputAction(int slab) {
     }
     OutputBin.Stop();
 
+}
+
+// -----------------------------------------------------------------
+
+int MicrostepPrecondition(int slab){
+    if(Output.notdone(slab))
+        return 0;
+    return 1;
+}
+
+void MicrostepAction(int slab){
+    if(GFC == NULL)
+        return;
+
+    // Now do the second-half kick
+    // Note that if GFC == NULL, we went ahead and did the K(1) in KickAction
+    // This kicks the slab particles, but not the GlobalGroup local copies
+    MicrostepSlabKick.Start();
+    SimpleKickSlab(slab, WriteState.FirstHalfEtaKick);
+    MicrostepSlabKick.Stop();
+
+    // Now kick the GlobalGroup local copies
+    MicrostepGroupKick.Start();
+    KickGlobalGroups(slab, WriteState.FirstHalfEtaKick);
+    MicrostepGroupKick.Stop();
+
+    MicrostepCPU.Start();
+    // Do microstepping here
+    // If da = 0, no point in microstepping!
+    /*if(MicrostepEpochs != NULL){
+        MicrostepControl MC;
+        MC.setup(GGS, *MicrostepEpochs);
+        MC.ComputeGroupsCPU();
+    }*/ 
+    MicrostepCPU.Stop();
+
+    // Scatter pos,vel updates to slabs, and release GGS
+    FinishGlobalGroups(slab);
 }
 
 // -----------------------------------------------------------------
@@ -583,6 +622,7 @@ void timestep(void) {
 FindCellGroupLinks.instantiate(cpd, first, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction);
     DoGlobalGroups.instantiate(cpd, first, &DoGlobalGroupsPrecondition,     &DoGlobalGroupsAction    );
             Output.instantiate(cpd, first, &OutputPrecondition,             &OutputAction            );
+         Microstep.instantiate(cpd, first, &MicrostepPrecondition,          &MicrostepAction         );
              Drift.instantiate(cpd, first, &DriftPrecondition,              &DriftAction             );
             Finish.instantiate(cpd, first, &FinishPrecondition,             &FinishAction            );
            
@@ -600,6 +640,7 @@ LPTVelocityReRead.instantiate(cpd, first + 2*FORCE_RADIUS + 1 - FINISH_WAIT_RADI
    FindCellGroupLinks.Attempt();
        DoGlobalGroups.Attempt();
                Output.Attempt();
+            Microstep.Attempt();
   if(WriteState.Do2LPTVelocityRereading)
     LPTVelocityReRead.Attempt();
                 Drift.Attempt();

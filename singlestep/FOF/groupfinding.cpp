@@ -1,6 +1,9 @@
 // This is the top-level code for group-finding.
 // We include this file in the program.
 
+// Use GLOG instead of STDLOG to write to the lastrun.groupstats file
+#define GLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
+	LOG(*grouplog,__VA_ARGS__); grouplog->flush(); } }
 
 #include "fof_sublist.cpp"
 	// Code to do FOF on a set (e.g., a cell)
@@ -58,6 +61,8 @@ class GroupFindingControl {
 	GatherGroups, ScatterGroups, ProcessLevel1;
     PTimer L1FOF, L2FOF, L1Tot;
     PTimer IndexLinksSearch, IndexLinksIndex;
+	
+	std::ofstream *grouplog;
 
     void setupGGS();
 
@@ -78,6 +83,15 @@ class GroupFindingControl {
 	cellgroups_status = new int[cpd];
 	for (int j=0;j<cpd;j++) cellgroups_status[j] = 0;
 	GLL = new GroupLinkList(cpd, np/cpd*linking_length/_invcpd*3*15);    
+#ifdef STANDALONE_FOF
+	grouplog = &stdlog;
+#else
+	std::string glogfn = P.LogDirectory;
+	glogfn += "/lastrun.groupstats";
+    grouplog = new std::ofstream();
+	grouplog->open(glogfn);
+#endif
+	
 	setupGGS();
 	// This is a MultiAppendList, so the buffer cannot grow. 
 	// It will be storing links between cells.  Most particles do 
@@ -93,6 +107,9 @@ class GroupFindingControl {
         delete[] cellgroups;
         delete[] cellgroups_status;
 	delete GLL;
+#ifndef STANDALONE_FOF
+		grouplog->close();
+#endif
     }
     int WrapSlab(int s) {
 	while (s<0) s+=cpd;
@@ -107,16 +124,6 @@ class GroupFindingControl {
     void DestroyCellGroups(int slab);
 	
     void report() {
-#ifdef STANDALONE_FOF
-#define GLOG STDLOG
-#else
-#define GLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
-	LOG(glog,__VA_ARGS__); glog.flush(); } }
-	std::string glogfn = P.LogDirectory;
-	glogfn += "/lastrun.groupstats";
-	std::ofstream glog;
-    glog.open(glogfn);
-#endif
 	 GLOG(0,"Found %d cell groups (including boundary singlets)\n", CGtot);
 	 GLOG(0,"Used %d pseudoParticles, %d faceParticles, %d faceGroups\n",
 	     pPtot, fPtot, fGtot);
@@ -126,10 +133,10 @@ class GroupFindingControl {
 	 GLOG(0,"Largest Global Group has %d particles\n", largest_GG);
 
 	 GLOG(0,"L0 group multiplicity distribution:\n");
-	 L0stats.report_multiplicities();
+	 L0stats.report_multiplicities(grouplog);
 
 	 GLOG(0,"L1 group multiplicity distribution:\n");
-	 L1stats.report_multiplicities();
+	 L1stats.report_multiplicities(grouplog);
 
 	 float total_time = CellGroupTime.Elapsed()+
 			CreateFaceTime.Elapsed()+
@@ -173,10 +180,6 @@ class GroupFindingControl {
 			RFORMAT(ScatterGroups));
 	 GLOG(0,"Total Booked Time:       %8.4f sec (%5.2f Mp/sec)\n", total_time, np/total_time*1e-6);
 	 #undef RFORMAT
-	 
-#ifndef STANDALONE_FOF
-	glog.close();
-#endif
     }
 };
 
@@ -296,9 +299,9 @@ uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid) {
 #include "globalgroup.cpp"
 
 // TODO: if we want to include microstep.cpp in proepi instead of here, then we need move FindAndProcessGlobalGroups, probably to the GlobalGroup action
-// that would break the stand-alone code, though
+// That would break the stand-alone code, though
 #ifndef STANDALONE_FOF
-#include "microstep.cpp"
+
 #endif
 
 	// Code to traverse the links and find the GlobalGroups as 
@@ -342,27 +345,40 @@ void FindAndProcessGlobalGroups(int slab) {
     #endif
 	if(do_output)
 		GGS->HaloOutput();
-	
-#ifndef STANDALONE_FOF
-	// Now do the second-half kick
-	SimpleKickSlab(slab, WriteState.FirstHalfEtaKick);
-	
-	// Do microstepping here
-	// If da = 0, no point in microstepping!
-	if(MicrostepEpochs != NULL){
-		MicrostepControl MC;
-		MC.setup(GGS, *MicrostepEpochs);
-		MC.ComputeGroupsCPU();
-	}
-#endif 
-
-	// pos,vel have been updated in the group-local particle copies by microstepping
-	// now push these updates to the original slabs
-    GGS->ScatterGlobalGroups();
-    GGS->destroy();
-    return;
 }
 
 
+void KickGlobalGroups(int slab, FLOAT kickfactor){
+	/* Kick the group-local copies of the velocities
+	   using the group-local accelerations.
+	   At this point, these are the same values
+	   as the slab vel/acc, so there's some redundant
+	   work with the slab kick.  But that probably
+	   unavoidable given that there are many reasons
+	   we want group-local copies of particles.
+	 */
+
+	slab = GFC->WrapSlab(slab);
+    GlobalGroupSlab *GGS = GFC->globalslabs+slab;
+
+    #pragma omp parallel for schedule(static)
+    #pragma simd assert
+    for(uint64 i = 0; i < GGS->np; i++)
+    	GGS->vel[i] += GGS->acc[i]*kickfactor;
+}
+
+void FinishGlobalGroups(int slab){
+	slab = GFC->WrapSlab(slab);
+    GlobalGroupSlab *GGS = GFC->globalslabs+slab;
+
+	// pos,vel have been updated in the group-local particle copies by microstepping
+    // now push these updates to the original slabs
+    GGS->ScatterGlobalGroups();
+    GGS->destroy();
+
+    // At this point, all CellGroups in this slab have been closed and used
+    // so we can delete them.
+    GFC->DestroyCellGroups(slab);
+}
 
 

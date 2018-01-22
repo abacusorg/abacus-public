@@ -22,6 +22,8 @@ HaloStat ComputeStats(int size,
     // Task is to fill a HaloStat object and return it.
     // The particle positions have already been wrapped to the first cell;
     // we will wrap to global coords, using offset
+    // Velocities will be converted to our usual velocity output
+    // convention of unit-box redshift-space displacements
     HaloStat h;
 
     h.N = size;
@@ -32,7 +34,7 @@ HaloStat ComputeStats(int size,
     h.x[0] = com.x; h.x[1] = com.y; h.x[2] = com.z; 
     com = double3(0.0, 0.0, 0.0);
     for (int p=0; p<size; p++) com += L1vel[p];
-    float3 v = com/size;
+    float3 v = com/size/ReadState.VelZSpace_to_Canonical;
     assign_to_vector(h.v, v);
 
     // Find the largest L2 subhalos and the largest COM
@@ -60,7 +62,7 @@ HaloStat ComputeStats(int size,
     com = double3(0.0, 0.0, 0.0);
     for (int p=0; p<L2_largest_np; p++) 
     	com += L1vel[start[p].index()];
-    float3 subhalo_v = com/h.subhalo_N[0];
+    float3 subhalo_v = com/h.subhalo_N[0]/ReadState.VelZSpace_to_Canonical;
     assign_to_vector(h.subhalo_v, subhalo_v);
 
     // Now we can go through the particles to compute radii and moments
@@ -71,7 +73,7 @@ HaloStat ComputeStats(int size,
     for (int p=0; p<size; p++) {
 	posstruct dx = L1pos[p]-x;
 	L2.d2buffer[p] = dx.norm2();
-	velstruct dv = L1vel[p]-v;
+	velstruct dv = L1vel[p]/ReadState.VelZSpace_to_Canonical - v;
 	vxx += dv.x*dv.x; vxy += dv.x*dv.y; vxz += dv.x*dv.z;
 	vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
     }
@@ -95,7 +97,7 @@ HaloStat ComputeStats(int size,
     for (int p=0; p<size; p++) {
 	posstruct dx = L1pos[p]-subhalo_x;
 	L2.d2buffer[p] = dx.norm2();
-	velstruct dv = L1vel[p]-subhalo_v;
+	velstruct dv = L1vel[p]/ReadState.VelZSpace_to_Canonical - subhalo_v;
 	vxx += dv.x*dv.x; vxy += dv.x*dv.y; vxz += dv.x*dv.z;
 	vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
     }

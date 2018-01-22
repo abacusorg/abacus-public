@@ -288,6 +288,11 @@ uint64 FillMergeSlab(int slab) {
                     mc.vel[j] = ilpart[j].vel;
                     mc.aux[j] = ilpart[j].aux;
             }
+			
+			mc = PP->GetMergeCell(slab, y, z);
+			for (int j = 0; j < mc.count(); j++) {
+				assertf(mc.aux[j].pid() < P.np, "PID %d too big\n", mc.aux[j].pid());
+			}
             
             //DoCellMultipoles(slab, y, z);
         }
