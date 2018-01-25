@@ -1,18 +1,18 @@
 #ifndef HALO_H
 #define HALO_H
 
-#define HALO_FORMAT_REVISION 1
+#define HALO_FORMAT_REVISION 2
 
 #include <stdint.h>
 
 struct halo {
-  int64_t id;
+  int64_t id, parent_id;
   float pos[6], corevel[3], bulkvel[3];
-  float m, r, child_r, vmax_r, mgrav, vmax, rvmax, rs, klypin_rs, vrms,
-    J[3], energy, spin, alt_m[4], Xoff, Voff, b_to_a, c_to_a, A[3],
+  float m, m_SO, r, child_r, vmax_r, mgrav, vmax, rvmax, rs, klypin_rs, vrms,
+    J[3], energy, spin, alt_m[4], alt_m_SO[4], Xoff, Voff, b_to_a, c_to_a, A[3],
     b_to_a2, c_to_a2, A2[3],
-    bullock_spin, kin_to_pot, m_pe_b, m_pe_d;
-  int64_t num_p, num_child_particles, p_start, desc, flags, n_core;
+    bullock_spin, kin_to_pot, m_pe_b, m_pe_d, halfmass_radius;
+  int64_t num_p, num_child_particles, p_start, desc, flags, n_core, subsamp_start, subsamp_len;
   float min_pos_err, min_vel_err, min_bulkvel_err;
 };
 

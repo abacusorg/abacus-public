@@ -65,7 +65,7 @@ class SetInteractionCollection{
         STimer     CopyAccelFromPinned;
     
         // Data transfer metrics
-        uint64 bytes_to_device = 0, bytes_from_device = 0;
+        uint64 bytes_to_device, bytes_from_device;
     
         // These are shared by all threads
         static volatile int ActiveThreads;
@@ -115,7 +115,7 @@ class SetInteractionCollection{
         // Different softenings use different eps
         FLOAT eps;
 
-        int AssignedDevice = 0;
+        int AssignedDevice;
         int Blocking;
 
         //Methods

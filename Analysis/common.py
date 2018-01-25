@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 A collection of file organization functions
 to standardize paths for analysis products.
@@ -118,7 +120,7 @@ class _make_tar_worker(object):
         dir, pattern, tarfn = args
         
         # Make the parent directories for the output file
-        tarfn = path.join(self.out_parent, dir, tarfn)
+        tarfn = path.abspath(path.join(self.out_parent, dir, tarfn))
         try:
             os.makedirs(os.path.dirname(tarfn))
         except OSError as exc:
@@ -140,7 +142,6 @@ class _make_tar_worker(object):
             # make absolute while still in chdir context
             fns = [path.abspath(fn) for fn in fns]
         return fns
-
 
 def get_slab_fmt_str(slice_dir, simname):
     slice_z = path.basename(path.abspath(slice_dir)).replace('slice', 'z')
@@ -199,3 +200,16 @@ def extract_slabs(dir, verbose=True, tarfn='slabs.tar.gz'):
     for fn in fns:
         os.remove(path.join(dir,fn))
         
+import argparse
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Parallel tar utility', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('dir', help='The directories to process', nargs='+')
+    parser.add_argument('pattern', help='The glob pattern of files to put in the tarball')
+    parser.add_argument('tarfn', help='The name of the tar file to create in each directory')
+    parser.add_argument('--nthreads', help='Number of threads on this node to divide the problem over', default=1, type=int)
+    parser.add_argument('--delete-source', action='store_true', help='Remove the files that were placed the in the tar.')
+    parser.add_argument('--out-parent', help='Place the outputs in a directory rooted at out_parent. Default is to make the tarballs in-place.', default='')
+    
+    args = parser.parse_args()
+    
+    make_tar(**vars(args))

@@ -22,7 +22,7 @@ int FORCE_RADIUS = -1;
 int GROUP_RADIUS = -1;
 
 // I think in most cases we would prefer to read ahead until memory limited
-//#define FETCHAHEAD (3*FORCE_RADIUS +3)
+//#define FETCHAHEAD (2*FORCE_RADIUS)
 #define FETCHAHEAD 1000
 #define FETCHPERSTEP 1
 // Recall that all of these Dependencies have a built-in STimer
@@ -44,7 +44,10 @@ Dependency LPTVelocityReRead;
 STimer TimeStepWallClock;
 
 // -----------------------------------------------------------------
-
+/*
+ * The precondition for loading new slabs into memory
+ * We limit the additional slabs read to FETCHAHEAD
+ */
 int FetchSlabPrecondition(int slab) {
     if(FetchSlabs.number_of_slabs_executed > 
             Kick.number_of_slabs_executed + FETCHAHEAD ) {
@@ -63,6 +66,10 @@ int FetchSlabPrecondition(int slab) {
     return 1;
 }
 
+/*
+ * Loads a set of slabs at a common x slice into memory
+ * All "normal" slabtypes should be loaded here. Note that loads may be async.
+ */
 void FetchSlabAction(int slab) {
     STDLOG(0,"Fetching slab %d with %d particles\n", slab, Slab->size(slab));
     // Load all of the particle files together
@@ -269,33 +276,57 @@ void KickAction(int slab) {
 // -----------------------------------------------------------------
 
 int GroupPrecondition(int slab) {
-    // We need to have kicked everything that matters
-    for(int j=-GROUP_RADIUS;j<=GROUP_RADIUS;j++)  {
-        if( Kick.notdone(slab+j) ) return 0;
-        // We're probably going to need to move around PIDs as we create groups
-        if( !LBW->IOCompleted( AuxSlab,      slab+j ) ) {
-            Dependency::NotifySpinning(WAITING_FOR_IO);
-            return 0;
-        }
+    // TODO: are these the right dependencies?
+    // Only PosXYZ is used for sources, so we're free to rearrange PosSlab after the transpose
+    if( TransposePos.notdone(slab) ) return 0;
+    
+    // Need the accelerations in this slab because we're going to rearrange particles
+    if( Kick.notdone(slab) ) return 0;
+    
+    // We're probably going to need to move around PIDs as we create groups
+    if( !LBW->IOCompleted( AuxSlab, slab ) ) {
+        Dependency::NotifySpinning(WAITING_FOR_IO);
+        return 0;
     }
+    
     return 1;
 }
 
 void GroupAction(int slab) {
+    if (!P.AllowGroupFinding) return;
     if (LPTStepNumber()) return;
     // We can't be doing group finding during an IC step
+    if(P.ForceOutputDebug) return;  // can't rearrange the pos if we've already output the nearacc
+    
+    STDLOG(1,"Zeroing Aux L0 field\n");
+
+    #pragma omp parallel for schedule(dynamic, 1)
+    for(int j = 0; j < PP->cpd; j++){
+        for(int k = 0; k < PP->cpd; k++){
+            Cell c = PP->GetCell(integer3(slab, j, k));
+            uint64 mask = ~(1llu<<AUXINL0BIT);
+            for(int x = 0; x < c.count(); x++) c.aux[x].aux = c.aux[x].aux & mask;
+        }
+    }
 
     STDLOG(1,"Finding groups for slab %d\n", slab);
-    // No action yet, but this is where one would find groups and coevolution sets
+
+    GroupExecute.Start();
+    //GF->ExecuteSlab(slab);
+    GroupExecute.Stop();
     // One could also use the Accelerations to set individual particle microstep levels.
     // (one could imagine doing this in Force, but perhaps one wants the group context?)
 }
 
 // -----------------------------------------------------------------
-
+/*
+ * Checks if we are ready to do all outputs for this step
+ * Anything that modifies the particles at the current time should happen before here
+ */
 int OutputPrecondition(int slab) {
     if (Kick.notdone(slab)) return 0;  // Must have kicked because output does a half un-kick
     if (Group.notdone(slab)) return 0;  // Must have found groups
+    if (!P.ForceOutputDebug && P.AllowGroupFinding && !GF->SlabClosed(slab) && !LPTStepNumber()) return 0; 
     return 1;
 }
 
@@ -344,10 +375,18 @@ void OutputAction(int slab) {
     }
     OutputBin.Stop();
 
+    OutputGroup.Start();
+    if(!P.ForceOutputDebug && P.AllowGroupFinding && !LPTStepNumber())
+        GF->OutputSlab(slab);
+    OutputGroup.Stop();
+
 }
 
 // -----------------------------------------------------------------
-
+/*
+ * Checks if we are ready to load the LPT velocities during an IC step.
+ * Should not happen in normal execution
+ */
 int FetchLPTVelPrecondition(int slab){
     // Don't read too far ahead
     if(LPTVelocityReRead.number_of_slabs_executed > 
@@ -375,7 +414,10 @@ void FetchLPTVelAction(int slab){
 }
 
 // -----------------------------------------------------------------
-
+/* Checks if we are ready to apply a full-timestep drift to the particles
+ * Any operation that relies on the positions and velocities being synced
+ * should be checked for completion this year.
+ */
 int DriftPrecondition(int slab) {
     // We must have Output this slab (and thus kicked it)
     if (Output.notdone(slab)) return 0;
@@ -423,6 +465,10 @@ void DriftAction(int slab) {
         LBW->DeAllocate(AccSlab,slab);
     }
     LBW->DeAllocate(NearAccSlab,slab);
+
+    if(!P.ForceOutputDebug && P.AllowGroupFinding && !LPTStepNumber()) 
+       GF->PurgeSlab(slab);
+
 }
 
 // -----------------------------------------------------------------
@@ -462,7 +508,7 @@ void FinishAction(int slab) {
     LBW->DeAllocate(PosSlab,slab);
     LBW->DeAllocate(VelSlab,slab);
     LBW->DeAllocate(AuxSlab,slab);
-
+    
     // Make the multipoles
     LBW->AllocateArena(MultipoleSlab,slab);
     ComputeMultipoleSlab(slab);
@@ -483,14 +529,17 @@ void FinishAction(int slab) {
 
 // ===================================================================
 
-
+/*
+ * Registers all of the dependencies and their associated actions.
+ * The Dependency module is responsible for running the registered steps.
+ */
 void timestep(void) {
     TimeStepWallClock.Clear();
     TimeStepWallClock.Start();
     STDLOG(1,"Initiating timestep()\n");
 
     FORCE_RADIUS = P.NearFieldRadius;
-    GROUP_RADIUS = 0;
+    GROUP_RADIUS = P.GroupRadius;
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
     assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS); 
     STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
@@ -570,10 +619,12 @@ void FetchICAction(int slab) {
         }
     return;
 }
-
-// When doing IC loading, we require that the neighboring slabs be loaded
-// just to be sure that no particles have crossed the boundary.  This is trivial
-// if we overload the Drift dependency with the FetchIC condition/actions.
+/*
+ * Registers the preconditions and actions for an IC step
+ * When doing IC loading, we require that the neighboring slabs be loaded
+ * just to be sure that no particles have crossed the boundary.  This is trivial
+ * if we overload the Drift dependency with the FetchIC condition/actions.
+ */
 
 void timestepIC(void) {
     STDLOG(0,"Initiating timestepIC()\n");

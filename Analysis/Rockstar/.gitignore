@@ -1,3 +1,4 @@
 rockstar
-util/make_uniform_subsample
+util/find_parents
+util/find_parents_binary
 util/subsample_find_parents

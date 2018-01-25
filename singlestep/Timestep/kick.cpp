@@ -1,27 +1,26 @@
 /* kick.cpp
-Kick all of the particles in a slab by a specified kick factor.
-
-Also contains routine to rescale the accelerations.  Of course, 
-in principle, we could just attach that to the kick factor!
-
-Because we have the velocities and accelerations here, we also
-compute some statistics for each cell suitable for monitoring
-timestep adequacy.  Note that these are appropriate to the read-state
-time, not the write-state time!
-
-We want to compute the rms of the velocity.  In principle, we'd like to 
-subtract off the bulk velocity, but perhaps that's not so important?
-Usually the mean velocity is a fair bit smaller than the rms.
-
-We'd like to compute the maximum component of the velocity.  This is for
-scaling the velocity output.
-
-We'd like to compute the maximum norm of the acceleration.  But perhaps 
-it is enough to track the max component of the acceleration?
-
-If we can phrase these tests in a way that sums over components, then 
-it would eventually be AVX-able.  That's considerably faster.
-
+ * Kick all of the particles in a slab by a specified kick factor.
+ *
+ * Also contains routine to rescale the accelerations.  Of course, 
+ * in principle, we could just attach that to the kick factor!
+ *
+ * Because we have the velocities and accelerations here, we also
+ * compute some statistics for each cell suitable for monitoring
+ * timestep adequacy.  Note that these are appropriate to the read-state
+ * time, not the write-state time!
+ *
+ * We want to compute the rms of the velocity.  In principle, we'd like to 
+ * subtract off the bulk velocity, but perhaps that's not so important?
+ * Usually the mean velocity is a fair bit smaller than the rms.
+ *
+ * We'd like to compute the maximum component of the velocity.  This is for
+ * scaling the velocity output.
+ * 
+ * We'd like to compute the maximum norm of the acceleration.  But perhaps 
+ * it is enough to track the max component of the acceleration?
+ *
+ * If we can phrase these tests in a way that sums over components, then 
+ * it would eventually be AVX-able.  That's considerably faster.
 */
 
 

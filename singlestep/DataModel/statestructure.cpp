@@ -1,20 +1,19 @@
 /* statestructure.cpp
-
-This defines the State class.
-
-States contain the time-dependent global information about the
-simulation.  The code is evolving from the ReadState at time j to
-the WriteState at time j+1.  The state class is written (in ASCII)
-to the state file in the state subdirectory, so as to track the 
-time-varying aspects of the simulation.
-
-Time-independent instructions for the simulation should be in the
-Parameter class.
-
-State uses ParseHeader to handle the reading of the ASCII file.
-However, it must provide its own routine to write the new file!
-
-*/
+ *
+ * This defines the State class.
+ *
+ * States contain the time-dependent global information about the
+ * simulation.  The code is evolving from the ReadState at time j to
+ * the WriteState at time j+1.  The state class is written (in ASCII)
+ * to the state file in the state subdirectory, so as to track the 
+ * time-varying aspects of the simulation.
+ * 
+ * Time-independent instructions for the simulation should be in the
+ * Parameter class.
+ * 
+ * State uses ParseHeader to handle the reading of the ASCII file.
+ * However, it must provide its own routine to write the new file!
+ */
 
 #ifndef STATESTRUCTURE_CPP
 #define STATESTRUCTURE_CPP

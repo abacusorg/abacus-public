@@ -1,21 +1,21 @@
 /* merge.cpp
-
-This routine combines the particles surviving in a slab (post-drift)
-with the new particles arriving from the insert list.  We do this
-by inspecting the insert list to build a tabulation of the number of
-new particles per cell, then allocating a new arena and copying 
-both old and new into the appropriate locations.
-
-This is one of the few places that linear buffer arenas are 
-created or destroyed outside of the timestep.cpp file.  Otherwise
-we try to keep that behavior explicit in timestep.
-
-We also aggregate the cell-based statistics into global statistics
-in this function, placing the results in WriteState so that it can
-be output (recall that the statistics are from the ReadState time,
-however!).
-
-*/
+ *
+ *This routine combines the particles surviving in a slab (post-drift)
+ *with the new particles arriving from the insert list.  We do this
+ *by inspecting the insert list to build a tabulation of the number of
+ *new particles per cell, then allocating a new arena and copying 
+ *both old and new into the appropriate locations.
+ *
+ *This is one of the few places that linear buffer arenas are 
+ *created or destroyed outside of the timestep.cpp file.  Otherwise
+ *we try to keep that behavior explicit in timestep.
+ *
+ *We also aggregate the cell-based statistics into global statistics
+ *in this function, placing the results in WriteState so that it can
+ *be output (recall that the statistics are from the ReadState time,
+ *however!).
+ *
+ */
 
 // Here are some shorthand functions.  
 // Beware that these will evaluate 'newvalue' twice.

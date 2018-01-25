@@ -1,28 +1,30 @@
-/* The grid class provides the periodic geometry of the cells and 
-the positions (in simulation units).  It is inherited by a number
-of other classes.
-
-Cells are indexed as an integer3.  Cell indices are not required to be
-periodically wrapped; the grid class will provide the periodic wrapping.
-
-Similarly, positions need not be periodically wrapped in general, but
-this grid code will provide the wrapping.  It also defines how cells
-and positions are related.
-
-The mapping of Y-Z cell index to a linear cellID for the slabs is the 
-responsibility of inherited classes.  It is a requirement that we never
-use a linear mapping of the 3-d cells; this will spill a 32-bit int and 
-breaks the slab geometry.
-
-All functions that take integer3 as an input should also take 3 integers
-x,y,z.  At present, we do not guarantee that wrappings more than 1 box
-will function properly.
-
-We will eventually be using cell-centered positions.  These are known as
-'local' positions.  They may be single precision.  The box-centered positions
-are known as 'global' positions.  These probably should be double precision.
-
-*/
+/*
+ * \brief The grid class provides the periodic geometry of the cells and 
+ * the positions (in simulation units).
+ *
+ * It is inherited by a number
+ * of other classes.
+ *
+ * Cells are indexed as an integer3.  Cell indices are not required to be
+ * periodically wrapped; the grid class will provide the periodic wrapping.
+ *
+ * Similarly, positions need not be periodically wrapped in general, but
+ * this grid code will provide the wrapping.  It also defines how cells
+ * and positions are related.
+ * 
+ * The mapping of Y-Z cell index to a linear cellID for the slabs is the 
+ * responsibility of inherited classes.  It is a requirement that we never
+ * use a linear mapping of the 3-d cells; this will spill a 32-bit int and 
+ * breaks the slab geometry.
+ * 
+ * All functions that take integer3 as an input should also take 3 integers
+ * x,y,z.  At present, we do not guarantee that wrappings more than 1 box
+ * will function properly.
+ * 
+ * We will eventually be using cell-centered positions.  These are known as
+ * 'local' positions.  They may be single precision.  The box-centered positions
+ * are known as 'global' positions.  These probably should be double precision.
+ */
 
 #ifndef INCLUDE_GRID
 #define INCLUDE_GRID

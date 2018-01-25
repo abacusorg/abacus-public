@@ -143,9 +143,7 @@ void load_config(struct configfile *c, char *filename) {
   input = fopen(filename, "r");
   if (!input) {
     c->num_entries = 0;
-    fprintf(stderr,"[Error] Problem opening config file %s\n", filename);
-    exit(1);
-    //return;
+    return;
   }
   
   while (fgets(buffer, 1024, input)) {

@@ -2,10 +2,29 @@
 \usepackage[T1]{fontenc}
 
 \usepackage{lmodern}
+\usepackage{etoolbox}
 
 \newcommand{\param}[2]{\medskip\noindent\textbf{\texttt{#1}}: ({\tt #2}) }
+
+% If the \public flag is set, `private` environments and \todo's will not be rendered
+\ifdef{\public}{
+\newcommand{\todo}{}
+\newcommand{\future}{}
+\newenvironment{private}{\comment}{\endcomment}
+}
+{
 \newcommand{\todo}[1]{{\bf TODO: #1}}
 \newcommand{\future}[1]{{\it Future: #1}}
+\newenvironment{private}
+    {\textbf{Not public:}\\
+    \begin{tabular}{|p{0.9\textwidth}|}
+    \hline\\
+    }
+    {
+    \\\\\hline
+    \end{tabular}
+    }
+}
 
 \newcommand{\fdir}[1]{\noindent\makebox[4in][l]{#1}}
 
@@ -73,13 +92,17 @@ drift to the exact epoch when the past light cone sweeps by.
 Coevolution sets are found by performing friends-of-friends with a
 fairly large linking length.
 
+\begin{private}
 \section{Coevolution Sets and Group Finding}
 
 More on co-evolution sets.
+\end{private}
 
+\begin{private}
 \section{Light Cone Outputs}
 
 Describe light cones here.
+\end{private}
 
 \section{Zel'dovich Initial Conditions}
 
@@ -179,11 +202,12 @@ This saves space, and can be particularly useful for a ramdisk.
 
 \param{RamDisk}{int} If $\ge 0$, let the IO code know that we can't use DIO (which ramdisks don't support).
 
+\begin{private}
 \subsection{Set and Group Finding}
 
 \param{GroupRadius}{int} The maximum size of a coevolution set, 
 in units of cells (i.e., BoxSize/cpd).
-
+\end{private}
 
 \subsection{Memory Allocation and other Execution Parameters}
 
@@ -1062,6 +1086,7 @@ a parameter choice.
 If the program has crashed, then the files laststep.\{suffix\} contains
 the logs.
 
+\begin{private}
 \section{Build System}
 Abacus uses an Autoconf-based \texttt{configure}/\texttt{make} build system.
 When building Abacus for the first time, use
@@ -1097,6 +1122,9 @@ the Python wrapper will invoke it as necessary.
 \todo{This could probably be a command line flag to singlestep, rather than a
 separately compiled executable.}
 
+\end{private}
+
+\begin{private}
 \section{Analysis Codes}
 Some generally useful analysis utilities are included in the main code repository (primarily in \verb|Analysis/|,
 but also some useful utilities in \verb|python/Abacus|).
@@ -1133,5 +1161,7 @@ everything in Halotools format.
 
 \subsection{Abacus IO (\texttt{python/Abacus/ReadAbacus.py})}
 Interfaces to deal with the various Abacus particle formats.
+
+\end{private}
 
 \end{document}

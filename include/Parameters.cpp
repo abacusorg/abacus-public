@@ -74,6 +74,7 @@ public:
     char WorkingDirectory[1024];        // If Read/Write/Past not specified, where to put the states
     char LogDirectory[1024];
     char OutputDirectory[1024];     // Where the outputs go
+    char GroupDirectory[1024]; //Where the Group files go
     int OutputEveryStep; //Force timeslices to be output every step if 1
     char OutputFormat[1024];                // The format of the Output files
     int  OmitOutputHeader;                // =1 if you want to skip the ascii header
@@ -130,6 +131,12 @@ public:
     int GPUThreadCoreStart[MAX_GPUS];  // The core on which to start placing GPU device threads.
     int NGPUThreadCores;  // The number of free cores on which to place GPU device threads.
 
+    int AllowGroupFinding;
+    double FoFLinkingLength[3]; //Linking lengths for level 0,1,2 groupfinding in fractional interparticle spacing 
+    int TaggableL0Threshold; //Number of particles above which a L0 halo is eligible for tagging
+    int TaggableL1Threshold; //Number of particles above which a L0 halo is eligible for tagging
+    int MinL1NP;
+    int MinL2NP;
 
     // in MB
     unsigned int getCacheSize(){
@@ -204,10 +211,12 @@ public:
         installscalar("WorkingDirectory",WorkingDirectory,DONT_CARE);
         installscalar("MultipoleDirectory",MultipoleDirectory,MUST_DEFINE);
         installscalar("TaylorDirectory",TaylorDirectory,MUST_DEFINE);
-        installscalar("LogDirectory",LogDirectory,MUST_DEFINE);
-        installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
-        OutputEveryStep = 0;
-        installscalar("OutputEveryStep",OutputEveryStep,DONT_CARE);
+    	installscalar("LogDirectory",LogDirectory,MUST_DEFINE);
+    	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
+        installscalar("GroupDirectory",GroupDirectory,MUST_DEFINE);
+
+    	OutputEveryStep = 0;
+    	installscalar("OutputEveryStep",OutputEveryStep,DONT_CARE);
 
         installscalar("LightConeDirectory",LightConeDirectory,MUST_DEFINE); //Where the lightcones go. Generally will be the same as the Output directory
         installscalar("NLightCones",NLightCones,DONT_CARE); //if not set, we assume 0
@@ -288,6 +297,21 @@ public:
         installvector("GPUThreadCoreStart", GPUThreadCoreStart, MAX_GPUS, 1, DONT_CARE);
         NGPUThreadCores = -1;
         installscalar("NGPUThreadCores", NGPUThreadCores, DONT_CARE);
+
+        AllowGroupFinding = 0;
+        installscalar("AllowGroupFinding",AllowGroupFinding, DONT_CARE);
+        FoFLinkingLength[0] = .25;
+        FoFLinkingLength[1] = .168;
+        FoFLinkingLength[2] = .15;
+        installvector("FoFLinkingLength",FoFLinkingLength,3,1,DONT_CARE);
+        MinL1NP = 10;
+        MinL2NP = 10;
+        TaggableL0Threshold = 1;
+        TaggableL1Threshold = 1;
+        installscalar("TaggableL0Threshold",TaggableL0Threshold, DONT_CARE);
+        installscalar("TaggableL1Threshold",TaggableL1Threshold, DONT_CARE);
+        installscalar("MinL1NP", MinL1NP, DONT_CARE);
+        installscalar("MinL2NP", MinL2NP, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.
@@ -497,9 +521,14 @@ void Parameters::ValidateParameters(void) {
 
 
     char dfn[1024];
+    char *fnfmt;
+    if(sizeof(DFLOAT) == sizeof(float))
+        fnfmt = "%s/fourierspace_float32_%d_%d_%d_%d_%d";
+    else
+        fnfmt = "%s/fourierspace_%d_%d_%d_%d_%d";
 
     for(int i=0;i<(cpd+1)/2;i++) {
-        sprintf(dfn,"%s/fourierspace_%d_%d_%d_%d_%d",
+        sprintf(dfn,fnfmt,
             DerivativesDirectory,
             cpd,
             order,
