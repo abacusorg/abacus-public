@@ -289,6 +289,9 @@ uint64 FillMergeSlab(int slab) {
                     mc.aux[j] = ilpart[j].aux;
             }
 			
+            // In the vast majority of cases, the PIDs are numbered [0,NP).
+            // One could check this condition here; failure could indicate
+            // PID corruption
 			mc = PP->GetMergeCell(slab, y, z);
 			for (int j = 0; j < mc.count(); j++) {
 				assertf(mc.aux[j].pid() < P.np, "PID %d too big\n", mc.aux[j].pid());

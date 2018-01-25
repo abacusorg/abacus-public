@@ -105,6 +105,7 @@ class GroupFindingControl {
 
     ~GroupFindingControl() { 
         delete[] cellgroups;
+        for (int j=0;j<cpd;j++) assert(cellgroups_status[j] == 2);
         delete[] cellgroups_status;
 	delete GLL;
 #ifndef STANDALONE_FOF
@@ -254,7 +255,7 @@ void GroupFindingControl::DestroyCellGroups(int slab) {
     return;
 }
 
-GroupFindingControl *GFC;	
+GroupFindingControl *GFC = NULL;	
 	// We have one global instance of this, initialized in proepi
 
 #include "findgrouplinks.cpp"
@@ -375,10 +376,4 @@ void FinishGlobalGroups(int slab){
     // now push these updates to the original slabs
     GGS->ScatterGlobalGroups();
     GGS->destroy();
-
-    // At this point, all CellGroups in this slab have been closed and used
-    // so we can delete them.
-    GFC->DestroyCellGroups(slab);
 }
-
-

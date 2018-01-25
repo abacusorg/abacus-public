@@ -382,6 +382,19 @@ class SlabAccum {
 	    offset += pencils[j]._size;
 	}
     }
+    
+    
+    void copy_convert(T *destination, std::function< T(T) > const & conversion) {
+        // Same as copy_to_ptr, but accepts a function to do e.g. unit conversion
+        uint64 offset = 0;
+        for (int j=0; j<cpd; j++) {
+            for(int i = 0; i < pencils[j]._size; i++){
+                destination[offset + i] = conversion(pencils[j].data[i]);
+            }
+            offset += pencils[j]._size;
+        }
+    }
+
 
     void dump_to_file(char fname[]) {
         // Write all of the data to a file, making this contiguous 

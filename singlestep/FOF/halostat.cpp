@@ -89,8 +89,9 @@ HaloStat ComputeStats(int size,
 	if (v4>vmax) { vmax = v4; rvmax = L2.d2buffer[p]; }
     }
     h.rvcirc_max = sqrt(rvmax);    // Get to radial units
-    h.vcirc_max = sqrt(sqrt(vmax));  // This is sqrt(N/R).
-    	// TODO: Have to figure out what G*Mpart is in code units.
+    float GMpart = 3*P.Omega_M*pow(100*ReadState.BoxSizeHMpc,2)/(8*M_PI*P.np*ReadState.ScaleFactor);
+    h.vcirc_max = sqrt(GMpart*sqrt(vmax))/ReadState.VelZSpace_to_kms;  // This is sqrt(G*M_particle*N/R).
+    // TODO: is it correct to compute vcirc with proper radii?
 
     // Repeat this, finding moments and radii around the largest subhalo COM
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
@@ -115,8 +116,7 @@ HaloStat ComputeStats(int size,
 	if (v4>vmax) { vmax = v4; rvmax = L2.d2buffer[p]; }
     }
     h.subhalo_rvcirc_max = sqrt(rvmax);    // Get to radial units
-    h.subhalo_vcirc_max = sqrt(sqrt(vmax));  // This is sqrt(N/R).
-    	// TODO: Have to figure out what G*Mpart is in code units.
+    h.subhalo_vcirc_max = sqrt(GMpart*sqrt(vmax))/ReadState.VelZSpace_to_kms;  // This is sqrt(N/R).
 
     x += offset; 
     x = WrapPosition(x);

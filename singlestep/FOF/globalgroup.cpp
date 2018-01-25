@@ -105,6 +105,7 @@ class LinkPencil {
 inline CellGroup *LinkToCellGroup(LinkID link) {
     // For this LinkID, return a pointer to the matching CellGroup
     integer3 c = link.cell();
+    assertf(GFC->cellgroups_status[c.x] == 1, "Failed to find cellgroup in slab %d with status %d\n", c.x, GFC->cellgroups_status[c.x]);
     return GFC->cellgroups[c.x][c.y][c.z].ptr(link.cellgroup());
 }
 
@@ -569,7 +570,8 @@ void GlobalGroupSlab::FindSubGroups() {
         PencilAccum<TaggedPID> *pL1PIDs = L1PIDs.StartPencil(j);
         for (int k=0; k<GFC->cpd; k++) {
             // uint64 groupid = ((slab*GFC->cpd+j)*GFC->cpd+k)*4096;
-            uint64 groupid = (((uint64)slab*10000+(uint64)j)*10000+(uint64)k)*1000;
+            uint64 groupidstart = (((uint64)slab*MAXCPD+(uint64)j)*MAXCPD+(uint64)k)*10000;
+            uint64 nextid = groupidstart;
                     // A basic label for this group
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 if (globalgroups[j][k][n].np<GFC->minhalosize) continue;
@@ -640,7 +642,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         }
 
                     HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], offset);
-                    h.id = groupid+n*50+a;
+                    h.id = nextid++;
                     h.L0_N = groupn;
                     h.taggedstart = taggedstart;
                     h.ntagged = pTaggedPIDs->get_pencil_size()-taggedstart;
@@ -653,6 +655,8 @@ void GlobalGroupSlab::FindSubGroups() {
             pTaggedPIDs->FinishCell();
             pL1Particles->FinishCell();
             pL1PIDs->FinishCell();
+            
+            assertf(nextid < groupidstart + 10000, "More than 10K groups in a cell?\n");
         }
         pL1halos->FinishPencil();
         pTaggedPIDs->FinishPencil();
@@ -817,7 +821,12 @@ void GlobalGroupSlab::HaloOutput() {
 
     // Write out the pos/vel of the taggable particles in L1 halos
         LBW->AllocateSpecificSize(L1ParticlesSlab, slab, L1Particles.get_slab_bytes());
-    L1Particles.copy_to_ptr((RVfloat *)LBW->ReturnIDPtr(L1ParticlesSlab, slab));
+    L1Particles.copy_convert((RVfloat *)LBW->ReturnIDPtr(L1ParticlesSlab, slab),
+        // somewhat experimental: pass a lambda to convert velocities to ZSpace
+        [](RVfloat xv) {  xv.vel[0] *= 1./ReadState.VelZSpace_to_Canonical;
+                          xv.vel[1] *= 1./ReadState.VelZSpace_to_Canonical;
+                          xv.vel[2] *= 1./ReadState.VelZSpace_to_Canonical;
+                          return xv; } );
     LBW->StoreArenaNonBlocking(L1ParticlesSlab, slab);
 
     // Write out the PIDs of the taggable particles in the L1 halos

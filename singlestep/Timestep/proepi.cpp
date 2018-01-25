@@ -283,6 +283,7 @@ void Epilogue(Parameters &P, bool ic) {
             delete[] SlabForceTime;
             delete[] SlabFarForceTime;
             delete JJ;
+            delete GFC;
     }
 
     STDLOG(0,"MinCellSize = %d, MaxCellSize = %d\n", 

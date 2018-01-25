@@ -351,8 +351,6 @@ class OutputRVdoubleTag: public AppendArena {
 	    uint64 tag;
     };
 
-    float velocity_conversion;
-    
     void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
 	struct ICparticle *p = (struct ICparticle *)c;
 #ifdef GLOBALPOS
@@ -365,9 +363,9 @@ class OutputRVdoubleTag: public AppendArena {
 	p->pos[0] = (double) pos.x+cc.x;
 	p->pos[1] = (double) pos.y+cc.y;
 	p->pos[2] = (double) pos.z+cc.z;
-	p->vel[0] = vel.x*velocity_conversion;
-	p->vel[1] = vel.y*velocity_conversion;
-	p->vel[2] = vel.z*velocity_conversion;
+	p->vel[0] = vel.x;  // Leave it in Zspace, unit box units
+	p->vel[1] = vel.y;
+	p->vel[2] = vel.z;
 	p->tag = aux.pid();
 	
     }
@@ -380,7 +378,6 @@ class OutputRVdoubleTag: public AppendArena {
     int sizeof_particle() { return sizeof(struct ICparticle); }
 
     OutputRVdoubleTag() {
-    	velocity_conversion = 1.0;  // Leave it in Zspace, unit box units
 	    STDLOG(0,"Particle size: %d\n",sizeof_particle());
     }
     ~OutputRVdoubleTag(void) { }
