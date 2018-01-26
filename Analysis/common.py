@@ -78,7 +78,8 @@ def make_tar(dir, pattern, tarfn, delete_source=False, nthreads=1, out_parent=''
         Delete source files after finishing writing
         the tar.  Default: False.
     nthreads: int, optional
-        Maximum number of threads to use.  Default: 1.
+        Maximum number of threads to use.  `nthreads` <= 0 means use all cores.
+        Default: 1.
     out_parent: str, optional
         Place the outputs in a directory rooted at out_parent.
         Default is to make the tarballs in-place.
@@ -104,6 +105,9 @@ def make_tar(dir, pattern, tarfn, delete_source=False, nthreads=1, out_parent=''
     if len(tarfn) == 1:
         tarfn *= maxlen
     assert len(dir) == len(pattern) == len(tarfn)
+    
+    if nthreads <= 0:
+        nthreads = multiprocessing.cpu_count()
     
     pool = multiprocessing.Pool(nthreads)
     allfns = pool.map(_make_tar_worker(delete_source, out_parent), zip(dir, pattern, tarfn))

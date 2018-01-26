@@ -1,11 +1,11 @@
 #!/bin/bash
-#BSUB -n 32  # Request number of cores
+#BSUB -n 16  # Request number of cores
 #BSUB -R "span[ptile=16]"
 #BSUB -o lsf-%J_%I.out
 #BSUB -q medium
 ##BSUB -R select[type==any]
 #BSUB -x  # Request exclusive node
-#BSUB -J "AbacusCosmos[3-40]"  # Inclusive; must start from 1
+#BSUB -J "AbacusCosmosRockstar[1-20]"  # Inclusive; must start from 1
 ##BSUB -J "AbacusCosmos[1]"  # Inclusive; must start from 1
 #BSUB -We 8:00  #Estimated runtime (non-binding)
 #BSUB -R rusage[mem=200000]
@@ -39,9 +39,9 @@ export OMP_NUM_THREADS=$LSB_DJOB_NUMPROC
 #export SIM_DIR="emulator_1100box_planck_paired/emulator_1100box_planck_fixed_flipped_00-17"
 #export SIM_DIR=$(printf "2LPTic_cosmo_%02d" $(expr $LSB_JOBINDEX - 1))
 #export SIM_DIR=$(printf "emulator_720box_Neff3/emulator_720box_Neff3_%02d" $(expr $LSB_JOBINDEX - 1))
-export SIM_DIR=$(printf "AbacusCosmos_720box/AbacusCosmos_720box_%02d" $(expr $LSB_JOBINDEX - 1))
+#export SIM_DIR=$(printf "AbacusCosmos_720box/AbacusCosmos_720box_%02d" $(expr $LSB_JOBINDEX - 1))
 #export SIM_DIR=$(printf "AbacusCosmos_1100box/AbacusCosmos_1100box_%02d" $(expr $LSB_JOBINDEX - 1))
-CPD=385  # used for verifying the number of files
+export SIM_DIR=$(printf "AbacusCosmos_1100box_planck/AbacusCosmos_1100box_planck_00-%d" $(expr $LSB_JOBINDEX - 1))
 
 # Split SIM_DIR into name and project
 export SIM_NAME=$(echo "$SIM_DIR" | awk -F '/' -- '{print $2}' -)
@@ -57,8 +57,10 @@ echo -e "\n\n\n\n"
 
 rm -rf $ABACUS_TMP
 
+# Note: this version of the script does not copy Abacus locally
+
 echo -e "* Checking if we want to make high-resolution power spectra:\n"
-if [ 0 ]; then
+if [ ]; then
   echo -e "Making power spectra."
   for SLICE in $ABACUS_PERSIST/$SIM_DIR/slice*/; do
     $ABACUS/Analysis/PowerSpectrum/run_PS.py --nfft 2048 $SLICE
@@ -70,7 +72,7 @@ echo -e "\n\n\n\n"
 
 
 echo -e "* Checking if we need to run FoF:\n"
-if [ 0 ]; then
+if [ ]; then
   echo -e "Running FoF."
   $ABACUS/Analysis/FoF/FoF.py $ABACUS_PERSIST/$SIM_DIR/slice* --tar-mode TAR --tar-remove-source-files
 else
@@ -89,6 +91,7 @@ if [ 0 ]; then
 
     echo "Starting slice $SLICE server"
     $ABACUS/Analysis/Rockstar/rockstar.py --ncpu $LSB_DJOB_NUMPROC $SLICE --SO --tar-mode TAR --tar-remove-source-files &
+    #$ABACUS/Analysis/Rockstar/rockstar.py --ncpu $LSB_DJOB_NUMPROC $SLICE --SO --tar-mode ONLY_TAR_INFER --tar-remove-source-files &
 
     # Wait for the server to generate the client config file
     while [ ! -f $CLI_CFG ]; do
