@@ -32,15 +32,16 @@ Dependency TransposePos;
 Dependency NearForce;
 Dependency TaylorForce;
 Dependency Kick;
-Dependency Drift;
-Dependency Finish;
-Dependency Output;
-Dependency Microstep;
 Dependency MakeCellGroups;
 Dependency FindCellGroupLinks;
 Dependency DoGlobalGroups;
-Dependency LPTVelocityReRead;
+Dependency Output;
+Dependency Microstep;
+Dependency FinishGroups;
+Dependency Drift;
+Dependency Finish;
 
+Dependency LPTVelocityReRead;
 
 // The wall-clock time minus all of the above Timers might be a measure
 // of the spin-locked time in the timestep() loop.
@@ -332,7 +333,7 @@ int DoGlobalGroupsPrecondition(int slab) {
     // we could be anywhere in the first instance.  So we have to query a big range.
     // That said, if the nearby slab has already closed global groups, then
     // we can proceed.
-    // TODO: should this +1 be a -1? why is this condition asymmetric?
+    // The lower bound has a +1 because FindLinks looks one slab back
     for (int j=-2*GROUP_RADIUS+1; j<=2*GROUP_RADIUS; j++) 
         if (FindCellGroupLinks.notdone(slab+j) && DoGlobalGroups.notdone(slab+j)) return 0;
     return 1;
@@ -412,26 +413,22 @@ void OutputAction(int slab) {
 // -----------------------------------------------------------------
 
 int MicrostepPrecondition(int slab){
-    // We will scatter to (potentially) the group radius,
-    // so need to wait for those outputs
-    for (int j=-GROUP_RADIUS; j<=GROUP_RADIUS; j++) 
-        if (Output.notdone(slab+j)) return 0;
-    return 1;
-
-    // Strictly speaking, we don't need to wait that long
-    // to do the kicking or microstepping.
-    // Could we put FinishGlobalGroups in another dependency?
+    // We are going to second-half kick this slab
+    if (Output.notdone(slab))
+        return 0;
 }
 
 void MicrostepAction(int slab){
     if(GFC == NULL)
         return;
 
-    STDLOG(1,"Starting second-half slab and group kicks for slab %d\n", slab);
+    STDLOG(1,"Starting second-half slab and group kicks by %f for slab %d\n", WriteState.FirstHalfEtaKick, slab);
 
     // Now do the second-half kick
     // Note that if GFC == NULL, we went ahead and did the K(1) in KickAction
     // This kicks the slab particles, but not the GlobalGroup local copies
+    // Note that there's no particular need to kick the slab particles before microstepping,
+    // but it at least needs to be done before the scatter
     MicrostepSlabKick.Start();
     SimpleKickSlab(slab, WriteState.FirstHalfEtaKick);
     MicrostepSlabKick.Stop();
@@ -451,22 +448,22 @@ void MicrostepAction(int slab){
         MC.ComputeGroupsCPU();
     }*/ 
     MicrostepCPU.Stop();
+}
 
+// -----------------------------------------------------------------
+
+int FinishGroupsPrecondition(int slab){
+    // We must have Output and SlabKicked all slabs that we might scatter into,
+    // otherwise we'll end up double kicking particles
+    for(int j = slab - 2*GROUP_RADIUS; j <= slab + 2*GROUP_RADIUS; j++)
+        if (Microstep.notdone(j)) return 0;
+    
+    return 1;
+}
+
+void FinishGroupsAction(int slab){
     // Scatter pos,vel updates to slabs, and release GGS
     FinishGlobalGroups(slab);
-        
-    // We can scatter to 2*GROUP_RADIUS
-    // This may be the last time we need any of the cell groups that were just scattered to
-    // So for each of them, check their 2*GROUP_RADIUS
-    // This is a hacky solution, but lighter-weight than a full dependency
-    int SCATTER_RADIUS = 2*GROUP_RADIUS;
-    for(int j = slab - 2*SCATTER_RADIUS, consec = 0; j <= slab + 2*SCATTER_RADIUS; j++){
-        if(Microstep.done(j) || j == slab) consec++;
-        else consec = 0;
-        if (consec >= 2*SCATTER_RADIUS + 1)
-            GFC->DestroyCellGroups(j - SCATTER_RADIUS);
-    }
-
 }
 
 // -----------------------------------------------------------------
@@ -508,7 +505,7 @@ void FetchLPTVelAction(int slab){
 int DriftPrecondition(int slab) {
     // We must have finished scattering into this slab
     for(int j = slab - 2*GROUP_RADIUS; j <= slab + 2*GROUP_RADIUS; j++)
-        if (Microstep.notdone(j)) return 0;
+        if (FinishGroups.notdone(j)) return 0;
     
     // We can't move particles until they've been used as gravity sources
     // However, we only use PosXYZSlab as sources, so we're free to move PosSlab
@@ -523,6 +520,10 @@ int DriftPrecondition(int slab) {
 }
 
 void DriftAction(int slab) {
+    // We are guaranteed to have finished scattering into this slab
+    if (GFC != NULL)
+        GFC->DestroyCellGroups(slab);
+    
     int step = LPTStepNumber();
     if (step) {
         // We have LPT IC work to do
@@ -644,6 +645,7 @@ FindCellGroupLinks.instantiate(cpd, first, &FindCellGroupLinksPrecondition, &Fin
     DoGlobalGroups.instantiate(cpd, first, &DoGlobalGroupsPrecondition,     &DoGlobalGroupsAction    );
             Output.instantiate(cpd, first, &OutputPrecondition,             &OutputAction            );
          Microstep.instantiate(cpd, first, &MicrostepPrecondition,          &MicrostepAction         );
+      FinishGroups.instantiate(cpd, first, &FinishGroupsPrecondition,       &FinishGroupsAction      );
              Drift.instantiate(cpd, first, &DriftPrecondition,              &DriftAction             );
             Finish.instantiate(cpd, first, &FinishPrecondition,             &FinishAction            );
            
@@ -662,6 +664,7 @@ LPTVelocityReRead.instantiate(cpd, first + 2*FORCE_RADIUS + 1 - FINISH_WAIT_RADI
        DoGlobalGroups.Attempt();
                Output.Attempt();
             Microstep.Attempt();
+         FinishGroups.Attempt();
   if(WriteState.Do2LPTVelocityRereading)
     LPTVelocityReRead.Attempt();
                 Drift.Attempt();
