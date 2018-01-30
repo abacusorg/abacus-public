@@ -462,6 +462,8 @@ int FinishGroupsPrecondition(int slab){
 }
 
 void FinishGroupsAction(int slab){
+    if (GFC == NULL)
+        return;
     // Scatter pos,vel updates to slabs, and release GGS
     FinishGlobalGroups(slab);
 }
