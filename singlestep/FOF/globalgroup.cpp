@@ -505,7 +505,7 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
                     // the cell-centered coord of the first cell.  
                     // Note periodic wrap.
                     memcpy(cell.vel+cg->start, vel+start, sizeof(velstruct)*cg->size());
-                    memcpy(cell.acc+cg->start, acc+start, sizeof(accstruct)*cg->size());
+                    //memcpy(cell.acc+cg->start, acc+start, sizeof(accstruct)*cg->size());
                     cellijk -= firstcell;
                     if (cellijk.x> diam) cellijk.x-=GFC->cpd;
                     if (cellijk.x<-diam) cellijk.x+=GFC->cpd;

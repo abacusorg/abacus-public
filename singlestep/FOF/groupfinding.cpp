@@ -299,12 +299,6 @@ uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid) {
 
 #include "globalgroup.cpp"
 
-// TODO: if we want to include microstep.cpp in proepi instead of here, then we need move FindAndProcessGlobalGroups, probably to the GlobalGroup action
-// That would break the stand-alone code, though
-#ifndef STANDALONE_FOF
-
-#endif
-
 	// Code to traverse the links and find the GlobalGroups as 
 	// sets of CellGroups (stored by their LinkIDs).
 
@@ -347,7 +341,6 @@ void FindAndProcessGlobalGroups(int slab) {
 	if(do_output)
 		GGS->HaloOutput();
 }
-
 
 void KickGlobalGroups(int slab, FLOAT kickfactor){
 	/* Kick the group-local copies of the velocities

@@ -252,6 +252,7 @@ void KickAction(int slab) {
         JJ->Finalize(slab);
     AddAccel.Start();
     RescaleAndCoAddAcceleration(slab);
+    LBW->DeAllocate(NearAccSlab,slab);
     AddAccel.Stop();
     int step = LPTStepNumber();
     KickCellTimer.Start();
@@ -299,8 +300,6 @@ int MakeCellGroupsPrecondition(int slab) {
 }
 
 void MakeCellGroupsAction(int slab) {
-	if(GFC == NULL)
-		return;
 	STDLOG(1,"Making Cell Groups in slab %d\n", slab);
 	GFC->ConstructCellGroups(slab);
     return;
@@ -317,8 +316,6 @@ int FindCellGroupLinksPrecondition(int slab) {
 
 void FindCellGroupLinksAction(int slab) {
     // Find links between slab and slab-1
-	if(GFC == NULL)
-		return;
 	STDLOG(1,"Finding Group Links between slab %d and %d\n", slab, slab-1);
 	FindGroupLinks(slab);
     return;
@@ -334,14 +331,14 @@ int DoGlobalGroupsPrecondition(int slab) {
     // That said, if the nearby slab has already closed global groups, then
     // we can proceed.
     // The lower bound has a +1 because FindLinks looks one slab back
-    for (int j=-2*GROUP_RADIUS+1; j<=2*GROUP_RADIUS; j++) 
+    for (int j=-2*GROUP_RADIUS+1; j<=2*GROUP_RADIUS; j++){
+    	// TODO: we can't close global groups until find links.  So this is redundant?
         if (FindCellGroupLinks.notdone(slab+j) && DoGlobalGroups.notdone(slab+j)) return 0;
+    }
     return 1;
 }
 
 void DoGlobalGroupsAction(int slab) {
-	if(GFC == NULL)
-        return;
     STDLOG(0,"Finding Global Groups in slab %d\n", slab);
     FindAndProcessGlobalGroups(slab);
 }
@@ -354,6 +351,9 @@ void DoGlobalGroupsAction(int slab) {
 int OutputPrecondition(int slab) {
     if (DoGlobalGroups.notdone(slab)) return 0;  // Must have found groups to be able to output light cones
     // note that group outputs were already done
+    
+    if (Kick.notdone(slab)) return 0;  // Must have accelerations
+    // note that this condition only has any effect if group finding is turned off
     
     return 1;
 }
@@ -419,9 +419,6 @@ int MicrostepPrecondition(int slab){
 }
 
 void MicrostepAction(int slab){
-    if(GFC == NULL)
-        return;
-
     STDLOG(1,"Starting second-half slab and group kicks by %f for slab %d\n", WriteState.FirstHalfEtaKick, slab);
 
     // Now do the second-half kick
@@ -429,9 +426,13 @@ void MicrostepAction(int slab){
     // This kicks the slab particles, but not the GlobalGroup local copies
     // Note that there's no particular need to kick the slab particles before microstepping,
     // but it at least needs to be done before the scatter
+    // Create ScatterSlabs here and kick during copy?
     MicrostepSlabKick.Start();
     SimpleKickSlab(slab, WriteState.FirstHalfEtaKick);
     MicrostepSlabKick.Stop();
+
+    // We de-allocate in Drift if we aren't doing group finding, although that could be Kick
+    LBW->DeAllocate(AccSlab,slab);
 
     // Now kick the GlobalGroup local copies
     MicrostepGroupKick.Start();
@@ -462,9 +463,8 @@ int FinishGroupsPrecondition(int slab){
 }
 
 void FinishGroupsAction(int slab){
-    if (GFC == NULL)
-        return;
     // Scatter pos,vel updates to slabs, and release GGS
+    STDLOG(0, "Finishing groups in slab %d\n", slab);
     FinishGlobalGroups(slab);
 }
 
@@ -509,6 +509,9 @@ int DriftPrecondition(int slab) {
     for(int j = slab - 2*GROUP_RADIUS; j <= slab + 2*GROUP_RADIUS; j++)
         if (FinishGroups.notdone(j)) return 0;
     
+    // We will move the particles, so we must have done outputs
+    if (Output.notdone(slab)) return 0;
+    
     // We can't move particles until they've been used as gravity sources
     // However, we only use PosXYZSlab as sources, so we're free to move PosSlab
     
@@ -547,15 +550,16 @@ void DriftAction(int slab) {
         DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
     }
     
-    // We kept the accelerations until here because of third-order LPT
-    if (P.StoreForces && !P.ForceOutputDebug) {
-        STDLOG(1,"Storing Forces in slab %d\n", slab);
-        LBW->StoreArenaBlocking(AccSlab,slab);
-    }
-    else{
-        LBW->DeAllocate(AccSlab,slab);
-    }
-    LBW->DeAllocate(NearAccSlab,slab);
+    if (GFC == NULL){
+	    // We kept the accelerations until here because of third-order LPT
+	    if (P.StoreForces && !P.ForceOutputDebug) {
+	        STDLOG(1,"Storing Forces in slab %d\n", slab);
+	        LBW->StoreArenaBlocking(AccSlab,slab);
+	    }
+	    else{
+	        LBW->DeAllocate(AccSlab,slab);
+	    }
+	}
 }
 
 // -----------------------------------------------------------------
@@ -613,6 +617,16 @@ void FinishAction(int slab) {
     WriteMultipoleSlab.Stop();
 }
 
+// -----------------------------------------------------------------
+// A no-op precondition that always passes
+int NoopPrecondition(int slab){
+    return 1;
+}
+
+// A no-op action that does nothing
+void NoopAction(int slab){
+    return;
+}
 
 // ===================================================================
 
@@ -642,17 +656,27 @@ void timestep(void) {
          NearForce.instantiate(cpd, first, &NearForcePrecondition,          &NearForceAction         );
        TaylorForce.instantiate(cpd, first, &TaylorForcePrecondition,        &TaylorForceAction       );
               Kick.instantiate(cpd, first, &KickPrecondition,               &KickAction              );
-    MakeCellGroups.instantiate(cpd, first, &MakeCellGroupsPrecondition,     &MakeCellGroupsAction    );
-FindCellGroupLinks.instantiate(cpd, first, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction);
-    DoGlobalGroups.instantiate(cpd, first, &DoGlobalGroupsPrecondition,     &DoGlobalGroupsAction    );
             Output.instantiate(cpd, first, &OutputPrecondition,             &OutputAction            );
-         Microstep.instantiate(cpd, first, &MicrostepPrecondition,          &MicrostepAction         );
-      FinishGroups.instantiate(cpd, first, &FinishGroupsPrecondition,       &FinishGroupsAction      );
              Drift.instantiate(cpd, first, &DriftPrecondition,              &DriftAction             );
             Finish.instantiate(cpd, first, &FinishPrecondition,             &FinishAction            );
+            
+    // If group finding is disabled, we can make the dependencies no-ops so they don't hold up the pipeline
+    if(GFC != NULL){
+        MakeCellGroups.instantiate(cpd, first, &MakeCellGroupsPrecondition,     &MakeCellGroupsAction    );
+    FindCellGroupLinks.instantiate(cpd, first, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction);
+        DoGlobalGroups.instantiate(cpd, first, &DoGlobalGroupsPrecondition,     &DoGlobalGroupsAction    );
+             Microstep.instantiate(cpd, first, &MicrostepPrecondition,          &MicrostepAction         );
+          FinishGroups.instantiate(cpd, first, &FinishGroupsPrecondition,       &FinishGroupsAction      );
+    } else {
+        MakeCellGroups.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
+    FindCellGroupLinks.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
+        DoGlobalGroups.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
+             Microstep.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
+          FinishGroups.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
+    }
            
-if(WriteState.Do2LPTVelocityRereading)
-LPTVelocityReRead.instantiate(cpd, first + 2*FORCE_RADIUS + 1 - FINISH_WAIT_RADIUS,
+    if(WriteState.Do2LPTVelocityRereading)
+        LPTVelocityReRead.instantiate(cpd, first + 2*FORCE_RADIUS + 1 - FINISH_WAIT_RADIUS,
                                           &FetchLPTVelPrecondition,   &FetchLPTVelAction   );
 
     while( !Finish.alldone() ) {
