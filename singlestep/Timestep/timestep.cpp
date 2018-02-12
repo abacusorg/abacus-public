@@ -23,7 +23,8 @@ int GROUP_RADIUS = -1;
 
 // I think in most cases we would prefer to read ahead until memory limited
 //#define FETCHAHEAD (2*FORCE_RADIUS)
-#define FETCHAHEAD 1000
+//#define FETCHAHEAD 1000
+#define FETCHAHEAD 2*FORCE_RADIUS + 1
 #define FETCHPERSTEP 1
 // Recall that all of these Dependencies have a built-in STimer
 // to measure the amount of time spent on Actions.
@@ -60,12 +61,14 @@ int FetchSlabPrecondition(int slab) {
         return 0;
     }
 
+    /* // We may not want to limit slab loading based on RAM anymore.
+    // To save memory, we want to load the absolute minimum slabs required!
     if(LBW->total_allocation > .5*P.MAXRAMMB*1024LLU*1024LLU){
         Dependency::NotifySpinning(NOT_ENOUGH_RAM);
         //STDLOG(0,"Warning: unable to load more slabs due to RAM limits. Currently using %.2f GB, and the limit is 0.5*MAXRAMMB = %.2f GB.\n",
         //        LBW->total_allocation/1024./1024./1024., .5*P.MAXRAMMB/1024);
         return 0;
-    }
+    }*/
     
     return 1;
 }
@@ -295,13 +298,18 @@ int MakeCellGroupsPrecondition(int slab) {
         return 0;
     }
     return 1;
-    // TODO: Is it ok that the AccSlab is not being reordered now?
-    // LHG thinks this might be resolved now by the fact that the cells do contain acc pointers
 }
 
 void MakeCellGroupsAction(int slab) {
 	STDLOG(1,"Making Cell Groups in slab %d\n", slab);
 	GFC->ConstructCellGroups(slab);
+
+    LBW->AllocateArena(ScatterPosSlab, slab);
+    LBW->AllocateArena(ScatterVelSlab, slab);
+
+    // TODO: could we get a memcpy speedup by doing this on two sockets?
+    memcpy(LBW->ReturnIDPtr(ScatterPosSlab,slab), LBW->ReturnIDPtr(PosSlab,slab), sizeof(FLOAT3)*Slab->size(slab));
+    KickSlabToScatter(slab, WriteState.FirstHalfEtaKick);
     return;
 }
 
@@ -416,6 +424,7 @@ int MicrostepPrecondition(int slab){
     // We are going to second-half kick this slab
     if (Output.notdone(slab))
         return 0;
+    return 1;
 }
 
 void MicrostepAction(int slab){
@@ -426,9 +435,13 @@ void MicrostepAction(int slab){
     // This kicks the slab particles, but not the GlobalGroup local copies
     // Note that there's no particular need to kick the slab particles before microstepping,
     // but it at least needs to be done before the scatter
-    // Create ScatterSlabs here and kick during copy?
     MicrostepSlabKick.Start();
-    SimpleKickSlab(slab, WriteState.FirstHalfEtaKick);
+    
+    //SimpleKickSlab(slab, WriteState.FirstHalfEtaKick);
+    
+    LBW->DeAllocate(PosSlab,slab);
+    LBW->DeAllocate(VelSlab,slab);
+    
     MicrostepSlabKick.Stop();
 
     // We de-allocate in Drift if we aren't doing group finding, although that could be Kick
@@ -456,8 +469,11 @@ void MicrostepAction(int slab){
 int FinishGroupsPrecondition(int slab){
     // We must have Output and SlabKicked all slabs that we might scatter into,
     // otherwise we'll end up double kicking particles
-    for(int j = slab - 2*GROUP_RADIUS; j <= slab + 2*GROUP_RADIUS; j++)
-        if (Microstep.notdone(j)) return 0;
+    //for(int j = slab - 2*GROUP_RADIUS; j <= slab + 2*GROUP_RADIUS; j++)
+    //    if (Microstep.notdone(j)) return 0;
+
+    // We are going to release these groups.
+    if (Microstep.notdone(slab)) return 0;
     
     return 1;
 }
@@ -506,8 +522,9 @@ void FetchLPTVelAction(int slab){
  */
 int DriftPrecondition(int slab) {
     // We must have finished scattering into this slab
-    for(int j = slab - 2*GROUP_RADIUS; j <= slab + 2*GROUP_RADIUS; j++)
-        if (FinishGroups.notdone(j)) return 0;
+    //for(int j = slab - 2*GROUP_RADIUS; j <= slab + 2*GROUP_RADIUS; j++)
+    //    if (FinishGroups.notdone(j)) return 0;
+    if (FinishGroups.notdone(slab)) return 0;
     
     // We will move the particles, so we must have done outputs
     if (Output.notdone(slab)) return 0;
@@ -526,7 +543,8 @@ int DriftPrecondition(int slab) {
 
 void DriftAction(int slab) {
     // We are guaranteed to have finished scattering into this slab
-    if (GFC != NULL)
+    int use_scatter = GFC != NULL;
+    if (use_scatter)
         GFC->DestroyCellGroups(slab);
     
     int step = LPTStepNumber();
@@ -534,23 +552,23 @@ void DriftAction(int slab) {
         // We have LPT IC work to do
         if (step==1) {
             STDLOG(1,"Drifting slab %d as LPT step 1\n", slab);
-            DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_1);
+            DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_1, use_scatter);
         } else if (step==2) {
             STDLOG(1,"Drifting slab %d as LPT step 2\n", slab);
-            DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_2);
+            DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_2, use_scatter);
         } else if (step==3) {
             STDLOG(1,"Drifting slab %d as LPT step 3\n", slab);
-            DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_3);
+            DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_3, use_scatter);
         } else QUIT("LPT Drift %d not implemented\n", step);
     } else {
         //         This is just a normal drift
         FLOAT driftfactor = WriteState.DeltaEtaDrift;
         // WriteState.etaD-ReadState.etaD; 
         STDLOG(1,"Drifting slab %d by %f\n", slab, driftfactor);
-        DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
+        DriftAndCopy2InsertList(slab, driftfactor, DriftCell, use_scatter);
     }
     
-    if (GFC == NULL){
+    if (!use_scatter){
 	    // We kept the accelerations until here because of third-order LPT
 	    if (P.StoreForces && !P.ForceOutputDebug) {
 	        STDLOG(1,"Storing Forces in slab %d\n", slab);
@@ -580,7 +598,9 @@ void FinishAction(int slab) {
         LBW->DeAllocate(VelLPTSlab, slab);
     
     // Gather particles from the insert list and make the merge slabs
-    uint64 n_merge = FillMergeSlab(slab);
+    // We indicate whether we are merging from the scatter cells or original cells
+    int merge_from_scatter = GFC != NULL;
+    uint64 n_merge = FillMergeSlab(slab, merge_from_scatter);
     merged_particles += n_merge;
     
     // This may be the last time be need any of the CellInfo slabs that we just used
@@ -596,8 +616,13 @@ void FinishAction(int slab) {
     }
     
     // Now delete the original particles
-    LBW->DeAllocate(PosSlab,slab);
-    LBW->DeAllocate(VelSlab,slab);
+    if(merge_from_scatter){
+        LBW->DeAllocate(ScatterPosSlab,slab);
+        LBW->DeAllocate(ScatterVelSlab,slab);
+    } else {
+        LBW->DeAllocate(PosSlab,slab);
+        LBW->DeAllocate(VelSlab,slab);
+    }
     LBW->DeAllocate(AuxSlab,slab);
     
     // Make the multipoles

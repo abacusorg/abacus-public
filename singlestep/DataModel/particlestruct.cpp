@@ -182,7 +182,7 @@ public:
 
 
 // Define the cell class to have a compact way to handle the particles.
-// Unfortunately, this does not include accelerations and group lists,
+// Unfortunately, this does not include group lists,
 // because we don't always have those.
 
 class Cell {
@@ -191,7 +191,7 @@ public:
     integer3 ijk;
     // Pointer to the cell info (not a copy of it!)
     cellinfo *ci;
-    // Pointers to the lists of positions, velocities, and auxillaries
+    // Pointers to the lists of positions, velocities, and auxiliaries
     // These lists run 0 .. ci->count-1
     posstruct *pos;
     velstruct *vel;

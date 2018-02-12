@@ -147,8 +147,8 @@ class GlobalGroupSlab {
         int ret = posix_memalign((void **) &pstat, 64, sizeof(PencilStats)*GFC->cpd);
         assert(ret==0);
         for (int j=0; j<GFC->cpd; j++) pstat[j].reset(j);
-        globalgroups.setup(GFC->cpd, GFC->particles_per_pencil);   
-        globalgrouplist.setup(GFC->cpd, GFC->particles_per_pencil);   
+        globalgroups.setup(GFC->cpd, GFC->particles_per_pencil*omp_get_max_threads());   
+        globalgrouplist.setup(GFC->cpd, GFC->particles_per_pencil*omp_get_max_threads());   
     }
     void destroy() {
         if (pos!=NULL) free(pos); pos = NULL;
@@ -157,6 +157,13 @@ class GlobalGroupSlab {
         if (acc!=NULL) free(acc); acc = NULL;
         if (pstat!=NULL) free(pstat); pstat = NULL;
         np = 0;
+        
+        globalgroups.destroy();
+        globalgrouplist.destroy();
+        L1halos.destroy();
+        TaggedPIDs.destroy();
+        L1Particles.destroy();
+        L1PIDs.destroy();
     }
 
     void allocate(uint64 _np) {
@@ -207,7 +214,6 @@ void GlobalGroupSlab::CreateGlobalGroups() {
     // GFC->GLL->AsciiPrint();
     LinkPencil **links;                // For several slabs and all pencils in each
     links = (LinkPencil **)malloc(sizeof(LinkPencil *)*diam);
-    links[0] = (LinkPencil *)malloc(sizeof(LinkPencil)*diam*cpd);
 
     {int ret = posix_memalign((void **)&(links[0]), 64, sizeof(LinkPencil)*diam*cpd); assert(ret==0);}
     for (int j=1; j<diam; j++) links[j] = links[j-1]+cpd;
@@ -500,7 +506,7 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
                     // Loop over CellGroups
                     integer3 cellijk = cglink->cell();
                     CellGroup *cg = LinkToCellGroup(*cglink);
-                    Cell cell = PP->GetCell(cellijk);
+                    Cell cell = PP->GetScatterCell(cellijk);
                     // Copy the particles, including changing positions to 
                     // the cell-centered coord of the first cell.  
                     // Note periodic wrap.
@@ -532,19 +538,20 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
 void GlobalGroupSlab::FindSubGroups() {
     // Process each group, looking for L1 and L2 subgroups.
     GFC->ProcessLevel1.Start();
-    L1halos.setup(GFC->cpd, GFC->particles_per_pencil);    // TUNING: This start value is a guess
-    TaggedPIDs.setup(GFC->cpd, GFC->particles_per_pencil);    
-    L1Particles.setup(GFC->cpd, GFC->particles_per_pencil);   
-    L1PIDs.setup(GFC->cpd, GFC->particles_per_pencil);    
-    FOFcell FOFlevel1[omp_get_max_threads()], FOFlevel2[omp_get_max_threads()];
-    posstruct **L1pos = new posstruct *[omp_get_max_threads()];
-    velstruct **L1vel = new velstruct *[omp_get_max_threads()];
-    auxstruct **L1aux = new auxstruct *[omp_get_max_threads()];
-    accstruct **L1acc = new accstruct *[omp_get_max_threads()];
-    MultiplicityStats L1stats[omp_get_max_threads()];
+    int maxthreads = omp_get_max_threads();
+    L1halos.setup(GFC->cpd, GFC->particles_per_pencil*maxthreads);    // TUNING: This start value is a guess
+    TaggedPIDs.setup(GFC->cpd, GFC->particles_per_pencil*maxthreads);    
+    L1Particles.setup(GFC->cpd, GFC->particles_per_pencil*maxthreads);   
+    L1PIDs.setup(GFC->cpd, GFC->particles_per_pencil*maxthreads);    
+    FOFcell FOFlevel1[maxthreads], FOFlevel2[maxthreads];
+    posstruct **L1pos = new posstruct *[maxthreads];
+    velstruct **L1vel = new velstruct *[maxthreads];
+    auxstruct **L1aux = new auxstruct *[maxthreads];
+    accstruct **L1acc = new accstruct *[maxthreads];
+    MultiplicityStats L1stats[maxthreads];
 
     #pragma omp parallel for schedule(static)
-    for (int g=0; g<omp_get_max_threads(); g++) {
+    for (int g=0; g<maxthreads; g++) {
         FOFlevel1[g].setup(GFC->linking_length_level1, 1e10);
         FOFlevel2[g].setup(GFC->linking_length_level2, 1e10);
         L1pos[g] = (posstruct *)malloc(sizeof(posstruct)*largest_group);

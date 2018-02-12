@@ -79,6 +79,20 @@ void SimpleKickSlab(int slab, FLOAT kickfactor) {
     }
 }
 
+// Copy VelSlab to ScatterVelSlab, kicking along the way.
+void KickSlabToScatter(int slab, FLOAT kickfactor) {
+	uint64 N = Slab->size(slab)*3;
+    FLOAT *acc = (FLOAT *) LBW->ReturnIDPtr(AccSlab,slab);
+	FLOAT *vel = (FLOAT *) LBW->ReturnIDPtr(VelSlab,slab);
+    FLOAT *svel = (FLOAT *) LBW->ReturnIDPtr(ScatterVelSlab,slab);
+	
+	// Note we may lose some NUMA locality by abandoning the cell model
+    #pragma omp parallel for schedule(static)
+    #pragma simd assert
+    for (uint64 i=0; i<N; i++) {
+        svel[i] = vel[i] + kickfactor*acc[i];
+    }
+}
 
 void RescaleAndCoAddAcceleration(int slab) {
     // The accelerations are computed with unit particle mass.

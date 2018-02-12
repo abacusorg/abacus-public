@@ -54,7 +54,7 @@ class GroupFindingControl {
     	// 2 means slab closed (so CellGroups may be deleted).
     GroupLinkList *GLL;
 
-    GlobalGroupSlab *globalslabs;    // Allocated [0,cpd), one for each slab
+    GlobalGroupSlab **globalslabs;    // Allocated [0,cpd), one for each slab
 
     STimer CellGroupTime, CreateFaceTime, FindLinkTime, 
     	SortLinks, IndexLinks, FindGlobalGroupTime, IndexGroups, 
@@ -69,6 +69,15 @@ class GroupFindingControl {
     GroupFindingControl(FOFloat _linking_length, 
     	FOFloat _linking_length_level1, FOFloat _linking_length_level2,
     int _cpd, FOFloat _invcpd, int _GroupRadius, int _minhalosize, uint64 _np) {
+#ifdef STANDALONE_FOF
+    grouplog = &stdlog;
+#else
+    std::string glogfn = P.LogDirectory;
+    glogfn += "/lastrun.groupstats";
+    grouplog = new std::ofstream();
+    grouplog->open(glogfn);
+#endif
+
 	cpd = _cpd; 
 	linking_length = _linking_length;
 	linking_length_level1 = _linking_length_level1;
@@ -83,14 +92,7 @@ class GroupFindingControl {
 	cellgroups_status = new int[cpd];
 	for (int j=0;j<cpd;j++) cellgroups_status[j] = 0;
 	GLL = new GroupLinkList(cpd, np/cpd*linking_length/_invcpd*3*15);    
-#ifdef STANDALONE_FOF
-	grouplog = &stdlog;
-#else
-	std::string glogfn = P.LogDirectory;
-	glogfn += "/lastrun.groupstats";
-    grouplog = new std::ofstream();
-	grouplog->open(glogfn);
-#endif
+    STDLOG(1,"Allocated %.2f GB for GroupLinkList\n", sizeof(GroupLink)*GLL->maxlist/1024./1024./1024.)
 	
 	setupGGS();
 	// This is a MultiAppendList, so the buffer cannot grow. 
@@ -103,15 +105,8 @@ class GroupFindingControl {
 	return;
     }
 
-    ~GroupFindingControl() { 
-        delete[] cellgroups;
-        for (int j=0;j<cpd;j++) assert(cellgroups_status[j] == 2);
-        delete[] cellgroups_status;
-	delete GLL;
-#ifndef STANDALONE_FOF
-		grouplog->close();
-#endif
-    }
+    ~GroupFindingControl();
+
     int WrapSlab(int s) {
 	while (s<0) s+=cpd;
 	while (s>=cpd) s-=cpd;
@@ -303,12 +298,28 @@ uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid) {
 	// sets of CellGroups (stored by their LinkIDs).
 
 void GroupFindingControl::setupGGS() {
-    globalslabs = new GlobalGroupSlab[cpd];
+    globalslabs = new GlobalGroupSlab*[cpd];
+    for(int i = 0; i < cpd; i++) globalslabs[i] = NULL;
+}
+
+GroupFindingControl::~GroupFindingControl() { 
+    delete[] cellgroups;
+    for (int j=0;j<cpd;j++) assert(cellgroups_status[j] == 2);
+    delete[] cellgroups_status;
+    delete GLL;
+    #ifndef STANDALONE_FOF
+    grouplog->close();
+    delete grouplog;
+    #endif
+
+    delete[] globalslabs;
 }
 
 void FindAndProcessGlobalGroups(int slab) {
     slab = GFC->WrapSlab(slab);
-    GlobalGroupSlab *GGS = GFC->globalslabs+slab;
+    assert(GFC->globalslabs[slab] == NULL);
+    GlobalGroupSlab *GGS = new GlobalGroupSlab;
+    GFC->globalslabs[slab] = GGS;
     GGS->setup(slab);
     GGS->CreateGlobalGroups();
     STDLOG(1,"Closed global groups in slab %d, finding %d groups involving %d cell groups\n", slab, GGS->globalgroups.get_slab_size(), GGS->globalgrouplist.get_slab_size());
@@ -353,7 +364,7 @@ void KickGlobalGroups(int slab, FLOAT kickfactor){
 	 */
 
 	slab = GFC->WrapSlab(slab);
-    GlobalGroupSlab *GGS = GFC->globalslabs+slab;
+    GlobalGroupSlab *GGS = GFC->globalslabs[slab];
 
     #pragma omp parallel for schedule(static)
     #pragma simd assert
@@ -363,10 +374,11 @@ void KickGlobalGroups(int slab, FLOAT kickfactor){
 
 void FinishGlobalGroups(int slab){
 	slab = GFC->WrapSlab(slab);
-    GlobalGroupSlab *GGS = GFC->globalslabs+slab;
+    GlobalGroupSlab *GGS = GFC->globalslabs[slab];
 
 	// pos,vel have been updated in the group-local particle copies by microstepping
     // now push these updates to the original slabs
     GGS->ScatterGlobalGroups();
-    GGS->destroy();
+    delete GGS;
+    GFC->globalslabs[slab] = NULL;
 }

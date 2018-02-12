@@ -160,7 +160,6 @@ public:
     }
 
     Parameters() {
-
         installscalar("NP",np, MUST_DEFINE);
         installscalar("CPD",cpd,MUST_DEFINE);
         installscalar("Order",order,MUST_DEFINE);

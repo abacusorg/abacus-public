@@ -1,13 +1,10 @@
-// For intel's fast parallel sort
-// #include "tbb/parallel_sort.h"
-// #include "parallel_stable_sort.h"
-
 #ifdef TEST
 #include "test_driver_header.cpp"
 #endif
 
-#ifdef TBB
+#ifndef STANDALONE_FOF
 #include "tbb/parallel_sort.h"
+// #include "parallel_stable_sort.h"
 #endif
 
 class LinkID {
@@ -97,9 +94,9 @@ public:
 	// We sort the whole list of GroupLinks.
 	GroupSort.Start();
 	// Put in a parallel sort
-	// pss::parallel_stable_sort( list, list+length, GroupLinkSortOperator() );
-	#ifdef TBB
+	#ifndef STANDALONE_FOF
 	tbb::parallel_sort(list, list+length);
+    // pss::parallel_stable_sort( list, list+length, GroupLinkSortOperator() );
 	#else
 	std::sort(list, list+length);
 	#endif

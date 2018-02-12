@@ -40,7 +40,7 @@ class MultiplicityStats {
 	assertf(j<MS_NBIN, "Group is larger than maximum multiplicity stats range!");
 	count[j]++;
 	sumn[j] += np;
-	sumn2[j] += np*np;
+	sumn2[j] += (uint64) np*np;
 	return;
     }
 	
