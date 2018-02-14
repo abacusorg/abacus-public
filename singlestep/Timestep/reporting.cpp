@@ -237,7 +237,7 @@ void ReportTimings(FILE * timingfile) {
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
     REPORT(1, "Kick", Kick.Elapsed()); total += thistime;
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
-	double gf_total = MakeCellGroups.Elapsed() + FindCellGroupLinks.Elapsed() + DoGlobalGroups.Elapsed();
+	double gf_total = MakeCellGroups.Elapsed() + FindCellGroupLinks.Elapsed() + DoGlobalGroups.Elapsed() + FinishGroups.Elapsed();
     if (GFC != NULL){
         REPORT(1, "Group Finding", gf_total); total += thistime;
         fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
@@ -378,14 +378,26 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Add Near + Far Accel", AddAccel.Elapsed());
     REPORT(1, "Kick Cell", KickCellTimer.Elapsed());
     
-	fprintf(timingfile, "\n\n Breakdown of Group Finding:");
-	denom = gf_total;
-	REPORT(1, "MakeCellGroups", MakeCellGroups.Elapsed());
-    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
-    REPORT(1, "FindCellGroupLinks", FindCellGroupLinks.Elapsed());
-    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
-    REPORT(1, "DoGlobalGroups", DoGlobalGroups.Elapsed());
-    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+    if(GFC != NULL){
+    	fprintf(timingfile, "\n\n Breakdown of Group Finding:");
+    	denom = gf_total;
+    	REPORT(1, "MakeCellGroups", MakeCellGroups.Elapsed());
+        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+        REPORT(1, "FindCellGroupLinks", FindCellGroupLinks.Elapsed());
+        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+        REPORT(1, "DoGlobalGroups", DoGlobalGroups.Elapsed());
+        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+        denom = thistime;
+        REPORT(2, "Create (Sort + Index + Find)", GFC->SortLinks.Elapsed() + GFC->IndexLinks.Elapsed() + GFC->FindGlobalGroupTime.Elapsed());
+        REPORT(2, "Gather particles/Scatter aux", GFC->IndexGroups.Elapsed() + GFC->GatherGroups.Elapsed() + GFC->ScatterAux.Elapsed());
+        REPORT(2, "Find L1 Halos", GFC->ProcessLevel1.Elapsed());
+        REPORT(2, "Output L1 Halos", GFC->OutputLevel1.Elapsed());
+        denom = gf_total;
+        REPORT(1, "FinishGroups", FinishGroups.Elapsed());
+        denom = thistime;
+        REPORT(2, "Scatter Groups", GFC->ScatterGroups.Elapsed());
+            fprintf(timingfile,"---> %6.3f M_group_part/sec",GFC->L0stats.tot/(thistime+1e-15)/1e6);
+    }
 	
 	// Now write some detailed multiplicity and timing stats to lastrun.grouplog
 	if(GFC != NULL)
@@ -400,16 +412,14 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Binning", OutputBin.Elapsed());
     fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
 
-    fprintf(timingfile, "\n\n Breakdown of Microstep Step:");
-    denom = Microstep.Elapsed();
-    REPORT(1, "Slab Kick", MicrostepSlabKick.Elapsed());
-    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
     if(GFC != NULL){
+        fprintf(timingfile, "\n\n Breakdown of Microstep Step:");
+        denom = Microstep.Elapsed();
+        REPORT(1, "Slab Kick", MicrostepSlabKick.Elapsed());
+        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
         REPORT(1, "Group Kick", MicrostepGroupKick.Elapsed());
         fprintf(timingfile,"---> %6.3f M_group_part/sec", GFC->L0stats.tot/(thistime+1e-15)/1e6);
         REPORT(1, "CPU Microsteps", MicrostepCPU.Elapsed());
-        fprintf(timingfile,"---> %6.3f M_group_part/sec",GFC->L0stats.tot/(thistime+1e-15)/1e6);
-        REPORT(1, "Scatter Groups", GFC->ScatterGroups.Elapsed());
         fprintf(timingfile,"---> %6.3f M_group_part/sec",GFC->L0stats.tot/(thistime+1e-15)/1e6);
     }
 

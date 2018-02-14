@@ -56,7 +56,7 @@ int RebinCell(Cell &c, int x, int y, int z) {
 }
 
 void DriftAndCopy2InsertList(int slab, FLOAT driftfactor, 
-            void (*DriftCell)(Cell &c, FLOAT driftfactor), const int use_scatter) {
+            void (*DriftCell)(Cell &c, FLOAT driftfactor)) {
     // Drift an entire slab
     STimer wc;
     PTimer move;
@@ -73,10 +73,7 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
             // We'll do the drifting and rebinning separately because
             // sometimes we'll want special rules for drifting.
             Cell c;
-            if(use_scatter)
-                c = PP->GetScatterCell(slab ,y,z);
-            else
-                c = PP->GetCell(slab ,y,z);
+            c = PP->GetCell(slab ,y,z);
             move.Start();
             (*DriftCell)(c,driftfactor);
             move.Stop();

@@ -186,6 +186,7 @@ class GlobalGroupSlab {
     void FindSubGroups();
     void SimpleOutput();
     void HaloOutput();
+    void L0TimeSliceOutput();
 
 };
 
@@ -453,7 +454,7 @@ void GlobalGroupSlab::GatherGlobalGroups() {
 
 void GlobalGroupSlab::ScatterGlobalGroupsAux() {
     // Write the information from aux back into the original Slabs
-    GFC->ScatterGroups.Start();
+    GFC->ScatterAux.Start();
 
     #pragma omp parallel for schedule(static)
     for (int j=0; j<GFC->cpd; j++)
@@ -477,7 +478,7 @@ void GlobalGroupSlab::ScatterGlobalGroupsAux() {
                 } // End loop over cellgroups in this global group
             } // End loop over globalgroups in a cell
     // End loop over cells
-    GFC->ScatterGroups.Stop();
+    GFC->ScatterAux.Stop();
     return;
 }
 
@@ -506,7 +507,7 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
                     // Loop over CellGroups
                     integer3 cellijk = cglink->cell();
                     CellGroup *cg = LinkToCellGroup(*cglink);
-                    Cell cell = PP->GetScatterCell(cellijk);
+                    Cell cell = PP->GetCell(cellijk);
                     // Copy the particles, including changing positions to 
                     // the cell-centered coord of the first cell.  
                     // Note periodic wrap.
@@ -771,14 +772,13 @@ void GlobalGroupSlab::HaloOutput() {
 
 #else   // !STANDALONE_FOF
 void GlobalGroupSlab::HaloOutput() {
+    GFC->OutputLevel1.Start();
         /* Outputs a uniform subsample of the particles ("taggable particles")
          * and L1 halo stats and tagged particles. Currently we always output
          * taggable particles if we are also outputting halos. Halo outputs will
          * be skipped if no L1 halos were found (but taggable particles will still be written).
          */
          
-    // TODO: Need to include the control logic regarding whether 
-    // a given file should be written.
         STDLOG(0,"Beginning halo output for slab %d\n", slab);
         
         // Ensure the output directory for this step exists
@@ -810,7 +810,10 @@ void GlobalGroupSlab::HaloOutput() {
                 LBW->DeAllocate(TaggableFieldPIDSlab, slab);
         }
                 
-    if (L1halos.pencils == NULL || L1halos.get_slab_size() == 0) return;
+    if (L1halos.pencils == NULL || L1halos.get_slab_size() == 0){
+        GFC->OutputLevel1.Stop();
+        return;
+    }
         // If pencils is NULL, then FindSubgroups() wasn't run and
         // nothing about L1 groups is even defined.
         // And if get_slab_size() is 0, then we found ran FOF but found nothing.
@@ -841,11 +844,31 @@ void GlobalGroupSlab::HaloOutput() {
     L1PIDs.copy_to_ptr((TaggedPID *)LBW->ReturnIDPtr(L1PIDsSlab, slab));
     LBW->StoreArenaNonBlocking(L1PIDsSlab, slab);
 
+    GFC->OutputLevel1.Stop();
+
     return;
 }
 #endif
 
+void GlobalGroupSlab::L0TimeSliceOutput(){
+    /* When we do group finding, we write all the non-group particles into normal
+     * time-slice slabs and the L0 group particles into their own slabs.
+     * This routine does the latter.
+    */
 
+    // TODO: add ParseHeader
+    LBW->AllocateSpecificSize(L0TimeSlice, slab, np*sizeof(RVfloatPID));
+    RVfloatPID *p = (RVfloatPID *)LBW->ReturnIDPtr(L0TimeSlice, slab);
+
+    // TODO: group-centered outputs?
+    for(uint64 i = 0; i < np; i++){
+        p[i] = RVfloatPID(aux[i].pid(),
+                        pos[i][0], pos[i][1], pos[i][2],
+                        vel[i][0], vel[i][1], vel[i][2]);
+    }
+
+    LBW->StoreArenaNonBlocking(L0TimeSlice, slab);
+}
 
 
 

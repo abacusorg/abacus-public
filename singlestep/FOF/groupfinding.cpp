@@ -58,7 +58,7 @@ class GroupFindingControl {
 
     STimer CellGroupTime, CreateFaceTime, FindLinkTime, 
     	SortLinks, IndexLinks, FindGlobalGroupTime, IndexGroups, 
-	GatherGroups, ScatterGroups, ProcessLevel1;
+	GatherGroups, ScatterAux, ScatterGroups, ProcessLevel1, OutputLevel1;
     PTimer L1FOF, L2FOF, L1Tot;
     PTimer IndexLinksSearch, IndexLinksIndex;
 	
@@ -143,6 +143,7 @@ class GroupFindingControl {
 			IndexGroups.Elapsed()+
 			GatherGroups.Elapsed()+
 			ProcessLevel1.Elapsed()+
+            ScatterAux.Elapsed()+
 			ScatterGroups.Elapsed();
 	 GLOG(0,"Timings: \n");
 	 #define RFORMAT(a) a.Elapsed(), a.Elapsed()/total_time*100.0
@@ -172,6 +173,10 @@ class GroupFindingControl {
 			RFORMAT(L2FOF));
 	 GLOG(0,"Level 1 Total:                %8.4f sec (%5.2f%%)\n",
 			RFORMAT(L1Tot));
+     GLOG(0,"Level 1 Output:                %8.4f sec (%5.2f%%)\n",
+            RFORMAT(OutputLevel1));
+     GLOG(0,"Scatter Aux: %8.4f sec (%5.2f%%)\n",
+            RFORMAT(ScatterAux));
 	 GLOG(0,"Scatter Group Particles: %8.4f sec (%5.2f%%)\n",
 			RFORMAT(ScatterGroups));
 	 GLOG(0,"Total Booked Time:       %8.4f sec (%5.2f Mp/sec)\n", total_time, np/total_time*1e-6);
@@ -351,6 +356,9 @@ void FindAndProcessGlobalGroups(int slab) {
     #endif
 	if(do_output)
 		GGS->HaloOutput();
+
+    if(ReadState.DoTimeSliceOutput)
+        GGS->L0TimeSliceOutput();
 }
 
 void KickGlobalGroups(int slab, FLOAT kickfactor){

@@ -116,7 +116,7 @@ public:
 };
 
 
-uint64 FillMergeSlab(int slab, int from_scatter) {
+uint64 FillMergeSlab(int slab) {
     // This routine allocates the MergePos, MergeVel, MergeAux, 
     // and MergeCellInfo slabs.  They will be destroyed when written.
     int cpd = P.cpd;
@@ -264,10 +264,7 @@ uint64 FillMergeSlab(int slab, int from_scatter) {
     for(int y=0;y<cpd;y++){
         for(int z=0;z<cpd;z++) {
             Cell c;
-            if(from_scatter)
-                c = PP->GetScatterCell(slab, y, z);
-            else
-                c = PP->GetCell(slab, y, z);
+            c = PP->GetCell(slab, y, z);
             Cell mc = PP->GetMergeCell(slab, y, z);
             cellinfo *ici = PP->InsertCellInfo(slab,y,z);
             int insert_count = ici->count;

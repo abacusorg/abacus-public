@@ -49,6 +49,18 @@ class TaggedPID {
     TaggedPID(uint64_t p) { _pid = p; }
 };
 
+class RVfloatPID {
+  public:
+    uint64_t pid;
+    float pos[3];
+    float vel[3];
+    RVfloatPID(uint64_t _pid, float px, float py, float pz, float vx, float vy, float vz) {
+        pid = _pid;
+        pos[0] = px; pos[1] = py; pos[2] = pz;
+        vel[0] = vx; vel[1] = vy; vel[2] = vz;
+    }
+};
+
 /*
 class TaggedPID {
   public:

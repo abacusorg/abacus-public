@@ -407,9 +407,9 @@ void FindGroupLinks(int slab) {
     // Find the CellGroup borders for all cells in slab, including
     // those to slab-1.
     // Then search them, adding to the List of Links.
+    GFC->CreateFaceTime.Start();
     slab = GFC->WrapSlab(slab);
     uint64 Ltot_start = GFC->GLL->length;
-    GFC->CreateFaceTime.Start();
 
     // TODO: This maxsize is likely inefficient
     CellFaceSlab xp(slab-1, XP_BIT, GFC->cpd, 1024);

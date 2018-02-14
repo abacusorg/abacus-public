@@ -91,11 +91,14 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
                 accstruct *acc = PP->AccCell(ijk);
                 for (int p=0;p<c.count();p++) {
                     vel = (c.vel[p] - acc[p]*unkickfactor);    // We supply in code units
-                    AA->addparticle(c.pos[p], vel, c.aux[p]);
+                    // TODO: are the particles ordered in such a way that we don't need to test the L0 bit?
+                    if(!c.aux[p].is_L0())
+                        AA->addparticle(c.pos[p], vel, c.aux[p]);
                 }
             } else {
                 for (int p=0;p<c.count();p++) {
-                    AA->addparticle(c.pos[p], c.vel[p], c.aux[p]);
+                    if(!c.aux[p].is_L0())
+                        AA->addparticle(c.pos[p], c.vel[p], c.aux[p]);
                 }
             }
             n_added += c.count();
@@ -104,15 +107,8 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
 
     LBW->ResizeSlab(TimeSlice, slab, AA->bytes_written());
 
-    // Write out this filename
-    char filename[1024]; 	
-    sprintf(filename, "%s/slice%5.3f/%s.z%5.3f.slab%04d.dat",  
-    	P.OutputDirectory, 
-	ReadState.Redshift,
-	P.SimName,
-	ReadState.Redshift,
-	slab);
-    LBW->WriteArena(TimeSlice, slab, IO_DELETE, IO_NONBLOCKING, filename);
+    // Write out this time slice
+    LBW->StoreArenaNonBlocking(TimeSlice, slab);
     delete AA;
     
     return n_added;
