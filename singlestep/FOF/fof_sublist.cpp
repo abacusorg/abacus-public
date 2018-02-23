@@ -455,6 +455,10 @@ class FOFcell {
 	// in the cell.  When there are few particles, we want a big radius,
 	// so that if we complete a group with yet more unassigned particles
 	// in the core, then we could continue on.
+    
+    // TODO: is this safe?  do we rely on other side-effects from this routine?
+    if (b == 0)
+        return;
 
 	time_fof.Start();
 

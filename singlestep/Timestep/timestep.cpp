@@ -447,20 +447,23 @@ void MicrostepAction(int slab){
 
     MicrostepCPU.Start();
     // Do microstepping here
-    // If da = 0, no point in microstepping!
-    /* STDLOG(1,"Beginning microsteps for slab %d\n", slab);
     if(MicrostepEpochs != NULL){
-        MicrostepControl MC;
-        MC.setup(GGS, *MicrostepEpochs);
-        MC.ComputeGroupsCPU();
-    }*/ 
+        STDLOG(1,"Beginning microsteps for slab %d\n", slab);
+        MicrostepControl *MC = new MicrostepControl;
+        MC->setup(GFC->globalslabs[slab], *MicrostepEpochs);
+        MC->ComputeGroupsCPU();
+
+        // TODO: do we need to allow for one MC per slab?
+        GFC->microstepcontrol = MC;
+    }
     MicrostepCPU.Stop();
 }
 
 // -----------------------------------------------------------------
 
 int FinishGroupsPrecondition(int slab){
-    // FUTURE: we will add a condition here to check if the asychronous GPU microstepping is done for this slab
+    // Is the asychronous GPU microstepping done?
+    //if (!GFC->microstepcontrol->GPUGroupsDone()) return 0
 
     // We are going to release these groups.
     if (Microstep.notdone(slab)) return 0;
@@ -471,6 +474,8 @@ int FinishGroupsPrecondition(int slab){
 void FinishGroupsAction(int slab){
     // Scatter pos,vel updates to slabs, and release GGS
     STDLOG(0, "Finishing groups in slab %d\n", slab);
+    delete GFC->microstepcontrol;
+    GFC->microstepcontrol = NULL;
     FinishGlobalGroups(slab);
     GFC->DestroyCellGroups(slab);
 }

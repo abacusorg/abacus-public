@@ -137,6 +137,8 @@ public:
 	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
     double HaloTaggableFraction; // fraction of particles in a L2 halo to tag and output
 
+    double MicrostepTimeStep; // Timestep parameter that controls microstep refinement
+
     // in MB
     unsigned int getCacheSize(){
         unsigned int cache_size = 0;
@@ -308,6 +310,9 @@ public:
 		installscalar("L1Output_dlna", L1Output_dlna, DONT_CARE);
         HaloTaggableFraction = 0.1;
         installscalar("HaloTaggableFraction", HaloTaggableFraction, DONT_CARE);
+
+        MicrostepTimeStep = 1.;
+        installscalar("MicrostepTimeStep", MicrostepTimeStep, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.

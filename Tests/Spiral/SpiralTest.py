@@ -43,7 +43,7 @@ def run(basedir = "NONE"):
     BoxSize = 17.3205080756888
     CPD = 33
     ainitial = 0.09
-    across = 0.2
+    across = 0.1
     astop =  0.11
     sf = 0.1*BoxSize/n1d
 

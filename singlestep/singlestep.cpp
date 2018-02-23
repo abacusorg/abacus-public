@@ -102,6 +102,11 @@ double ChooseTimeStep(){
 			STDLOG(0,"da to reach next output is %f\n", da);
 		}
 	}
+    double finala = 1.0/(1+P.FinishingRedshift());
+    if (ReadState.Redshift > P.FinishingRedshift()+1e-12 && ReadState.ScaleFactor + da > finala) {
+        da = finala - ReadState.ScaleFactor;
+        STDLOG(0,"da to reach finishing redshift is %f\n", da);
+    }
 	if (da<1e-12) return da;
 
 	// We might have already reached the FinishingRedshift.
@@ -157,7 +162,8 @@ double ChooseTimeStep(){
 	    STDLOG(0,"da based on vrms/amax is %f. dlna = %f.\n", da, da/ReadState.ScaleFactor);
 	}
 
-    MicrostepEpochs = new MicrostepEpochTable(cosm, cosm->current.a, cosm->current.a + da);
+    if(P.MicrostepTimeStep > 0)
+        MicrostepEpochs = new MicrostepEpochTable(cosm, cosm->current.a, cosm->current.a + da);
 
 	return da;
 }

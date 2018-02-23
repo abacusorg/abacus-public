@@ -23,6 +23,7 @@
 
 
 class GlobalGroupSlab;
+class MicrostepControl;
 
 
 class GroupFindingControl {
@@ -55,6 +56,7 @@ class GroupFindingControl {
     GroupLinkList *GLL;
 
     GlobalGroupSlab **globalslabs;    // Allocated [0,cpd), one for each slab
+    MicrostepControl *microstepcontrol;
 
     STimer CellGroupTime, CreateFaceTime, FindLinkTime, 
     	SortLinks, IndexLinks, FindGlobalGroupTime, IndexGroups, 
@@ -341,9 +343,9 @@ void FindAndProcessGlobalGroups(int slab) {
 	// Check if, by going from ReadState to WriteState, we are crossing a L1Output_dlna checkpoint
 	// Also always output if we're doing a TimeSlice output
 #ifndef STANDALONE_FOF
-	int do_output = fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna)
-					|| log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna
-					|| ReadState.DoTimeSliceOutput;
+	int do_output = log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ||
+                    fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna) ||
+					ReadState.DoTimeSliceOutput;
 #else
 	int do_output = 1;
 #endif
