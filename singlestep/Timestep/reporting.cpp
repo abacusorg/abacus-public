@@ -415,10 +415,6 @@ void ReportTimings(FILE * timingfile) {
     if(GFC != NULL){
         fprintf(timingfile, "\n\n Breakdown of Microstep Step:");
         denom = Microstep.Elapsed();
-        REPORT(1, "Slab Kick", MicrostepSlabKick.Elapsed());
-        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
-        REPORT(1, "Group Kick", MicrostepGroupKick.Elapsed());
-        fprintf(timingfile,"---> %6.3f M_group_part/sec", GFC->L0stats.tot/(thistime+1e-15)/1e6);
         REPORT(1, "CPU Microsteps", MicrostepCPU.Elapsed());
         fprintf(timingfile,"---> %6.3f M_group_part/sec",GFC->L0stats.tot/(thistime+1e-15)/1e6);
     }

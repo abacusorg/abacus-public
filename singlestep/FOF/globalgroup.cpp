@@ -186,7 +186,7 @@ class GlobalGroupSlab {
     void FindSubGroups();
     void SimpleOutput();
     void HaloOutput();
-    void L0TimeSliceOutput();
+    void L0TimeSliceOutput(FLOAT unkick_factor);
 
 };
 
@@ -850,7 +850,7 @@ void GlobalGroupSlab::HaloOutput() {
 }
 #endif
 
-void GlobalGroupSlab::L0TimeSliceOutput(){
+void GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
     /* When we do group finding, we write all the non-group particles into normal
      * time-slice slabs and the L0 group particles into their own slabs.
      * This routine does the latter.
@@ -861,10 +861,12 @@ void GlobalGroupSlab::L0TimeSliceOutput(){
     RVfloatPID *p = (RVfloatPID *)LBW->ReturnIDPtr(L0TimeSlice, slab);
 
     // TODO: group-centered outputs?
+    // TODO: support different output formats
     for(uint64 i = 0; i < np; i++){
+        FLOAT3 v = vel[i] - unkick_factor*acc[i];
         p[i] = RVfloatPID(aux[i].pid(),
                         pos[i][0], pos[i][1], pos[i][2],
-                        vel[i][0], vel[i][1], vel[i][2]);
+                        v[0], v[1], v[2]);
     }
 
     LBW->StoreArenaNonBlocking(L0TimeSlice, slab);

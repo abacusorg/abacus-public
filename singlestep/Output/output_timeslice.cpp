@@ -86,20 +86,11 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
             AA->addcell(ijk, vscale);
             
             // Now pack the particles
-            // To save time, only touch the acc if we need to unkick
-            if(unkickfactor != 0.){
-                accstruct *acc = PP->AccCell(ijk);
-                for (int p=0;p<c.count();p++) {
-                    vel = (c.vel[p] - acc[p]*unkickfactor);    // We supply in code units
-                    // TODO: are the particles ordered in such a way that we don't need to test the L0 bit?
-                    if(!c.aux[p].is_L0())
-                        AA->addparticle(c.pos[p], vel, c.aux[p]);
-                }
-            } else {
-                for (int p=0;p<c.count();p++) {
-                    if(!c.aux[p].is_L0())
-                        AA->addparticle(c.pos[p], c.vel[p], c.aux[p]);
-                }
+            accstruct *acc = PP->AccCell(ijk);
+            for (int p=0;p<c.count();p++) {
+                vel = (c.vel[p] - acc[p]*unkickfactor);    // We supply in code units
+                if(!c.aux[p].is_L0())
+                    AA->addparticle(c.pos[p], vel, c.aux[p]);
             }
             n_added += c.count();
             AA->endcell();

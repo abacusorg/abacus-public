@@ -64,26 +64,6 @@ void (*KickCell)(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2)) {
     }
 }
 
-// Kick all non-L0 particles
-// This allows us to safely scatter into a slab without having to have kicked it first
-// If we don't need to record velocity stats in cells, then we can do a slab kick
-// This assumes that VelSlab, AccSlab, and AuxSlab have the same ordering
-void SlabKickNonL0(int slab, FLOAT kickfactor) {
-	uint64 N = Slab->size(slab);
-    accstruct *acc = (accstruct *) LBW->ReturnIDPtr(AccSlab,slab);
-	velstruct *vel = (velstruct *) LBW->ReturnIDPtr(VelSlab,slab);
-    auxstruct *aux = (auxstruct *) LBW->ReturnIDPtr(AuxSlab,slab);
-	
-	// Note we may lose some NUMA locality by abandoning the cell model
-    #pragma omp parallel for schedule(static)
-    #pragma simd assert
-    for (uint64 i=0; i<N; i++) {
-        // TODO: are the particles ordered in such a way that we don't need to test the L0 bit?
-        if(!aux[i].is_L0())
-            vel[i] += kickfactor*acc[i];
-    }
-}
-
 void RescaleAndCoAddAcceleration(int slab) {
     // The accelerations are computed with unit particle mass.
     // We need to rescale them to the correct cosmology.

@@ -56,7 +56,7 @@ class GroupFindingControl {
     GroupLinkList *GLL;
 
     GlobalGroupSlab **globalslabs;    // Allocated [0,cpd), one for each slab
-    MicrostepControl *microstepcontrol;
+    MicrostepControl **microstepcontrol;
 
     STimer CellGroupTime, CreateFaceTime, FindLinkTime, 
     	SortLinks, IndexLinks, FindGlobalGroupTime, IndexGroups, 
@@ -306,7 +306,11 @@ uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid) {
 
 void GroupFindingControl::setupGGS() {
     globalslabs = new GlobalGroupSlab*[cpd];
-    for(int i = 0; i < cpd; i++) globalslabs[i] = NULL;
+    microstepcontrol = new MicrostepControl*[cpd];
+    for(int i = 0; i < cpd; i++){
+        globalslabs[i] = NULL;
+        microstepcontrol[i] = NULL;
+    }
 }
 
 GroupFindingControl::~GroupFindingControl() { 
@@ -359,27 +363,11 @@ void FindAndProcessGlobalGroups(int slab) {
 	if(do_output)
 		GGS->HaloOutput();
 
-    if(ReadState.DoTimeSliceOutput)
-        GGS->L0TimeSliceOutput();
-}
-
-void KickGlobalGroups(int slab, FLOAT kickfactor){
-	/* Kick the group-local copies of the velocities
-	   using the group-local accelerations.
-	   At this point, these are the same values
-	   as the slab vel/acc, so there's some redundant
-	   work with the slab kick.  But that probably
-	   unavoidable given that there are many reasons
-	   we want group-local copies of particles.
-	 */
-
-	slab = GFC->WrapSlab(slab);
-    GlobalGroupSlab *GGS = GFC->globalslabs[slab];
-
-    #pragma omp parallel for schedule(static)
-    #pragma simd assert
-    for(uint64 i = 0; i < GGS->np; i++)
-    	GGS->vel[i] += GGS->acc[i]*kickfactor;
+    if(ReadState.DoTimeSliceOutput){
+        FLOAT unkickfactor = WriteState.FirstHalfEtaKick;
+        STDLOG(1,"Outputting L0 group particles in slab %d with unkick factor %f\n", slab, unkickfactor);
+        GGS->L0TimeSliceOutput(unkickfactor);
+    }
 }
 
 void FinishGlobalGroups(int slab){

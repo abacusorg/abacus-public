@@ -283,8 +283,7 @@ void KickAction(int slab) {
     } else {
         // This is just a standard step
         FLOAT kickfactor1 =  ReadState.LastHalfEtaKick;
-		// If we are doing group finding, we will do the second-half kick there
-        FLOAT kickfactor2 =  GFC == NULL ? WriteState.FirstHalfEtaKick : 0;
+        FLOAT kickfactor2 =  WriteState.FirstHalfEtaKick;
         STDLOG(1,"Kicking slab %d by %f + %f\n", slab, kickfactor1, kickfactor2);
         KickSlab(slab, kickfactor1, kickfactor2, KickCell);
     }
@@ -377,9 +376,8 @@ void OutputAction(int slab) {
     OutputTimeSlice.Start();
 
     if (ReadState.DoTimeSliceOutput) {
-        // If we're doing group finding, then Output is called at synchrony
-        // If not, we've already done a K(1) and thus need a K(-1/2)
-        FLOAT unkickfactor = GFC == NULL ? WriteState.FirstHalfEtaKick : 0;
+        // We've already done a K(1) and thus need a K(-1/2)
+        FLOAT unkickfactor = WriteState.FirstHalfEtaKick;
         STDLOG(1,"Outputting slab %d with unkick factor %f\n",slab, unkickfactor);
         n_output += Output_TimeSlice(slab, unkickfactor);
     }
@@ -427,23 +425,11 @@ int MicrostepPrecondition(int slab){
 }
 
 void MicrostepAction(int slab){
-    STDLOG(1,"Starting second-half slab and group kicks by %f for slab %d\n", WriteState.FirstHalfEtaKick, slab);
+    STDLOG(1,"Starting microsteps for slab %d\n", slab);
 
-    // Now do the second-half slab kick
-    // Note that if GFC == NULL, we went ahead and did the K(1) in KickAction
-    // This kicks the slab particles, but not the GlobalGroup local copies
-    // We kick only the non-L0 particles because we may have already received scattered updates from neighbor slabs
-    MicrostepSlabKick.Start();
-    SlabKickNonL0(slab, WriteState.FirstHalfEtaKick);
-    MicrostepSlabKick.Stop();
-
-    // We de-allocate in Drift if we aren't doing group finding, although that could be Kick
+    // All kicks (and half-unkicks) for output are done; discard accels.
+    // We de-allocate in Drift if we aren't doing group finding
     LBW->DeAllocate(AccSlab,slab);
-
-    // Now second-half kick the GlobalGroup local copies
-    MicrostepGroupKick.Start();
-    KickGlobalGroups(slab, WriteState.FirstHalfEtaKick);
-    MicrostepGroupKick.Stop();
 
     MicrostepCPU.Start();
     // Do microstepping here
@@ -451,10 +437,10 @@ void MicrostepAction(int slab){
         STDLOG(1,"Beginning microsteps for slab %d\n", slab);
         MicrostepControl *MC = new MicrostepControl;
         MC->setup(GFC->globalslabs[slab], *MicrostepEpochs);
+        //MC->LaunchGroupsGPU();
         MC->ComputeGroupsCPU();
 
-        // TODO: do we need to allow for one MC per slab?
-        GFC->microstepcontrol = MC;
+        GFC->microstepcontrol[slab] = MC;
     }
     MicrostepCPU.Stop();
 }
@@ -463,7 +449,7 @@ void MicrostepAction(int slab){
 
 int FinishGroupsPrecondition(int slab){
     // Is the asychronous GPU microstepping done?
-    //if (!GFC->microstepcontrol->GPUGroupsDone()) return 0
+    //if (!GFC->microstepcontrol[slab]->GPUGroupsDone()) return 0
 
     // We are going to release these groups.
     if (Microstep.notdone(slab)) return 0;
@@ -474,8 +460,8 @@ int FinishGroupsPrecondition(int slab){
 void FinishGroupsAction(int slab){
     // Scatter pos,vel updates to slabs, and release GGS
     STDLOG(0, "Finishing groups in slab %d\n", slab);
-    delete GFC->microstepcontrol;
-    GFC->microstepcontrol = NULL;
+    delete GFC->microstepcontrol[slab];
+    GFC->microstepcontrol[slab] = NULL;
     FinishGlobalGroups(slab);
     GFC->DestroyCellGroups(slab);
 }
