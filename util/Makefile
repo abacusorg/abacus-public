@@ -1,7 +1,8 @@
-#CXX = icc
+CXX = $(shell which icc &>/dev/null && echo "icc" || echo "g++")
+CC = $(CXX)
 CXXFLAGS = -O1
-INCLUDES = -I../include/ -lm
-LIBS = 
+INCLUDES = -I../include/
+LIBS = -lm
 
 CFLAGS = -O1 ${INCLUDES}
 
