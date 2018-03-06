@@ -436,7 +436,7 @@ void MicrostepAction(int slab){
     if(MicrostepEpochs != NULL){
         STDLOG(1,"Beginning microsteps for slab %d\n", slab);
         MicrostepControl *MC = new MicrostepControl;
-        MC->setup(GFC->globalslabs[slab], *MicrostepEpochs);
+        MC->setup(GFC->globalslabs[slab], *MicrostepEpochs, P.MicrostepTimeStep, JJ->eps);
         //MC->LaunchGroupsGPU();
         MC->ComputeGroupsCPU();
 

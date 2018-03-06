@@ -12,6 +12,7 @@
     #endif
 #endif
 
+#include "direct.h"
 
 Direct::Direct(void) {
 #ifdef AVXDIRECT

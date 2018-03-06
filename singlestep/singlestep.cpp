@@ -163,7 +163,7 @@ double ChooseTimeStep(){
 	}
 
     if(P.MicrostepTimeStep > 0)
-        MicrostepEpochs = new MicrostepEpochTable(cosm, cosm->current.a, cosm->current.a + da);
+        MicrostepEpochs = new MicrostepEpochTable(cosm, cosm->current.a, cosm->current.a + da, P.np);
 
 	return da;
 }
