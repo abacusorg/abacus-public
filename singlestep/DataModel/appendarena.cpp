@@ -1,3 +1,15 @@
+/* appendarena.cpp
+ *
+ * \brief Handles outputs in a variety of formats
+ *
+ * AppendArena is an abstraction layer on top of any number of desired formats for outputting
+ * snapshots of particles. All details of how these outputs are done is completely hidden from
+ * external code
+ *
+ * FIXME: There is a significant amount of commented out or non-compiled code in this file to be
+ * cleaned up.
+ */
+
 // TODO: Ideally we'd turn this into some kind of run-time choice
 // between formats, with the PACKED class supplying the pack() 
 // and pack_cell() methods.
@@ -25,6 +37,10 @@ class AppendArena {
     // This is an Abstract Base Class.
     // The following 4 routines must be provided in the derived class.
     // Of course, the derived class must also provide a constructor and destructor.
+    
+    //FIXME: Since appending particles is a quick function we are calling many times, 
+    //  we may want to make the polymorphism compile-time (using templates) rather than
+    //  looking up virtual functions at runtime
 
     virtual void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) =0;
     // Place one particle at the location c
@@ -138,9 +154,10 @@ class AppendArena {
     }
 };
 
-
 // =================================================================
 // Here's an example of a derived class that would use the packed functions.
+//
+// FIXME: The different output formats should probably be in their own files
 
 #define PACKED pack14
 class OutputPacked: public AppendArena {
