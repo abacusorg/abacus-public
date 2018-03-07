@@ -2,3 +2,4 @@ test_driver
 fof_sublist
 slab_accum
 dependencies_fof
+*.png
