@@ -166,7 +166,8 @@ NearFieldDriver::NearFieldDriver() :
     NGPU = GetNGPU();
     GPUMemoryGB = GetDeviceMemory();
     GPUMemoryGB = std::min(5.0e-9*P.np*sizeof(FLOAT3),GPUMemoryGB/(DirectBPD));
-    STDLOG(1, "Using %f GB of GPU memory (per device)\n", GPUMemoryGB);
+    GPUMemoryGB = std::min(GPUMemoryGB,.05/(DirectBPD*NGPU)*P.MAXRAMMB/1024);  // Don't pin more than 5% of host memory
+    STDLOG(1, "Using %f GB of GPU memory (per GPU thread)\n", GPUMemoryGB);
     size_t BlockSizeBytes = sizeof(FLOAT) *3 * NFBlockSize;
     MaxSinkBlocks = floor(1e9 * GPUMemoryGB/(6*BlockSizeBytes));
     MaxSourceBlocks = WIDTH * MaxSinkBlocks;

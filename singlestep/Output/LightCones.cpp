@@ -30,11 +30,11 @@ void getLightConeFN(int i,int slab, char * fn){ //ensure the necessary directori
         CheckDirectoryExists(P.LightConeDirectory);
         sprintf(dir1,"%s/LC_raw%.2d",P.LightConeDirectory,i);
         if(!FileExists(dir1)){ //TODO:This assumes the location is not a file. We may want to improve this
-            mkdir(dir1,0777);
+            mkdir(dir1,0775);
         }
         sprintf(dir2,"%s/LC_raw%.2d/Step%.4d",P.LightConeDirectory,i,WriteState.FullStepNumber);
         if (!FileExists(dir2)){
-            mkdir(dir2,0777);
+            mkdir(dir2,0775);
         }
         CheckDirectoryExists(dir2);
         sprintf(fn,"%s/LC_raw%.2d/Step%.4d/slab%.4d.lc",P.LightConeDirectory,i,WriteState.FullStepNumber,slab);

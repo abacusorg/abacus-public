@@ -41,7 +41,7 @@ void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
         if (_acc>maxacc) maxacc = _acc;
         sumvel2 += _vel*_vel;
         // Second half kick, to advance to time i+1/2
-        vel[i] += kick2 * acc[i];
+		vel[i] += kick2 * acc[i];
     }
 
     if (c.count()>0) sumvel2/=c.count();  // Now this has the mean square velocity 
@@ -49,8 +49,6 @@ void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     c.ci->max_component_acceleration = maxacc;
     c.ci->max_component_velocity = maxvel;
 }
-
-
 
 void KickSlab(int slab, FLOAT kick1, FLOAT kick2,
 void (*KickCell)(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2)) {
@@ -65,7 +63,6 @@ void (*KickCell)(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2)) {
         }
     }
 }
-
 
 void RescaleAndCoAddAcceleration(int slab) {
     // The accelerations are computed with unit particle mass.

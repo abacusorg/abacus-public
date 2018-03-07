@@ -7,7 +7,9 @@
 #include <vector>
 
 #ifdef CUDADIRECT
+namespace cuda {
 #include "driver_types.h"
+}
 #endif
 
 #include "StructureOfLists.cc"

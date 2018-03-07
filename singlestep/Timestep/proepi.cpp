@@ -16,6 +16,8 @@
  *      should be done by deleting the object, with specific teardown code in the destructor 
  *      for that module. 
 */
+#include <sys/time.h>
+#include <sys/resource.h> 
 
 #include "header.cpp"
 #include "threevector.hh"
@@ -130,7 +132,7 @@ Redlack *RL;
 
 #include "check.cpp"
 
-#include"Cosmology.cpp"
+#include "Cosmology.cpp"
 Cosmology *cosm;
 #include "output_timeslice.cpp"
 #include "LightCones.cpp"
@@ -141,11 +143,8 @@ Cosmology *cosm;
 #include "binning.cpp"
 FLOAT * density; //!< Array to accumulate gridded densities in for low resolution inline power-spectra.
 
-#include "groupfinder.hh"
-#include "abacusoutputstrategy.cc"
-#include "groupfinder.cc"
-
-GroupFinder<AbacusOutputStrategy> * GF;
+#include "groupfinding.cpp"
+#include "microstep.cpp"
 
 #include "timestep.cpp"
 #include "reporting.cpp"
@@ -209,10 +208,13 @@ void Prologue(Parameters &P, bool ic) {
 
             RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
         
-        if(P.AllowGroupFinding){
-            AbacusOutputStrategy *groupout = new AbacusOutputStrategy();
-            FLOAT lambda = P.FoFLinkingLength[0]/pow(P.np,1./3);
-            GF = new GroupFinder<AbacusOutputStrategy>(lambda, P.cpd, groupout);
+		// ForceOutputDebug outputs accelerations as soon as we compute them
+		// i.e. before GroupFinding has a chance to rearrange them
+        if(P.AllowGroupFinding && !P.ForceOutputDebug){
+            GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
+                                          P.FoFLinkingLength[1]/pow(P.np,1./3),
+                                          P.FoFLinkingLength[2]/pow(P.np,1./3),
+                                          P.cpd, PP->invcpd, P.GroupRadius, P.MinL1HaloNP, P.np);
         }
     } else {
             TY = NULL;
@@ -258,6 +260,7 @@ void Epilogue(Parameters &P, bool ic) {
         finish_2lpt_rereading();
 
     delete MF;
+    LBW->report();
     delete LBW;
     delete PP;
     delete IL;
@@ -283,6 +286,7 @@ void Epilogue(Parameters &P, bool ic) {
             delete[] SlabForceTime;
             delete[] SlabFarForceTime;
             delete JJ;
+            delete GFC;
     }
 
     STDLOG(0,"MinCellSize = %d, MaxCellSize = %d\n", 
@@ -292,6 +296,11 @@ void Epilogue(Parameters &P, bool ic) {
     STDLOG(0,"Maximum v_j in simulation is %f.\n", WriteState.MaxVelocity);
     STDLOG(0,"Maximum a_j in simulation is %f.\n", WriteState.MaxAcceleration);
     STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f.\n", WriteState.MinVrmsOnAmax);
+    
+    // Report peak memory usage
+    struct rusage rusage;
+    assert(getrusage(RUSAGE_SELF, &rusage) == 0);
+    STDLOG(0, "Peak resident memory usage was %.3g GB\n", (double) rusage.ru_maxrss / 1024 / 1024);
     
     epilogue.Stop();
     STDLOG(1,"Leaving Epilogue()\n");

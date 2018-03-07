@@ -85,22 +85,9 @@ public:
     int wrap(int s) { while(s<0) s += cpd; while(s>=cpd) s -= cpd; return s; }
 
     void Attempt(void) {
-	// Take at most one action.
-        if(number_of_slabs_executed==0) {
-            // never executed anything before 
-            int s = last_slab_executed+1;
-            for(int slab=s;slab<s+cpd;slab++) {
-                int ws = wrap(slab); 
-                if(precondition(ws) && notdone(ws)) {
-                    do_action(ws);
-                    break;
-                }
-            }
-        }
-        else { 
-            int ws = wrap(last_slab_executed+1);
-            if( notdone(ws) && precondition(ws) ) do_action(ws);
-        }
+        // Take at most one action.
+        int ws = wrap(last_slab_executed+1);
+        if( notdone(ws) && precondition(ws) ) do_action(ws);
     }
     
     static void NotifySpinning(enum SpinFlag s){
@@ -117,6 +104,12 @@ public:
         } else {
             spin_flags[s] = 1;
         }
+    }
+
+    void mark_to_repeat(int slab) {
+        slab = wrap(slab);
+        _executed_status[slab] = 0;
+        number_of_slabs_executed--;
     }
 };
 

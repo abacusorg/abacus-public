@@ -145,7 +145,7 @@ public:
 #endif
 
         /* REMOVING THIS CHECK, as it would be detected in another way,
-           namely that the IL would not be empty at the end of the timestep.
+           namely that the IL would not be empty at the end of the timestep.*/
         // Ensure that we are not trying to push a particle to a slab
         // that might already have finished
         int slab_distance = abs(x - newcell.x);
@@ -164,7 +164,7 @@ public:
                 "Trying to push a particle to slab %d from slab %d.  This is larger than FINISH_WAIT_RADIUS = %d.",
                 x, newcell.x, FINISH_WAIT_RADIUS);
         }
-        */   // DONE with REMOVED CHECK
+        //*/   // DONE with REMOVED CHECK
         
         Push(pos,vel,aux,newcell);
     }

@@ -21,3 +21,4 @@ config.status
 include/config.h
 nohup.out
 __pycache__/
+core

@@ -312,18 +312,14 @@ private:
     void remove_io_pipes(void) {
         // Must remove old files
         STDLOG(1,"Deleting io pipe files\n");
-        char cmd[1024];
-        const char* rm_fmt = "rm -f %s";
         int ret = 0;
         if (FileExists(IO_ACK_PIPE)) {
-            sprintf(cmd, rm_fmt, IO_ACK_PIPE);
-            ret = system(cmd);
+            ret = remove(IO_ACK_PIPE);
         }
         assertf(ret == 0, "Error removing pipe IO_ACK_PIPE=\"%s\"\n", IO_ACK_PIPE);
 
         if (FileExists(IO_CMD_PIPE)) {
-            sprintf(cmd, rm_fmt, IO_CMD_PIPE);
-            ret = system(cmd);
+            ret = remove(IO_CMD_PIPE);
         }
         assertf(ret == 0, "Error removing pipe IO_CMD_PIPE=\"%s\"\n", IO_CMD_PIPE);
     }

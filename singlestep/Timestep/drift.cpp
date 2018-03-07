@@ -72,7 +72,8 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
         for(int z=0;z<cpd;z++) {
             // We'll do the drifting and rebinning separately because
             // sometimes we'll want special rules for drifting.
-            Cell c = PP->GetCell(slab ,y,z);
+            Cell c;
+            c = PP->GetCell(slab ,y,z);
             move.Start();
             (*DriftCell)(c,driftfactor);
             move.Stop();
