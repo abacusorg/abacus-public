@@ -1,4 +1,4 @@
-CXX = $(shell which icc &>/dev/null && echo "icc" || echo "g++")
+CXX := $(shell which icc >/dev/null && echo icc || echo g++)
 CXXFLAGS = -O2 -std=c++0x
 CPPFLAGS =
 LEX = flex
