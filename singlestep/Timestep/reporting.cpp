@@ -161,40 +161,59 @@ void ReportTimings(FILE * timingfile) {
     fprintf(timingfile, "\n");
     
     // Collect stats on IO
-    
+// iter.first is the dir, iter.second is the timer
+#define ACCUMULATE_THREAD_TOTALS(NAME, RW)\
+    do{\
+        for (auto &iter : NAME##Time){\
+            if(GetIOThread(iter.first.c_str())-1 == i){\
+                total_##RW##_time += iter.second.Elapsed();\
+                total_##RW##_bytes += NAME##Bytes[iter.first];\
+            }\
+        }\
+    } while(0)
+
+#define REPORT_DIR_IOSTATS(NAME, RW)\
+    do{\
+        for (auto &iter : NAME##Time){\
+            if(GetIOThread(iter.first.c_str())-1 == i){\
+                double this_io_time = iter.second.Elapsed();\
+                double this_io_bytes = NAME##Bytes[iter.first];\
+                REPORT(1, iter.first.c_str(), this_io_time);\
+                fprintf(timingfile, "---> %6.1f MB/s " #RW " on %6.2f GB [non-blocking]", this_io_bytes/this_io_time/1e6, this_io_bytes/1e9);\
+            }\
+        }\
+    } while(0)
+
+#ifndef IOTHREADED
+    #define niothreads 1
+#endif
+    for(int i = 0; i < niothreads; i++){
+        double total_read_time = 1e-15, total_read_bytes = 0.;
+        double total_write_time = 1e-15, total_write_bytes = 0.;
+
+        ACCUMULATE_THREAD_TOTALS(BlockingIORead, read);
+        ACCUMULATE_THREAD_TOTALS(BlockingIOWrite, write);
+        ACCUMULATE_THREAD_TOTALS(NonBlockingIORead, read);
+        ACCUMULATE_THREAD_TOTALS(NonBlockingIOWrite, write);
+
+        double total_time = total_read_time + total_write_time;
+        double total_bytes = total_read_bytes + total_write_bytes;
+
+        denom = WallClockDirect.Elapsed();
 #ifdef IOTHREADED
-    #define PRINT_IO_THREAD(dir) fprintf(timingfile, " [thread %d]", GetIOThread(dir));
+        std::string threadname = "Thread " + std::to_string(i+1);
+        REPORT(0, threadname.c_str(), total_time);
 #else
-    #define PRINT_IO_THREAD(dir)
+        REPORT(0, "Blocking IO", total_time);
 #endif
-    
-#define IOSTATS(NAME, DESC)\
-    do { \
-        double total_##NAME##_time = 0, total_##NAME##_bytes = 0; \
-        for(auto &iter : NAME##Time){ \
-            total_##NAME##_time += iter.second.Elapsed(); \
-            total_##NAME##_bytes += NAME##Bytes[iter.first]; \
-        } \
-        denom = WallClockDirect.Elapsed(); \
-        REPORT(0, DESC, total_##NAME##_time); \
-        denom = thistime+1e-15; \
-        fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", total_##NAME##_bytes/(thistime+1e-15)/1e6, total_##NAME##_bytes/1e9); \
-        for(auto &iter : NAME##Time){ \
-            double time = iter.second.Elapsed(); \
-            const char* dir = iter.first.c_str(); \
-            auto bytes = NAME##Bytes[iter.first]; \
-            REPORT(1, dir, time); \
-            fprintf(timingfile, "---> %6.1f MB/sec on %6.2f GB", bytes/(time+1e-15)/1e6, bytes/1e9); \
-            PRINT_IO_THREAD(dir); \
-        } \
-    } while (0)
-    
-    IOSTATS(BlockingIORead, "Blocking Disk Reads");
-    IOSTATS(BlockingIOWrite, "Blocking Disk Writes");
-#ifdef IOTHREADED
-    IOSTATS(NonBlockingIORead, "Non-Blocking Disk Reads");
-    IOSTATS(NonBlockingIOWrite, "Non-Blocking Disk Writes");
-#endif
+        fprintf(timingfile, "---> %6.1f MB/s read, %6.1f MB/s write", total_read_bytes/total_read_time/1e6, total_write_bytes/total_write_time/1e6);
+        denom = thistime+1e-15;
+        REPORT_DIR_IOSTATS(BlockingIORead, read);
+        REPORT_DIR_IOSTATS(BlockingIOWrite, write);
+        REPORT_DIR_IOSTATS(NonBlockingIORead, read);
+        REPORT_DIR_IOSTATS(NonBlockingIOWrite, write);
+    }
+#undef niothreads
 
     fprintf(timingfile, "\n\nBreakdown of TimeStep: ");
     total = 0.0;
@@ -224,7 +243,6 @@ void ReportTimings(FILE * timingfile) {
     double GPUThroughputTime = SetInteractionCollection::GPUThroughputTimer.Elapsed();
     
     REPORT(1, "NearForce [blocking]", NearForce.Elapsed()); total += thistime;
-    fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
     REPORT(1, "NearForce [non-blocking]", GPUThroughputTime); //total += thistime;
     double gdi_gpu = JJ->TotalDirectInteractions_GPU/1e9;
     fprintf(timingfile,"---> %6.3f effective GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, P.np/(thistime+1e-15)/1e6);

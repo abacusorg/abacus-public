@@ -117,8 +117,10 @@ void setup_openmp(){
     int ncores = omp_get_num_procs();
     int nthreads = P.Conv_OMP_NUM_THREADS > 0 ? P.Conv_OMP_NUM_THREADS : max_threads + P.Conv_OMP_NUM_THREADS;
 #ifdef CONVIOTHREADED
-    P.Conv_IOCore = P.Conv_IOCore >= 0 ? P.Conv_IOCore : ncores + P.Conv_IOCore;
-    STDLOG(2, "IO thread assigned to core %d\n", P.Conv_IOCore);
+    for (int i = 0; i < MAX_IO_THREADS; i++){
+        P.Conv_IOCores[i] = P.Conv_IOCores[i];
+        //STDLOG(2, "IO thread %d assigned to core %d\n", i, P.Conv_IOCores[i]);
+    }
 #endif
     
     assertf(nthreads <= max_threads, "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n");
@@ -147,9 +149,9 @@ void setup_openmp(){
         STDLOG(1, core_log.str().c_str());
         
         // Assign the main CPU thread to core 0 to avoid the IO thread during serial parts of the code
-        int main_thread_core = P.Conv_IOCore != 0 ? 0 : 1;
+        /*int main_thread_core = P.Conv_IOCore != 0 ? 0 : 1;
         set_core_affinity(main_thread_core);
-        STDLOG(1, "Assigning main convolution thread to core %d\n", main_thread_core);
+        STDLOG(1, "Assigning main convolution thread to core %d\n", main_thread_core);*/
     }
 
 }
@@ -186,6 +188,23 @@ int main(int argc, char ** argv){
 	    p.runtime_IsRamDisk = P.RamDisk;
 	    p.runtime_MaxConvolutionRAMMB = P.MAXRAMMB;
 	    strcpy(p.runtime_MultipoleDirectory,P.MultipoleDirectory);
+
+        // Multipole/TaylorDirectory2 will default to the primary directory
+        p.niothreads = 1;
+        if(strcmp(P.MultipoleDirectory2,STRUNDEF) == 0)
+            strcpy(p.runtime_MultipoleDirectory2,P.MultipoleDirectory);
+        else{
+            strcpy(p.runtime_MultipoleDirectory2,P.MultipoleDirectory2);
+            // Two IO threads if we were given two Multipole directories
+            p.niothreads = 2;
+        }
+        if(strcmp(P.TaylorDirectory2,STRUNDEF) == 0)
+            strcpy(p.runtime_TaylorDirectory2,P.TaylorDirectory);
+        else{
+            strcpy(p.runtime_TaylorDirectory2,P.TaylorDirectory2);
+            p.niothreads = 2;
+        }
+
 	    sprintf(p.runtime_MultipolePrefix, "Multipoles");
 	    p.runtime_NearFieldRadius = P.NearFieldRadius;
 	    strcpy(p.runtime_TaylorDirectory,P.TaylorDirectory);
@@ -237,8 +256,8 @@ int main(int argc, char ** argv){
         zwidth = min((P.cpd+1)/4, zwidth);
         p.zwidth = zwidth;
         
-        
-        p.io_core = P.Conv_IOCore;
+        for (int i = 0; i < MAX_IO_THREADS; i++)
+            p.io_cores[i] = P.Conv_IOCores[i];
     
         STDLOG(2, "MTCOMPLEX (multipole/taylor) dtype width: %d\n", (int) sizeof(MTCOMPLEX));
         STDLOG(2, "DFLOAT (derivatives)         dtype width: %d\n", (int) sizeof(DFLOAT));
@@ -251,7 +270,6 @@ int main(int argc, char ** argv){
 	    TotalWallClock.Stop();
         
         OCC.CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
-        
         
 	    char timingfn[1050];
 	    sprintf(timingfn,"%s/last.convtime",P.LogDirectory);

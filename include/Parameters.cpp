@@ -71,6 +71,8 @@ public:
     char PastStateDirectory[1024];  // Where the old input State lives
     char MultipoleDirectory[1024];
     char TaylorDirectory[1024];
+    char MultipoleDirectory2[1024];  // for splitting even/odd multipoles
+    char TaylorDirectory2[1024];
     char WorkingDirectory[1024];        // If Read/Write/Past not specified, where to put the states
     char LogDirectory[1024];
     char OutputDirectory[1024];     // Where the outputs go
@@ -119,13 +121,15 @@ public:
     int GPUMinCellSinks;// If AVX directs are compiled, cells with less than this many particles go to cpu
     int ProfilingMode;//If 1, enable profiling mode, i.e. delete the write-state after creating it to run repeatedly on same dat
     
-    int IOCores[2];  // The cores that the IO threads will be bound to.  -1 means don't bind
-    #define MAX_2ND_IOTHREAD_DIRS 100
-    char **SecondIOThreadDirs; //[MAX_2ND_IOTHREAD_DIRS][1024];
-    int nSecondIOThreadDirs;
+    #define MAX_IO_THREADS 16
+    int IOCores[MAX_IO_THREADS];  // The cores that the IO threads will be bound to.  -1 means don't bind
+    #define MAX_IODIRS 100
+    char **IODirs; //[MAX_IODIRS][1024];
+    int nIODirs;
+    int IODirThreads[MAX_IODIRS];
     
     int Conv_OMP_NUM_THREADS;
-    int Conv_IOCore;
+    int Conv_IOCores[MAX_IO_THREADS];
     
     // TODO: this scheme doesn't account for more complicated NUMA architectures
     int GPUThreadCoreStart[MAX_GPUS];  // The core on which to start placing GPU device threads.
@@ -204,6 +208,8 @@ public:
         sprintf(WriteStateDirectory,STRUNDEF);
         sprintf(PastStateDirectory,STRUNDEF);
         sprintf(WorkingDirectory,STRUNDEF);
+        sprintf(MultipoleDirectory2,STRUNDEF);
+        sprintf(TaylorDirectory2,STRUNDEF);
 
         installscalar("ReadStateDirectory",ReadStateDirectory,DONT_CARE);  // Where the input State lives
         installscalar("WriteStateDirectory",WriteStateDirectory,DONT_CARE); // Where the output State lives
@@ -211,6 +217,8 @@ public:
         installscalar("WorkingDirectory",WorkingDirectory,DONT_CARE);
         installscalar("MultipoleDirectory",MultipoleDirectory,MUST_DEFINE);
         installscalar("TaylorDirectory",TaylorDirectory,MUST_DEFINE);
+        installscalar("MultipoleDirectory2",MultipoleDirectory2,DONT_CARE);
+        installscalar("TaylorDirectory2",TaylorDirectory2,DONT_CARE);
     	installscalar("LogDirectory",LogDirectory,MUST_DEFINE);
     	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
         installscalar("GroupDirectory",GroupDirectory,MUST_DEFINE);
@@ -271,25 +279,29 @@ public:
         hs = NULL;
 
         // default means don't bind to core
-        IOCores[0] = -1; IOCores[1] = -1;
-        installvector("IOCores", IOCores, 2, 1, DONT_CARE);
+        for (int i = 0; i < MAX_IO_THREADS; i++)
+            IOCores[i] = -1;
+        installvector("IOCores", IOCores, MAX_IO_THREADS, 1, DONT_CARE);
 
-        Conv_IOCore = -1;
-        installscalar("Conv_IOCore", Conv_IOCore, DONT_CARE);
+        for (int i = 0; i < MAX_IO_THREADS; i++)
+            Conv_IOCores[i] = -1;
+        installvector("Conv_IOCores", Conv_IOCores, MAX_IO_THREADS, 1, DONT_CARE);
 
         Conv_OMP_NUM_THREADS = 0;
         installscalar("Conv_OMP_NUM_THREADS", Conv_OMP_NUM_THREADS, DONT_CARE);
 
         // Using staticly allocated memory didn't seem to work with installvector
-        SecondIOThreadDirs = (char**) malloc(MAX_2ND_IOTHREAD_DIRS*sizeof(char*));
-        char *block = (char *) malloc(MAX_2ND_IOTHREAD_DIRS*1024*sizeof(char));
-        for(int i = 0; i < MAX_2ND_IOTHREAD_DIRS; i++){
-            SecondIOThreadDirs[i] = block + 1024*i;
-            strcpy(SecondIOThreadDirs[i], "");
+        IODirs = (char**) malloc(MAX_IODIRS*sizeof(char*));
+        char *block = (char *) malloc(MAX_IODIRS*1024*sizeof(char));
+        for(int i = 0; i < MAX_IODIRS; i++){
+            IODirs[i] = block + 1024*i;
+            strcpy(IODirs[i], STRUNDEF);
+            IODirThreads[i] = -1;
         }
-        installvector("SecondIOThreadDirs", SecondIOThreadDirs, MAX_2ND_IOTHREAD_DIRS, 1024, DONT_CARE);
-        nSecondIOThreadDirs = 0;
-        installscalar("nSecondIOThreadDirs", nSecondIOThreadDirs, DONT_CARE);
+        installvector("IODirs", IODirs, MAX_IODIRS, 1024, DONT_CARE);
+        nIODirs = 0;
+        installscalar("nIODirs", nIODirs, DONT_CARE);
+        installvector("IODirThreads", IODirThreads, MAX_IODIRS, 1, DONT_CARE);
 
         // If any of these are undefined, GPU threads will not be bound to cores
         for(int i = 0; i < MAX_GPUS; i++)
@@ -319,8 +331,8 @@ public:
     HeaderStream *hs;
     ~Parameters(void) {
         delete hs;
-        free(SecondIOThreadDirs[0]);
-        free(SecondIOThreadDirs);
+        free(IODirs[0]);
+        free(IODirs);
     }
     char *header() { 
         assert(hs!=NULL); assert(hs->buffer!=NULL);
@@ -549,7 +561,9 @@ void Parameters::ValidateParameters(void) {
         assert(1==0);
     }
 
-    assert(nSecondIOThreadDirs < MAX_2ND_IOTHREAD_DIRS);
+    assert(nIODirs < MAX_IODIRS);
+    for (int i = 0; i < nIODirs; i++)
+        assert(IODirThreads[i] >= 1);
 }
 Parameters P;
 

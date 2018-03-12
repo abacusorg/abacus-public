@@ -132,6 +132,10 @@ Redlack *RL;
 
 #include "check.cpp"
 
+// Forward-declare GFC
+class GroupFindingControl;
+GroupFindingControl *GFC;
+
 #include "Cosmology.cpp"
 Cosmology *cosm;
 #include "output_timeslice.cpp"

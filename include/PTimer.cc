@@ -3,9 +3,10 @@
 #include <cstdlib>
 #include "PTimer.h"
 
-PTimer::PTimer(void) { 
+PTimer::PTimer(void) : PTimer(omp_get_max_threads()) { }
 
-    nprocs = omp_get_max_threads();
+PTimer::PTimer(int nthreads) { 
+    nprocs = nthreads;
     tuse = new timeval[nprocs];
     tstart = new timeval[nprocs];
     timer = new timeval[nprocs];
@@ -22,8 +23,12 @@ PTimer::~PTimer() {
     delete[] timeron;
 }
 
-void PTimer::Start() {
-    int g = omp_get_thread_num();
+void PTimer::Start(void){
+    Start(omp_get_thread_num());
+}
+
+void PTimer::Start(int thread_num) {
+    int g = thread_num;
     
     assert(g < nprocs);  // If this fails omp_get_max_threads() may not be returning the global max # of threads
     if(timeron[g]){
@@ -35,8 +40,12 @@ void PTimer::Start() {
     timeron[g] = 1;
 }
 
-void PTimer::Stop(void) {
-    int g = omp_get_thread_num();
+void PTimer::Stop(void){
+    Stop(omp_get_thread_num());
+}
+
+void PTimer::Stop(int thread_num) {
+    int g = thread_num;
     
     assert(timeron[g]);
 

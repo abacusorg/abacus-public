@@ -66,6 +66,9 @@ class GroupFindingControl {
 	
 	std::ofstream *grouplog;
 
+    // number of timeslice output particles written to disk
+    uint64 n_L0_output = 0;
+
     void setupGGS();
 
     GroupFindingControl(FOFloat _linking_length, 
@@ -257,7 +260,7 @@ void GroupFindingControl::DestroyCellGroups(int slab) {
     return;
 }
 
-GroupFindingControl *GFC = NULL;	
+//GroupFindingControl *GFC = NULL;	
 	// We have one global instance of this, initialized in proepi
 
 #include "findgrouplinks.cpp"
@@ -363,10 +366,11 @@ void FindAndProcessGlobalGroups(int slab) {
 	if(do_output)
 		GGS->HaloOutput();
 
+    // We have a split time slice output model where non-L0 particles and L0 particles go in separate files
     if(ReadState.DoTimeSliceOutput){
         FLOAT unkickfactor = WriteState.FirstHalfEtaKick;
         STDLOG(1,"Outputting L0 group particles in slab %d with unkick factor %f\n", slab, unkickfactor);
-        GGS->L0TimeSliceOutput(unkickfactor);
+        GFC->n_L0_output += GGS->L0TimeSliceOutput(unkickfactor);
     }
 }
 

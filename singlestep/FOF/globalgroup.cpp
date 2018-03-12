@@ -133,6 +133,7 @@ class GlobalGroupSlab {
     auxstruct *aux;
     accstruct *acc;
     uint64 np;
+    uint64 ncellgroups;
 
     // We're going to accumulate an estimate of work in each pencil
     PencilStats *pstat;    // Will be [0,cpd)
@@ -186,7 +187,7 @@ class GlobalGroupSlab {
     void FindSubGroups();
     void SimpleOutput();
     void HaloOutput();
-    void L0TimeSliceOutput(FLOAT unkick_factor);
+    uint64 L0TimeSliceOutput(FLOAT unkick_factor);
 
 };
 
@@ -366,19 +367,22 @@ void GlobalGroupSlab::GatherGlobalGroups() {
     uint64 *this_pencil = new uint64[GFC->cpd];
     int *largest = new int[GFC->cpd];
 
-    #pragma omp parallel for schedule(static) 
+    uint64 local_ncellgroups = 0;
+    #pragma omp parallel for schedule(static) reduction(+:local_ncellgroups)
     for (int j=0; j<GFC->cpd; j++) {
         uint64 local_this_pencil = 0;
         int local_largest = 0;
         for (int k=0; k<GFC->cpd; k++)
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 int size = globalgroups[j][k][n].np;
+                local_ncellgroups += globalgroups[j][k][n].ncellgroups;
                 local_this_pencil += size;
                 local_largest = std::max(local_largest, size);
             }
         this_pencil[j] = local_this_pencil;
         largest[j] = local_largest;
     }
+    ncellgroups = local_ncellgroups;
 
     // Now for the serial accumulation over the pencils
     uint64 *pstart = new uint64[GFC->cpd];
@@ -783,7 +787,7 @@ void GlobalGroupSlab::HaloOutput() {
         
         // Ensure the output directory for this step exists
         char dir[16];
-        sprintf(dir, "Step%04d", ReadState.FullStepNumber);
+        sprintf(dir, "z%5.3f", ReadState.Redshift);
         CreateSubDirectory(P.GroupDirectory, dir);
         
         std::string headerfn = "";
@@ -850,27 +854,87 @@ void GlobalGroupSlab::HaloOutput() {
 }
 #endif
 
-void GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
-    /* When we do group finding, we write all the non-group particles into normal
+uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
+    /* When we do group finding, we write all the non-L0 particles into normal
      * time-slice slabs and the L0 group particles into their own slabs.
-     * This routine does the latter.
+     * This routine does the latter.  We are passed full-kicked particles,
+     * so we need to half-unkick.
+     * The particles are in group-centered units, which we will convert to
+     * global units.  For pack14, each cell group will get its own header.
     */
 
-    // TODO: add ParseHeader
-    LBW->AllocateSpecificSize(L0TimeSlice, slab, np*sizeof(RVfloatPID));
-    RVfloatPID *p = (RVfloatPID *)LBW->ReturnIDPtr(L0TimeSlice, slab);
+    AppendArena *AA;
+    uint64 n_added = 0;
 
-    // TODO: group-centered outputs?
-    // TODO: support different output formats
-    for(uint64 i = 0; i < np; i++){
-        FLOAT3 v = vel[i] - unkick_factor*acc[i];
-        p[i] = RVfloatPID(aux[i].pid(),
-                        pos[i][0], pos[i][1], pos[i][2],
-                        v[0], v[1], v[2]);
-    }
+    AA = get_AA_by_format(P.OutputFormat);
 
+    // Setup the Arena
+    int headersize = 1024*1024;
+    LBW->AllocateSpecificSize(L0TimeSlice, slab, np*AA->sizeof_particle()
+                                + ncellgroups*AA->sizeof_cell() + headersize);
+    AA->initialize(L0TimeSlice, slab, PP->cpd, ReadState.VelZSpace_to_Canonical);
+
+    // add the ParseHeader
+    AA->addheader((const char *) P.header());
+    AA->addheader((const char *) ReadState.header());
+    char head[1024];
+    sprintf(head, "\nOutputType = \"L0TimeSlice\"\n"); 
+    AA->addheader((const char *) head);
+    sprintf(head, "SlabNumber = %d\n", slab);
+    AA->addheader((const char *) head);
+    // For sanity, be careful that the previous lines end with a \n!
+    AA->finalize_header();
+
+    int diam = 2*GFC->GroupRadius+1;
+    // Now scan through cell groups
+    for (int j=0; j<GFC->cpd; j++)
+        for (int k=0; k<GFC->cpd; k++)
+            for (int n=0; n<globalgroups[j][k].size(); n++) {
+                // Process globalgroups[j][k][n]
+                // Recall where the particles start
+                uint64 start = globalgroups[j][k][n].start;
+
+                LinkID *cglink = globalgrouplist.pencils[j].data
+                                    +globalgroups[j][k][n].cellgroupstart;
+                    // This is where we'll find the CG LinkIDs for this GG
+                integer3 firstcell(slab,j,k);
+
+                for (int c=0; c<globalgroups[j][k][n].ncellgroups; c++, cglink++) {
+                    // Loop over CellGroups
+                    integer3 cellijk = cglink->cell();
+                    CellGroup *cg = LinkToCellGroup(*cglink);
+                    Cell _cell = PP->GetCell(cellijk);
+                    // Convert pos back to global. Note periodic wrap.
+                    cellijk -= firstcell;
+                    if (cellijk.x> diam) cellijk.x-=GFC->cpd;
+                    if (cellijk.x<-diam) cellijk.x+=GFC->cpd;
+                    if (cellijk.y> diam) cellijk.y-=GFC->cpd;
+                    if (cellijk.y<-diam) cellijk.y+=GFC->cpd;
+                    if (cellijk.z> diam) cellijk.z-=GFC->cpd;
+                    if (cellijk.z<-diam) cellijk.z+=GFC->cpd;
+                    posstruct offset = GFC->invcpd*cellijk;
+
+                    // The max vel tracking happens in the kick, which operates on all particles, so it should be valid for L0 groups
+                    FLOAT vscale = _cell.ci->max_component_velocity/ReadState.VelZSpace_to_Canonical; 
+                    // Start the cell group
+                    AA->addcell(_cell.ijk, vscale);
+
+                    for(int pi = start; pi < start + cg->size(); pi++){
+                        posstruct _p = pos[pi] - offset;
+                        velstruct _v = vel[pi] - unkick_factor*acc[pi];
+                        AA->addparticle(_p, _v, aux[pi]);
+                        n_added++;
+                    }
+                    AA->endcell();
+                    start += cg->size();
+                }
+            }
+
+    LBW->ResizeSlab(L0TimeSlice, slab, AA->bytes_written());
+
+    // Write out this time slice
     LBW->StoreArenaNonBlocking(L0TimeSlice, slab);
+    delete AA;
+
+    return n_added;
 }
-
-
-

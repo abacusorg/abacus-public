@@ -15,11 +15,20 @@ private:
     
     size_t taylor_bytes_written = 0, multipole_bytes_read = 0, derivative_bytes_read = 0;
     double taylor_write_time = 0, multipole_read_time = 0, derivative_read_time = 0;
-    size_t alloc_bytes = 0;
     int nblocks = 0;
+    int thread_num = -1;
 
+    // This is the main thread loop
     void ConvolutionIOThread(){
-        set_core_affinity(CP.io_core);
+        {
+        int io_core = CP.io_cores[thread_num];
+        if(io_core >= 0){
+            set_core_affinity(io_core);
+            STDLOG(0, "IO thread %d started on core %d\n", thread_num, io_core);
+        } else {
+            STDLOG(0, "IO thread %d started; not bound to core\n", thread_num);
+        }
+        }
         
         int n_blocks_read = 0;
         int n_blocks_written = 0;
@@ -38,7 +47,7 @@ private:
             if(write_buffer != NULL) {
                 int zstart = n_blocks_written*CP.zwidth;
                 int this_zwidth = min(zwidth, (cpd+1)/2-zstart);
-                write_buffer->write(this_zwidth);
+                write_buffer->write(this_zwidth, thread_num);
                 free_queue.push(write_buffer);
                 write_buffer = NULL;
                 n_blocks_written++;
@@ -49,8 +58,8 @@ private:
                 int zstart = n_blocks_read*CP.zwidth;
                 int this_zwidth = min(zwidth, (cpd+1)/2-zstart);
                 
-                read_buffer->read_derivs(zstart, this_zwidth);
-                read_buffer->read(zstart, this_zwidth);
+                read_buffer->read_derivs(zstart, this_zwidth, thread_num);
+                read_buffer->read(zstart, this_zwidth, thread_num);
                 
                 n_blocks_read++;
                 read_queue.push(read_buffer);
@@ -75,18 +84,15 @@ public:
     // Read N blocks ahead of the last block written
     int read_ahead;
 
-    ConvIOThread(ConvolutionParameters &_CP, int _read_ahead){
-        STDLOG(0, "Starting IO thread\n");
+    ConvIOThread(ConvolutionParameters &_CP, int _read_ahead, Block **blocks, int _thread_num){
         CP = _CP;
-        
+        thread_num = _thread_num;
+        read_ahead = _read_ahead;
         nblocks = (int) ceil((CP.runtime_cpd+1)/2./CP.zwidth);
-        read_ahead = min(_read_ahead, nblocks);
+        STDLOG(0, "Starting IO thread %d\n", thread_num);
         
-        for(int i = 0; i < read_ahead; i++){
-            Block *block = new Block(CP);
-            alloc_bytes += block->alloc_bytes;
-            free_queue.push(block);
-        }
+        for(int i = 0; i < read_ahead; i++)
+            free_queue.push(blocks[i]);
         
         assert(pthread_create(&conv_io_thread, NULL, start_thread, this) == 0);
     }
@@ -118,8 +124,6 @@ public:
             taylor_write_time += block->WriteTaylor.Elapsed();
             multipole_read_time += block->ReadMultipoles.Elapsed();
             derivative_read_time += block->ReadDerivatives.Elapsed();
-            
-            delete block;
         }
         
         thread_joined = true;
@@ -138,10 +142,6 @@ public:
     size_t get_taylor_bytes_written(){
         assert(thread_joined);
         return taylor_bytes_written;
-    }
-    
-    size_t get_alloc_bytes(){
-        return alloc_bytes;
     }
     
     double get_taylor_write_time(){

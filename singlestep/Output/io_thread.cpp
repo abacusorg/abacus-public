@@ -327,33 +327,39 @@ private:
 
 // ================================================================ //
 
-iothread *iothread1 = NULL, *iothread2 = NULL;
+iothread **iothreads;
+int niothreads;
 
 void IO_Initialize(char *logfn) {
-    STDLOG(1,"Initializing IO thread 1\n");
-    iothread1 = new iothread(logfn, 1, P.IOCores[0]);
-    
-    if(P.nSecondIOThreadDirs > 0){
-        STDLOG(1,"Initializing IO thread 2\n");
-        iothread2 = new iothread(logfn, 2, P.IOCores[1]);
+    // Count how many IO threads we need
+    // IO thread numbers should be contiguous!
+    niothreads = 1;
+    for(int i = 0; i < P.nIODirs; i++)
+        niothreads = max(niothreads, P.IODirThreads[i]);
+    assertf(niothreads < MAX_IO_THREADS, "Too many io threads!\n");
+
+    iothreads = new iothread*[niothreads];
+    for(int i = 0; i < niothreads; i++){
+        STDLOG(1,"Initializing IO thread %d\n", i + 1);
+        iothreads[i] = new iothread(logfn, i + 1, P.IOCores[i]);
     }
 }
 
 void IO_Terminate() {
-    STDLOG(1,"Terminating IO thread 1\n");
-    delete iothread1;
-    if(iothread2 != NULL){
-        STDLOG(1,"Terminating IO thread 2\n");
-        delete iothread2;
+    for(int i = 0; i < niothreads; i++){
+        STDLOG(1,"Terminating IO thread %d\n", i);
+        delete iothreads[i];
     }
+
+    delete[] iothreads;
 }
 
 // Return the ID of the IO thread that will handle this directory
+// Threads are one-indexed
 int GetIOThread(const char* dir){
-    // Should we dispatch this request to the secondary IO thread?
-    for(int i = 0; i < P.nSecondIOThreadDirs; i++){
-        if(strcmp(dir, P.SecondIOThreadDirs[i]) == 0){
-            return 2;
+    for(int i = 0; i < P.nIODirs; i++){
+        if(strcmp(dir, P.IODirs[i]) == 0){
+            return P.IODirThreads[i];
         }
     }
     
@@ -370,11 +376,7 @@ void ReadFile(char *ram, uint64 sizebytes, int arena,
     STDLOG(1,"Using IO_thread module to read file %f\n", filename);
     iorequest ior(ram, sizebytes, filename, IO_READ, arena, fileoffset, 0, blocking);
     
-    if(GetIOThread(ior.dir) == 2)
-        iothread2->request(ior);
-    else
-        // Dispatch to default thread
-        iothread1->request(ior);
+    iothreads[GetIOThread(ior.dir) - 1]->request(ior);
 }
 
 void WriteFile(char *ram, uint64 sizebytes, int arena, 
@@ -385,11 +387,5 @@ void WriteFile(char *ram, uint64 sizebytes, int arena,
     STDLOG(1,"Using IO_thread module to write file %f\n", filename);
     iorequest ior(ram, sizebytes, filename, IO_WRITE, arena, fileoffset, deleteafter, blocking );
     
-    if(GetIOThread(ior.dir) == 2)
-        iothread2->request(ior);
-    else
-        // Dispatch to default thread
-        iothread1->request(ior);
+    iothreads[GetIOThread(ior.dir) - 1]->request(ior);
 }
-
-

@@ -16,9 +16,11 @@ public:
     
     size_t alloc_bytes = 0;
     size_t ReadMultipoleBytes = 0, WriteTaylorBytes = 0, ReadDerivativeBytes = 0;
-    STimer ReadDerivatives, ReadMultipoles, WriteTaylor;
+    PTimer ReadDerivatives, ReadMultipoles, WriteTaylor;
     
-    Block(ConvolutionParameters &_CP){
+    Block(ConvolutionParameters &_CP) : ReadDerivatives(_CP.niothreads),
+                                        ReadMultipoles(_CP.niothreads),
+                                        WriteTaylor(_CP.niothreads) {
         CP = _CP;
         cpd = CP.runtime_cpd; rml = CP.rml; alloc_zwidth = CP.zwidth;
         alloc();
@@ -34,8 +36,8 @@ public:
         delete[] dblock;
     }
 
-    void read(int zstart, int zwidth){
-        ReadMultipoles.Start();
+    void read(int zstart, int zwidth, int thread_num){
+        ReadMultipoles.Start(thread_num);
         
         size_t size = sizeof(MTCOMPLEX)*zwidth*cpd*rml;
         size_t file_offset = zstart*cpd*rml*sizeof(MTCOMPLEX);
@@ -44,11 +46,15 @@ public:
         int buffer_start_offset = (int)((file_offset%4096)/sizeof(MTCOMPLEX));
         
         for(int x=0;x<cpd;x++) {
+            // Different threads are responsible for different files (but they all read into one block)
+            if (x % CP.niothreads != thread_num)
+                continue;
+
             mtblock[x] = raw_mtblock[x] + buffer_start_offset;
             
             char fn[1024];
             int mapM_slab = (x+cpd-1)%cpd;
-            sprintf(fn, "%s/%s_%04d", CP.runtime_MultipoleDirectory, CP.runtime_MultipolePrefix, mapM_slab);
+            CP.MultipoleDirectory(mapM_slab, fn);
             
             RD_RDM->BlockingRead( fn, (char *) mtblock[x], size, file_offset);
             
@@ -62,29 +68,32 @@ public:
             ReadMultipoleBytes += size;
         }
         
-        ReadMultipoles.Stop();
+        ReadMultipoles.Stop(thread_num);
     }
 
-    void write(int zwidth){
-        WriteTaylor.Start();
+    void write(int zwidth, int thread_num){
+        WriteTaylor.Start(thread_num);
         
         size_t size = sizeof(MTCOMPLEX)*zwidth*cpd*rml;
         
         for(int x=0;x<cpd;x++) {
+            if (x % CP.niothreads != thread_num)
+                continue;
+
             char fn[1024];
             int remap_slab = (x+cpd-1)%cpd;
-            sprintf(fn,"%s/%s_%04d",  CP.runtime_TaylorDirectory, CP.runtime_TaylorPrefix, remap_slab);
+            CP.TaylorDirectory(remap_slab, fn);
             
             // the mtblock alignment from the read should be valid for the write
             WD_WDT->BlockingAppend( fn, (char *) mtblock[x], size);
             WriteTaylorBytes += size;
         }
         
-        WriteTaylor.Stop();
+        WriteTaylor.Stop(thread_num);
     }
 
-    void read_derivs(int zstart, int zwidth){
-        ReadDerivatives.Start();
+    void read_derivs(int zstart, int zwidth, int thread_num){
+        ReadDerivatives.Start(thread_num);
      
         size_t size = sizeof(DFLOAT)*rml*CP.CompressedMultipoleLengthXY;
         
@@ -95,6 +104,9 @@ public:
             fnfmt = "%s/fourierspace_%d_%d_%d_%d_%d";
         // note the derivatives are stored in z-slabs, not x-slabs
         for(int z=zstart; z < zstart+zwidth; z++) {
+            // TODO: might be more efficient to chunk in blocks instead of stripes
+            if (z % CP.niothreads != thread_num)
+                continue;
             char fn[1024];
             sprintf(fn, fnfmt,
                     CP.runtime_DerivativesDirectory, 
@@ -106,7 +118,7 @@ public:
             ReadDerivativeBytes += size;
         }
         
-        ReadDerivatives.Stop();
+        ReadDerivatives.Stop(thread_num);
     }
 
 private:
