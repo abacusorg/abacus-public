@@ -78,7 +78,7 @@ HaloStat ComputeStats(int size,
 	vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
     }
     FindEigenvalues(vxx, vxy, vxz, vyy, vyz, vzz, h.sigmav);
-    for(int i = 0; i < 3; i++) h.sigmav[i] = sqrt(h.sigmav[i])
+    for(int i = 0; i < 3; i++) h.sigmav[i] = sqrt(h.sigmav[i]);
     std::sort(L2.d2buffer, L2.d2buffer+size);
     h.r25 = sqrt(L2.d2buffer[size/4]);   h.r50 = sqrt(L2.d2buffer[size/2]);
     h.r75 = sqrt(L2.d2buffer[size*3/4]); h.r90 = sqrt(L2.d2buffer[size*9/10]);
@@ -103,7 +103,7 @@ HaloStat ComputeStats(int size,
 	vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
     }
     FindEigenvalues(vxx, vxy, vxz, vyy, vyz, vzz, h.subhalo_sigmav);
-    for(int i = 0; i < 3; i++) h.subhalo_sigmav[i] = sqrt(h.subhalo_sigmav[i])
+    for(int i = 0; i < 3; i++) h.subhalo_sigmav[i] = sqrt(h.subhalo_sigmav[i]);
     std::sort(L2.d2buffer, L2.d2buffer+size);
     h.subhalo_r25 = sqrt(L2.d2buffer[size/4]);   
     h.subhalo_r50 = sqrt(L2.d2buffer[size/2]);
