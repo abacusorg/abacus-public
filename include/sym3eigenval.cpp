@@ -37,7 +37,7 @@ void FindEigenvalues(double vxx, double vxy, double vxz,
 	sigmav[0] = q + 2.0*p*cos(phi);
 	sigmav[2] = q + 2.0*p*cos(phi+2.0/3.0*M_PI);
 	sigmav[1] = 3.0*q - sigmav[0] - sigmav[2];
-	// These eigenvalues are already guarenteed to be in descending order.
+	// These eigenvalues are already guaranteed to be in descending order.
     }
     // TODO: Does our data model want the square root of these?
     // TODO: What output units for velocities?

@@ -32,6 +32,7 @@ FoFLinkingLength = [.25, .168, .138]
 MinL1HaloNP = 50
 HaloTaggableFraction = 0.1
 L1Output_dlna = 0.1
+MicrostepTimeStep = 0.15
 
 # Advanced code parameters
 LagrangianPTOrder = 2

@@ -786,8 +786,8 @@ void GlobalGroupSlab::HaloOutput() {
         STDLOG(0,"Beginning halo output for slab %d\n", slab);
         
         // Ensure the output directory for this step exists
-        char dir[16];
-        sprintf(dir, "z%5.3f", ReadState.Redshift);
+        char dir[32];
+        sprintf(dir, "Step%04d_z%5.3f", ReadState.FullStepNumber, ReadState.Redshift);
         CreateSubDirectory(P.GroupDirectory, dir);
         
         std::string headerfn = "";
