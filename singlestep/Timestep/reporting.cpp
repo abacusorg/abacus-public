@@ -201,7 +201,7 @@ void ReportTimings(FILE * timingfile) {
 
         denom = WallClockDirect.Elapsed();
 #ifdef IOTHREADED
-        std::string threadname = "Thread " + std::to_string(i+1);
+        std::string threadname = "Thread " + std::to_string(i+1ll);
         REPORT(0, threadname.c_str(), total_time);
 #else
         REPORT(0, "Blocking IO", total_time);

@@ -278,7 +278,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                         integer3 thiscell = cglist[searching].cell();  
                         CellGroup *thiscg = LinkToCellGroup(cglist[searching]);
                         ggsize += thiscg->size();
-                        assertf(thiscg->is_open(), "Cellgroup found to be closed.  Likely need to increase GroupRadius!\n");
+                        assertf(thiscg->is_open(), "Cellgroup in slab %d found to be closed while making groups in slab %d.  Likely need to increase GroupRadius!\n", thiscell.x, slab);
                                 // If this fails, probably a group has spanned
                                 // beyond 2*R+1 cells and something got closed
                                 // prematurely.
