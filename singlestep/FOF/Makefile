@@ -20,7 +20,6 @@ dependencies_fof: dependencies_fof.cpp
 
 microstep_test: test_driver_microstep.cpp microstep.cpp
 	$(CC) $(CCFLAGS) $< -shared -fPIC -o $@.so
-	#python build_microstep_ffi.py
 
 default: test_driver
 
