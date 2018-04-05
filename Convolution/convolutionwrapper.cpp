@@ -64,13 +64,13 @@ void dumpstats(OutofCoreConvolution *OCC, char *fn) {
     
 #ifdef CONVIOTHREADED
     double e = OCC->CS.ReadDerivativesBytes/OCC->CS.ReadDerivatives/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "ReadDiskDerivatives [non-blocking]", OCC->CS.ReadDerivatives, e );
+    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "ReadDiskDerivatives [per thread]", OCC->CS.ReadDerivatives, e );
     
     e = OCC->CS.ReadMultipolesBytes/OCC->CS.ReadMultipoles/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles [non-blocking]", OCC->CS.ReadMultipoles, e );
+    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles [per thread]", OCC->CS.ReadMultipoles, e );
     
     e = OCC->CS.WriteTaylorBytes/OCC->CS.WriteTaylor/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor [non-blocking]", OCC->CS.WriteTaylor, e );
+    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor [per thread]", OCC->CS.WriteTaylor, e );
     
     fprintf(fp,"\t \t %50s : %1.1e seconds\n", "Waiting for IO thread", OCC->CS.WaitForIO);
 #else

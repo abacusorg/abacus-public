@@ -345,7 +345,6 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
         iothread->join();  // wait for io to terminate
         WaitForIO.Stop();
         
-        CS.WaitForIO += WaitForIO.Elapsed();
         CS.ReadDerivatives       += iothread->get_deriv_read_time();
         CS.ReadMultipoles        += iothread->get_multipole_read_time();
         CS.WriteTaylor           += iothread->get_taylor_write_time();
@@ -355,6 +354,7 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
         delete iothread;
     }
     delete iothreads;
+    CS.WaitForIO += WaitForIO.Elapsed();
 #else
     CS.WriteTaylorBytes      = CurrentBlock->WriteTaylorBytes;
     CS.ReadMultipolesBytes   = CurrentBlock->ReadMultipoleBytes;
