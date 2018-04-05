@@ -431,6 +431,7 @@ void MicrostepAction(int slab){
     // We de-allocate in Drift if we aren't doing group finding
     LBW->DeAllocate(AccSlab,slab);
 
+    return;
     MicrostepCPU.Start();
     // Do microstepping here
     if(MicrostepEpochs != NULL){
@@ -832,5 +833,75 @@ void timestepMultipoles(void) {
     }
 
     STDLOG(1,"Completing timestepMultipoles()\n");
+    TimeStepWallClock.Stop();
+}
+
+// =========================================================
+// IO Benchmark mode
+
+int FinishBenchmarkIOPrecondition(int slab) {
+    // Wait for everything to be read
+    if( !LBW->IOCompleted( CellInfoSlab,      slab )
+        || !LBW->IOCompleted( PosSlab, slab )
+        || !LBW->IOCompleted( VelSlab, slab )
+        || !LBW->IOCompleted( AuxSlab,      slab )
+        || !LBW->IOCompleted( TaylorSlab,      slab )
+        ) return 0;
+    return 1;
+}
+
+void FinishBenchmarkIOAction(int slab) {
+    STDLOG(1,"Finishing benchmark IO slab %d\n", slab);
+        
+    /*// Make the multipoles
+    LBW->AllocateArena(MultipoleSlab,slab);
+    ComputeMultipoleSlab(slab);
+    
+    WriteMultipoleSlab.Start();
+    LBW->StoreArenaNonBlocking(MultipoleSlab,slab);
+    WriteMultipoleSlab.Stop();
+    
+    LBW->DeAllocate(MergePosSlab,slab);
+    LBW->DeAllocate(MergeCellInfoSlab,slab);*/
+
+    LBW->WriteArena(CellInfoSlab, slab, IO_DELETE, IO_NONBLOCKING, 
+                    LBW->WriteSlabDescriptorName(MergeCellInfoSlab,slab).c_str());
+    LBW->WriteArena(PosSlab, slab, IO_DELETE, IO_NONBLOCKING, 
+                    LBW->WriteSlabDescriptorName(MergePosSlab,slab).c_str());
+    LBW->WriteArena(VelSlab, slab, IO_DELETE, IO_NONBLOCKING, 
+                    LBW->WriteSlabDescriptorName(MergeVelSlab,slab).c_str());
+    LBW->WriteArena(AuxSlab, slab, IO_DELETE, IO_NONBLOCKING, 
+                    LBW->WriteSlabDescriptorName(MergeAuxSlab,slab).c_str());
+    LBW->WriteArena(TaylorSlab, slab, IO_DELETE, IO_NONBLOCKING, 
+                    LBW->WriteSlabDescriptorName(MultipoleSlab,slab).c_str());
+}
+
+void timestepBenchmarkIO(int nslabs) {
+    // We want to read slabs from the read directory and write them to the write directory, probably without modification
+    // We can probably reuse the main FetchSlabs depdendency and write a new Finish dependency
+    // One may not want to have to read and write all the slabs for a large box, so `nslabs` can be specified to use fewer
+
+    STDLOG(0,"Initiating timestepBenchmarkIO()\n");
+    TimeStepWallClock.Clear();
+    TimeStepWallClock.Start();
+    
+    FORCE_RADIUS = 0;
+    GROUP_RADIUS = 0;
+
+    int cpd = P.cpd; int first = 0;
+    assertf(nslabs <= cpd, "nslabs (%d) cannot be larger than cpd (%d)\n", nslabs, cpd);
+    if (nslabs <= 0)
+        nslabs = cpd;
+
+    // Use the Kick as finish because FetchSlabs fetches FETCHAHEAD past the kick
+    FetchSlabs.instantiate(nslabs, first, &FetchSlabPrecondition, &FetchSlabAction );
+    Kick.instantiate(nslabs, first,  &FinishBenchmarkIOPrecondition,  &FinishBenchmarkIOAction );
+
+    while( !Kick.alldone() ) {
+        FetchSlabs.Attempt();
+              Kick.Attempt();
+    }
+
+    STDLOG(1,"Completing timestepBenchmarkIO()\n");
     TimeStepWallClock.Stop();
 }

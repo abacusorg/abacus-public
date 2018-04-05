@@ -36,7 +36,7 @@ public:
         iolog.open(_logfn); 	// TODO: Probably need an error check
 
         int ramdisk = io_ramdisk_global;
-        size_t diskbuffer = ((size_t) 1) << 29;
+        size_t diskbuffer = ((size_t) 4) << 20;  // 4 MB
         RD = new ReadDirect(ramdisk, diskbuffer);
         WD = new WriteDirect(ramdisk,diskbuffer);
         

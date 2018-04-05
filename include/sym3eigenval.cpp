@@ -39,8 +39,11 @@ void FindEigenvalues(double vxx, double vxy, double vxz,
 	sigmav[1] = 3.0*q - sigmav[0] - sigmav[2];
 	// These eigenvalues are already guaranteed to be in descending order.
     }
-    // TODO: Does our data model want the square root of these?
-    // TODO: What output units for velocities?
+
+    // FP imprecision may result in slightly negative eigenvalue
+    if(sigmav[0] < 0) sigmav[0] = 0.;
+    if(sigmav[1] < 0) sigmav[1] = 0.;
+    if(sigmav[2] < 0) sigmav[2] = 0.;
     return;
 }
 
