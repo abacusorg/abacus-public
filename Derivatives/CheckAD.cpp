@@ -225,7 +225,7 @@ qd_real3 EvaluateTaylorAcc(int order, qd_real3 rp) {
 
     qd_real3 a;
 
-    a.zero();
+    a.zero(); //intializes three-vector to zeros (see /include/threevector.hh)
 
     fi = 1;
     for(int i=0;i<=order-1;i++) {
@@ -260,7 +260,7 @@ qd_real3 latticeacc(int radius,   qd_real3 r) {
     integer3 n;
     qd_real3 a;
     
-    a.zero();
+    a.zero(); //intializes three-vector to zeros (see /include/threevector.hh)
     FORALL_RADII(n,radius) {
         if(n.norm2() <=radius*radius) {
             qd_real3 x;
@@ -292,7 +292,7 @@ void TestAcc(int order, int innerradius) {
         ewald.zero();
         for(int i=0;i<N;i++) {
             if(i!=j) {
-                ewald+=mass[i]*ewaldacc(pos[i],pos[j]);
+                ewald+=mass[i]*ewaldacc(pos[i],pos[j]); //true acc
             }
         }
 
@@ -302,7 +302,7 @@ void TestAcc(int order, int innerradius) {
             if(i!=j) {
                 qd_real3 r;
                 r=pos[i]-pos[j];
-                l+=mass[i]*latticeacc(innerradius,r);
+                l+=mass[i]*latticeacc(innerradius,r); //near acc
             }
         }
         
@@ -313,20 +313,20 @@ void TestAcc(int order, int innerradius) {
             if(i!=j) {
                 qd_real3 r;
                 r=pos[i]-pos[j];
-                red+= qd_real(4)/qd_real(3)*PI*mass[i]*r;     
+                red+= qd_real(4)/qd_real(3)*PI*mass[i]*r;     //redlack-grindlay term
             }
         }
         
         qd_real3 t;
-        t = EvaluateTaylorAcc(order, pos[j]);
+        t = EvaluateTaylorAcc(order, pos[j]); //far field acc
         
         qd_real3 ans;
-        ans=l-red+t;
+        ans=l-red+t; //near acc - redlack grindlay + far field acceleration
         qd_real3 err;
-        err=ans-ewald;
+        err=ans-ewald; //abs error
 
         qd_real3 re;
-        re=err/ewald.norm();
+        re=err/ewald.norm(); //relative error
 
 #if 0        
         printf("ans: \n");
@@ -352,7 +352,8 @@ int main(void) {
     cout.precision(qd_real::_ndigits);
 //     int nd = qd_real::_ndigits + 8;
 
-    for(int innerradius=8; innerradius<=64; innerradius*=2) {
+    for(int innerradius=1; innerradius<=9; innerradius+=1) {
+		if(innerradius==9){innerradius = 16;};
         printf("Acc:\n");
         TestAcc(32,innerradius);
     }
