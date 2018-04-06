@@ -1,9 +1,9 @@
 #include "header.cpp"
 #include "threevector.hh"
 
-#ifdef IOTHREADED
+//#ifdef IOTHREADED
 #define CONVIOTHREADED
-#endif
+//#endif
 
 #include "STimer.cc"
 #include "PTimer.cc"
@@ -195,14 +195,18 @@ int main(int argc, char ** argv){
             strcpy(p.runtime_MultipoleDirectory2,P.MultipoleDirectory);
         else{
             strcpy(p.runtime_MultipoleDirectory2,P.MultipoleDirectory2);
+#ifdef CONVIOTHREADED
             // Two IO threads if we were given two Multipole directories
             p.niothreads = 2;
+#endif
         }
         if(strcmp(P.TaylorDirectory2,STRUNDEF) == 0)
             strcpy(p.runtime_TaylorDirectory2,P.TaylorDirectory);
         else{
             strcpy(p.runtime_TaylorDirectory2,P.TaylorDirectory2);
+#ifdef CONVIOTHREADED
             p.niothreads = 2;
+#endif
         }
 
 	    sprintf(p.runtime_MultipolePrefix, "Multipoles");

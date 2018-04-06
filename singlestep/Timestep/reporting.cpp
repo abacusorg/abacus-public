@@ -161,6 +161,10 @@ void ReportTimings(FILE * timingfile) {
     fprintf(timingfile, "\n");
     
     // Collect stats on IO
+#ifndef IOTHREADED
+    #define niothreads 1
+    #define GetIOThread(a) (1)
+#endif
 // iter.first is the dir, iter.second is the timer
 #define ACCUMULATE_THREAD_TOTALS(NAME, RW)\
     do{\
@@ -184,9 +188,6 @@ void ReportTimings(FILE * timingfile) {
         }\
     } while(0)
 
-#ifndef IOTHREADED
-    #define niothreads 1
-#endif
     for(int i = 0; i < niothreads; i++){
         double total_read_time = 1e-15, total_read_bytes = 0.;
         double total_write_time = 1e-15, total_write_bytes = 0.;
@@ -257,7 +258,7 @@ void ReportTimings(FILE * timingfile) {
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
     REPORT(1, "Kick", Kick.Elapsed()); total += thistime;
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
-	double gf_total = MakeCellGroups.Elapsed() + FindCellGroupLinks.Elapsed() + DoGlobalGroups.Elapsed() + FinishGroups.Elapsed();
+    double gf_total = MakeCellGroups.Elapsed() + FindCellGroupLinks.Elapsed() + DoGlobalGroups.Elapsed() + FinishGroups.Elapsed();
     if (GFC != NULL){
         REPORT(1, "Group Finding", gf_total); total += thistime;
         fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
@@ -405,9 +406,9 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Kick Cell", KickCellTimer.Elapsed());
     
     if(GFC != NULL){
-    	fprintf(timingfile, "\n\n Breakdown of Group Finding:");
-    	denom = gf_total;
-    	REPORT(1, "MakeCellGroups", MakeCellGroups.Elapsed());
+        fprintf(timingfile, "\n\n Breakdown of Group Finding:");
+        denom = gf_total;
+        REPORT(1, "MakeCellGroups", MakeCellGroups.Elapsed());
         fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
         REPORT(1, "FindCellGroupLinks", FindCellGroupLinks.Elapsed());
         fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
@@ -424,11 +425,11 @@ void ReportTimings(FILE * timingfile) {
         REPORT(2, "Scatter Groups", GFC->ScatterGroups.Elapsed());
             fprintf(timingfile,"---> %6.3f M_group_part/sec",GFC->L0stats.tot/(thistime+1e-15)/1e6);
     }
-	
-	// Now write some detailed multiplicity and timing stats to lastrun.grouplog
-	if(GFC != NULL)
-		GFC->report();
-	
+    
+    // Now write some detailed multiplicity and timing stats to lastrun.grouplog
+    if(GFC != NULL)
+        GFC->report();
+    
     fprintf(timingfile, "\n\n Breakdown of Output Step:");
     denom = Output.Elapsed();
     REPORT(1, "TimeSlice", OutputTimeSlice.Elapsed());
