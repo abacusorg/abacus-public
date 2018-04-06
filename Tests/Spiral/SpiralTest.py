@@ -40,16 +40,17 @@ def run(basedir = "NONE"):
     kvec = (1,0,0)
     phase = (np.pi,0,0)
     n1d = 128
+    BoxSize = 17.3205080756888
     CPD = 33
     ainitial = 0.09
-    across = 0.2
+    across = 0.1
     astop =  0.11
-    sf = .1/n1d#7.5e-03
+    sf = 0.1*BoxSize/n1d
 
 
     #check if we are done
     if not os.path.exists(basedir+"write/state"):
-        params = GenParam.makeInput(basedir+"spiral.par", abacuspath +"/Tests/Spiral/spiral.par2", NP = n1d**3,nTimeSlice = 1, TimeSliceRedshifts = 1/astop -1, SofteningLength = sf,InitialRedshift = 1/ainitial -1,CPD = CPD,BoxSize = 17.3205080756888,WorkingDirectory = basedir)
+        params = GenParam.makeInput(basedir+"spiral.par", abacuspath +"/Tests/Spiral/spiral.par2", NP = n1d**3,nTimeSlice = 1, TimeSliceRedshifts = 1/astop -1, SofteningLength = sf,InitialRedshift = 1/ainitial -1,CPD = CPD,BoxSize = BoxSize,WorkingDirectory = basedir)
         os.makedirs(params["InitialConditionsDirectory"])
         #make the spiral initial conditions
         subprocess.check_call([abacuspath+"/Tests/Spiral/makespiralics",str(n1d), str(ainitial),str(across),

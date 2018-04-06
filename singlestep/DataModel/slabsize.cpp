@@ -1,7 +1,10 @@
 /* slabsize.cpp
-
-Provides a class to load and store the number of particles per slab from disk.
-
+*
+* \brief Provides a class to load and store the number of particles per slab from disk.
+* 
+* FIXME: DWF believes it is unclear why this is a seperate class that inherits from grid, rather
+* than a property of the Grid itself. DWF reccomends refactoring so it is a method of Grid, with 
+* the read/write components broken off into SlabSizeFile
 */
 
 #include <stdio.h> 

@@ -102,6 +102,11 @@ double ChooseTimeStep(){
 			STDLOG(0,"da to reach next output is %f\n", da);
 		}
 	}
+    double finala = 1.0/(1+P.FinishingRedshift());
+    if (ReadState.Redshift > P.FinishingRedshift()+1e-12 && ReadState.ScaleFactor + da > finala) {
+        da = finala - ReadState.ScaleFactor;
+        STDLOG(0,"da to reach finishing redshift is %f\n", da);
+    }
 	if (da<1e-12) return da;
 
 	// We might have already reached the FinishingRedshift.
@@ -156,6 +161,9 @@ double ChooseTimeStep(){
 	    da *= goal/maxkick;
 	    STDLOG(0,"da based on vrms/amax is %f. dlna = %f.\n", da, da/ReadState.ScaleFactor);
 	}
+
+    if(P.MicrostepTimeStep > 0)
+        MicrostepEpochs = new MicrostepEpochTable(cosm, cosm->current.a, cosm->current.a + da, P.np);
 
 	return da;
 }
@@ -354,7 +362,7 @@ void init_openmp(){
         //bool is_core_free[ncores] = {true};
         #pragma omp parallel for schedule(static)
         for(int g = 0; g < nthreads; g++){
-            assertf(g == omp_get_thread_num(), "OpenMP thread %d is executing wrong loop ieration (%d)\n", omp_get_thread_num(), g);
+            assertf(g == omp_get_thread_num(), "OpenMP thread %d is executing wrong loop iteration (%d)\n", omp_get_thread_num(), g);
             core_assignments[g] = sched_getcpu();
         }
         std::ostringstream core_log;
@@ -495,7 +503,7 @@ int main(int argc, char **argv) {
     if (!MakeIC){
         //JJ->Cleanup();
     	char timingfn[1050];
-    	sprintf(timingfn,"%s/lastrun.steptiming", P.LogDirectory);
+    	sprintf(timingfn,"%s/lastrun.time", P.LogDirectory);
     	FILE * timingfile = fopen(timingfn,"w");
     	ReportTimings(timingfile);
     	STDLOG(0,"Wrote Timing File to %s\n",timingfn);

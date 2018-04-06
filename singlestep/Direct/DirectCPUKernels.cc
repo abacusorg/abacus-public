@@ -48,6 +48,7 @@ inline void directkernel(
 }
 
 #elif defined DIRECTSINGLESPLINE
+// Warning: the following does not return 1/r^2; it still needs to be multiplied by 1/eps^3
 template<int R>
 inline void directkernel(
         FLOAT3   &sink,

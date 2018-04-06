@@ -16,7 +16,7 @@ SofteningLength = .0625  # 62.5 kpc/h, Plummer-equivalent
 CPD = 135
 
 # Output parameters
-TimeSliceRedshifts = [1.0, 0.7, 0.57, 0.5, 0.3, 0.1]
+TimeSliceRedshifts = [1.5, 1.0, 0.7, 0.5, 0.3, 0.1]
 nTimeSlice = 6
 LightConeOrigins = (0.,0.,0.)
 NLightCones = 0
@@ -25,6 +25,13 @@ PowerSpectrumN1d = 256
 PowerSpectrumStepInterval = 30
 OutputFormat = "Packed"
 BackupStepInterval = 300
+
+# Group finding parameters
+AllowGroupFinding = 1
+FoFLinkingLength = [.25, .168, .138]
+MinL1HaloNP = 50
+HaloTaggableFraction = 0.1
+L1Output_dlna = 0.1
 
 # Advanced code parameters
 LagrangianPTOrder = 2
@@ -35,7 +42,7 @@ NumSlabsInsertListIC = 8
 NearFieldRadius = 2
 Order = 8
 hMpc = 1
-GroupRadius = 2
+GroupRadius = 4
 DerivativeExpansionRadius = 8
 RamDisk = 0
 OverwriteState = 0

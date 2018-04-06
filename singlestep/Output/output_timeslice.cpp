@@ -23,7 +23,16 @@ AppendArena *get_AA_by_format(const char* format){
     return AA;
 }
 
-uint64 Output_TimeSlice(int slab) {
+void WriteHeaderFile(const char* fn){
+	std::ofstream headerfile;
+	headerfile.open(fn);
+	headerfile << P.header();
+	headerfile << ReadState.header();
+	headerfile << "\nOutputType = \"TimeSlice\"\n";
+	headerfile.close();
+}
+
+uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     AppendArena *AA;
     FLOAT vscale;
 
@@ -42,12 +51,7 @@ uint64 Output_TimeSlice(int slab) {
         sprintf(filename, "%s/slice%5.3f/header",  
             P.OutputDirectory, 
             ReadState.Redshift);
-        std::ofstream headerfile;
-        headerfile.open(filename);
-        headerfile << P.header();
-        headerfile << ReadState.header();
-        headerfile << "\nOutputType = \"TimeSlice\"\n";
-        headerfile.close();
+        WriteHeaderFile(filename);
     }
         
     // and also add the header to the slab file
@@ -64,14 +68,12 @@ uint64 Output_TimeSlice(int slab) {
     }
 
     // Now scan through the cells
-    FLOAT kickfactor = WriteState.FirstHalfEtaKick;	   // Amount to unkick.
     velstruct vel;
     integer3 ijk(slab,0,0);
     uint64 n_added = 0;
     for (ijk.y=0; ijk.y<PP->cpd; ijk.y++) 
         for (ijk.z=0;ijk.z<PP->cpd;ijk.z++) {
             Cell c = PP->GetCell(ijk);
-            accstruct *acc = PP->AccCell(ijk);
 
             // We sometimes use the maximum velocity to scale.
             // But we do not yet have the global velocity (slab max will be set in Finish,
@@ -82,10 +84,13 @@ uint64 Output_TimeSlice(int slab) {
 
             // Start the cell
             AA->addcell(ijk, vscale);
+            
             // Now pack the particles
+            accstruct *acc = PP->AccCell(ijk);
             for (int p=0;p<c.count();p++) {
-                vel = (c.vel[p] - acc[p]*kickfactor);    // We supply in code units
-                AA->addparticle(c.pos[p], vel, c.aux[p]);
+                vel = (c.vel[p] - acc[p]*unkickfactor);    // We supply in code units
+                if(!c.aux[p].is_L0())
+                    AA->addparticle(c.pos[p], vel, c.aux[p]);
             }
             n_added += c.count();
             AA->endcell();
@@ -93,15 +98,8 @@ uint64 Output_TimeSlice(int slab) {
 
     LBW->ResizeSlab(TimeSlice, slab, AA->bytes_written());
 
-    // Write out this filename
-    char filename[1024]; 	
-    sprintf(filename, "%s/slice%5.3f/%s.z%5.3f.slab%04d.dat",  
-    	P.OutputDirectory, 
-	ReadState.Redshift,
-	P.SimName,
-	ReadState.Redshift,
-	slab);
-    LBW->WriteArena(TimeSlice, slab, IO_DELETE, IO_NONBLOCKING, filename);
+    // Write out this time slice
+    LBW->StoreArenaNonBlocking(TimeSlice, slab);
     delete AA;
     
     return n_added;

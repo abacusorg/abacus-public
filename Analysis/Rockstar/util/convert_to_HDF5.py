@@ -9,6 +9,7 @@ assert parse_version(h5py.__version__) > parse_version('2.6')
 import argparse
 from glob import glob
 import numpy as np
+import numpy.lib.recfunctions as rfn
 import pdb
 import os
 from os.path import join as pjoin
@@ -98,7 +99,22 @@ def convert_cats(halo_dirs):
             # halo sanity checks
             assert len(bin_halos) == bin_header['num_halos']
             for field in bin_halos.dtype.fields:
-                assert np.isfinite(bin_halos[field]).all()
+                if field not in ['m_pe_b', 'rs']:  # m_pe_b is sometime inf; that's probably something we can ignore and just pass into the catalogs
+                    assert np.isfinite(bin_halos[field]).all(), (field, binfn)
+
+            # Count the particles
+            particle_mass = abacus_header['ParticleMassHMsun']
+
+            h5halos_N = np.empty(bin_halos.shape, dtype=np.dtype([('N', np.int32), ('alt_N', np.int32,4), ('N_SO', np.int32), ('alt_N_SO', np.int32,4)]))
+            h5halos_N['N'] = np.round(bin_halos['m'] / particle_mass)
+            h5halos_N['alt_N'] = np.round(bin_halos['alt_m'] / particle_mass)
+            h5halos_N['N_SO'] = np.round(bin_halos['m_SO'] / particle_mass)
+            h5halos_N['alt_N_SO'] = np.round(bin_halos['alt_m_SO'] / particle_mass)
+            bin_halos = rfn.merge_arrays([bin_halos, h5halos_N], flatten=True, usemask=False)
+
+            # Check that the mass is a multiple of the count
+            assert np.allclose(bin_halos['N'] * particle_mass, bin_halos['m'], rtol=1e-4)
+            assert np.allclose(bin_halos['N_SO'] * particle_mass, bin_halos['m_SO'], rtol=1e-4)
 
             # write the halos as hdf5
             hfn = binfn[:-3] + 'h5'
@@ -114,7 +130,7 @@ def convert_cats(halo_dirs):
             assert len(particles) == bin_header['num_particles']
             assert len(particles) == bin_halos['subsamp_len'].sum(), (len(particles), bin_halos['subsamp_len'].sum())
             for field in particles.dtype.fields:
-                assert np.isfinite(particles[field]).all()
+                assert np.isfinite(particles[field]).all(), (field, pfn)
             
             # write the particles as hdf5
             hfn = pfn[:-3] + 'h5'

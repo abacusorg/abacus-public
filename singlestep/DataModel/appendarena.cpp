@@ -1,3 +1,15 @@
+/* appendarena.cpp
+ *
+ * \brief Handles outputs in a variety of formats
+ *
+ * AppendArena is an abstraction layer on top of any number of desired formats for outputting
+ * snapshots of particles. All details of how these outputs are done is completely hidden from
+ * external code
+ *
+ * FIXME: There is a significant amount of commented out or non-compiled code in this file to be
+ * cleaned up.
+ */
+
 // TODO: Ideally we'd turn this into some kind of run-time choice
 // between formats, with the PACKED class supplying the pack() 
 // and pack_cell() methods.
@@ -25,6 +37,10 @@ class AppendArena {
     // This is an Abstract Base Class.
     // The following 4 routines must be provided in the derived class.
     // Of course, the derived class must also provide a constructor and destructor.
+    
+    //FIXME: Since appending particles is a quick function we are calling many times, 
+    //  we may want to make the polymorphism compile-time (using templates) rather than
+    //  looking up virtual functions at runtime
 
     virtual void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) =0;
     // Place one particle at the location c
@@ -138,9 +154,10 @@ class AppendArena {
     }
 };
 
-
 // =================================================================
 // Here's an example of a derived class that would use the packed functions.
+//
+// FIXME: The different output formats should probably be in their own files
 
 #define PACKED pack14
 class OutputPacked: public AppendArena {
@@ -331,11 +348,9 @@ class OutputRVdoubleTag: public AppendArena {
     struct ICparticle {
         double pos[3];		// Global position, unit box
 	    double vel[3];		// Zspace, unit box
-	    unsigned long tag;
+	    uint64 tag;
     };
 
-    float velocity_conversion;
-    
     void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
 	struct ICparticle *p = (struct ICparticle *)c;
 #ifdef GLOBALPOS
@@ -348,10 +363,10 @@ class OutputRVdoubleTag: public AppendArena {
 	p->pos[0] = (double) pos.x+cc.x;
 	p->pos[1] = (double) pos.y+cc.y;
 	p->pos[2] = (double) pos.z+cc.z;
-	p->vel[0] = vel.x*velocity_conversion;
-	p->vel[1] = vel.y*velocity_conversion;
-	p->vel[2] = vel.z*velocity_conversion;
-	p->tag = (unsigned int) aux.pid();
+	p->vel[0] = vel.x;  // Leave it in Zspace, unit box units
+	p->vel[1] = vel.y;
+	p->vel[2] = vel.z;
+	p->tag = aux.pid();
 	
     }
     void appendcell(char *c, integer3 ijk, float vscale) {
@@ -363,7 +378,6 @@ class OutputRVdoubleTag: public AppendArena {
     int sizeof_particle() { return sizeof(struct ICparticle); }
 
     OutputRVdoubleTag() {
-    	velocity_conversion = 1.0;  // Leave it in Zspace, unit box units
 	    STDLOG(0,"Particle size: %d\n",sizeof_particle());
     }
     ~OutputRVdoubleTag(void) { }

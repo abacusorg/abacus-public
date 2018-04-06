@@ -9,7 +9,7 @@
 #define IO_QUIT  3
 #define IO_ERROR 4		// To signal trouble!
 
-#include <libgen.h>
+#include "file.cpp"
 
 class ioacknowledge {
   // A trivial class to respond
@@ -66,12 +66,7 @@ class iorequest {
         
         // Get the directory of the file for logging purposes
         // Believe it or not, dirname modifies its argument
-        char buffer[1024];
-        strncpy(buffer,filename,1024);
-        char *_dir = basename(dirname(buffer));
-        strncpy(dir, _dir, 1024);
-        int len = strlen(dir);  assertf(len < 1023, "Directory \"%s\" name too long!", dir);
-        dir[len] = '/'; dir[len+1] = '\0';
+        containing_dirname(filename, dir);
         
         command = _command;
         arena = _arena;

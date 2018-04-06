@@ -1,4 +1,4 @@
-CXX = g++
+CXX = $(shell which icc >/dev/null && echo "icc" || echo "g++")
 CXXFLAGS = -O0 -g3 -fopenmp -DDOUBLE_PRECISION
 CPPFLAGS = 
 INCLUDES = -I../../include/

@@ -312,18 +312,14 @@ private:
     void remove_io_pipes(void) {
         // Must remove old files
         STDLOG(1,"Deleting io pipe files\n");
-        char cmd[1024];
-        const char* rm_fmt = "rm -f %s";
         int ret = 0;
         if (FileExists(IO_ACK_PIPE)) {
-            sprintf(cmd, rm_fmt, IO_ACK_PIPE);
-            ret = system(cmd);
+            ret = remove(IO_ACK_PIPE);
         }
         assertf(ret == 0, "Error removing pipe IO_ACK_PIPE=\"%s\"\n", IO_ACK_PIPE);
 
         if (FileExists(IO_CMD_PIPE)) {
-            sprintf(cmd, rm_fmt, IO_CMD_PIPE);
-            ret = system(cmd);
+            ret = remove(IO_CMD_PIPE);
         }
         assertf(ret == 0, "Error removing pipe IO_CMD_PIPE=\"%s\"\n", IO_CMD_PIPE);
     }
@@ -369,7 +365,7 @@ int GetIOThread(const char* dir){
 void ReadFile(char *ram, uint64 sizebytes, int arena,
 	    const char *filename, off_t fileoffset, int blocking) {
     
-    blocking = 1;
+    //blocking = 1;
     
     STDLOG(1,"Using IO_thread module to read file %f\n", filename);
     iorequest ior(ram, sizebytes, filename, IO_READ, arena, fileoffset, 0, blocking);
@@ -384,7 +380,7 @@ void ReadFile(char *ram, uint64 sizebytes, int arena,
 void WriteFile(char *ram, uint64 sizebytes, int arena, 
 	    const char *filename, off_t fileoffset, int deleteafter, int blocking) {
 
-    blocking = 1;
+    //blocking = 1;
     
     STDLOG(1,"Using IO_thread module to write file %f\n", filename);
     iorequest ior(ram, sizebytes, filename, IO_WRITE, arena, fileoffset, deleteafter, blocking );

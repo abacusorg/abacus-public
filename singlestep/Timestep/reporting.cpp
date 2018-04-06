@@ -1,12 +1,33 @@
 /* reporting.cpp
-
-This writes timing outputs.  It should provide a nicely formatted
-summary of the timings from the various portions of the code.
-
-
-TODO: Need to uncomment the Multipole and Taylor portions.
-
-*/
+ *
+ * This writes timing outputs.  It should provide a nicely formatted
+ * summary of the timings from the various portions of the code.
+ *
+ *
+ * TODO: Need to uncomment the Multipole and Taylor portions.
+ *
+ * FIXME: DWF recommends a major refactor of how we handle reports. 
+ *  Ideally, we should have a top level class TimingReport that 
+ *  holds a registry of ModuleTimings objects (an interface
+ *  that is implemented by each "section" of the timings.
+ *  These ModuleTimings are responsible for supplying
+ *  formatted strings for each timing they are responsible.
+ *  These strings can inlcude any other information (like counts)
+ *  held by the timer class.
+ *
+ *  The TimingReport object itself is responsible for producing
+ *  the final timing report. Each ModuleTimings is registered along
+ *  with its format options---these should at least include desired
+ *  indentation level, but could also support some sort of nested timing
+ *  system.
+ *
+ *  This will allow timing reports to be defined closer to the code they are 
+ *  reporting on. This makes adding new sections to the timing file much easier, 
+ *  and allows seperation of timer setup from main code. This is much better
+ *  than the current solution, where the timings report requires knowledge
+ *  of every other class's deep implementation details. This makes the timing
+ *  report tend to lag the rest of the code, since changing it is a major process.
+ */
 
 int DOUBLECLOSE(double a, double b, double eps) {
     return ( fabs(a-b) < eps*fabs(a+b) );
@@ -108,8 +129,8 @@ void ReportTimings(FILE * timingfile) {
     a = ComputeMultipoles.Elapsed();    fprintf(timingfile,"\t \t \t \t      ComputeMultipoles: %e seconds (%2.2f %%) ---> %e pps \n", a, a*g, P.np/(a+1e-15) );
     DumpMultipoleStats(WallClockDirect.Elapsed(), P.np);
 
-    a = FinishSort.Elapsed();           fprintf(timingfile,"\t \t \t \t             FinishSort: %e seconds (%2.2f %%)\n", a, a*g );
-    a = FinishPartition.Elapsed();      fprintf(timingfile,"\t \t \t \t        FinishPartition: %e seconds (%2.2f %%)\n", a, a*g );
+    a = IL->FinishSort.Elapsed();           fprintf(timingfile,"\t \t \t \t             FinishSort: %e seconds (%2.2f %%)\n", a, a*g );
+    a = IL->FinishPartition.Elapsed();      fprintf(timingfile,"\t \t \t \t        FinishPartition: %e seconds (%2.2f %%)\n", a, a*g );
 
 }
 #endif
@@ -216,10 +237,18 @@ void ReportTimings(FILE * timingfile) {
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
     REPORT(1, "Kick", Kick.Elapsed()); total += thistime;
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
+	double gf_total = MakeCellGroups.Elapsed() + FindCellGroupLinks.Elapsed() + DoGlobalGroups.Elapsed() + FinishGroups.Elapsed();
+    if (GFC != NULL){
+        REPORT(1, "Group Finding", gf_total); total += thistime;
+        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+    }
     REPORT(1, "Output", Output.Elapsed()); total += thistime;
     fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
-    REPORT(1, "Group", Group.Elapsed()); total += thistime;
-    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+    if (GFC != NULL){
+        REPORT(1, "Microstep", Microstep.Elapsed()); total += thistime;
+        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+    }
+   
     if(WriteState.Do2LPTVelocityRereading){
         REPORT(1, "Velocity Re-reading for LPT", LPTVelocityReRead.Elapsed()); total += thistime;
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
@@ -349,6 +378,31 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Add Near + Far Accel", AddAccel.Elapsed());
     REPORT(1, "Kick Cell", KickCellTimer.Elapsed());
     
+    if(GFC != NULL){
+    	fprintf(timingfile, "\n\n Breakdown of Group Finding:");
+    	denom = gf_total;
+    	REPORT(1, "MakeCellGroups", MakeCellGroups.Elapsed());
+        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+        REPORT(1, "FindCellGroupLinks", FindCellGroupLinks.Elapsed());
+        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+        REPORT(1, "DoGlobalGroups", DoGlobalGroups.Elapsed());
+        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+        denom = thistime;
+        REPORT(2, "Create (Sort + Index + Find)", GFC->SortLinks.Elapsed() + GFC->IndexLinks.Elapsed() + GFC->FindGlobalGroupTime.Elapsed());
+        REPORT(2, "Gather particles/Scatter aux", GFC->IndexGroups.Elapsed() + GFC->GatherGroups.Elapsed() + GFC->ScatterAux.Elapsed());
+        REPORT(2, "Find L1 Halos", GFC->ProcessLevel1.Elapsed());
+        REPORT(2, "Output L1 Halos", GFC->OutputLevel1.Elapsed());
+        denom = gf_total;
+        REPORT(1, "FinishGroups", FinishGroups.Elapsed());
+        denom = thistime;
+        REPORT(2, "Scatter Groups", GFC->ScatterGroups.Elapsed());
+            fprintf(timingfile,"---> %6.3f M_group_part/sec",GFC->L0stats.tot/(thistime+1e-15)/1e6);
+    }
+	
+	// Now write some detailed multiplicity and timing stats to lastrun.grouplog
+	if(GFC != NULL)
+		GFC->report();
+	
     fprintf(timingfile, "\n\n Breakdown of Output Step:");
     denom = Output.Elapsed();
     REPORT(1, "TimeSlice", OutputTimeSlice.Elapsed());
@@ -357,6 +411,13 @@ void ReportTimings(FILE * timingfile) {
     fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
     REPORT(1, "Binning", OutputBin.Elapsed());
     fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+
+    if(GFC != NULL){
+        fprintf(timingfile, "\n\n Breakdown of Microstep Step:");
+        denom = Microstep.Elapsed();
+        REPORT(1, "CPU Microsteps", MicrostepCPU.Elapsed());
+        fprintf(timingfile,"---> %6.3f M_group_part/sec",GFC->L0stats.tot/(thistime+1e-15)/1e6);
+    }
 
     fprintf(timingfile, "\n\n Subdivisions of Drift:");
     denom = Drift.Elapsed();
@@ -373,8 +434,8 @@ void ReportTimings(FILE * timingfile) {
     
     fprintf(timingfile, "\n\n Breakdown of Finish Step:");
     denom = Finish.Elapsed();
-    REPORT(1, "Partition Insert List", FinishPartition.Elapsed());
-    REPORT(1, "Sort Insert List", FinishSort.Elapsed());
+    REPORT(1, "Partition Insert List", IL->FinishPartition.Elapsed());
+    REPORT(1, "Sort Insert List", IL->FinishSort.Elapsed());
     fprintf(timingfile,"---> %6.3f Mitems/sec (%.2g items)",IL->n_sorted/(thistime+1e-15)/1e6, (double) IL->n_sorted);
     REPORT(1, "Index Cells", FinishCellIndex.Elapsed());
     REPORT(1, "Merge", FinishMerge.Elapsed());
