@@ -288,6 +288,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     for(int w = 0; w < WIDTH; w++){
         int kl =0;
         for(int n = 0; n < NSplit; n++){
+            // We may wish to make these in an order that will alter between GPUs
             int kh = SplitPoint[n];
             // The construction and execution are timed internally in each SIC then reduced in Finalize(slab)
             SlabInteractionCollections[slabID][w*NSplit + n] = 
@@ -518,6 +519,7 @@ void NearFieldDriver::Finalize(int slab){
     FinalizeBookkeeping.Stop();
     
     CopyPencilToSlab.Start();
+    // This kills our NUMA locality
     #pragma omp parallel for schedule(static)
     for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
         int w = sliceIdx / NSplit;
