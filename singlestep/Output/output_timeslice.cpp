@@ -89,10 +89,13 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
             accstruct *acc = PP->AccCell(ijk);
             for (int p=0;p<c.count();p++) {
                 vel = (c.vel[p] - acc[p]*unkickfactor);    // We supply in code units
-                if(!c.aux[p].is_L0())
+                // Detail: we write particles with their L0 bits intact.  So if we want to run a non-group-finding step
+                // after a group-finding step (e.g. for debugging), we need to know that we can ignore the L0 bit
+                if(GFC == NULL || !c.aux[p].is_L0()){
                     AA->addparticle(c.pos[p], vel, c.aux[p]);
+                    n_added++;
+                }
             }
-            n_added += c.count();
             AA->endcell();
         }
 

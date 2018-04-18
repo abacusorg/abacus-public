@@ -29,7 +29,8 @@ typedef struct {
     int ComputeCores;
 } ConvolutionStatistics;
 
-typedef struct {
+class ConvolutionParameters{
+public:
     int runtime_cpd;
     int runtime_order;
     int runtime_NearFieldRadius;
@@ -40,18 +41,37 @@ typedef struct {
     int runtime_ConvolutionCacheSizeMB;
     int runtime_MaxConvolutionRAMMB;
 
-    char runtime_DerivativesDirectory[1024];
+    // These directories should be accessed through the functions below
     char runtime_MultipoleDirectory[1024];
     char runtime_TaylorDirectory[1024];
-
+    char runtime_DerivativesDirectory[1024];
+    char runtime_MultipoleDirectory2[1024];
+    char runtime_TaylorDirectory2[1024];
     char runtime_MultipolePrefix[1024];
     char runtime_TaylorPrefix[1024];
     
     int delete_multipoles_after_read;
     
     uint64_t blocksize, zwidth, rml, CompressedMultipoleLengthXY;
-    int io_core;
-} ConvolutionParameters;
+    int io_cores[MAX_IO_THREADS];
+    int niothreads;
+
+    void MultipoleDirectory(int slab, char * const fn){
+        // We elsewhere generically support N threads, but here is where we assume 2
+        if(slab % 2 == 0)
+            sprintf(fn, "%s/%s_%04d", runtime_MultipoleDirectory, runtime_MultipolePrefix, slab);
+        else
+            sprintf(fn, "%s/%s_%04d", runtime_MultipoleDirectory2, runtime_MultipolePrefix, slab);
+    }
+
+    void TaylorDirectory(int slab, char * const fn){
+        // We elsewhere generically support N threads, but here is where we assume 2
+        if(slab % 2 == 0)
+            sprintf(fn, "%s/%s_%04d", runtime_TaylorDirectory, runtime_TaylorPrefix, slab);
+        else
+            sprintf(fn, "%s/%s_%04d", runtime_TaylorDirectory2, runtime_TaylorPrefix, slab);
+    }
+};
 
 #include "block_io_utils.cpp"
 
@@ -62,7 +82,9 @@ typedef struct {
 class OutofCoreConvolution { 
 public: 
     
-    OutofCoreConvolution(void) { } 
+    OutofCoreConvolution(void) {
+        memset(&CS, 0, sizeof(ConvolutionStatistics));
+    } 
     ~OutofCoreConvolution(void) { } 
 
     ConvolutionParameters CP;
@@ -82,8 +104,7 @@ private:
     STimer ConvolveWallClock;
 
 #ifdef CONVIOTHREADED
-    // Can use more of these for simultaneous IO on multiple devices
-    ConvIOThread *iothread;
+    ConvIOThread **iothreads;
     STimer WaitForIO;
 #endif
 

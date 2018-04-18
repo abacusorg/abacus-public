@@ -32,6 +32,7 @@ FoFLinkingLength = [.25, .168, .138]
 MinL1HaloNP = 50
 HaloTaggableFraction = 0.1
 L1Output_dlna = 0.1
+MicrostepTimeStep = 0.15
 
 # Advanced code parameters
 LagrangianPTOrder = 2
@@ -46,8 +47,9 @@ GroupRadius = 4
 DerivativeExpansionRadius = 8
 RamDisk = 0
 OverwriteState = 0
-SecondIOThreadDirs = ["multipole/", "taylor/"]
-nSecondIOThreadDirs = 2
+IODirs = ["multipole/", "taylor/"]
+IODirThreads = [2, 2]
+nIODirs = 2
 # GPUMinCellSinks = 20  # Currently non-functional
 # MAXRAMMB = 60000  # This will be automatically detected
 # ConvolutionCacheSizeMB = 30  # This will be automatically detected

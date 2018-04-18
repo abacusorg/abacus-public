@@ -37,6 +37,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     CompletionFlag = 0;
     K_low = k_low;
     K_high = k_high;
+    cpd = P.cpd;
     W = w;
     SlabId = slab;
     bytes_to_device = 0, bytes_from_device = 0;
@@ -100,7 +101,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
         }
         skewer_blocks[k] = this_skewer_blocks;
     }
-    SinkTotal = localSinkTotal;  // OpenMP can't do reductions directly on member variables
+    //SinkTotal = localSinkTotal;  // OpenMP can't do reductions directly on member variables
     CountSinks.Stop();
     
     CalcSinkBlocks.Clear(); CalcSinkBlocks.Start();
@@ -147,7 +148,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
         }
     }
 
-    int NPaddedSinks = NFBlockSize*NSinkBlocks;   
+    int NPaddedSinks = NFBlockSize*NSinkBlocks;
+    SinkTotal = NPaddedSinks;  // for performance metrics, we always move around the padded amount
             // The total padded number of particles
     assertf(NPaddedSinks <= MaxSinkSize, "NPaddedSinks (%d) larger than allocated space (MaxSinkSize = %d)\n", NPaddedSinks, MaxSinkSize);
 
@@ -186,7 +188,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
         }
         skewer_blocks[k] = this_skewer_blocks;
     }
-    SourceTotal = localSourceTotal;  // OpenMP can't do reductions directly on member variables
+    //SourceTotal = localSourceTotal;  // OpenMP can't do reductions directly on member variables
     CountSources.Stop();
 
     CalcSourceBlocks.Clear(); CalcSourceBlocks.Start();
@@ -218,7 +220,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     
     int NPaddedSources = NFBlockSize*NSourceBlocks;
             // The total number of padded sources
-
+    SourceTotal = NPaddedSources;  // for performance metrics, we always move around the padded amount 
 //    SourceSetPositions = new List3<FLOAT>(NPaddedSources);
     assertf(NPaddedSources <= MaxSourceSize, "NPaddedSources (%d) larger than allocated space (MaxSourceSize = %d)\n", NPaddedSources, MaxSourceSize);
     CalcSourceBlocks.Stop();

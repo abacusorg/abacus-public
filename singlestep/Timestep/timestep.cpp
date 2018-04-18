@@ -24,7 +24,7 @@ int GROUP_RADIUS = -1;
 // I think in most cases we would prefer to read ahead until memory limited
 //#define FETCHAHEAD (2*FORCE_RADIUS)
 //#define FETCHAHEAD 1000
-#define FETCHAHEAD FORCE_RADIUS + 2
+#define FETCHAHEAD FORCE_RADIUS + 3
 #define FETCHPERSTEP 1
 // Recall that all of these Dependencies have a built-in STimer
 // to measure the amount of time spent on Actions.
@@ -155,6 +155,7 @@ void NearForceAction(int slab) {
     SlabForceTime[slab].Start();
         
     JJ->ExecuteSlab(slab, P.ForceOutputDebug);
+    //JJ->ExecuteSlab(slab, 1);
 
     SlabForceLatency[slab].Start();
     if (P.ForceOutputDebug) {
@@ -431,6 +432,7 @@ void MicrostepAction(int slab){
     // We de-allocate in Drift if we aren't doing group finding
     LBW->DeAllocate(AccSlab,slab);
 
+    return;
     MicrostepCPU.Start();
     // Do microstepping here
     if(MicrostepEpochs != NULL){
@@ -688,10 +690,14 @@ void timestep(void) {
     assertf(IL->length==0, 
         "Insert List not empty (%d) at the end of timestep().  Time step too big?\n", IL->length);
     
-    assertf(merged_particles == P.np, "Merged slabs contain %"PRIu64" particles instead of %"PRIu64"!\n", merged_particles, P.np);
+    assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
+
+    uint64 total_n_output = n_output;
+    if(GFC != NULL)
+        total_n_output += GFC->n_L0_output;
     
     if(ReadState.DoTimeSliceOutput)
-        assertf(n_output == P.np, "TimeSlice output contains %"PRIu64" particles instead of %"PRIu64"!\n", n_output, P.np);
+        assertf(total_n_output == P.np, "TimeSlice output contains %d particles instead of %d!\n", total_n_output, P.np);
 
     STDLOG(1,"Completing timestep()\n");
     TimeStepWallClock.Stop();
@@ -748,7 +754,7 @@ void timestepIC(void) {
     }
 
     assertf(NP_from_IC == P.np, "Expected to read a total of %llu particles from IC files, but only read %llu.\n", P.np, NP_from_IC);
-    assertf(merged_particles == P.np, "Merged slabs contain %"PRIu64" particles instead of %"PRIu64"!\n", merged_particles, P.np);
+    assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
     
     char filename[1024];
     sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
@@ -828,5 +834,75 @@ void timestepMultipoles(void) {
     }
 
     STDLOG(1,"Completing timestepMultipoles()\n");
+    TimeStepWallClock.Stop();
+}
+
+// =========================================================
+// IO Benchmark mode
+
+int FinishBenchmarkIOPrecondition(int slab) {
+    // Wait for everything to be read
+    if( !LBW->IOCompleted( CellInfoSlab,      slab )
+        || !LBW->IOCompleted( PosSlab, slab )
+        || !LBW->IOCompleted( VelSlab, slab )
+        || !LBW->IOCompleted( AuxSlab,      slab )
+        || !LBW->IOCompleted( TaylorSlab,      slab )
+        ) return 0;
+    return 1;
+}
+
+void FinishBenchmarkIOAction(int slab) {
+    STDLOG(1,"Finishing benchmark IO slab %d\n", slab);
+        
+    /*// Make the multipoles
+    LBW->AllocateArena(MultipoleSlab,slab);
+    ComputeMultipoleSlab(slab);
+    
+    WriteMultipoleSlab.Start();
+    LBW->StoreArenaNonBlocking(MultipoleSlab,slab);
+    WriteMultipoleSlab.Stop();
+    
+    LBW->DeAllocate(MergePosSlab,slab);
+    LBW->DeAllocate(MergeCellInfoSlab,slab);*/
+
+    LBW->WriteArena(CellInfoSlab, slab, IO_DELETE, IO_NONBLOCKING, 
+                    LBW->WriteSlabDescriptorName(MergeCellInfoSlab,slab).c_str());
+    LBW->WriteArena(PosSlab, slab, IO_DELETE, IO_NONBLOCKING, 
+                    LBW->WriteSlabDescriptorName(MergePosSlab,slab).c_str());
+    LBW->WriteArena(VelSlab, slab, IO_DELETE, IO_NONBLOCKING, 
+                    LBW->WriteSlabDescriptorName(MergeVelSlab,slab).c_str());
+    LBW->WriteArena(AuxSlab, slab, IO_DELETE, IO_NONBLOCKING, 
+                    LBW->WriteSlabDescriptorName(MergeAuxSlab,slab).c_str());
+    LBW->WriteArena(TaylorSlab, slab, IO_DELETE, IO_NONBLOCKING, 
+                    LBW->WriteSlabDescriptorName(MultipoleSlab,slab).c_str());
+}
+
+void timestepBenchmarkIO(int nslabs) {
+    // We want to read slabs from the read directory and write them to the write directory, probably without modification
+    // We can probably reuse the main FetchSlabs depdendency and write a new Finish dependency
+    // One may not want to have to read and write all the slabs for a large box, so `nslabs` can be specified to use fewer
+
+    STDLOG(0,"Initiating timestepBenchmarkIO()\n");
+    TimeStepWallClock.Clear();
+    TimeStepWallClock.Start();
+    
+    FORCE_RADIUS = 0;
+    GROUP_RADIUS = 0;
+
+    int cpd = P.cpd; int first = 0;
+    assertf(nslabs <= cpd, "nslabs (%d) cannot be larger than cpd (%d)\n", nslabs, cpd);
+    if (nslabs <= 0)
+        nslabs = cpd;
+
+    // Use the Kick as finish because FetchSlabs fetches FETCHAHEAD past the kick
+    FetchSlabs.instantiate(nslabs, first, &FetchSlabPrecondition, &FetchSlabAction );
+    Kick.instantiate(nslabs, first,  &FinishBenchmarkIOPrecondition,  &FinishBenchmarkIOAction );
+
+    while( !Kick.alldone() ) {
+        FetchSlabs.Attempt();
+              Kick.Attempt();
+    }
+
+    STDLOG(1,"Completing timestepBenchmarkIO()\n");
     TimeStepWallClock.Stop();
 }

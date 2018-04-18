@@ -7,10 +7,13 @@
 class PTimer {
 public:
     PTimer(void); 
+    PTimer(int nthreads); 
     ~PTimer();
 
     void Start(void);
     void Stop(void);
+    void Start(int thread_num);
+    void Stop(int thread_num);
     double Elapsed(void);
     void Clear(void);
     struct timeval get_timer_seq(void);

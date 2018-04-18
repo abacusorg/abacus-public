@@ -8,6 +8,7 @@
 clibs/Makefile
 singlestep/singlestep
 singlestep/make_multipoles
+singlestep/benchmark_io
 singlestep/Makefile
 singlestep/Direct/Makefile
 singlestep/Multipoles/Makefile

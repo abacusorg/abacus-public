@@ -19,7 +19,6 @@
 #endif
 #include <unistd.h>
 #include <string.h>
-#include "immintrin.h"
 #include "stdlog.cc"
 
 #undef FOFTimer
@@ -34,6 +33,8 @@ typedef float3 accstruct;
 typedef unsigned long long int  auxstruct;
 
 #endif 
+
+#include <immintrin.h>
 
 class DummyTimer {
   public:

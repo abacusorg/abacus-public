@@ -3,15 +3,19 @@
 
 void OutofCoreConvolution::ReadDiskMultipolesAndDerivs(int zstart) {
 #ifdef CONVIOTHREADED
-    WaitForIO.Start();
-    iothread->pop(CurrentBlock);
-    WaitForIO.Stop();
+    // We have to wait for all IO threads, because they are all reading into the same block
+    for(int i = 0; i < CP.niothreads; i++){
+        WaitForIO.Start();
+        // All the threads return the same block; doesn't matter that we re-pop
+        iothreads[i]->pop(CurrentBlock);
+        WaitForIO.Stop();
+    }
     
     PlaneBuffer = CurrentBlock->mtblock;
     CompressedDerivatives = CurrentBlock->dblock;
 #else
-    CurrentBlock->read(zstart, zwidth);
-    CurrentBlock->read_derivs(zstart, zwidth);
+    CurrentBlock->read(zstart, zwidth, 0);
+    CurrentBlock->read_derivs(zstart, zwidth, 0);
 #endif
 }
 
@@ -48,9 +52,11 @@ void OutofCoreConvolution::SwizzleTaylors(int z){
 
 void OutofCoreConvolution::WriteDiskTaylor(int z) {
 #ifdef CONVIOTHREADED
-    iothread->push(CurrentBlock);
+    // Push to all threads.  Each will take the part of the block it needs.
+    for(int i = 0; i < CP.niothreads; i++)
+        iothreads[i]->push(CurrentBlock);
 #else
-    CurrentBlock->write(zwidth);
+    CurrentBlock->write(zwidth, 0);
 #endif
 }
 
@@ -279,7 +285,7 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     // This is to prevent losing Taylors by accidentally convolving after an interrupted singlestep
     for(int i=0;i<cpd;i++) {
         char fn[1024];
-        sprintf(fn, "%s/%s_%04d", CP.runtime_MultipoleDirectory, CP.runtime_MultipolePrefix, i);
+        CP.MultipoleDirectory(i, fn);
         CheckFileExists(fn);
     }
 
@@ -304,9 +310,22 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     CS.totalMemoryAllocated += s;
 
 #ifdef CONVIOTHREADED
-    // The slab-order buffers are allocated by the thread
-    iothread = new ConvIOThread(CP, 2);  // starts io thread
-    CS.totalMemoryAllocated += iothread->get_alloc_bytes();
+    { // scope to avoid leakage
+    // Allocate blocks and pass them to threads.
+    // Blocks are shared among threads.
+    int nblocks = (int) ceil((CP.runtime_cpd+1)/2./CP.zwidth);
+    int read_ahead = min(2, nblocks);
+    Block *blocks[read_ahead];
+    for(int i = 0; i < read_ahead; i++){
+        blocks[i] = new Block(CP);
+        CS.totalMemoryAllocated += blocks[i]->alloc_bytes;
+    }
+
+    iothreads = new ConvIOThread*[CP.niothreads];
+    for(int i = 0; i < CP.niothreads; i++){
+        iothreads[i] = new ConvIOThread(CP, read_ahead, blocks, i);  // starts io thread
+    }
+    }
 #else
     CurrentBlock = new Block(CP);
     CS.totalMemoryAllocated += CurrentBlock->alloc_bytes;
@@ -318,7 +337,7 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     // Create the Taylor files, erasing them if they existed
     for(int i=0;i<cpd;i++) {
         char fn[1024];
-        sprintf(fn, "%s/%s_%04d", CP.runtime_TaylorDirectory, CP.runtime_TaylorPrefix, i);
+        CP.TaylorDirectory(i, fn);
         FILE *f = fopen(fn, "wb");
         assert(f != NULL);
         fclose(f);
@@ -327,18 +346,22 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     BlockConvolve();
 
 #ifdef CONVIOTHREADED
-    WaitForIO.Start();
-    iothread->join();  // wait for io to terminate
-    WaitForIO.Stop();
-    
-    CS.WaitForIO = WaitForIO.Elapsed();
-    CS.ReadDerivatives       = iothread->get_deriv_read_time();
-    CS.ReadMultipoles        = iothread->get_multipole_read_time();
-    CS.WriteTaylor           = iothread->get_taylor_write_time();
-    CS.ReadMultipolesBytes   = iothread->get_multipole_bytes_read();
-    CS.WriteTaylorBytes      = iothread->get_taylor_bytes_written();
-    CS.ReadDerivativesBytes  = iothread->get_derivative_bytes_read();
-    delete iothread;
+    for(int i = 0; i < CP.niothreads; i++){
+        ConvIOThread *iothread = iothreads[i];
+        WaitForIO.Start();
+        iothread->join();  // wait for io to terminate
+        WaitForIO.Stop();
+        
+        CS.ReadDerivatives       += iothread->get_deriv_read_time();
+        CS.ReadMultipoles        += iothread->get_multipole_read_time();
+        CS.WriteTaylor           += iothread->get_taylor_write_time();
+        CS.ReadMultipolesBytes   += iothread->get_multipole_bytes_read();
+        CS.WriteTaylorBytes      += iothread->get_taylor_bytes_written();
+        CS.ReadDerivativesBytes  += iothread->get_derivative_bytes_read();
+        delete iothread;
+    }
+    delete iothreads;
+    CS.WaitForIO += WaitForIO.Elapsed();
 #else
     CS.WriteTaylorBytes      = CurrentBlock->WriteTaylorBytes;
     CS.ReadMultipolesBytes   = CurrentBlock->ReadMultipoleBytes;

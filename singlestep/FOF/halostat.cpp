@@ -78,6 +78,7 @@ HaloStat ComputeStats(int size,
 	vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
     }
     FindEigenvalues(vxx, vxy, vxz, vyy, vyz, vzz, h.sigmav);
+    for(int i = 0; i < 3; i++) h.sigmav[i] = sqrt(h.sigmav[i]);
     std::sort(L2.d2buffer, L2.d2buffer+size);
     h.r25 = sqrt(L2.d2buffer[size/4]);   h.r50 = sqrt(L2.d2buffer[size/2]);
     h.r75 = sqrt(L2.d2buffer[size*3/4]); h.r90 = sqrt(L2.d2buffer[size*9/10]);
@@ -91,7 +92,6 @@ HaloStat ComputeStats(int size,
     h.rvcirc_max = sqrt(rvmax);    // Get to radial units
     float GMpart = 3*P.Omega_M*pow(100*ReadState.BoxSizeHMpc,2)/(8*M_PI*P.np*ReadState.ScaleFactor);
     h.vcirc_max = sqrt(GMpart*sqrt(vmax))/ReadState.VelZSpace_to_kms;  // This is sqrt(G*M_particle*N/R).
-    // TODO: is it correct to compute vcirc with proper radii?
 
     // Repeat this, finding moments and radii around the largest subhalo COM
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
@@ -103,6 +103,7 @@ HaloStat ComputeStats(int size,
 	vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
     }
     FindEigenvalues(vxx, vxy, vxz, vyy, vyz, vzz, h.subhalo_sigmav);
+    for(int i = 0; i < 3; i++) h.subhalo_sigmav[i] = sqrt(h.subhalo_sigmav[i]);
     std::sort(L2.d2buffer, L2.d2buffer+size);
     h.subhalo_r25 = sqrt(L2.d2buffer[size/4]);   
     h.subhalo_r50 = sqrt(L2.d2buffer[size/2]);
