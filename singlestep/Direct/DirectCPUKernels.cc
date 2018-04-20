@@ -124,3 +124,6 @@ inline void directkernel(
 
 }
 #endif
+
+#undef RSQRT
+#undef MIN

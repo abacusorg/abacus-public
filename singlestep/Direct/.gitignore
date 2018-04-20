@@ -3,3 +3,4 @@
 /GeneratedASMKernel.cubin
 /GeneratedASMKernel.ptx
 /nvtemp/
+avx512direct
