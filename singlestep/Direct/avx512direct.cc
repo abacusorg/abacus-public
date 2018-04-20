@@ -44,6 +44,8 @@ void AVX512Direct::compute(List3<FLOAT> &psrc, List3<FLOAT> &psink, FLOAT3 &delt
     AVX512_FLOATS m_fifteen = AVX512_SET_FLOAT((FLOAT) -15);
     AVX512_FLOATS six = AVX512_SET_FLOAT((FLOAT) 6);
     AVX512_FLOATS ten = AVX512_SET_FLOAT((FLOAT) 10);
+
+    int nsrc_aligned = nsrc - (nsrc % AVX512_NVEC);
     
     for(int i = 0; i < nsink; i++){
         // Load a single sink: broadcast x,y,z into three vectors
@@ -56,20 +58,20 @@ void AVX512Direct::compute(List3<FLOAT> &psrc, List3<FLOAT> &psink, FLOAT3 &delt
         AVX512_FLOATS yacc = AVX512_SET_FLOAT((FLOAT) 0);
         AVX512_FLOATS zacc = AVX512_SET_FLOAT((FLOAT) 0);
 
-        for(int j = 0; j < nsrc; j += AVX512_NVEC){
-            // Load up to 16 sources, masking extras as zeros
-            AVX512_MASK m_mask_left = (nsrc - j) >= AVX512_NVEC ? ~0:masks_per_misalignment_value_FLOAT[nsrc-j];
-            // TODO: Is it faster to load with masks or do a "cleanup" loop after?
-            AVX512_FLOATS xsource = AVX512_MASKZ_LOAD_FLOATS_ALIGNED(m_mask_left, &(psrc.X[j]));
-            AVX512_FLOATS ysource = AVX512_MASKZ_LOAD_FLOATS_ALIGNED(m_mask_left, &(psrc.Y[j]));
-            AVX512_FLOATS zsource = AVX512_MASKZ_LOAD_FLOATS_ALIGNED(m_mask_left, &(psrc.Z[j]));
+        // Mask-off loop
+        int j;
+        for(j = 0; j < nsrc_aligned; j += AVX512_NVEC){
+            // Load exactly 16 sources
+            AVX512_FLOATS xsource = AVX512_LOAD_FLOATS_ALIGNED(&(psrc.X[j]));
+            AVX512_FLOATS ysource = AVX512_LOAD_FLOATS_ALIGNED(&(psrc.Y[j]));
+            AVX512_FLOATS zsource = AVX512_LOAD_FLOATS_ALIGNED(&(psrc.Z[j]));
 
             // Compute dx,dy,dz = source - sink
             AVX512_FLOATS dx = AVX512_SUBTRACT_FLOATS(xsource, xsink);
             AVX512_FLOATS dy = AVX512_SUBTRACT_FLOATS(ysource, ysink);
             AVX512_FLOATS dz = AVX512_SUBTRACT_FLOATS(zsource, zsink);
 
-            // dr2 = (dx*dx + dy*dy + dz*dz)*inv_eps2 //+ (FLOAT)1e-32;
+            // dr2 = (dx*dx + dy*dy + dz*dz)*inv_eps2 + (FLOAT)1e-32;
             AVX512_FLOATS dr2 = AVX512_SQUARE_FLOAT(dx);
             dr2 = AVX512_FMA_ADD_FLOATS(dy, dy, dr2);
             dr2 = AVX512_FMA_ADD_FLOATS(dz, dz, dr2);
@@ -95,12 +97,46 @@ void AVX512Direct::compute(List3<FLOAT> &psrc, List3<FLOAT> &psink, FLOAT3 &delt
             AVX512_FLOATS f3 = AVX512_MULTIPLY_FLOATS(f, AVX512_SQUARE_FLOAT(f));
             AVX512_FLOATS softened = AVX512_FMA_ADD_FLOATS(m_fifteen, f, six);
             softened = AVX512_FMA_ADD_FLOATS(softened, dr2, ten);
-            // TODO: could we re-use the mask_left?
             AVX512_MASK min_mask = AVX512_COMPARE_FLOATS(f3, softened, _CMP_LT_OS);  // ordered, signaling NaNs
             f = AVX512_BLEND_FLOATS_WITH_MASK(min_mask, softened, f3);
 
             // a.x -= f*dx;
-            // TODO: is this inefficient because we're "creating" a new vector instead of specifying a destination?
+            xacc = AVX512_FNMA_ADD_FLOATS(f, dx, xacc);
+            yacc = AVX512_FNMA_ADD_FLOATS(f, dy, yacc);
+            zacc = AVX512_FNMA_ADD_FLOATS(f, dz, zacc);
+        }
+
+        // Now do the last iteration with masks
+        if(nsrc_aligned < nsrc){
+            // Load up to 16 sources, masking extras as zeros
+            AVX512_MASK m_mask_left = masks_per_misalignment_value_FLOAT[nsrc-j];
+            AVX512_FLOATS xsource = AVX512_MASKZ_LOAD_FLOATS_ALIGNED(m_mask_left, &(psrc.X[j]));
+            AVX512_FLOATS ysource = AVX512_MASKZ_LOAD_FLOATS_ALIGNED(m_mask_left, &(psrc.Y[j]));
+            AVX512_FLOATS zsource = AVX512_MASKZ_LOAD_FLOATS_ALIGNED(m_mask_left, &(psrc.Z[j]));
+
+            AVX512_FLOATS dx = AVX512_SUBTRACT_FLOATS(xsource, xsink);
+            AVX512_FLOATS dy = AVX512_SUBTRACT_FLOATS(ysource, ysink);
+            AVX512_FLOATS dz = AVX512_SUBTRACT_FLOATS(zsource, zsink);
+
+            AVX512_FLOATS dr2 = AVX512_SQUARE_FLOAT(dx);
+            dr2 = AVX512_FMA_ADD_FLOATS(dy, dy, dr2);
+            dr2 = AVX512_FMA_ADD_FLOATS(dz, dz, dr2);
+            dr2 = AVX512_FMA_ADD_FLOATS(dr2, inv_eps2, small);
+
+            AVX512_FLOATS f = AVX512_RSQRT14_FLOAT(dr2);
+            
+            AVX512_FLOATS f3 = AVX512_MULTIPLY_FLOATS(f, AVX512_SQUARE_FLOAT(f));
+            AVX512_FLOATS softened = AVX512_FMA_ADD_FLOATS(m_fifteen, f, six);
+            softened = AVX512_FMA_ADD_FLOATS(softened, dr2, ten);
+            
+            AVX512_MASK min_mask = AVX512_COMPARE_FLOATS(f3, softened, _CMP_LT_OS);
+            f = AVX512_BLEND_FLOATS_WITH_MASK(min_mask, softened, f3);
+
+            // We're about to discard the current sink; start prefecting the next one
+            PREFETCH(psink.X[i+1]);
+            PREFETCH(psink.Y[i+1]);
+            PREFETCH(psink.Z[i+1]);
+
             xacc = AVX512_MASK3_FNMA_ADD_FLOATS(f, dx, xacc, m_mask_left);
             yacc = AVX512_MASK3_FNMA_ADD_FLOATS(f, dy, yacc, m_mask_left);
             zacc = AVX512_MASK3_FNMA_ADD_FLOATS(f, dz, zacc, m_mask_left);
