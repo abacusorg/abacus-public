@@ -86,6 +86,7 @@ class SetInteractionCollection{
         int         W;
         int         K_low;
         int         K_high;
+        int         cpd;
         int         InteractionCount;//How many source cell on sink cell interactions are in this set
 
         // List3<FLOAT> *  SinkSetPositions; //Position data for particles in all sink sets in the collection

@@ -24,7 +24,7 @@ int GROUP_RADIUS = -1;
 // I think in most cases we would prefer to read ahead until memory limited
 //#define FETCHAHEAD (2*FORCE_RADIUS)
 //#define FETCHAHEAD 1000
-#define FETCHAHEAD FORCE_RADIUS + 2
+#define FETCHAHEAD FORCE_RADIUS + 3
 #define FETCHPERSTEP 1
 // Recall that all of these Dependencies have a built-in STimer
 // to measure the amount of time spent on Actions.
@@ -155,6 +155,7 @@ void NearForceAction(int slab) {
     SlabForceTime[slab].Start();
         
     JJ->ExecuteSlab(slab, P.ForceOutputDebug);
+    //JJ->ExecuteSlab(slab, 1);
 
     SlabForceLatency[slab].Start();
     if (P.ForceOutputDebug) {

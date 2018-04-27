@@ -15,6 +15,9 @@ AppendArena *get_AA_by_format(const char* format){
     } else if (strcmp(format,"RVdoubleTag")==0) {
         STDLOG(1,"Using Output Format RVdoubleTag\n");
         AA = new OutputRVdoubleTag();
+    } else if (strcmp(format,"RVZel")==0) {
+        STDLOG(1,"Using Output Format RVZel\n");
+        AA = new OutputRVZel();
     }
     else {
         QUIT("Unrecognized case: OutputFormat = %s\n", format);

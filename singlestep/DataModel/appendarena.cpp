@@ -384,6 +384,48 @@ class OutputRVdoubleTag: public AppendArena {
 };
 
 
+class OutputRVZel: public AppendArena {
+  private:
+    struct ICparticle {
+        unsigned short i,j,k;
+        float disp[3];      // Lagrangian displacement, unit box
+        float vel[3];      // Zspace velocity, unit box
+    };
+
+    void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
+    struct ICparticle *p = (struct ICparticle *)c;
+#ifdef GLOBALPOS
+    // This is for global box-referenced positions
+    double3 cc = double3(0.0);
+#else
+    // If we instead have cell-referenced positions, then:
+    double3 cc = PP->WrapCellCenter(current_cell.cellid());
+#endif
+    integer3 ijk = ZelIJK(aux.pid());
+    double3 zelpos = ZelPos(aux.pid());
+
+    p->disp[0] = (double) pos.x+cc.x-zelpos.x;
+    p->disp[1] = (double) pos.y+cc.y-zelpos.y;
+    p->disp[2] = (double) pos.z+cc.z-zelpos.z;
+    p->vel[0] = vel.x;  // Leave it in Zspace, unit box units
+    p->vel[1] = vel.y;
+    p->vel[2] = vel.z;
+    p->i = ijk.x;
+    p->j = ijk.y;
+    p->k = ijk.z;
+    
+    }
+    void appendcell(char *c, integer3 ijk, float vscale) {
+    current_cell = cell_header(ijk, cpd, 1);
+    }
+
+  public:
+    int sizeof_cell()     { return 0; }
+    int sizeof_particle() { return sizeof(struct ICparticle); }
+
+    OutputRVZel() {}
+    ~OutputRVZel(void) { }
+};
 
 
 
