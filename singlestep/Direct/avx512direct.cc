@@ -28,7 +28,6 @@ public:
 
 // TODO: If we're just using this for microstepping, no need for particle set offset
 // Could make a templated version includes offsets for pencils
-// TODO: could make a version that takes the position transpose instead of FLOAT3s, at least for the sources
 // TODO: Should sinks == sources?
 // The particle arrays must be 64-byte aligned
 void AVX512Direct::compute(List3<FLOAT> &psrc, List3<FLOAT> &psink, FLOAT3 &delta, float _inv_eps2, FLOAT3 *pacc){
@@ -59,8 +58,8 @@ void AVX512Direct::compute(List3<FLOAT> &psrc, List3<FLOAT> &psink, FLOAT3 &delt
         AVX512_FLOATS zacc = AVX512_SET_FLOAT((FLOAT) 0);
 
         // Mask-off loop
-        int j;
-        for(j = 0; j < nsrc_aligned; j += AVX512_NVEC){
+        #pragma unroll (16)
+        for(int j = 0; j <= nsrc_aligned - AVX512_NVEC; j += AVX512_NVEC){
             // Load exactly 16 sources
             AVX512_FLOATS xsource = AVX512_LOAD_FLOATS_ALIGNED(&(psrc.X[j]));
             AVX512_FLOATS ysource = AVX512_LOAD_FLOATS_ALIGNED(&(psrc.Y[j]));
@@ -109,10 +108,10 @@ void AVX512Direct::compute(List3<FLOAT> &psrc, List3<FLOAT> &psink, FLOAT3 &delt
         // Now do the last iteration with masks
         if(nsrc_aligned < nsrc){
             // Load up to 16 sources, masking extras as zeros
-            AVX512_MASK m_mask_left = masks_per_misalignment_value_FLOAT[nsrc-j];
-            AVX512_FLOATS xsource = AVX512_MASKZ_LOAD_FLOATS_ALIGNED(m_mask_left, &(psrc.X[j]));
-            AVX512_FLOATS ysource = AVX512_MASKZ_LOAD_FLOATS_ALIGNED(m_mask_left, &(psrc.Y[j]));
-            AVX512_FLOATS zsource = AVX512_MASKZ_LOAD_FLOATS_ALIGNED(m_mask_left, &(psrc.Z[j]));
+            AVX512_MASK m_mask_left = masks_per_misalignment_value_FLOAT[nsrc-nsrc_aligned];
+            AVX512_FLOATS xsource = AVX512_MASKZ_LOAD_FLOATS_ALIGNED(m_mask_left, &(psrc.X[nsrc_aligned]));
+            AVX512_FLOATS ysource = AVX512_MASKZ_LOAD_FLOATS_ALIGNED(m_mask_left, &(psrc.Y[nsrc_aligned]));
+            AVX512_FLOATS zsource = AVX512_MASKZ_LOAD_FLOATS_ALIGNED(m_mask_left, &(psrc.Z[nsrc_aligned]));
 
             AVX512_FLOATS dx = AVX512_SUBTRACT_FLOATS(xsource, xsink);
             AVX512_FLOATS dy = AVX512_SUBTRACT_FLOATS(ysource, ysink);
@@ -132,7 +131,7 @@ void AVX512Direct::compute(List3<FLOAT> &psrc, List3<FLOAT> &psink, FLOAT3 &delt
             AVX512_MASK min_mask = AVX512_COMPARE_FLOATS(f3, softened, _CMP_LT_OS);
             f = AVX512_BLEND_FLOATS_WITH_MASK(min_mask, softened, f3);
 
-            // We're about to discard the current sink; start prefecting the next one
+            // We're about to discard the current sink; start prefetching the next one
             PREFETCH(psink.X[i+1]);
             PREFETCH(psink.Y[i+1]);
             PREFETCH(psink.Z[i+1]);

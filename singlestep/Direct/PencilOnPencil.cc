@@ -364,7 +364,7 @@ void SetInteractionCollection::CPUExecute(){
                         dry = sourceY - sinkY + yoffset;
                         drz = sourceZ - sinkZ;
 
-                        r = RSQRT( drx*drx + dry*dry + drz*drz  + cpu_eps);
+                        r = (FLOAT)1./std::sqrt( drx*drx + dry*dry + drz*drz  + cpu_eps);
                         r *=r*r;
                         a.x -= r * drx;
                         a.y -= r * dry;
@@ -387,7 +387,7 @@ void SetInteractionCollection::CPUExecute(){
                         dry = sourceY - sinkY + yoffset;
                         drz = sourceZ - sinkZ;
 
-                        r = RSQRT( drx*drx + dry*dry + drz*drz  + cpu_eps);
+                        r = (FLOAT)1./std::sqrt( drx*drx + dry*dry + drz*drz  + cpu_eps);
                         r *=r*r;
                         a.x -= r * drx;
                         a.y -= r * dry;
