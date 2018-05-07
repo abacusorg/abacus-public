@@ -3,10 +3,13 @@
 
 #include "basemultipoles.h"
 
+#ifdef AVX512MULTIPOLES
+#include "avx512_calls.c"
+#endif
+
 #ifdef AVXMULTIPOLES
 #include "externalmultipoles.h"
 #endif
-
 
 class Multipoles : public  basemultipoles { 
 public:
@@ -33,8 +36,10 @@ public:
     d4 *globalM[128];
 #endif
 
+    void EvaluateCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 expansioncenter, double *cm);
     void AnalyticCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 expansioncenter, double *cm);
     void      ASMCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 expansioncenter, double *cm);
+    void   AVX512CartesianMultipoles(FLOAT3 *p, int n, FLOAT3 expansioncenter, double *cm);
 
 };
 

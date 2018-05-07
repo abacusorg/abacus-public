@@ -53,7 +53,7 @@ extern "C" {
 #endif//AVX
 
 
-  
+/*
 #ifdef DOUBLE_PREC
 #define DOUBLE double
 #define REAL_FORMAT "lf"
@@ -87,7 +87,7 @@ extern "C" {
 #define POW    powf
 #define ABS    fabsf
 #endif
-
+*/
 #ifdef __cplusplus
 }
 #endif

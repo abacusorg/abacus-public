@@ -78,7 +78,7 @@ void ComputeMultipoleSlab(int slab) {
     STDLOG(1,"Done with multipoles.\n");
 }
 
-
+// Thin wrappers to convert from arenas to pointers
 void DoCellMultipoles(int slab, int y, int z){ return;};
 void DoZRowMultipoles(int slab, int y){ return;};
-void DoYRowMultipoles(int slab, int z){ return;};
+void DoYRowMultipoles(int slab){ return;};

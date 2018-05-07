@@ -89,6 +89,99 @@ class FOFparticle {
     }
 };
 
+#include "avx512_calls.h"
+// This implementation is slower than AVX; AVX-512 is missing hadd
+inline void diff2avx512_4(float *r, float *p, float *a) {
+	// 4 copies of the primary float4
+	AVX512_FLOATS primary = _mm512_broadcast_f32x4(*(__m128*)p);
+	// Load the 4 secondary float4s
+	AVX512_FLOATS abcd = AVX512_LOAD_FLOATS_ALIGNED(a);
+	abcd = AVX512_SUBTRACT_FLOATS(abcd,primary);
+	abcd = AVX512_SQUARE_FLOAT(abcd);
+
+    __m256 ab = _mm256_hadd_ps(_mm512_castps512_ps256(abcd), _mm512_extractf32x8_ps(abcd, 1));
+    ab = _mm256_hadd_ps(ab, ab);
+    __m128 dists = _mm_unpacklo_ps(_mm256_castps256_ps128(ab),
+                                  _mm256_extractf128_ps(ab,1));
+    _mm_store_ps(r,dists);
+
+	// This is obviously awful
+	/*r[0] = AVX512_MASK_HORIZONTAL_SUM_FLOATS((AVX512_MASK)0b1111, abcd);
+	r[1] = AVX512_MASK_HORIZONTAL_SUM_FLOATS((AVX512_MASK)0b11110000, abcd);
+	r[2] = AVX512_MASK_HORIZONTAL_SUM_FLOATS((AVX512_MASK)0b111100000000, abcd);
+	r[3] = AVX512_MASK_HORIZONTAL_SUM_FLOATS((AVX512_MASK)0b1111000000000000, abcd);*/
+}
+
+// Could make a masked version for < 16 particles
+// Still marginally slower than the AVX version
+inline void diff2avx512_16(float *r, float *p, float *a) {
+	// 16 copies of the primary float4
+	AVX512_FLOATS px = AVX512_SET_FLOAT(p[0]);
+	AVX512_FLOATS py = AVX512_SET_FLOAT(p[1]);
+	AVX512_FLOATS pz = AVX512_SET_FLOAT(p[2]);
+
+	// Load the 16 secondary FLOAT4s as List3s
+	AVX512_FLOATS ax, ay, az;
+	for(int j = 0; j < AVX512_NVEC; j++){
+		ax[j] = a[4*j];
+		ay[j] = a[4*j + 1];
+		az[j] = a[4*j + 2];
+	}
+	
+	AVX512_FLOATS dx = AVX512_SUBTRACT_FLOATS(ax, px);
+	AVX512_FLOATS dy = AVX512_SUBTRACT_FLOATS(ay, py);
+	AVX512_FLOATS dz = AVX512_SUBTRACT_FLOATS(az, pz);
+
+	AVX512_FLOATS dr2 = AVX512_SQUARE_FLOAT(dx);
+    dr2 = AVX512_FMA_ADD_FLOATS(dy, dy, dr2);
+    dr2 = AVX512_FMA_ADD_FLOATS(dz, dz, dr2);
+
+    _mm512_store_ps(r, dr2);
+}
+
+// Try some manual loop unrolling
+inline void diff2avx512_32(float *r, float *p, float *a) {
+	// 16 copies of the primary float4
+	AVX512_FLOATS px = AVX512_SET_FLOAT(p[0]);
+	AVX512_FLOATS py = AVX512_SET_FLOAT(p[1]);
+	AVX512_FLOATS pz = AVX512_SET_FLOAT(p[2]);
+
+	// Load the 32 secondary FLOAT4s as List3s
+	AVX512_FLOATS ax, ay, az;
+	AVX512_FLOATS ax2, ay2, az2;
+	for(int j = 0; j < AVX512_NVEC; j++){
+		ax[j] = a[4*j];
+		ay[j] = a[4*j + 1];
+		az[j] = a[4*j + 2];
+	}
+	
+	AVX512_FLOATS dx = AVX512_SUBTRACT_FLOATS(ax, px);
+	AVX512_FLOATS dy = AVX512_SUBTRACT_FLOATS(ay, py);
+	AVX512_FLOATS dz = AVX512_SUBTRACT_FLOATS(az, pz);
+
+	for(int j = 0; j < AVX512_NVEC; j++){
+		ax2[j] = a[4*(AVX512_NVEC + j)];
+		ay2[j] = a[4*(AVX512_NVEC + j) + 1];
+		az2[j] = a[4*(AVX512_NVEC + j) + 2];
+	}
+
+	AVX512_FLOATS dr2 = AVX512_SQUARE_FLOAT(dx);
+    dr2 = AVX512_FMA_ADD_FLOATS(dy, dy, dr2);
+    dr2 = AVX512_FMA_ADD_FLOATS(dz, dz, dr2);
+
+	AVX512_FLOATS dx2 = AVX512_SUBTRACT_FLOATS(ax2, px);
+	AVX512_FLOATS dy2 = AVX512_SUBTRACT_FLOATS(ay2, py);
+	AVX512_FLOATS dz2 = AVX512_SUBTRACT_FLOATS(az2, pz);
+
+	_mm512_store_ps(r, dr2);
+
+    AVX512_FLOATS dr22 = AVX512_SQUARE_FLOAT(dx2);
+    dr22 = AVX512_FMA_ADD_FLOATS(dy2, dy2, dr22);
+    dr22 = AVX512_FMA_ADD_FLOATS(dz2, dz2, dr22);
+
+    _mm512_store_ps(r + AVX512_NVEC, dr22);
+}
+
 
 inline void diff2avx4(float *r, float *p, float *a) {
     // p and r are required to be 16-byte aligned.
@@ -365,14 +458,18 @@ class FOFcell {
 	if (((list-p)&1)==0) {
 	    // We have an even registration
 	    d2use = d2buf;
+	    //#pragma unroll
 	    for (int a=0; a<nlist; a+=4)
-		diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
+			diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
+			//d2use[a] = primary->diff2(list+a);  // with ICC, this is actually the same speed
 	} else {
 	    // We have an odd registration.  Do the first object special.
 	    d2use = d2buf+3;
 	    d2use[0] = primary->diff2(list);
+	    //#pragma unroll
 	    for (int a=1; a<nlist; a+=4)
-		diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
+			diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
+			//d2use[a] = primary->diff2(list+a);
 	}
 	numdists += nlist;
 	return d2use;
@@ -801,7 +898,7 @@ int main() {
     stdlog.open("/tmp/foftest.log");
     STDLOG_TIMESTAMP;
     int cellsize = 80000;
-    int Ncell = 1e3, Nindep = 10;
+    int Ncell = 1000, Nindep = 10;
     // int Ncell = 1, Nindep = 1;
     float b = 0.03;
     srand48(124);
@@ -857,7 +954,7 @@ int main() {
     float Npair = (float)Ncell*cellsize*cellsize;
 
     STDLOG(2,"Found %f groups per cell, on average\n", (float)ngroup/Ncell);
-    STDLOG(2,"Used %lld pairwise calculations\n", doFOF[0].numdists);
+    STDLOG(2,"Used %d pairwise calculations\n", doFOF[0].numdists);
     STDLOG(2,"Time to do %d particles in %d cells: %f (%f Mp/sec, %f Gpair/sec)\n", 
     	cellsize, Ncell, FOFtime.Elapsed(), cellsize*Ncell/FOFtime.Elapsed()/1e6,
 	doFOF[0].numdists/doFOF[0].time_total.Elapsed()/1e9);

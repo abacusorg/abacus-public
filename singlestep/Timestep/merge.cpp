@@ -302,7 +302,13 @@ uint64 FillMergeSlab(int slab) {
         }
         //DoZRowMultipoles(slab, y);
     }
-    //DoYRowMultipoles(slab, z);
+
+    /*#pragma omp parallel for schedule(static)
+    for(int z=0;z<cpd;z++)
+        DoYRowMultipoles(slab, z);
+
+    // Do the final thread reductions
+    FinishSlabMultipoles(slab);*/
 
     // Delete the particles from the insert list.
     free(ILnew);   // Need to free this space!

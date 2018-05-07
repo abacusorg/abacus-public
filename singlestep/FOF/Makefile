@@ -1,7 +1,8 @@
-CC = g++
-OMP = -DOMP -fopenmp -lgomp 
+#CC = g++ -march=native -lgomp
+CC = icc -xHost
+OMP = -DOMP -fopenmp
 TBB = -DTBB
-CCFLAGS = $(OMP) $(TBB) -I../../include/ -I../Timestep -I../Direct -std=c++11 -O3 -g -march=native
+CCFLAGS = $(OMP) $(TBB) -I../../include/ -I../Timestep -I../Direct -std=c++11 -O3 -g -Wall
 
 test_driver: test_driver.cpp
 	$(CC) $(CCFLAGS) test_driver.cpp -ltbb -o test_driver

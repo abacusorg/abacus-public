@@ -72,14 +72,15 @@ extern "C" {
 #define AVX512_MASKZ_MULTIPLY_INTS(MASK, X, Y)                     _mm512_maskz_mul_epi32(MASK, X, Y)
 #endif /* commenting out the int math operations since they are either cumbersome or produce results of different SIMD widths*/
 
+#define AVX512_SETZERO_FLOAT() _mm512_setzero_ps()
+
 #define AVX512_LOAD_FLOATS_UNALIGNED(X)                            _mm512_loadu_ps(X)
 #define AVX512_MASK_LOAD_FLOATS_UNALIGNED(FALSEVALS, MASK, X)      _mm512_mask_loadu_ps(FALSEVALS, MASK, X)
 #define AVX512_MASKZ_LOAD_FLOATS_UNALIGNED(MASK, X)                _mm512_maskz_loadu_ps(MASK, X)
 
 #define AVX512_LOAD_FLOATS_ALIGNED(X)                             _mm512_load_ps(X)
 #define AVX512_MASK_LOAD_FLOATS_ALIGNED(FALSEVALS, MASK, X)       _mm512_mask_load_ps(FALSEVALS, MASK, X)
-#define AVX512_MASKZ_LOAD_FLOATS_ALIGNED(MASK, X)                 _mm512_maskz_load_ps(MASK, X)
-
+#define AVX512_MASKZ_LOAD_FLOATS_ALIGNED(MASK, X)                 _mm512_maskz_load_ps(MASK, X) 
 
 #define AVX512_MULTIPLY_FLOATS(X,Y)                               _mm512_mul_ps(X,Y)
 #define AVX512_MASK_MULTIPLY_FLOATS(FALSEVALS, MASK, X,Y)         _mm512_mask_mul_ps(FALSEVALS, MASK, X,Y)
@@ -172,7 +173,26 @@ extern "C" {
 #define AVX512_CAST_INT_TO_FLOAT(X)          _mm512_castsi512_ps(X)
 
 
+// double precision operations
+#define AVX512_DOUBLES                      __m512d
+#define AVX512_MASK_DOUBLE                  __mmask8
+#define AVX512_SETZERO_DOUBLE()             _mm512_setzero_pd()
+#define AVX512_SET_DOUBLE(X)                _mm512_set1_pd(X)
+#define AVX512_NVEC_DOUBLE                  8    
+#define AVX512_HORIZONTAL_SUM_DOUBLES(X)    _mm512_reduce_add_pd(X)
+#define AVX512_LOAD_DOUBLES_ALIGNED(X)                             _mm512_load_pd(X)
+#define AVX512_SUBTRACT_DOUBLES(X,Y)                               _mm512_sub_pd(X,Y)
+#define AVX512_FMA_ADD_DOUBLES(X,Y,Z)                              _mm512_fmadd_pd(X,Y,Z)
+#define AVX512_MASK3_FMA_ADD_FLOATS(X, Y, Z, MASK)                 _mm512_mask3_fmadd_pd(X, Y, Z, MASK) 
+#define AVX512_MULTIPLY_DOUBLES(X,Y)                               _mm512_mul_pd(X,Y)
+#define AVX512_ADD_DOUBLES(X,Y)                                    _mm512_add_pd(X,Y)
+#define AVX512_MASK_ADD_DOUBLES(FALSEVALS, MASK, X,Y)              _mm512_mask_add_pd(FALSEVALS, MASK, X,Y)
+#define AVX512_MASKZ_ADD_DOUBLES(MASK, X,Y)                        _mm512_maskz_add_pd(MASK, X,Y)
+
+
 #else //DOUBLE PRECISION CALCULATIONS
+
+#if 0  // in most cases we prefer to specify the data type width
   
 #define DOUBLE                              double
 #define AVX512_NVEC                         8    
@@ -304,6 +324,8 @@ extern "C" {
  //Casting (does not actual convert between types)
 #define AVX512_CAST_FLOAT_TO_INT(X)          _mm512_castpd_si512(X)
 #define AVX512_CAST_INT_TO_FLOAT(X)          _mm512_castsi512_pd(_mm512_castsi256_si512(X))
+
+#endif
 
 #endif //DOUBLE_PREC
 

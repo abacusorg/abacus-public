@@ -50,7 +50,7 @@ AC_CHECK_PROGS(AR, ar)
 AC_CHECK_PROGS(SWIG, swig)
 
 # Check for AVX
-AX_EXT([no-define])
+AX_EXT
 
 # Define the ./configure options
 AC_ARG_ENABLE(double,
@@ -87,7 +87,11 @@ AC_DEFINE_UNQUOTED(NFBlockSize,$with_block_size, "Near field block size")
 
 AC_ARG_ENABLE(avx,
 [AS_HELP_STRING([--enable-avx], [All AVX (overridden by individual options) [yes if AVX present]])],
-	[], enable_avx=$ax_cv_have_avx_cpu_ext)
+	[], enable_avx=$ax_cv_have_avx_ext)
+
+AC_ARG_ENABLE(avx512,
+[AS_HELP_STRING([--enable-avx512], [All AVX-512 (overridden by individual options) [yes if AVX-512 present]])],
+	[], enable_avx512=$ax_cv_have_avx512f_ext)
 
 AC_ARG_ENABLE(avx-directs,
 [AS_HELP_STRING([--enable-avx-directs], [AVX directs [no]])],
@@ -96,11 +100,25 @@ if test x$enable_avx_directs == xyes; then
 	AC_DEFINE_UNQUOTED(AVXDIRECT, [], "Use AVX directs")
 fi
 
+AC_ARG_ENABLE(avx512-directs,
+[AS_HELP_STRING([--enable-avx512-directs], [AVX-512 directs [no]])],
+	[], enable_avx512_directs=no)
+if test x$enable_avx512_directs == xyes; then
+	AC_DEFINE_UNQUOTED(AVX512DIRECT, [], "Use AVX-512 directs")
+fi
+
 AC_ARG_ENABLE(avx-multipoles,
 [AS_HELP_STRING([--enable-avx-multipoles], [AVX multipoles [yes if AVX present]])],
 	[], enable_avx_multipoles=$enable_avx)
 if test x$enable_avx_multipoles == xyes; then
 	AC_DEFINE_UNQUOTED(AVXMULTIPOLES, [], "Use AVX multipoles")
+fi
+
+AC_ARG_ENABLE(avx512-multipoles,
+[AS_HELP_STRING([--enable-avx512-multipoles], [AVX-512 multipoles [yes if AVX-512 present]])],
+	[], enable_avx512_multipoles=$enable_avx512)
+if test x$enable_avx512_multipoles == xyes; then
+	AC_DEFINE_UNQUOTED(AVX512MULTIPOLES, [], "Use AVX-512 multipoles")
 fi
 
 AC_ARG_WITH(max-cpd,
@@ -206,7 +224,9 @@ echo "Double precision:                $enable_double"
 echo "Near field radius:               $with_radius"
 echo "Near field block size:           $with_block_size"
 echo "AVX directs:                     $enable_avx_directs"
+echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "AVX multipoles:                  $enable_avx_multipoles"
+echo "AVX-512 multipoles:              $enable_avx512_multipoles"
 echo "Maximum CPD:                     $with_max_cpd"
 echo "Maximum source length:           $with_max_source_length"
 echo "Threaded IO:                     $enable_threaded_io"
