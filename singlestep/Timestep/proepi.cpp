@@ -138,11 +138,11 @@ GroupFindingControl *GFC;
 
 #include "Cosmology.cpp"
 Cosmology *cosm;
+#include "lpt.cpp"
 #include "output_timeslice.cpp"
 #include "LightCones.cpp"
 
 #include "loadIC.cpp"
-#include "lpt.cpp"
 
 #include "binning.cpp"
 FLOAT * density; //!< Array to accumulate gridded densities in for low resolution inline power-spectra.

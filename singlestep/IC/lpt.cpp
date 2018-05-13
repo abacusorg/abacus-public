@@ -53,9 +53,9 @@ double3 ZelPos(integer3 ijk) {
     // This will be the position, in code units, of the initial grid.
     double3 p;
     //ijk = PP->WrapCell(ijk);
-    p.x = (float)(ijk.x)/WriteState.ppd -.5;
-    p.y = (float)(ijk.y)/WriteState.ppd -.5;
-    p.z = (float)(ijk.z)/WriteState.ppd -.5;
+    p.x = (double)(ijk.x)/WriteState.ppd -.5;
+    p.y = (double)(ijk.y)/WriteState.ppd -.5;
+    p.z = (double)(ijk.z)/WriteState.ppd -.5;
     return p;
 }
 
