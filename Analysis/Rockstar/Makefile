@@ -6,8 +6,8 @@ LDLIBS=-L../../ParseHeader -lparseheader
 OFLAGS = -lm -O3 -rdynamic -g 
 DEBUGFLAGS = -lm -g -O0 -rdynamic -Dinline=
 PROFFLAGS = -lm -g -pg -O2
-CC = gcc
-CXX = g++
+CC := $(shell which icc >/dev/null && echo "icc -x c" || echo gcc)
+CXX := $(shell which icc >/dev/null && echo icc || echo g++)
 CFILES = rockstar.c check_syscalls.c fof.c groupies.c subhalo_metric.c potential.c nfw.c jacobi.c fun_times.c interleaving.c universe_time.c hubble.c integrate.c distance.c config_vars.c config.c bounds.c inthash.c io/read_config.c client.c server.c merger.c inet/socket.c inet/rsocket.c inet/address.c io/meta_io.c io/io_internal.c io/io_ascii.c io/stringparse.c io/io_gadget.c io/io_generic.c io/io_art.c io/io_tipsy.c io/io_bgc2.c io/io_util.c io/io_arepo.c io/io_hdf5.c io/io_pack14.c
 OFILES = $(notdir $(CFILES:.c=.o)) $(notdir $(CXXFILES:.cpp=.o))
 CXXFILES = io/io_pack14_helper.cpp

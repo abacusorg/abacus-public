@@ -3,9 +3,9 @@
 # Fail if any command returns a non-zero exit status
 set -e
 
-export OMP_NUM_THREADS=12
-export ABACUS_PERSIST="/mnt/store2/bigsims/AbacusCosmos_720box_planck/"
-export SIM_NAMES=AbacusCosmos_720box_planck_00-{4,5,19}
+export OMP_NUM_THREADS=24
+export ABACUS_PERSIST="/mnt/gosling2/bigsims/AbacusCosmos_720box_planck/"
+export SIM_NAMES=$(echo AbacusCosmos_720box_planck_00-{4,5})
 
 # Split SIM_DIR into name and project
 echo -e "* Checking if we need to run Rockstar:\n"
