@@ -9,7 +9,7 @@ Author: Lehman Garrison
 import sys
 import os
 from os.path import join as pjoin
-import PowerSpectrum as PS
+from . import PowerSpectrum as PS
 from Abacus import InputFile
 import pdb
 import shutil
@@ -18,7 +18,7 @@ import numpy as np
 from glob import glob
 from Abacus.Analysis import common
 import pynbody
-import TSC
+from . import TSC
 
 # A label for the power spectrum based on the properties
 def ps_suffix(**kwargs):
@@ -99,8 +99,8 @@ def run_PS_on_dir(folder, **kwargs):
             f = pynbody.load(gadget_fn)
             BoxSize = float(f.properties['boxsize'])
         except:
-            print 'Could not find a header in ' + str(header_pats)
-            print 'or as a gadget file'
+            print('Could not find a header in ' + str(header_pats))
+            print('or as a gadget file')
             raise
             
     # Make the output dir and store the header
@@ -117,15 +117,15 @@ def run_PS_on_dir(folder, **kwargs):
         try:
             shutil.copytree(folder+'/../info', outdir + '/../info')
         except:
-            print 'Could not copy ../info'
+            print('Could not copy ../info')
     
-    print 'Starting {} on {}'.format('PS' if not just_density else 'density', pattern)
+    print('Starting {} on {}'.format('PS' if not just_density else 'density', pattern))
     save_fn = os.path.join(outdir, ps_fn)
-    print 'and saving to {}'.format(save_fn)
+    print('and saving to {}'.format(save_fn))
     
     if not just_density:
         k,s,nmodes = PS.CalculateBySlab(pattern, BoxSize, kwargs.pop('nfft'), **kwargs)
-        np.savetxt(save_fn, zip(k,s,nmodes), delimiter=',', header='k, P(k), N_modes')
+        np.savetxt(save_fn, list(zip(k,s,nmodes)), delimiter=',', header='k, P(k), N_modes')
     else:
         density = TSC.BinParticlesFromFile(pattern, BoxSize, kwargs.pop('nfft'), **kwargs)
         density.tofile(save_fn)
@@ -147,13 +147,13 @@ def run_PS_on_PS(input_ps_fn, **kwargs):
         header_fn = glob(os.path.dirname(input_ps_fn)+'/*.par')[0]
         header = InputFile.InputFile(header_fn)
     except IOError:
-        print 'Could not find "*.par"'
+        print('Could not find "*.par"')
         
     # Load the input PS
     input_ps = np.loadtxt(input_ps_fn)
     
     k,s,nmodes = PS.RebinTheoryPS(input_ps, header.BoxSize, kwargs['nfft'], nbins=kwargs['nbins'], log=kwargs['log'], dtype=kwargs['dtype'])
-    np.savetxt(outdir + '/' + output_ps_fn, zip(k,s,nmodes), delimiter=',',header='k, P(k), N_modes')
+    np.savetxt(outdir + '/' + output_ps_fn, list(zip(k,s,nmodes)), delimiter=',',header='k, P(k), N_modes')
 
     
 # folders is a list of slice folders
@@ -171,11 +171,11 @@ def run_PS(inputs, **kwargs):
             run_PS_on_PS(input, **kwargs)
         else:
             raise ValueError(input, "does not exist!")
-        print 'Finished PS.'
+        print('Finished PS.')
         
 def vector_arg(s):
     try:
-        x, y, z = map(int, s.strip('()[]').split(','))
+        x, y, z = list(map(int, s.strip('()[]').split(',')))
         return x, y, z
     except:
         raise argparse.ArgumentTypeError("Vector must be x,y,z")
@@ -188,7 +188,7 @@ if __name__ == '__main__':
     parser.add_argument('--rotate-to', help='Rotate the z-axis to the given axis [e.g. (1,2,3)].  Rotations will shrink the FFT domain by sqrt(3) to avoid cutting off particles.', default=None, type=vector_arg, metavar='(X,Y,Z)')
     parser.add_argument('--projected', help='Project the simulation along the z-axis.  Projections are done after rotations.', action='store_true')
     parser.add_argument('--zspace', help='Displace the particles according to their redshift-space positions.', action='store_true')
-    parser.add_argument('--nbins', help='Number of k bins.  Default: nfft/4.', default=-1, type=int)
+    parser.add_argument('--nbins', help='Number of k bins.  Default: nfft//4.', default=-1, type=int)
     parser.add_argument('--dtype', help='Data type for the binning and FFT.', choices=['float', 'double'], default='float')
     parser.add_argument('--log', help='Do the k-binning in log space.', action='store_true')
     parser.add_argument('--just-density', help='Write the density cube out to disk instead of doing an FFT.', action='store_true')

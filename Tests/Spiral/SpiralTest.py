@@ -33,7 +33,7 @@ def run(basedir = "NONE"):
         erase = "y"#raw_input("Test Directory exists! Erase? (y/n)")
         if erase =="y":
             shutil.rmtree(basedir)
-            print "Erased previous test directory"
+            print("Erased previous test directory")
     if not os.path.exists(basedir):
         os.makedirs(basedir)
 
@@ -86,8 +86,8 @@ def run(basedir = "NONE"):
 
     xv = np.reshape(data, (-1,6))
     assert len(xv) == n1d**3
-    print xv.shape
-    print analytic.shape
+    print(xv.shape)
+    print(analytic.shape)
     #p.plot(analytic[:,0], analytic[:,1])
     #p.scatter(xv[:,0],xv[:,3],marker=".",s = 10*(4 * np.abs(xv[0]) + 1), c= "r",linewidth=0 )
     p.xlabel("X")
@@ -103,34 +103,34 @@ def run(basedir = "NONE"):
     p.savefig("spiral-zoomed.png",dpi=500)
 
     if astop<across:
-	# There's a skewer of particles that always starts at -0.50, but it might have wrapped to +0.5
-	sel = np.where(np.logical_and(abs(xv[:,1])>0.5-1e-3, abs(xv[:,2])>0.5-1e-3))
-	print "Selecting one skewer of %d points."%(len(sel[0]))
-	print "The following will only make sense before shell crossing:"
-	print "The deviation is relative to Zel'dovich, so one expects breakdowns approaching shell crossing"
-	print "Grid position     X_final    VX_final     (X-VX-grid) deviation"
-	xsel = xv[sel[0],0]
-	vsel = xv[sel[0],3]
-	#print xsel, vsel
-	index = np.argsort(xsel)
-	#print index
-	xsel = xsel[index]
-	vsel = vsel[index]
-	#print xsel, vsel
-	trackback = (xsel-vsel)*n1d
-	startguess = np.round(trackback)
-	residual = trackback - startguess
-	#print startguess, residual
-	np.set_printoptions(precision=4)
-	print np.transpose([startguess,xsel,vsel,residual])
-	print
-	print "RMS of deviations from Zeldovich %e compared to rms Vx of %f." % (np.std(residual), np.std(xv[:,3]))
-	print
+        # There's a skewer of particles that always starts at -0.50, but it might have wrapped to +0.5
+        sel = np.where(np.logical_and(abs(xv[:,1])>0.5-1e-3, abs(xv[:,2])>0.5-1e-3))
+        print("Selecting one skewer of %d points."%(len(sel[0])))
+        print("The following will only make sense before shell crossing:")
+        print("The deviation is relative to Zel'dovich, so one expects breakdowns approaching shell crossing")
+        print("Grid position     X_final    VX_final     (X-VX-grid) deviation")
+        xsel = xv[sel[0],0]
+        vsel = xv[sel[0],3]
+        #print xsel, vsel
+        index = np.argsort(xsel)
+        #print index
+        xsel = xsel[index]
+        vsel = vsel[index]
+        #print xsel, vsel
+        trackback = (xsel-vsel)*n1d
+        startguess = np.round(trackback)
+        residual = trackback - startguess
+        #print startguess, residual
+        np.set_printoptions(precision=4)
+        print(np.transpose([startguess,xsel,vsel,residual]))
+        print()
+        print("RMS of deviations from Zeldovich %e compared to rms Vx of %f." % (np.std(residual), np.std(xv[:,3])))
+        print()
 
-    print "Vx: rms %f, max %f"%( np.std(xv[:,3]), np.max(np.absolute(xv[:,3])) )
-    print "Vy: rms %e, max %e"%( np.std(xv[:,4]), np.max(np.absolute(xv[:,4])) )
-    print "Vz: rms %e, max %e"%( np.std(xv[:,5]), np.max(np.absolute(xv[:,5])) )
-    print "Ratio of max velocity (analytic/computed): %f"%(np.max(analytic[:,1])/np.max(xv[:,3]))
+    print("Vx: rms %f, max %f"%( np.std(xv[:,3]), np.max(np.absolute(xv[:,3])) ))
+    print("Vy: rms %e, max %e"%( np.std(xv[:,4]), np.max(np.absolute(xv[:,4])) ))
+    print("Vz: rms %e, max %e"%( np.std(xv[:,5]), np.max(np.absolute(xv[:,5])) ))
+    print("Ratio of max velocity (analytic/computed): %f"%(np.max(analytic[:,1])/np.max(xv[:,3])))
 
 def animate_analytic(astart,astop,across,npoints):
     os.chdir("/tmp/")

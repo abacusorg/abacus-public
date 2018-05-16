@@ -46,7 +46,7 @@ def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=25, downsample=1, confi
         
     
     for slice_dir in slice_dirs:
-        print 'Starting Rockstar on {}'.format(slice_dir)
+        print('Starting Rockstar on {}'.format(slice_dir))
         
         with common.extract_slabs(slice_dir):
             slabs = sorted(glob('{}/*.dat'.format(slice_dir)))
@@ -65,7 +65,7 @@ def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=25, downsample=1, confi
                 try:
                     shutil.copytree(slice_dir+'/../info', outdir + '/../info')
                 except:
-                    print 'Could not copy ../info'
+                    print('Could not copy ../info')
             
             
             # Read in the Rockstar config template and fill in the required fields
@@ -117,13 +117,13 @@ if __name__ == '__main__':
             retcode = run_rockstar(args.slice_folders, ncpu=args.ncpu, minmembers=args.minmembers, downsample=args.downsample, SO=args.SO, suffix=args.suffix)
     
     if args.tar_mode:
-        print 'Starting to make tar files of Rockstar outputs...'
+        print('Starting to make tar files of Rockstar outputs...')
         if args.tar_mode == 'ONLY_TAR':
             outdirs = args.slice_folders
         else:
             outdirs = [get_output_dir(s, args.downsample, suffix=args.suffix) for s in args.slice_folders]
         common.make_tar(outdirs, 'halo*.h5', 'halos.tar.gz', delete_source=args.tar_remove_source_files, nthreads=args.ncpu)
         common.make_tar(outdirs, 'particle*.h5', 'halo_subsamples.tar.gz', delete_source=args.tar_remove_source_files, nthreads=args.ncpu)
-        print 'Finished making tar files.'
+        print('Finished making tar files.')
         
     exit(retcode)

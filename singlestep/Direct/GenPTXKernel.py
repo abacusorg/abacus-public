@@ -6,7 +6,7 @@ import sys
 
 
 if len(sys.argv) != 4:
-    print("Usage: {} [n_sources] [ilp] [unroll]".format(sys.argv[0]))
+    print(("Usage: {} [n_sources] [ilp] [unroll]".format(sys.argv[0])))
     sys.exit(1)
 
 n_sources = int(sys.argv[1])
@@ -155,7 +155,7 @@ ret;
 }
 '''
 
-outfile = open("GeneratedASMKernel.ptx",'wb')
+outfile = open("GeneratedASMKernel.ptx",'w')
 
 src_per_loop = ilp*unroll
 
@@ -196,4 +196,4 @@ if src_per_loop != n_sources:
 
 outfile.write(epilogue)
 outfile.close()
-print("Used {:d} registers.".format(regcount))
+print(("Used {:d} registers.".format(regcount)))
