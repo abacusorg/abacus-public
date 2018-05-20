@@ -38,7 +38,7 @@ echo -e "\n\n\n\n"
 echo -e "* Checking if we need to tarball the outputs:\n"
 if [ ]; then
     for SIM_NAME in $SIM_NAMES; do
-        $ABACUS/python/Abacus/archive_sim.py $ABACUS_PERSIST/$SIM_NAME --nthreads=$OMP_NUM_THREADS --inplace --remove-source
+        $ABACUS/Abacus/archive_sim.py $ABACUS_PERSIST/$SIM_NAME --nthreads=$OMP_NUM_THREADS --inplace --remove-source
     done
 else
   echo -e "No tar requested."

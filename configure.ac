@@ -17,7 +17,7 @@ AC_PROG_INSTALL
 AC_CONFIG_FILES([
  singlestep/Makefile
  singlestep/Direct/Makefile
- Analysis/PowerSpectrum/Makefile
+ Analysis/PowerSpectrum/PowerSpectrum/Makefile
  Analysis/FoF/Makefile
  Convolution/Makefile
  Derivatives/Makefile
@@ -135,7 +135,7 @@ AC_ARG_ENABLE(threaded-io,
 [AS_HELP_STRING([--enable-threaded-io], [Threaded IO [yes]])],
 	[], enable_threaded_io="yes")
 if test x$enable_threaded_io == xyes; then
-	AC_DEFINE_UNQUOTED(IOTHREADED, [], 'Use a separate thread for IO")
+	AC_DEFINE_UNQUOTED(IOTHREADED, [], "Use a separate thread for IO")
 fi
 
 AC_ARG_ENABLE(gpu-directs,

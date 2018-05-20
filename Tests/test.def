@@ -1,4 +1,4 @@
-#include "$ABACUS$/python/Abacus/param.def"
+#include "$ABACUS$/Abacus/param.def"
 NP = 128**3
 H0 = 50
 Omega_M =  1	
@@ -10,6 +10,6 @@ BoxSize = 128
 hMpc =1
 InitialRedshift = 99
 LagrangianPTOrder = 0
-#include "$ABACUS$/python/Abacus/directory.def"
+#include "$ABACUS$/Abacus/directory.def"
 OutputDirectory = @WorkingDirectory@ + "/out"
-#include "$ABACUS$/python/Abacus/zel.def"
+#include "$ABACUS$/Abacus/zel.def"

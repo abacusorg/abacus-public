@@ -166,7 +166,7 @@
 /* Define to 1 to support eXtended Operations Extensions */
 #undef HAVE_XOP
 
-/* 'Use a separate thread for IO" */
+/* "Use a separate thread for IO" */
 #undef IOTHREADED
 
 /* "Maximum cells-per-dimension" */

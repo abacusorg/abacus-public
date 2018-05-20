@@ -85,11 +85,6 @@ def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=25, downsample=1, confi
             # Launch Rockstar server
             retcode = subprocess32.check_call(['./rockstar', '-c', outdir+'/abacus-auto-server.cfg', '-s', '0'])
             # Now the Rockstar client is ready to be started once rockstar writes the auto-rockstar.cfg file
-            
-            if retcode == 0:
-                # Touch rockstar_done
-                with open(slice_dir + '/rockstar_done', 'a'):
-                    os.utime(slice_dir + '/rockstar_done', None)
 
         return retcode
         

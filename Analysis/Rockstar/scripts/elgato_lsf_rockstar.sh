@@ -110,7 +110,7 @@ echo -e "\n\n\n\n"
 
 echo -e "* Checking if we need to tarball the outputs:\n"
 if [ 0 ]; then
-    $ABACUS/python/Abacus/archive_sim.py $ABACUS_PERSIST/$SIM_DIR --nthreads=$LSB_DJOB_NUMPROC --inplace --remove-source
+    $ABACUS/Abacus/archive_sim.py $ABACUS_PERSIST/$SIM_DIR --nthreads=$LSB_DJOB_NUMPROC --inplace --remove-source
 else
   echo -e "No tar requested."
 fi

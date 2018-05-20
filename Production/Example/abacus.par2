@@ -1,6 +1,6 @@
 # Set up the simulation name and directory structure
 SimName = "example"
-#include "$ABACUS$/python/Abacus/directory.def"
+#include "$ABACUS$/Abacus/directory.def"
 
 # Cosmology and basic code parameters
 BoxSize = 256.
