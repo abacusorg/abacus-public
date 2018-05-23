@@ -2,6 +2,8 @@
 Our numba implementations of histogramming of gridded quantities
 are fast, but not very flexible, so there's a fair number of
 repititous helper functions.  We store those here.
+
+TODO: numba.prange may have matured enough for us to migrate from parallel_bcast.
 '''
 
 import numpy as np

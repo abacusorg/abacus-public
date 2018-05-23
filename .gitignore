@@ -12,7 +12,6 @@ singlestep/benchmark_io
 singlestep/Makefile
 singlestep/Direct/Makefile
 singlestep/Multipoles/Makefile
-Analysis/PowerSpectrum/Makefile
 Analysis/FoF/Makefile
 Convolution/Makefile
 Derivatives/Makefile
