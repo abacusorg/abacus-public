@@ -45,7 +45,6 @@ from . import GenParam
 from . import zeldovich
 from Abacus.Cosmology import AbacusCosmo
 import Abacus
-#import Abacus.Analysis.PowerSpectrum.PowerSpectrum
 
 EXIT_REQUEUE = 200
 
@@ -546,11 +545,11 @@ def singlestep(paramfn, maxsteps, AllowIC=False, monitor=False, stopbefore=-1):
             dfn = pjoin(read, "density")
             if path.exists(dfn):
                 # This import can be slow, so we only do it as necessary
-                import Abacus.Analysis.PowerSpectrum.PowerSpectrum
+                from Abacus.Analysis.PowerSpectrum import PowerSpectrum as PS
                 
                 density = np.fromfile(dfn, dtype=(np.float64 if read_state.DoublePrecision else np.float32))
                 density = density.reshape(param.PowerSpectrumN1d, param.PowerSpectrumN1d, param.PowerSpectrumN1d)
-                k,P,nb = Abacus.Analysis.PowerSpectrum.PowerSpectrum.FFTAndBin(density, param.BoxSize)
+                k,P,nb = PS.FFTAndBin(density, param.BoxSize)
                 # we use the write state step number here, even though the particles are positioned at the read state positions
                 # this is consistent with the time slice behavior
                 shutil.copy(dfn, param.LogDirectory+"/step%.4d.density"%(write_state.FullStepNumber))

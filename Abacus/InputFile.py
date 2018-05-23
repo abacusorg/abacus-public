@@ -36,9 +36,9 @@ class InputFile:
         
         # Read the input as either a file or string
         if fn and str_source:
-            raise RuntimeError('Cannot specify both `fn` = "{}" and `str_source` = "{}"!'.format(fn, str_source))
+            raise ValueError('Cannot specify both `fn` = "{}" and `str_source` = "{}"!'.format(fn, str_source))
         if not fn and not str_source:
-            raise RuntimeError('Must specify one of `fn` and `str_source`!')
+            raise ValueError('Must specify one of `fn` and `str_source`!')
             
         if fn:
             param = open(fn, "r")
@@ -47,10 +47,10 @@ class InputFile:
         else:
             raise RuntimeError('Invalid state. Should never be able to get here!')
             
-        self.code = param.readlines()
+        code = param.readlines()
         param.close()
         
-        for line in self.code:
+        for line in code:
             line = line.strip()
             comment = line.find('#')
             if comment > -1:  # Trim everything after a comment
@@ -79,9 +79,13 @@ class InputFile:
         
         # A common pathology is that BoxSize is interpreted as an int by ParseHeader
         # We should endeavor to always write "50." instead of "50" in the .par files
-        for field in ['BoxSize', 'InitialRedshift', 'ZD_PLT_target_z', 'wa']:
+        for field in ['BoxSize', 'InitialRedshift', 'ZD_PLT_target_z', 'wa', 'w0']:
             if field in self:
                 setattr(self, field, float(self[field]))
+
+        # HDF5 can't write lists of unicode strings, but a single string is fine (strange!)
+        # So, we store the code as a single string that can later be split again if desired
+        self.code = ''.join(code)
 
     # Allows access as "params[key]"
     def __getitem__(self, key):
@@ -103,7 +107,7 @@ class InputFile:
     
     # Don't return 'code' when asking for a string representation
     def __repr__(self):
-        selfvars = vars(self)
+        selfvars = vars(self).copy()
         try:
             del selfvars['code']
         except KeyError:

@@ -227,3 +227,103 @@ def apply_transfer_multipoles(T_multipoles, deltak, box, korder_info=None, unbin
     deltak_trans = deltak_trans.reshape(orig_shape)
 
     return deltak_trans, (korder, korder_kgrid, korder_mu_k, invkorder)
+
+def apply_transfer_multipoles_2(T_multipoles, deltak, box, unbinned=1.):
+    """
+    Apply transfer function T_multipoles on deltak.
+
+    Uses a different algorithm: "lookup" tables and parallelization over k-planes
+    instead of unraveling the density cube.
+
+    Parameters
+    ----------
+    T_multipoles: ndarray of shape (Lmax+1, nbins)
+        The anisotropic multipole coefficients in each bin
+
+    deltak: complex ndarray of shape (ngrid,ngrid,ngrid//2+1[,...])
+        The delta(k) field on which to apply the transfer function.
+        The first three dimensions are the FFT axes; any axes after
+        that are broadcast over.
+
+    box: float
+        Box size
+
+    unbinned: float, optional
+        The transfer value to apply to modes that fall outside any k-bin.
+        Typical values would be 1 (don't touch them) or 0 (null them out).
+        Default: 1.
+
+    Returns
+    -------
+    deltak_trans: ndarray like `deltak`
+        The delta(k) field with the transfer function applied.
+    """
+    # Parse args
+    assert len(T_multipoles) == 1  # Currently only supports monopole
+    nbins = T_multipoles.shape[-1]
+
+    # flatten all extra axes
+    oshape = deltak.shape
+    shape = oshape[:3] + (-1,)
+    deltak = deltak.reshape(shape)
+
+    if unbinned == 0.:
+        # interestingly, zeros allocates virtual memory, while zeros_like touches the memory
+        # we strongly prefer to let each thread have the first touch
+        deltak_trans = np.zeros(deltak.shape, dtype=deltak.dtype)
+    else:
+        deltak_trans = deltak * unbinned
+
+    knorm_bin_edges = Histogram.k_bin_edges(shape[:3], box, nbins=nbins) * box
+    _apply_transfer_multipoles_2(T_multipoles, knorm_bin_edges, deltak, deltak_trans)
+
+    # unflatten the last axes
+    deltak_trans = deltak_trans.reshape(oshape)
+
+    return deltak_trans
+
+@nb.njit(parallel=True)
+def _apply_transfer_multipoles_2(T_multipoles, knorm_bin_edges, deltak, deltak_trans):
+    Nx,Ny,Nz,Ndim = deltak.shape
+    Lmax,nbins = T_multipoles.shape
+    Lmax -= 1
+
+    # use squared edges in units of the fundamental
+    k_bin_edges = (knorm_bin_edges/(2*np.pi))**2
+    kmin = k_bin_edges.min()
+    kmax = k_bin_edges.max()
+    assert (np.diff(k_bin_edges) >= 0).all()
+
+    for ix in nb.prange(Nx):
+        if ix > Nx/2:
+            kx2 = (Nx-ix)**2
+        else:
+            kx2 = ix**2
+
+        for iy in range(Ny):
+            if iy > Ny/2:
+                ky2 = (Ny-iy)**2
+            else:
+                ky2 = iy**2
+
+            t = 0
+            for iz in range(Nz):
+                kz2 = iz**2
+                k2 = kx2 + ky2 + kz2
+                
+                # is this k in some bin?
+                if k2 < kmin:
+                    continue
+                if k2 > kmax:
+                    # k will only increase!
+                    break
+
+                # look for this kmag bin
+                # assumes monotonicity
+                # last bin edge is closed, and we know this k is in some bin
+                # note that t starts from the spot it stopped last time
+                while k_bin_edges[t+1] <= k2 and t < nbins - 1:
+                    t += 1
+
+                for d in range(Ndim):
+                    deltak_trans[ix,iy,iz,d] = deltak[ix,iy,iz,d] * T_multipoles[0,t]

@@ -393,7 +393,7 @@ def FFTAndBin(density, boxsize, *, inplace=False, bins=-1, log=False, window='wi
     if inplace:
         gridshape[-1] -= 2 if gridshape[-1] % 2 == 0 else 1
     density_real = density[...,:gridshape[-1]]  # The density without the (optional) fft padding
-    rho_av = np.mean(density_real, dtype=np.float64).astype(dtype)
+    rho_av = (ne.evaluate('sum(1.*density_real)')/density_real.size).astype(dtype)
     
     # Convert to fractional overdensity
     if normalize_dens:

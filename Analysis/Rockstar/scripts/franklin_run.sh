@@ -4,8 +4,8 @@
 set -e
 
 export OMP_NUM_THREADS=24
-export ABACUS_PERSIST="/mnt/gosling2/bigsims/AbacusCosmos_720box_planck/"
-export SIM_NAMES=$(echo AbacusCosmos_720box_planck_00-{4,5})
+export ABACUS_PERSIST="/mnt/alan1/bigsims/"
+export SIM_NAMES="ScaleFree_N1024_m20_2eps"
 
 # Split SIM_DIR into name and project
 echo -e "* Checking if we need to run Rockstar:\n"
