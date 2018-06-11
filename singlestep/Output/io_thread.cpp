@@ -16,6 +16,9 @@
 #include "ring.cpp"
 #include "file.cpp"
 #include "iolib.cpp"
+#include <pthread.h>
+#include <sched.h>
+#include <sys/resource.h>
 
 class iothread {
 public:
@@ -36,17 +39,45 @@ public:
         iolog.open(_logfn); 	// TODO: Probably need an error check
 
         int ramdisk = io_ramdisk_global;
-        size_t diskbuffer = ((size_t) 4) << 20;  // 4 MB
+        size_t diskbuffer = ((size_t) 128) << 10;  // 4 << 20 = 4 MB
         RD = new ReadDirect(ramdisk, diskbuffer);
         WD = new WriteDirect(ramdisk,diskbuffer);
         
         io_core = _io_core;
 
+        /* 
+        // Increase the CPU scheduling priority of the IO thread (probably has to be done with sudo)
+        // Borrowed mostly from http://www.yonch.com/tech/82-linux-thread-priority
+        // In practice, we haven't seen this speed up the IO, just make other parts of the code slower
+        int res = 0;
+        struct rlimit limit;
+        res += getrlimit(RLIMIT_RTPRIO, &limit);
+        assertf(res == 0, "Error %d getting resource limit\n", res);
+        STDLOG(1,"Soft/hard priority limit: %d/%d\n", limit.rlim_cur, limit.rlim_max);
+
+        pthread_attr_t tattr;
+        int newprio = sched_get_priority_max(SCHED_FIFO);
+        sched_param param;
+
+        // initialized with default attributes
+        res += pthread_attr_init(&tattr);
+
+        // safe to get existing scheduling param
+        res += pthread_attr_setinheritsched(&tattr, PTHREAD_EXPLICIT_SCHED);
+        res += pthread_attr_setschedpolicy(&tattr, SCHED_FIFO);
+        res += pthread_attr_getschedparam(&tattr, &param);
+
+        // set the priority; others are unchanged
+        STDLOG(1,"Changing IO thread priority from %d to %d\n", param.sched_priority, newprio);
+        param.sched_priority = newprio;
+
+        // setting the new scheduling param
+        res += pthread_attr_setschedparam(&tattr, &param);*/
+
         // Launch io_thread() as a separate thread
-        int res = pthread_create(&io_pthread, NULL, iothread::start_thread, this);
-        if(res) {
-            printf("error %d\n", res);
-        }
+        int res = 0;
+        res += pthread_create(&io_pthread, NULL, iothread::start_thread, this);
+        assertf(res == 0, "error %d starting io pthread!\n", res);
         STDLOG(1,"IO thread started!\n");
 
         // Open the pipes from the client side
@@ -170,6 +201,25 @@ private:
         }
         else{
             STDLOG(1, "IO thread not bound to core\n");
+        }
+
+        {
+            // Double-check the thread priority
+            int policy = 0, ret = 0;
+            sched_param params;
+            ret = pthread_getschedparam(io_pthread, &policy, &params);
+            if (ret != 0){
+               STDLOG(1, "Couldn't retrieve IO thread real-time scheduling params\n");
+            } else {
+                // Check the correct policy was applied
+                if(policy != SCHED_FIFO) {
+                    STDLOG(1,"IO thread scheduling is NOT SCHED_FIFO!\n");
+                } else{
+                    STDLOG(1, "IO thread schedule confirmed SCHED_FIFO\n");
+                }
+                // Print thread scheduling priority
+                STDLOG(1,"IO thread scheduling priority is %d\n", params.sched_priority);
+            }
         }
 
         IOLOG(0,"Opening IO pipes\n");

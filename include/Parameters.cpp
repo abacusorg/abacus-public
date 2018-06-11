@@ -68,7 +68,6 @@ public:
 
     char ReadStateDirectory[1024];  // Where the input State lives
     char WriteStateDirectory[1024]; // Where the output State lives
-    char PastStateDirectory[1024];  // Where the old input State lives
     char MultipoleDirectory[1024];
     char TaylorDirectory[1024];
     char MultipoleDirectory2[1024];  // for splitting even/odd multipoles
@@ -206,14 +205,12 @@ public:
 
         sprintf(ReadStateDirectory,STRUNDEF);
         sprintf(WriteStateDirectory,STRUNDEF);
-        sprintf(PastStateDirectory,STRUNDEF);
         sprintf(WorkingDirectory,STRUNDEF);
         sprintf(MultipoleDirectory2,STRUNDEF);
         sprintf(TaylorDirectory2,STRUNDEF);
 
         installscalar("ReadStateDirectory",ReadStateDirectory,DONT_CARE);  // Where the input State lives
         installscalar("WriteStateDirectory",WriteStateDirectory,DONT_CARE); // Where the output State lives
-        installscalar("PastStateDirectory",PastStateDirectory,DONT_CARE);  // Where the old input State lives
         installscalar("WorkingDirectory",WorkingDirectory,DONT_CARE);
         installscalar("MultipoleDirectory",MultipoleDirectory,MUST_DEFINE);
         installscalar("TaylorDirectory",TaylorDirectory,MUST_DEFINE);
@@ -378,13 +375,12 @@ private:
 
 void Parameters::ProcessStateDirectories(){
     if (strcmp(WorkingDirectory,STRUNDEF) !=0){
-        if ( strcmp(ReadStateDirectory,STRUNDEF)!=0 || strcmp(WriteStateDirectory,STRUNDEF)!=0 || strcmp(PastStateDirectory,STRUNDEF)!=0   ){
-            QUIT("If WorkingDirectory is defined, Read/Write/PastStateDirectory should be undefined. Terminating\n")
+        if ( strcmp(ReadStateDirectory,STRUNDEF)!=0 || strcmp(WriteStateDirectory,STRUNDEF)!=0 ){
+            QUIT("If WorkingDirectory is defined, {Read,Write}StateDirectory should be undefined. Terminating\n")
         }
         else{
             sprintf(ReadStateDirectory,"%s/read",WorkingDirectory);
             sprintf(WriteStateDirectory,"%s/write",WorkingDirectory);
-            sprintf(PastStateDirectory,"%s/past",WorkingDirectory);
             if(OverwriteState){
                 strcpy(WriteStateDirectory, ReadStateDirectory);
             }
@@ -523,7 +519,6 @@ void Parameters::ValidateParameters(void) {
     ExpandPathName(DerivativesDirectory);
     ExpandPathName(ReadStateDirectory);
     ExpandPathName(WriteStateDirectory);
-    ExpandPathName(PastStateDirectory);
     ExpandPathName(OutputDirectory);
     ExpandPathName(MultipoleDirectory);
     ExpandPathName(LogDirectory);
@@ -532,7 +527,6 @@ void Parameters::ValidateParameters(void) {
     CheckDirectoryExists(DerivativesDirectory);
     CheckDirectoryExists(ReadStateDirectory);
     CheckDirectoryExists(WriteStateDirectory);
-    CheckDirectoryExists(PastStateDirectory);
     CheckDirectoryExists(OutputDirectory);
     CheckDirectoryExists(LogDirectory);
 

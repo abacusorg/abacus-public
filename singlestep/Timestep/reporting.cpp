@@ -465,6 +465,7 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Sort Insert List", IL->FinishSort.Elapsed());
     fprintf(timingfile,"---> %6.3f Mitems/sec (%.2g items)",IL->n_sorted/(thistime+1e-15)/1e6, (double) IL->n_sorted);
     REPORT(1, "Index Cells", FinishCellIndex.Elapsed());
+    REPORT(1, "Free Slabs", FinishFreeSlabs.Elapsed());
     REPORT(1, "Merge", FinishMerge.Elapsed());
     REPORT(1, "Compute Multipoles", ComputeMultipoles.Elapsed());
     fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
@@ -473,6 +474,7 @@ void ReportTimings(FILE * timingfile) {
     
     denom = TimeStepWallClock.Elapsed();
     REPORT(0, "\nAllocate Arena Memory", LBW->ArenaMalloc.Elapsed());
+    REPORT(0, "Free Arena Memory", LBW->ArenaFreeTime());
     
     fprintf(timingfile, "\n\n Reasons for Spinning:");
     fprintf(timingfile, "\n\t Note: may add up to >100%% if there are multiple simultaneous reasons for spinning");

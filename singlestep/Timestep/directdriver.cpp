@@ -520,7 +520,7 @@ void NearFieldDriver::Finalize(int slab){
     
     CopyPencilToSlab.Start();
     // This kills our NUMA locality
-    #pragma omp parallel for schedule(static)
+    //#pragma omp parallel for schedule(static)
     for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
         int w = sliceIdx / NSplit;
         SetInteractionCollection *Slice = Slices[sliceIdx];
@@ -528,6 +528,7 @@ void NearFieldDriver::Finalize(int slab){
         if(Nj * width + w < cpd)
             Nj++;
 
+        #pragma omp parallel for schedule(static)
         for(int sinkIdx = 0; sinkIdx < Slice->NSinkList; sinkIdx++){
             int SinkCount = Slice->SinkSetCount[sinkIdx];
             int j = sinkIdx%Nj;

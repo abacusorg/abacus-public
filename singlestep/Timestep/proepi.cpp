@@ -34,6 +34,7 @@ STimer FinishPartition;
 STimer FinishSort;
 STimer FinishCellIndex;
 STimer FinishMerge;
+PTimer FinishFreeSlabs;
 STimer ComputeMultipoles;
 STimer WriteMergeSlab;
 STimer WriteMultipoleSlab;
@@ -241,6 +242,7 @@ void Epilogue(Parameters &P, bool ic) {
     char timingfn[1050];
     sprintf(timingfn,"%s/lastrun.time", P.LogDirectory);
     FILE * timingfile = fopen(timingfn,"w");
+    assertf(timingfile != NULL, "Couldn't open timing file \"%s\"\n", timingfile);
     ReportTimings(timingfile);
     fclose(timingfile);
     STDLOG(0,"Wrote Timing File to %s\n",timingfn);

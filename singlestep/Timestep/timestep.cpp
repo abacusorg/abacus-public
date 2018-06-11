@@ -566,6 +566,8 @@ void FinishAction(int slab) {
     // Gather particles from the insert list and make the merge slabs
     uint64 n_merge = FillMergeSlab(slab);
     merged_particles += n_merge;
+
+    FinishFreeSlabs.Start();
     
     // This may be the last time be need any of the CellInfo slabs that we just used
     // We can't immediately free CellInfo before NearForce might need it until we're FORCE_RADIUS away
@@ -583,6 +585,8 @@ void FinishAction(int slab) {
     LBW->DeAllocate(PosSlab,slab);
     LBW->DeAllocate(VelSlab,slab);
     LBW->DeAllocate(AuxSlab,slab);
+
+    FinishFreeSlabs.Stop();
     
     // Make the multipoles
     LBW->AllocateArena(MultipoleSlab,slab);

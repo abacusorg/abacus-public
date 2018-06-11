@@ -57,7 +57,7 @@ def varreplace(line, values):
         raise SyntaxError
     
     varname = line[pos1+1:pos2]
-    if not (varname in list(values.keys())):
+    if not (varname in values.keys()):
         print(("Variable %s is not defined!"%(varname)))
         raise SyntaxError
     return line[:pos1] + "values[\"%s\"]"%(varname) + line[pos2 +1:]
@@ -99,27 +99,27 @@ def parseInput(filename, values = {},fixvalues = {}):
                     raise SyntaxError
                 continue
             
-            #import pdb; pdb.set_trace()
+            
             x = "I HAVE NO VALUE"
             key = line[0:equals].strip()
-            if key in list(fixvalues.keys()):
+            if key in fixvalues.keys():
                 continue
             value = 0
             if comment != -1:
-                value = line [equals+1:comment]
+                value = line[equals+1:comment]
             else:
                 value =line[equals+1:]
             #try to parse value
             try:
-                x = eval(value)
+                items = value.split()
+                vec  = ""
+                for item in items:
+                    vec += item + ","
+                x = eval("({})".format(vec[:-1]))
             except SyntaxError:
                 #perhaps value is a vector
                 try:
-                    items = value.split()
-                    vec  = ""
-                    for item in items:
-                        vec += item + ","
-                    x = eval("({})".format(vec[:-1]))
+                    x = eval(value)
                 except SyntaxError:
                     #fall back and try to parse as string
                     try:
@@ -128,7 +128,7 @@ def parseInput(filename, values = {},fixvalues = {}):
                         print("Error: Could not parse line:"+line)
                         raise
             values[key] = x
-            #print "%s : %s"%(str(key), str(x))
+            #print("'%s': %s"%(str(key), str(x)))
         return values
 
 '''Create a parameters file with name filename. Optionally, DefFilename as a list of parameters and default values to output.
@@ -157,24 +157,30 @@ def tostr(item): #recursively decompose the argument into a string we can print 
          
         
 
-def makeInput(filename,inputfile,strict = False, **keywords):
+def makeInput(filename,inputfile,strict = False, del_keywords=[], **keywords):
     defaults = parseInput(inputfile,keywords,copy.deepcopy(keywords))
-    for keyword in list(keywords.keys()):
-        if strict and (keyword not in list(defaults.keys())):
-            raise ValueError
+    for keyword in keywords.keys():
+        if strict and (keyword not in defaults.keys()):
+            raise ValueError(keyword)
         defaults[keyword] = keywords[keyword]
-    outfile = open(filename,'w')
-    for keyword in sorted(defaults.keys()):
-        outfile.write(keyword)
-        outfile.write(' = ')
-        value = defaults[keyword]
-        if isinstance(value, str) and not ("\"" in value):
-            value = "\"" +value +"\""
-        outfile.write(tostr(value))
-        outfile.write('\n')
-    outfile.write('#created by GenParam from L2 file: %s    :: '%(inputfile) + time.asctime()+'\n')
-    outfile.write('\n') #finalize the header
-    outfile.close()
+
+    for dk in del_keywords:
+        try:
+            del defaults[dk]
+        except KeyError:
+            pass
+    
+    with open(filename,'w') as outfile:
+        for keyword in sorted(defaults.keys()):
+            outfile.write(keyword)
+            outfile.write(' = ')
+            value = defaults[keyword]
+            if isinstance(value, str) and not ("\"" in value):
+                value = "\"" +value +"\""
+            outfile.write(tostr(value))
+            outfile.write('\n')
+        outfile.write('#created by GenParam from L2 file: {:s}    :: {:s}\n'.format(inputfile, time.asctime()))
+        outfile.write('\n') #finalize the header
     return defaults
         
 

@@ -239,33 +239,16 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     // pss::parallel_stable_sort( &(il[mid]), &(il[length]), GlobalSortOperator() );
 
     n_sorted += slablength;
-    FinishSort.Stop();
 
     //ConfirmSorting(ilnew, slablength);
 
     // Delete the slab particle from the insert list, since they're now in ilnew[]
     ShrinkMAL(length - slablength);
     *_slablength = slablength;
+
+    FinishSort.Stop();
     return ilnew;
 }
 
 
 InsertList *IL;
-
-
-
-
-/*
-// The following routine is VESTIGIAL
-struct GlobalSortOperator {
-    inline bool operator() (const  ilstruct &pi, const ilstruct &pj ) const {
-        // We must sort on pi.xyz.y*cpd+pi.xyz.z < pj.xyz.y*cpd+pj.xyz.z
-        // Warning: This will get more complicated in the parallel code with 
-        // the periodic wrap.
-        if(pi.xyz.y - pj.xyz.y == 0)
-            return pi.xyz.z < pj.xyz.z;
-        return pi.xyz.y < pj.xyz.y;
-        //return  pi.xyz.y*P.cpd + pi.xyz.z < pj.xyz.y*P.cpd + pj.xyz.z; 
-    }
-};
-*/

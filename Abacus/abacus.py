@@ -39,7 +39,7 @@ import argparse
 import numpy as np
 from glob import glob
 
-from . import InputFile
+from .InputFile import InputFile
 from . import Tools
 from . import GenParam
 from . import zeldovich
@@ -117,14 +117,13 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
         print('Erasing IC dir')
         shutil.rmtree(icdir)
 
-    # If not resuming, erase everything but the ICs
-    if clean:
-        if path.exists(basedir):
+    def clean_basedir(bd, preserve=icdir):
+        if path.exists(bd):
             # Erase everything in basedir except the ICs
-            for d in os.listdir(basedir):
-                d = pjoin(basedir, d)
+            for d in os.listdir(bd):
+                d = pjoin(bd, d)
                 try:
-                    if not erase_ic and path.samefile(d, icdir):
+                    if not erase_ic and path.samefile(d, preserve):
                         continue
                 except OSError:
                     pass  # icdir may not exist
@@ -133,10 +132,17 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
                 except OSError:
                     os.remove(d)  # may have been a file, not a dir
             try:
-                os.rmdir(basedir)
+                os.rmdir(bd)
             except OSError:
                 pass
             print("Erased previous working directory")
+
+    # If not resuming, erase everything but the ICs
+    if clean:
+        clean_basedir(params['WorkingDirectory'])
+        try:
+            clean_basedir(params['WorkingDirectory2'])
+        except KeyError: pass
                 
         if path.exists(logdir):
             shutil.rmtree(logdir)
@@ -248,13 +254,14 @@ def default_parser():
 
 def preprocess_params(output_parfile, parfn, **param_kwargs):
     '''
-    There are a number of non-trivial modifications we want to make
+    There are a number of runtime modifications we want to make
     to the Abacus .par2 file as we parse it.  These typically
     require computation of some sort and can't be done with static
     parsing.
 
     1) Compute ZD_Pk_sigma from sigma_8
     2) If $ABACUS_SSD2 is defined, define the params {Multipole,Taylor}Directory2
+    3) If $ABACUS_TMP2 is defined and SloshState is True, define WorkingDirectory2
     '''
 
     params = GenParam.makeInput(output_parfile, parfn, **param_kwargs)
@@ -273,33 +280,40 @@ def preprocess_params(output_parfile, parfn, **param_kwargs):
         if 'TaylorDirectory2' not in params:
             param_kwargs['TaylorDirectory2'] = pjoin(os.environ['ABACUS_SSD2'], params['SimName'], 'taylor2')
 
+    if params.get('SloshState',False):
+        if 'ABACUS_TMP2' in os.environ:
+            # WorkingDirectory2 is never processed by Abacus.
+            # They will be intercepted by the sloshing logic
+            if 'WorkingDirectory2' not in params:
+                param_kwargs['WorkingDirectory2'] = pjoin(os.environ['ABACUS_TMP2'], params['SimName'])
+
     params = GenParam.makeInput(output_parfile, parfn, **param_kwargs)
 
     return params
 
 
-def check_multipole_taylor_done(param, state, type):
+def check_multipole_taylor_done(param, state, kind):
     """
     Checks that all the multipoles or Taylors exist and have the expected
-    file size. `type` must be 'Multipole' or 'Taylor'.
+    file size. `kind` must be 'Multipole' or 'Taylor'.
     """
 
-    assert type in ['Multipole', 'Taylor']
+    assert kind in ['Multipole', 'Taylor']
     rml = (param.Order+1)**2
-    sizeof_Complex = 16  if state.DoublePrecision else 8
+    sizeof_Complex = 16 if state.DoublePrecision else 8
     size = param.CPD*(param.CPD+1)/2*rml*sizeof_Complex
 
-    even_dir = param[type+'Directory']
-    odd_dir = param.get(type+'Directory2', param[type+'Directory'])
-    if type == 'Multipole':
-        type += 's'  # should consider standardizing our pluralization
+    even_dir = param[kind+'Directory']
+    odd_dir = param.get(kind+'Directory2', param[kind+'Directory'])
+    if kind == 'Multipole':
+        kind += 's'  # should consider standardizing our pluralization
     try:
-        even = all(path.getsize(pjoin(even_dir, type+'_{:04d}'.format(i))) == size
+        even = all(path.getsize(pjoin(even_dir, kind+'_{:04d}'.format(i))) == size
             for i in range(0,param.CPD,2))
-        odd = all(path.getsize(pjoin(odd_dir, type+'_{:04d}'.format(i))) == size
+        odd = all(path.getsize(pjoin(odd_dir, kind+'_{:04d}'.format(i))) == size
             for i in range(1,param.CPD,2))
-    except OSError:
-        return False  # A file wasn't found
+    except FileNotFoundError:
+        return False
 
     return even and odd
 
@@ -338,9 +352,164 @@ def setup_convolution_env(param):
     return convolution_env
 
     
+def setup_state_dirs(paramfn, newparam_suffix='step{step:04d}'):
+    '''
+    This function is called before every invocation of singlestep.
+    Its main purpose is to slosh the state directories if requested
+    by swapping ReadStateDirectory and WriteStateDirectory
+    each step.
+
+    To do this, paramfn is ingested, and a modified version is
+    written back to disk.  The written version doesn't use
+    WorkingDirectory and instead directly sets the Read and Write
+    dirs.
+
+    When sloshing the state, multipoles & taylors are sloshed
+    as well.  MultipoleDirectory2 is interpreted as the slosh
+    directory, not the parity-splitting directory.  For that
+    reason, MultipoleDirectory2 will not be written to the param
+    file.
+
+    TODO: there will probably be times when we want to slosh
+    the main state but split the MT
+
+    '''
+    params = GenParam.makeInput(paramfn, paramfn)
+    OverwriteState = params.get('OverwriteState',False)
+
+    # Parameters to modify in the output file
+    # If these remain empty, the input will be unmodified and the filename will be unchanged
+    delparams = []
+    newparams = {}
+    newconvparams = {}
+    
+    # Normal operation: everything is under the WorkingDirectory or specified individually
+    # Can't specify both WorkingDir and ReadDir
+    if 'WorkingDirectory' in params:
+        assert 'ReadStateDirectory' not in params
+        assert 'WriteStateDirectory' not in params
+        assert 'PastStateDirectory' not in params
+        past = pjoin(params['WorkingDirectory'], "past")
+        read = pjoin(params['WorkingDirectory'], "read")
+        write = pjoin(params['WorkingDirectory'], "write")
+    else:
+        past = params['PastStateDirectory']
+        read = params['ReadStateDirectory']
+        write = params['WriteStateDirectory']
+    
+    # read is the current read state, read2 is the read state of the next singlestep invocation
+    read2 = read
+    write2 = write
+
+    # Slosh the state
+    if params.get('SloshState',False):
+        assert not OverwriteState  # Sloshing is mutually exclusive with overwriting!
+        # Should be populated manually or from ABACUS_TMP2
+        assert 'WorkingDirectory2' in params
+
+        def get_stepnum(dirs):
+            stepnum = -1
+            for d in dirs:
+                if path.isfile(pjoin(d, "state")):
+                    assert stepnum < 0  # Should never find more than one read state!
+                    stepnum = InputFile(pjoin(d, "state"))['FullStepNumber']
+            return stepnum + 1
+
+        # Now decide whether WorkingDirectory/read or WorkingDirectory2/read has the current state
+        stepnum = get_stepnum([read, pjoin(params['WorkingDirectory2'], "read")])
+
+        # The MT slosh directories are specified via MTDirectory2 (which might come from $ABACUS_SSD2)
+        taylors = params['TaylorDirectory']
+        taylors2 = params.get('TaylorDirectory2', taylors)
+        multipoles = params['MultipoleDirectory']
+        multipoles2 = params.get('MultipoleDirectory2', multipoles)
+
+        if stepnum % 2 == 0:
+            write = pjoin(params['WorkingDirectory2'], "write")
+            read2 = pjoin(params['WorkingDirectory2'], "read")
+            multipoles2, multipoles = multipoles, multipoles2
+        else:
+            read = pjoin(params['WorkingDirectory2'], "read")
+            write2 = pjoin(params['WorkingDirectory2'], "write")
+            taylors2, taylors = taylors, taylors2
+
+        # Technically we could keep two past states (one in each slosh directory)
+        # but in practice this may be too many copies of the state
+        past = None
+
+        # Now we need to remove WorkingDirectory from the parameter file,
+        # since we're separately specifying the Read and Write dirs
+        # Also: when we restart, need to check both possible read directories for the state file
+        delparams += ['WorkingDirectory', 'WorkingDirectory2']
+        # For now, slosh multipoles instead of splitting
+        delparams += ['MultipoleDirectory2', 'TaylorDirectory2']
+        
+        newparams['ReadStateDirectory'] = read
+        newparams['WriteStateDirectory'] = write
+        newparams['TaylorDirectory'] = taylors
+        newparams['MultipoleDirectory'] = multipoles
+
+        # The convolution needs to know where the multipoles were put *last* step, not this step
+        newconvparams = newparams.copy()
+        #newconvparams['TaylorDirectory'] = taylors2
+        newconvparams['MultipoleDirectory'] = multipoles2
+
+    if OverwriteState:
+        write = read
+        past = None
+
+    def insert_suffix(base, suffix=newparam_suffix):
+        newparamfn = base.split('.')
+        suffix = suffix.format(step=stepnum)
+        try:
+            i = newparamfn.index('par')
+            newparamfn.insert(i, suffix.format(step=stepnum))
+        except ValueError:
+            newparamfn.append(suffix)
+        newparamfn = '.'.join(newparamfn)
+
+        return newparamfn
+
+    # Modifications were requested. Make a par file just for this step.
+    if delparams or newparams:
+        # Make "abacus.stepN.par"
+        newparamfn = insert_suffix(paramfn)
+        
+        params = GenParam.makeInput(newparamfn, paramfn, del_keywords=delparams, **newparams)
+    else:
+        newparamfn = paramfn
+
+    if newconvparams:
+        convparamfn = insert_suffix(paramfn, newparam_suffix + '.conv')
+        convparams = GenParam.makeInput(convparamfn, paramfn, del_keywords=delparams, **newconvparams)
+    else:
+        convparamfn = paramfn
+
+    # Create dirs
+    for d in ['MultipoleDirectory', 'MultipoleDirectory2', 'TaylorDirectory', 'TaylorDirectory2']:
+        if d in params:
+            try:
+                os.makedirs(params[d])
+            except FileExistsError:
+                pass
+
+    return read,write,read2,write2, past, newparamfn, convparamfn
+
+
+def remove_MT(md, pattern, rmdir=True):
+    # Quick util to clear multipoles/taylors
+    for mfn in glob(pjoin(md, pattern)):
+        os.remove(mfn)
+    if rmdir:
+        try:
+            os.rmdir(md)
+        except OSError:
+            pass  # remove dir if empty; we re-create at each step in setup_dirs
+
+
 def singlestep(paramfn, maxsteps, AllowIC=False, monitor=False, stopbefore=-1):
     """
-    Run a number of Abacus timesteps.
+    Run a number of Abacus timesteps by invoking the `singlestep` executable.
 
     Parameters
     ----------
@@ -372,17 +541,8 @@ def singlestep(paramfn, maxsteps, AllowIC=False, monitor=False, stopbefore=-1):
     if not path.exists(paramfn):
         raise ValueError('Parameter file "{:s}" is not accessible'.format(paramfn))
         
-    param = InputFile.InputFile(paramfn)
-    try:
-        OverwriteState = param.OverwriteState
-    except:
-        OverwriteState = 0
-    past = pjoin(param.WorkingDirectory, "past")
-    read = pjoin(param.WorkingDirectory, "read")
-    write = pjoin(param.WorkingDirectory, "write")
-    if OverwriteState:
-        write = read
-        past = None
+    param = InputFile(paramfn)
+    OverwriteState = param.get('OverwriteState',False)
 
     # Set up backups
     try:
@@ -419,44 +579,48 @@ def singlestep(paramfn, maxsteps, AllowIC=False, monitor=False, stopbefore=-1):
         MakeDerivatives(param, floatprec=True)
 
         # Create directories
-        for d in ['LogDirectory', 'OutputDirectory', 'MultipoleDirectory', 'TaylorDirectory',
-                  'GroupDirectory', 'MultipoleDirectory2', 'TaylorDirectory2']:
+        for d in ['LogDirectory', 'OutputDirectory', 'GroupDirectory']:
             if d in param and param[d] and not path.isdir(param[d]):
                 os.makedirs(param[d])
-
-        if path.exists(write+"/state") and not OverwriteState:
-            print()
-            answer = input("Write State exists and would be overwritten. Do you want to delete it? (y/[n]) ")
-            if answer == "y":
-                shutil.rmtree(write)
-            else:
-                raise ValueError
-        if not path.exists(write):
-            os.makedirs(write)
 
         print("Beginning abacus steps:")
 
         if AllowIC:
-            print("Ingesting IC from "+param.InitialConditionsDirectory+"...Skipping convolution")
-            if path.exists(param.InitialConditionsDirectory+"/input.pow"):
-                shutil.copy(param.InitialConditionsDirectory+"/input.pow",param.LogDirectory+"/input.pow")
+            print("Ingesting IC from "+param.InitialConditionsDirectory+" ... Skipping convolution")
+            if path.exists(pjoin(param.InitialConditionsDirectory, "input.pow")):
+                shutil.copy(pjoin(param.InitialConditionsDirectory, "input.pow"), pjoin(param.LogDirectory, "input.pow"))
 
         for i in range(maxsteps):
+            # Finalize the parameter file for this step, possibly sloshing the state
+            read,write,read2,write2,past,paramfn_thisstep,conv_paramfn_thisstep = setup_state_dirs(paramfn)
+            param = InputFile(paramfn_thisstep)
+            convparam = InputFile(conv_paramfn_thisstep)
+
             try:
-                read_state = InputFile.InputFile(read+"/state")
-                ConvDone = check_multipole_taylor_done(param, read_state, type='Taylor')
+                read_state = InputFile(pjoin(read,"state"))
+                ConvDone = check_multipole_taylor_done(convparam, read_state, kind='Taylor')
                 stepnum = read_state.FullStepNumber+1
             except IOError:
                 assert AllowIC, "If there is no read state, this must be an IC step!"
                 ConvDone = True  # No need to convolve for an IC step
                 stepnum = 0
 
-                # Do the convolution
+            if path.exists(pjoin(write,"state")) and not OverwriteState:
+                print()
+                answer = input("Write State exists and would be overwritten. Do you want to delete it? (y/[n]) ")
+                if answer == "y":
+                    shutil.rmtree(write)
+                else:
+                    raise ValueError
+            if not path.exists(write):
+                os.makedirs(write)
+
+            # Do the convolution
             if not ConvDone:
                 # Now check if we have all the multipoles the convolution will need
-                if not check_multipole_taylor_done(param, read_state, type='Multipole'):
+                if not check_multipole_taylor_done(convparam, read_state, kind='Multipole'):
                     # Invole multipole recovery mode
-                    print("Warning: missing multipoles! Performing multipole recovery for step %d"%(i))
+                    print("Warning: missing multipoles! Performing multipole recovery for step {:d}".format(i))
                     
                     # Build the make_multipoles executable
                     with Tools.chdir(pjoin(abacuspath, "singlestep")):
@@ -464,10 +628,15 @@ def singlestep(paramfn, maxsteps, AllowIC=False, monitor=False, stopbefore=-1):
                         if retcode:
                             print('make make_multipoles returned error code {}'.format(retcode))
                             return retcode
-                        
+                    
+                    # Check that the multipole directory exists
+                    try:
+                        os.makedirs(convparam['MultipoleDirectory'])
+                    except FileExistsError:
+                        pass
+
                     # Execute it
-                    # TODO: add env here?
-                    retcode = subprocess.call([abacuspath + "/singlestep/make_multipoles",paramfn])
+                    retcode = subprocess.call([pjoin(abacuspath, "singlestep", "make_multipoles"),conv_paramfn_thisstep], env=singlestep_env)
                     if retcode:
                         print('make_multipoles returned error code {}'.format(retcode))
                         return retcode
@@ -475,12 +644,12 @@ def singlestep(paramfn, maxsteps, AllowIC=False, monitor=False, stopbefore=-1):
                     print('\tFinished multipole recovery for read state {}.'.format(read_state.FullStepNumber))
                 
                 print("Performing convolution for step {:d}".format(stepnum))
-                retcode = subprocess.call([abacuspath + "/Convolution/ConvolutionDriver",paramfn], env=convolution_env)
+                retcode = subprocess.call([pjoin(abacuspath, "Convolution", "ConvolutionDriver"),conv_paramfn_thisstep], env=convolution_env)
                 if retcode:
                     print('Convolution returned error code {}'.format(retcode))
                     return retcode
                     
-                if not check_multipole_taylor_done(param, read_state, type='Taylor'):
+                if not check_multipole_taylor_done(convparam, read_state, kind='Taylor'):
                     raise ValueError("Convolution did not complete")
                 
                 convlogs = glob(pjoin(param.LogDirectory, 'last.conv*'))
@@ -491,11 +660,9 @@ def singlestep(paramfn, maxsteps, AllowIC=False, monitor=False, stopbefore=-1):
                 # because the states get moved after multipole generation but before convolution.
                 # This is contrary to the Taylors behavior and may be worth re-thinking.
                 # If we assume singlestep is the more "interrupt-prone" step, then this may be acceptable.
-                for mfn in glob(pjoin(param.MultipoleDirectory, 'Multipole*')):
-                    os.remove(mfn)
-                if 'MultipoleDirectory2' in param:
-                    for mfn in glob(pjoin(param.MultipoleDirectory2, 'Multipole*')):
-                        os.remove(mfn)
+                remove_MT(convparam.MultipoleDirectory, 'Multipole*', rmdir=convparam.MultipoleDirectory != param.MultipoleDirectory)
+                if 'MultipoleDirectory2' in convparam:
+                    remove_MT(convparam.MultipoleDirectory2, 'Multipole*', rmdir=convparam.MultipoleDirectory2 != param.MultipoleDirectory2)
 
                 print("\t Finished convolution for state %d"%(read_state.FullStepNumber+1))
 
@@ -504,7 +671,7 @@ def singlestep(paramfn, maxsteps, AllowIC=False, monitor=False, stopbefore=-1):
             if i == stopbefore:
                 print('stopbefore = %d was specified; stopping before calling singlestep'%i)
                 return 0
-            retcode = subprocess.call([abacuspath+"/singlestep/singlestep",paramfn,str(int(AllowIC))], env=singlestep_env)
+            retcode = subprocess.call([abacuspath+"/singlestep/singlestep",paramfn_thisstep,str(int(AllowIC))], env=singlestep_env)
             
             # In profiling mode, we don't move the states so we can immediately run the same step again
             if param.get('ProfilingMode', False):
@@ -515,7 +682,7 @@ def singlestep(paramfn, maxsteps, AllowIC=False, monitor=False, stopbefore=-1):
                 raise ValueError("Singlestep did not complete!")
             if retcode:
                 return retcode
-            write_state = InputFile.InputFile(write+"/state")
+            write_state = InputFile(pjoin(write, "state"))
 
             # Update the status log
             with open(status_log_fn, 'a') as status_log:
@@ -530,6 +697,12 @@ def singlestep(paramfn, maxsteps, AllowIC=False, monitor=False, stopbefore=-1):
                 write_state.DeltaScaleFactor/(write_state.ScaleFactor-write_state.DeltaScaleFactor),
                 write_state.RMS_Velocity)))
             if monitor: cmdpipe.write("BACKUPOUTPUT:{}\n".format(param.LogDirectory))
+
+            # Delete the Taylors right away; want to avoid accidentally
+            # running with inconsistent positions and Taylors
+            remove_MT(param.TaylorDirectory, 'Taylor_*')
+            if 'TaylorDirectory2' in convparam:
+                remove_MT(param.TaylorDirectory2, 'Taylor_*')
 
             # Check if we need to back up the write state
             if backups_enabled and write_state.FullStepNumber > 0 and write_state.FullStepNumber % param['BackupStepInterval'] == 0:
@@ -546,25 +719,19 @@ def singlestep(paramfn, maxsteps, AllowIC=False, monitor=False, stopbefore=-1):
             if path.exists(dfn):
                 # This import can be slow, so we only do it as necessary
                 from Abacus.Analysis.PowerSpectrum import PowerSpectrum as PS
-                
-                density = np.fromfile(dfn, dtype=(np.float64 if read_state.DoublePrecision else np.float32))
-                density = density.reshape(param.PowerSpectrumN1d, param.PowerSpectrumN1d, param.PowerSpectrumN1d)
-                k,P,nb = PS.FFTAndBin(density, param.BoxSize)
+                ngrid = param.PowerSpectrumN1d
+
+                psdtype = np.float64 if read_state.DoublePrecision else np.float32
+                density = np.empty((ngrid, ngrid, ngrid + 2), dtype=psdtype)
+                density[...,:-2] = np.fromfile(dfn, dtype=psdtype).reshape(ngrid,ngrid,ngrid)
+                k,P,nb = PS.FFTAndBin(density, param.BoxSize, inplace=True)
                 # we use the write state step number here, even though the particles are positioned at the read state positions
                 # this is consistent with the time slice behavior
                 shutil.copy(dfn, param.LogDirectory+"/step%.4d.density"%(write_state.FullStepNumber))
                 np.savez(param.LogDirectory+"/step%.4d.pow"%(write_state.FullStepNumber),k=k,P=P,nb=nb)
                 os.remove(dfn)
-                
-            # Delete the Taylors right away; want to avoid accidentally
-            # running with inconsistent positions and Taylors
-            for tfn in glob(pjoin(param.TaylorDirectory, 'Taylor_*')):
-                os.remove(tfn)
-            if 'TaylorDirectory2' in param:
-                for tfn in glob(pjoin(param.TaylorDirectory2, 'Taylor_*')):
-                    os.remove(tfn)
             
-            # move files
+            # move read to past, write to read
             if past is not None:
                 try:
                     shutil.rmtree(past)
@@ -575,10 +742,24 @@ def singlestep(paramfn, maxsteps, AllowIC=False, monitor=False, stopbefore=-1):
                 except OSError:
                     pass  # read doesn't exist, must be IC state
             try:
-                os.rename(write, read)
-                os.makedirs(write)
+                # read2 and write2 are the dirs for the next step
+                os.rename(write, read2)
+                os.makedirs(write2)
             except OSError:
                 pass  # read still exists (want to overwrite)
+            
+            if read != read2:
+                try:
+                    shutil.rmtree(read)
+                except FileNotFoundError:
+                    pass  # When sloshing the state, we don't move read to past, so discard it instead
+
+            # If we created a special parameter file just for this state, delete it
+            if paramfn != paramfn_thisstep:
+                os.remove(paramfn_thisstep)
+            if paramfn != conv_paramfn_thisstep:
+                os.remove(conv_paramfn_thisstep)
+
             
             # check if we've reached the stopping redshift
             # Note that FinalRedshift always trumps,
