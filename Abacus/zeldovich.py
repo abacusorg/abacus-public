@@ -53,7 +53,10 @@ def run(paramfn):
     if not path.isdir(params.InitialConditionsDirectory):
         os.makedirs(params.InitialConditionsDirectory)
 
-    shutil.copy(params.ZD_Pk_filename, params.InitialConditionsDirectory + "/input.pow")
+    if 'ZD_Pk_filename' in params:
+        shutil.copy(params.ZD_Pk_filename, params.InitialConditionsDirectory + "/input.pow")
+    else:
+        assert 'ZD_Pk_powerlaw_index' in params
     subprocess.check_call([path.join(zeldovich_dir, "zeldovich"), paramfn])
 
     
@@ -100,12 +103,17 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):
         print("Warning: no info dir found to copy")
         
     # If the Pk file doesn't exist, look for it in the info dir
-    pk_fn = old_params.ZD_Pk_filename
-    if not path.isfile(pk_fn):
-        pk_fn = path.join(sim_dir, 'info', path.basename(pk_fn))
-        assert path.isfile(pk_fn)
-    
-    GenParam.makeInput(new_parfn, parfn, InitialConditionsDirectory=ic_dir, ZD_PLT_filename=eigmodes_fn, ZD_Pk_filename=pk_fn)
+    kwargs = {}
+    if 'ZD_Pk_filename' in old_params:
+        pk_fn = old_params.ZD_Pk_filename
+        if not path.isfile(pk_fn):
+            pk_fn = path.join(sim_dir, 'info', path.basename(pk_fn))
+            assert path.isfile(pk_fn)
+            kwargs['ZD_Pk_filename'] = pk_fn
+    else:
+        assert 'ZD_Pk_powerlaw_index' in old_params
+        
+    GenParam.makeInput(new_parfn, parfn, InitialConditionsDirectory=ic_dir, ZD_PLT_filename=eigmodes_fn, **kwargs)
     
     run(new_parfn)
 
