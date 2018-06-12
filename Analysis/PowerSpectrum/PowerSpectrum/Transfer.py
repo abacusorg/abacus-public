@@ -128,125 +128,57 @@ def _reorder(arr, neworder):
     for i in nb.prange(N):
         newarr[i] = arr[neworder[i]]
     return newarr
-    
-def apply_transfer_multipoles(T_multipoles, deltak, box, korder_info=None, unbinned=1.):
-    """
-    Apply transfer function T_multipoles on deltak.
 
-    Parameters
-    ----------
-    T_multipoles: ndarray of shape (Lmax+1, nbins)
-        The anisotropic multipole coefficients in each bin
 
-    deltak: complex ndarray of shape (ngrid,ngrid,ngrid//2+1[,...])
-        The delta(k) field on which to apply the transfer function.
-        The first three dimensions are the FFT axes; any axes after
-        that are broadcast over.
-
-    box: float
-        Box size
-
-    korder: ndarray of int of shape (deltak.size,), optional
-        The indices that sort the flattened deltak array into
-        |k| order.  Will be computed if not given.
-
-    unbinned: float, optional
-        The transfer value to apply to modes that fall outside any k-bin.
-        Typical values would be 1 (don't touch them) or 0 (null them out).
-        Default: 1.
-
-    Returns
-    -------
-    deltak_trans: ndarray like `deltak`
-        The delta(k) field with the transfer function applied.
-    
-    korder_info: tuple of ndarray
-        A tuple of `(korder, korder_kgrid, korder_mu_k, invkorder)` that can
-        be passed back to this function to accelerate the next
-        sorting.  Also accepts just `korder`.
-    """
-    # Parse args
-    nbins = T_multipoles.shape[-1]
-
-    orig_shape = deltak.shape
-    dispdim_len = 1
-    if deltak.ndim == 4:
-        dispdim_len = deltak.shape[-1]
-
-    kshape = np.array(deltak.shape[:3])
-    shape = kshape.copy()
-    shape[-1] = 2*shape[-1] - 2  # assumes evenness of original dimensions
-
-    # tuple of all the reordered arrays
-    if type(korder_info) in (list, tuple):
-        korder, korder_kgrid, korder_mu_k, invkorder = korder_info
-    else:
-        # Build the k-lattice distances and vectors
-        kgrid = fftfreq_nd(shape, box/shape, rfft=True, kmag=True)
-        kvec = fftfreq_nd(shape, box/shape, rfft=True, kmag=False, mesh=False)
-
-        if korder_info is not None:
-            korder = korder_info
+# via https://docs.scipy.org/doc/numpy/user/basics.subclassing.html
+class TransferMultipoles(np.ndarray):
+    def __new__(subtype, bins, box, Lmax=0, kmax=None, ngrid=None, dtype=np.float32):
+        if type(bins) is int:
+            nbins = bins
+            if kmax is None:
+                kmax = np.pi/(box/ngrid)
+            k_bin_edges = np.linspace(2*np.pi/box, kmax, nbins+1)
         else:
-            # could use histogram then argpartition
-            korder = kgrid.argsort(axis=None)
+            k_bin_edges = bins
+            nbins = len(bins)-1
         
-        invkorder = korder.argsort()
-        mu_k = kvec[-1]/kgrid  # k_z/|k|
-        mu_k[0,0,0] = 0.  # this shouldn't matter, since our first k bin doesn't touch k=0
-
-        korder_kgrid = _reorder(kgrid.reshape(-1), korder)
-        korder_mu_k = _reorder(mu_k.reshape(-1), korder)
-        del kgrid, kvec, mu_k
-
-    # Now every k bin is a contiguous segment of kgrid
-    k_bin_edges = Histogram.k_bin_edges(shape, box, nbins=nbins)
-    korder_bin_splits = np.searchsorted(korder_kgrid, k_bin_edges)
-
-    korder_deltak = _reorder(deltak.reshape(-1,dispdim_len), korder)
-    if unbinned == 0.:
-        korder_deltak_trans = np.zeros_like(korder_deltak)
-    else:
-        korder_deltak_trans = korder_deltak * unbinned
-    del deltak
-
-    for i in range(len(korder_bin_splits)-1):
-        start = korder_bin_splits[i]
-        stop = korder_bin_splits[i+1]
-        #this_deltak = korder_deltak[start:stop]
-        this_mu_k = korder_mu_k[start:stop]
-        this_T_multipoles = T_multipoles[:,i]
+        obj = super(TransferMultipoles, subtype).__new__(subtype, (Lmax+1,nbins), dtype=dtype)
         
-        transfer = npleg.legval(this_mu_k, this_T_multipoles)
-        korder_deltak_trans[start:stop] = korder_deltak[start:stop]*transfer[...,None]
+        obj.k_bin_edges = k_bin_edges
+        obj.nbins = nbins
+        obj.box = box
+        obj.Lmax = Lmax
+        obj[:] = 0.
+        
+        return obj
+    
+    def __array_finalize__(self, obj):
+        if obj is None:
+            return
+        
+        # Seems strange that we have to duplicate this functionality...
+        self.k_bin_edges = obj.k_bin_edges
+        self.nbins = obj.nbins
+        self.box = obj.box
+        self.Lmax = obj.Lmax
 
-    del korder_deltak
-    # Pack the flattened array back into a cube
-    deltak_trans = _reorder(korder_deltak_trans, invkorder)
-    del korder_deltak_trans
-    deltak_trans = deltak_trans.reshape(orig_shape)
 
-    return deltak_trans, (korder, korder_kgrid, korder_mu_k, invkorder)
-
-def apply_transfer_multipoles_2(T_multipoles, deltak, box, unbinned=1.):
+def apply_transfer_multipoles(Tfer, deltak, unbinned=1.):
     """
     Apply transfer function T_multipoles on deltak.
 
-    Uses a different algorithm: "lookup" tables and parallelization over k-planes
-    instead of unraveling the density cube.
+    Uses a "lookup" algorithm and parallelization over k-planes
+    instead of unraveling the density cube as before.
 
     Parameters
     ----------
-    T_multipoles: ndarray of shape (Lmax+1, nbins)
-        The anisotropic multipole coefficients in each bin
+    T_multipoles: TransferMultipoles
+        A TransferMultipoles object describing the transfer function to apply
 
     deltak: complex ndarray of shape (ngrid,ngrid,ngrid//2+1[,...])
         The delta(k) field on which to apply the transfer function.
         The first three dimensions are the FFT axes; any axes after
         that are broadcast over.
-
-    box: float
-        Box size
 
     unbinned: float, optional
         The transfer value to apply to modes that fall outside any k-bin.
@@ -259,8 +191,7 @@ def apply_transfer_multipoles_2(T_multipoles, deltak, box, unbinned=1.):
         The delta(k) field with the transfer function applied.
     """
     # Parse args
-    assert len(T_multipoles) == 1  # Currently only supports monopole
-    nbins = T_multipoles.shape[-1]
+    assert Tfer.Lmax == 0  # Currently only supports monopole
 
     # flatten all extra axes
     oshape = deltak.shape
@@ -274,8 +205,8 @@ def apply_transfer_multipoles_2(T_multipoles, deltak, box, unbinned=1.):
     else:
         deltak_trans = deltak * unbinned
 
-    knorm_bin_edges = Histogram.k_bin_edges(shape[:3], box, nbins=nbins) * box
-    _apply_transfer_multipoles_2(T_multipoles, knorm_bin_edges, deltak, deltak_trans)
+    knorm_bin_edges = Tfer.k_bin_edges * Tfer.box
+    _apply_transfer_multipoles(Tfer, knorm_bin_edges, deltak, deltak_trans)
 
     # unflatten the last axes
     deltak_trans = deltak_trans.reshape(oshape)
@@ -283,7 +214,7 @@ def apply_transfer_multipoles_2(T_multipoles, deltak, box, unbinned=1.):
     return deltak_trans
 
 @nb.njit(parallel=True)
-def _apply_transfer_multipoles_2(T_multipoles, knorm_bin_edges, deltak, deltak_trans):
+def _apply_transfer_multipoles(T_multipoles, knorm_bin_edges, deltak, deltak_trans):
     Nx,Ny,Nz,Ndim = deltak.shape
     Lmax,nbins = T_multipoles.shape
     Lmax -= 1

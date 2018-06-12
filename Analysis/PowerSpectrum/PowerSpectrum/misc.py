@@ -73,16 +73,22 @@ def fftfreq_nd(shape, dx, rfft=False, mesh=False, kmag=False, dtype=np.float32):
     return ki
 
 
-def loglog_interp(k, Pk, **kwargs):
+def loglog_interp(k, Pk, logx=True, logy=True, **kwargs):
     """
     A convenience function to do cubic spline interpolation in log-log space.
     Useful for iterpolating power spectra.
     
     """
     kind = kwargs.pop('kind', 'cubic')
+
+    target = np.log(Pk) if logy else Pk
+    x = np.log(k) if logx else k
     
-    loglog_input_interp = scipy.interpolate.interp1d(np.log(k), np.log(Pk), kind=kind, **kwargs)
-    interp_func = lambda k: np.exp(loglog_input_interp(np.log(k)))
+    loglog_input_interp = scipy.interpolate.interp1d(x, target, kind=kind, **kwargs)
+    if logy:
+        interp_func = lambda k: np.exp(loglog_input_interp(np.log(k) if logx else k))
+    else:
+        interp_func = lambda k: loglog_input_interp(np.log(k) if logx else k)
     return interp_func
 
 

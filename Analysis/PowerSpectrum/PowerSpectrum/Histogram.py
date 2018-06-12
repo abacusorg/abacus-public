@@ -84,7 +84,7 @@ def RadialBin(radii, values, bin_edges, bin_info=None):
     return RadialBin(radii, values, bin_edges, bin_info=bin_info)
 
 
-def RadialBinGrid(boxsize, values, bin_edges, pi_bin_edges=None, mu_bin_edges=None, bin_info=None, rfft=False):
+def RadialBinGrid(boxsize, values, bin_edges, pi_bin_edges=None, mu_bin_edges=None, bin_info=None, rfft=False, multipoles=0):
     '''
     Compute the weighted histogram of a set of points on a
     periodic lattice by radial binning.
@@ -133,11 +133,18 @@ def RadialBinGrid(boxsize, values, bin_edges, pi_bin_edges=None, mu_bin_edges=No
         values = values[...,None]
     
     gridshape = np.array(values.shape, dtype=np.uint64)
+
+    try:
+        len(multipoles)
+        flat_multipoles = False
+    except TypeError:
+        flat_multipoles = True
+    multipoles = np.atleast_1d(multipoles)
+    assert (np.diff(multipoles) > 0).all()
     
     hist_helper = hist_helper_3D
     rhist_helper = rhist_helper_3D
     whist_helper = whist_helper_3D
-    thread_hist_shape = len(values), len(bin_edges) - 1
     twoD_bin_arg = []
     
     assert values.ndim == 3
@@ -148,7 +155,6 @@ def RadialBinGrid(boxsize, values, bin_edges, pi_bin_edges=None, mu_bin_edges=No
         hist_helper = hist_helper_cyl
         rhist_helper = rhist_helper_cyl
         whist_helper = whist_helper_cyl
-        thread_hist_shape = len(values), len(bin_edges) - 1, len(pi_bin_edges) - 1
         twoD_bin_arg = [pi_bin_edges]
 
     if mu_bin_edges is not None:
@@ -157,28 +163,24 @@ def RadialBinGrid(boxsize, values, bin_edges, pi_bin_edges=None, mu_bin_edges=No
         hist_helper = hist_helper_mu
         rhist_helper = rhist_helper_mu
         whist_helper = whist_helper_mu
-        thread_hist_shape = len(values), len(bin_edges) - 1, len(mu_bin_edges) - 1
         twoD_bin_arg = [mu_bin_edges]
     
     if bin_info is None:
-        thread_counts = np.zeros(thread_hist_shape, dtype=np.uint64)
-        hist_helper(thread_counts, boxsize, gridshape, bin_edges, rfft, *twoD_bin_arg)
-        counts = thread_counts.sum(axis=0)
+        counts = hist_helper(boxsize, gridshape, bin_edges, rfft, *twoD_bin_arg)
     else:
         counts = bin_info[0]
     
     if bin_info is None:
-        thread_radii = np.zeros(thread_hist_shape, dtype=np.float64)
-        rhist_helper(thread_radii, boxsize, gridshape, bin_edges, rfft, *twoD_bin_arg)
-        radii = thread_radii.sum(axis=0)
+        radii = rhist_helper(boxsize, gridshape, bin_edges, rfft, *twoD_bin_arg)
         radii /= counts
     else:
         radii = bin_info[1]
     
-    thread_weights = np.zeros(thread_hist_shape, dtype=np.float64)
-    whist_helper(thread_weights, boxsize, values, bin_edges, rfft, *twoD_bin_arg)
-    weights = thread_weights.sum(axis=0)
+    weights = whist_helper(boxsize, values, bin_edges, rfft,*twoD_bin_arg, multipoles=multipoles)
     weights /= counts
+
+    if flat_multipoles:
+        weights = weights[0]
     
     bin_info = (counts, radii)
     

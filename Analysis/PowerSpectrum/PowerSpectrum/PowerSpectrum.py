@@ -35,15 +35,10 @@ nthreads = multiprocessing.cpu_count()
 
 pi = np.pi
 
-verbose = True
-
-# Control the number of OpenMP threads that the underlying C library will use
-#import pslib
-#from pslib import get_lib
-#set_nthreads = pslib.set_nthreads
+verbose = False
 
 @processargs
-def CalculateFromMem(positions, gridshape, boxsize, *, weights=None, dtype=np.float32, rotate_to=None, bins=-1, log=False, window='window_aliased'):
+def CalculateFromMem(positions, gridshape, boxsize, *, weights=None, dtype=np.float32, rotate_to=None, bins=-1, log=False, window='window_aliased', bin_info=False, multipoles=0):
     """
     Computes the power spectrum of a set of points by binning them into a density field.
     
@@ -75,22 +70,28 @@ def CalculateFromMem(positions, gridshape, boxsize, *, weights=None, dtype=np.fl
         'window' only divides out the TSC window function.
         'window_aliased' also compensates for aliasing across
         Nyquist, but assumes constant P(k) past Nyquist.
+    multipoles: int or array_like of int
+        The list of power spectrum multipoles to return.  If given an iterable,
+        the `P` return value will be a tuple of the same length as `multipoles`.
     
     Returns
     -------
     k: ndarray
         Average wavenumber per k-bin
-    s: ndarray
+    P: ndarray
         Average power per k-bin
     nb: ndarray
         Total modes per k-bin
+
+    In general, this function returns the result of `FFTAndBin()`, so if special options are passed
+    to that function, this function's return signature may differ.
     """
     
     # Get the density field
     fielddensity = TSC.BinParticlesFromMem(positions, gridshape, boxsize, weights=weights, dtype=dtype, rotate_to=rotate_to, prep_rfft=True, nthreads=nthreads)
     
     # Do the FFT
-    res = FFTAndBin(fielddensity, boxsize, bins=bins, log=log, inplace=True, window=window)
+    res = FFTAndBin(fielddensity, boxsize, bins=bins, log=log, inplace=True, window=window, bin_info=bin_info, multipoles=multipoles)
     
     return res
 
@@ -267,7 +268,7 @@ def CrossPower(gridshape, boxsize, *, pos1=None, pos2=None, delta1=None, delta2=
     """
     Given two sets of positions or density fields, cross-correlate.
 
-    We define the one-dimensional CC of a 3D delta field is defined as
+    We define the one-dimensional CC of a 3D delta field as
 
     < Re( \delta_1(k) \delta_2(k)^* ) > / < ( |\delta_1(k)| |\delta_2(k)| ) >
 
@@ -298,7 +299,7 @@ def CrossPower(gridshape, boxsize, *, pos1=None, pos2=None, delta1=None, delta2=
     k: np.ndarray, shape (nbin,)
         The wavenumbers of the bins
     P_cross: np.ndarray, shape(nbin,)
-        The cross correlation coefficients,
+        The cross correlation coefficients
     nmodes: ndarray, shape (nbins,)
         Number of modes in each bin
     """
@@ -343,11 +344,11 @@ def CrossPower(gridshape, boxsize, *, pos1=None, pos2=None, delta1=None, delta2=
 
     P_cross = P_cov_binned/P_norm_binned
     
-    return k_cross, P_cross
+    return k_cross, P_cross, nmodes
 
-
+# TODO: move from processargs to object-oriented to hold state
 @processargs(infershape=True)
-def FFTAndBin(density, boxsize, *, inplace=False, bins=-1, log=False, window='window_aliased', normalize_dens=True):
+def FFTAndBin(density, boxsize, *, inplace=False, bins=-1, log=False, window='window_aliased', normalize_dens=True, bin_info=False, multipoles=0):
     """
     Given a 2D/3D density field, convert to density contrast, FFT, square, normalize, de-window,
     and bin to produce a 1D power spectrum.
@@ -372,28 +373,40 @@ def FFTAndBin(density, boxsize, *, inplace=False, bins=-1, log=False, window='wi
         'window' only divides out the TSC window function.
         'window_aliased' also compensates for aliasing across
         Nyquist, but assumes constant P(k) past Nyquist.
+    bin_info: bool or None or tuple, optional
+        If `None`, returns a tuple the radial bin counts and r-average,
+        which can be passed back to this kwarg to accelerate the next binning.
+        The default (False) means to not return this tuple.
+    multipoles: int or array_like of int
+        The list of power spectrum multipoles to return.  If given an iterable,
+        the `P` return value will be a tuple of the same length as `multipoles`.
         
     Returns
     -------
     k: ndarray, shape (nbins,)
         The wavenumbers of the bins
-    P: ndarray, shape (nbins,)
+    P: ndarray (or tuple of ndarray; see `multipoles`) of shape (nbins,)
         Power in each bin
     nmodes: ndarray, shape (nbins,)
         Number of modes in each bin
+
+    bin_info: 2-tuple of ndarray, optional
+        Pass this back to bin_info to acclerate the next binning.
+        See above.
         
     If `nbins` is None, instead the following is returned:
     power: ndarray, real
         The full 2D/3D power spectrum (Fourier transform of the deltas,
         squared and normalized)
     """
+
     dtype = density.dtype.type
     gridshape = np.array(density.shape)  # shape of the signal region
     # If the density array has padding, shrink the shape of the valid signal region
     if inplace:
         gridshape[-1] -= 2 if gridshape[-1] % 2 == 0 else 1
     density_real = density[...,:gridshape[-1]]  # The density without the (optional) fft padding
-    rho_av = (ne.evaluate('sum(1.*density_real)')/density_real.size).astype(dtype)
+    rho_av = density_real.mean(dtype=np.float64).astype(np.float32)
     
     # Convert to fractional overdensity
     if normalize_dens:
@@ -402,6 +415,8 @@ def FFTAndBin(density, boxsize, *, inplace=False, bins=-1, log=False, window='wi
     
     if verbose:
         print("Mean Density (ppc): " + str(rho_av))
+        # numexpr has a bug where it won't parallelize sum reductions, but at least it saves memory
+        # https://github.com/pydata/numexpr/issues/73
         sigma2 = ne.evaluate('sum((1.*density_real)**2)')/density_real.size
         print("RMS density fluctuation: {:.6g}".format(np.sqrt(sigma2)))
 
@@ -409,9 +424,17 @@ def FFTAndBin(density, boxsize, *, inplace=False, bins=-1, log=False, window='wi
     if bins is None:
         return power
     
-    k, s, nmodes, bin_info = RadialBinGrid(boxsize, power, bins, rfft=True)
+    ret_bi = True
+    if bin_info is False:
+        ret_bi = False
+        bin_info = None
+
+    k, all_P, nmodes, bin_info = RadialBinGrid(boxsize, power, bins, rfft=True, bin_info=bin_info, multipoles=multipoles)
     
-    return k, s, nmodes
+    if ret_bi:
+        return k, all_P, nmodes, bin_info
+    else:
+        return k, all_P, nmodes
 
 
 def _FFT(delta, boxsize, *, window='window_aliased', inplace=False, power=True, axes='max3'):
@@ -564,7 +587,7 @@ def _IFFT(input, boxsize, *, inplace=False, axes='max3'):
     
     Parameters
     ----------
-    input: ndarray, complex, shape (nx, [ny,] nz//2 + 1)
+    input: ndarray, complex, shape (nx, [ny,] nz//2 + 1,...)
         The array to IFFT.  Should be the output of some RFFT routine.
         Real inputs will be copied into a complex array.
     boxsize: float
@@ -579,7 +602,7 @@ def _IFFT(input, boxsize, *, inplace=False, axes='max3'):
         
     Returns
     -------
-    output: ndarray, real, shape (nx, [ny,] nz)
+    output: ndarray, real, shape (nx, [ny,] nz,...)
         The result of the IFFT.
     '''
     # Parse args
@@ -616,7 +639,7 @@ def _IFFT(input, boxsize, *, inplace=False, axes='max3'):
     output = input.view(dtype=dtype).reshape(paddedsignalshape)[tuple(slice(None,ss) for ss in signalshape)]
     
     #import pdb; pdb.set_trace()
-    fft_obj = pyfftw.FFTW(input, output, axes=axes, threads=nthreads, direction='FFTW_BACKWARD', flags=['FFTW_ESTIMATE'])
+    fft_obj = pyfftw.FFTW(input, output, axes=axes, threads=nthreads, direction='FFTW_BACKWARD', flags=['FFTW_PATIENT'])
     fft_obj.execute()
     
     # Need to figure out if this is the desired normalization

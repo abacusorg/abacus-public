@@ -9,7 +9,7 @@ import numba
 from glob import glob
 import Abacus.ReadAbacus
 
-def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.float32, rotate_to=None, prep_rfft=False, nthreads=-1, inplace=False):
+def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.float32, rotate_to=None, prep_rfft=False, nthreads=-1, inplace=False, norm=False):
     """
     Computes the density field of a set of points by binning them into a grid using TSC.
     
@@ -40,6 +40,9 @@ def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.fl
     inplace: bool, optional
         Whether we are allowed to modify the `positions` and `weights`
         arrays for performance reasons.
+    norm: bool, optional
+        Normalize the returned array to a density contrast "delta".
+        Default: False.
     
     Returns
     -------
@@ -63,16 +66,22 @@ def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.fl
     if type(gridshape) is int:
         gridshape = (gridshape,)*3
     gridshape = np.array(gridshape)
+    gridshape_real = gridshape.copy()
         
     # add padding beyond what was passed in
     if prep_rfft:
         gridshape[-1] = 2*(gridshape[-1]//2 + 1)
         
     density = np.zeros(gridshape, dtype=dtype)
+    density_real = density[...,:gridshape_real[-1]]
 
     # get the density weighted field grid
     for p,w,NP in zip(positions,weights,NPs):
         TSC(p, density, boxsize, weights=w, prep_rfft=prep_rfft, rotate_to=rotate_to, nthreads=nthreads, inplace=inplace)
+
+    if norm:
+        rho_av = density_real.mean(dtype=np.float64).astype(dtype)
+        ne.evaluate('density_real/rho_av - 1', out=density_real)
     
     return density
     
