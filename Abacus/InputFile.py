@@ -94,6 +94,14 @@ class InputFile:
         return getattr(self, key)
     def __setitem__(self, key, value):
         return setattr(self, key, value)
+
+    def keys(self):
+        selfvars = vars(self).copy()
+        try:
+            del selfvars['code']
+        except KeyError:
+            pass
+        return selfvars.keys()
         
     def get(self, key, default=None):
         try:

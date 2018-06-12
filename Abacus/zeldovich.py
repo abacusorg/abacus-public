@@ -11,6 +11,7 @@ usage: ./zeldovich.py <parameter file name>
 
 import os
 import os.path as path
+from os.path import join as pjoin
 import subprocess
 import sys
 import shutil
@@ -21,8 +22,8 @@ from . import GenParam
 from . import abacus
 from Abacus.Cosmology import AbacusCosmo
 
-zeldovich_dir = path.join(abacus.abacuspath, 'zeldovich-PLT')
-eigmodes_path = path.join(zeldovich_dir, 'eigmodes128')
+zeldovich_dir = pjoin(abacus.abacuspath, 'zeldovich-PLT')
+eigmodes_path = pjoin(zeldovich_dir, 'eigmodes128')
 
 # Calculate sigma8 by scaling back params['sigma_8'] from z=0 to the given redshift
 def calc_sigma8(params, z='init'):
@@ -43,7 +44,16 @@ def calc_sigma8(params, z='init'):
     return sig8_at_zinit
 
 
-def run(paramfn):
+def run(paramfn, allow_eigmodes_fn_override=False):
+    '''
+    Invokes the zeldovich executable with the given parameter file,
+    cleaning up any exisitng output directories first and also
+    copying the input power spectrum to the destination.
+
+    If `allow_eigmodes_fn_override` is set, checks if
+    the `ZD_PLT_filename` parameter is valid and sets
+    it to the current eigmodes file if not.
+    '''
     params = InputFile(paramfn)
 
     if path.exists(params.InitialConditionsDirectory):
@@ -53,11 +63,21 @@ def run(paramfn):
     if not path.isdir(params.InitialConditionsDirectory):
         os.makedirs(params.InitialConditionsDirectory)
 
+    if not path.isfile(params.ZD_PLT_filename):
+        # If the filename is the same, then the files should be identical and we can silently override
+        if path.basename(params.ZD_PLT_filename) != path.basename(eigmodes_path):
+            print('Eigenmodes file "{}" did not exist!'.format(params.ZD_PLT_filename))
+            if allow_eigmodes_fn_override:
+                print('Overriding to most recent file: "{}".'.format(eigmodes_path))
+            else:
+                raise ValueError(allow_eigmodes_fn_override)
+        params = GenParam.makeInput(paramfn, paramfn, ZD_PLT_filename=eigmodes_path)
+
     if 'ZD_Pk_filename' in params:
-        shutil.copy(params.ZD_Pk_filename, params.InitialConditionsDirectory + "/input.pow")
+        shutil.copy(params['ZD_Pk_filename'], pjoin(params['InitialConditionsDirectory'], "input.pow"))
     else:
         assert 'ZD_Pk_powerlaw_index' in params
-    subprocess.check_call([path.join(zeldovich_dir, "zeldovich"), paramfn])
+    subprocess.check_call([pjoin(zeldovich_dir, "zeldovich"), paramfn])
 
     
 def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):
@@ -75,9 +95,9 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):
     old_params = InputFile(parfn)
     out_parent = path.abspath(out_parent)
     
-    sim_dir = path.join(out_parent, old_params.SimName)
-    new_parfn = path.join(sim_dir, 'info', new_parfn)
-    ic_dir = path.join(sim_dir, 'ic')
+    sim_dir = pjoin(out_parent, old_params.SimName)
+    new_parfn = pjoin(sim_dir, 'info', new_parfn)
+    ic_dir = pjoin(sim_dir, 'ic')
     try:
         os.makedirs(sim_dir)
     except OSError:  # exists
@@ -86,20 +106,20 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):
     # If the eigmodes file doesn't exist, look for it in the zeldovich dir
     eigmodes_fn = old_params.ZD_PLT_filename
     if not path.isfile(eigmodes_fn):
-        eigmodes_fn = path.join(zeldovich_dir, path.basename(eigmodes_fn))
+        eigmodes_fn = pjoin(zeldovich_dir, path.basename(eigmodes_fn))
         if not path.isfile(eigmodes_fn):
             print('Warning: original eigenmodes filename "{}" not found.  Falling back to most current eigenmodes.'.format(eigmodes_fn))
             eigmodes_fn = eigmodes_path
     
     # Copy over info dir and other important files
     # is parfn in the info dir?
-    try: shutil.copytree(path.join(path.dirname(parfn), path.pardir, 'info'), path.join(sim_dir, 'info'))
+    try: shutil.copytree(pjoin(path.dirname(parfn), path.pardir, 'info'), pjoin(sim_dir, 'info'))
     except: pass
     # is parfn next to the info dir?
-    try: shutil.copytree(path.join(path.dirname(parfn), 'info'), path.join(sim_dir, 'info'))
+    try: shutil.copytree(pjoin(path.dirname(parfn), 'info'), pjoin(sim_dir, 'info'))
     except: pass
     
-    if not path.isdir(path.join(sim_dir, 'info')):
+    if not path.isdir(pjoin(sim_dir, 'info')):
         print("Warning: no info dir found to copy")
         
     # If the Pk file doesn't exist, look for it in the info dir
@@ -107,7 +127,7 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):
     if 'ZD_Pk_filename' in old_params:
         pk_fn = old_params.ZD_Pk_filename
         if not path.isfile(pk_fn):
-            pk_fn = path.join(sim_dir, 'info', path.basename(pk_fn))
+            pk_fn = pjoin(sim_dir, 'info', path.basename(pk_fn))
             assert path.isfile(pk_fn)
             kwargs['ZD_Pk_filename'] = pk_fn
     else:

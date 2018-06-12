@@ -215,9 +215,10 @@ class ContextTimer(contexttimer.Timer):
     the `cumulative` keyword arg.
     '''
     
-    def __init__(self, cumulative=False, *args, **kwargs):
+    def __init__(self, prefix, *args, cumulative=False, **kwargs):
         self.cumulative = cumulative
         self.cumulative_time = 0.  # all the time before the most recent/current loop
+        kwargs['prefix'] = prefix
         super(ContextTimer, self).__init__(*args, **kwargs)
         
     def __enter__(self):

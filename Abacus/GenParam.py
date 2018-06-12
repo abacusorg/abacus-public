@@ -60,9 +60,16 @@ def varreplace(line, values):
     if not (varname in values.keys()):
         print(("Variable %s is not defined!"%(varname)))
         raise SyntaxError
-    return line[:pos1] + "values[\"%s\"]"%(varname) + line[pos2 +1:]
+    return line[:pos1] + 'varreplace_values["{:s}"]'.format(varname) + line[pos2 +1:]
 
-def parseInput(filename, values = {},fixvalues = {}):
+def parseInput(filename, values=None, fixvalues=None, varreplace_values=None):
+    if not values:
+        values = {}
+    if not fixvalues:
+        fixvalues = {}
+    if not varreplace_values:
+        varreplace_values = values
+
     with  open(filename, 'r') as param:
         for line in param:
             if '\n' in line:
@@ -76,12 +83,12 @@ def parseInput(filename, values = {},fixvalues = {}):
             
             #process previously defined variables
             while "@" in line:
-                line = varreplace(line,values)
+                line = varreplace(line,varreplace_values)
                             
             if "#include" in line[0:10]:
                 #We are including the values from another parameter file. This will overwrite any already specified values
-                qt1loc = line.find("\"")
-                qt2loc = line[qt1loc+1:].find("\"")
+                qt1loc = line.find('"')
+                qt2loc = line[qt1loc+1:].find('"')
                 if qt1loc == -1 or qt2loc ==-1:
                     print("Bad syntax on include: %s"%(line))
                     raise SyntaxError
@@ -157,12 +164,12 @@ def tostr(item): #recursively decompose the argument into a string we can print 
          
         
 
-def makeInput(filename,inputfile,strict = False, del_keywords=[], **keywords):
-    defaults = parseInput(inputfile,keywords,copy.deepcopy(keywords))
+def makeInput(outfn, inputfile, strict=False, del_keywords=[], **keywords):
+    defaults = parseInput(inputfile)
+    res = parseInput(inputfile,keywords,copy.deepcopy(keywords))
     for keyword in keywords.keys():
         if strict and (keyword not in defaults.keys()):
-            raise ValueError(keyword)
-        defaults[keyword] = keywords[keyword]
+            raise ValueError(keyword, "Keyword not in default parameter set, and `strict=True` was set.")
 
     for dk in del_keywords:
         try:
@@ -170,18 +177,18 @@ def makeInput(filename,inputfile,strict = False, del_keywords=[], **keywords):
         except KeyError:
             pass
     
-    with open(filename,'w') as outfile:
-        for keyword in sorted(defaults.keys()):
+    with open(outfn,'w') as outfile:
+        for keyword in sorted(res.keys()):
             outfile.write(keyword)
             outfile.write(' = ')
-            value = defaults[keyword]
-            if isinstance(value, str) and not ("\"" in value):
-                value = "\"" +value +"\""
+            value = res[keyword]
+            if isinstance(value, str) and not ('"' in value):
+                value = '"' +value +'"'
             outfile.write(tostr(value))
             outfile.write('\n')
         outfile.write('#created by GenParam from L2 file: {:s}    :: {:s}\n'.format(inputfile, time.asctime()))
         outfile.write('\n') #finalize the header
-    return defaults
+    return res
         
 
 if __name__ == '__main__':

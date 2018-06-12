@@ -47,8 +47,10 @@ from Abacus.Cosmology import AbacusCosmo
 import Abacus
 
 EXIT_REQUEUE = 200
+site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
+directory_param_fn = pjoin(abacuspath, 'Abacus', 'directory.def')
 
-def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False, erase_ic=False, output_parfile=None, **param_kwargs):
+def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False, erase_ic=False, output_parfile=None, use_site_overrides=False, override_directories=False, **param_kwargs):
     """
     The main entry point for running a simulation.  Initializes directories,
     copies parameter files, and parses parameter files as appropriate, then
@@ -77,6 +79,14 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     output_parfile: str, optional
         Filename of the processed parameters file.  Default of None places it
         in the same directory as `parfile`.
+    use_site_overrides: bool, optional
+        Use the `site_param_fn` file to overwrite tuning parameters
+        (like `OMP_NUM_THREADS`) in the given parameter file.  Default: False.
+    override_directories: bool, optional
+        Discard the directories (like `WorkingDirectory`) listed in the parameter
+        file and use the system defaults instead (from environment vars like
+        $ABACUS_TMP).  Also allows some zeldovich-PLT paths, like the eigenmodes
+        file, to be overwritten.  Default: False.
     param_kwargs: dict, optional
         Extra parameters to pass to the InputFile parser.  Useful for changing
         parameters on-the-fly for e.g. testing different parameters.
@@ -98,7 +108,8 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     except:
         maxsteps = 10000
 
-    params = preprocess_params(output_parfile, parfn, **param_kwargs)
+    params = preprocess_params(output_parfile, parfn, use_site_overrides=use_site_overrides,
+                override_directories=override_directories, **param_kwargs)
     
     basedir = params['WorkingDirectory']
     logdir = params['LogDirectory']
@@ -186,7 +197,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
         # The parfile is directly stored in the basedir
         output_parfile = path.basename(output_parfile)
         if clean and not path.exists(icdir):
-            zeldovich.run(output_parfile)
+            zeldovich.run(output_parfile, allow_eigmodes_fn_override=override_directories)
         elif clean:
             print('Reusing existing ICs')
         retval = singlestep(output_parfile, maxsteps, AllowIC=clean)
@@ -252,7 +263,7 @@ def default_parser():
     return parser
 
 
-def preprocess_params(output_parfile, parfn, **param_kwargs):
+def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_directories=False, **param_kwargs):
     '''
     There are a number of runtime modifications we want to make
     to the Abacus .par2 file as we parse it.  These typically
@@ -262,9 +273,19 @@ def preprocess_params(output_parfile, parfn, **param_kwargs):
     1) Compute ZD_Pk_sigma from sigma_8
     2) If $ABACUS_SSD2 is defined, define the params {Multipole,Taylor}Directory2
     3) If $ABACUS_TMP2 is defined and SloshState is True, define WorkingDirectory2
+    4) If `use_site_overrides` is set, load params from the site.def file
+    5) If `override_directories` is set, overwrite directories with defaults from the environment
     '''
 
+    if use_site_overrides:
+        site = InputFile(site_param_fn)
+        param_kwargs.update(site)
+
     params = GenParam.makeInput(output_parfile, parfn, **param_kwargs)
+
+    if override_directories:
+        dirs = GenParam.parseInput(directory_param_fn, varreplace_values=params)
+        param_kwargs.update(dirs)
     
     if 'sigma_8' in params:
         sigma8_at_zinit = zeldovich.calc_sigma8(params)
@@ -283,7 +304,7 @@ def preprocess_params(output_parfile, parfn, **param_kwargs):
     if params.get('SloshState',False):
         if 'ABACUS_TMP2' in os.environ:
             # WorkingDirectory2 is never processed by Abacus.
-            # They will be intercepted by the sloshing logic
+            # It will be intercepted by the sloshing logic
             if 'WorkingDirectory2' not in params:
                 param_kwargs['WorkingDirectory2'] = pjoin(os.environ['ABACUS_TMP2'], params['SimName'])
 
