@@ -2,3 +2,8 @@ makeanalytic
 makespiralics
 nohup.out
 slurm-*.out
+abacus.par
+analytic
+*.png
+spiral.par
+final.ts

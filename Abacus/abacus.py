@@ -373,6 +373,9 @@ def setup_state_dirs(paramfn, newparam_suffix='step{step:04d}'):
     TODO: there will probably be times when we want to slosh
     the main state but split the MT
 
+    TODO: this might be really dumb.  Why not just just swap
+    symlinks?
+
     '''
     params = GenParam.makeInput(paramfn, paramfn)
     OverwriteState = params.get('OverwriteState',False)
