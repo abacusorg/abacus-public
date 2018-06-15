@@ -78,11 +78,19 @@ void RescaleAndCoAddAcceleration(int slab) {
         rescale *= -1;
     
     uint64 N = Slab->size(slab)*3;
+
+    #ifdef DIRECTSINGLESPLINE
+    FLOAT inv_eps3 = 1./(JJ->SofteningLengthInternal*JJ->SofteningLengthInternal*JJ->SofteningLengthInternal);
+    #endif
     
     #pragma omp parallel for schedule(static)
     #pragma simd assert
     for (uint64 j=0; j<N;j++) {
+        #ifdef DIRECTSINGLESPLINE
+        faccxyz[j] = (faccxyz[j] + naccxyz[j]*inv_eps3)*rescale;
+        #else
         faccxyz[j] = (faccxyz[j] + naccxyz[j])*rescale;
+        #endif
     }
 }
 

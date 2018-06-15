@@ -173,7 +173,7 @@ def makeInput(outfn, inputfile, strict=False, del_keywords=[], **keywords):
 
     for dk in del_keywords:
         try:
-            del defaults[dk]
+            del res[dk]
         except KeyError:
             pass
     

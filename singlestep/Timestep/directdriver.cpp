@@ -52,6 +52,9 @@
 
 #include "DeviceFunctions.h"
 
+// Foward declaration; found in kick.cpp
+void ZeroAcceleration(int slab,int Slabtype);
+
 class NearFieldDriver{
     public:
         NearFieldDriver();
@@ -115,7 +118,6 @@ class NearFieldDriver{
         int MaxSinkBlocks;
         int MinSplits;
         uint64 *NSink_GPU_final;
-        pthread_mutex_t * CellLock;
 
         void ExecuteSlabGPU(int slabID, int blocking);
         void ExecuteSlabCPU(int slabID,int * predicate);
@@ -159,8 +161,6 @@ NearFieldDriver::NearFieldDriver() :
     for(int i = 0; i < P.cpd;i++) slabcomplete[i]=0;
     WIDTH = P.NearFieldRadius*2+1;
     RADIUS = P.NearFieldRadius;
-    CellLock = (pthread_mutex_t *) malloc(P.cpd*P.cpd*sizeof(pthread_mutex_t));
-    for(int i =0; i < P.cpd*P.cpd; i ++) pthread_mutex_init(&CellLock[i],NULL);
     
 #ifdef CUDADIRECT
     NGPU = GetNGPU();
@@ -216,9 +216,6 @@ NearFieldDriver::~NearFieldDriver()
     
     GPUReset();
 #endif
-    for(int i =0; i < P.cpd*P.cpd; i++)
-        pthread_mutex_destroy(&CellLock[i]);
-    free(CellLock);
 }
 
 // Compute the number of splits for a given number of sources and sinks
@@ -411,10 +408,6 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
                     }
                 }
             }
-            #ifdef DIRECTSINGLESPLINE
-            for(uint64 i = 0; i < np_sink; i++)
-                sink_acc[i] *= inv_eps3;
-            #endif
         }
     }
     DirectInteractions_CPU += DI_slab;
@@ -464,10 +457,6 @@ void NearFieldDriver::Finalize(int slab){
 
     assertf(SlabDone(slab) != 0,
             "Finalize called for slab %d but it is not complete\n",slab);
-            
-    #ifdef DIRECTSINGLESPLINE
-    FLOAT inv_eps3 = 1./(SofteningLengthInternal*SofteningLengthInternal*SofteningLengthInternal);
-    #endif
 
     if(P.ForceOutputDebug)
         CheckInteractionList(slab);
@@ -480,11 +469,6 @@ void NearFieldDriver::Finalize(int slab){
     int cpd = P.cpd;
     int nfr = P.NearFieldRadius;
     int width = 2*nfr +1;
-
-    // Ideally we would zero-initialize all cell acclerations then add accelerations to that
-    // but zeroing every cell is really expensive, so we instead *set* the acceleration
-    // instead of add if it's the first time touching the cell
-    int *CellAccInit = new int[cpd*cpd]();
 
     // There's an annoying number of reductions here, would be a lot of overhead to do in parallel
     // Let's do them serially here; hopefully this is quick.
@@ -516,11 +500,26 @@ void NearFieldDriver::Finalize(int slab){
         DeviceSinks[g] += Slice->SinkTotal;
         DeviceSources[g] += Slice->SourceTotal;
     }
+
+    if(P.ForceOutputDebug){
+        // Make the accelerations invalid so we can detect improper co-adding
+        #pragma omp parallel for schedule(static)
+        for(int y = 0; y < cpd; y++){
+            for(int z = 0; z < cpd; z++){
+                accstruct *acc = PP->NearAccCell(slab, y, z);
+                int count = PP->NumberParticle(slab,y,z);
+                
+                for(int i = 0; i < count; i++)
+                    acc[i] = accstruct(std::numeric_limits<float>::infinity());
+                    //acc[i] = accstruct(0.);
+            }
+        }
+    }
     FinalizeBookkeeping.Stop();
     
     CopyPencilToSlab.Start();
-    // This kills our NUMA locality
-    //#pragma omp parallel for schedule(static)
+
+    // The co-adding in here doesn't really benefit from double precision, as far as Spiral and Ewald indicate
     for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
         int w = sliceIdx / NSplit;
         SetInteractionCollection *Slice = Slices[sliceIdx];
@@ -528,65 +527,67 @@ void NearFieldDriver::Finalize(int slab){
         if(Nj * width + w < cpd)
             Nj++;
 
+        assert(Slice->NSinkList % Nj == 0);
+        // Thread over y-rows.  This keeps threads spread out prevents races at the z-wrap
         #pragma omp parallel for schedule(static)
-        for(int sinkIdx = 0; sinkIdx < Slice->NSinkList; sinkIdx++){
-            int SinkCount = Slice->SinkSetCount[sinkIdx];
-            int j = sinkIdx%Nj;
-            int k = sinkIdx/Nj + Slice->K_low;
-            int jj = w + j * width;
-            int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
-            int Start = Slice->SinkSetStart[sinkIdx];
+        for(int k = Slice->K_low; k < Slice->NSinkList / Nj + Slice->K_low; k++){  // y-rows
+            for(int j = 0; j < Nj; j++){ // z-pencil centers
+                int jj = w + j*width;
+                int zmid = jj + P.NearFieldRadius;  // this is deliberately not wrapped so we can tell when we cross the wrap
 
-            for(int z=zmid-nfr; z <= zmid+nfr;z++){
-                int cid = PP->CellID(k,z);
-                int CellNP = PP->NumberParticle(slab,k,z);
-                accstruct *a = PP->NearAccCell(slab,k,z);
+                int sinkIdx = (k - Slice->K_low)*Nj + j;
+                int SinkCount = Slice->SinkSetCount[sinkIdx];
+                int Start = Slice->SinkSetStart[sinkIdx];
 
-                if(P.ForceOutputDebug == 1){
-                    for(int p =0; p < CellNP; p++){
-                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].x));
-                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].y));
-                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].z));
+                for(int z=zmid-nfr; z <= zmid+nfr; z++){
+                    int cid = PP->CellID(k,z);
+                    int CellNP = PP->NumberParticle(slab,k,z);
+                    accstruct *a = PP->NearAccCell(slab,k,z);
+
+                    if(P.ForceOutputDebug == 1){
+                        for(int p =0; p < CellNP; p++){
+                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].x));
+                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].y));
+                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].z));
+                        }
+
+                        if(w != 0 || z >= cpd){
+                            for(int p = 0; p <CellNP; p++){
+                                assert(isfinite(a[p].x));
+                                assert(isfinite(a[p].y));
+                                assert(isfinite(a[p].z));
+                            }
+                        } else {
+                            for(int p = 0; p <CellNP; p++){
+                                assert(!isfinite(a[p].x));
+                                assert(!isfinite(a[p].y));
+                                assert(!isfinite(a[p].z));
+                            }
+                        }
                     }
+
+                    // The first time we see a cell is always when w==0, and we have not yet z-wrapped
+                    if(w != 0 || z >= cpd){
+                        #pragma simd assert
+                        for(int p = 0; p <CellNP; p++)
+                            a[p] += Slice->SinkSetAccelerations[Start +p];
+                    } else {
+                        #pragma simd assert
+                        for(int p = 0; p <CellNP; p++)
+                            a[p] = Slice->SinkSetAccelerations[Start +p];
+                    }
+
+                    Start+=CellNP;
+                    SinkCount-=CellNP;
                 }
-
-                pthread_mutex_lock(&CellLock[cid]);
-                // Should rewrite the following to avoid so much repetition
-                if(CellAccInit[cid]){
-                    #pragma simd assert
-                    for(int p = 0; p <CellNP; p++){
-                        // It's not good to know about spline here, but it's likely the most efficient way
-                        #ifdef DIRECTSINGLESPLINE
-                        a[p] += Slice->SinkSetAccelerations[Start +p]*inv_eps3;
-                        #else
-                        a[p] += Slice->SinkSetAccelerations[Start +p];
-                        #endif
-                    }
-                } else {
-                    #pragma simd assert
-                    for(int p = 0; p <CellNP; p++){
-                        // It's not good to know about spline here, but it's likely the most efficient way
-                        #ifdef DIRECTSINGLESPLINE
-                        a[p] = Slice->SinkSetAccelerations[Start +p]*inv_eps3;
-                        #else
-                        a[p] = Slice->SinkSetAccelerations[Start +p];
-                        #endif
-                    }
-                    CellAccInit[cid] = 1;
-                }
-                pthread_mutex_unlock(&CellLock[cid]);
-
-                Start+=CellNP;
-                SinkCount-=CellNP;
+                assert(SinkCount == 0);
             }
-            assert(SinkCount == 0);
         }
         delete Slice;
     }
     CopyPencilToSlab.Stop();
     
     delete[] Slices;
-    delete[] CellAccInit;
     if(P.ForceOutputDebug) CheckGPUCPU(slab);
     #endif
     FinalizeTimer.Stop();

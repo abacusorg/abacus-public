@@ -114,11 +114,12 @@ int FINISH_WAIT_RADIUS = 1;
 #include "insert.cpp"
 #include "drift.cpp"
 #include "merge.cpp"
-#include "kick.cpp"
 
 #include "direct.h"
 #include "direct.cpp"
 #include "directdriver.cpp"
+
+#include "kick.cpp"
 
 #include "basemultipoles.cpp"
 #include "redlack.cpp"
