@@ -117,13 +117,17 @@ public:
 };
 
     State::State(){
-    	installscalar("np_state",np_state,MUST_DEFINE);
-    	installscalar("cpd_state",cpd_state,MUST_DEFINE);
-    	installscalar("order_state",order_state,MUST_DEFINE);
+        // These state values are not written to file headers, only to the statefile proper
+        // But we might want to load a file header as a state for analysis!
+        // So make these optional, but they will fail validation against the Parameters if missing in a simulation context
+    	installscalar("np_state",np_state,DONT_CARE);
+    	installscalar("cpd_state",cpd_state,DONT_CARE);
+    	installscalar("order_state",order_state,DONT_CARE);
+
     	installscalar("ParameterFileName",ParameterFileName,DONT_CARE);
     	installscalar("ppd",ppd,DONT_CARE);
         installscalar("SofteningType", SofteningType,DONT_CARE);
-        installscalar("SofteningLength", SofteningLength,DONT_CARE);
+        installvector("SofteningLength", &SofteningLength, 2, 0, DONT_CARE);
         installscalar("SofteningLengthInternal", SofteningLengthInternal,DONT_CARE);
 
     	sprintf(CodeVersion,"version_not_defined");

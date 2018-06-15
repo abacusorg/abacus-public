@@ -1,3 +1,4 @@
+#pragma once
 // This is a simple routine to provide a consistent subsampling, based on a PID hash.
 #include "MurmurHash3.cpp"
 

@@ -260,8 +260,10 @@ void GroupFindingControl::DestroyCellGroups(int slab) {
     return;
 }
 
-//GroupFindingControl *GFC = NULL;	
+#ifdef STANDALONE_FOF
+GroupFindingControl *GFC = NULL;	
 	// We have one global instance of this, initialized in proepi
+#endif
 
 #include "findgrouplinks.cpp"
 	// Code to search between pairs of cells and find the linked groups,
@@ -366,12 +368,14 @@ void FindAndProcessGlobalGroups(int slab) {
 	if(do_output)
 		GGS->HaloOutput();
 
+#ifndef STANDALONE_FOF
     // We have a split time slice output model where non-L0 particles and L0 particles go in separate files
     if(ReadState.DoTimeSliceOutput){
         FLOAT unkickfactor = WriteState.FirstHalfEtaKick;
         STDLOG(1,"Outputting L0 group particles in slab %d with unkick factor %f\n", slab, unkickfactor);
         GFC->n_L0_output += GGS->L0TimeSliceOutput(unkickfactor);
     }
+#endif
 }
 
 void FinishGlobalGroups(int slab){

@@ -252,13 +252,19 @@ void Epilogue(Parameters &P, bool ic) {
 
     if(IL->length!=0) { IL->DumpParticles(); assert(IL->length==0); }
     
-    char filename[1024];
-    sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
-    Slab->write(filename);
-    STDLOG(1,"Writing SlabSize file to %s\n", filename);
+    if(Slab != NULL){
+        char filename[1024];
+        sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
+        Slab->write(filename);
+        STDLOG(1,"Writing SlabSize file to %s\n", filename);
+    }
 
-    MF->ComputeRedlack();  // NB when we terminate SlabMultipoles we write out these
-    MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
+    // Some pipelines, like standalone_fof, don't use multipoles
+    if(MF != NULL){
+        MF->ComputeRedlack();  // NB when we terminate SlabMultipoles we write out these
+        MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
+        delete MF;
+    }
 
     if(ReadState.DoBinning){
             STDLOG(1,"Outputting Binned Density\n");
@@ -273,7 +279,6 @@ void Epilogue(Parameters &P, bool ic) {
     if(WriteState.Do2LPTVelocityRereading)
         finish_2lpt_rereading();
 
-    delete MF;
     LBW->report();
     delete LBW;
     delete PP;

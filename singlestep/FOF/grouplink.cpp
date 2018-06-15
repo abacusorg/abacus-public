@@ -110,14 +110,14 @@ public:
     }
 
     void AsciiPrint() {
-        for (int j=0; j<length; j++) {
+        for (uint64 j=0; j<length; j++) {
 	    integer3 c1 = list[j].a.cell();
 	    integer3 c2 = list[j].b.cell();
 	    printf("%d %d %d %d to %d %d %d %d\n",
 	        c1.x, c1.y, c1.z, list[j].a.cellgroup(),
 	        c2.x, c2.y, c2.z, list[j].b.cellgroup());
 	}
-	printf("Dump of GLL length %lld\n", length);
+	printf("Dump of GLL length %lu\n", length);
     }
 
     GroupLink *Search(int slab, int j) {

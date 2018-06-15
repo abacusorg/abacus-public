@@ -16,15 +16,6 @@ So we actually are limited to about 680 million particles in a cell.
 #ifndef INCLUDE_PARTICLESTRUCT
 #define INCLUDE_PARTICLESTRUCT
 
-// So that we can easily adjust to double precision for kinematics
-#ifdef DOUBLEPRECISION
-#define FLOAT double
-#define FLOAT3 double3		
-#else 
-#define FLOAT float	
-#define FLOAT3 float3
-#endif
-
 #define posstruct FLOAT3
 #define velstruct FLOAT3
 #define accstruct FLOAT3
@@ -157,7 +148,7 @@ public:
         // Do a sanity check on the cellinfo values; return 1 if ok, 0 if not.
 	// slabsize is the number of particles in the slab.
 	if (!isfinite(startindex)){
-        STDLOG(0, "Bad 'startindex' in cellinfo: %llu\n", startindex);
+        STDLOG(0, "Bad 'startindex' in cellinfo: %u\n", startindex);
         return 0;
     }
     if(count<0){
@@ -165,11 +156,11 @@ public:
         return 0;
     }
     if(active<0){
-        STDLOG(0, "Bad 'active' in cellinfo: %llu\n", active);
+        STDLOG(0, "Bad 'active' in cellinfo: %u\n", active);
         return 0;
     }
 	if (startindex+count > slabsize){
-        STDLOG(0, "'startindex+count' (%llu + %d = %lld) > 'slabsize' (%llu) in cellinfo\n", startindex, count, startindex+count, slabsize);
+        STDLOG(0, "'startindex+count' (%u + %d = %d) > 'slabsize' (%u) in cellinfo\n", startindex, count, startindex+count, slabsize);
         return 0;
     }
 	if (active>count){

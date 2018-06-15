@@ -910,3 +910,103 @@ void timestepBenchmarkIO(int nslabs) {
     STDLOG(1,"Completing timestepBenchmarkIO()\n");
     TimeStepWallClock.Stop();
 }
+
+// =============================================================================================== //
+
+#include "read_pack14.cpp"
+
+const char* StandaloneFOF_slice_dir;
+int StandaloneFOFLoadSlabPrecondition(int slab) {
+    if(LBW->total_allocation > .5*P.MAXRAMMB*1024LLU*1024LLU){
+        Dependency::NotifySpinning(NOT_ENOUGH_RAM);
+        return 0;
+    }
+    return 1;
+}
+
+void StandaloneFOFLoadSlabAction(int slab) {
+    char fname[1024];
+    // TODO: Add support for L0 slabs?
+    sprintf(fname, "%s/%s.z%5.3f.slab%04d.dat", StandaloneFOF_slice_dir, P.SimName, ReadState.Redshift, slab);
+    STDLOG(1,"Load Slab %d from \"%s\"\n", slab, fname);
+
+    size_t s = fsize(fname);
+    LBW->AllocateSpecificSize(TimeSlice, slab, s);
+    // We will read the raw pack14 asynchronously with LBW
+    // then unpack it in a separate dependency
+    // TODO: support states as well as time slices
+    LBW->ReadArena(TimeSlice, slab, IO_NONBLOCKING, fname);
+}
+
+int StandaloneFOFUnpackSlabPrecondition(int slab) {
+    if (! LBW->IOCompleted(TimeSlice, slab)) return 0;
+    return 1;
+}
+
+void StandaloneFOFUnpackSlabAction(int slab) {
+    printf("Unpacking slab %d\n", slab);
+    STDLOG(1, "Unpacking slab %d\n", slab);
+    int nump = unpack_slab_pack14(slab, P.HaloTaggableFraction);
+    STDLOG(1,"Found %d particles in slab %d\n", nump, slab);
+
+    LBW->DeAllocate(TimeSlice, slab);
+}
+
+int StandaloneFOFMakeCellGroupsPrecondition(int slab) {
+    if (TransposePos.notdone(slab)) return 0;
+    return 1;
+}
+
+int StandaloneFOFFinishPrecondition(int slab) {
+    if (DoGlobalGroups.notdone(slab)) return 0;
+    return 1;
+}
+
+void StandaloneFOFFinishAction(int slab) {
+    STDLOG(1,"Deleting slab %d\n", slab);
+
+    // Release the group-local copies of the particles
+    GlobalGroupSlab *GGS = GFC->globalslabs[slab];
+    delete GGS;
+    GFC->globalslabs[slab] = NULL;
+
+    LBW->DeAllocate(PosSlab, slab);
+    LBW->DeAllocate(VelSlab, slab);
+    LBW->DeAllocate(AuxSlab, slab);
+    LBW->DeAllocate(CellInfoSlab, slab);
+}
+
+
+void timestepStandaloneFOF(const char* slice_dir) {
+    STDLOG(0,"Initiating timestepStandaloneFOF()\n");
+    TimeStepWallClock.Clear();
+    TimeStepWallClock.Start();
+
+    int cpd = GFC->cpd;
+
+    StandaloneFOF_slice_dir = slice_dir;
+
+    FORCE_RADIUS = 0;
+    GROUP_RADIUS = P.GroupRadius;
+    assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS); 
+    STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
+
+    int first = 0;
+            FetchSlabs.instantiate(cpd, first, &StandaloneFOFLoadSlabPrecondition, &StandaloneFOFLoadSlabAction);
+          TransposePos.instantiate(cpd, first, &StandaloneFOFUnpackSlabPrecondition, &StandaloneFOFUnpackSlabAction);
+        MakeCellGroups.instantiate(cpd, first, &StandaloneFOFMakeCellGroupsPrecondition, &MakeCellGroupsAction);
+    FindCellGroupLinks.instantiate(cpd, first + 1, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction);
+        DoGlobalGroups.instantiate(cpd, first + 2*GFC->GroupRadius, &DoGlobalGroupsPrecondition, &DoGlobalGroupsAction);
+                Finish.instantiate(cpd, first + 2*GFC->GroupRadius, &StandaloneFOFFinishPrecondition, &StandaloneFOFFinishAction);
+
+    while (!Finish.alldone()) {
+        FetchSlabs.Attempt();
+        TransposePos.Attempt();
+        MakeCellGroups.Attempt();
+        FindCellGroupLinks.Attempt();
+        DoGlobalGroups.Attempt();
+        Finish.Attempt();
+    }
+
+    TimeStepWallClock.Stop();
+}

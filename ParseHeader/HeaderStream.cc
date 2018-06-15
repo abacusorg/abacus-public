@@ -46,21 +46,31 @@ void HeaderStream::Close(void) {
 //     file open, at the end of the header.
 void HeaderStream::SkipHeader(void) {
     OpenForRead();
+    bufferlength = HeaderStream::SkipHeaderFromFP(fp);
+    return;
+}
+
+// returns length of header, including the ^B^B at end, and leave the
+//     file open, at the end of the header.
+int HeaderStream::SkipHeaderFromFP(FILE *fp) {
+    int bufferlength;
     char buf[2];
+    if(fread(&(buf[1]), 1, 1, fp)<=0){
+        bufferlength = 2;  // pseudo ^B^B
+        return bufferlength;
+    }
     int len = 1;
-    if(fread(&(buf[1]),1,1,fp) != 1) goto error;
     do {
         buf[0] = buf[1];
-        if(fread(&(buf[1]), 1, 1, fp) != 1) goto error;
+        if(fread(&(buf[1]), 1, 1, fp)<=0){
+            len += 2; // pseudo ^B^B
+            break;
+        }
         len++;
     } while(!(buf[0]==0x2 && buf[1]=='\n'));
+    
     bufferlength = len;
-    return;
-
- error:
-    std::cerr << "HeaderStream::SkipHeader: error in skipping header (no ^B\\n at end?)\n";
-    fclose(fp);
-    exit(1);
+    return bufferlength;
 }
 
 // get length of the header, including the ^B^B at the end
@@ -73,17 +83,11 @@ void HeaderStream::ReadHeader(void) {
     GetHeaderLength();  // this guarantees there is a valid header
     buffer = new char[bufferlength];
     OpenForRead();
-    int len = 0;
-    do {
-        size_t nread = fread(&(buffer[len]), 1, 1, fp);
-        if (nread != 1)
-            break;
-        len += nread;
-    } while(!(len >= 2 && buffer[len-2]==0x2 && buffer[len-1]=='\n'));
-    assert(len == bufferlength);
+    size_t nread = fread(&(buffer[0]), 1, bufferlength-2, fp);
+    assert(nread == bufferlength-2);
     // replace the end-of-header token with two nulls as required by the parser
-    buffer[len-2] = 0x0;
-    buffer[len-1] = 0x0;
+    buffer[bufferlength-2] = 0x0;
+    buffer[bufferlength-1] = 0x0;
 }
 
 FILE* OpenForWrite(std::string fn, bool overwrite) {

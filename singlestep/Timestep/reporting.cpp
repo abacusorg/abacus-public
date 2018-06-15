@@ -452,12 +452,14 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Rebin",        DriftRebin.Elapsed());
     REPORT(1, "Inserting",    DriftInsert.Elapsed());
 
-    fprintf(timingfile, "\n\n Subdivisions of Compute Multipole:");
-    denom = ComputeMultipoles.Elapsed();
-    REPORT(1, "Compute Cell Offsets", MF->ConstructOffsets.Elapsed());
-    REPORT(1, "Multipole ASM", MF->MultipoleASM.Elapsed());
-    REPORT(1, "Multipole C to R", MF->MultipoleC2R.Elapsed());
-    REPORT(1, "Multipole FFT", MF->FFTMultipole.Elapsed());
+    if(MF != NULL){
+        fprintf(timingfile, "\n\n Subdivisions of Compute Multipole:");
+        denom = ComputeMultipoles.Elapsed();
+        REPORT(1, "Compute Cell Offsets", MF->ConstructOffsets.Elapsed());
+        REPORT(1, "Multipole ASM", MF->MultipoleASM.Elapsed());
+        REPORT(1, "Multipole C to R", MF->MultipoleC2R.Elapsed());
+        REPORT(1, "Multipole FFT", MF->FFTMultipole.Elapsed());
+    }
     
     fprintf(timingfile, "\n\n Breakdown of Finish Step:");
     denom = Finish.Elapsed();

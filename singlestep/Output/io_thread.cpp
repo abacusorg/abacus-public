@@ -19,6 +19,7 @@
 #include <pthread.h>
 #include <sched.h>
 #include <sys/resource.h>
+#include "threadaffinity.h"
 
 class iothread {
 public:

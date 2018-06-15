@@ -6,6 +6,8 @@
 
 #define STANDALONE_FOF
 
+#include "header.cpp"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <cmath>
@@ -51,12 +53,11 @@
 
 typedef float Float;
 typedef float3 Float3;
-typedef unsigned long long uint64;
 
 #include "parallel.partition.cpp"
 #include "multiappendlist.cpp"
 
-typedef float3 posstruct;
+/*typedef float3 posstruct;
 typedef float3 velstruct;
 typedef float3 accstruct;
 
@@ -130,7 +131,7 @@ class grid {
 	val.z = WrapSlab(x);
 	return val;
     }
-};
+};*/
 
 void setup_log() {
     stdlog_threshold_global = 1;

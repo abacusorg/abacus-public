@@ -354,7 +354,7 @@ static inline AVX512_FLOATS inv_cosine_avx512(const AVX512_FLOATS X, const int o
     if(order == 0) {
         for(int ii=0;ii<AVX512_NVEC;ii++) {
             const DOUBLE costheta = union_costheta.x[ii];
-            union_returnvalue.x[ii] = ACOS(costheta);
+            union_returnvalue.x[ii] = std::acos(costheta);
         }
     } else {
         //fast acos

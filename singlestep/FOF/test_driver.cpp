@@ -1,8 +1,8 @@
 // This is a code to provide a test for the group finding.
 
 // There are a couple of other unit tests:
-// g++ -DTEST -fopenmp -lgomp -O2 fof_sublist.cpp 
-// g++ -DTEST -fopenmp -lgomp -O2 slab_accum.cpp
+// make fof_sublist
+// make slab_accum
 
 #include "test_driver_header.cpp"
 #include "test_driver_particles.cpp"

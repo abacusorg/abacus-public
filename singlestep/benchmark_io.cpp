@@ -8,9 +8,9 @@
     WallClockDirect.Start();
     SingleStepSetup.Start();
 
-    if (argc!=3) {
-       fprintf(stderr, "benchmark_io: command line must have 3 parameters given, not %d.\nLegal usage: benchmark_io <parameter_file> <nslabs>\n", argc);
-       assert(0==99);
+    if(argc < 2) {
+       fprintf(stderr, "%s: command line must have at least 1 parameter given.\nUsage: %s <parameter_file> [nslabs]\n", argv[0], argv[0]);
+       exit(1);
     }
     
     P.ReadParameters(argv[1],0);
@@ -33,7 +33,8 @@
     Prologue(P,MakeIC);
     Slab = new SlabSize(P.cpd);
     load_slabsize(P);
-    timestepBenchmarkIO(atoi(argv[2]));
+    int nslab = argc >= 3 ? atoi(argv[2]) : -1;
+    timestepBenchmarkIO(nslab);
 
     // Let the IO finish, so that it is included in the time log.
     SingleStepTearDown.Start();

@@ -1,4 +1,4 @@
-CXX = $(shell which icc >/dev/null && echo "icc" || echo "g++")
+CXX ?= $(shell which icc >/dev/null && echo "icc" || echo "g++")
 CC = $(CXX)
 CXXFLAGS = -O1
 INCLUDES = -I../include/

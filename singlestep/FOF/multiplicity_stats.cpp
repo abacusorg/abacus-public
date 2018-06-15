@@ -27,7 +27,7 @@ class MultiplicityStats {
 	}
     }
 
-    void push(int np) {
+    void push(uint64 np) {
         // Given a group multiplicity, add it to the list
 	if (np>largest) largest=np;
 	ngroups++;

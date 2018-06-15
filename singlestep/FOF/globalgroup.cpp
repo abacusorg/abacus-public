@@ -271,7 +271,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                     int ggsize = 0; 
                     cglist.resize(0);   // Reset to null list
                     cglist.push_back(LinkID(slab, j, k, g));   // Prime the queue
-                    int searching = 0;
+                    uint64 searching = 0;
                     // printf("GG %d %d %d %d\n", slab, j, k, g);
                     while (searching<cglist.size()) {
                         // We have an unresolved group to search
@@ -298,7 +298,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                                 // This link originates from the group we're using
                                 // But now we need to check if its destination
                                 // is already on the list.
-                                int seek = 0;
+                                uint64 seek = 0;
                                 while (seek<cglist.size()) 
                                     if (g->b.id == cglist[seek++].id) goto FoundIt;
                                 cglist.push_back(g->b);  // Didn't find it; add to queue
@@ -315,8 +315,8 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                     // We only track the group if it has more than one particle
                     if (ggsize>1) {
                         int start = gg_list->buffer->get_pencil_size();
-                        for (int t = 0; t<cglist.size(); t++) {
-                            integer3 tmp = cglist[t].cell();
+                        for (uint64 t = 0; t<cglist.size(); t++) {
+                            //integer3 tmp = cglist[t].cell();
                             // printf("GGlist: %d %d %d %d\n",
                                     // tmp.x, tmp.y, tmp.z, cglist[t].cellgroup());
                             gg_list->append(cglist[t]);
@@ -431,7 +431,8 @@ void GlobalGroupSlab::GatherGlobalGroups() {
                     memcpy(aux+start, cell.aux+cg->start, sizeof(auxstruct)*cg->size());
                     for (int p=0; p<cg->size(); p++) aux[p+start].set_L0();
                             // This particle is in L0
-                    memcpy(acc+start, cell.acc+cg->start, sizeof(accstruct)*cg->size());
+                    if(cell.acc != NULL)
+                        memcpy(acc+start, cell.acc+cg->start, sizeof(accstruct)*cg->size());
                     cellijk -= firstcell;
                     if (cellijk.x> diam) cellijk.x-=GFC->cpd;
                     if (cellijk.x<-diam) cellijk.x+=GFC->cpd;
@@ -591,7 +592,9 @@ void GlobalGroupSlab::FindSubGroups() {
                 posstruct *grouppos = pos+globalgroups[j][k][n].start;
                 velstruct *groupvel = vel+globalgroups[j][k][n].start;
                 auxstruct *groupaux = aux+globalgroups[j][k][n].start;
-                accstruct *groupacc = acc+globalgroups[j][k][n].start;
+                accstruct *groupacc = NULL;
+                if(acc != NULL)
+                    groupacc = acc+globalgroups[j][k][n].start;
                 int groupn = globalgroups[j][k][n].np;
                 GFC->L1FOF.Start();
                 FOFlevel1[g].findgroups(grouppos, NULL, NULL, NULL, groupn);
@@ -613,7 +616,8 @@ void GlobalGroupSlab::FindSubGroups() {
                         L1vel[g][b] = groupvel[start[b].index()];
                         groupaux[start[b].index()].set_L1();
                         L1aux[g][b] = groupaux[start[b].index()];
-                        L1acc[g][b] = groupacc[start[b].index()];
+                        if (groupacc != NULL)
+                            L1acc[g][b] = groupacc[start[b].index()];
                     }
                     GFC->L2FOF.Start();
                     FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, NULL, size);
@@ -753,12 +757,12 @@ void GlobalGroupSlab::SimpleOutput() {
     // which is why we include that cell ijk in the first outputs
     sprintf(fname, "/tmp/out.pos.%03d", slab);
     fp = fopen(fname,"w");
-    for (int p=0; p<np; p++)
+    for (uint64 p=0; p<np; p++)
         fprintf(fp, "%f %f %f %d\n", pos[p].x, pos[p].y, pos[p].z, (int)aux[p].pid());
     fclose(fp);
 }
 
-#ifdef STANDALONE_FOF
+#if 0
 void GlobalGroupSlab::HaloOutput() {
     char fname[200];
     sprintf(fname, "/tmp/out.binhalo.%03d", slab);
@@ -854,6 +858,7 @@ void GlobalGroupSlab::HaloOutput() {
 }
 #endif
 
+#ifndef STANDALONE_FOF
 uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
     /* When we do group finding, we write all the non-L0 particles into normal
      * time-slice slabs and the L0 group particles into their own slabs.
@@ -938,3 +943,4 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
 
     return n_added;
 }
+#endif

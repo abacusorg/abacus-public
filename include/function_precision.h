@@ -53,6 +53,12 @@ extern "C" {
 #endif//AVX
 
 
+#ifdef DOUBLE_PREC
+#define ZERO   0.0
+#else
+#define ZERO   0.0f
+#endif
+
 /*
 #ifdef DOUBLE_PREC
 #define DOUBLE double

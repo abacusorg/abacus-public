@@ -89,6 +89,7 @@ class FOFparticle {
     }
 };
 
+#ifdef AVX512DIRECT
 #include "avx512_calls.h"
 // This implementation is slower than AVX; AVX-512 is missing hadd
 inline void diff2avx512_4(float *r, float *p, float *a) {
@@ -181,6 +182,7 @@ inline void diff2avx512_32(float *r, float *p, float *a) {
 
     _mm512_store_ps(r + AVX512_NVEC, dr22);
 }
+#endif // AVX512DIRECT
 
 
 inline void diff2avx4(float *r, float *p, float *a) {
@@ -434,7 +436,7 @@ class FOFcell {
 	for (j=0;j<n;j++) tmp[index[j]] = aux[j];
 	memcpy(aux, tmp, n*sizeof(auxstruct));
 	}
-	{
+	if(acc != NULL){
 	accstruct *tmp = (accstruct *)p;
 	for (j=0;j<n;j++) tmp[index[j]] = acc[j];
 	memcpy(acc, tmp, n*sizeof(accstruct));

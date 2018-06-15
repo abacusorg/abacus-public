@@ -1,4 +1,5 @@
-export CC = $(shell which icc >/dev/null && echo "icc" || echo "g++")
+CC ?= $(shell which icc >/dev/null && echo "icc" || echo "g++")
+export CC
 all: AbacusCosmo.py
 
 VPATH=../../include

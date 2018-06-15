@@ -19,6 +19,7 @@ NB: When adding parameters, you should add:
 #define STRUNDEF "NONE"
 
 #include "ParseHeader.hh"
+#include "file.cpp"
 
 #include <sys/sysinfo.h>
 
@@ -170,7 +171,7 @@ public:
         installscalar("Order",order,MUST_DEFINE);
 
         installscalar("NearFieldRadius",NearFieldRadius,MUST_DEFINE);    // Radius of cells in the near-field
-        installscalar("SofteningLength", SofteningLength,MUST_DEFINE); // Softening length in the same units as BoxSize
+        installvector("SofteningLength", &SofteningLength, 2, 0, MUST_DEFINE); // Softening length in the same units as BoxSize
         installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
         MAXRAMMB = getRAMSize();
         installscalar("MAXRAMMB", MAXRAMMB, DONT_CARE);
@@ -535,7 +536,7 @@ void Parameters::ValidateParameters(void) {
 
 
     char dfn[1024];
-    char *fnfmt;
+    const char *fnfmt;
     if(sizeof(DFLOAT) == sizeof(float))
         fnfmt = "%s/fourierspace_float32_%d_%d_%d_%d_%d";
     else
