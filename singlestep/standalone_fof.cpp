@@ -8,19 +8,16 @@
     WallClockDirect.Start();
     SingleStepSetup.Start();
 
-    if(argc < 2) {
-       fprintf(stderr, "%s: command line must have at least 1 parameter given.\nUsage: %s <parameter file or time slice directory>\n", argv[0], argv[0]);
+    if(argc < 3) {
+       fprintf(stderr, "%s: command line must have at least 2 parameters given.\nUsage: %s <time slice directory> <parameter file>\n", argv[0], argv[0]);
        exit(1);
     }
 
-    // The directory must contain a 'header' file
-    // We will cheat and load it as both the parameters and state file
-    char headerfn[1050];
-    sprintf(headerfn, "%s/header", argv[1]);
-    HeaderStream hs(headerfn);
+    // We will cheat and load this as both the parameters and state file
+    HeaderStream hs(argv[2]);
     ReadState.ReadHeader(hs);
     hs.Close();
-    P.ReadParameters(headerfn, 0);
+    P.ReadParameters(argv[2], 0);
 
     // Override any parameters that it don't make sense in this context
     P.AllowGroupFinding = 1;
@@ -30,7 +27,7 @@
 
     setup_log(); // STDLOG and assertf now available
     STDLOG(0,"Beginning standalone_fof\n");
-    STDLOG(0,"Read Parameter file %s\n", headerfn);
+    STDLOG(0,"Read Parameter file %s\n", argv[2]);
 
     STDLOG(1,"Slab header indicates CPD %d, ppd %d\n", P.cpd, (int) ReadState.ppd);
     STDLOG(1,"Using group radius %d and MinL1HaloNP %d\n", P.GroupRadius, P.MinL1HaloNP);

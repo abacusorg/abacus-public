@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 '''
-Wrapper for the abacus singlestep binary. Handles moving the state folders around, etc.
-Can also be imported as a python module.
+Wrapper for the Abacus singlestep binary. Handles moving the state folders around, etc.
+Can also be imported as a Python module.
+
+To run a simulation, follow the example in the abacus/Production/Example directory.
 
 Script usage:
     See abacus/Production/Example

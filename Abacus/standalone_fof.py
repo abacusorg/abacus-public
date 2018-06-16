@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+'''
+Run the Abacus on-the-fly group finder on the given time slice(s).
+
+This invokes the `singlestep/standalone_fof` binary, which contains
+a redacted dependency pipeline that reads in pack14 slabs and
+does group finding.
+
+The binary takes the slice directory and a parameters file.
+The parameters file needs to be consistent with the slice
+headers, but there are some parameters that will need to be
+different if one is running this analysis on a different
+computer than the simulation was run on.  So, this script
+will scrape the slice header then replace all the directories
+and performance tuning parameters (e.g. OMP_NUM_THREADS) with
+the site-local values.
+
+'''
+import subprocess
+import os
+import shutil
+from os.path import join as pjoin, isdir
+import argparse
+
+# This is really silly.  Python doesn't allow relative imports from scripts...
+from Abacus import abacus
+from Abacus import Tools
+from Abacus import GenParam
+from Abacus.InputFile import InputFile
+
+def standalone_fof(slicedir, output_paramfn='standalone_fof.par', use_site_overrides=True, override_directories=True):
+    # This parameters file is special: it acts as both the parameters and read state file
+    headerfn = pjoin(slicedir, 'header')
+    params = abacus.preprocess_params(output_paramfn, headerfn, use_site_overrides=use_site_overrides, override_directories=override_directories)
+
+    # Make an output directory for group outputs and log files
+    for d in ['LogDirectory', 'OutputDirectory', 'GroupDirectory']:
+            if d in params and params[d] and not isdir(params[d]):
+                os.makedirs(params[d])
+
+    shutil.move(output_paramfn, pjoin(params['OutputDirectory'], output_paramfn))
+
+    with Tools.chdir(pjoin(abacus.abacuspath, 'singlestep')):
+        subprocess.check_call(['make', 'standalone_fof'])
+        subprocess.check_call(['./standalone_fof', slicedir, pjoin(params['OutputDirectory'], output_paramfn)])
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('slice', nargs='+')
+    parser.add_argument('--no_site_overrides', action='store_true', default=False)
+    parser.add_argument('--no_dir_overrides', action='store_true', default=False)
+    args = parser.parse_args()
+
+    use_site_overrides = not args.no_site_overrides
+    override_directories = not args.no_dir_overrides
+
+    for sl in args.slice:
+        standalone_fof(sl, use_site_overrides=use_site_overrides, override_directories=override_directories)

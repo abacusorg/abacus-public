@@ -15,7 +15,7 @@ setup(ext_modules=[Extension('_AbacusCosmo',
                     sources=['{abacus}/include/Cosmology.cpp'.format(abacus=abacus), 'AbacusCosmo.i'],
                     include_dirs=['{abacus}/include'.format(abacus=abacus)],
                     swig_opts=['-I{abacus}/include'.format(abacus=abacus), '-c++'],
-                    libraries=['irc','svml','imf'])
+                    )
                   ]
       )
       
