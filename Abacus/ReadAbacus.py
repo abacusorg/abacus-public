@@ -2,7 +2,17 @@
 Tools for efficient reading of various abacus output formats in python.
 See the abacus readme for details on the various formats.
 
-Our custom formats are handled by C libraries for efficiency.
+This file wraps the converters for our custom file formats,
+which are written in C for efficency.
+
+The main entry points are the `read()` and `from_dir()` functions
+to read a single file or a while directory of files, respectively.
+They are just wrappers to call the appropriate reader function
+for the given file format, like `read_pack14()` or `read_rvzel()`.
+
+You'll need to build the underlying libraries with
+`$ make analysis`
+from the top level Abacus directory.  Or just build all of Abacus.
 
 Todo:
 -Unit conversion option
@@ -19,7 +29,7 @@ from . import abacus
 from .InputFile import InputFile
 
 import ctypes as ct
-ralib = ct.cdll.LoadLibrary(abacus.abacuspath + "/clibs/libreadabacus.so")
+ralib = ct.cdll.LoadLibrary(path.join(abacus.abacuspath, "clibs", "libreadabacus.so"))
 
 import re
 
