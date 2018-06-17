@@ -72,7 +72,7 @@ int unpack_slab_pack14(int slab, double taggable_frac) {
             particle.unpack(posd,veld,id,cellhead);
             pos[nump] = posd - PP->CellCenter(cellhead.cellid());
                 // Move back to cell-centered positions
-            vel[nump] = veld;
+            vel[nump] = veld*ReadState.VelZSpace_to_Canonical;
             aux[nump].aux = id;
             // Note: pack14 gives us the PID, but not the full aux field. So we have to restore any other aux fields.
             if (is_subsample_particle((int64_t) id, taggable_frac))
