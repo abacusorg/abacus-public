@@ -657,6 +657,9 @@ void GlobalGroupSlab::FindSubGroups() {
                         if (groupaux[start[b].index()].is_taggable()) {
                             posstruct r = WrapPosition(grouppos[start[b].index()]+offset);
                             velstruct v = groupvel[start[b].index()];
+                            // Velocities were full kicked; half-unkick before halostats
+                            if (groupacc != NULL)
+                                v -= groupacc[start[b].index()]*WriteState.FirstHalfEtaKick;
                             pL1Particles->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
                             pL1PIDs->append(TaggedPID(groupaux[start[b].index()].pid()));
                         }
@@ -809,8 +812,9 @@ void GlobalGroupSlab::HaloOutput() {
         LBW->AllocateSpecificSize(TaggableFieldPIDSlab, slab, maxsize*sizeof(TaggedPID));
         
     uint64 nfield = GatherTaggableFieldParticles(slab,
-        (RVfloat *) LBW->ReturnIDPtr(TaggableFieldSlab, slab),
-        (TaggedPID *) LBW->ReturnIDPtr(TaggableFieldPIDSlab, slab));
+                        (RVfloat *) LBW->ReturnIDPtr(TaggableFieldSlab, slab),
+                        (TaggedPID *) LBW->ReturnIDPtr(TaggableFieldPIDSlab, slab),
+                        WriteState.FirstHalfEtaKick);
         if(nfield > 0){
                 // only write the uniform subsample files if they will have non-zero size
                 LBW->ResizeSlab(TaggableFieldSlab, slab, nfield*sizeof(RVfloat));

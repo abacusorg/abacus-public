@@ -275,7 +275,7 @@ GroupFindingControl *GFC = NULL;
 #include "halostat.cpp"
 	// Code to compute L1 halo properties
 
-uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid) {
+uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid, FLOAT unkickfactor) {
     // Gather all of the taggable particles that aren't in L1 groups into two vectors,
     // converting to global positions.
     // Space must be allocated beforehand.
@@ -294,6 +294,8 @@ uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid) {
 		    // We found a taggable field particle
 		    posstruct r = c.pos[p] + offset;
 		    velstruct v = c.vel[p];
+            if(c.acc != NULL)
+                v -= unkickfactor*c.acc[p];
 		    pv[nfield] = RVfloat(r.x, r.y, r.z, v.x, v.y, v.z);
 		    pid[nfield] = c.aux[p].pid();
 		    nfield++;
