@@ -174,7 +174,8 @@ class GlobalGroupSlab {
         ret = posix_memalign((void **)&pos, 4096, sizeof(posstruct)*np); assert(ret==0);
         ret = posix_memalign((void **)&vel, 4096, sizeof(velstruct)*np); assert(ret==0);
         ret = posix_memalign((void **)&aux, 4096, sizeof(auxstruct)*np); assert(ret==0);
-        ret = posix_memalign((void **)&acc, 4096, sizeof(accstruct)*np); assert(ret==0);
+        if(LBW->IDPresent(AccSlab,slab))  // leave NULL if no acc
+            ret = posix_memalign((void **)&acc, 4096, sizeof(accstruct)*np); assert(ret==0);
     }
 
     GlobalGroupSlab() { pstat = NULL; }    // We have a null constructor
