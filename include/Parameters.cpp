@@ -534,25 +534,6 @@ void Parameters::ValidateParameters(void) {
     CheckDirectoryExists(InitialConditionsDirectory);
     */
 
-
-    char dfn[1024];
-    const char *fnfmt;
-    if(sizeof(DFLOAT) == sizeof(float))
-        fnfmt = "%s/fourierspace_float32_%d_%d_%d_%d_%d";
-    else
-        fnfmt = "%s/fourierspace_%d_%d_%d_%d_%d";
-
-    for(int i=0;i<(cpd+1)/2;i++) {
-        sprintf(dfn,fnfmt,
-            DerivativesDirectory,
-            cpd,
-            order,
-            NearFieldRadius,
-            DerivativeExpansionRadius,i );
-
-        CheckFileExists(dfn);
-    }
-
     if (ForceOutputDebug && StoreForces) {
             fprintf(stderr,"ForcesOutputDebug and StoreForces both set. This is not supported.\n");
         assert(1==0);

@@ -616,8 +616,11 @@ void GlobalGroupSlab::FindSubGroups() {
                         L1vel[g][b] = groupvel[start[b].index()];
                         groupaux[start[b].index()].set_L1();
                         L1aux[g][b] = groupaux[start[b].index()];
-                        if (groupacc != NULL)
+                        if (groupacc != NULL){
                             L1acc[g][b] = groupacc[start[b].index()];
+                            // Velocities were full kicked; half-unkick before halostats
+                            L1vel[g][b] -= L1acc[g][b]*WriteState.FirstHalfEtaKick;
+                        }
                     }
                     GFC->L2FOF.Start();
                     FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, NULL, size);

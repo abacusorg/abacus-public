@@ -66,5 +66,6 @@
     Epilogue(P,MakeIC);
     stdlog.close();
     
+    fprintf(stderr, "%s completed successfully!\n", argv[0]);
     exit(0);
 }
