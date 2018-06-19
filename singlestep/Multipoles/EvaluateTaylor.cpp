@@ -393,7 +393,7 @@ int main(int argc, char **argv){
     /****************************************/
     // ASM Taylors
 	auto begin = std::chrono::steady_clock::now();
-	//#pragma omp parallel for schedule(static)
+	#pragma omp parallel for schedule(static)
 	for(int k = 0; k < ncell; k++){
 		FLOAT3 *thisxyz = xyz + k*ppc;
 		FLOAT3 *thisacc = acc1 + k*ppc;
@@ -407,7 +407,7 @@ int main(int argc, char **argv){
     /****************************************/
     // AVX-512 Taylors
     begin = std::chrono::steady_clock::now();
-    //#pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static)
     for(int k = 0; k < ncell; k++){
         FLOAT3 *thisxyz = xyz + k*ppc;
         FLOAT3 *thisacc = acc3 + k*ppc;
@@ -422,7 +422,7 @@ int main(int argc, char **argv){
     /****************************************/
     // Analytic Taylors
     begin = std::chrono::steady_clock::now();
-	//#pragma omp parallel for schedule(static)
+	#pragma omp parallel for schedule(static)
 	for(int k = 0; k < ncell; k++){
 		FLOAT3 *thisxyz = xyz + k*ppc;
 		FLOAT3 *thisacc = acc2 + k*ppc;

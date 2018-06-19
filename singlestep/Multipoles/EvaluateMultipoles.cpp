@@ -334,7 +334,7 @@ int main(int argc, char **argv){
     auto end = std::chrono::steady_clock::now();
     // ASM Multipoles
     begin = std::chrono::steady_clock::now();
-    //#pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static)
     for(int64_t k = 0; k < ncell; k++){
         FLOAT3 *thisxyz = xyz + k*ppc;
         double *thisct = cartesian1 + k*MP.cml;
@@ -347,7 +347,7 @@ int main(int argc, char **argv){
     /****************************************/
     // AVX-512 Multipoles
     begin = std::chrono::steady_clock::now();
-    //#pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static)
     for(int64_t k = 0; k < ncell; k++){
         FLOAT3 *thisxyz = xyz + k*ppc;
         double *thisct = cartesian3 + k*MP.cml;
