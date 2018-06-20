@@ -47,6 +47,7 @@ GroupRadius = 4
 DerivativeExpansionRadius = 8
 RamDisk = 0
 OverwriteState = 0
+SloshState = 0
 IODirs = ["multipole/", "taylor/"]
 IODirThreads = [2, 2]
 nIODirs = 2
