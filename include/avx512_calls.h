@@ -15,10 +15,6 @@
 #include <stdint.h>
 #include <immintrin.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "function_precision.h" 
 
 #define PREFETCH(mem)        asm ("prefetcht0 %0"::"m"(mem))
@@ -179,7 +175,6 @@ extern "C" {
 #define AVX512_SETZERO_DOUBLE()             _mm512_setzero_pd()
 #define AVX512_SET_DOUBLE(X)                _mm512_set1_pd(X)
 #define AVX512_NVEC_DOUBLE                  8    
-#define AVX512_HORIZONTAL_SUM_DOUBLES(X)    _mm512_reduce_add_pd(X)
 #define AVX512_LOAD_DOUBLES_ALIGNED(X)                             _mm512_load_pd(X)
 #define AVX512_SUBTRACT_DOUBLES(X,Y)                               _mm512_sub_pd(X,Y)
 #define AVX512_FMA_ADD_DOUBLES(X,Y,Z)                              _mm512_fmadd_pd(X,Y,Z)
@@ -188,6 +183,12 @@ extern "C" {
 #define AVX512_ADD_DOUBLES(X,Y)                                    _mm512_add_pd(X,Y)
 #define AVX512_MASK_ADD_DOUBLES(FALSEVALS, MASK, X,Y)              _mm512_mask_add_pd(FALSEVALS, MASK, X,Y)
 #define AVX512_MASKZ_ADD_DOUBLES(MASK, X,Y)                        _mm512_maskz_add_pd(MASK, X,Y)
+
+#ifdef __INTEL_COMPILER
+#define AVX512_HORIZONTAL_SUM_DOUBLES(X)    _mm512_reduce_add_pd(X)
+#else
+#define AVX512_HORIZONTAL_SUM_DOUBLES(X)    _horizontal_sum_doubles(X)
+#endif
 
 
 #else //DOUBLE PRECISION CALCULATIONS
@@ -366,6 +367,24 @@ static inline AVX512_FLOATS inv_cosine_avx512(const AVX512_FLOATS X, const int o
     return union_returnvalue.m;
   }
 
+// GCC has a known bug where it's missing the AVX512 reduce intrinsics.  Implement them manually here.
+// https://www.mail-archive.com/gcc-bugs@gcc.gnu.org/msg529682.html
+// We'll do the dumb thing for now; this could be rewritten using other intrinsics for performance.
+inline float _horizontal_sum_floats(const AVX512_FLOATS X){
+  float *x = (float *) &X;
+  float sum = 0;
+  for(int i = 0; i < AVX512_NVEC; i++)
+    sum += x[i];
+  return sum;
+}
+inline double _horizontal_sum_doubles(const AVX512_DOUBLES X){
+  double *x = (double *) &X;
+  double sum = 0;
+  for(int i = 0; i < AVX512_NVEC_DOUBLE; i++)
+    sum += x[i];
+  return sum;
+}
+
 #endif
 
   extern const int64_t bits_set_in_avx512_mask_float[];
@@ -387,7 +406,3 @@ static inline AVX512_FLOATS inv_cosine_avx512(const AVX512_FLOATS X, const int o
     AVX512_FLOATS m_weights;
     DOUBLE weights[AVX512_NVEC];
   };
-  
-#ifdef __cplusplus
-}
-#endif

@@ -8,11 +8,6 @@
 
 #pragma once
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
 #ifndef M_PI
 #define M_PI            3.14159265358979323846264338327950288
 #endif
@@ -53,7 +48,7 @@ extern "C" {
 #endif//AVX
 
 
-#ifdef DOUBLE_PREC
+#ifdef DOUBLEPRECISION
 #define ZERO   0.0
 #else
 #define ZERO   0.0f
@@ -94,6 +89,3 @@ extern "C" {
 #define ABS    fabsf
 #endif
 */
-#ifdef __cplusplus
-}
-#endif

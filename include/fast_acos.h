@@ -10,8 +10,9 @@
 #pragma once
 
 #include <stdio.h>
-#include <math.h>
+//#include <math.h>
 #include "function_precision.h"
+#include <cmath>
 
 
 #if 0
