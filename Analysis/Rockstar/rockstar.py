@@ -98,7 +98,8 @@ if __name__ == '__main__':
     parser.add_argument('--SO', help='Produce spherical overdensity halo masses in binary catalogs', action='store_const', const=1)
     #parser.add_argument('--format', help='Format of the Abacus timeslice outputs', default='Pack14', choices=['RVdouble', 'LC', 'Pack14'])
     parser.add_argument('--suffix', help='Label the rockstar folders with "_rockstar_halosSUFFIX".', default='')
-    parser.add_argument('--tar-mode', help='Compress the halo catalogs and subsamples.  ONLY_TAR will skip halo finding and assumes SLICE_DIRS are the product dirs.  ONLY_TAR_INFER will infer an existing products directory from the slice directory.  Default: None', choices=['TAR', 'ONLY_TAR', 'ONLY_TAR_INFER'])
+    parser.add_argument('--tar-mode', help='Compress the halo catalogs and subsamples.  ONLY_TAR will skip halo finding and assumes SLICE_DIRS are the product dirs.  ONLY_TAR_INFER will infer an existing products directory from the slice directory.  Default: None',
+                            choices=['TAR', 'ONLY_TAR', 'ONLY_TAR_INFER'], default='')
     parser.add_argument('--tar-remove-source-files', action='store_true', help='Remove the files that were placed the in the tar.  Must be used with --tar-mode.')
     
     args = parser.parse_args()

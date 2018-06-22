@@ -168,8 +168,10 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
     read_and_tsc = valid_formats[format]
     
     # make int gridshape a cube
-    if type(gridshape) is int:
-        gridshape = [gridshape,]*3 
+    gridshape = np.atleast_1d(gridshape)
+    assert np.issubdtype(gridshape.dtype, np.integer)
+    if len(gridshape) == 1:
+        gridshape = np.repeat(gridshape, 3)
     gridshape = np.array(gridshape)
         
     # add padding beyond what was passed in

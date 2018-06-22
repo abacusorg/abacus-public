@@ -3,9 +3,9 @@
 # Fail if any command returns a non-zero exit status
 set -e
 
-export OMP_NUM_THREADS=24
+export OMP_NUM_THREADS=16  # not arbitrary: must form a cube of all(nside > 1)
 export ABACUS_PERSIST="/mnt/alan1/bigsims/"
-export SIM_NAMES="ScaleFree_N1024_m20_2eps"
+export SIM_NAMES="ScaleFree_N1024_m25"
 
 # Split SIM_DIR into name and project
 echo -e "* Checking if we need to run Rockstar:\n"
@@ -18,7 +18,7 @@ if [ 0 ]; then
         rm -f $CLI_CFG  # Always remove an existing config file
 
         echo "Starting slice $SLICE server"
-        $ABACUS/Analysis/Rockstar/rockstar.py --ncpu $OMP_NUM_THREADS $SLICE --SO --tar-mode TAR --tar-remove-source-files &
+        $ABACUS/Analysis/Rockstar/rockstar.py --ncpu $OMP_NUM_THREADS $SLICE --SO &  #--tar-mode TAR --tar-remove-source-files &
 
         # Wait for the server to generate the client config file
         while [ ! -f $CLI_CFG ]; do
