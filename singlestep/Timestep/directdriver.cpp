@@ -517,8 +517,107 @@ void NearFieldDriver::Finalize(int slab){
     }
     FinalizeBookkeeping.Stop();
     
-    CopyPencilToSlab.Start();
+    CopyPencilToSlab.Start();    
 
+    // Compute the Number of j's in each registration
+    // This is the same for all y rows (k's).
+    int Nj[WIDTH];
+    for (int w=0; w<WIDTH; w++) {
+        Nj[w] = (cpd - w)/WIDTH;
+        if(Nj[w] * WIDTH + w < cpd)
+            Nj[w]++;
+    }
+    // TODO: It's weird that Nj requires computation instead of being
+    // stored in the SetInteractionCollection class.  Indeed, shouldn't
+    // the class have methods to compute the index number from (y,z)
+    // and vice versa?  Too much re-coded math.
+
+    #pragma omp parallel for schedule(static)
+    for (int k=0; k<cpd; k++) {
+        // We're going to find all the Sets associated with this row.
+        // There are WIDTH of them, one for each z registration
+        SetInteractionCollection *theseSlices[WIDTH];
+        for (int w=0; w<WIDTH; w++)
+            theseSlices[w] = NULL;
+        for (int sliceIdx=0; sliceIdx< NSplit*WIDTH; sliceIdx++) {
+        // Just doing an exhaustive search, so we assume less about
+        // the upstream data model.
+            if (k >= Slices[sliceIdx]->K_low && k < Slices[sliceIdx]->K_high) {
+               // We've found a Slice.
+               // Compute which z-registration this is.
+               int w = sliceIdx/NSplit; 
+               // TODO: Again, why is this not a part of the SetInteractionCollection?
+               theseSlices[w] = Slices[sliceIdx];
+            }
+        }
+        for (int w=0; w<width; w++)
+            assertf(theseSlices[w] != NULL, "We failed to find all z-registrations");
+
+        // We're going to set the acceleration the first time we encounter
+        // a cell.  The cells are encountered in z order, starting from 
+        // z=0 and increasing.  That means that when we get to z=cpd,
+        // we've already been there once.
+        int firsttouch = 0;
+        
+        // Now we're going to proceed through the pencils
+        for (int jj=0; jj<cpd; jj++) {
+            int w = jj%width;   // This is which registration we're in
+            int j = (jj-w)/width;
+            SetInteractionCollection *Slice = theseSlices[w];
+            int sinkIdx = (k - Slice->K_low)*Nj[w] + j;
+
+            // And now we can continue with the previous stuff
+            int SinkCount = Slice->SinkSetCount[sinkIdx];
+            int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
+            int Start = Slice->SinkSetStart[sinkIdx];
+
+            for(int z=zmid-nfr; z <= zmid+nfr; z++){
+                int CellNP = PP->NumberParticle(slab,k,z);
+                accstruct *a = PP->NearAccCell(slab,k,z);
+
+                if(P.ForceOutputDebug == 1){
+                    for(int p =0; p < CellNP; p++){
+                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].x));
+                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].y));
+                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].z));
+                    }
+
+                    if(z==firsttouch && z<cpd){
+                        for(int p = 0; p <CellNP; p++){
+                            assert(!isfinite(a[p].x));
+                            assert(!isfinite(a[p].y));
+                            assert(!isfinite(a[p].z));
+                        }
+                    } else {
+                        for(int p = 0; p <CellNP; p++){
+                            assert(isfinite(a[p].x));
+                            assert(isfinite(a[p].y));
+                            assert(isfinite(a[p].z));
+                        }
+                    }
+                }
+
+                // Set when this is the first touch; accumulate otherwise
+                if(z==firsttouch && z<cpd){
+                    firsttouch++;
+                    #pragma simd assert
+                    for(int p = 0; p <CellNP; p++)
+                        a[p] = Slice->SinkSetAccelerations[Start +p];
+                } else {
+                    #pragma simd assert
+                    for(int p = 0; p <CellNP; p++)
+                        a[p] += Slice->SinkSetAccelerations[Start +p];
+                }
+
+                Start+=CellNP;
+                SinkCount-=CellNP;
+            }
+            assert(SinkCount == 0);
+        }
+    }
+
+    // ********************************************************************* old code //
+/*
     // The co-adding in here doesn't really benefit from double precision, as far as Spiral and Ewald indicate
     for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
         int w = sliceIdx / NSplit;
@@ -540,7 +639,6 @@ void NearFieldDriver::Finalize(int slab){
                 int Start = Slice->SinkSetStart[sinkIdx];
 
                 for(int z=zmid-nfr; z <= zmid+nfr; z++){
-                    int cid = PP->CellID(k,z);
                     int CellNP = PP->NumberParticle(slab,k,z);
                     accstruct *a = PP->NearAccCell(slab,k,z);
 
@@ -584,7 +682,15 @@ void NearFieldDriver::Finalize(int slab){
             }
         }
         delete Slice;
+    }*/
+
+    // Do a final pass to delete all slices
+    // TODO: can this be done inline above?
+    for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
+        SetInteractionCollection *Slice = Slices[sliceIdx];
+        delete Slice;
     }
+
     CopyPencilToSlab.Stop();
     
     delete[] Slices;
