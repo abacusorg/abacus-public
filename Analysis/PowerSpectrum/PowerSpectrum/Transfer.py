@@ -132,6 +132,11 @@ def _reorder(arr, neworder):
 
 # via https://docs.scipy.org/doc/numpy/user/basics.subclassing.html
 class TransferMultipoles(np.ndarray):
+    '''
+    A simple wrapper around ndarray that represents a multipole transfer
+    function.  Its main purpose is to carry around metadata that
+    represents the binning scheme this function is valid for.
+    '''
     def __new__(subtype, bins, box, Lmax=0, kmax=None, ngrid=None, dtype=np.float32):
         if type(bins) is int:
             nbins = bins

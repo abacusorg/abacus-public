@@ -406,9 +406,9 @@ class OutputRVZel: public AppendArena {
     float3 disp = double3(pos) + cc - zelpos;
     disp -= disp.round();  // wrap to [-.5,+.5)
 
-    p->disp[0] = (double) pos.x+cc.x-zelpos.x;
-    p->disp[1] = (double) pos.y+cc.y-zelpos.y;
-    p->disp[2] = (double) pos.z+cc.z-zelpos.z;
+    p->disp[0] = disp.x;
+    p->disp[1] = disp.y;
+    p->disp[2] = disp.z;
     p->vel[0] = vel.x;  // Leave it in Zspace, unit box units
     p->vel[1] = vel.y;
     p->vel[2] = vel.z;

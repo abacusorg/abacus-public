@@ -1,5 +1,6 @@
 /*  Run the on-the-fly group finder on a state or time slice outputs.
-    TODO: add functionality to run on states.
+ *  This executable is primarily invoked via the `Abacus/standalone_fof.py` script.
+ *  TODO: add functionality to run on states.
  */
  
  #include "proepi.cpp"

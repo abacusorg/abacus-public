@@ -291,6 +291,11 @@ def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03):
         sc = ax.scatter(x, y, s=size, c=color)
         
     return x, y, color, kde, sc
+
+import argparse
+# Combine argparse mixins to format both the description and defaults
+class ArgParseFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
+    pass
     
 if __name__ == '__main__':
     fm = get_RAM_info()

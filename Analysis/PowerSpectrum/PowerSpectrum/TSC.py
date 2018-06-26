@@ -338,10 +338,9 @@ def _box_wrap(p, box):
     #p = p.flat
     N = len(p)
     for i in nb.prange(N):
-        x = p[i]
-        if x >= box/2:
+        while p[i] >= box/2:
             p[i] -= box
-        elif x < -box/2:
+        while p[i] < -box/2:
             p[i] += box
 
 
@@ -487,11 +486,12 @@ def numba_tsc_3D(positions, density, boxsize, weights=np.empty(0)):
             density[ixp1, iyp1, izp1] += wxp1*wyp1*wzp1*W
 
 # The following are window functions for TSC-derived power spectra
+# TODO: re-write these with nb.prange
 
 from .misc import parallel_bcast
 import numba as nb
-@parallel_bcast([(nb.float32[:,:,:],), (nb.float64[:,:,:],)], '(nx,ny,nz)')
-def tsc_window_3d(deltak, loop_idx):
+@parallel_bcast([(nb.float32[:,:,:],nb.bool_), (nb.float64[:,:,:],nb.bool_)], '(nx,ny,nz),()')
+def tsc_window_3d(deltak, power, loop_idx):
     i = loop_idx[0]
     nx,ny,nz = deltak.shape
     nz_signal = 2*nz - 2  # warning: assumes evenness of original dimensions
@@ -505,10 +505,13 @@ def tsc_window_3d(deltak, loop_idx):
         for k in range(nz):
             kz = 1.*k/nz_signal
             zfac = np.sinc(kz)**6.
-            deltak[i,j,k] /= xfac*yfac*zfac  # could very easily overflow float32 max exponent
+            if power:
+                deltak[i,j,k] /= xfac*yfac*zfac  # could very easily overflow float32 max exponent
+            else:
+                deltak[i,j,k] /= (xfac*yfac*zfac)**.5
             
-@parallel_bcast([(nb.float32[:,:],), (nb.float64[:,:],)], '(nx,ny)')
-def tsc_window_2d(deltak, loop_idx):
+@parallel_bcast([(nb.float32[:,:],nb.bool_), (nb.float64[:,:],nb.bool_)], '(nx,ny),()')
+def tsc_window_2d(deltak, power, loop_idx):
     i = loop_idx[0]
     nx,ny = deltak.shape
     ny_signal = 2*ny - 2  # warning: assumes evenness of original dimensions
@@ -517,7 +520,10 @@ def tsc_window_2d(deltak, loop_idx):
     for j in range(ny):
         ky = 1.*j/ny_signal
         yfac = np.sinc(ky)**6.
-        deltak[i,j] /= xfac*yfac
+        if power:
+            deltak[i,j] /= xfac*yfac
+        else:
+            deltak[i,j] /= (xfac*yfac)**.5
             
 @parallel_bcast([(nb.float32[:,:,:],nb.bool_), (nb.float64[:,:,:],nb.bool_),
                  (nb.complex64[:,:,:],nb.bool_), (nb.complex128[:,:,:],nb.bool_)], '(nx,ny,nz),()')
@@ -539,8 +545,8 @@ def tsc_window_aliased_3d(deltak, power, loop_idx):
                 deltak[i,j,k] /= (xfac*yfac*zfac)**.5
 
             
-@parallel_bcast([(nb.float32[:,:],), (nb.float64[:,:],)], '(nx,ny)')
-def tsc_window_aliased_2d(deltak, loop_idx):
+@parallel_bcast([(nb.float32[:,:],nb.bool_), (nb.float64[:,:],nb.bool_)], '(nx,ny),()')
+def tsc_window_aliased_2d(deltak, power, loop_idx):
     i = loop_idx[0]
     nx,ny = deltak.shape
     ny_signal = 2*ny - 2  # warning: assumes evenness of original dimensions
@@ -549,7 +555,10 @@ def tsc_window_aliased_2d(deltak, loop_idx):
     for j in range(ny):
         ky = np.pi*j/ny_signal
         yfac = (1 - np.sin(ky)**2 + 2*np.sin(ky)**4/15)
-        deltak[i,j] /= xfac*yfac
+        if power:
+            deltak[i,j] /= xfac*yfac
+        else:
+            deltak[i,j] /= (xfac*yfac)**.5
             
 def tsc_window(deltak, aliased=True, power=True):
     '''
