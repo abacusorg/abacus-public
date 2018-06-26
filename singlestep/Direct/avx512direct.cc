@@ -2,7 +2,7 @@
    Some of the AVX-512 ideas are based on Manodeep Sinha's AVX-512 pair counting implementation for Corrfunc.
 
     Compile test driver with:
-    $ icc -DTEST avx512direct.cc -o avx512direct -I../../include -Wall -g -std=c++11 -O3 -xHost
+    $ make avx512direct
 */
 
 

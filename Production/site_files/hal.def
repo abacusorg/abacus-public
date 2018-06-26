@@ -1,5 +1,6 @@
 RamDisk = 0
 OverwriteState = 0
+SloshState = 0
 IODirs = ["multipole/", "taylor/", "multipole2/", "taylor2/"]
 nIODirs = 4
 IODirThreads = [2, 2, 3, 3]
@@ -9,12 +10,9 @@ IODirThreads = [2, 2, 3, 3]
 # OpenMP and thread parameters
 OMP_NUM_THREADS = 19
 OMP_PLACES = "{0}:11,{14}:8"
-#OMP_PLACES = "{0}:8,{14}:11"
 OMP_PROC_BIND = "spread"
 IOCores = [11, 12, 13]
-#IOCores = [25, 26, 27]
 GPUThreadCoreStart = [22, 25]
-#GPUThreadCoreStart = [8, 11]
 NGPUThreadCores = 3
 
 # Convolution OpenMP parameters

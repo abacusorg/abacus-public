@@ -166,13 +166,16 @@ def run_PS_on_PS(input_ps_fn, **kwargs):
 # folders is a list of slice folders
 def run_PS(inputs, **kwargs):
     all_bins = kwargs.pop('all_bins')
+    all_nfft = kwargs.pop('all_nfft')
 
-    for i,input in enumerate(inputs):
+    # Loop in order of difficulty; i.e. largest nfft first
+    for i in np.argsort(all_nfft)[::-1]:
+        input = inputs[i]
         # If the input is an output or IC directory
         if os.path.isdir(input):
             if kwargs.get('format').lower() == 'pack14':
                 with common.extract_slabs(input):
-                    _res = run_PS_on_dir(input, bins=all_bins[i], **kwargs)
+                    _res = run_PS_on_dir(input, bins=all_bins[i], nfft=all_nfft[i], **kwargs)
             else:  # pretty kludgy (TODO: ExitStack)
                 _res = run_PS_on_dir(input, **kwargs)
         # If the input is a PS file
@@ -212,13 +215,16 @@ def setup_bins(args):
 
     TODO: this assumes the presence of a 'header' file
 
-    Returns one bin edges array per sim
+    Sometimes we wish to choose NFFT for each sim as well, so that
+    kmax/nfft is roughly constant.
+
+    Returns one bin edges array per sim, and one nfft value per sim
     '''
     ns = args.pop('scalefree_index')
     basea = args.pop('scalefree_base_a')
     nbins = args.pop('nbins')
     nslice = len(args['input'])
-    nfft = args['nfft']
+    nfft = args.pop('nfft')
 
     if nbins == -1:
         nbins = nfft//4
@@ -248,13 +254,20 @@ def setup_bins(args):
         # all k will thus get bigger
         all_bins /= len_rescale[:,None]
 
+        # Now choose the smallest even nfft larger than kmax for each time
+        all_nfft = np.ceil(all_bins.max(axis=-1)*np.array([h.BoxSize for h in headers])/np.pi).astype(int)
+        all_nfft[all_nfft % 2 == 1] += 1
+        assert (all_nfft <= nfft).all()
+
         print('--scalefree_index option was specified.  Computed k ranges: ' + str([('{:.3g}'.format(b.min()), '{:.3g}'.format(b.max())) for b in all_bins]))
+        print('\tComputed NFFTs: ' + str(all_nfft))
     else:
         # Set up normal bins
         all_bins = np.array([Histogram.k_bin_edges(nfft, headers[i].BoxSize, nbins=nbins, log=args['log']) \
                                 for i in range(nslice)])
+        all_nfft = np.full(nslice, nfft)
 
-    return all_bins
+    return all_bins, all_nfft
 
 import matplotlib.pyplot as plt
 def make_plot(results, header, csvfn):
@@ -303,16 +316,15 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     args = vars(args)
+
+    if args.pop('projected'):
+        args['nfft'] = [args['nfft'],]*2
     
     if args['just_density']:
         # No meaning for density cube
         del args['nbins'], args['log']
     else:
-        args['all_bins'] = setup_bins(args)
-
-    
-    if args.pop('projected'):
-        args['nfft'] = [args['nfft'],]*2
+        args['all_bins'], args['all_nfft'] = setup_bins(args)
     
     if args['dtype'] == 'float':
         args['dtype'] = np.float32

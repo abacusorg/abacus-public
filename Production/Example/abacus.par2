@@ -1,6 +1,7 @@
 # Set up the simulation name and directory structure
 SimName = "example"
 #include "$ABACUS$/Abacus/directory.def"
+#include "$ABACUS$/Production/site_files/site.def"
 
 # Cosmology and basic code parameters
 BoxSize = 256.
@@ -45,28 +46,9 @@ Order = 8
 hMpc = 1
 GroupRadius = 4
 DerivativeExpansionRadius = 8
-RamDisk = 0
-OverwriteState = 0
-IODirs = ["multipole/", "taylor/"]
-IODirThreads = [2, 2]
-nIODirs = 2
-# GPUMinCellSinks = 20  # Currently non-functional
-# MAXRAMMB = 60000  # This will be automatically detected
-# ConvolutionCacheSizeMB = 30  # This will be automatically detected
 
-# OpenMP and thread parameters
-OMP_NUM_THREADS = 16
-OMP_PLACES = "{0}:8,{12}:8"
-OMP_PROC_BIND = "spread"
-IOCores = [11, 23]
-GPUThreadCoreStart = [8, 20]
-NGPUThreadCores = 3
-
-# Convolution OpenMP parameters
-Conv_OMP_NUM_THREADS = -1
-Conv_OMP_PLACES = "{1}:23"
-Conv_OMP_PROC_BIND = "close"
-Conv_IOCore = 0
+# For additional performance tuning,
+# copy the contents of the `Production/site_files/site.def` file here and make modifications
 
 # Zeldovich and IC parameters
 ICVelocity2Displacement = 1.0
