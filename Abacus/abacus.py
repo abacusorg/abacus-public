@@ -146,8 +146,8 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
         try: clean_dir(params['TaylorDirectory2'])
         except KeyError: pass
         # TODO: deleting the parent ad-hoc is dangerous!  should switch to ConvolutionWorkingDirectory
-        clean_dir(dirname(normpath(params['TaylorDirectory'])))
-        clean_dir(dirname(normpath(params['MultipoleDirectory'])))
+        clean_dir(dirname(normpath(params['TaylorDirectory'])), preserve=None if erase_ic else icdir)
+        clean_dir(dirname(normpath(params['MultipoleDirectory'])), preserve=None if erase_ic else icdir)
 
         if path.exists(logdir):
             shutil.rmtree(logdir)
@@ -226,43 +226,63 @@ def clean_dir(bd, preserve=None, rmdir_ifempty=True):
             except OSError:
                 pass
 
-def MakeDerivatives(param, floatprec=False): #look for the derivatives required for param and make them if they don't exist
+def MakeDerivatives(param, derivs_archive_dir=True, floatprec=False):
+    '''
+    Look for the derivatives required for param and make them if they don't exist.
+    '''
+
+    # We will attempt to copy derivatives from the archive dir if they aren't found
+    if derivs_archive_dir == True:
+        derivs_archive_dir = pjoin(os.getenv('ABACUS_PERSIST',None), 'Derivatives')
+    
     if not path.exists(param.DerivativesDirectory):
         os.makedirs(param.DerivativesDirectory)
-    for ADfn in ['AD32_001.dat','AD32_002.dat','AD32_003.dat','AD32_004.dat','AD32_005.dat','AD32_006.dat','AD32_007.dat','AD32_008.dat', 'AD32_016.dat']: #note! added this in to run Ewald test for far_radius 1-8,16 
+
+    #note! added this in to run Ewald test for far_radius 1-8,16 
+    for ADnum in list(range(1,9)) + [16]:
+        ADfn = 'AD32_{:03d}.dat'.format(ADnum)
         source_ADfn = pjoin(abacuspath, "Derivatives", ADfn)
         if not path.isfile(pjoin(param.DerivativesDirectory, ADfn)):
             shutil.copy(source_ADfn,param.DerivativesDirectory)
     
-    fnfmt32 = "fourierspace_float32_%d_%d_%d_%d"%(param.CPD,param.Order,param.NearFieldRadius,param.DerivativeExpansionRadius) + "_%d"
-    fnfmt64 = "fourierspace_%d_%d_%d_%d"%(param.CPD,param.Order,param.NearFieldRadius,param.DerivativeExpansionRadius) + "_%d"
+    suffix = "{0.CPD:d}_{0.Order:d}_{0.NearFieldRadius:d}_{0.DerivativeExpansionRadius:d}".format(param) + "_{slab:d}"
+    fnfmt32 = "fourierspace_float32_" + suffix
+    fnfmt64 = "fourierspace_" + suffix
             
-    derivativenames32 = []; derivativenames64 = []
+    derivativenames32, derivativenames64 = [], []
     for i in range(0,param.CPD//2+1):
-        derivativenames32 += [pjoin(param.DerivativesDirectory, fnfmt32%i)]
-        derivativenames64 += [pjoin(param.DerivativesDirectory, fnfmt64%i)]
+        derivativenames32 += [fnfmt32.format(slab=i)]
+        derivativenames64 += [fnfmt64.format(slab=i)]
     derivativenames = derivativenames32 if floatprec else derivativenames64
     fnfmt = fnfmt32 if floatprec else fnfmt64
 
-    if not all(map(path.isfile, derivativenames)):
-        print('Could not find derivatives in "' + param.DerivativesDirectory + '" ...Creating them')
-        print("Error was on file pattern '{}'".format(fnfmt))
-
-        if floatprec:
-            # first make sure the derivatives exist in double format
-            MakeDerivatives(param, floatprec=False)
-            # now make a 32-bit copy
-            from . import convert_derivs_to_float32
-            for dpath in derivativenames64:
-                convert_derivs_to_float32.convert(dpath)
+    # First check if the derivatives are in the DerivativesDirectory
+    if not all(path.isfile(pjoin(param.DerivativesDirectory, dn)) for dn in derivativenames):
+        
+        # If not, check if they are in the canonical $ABACUS_PERSIST/Derivatives directory
+        if all(path.isfile(pjoin(derivs_archive_dir, dn)) for dn in derivativenames):
+            print('Found derivatives in archive dir "{}". Copying to DerivativesDirectory "{}".'.format(derivs_archive_dir, param.DerivativesDirectory))
+            for dn in derivativenames:
+                shutil.copy(pjoin(derivs_archive_dir, dn), pjoin(param.DerivativesDirectory, dn))
         else:
-            with Tools.chdir(param.DerivativesDirectory):
-                try:
-                    os.remove("./farderivatives")
-                except OSError:
-                    pass
-                subprocess.check_call([pjoin(abacuspath, "Derivatives", "CreateDerivatives"),
-                str(param.CPD),str(param.Order),str(param.NearFieldRadius),str(param.DerivativeExpansionRadius)])
+            print('Could not find derivatives in "{}" or archive dir "{}". Creating them...'.format(param.DerivativesDirectory, derivs_archive_dir))
+            print("Error was on file pattern '{}'".format(fnfmt))
+
+            if floatprec:
+                # first make sure the derivatives exist in double format
+                MakeDerivatives(param, floatprec=False)
+                # now make a 32-bit copy
+                from . import convert_derivs_to_float32
+                for dpath in derivativenames64:
+                    convert_derivs_to_float32.convert(pjoin(param.DerivativesDirectory, dpath))
+            else:
+                with Tools.chdir(param.DerivativesDirectory):
+                    try:
+                        os.remove("./farderivatives")
+                    except OSError:
+                        pass
+                    subprocess.check_call([pjoin(abacuspath, "Derivatives", "CreateDerivatives"),
+                    str(param.CPD),str(param.Order),str(param.NearFieldRadius),str(param.DerivativeExpansionRadius)])
     
     
 def default_parser():
@@ -788,12 +808,3 @@ def save_log_files(logdir, newprefix, oldprefix='lastrun'):
         if logfn.startswith(oldprefix):
             newname = logfn.replace(oldprefix, newprefix, 1)
             shutil.move(pjoin(logdir, logfn), pjoin(logdir, newname))
-
-
-if __name__ == '__main__':
-    parser = default_parser()
-    parser.add_argument('parfile', help="The parameter file")
-    args = parser.parse_args()
-    args = vars(args)
-    retcode = run(args.pop('parfile'), **args)
-    sys.exit(retcode)
