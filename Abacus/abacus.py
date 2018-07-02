@@ -291,6 +291,8 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
     require computation of some sort and can't be done with static
     parsing.
 
+    TODO: probably want an explicit SplitMultipoles parameter
+
     1) Compute ZD_Pk_sigma from sigma_8
     2) If $ABACUS_SSD2 is defined, define the params {Multipole,Taylor}Directory2
     3) If $ABACUS_TMP2 is defined and SloshState is True, define WorkingDirectory2
