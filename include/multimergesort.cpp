@@ -234,6 +234,9 @@ unsigned int interpolate(unsigned int minvalue[], unsigned int pstart[], unsigne
             return minvalue[i]+int((float)(minvalue[i+1]-minvalue[i])*(goal-pstart[i])/(pstart[i+1]-pstart[i]));
         }
     }
+
+    assert(0);  // Should not reach here!
+    return 0;
 }
 
 public:

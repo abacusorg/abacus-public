@@ -351,12 +351,16 @@ void FindAndProcessGlobalGroups(int slab) {
     // TODO: This largest_GG work is now superceded by MultiplicityHalos
     // The GGS->globalgroups[j][k][n] now reference these as [start,start+np)
 	
-	// Check if, by going from ReadState to WriteState, we are crossing a L1Output_dlna checkpoint
-	// Also always output if we're doing a TimeSlice output
 #ifndef STANDALONE_FOF
-	int do_output = log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ||
-                    fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna) ||
-					ReadState.DoTimeSliceOutput;
+	int do_output;
+    // Check if, by going from ReadState to WriteState, we are crossing a L1Output_dlna checkpoint
+    if(P.L1Output_dlna >= 0)
+        do_output = log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ||
+                    fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna);
+    else
+        do_output = 0;
+    // Also always output if we're doing a TimeSlice output
+    do_output |= ReadState.DoTimeSliceOutput;
 #else
 	int do_output = 1;
 #endif
