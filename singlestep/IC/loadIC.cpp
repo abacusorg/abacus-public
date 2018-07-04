@@ -20,6 +20,7 @@
 
 // To resolve a circular dependency issue, all of the IC classes are defined in this header
 #include "IC_classes.h"
+#include "particle_subsample.cpp"
 
 uint64 LoadSlab2IL(int slab) {
     double3 global_pos;
@@ -89,6 +90,12 @@ uint64 LoadSlab2IL(int slab) {
         pos = global_pos;
 
         vel *= convert_velocity;
+        
+        // Set the 'taggable' bit for particles as a function of their PID
+        // this bit will be used for group finding and merger trees
+        if (is_subsample_particle(aux.pid(), P.HaloTaggableFraction))
+            aux.set_taggable();
+        
         IL->Push(&pos, &vel, &aux, newcell);
         count++;
     }

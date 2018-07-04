@@ -19,7 +19,7 @@ void ReadFile(char *ram, uint64 sizebytes, int arena,
     // Read the file, wait to complete.
     char fn[1024]; strcpy(fn, filename);
     int ramdisk = io_ramdisk_global;
-    int diskbuffer = 1024*512;
+    size_t diskbuffer = ((size_t) 4) << 20;  // 4 MB
     ReadDirect RD(ramdisk, diskbuffer);
     
     char dir[1024];
@@ -52,7 +52,7 @@ void WriteFile(char *ram, uint64 sizebytes, int arena,
     assertf(outfile != NULL,"Touching file %s failed\n", fn);
     fclose(outfile);
     int ramdisk = io_ramdisk_global;
-    int diskbuffer = 1024*512;
+    size_t diskbuffer = ((size_t) 4) << 20;  // 4 MB
     WriteDirect WD(ramdisk, diskbuffer);
     
     char dir[1024];

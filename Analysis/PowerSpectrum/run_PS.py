@@ -9,16 +9,20 @@ Author: Lehman Garrison
 import sys
 import os
 from os.path import join as pjoin
-import PowerSpectrum as PS
-from Abacus import InputFile
 import pdb
 import shutil
 import argparse
-import numpy as np
 from glob import glob
-from Abacus.Analysis import common
+
+import numpy as np
 import pynbody
-import TSC
+import pandas as pd
+
+from Abacus.Analysis import common
+from Abacus.InputFile import InputFile
+
+from PowerSpectrum import TSC, Histogram
+from PowerSpectrum import PowerSpectrum as PS
 
 # A label for the power spectrum based on the properties
 def ps_suffix(**kwargs):
@@ -82,9 +86,8 @@ def run_PS_on_dir(folder, **kwargs):
     headers = sum([glob(h) for h in header_pats], [])
     for header_fn in headers:
         try:
-            header = InputFile.InputFile(header_fn)
+            header = InputFile(header_fn)
             BoxSize = header['BoxSize']
-            del header
         except IOError:
             continue
         break
@@ -99,8 +102,8 @@ def run_PS_on_dir(folder, **kwargs):
             f = pynbody.load(gadget_fn)
             BoxSize = float(f.properties['boxsize'])
         except:
-            print 'Could not find a header in ' + str(header_pats)
-            print 'or as a gadget file'
+            print('Could not find a header in ' + str(header_pats))
+            print('or as a gadget file')
             raise
             
     # Make the output dir and store the header
@@ -117,24 +120,25 @@ def run_PS_on_dir(folder, **kwargs):
         try:
             shutil.copytree(folder+'/../info', outdir + '/../info')
         except:
-            print 'Could not copy ../info'
+            print('Could not copy ../info')
     
-    print 'Starting {} on {}'.format('PS' if not just_density else 'density', pattern)
+    print('Starting {} on {}'.format('PS' if not just_density else 'density', pattern))
     save_fn = os.path.join(outdir, ps_fn)
-    print 'and saving to {}'.format(save_fn)
+    print('and saving to {}'.format(save_fn))
     
     if not just_density:
-        k,s,nmodes = PS.CalculateBySlab(pattern, BoxSize, kwargs.pop('nfft'), **kwargs)
-        np.savetxt(save_fn, zip(k,s,nmodes), delimiter=',', header='k, P(k), N_modes')
+        bins = kwargs['bins']  # needed for kmin,kmax
+        raw_results = PS.CalculateBySlab(pattern, kwargs.pop('nfft'), BoxSize, **kwargs)
+        results = to_csv(raw_results, bins, save_fn)
+
     else:
         density = TSC.BinParticlesFromFile(pattern, BoxSize, kwargs.pop('nfft'), **kwargs)
         density.tofile(save_fn)
+        results = density
 
-    # Touch ps_done
-    with open(folder + '/ps_done', 'a'):
-        os.utime(folder + '/ps_done', None)
-
+    return results, header, save_fn
             
+
 def run_PS_on_PS(input_ps_fn, **kwargs):    
     outdir = get_output_path_ps(input_ps_fn)
     output_ps_fn = os.path.basename(input_ps_fn)
@@ -145,37 +149,138 @@ def run_PS_on_PS(input_ps_fn, **kwargs):
     # Read the header
     try:
         header_fn = glob(os.path.dirname(input_ps_fn)+'/*.par')[0]
-        header = InputFile.InputFile(header_fn)
+        header = InputFile(header_fn)
     except IOError:
-        print 'Could not find "*.par"'
+        print('Could not find "*.par"')
         
     # Load the input PS
     input_ps = np.loadtxt(input_ps_fn)
     
-    k,s,nmodes = PS.RebinTheoryPS(input_ps, header.BoxSize, kwargs['nfft'], nbins=kwargs['nbins'], log=kwargs['log'], dtype=kwargs['dtype'])
-    np.savetxt(outdir + '/' + output_ps_fn, zip(k,s,nmodes), delimiter=',',header='k, P(k), N_modes')
+    raw_results = PS.RebinTheoryPS(input_ps, kwargs['nfft'], header.BoxSize, nbins=kwargs['nbins'], log=kwargs['log'], dtype=kwargs['dtype'])
+    outfn = pjoin(outdir, output_ps_fn)
+    results = to_csv(raw_results, bins, outfn)
+
+    return results, header, outfn
 
     
 # folders is a list of slice folders
 def run_PS(inputs, **kwargs):
-    for input in inputs:
+    all_bins = kwargs.pop('all_bins')
+
+    for i,input in enumerate(inputs):
         # If the input is an output or IC directory
         if os.path.isdir(input):
             if kwargs.get('format').lower() == 'pack14':
                 with common.extract_slabs(input):
-                    run_PS_on_dir(input, **kwargs)
-            else:  # pretty kludgy...
-                run_PS_on_dir(input, **kwargs)
+                    _res = run_PS_on_dir(input, bins=all_bins[i], **kwargs)
+            else:  # pretty kludgy (TODO: ExitStack)
+                _res = run_PS_on_dir(input, **kwargs)
         # If the input is a PS file
         elif os.path.isfile(input):
-            run_PS_on_PS(input, **kwargs)
+            _res = run_PS_on_PS(input, **kwargs)
         else:
             raise ValueError(input, "does not exist!")
-        print 'Finished PS.'
+
+        make_plot(*_res)
+        print('Finished PS.')
+
+
+def to_csv(raw_results, bins, fn):
+    k, Pk, nmodes = raw_results
+    results = np.empty(len(k), dtype=[('kmin',float), ('kmax',float), ('kavg',float), ('power',float), ('N_modes',int)])
+    results['kmin'] = bins[:-1]
+    results['kmax'] = bins[1:]
+    results['kavg'] = k
+    results['power'] = Pk
+    results['N_modes'] = nmodes
+    pdresults = pd.DataFrame(results)
+    pdresults.to_csv(fn, index=False)
+
+    return results
+
+
+def setup_bins(args):
+    '''
+    -If not scale-free, just pass nbins to k_bin_edges
+    -Scale bins on a per-sim basis if scale-free:
+        -Set kmin to the fundamental mode of the largest scale factor
+        -Set kmax to Nyquist of the smallest scale factor
+        -So later slices will have smaller kmin/kmax
+
+    TODO: might want to go past the scale-free bins (either direction)
+    if our grid supports it
+
+    TODO: this assumes the presence of a 'header' file
+
+    Returns one bin edges array per sim
+    '''
+    ns = args.pop('scalefree_index')
+    basea = args.pop('scalefree_base_a')
+    nbins = args.pop('nbins')
+    nslice = len(args['input'])
+    nfft = args['nfft']
+
+    if nbins == -1:
+        nbins = nfft//4
+
+    headers = [InputFile(pjoin(p,'header')) for p in args['input']]
+    if ns is not None:
+        all_scalefactor = np.array([h.ScaleFactor for h in headers])
+        if basea is None:
+            base_scalefactor = all_scalefactor.max()
+        else:
+            base_scalefactor = basea
+
+        len_rescale = (all_scalefactor/base_scalefactor)**(2./(3+ns))
+
+        # Define kmin and kmax at the base time (latest time)
+        kmin = 2*np.pi/headers[all_scalefactor.argmax()].BoxSize
+        # at the earliest time, then scale to latest time
+        kmax = np.pi/(headers[all_scalefactor.argmin()].BoxSize/nfft)*len_rescale[all_scalefactor.argmin()]
+
+        if args['log']:
+            _bins = np.logspace(np.log10(kmin), np.log10(kmax), num=nbins+1)
+        else:
+            _bins = np.linspace(kmin, kmax, num=nbins+1)
+        all_bins = np.tile(_bins, (len(args['input']),1))
+
+        # these are k bins: the scaling is the inverse of the length rescaling
+        # all k will thus get bigger
+        all_bins /= len_rescale[:,None]
+
+        print('--scalefree_index option was specified.  Computed k ranges: ' + str([('{:.3g}'.format(b.min()), '{:.3g}'.format(b.max())) for b in all_bins]))
+    else:
+        # Set up normal bins
+        all_bins = np.array([Histogram.k_bin_edges(nfft, headers[i].BoxSize, nbins=nbins, log=args['log']) \
+                                for i in range(nslice)])
+
+    return all_bins
+
+import matplotlib.pyplot as plt
+def make_plot(results, header, csvfn):
+    '''
+    Make a preview plot of the results.
+    '''
+    # hacky, but consistent with ps_suffix()
+    if csvfn.endswith('.csv'):
+        pltfn = csvfn[:-4] + '.png'
+    else:
+        pltfn = csvfn
+    projected = 'projected' in csvfn
+
+    fig, ax = plt.subplots()
+
+    label = 'Auto power spectrum'
+    ax.loglog(results['kavg'], results['power'], label=label)
+    ax.legend()
+    ax.set_xlabel(r'$k$ [$h$/Mpc]')
+    ax.set_ylabel(r'$P(k)$ $[(\mathrm{{Mpc}}/h)^{ndim:d}]$'.format(ndim=(2 if projected else 3)))
+
+    fig.savefig(pltfn)
         
 def vector_arg(s):
     try:
-        x, y, z = map(int, s.strip('()[]').split(','))
+        x, y, z = list(map(int, s.strip('()[]').split(',')))
         return x, y, z
     except:
         raise argparse.ArgumentTypeError("Vector must be x,y,z")
@@ -188,17 +293,23 @@ if __name__ == '__main__':
     parser.add_argument('--rotate-to', help='Rotate the z-axis to the given axis [e.g. (1,2,3)].  Rotations will shrink the FFT domain by sqrt(3) to avoid cutting off particles.', default=None, type=vector_arg, metavar='(X,Y,Z)')
     parser.add_argument('--projected', help='Project the simulation along the z-axis.  Projections are done after rotations.', action='store_true')
     parser.add_argument('--zspace', help='Displace the particles according to their redshift-space positions.', action='store_true')
-    parser.add_argument('--nbins', help='Number of k bins.  Default: nfft/4.', default=-1, type=int)
+    parser.add_argument('--nbins', help='Number of k bins.  Default: nfft//4.', default=-1, type=int)
     parser.add_argument('--dtype', help='Data type for the binning and FFT.', choices=['float', 'double'], default='float')
     parser.add_argument('--log', help='Do the k-binning in log space.', action='store_true')
+    # TODO: move just-density to different util
     parser.add_argument('--just-density', help='Write the density cube out to disk instead of doing an FFT.', action='store_true')
+    parser.add_argument('--scalefree_index', help='Automatically scales k_min and k_max according to the scale free cosmology with the given spectral index.  Uses the lowest redshift of all slices as the "base time".', default=None, type=float)
+    parser.add_argument('--scalefree_base_a', help='Override the fiducial scale factor for automatic k_min/k_max computation in a scale-free cosmology. Only has an effect with the --scalefree_index option.', default=None, type=float)
     
     args = parser.parse_args()
     args = vars(args)
     
     if args['just_density']:
         # No meaning for density cube
-        args.pop('nbins'); args.pop('log')
+        del args['nbins'], args['log']
+    else:
+        args['all_bins'] = setup_bins(args)
+
     
     if args.pop('projected'):
         args['nfft'] = [args['nfft'],]*2

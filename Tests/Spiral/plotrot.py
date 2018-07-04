@@ -27,8 +27,8 @@ H0 = 50
 fac = 1/sqrt(3)   # norm of k-vector
 Lbox = 10/fac     # size of box for one wavelength in diagonal of 10 Mpc box
 mid = Lbox*fac/2
-print "mid = ", mid
-print mid-0.4, mid+0.4
+print("mid = ", mid)
+print(mid-0.4, mid+0.4)
 
 limits = array([[  0,   Lbox*fac, -225, 225],
                 [mid-0.05*Lbox*fac, mid+0.05*Lbox*fac, -225, 225],

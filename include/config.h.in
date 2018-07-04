@@ -1,5 +1,11 @@
 /* ./include/config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* "Use AVX-512 directs" */
+#undef AVX512DIRECT
+
+/* "Use AVX-512 multipoles" */
+#undef AVX512MULTIPOLES
+
 /* "Use AVX directs" */
 #undef AVXDIRECT
 
@@ -154,10 +160,13 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
+/* Support VSX instructions */
+#undef HAVE_VSX
+
 /* Define to 1 to support eXtended Operations Extensions */
 #undef HAVE_XOP
 
-/* 'Use a separate thread for IO" */
+/* "Use a separate thread for IO" */
 #undef IOTHREADED
 
 /* "Maximum cells-per-dimension" */

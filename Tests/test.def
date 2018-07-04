@@ -1,4 +1,22 @@
-#include "$ABACUS$/python/Abacus/param.def"
+#some default values you might want to have set.
+Order = 8
+CPD = 15
+NearFieldRadius =  2
+DirectNewtonRaphson = 1
+DerivativeExpansionRadius = 8
+ICFormat = "RVdouble"
+ICPositionRange = 1.0
+ICVelocity2Displacement = 1.0
+LightConeDirectory = "./out"
+TimeSliceRedshifts = 0
+nTimeSlice = 1
+GroupRadius = 2
+TimeStepAccel = 0.1
+TimeStepDlna = 0.05
+ForceOutputDebug = 0
+PowerSpectrumN1d = 256
+PowerSpectrumStepInterval = 0
+
 NP = 128**3
 H0 = 50
 Omega_M =  1	
@@ -10,6 +28,6 @@ BoxSize = 128
 hMpc =1
 InitialRedshift = 99
 LagrangianPTOrder = 0
-#include "$ABACUS$/python/Abacus/directory.def"
+#include "$ABACUS$/Abacus/directory.def"
 OutputDirectory = @WorkingDirectory@ + "/out"
-#include "$ABACUS$/python/Abacus/zel.def"
+#include "$ABACUS$/Abacus/zel.def"

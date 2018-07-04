@@ -16,7 +16,7 @@ clean:
 	-cd Derivatives && $(MAKE) $@
 	-cd singlestep && $(MAKE) $@
 	-cd Convolution && $(MAKE) $@
-	cd python/Abacus/Cosmology && $(MAKE) $@
+	cd Abacus/Cosmology && $(MAKE) $@
 	cd zeldovich-PLT && $(MAKE) $@
 	cd Tests && $(MAKE) $@
 	cd util && $(MAKE) $@
@@ -29,14 +29,14 @@ distclean:
 	-cd Derivatives && $(MAKE) $@
 	-cd singlestep && $(MAKE) $@
 	-cd Convolution && $(MAKE) $@
-	cd python/Abacus/Cosmology && $(MAKE) $@
+	cd Abacus/Cosmology && $(MAKE) $@
 	cd zeldovich-PLT && $(MAKE) $@
 	cd Tests && $(MAKE) $@
 	cd util && $(MAKE) $@
 	-cd Analysis/ && $(MAKE) $@
 	-cd clibs/ && $(MAKE) $@
 	-$(RM) *.o *.d *~ *.a abacus.tar.gz
-	-$(RM) singlestep/Makefile singlestep/Direct/Makefile singlestep/Multipoles/Makefile Convolution/Makefile Derivatives/Makefile Analysis/PowerSpectrum/Makefile Analysis/FoF/Makefile clibs/Makefile
+	-$(RM) singlestep/Makefile singlestep/Direct/Makefile singlestep/Multipoles/Makefile Convolution/Makefile Derivatives/Makefile Analysis/PowerSpectrum/PowerSpectrum/Makefile Analysis/FoF/Makefile clibs/Makefile
 	-$(RM) -rf autom4te.cache/ config.log config.status
 
 ConvolutionDriver: libparseheader.a
@@ -61,7 +61,7 @@ zeldovich: zeldovich.cpp
 	cd zeldovich-PLT && $(MAKE) all
     
 AbacusCosmo:
-	cd python/Abacus/Cosmology && $(MAKE) all
+	cd Abacus/Cosmology && $(MAKE) all
 
 dist:
 	$(RM) -rf .dist

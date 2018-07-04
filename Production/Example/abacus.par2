@@ -1,6 +1,7 @@
 # Set up the simulation name and directory structure
 SimName = "example"
-#include "$ABACUS$/python/Abacus/directory.def"
+#include "$ABACUS$/Abacus/directory.def"
+#include "$ABACUS$/Production/site_files/site.def"
 
 # Cosmology and basic code parameters
 BoxSize = 256.
@@ -16,7 +17,7 @@ SofteningLength = .0625  # 62.5 kpc/h, Plummer-equivalent
 CPD = 135
 
 # Output parameters
-TimeSliceRedshifts = [1.0, 0.7, 0.57, 0.5, 0.3, 0.1]
+TimeSliceRedshifts = [1.5, 1.0, 0.7, 0.5, 0.3, 0.1]
 nTimeSlice = 6
 LightConeOrigins = (0.,0.,0.)
 NLightCones = 0
@@ -25,6 +26,14 @@ PowerSpectrumN1d = 256
 PowerSpectrumStepInterval = 30
 OutputFormat = "Packed"
 BackupStepInterval = 300
+
+# Group finding parameters
+AllowGroupFinding = 1
+FoFLinkingLength = [.25, .168, .138]
+MinL1HaloNP = 50
+HaloTaggableFraction = 0.1
+L1Output_dlna = 0.1
+MicrostepTimeStep = 0.15
 
 # Advanced code parameters
 LagrangianPTOrder = 2
@@ -35,29 +44,11 @@ NumSlabsInsertListIC = 8
 NearFieldRadius = 2
 Order = 8
 hMpc = 1
-GroupRadius = 2
+GroupRadius = 4
 DerivativeExpansionRadius = 8
-RamDisk = 0
-OverwriteState = 0
-SecondIOThreadDirs = ["multipole/", "taylor/"]
-nSecondIOThreadDirs = 2
-# GPUMinCellSinks = 20  # Currently non-functional
-# MAXRAMMB = 60000  # This will be automatically detected
-# ConvolutionCacheSizeMB = 30  # This will be automatically detected
 
-# OpenMP and thread parameters
-OMP_NUM_THREADS = 16
-OMP_PLACES = "{0}:8,{12}:8"
-OMP_PROC_BIND = "spread"
-IOCores = [11, 23]
-GPUThreadCoreStart = [8, 20]
-NGPUThreadCores = 3
-
-# Convolution OpenMP parameters
-Conv_OMP_NUM_THREADS = -1
-Conv_OMP_PLACES = "{1}:23"
-Conv_OMP_PROC_BIND = "close"
-Conv_IOCore = 0
+# For additional performance tuning,
+# copy the contents of the `Production/site_files/site.def` file here and make modifications
 
 # Zeldovich and IC parameters
 ICVelocity2Displacement = 1.0

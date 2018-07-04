@@ -127,7 +127,7 @@ uint64 ParallelPartition(ListType *list, uint64 N, ValType slab, bool (is_high)(
     printf("Running on %d OMP threads\n", nthread);
     #endif
 
-    if (2*N<nthread) nthread = 1;    // If the list is too small, just do scalar
+    if (2*N<(uint64) nthread) nthread = 1;    // If the list is too small, just do scalar
     std::vector<SwapBlock> plan;
     uint64 width = N/nthread+1;
     nthread = (int) ceil(1.*N/width);  // only use threads that will have work to do

@@ -15,6 +15,7 @@ public:
     void OpenForRead(void);
     void Close(void);
     void SkipHeader(void);
+    static int SkipHeaderFromFP(FILE *);
     void ReadHeader(void);
 
     void FinalizeHeader(void);

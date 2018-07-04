@@ -675,6 +675,7 @@ infodir
 docdir
 oldincludedir
 includedir
+runstatedir
 localstatedir
 sharedstatedir
 sysconfdir
@@ -702,8 +703,11 @@ enable_mkl
 with_radius
 with_block_size
 enable_avx
+enable_avx512
 enable_avx_directs
+enable_avx512_directs
 enable_avx_multipoles
+enable_avx512_multipoles
 with_max_cpd
 with_max_source_length
 enable_threaded_io
@@ -764,6 +768,7 @@ datadir='${datarootdir}'
 sysconfdir='${prefix}/etc'
 sharedstatedir='${prefix}/com'
 localstatedir='${prefix}/var'
+runstatedir='${localstatedir}/run'
 includedir='${prefix}/include'
 oldincludedir='/usr/include'
 docdir='${datarootdir}/doc/${PACKAGE_TARNAME}'
@@ -1016,6 +1021,15 @@ do
   | -silent | --silent | --silen | --sile | --sil)
     silent=yes ;;
 
+  -runstatedir | --runstatedir | --runstatedi | --runstated \
+  | --runstate | --runstat | --runsta | --runst | --runs \
+  | --run | --ru | --r)
+    ac_prev=runstatedir ;;
+  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
+  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
+  | --run=* | --ru=* | --r=*)
+    runstatedir=$ac_optarg ;;
+
   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
     ac_prev=sbindir ;;
   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
@@ -1153,7 +1167,7 @@ fi
 for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
 		datadir sysconfdir sharedstatedir localstatedir includedir \
 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
-		libdir localedir mandir
+		libdir localedir mandir runstatedir
 do
   eval ac_val=\$$ac_var
   # Remove trailing slashes.
@@ -1306,6 +1320,7 @@ Fine tuning of the installation directories:
   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
+  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
   --libdir=DIR            object code libraries [EPREFIX/lib]
   --includedir=DIR        C header files [PREFIX/include]
   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
@@ -1343,8 +1358,13 @@ Optional Features:
   --enable-mkl            Intel Math Kernel Library FFT [yes if using icc]
   --enable-avx            All AVX (overridden by individual options) [yes if
                           AVX present]
+  --enable-avx512         All AVX-512 (overridden by individual options) [yes
+                          if AVX-512 present]
   --enable-avx-directs    AVX directs [no]
+  --enable-avx512-directs AVX-512 directs [no]
   --enable-avx-multipoles AVX multipoles [yes if AVX present]
+  --enable-avx512-multipoles
+                          AVX-512 multipoles [yes if AVX-512 present]
   --enable-threaded-io    Threaded IO [yes]
   --enable-gpu-directs    GPU directs [yes if CUDA detected]
   --enable-gpu-convolution
@@ -3777,7 +3797,7 @@ test -z "$INSTALL_DATA" && INSTALL_DATA='${INSTALL} -m 644'
 
 
 # These files will be generated from their Makefile.in counterparts
-ac_config_files="$ac_config_files singlestep/Makefile singlestep/Direct/Makefile Analysis/PowerSpectrum/Makefile Analysis/FoF/Makefile Convolution/Makefile Derivatives/Makefile singlestep/Multipoles/Makefile clibs/Makefile"
+ac_config_files="$ac_config_files singlestep/Makefile singlestep/Direct/Makefile Analysis/PowerSpectrum/PowerSpectrum/Makefile Analysis/FoF/Makefile Convolution/Makefile Derivatives/Makefile singlestep/Multipoles/Makefile clibs/Makefile"
 
 
 # git version
@@ -4016,12 +4036,12 @@ _ACEOF
 
 
 # ===========================================================================
-#          http://www.gnu.org/software/autoconf-archive/ax_ext.html
+#          https://www.gnu.org/software/autoconf-archive/ax_ext.html
 # ===========================================================================
 #
 # SYNOPSIS
 #
-#   AX_EXT([no-define])
+#   AX_EXT
 #
 # DESCRIPTION
 #
@@ -4040,7 +4060,7 @@ _ACEOF
 #     AC_SUBST(SIMD_FLAGS)
 #     AC_SUBST(CPUEXT_FLAGS)
 #
-#   And defines the following, unless called with "no-define":
+#   And defines:
 #
 #     HAVE_RDRND / HAVE_BMI1 / HAVE_BMI2 / HAVE_ADX / HAVE_MPX
 #     HAVE_PREFETCHWT1 / HAVE_ABM / HAVE_MMX / HAVE_SSE / HAVE_SSE2
@@ -4048,19 +4068,20 @@ _ACEOF
 #     HAVE_SHA / HAVE_AES / HAVE_AVX / HAVE_FMA3 / HAVE_FMA4 / HAVE_XOP
 #     HAVE_AVX2 / HAVE_AVX512_F / HAVE_AVX512_CD / HAVE_AVX512_PF
 #     HAVE_AVX512_ER / HAVE_AVX512_VL / HAVE_AVX512_BW / HAVE_AVX512_DQ
-#     HAVE_AVX512_IFMA / HAVE_AVX512_VBMI
+#     HAVE_AVX512_IFMA / HAVE_AVX512_VBMI / HAVE_ALTIVEC / HAVE_VSX
 #
 # LICENSE
 #
 #   Copyright (c) 2007 Christophe Tournayre <turn3r@users.sourceforge.net>
 #   Copyright (c) 2013,2015 Michael Petch <mpetch@capp-sysware.com>
+#   Copyright (c) 2017 Rafael de Lucena Valle <rafaeldelucena@gmail.com>
 #
 #   Copying and distribution of this file, with or without modification, are
 #   permitted in any medium without royalty provided the copyright notice
 #   and this notice are preserved. This file is offered as-is, without any
 #   warranty.
 
-#serial 15
+#serial 17
 
 
 
@@ -4664,23 +4685,23 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
   case $host_cpu in
     powerpc*)
-      { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether altivec is supported" >&5
-$as_echo_n "checking whether altivec is supported... " >&6; }
-if ${ax_cv_have_altivec_ext+:} false; then :
+      { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether altivec is supported for old distros" >&5
+$as_echo_n "checking whether altivec is supported for old distros... " >&6; }
+if ${ax_cv_have_altivec_old_ext+:} false; then :
   $as_echo_n "(cached) " >&6
 else
 
             if test `/usr/sbin/sysctl -a 2>/dev/null| grep -c hw.optional.altivec` != 0; then
                 if test `/usr/sbin/sysctl -n hw.optional.altivec` = 1; then
-                  ax_cv_have_altivec_ext=yes
+                  ax_cv_have_altivec_old_ext=yes
                 fi
             fi
 
 fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_have_altivec_ext" >&5
-$as_echo "$ax_cv_have_altivec_ext" >&6; }
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_have_altivec_old_ext" >&5
+$as_echo "$ax_cv_have_altivec_old_ext" >&6; }
 
-          if test "$ax_cv_have_altivec_ext" = yes; then
+          if test "$ax_cv_have_altivec_old_ext" = yes; then
 
 $as_echo "#define HAVE_ALTIVEC /**/" >>confdefs.h
 
@@ -4715,6 +4736,116 @@ fi
 $as_echo "$ax_cv_check_cflags___faltivec" >&6; }
 if test "x$ax_cv_check_cflags___faltivec" = xyes; then :
   SIMD_FLAGS="$SIMD_FLAGS -faltivec"
+else
+  :
+fi
+
+          fi
+
+      { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether altivec is supported" >&5
+$as_echo_n "checking whether altivec is supported... " >&6; }
+if ${ax_cv_have_altivec_ext+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+            if test `LD_SHOW_AUXV=1 /bin/true 2>/dev/null|grep -c altivec` != 0; then
+              ax_cv_have_altivec_ext=yes
+            fi
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_have_altivec_ext" >&5
+$as_echo "$ax_cv_have_altivec_ext" >&6; }
+
+          if test "$ax_cv_have_altivec_ext" = yes; then
+
+$as_echo "#define HAVE_ALTIVEC /**/" >>confdefs.h
+
+            { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -maltivec" >&5
+$as_echo_n "checking whether C compiler accepts -maltivec... " >&6; }
+if ${ax_cv_check_cflags___maltivec+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+  ax_check_save_flags=$CFLAGS
+  CFLAGS="$CFLAGS  -maltivec"
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  ax_cv_check_cflags___maltivec=yes
+else
+  ax_cv_check_cflags___maltivec=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  CFLAGS=$ax_check_save_flags
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___maltivec" >&5
+$as_echo "$ax_cv_check_cflags___maltivec" >&6; }
+if test "x$ax_cv_check_cflags___maltivec" = xyes; then :
+  SIMD_FLAGS="$SIMD_FLAGS -maltivec"
+else
+  :
+fi
+
+          fi
+
+      { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether vsx is supported" >&5
+$as_echo_n "checking whether vsx is supported... " >&6; }
+if ${ax_cv_have_vsx_ext+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+            if test `LD_SHOW_AUXV=1 /bin/true 2>/dev/null|grep -c vsx` != 0; then
+                ax_cv_have_vsx_ext=yes
+            fi
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_have_vsx_ext" >&5
+$as_echo "$ax_cv_have_vsx_ext" >&6; }
+
+          if test "$ax_cv_have_vsx_ext" = yes; then
+
+$as_echo "#define HAVE_VSX /**/" >>confdefs.h
+
+            { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -mvsx" >&5
+$as_echo_n "checking whether C compiler accepts -mvsx... " >&6; }
+if ${ax_cv_check_cflags___mvsx+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+  ax_check_save_flags=$CFLAGS
+  CFLAGS="$CFLAGS  -mvsx"
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  ax_cv_check_cflags___mvsx=yes
+else
+  ax_cv_check_cflags___mvsx=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  CFLAGS=$ax_check_save_flags
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___mvsx" >&5
+$as_echo "$ax_cv_check_cflags___mvsx" >&6; }
+if test "x$ax_cv_check_cflags___mvsx" = xyes; then :
+  SIMD_FLAGS="$SIMD_FLAGS -mvsx"
 else
   :
 fi
@@ -5218,38 +5349,7 @@ else
 fi
 
 
-      for ac_instr_info       in "avx;avx;AVX;ecx_cpuid1,28;-mavx;HAVE_AVX;SIMD_FLAGS"          #"none;rdrnd;RDRND;ecx_cpuid1,30;-mrdrnd;HAVE_RDRND;CPUEXT_FLAGS" dnl
-         #"none;bmi1;BMI1;ebx_cpuid7,3;-mbmi;HAVE_BMI1;CPUEXT_FLAGS" dnl
-         #"none;bmi2;BMI2;ebx_cpuid7,8;-mbmi2;HAVE_BMI2;CPUEXT_FLAGS" dnl
-         #"none;adx;ADX;ebx_cpuid7,19;-madx;HAVE_ADX;CPUEXT_FLAGS" dnl
-         #"none;mpx;MPX;ebx_cpuid7,14;-mmpx;HAVE_MPX;CPUEXT_FLAGS" dnl
-         #"none;prefetchwt1;PREFETCHWT1;ecx_cpuid7,0;-mprefetchwt1;HAVE_PREFETCHWT1;CPUEXT_FLAGS" dnl
-         #"none;abm;ABM;ecx_cpuid80000001,5;-mabm;HAVE_ABM;CPUEXT_FLAGS" dnl
-         #"mmx;mmx;MMX;edx_cpuid1,23;-mmmx;HAVE_MMX;SIMD_FLAGS" dnl
-         #"sse;sse;SSE;edx_cpuid1,25;-msse;HAVE_SSE;SIMD_FLAGS" dnl
-         #"sse;sse2;SSE2;edx_cpuid1,26;-msse2;HAVE_SSE2;SIMD_FLAGS" dnl
-         #"sse;sse3;SSE3;ecx_cpuid1,1;-msse3;HAVE_SSE3;SIMD_FLAGS" dnl
-         #"sse;ssse3;SSSE3;ecx_cpuid1,9;-mssse3;HAVE_SSSE3;SIMD_FLAGS" dnl
-         #"sse;sse41;SSE4.1;ecx_cpuid1,19;-msse4.1;HAVE_SSE4_1;SIMD_FLAGS" dnl
-         #"sse;sse42;SSE4.2;ecx_cpuid1,20;-msse4.2;HAVE_SSE4_2;SIMD_FLAGS" dnl
-         #"sse;sse4a;SSE4a;ecx_cpuid80000001,6;-msse4a;HAVE_SSE4a;SIMD_FLAGS" dnl
-         #"sse;sha;SHA;ebx_cpuid7,29;-msha;HAVE_SHA;SIMD_FLAGS" dnl
-         #"sse;aes;AES;ecx_cpuid1,25;-maes;HAVE_AES;SIMD_FLAGS" dnl
-
-         #"avx;fma3;FMA3;ecx_cpuid1,12;-mfma;HAVE_FMA3;SIMD_FLAGS" dnl
-         #"avx;fma4;FMA4;ecx_cpuid80000001,16;-mfma4;HAVE_FMA4;SIMD_FLAGS" dnl
-         #"avx;xop;XOP;ecx_cpuid80000001,11;-mxop;HAVE_XOP;SIMD_FLAGS" dnl
-         #"avx;avx2;AVX2;ebx_cpuid7,5;-mavx2;HAVE_AVX2;SIMD_FLAGS" dnl
-         #"avx512;avx512f;AVX512-F;ebx_cpuid7,16;-mavx512f;HAVE_AVX512_F;SIMD_FLAGS" dnl
-         #"avx512;avx512cd;AVX512-CD;ebx_cpuid7,28;-mavx512cd;HAVE_AVX512_CD;SIMD_FLAGS" dnl
-         #"avx512;avx512pf;AVX512-PF;ebx_cpuid7,26;-mavx512pf;HAVE_AVX512_PF;SIMD_FLAGS" dnl
-         #"avx512;avx512er;AVX512-ER;ebx_cpuid7,27;-mavx512er;HAVE_AVX512_ER;SIMD_FLAGS" dnl
-         #"avx512;avx512vl;AVX512-VL;ebx_cpuid7,31;-mavx512vl;HAVE_AVX512_VL;SIMD_FLAGS" dnl
-         #"avx512;avx512bw;AVX512-BW;ebx_cpuid7,30;-mavx512bw;HAVE_AVX512_BW;SIMD_FLAGS" dnl
-         #"avx512;avx512dq;AVX512-DQ;ebx_cpuid7,17;-mavx512dq;HAVE_AVX512_DQ;SIMD_FLAGS" dnl
-         #"avx512;avx512ifma;AVX512-IFMA;ebx_cpuid7,21;-mavx512ifma;HAVE_AVX512_IFMA;SIMD_FLAGS" dnl
-         #"avx512;avx512vbmi;AVX512-VBMI;ecx_cpuid7,1;-mavx512vbmi;HAVE_AVX512_VBMI;SIMD_FLAGS" dnl
-         #
+      for ac_instr_info       in                                                                                                                                                          "avx;avx;AVX;ecx_cpuid1,28;-mavx;HAVE_AVX;SIMD_FLAGS"                                              "avx512;avx512f;AVX512-F;ebx_cpuid7,16;-mavx512f;HAVE_AVX512_F;SIMD_FLAGS"                                                                                  #
       do ac_instr_os_support=$(eval echo \$ax_cv_have_$(echo $ac_instr_info | cut -d ";" -f 1)_os_support_ext)
          ac_instr_acvar=$(echo $ac_instr_info | cut -d ";" -f 2)
          ac_instr_shortname=$(echo $ac_instr_info | cut -d ";" -f 3)
@@ -5333,12 +5433,10 @@ fi
 
              if test x"$(eval echo \$ax_cv_support_${ac_instr_acvar}_ext)" = x"yes"; then
                eval ${ac_instr_flag_type}=\"\$${ac_instr_flag_type} ${ac_instr_compiler_flags}\"
-               if test xno-define != x"no-define"; then
-                 cat >>confdefs.h <<_ACEOF
+               cat >>confdefs.h <<_ACEOF
 #define ${ac_instr_have_define} 1
 _ACEOF
 
-               fi
              else
                { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Your processor and OS supports ${ac_instr_shortname} instructions but not your compiler, can you try another compiler?" >&5
 $as_echo "$as_me: WARNING: Your processor and OS supports ${ac_instr_shortname} instructions but not your compiler, can you try another compiler?" >&2;}
@@ -5479,7 +5577,15 @@ _ACEOF
 if test "${enable_avx+set}" = set; then :
   enableval=$enable_avx;
 else
-  enable_avx=$ax_cv_have_avx_cpu_ext
+  enable_avx=$ax_cv_have_avx_ext
+fi
+
+
+# Check whether --enable-avx512 was given.
+if test "${enable_avx512+set}" = set; then :
+  enableval=$enable_avx512;
+else
+  enable_avx512=$ax_cv_have_avx512f_ext
 fi
 
 
@@ -5498,6 +5604,21 @@ _ACEOF
 
 fi
 
+# Check whether --enable-avx512-directs was given.
+if test "${enable_avx512_directs+set}" = set; then :
+  enableval=$enable_avx512_directs;
+else
+  enable_avx512_directs=no
+fi
+
+if test x$enable_avx512_directs == xyes; then
+
+cat >>confdefs.h <<_ACEOF
+#define AVX512DIRECT /**/
+_ACEOF
+
+fi
+
 # Check whether --enable-avx-multipoles was given.
 if test "${enable_avx_multipoles+set}" = set; then :
   enableval=$enable_avx_multipoles;
@@ -5509,6 +5630,21 @@ if test x$enable_avx_multipoles == xyes; then
 
 cat >>confdefs.h <<_ACEOF
 #define AVXMULTIPOLES /**/
+_ACEOF
+
+fi
+
+# Check whether --enable-avx512-multipoles was given.
+if test "${enable_avx512_multipoles+set}" = set; then :
+  enableval=$enable_avx512_multipoles;
+else
+  enable_avx512_multipoles=$enable_avx512
+fi
+
+if test x$enable_avx512_multipoles == xyes; then
+
+cat >>confdefs.h <<_ACEOF
+#define AVX512MULTIPOLES /**/
 _ACEOF
 
 fi
@@ -6202,7 +6338,9 @@ echo "Double precision:                $enable_double"
 echo "Near field radius:               $with_radius"
 echo "Near field block size:           $with_block_size"
 echo "AVX directs:                     $enable_avx_directs"
+echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "AVX multipoles:                  $enable_avx_multipoles"
+echo "AVX-512 multipoles:              $enable_avx512_multipoles"
 echo "Maximum CPD:                     $with_max_cpd"
 echo "Maximum source length:           $with_max_source_length"
 echo "Threaded IO:                     $enable_threaded_io"
@@ -6910,7 +7048,7 @@ do
     "./include/config.h") CONFIG_HEADERS="$CONFIG_HEADERS ./include/config.h" ;;
     "singlestep/Makefile") CONFIG_FILES="$CONFIG_FILES singlestep/Makefile" ;;
     "singlestep/Direct/Makefile") CONFIG_FILES="$CONFIG_FILES singlestep/Direct/Makefile" ;;
-    "Analysis/PowerSpectrum/Makefile") CONFIG_FILES="$CONFIG_FILES Analysis/PowerSpectrum/Makefile" ;;
+    "Analysis/PowerSpectrum/PowerSpectrum/Makefile") CONFIG_FILES="$CONFIG_FILES Analysis/PowerSpectrum/PowerSpectrum/Makefile" ;;
     "Analysis/FoF/Makefile") CONFIG_FILES="$CONFIG_FILES Analysis/FoF/Makefile" ;;
     "Convolution/Makefile") CONFIG_FILES="$CONFIG_FILES Convolution/Makefile" ;;
     "Derivatives/Makefile") CONFIG_FILES="$CONFIG_FILES Derivatives/Makefile" ;;

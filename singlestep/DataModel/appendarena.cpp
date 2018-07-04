@@ -348,11 +348,9 @@ class OutputRVdoubleTag: public AppendArena {
     struct ICparticle {
         double pos[3];		// Global position, unit box
 	    double vel[3];		// Zspace, unit box
-	    unsigned long tag;
+	    uint64 tag;
     };
 
-    float velocity_conversion;
-    
     void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
 	struct ICparticle *p = (struct ICparticle *)c;
 #ifdef GLOBALPOS
@@ -365,10 +363,10 @@ class OutputRVdoubleTag: public AppendArena {
 	p->pos[0] = (double) pos.x+cc.x;
 	p->pos[1] = (double) pos.y+cc.y;
 	p->pos[2] = (double) pos.z+cc.z;
-	p->vel[0] = vel.x*velocity_conversion;
-	p->vel[1] = vel.y*velocity_conversion;
-	p->vel[2] = vel.z*velocity_conversion;
-	p->tag = (unsigned int) aux.pid();
+	p->vel[0] = vel.x;  // Leave it in Zspace, unit box units
+	p->vel[1] = vel.y;
+	p->vel[2] = vel.z;
+	p->tag = aux.pid();
 	
     }
     void appendcell(char *c, integer3 ijk, float vscale) {
@@ -380,14 +378,56 @@ class OutputRVdoubleTag: public AppendArena {
     int sizeof_particle() { return sizeof(struct ICparticle); }
 
     OutputRVdoubleTag() {
-    	velocity_conversion = 1.0;  // Leave it in Zspace, unit box units
 	    STDLOG(0,"Particle size: %d\n",sizeof_particle());
     }
     ~OutputRVdoubleTag(void) { }
 };
 
 
+class OutputRVZel: public AppendArena {
+  private:
+    struct ICparticle {
+        unsigned short i,j,k;
+        float disp[3];      // Lagrangian displacement, unit box
+        float vel[3];      // Zspace velocity, unit box
+    };
 
+    void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
+    struct ICparticle *p = (struct ICparticle *)c;
+#ifdef GLOBALPOS
+    // This is for global box-referenced positions
+    double3 cc = double3(0.0);
+#else
+    // If we instead have cell-referenced positions, then:
+    double3 cc = PP->WrapCellCenter(current_cell.cellid());
+#endif
+    integer3 ijk = ZelIJK(aux.pid());
+    double3 zelpos = ZelPos(aux.pid());
+    float3 disp = double3(pos) + cc - zelpos;
+    disp -= disp.round();  // wrap to [-.5,+.5)
+
+    p->disp[0] = (double) pos.x+cc.x-zelpos.x;
+    p->disp[1] = (double) pos.y+cc.y-zelpos.y;
+    p->disp[2] = (double) pos.z+cc.z-zelpos.z;
+    p->vel[0] = vel.x;  // Leave it in Zspace, unit box units
+    p->vel[1] = vel.y;
+    p->vel[2] = vel.z;
+    p->i = ijk.x;
+    p->j = ijk.y;
+    p->k = ijk.z;
+    
+    }
+    void appendcell(char *c, integer3 ijk, float vscale) {
+    current_cell = cell_header(ijk, cpd, 1);
+    }
+
+  public:
+    int sizeof_cell()     { return 0; }
+    int sizeof_particle() { return sizeof(struct ICparticle); }
+
+    OutputRVZel() {}
+    ~OutputRVZel(void) { }
+};
 
 
 #ifdef DONOTCOMPILE

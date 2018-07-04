@@ -327,33 +327,11 @@ void CreateC2R(int order) {
     fprintf(fp,"}\n");
 
     fclose(fp);
-
-    char cmd[1024];
-    sprintf(cmd,"g++ -O1 -c %s", fn); 
-    int rv = system(cmd);
-    assert(rv!=-1);
 }
 
 int main(void) {
 
-    for(int order=0;order<=16;order++) CreateC2R(order); 
-
-
-    char cmd[1024];
-    int rv;
-
-#if 0
-    sprintf(cmd,"ar -r C2R.a Cartesian2Reduced*.o");
-    rv = system(cmd);
-    assert(rv!=-1);
-#endif
-
-    sprintf(cmd,"mv Cartesian2Reduced*.o ../library");
-    rv = system(cmd);
-    assert(rv!=-1);
-        
-    sprintf(cmd,"rm Cartesian2Reduced*.cpp");
-    rv = system(cmd);
-    assert(rv!=-1);
+    for(int order=0;order<=16;order++)
+        CreateC2R(order); 
 
 }

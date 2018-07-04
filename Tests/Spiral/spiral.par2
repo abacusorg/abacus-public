@@ -2,7 +2,7 @@
 SimName = "spiral"
 #include "$ABACUS$/Tests/test.def"
 
-#include "$ABACUS$/python/Abacus/directory.def"
+#include "$ABACUS$/Abacus/directory.def"
 DerivativesDirectory= "$ABACUS_TMP$/Derivatives/"
 TimeStepAccel = 0.02
 TimeStepDlna = 0.025
@@ -14,3 +14,4 @@ OverwriteState = 0
 RamDisk = 1
 ForceOutputDebug = 0
 OutputFormat="RVdouble"
+CPD = 33

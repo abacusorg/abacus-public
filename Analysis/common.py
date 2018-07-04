@@ -9,7 +9,7 @@ import os.path as path
 import tarfile
 import shutil
 from glob import glob
-from itertools import izip
+
 import contextlib
 
 from Abacus import Tools
@@ -44,9 +44,9 @@ def prompt_removal(dir, make_new=False, noprompt=False):
     """
     if path.exists(dir):
         if not noprompt:
-            yn = raw_input('Output directory "{}" exists.  Delete (y/[n])? '.format(dir))
+            yn = input('Output directory "{}" exists.  Delete (y/[n])? '.format(dir))
         if noprompt or yn.lower() in ('y', 'yes'):
-            print 'Removing {}'.format(dir)
+            print('Removing {}'.format(dir))
             shutil.rmtree(dir)
         else:
             raise RuntimeError('Cannot continue if "{}" exists.'.format(dir))
@@ -78,7 +78,8 @@ def make_tar(dir, pattern, tarfn, delete_source=False, nthreads=1, out_parent=''
         Delete source files after finishing writing
         the tar.  Default: False.
     nthreads: int, optional
-        Maximum number of threads to use.  Default: 1.
+        Maximum number of threads to use.  `nthreads` <= 0 means use all cores.
+        Default: 1.
     out_parent: str, optional
         Place the outputs in a directory rooted at out_parent.
         Default is to make the tarballs in-place.
@@ -105,8 +106,11 @@ def make_tar(dir, pattern, tarfn, delete_source=False, nthreads=1, out_parent=''
         tarfn *= maxlen
     assert len(dir) == len(pattern) == len(tarfn)
     
+    if nthreads <= 0:
+        nthreads = multiprocessing.cpu_count()
+    
     pool = multiprocessing.Pool(nthreads)
-    allfns = pool.map(_make_tar_worker(delete_source, out_parent), zip(dir, pattern, tarfn))
+    allfns = pool.map(_make_tar_worker(delete_source, out_parent), list(zip(dir, pattern, tarfn)))
     fns = sum(allfns, [])
     
     return fns
@@ -175,7 +179,7 @@ def extract_slabs(dir, verbose=True, tarfn='slabs.tar.gz'):
     fmt_str = get_slab_fmt_str(dir, header.SimName)
     
     # Check that all the files we need exist
-    for slab in xrange(cpd):
+    for slab in range(cpd):
         fn = fmt_str.format(slab=slab)
         if not path.isfile(fn):
             break
@@ -185,7 +189,7 @@ def extract_slabs(dir, verbose=True, tarfn='slabs.tar.gz'):
         return
     
     if verbose:
-        print 'Extracting slabs...'
+        print('Extracting slabs...')
     # If something is missing, extract the tarball
     extract_timer = ContextTimer()
     with extract_timer:
@@ -193,7 +197,7 @@ def extract_slabs(dir, verbose=True, tarfn='slabs.tar.gz'):
             tfp.extractall(path=dir)
             fns = tfp.getnames()  # this is smart enough to cache the result from extractall()!
     if verbose:
-        print 'Extract time: {:.3f}s'.format(extract_timer.elapsed)
+        print('Extract time: {:.3f}s'.format(extract_timer.elapsed))
     yield
 
     # Now remove the extracted files

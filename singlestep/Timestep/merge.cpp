@@ -263,7 +263,8 @@ uint64 FillMergeSlab(int slab) {
     #pragma omp parallel for schedule(static)
     for(int y=0;y<cpd;y++){
         for(int z=0;z<cpd;z++) {
-            Cell c  = PP->GetCell(slab, y, z);
+            Cell c;
+            c = PP->GetCell(slab, y, z);
             Cell mc = PP->GetMergeCell(slab, y, z);
             cellinfo *ici = PP->InsertCellInfo(slab,y,z);
             int insert_count = ici->count;
@@ -288,12 +289,26 @@ uint64 FillMergeSlab(int slab) {
                     mc.vel[j] = ilpart[j].vel;
                     mc.aux[j] = ilpart[j].aux;
             }
+			
+            // In the vast majority of cases, the PIDs are numbered [0,NP).
+            // One could check this condition here; failure could indicate
+            // PID corruption
+			mc = PP->GetMergeCell(slab, y, z);
+			for (int j = 0; j < mc.count(); j++) {
+				assertf(mc.aux[j].pid() < P.np, "PID %d too big\n", mc.aux[j].pid());
+			}
             
             //DoCellMultipoles(slab, y, z);
         }
         //DoZRowMultipoles(slab, y);
     }
-    //DoYRowMultipoles(slab, z);
+
+    /*#pragma omp parallel for schedule(static)
+    for(int z=0;z<cpd;z++)
+        DoYRowMultipoles(slab, z);
+
+    // Do the final thread reductions
+    FinishSlabMultipoles(slab);*/
 
     // Delete the particles from the insert list.
     free(ILnew);   // Need to free this space!

@@ -74,7 +74,7 @@ public:
 
     STimer FinishPartition, FinishSort;
 
-    InsertList(int cpd, uint64 maxilsize) : grid(cpd), MultiAppendList(maxilsize)  { 
+    InsertList(int cpd, uint64 maxilsize) : grid(cpd), MultiAppendList<ilstruct>(maxilsize)  { 
         n_sorted = 0;
         return;
     }
@@ -145,7 +145,7 @@ public:
 #endif
 
         /* REMOVING THIS CHECK, as it would be detected in another way,
-           namely that the IL would not be empty at the end of the timestep.
+           namely that the IL would not be empty at the end of the timestep.*/
         // Ensure that we are not trying to push a particle to a slab
         // that might already have finished
         int slab_distance = abs(x - newcell.x);
@@ -164,7 +164,7 @@ public:
                 "Trying to push a particle to slab %d from slab %d.  This is larger than FINISH_WAIT_RADIUS = %d.",
                 x, newcell.x, FINISH_WAIT_RADIUS);
         }
-        */   // DONE with REMOVED CHECK
+        //*/   // DONE with REMOVED CHECK
         
         Push(pos,vel,aux,newcell);
     }
@@ -239,33 +239,16 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     // pss::parallel_stable_sort( &(il[mid]), &(il[length]), GlobalSortOperator() );
 
     n_sorted += slablength;
-    FinishSort.Stop();
 
     //ConfirmSorting(ilnew, slablength);
 
     // Delete the slab particle from the insert list, since they're now in ilnew[]
     ShrinkMAL(length - slablength);
     *_slablength = slablength;
+
+    FinishSort.Stop();
     return ilnew;
 }
 
 
 InsertList *IL;
-
-
-
-
-/*
-// The following routine is VESTIGIAL
-struct GlobalSortOperator {
-    inline bool operator() (const  ilstruct &pi, const ilstruct &pj ) const {
-        // We must sort on pi.xyz.y*cpd+pi.xyz.z < pj.xyz.y*cpd+pj.xyz.z
-        // Warning: This will get more complicated in the parallel code with 
-        // the periodic wrap.
-        if(pi.xyz.y - pj.xyz.y == 0)
-            return pi.xyz.z < pj.xyz.z;
-        return pi.xyz.y < pj.xyz.y;
-        //return  pi.xyz.y*P.cpd + pi.xyz.z < pj.xyz.y*P.cpd + pj.xyz.z; 
-    }
-};
-*/

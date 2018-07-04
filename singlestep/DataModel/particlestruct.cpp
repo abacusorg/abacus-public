@@ -16,15 +16,6 @@ So we actually are limited to about 680 million particles in a cell.
 #ifndef INCLUDE_PARTICLESTRUCT
 #define INCLUDE_PARTICLESTRUCT
 
-// So that we can easily adjust to double precision for kinematics
-#ifdef DOUBLEPRECISION
-#define FLOAT double
-#define FLOAT3 double3		
-#else 
-#define FLOAT float	
-#define FLOAT3 float3
-#endif
-
 #define posstruct FLOAT3
 #define velstruct FLOAT3
 #define accstruct FLOAT3
@@ -32,10 +23,10 @@ So we actually are limited to about 680 million particles in a cell.
 #define AUXPID (uint64)  0xffffffffff	// The lower 5 bytes, bits 0..39
 #define AUXLCZEROBIT 40		// The LC bits are 40..47
 #define AUXLC  (uint64)0xff0000000000	// The next byte
-#define AUXTAGABLEBIT 48llu //Can the particle be tagged.
+#define AUXTAGGABLEBIT 48llu //Can the particle be tagged.
 #define AUXTAGGEDBIT 49llu //Has the particle been tagged
 #define AUXINL0BIT 50llu //Is the particle in a level 0 group
-#define AUXINL1BIT 51llu //Is the particle in a levl 1 group
+#define AUXINL1BIT 51llu //Is the particle in a level 1 group
 
 class auxstruct {
 public:
@@ -65,24 +56,58 @@ public:
     // not want to construct for every particle.
 
     // Light cones need 1 byte
-    static uint64 lightconemask(int number) {
+    inline static uint64 lightconemask(int number) {
         assertf(number<8 && number>=0, "Lightcone number lcn = %d must satisfy 0 <= lcn < 8.", number);
         return (uint64)1 << (number+AUXLCZEROBIT);
     }
 
-    bool lightconedone(uint64 mask) {
+    inline bool lightconedone(uint64 mask) {
         assert (mask<=AUXLC && mask >= AUXPID);  // better way to do this...
         return (aux&mask);
     }
-    bool lightconedone(int number) {
+    inline bool lightconedone(int number) {
         return lightconedone(lightconemask(number));
     }
 
-    void setlightconedone(uint64 mask) {
+    inline void setlightconedone(uint64 mask) {
         aux |= mask;
     }
-    void setlightconedone(int number) {
+    inline void setlightconedone(int number) {
         setlightconedone(lightconemask(number));
+    }
+
+    // Group and subsample related bits
+    inline void set_taggable() {
+	// The TAGGABLE bit should be set at the beginning of the sim and not changed.
+        aux |= ((uint64)1 << AUXTAGGABLEBIT);
+    }
+    inline bool is_taggable() {
+        return aux & ((uint64)1 << AUXTAGGABLEBIT);
+    }
+    inline void set_tagged() {
+	// The TAGGED bit is a lasting tag, once set.
+        aux |= ((uint64)1 << AUXTAGGEDBIT);
+    }
+    inline bool is_tagged() {
+        return aux & ((uint64)1 << AUXTAGGEDBIT);
+    }
+
+    inline void reset_L01_bits() {
+	// We need to be able to unset these bits each time we run groupfinding
+	uint64 mask = ((uint64)1 << AUXINL0BIT) + ((uint64)1 << AUXINL1BIT);
+	aux &= ~mask;
+    }
+    inline void set_L0() {
+        aux |= ((uint64)1 << AUXINL0BIT);
+    }
+    inline bool is_L0() {
+        return aux & ((uint64)1 << AUXINL0BIT);
+    }
+    inline void set_L1() {
+        aux |= ((uint64)1 << AUXINL1BIT);
+    }
+    inline bool is_L1() {
+        return aux & ((uint64)1 << AUXINL1BIT);
     }
 
 
@@ -123,7 +148,7 @@ public:
         // Do a sanity check on the cellinfo values; return 1 if ok, 0 if not.
 	// slabsize is the number of particles in the slab.
 	if (!isfinite(startindex)){
-        STDLOG(0, "Bad 'startindex' in cellinfo: %llu\n", startindex);
+        STDLOG(0, "Bad 'startindex' in cellinfo: %u\n", startindex);
         return 0;
     }
     if(count<0){
@@ -131,11 +156,11 @@ public:
         return 0;
     }
     if(active<0){
-        STDLOG(0, "Bad 'active' in cellinfo: %llu\n", active);
+        STDLOG(0, "Bad 'active' in cellinfo: %u\n", active);
         return 0;
     }
 	if (startindex+count > slabsize){
-        STDLOG(0, "'startindex+count' (%llu + %d = %lld) > 'slabsize' (%llu) in cellinfo\n", startindex, count, startindex+count, slabsize);
+        STDLOG(0, "'startindex+count' (%u + %d = %d) > 'slabsize' (%u) in cellinfo\n", startindex, count, startindex+count, slabsize);
         return 0;
     }
 	if (active>count){
@@ -148,7 +173,7 @@ public:
 
 
 // Define the cell class to have a compact way to handle the particles.
-// Unfortunately, this does not include accelerations and group lists,
+// Unfortunately, this does not include group lists,
 // because we don't always have those.
 
 class Cell {
@@ -157,7 +182,7 @@ public:
     integer3 ijk;
     // Pointer to the cell info (not a copy of it!)
     cellinfo *ci;
-    // Pointers to the lists of positions, velocities, and auxillaries
+    // Pointers to the lists of positions, velocities, and auxiliaries
     // These lists run 0 .. ci->count-1
     posstruct *pos;
     velstruct *vel;

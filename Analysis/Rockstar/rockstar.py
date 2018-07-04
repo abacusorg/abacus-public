@@ -46,7 +46,7 @@ def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=25, downsample=1, confi
         
     
     for slice_dir in slice_dirs:
-        print 'Starting Rockstar on {}'.format(slice_dir)
+        print('Starting Rockstar on {}'.format(slice_dir))
         
         with common.extract_slabs(slice_dir):
             slabs = sorted(glob('{}/*.dat'.format(slice_dir)))
@@ -65,7 +65,7 @@ def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=25, downsample=1, confi
                 try:
                     shutil.copytree(slice_dir+'/../info', outdir + '/../info')
                 except:
-                    print 'Could not copy ../info'
+                    print('Could not copy ../info')
             
             
             # Read in the Rockstar config template and fill in the required fields
@@ -85,11 +85,6 @@ def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=25, downsample=1, confi
             # Launch Rockstar server
             retcode = subprocess32.check_call(['./rockstar', '-c', outdir+'/abacus-auto-server.cfg', '-s', '0'])
             # Now the Rockstar client is ready to be started once rockstar writes the auto-rockstar.cfg file
-            
-            if retcode == 0:
-                # Touch rockstar_done
-                with open(slice_dir + '/rockstar_done', 'a'):
-                    os.utime(slice_dir + '/rockstar_done', None)
 
         return retcode
         
@@ -103,7 +98,7 @@ if __name__ == '__main__':
     parser.add_argument('--SO', help='Produce spherical overdensity halo masses in binary catalogs', action='store_const', const=1)
     #parser.add_argument('--format', help='Format of the Abacus timeslice outputs', default='Pack14', choices=['RVdouble', 'LC', 'Pack14'])
     parser.add_argument('--suffix', help='Label the rockstar folders with "_rockstar_halosSUFFIX".', default='')
-    parser.add_argument('--tar-mode', help='Compress the halo catalogs and subsamples.  ONLY_TAR will skip halo finding.  Default: None', choices=['TAR', 'ONLY_TAR'])
+    parser.add_argument('--tar-mode', help='Compress the halo catalogs and subsamples.  ONLY_TAR will skip halo finding and assumes SLICE_DIRS are the product dirs.  ONLY_TAR_INFER will infer an existing products directory from the slice directory.  Default: None', choices=['TAR', 'ONLY_TAR', 'ONLY_TAR_INFER'])
     parser.add_argument('--tar-remove-source-files', action='store_true', help='Remove the files that were placed the in the tar.  Must be used with --tar-mode.')
     
     args = parser.parse_args()
@@ -112,18 +107,18 @@ if __name__ == '__main__':
         assert args.tar_mode, "--tar-remove-source-files can only be used with --tar-mode"
 
     retcode = 0
-    if args.tar_mode != 'ONLY_TAR':
+    if not args.tar_mode.startswith('ONLY_TAR'):
         with chdir('{abacus}/Analysis/Rockstar'.format(abacus=os.getenv('ABACUS'))):
             retcode = run_rockstar(args.slice_folders, ncpu=args.ncpu, minmembers=args.minmembers, downsample=args.downsample, SO=args.SO, suffix=args.suffix)
     
     if args.tar_mode:
-        print 'Starting to make tar files of Rockstar outputs...'
+        print('Starting to make tar files of Rockstar outputs...')
         if args.tar_mode == 'ONLY_TAR':
             outdirs = args.slice_folders
         else:
             outdirs = [get_output_dir(s, args.downsample, suffix=args.suffix) for s in args.slice_folders]
-        common.make_tar(outdirs, 'halo*.h5', 'halos.tar.gz', delete_source=args.tar_remove_source_files, nthreads=args.nthreads)
-        common.make_tar(outdirs, 'particle*.h5', 'halo_subsamples.tar.gz', delete_source=args.tar_remove_source_files, nthreads=args.nthreads)
-        print 'Finished making tar files.'
+        common.make_tar(outdirs, 'halo*.h5', 'halos.tar.gz', delete_source=args.tar_remove_source_files, nthreads=args.ncpu)
+        common.make_tar(outdirs, 'particle*.h5', 'halo_subsamples.tar.gz', delete_source=args.tar_remove_source_files, nthreads=args.ncpu)
+        print('Finished making tar files.')
         
     exit(retcode)

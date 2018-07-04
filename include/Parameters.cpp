@@ -19,6 +19,7 @@ NB: When adding parameters, you should add:
 #define STRUNDEF "NONE"
 
 #include "ParseHeader.hh"
+#include "file.cpp"
 
 #include <sys/sysinfo.h>
 
@@ -68,9 +69,10 @@ public:
 
     char ReadStateDirectory[1024];  // Where the input State lives
     char WriteStateDirectory[1024]; // Where the output State lives
-    char PastStateDirectory[1024];  // Where the old input State lives
     char MultipoleDirectory[1024];
     char TaylorDirectory[1024];
+    char MultipoleDirectory2[1024];  // for splitting even/odd multipoles
+    char TaylorDirectory2[1024];
     char WorkingDirectory[1024];        // If Read/Write/Past not specified, where to put the states
     char LogDirectory[1024];
     char OutputDirectory[1024];     // Where the outputs go
@@ -119,13 +121,15 @@ public:
     int GPUMinCellSinks;// If AVX directs are compiled, cells with less than this many particles go to cpu
     int ProfilingMode;//If 1, enable profiling mode, i.e. delete the write-state after creating it to run repeatedly on same dat
     
-    int IOCores[2];  // The cores that the IO threads will be bound to.  -1 means don't bind
-    #define MAX_2ND_IOTHREAD_DIRS 100
-    char **SecondIOThreadDirs; //[MAX_2ND_IOTHREAD_DIRS][1024];
-    int nSecondIOThreadDirs;
+    #define MAX_IO_THREADS 16
+    int IOCores[MAX_IO_THREADS];  // The cores that the IO threads will be bound to.  -1 means don't bind
+    #define MAX_IODIRS 100
+    char **IODirs; //[MAX_IODIRS][1024];
+    int nIODirs;
+    int IODirThreads[MAX_IODIRS];
     
     int Conv_OMP_NUM_THREADS;
-    int Conv_IOCore;
+    int Conv_IOCores[MAX_IO_THREADS];
     
     // TODO: this scheme doesn't account for more complicated NUMA architectures
     int GPUThreadCoreStart[MAX_GPUS];  // The core on which to start placing GPU device threads.
@@ -133,10 +137,11 @@ public:
 
     int AllowGroupFinding;
     double FoFLinkingLength[3]; //Linking lengths for level 0,1,2 groupfinding in fractional interparticle spacing 
-    int TaggableL0Threshold; //Number of particles above which a L0 halo is eligible for tagging
-    int TaggableL1Threshold; //Number of particles above which a L0 halo is eligible for tagging
-    int MinL1NP;
-    int MinL2NP;
+    int MinL1HaloNP; // minimum L1 halo size to output
+	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
+    double HaloTaggableFraction; // fraction of particles in a L2 halo to tag and output
+
+    double MicrostepTimeStep; // Timestep parameter that controls microstep refinement
 
     // in MB
     unsigned int getCacheSize(){
@@ -161,13 +166,12 @@ public:
     }
 
     Parameters() {
-
         installscalar("NP",np, MUST_DEFINE);
         installscalar("CPD",cpd,MUST_DEFINE);
         installscalar("Order",order,MUST_DEFINE);
 
         installscalar("NearFieldRadius",NearFieldRadius,MUST_DEFINE);    // Radius of cells in the near-field
-        installscalar("SofteningLength", SofteningLength,MUST_DEFINE); // Softening length in the same units as BoxSize
+        installvector("SofteningLength", &SofteningLength, 2, 0, MUST_DEFINE); // Softening length in the same units as BoxSize
         installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
         MAXRAMMB = getRAMSize();
         installscalar("MAXRAMMB", MAXRAMMB, DONT_CARE);
@@ -202,15 +206,17 @@ public:
 
         sprintf(ReadStateDirectory,STRUNDEF);
         sprintf(WriteStateDirectory,STRUNDEF);
-        sprintf(PastStateDirectory,STRUNDEF);
         sprintf(WorkingDirectory,STRUNDEF);
+        sprintf(MultipoleDirectory2,STRUNDEF);
+        sprintf(TaylorDirectory2,STRUNDEF);
 
         installscalar("ReadStateDirectory",ReadStateDirectory,DONT_CARE);  // Where the input State lives
         installscalar("WriteStateDirectory",WriteStateDirectory,DONT_CARE); // Where the output State lives
-        installscalar("PastStateDirectory",PastStateDirectory,DONT_CARE);  // Where the old input State lives
         installscalar("WorkingDirectory",WorkingDirectory,DONT_CARE);
         installscalar("MultipoleDirectory",MultipoleDirectory,MUST_DEFINE);
         installscalar("TaylorDirectory",TaylorDirectory,MUST_DEFINE);
+        installscalar("MultipoleDirectory2",MultipoleDirectory2,DONT_CARE);
+        installscalar("TaylorDirectory2",TaylorDirectory2,DONT_CARE);
     	installscalar("LogDirectory",LogDirectory,MUST_DEFINE);
     	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
         installscalar("GroupDirectory",GroupDirectory,MUST_DEFINE);
@@ -271,25 +277,29 @@ public:
         hs = NULL;
 
         // default means don't bind to core
-        IOCores[0] = -1; IOCores[1] = -1;
-        installvector("IOCores", IOCores, 2, 1, DONT_CARE);
+        for (int i = 0; i < MAX_IO_THREADS; i++)
+            IOCores[i] = -1;
+        installvector("IOCores", IOCores, MAX_IO_THREADS, 1, DONT_CARE);
 
-        Conv_IOCore = -1;
-        installscalar("Conv_IOCore", Conv_IOCore, DONT_CARE);
+        for (int i = 0; i < MAX_IO_THREADS; i++)
+            Conv_IOCores[i] = -1;
+        installvector("Conv_IOCores", Conv_IOCores, MAX_IO_THREADS, 1, DONT_CARE);
 
         Conv_OMP_NUM_THREADS = 0;
         installscalar("Conv_OMP_NUM_THREADS", Conv_OMP_NUM_THREADS, DONT_CARE);
 
         // Using staticly allocated memory didn't seem to work with installvector
-        SecondIOThreadDirs = (char**) malloc(MAX_2ND_IOTHREAD_DIRS*sizeof(char*));
-        char *block = (char *) malloc(MAX_2ND_IOTHREAD_DIRS*1024*sizeof(char));
-        for(int i = 0; i < MAX_2ND_IOTHREAD_DIRS; i++){
-            SecondIOThreadDirs[i] = block + 1024*i;
-            strcpy(SecondIOThreadDirs[i], "");
+        IODirs = (char**) malloc(MAX_IODIRS*sizeof(char*));
+        char *block = (char *) malloc(MAX_IODIRS*1024*sizeof(char));
+        for(int i = 0; i < MAX_IODIRS; i++){
+            IODirs[i] = block + 1024*i;
+            strcpy(IODirs[i], STRUNDEF);
+            IODirThreads[i] = -1;
         }
-        installvector("SecondIOThreadDirs", SecondIOThreadDirs, MAX_2ND_IOTHREAD_DIRS, 1024, DONT_CARE);
-        nSecondIOThreadDirs = 0;
-        installscalar("nSecondIOThreadDirs", nSecondIOThreadDirs, DONT_CARE);
+        installvector("IODirs", IODirs, MAX_IODIRS, 1024, DONT_CARE);
+        nIODirs = 0;
+        installscalar("nIODirs", nIODirs, DONT_CARE);
+        installvector("IODirThreads", IODirThreads, MAX_IODIRS, 1, DONT_CARE);
 
         // If any of these are undefined, GPU threads will not be bound to cores
         for(int i = 0; i < MAX_GPUS; i++)
@@ -298,28 +308,29 @@ public:
         NGPUThreadCores = -1;
         installscalar("NGPUThreadCores", NGPUThreadCores, DONT_CARE);
 
-        AllowGroupFinding = 0;
+        AllowGroupFinding = 1;
         installscalar("AllowGroupFinding",AllowGroupFinding, DONT_CARE);
         FoFLinkingLength[0] = .25;
-        FoFLinkingLength[1] = .168;
-        FoFLinkingLength[2] = .15;
+        FoFLinkingLength[1] = .186;
+        FoFLinkingLength[2] = .138;
         installvector("FoFLinkingLength",FoFLinkingLength,3,1,DONT_CARE);
-        MinL1NP = 10;
-        MinL2NP = 10;
-        TaggableL0Threshold = 1;
-        TaggableL1Threshold = 1;
-        installscalar("TaggableL0Threshold",TaggableL0Threshold, DONT_CARE);
-        installscalar("TaggableL1Threshold",TaggableL1Threshold, DONT_CARE);
-        installscalar("MinL1NP", MinL1NP, DONT_CARE);
-        installscalar("MinL2NP", MinL2NP, DONT_CARE);
+        MinL1HaloNP = 10;
+        installscalar("MinL1HaloNP", MinL1HaloNP, DONT_CARE);
+		L1Output_dlna = .1;
+		installscalar("L1Output_dlna", L1Output_dlna, DONT_CARE);
+        HaloTaggableFraction = 0.1;
+        installscalar("HaloTaggableFraction", HaloTaggableFraction, DONT_CARE);
+
+        MicrostepTimeStep = 1.;
+        installscalar("MicrostepTimeStep", MicrostepTimeStep, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.
     HeaderStream *hs;
     ~Parameters(void) {
         delete hs;
-        free(SecondIOThreadDirs[0]);
-        free(SecondIOThreadDirs);
+        free(IODirs[0]);
+        free(IODirs);
     }
     char *header() { 
         assert(hs!=NULL); assert(hs->buffer!=NULL);
@@ -365,13 +376,12 @@ private:
 
 void Parameters::ProcessStateDirectories(){
     if (strcmp(WorkingDirectory,STRUNDEF) !=0){
-        if ( strcmp(ReadStateDirectory,STRUNDEF)!=0 || strcmp(WriteStateDirectory,STRUNDEF)!=0 || strcmp(PastStateDirectory,STRUNDEF)!=0   ){
-            QUIT("If WorkingDirectory is defined, Read/Write/PastStateDirectory should be undefined. Terminating\n")
+        if ( strcmp(ReadStateDirectory,STRUNDEF)!=0 || strcmp(WriteStateDirectory,STRUNDEF)!=0 ){
+            QUIT("If WorkingDirectory is defined, {Read,Write}StateDirectory should be undefined. Terminating\n")
         }
         else{
             sprintf(ReadStateDirectory,"%s/read",WorkingDirectory);
             sprintf(WriteStateDirectory,"%s/write",WorkingDirectory);
-            sprintf(PastStateDirectory,"%s/past",WorkingDirectory);
             if(OverwriteState){
                 strcpy(WriteStateDirectory, ReadStateDirectory);
             }
@@ -457,7 +467,14 @@ void Parameters::ValidateParameters(void) {
     }
 
 
-    if( (DerivativeExpansionRadius!=8) &&
+    if( (DerivativeExpansionRadius!=1) && 
+		(DerivativeExpansionRadius!=2) && 
+		(DerivativeExpansionRadius!=3) && //note! added to change far radius
+		(DerivativeExpansionRadius!=4) && 
+		(DerivativeExpansionRadius!=5) && 
+		(DerivativeExpansionRadius!=6) && 
+		(DerivativeExpansionRadius!=7) && 
+		(DerivativeExpansionRadius!=8) &&
         (DerivativeExpansionRadius!=16) &&
         (DerivativeExpansionRadius!=32) ) {
 
@@ -503,7 +520,6 @@ void Parameters::ValidateParameters(void) {
     ExpandPathName(DerivativesDirectory);
     ExpandPathName(ReadStateDirectory);
     ExpandPathName(WriteStateDirectory);
-    ExpandPathName(PastStateDirectory);
     ExpandPathName(OutputDirectory);
     ExpandPathName(MultipoleDirectory);
     ExpandPathName(LogDirectory);
@@ -512,31 +528,11 @@ void Parameters::ValidateParameters(void) {
     CheckDirectoryExists(DerivativesDirectory);
     CheckDirectoryExists(ReadStateDirectory);
     CheckDirectoryExists(WriteStateDirectory);
-    CheckDirectoryExists(PastStateDirectory);
     CheckDirectoryExists(OutputDirectory);
     CheckDirectoryExists(LogDirectory);
 
     CheckDirectoryExists(InitialConditionsDirectory);
     */
-
-
-    char dfn[1024];
-    char *fnfmt;
-    if(sizeof(DFLOAT) == sizeof(float))
-        fnfmt = "%s/fourierspace_float32_%d_%d_%d_%d_%d";
-    else
-        fnfmt = "%s/fourierspace_%d_%d_%d_%d_%d";
-
-    for(int i=0;i<(cpd+1)/2;i++) {
-        sprintf(dfn,fnfmt,
-            DerivativesDirectory,
-            cpd,
-            order,
-            NearFieldRadius,
-            DerivativeExpansionRadius,i );
-
-        CheckFileExists(dfn);
-    }
 
     if (ForceOutputDebug && StoreForces) {
             fprintf(stderr,"ForcesOutputDebug and StoreForces both set. This is not supported.\n");
@@ -548,7 +544,9 @@ void Parameters::ValidateParameters(void) {
         assert(1==0);
     }
 
-    assert(nSecondIOThreadDirs < MAX_2ND_IOTHREAD_DIRS);
+    assert(nIODirs < MAX_IODIRS);
+    for (int i = 0; i < nIODirs; i++)
+        assert(IODirThreads[i] >= 1);
 }
 Parameters P;
 

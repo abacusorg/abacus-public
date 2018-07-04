@@ -1,0 +1,28 @@
+
+# Create some particles in the unit cube.
+# Make 100 halo centers, then put particles around each.
+
+macro onehalo 1 {
+    # Make the halos uniformly distributed in radius
+    # These have a funny cubic anisotropy, but that doesn't matter
+    define np 100
+    set px = random($np)*2-1
+    set py = random($np)*2-1
+    set pz = random($np)*2-1
+    set r = sqrt(px*px+py*py+pz*pz)
+    set pR = random($np)*0.1
+    set px = px/r*pR+hx[$1]
+    set py = py/r*pR+hy[$1]
+    set pz = pz/r*pR+hz[$1]
+    print +z '%8.6f %8.6f %8.6f\n' { px py pz }
+}
+
+define print_noheader 1
+define nhalo 100
+set hx = random($nhalo)
+set hy = random($nhalo)
+set hz = random($nhalo)
+
+do n=0,dimen(hx)-1 { 
+    onehalo $n
+}

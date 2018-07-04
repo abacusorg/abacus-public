@@ -181,7 +181,7 @@ set this to a perfect cube, e.g., to 1024**3.
 
 \param{CPD}{int} The cells per dimension.  This number must be odd.
 Should be a number with small prime factors.  Small numbers of distinct factors are good too.
-See the \texttt{python/choose\_cpd.py} utility for guidance on choosing this.
+See the \texttt{Abacus/choose\_cpd.py} utility for guidance on choosing this.
 
 \param{BoxSize}{float} The size of the box in comoving physical units.
 
@@ -1127,7 +1127,7 @@ separately compiled executable.}
 \begin{private}
 \section{Analysis Codes}
 Some generally useful analysis utilities are included in the main code repository (primarily in \verb|Analysis/|,
-but also some useful utilities in \verb|python/Abacus|).
+but also some useful utilities in \verb|Abacus|).
 They are largely stand-alone and documented inside their own directories; this section
 just serves as an overview.
 
@@ -1154,12 +1154,12 @@ Many other options/modes of operation related to density fields.
 Also contains scripts for histogramming and computing Gaussian 2PCF covariance matrices.
 
 
-\subsection{Halo Interfaces (\texttt{python/Abacus/[Halos.py|Halotools.py]})}
+\subsection{Halo Interfaces (\texttt{Abacus/[Halos.py|Halotools.py]})}
 Interfaces to wrangle the various halo catalogs Abacus produces (via FoF or Rockstar).
 \texttt{Halos.py} is pure Python; \texttt{Halotools.py} is just a wrapper that puts
 everything in Halotools format.
 
-\subsection{Abacus IO (\texttt{python/Abacus/ReadAbacus.py})}
+\subsection{Abacus IO (\texttt{Abacus/ReadAbacus.py})}
 Interfaces to deal with the various Abacus particle formats.
 
 \end{private}

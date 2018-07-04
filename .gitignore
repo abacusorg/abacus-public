@@ -8,10 +8,11 @@
 clibs/Makefile
 singlestep/singlestep
 singlestep/make_multipoles
+singlestep/benchmark_io
+singlestep/standalone_fof
 singlestep/Makefile
 singlestep/Direct/Makefile
 singlestep/Multipoles/Makefile
-Analysis/PowerSpectrum/Makefile
 Analysis/FoF/Makefile
 Convolution/Makefile
 Derivatives/Makefile
@@ -21,3 +22,4 @@ config.status
 include/config.h
 nohup.out
 __pycache__/
+core

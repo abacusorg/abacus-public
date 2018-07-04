@@ -23,7 +23,8 @@ int GROUP_RADIUS = -1;
 
 // I think in most cases we would prefer to read ahead until memory limited
 //#define FETCHAHEAD (2*FORCE_RADIUS)
-#define FETCHAHEAD 1000
+//#define FETCHAHEAD 1000
+#define FETCHAHEAD FORCE_RADIUS + 3
 #define FETCHPERSTEP 1
 // Recall that all of these Dependencies have a built-in STimer
 // to measure the amount of time spent on Actions.
@@ -32,12 +33,16 @@ Dependency TransposePos;
 Dependency NearForce;
 Dependency TaylorForce;
 Dependency Kick;
+Dependency MakeCellGroups;
+Dependency FindCellGroupLinks;
+Dependency DoGlobalGroups;
+Dependency Output;
+Dependency Microstep;
+Dependency FinishGroups;
 Dependency Drift;
 Dependency Finish;
-Dependency Output;
-Dependency Group;
-Dependency LPTVelocityReRead;
 
+Dependency LPTVelocityReRead;
 
 // The wall-clock time minus all of the above Timers might be a measure
 // of the spin-locked time in the timestep() loop.
@@ -49,19 +54,10 @@ STimer TimeStepWallClock;
  * We limit the additional slabs read to FETCHAHEAD
  */
 int FetchSlabPrecondition(int slab) {
-    if(FetchSlabs.number_of_slabs_executed > 
-            Kick.number_of_slabs_executed + FETCHAHEAD ) {
+    if(slab > Kick.last_slab_executed + FETCHAHEAD)
         // This was +1, but for non-blocking reads 
         // I think we want to work one more ahead
         return 0;
-    }
-
-    if(LBW->total_allocation > .5*P.MAXRAMMB*1024LLU*1024LLU){
-        Dependency::NotifySpinning(NOT_ENOUGH_RAM);
-        //STDLOG(0,"Warning: unable to load more slabs due to RAM limits. Currently using %.2f GB, and the limit is 0.5*MAXRAMMB = %.2f GB.\n",
-        //        LBW->total_allocation/1024./1024./1024., .5*P.MAXRAMMB/1024);
-        return 0;
-    }
     
     return 1;
 }
@@ -78,15 +74,20 @@ void FetchSlabAction(int slab) {
     assertf(Slab->size(slab)*sizeof(posstruct)<=
         fsize(LBW->ReadSlabDescriptorName(PosSlab,slab).c_str()),
         "PosSlab size doesn't match prediction\n");
-    LBW->LoadArenaNonBlocking(VelSlab, slab+FORCE_RADIUS);
+
+    // Don't bother to load the vel/aux/taylors for slabs that won't be kicked until the wrap
+    if(FetchSlabs.number_of_slabs_executed < FORCE_RADIUS)
+        return;
+
+    LBW->LoadArenaNonBlocking(VelSlab, slab);
     assertf(Slab->size(slab)*sizeof(velstruct)<=
         fsize(LBW->ReadSlabDescriptorName(VelSlab,slab).c_str()),
         "VelSlab size doesn't match prediction\n");
-    LBW->LoadArenaNonBlocking(AuxSlab, slab+FORCE_RADIUS);
+    LBW->LoadArenaNonBlocking(AuxSlab, slab);
     assertf(Slab->size(slab)*sizeof(auxstruct)<=
         fsize(LBW->ReadSlabDescriptorName(AuxSlab, slab).c_str()),
         "AuxSlab size doesn't match prediction\n");
-    LBW->LoadArenaNonBlocking(TaylorSlab,slab+FORCE_RADIUS);
+    LBW->LoadArenaNonBlocking(TaylorSlab,slab);
 }
 
 // -----------------------------------------------------------------
@@ -122,6 +123,10 @@ void TransposePosAction(int slab){
             }
         }
     }
+    
+    // If this is a "ghost" slab, we only need its transpose
+    if(TransposePos.number_of_slabs_executed < FORCE_RADIUS)
+        LBW->DeAllocate(PosSlab, slab);
 }
 
 
@@ -150,6 +155,7 @@ void NearForceAction(int slab) {
     SlabForceTime[slab].Start();
         
     JJ->ExecuteSlab(slab, P.ForceOutputDebug);
+    //JJ->ExecuteSlab(slab, 1);
 
     SlabForceLatency[slab].Start();
     if (P.ForceOutputDebug) {
@@ -231,23 +237,35 @@ int KickPrecondition(int slab) {
 void KickAction(int slab) {
     SlabForceTime[slab].Stop();
     SlabForceLatency[slab].Stop();
-    
-    // This may be the last time be need any of the PosXYZ slabs that we just used
-    // So check the FORCE_RADIUS vicinity of each of the WIDTH slabs that we just used
-    for(int j = -2*FORCE_RADIUS, consec = 0; j <= 2*FORCE_RADIUS; j++){
-        if(Kick.done(slab + j) || j == 0)
-            consec++;
-        else
-            consec = 0;
-        if (consec >= 2*FORCE_RADIUS + 1)
-            LBW->DeAllocate(PosXYZSlab,   slab + j - FORCE_RADIUS);
+
+    // Release the trailing slab if it won't be needed at the wrap
+    // Technically we could release it anyway and re-do the transpose from PosSlab,
+    // but if we're not doing group finding we may have already written and released PosSlab
+    if(Kick.number_of_slabs_executed >= 2*FORCE_RADIUS)
+        LBW->DeAllocate(PosXYZSlab, slab - FORCE_RADIUS);
+
+    // Special case: if this is the last slab, free all +/- FORCE_RADIUS
+    if(Kick.number_of_slabs_executed == PP->cpd-1)
+        for(int j = slab - FORCE_RADIUS+1; j <= slab + FORCE_RADIUS; j++)
+            LBW->DeAllocate(PosXYZSlab, j);
+
+    // Queue up slabs near the wrap to be loaded again later
+    // This way, we don't have idle slabs taking up memory while waiting for the pipeline to wrap around
+    if(Kick.number_of_slabs_executed < FORCE_RADIUS){
+        STDLOG(2,"Marking slab %d for repeat\n", slab - FORCE_RADIUS);
+        TransposePos.mark_to_repeat(slab - FORCE_RADIUS);
+        // The first two won't need PosSlab until the second time around
+        //LBW->DeAllocate(PosSlab, slab - FORCE_RADIUS);
+        LBW->DeAllocate(CellInfoSlab, slab - FORCE_RADIUS);
+        FetchSlabs.mark_to_repeat(slab - FORCE_RADIUS);
     }
-    
+
     //If we are doing blocking forces, the finalization happens in NearForceAction
     if(!P.ForceOutputDebug && !P.ForceCPU)
         JJ->Finalize(slab);
     AddAccel.Start();
     RescaleAndCoAddAcceleration(slab);
+    LBW->DeAllocate(NearAccSlab,slab);
     AddAccel.Stop();
     int step = LPTStepNumber();
     KickCellTimer.Start();
@@ -275,47 +293,61 @@ void KickAction(int slab) {
 
 // -----------------------------------------------------------------
 
-int GroupPrecondition(int slab) {
-    // TODO: are these the right dependencies?
-    // Only PosXYZ is used for sources, so we're free to rearrange PosSlab after the transpose
+int MakeCellGroupsPrecondition(int slab) {
+    // Only PosXYZ is used for sources, so we're free to rearrange PosSlab
+    // in group finding after the transpose
     if( TransposePos.notdone(slab) ) return 0;
     
-    // Need the accelerations in this slab because we're going to rearrange particles
+    // Need the new velocities because we're going to rearrange particles
     if( Kick.notdone(slab) ) return 0;
     
-    // We're probably going to need to move around PIDs as we create groups
+    // Also need the auxs, because we're going to re-order
     if( !LBW->IOCompleted( AuxSlab, slab ) ) {
         Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
-    
     return 1;
 }
 
-void GroupAction(int slab) {
-    if (!P.AllowGroupFinding) return;
-    if (LPTStepNumber()) return;
-    // We can't be doing group finding during an IC step
-    if(P.ForceOutputDebug) return;  // can't rearrange the pos if we've already output the nearacc
-    
-    STDLOG(1,"Zeroing Aux L0 field\n");
+void MakeCellGroupsAction(int slab) {
+	STDLOG(1,"Making Cell Groups in slab %d\n", slab);
+	GFC->ConstructCellGroups(slab);
+}
 
-    #pragma omp parallel for schedule(dynamic, 1)
-    for(int j = 0; j < PP->cpd; j++){
-        for(int k = 0; k < PP->cpd; k++){
-            Cell c = PP->GetCell(integer3(slab, j, k));
-            uint64 mask = ~(1llu<<AUXINL0BIT);
-            for(int x = 0; x < c.count(); x++) c.aux[x].aux = c.aux[x].aux & mask;
-        }
+// -----------------------------------------------------------------
+
+int FindCellGroupLinksPrecondition(int slab) {
+    // We want to find all links between this slab and the one just behind
+    for (int j=-1; j<=0; j++) 
+        if (MakeCellGroups.notdone(slab+j)) return 0;
+    return 1;
+}
+
+void FindCellGroupLinksAction(int slab) {
+    // Find links between slab and slab-1
+	STDLOG(1,"Finding Group Links between slab %d and %d\n", slab, slab-1);
+	FindGroupLinks(slab);
+}
+
+// -----------------------------------------------------------------
+
+int DoGlobalGroupsPrecondition(int slab) {
+    // We're going to close all CellGroups in this slab.
+    // GlobalGroups can span 2*GroupRadius+1.
+    // But even though we usually encounter a CellGroup in its minimum slab,
+    // we could be anywhere in the first instance.  So we have to query a big range.
+    // That said, if the nearby slab has already closed global groups, then
+    // we can proceed.
+    // The lower bound has a +1 because FindLinks looks one slab back
+    for (int j=-2*GROUP_RADIUS+1; j<=2*GROUP_RADIUS; j++){
+        if (FindCellGroupLinks.notdone(slab+j)) return 0;
     }
+    return 1;
+}
 
-    STDLOG(1,"Finding groups for slab %d\n", slab);
-
-    GroupExecute.Start();
-    //GF->ExecuteSlab(slab);
-    GroupExecute.Stop();
-    // One could also use the Accelerations to set individual particle microstep levels.
-    // (one could imagine doing this in Force, but perhaps one wants the group context?)
+void DoGlobalGroupsAction(int slab) {
+    STDLOG(0,"Finding Global Groups in slab %d\n", slab);
+    FindAndProcessGlobalGroups(slab);
 }
 
 // -----------------------------------------------------------------
@@ -324,9 +356,12 @@ void GroupAction(int slab) {
  * Anything that modifies the particles at the current time should happen before here
  */
 int OutputPrecondition(int slab) {
-    if (Kick.notdone(slab)) return 0;  // Must have kicked because output does a half un-kick
-    if (Group.notdone(slab)) return 0;  // Must have found groups
-    if (!P.ForceOutputDebug && P.AllowGroupFinding && !GF->SlabClosed(slab) && !LPTStepNumber()) return 0; 
+    if (DoGlobalGroups.notdone(slab)) return 0;  // Must have found groups to be able to output light cones
+    // note that group outputs were already done
+    
+    if (Kick.notdone(slab)) return 0;  // Must have accelerations
+    // note that this condition only has any effect if group finding is turned off
+    
     return 1;
 }
 
@@ -342,13 +377,17 @@ void OutputAction(int slab) {
     OutputTimeSlice.Start();
 
     if (ReadState.DoTimeSliceOutput) {
-        STDLOG(1,"Outputting slab %d\n",slab);
-        n_output += Output_TimeSlice(slab);
+        // We've already done a K(1) and thus need a K(-1/2)
+        FLOAT unkickfactor = WriteState.FirstHalfEtaKick;
+        STDLOG(1,"Outputting slab %d with unkick factor %f\n",slab, unkickfactor);
+        n_output += Output_TimeSlice(slab, unkickfactor);
     }
     OutputTimeSlice.Stop();
 
     OutputLightCone.Start();
     if (ReadState.OutputIsAllowed) {
+        // TODO: LightCones may need a half un-kick if GFC == NULL
+        // but we can probably handle that in the interpolation
         for(int i = 0; i < P.NLightCones; i++){
             STDLOG(1,"Outputting LightCone %d (origin (%f,%f,%f)) for slab %d\n",i,LCOrigin[i].x,LCOrigin[i].y,LCOrigin[i].z,slab);
             makeLightCone(slab,i);
@@ -375,11 +414,58 @@ void OutputAction(int slab) {
     }
     OutputBin.Stop();
 
-    OutputGroup.Start();
-    if(!P.ForceOutputDebug && P.AllowGroupFinding && !LPTStepNumber())
-        GF->OutputSlab(slab);
-    OutputGroup.Stop();
+}
 
+// -----------------------------------------------------------------
+
+int MicrostepPrecondition(int slab){
+    // We are going to second-half kick this slab
+    if (Output.notdone(slab))
+        return 0;
+    return 1;
+}
+
+void MicrostepAction(int slab){
+    STDLOG(1,"Starting microsteps for slab %d\n", slab);
+
+    // All kicks (and half-unkicks) for output are done; discard accels.
+    // We de-allocate in Drift if we aren't doing group finding
+    LBW->DeAllocate(AccSlab,slab);
+
+    return;
+    MicrostepCPU.Start();
+    // Do microstepping here
+    if(MicrostepEpochs != NULL){
+        STDLOG(1,"Beginning microsteps for slab %d\n", slab);
+        MicrostepControl *MC = new MicrostepControl;
+        MC->setup(GFC->globalslabs[slab], *MicrostepEpochs, P.MicrostepTimeStep, JJ->eps);
+        //MC->LaunchGroupsGPU();
+        MC->ComputeGroupsCPU();
+
+        GFC->microstepcontrol[slab] = MC;
+    }
+    MicrostepCPU.Stop();
+}
+
+// -----------------------------------------------------------------
+
+int FinishGroupsPrecondition(int slab){
+    // Is the asychronous GPU microstepping done?
+    //if (!GFC->microstepcontrol[slab]->GPUGroupsDone()) return 0
+
+    // We are going to release these groups.
+    if (Microstep.notdone(slab)) return 0;
+    
+    return 1;
+}
+
+void FinishGroupsAction(int slab){
+    // Scatter pos,vel updates to slabs, and release GGS
+    STDLOG(0, "Finishing groups in slab %d\n", slab);
+    delete GFC->microstepcontrol[slab];
+    GFC->microstepcontrol[slab] = NULL;
+    FinishGlobalGroups(slab);
+    GFC->DestroyCellGroups(slab);
 }
 
 // -----------------------------------------------------------------
@@ -391,17 +477,6 @@ int FetchLPTVelPrecondition(int slab){
     // Don't read too far ahead
     if(LPTVelocityReRead.number_of_slabs_executed > 
             Drift.number_of_slabs_executed + 2*FINISH_WAIT_RADIUS + 1) {
-        return 0;
-    }
-    
-    // Allow .75 instead of .5 here because FetchSlabs might
-    // eat up all the RAM.  TODO: The right way to do this is really to
-    // make load_ic_vel_slab non-blocking through the IO module,
-    // which first requires routing loadIC through the IO module.
-    // Then, we can move load_ic_vel_slab to FetchSlabs.
-    if(LBW->total_allocation > .75*P.MAXRAMMB*1024LLU*1024LLU){
-        // Are we spinning because we need more RAM?
-        Dependency::NotifySpinning(NOT_ENOUGH_RAM);
         return 0;
     }
 
@@ -419,7 +494,10 @@ void FetchLPTVelAction(int slab){
  * should be checked for completion this year.
  */
 int DriftPrecondition(int slab) {
-    // We must have Output this slab (and thus kicked it)
+    // We must have finished scattering into this slab
+    if (FinishGroups.notdone(slab)) return 0;
+    
+    // We will move the particles, so we must have done outputs
     if (Output.notdone(slab)) return 0;
     
     // We can't move particles until they've been used as gravity sources
@@ -427,9 +505,8 @@ int DriftPrecondition(int slab) {
     
     // We also must have the 2LPT velocities
     // The finish radius is a good guess of how ordered the ICs are
-    if (WriteState.Do2LPTVelocityRereading)
-        for(int i=-FINISH_WAIT_RADIUS;i<=FINISH_WAIT_RADIUS;i++) 
-            if (LPTVelocityReRead.notdone(slab+i)) return 0;
+    for(int i=-FINISH_WAIT_RADIUS;i<=FINISH_WAIT_RADIUS;i++) 
+        if (LPTVelocityReRead.notdone(slab+i)) return 0;
         
     return 1;
 }
@@ -456,19 +533,17 @@ void DriftAction(int slab) {
         DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
     }
     
-    // We kept the accelerations until here because of third-order LPT
-    if (P.StoreForces && !P.ForceOutputDebug) {
-        STDLOG(1,"Storing Forces in slab %d\n", slab);
-        LBW->StoreArenaBlocking(AccSlab,slab);
-    }
-    else{
-        LBW->DeAllocate(AccSlab,slab);
-    }
-    LBW->DeAllocate(NearAccSlab,slab);
-
-    if(!P.ForceOutputDebug && P.AllowGroupFinding && !LPTStepNumber()) 
-       GF->PurgeSlab(slab);
-
+    // We freed AccSlab in Microstep to save space
+    if (GFC == NULL){
+	    // We kept the accelerations until here because of third-order LPT
+	    if (P.StoreForces && !P.ForceOutputDebug) {
+	        STDLOG(1,"Storing Forces in slab %d\n", slab);
+	        LBW->StoreArenaBlocking(AccSlab,slab);
+	    }
+	    else{
+	        LBW->DeAllocate(AccSlab,slab);
+	    }
+	}
 }
 
 // -----------------------------------------------------------------
@@ -491,6 +566,8 @@ void FinishAction(int slab) {
     // Gather particles from the insert list and make the merge slabs
     uint64 n_merge = FillMergeSlab(slab);
     merged_particles += n_merge;
+
+    FinishFreeSlabs.Start();
     
     // This may be the last time be need any of the CellInfo slabs that we just used
     // We can't immediately free CellInfo before NearForce might need it until we're FORCE_RADIUS away
@@ -508,6 +585,8 @@ void FinishAction(int slab) {
     LBW->DeAllocate(PosSlab,slab);
     LBW->DeAllocate(VelSlab,slab);
     LBW->DeAllocate(AuxSlab,slab);
+
+    FinishFreeSlabs.Stop();
     
     // Make the multipoles
     LBW->AllocateArena(MultipoleSlab,slab);
@@ -524,8 +603,21 @@ void FinishAction(int slab) {
     WriteMultipoleSlab.Start();
     LBW->StoreArenaNonBlocking(MultipoleSlab,slab);
     WriteMultipoleSlab.Stop();
+
+    int pwidth = FetchSlabs.number_of_slabs_executed - Finish.number_of_slabs_executed;
+    STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
 }
 
+// -----------------------------------------------------------------
+// A no-op precondition that always passes
+int NoopPrecondition(int slab){
+    return 1;
+}
+
+// A no-op action that does nothing
+void NoopAction(int slab){
+    return;
+}
 
 // ===================================================================
 
@@ -539,30 +631,45 @@ void timestep(void) {
     STDLOG(1,"Initiating timestep()\n");
 
     FORCE_RADIUS = P.NearFieldRadius;
-    GROUP_RADIUS = P.GroupRadius;
+    GROUP_RADIUS = GFC != NULL ? P.GroupRadius : 0;
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
     assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS); 
     STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
     STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
 
     int cpd = P.cpd;
-    int first_slab_to_load = 0;   // Might eventually be different
-    int first = first_slab_to_load; 
+    int first = 0;  // First slab to load
     STDLOG(1,"First slab to load will be %d\n", first);
 
-       FetchSlabs.instantiate(cpd, first, &FetchSlabPrecondition,     &FetchSlabAction     );
-     TransposePos.instantiate(cpd, first, &TransposePosPrecondition,  &TransposePosAction  );
-        NearForce.instantiate(cpd, first, &NearForcePrecondition,     &NearForceAction     );
-      TaylorForce.instantiate(cpd, first, &TaylorForcePrecondition,   &TaylorForceAction   );
-             Kick.instantiate(cpd, first, &KickPrecondition,          &KickAction          );
-            Group.instantiate(cpd, first, &GroupPrecondition,         &GroupAction         );
-           Output.instantiate(cpd, first, &OutputPrecondition,        &OutputAction        );
-            Drift.instantiate(cpd, first, &DriftPrecondition,         &DriftAction         );
-           Finish.instantiate(cpd, first, &FinishPrecondition,        &FinishAction        );
+        FetchSlabs.instantiate(cpd, first, &FetchSlabPrecondition,          &FetchSlabAction         );
+      TransposePos.instantiate(cpd, first, &TransposePosPrecondition,       &TransposePosAction      );
+         NearForce.instantiate(cpd, first + FORCE_RADIUS, &NearForcePrecondition,          &NearForceAction         );
+       TaylorForce.instantiate(cpd, first + FORCE_RADIUS, &TaylorForcePrecondition,        &TaylorForceAction       );
+              Kick.instantiate(cpd, first + FORCE_RADIUS, &KickPrecondition,               &KickAction              );
+            Output.instantiate(cpd, first + FORCE_RADIUS + 2*GROUP_RADIUS, &OutputPrecondition,             &OutputAction            );
+             Drift.instantiate(cpd, first + FORCE_RADIUS + 2*GROUP_RADIUS, &DriftPrecondition,              &DriftAction             );
+            Finish.instantiate(cpd, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &FinishPrecondition,             &FinishAction            );
+            
+    // If group finding is disabled, we can make the dependencies no-ops so they don't hold up the pipeline
+    if(GFC != NULL){
+        MakeCellGroups.instantiate(cpd, first + FORCE_RADIUS, &MakeCellGroupsPrecondition,     &MakeCellGroupsAction    );
+    FindCellGroupLinks.instantiate(cpd, first + FORCE_RADIUS + 1, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction);
+        DoGlobalGroups.instantiate(cpd, first + FORCE_RADIUS + 2*GROUP_RADIUS, &DoGlobalGroupsPrecondition,     &DoGlobalGroupsAction    );
+             Microstep.instantiate(cpd, first + FORCE_RADIUS + 2*GROUP_RADIUS, &MicrostepPrecondition,          &MicrostepAction         );
+          FinishGroups.instantiate(cpd, first + FORCE_RADIUS + 2*GROUP_RADIUS, &FinishGroupsPrecondition,       &FinishGroupsAction      );
+    } else {
+        MakeCellGroups.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
+    FindCellGroupLinks.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
+        DoGlobalGroups.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
+             Microstep.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
+          FinishGroups.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
+    }
            
-if(WriteState.Do2LPTVelocityRereading)
-LPTVelocityReRead.instantiate(cpd, first + 2*FORCE_RADIUS + 1 - FINISH_WAIT_RADIUS,
+    if(WriteState.Do2LPTVelocityRereading)
+        LPTVelocityReRead.instantiate(cpd, first + FORCE_RADIUS + 2*GROUP_RADIUS - FINISH_WAIT_RADIUS,
                                           &FetchLPTVelPrecondition,   &FetchLPTVelAction   );
+    else
+        LPTVelocityReRead.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
 
     while( !Finish.alldone() ) {
            for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
@@ -570,9 +677,12 @@ LPTVelocityReRead.instantiate(cpd, first + 2*FORCE_RADIUS + 1 - FINISH_WAIT_RADI
             NearForce.Attempt();
           TaylorForce.Attempt();
                  Kick.Attempt();
-                Group.Attempt();
+       MakeCellGroups.Attempt();
+   FindCellGroupLinks.Attempt();
+       DoGlobalGroups.Attempt();
                Output.Attempt();
-  if(WriteState.Do2LPTVelocityRereading)
+            Microstep.Attempt();
+         FinishGroups.Attempt();
     LPTVelocityReRead.Attempt();
                 Drift.Attempt();
                Finish.Attempt();
@@ -584,10 +694,14 @@ LPTVelocityReRead.instantiate(cpd, first + 2*FORCE_RADIUS + 1 - FINISH_WAIT_RADI
     assertf(IL->length==0, 
         "Insert List not empty (%d) at the end of timestep().  Time step too big?\n", IL->length);
     
-    assertf(merged_particles == P.np, "Merged slabs contain %"PRIu64" particles instead of %"PRIu64"!\n", merged_particles, P.np);
+    assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
+
+    uint64 total_n_output = n_output;
+    if(GFC != NULL)
+        total_n_output += GFC->n_L0_output;
     
     if(ReadState.DoTimeSliceOutput)
-        assertf(n_output == P.np, "TimeSlice output contains %"PRIu64" particles instead of %"PRIu64"!\n", n_output, P.np);
+        assertf(total_n_output == P.np, "TimeSlice output contains %d particles instead of %d!\n", total_n_output, P.np);
 
     STDLOG(1,"Completing timestep()\n");
     TimeStepWallClock.Stop();
@@ -632,10 +746,11 @@ void timestepIC(void) {
     TimeStepWallClock.Start();
     
     FORCE_RADIUS = 0;  // so we know when we can free CellInfo in Finish
+    GROUP_RADIUS = 0;
 
     int cpd = P.cpd; int first = 0;
     Drift.instantiate(cpd, first, &FetchICPrecondition, &FetchICAction );
-    Finish.instantiate(cpd, first,  &FinishPrecondition,  &FinishAction );
+    Finish.instantiate(cpd, first + FINISH_WAIT_RADIUS,  &FinishPrecondition,  &FinishAction );
 
     while( !Finish.alldone() ) {
         Drift.Attempt();
@@ -643,7 +758,7 @@ void timestepIC(void) {
     }
 
     assertf(NP_from_IC == P.np, "Expected to read a total of %llu particles from IC files, but only read %llu.\n", P.np, NP_from_IC);
-    assertf(merged_particles == P.np, "Merged slabs contain %"PRIu64" particles instead of %"PRIu64"!\n", merged_particles, P.np);
+    assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
     
     char filename[1024];
     sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
@@ -711,6 +826,7 @@ void timestepMultipoles(void) {
     TimeStepWallClock.Start();
     
     FORCE_RADIUS = 0;  // so we know when we can free CellInfo in Finish
+    GROUP_RADIUS = 0;
 
     int cpd = P.cpd; int first = 0;
     FetchSlabs.instantiate(cpd, first, &FetchPosSlabPrecondition, &FetchPosSlabAction );
@@ -722,5 +838,175 @@ void timestepMultipoles(void) {
     }
 
     STDLOG(1,"Completing timestepMultipoles()\n");
+    TimeStepWallClock.Stop();
+}
+
+// =========================================================
+// IO Benchmark mode
+
+int FinishBenchmarkIOPrecondition(int slab) {
+    // Wait for everything to be read
+    if( !LBW->IOCompleted( CellInfoSlab,      slab )
+        || !LBW->IOCompleted( PosSlab, slab )
+        || !LBW->IOCompleted( VelSlab, slab )
+        || !LBW->IOCompleted( AuxSlab,      slab )
+        || !LBW->IOCompleted( TaylorSlab,      slab )
+        ) return 0;
+    return 1;
+}
+
+void FinishBenchmarkIOAction(int slab) {
+    STDLOG(1,"Finishing benchmark IO slab %d\n", slab);
+        
+    /*// Make the multipoles
+    LBW->AllocateArena(MultipoleSlab,slab);
+    ComputeMultipoleSlab(slab);
+    
+    WriteMultipoleSlab.Start();
+    LBW->StoreArenaNonBlocking(MultipoleSlab,slab);
+    WriteMultipoleSlab.Stop();
+    
+    LBW->DeAllocate(MergePosSlab,slab);
+    LBW->DeAllocate(MergeCellInfoSlab,slab);*/
+
+    LBW->WriteArena(CellInfoSlab, slab, IO_DELETE, IO_NONBLOCKING, 
+                    LBW->WriteSlabDescriptorName(MergeCellInfoSlab,slab).c_str());
+    LBW->WriteArena(PosSlab, slab, IO_DELETE, IO_NONBLOCKING, 
+                    LBW->WriteSlabDescriptorName(MergePosSlab,slab).c_str());
+    LBW->WriteArena(VelSlab, slab, IO_DELETE, IO_NONBLOCKING, 
+                    LBW->WriteSlabDescriptorName(MergeVelSlab,slab).c_str());
+    LBW->WriteArena(AuxSlab, slab, IO_DELETE, IO_NONBLOCKING, 
+                    LBW->WriteSlabDescriptorName(MergeAuxSlab,slab).c_str());
+    LBW->WriteArena(TaylorSlab, slab, IO_DELETE, IO_NONBLOCKING, 
+                    LBW->WriteSlabDescriptorName(MultipoleSlab,slab).c_str());
+}
+
+void timestepBenchmarkIO(int nslabs) {
+    // We want to read slabs from the read directory and write them to the write directory, probably without modification
+    // We can probably reuse the main FetchSlabs depdendency and write a new Finish dependency
+    // One may not want to have to read and write all the slabs for a large box, so `nslabs` can be specified to use fewer
+
+    STDLOG(0,"Initiating timestepBenchmarkIO()\n");
+    TimeStepWallClock.Clear();
+    TimeStepWallClock.Start();
+    
+    FORCE_RADIUS = 0;
+    GROUP_RADIUS = 0;
+
+    int cpd = P.cpd; int first = 0;
+    assertf(nslabs <= cpd, "nslabs (%d) cannot be larger than cpd (%d)\n", nslabs, cpd);
+    if (nslabs <= 0)
+        nslabs = cpd;
+
+    // Use the Kick as finish because FetchSlabs fetches FETCHAHEAD past the kick
+    FetchSlabs.instantiate(nslabs, first, &FetchSlabPrecondition, &FetchSlabAction );
+    Kick.instantiate(nslabs, first,  &FinishBenchmarkIOPrecondition,  &FinishBenchmarkIOAction );
+
+    while( !Kick.alldone() ) {
+        FetchSlabs.Attempt();
+              Kick.Attempt();
+    }
+
+    STDLOG(1,"Completing timestepBenchmarkIO()\n");
+    TimeStepWallClock.Stop();
+}
+
+// =============================================================================================== //
+
+#include "read_pack14.cpp"
+
+const char* StandaloneFOF_slice_dir;
+int StandaloneFOFLoadSlabPrecondition(int slab) {
+    if(LBW->total_allocation > .5*P.MAXRAMMB*1024LLU*1024LLU){
+        Dependency::NotifySpinning(NOT_ENOUGH_RAM);
+        return 0;
+    }
+    return 1;
+}
+
+void StandaloneFOFLoadSlabAction(int slab) {
+    char fname[1024];
+    // TODO: Add support for L0 slabs?
+    sprintf(fname, "%s/%s.z%5.3f.slab%04d.dat", StandaloneFOF_slice_dir, P.SimName, ReadState.Redshift, slab);
+    STDLOG(1,"Load Slab %d from \"%s\"\n", slab, fname);
+
+    size_t s = fsize(fname);
+    LBW->AllocateSpecificSize(TimeSlice, slab, s);
+    // We will read the raw pack14 asynchronously with LBW
+    // then unpack it in a separate dependency
+    // TODO: support states as well as time slices
+    LBW->ReadArena(TimeSlice, slab, IO_NONBLOCKING, fname);
+}
+
+int StandaloneFOFUnpackSlabPrecondition(int slab) {
+    if (! LBW->IOCompleted(TimeSlice, slab)) return 0;
+    return 1;
+}
+
+void StandaloneFOFUnpackSlabAction(int slab) {
+    printf("Unpacking slab %d\n", slab);
+    STDLOG(1, "Unpacking slab %d\n", slab);
+    int nump = unpack_slab_pack14(slab, P.HaloTaggableFraction);
+    STDLOG(1,"Found %d particles in slab %d\n", nump, slab);
+
+    LBW->DeAllocate(TimeSlice, slab);
+}
+
+int StandaloneFOFMakeCellGroupsPrecondition(int slab) {
+    if (TransposePos.notdone(slab)) return 0;
+    return 1;
+}
+
+int StandaloneFOFFinishPrecondition(int slab) {
+    if (DoGlobalGroups.notdone(slab)) return 0;
+    return 1;
+}
+
+void StandaloneFOFFinishAction(int slab) {
+    STDLOG(1,"Deleting slab %d\n", slab);
+
+    // Release the group-local copies of the particles
+    GlobalGroupSlab *GGS = GFC->globalslabs[slab];
+    delete GGS;
+    GFC->globalslabs[slab] = NULL;
+
+    LBW->DeAllocate(PosSlab, slab);
+    LBW->DeAllocate(VelSlab, slab);
+    LBW->DeAllocate(AuxSlab, slab);
+    LBW->DeAllocate(CellInfoSlab, slab);
+}
+
+
+void timestepStandaloneFOF(const char* slice_dir) {
+    STDLOG(0,"Initiating timestepStandaloneFOF()\n");
+    TimeStepWallClock.Clear();
+    TimeStepWallClock.Start();
+
+    int cpd = GFC->cpd;
+
+    StandaloneFOF_slice_dir = slice_dir;
+
+    FORCE_RADIUS = 0;
+    GROUP_RADIUS = P.GroupRadius;
+    assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS); 
+    STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
+
+    int first = 0;
+            FetchSlabs.instantiate(cpd, first, &StandaloneFOFLoadSlabPrecondition, &StandaloneFOFLoadSlabAction);
+          TransposePos.instantiate(cpd, first, &StandaloneFOFUnpackSlabPrecondition, &StandaloneFOFUnpackSlabAction);
+        MakeCellGroups.instantiate(cpd, first, &StandaloneFOFMakeCellGroupsPrecondition, &MakeCellGroupsAction);
+    FindCellGroupLinks.instantiate(cpd, first + 1, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction);
+        DoGlobalGroups.instantiate(cpd, first + 2*GFC->GroupRadius, &DoGlobalGroupsPrecondition, &DoGlobalGroupsAction);
+                Finish.instantiate(cpd, first + 2*GFC->GroupRadius, &StandaloneFOFFinishPrecondition, &StandaloneFOFFinishAction);
+
+    while (!Finish.alldone()) {
+        FetchSlabs.Attempt();
+        TransposePos.Attempt();
+        MakeCellGroups.Attempt();
+        FindCellGroupLinks.Attempt();
+        DoGlobalGroups.Attempt();
+        Finish.Attempt();
+    }
+
     TimeStepWallClock.Stop();
 }

@@ -94,11 +94,13 @@ private:
 public: 
     T *list;
     uint64 length;
+    uint64 longest;
     uint64 maxlist;
     std::mutex MALgap_mutex;
 
     MultiAppendList(uint64 maxlistsize) { 
         length = 0; 
+	longest = 0;
         Ngaps = omp_get_max_threads();
         // we may try to grow the list by an extra block per thread
         maxlist = maxlistsize + MALGAP_SIZE*Ngaps;
@@ -122,16 +124,16 @@ public:
         // One probably shouldn't use this version outside of the
         // MALgaps.
         assertf(newlength>=length, 
-            "Illegal growing of MultiAppendList\n");
+            "Illegal growing of MultiAppendList (length = %d, newlength = %d)\n", length, newlength);
         assertf(newlength < maxlist, 
-            "Illegal resizing of MultiAppendList\n");
+            "Illegal resizing of MultiAppendList (maxlist = %d, newlength = %d\n", maxlist, newlength);
         length = newlength; 
     }
 
     inline void ShrinkMAL(uint64 newlength) { 
         // Call this after CollectGaps()
         assertf(newlength<=length, 
-            "Illegal shrinking of MultiAppendList: length = %d, newlength = %d\n", length, newlength);
+            "Illegal shrinking of MultiAppendList (length = %d, newlength = %d)\n", length, newlength);
         length = newlength; 
         reset_gaps();
     }
@@ -141,6 +143,7 @@ public:
         // in an ad hoc manner.
         // Call this after CollectGaps()
         GrowMALGap(newlength);
+	if (length>longest) longest = length;
         reset_gaps();
     }
 
@@ -193,6 +196,7 @@ public:
             }
         }
         ShrinkMAL(MALgaps[low].next);
+	if (length>longest) longest = length;
         return;
     }
 

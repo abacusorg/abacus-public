@@ -1,0 +1,25 @@
+This is a SWIG wrapper for Abacus' cosmology module.
+That means this is a python interface to the same C++ code that Abacus uses.
+You will need swig to compile this.
+
+Build this module with
+$ make
+
+and import from python as
+>>> from Abacus.Cosmology import AbacusCosmo
+
+Here is an example of how to calculate a growth function for a given cosmology with this module:
+
+>>> from Abacus.Cosmology import AbacusCosmo
+>>> initial_redshift = 49.
+>>> my_cosmology = AbacusCosmo.MyCosmology()
+>>> my_cosmology.Omega_m = 0.3
+>>> my_cosmology.Omega_K = 0.
+>>> my_cosmology.Omega_DE = 0.7
+>>> my_cosmology.H0 = 70.
+>>> my_cosmology.w0 = -1.
+>>> my_cosmology.wa = 0.
+
+>>> cosmology = AbacusCosmo.Cosmology(1./(1+initial_redshift), my_cosmology)
+>>> sig8_today = 0.8
+>>> sig8_at_z49 = sig8_today * cosmology.current.growth / cosmology.today.growth

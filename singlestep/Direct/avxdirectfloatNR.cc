@@ -1,3 +1,5 @@
+#include "avxdirectfloatNR.h"
+
 AVXDirectFloatNR::AVXDirectFloatNR(int maxsrc) : maxsrc(maxsrc) {
     assert( posix_memalign((void **)&jpdata,  64, sizeof(jpstruct<float>)*maxsrc)     == 0 );
     assert( posix_memalign((void **)&ipdata,  64, sizeof(ipstruct<float,4>))  == 0 );
@@ -43,7 +45,7 @@ void AVXDirectFloatNR::compute(int nsrc, ThreeVector<float> *psrc,
                            ThreeVector<float> *pacc) {
     
     float conpot = -0.5;
-
+    //assert(nsrc + 4 <= maxsrc);
 
     float conacc = conpot*conpot*conpot;
     

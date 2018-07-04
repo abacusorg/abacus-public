@@ -25,10 +25,10 @@ def run(basedir=None):
         basedir = tmpdir + "/TEST/"
         
     if os.path.exists(basedir):
-        erase = raw_input("Test directory exists! Erase? (y/[n]) ")
+        erase = input("Test directory exists! Erase? (y/[n]) ")
         if erase == "y":
             shutil.rmtree(basedir)
-            print "Erased previous test directory"
+            print("Erased previous test directory")
     if not os.path.exists(basedir):
         os.makedirs(basedir)
     #You should put the test functionality here.
@@ -44,5 +44,5 @@ if __name__ == '__main__':
         run(basedir = sys.argv[1])
     else:
         #change this line to reflect the name of your test
-        print("Usage: {} [directory to run test in].format(args[0]))
+        print("Usage: {} [directory to run test in].format(args[0]))")
         sys.exit(1)

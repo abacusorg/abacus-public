@@ -1,0 +1,22 @@
+RamDisk = 0
+OverwriteState = 0
+#IODirs = []
+#nIODirs = 0
+#IODirThreads = []
+#MAXRAMMB = 200000  # This will be automatically detected
+# ConvolutionCacheSizeMB = 30  # This will be automatically detected
+
+# OpenMP and thread parameters
+OMP_NUM_THREADS = 10
+#OMP_PLACES = "{0}:11,{14}:8"
+#OMP_PROC_BIND = "spread"
+#IOCores = []
+#GPUThreadCoreStart = [22, 25]
+#GPUThreadCoreStart = [8, 11]
+#NGPUThreadCores = 3
+
+# Convolution OpenMP parameters
+Conv_OMP_NUM_THREADS = 10
+#Conv_OMP_PLACES = "{1}:27"
+#Conv_OMP_PROC_BIND = "close"
+#Conv_IOCores = [0]

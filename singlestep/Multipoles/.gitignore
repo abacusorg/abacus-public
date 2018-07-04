@@ -1,2 +1,7 @@
 CMASM.c
 ETASM.c
+CMAVX512.cpp
+ETAVX512.cpp
+EvaluateMultipolesTest
+EvaluateTaylorTest
+

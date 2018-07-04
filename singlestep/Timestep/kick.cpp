@@ -41,7 +41,7 @@ void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
         if (_acc>maxacc) maxacc = _acc;
         sumvel2 += _vel*_vel;
         // Second half kick, to advance to time i+1/2
-        vel[i] += kick2 * acc[i];
+		vel[i] += kick2 * acc[i];
     }
 
     if (c.count()>0) sumvel2/=c.count();  // Now this has the mean square velocity 
@@ -49,8 +49,6 @@ void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     c.ci->max_component_acceleration = maxacc;
     c.ci->max_component_velocity = maxvel;
 }
-
-
 
 void KickSlab(int slab, FLOAT kick1, FLOAT kick2,
 void (*KickCell)(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2)) {
@@ -66,7 +64,6 @@ void (*KickCell)(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2)) {
     }
 }
 
-
 void RescaleAndCoAddAcceleration(int slab) {
     // The accelerations are computed with unit particle mass.
     // We need to rescale them to the correct cosmology.
@@ -81,11 +78,19 @@ void RescaleAndCoAddAcceleration(int slab) {
         rescale *= -1;
     
     uint64 N = Slab->size(slab)*3;
+
+    #ifdef DIRECTSINGLESPLINE
+    FLOAT inv_eps3 = 1./(JJ->SofteningLengthInternal*JJ->SofteningLengthInternal*JJ->SofteningLengthInternal);
+    #endif
     
     #pragma omp parallel for schedule(static)
     #pragma simd assert
     for (uint64 j=0; j<N;j++) {
+        #ifdef DIRECTSINGLESPLINE
+        faccxyz[j] = (faccxyz[j] + naccxyz[j]*inv_eps3)*rescale;
+        #else
         faccxyz[j] = (faccxyz[j] + naccxyz[j])*rescale;
+        #endif
     }
 }
 

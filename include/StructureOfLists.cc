@@ -3,6 +3,9 @@
 #ifndef __STRUCTUREOFLISTS_CC
 #define __STRUCTUREOFLISTS_CC
 
+#include <stdint.h>
+#include <stdlib.h>
+
 // TODO: we could probably make template specializations of this instead of an owndata field
 template<typename T> class List3
 {
@@ -16,7 +19,7 @@ template<typename T> class List3
         }
         
         // This constructor allocates memory and frees it on destruction
-        List3(uint64 count){
+        List3(uint64_t count){
             N = count;
             size_t size = sizeof(T)*N;
             
@@ -33,27 +36,27 @@ template<typename T> class List3
             free(Z);
         }
 
-        T x(uint64 n){
+        T x(uint64_t n){
             return X[n];
         }
 
-        T y(uint64 n)
+        T y(uint64_t n)
         {
             return Y[n];
         }
 
-        T z(uint64 n){
+        T z(uint64_t n){
             return Z[n];
         }
 
-        void SetZero(uint64 start, uint64 count)
+        void SetZero(uint64_t start, uint64_t count)
         {
             memset(&(X[start]), 0, sizeof(T) * count);
             memset(&(Y[start]), 0, sizeof(T) * count);
             memset(&(Z[start]), 0, sizeof(T) * count);
         }
  
-        uint64 N;
+        uint64_t N;
         T *X, *Y, *Z;
         bool owndata;
 };

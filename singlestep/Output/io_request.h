@@ -38,11 +38,11 @@ class iorequest {
 
     void dumpior() {
         printf("IOR memory = %p ", memory);
-        printf("sizebytes = %lld ", sizebytes);
+        printf("sizebytes = %lu ", sizebytes);
         printf("filename = %s ", filename);
         printf("command = %d ", command);
         printf("arena = %d ", arena);
-        printf("fileoffset = %lld ", fileoffset );
+        printf("fileoffset = %lu ", fileoffset );
         printf("deleteafterwriting = %d ", deleteafterwriting);
         printf("blocking = %d\n", blocking );
     }

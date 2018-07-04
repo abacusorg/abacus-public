@@ -1,14 +1,29 @@
+#include <stdlib.h>
+#include <fstream>
+
+#define QUAD_DOUBLE (0) //set precision of calculation. If QUAD_DOUBLE = 1, we will use quad double precision (quad_double.cpp). If QUAD_DOUBLE = 1, we will use double precision. 
+#if QUAD_DOUBLE
+	#include "quad_double.cpp"
+#else  
+	typedef double qd_real;
+	#define to_double(x) x;
+	#define to_qd_real(x) x;
+	#define qd_real(x) atof(x);
+#endif
+	
+
 #include "header.cpp"
 #include "threevector.hh"
 #include "fftw3.h"
 #define MAXORDER 16
-#include "quad_double.cpp"
 
 typedef ThreeVector<qd_real> qd_real3;
 
 #include "../Multipoles/basemultipoles.cpp"
 #include "derivatives.cpp"
 #include "order32derivatives.cpp"
+#include "../include/STimer.cc"
+
 
 #define ULLI unsigned long long int 
 
@@ -36,10 +51,13 @@ ULLI linearFFTW(int i, int j, int k) {
 #define RINDEXYZ(x,y,z) (((z)*(1+CPD)*(3+CPD))/8 + ((x)*((x)+1))/2 + y)
 #define sign(i)         (i>0?1:-1) 
 
+//STimer myTimer; //if timing performance, uncomment. 
 
+//calculate the derivatives tensor for every cell vector, \mathcal{D}^{ABC}_{jkl}. (Eqn. 4.1)
 void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber) {
+		
     int nthread = omp_get_max_threads();
-    printf("Initializing CreateDerivatives with %d OMP threads.\n", nthread);
+    printf("Initializing CreateDerivatives with %d OMP threads.\n", nthread);	
     double rdfar[nthread][1024];
     double rdnear[nthread][1024];
     double FD[nthread][1024];
@@ -54,91 +72,117 @@ void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber
     printf("Allocating %d GB\n", (int) (fdsize/(1<<30)) );
     double *FDSlab = (double *) malloc(fdsize);
 
-    for(int k=0;k<=CPDHALF;k++) {
-	if (slabnumber>=0 && slabnumber!=k) continue;
-	    // We were asked to do only one slab
 
-	// Perhaps this file already exists?  If so, we'll skip.
-	char fn[1024];
-	sprintf(fn,"slabderiv_%llu_%d_%d_%d_%d__%d",CPD,order,inner_radius,far_radius, 0, k);
-	FILE *fp;
-	fp = fopen(fn,"rb");
-	if(fp!=NULL) {
-	    // Yes, we've found them!  Don't repeat the work.
-	    fclose(fp);
-	    continue;  
-	}
+	//We are now going to create the far field derivatives tensor for our specified number of cells per dimension (CPD, or K in the write-up) and order p. 
+	//See Section 4: 'Pre-computing the far field derivatives tensor' in the Abacus Force Solver Documentation to follow along. The notation used in the comments corresponds to the notation in the documentation. Code comments in parantheses relate the code parameters to the write-up's notation.  
+		
+	//For every cell vector \mathbf{c}_{jkl}, compute \mathcal{D}^{ABC}_{jkl} for a given K (CPD), L_{inner} (inner radius), L_{outer} (outer radius), and p (order). 
+    for(int k=0;k<=CPDHALF;k++) { //loop over z direction within the home box. Each z-slice through the simulation box will be called a slab and we will store the computed derivatives tensor for each slab in slab_deriv_CPD_order_innerRadius_farRadius_0__k files. 
+		if (slabnumber>=0 && slabnumber!=k) continue;
+		    // If we were asked to do only one slab, skip each iteration of this loop until you reach the desired slab within the home box. 
 
-	// Not on disk, so we have to make them.
-	#pragma omp parallel for schedule(dynamic,1) 
-        for(int i=0;i<=CPDHALF;i++) {
-            for(int j=0;j<=i;j++) {
-                int p = omp_get_thread_num();
+		// Check if the desired file already exists.  If so, skip the computation in this loop.
+		char fn[1024];
+		sprintf(fn,"slabderiv_%llu_%d_%d_%d_%d__%d",CPD,order,inner_radius,far_radius, 0, k);
+		FILE *fp;
+		fp = fopen(fn,"rb");
+		if(fp!=NULL) {
+		    // Yes, the file already exists!  Don't repeat the work, so skip thsi iteration of the loop..
+		    fclose(fp);
+		    continue;  
+		}
+		
 
-                for(int m=0;m<rml;m++) FD[p][m] = 0;
+		// If the desired file doesn't exist, make it. 
+		#pragma omp parallel for schedule(dynamic,1)
+	        for(int i=0;i<=CPDHALF;i++) { //loop over x direction within the home box. 
+	            for(int j=0;j<=i;j++) { //loop over y direction within the home box -- we only need to do one triangle of one quadrant because of the symmetries of the derivatives tensor, as discussed below Equation 3.9. 
+	                int p = omp_get_thread_num();
 
-                double3 r;
-                r.x = i; r.x = r.x/CPD;
-                r.y = j; r.y = r.y/CPD;
-                r.z = k; r.z = r.z/CPD;
+	                for(int m=0;m<rml;m++) FD[p][m] = 0;
 
-                if( (abs(i)>inner_radius) || (abs(j)>inner_radius) || (abs(k)>inner_radius) ) {
-                    RD.ReducedDerivatives(r,&(FD[p][0]));
-                }
+	                double3 r;
+	                r.x = i; r.x = r.x/CPD; //find the components of the cell vector \mathbf{c}_{jkl} (in code notation, \mathbf{c}_{ijk} = { i/CPD, j/CPD, k/CPD} ). 
+	                r.y = j; r.y = r.y/CPD;
+	                r.z = k; r.z = r.z/CPD;
+										
+	                if( (abs(i)>inner_radius) || (abs(j)>inner_radius) || (abs(k)>inner_radius) ) //check if the given cell vector \mathbf{c}_{jkl} falls outside of L_{inner}. If not, we will use equation 4.1a to calculate the derivatives tensor. If it does, we will use equation 4.1b: 
+					{
+	                    RD.ReducedDerivatives(r,&(FD[p][0])); //Calculate D^{ABC}(\mathbf{c}_{jkl}) explicitly using the trace-free and recursion relations discussed in Section 2.2 and coded in the file `derivatives.cpp'. 
+	                }
+					
 
-                OD.Derivative( r, &(rdnear[p][0]), &(rdfar[p][0]),  order );
-
-                for(int m=0;m<rml;m++) {
-                    ULLI idx = m*CompressedMultipoleLengthXY + RINDEXY(i,j);
-                    FDSlab[idx] = FD[p][m] + rdnear[p][m] + rdfar[p][m];
-                }
-            }
-        }
-	// Now we store FDSlab to disk
-	fp = fopen(fn,"wb");
-	assert(fp!=NULL);
-	fwrite(&(FDSlab[0]), sizeof(double), rml*CompressedMultipoleLengthXY, fp); 
-	fclose(fp);
-    }
-    free(FDSlab);
-    return;
+	                OD.Derivative( r, &(rdnear[p][0]), &(rdfar[p][0]),  order ); //Call order32derivatives.cpp to calculate the first two terms in Equation 4.1 -- 
+					//1)  Contribution to the derivatives tensor from the outer far field region (L_{outer} < n): \sum\limits_{ \mathcal{B}\left(\mathbf{n}, L_{\mathrm{outer}}, \infty\right)}D^{ABC}(\mathbf{n} +  \mathbf{c}_{jkl}) 
+					//2)  Contribution to the derivatives tensor from the inner far field region (L_{inner} < n <= L_{outer}): \sum\limits_{\mathcal{B}\left(\mathbf{n}, 1, L_{\mathrm{outer}}\right)} D^{ABC}(\mathbf{n} + \mathbf{c}_{jkl}) 
+					
+					//Sum together all contributions to the derivatives tensor (Eqn. 4.1) and store. 
+					for(int m=0;m<rml;m++) {
+	                    ULLI idx = m*CompressedMultipoleLengthXY + RINDEXY(i,j);
+	                    FDSlab[idx] = FD[p][m] + rdnear[p][m] + rdfar[p][m]; //combine all of the above
+	                }
+	            }
+	        }
+			
+		// Store FDSlab (containing derivatives tensor for the given slab) to disk. 
+		fp = fopen(fn,"wb");
+		assert(fp!=NULL);
+		fwrite(&(FDSlab[0]), sizeof(double), rml*CompressedMultipoleLengthXY, fp); 
+		fclose(fp);
+	    }
+	    free(FDSlab);
+	    return;
 }
 
-
+//calculate total far derivatives tensor for entire simulation box by merging components for every cell. {\mathcal{D}^{ABC}_{jkl}} = \mathcal{D}^{ABC}.
 void MergeDerivatives(int inner_radius, int order, int far_radius, double *FarDerivatives) {
     int rml = (order+1)*(order+1);
     ULLI fdsize = sizeof(double) * rml*CompressedMultipoleLengthXY;
     printf("Allocating %d GB\n", (int) (fdsize/(1<<30)) );
     double *FDSlab = (double *) malloc(fdsize);
+	
+	//Merge all slab's derivatives tensors into a single farderivatives file. This will be used to calculate \hat{\mathcal{D}}^{ABC}: the Fourier transform of the derivatives tensor required to calculate the Taylor coefficients for any given sink cell by convolving the multipole moments and the derivatives tensor. 
 
     for(int k=0;k<=CPDHALF;k++) {
-	// Fetch FDSlab from disk
-	char fn[1024];
-	sprintf(fn,"slabderiv_%llu_%d_%d_%d_%d__%d",CPD,order,inner_radius,far_radius, 0, k);
-	FILE *fp;
-	fp = fopen(fn,"rb");
-	assert(fp!=NULL);
-	ULLI sizeread = fread(&(FDSlab[0]), sizeof(double), rml*CompressedMultipoleLengthXY, fp); 
-	assert(sizeread == rml*CompressedMultipoleLengthXY);
-	fclose(fp);
+		// Fetch FDSlab from disk
+		char fn[1024];
+		sprintf(fn,"slabderiv_%llu_%d_%d_%d_%d__%d",CPD,order,inner_radius,far_radius, 0, k);
+		FILE *fp;
+		fp = fopen(fn,"rb");
+		assert(fp!=NULL);
+		ULLI sizeread = fread(&(FDSlab[0]), sizeof(double), rml*CompressedMultipoleLengthXY, fp); 
+		assert(sizeread == rml*CompressedMultipoleLengthXY);
+		fclose(fp);
 
-	#pragma omp parallel for schedule(dynamic,1) 
-	for(int m=0;m<rml;m++) {
-	    for(int i=0;i<=CPDHALF;i++) {
-		for(int j=0;j<=i;j++) {
-                    ULLI idxy = m*CompressedMultipoleLengthXY + RINDEXY(i,j);
-                    ULLI idx = m*CompressedMultipoleLengthXYZ + RINDEXYZ(i,j,k);
-                    FarDerivatives[idx] = FDSlab[idxy];
-                }
-            }
-        }
+		#pragma omp parallel for schedule(dynamic,1) 
+		for(int m=0;m<rml;m++) {
+		    for(int i=0;i<=CPDHALF;i++) {
+			for(int j=0;j<=i;j++) {
+	                    ULLI idxy = m*CompressedMultipoleLengthXY + RINDEXY(i,j);
+	                    ULLI idx = m*CompressedMultipoleLengthXYZ + RINDEXYZ(i,j,k);
+	                    FarDerivatives[idx] = FDSlab[idxy];
+	                }
+	            }
+	        }
     }
     free(FDSlab);
     return;
 }
 
+//create empty fourier files to store the fourier transforms of the far derivatives in, to be calculated in Part2. 
+void CreateFourierFiles(int order, int inner_radius, int far_radius) {
+    for(int z=0;z<(CPD+1)/2;z++) {
+        FILE *fp;
+        char fn[1024];
+        int cpd = CPD;
+        sprintf(fn,"fourierspace_%d_%d_%d_%d_%d",cpd,order,inner_radius,far_radius,z);
+        fp = fopen(fn,"w");
+        assert(fp!=NULL);
+        fclose(fp);
+    }
+}
 
-
+//calculate Fast Fourier transform of far derivatives tensor and store. 
 void Part2(int order, int inner_radius, int far_radius) { 
     
     basemultipoles bm(order);
@@ -171,11 +215,41 @@ void Part2(int order, int inner_radius, int far_radius) {
     double   in_r2c[CPD];
     Complex out_r2c[CPD];
 
-     plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
+    //plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
+    //plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD,  &(in_r2c[0]), (fftw_complex *) &(out_r2c[0]), FFTW_PATIENT);
+	
+	
+	
+	//NAM: commented this out for large CPD run overnight.
+	//int wisdomExists = fftw_import_wisdom_from_filename("Part2.wisdom");
+	//if (!wisdomExists)
+	//     printf("No wisdom file exists!\n");
+	
+	
+    plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
     plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD,  &(in_r2c[0]), (fftw_complex *) &(out_r2c[0]), FFTW_PATIENT);
-
+	
+	//if(!wisdomExists)
+	//	printf("Exporting wisdom to file == %d\n", fftw_export_wisdom_to_filename("Part2.wisdom"));
+	//	
+	//NAM: end commented out section. 
+	
+	
+	
+	
 
     ULLI sizeread;
+	
+	
+	//myTimer.Start(); //NAM 
+	
+
+
+	
+
+
+
+
 
     int a,b,c;
     FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
@@ -185,6 +259,8 @@ void Part2(int order, int inner_radius, int far_radius) {
 
         FILE *fpfar;
         char fpfar_fn[1024];
+		
+		//Open and unpack farderivatives file. 
         sprintf(fpfar_fn,"farderivatives");
 
         fpfar = fopen(fpfar_fn,"rb");
@@ -302,22 +378,14 @@ void Part2(int order, int inner_radius, int far_radius) {
 }
 
 
-void CreateFourierFiles(int order, int inner_radius, int far_radius) {
-    for(int z=0;z<(CPD+1)/2;z++) {
-        FILE *fp;
-        char fn[1024];
-        int cpd = CPD;
-        sprintf(fn,"fourierspace_%d_%d_%d_%d_%d",cpd,order,inner_radius,far_radius,z);
-        fp = fopen(fn,"w");
-        assert(fp!=NULL);
-        fclose(fp);
-    }
-}
-
-
 
 int main(int argc, char **argv) {
-
+	
+	printf("QUAD_DOUBLE defined = %d. If QUAD_DOUBLE == 1, running with quad double precision. Else, running with double precision.\n \n", QUAD_DOUBLE);
+	//printf("Timer starting\n");
+	//myTimer.Start();
+	
+	//unpack user inputs.
     if( argc!=5 && argc!=6 ) {
         printf("Usage: CreateDerivatives CPD ORDER INNERRADIUS FARRADIUS <slab>\n");
         printf("Slab number is optional\n");
@@ -343,7 +411,7 @@ int main(int argc, char **argv) {
     printf("inner_radius = %d \n", inner_radius );
 
     int far_radius = atoi(argv[4]);
-    assert( (far_radius==8) || (far_radius==16) );
+    assert( (far_radius==1) ||(far_radius==2) || (far_radius==3) || (far_radius==4) || (far_radius==5) || (far_radius==6) || (far_radius==7) ||(far_radius==8) || (far_radius==16));
     printf("far_radius = %d \n", far_radius );
 
     int slabnumber = -1;
@@ -352,9 +420,12 @@ int main(int argc, char **argv) {
 	assert( slabnumber>=0 && slabnumber<=CPDHALF);
 	printf("Doing slab %d only.", slabnumber);
     }
+	//
+	
 
     int rml = (order+1)*(order+1);
 
+	//check if the derivatives tensor we're about to calculate already stored on disk? If so, don't repeat the work! 
     char fn[1024];
     sprintf(fn,"fourierspace_%d_%d_%d_%d_%d",cpd,order,inner_radius,far_radius, 0);
 
@@ -365,24 +436,44 @@ int main(int argc, char **argv) {
         printf("Derivatives already present \n");
         exit(0);
     }
+	
+	//myTimer.Stop();
+	//printf("Time spent in set up = %f \n", myTimer.Elapsed());
+	//myTimer.Clear();
+	//myTimer.Start();
+	
+	//For more detailed comments, see individual functions, above. 
+	//calculate the derivatives tensor for every cell vector, \mathcal{D}^{ABC}_{jkl}. (Eqn. 4.1). 
     FormDerivatives(inner_radius, order, far_radius, slabnumber);
     if (slabnumber>=0) exit(0);
+	//myTimer.Stop();
+	//double FormDerivsRuntime = myTimer.Elapsed();
+	//printf("Time spent in FormDerivatives = %f \n", FormDerivsRuntime);
+	//myTimer.Clear();
+	//myTimer.Start();
+	//double mergeDerivsRuntime;
+	
+	
     
     FILE *fpfar;
     char fpfar_fn[1024];
-
     sprintf(fpfar_fn,"farderivatives");
     fpfar = fopen(fpfar_fn,"rb");
-    if (fpfar == NULL){
-    //fclose(fpfar);
-    
-	// We were only asked to do one slab.
+	
+    if (fpfar == NULL){    
     // Next we merge the individual files, effectively doing a big transpose
     ULLI fdsize = sizeof(double) * rml*CompressedMultipoleLengthXYZ;
+		
+	//calculate total far derivatives tensor for entire simulation box by merging components for every cell. {\mathcal{D}^{ABC}_{jkl}} = \mathcal{D}^{ABC}.
     printf("Allocating %d GB\n", (int) (fdsize/(1<<30)) );
     double *FarDerivatives = (double *) malloc(fdsize);
     MergeDerivatives(inner_radius, order, far_radius, FarDerivatives);
-
+	//myTimer.Stop();
+	//mergeDerivsRuntime = myTimer.Elapsed();
+	//printf("Time spent in Merge Derivatives = %f \n", mergeDerivsRuntime);
+	//myTimer.Clear();
+	//myTimer.Start();
+	
     // write out FarDerivatives file
     fpfar = fopen(fpfar_fn,"wb");
     assert(fpfar!=NULL);
@@ -391,7 +482,34 @@ int main(int argc, char **argv) {
     }
     fclose(fpfar);
 
-    // Now do the FFTs based on seeking on the disk file
+
+	//create empty fourier files to store the fourier transforms of the far derivatives in, to be calculated in Part2. 
     CreateFourierFiles(order,inner_radius, far_radius);
+	//myTimer.Stop();
+	//double CFFRuntime = myTimer.Elapsed();
+	//printf("Time spent in CreateFourierFiles = %f \n", CFFRuntime);
+	//myTimer.Clear();
+	//myTimer.Start();
+	
+	//calculate Fast Fourier transforms of far derivatives tensor and store. 
     Part2(order, inner_radius, far_radius);
+	//myTimer.Stop();
+	//double Part2Runtime = myTimer.Elapsed();
+	//printf("Time spent in Part2 (not including fftw plan)= %f \n", Part2Runtime);
+	//myTimer.Clear();
+	//myTimer.Start();
+	
+	
+	
+	//myTimer.Stop();
+	//double totalRuntime = myTimer.Elapsed();
+	//cout << "total time elapsed: " << totalRuntime << endl;
+	
+	//FILE * outFile;
+	//outFile = fopen("/home/nam/AbacusProject/timing/alan_CreateDerivatives_LoopOptimization_MultipoleOrder_vs_FR_timing.txt", "a");
+	//fprintf(outFile, "%d %d %d %d %d %f %f %f %f\n", 24, CPD, order, inner_radius, far_radius, FormDerivsRuntime, mergeDerivsRuntime, CFFRuntime, Part2Runtime);
+	//fclose (outFile); 
+	
+	printf("\nRUN COMPLETE: double precision = %d, InfDerivSum maxLoopOrder = %d, CPD = %d, order = %d, innerRadius = %d, farRadius = %d.\n", 1-QUAD_DOUBLE, MAXLOOPORDER, cpd,order,inner_radius,far_radius);
+	
 }
