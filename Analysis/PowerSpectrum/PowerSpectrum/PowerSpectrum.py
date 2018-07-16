@@ -37,6 +37,8 @@ pi = np.pi
 
 verbose = False
 
+flags = ['FFTW_ESTIMATE']
+
 @processargs
 def CalculateFromMem(positions, gridshape, boxsize, *, weights=None, dtype=np.float32, rotate_to=None, bins=-1, log=False, window='window_aliased', bin_info=False, multipoles=0):
     """
@@ -308,30 +310,28 @@ def CrossPower(gridshape, boxsize, *, pos1=None, pos2=None, delta1=None, delta2=
         gridshape = (gridshape,)*3
     gridshape = np.array(gridshape)
     
-    def get_delta(pos, w):
-        rho = TSC.BinParticlesFromMem(pos, gridshape, boxsize, prep_rfft=False, weights=w)
-        
-        rho_av = np.mean(rho,dtype = np.float64).astype(dtype)
-        ne.evaluate('rho/rho_av - 1', out=rho)
-        return rho
+    def get_delta_fft_from_pos(pos, w):
+        delta = TSC.BinParticlesFromMem(pos, gridshape, boxsize, prep_rfft=True, weights=w, norm=True)
+        deltak = _FFT(delta, boxsize, power=False, inplace=True)
+        return deltak
         
     def get_delta_fft(delta):
-        delta = _FFT(delta, boxsize, power=False)
-        return delta
+        deltak = _FFT(delta, boxsize, power=False, inplace=False)
+        return deltak
     
     if delta1 is not None:
         assert pos1 is None
         assert weights1 is None
+        delta1 = get_delta_fft(delta1)
     else:
-        delta1 = get_delta(pos1, weights1)
+        delta1 = get_delta_fft_from_pos(pos1, weights1)
+
     if delta2 is not None:
         assert pos2 is None
         assert weights2 is None
+        delta2 = get_delta_fft(delta2)
     else:
-        delta2 = get_delta(pos2, weights2)
-
-    delta1 = get_delta_fft(delta1)
-    delta2 = get_delta_fft(delta2)
+        delta2 = get_delta_fft_from_pos(pos2, weights2)
     
     P_cov = ne.evaluate('(delta1*conj(delta2)).real')
     k_cross, P_cov_binned, nmodes, bin_info = RadialBinGrid(boxsize, P_cov, bins, rfft=True)
@@ -508,7 +508,7 @@ def _FFT(delta, boxsize, *, window='window_aliased', inplace=False, power=True, 
         output = pyfftw.empty_aligned(outshape, dtype=cdtype)
     
     # Using FFTW_MEASURE typically results in a 3x speedup, but these FFTs are memory limited, not CPU limited
-    fft_obj = pyfftw.FFTW(signal, output, axes=axes, threads=nthreads, flags=['FFTW_ESTIMATE'])
+    fft_obj = pyfftw.FFTW(signal, output, axes=axes, threads=nthreads, flags=flags)
     fft_obj.execute()
     
     if power:
@@ -633,13 +633,13 @@ def _IFFT(input, boxsize, *, inplace=False, axes='max3'):
     # Copy to complex array if real input, or if we want to preserve the input
     # Can FFTW do r2r?
     if not np.iscomplexobj(input) or not inplace:
-        input = input.astype(cdtype, copy=True)
+        input = input.astype(cdtype, copy=True)  # this is really slow...
     
     # output array is always the input array, but the input may already be a copy
     output = input.view(dtype=dtype).reshape(paddedsignalshape)[tuple(slice(None,ss) for ss in signalshape)]
     
     #import pdb; pdb.set_trace()
-    fft_obj = pyfftw.FFTW(input, output, axes=axes, threads=nthreads, direction='FFTW_BACKWARD', flags=['FFTW_PATIENT'])
+    fft_obj = pyfftw.FFTW(input, output, axes=axes, threads=nthreads, direction='FFTW_BACKWARD', flags=flags)
     fft_obj.execute()
     
     # Need to figure out if this is the desired normalization
@@ -648,3 +648,48 @@ def _IFFT(input, boxsize, *, inplace=False, axes='max3'):
     ne.evaluate('output*norm', out=output)
     
     return output
+
+def GenerateWisdom(shape, axes='max3', dtype=np.float32, forward=True, planner_effort='FFTW_MEASURE', inplace=False):
+    '''
+    Generate FFTW wisdom for FFTs of the given shape, datatype,
+    and direction.
+
+    Once this function is run, the library is put into "wisdom only"
+    mode to prevent accidentally generating new wisdom and overwriting
+    input arrays.
+
+    Note this means that all future FFT calls need to have the
+    associated wisdom already present!
+    '''
+    # Figure out which axes are FFT axes
+    if type(axes) is int:
+        axes = [axes]
+    if axes == 'max3':
+        lastfftdim = min(2, len(shape)-1)
+    elif axes == 'max2':
+        lastfftdim = min(1, len(shape)-1)
+    else:
+        lastfftdim = axes[-1]
+
+    # Tell _FFT and _IFFT to generate wisdom
+    global flags
+    flags = [planner_effort]
+
+    shape = list(shape).copy()
+    signalshape = shape.copy()
+
+    if forward:
+        if inplace:
+            # Allocate a padded array, otherwise unpadded
+            shape[lastfftdim] += 2
+        input = pyfftw.zeros_aligned(shape, dtype=dtype)
+        _FFT(input, 1., window=None, inplace=inplace, power=False, axes=axes)
+    else:
+        signalshape = shape.copy()
+        shape[lastfftdim] = shape[2] // 2 + 1
+        input = pyfftw.zeros_aligned(shape, dtype=dtype)
+        _IFFT(input, 1., inplace=inplace, axes=axes)
+
+
+    # Tell _FFT and _IFFT to only use existing wisdom
+    flags = [planner_effort, 'FFTW_WISDOM_ONLY']

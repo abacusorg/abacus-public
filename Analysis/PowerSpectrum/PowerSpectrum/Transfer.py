@@ -137,7 +137,7 @@ class TransferMultipoles(np.ndarray):
     function.  Its main purpose is to carry around metadata that
     represents the binning scheme this function is valid for.
     '''
-    def __new__(subtype, bins, box, Lmax=0, kmax=None, ngrid=None, dtype=np.float32):
+    def __new__(subtype, bins, box, Lmax=0, kmax=None, ngrid=None, zspace=False, dtype=np.float32):
         if type(bins) is int:
             nbins = bins
             if kmax is None:
@@ -153,6 +153,7 @@ class TransferMultipoles(np.ndarray):
         obj.nbins = nbins
         obj.box = box
         obj.Lmax = Lmax
+        obj.zspace = zspace
         obj[:] = 0.
         
         return obj
@@ -166,6 +167,7 @@ class TransferMultipoles(np.ndarray):
         self.nbins = obj.nbins
         self.box = obj.box
         self.Lmax = obj.Lmax
+        self.zspace = obj.zspace
 
 
 def apply_transfer_multipoles(Tfer, deltak, unbinned=1.):
