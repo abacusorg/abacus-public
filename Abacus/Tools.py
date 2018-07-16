@@ -218,6 +218,7 @@ class ContextTimer(contexttimer.Timer):
     def __init__(self, *args, cumulative=False, **kwargs):
         self.cumulative = cumulative
         self.cumulative_time = 0.  # all the time before the most recent/current loop
+        args = list(args)
         if len(args) > 0:
             kwargs['prefix'] = args.pop(0)
         super(ContextTimer, self).__init__(*args, **kwargs)
@@ -295,6 +296,8 @@ def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03):
 
 import argparse
 # Combine argparse mixins to format both the description and defaults
+# Use as:
+# >>> parser = argparse.ArgumentParser(description='...', formatter_class=Tools.ArgParseFormatter)
 class ArgParseFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
     pass
     

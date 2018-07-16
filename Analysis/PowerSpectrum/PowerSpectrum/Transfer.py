@@ -196,8 +196,6 @@ def apply_transfer_multipoles(Tfer, deltak, unbinned=1.):
         The delta(k) field with the transfer function applied.
     """
     # Parse args
-    assert Tfer.Lmax == 0  # Currently only supports monopole
-
     # flatten all extra axes
     oshape = deltak.shape
     shape = oshape[:3] + (-1,)
@@ -218,11 +216,12 @@ def apply_transfer_multipoles(Tfer, deltak, unbinned=1.):
 
     return deltak_trans
 
+from .hist_helpers import legendre
+
 @nb.njit(parallel=True)
 def _apply_transfer_multipoles(T_multipoles, knorm_bin_edges, deltak, deltak_trans):
     Nx,Ny,Nz,Ndim = deltak.shape
-    Lmax,nbins = T_multipoles.shape
-    Lmax -= 1
+    Lmaxp1,nbins = T_multipoles.shape
 
     # use squared edges in units of the fundamental
     k_bin_edges = (knorm_bin_edges/(2*np.pi))**2
@@ -246,6 +245,7 @@ def _apply_transfer_multipoles(T_multipoles, knorm_bin_edges, deltak, deltak_tra
             for iz in range(Nz):
                 kz2 = iz**2
                 k2 = kx2 + ky2 + kz2
+                mu = (kz2/k2)**0.5
                 
                 # is this k in some bin?
                 if k2 < kmin:
@@ -263,3 +263,5 @@ def _apply_transfer_multipoles(T_multipoles, knorm_bin_edges, deltak, deltak_tra
 
                 for d in range(Ndim):
                     deltak_trans[ix,iy,iz,d] = deltak[ix,iy,iz,d] * T_multipoles[0,t]
+                    for ell in range(2,Lmaxp1,2):  # only process even multipoles
+                        deltak_trans[ix,iy,iz,d] += deltak[ix,iy,iz,d] * T_multipoles[ell,t] * legendre(ell, mu)
