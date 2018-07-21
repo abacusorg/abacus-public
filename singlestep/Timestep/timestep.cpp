@@ -159,10 +159,10 @@ void NearForceAction(int slab) {
 
     SlabForceLatency[slab].Start();
     if (P.ForceOutputDebug) {
-        // We want to output the NearAccSlab to the NearAcc file.
+        // We want to output the AccSlab to the NearAcc file.
         // This must be a blocking write.
         JJ->Finalize(slab);
-        LBW->WriteArena(NearAccSlab, slab, IO_KEEP, IO_BLOCKING,
+        LBW->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
         LBW->WriteSlabDescriptorName(NearAccSlab,slab).c_str());
     }
 }
@@ -188,16 +188,16 @@ void TaylorForceAction(int slab) {
     
     STDLOG(1,"Computing far-field force for slab %d\n", slab);
     SlabFarForceTime[slab].Start();
-    LBW->AllocateArena(AccSlab,slab);
+    LBW->AllocateArena(FarAccSlab,slab);
     
     TaylorCompute.Start();
     ComputeTaylorForce(slab);
     TaylorCompute.Stop();
 
     if(P.ForceOutputDebug){
-        // We want to output the AccSlab to the FarAcc file.
+        // We want to output the FarAccSlab to the FarAcc file.
         // This must be a blocking write.
-        LBW->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
+        LBW->WriteArena(FarAccSlab, slab, IO_KEEP, IO_BLOCKING,
                 LBW->WriteSlabDescriptorName(FarAccSlab,slab).c_str());
     }
     LBW->DeAllocate(TaylorSlab,slab);
@@ -265,7 +265,7 @@ void KickAction(int slab) {
         JJ->Finalize(slab);
     AddAccel.Start();
     RescaleAndCoAddAcceleration(slab);
-    LBW->DeAllocate(NearAccSlab,slab);
+    LBW->DeAllocate(FarAccSlab,slab);
     AddAccel.Stop();
     int step = LPTStepNumber();
     KickCellTimer.Start();

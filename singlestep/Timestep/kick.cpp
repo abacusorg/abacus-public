@@ -29,11 +29,12 @@ void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     FLOAT *vel = (FLOAT *)c.vel; 
     FLOAT *acc = (FLOAT *)cellacc;	// These are flattened arrays, not triples.
 
+    // TODO: With accstruct a FLOAT4, we have to rewrite this.
     uint32_t N = c.count()*3;
     #pragma simd reduction(max:maxvel) reduction(max:maxacc) reduction(+:sumvel2) assert
     for (uint32_t i=0;i<N;i++) {
         // First half kick, to get synchronous
-        vel[i] += kick1 * acc[i];
+        vel[i] += kick1 * acc[i].v3;
         // Some simple stats
         FLOAT _vel = fabs(vel[i]);
         FLOAT _acc = fabs(acc[i]);
@@ -41,7 +42,7 @@ void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
         if (_acc>maxacc) maxacc = _acc;
         sumvel2 += _vel*_vel;
         // Second half kick, to advance to time i+1/2
-		vel[i] += kick2 * acc[i];
+		vel[i] += kick2 * acc[i].v3;
     }
 
     if (c.count()>0) sumvel2/=c.count();  // Now this has the mean square velocity 
@@ -68,8 +69,8 @@ void RescaleAndCoAddAcceleration(int slab) {
     // The accelerations are computed with unit particle mass.
     // We need to rescale them to the correct cosmology.
     FLOAT rescale = -3.0*P.Omega_M/(8.0*M_PI*P.np);
-    accstruct *nacc = (accstruct *) LBW->ReturnIDPtr(NearAccSlab,slab);
-    accstruct *facc = (accstruct *) LBW->ReturnIDPtr(AccSlab,slab);
+    accstruct *nacc = (accstruct *) LBW->ReturnIDPtr(AccSlab,slab);
+    acc3struct *facc = (acc3struct *) LBW->ReturnIDPtr(FarAccSlab,slab);
     FLOAT *naccxyz = (FLOAT *) nacc;
     FLOAT *faccxyz = (FLOAT *) facc;
     
@@ -98,6 +99,7 @@ void RescaleAndCoAddAcceleration(int slab) {
 
 void ZeroAcceleration(int slab,int Slabtype) {
     // Null out the acceleration
+    // Note that this is specific to accstruct, not acc3struct!
     accstruct *acc = (accstruct *) LBW->ReturnIDPtr(Slabtype,slab);
     memset(acc,0,Slab->size(slab)*sizeof(accstruct));
 }

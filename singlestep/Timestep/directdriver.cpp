@@ -289,7 +289,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             int kh = SplitPoint[n];
             // The construction and execution are timed internally in each SIC then reduced in Finalize(slab)
             SlabInteractionCollections[slabID][w*NSplit + n] = 
-                new SetInteractionCollection(slabID,w,kl,kh);
+                new SetInteractionCollection(slabID,w,kl,kh,P.DensityKernelRad2);
             
             // Check that we have enough blocks
             int NSinkBlocks = SlabInteractionCollections[slabID][w*NSplit + n]->NSinkBlocks;
@@ -316,7 +316,7 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
     size_t len = Slab->size(slabID) *sizeof(accstruct);
     accstruct * a_cpu = (accstruct *)malloc(len);
     accstruct * a_tmp = (accstruct *)malloc(len);
-    accstruct * a_gpu = (accstruct *) LBW->ReturnIDPtr(NearAccSlab,slabID);
+    accstruct * a_gpu = (accstruct *) LBW->ReturnIDPtr(AccSlab,slabID);
     auxstruct * aux = (auxstruct *)LBW->ReturnIDPtr(AuxSlab,slabID);
     memcpy(a_tmp,a_gpu,len);  // Save the GPU result in tmp
     memset(a_gpu,0,len);
@@ -330,8 +330,8 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
     #endif
 
     for(int i = 0; i < Slab->size(slabID);i++){
-        accstruct ai_g = a_gpu[i];
-        accstruct ai_c = a_cpu[i];
+        acc3struct ai_g = a_gpu[i].v3;
+        acc3struct ai_c = a_cpu[i].v3;
         if(ai_g.norm() == 0. && ai_c.norm() == 0.)
             continue;
         FLOAT delta =2* (ai_g-ai_c).norm()/(ai_g.norm() + ai_c.norm());
@@ -361,9 +361,9 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID){
 
 void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
     CPUFallbackTimer.Start();
-    if(!LBW->IDPresent(NearAccSlab, slabID))
-        LBW->AllocateArena(NearAccSlab,slabID);
-    ZeroAcceleration(slabID,NearAccSlab);
+    if(!LBW->IDPresent(AccSlab, slabID))
+        LBW->AllocateArena(AccSlab,slabID);
+    ZeroAcceleration(slabID,AccSlab);
     
     #ifdef DIRECTSINGLESPLINE
     FLOAT inv_eps3 = 1./(SofteningLengthInternal*SofteningLengthInternal*SofteningLengthInternal);
@@ -461,7 +461,7 @@ void NearFieldDriver::Finalize(int slab){
     if(P.ForceOutputDebug)
         CheckInteractionList(slab);
     
-    LBW->AllocateArena(NearAccSlab,slab);
+    LBW->AllocateArena(AccSlab,slab);
 
     SetInteractionCollection ** Slices = SlabInteractionCollections[slab];
     int NSplit = SlabNSplit[slab];
@@ -577,22 +577,22 @@ void NearFieldDriver::Finalize(int slab){
 
                 if(P.ForceOutputDebug == 1){
                     for(int p =0; p < CellNP; p++){
-                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].x));
-                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].y));
-                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].z));
+                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].v3.x));
+                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].v3.y));
+                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].v3.z));
                     }
 
                     if(z==firsttouch && z<cpd){
                         for(int p = 0; p <CellNP; p++){
-                            assert(!isfinite(a[p].x));
-                            assert(!isfinite(a[p].y));
-                            assert(!isfinite(a[p].z));
+                            assert(!isfinite(a[p].v3.x));
+                            assert(!isfinite(a[p].v3.y));
+                            assert(!isfinite(a[p].v3.z));
                         }
                     } else {
                         for(int p = 0; p <CellNP; p++){
-                            assert(isfinite(a[p].x));
-                            assert(isfinite(a[p].y));
-                            assert(isfinite(a[p].z));
+                            assert(isfinite(a[p].v3.x));
+                            assert(isfinite(a[p].v3.y));
+                            assert(isfinite(a[p].v3.z));
                         }
                     }
                 }
@@ -644,22 +644,22 @@ void NearFieldDriver::Finalize(int slab){
 
                     if(P.ForceOutputDebug == 1){
                         for(int p =0; p < CellNP; p++){
-                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].x));
-                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].y));
-                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].z));
+                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].v3.x));
+                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].v3.y));
+                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].v3.z));
                         }
 
                         if(w != 0 || z >= cpd){
                             for(int p = 0; p <CellNP; p++){
-                                assert(isfinite(a[p].x));
-                                assert(isfinite(a[p].y));
-                                assert(isfinite(a[p].z));
+                                assert(isfinite(a[p].v3.x));
+                                assert(isfinite(a[p].v3.y));
+                                assert(isfinite(a[p].v3.z));
                             }
                         } else {
                             for(int p = 0; p <CellNP; p++){
-                                assert(!isfinite(a[p].x));
-                                assert(!isfinite(a[p].y));
-                                assert(!isfinite(a[p].z));
+                                assert(!isfinite(a[p].v3.x));
+                                assert(!isfinite(a[p].v3.y));
+                                assert(!isfinite(a[p].v3.z));
                             }
                         }
                     }

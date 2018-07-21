@@ -18,7 +18,37 @@ So we actually are limited to about 680 million particles in a cell.
 
 #define posstruct FLOAT3
 #define velstruct FLOAT3
-#define accstruct FLOAT3
+#define acc3struct FLOAT3
+	// The far-field code operates on float3's.
+
+// We will pass the accelerations around as a float4, in which
+// the 4th element carries density information and hence should
+// not be normalized in the same way.  Adding a float4 to a float3
+// produces a float4 without change to the w element.  If you want
+// to produce a float3 output, you need to explicitly use float4.v3.
+class accstruct {
+    FLOAT3 v3;
+    FLOAT  w;
+    accstruct(FLOAT x) { v3 = FLOAT3(x,x,x); w=x; }   // Use with 0
+    accstruct(FLOAT3 _v, FLOAT _w) { v3 = _v; w=_w; }
+    ~accstruct();
+    inline accstruct& operator += ( const accstruct rhs ) {
+    	v3 += rhs.v3; w += rhs.w; return *this; }
+    inline accstruct& operator -= ( const accstruct rhs ) {
+    	v3 -= rhs.v3; w -= rhs.w; return *this; }
+    inline accstruct& operator += ( const acc3struct rhs ) {
+    	v3 += rhs; return *this; }
+    inline accstruct& operator -= ( const acc3struct rhs ) {
+    	v3 -= rhs; return *this; }
+    inline accstruct& operator *= ( const float rhs ) { 
+    	v3 *= rhs; return *this; }
+    inline accstruct& operator *= ( const double rhs ) { 
+    	v3 *= rhs; return *this; }
+    inline accstruct& operator /= ( const float rhs ) { 
+    	v3 /= rhs; return *this; }
+    inline accstruct& operator /= ( const double rhs ) { 
+    	v3 /= rhs; return *this; }
+};
 
 #define AUXPID (uint64)  0xffffffffff	// The lower 5 bytes, bits 0..39
 #define AUXLCZEROBIT 40		// The LC bits are 40..47

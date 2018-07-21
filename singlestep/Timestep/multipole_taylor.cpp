@@ -28,7 +28,7 @@ void ComputeTaylorForce(int slab) {
     
     // Recall that our accelerations/positions may be in single-precision.
     posstruct *pos = (posstruct *) LBW->ReturnIDPtr(PosSlab,slab);
-    accstruct *acc = (accstruct *) LBW->ReturnIDPtr(AccSlab,slab);
+    acc3struct *acc = (acc3struct *) LBW->ReturnIDPtr(FarAccSlab,slab);
     uint64 slabsize;
 
     MTCOMPLEX *TaylorCoefficients = (MTCOMPLEX *) LBW->ReturnIDPtr(TaylorSlab,slab);

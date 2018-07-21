@@ -22,7 +22,7 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
     }
 
 
-    FLOAT3 a = {(FLOAT) 0.0,(FLOAT) 0.0,(FLOAT) 0.0};
+    FLOAT4 a = {(FLOAT) 0.0,(FLOAT) 0.0,(FLOAT) 0.0, (FLOAT) 0.0};
     
     int InteractionStart = sinkIdx * WIDTH;
     int InteractionMax =  InteractionStart + WIDTH;
@@ -43,6 +43,7 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
             __syncthreads();
             
             myDI += NFBlockSize;
+	    // TODO: Need to pass the 4th element in for FOF neighbor count
             FullDirectTile( SourceCacheX, SourceCacheY, SourceCacheZ,
                     &sinkX, &sinkY, &sinkZ,
                     &(a.x),&(a.y),&(a.z),
@@ -62,6 +63,7 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
         __syncthreads();
         
         myDI += remaining;
+	// TODO: Need to pass the 4th element in for FOF neighbor count
         PartialDirectTile(SourceCacheX, SourceCacheY, SourceCacheZ,
                 &sinkX, &sinkY, &sinkZ,
                 &(a.x),&(a.y),&(a.z),

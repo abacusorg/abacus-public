@@ -28,7 +28,7 @@ inline int SetInteractionCollection::PaddedSourceCount(int sourceindex) {
     return NFBlockSize*NumPaddedBlocks(SourceSetCount[sourceindex]);
 }
 
-SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, int k_high){
+SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, int k_high, FLOAT _b2){
     Construction.Start();
 
     eps = JJ->eps;
@@ -40,6 +40,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     cpd = P.cpd;
     W = w;
     SlabId = slab;
+    b2 = _b2;
     bytes_to_device = 0, bytes_from_device = 0;
     AssignedDevice = 0;
     
@@ -157,7 +158,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int w, int k_low, i
     CalcSinkBlocks.Stop();
     
     AllocAccels.Start();
-    assert(posix_memalign((void **) &SinkSetAccelerations, 4096, sizeof(FLOAT3) * NPaddedSinks) == 0);
+    assert(posix_memalign((void **) &SinkSetAccelerations, 4096, sizeof(accstruct) * NPaddedSinks) == 0);
     AllocAccels.Stop();
     
     FillSinkLists.Stop();
@@ -392,6 +393,7 @@ void SetInteractionCollection::CPUExecute(){
                         a.x -= r * drx;
                         a.y -= r * dry;
                         a.z -= r * drz;
+			// TODO: Need to compute the FOFneighbor count
                     }
                 //}
 
@@ -401,7 +403,7 @@ void SetInteractionCollection::CPUExecute(){
                 assert(isfinite(a.x));
                 assert(isfinite(a.y));
                 assert(isfinite(a.z));
-                SinkSetAccelerations[id] = a;
+                SinkSetAccelerations[id].v3 = a;
             }
         }
     }
