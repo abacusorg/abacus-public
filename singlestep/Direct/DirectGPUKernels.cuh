@@ -3,8 +3,8 @@ template<int R>
 __device__ __inline__ void direct(
         FLOAT   &sinkx,     FLOAT &sinky,    FLOAT &sinkz,
         FLOAT   &sourcex,   FLOAT &sourcey,  FLOAT &sourcez,
-        FLOAT &ax, FLOAT &ay, FLOAT &az,
-        FLOAT &eps_inv){
+        FLOAT &ax, FLOAT &ay, FLOAT &az, FLOAT &aw,
+        FLOAT &eps_inv, FLOAT &b2){
 
     FLOAT drx, dry, drz, rinv,u,spf;
     drx = sourcex - sinkx;
@@ -44,8 +44,8 @@ template<int R>
 __device__ __inline__ void direct(
         FLOAT   &sinkx,     FLOAT &sinky,    FLOAT &sinkz,
         FLOAT   &sourcex,   FLOAT &sourcey,  FLOAT &sourcez,
-        FLOAT &ax, FLOAT &ay, FLOAT &az,
-        FLOAT &inv_eps2){
+        FLOAT &ax, FLOAT &ay, FLOAT &az, FLOAT &aw,
+        FLOAT &inv_eps2, FLOAT &b2){
 
     FLOAT dx, dy, dz, f, dr2;
     dx = sourcex - sinkx;
@@ -75,8 +75,8 @@ template <int R>
 __device__ __inline__ void direct(
         FLOAT   &sinkx,     FLOAT &sinky,    FLOAT &sinkz,
         FLOAT   &sourcex,   FLOAT &sourcey,  FLOAT &sourcez,
-        FLOAT &ax, FLOAT &ay, FLOAT &az,
-        FLOAT &eps3){
+        FLOAT &ax, FLOAT &ay, FLOAT &az, FLOAT &aw,
+        FLOAT &eps3, FLOAT &b2){
 
     FLOAT drx, dry, drz, r;
     drx = sourcex - sinkx;
@@ -100,8 +100,8 @@ template <int R>
 __device__ __inline__ void direct(
         FLOAT   &sinkx,     FLOAT &sinky,    FLOAT &sinkz,
         FLOAT   &sourcex,   FLOAT &sourcey,  FLOAT &sourcez,
-        FLOAT &ax, FLOAT &ay, FLOAT &az,
-        FLOAT &eps2){
+        FLOAT &ax, FLOAT &ay, FLOAT &az, FLOAT &aw,
+        FLOAT &eps2, FLOAT &b2){
 
     FLOAT drx, dry, drz, r;
     drx = sourcex - sinkx;

@@ -46,8 +46,8 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
 	    // TODO: Need to pass the 4th element in for FOF neighbor count
             FullDirectTile( SourceCacheX, SourceCacheY, SourceCacheZ,
                     &sinkX, &sinkY, &sinkZ,
-                    &(a.x),&(a.y),&(a.z),
-                    &eps);  // try non-pointer?
+                    &(a.x),&(a.y),&(a.z),&(a.w),
+                    &eps,&d.b2);  // try non-pointer?
             __syncthreads();
 
         }
@@ -66,8 +66,8 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
 	// TODO: Need to pass the 4th element in for FOF neighbor count
         PartialDirectTile(SourceCacheX, SourceCacheY, SourceCacheZ,
                 &sinkX, &sinkY, &sinkZ,
-                &(a.x),&(a.y),&(a.z),
-                &eps, remaining);
+                &(a.x),&(a.y),&(a.z),&(a.w),
+                &eps, &d.b2, remaining);
         __syncthreads();
     }
 
