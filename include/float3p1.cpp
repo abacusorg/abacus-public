@@ -46,6 +46,10 @@ class FLOAT3p1 {
     // Supply a type cast to float3
     inline operator FLOAT3() { return FLOAT3(x,y,z); }
 
+    // Provide a norm2() to act on the float3 portion
+    FLOAT norm() { return sqrt(x*x+y*y+z*z); }
+    FLOAT norm2() { return x*x+y*y+z*z; }
+
     // We don't supply a type cast to float4, but that could be easily
     // done with pointers, since the space is identical.
 };
