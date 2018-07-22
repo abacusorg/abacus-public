@@ -24,17 +24,17 @@
 */
 
 
+    // TODO: With accstruct a FLOAT3p1, we have to rewrite this routine.
 void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     FLOAT maxacc = 0.0, maxvel = 0.0, sumvel2 = 0.0;
     FLOAT *vel = (FLOAT *)c.vel; 
     FLOAT *acc = (FLOAT *)cellacc;	// These are flattened arrays, not triples.
 
-    // TODO: With accstruct a FLOAT4, we have to rewrite this.
     uint32_t N = c.count()*3;
     #pragma simd reduction(max:maxvel) reduction(max:maxacc) reduction(+:sumvel2) assert
     for (uint32_t i=0;i<N;i++) {
         // First half kick, to get synchronous
-        vel[i] += kick1 * acc[i].v3;
+        vel[i] += kick1 * (FLOAT3)(acc[i]);
         // Some simple stats
         FLOAT _vel = fabs(vel[i]);
         FLOAT _acc = fabs(acc[i]);
@@ -42,7 +42,7 @@ void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
         if (_acc>maxacc) maxacc = _acc;
         sumvel2 += _vel*_vel;
         // Second half kick, to advance to time i+1/2
-		vel[i] += kick2 * acc[i].v3;
+		vel[i] += kick2 * (FLOAT3)(acc[i]);
     }
 
     if (c.count()>0) sumvel2/=c.count();  // Now this has the mean square velocity 
@@ -71,26 +71,25 @@ void RescaleAndCoAddAcceleration(int slab) {
     FLOAT rescale = -3.0*P.Omega_M/(8.0*M_PI*P.np);
     accstruct *nacc = (accstruct *) LBW->ReturnIDPtr(AccSlab,slab);
     acc3struct *facc = (acc3struct *) LBW->ReturnIDPtr(FarAccSlab,slab);
-    FLOAT *naccxyz = (FLOAT *) nacc;
-    FLOAT *faccxyz = (FLOAT *) facc;
     
     // Reverse the sign of the acceleration if we are making glass
     if(strcmp(P.ICFormat, "Glass") == 0)
         rescale *= -1;
     
-    uint64 N = Slab->size(slab)*3;
+    uint64 N = Slab->size(slab);
 
     #ifdef DIRECTSINGLESPLINE
     FLOAT inv_eps3 = 1./(JJ->SofteningLengthInternal*JJ->SofteningLengthInternal*JJ->SofteningLengthInternal);
     #endif
     
     #pragma omp parallel for schedule(static)
-    #pragma simd assert
+    // TODO: Because nacc and facc can differ in type, we can't use SIMD.  
+    //       Ok?  Perhaps bandwidth limited anyways?
     for (uint64 j=0; j<N;j++) {
         #ifdef DIRECTSINGLESPLINE
-        faccxyz[j] = (faccxyz[j] + naccxyz[j]*inv_eps3)*rescale;
+        nacc[j] = (nacc[j]*inv_eps3+facc[j])*rescale;
         #else
-        faccxyz[j] = (faccxyz[j] + naccxyz[j])*rescale;
+        nacc[j] = (nacc[j]+facc[j] )*rescale;
         #endif
     }
 }

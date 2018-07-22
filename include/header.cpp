@@ -46,6 +46,9 @@ typedef std::complex<double> Complex;
 #define FLOAT3 float3
 #endif
 
+#include "float3p1.cpp"    // This will define FLOAT3p1
+	// Note that float3p1 and double3p1 are never defined.
+
 // dtype for Multipoles/Taylors and Derivatives on disk
 // might eventually be used for computations as well
 #ifdef DOUBLEPRECISION

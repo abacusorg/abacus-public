@@ -330,8 +330,8 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
     #endif
 
     for(int i = 0; i < Slab->size(slabID);i++){
-        acc3struct ai_g = a_gpu[i].v3;
-        acc3struct ai_c = a_cpu[i].v3;
+        acc3struct ai_g = (FLOAT3)(a_gpu[i]);
+        acc3struct ai_c = (FLOAT3)(a_cpu[i]);
         if(ai_g.norm() == 0. && ai_c.norm() == 0.)
             continue;
         FLOAT delta =2* (ai_g-ai_c).norm()/(ai_g.norm() + ai_c.norm());
@@ -400,6 +400,11 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
                         }
                         
                         FLOAT3 delta = PP->CellCenter(slabID,y,z)-PP->CellCenter(i,j,k);
+			// TODO: At present, the b2 parameter is not passed
+			// into the CPU directs, so there is no FOF neighbor
+			// computation.
+			// TODO: sink_acc is now a float4, but the CPU routines
+			// want a float3
                         if(np_source >0) DD[g].AVXExecute(sink_pos,source_pos,np_sink,np_source,
                                 delta,eps,sink_acc);
                         delete[] source_pos;
@@ -577,22 +582,22 @@ void NearFieldDriver::Finalize(int slab){
 
                 if(P.ForceOutputDebug == 1){
                     for(int p =0; p < CellNP; p++){
-                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].v3.x));
-                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].v3.y));
-                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].v3.z));
+                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].x));
+                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].y));
+                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].z));
                     }
 
                     if(z==firsttouch && z<cpd){
                         for(int p = 0; p <CellNP; p++){
-                            assert(!isfinite(a[p].v3.x));
-                            assert(!isfinite(a[p].v3.y));
-                            assert(!isfinite(a[p].v3.z));
+                            assert(!isfinite(a[p].x));
+                            assert(!isfinite(a[p].y));
+                            assert(!isfinite(a[p].z));
                         }
                     } else {
                         for(int p = 0; p <CellNP; p++){
-                            assert(isfinite(a[p].v3.x));
-                            assert(isfinite(a[p].v3.y));
-                            assert(isfinite(a[p].v3.z));
+                            assert(isfinite(a[p].x));
+                            assert(isfinite(a[p].y));
+                            assert(isfinite(a[p].z));
                         }
                     }
                 }
@@ -644,22 +649,22 @@ void NearFieldDriver::Finalize(int slab){
 
                     if(P.ForceOutputDebug == 1){
                         for(int p =0; p < CellNP; p++){
-                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].v3.x));
-                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].v3.y));
-                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].v3.z));
+                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].x));
+                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].y));
+                            assert(isfinite(Slice->SinkSetAccelerations[Start +p].z));
                         }
 
                         if(w != 0 || z >= cpd){
                             for(int p = 0; p <CellNP; p++){
-                                assert(isfinite(a[p].v3.x));
-                                assert(isfinite(a[p].v3.y));
-                                assert(isfinite(a[p].v3.z));
+                                assert(isfinite(a[p].x));
+                                assert(isfinite(a[p].y));
+                                assert(isfinite(a[p].z));
                             }
                         } else {
                             for(int p = 0; p <CellNP; p++){
-                                assert(!isfinite(a[p].v3.x));
-                                assert(!isfinite(a[p].v3.y));
-                                assert(!isfinite(a[p].v3.z));
+                                assert(!isfinite(a[p].x));
+                                assert(!isfinite(a[p].y));
+                                assert(!isfinite(a[p].z));
                             }
                         }
                     }

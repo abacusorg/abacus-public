@@ -299,6 +299,7 @@ int SetInteractionCollection::CheckCompletion(){
 
 void SetInteractionCollection::CPUExecute(){
     // Currently Plummer only
+    // TODO: Also, this does not compute FOF densities
 #ifndef DIRECTPLUMMER
     QUIT("Error: executing CPU pencils with non-Plummer softening is not currently supported.\n");
 #endif
@@ -403,7 +404,9 @@ void SetInteractionCollection::CPUExecute(){
                 assert(isfinite(a.x));
                 assert(isfinite(a.y));
                 assert(isfinite(a.z));
-                SinkSetAccelerations[id].v3 = a;
+                SinkSetAccelerations[id].x = a.x;
+                SinkSetAccelerations[id].y = a.y;
+                SinkSetAccelerations[id].z = a.z;
             }
         }
     }
