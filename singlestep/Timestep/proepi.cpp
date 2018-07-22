@@ -202,6 +202,8 @@ void Prologue(Parameters &P, bool ic) {
     STDLOG(0,"Setting RamDisk == %d\n", P.RamDisk);
     IO_Initialize(logfn);
 
+    P.DensityKernelRad2 = 0.0;   // Don't compute densities
+
     if(!ic) {
             // ReadMaxCellSize(P);
         load_slabsize(P);
@@ -221,17 +223,16 @@ void Prologue(Parameters &P, bool ic) {
                                           P.FoFLinkingLength[1]/pow(P.np,1./3),
                                           P.FoFLinkingLength[2]/pow(P.np,1./3),
                                           P.cpd, PP->invcpd, P.GroupRadius, P.MinL1HaloNP, P.np);
-	    P.DensityKernelRad2 = GFC.linking_length;
-	    P.DensityKernelRad2 *= P.DensityKernelRad2; 
-	    // We use square radii
-        } else {
-	    P.DensityKernelRad2 = 0.0;   // Don't compute densities
+	    #ifdef COMPUTE_FOF_DENSITY
+		P.DensityKernelRad2 = GFC.linking_length;
+		P.DensityKernelRad2 *= P.DensityKernelRad2; 
+		// We use square radii
+	    #endif
 	}
     } else {
             TY = NULL;
             RL = NULL;
             JJ = NULL;
-	    P.DensityKernelRad2 = 0.0;   // IC's don't do group finding
     }
 
     prologue.Stop();
