@@ -24,8 +24,37 @@
 */
 
 
-    // TODO: With accstruct a FLOAT3p1, we have to rewrite this routine.
+    // TODO: Now that accstruct is not simply float3, we have do this
+    // explicitly, so we lose SIMD.  Any tricks needed?
 void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
+    FLOAT maxvel = 0.0;
+    FLOAT maxacc = 0.0;
+    FLOAT sumvel2 = 0.0;
+
+    uint32_t N = c.count();
+    for (uint32_t i=0;i<N;i++) {
+        // First half kick, to get synchronous
+        vel[i] += kick1 * (FLOAT3)(acc[i]);
+        // Some simple stats
+	sumvel2 += vel[i].norm2();
+	maxvel = std::max(maxvel, fabs(vel[i].x));
+	maxacc = std::max(maxacc, fabs(acc[i].x));
+	maxvel = std::max(maxvel, fabs(vel[i].y));
+	maxacc = std::max(maxacc, fabs(acc[i].y));
+	maxvel = std::max(maxvel, fabs(vel[i].z));
+	maxacc = std::max(maxacc, fabs(acc[i].z));
+        // Second half kick, to advance to time i+1/2
+	vel[i] += kick2 * (FLOAT3)(acc[i]);
+    }
+    if (c.count()>0) sumvel2/=c.count();  // Now this has the mean square velocity 
+    c.ci->mean_square_velocity = sumvel2;
+    c.ci->max_component_acceleration = maxacc;
+    c.ci->max_component_velocity = maxvel;
+}
+
+
+
+/* TODO: DEPRECATED OLD CODE -- REMOVE 
     FLOAT maxacc = 0.0, maxvel = 0.0, sumvel2 = 0.0;
     FLOAT *vel = (FLOAT *)c.vel; 
     FLOAT *acc = (FLOAT *)cellacc;	// These are flattened arrays, not triples.
@@ -50,6 +79,7 @@ void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     c.ci->max_component_acceleration = maxacc;
     c.ci->max_component_velocity = maxvel;
 }
+*/
 
 void KickSlab(int slab, FLOAT kick1, FLOAT kick2,
 void (*KickCell)(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2)) {
