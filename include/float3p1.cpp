@@ -20,6 +20,9 @@ class FLOAT3p1 {
 	x=_x; y=_y; z=_z; ; w=_w; }
     FLOAT3p1(FLOAT3 _v, FLOAT _w) { 
 	x = _v.x; y = _v.y; z = _v.z; w=_w; }
+    // This constructor from a float3 will force w=0
+    FLOAT3p1(FLOAT3 _v) { 
+	x = _v.x; y = _v.y; z = _v.z; w=0.0; }
     ~FLOAT3p1();
 
     // Add two float3p1's, inluding w.

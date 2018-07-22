@@ -403,16 +403,20 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
 			// TODO: At present, the b2 parameter is not passed
 			// into the CPU directs, so there is no FOF neighbor
 			// computation.
-			// TODO: sink_acc is now a float4, but the CPU routines
-			// want a float3
+			// TODO: sink_acc may now be a float4, but the CPU routines
+			// want a float3.  We'll overload this space and fix it later
                         if(np_source >0) DD[g].AVXExecute(sink_pos,source_pos,np_sink,np_source,
-                                delta,eps,sink_acc);
+                                delta,eps,(FLOAT3 *)sink_acc);
                         delete[] source_pos;
                         
                         DI_slab += np_sink*np_source;
                     }
                 }
             }
+	    // All done with this cell.  Fix the float4 to float3 issue
+	    acc3struct *acc3 = (acc3struct *)sink_acc;
+	    for (uint64 i=np_sink-1; i>=0; i--) 
+	    	sink_acc[i] = accstruct(acc3[i]);
         }
     }
     DirectInteractions_CPU += DI_slab;
