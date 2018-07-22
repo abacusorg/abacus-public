@@ -21,12 +21,16 @@ So we actually are limited to about 680 million particles in a cell.
 #define acc3struct FLOAT3
 	// The far-field code operates on float3's.
 
+#ifdef COMPUTE_FOF_DENSITY
 #define accstruct FLOAT3p1
 // We will pass the accelerations around as a float3p1, in which
 // the 4th element carries density information and hence should
 // not be normalized in the same way.  Adding a float3p1 to a float3
 // produces a float3p1 without change to the w element.  
 // Typecasting to (FLOAT3) will strip the w element.
+#else
+#define accstruct FLOAT3
+#endif
 
 #define AUXPID (uint64)  0xffffffffff	// The lower 5 bytes, bits 0..39
 #define AUXLCZEROBIT 40		// The LC bits are 40..47
