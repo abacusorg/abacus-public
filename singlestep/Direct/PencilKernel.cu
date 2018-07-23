@@ -22,7 +22,7 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
     }
 
 
-    FLOAT4 a = {(FLOAT) 0.0,(FLOAT) 0.0,(FLOAT) 0.0, (FLOAT) 0.0};
+    accstruct a(0.0);
     
     int InteractionStart = sinkIdx * WIDTH;
     int InteractionMax =  InteractionStart + WIDTH;
