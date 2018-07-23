@@ -21,6 +21,10 @@
 
 #include "header.cpp"
 #include "threevector.hh"
+#include "float3p1.cpp"    // This will define FLOAT3p1
+        // Note that float3p1 and double3p1 are never defined.
+        // Must call after FLOAT and FLOAT3 and float3 are defined
+
 #include "StructureOfLists.cc"
 
 #include "stdlog.cc"

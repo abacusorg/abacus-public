@@ -34,17 +34,17 @@ void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
     uint32_t N = c.count();
     for (uint32_t i=0;i<N;i++) {
         // First half kick, to get synchronous
-        vel[i] += kick1 * (FLOAT3)(acc[i]);
+        c.vel[i] += kick1 * (FLOAT3)(c.acc[i]);
         // Some simple stats
-	sumvel2 += vel[i].norm2();
-	maxvel = std::max(maxvel, fabs(vel[i].x));
-	maxacc = std::max(maxacc, fabs(acc[i].x));
-	maxvel = std::max(maxvel, fabs(vel[i].y));
-	maxacc = std::max(maxacc, fabs(acc[i].y));
-	maxvel = std::max(maxvel, fabs(vel[i].z));
-	maxacc = std::max(maxacc, fabs(acc[i].z));
+	sumvel2 += c.vel[i].norm2();
+	maxvel = std::max(maxvel, fabs(c.vel[i].x));
+	maxacc = std::max(maxacc, fabs(c.acc[i].x));
+	maxvel = std::max(maxvel, fabs(c.vel[i].y));
+	maxacc = std::max(maxacc, fabs(c.acc[i].y));
+	maxvel = std::max(maxvel, fabs(c.vel[i].z));
+	maxacc = std::max(maxacc, fabs(c.acc[i].z));
         // Second half kick, to advance to time i+1/2
-	vel[i] += kick2 * (FLOAT3)(acc[i]);
+	c.vel[i] += kick2 * (FLOAT3)(c.acc[i]);
     }
     if (c.count()>0) sumvel2/=c.count();  // Now this has the mean square velocity 
     c.ci->mean_square_velocity = sumvel2;

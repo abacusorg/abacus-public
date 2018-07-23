@@ -1,3 +1,5 @@
+#pragma once
+
 // This is a class that has 4 floats, but omits the last element from
 // scalar multiplies.
 
