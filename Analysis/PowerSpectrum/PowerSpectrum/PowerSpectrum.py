@@ -74,7 +74,7 @@ def CalculateFromMem(positions, gridshape, boxsize, *, weights=None, dtype=np.fl
         Nyquist, but assumes constant P(k) past Nyquist.
     multipoles: int or array_like of int
         The list of power spectrum multipoles to return.  If given an iterable,
-        the `P` return value will be a tuple of the same length as `multipoles`.
+        the `P` return value will be a dict keyed by multipole.
     
     Returns
     -------
@@ -379,7 +379,7 @@ def FFTAndBin(density, boxsize, *, inplace=False, bins=-1, log=False, window='wi
         The default (False) means to not return this tuple.
     multipoles: int or array_like of int
         The list of power spectrum multipoles to return.  If given an iterable,
-        the `P` return value will be a tuple of the same length as `multipoles`.
+        the `P` return value will be a dict keyed by multipole.
         
     Returns
     -------

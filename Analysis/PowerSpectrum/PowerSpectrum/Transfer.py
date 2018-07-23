@@ -136,8 +136,17 @@ class TransferMultipoles(np.ndarray):
     A simple wrapper around ndarray that represents a multipole transfer
     function.  Its main purpose is to carry around metadata that
     represents the binning scheme this function is valid for.
+
+    TODO: I think we only ever want an isotropic (monopole) transfer
+    function, since all our catalog modifications must be physically isotropic.
+    Can we remove Lmax?
+
+    TODO: do we want this object to record the number of fitting steps
+    and the objective function (i.e. which power spectrum multipoles) were used?
     '''
     def __new__(subtype, bins, box, Lmax=0, kmax=None, ngrid=None, zspace=False, dtype=np.float32):
+        assert Lmax == 0
+
         if type(bins) is int:
             nbins = bins
             if kmax is None:
@@ -161,6 +170,8 @@ class TransferMultipoles(np.ndarray):
     def __array_finalize__(self, obj):
         if obj is None:
             return
+
+        assert obj.Lmax == 0
         
         # Seems strange that we have to duplicate this functionality...
         self.k_bin_edges = obj.k_bin_edges
