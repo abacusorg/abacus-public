@@ -22,7 +22,11 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
     }
 
 
-    accstruct a(0.0);
+#ifdef COMPUTE_FOF_DENSITY
+    accstruct a = {(FLOAT)0.0,(FLOAT)0.0,(FLOAT)0.0,(FLOAT)0.0};
+#else
+    accstruct a = {(FLOAT)0.0,(FLOAT)0.0,(FLOAT)0.0};
+#endif
     
     int InteractionStart = sinkIdx * WIDTH;
     int InteractionMax =  InteractionStart + WIDTH;

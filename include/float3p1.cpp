@@ -16,7 +16,8 @@ class FLOAT3p1 {
     FLOAT x, y, z, w;
 
     // Constructors and destructors
-    // There is no null constructor; user must initialize
+    // The null constructor doesn't initialize
+    FLOAT3p1() { }   
     FLOAT3p1(FLOAT _x) { x=y=z=w=_x; }   // Use with 0.0, normally
     FLOAT3p1(FLOAT _x, FLOAT _y, FLOAT _z, FLOAT _w) { 
 	x=_x; y=_y; z=_z; ; w=_w; }
@@ -25,28 +26,30 @@ class FLOAT3p1 {
     // This constructor from a float3 will force w=0
     FLOAT3p1(FLOAT3 _v) { 
 	x = _v.x; y = _v.y; z = _v.z; w=0.0; }
-    ~FLOAT3p1();
+    // ~FLOAT3p1() { }
 
     // Add two float3p1's, inluding w.
     // We don't supply subtraction, because the behavior on w is ambiguous
-    inline FLOAT3p1& operator += ( const FLOAT3p1 rhs ) {
-        x += rhs.x; y += rhs.y; z += rhs.z; w += rhs.w; return *this; }
+    inline FLOAT3p1 operator + ( const FLOAT3p1 &rhs ) {
+	return FLOAT3p1(x+rhs.x, y+rhs.y, z+rhs.z, w+rhs.w); }
+    inline FLOAT3p1& operator += ( const FLOAT3p1 &rhs ) {
+	x+=rhs.x; y+=rhs.y; z+=rhs.z; w+=rhs.w; return *this; }
 
     // Add or subtract a float3, omitting w
-    inline FLOAT3p1& operator += ( const FLOAT3 rhs ) {
-        x += rhs.x; y += rhs.y; z += rhs.z; return *this; }
-    inline FLOAT3p1& operator -= ( const FLOAT3 rhs ) {
-        x -= rhs.x; y -= rhs.y; z -= rhs.z; return *this; }
+    inline FLOAT3p1 operator + ( const FLOAT3 &rhs ) {
+	return FLOAT3p1(x+rhs.x, y+rhs.y, z+rhs.z, w); }
+    inline FLOAT3p1 operator - ( const FLOAT3 &rhs ) {
+	return FLOAT3p1(x-rhs.x, y-rhs.y, z-rhs.z, w); }
 
     // Multiply and divide by scalars, omitting w
-    inline FLOAT3p1& operator *= ( const float rhs ) {
-        x *= rhs; y *= rhs; z *= rhs; return *this; }
-    inline FLOAT3p1& operator *= ( const double rhs ) {
-        x *= rhs; y *= rhs; z *= rhs; return *this; }
-    inline FLOAT3p1& operator /= ( const float rhs ) {
-        x /= rhs; y /= rhs; z /= rhs; return *this; }
-    inline FLOAT3p1& operator /= ( const double rhs ) {
-        x /= rhs; y /= rhs; z /= rhs; return *this; }
+    inline FLOAT3p1 operator * ( const float &rhs ) {
+	return FLOAT3p1(x*rhs, y*rhs, z*rhs, w); }
+    inline FLOAT3p1 operator * ( const double &rhs ) {
+	return FLOAT3p1(x*rhs, y*rhs, z*rhs, w); }
+    inline FLOAT3p1 operator / ( const float &rhs ) {
+	float inv = 1/rhs; return FLOAT3p1(x*inv, y*inv, z*inv, w); }
+    inline FLOAT3p1 operator / ( const double &rhs ) {
+	double inv = 1/rhs; return FLOAT3p1(x*inv, y*inv, z*inv, w); }
 
     // Supply a type cast to float3
     inline operator FLOAT3() { return FLOAT3(x,y,z); }
@@ -59,3 +62,8 @@ class FLOAT3p1 {
     // done with pointers, since the space is identical.
 };
 
+// #define TOFLOAT3(_float3p1) static_cast<FLOAT3>(_float3p1)
+
+inline FLOAT3 TOFLOAT3(FLOAT3p1 val) {
+	return FLOAT3(val.x, val.y, val.z);
+}

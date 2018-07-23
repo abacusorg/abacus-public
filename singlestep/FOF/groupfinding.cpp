@@ -318,7 +318,7 @@ uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid, FLOAT
 		    posstruct r = c.pos[p] + offset;
 		    velstruct v = c.vel[p];
             if(c.acc != NULL)
-                v -= unkickfactor*c.acc[p];
+                v -= unkickfactor*TOFLOAT3(c.acc[p]);
 		    pv[nfield] = RVfloat(r.x, r.y, r.z, v.x, v.y, v.z);
 		    pid[nfield] = c.aux[p].pid();
 		    nfield++;
