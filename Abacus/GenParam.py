@@ -116,7 +116,7 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None):
                 value = line[equals+1:comment]
             else:
                 value =line[equals+1:]
-            #try to parse value
+            # try to parse value
             try:
                 items = value.split()
                 vec  = ""
@@ -134,6 +134,7 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None):
                     except SyntaxError:
                         print("Error: Could not parse line:"+line)
                         raise
+
             values[key] = x
             #print("'%s': %s"%(str(key), str(x)))
         return values
@@ -166,17 +167,25 @@ def tostr(item): #recursively decompose the argument into a string we can print 
 
 def makeInput(outfn, inputfile, strict=False, del_keywords=[], **keywords):
     defaults = parseInput(inputfile)
-    res = parseInput(inputfile,keywords,copy.deepcopy(keywords))
     for keyword in keywords.keys():
         if strict and (keyword not in defaults.keys()):
             raise ValueError(keyword, "Keyword not in default parameter set, and `strict=True` was set.")
 
+    res = parseInput(inputfile, keywords, copy.deepcopy(keywords))
+
+    # Special behavior: do not write out keys whose value is None
+    for keyword in list(res.keys()):
+        if res[keyword] is None:
+            del res[keyword]
+
+    # Delete any keys listed in `del_keywords`
     for dk in del_keywords:
         try:
             del res[dk]
         except KeyError:
             pass
     
+    # Now write the results to file
     with open(outfn,'w') as outfile:
         for keyword in sorted(res.keys()):
             outfile.write(keyword)

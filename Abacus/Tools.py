@@ -46,12 +46,12 @@ def getRuntime(timingfile,timetype = "Total Wall Clock Time"):
 def cpointer(a):
     if a is None:
         return a  # Sometimes we deliberately want to pass a NULL pointer.  `None` is the way to do that.
-    # We always want numpy arrays we pass to C to be contiguous.  This may cause a copy!
+    # We always want numpy arrays we pass to C to be contiguous
     if not a.flags.contiguous:
         raise RuntimeError('Trying to pass non-contiguous array to C function! ' + str(a))
-    #a = np.ascontiguousarray(a)
+    #a = np.ascontiguousarray(a)  This may cause a copy!
     if a.dtype == np.float32:
-        return  a.ctypes.data_as(ct.POINTER(ct.c_float))
+        return a.ctypes.data_as(ct.POINTER(ct.c_float))
     elif a.dtype == np.float64:
         return a.ctypes.data_as(ct.POINTER(ct.c_double))
     elif a.dtype == np.int64:
