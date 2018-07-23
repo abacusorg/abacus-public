@@ -415,7 +415,7 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
             }
 	    // All done with this cell.  Fix the float4 to float3 issue
 	    acc3struct *acc3 = (acc3struct *)sink_acc;
-	    for (uint64 i=np_sink-1; i>=0; i--) 
+	    for (int64_t i=np_sink-1; i>=0; i--) 
 	    	sink_acc[i] = accstruct(acc3[i]);
         }
     }
