@@ -176,6 +176,7 @@ void Prologue(Parameters &P, bool ic) {
     omp_set_nested(true);
 
     STDLOG(1,"Entering Prologue()\n");
+    STDLOG(1,"Size of accstruct is %d bytes\n", sizeof(accstruct));
     prologue.Clear();
     prologue.Start();
     
