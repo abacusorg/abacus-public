@@ -330,8 +330,8 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
     #endif
 
     for(int i = 0; i < Slab->size(slabID);i++){
-        acc3struct ai_g = (FLOAT3)(a_gpu[i]);
-        acc3struct ai_c = (FLOAT3)(a_cpu[i]);
+        acc3struct ai_g = a_gpu[i];
+        acc3struct ai_c = a_cpu[i];
         if(ai_g.norm() == 0. && ai_c.norm() == 0.)
             continue;
         FLOAT delta =2* (ai_g-ai_c).norm()/(ai_g.norm() + ai_c.norm());
