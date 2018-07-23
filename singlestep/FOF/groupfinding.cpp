@@ -211,7 +211,30 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
         for (int k=0; k<cpd; k++) {
 	    // Find CellGroups in (slab,j,k).  Append results to cg.
 	    Cell c = PP->GetCell(slab, j, k);
-	    doFOF[g].findgroups(c.pos, c.vel, c.aux, c.acc, c.count());
+
+	    int active_particles = c.count();
+	    #ifdef COMPUTE_FOF_DENSITY
+	    if (P.DensityKernelRad2>0) {
+	        // The FOF-scale density is in acc.w.  
+		// All zeros cannot be in groups, partition them to the end
+		for (int p=0; p<active_particles; p++) {
+		    if (c.acc[p].w==0.0) {
+		        // We found an inactive particle; swap to end.
+			std::swap(c.pos[p], c.pos[active_particles]);
+			std::swap(c.vel[p], c.vel[active_particles]);
+			std::swap(c.aux[p], c.aux[active_particles]);
+			std::swap(c.acc[p], c.acc[active_particles]);
+			active_particles--;
+		    }
+		}
+	    }
+	    // By limiting the particles being considered, we automatically
+	    // will exclude these particles from being in the boundary
+	    // singlet set.  So they will not be in the CellGroups and 
+	    // hence never considered further.
+	    #endif
+
+	    doFOF[g].findgroups(c.pos, c.vel, c.aux, c.acc, active_particles);
 	    // printf("Cell %d %d %d: Found %d cell groups with %d particles, plus %d boundary singlets\n", slab,j,k,doFOF[g].ngroups, doFOF[g].nmultiplets, doFOF[g].nsinglet_boundary-doFOF[g].nmultiplets);
 	    // We need to clear the L0 & L1 bits for this timestep
 	    for (int p=0; p<c.count(); p++) c.aux[p].reset_L01_bits();
