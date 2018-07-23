@@ -111,6 +111,9 @@ def RadialBinGrid(boxsize, values, bin_edges, pi_bin_edges=None, mu_bin_edges=No
         mu bin edges for 2D histogramming
     bin_info: 2-tuple of ndarray
         The `bin_counts` and `bin_radii`
+    multipoles: int or array_like of int
+        The list of  multipoles to return.  If given an iterable,
+        the `bin_weight` return value will be a dict keyed by multipole.
         
     Returns
     -------
@@ -181,6 +184,8 @@ def RadialBinGrid(boxsize, values, bin_edges, pi_bin_edges=None, mu_bin_edges=No
 
     if flat_multipoles:
         weights = weights[0]
+    else:
+        weights = {multipoles[i]:w for (i,w) in enumerate(weights)}
     
     bin_info = (counts, radii)
     

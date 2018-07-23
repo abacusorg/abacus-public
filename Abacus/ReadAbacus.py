@@ -20,22 +20,23 @@ Todo:
 -downsampling
 """
 
-import numpy as np
-from glob import glob
-
 import os
 import os.path as path
-from . import abacus
-from .InputFile import InputFile
-
+from glob import glob
 import ctypes as ct
-ralib = ct.cdll.LoadLibrary(path.join(abacus.abacuspath, "clibs", "libreadabacus.so"))
-
 import re
 
-from Abacus.Tools import ndarray_arg, asciistring_arg
+import numpy as np
+import numba
+
+from . import abacus
+from .InputFile import InputFile
+from .Tools import ndarray_arg, asciistring_arg
+
+ralib = ct.cdll.LoadLibrary(path.join(abacus.abacuspath, "clibs", "libreadabacus.so"))
 
 # Set up the arguments and return type for the library functions
+# TODO: should consider migrating this to CFFI
 for f in (ralib.read_pack14, ralib.read_pack14f):
     f.restype = ct.c_uint64
     f.argtypes = (asciistring_arg, ct.c_size_t, ct.c_int, ct.c_int, ct.c_int, ct.c_int, ndarray_arg)
@@ -113,7 +114,7 @@ def from_dir(dir, pattern='*.dat', key=None, **kwargs):
     return read_many(files, **kwargs)
 
 
-def read_many(files, format='pack14', *args, **kwargs):
+def read_many(files, format='pack14',**kwargs):
     """
     Read a list of files into a contiguous array.
 
@@ -506,7 +507,7 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
     if return_header:
         return particles, state
     return particles
-
+    
     
 def skip_header(fp, max_tries=10):
     """
