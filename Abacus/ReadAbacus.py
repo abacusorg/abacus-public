@@ -1,23 +1,22 @@
 """
-Tools for efficient reading of various abacus output formats in python.
-See the abacus readme for details on the various formats.
-
-This file wraps the converters for our custom file formats,
-which are written in C for efficency.
+Tools for efficient reading of various Abacus file formats in Python.
+See the Abacus readme for details on the various formats.
 
 The main entry points are the `read()` and `from_dir()` functions
 to read a single file or a while directory of files, respectively.
 They are just wrappers to call the appropriate reader function
 for the given file format, like `read_pack14()` or `read_rvzel()`.
 
-You'll need to build the underlying libraries with
+To use the fast pack14 reader, you'll need to build the underlying
+library with
 `$ make analysis`
 from the top level Abacus directory.  Or just build all of Abacus.
+The alternative is to use the slow `read_pack14_lite()` function.
 
 Todo:
--Unit conversion option
--native ctypes float3* instead of void*
--downsampling
+- Unit conversion options
+- native ctypes float3* instead of void* (or CFFI?)
+- inline particle downsampling
 """
 
 import os
@@ -46,40 +45,18 @@ def read(*args, **kwargs):
     """
     A convenience function to read particle data from
     file type `format`.  Simply calls
-    the appropriate `read_format` function.
+    the appropriate `read_[format]()` function.
+
+    For usage, see the docstring of the reader
+    function for the file format you are using.
     """
     format = kwargs.pop('format')
     types = {'pack14':read_pack14, 'rvdouble':read_rvdouble,
              'rvzel':read_rvzel, 'state':read_state,
-             'rvdoubletag':read_rvdoubletag}
+             'rvdoubletag':read_rvdoubletag,
+             'pack14_lite':read_pack14_lite}
     format = format.lower()
     return types[format](*args, **kwargs)
-
-
-# An upper limit on the number of particles in a file, based on its size on disk
-get_np_from_fsize = lambda fsize, format, downsample=1: int(np.ceil(float(fsize)/psize_on_disk[format]/downsample**3.))
-psize_on_disk = {'pack14': 14, 'rvdouble': 6*8, 'state64':3*8, 'state':3*4, 'rvzel':32, 'rvdoubletag':7*8}
-
-
-# These defaults have to be consistent with the reader function defaults below
-def output_dtype(return_vel=True, return_pid=False, return_zel=False, return_aux=False, dtype=np.float32, **kwargs):
-    """
-    Construct the dtype of the output array.
-    """
-    ndt_list = []
-    if return_pid:
-        ndt_list += [('pid', np.uint64)]
-    if return_aux:
-        ndt_list += [('aux', np.uint64)]
-    ndt_list += [('pos', dtype, 3)]
-    if return_vel:
-        ndt_list += [('vel', dtype, 3)]
-    if return_zel:
-        ndt_list += [("zel", np.uint16, 3)]
-    ndt = np.dtype(ndt_list, align=True)
-
-    return ndt
-
 
 def from_dir(dir, pattern='*.dat', key=None, **kwargs):
     """
@@ -155,7 +132,10 @@ def read_many(files, format='pack14',**kwargs):
     if return_header:
         return output_array, header  # return header associated with last file
     return output_array
-    
+
+################################
+# Begin list of reader functions
+################################
 
 def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=False, return_header=False, dtype=np.float32, out=None):
     """
@@ -196,6 +176,10 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
     header: InputFile
         If `return_header` and a header is found, return parsed InputFile
     """
+    try:
+        ralib
+    except NameError:
+        raise RuntimeError("pack14 C library was not found. Try building Abacus with 'make analysis'? Or use the slower `read_pack14_lite()` function.")
     readers = {np.float32: ralib.read_pack14f,
                np.float64: ralib.read_pack14 }
     assert dtype in readers
@@ -507,7 +491,106 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
     if return_header:
         return particles, state
     return particles
+
+
+def read_pack14_lite(fn, return_vel=True, return_pid=False, return_header=False, dtype=np.float32, out=None):
+    """
+    Read particle data from a file in pack14 format using a Numba-based library instead of
+    a C library, as `read_pack14()` uses.
+
+    N.B.: expect this function to be many times slower than read_pack14() (2-3x slower in my tests).
+          Someday Numba will catch up...
+
+    Parameters 
+    ----------
+    fn: str
+        The filename to read
+    return_vel: bool, optional
+        Return velocities along with other data
+    return_pid: bool, optional
+        Return particle IDs along with other data
+    return_header: bool, optional
+        If the pack14 file has an ASCII header, return it as a second return value.
+    dtype: data-type, optional
+        Either np.float32 or np.float64.  Determines the data type the particle data is loaded into
+    out: ndarray, optional
+        A pre-allocated array into which the particles will be directly loaded.
+        
+    Returns
+    -------
+    data: ndarray of length (npart,)
+        The particle data.  Positions are in data['pos']; velocities are in data['vel'] (if `return_vel`),
+        and PIDs are in data['pid'] (if `return_pid`).
+        
+    or,
+        
+    NP: int
+        If `out` is given, returns the number of rows read into `out`.
+        
+    and optionally,
     
+    header: InputFile
+        If `return_header` and a header is found, return parsed InputFile
+    """
+
+    with open(fn, 'rb') as fp:
+        header = skip_header(fp)
+        if header:
+            header = InputFile(str_source=header)
+        try:
+            raw = np.fromfile(fp, dtype=np.uint8).reshape(-1,14)
+        except ValueError as e:
+            print('Could not reshape array. Bad file size?')
+            raise e
+
+    # Use the given buffer
+    if out is not None:
+        _out = out
+        outdt = out.dtype
+    # or allocate one
+    else:
+        fsize = path.getsize(fn)
+        alloc_NP = get_np_from_fsize(fsize, format='pack14')
+        outdt = output_dtype(return_vel=return_vel, return_pid=return_pid, dtype=dtype)
+        _out = np.empty(alloc_NP, dtype=outdt)
+    
+    # Now merge the pos and vel fields, if present. It's a little faster in Numba.
+    dtlist = []
+    if 'pid' in outdt.fields:
+        dtlist += [('pid',_out['pid'].dtype)]
+        # Numba doesn't like None, so use len 0 arrays instead 
+        pid = _out['pid']
+    else:
+        pid = np.empty(0, dtype=np.uint64)
+    
+    if 'vel' in outdt.fields:
+        dtlist += [('posvel',np.float32,6)]
+    else:
+        dtlist += [('posvel',np.float32,3)]
+        
+    merged_dt = np.dtype(dtlist, align=True)
+    _out = _out.view(dtype=merged_dt)
+    posvel = _out['posvel']
+    
+    npread = p14lite._read_pack14(raw, posvel, pid)
+    _out = _out[:npread]  # shrink the buffer to the real size
+    _out = _out.view(dtype=outdt)
+    
+    retval = (npread,) if out is not None else (_out,)
+    if return_header:
+        retval += (header,)
+    
+    if len(retval) == 1:
+        return retval[0]
+    return retval
+
+##############################
+# End list of reader functions
+##############################
+
+#############
+# Begin utils
+#############
     
 def skip_header(fp, max_tries=10):
     """
@@ -569,6 +652,40 @@ def skip_header(fp, max_tries=10):
     assert len(header) == headersize, "Header unexpectedly small!"
     header = header[:-2]  # trim the last two bytes
     return str(header)
-    
-    
-    
+
+
+# These defaults have to be consistent with the reader function defaults
+def output_dtype(return_vel=True, return_pid=False, return_zel=False, return_aux=False, dtype=np.float32, **kwargs):
+    """
+    Construct the dtype of the output array.
+    """
+    ndt_list = []
+    if return_pid:
+        ndt_list += [('pid', np.uint64)]
+    if return_aux:
+        ndt_list += [('aux', np.uint64)]
+    ndt_list += [('pos', dtype, 3)]
+    if return_vel:
+        ndt_list += [('vel', dtype, 3)]
+    if return_zel:
+        ndt_list += [("zel", np.uint16, 3)]
+    ndt = np.dtype(ndt_list, align=True)
+
+    return ndt
+
+# Set up a few library utils
+try:
+    from . import abacus
+    ralib = ct.cdll.LoadLibrary(path.join(abacus.abacuspath, "clibs", "libreadabacus.so"))
+
+    # Set up the arguments and return type for the library functions
+    # TODO: switch our C library to use CFFI
+    for f in (ralib.read_pack14, ralib.read_pack14f):
+        f.restype = ct.c_uint64
+        f.argtypes = (asciistring_arg, ct.c_size_t, ct.c_int, ct.c_int, ct.c_int, ct.c_int, ndarray_arg)
+except (OSError, ImportError):
+    pass  # no pack14 library found
+
+# An upper limit on the number of particles in a file, based on its size on disk
+get_np_from_fsize = lambda fsize, format, downsample=1: int(np.ceil(float(fsize)/psize_on_disk[format]/downsample**3.))
+psize_on_disk = {'pack14': 14, 'pack14_lite':14, 'rvdouble': 6*8, 'state64':3*8, 'state':3*4, 'rvzel':32, 'rvdoubletag':7*8}
