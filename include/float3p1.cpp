@@ -52,7 +52,7 @@ class FLOAT3p1 {
 	double inv = 1/rhs; return FLOAT3p1(x*inv, y*inv, z*inv, w); }
 
     // Supply a type cast to float3
-    inline operator FLOAT3() { return FLOAT3(x,y,z); }
+    // inline operator FLOAT3() { return FLOAT3(x,y,z); }
 
     // Provide a norm2() to act on the float3 portion
     FLOAT norm() { return sqrt(x*x+y*y+z*z); }
@@ -66,4 +66,7 @@ class FLOAT3p1 {
 
 inline FLOAT3 TOFLOAT3(FLOAT3p1 val) {
 	return FLOAT3(val.x, val.y, val.z);
+}
+inline FLOAT3 TOFLOAT3(FLOAT3 val) {
+	return val;
 }

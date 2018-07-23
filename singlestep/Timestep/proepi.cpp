@@ -19,7 +19,6 @@
 #include <sys/time.h>
 #include <sys/resource.h> 
 
-#define COMPUTE_FOF_DENSITY
 #include "header.cpp"
 #include "threevector.hh"
 #include "float3p1.cpp"    // This will define FLOAT3p1
