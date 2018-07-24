@@ -70,9 +70,9 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
     }
 
     if(id < d.SinkSetIdMax[sinkIdx]){
-        assert(isfinite(a.x));
-        assert(isfinite(a.y));
-        assert(isfinite(a.z));
+        assert(::isfinite(a.x));
+        assert(::isfinite(a.y));
+        assert(::isfinite(a.z));
         //atomicAdd(&(d.SinkSetAccelerations[id].x),a.x);
         //atomicAdd(&(d.SinkSetAccelerations[id].y),a.y);
         //atomicAdd(&(d.SinkSetAccelerations[id].z),a.z);
