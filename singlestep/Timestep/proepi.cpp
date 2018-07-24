@@ -229,9 +229,11 @@ void Prologue(Parameters &P, bool ic) {
                                           P.FoFLinkingLength[2]/pow(P.np,1./3),
                                           P.cpd, PP->invcpd, P.GroupRadius, P.MinL1HaloNP, P.np);
 	    #ifdef COMPUTE_FOF_DENSITY
+	    #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
 		P.DensityKernelRad2 = GFC->linking_length;
 		P.DensityKernelRad2 *= P.DensityKernelRad2; 
 		// We use square radii
+	    #endif
 	    #endif
 	}
     } else {
