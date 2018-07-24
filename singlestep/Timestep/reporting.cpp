@@ -356,13 +356,13 @@ void ReportTimings(FILE * timingfile) {
         char str[1024];  sprintf(str, "Non-Blocking (thread-seconds, %d threads)", NGPU*DirectBPD);
         REPORT(1, str, JJ->DeviceThreadTimer);
             REPORT(2, "Fill Sinks", JJ->FillSinks);
-                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", total_sinks*sizeof(FLOAT3)/1e6/thistime, total_sinks/1e6/thistime);
+                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", total_sinks*sizeof(posstruct)/1e6/thistime, total_sinks/1e6/thistime);
             REPORT(2, "Fill Sources", JJ->FillSources);
-                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSource/sec", total_sources*sizeof(FLOAT3)/1e6/thistime, total_sources/1e6/thistime);
+                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSource/sec", total_sources*sizeof(posstruct)/1e6/thistime, total_sources/1e6/thistime);
             REPORT(2, "Launch Kernels", JJ->LaunchDeviceKernels);
             REPORT(2, "Wait for GPU Result", JJ->WaitForResult);
             REPORT(2, "Copy Accel from Pinned", JJ->CopyAccelFromPinned);
-                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", total_sinks*sizeof(FLOAT3)/1e6/thistime, total_sinks/1e6/thistime);  // same number of accels as sinks
+                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", total_sinks*sizeof(accstruct)/1e6/thistime, total_sinks/1e6/thistime);  // same number of accels as sinks
             
         denom = GPUThroughputTime;
         REPORT(1, "Non-Blocking Throughput (Wall Clock)", GPUThroughputTime);
