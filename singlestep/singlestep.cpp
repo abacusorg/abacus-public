@@ -286,7 +286,9 @@ void BuildWriteState(double da){
 	WriteState.MaxAcceleration = 0.0;
 	WriteState.RMS_Velocity = 0.0;
 	WriteState.MinVrmsOnAmax = 1e10;
+}
 
+void BuildWriteStateOutput() {
 	// Build the output header.
 	// Note we actually will output from ReadState,
 	// but we build this to write the write/state file from the same code.
@@ -401,6 +403,7 @@ int main(int argc, char **argv) {
 
     // Now execute the timestep
     Prologue(P,MakeIC);
+    BuildWriteStateOutput();    // Have to delay this until after GFC is made
     if (MakeIC)  timestepIC();
 	    else timestep();
 
