@@ -243,6 +243,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 			std::swap(c.vel[p], c.vel[active_particles]);
 			std::swap(c.aux[p], c.aux[active_particles]);
 			std::swap(c.acc[p], c.acc[active_particles]);
+			p--; // Need to try this location again
 		    } else _maxFOFdensity=std::max(_maxFOFdensity, c.acc[p].w);
 		}
 	    }
