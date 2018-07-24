@@ -159,22 +159,23 @@ void NearForceAction(int slab) {
 
     SlabForceLatency[slab].Start();
     if (P.ForceOutputDebug) {
-        // We want to output the NearAccSlab to the NearAcc file.
+        // We want to output the AccSlab to the NearAcc file.
         // This must be a blocking write.
         JJ->Finalize(slab);
+        
 #ifdef DIRECTSINGLESPLINE
         // Single spline requires a prefactor multiplication, which we defer to the kick for efficiency
         // But analysis routines that use ForceOutputDebug, like Ewald, expect this prefactor to already be applied
         // So apply it here, storing the original in a temporary copy
         uint64 npslab = Slab->size(slab);
         accstruct *nearacctmp = new accstruct[npslab];
-        accstruct *nearacc = (accstruct *) LBW->ReturnIDPtr(NearAccSlab, slab);
+        accstruct *nearacc = (accstruct *) LBW->ReturnIDPtr(AccSlab, slab);
         memcpy(nearacctmp, nearacc, npslab*sizeof(accstruct));
         FLOAT inv_eps3 = 1./(JJ->SofteningLengthInternal*JJ->SofteningLengthInternal*JJ->SofteningLengthInternal);
         for(int i = 0; i < npslab; i++)
-            nearacc[i] *= inv_eps3;
+            nearacc[i] *= inv_eps3; 
 #endif
-        LBW->WriteArena(NearAccSlab, slab, IO_KEEP, IO_BLOCKING,
+        LBW->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
         LBW->WriteSlabDescriptorName(NearAccSlab,slab).c_str());
 
 #ifdef DIRECTSINGLESPLINE
@@ -207,16 +208,16 @@ void TaylorForceAction(int slab) {
     
     STDLOG(1,"Computing far-field force for slab %d\n", slab);
     SlabFarForceTime[slab].Start();
-    LBW->AllocateArena(AccSlab,slab);
+    LBW->AllocateArena(FarAccSlab,slab);
     
     TaylorCompute.Start();
     ComputeTaylorForce(slab);
     TaylorCompute.Stop();
 
     if(P.ForceOutputDebug){
-        // We want to output the AccSlab to the FarAcc file.
+        // We want to output the FarAccSlab to the FarAcc file.
         // This must be a blocking write.
-        LBW->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
+        LBW->WriteArena(FarAccSlab, slab, IO_KEEP, IO_BLOCKING,
                 LBW->WriteSlabDescriptorName(FarAccSlab,slab).c_str());
     }
     LBW->DeAllocate(TaylorSlab,slab);
@@ -284,7 +285,7 @@ void KickAction(int slab) {
         JJ->Finalize(slab);
     AddAccel.Start();
     RescaleAndCoAddAcceleration(slab);
-    LBW->DeAllocate(NearAccSlab,slab);
+    LBW->DeAllocate(FarAccSlab,slab);
     AddAccel.Stop();
     int step = LPTStepNumber();
     KickCellTimer.Start();

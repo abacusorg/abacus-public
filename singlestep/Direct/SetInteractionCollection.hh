@@ -78,7 +78,8 @@ class SetInteractionCollection{
         int *           SinkSetCount; //The number of particles in the SinkSet
         int *           SinkSetIdMax; //The sum of the above.  We may even be able to get rid of them and just send this to the GPU.
         SinkPencilPlan *           SinkPlan; // The plan for this pencil
-        FLOAT3 *        SinkSetAccelerations; //Where the computed accelerations for the collection will be stored
+        accstruct *        SinkSetAccelerations; //Where the computed accelerations for the collection will be stored
+	FLOAT b2;	// The square radius for FOF density computation
 
         volatile int CompletionFlag;
 
@@ -137,7 +138,7 @@ class SetInteractionCollection{
 	int PaddedSourceCount(int sourceindex);
 		// Returns the padded length of the array for this pencil
 
-        SetInteractionCollection(int slab, int w, int k_low, int k_high);
+        SetInteractionCollection(int slab, int w, int k_low, int k_high, FLOAT _b2);
         ~SetInteractionCollection();
 
         //execute this collection on the GPU

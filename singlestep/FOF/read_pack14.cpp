@@ -211,7 +211,7 @@ public:
                 vel[nump] = veld;
                 aux[nump].aux = id;
                 if (is_subsample_particle((int64_t) id, taggable_frac)) aux[nump].set_taggable();
-                acc[nump] = accstruct(0.0,0.0,0.0);
+                acc[nump] = accstruct(0.0);
                 nump++;
             }
         }

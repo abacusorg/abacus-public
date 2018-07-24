@@ -83,7 +83,7 @@ inline void interpolateParticle(double3 &pos, velstruct &vel, const accstruct ac
         double delta_etaD = WriteState.DeltaEtaDrift*deltar; //how much to drift the particle
 
         pos = pos + delta_etaD * vel;
-        vel = vel + delta_etaK * acc;
+        vel = vel + delta_etaK * TOFLOAT3(acc);
     }
     else{ //interpolate using the previous timestep information
         double r0 = (cosm->today.etaK -cosm->current.etaK +cosm->KickFactor(ReadState.ScaleFactor -ReadState.DeltaScaleFactor,ReadState.DeltaScaleFactor))*etaktoMpc/ReadState.BoxSizeMpc;
@@ -94,7 +94,7 @@ inline void interpolateParticle(double3 &pos, velstruct &vel, const accstruct ac
         double delta_etaD = ReadState.DeltaEtaDrift*deltar2; //how much to drift the particle
 
         pos = pos - delta_etaD * vel;
-        vel = vel - delta_etaK * acc;
+        vel = vel - delta_etaK * TOFLOAT3(acc);
     }
 }
 
@@ -149,7 +149,7 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
 #endif
             for (int p=0;p<c.count();p++) {
                 if(!c.aux[p].lightconedone(mask)){
-                    vel = (c.vel[p] - acc[p]*kickfactor);
+                    vel = (c.vel[p] - TOFLOAT3(acc[p])*kickfactor);
                     if(inLightCone((c.pos[p]+cc),vel,lcn,1.0,0)){
                         pos = c.pos[p]+cc;  // interpolateParticle takes global positions
                         interpolateParticle(pos,vel,acc[p],lcn);
@@ -181,7 +181,7 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
                 int p = stray_particles.back();
                 stray_particles.pop_back();
                 pos = c.pos[p] + cc;  // use the current cell center to make global
-                vel = (c.vel[p] - acc[p]*kickfactor);
+                vel = c.vel[p] - TOFLOAT3(acc[p])*kickfactor;
                 interpolateParticle(pos,vel,acc[p],lcn);
                 
                 // find the new cell

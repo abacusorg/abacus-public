@@ -74,6 +74,7 @@ void AVX512Direct::compute(List3<FLOAT> &psrc, List3<FLOAT> &psink, FLOAT3 &delt
             AVX512_FLOATS dr2 = AVX512_SQUARE_FLOAT(dx);
             dr2 = AVX512_FMA_ADD_FLOATS(dy, dy, dr2);
             dr2 = AVX512_FMA_ADD_FLOATS(dz, dz, dr2);
+	    // TODO: Would do the FOF check here
             dr2 = AVX512_FMA_ADD_FLOATS(dr2, inv_eps2, small);
             //dr2 = AVX512_MULTIPLY_FLOATS(dr2, inv_eps2);
 

@@ -21,6 +21,10 @@
 
 #include "header.cpp"
 #include "threevector.hh"
+#include "float3p1.cpp"    // This will define FLOAT3p1
+        // Note that float3p1 and double3p1 are never defined.
+        // Must call after FLOAT and FLOAT3 and float3 are defined
+
 #include "StructureOfLists.cc"
 
 #include "stdlog.cc"
@@ -172,6 +176,7 @@ void Prologue(Parameters &P, bool ic) {
     omp_set_nested(true);
 
     STDLOG(1,"Entering Prologue()\n");
+    STDLOG(1,"Size of accstruct is %d bytes\n", sizeof(accstruct));
     prologue.Clear();
     prologue.Start();
     
@@ -202,6 +207,8 @@ void Prologue(Parameters &P, bool ic) {
     STDLOG(0,"Setting RamDisk == %d\n", P.RamDisk);
     IO_Initialize(logfn);
 
+    P.DensityKernelRad2 = 0.0;   // Don't compute densities
+
     if(!ic) {
             // ReadMaxCellSize(P);
         load_slabsize(P);
@@ -221,12 +228,18 @@ void Prologue(Parameters &P, bool ic) {
                                           P.FoFLinkingLength[1]/pow(P.np,1./3),
                                           P.FoFLinkingLength[2]/pow(P.np,1./3),
                                           P.cpd, PP->invcpd, P.GroupRadius, P.MinL1HaloNP, P.np);
-        }
+	    #ifdef COMPUTE_FOF_DENSITY
+		P.DensityKernelRad2 = GFC->linking_length;
+		P.DensityKernelRad2 *= P.DensityKernelRad2; 
+		// We use square radii
+	    #endif
+	}
     } else {
             TY = NULL;
             RL = NULL;
             JJ = NULL;
     }
+    STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", P.DensityKernelRad2, sqrt(P.DensityKernelRad2)*pow(P.np,1./3.));
 
     prologue.Stop();
     STDLOG(1,"Leaving Prologue()\n");

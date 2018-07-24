@@ -3,15 +3,17 @@ template<int R>
 __device__ __inline__ void direct(
         FLOAT   &sinkx,     FLOAT &sinky,    FLOAT &sinkz,
         FLOAT   &sourcex,   FLOAT &sourcey,  FLOAT &sourcez,
-        FLOAT &ax, FLOAT &ay, FLOAT &az,
-        FLOAT &eps_inv){
+        FLOAT &ax, FLOAT &ay, FLOAT &az, FLOAT &aw,
+        FLOAT &eps_inv, FLOAT &b2){
 
     FLOAT drx, dry, drz, rinv,u,spf;
     drx = sourcex - sinkx;
     dry = sourcey - sinky;
     drz = sourcez - sinkz;
 
-    rinv = RSQRT( drx*drx + dry*dry + drz*drz);
+    rinv = drx*drx + dry*dry + drz*drz;
+    if (rinv<b2) if (rinv>(FLOAT)1e-30) { aw = aw+b2-rinv; }
+    rinv = RSQRT( rinv );
     if(R <= 1){
         u = eps_inv/rinv;
         //u = isfinite(u)? u : 0;  // this can never happen
@@ -44,15 +46,17 @@ template<int R>
 __device__ __inline__ void direct(
         FLOAT   &sinkx,     FLOAT &sinky,    FLOAT &sinkz,
         FLOAT   &sourcex,   FLOAT &sourcey,  FLOAT &sourcez,
-        FLOAT &ax, FLOAT &ay, FLOAT &az,
-        FLOAT &inv_eps2){
+        FLOAT &ax, FLOAT &ay, FLOAT &az, FLOAT &aw,
+        FLOAT &inv_eps2, FLOAT &b2){
 
     FLOAT dx, dy, dz, f, dr2;
     dx = sourcex - sinkx;
     dy = sourcey - sinky;
     dz = sourcez - sinkz;
     
-    dr2 = (dx*dx + dy*dy + dz*dz)*inv_eps2 + (FLOAT)1e-32;
+    dr2 = (dx*dx + dy*dy + dz*dz);
+    if (dr2<b2) if (dr2>(FLOAT)1e-30) { aw = aw+ b2-dr2; }
+    dr2 = dr2*inv_eps2+(FLOAT)1e-32;
     f = RSQRT(dr2);
     
     if(R <= 1){
@@ -75,15 +79,17 @@ template <int R>
 __device__ __inline__ void direct(
         FLOAT   &sinkx,     FLOAT &sinky,    FLOAT &sinkz,
         FLOAT   &sourcex,   FLOAT &sourcey,  FLOAT &sourcez,
-        FLOAT &ax, FLOAT &ay, FLOAT &az,
-        FLOAT &eps3){
+        FLOAT &ax, FLOAT &ay, FLOAT &az, FLOAT &aw,
+        FLOAT &eps3, FLOAT &b2){
 
     FLOAT drx, dry, drz, r;
     drx = sourcex - sinkx;
     dry = sourcey - sinky;
     drz = sourcez - sinkz;
 
-    r = drx*drx + dry*dry + drz*drz + TAU2;
+    r = drx*drx + dry*dry + drz*drz;
+    if (r<b2) if (r>(FLOAT)1e-30) { aw = aw+ b2-r; }
+    r += TAU2;
     r *= r*RSQRT(r);  //r^3
 
     r+=eps3;
@@ -100,15 +106,19 @@ template <int R>
 __device__ __inline__ void direct(
         FLOAT   &sinkx,     FLOAT &sinky,    FLOAT &sinkz,
         FLOAT   &sourcex,   FLOAT &sourcey,  FLOAT &sourcez,
-        FLOAT &ax, FLOAT &ay, FLOAT &az,
-        FLOAT &eps2){
+        FLOAT &ax, FLOAT &ay, FLOAT &az, FLOAT &aw,
+        FLOAT &eps2, FLOAT &b2){
 
     FLOAT drx, dry, drz, r;
     drx = sourcex - sinkx;
     dry = sourcey - sinky;
     drz = sourcez - sinkz;
 
-    r = RSQRT( drx*drx + dry*dry + drz*drz  + eps2);
+    r = drx*drx + dry*dry + drz*drz;
+    if (r<b2) if (r>(FLOAT)1e-30) { aw = aw+ b2-r; }
+    r += eps2;
+
+    r = RSQRT(r);
     r *=r*r;//*source.w;// * r * r * r;
 
     ax -= r * drx;

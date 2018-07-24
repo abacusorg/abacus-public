@@ -620,7 +620,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         if (groupacc != NULL){
                             L1acc[g][b] = groupacc[start[b].index()];
                             // Velocities were full kicked; half-unkick before halostats
-                            L1vel[g][b] -= L1acc[g][b]*WriteState.FirstHalfEtaKick;
+                            L1vel[g][b] -= TOFLOAT3(L1acc[g][b])*WriteState.FirstHalfEtaKick;
                         }
                     }
                     GFC->L2FOF.Start();
@@ -659,7 +659,7 @@ void GlobalGroupSlab::FindSubGroups() {
                             velstruct v = groupvel[start[b].index()];
                             // Velocities were full kicked; half-unkick before halostats
                             if (groupacc != NULL)
-                                v -= groupacc[start[b].index()]*WriteState.FirstHalfEtaKick;
+                                v -= TOFLOAT3(groupacc[start[b].index()])*WriteState.FirstHalfEtaKick;
                             pL1Particles->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
                             pL1PIDs->append(TaggedPID(groupaux[start[b].index()].pid()));
                         }
@@ -934,7 +934,7 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
 
                     for(int pi = start; pi < start + cg->size(); pi++){
                         posstruct _p = pos[pi] - offset;
-                        velstruct _v = vel[pi] - unkick_factor*acc[pi];
+                        velstruct _v = vel[pi] - TOFLOAT3(acc[pi])*unkick_factor;
                         AA->addparticle(_p, _v, aux[pi]);
                         n_added++;
                     }
