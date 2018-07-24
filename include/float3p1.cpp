@@ -1,7 +1,8 @@
 #pragma once
 
 // This is a class that has 4 floats, but omits the last element from
-// scalar multiplies.
+// scalar multiplies.  We use this for cases like tracking acceleration
+// in the first three elements, and FoF link counts in the fourth.
 
 // Because we don't have float3 and double3 templated, it's not 
 // so easy to template this.
@@ -42,8 +43,11 @@ class FLOAT3p1 {
 	return FLOAT3p1(x-rhs.x, y-rhs.y, z-rhs.z, w); }
 
     // Multiply and divide by scalars, omitting w
+    // TODO: implement inplace operators
     inline FLOAT3p1 operator * ( const float &rhs ) {
 	return FLOAT3p1(x*rhs, y*rhs, z*rhs, w); }
+    inline FLOAT3p1& operator *= ( const float &rhs ) {
+    x*=rhs; y*=rhs; z*=rhs; return *this; }
     inline FLOAT3p1 operator * ( const double &rhs ) {
 	return FLOAT3p1(x*rhs, y*rhs, z*rhs, w); }
     inline FLOAT3p1 operator / ( const float &rhs ) {
@@ -64,6 +68,9 @@ class FLOAT3p1 {
 
 // #define TOFLOAT3(_float3p1) static_cast<FLOAT3>(_float3p1)
 
+// TODO: better way to do this casting?
+// Explicitly implementing a casting operator in the class worked
+// but not with the C-style cast, which we prefer for clarity and brevity
 inline FLOAT3 TOFLOAT3(FLOAT3p1 val) {
 	return FLOAT3(val.x, val.y, val.z);
 }
