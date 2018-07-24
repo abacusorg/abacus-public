@@ -714,6 +714,7 @@ enable_threaded_io
 enable_gpu_directs
 with_cuda
 enable_gpu_convolution
+enable_fof_density
 with_direct_bpd
 with_max_gpus
 with_softening
@@ -1369,6 +1370,7 @@ Optional Features:
   --enable-gpu-directs    GPU directs [yes if CUDA detected]
   --enable-gpu-convolution
                           Convolution FFT on GPU [no]
+  --enable-fof-density    Compute FOF-scale density [yes]
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -5522,14 +5524,6 @@ _ACEOF
 
 fi
 
-if test x$enable_double == xyes; then
-
-cat >>confdefs.h <<_ACEOF
-#define DOUBLEPRECISION /**/
-_ACEOF
-
-fi
-
 # Check whether --enable-mkl was given.
 if test "${enable_mkl+set}" = set; then :
   enableval=$enable_mkl;
@@ -6007,6 +6001,21 @@ _ACEOF
 
 fi
 
+# Check whether --enable-fof_density was given.
+if test "${enable_fof_density+set}" = set; then :
+  enableval=$enable_fof_density;
+else
+  enable_fof_density="yes"
+fi
+
+if test x$enable_fof_density == xyes; then
+
+cat >>confdefs.h <<_ACEOF
+#define COMPUTE_FOF_DENSITY /**/
+_ACEOF
+
+fi
+
 # Get the number of GPUs
 if test x$enable_gpu_directs == xyes; then
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking number of GPUs" >&5
@@ -6346,6 +6355,7 @@ echo "Maximum source length:           $with_max_source_length"
 echo "Threaded IO:                     $enable_threaded_io"
 echo "Direct buffers-per-device:       $with_direct_bpd"
 echo "GPU directs:                     $enable_gpu_directs"
+echo "Compute FOF-scale density:       $enable_fof_density"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Maximum GPUs:                    $with_max_gpus"

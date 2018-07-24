@@ -12,6 +12,9 @@
 /* "Use AVX multipoles" */
 #undef AVXMULTIPOLES
 
+/* "Compute FOF-scale density on the GPU */
+#undef COMPUTE_FOF_DENSITY
+
 /* "Do the near force on the GPU" */
 #undef CUDADIRECT
 

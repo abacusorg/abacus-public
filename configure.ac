@@ -60,10 +60,6 @@ if test x$enable_double == xyes; then
 	AC_DEFINE_UNQUOTED(DOUBLEPRECISION, [], "Do all computations in double precision instead of single")
 fi
 
-if test x$enable_double == xyes; then
-	AC_DEFINE_UNQUOTED(DOUBLEPRECISION, [], "Do all computations in double precision instead of single")
-fi
-
 AC_ARG_ENABLE(mkl,
 [AS_HELP_STRING([--enable-mkl], [Intel Math Kernel Library FFT [yes if using icc]])],
 	[], enable_mkl="check")
@@ -161,6 +157,13 @@ if test x$enable_gpu_convolution == xyes; then
 	AC_DEFINE_UNQUOTED(GPUFFT, [], "Do the convolution FFT on the GPU")
 fi
 
+AC_ARG_ENABLE(fof_density,
+[AS_HELP_STRING([--enable-fof-density], [Compute FOF-scale density [yes]])],
+	[], enable_fof_density="yes")
+if test x$enable_fof_density == xyes; then
+	AC_DEFINE_UNQUOTED(COMPUTE_FOF_DENSITY, [], "Compute FOF-scale density on the GPU, used to accelerate the L0 FOF computation and seed the L1/L2 halo finding.")
+fi
+
 # Get the number of GPUs
 if test x$enable_gpu_directs == xyes; then
 	AC_MSG_CHECKING([number of GPUs])
@@ -232,6 +235,7 @@ echo "Maximum source length:           $with_max_source_length"
 echo "Threaded IO:                     $enable_threaded_io"
 echo "Direct buffers-per-device:       $with_direct_bpd"
 echo "GPU directs:                     $enable_gpu_directs"
+echo "Compute FOF-scale density:       $enable_fof_density"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Maximum GPUs:                    $with_max_gpus"
