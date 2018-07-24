@@ -140,7 +140,6 @@ public:
     int MinL1HaloNP; // minimum L1 halo size to output
 	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
     double HaloTaggableFraction; // fraction of particles in a L2 halo to tag and output
-    double DensityKernelRad2;	// The square radius to be used in the direct engine when computing the density kernel.  This is supposed to be the L0 FOF radius squared, in code units
 
     double MicrostepTimeStep; // Timestep parameter that controls microstep refinement
 
@@ -314,9 +313,7 @@ public:
         FoFLinkingLength[0] = .25;
         FoFLinkingLength[1] = .186;
         FoFLinkingLength[2] = .138;
-	DensityKernelRad2 = 0.0;
         installvector("FoFLinkingLength",FoFLinkingLength,3,1,DONT_CARE);
-        installscalar("DensityKernelRad2",DensityKernelRad2, DONT_CARE);
         MinL1HaloNP = 10;
         installscalar("MinL1HaloNP", MinL1HaloNP, DONT_CARE);
 		L1Output_dlna = .1;

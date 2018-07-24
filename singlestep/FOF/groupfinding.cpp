@@ -133,9 +133,9 @@ class GroupFindingControl {
 	 // The FOFdensities are weighted by b^2-r^2.  When integrated,
 	 // that yields a mass at unit density of 
    	 // (2/15)*4*PI*b^5*np
-	 float FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(P.DensityKernelRad2,2.5)+1e-30;
+	 float FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
 	 GLOG(0,"Maximum reported density = %f (%e in code units)\n", maxFOFdensity/FOFunitdensity, maxFOFdensity);
-	 meanFOFdensity /= P.np-P.DensityKernelRad2;
+	 meanFOFdensity /= P.np-WriteState.DensityKernelRad2;
 	 GLOG(0,"Mean reported non-self density = %f (%e in code units)\n", meanFOFdensity/FOFunitdensity, meanFOFdensity);
 	 GLOG(0,"Found %d cell groups (including boundary singlets)\n", CGtot);
 	 GLOG(0,"Used %d pseudoParticles, %d faceParticles, %d faceGroups\n",
@@ -217,6 +217,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     uint64 _CGactive = 0; 
     float _maxFOFdensity = 0.0;
     double _meanFOFdensity = 0.0;
+    FLOAT DensityKernelRad2 = WriteState.DensityKernelRad2;
     #pragma omp parallel for schedule(dynamic,1) reduction(+:_CGactive) reduction(max:_maxFOFdensity) reduction(+:_meanFOFdensity)
     for (int j=0; j<cpd; j++) {
 	float *aligned;
@@ -229,14 +230,14 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 
 	    int active_particles = c.count();
 	    #ifdef COMPUTE_FOF_DENSITY
-	    if (P.DensityKernelRad2>0) {
+	    if (DensityKernelRad2>0) {
 	        // The FOF-scale density is in acc.w.  
 		// All zeros cannot be in groups, partition them to the end
 		for (int p=0; p<active_particles; p++) {
 		    _meanFOFdensity += c.acc[p].w;
 			// This will be the mean over all particles, not just
 			// the active ones
-		    if (c.acc[p].w>P.DensityKernelRad2) {
+		    if (c.acc[p].w>DensityKernelRad2) {
 			// Active particle; retain and accumulate stats
 			_maxFOFdensity=std::max(_maxFOFdensity, c.acc[p].w);
 		    } else {

@@ -289,7 +289,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             int kh = SplitPoint[n];
             // The construction and execution are timed internally in each SIC then reduced in Finalize(slab)
             SlabInteractionCollections[slabID][w*NSplit + n] = 
-                new SetInteractionCollection(slabID,w,kl,kh,P.DensityKernelRad2);
+                new SetInteractionCollection(slabID,w,kl,kh,WriteState.DensityKernelRad2);
             
             // Check that we have enough blocks
             int NSinkBlocks = SlabInteractionCollections[slabID][w*NSplit + n]->NSinkBlocks;

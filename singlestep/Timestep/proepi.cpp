@@ -207,7 +207,7 @@ void Prologue(Parameters &P, bool ic) {
     STDLOG(0,"Setting RamDisk == %d\n", P.RamDisk);
     IO_Initialize(logfn);
 
-    P.DensityKernelRad2 = 0.0;   // Don't compute densities
+    WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities
 
     if(!ic) {
             // ReadMaxCellSize(P);
@@ -230,8 +230,8 @@ void Prologue(Parameters &P, bool ic) {
                                           P.cpd, PP->invcpd, P.GroupRadius, P.MinL1HaloNP, P.np);
 	    #ifdef COMPUTE_FOF_DENSITY
 	    #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
-		P.DensityKernelRad2 = GFC->linking_length;
-		P.DensityKernelRad2 *= P.DensityKernelRad2*(1.0+1.0e-6); 
+		WriteState.DensityKernelRad2 = GFC->linking_length;
+		WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5); 
 		// We use square radii.  The radius is padded just a little
 		// bit so we don't risk underflow with 1 particle at r=b
 		// in comparison to the self-count.
@@ -243,7 +243,7 @@ void Prologue(Parameters &P, bool ic) {
             RL = NULL;
             JJ = NULL;
     }
-    STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", P.DensityKernelRad2, sqrt(P.DensityKernelRad2)*pow(P.np,1./3.));
+    STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
 
     prologue.Stop();
     STDLOG(1,"Leaving Prologue()\n");
