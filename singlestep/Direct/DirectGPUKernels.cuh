@@ -12,7 +12,7 @@ __device__ __inline__ void direct(
     drz = sourcez - sinkz;
 
     rinv = drx*drx + dry*dry + drz*drz;
-    if (rinv<b2) { aw = aw+b2-rinv; }
+    if (rinv<b2) if (rinv>(FLOAT)1e-30) { aw = aw+b2-rinv; }
     rinv = RSQRT( rinv );
     if(R <= 1){
         u = eps_inv/rinv;
@@ -54,8 +54,9 @@ __device__ __inline__ void direct(
     dy = sourcey - sinky;
     dz = sourcez - sinkz;
     
-    dr2 = (dx*dx + dy*dy + dz*dz)*inv_eps2 + (FLOAT)1e-32;
-    if (dr2<b2) { aw = aw+ b2-dr2; }
+    dr2 = (dx*dx + dy*dy + dz*dz);
+    if (dr2<b2) if (dr2>(FLOAT)1e-30) { aw = aw+ b2-dr2; }
+    dr2 = dr2*inv_eps2+(FLOAT)1e-32;
     f = RSQRT(dr2);
     
     if(R <= 1){
@@ -87,7 +88,7 @@ __device__ __inline__ void direct(
     drz = sourcez - sinkz;
 
     r = drx*drx + dry*dry + drz*drz;
-    if (r<b2) { aw = aw+ b2-r; }
+    if (r<b2) if (r>(FLOAT)1e-30) { aw = aw+ b2-r; }
     r += TAU2;
     r *= r*RSQRT(r);  //r^3
 
@@ -114,7 +115,7 @@ __device__ __inline__ void direct(
     drz = sourcez - sinkz;
 
     r = drx*drx + dry*dry + drz*drz;
-    if (r<b2) { aw = aw+ b2-r; }
+    if (r<b2) if (r>(FLOAT)1e-30) { aw = aw+ b2-r; }
     r += eps2;
 
     r = RSQRT(r);
