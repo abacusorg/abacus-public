@@ -135,8 +135,8 @@ class GroupFindingControl {
    	 // (2/15)*4*PI*b^5*np
 	 float FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(P.DensityKernelRad2,2.5)+1e-30;
 	 GLOG(0,"Maximum reported density = %f (%e in code units)\n", maxFOFdensity/FOFunitdensity, maxFOFdensity);
-	 meanFOFdensity /= P.np;
-	 GLOG(0,"Mean reported density = %f (%e in code units)\n", meanFOFdensity/FOFunitdensity, meanFOFdensity);
+	 meanFOFdensity /= P.np-P.DensityKernelRad2;
+	 GLOG(0,"Mean reported non-self density = %f (%e in code units)\n", meanFOFdensity/FOFunitdensity, meanFOFdensity);
 	 GLOG(0,"Found %d cell groups (including boundary singlets)\n", CGtot);
 	 GLOG(0,"Used %d pseudoParticles, %d faceParticles, %d faceGroups\n",
 	     pPtot, fPtot, fGtot);
