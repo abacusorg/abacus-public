@@ -162,8 +162,28 @@ void NearForceAction(int slab) {
         // We want to output the AccSlab to the NearAcc file.
         // This must be a blocking write.
         JJ->Finalize(slab);
+
+#ifdef DIRECTSINGLESPLINE
+        // Single spline requires a prefactor multiplication, which we defer to the kick for efficiency
+        // But analysis routines that use ForceOutputDebug, like Ewald, expect this prefactor to already be applied
+        // So apply it here, storing the original in a temporary copy
+        uint64 npslab = Slab->size(slab);
+        accstruct *nearacctmp = new accstruct[npslab];
+        accstruct *nearacc = (accstruct *) LBW->ReturnIDPtr(NearAccSlab, slab);
+        memcpy(nearacctmp, nearacc, npslab*sizeof(accstruct));
+        FLOAT inv_eps3 = 1./(JJ->SofteningLengthInternal*JJ->SofteningLengthInternal*JJ->SofteningLengthInternal);
+        for(int i = 0; i < npslab; i++)
+            nearacc[i] *= inv_eps3;
+#endif
         LBW->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
         LBW->WriteSlabDescriptorName(NearAccSlab,slab).c_str());
+
+#ifdef DIRECTSINGLESPLINE
+        // restore the original
+        memcpy(nearacc, nearacctmp, npslab*sizeof(accstruct));
+        delete[] nearacctmp;
+#endif
+
     }
 }
 
