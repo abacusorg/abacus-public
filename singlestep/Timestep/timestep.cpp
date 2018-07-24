@@ -169,7 +169,7 @@ void NearForceAction(int slab) {
         // So apply it here, storing the original in a temporary copy
         uint64 npslab = Slab->size(slab);
         accstruct *nearacctmp = new accstruct[npslab];
-        accstruct *nearacc = (accstruct *) LBW->ReturnIDPtr(NearAccSlab, slab);
+        accstruct *nearacc = (accstruct *) LBW->ReturnIDPtr(AccSlab, slab);
         memcpy(nearacctmp, nearacc, npslab*sizeof(accstruct));
         FLOAT inv_eps3 = 1./(JJ->SofteningLengthInternal*JJ->SofteningLengthInternal*JJ->SofteningLengthInternal);
         for(int i = 0; i < npslab; i++)

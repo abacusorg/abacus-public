@@ -140,7 +140,7 @@ public:
     int MinL1HaloNP; // minimum L1 halo size to output
 	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
     double HaloTaggableFraction; // fraction of particles in a L2 halo to tag and output
-    double DensityKernelRad2;	// The square radius to be used in the direct engine when computing the density kernel.  This is supposed to be the L0 FOF radius squared, in code units
+    FLOAT DensityKernelRad2;	// The square radius to be used in the direct engine when computing the density kernel.  This is supposed to be the L0 FOF radius squared, in code units
 
     double MicrostepTimeStep; // Timestep parameter that controls microstep refinement
 

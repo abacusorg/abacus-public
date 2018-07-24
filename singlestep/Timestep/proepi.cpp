@@ -231,7 +231,7 @@ void Prologue(Parameters &P, bool ic) {
 	    #ifdef COMPUTE_FOF_DENSITY
 	    #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
 		P.DensityKernelRad2 = GFC->linking_length;
-		P.DensityKernelRad2 *= P.DensityKernelRad2*(1.0+1.0e-6); 
+		P.DensityKernelRad2 *= P.DensityKernelRad2*(1.0+1.0e-6);
 		// We use square radii.  The radius is padded just a little
 		// bit so we don't risk underflow with 1 particle at r=b
 		// in comparison to the self-count.

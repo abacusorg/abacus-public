@@ -161,7 +161,7 @@ AC_ARG_ENABLE(fof_density,
 [AS_HELP_STRING([--enable-fof-density], [Compute FOF-scale density [yes]])],
 	[], enable_fof_density="yes")
 if test x$enable_fof_density == xyes; then
-	AC_DEFINE_UNQUOTED(COMPUTE_FOF_DENSITY, [], "Compute FOF-scale density on the GPU, used to accelerate the L0 FOF computation and seed the L1/L2 halo finding.")
+	AC_DEFINE_UNQUOTED(COMPUTE_FOF_DENSITY, [], "Compute FOF-scale density on the GPU, used to accelerate the L0 FOF computation and seed the L1/L2 halo finding.  This promotes FLOAT3 accelerations to FLOAT4.")
 fi
 
 # Get the number of GPUs
