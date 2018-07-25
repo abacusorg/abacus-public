@@ -483,9 +483,10 @@ class CoaddPlan {
     }
     inline void execute() {
 	if(qinitialize) {
-	    #pragma simd assert
-	    for(int p = 0; p <np; p++)
-		to[p] = from[p];
+	    memcpy(to, from, np*sizeof(accstruct));
+	    // #pragma simd assert
+	    // for(int p = 0; p <np; p++)
+		// to[p] = from[p];
 	} else {
 	    #pragma simd assert
 	    for(int p = 0; p <np; p++)
