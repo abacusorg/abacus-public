@@ -468,9 +468,9 @@ class CoaddPlan {
     int qinitialize;   // =1 if one is setting the value, =0 if coadding
     CoaddPlan() { }
     ~CoaddPlan() { }
-    inline void plancopy(accstruct *_to, accstruct *_from, 
+    inline void plan(accstruct *_to, accstruct *_from, 
     			int _np, int _qinitialize) {
-	to = _to; from = _from; np = _np; qinitialize = _qinitialize);
+	to = _to; from = _from; np = _np; qinitialize = _qinitialize;
     }
     inline void execute() {
 	if(qinitialize) {
@@ -479,7 +479,7 @@ class CoaddPlan {
 		to[p] = from[p];
 	} else {
 	    #pragma simd assert
-	    for(int p = 0; p <CellNP; p++)
+	    for(int p = 0; p <np; p++)
 		to[p] += from[p];
 	}
     }
@@ -589,7 +589,7 @@ void NearFieldDriver::Finalize(int slab){
         }
         for (int w=0; w<width; w++)
             assertf(theseSlices[w] != NULL, "We failed to find all z-registrations");
-	CopyPlan copyplan[cpd*(2*nfr+1)];
+	CoaddPlan copyplan[cpd*(2*nfr+1)];
 	int nplan = 0;
 
         // We're going to set the acceleration the first time we encounter
