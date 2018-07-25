@@ -104,6 +104,7 @@ class NearFieldDriver{
         STimer CopyPencilToSlab;
         PTimer CopyPencilToSlabSetup;
         PTimer CopyPencilToSlabCopy;
+        STimer TearDownPencils;
         STimer ZeroAccel;
 
     private:
@@ -746,14 +747,16 @@ void NearFieldDriver::Finalize(int slab){
         delete Slice;
     }*/
 
+    CopyPencilToSlab.Stop();
+
     // Do a final pass to delete all slices
     // TODO: can this be done inline above?
+    TearDownPencils.Start();
     for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
         SetInteractionCollection *Slice = Slices[sliceIdx];
         delete Slice;
     }
-
-    CopyPencilToSlab.Stop();
+    TearDownPencils.Stop();
     
     delete[] Slices;
     if(P.ForceOutputDebug) CheckGPUCPU(slab);

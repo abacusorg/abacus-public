@@ -399,7 +399,9 @@ void ReportTimings(FILE * timingfile) {
         REPORT(1, "Finalize accelerations", JJ->FinalizeTimer.Elapsed());
         denom = thistime;
         REPORT(2, "Bookkeeping/Fetch Timings", JJ->FinalizeBookkeeping.Elapsed());
+        REPORT(2, "Tear Down Pencil Sets", JJ->TearDownPencils.Elapsed());
         REPORT(2, "Copy Pencil to Slab", JJ->CopyPencilToSlab.Elapsed());
+        denom = thistime;
 	REPORT(3, "Copy Pencil to Slab Setup (P)", JJ->CopyPencilToSlabSetup.Elapsed());
 	REPORT(3, "Copy Pencil to Slab Copy  (P)", JJ->CopyPencilToSlabCopy.Elapsed());
     }
