@@ -457,6 +457,34 @@ int NearFieldDriver::SlabDone(int slab){
     return 1;
 }
 
+
+
+class CoaddPlan {
+  // This is a simple class to queue up a list of copies so they can be
+  // executed quickly.
+  public:
+    accstruct *to, *from;
+    int np;
+    int qinitialize;   // =1 if one is setting the value, =0 if coadding
+    CoaddPlan() { }
+    ~CoaddPlan() { }
+    inline void plancopy(accstruct *_to, accstruct *_from, 
+    			int _np, int _qinitialize) {
+	to = _to; from = _from; np = _np; qinitialize = _qinitialize);
+    }
+    inline void execute() {
+	if(qinitialize) {
+	    #pragma simd assert
+	    for(int p = 0; p <np; p++)
+		to[p] = from[p];
+	} else {
+	    #pragma simd assert
+	    for(int p = 0; p <CellNP; p++)
+		to[p] += from[p];
+	}
+    }
+};
+
 void NearFieldDriver::Finalize(int slab){
     FinalizeTimer.Start();
     slab = PP->WrapSlab(slab);
@@ -561,6 +589,8 @@ void NearFieldDriver::Finalize(int slab){
         }
         for (int w=0; w<width; w++)
             assertf(theseSlices[w] != NULL, "We failed to find all z-registrations");
+	CopyPlan copyplan[cpd*(2*nfr+1)];
+	int nplan = 0;
 
         // We're going to set the acceleration the first time we encounter
         // a cell.  The cells are encountered in z order, starting from 
@@ -609,13 +639,15 @@ void NearFieldDriver::Finalize(int slab){
                 // Set when this is the first touch; accumulate otherwise
                 if(z==firsttouch && z<cpd){
                     firsttouch++;
-                    #pragma simd assert
-                    for(int p = 0; p <CellNP; p++)
-                        a[p] = Slice->SinkSetAccelerations[Start +p];
+		    copyplan[nplan++].plan(a, Slice->SinkSetAccelerations+Start, CellNP, 1);
+                    // #pragma simd assert
+                    // for(int p = 0; p <CellNP; p++)
+                        // a[p] = Slice->SinkSetAccelerations[Start +p];
                 } else {
-                    #pragma simd assert
-                    for(int p = 0; p <CellNP; p++)
-                        a[p] += Slice->SinkSetAccelerations[Start +p];
+		    copyplan[nplan++].plan(a, Slice->SinkSetAccelerations+Start, CellNP, 0);
+                    // #pragma simd assert
+                    // for(int p = 0; p <CellNP; p++)
+                        // a[p] += Slice->SinkSetAccelerations[Start +p];
                 }
 
                 Start+=CellNP;
@@ -623,6 +655,7 @@ void NearFieldDriver::Finalize(int slab){
             }
             assert(SinkCount == 0);
         }
+	for (int p=0; p<nplan; p++) copyplan[p].execute();
     }
 
     // ********************************************************************* old code //
