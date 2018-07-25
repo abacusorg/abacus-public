@@ -472,6 +472,15 @@ class CoaddPlan {
     			int _np, int _qinitialize) {
 	to = _to; from = _from; np = _np; qinitialize = _qinitialize;
     }
+    inline int append(CoaddPlan &next) {
+	// Consider whether next could be simply appended to this.
+	// Return 0 if successful, 1 if not.
+	if (qinitialize==next.qinitialize &&
+	    from+np == next.from && 
+	    to+np == next.to) {
+	    np += next.np; return 0;
+        } else return 1;
+    }
     inline void execute() {
 	if(qinitialize) {
 	    #pragma simd assert
@@ -644,7 +653,11 @@ void NearFieldDriver::Finalize(int slab){
                     // for(int p = 0; p <CellNP; p++)
                         // a[p] = Slice->SinkSetAccelerations[Start +p];
                 } else {
-		    copyplan[nplan++].plan(a, Slice->SinkSetAccelerations+Start, CellNP, 0);
+		    copyplan[nplan].plan(a, Slice->SinkSetAccelerations+Start, CellNP, 0);
+		    // We attempt to concatentate this one to the previous.
+		    // nplan=0 always went to the initialization branch, so
+		    // there's no risk that nplan-1 is illegal.
+		    if (copyplan[nplan-1].append(copyplan[nplan])) nplan++;
                     // #pragma simd assert
                     // for(int p = 0; p <CellNP; p++)
                         // a[p] += Slice->SinkSetAccelerations[Start +p];
