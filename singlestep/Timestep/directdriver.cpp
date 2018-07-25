@@ -102,6 +102,8 @@ class NearFieldDriver{
         STimer FinalizeTimer;
         STimer FinalizeBookkeeping;
         STimer CopyPencilToSlab;
+        PTimer CopyPencilToSlabSetup;
+        PTimer CopyPencilToSlabCopy;
         STimer ZeroAccel;
 
     private:
@@ -583,6 +585,7 @@ void NearFieldDriver::Finalize(int slab){
     for (int k=0; k<cpd; k++) {
         // We're going to find all the Sets associated with this row.
         // There are WIDTH of them, one for each z registration
+	CopyPencilToSlabSetup.Start();
         SetInteractionCollection *theseSlices[WIDTH];
         for (int w=0; w<WIDTH; w++)
             theseSlices[w] = NULL;
@@ -669,7 +672,10 @@ void NearFieldDriver::Finalize(int slab){
             }
             assert(SinkCount == 0);
         }
+	CopyPencilToSlabSetup.Stop();
+	CopyPencilToSlabCopy.Start();
 	for (int p=0; p<nplan; p++) copyplan[p].execute();
+	CopyPencilToSlabCopy.Stop();
     }
 
     // ********************************************************************* old code //

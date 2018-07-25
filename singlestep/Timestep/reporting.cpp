@@ -400,6 +400,8 @@ void ReportTimings(FILE * timingfile) {
         denom = thistime;
         REPORT(2, "Bookkeeping/Fetch Timings", JJ->FinalizeBookkeeping.Elapsed());
         REPORT(2, "Copy Pencil to Slab", JJ->CopyPencilToSlab.Elapsed());
+	REPORT(3, "Copy Pencil to Slab Setup (P)", JJ->CopyPencilToSlabSetup.Elapsed());
+	REPORT(3, "Copy Pencil to Slab Copy  (P)", JJ->CopyPencilToSlabCopy.Elapsed());
     }
     denom = Kick.Elapsed();
     REPORT(1, "Add Near + Far Accel", AddAccel.Elapsed());
@@ -477,6 +479,7 @@ void ReportTimings(FILE * timingfile) {
     denom = TimeStepWallClock.Elapsed();
     REPORT(0, "\nAllocate Arena Memory", LBW->ArenaMalloc.Elapsed());
     REPORT(0, "Free Arena Memory", LBW->ArenaFreeTime());
+    REPORT(0, "Free SlabAccum Variables", SlabAccumFree.Elapsed());
     
     fprintf(timingfile, "\n\n Reasons for Spinning:");
     fprintf(timingfile, "\n\t Note: may add up to >100%% if there are multiple simultaneous reasons for spinning");

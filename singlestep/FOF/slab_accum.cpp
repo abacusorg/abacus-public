@@ -44,6 +44,7 @@ which is useful for indexing the contiguous buffer..
 
 #ifdef TEST
 #include "test_driver_header.cpp"
+STimer SlabAccumFree;
 #endif
 
 // -----------------------------------------------------------------
@@ -296,6 +297,7 @@ class SlabAccum {
 	buffers = NULL; maxthreads = 0;
     }
     void destroy() {
+	SlabAccumFree.Start();
 	if (cells!=NULL) free(cells); cells = NULL;
 	if (pencils!=NULL) free(pencils); pencils = NULL;
 	if (pstart!=NULL) free(pstart); pstart = NULL;
@@ -307,6 +309,7 @@ class SlabAccum {
 	}
 	buffers = NULL;
 	cpd = maxthreads = 0;
+	SlabAccumFree.Stop();
     }
     ~SlabAccum<T>() {
 	destroy();

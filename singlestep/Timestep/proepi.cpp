@@ -70,6 +70,8 @@ STimer WallClockDirect;
 STimer SingleStepSetup;
 STimer SingleStepTearDown;
 
+STimer SlabAccumFree;
+
 uint64 naive_directinteractions = 0;    
 //********************************************************************************
 
