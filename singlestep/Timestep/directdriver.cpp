@@ -516,6 +516,7 @@ void NearFieldDriver::Finalize(int slab){
     SetInteractionCollection ** Slices = SlabInteractionCollections[slab];
     int NSplit = SlabNSplit[slab];
 
+    // TODO: Remove these
     int cpd = P.cpd;
     int nfr = P.NearFieldRadius;
     int width = 2*nfr +1;
@@ -571,12 +572,12 @@ void NearFieldDriver::Finalize(int slab){
 
     // Compute the Number of j's in each registration
     // This is the same for all y rows (k's).
-    int Nj[WIDTH];
-    for (int w=0; w<WIDTH; w++) {
-        Nj[w] = (cpd - w)/WIDTH;
-        if(Nj[w] * WIDTH + w < cpd)
-            Nj[w]++;
-    }
+    /// int Nj[WIDTH];
+    /// for (int w=0; w<WIDTH; w++) {
+        /// Nj[w] = (cpd - w)/WIDTH;
+        /// if(Nj[w] * WIDTH + w < cpd)
+            /// Nj[w]++;
+    /// }
     // TODO: It's weird that Nj requires computation instead of being
     // stored in the SetInteractionCollection class.  Indeed, shouldn't
     // the class have methods to compute the index number from (y,z)
@@ -596,9 +597,9 @@ void NearFieldDriver::Finalize(int slab){
             if (k >= Slices[sliceIdx]->K_low && k < Slices[sliceIdx]->K_high) {
                // We've found a Slice.
                // Compute which z-registration this is.
-               int w = sliceIdx/NSplit; 
+               /// int w = sliceIdx/NSplit; 
                // TODO: Again, why is this not a part of the SetInteractionCollection?
-               theseSlices[w] = Slices[sliceIdx];
+               theseSlices[Slices[sliceIdx].W] = Slices[sliceIdx];
             }
         }
         for (int w=0; w<width; w++)
