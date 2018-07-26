@@ -640,6 +640,7 @@ SWIG
 AR
 YACC
 LEX
+TCMALLOC
 INSTALL_DATA
 INSTALL_SCRIPT
 INSTALL_PROGRAM
@@ -4373,6 +4374,12 @@ $as_echo "$as_me: WARNING: unable to find tcmalloc!" >&2;}
 fi
 
 #AC_SEARCH_LIBS(numa_max_node, [numa], [], [AC_MSG_ERROR([unable to find numa!])])
+
+
+TCMALLOC="TCMALLOC_DISABLED"
+if test x$ac_cv_lib_tcmalloc_minimal_malloc == xyes; then
+    TCMALLOC="TCMALLOC_ENABLED"
+fi
 
 # Check for some utilities we use
 for ac_prog in flex
