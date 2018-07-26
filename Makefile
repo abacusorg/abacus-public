@@ -10,6 +10,13 @@ CreateDerivatives:
 
 libparseheader.a:
 	cd ParseHeader && $(MAKE) $@
+
+tcmalloc: gperftools/lib/libtcmalloc_minimal.so
+gperftools/lib/libtcmalloc_minimal.so:
+	@echo "Building tcmalloc... this will only be done once"
+	@cd gperftools && \
+	./configure --enable-minimal --prefix=$(shell pwd)/gperftools > /dev/null && \
+	make > /dev/null && make install > /dev/null
 	
 clean:
 	cd ParseHeader && $(MAKE) $@
@@ -71,6 +78,6 @@ dist:
 	tar -C .dist -czf abacus.tar.gz --exclude='.*' abacus
 	$(RM) -rf .dist
 	
-.PHONY:all clean distclean zeldovich util tests analysis singlestep dist AbacusCosmo clibs ConvolutionDriver
+.PHONY:all clean distclean zeldovich util tests analysis singlestep dist AbacusCosmo clibs ConvolutionDriver tcmalloc
 
 -include $(CC_SRC:.cpp=.d)

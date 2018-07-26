@@ -36,12 +36,17 @@ m4_include(Configuration/m4/ax_gcc_x86_avx_xgetbv.m4)
 m4_include(Configuration/m4/ax_gcc_x86_cpuid.m4)
 m4_include(Configuration/m4/ax_ext.m4)
 
+# Calling make from configure... pretty sketchy!
+# But we want tcmalloc to be available for configure to find
+# This will only be run if libtcmalloc isn't already present
+make --quiet tcmalloc
+
 # These will automatically add the appropriate -L and -l flags to LIBS
 AC_SEARCH_LIBS([cos],[m])
 AC_SEARCH_LIBS(cblas_dgemm, [gslcblas], [], [AC_MSG_ERROR([unable to find gslcblas!])])
 AC_SEARCH_LIBS(gsl_rng_uniform, [gsl], [], [AC_MSG_ERROR([unable to find gsl!])])
 AC_SEARCH_LIBS(ITT_DoOneTimeInitialization, [tbb], [], [AC_MSG_ERROR([unable to find tbb!])])
-AC_CHECK_LIB(tcmalloc, malloc, [], [AC_MSG_WARN([unable to find tcmalloc!])])
+AC_CHECK_LIB(tcmalloc_minimal, malloc, [], [AC_MSG_WARN([unable to find tcmalloc!])])
 #AC_SEARCH_LIBS(numa_max_node, [numa], [], [AC_MSG_ERROR([unable to find numa!])])
 
 # Check for some utilities we use
