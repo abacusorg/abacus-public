@@ -4363,8 +4363,8 @@ _ACEOF
   LIBS="-ltcmalloc $LIBS"
 
 else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to find tbb!" >&5
-$as_echo "$as_me: WARNING: unable to find tbb!" >&2;}
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to find tcmalloc!" >&5
+$as_echo "$as_me: WARNING: unable to find tcmalloc!" >&2;}
 fi
 
 #AC_SEARCH_LIBS(numa_max_node, [numa], [], [AC_MSG_ERROR([unable to find numa!])])
