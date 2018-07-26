@@ -516,7 +516,6 @@ void NearFieldDriver::Finalize(int slab){
     SetInteractionCollection ** Slices = SlabInteractionCollections[slab];
     int NSplit = SlabNSplit[slab];
 
-    // TODO: Remove these
     int cpd = P.cpd;
     int nfr = P.NearFieldRadius;
     int width = 2*nfr +1;
@@ -599,7 +598,7 @@ void NearFieldDriver::Finalize(int slab){
                // Compute which z-registration this is.
                /// int w = sliceIdx/NSplit; 
                // TODO: Again, why is this not a part of the SetInteractionCollection?
-               theseSlices[Slices[sliceIdx].W] = Slices[sliceIdx];
+               theseSlices[Slices[sliceIdx]->W] = Slices[sliceIdx];
             }
         }
         for (int w=0; w<width; w++)
@@ -616,16 +615,16 @@ void NearFieldDriver::Finalize(int slab){
         // Now we're going to proceed through the pencils
         for (int jj=0; jj<cpd; jj++) {
             int w = jj%width;   // This is which registration we're in
-            int j = (jj-w)/width;
             SetInteractionCollection *Slice = theseSlices[w];
-            int sinkIdx = (k - Slice->K_low)*Nj[w] + j;
+            int j = (jj-Slice->W)/Slice->width;
+            int sinkIdx = (k - Slice->K_low)*Slice->Nj + j;
 
             // And now we can continue with the previous stuff
             int SinkCount = Slice->SinkSetCount[sinkIdx];
-            int zmid = PP->WrapSlab(jj + P.NearFieldRadius);
+            int zmid = PP->WrapSlab(jj + Slice->nfradius);
             int Start = Slice->SinkSetStart[sinkIdx];
 
-            for(int z=zmid-nfr; z <= zmid+nfr; z++){
+            for(int z=zmid-Slice->nfradius; z <= zmid+Slice->nfradius; z++){
                 int CellNP = PP->NumberParticle(slab,k,z);
                 accstruct *a = PP->NearAccCell(slab,k,z);
 
