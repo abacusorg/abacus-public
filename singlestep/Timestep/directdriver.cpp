@@ -635,6 +635,7 @@ void NearFieldDriver::Finalize(int slab){
                         assert(isfinite(Slice->SinkSetAccelerations[Start +p].z));
                     }
 
+                    /* // Can't do this check before executing coadd plan
                     if(z==firsttouch && z<cpd){
                         for(int p = 0; p <CellNP; p++){
                             assert(!isfinite(a[p].x));
@@ -647,7 +648,7 @@ void NearFieldDriver::Finalize(int slab){
                             assert(isfinite(a[p].y));
                             assert(isfinite(a[p].z));
                         }
-                    }
+                    }*/
                 }
 
                 // Set when this is the first touch; accumulate otherwise
