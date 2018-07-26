@@ -74,7 +74,7 @@ dist:
 # Usually you do not need to invoke the following directly; it is used by ./configure
 tcmalloc: gperftools/lib/libtcmalloc_minimal.so
 gperftools/lib/libtcmalloc_minimal.so:
-	@echo "Building tcmalloc... this will only be done once"
+	@echo "Building tcmalloc... this may take a minute but will only be done once"
 	@cd gperftools && \
 	./configure --enable-minimal --prefix=$(shell pwd)/gperftools > /dev/null && \
 	make > /dev/null && make install > /dev/null
