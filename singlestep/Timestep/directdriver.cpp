@@ -183,26 +183,14 @@ NearFieldDriver::NearFieldDriver() :
 
     STDLOG(1, "Using %f GB of GPU memory (per GPU thread)\n", GPUMemoryGB);
 
-
-    /// size_t BlockSizeBytes = sizeof(FLOAT) *3 * NFBlockSize;
-    /// MaxSinkBlocks = floor(1e9 * GPUMemoryGB/(6*BlockSizeBytes));
-    /// MaxSourceBlocks = WIDTH * MaxSinkBlocks;
-    
-    // We want to compute maxkwidth for GPUSetup
-    // maxkwidth will occur when we have the fewest splits
-
     // TODO: Not sure what this logic is good for
     // The fewest splits will occur when we are operating on the smallest slabs
     MinSplits = GetNSplit(WIDTH*Slab->min, Slab->min);
     //TODO: this fudge factor fails sometimes (e.g. Ewald test for CPD 131).  What's the right way to compute this?
     MinSplits = (int) max(1.,floor(.8*MinSplits));  // fudge factor to account for uneven slabs
-    // This may not account for unequal splits, though.  Unless we really need to save GPU memory, just use maxkwidth=cpd
-    //MinSplits = 1;
     STDLOG(1,"MinSplits = %d\n", MinSplits);
     if(MinSplits*WIDTH < omp_get_num_threads())
         STDLOG(1, "*** WARNING: MinSplits*WIDTH is less than the number of threads! Finalize() might be inefficient\n");
-
-    /// GPUSetup(P.cpd, std::ceil(1.*P.cpd/MinSplits), NGPU, DirectBPD, P.GPUThreadCoreStart, P.NGPUThreadCores, &MaxSinkBlocks, &MaxSourceBlocks);
 
     GPUSetup(P.cpd, 1.0e9*GPUMemoryGB, NGPU, DirectBPD, P.GPUThreadCoreStart, P.NGPUThreadCores, &MaxSinkBlocks, &MaxSourceBlocks);
     STDLOG(1,"Initializing GPU with %f x10^6 sink blocks and %f x10^6 source blocks\n",

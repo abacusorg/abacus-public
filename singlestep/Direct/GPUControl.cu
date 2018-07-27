@@ -288,32 +288,6 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     // will have led to a MaxNSink that is > CPD**2.
 
 
-/* 
-extern "C" void GPUSetup(int cpd, int maxkwidth, int maxsinkblocks, int maxsourceblocks, int bufferperdevice, int *ThreadCoreStart, int NThreadCores){
-
-    if (init != 0) return;
-    
-    MaxSinkBlocks = maxsinkblocks;
-    MaxSourceBlocks = maxsourceblocks;
-    NGPU = GetNGPU();
-    BPD = bufferperdevice;
-    int NBuf = BPD*NGPU;
-    char logstr[1024];
-
-    int Nj = cpd/WIDTH;
-    int jr = cpd%WIDTH;
-    Nj+= jr&&jr;
-    MaxNSink = Nj*maxkwidth;
-    MaxNSource = Nj*(maxkwidth + WIDTH);
-    MaxSinkSize     = NFBlockSize * MaxSinkBlocks;
-    MaxSourceSize   = NFBlockSize * MaxSourceBlocks;
-
-    // TODO: This likely needs more work; probably out of tune
-    // with the other heuristic maxima in directdriver.cpp.
-    // This will likely cause crashes on big problems.
-    uint64 MaxBufferSize = GetDeviceMemory()*1e9/BPD;
-*/
-
     DeviceStreams = new cudaStream_t[NBuf];
     Buffers = new GPUBuffer[NBuf];
     DeviceThread = new pthread_t[NBuf];
