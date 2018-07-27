@@ -137,8 +137,9 @@ void NearFieldDriver::CheckInteractionList(int slab){
     //check number of interactions
     for(int i = 0; i < P.cpd*P.cpd; i++){
         if (il[i]->size() != WIDTH*WIDTH*WIDTH){
-            printf("Error: cell %d has %lld =/= %lld interactions\n",i,il[i]->size(),WIDTH*WIDTH*WIDTH);
-            assert(il[i]->size() == WIDTH*WIDTH*WIDTH);
+            assertf(il[i]->size() == WIDTH*WIDTH*WIDTH,
+            "Error: cell %d has %ld =/= %d interactions\n",
+	    i,il[i]->size(),WIDTH*WIDTH*WIDTH);
         }
     }
 

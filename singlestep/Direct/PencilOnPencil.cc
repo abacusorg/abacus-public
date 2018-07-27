@@ -89,7 +89,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     assertf(NSourceSets <= MaxNSource, "NSourceSets (%d) larger than allocated space (MaxNSource = %d)\n", NSourceSets, MaxNSource);
     assertf(NSourceSets <= P.cpd*(P.cpd+nfwidth), "NSourceSets (%d) exceeds SourceSet array allocation (%d)\n", NSourceSets, P.cpd*(P.cpd+nfwidth));
     
-    assert(posix_memalign((void **) &SourceSetStart, 4096, sizeof(int) * NSourceSets) == 0);  // can this be of size NSourceSets?
+    assert(posix_memalign((void **) &SourceSetStart, 4096, sizeof(int) * NSourceSets) == 0);  
     assert(posix_memalign((void **) &SourceSetCount, 4096, sizeof(int) * NSourceSets) == 0);
     assert(posix_memalign((void **) &SourcePlan, 4096, sizeof(SourcePencilPlan) * NSourceSets) == 0);
     

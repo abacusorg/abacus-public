@@ -47,7 +47,7 @@ class ilstruct {
 
     // A method for dumping ASCII
     inline void print () {
-        printf("pos: %e %e %e; vel: %e %e %e; aux: %llu; cell: %d %d %d\n", 
+        printf("pos: %e %e %e; vel: %e %e %e; aux: %lu; cell: %d %d %d\n", 
                 pos.x, pos.y, pos.z, vel.x, vel.y, vel.z, 
                 aux.aux, xyz.x, xyz.y, xyz.z);
         return  ;
@@ -159,7 +159,7 @@ public:
             integer3 c = newcell;
             printf("Trying to push a particle to slab %d from slab %d.  This is larger than FINISH_WAIT_RADIUS = %d.\n",
                 newcell.x, x, FINISH_WAIT_RADIUS);
-            printf("pos: %e %e %e; vel: %e %e %e; aux: %llu; cell: %d %d %d\n", p.x, p.y, p.z, v.x, v.y, v.z, a.aux, c.x, c.y, c.z);
+            printf("pos: %e %e %e; vel: %e %e %e; aux: %lu; cell: %d %d %d\n", p.x, p.y, p.z, v.x, v.y, v.z, a.aux, c.x, c.y, c.z);
             assertf(slab_distance <= FINISH_WAIT_RADIUS,
                 "Trying to push a particle to slab %d from slab %d.  This is larger than FINISH_WAIT_RADIUS = %d.",
                 x, newcell.x, FINISH_WAIT_RADIUS);

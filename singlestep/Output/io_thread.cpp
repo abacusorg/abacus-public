@@ -96,9 +96,9 @@ public:
         iorequest quitcmd; 
         quitcmd.command = IO_QUIT; 
         quitcmd.blocking = 1; 
-        write(io_cmd, &quitcmd, sizeof(iorequest) ); 
+        ssize_t ret = write(io_cmd, &quitcmd, sizeof(iorequest) ); 
         ioacknowledge quitcmdack; 
-        read(io_ack, &quitcmdack, sizeof(ioacknowledge) );  
+        ret = read(io_ack, &quitcmdack, sizeof(ioacknowledge) );  
         assertf(quitcmdack.command==IO_QUIT,
             "Error in IO acknowledgment\n"); 
         STDLOG(1,"Termination of IO thread confirmed\n");
@@ -115,7 +115,7 @@ public:
     }
     
     void request(iorequest ior){
-        write(io_cmd, &ior, sizeof(iorequest));
+        ssize_t ret = write(io_cmd, &ior, sizeof(iorequest));
         if (ior.blocking) {
             wait_for_ioack(io_ack, ior.arena);
             STDLOG(1,"Blocking IO returned\n");
@@ -143,13 +143,13 @@ private:
     void CrashIO() {
         IOLOG(0,"Crashing the IO thread; sending IO_ERROR to client!\n");
         ioacknowledge ioack(IO_ERROR,-1);
-        write(fifo_ack,&ioack, sizeof(ioacknowledge) );
+        ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
         pthread_exit(NULL);
     }
     
     void wait_for_ioack(int io_ack, int arena){
         ioacknowledge ioack;
-        read(io_ack, &ioack, sizeof(ioacknowledge));
+        ssize_t ret = read(io_ack, &ioack, sizeof(ioacknowledge));
         assertf(ioack.arena == arena, "Error in IO acknowledgement for arena %d = %d\n", arena, ioack.arena);
     }
 
@@ -295,7 +295,7 @@ private:
 
                 // Send an acknowledgement
                 ioacknowledge ioack(IO_WRITE,ior.arena);
-                write(fifo_ack,&ioack, sizeof(ioacknowledge) );
+                ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
                 IOLOG(1,"IO_WRITE acknowledgement sent\n");
             } else if (read_blocking.isnotempty()) {
                 IOLOG(1,"Starting blocking read\n"); 
@@ -309,7 +309,7 @@ private:
 
                 // Send an acknowledgement
                 ioacknowledge ioack(IO_READ,ior.arena);
-                write(fifo_ack,&ioack, sizeof(ioacknowledge) );
+                ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
                 IOLOG(1,"IO_READ acknowledgement sent\n");
             } else if (write_nonblocking.isnotempty()) {
                 IOLOG(1,"Starting nonblocking write\n"); 
@@ -338,7 +338,7 @@ private:
         // Signal an acknowledgement.
         IOLOG(0,"Terminating the IO thread as planned.\n");
         ioacknowledge ioack(IO_QUIT,0);
-        write(fifo_ack,&ioack, sizeof(ioacknowledge) );
+        ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
         IOLOG(0,"IO_QUIT acknowledgement sent\n");
         close(fifo_cmd);
         close(fifo_ack);
