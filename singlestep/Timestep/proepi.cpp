@@ -308,10 +308,10 @@ void Epilogue(Parameters &P, bool ic) {
     if(!ic) {
         if(0 and P.ForceOutputDebug){
             #ifdef CUDADIRECT
-            STDLOG(1,"Direct Interactions: CPU (%llu) and GPU (%llu)\n",
+            STDLOG(1,"Direct Interactions: CPU (%lu) and GPU (%lu)\n",
                         JJ->DirectInteractions_CPU,JJ->TotalDirectInteractions_GPU);
             if(!(JJ->DirectInteractions_CPU == JJ->TotalDirectInteractions_GPU)){
-                printf("Error:\n\tDirect Interactions differ between CPU (%llu) and GPU (%llu)\n",
+                printf("Error:\n\tDirect Interactions differ between CPU (%lu) and GPU (%lu)\n",
                         JJ->DirectInteractions_CPU,JJ->TotalDirectInteractions_GPU);
                 //assert(JJ->DirectInteractions_CPU == JJ->TotalDirectInteractions_GPU);
             }

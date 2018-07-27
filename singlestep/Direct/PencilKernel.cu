@@ -1,3 +1,53 @@
+// These are the GPU routines that implement the Block-on-Block computation
+
+// If the Source Block is full, then we can unroll some of the loop
+#ifndef PTXDIRECT
+__device__ inline void FullDirectTile(
+        FLOAT * source_cache_x, FLOAT * source_cache_y, FLOAT * source_cache_z,
+        FLOAT   *sinkx,     FLOAT * sinky,    FLOAT * sinkz,
+        FLOAT *ax, FLOAT *ay, FLOAT *az, FLOAT *aw,
+        FLOAT *eps, FLOAT *b2){
+
+    #pragma unroll 16
+    for(int n = 0; n <NFBlockSize;n++){
+        FLOAT sourcex = source_cache_x[n];
+        FLOAT sourcey = source_cache_y[n];
+        FLOAT sourcez = source_cache_z[n];
+        direct<0>(*sinkx,*sinky,*sinkz,
+                sourcex,sourcey,sourcez,
+                *ax,*ay,*az,*aw,*eps,*b2);
+    }
+}
+#else
+#include "ASMDirectTile.cu"
+#endif
+
+// If one doesn't have all of the sources, then one has to actually 
+// check the loop bound.
+__device__ inline void PartialDirectTile(
+        FLOAT * source_cache_x, FLOAT * source_cache_y, FLOAT * source_cache_z,
+        FLOAT  * sinkx,     FLOAT *sinky,    FLOAT *sinkz,
+        FLOAT *ax, FLOAT *ay, FLOAT *az, FLOAT *aw,
+        FLOAT *eps, FLOAT *b2, int &i){
+
+    for(int n = 0; n <i;n++){
+        FLOAT sourcex = source_cache_x[n];
+        FLOAT sourcey = source_cache_y[n];
+        FLOAT sourcez = source_cache_z[n];
+        direct<0>(*sinkx,*sinky,*sinkz,
+                sourcex,sourcey,sourcez,
+                *ax,*ay,*az,*aw,
+                *eps, *b2);
+    }
+}
+
+
+
+// ======================  ComputeDirects ======================
+
+// Here is the routine that accepts a DeviceData instance and unpacks
+// for its thread number what action should be taken.
+
 // eps may be 1/eps, eps^2, eps^3, etc, depending on the type of softening
 __global__ void ComputeDirects(DeviceData d, FLOAT eps){
 
@@ -47,7 +97,6 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
             __syncthreads();
             
             myDI += NFBlockSize;
-	    // TODO: Need to pass the 4th element in for FOF neighbor count
             FullDirectTile( SourceCacheX, SourceCacheY, SourceCacheZ,
                     &sinkX, &sinkY, &sinkZ,
                     &(a.x),&(a.y),&(a.z),&(a.w),
@@ -67,7 +116,6 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
         __syncthreads();
         
         myDI += remaining;
-	// TODO: Need to pass the 4th element in for FOF neighbor count
         PartialDirectTile(SourceCacheX, SourceCacheY, SourceCacheZ,
                 &sinkX, &sinkY, &sinkZ,
                 &(a.x),&(a.y),&(a.z),&(a.w),
@@ -81,9 +129,6 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
         assert(::isfinite(a.y));
         assert(::isfinite(a.z));
         assert(::isfinite(a.w));*/
-        //atomicAdd(&(d.SinkSetAccelerations[id].x),a.x);
-        //atomicAdd(&(d.SinkSetAccelerations[id].y),a.y);
-        //atomicAdd(&(d.SinkSetAccelerations[id].z),a.z);
         d.SinkSetAccelerations[id] = a;
         atomicAdd(&DI, myDI);
     }

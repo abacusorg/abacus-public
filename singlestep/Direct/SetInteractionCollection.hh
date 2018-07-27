@@ -83,11 +83,17 @@ class SetInteractionCollection{
 
         volatile int CompletionFlag;
 
-        int         SlabId;
-        int         W;
-        int         K_low;
-        int         K_high;
+        int         SlabId;	// The X slab number
+        int         k_mod;	// The modulus of the Z cells, range [0,nfwidth)
+	int	    Nk;		// The number of Z cells
+        int         j_low;	// The minimum sink Y
+        int         j_high;	// The maximum sink Y+1 [j_low,j_high)
+	int	    j_width;	// The number of Y cells
+
         int         cpd;
+	int 	    nfradius;	// The NearField Radius
+	int 	    nfwidth;	// The NearField Diameter (2*R+1)
+
         int         InteractionCount;//How many source cell on sink cell interactions are in this set
 
         // List3<FLOAT> *  SinkSetPositions; //Position data for particles in all sink sets in the collection
@@ -106,7 +112,7 @@ class SetInteractionCollection{
         int         NSourceSets;
 
         int *       SinkSourceInteractionList;
-		// Each SinkPencil will interact with width SourcePencil.
+		// Each SinkPencil will interact with nfwidth SourcePencil.
 		// This is where we enumerate those interactions.
         FLOAT *       SinkSourceYOffset;
 		// Each interaction requires a different Delta(y) to
@@ -138,7 +144,11 @@ class SetInteractionCollection{
 	int PaddedSourceCount(int sourceindex);
 		// Returns the padded length of the array for this pencil
 
-        SetInteractionCollection(int slab, int w, int k_low, int k_high, FLOAT _b2);
+	int index_to_zcen(int j);
+		// Returns the zcentral cell given the internal j indexing
+
+
+        SetInteractionCollection(int slab, int _kmod, int _jlow, int _jhigh, FLOAT _b2);
         ~SetInteractionCollection();
 
         //execute this collection on the GPU

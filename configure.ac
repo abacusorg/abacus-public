@@ -49,6 +49,12 @@ AC_SEARCH_LIBS(ITT_DoOneTimeInitialization, [tbb], [], [AC_MSG_ERROR([unable to 
 AC_CHECK_LIB(tcmalloc_minimal, malloc, [], [AC_MSG_WARN([unable to find tcmalloc!])])
 #AC_SEARCH_LIBS(numa_max_node, [numa], [], [AC_MSG_ERROR([unable to find numa!])])
 
+AC_SUBST(TCMALLOC)
+TCMALLOC="TCMALLOC_DISABLED"
+if test x$ac_cv_lib_tcmalloc_minimal_malloc == xyes; then
+    TCMALLOC="TCMALLOC_ENABLED"
+fi
+
 # Check for some utilities we use
 AC_CHECK_PROGS(LEX, flex)
 AC_CHECK_PROGS(YACC, bison)
