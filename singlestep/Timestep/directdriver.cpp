@@ -183,14 +183,12 @@ NearFieldDriver::NearFieldDriver() :
 
     STDLOG(1, "Using %f GB of GPU memory (per GPU thread)\n", GPUMemoryGB);
 
-    // TODO: Not sure what this logic is good for
     // The fewest splits will occur when we are operating on the smallest slabs
     MinSplits = GetNSplit(WIDTH*Slab->min, Slab->min);
-    //TODO: this fudge factor fails sometimes (e.g. Ewald test for CPD 131).  What's the right way to compute this?
-    MinSplits = (int) max(1.,floor(.8*MinSplits));  // fudge factor to account for uneven slabs
+    MinSplits = std::max(NGPU,(int)floor(.8*MinSplits));  
+    	// fudge factor to account for uneven slabs
+    // Put a floor to insist on using all GPUs
     STDLOG(1,"MinSplits = %d\n", MinSplits);
-    if(MinSplits*WIDTH < omp_get_num_threads())
-        STDLOG(1, "*** WARNING: MinSplits*WIDTH is less than the number of threads! Finalize() might be inefficient\n");
 
     GPUSetup(P.cpd, 1.0e9*GPUMemoryGB, NGPU, DirectBPD, P.GPUThreadCoreStart, P.NGPUThreadCores, &MaxSinkBlocks, &MaxSourceBlocks);
     STDLOG(1,"Initializing GPU with %f x10^6 sink blocks and %f x10^6 source blocks\n",
@@ -270,7 +268,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 
     uint64 NSink = Slab->size(slabID);
 
-    const int NSplit = GetNSplit(NSource, NSink);
+    const int NSplit = std::max(MinSplits,GetNSplit(NSource, NSink));
     assertf(NSplit >= MinSplits, "NSplit (%d) is less than MinSplits (%d)\n", NSplit, MinSplits);
     STDLOG(1,"Splitting slab %d into %d blocks for directs.\n",slabID,NSplit);
     SlabNSplit[slabID] = NSplit;
