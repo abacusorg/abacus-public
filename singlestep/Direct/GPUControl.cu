@@ -309,7 +309,7 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     	Buffers[g].sizeWC = Buffers[g].size*(1.0-RatioDeftoAll);
     	Buffers[g].sizeDef = Buffers[g].size*RatioDeftoAll;
 
-        int* buffer_and_core = new int[3];
+        int buffer_and_core[3];
         int core_start = ThreadCoreStart[g % NGPU];
         int core = -1;
         // If either the core start or the core count are invalid, do not bind this thread to a core
