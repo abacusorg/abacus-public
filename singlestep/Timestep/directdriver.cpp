@@ -438,7 +438,7 @@ void NearFieldDriver::Finalize(int slab){
 
     int cpd = P.cpd;
     int nfr = P.NearFieldRadius;
-    int width = 2*nfr +1;
+    int nfwidth = 2*nfr +1;
 
     // Collect the statistics and timings
     for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
@@ -501,14 +501,14 @@ void NearFieldDriver::Finalize(int slab){
         for (int sliceIdx=0; sliceIdx< NSplit*WIDTH; sliceIdx++) {
         // Just doing an exhaustive search, so we assume less about
         // the upstream data model.
-            if (k >= Slices[sliceIdx]->K_low && k < Slices[sliceIdx]->K_high) {
+            if (k >= Slices[sliceIdx]->j_low && k < Slices[sliceIdx]->j_high) {
                // We've found a Slice.
                // Compute which z-registration this is.
                /// int w = sliceIdx/NSplit; 
-               theseSlices[Slices[sliceIdx]->W] = Slices[sliceIdx];
+               theseSlices[Slices[sliceIdx]->k_mod] = Slices[sliceIdx];
             }
         }
-        for (int w=0; w<width; w++)
+        for (int w=0; w<nfwidth; w++)
             assertf(theseSlices[w] != NULL, "We failed to find all z-registrations");
 	CoaddPlan copyplan[cpd*(2*nfr+1)];
 	int nplan = 0;
@@ -521,10 +521,10 @@ void NearFieldDriver::Finalize(int slab){
         
         // Now we're going to proceed through the pencils in the Z direction
         for (int jj=0; jj<cpd; jj++) {
-            int w = jj%width;   // This is which registration we're in
+            int w = jj%nfwidth;   // This is which registration we're in
             SetInteractionCollection *Slice = theseSlices[w];
-            int j = (jj-Slice->W)/Slice->width;
-            int sinkIdx = (k - Slice->K_low)*Slice->Nj + j;
+            int j = (jj-Slice->k_mod)/Slice->nfwidth;
+            int sinkIdx = (k - Slice->j_low)*Slice->Nk + j;
 
             // And now we can continue with the previous stuff
             int SinkCount = Slice->SinkSetCount[sinkIdx];

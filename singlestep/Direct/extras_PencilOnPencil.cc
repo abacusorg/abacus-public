@@ -121,33 +121,34 @@ void SetInteractionCollection::CPUExecute(){
 
 void SetInteractionCollection::PrintInteractions(){
 
-    int width = 2*P.NearFieldRadius+1;
-    int k_width = K_high-K_low;
-    int Nj = (P.cpd - W)/width;
-    if(Nj * width + W < P.cpd)
-        Nj++;
-    int nfr = P.NearFieldRadius;
+    /// int nfwidth = 2*P.NearFieldRadius+1;
+    /// int j_width = j_high-j_low;
+    /// int Nk = (P.cpd - k_mod)/nfwidth;
+    if(Nk * nfwidth + k_mod < P.cpd)
+        Nk++;
+    /// int nfr = P.NearFieldRadius;
+    int nfr = nfradius;
 
-    printf("SIC for slab: %d w: %d, k: %d - %d\n",SlabId,W,K_low,K_high);
+    printf("SIC for slab: %d w: %d, k: %d - %d\n",SlabId,k_mod,j_low,j_high);
 
     printf("\t%d Sink pencils and %d Source pencils\n\n",NSinkList,NSourceSets);
 
     printf("\tSink Pencils:\n");
 
     for(int i = 0; i < NSinkList; i++){
-        int j = i%Nj;
-        int k = i/Nj;
-        int jj = W + j * width;
+        int j = i%Nk;
+        int k = i/Nk;
+        int jj = k_mod + j * nfwidth;
         int zmid = PP->WrapSlab(jj + nfr);
-        printf("\t\t%d: %d, %d, %d - %d\n", i, SlabId, k + K_low, zmid-nfr,zmid+nfr);
+        printf("\t\t%d: %d, %d, %d - %d\n", i, SlabId, k + j_low, zmid-nfr,zmid+nfr);
     }
 
     printf("\tSourcePencils:\n");
     for(int i = 0; i < NSourceSets; i++){
-        int j = i%Nj;
-        int jj = W + j * width;
+        int j = i%Nk;
+        int jj = k_mod + j * nfwidth;
         int zmid = PP->WrapSlab(jj + nfr);
-        int y = i/Nj + K_low - nfr;
+        int y = i/Nk + j_low - nfr;
         printf("\t\t%d: %d - %d, %d, %d\n", i, SlabId-nfr,SlabId+nfr, y, zmid);
     }
 
@@ -155,22 +156,22 @@ void SetInteractionCollection::PrintInteractions(){
     printf("\n\tInteractionList (sinkIdx<-sourceIdx ||sink | source):\n");
 
     for(int i = 0; i < InteractionCount; i++){
-        int sinkIdx = i/width;
-        int sinkj = sinkIdx%Nj;
-        int sinkk = sinkIdx/Nj;
-        int sinkjj = W + sinkj * width;
+        int sinkIdx = i/nfwidth;
+        int sinkj = sinkIdx%Nk;
+        int sinkk = sinkIdx/Nk;
+        int sinkjj = k_mod + sinkj * nfwidth;
         int sinkzmid = PP->WrapSlab(sinkjj + nfr);
 
         int sourceIdx = SinkSourceInteractionList[i];
-        int sourcej = sourceIdx%Nj;
-        int sourcey = sourceIdx/Nj + K_low - nfr;
-        int sourcejj =  W + sourcej * width;
+        int sourcej = sourceIdx%Nk;
+        int sourcey = sourceIdx/Nk + j_low - nfr;
+        int sourcejj =  k_mod + sourcej * nfwidth;
         int sourcezmid =  PP->WrapSlab(sourcejj + nfr);
         FLOAT yoffset = SinkSourceYOffset[i];
                 
         printf("\t\t%d: %d<-)%d|| %d: %d, %d, %d - %d | %d: %d - %d, %d, %d, %f\n",
             i, sinkIdx, sourceIdx,
-            sinkIdx,SlabId, sinkk + K_low, sinkzmid-nfr,sinkzmid+nfr,
+            sinkIdx,SlabId, sinkk + j_low, sinkzmid-nfr,sinkzmid+nfr,
             sourceIdx,SlabId-nfr,SlabId+nfr, sourcey, sourcezmid, yoffset);
     }    
 }
@@ -178,30 +179,31 @@ void SetInteractionCollection::PrintInteractions(){
 void SetInteractionCollection::AddInteractionList( std::vector<uint64> ** il){
     // TODO: Not sure what this routine is doing!  Not sure how to adjust it.
 
-    int width = 2*P.NearFieldRadius+1;
-    int k_width = K_high-K_low;
-    int Nj = (P.cpd - W)/width;
-    if(Nj*width + W < P.cpd)
-        Nj++;
-    int nfr = P.NearFieldRadius;
-    int cpd = P.cpd;
+    /// int nfwidth = 2*P.NearFieldRadius+1;
+    /// int j_width = j_high-j_low;
+    /// int Nk = (P.cpd - k_mod)/nfwidth;
+    if(Nk*nfwidth + k_mod < P.cpd)
+        Nk++;
+    /// int nfr = P.NearFieldRadius;
+    int nfr = nfradius;
+    /// int cpd = P.cpd;
 
     for(int i = 0; i < InteractionCount; i++){
-        int sinkIdx = i/width;
-        int sinkj = sinkIdx%Nj;
-        int sinkk = sinkIdx/Nj;
-        int sinkjj = W + sinkj * width;
+        int sinkIdx = i/nfwidth;
+        int sinkj = sinkIdx%Nk;
+        int sinkk = sinkIdx/Nk;
+        int sinkjj = k_mod + sinkj * nfwidth;
         int sinkzmid = PP->WrapSlab(sinkjj + nfr);
 
         int sourceIdx = SinkSourceInteractionList[i];
-        int sourcej = sourceIdx%Nj;
-        int sourcey = sourceIdx/Nj + K_low - nfr;
-        int sourcejj =  W + sourcej * width;
+        int sourcej = sourceIdx%Nk;
+        int sourcey = sourceIdx/Nk + j_low - nfr;
+        int sourcejj =  k_mod + sourcej * nfwidth;
         int sourcezmid =  PP->WrapSlab(sourcejj + nfr);
 
         for(int sinkz = sinkzmid - nfr; sinkz <= sinkzmid+nfr; sinkz++){
             for(int sourcex = SlabId - nfr; sourcex <= SlabId + nfr; sourcex++){
-                int sinky = PP->WrapSlab(sinkk + K_low);
+                int sinky = PP->WrapSlab(sinkk + j_low);
                 int sinkzw = PP->WrapSlab(sinkz);
 
                 int sourcexw = PP->WrapSlab(sourcex);

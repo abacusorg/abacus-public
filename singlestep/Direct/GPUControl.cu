@@ -96,8 +96,8 @@ void SetInteractionCollection::GPUExecute(int blocking){
 
     // Push to the NUMA-appropriate queue
     //int g = CurrentGPU;
-    int g = ((K_low + K_high) / 2. / cpd) * NGPU;
-    if(K_low == K_high && K_high == cpd)
+    int g = ((j_low + j_high) / 2. / cpd) * NGPU;
+    if(j_low == j_high && j_high == cpd)
         g--;
     assert(g < NGPU);
 
