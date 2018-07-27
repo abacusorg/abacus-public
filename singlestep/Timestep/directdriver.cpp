@@ -301,31 +301,31 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     CalcSplitDirects.Stop();
 
     // If we thread over y-splits, would that help with NUMA locality?
-    for(int w = 0; w < WIDTH; w++){
-        int kl =0;
+    for(int k_mod = 0; k_mod < WIDTH; k_mod++){
+        int jl =0;
         for(int n = 0; n < NSplit; n++){
             // We may wish to make these in an order that will alter between GPUs
-            int kh = SplitPoint[n];
+            int jh = SplitPoint[n];
             // The construction and execution are timed internally in each SIC then reduced in Finalize(slab)
 	    // This is where the SetInteractionCollection is actually constructed
-            SlabInteractionCollections[slabID][w*NSplit + n] = 
-                new SetInteractionCollection(slabID,w,kl,kh,WriteState.DensityKernelRad2);
+            SlabInteractionCollections[slabID][k_mod*NSplit + n] = 
+                new SetInteractionCollection(slabID,k_mod,jl,jh,WriteState.DensityKernelRad2);
             
             // Check that we have enough blocks
-            int NSinkBlocks = SlabInteractionCollections[slabID][w*NSplit + n]->NSinkBlocks;
-            int NSourceBlocks = SlabInteractionCollections[slabID][w*NSplit + n]->NSourceBlocks;
+            int NSinkBlocks = SlabInteractionCollections[slabID][k_mod*NSplit + n]->NSinkBlocks;
+            int NSourceBlocks = SlabInteractionCollections[slabID][k_mod*NSplit + n]->NSourceBlocks;
             assertf(NSinkBlocks <= MaxSinkBlocks,
                     "NSinkBlocks (%d) is larger than MaxSinkBlocks (%d)\n", NSinkBlocks, MaxSinkBlocks);
             assertf(NSourceBlocks <= MaxSourceBlocks,
                     "NSourceBlocks (%d) is larger than MaxSourceBlocks (%d)\n", NSourceBlocks, MaxSourceBlocks);
             
-            STDLOG(1,"Executing directs for slab %d w = %d k: %d - %d\n",slabID,w,kl,kh);
+            STDLOG(1,"Executing directs for slab %d k_mod = %d k: %d - %d\n",slabID,k_mod,jl,jh);
             SICExecute.Start();
 	    // This SIC is ready; send it to be executed
-            SlabInteractionCollections[slabID][w*NSplit + n]->GPUExecute(blocking);
-            //SlabInteractionCollections[slabID][w*NSplit + n]->CPUExecute();
+            SlabInteractionCollections[slabID][k_mod*NSplit + n]->GPUExecute(blocking);
+            //SlabInteractionCollections[slabID][k_mod*NSplit + n]->CPUExecute();
             SICExecute.Stop();
-            kl = kh;
+            jl = jh;
         }
     }
     return;
@@ -437,8 +437,8 @@ void NearFieldDriver::Finalize(int slab){
     int NSplit = SlabNSplit[slab];
 
     int cpd = P.cpd;
-    int nfr = P.NearFieldRadius;
-    int nfwidth = 2*nfr +1;
+    int nfr = RADIUS;
+    /// int nfwidth = 2*nfr +1;
 
     // Collect the statistics and timings
     for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
@@ -491,7 +491,7 @@ void NearFieldDriver::Finalize(int slab){
     // We're now going to coadd the partial accelerations
     // This first loop is over Y rows, each handled by a different thread
     #pragma omp parallel for schedule(static)
-    for (int k=0; k<cpd; k++) {
+    for (int j=0; j<cpd; j++) {
         // We're going to find all the Sets associated with this row.
         // There are WIDTH of them, one for each z registration
 	CopyPencilToSlabSetup.Start();
@@ -501,14 +501,13 @@ void NearFieldDriver::Finalize(int slab){
         for (int sliceIdx=0; sliceIdx< NSplit*WIDTH; sliceIdx++) {
         // Just doing an exhaustive search, so we assume less about
         // the upstream data model.
-            if (k >= Slices[sliceIdx]->j_low && k < Slices[sliceIdx]->j_high) {
+            if (j >= Slices[sliceIdx]->j_low && j < Slices[sliceIdx]->j_high) {
                // We've found a Slice.
                // Compute which z-registration this is.
-               /// int w = sliceIdx/NSplit; 
                theseSlices[Slices[sliceIdx]->k_mod] = Slices[sliceIdx];
             }
         }
-        for (int w=0; w<nfwidth; w++)
+        for (int w=0; w<WIDTH; w++)
             assertf(theseSlices[w] != NULL, "We failed to find all z-registrations");
 	CoaddPlan copyplan[cpd*(2*nfr+1)];
 	int nplan = 0;
@@ -520,20 +519,20 @@ void NearFieldDriver::Finalize(int slab){
         int firsttouch = 0;
         
         // Now we're going to proceed through the pencils in the Z direction
-        for (int jj=0; jj<cpd; jj++) {
-            int w = jj%nfwidth;   // This is which registration we're in
-            SetInteractionCollection *Slice = theseSlices[w];
-            int j = (jj-Slice->k_mod)/Slice->nfwidth;
-            int sinkIdx = (k - Slice->j_low)*Slice->Nk + j;
+        for (int kk=0; kk<cpd; kk++) {
+            int k_mod = kk%WIDTH;   // This is which registration we're in
+            SetInteractionCollection *Slice = theseSlices[k_mod];
+            int k = (kk-Slice->k_mod)/Slice->nfwidth;
+            int sinkIdx = (j - Slice->j_low)*Slice->Nk + k;
 
             // And now we can continue with the previous stuff
             int SinkCount = Slice->SinkSetCount[sinkIdx];
-            int zmid = PP->WrapSlab(jj + Slice->nfradius);
+            int zmid = PP->WrapSlab(kk + Slice->nfradius);
             int Start = Slice->SinkSetStart[sinkIdx];
 
             for(int z=zmid-Slice->nfradius; z <= zmid+Slice->nfradius; z++){
-                int CellNP = PP->NumberParticle(slab,k,z);
-                accstruct *a = PP->NearAccCell(slab,k,z);
+                int CellNP = PP->NumberParticle(slab,j,z);
+                accstruct *a = PP->NearAccCell(slab,j,z);
 
                 if(P.ForceOutputDebug == 1){
                     for(int p =0; p < CellNP; p++){

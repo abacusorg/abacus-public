@@ -121,12 +121,8 @@ void SetInteractionCollection::CPUExecute(){
 
 void SetInteractionCollection::PrintInteractions(){
 
-    /// int nfwidth = 2*P.NearFieldRadius+1;
-    /// int j_width = j_high-j_low;
-    /// int Nk = (P.cpd - k_mod)/nfwidth;
     if(Nk * nfwidth + k_mod < P.cpd)
         Nk++;
-    /// int nfr = P.NearFieldRadius;
     int nfr = nfradius;
 
     printf("SIC for slab: %d w: %d, k: %d - %d\n",SlabId,k_mod,j_low,j_high);
@@ -135,6 +131,7 @@ void SetInteractionCollection::PrintInteractions(){
 
     printf("\tSink Pencils:\n");
 
+    // WARNING: This routine didn't swap the meaning of j & k
     for(int i = 0; i < NSinkList; i++){
         int j = i%Nk;
         int k = i/Nk;
@@ -179,15 +176,11 @@ void SetInteractionCollection::PrintInteractions(){
 void SetInteractionCollection::AddInteractionList( std::vector<uint64> ** il){
     // TODO: Not sure what this routine is doing!  Not sure how to adjust it.
 
-    /// int nfwidth = 2*P.NearFieldRadius+1;
-    /// int j_width = j_high-j_low;
-    /// int Nk = (P.cpd - k_mod)/nfwidth;
     if(Nk*nfwidth + k_mod < P.cpd)
         Nk++;
-    /// int nfr = P.NearFieldRadius;
     int nfr = nfradius;
-    /// int cpd = P.cpd;
 
+    // WARNING: This routine didn't swap the meaning of j & k
     for(int i = 0; i < InteractionCount; i++){
         int sinkIdx = i/nfwidth;
         int sinkj = sinkIdx%Nk;
