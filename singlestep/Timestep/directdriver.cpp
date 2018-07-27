@@ -229,12 +229,12 @@ NearFieldDriver::~NearFieldDriver()
 
 #include "extras_directdriver.cpp"
 
-// Compute the number of splits for a given number of sources and sinks
+// Compute the number of splits for a given number of sources and sinks particles
 int NearFieldDriver::GetNSplit(uint64 NSource, uint64 NSink){
-    //Pencils are aligned to GPUBlocksize boundaries
-    //In the best case we will have ~NSource/GPUBlocksize blocks
-    //Worst case:
-    //      We have all but one pencil GPUBlocksize + 1 long with last pencil holding the rest
+    // Pencils are aligned to NFBlocksize boundaries
+    // Best case: we will have ~NSource/NFBlocksize blocks
+    // Worst case: We have all but one pencil NFBlocksize + 1 long 
+    //            with last pencil holding the rest
     int N1 = 2*( P.cpd*(P.cpd + WIDTH) -1 );
     int N2 =std::ceil( (NSource -( NFBlockSize + 1.0) * ( P.cpd*(P.cpd + WIDTH) -1 ))/(1.0*NFBlockSize) + 1);
     if (N2 < 0) N2 = 0; //if we don't have at least GPUBlocksize particles per pencil, this calculation fails
@@ -242,7 +242,7 @@ int NearFieldDriver::GetNSplit(uint64 NSource, uint64 NSink){
     int SourceBlocks = N1 + N2;
     
     N1 = 2*(P.cpd*P.cpd -1);
-    N2 =std::ceil( (NSink -( NFBlockSize + 1.0) * ( P.cpd*(P.cpd + WIDTH) -1 ))/(1.0*NFBlockSize) + 1);
+    N2 =std::ceil( (NSink -( NFBlockSize + 1.0) * ( P.cpd*(P.cpd) -1 ))/(1.0*NFBlockSize) + 1);
     if (N2 < 0) N2 = 0;
     int SinkBlocks = N1 + N2;
     
