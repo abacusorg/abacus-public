@@ -66,12 +66,53 @@ int set_core_affinity(int core_id);
 
 #include "SetInteractionCollection.hh"
 
+int NGPU = 0;		// Number of actual CUDA devices (not threads)
 
-__device__ unsigned long long int DI;
+// ===================  The Queue of Tasks =====================
 
-__global__ void getDI(unsigned long long int * h_di){
-    *h_di = DI;
+// We communicate to the queues with a simple FIFO queue. 
+// Tasks go in, and are read out by the QueueWatchers.
+
+struct GPUQueueTask {
+    void *task;
+    int type;   // ==0 signals to kill the Watcher
+    	// ==1 is for SetInteractionCollections
+};
+
+#include "tbb/concurrent_queue.h"
+tbb::concurrent_bounded_queue<GPUQueueTask> work_queues[MAX_GPUS];
+
+// =============== Code to invoke execution on a SIC ============
+
+// int CurrentGPU = 0;
+
+void GPUPencilTask(void *, int);
+
+void SetInteractionCollection::GPUExecute(int blocking){
+    // This method is invoked on a SIC in order to schedule it for execution.
+    // At this point, we are directing work to individual GPUs.
+
+    // Push to the NUMA-appropriate queue
+    //int g = CurrentGPU;
+    int g = ((K_low + K_high) / 2. / cpd) * NGPU;
+    if(K_low == K_high && K_high == cpd)
+        g--;
+    assert(g < NGPU);
+
+    AssignedDevice = g;  // no meaning for work_queue
+    Blocking = blocking;
+    
+    if(blocking)
+        GPUPencilTask(this, AssignedDevice);
+    else {
+	GPUQueueTask t;
+	t.type = 1;
+	t.task = (void *)this;
+        work_queues[g].push(t);
+    }
+    //CurrentGPU = (CurrentGPU + 1) %(NGPU * BPD);
 }
+
 
 
 // =============== GPU Buffers =============================
@@ -90,8 +131,6 @@ struct GPUBuffer {
     char * hostWC;	// The host-side memory allocated as write combined
 };
 
-#include "tbb/concurrent_queue.h"
-
 // We will be running multiple GPU threads, usually a few per device.
 // Each thread can only do one task (e.g., a SIC) at a time, and 
 // it controls a single CUDA stream that guarantees sequential 
@@ -102,18 +141,6 @@ struct GPUBuffer {
 cudaStream_t * DeviceStreams;	// The actual CUDA streams, one per thread
 GPUBuffer * Buffers; 		// The pointers to the allocated memory
 pthread_t *DeviceThread;	// The threads!
-
-// We communicate to the queues with a simple FIFO queue. 
-// Tasks go in, and are read out by the QueueWatchers.
-
-struct GPUQueueTask {
-    void *task;
-    int type;   // ==0 signals to kill the Watcher
-    	// ==1 is for SetInteractionCollections
-};
-
-tbb::concurrent_bounded_queue<GPUQueueTask> work_queues[MAX_GPUS];
-void *QueueWatcher(void *);
 
 
 
@@ -154,11 +181,12 @@ int MaxNSink, MaxNSource;
 size_t MaxSinkSize, MaxSourceSize;
 
 int init = 0;
-int NGPU = 0;		// Number of actual CUDA devices (not threads)
 int BPD; 		// Buffers per device
 
 static std::atomic<uint64> host_alloc_bytes;
 static std::atomic<bool> thread_setup_done;
+
+void *QueueWatcher(void *);
 
 // Here is the routine that is called to configure the GPU threads
 // and then actually initiate the threads.
@@ -259,59 +287,6 @@ void GPUReset(){
 }
 
 
-// ================= Timing the GPUs ==================
-
-void CUDART_CB StartThroughputTimer(cudaStream_t stream, cudaError_t status, void *data){
-    assert(pthread_mutex_lock(&SetInteractionCollection::GPUTimerMutex) == 0);
-    SetInteractionCollection::ActiveThreads++;
-    if (SetInteractionCollection::ActiveThreads == 1)
-        SetInteractionCollection::GPUThroughputTimer.Start();
-    assert(pthread_mutex_unlock(&SetInteractionCollection::GPUTimerMutex) == 0);
-}
-
-void CUDART_CB MarkCompleted( cudaStream_t stream, cudaError_t status, void *data){
-#ifdef CUDADIRECT
-    
-    assert(pthread_mutex_lock(&SetInteractionCollection::GPUTimerMutex) == 0);
-    SetInteractionCollection::ActiveThreads--;
-    if (SetInteractionCollection::ActiveThreads == 0)
-        SetInteractionCollection::GPUThroughputTimer.Stop();
-    assert(pthread_mutex_unlock(&SetInteractionCollection::GPUTimerMutex) == 0);
-#endif
-}
-
-// =============== Code to invoke execution on a SIC ============
-
-// int CurrentGPU = 0;
-
-void GPUPencilTask(void *, int);
-
-void SetInteractionCollection::GPUExecute(int blocking){
-    // This method is invoked on a SIC in order to schedule it for execution.
-    // At this point, we are directing work to individual GPUs.
-
-    // Push to the NUMA-appropriate queue
-    //int g = CurrentGPU;
-    int g = ((K_low + K_high) / 2. / cpd) * NGPU;
-    if(K_low == K_high && K_high == cpd)
-        g--;
-    assert(g < NGPU);
-
-    AssignedDevice = g;  // no meaning for work_queue
-    Blocking = blocking;
-    
-    if(blocking)
-        GPUPencilTask(this, AssignedDevice);
-    else {
-	GPUQueueTask t;
-	t.type = 1;
-	t.task = (void *)this;
-        work_queues[g].push(t);
-    }
-
-    //CurrentGPU = (CurrentGPU + 1) %(NGPU * BPD);
-}
-
 // =============== Main code for the GPU thread =================
 
 #define CudaAllocate(ptr,size) checkCudaErrors(cudaMalloc((void **)&(ptr), size))
@@ -396,6 +371,39 @@ void *QueueWatcher(void *_arg){
 }
 
 
+// ================= Timing the GPUs ==================
+
+// TODO: This may need some adjustment when there's more than one task type.
+// Or maybe not?
+
+void CUDART_CB StartThroughputTimer(cudaStream_t stream, cudaError_t status, void *data){
+    assert(pthread_mutex_lock(&SetInteractionCollection::GPUTimerMutex) == 0);
+    SetInteractionCollection::ActiveThreads++;
+    if (SetInteractionCollection::ActiveThreads == 1)
+        SetInteractionCollection::GPUThroughputTimer.Start();
+    assert(pthread_mutex_unlock(&SetInteractionCollection::GPUTimerMutex) == 0);
+}
+
+void CUDART_CB MarkCompleted( cudaStream_t stream, cudaError_t status, void *data){
+#ifdef CUDADIRECT
+    
+    assert(pthread_mutex_lock(&SetInteractionCollection::GPUTimerMutex) == 0);
+    SetInteractionCollection::ActiveThreads--;
+    if (SetInteractionCollection::ActiveThreads == 0)
+        SetInteractionCollection::GPUThroughputTimer.Stop();
+    assert(pthread_mutex_unlock(&SetInteractionCollection::GPUTimerMutex) == 0);
+#endif
+}
+
+
+// ==================  The specific tasks =======================
+
+// Counting the number of direct interactions performed
+__device__ unsigned long long int DI;
+
+__global__ void getDI(unsigned long long int * h_di){
+    *h_di = DI;
+}
 
 // Here is the code that knows how to execute a single Pencil task.
 #include "PencilTask.cu"
