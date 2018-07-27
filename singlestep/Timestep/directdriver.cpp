@@ -133,6 +133,8 @@ class NearFieldDriver{
 
 
 
+// This constructor calls GPUSetup() to start the GPU threads.
+// But first, it has to set up some configurations.
 NearFieldDriver::NearFieldDriver() :
         SofteningLength{WriteState.SofteningLength/P.BoxSize},
         SofteningLengthInternal{WriteState.SofteningLengthInternal/P.BoxSize},
@@ -168,17 +170,28 @@ NearFieldDriver::NearFieldDriver() :
 #ifdef CUDADIRECT
     NGPU = GetNGPU();
     GPUMemoryGB = GetDeviceMemory();
-    GPUMemoryGB = std::min(5.0e-9*P.np*sizeof(FLOAT3),GPUMemoryGB/(DirectBPD));
-    GPUMemoryGB = std::min(GPUMemoryGB,.05/(DirectBPD*NGPU)*P.MAXRAMMB/1024);  // Don't pin more than 5% of host memory
+    GPUMemoryGB /= DirectBPD;	// Nominal GB per buffer
+    STDLOG(1, "Running with %d GPUs, each with %d Buffers of max size %f GB\n", NGPU, DirectBPD, GPUMemoryGB);
+
+    // No need to go crazy if the problem is small.
+    // Even if CPD=WIDTH, we'd be loading all of the positions as sources and 
+    // 1/WIDTH as sinks.  So if we have 5x the total positions, we can't lose.
+    GPUMemoryGB = std::min(GPUMemoryGB, 50.0*P.np*1e-9*sizeof(FLOAT3));
+
+    // Don't pin more than 10% of the host memory.
+    GPUMemoryGB = std::min(GPUMemoryGB,0.10/(DirectBPD*NGPU)*P.MAXRAMMB/1024);  
+
     STDLOG(1, "Using %f GB of GPU memory (per GPU thread)\n", GPUMemoryGB);
-    size_t BlockSizeBytes = sizeof(FLOAT) *3 * NFBlockSize;
-    MaxSinkBlocks = floor(1e9 * GPUMemoryGB/(6*BlockSizeBytes));
-    MaxSourceBlocks = WIDTH * MaxSinkBlocks;
-    STDLOG(1,"Initializing GPU with %f x10^6 sink blocks and %f x10^6 source blocks\n",
-            MaxSinkBlocks/1e6,MaxSourceBlocks/1e6);
+
+
+    /// size_t BlockSizeBytes = sizeof(FLOAT) *3 * NFBlockSize;
+    /// MaxSinkBlocks = floor(1e9 * GPUMemoryGB/(6*BlockSizeBytes));
+    /// MaxSourceBlocks = WIDTH * MaxSinkBlocks;
     
     // We want to compute maxkwidth for GPUSetup
     // maxkwidth will occur when we have the fewest splits
+
+    // TODO: Not sure what this logic is good for
     // The fewest splits will occur when we are operating on the smallest slabs
     MinSplits = GetNSplit(WIDTH*Slab->min, Slab->min);
     //TODO: this fudge factor fails sometimes (e.g. Ewald test for CPD 131).  What's the right way to compute this?
@@ -188,7 +201,14 @@ NearFieldDriver::NearFieldDriver() :
     STDLOG(1,"MinSplits = %d\n", MinSplits);
     if(MinSplits*WIDTH < omp_get_num_threads())
         STDLOG(1, "*** WARNING: MinSplits*WIDTH is less than the number of threads! Finalize() might be inefficient\n");
-    GPUSetup(P.cpd, std::ceil(1.*P.cpd/MinSplits), MaxSinkBlocks, MaxSourceBlocks, DirectBPD, P.GPUThreadCoreStart, P.NGPUThreadCores);
+
+    /// GPUSetup(P.cpd, std::ceil(1.*P.cpd/MinSplits), NGPU, DirectBPD, P.GPUThreadCoreStart, P.NGPUThreadCores, &MaxSinkBlocks, &MaxSourceBlocks);
+
+    GPUSetup(P.cpd, 1.0e9*GPUMemoryGB, NGPU, DirectBPD, P.GPUThreadCoreStart, P.NGPUThreadCores, &MaxSinkBlocks, &MaxSourceBlocks);
+    STDLOG(1,"Initializing GPU with %f x10^6 sink blocks and %f x10^6 source blocks\n",
+            MaxSinkBlocks/1e6,MaxSourceBlocks/1e6);
+
+
     SICExecute.Clear();
 
     NSink_GPU_final = (uint64*) malloc(NGPU*sizeof(uint64));
@@ -422,6 +442,7 @@ void NearFieldDriver::Finalize(int slab){
     if(P.ForceOutputDebug)
         CheckInteractionList(slab);
     
+    // Allocate the space to hold the co-added NF acceleration
     LBW->AllocateArena(AccSlab,slab);
 
     SetInteractionCollection ** Slices = SlabInteractionCollections[slab];
@@ -431,8 +452,7 @@ void NearFieldDriver::Finalize(int slab){
     int nfr = P.NearFieldRadius;
     int width = 2*nfr +1;
 
-    // There's an annoying number of reductions here, would be a lot of overhead to do in parallel
-    // Let's do them serially here; hopefully this is quick.
+    // Collect the statistics and timings
     for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
         SetInteractionCollection *Slice = Slices[sliceIdx];
 
@@ -480,6 +500,8 @@ void NearFieldDriver::Finalize(int slab){
     
     CopyPencilToSlab.Start();    
 
+    // We're now going to coadd the partial accelerations
+    // This first loop is over Y rows, each handled by a different thread
     #pragma omp parallel for schedule(static)
     for (int k=0; k<cpd; k++) {
         // We're going to find all the Sets associated with this row.
@@ -509,7 +531,7 @@ void NearFieldDriver::Finalize(int slab){
         // we've already been there once.
         int firsttouch = 0;
         
-        // Now we're going to proceed through the pencils
+        // Now we're going to proceed through the pencils in the Z direction
         for (int jj=0; jj<cpd; jj++) {
             int w = jj%width;   // This is which registration we're in
             SetInteractionCollection *Slice = theseSlices[w];
@@ -531,21 +553,6 @@ void NearFieldDriver::Finalize(int slab){
                         assert(isfinite(Slice->SinkSetAccelerations[Start +p].y));
                         assert(isfinite(Slice->SinkSetAccelerations[Start +p].z));
                     }
-
-                    /* // Can't do this check before executing coadd plan
-                    if(z==firsttouch && z<cpd){
-                        for(int p = 0; p <CellNP; p++){
-                            assert(!isfinite(a[p].x));
-                            assert(!isfinite(a[p].y));
-                            assert(!isfinite(a[p].z));
-                        }
-                    } else {
-                        for(int p = 0; p <CellNP; p++){
-                            assert(isfinite(a[p].x));
-                            assert(isfinite(a[p].y));
-                            assert(isfinite(a[p].z));
-                        }
-                    }*/
                 }
 
                 // Set when this is the first touch; accumulate otherwise

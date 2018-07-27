@@ -57,6 +57,8 @@ void stdlog_hook(int verbosity, const char* str);
         sprintf(logstr, "Failed Assertion: %s\n", #_mytest);\
         STDLOG(0,logstr);\
         fprintf(stderr,"%s",logstr); \
+	sprintf(logstr,__VA_ARGS__); \
+        STDLOG(0,logstr);\
         assert(0==99); \
     }} while(0)
 
@@ -191,6 +193,102 @@ void *QueueWatcher(void *);
 // Here is the routine that is called to configure the GPU threads
 // and then actually initiate the threads.
 
+// We given the number of GPUs, buffers per GPU, and bytes per buffer.
+// Also CPD and the number of particles.
+// We use this to compute and return maximum task sizes.
+
+/*
+For the Pencil task, the average memory usage:
+
+Memory per Block:
+Sink pos and accel:  
+	FLOAT3*NFBlockSize bytes of WC memory
+	+ accstruct*NFBlockSize bytes of Default memory
+Source Pos: FLOAT3*NFBLockSize, but we expect 5x more SourceBlocks
+SinkBlockParentPencil: An extra 4 bytes per block.
+
+Sink Pencils: 4+(4+FLOAT)*WIDTH
+Source Pencils: 4+4
+    This is very small, typically <1%
+    We can be conservative and assume this to be per block rather than per cell.
+    This slightly neglects the fact that the sources need 4 boundary
+    rows, but we just built in a little extra.
+
+In summary:
+Per SourceBlock: FLOAT3*NFBlockSize+8/WIDTH of WC memory
+Per SinkBlock:   FLOAT3*NFBlockSize+4+FLOAT+4/WIDTH of WC memory
+                 accstruct*NFBlockSize of default memory
+
+Assuming that the number of SourceBlocks is WIDTHx SinkBlocks,
+this sets the ratio of WC to default memory.  And we can then
+return the maximum number of Source and Sink Blocks, so that
+the upstream routine can size the SIC to match.
+
+We ignore the fact that the Sink/Source Pencil count may be 
+limited by the fraction of CPD**2
+
+*/
+
+
+extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize, 
+    int numberGPUs, int bufferperdevice, 
+    int *ThreadCoreStart, int NThreadCores,
+    int *maxsinkblocks, int *maxsourceblocks) {
+
+    if (init != 0) return;
+    BPD = bufferperdevice;
+    NGPU = numberGPUs;
+    int NBuf = BPD*NGPU;
+    char logstr[1024];
+
+    // The following estimates are documented above, and assume sizeof(int)=4
+    float BytesPerSourceBlockWC = sizeof(FLOAT)*3*NFBlockSize+8.0;
+    float BytesPerSinkBlockWC = sizeof(FLOAT)*3*NFBlockSize
+    		+(4.0+sizeof(FLOAT))*WIDTH+4.0;
+    float BytesPerSinkBlockDef = sizeof(accstruct)*NFBlockSize;
+
+    // Set the levels assuming WIDTH Sources per Sink
+    float TotalBytesPerSinkBlock = BytesPerSinkBlockDef+
+    	BytesPerSinkBlockWC+WIDTH*BytesPerSourceBlockWC;
+    sprintf(logstr, "Bytes per Block = %5.1f+%5.1f+%d*%5.1f = %5.1f\n",
+    	BytesPerSinkBlockDef, BytesPerSinkBlockWC, WIDTH, BytesPerSourceBlockWC,
+	TotalBytesPerSinkBlock);
+    STDLOG(1,logstr);
+
+    // We're splitting the Buffer into WC and Def memory
+    float RatioDeftoAll = BytesPerSinkBlockDef/TotalBytesPerSinkBlock;
+    assert(RatioDeftoAll<=1.0);  // Guard against screwup
+
+    // This is how many blocks we'll allocate
+    MaxSinkBlocks = (MaxBufferSize-1e5)/TotalBytesPerSinkBlock;
+    	// Remove 100KB for alignment factors
+    MaxSourceBlocks = WIDTH*MaxSinkBlocks;
+    *maxsinkblocks = MaxSinkBlocks;
+    *maxsourceblocks = MaxSourceBlocks;
+    // The number of particles corresponding to these
+    MaxSinkSize     = NFBlockSize * MaxSinkBlocks;
+    MaxSourceSize   = NFBlockSize * MaxSourceBlocks;
+
+    sprintf(logstr, "Planning for %d sink and %d source blocks, each %d particles\n",
+    	MaxSinkBlocks, MaxSourceBlocks, NFBlockSize);
+    STDLOG(1,logstr);
+
+    // And then we have storage for the Pencils.
+    // Here we pessimistically assume one Pencil per SinkBlock.
+    MaxNSink = MaxSinkBlocks;
+    MaxNSource = MaxNSink;
+    assertf(MaxNSink>2*cpd, "MaxNSink = %d is too small\n", MaxNSink);
+    assertf(MaxNSource>(2+WIDTH)*cpd, "MaxNSource = %d is too small\n", MaxNSource);
+    // Formally, this one could be slightly larger because of the boundary
+    // rows.  However, we neglected this in the Memory estimate, so we'll
+    // overflow our buffer if we put it in here.  Fortunately, 1 Pencil
+    // per SinkBlock assumption is really very conservative.  Only likely
+    // counter-case is very low PPC sims, where one would typically have
+    // a small problem that fits very easily on the GPU (i.e., MaxBufferSize
+    // will have led to a MaxNSink that is > CPD**2.
+
+
+/* 
 extern "C" void GPUSetup(int cpd, int maxkwidth, int maxsinkblocks, int maxsourceblocks, int bufferperdevice, int *ThreadCoreStart, int NThreadCores){
 
     if (init != 0) return;
@@ -214,6 +312,7 @@ extern "C" void GPUSetup(int cpd, int maxkwidth, int maxsinkblocks, int maxsourc
     // with the other heuristic maxima in directdriver.cpp.
     // This will likely cause crashes on big problems.
     uint64 MaxBufferSize = GetDeviceMemory()*1e9/BPD;
+*/
 
     DeviceStreams = new cudaStream_t[NBuf];
     Buffers = new GPUBuffer[NBuf];
@@ -229,12 +328,12 @@ extern "C" void GPUSetup(int cpd, int maxkwidth, int maxsinkblocks, int maxsourc
     //STDLOG(1,logstr);
     //assertf(n_socket > 0, "n_socket %d less than 1\n", n_socket);
 
-    int use_pinned = maxsinkblocks >= 10000;  // Pinning is slow, so for very small problems it's faster to use unpinned memory
+    int use_pinned = MaxSinkBlocks >= 10000;  // Pinning is slow, so for very small problems it's faster to use unpinned memory
     
     for(int g = 0; g < NBuf; g++){
     	Buffers[g].size = MaxBufferSize;
-    	Buffers[g].sizeWC = Buffers[g].size*2/3;
-    	Buffers[g].sizeDef = Buffers[g].size*1/3;
+    	Buffers[g].sizeWC = Buffers[g].size*(1.0-RatioDeftoAll);
+    	Buffers[g].sizeDef = Buffers[g].size*RatioDeftoAll;
 
         int* buffer_and_core = new int[3];
         int core_start = ThreadCoreStart[g % NGPU];
