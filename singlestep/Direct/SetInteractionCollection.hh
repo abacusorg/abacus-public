@@ -1,5 +1,30 @@
-//holds information about an group of interactions (i.e. pencil on pencil) to compute directs for 
-//These sets can be any arbitrary collections of particles (e.g. groups), but frequently are 5 cell pencils
+// Holds information about an group of interactions (i.e. pencil on pencil) to compute directs for 
+// These sets can be any arbitrary collections of particles (e.g. groups), but frequently are 5 cell pencils.
+
+/* We arrange the global calculation into sets of cells in the X
+direction acting on sets of cells in the Z direction.  If NR=2, then
+there are 5 cells in each Pencil.  A given sink cell will appear in 5
+sink pencils, and we compute these 5 partial accelerations in 5 different
+SetInteractionCollections, coadding at the end.  The source pencil and
+sink pencil overlap at the central x & z, but by forming these pencils
+for a range of Y, we can have 5 source pencils act on each sink pencil,
+thereby limiting the data transfer to the GPU.  
+
+Using pencils is more GPU efficient than having a single sink cell
+because we want to have the sinks fill the GPU blocks.  Further, it
+is important that a given source be used on many sinks when it is
+loaded: if the GPU ram can load 240 GB/sec of source positions, 
+this is "only" 20 Gsources/sec.  But the GPU can compute ~200 Gdirect/sec,
+so if we can't provide at least 10 sinks, we will go lacking.
+And the load across the PCIe bus is >20x slower than that, so we
+want to have >200 sink particles in the 5 sink pencils that a source
+pencil will act on.  
+
+The particles in the pencils have been shifted to the cell-centered
+coordinate system of the central cell.  In this way, a sink and source
+pencils' coordinates differ only in a Y offset, which is added on
+the fly.
+*/
 
 #ifndef __SIC_HH
 #define __SIC_HH
@@ -45,6 +70,39 @@ class SourcePencilPlan {
     int load(int x, int y, int z);
 };
 
+/* The Sink particle positions and accelerations, as well as the Source
+particle positions, are in large single vectors.  Blocks of NFBlockSize
+particles are the unit of computation; individual pencils (not cells)
+are always padded out to a multiple of NFBlockSize.
+
+Each Sink Pencil is given an individual index.  There are simple
+vectors to hold the particle count (SinkSetCount) and the starting
+particle index (SinkSetStart), as well as a plan (SinkPlan) that 
+tells how the particles should be loaded from external memory.
+
+Then there are parallel items for the Sources.
+
+There is also a vector SinkSetIdMax that gives the end of each Sink
+Pencil.
+
+Next, we have to describe all of the pairwise interactions between
+Sinks and Sources.  These are pairs of Pencils, not Blocks. 
+There is a large vector of these pairs, organized so that each 
+Sink Pencil has its 2*NFR+1 Source pairs contiguous.
+The SinkSourceInteractionList holds the Source index.
+The SinkSourceYOffset holds the delta(Y) position shift to be applied
+in each Pencil on Pencil direct interaction.
+
+Meanwhile the computation itself is organized by thread blocks of
+Sink Blocks.  We therefore store a vector SinkBlockParentPencil
+that holds for each block what its Sink Pencil id is.  From
+that, one can look up the Source Pencil in SinkSourceInteractionList.
+
+The calculation then loops over the Source Pencils, using each 
+Source Block.
+
+*/
+
 class SetInteractionCollection{
     public:
         // Synchronous Timers
@@ -74,11 +132,18 @@ class SetInteractionCollection{
         static pthread_mutex_t GPUTimerMutex;
         static STimer GPUThroughputTimer;
 
+
         int *           SinkSetStart; //The index in the Sink Pos/Acc lists where this set begins
         int *           SinkSetCount; //The number of particles in the SinkSet
-        int *           SinkSetIdMax; //The sum of the above.  We may even be able to get rid of them and just send this to the GPU.
+        int *           SinkSetIdMax; //The sum of the above, i.e., the end of the Sink Pencil.  
+		// TODO: Might prefer to code this out, but it is vastly less than the pos/acc data
         SinkPencilPlan *           SinkPlan; // The plan for this pencil
         accstruct *        SinkSetAccelerations; //Where the computed accelerations for the collection will be stored
+
+        int *           SourceSetStart;  // The index where the Source Pencils start
+        int *           SourceSetCount;  // The number of particles in the Source pencils
+        SourcePencilPlan *           SourcePlan;   // The plans to load the Source pencils
+
 	FLOAT b2;	// The square radius for FOF density computation
 
         volatile int CompletionFlag;
@@ -96,20 +161,14 @@ class SetInteractionCollection{
 
         int         InteractionCount;//How many source cell on sink cell interactions are in this set
 
-        // List3<FLOAT> *  SinkSetPositions; //Position data for particles in all sink sets in the collection
-        int             NSinkBlocks; //The number of gpu blocks the sink sets translate into
-        int *           SinkBlockParentPencil; //What sink pencil each sink block come from
+        int         NSinkBlocks; //The number of gpu blocks the sink sets translate into
+        int *       SinkBlockParentPencil; //What sink pencil each sink block come from
+
+        int         NSourceBlocks;   // The number of Source blocks
 
 
-        int *           SourceSetStart;
-        int *           SourceSetCount;
-        SourcePencilPlan *           SourcePlan;
-        // List3<FLOAT>*   SourceSetPositions;
-        int             NSourceBlocks;
-
-
-        int         NSinkList;
-        int         NSourceSets;
+        int         NSinkSets;	// The number of Sink Pencils
+        int         NSourceSets;	// The number of Source Pencils
 
         int *       SinkSourceInteractionList;
 		// Each SinkPencil will interact with nfwidth SourcePencil.
@@ -119,8 +178,9 @@ class SetInteractionCollection{
 		// shift the particle positions from the Pencil center.
 
         uint64 DirectTotal; //Number of directs for this interection collection
-        uint64 SinkTotal;
-        uint64 SourceTotal;
+		// This is the unpadded, science-useful count of directs
+        uint64 SinkTotal;	// The number of total sinks (padded out to blocks)
+        uint64 SourceTotal;	// The number of total sources (padded)
     
         // Different softenings use different eps
         FLOAT eps;
@@ -129,13 +189,10 @@ class SetInteractionCollection{
         int Blocking;
 
         //Methods
-        //Count the number of particles in the specified pencil
-        // int SourcePencilCount(int slab, int ymid, int zz);
-        // int SinkPencilCount(int slab, int ymid, int zz);
 
-        //Copy the particle data for a pencil into the given memory
-        // void CreateSinkPencil(int sinkx, int sinky, int sinkz, uint64 OutputOffset);
-        // void CreateSourcePencil(int sx, int sy, int nz, uint64 OutputOffset);
+	// Constructor
+        SetInteractionCollection(int slab, int _kmod, int _jlow, int _jhigh, FLOAT _b2);
+        ~SetInteractionCollection();
 
 	int NumPaddedBlocks(int nparticles);
 		// Returns the number of padded blocks for a given true number of particles
@@ -147,9 +204,6 @@ class SetInteractionCollection{
 	int index_to_zcen(int j);
 		// Returns the zcentral cell given the internal j indexing
 
-
-        SetInteractionCollection(int slab, int _kmod, int _jlow, int _jhigh, FLOAT _b2);
-        ~SetInteractionCollection();
 
         //execute this collection on the GPU
         void GPUExecute(int blocking);

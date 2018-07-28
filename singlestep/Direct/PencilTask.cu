@@ -27,7 +27,7 @@ struct DeviceData{
     int *           SourceSetCount;
     int             NSourceBlocks;
 
-    int             NSinkList;
+    int             NSinkSets;
     int             NSourceSets;
     int             InteractionCount;
 
@@ -72,7 +72,7 @@ void ConfigureBufferAsDeviceData(GPUBuffer &buf,
     CudaConfig(gpu.SourceSetPositions.X,      sizeof(FLOAT) * MaxSourceSize);
     CudaConfig(gpu.SourceSetPositions.Y,      sizeof(FLOAT) * MaxSourceSize);
     CudaConfig(gpu.SourceSetPositions.Z,      sizeof(FLOAT) * MaxSourceSize);
-    assertf(used_gpu<buf.size, "Configuration of Buffer requesting %d bytes on device, but only %d available\n", used_gpu, buf.size);   // Check that we didn't overflow
+    assertf(used_gpu<buf.size, "Configuration of Buffer requesting %ld bytes on device, but only %ld available\n", used_gpu, buf.size);   // Check that we didn't overflow
 
     // Allocate host-side buffers
     WCConfig(pinned.SinkSetIdMax,              sizeof(int) * MaxNSink);
@@ -90,8 +90,8 @@ void ConfigureBufferAsDeviceData(GPUBuffer &buf,
     WCConfig(pinned.SourceSetPositions.Z,      sizeof(FLOAT) * MaxSourceSize);
     assert(used_host<buf.sizeDef);
     assert(used_hostWC<buf.sizeWC);
-    assertf(used_host<buf.sizeDef, "Configuration of Buffer requesting %d bytes on host Def, but only %d available\n", used_host, buf.sizeDef);   // Check that we didn't overflow
-    assertf(used_hostWC<buf.sizeWC, "Configuration of Buffer requesting %d bytes on host WC, but only %d available\n", used_host, buf.sizeWC);   // Check that we didn't overflow
+    assertf(used_host<buf.sizeDef, "Configuration of Buffer requesting %ld bytes on host Def, but only %ld available\n", used_host, buf.sizeDef);   // Check that we didn't overflow
+    assertf(used_hostWC<buf.sizeWC, "Configuration of Buffer requesting %ld bytes on host WC, but only %ld available\n", used_host, buf.sizeWC);   // Check that we didn't overflow
     return;
 }
 
@@ -165,7 +165,7 @@ void GPUPencilTask(void *item, int g){
     // Copy the sinks into position
     task->LaunchDeviceKernels.Stop();
     task->FillSinks.Start();
-    for (int j=0; j<task->NSinkList; j++) {
+    for (int j=0; j<task->NSinkSets; j++) {
         task->SinkPlan[j].copy_into_pinned_memory(PinnedBuffer.SinkSetPositions, task->SinkSetStart[j], task->SinkSetCount[j]);
     }
     task->FillSinks.Stop();
@@ -191,7 +191,7 @@ void GPUPencilTask(void *item, int g){
     CopyListToGPU(SourceSetPositions, Z, sizeof(FLOAT) * task->NSourceBlocks * NFBlockSize);
 
     // Now copy other information from the SIC to the GPU
-    CopyToGPU(SinkSetIdMax,                 sizeof(int)*task->NSinkList);
+    CopyToGPU(SinkSetIdMax,                 sizeof(int)*task->NSinkSets);
     CopyToGPU(SinkBlockParentPencil,        sizeof(int)*task->NSinkBlocks);
     CopyToGPU(SourceSetStart,               sizeof(int)*task->NSourceSets);
     CopyToGPU(SourceSetCount,               sizeof(int)*task->NSourceSets);

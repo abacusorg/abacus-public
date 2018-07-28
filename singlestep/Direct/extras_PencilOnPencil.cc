@@ -16,7 +16,7 @@ void SetInteractionCollection::CPUExecute(){
     FillSinks.Start();
     List3<FLOAT> *SinkSetPositions = new List3<FLOAT>(NSinkBlocks*NFBlockSize);
     #pragma omp parallel for schedule(dynamic,1)
-    for (int j=0; j<NSinkList; j++) {
+    for (int j=0; j<NSinkSets; j++) {
         SinkPlan[j].copy_into_pinned_memory(*SinkSetPositions, SinkSetStart[j], SinkSetCount[j]);
     }
     FillSinks.Stop();
@@ -127,12 +127,12 @@ void SetInteractionCollection::PrintInteractions(){
 
     printf("SIC for slab: %d w: %d, k: %d - %d\n",SlabId,k_mod,j_low,j_high);
 
-    printf("\t%d Sink pencils and %d Source pencils\n\n",NSinkList,NSourceSets);
+    printf("\t%d Sink pencils and %d Source pencils\n\n",NSinkSets,NSourceSets);
 
     printf("\tSink Pencils:\n");
 
     // WARNING: This routine didn't swap the meaning of j & k
-    for(int i = 0; i < NSinkList; i++){
+    for(int i = 0; i < NSinkSets; i++){
         int j = i%Nk;
         int k = i/Nk;
         int jj = k_mod + j * nfwidth;

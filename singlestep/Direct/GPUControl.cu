@@ -309,7 +309,7 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     	Buffers[g].sizeWC = Buffers[g].size*(1.0-RatioDeftoAll);
     	Buffers[g].sizeDef = Buffers[g].size*RatioDeftoAll;
 
-        int* buffer_and_core = new int[3];
+        int buffer_and_core[3];
         int core_start = ThreadCoreStart[g % NGPU];
         int core = -1;
         // If either the core start or the core count are invalid, do not bind this thread to a core
@@ -354,9 +354,12 @@ void GPUReset(){
         	work_queues[g].push(t);
     for(int g = 0; g < BPD*NGPU; g++)
         assert(pthread_join(DeviceThread[g], NULL) == 0);
+
     cudaDeviceReset();
 
-    // TODO: Should free the host-side buffer memory and the small arrays.  Here?
+    delete[] Buffers;
+    delete[] DeviceStreams;
+    delete[] DeviceThread;
 }
 
 
@@ -395,7 +398,6 @@ void *QueueWatcher(void *_arg){
     if (assigned_core >= 0)
         set_core_affinity(assigned_core);
     int use_pinned = ((int*) arg)[2];
-    delete[] arg;
     char logstr[1024];
 
     checkCudaErrors(cudaSetDevice(gpu));
@@ -413,8 +415,6 @@ void *QueueWatcher(void *_arg){
     // We make 2/3 of the host pinned memory WriteCombined, which is
     // good for sending data to the GPU.  The other 1/3 is normal, 
     // better for returning the data from the GPU.
-
-    // TODO: These appear to never be freed
 
     // Attempt some NUMA specifics
     int page = -1;
@@ -439,6 +439,16 @@ void *QueueWatcher(void *_arg){
     // All done; make sure profiling info is sync'd
     checkCudaErrors(cudaStreamSynchronize(DeviceStreams[assigned_device]));
     checkCudaErrors(cudaProfilerStop());
+
+    // Free our memory
+    checkCudaErrors(cudaFree(Buffers[n].device));
+    if (use_pinned) {
+	checkCudaErrors(cudaFreeHost(Buffers[n].hostWC));
+	checkCudaErrors(cudaFreeHost(Buffers[n].host));
+    } else {
+	free(Buffers[n].hostWC);
+	free(Buffers[n].host);
+    }
     
     return NULL;
 }

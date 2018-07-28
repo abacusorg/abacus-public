@@ -72,13 +72,13 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     
     assertf( (uint64)j_width*Nk < INT32_MAX, 
             "The number of sink sets will overflow a 32-bit signed int");
-    NSinkList = j_width * Nk;
-    assertf(NSinkList <= MaxNSink, "NSinkList (%d) larger than allocated space (MaxNSink = %d)\n", NSinkList, MaxNSink);
+    NSinkSets = j_width * Nk;
+    assertf(NSinkSets <= MaxNSink, "NSinkSets (%d) larger than allocated space (MaxNSink = %d)\n", NSinkSets, MaxNSink);
     
-    assert(posix_memalign((void **) &SinkSetStart, 4096, sizeof(int) * NSinkList) == 0);
-    assert(posix_memalign((void **) &SinkSetCount, 4096, sizeof(int) * NSinkList) == 0);
-    assert(posix_memalign((void **) &SinkPlan, 4096, sizeof(SinkPencilPlan) * NSinkList) == 0);
-    assert(posix_memalign((void **) &SinkSetIdMax, 4096, sizeof(int) * NSinkList) == 0);
+    assert(posix_memalign((void **) &SinkSetStart, 4096, sizeof(int) * NSinkSets) == 0);
+    assert(posix_memalign((void **) &SinkSetCount, 4096, sizeof(int) * NSinkSets) == 0);
+    assert(posix_memalign((void **) &SinkPlan, 4096, sizeof(SinkPencilPlan) * NSinkSets) == 0);
+    assert(posix_memalign((void **) &SinkSetIdMax, 4096, sizeof(int) * NSinkSets) == 0);
     
     int localSinkTotal = 0;
 
@@ -259,7 +259,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     #pragma omp parallel for schedule(static) reduction(+:localDirectTotal)
     for(int j = 0; j < j_width; j++){
         int g = omp_get_thread_num();
-        assertf(j*Nk + Nk <= NSinkList, "SinkSetCount array access at %d would exceed allocation %d\n", j*Nk + Nk, NSinkList);
+        assertf(j*Nk + Nk <= NSinkSets, "SinkSetCount array access at %d would exceed allocation %d\n", j*Nk + Nk, NSinkSets);
         for(int k=0; k < Nk; k++) {
 	    int zmid = index_to_zcen(k);
 
