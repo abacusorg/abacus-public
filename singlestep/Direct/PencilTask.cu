@@ -27,7 +27,7 @@ struct DeviceData{
     int *           SourceSetCount;
     int             NSourceBlocks;
 
-    int             NSinkList;
+    int             NSinkSets;
     int             NSourceSets;
     int             InteractionCount;
 
@@ -165,7 +165,7 @@ void GPUPencilTask(void *item, int g){
     // Copy the sinks into position
     task->LaunchDeviceKernels.Stop();
     task->FillSinks.Start();
-    for (int j=0; j<task->NSinkList; j++) {
+    for (int j=0; j<task->NSinkSets; j++) {
         task->SinkPlan[j].copy_into_pinned_memory(PinnedBuffer.SinkSetPositions, task->SinkSetStart[j], task->SinkSetCount[j]);
     }
     task->FillSinks.Stop();
@@ -191,7 +191,7 @@ void GPUPencilTask(void *item, int g){
     CopyListToGPU(SourceSetPositions, Z, sizeof(FLOAT) * task->NSourceBlocks * NFBlockSize);
 
     // Now copy other information from the SIC to the GPU
-    CopyToGPU(SinkSetIdMax,                 sizeof(int)*task->NSinkList);
+    CopyToGPU(SinkSetIdMax,                 sizeof(int)*task->NSinkSets);
     CopyToGPU(SinkBlockParentPencil,        sizeof(int)*task->NSinkBlocks);
     CopyToGPU(SourceSetStart,               sizeof(int)*task->NSourceSets);
     CopyToGPU(SourceSetCount,               sizeof(int)*task->NSourceSets);
