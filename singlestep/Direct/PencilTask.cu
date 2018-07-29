@@ -50,6 +50,7 @@ void SetPointer(char **p, char *val) { *p = val; }
 
 #define PinnedConfig(ptr, size) SetPointer((char **)&ptr, buf.host+used_host); used_host+=(size/4096+1)*4096;
 
+
 void ConfigureBufferAsDeviceData(GPUBuffer &buf, 
 	DeviceData &gpu, DeviceData &pinned) {
     // Given a Buffer, we want to set pointers in the DeviceData's that
@@ -94,6 +95,10 @@ void ConfigureBufferAsDeviceData(GPUBuffer &buf,
     assertf(used_hostWC<buf.sizeWC, "Configuration of Buffer requesting %ld bytes on host WC, but only %ld available\n", used_host, buf.sizeWC);   // Check that we didn't overflow
     return;
 }
+
+#undef CudaConfig
+#undef WCConfig
+#undef PinnedConfig
 
 // ============= GPUPencilTask: executing one SetInteractionCollection =======
 
@@ -231,6 +236,6 @@ void GPUPencilTask(void *item, int g){
 #endif
 }
 
-
-
-
+#undef CopyToGPU
+#undef CopyListToGPU
+#undef CopyFromGPU
