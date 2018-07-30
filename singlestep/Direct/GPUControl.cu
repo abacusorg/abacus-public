@@ -47,7 +47,7 @@
 
 #include "STimer.h"
 #include "DeviceFunctions.h"
-#include "DirectGPUKernels.cuh"
+#include "IncludeGPUKernels.cuh"
 
 void stdlog_hook(int verbosity, const char* str);
 #define STDLOG stdlog_hook
