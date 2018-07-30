@@ -78,6 +78,13 @@ class alignas(16) FOFparticle {
 	// x = p.x; y = p.y; z = p.z; n = p.n; 
     // }
     inline int index() { return (int)(n); }
+    inline FOFloat diff2v(FOFparticle *q) {
+        FOFloat dx = q->x-x;
+        FOFloat dy = q->y-y;
+        FOFloat dz = q->z-z;
+        FOFloat dn = q->n-n;
+	return dx*dx+dy*dy+dz*dz+dn*dn;
+    }
     inline FOFloat diff2(FOFparticle *q) {
         FOFloat dx = q->x-x;
         FOFloat dy = q->y-y;
@@ -202,6 +209,21 @@ inline void diff2avx512_32(float *r, float *p, float *a) {
 #endif // AVX512DIRECT
 
 
+#define FOFAVX
+
+
+#ifndef FOFAVX
+
+inline void diff2by4(float *r, FOFparticle *p, FOFparticle *a) {
+    // This takes 4 float4's and computes |p-a|^2
+    r[0] = (*p).diff2v(a);
+    r[1] = (*p).diff2v(a+1);
+    r[2] = (*p).diff2v(a+2);
+    r[3] = (*p).diff2v(a+3);
+}
+
+#else
+
 inline void diff2avx4(float *r, float *p, float *a) {
     // p and r are required to be 16-byte aligned.
     // a is required to be 32-byte aligned (unless we want to use loadu),
@@ -257,6 +279,8 @@ inline void diff2avx8(float *r, float *p, float *a) {
     _mm_store_ps(r+4,efgh);
     return;
 }
+
+#endif
 
 
 // Assume that FOFgroup is divisible by 16 and that the __m128 
@@ -482,15 +506,24 @@ class FOFcell {
 	    d2use = d2buf;
 	    //#pragma unroll
 	    for (int a=0; a<nlist; a+=4)
+			#ifdef FOFAVX
 			diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
+			#else
+			diff2by4(d2use+a, primary, list+a);
+			#endif
 			//d2use[a] = primary->diff2(list+a);  // with ICC, this is actually the same speed
 	} else {
 	    // We have an odd registration.  Do the first object special.
 	    d2use = d2buf+3;
-	    d2use[0] = primary->diff2(list);
+	    /// d2use[0] = primary->diff2(list);
+	    d2use[0] = primary->diff2v(list);
 	    //#pragma unroll
 	    for (int a=1; a<nlist; a+=4)
+			#ifdef FOFAVX
 			diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
+			#else
+			diff2by4(d2use+a, primary, list+a);
+			#endif
 			//d2use[a] = primary->diff2(list+a);
 	}
 	numdists += nlist;
