@@ -709,6 +709,7 @@ enable_avx_directs
 enable_avx512_directs
 enable_avx_multipoles
 enable_avx512_multipoles
+enable_avx_fof
 with_max_cpd
 with_max_source_length
 enable_threaded_io
@@ -1367,6 +1368,7 @@ Optional Features:
   --enable-avx-multipoles AVX multipoles [yes if AVX present]
   --enable-avx512-multipoles
                           AVX-512 multipoles [yes if AVX-512 present]
+  --enable-avx-fof        AVX FOF [yes if AVX present]
   --enable-threaded-io    Threaded IO [yes]
   --enable-gpu-directs    GPU directs [yes if CUDA detected]
   --enable-gpu-convolution
@@ -5703,6 +5705,21 @@ _ACEOF
 
 fi
 
+# Check whether --enable-avx-fof was given.
+if test "${enable_avx_fof+set}" = set; then :
+  enableval=$enable_avx_fof;
+else
+  enable_avx_fof=$enable_avx
+fi
+
+if test x$enable_avx_fof == xyes; then
+
+cat >>confdefs.h <<_ACEOF
+#define AVXFOF /**/
+_ACEOF
+
+fi
+
 
 # Check whether --with-max-cpd was given.
 if test "${with_max_cpd+set}" = set; then :
@@ -6410,6 +6427,7 @@ echo "AVX directs:                     $enable_avx_directs"
 echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "AVX multipoles:                  $enable_avx_multipoles"
 echo "AVX-512 multipoles:              $enable_avx512_multipoles"
+echo "AVX FOF:                         $enable_avx_fof"
 echo "Maximum CPD:                     $with_max_cpd"
 echo "Maximum source length:           $with_max_source_length"
 echo "Threaded IO:                     $enable_threaded_io"

@@ -9,6 +9,9 @@
 /* "Use AVX directs" */
 #undef AVXDIRECT
 
+/* "Use AVX FOF" */
+#undef AVXFOF
+
 /* "Use AVX multipoles" */
 #undef AVXMULTIPOLES
 

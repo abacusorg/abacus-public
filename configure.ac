@@ -129,6 +129,13 @@ if test x$enable_avx512_multipoles == xyes; then
 	AC_DEFINE_UNQUOTED(AVX512MULTIPOLES, [], "Use AVX-512 multipoles")
 fi
 
+AC_ARG_ENABLE(avx-fof,
+[AS_HELP_STRING([--enable-avx-fof], [AVX FOF [yes if AVX present]])],
+    [], enable_avx_fof=$enable_avx)
+if test x$enable_avx_fof == xyes; then
+    AC_DEFINE_UNQUOTED(AVXFOF, [], "Use AVX FOF")
+fi
+
 AC_ARG_WITH(max-cpd,
 [AS_HELP_STRING([--with-max-cpd=CPD], [Maximum cells-per-dimension [8192]])],
 	[], with_max_cpd="8192")
@@ -242,6 +249,7 @@ echo "AVX directs:                     $enable_avx_directs"
 echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "AVX multipoles:                  $enable_avx_multipoles"
 echo "AVX-512 multipoles:              $enable_avx512_multipoles"
+echo "AVX FOF:                         $enable_avx_fof"
 echo "Maximum CPD:                     $with_max_cpd"
 echo "Maximum source length:           $with_max_source_length"
 echo "Threaded IO:                     $enable_threaded_io"

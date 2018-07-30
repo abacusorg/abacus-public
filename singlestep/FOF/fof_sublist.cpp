@@ -113,7 +113,7 @@ class alignas(16) FOFparticle {
     }
 };
 
-#ifdef AVX512DIRECT
+#ifdef AVX512DIRECT  // change this to AVX512FOF if we ever decide it's faster
 #include "avx512_calls.h"
 // This implementation is slower than AVX; AVX-512 is missing hadd
 inline void diff2avx512_4(float *r, float *p, float *a) {
@@ -209,10 +209,7 @@ inline void diff2avx512_32(float *r, float *p, float *a) {
 #endif // AVX512DIRECT
 
 
-#define FOFAVX
-
-
-#ifndef FOFAVX
+#ifndef AVXFOF
 
 inline void diff2by4(float *r, FOFparticle *p, FOFparticle *a) {
     // This takes 4 float4's and computes |p-a|^2
@@ -506,7 +503,7 @@ class FOFcell {
 	    d2use = d2buf;
 	    //#pragma unroll
 	    for (int a=0; a<nlist; a+=4)
-			#ifdef FOFAVX
+			#ifdef AVXFOF
 			diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
 			#else
 			diff2by4(d2use+a, primary, list+a);
@@ -519,7 +516,7 @@ class FOFcell {
 	    d2use[0] = primary->diff2v(list);
 	    //#pragma unroll
 	    for (int a=1; a<nlist; a+=4)
-			#ifdef FOFAVX
+			#ifdef AVXFOF
 			diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
 			#else
 			diff2by4(d2use+a, primary, list+a);
