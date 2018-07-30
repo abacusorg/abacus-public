@@ -383,8 +383,8 @@ class SlabAccum {
 	// Also build the pstart[] array (so this will overwrite it
 	// if build_pstart() was called first, usually harmless).
 	uint64 offset = 0;
-	pstart[j] = offset;
 	for (int j=0; j<cpd; j++) {
+	    pstart[j] = offset;
 	    memcpy(destination+offset, pencils[j].data, 
 	    	sizeof(T)*pencils[j]._size);
 	    offset += pencils[j]._size;
@@ -439,7 +439,7 @@ class SlabAccum {
 	uint64 size = 0;
 	size+= sizeof(CellAccum)*cpd*cpd;
 	size+= sizeof(uint64)*cpd;
-	size+= sizeof(T)*pencils[j]._size;
+	size+= sizeof(T)*pencils[cpd]._size;
 	LBW->AllocateSpecificSize(type,slab,size);
 	p = LBW->ReturnIDPtr(type,slab);
 
@@ -466,7 +466,7 @@ class SlabAccum {
 	// By creating buffers first, we avoid creating one per thread.
 	maxthreads = 1;
 	buffers = new SlabAccumBuffer<T>[maxthreads];
-	setup(P->cpd, 0);
+	setup(P.cpd, 0);
 	    // Now cells[], pencils[], and pstart[] exist and pencils[].cells is filled.
 
 	void *p = LBW->ReturnIDPtr(type,slab);  // Here's where our data is
@@ -481,7 +481,7 @@ class SlabAccum {
 	// Allocate the required buffer size
 	assertf(pstart[cpd]<2e9, "This arena is too big to be unpacked into one SlabBuffer\n");
 	buffers[0].setup(pstart[cpd]);
-	memcpy(bufers[0].data, p, sizeof(T)*pstart[cpd]);
+	memcpy(buffers[0].data, p, sizeof(T)*pstart[cpd]);
 	buffers[0].size = buffers[0].maxsize;
 
 	for (int j=0; j<cpd; j++) {
