@@ -129,8 +129,8 @@ class FaceSet {
 	const FOFloat boundary = GFC->boundary;   // The boundaries, cell-centered
 
 	// Store a SSE version of 0.5 for later
-	float half1 = 0.5;
-	__m128 half = _mm_load_ps1(&half1);
+	/// float half1 = 0.5;
+	/// __m128 half = _mm_load_ps1(&half1);
 	int facegroupnumstart = fG->get_pencil_size();
 		// We're going to start the facegroup numbering from the start of the cell
 		// So store the pencil index here and subtract it later
