@@ -80,8 +80,10 @@ void FetchSlabAction(int slab) {
         "PosSlab size doesn't match prediction\n");
 
     // Don't bother to load the vel/aux/taylors for slabs that won't be kicked until the wrap
+    #ifndef PARALLEL
     if(FetchSlabs.number_of_slabs_executed < FORCE_RADIUS)
         return;
+    #endif
 
     LBW->LoadArenaNonBlocking(VelSlab, slab);
     assertf(Slab->size(slab)*sizeof(velstruct)<=
@@ -128,9 +130,11 @@ void TransposePosAction(int slab){
         }
     }
     
+    #ifndef PARALLEL
     // If this is a "ghost" slab, we only need its transpose
     if(TransposePos.number_of_slabs_executed < FORCE_RADIUS)
         LBW->DeAllocate(PosSlab, slab);
+    #endif
 }
 
 
@@ -269,12 +273,14 @@ void KickAction(int slab) {
         LBW->DeAllocate(PosXYZSlab, slab - FORCE_RADIUS);
 
     // Special case: if this is the last slab, free all +/- FORCE_RADIUS
+    STDLOG(1,"%d slabs have been Kicked so far\n", Kick.number_of_slabs_executed);
     if(Kick.number_of_slabs_executed == PP->cpd-1)
         for(int j = slab - FORCE_RADIUS+1; j <= slab + FORCE_RADIUS; j++)
             LBW->DeAllocate(PosXYZSlab, j);
 
     // Queue up slabs near the wrap to be loaded again later
     // This way, we don't have idle slabs taking up memory while waiting for the pipeline to wrap around
+    #ifndef PARALLEL
     if(Kick.number_of_slabs_executed < FORCE_RADIUS){
         STDLOG(2,"Marking slab %d for repeat\n", slab - FORCE_RADIUS);
         TransposePos.mark_to_repeat(slab - FORCE_RADIUS);
@@ -283,6 +289,7 @@ void KickAction(int slab) {
         LBW->DeAllocate(CellInfoSlab, slab - FORCE_RADIUS);
         FetchSlabs.mark_to_repeat(slab - FORCE_RADIUS);
     }
+    #endif
 
     //If we are doing blocking forces, the finalization happens in NearForceAction
     if(!P.ForceOutputDebug && !P.ForceCPU)
@@ -716,7 +723,7 @@ void timestep(void) {
                 Drift.Attempt();
                Finish.Attempt();
 	// TODO: The following line will be omitted once the MPI monitoring thread is in place.
-	if (SendManifest.completed) ReceiveManifest.Receive();
+	if (SendManifest.is_ready()) { SendManifest.done(); ReceiveManifest.Receive(); }
 	// If the manifest has been received, install it.
 	if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
     }
@@ -789,7 +796,7 @@ void timestepIC(void) {
         Drift.Attempt();
        Finish.Attempt();
 	// TODO: The following line will be omitted once the MPI monitoring thread is in place.
-	if (SendManifest.completed) ReceiveManifest.Receive();
+	if (SendManifest.is_ready()) { SendManifest.done(); ReceiveManifest.Receive(); }
 	// If the manifest has been received, install it.
 	if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
     }
@@ -873,7 +880,7 @@ void timestepMultipoles(void) {
         FetchSlabs.Attempt();
             Finish.Attempt();
 	// TODO: The following line will be omitted once the MPI monitoring thread is in place.
-	if (SendManifest.completed) ReceiveManifest.Receive();
+	if (SendManifest.is_ready()) { SendManifest.done(); ReceiveManifest.Receive(); }
 	// If the manifest has been received, install it.
 	if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
     }
@@ -1050,7 +1057,7 @@ void timestepStandaloneFOF(const char* slice_dir) {
         DoGlobalGroups.Attempt();
         Finish.Attempt();
 	// TODO: The following line will be omitted once the MPI monitoring thread is in place.
-	if (SendManifest.completed) ReceiveManifest.Receive();
+	if (SendManifest.is_ready()) { SendManifest.done(); ReceiveManifest.Receive(); }
 	// If the manifest has been received, install it.
 	if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
     }

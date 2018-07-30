@@ -186,6 +186,8 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     uint64 slablength = 0;
     FinishPartition.Start();
 
+    /// for (int j=0;j<length;j++) assertf(list[j].xyz.x>=0||list[j].xyz.x<P.cpd, "Bad value at IL[%d] %d %d %d\n", j, list[j].xyz.x, list[j].xyz.y, list[j].xyz.z);
+
     uint64 mid = ParallelPartition(list, length, slab, is_in_slab);  // [0..mid-1] are not in slab, [mid..length-1] are in slab
     
     /* VESTIGIAL CODE, in case one doesn't trust the ParallelPartition code
@@ -209,8 +211,13 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     slablength = length - mid;
 
     FinishPartition.Stop();
-    STDLOG(2, "Partition done; starting sort.\n");
+    STDLOG(2, "Partition done, yielding %d particles; starting sort.\n", slablength);
     FinishSort.Start();
+
+    /// double tmpsum = 0.0;
+    /// for (int j=0;j<length;j++) tmpsum+=list[j].xyz.x;
+    /// if (length>0) STDLOG(1, "Average slab number %f\n", tmpsum/length);
+    /// for (int j=0;j<length;j++) assertf(list[j].xyz.x>=0||list[j].xyz.x<P.cpd, "Bad value at IL[%d] %d %d %d\n", j, list[j].xyz.x, list[j].xyz.y, list[j].xyz.z);
 
     ilstruct *ilnew;
     assert(posix_memalign((void **)&ilnew, 64, sizeof(ilstruct)*(slablength)) == 0);

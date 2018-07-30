@@ -444,18 +444,18 @@ class SlabAccum {
 	// This does not delete the SlabAccum
 
 	char *p;
+	build_pstart();
 	// Precompute the size needed and then allocate it
 	uint64 size = 0;
 	size+= sizeof(CellAccum)*cpd*cpd;
 	size+= sizeof(uint64)*cpd;
-	size+= sizeof(T)*pencils[cpd]._size;
+	size+= sizeof(T)*pstart[cpd];
 	LBW->AllocateSpecificSize(type,slab,size);
 	p = LBW->ReturnIDPtr(type,slab);
 
 	memcpy(p, cells, sizeof(CellAccum)*cpd*cpd);
 	p+= sizeof(CellAccum)*cpd*cpd;
 
-	build_pstart();
 	memcpy(p, pstart, sizeof(uint64)*(cpd+1));
 	p+= sizeof(uint64)*(cpd+1);
 

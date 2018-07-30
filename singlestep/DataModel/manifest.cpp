@@ -28,9 +28,11 @@ class DependencyRecord {
 	end = finished_slab;
 	for (begin=end-1; begin>end-d.cpd; begin--) {
 	    if (d.notdone(begin)) break;
+	    d.mark_to_repeat(begin);
 	}
 	// We've found the first notdone slab
 	begin++;   // Want to pass the first done one
+	STDLOG(1, "Dependency [%d,%d)\n", begin, end);
 	return;
     }
     void Set(Dependency &d) {
@@ -42,6 +44,8 @@ class DependencyRecord {
     // information from GFC.  In particular, we need to transmit all cases
     // where this is ==1.  We don't care about ==2.
     void LoadCG(int finished_slab) {
+	if (GFC==NULL) { begin=end = finished_slab-1; return;}
+	STDLOG(1, "LoadCG start\n");
 	end = finished_slab-1;
 	while (GFC->cellgroups_status[PP->WrapSlab(end)]==2) end--;
 	end++;   // Now this marks the first ==2.
@@ -49,11 +53,13 @@ class DependencyRecord {
 	    int s = PP->WrapSlab(begin);
 	    if (GFC->cellgroups_status[s]==0) break;
 	    // Need to load this over to the Arenas
+	    STDLOG(1,"Packing CellGroupArena for slab %d\n", s);
 	    GFC->cellgroups[s].pack(CellGroupArena,s);
 	    // Having moved it, we can delete the original
 	    GFC->DestroyCellGroups(s);
 	}
 	begin++;   // Now this marks the first ==1.
+	STDLOG(1, "CG Dependency [%d,%d)\n", begin, end);
 	return;
     }
     void SetCG() {
@@ -104,7 +110,7 @@ class Manifest {
     int numlinks;
     DependencyRecord dep[MAXDEPENDENCY];
     int numdep;
-    int completed;	// ==1 if the Manifest is completed, ==0 if not.
+    int completed;	// ==1 if the Manifest is ready for use, ==0 if not yet, ==2 if already done
 
     Manifest() {
     	numarenas = numil = numlinks = numdep = 0;
@@ -115,8 +121,10 @@ class Manifest {
     }
     ~Manifest() { }
 
-    inline int is_ready() { return completed; }
+    inline int is_ready() { if (completed==1) return 1; else return 0;}
 	// Call this to see if the Manifest is ready to retrieve
+    void done() { completed=2; }
+    	// Call this to mark that we're done with the Manifest
 
     void LoadArena(int type, int s) {
 	ManifestArena *a = arenas+numarenas;
@@ -124,6 +132,7 @@ class Manifest {
 	a->slab = s;
 	a->size = LBW->IDSizeBytes(type, s);
 	a->ptr =  LBW->ReturnIDPtr(type, s);
+	STDLOG(1, "Queuing slab %d of type %d, size %l\n", s, type, a->size);
 	numarenas++;
 	assertf(numarenas<MAXMANIFEST, "numarenas has overflowed; increase MAXMANIFEST.");
 	return;
@@ -146,6 +155,8 @@ void Manifest::QueueToSend(int finished_slab) {
     // E.g., we really should not have any slabs that have open GlobalGroupSlabs
     // in our wake.  Might check, since one could screw up the Dependencies.
 
+    STDLOG(1,"Queueing the SendManifest at slab=%d\n", finished_slab);
+
     // Load the information from the Dependencies
     numdep = 0;
     dep[numdep++].Load(FetchSlabs, finished_slab);
@@ -166,6 +177,7 @@ void Manifest::QueueToSend(int finished_slab) {
     	// LoadCG() includes moving info into the CellGroupArenas
     assertf(numdep<MAXDEPENDENCY, "numdep has overflowed its MAX value");
 
+    STDLOG(1,"Loading Arenas into the SendManifest\n");
     // Now load all of the arenas into the Manifest
     for (int type=0; type<MAXIDS; type++) {
 	// Loop over all SlabTypes
@@ -176,22 +188,36 @@ void Manifest::QueueToSend(int finished_slab) {
 	}
     }
 
+    STDLOG(1,"Loading Insert List into the SendManifest\n");
     // Partition the Insert List, malloc *il, and save it off
-    uint64 mid = ParallelPartition(IL->list, IL->length, finished_slab, is_below_slab);
-    int ret = posix_memalign((void **)&il, 4096, sizeof(ilstruct)*(IL->length-mid));
-    memcpy(il, IL->list+mid, IL->length-mid);
-	// Possible TODO: Consider whether this copy should be multi-threaded
-    IL->ShrinkMAL(mid);
+    /// for (int j=0;j<IL->length;j++) assertf(IL->list[j].xyz.x>=0&&IL->list[j].xyz.x<P.cpd, "Bad value at IL[%d] %d %d %d\n", j, IL->list[j].xyz.x, IL->list[j].xyz.y, IL->list[j].xyz.z);
 
+    uint64 mid = ParallelPartition(IL->list, IL->length, finished_slab, is_below_slab);
+    /// for (int j=0;j<IL->length;j++) assertf(IL->list[j].xyz.x>=0&&IL->list[j].xyz.x<P.cpd, "Bad value after PP at IL[%d] %d %d %d\n", j, IL->list[j].xyz.x, IL->list[j].xyz.y, IL->list[j].xyz.z);
+
+    numil = IL->length-mid;
+    int ret = posix_memalign((void **)&il, 4096, sizeof(ilstruct)*numil);
+    memcpy(il, IL->list+mid, sizeof(ilstruct)*numil);
+	// Possible TODO: Consider whether this copy should be multi-threaded
+    STDLOG(1, "Insert list had size %l, now size %l\n", IL->length, mid);
+    IL->ShrinkMAL(mid);
+    /// for (int j=0;j<numil;j++) assertf(il[j].xyz.x>=0&&il[j].xyz.x<P.cpd, "Bad value in queued il[%d] %d %d %d\n", j, il[j].xyz.x, il[j].xyz.y, il[j].xyz.z);
+
+    STDLOG(1,"Loading GroupLink List into the SendManifest\n");
     // Partition the GroupLink List, malloc *links, and save it off
     // TODO: Do these group finding variables always exist?
-    mid = ParallelPartition(GFC->GLL->list, GFC->GLL->length, finished_slab, link_below_slab);
-    ret = posix_memalign((void **)&links, 4096, sizeof(GroupLink)*(GFC->GLL->length-mid));
-    memcpy(links, GFC->GLL->list+mid, GFC->GLL->length-mid);
-	// Possible TODO: Consider whether this copy should be multi-threaded
-    GFC->GLL->ShrinkMAL(mid);
+    if (GFC!=NULL) {
+	mid = ParallelPartition(GFC->GLL->list, GFC->GLL->length, finished_slab, link_below_slab);
+	ret = posix_memalign((void **)&links, 4096, sizeof(GroupLink)*(GFC->GLL->length-mid));
+	numlinks = GFC->GLL->length-mid;
+	memcpy(links, GFC->GLL->list+mid, sizeof(GroupLink)*numlinks);
+	    // Possible TODO: Consider whether this copy should be multi-threaded
+	STDLOG(1, "Grouplink list had size %l, now size %l\n", GFC->GLL->length, mid);
+	GFC->GLL->ShrinkMAL(mid);
+    }
 
     // TODO: Fork the communication thread and have it invoke this->Send()
+    this->Send();
     return;
 }
 
@@ -208,19 +234,26 @@ void Manifest::Send() {
     sprintf(fname, "%s/manifest", P.WriteStateDirectory);
     FILE *fp = fopen(fname, "wb");
     retval = fwrite(this, sizeof(Manifest), 1, fp);
+    STDLOG(1,"Sending the Manifest to %s\n", fname);
 
     for (int n=0; n<numarenas; n++) {
 	// TODO: Send arenas[n].size bytes from arenas[n].ptr
 	retval = fwrite(arenas[n].ptr, 1, arenas[n].size, fp);
+	STDLOG(1,"Writing %l bytes of arenas to file\n", retval);
 	// Now we can delete this arena
 	LBW->DeAllocate(arenas[n].type, arenas[n].slab);
     }
     // TODO: Send the insert list: numil*sizeof(ilstruct) bytes from *il
     retval = fwrite(il, sizeof(ilstruct), numil, fp);
+    STDLOG(1,"Writing %l objects of insert list to file\n", retval);
+    STDLOG(1,"IL particle on slab %d\n", il[0].xyz.x);
     free(il);
     // TODO: Send the list: numlinks*sizeof(GroupLink) bytes from *links
-    retval = fwrite(links, sizeof(GroupLink), numlinks, fp);
-    free(links);
+    if (GFC!=NULL) {
+	retval = fwrite(links, sizeof(GroupLink), numlinks, fp);
+	STDLOG(1,"Writing %l objects of group links to file\n", retval);
+	free(links);
+    }
     completed = 1;
     // TODO: Can terminate the communication thread after this.
     fclose(fp);
@@ -237,25 +270,32 @@ void Manifest::Receive() {
     sprintf(fname, "%s/manifest", P.WriteStateDirectory);
     FILE *fp = fopen(fname, "rb");
     retval = fread(this, sizeof(Manifest), 1, fp);
+    STDLOG(1,"Reading Manifest from %s\n", fname);
 
     for (int n=0; n<numarenas; n++) {
 	LBW->AllocateSpecificSize(arenas[n].type, arenas[n].slab, arenas[n].size);
 	arenas[n].ptr = LBW->ReturnIDPtr(arenas[n].type, arenas[n].slab);
 	// TODO: Receive arenas[n].size bytes into arenas[n].ptr
 	retval = fread(arenas[n].ptr, 1, arenas[n].size, fp);
+	STDLOG(1,"Reading %l bytes of arenas to file\n", retval);
     }
 
     int ret = posix_memalign((void **)&il, 64, numil*sizeof(ilstruct));
     assert(il!=NULL);
     // TODO: Receive numil*sizeof(ilstruct) bytes into *il
     retval = fread(il, sizeof(ilstruct), numil, fp);
+    STDLOG(1,"Reading %l objects of insert list from file\n", retval);
+    STDLOG(1,"IL particle on slab %d\n", il[0].xyz.x);
 
     ret = posix_memalign((void **)&links, 64, numlinks*sizeof(GroupLink));
     assert(links!=NULL);
     // TODO: Receive numlinks*sizeof(GroupLink) bytes into *links
-    retval = fread(links, sizeof(GroupLink), numlinks, fp);
-    completed = 1;
+    if (GFC!=NULL) {
+	retval = fread(links, sizeof(GroupLink), numlinks, fp);
+	STDLOG(1,"Reading %l objects of links from file\n", retval);
+    }
     // TODO: Can terminate the communication thread after this
+    completed = 1;
     fclose(fp);
 }
 
@@ -270,7 +310,9 @@ void Manifest::ImportData() {
     // The Arena allocation did not set this flag; we do so here, thereby
     // opening this region for use.
     // TODO: Consider whether there are any other race conditions; DJE thinks not
+    assertf(completed==1, "ImportData has been called when completed==%d\n", completed);
 
+    STDLOG(1,"Importing ReceiveManifest into the flow\n");
     for (int n=0; n<numarenas; n++) {
 	LBW->SetIOCompleted(arenas[n].type, arenas[n].slab);
     }
@@ -297,18 +339,41 @@ void Manifest::ImportData() {
     assert(n==numdep);
 
     // Add *il to the insert list
+    /// for (int j=0;j<numil;j++) assertf(il[j].xyz.x>=0&&il[j].xyz.x<P.cpd, "Bad value at il[%d] %d %d %d\n", j, il[j].xyz.x, il[j].xyz.y, il[j].xyz.z);
     uint64 len = IL->length;
+    STDLOG(1, "Growing IL list from %d by %d\n", len, numil);
     IL->GrowMAL(len+numil);
     memcpy(IL->list+len, il, numil*sizeof(ilstruct));
 	// Possible TODO: Should this copy be multi-threaded?
     free(il);
+    /// for (int j=0;j<IL->length;j++) assertf(IL->list[j].xyz.x>=0&&IL->list[j].xyz.x<P.cpd, "Bad value at IL[%d] %d %d %d\n", j, IL->list[j].xyz.x, IL->list[j].xyz.y, IL->list[j].xyz.z);
+
+    /* 
+    for (int j=len; j<IL->length; j++) {
+    	if (IL->list[j].xyz.x>0&&IL->list[j].xyz.x<10)
+	    fprintf(stderr,"Illegal IL particle: %d %d %d\n", 
+	    	IL->list[j].xyz.x, IL->list[j].xyz.y, IL->list[j].xyz.z);
+    	if (IL->list[j].xyz.x<0 || IL->list[j].xyz.x>=P.cpd
+    	   || IL->list[j].xyz.x<0 || IL->list[j].xyz.x>=P.cpd
+    	   || IL->list[j].xyz.x<0 || IL->list[j].xyz.x>=P.cpd)
+	    fprintf(stderr,"Illegal IL particle: %d %d %d\n", 
+	    	IL->list[j].xyz.x, IL->list[j].xyz.y, IL->list[j].xyz.z);
+    }
+    */
 
     // Add *links to the GroupLink list
-    len = GFC->GLL->length;
-    GFC->GLL->GrowMAL(len+numlinks);
-    memcpy(GFC->GLL->list+len, links, numlinks*sizeof(GroupLink));
+    if (GFC!=NULL) {
+	len = GFC->GLL->length;
+	GFC->GLL->GrowMAL(len+numlinks);
+	memcpy(GFC->GLL->list+len, links, numlinks*sizeof(GroupLink));
 	// Possible TODO: Should this copy be multi-threaded?
-    free(links);
+	free(links);
+	STDLOG(1, "Growing GroupLink list from %d by %d\n", len, numil);
+    }
+    
+    // We're done with this Manifest!
+    done();
+    // TODO: Could erase the file, but we won't for now
 }
 
 /* ================= Putting this in the code ======================
