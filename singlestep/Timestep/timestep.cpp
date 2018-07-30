@@ -359,6 +359,7 @@ int DoGlobalGroupsPrecondition(int slab) {
     // That said, if the nearby slab has already closed global groups, then
     // we can proceed.
     // The lower bound has a +1 because FindLinks looks one slab back
+    if (Kick.notdone(slab)) return 0;
     for (int j=-2*GROUP_RADIUS+1; j<=2*GROUP_RADIUS; j++){
         if (FindCellGroupLinks.notdone(slab+j)) return 0;
     }

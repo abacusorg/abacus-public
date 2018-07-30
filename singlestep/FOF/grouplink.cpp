@@ -31,6 +31,9 @@ class LinkID {
     inline void mark_for_deletion() {
         id = -1; return;
     }
+    inline int LinkID::slab() {
+        return (id&(long long int)0xfff00000000000)>>44;
+    }
 };
 
 class GroupLink {

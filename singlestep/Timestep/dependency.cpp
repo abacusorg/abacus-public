@@ -111,6 +111,27 @@ public:
         _executed_status[slab] = 0;
         number_of_slabs_executed--;
     }
+
+    int return_done_range(int end) {
+	// Returns begin, such that [begin,end) is done and begin-1 is not.
+	// We don't check if end is done.
+	// The check is wrapped, but the return value is not.
+	int begin = wrap(end-1);
+	while (done(begin) && end-begin<cpd) {
+	    begin--;
+	}
+	return begin;
+    }
+
+    void force_done(int s) {
+	// This overrides the actions and declares it done.
+	// last_slab_executed is never updated, nor is any timing done.
+	// This is intended to be used when we have executed the action()
+	// on another parallel node and are moving the results over.
+	_executed_status[wrap(s)] = 1;
+	number_of_slabs_executed++;
+    }
+
 };
 
 int *Dependency::spin_flags = new int[NUM_SPIN_FLAGS];

@@ -372,7 +372,7 @@ void GroupFindingControl::setupGGS() {
 
 GroupFindingControl::~GroupFindingControl() { 
     delete[] cellgroups;
-    for (int j=0;j<cpd;j++) assert(cellgroups_status[j] == 2);
+    for (int j=0;j<cpd;j++) assert(cellgroups_status[j] != 1);
     delete[] cellgroups_status;
     delete GLL;
     #ifndef STANDALONE_FOF
