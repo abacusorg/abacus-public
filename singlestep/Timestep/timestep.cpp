@@ -49,6 +49,8 @@ Dependency LPTVelocityReRead;
 STimer TimeStepWallClock;
 
 #include "manifest.cpp"
+Manifest SendManifest, ReceiveManifest;
+#define PARALLEL
 
 // -----------------------------------------------------------------
 /*
@@ -629,6 +631,10 @@ void FinishAction(int slab) {
 
     int pwidth = FetchSlabs.number_of_slabs_executed - Finish.number_of_slabs_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
+
+    #ifdef PARALLEL
+    if (Finish.number_of_slabs_executed==0) SendManifest.QueueToSend(slab);
+    #endif
 }
 
 // -----------------------------------------------------------------
@@ -709,6 +715,10 @@ void timestep(void) {
     LPTVelocityReRead.Attempt();
                 Drift.Attempt();
                Finish.Attempt();
+	// TODO: The following line will be omitted once the MPI monitoring thread is in place.
+	if (SendManifest.completed) ReceiveManifest.Receive();
+	// If the manifest has been received, install it.
+	if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
     }
 
     if(IL->length!=0)
@@ -778,6 +788,10 @@ void timestepIC(void) {
     while( !Finish.alldone() ) {
         Drift.Attempt();
        Finish.Attempt();
+	// TODO: The following line will be omitted once the MPI monitoring thread is in place.
+	if (SendManifest.completed) ReceiveManifest.Receive();
+	// If the manifest has been received, install it.
+	if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
     }
 
     assertf(NP_from_IC == P.np, "Expected to read a total of %llu particles from IC files, but only read %llu.\n", P.np, NP_from_IC);
@@ -858,6 +872,10 @@ void timestepMultipoles(void) {
     while( !Finish.alldone() ) {
         FetchSlabs.Attempt();
             Finish.Attempt();
+	// TODO: The following line will be omitted once the MPI monitoring thread is in place.
+	if (SendManifest.completed) ReceiveManifest.Receive();
+	// If the manifest has been received, install it.
+	if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
     }
 
     STDLOG(1,"Completing timestepMultipoles()\n");
@@ -1027,8 +1045,14 @@ void timestepStandaloneFOF(const char* slice_dir) {
         TransposePos.Attempt();
         MakeCellGroups.Attempt();
         FindCellGroupLinks.Attempt();
+        Output.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
+		// Need Output to run, because DoGlobalGroups depends on it.
         DoGlobalGroups.Attempt();
         Finish.Attempt();
+	// TODO: The following line will be omitted once the MPI monitoring thread is in place.
+	if (SendManifest.completed) ReceiveManifest.Receive();
+	// If the manifest has been received, install it.
+	if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
     }
 
     TimeStepWallClock.Stop();
