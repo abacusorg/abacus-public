@@ -136,6 +136,14 @@ class SlabAccumBuffer {
 	#endif
     }
 
+    // If we already have data to load in, do it here.
+    void load_from_ptr(void *p, int _size) {
+	setup(_size);
+	memcpy(data, p, sizeof(T)*_size);
+	size = maxsize;
+	start = 0;
+    }
+
     // When we start work on a pencil, declare its starting point,
     // in case we need to move the data.
     void set_pencil_start() { start = size; }
@@ -199,6 +207,7 @@ class SlabAccumBuffer {
 // a pencil.
 template <class T>
 class PencilAccum {
+    // These two variables are left in an ill-defined state after FinishPencil(0 is called.
     CellAccum *thiscell;     // Point to the current cell
     int thisstart;	// Start index of current cell
 
@@ -434,7 +443,7 @@ class SlabAccum {
 	// We need to allocate space for, and then fill, LBW->(type,slab)
 	// This does not delete the SlabAccum
 
-	void *p;
+	char *p;
 	// Precompute the size needed and then allocate it
 	uint64 size = 0;
 	size+= sizeof(CellAccum)*cpd*cpd;
@@ -469,7 +478,7 @@ class SlabAccum {
 	setup(P.cpd, 0);
 	    // Now cells[], pencils[], and pstart[] exist and pencils[].cells is filled.
 
-	void *p = LBW->ReturnIDPtr(type,slab);  // Here's where our data is
+	char *p = (char *) LBW->ReturnIDPtr(type,slab);  // Here's where our data is
 	// Load the cells[] array
 	memcpy(cells, p, sizeof(CellAccum)*cpd*cpd);
 	p+= sizeof(CellAccum)*cpd*cpd;
@@ -480,16 +489,18 @@ class SlabAccum {
 
 	// Allocate the required buffer size
 	assertf(pstart[cpd]<2e9, "This arena is too big to be unpacked into one SlabBuffer\n");
-	buffers[0].setup(pstart[cpd]);
-	memcpy(buffers[0].data, p, sizeof(T)*pstart[cpd]);
-	buffers[0].size = buffers[0].maxsize;
+	/// buffers[0].setup(pstart[cpd]);
+	/// memcpy(buffers[0].pdata(), p, sizeof(T)*pstart[cpd]);
+	/// buffers[0].size = buffers[0].maxsize;
+
+	buffers[0].load_from_ptr(p, pstart[cpd]);
 
 	for (int j=0; j<cpd; j++) {
 	    pencils[j].buffer = buffers;
-	    pencils[j].data = buffers[0].data+pstart[j];
+	    pencils[j].data = buffers[0].get_pencil_start()+pstart[j];
 	    pencils[j]._size = pstart[j+1]-pstart[j];
-	    pencils[j].thiscell = NULL;    // Just fill in unusable values
-	    pencils[j].thisstart = 0;
+	    /// pencils[j].thiscell = NULL;    // Just fill in unusable values
+	    /// pencils[j].thisstart = 0;
 	}
 	return;
     }

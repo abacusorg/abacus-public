@@ -92,7 +92,7 @@ SlabBuffer *LBW;
 
 // Two quick functions so that the I/O routines don't need to know 
 // about the LBW object. TODO: Move these to an io specific file
-void IO_SetIOCompleted(int arena) { LBW->SetIOCompleted(arena); }
+void IO_SetIOCompleted(int arena) { LBW->LinearBuffer::SetIOCompleted(arena); }
 void IO_DeleteArena(int arena)    { LBW->DeAllocateArena(arena); }
 
 

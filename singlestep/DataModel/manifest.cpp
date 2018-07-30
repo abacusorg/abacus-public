@@ -23,18 +23,18 @@ class DependencyRecord {
     // We require begin<=end; the wrapping is done within the Dependency class.
     DependencyRecord() { begin = end = 0; }
 
-    void Load(Dependency *d, int finished_slab) {
+    void Load(Dependency &d, int finished_slab) {
 	// Load the status of this dependency 
 	end = finished_slab;
-	for (begin=end-1; begin>end-cpd; begin--) {
-	    if (d->notdone(begin)) break;
+	for (begin=end-1; begin>end-d.cpd; begin--) {
+	    if (d.notdone(begin)) break;
 	}
 	// We've found the first notdone slab
 	begin++;   // Want to pass the first done one
 	return;
     }
-    void Set(Dependency *d) {
-	for (int s=begin; s<end; s++) d->force_done(s);
+    void Set(Dependency &d) {
+	for (int s=begin; s<end; s++) d.force_done(s);
 	return;
     }
 
@@ -45,7 +45,7 @@ class DependencyRecord {
 	end = finished_slab-1;
 	while (GFC->cellgroups_status[PP->WrapSlab(end)]==2) end--;
 	end++;   // Now this marks the first ==2.
-	for (begin=end-1; begin>end-cpd; begin--) {
+	for (begin=end-1; begin>end-GFC->cpd; begin--) {
 	    int s = PP->WrapSlab(begin);
 	    if (GFC->cellgroups_status[s]==0) break;
 	    // Need to load this over to the Arenas
@@ -113,7 +113,7 @@ class Manifest {
 	links = NULL;
 	return;
     }
-    ~Manifest { return; }
+    ~Manifest() { }
 
     inline int is_ready() { return completed; }
 	// Call this to see if the Manifest is ready to retrieve
@@ -140,7 +140,7 @@ void Manifest::QueueToSend(int finished_slab) {
     // We've just finished the given slab.  
     // Load all of the information from lower slabs into the Manifest.
     // Then call the non-blocking communication and return.
-    int cpd = P->cpd;
+    int cpd = P.cpd;
 
     // TODO: Consider some safety measures here.
     // E.g., we really should not have any slabs that have open GlobalGroupSlabs
@@ -177,16 +177,16 @@ void Manifest::QueueToSend(int finished_slab) {
     }
 
     // Partition the Insert List, malloc *il, and save it off
-    uint64 mid = ParallelPartition(IL->list, IL->length, slab, is_below_slab);
-    posix_memalign((void **)&il, 4096, sizeof(ilstruct)*(IL->length-mid));
+    uint64 mid = ParallelPartition(IL->list, IL->length, finished_slab, is_below_slab);
+    int ret = posix_memalign((void **)&il, 4096, sizeof(ilstruct)*(IL->length-mid));
     memcpy(il, IL->list+mid, IL->length-mid);
 	// Possible TODO: Consider whether this copy should be multi-threaded
     IL->ShrinkMAL(mid);
 
     // Partition the GroupLink List, malloc *links, and save it off
     // TODO: Do these group finding variables always exist?
-    mid = ParallelPartition(GFC->GLL->list, GFC->GLL->length, slab, link_below_slab);
-    posix_memalign((void **)&links, 4096, sizeof(GroupLink)*(GFC->GLL->length-mid));
+    mid = ParallelPartition(GFC->GLL->list, GFC->GLL->length, finished_slab, link_below_slab);
+    ret = posix_memalign((void **)&links, 4096, sizeof(GroupLink)*(GFC->GLL->length-mid));
     memcpy(links, GFC->GLL->list+mid, GFC->GLL->length-mid);
 	// Possible TODO: Consider whether this copy should be multi-threaded
     GFC->GLL->ShrinkMAL(mid);
@@ -195,23 +195,35 @@ void Manifest::QueueToSend(int finished_slab) {
     return;
 }
 
+
+
 void Manifest::Send() {
     // This is the routine called by the communication thread.
     // It should send to its partner using blocking communication.
     // It can delete arenas as it finishes.
 
     // TODO: Send the Manifest.  Maybe wait for handshake?
+    char fname[1024];
+    size_t retval;
+    sprintf(fname, "%s/manifest", P.WriteStateDirectory);
+    FILE *fp = fopen(fname, "wb");
+    retval = fwrite(this, sizeof(Manifest), 1, fp);
+
     for (int n=0; n<numarenas; n++) {
 	// TODO: Send arenas[n].size bytes from arenas[n].ptr
+	retval = fwrite(arenas[n].ptr, 1, arenas[n].size, fp);
 	// Now we can delete this arena
 	LBW->DeAllocate(arenas[n].type, arenas[n].slab);
     }
     // TODO: Send the insert list: numil*sizeof(ilstruct) bytes from *il
+    retval = fwrite(il, sizeof(ilstruct), numil, fp);
     free(il);
-    // TODO: Send the list: numil*sizeof(GroupLink) bytes from *links
+    // TODO: Send the list: numlinks*sizeof(GroupLink) bytes from *links
+    retval = fwrite(links, sizeof(GroupLink), numlinks, fp);
     free(links);
     completed = 1;
     // TODO: Can terminate the communication thread after this.
+    fclose(fp);
 }
 
 void Manifest::Receive() {
@@ -220,23 +232,31 @@ void Manifest::Receive() {
     // It allocates the needed space.
 
     // TODO: Receive the Manifest and overload the variables in *this.
+    char fname[1024];
+    size_t retval;
+    sprintf(fname, "%s/manifest", P.WriteStateDirectory);
+    FILE *fp = fopen(fname, "rb");
+    retval = fread(this, sizeof(Manifest), 1, fp);
 
     for (int n=0; n<numarenas; n++) {
-	LBW->AllocateSpecificSize(arenas[n].type, arenas[n].slab, arenas[n].sizebytes);
+	LBW->AllocateSpecificSize(arenas[n].type, arenas[n].slab, arenas[n].size);
 	arenas[n].ptr = LBW->ReturnIDPtr(arenas[n].type, arenas[n].slab);
 	// TODO: Receive arenas[n].size bytes into arenas[n].ptr
-	// TODO: May need to mark these arenas as not yet active??
+	retval = fread(arenas[n].ptr, 1, arenas[n].size, fp);
     }
 
-    posix_memalign((void **)&il, 64, numil*sizeof(ilstruct));
+    int ret = posix_memalign((void **)&il, 64, numil*sizeof(ilstruct));
     assert(il!=NULL);
     // TODO: Receive numil*sizeof(ilstruct) bytes into *il
+    retval = fread(il, sizeof(ilstruct), numil, fp);
 
-    posix_memalign((void **)&links, 64, numlinks*sizeof(GroupLink));
+    ret = posix_memalign((void **)&links, 64, numlinks*sizeof(GroupLink));
     assert(links!=NULL);
     // TODO: Receive numlinks*sizeof(GroupLink) bytes into *links
+    retval = fread(links, sizeof(GroupLink), numlinks, fp);
     completed = 1;
     // TODO: Can terminate the communication thread after this
+    fclose(fp);
 }
 
 void Manifest::ImportData() {
@@ -252,7 +272,7 @@ void Manifest::ImportData() {
     // TODO: Consider whether there are any other race conditions; DJE thinks not
 
     for (int n=0; n<numarenas; n++) {
-	LBW->SetIOCompleted(LBW->TypeSlab2ID(arenas[n].type, arenas[n].slab));
+	LBW->SetIOCompleted(arenas[n].type, arenas[n].slab);
     }
 
     // Set the dependencies.   Be careful that this keeps the Dependencies 

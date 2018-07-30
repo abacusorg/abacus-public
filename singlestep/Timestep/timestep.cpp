@@ -48,6 +48,8 @@ Dependency LPTVelocityReRead;
 // of the spin-locked time in the timestep() loop.
 STimer TimeStepWallClock;
 
+#include "manifest.cpp"
+
 // -----------------------------------------------------------------
 /*
  * The precondition for loading new slabs into memory
