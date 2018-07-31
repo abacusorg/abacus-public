@@ -97,6 +97,10 @@ inline bool link_below_slab(GroupLink *link, int slab) {
     /// return (sa>PP->cpd/2);
 }
 
+// prototypes
+void *ManifestSendThread(void *p);
+void *ManifestReceiveThread(void *p);
+
 // ================== Manifest Class =====================================
 
 // These are oversized, but still tiny compared to what will be transferred.
@@ -122,25 +126,39 @@ class Manifest {
     GroupLink *links;
     
     // Control logic
-    int completed;	// ==1 if the Manifest is ready for use, ==0 if not yet, ==2 if already done
+    int completed;	// ==1 if the Manifest is ready for use, ==0 if not yet , ==2 if we've already imported it.
     STimer Load;        // The timing for the Queue & Import blocking routines
     STimer Transmit;	// The timing for the Send & Receive routines, usually non-blocking
     size_t bytes;       // The number of bytes received
+
+    int blocking;	// =1 if blocking, =0 if non-blocking
+    pthread_t thread;	// The thread object
+    int launched;	// =1 if the thread was launced
 
     Manifest() {
     	m.numarenas = m.numil = m.numlinks = m.numdep = 0;
 	completed = 0;
 	bytes = 0;
+	blocking = 1;
+	launched = 0;
 	il = NULL;
 	links = NULL;
 	return;
     }
-    ~Manifest() { }
+    ~Manifest() { 
+	void *p;
+	// We want to do a blocking pthread_join here, because
+	// if one node has finished early, before the Send has been
+	// completed, then we need to hang on until it has.
+	if (launched==1) int retval = pthread_join(thread, NULL); 
+    }
 
-    inline int is_ready() { if (completed==1) return 1; else return 0;}
+    void set_blocking() { blocking = 1; }
+    void set_nonblocking() { blocking = 0; }
+
+    inline int is_ready() { if (completed==1) return 1; return 0;}
 	// Call this to see if the Manifest is ready to retrieve
-    void done() { completed=2; }
-    	// Call this to mark that we're done with the Manifest
+    void done() { completed = 2; }
 
     void LoadArena(int type, int s) {
 	ManifestArena *a = m.arenas+m.numarenas;
@@ -157,9 +175,61 @@ class Manifest {
     // Here's the prototypes for the main routines
     void QueueToSend(int finished_slab);
     void Send();
+    void Check();
     void Receive();
     void ImportData();
+
+    void LaunchSendThread() {
+	assertf(blocking==0, "Asked to start Send Thread, but blocking = %d\n", blocking);
+	int retval = pthread_create(&thread, NULL, ManifestSendThread, (void *)this);
+	assertf(retval==0, "Failed to create SendManifest thread! %d", retval);
+	launched = 1;
+	STDLOG(1, "Launched SendManifest Thread\n");
+    }
+    void LaunchReceiveThread() {
+	assertf(blocking==0, "Asked to start Receive Thread, but blocking = %d\n", blocking);
+	int retval = pthread_create(&thread, NULL, ManifestReceiveThread, (void *)this);
+	assertf(retval==0, "Failed to create ReceiveManifest thread! %d", retval);
+	launched = 1;
+	STDLOG(1, "Launched ReceiveManifest Thread\n");
+    }
 };    
+
+
+// Here are our outgoing and incoming Manifest instances
+Manifest SendManifest, ReceiveManifest; 
+
+// Call this routine to turn on Non-blocking Manifest
+void NonBlockingManifest() {
+    STDLOG(1,"Turning on non-blocking Manifest Code\n");
+    SendManifest.set_nonblocking();
+    ReceiveManifest.set_nonblocking();
+    ReceiveManifest.LaunchReceiveThread();
+}
+
+
+void *ManifestSendThread(void *p) {
+    Manifest *m = (Manifest *)p;
+    m->Send();
+    return NULL;
+}
+
+void *ManifestReceiveThread(void *p) {
+    Manifest *m = (Manifest *)p;
+    char fname[1024];
+    sprintf(fname, "%s/manifest_done", P.WriteStateDirectory);
+
+    while (FileExists(fname)==0) usleep(10000);
+    	// Wait until the file exists
+	// TODO: In MPI, this would look different!
+    m->Receive();
+    return NULL;
+}
+
+
+
+
+// ================  Routine to define the outgoing information =======
 
 void Manifest::QueueToSend(int finished_slab) {
     // We've just finished the given slab.  
@@ -244,17 +314,26 @@ void Manifest::QueueToSend(int finished_slab) {
     Load.Stop();
 
     // TODO: Fork the communication thread and have it invoke this->Send()
-    this->Send();
+    if (blocking) {
+	STDLOG(1, "Preparing to Send the Manifest by blocking method.\n");
+    	this->Send(); 
+    } else {
+    	STDLOG(1, "Forking the SendManifest.Send() thread.\n");
+    	LaunchSendThread();
+    }
     return;
 }
 
-
+// =============== Routine to actually transmit the outgoing info ====
 
 void Manifest::Send() {
     // This is the routine called by the communication thread.
     // It should send to its partner using blocking communication.
     // It can delete arenas as it finishes.
-    // TODO: Might need to remove STDLOG from this routine
+
+    // TODO: Need to remove STDLOG from this routine
+    // or open a separate LOG; writing from multiple threads 
+    // causes text collisions in the log file.
 
     Transmit.Start();
     // TODO: Send the ManifestCore.  Maybe wait for handshake?
@@ -263,33 +342,56 @@ void Manifest::Send() {
     sprintf(fname, "%s/manifest", P.WriteStateDirectory);
     FILE *fp = fopen(fname, "wb");
     bytes = fwrite(&m, sizeof(ManifestCore), 1, fp)*sizeof(ManifestCore);
-    STDLOG(1,"Sending the Manifest Core to %s\n", fname);
+    if (blocking) STDLOG(1,"Sending the Manifest Core to %s\n", fname);
 
     for (int n=0; n<m.numarenas; n++) {
 	// TODO: Send arenas[n].size bytes from arenas[n].ptr
 	retval = fwrite(m.arenas[n].ptr, 1, m.arenas[n].size, fp);
 	bytes += retval;
-	STDLOG(1,"Writing %l bytes of arenas to file\n", retval);
+	if (blocking) STDLOG(1,"Writing %l bytes of arenas to file\n", retval);
 	// Now we can delete this arena
 	LBW->DeAllocate(m.arenas[n].type, m.arenas[n].slab);
     }
     // TODO: Send the insert list: m.numil*sizeof(ilstruct) bytes from *il
     retval = fwrite(il, sizeof(ilstruct), m.numil, fp);
     bytes += retval*sizeof(ilstruct);
-    STDLOG(1,"Writing %l objects of insert list to file\n", retval);
-    STDLOG(1,"IL particle on slab %d\n", il[0].xyz.x);
+    if (blocking) STDLOG(1,"Writing %l objects of insert list to file\n", retval);
+    if (blocking) STDLOG(1,"IL particle on slab %d\n", il[0].xyz.x);
     free(il);
     // TODO: Send the list: m.numlinks*sizeof(GroupLink) bytes from *links
     if (GFC!=NULL) {
 	retval = fwrite(links, sizeof(GroupLink), m.numlinks, fp);
 	bytes += retval*sizeof(GroupLink);
-	STDLOG(1,"Writing %l objects of group links to file\n", retval);
+	if (blocking) STDLOG(1,"Writing %l objects of group links to file\n", retval);
 	free(links);
     }
+    fclose(fp);
     completed = 1;
     // TODO: Can terminate the communication thread after this.
+    // Touch a file to indicate that we're done
+    sprintf(fname, "%s/manifest_done", P.WriteStateDirectory);
+    fp=fopen(fname,"w");
     fclose(fp);
+
     Transmit.Stop();
+}
+
+
+// =============== Routine to actually receive the incoming info ====
+
+// This can be called in timestep.cpp to manually check (blocking)
+// whether Receive is ready to run.
+// TODO: This may have a rather different meaning in MPI
+void Manifest::Check() {
+    if (blocking==0) return; 	// We're doing this by a thread
+    if (completed>0) return;	// We've already been here once
+    char fname[1024];
+    sprintf(fname, "%s/manifest_done", P.WriteStateDirectory);
+    if (FileExists(fname)==0) return;
+    	// The signal file doesn't yet exist, so try again later
+    // Otherwise, we're ready to go
+    STDLOG(1,"Check indicates we are ready to Receive the Manifest\n");
+    Receive();
 }
 
 void Manifest::Receive() {
@@ -305,7 +407,7 @@ void Manifest::Receive() {
     sprintf(fname, "%s/manifest", P.WriteStateDirectory);
     FILE *fp = fopen(fname, "rb");
     bytes += fread(&m, sizeof(ManifestCore), 1, fp)*sizeof(ManifestCore);
-    STDLOG(1,"Reading Manifest Core from %s\n", fname);
+    if (blocking) STDLOG(1,"Reading Manifest Core from %s\n", fname);
 
     for (int n=0; n<m.numarenas; n++) {
 	LBW->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size);
@@ -313,7 +415,7 @@ void Manifest::Receive() {
 	// TODO: Receive arenas[n].size bytes into arenas[n].ptr
 	retval = fread(m.arenas[n].ptr, 1, m.arenas[n].size, fp);
 	bytes += retval;
-	STDLOG(1,"Reading %l bytes of arenas to file\n", retval);
+	if (blocking) STDLOG(1,"Reading %l bytes of arenas to file\n", retval);
     }
 
     int ret = posix_memalign((void **)&il, 64, m.numil*sizeof(ilstruct));
@@ -321,8 +423,8 @@ void Manifest::Receive() {
     // TODO: Receive m.numil*sizeof(ilstruct) bytes into *il
     retval = fread(il, sizeof(ilstruct), m.numil, fp);
     bytes += retval*sizeof(ilstruct);
-    STDLOG(1,"Reading %l objects of insert list from file\n", retval);
-    STDLOG(1,"IL particle on slab %d\n", il[0].xyz.x);
+    if (blocking) STDLOG(1,"Reading %l objects of insert list from file\n", retval);
+    if (blocking) STDLOG(1,"IL particle on slab %d\n", il[0].xyz.x);
 
     ret = posix_memalign((void **)&links, 64, m.numlinks*sizeof(GroupLink));
     assert(links!=NULL);
@@ -330,13 +432,17 @@ void Manifest::Receive() {
     if (GFC!=NULL) {
 	retval = fread(links, sizeof(GroupLink), m.numlinks, fp);
 	bytes += retval*sizeof(GroupLink);
-	STDLOG(1,"Reading %l objects of links from file\n", retval);
+	if (blocking) STDLOG(1,"Reading %l objects of links from file\n", retval);
     }
     // TODO: Can terminate the communication thread after this
     completed = 1;
     fclose(fp);
     Transmit.Stop();
 }
+
+
+
+// ============== Routine to import the incoming info =============
 
 void Manifest::ImportData() {
     // We invoke this within the timestep loop in a blocking manner.
@@ -401,8 +507,8 @@ void Manifest::ImportData() {
     }
     
     // We're done with this Manifest!
-    done();
     // TODO: Could erase the file, but we won't for now
+    done();
     Load.Stop();
 }
 

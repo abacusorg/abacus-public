@@ -201,6 +201,9 @@ void Prologue(Parameters &P, bool ic) {
     // TODO: This fails for Spiral with first!=0 because the IC have
     // put all particles into input slab 0.
 
+    // Call this to use thread-based Manifests
+    NonBlockingManifest();
+
     LBW = new SlabBuffer(cpd, order, cpd*MAXIDS, P.MAXRAMMB*1024*1024);
     PP = new Particles(cpd, LBW);
     STDLOG(1,"Initializing Multipoles()\n");

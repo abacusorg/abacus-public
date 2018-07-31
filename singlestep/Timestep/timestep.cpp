@@ -49,7 +49,7 @@ Dependency LPTVelocityReRead;
 STimer TimeStepWallClock;
 
 #include "manifest.cpp"
-Manifest SendManifest, ReceiveManifest;
+/// Manifest SendManifest, ReceiveManifest;
 
 // -----------------------------------------------------------------
 /*
@@ -733,7 +733,9 @@ void timestep(void) {
                 Drift.Attempt();
                Finish.Attempt();
 	// TODO: The following line will be omitted once the MPI monitoring thread is in place.
-	if (SendManifest.is_ready()) { SendManifest.done(); ReceiveManifest.Receive(); }
+	/// if (SendManifest.is_ready()) { SendManifest.done(); ReceiveManifest.Receive(); }
+	ReceiveManifest.Check();   // This checks if Send is ready; no-op in non-blocking mode
+	
 	// If the manifest has been received, install it.
 	if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
     }
@@ -809,7 +811,8 @@ void timestepIC(void) {
         Drift.Attempt();
        Finish.Attempt();
 	// TODO: The following line will be omitted once the MPI monitoring thread is in place.
-	if (SendManifest.is_ready()) { SendManifest.done(); ReceiveManifest.Receive(); }
+	/// if (SendManifest.is_ready()) { SendManifest.done(); ReceiveManifest.Receive(); }
+	ReceiveManifest.Check();   // This checks if Send is ready; no-op in non-blocking mode
 	// If the manifest has been received, install it.
 	if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
     }
@@ -893,7 +896,8 @@ void timestepMultipoles(void) {
         FetchSlabs.Attempt();
             Finish.Attempt();
 	// TODO: The following line will be omitted once the MPI monitoring thread is in place.
-	if (SendManifest.is_ready()) { SendManifest.done(); ReceiveManifest.Receive(); }
+	/// if (SendManifest.is_ready()) { SendManifest.done(); ReceiveManifest.Receive(); }
+	ReceiveManifest.Check();   // This checks if Send is ready; no-op in non-blocking mode
 	// If the manifest has been received, install it.
 	if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
     }
@@ -1070,7 +1074,8 @@ void timestepStandaloneFOF(const char* slice_dir) {
         DoGlobalGroups.Attempt();
         Finish.Attempt();
 	// TODO: The following line will be omitted once the MPI monitoring thread is in place.
-	if (SendManifest.is_ready()) { SendManifest.done(); ReceiveManifest.Receive(); }
+	/// if (SendManifest.is_ready()) { SendManifest.done(); ReceiveManifest.Receive(); }
+	ReceiveManifest.Check();   // This checks if Send is ready; no-op in non-blocking mode
 	// If the manifest has been received, install it.
 	if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
     }
