@@ -215,6 +215,12 @@ void ReportTimings(FILE * timingfile) {
         REPORT_DIR_IOSTATS(NonBlockingIOWrite, write, non-blocking);
     }
 #undef niothreads
+	if (!ReceiveManifest.blocking) {
+	    REPORT(0, "Receiving Manifest (non-blocking)", ReceiveManifest.Transmit.Elapsed()); 
+	    fprintf(timingfile,"---> %6.3f MB, %6.3f MB/sec", ReceiveManifest.bytes/1e6, ReceiveManifest.bytes/1e6/(thistime+1e-15) );
+	    REPORT(0, "Sending Manifest (non-blocking)", SendManifest.Transmit.Elapsed());
+	    fprintf(timingfile,"---> %6.3f MB, %6.3f MB/sec", SendManifest.bytes/1e6, SendManifest.bytes/1e6/(thistime+1e-15) );
+	}
 
     fprintf(timingfile, "\n\nBreakdown of TimeStep: ");
     total = 0.0;
@@ -278,8 +284,10 @@ void ReportTimings(FILE * timingfile) {
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
     REPORT(1, "Finish", Finish.Elapsed()); total += thistime;
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
-    REPORT(1, "Loading Received Manifest", ReceiveManifest.Transmit.Elapsed()); total+=thistime;
-        fprintf(timingfile,"---> %6.3f MB, %6.3f MB/sec", ReceiveManifest.bytes/1e6, ReceiveManifest.bytes/1e6/(thistime+1e-15) );
+    if (ReceiveManifest.blocking) {
+	REPORT(1, "Loading Received Manifest (blocking)", ReceiveManifest.Transmit.Elapsed()); total+=thistime;
+	    fprintf(timingfile,"---> %6.3f MB, %6.3f MB/sec", ReceiveManifest.bytes/1e6, ReceiveManifest.bytes/1e6/(thistime+1e-15) );
+    }
     REPORT(1, "Importing Received Manifest", ReceiveManifest.Load.Elapsed()); total+=thistime;
     REPORT(1, "Spinning", spinning); total += thistime;
     REPORT(1, "Unaccounted", TimeStepWallClock.Elapsed()-total);
@@ -487,8 +495,10 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Write Particles", WriteMergeSlab.Elapsed());
     REPORT(1, "Write Multipoles", WriteMultipoleSlab.Elapsed());
     REPORT(1, "Queuing Send Manifest", SendManifest.Load.Elapsed());
-    REPORT(1, "Writing Send Manifest", SendManifest.Transmit.Elapsed());
-        fprintf(timingfile,"---> %6.3f MB, %6.3f MB/sec", SendManifest.bytes/1e6, SendManifest.bytes/1e6/(thistime+1e-15) );
+    if (SendManifest.blocking) {
+	REPORT(1, "Writing Send Manifest (blocking)", SendManifest.Transmit.Elapsed());
+	    fprintf(timingfile,"---> %6.3f MB, %6.3f MB/sec", SendManifest.bytes/1e6, SendManifest.bytes/1e6/(thistime+1e-15) );
+    }
     
     denom = TimeStepWallClock.Elapsed();
     REPORT(0, "\nAllocate Arena Memory", LBW->ArenaMalloc.Elapsed());
