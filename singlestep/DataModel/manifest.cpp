@@ -75,12 +75,15 @@ class DependencyRecord {
     }
 };
 
+int global_minslab_search;    // Used to pass an extra variable into partition
+
 // Need some new Partition functions, to get ranges of slabs
 // Will select things between [x,slab), where x=slab-CPD/2, handling the wrap
 inline bool is_below_slab(ilstruct *particle, int slab) {
     int x = particle->xyz.x-slab;  // We want x<0, but not too much.
     x = PP->WrapSlab(x);
-    return x>PP->cpd/2;
+    return x>=global_minslab_search;
+    /// return x>PP->cpd/2;
 }
 
 // When we partition the GroupLink list, GlobalGroups have already
@@ -90,7 +93,8 @@ inline bool is_below_slab(ilstruct *particle, int slab) {
 inline bool link_below_slab(GroupLink *link, int slab) {
     int sa = link->a.slab();
     sa = PP->WrapSlab(sa-slab);
-    return (sa>PP->cpd/2);
+    return sa>=global_minslab_search;
+    /// return (sa>PP->cpd/2);
 }
 
 // ================== Manifest Class =====================================
@@ -179,18 +183,24 @@ void Manifest::QueueToSend(int finished_slab) {
     m.dep[m.numdep++].Load(Kick, finished_slab);
     m.dep[m.numdep++].Load(MakeCellGroups, finished_slab);
     m.dep[m.numdep++].Load(FindCellGroupLinks, finished_slab);
+    int min_links_slab = m.dep[m.numdep-1].begin-1;
+    	// We just determined that FindCellGroupLinks has executed on begin, so
+	// the GLL might contain links including begin-1.
     m.dep[m.numdep++].Load(DoGlobalGroups, finished_slab);
     m.dep[m.numdep++].Load(Output, finished_slab);
     m.dep[m.numdep++].Load(Microstep, finished_slab);
     m.dep[m.numdep++].Load(FinishGroups, finished_slab);
     m.dep[m.numdep++].Load(Drift, finished_slab);
+    int min_il_slab = m.dep[m.numdep-1].begin-1;
+    	// We just determined that Drift has executed on begin, so
+	// the rebinning might have taken particles to begin-1.
     m.dep[m.numdep++].Load(Finish, finished_slab);
     m.dep[m.numdep++].Load(LPTVelocityReRead, finished_slab);
     m.dep[m.numdep++].LoadCG(finished_slab);
     	// LoadCG() includes moving info into the CellGroupArenas
     assertf(m.numdep<MAXDEPENDENCY, "m.numdep has overflowed its MAX value");
 
-    STDLOG(1,"Loading Arenas into the SendManifest\n");
+    STDLOG(1,"Queuing Arenas into the SendManifest\n");
     // Now load all of the arenas into the Manifest
     for (int type=0; type<MAXIDS; type++) {
 	// Loop over all SlabTypes
@@ -201,10 +211,12 @@ void Manifest::QueueToSend(int finished_slab) {
 	}
     }
 
-    STDLOG(1,"Loading Insert List into the SendManifest\n");
+    STDLOG(1,"Queuing Insert List into the SendManifest, extracting [%d,%d)\n",
+    	min_il_slab, finished_slab);
     // Partition the Insert List, malloc *il, and save it off
     /// for (int j=0;j<IL->length;j++) assertf(IL->list[j].xyz.x>=0&&IL->list[j].xyz.x<P.cpd, "Bad value at IL[%d] %d %d %d\n", j, IL->list[j].xyz.x, IL->list[j].xyz.y, IL->list[j].xyz.z);
 
+    global_minslab_search = PP->WrapSlab(min_il_slab-finished_slab);
     uint64 mid = ParallelPartition(IL->list, IL->length, finished_slab, is_below_slab);
     /// for (int j=0;j<IL->length;j++) assertf(IL->list[j].xyz.x>=0&&IL->list[j].xyz.x<P.cpd, "Bad value after PP at IL[%d] %d %d %d\n", j, IL->list[j].xyz.x, IL->list[j].xyz.y, IL->list[j].xyz.z);
 
@@ -216,10 +228,11 @@ void Manifest::QueueToSend(int finished_slab) {
     IL->ShrinkMAL(mid);
     /// for (int j=0;j<m.numil;j++) assertf(il[j].xyz.x>=0&&il[j].xyz.x<P.cpd, "Bad value in queued il[%d] %d %d %d\n", j, il[j].xyz.x, il[j].xyz.y, il[j].xyz.z);
 
-    STDLOG(1,"Loading GroupLink List into the SendManifest\n");
     // Partition the GroupLink List, malloc *links, and save it off
     // TODO: Do these group finding variables always exist?
     if (GFC!=NULL) {
+	STDLOG(1,"Queuing GroupLink List into the SendManifest, extracting [%d,%d)\n", min_links_slab, finished_slab);
+	global_minslab_search = PP->WrapSlab(min_links_slab-finished_slab);
 	mid = ParallelPartition(GFC->GLL->list, GFC->GLL->length, finished_slab, link_below_slab);
 	ret = posix_memalign((void **)&links, 4096, sizeof(GroupLink)*(GFC->GLL->length-mid));
 	m.numlinks = GFC->GLL->length-mid;
