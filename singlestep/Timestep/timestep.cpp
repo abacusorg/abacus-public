@@ -50,19 +50,29 @@ STimer TimeStepWallClock;
 
 #include "manifest.cpp"
 Manifest SendManifest, ReceiveManifest;
-#define PARALLEL
 
 // -----------------------------------------------------------------
 /*
  * The precondition for loading new slabs into memory
  * We limit the additional slabs read to FETCHAHEAD
  */
-int FetchSlabPrecondition(int slab) {
+int FetchSlabsPrecondition(int slab) {
     if(slab > Kick.last_slab_executed + FETCHAHEAD)
         // This was +1, but for non-blocking reads 
         // I think we want to work one more ahead
         return 0;
     
+    #ifdef PARALLEL
+    if (FetchSlabs.raw_number_executed>=total_slabs_on_node) return 0;
+    	// This prevents FetchSlabAction from reading beyond the 
+	// range of slabs on the node.  In the PARALLEL code, these
+	// data will arrive from the Manifest.  We have to implement
+	// this on the raw_number because the reported number is adjusted
+	// by the Manifest, which leads to a race condition when running
+	// the PARALLEL code on a single node test.
+	// In the non-PARALLEL code, we have intentionally re-queued some slabs,
+	// so don't apply this test.
+    #endif
     return 1;
 }
 
@@ -674,10 +684,10 @@ void timestep(void) {
     STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
 
     int cpd = P.cpd;
-    int first = 0;  // First slab to load
+    int first = first_slab_on_node;  // First slab to load
     STDLOG(1,"First slab to load will be %d\n", first);
 
-        FetchSlabs.instantiate(cpd, first, &FetchSlabPrecondition,          &FetchSlabAction         );
+        FetchSlabs.instantiate(cpd, first, &FetchSlabsPrecondition,          &FetchSlabAction         );
       TransposePos.instantiate(cpd, first, &TransposePosPrecondition,       &TransposePosAction      );
          NearForce.instantiate(cpd, first + FORCE_RADIUS, &NearForcePrecondition,          &NearForceAction         );
        TaylorForce.instantiate(cpd, first + FORCE_RADIUS, &TaylorForcePrecondition,        &TaylorForceAction       );
@@ -736,6 +746,9 @@ void timestep(void) {
     
     assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
 
+    if (GFC != NULL) assertf(GFC->GLL->length==0,
+	"GroupLinkList not empty (%d) at the end of timestep.  Global group finding didn't run properly.\n", GFC->GLL->length);
+
     uint64 total_n_output = n_output;
     if(GFC != NULL)
         total_n_output += GFC->n_L0_output;
@@ -788,7 +801,7 @@ void timestepIC(void) {
     FORCE_RADIUS = 0;  // so we know when we can free CellInfo in Finish
     GROUP_RADIUS = 0;
 
-    int cpd = P.cpd; int first = 0;
+    int cpd = P.cpd; int first = first_slab_on_node;
     Drift.instantiate(cpd, first, &FetchICPrecondition, &FetchICAction );
     Finish.instantiate(cpd, first + FINISH_WAIT_RADIUS,  &FinishPrecondition,  &FinishAction );
 
@@ -872,7 +885,7 @@ void timestepMultipoles(void) {
     FORCE_RADIUS = 0;  // so we know when we can free CellInfo in Finish
     GROUP_RADIUS = 0;
 
-    int cpd = P.cpd; int first = 0;
+    int cpd = P.cpd; int first = first_slab_on_node;
     FetchSlabs.instantiate(cpd, first, &FetchPosSlabPrecondition, &FetchPosSlabAction );
     Finish.instantiate(cpd, first,  &FinishMultipolesPrecondition,  &FinishMultipolesAction );
 
@@ -941,13 +954,13 @@ void timestepBenchmarkIO(int nslabs) {
     FORCE_RADIUS = 0;
     GROUP_RADIUS = 0;
 
-    int cpd = P.cpd; int first = 0;
+    int cpd = P.cpd; int first = first_slab_on_node;
     assertf(nslabs <= cpd, "nslabs (%d) cannot be larger than cpd (%d)\n", nslabs, cpd);
     if (nslabs <= 0)
         nslabs = cpd;
 
     // Use the Kick as finish because FetchSlabs fetches FETCHAHEAD past the kick
-    FetchSlabs.instantiate(nslabs, first, &FetchSlabPrecondition, &FetchSlabAction );
+    FetchSlabs.instantiate(nslabs, first, &FetchSlabsPrecondition, &FetchSlabAction );
     Kick.instantiate(nslabs, first,  &FinishBenchmarkIOPrecondition,  &FinishBenchmarkIOAction );
 
     while( !Kick.alldone() ) {
@@ -1039,7 +1052,7 @@ void timestepStandaloneFOF(const char* slice_dir) {
     assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS); 
     STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
 
-    int first = 0;
+    int first = first_slab_on_node;
             FetchSlabs.instantiate(cpd, first, &StandaloneFOFLoadSlabPrecondition, &StandaloneFOFLoadSlabAction);
           TransposePos.instantiate(cpd, first, &StandaloneFOFUnpackSlabPrecondition, &StandaloneFOFUnpackSlabAction);
         MakeCellGroups.instantiate(cpd, first, &StandaloneFOFMakeCellGroupsPrecondition, &MakeCellGroupsAction);

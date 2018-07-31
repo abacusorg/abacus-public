@@ -158,6 +158,12 @@ FLOAT * density; //!< Array to accumulate gridded densities in for low resolutio
 #include "groupfinding.cpp"
 #include "microstep.cpp"
 
+#define PARALLEL
+int first_slab_on_node, total_slabs_on_node;
+	// The first read slab to be executed by this nodes,
+	// as well as the total number.
+	// In the single node code, this is simply 0 and CPD.
+
 #include "timestep.cpp"
 #include "reporting.cpp"
 
@@ -186,6 +192,14 @@ void Prologue(Parameters &P, bool ic) {
     int order = P.order;
     long long int np = P.np;
     assert(np>0);
+
+    // Look in ReadState to see what PosSlab files are available
+    // TODO: Haven't implemented this yet
+    first_slab_on_node = 0;
+    // first_slab_on_node = ReadState.FullStepNumber; // A fun test
+    total_slabs_on_node = cpd;
+    // TODO: This fails for Spiral with first!=0 because the IC have
+    // put all particles into input slab 0.
 
     LBW = new SlabBuffer(cpd, order, cpd*MAXIDS, P.MAXRAMMB*1024*1024);
     PP = new Particles(cpd, LBW);
