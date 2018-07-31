@@ -366,6 +366,7 @@ void Manifest::Send() {
 	free(links);
     }
     fclose(fp);
+    // usleep(5e6);   // Just force a wait here, to see what the code does.
     completed = 1;
     // TODO: Can terminate the communication thread after this.
     // Touch a file to indicate that we're done

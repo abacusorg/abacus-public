@@ -769,6 +769,15 @@ uint64 NP_from_IC = 0;
 
 int FetchICPrecondition(int slab) {
     // We always do this.
+    #ifdef PARALLEL
+    if (Drift.raw_number_executed>=total_slabs_on_node) return 0;
+    	// This prevents FetchSlabAction from reading beyond the 
+	// range of slabs on the node.  In the PARALLEL code, these
+	// data will arrive from the Manifest.  We have to implement
+	// this on the raw_number because the reported number is adjusted
+	// by the Manifest, which leads to a race condition when running
+	// the PARALLEL code on a single node test.
+    #endif
     return 1;
 }
 void FetchICAction(int slab) {
