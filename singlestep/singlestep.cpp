@@ -286,7 +286,9 @@ void BuildWriteState(double da){
 	WriteState.MaxAcceleration = 0.0;
 	WriteState.RMS_Velocity = 0.0;
 	WriteState.MinVrmsOnAmax = 1e10;
+}
 
+void BuildWriteStateOutput() {
 	// Build the output header.
 	// Note we actually will output from ReadState,
 	// but we build this to write the write/state file from the same code.
@@ -401,6 +403,7 @@ int main(int argc, char **argv) {
 
     // Now execute the timestep
     Prologue(P,MakeIC);
+    BuildWriteStateOutput();    // Have to delay this until after GFC is made
     if (MakeIC)  timestepIC();
 	    else timestep();
 
@@ -423,7 +426,7 @@ int main(int argc, char **argv) {
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
     WriteState.write_to_file(P.WriteStateDirectory);
     STDLOG(0,"Wrote WriteState to %s\n",P.WriteStateDirectory);
-    if (!MakeIC && P.ProfilingMode) system("rm -rf write/state write/position_* multipole/Multipoles_* write/velocity_* write/auxillary* write/cellinfo_* write/globaldipole write/redlack write/slabsize out/*");
+    if (!MakeIC && P.ProfilingMode) int ret = system("rm -rf write/state write/position_* multipole/Multipoles_* write/velocity_* write/auxillary* write/cellinfo_* write/globaldipole write/redlack write/slabsize out/*");
     stdlog.close();
         
     exit(0);

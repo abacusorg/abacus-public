@@ -254,10 +254,7 @@ def TSC(positions, density, boxsize, weights=None, prep_rfft=False, rotate_to=No
     # We may eventually want to provide two wrapping modes
     # 'wrap' and 'clip' (mostly for mocks)
     # Also, this only handles one periodic wrap
-    # we do this regardless of inplace or not
-    #positions[positions >= boxsize/2.] -= boxsize
-    #positions[positions < -boxsize/2.] += boxsize
-
+    # Warning: we do this regardless of inplace or not! Probably okay.
     box_wrap(positions, boxsize)
         
     if prep_rfft:

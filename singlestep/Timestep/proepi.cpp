@@ -70,6 +70,8 @@ STimer WallClockDirect;
 STimer SingleStepSetup;
 STimer SingleStepTearDown;
 
+STimer SlabAccumFree;
+
 uint64 naive_directinteractions = 0;    
 //********************************************************************************
 
@@ -207,7 +209,7 @@ void Prologue(Parameters &P, bool ic) {
     STDLOG(0,"Setting RamDisk == %d\n", P.RamDisk);
     IO_Initialize(logfn);
 
-    P.DensityKernelRad2 = 0.0;   // Don't compute densities
+    WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities
 
     if(!ic) {
             // ReadMaxCellSize(P);
@@ -229,9 +231,13 @@ void Prologue(Parameters &P, bool ic) {
                                           P.FoFLinkingLength[2]/pow(P.np,1./3),
                                           P.cpd, PP->invcpd, P.GroupRadius, P.MinL1HaloNP, P.np);
 	    #ifdef COMPUTE_FOF_DENSITY
-		P.DensityKernelRad2 = GFC->linking_length;
-		P.DensityKernelRad2 *= P.DensityKernelRad2; 
-		// We use square radii
+	    #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
+		WriteState.DensityKernelRad2 = GFC->linking_length;
+		WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5); 
+		// We use square radii.  The radius is padded just a little
+		// bit so we don't risk underflow with 1 particle at r=b
+		// in comparison to the self-count.
+	    #endif
 	    #endif
 	}
     } else {
@@ -239,7 +245,7 @@ void Prologue(Parameters &P, bool ic) {
             RL = NULL;
             JJ = NULL;
     }
-    STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", P.DensityKernelRad2, sqrt(P.DensityKernelRad2)*pow(P.np,1./3.));
+    STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
 
     prologue.Stop();
     STDLOG(1,"Leaving Prologue()\n");
@@ -302,10 +308,10 @@ void Epilogue(Parameters &P, bool ic) {
     if(!ic) {
         if(0 and P.ForceOutputDebug){
             #ifdef CUDADIRECT
-            STDLOG(1,"Direct Interactions: CPU (%llu) and GPU (%llu)\n",
+            STDLOG(1,"Direct Interactions: CPU (%lu) and GPU (%lu)\n",
                         JJ->DirectInteractions_CPU,JJ->TotalDirectInteractions_GPU);
             if(!(JJ->DirectInteractions_CPU == JJ->TotalDirectInteractions_GPU)){
-                printf("Error:\n\tDirect Interactions differ between CPU (%llu) and GPU (%llu)\n",
+                printf("Error:\n\tDirect Interactions differ between CPU (%lu) and GPU (%lu)\n",
                         JJ->DirectInteractions_CPU,JJ->TotalDirectInteractions_GPU);
                 //assert(JJ->DirectInteractions_CPU == JJ->TotalDirectInteractions_GPU);
             }

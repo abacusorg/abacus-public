@@ -32,13 +32,13 @@ class SlabSize: public grid {
         assertf(fp!=NULL, "Couldn't open SlabSize read file %s\n", fname);
         int nread;
         uint64 value;
-        nread = fscanf(fp, "%lld", &value); 
+        nread = fscanf(fp, "%ld", &value); 
         assertf(nread==1,
                 "Couldn't read first entry from SlabSize file %s\n", fname);
         assertf(value==cpd, 
                 "SlabSize file opens with incorrect CPD: %d\n", value);
         for (int j = 0; j<cpd; j++) {
-            fscanf(fp, "%lld", _size+j);
+            int ret = fscanf(fp, "%ld", _size+j);
             if(_size[j] > max) max = _size[j];
             if(_size[j] < min) min = _size[j];
             assertf(nread==1, "SlabSize file ended prematurely\n");
@@ -53,7 +53,7 @@ class SlabSize: public grid {
         assertf(fp!=NULL, "Couldn't open SlabSize write file %s\n", fname);
         fprintf(fp, "%d\n", cpd);
         for (int j = 0; j<cpd; j++) {
-            fprintf(fp, "%lld\n", _size[j]);
+            fprintf(fp, "%ld\n", _size[j]);
         }
         fclose(fp);
         return 0;

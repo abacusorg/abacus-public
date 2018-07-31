@@ -83,23 +83,23 @@ class FaceSet {
     PencilAccum<FaceGroup>          *fG;
     // We have to guarantee these float4 to be SSE aligned.  
     // No cache lines either
-    float *radius; 
-    FacePseudoParticle *midpos; 
+    /// float *radius; 
+    /// FacePseudoParticle *midpos; 
 
     CellFaceSlab *face;
     FaceSet(CellFaceSlab *_face) { 
     	face = _face; 
 	int ret;
-	ret = posix_memalign((void **)&radius, 64, 4*sizeof(float)); assert(ret==0);
-	ret = posix_memalign((void **)&midpos, 64, sizeof(FacePseudoParticle)); assert(ret==0);
+	/// ret = posix_memalign((void **)&radius, 64, 4*sizeof(float)); assert(ret==0);
+	/// ret = posix_memalign((void **)&midpos, 64, sizeof(FacePseudoParticle)); assert(ret==0);
 	pP = NULL;
 	pR = NULL;
 	fP = NULL;
 	fG = NULL;
     }
     ~FaceSet() {
-	free(radius);
-	free(midpos);
+	/// free(radius);
+	/// free(midpos);
     }
 
     void StartPencil(int j) {
@@ -129,8 +129,8 @@ class FaceSet {
 	const FOFloat boundary = GFC->boundary;   // The boundaries, cell-centered
 
 	// Store a SSE version of 0.5 for later
-	float half1 = 0.5;
-	__m128 half = _mm_load_ps1(&half1);
+	/// float half1 = 0.5;
+	/// __m128 half = _mm_load_ps1(&half1);
 	int facegroupnumstart = fG->get_pencil_size();
 		// We're going to start the facegroup numbering from the start of the cell
 		// So store the pencil index here and subtract it later
@@ -147,8 +147,7 @@ class FaceSet {
 		// But now we want to find the particles in the face
 		int fPstart = fP->get_pencil_size()-fPcellstart;
 		int fGsize = 0;
-		__m128 BBmin, BBmax;
-
+		FOFparticle BBmin, BBmax;
 
 		// Look at the particles in this group
 		posstruct *ppos = c.pos+cg[g].start;
@@ -162,14 +161,18 @@ class FaceSet {
 				// ppos->x, ppos->y, ppos->z,
 				// pp.x/FOF_RESCALE, pp.y/FOF_RESCALE, pp.z/FOF_RESCALE, pp.n);
 			fP->append(pp);
-			__m128 newp = _mm_loadu_ps((float *)&pp);
+			/// __m128 newp = _mm_loadu_ps((float *)&pp);
 			// Note that the 4th element here is garbage
 			if (fGsize>0) {
-			    BBmin = _mm_min_ps(BBmin, newp);
-			    BBmax = _mm_max_ps(BBmax, newp);
+			    BBmin.min(pp);
+			    BBmax.max(pp);
+			    /// BBmin = _mm_min_ps(BBmin, newp);
+			    /// BBmax = _mm_max_ps(BBmax, newp);
 			} else {
-			    BBmin = newp;
-			    BBmax = newp;
+			    BBmin = pp;
+			    BBmax = pp;
+			    /// BBmin = newp;
+			    /// BBmax = newp;
 			}
 			fGsize++;
 		    }
@@ -179,11 +182,12 @@ class FaceSet {
 		    // We only found one particle, so it just goes on 
 		    // the PseudoParticle list with its cellgroup number.
 		    // No need to create a FaceGroup
-		    _mm_store_ps((float *)midpos, BBmin);
-		    midpos->n = g;
+		    /// _mm_store_ps((float *)midpos, BBmin);
+		    /// midpos->n = g;
+		    BBmin.n = g;
 		    // printf("PsPart: %f %f %f, n=%f r=%f\n",
 				// midpos->x/FOF_RESCALE, midpos->y/FOF_RESCALE, midpos->z/FOF_RESCALE, midpos->n, 0.0);
-		    pP->append(*midpos);
+		    pP->append(BBmin);
 		    pR->append(0.0);
 		} else if (fGsize>1) {
 		    // We found multiple particles, so need to compute
@@ -197,19 +201,24 @@ class FaceSet {
 		    assert(fP->get_pencil_size()==fPcellstart+fPstart+fGsize);
 
 		    // Use the Min/Max to create the pseudo particle
-		    __m128 mid = _mm_mul_ps(_mm_add_ps(BBmin, BBmax),half);
-		    _mm_store_ps((float *)(midpos), mid);
-		    __m128 diff = _mm_sub_ps(BBmax, BBmin);
-		    diff = _mm_mul_ps(diff,diff);  // Square diameter
-		    _mm_store_ps(radius, diff);
-		    radius[0] += radius[1]+radius[2];
-		    radius[0] *= 0.25;   // Now this is the square radius
+		    FOFloat radius = BBmax.diff2(&BBmin)*0.25;;
+		    BBmin.x = 0.5*(BBmin.x+BBmax.x);
+		    BBmin.y = 0.5*(BBmin.y+BBmax.y);
+		    BBmin.z = 0.5*(BBmin.z+BBmax.z);
+		    BBmin.n = 0.5*(BBmin.n+BBmax.n);
+		    /// __m128 mid = _mm_mul_ps(_mm_add_ps(BBmin, BBmax),half);
+		    /// _mm_store_ps((float *)(midpos), mid);
+		    /// __m128 diff = _mm_sub_ps(BBmax, BBmin);
+		    /// diff = _mm_mul_ps(diff,diff);  // Square diameter
+		    /// _mm_store_ps(radius, diff);
+		    /// radius[0] += radius[1]+radius[2];
+		    /// radius[0] *= 0.25;   // Now this is the square radius
 
-		    midpos->n = -1-facegroupnum;  // Overwrite the index
+		    BBmin.n = -1-facegroupnum;  // Overwrite the index
 		    // printf("PsPart: %f %f %f, n=%d r=%f\n",
 				// midpos->x/FOF_RESCALE, midpos->y/FOF_RESCALE, midpos->z/FOF_RESCALE, midpos->index(), sqrt(radius[0])/FOF_RESCALE);
-		    pP->append(*midpos);
-		    pR->append(sqrt(radius[0]));
+		    pP->append(BBmin);
+		    pR->append(sqrt(radius));
 		} else {
 		    assert(fGsize>0);
 		}

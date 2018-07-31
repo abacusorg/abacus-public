@@ -9,8 +9,14 @@
 /* "Use AVX directs" */
 #undef AVXDIRECT
 
+/* "Use AVX FOF" */
+#undef AVXFOF
+
 /* "Use AVX multipoles" */
 #undef AVXMULTIPOLES
+
+/* "Compute FOF-scale density on the GPU */
+#undef COMPUTE_FOF_DENSITY
 
 /* "Do the near force on the GPU" */
 #undef CUDADIRECT
@@ -99,6 +105,10 @@
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
+
+/* Define to 1 if you have the `tcmalloc_minimal' library
+   (-ltcmalloc_minimal). */
+#undef HAVE_LIBTCMALLOC_MINIMAL
 
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H

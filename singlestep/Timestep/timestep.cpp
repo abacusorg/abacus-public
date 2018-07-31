@@ -155,14 +155,14 @@ void NearForceAction(int slab) {
     SlabForceTime[slab].Start();
         
     JJ->ExecuteSlab(slab, P.ForceOutputDebug);
-    //JJ->ExecuteSlab(slab, 1);
+    //JJ->ExecuteSlab(slab, 1);  // Uncomment to force blocking
 
     SlabForceLatency[slab].Start();
     if (P.ForceOutputDebug) {
         // We want to output the AccSlab to the NearAcc file.
         // This must be a blocking write.
         JJ->Finalize(slab);
-        
+
 #ifdef DIRECTSINGLESPLINE
         // Single spline requires a prefactor multiplication, which we defer to the kick for efficiency
         // But analysis routines that use ForceOutputDebug, like Ewald, expect this prefactor to already be applied

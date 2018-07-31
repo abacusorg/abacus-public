@@ -31,28 +31,28 @@ class FLOAT3p1 {
 
     // Add two float3p1's, inluding w.
     // We don't supply subtraction, because the behavior on w is ambiguous
-    inline FLOAT3p1 operator + ( const FLOAT3p1 &rhs ) {
+    inline FLOAT3p1 operator + ( const FLOAT3p1 &rhs ) const {
 	return FLOAT3p1(x+rhs.x, y+rhs.y, z+rhs.z, w+rhs.w); }
     inline FLOAT3p1& operator += ( const FLOAT3p1 &rhs ) {
 	x+=rhs.x; y+=rhs.y; z+=rhs.z; w+=rhs.w; return *this; }
 
     // Add or subtract a float3, omitting w
-    inline FLOAT3p1 operator + ( const FLOAT3 &rhs ) {
+    inline FLOAT3p1 operator + ( const FLOAT3 &rhs ) const {
 	return FLOAT3p1(x+rhs.x, y+rhs.y, z+rhs.z, w); }
-    inline FLOAT3p1 operator - ( const FLOAT3 &rhs ) {
+    inline FLOAT3p1 operator - ( const FLOAT3 &rhs ) const {
 	return FLOAT3p1(x-rhs.x, y-rhs.y, z-rhs.z, w); }
 
     // Multiply and divide by scalars, omitting w
-    // TODO: implement inplace operators
-    inline FLOAT3p1 operator * ( const float &rhs ) {
+
+    inline FLOAT3p1 operator * ( const float &rhs ) const {
 	return FLOAT3p1(x*rhs, y*rhs, z*rhs, w); }
-    inline FLOAT3p1& operator *= ( const float &rhs ) {
+    inline FLOAT3p1 operator *= ( const float &rhs ) {
     x*=rhs; y*=rhs; z*=rhs; return *this; }
-    inline FLOAT3p1 operator * ( const double &rhs ) {
+    inline FLOAT3p1 operator * ( const double &rhs ) const {
 	return FLOAT3p1(x*rhs, y*rhs, z*rhs, w); }
-    inline FLOAT3p1 operator / ( const float &rhs ) {
+    inline FLOAT3p1 operator / ( const float &rhs ) const {
 	float inv = 1/rhs; return FLOAT3p1(x*inv, y*inv, z*inv, w); }
-    inline FLOAT3p1 operator / ( const double &rhs ) {
+    inline FLOAT3p1 operator / ( const double &rhs ) const {
 	double inv = 1/rhs; return FLOAT3p1(x*inv, y*inv, z*inv, w); }
 
     // Supply a type cast to float3

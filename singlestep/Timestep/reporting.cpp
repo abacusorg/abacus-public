@@ -356,13 +356,13 @@ void ReportTimings(FILE * timingfile) {
         char str[1024];  sprintf(str, "Non-Blocking (thread-seconds, %d threads)", NGPU*DirectBPD);
         REPORT(1, str, JJ->DeviceThreadTimer);
             REPORT(2, "Fill Sinks", JJ->FillSinks);
-                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", total_sinks*sizeof(FLOAT3)/1e6/thistime, total_sinks/1e6/thistime);
+                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", total_sinks*sizeof(posstruct)/1e6/thistime, total_sinks/1e6/thistime);
             REPORT(2, "Fill Sources", JJ->FillSources);
-                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSource/sec", total_sources*sizeof(FLOAT3)/1e6/thistime, total_sources/1e6/thistime);
+                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSource/sec", total_sources*sizeof(posstruct)/1e6/thistime, total_sources/1e6/thistime);
             REPORT(2, "Launch Kernels", JJ->LaunchDeviceKernels);
             REPORT(2, "Wait for GPU Result", JJ->WaitForResult);
             REPORT(2, "Copy Accel from Pinned", JJ->CopyAccelFromPinned);
-                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", total_sinks*sizeof(FLOAT3)/1e6/thistime, total_sinks/1e6/thistime);  // same number of accels as sinks
+                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", total_sinks*sizeof(accstruct)/1e6/thistime, total_sinks/1e6/thistime);  // same number of accels as sinks
             
         denom = GPUThroughputTime;
         REPORT(1, "Non-Blocking Throughput (Wall Clock)", GPUThroughputTime);
@@ -399,11 +399,18 @@ void ReportTimings(FILE * timingfile) {
         REPORT(1, "Finalize accelerations", JJ->FinalizeTimer.Elapsed());
         denom = thistime;
         REPORT(2, "Bookkeeping/Fetch Timings", JJ->FinalizeBookkeeping.Elapsed());
+        REPORT(2, "Tear Down Pencil Sets", JJ->TearDownPencils.Elapsed());
         REPORT(2, "Copy Pencil to Slab", JJ->CopyPencilToSlab.Elapsed());
+        fprintf(timingfile,"---> %6.3f GB/sec",P.np/(thistime+1e-15)*6*sizeof(accstruct)/1e9);
+        denom = thistime;
+	REPORT(3, "Copy Pencil to Slab Setup (P)", JJ->CopyPencilToSlabSetup.Elapsed());
+	REPORT(3, "Copy Pencil to Slab Copy  (P)", JJ->CopyPencilToSlabCopy.Elapsed());
     }
     denom = Kick.Elapsed();
     REPORT(1, "Add Near + Far Accel", AddAccel.Elapsed());
+        fprintf(timingfile,"---> %6.3f GB/sec",P.np/(thistime+1e-15)*3*sizeof(accstruct)/1e9);
     REPORT(1, "Kick Cell", KickCellTimer.Elapsed());
+        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
     
     if(GFC != NULL){
         fprintf(timingfile, "\n\n Breakdown of Group Finding:");
@@ -449,7 +456,9 @@ void ReportTimings(FILE * timingfile) {
     fprintf(timingfile, "\n\n Subdivisions of Drift:");
     denom = Drift.Elapsed();
     REPORT(1, "Move",         DriftMove.Elapsed());
+        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
     REPORT(1, "Rebin",        DriftRebin.Elapsed());
+        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
     REPORT(1, "Inserting",    DriftInsert.Elapsed());
 
     if(MF != NULL){
@@ -469,6 +478,7 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Index Cells", FinishCellIndex.Elapsed());
     REPORT(1, "Free Slabs", FinishFreeSlabs.Elapsed());
     REPORT(1, "Merge", FinishMerge.Elapsed());
+        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
     REPORT(1, "Compute Multipoles", ComputeMultipoles.Elapsed());
     fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
     REPORT(1, "Write Particles", WriteMergeSlab.Elapsed());
@@ -477,6 +487,7 @@ void ReportTimings(FILE * timingfile) {
     denom = TimeStepWallClock.Elapsed();
     REPORT(0, "\nAllocate Arena Memory", LBW->ArenaMalloc.Elapsed());
     REPORT(0, "Free Arena Memory", LBW->ArenaFreeTime());
+    REPORT(0, "Free SlabAccum Variables", SlabAccumFree.Elapsed());
     
     fprintf(timingfile, "\n\n Reasons for Spinning:");
     fprintf(timingfile, "\n\t Note: may add up to >100%% if there are multiple simultaneous reasons for spinning");
