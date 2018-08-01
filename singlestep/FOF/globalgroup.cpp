@@ -148,8 +148,12 @@ class GlobalGroupSlab {
         int ret = posix_memalign((void **) &pstat, 64, sizeof(PencilStats)*GFC->cpd);
         assert(ret==0);
         for (int j=0; j<GFC->cpd; j++) pstat[j].reset(j);
-        globalgroups.setup(GFC->cpd, GFC->particles_per_pencil*omp_get_max_threads());   
-        globalgrouplist.setup(GFC->cpd, GFC->particles_per_pencil*omp_get_max_threads());   
+
+	// How many global groups do we expect?  Let's guess 10% of the particles
+	// The cellgroup list is modestly bigger, but not enough to care.
+	int maxsize = GFC->particles_per_slab/10;
+        globalgroups.setup(GFC->cpd, maxsize);
+        globalgrouplist.setup(GFC->cpd, maxsize);
     }
     void destroy() {
         if (pos!=NULL) free(pos); pos = NULL;
@@ -546,10 +550,14 @@ void GlobalGroupSlab::FindSubGroups() {
     // Process each group, looking for L1 and L2 subgroups.
     GFC->ProcessLevel1.Start();
     int maxthreads = omp_get_max_threads();
-    L1halos.setup(GFC->cpd, GFC->particles_per_pencil*maxthreads);    // TUNING: This start value is a guess
-    TaggedPIDs.setup(GFC->cpd, GFC->particles_per_pencil*maxthreads);    
-    L1Particles.setup(GFC->cpd, GFC->particles_per_pencil*maxthreads);   
-    L1PIDs.setup(GFC->cpd, GFC->particles_per_pencil*maxthreads);    
+
+    // Guessing L1 halo count is 3% of particles, given minsize
+    L1halos.setup(GFC->cpd, GFC->particles_per_slab/30);    
+    // Guessing Tagged particles are 2% of total 
+    TaggedPIDs.setup(GFC->cpd, GFC->particles_per_slab/50);    
+    // Guessing L1 Particles are 3% of total (taggable)
+    L1Particles.setup(GFC->cpd, GFC->particles_per_slab/30);   
+    L1PIDs.setup(GFC->cpd, GFC->particles_per_slab/30);    
     FOFcell FOFlevel1[maxthreads], FOFlevel2[maxthreads];
     posstruct **L1pos = new posstruct *[maxthreads];
     velstruct **L1vel = new velstruct *[maxthreads];

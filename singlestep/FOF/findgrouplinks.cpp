@@ -54,10 +54,15 @@ class CellFaceSlab {
     int slab_prewrap; 	// The slab we're told to compute (unwrapped)
 
     CellFaceSlab(int _slab, int _edgebit, int cpd, int maxsize) {
-	pseudoParticles.setup(cpd, maxsize); // ETC
-	pseudoRadii.setup(cpd, maxsize);
-	faceParticles.setup(cpd, maxsize);
-	faceGroups.setup(cpd, maxsize);
+	// maxsize should be the number of particles in a cell
+	// times the boundary width.  Then we reduce from there.
+	// Most particles are not in groups.  
+	// Estimating 10% for pseudoParticles, 5% for faceGroups,
+	// and 30% for faceParticles.
+	pseudoParticles.setup(cpd, maxsize/10); 
+	pseudoRadii.setup(cpd, maxsize/10);
+	faceParticles.setup(cpd, maxsize/3);
+	faceGroups.setup(cpd, maxsize/20);
 	edgebit = _edgebit;
 	slab_prewrap = _slab;
 	slab = GFC->WrapSlab(_slab);
@@ -420,13 +425,14 @@ void FindGroupLinks(int slab) {
     slab = GFC->WrapSlab(slab);
     uint64 Ltot_start = GFC->GLL->length;
 
-    // TODO: This maxsize is likely inefficient
-    CellFaceSlab xp(slab-1, XP_BIT, GFC->cpd, 1024);
-    CellFaceSlab xm(slab,   XM_BIT, GFC->cpd, 1024);
-    CellFaceSlab yp(slab,   YP_BIT, GFC->cpd, 1024);
-    CellFaceSlab ym(slab,   YM_BIT, GFC->cpd, 1024);
-    CellFaceSlab zp(slab,   ZP_BIT, GFC->cpd, 1024);
-    CellFaceSlab zm(slab,   ZM_BIT, GFC->cpd, 1024);
+    // The typical number of particles
+    int maxsize = GFC->particles_per_slab*GFC->linking_length*GFC->cpd;
+    CellFaceSlab xp(slab-1, XP_BIT, GFC->cpd, maxsize);
+    CellFaceSlab xm(slab,   XM_BIT, GFC->cpd, maxsize);
+    CellFaceSlab yp(slab,   YP_BIT, GFC->cpd, maxsize);
+    CellFaceSlab ym(slab,   YM_BIT, GFC->cpd, maxsize);
+    CellFaceSlab zp(slab,   ZP_BIT, GFC->cpd, maxsize);
+    CellFaceSlab zm(slab,   ZM_BIT, GFC->cpd, maxsize);
 
     // Now load up these slabs
     // We do all at once, in order to get repeated access to individual cells.

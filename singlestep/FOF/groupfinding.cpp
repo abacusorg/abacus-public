@@ -37,6 +37,7 @@ class GroupFindingControl {
     FOFloat invcpd;
     uint64 np; // the number of particles in the simulation; used to compute buffers
     uint64 particles_per_pencil;	// Typical number of particles per pencil
+    uint64 particles_per_slab;	// Typical number of particles per slab
 
     // Parameters for finding subgroups
     FOFloat linking_length_level1;
@@ -94,6 +95,7 @@ class GroupFindingControl {
 	boundary = (invcpd/2.0-linking_length);
 	np = _np;
 	particles_per_pencil = np/cpd/cpd;
+	particles_per_slab = np/cpd;
 	GroupRadius = _GroupRadius;
 	cellgroups = new SlabAccum<CellGroup>[cpd];
 	cellgroups_status = new int[cpd];
@@ -208,7 +210,8 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     // Construct the Cell Groups for this slab
     CellGroupTime.Start();
     slab = WrapSlab(slab);
-    cellgroups[slab].setup(cpd, particles_per_pencil);     
+    cellgroups[slab].setup(cpd, particles_per_slab/20);     
+    	// Guessing that the number of groups is 20-fold less than particles
     FOFcell doFOF[omp_get_max_threads()];
     #pragma omp parallel for schedule(static)
     for (int g=0; g<omp_get_max_threads(); g++) 
