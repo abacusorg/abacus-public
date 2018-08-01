@@ -300,13 +300,13 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
     int i2 = c2.slab;
 
     // We also need to account for the cell-centered positions
-    FOFparticle *offset;
-    int ret = posix_memalign((void **)&offset, 64, sizeof(FOFparticle));   assert(ret==0); // Need this aligned
+    FOFparticle offset;
+    //? int ret = posix_memalign((void **)&offset, 64, sizeof(FOFparticle));   assert(ret==0); // Need this aligned
     int del_i = c2.slab_prewrap - c1.slab_prewrap;   // Need this info before wrapping
-    offset->x = GFC->invcpd*FOF_RESCALE*(del_i);
-    offset->y = GFC->invcpd*FOF_RESCALE*(j2-j1);
-    offset->z = GFC->invcpd*FOF_RESCALE*(k2-k1);
-    offset->n = 0.0;
+    offset.x = GFC->invcpd*FOF_RESCALE*(del_i);
+    offset.y = GFC->invcpd*FOF_RESCALE*(j2-j1);
+    offset.z = GFC->invcpd*FOF_RESCALE*(k2-k1);
+    offset.n = 0.0;
     // This is what we should add to the 2nd positions
 
     // Now wrap them
@@ -337,7 +337,7 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
 	    // printf("%d %f to %d %f = %f vs %f\n",
 	    	// p, pR1[p]/FOF_RESCALE, q, pR2[q]/FOF_RESCALE, 
 		// pP1[p].diff2(pP2.ptr(q),offset)/FOF_RESCALE/FOF_RESCALE, b2*b2/FOF_RESCALE/FOF_RESCALE);
-	    if (pP1[p].diff2(pP2.ptr(q),offset)<b2*b2) {
+	    if (pP1[p].diff2(pP2.ptr(q),&offset)<b2*b2) {
 	        // We've found a pair of pseudogroups
 		// if (pR1[p]==0) 
 		// printf("Candidate: %d %d %d %d to %d %d %d %d\n",
@@ -357,7 +357,7 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
 			FaceGroup *fg = fG2.ptr(-1-pP2[q].index());
 			FaceGroupParticle *fp = fP2.ptr(fg->start);
 			for (int qq=0; qq<fg->n; qq++, fp++) {
-			    FOFloat d2 = pP1[p].diff2(fp,offset);
+			    FOFloat d2 = pP1[p].diff2(fp,&offset);
 			    if (d2<bsq) {
 				// We've found a pair
 				// printf("Link: %d %d %d %d to %d %d %d %d %d\n",
@@ -376,7 +376,7 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
 			FaceGroupParticle *fp = fP1.ptr(fg->start);
 			for (int pp=0; pp<fg->n; pp++, fp++) {
 			    FOFparticle *p2 = pP2.ptr(q);
-			    FOFloat d2 = fp->diff2(p2,offset);
+			    FOFloat d2 = fp->diff2(p2,&offset);
 			    if (d2<bsq) {
 			    // if (pP2[q].diff2(fp)<bsq) 
 				// We've found a pair
@@ -396,7 +396,7 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
 			for (int pp=0; pp<fg1->n; pp++, fp1++) {
 			    FaceGroupParticle *fp2 = fP2.ptr(fg2->start);
 			    for (int qq=0; qq<fg2->n; qq++, fp2++) {
-				if (fp1->diff2(fp2,offset)<bsq) {
+				if (fp1->diff2(fp2,&offset)<bsq) {
 				    // We've found a pair
 				    // printf("Link: %d %d %d %d %d to %d %d %d %d %d\n",
 					// i1, j1, k1, pP1[p].index(),fg1->cellgroupID,
@@ -413,7 +413,7 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
 	    }  // Done with this pseudoParticle pair.
 	}
     }
-    free(offset);
+    //? free(offset);
     return; 
 }
 
