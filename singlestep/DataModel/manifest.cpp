@@ -201,10 +201,12 @@ Manifest SendManifest, ReceiveManifest;
 
 // Call this routine to turn on Non-blocking Manifest
 void NonBlockingManifest() {
+    #ifdef PARALLEL
     STDLOG(1,"Turning on non-blocking Manifest Code\n");
     SendManifest.set_nonblocking();
     ReceiveManifest.set_nonblocking();
     ReceiveManifest.LaunchReceiveThread();
+    #endif
 }
 
 
@@ -383,7 +385,10 @@ void Manifest::Send() {
 // This can be called in timestep.cpp to manually check (blocking)
 // whether Receive is ready to run.
 // TODO: This may have a rather different meaning in MPI
-void Manifest::Check() {
+inline void Manifest::Check() {
+    #ifndef PARALLEL
+    return;	// If we're not doing PARALLEL, let this optimize to a no-op
+    #endif
     if (blocking==0) return; 	// We're doing this by a thread
     if (completed>0) return;	// We've already been here once
     char fname[1024];

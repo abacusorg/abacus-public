@@ -158,7 +158,7 @@ FLOAT * density; //!< Array to accumulate gridded densities in for low resolutio
 #include "groupfinding.cpp"
 #include "microstep.cpp"
 
-#define PARALLEL
+// #define PARALLEL
 int first_slab_on_node, total_slabs_on_node;
 	// The first read slab to be executed by this nodes,
 	// as well as the total number.
