@@ -121,6 +121,8 @@ class SlabAccumBuffer {
         slabfree();
     }
 
+    bool isNULL() { return data==NULL; }
+
     #define MAXSlabAccumBuffer 0x3fffffff
 	// Cap at a billion elements, but we don't want 2*number to overflow int.
 	// This is a huge amount, since this is for a pencil, not a slab.
@@ -307,9 +309,14 @@ class SlabAccum {
 	if (pencils!=NULL) free(pencils); pencils = NULL;
 	if (pstart!=NULL) free(pstart); pstart = NULL;
 	if (buffers!=NULL) {
+	    // In tcmalloc, we want to allocate and deallocate on the same thread
+	    #pragma omp parallel for schedule(static,1)
 	    for (int j=0; j<maxthreads; j++) {
-		buffers[j].slabfree();
+		buffers[omp_get_thread_num()].slabfree();
 	    }
+	    for (int j=0; j<maxthreads; j++)
+	    	assertf(buffers[j].isNULL(),
+		    "We failed to free a thread-based malloc.\n");
 	    delete[] buffers;
 	}
 	buffers = NULL;
@@ -355,8 +362,16 @@ class SlabAccum {
 	    maxsize *= 0.2;
 	    maxsize = std::max(maxsize,1024);	// Don't waste time with small stuff
 	    
+	    // In tcmalloc, we want to allocate and deallocate on the same thread
+	    #pragma omp parallel for schedule(static,1)
+	    for (int j=0; j<maxthreads; j++) {
+		buffers[omp_get_thread_num()].setup(maxsize);
+	    }
+	    // In the one test I ran, we did always have j==thread_num,
+	    // but I chose not to trust this.
 	    for (int j=0; j<maxthreads; j++)
-		buffers[j].setup(maxsize);
+	    	assertf(!buffers[j].isNULL(),
+		    "We failed to assign a thread-based malloc.\n");
 	}
     }
 
