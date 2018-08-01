@@ -340,7 +340,7 @@ class SlabAccum {
 	    int ret;
 	    ret = posix_memalign((void **)&pencils, 4096, sizeof(PencilAccum<T>)*cpd); assert(ret==0);
 	    ret = posix_memalign((void **)&cells, 4096, sizeof(CellAccum)*cpd*cpd); assert(ret==0);
-	    ret = posix_memalign((void **)&pstart, 4096, sizeof(uint64)*cpd+1); assert(ret==0);
+	    ret = posix_memalign((void **)&pstart, 4096, sizeof(uint64)*(cpd+1)); assert(ret==0);
 	    for (int j=0; j<cpd; j++) pencils[j].cells = cells+j*cpd;
 	}
 	if (buffers==NULL) {

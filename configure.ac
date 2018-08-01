@@ -178,8 +178,8 @@ fi
 
 AC_ARG_ENABLE(parallel,
 [AS_HELP_STRING([--enable-parallel], [Generate MPI parallel code [no]])],
-	[], enable_fof_density="no")
-if test x$enable_fof_density == xyes; then
+	[], enable_parallel="no")
+if test x$enable_parallel == xyes; then
 	AC_DEFINE_UNQUOTED(PARALLEL, [], "Generate MPI-parallel code.")
 fi
 
