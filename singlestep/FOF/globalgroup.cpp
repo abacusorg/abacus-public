@@ -565,7 +565,7 @@ void GlobalGroupSlab::FindSubGroups() {
     accstruct **L1acc = new accstruct *[maxthreads];
     MultiplicityStats L1stats[maxthreads];
 
-    #pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static,1)
     for (int g=0; g<maxthreads; g++) {
         FOFlevel1[g].setup(GFC->linking_length_level1, 1e10);
         FOFlevel2[g].setup(GFC->linking_length_level2, 1e10);
@@ -713,6 +713,8 @@ void GlobalGroupSlab::FindSubGroups() {
     }
 
     // Now delete all of the temporary storage!
+    // Want free's to be on the same threads as the original
+    #pragma omp parallel for schedule(static,1)
     for (int g=0; g<omp_get_max_threads(); g++) {
         FOFlevel1[g].destroy();
         FOFlevel2[g].destroy();
