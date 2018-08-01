@@ -512,7 +512,7 @@ class FOFcell {
 	} else {
 	    // We have an odd registration.  Do the first object special.
 	    d2use = d2buf+3;
-	    /// d2use[0] = primary->diff2(list);
+	    //? d2use[0] = primary->diff2(list);
 	    d2use[0] = primary->diff2v(list);
 	    //#pragma unroll
 	    for (int a=1; a<nlist; a+=4)
