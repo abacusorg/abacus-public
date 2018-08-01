@@ -176,6 +176,13 @@ if test x$enable_fof_density == xyes; then
 	AC_DEFINE_UNQUOTED(COMPUTE_FOF_DENSITY, [], "Compute FOF-scale density on the GPU, used to accelerate the L0 FOF computation and seed the L1/L2 halo finding.  This promotes FLOAT3 accelerations to FLOAT4.")
 fi
 
+AC_ARG_ENABLE(parallel,
+[AS_HELP_STRING([--enable-parallel], [Generate MPI parallel code [no]])],
+	[], enable_fof_density="no")
+if test x$enable_fof_density == xyes; then
+	AC_DEFINE_UNQUOTED(PARALLEL, [], "Generate MPI-parallel code.")
+fi
+
 # Get the number of GPUs
 if test x$enable_gpu_directs == xyes; then
 	AC_MSG_CHECKING([number of GPUs])
@@ -248,6 +255,7 @@ echo "Threaded IO:                     $enable_threaded_io"
 echo "Direct buffers-per-device:       $with_direct_bpd"
 echo "GPU directs:                     $enable_gpu_directs"
 echo "Compute FOF-scale density:       $enable_fof_density"
+echo "MPI parallel code:               $enable_parallel"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Maximum GPUs:                    $with_max_gpus"

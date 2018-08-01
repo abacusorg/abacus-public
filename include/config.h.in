@@ -212,6 +212,9 @@
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
 
+/* "Generate MPI-parallel code." */
+#undef PARALLEL
+
 /* The size of `long', as computed by sizeof. */
 #undef SIZEOF_LONG
 
