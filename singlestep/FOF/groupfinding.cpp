@@ -213,7 +213,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     cellgroups[slab].setup(cpd, particles_per_slab/20);     
     	// Guessing that the number of groups is 20-fold less than particles
     FOFcell doFOF[omp_get_max_threads()];
-    #pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static,1)
     for (int g=0; g<omp_get_max_threads(); g++) 
     	doFOF[g].setup(linking_length, boundary);
 
@@ -292,7 +292,8 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	cg->FinishPencil();
 	free(aligned);
     }
-    #pragma omp parallel for schedule(static)
+    // Best if we destroy on the same thread, for tcmalloc
+    #pragma omp parallel for schedule(static,1)
     for (int g=0; g<omp_get_max_threads(); g++) 
     	doFOF[g].destroy();
     uint64 tot = cellgroups[slab].get_slab_size();
