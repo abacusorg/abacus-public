@@ -338,7 +338,7 @@ void Manifest::Send() {
     sprintf(fname, "%s/manifest", P.WriteStateDirectory);
     FILE *fp = fopen(fname, "wb");
     bytes = fwrite(&m, sizeof(ManifestCore), 1, fp)*sizeof(ManifestCore);
-    if (blocking) STDLOG(1,"Sending the Manifest Core to %s\n", fname);
+    STDLOG(1,"Sending the Manifest Core to %s\n", fname);
 
     for (int n=0; n<m.numarenas; n++) {
 	// TODO: Send arenas[n].size bytes from arenas[n].ptr
@@ -407,7 +407,7 @@ void Manifest::Receive() {
     sprintf(fname, "%s/manifest", P.WriteStateDirectory);
     FILE *fp = fopen(fname, "rb");
     bytes += fread(&m, sizeof(ManifestCore), 1, fp)*sizeof(ManifestCore);
-    if (blocking) STDLOG(1,"Reading Manifest Core from %s\n", fname);
+    STDLOG(1,"Reading Manifest Core from %s\n", fname);
 
     for (int n=0; n<m.numarenas; n++) {
 	LBW->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size);
