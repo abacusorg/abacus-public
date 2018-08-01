@@ -83,7 +83,6 @@ inline bool is_below_slab(ilstruct *particle, int slab) {
     int x = particle->xyz.x-slab;  // We want x<0, but not too much.
     x = PP->WrapSlab(x);
     return x>=global_minslab_search;
-    /// return x>PP->cpd/2;
 }
 
 // When we partition the GroupLink list, GlobalGroups have already
@@ -94,7 +93,6 @@ inline bool link_below_slab(GroupLink *link, int slab) {
     int sa = link->a.slab();
     sa = PP->WrapSlab(sa-slab);
     return sa>=global_minslab_search;
-    /// return (sa>PP->cpd/2);
 }
 
 // prototypes
@@ -286,11 +284,8 @@ void Manifest::QueueToSend(int finished_slab) {
     STDLOG(1,"Queuing Insert List into the SendManifest, extracting [%d,%d)\n",
     	min_il_slab, finished_slab);
     // Partition the Insert List, malloc *il, and save it off
-    /// for (int j=0;j<IL->length;j++) assertf(IL->list[j].xyz.x>=0&&IL->list[j].xyz.x<P.cpd, "Bad value at IL[%d] %d %d %d\n", j, IL->list[j].xyz.x, IL->list[j].xyz.y, IL->list[j].xyz.z);
-
     global_minslab_search = PP->WrapSlab(min_il_slab-finished_slab);
     uint64 mid = ParallelPartition(IL->list, IL->length, finished_slab, is_below_slab);
-    /// for (int j=0;j<IL->length;j++) assertf(IL->list[j].xyz.x>=0&&IL->list[j].xyz.x<P.cpd, "Bad value after PP at IL[%d] %d %d %d\n", j, IL->list[j].xyz.x, IL->list[j].xyz.y, IL->list[j].xyz.z);
 
     m.numil = IL->length-mid;
     int ret = posix_memalign((void **)&il, 4096, sizeof(ilstruct)*m.numil);
@@ -298,7 +293,6 @@ void Manifest::QueueToSend(int finished_slab) {
 	// Possible TODO: Consider whether this copy should be multi-threaded
     STDLOG(1, "Insert list had size %l, now size %l; sending %l\n", IL->length, mid, m.numil);
     IL->ShrinkMAL(mid);
-    /// for (int j=0;j<m.numil;j++) assertf(il[j].xyz.x>=0&&il[j].xyz.x<P.cpd, "Bad value in queued il[%d] %d %d %d\n", j, il[j].xyz.x, il[j].xyz.y, il[j].xyz.z);
 
     // Partition the GroupLink List, malloc *links, and save it off
     // TODO: Do these group finding variables always exist?
@@ -493,14 +487,12 @@ void Manifest::ImportData() {
     assert(n==m.numdep);
 
     // Add *il to the insert list
-    /// for (int j=0;j<m.numil;j++) assertf(il[j].xyz.x>=0&&il[j].xyz.x<P.cpd, "Bad value at il[%d] %d %d %d\n", j, il[j].xyz.x, il[j].xyz.y, il[j].xyz.z);
     uint64 len = IL->length;
     IL->GrowMAL(len+m.numil);
     STDLOG(1, "Growing IL list from %d by %d = %l\n", len, m.numil, IL->length);
     memcpy(IL->list+len, il, m.numil*sizeof(ilstruct));
 	// Possible TODO: Should this copy be multi-threaded?
     free(il);
-    /// for (int j=0;j<IL->length;j++) assertf(IL->list[j].xyz.x>=0&&IL->list[j].xyz.x<P.cpd, "Bad value at IL[%d] %d %d %d\n", j, IL->list[j].xyz.x, IL->list[j].xyz.y, IL->list[j].xyz.z);
 
     // Add *links to the GroupLink list
     if (GFC!=NULL) {

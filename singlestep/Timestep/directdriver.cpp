@@ -436,7 +436,6 @@ void NearFieldDriver::Finalize(int slab){
 
     int cpd = P.cpd;
     int nfr = RADIUS;
-    /// int nfwidth = 2*nfr +1;
 
     // Collect the statistics and timings
     for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){

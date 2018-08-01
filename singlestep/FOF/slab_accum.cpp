@@ -489,18 +489,12 @@ class SlabAccum {
 
 	// Allocate the required buffer size
 	assertf(pstart[cpd]<2e9, "This arena is too big to be unpacked into one SlabBuffer\n");
-	/// buffers[0].setup(pstart[cpd]);
-	/// memcpy(buffers[0].pdata(), p, sizeof(T)*pstart[cpd]);
-	/// buffers[0].size = buffers[0].maxsize;
-
 	buffers[0].load_from_ptr(p, pstart[cpd]);
 
 	for (int j=0; j<cpd; j++) {
 	    pencils[j].buffer = buffers;
 	    pencils[j].data = buffers[0].get_pencil_start()+pstart[j];
 	    pencils[j]._size = pstart[j+1]-pstart[j];
-	    /// pencils[j].thiscell = NULL;    // Just fill in unusable values
-	    /// pencils[j].thisstart = 0;
 	}
 	return;
     }
