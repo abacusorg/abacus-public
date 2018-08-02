@@ -12,7 +12,7 @@
 void IO_Initialize(char *logfn) { return; }    // Nothing to do
 void IO_Terminate() { return; }
 
-void ReadFile(char *ram, uint64 sizebytes, int arena,
+void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
 	    const char *filename, off_t fileoffset, int blocking) {
 
     STDLOG(1,"Using IO_dio module to read file %f\n", filename);
@@ -33,11 +33,11 @@ void ReadFile(char *ram, uint64 sizebytes, int arena,
     BlockingIOReadBytes[dir] += sizebytes;
 
     STDLOG(1,"Done reading file\n");
-    IO_SetIOCompleted(arena);
+    IO_SetIOCompleted(arenatype, arenaslab);
     return;
 }
 
-void WriteFile(char *ram, uint64 sizebytes, int arena, 
+void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, 
 	    const char *filename, off_t fileoffset, int deleteafter, int blocking) {
 
     STDLOG(1,"Using IO_dio module to write file %f\n", filename);
@@ -66,7 +66,7 @@ void WriteFile(char *ram, uint64 sizebytes, int arena,
     BlockingIOWriteBytes[dir] += sizebytes;
 
     STDLOG(1,"Done writing file\n");
-    if (deleteafter==IO_DELETE) IO_DeleteArena(arena);
+    if (deleteafter==IO_DELETE) IO_DeleteArena(arenatype, arenaslab);
     return;
 }
 
