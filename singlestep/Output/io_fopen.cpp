@@ -58,7 +58,7 @@ DirectIO DIO;
 
 // This is all blocking, regardless of instruction!
 
-void ReadFile(char *ram, uint64 sizebytes, int arena,
+void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
 	    const char *filename, off_t fileoffset, int blocking) {
     STDLOG(1,"Using IO_fopen library to read file %f\n", filename);
     
@@ -72,12 +72,12 @@ void ReadFile(char *ram, uint64 sizebytes, int arena,
     BlockingIOReadTime.Stop();
     BlockingIOReadBytes += sizebytes;
 
-    IO_SetIOCompleted(arena);
+    IO_SetIOCompleted(arenatype, arenaslab);
     
     return;
 }
 
-void WriteFile(char *ram, uint64 sizebytes, int arena, 
+void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, 
 	    const char *filename, off_t fileoffset, int deleteafter, int blocking) {
     STDLOG(1,"Using IO_fopen library to write file %f\n", filename);
     
@@ -91,7 +91,7 @@ void WriteFile(char *ram, uint64 sizebytes, int arena,
     BlockingIOWriteTime.Stop();
     BlockingIOWriteBytes += sizebytes;
     
-    if (deleteafter==IO_DELETE) IO_DeleteArena(arena);
+    if (deleteafter==IO_DELETE) IO_DeleteArena(arenatype, arenaslab);
     return;
 }
 

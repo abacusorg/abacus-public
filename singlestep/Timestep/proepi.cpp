@@ -92,8 +92,10 @@ SlabBuffer *LBW;
 
 // Two quick functions so that the I/O routines don't need to know 
 // about the LBW object. TODO: Move these to an io specific file
-void IO_SetIOCompleted(int arena) { LBW->SetIOCompleted(arena); }
-void IO_DeleteArena(int arena)    { LBW->DeAllocateArena(arena); }
+void IO_SetIOCompleted(int arenatype, int arenaslab) { 
+	LBW->SetIOCompleted(arenatype, arenaslab); }
+void IO_DeleteArena(int arenatype, int arenaslab)    { 
+	LBW->DeAllocate(arenatype, arenaslab); }
 
 
 #include "threadaffinity.h"
@@ -187,7 +189,7 @@ void Prologue(Parameters &P, bool ic) {
     long long int np = P.np;
     assert(np>0);
 
-    LBW = new SlabBuffer(cpd, order, cpd*MAXIDS, P.MAXRAMMB*1024*1024);
+    LBW = new SlabBuffer(cpd, order, MAXIDS, P.MAXRAMMB*1024*1024);
     PP = new Particles(cpd, LBW);
     STDLOG(1,"Initializing Multipoles()\n");
     MF  = new SlabMultipoles(order, cpd);
@@ -200,6 +202,7 @@ void Prologue(Parameters &P, bool ic) {
         if (P.NumSlabsInsertList>0) maxILsize   =(maxILsize* P.NumSlabsInsertList)/P.cpd+1;
     }
     IL = new InsertList(cpd, maxILsize);
+    STDLOG(1,"Maximum insert list size = %ld, size %l MB\n", maxILsize, maxILsize*sizeof(ilstruct)/1024/1024);
 
     STDLOG(1,"Setting up IO\n");
 
