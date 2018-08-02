@@ -629,6 +629,9 @@ void FinishAction(int slab) {
 
     int pwidth = FetchSlabs.number_of_slabs_executed - Finish.number_of_slabs_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
+
+    // TODO: is there a different place in the code where we would rather report this?
+    ReportMemoryAllocatorStats();
 }
 
 // -----------------------------------------------------------------
