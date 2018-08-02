@@ -38,13 +38,74 @@ inline int SetInteractionCollection::index_to_zcen(int k) {
 
 // ====================== Constructor =========================
 
-SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlow, int _jhigh, FLOAT _b2){
-    // The constructor of the SIC is where all of the planning happens
-    // Given a slab, a range of Y's, and a Z modulus, plus a FOF scale
-    // to pass along.
-    // Once finished, this contains all of the information needed to
-    // gather the particle data and pass it along to the GPU, as well
-    // as the space to store the results.
+/** Given a slab of size cpd and number of particles np, 
+we want to compute the required space for the mallocs for all
+SetInteractionCollection in this slab.  This is easier to do for the full
+than for a single SIC; no worrying about the Y splits.
+
+NSinkSet = cpd**2
+NSourceSet = cpd**2 plus 4*cpd for each split
+NPaddedSinks = WIDTH*Nparticles+NFBlocksize*cpd**2
+NSinkBlocks = NPaddedSinks/NFBlocksize
+
+The last term is worst case.  Typical case is 0.5 of that;
+we use the overage to avoid worrying about the 4*cpd source boundaries,
+and just set NSourceSet = NSinkSet.
+
+SinkSetStart int[NSinkSet]
+SinkSetCount int[]
+SinkPlan     plan[]
+SinkSetIdMax int[]
+
+SourceSetStart int[NSourceSet]
+SourceSetCount int[]
+SourcePlan     plan[]
+
+SinkBlockParentPencil int[NSinkBlocks] 
+SinkSetAcceleration   FLOAT4[NPaddedSinks]
+SinkSourceInteractionList   int[WIDTH*NSinkSet]
+SinkSourceYOffset       FLOAT[]
+
+**/
+
+uint64 MaxSICAllocation(int cpd, int np, int WIDTH) {
+    uint64 size = 0;
+    size += cpd*cpd*(5*sizeof(int)+2*sizeof(SinkPencilPlan)+WIDTH*sizeof(int)+sizeof(FLOAT));
+    size += sizeof(accstruct)*(WIDTH*np + NFBlockSize*cpd*cpd);
+    size += sizeof(int)*(WIDTH*np + NFBlockSize*cpd*cpd)/NFBlockSize;
+    size += 131072; 	// Just adding in some for alignment and small-problem worst case
+    return size;
+}
+
+/// Given a pointer to an existing 'buffer' of size 'bsize', return 
+/// an aligned pointer 'ptr' that includes space of request bytes.
+/// Adjust buffer and bsize on return.
+/// Crash if the buffer has run out of space
+int posix_memalign_wrap((char *) &buffer, size_t &bsize, (void **)ptr, 
+	int alignment, size_t request) {
+    int extra = alignment-buffer%alignment;
+    assertf(bsize>=request+extra, "Aligned subdivision of buffer has overflowed its space: %l < %l + %d\n", bsize, request, extra);
+    buffer += extra; bsize -= extra;
+    *ptr = (void *)buffer;   // We're pointing to the correct location
+    buffer += request; bsize -= request;
+    return 0;
+}
+
+
+/// The constructor of the SIC is where all of the planning happens
+/// Given a slab, a range of Y's, and a Z modulus, plus a FOF scale
+/// to pass along.
+///
+/// Once finished, this contains all of the information needed to
+/// gather the particle data and pass it along to the GPU, as well
+/// as the space to store the results.
+///
+/// This version takes a pointer to and size of an existing buffer,
+/// so that it skips its internal mallocs and instead uses the 
+/// buffer.  Important: buffer and bsize are modified and returned
+/// with the pointer to and size of the unused space.
+
+SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlow, int _jhigh, FLOAT _b2, (char *)&buffer, size_t &bsize){
     Construction.Start();
 
     eps = JJ->eps;
@@ -75,10 +136,10 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     NSinkSets = j_width * Nk;
     assertf(NSinkSets <= MaxNSink, "NSinkSets (%d) larger than allocated space (MaxNSink = %d)\n", NSinkSets, MaxNSink);
     
-    assert(posix_memalign((void **) &SinkSetStart, 4096, sizeof(int) * NSinkSets) == 0);
-    assert(posix_memalign((void **) &SinkSetCount, 4096, sizeof(int) * NSinkSets) == 0);
-    assert(posix_memalign((void **) &SinkPlan, 4096, sizeof(SinkPencilPlan) * NSinkSets) == 0);
-    assert(posix_memalign((void **) &SinkSetIdMax, 4096, sizeof(int) * NSinkSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetStart, 4096, sizeof(int) * NSinkSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetCount, 4096, sizeof(int) * NSinkSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkPlan, 4096, sizeof(SinkPencilPlan) * NSinkSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetIdMax, 4096, sizeof(int) * NSinkSets) == 0);
     
     int localSinkTotal = 0;
 
@@ -89,9 +150,9 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     assertf(NSourceSets <= MaxNSource, "NSourceSets (%d) larger than allocated space (MaxNSource = %d)\n", NSourceSets, MaxNSource);
     assertf(NSourceSets <= P.cpd*(P.cpd+nfwidth), "NSourceSets (%d) exceeds SourceSet array allocation (%d)\n", NSourceSets, P.cpd*(P.cpd+nfwidth));
     
-    assert(posix_memalign((void **) &SourceSetStart, 4096, sizeof(int) * NSourceSets) == 0);  
-    assert(posix_memalign((void **) &SourceSetCount, 4096, sizeof(int) * NSourceSets) == 0);
-    assert(posix_memalign((void **) &SourcePlan, 4096, sizeof(SourcePencilPlan) * NSourceSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SourceSetStart, 4096, sizeof(int) * NSourceSets) == 0);  
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SourceSetCount, 4096, sizeof(int) * NSourceSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SourcePlan, 4096, sizeof(SourcePencilPlan) * NSourceSets) == 0);
     
     int localSourceTotal = 0;
 
@@ -137,7 +198,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
             "The number of padded sink particles will overflow a 32-bit signed int");
 
     assertf(NSinkBlocks <= MaxSinkBlocks, "NSinkBlocks (%d) larger than allocated space (MaxSinkBlocks = %d)\n", NSinkBlocks, MaxSinkBlocks);
-    assert(posix_memalign((void **) &SinkBlockParentPencil, 4096, sizeof(int) * NSinkBlocks) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkBlockParentPencil, 4096, sizeof(int) * NSinkBlocks) == 0);
 
     // Loop over the pencils to set these:
     //   SinkSetStart[set] points to where the padded particles starts
@@ -175,7 +236,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     CalcSinkBlocks.Stop();
     
     AllocAccels.Start();
-    assert(posix_memalign((void **) &SinkSetAccelerations, 4096, sizeof(accstruct) * NPaddedSinks) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetAccelerations, 4096, sizeof(accstruct) * NPaddedSinks) == 0);
     AllocAccels.Stop();
     
     FillSinkLists.Stop();
@@ -251,8 +312,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     assertf(InteractionCount <= MaxNSink*nfwidth, "InteractionCount (%d) larger than allocated space (MaxNSink * nfwidth = %d)\n", InteractionCount, MaxNSink * nfwidth);
     assertf((uint64)nfwidth*j_width*Nk < INT32_MAX, 
             "Interaction Count exceeds 32-bit signed int");
-    assert(posix_memalign((void **) &SinkSourceInteractionList, 4096, sizeof(int) * InteractionCount) == 0);
-    assert(posix_memalign((void **) &SinkSourceYOffset, 4096, sizeof(FLOAT) * InteractionCount) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSourceInteractionList, 4096, sizeof(int) * InteractionCount) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSourceYOffset, 4096, sizeof(FLOAT) * InteractionCount) == 0);
     FLOAT cellsize = PP->invcpd;
     
     uint64 localDirectTotal = 0;
@@ -293,17 +354,18 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
 
 SetInteractionCollection::~SetInteractionCollection(){
     // A simple destructor
-    free(SinkSetStart);
-    free(SinkSetCount);
-    free(SinkPlan);
-    free(SinkSetIdMax);
-    free(SourceSetStart);
-    free(SourceSetCount);
-    free(SourcePlan);
-    free(SinkBlockParentPencil);
-    free(SinkSetAccelerations);
-    free(SinkSourceInteractionList);
-    free(SinkSourceYOffset);
+    // These are now part of the NearField_SIC_Slab buffer
+    //? free(SinkSetStart);
+    //? free(SinkSetCount);
+    //? free(SinkPlan);
+    //? free(SinkSetIdMax);
+    //? free(SourceSetStart);
+    //? free(SourceSetCount);
+    //? free(SourcePlan);
+    //? free(SinkBlockParentPencil);
+    //? free(SinkSetAccelerations);
+    //? free(SinkSourceInteractionList);
+    //? free(SinkSourceYOffset);
 }
 
 

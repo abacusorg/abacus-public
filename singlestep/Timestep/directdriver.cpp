@@ -3,50 +3,10 @@
  * Abstraction layer that handles everything associated with launching the directs. 
  * All details of direct implementation should be invisible to classes above this one.
  * 
- * FIXME: DWF reccomends refactoring this class to reduce its direct responsibilities. 
- * It has turned into a bit of a God class---NearFieldDriver is currently directly responsible for:
- *  1. Initializing the CPU directs
- *  2. Initializing the GPU
- *  3. Directly executing the procedures for CPU and GPU calculation
- *  4. Calculating and reporting timings for all of the above.
- *  5. Directly cleaning up many parts of the above.
- *
- *  This is basically untestable, and leads to lots of interdependent but widely seperated code.
- *
- * This should be refactored into something like the following hierarchy:
- * class NearFieldDriver:
- *  Top level abstraction layer that sends commands to a specified calculation module. 
- *  Calculation modules must implement 
- *  interface NearFieldCalculator:
- *      Exposes a common set of controls for different types of direct module.
- *      Each implementation should be solely responsible for its own initialization/tear-down
- *      Implemented by:
- *          Class CPUDirectCalculator:
- *              Performs the direct calculation on the CPU. Very simple
- *          Class AVXDirectCalculator:
- *              Performs the direct calculation via AVX on the CPU. 
- *          Class GPUDirectCalculator:
- *              Abstracts away all of the GPU initialization and calculation complexities.
- *              Should probably only be an abstraction layer on top of several classes that
- *              hand GPU memory management, computation, and synchronization
- *      Each implementation that uses PencilOnPencil should take a DirectPencilFactory * in its
- *      constructor that abstracts that away from the rest of the direct computation. The 
- *      DirectPencilFactory should take a slab and its cellinfo, and should return a newly
- *      contructed SetInteractionCollection
- *      Should contain methods like the following:
- *          void ExecuteSlab(..., DirectTimings * timer):
- *              Orders the Direct execution for the specified slab. Uses timer for timings.
- *              Pencil creation is abstracted to the DirectPencilFactory
- *          bool IsNearFieldDoneForSlab(..., DirectTimings *timer):
- *              Queries completion of the slab. Replaces SlabDone
- *          void CleanUpSlab(..., DirectTimings *timer):
- *              Replaces Finalize. Collects timings and frees all memory associated
- *              with calculating the directs for the slab.
- *
- *  This will be much simpler to understand, easier to make mocks for, and much easier to test. 
- *  The common code between directs and microstepping will also be much easier to extract into 
- *  seperate classes. 
  */
+
+
+
 #include "StructureOfLists.cc"
 #include "SetInteractionCollection.hh"
 
@@ -295,8 +255,13 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
         for(int i = 0; i < NSplit -1; i++)
             STDLOG(1,"\t\t\t\t %d: %d \n",i,SplitPoint[i]);
     }
-    
+
     CalcSplitDirects.Stop();
+
+    // Now we need to make the NearField_SIC_Slab
+    uint64 bsize = ComputeSICSize(P.cpd, NSink, WIDTH);
+    LBW->AllocateSpecificSize(NearField_SIC_Slab, slab, bsize);
+    char *buffer = ReturnArenaPtr(NearField_SIC_Slab, slab);;
 
     // If we thread over y-splits, would that help with NUMA locality?
     for(int k_mod = 0; k_mod < WIDTH; k_mod++){
@@ -307,7 +272,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             // The construction and execution are timed internally in each SIC then reduced in Finalize(slab)
 	    // This is where the SetInteractionCollection is actually constructed
             SlabInteractionCollections[slabID][k_mod*NSplit + n] = 
-                new SetInteractionCollection(slabID,k_mod,jl,jh,WriteState.DensityKernelRad2);
+                new SetInteractionCollection(slabID,k_mod,jl,jh,WriteState.DensityKernelRad2, buffer, bsize);
             
             // Check that we have enough blocks
             int NSinkBlocks = SlabInteractionCollections[slabID][k_mod*NSplit + n]->NSinkBlocks;
@@ -326,6 +291,9 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             jl = jh;
         }
     }
+    STDLOG(1, "%l bytes remaining after SIC allocation on slab %d\n", 
+    	LBW->IDSizeBytes(NearField_SIC_Slab, slab)-bsize, slab);
+    	
     return;
 }
 
@@ -569,6 +537,7 @@ void NearFieldDriver::Finalize(int slab){
     for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
         SetInteractionCollection *Slice = Slices[sliceIdx];
         delete Slice;
+	LBW->DeAllocate(NearField_SIC_Slab, slab);
     }
     delete[] Slices;
     TearDownPencils.Stop();
@@ -584,3 +553,53 @@ NearFieldDriver *JJ;
     
 #include "PencilOnPencil.cc"
 #include "PencilPlan.cc"
+
+
+
+
+
+ /*
+ * FIXME: DWF reccomends refactoring this class to reduce its direct responsibilities. 
+ * It has turned into a bit of a God class---NearFieldDriver is currently directly responsible for:
+ *  1. Initializing the CPU directs
+ *  2. Initializing the GPU
+ *  3. Directly executing the procedures for CPU and GPU calculation
+ *  4. Calculating and reporting timings for all of the above.
+ *  5. Directly cleaning up many parts of the above.
+ *
+ *  This is basically untestable, and leads to lots of interdependent but widely seperated code.
+ *
+ * This should be refactored into something like the following hierarchy:
+ * class NearFieldDriver:
+ *  Top level abstraction layer that sends commands to a specified calculation module. 
+ *  Calculation modules must implement 
+ *  interface NearFieldCalculator:
+ *      Exposes a common set of controls for different types of direct module.
+ *      Each implementation should be solely responsible for its own initialization/tear-down
+ *      Implemented by:
+ *          Class CPUDirectCalculator:
+ *              Performs the direct calculation on the CPU. Very simple
+ *          Class AVXDirectCalculator:
+ *              Performs the direct calculation via AVX on the CPU. 
+ *          Class GPUDirectCalculator:
+ *              Abstracts away all of the GPU initialization and calculation complexities.
+ *              Should probably only be an abstraction layer on top of several classes that
+ *              hand GPU memory management, computation, and synchronization
+ *      Each implementation that uses PencilOnPencil should take a DirectPencilFactory * in its
+ *      constructor that abstracts that away from the rest of the direct computation. The 
+ *      DirectPencilFactory should take a slab and its cellinfo, and should return a newly
+ *      contructed SetInteractionCollection
+ *      Should contain methods like the following:
+ *          void ExecuteSlab(..., DirectTimings * timer):
+ *              Orders the Direct execution for the specified slab. Uses timer for timings.
+ *              Pencil creation is abstracted to the DirectPencilFactory
+ *          bool IsNearFieldDoneForSlab(..., DirectTimings *timer):
+ *              Queries completion of the slab. Replaces SlabDone
+ *          void CleanUpSlab(..., DirectTimings *timer):
+ *              Replaces Finalize. Collects timings and frees all memory associated
+ *              with calculating the directs for the slab.
+ *
+ *  This will be much simpler to understand, easier to make mocks for, and much easier to test. 
+ *  The common code between directs and microstepping will also be much easier to extract into 
+ *  seperate classes. 
+ */
