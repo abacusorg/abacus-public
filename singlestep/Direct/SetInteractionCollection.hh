@@ -191,7 +191,7 @@ class SetInteractionCollection{
         //Methods
 
 	// Constructor
-        SetInteractionCollection(int slab, int _kmod, int _jlow, int _jhigh, FLOAT _b2);
+        SetInteractionCollection(int slab, int _kmod, int _jlow, int _jhigh, FLOAT _b2, char * &buffer, size_t &bsize);
         ~SetInteractionCollection();
 
 	int NumPaddedBlocks(int nparticles);

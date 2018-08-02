@@ -216,6 +216,8 @@ int NearFieldDriver::GetNSplit(uint64 NSource, uint64 NSink){
 
 // ================ Code to queue up work for the GPU ==================
 
+uint64 ComputeSICSize(int cpd, int np, int WIDTH);
+
 void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     // This will construct the relevant SetInteractionCollections,
     // then submit them to the queue.
@@ -260,8 +262,8 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 
     // Now we need to make the NearField_SIC_Slab
     uint64 bsize = ComputeSICSize(P.cpd, NSink, WIDTH);
-    LBW->AllocateSpecificSize(NearField_SIC_Slab, slab, bsize);
-    char *buffer = ReturnArenaPtr(NearField_SIC_Slab, slab);;
+    LBW->AllocateSpecificSize(NearField_SIC_Slab, slabID, bsize);
+    char *buffer = LBW->ReturnIDPtr(NearField_SIC_Slab, slabID);
 
     // If we thread over y-splits, would that help with NUMA locality?
     for(int k_mod = 0; k_mod < WIDTH; k_mod++){
@@ -271,8 +273,10 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             int jh = SplitPoint[n];
             // The construction and execution are timed internally in each SIC then reduced in Finalize(slab)
 	    // This is where the SetInteractionCollection is actually constructed
+	    // STDLOG(1,"Entering SIC Construction with %d bytes\n", bsize);
             SlabInteractionCollections[slabID][k_mod*NSplit + n] = 
                 new SetInteractionCollection(slabID,k_mod,jl,jh,WriteState.DensityKernelRad2, buffer, bsize);
+	    // STDLOG(1,"Leaving SIC Construction with %d bytes\n", bsize);
             
             // Check that we have enough blocks
             int NSinkBlocks = SlabInteractionCollections[slabID][k_mod*NSplit + n]->NSinkBlocks;
@@ -291,8 +295,8 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             jl = jh;
         }
     }
-    STDLOG(1, "%l bytes remaining after SIC allocation on slab %d\n", 
-    	LBW->IDSizeBytes(NearField_SIC_Slab, slab)-bsize, slab);
+    STDLOG(1, "%l bytes remaining after SIC allocation on slab %d (%4.1f%% utilization)\n", 
+    	bsize, slabID, 100.0*bsize/LBW->IDSizeBytes(NearField_SIC_Slab, slabID));
     	
     return;
 }
@@ -537,8 +541,8 @@ void NearFieldDriver::Finalize(int slab){
     for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
         SetInteractionCollection *Slice = Slices[sliceIdx];
         delete Slice;
-	LBW->DeAllocate(NearField_SIC_Slab, slab);
     }
+    LBW->DeAllocate(NearField_SIC_Slab, slab);
     delete[] Slices;
     TearDownPencils.Stop();
     

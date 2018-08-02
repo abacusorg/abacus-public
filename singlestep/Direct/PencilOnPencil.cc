@@ -66,14 +66,28 @@ SinkSetAcceleration   FLOAT4[NPaddedSinks]
 SinkSourceInteractionList   int[WIDTH*NSinkSet]
 SinkSourceYOffset       FLOAT[]
 
+This is mildly conservative.  The overage is about 
+0.5*NFBlockSize*cpd**2*sizeof(accstruct).  For 64-particle blocks
+and 40 particles per cell, this is 32 extra acc's per cell compared
+to 200 particles.  The plans are also not tiny: about 400 bytes per
+cell, which is roughly like 25 particles.  So this is about 10%
+conservative.
+
+TODO: We could consider multiplying that factor by 0.6 and then
+adding in a bit more of a floor.  Let's see what's happening in 
+practice.
 **/
 
-uint64 MaxSICAllocation(int cpd, int np, int WIDTH) {
+/// Compute a mildly conservative estimate of the space required
+/// for all SIC in a slab.
+uint64 ComputeSICSize(int cpd, int np, int WIDTH) {
     uint64 size = 0;
     size += cpd*cpd*(5*sizeof(int)+2*sizeof(SinkPencilPlan)+WIDTH*sizeof(int)+sizeof(FLOAT));
-    size += sizeof(accstruct)*(WIDTH*np + NFBlockSize*cpd*cpd);
     size += sizeof(int)*(WIDTH*np + NFBlockSize*cpd*cpd)/NFBlockSize;
-    size += 131072; 	// Just adding in some for alignment and small-problem worst case
+    STDLOG(2,"SIC using %l bytes of pencil overhead\n", size);
+    uint64 tmp = sizeof(accstruct)*(WIDTH*np + NFBlockSize*cpd*cpd);
+    STDLOG(2,"SIC using %d particles requiring %l bytes of accstruct\n", np, tmp);
+    size += tmp; size += 131072; 	// Just adding in some for alignment and small-problem worst case
     return size;
 }
 
@@ -81,9 +95,9 @@ uint64 MaxSICAllocation(int cpd, int np, int WIDTH) {
 /// an aligned pointer 'ptr' that includes space of request bytes.
 /// Adjust buffer and bsize on return.
 /// Crash if the buffer has run out of space
-int posix_memalign_wrap((char *) &buffer, size_t &bsize, (void **)ptr, 
+int posix_memalign_wrap(char * &buffer, size_t &bsize, void ** ptr, 
 	int alignment, size_t request) {
-    int extra = alignment-buffer%alignment;
+    int extra = alignment-((uintptr_t)buffer)%alignment;
     assertf(bsize>=request+extra, "Aligned subdivision of buffer has overflowed its space: %l < %l + %d\n", bsize, request, extra);
     buffer += extra; bsize -= extra;
     *ptr = (void *)buffer;   // We're pointing to the correct location
@@ -105,7 +119,7 @@ int posix_memalign_wrap((char *) &buffer, size_t &bsize, (void **)ptr,
 /// buffer.  Important: buffer and bsize are modified and returned
 /// with the pointer to and size of the unused space.
 
-SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlow, int _jhigh, FLOAT _b2, (char *)&buffer, size_t &bsize){
+SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlow, int _jhigh, FLOAT _b2, char * &buffer, size_t &bsize){
     Construction.Start();
 
     eps = JJ->eps;
