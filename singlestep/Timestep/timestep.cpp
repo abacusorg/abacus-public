@@ -271,9 +271,12 @@ void KickAction(int slab) {
 
     // Queue up slabs near the wrap to be loaded again later
     // This way, we don't have idle slabs taking up memory while waiting for the pipeline to wrap around
+    // TODO: Could this be 2*FORCE_RADIUS for PosXYZ?
     if(Kick.number_of_slabs_executed < FORCE_RADIUS){
         STDLOG(2,"Marking slab %d for repeat\n", slab - FORCE_RADIUS);
         TransposePos.mark_to_repeat(slab - FORCE_RADIUS);
+	// BUG FIXED: This DeAllocation was missing
+        LBW->DeAllocate(PosXYZSlab, slab - FORCE_RADIUS);
         // The first two won't need PosSlab until the second time around
         //LBW->DeAllocate(PosSlab, slab - FORCE_RADIUS);
         LBW->DeAllocate(CellInfoSlab, slab - FORCE_RADIUS);
