@@ -295,7 +295,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             jl = jh;
         }
     }
-    STDLOG(1, "%l bytes remaining after SIC allocation on slab %d (%4.1f%% utilization)\n", 
+    STDLOG(1, "%l bytes remaining after SIC allocation on slab %d (%4.1f%% unused)\n", 
     	bsize, slabID, 100.0*bsize/LBW->IDSizeBytes(NearField_SIC_Slab, slabID));
     	
     return;

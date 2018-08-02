@@ -82,12 +82,12 @@ practice.
 /// for all SIC in a slab.
 uint64 ComputeSICSize(int cpd, int np, int WIDTH) {
     uint64 size = 0;
-    size += cpd*cpd*(5*sizeof(int)+2*sizeof(SinkPencilPlan)+WIDTH*sizeof(int)+sizeof(FLOAT));
+    size += cpd*(cpd)*(5*sizeof(int)+2*sizeof(SinkPencilPlan)+WIDTH*sizeof(int)+sizeof(FLOAT));
     size += sizeof(int)*(WIDTH*np + NFBlockSize*cpd*cpd)/NFBlockSize;
     STDLOG(2,"SIC using %l bytes of pencil overhead\n", size);
     uint64 tmp = sizeof(accstruct)*(WIDTH*np + NFBlockSize*cpd*cpd);
     STDLOG(2,"SIC using %d particles requiring %l bytes of accstruct\n", np, tmp);
-    size += tmp; size += 131072; 	// Just adding in some for alignment and small-problem worst case
+    size += tmp; size += 1024*1024; 	// Just adding in some for alignment and small-problem worst case
     return size;
 }
 
