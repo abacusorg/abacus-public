@@ -202,7 +202,7 @@ void Prologue(Parameters &P, bool ic) {
         if (P.NumSlabsInsertList>0) maxILsize   =(maxILsize* P.NumSlabsInsertList)/P.cpd+1;
     }
     IL = new InsertList(cpd, maxILsize);
-    STDLOG(1,"Maximum insert list size = %ld, size %ld bytes\n", maxILsize, maxILsize*sizeof(ilstruct));
+    STDLOG(1,"Maximum insert list size = %ld, size %l bytes\n", maxILsize, maxILsize*sizeof(ilstruct));
 
     STDLOG(1,"Setting up IO\n");
 
