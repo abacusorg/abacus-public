@@ -1,12 +1,13 @@
-/// This is code for the Global Pencil-on-Pencil work.
-///
-/// In particular, the function GPUPencilTask receives a pointer
-/// to a SetInteractionCollection and an assignment of a GPUBuffer
-/// and Stream.
-///
-/// It must load the host-side data into Pinned Memory and then the GPU,
-/// then execute the direct kernel, then copy the data back into the 
-/// SIC-supplied memory.
+//* \file This is code for the Global Pencil-on-Pencil work.
+ *
+ * In particular, the function GPUPencilTask receives a pointer
+ * to a SetInteractionCollection and an assignment of a GPUBuffer
+ * and Stream.
+ *
+ * It must load the host-side data into Pinned Memory and then the GPU,
+ * then execute the direct kernel, then copy the data back into the 
+ * SIC-supplied memory.
+*/
 
 // ======================== DeviceData =====================
 
