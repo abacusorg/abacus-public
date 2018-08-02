@@ -14,7 +14,8 @@ This is all templated.  */
 /* USAGE: 
 Initialize SlabAccum<T> s 
 Call s.setup(cpd, maxsize);
-maxsize should be some estimate of the total slab size, but don't sweat it.
+maxsize should be some estimate of the size requirements per slab, 
+but don't sweat it.
 
 When starting a Pencil, call PencilAccum<T> *p = s.StartPencil(pencilnum).
 This will detect the thread number and give you an object to append to.
@@ -120,6 +121,8 @@ class SlabAccumBuffer {
         slabfree();
     }
 
+    bool isNULL() { return data==NULL; }
+
     #define MAXSlabAccumBuffer 0x3fffffff
 	// Cap at a billion elements, but we don't want 2*number to overflow int.
 	// This is a huge amount, since this is for a pencil, not a slab.
@@ -127,10 +130,14 @@ class SlabAccumBuffer {
     // Call setup to initialize the buffer
     void setup(int _maxsize) {
 	// printf("Allocating to size %d\n", _maxsize); fflush(NULL);
-	maxsize = _maxsize;
+	size_t bytes = 4096;
+	while (bytes<_maxsize*sizeof(T)) bytes <<= 1;
+	    // Shift up to the next factor of 2 in bytes.
+	    // Then figure out how many objects this is.
+	maxsize = bytes/sizeof(T);
 	if (maxsize>MAXSlabAccumBuffer) maxsize = MAXSlabAccumBuffer;
 		// Save user from themselves
-	int ret = posix_memalign((void **)&data, 4096, maxsize*sizeof(T)); assert(ret==0);
+	int ret = posix_memalign((void **)&data, 4096, bytes); assert(ret==0);
 	#ifdef TEST
 	printf("Allocated %d at position %p\n", maxsize, data);
 	#endif
@@ -302,9 +309,14 @@ class SlabAccum {
 	if (pencils!=NULL) free(pencils); pencils = NULL;
 	if (pstart!=NULL) free(pstart); pstart = NULL;
 	if (buffers!=NULL) {
+	    // In tcmalloc, we want to allocate and deallocate on the same thread
+	    #pragma omp parallel for schedule(static,1)
 	    for (int j=0; j<maxthreads; j++) {
-		buffers[j].slabfree();
+		buffers[omp_get_thread_num()].slabfree();
 	    }
+	    for (int j=0; j<maxthreads; j++)
+	    	assertf(buffers[j].isNULL(),
+		    "We failed to free a thread-based malloc.\n");
 	    delete[] buffers;
 	}
 	buffers = NULL;
@@ -339,9 +351,27 @@ class SlabAccum {
 	    maxthreads = omp_get_max_threads();
 	    buffers = new SlabAccumBuffer<T>[maxthreads];
 	    // Initialization of buffers, to reserve memory.
-	    // Probably maxsize/cpd is a good starting choice
+
+	    // maxsize is the user-supplied estimate per slab
+	    // We then divide that across the threads, and then
+	    // divide by another factor of 5 in the hopes of not having
+	    // too much wasted space.  But the SlabBuffer then round up to the 
+	    // nearest factor of 2 of bytes, in the hopes that malloc will get
+	    // some re-use of these blocks. 
+	    maxsize /= maxthreads;
+	    maxsize *= 0.2;
+	    maxsize = std::max(maxsize,1024);	// Don't waste time with small stuff
+	    
+	    // In tcmalloc, we want to allocate and deallocate on the same thread
+	    #pragma omp parallel for schedule(static,1)
+	    for (int j=0; j<maxthreads; j++) {
+		buffers[omp_get_thread_num()].setup(maxsize);
+	    }
+	    // In the one test I ran, we did always have j==thread_num,
+	    // but I chose not to trust this.
 	    for (int j=0; j<maxthreads; j++)
-		buffers[j].setup(maxsize/maxthreads/3.0);
+	    	assertf(!buffers[j].isNULL(),
+		    "We failed to assign a thread-based malloc.\n");
 	}
     }
 
