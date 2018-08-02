@@ -26,7 +26,7 @@ public:
         printf("n=%3d::s=%3d::h=%3d::t=%3d::",n,s,h,t);
         if(s==0) printf("<<empty>>");
         else  {
-            for(int i=0;i<s;i++) printf("<%d> ", ring[ (h+i)%n ].arena);
+            for(int i=0;i<s;i++) printf("<%d> ", ring[ (h+i)%n ].arenatype);
         }
         printf("\n");
         if(s!=0) {
