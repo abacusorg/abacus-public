@@ -1,4 +1,4 @@
-//* \file This is code for the Global Pencil-on-Pencil work.
+/** \file This is code for the Global Pencil-on-Pencil work.
  *
  * In particular, the function GPUPencilTask receives a pointer
  * to a SetInteractionCollection and an assignment of a GPUBuffer

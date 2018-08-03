@@ -1,4 +1,4 @@
-//* \file This file contains the pairwise direct kernel.
+/** \file This file contains the pairwise direct kernel.
  * 
  * We have various choices for softening, selected by pre-processor #ifdef
  * 
