@@ -227,8 +227,11 @@ void GPUPencilTask(void *item, int g){
 
     // Now copy the data from Pinned back to the SIC buffer
     task->CopyAccelFromPinned.Start();
-    // SetInteractionCollection * task = (SetInteractionCollection *) data;
-    memcpy(task->SinkSetAccelerations, PinnedBuffer.SinkSetAccelerations, sizeof(accstruct) * NFBlockSize * task->NSinkBlocks);
+    //? memcpy(task->SinkSetAccelerations, PinnedBuffer.SinkSetAccelerations, sizeof(accstruct) * NFBlockSize * task->NSinkBlocks);
+    for (int j=0; j<task->NSinkSets; j++) {
+        task->SinkPlan[j].copy_from_pinned_memory((void *)PinnedBuffer.SinkSetAccelerations, task->SinkSetStart[j], task->SinkSetCount[j], (void *)task->SinkPartialAccSlab);
+    }
+
 
     // Declare victory!
     task->SetCompleted();

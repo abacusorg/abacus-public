@@ -65,6 +65,8 @@ class SinkPencilPlan {
 
     void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total,
     	void *SinkPosSlab);
+    void copy_from_pinned_memory(void *pinacc, int start, int total, 
+    	void *SinkPartialAccSlab);
     int load(int x, int y, int z);
 };
 
@@ -144,6 +146,7 @@ class SetInteractionCollection{
 
 	void  *SinkPosSlab;    //< Ptr to the start of the PosXYZ slab
 	void  **SourcePosSlab;    //< Ptr to the start of the PosXYZ slabs for Sources
+	void *SinkPartialAccSlab;  //< Ptr to the start of the slab of accelerations for this Z modulus.
 
         int *           SinkSetStart; //The index in the Sink Pos/Acc lists where this set begins
         int *           SinkSetCount; //The number of particles in the SinkSet

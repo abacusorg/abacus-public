@@ -265,6 +265,9 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     LBW->AllocateSpecificSize(NearField_SIC_Slab, slabID, bsize);
     char *buffer = LBW->ReturnIDPtr(NearField_SIC_Slab, slabID);
 
+    // And allocate space for the partial accelerations
+    LBW->AllocateSpecificSize(PartialAccSlab, slabID, NSink*WIDTH*sizeof(accstruct));
+
     // If we thread over y-splits, would that help with NUMA locality?
     for(int k_mod = 0; k_mod < WIDTH; k_mod++){
         int jl =0;
@@ -457,6 +460,7 @@ void NearFieldDriver::Finalize(int slab){
     
     CopyPencilToSlab.Start();    
 
+#ifdef OLDCODE
     // We're now going to coadd the partial accelerations
     // This first loop is over Y rows, each handled by a different thread
     #pragma omp parallel for schedule(static)
@@ -533,6 +537,31 @@ void NearFieldDriver::Finalize(int slab){
 	for (int p=0; p<nplan; p++) copyplan[p].execute();
 	CopyPencilToSlabCopy.Stop();
     }
+#else   // Here's the new code
+
+    // We need to coadd the 5 partial accelerations
+    uint64 NSink = Slab->size(slab);
+    accstruct *acctot = (accstruct *)LBW->ReturnIDPtr(AccSlab, slab);
+    accstruct *accpart[WIDTH];
+    accpart[0] = (accstruct *)LBW->ReturnIDPtr(PartialAccSlab, slab);
+    for (int s=1; s<WIDTH; s++) accpart[s] = accpart[s-1] + NSink;
+
+    #pragma omp parallel for schedule(static)
+    for (int j=0; j<cpd; j++) {
+	uint64 start = PP->CellInfo(slab,j,0)->startindex;
+	uint64 end = NSink;
+	if (j<cpd-1) end = PP->CellInfo(slab,j+1,0)->startindex;
+	for (uint64 p=start; p<end; p++) {
+	    accstruct tot;
+	    tot = accpart[0][p];
+	    // TODO: Might be worth writing something that is easier to unroll
+	    for (int s=1; s<WIDTH; s++) 
+		tot += accpart[s][p];
+	    acctot[p] = tot;
+	}
+    }
+
+#endif  // End new code
 
     CopyPencilToSlab.Stop();
 
@@ -543,6 +572,7 @@ void NearFieldDriver::Finalize(int slab){
         delete Slice;
     }
     LBW->DeAllocate(NearField_SIC_Slab, slab);
+    LBW->DeAllocate(PartialAccSlab, slab);
     delete[] Slices;
     TearDownPencils.Stop();
     

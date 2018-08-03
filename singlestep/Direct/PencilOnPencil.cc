@@ -149,6 +149,11 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     for (int c=0; c<nfwidth; c++) 
         SourcePosSlab[c] = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab+c-nfradius);
 
+    // There is a slab that has the WIDTH Partial Acceleration fields.
+    // Get a pointer to the appropriate segment of that.
+    uint64 NSink = Slab->size(slab);
+    SinkPartialAccSlab = (void *)((accstruct *)LBW->ReturnIDPtr(PartialAccSlab,slab)+k_mod*NSink);
+
     // Make a bunch of the SinkSet and SourceSet containers
     
     assertf( (uint64)j_width*Nk < INT32_MAX, 
@@ -256,7 +261,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     CalcSinkBlocks.Stop();
     
     AllocAccels.Start();
-    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetAccelerations, 4096, sizeof(accstruct) * NPaddedSinks) == 0);
+    // assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetAccelerations, 4096, sizeof(accstruct) * NPaddedSinks) == 0);
     AllocAccels.Stop();
     
     FillSinkLists.Stop();
@@ -392,7 +397,7 @@ SetInteractionCollection::~SetInteractionCollection(){
 
 /// Call this when the Set is detected as done!
 void SetInteractionCollection::SetCompleted(){
-    STDLOG(1,"Completed SIC for slab %d w: %d k: %d - %d\n",SlabId,k_mod,j_low,j_high); 
+    STDLOG(1,"Completed SIC for slab %d w: %d j: %d - %d\n",SlabId,k_mod,j_low,j_high); 
     CompletionFlag = 1;
 }
 

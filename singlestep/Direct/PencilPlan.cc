@@ -66,6 +66,34 @@ int SinkPencilPlan::load(int x, int y, int z) {
     return total;
 }
 
+/// Given the padded list of accelerations in pinned memory, 
+/// copy into the unpadded cells in the given PartialAccSlab.  
+/// This routine is called by the GPU code. 
+void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start, 
+	int total, void *SinkPartialAccSlab) {
+    // Copy pinacc, which holds the padded list 
+    // accstruct[start..start+total)
+    //  cells contiguously into pinpos->X[start..start+total), Y[), Z[)
+    // where total is the padded number of particles.
+    // start is the offset from the beginning of the buffers
+    accstruct *pinacc = (accstruct *)_pinacc;
+    int cumulative_number = 0;
+    for (int c=0; c<NFRADIUS*2+1; c++) {
+	int N = cell[c].N;
+	// The pointer math has to be in accstruct; then cast
+	accstruct *p = (accstruct *)SinkPartialAccSlab+cell[c].start;
+
+        memcpy(p, pinacc+start+cumulative_number, sizeof(accstruct)*N); 
+        cumulative_number+=N;
+    }
+    assertf(cumulative_number<=total, "Pencil contents exceed space supplied");
+    return;
+}
+
+
+
+
+
 /// This copies a single Source Pencil into the supplied location in pinned memory.
 /// This requires that we convert from cell-centered coordinates to
 /// a coordinate system centered on the middle cell of the pencil.
