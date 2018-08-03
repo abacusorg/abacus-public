@@ -1,5 +1,15 @@
+/** \file This file contains the routines to prepare plans for the 
+ * Sink and Source pencils, and then to actually use them to load into
+ * the GPU pinned memory.  The former action is conducted by the primary
+ * threads, while the latter is usually performed by the GPU thread.
+ */
+
 #ifndef PENCIL_PLAN_H
 #define PENCIL_PLAN_H
+
+/// This copies a single Sink Pencil into the supplied location in pinned memory.
+/// This requires that we convert from cell-centered coordinates to
+/// a coordinate system centered on the middle cell of the pencil.
 
 void SinkPencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total) {
     // Copy cells contiguously into pinpos->X[start..start+total), Y[), Z[)
@@ -25,6 +35,9 @@ void SinkPencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, in
     return;
 }
 
+/// This loads up the plan for a SinkPencil with pointers to the 
+/// primary PosXYZ data, as well as the needed coordinate offsets.
+
 int SinkPencilPlan::load(int x, int y, int z) {
     // Given the center cell index, load the cell information
     // Return the total number of particles in the cell (un-padded)
@@ -45,6 +58,10 @@ int SinkPencilPlan::load(int x, int y, int z) {
     }
     return total;
 }
+
+/// This copies a single Source Pencil into the supplied location in pinned memory.
+/// This requires that we convert from cell-centered coordinates to
+/// a coordinate system centered on the middle cell of the pencil.
 
 void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total) {
     // Copy cells contiguously into pinpos->X[start..start+total), Y[), Z[)
@@ -70,6 +87,9 @@ void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, 
     assertf(cumulative_number<=total, "Pencil contents exceed space supplied");
     return;
 }
+
+/// This loads up the plan for a SourcePencil with pointers to the 
+/// primary PosXYZ data, as well as the needed coordinate offsets.
 
 int SourcePencilPlan::load(int x, int y, int z) {
     // Given the center cell index, load the cell information

@@ -1,10 +1,10 @@
-// These are the GPU routines that implement the Block-on-Block computation
+/// \file These are the GPU-side routines that implement the Block-on-Block computation.
 
-// We specialize these Block-based kernels to the choice of 
-// COMPUTE_FOF_DENSITY, since we don't expect to re-use them in
-// the microstepping.
-
-// If the Source Block is full, then we can unroll some of the loop
+/// We specialize these Block-based kernels to the choice of 
+/// COMPUTE_FOF_DENSITY, since we don't expect to re-use them in
+/// the microstepping.
+///
+/// If the Source Block is full, then we can unroll some of the loop
 #ifndef PTXDIRECT
 __device__ inline void FullDirectTile(
         FLOAT * source_cache_x, FLOAT * source_cache_y, FLOAT * source_cache_z,
@@ -35,8 +35,8 @@ __device__ inline void FullDirectTile(
 #include "ASMDirectTile.cu"
 #endif
 
-// If one doesn't have all of the sources, then one has to actually 
-// check the loop bound.
+/// As for FullDirectTile(), but if one doesn't have all of the sources, 
+/// then one has to actually check the loop bound.
 __device__ inline void PartialDirectTile(
         FLOAT * source_cache_x, FLOAT * source_cache_y, FLOAT * source_cache_z,
         FLOAT  * sinkx,     FLOAT *sinky,    FLOAT *sinkz,
@@ -66,10 +66,10 @@ __device__ inline void PartialDirectTile(
 
 // ======================  ComputeDirects ======================
 
-// Here is the routine that accepts a DeviceData instance and unpacks
-// for its thread number what action should be taken.
-
-// eps may be 1/eps, eps^2, eps^3, etc, depending on the type of softening
+/// The routine that accepts a DeviceData instance and unpacks
+/// for its thread number what action should be taken, then invokes that.
+///
+/// eps may be 1/eps, eps^2, eps^3, etc, depending on the type of softening
 __global__ void ComputeDirects(DeviceData d, FLOAT eps){
 
     __shared__ FLOAT SourceCacheX[NFBlockSize];

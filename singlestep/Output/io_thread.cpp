@@ -117,7 +117,7 @@ public:
     void request(iorequest ior){
         ssize_t ret = write(io_cmd, &ior, sizeof(iorequest));
         if (ior.blocking) {
-            wait_for_ioack(io_ack, ior.arena);
+            wait_for_ioack(io_ack, ior.arenatype, ior.arenaslab);
             STDLOG(1,"Blocking IO returned\n");
         } else {
             STDLOG(1,"Non-blocking IO requested\n");
@@ -142,15 +142,15 @@ private:
     
     void CrashIO() {
         IOLOG(0,"Crashing the IO thread; sending IO_ERROR to client!\n");
-        ioacknowledge ioack(IO_ERROR,-1);
+        ioacknowledge ioack(IO_ERROR,-1,-1);
         ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
         pthread_exit(NULL);
     }
     
-    void wait_for_ioack(int io_ack, int arena){
+    void wait_for_ioack(int io_ack, int arenatype, int arenaslab){
         ioacknowledge ioack;
         ssize_t ret = read(io_ack, &ioack, sizeof(ioacknowledge));
-        assertf(ioack.arena == arena, "Error in IO acknowledgement for arena %d = %d\n", arena, ioack.arena);
+        assertf(ioack.arenatype == arenatype && ioack.arenaslab == arenaslab, "Error in IO acknowledgement for arena %d = %d, %d =%d\n", arenatype, ioack.arenatype, arenaslab, ioack.arenaslab);
     }
 
     // =====================================================================
@@ -163,7 +163,7 @@ private:
         RD->BlockingRead( ior->filename, ior->memory, ior->sizebytes, ior->fileoffset);
 
         IOLOG(1,"Done reading file\n");
-        IO_SetIOCompleted(ior->arena);
+        IO_SetIOCompleted(ior->arenatype, ior->arenaslab);
         return;
     }
 
@@ -183,7 +183,7 @@ private:
         WD->BlockingAppend( ior->filename, ior->memory, ior->sizebytes);
 
         IOLOG(1,"Done writing file\n");
-        if (ior->deleteafterwriting==IO_DELETE) IO_DeleteArena(ior->arena);
+        if (ior->deleteafterwriting==IO_DELETE) IO_DeleteArena(ior->arenatype, ior->arenaslab);
         return;
     }
 
@@ -263,13 +263,13 @@ private:
                         wait_for_cmd = 0;
                         // Put it in the buffer
                         if (ior.command==IO_READ) {
-                        IOLOG(1,"Received IO read request: file = %s, arena = %d, blocking = %d\n", 
-                            ior.filename, ior.arena, ior.blocking);
+                        IOLOG(1,"Received IO read request: file = %s, arena type %d slab %d, blocking = %d\n", 
+                            ior.filename, ior.arenatype, ior.arenaslab, ior.blocking);
                             if (ior.blocking==IO_BLOCKING) read_blocking.push(ior);
                             else read_nonblocking.push(ior);
                         } else if (ior.command==IO_WRITE) {
-                        IOLOG(1,"Received IO write request: file = %s, arena = %d, blocking = %d\n", 
-                            ior.filename, ior.arena, ior.blocking);
+                        IOLOG(1,"Received IO write request: file = %s, arena type %d slab %d, blocking = %d\n", 
+                            ior.filename, ior.arenatype, ior.arenaslab, ior.blocking);
                             if (ior.blocking==IO_BLOCKING) write_blocking.push(ior);
                             else write_nonblocking.push(ior);
                         } else if (ior.command==IO_QUIT) {
@@ -294,7 +294,7 @@ private:
                 BlockingIOWriteBytes[dir] += ior.sizebytes;
 
                 // Send an acknowledgement
-                ioacknowledge ioack(IO_WRITE,ior.arena);
+                ioacknowledge ioack(IO_WRITE,ior.arenatype, ior.arenaslab);
                 ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
                 IOLOG(1,"IO_WRITE acknowledgement sent\n");
             } else if (read_blocking.isnotempty()) {
@@ -308,7 +308,7 @@ private:
                 BlockingIOReadBytes[dir] += ior.sizebytes;
 
                 // Send an acknowledgement
-                ioacknowledge ioack(IO_READ,ior.arena);
+                ioacknowledge ioack(IO_READ,ior.arenatype, ior.arenaslab);
                 ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
                 IOLOG(1,"IO_READ acknowledgement sent\n");
             } else if (write_nonblocking.isnotempty()) {
@@ -337,7 +337,7 @@ private:
         // Terminate:  The IO is all done, so quit the pipes and remove the fifo files
         // Signal an acknowledgement.
         IOLOG(0,"Terminating the IO thread as planned.\n");
-        ioacknowledge ioack(IO_QUIT,0);
+        ioacknowledge ioack(IO_QUIT,0,0);
         ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
         IOLOG(0,"IO_QUIT acknowledgement sent\n");
         close(fifo_cmd);
@@ -419,24 +419,24 @@ int GetIOThread(const char* dir){
 
 
 // Here are the actual interfaces for writing an arena
-void ReadFile(char *ram, uint64 sizebytes, int arena,
+void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
 	    const char *filename, off_t fileoffset, int blocking) {
     
     //blocking = 1;
     
     STDLOG(1,"Using IO_thread module to read file %f\n", filename);
-    iorequest ior(ram, sizebytes, filename, IO_READ, arena, fileoffset, 0, blocking);
+    iorequest ior(ram, sizebytes, filename, IO_READ, arenatype, arenaslab, fileoffset, 0, blocking);
     
     iothreads[GetIOThread(ior.dir) - 1]->request(ior);
 }
 
-void WriteFile(char *ram, uint64 sizebytes, int arena, 
+void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, 
 	    const char *filename, off_t fileoffset, int deleteafter, int blocking) {
 
     //blocking = 1;
     
     STDLOG(1,"Using IO_thread module to write file %f\n", filename);
-    iorequest ior(ram, sizebytes, filename, IO_WRITE, arena, fileoffset, deleteafter, blocking );
+    iorequest ior(ram, sizebytes, filename, IO_WRITE, arenatype, arenaslab, fileoffset, deleteafter, blocking );
     
     iothreads[GetIOThread(ior.dir) - 1]->request(ior);
 }
