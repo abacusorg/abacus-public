@@ -40,9 +40,12 @@ namespace cuda {
 #include "StructureOfLists.cc"
 
 /// Cells are assumed to be x[0..N), y[0..N), z[0..N), contiguous.
+/// NOTE: This routine assumes that start can be held as a 32-bit
+/// unsigned integer.  Other places in the code allow for a uint64.
+/// TODO: Is that loss of generality ok?
 class CellPencilPlan {
 public:
-    int start;   //< The starting position of the posXYZ for this cell
+    unsigned int start;   //< The starting position of the posXYZ for this cell
     int N;	//< The number of particles in this cell
 
     //? List3<FLOAT> pos;
