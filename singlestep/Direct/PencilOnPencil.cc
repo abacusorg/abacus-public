@@ -1,6 +1,7 @@
-//code related to direct pencil interaction creation for directdriver
-
-//Collection of Interactions of all 5 cell pencils in a specified region of a slab
+/** \file This is the code to load up the SetInteractionCollection
+ * instances, which is the CPU's organization of the work involved in
+ * computing the near-field pencil-on-pencil directs.
+*/
 
 // TODO: There is heavy use of signed 32-bit integers in this package.
 // For now, DJE has simply added a lot of asserts.
@@ -11,26 +12,26 @@
 
 // ====================== Helper functions  =========================
 
+/// Given the number of particles, compute and return the number of blocks
+/// required.  1..N means 1, N+1..2N means 2, etc.  0 means 0.
 inline int SetInteractionCollection::NumPaddedBlocks(int nparticles) {
-    // Given the number of particles, compute and return the number of blocks
-    // required.  1..N means 1, N+1..2N means 2, etc.  0 means 0.
     return (nparticles+NFBlockSize-1)/NFBlockSize;
 }
 
+/// The GPU thread needs to figure out how much space has been allocated.
+/// No point to allocate a big array when it's so easy to compute.
 inline int SetInteractionCollection::PaddedSinkCount(int sinkindex) {
-    // The GPU thread needs to figure out how much space has been allocated.
-    // No point to allocate a big array when it's so easy to compute.
     return NFBlockSize*NumPaddedBlocks(SinkSetCount[sinkindex]);
 }
 
+/// The GPU thread needs to figure out how much space has been allocated
 inline int SetInteractionCollection::PaddedSourceCount(int sourceindex) {
-    // The GPU thread needs to figure out how much space has been allocated
     return NFBlockSize*NumPaddedBlocks(SourceSetCount[sourceindex]);
 }
 
+/// Given a (k) of the internal sink indexing, return
+/// the z of the central cell
 inline int SetInteractionCollection::index_to_zcen(int k) {
-    // Given a (k) of the internal sink indexing, return
-    // the z of the central cell
     int kk = k_mod+k*nfwidth+nfradius;   // The central cell
     if (kk<0) kk+=cpd; if (kk>=cpd) kk-=cpd;  // Wrapped
     return kk;
@@ -366,8 +367,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
 }
 
 
+/// A simple destructor
 SetInteractionCollection::~SetInteractionCollection(){
-    // A simple destructor
     // These are now part of the NearField_SIC_Slab buffer
     //? free(SinkSetStart);
     //? free(SinkSetCount);
@@ -383,14 +384,14 @@ SetInteractionCollection::~SetInteractionCollection(){
 }
 
 
-
+/// Call this when the Set is detected as done!
 void SetInteractionCollection::SetCompleted(){
-    // Call this when the Set is detected as done!
     STDLOG(1,"Completed SIC for slab %d w: %d k: %d - %d\n",SlabId,k_mod,j_low,j_high); 
     CompletionFlag = 1;
 }
 
 
+/// Tell us if the Set is complete
 int SetInteractionCollection::CheckCompletion(){
     return CompletionFlag;
 }
