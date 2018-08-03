@@ -17,11 +17,17 @@ void SinkPencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, in
     // start is the offset from the beginning of the buffers
     int cumulative_number = 0;
     FLOAT dz;
+    FLOAT cellsize = PP->invcpd;
     for (int c=0; c<NFRADIUS*2+1; c++) {
 	// The pointer math has to be in posstruct; then cast
 	FLOAT *p = (FLOAT *)((posstruct *)SinkPosSlab+cell[c].start);
 	int N = cell[c].N;
+
+	#ifdef GLOBAL_POS
         dz = cell[c].offset;
+	#else
+	dz = (c-NFRADIUS)*cellsize;
+	#endif
 
         memcpy(pinpos.X+start+cumulative_number, p, sizeof(FLOAT)*N); p+=N;
         memcpy(pinpos.Y+start+cumulative_number, p, sizeof(FLOAT)*N); p+=N;
@@ -52,10 +58,7 @@ int SinkPencilPlan::load(int x, int y, int z) {
         cell[c].N = info->count;
         //? cell[c].pos = PP->PosXYZCell(x,y,zc);
         total += (int) cell[c].N;
-        #ifndef GLOBAL_POS
-            // Local positions, just offset the cells
-            cell[c].offset = (c-width/2)*cellsize;
-        #else
+        #ifdef GLOBAL_POS
             // Can use the z cell number to do this.
             cell[c].offset = (zc-PP->WrapSlab(zc))*cellsize;
         #endif
@@ -73,11 +76,16 @@ void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, 
     // start is the offset from the beginning of the buffers
     int cumulative_number = 0;
     FLOAT dx;
+    FLOAT cellsize = PP->invcpd;
     int width = NFRADIUS*2+1;
     for (int c=0; c<width; c++) {
 	FLOAT *p = (FLOAT *)((posstruct *)SourcePosSlab[c]+cell[c].start);
 	int N = cell[c].N;
-        dx = cell[c].offset;
+	#ifdef GLOBAL_POS
+	    dx = cell[c].offset;
+	#else 
+            dx = (c-NFRADIUS)*cellsize;
+	#endif
 
         FLOAT *d = pinpos.X+start+cumulative_number;
         if (dx!=0) 
@@ -109,10 +117,7 @@ int SourcePencilPlan::load(int x, int y, int z) {
 
         //? cell[c].pos = PP->PosXYZCell(xc,y,z);
         total += (int) cell[c].N;
-        #ifndef GLOBAL_POS
-            // Local positions, just offset the cells
-            cell[c].offset = (c-width/2)*cellsize;
-        #else
+        #ifdef GLOBAL_POS
             // Can use the x cell number to do this.
             cell[c].offset = (xc-PP->WrapSlab(xc))*cellsize;
         #endif

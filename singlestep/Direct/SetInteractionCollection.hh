@@ -50,8 +50,12 @@ public:
 
     //? List3<FLOAT> pos;
     
+    #ifdef GLOBAL_POS
     FLOAT offset;
     // The offset to be applied to x or z, relative to the center cell
+    // With cell-centered coordinates, we can compute this on the fly,
+    // so we'll save the space
+    #endif
 };
 
 class SinkPencilPlan {
