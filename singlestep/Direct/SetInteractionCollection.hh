@@ -39,12 +39,13 @@ namespace cuda {
 
 #include "StructureOfLists.cc"
 
+/// Cells are assumed to be x[0..N), y[0..N), z[0..N), contiguous.
 class CellPencilPlan {
 public:
-    List3<FLOAT> pos;
-    // Cells are assumed to be x[0..N), y[0..N), z[0..N), contiguous,
-    // with x[0] being the given position.
-    // pos.N holds the count
+    int start;   //< The starting position of the posXYZ for this cell
+    int N;	//< The number of particles in this cell
+
+    //? List3<FLOAT> pos;
     
     FLOAT offset;
     // The offset to be applied to x or z, relative to the center cell
@@ -55,7 +56,8 @@ class SinkPencilPlan {
     CellPencilPlan cell[2*NFRADIUS+1];
     // The cells are not assumed to be contiguous (e.g., periodic wraps)
 
-    void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total);
+    void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total,
+    	void *SinkPosSlab);
     int load(int x, int y, int z);
 };
 
@@ -66,7 +68,8 @@ class SourcePencilPlan {
     CellPencilPlan cell[2*NFRADIUS+1];
     // The cells are not assumed to be contiguous (e.g., periodic wraps)
 
-    void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total);
+    void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total,
+    	void **SourcePosSlab);
     int load(int x, int y, int z);
 };
 
@@ -132,6 +135,8 @@ class SetInteractionCollection{
         static pthread_mutex_t GPUTimerMutex;
         static STimer GPUThroughputTimer;
 
+	void  *SinkPosSlab;    //< Ptr to the start of the PosXYZ slab
+	void  **SourcePosSlab;    //< Ptr to the start of the PosXYZ slabs for Sources
 
         int *           SinkSetStart; //The index in the Sink Pos/Acc lists where this set begins
         int *           SinkSetCount; //The number of particles in the SinkSet

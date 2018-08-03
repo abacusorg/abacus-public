@@ -17,7 +17,7 @@ void SetInteractionCollection::CPUExecute(){
     List3<FLOAT> *SinkSetPositions = new List3<FLOAT>(NSinkBlocks*NFBlockSize);
     #pragma omp parallel for schedule(dynamic,1)
     for (int j=0; j<NSinkSets; j++) {
-        SinkPlan[j].copy_into_pinned_memory(*SinkSetPositions, SinkSetStart[j], SinkSetCount[j]);
+        SinkPlan[j].copy_into_pinned_memory(*SinkSetPositions, SinkSetStart[j], SinkSetCount[j], SinkPosSlab);
     }
     FillSinks.Stop();
 
@@ -25,7 +25,7 @@ void SetInteractionCollection::CPUExecute(){
     List3<FLOAT> *SourceSetPositions = new List3<FLOAT>(NSourceBlocks*NFBlockSize);
     #pragma omp parallel for schedule(dynamic,1)
     for (int j=0; j<NSourceSets; j++) {
-        SourcePlan[j].copy_into_pinned_memory(*SourceSetPositions, SourceSetStart[j], SourceSetCount[j]);
+        SourcePlan[j].copy_into_pinned_memory(*SourceSetPositions, SourceSetStart[j], SourceSetCount[j], SourcePosSlab);
     }
     FillSources.Stop();
 

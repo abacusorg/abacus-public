@@ -11,24 +11,25 @@
 /// This requires that we convert from cell-centered coordinates to
 /// a coordinate system centered on the middle cell of the pencil.
 
-void SinkPencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total) {
+void SinkPencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total, void *SinkPosSlab) {
     // Copy cells contiguously into pinpos->X[start..start+total), Y[), Z[)
     // where total is the padded number of particles.
     // start is the offset from the beginning of the buffers
     int cumulative_number = 0;
     FLOAT dz;
     for (int c=0; c<NFRADIUS*2+1; c++) {
-        List3<FLOAT> p = cell[c].pos;
-        int N = (int) p.N;
+	// The pointer math has to be in posstruct; then cast
+	FLOAT *p = (FLOAT *)((posstruct *)SinkPosSlab+cell[c].start);
+	int N = cell[c].N;
         dz = cell[c].offset;
 
-        memcpy(pinpos.X+start+cumulative_number, p.X, sizeof(FLOAT)*N);
-        memcpy(pinpos.Y+start+cumulative_number, p.Y, sizeof(FLOAT)*N);  
+        memcpy(pinpos.X+start+cumulative_number, p, sizeof(FLOAT)*N); p+=N;
+        memcpy(pinpos.Y+start+cumulative_number, p, sizeof(FLOAT)*N); p+=N;
         FLOAT *d = pinpos.Z+start+cumulative_number;
         if (dz!=0) 
             #pragma simd assert
-            for (int i=0; i<N; i++) d[i] = p.Z[i]+dz;
-        else memcpy(d, p.Z, sizeof(FLOAT)*N);  
+            for (int i=0; i<N; i++) d[i] = p[i]+dz;
+        else memcpy(d, p, sizeof(FLOAT)*N);  
         cumulative_number+=N;
     }
     assertf(cumulative_number<=total, "Pencil contents exceed space supplied");
@@ -46,8 +47,11 @@ int SinkPencilPlan::load(int x, int y, int z) {
     int width = NFRADIUS*2+1;
     for (int c=0; c<width; c++) {
         int zc = z+c-width/2;
-        cell[c].pos = PP->PosXYZCell(x,y,zc);
-        total += (int) cell[c].pos.N;
+	cellinfo *info = PP->CellInfo(x,y,zc);
+        cell[c].start = info->startindex;
+        cell[c].N = info->count;
+        //? cell[c].pos = PP->PosXYZCell(x,y,zc);
+        total += (int) cell[c].N;
         #ifndef GLOBAL_POS
             // Local positions, just offset the cells
             cell[c].offset = (c-width/2)*cellsize;
@@ -63,7 +67,7 @@ int SinkPencilPlan::load(int x, int y, int z) {
 /// This requires that we convert from cell-centered coordinates to
 /// a coordinate system centered on the middle cell of the pencil.
 
-void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total) {
+void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total, void **SourcePosSlab) {
     // Copy cells contiguously into pinpos->X[start..start+total), Y[), Z[)
     // where total is the padded number of particles.
     // start is the offset from the beginning of the buffers
@@ -71,17 +75,17 @@ void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, 
     FLOAT dx;
     int width = NFRADIUS*2+1;
     for (int c=0; c<width; c++) {
-        List3<FLOAT> p = cell[c].pos;
-        int N = (int) p.N;
+	FLOAT *p = (FLOAT *)((posstruct *)SourcePosSlab[c]+cell[c].start);
+	int N = cell[c].N;
         dx = cell[c].offset;
 
         FLOAT *d = pinpos.X+start+cumulative_number;
         if (dx!=0) 
             #pragma simd assert
-            for (int i=0; i<N; i++) d[i] = p.X[i]+dx;
-        else memcpy(d, p.X, sizeof(FLOAT)*N);
-        memcpy(pinpos.Y+start+cumulative_number, p.Y, sizeof(FLOAT)*N);
-        memcpy(pinpos.Z+start+cumulative_number, p.Z, sizeof(FLOAT)*N);
+            for (int i=0; i<N; i++) d[i] = p[i]+dx;
+        else memcpy(d, p, sizeof(FLOAT)*N);
+        p+=N; memcpy(pinpos.Y+start+cumulative_number, p, sizeof(FLOAT)*N);
+        p+=N; memcpy(pinpos.Z+start+cumulative_number, p, sizeof(FLOAT)*N);
         cumulative_number+=N;
     }
     assertf(cumulative_number<=total, "Pencil contents exceed space supplied");
@@ -99,8 +103,12 @@ int SourcePencilPlan::load(int x, int y, int z) {
     int width = NFRADIUS*2+1;
     for (int c=0; c<width; c++) {
         int xc = x+c-width/2;
-        cell[c].pos = PP->PosXYZCell(xc,y,z);
-        total += (int) cell[c].pos.N;
+	cellinfo *info = PP->CellInfo(xc,y,z);
+	cell[c].start = info->startindex;
+	cell[c].N = info->count;
+
+        //? cell[c].pos = PP->PosXYZCell(xc,y,z);
+        total += (int) cell[c].N;
         #ifndef GLOBAL_POS
             // Local positions, just offset the cells
             cell[c].offset = (c-width/2)*cellsize;

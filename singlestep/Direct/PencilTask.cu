@@ -173,7 +173,7 @@ void GPUPencilTask(void *item, int g){
     task->LaunchDeviceKernels.Stop();
     task->FillSinks.Start();
     for (int j=0; j<task->NSinkSets; j++) {
-        task->SinkPlan[j].copy_into_pinned_memory(PinnedBuffer.SinkSetPositions, task->SinkSetStart[j], task->SinkSetCount[j]);
+        task->SinkPlan[j].copy_into_pinned_memory(PinnedBuffer.SinkSetPositions, task->SinkSetStart[j], task->SinkSetCount[j], task->SinkPosSlab);
     }
     task->FillSinks.Stop();
     task->LaunchDeviceKernels.Start();
@@ -188,7 +188,7 @@ void GPUPencilTask(void *item, int g){
     // Repeat this with the sources
     task->FillSources.Start();
     for (int j=0; j<task->NSourceSets; j++) {
-        task->SourcePlan[j].copy_into_pinned_memory(PinnedBuffer.SourceSetPositions, task->SourceSetStart[j], task->SourceSetCount[j]);
+        task->SourcePlan[j].copy_into_pinned_memory(PinnedBuffer.SourceSetPositions, task->SourceSetStart[j], task->SourceSetCount[j], task->SourcePosSlab);
     }
     task->FillSources.Stop();
     task->LaunchDeviceKernels.Start();

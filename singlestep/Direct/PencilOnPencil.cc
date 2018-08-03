@@ -143,6 +143,11 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     Nk = (P.cpd - k_mod)/nfwidth;
     if(Nk * nfwidth + k_mod < P.cpd) Nk++;
 
+    // Load the Pointers to the PosXYZ Slabs
+    SinkPosSlab = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab);
+    SourcePosSlab = new void *[nfwidth];
+    for (int c=0; c<nfwidth; c++) 
+        SourcePosSlab[c] = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab+c-nfradius);
 
     // Make a bunch of the SinkSet and SourceSet containers
     
@@ -370,6 +375,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
 /// A simple destructor
 SetInteractionCollection::~SetInteractionCollection(){
     // These are now part of the NearField_SIC_Slab buffer
+    delete[] SourcePosSlab;
     //? free(SinkSetStart);
     //? free(SinkSetCount);
     //? free(SinkPlan);
