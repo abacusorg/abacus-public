@@ -38,7 +38,8 @@ void SinkPencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, in
         else memcpy(d, p, sizeof(FLOAT)*N);  
         cumulative_number+=N;
     }
-    assertf(cumulative_number<=total, "Pencil contents exceed space supplied");
+    // assertf(cumulative_number<=total, "Pencil contents exceed space supplied");
+    assertf(cumulative_number==total, "Pencil contents doesn't match space supplied");
     return;
 }
 
@@ -76,17 +77,21 @@ void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start,
     //  cells contiguously into pinpos->X[start..start+total), Y[), Z[)
     // where total is the padded number of particles.
     // start is the offset from the beginning of the buffers
-    accstruct *pinacc = (accstruct *)_pinacc;
+    accstruct *pinacc = (accstruct *)_pinacc+start;
     int cumulative_number = 0;
     for (int c=0; c<NFRADIUS*2+1; c++) {
 	int N = cell[c].N;
 	// The pointer math has to be in accstruct; then cast
 	accstruct *p = (accstruct *)SinkPartialAccSlab+cell[c].start;
-
-        memcpy(p, pinacc+start+cumulative_number, sizeof(accstruct)*N); 
+	// TODO: Could look ahead to see if the next cell is contiguous,
+	// thereby making only 1 or 2 copies.
+        // memcpy(p, pinacc+cumulative_number, sizeof(accstruct)*N); 
+	accstruct *pin = pinacc+cumulative_number;
+	for (int j=0; j<N; j++) p[j] += pin[j];
         cumulative_number+=N;
     }
-    assertf(cumulative_number<=total, "Pencil contents exceed space supplied");
+    // assertf(cumulative_number<=total, "Pencil contents exceed space supplied");
+    assertf(cumulative_number==total, "Pencil contents doesn't match space supplied");
     return;
 }
 
@@ -124,7 +129,7 @@ void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, 
         p+=N; memcpy(pinpos.Z+start+cumulative_number, p, sizeof(FLOAT)*N);
         cumulative_number+=N;
     }
-    assertf(cumulative_number<=total, "Pencil contents exceed space supplied");
+    assertf(cumulative_number==total, "Pencil contents doesn't match space supplied");
     return;
 }
 

@@ -267,9 +267,9 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 
     // And allocate space for the partial accelerations
     LBW->AllocateSpecificSize(PartialAccSlab, slabID, NSink*WIDTH*sizeof(accstruct));
-    // TODO: Optional: initialize for debugging
+    // Initialize the space
     FLOAT *p = (FLOAT *)LBW->ReturnIDPtr(PartialAccSlab, slabID);
-    for (int j=0; j<NSink*WIDTH*4; j++) p[j] = 123456.0;
+    for (int j=0; j<NSink*WIDTH*4; j++) p[j] = 0.0;
 
     // If we thread over y-splits, would that help with NUMA locality?
     for(int k_mod = 0; k_mod < WIDTH; k_mod++){
