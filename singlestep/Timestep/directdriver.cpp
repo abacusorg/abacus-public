@@ -267,6 +267,9 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 
     // And allocate space for the partial accelerations
     LBW->AllocateSpecificSize(PartialAccSlab, slabID, NSink*WIDTH*sizeof(accstruct));
+    // TODO: Optional: initialize for debugging
+    FLOAT *p = (FLOAT *)LBW->ReturnIDPtr(PartialAccSlab, slabID);
+    for (int j=0; j<NSink*WIDTH*4; j++) p[j] = 123456.0;
 
     // If we thread over y-splits, would that help with NUMA locality?
     for(int k_mod = 0; k_mod < WIDTH; k_mod++){
@@ -546,19 +549,27 @@ void NearFieldDriver::Finalize(int slab){
     accpart[0] = (accstruct *)LBW->ReturnIDPtr(PartialAccSlab, slab);
     for (int s=1; s<WIDTH; s++) accpart[s] = accpart[s-1] + NSink;
 
-    #pragma omp parallel for schedule(static)
+// TODO: Restore this pragma
+//    #pragma omp parallel for schedule(static)
     for (int j=0; j<cpd; j++) {
 	uint64 start = PP->CellInfo(slab,j,0)->startindex;
 	uint64 end = NSink;
 	if (j<cpd-1) end = PP->CellInfo(slab,j+1,0)->startindex;
+	int nbad[5] = { 0,0,0,0,0};
 	for (uint64 p=start; p<end; p++) {
 	    accstruct tot;
+	    for (int s=0; s<WIDTH; s++) 
+	    	if( !(fabs(accpart[s][p].x)<1) ) nbad[s]++;
+		    // fprintf(stderr, "Acceleration too big %d %lu\n", s, p);
+		    // accpart[s][p].x, accpart[s][p].y, accpart[s][p].z, accpart[s][p].w);
 	    tot = accpart[0][p];
 	    // TODO: Might be worth writing something that is easier to unroll
 	    for (int s=1; s<WIDTH; s++) 
 		tot += accpart[s][p];
 	    acctot[p] = tot;
 	}
+	fprintf(stderr,"%d %d %d %d %d bad entries in pencil %d of slab %d\n", 
+	    nbad[0], nbad[1], nbad[2], nbad[3], nbad[4], j, slab);
     }
 
 #endif  // End new code

@@ -163,8 +163,9 @@ void GPUPencilTask(void *item, int g){
     uint64 size_to_gpu = 0, size_from_gpu = 0;
     StartThroughputTimer(DeviceStreams[g], cudaSuccess, (void *) task);
     // Zero the device-side accelerations
-    checkCudaErrors(cudaMemsetAsync(StreamData.SinkSetAccelerations,
-                0 , sizeof(accstruct) * NFBlockSize * task->NSinkBlocks, DeviceStreams[g]));
+    //? Not sure why we need to do this!  The GPU will overwrite at the end
+    //? checkCudaErrors(cudaMemsetAsync(StreamData.SinkSetAccelerations,
+                //? 0 , sizeof(accstruct) * NFBlockSize * task->NSinkBlocks, DeviceStreams[g]));
     StreamData.InteractionCount = task->InteractionCount;
     StreamData.b2 = task->b2;
 
@@ -228,13 +229,22 @@ void GPUPencilTask(void *item, int g){
     // Now copy the data from Pinned back to the SIC buffer
     task->CopyAccelFromPinned.Start();
     //? memcpy(task->SinkSetAccelerations, PinnedBuffer.SinkSetAccelerations, sizeof(accstruct) * NFBlockSize * task->NSinkBlocks);
+    int nbad = 0;
+    for (int j=0; j<NFBlockSize*task->NSinkBlocks; j++) {
+	if (fabs(PinnedBuffer.SinkSetAccelerations[j].x)>1 ||
+	    fabs(PinnedBuffer.SinkSetAccelerations[j].y)>1 ||
+	    fabs(PinnedBuffer.SinkSetAccelerations[j].z)>1 ||
+	    fabs(PinnedBuffer.SinkSetAccelerations[j].w)>1) nbad++;
+    }
+    if (nbad) fprintf(stderr,"%d bad accelerations found\n", nbad);
+
     for (int j=0; j<task->NSinkSets; j++) {
         task->SinkPlan[j].copy_from_pinned_memory((void *)PinnedBuffer.SinkSetAccelerations, task->SinkSetStart[j], task->SinkSetCount[j], (void *)task->SinkPartialAccSlab);
     }
 
-
     // Declare victory!
-    task->SetCompleted();
+    task->SetCompleted();  // This sets the signal bit in SIC
+    // Stop the timing
     MarkCompleted(DeviceStreams[g], cudaSuccess, (void *) task);
     task->CopyAccelFromPinned.Stop();
     task->DeviceThreadTimer.Stop();
