@@ -82,6 +82,31 @@ practice.
 
 **/
 
+/// Return the number of particles in this (i,j) skewer, summing over k.
+uint64 NumParticlesInSkewer(int slab, int j) {
+    uint64 np = PP->CellInfo(slab, j, 0)->startindex;
+    uint64 end = Slab->size(slab);
+    if (j<P.cpd-1) end = PP->CellInfo(slab,j+1,0)->startindex;
+    return end-np;	// This is the number of particles in this skewer
+}
+
+/// For one skewer, compute how many sink blocks will be incurred
+/// for this one Skewer in the worst case for all of the SIC.
+int ComputeSinkBlocks(int slab, int j, int WIDTH) {
+    int np = NumParticlesInSkewer(slab, j);
+    return WIDTH*(np/NFBlockSize+P.cpd);
+}
+/// For one skewer, compute how many source blocks will be incurred
+/// for this one Skewer in the worst case for all of the SIC.
+int ComputeSourceBlocks(int slab, int j, int WIDTH) {
+    int np = 0;
+    for (c=-WIDTH; c<=WIDTH; c++) 
+	np += NumParticlesInSkewer(slab+c, j);
+    return (np/NFBlockSize+P.cpd);
+}
+
+
+
 /// Compute a mildly conservative estimate of the space required
 /// for all SIC in a slab.
 uint64 ComputeSICSize(int cpd, int np, int WIDTH, int NSplit) {

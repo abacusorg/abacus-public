@@ -76,6 +76,7 @@ class NearFieldDriver{
         int RADIUS;
         Direct *DD;
         int NGPU;
+	int NBuffers;
         double GPUMemoryGB;
         int MaxSourceBlocks;
         int MaxSinkBlocks;
@@ -150,9 +151,13 @@ NearFieldDriver::NearFieldDriver() :
     // Put a floor to insist on using all GPUs
     STDLOG(1,"MinSplits = %d\n", MinSplits);
 
+    NBuffers = NGPU*DirectBPD;
     GPUSetup(P.cpd, 1.0e9*GPUMemoryGB, NGPU, DirectBPD, P.GPUThreadCoreStart, P.NGPUThreadCores, &MaxSinkBlocks, &MaxSourceBlocks);
     STDLOG(1,"Initializing GPU with %f x10^6 sink blocks and %f x10^6 source blocks\n",
             MaxSinkBlocks/1e6,MaxSourceBlocks/1e6);
+    // This returns the number of SinkBlocks and number of SourceBlocks
+    // that any future SIC is allowed.  Overheads for other bookkeeping
+    // has been included in this estimate, so we just need to obey this.
 
 
     SICExecute.Clear();
@@ -161,11 +166,11 @@ NearFieldDriver::NearFieldDriver() :
     for(int g = 0; g < NGPU; g++)
         NSink_GPU_final[g] = 0;
     
-    DirectInteractions_GPU = new uint64[NGPU*DirectBPD]();
-    GB_to_device = new double[NGPU*DirectBPD]();
-    GB_from_device = new double[NGPU*DirectBPD]();
-    DeviceSinks = new uint64[NGPU*DirectBPD]();
-    DeviceSources = new uint64[NGPU*DirectBPD]();
+    DirectInteractions_GPU = new uint64[NBuffers]();
+    GB_to_device = new double[NBuffers]();
+    GB_from_device = new double[NBuffers]();
+    DeviceSinks = new uint64[NBuffers]();
+    DeviceSources = new uint64[NBuffers]();
 #endif
 }
 
@@ -231,6 +236,72 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 
     // First, calculate the required subdivisions of the slab to fit in GPU memory
     CalcSplitDirects.Start();
+
+    int *SinkBlocks = new int[P.cpd];
+    int *SourceBlocks = new int[P.cpd];
+    int totSinkBlocks = 0;
+    int totSourceBlocks = 0;
+
+    for (j=0;j<P.cpd;j++) {
+	SinkBlocks[j] = ComputeSinkBlocks(slabID, j, WIDTH);
+	totSinkBlocks += SinkBlocks[j];
+	SourceBlocks[j] = ComputeSourceBlocks(slabID, j, WIDTH);
+	totSourceBlocks += SourceBlocks[j];
+	// These contain the number of blocks in each j.
+    }
+    // We will need at least totBlocks/maxBlocks, rounded up, splits.
+    // Given the maximum number of blocks in a SIC, it will be 
+    // easy to pack these in.  But the problem is that we want to 
+    // use all of the GPU buffers for efficiency, so that sets a 
+    // minimum.
+    int useMaxSink = totSinkBlocks/NBuffers*1.05;
+    int useMaxSource = totSourceBlocks/NBuffers*1.05;
+    useMaxSink = std::min(useMaxSink, maxSinkBlocks);
+    useMaxSource = std::min(useMaxSource, maxSourceBlocks);
+
+    // Now we want to pack these in
+    int SplitPoint[1024]; // Just a crazy number
+    int NSplit = 0;
+    int thisSink = 0, thisSource = 0;
+
+    for (int j=0; j<P.cpd; j++) {
+	thisSink += SinkBlocks[j];
+	thisSource += SourceBlocks[PP->WrapSlab(j+WIDTH)];
+        if (j==0 || thisSink>useMaxSink ||
+            thisSource>useMaxSource) {
+	    // We've overflowed the previous set; end it 
+	    if (NSplit>0) {
+		SplitPoint[NSplit-1] = j;
+		STDLOG(1,"Split %d ending at y=%d; %d sink and %d source blocks\n", 
+		    NSplit-1, j, thisSink, thisSource);
+	    }
+	    // Time to start a new one
+	    thisSink = SinkBlocks[j];
+	    thisSource = 0;
+	    for (int c=-WIDTH; c<=WIDTH; c++) 
+		thisSource += SourceBlocks[PP->WrapSlab(j-c)];
+	    NSplit++;
+	}
+    }
+    // And always end the last one
+    SplitPoint[NSplit-1] = P.cpd;
+    STDLOG(1,"Split %d ending at y=%d; %d sink and %d source blocks\n", 
+		    NSplit-1, j, thisSink, thisSource);
+    // There is a failure mode here if the last skewer by itself
+    // overflows; it will end up assigned without prior question.
+    assertf(thisSink<maxsinkBlocks && thisSource<maxSourceBlocks,
+    	"Sinks or Sources of the last skewer overflow the maxima.");
+
+    STDLOG(1,"Using %d direct splits on slab %d, max blocks %d sink and %d source\n", 
+    	NSplit, slabID, useMaxSink, useMaxSource);
+
+	
+    SlabNSplit[slabID] = NSplit;
+    SlabInteractionCollections[slabID] = new SetInteractionCollection *[NSplit];
+
+
+#ifdef OLDCODE
+
     //Add up the sources
     uint64 NSource = 0;
     for(int i = slabID-RADIUS; i <= slabID + RADIUS; i++) NSource+=Slab->size(i);
@@ -243,7 +314,6 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     SlabNSplit[slabID] = NSplit;
     
     uint64 NPTarget = NSink/NSplit;
-    SlabInteractionCollections[slabID] = new SetInteractionCollection *[NSplit];
     int SplitPoint[NSplit];
 
     int yl = 0;
@@ -264,6 +334,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
         for(int i = 0; i < NSplit -1; i++)
             STDLOG(1,"\t\t\t\t %d: %d \n",i,SplitPoint[i]);
     }
+#endif
 
     CalcSplitDirects.Stop();
 
@@ -272,8 +343,9 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     LBW->AllocateSpecificSize(NearField_SIC_Slab, slabID, bsize);
     char *buffer = LBW->ReturnIDPtr(NearField_SIC_Slab, slabID);
 
-    // And allocate space for the partial accelerations
+    // And allocate space for the accelerations
     LBW->AllocateArena(AccSlab,slabID);
+
     // Initialize the space
     FLOAT *p = (FLOAT *)LBW->ReturnIDPtr(AccSlab, slabID);
     // TODO: May be able to get rid of this initialization
