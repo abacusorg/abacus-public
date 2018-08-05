@@ -202,6 +202,7 @@ sink particle 5 times.
 
 */
 
+// TODO: Can remove this function?
 int NearFieldDriver::GetNSplit(uint64 NSource, uint64 NSink){
     // Pencils are aligned to NFBlocksize boundaries
     // Best case: we will have ~NSource/NFBlocksize blocks
@@ -229,6 +230,8 @@ int NearFieldDriver::GetNSplit(uint64 NSource, uint64 NSink){
 // ================ Code to queue up work for the GPU ==================
 
 uint64 ComputeSICSize(int cpd, int np, int WIDTH, int NSplit);
+int ComputeSinkBlocks(int slab, int j);
+int ComputeSourceBlocks(int slab, int j);
 
 void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     // This will construct the relevant SetInteractionCollections,
@@ -242,10 +245,10 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     int totSinkBlocks = 0;
     int totSourceBlocks = 0;
 
-    for (j=0;j<P.cpd;j++) {
-	SinkBlocks[j] = ComputeSinkBlocks(slabID, j, WIDTH);
+    for (int j=0;j<P.cpd;j++) {
+	SinkBlocks[j] = ComputeSinkBlocks(slabID, j);
 	totSinkBlocks += SinkBlocks[j];
-	SourceBlocks[j] = ComputeSourceBlocks(slabID, j, WIDTH);
+	SourceBlocks[j] = ComputeSourceBlocks(slabID, j);
 	totSourceBlocks += SourceBlocks[j];
 	// These contain the number of blocks in each j.
     }
@@ -254,10 +257,13 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     // easy to pack these in.  But the problem is that we want to 
     // use all of the GPU buffers for efficiency, so that sets a 
     // minimum.
-    int useMaxSink = totSinkBlocks/NBuffers*1.05;
-    int useMaxSource = totSourceBlocks/NBuffers*1.05;
-    useMaxSink = std::min(useMaxSink, maxSinkBlocks);
-    useMaxSource = std::min(useMaxSource, maxSourceBlocks);
+    STDLOG(1,"Found %d sink and %d source blocks in slab %d\n", totSinkBlocks, totSourceBlocks, slabID);
+    int useMaxSink = totSinkBlocks/NBuffers;
+    useMaxSink *= (1+1.1*NBuffers/P.cpd); 
+	// Trying to bias up to leave the last one short instead of long
+    useMaxSink = std::min(useMaxSink, MaxSinkBlocks);
+    int useMaxSource = MaxSourceBlocks;
+    STDLOG(1,"Using max sink %d and source %d.\n", useMaxSink, useMaxSource);
 
     // Now we want to pack these in
     int SplitPoint[1024]; // Just a crazy number
@@ -266,19 +272,19 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 
     for (int j=0; j<P.cpd; j++) {
 	thisSink += SinkBlocks[j];
-	thisSource += SourceBlocks[PP->WrapSlab(j+WIDTH)];
+	thisSource += SourceBlocks[PP->WrapSlab(j+RADIUS)];
         if (j==0 || thisSink>useMaxSink ||
             thisSource>useMaxSource) {
 	    // We've overflowed the previous set; end it 
 	    if (NSplit>0) {
 		SplitPoint[NSplit-1] = j;
 		STDLOG(1,"Split %d ending at y=%d; %d sink and %d source blocks\n", 
-		    NSplit-1, j, thisSink, thisSource);
+		    NSplit-1, j, thisSink-SinkBlocks[j], thisSource-SourceBlocks[PP->WrapSlab(j+RADIUS)]);
 	    }
 	    // Time to start a new one
 	    thisSink = SinkBlocks[j];
 	    thisSource = 0;
-	    for (int c=-WIDTH; c<=WIDTH; c++) 
+	    for (int c=-RADIUS; c<=RADIUS; c++) 
 		thisSource += SourceBlocks[PP->WrapSlab(j-c)];
 	    NSplit++;
 	}
@@ -286,15 +292,18 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     // And always end the last one
     SplitPoint[NSplit-1] = P.cpd;
     STDLOG(1,"Split %d ending at y=%d; %d sink and %d source blocks\n", 
-		    NSplit-1, j, thisSink, thisSource);
+		    NSplit-1, P.cpd, thisSink, thisSource);
     // There is a failure mode here if the last skewer by itself
     // overflows; it will end up assigned without prior question.
-    assertf(thisSink<maxsinkBlocks && thisSource<maxSourceBlocks,
+    assertf(thisSink<MaxSinkBlocks && thisSource<MaxSourceBlocks,
     	"Sinks or Sources of the last skewer overflow the maxima.");
 
+    uint64 NSink = Slab->size(slabID);
     STDLOG(1,"Using %d direct splits on slab %d, max blocks %d sink and %d source\n", 
     	NSplit, slabID, useMaxSink, useMaxSource);
 
+    delete[] SinkBlocks;
+    delete[] SourceBlocks;
 	
     SlabNSplit[slabID] = NSplit;
     SlabInteractionCollections[slabID] = new SetInteractionCollection *[NSplit];
@@ -305,8 +314,6 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     //Add up the sources
     uint64 NSource = 0;
     for(int i = slabID-RADIUS; i <= slabID + RADIUS; i++) NSource+=Slab->size(i);
-
-    uint64 NSink = Slab->size(slabID);
 
     const int NSplit = std::max(MinSplits,GetNSplit(NSource, NSink));
     assertf(NSplit >= MinSplits, "NSplit (%d) is less than MinSplits (%d)\n", NSplit, MinSplits);

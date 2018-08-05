@@ -92,15 +92,15 @@ uint64 NumParticlesInSkewer(int slab, int j) {
 
 /// For one skewer, compute how many sink blocks will be incurred
 /// for this one Skewer in the worst case for all of the SIC.
-int ComputeSinkBlocks(int slab, int j, int WIDTH) {
+int ComputeSinkBlocks(int slab, int j) {
     int np = NumParticlesInSkewer(slab, j);
-    return WIDTH*(np/NFBlockSize+P.cpd);
+    return (2*NFRADIUS+1)*(np/NFBlockSize)+P.cpd;
 }
 /// For one skewer, compute how many source blocks will be incurred
 /// for this one Skewer in the worst case for all of the SIC.
-int ComputeSourceBlocks(int slab, int j, int WIDTH) {
+int ComputeSourceBlocks(int slab, int j) {
     int np = 0;
-    for (c=-WIDTH; c<=WIDTH; c++) 
+    for (int c=-NFRADIUS; c<=NFRADIUS; c++) 
 	np += NumParticlesInSkewer(slab+c, j);
     return (np/NFBlockSize+P.cpd);
 }
