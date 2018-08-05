@@ -189,7 +189,14 @@ NearFieldDriver::~NearFieldDriver()
 
 #include "extras_directdriver.cpp"
 
-// Compute the number of splits for a given number of sources and sinks particles
+/** Compute the number of splits for a given number of sources and sinks particles
+
+Now that a SIC includes all of the cells in a Y skewer, I think
+that we can make a better estimate.  The skewer will have each
+sink particle 5 times.
+
+*/
+
 int NearFieldDriver::GetNSplit(uint64 NSource, uint64 NSink){
     // Pencils are aligned to NFBlocksize boundaries
     // Best case: we will have ~NSource/NFBlocksize blocks
@@ -216,7 +223,7 @@ int NearFieldDriver::GetNSplit(uint64 NSource, uint64 NSink){
 
 // ================ Code to queue up work for the GPU ==================
 
-uint64 ComputeSICSize(int cpd, int np, int WIDTH);
+uint64 ComputeSICSize(int cpd, int np, int WIDTH, int NSplit);
 
 void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     // This will construct the relevant SetInteractionCollections,
@@ -261,18 +268,19 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     CalcSplitDirects.Stop();
 
     // Now we need to make the NearField_SIC_Slab
-    uint64 bsize = ComputeSICSize(P.cpd, NSink, WIDTH);
+    uint64 bsize = ComputeSICSize(P.cpd, NSink, WIDTH, NSplit);
     LBW->AllocateSpecificSize(NearField_SIC_Slab, slabID, bsize);
     char *buffer = LBW->ReturnIDPtr(NearField_SIC_Slab, slabID);
 
     // And allocate space for the partial accelerations
-    LBW->AllocateSpecificSize(PartialAccSlab, slabID, NSink*WIDTH*sizeof(accstruct));
+    LBW->AllocateArena(AccSlab,slabID);
     // Initialize the space
-    FLOAT *p = (FLOAT *)LBW->ReturnIDPtr(PartialAccSlab, slabID);
-    for (int j=0; j<NSink*WIDTH*4; j++) p[j] = 0.0;
+    FLOAT *p = (FLOAT *)LBW->ReturnIDPtr(AccSlab, slabID);
+    // TODO: May be able to get rid of this initialization
+    for (int j=0; j<LBW->IDSizeBytes(AccSlab,slabID)/sizeof(accstruct)*4; j++) p[j] = 0.0;
 
     // If we thread over y-splits, would that help with NUMA locality?
-    for(int k_mod = 0; k_mod < WIDTH; k_mod++){
+    //? for(int k_mod = 0; k_mod < WIDTH; k_mod++){
         int jl =0;
         for(int n = 0; n < NSplit; n++){
             // We may wish to make these in an order that will alter between GPUs
@@ -281,22 +289,22 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 	    // This is where the SetInteractionCollection is actually constructed
 	    // STDLOG(1,"Entering SIC Construction with %d bytes\n", bsize);
             SlabInteractionCollections[slabID][k_mod*NSplit + n] = 
-                new SetInteractionCollection(slabID,k_mod,jl,jh,WriteState.DensityKernelRad2, buffer, bsize);
+                new SetInteractionCollection(slabID,jl,jh,WriteState.DensityKernelRad2, buffer, bsize);
 	    // STDLOG(1,"Leaving SIC Construction with %d bytes\n", bsize);
             
             // Check that we have enough blocks
-            int NSinkBlocks = SlabInteractionCollections[slabID][k_mod*NSplit + n]->NSinkBlocks;
-            int NSourceBlocks = SlabInteractionCollections[slabID][k_mod*NSplit + n]->NSourceBlocks;
+            int NSinkBlocks = SlabInteractionCollections[slabID][n]->NSinkBlocks;
+            int NSourceBlocks = SlabInteractionCollections[slabID][n]->NSourceBlocks;
             assertf(NSinkBlocks <= MaxSinkBlocks,
                     "NSinkBlocks (%d) is larger than MaxSinkBlocks (%d)\n", NSinkBlocks, MaxSinkBlocks);
             assertf(NSourceBlocks <= MaxSourceBlocks,
                     "NSourceBlocks (%d) is larger than MaxSourceBlocks (%d)\n", NSourceBlocks, MaxSourceBlocks);
             
-            STDLOG(1,"Executing directs for slab %d k_mod = %d k: %d - %d\n",slabID,k_mod,jl,jh);
+            STDLOG(1,"Executing directs for slab %d, y: %d - %d\n",slabID,jl,jh);
             SICExecute.Start();
 	    // This SIC is ready; send it to be executed
-            SlabInteractionCollections[slabID][k_mod*NSplit + n]->GPUExecute(blocking);
-            //SlabInteractionCollections[slabID][k_mod*NSplit + n]->CPUExecute();
+            SlabInteractionCollections[slabID][n]->GPUExecute(blocking);
+            //SlabInteractionCollections[slabID][n]->CPUExecute();
             SICExecute.Stop();
             jl = jh;
         }
@@ -407,7 +415,7 @@ void NearFieldDriver::Finalize(int slab){
         CheckInteractionList(slab);
     
     // Allocate the space to hold the co-added NF acceleration
-    LBW->AllocateArena(AccSlab,slab);
+    //? LBW->AllocateArena(AccSlab,slab);
 
     SetInteractionCollection ** Slices = SlabInteractionCollections[slab];
     int NSplit = SlabNSplit[slab];
@@ -463,6 +471,7 @@ void NearFieldDriver::Finalize(int slab){
     
     CopyPencilToSlab.Start();    
 
+#ifdef OLDPARTIAL
 #ifdef OLDCODE
     // We're now going to coadd the partial accelerations
     // This first loop is over Y rows, each handled by a different thread
@@ -573,6 +582,7 @@ void NearFieldDriver::Finalize(int slab){
     }
 
 #endif  // End new code
+#endif  // End OLDPARTIAL; we don't have any coaddition to do!
 
     CopyPencilToSlab.Stop();
 
@@ -583,7 +593,7 @@ void NearFieldDriver::Finalize(int slab){
         delete Slice;
     }
     LBW->DeAllocate(NearField_SIC_Slab, slab);
-    LBW->DeAllocate(PartialAccSlab, slab);
+    //?LBW->DeAllocate(PartialAccSlab, slab);
     delete[] Slices;
     TearDownPencils.Stop();
     

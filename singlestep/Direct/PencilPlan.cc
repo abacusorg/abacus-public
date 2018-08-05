@@ -68,10 +68,12 @@ int SinkPencilPlan::load(int x, int y, int z) {
 }
 
 /// Given the padded list of accelerations in pinned memory, 
-/// copy into the unpadded cells in the given PartialAccSlab.  
+/// copy into the unpadded cells in the given AccSlab.  
 /// This routine is called by the GPU code. 
+/// TODO: For now, we do this by simple coaddition, assuming initialization,
+/// but we can soon figure out how to set on the first touch.
 void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start, 
-	int total, void *SinkPartialAccSlab) {
+	int total, void *SinkAccSlab) {
     // Copy pinacc, which holds the padded list 
     // accstruct[start..start+total)
     //  cells contiguously into pinpos->X[start..start+total), Y[), Z[)
@@ -82,10 +84,9 @@ void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start,
     for (int c=0; c<NFRADIUS*2+1; c++) {
 	int N = cell[c].N;
 	// The pointer math has to be in accstruct; then cast
-	accstruct *p = (accstruct *)SinkPartialAccSlab+cell[c].start;
+	accstruct *p = (accstruct *)SinkAccSlab+cell[c].start;
 	// TODO: Could look ahead to see if the next cell is contiguous,
 	// thereby making only 1 or 2 copies.
-        // memcpy(p, pinacc+cumulative_number, sizeof(accstruct)*N); 
 	accstruct *pin = pinacc+cumulative_number;
 	for (int j=0; j<N; j++) p[j] += pin[j];
         cumulative_number+=N;

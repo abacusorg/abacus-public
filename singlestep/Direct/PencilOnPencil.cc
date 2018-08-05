@@ -32,7 +32,8 @@ inline int SetInteractionCollection::PaddedSourceCount(int sourceindex) {
 /// Given a (k) of the internal sink indexing, return
 /// the z of the central cell
 inline int SetInteractionCollection::index_to_zcen(int k) {
-    int kk = k_mod+k*nfwidth+nfradius;   // The central cell
+    //? int kk = k_mod+k*nfwidth+nfradius;   // The central cell
+    int kk = k+nfradius;    // The central cell
     if (kk<0) kk+=cpd; if (kk>=cpd) kk-=cpd;  // Wrapped
     return kk;
 }
@@ -42,14 +43,15 @@ inline int SetInteractionCollection::index_to_zcen(int k) {
 /** Given a slab of size cpd and number of particles np, 
 we want to compute the required space for the mallocs for all
 SetInteractionCollection in this slab.  This is easier to do for the full
-than for a single SIC; no worrying about the Y splits.
+slab than for a single SIC; no worrying about the Y splits.
 
 NSinkSet = cpd**2
 NSourceSet = cpd**2 plus 4*cpd for each split
 NPaddedSinks = WIDTH*Nparticles+NFBlocksize*cpd**2
 NSinkBlocks = NPaddedSinks/NFBlocksize
 
-The last term is worst case.  Typical case is 0.5 of that;
+The last term in NPaddedSinks is worst case.  Typical case is 0.5 of that.
+
 we use the overage to avoid worrying about the 4*cpd source boundaries,
 and just set NSourceSet = NSinkSet.
 
@@ -63,7 +65,7 @@ SourceSetCount int[]
 SourcePlan     plan[]
 
 SinkBlockParentPencil int[NSinkBlocks] 
-SinkSetAcceleration   FLOAT4[NPaddedSinks]
+// REMOVE: SinkSetAcceleration   FLOAT4[NPaddedSinks]
 SinkSourceInteractionList   int[WIDTH*NSinkSet]
 SinkSourceYOffset       FLOAT[]
 
@@ -77,18 +79,34 @@ conservative.
 TODO: We could consider multiplying that factor by 0.6 and then
 adding in a bit more of a floor.  Let's see what's happening in 
 practice.
+
 **/
 
 /// Compute a mildly conservative estimate of the space required
 /// for all SIC in a slab.
-uint64 ComputeSICSize(int cpd, int np, int WIDTH) {
+uint64 ComputeSICSize(int cpd, int np, int WIDTH, int NSplit) {
     uint64 size = 0;
+    //? int NSplit = 40;  // Just making something up
+    int NSinkSet = cpd*cpd;
+    int NSourceSet = cpd*(cpd+4*NSplit);
+    int NPaddedSinks = WIDTH*np+NSinkSet*NFBlockSize;
+    int NSinkBlocks = NPaddedSinks/NFBlockSize;
+
+    size += (3*sizeof(int)+sizeof(SinkPencilPlan)) * NSinkSet;
+    size += (2*sizeof(int)+sizeof(SinkPencilPlan)) * NSourceSet;
+    size += (sizeof(int)+sizeof(FLOAT)) * WIDTH*NSinkSet;
+    size += (sizeof(int)) * NSinkBlocks;
+
+    /*
     size += cpd*(cpd)*(5*sizeof(int)+2*sizeof(SinkPencilPlan)+WIDTH*sizeof(int)+sizeof(FLOAT));
     size += sizeof(int)*(WIDTH*np + NFBlockSize*cpd*cpd)/NFBlockSize;
     STDLOG(2,"SIC using %l bytes of pencil overhead\n", size);
     uint64 tmp = sizeof(accstruct)*(WIDTH*np + NFBlockSize*cpd*cpd);
     STDLOG(2,"SIC using %d particles requiring %l bytes of accstruct\n", np, tmp);
-    size += tmp; size += 1024*1024; 	// Just adding in some for alignment and small-problem worst case
+    size += tmp; 
+    */
+    
+    size += 1024*1024; 	// Just adding in some for alignment and small-problem worst case
     return size;
 }
 
@@ -130,7 +148,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     j_low = _jlow;
     j_high = _jhigh;
     cpd = P.cpd;
-    k_mod = _kmod;
+    //? k_mod = _kmod;
     SlabId = slab;
     b2 = _b2;
     bytes_to_device = 0, bytes_from_device = 0;
@@ -140,8 +158,9 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     nfradius = P.NearFieldRadius;
     nfwidth = 2*P.NearFieldRadius+1;
     j_width = j_high-j_low;
-    Nk = (P.cpd - k_mod)/nfwidth;
-    if(Nk * nfwidth + k_mod < P.cpd) Nk++;
+    Nk = cpd;
+    //? Nk = (P.cpd - k_mod)/nfwidth;
+    //? if(Nk * nfwidth + k_mod < P.cpd) Nk++;
 
     // Load the Pointers to the PosXYZ Slabs
     SinkPosSlab = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab);
@@ -151,8 +170,9 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
 
     // There is a slab that has the WIDTH Partial Acceleration fields.
     // Get a pointer to the appropriate segment of that.
-    uint64 NSink = Slab->size(slab);
-    SinkPartialAccSlab = (void *)((accstruct *)LBW->ReturnIDPtr(PartialAccSlab,slab)+k_mod*NSink);
+    //? uint64 NSink = Slab->size(slab);
+    //? SinkPartialAccSlab = (void *)((accstruct *)LBW->ReturnIDPtr(PartialAccSlab,slab)+k_mod*NSink);
+    SinkAccSlab = (void *)((accstruct *)LBW->ReturnIDPtr(AccSlab,slab));
 
     // Make a bunch of the SinkSet and SourceSet containers
     

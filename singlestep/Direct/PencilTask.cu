@@ -239,7 +239,7 @@ void GPUPencilTask(void *item, int g){
     if (nbad) fprintf(stderr,"%d bad accelerations found\n", nbad);
 
     for (int j=0; j<task->NSinkSets; j++) {
-        task->SinkPlan[j].copy_from_pinned_memory((void *)PinnedBuffer.SinkSetAccelerations, task->SinkSetStart[j], task->SinkSetCount[j], (void *)task->SinkPartialAccSlab);
+        task->SinkPlan[j].copy_from_pinned_memory((void *)PinnedBuffer.SinkSetAccelerations, task->SinkSetStart[j], task->SinkSetCount[j], (void *)task->SinkAccSlab);
     }
 
     // Declare victory!

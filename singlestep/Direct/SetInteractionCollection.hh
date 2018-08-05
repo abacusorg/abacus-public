@@ -66,7 +66,7 @@ class SinkPencilPlan {
     void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total,
     	void *SinkPosSlab);
     void copy_from_pinned_memory(void *pinacc, int start, int total, 
-    	void *SinkPartialAccSlab);
+    	void *SinkAccSlab);
     int load(int x, int y, int z);
 };
 
@@ -146,7 +146,8 @@ class SetInteractionCollection{
 
 	void  *SinkPosSlab;    //< Ptr to the start of the PosXYZ slab
 	void  **SourcePosSlab;    //< Ptr to the start of the PosXYZ slabs for Sources
-	void *SinkPartialAccSlab;  //< Ptr to the start of the slab of accelerations for this Z modulus.
+	void *SinkAccSlab;  //< Ptr to the start of the slab of accelerations for this sink slab
+	//? void *SinkPartialAccSlab;  //< Ptr to the start of the slab of accelerations for this Z modulus.
 
         int *           SinkSetStart; //The index in the Sink Pos/Acc lists where this set begins
         int *           SinkSetCount; //The number of particles in the SinkSet
@@ -164,7 +165,7 @@ class SetInteractionCollection{
         volatile int CompletionFlag;
 
         int         SlabId;	// The X slab number
-        int         k_mod;	// The modulus of the Z cells, range [0,nfwidth)
+        //? int         k_mod;	// The modulus of the Z cells, range [0,nfwidth)
 	int	    Nk;		// The number of Z cells
         int         j_low;	// The minimum sink Y
         int         j_high;	// The maximum sink Y+1 [j_low,j_high)
