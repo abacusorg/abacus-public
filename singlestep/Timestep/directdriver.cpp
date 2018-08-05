@@ -243,7 +243,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     SlabNSplit[slabID] = NSplit;
     
     uint64 NPTarget = NSink/NSplit;
-    SlabInteractionCollections[slabID] = new SetInteractionCollection *[WIDTH*NSplit];
+    SlabInteractionCollections[slabID] = new SetInteractionCollection *[NSplit];
     int SplitPoint[NSplit];
 
     int yl = 0;
@@ -288,7 +288,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             // The construction and execution are timed internally in each SIC then reduced in Finalize(slab)
 	    // This is where the SetInteractionCollection is actually constructed
 	    // STDLOG(1,"Entering SIC Construction with %d bytes\n", bsize);
-            SlabInteractionCollections[slabID][k_mod*NSplit + n] = 
+            SlabInteractionCollections[slabID][n] = 
                 new SetInteractionCollection(slabID,jl,jh,WriteState.DensityKernelRad2, buffer, bsize);
 	    // STDLOG(1,"Leaving SIC Construction with %d bytes\n", bsize);
             
@@ -308,7 +308,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             SICExecute.Stop();
             jl = jh;
         }
-    }
+    //}
     STDLOG(1, "%l bytes remaining after SIC allocation on slab %d (%4.1f%% unused)\n", 
     	bsize, slabID, 100.0*bsize/LBW->IDSizeBytes(NearField_SIC_Slab, slabID));
     	
@@ -345,7 +345,7 @@ int NearFieldDriver::SlabDone(int slab){
         int NSplit = SlabNSplit[slab];
 
         int complete = 1;
-        for(int i = 0; i < WIDTH*NSplit; i++)
+        for(int i = 0; i < NSplit; i++)
             complete = complete && SlabInteractionCollections[slab][i]->CheckCompletion();
 
         slabcomplete[slab] = complete;
@@ -424,7 +424,7 @@ void NearFieldDriver::Finalize(int slab){
     int nfr = RADIUS;
 
     // Collect the statistics and timings
-    for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
+    for(int sliceIdx = 0; sliceIdx < NSplit; sliceIdx++){
         SetInteractionCollection *Slice = Slices[sliceIdx];
 
         Construction +=Slice->Construction.Elapsed();
@@ -588,7 +588,7 @@ void NearFieldDriver::Finalize(int slab){
 
     // Do a final pass to delete all slices
     TearDownPencils.Start();
-    for(int sliceIdx = 0; sliceIdx < NSplit*WIDTH; sliceIdx++){
+    for(int sliceIdx = 0; sliceIdx < NSplit; sliceIdx++){
         SetInteractionCollection *Slice = Slices[sliceIdx];
         delete Slice;
     }

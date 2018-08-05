@@ -4,6 +4,7 @@
 void SetInteractionCollection::CPUExecute(){
     // Currently Plummer only
     // TODO: Also, this does not compute FOF densities
+#ifdef NEEDTOFIX
 #ifndef DIRECTPLUMMER
     QUIT("Error: executing CPU pencils with non-Plummer softening is not currently supported.\n");
 #endif
@@ -117,9 +118,11 @@ void SetInteractionCollection::CPUExecute(){
     SetCompleted();
     delete SinkSetPositions;
     delete SourceSetPositions;
+#endif
 }
 
 void SetInteractionCollection::PrintInteractions(){
+#ifdef NEEDTOFIX
 
     if(Nk * nfwidth + k_mod < P.cpd)
         Nk++;
@@ -171,9 +174,11 @@ void SetInteractionCollection::PrintInteractions(){
             sinkIdx,SlabId, sinkk + j_low, sinkzmid-nfr,sinkzmid+nfr,
             sourceIdx,SlabId-nfr,SlabId+nfr, sourcey, sourcezmid, yoffset);
     }    
+    #endif
 }
 
 void SetInteractionCollection::AddInteractionList( std::vector<uint64> ** il){
+#ifdef NEEDTOFIX
     // TODO: Not sure what this routine is doing!  Not sure how to adjust it.
 
     if(Nk*nfwidth + k_mod < P.cpd)
@@ -211,4 +216,5 @@ void SetInteractionCollection::AddInteractionList( std::vector<uint64> ** il){
             }
         }
     }
+    #endif
 }

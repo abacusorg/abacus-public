@@ -138,7 +138,7 @@ int posix_memalign_wrap(char * &buffer, size_t &bsize, void ** ptr,
 /// buffer.  Important: buffer and bsize are modified and returned
 /// with the pointer to and size of the unused space.
 
-SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlow, int _jhigh, FLOAT _b2, char * &buffer, size_t &bsize){
+SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhigh, FLOAT _b2, char * &buffer, size_t &bsize){
     Construction.Start();
 
     eps = JJ->eps;
@@ -164,7 +164,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
 
     // Load the Pointers to the PosXYZ Slabs
     SinkPosSlab = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab);
-    SourcePosSlab = new void *[nfwidth];
+    //?SourcePosSlab = new void *[nfwidth];
     for (int c=0; c<nfwidth; c++) 
         SourcePosSlab[c] = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab+c-nfradius);
 
@@ -400,7 +400,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
 /// A simple destructor
 SetInteractionCollection::~SetInteractionCollection(){
     // These are now part of the NearField_SIC_Slab buffer
-    delete[] SourcePosSlab;
+    //?delete[] SourcePosSlab;
     //? free(SinkSetStart);
     //? free(SinkSetCount);
     //? free(SinkPlan);
@@ -417,7 +417,7 @@ SetInteractionCollection::~SetInteractionCollection(){
 
 /// Call this when the Set is detected as done!
 void SetInteractionCollection::SetCompleted(){
-    STDLOG(1,"Completed SIC for slab %d w: %d j: %d - %d\n",SlabId,k_mod,j_low,j_high); 
+    STDLOG(1,"Completed SIC for slab %d, y: %d - %d\n",SlabId,j_low,j_high); 
     CompletionFlag = 1;
 }
 

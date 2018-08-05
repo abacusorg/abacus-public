@@ -145,7 +145,7 @@ class SetInteractionCollection{
         static STimer GPUThroughputTimer;
 
 	void  *SinkPosSlab;    //< Ptr to the start of the PosXYZ slab
-	void  **SourcePosSlab;    //< Ptr to the start of the PosXYZ slabs for Sources
+	void  *SourcePosSlab[2*NFRADIUS+1];    //< Ptr to the start of the PosXYZ slabs for Sources
 	void *SinkAccSlab;  //< Ptr to the start of the slab of accelerations for this sink slab
 	//? void *SinkPartialAccSlab;  //< Ptr to the start of the slab of accelerations for this Z modulus.
 
@@ -207,7 +207,7 @@ class SetInteractionCollection{
         //Methods
 
 	// Constructor
-        SetInteractionCollection(int slab, int _kmod, int _jlow, int _jhigh, FLOAT _b2, char * &buffer, size_t &bsize);
+        SetInteractionCollection(int slab, int _jlow, int _jhigh, FLOAT _b2, char * &buffer, size_t &bsize);
         ~SetInteractionCollection();
 
 	int NumPaddedBlocks(int nparticles);
