@@ -66,7 +66,7 @@ class SinkPencilPlan {
     void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total,
     	void *SinkPosSlab);
     void copy_from_pinned_memory(void *pinacc, int start, int total, 
-    	void *SinkAccSlab);
+    	void *SinkAccSlab, int sinkindex);
     int load(int x, int y, int z);
 };
 

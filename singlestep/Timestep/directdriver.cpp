@@ -365,15 +365,14 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     // TODO: May be able to get rid of this initialization
     for (int j=0; j<LBW->IDSizeBytes(AccSlab,slabID)/sizeof(accstruct)*4; j++) p[j] = 0.0;
 
-    #ifdef OLDCODE
-    // TODO: Might consider re-inserting this after re-installing the first-touch code.
+
     if(P.ForceOutputDebug){
         // Make the accelerations invalid so we can detect improper co-adding
         #pragma omp parallel for schedule(static)
-        for(int y = 0; y < cpd; y++){
-            for(int z = 0; z < cpd; z++){
-                accstruct *acc = PP->NearAccCell(slab, y, z);
-                int count = PP->NumberParticle(slab,y,z);
+        for(int y = 0; y < P.cpd; y++){
+            for(int z = 0; z < P.cpd; z++){
+                accstruct *acc = PP->NearAccCell(slabID, y, z);
+                int count = PP->NumberParticle(slabID,y,z);
                 
                 for(int i = 0; i < count; i++)
                     acc[i] = accstruct(std::numeric_limits<float>::infinity());
@@ -381,7 +380,6 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             }
         }
     }
-    #endif
 
     //? for(int k_mod = 0; k_mod < WIDTH; k_mod++){
         int jl =0;

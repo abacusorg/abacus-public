@@ -242,7 +242,7 @@ void GPUPencilTask(void *item, int g){
 
     // TODO: Might need to pass j%cpd along, so that one can infer first touch
     for (int j=0; j<task->NSinkSets; j++) {
-        task->SinkPlan[j].copy_from_pinned_memory((void *)PinnedBuffer.SinkSetAccelerations, task->SinkSetStart[j], task->SinkSetCount[j], (void *)task->SinkAccSlab);
+        task->SinkPlan[j].copy_from_pinned_memory((void *)PinnedBuffer.SinkSetAccelerations, task->SinkSetStart[j], task->SinkSetCount[j], (void *)task->SinkAccSlab, j);
     }
 
     // Declare victory!

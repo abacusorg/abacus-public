@@ -70,10 +70,13 @@ int SinkPencilPlan::load(int x, int y, int z) {
 /// Given the padded list of accelerations in pinned memory, 
 /// copy into the unpadded cells in the given AccSlab.  
 /// This routine is called by the GPU code. 
+/// The value k should be the sinkindex of the pencil, and it is
+/// the caller's responsibility to ensure that this routine is
+/// invoked in the order k=0 -> cpd-1 for each Y=j value in the SIC.
 /// TODO: For now, we do this by simple coaddition, assuming initialization,
 /// but we can soon figure out how to set on the first touch.
 void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start, 
-	int total, void *SinkAccSlab) {
+	int total, void *SinkAccSlab, int sinkindex) {
     // Copy pinacc, which holds the padded list 
     // accstruct[start..start+total)
     //  cells contiguously into pinpos->X[start..start+total), Y[), Z[)
@@ -81,6 +84,7 @@ void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start,
     // start is the offset from the beginning of the buffers
     accstruct *pinacc = (accstruct *)_pinacc+start;
     int cumulative_number = 0;
+    int k = sinkindex%P.cpd;    // Reduce this to the Z index for this pencil
     for (int c=0; c<NFRADIUS*2+1; c++) {
 	int N = cell[c].N;
 	// The pointer math has to be in accstruct; then cast
@@ -88,7 +92,14 @@ void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start,
 	// TODO: Could look ahead to see if the next cell is contiguous,
 	// thereby making only 1 or 2 copies.
 	accstruct *pin = pinacc+cumulative_number;
-	for (int j=0; j<N; j++) p[j] += pin[j];
+	// We now have to decide whether to co-add or assign
+	// We always assign on k=0; otherwise, we assign if c=NFRADIUS*2
+	// and k+c<cpd.
+	if (k==0 || (c==2*NFRADIUS && k+c<P.cpd)) {
+	    for (int t=0; t<N; t++) p[t] = pin[t];
+	} else {
+	    for (int t=0; t<N; t++) p[t] += pin[t];
+	}
         cumulative_number+=N;
     }
     // assertf(cumulative_number<=total, "Pencil contents exceed space supplied");
