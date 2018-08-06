@@ -84,7 +84,7 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
     }
     wc.Stop();
     
-    STDLOG(1, "Before collecting gaps, IL has length %d\n", IL->length);
+    STDLOG(2, "Before collecting gaps, IL has length %d\n", IL->length);
 
     DriftInsert.Start();
     IL->CollectGaps();

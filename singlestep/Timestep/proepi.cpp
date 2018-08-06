@@ -402,6 +402,7 @@ void setup_log(){
     sprintf(logfn,"%s/lastrun.log", P.LogDirectory);
     stdlog.open(logfn);
     STDLOG_TIMESTAMP;
+    STDLOG(0, "Log established with verbosity %d.\n", stdlog_threshold_global);
 }
 
 void check_read_state(int AllowIC, bool &MakeIC, double &da){

@@ -124,9 +124,9 @@ uint64 FillMergeSlab(int slab) {
     // Sort the insert list
     uint64 ilslablength;
 
-    STDLOG(1,"Insert list contains a total of %d particles.\n", IL->length);
+    STDLOG(2,"Insert list contains a total of %d particles.\n", IL->length);
     ilstruct *ILnew = IL->PartitionAndSort(slab,&ilslablength);
-    STDLOG(1,"Insert list contains %d new particles for slab %d\n", ilslablength, slab);
+    STDLOG(1,"Insert list contains %d new particles for slab %d; %d remaining\n", ilslablength, slab, IL->length);
 
     FinishCellIndex.Start();
 
@@ -218,7 +218,7 @@ uint64 FillMergeSlab(int slab) {
             skewer[y].stats(ci, mci);    // Gather the skewer stats
         }
     }
-    STDLOG(0,"Slab %d contains %d old particles and %d new particles\n", slab, inslab, ilslablength);
+    STDLOG(1,"Slab %d contains %d old particles and %d new particles\n", slab, inslab, ilslablength);
 
     // Accumulate the stats for the full slab
     // Scalar loop
@@ -227,20 +227,18 @@ uint64 FillMergeSlab(int slab) {
     // Can refer to these as skewer->variable
 
     // Write out the stats
-    STDLOG(1,"Cell in slab %d range from %d to %d particles\n", slab, skewer->mincellsize, skewer->maxcellsize);
+    STDLOG(1,"Cells in slab %d range from %d to %d particles\n", slab, skewer->mincellsize, skewer->maxcellsize);
     TRACK_MAX(WriteState.MaxCellSize, skewer->maxcellsize);
     TRACK_MIN(WriteState.MinCellSize, skewer->mincellsize);
 
     WriteState.StdDevCellSize += skewer->stddev_cellsize*PP->invcpd3;
 
-    STDLOG(1,"Maximum v_j in slab %d is %f.\n", slab, skewer->max_velocity);
     TRACK_MAX(WriteState.MaxVelocity, skewer->max_velocity);
-
-    STDLOG(1,"Maximum a_j in slab %d is %f.\n", slab, skewer->max_acceleration);
     TRACK_MAX(WriteState.MaxAcceleration, skewer->max_acceleration);
-
-    STDLOG(1,"Minimum <|v|>/amax in slab %d is %f.\n", slab, skewer->min_vrms_on_amax);
     TRACK_MIN(WriteState.MinVrmsOnAmax, skewer->min_vrms_on_amax);
+
+    STDLOG(1, "Slab %d: Max v_j %f, Max a_j %f, Min <|v|>/amax %f\n", 
+    	slab, skewer->max_velocity, skewer->max_acceleration, skewer->min_vrms_on_amax);
 
     WriteState.RMS_Velocity += skewer->sum_square_velocity;
 

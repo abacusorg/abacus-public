@@ -42,7 +42,7 @@ void ComputeTaylorForce(int slab) {
 
 void ComputeMultipoleSlab(int slab) {
     // This routine must use the Merged slabs!
-    STDLOG(1,"Beginning to compute multipoles for slab %d\n", slab);
+    STDLOG(1,"Computing multipoles for slab %d\n", slab);
     ComputeMultipoles.Start();
     MF->ConstructOffsets.Start();
     int cpd = PP->cpd;
@@ -67,7 +67,7 @@ void ComputeMultipoleSlab(int slab) {
     // Recall that our accelerations/positions may be in single-precision.
     posstruct *pos = (posstruct *) LBW->ReturnIDPtr(MergePosSlab,slab);
     uint64 slabsize;
-    STDLOG(1,"Calling multipole module.\n");
+    STDLOG(2,"Calling multipole module.\n");
     MTCOMPLEX *slabmultipoles = (MTCOMPLEX *) LBW->ReturnIDPtr(MultipoleSlab,slab);
     MF->ComputeMultipoleFFTYZ( slab, pos, count, offset, cc, slabmultipoles);
 
