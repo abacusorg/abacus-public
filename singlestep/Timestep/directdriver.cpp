@@ -88,7 +88,7 @@ class NearFieldDriver{
         void ExecuteSlabCPU(int slabID);
         void CheckGPUCPU(int slabID);
         void CheckInteractionList(int slabID);
-        int GetNSplit(uint64 NSource, uint64 NSink);
+        //int GetNSplit(uint64 NSource, uint64 NSink);
         
 };
 
@@ -132,29 +132,34 @@ NearFieldDriver::NearFieldDriver() :
     NGPU = GetNGPU();
     GPUMemoryGB = GetDeviceMemory();
     GPUMemoryGB /= DirectBPD;	// Nominal GB per buffer
+    NBuffers = NGPU*DirectBPD;
     STDLOG(1, "Running with %d GPUs, each with %d Buffers of max size %f GB\n", NGPU, DirectBPD, GPUMemoryGB);
 
     // No need to go crazy if the problem is small.
     // Even if CPD=WIDTH, we'd be loading all of the positions as sources and 
-    // 1/WIDTH as sinks.  So if we have 5x the total positions, we can't lose.
-    GPUMemoryGB = std::min(GPUMemoryGB, 50.0*P.np*1e-9*sizeof(FLOAT3));
+    // 1/WIDTH as sinks WIDTH-times over.  
+    // So if we have 5x the total positions, we can't lose.
+    GPUMemoryGB = std::min(GPUMemoryGB, 5.0*P.np*1e-9*sizeof(FLOAT3)+0.004);
 
     // Don't pin more than 10% of the host memory.
     GPUMemoryGB = std::min(GPUMemoryGB,0.10/(DirectBPD*NGPU)*P.MAXRAMMB/1024);  
 
     STDLOG(1, "Using %f GB of GPU memory (per GPU thread)\n", GPUMemoryGB);
+    MinSplits = NBuffers;
 
+#ifdef OLDCODE
     // The fewest splits will occur when we are operating on the smallest slabs
     MinSplits = GetNSplit(WIDTH*Slab->min, Slab->min);
     MinSplits = std::max(NGPU,(int)floor(.8*MinSplits));  
     	// fudge factor to account for uneven slabs
+#endif
+
     // Put a floor to insist on using all GPUs
     STDLOG(1,"MinSplits = %d\n", MinSplits);
 
-    NBuffers = NGPU*DirectBPD;
     GPUSetup(P.cpd, 1.0e9*GPUMemoryGB, NGPU, DirectBPD, P.GPUThreadCoreStart, P.NGPUThreadCores, &MaxSinkBlocks, &MaxSourceBlocks);
-    STDLOG(1,"Initializing GPU with %f x10^6 sink blocks and %f x10^6 source blocks\n",
-            MaxSinkBlocks/1e6,MaxSourceBlocks/1e6);
+    STDLOG(1,"Initializing GPU with %7.3f x10^3 sink blocks and %7.3f x10^3 source blocks\n",
+            MaxSinkBlocks/1e3,MaxSourceBlocks/1e3);
     // This returns the number of SinkBlocks and number of SourceBlocks
     // that any future SIC is allowed.  Overheads for other bookkeeping
     // has been included in this estimate, so we just need to obey this.
@@ -202,6 +207,7 @@ sink particle 5 times.
 
 */
 
+#ifdef OLDCODE
 // TODO: Can remove this function?
 int NearFieldDriver::GetNSplit(uint64 NSource, uint64 NSink){
     // Pencils are aligned to NFBlocksize boundaries
@@ -225,6 +231,7 @@ int NearFieldDriver::GetNSplit(uint64 NSource, uint64 NSink){
     
     return NSplit;
 }
+#endif
 
 
 // ================ Code to queue up work for the GPU ==================
@@ -263,7 +270,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 	// Trying to bias up to leave the last one short instead of long
     useMaxSink = std::min(useMaxSink, MaxSinkBlocks);
     int useMaxSource = MaxSourceBlocks;
-    STDLOG(1,"Using max sink %d and source %d.\n", useMaxSink, useMaxSource);
+    STDLOG(2,"Using max sink %d and source %d.\n", useMaxSink, useMaxSource);
 
     // Now we want to pack these in
     int SplitPoint[1024]; // Just a crazy number
@@ -436,6 +443,7 @@ int NearFieldDriver::SlabDone(int slab){
 
 
 
+#ifdef OLDCODE
 class CoaddPlan {
   // This is a simple class to queue up a list of copies so they can be
   // executed quickly.
@@ -471,7 +479,7 @@ class CoaddPlan {
 	}
     }
 };
-
+#endif
 
 
 void NearFieldDriver::Finalize(int slab){
