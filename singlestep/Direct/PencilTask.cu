@@ -229,6 +229,7 @@ void GPUPencilTask(void *item, int g){
     // Now copy the data from Pinned back to the SIC buffer
     task->CopyAccelFromPinned.Start();
     //? memcpy(task->SinkSetAccelerations, PinnedBuffer.SinkSetAccelerations, sizeof(accstruct) * NFBlockSize * task->NSinkBlocks);
+    /*
     int nbad = 0;
     for (int j=0; j<NFBlockSize*task->NSinkBlocks; j++) {
 	if (fabs(PinnedBuffer.SinkSetAccelerations[j].x)>1 ||
@@ -237,7 +238,9 @@ void GPUPencilTask(void *item, int g){
 	    fabs(PinnedBuffer.SinkSetAccelerations[j].w)>1) nbad++;
     }
     if (nbad) fprintf(stderr,"%d bad accelerations found\n", nbad);
+    */
 
+    // TODO: Might need to pass j%cpd along, so that one can infer first touch
     for (int j=0; j<task->NSinkSets; j++) {
         task->SinkPlan[j].copy_from_pinned_memory((void *)PinnedBuffer.SinkSetAccelerations, task->SinkSetStart[j], task->SinkSetCount[j], (void *)task->SinkAccSlab);
     }

@@ -119,6 +119,8 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
 #include <vector>
 #include <algorithm>
 void NearFieldDriver::CheckInteractionList(int slab){
+    #ifdef SKIP_THIS_TEST
+    // This routine is probably broken
 
     vector<uint64> ** il = new std::vector<uint64> *[P.cpd*P.cpd];
 
@@ -130,7 +132,7 @@ void NearFieldDriver::CheckInteractionList(int slab){
     SetInteractionCollection ** Slices = SlabInteractionCollections[slab];
     int NSplit = SlabNSplit[slab];
 
-    for(int s = 0; s < WIDTH*NSplit; s++)
+    for(int s = 0; s < NSplit; s++)
         Slices[s]->AddInteractionList(il);
 
 
@@ -188,4 +190,5 @@ void NearFieldDriver::CheckInteractionList(int slab){
     STDLOG(1,"Checking the interaction list for slab %d passed.\n", slab);
     //Checking the interaction list is time-consuming
     //it should never be done in an actual run
+    #endif
 }

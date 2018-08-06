@@ -310,6 +310,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     
     AllocAccels.Start();
     // assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetAccelerations, 4096, sizeof(accstruct) * NPaddedSinks) == 0);
+    SinkSetAccelerations = NULL;   // Just to give a value
     AllocAccels.Stop();
     
     FillSinkLists.Stop();

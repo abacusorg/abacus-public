@@ -671,6 +671,11 @@ void NearFieldDriver::Finalize(int slab){
 #endif  // End new code
 #endif  // End OLDPARTIAL; we don't have any coaddition to do!
 
+    // Just test that AccSlab is not crazy
+    FLOAT *p = (FLOAT *)LBW->ReturnIDPtr(AccSlab, slab);
+    for (int j=0; j<LBW->IDSizeBytes(AccSlab,slab)/sizeof(accstruct)*4; j++) 
+    	assertf(isfinite(p[j]) && abs(p[j])<10, "Accelerations appear crazy\n");
+
     CopyPencilToSlab.Stop();
 
     // Do a final pass to delete all slices

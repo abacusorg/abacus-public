@@ -4,7 +4,6 @@
 void SetInteractionCollection::CPUExecute(){
     // Currently Plummer only
     // TODO: Also, this does not compute FOF densities
-#ifdef NEEDTOFIX
 #ifndef DIRECTPLUMMER
     QUIT("Error: executing CPU pencils with non-Plummer softening is not currently supported.\n");
 #endif
@@ -12,6 +11,9 @@ void SetInteractionCollection::CPUExecute(){
     int WIDTH = 2*P.NearFieldRadius + 1;
     
     FLOAT cpu_eps = JJ->SofteningLengthInternal*JJ->SofteningLengthInternal;
+    
+    // This hasn't been allocated yet, so do it here.
+    assert(posix_memalign((void **) &SinkSetAccelerations, 4096, sizeof(accstruct) * SinkTotal) == 0);
 
     // Copy the sources and sinks into position
     FillSinks.Start();
@@ -112,14 +114,37 @@ void SetInteractionCollection::CPUExecute(){
                 SinkSetAccelerations[id].x = a.x;
                 SinkSetAccelerations[id].y = a.y;
                 SinkSetAccelerations[id].z = a.z;
+		#ifdef COMPUTE_FOF_DENSITY
+		SinkSetAccelerations[id].w = 0.0;
+		#endif
             }
         }
     }
+
+    // TODO: Need to copy back the SinkSetAccel
+    CopyAccelFromPinned.Start();
+    #pragma omp parallel for schedule(dynamic,1)
+    for (int j=0; j<j_width; j++) {
+	// We need each Y skewer to be done by one thread
+	for (int k=0; k<cpd; k++) {
+	    int idx = j*Nk+k;
+	    SinkPlan[idx].copy_from_pinned_memory((void *)SinkSetAccelerations, SinkSetStart[idx], SinkSetCount[idx], (void *)SinkAccSlab);
+	}
+    }
+    CopyAccelFromPinned.Stop();
+
     SetCompleted();
+    free(SinkSetAccelerations);
     delete SinkSetPositions;
     delete SourceSetPositions;
-#endif
 }
+
+
+
+
+
+//  TODO: The following two testing routines are probably broken
+// Might opt to just delete them; this part of the code seems to be working.
 
 void SetInteractionCollection::PrintInteractions(){
 #ifdef NEEDTOFIX
