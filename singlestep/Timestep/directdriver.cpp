@@ -360,10 +360,11 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     // And allocate space for the accelerations
     LBW->AllocateArena(AccSlab,slabID);
 
-    // Initialize the space
+    // Initialize the space -- This should no longer be needed
+    /*
     FLOAT *p = (FLOAT *)LBW->ReturnIDPtr(AccSlab, slabID);
-    // TODO: May be able to get rid of this initialization
     for (int j=0; j<LBW->IDSizeBytes(AccSlab,slabID)/sizeof(accstruct)*4; j++) p[j] = 0.0;
+    */
 
 
     if(P.ForceOutputDebug){
