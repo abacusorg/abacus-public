@@ -50,6 +50,7 @@ class iorequest {
     }
 
     iorequest() {
+	memset(this, 0, sizeof(iorequest));   // Set to zero to appease valgrind
     }
 
     iorequest(
@@ -63,6 +64,7 @@ class iorequest {
         int     _deleteafterwriting,
         int     _blocking) {
         
+	memset(this, 0, sizeof(iorequest));   // Set to zero to appease valgrind
         memory = _memory;
         sizebytes = _sizebytes;
         strncpy(filename, _filename, 1024);
