@@ -394,19 +394,10 @@ void ReportTimings(FILE * timingfile) {
     }
 
     fprintf(timingfile, "\n\n Subdivisions of Kick:");
-    if(JJ){
-        denom = Kick.Elapsed();
-        REPORT(1, "Finalize accelerations", JJ->FinalizeTimer.Elapsed());
-        denom = thistime;
-        REPORT(2, "Bookkeeping/Fetch Timings", JJ->FinalizeBookkeeping.Elapsed());
-        REPORT(2, "Tear Down Pencil Sets", JJ->TearDownPencils.Elapsed());
-        REPORT(2, "Copy Pencil to Slab", JJ->CopyPencilToSlab.Elapsed());
-        fprintf(timingfile,"---> %6.3f GB/sec",P.np/(thistime+1e-15)*6*sizeof(accstruct)/1e9);
-        denom = thistime;
-	REPORT(3, "Copy Pencil to Slab Setup (P)", JJ->CopyPencilToSlabSetup.Elapsed());
-	REPORT(3, "Copy Pencil to Slab Copy  (P)", JJ->CopyPencilToSlabCopy.Elapsed());
-    }
     denom = Kick.Elapsed();
+    if(JJ){
+        REPORT(1, "Finalize accelerations", JJ->FinalizeTimer.Elapsed());
+    }
     REPORT(1, "Add Near + Far Accel", AddAccel.Elapsed());
         fprintf(timingfile,"---> %6.3f GB/sec",P.np/(thistime+1e-15)*3*sizeof(accstruct)/1e9);
     REPORT(1, "Kick Cell", KickCellTimer.Elapsed());

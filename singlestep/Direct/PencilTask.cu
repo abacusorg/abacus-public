@@ -162,10 +162,7 @@ void GPUPencilTask(void *item, int g){
     size_t thissize = 0;
     uint64 size_to_gpu = 0, size_from_gpu = 0;
     StartThroughputTimer(DeviceStreams[g], cudaSuccess, (void *) task);
-    // Zero the device-side accelerations
-    //? Not sure why we need to do this!  The GPU will overwrite at the end
-    //? checkCudaErrors(cudaMemsetAsync(StreamData.SinkSetAccelerations,
-                //? 0 , sizeof(accstruct) * NFBlockSize * task->NSinkBlocks, DeviceStreams[g]));
+
     StreamData.InteractionCount = task->InteractionCount;
     StreamData.b2 = task->b2;
 
@@ -210,7 +207,7 @@ void GPUPencilTask(void *item, int g){
     dim3 dimGrid(task->NSinkBlocks);
     dim3 dimBlock(NFBlockSize);
     ComputeDirects<<<dimGrid,dimBlock,0,DeviceStreams[g]>>>(StreamData,task->eps);
-    // Control won't return until it's done
+    // Control should return immediately, as the CUDA streams are non-blocking
     
     // Copy back results from GPU
     // If the memory is unpinned, this is blocking
@@ -223,6 +220,7 @@ void GPUPencilTask(void *item, int g){
     // It's safe for the next work unit to wipe the host PinnedBuffer once everything's been transferred
     // We could allow sink/source copying while waiting for accels, but we'd need a signalling mechanism from the callback
     task->WaitForResult.Start();
+    // Here is where we block, waiting for all copies/kernel launches in this stream to finish
     checkCudaErrors(cudaStreamSynchronize(DeviceStreams[g]));
     task->WaitForResult.Stop();
 

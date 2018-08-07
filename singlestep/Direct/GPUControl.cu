@@ -460,6 +460,7 @@ void *QueueWatcher(void *_arg){
 
     checkCudaErrors(cudaSetDevice(gpu));
     if (assigned_device < NGPU) {
+        // Only run these the first time a GPU is seen
         checkCudaErrors(cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync));
         checkCudaErrors(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
     }
@@ -477,14 +478,17 @@ void *QueueWatcher(void *_arg){
     // better for returning the data from the GPU.
 
     // Attempt some NUMA specifics
-    // TODO: Was this translated correctly?  Do we need to move hostWC too?
-    // As written, I think this only queries what page something is on.
-    /*
+    
+#ifdef HAVE_LIBNUMA
+    // Query the current NUMA node of the allocated buffers
+    // We are using the move_pages function purely to query NUMA state, not move anything
     int page = -1;
     move_pages(0, 1, (void **) &(Buffers[n].host), NULL, &page, 0);
-    sprintf(logstr, "Pinned buffer for GPU %d allocated on NUMA node %d on core %d\n", gpu, page, assigned_core);
+    sprintf(logstr, "Host buffer for GPU %d allocated on NUMA node %d on core %d\n", gpu, page, assigned_core);
+    move_pages(0, 1, (void **) &(Buffers[n].hostWC), NULL, &page, 0);
+    sprintf(logstr, "Host write-combined buffer for GPU %d allocated on NUMA node %d on core %d\n", gpu, page, assigned_core);
     STDLOG(1, logstr);
-    */
+#endif
 
     thread_setup_done = 1;  // signal that the next thread can start its setup
 
