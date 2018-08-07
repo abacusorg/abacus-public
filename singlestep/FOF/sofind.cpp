@@ -140,43 +140,41 @@ class SOcell {
         return;
     }
 
+    /// Partition on d2buffer<=d2SO in the [start,last) region.
+    /// Also find the index of the densest particle in the high-separation
+    /// region.
+    ///
+    /// We also return 'end', which should be the first index of the high
+    /// separation region, relative to start.  This may differ from 
+    /// what was found externally if there is some conspiracy about 
+    /// floating point equality comparisons of d2.
     int partition_and_index(FOFparticle *p, float *density, float *d2buffer,
-    	float d2SO, int start, int end) {
-	// Partition on d2buffer<=d2SO in the [start,end) region.
-	// Also find the index of the densest particle in the high-separation
-	// region.
-	// TODO: May need to worry about cases of equal d2.  May need to 
-	// return the number in the lower partition.
+    	float d2SO, int start, int last, int &end) {
+
 	float maxdens=-1.0;
 	int densest=-1;
-	if (start==end) return -1;    // Nothing to do, but this should never happen
-	end--;
-	while (1) {
-	    while (start<end && d2buffer[start]<=d2SO) start++;
-	    while (start<end && d2buffer[end]>d2SO) {
-		if (density[end]>maxdens) {
-		    maxdens = density[end]; densest = end;
-		}
-	    	end--;
+	if (start==last) return -1;    // Nothing to do, but this should never happen
+
+        while (start<last && d2buffer[start]<=d2SO) start++;
+		// Advance start to the first high spot
+	while (start<last) {
+	    last--; // Consider next element in the upper list
+	    if (d2buffer[last]<=d2SO) {
+		// We've found an out of place one; flip it with start
+		std::swap(p[start],p[last]);
+		std::swap(density[start],density[last]);
+		std::swap(d2buffer[start],d2buffer[last]);
+		start++;
+		while (start<last && d2buffer[start]<=d2SO) start++;
+		// Advance start to the next high spot
 	    }
-	    if (start>=end) {
-		if (start==end) {
-		    // We've arrived at a last particle with start==end
-		    if (density[end]>maxdens) {
-			maxdens = density[end]; densest = end;
-		    }
-		}
-		break;
+	    // last points at a high particle.  Check if it's the densest
+	    if (density[last]>maxdens) {
+		maxdens = density[last]; densest = last;
 	    }
-	    // Otherwise, we've found a pair to flip
-	    std::swap(p[start],p[end]);
-	    std::swap(density[start],density[end]);
-	    std::swap(d2buffer[start],d2buffer[end]);
-	    if (density[end]>maxdens) {
-		maxdens = density[end]; densest = end;
-	    }
-	    end--; start++;   // Next particles to test
 	}
+	// We're done when start = last.  last is the first high particle
+	end = last-start;
 	return densest;
     }
 
@@ -192,8 +190,9 @@ class SOcell {
 
 	while (start<np) {
 	// Find the densest particle, move it to the front
-	    if (density[densest]<min_central) break;
-	    	// No eligible central is left
+	    if (start>0 && density[densest]<min_central) break;
+	    	// No eligible central is left.  But we always 
+		// try at least one central.
 	    std::swap(p[start], p[densest]);
 	    std::swap(density[start], density[densest]);
 	    // Compute the distances to all of the unassigned particles
@@ -202,12 +201,12 @@ class SOcell {
 	    // Sort the distances in increasing order
 	    memcpy(d2sort, d2buffer, sizeof(float)*len);
 	    std::sort(d2sort, d2sort+len);
-	    // Now sweep in from the end to find the threshold
+	    // Change notation so that start particle is index 1,
+	    // last particle in the list is now np-start
 	    FOFloat *d2 = d2sort-2;   
-	    	// Change notation so that start particle is index 1,
-		// last particle in the list is now np-start
-	    int end;
-	    for (end=len+1; end>1; end--) {
+	    // Now sweep in from the end to find the threshold
+	    int end = len+1;   // Start with the last particle
+	    for (; end>1; end--) {
 		FOFloat x = d2[end]*xthreshold;
 		if (x*sqrt(x)<end) break;
 		    // This particle exceeds the overdensity threshold
@@ -222,7 +221,7 @@ class SOcell {
 	    // need the particles to be radial sorted.
 	    // Use this opportunity to return the index of the densest
 	    // particle in the exterior set.
-	    densest = partition_and_index(p, density, d2buffer, d2SO, start, end);
+	    densest = partition_and_index(p, density, d2buffer, d2SO, start, np, end);
 	    // Mark the group.  Note that the densest particle is first.
 	    groups[ngroups++] = FOFgroup(start,end);
 	    start += end;
