@@ -122,7 +122,7 @@ uint64 ComputeSICSize(int cpd, int np, int WIDTH, int NSplit) {
     size += (sizeof(int)+sizeof(FLOAT)) * WIDTH*NSinkSet;
     size += (sizeof(int)) * NSinkBlocks;
 
-    STDLOG(1,", Nsink = %d, NSource = %d, Nblocks = %d, size = %d\n",
+    STDLOG(1,"Nsink = %d, NSource = %d, Nblocks = %d, size = %d\n",
     	NSinkSet, NSourceSet, NSinkBlocks, size);
 
     /*

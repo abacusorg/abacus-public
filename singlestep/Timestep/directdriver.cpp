@@ -134,12 +134,13 @@ NearFieldDriver::NearFieldDriver() :
     NBuffers = NGPU*DirectBPD;
     STDLOG(1, "Running with %d GPUs, each with %d Buffers of max size %f GB\n", NGPU, DirectBPD, GPUMemoryGB);
 
-    // No need to go crazy if the problem is small.
+    // No need to go crazy if the problem is small.  But small 
+    // problems can be highly clustered.
     // Even if CPD=WIDTH, we'd be loading all of the positions as sources and 
     // 1/WIDTH as sinks WIDTH-times over.  That's 2*WIDTH FLOAT3 + WIDTH FLOAT4,
-    // divided over NBuffers.  Then we divide by CPD.
-    // Round up by a factor of 2 and an extra 4 MB, just to be generous
-    GPUMemoryGB = std::min(GPUMemoryGB, P.np*1e-9*sizeof(accstruct)*3*WIDTH/P.cpd/NBuffers*2+0.004);
+    // divided over NBuffers.  
+    // Round up by a factor of 1.3 and an extra 4 MB, just to be generous
+    GPUMemoryGB = std::min(GPUMemoryGB, P.np*1e-9*sizeof(accstruct)*3*WIDTH/NBuffers*1.3+0.004);
 
     // GPUMemoryGB = std::min(GPUMemoryGB, 5.0*P.np*1e-9*sizeof(FLOAT3)+0.004);
 
