@@ -60,12 +60,6 @@ class NearFieldDriver{
         STimer SICExecute;
         STimer CPUFallbackTimer;
         STimer FinalizeTimer;
-        STimer FinalizeBookkeeping;
-        STimer CopyPencilToSlab;
-        PTimer CopyPencilToSlabSetup;
-        PTimer CopyPencilToSlabCopy;
-        STimer TearDownPencils;
-        STimer ZeroAccel;
 
     private:
         int *slabcomplete;
@@ -503,26 +497,22 @@ class CoaddPlan {
 
 
 void NearFieldDriver::Finalize(int slab){
-    // When all of the SIC are finished, call this routine.
-    // It will coadd all of the partial accelerations back into AccSlab,
-    // accumulate the timings and statistics, 
-    // and then delete the SIC.
-    slab = PP->WrapSlab(slab);
-
 #ifndef CUDADIRECT
     return;
 #endif
+
     FinalizeTimer.Start();
-    FinalizeBookkeeping.Start();
+
+    // When all of the SIC are finished, call this routine.
+    // It will accumulate the timings and statistics, 
+    // and then delete the SIC.
+    slab = PP->WrapSlab(slab);
 
     assertf(SlabDone(slab) != 0,
             "Finalize called for slab %d but it is not complete\n",slab);
 
     if(P.ForceOutputDebug)
         CheckInteractionList(slab);
-    
-    // Allocate the space to hold the co-added NF acceleration
-    //? LBW->AllocateArena(AccSlab,slab);
 
     SetInteractionCollection ** Slices = SlabInteractionCollections[slab];
     int NSplit = SlabNSplit[slab];
@@ -560,123 +550,6 @@ void NearFieldDriver::Finalize(int slab){
         DeviceSources[g] += Slice->SourceTotal;
     }
 
-    FinalizeBookkeeping.Stop();
-    
-    CopyPencilToSlab.Start();    
-
-#ifdef OLDPARTIAL
-#ifdef OLDCODE
-    // We're now going to coadd the partial accelerations
-    // This first loop is over Y rows, each handled by a different thread
-    #pragma omp parallel for schedule(static)
-    for (int j=0; j<cpd; j++) {
-        // We're going to find all the Sets associated with this row.
-        // There are WIDTH of them, one for each z registration
-	CopyPencilToSlabSetup.Start();
-        SetInteractionCollection *theseSlices[WIDTH];
-        for (int w=0; w<WIDTH; w++)
-            theseSlices[w] = NULL;
-        for (int sliceIdx=0; sliceIdx< NSplit*WIDTH; sliceIdx++) {
-        // Just doing an exhaustive search, so we assume less about
-        // the upstream data model.
-            if (j >= Slices[sliceIdx]->j_low && j < Slices[sliceIdx]->j_high) {
-               // We've found a Slice.
-               // Compute which z-registration this is.
-               theseSlices[Slices[sliceIdx]->k_mod] = Slices[sliceIdx];
-            }
-        }
-        for (int w=0; w<WIDTH; w++)
-            assertf(theseSlices[w] != NULL, "We failed to find all z-registrations");
-	CoaddPlan copyplan[cpd*(2*nfr+1)];
-	int nplan = 0;
-
-        // We're going to set the acceleration the first time we encounter
-        // a cell.  The cells are encountered in z order, starting from 
-        // z=0 and increasing.  That means that when we get to z=cpd,
-        // we've already been there once.
-        int firsttouch = 0;
-        
-        // Now we're going to proceed through the pencils in the Z direction
-        for (int kk=0; kk<cpd; kk++) {
-            int k_mod = kk%WIDTH;   // This is which registration we're in
-            SetInteractionCollection *Slice = theseSlices[k_mod];
-            int k = (kk-Slice->k_mod)/Slice->nfwidth;
-            int sinkIdx = (j - Slice->j_low)*Slice->Nk + k;
-
-            // And now we can continue with the previous stuff
-            int SinkCount = Slice->SinkSetCount[sinkIdx];
-            int zmid = PP->WrapSlab(kk + Slice->nfradius);
-            int Start = Slice->SinkSetStart[sinkIdx];
-
-            for(int z=zmid-Slice->nfradius; z <= zmid+Slice->nfradius; z++){
-                int CellNP = PP->NumberParticle(slab,j,z);
-                accstruct *a = PP->NearAccCell(slab,j,z);
-
-                if(P.ForceOutputDebug == 1){
-                    for(int p =0; p < CellNP; p++){
-                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].x));
-                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].y));
-                        assert(isfinite(Slice->SinkSetAccelerations[Start +p].z));
-                    }
-                }
-
-                // Set when this is the first touch; accumulate otherwise
-                if(z==firsttouch && z<cpd){
-                    firsttouch++;
-		    copyplan[nplan++].plan(a, Slice->SinkSetAccelerations+Start, CellNP, 1);
-                } else {
-		    copyplan[nplan].plan(a, Slice->SinkSetAccelerations+Start, CellNP, 0);
-		    // We attempt to concatentate this one to the previous.
-		    // nplan=0 always went to the initialization branch, so
-		    // there's no risk that nplan-1 is illegal.
-		    if (copyplan[nplan-1].append(copyplan[nplan])) nplan++;
-                }
-
-                Start+=CellNP;
-                SinkCount-=CellNP;
-            }
-            assert(SinkCount == 0);
-        }
-	CopyPencilToSlabSetup.Stop();
-	CopyPencilToSlabCopy.Start();
-	for (int p=0; p<nplan; p++) copyplan[p].execute();
-	CopyPencilToSlabCopy.Stop();
-    }
-#else   // Here's the new code
-
-    // We need to coadd the 5 partial accelerations
-    uint64 NSink = Slab->size(slab);
-    accstruct *acctot = (accstruct *)LBW->ReturnIDPtr(AccSlab, slab);
-    accstruct *accpart[WIDTH];
-    accpart[0] = (accstruct *)LBW->ReturnIDPtr(PartialAccSlab, slab);
-    for (int s=1; s<WIDTH; s++) accpart[s] = accpart[s-1] + NSink;
-
-// TODO: Restore this pragma
-//    #pragma omp parallel for schedule(static)
-    for (int j=0; j<cpd; j++) {
-	uint64 start = PP->CellInfo(slab,j,0)->startindex;
-	uint64 end = NSink;
-	if (j<cpd-1) end = PP->CellInfo(slab,j+1,0)->startindex;
-	int nbad[5] = { 0,0,0,0,0};
-	for (uint64 p=start; p<end; p++) {
-	    accstruct tot;
-	    for (int s=0; s<WIDTH; s++) 
-	    	if( !(fabs(accpart[s][p].x)<1) ) nbad[s]++;
-		    // fprintf(stderr, "Acceleration too big %d %lu\n", s, p);
-		    // accpart[s][p].x, accpart[s][p].y, accpart[s][p].z, accpart[s][p].w);
-	    tot = accpart[0][p];
-	    // TODO: Might be worth writing something that is easier to unroll
-	    for (int s=1; s<WIDTH; s++) 
-		tot += accpart[s][p];
-	    acctot[p] = tot;
-	}
-	fprintf(stderr,"%d %d %d %d %d bad entries in pencil %d of slab %d\n", 
-	    nbad[0], nbad[1], nbad[2], nbad[3], nbad[4], j, slab);
-    }
-
-#endif  // End new code
-#endif  // End OLDPARTIAL; we don't have any coaddition to do!
-
     // Just test that AccSlab is not crazy
     /*
     FLOAT *p = (FLOAT *)LBW->ReturnIDPtr(AccSlab, slab);
@@ -684,24 +557,17 @@ void NearFieldDriver::Finalize(int slab){
     	assertf(isfinite(p[j]) && abs(p[j])<10, "Accelerations appear crazy\n");
     */
 
-    CopyPencilToSlab.Stop();
-
     // Do a final pass to delete all slices
-    TearDownPencils.Start();
     for(int sliceIdx = 0; sliceIdx < NSplit; sliceIdx++){
         SetInteractionCollection *Slice = Slices[sliceIdx];
         delete Slice;
     }
     LBW->DeAllocate(NearField_SIC_Slab, slab);
-    //?LBW->DeAllocate(PartialAccSlab, slab);
     delete[] Slices;
-    TearDownPencils.Stop();
     
     if(P.ForceOutputDebug) CheckGPUCPU(slab);
     FinalizeTimer.Stop();
 }
-    
-
 
 
 NearFieldDriver *JJ;
