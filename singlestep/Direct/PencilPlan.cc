@@ -56,7 +56,6 @@ int SinkPencilPlan::load(int x, int y, int z) {
 	cellinfo *info = PP->CellInfo(x,y,zc);
         cell[c].start = info->startindex;
         cell[c].N = info->count;
-        //? cell[c].pos = PP->PosXYZCell(x,y,zc);
         total += (int) cell[c].N;
         #ifdef GLOBAL_POS
             // Can use the z cell number to do this.
@@ -154,8 +153,6 @@ int SourcePencilPlan::load(int x, int y, int z) {
 	cellinfo *info = PP->CellInfo(xc,y,z);
 	cell[c].start = info->startindex;
 	cell[c].N = info->count;
-
-        //? cell[c].pos = PP->PosXYZCell(xc,y,z);
         total += (int) cell[c].N;
         #ifdef GLOBAL_POS
             // Can use the x cell number to do this.

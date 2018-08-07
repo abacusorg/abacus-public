@@ -48,8 +48,6 @@ public:
     unsigned int start;   //< The starting position of the posXYZ for this cell
     int N;	//< The number of particles in this cell
 
-    //? List3<FLOAT> pos;
-    
     #ifdef GLOBAL_POS
     FLOAT offset;
     // The offset to be applied to x or z, relative to the center cell
@@ -147,12 +145,10 @@ class SetInteractionCollection{
 	void  *SinkPosSlab;    //< Ptr to the start of the PosXYZ slab
 	void  *SourcePosSlab[2*NFRADIUS+1];    //< Ptr to the start of the PosXYZ slabs for Sources
 	void *SinkAccSlab;  //< Ptr to the start of the slab of accelerations for this sink slab
-	//? void *SinkPartialAccSlab;  //< Ptr to the start of the slab of accelerations for this Z modulus.
 
         int *           SinkSetStart; //The index in the Sink Pos/Acc lists where this set begins
         int *           SinkSetCount; //The number of particles in the SinkSet
         int *           SinkSetIdMax; //The sum of the above, i.e., the end of the Sink Pencil.  
-		// TODO: Might prefer to code this out, but it is vastly less than the pos/acc data
         SinkPencilPlan *           SinkPlan; // The plan for this pencil
         accstruct *        SinkSetAccelerations; //Where the computed accelerations for the collection will be stored
 
