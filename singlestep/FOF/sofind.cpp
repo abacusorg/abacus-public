@@ -45,7 +45,7 @@ We are not implementing any unbinding here.
 
 */
 
-class SOfind {
+class SOcell {
   public:
     FOFparticle *p;     ///< The particles
     float *density;	///< The densities
@@ -62,7 +62,8 @@ class SOfind {
     int ngroups;        ///< The number of groups
     
     FOFTimer time_total;
-    FOFTimer time_so;
+    FOFTimer time_copy;
+    long long numdists;
 
     char pad[64];    // Just to ensure an array of these always fall on
         // a different cache line
@@ -152,6 +153,7 @@ class SOfind {
 		    maxdens = density[end]; densest = end;
 		}
 	    	end--;
+	    }
 	    if (start>=end) {
 		if (start==end) {
 		    // We've arrived at a last particle with start==end
@@ -176,7 +178,12 @@ class SOfind {
 
     void greedySO() {
 	int start = 0;	// Index of the first particle of the current group
-	int densest = index_of_densest(start,np);
+	int densest = -1; 
+	float maxdens = -1.0;
+	for (int j=0; j<np; j++) 
+	    if (density[j]>maxdens) {
+	    	maxdens=density[j]; densest = j; 
+	    }
 
 	while (start<np) {
 	// Find the densest particle, move it to the front
@@ -186,7 +193,7 @@ class SOfind {
 	    std::swap(density[start], density[densest]);
 	    // Compute the distances to all of the unassigned particles
 	    int len = np-start-1;
-	    compute_d2(p+start, p+start+1, len, d2buffer);
+	    compute_d2(p+start, p+start+1, len, d2buffer, numdists);
 	    // Sort the distances in increasing order
 	    memcpy(d2sort, d2buffer, sizeof(float)*len);
 	    std::sort(d2sort, d2sort+len);
@@ -194,6 +201,7 @@ class SOfind {
 	    FOFloat *d2 = d2sort-2;   
 	    	// Change notation so that start particle is index 1,
 		// last particle in the list is now np-start
+	    int end;
 	    for (end=len+1; end>1; end--) {
 		FOFloat x = d2[end]*xthreshold;
 		if (x*sqrt(x)<end) break;
@@ -244,5 +252,6 @@ class SOfind {
 	time_total.Stop();
 	return ngroups;
     }
+};
 
 

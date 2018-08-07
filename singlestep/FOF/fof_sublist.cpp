@@ -279,6 +279,47 @@ inline void diff2avx8(float *r, float *p, float *a) {
 
 #endif
 
+float *compute_d2(FOFparticle *primary, FOFparticle *list, int nlist, float *d2buf, long long &numdists) {
+    // Return a pointer to a zero-indexed list of floats containing the 
+    // square distances between primary and list[0,nlist).
+    // d2buf is 16-byte aligned space that we supply for the output,
+    // but the returned pointer may not point to the start of it,
+    // since we have to attend to alignment..
+    float *d2use;
+
+    // This depends on the registration of unassigned.
+    // AVX requires the float4 list to be 32-byte aligned
+    // We assume that p is 32-byte aligned.
+    // if (((list-p)&1)==0) {
+    if (((uintptr_t)list)%32==0) {
+	// We have an even registration
+	d2use = d2buf;
+	//#pragma unroll
+	for (int a=0; a<nlist; a+=4)
+		    #ifdef AVXFOF
+		    diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
+		    #else
+		    diff2by4(d2use+a, primary, list+a);
+		    #endif
+		    //d2use[a] = primary->diff2(list+a);  // with ICC, this is actually the same speed
+    } else {
+	// We have an odd registration.  Do the first object special.
+	d2use = d2buf+3;
+	//? d2use[0] = primary->diff2(list);
+	d2use[0] = primary->diff2v(list);
+	//#pragma unroll
+	for (int a=1; a<nlist; a+=4)
+		    #ifdef AVXFOF
+		    diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
+		    #else
+		    diff2by4(d2use+a, primary, list+a);
+		    #endif
+		    //d2use[a] = primary->diff2(list+a);
+    }
+    numdists += nlist;
+    return d2use;
+}
+
 
 // Assume that FOFgroup is divisible by 16 and that the __m128 
 // elements will be 16-byte aligned for SSE.
@@ -487,46 +528,6 @@ class FOFcell {
 
     // ============  Some helper routines for the FOF work ============
 
-    inline float *compute_d2(FOFparticle *primary, FOFparticle *list, int nlist, float *d2buf) {
-        // Return a pointer to a zero-indexed list of floats containing the 
-	// square distances between primary and list[0,nlist).
-	// d2buf is 16-byte aligned space that we supply for the output,
-	// but the returned pointer may not point to the start of it,
-	// since we have to attend to alignment..
-	float *d2use;
-
-	// This depends on the registration of unassigned.
-	// AVX requires the float4 list to be 32-byte aligned
-	// We assume that p is 32-byte aligned.
-	if (((list-p)&1)==0) {
-	    // We have an even registration
-	    d2use = d2buf;
-	    //#pragma unroll
-	    for (int a=0; a<nlist; a+=4)
-			#ifdef AVXFOF
-			diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
-			#else
-			diff2by4(d2use+a, primary, list+a);
-			#endif
-			//d2use[a] = primary->diff2(list+a);  // with ICC, this is actually the same speed
-	} else {
-	    // We have an odd registration.  Do the first object special.
-	    d2use = d2buf+3;
-	    //? d2use[0] = primary->diff2(list);
-	    d2use[0] = primary->diff2v(list);
-	    //#pragma unroll
-	    for (int a=1; a<nlist; a+=4)
-			#ifdef AVXFOF
-			diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
-			#else
-			diff2by4(d2use+a, primary, list+a);
-			#endif
-			//d2use[a] = primary->diff2(list+a);
-	}
-	numdists += nlist;
-	return d2use;
-    }
-
     inline void add_to_pending(FOFparticle *&b, FOFparticle *a, 
     		FOFparticle &BBmin, FOFparticle &BBmax) {
 	// We're going to add 'a' to our pending queue, 
@@ -699,7 +700,7 @@ class FOFcell {
 
 		pending_notcore = unassigned_core;
 		float *d2use = compute_d2(primary, unassigned_core, 
-	    		unassigned_far-unassigned_core, d2buffer);
+	    		unassigned_far-unassigned_core, d2buffer, numdists);
 		for (FOFparticle *a = unassigned_core; a<unassigned_skin; a++, d2use++) {
 		    // numdists++;
 		    if (*d2use<b2) 
@@ -726,7 +727,7 @@ class FOFcell {
 
 		// We need to compute the distance to all remaining particles
 		float *d2use = compute_d2(primary, primary+1,
-				    end-(primary+1), d2buffer);
+				    end-(primary+1), d2buffer, numdists);
 
 		// Sweep the partition list to partition core vs notcore.
 		pending_notcore = unassigned_core;
@@ -775,7 +776,7 @@ class FOFcell {
 	    primary++;
 	    while (primary<pending_notcore) {
 		float *d2use = compute_d2(primary, unassigned_core, 
-	    		unassigned_far-unassigned_core, d2buffer);
+	    		unassigned_far-unassigned_core, d2buffer, numdists);
 		// Now consider this particle
 		for (FOFparticle *a = unassigned_core; a<unassigned_skin; a++, d2use++) {
 		    // numdists++;
@@ -837,7 +838,7 @@ class FOFcell {
 	while (primary<end) {
 	    // First, we're going to compute the distances to [unassigned,end).
 	    // These will start in d2use[0].
-	    float *d2use = compute_d2(primary, unassigned, end-unassigned, d2buffer);
+	    float *d2use = compute_d2(primary, unassigned, end-unassigned, d2buffer, numdists);
 	    for (FOFparticle *a = unassigned; a<end; a++,d2use++) {
 		// numdists++;
 		if (*d2use<b2) add_to_pending(unassigned, a, BBmin, BBmax);
@@ -941,6 +942,7 @@ class FOFcell {
 
 
 
+#include "sofind.cpp"
 
 
 
