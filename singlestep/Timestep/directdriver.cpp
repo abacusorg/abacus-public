@@ -82,7 +82,6 @@ class NearFieldDriver{
         void ExecuteSlabCPU(int slabID);
         void CheckGPUCPU(int slabID);
         void CheckInteractionList(int slabID);
-        //int GetNSplit(uint64 NSource, uint64 NSink);
         
 };
 
@@ -145,13 +144,6 @@ NearFieldDriver::NearFieldDriver() :
     STDLOG(1, "Using %f GB of GPU memory (per GPU thread)\n", GPUMemoryGB);
     MinSplits = NBuffers;
 
-#ifdef OLDCODE
-    // The fewest splits will occur when we are operating on the smallest slabs
-    MinSplits = GetNSplit(WIDTH*Slab->min, Slab->min);
-    MinSplits = std::max(NGPU,(int)floor(.8*MinSplits));  
-    	// fudge factor to account for uneven slabs
-#endif
-
     // Put a floor to insist on using all GPUs
     STDLOG(1,"MinSplits = %d\n", MinSplits);
 
@@ -204,33 +196,6 @@ that we can make a better estimate.  The skewer will have each
 sink particle 5 times.
 
 */
-
-#ifdef OLDCODE
-// TODO: Can remove this function?
-int NearFieldDriver::GetNSplit(uint64 NSource, uint64 NSink){
-    // Pencils are aligned to NFBlocksize boundaries
-    // Best case: we will have ~NSource/NFBlocksize blocks
-    // Worst case: We have all but one pencil NFBlocksize + 1 long 
-    //            with last pencil holding the rest
-    int N1 = 2*( P.cpd*(P.cpd + WIDTH) -1 );
-    int N2 =std::ceil( (NSource -( NFBlockSize + 1.0) * ( P.cpd*(P.cpd + WIDTH) -1 ))/(1.0*NFBlockSize) + 1);
-    if (N2 < 0) N2 = 0; //if we don't have at least GPUBlocksize particles per pencil, this calculation fails
-    
-    int SourceBlocks = N1 + N2;
-    
-    N1 = 2*(P.cpd*P.cpd -1);
-    N2 =std::ceil( (NSink -( NFBlockSize + 1.0) * ( P.cpd*(P.cpd) -1 ))/(1.0*NFBlockSize) + 1);
-    if (N2 < 0) N2 = 0;
-    int SinkBlocks = N1 + N2;
-    
-    int NSplitSource = std::ceil((1.0*SourceBlocks)/MaxSourceBlocks);
-    int NSplitSink = std::ceil((1.0*SinkBlocks)/MaxSinkBlocks);
-    const int NSplit = std::max(NSplitSource,NSplitSink);
-    
-    return NSplit;
-}
-#endif
-
 
 // ================ Code to queue up work for the GPU ==================
 
@@ -313,41 +278,6 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     SlabNSplit[slabID] = NSplit;
     SlabInteractionCollections[slabID] = new SetInteractionCollection *[NSplit];
 
-
-#ifdef OLDCODE
-
-    //Add up the sources
-    uint64 NSource = 0;
-    for(int i = slabID-RADIUS; i <= slabID + RADIUS; i++) NSource+=Slab->size(i);
-
-    const int NSplit = std::max(MinSplits,GetNSplit(NSource, NSink));
-    assertf(NSplit >= MinSplits, "NSplit (%d) is less than MinSplits (%d)\n", NSplit, MinSplits);
-    STDLOG(1,"Splitting slab %d into %d blocks for directs.\n",slabID,NSplit);
-    SlabNSplit[slabID] = NSplit;
-    
-    uint64 NPTarget = NSink/NSplit;
-    int SplitPoint[NSplit];
-
-    int yl = 0;
-    for(int i =0; i < NSplit -1; i++){
-        uint64 NPBlock = 0;
-        int yh = yl;
-        while(NPBlock < NPTarget && yh < P.cpd){
-            for(int k =0; k < P.cpd; k++) NPBlock+=PP->NumberParticle(slabID,yh,k);
-            yh++;
-        }
-        SplitPoint[i] = yh;
-        yl = yh;
-    }
-    SplitPoint[NSplit-1] = P.cpd;
-
-    if (NSplit > 1) {
-        STDLOG(1,"Direct splits for slab %d are at: \n",slabID);
-        for(int i = 0; i < NSplit -1; i++)
-            STDLOG(1,"\t\t\t\t %d: %d \n",i,SplitPoint[i]);
-    }
-#endif
-
     CalcSplitDirects.Stop();
 
     // Now we need to make the NearField_SIC_Slab
@@ -375,43 +305,40 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
                 
                 for(int i = 0; i < count; i++)
                     acc[i] = accstruct(std::numeric_limits<float>::infinity());
-                    //acc[i] = accstruct(0.);
             }
         }
     }
 
-    //? for(int k_mod = 0; k_mod < WIDTH; k_mod++){
-        int jl =0;
-        for(int n = 0; n < NSplit; n++){
-            // We may wish to make these in an order that will alter between GPUs
-            int jh = SplitPoint[n];
-            // The construction and execution are timed internally in each SIC then reduced in Finalize(slab)
-	    // This is where the SetInteractionCollection is actually constructed
-	    // STDLOG(1,"Entering SIC Construction with %d bytes\n", bsize);
-            SlabInteractionCollections[slabID][n] = 
-                new SetInteractionCollection(slabID,jl,jh,WriteState.DensityKernelRad2, buffer, bsize);
-	    // STDLOG(1,"Leaving SIC Construction with %d bytes\n", bsize);
-            
-            // Check that we have enough blocks
-            int NSinkBlocks = SlabInteractionCollections[slabID][n]->NSinkBlocks;
-            int NSourceBlocks = SlabInteractionCollections[slabID][n]->NSourceBlocks;
-            assertf(NSinkBlocks <= MaxSinkBlocks,
-                    "NSinkBlocks (%d) is larger than MaxSinkBlocks (%d)\n", NSinkBlocks, MaxSinkBlocks);
-            assertf(NSourceBlocks <= MaxSourceBlocks,
-                    "NSourceBlocks (%d) is larger than MaxSourceBlocks (%d)\n", NSourceBlocks, MaxSourceBlocks);
-            
-            STDLOG(1,"Executing directs for slab %d, y: %d - %d\n",slabID,jl,jh);
-            SICExecute.Start();
-	    // This SIC is ready; send it to be executed
-            SlabInteractionCollections[slabID][n]->GPUExecute(blocking);
-            //SlabInteractionCollections[slabID][n]->CPUExecute();
-            SICExecute.Stop();
-            jl = jh;
-        }
-    //}
+    int jl =0;
+    for(int n = 0; n < NSplit; n++){
+	// We may wish to make these in an order that will alter between GPUs
+	int jh = SplitPoint[n];
+	// The construction and execution are timed internally in each SIC then reduced in Finalize(slab)
+	// This is where the SetInteractionCollection is actually constructed
+	// STDLOG(1,"Entering SIC Construction with %d bytes\n", bsize);
+	SlabInteractionCollections[slabID][n] = 
+	    new SetInteractionCollection(slabID,jl,jh,WriteState.DensityKernelRad2, buffer, bsize);
+	// STDLOG(1,"Leaving SIC Construction with %d bytes\n", bsize);
+	
+	// Check that we have enough blocks
+	int NSinkBlocks = SlabInteractionCollections[slabID][n]->NSinkBlocks;
+	int NSourceBlocks = SlabInteractionCollections[slabID][n]->NSourceBlocks;
+	assertf(NSinkBlocks <= MaxSinkBlocks,
+		"NSinkBlocks (%d) is larger than MaxSinkBlocks (%d)\n", NSinkBlocks, MaxSinkBlocks);
+	assertf(NSourceBlocks <= MaxSourceBlocks,
+		"NSourceBlocks (%d) is larger than MaxSourceBlocks (%d)\n", NSourceBlocks, MaxSourceBlocks);
+	
+	STDLOG(1,"Executing directs for slab %d, y: %d - %d\n",slabID,jl,jh);
+	SICExecute.Start();
+	// This SIC is ready; send it to be executed
+	SlabInteractionCollections[slabID][n]->GPUExecute(blocking);
+	//SlabInteractionCollections[slabID][n]->CPUExecute();
+	SICExecute.Stop();
+	jl = jh;
+    }
+
     STDLOG(1, "%l bytes remaining after SIC allocation on slab %d (%4.1f%% unused)\n", 
-    	bsize, slabID, 100.0*bsize/LBW->IDSizeBytes(NearField_SIC_Slab, slabID));
-    	
+	bsize, slabID, 100.0*bsize/LBW->IDSizeBytes(NearField_SIC_Slab, slabID));
     return;
 }
 
@@ -454,46 +381,6 @@ int NearFieldDriver::SlabDone(int slab){
 
     return 1;
 }
-
-
-
-#ifdef OLDCODE
-class CoaddPlan {
-  // This is a simple class to queue up a list of copies so they can be
-  // executed quickly.
-  public:
-    accstruct *to, *from;
-    int np;
-    int qinitialize;   // =1 if one is setting the value, =0 if coadding
-    CoaddPlan() { }
-    ~CoaddPlan() { }
-    inline void plan(accstruct *_to, accstruct *_from, 
-    			int _np, int _qinitialize) {
-	to = _to; from = _from; np = _np; qinitialize = _qinitialize;
-    }
-    inline int append(CoaddPlan &next) {
-	// Consider whether next could be simply appended to this.
-	// Return 0 if successful, 1 if not.
-	if (qinitialize==next.qinitialize &&
-	    from+np == next.from && 
-	    to+np == next.to) {
-	    np += next.np; return 0;
-        } else return 1;
-    }
-    inline void execute() {
-	if(qinitialize) {
-	    memcpy(to, from, np*sizeof(accstruct));
-	    // #pragma simd assert
-	    // for(int p = 0; p <np; p++)
-		// to[p] = from[p];
-	} else {
-	    #pragma simd assert
-	    for(int p = 0; p <np; p++)
-		to[p] += from[p];
-	}
-    }
-};
-#endif
 
 
 void NearFieldDriver::Finalize(int slab){
@@ -575,52 +462,3 @@ NearFieldDriver *JJ;
 #include "PencilOnPencil.cc"
 #include "PencilPlan.cc"
 
-
-
-
-
- /*
- * FIXME: DWF reccomends refactoring this class to reduce its direct responsibilities. 
- * It has turned into a bit of a God class---NearFieldDriver is currently directly responsible for:
- *  1. Initializing the CPU directs
- *  2. Initializing the GPU
- *  3. Directly executing the procedures for CPU and GPU calculation
- *  4. Calculating and reporting timings for all of the above.
- *  5. Directly cleaning up many parts of the above.
- *
- *  This is basically untestable, and leads to lots of interdependent but widely seperated code.
- *
- * This should be refactored into something like the following hierarchy:
- * class NearFieldDriver:
- *  Top level abstraction layer that sends commands to a specified calculation module. 
- *  Calculation modules must implement 
- *  interface NearFieldCalculator:
- *      Exposes a common set of controls for different types of direct module.
- *      Each implementation should be solely responsible for its own initialization/tear-down
- *      Implemented by:
- *          Class CPUDirectCalculator:
- *              Performs the direct calculation on the CPU. Very simple
- *          Class AVXDirectCalculator:
- *              Performs the direct calculation via AVX on the CPU. 
- *          Class GPUDirectCalculator:
- *              Abstracts away all of the GPU initialization and calculation complexities.
- *              Should probably only be an abstraction layer on top of several classes that
- *              hand GPU memory management, computation, and synchronization
- *      Each implementation that uses PencilOnPencil should take a DirectPencilFactory * in its
- *      constructor that abstracts that away from the rest of the direct computation. The 
- *      DirectPencilFactory should take a slab and its cellinfo, and should return a newly
- *      contructed SetInteractionCollection
- *      Should contain methods like the following:
- *          void ExecuteSlab(..., DirectTimings * timer):
- *              Orders the Direct execution for the specified slab. Uses timer for timings.
- *              Pencil creation is abstracted to the DirectPencilFactory
- *          bool IsNearFieldDoneForSlab(..., DirectTimings *timer):
- *              Queries completion of the slab. Replaces SlabDone
- *          void CleanUpSlab(..., DirectTimings *timer):
- *              Replaces Finalize. Collects timings and frees all memory associated
- *              with calculating the directs for the slab.
- *
- *  This will be much simpler to understand, easier to make mocks for, and much easier to test. 
- *  The common code between directs and microstepping will also be much easier to extract into 
- *  seperate classes. 
- */
