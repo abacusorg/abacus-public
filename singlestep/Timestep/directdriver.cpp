@@ -51,6 +51,7 @@ class NearFieldDriver{
         double     WaitForResult = 0;
         double     CopyAccelFromPinned = 0;
 
+	int MaxNSplits = 0;
     
         double *GB_to_device, *GB_from_device;
         uint64 *DeviceSinks;
@@ -148,6 +149,7 @@ NearFieldDriver::NearFieldDriver() :
 
     STDLOG(1, "Using %f GB of GPU memory (per GPU thread)\n", GPUMemoryGB);
     MinSplits = NBuffers;
+    MaxNSplits = MinSplits;
 
     // Put a floor to insist on using all GPUs
     STDLOG(1,"MinSplits = %d\n", MinSplits);
@@ -281,6 +283,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     delete[] SourceBlocks;
 	
     SlabNSplit[slabID] = NSplit;
+    MaxNSplits = std::max(MaxNSplits, NSplit);
     SlabInteractionCollections[slabID] = new SetInteractionCollection *[NSplit];
 
     CalcSplitDirects.Stop();
@@ -483,6 +486,8 @@ void NearFieldDriver::AggregateStats(){
     for(int s = 0; s < P.cpd; s++)
         mean_splits_per_slab += SlabNSplit[s];
     mean_splits_per_slab /= P.cpd;
+
+    STDLOG(0, "Maximum NSplits used in Directs\n", MaxNSplits);
 
 #endif
 }
