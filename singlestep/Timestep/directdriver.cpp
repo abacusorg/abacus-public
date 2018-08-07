@@ -61,6 +61,12 @@ class NearFieldDriver{
         STimer CPUFallbackTimer;
         STimer FinalizeTimer;
 
+        void AggregateStats();  // Called before shutdown
+        // The following totals are filled in by AggregateStats()
+        double GPUThroughputTime = 0;
+        double total_GB_to = 0, total_GB_from = 0, total_sinks = 0, total_sources = 0, gdi_gpu = 0;
+        double mean_splits_per_slab = 0;
+
     private:
         int *slabcomplete;
         int * SlabNSplit;
@@ -83,7 +89,6 @@ class NearFieldDriver{
         void CheckGPUCPU(int slabID);
         void CheckInteractionList(int slabID);
         //int GetNSplit(uint64 NSource, uint64 NSink);
-        
 };
 
 
@@ -139,7 +144,7 @@ NearFieldDriver::NearFieldDriver() :
     // GPUMemoryGB = std::min(GPUMemoryGB, 5.0*P.np*1e-9*sizeof(FLOAT3)+0.004);
 
     // Don't pin more than 10% of the host memory.
-    GPUMemoryGB = std::min(GPUMemoryGB,0.10/(DirectBPD*NGPU)*P.MAXRAMMB/1024);  
+    GPUMemoryGB = std::min(GPUMemoryGB,0.10/(NBuffers)*P.MAXRAMMB/1024);  
 
     STDLOG(1, "Using %f GB of GPU memory (per GPU thread)\n", GPUMemoryGB);
     MinSplits = NBuffers;
@@ -566,6 +571,32 @@ void NearFieldDriver::Finalize(int slab){
     
     if(P.ForceOutputDebug) CheckGPUCPU(slab);
     FinalizeTimer.Stop();
+}
+
+/** We want to report some timings and diagnostic information once the sim has completed.
+ *  This function computes some useful sums that will be written to the timing file or global
+ *  log, so it should be called after timestep() but before the logs are written.
+ */
+void NearFieldDriver::AggregateStats(){
+#ifdef CUDADIRECT
+    for(int g = 0; g < NBuffers; g++){
+        total_GB_to += GB_to_device[g];
+        total_GB_from += GB_from_device[g];
+        total_sinks += DeviceSinks[g];
+        total_sources += DeviceSources[g];
+    }
+
+    // Measures the total amount of time we have at least one GPU thread running
+    assertf(!SetInteractionCollection::GPUThroughputTimer.timeron, "GPU throughput timer still on! Atomic thread counting failure?\n");
+    GPUThroughputTime = SetInteractionCollection::GPUThroughputTimer.Elapsed();
+
+    gdi_gpu = TotalDirectInteractions_GPU/1e9;
+
+    for(int s = 0; s < P.cpd; s++)
+        mean_splits_per_slab += SlabNSplit[s];
+    mean_splits_per_slab /= P.cpd;
+
+#endif
 }
 
 

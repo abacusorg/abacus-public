@@ -262,6 +262,9 @@ void Epilogue(Parameters &P, bool ic) {
     epilogue.Clear();
     epilogue.Start();
 
+    if(JJ)
+        JJ->AggregateStats();
+
     char timingfn[1050];
     sprintf(timingfn,"%s/lastrun.time", P.LogDirectory);
     FILE * timingfile = fopen(timingfn,"w");

@@ -228,26 +228,11 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Transpose Positions", TransposePos.Elapsed()); total += thistime;
     
     int NGPU = GetNGPU();
-    
-    // Compute some GPU timing totals
-    double total_copy_time = 0, total_execution_time = 0, total_copyback_time = 0, total_gpu_time = 0, GPUThroughputTime = 0;
-    double total_GB_to = 0, total_GB_from = 0, total_sinks = 0, total_sources = 0, gdi_gpu = 0;
+
     if(JJ){
-        for(int g = 0; g < NGPU*DirectBPD; g++){
-            total_GB_to += JJ->GB_to_device[g];
-            total_GB_from += JJ->GB_from_device[g];
-            total_sinks += JJ->DeviceSinks[g];
-            total_sources += JJ->DeviceSources[g];
-        }
-        
-        // Measures the total amount of time we have at least one GPU thread running
-        assertf(!SetInteractionCollection::GPUThroughputTimer.timeron, "GPU throughput timer still on! Atomic thread counting failure?\n");
-        GPUThroughputTime = SetInteractionCollection::GPUThroughputTimer.Elapsed();
-        
         REPORT(1, "NearForce [blocking]", NearForce.Elapsed()); total += thistime;
-        REPORT(1, "NearForce [non-blocking]", GPUThroughputTime); //total += thistime;
-        gdi_gpu = JJ->TotalDirectInteractions_GPU/1e9;
-        fprintf(timingfile,"---> %6.3f effective GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, P.np/(thistime+1e-15)/1e6);
+        REPORT(1, "NearForce [non-blocking]", JJ->GPUThroughputTime); //total += thistime;
+        fprintf(timingfile,"---> %6.3f effective GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", JJ->gdi_gpu/(thistime+1e-15), JJ->gdi_gpu, P.np/(thistime+1e-15)/1e6);
         double total_di = (JJ->DirectInteractions_CPU +JJ->TotalDirectInteractions_GPU)/1e9;
     }
 #else
@@ -332,6 +317,7 @@ void ReportTimings(FILE * timingfile) {
         denom = NearForce.Elapsed();
         REPORT(1, "Blocking", NearForce.Elapsed());
         REPORT(2, "Calculate Direct Splits", JJ->CalcSplitDirects.Elapsed());
+        fprintf(timingfile, "            Mean splits per slab: %.1f\n", JJ->mean_splits_per_slab);
         
         REPORT(2, "Construct Pencils", JJ->Construction);
             denom = JJ->Construction;
@@ -356,18 +342,18 @@ void ReportTimings(FILE * timingfile) {
         char str[1024];  sprintf(str, "Non-Blocking (thread-seconds, %d threads)", NGPU*DirectBPD);
         REPORT(1, str, JJ->DeviceThreadTimer);
             REPORT(2, "Fill Sinks", JJ->FillSinks);
-                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", total_sinks*sizeof(posstruct)/1e6/thistime, total_sinks/1e6/thistime);
+                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", JJ->total_sinks*sizeof(posstruct)/1e6/thistime, JJ->total_sinks/1e6/thistime);
             REPORT(2, "Fill Sources", JJ->FillSources);
-                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSource/sec", total_sources*sizeof(posstruct)/1e6/thistime, total_sources/1e6/thistime);
+                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSource/sec", JJ->total_sources*sizeof(posstruct)/1e6/thistime, JJ->total_sources/1e6/thistime);
             REPORT(2, "Launch Kernels", JJ->LaunchDeviceKernels);
             REPORT(2, "Wait for GPU Result", JJ->WaitForResult);
             REPORT(2, "Copy Accel from Pinned", JJ->CopyAccelFromPinned);
-                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", total_sinks*sizeof(accstruct)/1e6/thistime, total_sinks/1e6/thistime);  // same number of accels as sinks
+                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", JJ->total_sinks*sizeof(accstruct)/1e6/thistime, JJ->total_sinks/1e6/thistime);  // same number of accels as sinks
             
-        denom = GPUThroughputTime;
-        REPORT(1, "Non-Blocking Throughput (Wall Clock)", GPUThroughputTime);
-                fprintf(timingfile,"\n\t\t\t\t---> %6.3f effective GDIPS, %6.3f Gdirects, %6.3f Mpart/sec, %6.3f Msink/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, P.np/(thistime+1e-15)/1e6, total_sinks/(thistime+1e-15)/1e6);
-                fprintf(timingfile,"\n\t\t\t\t---> with %d device threads, estimate %.1f%% thread concurrency", NGPU*DirectBPD, (JJ->DeviceThreadTimer - GPUThroughputTime)/(JJ->DeviceThreadTimer - JJ->DeviceThreadTimer/(NGPU*DirectBPD))*100);
+        denom = JJ->GPUThroughputTime;
+        REPORT(1, "Non-Blocking Throughput (Wall Clock)", JJ->GPUThroughputTime);
+                fprintf(timingfile,"\n\t\t\t\t---> %6.3f effective GDIPS, %6.3f Gdirects, %6.3f Mpart/sec, %6.3f Msink/sec", JJ->gdi_gpu/(thistime+1e-15), JJ->gdi_gpu, P.np/(thistime+1e-15)/1e6, JJ->total_sinks/(thistime+1e-15)/1e6);
+                fprintf(timingfile,"\n\t\t\t\t---> with %d device threads, estimate %.1f%% thread concurrency", NGPU*DirectBPD, (JJ->DeviceThreadTimer - JJ->GPUThroughputTime)/(JJ->DeviceThreadTimer - JJ->DeviceThreadTimer/(NGPU*DirectBPD))*100);
                 
             fprintf(timingfile, "\n    Device stats:\n");
             for(int g = 0; g < NGPU*DirectBPD; g++){
