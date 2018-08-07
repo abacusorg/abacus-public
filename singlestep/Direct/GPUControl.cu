@@ -351,6 +351,12 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     //assertf(n_socket > 0, "n_socket %d less than 1\n", n_socket);
 
     int use_pinned = MaxSinkBlocks >= 10000;  // Pinning is slow, so for very small problems it's faster to use unpinned memory
+
+    if(use_pinned)
+        sprintf(logstr, "Allocating pinned memory\n");
+    else
+        sprintf(logstr, "Allocating host-side memory, but not pinning because this is a small problem\n");
+    STDLOG(1,logstr);
     
     for(int g = 0; g < NBuf; g++){
     	Buffers[g].size = MaxBufferSize;
@@ -369,9 +375,9 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
         buffer_and_core[1] = core;
         buffer_and_core[2] = use_pinned;
         if(core >= 0)
-            sprintf(logstr, "GPU buffer thread %d (GPU %d) assigned to core %d\n", g, g % NGPU, core);
+            sprintf(logstr, "GPU buffer thread %d (GPU %d) assigned to core %d, use_pinned %d\n", g, g % NGPU, core, use_pinned);
         else
-            sprintf(logstr, "GPU buffer thread %d (GPU %d) not bound to a core\n", g, g % NGPU);
+            sprintf(logstr, "GPU buffer thread %d (GPU %d) not bound to a core, use_pinned %d\n", g, g % NGPU, use_pinned);
         STDLOG(0, logstr);
         
         // Start one thread per buffer
@@ -380,13 +386,9 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
         assertf(p_retval == 0, "pthread_create failed with value %d\n", p_retval);
         while(!thread_setup_done){}  // only let one thread init at a time
     }
-
-    if(use_pinned)
-        sprintf(logstr, "Allocated %f MB pinned memory\n", host_alloc_bytes/1024./1024);
-    else
-        sprintf(logstr, "Allocated %f MB host-side memory, but did not pin because this is a small problem\n", host_alloc_bytes/1024./1024);
+    sprintf(logstr, "Allocated %f MB host-side memory\n", host_alloc_bytes/1024./1024);
     STDLOG(1,logstr);
-    
+
     init = 1;
 }
 
@@ -453,7 +455,7 @@ void *QueueWatcher(void *_arg){
     if (assigned_core >= 0)
         set_core_affinity(assigned_core);
     int use_pinned = ((int*) arg)[2];
-    char logstr[1024];
+    char logstr[1024]; sprintf(logstr,"");
 
     checkCudaErrors(cudaSetDevice(gpu));
     if (assigned_device < NGPU) {
@@ -472,10 +474,14 @@ void *QueueWatcher(void *_arg){
     // better for returning the data from the GPU.
 
     // Attempt some NUMA specifics
+    // TODO: Was this translated correctly?  Do we need to move hostWC too?
+    // As written, I think this only queries what page something is on.
+    /*
     int page = -1;
     move_pages(0, 1, (void **) &(Buffers[n].host), NULL, &page, 0);
     sprintf(logstr, "Pinned buffer for GPU %d allocated on NUMA node %d on core %d\n", gpu, page, assigned_core);
     STDLOG(1, logstr);
+    */
 
     thread_setup_done = 1;  // signal that the next thread can start its setup
 

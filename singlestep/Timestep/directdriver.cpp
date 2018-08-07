@@ -137,9 +137,12 @@ NearFieldDriver::NearFieldDriver() :
 
     // No need to go crazy if the problem is small.
     // Even if CPD=WIDTH, we'd be loading all of the positions as sources and 
-    // 1/WIDTH as sinks WIDTH-times over.  
-    // So if we have 5x the total positions, we can't lose.
-    GPUMemoryGB = std::min(GPUMemoryGB, 5.0*P.np*1e-9*sizeof(FLOAT3)+0.004);
+    // 1/WIDTH as sinks WIDTH-times over.  That's 2*WIDTH FLOAT3 + WIDTH FLOAT4,
+    // divided over NBuffers.  Then we divide by CPD.
+    // Round up by a factor of 2 and an extra 4 MB, just to be generous
+    GPUMemoryGB = std::min(GPUMemoryGB, P.np*1e-9*sizeof(accstruct)*3*WIDTH/P.cpd/NBuffers*2+0.004);
+
+    // GPUMemoryGB = std::min(GPUMemoryGB, 5.0*P.np*1e-9*sizeof(FLOAT3)+0.004);
 
     // Don't pin more than 10% of the host memory.
     GPUMemoryGB = std::min(GPUMemoryGB,0.10/(DirectBPD*NGPU)*P.MAXRAMMB/1024);  
