@@ -447,6 +447,7 @@ void *QueueWatcher(void *_arg){
 	// Entry 0 is the assigned buffer number
 	// Entry 1 is the assigned core
 	// Entry 2 instructs to use pinned memory on the host side
+    char logstr[1024]; sprintf(logstr," ");
     int* arg = (int *) _arg;
     int assigned_device = ((int*) arg)[0];
     int n = assigned_device; 		// The buffer number
@@ -455,7 +456,7 @@ void *QueueWatcher(void *_arg){
     if (assigned_core >= 0)
         set_core_affinity(assigned_core);
     int use_pinned = ((int*) arg)[2];
-    char logstr[1024]; sprintf(logstr,"");
+    sprintf(logstr,"Running GPU thread %d, core %d\n", n, assigned_core); STDLOG(1,logstr);
 
     checkCudaErrors(cudaSetDevice(gpu));
     if (assigned_device < NGPU) {
@@ -464,11 +465,13 @@ void *QueueWatcher(void *_arg){
     }
     // Initiate the stream
     checkCudaErrors(cudaStreamCreateWithFlags(&DeviceStreams[n], cudaStreamNonBlocking));
+    sprintf(logstr,"GPU stream %d initiated\n", n); STDLOG(1,logstr);
 
     // Allocate CUDA memory
     CudaAllocate(Buffers[n].device,     Buffers[n].size);
     WCAllocate(Buffers[n].hostWC,       Buffers[n].sizeWC);
     PinnedAllocate(Buffers[n].host,     Buffers[n].sizeDef);
+    sprintf(logstr,"GPU thread %d memory allocated\n", n); STDLOG(1,logstr);
     // We make 2/3 of the host pinned memory WriteCombined, which is
     // good for sending data to the GPU.  The other 1/3 is normal, 
     // better for returning the data from the GPU.
