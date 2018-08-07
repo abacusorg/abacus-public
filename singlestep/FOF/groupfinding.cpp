@@ -5,6 +5,9 @@
 #define GLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
 	LOG(*grouplog,__VA_ARGS__); grouplog->flush(); } }
 
+
+#define SPHERICAL_OVERDENSITY // TODO: Move this to configure
+
 #include "fof_sublist.cpp"
 	// Code to do FOF on a set (e.g., a cell)
 

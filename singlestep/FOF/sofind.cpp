@@ -118,22 +118,27 @@ class SOcell {
         destroy();
     }
 
+    /// These are density thresholds in interparticle units,
+    /// where the cosmic mean is unity.
+    ///
+    /// threshold refers to the spherical overdensity we'll require.
+    /// min_central refers to the minimum FOFscale density that we require
+    /// to make a particle eligible to be the seed of a SO halo.
+    /// One probably wants min_central = threshold/3 or so.
     void setup (FOFloat _threshold, FOFloat _min_central) {
-        // These are density thresholds in interparticle units,
-	// where the cosmic mean is unity.
-	threshold = _threshold;
-	min_central = _min_central;
-	// Will need to think about how FOF_RESCALE applies to this!
 	// We're comparing the threshold to overdensity density:
 	// mass/(4*PI/3)/r^3.  So that means r^3*threshold*3/4/PI = count
 	// Define T = (threshold*3/4/PI)**(1/3) in code units, so that
 	// we just compare (r*T)**3 to count.  The positions are in 
 	// FOF_RESCALE units, so the interparticle spacing is P.invcpd*FOF_RESCALE
+	threshold = _threshold;
 	xthreshold = pow(threshold*3.0/4.0/M_PI, 1.0/3.0)*P.cpd/FOF_RESCALE;
+
+	// Cosmic unit density yields a count in our FOFscale densities of this:
+	float FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
+	min_central = _min_central*FOFunitdensity;
         return;
     }
-
-    // TODO: Need to move compute_d2() to outside of FOFcell so that we can use it
 
     int partition_and_index(FOFparticle *p, float *density, float *d2buffer,
     	float d2SO, int start, int end) {
