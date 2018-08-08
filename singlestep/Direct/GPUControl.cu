@@ -351,6 +351,12 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     //assertf(n_socket > 0, "n_socket %d less than 1\n", n_socket);
 
     int use_pinned = MaxSinkBlocks >= 10000;  // Pinning is slow, so for very small problems it's faster to use unpinned memory
+
+    if(use_pinned)
+        sprintf(logstr, "Allocating pinned memory\n");
+    else
+        sprintf(logstr, "Allocating host-side memory, but not pinning because this is a small problem\n");
+    STDLOG(1,logstr);
     
     for(int g = 0; g < NBuf; g++){
     	Buffers[g].size = MaxBufferSize;
@@ -369,9 +375,9 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
         buffer_and_core[1] = core;
         buffer_and_core[2] = use_pinned;
         if(core >= 0)
-            sprintf(logstr, "GPU buffer thread %d (GPU %d) assigned to core %d\n", g, g % NGPU, core);
+            sprintf(logstr, "GPU buffer thread %d (GPU %d) assigned to core %d, use_pinned %d\n", g, g % NGPU, core, use_pinned);
         else
-            sprintf(logstr, "GPU buffer thread %d (GPU %d) not bound to a core\n", g, g % NGPU);
+            sprintf(logstr, "GPU buffer thread %d (GPU %d) not bound to a core, use_pinned %d\n", g, g % NGPU, use_pinned);
         STDLOG(0, logstr);
         
         // Start one thread per buffer
@@ -380,13 +386,9 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
         assertf(p_retval == 0, "pthread_create failed with value %d\n", p_retval);
         while(!thread_setup_done){}  // only let one thread init at a time
     }
-
-    if(use_pinned)
-        sprintf(logstr, "Allocated %f MB pinned memory\n", host_alloc_bytes/1024./1024);
-    else
-        sprintf(logstr, "Allocated %f MB host-side memory, but did not pin because this is a small problem\n", host_alloc_bytes/1024./1024);
+    sprintf(logstr, "Allocated %f MB host-side memory\n", host_alloc_bytes/1024./1024);
     STDLOG(1,logstr);
-    
+
     init = 1;
 }
 
@@ -445,6 +447,7 @@ void *QueueWatcher(void *_arg){
 	// Entry 0 is the assigned buffer number
 	// Entry 1 is the assigned core
 	// Entry 2 instructs to use pinned memory on the host side
+    char logstr[1024]; sprintf(logstr," ");
     int* arg = (int *) _arg;
     int assigned_device = ((int*) arg)[0];
     int n = assigned_device; 		// The buffer number
@@ -453,29 +456,39 @@ void *QueueWatcher(void *_arg){
     if (assigned_core >= 0)
         set_core_affinity(assigned_core);
     int use_pinned = ((int*) arg)[2];
-    char logstr[1024];
+    sprintf(logstr,"Running GPU thread %d, core %d\n", n, assigned_core); STDLOG(1,logstr);
 
     checkCudaErrors(cudaSetDevice(gpu));
     if (assigned_device < NGPU) {
+        // Only run these the first time a GPU is seen
         checkCudaErrors(cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync));
         checkCudaErrors(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
     }
     // Initiate the stream
     checkCudaErrors(cudaStreamCreateWithFlags(&DeviceStreams[n], cudaStreamNonBlocking));
+    sprintf(logstr,"GPU stream %d initiated\n", n); STDLOG(1,logstr);
 
     // Allocate CUDA memory
     CudaAllocate(Buffers[n].device,     Buffers[n].size);
     WCAllocate(Buffers[n].hostWC,       Buffers[n].sizeWC);
     PinnedAllocate(Buffers[n].host,     Buffers[n].sizeDef);
+    sprintf(logstr,"GPU thread %d memory allocated\n", n); STDLOG(1,logstr);
     // We make 2/3 of the host pinned memory WriteCombined, which is
     // good for sending data to the GPU.  The other 1/3 is normal, 
     // better for returning the data from the GPU.
 
     // Attempt some NUMA specifics
+    
+#ifdef HAVE_LIBNUMA
+    // Query the current NUMA node of the allocated buffers
+    // We are using the move_pages function purely to query NUMA state, not move anything
     int page = -1;
     move_pages(0, 1, (void **) &(Buffers[n].host), NULL, &page, 0);
-    sprintf(logstr, "Pinned buffer for GPU %d allocated on NUMA node %d on core %d\n", gpu, page, assigned_core);
+    sprintf(logstr, "Host buffer for GPU %d allocated on NUMA node %d on core %d\n", gpu, page, assigned_core);
+    move_pages(0, 1, (void **) &(Buffers[n].hostWC), NULL, &page, 0);
+    sprintf(logstr, "Host write-combined buffer for GPU %d allocated on NUMA node %d on core %d\n", gpu, page, assigned_core);
     STDLOG(1, logstr);
+#endif
 
     thread_setup_done = 1;  // signal that the next thread can start its setup
 

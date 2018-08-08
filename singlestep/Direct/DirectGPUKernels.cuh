@@ -9,9 +9,9 @@
  */
 
 #ifdef COMPUTE_FOF_DENSITY_SET
-#define DirectKernelName direct_density
+    #define DirectKernelName direct_density
 #else
-#define DirectKernelName direct
+    #define DirectKernelName direct
 #endif
 
 #ifdef DIRECTCUBICSPLINE

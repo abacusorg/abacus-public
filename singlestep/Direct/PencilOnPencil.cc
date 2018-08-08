@@ -32,23 +32,131 @@ inline int SetInteractionCollection::PaddedSourceCount(int sourceindex) {
 /// Given a (k) of the internal sink indexing, return
 /// the z of the central cell
 inline int SetInteractionCollection::index_to_zcen(int k) {
-    int kk = k_mod+k*nfwidth+nfradius;   // The central cell
+    int kk = k+nfradius;    // The central cell
     if (kk<0) kk+=cpd; if (kk>=cpd) kk-=cpd;  // Wrapped
     return kk;
 }
 
 // ====================== Constructor =========================
 
-/// The constructor of the SIC is where all of the planning happens.
-/// Inputs are a slab, a range of Y's, and a Z modulus, plus a FOF scale
+/** Given a slab of size cpd and number of particles np, 
+we want to compute the required space for the mallocs for all
+SetInteractionCollection in this slab.  This is easier to do for the full
+slab than for a single SIC; no worrying about the Y splits.
+
+NSinkSet = cpd**2
+NSourceSet = cpd**2 plus 4*cpd for each split
+NPaddedSinks = WIDTH*Nparticles+NFBlocksize*cpd**2
+NSinkBlocks = NPaddedSinks/NFBlocksize
+
+The last term in NPaddedSinks is worst case.  Typical case is 0.5 of that.
+
+we use the overage to avoid worrying about the 4*cpd source boundaries,
+and just set NSourceSet = NSinkSet.
+
+SinkSetStart int[NSinkSet]
+SinkSetCount int[]
+SinkPlan     plan[]
+SinkSetIdMax int[]
+
+SourceSetStart int[NSourceSet]
+SourceSetCount int[]
+SourcePlan     plan[]
+
+SinkBlockParentPencil int[NSinkBlocks] 
+// REMOVE: SinkSetAcceleration   FLOAT4[NPaddedSinks]
+SinkSourceInteractionList   int[WIDTH*NSinkSet]
+SinkSourceYOffset       FLOAT[]
+
+This is mildly conservative.  The overage is about 
+0.5*NFBlockSize*cpd**2*sizeof(accstruct).  For 64-particle blocks
+and 40 particles per cell, this is 32 extra acc's per cell compared
+to 200 particles.  The plans are also not tiny: about 400 bytes per
+cell, which is roughly like 25 particles.  So this is about 10%
+conservative.
+
+TODO: We could consider multiplying that factor by 0.6 and then
+adding in a bit more of a floor.  Let's see what's happening in 
+practice.
+
+**/
+
+/// Return the number of particles in this (i,j) skewer, summing over k.
+uint64 NumParticlesInSkewer(int slab, int j) {
+    uint64 np = PP->CellInfo(slab, j, 0)->startindex;
+    uint64 end = Slab->size(slab);
+    if (j<P.cpd-1) end = PP->CellInfo(slab,j+1,0)->startindex;
+    return end-np;	// This is the number of particles in this skewer
+}
+
+/// For one skewer, compute how many sink blocks will be incurred
+/// for this one Skewer in the worst case for all of the SIC.
+int ComputeSinkBlocks(int slab, int j) {
+    int np = NumParticlesInSkewer(slab, j);
+    return (2*NFRADIUS+1)*(np/NFBlockSize)+P.cpd;
+}
+/// For one skewer, compute how many source blocks will be incurred
+/// for this one Skewer in the worst case for all of the SIC.
+int ComputeSourceBlocks(int slab, int j) {
+    int np = 0;
+    for (int c=-NFRADIUS; c<=NFRADIUS; c++) 
+	np += NumParticlesInSkewer(slab+c, j);
+    return (np/NFBlockSize+P.cpd);
+}
+
+
+
+/// Compute a mildly conservative estimate of the space required
+/// for all SIC in a slab.
+uint64 ComputeSICSize(int cpd, int np, int WIDTH, int NSplit) {
+    uint64 size = 0;
+    int NSinkSet = cpd*cpd;
+    int NSourceSet = cpd*(cpd+4*NSplit);
+    int NPaddedSinks = WIDTH*np+NSinkSet*NFBlockSize;
+    int NSinkBlocks = NPaddedSinks/NFBlockSize;
+
+    size += (3*sizeof(int)+sizeof(SinkPencilPlan)) * NSinkSet;
+    size += (2*sizeof(int)+sizeof(SourcePencilPlan)) * NSourceSet;
+    size += (sizeof(int)+sizeof(FLOAT)) * WIDTH*NSinkSet;
+    size += (sizeof(int)) * NSinkBlocks;
+
+    STDLOG(1,"Nsink = %d, NSource = %d, Nblocks = %d, size = %d\n",
+    	NSinkSet, NSourceSet, NSinkBlocks, size);
+
+    size += 1024*1024; 	
+    	// Just adding in some for alignment and small-problem worst case
+    return size;
+}
+
+/// Given a pointer to an existing 'buffer' of size 'bsize', return 
+/// an aligned pointer 'ptr' that includes space of request bytes.
+/// Adjust buffer and bsize on return.
+/// Crash if the buffer has run out of space
+int posix_memalign_wrap(char * &buffer, size_t &bsize, void ** ptr, 
+	int alignment, size_t request) {
+    int extra = alignment-((uintptr_t)buffer)%alignment;
+    assertf(bsize>=request+extra, "Aligned subdivision of buffer has overflowed its space: %l < %l + %d\n", bsize, request, extra);
+    buffer += extra; bsize -= extra;
+    *ptr = (void *)buffer;   // We're pointing to the correct location
+    buffer += request; bsize -= request;
+    return 0;
+}
+
+
+/// The constructor of the SIC is where all of the planning happens
+/// Given a slab, a range of Y's, and a Z modulus, plus a FOF scale
 /// to pass along.
+///
 /// Once finished, this contains all of the information needed to
 /// gather the particle data and pass it along to the GPU, as well
 /// as the space to store the results.
+///
+/// This version takes a pointer to and size of an existing buffer,
+/// so that it skips its internal mallocs and instead uses the 
+/// buffer.  Important: buffer and bsize are modified and returned
+/// with the pointer to and size of the unused space.
 
-SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlow, int _jhigh, FLOAT _b2){
-    Construction.Start();
-
+SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhigh, FLOAT _b2, char * &buffer, size_t &bsize){
     eps = JJ->eps;
     
     //set known class variables
@@ -56,7 +164,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     j_low = _jlow;
     j_high = _jhigh;
     cpd = P.cpd;
-    k_mod = _kmod;
     SlabId = slab;
     b2 = _b2;
     bytes_to_device = 0, bytes_from_device = 0;
@@ -66,9 +173,16 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     nfradius = P.NearFieldRadius;
     nfwidth = 2*P.NearFieldRadius+1;
     j_width = j_high-j_low;
-    Nk = (P.cpd - k_mod)/nfwidth;
-    if(Nk * nfwidth + k_mod < P.cpd) Nk++;
+    Nk = cpd;
 
+    // Load the Pointers to the PosXYZ Slabs
+    SinkPosSlab = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab);
+    for (int c=0; c<nfwidth; c++) 
+        SourcePosSlab[c] = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab+c-nfradius);
+
+    // There is a slab that has the WIDTH Partial Acceleration fields.
+    // Get a pointer to the appropriate segment of that.
+    SinkAccSlab = (void *)((accstruct *)LBW->ReturnIDPtr(AccSlab,slab));
 
     // Make a bunch of the SinkSet and SourceSet containers
     
@@ -77,10 +191,10 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     NSinkSets = j_width * Nk;
     assertf(NSinkSets <= MaxNSink, "NSinkSets (%d) larger than allocated space (MaxNSink = %d)\n", NSinkSets, MaxNSink);
     
-    assert(posix_memalign((void **) &SinkSetStart, 4096, sizeof(int) * NSinkSets) == 0);
-    assert(posix_memalign((void **) &SinkSetCount, 4096, sizeof(int) * NSinkSets) == 0);
-    assert(posix_memalign((void **) &SinkPlan, 4096, sizeof(SinkPencilPlan) * NSinkSets) == 0);
-    assert(posix_memalign((void **) &SinkSetIdMax, 4096, sizeof(int) * NSinkSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetStart, 4096, sizeof(int) * NSinkSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetCount, 4096, sizeof(int) * NSinkSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkPlan, 4096, sizeof(SinkPencilPlan) * NSinkSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetIdMax, 4096, sizeof(int) * NSinkSets) == 0);
     
     int localSinkTotal = 0;
 
@@ -91,18 +205,16 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     assertf(NSourceSets <= MaxNSource, "NSourceSets (%d) larger than allocated space (MaxNSource = %d)\n", NSourceSets, MaxNSource);
     assertf(NSourceSets <= P.cpd*(P.cpd+nfwidth), "NSourceSets (%d) exceeds SourceSet array allocation (%d)\n", NSourceSets, P.cpd*(P.cpd+nfwidth));
     
-    assert(posix_memalign((void **) &SourceSetStart, 4096, sizeof(int) * NSourceSets) == 0);  
-    assert(posix_memalign((void **) &SourceSetCount, 4096, sizeof(int) * NSourceSets) == 0);
-    assert(posix_memalign((void **) &SourcePlan, 4096, sizeof(SourcePencilPlan) * NSourceSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SourceSetStart, 4096, sizeof(int) * NSourceSets) == 0);  
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SourceSetCount, 4096, sizeof(int) * NSourceSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SourcePlan, 4096, sizeof(SourcePencilPlan) * NSourceSets) == 0);
     
     int localSourceTotal = 0;
 
     DirectTotal = 0;
 
     // Next, fill in sink data
-    FillSinkLists.Clear(); FillSinkLists.Start();
     // Count the Sinks
-    CountSinks.Clear(); CountSinks.Start();
 
     uint64 skewer_blocks[j_width+nfwidth];   // Number of blocks in this k-skewer
             // This is oversized because we'll re-use for Sources
@@ -122,9 +234,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
         }
         skewer_blocks[j] = this_skewer_blocks;
     }
-    CountSinks.Stop();
-    
-    CalcSinkBlocks.Clear(); CalcSinkBlocks.Start();
 
     // Cumulate the number of blocks in each skewer, so we know how 
     // to start enumerating.
@@ -139,7 +248,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
             "The number of padded sink particles will overflow a 32-bit signed int");
 
     assertf(NSinkBlocks <= MaxSinkBlocks, "NSinkBlocks (%d) larger than allocated space (MaxSinkBlocks = %d)\n", NSinkBlocks, MaxSinkBlocks);
-    assert(posix_memalign((void **) &SinkBlockParentPencil, 4096, sizeof(int) * NSinkBlocks) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkBlockParentPencil, 4096, sizeof(int) * NSinkBlocks) == 0);
 
     // Loop over the pencils to set these:
     //   SinkSetStart[set] points to where the padded particles starts
@@ -172,19 +281,12 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     SinkTotal = NPaddedSinks;  // for performance metrics, we always move around the padded amount
             // The total padded number of particles
     assertf(NPaddedSinks <= MaxSinkSize, "NPaddedSinks (%d) larger than allocated space (MaxSinkSize = %d)\n", NPaddedSinks, MaxSinkSize);
-
-//    SinkSetPositions = new List3<FLOAT>(NPaddedSinks);
-    CalcSinkBlocks.Stop();
     
-    AllocAccels.Start();
-    assert(posix_memalign((void **) &SinkSetAccelerations, 4096, sizeof(accstruct) * NPaddedSinks) == 0);
-    AllocAccels.Stop();
-    
-    FillSinkLists.Stop();
+    // We only do this in CPU mode
+    // assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetAccelerations, 4096, sizeof(accstruct) * NPaddedSinks) == 0);
+    SinkSetAccelerations = NULL;   // Just to give a value
 
     // All done with the Sinks.  Now for the Sources.
-    FillSourceLists.Start();
-    CountSources.Start();
 
     // Notice that the Source Pencils go from [j_low-NFR, j_high+NFR).
 
@@ -206,9 +308,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
         }
         skewer_blocks[j] = this_skewer_blocks;
     }
-    CountSources.Stop();
-
-    CalcSourceBlocks.Clear(); CalcSourceBlocks.Start();
 
     // Cumulate the number of blocks in each skewer, so we know how 
     // to start enumerating.
@@ -238,23 +337,18 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
     int NPaddedSources = NFBlockSize*NSourceBlocks;
             // The total number of padded sources
     SourceTotal = NPaddedSources;  // for performance metrics, we always move around the padded amount 
-//    SourceSetPositions = new List3<FLOAT>(NPaddedSources);
     assertf(NPaddedSources <= MaxSourceSize, "NPaddedSources (%d) larger than allocated space (MaxSourceSize = %d)\n", NPaddedSources, MaxSourceSize);
-    CalcSourceBlocks.Stop();
-    FillSourceLists.Stop();
-
 
     // Next, we have to pair up the Source and Sinks.  Each sink
     // will be acted on by 5 sources.
     // Fill the interaction lists for the sink sets
-    FillInteractionList.Start();
 
     InteractionCount = nfwidth*j_width*Nk;
     assertf(InteractionCount <= MaxNSink*nfwidth, "InteractionCount (%d) larger than allocated space (MaxNSink * nfwidth = %d)\n", InteractionCount, MaxNSink * nfwidth);
     assertf((uint64)nfwidth*j_width*Nk < INT32_MAX, 
             "Interaction Count exceeds 32-bit signed int");
-    assert(posix_memalign((void **) &SinkSourceInteractionList, 4096, sizeof(int) * InteractionCount) == 0);
-    assert(posix_memalign((void **) &SinkSourceYOffset, 4096, sizeof(FLOAT) * InteractionCount) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSourceInteractionList, 4096, sizeof(int) * InteractionCount) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSourceYOffset, 4096, sizeof(FLOAT) * InteractionCount) == 0);
     FLOAT cellsize = PP->invcpd;
     
     uint64 localDirectTotal = 0;
@@ -287,31 +381,17 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _kmod, int _jlo
         }
     }
     DirectTotal = localDirectTotal;
-
-    FillInteractionList.Stop();
-    Construction.Stop();
 }
 
 
 /// A simple destructor
 SetInteractionCollection::~SetInteractionCollection(){
-    free(SinkSetStart);
-    free(SinkSetCount);
-    free(SinkPlan);
-    free(SinkSetIdMax);
-    free(SourceSetStart);
-    free(SourceSetCount);
-    free(SourcePlan);
-    free(SinkBlockParentPencil);
-    free(SinkSetAccelerations);
-    free(SinkSourceInteractionList);
-    free(SinkSourceYOffset);
 }
 
 
 /// Call this when the Set is detected as done!
 void SetInteractionCollection::SetCompleted(){
-    STDLOG(1,"Completed SIC for slab %d w: %d k: %d - %d\n",SlabId,k_mod,j_low,j_high); 
+    STDLOG(1,"Completed SIC for slab %d, y: %d - %d\n",SlabId,j_low,j_high); 
     CompletionFlag = 1;
 }
 
