@@ -312,13 +312,10 @@ void ReportTimings(FILE * timingfile) {
         double gdi_cpu = JJ->DirectInteractions_CPU/1e9;  // Measure per-core load balancing?
 #ifdef CUDADIRECT
         fprintf(timingfile, "\n\t Notes about non-blocking timing:\n");
-        fprintf(timingfile, "\t -\"Directs Throughput\" is the wall clock time while at least one GPU thread is running (copy or compute).\n");
-        fprintf(timingfile, "\t -\"Effective\" GDIPS is based on this throughput.\n");
+        fprintf(timingfile, "\t - \"Directs Throughput\" is the wall clock time while at least one GPU thread is running (copy or compute).\n");
+        fprintf(timingfile, "\t - \"Effective\" GDIPS is based on this throughput.\n");
         denom = NearForce.Elapsed();
         REPORT(1, "Blocking", NearForce.Elapsed());
-        REPORT(2, "Calculate Direct Splits", JJ->CalcSplitDirects.Elapsed());
-        fprintf(timingfile, "            Mean splits per slab: %.1f\n", JJ->mean_splits_per_slab);
-        
         REPORT(2, "Construct Pencils", JJ->Construction);
             denom = JJ->Construction;
             REPORT(3, "Plan Sinks", JJ->FillSinkLists);
@@ -382,7 +379,7 @@ void ReportTimings(FILE * timingfile) {
     fprintf(timingfile, "\n\n Subdivisions of Kick:");
     denom = Kick.Elapsed();
     if(JJ){
-        REPORT(1, "Finalize accelerations", JJ->FinalizeTimer.Elapsed());
+        REPORT(1, "Accumulate Pencil Stats", JJ->FinalizeTimer.Elapsed());
     }
     REPORT(1, "Add Near + Far Accel", AddAccel.Elapsed());
         fprintf(timingfile,"---> %6.3f GB/sec",P.np/(thistime+1e-15)*3*sizeof(accstruct)/1e9);
