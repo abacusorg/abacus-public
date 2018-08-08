@@ -115,18 +115,7 @@ Source Block.
 
 class SetInteractionCollection{
     public:
-        // Synchronous Timers
-        STimer  Construction;
-        STimer      FillSinkLists;
-        STimer          CountSinks;
-        STimer          CalcSinkBlocks;
-        STimer          AllocAccels;
-        STimer      FillSourceLists;
-        STimer          CountSources;
-        STimer          CalcSourceBlocks;
-        STimer      FillInteractionList;
-    
-        // Asynchronous, CPU side
+        // Asynchronous, CPU-side timers for the GPU threads
         STimer DeviceThreadTimer;
         STimer     LaunchDeviceKernels;
         STimer     FillSinks;

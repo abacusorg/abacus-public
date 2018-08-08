@@ -32,10 +32,8 @@ class NearFieldDriver{
         uint64 TotalDirectInteractions_GPU = 0;
         uint64 NSink_CPU;
 
-        // Total timings from building and running the SetInteractionCollections
+        // Total timings from running the SetInteractionCollections in the host threads that communicate with the GPUs
         // These are gathered in Finalize(slab)
-        double  Construction = 0;
-        
         double DeviceThreadTimer = 0;
         double     LaunchDeviceKernels = 0;
         double     FillSinks = 0;
@@ -43,13 +41,14 @@ class NearFieldDriver{
         double     WaitForResult = 0;
         double     CopyAccelFromPinned = 0;
 
-        int MaxNSplits = 0;
+	int MaxNSplits = 0;
     
         double *GB_to_device, *GB_from_device;
         uint64 *DeviceSinks;
         uint64 *DeviceSources;
         
         STimer CalcSplitDirects;
+        STimer SICConstruction;
         STimer SICExecute;
         STimer CPUFallbackTimer;
         STimer FinalizeTimer;
@@ -69,7 +68,7 @@ class NearFieldDriver{
         int RADIUS;
         Direct *DD;
         int NGPU;
-        int NBuffers;
+	int NBuffers;
         double GPUMemoryGB;
         int MaxSourceBlocks;
         int MaxSinkBlocks;
@@ -215,11 +214,11 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     int totSourceBlocks = 0;
 
     for (int j=0;j<P.cpd;j++) {
-        SinkBlocks[j] = ComputeSinkBlocks(slabID, j);
-        totSinkBlocks += SinkBlocks[j];
-        SourceBlocks[j] = ComputeSourceBlocks(slabID, j);
-        totSourceBlocks += SourceBlocks[j];
-        // These contain the number of blocks in each j.
+	SinkBlocks[j] = ComputeSinkBlocks(slabID, j);
+	totSinkBlocks += SinkBlocks[j];
+	SourceBlocks[j] = ComputeSourceBlocks(slabID, j);
+	totSourceBlocks += SourceBlocks[j];
+	// These contain the number of blocks in each j.
     }
     // We will need at least totBlocks/maxBlocks, rounded up, splits.
     // Given the maximum number of blocks in a SIC, it will be 
@@ -229,7 +228,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     STDLOG(1,"Found %d sink and %d source blocks in slab %d\n", totSinkBlocks, totSourceBlocks, slabID);
     int useMaxSink = totSinkBlocks/NBuffers;
     useMaxSink *= (1+1.1*NBuffers/P.cpd); 
-        // Trying to bias up to leave the last one short instead of long
+	// Trying to bias up to leave the last one short instead of long
     useMaxSink = std::min(useMaxSink, MaxSinkBlocks);
     int useMaxSource = MaxSourceBlocks;
     STDLOG(2,"Using max sink %d and source %d.\n", useMaxSink, useMaxSource);
@@ -240,45 +239,43 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     int thisSink = 0, thisSource = 0;
 
     for (int j=0; j<P.cpd; j++) {
-        thisSink += SinkBlocks[j];
-        thisSource += SourceBlocks[PP->WrapSlab(j+RADIUS)];
+	thisSink += SinkBlocks[j];
+	thisSource += SourceBlocks[PP->WrapSlab(j+RADIUS)];
         if (j==0 || thisSink>useMaxSink ||
             thisSource>useMaxSource) {
-            // We've overflowed the previous set; end it 
-            if (NSplit>0) {
-                SplitPoint[NSplit-1] = j;
-                STDLOG(1,"Split %d ending at y=%d; %d sink and %d source blocks\n", 
-                    NSplit-1, j, thisSink-SinkBlocks[j], thisSource-SourceBlocks[PP->WrapSlab(j+RADIUS)]);
-            }
-            // Time to start a new one
-            thisSink = SinkBlocks[j];
-            thisSource = 0;
-            for (int c=-RADIUS; c<=RADIUS; c++) 
-                thisSource += SourceBlocks[PP->WrapSlab(j-c)];
-            NSplit++;
-        }
+	    // We've overflowed the previous set; end it 
+	    if (NSplit>0) {
+		SplitPoint[NSplit-1] = j;
+		STDLOG(1,"Split %d ending at y=%d; %d sink and %d source blocks\n", 
+		    NSplit-1, j, thisSink-SinkBlocks[j], thisSource-SourceBlocks[PP->WrapSlab(j+RADIUS)]);
+	    }
+	    // Time to start a new one
+	    thisSink = SinkBlocks[j];
+	    thisSource = 0;
+	    for (int c=-RADIUS; c<=RADIUS; c++) 
+		thisSource += SourceBlocks[PP->WrapSlab(j-c)];
+	    NSplit++;
+	}
     }
     // And always end the last one
     SplitPoint[NSplit-1] = P.cpd;
     STDLOG(1,"Split %d ending at y=%d; %d sink and %d source blocks\n", 
-                    NSplit-1, P.cpd, thisSink, thisSource);
+		    NSplit-1, P.cpd, thisSink, thisSource);
     // There is a failure mode here if the last skewer by itself
     // overflows; it will end up assigned without prior question.
     assertf(thisSink<MaxSinkBlocks && thisSource<MaxSourceBlocks,
-        "Sinks or Sources of the last skewer overflow the maxima.");
+    	"Sinks or Sources of the last skewer overflow the maxima.");
 
     uint64 NSink = Slab->size(slabID);
     STDLOG(1,"Using %d direct splits on slab %d, max blocks %d sink and %d source\n", 
-        NSplit, slabID, useMaxSink, useMaxSource);
+    	NSplit, slabID, useMaxSink, useMaxSource);
 
     delete[] SinkBlocks;
     delete[] SourceBlocks;
-        
+	
     SlabNSplit[slabID] = NSplit;
     MaxNSplits = std::max(MaxNSplits, NSplit);
     SlabInteractionCollections[slabID] = new SetInteractionCollection *[NSplit];
-
-    CalcSplitDirects.Stop();
 
     // Now we need to make the NearField_SIC_Slab
     uint64 bsize = ComputeSICSize(P.cpd, NSink, WIDTH, NSplit);
@@ -287,6 +284,8 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 
     // And allocate space for the accelerations
     LBW->AllocateArena(AccSlab,slabID);
+
+    CalcSplitDirects.Stop();
 
     // Initialize the space -- This should no longer be needed
     /*
@@ -311,34 +310,37 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 
     int jl =0;
     for(int n = 0; n < NSplit; n++){
-        // We may wish to make these in an order that will alter between GPUs
-        int jh = SplitPoint[n];
-        // The construction and execution are timed internally in each SIC then reduced in Finalize(slab)
-        // This is where the SetInteractionCollection is actually constructed
-        // STDLOG(1,"Entering SIC Construction with %d bytes\n", bsize);
-        SlabInteractionCollections[slabID][n] = 
-            new SetInteractionCollection(slabID,jl,jh,WriteState.DensityKernelRad2, buffer, bsize);
-        // STDLOG(1,"Leaving SIC Construction with %d bytes\n", bsize);
-        
-        // Check that we have enough blocks
-        int NSinkBlocks = SlabInteractionCollections[slabID][n]->NSinkBlocks;
-        int NSourceBlocks = SlabInteractionCollections[slabID][n]->NSourceBlocks;
-        assertf(NSinkBlocks <= MaxSinkBlocks,
-                "NSinkBlocks (%d) is larger than MaxSinkBlocks (%d)\n", NSinkBlocks, MaxSinkBlocks);
-        assertf(NSourceBlocks <= MaxSourceBlocks,
-                "NSourceBlocks (%d) is larger than MaxSourceBlocks (%d)\n", NSourceBlocks, MaxSourceBlocks);
-        
-        STDLOG(1,"Executing directs for slab %d, y: %d - %d\n",slabID,jl,jh);
-        SICExecute.Start();
-        // This SIC is ready; send it to be executed
-        SlabInteractionCollections[slabID][n]->GPUExecute(blocking);
-        //SlabInteractionCollections[slabID][n]->CPUExecute();
-        SICExecute.Stop();
-        jl = jh;
+        SICConstruction.Start();
+	// We may wish to make these in an order that will alter between GPUs
+	int jh = SplitPoint[n];
+	// The construction and execution are timed internally in each SIC then reduced in Finalize(slab)
+	// This is where the SetInteractionCollection is actually constructed
+	// STDLOG(1,"Entering SIC Construction with %d bytes\n", bsize);
+	SlabInteractionCollections[slabID][n] = 
+	    new SetInteractionCollection(slabID,jl,jh,WriteState.DensityKernelRad2, buffer, bsize);
+	// STDLOG(1,"Leaving SIC Construction with %d bytes\n", bsize);
+	
+	// Check that we have enough blocks
+	int NSinkBlocks = SlabInteractionCollections[slabID][n]->NSinkBlocks;
+	int NSourceBlocks = SlabInteractionCollections[slabID][n]->NSourceBlocks;
+	assertf(NSinkBlocks <= MaxSinkBlocks,
+		"NSinkBlocks (%d) is larger than MaxSinkBlocks (%d)\n", NSinkBlocks, MaxSinkBlocks);
+	assertf(NSourceBlocks <= MaxSourceBlocks,
+		"NSourceBlocks (%d) is larger than MaxSourceBlocks (%d)\n", NSourceBlocks, MaxSourceBlocks);
+
+    SICConstruction.Stop();
+    SICExecute.Start();
+	
+	STDLOG(1,"Executing directs for slab %d, y: %d - %d\n",slabID,jl,jh);
+	// This SIC is ready; send it to be executed
+	SlabInteractionCollections[slabID][n]->GPUExecute(blocking);
+	//SlabInteractionCollections[slabID][n]->CPUExecute();
+	jl = jh;
+    SICExecute.Stop();
     }
 
     STDLOG(1, "%l bytes remaining after SIC allocation on slab %d (%4.1f%% unused)\n", 
-        bsize, slabID, 100.0*bsize/LBW->IDSizeBytes(NearField_SIC_Slab, slabID));
+	bsize, slabID, 100.0*bsize/LBW->IDSizeBytes(NearField_SIC_Slab, slabID));
     return;
 }
 
@@ -401,7 +403,7 @@ void NearFieldDriver::Finalize(int slab){
     if(P.ForceOutputDebug)
         CheckInteractionList(slab);
 
-    SetInteractionCollection ** Slices = SlabInteractionCollections[slab];
+    SetInteractionCollection **Slices = SlabInteractionCollections[slab];
     int NSplit = SlabNSplit[slab];
 
     int cpd = P.cpd;
@@ -410,16 +412,7 @@ void NearFieldDriver::Finalize(int slab){
     // Collect the statistics and timings
     for(int sliceIdx = 0; sliceIdx < NSplit; sliceIdx++){
         SetInteractionCollection *Slice = Slices[sliceIdx];
-
-        Construction +=Slice->Construction.Elapsed();
-            FillSinkLists+=Slice->FillSinkLists.Elapsed();
-                CountSinks+=Slice->CountSinks.Elapsed();
-                CalcSinkBlocks+=Slice->CalcSinkBlocks.Elapsed();
-                AllocAccels += Slice->AllocAccels.Elapsed();
-            FillSourceLists+=Slice->FillSourceLists.Elapsed();
-                CountSources+=Slice->CountSources.Elapsed();
-                CalcSourceBlocks+=Slice->CalcSourceBlocks.Elapsed();
-            FillInteractionList+=Slice->FillInteractionList.Elapsed();
+        
         DeviceThreadTimer += Slice->DeviceThreadTimer.Elapsed();
             LaunchDeviceKernels += Slice->LaunchDeviceKernels.Elapsed();
             FillSinks += Slice->FillSinks.Elapsed();
@@ -441,7 +434,7 @@ void NearFieldDriver::Finalize(int slab){
     /*
     FLOAT *p = (FLOAT *)LBW->ReturnIDPtr(AccSlab, slab);
     for (int j=0; j<LBW->IDSizeBytes(AccSlab,slab)/sizeof(accstruct)*4; j++) 
-        assertf(isfinite(p[j]) && abs(p[j])<10, "Accelerations appear crazy\n");
+    	assertf(isfinite(p[j]) && abs(p[j])<10, "Accelerations appear crazy\n");
     */
 
     // Do a final pass to delete all slices

@@ -412,8 +412,6 @@ int main(int argc, char **argv) {
     IO_Terminate();
     fedisableexcept(FE_INVALID | FE_DIVBYZERO);
 
-    // Write out the timings.  This must precede the epilogue, because 
-    // we need to look inside some instances of classes for runtimes.
     SingleStepTearDown.Stop();
     WallClockDirect.Stop();
 

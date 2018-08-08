@@ -157,8 +157,6 @@ int posix_memalign_wrap(char * &buffer, size_t &bsize, void ** ptr,
 /// with the pointer to and size of the unused space.
 
 SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhigh, FLOAT _b2, char * &buffer, size_t &bsize){
-    Construction.Start();
-
     eps = JJ->eps;
     
     //set known class variables
@@ -216,9 +214,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     DirectTotal = 0;
 
     // Next, fill in sink data
-    FillSinkLists.Clear(); FillSinkLists.Start();
     // Count the Sinks
-    CountSinks.Clear(); CountSinks.Start();
 
     uint64 skewer_blocks[j_width+nfwidth];   // Number of blocks in this k-skewer
             // This is oversized because we'll re-use for Sources
@@ -238,9 +234,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
         }
         skewer_blocks[j] = this_skewer_blocks;
     }
-    CountSinks.Stop();
-    
-    CalcSinkBlocks.Clear(); CalcSinkBlocks.Start();
 
     // Cumulate the number of blocks in each skewer, so we know how 
     // to start enumerating.
@@ -288,20 +281,12 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     SinkTotal = NPaddedSinks;  // for performance metrics, we always move around the padded amount
             // The total padded number of particles
     assertf(NPaddedSinks <= MaxSinkSize, "NPaddedSinks (%d) larger than allocated space (MaxSinkSize = %d)\n", NPaddedSinks, MaxSinkSize);
-
-    CalcSinkBlocks.Stop();
     
-    AllocAccels.Start();
     // We only do this in CPU mode
     // assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetAccelerations, 4096, sizeof(accstruct) * NPaddedSinks) == 0);
     SinkSetAccelerations = NULL;   // Just to give a value
-    AllocAccels.Stop();
-    
-    FillSinkLists.Stop();
 
     // All done with the Sinks.  Now for the Sources.
-    FillSourceLists.Start();
-    CountSources.Start();
 
     // Notice that the Source Pencils go from [j_low-NFR, j_high+NFR).
 
@@ -323,9 +308,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
         }
         skewer_blocks[j] = this_skewer_blocks;
     }
-    CountSources.Stop();
-
-    CalcSourceBlocks.Clear(); CalcSourceBlocks.Start();
 
     // Cumulate the number of blocks in each skewer, so we know how 
     // to start enumerating.
@@ -356,14 +338,10 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
             // The total number of padded sources
     SourceTotal = NPaddedSources;  // for performance metrics, we always move around the padded amount 
     assertf(NPaddedSources <= MaxSourceSize, "NPaddedSources (%d) larger than allocated space (MaxSourceSize = %d)\n", NPaddedSources, MaxSourceSize);
-    CalcSourceBlocks.Stop();
-    FillSourceLists.Stop();
-
 
     // Next, we have to pair up the Source and Sinks.  Each sink
     // will be acted on by 5 sources.
     // Fill the interaction lists for the sink sets
-    FillInteractionList.Start();
 
     InteractionCount = nfwidth*j_width*Nk;
     assertf(InteractionCount <= MaxNSink*nfwidth, "InteractionCount (%d) larger than allocated space (MaxNSink * nfwidth = %d)\n", InteractionCount, MaxNSink * nfwidth);
@@ -403,9 +381,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
         }
     }
     DirectTotal = localDirectTotal;
-
-    FillInteractionList.Stop();
-    Construction.Stop();
 }
 
 
