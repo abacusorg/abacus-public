@@ -487,7 +487,7 @@ void NearFieldDriver::AggregateStats(){
         mean_splits_per_slab += SlabNSplit[s];
     mean_splits_per_slab /= P.cpd;
 
-    STDLOG(0, "Maximum NSplits used in Directs\n", MaxNSplits);
+    STDLOG(0, "Maximum NSplits used in Directs = %d\n", MaxNSplits);
 
 #endif
 }
