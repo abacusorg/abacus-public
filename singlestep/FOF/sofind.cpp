@@ -199,7 +199,7 @@ class SOcell {
 	    std::swap(p[start], p[densest]);
 	    std::swap(density[start], density[densest]);
 	    // Compute the distances to all of the unassigned particles
-	    int len = np-start-1;
+	    int len = np-start-1;    // TODO: Maybe not -1?
 	    float *d2use = compute_d2(p+start, p+start, len, d2buffer, numdists);
 	    // d2use points to element start
 	    // Sort the distances in increasing order
