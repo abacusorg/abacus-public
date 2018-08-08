@@ -53,34 +53,6 @@ void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
 }
 
 
-
-/* TODO: DEPRECATED OLD CODE -- REMOVE 
-    FLOAT maxacc = 0.0, maxvel = 0.0, sumvel2 = 0.0;
-    FLOAT *vel = (FLOAT *)c.vel; 
-    FLOAT *acc = (FLOAT *)cellacc;	// These are flattened arrays, not triples.
-
-    uint32_t N = c.count()*3;
-    #pragma simd reduction(max:maxvel) reduction(max:maxacc) reduction(+:sumvel2) assert
-    for (uint32_t i=0;i<N;i++) {
-        // First half kick, to get synchronous
-        vel[i] += kick1 * acc[i];
-        // Some simple stats
-        FLOAT _vel = fabs(vel[i]);
-        FLOAT _acc = fabs(acc[i]);
-        if (_vel>maxvel) maxvel = _vel;
-        if (_acc>maxacc) maxacc = _acc;
-        sumvel2 += _vel*_vel;
-        // Second half kick, to advance to time i+1/2
-		vel[i] += kick2 * acc[i];
-    }
-
-    if (c.count()>0) sumvel2/=c.count();  // Now this has the mean square velocity 
-    c.ci->mean_square_velocity = sumvel2;
-    c.ci->max_component_acceleration = maxacc;
-    c.ci->max_component_velocity = maxvel;
-}
-*/
-
 void KickSlab(int slab, FLOAT kick1, FLOAT kick2,
 void (*KickCell)(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2)) {
     accstruct *acc = (accstruct *) LBW->ReturnIDPtr(AccSlab,slab);
