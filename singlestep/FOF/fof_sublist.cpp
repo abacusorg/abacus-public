@@ -373,6 +373,7 @@ class FOFcell {
     FOFTimer time_total;
 
     // The linking lengths that we've been setup to use.
+    FOFloat linking_length;   // The original entry, in code units
     FOFloat boundary;   // The location of the boundary, in FOF units
     FOFloat b;		// The linking length, in FOF units
     FOFloat b2;		// The linking length squared, in FOF units
@@ -433,6 +434,7 @@ class FOFcell {
 	// Positions are assumed to be cell-centered.
 	// We will change the length units to be single-precision,
 	// with the lower cell edge being at 0 and the units of linking lengths
+	linking_length = b;
 	boundary = _boundary*FOF_RESCALE;
 	b = _b*FOF_RESCALE;
 	b2 = b*b;
