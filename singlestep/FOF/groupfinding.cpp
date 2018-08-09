@@ -148,7 +148,7 @@ class GroupFindingControl {
     void DestroyCellGroups(int slab);
 	
     void report() {
-	 GLOG(0,"Considered %fG particles as active\n", CGactive/1e9);
+	 GLOG(0,"Considered %f G particles as active\n", CGactive/1e9);
 	 // The FOFdensities are weighted by b^2-r^2.  When integrated,
 	 // that yields a mass at unit density of 
    	 // (2/15)*4*PI*b^5*np
@@ -156,20 +156,20 @@ class GroupFindingControl {
 	 GLOG(0,"Maximum reported density = %f (%e in code units)\n", maxFOFdensity/FOFunitdensity, maxFOFdensity);
 	 meanFOFdensity /= P.np-WriteState.DensityKernelRad2;
 	 GLOG(0,"Mean reported non-self density = %f (%e in code units)\n", meanFOFdensity/FOFunitdensity, meanFOFdensity);
-	 GLOG(0,"Found %fG cell groups (including boundary singlets)\n", CGtot/1e9);
-	 GLOG(0,"Used %fG pseudoParticles, %fG faceParticles, %fG faceGroups\n",
+	 GLOG(0,"Found %f G cell groups (including boundary singlets)\n", CGtot/1e9);
+	 GLOG(0,"Used %f G pseudoParticles, %f G faceParticles, %f G faceGroups\n",
 	     pPtot/1e9, fPtot/1e9, fGtot/1e9);
-	 GLOG(0,"Found %fM links between groups.\n", Ltot/1e6);
-	 GLOG(0,"Found %fM global groups\n", GGtot/1e6);
-	 GLOG(0,"Longest GroupLink list was %fM, compared to %fM allocation (%f MB)\n", GLL->longest/1e6, GLL->maxlist/1e6, GLL->maxlist/1024/1024*sizeof(GroupLink));
+	 GLOG(0,"Found %f M links between groups.\n", Ltot/1e6);
+	 GLOG(0,"Found %f M global groups\n", GGtot/1e6);
+	 GLOG(0,"Longest GroupLink list was %f M, compared to %f M allocation (%f MB)\n", GLL->longest/1e6, GLL->maxlist/1e6, GLL->maxlist/1024/1024*sizeof(GroupLink));
 	 GLOG(0,"Largest Global Group has %d particles\n", largest_GG);
 
 	 GLOG(0,"L0 group multiplicity distribution:\n");
 	 L0stats.report_multiplicities(grouplog);
 
 	 GLOG(0,"L1 & L2 groups min size = %d\n", minhalosize);
-	 GLOG(0,"L1 groups required %fG distances and %fG centers\n", numdists1/1e9, numcenters1/1e9);
-	 GLOG(0,"L2 groups required %fG distances and %fG centers\n", numdists2/1e9, numcenters2/1e9);
+	 GLOG(0,"L1 groups required %f G distances and %f G centers\n", numdists1/1e9, numcenters1/1e9);
+	 GLOG(0,"L2 groups required %f G distances and %f G centers\n", numdists2/1e9, numcenters2/1e9);
 	 GLOG(0,"L1 group multiplicity distribution:\n");
 	 L1stats.report_multiplicities(grouplog);
 
