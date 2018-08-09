@@ -1,5 +1,5 @@
 #define MS_NBIN 24
-#define MS_MIN 32
+#define MS_MIN 16
 class MultiplicityStats {
   public:
     uint64 ngroups;

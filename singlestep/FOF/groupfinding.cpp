@@ -163,12 +163,13 @@ class GroupFindingControl {
 	 GLOG(0,"Found %d global groups\n", GGtot);
 	 GLOG(0,"Longest GroupLink list was %d, compared to %d allocation\n", GLL->longest, GLL->maxlist);
 	 GLOG(0,"Largest Global Group has %d particles\n", largest_GG);
-	 GLOG(0,"L1 groups required %l distances and %l centers\n", numdists1, numcenters1);
-	 GLOG(0,"L2 groups required %l distances and %l centers\n", numdists2, numcenters2);
 
 	 GLOG(0,"L0 group multiplicity distribution:\n");
 	 L0stats.report_multiplicities(grouplog);
 
+	 GLOG(0,"L1 & L2 groups min size = %d\n", minhalosize);
+	 GLOG(0,"L1 groups required %l distances and %l centers\n", numdists1, numcenters1);
+	 GLOG(0,"L2 groups required %l distances and %l centers\n", numdists2, numcenters2);
 	 GLOG(0,"L1 group multiplicity distribution:\n");
 	 L1stats.report_multiplicities(grouplog);
 
