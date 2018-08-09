@@ -272,14 +272,22 @@ void Manifest::QueueToSend(int finished_slab) {
 
     STDLOG(1,"Queuing Arenas into the SendManifest\n");
     // Now load all of the arenas into the Manifest
+    int min_slab = finished_slab;
     for (int type=0; type<MAXIDS; type++) {
 	// Loop over all SlabTypes
 	for (int s=finished_slab-1; s>finished_slab-cpd; s--) {
 	    // Check each trailing slab; if present, load it up
-	    if (LBW->IDPresent(type,s)) LoadArena(type,s);
-		else break;
+	    if (LBW->IDPresent(type,s)) {
+	    	LoadArena(type,s);
+		min_slab = std::min(min_slab, s);
+	    }
+	    else if (s<min_slab) break;
+	    // Some slabs have been already been deallocated by the finish slab,            // but we need the ones that were waiting for the periodic wrap.
+	    // This relies on the fact that the first SlabType, PosSlab, 
+	    // stretches back to the beginning.
 	}
     }
+    STDLOG(1,"Done Queuing Arenas, spanning [%d,%d)\n", min_slab, finished_slab);
 
     STDLOG(1,"Queuing Insert List into the SendManifest, extracting [%d,%d)\n",
     	min_il_slab, finished_slab);

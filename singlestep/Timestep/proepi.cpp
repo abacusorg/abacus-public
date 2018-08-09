@@ -38,7 +38,6 @@ STimer FinishPartition;
 STimer FinishSort;
 STimer FinishCellIndex;
 STimer FinishMerge;
-PTimer FinishFreeSlabs;
 STimer ComputeMultipoles;
 STimer WriteMergeSlab;
 STimer WriteMultipoleSlab;
@@ -92,8 +91,10 @@ SlabBuffer *LBW;
 
 // Two quick functions so that the I/O routines don't need to know 
 // about the LBW object. TODO: Move these to an io specific file
-void IO_SetIOCompleted(int arena) { LBW->LinearBuffer::SetIOCompleted(arena); }
-void IO_DeleteArena(int arena)    { LBW->DeAllocateArena(arena); }
+void IO_SetIOCompleted(int arenatype, int arenaslab) { 
+	LBW->SetIOCompleted(arenatype, arenaslab); }
+void IO_DeleteArena(int arenatype, int arenaslab)    { 
+	LBW->DeAllocate(arenatype, arenaslab); }
 
 
 #include "threadaffinity.h"
@@ -204,7 +205,7 @@ void Prologue(Parameters &P, bool ic) {
     // Call this to use thread-based Manifests
     NonBlockingManifest();
 
-    LBW = new SlabBuffer(cpd, order, cpd*MAXIDS, P.MAXRAMMB*1024*1024);
+    LBW = new SlabBuffer(cpd, order, MAXIDS, P.MAXRAMMB*1024*1024);
     PP = new Particles(cpd, LBW);
     STDLOG(1,"Initializing Multipoles()\n");
     MF  = new SlabMultipoles(order, cpd);
@@ -217,6 +218,7 @@ void Prologue(Parameters &P, bool ic) {
         if (P.NumSlabsInsertList>0) maxILsize   =(maxILsize* P.NumSlabsInsertList)/P.cpd+1;
     }
     IL = new InsertList(cpd, maxILsize);
+    STDLOG(1,"Maximum insert list size = %ld, size %l MB\n", maxILsize, maxILsize*sizeof(ilstruct)/1024/1024);
 
     STDLOG(1,"Setting up IO\n");
 
@@ -276,6 +278,11 @@ void Epilogue(Parameters &P, bool ic) {
     epilogue.Clear();
     epilogue.Start();
 
+    if(JJ)
+        JJ->AggregateStats();
+
+    // Write out the timings.  This must precede the rest of the epilogue, because 
+    // we need to look inside some instances of classes for runtimes.
     char timingfn[1050];
     sprintf(timingfn,"%s/lastrun.time", P.LogDirectory);
     FILE * timingfile = fopen(timingfn,"w");
@@ -358,7 +365,8 @@ void Epilogue(Parameters &P, bool ic) {
     STDLOG(0, "Peak resident memory usage was %.3g GB\n", (double) rusage.ru_maxrss / 1024 / 1024);
     
     epilogue.Stop();
-    STDLOG(1,"Leaving Epilogue()\n");
+    // This timing does not get written to the timing log, so it had better be small!
+    STDLOG(1,"Leaving Epilogue(). Epilogue took %.2g sec.\n", epilogue.Elapsed());
 }
 
 std::vector<std::vector<int>> free_cores;  // list of free cores for each socket
@@ -416,6 +424,7 @@ void setup_log(){
     sprintf(logfn,"%s/lastrun.log", P.LogDirectory);
     stdlog.open(logfn);
     STDLOG_TIMESTAMP;
+    STDLOG(0, "Log established with verbosity %d.\n", stdlog_threshold_global);
 }
 
 void check_read_state(int AllowIC, bool &MakeIC, double &da){

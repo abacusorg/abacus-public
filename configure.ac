@@ -47,7 +47,7 @@ AC_SEARCH_LIBS(cblas_dgemm, [gslcblas], [], [AC_MSG_ERROR([unable to find gslcbl
 AC_SEARCH_LIBS(gsl_rng_uniform, [gsl], [], [AC_MSG_ERROR([unable to find gsl!])])
 AC_SEARCH_LIBS(ITT_DoOneTimeInitialization, [tbb], [], [AC_MSG_ERROR([unable to find tbb!])])
 AC_CHECK_LIB(tcmalloc_minimal, malloc, [], [AC_MSG_WARN([unable to find tcmalloc!])])
-#AC_SEARCH_LIBS(numa_max_node, [numa], [], [AC_MSG_ERROR([unable to find numa!])])
+AC_CHECK_LIB(numa, move_pages, [], [AC_MSG_WARN([unable to find numa!])])
 
 AC_SUBST(TCMALLOC)
 TCMALLOC="TCMALLOC_DISABLED"
@@ -127,6 +127,13 @@ AC_ARG_ENABLE(avx512-multipoles,
 	[], enable_avx512_multipoles=$enable_avx512)
 if test x$enable_avx512_multipoles == xyes; then
 	AC_DEFINE_UNQUOTED(AVX512MULTIPOLES, [], "Use AVX-512 multipoles")
+fi
+
+AC_ARG_ENABLE(avx-fof,
+[AS_HELP_STRING([--enable-avx-fof], [AVX FOF [yes if AVX present]])],
+    [], enable_avx_fof=$enable_avx)
+if test x$enable_avx_fof == xyes; then
+    AC_DEFINE_UNQUOTED(AVXFOF, [], "Use AVX FOF")
 fi
 
 AC_ARG_WITH(max-cpd,
@@ -249,6 +256,7 @@ echo "AVX directs:                     $enable_avx_directs"
 echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "AVX multipoles:                  $enable_avx_multipoles"
 echo "AVX-512 multipoles:              $enable_avx512_multipoles"
+echo "AVX FOF:                         $enable_avx_fof"
 echo "Maximum CPD:                     $with_max_cpd"
 echo "Maximum source length:           $with_max_source_length"
 echo "Threaded IO:                     $enable_threaded_io"

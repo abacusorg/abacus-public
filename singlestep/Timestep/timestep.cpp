@@ -172,7 +172,7 @@ void NearForceAction(int slab) {
     SlabForceTime[slab].Start();
         
     JJ->ExecuteSlab(slab, P.ForceOutputDebug);
-    //JJ->ExecuteSlab(slab, 1);  // Uncomment to force blocking
+    // JJ->ExecuteSlab(slab, 1);  // Uncomment to force blocking GPU work
 
     SlabForceLatency[slab].Start();
     if (P.ForceOutputDebug) {
@@ -293,6 +293,8 @@ void KickAction(int slab) {
     if(Kick.number_of_slabs_executed < FORCE_RADIUS){
         STDLOG(2,"Marking slab %d for repeat\n", slab - FORCE_RADIUS);
         TransposePos.mark_to_repeat(slab - FORCE_RADIUS);
+	// BUG FIXED: This DeAllocation was missing
+        LBW->DeAllocate(PosXYZSlab, slab - FORCE_RADIUS);
         // The first two won't need PosSlab until the second time around
         //LBW->DeAllocate(PosSlab, slab - FORCE_RADIUS);
         LBW->DeAllocate(CellInfoSlab, slab - FORCE_RADIUS);
@@ -607,8 +609,6 @@ void FinishAction(int slab) {
     // Gather particles from the insert list and make the merge slabs
     uint64 n_merge = FillMergeSlab(slab);
     merged_particles += n_merge;
-
-    FinishFreeSlabs.Start();
     
     // This may be the last time be need any of the CellInfo slabs that we just used
     // We can't immediately free CellInfo before NearForce might need it until we're FORCE_RADIUS away
@@ -626,8 +626,6 @@ void FinishAction(int slab) {
     LBW->DeAllocate(PosSlab,slab);
     LBW->DeAllocate(VelSlab,slab);
     LBW->DeAllocate(AuxSlab,slab);
-
-    FinishFreeSlabs.Stop();
     
     // Make the multipoles
     LBW->AllocateArena(MultipoleSlab,slab);
@@ -651,6 +649,8 @@ void FinishAction(int slab) {
     #ifdef PARALLEL
     if (Finish.number_of_slabs_executed==0) SendManifest.QueueToSend(slab);
     #endif
+    // TODO: is there a different place in the code where we would rather report this?
+    ReportMemoryAllocatorStats();
 }
 
 // -----------------------------------------------------------------

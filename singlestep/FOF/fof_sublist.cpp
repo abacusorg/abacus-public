@@ -50,7 +50,7 @@ typedef float FOFloat;
 
 #define FOF_RESCALE 1e12
 
-class FOFparticle {
+class alignas(16) FOFparticle {
   // We should always do this in single precision!
   // Particularly if we want to consider some AVX calls for diff2.
   // Doing this as aligned float4's will also allow AVX for min/max
@@ -73,7 +73,18 @@ class FOFparticle {
 	z = p.z*FOF_RESCALE;
 	n = (FOFloat)(_n);
     }
+    FOFparticle() { }
+    // FOFparticle(FOFparticle &p) {
+	// x = p.x; y = p.y; z = p.z; n = p.n; 
+    // }
     inline int index() { return (int)(n); }
+    inline FOFloat diff2v(FOFparticle *q) {
+        FOFloat dx = q->x-x;
+        FOFloat dy = q->y-y;
+        FOFloat dz = q->z-z;
+        FOFloat dn = q->n-n;
+	return dx*dx+dy*dy+dz*dz+dn*dn;
+    }
     inline FOFloat diff2(FOFparticle *q) {
         FOFloat dx = q->x-x;
         FOFloat dy = q->y-y;
@@ -87,9 +98,22 @@ class FOFparticle {
         FOFloat dz = q->z+offset->z-z;
 	return dx*dx+dy*dy+dz*dz;
     }
+    // Hopefully the compiler is smart enough to convert the following to SSE!
+    // If not, we could include the SSE primatives...
+    inline void min(FOFparticle &q) {
+	x = std::min(x,q.x); y = std::min(y,q.y);
+	z = std::min(z,q.z); n = std::min(n,q.n);
+    }
+    inline void max(FOFparticle &q) {
+	x = std::max(x,q.x); y = std::max(y,q.y);
+	z = std::max(z,q.z); n = std::max(n,q.n);
+    }
+    inline void mult(FOFloat f) {
+        x *= f; y *= f; z *= f; n *= f;
+    }
 };
 
-#ifdef AVX512DIRECT
+#ifdef AVX512DIRECT  // change this to AVX512FOF if we ever decide it's faster
 #include "avx512_calls.h"
 // This implementation is slower than AVX; AVX-512 is missing hadd
 inline void diff2avx512_4(float *r, float *p, float *a) {
@@ -185,6 +209,18 @@ inline void diff2avx512_32(float *r, float *p, float *a) {
 #endif // AVX512DIRECT
 
 
+#ifndef AVXFOF
+
+inline void diff2by4(float *r, FOFparticle *p, FOFparticle *a) {
+    // This takes 4 float4's and computes |p-a|^2
+    r[0] = (*p).diff2v(a);
+    r[1] = (*p).diff2v(a+1);
+    r[2] = (*p).diff2v(a+2);
+    r[3] = (*p).diff2v(a+3);
+}
+
+#else
+
 inline void diff2avx4(float *r, float *p, float *a) {
     // p and r are required to be 16-byte aligned.
     // a is required to be 32-byte aligned (unless we want to use loadu),
@@ -241,19 +277,21 @@ inline void diff2avx8(float *r, float *p, float *a) {
     return;
 }
 
+#endif
+
 
 // Assume that FOFgroup is divisible by 16 and that the __m128 
 // elements will be 16-byte aligned for SSE.
-class FOFgroup {
+class alignas(16) FOFgroup {
   public:
+    FOFparticle BBmin, BBmax;
     int start, n;   // Starting index and Number of particles
     int tmp[2];     // For alignment padding
-    __m128 BBmin, BBmax;
     	// During calculation, these are in FOF units, but at the
 	// end we restore them to input code units
 
     FOFgroup(int _start, int _n) { start = _start; n = _n; }
-    FOFgroup(int _start, int _n, __m128 _BBmin, __m128 _BBmax) { 
+    FOFgroup(int _start, int _n, FOFparticle _BBmin, FOFparticle _BBmax) { 
 	BBmin = _BBmin; BBmax = _BBmax;
     	start = _start; n = _n; 
     }
@@ -379,7 +417,7 @@ class FOFcell {
 
 	// We also need to undo the scaling of the positions
 	float inv_rescale = 1.0/(FOF_RESCALE);
-	__m128 inv = _mm_load1_ps(&inv_rescale);
+	// __m128 inv = _mm_load1_ps(&inv_rescale);
 
 	// Count the number of particles in the multiplet
 	nmultiplets = 0;
@@ -415,8 +453,11 @@ class FOFcell {
 		// location m in our list.
 		index[p[j].index()] = m;
 	    }
-	    groups[g].BBmin = _mm_mul_ps(groups[g].BBmin, inv);
-	    groups[g].BBmax = _mm_mul_ps(groups[g].BBmax, inv);
+	    // AVXAVX
+	    groups[g].BBmin.mult(inv_rescale);
+	    groups[g].BBmax.mult(inv_rescale);
+	    // groups[g].BBmin = _mm_mul_ps(groups[g].BBmin, inv);
+	    // groups[g].BBmax = _mm_mul_ps(groups[g].BBmax, inv);
 	    g++;
 	}
 
@@ -462,15 +503,24 @@ class FOFcell {
 	    d2use = d2buf;
 	    //#pragma unroll
 	    for (int a=0; a<nlist; a+=4)
+			#ifdef AVXFOF
 			diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
+			#else
+			diff2by4(d2use+a, primary, list+a);
+			#endif
 			//d2use[a] = primary->diff2(list+a);  // with ICC, this is actually the same speed
 	} else {
 	    // We have an odd registration.  Do the first object special.
 	    d2use = d2buf+3;
-	    d2use[0] = primary->diff2(list);
+	    //? d2use[0] = primary->diff2(list);
+	    d2use[0] = primary->diff2v(list);
 	    //#pragma unroll
 	    for (int a=1; a<nlist; a+=4)
+			#ifdef AVXFOF
 			diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
+			#else
+			diff2by4(d2use+a, primary, list+a);
+			#endif
 			//d2use[a] = primary->diff2(list+a);
 	}
 	numdists += nlist;
@@ -478,9 +528,19 @@ class FOFcell {
     }
 
     inline void add_to_pending(FOFparticle *&b, FOFparticle *a, 
-    		__m128 &BBmin, __m128 &BBmax) {
+    		FOFparticle &BBmin, FOFparticle &BBmax) {
 	// We're going to add 'a' to our pending queue, 
 	// moving it to position b and incrementing b.
+	FOFparticle new_member = *a;
+	BBmin.min(new_member);
+	BBmax.max(new_member);
+	*a = *b;
+	*b = new_member;
+	b++;
+	return;
+    }
+
+/*
 	__m128 new_member = _mm_load_ps((float *)a);
 	BBmin = _mm_min_ps(BBmin, new_member);
 	BBmax = _mm_max_ps(BBmax, new_member);
@@ -488,12 +548,24 @@ class FOFcell {
 	_mm_store_ps((float *)b++, new_member);
 	return;
     }
+*/
 
     inline void add_to_pending(FOFparticle *&c, FOFparticle *&b, FOFparticle *a, 
-    		__m128 &BBmin, __m128 &BBmax) {
+    		FOFparticle &BBmin, FOFparticle &BBmax) {
 	// We're going to add 'a' to our pending queue, 
 	// moving it to position c and incrementing c.
 	// Via position b, which is incremented.
+	FOFparticle new_member = *a;
+	BBmin.min(new_member);
+	BBmax.max(new_member);
+	*a = *b;
+	*b = *c;
+	*c = new_member;
+	b++; c++;
+	return;
+    }
+
+    /*
 	__m128 new_member = _mm_load_ps((float *)a);
 	BBmin = _mm_min_ps(BBmin, new_member);
 	BBmax = _mm_max_ps(BBmax, new_member);
@@ -502,12 +574,25 @@ class FOFcell {
 	_mm_store_ps((float *)c++, new_member);
 	return;
     }
+    */
 
     inline void add_to_pending(FOFparticle *&d, FOFparticle *&c, FOFparticle *&b, FOFparticle *a, 
-    		__m128 &BBmin, __m128 &BBmax) {
+    		FOFparticle &BBmin, FOFparticle &BBmax) {
 	// We're going to add 'a' to our pending queue, 
 	// moving it to position d and incrementing d.
 	// Via position b and c, which are incremented.
+	FOFparticle new_member = *a;
+	BBmin.min(new_member);
+	BBmax.max(new_member);
+	*a = *b;
+	*b = *c;
+	*c = *d;
+	*d = new_member;
+	b++; c++; d++;
+	return;
+    }
+
+    /*
 	__m128 new_member = _mm_load_ps((float *)a);
 	BBmin = _mm_min_ps(BBmin, new_member);
 	BBmax = _mm_max_ps(BBmax, new_member);
@@ -517,12 +602,26 @@ class FOFcell {
 	_mm_store_ps((float *)d++, new_member);
 	return;
     }
+    */
 
     inline void add_to_pending(FOFparticle *&e, FOFparticle *&d, FOFparticle *&c, 
-    	FOFparticle *&b, FOFparticle *a, __m128 &BBmin, __m128 &BBmax) {
+    	FOFparticle *&b, FOFparticle *a, FOFparticle &BBmin, FOFparticle &BBmax) {
 	// We're going to add 'a' to our pending queue, 
 	// moving it to position e and incrementing e.
 	// Via position b, c, and d, which are incremented.
+	FOFparticle new_member = *a;
+	BBmin.min(new_member);
+	BBmax.max(new_member);
+	*a = *b;
+	*b = *c;
+	*c = *d;
+	*d = *e;
+	*e = new_member;
+	b++; c++; d++; e++;
+	return;
+    }
+
+    /*
 	__m128 new_member = _mm_load_ps((float *)a);
 	BBmin = _mm_min_ps(BBmin, new_member);
 	BBmax = _mm_max_ps(BBmax, new_member);
@@ -533,6 +632,7 @@ class FOFcell {
 	_mm_store_ps((float *)e++, new_member);
 	return;
     }
+    */
 
 
     // ====================  Alternative modified N^2 algorithm ==========
@@ -583,9 +683,11 @@ class FOFcell {
 	unassigned_core = primary+1;
 	unassigned_skin = primary;   // Set this to force an initial partitioning
 
-	__m128 BBmin, BBmax;
-	BBmin = _mm_load_ps((float *)primary);
-	BBmax = _mm_load_ps((float *)primary);
+	FOFparticle BBmin, BBmax;
+	// AVXAVX
+	BBmin = *primary; BBmax = *primary;
+	//BBmin = _mm_load_ps((float *)primary);
+	//BBmax = _mm_load_ps((float *)primary);
 
 	while (primary<end) {
 	    // We have a primary to search.  
@@ -699,8 +801,10 @@ class FOFcell {
 		    groups[ngroups++] = FOFgroup(start-p, unassigned_core-start, BBmin, BBmax);
 		}
 		start = primary; unassigned_core = start+1;
-		BBmin = _mm_load_ps((float *)primary);
-		BBmax = _mm_load_ps((float *)primary);
+		// AVXAVX
+		BBmin = *primary; BBmax = *primary;
+		// BBmin = _mm_load_ps((float *)primary);
+		// BBmax = _mm_load_ps((float *)primary);
 	    }
 	    // If the group is open, then we'll have 
 	    // primary=pending_notcore<unassigned_core.
@@ -724,9 +828,11 @@ class FOFcell {
 	FOFparticle *unassigned = p+1;    // Group is [start, unassigned)
 	FOFparticle *end = p+np;   // Unassigned particles are [unassigned,end)
 	FOFparticle *primary = start;   // The current search point
-	__m128 BBmin, BBmax;
-	BBmin = _mm_load_ps((float *)primary);
-	BBmax = _mm_load_ps((float *)primary);
+	FOFparticle BBmin, BBmax;
+	// AVXAVX
+	BBmin = *primary; BBmax = *primary;
+	// BBmin = _mm_load_ps((float *)primary);
+	// BBmax = _mm_load_ps((float *)primary);
 
 	while (primary<end) {
 	    // First, we're going to compute the distances to [unassigned,end).
@@ -745,8 +851,10 @@ class FOFcell {
 		}
 		// Set up the next group
 		start = primary; unassigned=primary+1;
-		BBmin = _mm_load_ps((float *)primary);
-		BBmax = _mm_load_ps((float *)primary);
+		// AVXAVX
+		BBmin = *primary; BBmax = *primary;
+		// BBmin = _mm_load_ps((float *)primary);
+		// BBmax = _mm_load_ps((float *)primary);
 	    }
 	}
 	time_fof.Stop();

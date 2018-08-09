@@ -112,6 +112,9 @@ public:
         // We have been given a particle that has drifted out of its cell.
         // Find the new cell, changing the position as appropriate.
         // This is for cell-referenced positions
+	assertf(fabs(pos->x)<0.5&&fabs(pos->y)<0.5&&fabs(pos->z)<0.5,
+		"Particle has moved way too much: %f %f %f\n",
+		pos->x, pos->y, pos->z);
         while (pos->x>halfinvcpd) {
             oldx+=1; pos->x-=invcpd;
         }

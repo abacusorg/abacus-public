@@ -28,7 +28,7 @@ public:
         // Note: we could move from ring buffers and FIFOs to a simple tbb:concurrent_bounded_queue,
         // as with the GPU module.  The current implementation is overkill since we don't need inter-process communication.
         pid_t pid = getpid();
-        STDLOG(1,"Using pid %d in IO\n",pid);
+        STDLOG(0,"Using pid %d in IO\n",pid);
         sprintf(IO_CMD_PIPE, "/tmp/iocmd_abacus.%d.%d", pid, threadnum);
         sprintf(IO_ACK_PIPE, "/tmp/ioack_abacus.%d.%d", pid, threadnum);
         remove_io_pipes();
@@ -79,12 +79,12 @@ public:
         int res = 0;
         res += pthread_create(&io_pthread, NULL, iothread::start_thread, this);
         assertf(res == 0, "error %d starting io pthread!\n", res);
-        STDLOG(1,"IO thread started!\n");
+        STDLOG(0,"IO thread started!\n");
 
         // Open the pipes from the client side
         io_cmd = open(IO_CMD_PIPE, O_WRONLY);
         io_ack = open(IO_ACK_PIPE, O_RDONLY);
-        STDLOG(1,"Done initializing IO\n");
+        STDLOG(0,"Done initializing IO\n");
     }
     
     static void *start_thread(void *iothread_obj){
@@ -92,7 +92,7 @@ public:
     }
     
     ~iothread() {
-        STDLOG(1,"Terminating the IO thread\n");
+        STDLOG(0,"Terminating the IO thread\n");
         iorequest quitcmd; 
         quitcmd.command = IO_QUIT; 
         quitcmd.blocking = 1; 
@@ -101,7 +101,7 @@ public:
         ret = read(io_ack, &quitcmdack, sizeof(ioacknowledge) );  
         assertf(quitcmdack.command==IO_QUIT,
             "Error in IO acknowledgment\n"); 
-        STDLOG(1,"Termination of IO thread confirmed\n");
+        STDLOG(0,"Termination of IO thread confirmed\n");
         close(io_cmd);
         close(io_ack);
         remove_io_pipes();
@@ -110,17 +110,17 @@ public:
         delete RD;
         delete WD;
         assert(!rc);
-        STDLOG(1,"Termination of IO complete\n");
+        STDLOG(0,"Termination of IO complete\n");
         iolog.close();
     }
     
     void request(iorequest ior){
         ssize_t ret = write(io_cmd, &ior, sizeof(iorequest));
         if (ior.blocking) {
-            wait_for_ioack(io_ack, ior.arena);
+            wait_for_ioack(io_ack, ior.arenatype, ior.arenaslab);
             STDLOG(1,"Blocking IO returned\n");
         } else {
-            STDLOG(1,"Non-blocking IO requested\n");
+            STDLOG(2,"Non-blocking IO requested\n");
         }
         
     }
@@ -142,15 +142,15 @@ private:
     
     void CrashIO() {
         IOLOG(0,"Crashing the IO thread; sending IO_ERROR to client!\n");
-        ioacknowledge ioack(IO_ERROR,-1);
+        ioacknowledge ioack(IO_ERROR,-1,-1);
         ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
         pthread_exit(NULL);
     }
     
-    void wait_for_ioack(int io_ack, int arena){
+    void wait_for_ioack(int io_ack, int arenatype, int arenaslab){
         ioacknowledge ioack;
         ssize_t ret = read(io_ack, &ioack, sizeof(ioacknowledge));
-        assertf(ioack.arena == arena, "Error in IO acknowledgement for arena %d = %d\n", arena, ioack.arena);
+        assertf(ioack.arenatype == arenatype && ioack.arenaslab == arenaslab, "Error in IO acknowledgement for arena %d = %d, %d =%d\n", arenatype, ioack.arenatype, arenaslab, ioack.arenaslab);
     }
 
     // =====================================================================
@@ -158,17 +158,17 @@ private:
 
     void ReadIOR(iorequest *ior) {
         // Read the file, wait to complete.
-        IOLOG(0,"Reading file %s\n", ior->filename);
+        IOLOG(1,"Reading file %s\n", ior->filename);
 
         RD->BlockingRead( ior->filename, ior->memory, ior->sizebytes, ior->fileoffset);
 
         IOLOG(1,"Done reading file\n");
-        IO_SetIOCompleted(ior->arena);
+        IO_SetIOCompleted(ior->arenatype, ior->arenaslab);
         return;
     }
 
     void WriteIOR(iorequest *ior) {
-        IOLOG(0,"Writing file %s\n", ior->filename);
+        IOLOG(1,"Writing file %s\n", ior->filename);
         // Write the file
         //ioassertf(FileExists(ior->filename)==0, 
         //	"File %s already exists; not the intended use of WriteFile.\n", ior->filename);
@@ -183,7 +183,7 @@ private:
         WD->BlockingAppend( ior->filename, ior->memory, ior->sizebytes);
 
         IOLOG(1,"Done writing file\n");
-        if (ior->deleteafterwriting==IO_DELETE) IO_DeleteArena(ior->arena);
+        if (ior->deleteafterwriting==IO_DELETE) IO_DeleteArena(ior->arenatype, ior->arenaslab);
         return;
     }
 
@@ -198,10 +198,10 @@ private:
 
         if(io_core >= 0){
             set_core_affinity(io_core);
-            STDLOG(1, "IO thread assigned to core %d\n", io_core);
+            STDLOG(0, "IO thread assigned to core %d\n", io_core);
         }
         else{
-            STDLOG(1, "IO thread not bound to core\n");
+            STDLOG(0, "IO thread not bound to core\n");
         }
 
         {
@@ -210,16 +210,16 @@ private:
             sched_param params;
             ret = pthread_getschedparam(io_pthread, &policy, &params);
             if (ret != 0){
-               STDLOG(1, "Couldn't retrieve IO thread real-time scheduling params\n");
+               STDLOG(0, "Couldn't retrieve IO thread real-time scheduling params\n");
             } else {
                 // Check the correct policy was applied
                 if(policy != SCHED_FIFO) {
-                    STDLOG(1,"IO thread scheduling is NOT SCHED_FIFO!\n");
+                    STDLOG(0,"IO thread scheduling is NOT SCHED_FIFO!\n");
                 } else{
-                    STDLOG(1, "IO thread schedule confirmed SCHED_FIFO\n");
+                    STDLOG(0, "IO thread schedule confirmed SCHED_FIFO\n");
                 }
                 // Print thread scheduling priority
-                STDLOG(1,"IO thread scheduling priority is %d\n", params.sched_priority);
+                STDLOG(0,"IO thread scheduling priority is %d\n", params.sched_priority);
             }
         }
 
@@ -249,13 +249,13 @@ private:
                     FD_SET(fifo_cmd,&set);
                     int ret = select(highfd+1,&set,NULL, NULL, &timeout);
                     assert(ret!=-1);
-                    IOLOG(1,"Polling IO pipe: select() returned %d, wait_for_cmd %d\n", ret, wait_for_cmd);
+                    IOLOG(2,"Polling IO pipe: select() returned %d, wait_for_cmd %d\n", ret, wait_for_cmd);
 
                     // if wait_for_cmd==1 then we should wait for a cmd to appear.
                     // otherwise we would spin lock.  But if wait_for_cmd = 0, then 
                     // we are just trying to empty the cmd pipe without locking up.
                     if (wait_for_cmd == 1 || (ret>0 && FD_ISSET(fifo_cmd,&set))) {
-                        IOLOG(1,"Reading from IO pipe\n");
+                        IOLOG(2,"Reading from IO pipe\n");
                         // Read a command and place it in the buffers.
                         iorequest ior;
                         int nr = read(fifo_cmd, &ior, sizeof(iorequest));
@@ -263,13 +263,13 @@ private:
                         wait_for_cmd = 0;
                         // Put it in the buffer
                         if (ior.command==IO_READ) {
-                        IOLOG(1,"Received IO read request: file = %s, arena = %d, blocking = %d\n", 
-                            ior.filename, ior.arena, ior.blocking);
+                        IOLOG(2,"Received IO read request: file = %s, arena type %d slab %d, blocking = %d\n", 
+                            ior.filename, ior.arenatype, ior.arenaslab, ior.blocking);
                             if (ior.blocking==IO_BLOCKING) read_blocking.push(ior);
                             else read_nonblocking.push(ior);
                         } else if (ior.command==IO_WRITE) {
-                        IOLOG(1,"Received IO write request: file = %s, arena = %d, blocking = %d\n", 
-                            ior.filename, ior.arena, ior.blocking);
+                        IOLOG(2,"Received IO write request: file = %s, arena type %d slab %d, blocking = %d\n", 
+                            ior.filename, ior.arenatype, ior.arenaslab, ior.blocking);
                             if (ior.blocking==IO_BLOCKING) write_blocking.push(ior);
                             else write_nonblocking.push(ior);
                         } else if (ior.command==IO_QUIT) {
@@ -280,11 +280,11 @@ private:
                 } while(fifo_not_empty);
             }
 
-            IOLOG(1,"Attempting to execute an IO command\n");
+            IOLOG(2,"Attempting to execute an IO command\n");
 
             // Do one instruction, chosen by priority
             if (write_blocking.isnotempty()) {
-                IOLOG(1,"Starting blocking write\n"); 
+                IOLOG(2,"Starting blocking write\n"); 
                 iorequest ior = write_blocking.pop(); 
                 const char *dir = ior.dir;
 
@@ -294,11 +294,11 @@ private:
                 BlockingIOWriteBytes[dir] += ior.sizebytes;
 
                 // Send an acknowledgement
-                ioacknowledge ioack(IO_WRITE,ior.arena);
+                ioacknowledge ioack(IO_WRITE,ior.arenatype, ior.arenaslab);
                 ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
-                IOLOG(1,"IO_WRITE acknowledgement sent\n");
+                IOLOG(2,"IO_WRITE acknowledgement sent\n");
             } else if (read_blocking.isnotempty()) {
-                IOLOG(1,"Starting blocking read\n"); 
+                IOLOG(2,"Starting blocking read\n"); 
                 iorequest ior = read_blocking.pop();
                 const char *dir = ior.dir;
 
@@ -308,11 +308,11 @@ private:
                 BlockingIOReadBytes[dir] += ior.sizebytes;
 
                 // Send an acknowledgement
-                ioacknowledge ioack(IO_READ,ior.arena);
+                ioacknowledge ioack(IO_READ,ior.arenatype, ior.arenaslab);
                 ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
-                IOLOG(1,"IO_READ acknowledgement sent\n");
+                IOLOG(2,"IO_READ acknowledgement sent\n");
             } else if (write_nonblocking.isnotempty()) {
-                IOLOG(1,"Starting nonblocking write\n"); 
+                IOLOG(2,"Starting nonblocking write\n"); 
                 iorequest ior = write_nonblocking.pop(); 
                 const char *dir = ior.dir;
 
@@ -321,7 +321,7 @@ private:
                 NonBlockingIOWriteTime[dir].Stop();
                 NonBlockingIOWriteBytes[dir] += ior.sizebytes;
             } else if (read_nonblocking.isnotempty()) {
-                IOLOG(1,"Starting nonblocking read\n");
+                IOLOG(2,"Starting nonblocking read\n");
                 iorequest ior = read_nonblocking.pop();
                 const char *dir = ior.dir;
 
@@ -337,7 +337,7 @@ private:
         // Terminate:  The IO is all done, so quit the pipes and remove the fifo files
         // Signal an acknowledgement.
         IOLOG(0,"Terminating the IO thread as planned.\n");
-        ioacknowledge ioack(IO_QUIT,0);
+        ioacknowledge ioack(IO_QUIT,0,0);
         ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
         IOLOG(0,"IO_QUIT acknowledgement sent\n");
         close(fifo_cmd);
@@ -346,7 +346,7 @@ private:
     }
 
     void make_io_pipes(void) {
-        STDLOG(1,"Making io pipes.\n");
+        STDLOG(0,"Making io pipes.\n");
         int ret_val;
 
         errno = 0;
@@ -362,7 +362,7 @@ private:
 
     void remove_io_pipes(void) {
         // Must remove old files
-        STDLOG(1,"Deleting io pipe files\n");
+        STDLOG(0,"Deleting io pipe files\n");
         int ret = 0;
         if (FileExists(IO_ACK_PIPE)) {
             ret = remove(IO_ACK_PIPE);
@@ -391,14 +391,14 @@ void IO_Initialize(char *logfn) {
 
     iothreads = new iothread*[niothreads];
     for(int i = 0; i < niothreads; i++){
-        STDLOG(1,"Initializing IO thread %d\n", i + 1);
+        STDLOG(0,"Initializing IO thread %d\n", i + 1);
         iothreads[i] = new iothread(logfn, i + 1, P.IOCores[i]);
     }
 }
 
 void IO_Terminate() {
     for(int i = 0; i < niothreads; i++){
-        STDLOG(1,"Terminating IO thread %d\n", i);
+        STDLOG(0,"Terminating IO thread %d\n", i);
         delete iothreads[i];
     }
 
@@ -419,24 +419,24 @@ int GetIOThread(const char* dir){
 
 
 // Here are the actual interfaces for writing an arena
-void ReadFile(char *ram, uint64 sizebytes, int arena,
+void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
 	    const char *filename, off_t fileoffset, int blocking) {
     
     //blocking = 1;
     
-    STDLOG(1,"Using IO_thread module to read file %f\n", filename);
-    iorequest ior(ram, sizebytes, filename, IO_READ, arena, fileoffset, 0, blocking);
+    STDLOG(2,"Using IO_thread module to read file %f, blocking %d\n", filename, blocking);
+    iorequest ior(ram, sizebytes, filename, IO_READ, arenatype, arenaslab, fileoffset, 0, blocking);
     
     iothreads[GetIOThread(ior.dir) - 1]->request(ior);
 }
 
-void WriteFile(char *ram, uint64 sizebytes, int arena, 
+void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, 
 	    const char *filename, off_t fileoffset, int deleteafter, int blocking) {
 
     //blocking = 1;
     
-    STDLOG(1,"Using IO_thread module to write file %f\n", filename);
-    iorequest ior(ram, sizebytes, filename, IO_WRITE, arena, fileoffset, deleteafter, blocking );
+    STDLOG(2,"Using IO_thread module to write file %f, blocking %d\n", filename, blocking);
+    iorequest ior(ram, sizebytes, filename, IO_WRITE, arenatype, arenaslab, fileoffset, deleteafter, blocking );
     
     iothreads[GetIOThread(ior.dir) - 1]->request(ior);
 }

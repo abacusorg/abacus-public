@@ -1,11 +1,18 @@
-// These are the GPU routines that implement the Block-on-Block computation
+/// \file These are the GPU-side routines that implement the Block-on-Block computation.
 
-// If the Source Block is full, then we can unroll some of the loop
+/// We specialize these Block-based kernels to the choice of 
+/// COMPUTE_FOF_DENSITY, since we don't expect to re-use them in
+/// the microstepping.
+///
+/// If the Source Block is full, then we can unroll some of the loop
 #ifndef PTXDIRECT
 __device__ inline void FullDirectTile(
         FLOAT * source_cache_x, FLOAT * source_cache_y, FLOAT * source_cache_z,
         FLOAT   *sinkx,     FLOAT * sinky,    FLOAT * sinkz,
-        FLOAT *ax, FLOAT *ay, FLOAT *az, FLOAT *aw,
+        FLOAT *ax, FLOAT *ay, FLOAT *az, 
+	#ifdef COMPUTE_FOF_DENSITY
+	FLOAT *aw,
+	#endif
         FLOAT *eps, FLOAT *b2){
 
     #pragma unroll 16
@@ -13,31 +20,45 @@ __device__ inline void FullDirectTile(
         FLOAT sourcex = source_cache_x[n];
         FLOAT sourcey = source_cache_y[n];
         FLOAT sourcez = source_cache_z[n];
-        direct<0>(*sinkx,*sinky,*sinkz,
+	#ifdef COMPUTE_FOF_DENSITY
+        direct_density<0>(*sinkx,*sinky,*sinkz,
                 sourcex,sourcey,sourcez,
                 *ax,*ay,*az,*aw,*eps,*b2);
+	#else
+        direct<0>(*sinkx,*sinky,*sinkz,
+                sourcex,sourcey,sourcez,
+                *ax,*ay,*az,*eps,*b2);
+	#endif
     }
 }
 #else
 #include "ASMDirectTile.cu"
 #endif
 
-// If one doesn't have all of the sources, then one has to actually 
-// check the loop bound.
+/// As for FullDirectTile(), but if one doesn't have all of the sources, 
+/// then one has to actually check the loop bound.
 __device__ inline void PartialDirectTile(
         FLOAT * source_cache_x, FLOAT * source_cache_y, FLOAT * source_cache_z,
         FLOAT  * sinkx,     FLOAT *sinky,    FLOAT *sinkz,
-        FLOAT *ax, FLOAT *ay, FLOAT *az, FLOAT *aw,
+        FLOAT *ax, FLOAT *ay, FLOAT *az, 
+	#ifdef COMPUTE_FOF_DENSITY
+	FLOAT *aw,
+	#endif
         FLOAT *eps, FLOAT *b2, int &i){
 
     for(int n = 0; n <i;n++){
         FLOAT sourcex = source_cache_x[n];
         FLOAT sourcey = source_cache_y[n];
         FLOAT sourcez = source_cache_z[n];
+	#ifdef COMPUTE_FOF_DENSITY
+        direct_density<0>(*sinkx,*sinky,*sinkz,
+                sourcex,sourcey,sourcez,
+                *ax,*ay,*az,*aw,*eps,*b2);
+	#else
         direct<0>(*sinkx,*sinky,*sinkz,
                 sourcex,sourcey,sourcez,
-                *ax,*ay,*az,*aw,
-                *eps, *b2);
+                *ax,*ay,*az,*eps,*b2);
+	#endif
     }
 }
 
@@ -45,10 +66,10 @@ __device__ inline void PartialDirectTile(
 
 // ======================  ComputeDirects ======================
 
-// Here is the routine that accepts a DeviceData instance and unpacks
-// for its thread number what action should be taken.
-
-// eps may be 1/eps, eps^2, eps^3, etc, depending on the type of softening
+/// The routine that accepts a DeviceData instance and unpacks
+/// for its thread number what action should be taken, then invokes that.
+///
+/// eps may be 1/eps, eps^2, eps^3, etc, depending on the type of softening
 __global__ void ComputeDirects(DeviceData d, FLOAT eps){
 
     __shared__ FLOAT SourceCacheX[NFBlockSize];
@@ -99,7 +120,10 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
             myDI += NFBlockSize;
             FullDirectTile( SourceCacheX, SourceCacheY, SourceCacheZ,
                     &sinkX, &sinkY, &sinkZ,
-                    &(a.x),&(a.y),&(a.z),&(a.w),
+                    &(a.x),&(a.y),&(a.z),
+		    #ifdef COMPUTE_FOF_DENSITY
+		    &(a.w),
+		    #endif
                     &eps,&d.b2);  // try non-pointer?
             __syncthreads();
 
@@ -118,7 +142,10 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
         myDI += remaining;
         PartialDirectTile(SourceCacheX, SourceCacheY, SourceCacheZ,
                 &sinkX, &sinkY, &sinkZ,
-                &(a.x),&(a.y),&(a.z),&(a.w),
+                &(a.x),&(a.y),&(a.z),
+		#ifdef COMPUTE_FOF_DENSITY
+		&(a.w),
+		#endif
                 &eps, &d.b2, remaining);
         __syncthreads();
     }

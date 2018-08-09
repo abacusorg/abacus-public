@@ -39,15 +39,21 @@ namespace cuda {
 
 #include "StructureOfLists.cc"
 
+/// Cells are assumed to be x[0..N), y[0..N), z[0..N), contiguous.
+/// NOTE: This routine assumes that start can be held as a 32-bit
+/// unsigned integer.  Other places in the code allow for a uint64.
+/// TODO: Is that loss of generality ok?
 class CellPencilPlan {
 public:
-    List3<FLOAT> pos;
-    // Cells are assumed to be x[0..N), y[0..N), z[0..N), contiguous,
-    // with x[0] being the given position.
-    // pos.N holds the count
-    
+    unsigned int start;   //< The starting position of the posXYZ for this cell
+    int N;	//< The number of particles in this cell
+
+    #ifdef GLOBAL_POS
     FLOAT offset;
     // The offset to be applied to x or z, relative to the center cell
+    // With cell-centered coordinates, we can compute this on the fly,
+    // so we'll save the space
+    #endif
 };
 
 class SinkPencilPlan {
@@ -55,7 +61,10 @@ class SinkPencilPlan {
     CellPencilPlan cell[2*NFRADIUS+1];
     // The cells are not assumed to be contiguous (e.g., periodic wraps)
 
-    void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total);
+    void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total,
+    	void *SinkPosSlab);
+    void copy_from_pinned_memory(void *pinacc, int start, int total, 
+    	void *SinkAccSlab, int sinkindex);
     int load(int x, int y, int z);
 };
 
@@ -66,7 +75,8 @@ class SourcePencilPlan {
     CellPencilPlan cell[2*NFRADIUS+1];
     // The cells are not assumed to be contiguous (e.g., periodic wraps)
 
-    void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total);
+    void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total,
+    	void **SourcePosSlab);
     int load(int x, int y, int z);
 };
 
@@ -105,18 +115,7 @@ Source Block.
 
 class SetInteractionCollection{
     public:
-        // Synchronous Timers
-        STimer  Construction;
-        STimer      FillSinkLists;
-        STimer          CountSinks;
-        STimer          CalcSinkBlocks;
-        STimer          AllocAccels;
-        STimer      FillSourceLists;
-        STimer          CountSources;
-        STimer          CalcSourceBlocks;
-        STimer      FillInteractionList;
-    
-        // Asynchronous, CPU side
+        // Asynchronous, CPU-side timers for the GPU threads
         STimer DeviceThreadTimer;
         STimer     LaunchDeviceKernels;
         STimer     FillSinks;
@@ -132,11 +131,13 @@ class SetInteractionCollection{
         static pthread_mutex_t GPUTimerMutex;
         static STimer GPUThroughputTimer;
 
+	void  *SinkPosSlab;    //< Ptr to the start of the PosXYZ slab
+	void  *SourcePosSlab[2*NFRADIUS+1];    //< Ptr to the start of the PosXYZ slabs for Sources
+	void *SinkAccSlab;  //< Ptr to the start of the slab of accelerations for this sink slab
 
         int *           SinkSetStart; //The index in the Sink Pos/Acc lists where this set begins
         int *           SinkSetCount; //The number of particles in the SinkSet
         int *           SinkSetIdMax; //The sum of the above, i.e., the end of the Sink Pencil.  
-		// TODO: Might prefer to code this out, but it is vastly less than the pos/acc data
         SinkPencilPlan *           SinkPlan; // The plan for this pencil
         accstruct *        SinkSetAccelerations; //Where the computed accelerations for the collection will be stored
 
@@ -149,7 +150,7 @@ class SetInteractionCollection{
         volatile int CompletionFlag;
 
         int         SlabId;	// The X slab number
-        int         k_mod;	// The modulus of the Z cells, range [0,nfwidth)
+        //? int         k_mod;	// The modulus of the Z cells, range [0,nfwidth)
 	int	    Nk;		// The number of Z cells
         int         j_low;	// The minimum sink Y
         int         j_high;	// The maximum sink Y+1 [j_low,j_high)
@@ -191,7 +192,7 @@ class SetInteractionCollection{
         //Methods
 
 	// Constructor
-        SetInteractionCollection(int slab, int _kmod, int _jlow, int _jhigh, FLOAT _b2);
+        SetInteractionCollection(int slab, int _jlow, int _jhigh, FLOAT _b2, char * &buffer, size_t &bsize);
         ~SetInteractionCollection();
 
 	int NumPaddedBlocks(int nparticles);
