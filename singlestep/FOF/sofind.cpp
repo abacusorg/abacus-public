@@ -66,7 +66,8 @@ class SOcell {
     
     FOFTimer time_total;
     FOFTimer time_copy;
-    long long numdists;
+    long long numdists;	///< Total number of distances we compute
+    long long numcenters; ///< Total number of SO centers considered
 
     char pad[64];    // Just to ensure an array of these always fall on
         // a different cache line
@@ -103,6 +104,7 @@ class SOcell {
         density = NULL;
         maxsize = -1;
         numdists = 0;
+        numcenters = 0;
         reset(32768);
         // We will have terrible bugs if these aren't true!
         assertf(sizeof(FOFparticle)==16, "FOFparticle is illegal size!");
@@ -210,6 +212,7 @@ class SOcell {
 	    std::swap(density[start], density[densest]);
 	    // Compute the distances to all of the unassigned particles
 	    int len = np-start;    // TODO: Maybe not -1?
+	    numcenters++;
 	    float *d2use = compute_d2(p+start, p+start, len, d2buffer, numdists);
 	    // d2use points to element start
 	    // Sort the distances in increasing order

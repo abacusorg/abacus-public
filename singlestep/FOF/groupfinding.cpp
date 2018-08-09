@@ -6,8 +6,6 @@
 	LOG(*grouplog,__VA_ARGS__); grouplog->flush(); } }
 
 
-#define SPHERICAL_OVERDENSITY // TODO: Move this to configure
-
 #include "fof_sublist.cpp"
 	// Code to do FOF on a set (e.g., a cell)
 
@@ -45,6 +43,8 @@ class GroupFindingControl {
     // Parameters for finding subgroups
     FOFloat linking_length_level1;
     FOFloat linking_length_level2;
+    FOFloat SOdensity1;	///< The density threshold for SO L1
+    FOFloat SOdensity2;	///< The density threshold for SO L2
     int minhalosize;	// The minimum size for a level 1 halo to be outputted
 
     uint64 pPtot, fPtot, fGtot, CGtot, GGtot, Ltot, CGactive;
@@ -53,6 +53,10 @@ class GroupFindingControl {
     double meanFOFdensity;
 
     MultiplicityStats L0stats, L1stats;
+    long long numdists1, numdists2;	
+    	///< The total number of distances computed
+    long long numcenters1, numcenters2;	
+    	///< The total number of centers considered
 
     SlabAccum<CellGroup> *cellgroups;   // Allocated [0,cpd), one for each slab
     int *cellgroups_status;     // Allocated [0,cpd) for each slab. 
@@ -77,8 +81,13 @@ class GroupFindingControl {
 
     void setupGGS();
 
+    /// The constructor, where we load the key parameters
+    ///
+    /// The 2nd and 3rd parameters give the L1 and L2 parameters,
+    /// either for FOF linking length or SO overdensity, depending on 
+    /// that global definition.
     GroupFindingControl(FOFloat _linking_length, 
-    	FOFloat _linking_length_level1, FOFloat _linking_length_level2,
+    	FOFloat _level1, FOFloat _level2,
     int _cpd, FOFloat _invcpd, int _GroupRadius, int _minhalosize, uint64 _np) {
 #ifdef STANDALONE_FOF
     grouplog = &stdlog;
@@ -91,8 +100,13 @@ class GroupFindingControl {
 
 	cpd = _cpd; 
 	linking_length = _linking_length;
-	linking_length_level1 = _linking_length_level1;
-	linking_length_level2 = _linking_length_level2;
+	#ifdef SPHERICAL_OVERDENSITY
+	    SOdensity1 = _level1;
+	    SOdensity2 = _level2;
+	#else
+	    linking_length_level1 = _level1;
+	    linking_length_level2 = _level2;
+	#endif
 	minhalosize = _minhalosize;
 	invcpd = _invcpd;
 	boundary = (invcpd/2.0-linking_length);
@@ -149,6 +163,8 @@ class GroupFindingControl {
 	 GLOG(0,"Found %d global groups\n", GGtot);
 	 GLOG(0,"Longest GroupLink list was %d, compared to %d allocation\n", GLL->longest, GLL->maxlist);
 	 GLOG(0,"Largest Global Group has %d particles\n", largest_GG);
+	 GLOG(0,"L1 groups required %l distances and %l centers\n", numdists1, numcenters1);
+	 GLOG(0,"L2 groups required %l distances and %l centers\n", numdists2, numcenters2);
 
 	 GLOG(0,"L0 group multiplicity distribution:\n");
 	 L0stats.report_multiplicities(grouplog);

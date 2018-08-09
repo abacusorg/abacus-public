@@ -725,6 +725,10 @@ void GlobalGroupSlab::FindSubGroups() {
     uint64 previous = GFC->L1stats.ngroups;
     for (int g=0; g<omp_get_max_threads(); g++) {
         GFC->L1stats.add(L1stats[g]);
+	GFC->numdists1 += FOFlevel1[g].numdists;
+	GFC->numdists2 += FOFlevel2[g].numdists;
+	GFC->numcenters1 += FOFlevel1[g].numcenters;
+	GFC->numcenters2 += FOFlevel2[g].numcenters;
     }
     previous = GFC->L1stats.ngroups-previous;
     STDLOG(1,"Found %l L1 halos\n", previous);

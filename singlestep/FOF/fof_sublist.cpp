@@ -355,7 +355,8 @@ class FOFcell {
     // Primary outputs, aside from the re-ordering of the input particles
     FOFgroup *groups;	// The multiplet ranges
     int ngroups;
-    long long numdists;
+    long long numdists;		///< Number of distances computed
+    long long numcenters;	///< The number of partitions used
     int nmultiplets; 	// Number of particles in multiplets
     int nsinglet_boundary;  // Plus number of particles near the edge
     		// So boundary singlets are in [nmultiplets, nsinglet_boundary)
@@ -699,6 +700,7 @@ class FOFcell {
 		// can search it efficiently.
 
 		pending_notcore = unassigned_core;
+		numcenters++;
 		float *d2use = compute_d2(primary, unassigned_core, 
 	    		unassigned_far-unassigned_core, d2buffer, numdists);
 		for (FOFparticle *a = unassigned_core; a<unassigned_skin; a++, d2use++) {
@@ -726,6 +728,7 @@ class FOFcell {
 		skin_radius *= skin_radius;
 
 		// We need to compute the distance to all remaining particles
+		numcenters++;
 		float *d2use = compute_d2(primary, primary+1,
 				    end-(primary+1), d2buffer, numdists);
 
@@ -775,6 +778,8 @@ class FOFcell {
 	    // Advance primary, searching core+skin, to exhaust pending_core
 	    primary++;
 	    while (primary<pending_notcore) {
+		// We don't increment numcenters here, because we're 
+		// not touching the bulk of the particles.
 		float *d2use = compute_d2(primary, unassigned_core, 
 	    		unassigned_far-unassigned_core, d2buffer, numdists);
 		// Now consider this particle
@@ -838,6 +843,8 @@ class FOFcell {
 	while (primary<end) {
 	    // First, we're going to compute the distances to [unassigned,end).
 	    // These will start in d2use[0].
+
+	    numcenters++;
 	    float *d2use = compute_d2(primary, unassigned, end-unassigned, d2buffer, numdists);
 	    for (FOFparticle *a = unassigned; a<end; a++,d2use++) {
 		// numdists++;
