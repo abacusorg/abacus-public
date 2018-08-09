@@ -156,7 +156,6 @@ Cosmology *cosm;
 #include "binning.cpp"
 FLOAT * density; //!< Array to accumulate gridded densities in for low resolution inline power-spectra.
 
-#define SPHERICAL_OVERDENSITY     // TODO: Move to configure
 #include "groupfinding.cpp"
 #include "microstep.cpp"
 

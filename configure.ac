@@ -133,7 +133,7 @@ AC_ARG_ENABLE(avx-fof,
 [AS_HELP_STRING([--enable-avx-fof], [AVX FOF [yes if AVX present]])],
     [], enable_avx_fof=$enable_avx)
 if test x$enable_avx_fof == xyes; then
-    AC_DEFINE_UNQUOTED(AVXFOF, [], "Use AVX FOF")
+    AC_DEFINE_UNQUOTED(AVXFOF, [], "Use AVX for FOF and SO")
 fi
 
 AC_ARG_WITH(max-cpd,
@@ -151,6 +151,13 @@ AC_ARG_ENABLE(threaded-io,
 	[], enable_threaded_io="yes")
 if test x$enable_threaded_io == xyes; then
 	AC_DEFINE_UNQUOTED(IOTHREADED, [], "Use a separate thread for IO")
+fi
+
+AC_ARG_ENABLE(spherical-overdensity,
+[AS_HELP_STRING([--enable-spherical-overdensity], [Use SO finder [yes]])],
+	[], enable_spherical_overdensity="yes")
+if test x$enable_spherical_overdensity == xyes; then
+	AC_DEFINE_UNQUOTED(SPHERICAL_OVERDENSITY, [], "Use SO finder for L1/L2 hhalos, rather than FOF")
 fi
 
 AC_ARG_ENABLE(gpu-directs,
@@ -250,6 +257,7 @@ echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "AVX multipoles:                  $enable_avx_multipoles"
 echo "AVX-512 multipoles:              $enable_avx512_multipoles"
 echo "AVX FOF:                         $enable_avx_fof"
+echo "Spherical Overdensity:           $enable_spherical_overdensity"
 echo "Maximum CPD:                     $with_max_cpd"
 echo "Maximum source length:           $with_max_source_length"
 echo "Threaded IO:                     $enable_threaded_io"
