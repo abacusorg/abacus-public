@@ -729,9 +729,34 @@ void GlobalGroupSlab::FindSubGroups() {
 	GFC->numdists2 += FOFlevel2[g].numdists;
 	GFC->numcenters1 += FOFlevel1[g].numcenters;
 	GFC->numcenters2 += FOFlevel2[g].numcenters;
+	#ifdef SPHERICAL_OVERDENSITY
+	if (g>0) {
+	    FOFlevel1[0].coadd_timers(FOFlevel1[g]);
+	    FOFlevel2[0].coadd_timers(FOFlevel2[g]);
+	}
+	#endif
     }
     previous = GFC->L1stats.ngroups-previous;
     STDLOG(1,"Found %l L1 halos\n", previous);
+    #ifdef SPHERICAL_OVERDENSITY
+    if (FOFlevel1[0].Total.Elapsed()>0.0) {
+	STDLOG(1,"L1 Timing: %f = %f %f %f %f %f\n",
+	    FOFlevel1[0].Total.Elapsed(),
+	    FOFlevel1[0].Copy.Elapsed(),
+	    FOFlevel1[0].Sweep.Elapsed(),
+	    FOFlevel1[0].Distance.Elapsed(),
+	    FOFlevel1[0].Sort.Elapsed(),
+	    FOFlevel1[0].Search.Elapsed());
+	STDLOG(1,"L2 Timing: %f = %f %f %f %f %f\n",
+	    FOFlevel2[0].Total.Elapsed(),
+	    FOFlevel2[0].Copy.Elapsed(),
+	    FOFlevel2[0].Sweep.Elapsed(),
+	    FOFlevel2[0].Distance.Elapsed(),
+	    FOFlevel2[0].Sort.Elapsed(),
+	    FOFlevel2[0].Search.Elapsed());
+	// These show that the timing is 75% dominated by the Sort step.
+    }
+    #endif
 
     // Now delete all of the temporary storage!
     // Want free's to be on the same threads as the original

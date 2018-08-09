@@ -41,6 +41,8 @@ class DummyTimer {
     inline void Start() { }
     inline void Stop() { }
     inline double Elapsed() { return 0.0; }
+    inline struct timeval get_timer() { }
+    inline void increment(struct timeval dt) { }
 };
 
 //  Now we get into the specifics of the FOF code.

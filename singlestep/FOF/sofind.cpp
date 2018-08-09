@@ -72,10 +72,12 @@ class SOcell {
     FOFgroup *groups;   ///< The list of found groups
     int ngroups;        ///< The number of groups
     
-    FOFTimer time_total;
-    FOFTimer time_copy;
+    STimer Total;
+    STimer Copy;
     long long numdists;	///< Total number of distances we compute
     long long numcenters; ///< Total number of SO centers considered
+    STimer Sweep, Distance, Sort, Search; 
+
 
     char pad[64];    // Just to ensure an array of these always fall on
         // a different cache line
@@ -129,6 +131,16 @@ class SOcell {
     }
     ~SOcell() {
         destroy();
+    }
+
+    // Co-add the timers in x to this one
+    void coadd_timers(SOcell &x) {
+        Total.increment(x.Total.get_timer());
+        Copy.increment(x.Copy.get_timer());
+        Sweep.increment(x.Sweep.get_timer());
+        Distance.increment(x.Distance.get_timer());
+        Sort.increment(x.Sort.get_timer());
+        Search.increment(x.Search.get_timer());
     }
 
     /// These are density thresholds in interparticle units,
@@ -206,10 +218,12 @@ class SOcell {
 	int start = 0;	// Index of the first particle of the current group
 	int densest = -1; 
 	float maxdens = -1.0;
+	Sweep.Start();
 	for (int j=0; j<np; j++) 
 	    if (density[j]>maxdens) {
 	    	maxdens=density[j]; densest = j; 
 	    }
+	Sweep.Stop();
 
 	while (start<np) {
 	// Find the densest particle, move it to the front
@@ -221,13 +235,18 @@ class SOcell {
 	    // Compute the distances to all of the unassigned particles
 	    int len = np-start;    // TODO: Maybe not -1?
 	    numcenters++;
+	    Distance.Start();
 	    float *d2use = compute_d2(p+start, p+start, len, d2buffer, numdists);
+	    Distance.Stop();
+	    Sort.Start();
 	    // d2use points to element start
 	    // Sort the distances in increasing order
 	    memcpy(d2sort+1, d2use, sizeof(float)*len);
 	    // Change notation so that start particle is index 1,
 	    // last actual particle in the list is index len = np-start
 	    std::sort(d2sort+1, d2sort+len+1);
+	    Sort.Stop();
+	    Search.Start();
 	    // Now sweep in from the end to find the threshold
 	    int size = len;   // Start with the last particle
 	    for (; size>1; size--) {
@@ -235,6 +254,8 @@ class SOcell {
 		if (x*sqrt(x)<size) break;
 		    // This particle exceeds the overdensity threshold
 	    }
+	    Search.Stop();
+
 	    // Now the group runs [1,size] relative to start-1.
 	    // which means [start,start+size) in the original list
 	    FOFloat d2SO = d2sort[size];	
@@ -247,7 +268,9 @@ class SOcell {
 	    // particle in the exterior set.
 	    // The partition function is back in the full indexed list
 	    // so we need to refer to the distances as d2use-start.
+	    Sweep.Start();
 	    densest = partition_and_index(d2use-start, d2SO, start, np, size);
+	    Sweep.Stop();
 	    // Mark the group.  Note that the densest particle is first.
 	    groups[ngroups++] = FOFgroup(start,size);
 	    start += size;
@@ -265,21 +288,21 @@ class SOcell {
         // Return the number of multiplet groups.
         // pos[], etc. will be unchanged.
 
-        time_total.Start();
+        Total.Start();
         reset(n);
         np = n;
 
         // Load the particles
-        time_copy.Start();
+        Copy.Start();
         for (int j=0; j<np; j++) {
             p[j] = FOFparticle(pos[j],j);
 	    density[j] = acc[j].w;   // TODO: Check syntax
         }
-        time_copy.Stop();
+        Copy.Stop();
 
 	greedySO();
 
-	time_total.Stop();
+	Total.Stop();
 	return ngroups;
     }
 };
