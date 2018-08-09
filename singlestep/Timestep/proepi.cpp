@@ -38,7 +38,6 @@ STimer FinishPartition;
 STimer FinishSort;
 STimer FinishCellIndex;
 STimer FinishMerge;
-PTimer FinishFreeSlabs;
 STimer ComputeMultipoles;
 STimer WriteMergeSlab;
 STimer WriteMultipoleSlab;
@@ -262,6 +261,11 @@ void Epilogue(Parameters &P, bool ic) {
     epilogue.Clear();
     epilogue.Start();
 
+    if(JJ)
+        JJ->AggregateStats();
+
+    // Write out the timings.  This must precede the rest of the epilogue, because 
+    // we need to look inside some instances of classes for runtimes.
     char timingfn[1050];
     sprintf(timingfn,"%s/lastrun.time", P.LogDirectory);
     FILE * timingfile = fopen(timingfn,"w");
@@ -344,7 +348,8 @@ void Epilogue(Parameters &P, bool ic) {
     STDLOG(0, "Peak resident memory usage was %.3g GB\n", (double) rusage.ru_maxrss / 1024 / 1024);
     
     epilogue.Stop();
-    STDLOG(1,"Leaving Epilogue()\n");
+    // This timing does not get written to the timing log, so it had better be small!
+    STDLOG(1,"Leaving Epilogue(). Epilogue took %.2g sec.\n", epilogue.Elapsed());
 }
 
 std::vector<std::vector<int>> free_cores;  // list of free cores for each socket
