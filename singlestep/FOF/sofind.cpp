@@ -37,7 +37,15 @@ density particles.
 These numbers all get modified by b^2 in code units to get to the code
 densities.  We'll prefer to quote as a cosmic density.
 
-This will use a greedy algorithm.  We find the densest particle, find
+For now, we tie the required minimum FOF density to be the same as the 
+SO overdensity.  This is reasonably conservative, as for a big group,
+one expects the local (FOF-scale) density at the edge to be ~3 times
+less than the SO overdensity of that edge.  But it is also conservative
+in the other direction, because for a peaked distribution even in a 
+small group, the local density at the center should be higher, as
+described above.  Still, this may be a tuning choice.
+
+So far, we are using a greedy algorithm.  We find the densest particle, find
 the distance to all others and sort in increasing order.  Then work from
 the outside to find the largest radius that has an enclosed overdensity
 above the threshold.  That defines the first group.  Then repeat with
