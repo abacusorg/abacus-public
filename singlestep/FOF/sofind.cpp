@@ -34,6 +34,9 @@ large.  That said, the SIS 1/r^2 density singularity is over-optimistic.
 But the key thing is that we don't need to search down to the smallest
 density particles.
 
+These numbers all get modified by b^2 in code units to get to the code
+densities.  We'll prefer to quote as a cosmic density.
+
 This will use a greedy algorithm.  We find the densest particle, find
 the distance to all others and sort in increasing order.  Then work from
 the outside to find the largest radius that has an enclosed overdensity

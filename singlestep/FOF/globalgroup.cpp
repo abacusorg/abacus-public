@@ -566,8 +566,8 @@ void GlobalGroupSlab::FindSubGroups() {
 	SOcell FOFlevel1[maxthreads], FOFlevel2[maxthreads];
 	#pragma omp parallel for schedule(static,1)
 	for (int g=0; g<maxthreads; g++) {
-	    FOFlevel1[g].setup(180.0, 90.0);
-	    FOFlevel2[g].setup(4*180.0, 4*90.0);
+	    FOFlevel1[g].setup(180.0, 180.0);
+	    FOFlevel2[g].setup(4*180.0, 4*180.0);
 	}
 	STDLOG(1,"Seeking SO halos, L1 = %f, L2 = %f\n", 
 		FOFlevel1[0].threshold, FOFlevel2[0].threshold);
