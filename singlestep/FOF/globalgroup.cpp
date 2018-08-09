@@ -566,8 +566,8 @@ void GlobalGroupSlab::FindSubGroups() {
 	SOcell FOFlevel1[maxthreads], FOFlevel2[maxthreads];
 	#pragma omp parallel for schedule(static,1)
 	for (int g=0; g<maxthreads; g++) {
-	    FOFlevel1[g].setup(180.0, 60.0);
-	    FOFlevel2[g].setup(4*180.0, 4*60.0);
+	    FOFlevel1[g].setup(180.0, 90.0);
+	    FOFlevel2[g].setup(4*180.0, 4*90.0);
 	}
 	STDLOG(1,"Seeking SO halos, L1 = %f, L2 = %f\n", 
 		FOFlevel1[0].threshold, FOFlevel2[0].threshold);
@@ -595,7 +595,6 @@ void GlobalGroupSlab::FindSubGroups() {
     // pencils by the work estimate (largest first)
     std::sort(pstat, pstat+GFC->cpd);
     
-    // for (int j=0; j<GFC->cpd; j++) 
     #pragma omp parallel for schedule(dynamic,1)
     for (int jj=0; jj<GFC->cpd; jj++) {
         int j = pstat[jj].pnum;    // Get the pencil number from the list
