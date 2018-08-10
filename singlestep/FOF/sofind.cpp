@@ -221,8 +221,6 @@ class SOcell {
     /// the overdensity criterium.  We will accelerate this with a 
     /// variant of a radix sort: we don't actually need to sort the whole
     /// list, but just find this one intercept.
-    /// TODO: This routine basically works, but a small number of small
-    /// groups get over split.  Some kind of round-off?  Unfilled bins?
     FOFloat hist_search(FOFloat *d2use, int len) {
 	#define SO_BINS 16
 	int bins[SO_BINS];
@@ -334,8 +332,8 @@ class SOcell {
 	    // d2 <= d2SO are the largest body that satisfies 
 	    // the overdensity condition.
 
-	    // #define SO_HIST_SEARCH 1e9
-	    #define SO_HIST_SEARCH 0
+	    #define SO_HIST_SEARCH 16     ///< The size to switch to the histogram based method
+	    // Timings suggest this is a very small cross-over point.
 	    Search.Start();
 	    // We think that for small lengths, it's better just
 	    // to sort directly.
