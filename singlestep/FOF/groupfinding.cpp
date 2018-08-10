@@ -49,7 +49,7 @@ class GroupFindingControl {
 
     uint64 pPtot, fPtot, fGtot, CGtot, GGtot, Ltot, CGactive;
     int largest_GG;
-    float maxFOFdensity;
+    FLOAT maxFOFdensity;
     double meanFOFdensity;
 
     MultiplicityStats L0stats, L1stats;
@@ -246,13 +246,11 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     	doFOF[g].setup(linking_length, boundary);
 
     uint64 _CGactive = 0; 
-    float _maxFOFdensity = 0.0;
+    FLOAT _maxFOFdensity = 0.0;
     double _meanFOFdensity = 0.0;
     FLOAT DensityKernelRad2 = WriteState.DensityKernelRad2;
     #pragma omp parallel for schedule(dynamic,1) reduction(+:_CGactive) reduction(max:_maxFOFdensity) reduction(+:_meanFOFdensity)
     for (int j=0; j<cpd; j++) {
-	float *aligned;
-	int ret = posix_memalign((void **)&(aligned), 64, 8*sizeof(float)); assert(ret==0);
 	int g = omp_get_thread_num();
         PencilAccum<CellGroup> *cg = cellgroups[slab].StartPencil(j);
         for (int k=0; k<cpd; k++) {
@@ -290,35 +288,20 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	    _CGactive += active_particles;
 
 	    doFOF[g].findgroups(c.pos, c.vel, c.aux, c.acc, active_particles);
-	    // printf("Cell %d %d %d: Found %d cell groups with %d particles, plus %d boundary singlets\n", slab,j,k,doFOF[g].ngroups, doFOF[g].nmultiplets, doFOF[g].nsinglet_boundary-doFOF[g].nmultiplets);
 	    // We need to clear the L0 & L1 bits for this timestep
 	    for (int p=0; p<c.count(); p++) c.aux[p].reset_L01_bits();
 	    for (int gr=0; gr<doFOF[g].ngroups; gr++) {
-		CellGroup tmp(doFOF[g].groups[gr], boundary, aligned);
-		// printf("Group %d: %d %d, %f %f %f to %f %f %f, %f %02x\n",
-		// 	gr, tmp.start, tmp.size(), 
-		// 	aligned[0], aligned[1], aligned[2],
-		// 	aligned[4], aligned[5], aligned[6], boundary, tmp.n >> 25);
+		CellGroup tmp(doFOF[g].groups[gr], boundary);
 		cg->append(tmp);
 	    }
 	    // Also need to look at the singlets!
 	    for (int p=doFOF[g].nmultiplets; p<doFOF[g].nsinglet_boundary; p++) {
 		CellGroup tmp(p, c.pos[p], boundary);
-		// printf("Singl %d: %f %f %f %lld %02x\n",
-		   // p, c.pos[p].x, c.pos[p].y, c.pos[p].z, c.aux[p].val, tmp.n >>25);
 	        cg->append(tmp);
 	    }
-	    // for (int p=0; p<doFOF[g].np; p++) {
-	        // if (c.aux[p].val == 1516) {
-		    // printf("Singl %d: %f %f %f %lld     %d\n",
-		       // p, c.pos[p].x, c.pos[p].y, c.pos[p].z, c.aux[p].val,
-		       // doFOF[g].nsinglet_boundary);
-		// }
-	    // }
 	    cg->FinishCell();
 	}
 	cg->FinishPencil();
-	free(aligned);
     }
     // Best if we destroy on the same thread, for tcmalloc
     #pragma omp parallel for schedule(static,1)

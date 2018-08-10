@@ -47,8 +47,13 @@ class DummyTimer {
 
 //  Now we get into the specifics of the FOF code.
 
-typedef float FOFloat;
-// It is assumed in the AVX code that FOFparticle is 16 bytes!
+#ifdef AVXFOF
+    typedef float FOFloat;
+    // It is assumed in the AVX code that FOFparticle is 16 bytes!
+#else
+    typedef FLOAT FOFloat;
+    // For now, revert to the decision of the rest of the code.
+#endif
 
 #define FOF_RESCALE 1e12
 
@@ -76,9 +81,6 @@ class alignas(16) FOFparticle {
 	n = (FOFloat)(_n);
     }
     FOFparticle() { }
-    // FOFparticle(FOFparticle &p) {
-	// x = p.x; y = p.y; z = p.z; n = p.n; 
-    // }
     inline int index() { return (int)(n); }
     inline FOFloat diff2v(FOFparticle *q) {
         FOFloat dx = q->x-x;
@@ -213,7 +215,7 @@ inline void diff2avx512_32(float *r, float *p, float *a) {
 
 #ifndef AVXFOF
 
-inline void diff2by4(float *r, FOFparticle *p, FOFparticle *a) {
+inline void diff2by4(FOFloat *r, FOFparticle *p, FOFparticle *a) {
     // This takes 4 float4's and computes |p-a|^2
     r[0] = (*p).diff2v(a);
     r[1] = (*p).diff2v(a+1);
@@ -281,13 +283,13 @@ inline void diff2avx8(float *r, float *p, float *a) {
 
 #endif
 
-float *compute_d2(FOFparticle *primary, FOFparticle *list, int nlist, float *d2buf, long long &numdists) {
+FOFloat *compute_d2(FOFparticle *primary, FOFparticle *list, int nlist, FOFloat *d2buf, long long &numdists) {
     // Return a pointer to a zero-indexed list of floats containing the 
     // square distances between primary and list[0,nlist).
     // d2buf is 16-byte aligned space that we supply for the output,
     // but the returned pointer may not point to the start of it,
     // since we have to attend to alignment..
-    float *d2use;
+    FOFloat *d2use;
 
     // This depends on the registration of unassigned.
     // AVX requires the float4 list to be 32-byte aligned
@@ -348,7 +350,7 @@ class FOFcell {
   public:
     // These lists provide some work space, consistent between 
     FOFparticle *p;	// The copied version of the particles, to permute
-    float *d2buffer;	// A matching array of distances
+    FOFloat *d2buffer;	// A matching array of distances
     int *index;		// The new indices in the original order
     int np;		// The current size of the group
 
@@ -397,7 +399,7 @@ class FOFcell {
 	ret = posix_memalign((void **)&p, 64, sizeof(FOFparticle)*maxsize);  assert(ret == 0);
 	memset(p, 0, sizeof(FOFparticle)*maxsize);
         if (d2buffer!=NULL) free(d2buffer);
-	ret = posix_memalign((void **)&d2buffer, 64, sizeof(float)*maxsize);  assert(ret == 0);
+	ret = posix_memalign((void **)&d2buffer, 64, sizeof(FOFloat)*maxsize);  assert(ret == 0);
         if (groups!=NULL) free(groups);
 	ret = posix_memalign((void **)&groups, 64, sizeof(FOFgroup)*maxsize);  assert(ret == 0);
         if (index!=NULL) free(index);
@@ -415,7 +417,9 @@ class FOFcell {
 	numdists = 0;
 	reset(32768);
 	// We will have terrible bugs if these aren't true!
-	assertf(sizeof(FOFparticle)==16, "FOFparticle is illegal size!");
+	#ifdef AVXFOF
+	    assertf(sizeof(FOFparticle)==16, "FOFparticle is illegal size!  Can't mix AVXFOF and double precision FOFloat");
+	#endif
 	assertf(sizeof(FOFgroup)%16==0, "FOFgroup is illegal size!");  
         return; 
     }   
@@ -463,8 +467,7 @@ class FOFcell {
 	// so that we can scatter rather than gather.
 
 	// We also need to undo the scaling of the positions
-	float inv_rescale = 1.0/(FOF_RESCALE);
-	// __m128 inv = _mm_load1_ps(&inv_rescale);
+	FOFloat inv_rescale = 1.0/(FOF_RESCALE);
 
 	// Count the number of particles in the multiplet
 	nmultiplets = 0;
@@ -503,8 +506,6 @@ class FOFcell {
 	    // AVXAVX
 	    groups[g].BBmin.mult(inv_rescale);
 	    groups[g].BBmax.mult(inv_rescale);
-	    // groups[g].BBmin = _mm_mul_ps(groups[g].BBmin, inv);
-	    // groups[g].BBmax = _mm_mul_ps(groups[g].BBmax, inv);
 	    g++;
 	}
 
@@ -547,16 +548,6 @@ class FOFcell {
 	return;
     }
 
-/*
-	__m128 new_member = _mm_load_ps((float *)a);
-	BBmin = _mm_min_ps(BBmin, new_member);
-	BBmax = _mm_max_ps(BBmax, new_member);
-	*a = *b;
-	_mm_store_ps((float *)b++, new_member);
-	return;
-    }
-*/
-
     inline void add_to_pending(FOFparticle *&c, FOFparticle *&b, FOFparticle *a, 
     		FOFparticle &BBmin, FOFparticle &BBmax) {
 	// We're going to add 'a' to our pending queue, 
@@ -571,17 +562,6 @@ class FOFcell {
 	b++; c++;
 	return;
     }
-
-    /*
-	__m128 new_member = _mm_load_ps((float *)a);
-	BBmin = _mm_min_ps(BBmin, new_member);
-	BBmax = _mm_max_ps(BBmax, new_member);
-	*a = *b;
-	*(b++) = *c;
-	_mm_store_ps((float *)c++, new_member);
-	return;
-    }
-    */
 
     inline void add_to_pending(FOFparticle *&d, FOFparticle *&c, FOFparticle *&b, FOFparticle *a, 
     		FOFparticle &BBmin, FOFparticle &BBmax) {
@@ -599,18 +579,6 @@ class FOFcell {
 	return;
     }
 
-    /*
-	__m128 new_member = _mm_load_ps((float *)a);
-	BBmin = _mm_min_ps(BBmin, new_member);
-	BBmax = _mm_max_ps(BBmax, new_member);
-	*a = *b;
-	*(b++) = *c;
-	*(c++) = *d;
-	_mm_store_ps((float *)d++, new_member);
-	return;
-    }
-    */
-
     inline void add_to_pending(FOFparticle *&e, FOFparticle *&d, FOFparticle *&c, 
     	FOFparticle *&b, FOFparticle *a, FOFparticle &BBmin, FOFparticle &BBmax) {
 	// We're going to add 'a' to our pending queue, 
@@ -627,19 +595,6 @@ class FOFcell {
 	b++; c++; d++; e++;
 	return;
     }
-
-    /*
-	__m128 new_member = _mm_load_ps((float *)a);
-	BBmin = _mm_min_ps(BBmin, new_member);
-	BBmax = _mm_max_ps(BBmax, new_member);
-	*a = *b;
-	*(b++) = *c;
-	*(c++) = *d;
-	*(d++) = *e;
-	_mm_store_ps((float *)e++, new_member);
-	return;
-    }
-    */
 
 
     // ====================  Alternative modified N^2 algorithm ==========
@@ -669,7 +624,7 @@ class FOFcell {
 
 	time_fof.Start();
 
-	float core = 2.5;     // Units of linking lengths to start
+	FOFloat core = 2.5;     // Units of linking lengths to start
 	int core_size = 5;     // The number of particles found in the core.
 
 	FOFparticle *start; 
@@ -693,8 +648,6 @@ class FOFcell {
 	FOFparticle BBmin, BBmax;
 	// AVXAVX
 	BBmin = *primary; BBmax = *primary;
-	//BBmin = _mm_load_ps((float *)primary);
-	//BBmax = _mm_load_ps((float *)primary);
 
 	while (primary<end) {
 	    // We have a primary to search.  
@@ -706,7 +659,7 @@ class FOFcell {
 
 		pending_notcore = unassigned_core;
 		numcenters++;
-		float *d2use = compute_d2(primary, unassigned_core, 
+		FOFloat *d2use = compute_d2(primary, unassigned_core, 
 	    		unassigned_far-unassigned_core, d2buffer, numdists);
 		for (FOFparticle *a = unassigned_core; a<unassigned_skin; a++, d2use++) {
 		    // numdists++;
@@ -734,13 +687,13 @@ class FOFcell {
 
 		// We need to compute the distance to all remaining particles
 		numcenters++;
-		float *d2use = compute_d2(primary, primary+1,
+		FOFloat *d2use = compute_d2(primary, primary+1,
 				    end-(primary+1), d2buffer, numdists);
 
 		// Sweep the partition list to partition core vs notcore.
 		pending_notcore = unassigned_core;
-		float *low = d2use;
-		float *high = d2use+(int)(unassigned_core-(primary+1));
+		FOFloat *low = d2use;
+		FOFloat *high = d2use+(int)(unassigned_core-(primary+1));
 		for (FOFparticle *a = primary+1; a<pending_notcore; a++, low++) {
 		    // numdists++;
 		    if (*low>core_radius) {
@@ -785,7 +738,7 @@ class FOFcell {
 	    while (primary<pending_notcore) {
 		// We don't increment numcenters here, because we're 
 		// not touching the bulk of the particles.
-		float *d2use = compute_d2(primary, unassigned_core, 
+		FOFloat *d2use = compute_d2(primary, unassigned_core, 
 	    		unassigned_far-unassigned_core, d2buffer, numdists);
 		// Now consider this particle
 		for (FOFparticle *a = unassigned_core; a<unassigned_skin; a++, d2use++) {
@@ -814,8 +767,6 @@ class FOFcell {
 		start = primary; unassigned_core = start+1;
 		// AVXAVX
 		BBmin = *primary; BBmax = *primary;
-		// BBmin = _mm_load_ps((float *)primary);
-		// BBmax = _mm_load_ps((float *)primary);
 	    }
 	    // If the group is open, then we'll have 
 	    // primary=pending_notcore<unassigned_core.
@@ -842,15 +793,13 @@ class FOFcell {
 	FOFparticle BBmin, BBmax;
 	// AVXAVX
 	BBmin = *primary; BBmax = *primary;
-	// BBmin = _mm_load_ps((float *)primary);
-	// BBmax = _mm_load_ps((float *)primary);
 
 	while (primary<end) {
 	    // First, we're going to compute the distances to [unassigned,end).
 	    // These will start in d2use[0].
 
 	    numcenters++;
-	    float *d2use = compute_d2(primary, unassigned, end-unassigned, d2buffer, numdists);
+	    FOFloat *d2use = compute_d2(primary, unassigned, end-unassigned, d2buffer, numdists);
 	    for (FOFparticle *a = unassigned; a<end; a++,d2use++) {
 		// numdists++;
 		if (*d2use<b2) add_to_pending(unassigned, a, BBmin, BBmax);
@@ -866,8 +815,6 @@ class FOFcell {
 		start = primary; unassigned=primary+1;
 		// AVXAVX
 		BBmin = *primary; BBmax = *primary;
-		// BBmin = _mm_load_ps((float *)primary);
-		// BBmax = _mm_load_ps((float *)primary);
 	    }
 	}
 	time_fof.Stop();
@@ -976,7 +923,7 @@ inline void particle_swap(int i, int j, posstruct *pos, velstruct *vel, auxstruc
 
 
 
-int FOF(posstruct *pos, velstruct *vel, auxstruct *aux, int N, float b2) {
+int FOF(posstruct *pos, velstruct *vel, auxstruct *aux, int N, FOFloat b2) {
     int ngroup = 0;     // The number of groups closed so far, zero indexed
 
     int idxstart = 0;            // The first particle in the current group
@@ -1024,7 +971,7 @@ int main() {
     int cellsize = 80000;
     int Ncell = 1000, Nindep = 10;
     // int Ncell = 1, Nindep = 1;
-    float b = 0.03;
+    FOFloat b = 0.03;
     srand48(124);
     posstruct *pos = (posstruct *)malloc(sizeof(posstruct)*cellsize*Ncell);
     velstruct *vel = (velstruct *)malloc(sizeof(velstruct)*cellsize*Ncell);
@@ -1032,7 +979,7 @@ int main() {
     auxstruct *aux = (auxstruct *)malloc(sizeof(auxstruct)*cellsize*Ncell);
     for (int j=0; j<cellsize*Nindep; j++) {
 	// This causes the particles to be clustered (cubicly) near the origin
-	float rescale = drand48();
+	FOFloat rescale = drand48();
         pos[j].x = (drand48()-0.5)*rescale;
         pos[j].y = (drand48()-0.5)*rescale;
         pos[j].z = (drand48()-0.5)*rescale;
@@ -1062,7 +1009,7 @@ int main() {
     STimer FOFtime;
     FOFtime.Start();
     int ngroup=0;
-    float b2 = b*b;
+    FOFloat b2 = b*b;
     #pragma omp parallel for schedule(static) reduction(+:ngroup)
     for (int j=0; j<Ncell; j++) {
         // ngroup += FOF(pos+j*cellsize, vel+j*cellsize, aux+j*cellsize, acc+j*cellsize, cellsize, b2);

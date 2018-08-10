@@ -123,7 +123,9 @@ class SOcell {
         int ret = posix_memalign((void **)&twothirds, 64, sizeof(int)*(SO_CACHE+2));  assert(ret == 0);
 	for (int j=0; j<SO_CACHE+2; j++) twothirds[j] = pow(j,2.0/3.0);
         // We will have terrible bugs if these aren't true!
+	#ifdef AVXFOF
         assertf(sizeof(FOFparticle)==16, "FOFparticle is illegal size!");
+	#endif
         assertf(sizeof(FOFgroup)%16==0, "FOFgroup is illegal size!");
         return;
     }
