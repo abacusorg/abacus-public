@@ -59,9 +59,9 @@ We are not implementing any unbinding here.
 class SOcell {
   public:
     FOFparticle *p;     ///< The particles
-    float *density;	///< The densities
-    float *d2buffer;    ///< A buffer of distances
-    float *d2sort;      ///< A buffer of sorted distances
+    FOFloat *density;	///< The densities
+    FOFloat *d2buffer;    ///< A buffer of distances
+    FOFloat *d2sort;      ///< A buffer of sorted distances
     int np;             ///< The number of particles in this group
     int maxsize;        ///< The maximum number of particles
     
@@ -98,13 +98,13 @@ class SOcell {
         ret = posix_memalign((void **)&p, 64, sizeof(FOFparticle)*maxsize);  assert(ret == 0);
         memset(p, 0, sizeof(FOFparticle)*maxsize);
         if (d2buffer!=NULL) free(d2buffer);
-        ret = posix_memalign((void **)&d2buffer, 64, sizeof(float)*maxsize);  assert(ret == 0);
+        ret = posix_memalign((void **)&d2buffer, 64, sizeof(FOFloat)*maxsize);  assert(ret == 0);
         if (d2sort!=NULL) free(d2sort);
-        ret = posix_memalign((void **)&d2sort, 64, sizeof(float)*maxsize);  assert(ret == 0);
+        ret = posix_memalign((void **)&d2sort, 64, sizeof(FOFloat)*maxsize);  assert(ret == 0);
         if (groups!=NULL) free(groups);
         ret = posix_memalign((void **)&groups, 64, sizeof(FOFgroup)*maxsize);  assert(ret == 0);
         if (density!=NULL) free(density);
-        ret = posix_memalign((void **)&density, 64, sizeof(float)*maxsize);  assert(ret == 0);
+        ret = posix_memalign((void **)&density, 64, sizeof(FOFloat)*maxsize);  assert(ret == 0);
     }
 
     SOcell() {
@@ -168,10 +168,12 @@ class SOcell {
 	xthreshold *= xthreshold;
 
 	// Cosmic unit density yields a count in our FOFscale densities of this:
-	float FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
+	FOFloat FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
 	min_central = _min_central*FOFunitdensity;
         return;
     }
+
+    // ======================  Partition ===========================
 
     /// Partition on d2buffer<=d2SO in the [start,last) region.
     /// Also find the index of the densest particle in the high-separation
@@ -184,10 +186,10 @@ class SOcell {
     /// separation region, relative to start.  This may differ from 
     /// what was found externally if there is some conspiracy about 
     /// floating point equality comparisons of d2.
-    int partition_and_index(float *d2, float d2SO, 
+    int partition_and_index(FOFloat *d2, FOFloat d2SO, 
     	int start, int last, int &size) {
 
-	float maxdens=-1.0;
+	FOFloat maxdens=-1.0;
 	int densest=-1;
 	if (start==last) return -1;    // Nothing to do, but this should never happen
 
@@ -215,6 +217,9 @@ class SOcell {
 	return densest;
     }
 
+    // ======================  SO Hist Search  ===========================
+    #define SO_HIST_SEARCH 16     ///< The size to switch to the histogram based method
+	// Timings suggest this is a very small cross-over point.
 
     /// We are given a list of d2[0,len).  We want to find the largest value
     /// of d2 such that the count of all values <= that value satisfies
@@ -223,7 +228,6 @@ class SOcell {
     /// list, but just find this one intercept.
     FOFloat hist_search(FOFloat *d2use, int len) {
 	#define SO_BINS 16
-	int bins[SO_BINS];
 	FOFloat norm = SO_BINS*xthreshold*pow(len,-2.0/3.0);
 	FOFloat inorm = xthreshold/norm;
 	// d2*xthreshold = x, which is to be compared x^(3/2) vs count
@@ -231,51 +235,57 @@ class SOcell {
 	// We want bin*inorm = x, so inorm = xthreshold/norm
 	// bin*inorm/xthreshold = d2 = bin/norm
 
-	// Histogram the particles
-	for (int j=0; j<SO_BINS; j++) bins[j]=0;
-	for (int j=0; j<len; j++) {
-	    int b = floor(d2use[j]*norm);
-	    if (b<SO_BINS) bins[b]++;
+	int low = 0;        /// The low-edge of the lowest bin we'll search
+	int hi = SO_BINS;   /// The high-edge of the highest bin we'll search
+	int size = 0;	    /// The number of particles interior to the search range
+
+	if (len > SO_HIST_SEARCH) {
+	    // Histogram the particles to determine low, high, and size
+	    // of a more efficient range.
+	    int bins[SO_BINS];
+	    for (int j=0; j<SO_BINS; j++) bins[j]=0;
+	    for (int j=0; j<len; j++) {
+		int b = floor(d2use[j]*norm);
+		if (b<SO_BINS) bins[b]++;
+	    }
+	    // Next, cumulate the bins so that bins[b] contains
+	    // all particles in bins <= b, i.e., all particles less than b+1
+	    for (int j=0; j<SO_BINS; j++) size += bins[j];
+
+	    // Now we've counted the particles in these bins.
+	    // If the overdensity criteria is satisfied at the outer
+	    // boundary of the bin, then we know those particles are in.
+
+	    // If the criteria could be satisfied by placing the mass in the
+	    // bin at the inner boundary, then the boundary could be in that bin.
+	    // Unfortunately, there is guarantee that such bins are consecutive.
+
+	    // If the criteria can't be satisifed even placing all of the mass
+	    // exterior to that bin at the inner boundary, then we know the boundary
+	    // is not exterior to that point.  So let's bound the region
+	    // before committing resources to a sort.
+	    // We're going to consider whether bin 'low' is all inside
+	    for (low = SO_BINS-1;low>=0;low--) {
+		FOFloat x = (low)*inorm;   // The inner boundary
+		if (hi==SO_BINS && x*sqrt(x)<=size) hi = low;   
+		    // Putting all of this bin's mass at the inner edge,
+		    // we could possibly get above the density threshold.  
+		    // So the boundary is interior to (hi+1)*inorm.
+		    // Can only set this the first (outermost) time
+		x = (low+1)*inorm;   // The outer boundary
+		if (x*sqrt(x)<=size) break;
+		    // Even putting all of this bin's mass at the outer edge, 
+		    // this bin and its interior exceeds the threshold.
+		size -= bins[low];
+	    }
+	    low++; hi++; 
+	    // Now low*inorm is the lower bound on the boundary
+	    // We need to search the range [low,hi]*inorm
+	    // size contains all of the mass interior to low.
 	}
-	int tot = 0;
-	for (int j=0; j<SO_BINS; j++) tot += bins[j];
-	// Now we've counted the particles in these bins.
-	// If the overdensity criteria is satisfied at the outer
-	// boundary of the bin, then we know those particles are in.
 
-	// If the criteria could be satisfied by placing the mass in the
-	// bin at the inner boundary, then the boundary could be in that bin.
-	// Unfortunately, there is guarantee that such bins are consecutive.
-
-	// If the criteria can't be satisifed even placing all of the mass
-	// exterior to that bin at the inner boundary, then we know the boundary
-	// is not exterior to that point.  So let's bound the region
-	// before committing resources to a sort.
-	int low;
-	int size = tot;
-	int hi = SO_BINS;
-	// We're going to consider whether bin 'low' is all inside
-	for (low = SO_BINS-1;low>=0;low--) {
-	    FOFloat x = (low)*inorm;   // The inner boundary
-	    if (hi==SO_BINS && x*sqrt(x)<=size) hi = low;   
-		// Putting all of this bin's mass at the inner edge,
-		// we could possibly get above the density threshold.  
-		// So the boundary is interior to (hi+1)*inorm.
-		// Can only set this the first (outermost) time
-	    x = (low+1)*inorm;   // The outer boundary
-	    if (x*sqrt(x)<=size) break;
-	    	// Even putting all of this bin's mass at the outer edge, 
-		// this bin and its interior exceeds the threshold.
-	    size -= bins[low];
-	}
-	low++; hi++;
-	// Now low*inorm is the lower bound on the boundary
-	// We need to search the range [low,hi]*inorm
-	// size contains all of the mass interior to low.
-
-	// We're going to load up particles in this range into 
+	// We're going to load up particles in range [low,hi]*inorm into 
 	// the sorting array starting at size+1
-
 	int start = size;
 	for (int j=0; j<len; j++) {
 	    FOFloat b = d2use[j]*norm;
@@ -290,19 +300,60 @@ class SOcell {
 	// Now sweep in from the end to find the threshold
 	for (; size>start; size--) {
 	    FOFloat x = d2sort[size]*xthreshold;
-	    if (x*sqrt(x)<size) break;
+	    if (x*sqrt(x)<size) goto FoundSORadius;
 		// This particle exceeds the overdensity threshold
 	}
+	/*
+	for (; size>start; size--) {
+	    FOFloat x = d2sort[size]*xthreshold;
+	    if (x<twothirds[size]) goto FoundSORadius;
+		// This particle exceeds the overdensity threshold
+		// We have cached the size^(2/3) values, just to avoid
+		// the square roots
+	}
+	*/
+
+	FoundSORadius:
 	if (size==start) return low/norm;
 	    // We don't have the particle from the next lower bin, 
 	    // so just return the boundary
 	return d2sort[size];
     }
 
+    // ---------------------------------------------------
+    /// This is the original simple algorithm, retained for comparison testing
+    FOFloat original_search(FOFloat *d2use, int len) {
+	// We know that the group cannot be bigger than N=len,
+	// and therefore that any x>len^{2/3} cannot matter.
+	FOFloat x0 = pow(len,2.0/3.0)/xthreshold;
+	int size = 0;	// We're going to unit-index d2sort[]
+	for (int j=0; j<len; j++) 
+	    if (d2use[j]<=x0) 
+		d2sort[++size] = d2use[j];
+	// Now we've filled d2sort in the range [1,size] with only 
+	// the points that matter.
+	// Sort the distances in increasing order
+	Sort.Start();
+	std::sort(d2sort+1, d2sort+size+1);
+	numsorts += size;
+	Sort.Stop();
+	// Now sweep in from the end to find the threshold
+	for (; size>1; size--) {
+	    FOFloat x = d2sort[size]*xthreshold;
+	    if (x*sqrt(x)<size) break;
+		// This particle exceeds the overdensity threshold
+	}
+	// Now the group runs [1,size] relative to start-1.
+	// which means [start,start+size) in the original list
+	return d2sort[size];	
+	// This is the d2 value that marks the output.
+    }
+
+    // ======================  SO Algorithm  ===========================
     void greedySO() {
 	int start = 0;	// Index of the first particle of the current group
 	int densest = -1; 
-	float maxdens = -1.0;
+	FOFloat maxdens = -1.0;
 	Sweep.Start();
 	for (int j=0; j<np; j++) 
 	    if (density[j]>maxdens) {
@@ -315,15 +366,13 @@ class SOcell {
 	    if (start>0 && density[densest]<min_central) break;
 	    	// No eligible central is left.  But we always 
 		// try at least one central.
+	    Distance.Start();
 	    std::swap(p[start], p[densest]);
 	    std::swap(density[start], density[densest]);
+	    numcenters++;
 	    // Compute the distances to all of the unassigned particles
 	    int len = np-start;    
-	    int size;
-	    numcenters++;
-	    Distance.Start();
-	    float *d2use = compute_d2(p+start, p+start, len, d2buffer, numdists);
-	    FOFloat d2SO;
+	    FOFloat *d2use = compute_d2(p+start, p+start, len, d2buffer, numdists);
 	    Distance.Stop();
 	    // d2use points to element start, and our interest is [start,len)
 
@@ -331,42 +380,9 @@ class SOcell {
 	    // d2SO with the property that all of the particles with 
 	    // d2 <= d2SO are the largest body that satisfies 
 	    // the overdensity condition.
-
-	    #define SO_HIST_SEARCH 16     ///< The size to switch to the histogram based method
-	    // Timings suggest this is a very small cross-over point.
 	    Search.Start();
-	    // We think that for small lengths, it's better just
-	    // to sort directly.
-	    if (len>SO_HIST_SEARCH) {
-		d2SO = hist_search(d2use, len);
-	    } else {
-		// We know that the group cannot be bigger than N=len,
-		// and therefore that any x>len^{2/3} cannot matter.
-		FOFloat x0 = pow(len,2.0/3.0)/xthreshold;
-		size = 0;	// We're going to unit-index d2sort[]
-		for (int j=0; j<len; j++) 
-		    if (d2use[j]<=x0) 
-			d2sort[++size] = d2use[j];
-		// Now we've filled d2sort in the range [1,size] with only 
-		// the points that matter.
-
-		// Sort the distances in increasing order
-		// memcpy(d2sort+1, d2use, sizeof(float)*size);
-		Sort.Start();
-		std::sort(d2sort+1, d2sort+size+1);
-		numsorts += size;
-		Sort.Stop();
-		// Now sweep in from the end to find the threshold
-		for (; size>1; size--) {
-		    FOFloat x = d2sort[size]*xthreshold;
-		    if (x*sqrt(x)<size) break;
-			// This particle exceeds the overdensity threshold
-		}
-		// Now the group runs [1,size] relative to start-1.
-		// which means [start,start+size) in the original list
-		d2SO = d2sort[size];	
-		// This is the d2 value that marks the output.
-	    }
+	    // d2SO = original_search(d2use, len);
+	    FOFloat d2SO = hist_search(d2use, len);
 	    Search.Stop();
 
 	    // Partition the original lists based on this boundary.
@@ -378,6 +394,7 @@ class SOcell {
 	    // The partition function is back in the full indexed list
 	    // so we need to refer to the distances as d2use-start.
 	    Sweep.Start();
+	    int size;
 	    densest = partition_and_index(d2use-start, d2SO, start, np, size);
 	    Sweep.Stop();
 	    // Mark the group.  Note that the densest particle is first.
