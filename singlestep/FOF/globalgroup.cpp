@@ -727,6 +727,8 @@ void GlobalGroupSlab::FindSubGroups() {
         GFC->L1stats.add(L1stats[g]);
 	GFC->numdists1 += FOFlevel1[g].numdists;
 	GFC->numdists2 += FOFlevel2[g].numdists;
+	GFC->numsorts1 += FOFlevel1[g].numsorts;
+	GFC->numsorts2 += FOFlevel2[g].numsorts;
 	GFC->numcenters1 += FOFlevel1[g].numcenters;
 	GFC->numcenters2 += FOFlevel2[g].numcenters;
 	#ifdef SPHERICAL_OVERDENSITY

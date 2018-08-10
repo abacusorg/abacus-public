@@ -359,6 +359,7 @@ class FOFcell {
     int ngroups;
     long long numdists;		///< Number of distances computed
     long long numcenters;	///< The number of partitions used
+    long long numsorts; 	///< The number of sorts (not used in FOF)
     int nmultiplets; 	// Number of particles in multiplets
     int nsinglet_boundary;  // Plus number of particles near the edge
     		// So boundary singlets are in [nmultiplets, nsinglet_boundary)
