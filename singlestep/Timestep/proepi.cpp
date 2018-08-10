@@ -230,8 +230,7 @@ void Prologue(Parameters &P, bool ic) {
         if(P.AllowGroupFinding && !P.ForceOutputDebug){
             GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
 		      #ifdef SPHERICAL_OVERDENSITY
-			  180.0,
-			  720.0,
+			  P.SODensity[0], P.SODensity[1],
 		      #else
 			  P.FoFLinkingLength[1]/pow(P.np,1./3),
 			  P.FoFLinkingLength[2]/pow(P.np,1./3),

@@ -105,9 +105,13 @@ class GroupFindingControl {
 	#ifdef SPHERICAL_OVERDENSITY
 	    SOdensity1 = _level1;
 	    SOdensity2 = _level2;
+	    STDLOG(0,"Planning for L1/2 group finding with SO: %d and %d\n", 
+	    	SOdensity1, SOdensity2);
 	#else
 	    linking_length_level1 = _level1;
 	    linking_length_level2 = _level2;
+	    STDLOG(0,"Planning for L1/2 group finding with FOF: %d and %d\n", 
+	    	linking_length_level1, linking_length_level2);
 	#endif
 	minhalosize = _minhalosize;
 	invcpd = _invcpd;
