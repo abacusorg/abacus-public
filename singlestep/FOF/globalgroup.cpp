@@ -742,21 +742,20 @@ void GlobalGroupSlab::FindSubGroups() {
     STDLOG(1,"Found %l L1 halos\n", previous);
     #ifdef SPHERICAL_OVERDENSITY
     if (FOFlevel1[0].Total.Elapsed()>0.0) {
-	STDLOG(1,"L1 Timing: %f = %f %f %f %f %f\n",
+	STDLOG(3,"L1 Timing: %f = %f %f %f %f\n",
 	    FOFlevel1[0].Total.Elapsed(),
 	    FOFlevel1[0].Copy.Elapsed(),
 	    FOFlevel1[0].Sweep.Elapsed(),
 	    FOFlevel1[0].Distance.Elapsed(),
-	    FOFlevel1[0].Sort.Elapsed(),
 	    FOFlevel1[0].Search.Elapsed());
-	STDLOG(1,"L2 Timing: %f = %f %f %f %f %f\n",
+	STDLOG(3,"L2 Timing: %f = %f %f %f %f\n",
 	    FOFlevel2[0].Total.Elapsed(),
 	    FOFlevel2[0].Copy.Elapsed(),
 	    FOFlevel2[0].Sweep.Elapsed(),
 	    FOFlevel2[0].Distance.Elapsed(),
-	    FOFlevel2[0].Sort.Elapsed(),
 	    FOFlevel2[0].Search.Elapsed());
-	// These show that the timing is 75% dominated by the Sort step.
+	// These show that the timing is 50% dominated by the Search step,
+	// with most of the rest split between Copy and Sweep.
     }
     #endif
 

@@ -56,6 +56,8 @@ We are not implementing any unbinding here.
 
 */
 
+#define SO_CACHE 1024
+
 class SOcell {
   public:
     FOFparticle *p;     ///< The particles
@@ -68,16 +70,16 @@ class SOcell {
     FOFloat threshold;  ///< The density threshold we are applying
     FOFloat xthreshold;
     FOFloat min_central;   ///< The minimum FOF-scale density to require for a central particle.
+    FOFloat *twothirds;	  ///< We compare x^(3/2) to integers so much that we'll cache integers^(2/3)
 
     FOFgroup *groups;   ///< The list of found groups
     int ngroups;        ///< The number of groups
     
-    STimer Total;
-    STimer Copy;
+    FOFTimer Total;
+    FOFTimer Copy, Sweep, Distance, Search; 
     long long numdists;	///< Total number of distances we compute
     long long numsorts;	///< Total number of sorting elements
     long long numcenters; ///< Total number of SO centers considered
-    STimer Sweep, Distance, Sort, Search; 
 
 
     char pad[64];    // Just to ensure an array of these always fall on
@@ -118,6 +120,8 @@ class SOcell {
         numsorts = 0;
         numcenters = 0;
         reset(32768);
+        int ret = posix_memalign((void **)&twothirds, 64, sizeof(int)*(SO_CACHE+2));  assert(ret == 0);
+	for (int j=0; j<SO_CACHE+2; j++) twothirds[j] = pow(j,2.0/3.0);
         // We will have terrible bugs if these aren't true!
         assertf(sizeof(FOFparticle)==16, "FOFparticle is illegal size!");
         assertf(sizeof(FOFgroup)%16==0, "FOFgroup is illegal size!");
@@ -133,6 +137,7 @@ class SOcell {
     }
     ~SOcell() {
         destroy();
+	free(twothirds);
     }
 
     // Co-add the timers in x to this one
@@ -141,7 +146,6 @@ class SOcell {
         Copy.increment(x.Copy.get_timer());
         Sweep.increment(x.Sweep.get_timer());
         Distance.increment(x.Distance.get_timer());
-        Sort.increment(x.Sort.get_timer());
         Search.increment(x.Search.get_timer());
     }
 
@@ -298,12 +302,12 @@ class SOcell {
 	numsorts += size-start;
 
 	// Now sweep in from the end to find the threshold
-	for (; size>start; size--) {
+	int max = std::max(start,SO_CACHE);
+	for (; size>max; size--) {
 	    FOFloat x = d2sort[size]*xthreshold;
 	    if (x*sqrt(x)<size) goto FoundSORadius;
 		// This particle exceeds the overdensity threshold
 	}
-	/*
 	for (; size>start; size--) {
 	    FOFloat x = d2sort[size]*xthreshold;
 	    if (x<twothirds[size]) goto FoundSORadius;
@@ -311,7 +315,6 @@ class SOcell {
 		// We have cached the size^(2/3) values, just to avoid
 		// the square roots
 	}
-	*/
 
 	FoundSORadius:
 	if (size==start) return low/norm;
@@ -333,10 +336,8 @@ class SOcell {
 	// Now we've filled d2sort in the range [1,size] with only 
 	// the points that matter.
 	// Sort the distances in increasing order
-	Sort.Start();
 	std::sort(d2sort+1, d2sort+size+1);
 	numsorts += size;
-	Sort.Stop();
 	// Now sweep in from the end to find the threshold
 	for (; size>1; size--) {
 	    FOFloat x = d2sort[size]*xthreshold;
