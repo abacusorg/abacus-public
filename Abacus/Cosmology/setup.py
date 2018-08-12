@@ -18,4 +18,3 @@ setup(ext_modules=[Extension('_AbacusCosmo',
                     )
                   ]
       )
-      

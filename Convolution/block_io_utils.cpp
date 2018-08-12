@@ -97,7 +97,7 @@ public:
      
         size_t size = sizeof(DFLOAT)*rml*CP.CompressedMultipoleLengthXY;
         
-        char *fnfmt;
+        const char *fnfmt;
         if(sizeof(DFLOAT) == sizeof(float))
             fnfmt = "%s/fourierspace_float32_%d_%d_%d_%d_%d";
         else

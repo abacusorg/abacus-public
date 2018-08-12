@@ -45,7 +45,7 @@
 #define CABS cabsf
 #endif
 
-#include "read_abacus.h"
+#include "readabacus.h"
 
 #define squ(x) ((x)*(x))
 #define arr(a,x,y,z) a[gridN1D*gridN1D *(x) + gridN1D*(y) + (z)]

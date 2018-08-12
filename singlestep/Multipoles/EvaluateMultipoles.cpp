@@ -84,7 +84,7 @@ void Multipoles::EvaluateCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 center, do
     #elif defined(AVXMULTIPOLES)
     ASMCartesianMultipoles(p, n, center, cm);
     #else
-    AnalyticCartesianMultipoles(p, n center, cm);
+    AnalyticCartesianMultipoles(p, n, center, cm);
     #endif
 }
 
@@ -116,7 +116,7 @@ void Multipoles::AnalyticCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 center,
     }
 }
 
-
+#ifdef AVXMULTIPOLES
 void Multipoles::ASMCartesianMultipoles(FLOAT3 *xyz, int n, FLOAT3 center, 
                                         double *CM) {
     int g = omp_get_thread_num();
@@ -166,6 +166,7 @@ void Multipoles::ASMCartesianMultipoles(FLOAT3 *xyz, int n, FLOAT3 center,
     for(int k=0;k<completemultipolelength;k++) 
        for(int j=0;j<4;j++) CM[k] += globalM[g][k].v[j];
 }
+#endif
 
 void Multipoles::AVX512CartesianMultipoles(FLOAT3 *xyz, int n, FLOAT3 center, double *CM) {
 #ifdef AVX512MULTIPOLES

@@ -1,0 +1,86 @@
+@WARNING@
+
+# This file sets up compiler settings used throughout the project.
+# Most Makefiles should thus include this file at the top.
+# Individual Makfiles may edit some of these variables,
+# but any settings that are used in more than one place should be coordinated here.
+
+# We used to export variables so the child Makefiles could find them.
+# But then the behavior was different if one invoked the child Makefile directly
+# rather than from the top level.
+# We'd prefer to coordinate that all from here.
+
+CXX := @CXX@
+CC := @CXX@ -x c # Is this a canonical option?
+LDFLAGS := -Wl\,--as-needed  # seems to help us avoid a lot of mischief
+CXXFLAGS := -std=c++11
+ROOT_DIR ?= .
+CPPFLAGS := @DEFS@ -m64 -O3 -I $(ROOT_DIR)/include -g $(LDFLAGS)  # definitely not a preprocessor option, but...
+#CPPFLAGS += -Wall  #TODO: clean up compiler warnings
+
+CUDA_ENABLED = @CUDA_ENABLED@
+ifeq (@CUDA_ENABLED@,CUDA_ENABLED)
+	CUDA_CXXFLAGS := @CUDA_CFLAGS@ -ccbin @CXX@
+	CUDA_LIBS := @CUDA_LDFLAGS@ -lcuda -lcudart -lcufft
+	NVCC := @NVCC@
+	CUDA_MAJOR_VER := @CUDA_MAJOR_VER@
+endif
+
+# Define GNU/Intel specific compiler options
+ifeq (@CXX@,g++)
+	CXX_MAJOR_VER := $(shell $(CXX) -dumpversion | cut -f1 -d.)
+
+	ifeq (@ARCH@,powerpc)
+		# powerpc does not accept -march=native
+		CPPFLAGS += -mcpu=native -mtune=native
+	else
+		CPPFLAGS += -march=native
+	endif
+else ifeq (@CXX@,icc)
+	CPPFLAGS += -xHost -fp-model precise -fbuiltin -ip -mkl #-ipo #-prof-use=weighted
+endif
+
+ifeq (@TCMALLOC@,TCMALLOC_ENABLED)
+	TCMALLOC_CPPFLAGS += -I $(ROOT_DIR)/gperftools/include
+	TCMALLOC_CPPFLAGS += -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
+	# tcmalloc libs automatically go into LIBS
+endif
+
+CPPFLAGS += $(TCMALLOC_CPPFLAGS)  # is it okay to link everything against tcmalloc?
+
+MULTIPOLES_OBJ :=
+# These are the optimized multipole/taylor object files that
+# singlestep/Multipoles/Makefile will generate and singlestep/Makefile will link against
+ifeq (@AVXMULTIPOLES@,AVXMULTIPOLES_ENABLED)
+	MULTIPOLES_OBJ += ETASM.o CMASM.o
+endif
+ifeq (@AVX512MULTIPOLES@,AVX512MULTIPOLES_ENABLED)
+	MULTIPOLES_OBJ += CMAVX512.o ETAVX512.o
+endif
+
+LIBS := @LIBS@
+
+# Some of this setup could surely be done inside configure
+# I think that mostly makes sense for external dependencies,
+# or bundled dependencies that we functionally treat as external
+# (i.e. compile once and never touch again) like tcmalloc
+PARSEHEADER_LIBS := -L $(ROOT_DIR)/ParseHeader -lparseheader
+PARSEHEADER_CPPFLAGS := -I $(ROOT_DIR)/ParseHeader
+
+# pthread and openmp are of course separate, but in practice we often use them together
+THREAD_LIBS := -pthread
+THREAD_CPPFLAGS := -fopenmp -foffload=disable  # offloading sends openmp to the GPU
+
+GPU_CONVOLUTION_ENABLED = @GPU_CONVOLUTION_ENABLED@
+
+READABACUS_CPPFLAGS := -I $(ROOT_DIR)/clibs
+READABACUS_LIBS := -L $(ROOT_DIR)/clibs
+
+ParseHeader: $(ROOT_DIR)/ParseHeader/libparseheader.a
+$(ROOT_DIR)/ParseHeader/libparseheader.a:
+	$(MAKE) -C $(ROOT_DIR)/ParseHeader libparseheader.a
+
+.PHONY: ParseHeader
+# We provided the ParseHeader definition in this file which may be
+# included at the top of other Makefiles.  Don't let it be the default target!
+.DEFAULT_GOAL :=

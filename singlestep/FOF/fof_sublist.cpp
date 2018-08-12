@@ -34,7 +34,9 @@ typedef unsigned long long int  auxstruct;
 
 #endif 
 
+#if defined(AVXFOF) or defined(AVX512DIRECT)
 #include <immintrin.h>
+#endif
 
 class DummyTimer {
   public:

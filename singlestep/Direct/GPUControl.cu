@@ -45,7 +45,7 @@ to the rest of the code, because it needs CUDA.
 #include "config.h"
 #include "header.cpp"
 
-#include <x86intrin.h>
+//#include <x86intrin.h>
 #include <cstring>
 #include <cstdio>
 #include <cassert>

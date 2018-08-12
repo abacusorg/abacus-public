@@ -18,10 +18,13 @@
 #   CPUEXT_FLAGS if compiler supports it. For example, if "bmi2" is
 #   available then "-mbmi2" is added to CPUEXT_FLAGS.
 #
+#   SIMD_EXTENSIONS will contain the short names of the supported SIMD types.
+#
 #   This macro calls:
 #
 #     AC_SUBST(SIMD_FLAGS)
 #     AC_SUBST(CPUEXT_FLAGS)
+#     AC_SUBST(SIMD_EXTENSIONS)
 #
 #   And defines:
 #
@@ -53,6 +56,7 @@ AC_DEFUN([AX_EXT],
 
   CPUEXT_FLAGS=""
   SIMD_FLAGS=""
+  SIMD_EXTENSIONS=""
 
   case $host_cpu in
     powerpc*)
@@ -165,7 +169,7 @@ AC_DEFUN([AX_EXT],
 #include <stdlib.h>
             /* No way at ring1 to ring3 in protected mode to check the CR0 and CR4
                control registers directly. Execute an SSE instruction.
-               If it raises SIGILL then OS doesn't support SSE based instructions */
+               If it raises SIGILL then OS does not support SSE based instructions */
             void sig_handler(int signum){ exit(1); }
             int main(){
               signal(SIGILL, sig_handler);
@@ -275,13 +279,15 @@ AC_DEFUN([AX_EXT],
              if test x"$(eval echo \$ax_cv_support_${ac_instr_acvar}_ext)" = x"yes"; then
                eval ${ac_instr_flag_type}=\"\$${ac_instr_flag_type} ${ac_instr_compiler_flags}\"
                AC_DEFINE_UNQUOTED([${ac_instr_have_define}])
+               # Also add HAVE_AVX to a substitution list
+               SIMD_EXTENSIONS += ",${ac_instr_have_define},"
              else
                AC_MSG_WARN([Your processor and OS supports ${ac_instr_shortname} instructions but not your compiler, can you try another compiler?])
              fi
            else
              if test x"${ac_instr_os_support}" = x"no"; then
                AC_CACHE_VAL(ax_cv_support_${ac_instr_acvar}_ext, eval ax_cv_support_${ac_instr_acvar}_ext=no)
-               AC_MSG_WARN([Your processor supports ${ac_instr_shortname}, but your OS doesn't])
+               AC_MSG_WARN([Your processor supports ${ac_instr_shortname}, but your OS does not])
              fi
            fi
          else
@@ -325,4 +331,5 @@ AC_DEFUN([AX_EXT],
   AH_TEMPLATE([HAVE_AVX512_VBMI],[Define to 1 to support AVX-512 Vector Byte Manipulation Instructions])
   AC_SUBST(SIMD_FLAGS)
   AC_SUBST(CPUEXT_FLAGS)
+  AC_SUBST(SIMD_EXTENSIONS)
 ])
