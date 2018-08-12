@@ -54,10 +54,15 @@ class CellFaceSlab {
     int slab_prewrap; 	// The slab we're told to compute (unwrapped)
 
     CellFaceSlab(int _slab, int _edgebit, int cpd, int maxsize) {
-	pseudoParticles.setup(cpd, maxsize); // ETC
-	pseudoRadii.setup(cpd, maxsize);
-	faceParticles.setup(cpd, maxsize);
-	faceGroups.setup(cpd, maxsize);
+	// maxsize should be the number of particles in a cell
+	// times the boundary width.  Then we reduce from there.
+	// Most particles are not in groups.  
+	// Estimating 10% for pseudoParticles, 5% for faceGroups,
+	// and 30% for faceParticles.
+	pseudoParticles.setup(cpd, maxsize/10); 
+	pseudoRadii.setup(cpd, maxsize/10);
+	faceParticles.setup(cpd, maxsize/3);
+	faceGroups.setup(cpd, maxsize/20);
 	edgebit = _edgebit;
 	slab_prewrap = _slab;
 	slab = GFC->WrapSlab(_slab);
@@ -83,23 +88,17 @@ class FaceSet {
     PencilAccum<FaceGroup>          *fG;
     // We have to guarantee these float4 to be SSE aligned.  
     // No cache lines either
-    float *radius; 
-    FacePseudoParticle *midpos; 
 
     CellFaceSlab *face;
     FaceSet(CellFaceSlab *_face) { 
     	face = _face; 
 	int ret;
-	ret = posix_memalign((void **)&radius, 64, 4*sizeof(float)); assert(ret==0);
-	ret = posix_memalign((void **)&midpos, 64, sizeof(FacePseudoParticle)); assert(ret==0);
 	pP = NULL;
 	pR = NULL;
 	fP = NULL;
 	fG = NULL;
     }
     ~FaceSet() {
-	free(radius);
-	free(midpos);
     }
 
     void StartPencil(int j) {
@@ -129,8 +128,6 @@ class FaceSet {
 	const FOFloat boundary = GFC->boundary;   // The boundaries, cell-centered
 
 	// Store a SSE version of 0.5 for later
-	float half1 = 0.5;
-	__m128 half = _mm_load_ps1(&half1);
 	int facegroupnumstart = fG->get_pencil_size();
 		// We're going to start the facegroup numbering from the start of the cell
 		// So store the pencil index here and subtract it later
@@ -147,8 +144,7 @@ class FaceSet {
 		// But now we want to find the particles in the face
 		int fPstart = fP->get_pencil_size()-fPcellstart;
 		int fGsize = 0;
-		__m128 BBmin, BBmax;
-
+		FOFparticle BBmin, BBmax;
 
 		// Look at the particles in this group
 		posstruct *ppos = c.pos+cg[g].start;
@@ -162,14 +158,13 @@ class FaceSet {
 				// ppos->x, ppos->y, ppos->z,
 				// pp.x/FOF_RESCALE, pp.y/FOF_RESCALE, pp.z/FOF_RESCALE, pp.n);
 			fP->append(pp);
-			__m128 newp = _mm_loadu_ps((float *)&pp);
 			// Note that the 4th element here is garbage
 			if (fGsize>0) {
-			    BBmin = _mm_min_ps(BBmin, newp);
-			    BBmax = _mm_max_ps(BBmax, newp);
+			    BBmin.min(pp);
+			    BBmax.max(pp);
 			} else {
-			    BBmin = newp;
-			    BBmax = newp;
+			    BBmin = pp;
+			    BBmax = pp;
 			}
 			fGsize++;
 		    }
@@ -179,11 +174,10 @@ class FaceSet {
 		    // We only found one particle, so it just goes on 
 		    // the PseudoParticle list with its cellgroup number.
 		    // No need to create a FaceGroup
-		    _mm_store_ps((float *)midpos, BBmin);
-		    midpos->n = g;
+		    BBmin.n = g;
 		    // printf("PsPart: %f %f %f, n=%f r=%f\n",
 				// midpos->x/FOF_RESCALE, midpos->y/FOF_RESCALE, midpos->z/FOF_RESCALE, midpos->n, 0.0);
-		    pP->append(*midpos);
+		    pP->append(BBmin);
 		    pR->append(0.0);
 		} else if (fGsize>1) {
 		    // We found multiple particles, so need to compute
@@ -197,19 +191,16 @@ class FaceSet {
 		    assert(fP->get_pencil_size()==fPcellstart+fPstart+fGsize);
 
 		    // Use the Min/Max to create the pseudo particle
-		    __m128 mid = _mm_mul_ps(_mm_add_ps(BBmin, BBmax),half);
-		    _mm_store_ps((float *)(midpos), mid);
-		    __m128 diff = _mm_sub_ps(BBmax, BBmin);
-		    diff = _mm_mul_ps(diff,diff);  // Square diameter
-		    _mm_store_ps(radius, diff);
-		    radius[0] += radius[1]+radius[2];
-		    radius[0] *= 0.25;   // Now this is the square radius
-
-		    midpos->n = -1-facegroupnum;  // Overwrite the index
+		    FOFloat radius = BBmax.diff2(&BBmin)*0.25;;
+		    BBmin.x = 0.5*(BBmin.x+BBmax.x);
+		    BBmin.y = 0.5*(BBmin.y+BBmax.y);
+		    BBmin.z = 0.5*(BBmin.z+BBmax.z);
+		    BBmin.n = 0.5*(BBmin.n+BBmax.n);
+		    BBmin.n = -1-facegroupnum;  // Overwrite the index
 		    // printf("PsPart: %f %f %f, n=%d r=%f\n",
 				// midpos->x/FOF_RESCALE, midpos->y/FOF_RESCALE, midpos->z/FOF_RESCALE, midpos->index(), sqrt(radius[0])/FOF_RESCALE);
-		    pP->append(*midpos);
-		    pR->append(sqrt(radius[0]));
+		    pP->append(BBmin);
+		    pR->append(sqrt(radius));
 		} else {
 		    assert(fGsize>0);
 		}
@@ -286,13 +277,13 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
     int i2 = c2.slab;
 
     // We also need to account for the cell-centered positions
-    FOFparticle *offset;
-    int ret = posix_memalign((void **)&offset, 64, sizeof(FOFparticle));   assert(ret==0); // Need this aligned
+    FOFparticle offset;
+    //? int ret = posix_memalign((void **)&offset, 64, sizeof(FOFparticle));   assert(ret==0); // Need this aligned
     int del_i = c2.slab_prewrap - c1.slab_prewrap;   // Need this info before wrapping
-    offset->x = GFC->invcpd*FOF_RESCALE*(del_i);
-    offset->y = GFC->invcpd*FOF_RESCALE*(j2-j1);
-    offset->z = GFC->invcpd*FOF_RESCALE*(k2-k1);
-    offset->n = 0.0;
+    offset.x = GFC->invcpd*FOF_RESCALE*(del_i);
+    offset.y = GFC->invcpd*FOF_RESCALE*(j2-j1);
+    offset.z = GFC->invcpd*FOF_RESCALE*(k2-k1);
+    offset.n = 0.0;
     // This is what we should add to the 2nd positions
 
     // Now wrap them
@@ -323,7 +314,7 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
 	    // printf("%d %f to %d %f = %f vs %f\n",
 	    	// p, pR1[p]/FOF_RESCALE, q, pR2[q]/FOF_RESCALE, 
 		// pP1[p].diff2(pP2.ptr(q),offset)/FOF_RESCALE/FOF_RESCALE, b2*b2/FOF_RESCALE/FOF_RESCALE);
-	    if (pP1[p].diff2(pP2.ptr(q),offset)<b2*b2) {
+	    if (pP1[p].diff2(pP2.ptr(q),&offset)<b2*b2) {
 	        // We've found a pair of pseudogroups
 		// if (pR1[p]==0) 
 		// printf("Candidate: %d %d %d %d to %d %d %d %d\n",
@@ -343,7 +334,7 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
 			FaceGroup *fg = fG2.ptr(-1-pP2[q].index());
 			FaceGroupParticle *fp = fP2.ptr(fg->start);
 			for (int qq=0; qq<fg->n; qq++, fp++) {
-			    FOFloat d2 = pP1[p].diff2(fp,offset);
+			    FOFloat d2 = pP1[p].diff2(fp,&offset);
 			    if (d2<bsq) {
 				// We've found a pair
 				// printf("Link: %d %d %d %d to %d %d %d %d %d\n",
@@ -362,7 +353,7 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
 			FaceGroupParticle *fp = fP1.ptr(fg->start);
 			for (int pp=0; pp<fg->n; pp++, fp++) {
 			    FOFparticle *p2 = pP2.ptr(q);
-			    FOFloat d2 = fp->diff2(p2,offset);
+			    FOFloat d2 = fp->diff2(p2,&offset);
 			    if (d2<bsq) {
 			    // if (pP2[q].diff2(fp)<bsq) 
 				// We've found a pair
@@ -382,7 +373,7 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
 			for (int pp=0; pp<fg1->n; pp++, fp1++) {
 			    FaceGroupParticle *fp2 = fP2.ptr(fg2->start);
 			    for (int qq=0; qq<fg2->n; qq++, fp2++) {
-				if (fp1->diff2(fp2,offset)<bsq) {
+				if (fp1->diff2(fp2,&offset)<bsq) {
 				    // We've found a pair
 				    // printf("Link: %d %d %d %d %d to %d %d %d %d %d\n",
 					// i1, j1, k1, pP1[p].index(),fg1->cellgroupID,
@@ -399,7 +390,7 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
 	    }  // Done with this pseudoParticle pair.
 	}
     }
-    free(offset);
+    //? free(offset);
     return; 
 }
 
@@ -411,13 +402,14 @@ void FindGroupLinks(int slab) {
     slab = GFC->WrapSlab(slab);
     uint64 Ltot_start = GFC->GLL->length;
 
-    // TODO: This maxsize is likely inefficient
-    CellFaceSlab xp(slab-1, XP_BIT, GFC->cpd, 1024);
-    CellFaceSlab xm(slab,   XM_BIT, GFC->cpd, 1024);
-    CellFaceSlab yp(slab,   YP_BIT, GFC->cpd, 1024);
-    CellFaceSlab ym(slab,   YM_BIT, GFC->cpd, 1024);
-    CellFaceSlab zp(slab,   ZP_BIT, GFC->cpd, 1024);
-    CellFaceSlab zm(slab,   ZM_BIT, GFC->cpd, 1024);
+    // The typical number of particles
+    int maxsize = GFC->particles_per_slab*GFC->linking_length*GFC->cpd;
+    CellFaceSlab xp(slab-1, XP_BIT, GFC->cpd, maxsize);
+    CellFaceSlab xm(slab,   XM_BIT, GFC->cpd, maxsize);
+    CellFaceSlab yp(slab,   YP_BIT, GFC->cpd, maxsize);
+    CellFaceSlab ym(slab,   YM_BIT, GFC->cpd, maxsize);
+    CellFaceSlab zp(slab,   ZP_BIT, GFC->cpd, maxsize);
+    CellFaceSlab zm(slab,   ZM_BIT, GFC->cpd, maxsize);
 
     // Now load up these slabs
     // We do all at once, in order to get repeated access to individual cells.

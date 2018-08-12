@@ -640,6 +640,7 @@ SWIG
 AR
 YACC
 LEX
+TCMALLOC
 INSTALL_DATA
 INSTALL_SCRIPT
 INSTALL_PROGRAM
@@ -708,12 +709,14 @@ enable_avx_directs
 enable_avx512_directs
 enable_avx_multipoles
 enable_avx512_multipoles
+enable_avx_fof
 with_max_cpd
 with_max_source_length
 enable_threaded_io
 enable_gpu_directs
 with_cuda
 enable_gpu_convolution
+enable_fof_density
 with_direct_bpd
 with_max_gpus
 with_softening
@@ -1365,10 +1368,12 @@ Optional Features:
   --enable-avx-multipoles AVX multipoles [yes if AVX present]
   --enable-avx512-multipoles
                           AVX-512 multipoles [yes if AVX-512 present]
+  --enable-avx-fof        AVX FOF [yes if AVX present]
   --enable-threaded-io    Threaded IO [yes]
   --enable-gpu-directs    GPU directs [yes if CUDA detected]
   --enable-gpu-convolution
                           Convolution FFT on GPU [no]
+  --enable-fof-density    Compute FOF-scale density [yes]
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -4086,6 +4091,11 @@ _ACEOF
 
 
 
+# Calling make from configure... pretty sketchy!
+# But we want tcmalloc to be available for configure to find
+# This will only be run if libtcmalloc isn't already present
+make --quiet tcmalloc
+
 # These will automatically add the appropriate -L and -l flags to LIBS
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing cos" >&5
 $as_echo_n "checking for library containing cos... " >&6; }
@@ -4317,7 +4327,108 @@ else
   as_fn_error $? "unable to find tbb!" "$LINENO" 5
 fi
 
-#AC_SEARCH_LIBS(numa_max_node, [numa], [], [AC_MSG_ERROR([unable to find numa!])])
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for malloc in -ltcmalloc_minimal" >&5
+$as_echo_n "checking for malloc in -ltcmalloc_minimal... " >&6; }
+if ${ac_cv_lib_tcmalloc_minimal_malloc+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-ltcmalloc_minimal  $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char malloc ();
+int
+main ()
+{
+return malloc ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_lib_tcmalloc_minimal_malloc=yes
+else
+  ac_cv_lib_tcmalloc_minimal_malloc=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_tcmalloc_minimal_malloc" >&5
+$as_echo "$ac_cv_lib_tcmalloc_minimal_malloc" >&6; }
+if test "x$ac_cv_lib_tcmalloc_minimal_malloc" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBTCMALLOC_MINIMAL 1
+_ACEOF
+
+  LIBS="-ltcmalloc_minimal $LIBS"
+
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to find tcmalloc!" >&5
+$as_echo "$as_me: WARNING: unable to find tcmalloc!" >&2;}
+fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for move_pages in -lnuma" >&5
+$as_echo_n "checking for move_pages in -lnuma... " >&6; }
+if ${ac_cv_lib_numa_move_pages+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lnuma  $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char move_pages ();
+int
+main ()
+{
+return move_pages ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_lib_numa_move_pages=yes
+else
+  ac_cv_lib_numa_move_pages=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_numa_move_pages" >&5
+$as_echo "$ac_cv_lib_numa_move_pages" >&6; }
+if test "x$ac_cv_lib_numa_move_pages" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBNUMA 1
+_ACEOF
+
+  LIBS="-lnuma $LIBS"
+
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to find numa!" >&5
+$as_echo "$as_me: WARNING: unable to find numa!" >&2;}
+fi
+
+
+
+TCMALLOC="TCMALLOC_DISABLED"
+if test x$ac_cv_lib_tcmalloc_minimal_malloc == xyes; then
+    TCMALLOC="TCMALLOC_ENABLED"
+fi
 
 # Check for some utilities we use
 for ac_prog in flex
@@ -5522,14 +5633,6 @@ _ACEOF
 
 fi
 
-if test x$enable_double == xyes; then
-
-cat >>confdefs.h <<_ACEOF
-#define DOUBLEPRECISION /**/
-_ACEOF
-
-fi
-
 # Check whether --enable-mkl was given.
 if test "${enable_mkl+set}" = set; then :
   enableval=$enable_mkl;
@@ -5645,6 +5748,21 @@ if test x$enable_avx512_multipoles == xyes; then
 
 cat >>confdefs.h <<_ACEOF
 #define AVX512MULTIPOLES /**/
+_ACEOF
+
+fi
+
+# Check whether --enable-avx-fof was given.
+if test "${enable_avx_fof+set}" = set; then :
+  enableval=$enable_avx_fof;
+else
+  enable_avx_fof=$enable_avx
+fi
+
+if test x$enable_avx_fof == xyes; then
+
+cat >>confdefs.h <<_ACEOF
+#define AVXFOF /**/
 _ACEOF
 
 fi
@@ -6007,6 +6125,21 @@ _ACEOF
 
 fi
 
+# Check whether --enable-fof_density was given.
+if test "${enable_fof_density+set}" = set; then :
+  enableval=$enable_fof_density;
+else
+  enable_fof_density="yes"
+fi
+
+if test x$enable_fof_density == xyes; then
+
+cat >>confdefs.h <<_ACEOF
+#define COMPUTE_FOF_DENSITY /**/
+_ACEOF
+
+fi
+
 # Get the number of GPUs
 if test x$enable_gpu_directs == xyes; then
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking number of GPUs" >&5
@@ -6341,11 +6474,13 @@ echo "AVX directs:                     $enable_avx_directs"
 echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "AVX multipoles:                  $enable_avx_multipoles"
 echo "AVX-512 multipoles:              $enable_avx512_multipoles"
+echo "AVX FOF:                         $enable_avx_fof"
 echo "Maximum CPD:                     $with_max_cpd"
 echo "Maximum source length:           $with_max_source_length"
 echo "Threaded IO:                     $enable_threaded_io"
 echo "Direct buffers-per-device:       $with_direct_bpd"
 echo "GPU directs:                     $enable_gpu_directs"
+echo "Compute FOF-scale density:       $enable_fof_density"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Maximum GPUs:                    $with_max_gpus"

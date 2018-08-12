@@ -83,6 +83,10 @@ public:
     double DeltaScaleFactor;
     double DeltaRedshift;
 
+    // The FOF density scale being used (in code units)
+    // This matters because 0 indicates that it was not computed.
+    double DensityKernelRad2;
+
     // Some statistics about the particle distribution that might be useful.
     double MaxVelocity;
     double MaxAcceleration;
@@ -171,6 +175,7 @@ public:
     	installscalar("DeltaTime",DeltaTime,DONT_CARE);
     	installscalar("DeltaScaleFactor",DeltaScaleFactor,DONT_CARE);
     	installscalar("DeltaRedshift",DeltaRedshift,DONT_CARE);
+    	installscalar("DensityKernelRad2",DensityKernelRad2,DONT_CARE);
 	
 	MaxVelocity = 0;
     	installscalar("MaxVelocity",MaxVelocity,DONT_CARE);
@@ -270,6 +275,7 @@ void State::make_output_header() {
     WPR(ScaleFactorHalf          , ESYM);
     
     WPR(Do2LPTVelocityRereading  , ISYM);
+    WPR(DensityKernelRad2        , FSYM);
 
     output_header = ss.str();
 }

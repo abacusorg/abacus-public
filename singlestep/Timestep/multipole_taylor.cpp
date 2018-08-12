@@ -1,28 +1,25 @@
-// These routines provide the interface to the multipole and taylor
-// evaluation modules.
+/// These routines provide the interface to the multipole and taylor
+/// evaluation modules.
 
 // TODO: The SlabTaylor and SlabMultipole lists have inconsistent arguments.
 // Taylors has long long, Multipoles has ints.  Need to beware of spilling 32-bit
 // integers on the particle lists.
 
+/// The driver routine to compute the Taylors on one slab
 void ComputeTaylorForce(int slab) {
     TY->ConstructOffsets.Start();
     int cpd = PP->cpd;
-    int *count = new  int[cpd*cpd];
-    int *offset = new int[cpd*cpd];
-    FLOAT3 *cc;
-    assert(posix_memalign((void **) &cc, 4096, cpd*cpd*sizeof(FLOAT3)) == 0);
 
     #pragma omp parallel for schedule(static)
     for(int y=0;y<cpd;y++)
         for(int z=0;z<cpd;z++) {
             cellinfo *ciptr = PP->CellInfo(slab,y,z);
             int i = y*cpd + z;
-            offset[i] = ciptr->startindex;
-            count[i] =  ciptr->count;
+            TY->offset[i] = ciptr->startindex;
+            TY->count[i] =  ciptr->count;
             // For box-centered, this will be the cell center.
             // For local cell-centered positions, this will return 0!
-            cc[i] = PP->LocalCellCenter(slab,y,z);
+            TY->cc[i] = PP->LocalCellCenter(slab,y,z);
         }
     TY->ConstructOffsets.Stop();
     
@@ -32,48 +29,39 @@ void ComputeTaylorForce(int slab) {
     uint64 slabsize;
 
     MTCOMPLEX *TaylorCoefficients = (MTCOMPLEX *) LBW->ReturnIDPtr(TaylorSlab,slab);
-    TY->EvaluateSlabTaylor( slab, acc, pos, count, offset, cc, TaylorCoefficients);
-    RL->ApplyRedlack(slab, acc, pos, count, offset, cc,P.np);
+    TY->EvaluateSlabTaylor( slab, acc, pos, TY->count, TY->offset, TY->cc, TaylorCoefficients);
+    RL->ApplyRedlack(slab, acc, pos, TY->count, TY->offset, TY->cc,P.np);
 
-    delete[] count;
-    delete[] offset;
-    free(cc);
 }
 
+/// The driver routine to compute the Multipoles on one slab
 void ComputeMultipoleSlab(int slab) {
     // This routine must use the Merged slabs!
-    STDLOG(1,"Beginning to compute multipoles for slab %d\n", slab);
+    STDLOG(1,"Computing multipoles for slab %d\n", slab);
     ComputeMultipoles.Start();
     MF->ConstructOffsets.Start();
     int cpd = PP->cpd;
-    int *count = new int[cpd*cpd];
-    int *offset = new int[cpd*cpd];
-    FLOAT3 *cc;
-    assert(posix_memalign((void **) &cc, 4096, cpd*cpd*sizeof(FLOAT3)) == 0);
 
     #pragma omp parallel for schedule(static)
     for(int y=0;y<cpd;y++)
         for(int z=0;z<cpd;z++) {
 	        cellinfo *ciptr = PP->MergeCellInfo(slab,y,z);
             int i = y*cpd + z;
-            offset[i] = ciptr->startindex;
-            count[i] =  ciptr->count;
+            MF->offset[i] = ciptr->startindex;
+            MF->count[i] =  ciptr->count;
             // For box-centered, this will be the cell center.
             // For local cell-centered positions, this will return 0!
-            cc[i] = PP->LocalCellCenter(slab,y,z);
+            MF->cc[i] = PP->LocalCellCenter(slab,y,z);
         }
     MF->ConstructOffsets.Stop();
 
     // Recall that our accelerations/positions may be in single-precision.
     posstruct *pos = (posstruct *) LBW->ReturnIDPtr(MergePosSlab,slab);
     uint64 slabsize;
-    STDLOG(1,"Calling multipole module.\n");
+    STDLOG(2,"Calling multipole module.\n");
     MTCOMPLEX *slabmultipoles = (MTCOMPLEX *) LBW->ReturnIDPtr(MultipoleSlab,slab);
-    MF->ComputeMultipoleFFTYZ( slab, pos, count, offset, cc, slabmultipoles);
+    MF->ComputeMultipoleFFTYZ( slab, pos, MF->count, MF->offset, MF->cc, slabmultipoles);
 
-    delete[] count;
-    delete[] offset;
-    free(cc);
     ComputeMultipoles.Stop();
     STDLOG(1,"Done with multipoles.\n");
 }

@@ -36,12 +36,24 @@ m4_include(Configuration/m4/ax_gcc_x86_avx_xgetbv.m4)
 m4_include(Configuration/m4/ax_gcc_x86_cpuid.m4)
 m4_include(Configuration/m4/ax_ext.m4)
 
+# Calling make from configure... pretty sketchy!
+# But we want tcmalloc to be available for configure to find
+# This will only be run if libtcmalloc isn't already present
+make --quiet tcmalloc
+
 # These will automatically add the appropriate -L and -l flags to LIBS
 AC_SEARCH_LIBS([cos],[m])
 AC_SEARCH_LIBS(cblas_dgemm, [gslcblas], [], [AC_MSG_ERROR([unable to find gslcblas!])])
 AC_SEARCH_LIBS(gsl_rng_uniform, [gsl], [], [AC_MSG_ERROR([unable to find gsl!])])
 AC_SEARCH_LIBS(ITT_DoOneTimeInitialization, [tbb], [], [AC_MSG_ERROR([unable to find tbb!])])
-#AC_SEARCH_LIBS(numa_max_node, [numa], [], [AC_MSG_ERROR([unable to find numa!])])
+AC_CHECK_LIB(tcmalloc_minimal, malloc, [], [AC_MSG_WARN([unable to find tcmalloc!])])
+AC_CHECK_LIB(numa, move_pages, [], [AC_MSG_WARN([unable to find numa!])])
+
+AC_SUBST(TCMALLOC)
+TCMALLOC="TCMALLOC_DISABLED"
+if test x$ac_cv_lib_tcmalloc_minimal_malloc == xyes; then
+    TCMALLOC="TCMALLOC_ENABLED"
+fi
 
 # Check for some utilities we use
 AC_CHECK_PROGS(LEX, flex)
@@ -56,10 +68,6 @@ AX_EXT
 AC_ARG_ENABLE(double,
 [AS_HELP_STRING([--enable-double], [Double precision [no]])],
 	[], enable_double="no")
-if test x$enable_double == xyes; then
-	AC_DEFINE_UNQUOTED(DOUBLEPRECISION, [], "Do all computations in double precision instead of single")
-fi
-
 if test x$enable_double == xyes; then
 	AC_DEFINE_UNQUOTED(DOUBLEPRECISION, [], "Do all computations in double precision instead of single")
 fi
@@ -121,6 +129,13 @@ if test x$enable_avx512_multipoles == xyes; then
 	AC_DEFINE_UNQUOTED(AVX512MULTIPOLES, [], "Use AVX-512 multipoles")
 fi
 
+AC_ARG_ENABLE(avx-fof,
+[AS_HELP_STRING([--enable-avx-fof], [AVX FOF [yes if AVX present]])],
+    [], enable_avx_fof=$enable_avx)
+if test x$enable_avx_fof == xyes; then
+    AC_DEFINE_UNQUOTED(AVXFOF, [], "Use AVX FOF")
+fi
+
 AC_ARG_WITH(max-cpd,
 [AS_HELP_STRING([--with-max-cpd=CPD], [Maximum cells-per-dimension [8192]])],
 	[], with_max_cpd="8192")
@@ -159,6 +174,13 @@ AC_ARG_ENABLE(gpu-convolution,
 	[], enable_gpu_convolution="no")
 if test x$enable_gpu_convolution == xyes; then
 	AC_DEFINE_UNQUOTED(GPUFFT, [], "Do the convolution FFT on the GPU")
+fi
+
+AC_ARG_ENABLE(fof_density,
+[AS_HELP_STRING([--enable-fof-density], [Compute FOF-scale density [yes]])],
+	[], enable_fof_density="yes")
+if test x$enable_fof_density == xyes; then
+	AC_DEFINE_UNQUOTED(COMPUTE_FOF_DENSITY, [], "Compute FOF-scale density on the GPU, used to accelerate the L0 FOF computation and seed the L1/L2 halo finding.  This promotes FLOAT3 accelerations to FLOAT4.")
 fi
 
 # Get the number of GPUs
@@ -227,11 +249,13 @@ echo "AVX directs:                     $enable_avx_directs"
 echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "AVX multipoles:                  $enable_avx_multipoles"
 echo "AVX-512 multipoles:              $enable_avx512_multipoles"
+echo "AVX FOF:                         $enable_avx_fof"
 echo "Maximum CPD:                     $with_max_cpd"
 echo "Maximum source length:           $with_max_source_length"
 echo "Threaded IO:                     $enable_threaded_io"
 echo "Direct buffers-per-device:       $with_direct_bpd"
 echo "GPU directs:                     $enable_gpu_directs"
+echo "Compute FOF-scale density:       $enable_fof_density"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Maximum GPUs:                    $with_max_gpus"

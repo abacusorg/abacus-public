@@ -37,6 +37,7 @@ class GroupFindingControl {
     FOFloat invcpd;
     uint64 np; // the number of particles in the simulation; used to compute buffers
     uint64 particles_per_pencil;	// Typical number of particles per pencil
+    uint64 particles_per_slab;	// Typical number of particles per slab
 
     // Parameters for finding subgroups
     FOFloat linking_length_level1;
@@ -94,6 +95,7 @@ class GroupFindingControl {
 	boundary = (invcpd/2.0-linking_length);
 	np = _np;
 	particles_per_pencil = np/cpd/cpd;
+	particles_per_slab = np/cpd;
 	GroupRadius = _GroupRadius;
 	cellgroups = new SlabAccum<CellGroup>[cpd];
 	cellgroups_status = new int[cpd];
@@ -133,10 +135,10 @@ class GroupFindingControl {
 	 // The FOFdensities are weighted by b^2-r^2.  When integrated,
 	 // that yields a mass at unit density of 
    	 // (2/15)*4*PI*b^5*np
-	 float FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(linking_length,5.0)+1e-30;
+	 float FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
 	 GLOG(0,"Maximum reported density = %f (%e in code units)\n", maxFOFdensity/FOFunitdensity, maxFOFdensity);
-	 meanFOFdensity /= P.np;
-	 GLOG(0,"Mean reported density = %f (%e in code units)\n", meanFOFdensity/FOFunitdensity, meanFOFdensity);
+	 meanFOFdensity /= P.np-WriteState.DensityKernelRad2;
+	 GLOG(0,"Mean reported non-self density = %f (%e in code units)\n", meanFOFdensity/FOFunitdensity, meanFOFdensity);
 	 GLOG(0,"Found %d cell groups (including boundary singlets)\n", CGtot);
 	 GLOG(0,"Used %d pseudoParticles, %d faceParticles, %d faceGroups\n",
 	     pPtot, fPtot, fGtot);
@@ -208,15 +210,17 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     // Construct the Cell Groups for this slab
     CellGroupTime.Start();
     slab = WrapSlab(slab);
-    cellgroups[slab].setup(cpd, particles_per_pencil);     
+    cellgroups[slab].setup(cpd, particles_per_slab/20);     
+    	// Guessing that the number of groups is 20-fold less than particles
     FOFcell doFOF[omp_get_max_threads()];
-    #pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static,1)
     for (int g=0; g<omp_get_max_threads(); g++) 
     	doFOF[g].setup(linking_length, boundary);
 
     uint64 _CGactive = 0; 
     float _maxFOFdensity = 0.0;
     double _meanFOFdensity = 0.0;
+    FLOAT DensityKernelRad2 = WriteState.DensityKernelRad2;
     #pragma omp parallel for schedule(dynamic,1) reduction(+:_CGactive) reduction(max:_maxFOFdensity) reduction(+:_meanFOFdensity)
     for (int j=0; j<cpd; j++) {
 	float *aligned;
@@ -229,14 +233,17 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 
 	    int active_particles = c.count();
 	    #ifdef COMPUTE_FOF_DENSITY
-	    if (P.DensityKernelRad2>0) {
+	    if (DensityKernelRad2>0) {
 	        // The FOF-scale density is in acc.w.  
 		// All zeros cannot be in groups, partition them to the end
 		for (int p=0; p<active_particles; p++) {
 		    _meanFOFdensity += c.acc[p].w;
 			// This will be the mean over all particles, not just
 			// the active ones
-		    if (c.acc[p].w==0.0) {
+		    if (c.acc[p].w>DensityKernelRad2) {
+			// Active particle; retain and accumulate stats
+			_maxFOFdensity=std::max(_maxFOFdensity, c.acc[p].w);
+		    } else {
 		        // We found an inactive particle; swap to end.
 			active_particles--;
 			std::swap(c.pos[p], c.pos[active_particles]);
@@ -244,7 +251,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 			std::swap(c.aux[p], c.aux[active_particles]);
 			std::swap(c.acc[p], c.acc[active_particles]);
 			p--; // Need to try this location again
-		    } else _maxFOFdensity=std::max(_maxFOFdensity, c.acc[p].w);
+		   }
 		}
 	    }
 	    // By limiting the particles being considered, we automatically
@@ -285,7 +292,8 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	cg->FinishPencil();
 	free(aligned);
     }
-    #pragma omp parallel for schedule(static)
+    // Best if we destroy on the same thread, for tcmalloc
+    #pragma omp parallel for schedule(static,1)
     for (int g=0; g<omp_get_max_threads(); g++) 
     	doFOF[g].destroy();
     uint64 tot = cellgroups[slab].get_slab_size();

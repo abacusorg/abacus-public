@@ -1,9 +1,28 @@
+/** \file This file contains the pairwise direct kernel.
+ * 
+ * We have various choices for softening, selected by pre-processor #ifdef
+ * 
+ *  This is set up to be input twice, once with COMPUTE_FOF_DENSITY_SET
+ *  and once without.  With it, the function name is 
+ *  direct_density() and it takes the extra &aw argument.
+ *  Without, it's called direct().
+ */
+
+#ifdef COMPUTE_FOF_DENSITY_SET
+    #define DirectKernelName direct_density
+#else
+    #define DirectKernelName direct
+#endif
+
 #ifdef DIRECTCUBICSPLINE
 template<int R>
-__device__ __inline__ void direct(
+__device__ __inline__ void DirectKernelName(
         FLOAT   &sinkx,     FLOAT &sinky,    FLOAT &sinkz,
         FLOAT   &sourcex,   FLOAT &sourcey,  FLOAT &sourcez,
-        FLOAT &ax, FLOAT &ay, FLOAT &az, FLOAT &aw,
+        FLOAT &ax, FLOAT &ay, FLOAT &az, 
+	#ifdef COMPUTE_FOF_DENSITY_SET
+	FLOAT &aw,
+	#endif
         FLOAT &eps_inv, FLOAT &b2){
 
     FLOAT drx, dry, drz, rinv,u,spf;
@@ -12,7 +31,9 @@ __device__ __inline__ void direct(
     drz = sourcez - sinkz;
 
     rinv = drx*drx + dry*dry + drz*drz;
-    if (rinv<b2) if (rinv>(FLOAT)1e-30) { aw = aw+b2-rinv; }
+    #ifdef COMPUTE_FOF_DENSITY_SET
+    if (rinv<b2) { aw = aw+b2-rinv; }
+    #endif
     rinv = RSQRT( rinv );
     if(R <= 1){
         u = eps_inv/rinv;
@@ -43,10 +64,13 @@ __device__ __inline__ void direct(
 
 #elif defined DIRECTSINGLESPLINE
 template<int R>
-__device__ __inline__ void direct(
+__device__ __inline__ void DirectKernelName(
         FLOAT   &sinkx,     FLOAT &sinky,    FLOAT &sinkz,
         FLOAT   &sourcex,   FLOAT &sourcey,  FLOAT &sourcez,
-        FLOAT &ax, FLOAT &ay, FLOAT &az, FLOAT &aw,
+        FLOAT &ax, FLOAT &ay, FLOAT &az, 
+	#ifdef COMPUTE_FOF_DENSITY_SET
+	FLOAT &aw,
+	#endif
         FLOAT &inv_eps2, FLOAT &b2){
 
     FLOAT dx, dy, dz, f, dr2;
@@ -55,7 +79,9 @@ __device__ __inline__ void direct(
     dz = sourcez - sinkz;
     
     dr2 = (dx*dx + dy*dy + dz*dz);
-    if (dr2<b2) if (dr2>(FLOAT)1e-30) { aw = aw+ b2-dr2; }
+    #ifdef COMPUTE_FOF_DENSITY_SET
+    if (dr2<b2) { aw = aw+ b2-dr2; }
+    #endif
     dr2 = dr2*inv_eps2+(FLOAT)1e-32;
     f = RSQRT(dr2);
     
@@ -76,10 +102,13 @@ __device__ __inline__ void direct(
 #define TAU2 ((FLOAT)(1e-16))
 
 template <int R>
-__device__ __inline__ void direct(
+__device__ __inline__ void DirectKernelName(
         FLOAT   &sinkx,     FLOAT &sinky,    FLOAT &sinkz,
         FLOAT   &sourcex,   FLOAT &sourcey,  FLOAT &sourcez,
-        FLOAT &ax, FLOAT &ay, FLOAT &az, FLOAT &aw,
+        FLOAT &ax, FLOAT &ay, FLOAT &az, 
+	#ifdef COMPUTE_FOF_DENSITY_SET
+	FLOAT &aw,
+	#endif
         FLOAT &eps3, FLOAT &b2){
 
     FLOAT drx, dry, drz, r;
@@ -88,7 +117,9 @@ __device__ __inline__ void direct(
     drz = sourcez - sinkz;
 
     r = drx*drx + dry*dry + drz*drz;
-    if (r<b2) if (r>(FLOAT)1e-30) { aw = aw+ b2-r; }
+    #ifdef COMPUTE_FOF_DENSITY_SET
+    if (r<b2) { aw = aw+ b2-r; }
+    #endif
     r += TAU2;
     r *= r*RSQRT(r);  //r^3
 
@@ -103,10 +134,13 @@ __device__ __inline__ void direct(
 #elif defined DIRECTPLUMMER
 // Default (plummer kernel)
 template <int R>
-__device__ __inline__ void direct(
+__device__ __inline__ void DirectKernelName(
         FLOAT   &sinkx,     FLOAT &sinky,    FLOAT &sinkz,
         FLOAT   &sourcex,   FLOAT &sourcey,  FLOAT &sourcez,
-        FLOAT &ax, FLOAT &ay, FLOAT &az, FLOAT &aw,
+        FLOAT &ax, FLOAT &ay, FLOAT &az, 
+	#ifdef COMPUTE_FOF_DENSITY_SET
+	FLOAT &aw,
+	#endif
         FLOAT &eps2, FLOAT &b2){
 
     FLOAT drx, dry, drz, r;
@@ -115,7 +149,9 @@ __device__ __inline__ void direct(
     drz = sourcez - sinkz;
 
     r = drx*drx + dry*dry + drz*drz;
-    if (r<b2) if (r>(FLOAT)1e-30) { aw = aw+ b2-r; }
+    #ifdef COMPUTE_FOF_DENSITY_SET
+    if (r<b2) { aw = aw+ b2-r; }
+    #endif
     r += eps2;
 
     r = RSQRT(r);
@@ -130,3 +166,5 @@ __device__ __inline__ void direct(
 #else
     #error "Must have defined a DIRECT* technique!"
 #endif
+
+#undef DirectKernelName

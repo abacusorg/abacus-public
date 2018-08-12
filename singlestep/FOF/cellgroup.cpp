@@ -27,8 +27,11 @@ class CellGroup {
 	// aligned should be 8 floats and aligned.
 	start = g.start;
 	n = g.n;
-	_mm_store_ps(aligned, g.BBmin);
-	_mm_store_ps(aligned+4, g.BBmax);
+	FOFparticle *m = (FOFparticle *)aligned;
+	*m = g.BBmin;
+	m++; *m = g.BBmax;
+	// _mm_store_ps(aligned, g.BBmin);
+	// _mm_store_ps(aligned+4, g.BBmax);
 	// The BoundingBoxes are in code units
 	if (aligned[0]<-boundary) n|= XM_BIT;
 	if (aligned[1]<-boundary) n|= YM_BIT;
