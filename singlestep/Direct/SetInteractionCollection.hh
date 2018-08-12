@@ -33,7 +33,8 @@ the fly.
 
 #ifdef CUDADIRECT
 namespace cuda {
-#include "driver_types.h"
+// TODO: do we still need this?
+//#include "driver_types.h"
 }
 #endif
 

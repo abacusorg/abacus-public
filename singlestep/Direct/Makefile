@@ -14,7 +14,8 @@ ARCHFLAGS = --generate-code arch=compute_35,code=sm_35\
 # but in practice they often work just fine.  The following is an example of
 # how to lie to CUDA about the g++ version.
 # If CUDA <= 9 and GCC > 6, then override CUDA's protests
-# WARNING: for these specific versions, CUDA appears to be truly incompatible
+# WARNING: for these specific versions, CUDA appears to be truly incompatible,
+# hence we will leave it commented
 #CUDA_LE_9 := $(shell [ $(CUDA_MAJOR_VER) -le 9 ] && echo true)
 #ifeq ($(CUDA_LE_9), true)
 #	ifeq ($(CXX),g++)

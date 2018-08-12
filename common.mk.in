@@ -18,6 +18,9 @@ ROOT_DIR ?= .
 CPPFLAGS := @DEFS@ -m64 -O3 -I $(ROOT_DIR)/include -g $(LDFLAGS)  # definitely not a preprocessor option, but...
 #CPPFLAGS += -Wall  #TODO: clean up compiler warnings
 
+# We use bash syntax in some Makefiles
+SHELL = /bin/bash
+
 CUDA_ENABLED = @CUDA_ENABLED@
 ifeq (@CUDA_ENABLED@,CUDA_ENABLED)
 	CUDA_CXXFLAGS := @CUDA_CFLAGS@ -ccbin @CXX@

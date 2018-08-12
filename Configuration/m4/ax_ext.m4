@@ -280,7 +280,7 @@ AC_DEFUN([AX_EXT],
                eval ${ac_instr_flag_type}=\"\$${ac_instr_flag_type} ${ac_instr_compiler_flags}\"
                AC_DEFINE_UNQUOTED([${ac_instr_have_define}])
                # Also add HAVE_AVX to a substitution list
-               SIMD_EXTENSIONS += ",${ac_instr_have_define},"
+               SIMD_EXTENSIONS+=",${ac_instr_have_define},"
              else
                AC_MSG_WARN([Your processor and OS supports ${ac_instr_shortname} instructions but not your compiler, can you try another compiler?])
              fi
