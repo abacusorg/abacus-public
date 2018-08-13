@@ -50,6 +50,7 @@ class DummyTimer {
 #ifdef AVXFOF
     typedef float FOFloat;
     // It is assumed in the AVX code that FOFparticle is 16 bytes!
+    // Importantly, this will override the DOUBLE_PRECISION flag.
 #else
     typedef FLOAT FOFloat;
     // For now, revert to the decision of the rest of the code.
@@ -215,8 +216,9 @@ inline void diff2avx512_32(float *r, float *p, float *a) {
 
 #ifndef AVXFOF
 
+/// This takes 4 FLOAT4's as a[0-3] and computes |p-a|^2
+/// There's no additional assumption of alignment.
 inline void diff2by4(FOFloat *r, FOFparticle *p, FOFparticle *a) {
-    // This takes 4 float4's and computes |p-a|^2
     r[0] = (*p).diff2v(a);
     r[1] = (*p).diff2v(a+1);
     r[2] = (*p).diff2v(a+2);
@@ -286,11 +288,19 @@ inline void diff2avx8(float *r, float *p, float *a) {
 FOFloat *compute_d2(FOFparticle *primary, FOFparticle *list, int nlist, FOFloat *d2buf, long long &numdists) {
     // Return a pointer to a zero-indexed list of floats containing the 
     // square distances between primary and list[0,nlist).
-    // d2buf is 16-byte aligned space that we supply for the output,
+    // Note that this will blindly overshoot the end of the list by a multiple
+    // of 4; that's considered ok, so d2buf must have space
+    // If AVX is used, then d2buf is 16-byte aligned space that we supply for the output,
     // but the returned pointer may not point to the start of it,
-    // since we have to attend to alignment..
+    // since we have to attend to alignment.
     FOFloat *d2use;
+    numdists += nlist;
 
+    #ifndef AVXFOF
+	d2use = d2buf;
+	for (int a=0; a<nlist; a+=4)
+	    diff2by4(d2use+a, primary, list+a);
+    #else
     // This depends on the registration of unassigned.
     // AVX requires the float4 list to be 32-byte aligned
     // We assume that p is 32-byte aligned.
@@ -300,11 +310,7 @@ FOFloat *compute_d2(FOFparticle *primary, FOFparticle *list, int nlist, FOFloat 
 	d2use = d2buf;
 	//#pragma unroll
 	for (int a=0; a<nlist; a+=4)
-		    #ifdef AVXFOF
 		    diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
-		    #else
-		    diff2by4(d2use+a, primary, list+a);
-		    #endif
 		    //d2use[a] = primary->diff2(list+a);  // with ICC, this is actually the same speed
     } else {
 	// We have an odd registration.  Do the first object special.
@@ -313,14 +319,10 @@ FOFloat *compute_d2(FOFparticle *primary, FOFparticle *list, int nlist, FOFloat 
 	d2use[0] = primary->diff2v(list);
 	//#pragma unroll
 	for (int a=1; a<nlist; a+=4)
-		    #ifdef AVXFOF
 		    diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
-		    #else
-		    diff2by4(d2use+a, primary, list+a);
-		    #endif
 		    //d2use[a] = primary->diff2(list+a);
     }
-    numdists += nlist;
+    #endif
     return d2use;
 }
 
@@ -351,6 +353,7 @@ class FOFcell {
     // These lists provide some work space, consistent between 
     FOFparticle *p;	// The copied version of the particles, to permute
     FOFloat *d2buffer;	// A matching array of distances
+    accstruct *permutebuf;   // Space for doing permutations
     int *index;		// The new indices in the original order
     int np;		// The current size of the group
 
@@ -398,6 +401,10 @@ class FOFcell {
         if (p!=NULL) free(p);
 	ret = posix_memalign((void **)&p, 64, sizeof(FOFparticle)*maxsize);  assert(ret == 0);
 	memset(p, 0, sizeof(FOFparticle)*maxsize);
+
+        if (permutebuf!=NULL) free(permutebuf);
+	ret = posix_memalign((void **)&permutebuf, 64, sizeof(accstruct)*maxsize);  assert(ret == 0);
+
         if (d2buffer!=NULL) free(d2buffer);
 	ret = posix_memalign((void **)&d2buffer, 64, sizeof(FOFloat)*maxsize);  assert(ret == 0);
         if (groups!=NULL) free(groups);
@@ -411,6 +418,7 @@ class FOFcell {
     FOFcell() { 
 	p = NULL;
 	d2buffer = NULL;
+	permutebuf = NULL;
 	groups = NULL;
 	index = NULL;
 	maxsize = -1;
@@ -427,6 +435,7 @@ class FOFcell {
     void destroy() {
         if (p!=NULL) free(p); p = NULL;
         if (d2buffer!=NULL) free(d2buffer); d2buffer = NULL;
+        if (permutebuf!=NULL) free(permutebuf); permutebuf = NULL;
         if (groups!=NULL) free(groups); groups = NULL;
         if (index!=NULL) free(index); index = NULL;
     }
@@ -510,23 +519,27 @@ class FOFcell {
 	}
 
 	// Now we need to apply this
+	// This code used to re-use p for permutebuf, but that wasn't enough
+	// space when accstruct is double4 and FOFparticle is only float4.
+	// Not only could it overflow the buffer, but it was wrecking the 
+	// AVX code by writing illegally large values into ghost particles.
 	{
-	posstruct *tmp = (posstruct *)p;
+	posstruct *tmp = (posstruct *)permutebuf;
 	for (j=0;j<n;j++) tmp[index[j]] = pos[j];
 	memcpy(pos, tmp, n*sizeof(posstruct));
 	}
 	{
-	velstruct *tmp = (velstruct *)p;
+	velstruct *tmp = (velstruct *)permutebuf;
 	for (j=0;j<n;j++) tmp[index[j]] = vel[j];
 	memcpy(vel, tmp, n*sizeof(velstruct));
 	}
 	{
-	auxstruct *tmp = (auxstruct *)p;
+	auxstruct *tmp = (auxstruct *)permutebuf;
 	for (j=0;j<n;j++) tmp[index[j]] = aux[j];
 	memcpy(aux, tmp, n*sizeof(auxstruct));
 	}
 	if(acc != NULL){
-	accstruct *tmp = (accstruct *)p;
+	accstruct *tmp = (accstruct *)permutebuf;
 	for (j=0;j<n;j++) tmp[index[j]] = acc[j];
 	memcpy(acc, tmp, n*sizeof(accstruct));
 	}

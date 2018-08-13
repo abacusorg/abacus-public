@@ -100,6 +100,14 @@ class GroupFindingControl {
     grouplog->open(glogfn);
 #endif
 
+	char onoff[5];
+	#ifdef AVX_FOF
+	    sprintf(onoff, "on");
+	#else
+	    sprintf(onoff, "off");
+	#endif
+	STDLOG(0,"Group finding sizeof(FOFloat)=%d, sizeof(FLOAT)=%d, AVX_FOF is %s\n", sizeof(FOFloat), sizeof(FLOAT), onoff);
+
 	cpd = _cpd; 
 	linking_length = _linking_length;
 	#ifdef SPHERICAL_OVERDENSITY
@@ -124,7 +132,7 @@ class GroupFindingControl {
 	cellgroups_status = new int[cpd];
 	for (int j=0;j<cpd;j++) cellgroups_status[j] = 0;
 	GLL = new GroupLinkList(cpd, np/cpd*linking_length/_invcpd*3*15);    
-    STDLOG(1,"Allocated %.2f GB for GroupLinkList\n", sizeof(GroupLink)*GLL->maxlist/1024./1024./1024.)
+    STDLOG(1,"Allocated %.3f GB for GroupLinkList\n", sizeof(GroupLink)*GLL->maxlist/1024./1024./1024.)
 	
 	setupGGS();
 	// This is a MultiAppendList, so the buffer cannot grow. 

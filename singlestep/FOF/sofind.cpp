@@ -120,7 +120,7 @@ class SOcell {
         numsorts = 0;
         numcenters = 0;
         reset(32768);
-        int ret = posix_memalign((void **)&twothirds, 64, sizeof(int)*(SO_CACHE+2));  assert(ret == 0);
+        int ret = posix_memalign((void **)&twothirds, 64, sizeof(FOFloat)*(SO_CACHE+2));  assert(ret == 0);
 	for (int j=0; j<SO_CACHE+2; j++) twothirds[j] = pow(j,2.0/3.0);
         // We will have terrible bugs if these aren't true!
 	#ifdef AVXFOF
