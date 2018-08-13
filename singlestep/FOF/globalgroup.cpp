@@ -659,10 +659,12 @@ void GlobalGroupSlab::FindSubGroups() {
                         if (groupaux[start[b].index()].is_tagged()) 
                             pTaggedPIDs->append(TaggedPID(groupaux[start[b].index()].pid()));
 
-                    // Output the Taggable Particles
+                    // Output the Taggable Particles. 
+		    // If P.OutputAllHaloParticles is set, then we output all L1 particles
                     posstruct offset = PP->CellCenter(slab, j, k);
                     for (int b=0; b<size; b++)
-                        if (groupaux[start[b].index()].is_taggable()) {
+                        if (groupaux[start[b].index()].is_taggable()
+				|| P.OutputAllHaloParticles) {
                             posstruct r = WrapPosition(grouppos[start[b].index()]+offset);
                             velstruct v = groupvel[start[b].index()];
                             // Velocities were full kicked; half-unkick before halostats
