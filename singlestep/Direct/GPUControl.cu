@@ -277,6 +277,9 @@ limited by the fraction of CPD**2
 /// This routine is supplied with the size (in bytes) of each
 /// GPU buffer, and it returns estimates on that basis of how
 /// big the tasks can be.  This is used in the planning of tasks.
+///
+/// Note that we size this to NFRADIUS, which is allowed to be bigger
+/// than P.NearFieldRadius.
 
 extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize, 
     int numberGPUs, int bufferperdevice, 
