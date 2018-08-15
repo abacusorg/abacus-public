@@ -86,7 +86,7 @@ fi
 AC_ARG_WITH(radius,
 	[AS_HELP_STRING([--with-radius=NFR], [Near field radius [2]])],
 	[], with_radius="2")
-AC_DEFINE_UNQUOTED(NFRADIUS,$with_radius, "Radius of cells to compute with near-field force")
+AC_DEFINE_UNQUOTED(NFRADIUS,$with_radius, "Max Radius of cells to compute with near-field force")
 
 AC_ARG_WITH(block-size,
 [AS_HELP_STRING([--with-block-size=B], [Near field block size [64]])],
@@ -250,7 +250,7 @@ echo
 echo "------------------------------------------------------"
 echo "Abacus has been configured with the following options:"
 echo "Double precision:                $enable_double"
-echo "Near field radius:               $with_radius"
+echo "Near field max radius:           $with_radius"
 echo "Near field block size:           $with_block_size"
 echo "AVX directs:                     $enable_avx_directs"
 echo "AVX-512 directs:                 $enable_avx512_directs"

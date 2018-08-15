@@ -6486,7 +6486,7 @@ echo
 echo "------------------------------------------------------"
 echo "Abacus has been configured with the following options:"
 echo "Double precision:                $enable_double"
-echo "Near field radius:               $with_radius"
+echo "Near field max radius:           $with_radius"
 echo "Near field block size:           $with_block_size"
 echo "AVX directs:                     $enable_avx_directs"
 echo "AVX-512 directs:                 $enable_avx512_directs"
