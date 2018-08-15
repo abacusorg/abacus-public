@@ -83,6 +83,10 @@ class NearFieldDriver{
 };
 
 
+/* TODO: The code is now mostly plumbed to allow multiple NFD with
+different NearFieldRadius.  However, the one pending item is that 
+NFD creates the GPU threads.
+*/
 
 // This constructor calls GPUSetup() to start the GPU threads.
 // But first, it has to set up some configurations.
@@ -131,7 +135,7 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
     // 1/WIDTH as sinks WIDTH-times over.  That's 2*WIDTH FLOAT3 + WIDTH FLOAT4,
     // divided over NBuffers.  
     // Round up by a factor of 1.3 and an extra 4 MB, just to be generous
-    GPUMemoryGB = std::min(GPUMemoryGB, P.np*1e-9*sizeof(accstruct)*3*WIDTH/NBuffers*1.3+0.004);
+    GPUMemoryGB = std::min(GPUMemoryGB, P.np*1e-9*sizeof(accstruct)*3*(2*NFRADIUS+1)/NBuffers*1.3+0.004);
 
     // GPUMemoryGB = std::min(GPUMemoryGB, 5.0*P.np*1e-9*sizeof(FLOAT3)+0.004);
 
