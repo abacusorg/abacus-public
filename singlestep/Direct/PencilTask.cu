@@ -20,16 +20,10 @@ struct DeviceData{
     
     int *           SinkSetIdMax;
     accstruct *        SinkSetAccelerations;
-    //? int             NSinkBlocks;
     int *           SinkBlockParentPencil;
 
     int *           SourceSetStart;
     int *           SourceSetCount;
-    //? int             NSourceBlocks;
-
-    //? int             NSinkSets;
-    //? int             NSourceSets;
-    //? int             InteractionCount;
 
     int *           SinkSourceInteractionList;
     FLOAT *         SinkSourceYOffset;
@@ -164,7 +158,6 @@ void GPUPencilTask(void *item, int g){
     uint64 size_to_gpu = 0, size_from_gpu = 0;
     StartThroughputTimer(DeviceStreams[g], cudaSuccess, (void *) task);
 
-    // StreamData.InteractionCount = task->InteractionCount;
     StreamData.b2 = task->b2;
 
     // Need to load the particles to the PinnedBuffer.
