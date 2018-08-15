@@ -621,6 +621,9 @@ ac_includes_default="\
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
 WARNING
+PYTHON_LDFLAGS
+PYTHON_CXX
+PYTHON_CC
 GPU_CONVOLUTION_ENABLED
 CUDA_ENABLED
 CUDA_LIBDIR
@@ -682,7 +685,6 @@ infodir
 docdir
 oldincludedir
 includedir
-runstatedir
 localstatedir
 sharedstatedir
 sysconfdir
@@ -777,7 +779,6 @@ datadir='${datarootdir}'
 sysconfdir='${prefix}/etc'
 sharedstatedir='${prefix}/com'
 localstatedir='${prefix}/var'
-runstatedir='${localstatedir}/run'
 includedir='${prefix}/include'
 oldincludedir='/usr/include'
 docdir='${datarootdir}/doc/${PACKAGE_TARNAME}'
@@ -1030,15 +1031,6 @@ do
   | -silent | --silent | --silen | --sile | --sil)
     silent=yes ;;
 
-  -runstatedir | --runstatedir | --runstatedi | --runstated \
-  | --runstate | --runstat | --runsta | --runst | --runs \
-  | --run | --ru | --r)
-    ac_prev=runstatedir ;;
-  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
-  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
-  | --run=* | --ru=* | --r=*)
-    runstatedir=$ac_optarg ;;
-
   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
     ac_prev=sbindir ;;
   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
@@ -1176,7 +1168,7 @@ fi
 for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
 		datadir sysconfdir sharedstatedir localstatedir includedir \
 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
-		libdir localedir mandir runstatedir
+		libdir localedir mandir
 do
   eval ac_val=\$$ac_var
   # Remove trailing slashes.
@@ -1329,7 +1321,6 @@ Fine tuning of the installation directories:
   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
-  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
   --libdir=DIR            object code libraries [EPREFIX/lib]
   --includedir=DIR        C header files [PREFIX/include]
   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
@@ -6511,12 +6502,84 @@ fi
 
 fi
 
+# If the user is using Anaconda Python, we have to be careful
+# about how we build C/C++ libraries that will be loaded by Python.
+# Anaconda Python has the Python executable rpath set to find
+# Anaconda libs before system ones, so this may resolve shared
+# libraries to different versions than the compiler expected.
+# Often this is not too harmful, but we've observed OpenMP/-lgomp
+# crashes as a result.  The solution is to always compile
+# Python extensions with Anaconda's compilers if the user
+# is using Anaconda Python.
+# You may only want the impl packages; the activation scripts will mess with configure
+PYTHON_EXEC=$(command -v python)
+PYTHON_CC=$CC
+PYTHON_CXX=$CXX
+PYTHON_LDFLAGS=
+PYTHON_COMPILER_WARNING=
 
-# These will be added to the
+
+
+# Check if the user is using Anaconda Python (better way to do this? sys.version doesn't work for me)
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Anaconda Python" >&5
+$as_echo_n "checking for Anaconda Python... " >&6; }
+if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+    # Now look in the Anaconda/bin directory
+    CONDA_BINDIR=$(dirname $PYTHON_EXEC)
+    CONDA_BINDIRNAME=$(basename $CONDA_BINDIR)
+    CONDA_LIBDIR=$(realpath $CONDA_BINDIR/../lib)
+
+    # sanity check
+    if test xbin != x$CONDA_BINDIRNAME; then
+        { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: 'bin' not found in directory containing 'python': \"$CONDA_BINDIR\" (\"$CONDA_BINDIRNAME\"). May fail to find conda compilers." >&5
+$as_echo "$as_me: WARNING: 'bin' not found in directory containing 'python': \"$CONDA_BINDIR\" (\"$CONDA_BINDIRNAME\"). May fail to find conda compilers." >&2;}
+    fi
+
+    # There should be only one gcc and one g++ compiler in the bin directory.
+    # All the ways to construct the exact compiler name seemed extremely complicated,
+    # but we should keep an eye out for a better way to do this.
+    # Directly invoking conda-build is a no-go: takes forever and won't compile an extension in-place
+    GCC_FILES=$(ls -1q $CONDA_BINDIR/*gcc)
+    NGCC_FILES=$(wc -l <<< "$GCC_FILES")
+    if test $NGCC_FILES -ge 1; then
+        PYTHON_CC=$(awk '{print $1}' <<< $GCC_FILES)
+    fi
+    if test $NGCC_FILES -ne 1; then
+        { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Could not find a unique *gcc file in $CONDA_BINDIR. May not be correct compiler for this platform!" >&5
+$as_echo "$as_me: WARNING: Could not find a unique *gcc file in $CONDA_BINDIR. May not be correct compiler for this platform!" >&2;}
+        { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Using: \"$PYTHON_CC\"" >&5
+$as_echo "$as_me: WARNING: Using: \"$PYTHON_CC\"" >&2;}
+    fi
+
+    GXX_FILES=$(ls -1q $CONDA_BINDIR/*g++)
+    NGXX_FILES=$(wc -l <<< "$GXX_FILES")
+    if test $NGXX_FILES -ge 1; then
+        PYTHON_CXX=$(awk '{print $1}' <<< $GXX_FILES)
+    fi
+    if test $NGXX_FILES -ne 1; then
+        { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Could not find a unique *g++ file in $CONDA_BINDIR. May not be correct compiler for this platform!" >&5
+$as_echo "$as_me: WARNING: Could not find a unique *g++ file in $CONDA_BINDIR. May not be correct compiler for this platform!" >&2;}
+        { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Using: \"$PYTHON_CXX\"" >&5
+$as_echo "$as_me: WARNING: Using: \"$PYTHON_CXX\"" >&2;}
+    fi
+
+    # Note Anaconda PYTHON_CC is always a gcc version, so any FLAGS will have to respect that
+    # Let's assume that Anaconda Python always does the rpath linkage (which I think is true),
+    # so we might as well supply the lib at link time, no matter if we actually found a conda gcc
+    PYTHON_LDFLAGS="-L $CONDA_LIBDIR"
+else
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+# This will be placed at the top of *.in files
 
 WARNING="# WARNING! This file has been automatically generated by configure.
 # Any changes to it will be overwritten the next time configure is run.
-# You may want to modify the corresponding *.in file instead."
+# You may want to modify the corresponding *.in file, or use configure
+# flags to achieve your goal instead (see ./configure --help)."
 
 echo
 echo "------------------------------------------------------"
