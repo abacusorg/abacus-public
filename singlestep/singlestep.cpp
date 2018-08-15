@@ -218,7 +218,7 @@ void InitWriteState(int ic){
 
     Slab = new SlabSize(P.cpd);
     if(!ic)
-        JJ = new NearFieldDriver();
+        JJ = new NearFieldDriver(P.NearFieldRadius);
 }
 
 void BuildWriteState(double da){

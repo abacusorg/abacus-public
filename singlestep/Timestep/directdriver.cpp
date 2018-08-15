@@ -17,7 +17,7 @@ void ZeroAcceleration(int slab,int Slabtype);
 
 class NearFieldDriver{
     public:
-        NearFieldDriver();
+        NearFieldDriver(int NearFieldRadius);
         ~NearFieldDriver();
     
         double SofteningLength;  // Effective Plummer length, used for timestepping.  Unit-box units.
@@ -86,7 +86,7 @@ class NearFieldDriver{
 
 // This constructor calls GPUSetup() to start the GPU threads.
 // But first, it has to set up some configurations.
-NearFieldDriver::NearFieldDriver() :
+NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
         SofteningLength{WriteState.SofteningLength/P.BoxSize},
         SofteningLengthInternal{WriteState.SofteningLengthInternal/P.BoxSize},
             
@@ -110,13 +110,13 @@ NearFieldDriver::NearFieldDriver() :
     DirectInteractions_CPU = 0;
     NSink_CPU = 0;
 
-    assert(NFRADIUS==P.NearFieldRadius);
+    assert(NFRADIUS>=NearFieldRadius);
     slabcomplete = new int [P.cpd];
     SlabNSplit = new int[P.cpd];
     SlabInteractionCollections = new SetInteractionCollection **[P.cpd];
     for(int i = 0; i < P.cpd;i++) slabcomplete[i]=0;
-    WIDTH = P.NearFieldRadius*2+1;
-    RADIUS = P.NearFieldRadius;
+    WIDTH = NearFieldRadius*2+1;
+    RADIUS = NearFieldRadius;
     
 #ifdef CUDADIRECT
     NGPU = GetNGPU();
@@ -198,8 +198,8 @@ sink particle 5 times.
 // ================ Code to queue up work for the GPU ==================
 
 uint64 ComputeSICSize(int cpd, int np, int WIDTH, int NSplit);
-int ComputeSinkBlocks(int slab, int j);
-int ComputeSourceBlocks(int slab, int j);
+int ComputeSinkBlocks(int slab, int j, int NearFieldRadius);
+int ComputeSourceBlocks(int slab, int j, int NearFieldRadius);
 
 void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     // This will construct the relevant SetInteractionCollections,
@@ -214,9 +214,9 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     int totSourceBlocks = 0;
 
     for (int j=0;j<P.cpd;j++) {
-	SinkBlocks[j] = ComputeSinkBlocks(slabID, j);
+	SinkBlocks[j] = ComputeSinkBlocks(slabID, j, RADIUS);
 	totSinkBlocks += SinkBlocks[j];
-	SourceBlocks[j] = ComputeSourceBlocks(slabID, j);
+	SourceBlocks[j] = ComputeSourceBlocks(slabID, j, RADIUS);
 	totSourceBlocks += SourceBlocks[j];
 	// These contain the number of blocks in each j.
     }
@@ -317,7 +317,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 	// This is where the SetInteractionCollection is actually constructed
 	// STDLOG(1,"Entering SIC Construction with %d bytes\n", bsize);
 	SlabInteractionCollections[slabID][n] = 
-	    new SetInteractionCollection(slabID,jl,jh,WriteState.DensityKernelRad2, buffer, bsize);
+	    new SetInteractionCollection(slabID,jl,jh,WriteState.DensityKernelRad2, buffer, bsize, RADIUS);
 	// STDLOG(1,"Leaving SIC Construction with %d bytes\n", bsize);
 	
 	// Check that we have enough blocks
