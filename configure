@@ -685,6 +685,7 @@ infodir
 docdir
 oldincludedir
 includedir
+runstatedir
 localstatedir
 sharedstatedir
 sysconfdir
@@ -779,6 +780,7 @@ datadir='${datarootdir}'
 sysconfdir='${prefix}/etc'
 sharedstatedir='${prefix}/com'
 localstatedir='${prefix}/var'
+runstatedir='${localstatedir}/run'
 includedir='${prefix}/include'
 oldincludedir='/usr/include'
 docdir='${datarootdir}/doc/${PACKAGE_TARNAME}'
@@ -1031,6 +1033,15 @@ do
   | -silent | --silent | --silen | --sile | --sil)
     silent=yes ;;
 
+  -runstatedir | --runstatedir | --runstatedi | --runstated \
+  | --runstate | --runstat | --runsta | --runst | --runs \
+  | --run | --ru | --r)
+    ac_prev=runstatedir ;;
+  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
+  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
+  | --run=* | --ru=* | --r=*)
+    runstatedir=$ac_optarg ;;
+
   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
     ac_prev=sbindir ;;
   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
@@ -1168,7 +1179,7 @@ fi
 for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
 		datadir sysconfdir sharedstatedir localstatedir includedir \
 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
-		libdir localedir mandir
+		libdir localedir mandir runstatedir
 do
   eval ac_val=\$$ac_var
   # Remove trailing slashes.
@@ -1321,6 +1332,7 @@ Fine tuning of the installation directories:
   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
+  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
   --libdir=DIR            object code libraries [EPREFIX/lib]
   --includedir=DIR        C header files [PREFIX/include]
   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
@@ -6541,10 +6553,11 @@ $as_echo "$as_me: WARNING: 'bin' not found in directory containing 'python': \"$
     # All the ways to construct the exact compiler name seemed extremely complicated,
     # but we should keep an eye out for a better way to do this.
     # Directly invoking conda-build is a no-go: takes forever and won't compile an extension in-place
-    GCC_FILES=$(ls -1q $CONDA_BINDIR/*gcc)
-    NGCC_FILES=$(wc -l <<< "$GCC_FILES")
+    GCC_FILES=$(ls -1q $CONDA_BINDIR/*gcc 2> /dev/null)
+    # we count words here instead of lines; fixes a problem with empty strings and newlines but will break if there are spaces in the filenames
+    NGCC_FILES=$(echo -n "$GCC_FILES" | wc -w)
     if test $NGCC_FILES -ge 1; then
-        PYTHON_CC=$(awk '{print $1}' <<< $GCC_FILES)
+        PYTHON_CC=$(echo $GCC_FILES | awk '{print $1}')
     fi
     if test $NGCC_FILES -ne 1; then
         { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Could not find a unique *gcc file in $CONDA_BINDIR. May not be correct compiler for this platform!" >&5
@@ -6553,10 +6566,10 @@ $as_echo "$as_me: WARNING: Could not find a unique *gcc file in $CONDA_BINDIR. M
 $as_echo "$as_me: WARNING: Using: \"$PYTHON_CC\"" >&2;}
     fi
 
-    GXX_FILES=$(ls -1q $CONDA_BINDIR/*g++)
-    NGXX_FILES=$(wc -l <<< "$GXX_FILES")
+    GXX_FILES=$(ls -1q $CONDA_BINDIR/*g++ 2> /dev/null)
+    NGXX_FILES=$(echo -n "$GXX_FILES" | wc -w)
     if test $NGXX_FILES -ge 1; then
-        PYTHON_CXX=$(awk '{print $1}' <<< $GXX_FILES)
+        PYTHON_CXX=$(echo $GXX_FILES | awk '{print $1}')
     fi
     if test $NGXX_FILES -ne 1; then
         { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Could not find a unique *g++ file in $CONDA_BINDIR. May not be correct compiler for this platform!" >&5
