@@ -1,5 +1,6 @@
-// This is the top-level code for group-finding.
-// We include this file in the program.
+/** \file This is the top-level code for group-finding.
+We include this file in the program, and it includes the rest.
+*/
 
 // Use GLOG instead of STDLOG to write to the lastrun.groupstats file
 #define GLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
@@ -27,25 +28,32 @@ class GlobalGroupSlab;
 class MicrostepControl;
 
 
+/** This is the control class for all group finding.
+
+It contains slab-based lists of the CellGroups and GlobalGroups,
+as well as the GroupLinkList.  It also contains stats and timings
+and generates a detailed log report.
+
+*/
+
 class GroupFindingControl {
-    // This is the control class for all group finding.
   public:
     int cpd;		
-    FOFloat linking_length;    // In code units
-    FOFloat boundary;	// The distance from the origin that indicates that something
-    		// is within linking_length of the edge
-    int GroupRadius;    // Cell radius for group finding
+    FOFloat linking_length;    ///< In code units
+    FOFloat boundary;	///< The distance from the origin that indicates that something
+    		///< is within linking_length of the edge
+    int GroupRadius;    ///< Cell radius for group finding
     FOFloat invcpd;
-    uint64 np; // the number of particles in the simulation; used to compute buffers
-    uint64 particles_per_pencil;	// Typical number of particles per pencil
-    uint64 particles_per_slab;	// Typical number of particles per slab
+    uint64 np; ///< the number of particles in the simulation; used to compute buffers
+    uint64 particles_per_pencil;	///< Typical number of particles per pencil
+    uint64 particles_per_slab;	///< Typical number of particles per slab
 
     // Parameters for finding subgroups
     FOFloat linking_length_level1;
     FOFloat linking_length_level2;
     FOFloat SOdensity1;	///< The density threshold for SO L1
     FOFloat SOdensity2;	///< The density threshold for SO L2
-    int minhalosize;	// The minimum size for a level 1 halo to be outputted
+    int minhalosize;	///< The minimum size for a level 1 halo to be outputted
 
     uint64 pPtot, fPtot, fGtot, CGtot, GGtot, Ltot, CGactive;
     int largest_GG;
@@ -163,6 +171,7 @@ class GroupFindingControl {
     void ConstructCellGroups(int slab);
     void DestroyCellGroups(int slab);
 	
+    /// This generates the log report
     void report() {
 	 GLOG(0,"Considered %f G particles as active\n", CGactive/1e9);
 	 // The FOFdensities are weighted by b^2-r^2.  When integrated,
@@ -239,8 +248,8 @@ class GroupFindingControl {
     }
 };
 
-// We keep the code for Constructing CellGroups in here, because
-// it is where the cellgroups[] are created and destroyed.
+/// We keep the code for Constructing CellGroups in here, because
+/// it is where the cellgroups[] are created and destroyed.
 
 void GroupFindingControl::ConstructCellGroups(int slab) {
     // Construct the Cell Groups for this slab
@@ -348,13 +357,15 @@ GroupFindingControl *GFC = NULL;
 #include "halostat.cpp"
 	// Code to compute L1 halo properties
 
+/** Gather all of the taggable particles that aren't in L1 groups into
+two vectors, converting to global positions.  
+
+Space must be allocated beforehand.  Returns the number of elements used.
+Warning: This must be called after ScatterGlobalGroupsAux() and before
+ScatterGlobalGroups()
+*/
+
 uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid, FLOAT unkickfactor) {
-    // Gather all of the taggable particles that aren't in L1 groups into two vectors,
-    // converting to global positions.
-    // Space must be allocated beforehand.
-    // Returns the number of elements used.
-    // Warning: This must be called after ScatterGlobalGroupsAux()
-    // and before ScatterGlobalGroups()
     slab = GFC->WrapSlab(slab);
     uint64 nfield = 0;
     for (int j=0; j<GFC->cpd; j++)
@@ -381,8 +392,8 @@ uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid, FLOAT
 
 #include "globalgroup.cpp"
 
-	// Code to traverse the links and find the GlobalGroups as 
-	// sets of CellGroups (stored by their LinkIDs).
+/// Code to traverse the links and find the GlobalGroups as 
+/// sets of CellGroups (stored by their LinkIDs).
 
 void GroupFindingControl::setupGGS() {
     globalslabs = new GlobalGroupSlab*[cpd];
@@ -405,6 +416,10 @@ GroupFindingControl::~GroupFindingControl() {
 
     delete[] globalslabs;
 }
+
+/** The driver routine to find the GlobalGroups in a slab
+and then find and output the subgroups.
+*/
 
 void FindAndProcessGlobalGroups(int slab) {
     slab = GFC->WrapSlab(slab);

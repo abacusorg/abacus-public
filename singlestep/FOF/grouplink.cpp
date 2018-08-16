@@ -1,3 +1,10 @@
+/** \file The GroupLinkList is a pan-slab list of pairs of CellGroups,
+where the pairs have at least one particle within the FOF distance.
+Having found the CellGroups, we then form them into GlobalGroups by
+traversing the graph defined by these GroupLinks.
+
+*/
+
 #ifdef TEST
 #include "test_driver_header.cpp"
 #endif
@@ -7,10 +14,17 @@
 // #include "parallel_stable_sort.h"
 #endif
 
+/** A LinkID is a unique reference to a CellGroup, using cell i,j,k
+and then the group number.
+
+We pack 12 bytes of cell location (so CPD<4096!)
+and then 20 bytes of group number, to make a sortable object.
+Use the sign bit to mark items for deletion
+
+If the id is -1, then this link is unusable and marked for deletion.
+*/
+
 class LinkID {
-    // We pack 12 bytes of cell location (so CPD<4096!)
-    // and then 20 bytes of group number, to make a sortable object.
-    // Use the sign bit to mark items for deletion
   public:
     long long int id;
 
@@ -32,6 +46,10 @@ class LinkID {
         id = -1; return;
     }
 };
+
+/** A GroupLink is simply a pair of LinkIDs.  
+The class supplies a comparison operation for sorting.
+*/
 
 class GroupLink {
   public:
@@ -61,6 +79,23 @@ inline bool is_marked_for_deletion(GroupLink *gl, int val) {
 }
 
 
+
+/** This is the list of GroupLinks.  
+
+There is only one for the whole simulation, since links cross cells
+and slabs.
+
+When a link is added, it is actually added twice with the symmetric 
+reflection.  During GlobalGroup finding, the pair is traversed in both
+directions and each link is marked for deletion after it is considered.
+A link that points back to an already used CellGroup is a dead-end,
+as that group is already in the set for this GlobalGroup.
+
+This class uses the MultiAppendList class, which allows multiple
+threads to be appending into one buffer and then closes up the gaps
+when done, using a minimum of re-copying.
+*/
+
 class GroupLinkList : public grid, public MultiAppendList<GroupLink> {
 public:
     STimer GroupPartition, GroupSort;
@@ -70,8 +105,8 @@ public:
     ~GroupLinkList(void) { 
     }
     
+    /// This pushes one pair onto the list,  reciprocally
     inline void DoublePush(LinkID _a, LinkID _b) {
-	// We push reciprocally
 	GroupLink gl(_a,_b);
 	Push(gl);
 	gl.a = _b;
@@ -80,6 +115,8 @@ public:
 	return;
     }
 
+    /// This brings all of the links that are marked for deletion
+    /// to the end of the list, and then shrinks the list to discard them. 
     void PartitionAndDiscard() {
 	GroupPartition.Start();
 	uint64 mid = ParallelPartition(list, length, (int)0, is_marked_for_deletion);
@@ -90,8 +127,8 @@ public:
 	return;
     }
 
+    // This sorts the whole list of GroupLinks.  
     void Sort() {
-	// We sort the whole list of GroupLinks.
 	GroupSort.Start();
 	// Put in a parallel sort
 	#ifndef STANDALONE_FOF
@@ -120,13 +157,14 @@ public:
 	printf("Dump of GLL length %lu\n", length);
     }
 
+    /** This searches the sorted GroupLinkList to 
+    return the element in the list that is the first one greater or
+    equal to the k=0,n=0 element for the cells i=slab,j.
+
+    We assume the inputs are both in [0,cpd) range, already wrapped.
+    LinkIDs are not unique nor contiguous.
+    */
     GroupLink *Search(int slab, int j) {
-        // We assume these are both in [0,cpd) range, already wrapped.
-	// Return the element in the list that is the first one greater or
-	// equal to the k=0,n=0 element.
-	// LinkIDs are not unique nor contiguous
-	// TODO: What if all elements are less than the goal value?
-	// TODO: What if the list is empty?
 	GroupLink ref;
 	ref.a = LinkID(slab, j, 0, 0);
 	if (length==0) return list;
