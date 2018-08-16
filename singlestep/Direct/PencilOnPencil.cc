@@ -91,15 +91,15 @@ uint64 NumParticlesInSkewer(int slab, int j) {
 
 /// For one skewer, compute how many sink blocks will be incurred
 /// for this one Skewer in the worst case for all of the SIC.
-int ComputeSinkBlocks(int slab, int j) {
+int ComputeSinkBlocks(int slab, int j, int NearFieldRadius) {
     int np = NumParticlesInSkewer(slab, j);
-    return (2*NFRADIUS+1)*(np/NFBlockSize)+P.cpd;
+    return (2*NearFieldRadius+1)*(np/NFBlockSize)+P.cpd;
 }
 /// For one skewer, compute how many source blocks will be incurred
 /// for this one Skewer in the worst case for all of the SIC.
-int ComputeSourceBlocks(int slab, int j) {
+int ComputeSourceBlocks(int slab, int j, int NearFieldRadius) {
     int np = 0;
-    for (int c=-NFRADIUS; c<=NFRADIUS; c++) 
+    for (int c=-NearFieldRadius; c<=NearFieldRadius; c++) 
 	np += NumParticlesInSkewer(slab+c, j);
     return (np/NFBlockSize+P.cpd);
 }
@@ -156,7 +156,7 @@ int posix_memalign_wrap(char * &buffer, size_t &bsize, void ** ptr,
 /// buffer.  Important: buffer and bsize are modified and returned
 /// with the pointer to and size of the unused space.
 
-SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhigh, FLOAT _b2, char * &buffer, size_t &bsize){
+SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhigh, FLOAT _b2, char * &buffer, size_t &bsize, int NearFieldRadius){
     eps = JJ->eps;
     
     //set known class variables
@@ -170,15 +170,16 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     AssignedDevice = 0;
     
     //useful construction constants
-    nfradius = P.NearFieldRadius;
-    nfwidth = 2*P.NearFieldRadius+1;
+    nfradius = NearFieldRadius;
+    nfwidth = 2*NearFieldRadius+1;
     j_width = j_high-j_low;
     Nk = cpd;
 
     // Load the Pointers to the PosXYZ Slabs
     SinkPosSlab = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab);
-    for (int c=0; c<nfwidth; c++) 
-        SourcePosSlab[c] = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab+c-nfradius);
+    for (int c=0; c<2*nfradius+1; c++) {
+	SourcePosSlab[c] = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab+c-nfradius);
+    }
 
     // There is a slab that has the WIDTH Partial Acceleration fields.
     // Get a pointer to the appropriate segment of that.
@@ -227,7 +228,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
             int sinkindex = j * Nk + k;
             // This loads all of the position pointers into the Plan,
             // but also returns the total size.
-            int pencilsize = SinkPlan[sinkindex].load(slab, j + j_low, zmid);
+            int pencilsize = SinkPlan[sinkindex].load(slab, j + j_low, zmid, nfradius);
             SinkSetCount[sinkindex] = pencilsize;
             localSinkTotal += pencilsize;
             this_skewer_blocks += NumPaddedBlocks(pencilsize);
@@ -301,7 +302,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
             int sourceindex = j * Nk + k;
             // This loads the Plan and returns the length
             int sourcelength = SourcePlan[sourceindex].load(slab,
-                            j+j_low-nfradius, zmid);
+                            j+j_low-nfradius, zmid, nfradius);
             SourceSetCount[sourceindex] = sourcelength;
             localSourceTotal += sourcelength;
             this_skewer_blocks += NumPaddedBlocks(sourcelength);

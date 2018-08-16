@@ -194,7 +194,7 @@
 /* "Near field block size" */
 #undef NFBlockSize
 
-/* "Radius of cells to compute with near-field force" */
+/* "Max Radius of cells to compute with near-field force" */
 #undef NFRADIUS
 
 /* Path to nvcc binary */

@@ -1,7 +1,8 @@
 /** \file This file contains the routines to prepare plans for the 
- * Sink and Source pencils, and then to actually use them to load into
- * the GPU pinned memory.  The former action is conducted by the primary
- * threads, while the latter is usually performed by the GPU thread.
+Sink and Source pencils, and then to actually use them to load into
+the GPU pinned memory.  The former action is conducted by the primary
+threads, while the latter is usually performed by the GPU thread.
+
  */
 
 #ifndef PENCIL_PLAN_H
@@ -11,22 +12,22 @@
 /// This requires that we convert from cell-centered coordinates to
 /// a coordinate system centered on the middle cell of the pencil.
 
-void SinkPencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total, void *SinkPosSlab) {
+void SinkPencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total, void *SinkPosSlab, int NearFieldRadius) {
     // Copy cells contiguously into pinpos->X[start..start+total), Y[), Z[)
     // where total is the padded number of particles.
     // start is the offset from the beginning of the buffers
     int cumulative_number = 0;
     FLOAT dz;
     FLOAT cellsize = PP->invcpd;
-    for (int c=0; c<NFRADIUS*2+1; c++) {
+    for (int c=0; c<NearFieldRadius*2+1; c++) {
 	// The pointer math has to be in posstruct; then cast
-	FLOAT *p = (FLOAT *)((posstruct *)SinkPosSlab+cell[c].start);
 	int N = cell[c].N;
+	FLOAT *p = (FLOAT *)((posstruct *)SinkPosSlab+cell[c].start);
 
 	#ifdef GLOBAL_POS
         dz = cell[c].offset;
 	#else
-	dz = (c-NFRADIUS)*cellsize;
+	dz = (c-NearFieldRadius)*cellsize;
 	#endif
 
         memcpy(pinpos.X+start+cumulative_number, p, sizeof(FLOAT)*N); p+=N;
@@ -45,12 +46,12 @@ void SinkPencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, in
 /// This loads up the plan for a SinkPencil with pointers to the 
 /// primary PosXYZ data, as well as the needed coordinate offsets.
 
-int SinkPencilPlan::load(int x, int y, int z) {
+int SinkPencilPlan::load(int x, int y, int z, int NearFieldRadius) {
     // Given the center cell index, load the cell information
     // Return the total number of particles in the cell (un-padded)
     int total = 0;
     FLOAT cellsize = PP->invcpd;
-    int width = NFRADIUS*2+1;
+    const int width = NearFieldRadius*2+1;
     for (int c=0; c<width; c++) {
         int zc = z+c-width/2;
 	cellinfo *info = PP->CellInfo(x,y,zc);
@@ -72,7 +73,7 @@ int SinkPencilPlan::load(int x, int y, int z) {
 /// the caller's responsibility to ensure that this routine is
 /// invoked in the order k=0 -> cpd-1 for each Y=j value in the SIC.
 void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start, 
-	int total, void *SinkAccSlab, int sinkindex) {
+	int total, void *SinkAccSlab, int sinkindex, int NearFieldRadius) {
     // Copy pinacc, which holds the padded list 
     // accstruct[start..start+total)
     //  cells contiguously into pinpos->X[start..start+total), Y[), Z[)
@@ -81,15 +82,15 @@ void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start,
     accstruct *pinacc = (accstruct *)_pinacc+start;
     int cumulative_number = 0;
     int k = sinkindex%P.cpd;    // Reduce this to the Z index for this pencil
-    for (int c=0; c<NFRADIUS*2+1; c++) {
+    for (int c=0; c<NearFieldRadius*2+1; c++) {
 	int N = cell[c].N;
 	// The pointer math has to be in accstruct; then cast
 	accstruct *p = (accstruct *)SinkAccSlab+cell[c].start;
 	accstruct *pin = pinacc+cumulative_number;
 	// We now have to decide whether to co-add or assign
-	// We always assign on k=0; otherwise, we assign if c=NFRADIUS*2
+	// We always assign on k=0; otherwise, we assign if c=NearFieldRadius*2
 	// and k+c<cpd.
-	if (k==0 || (c==2*NFRADIUS && k+c<P.cpd)) {
+	if (k==0 || (c==2*NearFieldRadius && k+c<P.cpd)) {
 	    memcpy(p, pin, sizeof(accstruct)*N);
 	    // for (int t=0; t<N; t++) p[t] = pin[t];
 	} else {
@@ -109,21 +110,21 @@ void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start,
 /// This requires that we convert from cell-centered coordinates to
 /// a coordinate system centered on the middle cell of the pencil.
 
-void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total, void **SourcePosSlab) {
+void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total, void **SourcePosSlab, int NearFieldRadius) {
     // Copy cells contiguously into pinpos->X[start..start+total), Y[), Z[)
     // where total is the padded number of particles.
     // start is the offset from the beginning of the buffers
     int cumulative_number = 0;
     FLOAT dx;
     FLOAT cellsize = PP->invcpd;
-    int width = NFRADIUS*2+1;
+    int width = NearFieldRadius*2+1;
     for (int c=0; c<width; c++) {
-	FLOAT *p = (FLOAT *)((posstruct *)SourcePosSlab[c]+cell[c].start);
 	int N = cell[c].N;
+	FLOAT *p = (FLOAT *)((posstruct *)SourcePosSlab[c]+cell[c].start);
 	#ifdef GLOBAL_POS
 	    dx = cell[c].offset;
 	#else 
-            dx = (c-NFRADIUS)*cellsize;
+            dx = (c-NearFieldRadius)*cellsize;
 	#endif
 
         FLOAT *d = pinpos.X+start+cumulative_number;
@@ -142,12 +143,12 @@ void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, 
 /// This loads up the plan for a SourcePencil with pointers to the 
 /// primary PosXYZ data, as well as the needed coordinate offsets.
 
-int SourcePencilPlan::load(int x, int y, int z) {
+int SourcePencilPlan::load(int x, int y, int z, int NearFieldRadius) {
     // Given the center cell index, load the cell information
     // Return the total number of particles in the cell (un-padded)
     int total = 0;
     FLOAT cellsize = PP->invcpd;
-    int width = NFRADIUS*2+1;
+    const int width = NearFieldRadius*2+1;
     for (int c=0; c<width; c++) {
         int xc = x+c-width/2;
 	cellinfo *info = PP->CellInfo(xc,y,z);

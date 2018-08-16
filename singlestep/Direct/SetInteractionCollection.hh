@@ -78,12 +78,13 @@ class SinkPencilPlan {
   public:
     CellPencilPlan cell[2*NFRADIUS+1];
     // The cells are not assumed to be contiguous (e.g., periodic wraps)
+    // These arrays are sized to the max size in config.h
 
     void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total,
-    	void *SinkPosSlab);
+    	void *SinkPosSlab, int NearFieldRadius);
     void copy_from_pinned_memory(void *pinacc, int start, int total, 
-    	void *SinkAccSlab, int sinkindex);
-    int load(int x, int y, int z);
+    	void *SinkAccSlab, int sinkindex, int NearFieldRadius);
+    int load(int x, int y, int z, int NearFieldRadius);
 };
 
 
@@ -95,10 +96,11 @@ class SourcePencilPlan {
   public:
     CellPencilPlan cell[2*NFRADIUS+1];
     // The cells are not assumed to be contiguous (e.g., periodic wraps)
+    // These arrays are sized to the max size in config.h
 
     void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total,
-    	void **SourcePosSlab);
-    int load(int x, int y, int z);
+    	void **SourcePosSlab, int NearFieldRadius);
+    int load(int x, int y, int z, int NearFieldRadius);
 };
 
 /** The SetInteractionCollection class contains all of the information
@@ -216,7 +218,7 @@ class SetInteractionCollection{
         //Methods
 
 	// Constructor
-        SetInteractionCollection(int slab, int _jlow, int _jhigh, FLOAT _b2, char * &buffer, size_t &bsize);
+        SetInteractionCollection(int slab, int _jlow, int _jhigh, FLOAT _b2, char * &buffer, size_t &bsize, int NearFieldRadius);
         ~SetInteractionCollection();
 
 	int NumPaddedBlocks(int nparticles);
