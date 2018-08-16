@@ -89,6 +89,7 @@ to the rest of the code, because it needs CUDA.
 #include "DeviceFunctions.h"
 #include "IncludeGPUKernels.cuh"
 
+// Provide a mechanism to call singlestep's STDLOG from this compilation unit
 void stdlog_hook(int verbosity, const char* str);
 #define STDLOG stdlog_hook
 #define assertf(_mytest,...) do { \

@@ -47,6 +47,9 @@ endif
 
 BINARIES=avx512direct
 
+avx512direct: avx512direct.cc
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -DTEST -o $@ $<
+
 clean:
 	$(RM) *.o *.ptx *.fatbin *.cubin nvtemp $(BINARIES) *.a
 
