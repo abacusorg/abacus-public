@@ -158,10 +158,9 @@ class SetInteractionCollection{
         static pthread_mutex_t GPUTimerMutex;
         static STimer GPUThroughputTimer;
 
-	void  *SinkPosSlab;    //< Ptr to the start of the PosXYZ slab
-	void  *SourcePosSlab[2*NFRADIUS+1];    //< Ptr to the start of the PosXYZ slabs for Sources
-	// These arrays are sized to the max size in config.h
-	void *SinkAccSlab;  //< Ptr to the start of the slab of accelerations for this sink slab
+	void  *SinkPosSlab;    ///< Ptr to the start of the PosXYZ slab
+	void  *SourcePosSlab[2*NFRADIUS+1];    ///< Ptr to the start of the PosXYZ slabs for Sources
+	void *SinkAccSlab;  ///< Ptr to the start of the slab of accelerations for this sink slab
 
         int *           SinkSetStart; ///< The index in the Sink Pos/Acc lists where this set begins
         int *           SinkSetCount; ///< The number of particles in the SinkSet
