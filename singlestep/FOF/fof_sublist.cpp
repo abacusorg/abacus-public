@@ -1,4 +1,12 @@
-// Consider whether there are ways to accelerate the cell group FOF finding.
+/** \file This file contains the routines to do FOF on a consecutive list of 
+particles, either from a cell or from a L0 or L1 gathering.
+Optionally, this can perform a permutation on the particle set.
+
+There are several different algorithms in this file, as well as various
+AVX tricks to accelerate the computation of distances.
+
+As written, the input particle set cannot exceed 2**23 particles.
+*/
 
 #define FOFTimer DummyTimer
 
@@ -50,20 +58,26 @@ typedef float FOFloat;
 
 #define FOF_RESCALE 1e12
 
+/** We will copy the positions and index number into a float4, then
+do all of the rest of the work swapping this compact object.
+Permutation of the original array is done only optionally.
+
+  We are storing the cell index as a float.  Scaling the positions
+  up by a huge number, so that we can do positional differences
+  as a float4 norm with SSE, trusting to underflow the indices. 
+
+  As written, this limits the number of particles in a cell to not
+  overflow a 23-bit int.  However, this could be adjusted by setting
+  the floating exponent sign bit to be negative and then using bits
+  in the exponent.  Not implemented at present!
+
+  We usually do this in single precision!
+  Particularly if we want to consider some AVX calls for diff2.
+  Doing this as aligned float4's will also allow AVX for min/max
+  computation of bounding boxes.
+*/
+
 class alignas(16) FOFparticle {
-  // We should always do this in single precision!
-  // Particularly if we want to consider some AVX calls for diff2.
-  // Doing this as aligned float4's will also allow AVX for min/max
-  // computation of bounding boxes.
-
-  // We are storing the cell index as a float.  Scaling the positions
-  // up by a huge number, so that we can do positional differences
-  // as a float4 norm with SSE, trusting to underflow the indices. 
-
-  // As written, this limits the number of particles in a cell to not
-  // overflow a 23-bit int.  However, this could be adjusted by setting
-  // the floating exponent sign bit to be negative and then using bits
-  // in the exponent.  Not implemented at present!
 
   public:
     FOFloat x,y,z,n;
