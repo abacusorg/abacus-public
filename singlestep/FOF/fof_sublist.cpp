@@ -241,12 +241,14 @@ inline void diff2by4(FOFloat *r, FOFparticle *p, FOFparticle *a) {
 
 #else
 
+/** This takes 4 float4's and computes |p-a|^2 by AVX
+
+p and r are required to be 16-byte aligned.
+a is required to be 32-byte aligned (unless we want to use loadu),
+so this is alignment to two float4's.
+We may not want to cross the 64-byte cache line.
+*/
 inline void diff2avx4(float *r, float *p, float *a) {
-    // p and r are required to be 16-byte aligned.
-    // a is required to be 32-byte aligned (unless we want to use loadu),
-    // so this is alignment to two float4's.
-    // We may not want to cross the 64-byte cache line.
-    // This takes 4 float4's and computes |p-a|^2
     __m256 primary = _mm256_broadcast_ps((__m128 *)p);
     __m256 ab = _mm256_load_ps(a);
     __m256 cd = _mm256_load_ps(a+8);
@@ -299,14 +301,17 @@ inline void diff2avx8(float *r, float *p, float *a) {
 
 #endif
 
+/** Return a pointer to a zero-indexed list of floats containing the 
+square distances between primary and list[0,nlist).
+
+Note that this will blindly overshoot the end of the list by a multiple
+of 4; that's considered ok, so d2buf must have space
+If AVX is used, then d2buf is 16-byte aligned space that we supply for the output,
+but the returned pointer may not point to the start of it,
+since we have to attend to alignment.
+*/
+
 FOFloat *compute_d2(FOFparticle *primary, FOFparticle *list, int nlist, FOFloat *d2buf, long long &numdists) {
-    // Return a pointer to a zero-indexed list of floats containing the 
-    // square distances between primary and list[0,nlist).
-    // Note that this will blindly overshoot the end of the list by a multiple
-    // of 4; that's considered ok, so d2buf must have space
-    // If AVX is used, then d2buf is 16-byte aligned space that we supply for the output,
-    // but the returned pointer may not point to the start of it,
-    // since we have to attend to alignment.
     FOFloat *d2use;
     numdists += nlist;
 
@@ -341,8 +346,13 @@ FOFloat *compute_d2(FOFparticle *primary, FOFparticle *list, int nlist, FOFloat 
 }
 
 
-// Assume that FOFgroup is divisible by 16 and that the __m128 
-// elements will be 16-byte aligned for SSE.
+/** This is the class to contain one FOF group, including the 
+particle location and the Bounding Boxes.
+
+Assume that FOFgroup is divisible by 16 and that the __m128 
+elements will be 16-byte aligned for SSE.
+*/
+
 class alignas(16) FOFgroup {
   public:
     FOFparticle BBmin, BBmax;
@@ -361,26 +371,30 @@ class alignas(16) FOFgroup {
 };
 
 
+
+/** This is the main class to perform the FOF.  It establishes
+a single-threaded workspace that can be invoked many times.
+*/
+
 class FOFcell {
-  // This is the single-threaded workspace to find CellGroups.
   public:
     // These lists provide some work space, consistent between 
-    FOFparticle *p;	// The copied version of the particles, to permute
-    FOFloat *d2buffer;	// A matching array of distances
-    accstruct *permutebuf;   // Space for doing permutations
-    int *index;		// The new indices in the original order
-    int np;		// The current size of the group
+    FOFparticle *p;	///< The copied version of the particles, to permute
+    FOFloat *d2buffer;	///< A matching array of distances
+    accstruct *permutebuf;   ///< Space for doing permutations
+    int *index;		///< The new indices in the original order
+    int np;		///< The current size of the group
 
-    int maxsize;	// The maximum size of these lists
+    int maxsize;	///< The maximum size of these lists
 
     // Primary outputs, aside from the re-ordering of the input particles
-    FOFgroup *groups;	// The multiplet ranges
-    int ngroups;
+    FOFgroup *groups;	///< The multiplet ranges
+    int ngroups;	///< The number of groups
     long long numdists;		///< Number of distances computed
     long long numcenters;	///< The number of partitions used
     long long numsorts; 	///< The number of sorts (not used in FOF)
-    int nmultiplets; 	// Number of particles in multiplets
-    int nsinglet_boundary;  // Plus number of particles near the edge
+    int nmultiplets; 	///< Number of particles in multiplets
+    int nsinglet_boundary;  ///< Plus number of particles near the edge
     		// So boundary singlets are in [nmultiplets, nsinglet_boundary)
 
     // Some internal timings (not all are implemented, for speed reasons)
@@ -393,10 +407,10 @@ class FOFcell {
     FOFTimer time_total;
 
     // The linking lengths that we've been setup to use.
-    FOFloat linking_length;   // The original entry, in code units
-    FOFloat boundary;   // The location of the boundary, in FOF units
-    FOFloat b;		// The linking length, in FOF units
-    FOFloat b2;		// The linking length squared, in FOF units
+    FOFloat linking_length;   ///< The original entry, in code units
+    FOFloat boundary;   ///< The location of the boundary, in FOF units
+    FOFloat b;		///< The linking length, in FOF units
+    FOFloat b2;		///< The linking length squared, in FOF units
 
     char pad[64];	// Just to ensure that we don't have cache line fights 
     		// within an array of FOFCell's.
@@ -427,8 +441,8 @@ class FOFcell {
 	ret = posix_memalign((void **)&index, 64, sizeof(int)*maxsize);  assert(ret == 0);
     }
 
-    // We have a null constructor, since we'll define one for each thread.
-    // Be sure to call setup() for each instance.
+    /// We have a null constructor, since we'll define one for each thread.
+    /// Be sure to call setup() for each instance.
     FOFcell() { 
 	p = NULL;
 	d2buffer = NULL;
@@ -457,11 +471,11 @@ class FOFcell {
 	destroy();
     }
 
+    /// b and _cellsize should be supplied in posstruct units.
+    /// Positions are assumed to be cell-centered.
+    /// We will change the length units to be single-precision,
+    /// with the lower cell edge being at 0 and the units of linking lengths
     void setup (FOFloat _b, FOFloat _boundary) {
-	// b and _cellsize should be supplied in posstruct units.
-	// Positions are assumed to be cell-centered.
-	// We will change the length units to be single-precision,
-	// with the lower cell edge being at 0 and the units of linking lengths
 	linking_length = b;
 	boundary = _boundary*FOF_RESCALE;
 	b = _b*FOF_RESCALE;
@@ -479,16 +493,19 @@ class FOFcell {
 		else return false;
     }
 
-    inline void permute(posstruct *pos, velstruct *vel, auxstruct *aux, accstruct *acc, int n) {
-        // After we have the FOFparticles sorted into groups, we need to 
-	// copy the pos/vel/aux into that order.  But we also want to 
-	// collect the singlets at the end.  Recall that only multiplets
-	// have FOFgroups at all!
+        /** This performs the permutation of the original arrays.
 	
-	// We have the old indices in the new order, but it's more 
-	// helpful to have the new indices in the old order, 
-	// so that we can scatter rather than gather.
+	After we have the FOFparticles sorted into groups, we need to 
+	copy the pos/vel/aux into that order.  But we also want to 
+	collect the singlets at the end.  Recall that only multiplets
+	have FOFgroups at all!
+	
+	We have the old indices in the new order, but it's more 
+	helpful to have the new indices in the old order, 
+	so that we can scatter rather than gather.
+	*/
 
+    inline void permute(posstruct *pos, velstruct *vel, auxstruct *aux, accstruct *acc, int n) {
 	// We also need to undo the scaling of the positions
 	FOFloat inv_rescale = 1.0/(FOF_RESCALE);
 
@@ -626,25 +643,27 @@ class FOFcell {
 
     // ====================  Alternative modified N^2 algorithm ==========
 
+	/** Do the FOF in the Cell, without using any list partitioning.
+
+	This tries to accelerate the N^2 calculation by partitioning 
+	the unassigned particle list as we sweep through on one primary,
+	so that all of the particles remaining in the pending list can
+	be searched more quickly.  
+
+	In practice, we're going collect particles in a 'core' out to
+	distance R, and then a 'skin' out to R+b.  The pending queue
+	will separate particles in the core, including newly added 
+	particles, so that we can complete the search on all of these
+	primaries.  
+
+	Setting the distance R will require a heuristic.  We certainly
+	want R>=b, but probably we want to tie to the number of particles
+	in the cell.  When there are few particles, we want a big radius,
+	so that if we complete a group with yet more unassigned particles
+	in the core, then we could continue on.
+	*/
+
     void quickFOF() {
-	// Do the FOF in the Cell, without using any list partitioning.
-	// This tries to accelerate the N^2 calculation by partitioning 
-	// the unassigned particle list as we sweep through on one primary,
-	// so that all of the particles remaining in the pending list can
-	// be searched more quickly.  
-
-	// In practice, we're going collect particles in a 'core' out to
-	// distance R, and then a 'skin' out to R+b.  The pending queue
-	// will separate particles in the core, including newly added 
-	// particles, so that we can complete the search on all of these
-	// primaries.  
-
-	// Setting the distance R will require a heuristic.  We certainly
-	// want R>=b, but probably we want to tie to the number of particles
-	// in the cell.  When there are few particles, we want a big radius,
-	// so that if we complete a group with yet more unassigned particles
-	// in the core, then we could continue on.
-    
     // TODO: is this safe?  do we rely on other side-effects from this routine?
     if (b == 0)
         return;
@@ -809,7 +828,7 @@ class FOFcell {
 
     // ====================  Simple N^2 algorithms ==========
 
-    // Here's the basic code, using AVX for distances and do bounding boxes.
+    /// Here's the basic code, using AVX for distances and do bounding boxes.
 
     void simpleFOFavx() {
 	time_fof.Start();
@@ -881,18 +900,20 @@ class FOFcell {
 
     // ============  And here's the main driver routine
 
+    /** The main driver routine for doing FOF on a set of particles.
+    
+    This takes in all of the positions, velocities, and aux for 
+    a cell of size n.
+    It copies pos[0,n) into the FOFparticle array.
+    Then perform the FOF and permutes the input arrays
+    Return the number of multiplet groups.
+
+    If vel==NULL, then the permutation is skipped; the calling routine
+    is left responsible for dealing with the internal variables of the class.
+    pos[] will be unchanged.
+    */
+
     inline int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, accstruct *acc, int n) {
-	// This takes in all of the positions, velocities, and aux for 
-	// a cell of size n.
-
-	// It copies pos[0,n) into the FOFparticle array.
-	// Then perform the FOF and permutes the input arrays
-	// Return the number of multiplet groups.
-
-	// If vel==NULL, then the permutation is skipped; the calling routine
-	// is left responsible for dealing with the internal variables of the class.
-	// pos[] will be unchanged.
-
 	time_total.Start();
 	reset(n);
 	np = n;

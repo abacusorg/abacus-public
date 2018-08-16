@@ -1,4 +1,4 @@
-/* This is the code that traverses the graph of links to make the GlobalGroups.
+/** \file This is the code that traverses the graph of links to make the GlobalGroups.
 A GlobalGroup is just a list of CellGroups, stored by their LinkID.
 
 This code creates two SlabAccums, one of the GlobalGroups and one of the
@@ -10,8 +10,8 @@ closed.
 
 */
 
-// This class will accumulate an estimate of the amount of L1 work in each pencil,
-// in the hopes that ordering the threads by this will yield better load balancing.
+/// This class will accumulate an estimate of the amount of L1 work in each pencil,
+/// in the hopes that ordering the threads by this will yield better load balancing.
 class PencilStats {
   public:
     float work;   // The estimated amount of work this pencil will require
@@ -26,19 +26,23 @@ class PencilStats {
     void reset(int _pnum) { pnum = _pnum; work = 0.0; }
 };
 
+/** A GlobalGroup contains the information about one group,
+composed of multiple CellGroups.
+*/
+
 class GlobalGroup {
     public:
-    int ncellgroups;    // The number of CellGroups in this GlobalGroup
-    int cellgroupstart;        // We will be storing a contiguous list of pointers to 
-            // CellGroups for all GlobalGroups in each Pencil.  This index is the 
-        // offset from the start of the Pencil of that list.
-        // Note that the CellGroups themselves are not necessarily in the Pencil!
-        // The Pencil Number will be that of the CellGroup that initiated the
-        // GlobalGroup.
-    int np;    // The number of particles in this group
-    uint64 start;  // The particle starting point.  
-            // Offset from the pencil beginning when constructed.
-        // Updated to be offset from the slab start, when we gather the particles
+    int ncellgroups;    ///< The number of CellGroups in this GlobalGroup
+    int cellgroupstart;        ///< We will be storing a contiguous list of pointers to 
+            ///< CellGroups for all GlobalGroups in each Pencil.  This index is the 
+        ///< offset from the start of the Pencil of that list.
+        ///< Note that the CellGroups themselves are not necessarily in the Pencil!
+        ///< The Pencil Number will be that of the CellGroup that initiated the
+        ///< GlobalGroup.
+    int np;    ///< The number of particles in this group
+    uint64 start;  ///< The particle starting point.  
+            ///< Offset from the pencil beginning when constructed.
+        ///< Updated to be offset from the slab start, when we gather the particles
 
     GlobalGroup(int _ncellgroups, int _cellgroupstart, int _np, int _start) {
         // Our constructor just gets the CellGroups stored.
@@ -57,30 +61,16 @@ class LinkIndex {     // These are the links for a given cell
     int start, n;     // Indexing from the start of the pencil
 };
 
+/// This is the lookup table into the GroupLink list for a given
+/// pencil.
 class LinkPencil {
   public:
-    GroupLink *data;   // Where this pencil starts
-    LinkIndex *cells;         // [0,cpd)
+    GroupLink *data;   ///< Where this pencil starts
+    LinkIndex *cells;         ///< [0,cpd)
     // uint64 pad[6];        // To fill up 64 bytes
 
     LinkPencil() { data = NULL; cells = NULL; }
     ~LinkPencil() {}
-
-    inline void IndexPencilOld(LinkIndex *_cells, GroupLink *start, GroupLink *end, int slab, int j) {
-        // GroupLinks for this Pencil begin at *start, end at *end
-        // cells is where we put results, external array [0,cpd)
-        cells = _cells;  // Copy the external pointer
-        data = start;    // Where we'll index this pencil from
-        for (int k=0; k<GFC->cpd; k++) {
-            GroupLink ref; 
-            cells[k].start = start-data;
-            // Now search for the end of this cell
-            ref.a = LinkID(slab, j, k+1, 0);    // This is the starting point we're seeking
-            while (start<end && *start<ref) start++;   // Advance to the end
-            cells[k].n = (start-data)-cells[k].start;
-        }
-        return;
-    }
 
     inline void IndexPencil(LinkIndex *_cells, GroupLink *start, GroupLink *end, int slab, int j) {
         // GroupLinks for this Pencil begin at *start, end at *end
@@ -114,21 +104,30 @@ inline CellGroup *LinkToCellGroup(LinkID link) {
 /* =================  GlobalGroupSlab ======================== */
 
 
+/** This contains all of the GlobalGroups in a given slab.
+It contains the methods to construct those Global Groups from the 
+GroupLinkList, as well as the methods to gather/scatter the particles
+and then analyze the groups.
+
+Belonging to a slab means that it contains a CellGroup that hadn't
+been previously included into a GlobalGroup in a different slab.
+*/
+
 class GlobalGroupSlab {
   public:
     SlabAccum<GlobalGroup> globalgroups;
-            // The global group information
+            ///< The global group information
     SlabAccum<LinkID> globalgrouplist;
-            // The cell group decompositions of these global groups
+            ///< The cell group decompositions of these global groups
 
     // The following accumulate possible output 
-    SlabAccum<HaloStat> L1halos;        // Stats about each L1 halo
-    SlabAccum<TaggedPID> TaggedPIDs;        // The tagged PIDs in each L1 halo
-    SlabAccum<RVfloat> L1Particles;     // The taggable subset in each L1 halo, pos/vel
-    SlabAccum<TaggedPID> L1PIDs;        // The taggable subset in each L1 halo, PID
+    SlabAccum<HaloStat> L1halos;        ///< Stats about each L1 halo
+    SlabAccum<TaggedPID> TaggedPIDs;        ///< The tagged PIDs in each L1 halo
+    SlabAccum<RVfloat> L1Particles;     ///< The taggable subset in each L1 halo, pos/vel
+    SlabAccum<TaggedPID> L1PIDs;        ///< The taggable subset in each L1 halo, PID
     
-    int slab;    // This slab number
-    posstruct *pos;  // Big vectors of all of the pos/vel/aux for these global groups
+    int slab;    ///< This slab number
+    posstruct *pos;  ///< Big vectors of all of the pos/vel/aux for these global groups
     velstruct *vel;
     auxstruct *aux;
     accstruct *acc;
@@ -136,11 +135,12 @@ class GlobalGroupSlab {
     uint64 ncellgroups;
 
     // We're going to accumulate an estimate of work in each pencil
-    PencilStats *pstat;    // Will be [0,cpd)
+    PencilStats *pstat;    ///< Will be [0,cpd)
 
     int largest_group;
 
 
+    /// We have a boring constructor; call setup() to actually get started.
     void setup(int _slab) {
         assertf(pstat==NULL, "GlobalGroupSlab setup is not legal");    // Otherwise, we're re-allocating something!
         pos = NULL; vel = NULL; aux = NULL; acc = NULL; np = 0;
@@ -199,8 +199,26 @@ class GlobalGroupSlab {
 
 
 
+/** For this slab, we want to traverse the graph of links to find all GlobalGroups.
+
+This involves going to every unassigned CellGroup and then looking
+for its neighbors in the GroupLinkList.  By doing a FOF-like repeating
+search, we build up all of the CGs that are associated.  These become
+a GlobalGroup.  
+
+As links are used, they are marked for deletion from the GLL.
+As CGs are included, they are marked as assigned, so they can't
+start another GG.
+
+GlobalGroups cannot span more than 2*GroupRadius+1 cells, and we
+use this fact to parallelize the work so that threads are working
+on distinct portions of the slab.
+
+We also make heavy use of SlabAccum's to order the work by Pencil;
+this will aid in the later bookkeeping.
+*/
+
 void GlobalGroupSlab::CreateGlobalGroups() {
-    // For this slab, we want to traverse the graph of links to find all GlobalGroups.
     // Given pstat[0,cpd)
     assertf(pstat!=NULL,"setup() not yet called\n");   // Setup not yet called!
     GFC->SortLinks.Start();
@@ -359,9 +377,12 @@ void GlobalGroupSlab::CreateGlobalGroups() {
 
 
 
+/** Copy all of the particles from the disparate CellGroups into a single list,
+so that each GlobalGroup is contiguous.  This also establishes an index
+from each GlobalGroup into this slab-scale list.
+*/
 
 void GlobalGroupSlab::GatherGlobalGroups() {
-    // Copy all of the particles into a single list
     GFC->IndexGroups.Start();
     int diam = 2*GFC->GroupRadius+1;
     assertf(GFC->cpd>=4*GFC->GroupRadius+1, "CPD is too small compared to GroupRadius\n");
@@ -462,8 +483,12 @@ void GlobalGroupSlab::GatherGlobalGroups() {
 
 
 
+/** This writes the information from the GlobalGroup slab-scale list
+of particles back into the original cell-based lists.  Here, we write
+back only the AuxSlab information.
+*/
+
 void GlobalGroupSlab::ScatterGlobalGroupsAux() {
-    // Write the information from aux back into the original Slabs
     GFC->ScatterAux.Start();
 
     #pragma omp parallel for schedule(static)
@@ -495,9 +520,13 @@ void GlobalGroupSlab::ScatterGlobalGroupsAux() {
 
 
 
+/** This writes the information from the GlobalGroup slab-scale list
+of particles back into the original cell-based lists.  Here, we write
+back only the PosSlab and VelSlab information.  AuxSlab is separate,
+as some uses don't need Pos/Vel to be returned.
+*/
+
 void GlobalGroupSlab::ScatterGlobalGroups() {
-    // Write the information from pos,vel back into the original Slabs
-    // Note that aux is handled separately!
     int diam = 2*GFC->GroupRadius+1;
     GFC->ScatterGroups.Start();
 
@@ -543,9 +572,12 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
 }
 
 
+/** This considers each GlobalGroup (L0) and performs addiitonal
+work to find the L1 and L2 halos and generate output statistics
+about L1.  This can either use FOF or SO.
+*/
 
 void GlobalGroupSlab::FindSubGroups() {
-    // Process each group, looking for L1 and L2 subgroups.
     GFC->ProcessLevel1.Start();
     int maxthreads = omp_get_max_threads();
 
@@ -845,13 +877,15 @@ void GlobalGroupSlab::HaloOutput() {
 }
 
 #else   // !STANDALONE_FOF
+
+/** Outputs a uniform subsample of the particles ("taggable particles")
+and L1 halo stats and tagged particles. Currently we always output
+taggable particles if we are also outputting halos. Halo outputs will
+be skipped if no L1 halos were found (but taggable particles will still be written).
+ */
+
 void GlobalGroupSlab::HaloOutput() {
     GFC->OutputLevel1.Start();
-        /* Outputs a uniform subsample of the particles ("taggable particles")
-         * and L1 halo stats and tagged particles. Currently we always output
-         * taggable particles if we are also outputting halos. Halo outputs will
-         * be skipped if no L1 halos were found (but taggable particles will still be written).
-         */
          
         STDLOG(0,"Beginning halo output for slab %d\n", slab);
         
@@ -926,14 +960,15 @@ void GlobalGroupSlab::HaloOutput() {
 #endif
 
 #ifndef STANDALONE_FOF
+/** When we do group finding, we write all the non-L0 particles into normal
+time-slice slabs and the L0 group particles into their own slabs.
+This routine does the latter.  We are passed full-kicked particles,
+so we need to half-unkick.
+The particles are in group-centered units, which we will convert to
+global units.  For pack14, each cell group will get its own header.
+*/
+
 uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
-    /* When we do group finding, we write all the non-L0 particles into normal
-     * time-slice slabs and the L0 group particles into their own slabs.
-     * This routine does the latter.  We are passed full-kicked particles,
-     * so we need to half-unkick.
-     * The particles are in group-centered units, which we will convert to
-     * global units.  For pack14, each cell group will get its own header.
-    */
 
     AppendArena *AA;
     uint64 n_added = 0;
