@@ -1,3 +1,7 @@
+/** This provides a simple statistical summary of the group sizes,
+particularly generating a histogram.  
+*/
+
 #define MS_NBIN 24
 #define MS_MIN 16
 class MultiplicityStats {
@@ -27,8 +31,8 @@ class MultiplicityStats {
 	}
     }
 
+    /// Given a group multiplicity, add it to the stats
     void push(uint64 np) {
-        // Given a group multiplicity, add it to the list
 	if (np>largest) largest=np;
 	ngroups++;
 	tot += np;
@@ -44,6 +48,7 @@ class MultiplicityStats {
 	return;
     }
 	
+    /// This generates a report for the log
     void report_multiplicities(std::ofstream *grouplog) {
         GLOG(0,"Total number of groups %f M\n", ngroups/1e6);
 	int j, m, nbin;

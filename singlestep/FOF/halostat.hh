@@ -1,3 +1,7 @@
+/** We compute properties of each L1 group and store them in a HaloStat
+object.
+*/
+
 #ifndef __HALOSTAT_HH
 #define __HALOSTAT_HH
 
