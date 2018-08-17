@@ -1,30 +1,55 @@
-/* Initial code to support data transfer between multiple nodes */
+/** \file We can implement a simple parallelism into abacus by
+doing a slab-oriented decomposition, in which different nodes are
+responsible for different slabs.
+
+A given node will start with a particular range of slabs on disk.
+It starts by loading the first one in the sequence and continues
+upward, doing work, until it has finished the first slab it 
+can (say, N).  This means that all information relevant to slab N
+is completed, which implies that the information relevant to N-1 and
+to N+1 are now rigorously disconnected.  At that point, we package
+up all of the slabs <N and send them to the lower neighbor.  We
+similarly send the portion of the insert list and GroupLink list
+that involve <N.  That node will then have all of the info needed
+to finish slab N-1.
+
+Notice that this means that the domain of a given node shifts 
+upward from one epoch to the next, which is fine.  We simply need
+to detect the range of slabs on disk, and act appropriately.
+
+This file contains the code to do this transfer.  Most of the work
+is done in a non-blocking manner by two threads per node, one sending,
+one receiving.  We execute a blocking routine to load up the 
+Manifest of data to be sent and then a blocking routine to store
+the data when it is received.  
+
+*/
 
 
 // ================== Manifest helpers =====================================
 
+/// The information we're passing for a single arena
 class ManifestArena {
-  // The information we're passing for a single arena
   public:
-    uint64 size;    // Arena size in bytes of usable space, not including guards
-    char *ptr;	// The pointer to the space
-    int type;    // The SlabType
-    int slab; 	// slab number
+    uint64 size;    ///< Arena size in bytes of usable space, not including guards
+    char *ptr;	///< The pointer to the space
+    int type;    ///< The SlabType
+    int slab; 	///< slab number
     ManifestArena() { size = 0; type = slab = 0; ptr = NULL; }
 };
 
+/// The information we're passing for a single dependency
 class DependencyRecord {
-  // The information we're passing for a single dependency
   public:
     int begin;
     int end;
-    // We're passing the information that [begin,end) should be set by force
-    // on the receiving node.
-    // We require begin<=end; the wrapping is done within the Dependency class.
+    ///< We're passing the information that [begin,end) should be set by force
+    ///< on the receiving node.
+    ///< We require begin<=end; the wrapping is done within the Dependency class.
     DependencyRecord() { begin = end = 0; }
 
+    /// Load the status of this dependency 
     void Load(Dependency &d, int finished_slab) {
-	// Load the status of this dependency 
 	end = finished_slab;
 	for (begin=end-1; begin>end-d.cpd; begin--) {
 	    if (d.notdone(begin)) break;
@@ -40,9 +65,9 @@ class DependencyRecord {
 	return;
     }
 
-    // We also are going to use this same logic to hold the cellgroup_status[]
-    // information from GFC.  In particular, we need to transmit all cases
-    // where this is ==1.  We don't care about ==2.
+    /// We also are going to use this same logic to hold the cellgroup_status[]
+    /// information from GFC.  In particular, we need to transmit all cases
+    /// where this is ==1.  We don't care about ==2.
     void LoadCG(int finished_slab) {
 	if (GFC==NULL) { begin=end = finished_slab-1; return;}
 	STDLOG(1, "LoadCG start\n");
@@ -62,8 +87,9 @@ class DependencyRecord {
 	STDLOG(1, "CG Dependency [%d,%d)\n", begin, end);
 	return;
     }
+
+    /// Set the cellgroups_status to 1 for the indicated slabs
     void SetCG() {
-	// Set the cellgroups_status to 1 for the indicated slabs
 	for (int s=begin; s<end; s++) {
 	    GFC->cellgroups_status[PP->WrapSlab(s)]=1;
 	    // And move the information from the Arenas back into the SlabArray
@@ -85,10 +111,10 @@ inline bool is_below_slab(ilstruct *particle, int slab) {
     return x>=global_minslab_search;
 }
 
-// When we partition the GroupLink list, GlobalGroups have already
-// been closed in slab, so there are no GroupLinks that involve the 
-// slab.  By definition, the two ends of the link can differ by at 
-// most one slab.  So it is enough to test one end.
+/// When we partition the GroupLink list, GlobalGroups have already
+/// been closed in slab, so there are no GroupLinks that involve the 
+/// slab.  By definition, the two ends of the link can differ by at 
+/// most one slab.  So it is enough to test one end.
 inline bool link_below_slab(GroupLink *link, int slab) {
     int sa = link->a.slab();
     sa = PP->WrapSlab(sa-slab);
@@ -105,33 +131,34 @@ void *ManifestReceiveThread(void *p);
 #define MAXMANIFEST 1024
 #define MAXDEPENDENCY 64
 
+/// This is all of the information that we'll be passing between nodes
 struct ManifestCore {
-  // This is all of the information that we'll be passing between nodes
-    ManifestArena arenas[MAXMANIFEST];   // All of the arena info
-    int numarenas;   // The number of arenas being sent
-    int numil;	// The number of IL objects
-    int numlinks;	// The number of GroupLink objects
-    DependencyRecord dep[MAXDEPENDENCY];   // The dependency info
-    int numdep;  // And the number of dependencies, just to check.
+    ManifestArena arenas[MAXMANIFEST];   ///< All of the arena info
+    int numarenas;   ///< The number of arenas being sent
+    int numil;	///< The number of IL objects
+    int numlinks;	///< The number of GroupLink objects
+    DependencyRecord dep[MAXDEPENDENCY];   ///< The dependency info
+    int numdep;  ///< And the number of dependencies, just to check.
 };
 
+/// This is the class for sending information between the nodes.
 class Manifest {
   public:
-    ManifestCore m;   // The info we're sending over
+    ManifestCore m;   ///< The info we're sending over
 
     // Temporary storage buffers
-    ilstruct *il;
-    GroupLink *links;
+    ilstruct *il;	///< Storage for the IL
+    GroupLink *links;   ///< Storage for the GLL
     
     // Control logic
-    int completed;	// ==1 if the Manifest is ready for use, ==0 if not yet , ==2 if we've already imported it.
-    STimer Load;        // The timing for the Queue & Import blocking routines
-    STimer Transmit;	// The timing for the Send & Receive routines, usually non-blocking
-    size_t bytes;       // The number of bytes received
+    int completed;	///< ==1 if the Manifest is ready for use, ==0 if not yet , ==2 if we've already imported it.
+    STimer Load;        ///< The timing for the Queue & Import blocking routines
+    STimer Transmit;	///< The timing for the Send & Receive routines, usually non-blocking
+    size_t bytes;       ///< The number of bytes received
 
-    int blocking;	// =1 if blocking, =0 if non-blocking
-    pthread_t thread;	// The thread object
-    int launched;	// =1 if the thread was launced
+    int blocking;	///< =1 if blocking, =0 if non-blocking
+    pthread_t thread;	///< The thread object
+    int launched;	///< =1 if the thread was launced
 
     Manifest() {
     	m.numarenas = m.numil = m.numlinks = m.numdep = 0;
@@ -177,6 +204,7 @@ class Manifest {
     void Receive();
     void ImportData();
 
+    /// Create the non-blocking Send thread
     void LaunchSendThread() {
 	assertf(blocking==0, "Asked to start Send Thread, but blocking = %d\n", blocking);
 	int retval = pthread_create(&thread, NULL, ManifestSendThread, (void *)this);
@@ -184,6 +212,8 @@ class Manifest {
 	launched = 1;
 	STDLOG(1, "Launched SendManifest Thread\n");
     }
+
+    /// Create the non-blocking Receive thread
     void LaunchReceiveThread() {
 	assertf(blocking==0, "Asked to start Receive Thread, but blocking = %d\n", blocking);
 	int retval = pthread_create(&thread, NULL, ManifestReceiveThread, (void *)this);
@@ -194,10 +224,10 @@ class Manifest {
 };    
 
 
-// Here are our outgoing and incoming Manifest instances
+/// Here are our outgoing and incoming Manifest instances
 Manifest SendManifest, ReceiveManifest; 
 
-// Call this routine to turn on Non-blocking Manifest
+/// Call this routine to turn on Non-blocking Manifest
 void NonBlockingManifest() {
     #ifdef PARALLEL
     STDLOG(1,"Turning on non-blocking Manifest Code\n");
@@ -231,10 +261,14 @@ void *ManifestReceiveThread(void *p) {
 
 // ================  Routine to define the outgoing information =======
 
+/** The blocking routine to prepare information to Send
+
+We've just finished the given slab.  
+Load all of the information from lower slabs into the Manifest.
+Then call the non-blocking communication and return.
+*/
+
 void Manifest::QueueToSend(int finished_slab) {
-    // We've just finished the given slab.  
-    // Load all of the information from lower slabs into the Manifest.
-    // Then call the non-blocking communication and return.
     int cpd = P.cpd;
 
     // TODO: Consider some safety measures here.
@@ -330,14 +364,11 @@ void Manifest::QueueToSend(int finished_slab) {
 
 // =============== Routine to actually transmit the outgoing info ====
 
-void Manifest::Send() {
-    // This is the routine called by the communication thread.
-    // It should send to its partner using blocking communication.
-    // It can delete arenas as it finishes.
+/// This is the non-blocking routine called by the communication thread.
+/// It should send to its partner using blocking communication.
+/// It can delete arenas as it finishes.
 
-    // TODO: Need to remove STDLOG from this routine
-    // or open a separate LOG; writing from multiple threads 
-    // causes text collisions in the log file.
+void Manifest::Send() {
 
     Transmit.Start();
     // TODO: Send the ManifestCore.  Maybe wait for handshake?
@@ -384,8 +415,8 @@ void Manifest::Send() {
 
 // =============== Routine to actually receive the incoming info ====
 
-// This can be called in timestep.cpp to manually check (blocking)
-// whether Receive is ready to run.
+/// This can be called in timestep.cpp to manually check (blocking)
+/// whether Receive is ready to run.
 // TODO: This may have a rather different meaning in MPI
 inline void Manifest::Check() {
     #ifndef PARALLEL
@@ -402,12 +433,10 @@ inline void Manifest::Check() {
     Receive();
 }
 
+/// This is the routine invoked by the communication thread.
+/// It should store the results.
+/// It allocates the needed space.
 void Manifest::Receive() {
-    // This is the routine invoked by the communication thread.
-    // It should store the results.
-    // It allocates the needed space.
-    // TODO: Might need to remove STDLOG from this routine
-
     Transmit.Start();
     // TODO: Receive the Manifest and overload the variables in *this.
     char fname[1024];
@@ -452,17 +481,19 @@ void Manifest::Receive() {
 
 // ============== Routine to import the incoming info =============
 
-void Manifest::ImportData() {
-    // We invoke this within the timestep loop in a blocking manner.
-    // This should get everything ready to use.
+/** We invoke this within the timestep loop in a blocking manner
+after the ReceiveManifest is marked as completed.
+This should get everything ready to use.
 
-    // The arenas are already in place from the non-blocking thread,
-    // but we want to keep them inactive until we're sure all the info
-    // has been transmitted.  This can be done because the first event
-    // in a slab requires the IOComplete flag on the particle data.
-    // The Arena allocation did not set this flag; we do so here, thereby
-    // opening this region for use.
-    // TODO: Consider whether there are any other race conditions; DJE thinks not
+The arenas are already in place from the non-blocking thread,
+but we want to keep them inactive until we're sure all the info
+has been transmitted.  This can be done because the first event
+in a slab requires the IOComplete flag on the particle data.
+The Arena allocation did not set this flag; we do so here, thereby
+opening this region for use.
+*/
+
+void Manifest::ImportData() {
     assertf(completed==1, "ImportData has been called when completed==%d\n", completed);
 
     STDLOG(1,"Importing ReceiveManifest of %l bytes into the flow\n", bytes);
