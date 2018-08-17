@@ -29,17 +29,17 @@ ARCHFLAGS = --generate-code arch=compute_35,code=sm_35\
 # _FORCE_INLINES fixes a weird compilation bug
 CPPFLAGS += -D_FORCE_INLINES
 
-CUDAFLAGS = $(ARCHFLAGS) -lineinfo -Xptxas="-v" -maxrregcount 63 --default-stream per-thread -ccbin="$(CXX)" $(CXXFLAGS)
+CUDAFLAGS = $(ARCHFLAGS) -lineinfo -Xptxas="-v" -maxrregcount 63 --default-stream per-thread $(NVCC_FLAGS)
 
 all: gpudirect.a
 
 gpudirect.a: GPUControl.o
-	$(NVCC) $(CUDAFLAGS) -Xcompiler "$(CPPFLAGS)" -lib $^ -o $@ 
+	$(NVCC) $(CUDAFLAGS) -Xcompiler "$(NVCC_XCOMPILERFLAGS)" -lib $^ -o $@ 
 
 -include gpudirect.d
 
 GPUControl.o: GPUControl.cu
-	$(NVCC) $(CUDAFLAGS) -Xcompiler "$(CPPFLAGS) -MMD" -o $@ -c $<
+	$(NVCC) $(CUDAFLAGS) -Xcompiler "$(NVCC_XCOMPILERFLAGS) -MMD" -o $@ -c $<
 
 else
 all:

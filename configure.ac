@@ -300,7 +300,7 @@ if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
         PYTHON_CC=$(echo $GCC_FILES | awk '{print $1}')
     fi
     if test $NGCC_FILES -ne 1; then
-        AC_MSG_WARN(Could not find a unique *gcc file in $CONDA_BINDIR. May not be correct compiler for this platform!)
+        AC_MSG_WARN(Could not find a unique *gcc file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gcc*_impl package for your platform to get rid of this message.)
         AC_MSG_WARN(Using: "$PYTHON_CC")
     fi
 
@@ -310,7 +310,7 @@ if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
         PYTHON_CXX=$(echo $GXX_FILES | awk '{print $1}')
     fi
     if test $NGXX_FILES -ne 1; then
-        AC_MSG_WARN(Could not find a unique *g++ file in $CONDA_BINDIR. May not be correct compiler for this platform!)
+        AC_MSG_WARN(Could not find a unique *g++ file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gxx*_impl package for your platform to get rid of this message.)
         AC_MSG_WARN(Using: "$PYTHON_CXX")
     fi
 
@@ -318,6 +318,13 @@ if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
     # Let's assume that Anaconda Python always does the rpath linkage (which I think is true),
     # so we might as well supply the lib at link time, no matter if we actually found a conda gcc
     PYTHON_LDFLAGS="-L $CONDA_LIBDIR"
+
+    # Most likely the user is using Python compiled with GCC.  So if we are building extensions
+    # using icc (which shouldn't happen if the user installed the conda compilers), link some
+    # Intel libs
+    if test x$PYTHON_CXX == xicc; then
+        PYTHON_LDFLAGS+=' -lirc'
+    fi
 else
     AC_MSG_RESULT([no])
 fi

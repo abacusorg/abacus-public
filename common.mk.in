@@ -15,7 +15,8 @@ CC := @CXX@ -x c # Is this a canonical option?
 LDFLAGS := -Wl\,--as-needed  # seems to help us avoid a lot of mischief
 CXXFLAGS := -std=c++11
 ROOT_DIR ?= .
-CPPFLAGS := @DEFS@ -m64 -O3 -I $(ROOT_DIR)/include -g $(LDFLAGS)  # definitely not a preprocessor option, but it's the one flag we pass to gcc and g++
+OPT := -O3 -g
+CPPFLAGS := @DEFS@ -m64 -I $(ROOT_DIR)/include $(OPT) $(LDFLAGS)  # definitely not a preprocessor option, but it's the one flag we pass to gcc and g++
 #CPPFLAGS += -Wall  #TODO: clean up compiler warnings
 
 # We use bash syntax in some Makefiles
@@ -23,33 +24,11 @@ SHELL = /bin/bash
 
 CUDA_ENABLED = @CUDA_ENABLED@
 ifeq (@CUDA_ENABLED@,CUDA_ENABLED)
-    CUDA_CXXFLAGS := @CUDA_CFLAGS@ -ccbin @CXX@
+    NVCC_FLAGS := @CUDA_CFLAGS@ @DEFS@ $(OPT) -I $(ROOT_DIR)/include $(CXXFLAGS) -ccbin @CXX@
+    NVCC_XCOMPILERFLAGS := 
     CUDA_LIBS := @CUDA_LDFLAGS@ -lcuda -lcudart
     NVCC := @NVCC@
     CUDA_MAJOR_VER := @CUDA_MAJOR_VER@
-endif
-
-# Define GNU/Intel specific compiler options
-# In theory this is all fairly "static" and could be done in configure.ac if performance were a concern
-# (since common.mk is reloaded for every Makefile)
-# But it might be easier to leave compiler customizations here for people to edit
-ifeq (@CXX@,g++)
-    CXX_MAJOR_VER := $(shell $(CXX) -dumpversion | cut -f1 -d.)
-
-    ifeq (@ARCH@,powerpc)
-        # powerpc does not accept -march=native
-        CPPFLAGS += -mcpu=native -mtune=native
-    else
-        CPPFLAGS += -march=native
-    endif
-else ifeq (@CXX@,icc)
-    CPPFLAGS += -xHost -fp-model precise -fbuiltin -ip -mkl #-ipo #-prof-use=weighted
-endif
-
-ifeq (@TCMALLOC@,TCMALLOC_ENABLED)
-    TCMALLOC_CPPFLAGS += -I $(ROOT_DIR)/gperftools/include
-    TCMALLOC_CPPFLAGS += -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
-    # -ltcmalloc automatically goes into LIBS if it's available
 endif
 
 # It's not okay to link everything against tcmalloc.
@@ -80,7 +59,7 @@ PARSEHEADER_CPPFLAGS := -I $(ROOT_DIR)/ParseHeader
 
 # pthread and openmp are of course separate, but in practice we often use them together
 THREAD_LIBS := -pthread
-THREAD_CPPFLAGS := -fopenmp -foffload=disable  # offloading sends openmp to the GPU
+THREAD_CPPFLAGS := -fopenmp
 
 GPU_CONVOLUTION_ENABLED = @GPU_CONVOLUTION_ENABLED@
 ifeq ($(GPU_CONVOLUTION_ENABLED),GPU_CONVOLUTION_ENABLED)
@@ -93,6 +72,34 @@ READABACUS_LIBS := -L $(ROOT_DIR)/clibs
 PYTHON_CC := @PYTHON_CC@
 PYTHON_CXX := @PYTHON_CXX@
 PYTHON_LDFLAGS := @PYTHON_LDFLAGS@
+
+# Define GNU/Intel specific compiler options
+# We do this towards the bottom of the Makefile so we can modify options set above
+# In theory this is all fairly "static" and could be done in configure.ac if performance were a concern
+# (since common.mk is reloaded for every Makefile)
+# But it might be easier to leave compiler customizations here for people to edit
+ifeq (@CXX@,g++)
+    CXX_MAJOR_VER := $(shell $(CXX) -dumpversion | cut -f1 -d.)
+
+    ifeq (@ARCH@,powerpc)
+        # powerpc does not accept -march=native
+        CPPFLAGS += -mcpu=native -mtune=native
+    else
+        CPPFLAGS += -march=native
+    endif
+
+    THREAD_CPPFLAGS += -foffload=disable  # offloading sends openmp to the GPU
+else ifeq (@CXX@,icc)
+    CPPFLAGS += -xHost -fp-model precise -fbuiltin -ip -mkl #-ipo #-prof-use=weighted
+    NVCC_CPPFLAGS += -fp-model precise -ip -mkl
+endif
+
+TCMALLOC_CPPFLAGS :=
+ifeq (@TCMALLOC@,TCMALLOC_ENABLED)
+    TCMALLOC_CPPFLAGS += -I $(ROOT_DIR)/gperftools/include
+    TCMALLOC_CPPFLAGS += -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
+    # -ltcmalloc automatically goes into LIBS if it's available
+endif
 
 # If either PYTHON_CC or PYTHON_CXX is undefined
 #PythonCompilerWarning:
