@@ -41,6 +41,8 @@ class DummyTimer {
     inline void Start() { }
     inline void Stop() { }
     inline double Elapsed() { return 0.0; }
+    inline struct timeval get_timer() { }
+    inline void increment(struct timeval dt) { }
 };
 
 //  Now we get into the specifics of the FOF code.
@@ -279,6 +281,47 @@ inline void diff2avx8(float *r, float *p, float *a) {
 
 #endif
 
+float *compute_d2(FOFparticle *primary, FOFparticle *list, int nlist, float *d2buf, long long &numdists) {
+    // Return a pointer to a zero-indexed list of floats containing the 
+    // square distances between primary and list[0,nlist).
+    // d2buf is 16-byte aligned space that we supply for the output,
+    // but the returned pointer may not point to the start of it,
+    // since we have to attend to alignment..
+    float *d2use;
+
+    // This depends on the registration of unassigned.
+    // AVX requires the float4 list to be 32-byte aligned
+    // We assume that p is 32-byte aligned.
+    // if (((list-p)&1)==0) {
+    if (((uintptr_t)list)%32==0) {
+	// We have an even registration
+	d2use = d2buf;
+	//#pragma unroll
+	for (int a=0; a<nlist; a+=4)
+		    #ifdef AVXFOF
+		    diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
+		    #else
+		    diff2by4(d2use+a, primary, list+a);
+		    #endif
+		    //d2use[a] = primary->diff2(list+a);  // with ICC, this is actually the same speed
+    } else {
+	// We have an odd registration.  Do the first object special.
+	d2use = d2buf+3;
+	//? d2use[0] = primary->diff2(list);
+	d2use[0] = primary->diff2v(list);
+	//#pragma unroll
+	for (int a=1; a<nlist; a+=4)
+		    #ifdef AVXFOF
+		    diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
+		    #else
+		    diff2by4(d2use+a, primary, list+a);
+		    #endif
+		    //d2use[a] = primary->diff2(list+a);
+    }
+    numdists += nlist;
+    return d2use;
+}
+
 
 // Assume that FOFgroup is divisible by 16 and that the __m128 
 // elements will be 16-byte aligned for SSE.
@@ -314,7 +357,9 @@ class FOFcell {
     // Primary outputs, aside from the re-ordering of the input particles
     FOFgroup *groups;	// The multiplet ranges
     int ngroups;
-    long long numdists;
+    long long numdists;		///< Number of distances computed
+    long long numcenters;	///< The number of partitions used
+    long long numsorts; 	///< The number of sorts (not used in FOF)
     int nmultiplets; 	// Number of particles in multiplets
     int nsinglet_boundary;  // Plus number of particles near the edge
     		// So boundary singlets are in [nmultiplets, nsinglet_boundary)
@@ -329,6 +374,7 @@ class FOFcell {
     FOFTimer time_total;
 
     // The linking lengths that we've been setup to use.
+    FOFloat linking_length;   // The original entry, in code units
     FOFloat boundary;   // The location of the boundary, in FOF units
     FOFloat b;		// The linking length, in FOF units
     FOFloat b2;		// The linking length squared, in FOF units
@@ -389,6 +435,7 @@ class FOFcell {
 	// Positions are assumed to be cell-centered.
 	// We will change the length units to be single-precision,
 	// with the lower cell edge being at 0 and the units of linking lengths
+	linking_length = b;
 	boundary = _boundary*FOF_RESCALE;
 	b = _b*FOF_RESCALE;
 	b2 = b*b;
@@ -486,46 +533,6 @@ class FOFcell {
     }
 
     // ============  Some helper routines for the FOF work ============
-
-    inline float *compute_d2(FOFparticle *primary, FOFparticle *list, int nlist, float *d2buf) {
-        // Return a pointer to a zero-indexed list of floats containing the 
-	// square distances between primary and list[0,nlist).
-	// d2buf is 16-byte aligned space that we supply for the output,
-	// but the returned pointer may not point to the start of it,
-	// since we have to attend to alignment..
-	float *d2use;
-
-	// This depends on the registration of unassigned.
-	// AVX requires the float4 list to be 32-byte aligned
-	// We assume that p is 32-byte aligned.
-	if (((list-p)&1)==0) {
-	    // We have an even registration
-	    d2use = d2buf;
-	    //#pragma unroll
-	    for (int a=0; a<nlist; a+=4)
-			#ifdef AVXFOF
-			diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
-			#else
-			diff2by4(d2use+a, primary, list+a);
-			#endif
-			//d2use[a] = primary->diff2(list+a);  // with ICC, this is actually the same speed
-	} else {
-	    // We have an odd registration.  Do the first object special.
-	    d2use = d2buf+3;
-	    //? d2use[0] = primary->diff2(list);
-	    d2use[0] = primary->diff2v(list);
-	    //#pragma unroll
-	    for (int a=1; a<nlist; a+=4)
-			#ifdef AVXFOF
-			diff2avx4(d2use+a, (float *)(primary), (float *)(list+a));
-			#else
-			diff2by4(d2use+a, primary, list+a);
-			#endif
-			//d2use[a] = primary->diff2(list+a);
-	}
-	numdists += nlist;
-	return d2use;
-    }
 
     inline void add_to_pending(FOFparticle *&b, FOFparticle *a, 
     		FOFparticle &BBmin, FOFparticle &BBmax) {
@@ -698,8 +705,9 @@ class FOFcell {
 		// can search it efficiently.
 
 		pending_notcore = unassigned_core;
+		numcenters++;
 		float *d2use = compute_d2(primary, unassigned_core, 
-	    		unassigned_far-unassigned_core, d2buffer);
+	    		unassigned_far-unassigned_core, d2buffer, numdists);
 		for (FOFparticle *a = unassigned_core; a<unassigned_skin; a++, d2use++) {
 		    // numdists++;
 		    if (*d2use<b2) 
@@ -725,8 +733,9 @@ class FOFcell {
 		skin_radius *= skin_radius;
 
 		// We need to compute the distance to all remaining particles
+		numcenters++;
 		float *d2use = compute_d2(primary, primary+1,
-				    end-(primary+1), d2buffer);
+				    end-(primary+1), d2buffer, numdists);
 
 		// Sweep the partition list to partition core vs notcore.
 		pending_notcore = unassigned_core;
@@ -774,8 +783,10 @@ class FOFcell {
 	    // Advance primary, searching core+skin, to exhaust pending_core
 	    primary++;
 	    while (primary<pending_notcore) {
+		// We don't increment numcenters here, because we're 
+		// not touching the bulk of the particles.
 		float *d2use = compute_d2(primary, unassigned_core, 
-	    		unassigned_far-unassigned_core, d2buffer);
+	    		unassigned_far-unassigned_core, d2buffer, numdists);
 		// Now consider this particle
 		for (FOFparticle *a = unassigned_core; a<unassigned_skin; a++, d2use++) {
 		    // numdists++;
@@ -837,7 +848,9 @@ class FOFcell {
 	while (primary<end) {
 	    // First, we're going to compute the distances to [unassigned,end).
 	    // These will start in d2use[0].
-	    float *d2use = compute_d2(primary, unassigned, end-unassigned, d2buffer);
+
+	    numcenters++;
+	    float *d2use = compute_d2(primary, unassigned, end-unassigned, d2buffer, numdists);
 	    for (FOFparticle *a = unassigned; a<end; a++,d2use++) {
 		// numdists++;
 		if (*d2use<b2) add_to_pending(unassigned, a, BBmin, BBmax);
@@ -941,6 +954,7 @@ class FOFcell {
 
 
 
+#include "sofind.cpp"
 
 
 
