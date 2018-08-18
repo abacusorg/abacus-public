@@ -31,7 +31,6 @@ HaloStat ComputeStats(int size,
 	    FOFcell &L2, 
 	#endif
 	posstruct offset) {
-
     HaloStat h;
 
     h.N = size;
