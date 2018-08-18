@@ -49,7 +49,7 @@ class DummyTimer {
     inline void Start() { }
     inline void Stop() { }
     inline double Elapsed() { return 0.0; }
-    inline struct timeval get_timer() { }
+    inline struct timeval get_timer() { struct timeval retval; return retval; }
     inline void increment(struct timeval dt) { }
 };
 

@@ -29,6 +29,8 @@ struct DeviceData{
     FLOAT *         SinkSourceYOffset;
 
     FLOAT	    b2;
+
+    int nfwidth;
 };
 
 // Here's the GPU code that knows what to do with a DeviceData structure
@@ -159,6 +161,7 @@ void GPUPencilTask(void *item, int g){
     StartThroughputTimer(DeviceStreams[g], cudaSuccess, (void *) task);
 
     StreamData.b2 = task->b2;
+    StreamData.nfwidth = task->nfwidth;
 
     // Need to load the particles to the PinnedBuffer.
     // Copy the sinks into position

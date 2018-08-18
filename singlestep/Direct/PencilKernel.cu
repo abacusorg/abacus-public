@@ -99,8 +99,8 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
     accstruct a = {(FLOAT)0.0,(FLOAT)0.0,(FLOAT)0.0};
 #endif
     
-    int InteractionStart = sinkIdx * WIDTH;
-    int InteractionMax =  InteractionStart + WIDTH;
+    int InteractionStart = sinkIdx * d.nfwidth;
+    int InteractionMax =  InteractionStart + d.nfwidth;
 
     #pragma unroll
     for(int c = InteractionStart; c < InteractionMax; c++){
