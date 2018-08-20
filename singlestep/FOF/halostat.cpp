@@ -12,18 +12,25 @@ inline float3 WrapPosition(float3 a) {
 }
 
 #define assign_to_vector(a,b) { a[0] = b.x; a[1] = b.y; a[2] = b.z; }
+    /** Fill a HaloStat object and return it.
+
+    We are given the L1 particles as pos/vel/aux from [0,size).
+    These are in the original order; we don't care.
+    We are also given the L2 FOF results class.
+    The particle positions have already been wrapped to the first cell;
+    we will wrap to global coords, using offset
+    Velocities will be converted to our usual velocity output
+    convention of unit-box redshift-space displacements
+    */
 
 HaloStat ComputeStats(int size, 
 	posstruct *L1pos, velstruct *L1vel, auxstruct *L1aux, 
-	FOFcell &L2, posstruct offset) {
-    // We are given the L1 particles as pos/vel/aux from [0,size).
-    // These are in the original order; we don't care.
-    // We are also given the L2 FOF results class.
-    // Task is to fill a HaloStat object and return it.
-    // The particle positions have already been wrapped to the first cell;
-    // we will wrap to global coords, using offset
-    // Velocities will be converted to our usual velocity output
-    // convention of unit-box redshift-space displacements
+	#ifdef SPHERICAL_OVERDENSITY
+	    SOcell &L2, 
+	#else
+	    FOFcell &L2, 
+	#endif
+	posstruct offset) {
     HaloStat h;
 
     h.N = size;

@@ -102,7 +102,7 @@ fi
 AC_ARG_WITH(radius,
 	[AS_HELP_STRING([--with-radius=NFR], [Near field radius [2]])],
 	[], with_radius="2")
-AC_DEFINE_UNQUOTED(NFRADIUS,$with_radius, "Radius of cells to compute with near-field force")
+AC_DEFINE_UNQUOTED(NFRADIUS,$with_radius, "Max Radius of cells to compute with near-field force")
 
 AC_ARG_WITH(block-size,
 [AS_HELP_STRING([--with-block-size=B], [Near field block size [64]])],
@@ -155,7 +155,7 @@ AC_ARG_ENABLE(avx-fof,
 [AS_HELP_STRING([--enable-avx-fof], [AVX FOF [yes if AVX present]])],
     [], enable_avx_fof=$enable_avx)
 if test x$enable_avx_fof == xyes; then
-    AC_DEFINE_UNQUOTED(AVXFOF, [], "Use AVX FOF")
+    AC_DEFINE_UNQUOTED(AVXFOF, [], "Use AVX for FOF and SO")
 fi
 
 AC_ARG_WITH(max-cpd,
@@ -173,6 +173,13 @@ AC_ARG_ENABLE(threaded-io,
 	[], enable_threaded_io="yes")
 if test x$enable_threaded_io == xyes; then
 	AC_DEFINE_UNQUOTED(IOTHREADED, [], "Use a separate thread for IO")
+fi
+
+AC_ARG_ENABLE(spherical-overdensity,
+[AS_HELP_STRING([--enable-spherical-overdensity], [Use SO finder [no]])],
+	[], enable_spherical_overdensity="no")
+if test x$enable_spherical_overdensity == xyes; then
+	AC_DEFINE_UNQUOTED(SPHERICAL_OVERDENSITY, [], "Use SO finder for L1/L2 hhalos, rather than FOF")
 fi
 
 AC_ARG_ENABLE(gpu-directs,
@@ -340,13 +347,14 @@ echo
 echo "------------------------------------------------------"
 echo "Abacus has been configured with the following options:"
 echo "Double precision:                $enable_double"
-echo "Near field radius:               $with_radius"
+echo "Near field max radius:           $with_radius"
 echo "Near field block size:           $with_block_size"
 echo "AVX directs:                     $enable_avx_directs"
 echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "AVX multipoles:                  $enable_avx_multipoles"
 echo "AVX-512 multipoles:              $enable_avx512_multipoles"
 echo "AVX FOF:                         $enable_avx_fof"
+echo "Spherical Overdensity:           $enable_spherical_overdensity"
 echo "Maximum CPD:                     $with_max_cpd"
 echo "Maximum source length:           $with_max_source_length"
 echo "Threaded IO:                     $enable_threaded_io"

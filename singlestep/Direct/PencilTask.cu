@@ -20,20 +20,17 @@ struct DeviceData{
     
     int *           SinkSetIdMax;
     accstruct *        SinkSetAccelerations;
-    FLOAT	    b2;
-    int             NSinkBlocks;
     int *           SinkBlockParentPencil;
 
     int *           SourceSetStart;
     int *           SourceSetCount;
-    int             NSourceBlocks;
-
-    int             NSinkSets;
-    int             NSourceSets;
-    int             InteractionCount;
 
     int *           SinkSourceInteractionList;
     FLOAT *         SinkSourceYOffset;
+
+    FLOAT	    b2;
+
+    int nfwidth;
 };
 
 // Here's the GPU code that knows what to do with a DeviceData structure
@@ -163,15 +160,15 @@ void GPUPencilTask(void *item, int g){
     uint64 size_to_gpu = 0, size_from_gpu = 0;
     StartThroughputTimer(DeviceStreams[g], cudaSuccess, (void *) task);
 
-    StreamData.InteractionCount = task->InteractionCount;
     StreamData.b2 = task->b2;
+    StreamData.nfwidth = task->nfwidth;
 
     // Need to load the particles to the PinnedBuffer.
     // Copy the sinks into position
     task->LaunchDeviceKernels.Stop();
     task->FillSinks.Start();
     for (int j=0; j<task->NSinkSets; j++) {
-        task->SinkPlan[j].copy_into_pinned_memory(PinnedBuffer.SinkSetPositions, task->SinkSetStart[j], task->SinkSetCount[j], task->SinkPosSlab);
+        task->SinkPlan[j].copy_into_pinned_memory(PinnedBuffer.SinkSetPositions, task->SinkSetStart[j], task->SinkSetCount[j], task->SinkPosSlab, task->nfradius);
     }
     task->FillSinks.Stop();
     task->LaunchDeviceKernels.Start();
@@ -186,7 +183,7 @@ void GPUPencilTask(void *item, int g){
     // Repeat this with the sources
     task->FillSources.Start();
     for (int j=0; j<task->NSourceSets; j++) {
-        task->SourcePlan[j].copy_into_pinned_memory(PinnedBuffer.SourceSetPositions, task->SourceSetStart[j], task->SourceSetCount[j], task->SourcePosSlab);
+        task->SourcePlan[j].copy_into_pinned_memory(PinnedBuffer.SourceSetPositions, task->SourceSetStart[j], task->SourceSetCount[j], task->SourcePosSlab, task->nfradius);
     }
     task->FillSources.Stop();
     task->LaunchDeviceKernels.Start();
@@ -227,7 +224,7 @@ void GPUPencilTask(void *item, int g){
     // Now copy the data from Pinned back to the SIC buffer
     task->CopyAccelFromPinned.Start();
     for (int j=0; j<task->NSinkSets; j++) {
-        task->SinkPlan[j].copy_from_pinned_memory((void *)PinnedBuffer.SinkSetAccelerations, task->SinkSetStart[j], task->SinkSetCount[j], (void *)task->SinkAccSlab, j);
+        task->SinkPlan[j].copy_from_pinned_memory((void *)PinnedBuffer.SinkSetAccelerations, task->SinkSetStart[j], task->SinkSetCount[j], (void *)task->SinkAccSlab, j, task->nfradius);
     }
 
     // Declare victory!

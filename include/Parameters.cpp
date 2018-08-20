@@ -138,9 +138,11 @@ public:
 
     int AllowGroupFinding;
     double FoFLinkingLength[3]; //Linking lengths for level 0,1,2 groupfinding in fractional interparticle spacing 
+    double SODensity[2];  // Overdensities for SO groupfinding level 1 and 2
     int MinL1HaloNP; // minimum L1 halo size to output
 	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
     double HaloTaggableFraction; // fraction of particles in a L2 halo to tag and output
+    int OutputAllHaloParticles;  // ==0 normally, to output only taggable L1 particles.  If non-zero, output all particles.
 
     double MicrostepTimeStep; // Timestep parameter that controls microstep refinement
 
@@ -318,12 +320,17 @@ public:
         FoFLinkingLength[1] = .186;
         FoFLinkingLength[2] = .138;
         installvector("FoFLinkingLength",FoFLinkingLength,3,1,DONT_CARE);
+        SODensity[0] = 180.0;
+        SODensity[1] = 720.0;
+        installvector("SODensity",SODensity,2,1,DONT_CARE);
         MinL1HaloNP = 10;
         installscalar("MinL1HaloNP", MinL1HaloNP, DONT_CARE);
 		L1Output_dlna = .1;
 		installscalar("L1Output_dlna", L1Output_dlna, DONT_CARE);
         HaloTaggableFraction = 0.1;
         installscalar("HaloTaggableFraction", HaloTaggableFraction, DONT_CARE);
+        OutputAllHaloParticles = 0;
+        installscalar("OutputAllHaloParticles", OutputAllHaloParticles, DONT_CARE);
 
         MicrostepTimeStep = 1.;
         installscalar("MicrostepTimeStep", MicrostepTimeStep, DONT_CARE);

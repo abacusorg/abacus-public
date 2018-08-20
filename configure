@@ -722,6 +722,7 @@ enable_avx_fof
 with_max_cpd
 with_max_source_length
 enable_threaded_io
+enable_spherical_overdensity
 enable_gpu_directs
 with_cuda
 enable_gpu_convolution
@@ -1379,6 +1380,8 @@ Optional Features:
                           AVX-512 multipoles [yes if AVX-512 present]
   --enable-avx-fof        AVX FOF [yes if AVX present]
   --enable-threaded-io    Threaded IO [yes]
+  --enable-spherical-overdensity
+                          Use SO finder [no]
   --enable-gpu-directs    GPU directs [yes if CUDA detected]
   --enable-gpu-convolution
                           Convolution FFT on GPU [no]
@@ -5859,6 +5862,21 @@ _ACEOF
 
 fi
 
+# Check whether --enable-spherical-overdensity was given.
+if test "${enable_spherical_overdensity+set}" = set; then :
+  enableval=$enable_spherical_overdensity;
+else
+  enable_spherical_overdensity="no"
+fi
+
+if test x$enable_spherical_overdensity == xyes; then
+
+cat >>confdefs.h <<_ACEOF
+#define SPHERICAL_OVERDENSITY /**/
+_ACEOF
+
+fi
+
 # Check whether --enable-gpu-directs was given.
 if test "${enable_gpu_directs+set}" = set; then :
   enableval=$enable_gpu_directs;
@@ -6605,13 +6623,14 @@ echo
 echo "------------------------------------------------------"
 echo "Abacus has been configured with the following options:"
 echo "Double precision:                $enable_double"
-echo "Near field radius:               $with_radius"
+echo "Near field max radius:           $with_radius"
 echo "Near field block size:           $with_block_size"
 echo "AVX directs:                     $enable_avx_directs"
 echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "AVX multipoles:                  $enable_avx_multipoles"
 echo "AVX-512 multipoles:              $enable_avx512_multipoles"
 echo "AVX FOF:                         $enable_avx_fof"
+echo "Spherical Overdensity:           $enable_spherical_overdensity"
 echo "Maximum CPD:                     $with_max_cpd"
 echo "Maximum source length:           $with_max_source_length"
 echo "Threaded IO:                     $enable_threaded_io"

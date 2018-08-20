@@ -9,7 +9,7 @@
 /* "Use AVX directs" */
 #undef AVXDIRECT
 
-/* "Use AVX FOF" */
+/* "Use AVX for FOF and SO" */
 #undef AVXFOF
 
 /* "Use AVX multipoles" */
@@ -194,7 +194,7 @@
 /* "Near field block size" */
 #undef NFBlockSize
 
-/* "Radius of cells to compute with near-field force" */
+/* "Max Radius of cells to compute with near-field force" */
 #undef NFRADIUS
 
 /* Path to nvcc binary */
@@ -220,6 +220,9 @@
 
 /* The size of `long', as computed by sizeof. */
 #undef SIZEOF_LONG
+
+/* "Use SO finder for L1/L2 hhalos */
+#undef SPHERICAL_OVERDENSITY
 
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
