@@ -36,10 +36,17 @@ all: gpudirect.a
 gpudirect.a: GPUControl.o
 	$(NVCC) $(CUDAFLAGS) -Xcompiler "$(NVCC_XCOMPILERFLAGS)" -lib $^ -o $@ 
 
--include gpudirect.d
+# Don't want make distclean to force dependency generation
+# Only have to do this because nvcc doesn't offer -MMD to do inline dep generation
+ifeq (,$(findstring clean,$(MAKECMDGOALS)))
+-include GPUControl.d
+endif
 
-GPUControl.o: GPUControl.cu
-	$(NVCC) $(CUDAFLAGS) -Xcompiler "$(NVCC_XCOMPILERFLAGS) -MMD" -o $@ -c $<
+GPUControl.d:
+	$(NVCC) $(CUDAFLAGS) -Xcompiler "$(NVCC_XCOMPILERFLAGS)" -M $(@:.d=.cu) -o $@
+
+GPUControl.o: GPUControl.cu GPUControl.d
+	$(NVCC) $(CUDAFLAGS) -Xcompiler "$(NVCC_XCOMPILERFLAGS)" -o $@ -c $<
 
 else
 all:

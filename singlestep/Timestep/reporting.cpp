@@ -127,7 +127,7 @@ void ReportTimings(FILE * timingfile) {
     if(JJ){
         REPORT(1, "NearForce [blocking]", NearForce.Elapsed()); total += thistime;
         REPORT(1, "NearForce [non-blocking]", JJ->GPUThroughputTime); //total += thistime;
-        fprintf(timingfile,"---> %6.2f effective GDIPS, %6.2f Gdirects, %6.2f Mpart/sec", thistime ? JJ->gdi_gpu/thistime : 0, JJ->gdi_gpu, thistime ? P.np/thistime/1e6 : 0.);
+        fprintf(timingfile,"---> %6.2f effective GDIPS, %6.2f Gdirects, %.2f Mpart/sec", thistime ? JJ->gdi_gpu/thistime : 0, JJ->gdi_gpu, thistime ? P.np/thistime/1e6 : 0.);
         double total_di = (JJ->DirectInteractions_CPU +JJ->TotalDirectInteractions_GPU)/1e9;
     }
 #else
