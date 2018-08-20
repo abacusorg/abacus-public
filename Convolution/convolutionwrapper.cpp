@@ -56,8 +56,13 @@ void dumpstats(OutofCoreConvolution *OCC, char *fn) {
     double discrepency = OCC->CS.ConvolveWallClock - accountedtime;
 
     int computecores = OCC->CS.ComputeCores;
-    fprintf(fp,"Convolution parameters:  RamAllocated = %dMB CacheSizeMB = %dMB nreal_cores=%d blocksize=%d zwidth=%d cpd=%d order=%d\n\n",
+    fprintf(fp,"Convolution parameters:  RamAllocated = %dMB CacheSizeMB = %dMB nreal_cores=%d blocksize=%d zwidth=%d cpd=%d order=%d",
         (int) (OCC->CS.totalMemoryAllocated/(1<<20)), OCC->CS.runtime_ConvolutionCacheSizeMB, computecores, (int) OCC->CP.blocksize, (int) OCC->CP.zwidth, OCC->CP.runtime_cpd, OCC->CP.runtime_order);
+
+#ifdef CONVIOTHREADED
+    fprintf(fp, " niothread=%d", OCC->CP.niothreads);
+#endif
+    fprintf(fp,"\n\n");
 
     fprintf(fp,"\t ConvolutionWallClock:  %2.2e seconds \n", OCC->CS.ConvolveWallClock );
     fprintf(fp,"\t \t %50s : %1.1e seconds\n", "Array Swizzling", OCC->CS.ArraySwizzle );
@@ -152,6 +157,10 @@ void setup_openmp(){
         /*int main_thread_core = P.Conv_IOCore != 0 ? 0 : 1;
         set_core_affinity(main_thread_core);
         STDLOG(1, "Assigning main convolution thread to core %d\n", main_thread_core);*/
+
+        for(int g = 0; g < nthreads; g++)
+            for(int h = 0; h < g; h++)
+                assertf(core_assignments[g] != core_assignments[h], "Two OpenMP threads were assigned to the same core! This will probably be very slow. Check OMP_NUM_THREADS and OMP_PLACES?\n");
     }
 
 }
@@ -241,7 +250,7 @@ int main(int argc, char ** argv){
         int n_alloc_block = 1;
 #endif
         uint64_t zslabbytes = p.rml*P.cpd*P.cpd*n_alloc_block*sizeof(MTCOMPLEX);
-        zslabbytes += n_alloc_block*sizeof(double)*p.rml*p.CompressedMultipoleLengthXY;  // derivatives block
+        zslabbytes += n_alloc_block*sizeof(DFLOAT)*p.rml*p.CompressedMultipoleLengthXY;  // derivatives block
         STDLOG(0,"Each slab requires      %.2f MB\n",zslabbytes/1024/1024.);
         STDLOG(0,"You allow a maximum of  %.2f MB\n",rambytes/1024/1024.);
         uint64_t swizzlebytes = p.rml*P.cpd*P.cpd*sizeof(Complex);
@@ -252,13 +261,19 @@ int main(int argc, char ** argv){
             exit(1);
         }
 
-        int zwidth = 0;
-        for(zwidth=(P.cpd+1)/2;zwidth >= 1;zwidth--) {
-            if( zwidth*zslabbytes + swizzlebytes < rambytes) break;
+        // Use the zwidth in the parameter file if given
+        // otherwise choose one based on available RAM
+        if(P.Conv_zwidth > 0){
+            p.zwidth = P.Conv_zwidth;
+        } else {
+            int zwidth = 0;
+            for(zwidth=(P.cpd+1)/2;zwidth >= 1;zwidth--) {
+                if( zwidth*zslabbytes + swizzlebytes < rambytes) break;
+            }
+            // Always use at least two blocks.  Ensures overlap of IO/compute
+            zwidth = min((P.cpd+1)/4, zwidth);
+            p.zwidth = zwidth;
         }
-        // Always use at least two blocks.  Ensures overlap of IO/compute
-        zwidth = min((P.cpd+1)/4, zwidth);
-        p.zwidth = zwidth;
         
         for (int i = 0; i < MAX_IO_THREADS; i++)
             p.io_cores[i] = P.Conv_IOCores[i];
