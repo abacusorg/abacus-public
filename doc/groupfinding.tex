@@ -1,0 +1,297 @@
+Group finding in Abacus works in a hierarchical fashion and is fully
+integrated with the cell and slab structure of the rest of the code.
+We begin by finding Level 0 (L0) groups with a Friends-of-Friends
+(FOF) finder with a relatively generous linking length, typically
+0.20--0.25 of the interparticle spacing.  The L0 groups are used
+for microstepping and therefore must be found in every full timestep
+in which microstepping is being used.  Further, we must find all
+groups down to those of 2 particles.  We then optionally search the
+L0 groups to find Level 1 (L1) and Level 2 (L2) groups, with the
+idea that the L1 groups are to be used for Halo Occupation Modeling
+and the L2 halos provide some measure of substructure within the
+L1 halos.  The L1 and L2 searches happen with either FOF or the
+Spherical Overdensity (SO) method.  L1 groups are fully contained
+within their L0 particle sets, and similarly for L2 within L1.  This
+would have happened trivially in the case of FOF, but presents a
+small additional restriction in the case of SO.  Because we only
+care about L1 halos above some minimum size, typically 20--100, we
+can restrict this step to the L0 parents of at least that size.
+
+To speed up the group finding work, as part of the full timestep
+force calculation, we also compute a density within a scale $b_d$,
+in which we accumulate the particle count for separation $r<b_d$
+weighted by $1-r^2/b_d^2$.  By choosing $b_d$ to be just slightly
+larger than the L0 FOF linking length, we assure that this density
+is non-zero for all particles that have a L0 neighbor and zero for
+nearly all the rest.  This immediately eliminates many particles
+from the L0 work, in particular avoiding the singlets that require
+$O(N^2)$ distance comparisons to resolve.  In addition, we will use
+this FOF-scale density to decide the centers for our SO L1/L2 finder.
+
+The L0 FOF algorithm is implemented in a 3-part sequence.  First,
+we perform FOF group finding within each cell, yielding CellGroups,
+including the singlet particles.  Second, we search all pairs of
+adjacent cells to find links between CellGroups.  Third, we use the
+links to aggregate the CellGroups into our L0 groups, which we also
+call GlobalGroups.  The particles in a cell are permuted to be
+contiguous within CellGroups, and the GlobalGroups are then simply
+lists of the included CellGroups.
+
+Our FOF finder for a specified set of particles, whether those in a 
+cell or those in a L0 or L1 parent halo, is as follows.  For sets smaller
+than some threshold, chosen to be 70 based on timings, we do the 
+usual simple first-in-first-out queue method.  We choose a particle
+to start the group, search all the remaining unassigned particles to
+find its neighbors, add those neighbors to the queue, and then repeat
+until the queue is empty.  That forms a complete FOF group, and one
+then starts the next group with the next unassigned particle.
+
+For larger sets, we use additional steps.  Having chosen the primary
+particle, we find the distance to all of the unassigned particles.
+Those within the linking length $b$ are added to the queue.  We then
+partition the unassigned list to separate those particles within 
+$sb$ from those outside.  We further keep the queue separated between
+those within $(s-1)b)$ from those larger, doing them first.  The
+advantage of this is that all queued particles within $(s-1)b$ will
+only require searching the unassigned particles within $sb$, thereby
+sharply reducing the number of comparisons that must be done.  Only
+when the interior queue particles have been completely searched do
+we need to re-partition the full list.  In practice, we keep the 
+unassigned particles separated into 3 sublists, using $(s-1)b$ and
+$sb$ to divide, so that newly found neighbors can be inserted into 
+the correct portion of the pending queue.  As is common, these 
+lists are all kept in place, simply swapping end particles to move
+the boundaries.
+
+We further speed the algorithm by storing the position and original
+particle index in a compact quad of floats, aligned to 16 bytes to
+aid in SSE/AVX vectorization.  We store the index as a float, which
+is exact for lists of $<$8 million particles.  We multiply the
+positions by $10^{12}$ so that the square distances can be computed
+as the 4-dimensional distance, with the index component underflowing
+single-precision math for the comparison to $b^2$.  This permits
+easier vectorization.  We additionally find that computing the
+square distance to 4 particles at once has a compact AVX encoding
+using the horizontal add instruction.  All comparisons are done in
+square distance.  We also keep track of a Cartesian min/max bounding
+box for all groups.
+
+Having done all of the neighbor searching using and permuting only
+these quads, we then use the indices to access the original particle
+data.  For L0 finding, we use them to permute the position, velocities,
+accelerations, and auxillary array for particle lists in the cells.
+Singlet groups whose particle position lie within $b$ of the cell
+boundary are tracked as CellGroups; the interior singlets are ignored
+from further work.  All multi-particle groups are tracked as
+CellGroups.  Every CellGroup has a unique lookup identification
+number, given by the $(i,j,k)$ index of the cell and the enumeration
+of the CellGroups within the cell.
+
+The work interior to each set of particles (e.g., each cell) is 
+separate from all other sets, so we parallelize over each set.
+For the L0 search, we consider one slab (index $i$) at a time and 
+parallelize over the pencils (index $j$), giving each thread a
+range of $j$ and the full range of $k$.  As the number of CellGroups
+to be stored in each cell is not known in advance, we use an adaptable
+storage class that keeps the results for each pencil contiguous, as 
+these are being generated by a single thread and hence have no
+contention in writing.
+
+
+In the next step, we need to search across all cell boundaries to find
+pairs of CellGroups that share a pair of particles within a separation
+$b$.  As soon as we find any such pair of particles, the CellGroup pair
+is marked as a GroupLink, and we can stop searching the particles.
+Of course, only particles within $b$ of the relevant face, edge, or 
+corner need be considered.  In practice, we find that the selection of
+those particles is sufficiently time-consuming that we only separate
+particles by the faces and just incur the extra particle searches for
+the edges and corners.  As comparisons are symmetric, we compare 
+from each cell to 13 of its neighbors, including all of the neighbors
+from the previous slab.  
+
+When preparing a face, we limit the work in several ways.  First,
+all CellGroups whose bounding box doesn't fall within $b$ of the 
+given face can be ignored.  For the remaining CellGroups, we extract
+out the particles that are close to the edge, computing a new Cartesian
+bounding box for these.  We then compute the midpoint and corner-to-corner
+radius of this box.  By preparing all of the needed faces for a cell
+at one time, we get substantial cache reuse in accessing the cell's particles.
+
+The task of comparing two faces is then reduced to the comparison
+between a small set of points, using the sum of $b$ and the two
+radii.  If a pair of points is close enough, and if both are singlets,
+then we have found a link.  If one or both of the points are
+multiplets, then we have to go to the actual boundary particle lists
+to search for pairs separated by $<b$.
+
+The gathering of the links is independent between all pairs of faces.
+In practice, we parallelize by giving each thread a range of $j$ and
+use the adaptable pencil-based storage class to accumulate the needed
+bookkeeping.  The links we find are stored in a single large list, 
+in which each thread reserves short segments to fill, with the 
+remaining gaps collapsed at the end.  The links are stored simply
+as pairs of CellGroup identifiers and are stored twice, in each of
+the symmetric orderings.
+
+
+For the final step, we must connect the links to find the GlobalGroups.
+As we plan that groups can subtend up to $G$ cells, we cannot do
+this step until links have been found for all slabs within $G$ of
+the present one.  At this point, we sort the GroupLink list by the
+first identifier of each link and then build a cell-level indexing
+for those slabs, so that we can quickly find all links whose first
+index is in a cell.
+
+The traversal of links to define a GlobalGroups then proceeds in a 
+manner similar to the first-in-first-out queue of the FOF algorithm.
+We select a previously unassigned CellGroup to start the GlobalGroup.
+We then find all of the links for which this CellGroup is the first 
+index and add the CellGroup in the second index to the search queue,
+marking it as assigned.  At this point, we set the first index of 
+each link to --1, which will mark that it is to be deleted.
+We then proceed down the queue, repeating this, save that when we
+find a link, we only add its second index to the queue if it is not
+already in the queue.  Note that each pair of linked CellGroups
+will be tranversed in both directions in this process, causing both
+of the links to be marked for deletion.  When the queue is empty,
+the list of CellGroups are marked as a GlobalGroup.  GlobalGroups
+can contain only one CellGroup, but those with only 1 particle
+are not tracked further.
+
+After GlobalGroups for a slab are found, we gather the particles for
+further processing, i.e., microstepping and L1/L2 group finding.  The
+gathering keeps CellGroups contiguous, but places all of the CellGroups
+in a GlobalGroup together so that the particles are contiguous.  We also
+change coordinate system from the cell-centered positions in the parent
+code to coordinates centered on the cell of the first CellGroup.  It
+is required that the further processing keep the particles in the
+same order, as the scattering of particle information back to the
+cells is simple.  For example, we set bits in the auxillary field 
+to mark all L0 and L1 particles.
+
+
+For L1/L2 finding, we use either FOF or SO.  For the FOF option, we
+simply reuse the base FOF code, operating on one particle set per L0
+group.  This takes longer than finding the original CellGroups because
+the GlobalGroups can contain many more particles.  However, the spherical
+partitioning completes in an acceptable amount of time.
+
+For the SO option, we employ a greedy algorithm within each parent
+group.  We use the position/index quads of the FOF code.  We select
+the particle with the largest FOF-scale density and mark it as the
+center.  We then compute the square distance to all other particles,
+storing one copy of that list and sort a second copy in increasing
+order.  Working from the end, we find the maximum square distance
+at which mass interior (which is known simply from the index of
+this array) exceeds the required overdensity threshold.  We then
+partition the particle and distance arrays based on the square
+distance threshold.  These particles are assigned to this group.
+We then repeat this whole procedure on the remaining particles,
+selecting the densest particle remaining as the new center.  We stop
+when there is no particle with a density exceeding some minimum
+value.  This minimum density criteria is not applied to the first
+center, so there is always at least one SO group within the parent.
+
+Unlike FOF, the SO method has numerous subsidiary assumptions.  For
+example, we begin our search from the particle with the highest
+FOF-scale density, which may not be the center that maximizes the 
+mass.  Nor do we consider any competition between centers for the
+membership of a particle: it is possible that a particle would have
+had a higher overdensity if it belonged to another group that had
+a smaller maximum density at its center.  More competitive choices
+might produce memberships more similar to tidal radii.  And we stop
+our searching at a choice of a threshold density for the central
+particle.  This is important for avoiding $O(N^2)$ distance
+calculations between all of the remaining lower-density particles 
+in the parent group, but if chosen poorly it could cause us to 
+miss some viable SO groups.  We pick the threshold central density
+to be equal to the overdensity threshold, for reasons to be justified
+next.
+
+As mentioned above, our FOF-scale density uses the weighting kernel
+$1-r^2/b^2$.  This was done for several reasons.  By avoiding a
+discontinuity at $r=b$, it reduces the noise from small perturbations
+in the particle positions.  It also greatly reduces the likelihood
+that two particles will have the same density, thereby making the
+selection of the densest particle unambiguous in nearly all practical
+cases.  And it gives a smaller-scale kernel, better to find
+substructure and the densest core of a halo.  The volume of the
+kernel is $8\pi b^3/15$, for an effective radius of $1.17b$.  If
+we are using $b=0.2$ of the interparticle spacing, then a local
+smooth density of 180 corresponds to a weighted count of 2.3, coming
+from an average of 6 particles.
+
+For a large group, the local density at the boundary will be
+considerably less than the overdensity interior to the boundary.
+For example, for the $1/r^2$ density profile of the singular
+isothermal sphere, the boundary density is 3 times lower.  Hence,
+in large groups, we expect that relatively few particles will
+fluctuate from the mean of 2 particles up to the threshold of 6,
+successfully reducing the work.  The higher densities of the L2
+search are yet more effective in this.
+
+Meanwhile, if we had a group with 20 particles with overdensity 180,
+this would correspond to a radius of about 0.3 times the interparticle
+spacing.  If that group had a true density profile of $1/r^2$, then
+we can integrate our kernel around the center to find an expected
+weighted count of 9 (for $b=0.2$).  Hence, the group would have to
+be substantially less cuspy to fail to yield a central particle
+above our threshold.  It is important in this regard that the 
+density kernel use a smaller volume than the volume of the smallest
+SO halos we wish to find.
+
+For larger groups, this interior density scales as $M_{180}^{2/3},
+making it exceedingly unlikely that a group will be missed.  Of
+course, it may be miscentered and hence misweighed due to variations
+in the FOF-scale density, including the chance of lower-mass but
+higher-central-density subhalos.
+
+Neither of our methods involves unbinding of fast-moving particles
+or other considerations of the phase-space distribution.  Of course,
+in dynamically evolving situations, the energy of a single particle
+is not conserved and the binding energy is not a guarantee of 
+long-term membership in a halo.  
+
+
+Having found the L1 groups, we compute and report statistics on the
+particle distribution.  These include the center of mass position
+and velocity, the same for the largest L2 subgroup, the masses of
+the 3 largest L2 subgroup, and the L1 mass.  Around both of the
+center of masses (L1 and largest L2), we report the 3 eigenvalues
+of the velocity dispersion tensor, the radii of various quantiles
+of spherical mass, and the radius and value of the maximum circular
+velocity, computed in the spherical approximation.  For SO, we 
+also report the FOF-scale density and position of the central particle
+in the L1 group.
+
+Further, we output a subset of the particles, with the intention
+that they may serve as a location of satellite galaxies in HOD
+formulations.  At the beginning of the simulation, we mark some
+particles as taggable, setting a bit in their auxillary field.
+Typically this is 10\%, set by a hash of the particle id number.
+When requested, we output the position, velocity, and particle ID
+of the taggable particles in each L1 halo, with the indexing of
+these particles stored in the halo statistics file.  We also 
+can output all of the taggable particles in a slab that are not
+in any L1 group; the union of these two sets will give a subsample
+of the full simulation matter field, with the same particles used
+in each time slice.
+
+To support associations between halos at different time steps, we 
+output the particle IDs of all tagged particles in each L1 halo,
+again with an indexing stored in the halo statistics.  A taggable 
+particle becomes permanently tagged if it ever falls within the largest
+L2 subgroup of any halo.  The intention is that one can output
+the tagged particle IDs along with the halo statistics at dozens
+of redshifts, suitable to create a merger tree, as these particles
+will tend to follow the core of the L1 halos and can be associated
+between the time slices.
+
+
+Describe more: Why do we ouput L0 halo and field separately in time
+slices?  When do we do the subsample outputs vs only the tagged PIDs?
+
+
+Discuss speed?  Numbers of CG, GG, SO, etc.
+
