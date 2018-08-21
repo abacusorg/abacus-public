@@ -205,8 +205,8 @@ class SetInteractionCollection{
 		///< Each interaction requires a different Delta(y) to
 		///< shift the particle positions from the Pencil center.
 
-        uint64 DirectTotal; ///<Number of directs for this interection collection
-		// This is the unpadded, science-useful count of directs
+        uint64 DirectTotal; ///<Number of unpadded, science-useful directs for this interection collection
+        uint64 PaddedDirectTotal; ///<Number of padded directs that the GPU actually performs for this interection collection
         uint64 SinkTotal;	///< The number of total sinks (padded out to blocks)
         uint64 SourceTotal;	///< The number of total sources (padded)
     

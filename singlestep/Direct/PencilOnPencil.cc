@@ -352,8 +352,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSourceYOffset, 4096, sizeof(FLOAT) * InteractionCount) == 0);
     FLOAT cellsize = PP->invcpd;
     
-    uint64 localDirectTotal = 0;
-    #pragma omp parallel for schedule(static) reduction(+:localDirectTotal)
+    uint64 localDirectTotal = 0, localPaddedDirectTotal = 0;
+    #pragma omp parallel for schedule(static) reduction(+:localDirectTotal) reduction(+:localPaddedDirectTotal)
     for(int j = 0; j < j_width; j++){
         int g = omp_get_thread_num();
         assertf(j*Nk + Nk <= NSinkSets, "SinkSetCount array access at %d would exceed allocation %d\n", j*Nk + Nk, NSinkSets);
@@ -378,10 +378,12 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
                     SinkSourceYOffset[l+y] = (tmpy-PP->WrapSlab(tmpy))*cellsize;
                 #endif
                 localDirectTotal += SinkSetCount[sinkindex] * SourceSetCount[sourceindex];
+                localPaddedDirectTotal += PaddedSinkCount(sinkindex) * SourceSetCount[sourceindex];
             }
         }
     }
     DirectTotal = localDirectTotal;
+    PaddedDirectTotal = localPaddedDirectTotal;
 }
 
 

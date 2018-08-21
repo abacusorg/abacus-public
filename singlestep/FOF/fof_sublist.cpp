@@ -473,12 +473,12 @@ class FOFcell {
 	destroy();
     }
 
-    /// b and _cellsize should be supplied in posstruct units.
+    /// _b and _cellsize should be supplied in posstruct units.
     /// Positions are assumed to be cell-centered.
     /// We will change the length units to be single-precision,
     /// with the lower cell edge being at 0 and the units of linking lengths
     void setup (FOFloat _b, FOFloat _boundary) {
-	linking_length = b;
+	linking_length = _b;
 	boundary = _boundary*FOF_RESCALE;
 	b = _b*FOF_RESCALE;
 	b2 = b*b;

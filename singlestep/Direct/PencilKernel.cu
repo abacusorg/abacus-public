@@ -126,7 +126,6 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
 		    #endif
                     &eps,&d.b2);  // try non-pointer?
             __syncthreads();
-
         }
 
         int remaining = sourceCount%NFBlockSize;

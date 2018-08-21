@@ -50,7 +50,7 @@ clean:
 	$(RM) ETASM.c CMASM.c CMAVX512.cpp *.o *.a
 	$(RM) genTaylorASM genMultipoleASM CC2R
 	$(RM) EvaluateTaylorTest EvaluateMultipolesTest
-	$(RM) $(Cartesian2Reduced_OBJ) $(Cartesian2Reduced_SRC)
+	$(RM) $(Cartesian2Reduced_OBJ) $(Cartesian2Reduced_SRC)  CC2R
 
 distclean: clean
 

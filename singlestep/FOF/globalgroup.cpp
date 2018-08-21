@@ -610,7 +610,7 @@ void GlobalGroupSlab::FindSubGroups() {
 	    FOFlevel1[g].setup(GFC->linking_length_level1, 1e10);
 	    FOFlevel2[g].setup(GFC->linking_length_level2, 1e10);
 	}
-	STDLOG(1,"Seeking FOF halos, L1 = %f, L2 = %f\n", 
+	STDLOG(1,"Seeking FOF halos, L1 = %f, L2 = %f (comoving unit-box units)\n", 
 		FOFlevel1[0].linking_length, FOFlevel2[0].linking_length);
     #endif
 

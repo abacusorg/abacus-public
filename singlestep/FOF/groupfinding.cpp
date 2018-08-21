@@ -96,6 +96,7 @@ class GroupFindingControl {
     /// The 2nd and 3rd parameters give the L1 and L2 parameters,
     /// either for FOF linking length or SO overdensity, depending on 
     /// that global definition.
+    /// FOF lengths should be comoving lengths in code units (unit box)
     GroupFindingControl(FOFloat _linking_length, 
     	FOFloat _level1, FOFloat _level2,
     int _cpd, FOFloat _invcpd, int _GroupRadius, int _minhalosize, uint64 _np) {

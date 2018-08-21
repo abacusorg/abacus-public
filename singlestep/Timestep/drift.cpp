@@ -38,9 +38,9 @@ int RebinCell(Cell &c, int x, int y, int z) {
         #ifdef GLOBALPOS
             residual -= cellcenter;
         #endif
-        if (    std::abs(residual.x) > halfinvcpd
-             || std::abs(residual.y) > halfinvcpd
-             || std::abs(residual.z) > halfinvcpd) {
+        if ( std::abs(residual.x) > halfinvcpd ||
+             std::abs(residual.y) > halfinvcpd ||
+             std::abs(residual.z) > halfinvcpd   ) {
             // This particle is outside the cell and must be rebinned.
             // Push it onto the insert list at the next location 
             IL->WrapAndPush( c.pos+b, c.vel+b, c.aux+b, x, y, z); 
@@ -53,6 +53,48 @@ int RebinCell(Cell &c, int x, int y, int z) {
     }
     c.ci->active = e;
     return c.count() - e;
+}
+
+// An alternate, theoretically more efficient implementation
+int RebinCell2(Cell &c, int x, int y, int z) {
+    FLOAT halfinvcpd = PP->halfinvcpd;
+    int b = 0;
+    int count = c.count();
+    int e = count-1;
+
+    while(b <= e) {
+        // Check if this particle is still in the cell
+        posstruct residual = c.pos[b];
+
+        if ( std::abs(residual.x) > halfinvcpd ||
+             std::abs(residual.y) > halfinvcpd ||
+             std::abs(residual.z) > halfinvcpd   ) {
+            // This particle is outside the cell and must be rebinned.
+            // Push it onto the insert list at the next location 
+            //IL->WrapAndPush( c.pos+b, c.vel+b, c.aux+b, x, y, z);
+
+            // Now find a low particle, starting from the end
+            while(e > b){
+                posstruct eres = c.pos[e];
+                if ( std::abs(eres.x) > halfinvcpd ||
+                     std::abs(eres.y) > halfinvcpd ||
+                     std::abs(eres.z) > halfinvcpd   )
+                    ;//IL->WrapAndPush( c.pos+e, c.vel+e, c.aux+e, x, y, z);
+                else
+                    break;
+                e--;
+            }
+            if(e <= b)
+                break;
+            c.pos[b] = c.pos[e];
+            c.vel[b] = c.vel[e];
+            c.aux[b] = c.aux[e];
+            e--;
+        }
+        b++;
+    }
+    c.ci->active = b;
+    return c.count() - b;
 }
 
 void DriftAndCopy2InsertList(int slab, FLOAT driftfactor, 
@@ -86,9 +128,6 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
     
     STDLOG(2, "Before collecting gaps, IL has length %d\n", IL->length);
 
-    DriftInsert.Start();
-    IL->CollectGaps();
-    DriftInsert.Stop();
     STDLOG(1,"Drifting slab %d has rebinned %d particles (%d - %d).\n",
         slab, IL->length-ILbefore, IL->length, ILbefore);
     

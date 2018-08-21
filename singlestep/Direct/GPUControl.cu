@@ -343,7 +343,6 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     DeviceStreams = new cudaStream_t[NBuf];
     Buffers = new GPUBuffer[NBuf];
     DeviceThread = new pthread_t[NBuf];
-    // TODO: These appear to never be freed
     
     // Start one thread per buffer
     

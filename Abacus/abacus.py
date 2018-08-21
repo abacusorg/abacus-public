@@ -569,7 +569,8 @@ def remove_MT(md, pattern, rmdir=False):
 
 def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
     """
-    Run a number of Abacus timesteps by invoking the `singlestep` executable.
+    Run a number of Abacus timesteps by invoking the `singlestep` and
+    `ConvolutionDriver` executables.
 
     Parameters
     ----------
@@ -661,6 +662,7 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
                     subprocess.check_call(['make', 'make_multipoles'])
 
                 # Execute it
+                print("Running make_multipoles for step {:d}".format(stepnum))
                 subprocess.check_call([pjoin(abacuspath, "singlestep", "make_multipoles"), paramfn], env=singlestep_env)
                 save_log_files(param.LogDirectory, 'step{:04d}.make_multipoles'.format(read_state.FullStepNumber))
                 print('\tFinished multipole recovery for read state {}.'.format(read_state.FullStepNumber))
@@ -705,6 +707,7 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
         
         # In profiling mode, we don't move the states so we can immediately run the same step again
         if param.get('ProfilingMode', False):
+            print('\tStep {} finished. ProfilingMode is active; Abacus will now quit and states will not be moved.'.format(stepnum))
             break
             
         # Check that write/state was written as a test of success

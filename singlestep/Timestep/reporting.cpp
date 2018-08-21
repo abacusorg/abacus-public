@@ -215,10 +215,10 @@ void ReportTimings(FILE * timingfile) {
         REPORT(2, "Construct Pencils", JJ->SICConstruction.Elapsed());
         REPORT(2, "Dispatch Interaction", JJ->SICExecute.Elapsed());
         REPORT(2, "CPU Fallback", JJ->CPUFallbackTimer.Elapsed());
-                fprintf(timingfile,"---> %6.2f GDIPS, %6.2f Gdirects, %6.2f Mpart/sec", thistime ? gdi_cpu/thistime : 0., gdi_cpu, thistime ? JJ->NSink_CPU/thistime/1e6 : 0.);
+                fprintf(timingfile,"---> %6.2f GDIPS, %6.2f Gdirects, %6.2f Mpart/sec\n", thistime ? gdi_cpu/thistime : 0., gdi_cpu, thistime ? JJ->NSink_CPU/thistime/1e6 : 0.);
         
         denom = JJ->DeviceThreadTimer;
-        char str[1024];  sprintf(str, "\nNon-Blocking (thread-seconds, %d threads)", NGPU*DirectBPD);
+        char str[1024];  sprintf(str, "Non-Blocking (thread-seconds, %d threads)", NGPU*DirectBPD);
         REPORT(1, str, JJ->DeviceThreadTimer);
             REPORT(2, "Fill Sinks", JJ->FillSinks);
                     fprintf(timingfile,"---> %6.1f MB/s, %6.2f MSink/sec", thistime ? JJ->total_sinks*sizeof(posstruct)/1e6/thistime : 0., thistime ? JJ->total_sinks/1e6/thistime : 0.);
@@ -227,11 +227,12 @@ void ReportTimings(FILE * timingfile) {
             REPORT(2, "Launch Kernels", JJ->LaunchDeviceKernels);
             REPORT(2, "Wait for GPU Result", JJ->WaitForResult);
             REPORT(2, "Copy Accel from Pinned", JJ->CopyAccelFromPinned);
-                    fprintf(timingfile,"---> %6.1f MB/s, %6.2f MSink/sec", thistime ? JJ->total_sinks*sizeof(accstruct)/1e6/thistime : 0., thistime ? JJ->total_sinks/1e6/thistime : 0.);  // same number of accels as sinks
+                    fprintf(timingfile,"---> %6.1f MB/s, %6.2f MSink/sec\n", thistime ? JJ->total_sinks*sizeof(accstruct)/1e6/thistime : 0., thistime ? JJ->total_sinks/1e6/thistime : 0.);  // same number of accels as sinks
             
         denom = JJ->GPUThroughputTime;
-        REPORT(1, "\nNon-Blocking Throughput (Wall Clock)", JJ->GPUThroughputTime);
-                fprintf(timingfile,"\n\t\t\t\t---> %6.2f effective GDIPS, %6.2f Gdirects, %6.2f Mpart/sec, %6.2f Msink/sec", thistime ? JJ->gdi_gpu/thistime : 0., JJ->gdi_gpu, thistime ? P.np/thistime/1e6 : 0., thistime ? JJ->total_sinks/thistime/1e6 : 0.);
+        REPORT(1, "Non-Blocking Throughput (Wall Clock)", JJ->GPUThroughputTime);
+                fprintf(timingfile,"\n\t\t\t\t---> %6.2f effective GDIPS, %6.2f Mpart/sec, %6.2f Msink/sec", thistime ? JJ->gdi_gpu/thistime : 0., thistime ? P.np/thistime/1e6 : 0., thistime ? JJ->total_sinks/thistime/1e6 : 0.);
+                fprintf(timingfile,"\n\t\t\t\t---> %6.2f Gdirects, %6.2f padded Gdirects", JJ->gdi_gpu, JJ->gdi_padded_gpu);
                 fprintf(timingfile,"\n\t\t\t\t---> with %d device threads, estimate %.1f%% thread concurrency", NGPU*DirectBPD, (JJ->DeviceThreadTimer - JJ->GPUThroughputTime)/(JJ->DeviceThreadTimer - JJ->DeviceThreadTimer/(NGPU*DirectBPD))*100);
                 
             fprintf(timingfile, "\n    Device stats:\n");
@@ -247,7 +248,7 @@ void ReportTimings(FILE * timingfile) {
         } // if(JJ)
     
     if (TY!=NULL) {    // Not in IC steps
-        fprintf(timingfile, "\n Breakdown of Taylor Evaluate:");
+        fprintf(timingfile, "\nBreakdown of Taylor Evaluate:");
         //REPORT(1, "Taylor Computation", TaylorCompute.Elapsed());
         denom = TimeStepWallClock.Elapsed();
         REPORT(1, "Taylor Computation", TaylorForce.Elapsed());

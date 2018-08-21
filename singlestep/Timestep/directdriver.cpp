@@ -30,6 +30,7 @@ class NearFieldDriver{
         uint64 DirectInteractions_CPU;
         uint64 *DirectInteractions_GPU;
         uint64 TotalDirectInteractions_GPU = 0;
+        uint64 TotalPaddedDirectInteractions_GPU = 0;
         uint64 NSink_CPU;
 
         // Total timings from running the SetInteractionCollections in the host threads that communicate with the GPUs
@@ -56,7 +57,8 @@ class NearFieldDriver{
         void AggregateStats();  // Called before shutdown
         // The following totals are filled in by AggregateStats()
         double GPUThroughputTime = 0;
-        double total_GB_to = 0, total_GB_from = 0, total_sinks = 0, total_sources = 0, gdi_gpu = 0;
+        double total_GB_to = 0, total_GB_from = 0, total_sinks = 0, total_sources = 0;
+        double gdi_gpu = 0, gdi_padded_gpu = 0;
         double mean_splits_per_slab = 0;
 
     private:
@@ -427,10 +429,11 @@ void NearFieldDriver::Finalize(int slab){
         int g = Slice->AssignedDevice;
         DirectInteractions_GPU[g] += Slice->DirectTotal;
         TotalDirectInteractions_GPU += Slice->DirectTotal;
+        TotalPaddedDirectInteractions_GPU += Slice->PaddedDirectTotal;
 
         GB_to_device[g] += Slice->bytes_to_device/1e9;
         GB_from_device[g] += Slice->bytes_from_device/1e9;
-        DeviceSinks[g] += Slice->SinkTotal;
+        DeviceSinks[g] += Slice->SinkTotal;  // includes padding sinks
         DeviceSources[g] += Slice->SourceTotal;
     }
 
@@ -471,6 +474,7 @@ void NearFieldDriver::AggregateStats(){
     GPUThroughputTime = SetInteractionCollection::GPUThroughputTimer.Elapsed();
 
     gdi_gpu = TotalDirectInteractions_GPU/1e9;
+    gdi_padded_gpu = TotalPaddedDirectInteractions_GPU/1e9;
 
     for(int s = 0; s < P.cpd; s++)
         mean_splits_per_slab += SlabNSplit[s];
