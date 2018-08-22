@@ -5,6 +5,7 @@
 #define GLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
 	LOG(*grouplog,__VA_ARGS__); grouplog->flush(); } }
 
+
 #include "fof_sublist.cpp"
 	// Code to do FOF on a set (e.g., a cell)
 
@@ -42,6 +43,8 @@ class GroupFindingControl {
     // Parameters for finding subgroups
     FOFloat linking_length_level1;
     FOFloat linking_length_level2;
+    FOFloat SOdensity1;	///< The density threshold for SO L1
+    FOFloat SOdensity2;	///< The density threshold for SO L2
     int minhalosize;	// The minimum size for a level 1 halo to be outputted
 
     uint64 pPtot, fPtot, fGtot, CGtot, GGtot, Ltot, CGactive;
@@ -50,6 +53,12 @@ class GroupFindingControl {
     double meanFOFdensity;
 
     MultiplicityStats L0stats, L1stats;
+    long long numdists1, numdists2;	
+    	///< The total number of distances computed
+    long long numsorts1, numsorts2;	
+    	///< The total number of sorting elements 
+    long long numcenters1, numcenters2;	
+    	///< The total number of centers considered
 
     SlabAccum<CellGroup> *cellgroups;   // Allocated [0,cpd), one for each slab
     int *cellgroups_status;     // Allocated [0,cpd) for each slab. 
@@ -74,8 +83,13 @@ class GroupFindingControl {
 
     void setupGGS();
 
+    /// The constructor, where we load the key parameters
+    ///
+    /// The 2nd and 3rd parameters give the L1 and L2 parameters,
+    /// either for FOF linking length or SO overdensity, depending on 
+    /// that global definition.
     GroupFindingControl(FOFloat _linking_length, 
-    	FOFloat _linking_length_level1, FOFloat _linking_length_level2,
+    	FOFloat _level1, FOFloat _level2,
     int _cpd, FOFloat _invcpd, int _GroupRadius, int _minhalosize, uint64 _np) {
 #ifdef STANDALONE_FOF
     grouplog = &stdlog;
@@ -88,8 +102,17 @@ class GroupFindingControl {
 
 	cpd = _cpd; 
 	linking_length = _linking_length;
-	linking_length_level1 = _linking_length_level1;
-	linking_length_level2 = _linking_length_level2;
+	#ifdef SPHERICAL_OVERDENSITY
+	    SOdensity1 = _level1;
+	    SOdensity2 = _level2;
+	    STDLOG(0,"Planning for L1/2 group finding with SO: %f and %f\n", 
+	    	SOdensity1, SOdensity2);
+	#else
+	    linking_length_level1 = _level1;
+	    linking_length_level2 = _level2;
+	    STDLOG(0,"Planning for L1/2 group finding with FOF: %f and %f\n", 
+	    	linking_length_level1, linking_length_level2);
+	#endif
 	minhalosize = _minhalosize;
 	invcpd = _invcpd;
 	boundary = (invcpd/2.0-linking_length);
@@ -113,6 +136,8 @@ class GroupFindingControl {
 	CGactive = 0;
 	maxFOFdensity = 0.0;
 	largest_GG = 0;
+	numdists1 = numsorts1 = numcenters1 = 0;
+	numdists2 = numsorts2 = numcenters2 = 0;
 	return;
     }
 
@@ -131,7 +156,7 @@ class GroupFindingControl {
     void DestroyCellGroups(int slab);
 	
     void report() {
-	 GLOG(0,"Considered %d particles as active\n", CGactive);
+	 GLOG(0,"Considered %f G particles as active\n", CGactive/1e9);
 	 // The FOFdensities are weighted by b^2-r^2.  When integrated,
 	 // that yields a mass at unit density of 
    	 // (2/15)*4*PI*b^5*np
@@ -139,17 +164,20 @@ class GroupFindingControl {
 	 GLOG(0,"Maximum reported density = %f (%e in code units)\n", maxFOFdensity/FOFunitdensity, maxFOFdensity);
 	 meanFOFdensity /= P.np-WriteState.DensityKernelRad2;
 	 GLOG(0,"Mean reported non-self density = %f (%e in code units)\n", meanFOFdensity/FOFunitdensity, meanFOFdensity);
-	 GLOG(0,"Found %d cell groups (including boundary singlets)\n", CGtot);
-	 GLOG(0,"Used %d pseudoParticles, %d faceParticles, %d faceGroups\n",
-	     pPtot, fPtot, fGtot);
-	 GLOG(0,"Found %d links between groups.\n", Ltot);
-	 GLOG(0,"Found %d global groups\n", GGtot);
-	 GLOG(0,"Longest GroupLink list was %d, compared to %d allocation\n", GLL->longest, GLL->maxlist);
+	 GLOG(0,"Found %f G cell groups (including boundary singlets)\n", CGtot/1e9);
+	 GLOG(0,"Used %f G pseudoParticles, %f G faceParticles, %f G faceGroups\n",
+	     pPtot/1e9, fPtot/1e9, fGtot/1e9);
+	 GLOG(0,"Found %f M links between groups.\n", Ltot/1e6);
+	 GLOG(0,"Found %f M global groups\n", GGtot/1e6);
+	 GLOG(0,"Longest GroupLink list was %f M, compared to %f M allocation (%f MB)\n", GLL->longest/1e6, GLL->maxlist/1e6, GLL->maxlist/1024/1024*sizeof(GroupLink));
 	 GLOG(0,"Largest Global Group has %d particles\n", largest_GG);
 
 	 GLOG(0,"L0 group multiplicity distribution:\n");
 	 L0stats.report_multiplicities(grouplog);
 
+	 GLOG(0,"L1 & L2 groups min size = %d\n", minhalosize);
+	 GLOG(0,"L1 groups required %f G distances, %f G sorts, %f G centers\n", numdists1/1e9, numsorts1/1e9, numcenters1/1e9);
+	 GLOG(0,"L2 groups required %f G distances, %f G sorts, %f G centers\n", numdists2/1e9, numsorts2/1e9, numcenters2/1e9);
 	 GLOG(0,"L1 group multiplicity distribution:\n");
 	 L1stats.report_multiplicities(grouplog);
 
@@ -186,15 +214,15 @@ class GroupFindingControl {
 			RFORMAT(GatherGroups));
 	 GLOG(0,"Level 1 & 2 Processing:  %8.4f sec (%5.2f%%)\n",
 			RFORMAT(ProcessLevel1));
-	 GLOG(0,"Level 1 FOF:                  %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Level 1 FOF (P):               %8.4f sec (%5.2f%%)\n",
 			RFORMAT(L1FOF));
-	 GLOG(0,"Level 2 FOF:                  %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Level 2 FOF (P):               %8.4f sec (%5.2f%%)\n",
 			RFORMAT(L2FOF));
-	 GLOG(0,"Level 1 Total:                %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Level 1 Total (P):             %8.4f sec (%5.2f%%)\n",
 			RFORMAT(L1Tot));
-     GLOG(0,"Level 1 Output:                %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Level 1 Output:          %8.4f sec (%5.2f%%)\n",
             RFORMAT(OutputLevel1));
-     GLOG(0,"Scatter Aux: %8.4f sec (%5.2f%%)\n",
+	 GLOG(0,"Scatter Aux:             %8.4f sec (%5.2f%%)\n",
             RFORMAT(ScatterAux));
 	 GLOG(0,"Scatter Group Particles: %8.4f sec (%5.2f%%)\n",
 			RFORMAT(ScatterGroups));

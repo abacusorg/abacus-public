@@ -15,7 +15,12 @@ inline float3 WrapPosition(float3 a) {
 
 HaloStat ComputeStats(int size, 
 	posstruct *L1pos, velstruct *L1vel, auxstruct *L1aux, 
-	FOFcell &L2, posstruct offset) {
+	#ifdef SPHERICAL_OVERDENSITY
+	    SOcell &L2, 
+	#else
+	    FOFcell &L2, 
+	#endif
+	posstruct offset) {
     // We are given the L1 particles as pos/vel/aux from [0,size).
     // These are in the original order; we don't care.
     // We are also given the L2 FOF results class.

@@ -544,8 +544,6 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
 
 
 
-
-
 void GlobalGroupSlab::FindSubGroups() {
     // Process each group, looking for L1 and L2 subgroups.
     GFC->ProcessLevel1.Start();
@@ -558,17 +556,34 @@ void GlobalGroupSlab::FindSubGroups() {
     // Guessing L1 Particles are 3% of total (taggable)
     L1Particles.setup(GFC->cpd, GFC->particles_per_slab/30);   
     L1PIDs.setup(GFC->cpd, GFC->particles_per_slab/30);    
-    FOFcell FOFlevel1[maxthreads], FOFlevel2[maxthreads];
     posstruct **L1pos = new posstruct *[maxthreads];
     velstruct **L1vel = new velstruct *[maxthreads];
     auxstruct **L1aux = new auxstruct *[maxthreads];
     accstruct **L1acc = new accstruct *[maxthreads];
     MultiplicityStats L1stats[maxthreads];
 
+    #ifdef SPHERICAL_OVERDENSITY
+	SOcell FOFlevel1[maxthreads], FOFlevel2[maxthreads];
+	#pragma omp parallel for schedule(static,1)
+	for (int g=0; g<maxthreads; g++) {
+	    FOFlevel1[g].setup(GFC->SOdensity1, GFC->SOdensity1);
+	    FOFlevel2[g].setup(GFC->SOdensity2, GFC->SOdensity2);
+	}
+	STDLOG(1,"Seeking SO halos, L1 = %f, L2 = %f\n", 
+		FOFlevel1[0].threshold, FOFlevel2[0].threshold);
+    #else
+	FOFcell FOFlevel1[maxthreads], FOFlevel2[maxthreads];
+	#pragma omp parallel for schedule(static,1)
+	for (int g=0; g<maxthreads; g++) {
+	    FOFlevel1[g].setup(GFC->linking_length_level1, 1e10);
+	    FOFlevel2[g].setup(GFC->linking_length_level2, 1e10);
+	}
+	STDLOG(1,"Seeking FOF halos, L1 = %f, L2 = %f\n", 
+		FOFlevel1[0].linking_length, FOFlevel2[0].linking_length);
+    #endif
+
     #pragma omp parallel for schedule(static,1)
     for (int g=0; g<maxthreads; g++) {
-        FOFlevel1[g].setup(GFC->linking_length_level1, 1e10);
-        FOFlevel2[g].setup(GFC->linking_length_level2, 1e10);
         L1pos[g] = (posstruct *)malloc(sizeof(posstruct)*largest_group);
         L1vel[g] = (velstruct *)malloc(sizeof(velstruct)*largest_group);
         L1aux[g] = (auxstruct *)malloc(sizeof(auxstruct)*largest_group);
@@ -580,7 +595,6 @@ void GlobalGroupSlab::FindSubGroups() {
     // pencils by the work estimate (largest first)
     std::sort(pstat, pstat+GFC->cpd);
     
-    // for (int j=0; j<GFC->cpd; j++) 
     #pragma omp parallel for schedule(dynamic,1)
     for (int jj=0; jj<GFC->cpd; jj++) {
         int j = pstat[jj].pnum;    // Get the pencil number from the list
@@ -606,7 +620,7 @@ void GlobalGroupSlab::FindSubGroups() {
                     groupacc = acc+globalgroups[j][k][n].start;
                 int groupn = globalgroups[j][k][n].np;
                 GFC->L1FOF.Start();
-                FOFlevel1[g].findgroups(grouppos, NULL, NULL, NULL, groupn);
+                FOFlevel1[g].findgroups(grouppos, NULL, NULL, groupacc, groupn);
                 GFC->L1FOF.Stop();
                 // Now we've found the L1 groups
                 for (int a=0; a<FOFlevel1[g].ngroups; a++) {
@@ -632,7 +646,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         }
                     }
                     GFC->L2FOF.Start();
-                    FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, NULL, size);
+                    FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, L1acc[g], size);
                     GFC->L2FOF.Stop();
 
                     // Merger trees require tagging the taggable particles 
@@ -708,9 +722,42 @@ void GlobalGroupSlab::FindSubGroups() {
             }
 
     // Coadd the stats
+    uint64 previous = GFC->L1stats.ngroups;
     for (int g=0; g<omp_get_max_threads(); g++) {
         GFC->L1stats.add(L1stats[g]);
+	GFC->numdists1 += FOFlevel1[g].numdists;
+	GFC->numdists2 += FOFlevel2[g].numdists;
+	GFC->numsorts1 += FOFlevel1[g].numsorts;
+	GFC->numsorts2 += FOFlevel2[g].numsorts;
+	GFC->numcenters1 += FOFlevel1[g].numcenters;
+	GFC->numcenters2 += FOFlevel2[g].numcenters;
+	#ifdef SPHERICAL_OVERDENSITY
+	if (g>0) {
+	    FOFlevel1[0].coadd_timers(FOFlevel1[g]);
+	    FOFlevel2[0].coadd_timers(FOFlevel2[g]);
+	}
+	#endif
     }
+    previous = GFC->L1stats.ngroups-previous;
+    STDLOG(1,"Found %l L1 halos\n", previous);
+    #ifdef SPHERICAL_OVERDENSITY
+    if (FOFlevel1[0].Total.Elapsed()>0.0) {
+	STDLOG(3,"L1 Timing: %f = %f %f %f %f\n",
+	    FOFlevel1[0].Total.Elapsed(),
+	    FOFlevel1[0].Copy.Elapsed(),
+	    FOFlevel1[0].Sweep.Elapsed(),
+	    FOFlevel1[0].Distance.Elapsed(),
+	    FOFlevel1[0].Search.Elapsed());
+	STDLOG(3,"L2 Timing: %f = %f %f %f %f\n",
+	    FOFlevel2[0].Total.Elapsed(),
+	    FOFlevel2[0].Copy.Elapsed(),
+	    FOFlevel2[0].Sweep.Elapsed(),
+	    FOFlevel2[0].Distance.Elapsed(),
+	    FOFlevel2[0].Search.Elapsed());
+	// These show that the timing is 50% dominated by the Search step,
+	// with most of the rest split between Copy and Sweep.
+    }
+    #endif
 
     // Now delete all of the temporary storage!
     // Want free's to be on the same threads as the original

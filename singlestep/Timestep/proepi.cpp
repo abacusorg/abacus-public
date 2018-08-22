@@ -229,10 +229,14 @@ void Prologue(Parameters &P, bool ic) {
 		// i.e. before GroupFinding has a chance to rearrange them
         if(P.AllowGroupFinding && !P.ForceOutputDebug){
             GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
-                                          P.FoFLinkingLength[1]/pow(P.np,1./3),
-                                          P.FoFLinkingLength[2]/pow(P.np,1./3),
-                                          P.cpd, PP->invcpd, P.GroupRadius, P.MinL1HaloNP, P.np);
-	    #ifdef COMPUTE_FOF_DENSITY
+		      #ifdef SPHERICAL_OVERDENSITY
+			  P.SODensity[0], P.SODensity[1],
+		      #else
+			  P.FoFLinkingLength[1]/pow(P.np,1./3),
+			  P.FoFLinkingLength[2]/pow(P.np,1./3),
+		      #endif
+		      P.cpd, PP->invcpd, P.GroupRadius, P.MinL1HaloNP, P.np);
+#ifdef COMPUTE_FOF_DENSITY
 	    #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
 		WriteState.DensityKernelRad2 = GFC->linking_length;
 		WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5); 
