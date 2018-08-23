@@ -220,7 +220,7 @@ void ReportTimings(FILE * timingfile) {
         denom = JJ->DeviceThreadTimer;
         char str[1024];  sprintf(str, "Non-Blocking (thread-seconds, %d threads)", NGPU*DirectBPD);
         REPORT(1, str, JJ->DeviceThreadTimer);
-            REPORT(2, "Fill Sinks", JJ->FillSinks);
+            REPORT(2, "Fill Sinks", JJ->FillSinks);  // filling is unpadded
                     fprintf(timingfile,"---> %6.1f MB/s, %6.2f MSink/sec", thistime ? JJ->total_sinks*sizeof(posstruct)/1e6/thistime : 0., thistime ? JJ->total_sinks/1e6/thistime : 0.);
             REPORT(2, "Fill Sources", JJ->FillSources);
                     fprintf(timingfile,"---> %6.1f MB/s, %6.2f MSource/sec", thistime ? JJ->total_sources*sizeof(posstruct)/1e6/thistime : 0., thistime ? JJ->total_sources/1e6/thistime : 0.);

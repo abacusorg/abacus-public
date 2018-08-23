@@ -56,6 +56,7 @@ int RebinCell(Cell &c, int x, int y, int z) {
 }
 
 // An alternate, theoretically more efficient implementation
+// So far, it appears to be exactly the same speed in practice
 int RebinCell2(Cell &c, int x, int y, int z) {
     FLOAT halfinvcpd = PP->halfinvcpd;
     int b = 0;

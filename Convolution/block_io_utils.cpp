@@ -29,7 +29,8 @@ public:
     
     ~Block(){
         for(int x = 0; x < cpd; x++)
-            free(raw_mtblock[x]);
+            if(raw_mtblock[x] != NULL)
+                free(raw_mtblock[x]);
         for (int z = 0; z < alloc_zwidth; z++)
             free(dblock[z]);
         delete[] raw_mtblock;
@@ -71,7 +72,9 @@ public:
         ReadMultipoles.Stop(thread_num);
     }
 
-    void write(int zwidth, int thread_num){
+    void write(int zstart, int zwidth, int thread_num){
+        // zstart is only used to determine if this is the last iteration
+        // and thus memory is eligible to be freed
         WriteTaylor.Start(thread_num);
         
         size_t size = sizeof(MTCOMPLEX)*zwidth*cpd*rml;
@@ -87,6 +90,11 @@ public:
             // the mtblock alignment from the read should be valid for the write
             WD_WDT->BlockingAppend( fn, (char *) mtblock[x], size);
             WriteTaylorBytes += size;
+
+            if(zstart + zwidth >= (cpd+1)/2){
+                free(raw_mtblock[x]);
+                raw_mtblock[x] = NULL;
+            }
         }
         
         WriteTaylor.Stop(thread_num);

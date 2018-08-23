@@ -56,7 +56,7 @@ void OutofCoreConvolution::WriteDiskTaylor(int z) {
     for(int i = 0; i < CP.niothreads; i++)
         iothreads[i]->push(CurrentBlock);
 #else
-    CurrentBlock->write(zwidth, 0);
+    CurrentBlock->write(z, zwidth, 0);
 #endif
 }
 

@@ -197,7 +197,9 @@ public:
 
         installscalar("InitialConditionsDirectory",InitialConditionsDirectory,DONT_CARE);   // The initial condition file name
         installscalar("ICFormat",ICFormat,DONT_CARE);   // The initial condition file format
+        ICPositionRange = -1.;
         installscalar("ICPositionRange",ICPositionRange,DONT_CARE);   // The initial condition file position convention
+        ICVelocity2Displacement = -1;
         installscalar("ICVelocity2Displacement",ICVelocity2Displacement,DONT_CARE);   // The initial condition file velocity convention
         FlipZelDisp = 0;
         installscalar("FlipZelDisp",FlipZelDisp,DONT_CARE);   // Flip Zeldovich ICs

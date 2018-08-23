@@ -78,13 +78,18 @@ on where to find the data for each of the component cells.
 class SinkPencilPlan {
   public:
     CellPencilPlan cell[2*NFRADIUS+1];
+    // we need access to Nslab to compute PosXYZ offsets
+    // but we make a lot of these objects; let's let the SIC hold on to that instead
+    // and pass it as an arg
+    int wrapcell;  //< The first cell that crosses the periodic wrap, or -1 if none
+    int contig;  //< The number of particles before the wrap
     // The cells are not assumed to be contiguous (e.g., periodic wraps)
     // These arrays are sized to the max size in config.h
 
     void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total,
-    	void *SinkPosSlab, int NearFieldRadius);
+    	void *SinkPosSlab, int NearFieldRadius, uint64 Nslab);
     void copy_from_pinned_memory(void *pinacc, int start, int total, 
-    	void *SinkAccSlab, int sinkindex, int NearFieldRadius);
+    	void *SinkAccSlab, int sinkindex, int NearFieldRadius, uint64 Nslab);
     int load(int x, int y, int z, int NearFieldRadius);
 };
 
@@ -100,7 +105,7 @@ class SourcePencilPlan {
     // These arrays are sized to the max size in config.h
 
     void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total,
-    	void **SourcePosSlab, int NearFieldRadius);
+    	void **SourcePosSlab, int NearFieldRadius, uint64 *Nslab);
     int load(int x, int y, int z, int NearFieldRadius);
 };
 
@@ -182,6 +187,7 @@ class SetInteractionCollection{
         int         j_low;	///< The minimum sink Y
         int         j_high;	///< The maximum sink Y+1 [j_low,j_high)
 	int	    j_width;	///< The number of Y cells
+        uint64 Nslab[2*NFRADIUS + 1];  ///< The number of particles in the slabs from [SlabId-nfradius..SlabId+nfradius]
 
         int         cpd;
 	int 	    nfradius;	///< The NearField Radius
@@ -206,9 +212,11 @@ class SetInteractionCollection{
 		///< shift the particle positions from the Pencil center.
 
         uint64 DirectTotal; ///<Number of unpadded, science-useful directs for this interection collection
+        uint64 SinkTotal; ///< The number of total sinks, unpadded
+        uint64 SourceTotal;   ///< The number of total sources, unpadded
         uint64 PaddedDirectTotal; ///<Number of padded directs that the GPU actually performs for this interection collection
-        uint64 SinkTotal;	///< The number of total sinks (padded out to blocks)
-        uint64 SourceTotal;	///< The number of total sources (padded)
+        uint64 PaddedSinkTotal; ///< The number of total sinks (padded out to blocks)
+        uint64 PaddedSourceTotal;   ///< The number of total sources (padded)
     
         // Different softenings use different eps
         FLOAT eps;

@@ -179,6 +179,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     SinkPosSlab = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab);
     for (int c=0; c<2*nfradius+1; c++) {
 	SourcePosSlab[c] = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab+c-nfradius);
+
+        Nslab[c] = Slab->size(slab - nfradius + c);
     }
 
     // There is a slab that has the WIDTH Partial Acceleration fields.
@@ -236,6 +238,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
         skewer_blocks[j] = this_skewer_blocks;
     }
 
+    SinkTotal = localSinkTotal;
+
     // Cumulate the number of blocks in each skewer, so we know how 
     // to start enumerating.
     uint64 skewer_blocks_start[j_width+1+nfwidth]; 
@@ -279,7 +283,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     }
 
     int NPaddedSinks = NFBlockSize*NSinkBlocks;
-    SinkTotal = NPaddedSinks;  // for performance metrics, we always move around the padded amount
+    PaddedSinkTotal = NPaddedSinks;  // for performance metrics, we always move around the padded amount
             // The total padded number of particles
     assertf(NPaddedSinks <= MaxSinkSize, "NPaddedSinks (%d) larger than allocated space (MaxSinkSize = %d)\n", NPaddedSinks, MaxSinkSize);
     
@@ -310,6 +314,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
         skewer_blocks[j] = this_skewer_blocks;
     }
 
+    SourceTotal = localSourceTotal;
+
     // Cumulate the number of blocks in each skewer, so we know how 
     // to start enumerating.
     skewer_blocks_start[0] = 0;
@@ -337,7 +343,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     
     int NPaddedSources = NFBlockSize*NSourceBlocks;
             // The total number of padded sources
-    SourceTotal = NPaddedSources;  // for performance metrics, we always move around the padded amount 
+    PaddedSourceTotal = NPaddedSources;  // for performance metrics, we always move around the padded amount 
     assertf(NPaddedSources <= MaxSourceSize, "NPaddedSources (%d) larger than allocated space (MaxSourceSize = %d)\n", NPaddedSources, MaxSourceSize);
 
     // Next, we have to pair up the Source and Sinks.  Each sink

@@ -29,6 +29,7 @@ class NearFieldDriver{
         void Finalize(int slabID);
         uint64 DirectInteractions_CPU;
         uint64 *DirectInteractions_GPU;
+        uint64 *PaddedDirectInteractions_GPU;
         uint64 TotalDirectInteractions_GPU = 0;
         uint64 TotalPaddedDirectInteractions_GPU = 0;
         uint64 NSink_CPU;
@@ -42,11 +43,13 @@ class NearFieldDriver{
         double     WaitForResult = 0;
         double     CopyAccelFromPinned = 0;
 
-	int MaxNSplits = 0;
+        int MaxNSplits = 0;
     
         double *GB_to_device, *GB_from_device;
         uint64 *DeviceSinks;
         uint64 *DeviceSources;
+        uint64 *PaddedDeviceSinks;
+        uint64 *PaddedDeviceSources;
         
         STimer CalcSplitDirects;
         STimer SICConstruction;
@@ -57,7 +60,8 @@ class NearFieldDriver{
         void AggregateStats();  // Called before shutdown
         // The following totals are filled in by AggregateStats()
         double GPUThroughputTime = 0;
-        double total_GB_to = 0, total_GB_from = 0, total_sinks = 0, total_sources = 0;
+        double total_GB_to = 0, total_GB_from = 0;
+        double total_sinks = 0, total_sources = 0, total_padded_sinks = 0, total_padded_sources = 0;
         double gdi_gpu = 0, gdi_padded_gpu = 0;
         double mean_splits_per_slab = 0;
 
@@ -70,7 +74,7 @@ class NearFieldDriver{
         int RADIUS;
         Direct *DD;
         int NGPU;
-	int NBuffers;
+        int NBuffers;
         double GPUMemoryGB;
         int MaxSourceBlocks;
         int MaxSinkBlocks;
@@ -166,10 +170,13 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
         NSink_GPU_final[g] = 0;
     
     DirectInteractions_GPU = new uint64[NBuffers]();
+    PaddedDirectInteractions_GPU = new uint64[NBuffers]();
     GB_to_device = new double[NBuffers]();
     GB_from_device = new double[NBuffers]();
     DeviceSinks = new uint64[NBuffers]();
     DeviceSources = new uint64[NBuffers]();
+    PaddedDeviceSinks = new uint64[NBuffers]();
+    PaddedDeviceSources = new uint64[NBuffers]();
 #endif
 }
 
@@ -182,10 +189,13 @@ NearFieldDriver::~NearFieldDriver()
 #ifdef CUDADIRECT
     free(NSink_GPU_final);
     delete[] DirectInteractions_GPU;
+    delete[] PaddedDirectInteractions_GPU;
     delete[] GB_to_device;
     delete[] GB_from_device;
     delete[] DeviceSinks;
     delete[] DeviceSources;
+    delete[] PaddedDeviceSinks;
+    delete[] PaddedDeviceSources;
     
     GPUReset();
 #endif
@@ -428,13 +438,15 @@ void NearFieldDriver::Finalize(int slab){
 
         int g = Slice->AssignedDevice;
         DirectInteractions_GPU[g] += Slice->DirectTotal;
-        TotalDirectInteractions_GPU += Slice->DirectTotal;
-        TotalPaddedDirectInteractions_GPU += Slice->PaddedDirectTotal;
+        PaddedDirectInteractions_GPU[g] += Slice->PaddedDirectTotal;
 
         GB_to_device[g] += Slice->bytes_to_device/1e9;
         GB_from_device[g] += Slice->bytes_from_device/1e9;
-        DeviceSinks[g] += Slice->SinkTotal;  // includes padding sinks
+
+        DeviceSinks[g] += Slice->SinkTotal;
         DeviceSources[g] += Slice->SourceTotal;
+        PaddedDeviceSinks[g] += Slice->PaddedSinkTotal;
+        PaddedDeviceSources[g] += Slice->PaddedSourceTotal;
     }
 
     // Just test that AccSlab is not crazy
@@ -467,6 +479,11 @@ void NearFieldDriver::AggregateStats(){
         total_GB_from += GB_from_device[g];
         total_sinks += DeviceSinks[g];
         total_sources += DeviceSources[g];
+        total_padded_sinks += DeviceSinks[g];
+        total_padded_sources += DeviceSources[g];
+
+        TotalDirectInteractions_GPU += DirectInteractions_GPU[g];
+        TotalPaddedDirectInteractions_GPU += PaddedDirectInteractions_GPU[g];
     }
 
     // Measures the total amount of time we have at least one GPU thread running

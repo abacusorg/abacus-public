@@ -155,7 +155,7 @@ void NearForceAction(int slab) {
     SlabForceTime[slab].Start();
         
     JJ->ExecuteSlab(slab, P.ForceOutputDebug);
-    // JJ->ExecuteSlab(slab, 1);  // Uncomment to force blocking GPU work
+    //JJ->ExecuteSlab(slab, 1);  // Use this line instead to force blocking GPU work
 
     SlabForceLatency[slab].Start();
     if (P.ForceOutputDebug) {
@@ -185,6 +185,9 @@ void NearForceAction(int slab) {
 #endif
 
     }
+
+    // Busy-wait for all GPU work for this slab to finish
+    // while(!JJ->SlabDone(slab)) ;
 }
 
 // -----------------------------------------------------------------

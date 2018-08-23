@@ -479,10 +479,9 @@ void *QueueWatcher(void *_arg){
     // We make 2/3 of the host pinned memory WriteCombined, which is
     // good for sending data to the GPU.  The other 1/3 is normal, 
     // better for returning the data from the GPU.
-
-    // Attempt some NUMA specifics
     
 #ifdef HAVE_LIBNUMA
+    // Attempt some NUMA specifics
     // Query the current NUMA node of the allocated buffers
     // We are using the move_pages function purely to query NUMA state, not move anything
     int page = -1;
