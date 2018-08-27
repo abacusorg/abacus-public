@@ -45,14 +45,17 @@ to the rest of the code, because it needs CUDA.
 #include "config.h"
 #include "header.cpp"
 
-//#include <x86intrin.h>
+//#include <x86intrin.h>  // needed for _rdtsc(). only for icc...?
 #include <cstring>
 #include <cstdio>
 #include <cassert>
 #include <pthread.h>
 #include "omp.h"
-#include <numaif.h>
 #include <atomic>
+
+#ifdef HAVE_LIBNUMA
+#include <numaif.h>
+#endif
 
 #include "CudaErrors.cuh"
 

@@ -43,6 +43,8 @@ import ctypes as ct
 import argparse
 import numpy as np
 from glob import glob
+import pathlib
+import re
 
 from .InputFile import InputFile
 from . import Tools
@@ -566,6 +568,66 @@ def remove_MT(md, pattern, rmdir=False):
         except OSError:
             pass  # remove dir if empty; we re-create at each step in setup_dirs
 
+import table_logger
+class StatusLogWriter:
+    #header = "Step  Redshift  Singlestep  Conv"
+    #line_fmt = '{step:4d}  {z:6.1f}  {ss_rate:.1g} Mp/s ({ss_time:.1g} s) {conv_time:.1g}'
+
+    fields = {'Step': '{:4d}',
+              'Redshift': '{:.3g}',
+              'Singlestep': '{0[0]:.3g} Mp/s ({0[1]:.3g} s)',
+              'Conv': '{:.3g} s'}
+
+    topmatter = ['Abacus Status Log',
+                 'simname, timestamp',
+                 '==================\n\n',]
+
+    def __init__(self, log_fn):
+        self.fields = {k:v.format for k,v in self.fields.items()}
+        self.log_fp = open(log_fn, 'ab')
+
+        self.log_fp.write('\n'.join(self.topmatter).format().encode('utf-8'))
+
+        self.logger = table_logger.TableLogger(file=self.log_fp,
+                                               columns=list(self.fields),
+                                               formatters=self.fields)
+    def __del__(self):
+        self.logger.make_horizontal_border()
+        self.log_fp.close()
+
+    def update(self, **kwargs):
+        self.logger(*(kwargs[k] for k in self.fields))
+
+
+# via https://stackoverflow.com/a/2293793
+fp_regex = r'(([1-9][0-9]*\.?[0-9]*)|(\.[0-9]+))([Ee][+-]?[0-9]+)?'
+def update_status_log(param, state, status_log):
+    '''
+    Update the log with some info about the singlestep and conv
+    that just finished.
+
+    The logs have already been moved to their new names, indicated
+    by step_num.
+    '''
+    step_num = state.FullStepNumber
+
+    ss_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.time'.format(step_num))
+    ss_log_txt = pathlib.Path(ss_log_fn).read_text()
+
+    matches = re.search(r'Total Wall Clock Time\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), ss_log_txt)
+    ss_time = float(matches.group('time'))
+    ss_rate = param['NP']/1e6/ss_time  # Mpart/s
+
+    conv_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.convtime'.format(step_num))
+    try:
+        conv_log_txt = pathlib.Path(conv_log_fn).read_text()
+        matches = re.search(r'ConvolutionWallClock\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), conv_log_txt)
+        conv_time = float(matches.group('time'))
+    except:
+        conv_time = 0.
+
+    status_log.update(Step=step_num, Redshift=state.Redshift, Singlestep=(ss_rate,ss_time), Conv=conv_time)
+
 
 def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
     """
@@ -614,10 +676,7 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
     singlestep_env = setup_singlestep_env(param)
     convolution_env = setup_convolution_env(param)
 
-    status_log_fn = pjoin(param.OutputDirectory, 'status.log')
-    if not os.path.isfile(status_log_fn):
-        with open(status_log_fn, 'w') as status_log:
-            status_log.write("Step  Redshift\n")
+    status_log = StatusLogWriter(pjoin(param.OutputDirectory, 'status.log'))
 
     print("Using parameter file %s and working directory %s."%(paramfn,param.WorkingDirectory))
 
@@ -715,12 +774,11 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
             raise ValueError("Singlestep did not complete!")
         write_state = InputFile(pjoin(write, "state"))
 
-        # Update the status log
-        with open(status_log_fn, 'a') as status_log:
-            status_log.write('{step:4d}  {z:6.3f}\n'.format(step=stepnum, z=write_state.Redshift))
-
         # save the log and timing files under this step number
         save_log_files(param.LogDirectory, 'step{:04d}'.format(write_state.FullStepNumber))
+
+        # Update the status log
+        update_status_log(param, write_state, status_log)
                         
         shutil.copy(pjoin(write, "state"), pjoin(param.LogDirectory, "step{:04d}.state".format(write_state.FullStepNumber)))
         print(( "\t Finished state {:d}. a = {:.4f}, dlna = {:.3g}, rms velocity = {:.3g}".format(
