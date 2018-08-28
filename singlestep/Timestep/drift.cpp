@@ -4,7 +4,7 @@
  * their cell.  If so, particle is moved to the insert list.
  */
 
-void DriftCell(Cell &c, FLOAT driftfactor) {
+inline void DriftCell(Cell &c, FLOAT driftfactor) {
     int N = c.count();
 
     FLOAT3 *pos = (FLOAT3*) c.pos;
@@ -17,8 +17,22 @@ void DriftCell(Cell &c, FLOAT driftfactor) {
     }
 }
 
+// Unlike DriftCell, this operator drifts the whole slab
+void DriftSlab(int slab, FLOAT driftfactor){
+    FLOAT* pos = (FLOAT *) LBW->ReturnIDPtr(PosSlab, slab);
+    FLOAT* vel = (FLOAT *) LBW->ReturnIDPtr(VelSlab, slab);
 
-int RebinCell(Cell &c, int x, int y, int z) {
+    uint64 N = 3*Slab->size(slab);
+
+    #pragma omp parallel for schedule(static)
+    //#pragma simd assert
+    for(uint64 i = 0; i < N; i++){
+        pos[i] += vel[i]*driftfactor;
+    }
+}
+
+
+inline int RebinCell(Cell &c, int x, int y, int z) {
     // This should be ok regardless of box-center vs cell-center.
     // When a particle is found to be out of the cell, then it is
     // moved to the insert list immediately.  A particle from the
@@ -56,8 +70,9 @@ int RebinCell(Cell &c, int x, int y, int z) {
 }
 
 // An alternate, theoretically more efficient implementation
-// So far, it appears to be exactly the same speed in practice
-int RebinCell2(Cell &c, int x, int y, int z) {
+// So far, it appears to be very slightly slower in practice
+// TODO: neither approach seems really vector friendly.  We could do one sweep to establish high/low, and another to rebin via bitmask
+inline int RebinCell2(Cell &c, int x, int y, int z) {
     FLOAT halfinvcpd = PP->halfinvcpd;
     int b = 0;
     int count = c.count();
@@ -72,7 +87,7 @@ int RebinCell2(Cell &c, int x, int y, int z) {
              std::abs(residual.z) > halfinvcpd   ) {
             // This particle is outside the cell and must be rebinned.
             // Push it onto the insert list at the next location 
-            //IL->WrapAndPush( c.pos+b, c.vel+b, c.aux+b, x, y, z);
+            IL->WrapAndPush( c.pos+b, c.vel+b, c.aux+b, x, y, z);
 
             // Now find a low particle, starting from the end
             while(e > b){
@@ -80,7 +95,7 @@ int RebinCell2(Cell &c, int x, int y, int z) {
                 if ( std::abs(eres.x) > halfinvcpd ||
                      std::abs(eres.y) > halfinvcpd ||
                      std::abs(eres.z) > halfinvcpd   )
-                    ;//IL->WrapAndPush( c.pos+e, c.vel+e, c.aux+e, x, y, z);
+                    IL->WrapAndPush( c.pos+e, c.vel+e, c.aux+e, x, y, z);
                 else
                     break;
                 e--;
@@ -104,12 +119,13 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
     STimer wc;
     PTimer move;
     PTimer rebin;
+
+    wc.Start();
     
     int cpd = PP->cpd;
 
     uint64 ILbefore = IL->length;
-    
-    wc.Start();
+
     #pragma omp parallel for schedule(static)
     for(int y=0;y<cpd;y++){
         for(int z=0;z<cpd;z++) {
@@ -143,7 +159,39 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
     
     DriftMove.increment(seq_move);
     DriftRebin.increment(seq_rebin);
-    return;
 }
 
+// Do the drift step on the whole slab at once, instead of cell-by-cell
+// The efficiency gain from doing a slab sweep appears to outweigh the
+// cache efficiency loss from not immediately rebinning a drifted cell
+// But this may not always be the case, so let's leave both versions for now
+void DriftSlabAndCopy2InsertList(int slab, FLOAT driftfactor, void (*DriftSlab)(int slab, FLOAT driftfactor)) {
+    STimer move;
+    STimer rebin;
+    
+    int cpd = PP->cpd;
 
+    uint64 ILbefore = IL->length;
+    
+    move.Start();
+    (*DriftSlab)(slab, driftfactor);
+    move.Stop();
+
+    rebin.Start();
+    #pragma omp parallel for schedule(static)
+    for(int y=0;y<cpd;y++){
+        for(int z=0;z<cpd;z++) {
+            // We'll do the drifting and rebinning separately because
+            // sometimes we'll want special rules for drifting.
+            Cell c = PP->GetCell(slab ,y,z);
+            RebinCell(c, slab, y, z);
+        }
+    }
+    rebin.Stop();
+
+    STDLOG(1,"Drifting slab %d has rebinned %d particles (%d - %d).\n",
+        slab, IL->length-ILbefore, IL->length, ILbefore);
+    
+    DriftMove.increment(move.timer);
+    DriftRebin.increment(rebin.timer);
+}

@@ -556,7 +556,8 @@ void DriftAction(int slab) {
         FLOAT driftfactor = WriteState.DeltaEtaDrift;
         // WriteState.etaD-ReadState.etaD; 
         STDLOG(1,"Drifting slab %d by %f\n", slab, driftfactor);
-        DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
+        //DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
+        DriftSlabAndCopy2InsertList(slab, driftfactor, DriftSlab);
     }
     
     // We freed AccSlab in Microstep to save space

@@ -361,7 +361,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     uint64 localDirectTotal = 0, localPaddedDirectTotal = 0;
     #pragma omp parallel for schedule(static) reduction(+:localDirectTotal) reduction(+:localPaddedDirectTotal)
     for(int j = 0; j < j_width; j++){
-        int g = omp_get_thread_num();
         assertf(j*Nk + Nk <= NSinkSets, "SinkSetCount array access at %d would exceed allocation %d\n", j*Nk + Nk, NSinkSets);
         for(int k=0; k < Nk; k++) {
 	    int zmid = index_to_zcen(k);
