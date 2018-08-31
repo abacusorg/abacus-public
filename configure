@@ -621,26 +621,35 @@ ac_includes_default="\
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
 WARNING
-CUDA_MODE
+PYTHON_LDFLAGS
+PYTHON_CXX
+PYTHON_CC
+GPU_CONVOLUTION_ENABLED
+CUDA_ENABLED
 CUDA_LIBDIR
 NVCC
 CUDA_LDFLAGS
 CUDA_CFLAGS
+CUDA_MAJOR_VER
+AVX512MULTIPOLES
+AVXMULTIPOLES
+SIMD_EXTENSIONS
 CPUEXT_FLAGS
 SIMD_FLAGS
 host_os
 host_vendor
 host_cpu
 host
-build_os
-build_vendor
-build_cpu
-build
 SWIG
 AR
 YACC
 LEX
 TCMALLOC
+ARCH
+build_os
+build_vendor
+build_cpu
+build
 INSTALL_DATA
 INSTALL_SCRIPT
 INSTALL_PROGRAM
@@ -1386,7 +1395,8 @@ Optional Packages:
   --with-max-cpd=CPD      Maximum cells-per-dimension [8192]
   --with-max-source-length=S
                           Maximum source length [1048576]
-  --with-cuda=PREFIX      Prefix of your CUDA installation [/usr/local/cuda]
+  --with-cuda=PREFIX      Prefix of your CUDA installation [$CUDA_HOME or
+                          $CUDA_DIR or $CUDAPATH or /usr/local/cuda]
   --with-direct-bpd=B     Direct buffers per device [ceil((2*NFR+1)/NGPU) = 3]
   --with-max-gpus=M       Maximum number of GPUs to use [16]
   --with-softening={plummer | single_spline | cubic_spline | cubic_plummer}
@@ -3804,8 +3814,59 @@ test -z "$INSTALL_SCRIPT" && INSTALL_SCRIPT='${INSTALL}'
 test -z "$INSTALL_DATA" && INSTALL_DATA='${INSTALL} -m 644'
 
 
+# figure out intel,ppc,etc
+# Make sure we can run config.sub.
+$SHELL "$ac_aux_dir/config.sub" sun4 >/dev/null 2>&1 ||
+  as_fn_error $? "cannot run $SHELL $ac_aux_dir/config.sub" "$LINENO" 5
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking build system type" >&5
+$as_echo_n "checking build system type... " >&6; }
+if ${ac_cv_build+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_build_alias=$build_alias
+test "x$ac_build_alias" = x &&
+  ac_build_alias=`$SHELL "$ac_aux_dir/config.guess"`
+test "x$ac_build_alias" = x &&
+  as_fn_error $? "cannot guess build type; you must specify one" "$LINENO" 5
+ac_cv_build=`$SHELL "$ac_aux_dir/config.sub" $ac_build_alias` ||
+  as_fn_error $? "$SHELL $ac_aux_dir/config.sub $ac_build_alias failed" "$LINENO" 5
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_build" >&5
+$as_echo "$ac_cv_build" >&6; }
+case $ac_cv_build in
+*-*-*) ;;
+*) as_fn_error $? "invalid value of canonical build" "$LINENO" 5;;
+esac
+build=$ac_cv_build
+ac_save_IFS=$IFS; IFS='-'
+set x $ac_cv_build
+shift
+build_cpu=$1
+build_vendor=$2
+shift; shift
+# Remember, the first character of IFS is used to create $*,
+# except with old shells:
+build_os=$*
+IFS=$ac_save_IFS
+case $build_os in *\ *) build_os=`echo "$build_os" | sed 's/ /-/g'`;; esac
+
+
+
+case $build_cpu in #(
+  powerpc64*) :
+    ARCH=powerpc ;; #(
+  x86_64) :
+    ARCH=intel ;; #(
+  *) :
+    as_fn_error $? "\"Unknown CPU architecture $build_cpu\"" "$LINENO" 5
+ ;;
+esac
+
+
 # These files will be generated from their Makefile.in counterparts
-ac_config_files="$ac_config_files singlestep/Makefile singlestep/Direct/Makefile Analysis/PowerSpectrum/PowerSpectrum/Makefile Analysis/FoF/Makefile Convolution/Makefile Derivatives/Makefile singlestep/Multipoles/Makefile clibs/Makefile"
+ac_config_files="$ac_config_files common.mk"
 
 
 # git version
@@ -4063,10 +4124,13 @@ _ACEOF
 #   CPUEXT_FLAGS if compiler supports it. For example, if "bmi2" is
 #   available then "-mbmi2" is added to CPUEXT_FLAGS.
 #
+#   SIMD_EXTENSIONS will contain the short names of the supported SIMD types.
+#
 #   This macro calls:
 #
 #     AC_SUBST(SIMD_FLAGS)
 #     AC_SUBST(CPUEXT_FLAGS)
+#     AC_SUBST(SIMD_EXTENSIONS)
 #
 #   And defines:
 #
@@ -4272,9 +4336,9 @@ else
   as_fn_error $? "unable to find gsl!" "$LINENO" 5
 fi
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing ITT_DoOneTimeInitialization" >&5
-$as_echo_n "checking for library containing ITT_DoOneTimeInitialization... " >&6; }
-if ${ac_cv_search_ITT_DoOneTimeInitialization+:} false; then :
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing TBB_runtime_interface_version" >&5
+$as_echo_n "checking for library containing TBB_runtime_interface_version... " >&6; }
+if ${ac_cv_search_TBB_runtime_interface_version+:} false; then :
   $as_echo_n "(cached) " >&6
 else
   ac_func_search_save_LIBS=$LIBS
@@ -4287,11 +4351,11 @@ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 #ifdef __cplusplus
 extern "C"
 #endif
-char ITT_DoOneTimeInitialization ();
+char TBB_runtime_interface_version ();
 int
 main ()
 {
-return ITT_DoOneTimeInitialization ();
+return TBB_runtime_interface_version ();
   ;
   return 0;
 }
@@ -4304,25 +4368,25 @@ for ac_lib in '' tbb; do
     LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
   fi
   if ac_fn_c_try_link "$LINENO"; then :
-  ac_cv_search_ITT_DoOneTimeInitialization=$ac_res
+  ac_cv_search_TBB_runtime_interface_version=$ac_res
 fi
 rm -f core conftest.err conftest.$ac_objext \
     conftest$ac_exeext
-  if ${ac_cv_search_ITT_DoOneTimeInitialization+:} false; then :
+  if ${ac_cv_search_TBB_runtime_interface_version+:} false; then :
   break
 fi
 done
-if ${ac_cv_search_ITT_DoOneTimeInitialization+:} false; then :
+if ${ac_cv_search_TBB_runtime_interface_version+:} false; then :
 
 else
-  ac_cv_search_ITT_DoOneTimeInitialization=no
+  ac_cv_search_TBB_runtime_interface_version=no
 fi
 rm conftest.$ac_ext
 LIBS=$ac_func_search_save_LIBS
 fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_ITT_DoOneTimeInitialization" >&5
-$as_echo "$ac_cv_search_ITT_DoOneTimeInitialization" >&6; }
-ac_res=$ac_cv_search_ITT_DoOneTimeInitialization
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_TBB_runtime_interface_version" >&5
+$as_echo "$ac_cv_search_TBB_runtime_interface_version" >&6; }
+ac_res=$ac_cv_search_TBB_runtime_interface_version
 if test "$ac_res" != no; then :
   test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
 
@@ -4604,44 +4668,6 @@ done
 
 
 # Check for AVX
-# Make sure we can run config.sub.
-$SHELL "$ac_aux_dir/config.sub" sun4 >/dev/null 2>&1 ||
-  as_fn_error $? "cannot run $SHELL $ac_aux_dir/config.sub" "$LINENO" 5
-
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking build system type" >&5
-$as_echo_n "checking build system type... " >&6; }
-if ${ac_cv_build+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  ac_build_alias=$build_alias
-test "x$ac_build_alias" = x &&
-  ac_build_alias=`$SHELL "$ac_aux_dir/config.guess"`
-test "x$ac_build_alias" = x &&
-  as_fn_error $? "cannot guess build type; you must specify one" "$LINENO" 5
-ac_cv_build=`$SHELL "$ac_aux_dir/config.sub" $ac_build_alias` ||
-  as_fn_error $? "$SHELL $ac_aux_dir/config.sub $ac_build_alias failed" "$LINENO" 5
-
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_build" >&5
-$as_echo "$ac_cv_build" >&6; }
-case $ac_cv_build in
-*-*-*) ;;
-*) as_fn_error $? "invalid value of canonical build" "$LINENO" 5;;
-esac
-build=$ac_cv_build
-ac_save_IFS=$IFS; IFS='-'
-set x $ac_cv_build
-shift
-build_cpu=$1
-build_vendor=$2
-shift; shift
-# Remember, the first character of IFS is used to create $*,
-# except with old shells:
-build_os=$*
-IFS=$ac_save_IFS
-case $build_os in *\ *) build_os=`echo "$build_os" | sed 's/ /-/g'`;; esac
-
-
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking host system type" >&5
 $as_echo_n "checking host system type... " >&6; }
 if ${ac_cv_host+:} false; then :
@@ -4796,6 +4822,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
   CPUEXT_FLAGS=""
   SIMD_FLAGS=""
+  SIMD_EXTENSIONS=""
 
   case $host_cpu in
     powerpc*)
@@ -5342,7 +5369,7 @@ else
 #include <stdlib.h>
             /* No way at ring1 to ring3 in protected mode to check the CR0 and CR4
                control registers directly. Execute an SSE instruction.
-               If it raises SIGILL then OS doesn't support SSE based instructions */
+               If it raises SIGILL then OS does not support SSE based instructions */
             void sig_handler(int signum){ exit(1); }
             int main(){
               signal(SIGILL, sig_handler);
@@ -5551,6 +5578,8 @@ fi
 #define ${ac_instr_have_define} 1
 _ACEOF
 
+               # Also add HAVE_AVX to a substitution list
+               SIMD_EXTENSIONS+=",${ac_instr_have_define},"
              else
                { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Your processor and OS supports ${ac_instr_shortname} instructions but not your compiler, can you try another compiler?" >&5
 $as_echo "$as_me: WARNING: Your processor and OS supports ${ac_instr_shortname} instructions but not your compiler, can you try another compiler?" >&2;}
@@ -5563,8 +5592,8 @@ else
   eval ax_cv_support_${ac_instr_acvar}_ext=no
 fi
 
-               { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Your processor supports ${ac_instr_shortname}, but your OS doesn't" >&5
-$as_echo "$as_me: WARNING: Your processor supports ${ac_instr_shortname}, but your OS doesn't" >&2;}
+               { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Your processor supports ${ac_instr_shortname}, but your OS does not" >&5
+$as_echo "$as_me: WARNING: Your processor supports ${ac_instr_shortname}, but your OS does not" >&2;}
              fi
            fi
          else
@@ -5619,6 +5648,20 @@ fi
 
 
 
+
+
+# We prefer yes/no, not yes/blank
+if test x$ax_cv_have_avx_ext == xyes; then
+    have_avx=yes
+else
+    have_avx=no
+fi
+
+if test x$ax_cv_have_avx512f_ext == xyes; then
+    have_avx512f=yes
+else
+    have_avx512f=no
+fi
 
 # Define the ./configure options
 # Check whether --enable-double was given.
@@ -5683,7 +5726,7 @@ _ACEOF
 if test "${enable_avx+set}" = set; then :
   enableval=$enable_avx;
 else
-  enable_avx=$ax_cv_have_avx_ext
+  enable_avx=$have_avx
 fi
 
 
@@ -5691,7 +5734,7 @@ fi
 if test "${enable_avx512+set}" = set; then :
   enableval=$enable_avx512;
 else
-  enable_avx512=$ax_cv_have_avx512f_ext
+  enable_avx512=$have_avx512f
 fi
 
 
@@ -5732,13 +5775,16 @@ else
   enable_avx_multipoles=$enable_avx
 fi
 
+AVXMULTIPOLES="AVXMULTIPOLES_DISABLED"
 if test x$enable_avx_multipoles == xyes; then
 
 cat >>confdefs.h <<_ACEOF
 #define AVXMULTIPOLES /**/
 _ACEOF
 
+    AVXMULTIPOLES="AVXMULTIPOLES_ENABLED"
 fi
+
 
 # Check whether --enable-avx512-multipoles was given.
 if test "${enable_avx512_multipoles+set}" = set; then :
@@ -5747,13 +5793,16 @@ else
   enable_avx512_multipoles=$enable_avx512
 fi
 
+AVX512MULTIPOLES="AVX512MULTIPOLES_DISABLED"
 if test x$enable_avx512_multipoles == xyes; then
 
 cat >>confdefs.h <<_ACEOF
 #define AVX512MULTIPOLES /**/
 _ACEOF
 
+    AVX512MULTIPOLES="AVX512MULTIPOLES_ENABLED"
 fi
+
 
 # Check whether --enable-avx-fof was given.
 if test "${enable_avx_fof+set}" = set; then :
@@ -5855,22 +5904,24 @@ done
 
 
 
+# There are a few semi-canonical variables that indicate the installed CUDA prefix
+# Just take the first one that exists
+# We could loop through these if we wanted
+default_cuda_prefix=$CUDA_HOME
+default_cuda_prefix=${default_cuda_prefix:-$CUDA_DIR}
+default_cuda_prefix=${default_cuda_prefix:-$CUDAPATH}
+default_cuda_prefix=${default_cuda_prefix:-/usr/local/cuda}
+
 # Provide your CUDA path with this
+
 
 # Check whether --with-cuda was given.
 if test "${with_cuda+set}" = set; then :
   withval=$with_cuda; cuda_prefix=$withval
 else
-  cuda_prefix=${CUDA_HOME:-/usr/local/cuda}
+  cuda_prefix=$default_cuda_prefix
 fi
 
-
-# Setting the prefix to the default if only --with-cuda was given
-if test "$cuda_prefix" == "yes"; then
-	if test "$withval" == "yes"; then
-		cuda_prefix="/usr/local/cuda"
-	fi
-fi
 
 # Checking for nvcc
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking nvcc in $cuda_prefix/bin" >&5
@@ -5884,6 +5935,9 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
 
 	# We need to add the CUDA search directories for header and lib searches
+
+	CUDA_MAJOR_VER=$(cat $cuda_prefix/version.txt |cut -d' ' -f3 | cut -d. -f1)
+
 
 	CUDA_CFLAGS=""
 
@@ -5947,8 +6001,8 @@ fi
 			CUDA_LIBDIR=$cuda_prefix/lib
 
 		else
-			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Couldn't find cuda lib directory" >&5
-$as_echo "$as_me: WARNING: Couldn't find cuda lib directory" >&2;}
+			{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Could not find cuda lib directory" >&5
+$as_echo "$as_me: WARNING: Could not find cuda lib directory" >&2;}
 			VALID_CUDA=no
 		fi
 	else
@@ -6018,8 +6072,8 @@ fi
 
 				CUDA_CFLAGS+=" -m32"
 			else
-				{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Couldn't find cuda lib directory" >&5
-$as_echo "$as_me: WARNING: Couldn't find cuda lib directory" >&2;}
+				{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Could not find cuda lib directory" >&5
+$as_echo "$as_me: WARNING: Could not find cuda lib directory" >&2;}
 				VALID_CUDA=no
 			fi
 		else
@@ -6039,8 +6093,8 @@ $as_echo "$as_me: WARNING: Couldn't find cuda lib directory" >&2;}
 if test "x$ac_cv_header_cuda_h" = xyes; then :
 
 else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Couldn't find cuda.h" >&5
-$as_echo "$as_me: WARNING: Couldn't find cuda.h" >&2;}
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Could not find cuda.h" >&5
+$as_echo "$as_me: WARNING: Could not find cuda.h" >&2;}
 			VALID_CUDA=no
 
 fi
@@ -6086,8 +6140,8 @@ $as_echo "$ac_cv_lib_cuda_cuInit" >&6; }
 if test "x$ac_cv_lib_cuda_cuInit" = xyes; then :
   VALID_CUDA=yes
 else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Couldn't find libcuda" >&5
-$as_echo "$as_me: WARNING: Couldn't find libcuda" >&2;}
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Could not find libcuda" >&5
+$as_echo "$as_me: WARNING: Could not find libcuda" >&2;}
             VALID_CUDA=no
 fi
 
@@ -6118,14 +6172,14 @@ fi
 	fi
 fi
 
-CUDA_MODE="CUDA_DISABLED"
+CUDA_ENABLED="CUDA_DISABLED"
 if test x$enable_gpu_directs == xyes; then
 
 cat >>confdefs.h <<_ACEOF
 #define CUDADIRECT /**/
 _ACEOF
 
-	CUDA_MODE="CUDA_ENABLED"
+	CUDA_ENABLED="CUDA_ENABLED"
 fi
 
 # Check whether --enable-gpu-convolution was given.
@@ -6135,12 +6189,15 @@ else
   enable_gpu_convolution="no"
 fi
 
+
+GPU_CONVOLUTION_ENABLED="GPU_CONVOLUTION_DISABLED"
 if test x$enable_gpu_convolution == xyes; then
 
 cat >>confdefs.h <<_ACEOF
 #define GPUFFT /**/
 _ACEOF
 
+    GPU_CONVOLUTION_ENABLED="GPU_CONVOLUTION_ENABLED"
 fi
 
 # Check whether --enable-fof_density was given.
@@ -6475,12 +6532,92 @@ fi
 
 fi
 
+# If the user is using Anaconda Python, we have to be careful
+# about how we build C/C++ libraries that will be loaded by Python.
+# Anaconda Python has the Python executable rpath set to find
+# Anaconda libs before system ones, so this may resolve shared
+# libraries to different versions than the compiler expected.
+# Often this is not too harmful, but we've observed OpenMP/-lgomp
+# crashes as a result.  The solution is to always compile
+# Python extensions with Anaconda's compilers if the user
+# is using Anaconda Python.
+# You may only want the impl packages; the activation scripts will mess with configure
+PYTHON_EXEC=$(command -v python)
+PYTHON_CC=$CC
+PYTHON_CXX=$CXX
+PYTHON_LDFLAGS=
+PYTHON_COMPILER_WARNING=
 
-# These will be added to the
+
+
+# Check if the user is using Anaconda Python (better way to do this? sys.version doesn't work for me)
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for Anaconda Python" >&5
+$as_echo_n "checking for Anaconda Python... " >&6; }
+if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+    # Now look in the Anaconda/bin directory
+    CONDA_BINDIR=$(dirname $PYTHON_EXEC)
+    CONDA_BINDIRNAME=$(basename $CONDA_BINDIR)
+    CONDA_LIBDIR=$(realpath $CONDA_BINDIR/../lib)
+
+    # sanity check
+    if test xbin != x$CONDA_BINDIRNAME; then
+        { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: 'bin' not found in directory containing 'python': \"$CONDA_BINDIR\" (\"$CONDA_BINDIRNAME\"). May fail to find conda compilers." >&5
+$as_echo "$as_me: WARNING: 'bin' not found in directory containing 'python': \"$CONDA_BINDIR\" (\"$CONDA_BINDIRNAME\"). May fail to find conda compilers." >&2;}
+    fi
+
+    # There should be only one gcc and one g++ compiler in the bin directory.
+    # All the ways to construct the exact compiler name seemed extremely complicated,
+    # but we should keep an eye out for a better way to do this.
+    # Directly invoking conda-build is a no-go: takes forever and won't compile an extension in-place
+    GCC_FILES=$(ls -1q $CONDA_BINDIR/*gcc 2> /dev/null)
+    # we count words here instead of lines; fixes a problem with empty strings and newlines but will break if there are spaces in the filenames
+    NGCC_FILES=$(echo -n "$GCC_FILES" | wc -w)
+    if test $NGCC_FILES -ge 1; then
+        PYTHON_CC=$(echo $GCC_FILES | awk '{print $1}')
+    fi
+    if test $NGCC_FILES -ne 1; then
+        { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Could not find a unique *gcc file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gcc*_impl package for your platform to get rid of this message." >&5
+$as_echo "$as_me: WARNING: Could not find a unique *gcc file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gcc*_impl package for your platform to get rid of this message." >&2;}
+        { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Using: \"$PYTHON_CC\"" >&5
+$as_echo "$as_me: WARNING: Using: \"$PYTHON_CC\"" >&2;}
+    fi
+
+    GXX_FILES=$(ls -1q $CONDA_BINDIR/*g++ 2> /dev/null)
+    NGXX_FILES=$(echo -n "$GXX_FILES" | wc -w)
+    if test $NGXX_FILES -ge 1; then
+        PYTHON_CXX=$(echo $GXX_FILES | awk '{print $1}')
+    fi
+    if test $NGXX_FILES -ne 1; then
+        { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Could not find a unique *g++ file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gxx*_impl package for your platform to get rid of this message." >&5
+$as_echo "$as_me: WARNING: Could not find a unique *g++ file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gxx*_impl package for your platform to get rid of this message." >&2;}
+        { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Using: \"$PYTHON_CXX\"" >&5
+$as_echo "$as_me: WARNING: Using: \"$PYTHON_CXX\"" >&2;}
+    fi
+
+    # Note Anaconda PYTHON_CC is always a gcc version, so any FLAGS will have to respect that
+    # Let's assume that Anaconda Python always does the rpath linkage (which I think is true),
+    # so we might as well supply the lib at link time, no matter if we actually found a conda gcc
+    PYTHON_LDFLAGS="-L $CONDA_LIBDIR"
+
+    # Most likely the user is using Python compiled with GCC.  So if we are building extensions
+    # using icc (which shouldn't happen if the user installed the conda compilers), link some
+    # Intel libs
+    if test x$PYTHON_CXX == xicc; then
+        PYTHON_LDFLAGS+=' -lirc'
+    fi
+else
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+# This will be placed at the top of *.in files
 
 WARNING="# WARNING! This file has been automatically generated by configure.
 # Any changes to it will be overwritten the next time configure is run.
-# You may want to modify Makefile.in instead."
+# You may want to modify the corresponding *.in file, or use configure
+# flags to achieve your goal instead (see ./configure --help)."
 
 echo
 echo "------------------------------------------------------"
@@ -7200,14 +7337,7 @@ for ac_config_target in $ac_config_targets
 do
   case $ac_config_target in
     "./include/config.h") CONFIG_HEADERS="$CONFIG_HEADERS ./include/config.h" ;;
-    "singlestep/Makefile") CONFIG_FILES="$CONFIG_FILES singlestep/Makefile" ;;
-    "singlestep/Direct/Makefile") CONFIG_FILES="$CONFIG_FILES singlestep/Direct/Makefile" ;;
-    "Analysis/PowerSpectrum/PowerSpectrum/Makefile") CONFIG_FILES="$CONFIG_FILES Analysis/PowerSpectrum/PowerSpectrum/Makefile" ;;
-    "Analysis/FoF/Makefile") CONFIG_FILES="$CONFIG_FILES Analysis/FoF/Makefile" ;;
-    "Convolution/Makefile") CONFIG_FILES="$CONFIG_FILES Convolution/Makefile" ;;
-    "Derivatives/Makefile") CONFIG_FILES="$CONFIG_FILES Derivatives/Makefile" ;;
-    "singlestep/Multipoles/Makefile") CONFIG_FILES="$CONFIG_FILES singlestep/Multipoles/Makefile" ;;
-    "clibs/Makefile") CONFIG_FILES="$CONFIG_FILES clibs/Makefile" ;;
+    "common.mk") CONFIG_FILES="$CONFIG_FILES common.mk" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
   esac

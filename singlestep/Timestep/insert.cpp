@@ -189,6 +189,11 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     uint64 slablength = 0;
     FinishPartition.Start();
 
+    // TODO: not really drift.  This is fixed in the (currently inaccessible) El Gato branches
+    DriftInsert.Start();
+    CollectGaps();
+    DriftInsert.Stop();
+
     uint64 mid = ParallelPartition(list, length, slab, is_in_slab);  // [0..mid-1] are not in slab, [mid..length-1] are in slab
     
     /* VESTIGIAL CODE, in case one doesn't trust the ParallelPartition code

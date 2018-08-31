@@ -5,17 +5,8 @@
 *.so
 *.a
 *.d
-clibs/Makefile
 singlestep/singlestep
-singlestep/make_multipoles
-singlestep/benchmark_io
-singlestep/standalone_fof
-singlestep/Makefile
-singlestep/Direct/Makefile
-singlestep/Multipoles/Makefile
-Analysis/FoF/Makefile
-Convolution/Makefile
-Derivatives/Makefile
+common.mk
 autom4te.cache/
 config.log
 config.status
@@ -23,3 +14,5 @@ include/config.h
 nohup.out
 __pycache__/
 core
+*.prof
+*.lprof

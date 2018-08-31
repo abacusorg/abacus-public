@@ -179,6 +179,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     SinkPosSlab = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab);
     for (int c=0; c<2*nfradius+1; c++) {
 	SourcePosSlab[c] = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab+c-nfradius);
+
+        Nslab[c] = Slab->size(slab - nfradius + c);
     }
 
     // There is a slab that has the WIDTH Partial Acceleration fields.
@@ -236,6 +238,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
         skewer_blocks[j] = this_skewer_blocks;
     }
 
+    SinkTotal = localSinkTotal;
+
     // Cumulate the number of blocks in each skewer, so we know how 
     // to start enumerating.
     uint64 skewer_blocks_start[j_width+1+nfwidth]; 
@@ -279,7 +283,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     }
 
     int NPaddedSinks = NFBlockSize*NSinkBlocks;
-    SinkTotal = NPaddedSinks;  // for performance metrics, we always move around the padded amount
+    PaddedSinkTotal = NPaddedSinks;  // for performance metrics, we always move around the padded amount
             // The total padded number of particles
     assertf(NPaddedSinks <= MaxSinkSize, "NPaddedSinks (%d) larger than allocated space (MaxSinkSize = %d)\n", NPaddedSinks, MaxSinkSize);
     
@@ -310,6 +314,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
         skewer_blocks[j] = this_skewer_blocks;
     }
 
+    SourceTotal = localSourceTotal;
+
     // Cumulate the number of blocks in each skewer, so we know how 
     // to start enumerating.
     skewer_blocks_start[0] = 0;
@@ -337,7 +343,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     
     int NPaddedSources = NFBlockSize*NSourceBlocks;
             // The total number of padded sources
-    SourceTotal = NPaddedSources;  // for performance metrics, we always move around the padded amount 
+    PaddedSourceTotal = NPaddedSources;  // for performance metrics, we always move around the padded amount 
     assertf(NPaddedSources <= MaxSourceSize, "NPaddedSources (%d) larger than allocated space (MaxSourceSize = %d)\n", NPaddedSources, MaxSourceSize);
 
     // Next, we have to pair up the Source and Sinks.  Each sink
@@ -352,10 +358,9 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSourceYOffset, 4096, sizeof(FLOAT) * InteractionCount) == 0);
     FLOAT cellsize = PP->invcpd;
     
-    uint64 localDirectTotal = 0;
-    #pragma omp parallel for schedule(static) reduction(+:localDirectTotal)
+    uint64 localDirectTotal = 0, localPaddedDirectTotal = 0;
+    #pragma omp parallel for schedule(static) reduction(+:localDirectTotal) reduction(+:localPaddedDirectTotal)
     for(int j = 0; j < j_width; j++){
-        int g = omp_get_thread_num();
         assertf(j*Nk + Nk <= NSinkSets, "SinkSetCount array access at %d would exceed allocation %d\n", j*Nk + Nk, NSinkSets);
         for(int k=0; k < Nk; k++) {
 	    int zmid = index_to_zcen(k);
@@ -378,10 +383,12 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
                     SinkSourceYOffset[l+y] = (tmpy-PP->WrapSlab(tmpy))*cellsize;
                 #endif
                 localDirectTotal += SinkSetCount[sinkindex] * SourceSetCount[sourceindex];
+                localPaddedDirectTotal += PaddedSinkCount(sinkindex) * SourceSetCount[sourceindex];
             }
         }
     }
     DirectTotal = localDirectTotal;
+    PaddedDirectTotal = localPaddedDirectTotal;
 }
 
 

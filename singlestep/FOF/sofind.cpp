@@ -1,4 +1,4 @@
-/** Code to perform spherical overdensity finding on provided particle
+/** \file Code to perform spherical overdensity finding on provided particle
 sets, in particular the L0 groups.
 
 The algorithms here are purely serial; it is expected that multithreading
@@ -57,6 +57,15 @@ We are not implementing any unbinding here.
 */
 
 #define SO_CACHE 1024
+
+/** This class contains the workspace to do SO finding on a 
+given contiguous set of particles.
+
+The input particle sets are not permuted, and no ability to 
+permute is supported.   The FOFparticle listing is in the SO
+group order, and one uses the indexes therein to access the 
+original data for those particles.
+*/
 
 class SOcell {
   public:
@@ -120,10 +129,12 @@ class SOcell {
         numsorts = 0;
         numcenters = 0;
         reset(32768);
-        int ret = posix_memalign((void **)&twothirds, 64, sizeof(int)*(SO_CACHE+2));  assert(ret == 0);
+        int ret = posix_memalign((void **)&twothirds, 64, sizeof(FOFloat)*(SO_CACHE+2));  assert(ret == 0);
 	for (int j=0; j<SO_CACHE+2; j++) twothirds[j] = pow(j,2.0/3.0);
         // We will have terrible bugs if these aren't true!
+	#ifdef AVXFOF
         assertf(sizeof(FOFparticle)==16, "FOFparticle is illegal size!");
+	#endif
         assertf(sizeof(FOFgroup)%16==0, "FOFgroup is illegal size!");
         return;
     }
@@ -404,16 +415,17 @@ class SOcell {
 	}
     }
 
-    int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, accstruct *acc, int n) {
-        // This takes in all of the positions, velocities, and aux for
-        // a cell of size n.
 
-        // It copies pos[0,n) into the FOFparticle array.
-	// vel and aux are not used, but acc[0,n) is required, as it carries
-	// the FOF-scale densities that we use.
-        // Then perform the SO.
-        // Return the number of multiplet groups.
-        // pos[], etc. will be unchanged.
+    /// This takes in all of the positions, velocities, and aux for
+    /// a cell of size n.
+
+    /// It copies pos[0,n) into the FOFparticle array.
+    /// vel and aux are not used, but acc[0,n) is required, as it carries
+    /// the FOF-scale densities that we use.
+    /// Then perform the SO.
+    /// Return the number of multiplet groups.
+    /// pos[], etc. will be unchanged.
+    int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, FLOAT3p1 *acc, int n) {
 
         Total.Start();
         reset(n);

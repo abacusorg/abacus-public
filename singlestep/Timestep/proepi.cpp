@@ -356,12 +356,17 @@ void Epilogue(Parameters &P, bool ic) {
     STDLOG(1,"Leaving Epilogue(). Epilogue took %.2g sec.\n", epilogue.Elapsed());
 }
 
-std::vector<std::vector<int>> free_cores;  // list of free cores for each socket
+std::vector<std::vector<int>> free_cores;  // list of cores on each socket that are not assigned a thread (openmp, gpu, io, etc)
 void init_openmp(){
     // Tell singlestep to use the desired number of threads
     int max_threads = omp_get_max_threads();
     int ncores = omp_get_num_procs();
     int nthreads = P.OMP_NUM_THREADS > 0 ? P.OMP_NUM_THREADS : max_threads + P.OMP_NUM_THREADS;
+
+    // On summitdev (which has 160 thread slices), singlestep crashes.
+    // I suspect this is because some of our stack-allocated arrays of size nthreads get too big
+    // In practice, we will probably not use this many cores because there aren't nearly that many physical cores
+    nthreads = min(128, nthreads);
     
     assertf(nthreads <= max_threads, "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n",
         nthreads, max_threads);

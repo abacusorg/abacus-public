@@ -155,7 +155,7 @@ void NearForceAction(int slab) {
     SlabForceTime[slab].Start();
         
     JJ->ExecuteSlab(slab, P.ForceOutputDebug);
-    // JJ->ExecuteSlab(slab, 1);  // Uncomment to force blocking GPU work
+    //JJ->ExecuteSlab(slab, 1);  // Use this line instead to force blocking GPU work
 
     SlabForceLatency[slab].Start();
     if (P.ForceOutputDebug) {
@@ -173,7 +173,7 @@ void NearForceAction(int slab) {
         memcpy(nearacctmp, nearacc, npslab*sizeof(accstruct));
         FLOAT inv_eps3 = 1./(JJ->SofteningLengthInternal*JJ->SofteningLengthInternal*JJ->SofteningLengthInternal);
         for(int i = 0; i < npslab; i++)
-            nearacc[i] *= inv_eps3;
+            nearacc[i] *= inv_eps3; 
 #endif
         LBW->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
         LBW->WriteSlabDescriptorName(NearAccSlab,slab).c_str());
@@ -185,6 +185,9 @@ void NearForceAction(int slab) {
 #endif
 
     }
+
+    // Busy-wait for all GPU work for this slab to finish
+    // while(!JJ->SlabDone(slab)) ;
 }
 
 // -----------------------------------------------------------------
@@ -553,7 +556,8 @@ void DriftAction(int slab) {
         FLOAT driftfactor = WriteState.DeltaEtaDrift;
         // WriteState.etaD-ReadState.etaD; 
         STDLOG(1,"Drifting slab %d by %f\n", slab, driftfactor);
-        DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
+        //DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
+        DriftSlabAndCopy2InsertList(slab, driftfactor, DriftSlab);
     }
     
     // We freed AccSlab in Microstep to save space

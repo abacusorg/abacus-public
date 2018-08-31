@@ -1,7 +1,8 @@
 #pragma once
 
 // This is a class that has 4 floats, but omits the last element from
-// scalar multiplies.
+// scalar multiplies.  We use this for cases like tracking acceleration
+// in the first three elements, and FoF link counts in the fourth.
 
 // Because we don't have float3 and double3 templated, it's not 
 // so easy to template this.
@@ -66,6 +67,9 @@ class FLOAT3p1 {
 
 // #define TOFLOAT3(_float3p1) static_cast<FLOAT3>(_float3p1)
 
+// TODO: better way to do this casting?
+// Explicitly implementing a casting operator in the class worked
+// but not with the C-style cast, which we prefer for clarity and brevity
 inline FLOAT3 TOFLOAT3(FLOAT3p1 val) {
 	return FLOAT3(val.x, val.y, val.z);
 }

@@ -150,7 +150,7 @@ void Taylor::AnalyticEvaluateTaylor(double *CT, FLOAT3 expansioncenter, int np,
     }
 }
 
-
+#ifdef AVXMULTIPOLES
 void Taylor::ASMEvaluateTaylor( double *CT, FLOAT3 center, int n, FLOAT3 *xyz,
                                 FLOAT3 *acc) {
     int g = omp_get_thread_num();
@@ -200,6 +200,7 @@ void Taylor::ASMEvaluateTaylor( double *CT, FLOAT3 center, int n, FLOAT3 *xyz,
         }
     }
 }
+#endif
 
 void Taylor::AVX512EvaluateTaylor( double *CT, FLOAT3 center, int n, FLOAT3 *xyz,
                                 FLOAT3 *acc) {

@@ -130,6 +130,7 @@ public:
     
     int Conv_OMP_NUM_THREADS;
     int Conv_IOCores[MAX_IO_THREADS];
+    int Conv_zwidth;
     
     // TODO: this scheme doesn't account for more complicated NUMA architectures
     int GPUThreadCoreStart[MAX_GPUS];  // The core on which to start placing GPU device threads.
@@ -141,6 +142,7 @@ public:
     int MinL1HaloNP; // minimum L1 halo size to output
 	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
     double HaloTaggableFraction; // fraction of particles in a L2 halo to tag and output
+    int OutputAllHaloParticles;  // ==0 normally, to output only taggable L1 particles.  If non-zero, output all particles.
 
     double MicrostepTimeStep; // Timestep parameter that controls microstep refinement
 
@@ -193,10 +195,12 @@ public:
 
         installscalar("DerivativesDirectory",DerivativesDirectory,MUST_DEFINE);
 
-        installscalar("InitialConditionsDirectory",InitialConditionsDirectory,MUST_DEFINE);   // The initial condition file name
-        installscalar("ICFormat",ICFormat,MUST_DEFINE);   // The initial condition file format
-        installscalar("ICPositionRange",ICPositionRange,MUST_DEFINE);   // The initial condition file position convention
-        installscalar("ICVelocity2Displacement",ICVelocity2Displacement,MUST_DEFINE);   // The initial condition file velocity convention
+        installscalar("InitialConditionsDirectory",InitialConditionsDirectory,DONT_CARE);   // The initial condition file name
+        installscalar("ICFormat",ICFormat,DONT_CARE);   // The initial condition file format
+        ICPositionRange = -1.;
+        installscalar("ICPositionRange",ICPositionRange,DONT_CARE);   // The initial condition file position convention
+        ICVelocity2Displacement = -1;
+        installscalar("ICVelocity2Displacement",ICVelocity2Displacement,DONT_CARE);   // The initial condition file velocity convention
         FlipZelDisp = 0;
         installscalar("FlipZelDisp",FlipZelDisp,DONT_CARE);   // Flip Zeldovich ICs
 
@@ -289,6 +293,9 @@ public:
         Conv_OMP_NUM_THREADS = 0;
         installscalar("Conv_OMP_NUM_THREADS", Conv_OMP_NUM_THREADS, DONT_CARE);
 
+        Conv_zwidth = 0;
+        installscalar("Conv_zwidth", Conv_zwidth, DONT_CARE);
+
         // Using staticly allocated memory didn't seem to work with installvector
         IODirs = (char**) malloc(MAX_IODIRS*sizeof(char*));
         char *block = (char *) malloc(MAX_IODIRS*1024*sizeof(char));
@@ -324,6 +331,8 @@ public:
 		installscalar("L1Output_dlna", L1Output_dlna, DONT_CARE);
         HaloTaggableFraction = 0.1;
         installscalar("HaloTaggableFraction", HaloTaggableFraction, DONT_CARE);
+        OutputAllHaloParticles = 0;
+        installscalar("OutputAllHaloParticles", OutputAllHaloParticles, DONT_CARE);
 
         MicrostepTimeStep = 1.;
         installscalar("MicrostepTimeStep", MicrostepTimeStep, DONT_CARE);
