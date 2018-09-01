@@ -1,19 +1,20 @@
 ROOT_DIR := ..
 include $(ROOT_DIR)/common.mk
 
-LDFLAGS := $(CXXFLAGS) -shared -Wl,--as-needed
+LDFLAGS := $(CXXFLAGS) -shared $(PYTHON_LDFLAGS)
 CXXFLAGS += -fPIC
-CPPFLAGS += -I../include/ -I../Convolution
+CPPFLAGS += -I $(ROOT_DIR)/include/ -I $(ROOT_DIR)/Convolution $(THREAD_CPPFLAGS)
 
 SO_TARGETS = libpermute.so liblightcones.so libreadabacus.so
 
 all: libpermute.so libreadabacus.so
 
 %.o:%.cpp
-	$(CXX) ${CXXFLAGS} $(CPPFLAGS) -MMD -c $<
+	@# Always use PYTHON_CXX for python extension compilations
+	$(PYTHON_CXX) ${CXXFLAGS} $(CPPFLAGS) -MMD -c $<
 
 $(SO_TARGETS): lib%.so: %.o
-	$(CXX) $(CPPFLAGS) $(LDFLAGS) -o $@ $^
+	$(PYTHON_CXX) $(CPPFLAGS) $(LDFLAGS) -o $@ $<
 
 -include $(SO_TARGETS:.so=.d)
 

@@ -204,7 +204,7 @@ private:
             STDLOG(0, "IO thread not bound to core\n");
         }
 
-        {
+        /*{ // Related to the CPU scheduling experiment above
             // Double-check the thread priority
             int policy = 0, ret = 0;
             sched_param params;
@@ -221,7 +221,7 @@ private:
                 // Print thread scheduling priority
                 STDLOG(0,"IO thread scheduling priority is %d\n", params.sched_priority);
             }
-        }
+        }*/
 
         IOLOG(0,"Opening IO pipes\n");
         fifo_cmd = open(IO_CMD_PIPE, O_RDONLY);

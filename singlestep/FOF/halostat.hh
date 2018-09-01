@@ -1,3 +1,7 @@
+/** We compute properties of each L1 group and store them in a HaloStat
+object.
+*/
+
 #ifndef __HALOSTAT_HH
 #define __HALOSTAT_HH
 
@@ -5,30 +9,37 @@
 
 class HaloStat {
   public:
-    uint64_t id;	// A unique halo number.
-    uint64_t npstart;	// Where to start counting in the particle output
-    uint64_t npout;	// Number of taggable particles pos/vel/aux written out.
+    uint64_t id;	///< A unique halo number.
+    uint64_t npstart;	///< Where to start counting in the particle output
+    uint64_t npout;	///< Number of taggable particles pos/vel/aux written out.
 
-    uint64_t taggedstart;   // Where to start counting in the tagged particle output
-    uint64_t ntagged;	    // Number of tagged particle PIDs written out.
+    uint64_t taggedstart;   ///< Where to start counting in the tagged particle output
+    uint64_t ntagged;	    ///< Number of tagged particle PIDs written out.
 
-    uint32_t N;	// The number of particles in this halo
-    uint32_t subhalo_N[N_LARGEST_SUBHALOS];
-    uint32_t L0_N;    // The number of particles in the L0 parent group
+    uint32_t N;	///< The number of particles in this halo
+    uint32_t subhalo_N[N_LARGEST_SUBHALOS];   ///< The number of particles in the largest L2 subhalos
+    uint32_t L0_N;    ///< The number of particles in the L0 parent group
 
-    float x[3];      // Center of mass position
-    float v[3];      // Center of mass velocity
-    float sigmav[3];  // sqrt(Eigenvalues) of the velocity tensor
-    float r25, r50, r75, r90;   // Radii of this percentage of mass
-    float vcirc_max, rvcirc_max;  // max velocity and radius thereof
+    float x[3];      ///< Center of mass position
+    float v[3];      ///< Center of mass velocity
+    float sigmav[3];  ///< sqrt(Eigenvalues) of the velocity tensor
+    float r25, r50, r75, r90;   ///< Radii of this percentage of mass
+    // float r100;
+    float vcirc_max, rvcirc_max;  ///< max velocity and radius thereof
+    // float xcen[3];	///< Center of the SO sphere
+    // float densitycen;  ///< FOF-scale density of the SO central particle
 
-    // The largest subhalo center of mass
-    float subhalo_x[3];   
-    float subhalo_v[3];
+    // The largest (most massive) subhalo center of mass
+    float subhalo_x[3];   ///< Center of mass pos of the largest L2 subhalo
+    float subhalo_v[3];   ///< Center of mass vel of the largest L2 subhalo
     // The profile properties computed from that center point
-    float subhalo_sigmav[3];
+    float subhalo_sigmav[3]; ///< sqrt(Eigenvalues) of the velocity tensor of the L1 halo from L2 center
     float subhalo_r25, subhalo_r50, subhalo_r75, subhalo_r90;
-    float subhalo_vcirc_max, subhalo_rvcirc_max;
+    	///< Radii of this percentage of mass, relative to L2 center
+    // float subhalo_r100;
+    float subhalo_vcirc_max, subhalo_rvcirc_max;   ///< max circular velocity and radius thereof, relative to L2 center
+    // float subhalo_xcen[3];	///< Center of the SO sphere for largest L2 subhalo
+    // float subhalo_densitycen;  ///< FOF-scale density of the central particle of the largest L2 subhalo
 };
 
 

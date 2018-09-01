@@ -117,6 +117,20 @@ def run():
     print("Vz: rms %e, max %e"%( np.std(xv[:,5]), np.max(np.absolute(xv[:,5])) ))
     print("Ratio of max velocity (analytic/computed): %f"%(np.max(analytic[:,1])/np.max(xv[:,3])))
 
+    check_pids(params)
+
+
+from Abacus import ReadAbacus
+def check_pids(params):
+    particles = ReadAbacus.from_dir(pjoin(params['WorkingDirectory'], 'read'), pattern='position_*', return_pid=True, format='state')
+    pids = particles['pid']
+    pids.sort()
+    assert pids[0] == 0
+    assert (np.diff(pids) == 1).all()
+    assert len(pids) == params['NP']
+    print('All particles present with no duplicates.')
+
+
 def animate_analytic(astart,astop,across,npoints):
     os.chdir("/tmp/")
     a_out = np.linspace(astart,astop,npoints)

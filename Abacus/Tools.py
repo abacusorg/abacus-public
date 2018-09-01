@@ -300,6 +300,37 @@ import argparse
 # >>> parser = argparse.ArgumentParser(description='...', formatter_class=Tools.ArgParseFormatter)
 class ArgParseFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
     pass
+
+
+import numba
+def wrap_zero_centered(pos, box):
+    """
+    Wraps an array of positions in-place
+    to the range [-box/2, box/2).
+    
+    Parameters
+    ----------
+    pos: ndarray
+        The positions to wrap, already in the same units as box
+    box: float
+        The box edge length (box is zero-centered)
+    """
+    
+    return _box_wrap(pos.ravel(), box)
+
+@numba.njit(parallel=True)
+def _box_wrap(p, box):
+    '''
+    An in-place fast periodic wrap
+    This is a kludgy workaround for https://github.com/numba/numba/issues/2954
+    '''
+    #p = p.flat
+    N = len(p)
+    for i in numba.prange(N):
+        while p[i] >= box/2:
+            p[i] -= box
+        while p[i] < -box/2:
+            p[i] += box
     
 if __name__ == '__main__':
     fm = get_RAM_info()

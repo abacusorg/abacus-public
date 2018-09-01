@@ -15,3 +15,5 @@ nohup.out
 __pycache__/
 core
 lsf-*.out
+*.prof
+*.lprof

@@ -15,7 +15,8 @@ CC := @CXX@ -x c # Is this a canonical option?
 LDFLAGS := -Wl\,--as-needed  # seems to help us avoid a lot of mischief
 CXXFLAGS := -std=c++11
 ROOT_DIR ?= .
-CPPFLAGS := @DEFS@ -m64 -O3 -I $(ROOT_DIR)/include -g $(LDFLAGS)  # definitely not a preprocessor option, but...
+OPT := -O3 -g
+CPPFLAGS := @DEFS@ -m64 -I $(ROOT_DIR)/include $(OPT) $(LDFLAGS)  # definitely not a preprocessor option, but it's the one flag we pass to gcc and g++
 #CPPFLAGS += -Wall  #TODO: clean up compiler warnings
 
 # We use bash syntax in some Makefiles
@@ -23,45 +24,31 @@ SHELL = /bin/bash
 
 CUDA_ENABLED = @CUDA_ENABLED@
 ifeq (@CUDA_ENABLED@,CUDA_ENABLED)
-	CUDA_CXXFLAGS := @CUDA_CFLAGS@ -ccbin @CXX@
-	CUDA_LIBS := @CUDA_LDFLAGS@ -lcuda -lcudart -lcufft
-	NVCC := @NVCC@
-	CUDA_MAJOR_VER := @CUDA_MAJOR_VER@
+    NVCC_FLAGS := @CUDA_CFLAGS@ @DEFS@ $(OPT) -I $(ROOT_DIR)/include $(CXXFLAGS) -ccbin @CXX@
+    NVCC_XCOMPILERFLAGS := 
+    CUDA_LIBS := @CUDA_LDFLAGS@ -lcuda -lcudart
+    NVCC := @NVCC@
+    CUDA_MAJOR_VER := @CUDA_MAJOR_VER@
 endif
 
-# Define GNU/Intel specific compiler options
-ifeq (@CXX@,g++)
-	CXX_MAJOR_VER := $(shell $(CXX) -dumpversion | cut -f1 -d.)
-
-	ifeq (@ARCH@,powerpc)
-		# powerpc does not accept -march=native
-		CPPFLAGS += -mcpu=native -mtune=native
-	else
-		CPPFLAGS += -march=native
-	endif
-else ifeq (@CXX@,icc)
-	CPPFLAGS += -xHost -fp-model precise -fbuiltin -ip -mkl #-ipo #-prof-use=weighted
-endif
-
-ifeq (@TCMALLOC@,TCMALLOC_ENABLED)
-	TCMALLOC_CPPFLAGS += -I $(ROOT_DIR)/gperftools/include
-	TCMALLOC_CPPFLAGS += -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
-	# tcmalloc libs automatically go into LIBS
-endif
-
-CPPFLAGS += $(TCMALLOC_CPPFLAGS)  # is it okay to link everything against tcmalloc?
+# It's not okay to link everything against tcmalloc.
+# With dynamically loaded Python extensions, that will switch the malloc implementation midstream and cause errors.
+# We should endeavor to keep CPPFLAGS globally useable/useful even if SINGLESTEP_LIBS is not.
+# Most libraries are mandatory anyway, so we can specify the -l flags manually in the Makefiles instead of propagating them from configure
+#CPPFLAGS += $(TCMALLOC_CPPFLAGS)
 
 MULTIPOLES_OBJ :=
 # These are the optimized multipole/taylor object files that
 # singlestep/Multipoles/Makefile will generate and singlestep/Makefile will link against
 ifeq (@AVXMULTIPOLES@,AVXMULTIPOLES_ENABLED)
-	MULTIPOLES_OBJ += ETASM.o CMASM.o
+    MULTIPOLES_OBJ += ETASM.o CMASM.o
 endif
 ifeq (@AVX512MULTIPOLES@,AVX512MULTIPOLES_ENABLED)
-	MULTIPOLES_OBJ += CMAVX512.o ETAVX512.o
+    MULTIPOLES_OBJ += CMAVX512.o ETAVX512.o
 endif
 
-LIBS := @LIBS@
+# Really only singlestep and friends should use @LIBS@. It's not safe to link everything against all the libs here (e.g. tcmalloc)
+SINGLESTEP_LIBS := @LIBS@
 
 # Some of this setup could surely be done inside configure
 # I think that mostly makes sense for external dependencies,
@@ -72,18 +59,61 @@ PARSEHEADER_CPPFLAGS := -I $(ROOT_DIR)/ParseHeader
 
 # pthread and openmp are of course separate, but in practice we often use them together
 THREAD_LIBS := -pthread
-THREAD_CPPFLAGS := -fopenmp -foffload=disable  # offloading sends openmp to the GPU
+THREAD_CPPFLAGS := -fopenmp
 
 GPU_CONVOLUTION_ENABLED = @GPU_CONVOLUTION_ENABLED@
+ifeq ($(GPU_CONVOLUTION_ENABLED),GPU_CONVOLUTION_ENABLED)
+	CUDA_LIBS += -lcufft
+endif
 
 READABACUS_CPPFLAGS := -I $(ROOT_DIR)/clibs
 READABACUS_LIBS := -L $(ROOT_DIR)/clibs
+
+PYTHON_CC := @PYTHON_CC@
+PYTHON_CXX := @PYTHON_CXX@
+PYTHON_LDFLAGS := @PYTHON_LDFLAGS@
+
+# Define GNU/Intel specific compiler options
+# We do this towards the bottom of the Makefile so we can modify options set above
+# In theory this is all fairly "static" and could be done in configure.ac if performance were a concern
+# (since common.mk is reloaded for every Makefile)
+# But it might be easier to leave compiler customizations here for people to edit
+ifeq (@CXX@,g++)
+    CXX_MAJOR_VER := $(shell $(CXX) -dumpversion | cut -f1 -d.)
+
+    ifeq (@ARCH@,powerpc)
+        # powerpc does not accept -march=native
+        CPPFLAGS += -mcpu=native -mtune=native
+    else
+        CPPFLAGS += -march=native
+    endif
+
+    THREAD_CPPFLAGS += -foffload=disable  # offloading sends openmp to the GPU
+else ifeq (@CXX@,icc)
+    CPPFLAGS += -xHost -fp-model precise -fbuiltin -ip -mkl #-ipo #-prof-use=weighted
+    NVCC_CPPFLAGS += -fp-model precise -ip -mkl
+endif
+
+TCMALLOC_CPPFLAGS :=
+ifeq (@TCMALLOC@,TCMALLOC_ENABLED)
+    TCMALLOC_CPPFLAGS += -I $(ROOT_DIR)/gperftools/include
+    TCMALLOC_CPPFLAGS += -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
+    # -ltcmalloc automatically goes into LIBS if it's available
+endif
+
+# If either PYTHON_CC or PYTHON_CXX is undefined
+#PythonCompilerWarning:
+#	$(warning "[Warning] Anaconda Python detected, but no Anaconda compilers were found.\
+#	Some Python extensions may not work.  Download the Anaconda gcc and gxx *_impl packages\
+#	for your platform (only download the *_impl packages: the primary gcc/gxx packages will\
+#	probably override the system compilers).")
 
 ParseHeader: $(ROOT_DIR)/ParseHeader/libparseheader.a
 $(ROOT_DIR)/ParseHeader/libparseheader.a:
 	$(MAKE) -C $(ROOT_DIR)/ParseHeader libparseheader.a
 
 .PHONY: ParseHeader
+
 # We provided the ParseHeader definition in this file which may be
 # included at the top of other Makefiles.  Don't let it be the default target!
 .DEFAULT_GOAL :=

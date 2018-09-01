@@ -29,23 +29,33 @@ ARCHFLAGS = --generate-code arch=compute_35,code=sm_35\
 # _FORCE_INLINES fixes a weird compilation bug
 CPPFLAGS += -D_FORCE_INLINES
 
-CUDAFLAGS = $(ARCHFLAGS) -lineinfo -Xptxas="-v" -maxrregcount 63 --default-stream per-thread -ccbin="$(CXX)" $(CXXFLAGS)
+CUDAFLAGS = $(ARCHFLAGS) -lineinfo -Xptxas="-v" -maxrregcount 63 --default-stream per-thread $(NVCC_FLAGS)
 
 all: gpudirect.a
 
 gpudirect.a: GPUControl.o
-	$(NVCC) $(CUDAFLAGS) -Xcompiler "$(CPPFLAGS)" -lib $^ -o $@ 
+	$(NVCC) $(CUDAFLAGS) -Xcompiler "$(NVCC_XCOMPILERFLAGS)" -lib $^ -o $@ 
 
--include gpudirect.d
+# Don't want make distclean to force dependency generation
+# Only have to do this because nvcc doesn't offer -MMD to do inline dep generation
+ifeq (,$(findstring clean,$(MAKECMDGOALS)))
+-include GPUControl.d
+endif
 
-GPUControl.o: GPUControl.cu
-	$(NVCC) $(CUDAFLAGS) -Xcompiler "$(CPPFLAGS) -MMD" -o $@ -c $<
+GPUControl.d:
+	$(NVCC) $(CUDAFLAGS) -Xcompiler "$(NVCC_XCOMPILERFLAGS)" -M $(@:.d=.cu) -o $@
+
+GPUControl.o: GPUControl.cu GPUControl.d
+	$(NVCC) $(CUDAFLAGS) -Xcompiler "$(NVCC_XCOMPILERFLAGS)" -o $@ -c $<
 
 else
 all:
 endif
 
 BINARIES=avx512direct
+
+avx512direct: avx512direct.cc
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -DTEST -o $@ $<
 
 clean:
 	$(RM) *.o *.ptx *.fatbin *.cubin nvtemp $(BINARIES) *.a

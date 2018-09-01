@@ -91,15 +91,15 @@ uint64 NumParticlesInSkewer(int slab, int j) {
 
 /// For one skewer, compute how many sink blocks will be incurred
 /// for this one Skewer in the worst case for all of the SIC.
-int ComputeSinkBlocks(int slab, int j) {
+int ComputeSinkBlocks(int slab, int j, int NearFieldRadius) {
     int np = NumParticlesInSkewer(slab, j);
-    return (2*NFRADIUS+1)*(np/NFBlockSize)+P.cpd;
+    return (2*NearFieldRadius+1)*(np/NFBlockSize)+P.cpd;
 }
 /// For one skewer, compute how many source blocks will be incurred
 /// for this one Skewer in the worst case for all of the SIC.
-int ComputeSourceBlocks(int slab, int j) {
+int ComputeSourceBlocks(int slab, int j, int NearFieldRadius) {
     int np = 0;
-    for (int c=-NFRADIUS; c<=NFRADIUS; c++) 
+    for (int c=-NearFieldRadius; c<=NearFieldRadius; c++) 
 	np += NumParticlesInSkewer(slab+c, j);
     return (np/NFBlockSize+P.cpd);
 }
@@ -156,7 +156,7 @@ int posix_memalign_wrap(char * &buffer, size_t &bsize, void ** ptr,
 /// buffer.  Important: buffer and bsize are modified and returned
 /// with the pointer to and size of the unused space.
 
-SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhigh, FLOAT _b2, char * &buffer, size_t &bsize){
+SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhigh, FLOAT _b2, char * &buffer, size_t &bsize, int NearFieldRadius){
     eps = JJ->eps;
     
     //set known class variables
@@ -170,15 +170,18 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     AssignedDevice = 0;
     
     //useful construction constants
-    nfradius = P.NearFieldRadius;
-    nfwidth = 2*P.NearFieldRadius+1;
+    nfradius = NearFieldRadius;
+    nfwidth = 2*NearFieldRadius+1;
     j_width = j_high-j_low;
     Nk = cpd;
 
     // Load the Pointers to the PosXYZ Slabs
     SinkPosSlab = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab);
-    for (int c=0; c<nfwidth; c++) 
-        SourcePosSlab[c] = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab+c-nfradius);
+    for (int c=0; c<2*nfradius+1; c++) {
+	SourcePosSlab[c] = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab+c-nfradius);
+
+        Nslab[c] = Slab->size(slab - nfradius + c);
+    }
 
     // There is a slab that has the WIDTH Partial Acceleration fields.
     // Get a pointer to the appropriate segment of that.
@@ -227,13 +230,15 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
             int sinkindex = j * Nk + k;
             // This loads all of the position pointers into the Plan,
             // but also returns the total size.
-            int pencilsize = SinkPlan[sinkindex].load(slab, j + j_low, zmid);
+            int pencilsize = SinkPlan[sinkindex].load(slab, j + j_low, zmid, nfradius);
             SinkSetCount[sinkindex] = pencilsize;
             localSinkTotal += pencilsize;
             this_skewer_blocks += NumPaddedBlocks(pencilsize);
         }
         skewer_blocks[j] = this_skewer_blocks;
     }
+
+    SinkTotal = localSinkTotal;
 
     // Cumulate the number of blocks in each skewer, so we know how 
     // to start enumerating.
@@ -278,7 +283,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     }
 
     int NPaddedSinks = NFBlockSize*NSinkBlocks;
-    SinkTotal = NPaddedSinks;  // for performance metrics, we always move around the padded amount
+    PaddedSinkTotal = NPaddedSinks;  // for performance metrics, we always move around the padded amount
             // The total padded number of particles
     assertf(NPaddedSinks <= MaxSinkSize, "NPaddedSinks (%d) larger than allocated space (MaxSinkSize = %d)\n", NPaddedSinks, MaxSinkSize);
     
@@ -301,13 +306,15 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
             int sourceindex = j * Nk + k;
             // This loads the Plan and returns the length
             int sourcelength = SourcePlan[sourceindex].load(slab,
-                            j+j_low-nfradius, zmid);
+                            j+j_low-nfradius, zmid, nfradius);
             SourceSetCount[sourceindex] = sourcelength;
             localSourceTotal += sourcelength;
             this_skewer_blocks += NumPaddedBlocks(sourcelength);
         }
         skewer_blocks[j] = this_skewer_blocks;
     }
+
+    SourceTotal = localSourceTotal;
 
     // Cumulate the number of blocks in each skewer, so we know how 
     // to start enumerating.
@@ -336,7 +343,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     
     int NPaddedSources = NFBlockSize*NSourceBlocks;
             // The total number of padded sources
-    SourceTotal = NPaddedSources;  // for performance metrics, we always move around the padded amount 
+    PaddedSourceTotal = NPaddedSources;  // for performance metrics, we always move around the padded amount 
     assertf(NPaddedSources <= MaxSourceSize, "NPaddedSources (%d) larger than allocated space (MaxSourceSize = %d)\n", NPaddedSources, MaxSourceSize);
 
     // Next, we have to pair up the Source and Sinks.  Each sink
@@ -351,10 +358,9 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSourceYOffset, 4096, sizeof(FLOAT) * InteractionCount) == 0);
     FLOAT cellsize = PP->invcpd;
     
-    uint64 localDirectTotal = 0;
-    #pragma omp parallel for schedule(static) reduction(+:localDirectTotal)
+    uint64 localDirectTotal = 0, localPaddedDirectTotal = 0;
+    #pragma omp parallel for schedule(static) reduction(+:localDirectTotal) reduction(+:localPaddedDirectTotal)
     for(int j = 0; j < j_width; j++){
-        int g = omp_get_thread_num();
         assertf(j*Nk + Nk <= NSinkSets, "SinkSetCount array access at %d would exceed allocation %d\n", j*Nk + Nk, NSinkSets);
         for(int k=0; k < Nk; k++) {
 	    int zmid = index_to_zcen(k);
@@ -377,10 +383,12 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
                     SinkSourceYOffset[l+y] = (tmpy-PP->WrapSlab(tmpy))*cellsize;
                 #endif
                 localDirectTotal += SinkSetCount[sinkindex] * SourceSetCount[sourceindex];
+                localPaddedDirectTotal += PaddedSinkCount(sinkindex) * SourceSetCount[sourceindex];
             }
         }
     }
     DirectTotal = localDirectTotal;
+    PaddedDirectTotal = localPaddedDirectTotal;
 }
 
 

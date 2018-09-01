@@ -7,7 +7,9 @@ COSMO_INCLUDES = $(addprefix $(ROOT_DIR)/include/, Cosmology.cpp Cosmology.h)
 
 # Export the C++ compiler to swig, which uses the CC variable
 # May need to monkey around with other flags if swig flags are wrong for non-GNU compilers
-export CC = $(CXX)
+# Somehow swig knows to use anaconda compiler_compat when linking...? distutils monkey patching...?
+export CC := $(PYTHON_CXX)
+export LDFLAGS := $(PYTHON_LDFLAGS)
 
 # Try, but don't hard fail because some systems don't have swig
 # and this isn't a mandatory module

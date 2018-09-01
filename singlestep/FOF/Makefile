@@ -2,9 +2,9 @@ ROOT_DIR := ../..
 include $(ROOT_DIR)/common.mk
 
 #CC = icc -xHost
-OMP =  -fopenmp
-CPPFLAGS += $(PARSEHEADER_CPPFLAGS) -DOMP -DTBB -I../Timestep -I../Direct -I../DataModel -I../Output -I../../Convolution -std=c++11 -O0
-LIBS += $(PARSEHEADER_LIBS)
+OMP :=  -fopenmp
+CPPFLAGS += $(PARSEHEADER_CPPFLAGS) $(OMP) -DOMP -DTBB -I../Timestep -I../Direct -I../DataModel -I../Output -I../../Convolution -std=c++11 -O0
+LIBS := $(PARSEHEADER_LIBS)
 
 BINARIES = test_driver fof_sublist slab_accum grouplink standalone_fof microstep_test.so
 
@@ -24,8 +24,8 @@ grouplink: grouplink.cpp
 standalone_fof: dependencies_fof.cpp
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) dependencies_fof.cpp $(LIBS) -o standalone_fof
 
-microstep_test: test_driver_microstep.cpp microstep.cpp
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $< -shared -fPIC -o $@.so $(LIBS)
+microstep_test: test_driver_microstep.cpp microstep.cpp ParseHeader
+	$(PYTHON_CXX) $(CXXFLAGS) $(CPPFLAGS) $< -shared -fPIC -o $@.so $(LIBS) $(PYTHON_LDFLAGS) $(THREAD_CPPFLAGS)
 
 default: test_driver
 

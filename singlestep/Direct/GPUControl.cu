@@ -45,14 +45,17 @@ to the rest of the code, because it needs CUDA.
 #include "config.h"
 #include "header.cpp"
 
-//#include <x86intrin.h>
+//#include <x86intrin.h>  // needed for _rdtsc(). only for icc...?
 #include <cstring>
 #include <cstdio>
 #include <cassert>
 #include <pthread.h>
 #include "omp.h"
-#include <numaif.h>
 #include <atomic>
+
+#ifdef HAVE_LIBNUMA
+#include <numaif.h>
+#endif
 
 #include "CudaErrors.cuh"
 
@@ -89,6 +92,7 @@ to the rest of the code, because it needs CUDA.
 #include "DeviceFunctions.h"
 #include "IncludeGPUKernels.cuh"
 
+// Provide a mechanism to call singlestep's STDLOG from this compilation unit
 void stdlog_hook(int verbosity, const char* str);
 #define STDLOG stdlog_hook
 #define assertf(_mytest,...) do { \
@@ -277,6 +281,9 @@ limited by the fraction of CPD**2
 /// This routine is supplied with the size (in bytes) of each
 /// GPU buffer, and it returns estimates on that basis of how
 /// big the tasks can be.  This is used in the planning of tasks.
+///
+/// Note that we size this to NFRADIUS, which is allowed to be bigger
+/// than P.NearFieldRadius.
 
 extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize, 
     int numberGPUs, int bufferperdevice, 
@@ -339,7 +346,6 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     DeviceStreams = new cudaStream_t[NBuf];
     Buffers = new GPUBuffer[NBuf];
     DeviceThread = new pthread_t[NBuf];
-    // TODO: These appear to never be freed
     
     // Start one thread per buffer
     
@@ -476,10 +482,9 @@ void *QueueWatcher(void *_arg){
     // We make 2/3 of the host pinned memory WriteCombined, which is
     // good for sending data to the GPU.  The other 1/3 is normal, 
     // better for returning the data from the GPU.
-
-    // Attempt some NUMA specifics
     
 #ifdef HAVE_LIBNUMA
+    // Attempt some NUMA specifics
     // Query the current NUMA node of the allocated buffers
     // We are using the move_pages function purely to query NUMA state, not move anything
     int page = -1;

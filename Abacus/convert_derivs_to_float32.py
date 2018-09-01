@@ -7,6 +7,8 @@ Takes 64-bit derivatives files and makes a 32-bit copy of them. Does not
 modify the original derivatives. The new files will be named
 "fourierspace_float32_*".
 
+This script is primarily invoked automatically through abacus.py.
+
 positional arguments:
   fourierspace_file  The files to convert. Usually something like
                      "fourierspace_1485_8_2_8_*".
@@ -14,8 +16,6 @@ positional arguments:
 optional arguments:
   -h, --help         show this help message and exit
 '''
-
-
 
 import argparse
 import os.path as path

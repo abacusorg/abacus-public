@@ -1,7 +1,7 @@
-
-// We create a CellGroup for every multiplets and every boundary singlet.
-// We hide the bounding box test in the upper 7 bits of the multiplicity
-// This limits cell groups to 33M particles, which is safe
+/** \file We create a CellGroup for every multiplets and every boundary singlet.
+We hide the bounding box test in the upper 7 bits of the multiplicity
+This limits cell groups to 33M particles, which is safe
+*/
 
 #define XM_BIT (1<<25)
 #define YM_BIT (1<<26)
@@ -17,28 +17,28 @@
     //                         1<<29 for y_max
     //                         1<<30 for z_max
 
+/** The CellGroup class describes a FOF group within a single cell.
+
+We hide information about whether the group is close to a boundary
+in the highest 7 bits of the size.
+*/
+
 class CellGroup {
   public:
-    int start;  // The starting index of the particles, zero-indexed in the cell
-    int n;      // The group multiplicity.  
-         // Particles are at locations [start, start+n)
+    int start;  ///< The starting index of the particles, zero-indexed in the cell
+    int n;      ///< The group multiplicity.  
+         ///< Particles are at locations [start, start+n)
 
-    CellGroup(FOFgroup &g, FOFloat boundary, float *aligned) {
-	// aligned should be 8 floats and aligned.
+    CellGroup(FOFgroup &g, FOFloat boundary) {
 	start = g.start;
 	n = g.n;
-	FOFparticle *m = (FOFparticle *)aligned;
-	*m = g.BBmin;
-	m++; *m = g.BBmax;
-	// _mm_store_ps(aligned, g.BBmin);
-	// _mm_store_ps(aligned+4, g.BBmax);
 	// The BoundingBoxes are in code units
-	if (aligned[0]<-boundary) n|= XM_BIT;
-	if (aligned[1]<-boundary) n|= YM_BIT;
-	if (aligned[2]<-boundary) n|= ZM_BIT;
-	if (aligned[4]> boundary) n|= XP_BIT;
-	if (aligned[5]> boundary) n|= YP_BIT;
-	if (aligned[6]> boundary) n|= ZP_BIT;
+	if (g.BBmin.x<-boundary) n|= XM_BIT;
+	if (g.BBmin.y<-boundary) n|= YM_BIT;
+	if (g.BBmin.z<-boundary) n|= ZM_BIT;
+	if (g.BBmax.x> boundary) n|= XP_BIT;
+	if (g.BBmax.y> boundary) n|= YP_BIT;
+	if (g.BBmax.z> boundary) n|= ZP_BIT;
 	return;
     }
     CellGroup(int particlenum, posstruct &pos, FOFloat boundary) {

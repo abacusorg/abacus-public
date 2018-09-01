@@ -8,7 +8,7 @@ void SetInteractionCollection::CPUExecute(){
     QUIT("Error: executing CPU pencils with non-Plummer softening is not currently supported.\n");
 #endif
     
-    int WIDTH = 2*P.NearFieldRadius + 1;
+    int WIDTH = nfwidth;
     
     FLOAT cpu_eps = JJ->SofteningLengthInternal*JJ->SofteningLengthInternal;
     
@@ -20,7 +20,7 @@ void SetInteractionCollection::CPUExecute(){
     List3<FLOAT> *SinkSetPositions = new List3<FLOAT>(NSinkBlocks*NFBlockSize);
     #pragma omp parallel for schedule(dynamic,1)
     for (int j=0; j<NSinkSets; j++) {
-        SinkPlan[j].copy_into_pinned_memory(*SinkSetPositions, SinkSetStart[j], SinkSetCount[j], SinkPosSlab);
+        SinkPlan[j].copy_into_pinned_memory(*SinkSetPositions, SinkSetStart[j], SinkSetCount[j], SinkPosSlab, nfradius, Nslab[2*nfradius]);
     }
     FillSinks.Stop();
 
@@ -28,7 +28,7 @@ void SetInteractionCollection::CPUExecute(){
     List3<FLOAT> *SourceSetPositions = new List3<FLOAT>(NSourceBlocks*NFBlockSize);
     #pragma omp parallel for schedule(dynamic,1)
     for (int j=0; j<NSourceSets; j++) {
-        SourcePlan[j].copy_into_pinned_memory(*SourceSetPositions, SourceSetStart[j], SourceSetCount[j], SourcePosSlab);
+        SourcePlan[j].copy_into_pinned_memory(*SourceSetPositions, SourceSetStart[j], SourceSetCount[j], SourcePosSlab, nfradius, Nslab);
     }
     FillSources.Stop();
 
@@ -128,7 +128,7 @@ void SetInteractionCollection::CPUExecute(){
 	// We need each Y skewer to be done by one thread
 	for (int k=0; k<cpd; k++) {
 	    int idx = j*Nk+k;
-	    SinkPlan[idx].copy_from_pinned_memory((void *)SinkSetAccelerations, SinkSetStart[idx], SinkSetCount[idx], (void *)SinkAccSlab, j);
+	    SinkPlan[idx].copy_from_pinned_memory((void *)SinkSetAccelerations, SinkSetStart[idx], SinkSetCount[idx], (void *)SinkAccSlab, j, nfradius, Nslab[2*nfradius]);
 	}
     }
     CopyAccelFromPinned.Stop();

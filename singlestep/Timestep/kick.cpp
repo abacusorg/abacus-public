@@ -26,12 +26,13 @@
 
     // TODO: Now that accstruct is not simply float3, we have do this
     // explicitly, so we lose SIMD.  Any tricks needed?
-void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
+inline void KickCell(Cell &c, FLOAT kick1, FLOAT kick2) {
     FLOAT maxvel = 0.0;
     FLOAT maxacc = 0.0;
     FLOAT sumvel2 = 0.0;
 
     uint32_t N = c.count();
+    #pragma simd assert reduction(max:maxvel) reduction(max:maxacc) reduction(+:sumvel2)
     for (uint32_t i=0;i<N;i++) {
         // First half kick, to get synchronous
         c.vel[i] += TOFLOAT3(c.acc[i]) * kick1;
@@ -54,15 +55,13 @@ void KickCell(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
 
 
 void KickSlab(int slab, FLOAT kick1, FLOAT kick2,
-void (*KickCell)(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2)) {
-    accstruct *acc = (accstruct *) LBW->ReturnIDPtr(AccSlab,slab);
+void (*KickCell)(Cell &c, FLOAT kick1, FLOAT kick2)) {
     int cpd = PP->cpd;
     #pragma omp parallel for schedule(static)
     for (int y=0;y<cpd;y++) {
         for (int z=0;z<cpd;z++) {
             Cell c = PP->GetCell(slab, y, z);
-            accstruct *cellacc = acc+c.ci->startindex;
-            (*KickCell)(c,cellacc,kick1,kick2);
+            (*KickCell)(c,kick1,kick2);
         }
     }
 }
@@ -87,6 +86,7 @@ void RescaleAndCoAddAcceleration(int slab) {
     #pragma omp parallel for schedule(static)
     // TODO: Because nacc and facc can differ in type, we can't use SIMD.  
     //       Ok?  Perhaps bandwidth limited anyways?
+    #pragma simd assert
     for (uint64 j=0; j<N;j++) {
         #ifdef DIRECTSINGLESPLINE
         nacc[j] = (nacc[j]*inv_eps3+facc[j])*rescale;

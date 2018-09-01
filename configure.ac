@@ -102,7 +102,7 @@ fi
 AC_ARG_WITH(radius,
 	[AS_HELP_STRING([--with-radius=NFR], [Near field radius [2]])],
 	[], with_radius="2")
-AC_DEFINE_UNQUOTED(NFRADIUS,$with_radius, "Radius of cells to compute with near-field force")
+AC_DEFINE_UNQUOTED(NFRADIUS,$with_radius, "Max Radius of cells to compute with near-field force")
 
 AC_ARG_WITH(block-size,
 [AS_HELP_STRING([--with-block-size=B], [Near field block size [64]])],
@@ -155,7 +155,7 @@ AC_ARG_ENABLE(avx-fof,
 [AS_HELP_STRING([--enable-avx-fof], [AVX FOF [yes if AVX present]])],
     [], enable_avx_fof=$enable_avx)
 if test x$enable_avx_fof == xyes; then
-    AC_DEFINE_UNQUOTED(AVXFOF, [], "Use AVX FOF")
+    AC_DEFINE_UNQUOTED(AVXFOF, [], "Use AVX for FOF and SO")
 fi
 
 AC_ARG_WITH(max-cpd,
@@ -173,6 +173,13 @@ AC_ARG_ENABLE(threaded-io,
 	[], enable_threaded_io="yes")
 if test x$enable_threaded_io == xyes; then
 	AC_DEFINE_UNQUOTED(IOTHREADED, [], "Use a separate thread for IO")
+fi
+
+AC_ARG_ENABLE(spherical-overdensity,
+[AS_HELP_STRING([--enable-spherical-overdensity], [Use SO finder [no]])],
+	[], enable_spherical_overdensity="no")
+if test x$enable_spherical_overdensity == xyes; then
+	AC_DEFINE_UNQUOTED(SPHERICAL_OVERDENSITY, [], "Use SO finder for L1/L2 hhalos, rather than FOF")
 fi
 
 AC_ARG_ENABLE(gpu-directs,
@@ -257,24 +264,97 @@ if test x$enable_mkl != xyes; then
     AC_SEARCH_LIBS(fftwf_init_threads, [fftw3f_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
 fi
 
+# If the user is using Anaconda Python, we have to be careful
+# about how we build C/C++ libraries that will be loaded by Python.
+# Anaconda Python has the Python executable rpath set to find
+# Anaconda libs before system ones, so this may resolve shared
+# libraries to different versions than the compiler expected.
+# Often this is not too harmful, but we've observed OpenMP/-lgomp
+# crashes as a result.  The solution is to always compile
+# Python extensions with Anaconda's compilers if the user
+# is using Anaconda Python.
+# You may only want the impl packages; the activation scripts will mess with configure
+PYTHON_EXEC=$(command -v python)
+PYTHON_CC=$CC
+PYTHON_CXX=$CXX
+PYTHON_LDFLAGS=
+PYTHON_COMPILER_WARNING=
+AC_SUBST(PYTHON_CC)
+AC_SUBST(PYTHON_CXX)
+AC_SUBST(PYTHON_LDFLAGS)
+# Check if the user is using Anaconda Python (better way to do this? sys.version doesn't work for me)
+AC_MSG_CHECKING([for Anaconda Python])
+if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
+    AC_MSG_RESULT([yes])
+    # Now look in the Anaconda/bin directory
+    CONDA_BINDIR=$(dirname $PYTHON_EXEC)
+    CONDA_BINDIRNAME=$(basename $CONDA_BINDIR)
+    CONDA_LIBDIR=$(realpath $CONDA_BINDIR/../lib)
 
-# These will be added to the 
+    # sanity check
+    if test xbin != x$CONDA_BINDIRNAME; then
+        AC_MSG_WARN('bin' not found in directory containing 'python': "$CONDA_BINDIR" ("$CONDA_BINDIRNAME"). May fail to find conda compilers.)
+    fi
+
+    # There should be only one gcc and one g++ compiler in the bin directory.
+    # All the ways to construct the exact compiler name seemed extremely complicated,
+    # but we should keep an eye out for a better way to do this.
+    # Directly invoking conda-build is a no-go: takes forever and won't compile an extension in-place
+    GCC_FILES=$(ls -1q $CONDA_BINDIR/*gcc 2> /dev/null)
+    # we count words here instead of lines; fixes a problem with empty strings and newlines but will break if there are spaces in the filenames
+    NGCC_FILES=$(echo -n "$GCC_FILES" | wc -w)
+    if test $NGCC_FILES -ge 1; then
+        PYTHON_CC=$(echo $GCC_FILES | awk '{print $1}')
+    fi
+    if test $NGCC_FILES -ne 1; then
+        AC_MSG_WARN(Could not find a unique *gcc file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gcc*_impl package for your platform to get rid of this message.)
+        AC_MSG_WARN(Using: "$PYTHON_CC")
+    fi
+
+    GXX_FILES=$(ls -1q $CONDA_BINDIR/*g++ 2> /dev/null)
+    NGXX_FILES=$(echo -n "$GXX_FILES" | wc -w)
+    if test $NGXX_FILES -ge 1; then
+        PYTHON_CXX=$(echo $GXX_FILES | awk '{print $1}')
+    fi
+    if test $NGXX_FILES -ne 1; then
+        AC_MSG_WARN(Could not find a unique *g++ file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gxx*_impl package for your platform to get rid of this message.)
+        AC_MSG_WARN(Using: "$PYTHON_CXX")
+    fi
+
+    # Note Anaconda PYTHON_CC is always a gcc version, so any FLAGS will have to respect that
+    # Let's assume that Anaconda Python always does the rpath linkage (which I think is true),
+    # so we might as well supply the lib at link time, no matter if we actually found a conda gcc
+    PYTHON_LDFLAGS="-L $CONDA_LIBDIR"
+
+    # Most likely the user is using Python compiled with GCC.  So if we are building extensions
+    # using icc (which shouldn't happen if the user installed the conda compilers), link some
+    # Intel libs
+    if test x$PYTHON_CXX == xicc; then
+        PYTHON_LDFLAGS+=' -lirc'
+    fi
+else
+    AC_MSG_RESULT([no])
+fi
+
+# This will be placed at the top of *.in files
 AC_SUBST(WARNING)
 WARNING="# WARNING! This file has been automatically generated by configure.
 # Any changes to it will be overwritten the next time configure is run.
-# You may want to modify the corresponding *.in file instead."
+# You may want to modify the corresponding *.in file, or use configure
+# flags to achieve your goal instead (see ./configure --help)."
 
 echo
 echo "------------------------------------------------------"
 echo "Abacus has been configured with the following options:"
 echo "Double precision:                $enable_double"
-echo "Near field radius:               $with_radius"
+echo "Near field max radius:           $with_radius"
 echo "Near field block size:           $with_block_size"
 echo "AVX directs:                     $enable_avx_directs"
 echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "AVX multipoles:                  $enable_avx_multipoles"
 echo "AVX-512 multipoles:              $enable_avx512_multipoles"
 echo "AVX FOF:                         $enable_avx_fof"
+echo "Spherical Overdensity:           $enable_spherical_overdensity"
 echo "Maximum CPD:                     $with_max_cpd"
 echo "Maximum source length:           $with_max_source_length"
 echo "Threaded IO:                     $enable_threaded_io"
