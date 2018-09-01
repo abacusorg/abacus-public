@@ -1,0 +1,22 @@
+RamDisk = 0
+OverwriteState = 0
+#IODirs = ["multipole/", "taylor/", "multipole2/", "taylor2/"]
+#nIODirs = 4
+#IODirThreads = [2, 2, 3, 3]
+#MAXRAMMB = 200000  # This will be automatically detected
+# ConvolutionCacheSizeMB = 30  # This will be automatically detected
+
+# OpenMP and thread parameters
+#OMP_NUM_THREADS = 19
+#OMP_PLACES = "{0}:11,{14}:8"
+#OMP_PROC_BIND = "spread"
+#IOCores = [11, 12, 13]
+#GPUThreadCoreStart = [22, 25]
+#GPUThreadCoreStart = [8, 11]
+#NGPUThreadCores = 3
+
+# Convolution OpenMP parameters
+#Conv_OMP_NUM_THREADS = -1
+#Conv_OMP_PLACES = "{1}:27"
+#Conv_OMP_PROC_BIND = "close"
+#Conv_IOCores = [0]

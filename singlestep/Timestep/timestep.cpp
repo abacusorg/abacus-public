@@ -155,15 +155,35 @@ void NearForceAction(int slab) {
     SlabForceTime[slab].Start();
         
     JJ->ExecuteSlab(slab, P.ForceOutputDebug);
-    //JJ->ExecuteSlab(slab, 1);
+    // JJ->ExecuteSlab(slab, 1);  // Uncomment to force blocking GPU work
 
     SlabForceLatency[slab].Start();
     if (P.ForceOutputDebug) {
-        // We want to output the NearAccSlab to the NearAcc file.
+        // We want to output the AccSlab to the NearAcc file.
         // This must be a blocking write.
         JJ->Finalize(slab);
-        LBW->WriteArena(NearAccSlab, slab, IO_KEEP, IO_BLOCKING,
+
+#ifdef DIRECTSINGLESPLINE
+        // Single spline requires a prefactor multiplication, which we defer to the kick for efficiency
+        // But analysis routines that use ForceOutputDebug, like Ewald, expect this prefactor to already be applied
+        // So apply it here, storing the original in a temporary copy
+        uint64 npslab = Slab->size(slab);
+        accstruct *nearacctmp = new accstruct[npslab];
+        accstruct *nearacc = (accstruct *) LBW->ReturnIDPtr(AccSlab, slab);
+        memcpy(nearacctmp, nearacc, npslab*sizeof(accstruct));
+        FLOAT inv_eps3 = 1./(JJ->SofteningLengthInternal*JJ->SofteningLengthInternal*JJ->SofteningLengthInternal);
+        for(int i = 0; i < npslab; i++)
+            nearacc[i] *= inv_eps3; 
+#endif
+        LBW->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
         LBW->WriteSlabDescriptorName(NearAccSlab,slab).c_str());
+
+#ifdef DIRECTSINGLESPLINE
+        // restore the original
+        memcpy(nearacc, nearacctmp, npslab*sizeof(accstruct));
+        delete[] nearacctmp;
+#endif
+
     }
 }
 
@@ -188,16 +208,16 @@ void TaylorForceAction(int slab) {
     
     STDLOG(1,"Computing far-field force for slab %d\n", slab);
     SlabFarForceTime[slab].Start();
-    LBW->AllocateArena(AccSlab,slab);
+    LBW->AllocateArena(FarAccSlab,slab);
     
     TaylorCompute.Start();
     ComputeTaylorForce(slab);
     TaylorCompute.Stop();
 
     if(P.ForceOutputDebug){
-        // We want to output the AccSlab to the FarAcc file.
+        // We want to output the FarAccSlab to the FarAcc file.
         // This must be a blocking write.
-        LBW->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
+        LBW->WriteArena(FarAccSlab, slab, IO_KEEP, IO_BLOCKING,
                 LBW->WriteSlabDescriptorName(FarAccSlab,slab).c_str());
     }
     LBW->DeAllocate(TaylorSlab,slab);
@@ -251,9 +271,12 @@ void KickAction(int slab) {
 
     // Queue up slabs near the wrap to be loaded again later
     // This way, we don't have idle slabs taking up memory while waiting for the pipeline to wrap around
+    // TODO: Could this be 2*FORCE_RADIUS for PosXYZ?
     if(Kick.number_of_slabs_executed < FORCE_RADIUS){
         STDLOG(2,"Marking slab %d for repeat\n", slab - FORCE_RADIUS);
         TransposePos.mark_to_repeat(slab - FORCE_RADIUS);
+	// BUG FIXED: This DeAllocation was missing
+        LBW->DeAllocate(PosXYZSlab, slab - FORCE_RADIUS);
         // The first two won't need PosSlab until the second time around
         //LBW->DeAllocate(PosSlab, slab - FORCE_RADIUS);
         LBW->DeAllocate(CellInfoSlab, slab - FORCE_RADIUS);
@@ -265,7 +288,7 @@ void KickAction(int slab) {
         JJ->Finalize(slab);
     AddAccel.Start();
     RescaleAndCoAddAcceleration(slab);
-    LBW->DeAllocate(NearAccSlab,slab);
+    LBW->DeAllocate(FarAccSlab,slab);
     AddAccel.Stop();
     int step = LPTStepNumber();
     KickCellTimer.Start();
@@ -566,8 +589,6 @@ void FinishAction(int slab) {
     // Gather particles from the insert list and make the merge slabs
     uint64 n_merge = FillMergeSlab(slab);
     merged_particles += n_merge;
-
-    FinishFreeSlabs.Start();
     
     // This may be the last time be need any of the CellInfo slabs that we just used
     // We can't immediately free CellInfo before NearForce might need it until we're FORCE_RADIUS away
@@ -585,8 +606,6 @@ void FinishAction(int slab) {
     LBW->DeAllocate(PosSlab,slab);
     LBW->DeAllocate(VelSlab,slab);
     LBW->DeAllocate(AuxSlab,slab);
-
-    FinishFreeSlabs.Stop();
     
     // Make the multipoles
     LBW->AllocateArena(MultipoleSlab,slab);
@@ -606,6 +625,9 @@ void FinishAction(int slab) {
 
     int pwidth = FetchSlabs.number_of_slabs_executed - Finish.number_of_slabs_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
+
+    // TODO: is there a different place in the code where we would rather report this?
+    ReportMemoryAllocatorStats();
 }
 
 // -----------------------------------------------------------------

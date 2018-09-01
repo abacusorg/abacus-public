@@ -20,6 +20,7 @@ import pandas as pd
 
 from Abacus.Analysis import common
 from Abacus.InputFile import InputFile
+from Abacus import Tools
 
 from PowerSpectrum import TSC, Histogram
 from PowerSpectrum import PowerSpectrum as PS
@@ -299,7 +300,7 @@ def vector_arg(s):
         raise argparse.ArgumentTypeError("Vector must be x,y,z")
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Compute power spectra on Abacus outputs or ICs.  Can also evaluate a power spectrum on an FFT mesh.')
+    parser = argparse.ArgumentParser(description='Compute power spectra on Abacus outputs or ICs.  Can also evaluate a power spectrum on an FFT mesh.', formatter_class=Tools.ArgParseFormatter)
     parser.add_argument('input', help='The timeslice outputs (or IC directories, or power spectrum file) on which to run PS', nargs='+')
     parser.add_argument('--nfft', help='The size of the FFT (side length of the FFT cube).  Default: 1024', default=1024, type=int)
     parser.add_argument('--format', help='Format of the data to be read.  Default: Pack14', default='Pack14', choices=['RVdouble', 'Pack14', 'RVZel', 'state', 'gadget'])

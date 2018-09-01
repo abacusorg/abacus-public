@@ -28,7 +28,8 @@ preamble = '''
                         .param .b64 psink_x,
                         .param .b64 psink_y,
                         .param .b64 psink_z,
-                        .param .b64 peps2)
+                        .param .b64 peps2,
+			.param .b64 pb2)
 {{
 '''
 
@@ -49,6 +50,7 @@ single_declarations = '''
 .reg .f32 sink_z;
 
 .reg .f32 eps2;
+.reg .f32 b2;
 
 .reg .b64 addr;
 
@@ -81,6 +83,9 @@ ld.f32 sink_z,[addr];
 
 ld.param.b64 addr,[peps2];
 ld.f32 eps2,[addr];
+
+ld.param.b64 addr,[pb2];
+ld.f32 b2,[addr];
 
 mov.u32 count,-{loop_count:d};
 

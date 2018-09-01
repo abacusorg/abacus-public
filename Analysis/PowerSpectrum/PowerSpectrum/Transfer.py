@@ -136,8 +136,17 @@ class TransferMultipoles(np.ndarray):
     A simple wrapper around ndarray that represents a multipole transfer
     function.  Its main purpose is to carry around metadata that
     represents the binning scheme this function is valid for.
+
+    TODO: I think we only ever want an isotropic (monopole) transfer
+    function, since all our catalog modifications must be physically isotropic.
+    Can we remove Lmax?
+
+    TODO: do we want this object to record the number of fitting steps
+    and the objective function (i.e. which power spectrum multipoles) were used?
     '''
-    def __new__(subtype, bins, box, Lmax=0, kmax=None, ngrid=None, dtype=np.float32):
+    def __new__(subtype, bins, box, Lmax=0, kmax=None, ngrid=None, zspace=False, dtype=np.float32):
+        assert Lmax == 0
+
         if type(bins) is int:
             nbins = bins
             if kmax is None:
@@ -153,6 +162,7 @@ class TransferMultipoles(np.ndarray):
         obj.nbins = nbins
         obj.box = box
         obj.Lmax = Lmax
+        obj.zspace = zspace
         obj[:] = 0.
         
         return obj
@@ -160,12 +170,15 @@ class TransferMultipoles(np.ndarray):
     def __array_finalize__(self, obj):
         if obj is None:
             return
+
+        assert obj.Lmax == 0
         
         # Seems strange that we have to duplicate this functionality...
         self.k_bin_edges = obj.k_bin_edges
         self.nbins = obj.nbins
         self.box = obj.box
         self.Lmax = obj.Lmax
+        self.zspace = obj.zspace
 
 
 def apply_transfer_multipoles(Tfer, deltak, unbinned=1.):
@@ -196,8 +209,6 @@ def apply_transfer_multipoles(Tfer, deltak, unbinned=1.):
         The delta(k) field with the transfer function applied.
     """
     # Parse args
-    assert Tfer.Lmax == 0  # Currently only supports monopole
-
     # flatten all extra axes
     oshape = deltak.shape
     shape = oshape[:3] + (-1,)
@@ -218,11 +229,12 @@ def apply_transfer_multipoles(Tfer, deltak, unbinned=1.):
 
     return deltak_trans
 
+from .hist_helpers import legendre
+
 @nb.njit(parallel=True)
 def _apply_transfer_multipoles(T_multipoles, knorm_bin_edges, deltak, deltak_trans):
     Nx,Ny,Nz,Ndim = deltak.shape
-    Lmax,nbins = T_multipoles.shape
-    Lmax -= 1
+    Lmaxp1,nbins = T_multipoles.shape
 
     # use squared edges in units of the fundamental
     k_bin_edges = (knorm_bin_edges/(2*np.pi))**2
@@ -246,6 +258,7 @@ def _apply_transfer_multipoles(T_multipoles, knorm_bin_edges, deltak, deltak_tra
             for iz in range(Nz):
                 kz2 = iz**2
                 k2 = kx2 + ky2 + kz2
+                mu = (kz2/k2)**0.5
                 
                 # is this k in some bin?
                 if k2 < kmin:
@@ -263,3 +276,5 @@ def _apply_transfer_multipoles(T_multipoles, knorm_bin_edges, deltak, deltak_tra
 
                 for d in range(Ndim):
                     deltak_trans[ix,iy,iz,d] = deltak[ix,iy,iz,d] * T_multipoles[0,t]
+                    for ell in range(2,Lmaxp1,2):  # only process even multipoles
+                        deltak_trans[ix,iy,iz,d] += deltak[ix,iy,iz,d] * T_multipoles[ell,t] * legendre(ell, mu)

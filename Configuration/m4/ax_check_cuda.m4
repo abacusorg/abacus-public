@@ -39,15 +39,17 @@
 
 AC_DEFUN([AX_CHECK_CUDA], [
 
-# Provide your CUDA path with this		
-AC_ARG_WITH(cuda, [AS_HELP_STRING([--with-cuda=PREFIX], [Prefix of your CUDA installation [/usr/local/cuda]])], [cuda_prefix=$withval], [cuda_prefix=${CUDA_HOME:-/usr/local/cuda}])
+# There are a few semi-canonical variables that indicate the installed CUDA prefix
+# Just take the first one that exists
+# We could loop through these if we wanted
+default_cuda_prefix=$CUDA_HOME
+default_cuda_prefix=${default_cuda_prefix:-$CUDA_DIR}
+default_cuda_prefix=${default_cuda_prefix:-$CUDAPATH}
+default_cuda_prefix=${default_cuda_prefix:-/usr/local/cuda}
 
-# Setting the prefix to the default if only --with-cuda was given
-if test "$cuda_prefix" == "yes"; then
-	if test "$withval" == "yes"; then
-		cuda_prefix="/usr/local/cuda"
-	fi
-fi
+# Provide your CUDA path with this
+
+AC_ARG_WITH(cuda, [AS_HELP_STRING([--with-cuda=PREFIX], [Prefix of your CUDA installation [$CUDA_HOME or $CUDA_DIR or $CUDAPATH or /usr/local/cuda]])], [cuda_prefix=$withval], [cuda_prefix=$default_cuda_prefix])
 
 # Checking for nvcc
 AC_MSG_CHECKING([nvcc in $cuda_prefix/bin])
@@ -55,6 +57,8 @@ if test -x "$cuda_prefix/bin/nvcc"; then
 	AC_MSG_RESULT([found])
 	AC_DEFINE_UNQUOTED([NVCC_PATH], ["$cuda_prefix/bin/nvcc"], [Path to nvcc binary])
 	# We need to add the CUDA search directories for header and lib searches
+
+	AC_SUBST([CUDA_MAJOR_VER],[$(cat $cuda_prefix/version.txt |cut -d' ' -f3 | cut -d. -f1)])
 
 	CUDA_CFLAGS=""
 
@@ -72,7 +76,7 @@ if test -x "$cuda_prefix/bin/nvcc"; then
 		if test "x$lib32_found" = xyes ; then
 			AC_SUBST([CUDA_LIBDIR],[$cuda_prefix/lib])
 		else
-			AC_MSG_WARN([Couldn't find cuda lib directory])
+			AC_MSG_WARN([Could not find cuda lib directory])
 			VALID_CUDA=no
 		fi
 	else
@@ -86,7 +90,7 @@ if test -x "$cuda_prefix/bin/nvcc"; then
 				AC_SUBST([CUDA_LIBDIR],[$cuda_prefix/lib])
 				CUDA_CFLAGS+=" -m32"
 			else
-				AC_MSG_WARN([Couldn't find cuda lib directory])
+				AC_MSG_WARN([Could not find cuda lib directory])
 				VALID_CUDA=no
 			fi
 		else
@@ -102,11 +106,11 @@ if test -x "$cuda_prefix/bin/nvcc"; then
 
 		# And the header and the lib
 		AC_CHECK_HEADER([cuda.h], [],
-			AC_MSG_WARN([Couldn't find cuda.h])
+			AC_MSG_WARN([Could not find cuda.h])
 			VALID_CUDA=no
 			,[#include <cuda.h>])
 		if test "x$VALID_CUDA" != "xno" ; then
-			AC_CHECK_LIB([cuda], [cuInit], [VALID_CUDA=yes], [AC_MSG_WARN([Couldn't find libcuda])
+			AC_CHECK_LIB([cuda], [cuInit], [VALID_CUDA=yes], [AC_MSG_WARN([Could not find libcuda])
             VALID_CUDA=no])
 		fi
 	fi

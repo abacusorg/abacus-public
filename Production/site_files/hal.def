@@ -16,7 +16,7 @@ GPUThreadCoreStart = [22, 25]
 NGPUThreadCores = 3
 
 # Convolution OpenMP parameters
-Conv_OMP_NUM_THREADS = -1
-Conv_OMP_PLACES = "{1}:27"
+Conv_OMP_NUM_THREADS = -2
+Conv_OMP_PLACES = "{2}:26"
 Conv_OMP_PROC_BIND = "close"
-Conv_IOCores = [0]
+Conv_IOCores = [0, 1]

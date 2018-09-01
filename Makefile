@@ -1,68 +1,60 @@
-VPATH = singlestep : Convolution : Derivatives : clibs : zeldovich-PLT
+-include common.mk
 
 all: clibs singlestep CreateDerivatives ConvolutionDriver zeldovich util tests analysis AbacusCosmo
 
-singlestep: libparseheader.a
-	cd singlestep && $(MAKE) all
+singlestep: ParseHeader
+	$(MAKE) -C singlestep all
 
 CreateDerivatives:
-	cd Derivatives && $(MAKE) $@
-
-libparseheader.a:
-	cd ParseHeader && $(MAKE) $@
+	$(MAKE) -C Derivatives $@
 	
-clean:
-	cd ParseHeader && $(MAKE) $@
-	-cd Derivatives && $(MAKE) $@
-	-cd singlestep && $(MAKE) $@
-	-cd Convolution && $(MAKE) $@
-	cd Abacus/Cosmology && $(MAKE) $@
-	cd zeldovich-PLT && $(MAKE) $@
-	cd Tests && $(MAKE) $@
-	cd util && $(MAKE) $@
-	-cd Analysis/ && $(MAKE) $@
-	-cd clibs/ && $(MAKE) $@
-	-$(RM) *.o *.d *.a *~
+clean: clean_recurse
 
-distclean:	
-	cd ParseHeader && $(MAKE) $@
-	-cd Derivatives && $(MAKE) $@
-	-cd singlestep && $(MAKE) $@
-	-cd Convolution && $(MAKE) $@
-	cd Abacus/Cosmology && $(MAKE) $@
-	cd zeldovich-PLT && $(MAKE) $@
-	cd Tests && $(MAKE) $@
-	cd util && $(MAKE) $@
-	-cd Analysis/ && $(MAKE) $@
-	-cd clibs/ && $(MAKE) $@
-	-$(RM) *.o *.d *~ *.a abacus.tar.gz
-	-$(RM) singlestep/Makefile singlestep/Direct/Makefile singlestep/Multipoles/Makefile Convolution/Makefile Derivatives/Makefile Analysis/PowerSpectrum/PowerSpectrum/Makefile Analysis/FoF/Makefile clibs/Makefile
-	-$(RM) -rf autom4te.cache/ config.log config.status
+distclean: clean distclean_recurse
+	$(RM) abacus.tar.gz
+	$(RM) common.mk
+	$(RM) -rf autom4te.cache/ config.log config.status
 
-ConvolutionDriver: libparseheader.a
-	cd Convolution && $(MAKE) $@
+# One annoyance with common.mk is that we don't want Makefiles to build without it,
+# but we would prefer they be able to run clean.
+# We could require a second, shadow common.mk be included that prevents CXX from running,
+# but that's another line of text in each Makefile and isn't very clean
+# So instead we'll just accept that they'll fail
+
+%_recurse:
+	-$(MAKE) -C ParseHeader $*
+	-$(MAKE) -C Derivatives $*
+	-$(MAKE) -C singlestep $*
+	-$(MAKE) -C Convolution $*
+	-$(MAKE) -C Abacus/Cosmology $*
+	-$(MAKE) -C zeldovich-PLT $*
+	-$(MAKE) -C Tests $*
+	-$(MAKE) -C util $*
+	-$(MAKE) -C Analysis $*
+	-$(MAKE) -C clibs $*
+
+ConvolutionDriver: ParseHeader
+	$(MAKE) -C Convolution $@
 		
 clibs:
 	$(MAKE) -C clibs all
 
 util:
-	cd util && $(MAKE) all
+	$(MAKE) -C util all
 
 tests:
-	cd Tests && $(MAKE) all	
-    
-bench:
-	cd singlestep && $(MAKE) $@
+	$(MAKE) -C Tests all	
 
-analysis: clibs libparseheader.a util AbacusCosmo
-	$(MAKE) -C Analysis/
+analysis: clibs ParseHeader util AbacusCosmo
+	$(MAKE) -C Analysis
 
-zeldovich: zeldovich.cpp
-	cd zeldovich-PLT && $(MAKE) all
-    
+zeldovich:
+	$(MAKE) -C zeldovich-PLT all
+
 AbacusCosmo:
-	cd Abacus/Cosmology && $(MAKE) all
+	$(MAKE) -C Abacus/Cosmology all
 
+# Make an abacus.tar.gz file for distribution/archival purposes
 dist:
 	$(RM) -rf .dist
 	mkdir -p .dist/abacus
@@ -70,7 +62,13 @@ dist:
 	$(MAKE) -C .dist/abacus distclean
 	tar -C .dist -czf abacus.tar.gz --exclude='.*' abacus
 	$(RM) -rf .dist
-	
-.PHONY:all clean distclean zeldovich util tests analysis singlestep dist AbacusCosmo clibs ConvolutionDriver
 
--include $(CC_SRC:.cpp=.d)
+# Usually you do not need to invoke the following directly; it is used by ./configure
+tcmalloc: gperftools/lib/libtcmalloc_minimal.so
+gperftools/lib/libtcmalloc_minimal.so:
+	@echo "Building tcmalloc... this may take a minute but will only be done once"
+	@cd gperftools && \
+	./configure --enable-minimal --prefix=$(shell pwd)/gperftools > /dev/null && \
+	make > /dev/null && make install > /dev/null
+	
+.PHONY:all clean distclean zeldovich util tests analysis singlestep dist AbacusCosmo clibs ConvolutionDriver tcmalloc ParseHeader

@@ -84,7 +84,8 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
     }
     wc.Stop();
     
-    STDLOG(1, "Before collecting gaps, IL has length %d\n", IL->length);
+    STDLOG(2, "Before collecting gaps, IL has length %d\n", IL->length);
+
     STDLOG(1,"Drifting slab %d has rebinned %d particles (%d - %d).\n",
         slab, IL->length-ILbefore, IL->length, ILbefore);
     

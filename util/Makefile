@@ -1,24 +1,26 @@
-CXX ?= $(shell which icc >/dev/null && echo "icc" || echo "g++")
-CC = $(CXX)
-CXXFLAGS = -O1
-INCLUDES = -I../include/
-LIBS = -lm
+ROOT_DIR := ..
+-include $(ROOT_DIR)/common.mk
 
-CFLAGS = -O1 ${INCLUDES}
+CXX ?= g++
+CXXFLAGS ?= -Wall 
+
+CPPFLAGS ?= -I$(ROOT_DIR)/include/
+CPPFLAGS += -O1
+LIBS ?= -lm
 
 TARGET = phheader phdata \
 dump_double3 dump_float3 dump_uint64 \
-dump_rvdouble dump_pack14 pack14_to_rvdouble
+dump_rvdouble dump_pack14 pack14_to_rvdouble pack14_to_rvfloat
 
 all: ${TARGET}
 
-%.o:%.cpp;
+%.o:%.cpp
 	$(CXX) ${CXXFLAGS} $(CPPFLAGS) -c $< $(INCLUDES)
 
 clean:
-	rm -f *.o
+	$(RM) *.o
 	
-distclean:
-	rm -f *.o ${TARGET}
+distclean: clean
+	$(RM) ${TARGET}
 	
 .PHONY: clean distclean all

@@ -46,12 +46,12 @@ def getRuntime(timingfile,timetype = "Total Wall Clock Time"):
 def cpointer(a):
     if a is None:
         return a  # Sometimes we deliberately want to pass a NULL pointer.  `None` is the way to do that.
-    # We always want numpy arrays we pass to C to be contiguous.  This may cause a copy!
+    # We always want numpy arrays we pass to C to be contiguous
     if not a.flags.contiguous:
         raise RuntimeError('Trying to pass non-contiguous array to C function! ' + str(a))
-    #a = np.ascontiguousarray(a)
+    #a = np.ascontiguousarray(a)  This may cause a copy!
     if a.dtype == np.float32:
-        return  a.ctypes.data_as(ct.POINTER(ct.c_float))
+        return a.ctypes.data_as(ct.POINTER(ct.c_float))
     elif a.dtype == np.float64:
         return a.ctypes.data_as(ct.POINTER(ct.c_double))
     elif a.dtype == np.int64:
@@ -218,6 +218,7 @@ class ContextTimer(contexttimer.Timer):
     def __init__(self, *args, cumulative=False, **kwargs):
         self.cumulative = cumulative
         self.cumulative_time = 0.  # all the time before the most recent/current loop
+        args = list(args)
         if len(args) > 0:
             kwargs['prefix'] = args.pop(0)
         super(ContextTimer, self).__init__(*args, **kwargs)
@@ -295,6 +296,8 @@ def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03):
 
 import argparse
 # Combine argparse mixins to format both the description and defaults
+# Use as:
+# >>> parser = argparse.ArgumentParser(description='...', formatter_class=Tools.ArgParseFormatter)
 class ArgParseFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
     pass
     

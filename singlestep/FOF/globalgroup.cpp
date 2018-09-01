@@ -148,8 +148,12 @@ class GlobalGroupSlab {
         int ret = posix_memalign((void **) &pstat, 64, sizeof(PencilStats)*GFC->cpd);
         assert(ret==0);
         for (int j=0; j<GFC->cpd; j++) pstat[j].reset(j);
-        globalgroups.setup(GFC->cpd, GFC->particles_per_pencil*omp_get_max_threads());   
-        globalgrouplist.setup(GFC->cpd, GFC->particles_per_pencil*omp_get_max_threads());   
+
+	// How many global groups do we expect?  Let's guess 10% of the particles
+	// The cellgroup list is modestly bigger, but not enough to care.
+	int maxsize = GFC->particles_per_slab/10;
+        globalgroups.setup(GFC->cpd, maxsize);
+        globalgrouplist.setup(GFC->cpd, maxsize);
     }
     void destroy() {
         if (pos!=NULL) free(pos); pos = NULL;
@@ -546,10 +550,14 @@ void GlobalGroupSlab::FindSubGroups() {
     // Process each group, looking for L1 and L2 subgroups.
     GFC->ProcessLevel1.Start();
     int maxthreads = omp_get_max_threads();
-    L1halos.setup(GFC->cpd, GFC->particles_per_pencil*maxthreads);    // TUNING: This start value is a guess
-    TaggedPIDs.setup(GFC->cpd, GFC->particles_per_pencil*maxthreads);    
-    L1Particles.setup(GFC->cpd, GFC->particles_per_pencil*maxthreads);   
-    L1PIDs.setup(GFC->cpd, GFC->particles_per_pencil*maxthreads);    
+
+    // Guessing L1 halo count is 3% of particles, given minsize
+    L1halos.setup(GFC->cpd, GFC->particles_per_slab/30);    
+    // Guessing Tagged particles are 2% of total 
+    TaggedPIDs.setup(GFC->cpd, GFC->particles_per_slab/50);    
+    // Guessing L1 Particles are 3% of total (taggable)
+    L1Particles.setup(GFC->cpd, GFC->particles_per_slab/30);   
+    L1PIDs.setup(GFC->cpd, GFC->particles_per_slab/30);    
     FOFcell FOFlevel1[maxthreads], FOFlevel2[maxthreads];
     posstruct **L1pos = new posstruct *[maxthreads];
     velstruct **L1vel = new velstruct *[maxthreads];
@@ -557,7 +565,7 @@ void GlobalGroupSlab::FindSubGroups() {
     accstruct **L1acc = new accstruct *[maxthreads];
     MultiplicityStats L1stats[maxthreads];
 
-    #pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static,1)
     for (int g=0; g<maxthreads; g++) {
         FOFlevel1[g].setup(GFC->linking_length_level1, 1e10);
         FOFlevel2[g].setup(GFC->linking_length_level2, 1e10);
@@ -620,7 +628,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         if (groupacc != NULL){
                             L1acc[g][b] = groupacc[start[b].index()];
                             // Velocities were full kicked; half-unkick before halostats
-                            L1vel[g][b] -= L1acc[g][b]*WriteState.FirstHalfEtaKick;
+                            L1vel[g][b] -= TOFLOAT3(L1acc[g][b])*WriteState.FirstHalfEtaKick;
                         }
                     }
                     GFC->L2FOF.Start();
@@ -659,7 +667,7 @@ void GlobalGroupSlab::FindSubGroups() {
                             velstruct v = groupvel[start[b].index()];
                             // Velocities were full kicked; half-unkick before halostats
                             if (groupacc != NULL)
-                                v -= groupacc[start[b].index()]*WriteState.FirstHalfEtaKick;
+                                v -= TOFLOAT3(groupacc[start[b].index()])*WriteState.FirstHalfEtaKick;
                             pL1Particles->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
                             pL1PIDs->append(TaggedPID(groupaux[start[b].index()].pid()));
                         }
@@ -705,6 +713,8 @@ void GlobalGroupSlab::FindSubGroups() {
     }
 
     // Now delete all of the temporary storage!
+    // Want free's to be on the same threads as the original
+    #pragma omp parallel for schedule(static,1)
     for (int g=0; g<omp_get_max_threads(); g++) {
         FOFlevel1[g].destroy();
         FOFlevel2[g].destroy();
@@ -934,7 +944,7 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
 
                     for(int pi = start; pi < start + cg->size(); pi++){
                         posstruct _p = pos[pi] - offset;
-                        velstruct _v = vel[pi] - unkick_factor*acc[pi];
+                        velstruct _v = vel[pi] - TOFLOAT3(acc[pi])*unkick_factor;
                         AA->addparticle(_p, _v, aux[pi]);
                         n_added++;
                     }

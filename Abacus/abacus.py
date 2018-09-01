@@ -319,16 +319,24 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
     4) If `use_site_overrides` is set, load params from the site.def file
     5) If `override_directories` is set, overwrite directories with defaults from the environment
     '''
+    # We will build this dict in order of precedence
+    _param_kwargs = param_kwargs.copy()
 
     if use_site_overrides:
         site = InputFile(site_param_fn)
-        param_kwargs.update(site)
+        for k in site.keys():
+            # explicit param_kwargs take precedence over site files
+            if k not in param_kwargs:
+                param_kwargs[k] = site[k]
 
     params = GenParam.makeInput(output_parfile, parfn, **param_kwargs)
 
     if override_directories:
         dirs = GenParam.parseInput(directory_param_fn, varreplace_values=params)
-        param_kwargs.update(dirs)
+        for k in dirs.keys():
+            # explicit param_kwargs take precedence over directory overrides
+            if k not in param_kwargs:
+                param_kwargs[k] = dirs[k]
     
     if 'sigma_8' in params:
         sigma8_at_zinit = zeldovich.calc_sigma8(params)
@@ -477,8 +485,8 @@ def setup_state_dirs(paramfn):
         assert not OverwriteState, 'SloshState is mutually exclusive with OverwriteState!'
         # Should be populated manually or from ABACUS_TMP2
         assert 'WorkingDirectory' in params  # need a working directory to put the symlinks
-        assert 'WorkingDirectory2' in params, "Must specify WorkingDirectory2 via $ABACUS_TMP2 or directly in the paramter file!"
-        assert 'ConvolutionWorkingDir2' in params, "Must specify ConvolutionWorkingDir2 via $ABACUS_SSD2 or directly in the paramter file!"
+        assert 'WorkingDirectory2' in params, "Must specify WorkingDirectory2 via $ABACUS_TMP2 or directly in the parameter file!"
+        assert 'ConvolutionWorkingDir2' in params, "Must specify ConvolutionWorkingDir2 via $ABACUS_SSD2 or directly in the parameter file!"
         # this signals parity splitting to singlestep
         # TODO: make another parameter to signal this?
         assert 'MultipoleDirectory2' not in params and 'TaylorDirectory2' not in params
