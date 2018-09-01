@@ -41,6 +41,8 @@ AC_SEARCH_LIBS([cos],[m])
 AC_SEARCH_LIBS(cblas_dgemm, [gslcblas], [], [AC_MSG_ERROR([unable to find gslcblas!])])
 AC_SEARCH_LIBS(gsl_rng_uniform, [gsl], [], [AC_MSG_ERROR([unable to find gsl!])])
 AC_SEARCH_LIBS(ITT_DoOneTimeInitialization, [tbb], [], [AC_MSG_ERROR([unable to find tbb!])])
+AC_SEARCH_LIBS(move_pages, [numa], [AC_DEFINE_UNQUOTED(HAVE_NUMA, [], "Whether libnuma was found on this system")],\
+                [AC_MSG_WARN([unable to find libnuma!])])
 #AC_SEARCH_LIBS(numa_max_node, [numa], [], [AC_MSG_ERROR([unable to find numa!])])
 
 # Check for some utilities we use

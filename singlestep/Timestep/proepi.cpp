@@ -187,7 +187,8 @@ void Prologue(Parameters &P, bool ic) {
 
     STDLOG(1,"Setting up insert list\n");
     uint64 maxILsize = P.np+1;
-    if (ic) {
+    // IC steps and LPT steps may need more IL slabs.  Their pipelines are not as long as full (i.e. group finding) steps
+    if (ic || LPTStepNumber() > 0) {
         if (P.NumSlabsInsertListIC>0) maxILsize =(maxILsize* P.NumSlabsInsertListIC)/P.cpd+1;
     } else {
         if (P.NumSlabsInsertList>0) maxILsize   =(maxILsize* P.NumSlabsInsertList)/P.cpd+1;
@@ -213,15 +214,6 @@ void Prologue(Parameters &P, bool ic) {
             SlabFarForceTime = new STimer[cpd];
 
             RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
-        
-		// ForceOutputDebug outputs accelerations as soon as we compute them
-		// i.e. before GroupFinding has a chance to rearrange them
-        if(P.AllowGroupFinding && !P.ForceOutputDebug){
-            GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
-                                          P.FoFLinkingLength[1]/pow(P.np,1./3),
-                                          P.FoFLinkingLength[2]/pow(P.np,1./3),
-                                          P.cpd, PP->invcpd, P.GroupRadius, P.MinL1HaloNP, P.np);
-        }
     } else {
             TY = NULL;
             RL = NULL;

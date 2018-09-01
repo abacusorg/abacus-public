@@ -73,7 +73,7 @@ class GroupFindingControl {
 
     GroupFindingControl(FOFloat _linking_length, 
     	FOFloat _linking_length_level1, FOFloat _linking_length_level2,
-    int _cpd, FOFloat _invcpd, int _GroupRadius, int _minhalosize, uint64 _np) {
+    int _cpd, int _GroupRadius, int _minhalosize, uint64 _np) {
 #ifdef STANDALONE_FOF
     grouplog = &stdlog;
 #else
@@ -88,7 +88,7 @@ class GroupFindingControl {
 	linking_length_level1 = _linking_length_level1;
 	linking_length_level2 = _linking_length_level2;
 	minhalosize = _minhalosize;
-	invcpd = _invcpd;
+	invcpd = 1. / (double) _cpd;
 	boundary = (invcpd/2.0-linking_length);
 	np = _np;
 	particles_per_pencil = np/cpd/cpd;
@@ -96,7 +96,7 @@ class GroupFindingControl {
 	cellgroups = new SlabAccum<CellGroup>[cpd];
 	cellgroups_status = new int[cpd];
 	for (int j=0;j<cpd;j++) cellgroups_status[j] = 0;
-	GLL = new GroupLinkList(cpd, np/cpd*linking_length/_invcpd*3*15);    
+	GLL = new GroupLinkList(cpd, np/cpd*linking_length/invcpd*3*15);    
     STDLOG(1,"Allocated %.2f GB for GroupLinkList\n", sizeof(GroupLink)*GLL->maxlist/1024./1024./1024.)
 	
 	setupGGS();
@@ -351,18 +351,11 @@ void FindAndProcessGlobalGroups(int slab) {
     // TODO: This largest_GG work is now superceded by MultiplicityHalos
     // The GGS->globalgroups[j][k][n] now reference these as [start,start+np)
 	
-#ifndef STANDALONE_FOF
 	int do_output;
-    // Check if, by going from ReadState to WriteState, we are crossing a L1Output_dlna checkpoint
-    if(P.L1Output_dlna >= 0)
-        do_output = log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ||
-                    fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna);
-    else
-        do_output = 0;
-    // Also always output if we're doing a TimeSlice output
-    do_output |= ReadState.DoTimeSliceOutput;
+#ifndef STANDALONE_FOF
+    do_output = ReadState.DoGroupFindingOutput;
 #else
-	int do_output = 1;
+	do_output = 1;
 #endif
 	if(do_output)
 		GGS->FindSubGroups();

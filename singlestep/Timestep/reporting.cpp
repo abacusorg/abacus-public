@@ -450,7 +450,6 @@ void ReportTimings(FILE * timingfile) {
     denom = Drift.Elapsed();
     REPORT(1, "Move",         DriftMove.Elapsed());
     REPORT(1, "Rebin",        DriftRebin.Elapsed());
-    REPORT(1, "Inserting",    DriftInsert.Elapsed());
 
     if(MF != NULL){
         fprintf(timingfile, "\n\n Subdivisions of Compute Multipole:");

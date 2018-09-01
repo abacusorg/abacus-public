@@ -59,6 +59,7 @@ public:
             RD_RDM->BlockingRead( fn, (char *) mtblock[x], size, file_offset);
             
             // If this is the last loop iteration, we're safe to delete the multipoles
+            // TODO: maybe we could symlink Taylors files to multipoles files and write in-place
             if(CP.delete_multipoles_after_read
                 && zstart + zwidth >= (cpd+1)/2){
                 if (remove(fn) != 0)

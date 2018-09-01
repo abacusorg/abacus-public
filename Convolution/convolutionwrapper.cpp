@@ -1,9 +1,9 @@
 #include "header.cpp"
 #include "threevector.hh"
 
-//#ifdef IOTHREADED
+#ifdef IOTHREADED
 #define CONVIOTHREADED
-//#endif
+#endif
 
 #include "STimer.cc"
 #include "PTimer.cc"
@@ -30,7 +30,6 @@ namespace cuda{
 #else
 #include <fftw3.h>
 #endif
-
 
 #include "threadaffinity.h"
 #include "ConvolutionLibrary.cpp"
@@ -256,9 +255,13 @@ int main(int argc, char ** argv){
         for(zwidth=(P.cpd+1)/2;zwidth >= 1;zwidth--) {
             if( zwidth*zslabbytes + swizzlebytes < rambytes) break;
         }
-        // Always use at least two blocks.  Ensures overlap of IO/compute
-        zwidth = min((P.cpd+1)/4, zwidth);
+
+        // If we're allocating more than one block, make sure we have at least one z-split
+        if(n_alloc_block > 1)
+            zwidth = min((P.cpd+1)/4, zwidth);
+
         p.zwidth = zwidth;
+        STDLOG(0,"Resulting zwidth: %d \n",zwidth);
         
         for (int i = 0; i < MAX_IO_THREADS; i++)
             p.io_cores[i] = P.Conv_IOCores[i];

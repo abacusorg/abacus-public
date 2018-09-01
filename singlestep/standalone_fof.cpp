@@ -47,11 +47,8 @@
     delete MF;
     MF = NULL;
 
-    // Prologue didn't do this because it thought it was an IC step
-    GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
-                                  P.FoFLinkingLength[1]/pow(P.np,1./3),
-                                  P.FoFLinkingLength[2]/pow(P.np,1./3),
-                                  P.cpd, PP->invcpd, P.GroupRadius, P.MinL1HaloNP, P.np);
+    InitGroupFinding(0);
+
     // Do we need a SlabSizePack14?
     //Slab = new SlabSize(P.cpd);
     //load_slabsize(P);

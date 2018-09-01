@@ -632,10 +632,13 @@ void timestep(void) {
 
     FORCE_RADIUS = P.NearFieldRadius;
     GROUP_RADIUS = GFC != NULL ? P.GroupRadius : 0;
+    // The 2LPT pipeline is short (no group finding). We can afford to wait an extra slab to allow for large IC displacements
+    FINISH_WAIT_RADIUS = LPTStepNumber() > 0 ? 2 : 1;
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
     assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS); 
     STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
     STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
+    STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
 
     int cpd = P.cpd;
     int first = 0;  // First slab to load
@@ -747,6 +750,7 @@ void timestepIC(void) {
     
     FORCE_RADIUS = 0;  // so we know when we can free CellInfo in Finish
     GROUP_RADIUS = 0;
+    FINISH_WAIT_RADIUS = 2;  // The IC pipeline is very short; we have plenty of RAM to allow for large IC displacements
 
     int cpd = P.cpd; int first = 0;
     Drift.instantiate(cpd, first, &FetchICPrecondition, &FetchICAction );
@@ -757,14 +761,21 @@ void timestepIC(void) {
        Finish.Attempt();
     }
 
+    STDLOG(1, "Read %d particles from IC files\n", NP_from_IC);
+    STDLOG(1, "Merged %d particles\n", merged_particles);
+    STDLOG(1, "Particles remaining on insert list: %d\n", IL->length);
+
+    if(IL->length!=0)
+        IL->DumpParticles();
+
     assertf(NP_from_IC == P.np, "Expected to read a total of %llu particles from IC files, but only read %llu.\n", P.np, NP_from_IC);
+    assertf(IL->length==0,
+        "Insert List not empty (%d) at the end of timestep().  Particles in IC files not sufficiently sorted?\n", IL->length);
     assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
     
     char filename[1024];
     sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
     Slab->write(filename);
-    assertf(IL->length==0,
-        "Insert List not empty (%d) at the end of timestep().  Particles in IC files not sufficiently sorted?\n", IL->length);
 
     STDLOG(1,"Completing timestepIC()\n");
     TimeStepWallClock.Stop();

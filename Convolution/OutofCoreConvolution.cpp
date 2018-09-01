@@ -298,7 +298,6 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     RD_RDM = new ReadDirect(direct,sdb);
     WD_WDT = new WriteDirect(direct,sdb);
     
-    STDLOG(0,"Resulting zwidth: %d \n",zwidth);
     size_t s;
 
     // Disk buffer will only hold one z-slab at a time

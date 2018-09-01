@@ -1,0 +1,23 @@
+RamDisk = 1
+OverwriteState = 1
+#IODirs = ["multipole/", "taylor/", "multipole2/", "taylor2/"]
+#nIODirs = 4
+#IODirThreads = [2, 2, 3, 3]
+MAXRAMMB = 120000  # This will be automatically detected
+# ConvolutionCacheSizeMB = 30  # This will be automatically detected
+
+# OpenMP and thread parameters
+OMP_NUM_THREADS = 10
+OMP_PLACES = "{0}:5,{8}:5"
+OMP_PROC_BIND = "spread"
+#IOCores = [11, 12, 13]
+GPUThreadCoreStart = [5, 13]
+NGPUThreadCores = 3
+
+# Convolution OpenMP parameters
+Conv_OMP_NUM_THREADS = 16
+#Conv_OMP_PLACES = "{1}:16"
+#Conv_OMP_PROC_BIND = "close"
+#Conv_IOCores = [0]
+
+DerivativesDirectory = "/localscratch/lhgarrison/Derivatives/"

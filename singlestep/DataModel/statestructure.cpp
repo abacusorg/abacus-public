@@ -104,6 +104,7 @@ public:
     int DoTimeSliceOutput;
     int OutputIsAllowed;
     int DoBinning;
+    int DoGroupFindingOutput;
     
     int Do2LPTVelocityRereading;
 
@@ -189,7 +190,8 @@ public:
 
 	// Initialize helper variables
 	DoTimeSliceOutput = 0;
-     	OutputIsAllowed = 0;
+	OutputIsAllowed = 0;
+    DoGroupFindingOutput = 0;
         
     Do2LPTVelocityRereading = 0;
     }

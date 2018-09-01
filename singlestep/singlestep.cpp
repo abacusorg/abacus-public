@@ -338,6 +338,47 @@ void PlanOutput(bool MakeIC) {
 
 }
 
+
+void InitGroupFinding(int ic){
+    int do_output;
+    // Request output of L1 groups and halo/field subsamples if:
+        // - By going from ReadState to WriteState we are crossing a L1Output_dlna checkpoint
+        // - We are doing a TimeSlice output
+    // We may not end up outputting group if GFC is not initialized below
+    if(P.L1Output_dlna >= 0)
+        do_output = log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ||
+                    fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna);
+    else
+        do_output = 0;
+    do_output |= ReadState.DoTimeSliceOutput;
+
+
+    // We need to enable group finding if:
+        // - We are doing microstepping
+        // - We are outputting groups
+    // But we can't enable it if:
+        // - AllowGroupFinding is disabled
+        // - ForceOutputDebug is enabled
+        // - This is an IC step
+    // ForceOutputDebug outputs accelerations as soon as we compute them
+    // i.e. before GroupFinding has a chance to rearrange them
+    if((P.MicrostepTimeStep > 0 || do_output) &&
+        !(!P.AllowGroupFinding || P.ForceOutputDebug || ic)){
+        STDLOG(1, "Setting up group finding\n");
+        
+        ReadState.DoGroupFindingOutput = do_output;
+
+        GFC = new GroupFindingControl(P.FoFLinkingLength[0]/ReadState.ppd,
+                                      P.FoFLinkingLength[1]/ReadState.ppd,
+                                      P.FoFLinkingLength[2]/ReadState.ppd,
+                                      P.cpd, P.GroupRadius, P.MinL1HaloNP, P.np);
+
+    } else{
+        STDLOG(1, "Group finding not enabled for this step.\n");
+    }
+}
+
+
 int main(int argc, char **argv) {
     WallClockDirect.Start();
     SingleStepSetup.Start();
@@ -396,6 +437,8 @@ int main(int argc, char **argv) {
     
     // Make a plan for output
     PlanOutput(MakeIC);
+
+    InitGroupFinding(MakeIC);
 
     SingleStepSetup.Stop();
 

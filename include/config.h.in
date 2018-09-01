@@ -109,6 +109,9 @@
 /* Define to 1 to support Memory Protection Extensions */
 #undef HAVE_MPX
 
+/* "Whether libnuma was found on this system" */
+#undef HAVE_NUMA
+
 /* Define to 1 to support Prefetch Vector Data Into Caches WT1 */
 #undef HAVE_PREFETCHWT1
 
