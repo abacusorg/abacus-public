@@ -354,6 +354,7 @@ void InitGroupFinding(int ic){
         do_output = 0;
     do_output |= ReadState.DoTimeSliceOutput;
 
+    WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities
 
     // We need to enable group finding if:
         // - We are doing microstepping
@@ -370,10 +371,24 @@ void InitGroupFinding(int ic){
         
         ReadState.DoGroupFindingOutput = do_output;
 
-        GFC = new GroupFindingControl(P.FoFLinkingLength[0]/ReadState.ppd,
-                                      P.FoFLinkingLength[1]/ReadState.ppd,
-                                      P.FoFLinkingLength[2]/ReadState.ppd,
-                                      P.cpd, P.GroupRadius, P.MinL1HaloNP, P.np);
+        GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
+                    #ifdef SPHERICAL_OVERDENSITY
+                    P.SODensity[0], P.SODensity[1],
+                    #else
+                    P.FoFLinkingLength[1]/pow(P.np,1./3),
+                    P.FoFLinkingLength[2]/pow(P.np,1./3),
+                    #endif
+                    P.cpd, P.GroupRadius, P.MinL1HaloNP, P.np);
+
+        #ifdef COMPUTE_FOF_DENSITY
+        #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
+        WriteState.DensityKernelRad2 = GFC->linking_length;
+        WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5); 
+        // We use square radii.  The radius is padded just a little
+        // bit so we don't risk underflow with 1 particle at r=b
+        // in comparison to the self-count.
+        #endif
+        #endif
 
     } else{
         STDLOG(1, "Group finding not enabled for this step.\n");

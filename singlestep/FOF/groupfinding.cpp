@@ -98,7 +98,7 @@ class GroupFindingControl {
     /// that global definition.
     /// FOF lengths should be comoving lengths in code units (unit box)
     GroupFindingControl(FOFloat _linking_length, 
-    	FOFloat _linking_length_level1, FOFloat _linking_length_level2,
+    	FOFloat _level1, FOFloat _level2,
     int _cpd, int _GroupRadius, int _minhalosize, uint64 _np) {
 #ifdef STANDALONE_FOF
     grouplog = &stdlog;

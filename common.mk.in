@@ -72,6 +72,7 @@ READABACUS_LIBS := -L $(ROOT_DIR)/clibs
 PYTHON_CC := @PYTHON_CC@
 PYTHON_CXX := @PYTHON_CXX@
 PYTHON_LDFLAGS := @PYTHON_LDFLAGS@
+PYTHON_CPPFLAGS := $(CPPFLAGS)  # before we do icc customizations (in theory we could detect which compiler PYTHON_CC is)
 
 # Define GNU/Intel specific compiler options
 # We do this towards the bottom of the Makefile so we can modify options set above

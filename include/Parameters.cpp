@@ -293,7 +293,7 @@ public:
         Conv_OMP_NUM_THREADS = 0;
         installscalar("Conv_OMP_NUM_THREADS", Conv_OMP_NUM_THREADS, DONT_CARE);
 
-        Conv_zwidth = 0;
+        Conv_zwidth = -1;
         installscalar("Conv_zwidth", Conv_zwidth, DONT_CARE);
 
         // Using staticly allocated memory didn't seem to work with installvector

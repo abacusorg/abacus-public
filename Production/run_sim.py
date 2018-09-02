@@ -14,6 +14,7 @@ configuration ("info" directory or "abacus.par2" file).
 
 from Abacus import abacus
 import sys
+from os.path import dirname, isfile, join as pjoin
 
 if __name__ == '__main__':
     parser = abacus.default_parser()
@@ -21,5 +22,10 @@ if __name__ == '__main__':
     parser.add_argument('parfn', help="The parameter file, relative to CONFIG_DIR", nargs='?', default='abacus.par2')
     args = parser.parse_args()
     args = vars(args)
+
+    if not isfile(pjoin(args['config_dir'], args['parfn'])):
+        if isfile(pjoin(args['config_dir'], 'info', args['parfn'])):
+            args['parfn'] = pjoin('info', args['parfn'])
+
     retcode = abacus.run(**args)
     sys.exit(retcode)

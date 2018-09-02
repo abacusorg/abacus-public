@@ -212,23 +212,21 @@ void Prologue(Parameters &P, bool ic) {
     STDLOG(0,"Setting RamDisk == %d\n", P.RamDisk);
     IO_Initialize(logfn);
 
-    WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities
-
     if(!ic) {
             // ReadMaxCellSize(P);
         load_slabsize(P);
         TY  = new SlabTaylor(order,cpd);
-            RL = new Redlack(cpd);
+        RL = new Redlack(cpd);
 
-            SlabForceTime = new STimer[cpd];
-            SlabForceLatency = new STimer[cpd];
-            SlabFarForceTime = new STimer[cpd];
+        SlabForceTime = new STimer[cpd];
+        SlabForceLatency = new STimer[cpd];
+        SlabFarForceTime = new STimer[cpd];
 
-            RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
+        RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
     } else {
-            TY = NULL;
-            RL = NULL;
-            JJ = NULL;
+        TY = NULL;
+        RL = NULL;
+        JJ = NULL;
     }
     STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
 

@@ -299,7 +299,7 @@ def default_parser():
     retcode = abacus.run('abacus.par2', **vars(args))
     
     """
-    parser = argparse.ArgumentParser(description='Run this sim.')
+    parser = argparse.ArgumentParser(description='Run this sim.', formatter_class=Tools.ArgParseFormatter)
     parser.add_argument('--clean', action='store_true', help="Erase the working directory and start over.  Otherwise, continue from the existing state.  Always preserves the ICs unless --erase-ic.")
     parser.add_argument('--erase-ic', action='store_true', help="Remove the ICs if they exist.")
     parser.add_argument('--maxsteps', type=int, help="Take at most N steps", metavar='N')

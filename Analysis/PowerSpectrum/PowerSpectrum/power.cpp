@@ -37,12 +37,12 @@
 #define FLOAT3 double3
 #define FLOAT double
 #define PI 3.141592653589793116
-#define CABS cabs
+#define CABS std::abs
 #else
 #define FLOAT3 float3
 #define FLOAT float
 #define PI 3.141592653589793116f
-#define CABS cabsf
+#define CABS std::abs
 #endif
 
 #include "readabacus.h"

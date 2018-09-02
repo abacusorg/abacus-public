@@ -289,7 +289,7 @@ if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
     # Now look in the Anaconda/bin directory
     CONDA_BINDIR=$(dirname $PYTHON_EXEC)
     CONDA_BINDIRNAME=$(basename $CONDA_BINDIR)
-    CONDA_LIBDIR=$(realpath $CONDA_BINDIR/../lib)
+    CONDA_LIBDIR=$CONDA_BINDIR/../lib
 
     # sanity check
     if test xbin != x$CONDA_BINDIRNAME; then

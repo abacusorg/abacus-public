@@ -261,10 +261,13 @@ int main(int argc, char ** argv){
         }
 
         // Use the zwidth in the parameter file if given
-        // otherwise choose one based on available RAM
-        if(P.Conv_zwidth > 0){
+        // Negative (default) means choose one based on available RAM
+        // Zero means set zwidth to max
+        if(P.Conv_zwidth > 0)
             p.zwidth = P.Conv_zwidth;
-        } else {
+        else if(P.Conv_zwidth == 0)
+            p.zwidth = (P.cpd + 1)/2;
+        else {
             int zwidth = 0;
             for(zwidth=(P.cpd+1)/2;zwidth >= 1;zwidth--) {
                 if( zwidth*zslabbytes + swizzlebytes < rambytes) break;

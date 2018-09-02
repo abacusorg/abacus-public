@@ -10,6 +10,7 @@ COSMO_INCLUDES = $(addprefix $(ROOT_DIR)/include/, Cosmology.cpp Cosmology.h)
 # Somehow swig knows to use anaconda compiler_compat when linking...? distutils monkey patching...?
 export CC := $(PYTHON_CXX)
 export LDFLAGS := $(PYTHON_LDFLAGS)
+unexport CPPFLAGS
 
 # Try, but don't hard fail because some systems don't have swig
 # and this isn't a mandatory module

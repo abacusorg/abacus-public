@@ -51,7 +51,6 @@ to the rest of the code, because it needs CUDA.
 #include <cassert>
 #include <pthread.h>
 #include "omp.h"
-#include <atomic>
 
 #ifdef HAVE_LIBNUMA
 #include <numaif.h>
@@ -223,8 +222,8 @@ size_t MaxSinkSize, MaxSourceSize;
 int init = 0;
 int BPD; 		// Buffers per device
 
-static std::atomic<uint64> host_alloc_bytes;
-static std::atomic<bool> thread_setup_done;
+static volatile uint64 host_alloc_bytes;
+static volatile int thread_setup_done;
 
 void *QueueWatcher(void *);
 

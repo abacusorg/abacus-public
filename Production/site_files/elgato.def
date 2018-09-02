@@ -19,5 +19,6 @@ Conv_OMP_NUM_THREADS = 16
 #Conv_OMP_PLACES = "{1}:16"
 #Conv_OMP_PROC_BIND = "close"
 #Conv_IOCores = [0]
+Conv_zwidth = 0
 
 DerivativesDirectory = "/localscratch/lhgarrison/Derivatives/"
