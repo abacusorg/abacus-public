@@ -3,9 +3,6 @@
  * This writes timing outputs.  It should provide a nicely formatted
  * summary of the timings from the various portions of the code.
  *
- *
- * TODO: Need to uncomment the Multipole and Taylor portions.
- *
  * FIXME: DWF recommends a major refactor of how we handle reports. 
  *  Ideally, we should have a top level class TimingReport that 
  *  holds a registry of ModuleTimings objects (an interface
@@ -29,118 +26,16 @@
  *  report tend to lag the rest of the code, since changing it is a major process.
  */
 
-int DOUBLECLOSE(double a, double b, double eps) {
-    return ( fabs(a-b) < eps*fabs(a+b) );
-}
-
-void DumpMultipoleStats(double totalwallclock,int np) {
-#ifdef NOT_READY_YET
-    double a, g, q, f1, f2;
-
-    g = 100.0/ComputeMultipoles.Elapsed();
-    a = MF->FFTMultipole.Elapsed();         printf("\t \t \t \t \t        MultipoleFFT: %2.2e seconds (%2.2f %%)\n", a, a*g);
-    q = ComputeMultipoles.Elapsed() - MF->FFTMultipole.Elapsed();
-    f1 = MF->MultipoleASM.Elapsed()/(MF->MultipoleASM.Elapsed() + MF->MultipoleC2R.Elapsed() +1e-15);
-    f2 = 1.0-f1;
-    printf("\t \t \t \t \t        MultipoleASM: %2.2e seconds (%2.2f %%) ---> %e pps \n", f1*q, f1*q*g, np/(f1*q) );
-    printf("\t \t \t \t \t        MultipoleC2R: %2.2e seconds (%2.2f %%)\n", f2*q, f2*q*g);
-
-#endif
-}
-
-void DumpTaylorStats(double totalwallclock,int np) {
-
-#ifdef NOT_READY_YET
-    double a, g, t, f1, f2, f3, z;
-
-    g = 100.0/TaylorForce.Elapsed();
-    a = TY->FFTTaylor.Elapsed();        printf("\t \t \t \t      FFTTaylor: %e seconds (%2.2f %%)\n", a, a*g );
-
-    t = TY->TaylorRedlack.Elapsed() + TY->TaylorR2C.Elapsed() + TY->TaylorASM.Elapsed()+1e-15;
-    f1 = TY->TaylorRedlack.Elapsed()/t;
-    f2 = TY->TaylorR2C.Elapsed()/t;
-    f3 = TY->TaylorASM.Elapsed()/t;
-
-    z = TaylorForce.Elapsed() - TY->FFTTaylor.Elapsed()+1e-15;
-
-     printf("\t \t \t \t      TaylorASM: %2.2e seconds (%2.2f %%) ---> %e pps \n", f3*z, f3*z*g, np/(f3*z) );
-     printf("\t \t \t \t  TaylorR2C: %2.2e seconds (%2.2f %%)\n", f2*z, f2*z*g );
-     printf("\t \t \t \t  TaylorRedlack: %2.2e seconds (%2.2f %%)\n", f1*z, f1*z*g);
- #endif
-}
-
-#ifdef DONOTCOMPILE
-void DumpFinishStats(void) { 
-
-    double a,g;
-    g = 100.0/(Finish.Elapsed()+1e-15);
-    a = MemCpy.Elapsed();               printf("\t \t \t \t                 Memcpy: %2.2e seconds (%2.2f %%)\n", a, a*g );
-    a = WriteMergeSlab.Elapsed();       printf("\t \t \t \t         WriteMergeSlab: %2.2e seconds (%2.2f %%)\n", a, a*g );
-    a = WriteMultipoleSlab.Elapsed();   printf("\t \t \t \t     WriteMultipoleSlab: %2.2e seconds (%2.2f %%)\n", a, a*g );
-    a = WriteCellInfo.Elapsed();        printf("\t \t \t \t          WriteCellInfo: %2.2e seconds (%2.2f %%)\n", a, a*g );
-    a = FillCellInfo.Elapsed();         printf("\t \t \t \t           FillCellInfo: %2.2e seconds (%2.2f %%)\n", a, a*g );
-}
-
-
-
-void ReportTimings(FILE * timingfile) {
-    double a,f,g,q;
-
-    double w = FetchSlabs.Elapsed() + FetchCellInfo.Elapsed() + NearForce.Elapsed() + TaylorFetch.Elapsed() +
-                    TaylorForce.Elapsed() + Kick.Elapsed() + Group.Elapsed() + Output.Elapsed() + Drift.Elapsed() + Finish.Elapsed();
-
-    assert( DOUBLECLOSE(w,TimeStepWallClock.Elapsed(),0.05) );
-
-    f = 100.0/(WallClockDirect.Elapsed()+1e-15);
-
-    fprintf(timingfile,"DirectWallClock:  %2.2e seconds\n", WallClockDirect.Elapsed() );
-    fprintf(timingfile,"\t \t       Prologue : %2.2e seconds (%2.2f %%)\n", prologue.Elapsed(), prologue.Elapsed() * f);
-    fprintf(timingfile,"\t \t       Epilogue : %2.2e seconds (%2.2f %%)\n", epilogue.Elapsed(), epilogue.Elapsed() * f);
-    fprintf(timingfile,"\t \t       TimeStep : %2.2e seconds (%2.2f %%)\n", w, w*f);
-    q = WallClockDirect.Elapsed()-epilogue.Elapsed()-prologue.Elapsed()-w ;
-    fprintf(timingfile,"\t \t    Discrepancy : %2.2e seconds (%2.2f %%)\n", q, q*f );
-    fprintf(timingfile,"\n");
-
-
-    a = FetchSlabs.Elapsed();       fprintf(timingfile,"\t \t \t    FetchSlabs: %2.2e seconds (%2.2f %%)\n", a, a*f );
-    a = FetchCellInfo.Elapsed();    fprintf(timingfile,"\t \t \t FetchCellInfo: %2.2e seconds (%2.2f %%)\n", a, a*f );
-    a = NearForce.Elapsed();        fprintf(timingfile,"\t \t \t     NearForce: %2.2e seconds (%2.2f %%) ---> %e DIPS \n", a, a*f,  P.np/(NearForce.Elapsed()+1e-15) );
-    a = TaylorFetch.Elapsed();      fprintf(timingfile,"\t \t \t   TaylorFetch: %2.2e seconds (%2.2f %%)\n", a, a*f );
-    a = TaylorForce.Elapsed();     fprintf(timingfile,"\t \t \t   TaylorForce: %2.2e seconds (%2.2f %%) ---> %e pps \n", a, a*f, P.np/(a+1e-15) );
-
-
-    DumpTaylorStats( WallClockDirect.Elapsed() , P.np); 
-
-    a = Kick.Elapsed();             fprintf(timingfile,"\t \t \t          Kick: %2.2e seconds (%2.2f %%)\n", a, a*f );
-    a = Group.Elapsed();            fprintf(timingfile,"\t \t \t         Group: %2.2e seconds (%2.2f %%)\n", a, a*f );
-    a = Output.Elapsed();           fprintf(timingfile,"\t \t \t        Output: %2.2e seconds (%2.2f %%)\n", a, a*f );
-    a = Drift.Elapsed();            fprintf(timingfile,"\t \t \t         Drift: %2.2e seconds (%2.2f %%)\n", a, a*f );
-
-    fprintf(timingfile,"\n");
-    a = Finish.Elapsed();               fprintf(timingfile,"\t \t \t        Finish: %2.2e seconds (%2.2f %%)\n", a, a*f );
-    g = 100.0/(Finish.Elapsed()+1e-15);
-
-    a = MemCpy.Elapsed();               fprintf(timingfile,"\t \t \t \t                 Memcpy: %e seconds (%2.2f %%)\n", a, a*g );
-    a = WriteMergeSlab.Elapsed();       fprintf(timingfile,"\t \t \t \t         WriteMergeSlab: %e seconds (%2.2f %%)\n", a, a*g );
-    a = WriteMultipoleSlab.Elapsed();   fprintf(timingfile,"\t \t \t \t     WriteMultipoleSlab: %e seconds (%2.2f %%)\n", a, a*g );
-    a = WriteCellInfo.Elapsed();        fprintf(timingfile,"\t \t \t \t          WriteCellInfo: %e seconds (%2.2f %%)\n", a, a*g );
-    a = FillCellInfo.Elapsed();         fprintf(timingfile,"\t \t \t \t           FillCellInfo: %e seconds (%2.2f %%)\n", a, a*g );
-
-    a = ComputeMultipoles.Elapsed();    fprintf(timingfile,"\t \t \t \t      ComputeMultipoles: %e seconds (%2.2f %%) ---> %e pps \n", a, a*g, P.np/(a+1e-15) );
-    DumpMultipoleStats(WallClockDirect.Elapsed(), P.np);
-
-    a = IL->FinishSort.Elapsed();           fprintf(timingfile,"\t \t \t \t             FinishSort: %e seconds (%2.2f %%)\n", a, a*g );
-    a = IL->FinishPartition.Elapsed();      fprintf(timingfile,"\t \t \t \t        FinishPartition: %e seconds (%2.2f %%)\n", a, a*g );
-
-}
-#endif
-
-
 #define REPORT(tabs, str, a) \
      do { \
          fprintf(timingfile, "\n"); \
          for (int i=0; i<tabs; i++) fprintf(timingfile, "    "); \
-         thistime = a; fprintf(timingfile, "%-30s: %10.2e sec (%5.2f%%) ", str, thistime, 100*thistime/(denom+1e-15)); \
+         thistime = a; fprintf(timingfile, "%-30s: %10.2e sec (%5.2f%%) ", str, thistime, denom ? 100*thistime/denom : 0.); \
+     } while(0)
+
+#define REPORT_RATE() \
+     do { \
+        fprintf(timingfile,"---> %6.2f Mpart/sec", thistime ? P.np/thistime/1e6 : 0.); \
      } while(0)
 
 void ReportTimings(FILE * timingfile) {
@@ -148,15 +43,15 @@ void ReportTimings(FILE * timingfile) {
     denom = WallClockDirect.Elapsed();
     // fprintf(timingfile,"DirectWallClock:  %2.2e seconds\n", WallClockDirect.Elapsed() );
     REPORT(0, "Total Wall Clock Time", WallClockDirect.Elapsed()); 
-    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+    fprintf(timingfile,"---> %6.3f Mpart/sec", thistime ? P.np/thistime/1e6 : 0.);
     fprintf(timingfile,"\n");
 
     total = 0.0;
-    REPORT(0, "Prologue", prologue.Elapsed()); total += thistime;
-    //REPORT(0, "Epilogue", epilogue.Elapsed()); total += thistime;
-    REPORT(0, "TimeStep", TimeStepWallClock.Elapsed()); total += thistime;
     REPORT(0, "SingleStep Setup", SingleStepSetup.Elapsed()); total += thistime;
+    REPORT(0, "Prologue", prologue.Elapsed()); total += thistime;
+    REPORT(0, "TimeStep", TimeStepWallClock.Elapsed()); total += thistime;
     REPORT(0, "SingleStep TearDown", SingleStepTearDown.Elapsed()); total += thistime;
+    //REPORT(0, "Epilogue", epilogue.Elapsed()); total += thistime;  // The timings get written at the start of the Epilogue. Can't time what hasn't happened!
     REPORT(0, "Unaccounted", WallClockDirect.Elapsed()-total);
     fprintf(timingfile, "\n");
     
@@ -183,14 +78,14 @@ void ReportTimings(FILE * timingfile) {
                 double this_io_time = iter.second.Elapsed();\
                 double this_io_bytes = NAME##Bytes[iter.first];\
                 REPORT(1, iter.first.c_str(), this_io_time);\
-                fprintf(timingfile, "---> %6.1f MB/s " #RW " on %6.2f GB ["  #BLOCKING "]", this_io_bytes/this_io_time/1e6, this_io_bytes/1e9);\
+                fprintf(timingfile, "---> %6.1f MB/s " #RW " on %6.2f GB ["  #BLOCKING "]", this_io_time ? this_io_bytes/this_io_time/1e6 : 0., this_io_bytes/1e9);\
             }\
         }\
     } while(0)
 
     for(int i = 0; i < niothreads; i++){
-        double total_read_time = 1e-15, total_read_bytes = 0.;
-        double total_write_time = 1e-15, total_write_bytes = 0.;
+        double total_read_time = 0., total_read_bytes = 0.;
+        double total_write_time = 0., total_write_bytes = 0.;
 
         ACCUMULATE_THREAD_TOTALS(BlockingIORead, read);
         ACCUMULATE_THREAD_TOTALS(BlockingIOWrite, write);
@@ -202,13 +97,13 @@ void ReportTimings(FILE * timingfile) {
 
         denom = WallClockDirect.Elapsed();
 #ifdef IOTHREADED
-        std::string threadname = "Thread " + std::to_string(i+1ll);
+        std::string threadname = "IO Thread " + std::to_string(i+1ll);
         REPORT(0, threadname.c_str(), total_time);
 #else
         REPORT(0, "Blocking IO", total_time);
 #endif
-        fprintf(timingfile, "---> %6.1f MB/s read, %6.1f MB/s write", total_read_bytes/total_read_time/1e6, total_write_bytes/total_write_time/1e6);
-        denom = thistime+1e-15;
+        fprintf(timingfile, "---> %6.1f MB/s read, %6.1f MB/s write", total_read_time ? total_read_bytes/total_read_time/1e6 : 0., total_write_time ? total_write_bytes/total_write_time/1e6 : 0.);
+        denom = thistime;
         REPORT_DIR_IOSTATS(BlockingIORead, read, blocking);
         REPORT_DIR_IOSTATS(BlockingIOWrite, write, blocking);
         REPORT_DIR_IOSTATS(NonBlockingIORead, read, non-blocking);
@@ -228,60 +123,45 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Transpose Positions", TransposePos.Elapsed()); total += thistime;
     
     int NGPU = GetNGPU();
-    
-    // Compute some GPU timing totals
-    double total_copy_time = 0, total_execution_time = 0, total_copyback_time = 0, total_gpu_time = 0, GPUThroughputTime = 0;
-    double total_GB_to = 0, total_GB_from = 0, total_sinks = 0, total_sources = 0, gdi_gpu = 0;
+
     if(JJ){
-        for(int g = 0; g < NGPU*DirectBPD; g++){
-            total_GB_to += JJ->GB_to_device[g];
-            total_GB_from += JJ->GB_from_device[g];
-            total_sinks += JJ->DeviceSinks[g];
-            total_sources += JJ->DeviceSources[g];
-        }
-        
-        // Measures the total amount of time we have at least one GPU thread running
-        assertf(!SetInteractionCollection::GPUThroughputTimer.timeron, "GPU throughput timer still on! Atomic thread counting failure?\n");
-        GPUThroughputTime = SetInteractionCollection::GPUThroughputTimer.Elapsed();
-        
         REPORT(1, "NearForce [blocking]", NearForce.Elapsed()); total += thistime;
-        REPORT(1, "NearForce [non-blocking]", GPUThroughputTime); //total += thistime;
-        gdi_gpu = JJ->TotalDirectInteractions_GPU/1e9;
-        fprintf(timingfile,"---> %6.3f effective GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, P.np/(thistime+1e-15)/1e6);
+        REPORT(1, "NearForce [non-blocking]", JJ->GPUThroughputTime); //total += thistime;
+        fprintf(timingfile,"---> %6.2f effective GDIPS, %6.2f Gdirects, %.2f Mpart/sec", thistime ? JJ->gdi_gpu/thistime : 0, JJ->gdi_gpu, thistime ? P.np/thistime/1e6 : 0.);
         double total_di = (JJ->DirectInteractions_CPU +JJ->TotalDirectInteractions_GPU)/1e9;
     }
 #else
     REPORT(1, "NearForce", NearForce.Elapsed()); total += thistime;
-    fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
+    REPORT_RATE();
 #endif
     REPORT(1, "TaylorForce", TaylorForce.Elapsed()); total += thistime;
-        fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
+    REPORT_RATE();
     REPORT(1, "Kick", Kick.Elapsed()); total += thistime;
-        fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
+    REPORT_RATE();
     double gf_total = MakeCellGroups.Elapsed() + FindCellGroupLinks.Elapsed() + DoGlobalGroups.Elapsed() + FinishGroups.Elapsed();
     if (GFC != NULL){
         REPORT(1, "Group Finding", gf_total); total += thistime;
-        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+        REPORT_RATE();
     }
     REPORT(1, "Output", Output.Elapsed()); total += thistime;
-    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+    REPORT_RATE();
     if (GFC != NULL){
         REPORT(1, "Microstep", Microstep.Elapsed()); total += thistime;
-        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+        REPORT_RATE();
     }
    
     if(WriteState.Do2LPTVelocityRereading){
         REPORT(1, "Velocity Re-reading for LPT", LPTVelocityReRead.Elapsed()); total += thistime;
-        fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
+        REPORT_RATE();
     }
     REPORT(1, "Drift", Drift.Elapsed()); total += thistime;
-        fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
+        REPORT_RATE();
     REPORT(1, "Finish", Finish.Elapsed()); total += thistime;
-        fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
+        REPORT_RATE();
     REPORT(1, "Spinning", spinning); total += thistime;
     REPORT(1, "Unaccounted", TimeStepWallClock.Elapsed()-total);
 
-    fprintf(timingfile, "\n\n Breakdown per slab (Wall Clock)");
+    fprintf(timingfile, "\n\nBreakdown per slab (Wall Clock)");
     double slabforcetimemean = 0;
     double slabforcetimesigma = 0;
     double slabforcemaxtime = 0;
@@ -323,51 +203,37 @@ void ReportTimings(FILE * timingfile) {
     fprintf(timingfile,"\n\t\tSigma(STD): %.2e s\t Min: %.2e s\t Max: %.2e s ",slabforcelatencysigma,slabforceminlatency,slabforcemaxlatency);
     
     if(JJ){
-        fprintf(timingfile, "\n\n Subdivisions of Near Force:");
+        fprintf(timingfile, "\n\nBreakdown of Near Force:");
         double gdi_cpu = JJ->DirectInteractions_CPU/1e9;  // Measure per-core load balancing?
 #ifdef CUDADIRECT
-        fprintf(timingfile, "\n\t Notes about non-blocking timing:\n");
-        fprintf(timingfile, "\t -\"Directs Throughput\" is the wall clock time while at least one GPU thread is running (copy or compute).\n");
-        fprintf(timingfile, "\t -\"Effective\" GDIPS is based on this throughput.\n");
+        fprintf(timingfile, "\n\tNotes about non-blocking timing:\n");
+        fprintf(timingfile, "\t- \"Directs Throughput\" is the wall clock time while at least one GPU thread is running (copy or compute).\n");
+        fprintf(timingfile, "\t- \"Effective\" GDIPS is based on this throughput.\n");
         denom = NearForce.Elapsed();
         REPORT(1, "Blocking", NearForce.Elapsed());
-        REPORT(2, "Calculate Direct Splits", JJ->CalcSplitDirects.Elapsed());
-        
-        REPORT(2, "Construct Pencils", JJ->Construction);
-            denom = JJ->Construction;
-            REPORT(3, "Plan Sinks", JJ->FillSinkLists);
-                denom = JJ->FillSinkLists;
-                REPORT(4, "Count Sinks",JJ->CountSinks);
-                REPORT(4, "Calc Sink Blocks",JJ->CalcSinkBlocks);
-                REPORT(4, "Allocate Acceleration Memory", JJ->AllocAccels);
-            denom = JJ->Construction;
-            REPORT(3, "Plan Sources", JJ->FillSourceLists);
-                denom = JJ->FillSourceLists;
-                REPORT(4, "Count Sources",JJ->CountSources);
-                REPORT(4, "Calc Source Blocks",JJ->CalcSourceBlocks);
-            denom = JJ->Construction;
-            REPORT(3, "Fill Interaction", JJ->FillInteractionList);
-        denom = NearForce.Elapsed();
+        REPORT(2, "Calculate Splits", JJ->CalcSplitDirects.Elapsed());
+        REPORT(2, "Construct Pencils", JJ->SICConstruction.Elapsed());
         REPORT(2, "Dispatch Interaction", JJ->SICExecute.Elapsed());
         REPORT(2, "CPU Fallback", JJ->CPUFallbackTimer.Elapsed());
-                fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_cpu/(thistime+1e-15), gdi_cpu, JJ->NSink_CPU/(thistime+1e-15)/1e6);
+                fprintf(timingfile,"---> %6.2f GDIPS, %6.2f Gdirects, %6.2f Mpart/sec\n", thistime ? gdi_cpu/thistime : 0., gdi_cpu, thistime ? JJ->NSink_CPU/thistime/1e6 : 0.);
         
         denom = JJ->DeviceThreadTimer;
         char str[1024];  sprintf(str, "Non-Blocking (thread-seconds, %d threads)", NGPU*DirectBPD);
         REPORT(1, str, JJ->DeviceThreadTimer);
-            REPORT(2, "Fill Sinks", JJ->FillSinks);
-                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", total_sinks*sizeof(posstruct)/1e6/thistime, total_sinks/1e6/thistime);
+            REPORT(2, "Fill Sinks", JJ->FillSinks);  // filling is unpadded
+                    fprintf(timingfile,"---> %6.1f MB/s, %6.2f MSink/sec", thistime ? JJ->total_sinks*sizeof(posstruct)/1e6/thistime : 0., thistime ? JJ->total_sinks/1e6/thistime : 0.);
             REPORT(2, "Fill Sources", JJ->FillSources);
-                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSource/sec", total_sources*sizeof(posstruct)/1e6/thistime, total_sources/1e6/thistime);
+                    fprintf(timingfile,"---> %6.1f MB/s, %6.2f MSource/sec", thistime ? JJ->total_sources*sizeof(posstruct)/1e6/thistime : 0., thistime ? JJ->total_sources/1e6/thistime : 0.);
             REPORT(2, "Launch Kernels", JJ->LaunchDeviceKernels);
             REPORT(2, "Wait for GPU Result", JJ->WaitForResult);
             REPORT(2, "Copy Accel from Pinned", JJ->CopyAccelFromPinned);
-                    fprintf(timingfile,"---> %6.1f MB/s, %6.3f MSink/sec", total_sinks*sizeof(accstruct)/1e6/thistime, total_sinks/1e6/thistime);  // same number of accels as sinks
+                    fprintf(timingfile,"---> %6.1f MB/s, %6.2f MSink/sec\n", thistime ? JJ->total_sinks*sizeof(accstruct)/1e6/thistime : 0., thistime ? JJ->total_sinks/1e6/thistime : 0.);  // same number of accels as sinks
             
-        denom = GPUThroughputTime;
-        REPORT(1, "Non-Blocking Throughput (Wall Clock)", GPUThroughputTime);
-                fprintf(timingfile,"\n\t\t\t\t---> %6.3f effective GDIPS, %6.3f Gdirects, %6.3f Mpart/sec, %6.3f Msink/sec", gdi_gpu/(thistime+1e-15), gdi_gpu, P.np/(thistime+1e-15)/1e6, total_sinks/(thistime+1e-15)/1e6);
-                fprintf(timingfile,"\n\t\t\t\t---> with %d device threads, estimate %.1f%% thread concurrency", NGPU*DirectBPD, (JJ->DeviceThreadTimer - GPUThroughputTime)/(JJ->DeviceThreadTimer - JJ->DeviceThreadTimer/(NGPU*DirectBPD))*100);
+        denom = JJ->GPUThroughputTime;
+        REPORT(1, "Non-Blocking Throughput (Wall Clock)", JJ->GPUThroughputTime);
+                fprintf(timingfile,"\n\t\t\t\t---> %6.2f effective GDIPS, %6.2f Mpart/sec, %6.2f Msink/sec", thistime ? JJ->gdi_gpu/thistime : 0., thistime ? P.np/thistime/1e6 : 0., thistime ? JJ->total_sinks/thistime/1e6 : 0.);
+                fprintf(timingfile,"\n\t\t\t\t---> %6.2f Gdirects, %6.2f padded Gdirects", JJ->gdi_gpu, JJ->gdi_padded_gpu);
+                fprintf(timingfile,"\n\t\t\t\t---> with %d device threads, estimate %.1f%% thread concurrency", NGPU*DirectBPD, (JJ->DeviceThreadTimer - JJ->GPUThroughputTime)/(JJ->DeviceThreadTimer - JJ->DeviceThreadTimer/(NGPU*DirectBPD))*100);
                 
             fprintf(timingfile, "\n    Device stats:\n");
             for(int g = 0; g < NGPU*DirectBPD; g++){
@@ -376,120 +242,133 @@ void ReportTimings(FILE * timingfile) {
             }
 #else
         REPORT(1, "CPU directs", NearForce.Elapsed());
-            fprintf(timingfile,"---> %6.3f GDIPS, %6.3f Gdirects, %6.3f Mpart/sec", gdi_cpu/(thistime+1e-15), gdi_cpu, JJ->NSink_CPU/(thistime+1e-15)/1e6);
+            fprintf(timingfile,"---> %6.2f GDIPS, %6.2f Gdirects, %6.2f Mpart/sec", thistime ? gdi_cpu/thistime : 0., gdi_cpu, thistime ? JJ->NSink_CPU/thistime/1e6 : 0.);
 
 #endif
         } // if(JJ)
     
     if (TY!=NULL) {    // Not in IC steps
-        denom = TaylorCompute.Elapsed();
-        fprintf(timingfile, "\n Subdivisions of Taylor Evaluate:");
-        REPORT(1, "Taylor Computation", TaylorCompute.Elapsed());
-        fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
-        REPORT(1, "Compute Cell Offsets", TY->ConstructOffsets.Elapsed());
-        REPORT(1, "Taylor FFT", TY->FFTTaylor.Elapsed());
-        REPORT(1, "Taylor R to C", TY->TaylorR2C.Elapsed());
-        REPORT(1, "Taylor ASM", TY->TaylorASM.Elapsed());
-        REPORT(1, "Taylor Redlack", RL->TaylorRedlack.Elapsed());
+        fprintf(timingfile, "\nBreakdown of Taylor Evaluate:");
+        //REPORT(1, "Taylor Computation", TaylorCompute.Elapsed());
+        denom = TimeStepWallClock.Elapsed();
+        REPORT(1, "Taylor Computation", TaylorForce.Elapsed());
+            REPORT_RATE();
+        denom = thistime;
+            REPORT(2, "Compute Cell Offsets", TY->ConstructOffsets.Elapsed());
+            REPORT(2, "Taylor FFT", TY->FFTTaylor.Elapsed());
+            REPORT(2, "Taylor R to C", TY->TaylorR2C.Elapsed());
+            REPORT(2, "Taylor ASM", TY->TaylorASM.Elapsed());
+            REPORT(2, "Taylor Redlack", RL->TaylorRedlack.Elapsed());
     }
 
-    fprintf(timingfile, "\n\n Subdivisions of Kick:");
-    if(JJ){
-        denom = Kick.Elapsed();
-        REPORT(1, "Finalize accelerations", JJ->FinalizeTimer.Elapsed());
-        denom = thistime;
-        REPORT(2, "Bookkeeping/Fetch Timings", JJ->FinalizeBookkeeping.Elapsed());
-        REPORT(2, "Tear Down Pencil Sets", JJ->TearDownPencils.Elapsed());
-        REPORT(2, "Copy Pencil to Slab", JJ->CopyPencilToSlab.Elapsed());
-        fprintf(timingfile,"---> %6.3f GB/sec",P.np/(thistime+1e-15)*6*sizeof(accstruct)/1e9);
-        denom = thistime;
-	REPORT(3, "Copy Pencil to Slab Setup (P)", JJ->CopyPencilToSlabSetup.Elapsed());
-	REPORT(3, "Copy Pencil to Slab Copy  (P)", JJ->CopyPencilToSlabCopy.Elapsed());
-    }
-    denom = Kick.Elapsed();
-    REPORT(1, "Add Near + Far Accel", AddAccel.Elapsed());
-        fprintf(timingfile,"---> %6.3f GB/sec",P.np/(thistime+1e-15)*3*sizeof(accstruct)/1e9);
-    REPORT(1, "Kick Cell", KickCellTimer.Elapsed());
-        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+    fprintf(timingfile, "\n\nBreakdown of Kick:");
+    denom = TimeStepWallClock.Elapsed();
+    REPORT(1, "Kick", Kick.Elapsed());
+        REPORT_RATE();
+    denom = thistime;
+        if(JJ){
+            REPORT(2, "Accumulate Pencil Stats", JJ->FinalizeTimer.Elapsed());
+        }
+        REPORT(2, "Add Near + Far Accel", AddAccel.Elapsed());
+            fprintf(timingfile,"---> %6.2f GB/sec", thistime ? P.np/thistime*3*sizeof(accstruct)/1e9 : 0.);
+        REPORT(2, "Kick Cell", KickCellTimer.Elapsed());
+            REPORT_RATE();
     
     if(GFC != NULL){
-        fprintf(timingfile, "\n\n Breakdown of Group Finding:");
-        denom = gf_total;
-        REPORT(1, "MakeCellGroups", MakeCellGroups.Elapsed());
-        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
-        REPORT(1, "FindCellGroupLinks", FindCellGroupLinks.Elapsed());
-        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
-        REPORT(1, "DoGlobalGroups", DoGlobalGroups.Elapsed());
-        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+        fprintf(timingfile, "\n\nBreakdown of Group Finding:");
+        denom = TimeStepWallClock.Elapsed();
+        REPORT(1, "Group Finding", gf_total);
+            REPORT_RATE();
         denom = thistime;
-        REPORT(2, "Create (Sort + Index + Find)", GFC->SortLinks.Elapsed() + GFC->IndexLinks.Elapsed() + GFC->FindGlobalGroupTime.Elapsed());
-        REPORT(2, "Gather particles/Scatter aux", GFC->IndexGroups.Elapsed() + GFC->GatherGroups.Elapsed() + GFC->ScatterAux.Elapsed());
-        REPORT(2, "Find L1 Halos", GFC->ProcessLevel1.Elapsed());
-        REPORT(2, "Output L1 Halos", GFC->OutputLevel1.Elapsed());
-        denom = gf_total;
-        REPORT(1, "FinishGroups", FinishGroups.Elapsed());
-        denom = thistime;
-        REPORT(2, "Scatter Groups", GFC->ScatterGroups.Elapsed());
-            fprintf(timingfile,"---> %6.3f M_group_part/sec",GFC->L0stats.tot/(thistime+1e-15)/1e6);
-    }
-    
-    // Now write some detailed multiplicity and timing stats to lastrun.grouplog
-    if(GFC != NULL)
+            REPORT(2, "MakeCellGroups", MakeCellGroups.Elapsed());
+                REPORT_RATE();
+            REPORT(2, "FindCellGroupLinks", FindCellGroupLinks.Elapsed());
+                REPORT_RATE();
+            REPORT(2, "DoGlobalGroups", DoGlobalGroups.Elapsed());
+                REPORT_RATE();
+            denom = thistime;
+            REPORT(3, "Create (Sort + Index + Find)", GFC->SortLinks.Elapsed() + GFC->IndexLinks.Elapsed() + GFC->FindGlobalGroupTime.Elapsed());
+            REPORT(3, "Gather particles/Scatter aux", GFC->IndexGroups.Elapsed() + GFC->GatherGroups.Elapsed() + GFC->ScatterAux.Elapsed());
+            REPORT(3, "Find L1 Halos", GFC->ProcessLevel1.Elapsed());
+            REPORT(3, "Output L1 Halos", GFC->OutputLevel1.Elapsed());
+            denom = gf_total;
+            REPORT(2, "FinishGroups", FinishGroups.Elapsed());
+            denom = thistime;
+            REPORT(3, "Scatter Groups", GFC->ScatterGroups.Elapsed());
+                fprintf(timingfile,"---> %6.2f M_group_part/sec",thistime ? GFC->L0stats.tot/thistime/1e6 : 0.);
+
+        // Now write some detailed multiplicity and timing stats to lastrun.grouplog
         GFC->report();
+    }
     
-    fprintf(timingfile, "\n\n Breakdown of Output Step:");
-    denom = Output.Elapsed();
-    REPORT(1, "TimeSlice", OutputTimeSlice.Elapsed());
-    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
-    REPORT(1, "LightCone", OutputLightCone.Elapsed());
-    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
-    REPORT(1, "Binning", OutputBin.Elapsed());
-    fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
+    fprintf(timingfile, "\n\nBreakdown of Output:");
+    denom = TimeStepWallClock.Elapsed();
+    REPORT(1, "Output", Output.Elapsed());
+        REPORT_RATE();
+    denom = thistime;
+        REPORT(2, "TimeSlice", OutputTimeSlice.Elapsed());
+            REPORT_RATE();
+        REPORT(2, "LightCone", OutputLightCone.Elapsed());
+            REPORT_RATE();
+        REPORT(2, "Binning", OutputBin.Elapsed());
+            REPORT_RATE();
 
     if(GFC != NULL){
-        fprintf(timingfile, "\n\n Breakdown of Microstep Step:");
-        denom = Microstep.Elapsed();
-        REPORT(1, "CPU Microsteps", MicrostepCPU.Elapsed());
-        fprintf(timingfile,"---> %6.3f M_group_part/sec",GFC->L0stats.tot/(thistime+1e-15)/1e6);
+        fprintf(timingfile, "\n\nBreakdown of Microstep:");
+        denom = TimeStepWallClock.Elapsed();
+        REPORT(1, "Microstep", Microstep.Elapsed());
+            REPORT_RATE();
+        denom = thistime;
+        REPORT(2, "CPU Microsteps", MicrostepCPU.Elapsed());
+            fprintf(timingfile,"---> %6.2f M_group_part/sec", thistime ? GFC->L0stats.tot/thistime/1e6 : 0.);
     }
 
-    fprintf(timingfile, "\n\n Subdivisions of Drift:");
-    denom = Drift.Elapsed();
-    REPORT(1, "Move",         DriftMove.Elapsed());
-        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
-    REPORT(1, "Rebin",        DriftRebin.Elapsed());
-        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
-    REPORT(1, "Inserting",    DriftInsert.Elapsed());
+    fprintf(timingfile, "\n\nBreakdown of Drift:");
+    denom = TimeStepWallClock.Elapsed();
+    REPORT(1, "Drift", Drift.Elapsed());
+        REPORT_RATE();
+    denom = thistime;
+        REPORT(2, "Move",         DriftMove.Elapsed());
+            REPORT_RATE();
+        REPORT(2, "Rebin",        DriftRebin.Elapsed());
+            REPORT_RATE();
+        REPORT(2, "Collect Insert List Gaps",    DriftInsert.Elapsed());
 
     if(MF != NULL){
-        fprintf(timingfile, "\n\n Subdivisions of Compute Multipole:");
-        denom = ComputeMultipoles.Elapsed();
-        REPORT(1, "Compute Cell Offsets", MF->ConstructOffsets.Elapsed());
-        REPORT(1, "Multipole ASM", MF->MultipoleASM.Elapsed());
-        REPORT(1, "Multipole C to R", MF->MultipoleC2R.Elapsed());
-        REPORT(1, "Multipole FFT", MF->FFTMultipole.Elapsed());
+        fprintf(timingfile, "\n\nBreakdown of Compute Multipole:");
+        denom = Finish.Elapsed();
+        REPORT(1, "Compute Multipoles", ComputeMultipoles.Elapsed());
+            REPORT_RATE();
+        denom = thistime;
+            REPORT(2, "Compute Cell Offsets", MF->ConstructOffsets.Elapsed());
+            REPORT(2, "Multipole ASM", MF->MultipoleASM.Elapsed());
+            REPORT(2, "Multipole C to R", MF->MultipoleC2R.Elapsed());
+            REPORT(2, "Multipole FFT", MF->FFTMultipole.Elapsed());
     }
     
-    fprintf(timingfile, "\n\n Breakdown of Finish Step:");
+    fprintf(timingfile, "\n\nBreakdown of Finish:");
+    denom = TimeStepWallClock.Elapsed();
+    REPORT(1, "Finish", Finish.Elapsed());
+        REPORT_RATE();
     denom = Finish.Elapsed();
-    REPORT(1, "Partition Insert List", IL->FinishPartition.Elapsed());
-    REPORT(1, "Sort Insert List", IL->FinishSort.Elapsed());
-    fprintf(timingfile,"---> %6.3f Mitems/sec (%.2g items)",IL->n_sorted/(thistime+1e-15)/1e6, (double) IL->n_sorted);
-    REPORT(1, "Index Cells", FinishCellIndex.Elapsed());
-    REPORT(1, "Free Slabs", FinishFreeSlabs.Elapsed());
-    REPORT(1, "Merge", FinishMerge.Elapsed());
-        fprintf(timingfile,"---> %6.3f Mpart/sec",P.np/(thistime+1e-15)/1e6);
-    REPORT(1, "Compute Multipoles", ComputeMultipoles.Elapsed());
-    fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
-    REPORT(1, "Write Particles", WriteMergeSlab.Elapsed());
-    REPORT(1, "Write Multipoles", WriteMultipoleSlab.Elapsed());
+        REPORT(2, "Partition Insert List", IL->FinishPartition.Elapsed());
+        REPORT(2, "Sort Insert List", IL->FinishSort.Elapsed());
+            fprintf(timingfile,"---> %6.2f Mitems/sec (%.2g items)", thistime ? IL->n_sorted/thistime/1e6 : 0., (double) IL->n_sorted);
+        REPORT(2, "Index Cells", FinishCellIndex.Elapsed());
+        REPORT(2, "Merge", FinishMerge.Elapsed());
+            REPORT_RATE();
+        REPORT(2, "Compute Multipoles", ComputeMultipoles.Elapsed());
+            REPORT_RATE();
+        REPORT(2, "Write Particles", WriteMergeSlab.Elapsed());
+        REPORT(2, "Write Multipoles", WriteMultipoleSlab.Elapsed());
     
+    // Misc global timings
     denom = TimeStepWallClock.Elapsed();
     REPORT(0, "\nAllocate Arena Memory", LBW->ArenaMalloc.Elapsed());
     REPORT(0, "Free Arena Memory", LBW->ArenaFreeTime());
     REPORT(0, "Free SlabAccum Variables", SlabAccumFree.Elapsed());
     
-    fprintf(timingfile, "\n\n Reasons for Spinning:");
+    fprintf(timingfile, "\n\nReasons for Spinning:");
     fprintf(timingfile, "\n\t Note: may add up to >100%% if there are multiple simultaneous reasons for spinning");
     denom = spinning;
     REPORT(1, "Not enough RAM to load slabs", Dependency::spin_timers[NOT_ENOUGH_RAM].Elapsed());

@@ -56,7 +56,7 @@ void OutofCoreConvolution::WriteDiskTaylor(int z) {
     for(int i = 0; i < CP.niothreads; i++)
         iothreads[i]->push(CurrentBlock);
 #else
-    CurrentBlock->write(zwidth, 0);
+    CurrentBlock->write(z, zwidth, 0);
 #endif
 }
 
@@ -91,6 +91,8 @@ void OutofCoreConvolution::BlockConvolve(void) {
     for(int g = 0; g < nprocs; g++){
         in_1d[g] = new Complex[cpd];
         out_1d[g] = new Complex[cpd];
+        //in_1d[g] = (Complex *) fftw_alloc_complex(cpd);
+        //out_1d[g] = (Complex *) fftw_alloc_complex(cpd);
     }
 
     #endif
@@ -221,6 +223,8 @@ void OutofCoreConvolution::BlockConvolve(void) {
         fftw_destroy_plan(plan_backward_1d[g]);
         delete[] in_1d[g];
         delete[] out_1d[g];
+        //fftw_free(in_1d[g]);
+        //fftw_free(out_1d[g]);
     }
     delete[] in_1d;
     delete[] out_1d;
@@ -298,7 +302,6 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters _CP ) {
     RD_RDM = new ReadDirect(direct,sdb);
     WD_WDT = new WriteDirect(direct,sdb);
     
-    STDLOG(0,"Resulting zwidth: %d \n",zwidth);
     size_t s;
 
     // Disk buffer will only hold one z-slab at a time

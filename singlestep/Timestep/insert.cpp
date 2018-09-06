@@ -112,6 +112,9 @@ public:
         // We have been given a particle that has drifted out of its cell.
         // Find the new cell, changing the position as appropriate.
         // This is for cell-referenced positions
+	assertf(fabs(pos->x)<0.5&&fabs(pos->y)<0.5&&fabs(pos->z)<0.5,
+		"Particle has moved way too much: %f %f %f\n",
+		pos->x, pos->y, pos->z);
         while (pos->x>halfinvcpd) {
             oldx+=1; pos->x-=invcpd;
         }
@@ -149,9 +152,8 @@ public:
         // Ensure that we are not trying to push a particle to a slab
         // that might already have finished
         int slab_distance = abs(x - newcell.x);
-        if(slab_distance >= (P.cpd+1)/2){
+        if(slab_distance >= (P.cpd+1)/2)
             slab_distance = P.cpd - slab_distance;
-        }
         if (slab_distance > FINISH_WAIT_RADIUS){
             posstruct p = *pos;
             velstruct v = *vel;
@@ -186,10 +188,13 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     uint64 slablength = 0;
     FinishPartition.Start();
 
+    // We've been pushing particles to spread-out locations in the MAL; now make them contiguous
+    CollectGaps();
+
     uint64 mid = ParallelPartition(list, length, slab, is_in_slab);  // [0..mid-1] are not in slab, [mid..length-1] are in slab
     
-    /* VESTIGIAL CODE, in case one doesn't trust the ParallelPartition code
-    uint64 h = 0;
+    // VESTIGIAL CODE, in case one doesn't trust the ParallelPartition code
+    /*uint64 h = 0;
     uint64 mid = length;   // This will be one more than the last value
 
     while(h<mid) {

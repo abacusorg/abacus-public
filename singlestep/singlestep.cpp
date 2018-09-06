@@ -218,7 +218,7 @@ void InitWriteState(int ic){
 
     Slab = new SlabSize(P.cpd);
     if(!ic)
-        JJ = new NearFieldDriver();
+        JJ = new NearFieldDriver(P.NearFieldRadius);
 }
 
 void BuildWriteState(double da){
@@ -340,6 +340,62 @@ void PlanOutput(bool MakeIC) {
 
 }
 
+
+void InitGroupFinding(int ic){
+    int do_output;
+    // Request output of L1 groups and halo/field subsamples if:
+        // - By going from ReadState to WriteState we are crossing a L1Output_dlna checkpoint
+        // - We are doing a TimeSlice output
+    // We may not end up outputting group if GFC is not initialized below
+    if(P.L1Output_dlna >= 0)
+        do_output = log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ||
+                    fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna);
+    else
+        do_output = 0;
+    do_output |= ReadState.DoTimeSliceOutput;
+
+    WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities
+
+    // We need to enable group finding if:
+        // - We are doing microstepping
+        // - We are outputting groups
+    // But we can't enable it if:
+        // - AllowGroupFinding is disabled
+        // - ForceOutputDebug is enabled
+        // - This is an IC step
+    // ForceOutputDebug outputs accelerations as soon as we compute them
+    // i.e. before GroupFinding has a chance to rearrange them
+    if((P.MicrostepTimeStep > 0 || do_output) &&
+        !(!P.AllowGroupFinding || P.ForceOutputDebug || ic)){
+        STDLOG(1, "Setting up group finding\n");
+        
+        ReadState.DoGroupFindingOutput = do_output;
+
+        GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
+                    #ifdef SPHERICAL_OVERDENSITY
+                    P.SODensity[0], P.SODensity[1],
+                    #else
+                    P.FoFLinkingLength[1]/pow(P.np,1./3),
+                    P.FoFLinkingLength[2]/pow(P.np,1./3),
+                    #endif
+                    P.cpd, P.GroupRadius, P.MinL1HaloNP, P.np);
+
+        #ifdef COMPUTE_FOF_DENSITY
+        #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
+        WriteState.DensityKernelRad2 = GFC->linking_length;
+        WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5); 
+        // We use square radii.  The radius is padded just a little
+        // bit so we don't risk underflow with 1 particle at r=b
+        // in comparison to the self-count.
+        #endif
+        #endif
+
+    } else{
+        STDLOG(1, "Group finding not enabled for this step.\n");
+    }
+}
+
+
 int main(int argc, char **argv) {
     WallClockDirect.Start();
     SingleStepSetup.Start();
@@ -399,6 +455,8 @@ int main(int argc, char **argv) {
     // Make a plan for output
     PlanOutput(MakeIC);
 
+    InitGroupFinding(MakeIC);
+
     SingleStepSetup.Stop();
 
     // Now execute the timestep
@@ -412,8 +470,6 @@ int main(int argc, char **argv) {
     IO_Terminate();
     fedisableexcept(FE_INVALID | FE_DIVBYZERO);
 
-    // Write out the timings.  This must precede the epilogue, because 
-    // we need to look inside some instances of classes for runtimes.
     SingleStepTearDown.Stop();
     WallClockDirect.Stop();
 

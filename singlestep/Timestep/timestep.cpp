@@ -155,7 +155,7 @@ void NearForceAction(int slab) {
     SlabForceTime[slab].Start();
         
     JJ->ExecuteSlab(slab, P.ForceOutputDebug);
-    //JJ->ExecuteSlab(slab, 1);  // Uncomment to force blocking
+    //JJ->ExecuteSlab(slab, 1);  // Use this line instead to force blocking GPU work
 
     SlabForceLatency[slab].Start();
     if (P.ForceOutputDebug) {
@@ -185,6 +185,9 @@ void NearForceAction(int slab) {
 #endif
 
     }
+
+    // Busy-wait for all GPU work for this slab to finish
+    // while(!JJ->SlabDone(slab)) ;
 }
 
 // -----------------------------------------------------------------
@@ -271,9 +274,12 @@ void KickAction(int slab) {
 
     // Queue up slabs near the wrap to be loaded again later
     // This way, we don't have idle slabs taking up memory while waiting for the pipeline to wrap around
+    // TODO: Could this be 2*FORCE_RADIUS for PosXYZ?
     if(Kick.number_of_slabs_executed < FORCE_RADIUS){
         STDLOG(2,"Marking slab %d for repeat\n", slab - FORCE_RADIUS);
         TransposePos.mark_to_repeat(slab - FORCE_RADIUS);
+	// BUG FIXED: This DeAllocation was missing
+        LBW->DeAllocate(PosXYZSlab, slab - FORCE_RADIUS);
         // The first two won't need PosSlab until the second time around
         //LBW->DeAllocate(PosSlab, slab - FORCE_RADIUS);
         LBW->DeAllocate(CellInfoSlab, slab - FORCE_RADIUS);
@@ -550,7 +556,8 @@ void DriftAction(int slab) {
         FLOAT driftfactor = WriteState.DeltaEtaDrift;
         // WriteState.etaD-ReadState.etaD; 
         STDLOG(1,"Drifting slab %d by %f\n", slab, driftfactor);
-        DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
+        //DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
+        DriftSlabAndCopy2InsertList(slab, driftfactor, DriftSlab);
     }
     
     // We freed AccSlab in Microstep to save space
@@ -586,8 +593,6 @@ void FinishAction(int slab) {
     // Gather particles from the insert list and make the merge slabs
     uint64 n_merge = FillMergeSlab(slab);
     merged_particles += n_merge;
-
-    FinishFreeSlabs.Start();
     
     // This may be the last time be need any of the CellInfo slabs that we just used
     // We can't immediately free CellInfo before NearForce might need it until we're FORCE_RADIUS away
@@ -605,8 +610,6 @@ void FinishAction(int slab) {
     LBW->DeAllocate(PosSlab,slab);
     LBW->DeAllocate(VelSlab,slab);
     LBW->DeAllocate(AuxSlab,slab);
-
-    FinishFreeSlabs.Stop();
     
     // Make the multipoles
     LBW->AllocateArena(MultipoleSlab,slab);
@@ -626,6 +629,9 @@ void FinishAction(int slab) {
 
     int pwidth = FetchSlabs.number_of_slabs_executed - Finish.number_of_slabs_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
+
+    // TODO: is there a different place in the code where we would rather report this?
+    ReportMemoryAllocatorStats();
 }
 
 // -----------------------------------------------------------------
@@ -652,10 +658,13 @@ void timestep(void) {
 
     FORCE_RADIUS = P.NearFieldRadius;
     GROUP_RADIUS = GFC != NULL ? P.GroupRadius : 0;
+    // The 2LPT pipeline is short (no group finding). We can afford to wait an extra slab to allow for large IC displacements
+    FINISH_WAIT_RADIUS = LPTStepNumber() > 0 ? 2 : 1;
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
     assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS); 
     STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
     STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
+    STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
 
     int cpd = P.cpd;
     int first = 0;  // First slab to load
@@ -767,6 +776,7 @@ void timestepIC(void) {
     
     FORCE_RADIUS = 0;  // so we know when we can free CellInfo in Finish
     GROUP_RADIUS = 0;
+    FINISH_WAIT_RADIUS = 2;  // The IC pipeline is very short; we have plenty of RAM to allow for large IC displacements
 
     int cpd = P.cpd; int first = 0;
     Drift.instantiate(cpd, first, &FetchICPrecondition, &FetchICAction );
@@ -777,14 +787,21 @@ void timestepIC(void) {
        Finish.Attempt();
     }
 
+    STDLOG(1, "Read %d particles from IC files\n", NP_from_IC);
+    STDLOG(1, "Merged %d particles\n", merged_particles);
+    STDLOG(1, "Particles remaining on insert list: %d\n", IL->length);
+
+    if(IL->length!=0)
+        IL->DumpParticles();
+
     assertf(NP_from_IC == P.np, "Expected to read a total of %llu particles from IC files, but only read %llu.\n", P.np, NP_from_IC);
+    assertf(IL->length==0,
+        "Insert List not empty (%d) at the end of timestep().  Particles in IC files not sufficiently sorted?\n", IL->length);
     assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
     
     char filename[1024];
     sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
     Slab->write(filename);
-    assertf(IL->length==0,
-        "Insert List not empty (%d) at the end of timestep().  Particles in IC files not sufficiently sorted?\n", IL->length);
 
     STDLOG(1,"Completing timestepIC()\n");
     TimeStepWallClock.Stop();

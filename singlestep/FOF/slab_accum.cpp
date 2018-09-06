@@ -1,4 +1,4 @@
-/* This is a set of classes to accumulate and store a cell-based listing
+/*** This is a set of classes to accumulate and store a cell-based listing
 of objects in a Slab.  The challenge is that we don't know the lengths
 as we're creating them, yet must support multi-threading.  The threading
 is assumed to be strictly by Pencil, so we do buffering and indexing on
@@ -9,12 +9,13 @@ data, ordered by cell.
 We limit the number of elements in a Pencil to fit in size int 
 (note, this is the number of elements, not the number of bytes).
 
-This is all templated.  */
+This is all templated.  
 
-/* USAGE: 
+USAGE: 
 Initialize SlabAccum<T> s 
 Call s.setup(cpd, maxsize);
-maxsize should be some estimate of the total slab size, but don't sweat it.
+maxsize should be some estimate of the size requirements per slab, 
+but don't sweat it.
 
 When starting a Pencil, call PencilAccum<T> *p = s.StartPencil(pencilnum).
 This will detect the thread number and give you an object to append to.
@@ -49,7 +50,7 @@ STimer SlabAccumFree;
 
 // -----------------------------------------------------------------
 
-// This is a lightweight indexing of the cells within a pencil
+/// This is a lightweight indexing of the cells within a pencil
 class CellAccum {
   public:
     int start;    // The starting index relative to the PencilAccum *data.
@@ -57,8 +58,8 @@ class CellAccum {
     inline int size() { return _size; }
 };
 
-// We give this simple class as a way to return the pointer to and size of
-// the cell-based data.
+/// We give this simple class as a way to return the pointer to and size of
+/// the cell-based data.
 template <class T>
 class CellPtr {
   public:
@@ -82,12 +83,12 @@ class CellPtr {
 
 // -----------------------------------------------------------------
 
+/// This is just a light-weight vector, forming a linked list.
+/// If we run out of space, then we make new space and copy [start,maxsize)
+/// into the new space.
+/// This buffer cannot exceed a 31-bit size.
 template <class T>
 class SlabAccumBuffer {
-  // This is just a light-weight vector, forming a linked list.
-  // If we run out of space, then we make new space and copy [start,maxsize)
-  // into the new space.
-  // This buffer cannot exceed a 31-bit size.
   private:
     T *data;
     SlabAccumBuffer<T> *previous;
@@ -120,6 +121,8 @@ class SlabAccumBuffer {
         slabfree();
     }
 
+    bool isNULL() { return data==NULL; }
+
     #define MAXSlabAccumBuffer 0x3fffffff
 	// Cap at a billion elements, but we don't want 2*number to overflow int.
 	// This is a huge amount, since this is for a pencil, not a slab.
@@ -127,10 +130,14 @@ class SlabAccumBuffer {
     // Call setup to initialize the buffer
     void setup(int _maxsize) {
 	// printf("Allocating to size %d\n", _maxsize); fflush(NULL);
-	maxsize = _maxsize;
+	size_t bytes = 4096;
+	while (bytes<_maxsize*sizeof(T)) bytes <<= 1;
+	    // Shift up to the next factor of 2 in bytes.
+	    // Then figure out how many objects this is.
+	maxsize = bytes/sizeof(T);
 	if (maxsize>MAXSlabAccumBuffer) maxsize = MAXSlabAccumBuffer;
 		// Save user from themselves
-	int ret = posix_memalign((void **)&data, 4096, maxsize*sizeof(T)); assert(ret==0);
+	int ret = posix_memalign((void **)&data, 4096, bytes); assert(ret==0);
 	#ifdef TEST
 	printf("Allocated %d at position %p\n", maxsize, data);
 	#endif
@@ -195,8 +202,8 @@ class SlabAccumBuffer {
 
 // -----------------------------------------------------------------
 
-// The PencilAccum class is the way we want to interact with the work in
-// a pencil.
+/// The PencilAccum class is the way we want to interact with the work in
+//  a pencil.
 template <class T>
 class PencilAccum {
     CellAccum *thiscell;     // Point to the current cell
@@ -271,6 +278,11 @@ class PencilAccum {
 
 // --------------------------------------------------------------
 
+/// This class allows us to accumulate objects of a particular type
+/// in a cell and pencil-based manner.  It supports multi-threaded
+/// work by spreading the threads over the pencils.  At the end, one
+/// has a clean indexing scheme.
+
 template <class T>
 class SlabAccum {
     int cpd;
@@ -302,9 +314,14 @@ class SlabAccum {
 	if (pencils!=NULL) free(pencils); pencils = NULL;
 	if (pstart!=NULL) free(pstart); pstart = NULL;
 	if (buffers!=NULL) {
+	    // In tcmalloc, we want to allocate and deallocate on the same thread
+	    #pragma omp parallel for schedule(static,1)
 	    for (int j=0; j<maxthreads; j++) {
-		buffers[j].slabfree();
+		buffers[omp_get_thread_num()].slabfree();
 	    }
+	    for (int j=0; j<maxthreads; j++)
+	    	assertf(buffers[j].isNULL(),
+		    "We failed to free a thread-based malloc.\n");
 	    delete[] buffers;
 	}
 	buffers = NULL;
@@ -320,10 +337,13 @@ class SlabAccum {
         return cpd>0;
     }
 
+    /// The routine to initialize the SlabAccum
+    /// 
+    /// maxsize is not actually a firm maximum; 
+    /// rather it is the user direction on the space to initially reserve.
+    /// The arrays can grow.
+
     void setup(int _cpd, int maxsize) {
-	// maxsize is not actually a firm maximum; 
-	// rather it is the user direction on the space to initially reserve.
-	// The arrays can grow.
 	if (pencils==NULL) {
 	    cpd = _cpd;
 	    int ret;
@@ -339,15 +359,33 @@ class SlabAccum {
 	    maxthreads = omp_get_max_threads();
 	    buffers = new SlabAccumBuffer<T>[maxthreads];
 	    // Initialization of buffers, to reserve memory.
-	    // Probably maxsize/cpd is a good starting choice
+
+	    // maxsize is the user-supplied estimate per slab
+	    // We then divide that across the threads, and then
+	    // divide by another factor of 5 in the hopes of not having
+	    // too much wasted space.  But the SlabBuffer then round up to the 
+	    // nearest factor of 2 of bytes, in the hopes that malloc will get
+	    // some re-use of these blocks. 
+	    maxsize /= maxthreads;
+	    maxsize *= 0.2;
+	    maxsize = std::max(maxsize,1024);	// Don't waste time with small stuff
+	    
+	    // In tcmalloc, we want to allocate and deallocate on the same thread
+	    #pragma omp parallel for schedule(static,1)
+	    for (int j=0; j<maxthreads; j++) {
+		buffers[omp_get_thread_num()].setup(maxsize);
+	    }
+	    // In the one test I ran, we did always have j==thread_num,
+	    // but I chose not to trust this.
 	    for (int j=0; j<maxthreads; j++)
-		buffers[j].setup(maxsize/maxthreads/3.0);
+	    	assertf(!buffers[j].isNULL(),
+		    "We failed to assign a thread-based malloc.\n");
 	}
     }
 
+    /// Initialize work for this pencil, pnum=y
+    /// Return a pointer to this PencilAccum
     PencilAccum<T> *StartPencil(int pnum) {
-        // Initialize work for this pencil, pnum=y
-	// Return a pointer to this PencilAccum
 	int g = omp_get_thread_num();
 	pencils[pnum].buffer = buffers+g;
 	pencils[pnum].StartPencil();
@@ -373,11 +411,11 @@ class SlabAccum {
 	}
     }
 
+    /// Copy all of the data to a new buffer, making this contiguous 
+    /// and in pencil order.  This does not allocate space; use size()
+    /// to do that in advance.
+    /// Also build the pstart[] array
     void copy_to_ptr(T *destination) {
-        // Copy all of the data to a new buffer, making this contiguous 
-	// and in pencil order.  This does not allocate space; use size()
-	// to do that in advance.
-	// Also build the pstart[] array
 	uint64 offset = 0;
 	for (int j=0; j<cpd; j++) {
 	    memcpy(destination+offset, pencils[j].data, 
@@ -387,8 +425,8 @@ class SlabAccum {
     }
     
     
+    /// Same as copy_to_ptr, but accepts a function to do e.g. unit conversion
     void copy_convert(T *destination, std::function< T(T) > const & conversion) {
-        // Same as copy_to_ptr, but accepts a function to do e.g. unit conversion
         uint64 offset = 0;
         for (int j=0; j<cpd; j++) {
             for(int i = 0; i < pencils[j]._size; i++){
@@ -399,9 +437,9 @@ class SlabAccum {
     }
 
 
+    /// Write all of the data to a file, making this contiguous 
+    /// and in pencil order.  
     void dump_to_file(char fname[]) {
-        // Write all of the data to a file, making this contiguous 
-	// and in pencil order.  
 	FILE *fp = fopen(fname, "wb");
 	for (int j=0; j<cpd; j++) {
 	    fwrite(pencils[j].data, sizeof(T), pencils[j]._size, fp);
@@ -409,9 +447,9 @@ class SlabAccum {
 	fclose(fp);
     }
 
+    /// Write the CellAccum of the data to a file, making this contiguous 
+    /// and in pencil order.  
     void dump_cells_to_file(char fname[]) {
-        // Write the CellAccum of the data to a file, making this contiguous 
-	// and in pencil order.  
 	FILE *fp = fopen(fname, "w");
 	for (int j=0; j<cpd; j++) {
 	    for (int k=0; k<cpd; k++) {

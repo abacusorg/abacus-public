@@ -15,10 +15,10 @@ class ioacknowledge {
   // A trivial class to respond
   public:
     int     command; 		// use IO_READ, IO_WRITE, IO_QUIT
-    int     arena;		// Which arena number this is, just to confirm
-    ioacknowledge() { command = arena = -1; }
-    ioacknowledge(int _command, int _arena) {
-        command = _command; arena = _arena;
+    int     arenatype, arenaslab;		// Which arena number this is, just to confirm
+    ioacknowledge() { command = arenatype = arenaslab = -1; }
+    ioacknowledge(int _command, int _arenatype, int _arenaslab) {
+        command = _command; arenatype = _arenatype, arenaslab = _arenaslab;
     }
     ~ioacknowledge() { }
 };
@@ -31,7 +31,8 @@ class iorequest {
     char    filename[1024] = "";	// File name
     char    dir[1024] = "";	// Directory name
     int     command = 0; 		// use IO_READ, IO_WRITE, IO_QUIT
-    int     arena = 0;		// Which arena number this is
+    int     arenaslab = 0;		// Which arena number this is
+    int     arenatype = 0;		// Which arena number this is
     off_t     fileoffset = 0; 	// only used for reading
     int     deleteafterwriting = 0; // use IO_DELETE, IO_KEEP
     int     blocking = 0;		// use IO_BLOCKING, IO_NONBLOCKING
@@ -41,13 +42,15 @@ class iorequest {
         printf("sizebytes = %lu ", sizebytes);
         printf("filename = %s ", filename);
         printf("command = %d ", command);
-        printf("arena = %d ", arena);
+        printf("arenatype = %d ", arenatype);
+        printf("arenaslab = %d ", arenaslab);
         printf("fileoffset = %lu ", fileoffset );
         printf("deleteafterwriting = %d ", deleteafterwriting);
         printf("blocking = %d\n", blocking );
     }
 
     iorequest() {
+	memset(this, 0, sizeof(iorequest));   // Set to zero to appease valgrind
     }
 
     iorequest(
@@ -55,11 +58,13 @@ class iorequest {
         uint64     _sizebytes,
         const char    *_filename,
         int     _command,
-        int     _arena,
+        int     _arenatype,
+        int     _arenaslab,
         off_t     _fileoffset,
         int     _deleteafterwriting,
         int     _blocking) {
         
+	memset(this, 0, sizeof(iorequest));   // Set to zero to appease valgrind
         memory = _memory;
         sizebytes = _sizebytes;
         strncpy(filename, _filename, 1024);
@@ -69,7 +74,8 @@ class iorequest {
         containing_dirname(filename, dir);
         
         command = _command;
-        arena = _arena;
+        arenatype = _arenatype;
+        arenaslab = _arenaslab;
         fileoffset = _fileoffset;
         deleteafterwriting = _deleteafterwriting;
         blocking = _blocking;

@@ -31,7 +31,10 @@
 
 #include <unistd.h>
 #include <string.h>
-#include "immintrin.h"
+
+#if defined(AVXFOF) or defined(AVX512DIRECT)
+#include <immintrin.h>
+#endif
 
 #include "promote_numeric.h"
 #include "threevector.hh"

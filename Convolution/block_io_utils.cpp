@@ -29,7 +29,8 @@ public:
     
     ~Block(){
         for(int x = 0; x < cpd; x++)
-            free(raw_mtblock[x]);
+            if(raw_mtblock[x] != NULL)
+                free(raw_mtblock[x]);
         for (int z = 0; z < alloc_zwidth; z++)
             free(dblock[z]);
         delete[] raw_mtblock;
@@ -59,6 +60,7 @@ public:
             RD_RDM->BlockingRead( fn, (char *) mtblock[x], size, file_offset);
             
             // If this is the last loop iteration, we're safe to delete the multipoles
+            // TODO: maybe we could symlink Taylors files to multipoles files and write in-place
             if(CP.delete_multipoles_after_read
                 && zstart + zwidth >= (cpd+1)/2){
                 if (remove(fn) != 0)
@@ -71,7 +73,9 @@ public:
         ReadMultipoles.Stop(thread_num);
     }
 
-    void write(int zwidth, int thread_num){
+    void write(int zstart, int zwidth, int thread_num){
+        // zstart is only used to determine if this is the last iteration
+        // and thus memory is eligible to be freed
         WriteTaylor.Start(thread_num);
         
         size_t size = sizeof(MTCOMPLEX)*zwidth*cpd*rml;
@@ -87,6 +91,11 @@ public:
             // the mtblock alignment from the read should be valid for the write
             WD_WDT->BlockingAppend( fn, (char *) mtblock[x], size);
             WriteTaylorBytes += size;
+
+            if(zstart + zwidth >= (cpd+1)/2){
+                free(raw_mtblock[x]);
+                raw_mtblock[x] = NULL;
+            }
         }
         
         WriteTaylor.Stop(thread_num);
@@ -97,7 +106,7 @@ public:
      
         size_t size = sizeof(DFLOAT)*rml*CP.CompressedMultipoleLengthXY;
         
-        char *fnfmt;
+        const char *fnfmt;
         if(sizeof(DFLOAT) == sizeof(float))
             fnfmt = "%s/fourierspace_float32_%d_%d_%d_%d_%d";
         else

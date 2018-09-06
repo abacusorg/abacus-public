@@ -1,12 +1,17 @@
-// This is set up to be input twice, once with COMPUTE_FOF_DENSITY_SET
-// and once without.  With it, the function name is 
-// direct_density() and it takes the extra &aw argument.
-// Without, it's called direct().
+/** \file This file contains the pairwise direct kernel.
+ * 
+ * We have various choices for softening, selected by pre-processor #ifdef
+ * 
+ *  This is set up to be input twice, once with COMPUTE_FOF_DENSITY_SET
+ *  and once without.  With it, the function name is 
+ *  direct_density() and it takes the extra &aw argument.
+ *  Without, it's called direct().
+ */
 
 #ifdef COMPUTE_FOF_DENSITY_SET
-#define DirectKernelName direct_density
+    #define DirectKernelName direct_density
 #else
-#define DirectKernelName direct
+    #define DirectKernelName direct
 #endif
 
 #ifdef DIRECTCUBICSPLINE

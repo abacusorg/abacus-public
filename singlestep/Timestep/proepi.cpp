@@ -38,7 +38,6 @@ STimer FinishPartition;
 STimer FinishSort;
 STimer FinishCellIndex;
 STimer FinishMerge;
-PTimer FinishFreeSlabs;
 STimer ComputeMultipoles;
 STimer WriteMergeSlab;
 STimer WriteMultipoleSlab;
@@ -92,8 +91,10 @@ SlabBuffer *LBW;
 
 // Two quick functions so that the I/O routines don't need to know 
 // about the LBW object. TODO: Move these to an io specific file
-void IO_SetIOCompleted(int arena) { LBW->SetIOCompleted(arena); }
-void IO_DeleteArena(int arena)    { LBW->DeAllocateArena(arena); }
+void IO_SetIOCompleted(int arenatype, int arenaslab) { 
+	LBW->SetIOCompleted(arenatype, arenaslab); }
+void IO_DeleteArena(int arenatype, int arenaslab)    { 
+	LBW->DeAllocate(arenatype, arenaslab); }
 
 
 #include "threadaffinity.h"
@@ -187,19 +188,21 @@ void Prologue(Parameters &P, bool ic) {
     long long int np = P.np;
     assert(np>0);
 
-    LBW = new SlabBuffer(cpd, order, cpd*MAXIDS, P.MAXRAMMB*1024*1024);
+    LBW = new SlabBuffer(cpd, order, MAXIDS, P.MAXRAMMB*1024*1024);
     PP = new Particles(cpd, LBW);
     STDLOG(1,"Initializing Multipoles()\n");
     MF  = new SlabMultipoles(order, cpd);
 
     STDLOG(1,"Setting up insert list\n");
     uint64 maxILsize = P.np+1;
-    if (ic) {
+    // IC steps and LPT steps may need more IL slabs.  Their pipelines are not as long as full (i.e. group finding) steps
+    if (ic || LPTStepNumber() > 0) {
         if (P.NumSlabsInsertListIC>0) maxILsize =(maxILsize* P.NumSlabsInsertListIC)/P.cpd+1;
     } else {
         if (P.NumSlabsInsertList>0) maxILsize   =(maxILsize* P.NumSlabsInsertList)/P.cpd+1;
     }
     IL = new InsertList(cpd, maxILsize);
+    STDLOG(1,"Maximum insert list size = %ld, size %l MB\n", maxILsize, maxILsize*sizeof(ilstruct)/1024/1024);
 
     STDLOG(1,"Setting up IO\n");
 
@@ -209,41 +212,21 @@ void Prologue(Parameters &P, bool ic) {
     STDLOG(0,"Setting RamDisk == %d\n", P.RamDisk);
     IO_Initialize(logfn);
 
-    WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities
-
     if(!ic) {
             // ReadMaxCellSize(P);
         load_slabsize(P);
         TY  = new SlabTaylor(order,cpd);
-            RL = new Redlack(cpd);
+        RL = new Redlack(cpd);
 
-            SlabForceTime = new STimer[cpd];
-            SlabForceLatency = new STimer[cpd];
-            SlabFarForceTime = new STimer[cpd];
+        SlabForceTime = new STimer[cpd];
+        SlabForceLatency = new STimer[cpd];
+        SlabFarForceTime = new STimer[cpd];
 
-            RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
-        
-		// ForceOutputDebug outputs accelerations as soon as we compute them
-		// i.e. before GroupFinding has a chance to rearrange them
-        if(P.AllowGroupFinding && !P.ForceOutputDebug){
-            GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
-                                          P.FoFLinkingLength[1]/pow(P.np,1./3),
-                                          P.FoFLinkingLength[2]/pow(P.np,1./3),
-                                          P.cpd, PP->invcpd, P.GroupRadius, P.MinL1HaloNP, P.np);
-	    #ifdef COMPUTE_FOF_DENSITY
-	    #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
-		WriteState.DensityKernelRad2 = GFC->linking_length;
-		WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5); 
-		// We use square radii.  The radius is padded just a little
-		// bit so we don't risk underflow with 1 particle at r=b
-		// in comparison to the self-count.
-	    #endif
-	    #endif
-	}
+        RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
     } else {
-            TY = NULL;
-            RL = NULL;
-            JJ = NULL;
+        TY = NULL;
+        RL = NULL;
+        JJ = NULL;
     }
     STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
 
@@ -259,6 +242,11 @@ void Epilogue(Parameters &P, bool ic) {
     epilogue.Clear();
     epilogue.Start();
 
+    if(JJ)
+        JJ->AggregateStats();
+
+    // Write out the timings.  This must precede the rest of the epilogue, because 
+    // we need to look inside some instances of classes for runtimes.
     char timingfn[1050];
     sprintf(timingfn,"%s/lastrun.time", P.LogDirectory);
     FILE * timingfile = fopen(timingfn,"w");
@@ -341,15 +329,21 @@ void Epilogue(Parameters &P, bool ic) {
     STDLOG(0, "Peak resident memory usage was %.3g GB\n", (double) rusage.ru_maxrss / 1024 / 1024);
     
     epilogue.Stop();
-    STDLOG(1,"Leaving Epilogue()\n");
+    // This timing does not get written to the timing log, so it had better be small!
+    STDLOG(1,"Leaving Epilogue(). Epilogue took %.2g sec.\n", epilogue.Elapsed());
 }
 
-std::vector<std::vector<int>> free_cores;  // list of free cores for each socket
+std::vector<std::vector<int>> free_cores;  // list of cores on each socket that are not assigned a thread (openmp, gpu, io, etc)
 void init_openmp(){
     // Tell singlestep to use the desired number of threads
     int max_threads = omp_get_max_threads();
     int ncores = omp_get_num_procs();
     int nthreads = P.OMP_NUM_THREADS > 0 ? P.OMP_NUM_THREADS : max_threads + P.OMP_NUM_THREADS;
+
+    // On summitdev (which has 160 thread slices), singlestep crashes.
+    // I suspect this is because some of our stack-allocated arrays of size nthreads get too big
+    // In practice, we will probably not use this many cores because there aren't nearly that many physical cores
+    nthreads = min(128, nthreads);
     
     assertf(nthreads <= max_threads, "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n",
         nthreads, max_threads);
@@ -399,6 +393,7 @@ void setup_log(){
     sprintf(logfn,"%s/lastrun.log", P.LogDirectory);
     stdlog.open(logfn);
     STDLOG_TIMESTAMP;
+    STDLOG(0, "Log established with verbosity %d.\n", stdlog_threshold_global);
 }
 
 void check_read_state(int AllowIC, bool &MakeIC, double &da){

@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include "pprint.cc"
 #include <sys/time.h>
+#include <mutex>
 
 using namespace std;
 
@@ -16,9 +17,12 @@ struct timeval log_global_zero = { 0, 0 };
 	gettimeofday(&log_global_zero, (struct timezone *)NULL); \
     } while (0)
 
+std::mutex _log_mutex;
+
 template<typename IO, typename... Args>
 void _log(IO &out, const char *name, const char *s, Args... args) {
     std::string ss(s);
+    _log_mutex.lock();
     if(s[0]=='+') {
         ss.erase(0,1);
         out << "+" << std::setw(38) << std::left << " ";
@@ -41,6 +45,7 @@ void _log(IO &out, const char *name, const char *s, Args... args) {
         // out << time.substr(0,time.length()-1) << "  " << std::setw(20) << std::left << name+std::string("()  ");
     }
     fpprint(out, ss.c_str(), args...);
+    _log_mutex.unlock();
 }
 
 #define LOG(stream, ...) _log(stream, __func__, __VA_ARGS__)

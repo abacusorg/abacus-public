@@ -1,3 +1,9 @@
+# This Makefile is generally a trainwreck
+# Not work re-writing for full generality right now
+#ROOT_DIR := ../..
+#include $(ROOT_DIR)/common.mk
+
+
 CXXFLAGS=-m64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -D_BSD_SOURCE -D_POSIX_SOURCE -D_POSIX_C_SOURCE=200809L -D_SVID_SOURCE -D_DARWIN_C_SOURCE -Wall -fno-math-errno -fPIC -D__STDC_FORMAT_MACROS
 CFLAGS=$(CXXFLAGS) -std=c99
 CPPFLAGS=-I../../ParseHeader -I../../Convolution -I../../include/

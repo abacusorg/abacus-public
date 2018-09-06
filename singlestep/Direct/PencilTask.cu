@@ -1,17 +1,18 @@
-// This is code for the Global Pencil-on-Pencil work.
-
-// In particular, the function GPUPencilTask receives a pointer
-// to a SetInteractionCollection and an assignment of a GPUBuffer
-// and Stream.
-
-// It must load the host-side data into Pinned Memory and then the GPU,
-// then execute the direct kernel, then copy the data back into the 
-// SIC-supplied memory.
+/** \file This is code for the Global Pencil-on-Pencil work.
+ *
+ * In particular, the function GPUPencilTask receives a pointer
+ * to a SetInteractionCollection and an assignment of a GPUBuffer
+ * and Stream.
+ *
+ * It must load the host-side data into Pinned Memory and then the GPU,
+ * then execute the direct kernel, then copy the data back into the 
+ * SIC-supplied memory.
+*/
 
 // ======================== DeviceData =====================
 
-// This is the structure that is actually passed to the GPU,
-// containing all of the information from a SIC instance.
+/// This is the structure that is actually passed to the GPU,
+/// containing all of the information from a SIC instance.
 
 struct DeviceData{
     List3<FLOAT>    SinkSetPositions;
@@ -19,20 +20,17 @@ struct DeviceData{
     
     int *           SinkSetIdMax;
     accstruct *        SinkSetAccelerations;
-    FLOAT	    b2;
-    int             NSinkBlocks;
     int *           SinkBlockParentPencil;
 
     int *           SourceSetStart;
     int *           SourceSetCount;
-    int             NSourceBlocks;
-
-    int             NSinkSets;
-    int             NSourceSets;
-    int             InteractionCount;
 
     int *           SinkSourceInteractionList;
     FLOAT *         SinkSourceYOffset;
+
+    FLOAT	    b2;
+
+    int nfwidth;
 };
 
 // Here's the GPU code that knows what to do with a DeviceData structure
@@ -51,10 +49,10 @@ void SetPointer(char **p, char *val) { *p = val; }
 #define PinnedConfig(ptr, size) SetPointer((char **)&ptr, buf.host+used_host); used_host+=(size/4096+1)*4096;
 
 
+/// Given a Buffer, we want to set pointers in the DeviceData's that
+/// divide it up to our needed vectors.
 void ConfigureBufferAsDeviceData(GPUBuffer &buf, 
 	DeviceData &gpu, DeviceData &pinned) {
-    // Given a Buffer, we want to set pointers in the DeviceData's that
-    // match up.
     uint64 used_gpu = 0;
     uint64 used_host = 0;
     uint64 used_hostWC = 0;
@@ -128,20 +126,21 @@ void ConfigureBufferAsDeviceData(GPUBuffer &buf,
 
 
 
-// This routine is invoked on a single SetInteractionCollection.
-// It must copy the relevant contents to a DeviceData instance in
-// the pinned memory, then copy that to the matching DeviceData 
-// instance on the GPU.  Then it invokes the GPU kernel, with
-// the GPU-side DeviceData as the argument.  Then it copies the
-// partial accelerations back from the GPU to pinned memory, and
-// then to space that was allocated in the SIC.  Then marks the SIC
-// as completed.
-
-// Importantly, this task has substantial host-side work too, because
-// the SIC does not contain the actual particle data, but only the 
-// instructions on where to find it.  So we must invoke the SinkPencilPlan's
-// and SourcePencilPlan's to actually copy the data from the slab locations
-// into the Pinned memory.
+/// This routine is invoked on a single SetInteractionCollection.
+///
+/// It must copy the relevant contents to a DeviceData instance in
+/// the pinned memory, then copy that to the matching DeviceData 
+/// instance on the GPU.  Then it invokes the GPU kernel, with
+/// the GPU-side DeviceData as the argument.  Then it copies the
+/// partial accelerations back from the GPU to pinned memory, and
+/// then to space that was allocated in the SIC.  Then marks the SIC
+/// as completed.
+///
+/// Importantly, this task has substantial host-side work too, because
+/// the SIC does not contain the actual particle data, but only the 
+/// instructions on where to find it.  So we must invoke the SinkPencilPlan's
+/// and SourcePencilPlan's to actually copy the data from the slab locations
+/// into the Pinned memory.
 
 void GPUPencilTask(void *item, int g){
 #ifdef CUDADIRECT
@@ -160,18 +159,16 @@ void GPUPencilTask(void *item, int g){
     size_t thissize = 0;
     uint64 size_to_gpu = 0, size_from_gpu = 0;
     StartThroughputTimer(DeviceStreams[g], cudaSuccess, (void *) task);
-    // Zero the device-side accelerations
-    checkCudaErrors(cudaMemsetAsync(StreamData.SinkSetAccelerations,
-                0 , sizeof(accstruct) * NFBlockSize * task->NSinkBlocks, DeviceStreams[g]));
-    StreamData.InteractionCount = task->InteractionCount;
+
     StreamData.b2 = task->b2;
+    StreamData.nfwidth = task->nfwidth;
 
     // Need to load the particles to the PinnedBuffer.
     // Copy the sinks into position
     task->LaunchDeviceKernels.Stop();
     task->FillSinks.Start();
     for (int j=0; j<task->NSinkSets; j++) {
-        task->SinkPlan[j].copy_into_pinned_memory(PinnedBuffer.SinkSetPositions, task->SinkSetStart[j], task->SinkSetCount[j]);
+        task->SinkPlan[j].copy_into_pinned_memory(PinnedBuffer.SinkSetPositions, task->SinkSetStart[j], task->SinkSetCount[j], task->SinkPosSlab, task->nfradius, task->Nslab[task->nfradius]);
     }
     task->FillSinks.Stop();
     task->LaunchDeviceKernels.Start();
@@ -186,7 +183,7 @@ void GPUPencilTask(void *item, int g){
     // Repeat this with the sources
     task->FillSources.Start();
     for (int j=0; j<task->NSourceSets; j++) {
-        task->SourcePlan[j].copy_into_pinned_memory(PinnedBuffer.SourceSetPositions, task->SourceSetStart[j], task->SourceSetCount[j]);
+        task->SourcePlan[j].copy_into_pinned_memory(PinnedBuffer.SourceSetPositions, task->SourceSetStart[j], task->SourceSetCount[j], task->SourcePosSlab, task->nfradius, task->Nslab);
     }
     task->FillSources.Stop();
     task->LaunchDeviceKernels.Start();
@@ -207,7 +204,7 @@ void GPUPencilTask(void *item, int g){
     dim3 dimGrid(task->NSinkBlocks);
     dim3 dimBlock(NFBlockSize);
     ComputeDirects<<<dimGrid,dimBlock,0,DeviceStreams[g]>>>(StreamData,task->eps);
-    // Control won't return until it's done
+    // Control should return immediately, as the CUDA streams are non-blocking
     
     // Copy back results from GPU
     // If the memory is unpinned, this is blocking
@@ -220,16 +217,19 @@ void GPUPencilTask(void *item, int g){
     // It's safe for the next work unit to wipe the host PinnedBuffer once everything's been transferred
     // We could allow sink/source copying while waiting for accels, but we'd need a signalling mechanism from the callback
     task->WaitForResult.Start();
+    // Here is where we block, waiting for all copies/kernel launches in this stream to finish
     checkCudaErrors(cudaStreamSynchronize(DeviceStreams[g]));
     task->WaitForResult.Stop();
 
     // Now copy the data from Pinned back to the SIC buffer
     task->CopyAccelFromPinned.Start();
-    // SetInteractionCollection * task = (SetInteractionCollection *) data;
-    memcpy(task->SinkSetAccelerations, PinnedBuffer.SinkSetAccelerations, sizeof(accstruct) * NFBlockSize * task->NSinkBlocks);
+    for (int j=0; j<task->NSinkSets; j++) {
+        task->SinkPlan[j].copy_from_pinned_memory((void *)PinnedBuffer.SinkSetAccelerations, task->SinkSetStart[j], task->SinkSetCount[j], (void *)task->SinkAccSlab, j, task->nfradius, task->Nslab[task->nfradius]);
+    }
 
     // Declare victory!
-    task->SetCompleted();
+    task->SetCompleted();  // This sets the signal bit in SIC
+    // Stop the timing
     MarkCompleted(DeviceStreams[g], cudaSuccess, (void *) task);
     task->CopyAccelFromPinned.Stop();
     task->DeviceThreadTimer.Stop();

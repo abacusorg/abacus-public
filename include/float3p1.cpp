@@ -43,7 +43,6 @@ class FLOAT3p1 {
 	return FLOAT3p1(x-rhs.x, y-rhs.y, z-rhs.z, w); }
 
     // Multiply and divide by scalars, omitting w
-
     inline FLOAT3p1 operator * ( const float &rhs ) const {
 	return FLOAT3p1(x*rhs, y*rhs, z*rhs, w); }
     inline FLOAT3p1 operator *= ( const float &rhs ) {

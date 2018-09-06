@@ -17,6 +17,7 @@ Todo:
 - Unit conversion options
 - native ctypes float3* instead of void* (or CFFI?)
 - inline particle downsampling
+- automatic globbing patterns for a given file format
 """
 
 import os
@@ -28,18 +29,8 @@ import re
 import numpy as np
 import numba
 
-from . import abacus
 from .InputFile import InputFile
 from .Tools import ndarray_arg, asciistring_arg
-
-ralib = ct.cdll.LoadLibrary(path.join(abacus.abacuspath, "clibs", "libreadabacus.so"))
-
-# Set up the arguments and return type for the library functions
-# TODO: should consider migrating this to CFFI
-for f in (ralib.read_pack14, ralib.read_pack14f):
-    f.restype = ct.c_uint64
-    f.argtypes = (asciistring_arg, ct.c_size_t, ct.c_int, ct.c_int, ct.c_int, ct.c_int, ndarray_arg)
-    
 
 def read(*args, **kwargs):
     """
@@ -51,12 +42,8 @@ def read(*args, **kwargs):
     function for the file format you are using.
     """
     format = kwargs.pop('format')
-    types = {'pack14':read_pack14, 'rvdouble':read_rvdouble,
-             'rvzel':read_rvzel, 'state':read_state,
-             'rvdoubletag':read_rvdoubletag,
-             'pack14_lite':read_pack14_lite}
     format = format.lower()
-    return types[format](*args, **kwargs)
+    return reader_functions[format](*args, **kwargs)
 
 def from_dir(dir, pattern='*.dat', key=None, **kwargs):
     """
@@ -271,66 +258,64 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
         return retval[0]
     return retval
     
-    
-def read_rvdouble(fn, return_vel=True, zspace=False, dtype=np.float32, out=None, return_header=False):
-    """
-    Read particle data from a file in rvdouble format.
-    
-    Usage is the same as `read_pack14`.
-    """
-    with open(fn, 'rb') as fp:
-        header = skip_header(fp)
-        if header:
-            header = InputFile(str_source=header)
-        data = np.fromfile(fp, dtype=(np.float64,6))
-    
-    if out is not None:
-        _out = out
-    else:
-        ndt = output_dtype(return_vel=return_vel, dtype=dtype)
-        _out = np.empty(len(data), dtype=ndt)
-    
-    _out['pos'][:len(data)] = data[:,:3]
-    if zspace:
-        _out['pos'][:len(data)] += data[:,3:]
-    if return_vel:
-        _out['vel'][:len(data)] = data[:,3:]
-    
-    retval = (_out,) if out is None else (len(data),)
-    
-    if return_header:
-        retval += (header,)
-        
-    if len(retval) == 1:
-        return retval[0]
-    return retval
+def read_rvtag(*args,**kwargs):
+    return read_rv(*args, tag=True, **kwargs)
 
+def read_rvdouble(*args,**kwargs):
+    return read_rv(*args, double=True, **kwargs)
 
-def read_rvdoubletag(fn, return_vel=True, return_pid=False, zspace=False, dtype=np.float32, out=None, return_header=False):
+def read_rvdoubletag(*args,**kwargs):
+    return read_rv(*args, double=True, tag=True, **kwargs)
+
+def read_rv(fn, return_vel=True, return_pid=False, zspace=False, dtype=np.float32, out=None, return_header=False, double=False, tag=False):
     """
     Read particle data from a file in rvdoubletag format.
     
     Usage is the same as `read_pack14`.
+
+    Parameters
+    ----------
+    double: bool, optional
+        Whether the format on disk is RVdoubleTag or just RVTag.
+        Default: False
+    tag: bool, optional
+        Whether the format on disk is RVTag or just RV.
+        Default: False
     """
+    if return_pid:
+        assert tag
+
+    disk_base_dt = np.float64 if double else np.float32
+    disk_dt = [('pos',disk_base_dt,3), ('vel',disk_base_dt,3)]
+    if tag:
+        disk_dt += [('pid',np.uint64)]
+
     with open(fn, 'rb') as fp:
         header = skip_header(fp)
         if header:
             header = InputFile(str_source=header)
-        data = np.fromfile(fp, dtype=(np.float64,7))
+        data = np.fromfile(fp, dtype=disk_dt)
     
     if out is not None:
         _out = out
     else:
-        ndt = output_dtype(return_vel=return_vel, return_pid=return_pid, dtype=dtype)
-        _out = np.empty(len(data), dtype=ndt)
+        # special case: can we return the data raw?
+        if tag == return_pid and return_vel and dtype == disk_base_dt and not zspace:
+            if return_header:
+                return data, header
+            else:
+                return data
+        else:
+            ndt = output_dtype(return_vel=return_vel, return_pid=return_pid, dtype=dtype)
+            _out = np.empty(len(data), dtype=ndt)
     
-    _out['pos'][:len(data)] = data[:,:3]
+    _out['pos'][:len(data)] = data['pos']
     if zspace:
-        _out['pos'][:len(data)] += data[:,3:]
+        _out['pos'][:len(data)] += data['vel']
     if return_vel:
-        _out['vel'][:len(data)] = data[:,3:6]
+        _out['vel'][:len(data)] = data['vel']
     if return_pid:
-        _out['pid'][:len(data)] = data[:,6].view(dtype=np.uint64)
+        _out['pid'][:len(data)] = data['pid']
     
     retval = (_out,) if out is None else (len(data),)
     
@@ -731,3 +716,8 @@ except (OSError, ImportError):
 # An upper limit on the number of particles in a file, based on its size on disk
 get_np_from_fsize = lambda fsize, format, downsample=1: int(np.ceil(float(fsize)/psize_on_disk[format]/downsample**3.))
 psize_on_disk = {'pack14': 14, 'pack14_lite':14, 'rvdouble': 6*8, 'state64':3*8, 'state':3*4, 'rvzel':32, 'rvdoubletag':7*8}
+reader_functions = {'pack14':read_pack14, 'rvdouble':read_rvdouble,
+                    'rvzel':read_rvzel, 'state':read_state,
+                    'rvdoubletag':read_rvdoubletag,
+                    'rvtag':read_rvtag, 'rv':read_rvtag,
+                    'pack14_lite':read_pack14_lite}

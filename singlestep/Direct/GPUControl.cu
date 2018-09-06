@@ -1,18 +1,60 @@
-// This is the CUDA code to setup the GPU threads and then execute them.
-// It is compiled separately (hence the headers) and then linked to the 
-// rest of the code, because it needs CUDA.
+/** \file The top-level CUDA code to control the GPUs, particularly in 
+the non-blocking mode.
+
+In particular, the preferred non-blocking mode operates several 
+independent threads, typically 3 per CUDA Device.  A task operates
+on one thread end-to-end, including communication to & from the GPU
+and the computation itself.  Each thread controls one CUDA stream.
+Because there are multiple streams on each GPU, the GPU can be 
+busy computing on one task while communication happens on others.
+
+For the global near-field forces, the work is organized into Sink
+Pencils and Source Pencils.  A given cell is part of multiple sink
+pencils and hence generates multiple partial accelerations that must
+be coadded later.  A task would involve a portion of the sink pencils
+as well as the associated source pencils, subdivided so that the 
+memory on the GPU is not exhausted. 
+
+For the microstepping, the task involves executing multiple kick-drift-kick
+tree-based steps on the GPU, returning the positions and velocities.
+The task includes many groups.
+
+Each task therefore has to be prepared on the CPU, assembling a large 
+amount of data and the inter-relations needed for the computation.
+The GPU task then copies this data to a pinned memory buffer on the
+host side and then onto the GPU.  Then the computation kernel is called.
+When that is done, the result is copied back to the pinned memory
+and then to the destination.
+
+This file contains the functions to set up the GPU threads, 
+allocate the pinned memory, and then to run the GPU thread by
+receiving tasks and dispensing them to the correct function.
+
+The data model and specifics of the two task use-cases are in 
+other files.
+
+Pinned memory is slow to allocate and so we set up a large buffer
+for each thread at the beginning of the time slice.  Each task
+then partitions up its thread's buffer to match its needs.
+
+This file is compiled separately (hence the headers) and then linked
+to the rest of the code, because it needs CUDA.
+
+*/
 
 #include "config.h"
 #include "header.cpp"
 
-#include <x86intrin.h>
+//#include <x86intrin.h>  // needed for _rdtsc(). only for icc...?
 #include <cstring>
 #include <cstdio>
 #include <cassert>
 #include <pthread.h>
 #include "omp.h"
+
+#ifdef HAVE_LIBNUMA
 #include <numaif.h>
-#include <atomic>
+#endif
 
 #include "CudaErrors.cuh"
 
@@ -49,6 +91,7 @@
 #include "DeviceFunctions.h"
 #include "IncludeGPUKernels.cuh"
 
+// Provide a mechanism to call singlestep's STDLOG from this compilation unit
 void stdlog_hook(int verbosity, const char* str);
 #define STDLOG stdlog_hook
 #define assertf(_mytest,...) do { \
@@ -72,13 +115,14 @@ int NGPU = 0;		// Number of actual CUDA devices (not threads)
 
 // ===================  The Queue of Tasks =====================
 
-// We communicate to the queues with a simple FIFO queue. 
-// Tasks go in, and are read out by the QueueWatchers.
-
+/// We communicate to the queues with a simple FIFO queue. 
+/// Tasks go in, and are read out by the QueueWatchers.
+/// This class is the item that goes into that queue for
+/// the inter-thread communication.
 struct GPUQueueTask {
-    void *task;
-    int type;   // ==0 signals to kill the Watcher
-    	// ==1 is for SetInteractionCollections
+    void *task; ///< The pointer to the task data
+    int type;   ///< ==0 signals to kill the Watcher
+    	///< ==1 is for SetInteractionCollections
 };
 
 #include "tbb/concurrent_queue.h"
@@ -90,6 +134,7 @@ tbb::concurrent_bounded_queue<GPUQueueTask> work_queues[MAX_GPUS];
 
 void GPUPencilTask(void *, int);
 
+/// This submits a single SetInteractionCollection to the GPU queue.
 void SetInteractionCollection::GPUExecute(int blocking){
     // This method is invoked on a SIC in order to schedule it for execution.
     // At this point, we are directing work to individual GPUs.
@@ -119,36 +164,29 @@ void SetInteractionCollection::GPUExecute(int blocking){
 
 // =============== GPU Buffers =============================
 
-// The memory in each GPU is divided into a handful of equal sized
-// buffers, with matching pinned space on the host.  
-// Each buffer is paired with one thread.  Tasks will occupy one
-// buffer.  The memory allocations persist until the thread ends.
+/// The memory in each GPU is divided into a handful of equal sized
+/// buffers, with matching pinned space on the host.  
+/// Each buffer is paired with one thread.  Tasks will occupy one
+/// buffer.  The memory allocations persist until the thread ends.
 
 struct GPUBuffer {
-    uint64 size;	// The size in bytes
-    uint64 sizeWC;	// The size in bytes of the WC part
-    uint64 sizeDef;	// The size in bytes of the non-WC part
-    char * device;	// The device-side memory
-    char * host;	// The host-side memory allocated as default
-    char * hostWC;	// The host-side memory allocated as write combined
+    uint64 size;	///< The size in bytes
+    uint64 sizeWC;	///< The size in bytes of the WC part
+    uint64 sizeDef;	///< The size in bytes of the non-WC part
+    char * device;	///< The device-side memory
+    char * host;	///< The host-side memory allocated as default
+    char * hostWC;	///< The host-side memory allocated as write combined
 };
 
-// We will be running multiple GPU threads, usually a few per device.
-// Each thread can only do one task (e.g., a SIC) at a time, and 
-// it controls a single CUDA stream that guarantees sequential 
-// execution of the load, compute, and store cycle.
-// We have multiple threads per GPU so that load/store can be
-// overlapped with compute.
-
-cudaStream_t * DeviceStreams;	// The actual CUDA streams, one per thread
-GPUBuffer * Buffers; 		// The pointers to the allocated memory
-pthread_t *DeviceThread;	// The threads!
+cudaStream_t * DeviceStreams;	///< The actual CUDA streams, one per thread
+GPUBuffer * Buffers; 		///< The pointers to the allocated memory
+pthread_t *DeviceThread;	///< The threads!
 
 
 
 // ====================== GPU configuration =====================
 
-// Function to get the number of GPUs
+/// Function to get the number of GPUs
 extern "C"
 // Use ./configure --with-max-gpus=1 to force 1 GPU
 int GetNGPU(){
@@ -159,8 +197,7 @@ int GetNGPU(){
     return ngpu;
 }
 
-// Function to get the amount of memory on the GPUs
-
+/// Function to get the amount of memory on the GPUs
 extern "C" double GetDeviceMemory(){
     int ngpu;
     checkCudaErrors(cudaGetDeviceCount(&ngpu));
@@ -185,8 +222,8 @@ size_t MaxSinkSize, MaxSourceSize;
 int init = 0;
 int BPD; 		// Buffers per device
 
-static std::atomic<uint64> host_alloc_bytes;
-static std::atomic<bool> thread_setup_done;
+static volatile uint64 host_alloc_bytes;
+static volatile int thread_setup_done;
 
 void *QueueWatcher(void *);
 
@@ -229,6 +266,23 @@ limited by the fraction of CPD**2
 
 */
 
+
+
+/// This launches all of the GPU threads and associated control.
+///
+/// We will be running multiple GPU threads, usually a few per device.
+/// Each thread can only do one task (e.g., a SIC) at a time, and 
+/// it controls a single CUDA stream that guarantees sequential 
+/// execution of the load, compute, and store cycle.
+/// We have multiple threads per GPU so that load/store can be
+/// overlapped with compute.
+/// 
+/// This routine is supplied with the size (in bytes) of each
+/// GPU buffer, and it returns estimates on that basis of how
+/// big the tasks can be.  This is used in the planning of tasks.
+///
+/// Note that we size this to NFRADIUS, which is allowed to be bigger
+/// than P.NearFieldRadius.
 
 extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize, 
     int numberGPUs, int bufferperdevice, 
@@ -291,7 +345,6 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     DeviceStreams = new cudaStream_t[NBuf];
     Buffers = new GPUBuffer[NBuf];
     DeviceThread = new pthread_t[NBuf];
-    // TODO: These appear to never be freed
     
     // Start one thread per buffer
     
@@ -303,6 +356,12 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     //assertf(n_socket > 0, "n_socket %d less than 1\n", n_socket);
 
     int use_pinned = MaxSinkBlocks >= 10000;  // Pinning is slow, so for very small problems it's faster to use unpinned memory
+
+    if(use_pinned)
+        sprintf(logstr, "Allocating pinned memory\n");
+    else
+        sprintf(logstr, "Allocating host-side memory, but not pinning because this is a small problem\n");
+    STDLOG(1,logstr);
     
     for(int g = 0; g < NBuf; g++){
     	Buffers[g].size = MaxBufferSize;
@@ -321,9 +380,9 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
         buffer_and_core[1] = core;
         buffer_and_core[2] = use_pinned;
         if(core >= 0)
-            sprintf(logstr, "GPU buffer thread %d (GPU %d) assigned to core %d\n", g, g % NGPU, core);
+            sprintf(logstr, "GPU buffer thread %d (GPU %d) assigned to core %d, use_pinned %d\n", g, g % NGPU, core, use_pinned);
         else
-            sprintf(logstr, "GPU buffer thread %d (GPU %d) not bound to a core\n", g, g % NGPU);
+            sprintf(logstr, "GPU buffer thread %d (GPU %d) not bound to a core, use_pinned %d\n", g, g % NGPU, use_pinned);
         STDLOG(0, logstr);
         
         // Start one thread per buffer
@@ -332,18 +391,15 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
         assertf(p_retval == 0, "pthread_create failed with value %d\n", p_retval);
         while(!thread_setup_done){}  // only let one thread init at a time
     }
-
-    if(use_pinned)
-        sprintf(logstr, "Allocated %f MB pinned memory\n", host_alloc_bytes/1024./1024);
-    else
-        sprintf(logstr, "Allocated %f MB host-side memory, but did not pin because this is a small problem\n", host_alloc_bytes/1024./1024);
+    sprintf(logstr, "Allocated %f MB host-side memory\n", host_alloc_bytes/1024./1024);
     STDLOG(1,logstr);
-    
+
     init = 1;
 }
 
 
-// And here's the routine to turn off the threads.
+/// This is the routine to turn off the GPU threads,
+/// reset the device, and delete the host-side memory.
 
 void GPUReset(){
     GPUQueueTask t;
@@ -375,21 +431,28 @@ void GPUReset(){
 
 #include "cuda_profiler_api.h"
 
-// Here is the top-level function for each GPU thread.
-// It allocates the space, then monitors a queue to get its work tasks
-// and then invoke the Task function.
-
-// A wrapper to GPUPencilTask that executes work units from the queue
-// Intended to be executed by several threads/buffers in parallel
-// Our original intention was to let the CUDA stream be our "queue"
-// but the copyback operation is blocking unless we pin memory
-// So this serves as a non-blocking queue
+/// Here is the top-level function for each GPU thread.
+/// It allocates the space, then monitors a queue to get its work tasks
+/// and then invoke the Task function.  When it receives the queue
+/// signal to quit, it deletes its buffer memory.
+///
+/// A wrapper to GPUPencilTask that executes work units from the queue
+/// Intended to be executed by several threads/buffers in parallel
+/// Our original intention was to let the CUDA stream be our "queue"
+/// but the copyback operation is blocking unless we pin memory
+/// So this serves as a non-blocking queue.
+///
+/// By handling buffer memory here, we get a favorable NUMA situation.
+/// However, it is also useful to have the thread running on the 
+/// correct socket for its PCI slot, so that is passed in as well
+/// to run set_core_affinity().
 
 void *QueueWatcher(void *_arg){
 	// Parse the device and core args
 	// Entry 0 is the assigned buffer number
 	// Entry 1 is the assigned core
 	// Entry 2 instructs to use pinned memory on the host side
+    char logstr[1024]; sprintf(logstr," ");
     int* arg = (int *) _arg;
     int assigned_device = ((int*) arg)[0];
     int n = assigned_device; 		// The buffer number
@@ -398,29 +461,38 @@ void *QueueWatcher(void *_arg){
     if (assigned_core >= 0)
         set_core_affinity(assigned_core);
     int use_pinned = ((int*) arg)[2];
-    char logstr[1024];
+    sprintf(logstr,"Running GPU thread %d, core %d\n", n, assigned_core); STDLOG(1,logstr);
 
     checkCudaErrors(cudaSetDevice(gpu));
     if (assigned_device < NGPU) {
+        // Only run these the first time a GPU is seen
         checkCudaErrors(cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync));
         checkCudaErrors(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
     }
     // Initiate the stream
     checkCudaErrors(cudaStreamCreateWithFlags(&DeviceStreams[n], cudaStreamNonBlocking));
+    sprintf(logstr,"GPU stream %d initiated\n", n); STDLOG(1,logstr);
 
     // Allocate CUDA memory
     CudaAllocate(Buffers[n].device,     Buffers[n].size);
     WCAllocate(Buffers[n].hostWC,       Buffers[n].sizeWC);
     PinnedAllocate(Buffers[n].host,     Buffers[n].sizeDef);
+    sprintf(logstr,"GPU thread %d memory allocated\n", n); STDLOG(1,logstr);
     // We make 2/3 of the host pinned memory WriteCombined, which is
     // good for sending data to the GPU.  The other 1/3 is normal, 
     // better for returning the data from the GPU.
-
+    
+#ifdef HAVE_LIBNUMA
     // Attempt some NUMA specifics
+    // Query the current NUMA node of the allocated buffers
+    // We are using the move_pages function purely to query NUMA state, not move anything
     int page = -1;
     move_pages(0, 1, (void **) &(Buffers[n].host), NULL, &page, 0);
-    sprintf(logstr, "Pinned buffer for GPU %d allocated on NUMA node %d on core %d\n", gpu, page, assigned_core);
+    sprintf(logstr, "Host buffer for GPU %d allocated on NUMA node %d on core %d\n", gpu, page, assigned_core);
+    move_pages(0, 1, (void **) &(Buffers[n].hostWC), NULL, &page, 0);
+    sprintf(logstr, "Host write-combined buffer for GPU %d allocated on NUMA node %d on core %d\n", gpu, page, assigned_core);
     STDLOG(1, logstr);
+#endif
 
     thread_setup_done = 1;  // signal that the next thread can start its setup
 
@@ -453,11 +525,21 @@ void *QueueWatcher(void *_arg){
     return NULL;
 }
 
+#undef CudaAllocate
+#undef PinnedAllocate
+#undef WCAllocate
+
 
 // ================= Timing the GPUs ==================
 
 // TODO: This may need some adjustment when there's more than one task type.
-// Or maybe not?
+// Or maybe not?  
+
+
+/// Timing the GPU is tricky because there are multiple threads 
+/// issuing work to it.  So we keep a global counter of all of 
+/// active threads, and run a timer when that count is non-zero.
+/// That gives a global throughput number.
 
 void CUDART_CB StartThroughputTimer(cudaStream_t stream, cudaError_t status, void *data){
     assert(pthread_mutex_lock(&SetInteractionCollection::GPUTimerMutex) == 0);
@@ -481,7 +563,7 @@ void CUDART_CB MarkCompleted( cudaStream_t stream, cudaError_t status, void *dat
 
 // ==================  The specific tasks =======================
 
-// Counting the number of direct interactions performed
+/// Counting the number of direct interactions performed
 __device__ unsigned long long int DI;
 
 __global__ void getDI(unsigned long long int * h_di){
