@@ -91,10 +91,38 @@ def from_dir(dir, pattern='*.dat', key=None, **kwargs):
     return read_many(files, **kwargs)
 
 
-def read_many(files, format='pack14',**kwargs):
+def read_many(files, format='pack14', separate_fields=False, **kwargs):
     """
     Read a list of files into a contiguous array.
 
+    Our files are usually written as something like float6, where
+    pos and vel are interwoven.  If one wants to de-interlave them
+    into separate arrays, one can use the `separate_fields` arg.
+    The reader functions don't know about this, so they'll still
+    return one big array.  But then this function can split the
+    fields.  This results in some small extra memory usage and
+    time spent copying.  But it's granular at the level of the
+    individual file sizes.
+
+    Parameters
+    ----------
+    files: list of str
+        The list of file names
+    format: str
+        The file format. Specifies the reader function.
+    separate_fields: bool, optional
+        Split the (e.g.) pos and vel fields of the contiguous array returned
+        by the reader function into two separate, contiguous arrays.
+        Default: False.
+    kwargs: dict, optional
+        Additional args to pass to the reader function.
+
+    Returns
+    -------
+    particles: ndarray or dict of ndarray
+        The concatenated particle array, or a dict of arrays if `separate_fields`.
+    header: InputFile, optional
+        If `return_header` and a header is found, return parsed InputFile
     """
 
     # Allocate enough space to hold the concatenated particle array
@@ -115,23 +143,56 @@ def read_many(files, format='pack14',**kwargs):
     alloc_NP = get_np_from_fsize(total_fsize, format=_format)
     outdt = output_dtype(**kwargs)
     
-    output_array = np.empty(alloc_NP, dtype=outdt)
+    if separate_fields:
+        # One array per dtype field
+        particle_arrays = {}
+        for field in outdt.descr:
+            particle_arrays[field[0]] = np.empty(alloc_NP, dtype=field[1:])
+    else:
+        particles = np.empty(alloc_NP, dtype=outdt)
     
     return_header = kwargs.get('return_header', False)
     
     start = 0
     for fn in files:
-        NP = read(fn, format=format, out=output_array[start:], **kwargs)
-        if return_header:
-            NP, header = NP
+        if separate_fields:
+            read_into = None
+        else:
+            read_into = particles[start:]
+        
+        out = read(fn, format=format, out=read_into, **kwargs)
+
+        if separate_fields:
+            if return_header:
+                out, header = out
+            NP = len(out)
+            # Now split the array
+            for field in outdt.descr:
+                particle_arrays[field[0]][start:start+NP] = out[field[0]]
+            del out
+        else:
+            if return_header:
+                NP, header = out
+            else:
+                NP = out
         start += NP
         
     # Shrink the array to the size that was actually read
-    output_array = output_array[:start]
+    if separate_fields:
+        for field in particle_arrays:
+            particle_arrays[field] = particle_arrays[field][:start]
+
+        if return_header:
+            return particle_arrays, header  # return header associated with last file
     
-    if return_header:
-        return output_array, header  # return header associated with last file
-    return output_array
+        return particle_arrays
+    else:
+        particles = particles[:start]
+    
+        if return_header:
+            return particles, header  # return header associated with last file
+    
+        return particles
 
 ################################
 # Begin list of reader functions
@@ -335,7 +396,8 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
         particles = out
 
     if len(raw) > 0:
-        ppd = np.array([raw['zel'].max() + 1], dtype=np.uint64)  # necessary for numpy to not truncate the result
+        if add_grid or return_pid:
+            ppd = np.array([raw['zel'].max() + 1], dtype=np.uint64)  # necessary for numpy to not truncate the result
         # We are only guaranteed to have a whole number of planes from the zeldovich code, but this might be an Abacus output
         #if add_grid or return_pid:
         #    #make sure we have a whole number of planes; otherwise, ppd might be wrong
@@ -357,33 +419,13 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
 
     retval = (particles,) if out is None else (len(raw),)
     
-    ppd = np.array([raw['zel'].max() + 1], dtype=np.uint64)  # necessary for numpy to not truncate the result
-    # We are only guaranteed to have a whole number of planes from the zeldovich code, but this might be an Abacus output
-    #if add_grid or return_pid:
-    #    #make sure we have a whole number of planes; otherwise, ppd might be wrong
-    #    planes = len(raw) / ppd**2
-    #    assert planes*ppd**2 == len(raw), "ppd {} detected from zel field, but this implies {} particle planes which does not match {} particles".format(ppd, planes, len(raw))
-    
-    particles['pos'][:len(raw)] = raw['r']
-    if add_grid:
-        grid = (1.*raw['zel'] / ppd - 0.5)*boxsize
-        particles['pos'][:len(raw)] += grid
-    if zspace:
-        particles['pos'][:len(raw)] += raw['v']
-    if return_vel:
-        particles['vel'][:len(raw)] = raw['v']
-    if return_zel:
-        particles['zel'][:len(raw)] = raw['zel']
-    if return_pid:
-        particles['pid'][:len(raw)] = raw['zel'][:,2] + ppd*raw['zel'][:,1] + ppd**2*raw['zel'][:,0]
-    
     if return_header:
         retval += (header,)
         
     if len(retval) == 1:
-        return retval[0]        
+        return retval[0]
 
-    return particles
+    return retval
     
     
 def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32, return_pid='auto', return_aux=False, return_vel='auto', return_pos='auto', return_header=False, out=None):

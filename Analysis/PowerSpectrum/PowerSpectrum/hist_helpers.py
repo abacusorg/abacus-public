@@ -151,12 +151,12 @@ def whist_helper_3D(boxsize, values, bin_edges, rfft, multipoles=np.array([0])):
     # we will handle the monopole explicitly without mu_k calculation
     n_poles = len(multipoles)
     do_monopole = False
-    if multipoles[0] == 0:
+    if multipoles[0] == 0:  # guaranteed sorted
         do_monopole = True
 
     # "extra poles" are non-monopoles
     have_extra_poles = not do_monopole or n_poles > 1
-    extra_pole_start = 1 if do_monopole else 0  # guaranteed sorted
+    extra_pole_start = 1 if do_monopole else 0
 
     #Lmax = multipoles.max() if len(multipoles) > 0 else 0
 
