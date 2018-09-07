@@ -37,9 +37,10 @@ public:
     int  DerivativeExpansionRadius;
     int  MAXRAMMB;
     int  ConvolutionCacheSizeMB; // Set to manually override the detected cache size
-    int RamDisk;        // ==0 for a normal disk, ==1 for a ramdisk (which don't have DIO support)
-    int OverwriteState; // 0 for normal, separate read and write states; 1 to overwrite the read state to save space
+    int RamDisk;        // ==0 for a normal disk, ==1 for a ramdisk (which don't have DIO support)  // TODO: automatically detect this, or at least provide per-directory options
     int ForceBlockingIO;   // ==1 if you want to force all IO to be blocking.
+    char StateIOMode[64];  //  "normal", "slosh", "overwrite", "stripe"
+    char Conv_IOMode[64];  //  "normal", "slosh", "overwrite", "stripe"
     
     int OMP_NUM_THREADS;  // Number of OpenMP threads.  0 does not modify the system value (usually OMP_NUM_THREADS, or all threads).
                         // Negative values use that many fewer than the max.
@@ -182,10 +183,13 @@ public:
         installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB, DONT_CARE);
         RamDisk = 0;
         installscalar("RamDisk",RamDisk,DONT_CARE);
-        OverwriteState = 0;
-        installscalar("OverwriteState",OverwriteState,DONT_CARE);
         ForceBlockingIO = 0;
         installscalar("ForceBlockingIO",ForceBlockingIO,DONT_CARE);
+
+        sprintf(StateIOMode, "normal");
+        installscalar("StateIOMode", StateIOMode, DONT_CARE);
+        sprintf(Conv_IOMode, "normal");
+        installscalar("Conv_IOMode", Conv_IOMode, DONT_CARE);
 
         OMP_NUM_THREADS = 0;
         installscalar("OMP_NUM_THREADS",OMP_NUM_THREADS,DONT_CARE);
@@ -387,7 +391,16 @@ private:
     void ProcessStateDirectories();
 };
 
+// Convert a whole string to lower case, in place.
+void strlower(char* str){
+    for ( ; *str; ++str)
+        *str = tolower(*str);
+}
+
 void Parameters::ProcessStateDirectories(){
+    strlower(StateIOMode);
+    strlower(Conv_IOMode);
+
     if (strcmp(WorkingDirectory,STRUNDEF) !=0){
         if ( strcmp(ReadStateDirectory,STRUNDEF)!=0 || strcmp(WriteStateDirectory,STRUNDEF)!=0 ){
             QUIT("If WorkingDirectory is defined, {Read,Write}StateDirectory should be undefined. Terminating\n")
@@ -395,7 +408,7 @@ void Parameters::ProcessStateDirectories(){
         else{
             sprintf(ReadStateDirectory,"%s/read",WorkingDirectory);
             sprintf(WriteStateDirectory,"%s/write",WorkingDirectory);
-            if(OverwriteState){
+            if(strcmp(StateIOMode, "overwrite") == 0) {  // later, we will set WriteState.OverwriteState
                 strcpy(WriteStateDirectory, ReadStateDirectory);
             }
         }

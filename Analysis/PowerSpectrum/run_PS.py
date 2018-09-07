@@ -17,6 +17,9 @@ from glob import glob
 import numpy as np
 import pynbody
 import pandas as pd
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pyplot as plt
 
 from Abacus.Analysis import common
 from Abacus.InputFile import InputFile
@@ -270,7 +273,7 @@ def setup_bins(args):
 
     return all_bins, all_nfft
 
-import matplotlib.pyplot as plt
+
 def make_plot(results, header, csvfn):
     '''
     Make a preview plot of the results.

@@ -56,20 +56,24 @@ public:
     int io_cores[MAX_IO_THREADS];
     int niothreads;
 
+    int ProfilingMode;
+
+    int StripeConvState;  // in analogy with WriteState.StripeConvState
+
     void MultipoleDirectory(int slab, char * const fn){
         // We elsewhere generically support N threads, but here is where we assume 2
-        if(slab % 2 == 0)
-            sprintf(fn, "%s/%s_%04d", runtime_MultipoleDirectory, runtime_MultipolePrefix, slab);
-        else
+        if(StripeConvState && slab % 2 == 1)
             sprintf(fn, "%s/%s_%04d", runtime_MultipoleDirectory2, runtime_MultipolePrefix, slab);
+        else
+            sprintf(fn, "%s/%s_%04d", runtime_MultipoleDirectory, runtime_MultipolePrefix, slab);
     }
 
     void TaylorDirectory(int slab, char * const fn){
         // We elsewhere generically support N threads, but here is where we assume 2
-        if(slab % 2 == 0)
-            sprintf(fn, "%s/%s_%04d", runtime_TaylorDirectory, runtime_TaylorPrefix, slab);
-        else
+        if(StripeConvState && slab % 2 == 1)
             sprintf(fn, "%s/%s_%04d", runtime_TaylorDirectory2, runtime_TaylorPrefix, slab);
+        else
+            sprintf(fn, "%s/%s_%04d", runtime_TaylorDirectory, runtime_TaylorPrefix, slab);
     }
 };
 

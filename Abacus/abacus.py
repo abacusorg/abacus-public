@@ -156,10 +156,8 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
 
         print("Erased previous working directories.")
             
-    if not path.exists(basedir):
-        os.makedirs(basedir)
-    if not path.exists(logdir):
-        os.makedirs(logdir)
+    os.makedirs(basedir, exist_ok=True)
+    os.makedirs(logdir, exist_ok=True)
     
     info_in_path = pjoin(config_dir, 'info')
     try:
@@ -172,8 +170,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
         pass  # input == output
 
     # Copy over all of the input files to the output folder for reference
-    if not path.exists(outdir):
-        os.makedirs(outdir)
+    os.makedirs(outdir, exist_ok=True)
     try:
         shutil.copy(output_parfile, '{outdir:s}/'.format(outdir=outdir))
     except shutil.Error:
@@ -228,6 +225,7 @@ def clean_dir(bd, preserve=None, rmdir_ifempty=True):
             except OSError:
                 pass
 
+<<<<<<< Updated upstream
 def MakeDerivatives(param, derivs_archive_dir=True, floatprec=False):
     '''
     Look for the derivatives required for param and make them if they don't exist.
@@ -237,8 +235,7 @@ def MakeDerivatives(param, derivs_archive_dir=True, floatprec=False):
     if derivs_archive_dir == True:
         derivs_archive_dir = pjoin(os.getenv('ABACUS_PERSIST',None), 'Derivatives')
     
-    if not path.exists(param.DerivativesDirectory):
-        os.makedirs(param.DerivativesDirectory)
+    os.makedirs(param.DerivativesDirectory, exist_ok=True)
 
     #note! added this in to run Ewald test for far_radius 1-8,16 
     for ADnum in list(range(1,9)) + [16]:
@@ -317,7 +314,7 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
 
     1) Compute ZD_Pk_sigma from sigma_8
     2) If $ABACUS_SSD2 is defined, define the params {Multipole,Taylor}Directory2
-    3) If $ABACUS_TMP2 is defined and SloshState is True, define WorkingDirectory2
+    3) If $ABACUS_TMP2 is defined and StateIOMode is "slosh", define WorkingDirectory2
     4) If `use_site_overrides` is set, load params from the site.def file
     5) If `override_directories` is set, overwrite directories with defaults from the environment
     '''
@@ -348,18 +345,22 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
         param_kwargs['ZD_Pk_sigma'] = sigma8_at_zinit
         params = GenParam.makeInput(output_parfile, parfn, **param_kwargs)
 
-    if params.get('SloshState',False):
+    if params.get('StateIOMode','normal').lower() in ('slosh','stripe'):
+        # TODO: state striping not implemented
         if 'ABACUS_TMP2' in os.environ:
-            # WorkingDirectory2 is never processed by Abacus.
+            # WorkingDirectory2 is never processed by Abacus if we are sloshing
             # It will be intercepted by the sloshing logic
             if 'WorkingDirectory2' not in params:
                 param_kwargs['WorkingDirectory2'] = pjoin(os.environ['ABACUS_TMP2'], params['SimName'])
 
-        if 'ABACUS_SSD2' in os.environ:
+    Conv_IOMode = params.get('Conv_IOMode','normal').lower()
+    if 'ABACUS_SSD2' in os.environ:
+        if Conv_IOMode == 'slosh':
+            # Don't bother failing with assertions here.  We'll check everything when we actually try to set up the state dirs
+            # Similar to WorkingDirectory2, this dir is never used by Abacus proper
             if 'ConvolutionWorkingDir2' not in params:
                 param_kwargs['ConvolutionWorkingDir2'] = pjoin(os.environ['ABACUS_SSD2'], params['SimName'])
-    else:
-        if 'ABACUS_SSD2' in os.environ:
+        elif Conv_IOMode == 'stripe':
             if 'MultipoleDirectory2' not in params:
                 param_kwargs['MultipoleDirectory2'] = pjoin(os.environ['ABACUS_SSD2'], params['SimName'], 'multipole2')
             if 'TaylorDirectory2' not in params:
@@ -434,20 +435,18 @@ def setup_state_dirs(paramfn):
     '''
     This function is called once before the singlestep loop begins.
     Its main purpose is to setup the state directories, including
-    the symlinks if state sloshing is requested.
+    the symlinks if state sloshing is requested via `StateIOMode`.
 
     When state sloshing, everything looks normal to the singlestep
     binary, except "read" and "write" are actually symlinks
     to the "state1" and "state2" directories elsewhere.
 
-    When sloshing the state, multipoles & taylors are sloshed
-    as well.  The Convolution
-
-    TODO: there will probably be times when we want to slosh
-    the main state but split the MT
+    Sloshing/striping of the multipole/taylors can be requested
+    with the `Conv_IOMode` parameter.
     '''
     params = GenParam.makeInput(paramfn, paramfn)
-    OverwriteState = params.get('OverwriteState',False)
+    StateIOMode = params.get('StateIOMode','normal').lower()
+    Conv_IOMode = params.get('Conv_IOMode','normal').lower()
     
     # Normal operation: everything is under the WorkingDirectory or specified individually
     # Can't specify both WorkingDir and ReadDir
@@ -470,66 +469,68 @@ def setup_state_dirs(paramfn):
     taylors = normpath(params['TaylorDirectory'])
     multipoles = normpath(params['MultipoleDirectory'])
 
-    if OverwriteState:
+    if StateIOMode == 'overwrite':
         write = read
         past = None
 
     # Check if the write state already exists
-    if path.isfile(pjoin(write, "state")) and not OverwriteState:
+    if path.isfile(pjoin(write, "state")) and StateIOMode != 'overwrite':
         answer = input('\nWrite state "{}" exists and would be overwritten. Do you want to delete it? (y/[n]) '.format(write))
         if answer == "y":
             shutil.rmtree(write)
         else:
             raise ValueError("Cannot proceed if write state exists!")
+
+    # If the links don't exist, create them and the underlying dirs
+    # If they do exist, don't touch them
+    def make_link(link, target):
+        if path.exists(link):
+            # link already existing as a directory insetad of a link is an error!
+            assert path.islink(link)
+        else:
+            os.makedirs(target, exist_ok=True)
+            os.symlink(target, link)
     
     # Set up symlinks to slosh the state
-    if params.get('SloshState',False):
-        assert not OverwriteState, 'SloshState is mutually exclusive with OverwriteState!'
+    # This approach ensures that Abacus proper doesn't need to know anything about sloshing
+    if StateIOMode == 'slosh':
         # Should be populated manually or from ABACUS_TMP2
         assert 'WorkingDirectory' in params  # need a working directory to put the symlinks
-        assert 'WorkingDirectory2' in params, "Must specify WorkingDirectory2 via $ABACUS_TMP2 or directly in the parameter file!"
-        assert 'ConvolutionWorkingDir2' in params, "Must specify ConvolutionWorkingDir2 via $ABACUS_SSD2 or directly in the parameter file!"
-        # this signals parity splitting to singlestep
-        # TODO: make another parameter to signal this?
-        assert 'MultipoleDirectory2' not in params and 'TaylorDirectory2' not in params
-
-        # we use dirname(taylors) as ConvolutionWorkingDir
-        assert dirname(taylors) == dirname(multipoles)
-
-        # If the links don't exist, create them and the underlying dirs
-        # If they do exist, don't touch them
-        def make_link(link, target):
-            if path.exists(link):
-                # link already existing as a directory insetad of a link is an error!
-                assert path.islink(link)
-            else:
-                try: os.makedirs(target)
-                except OSError: pass  # already exists; that's fine
-                os.symlink(target, link)
+        assert 'WorkingDirectory2' in params, \
+            "If StateIOMode = slosh, must specify WorkingDirectory2 via $ABACUS_TMP2 or directly in the parameter file!"
 
         make_link(read, pjoin(params['WorkingDirectory'], 'state1'))
         make_link(write, pjoin(params['WorkingDirectory2'], 'state2'))
-        make_link(taylors, pjoin(dirname(taylors), 'convstate1'))
-        make_link(multipoles, pjoin(params['ConvolutionWorkingDir2'], 'convstate2'))
 
+        # Normally we move 'read' to 'past' after singlestep, but that might cross devices if sloshing!
         # Technically we could keep two past states (one in each slosh directory)
         # but in practice this may be too many copies of the state
         past = None
     else:
-        if not path.isdir(read):
-            os.makedirs(read)
-        if not path.isdir(write):
-            os.makedirs(write)
-        if past and not path.isdir(past):
-            os.makedirs(past)
+        os.makedirs(read, exist_ok=True)
+        os.makedirs(write, exist_ok=True)
+        if past:
+            os.makedirs(past, exist_ok=True)
+
+    # Need M/TDirectory2 for either sloshing or striping
+    if Conv_IOMode == 'slosh':
+        assert 'ConvolutionWorkingDir2' in params, \
+            "If Conv_IOMode = slosh, must specify ConvolutionWorkingDir2 via $ABACUS_SSD2 or directly in the parameter file!"
+
+        # we use dirname(taylors) as ConvolutionWorkingDir
+        assert dirname(taylors) == dirname(multipoles)
+
+        make_link(taylors, pjoin(dirname(taylors), 'convstate1'))
+        make_link(multipoles, pjoin(params['ConvolutionWorkingDir2'], 'convstate2'))
+
+    if Conv_IOMode == 'stripe':
+        assert 'MultipoleDirectory2' in params and 'TaylorDirectory2' in params, \
+            "If Conv_IOMode = stripe, must specify MultipoleDirectory2 & TaylorDirectory2 via $ABACUS_SSD2 or directly in the parameter file!"
 
     # Create dirs
     for d in ['MultipoleDirectory', 'MultipoleDirectory2', 'TaylorDirectory', 'TaylorDirectory2']:
         if d in params:
-            try:
-                os.makedirs(params[d])
-            except FileExistsError:
-                pass
+            os.makedirs(params[d], exist_ok=True)
 
     return read,write,past,multipoles,taylors
 
@@ -691,6 +692,8 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
 
     #if not backups_enabled:
     #    print 'Warning: automatic state backup not enabled.  Set "BackupStepInterval" and "BackupDirectory" in the parameters file.'
+
+    ProfilingMode = param.get('ProfilingMode',False)
         
     # Set up OpenMP singlestep environment
     singlestep_env = setup_singlestep_env(param)
@@ -706,8 +709,8 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
 
     # Create directories
     for d in ['LogDirectory', 'OutputDirectory', 'GroupDirectory']:
-        if d in param and param[d] and not path.isdir(param[d]):
-            os.makedirs(param[d])
+        if d in param and param[d]:
+            os.makedirs(param[d], exist_ok=True)
 
     print("Beginning abacus steps:")
 
@@ -756,7 +759,11 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
             
             print("Performing convolution for step {:d}".format(stepnum))
             subprocess.check_call([pjoin(abacuspath, "Convolution", "ConvolutionDriver"), paramfn], env=convolution_env)
-                
+
+            if ProfilingMode == 2:
+                print('\tConvolution step {} finished. ProfilingMode = 2 (Convolution) is active; Abacus will now quit.'.format(stepnum))
+                break
+
             if not check_multipole_taylor_done(param, read_state, kind='Taylor'):
                 raise ValueError("Convolution did not complete")
             
@@ -785,7 +792,7 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
         subprocess.check_call([pjoin(abacuspath, "singlestep", "singlestep") , paramfn, str(int(AllowIC))], env=singlestep_env)
         
         # In profiling mode, we don't move the states so we can immediately run the same step again
-        if param.get('ProfilingMode', False):
+        if ProfilingMode and ProfilingMode != 2:
             print('\tStep {} finished. ProfilingMode is active; Abacus will now quit and states will not be moved.'.format(stepnum))
             break
             

@@ -422,8 +422,6 @@ int GetIOThread(const char* dir){
 void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
 	    const char *filename, off_t fileoffset, int blocking) {
     
-    //blocking = 1;
-    
     STDLOG(2,"Using IO_thread module to read file %f, blocking %d\n", filename, blocking);
     iorequest ior(ram, sizebytes, filename, IO_READ, arenatype, arenaslab, fileoffset, 0, blocking);
     
@@ -432,8 +430,6 @@ void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
 
 void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, 
 	    const char *filename, off_t fileoffset, int deleteafter, int blocking) {
-
-    //blocking = 1;
     
     STDLOG(2,"Using IO_thread module to write file %f, blocking %d\n", filename, blocking);
     iorequest ior(ram, sizebytes, filename, IO_WRITE, arenatype, arenaslab, fileoffset, deleteafter, blocking );

@@ -56,7 +56,7 @@ if __name__ == '__main__':
     parser.add_argument('input_directory', help='The directory containing the slab files')
     parser.add_argument('new_cpd', help="The cells-per-dimension (number of slabs) to divide the output across", type=int)
     parser.add_argument('--in_fmt', help='Input file format. Can be any ReadAbacus file format.', default='RVZel')
-    parser.add_argument('--out_fmt', help='Output file format', choices=['Zeldovich', 'RVdouble', 'RVdoubleZel', 'RVZel', 'RVTag', 'same'], default='RVZel')
+    parser.add_argument('--out_fmt', help='Output file format', choices=['Zeldovich', 'RVdouble', 'RVdoubleZel', 'RVZel', 'RVTag', 'same'], default='same')
     parser.add_argument('--in_pat', help="The file globbing pattern in the input DIRECTORY", type=str, default='ic_*')
     parser.add_argument('--box', help="The box size of the input (and output) particles.  Outputs will be zero-centered.", type=float, default=1.)
     parser.add_argument('--flip', help='Interpret positions as displacements and reverse them.', action='store_true')
