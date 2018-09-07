@@ -225,7 +225,6 @@ def clean_dir(bd, preserve=None, rmdir_ifempty=True):
             except OSError:
                 pass
 
-<<<<<<< Updated upstream
 def MakeDerivatives(param, derivs_archive_dir=True, floatprec=False):
     '''
     Look for the derivatives required for param and make them if they don't exist.
