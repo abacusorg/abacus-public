@@ -14,12 +14,12 @@ import shutil
 import argparse
 from glob import glob
 
-import numpy as np
-import pynbody
-import pandas as pd
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
+import numpy as np
+import pynbody
+import pandas as pd
 
 from Abacus.Analysis import common
 from Abacus.InputFile import InputFile

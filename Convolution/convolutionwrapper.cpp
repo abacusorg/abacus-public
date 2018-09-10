@@ -64,37 +64,37 @@ void dumpstats(OutofCoreConvolution *OCC, char *fn) {
     fprintf(fp,"\n\n");
 
     fprintf(fp,"\t ConvolutionWallClock:  %2.2e seconds \n", OCC->CS.ConvolveWallClock );
-    fprintf(fp,"\t \t %50s : %1.1e seconds\n", "Array Swizzling", OCC->CS.ArraySwizzle );
+    fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Array Swizzling", OCC->CS.ArraySwizzle );
     
 #ifdef CONVIOTHREADED
     double e = OCC->CS.ReadDerivativesBytes/OCC->CS.ReadDerivatives/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "ReadDiskDerivatives [per thread]", OCC->CS.ReadDerivatives, e );
+    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskDerivatives [per thread]", OCC->CS.ReadDerivatives, e );
     
     e = OCC->CS.ReadMultipolesBytes/OCC->CS.ReadMultipoles/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles [per thread]", OCC->CS.ReadMultipoles, e );
+    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles [per thread]", OCC->CS.ReadMultipoles, e );
     
     e = OCC->CS.WriteTaylorBytes/OCC->CS.WriteTaylor/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor [per thread]", OCC->CS.WriteTaylor, e );
+    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor [per thread]", OCC->CS.WriteTaylor, e );
     
-    fprintf(fp,"\t \t %50s : %1.1e seconds\n", "Waiting for IO thread", OCC->CS.WaitForIO);
+    fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Waiting for IO thread", OCC->CS.WaitForIO);
 #else
     double e = OCC->CS.ReadDerivativesBytes/OCC->CS.ReadDerivatives/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "ReadDiskDerivatives", OCC->CS.ReadDerivatives, e );
+    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskDerivatives", OCC->CS.ReadDerivatives, e );
     
     e = OCC->CS.ReadMultipolesBytes/OCC->CS.ReadMultipoles/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles", OCC->CS.ReadMultipoles, e );
+    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles", OCC->CS.ReadMultipoles, e );
     
     e = OCC->CS.WriteTaylorBytes/OCC->CS.WriteTaylor/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor", OCC->CS.WriteTaylor, e );
+    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor", OCC->CS.WriteTaylor, e );
 #endif
     
     double Gops = ((double) OCC->CS.ops)/(1.0e+9);
-    fprintf(fp,"\t \t %50s : %1.1e seconds for %5.3f billion double precision operations\n", "Convolution Arithmetic", OCC->CS.ConvolutionArithmetic, Gops );
+    fprintf(fp,"\t \t %50s : %1.2e seconds for %5.3f billion double precision operations\n", "Convolution Arithmetic", OCC->CS.ConvolutionArithmetic, Gops );
     
-    fprintf(fp,"\t \t %50s : %1.1e seconds\n", "Forward FFT Z Multipoles", OCC->CS.ForwardZFFTMultipoles );
-    fprintf(fp,"\t \t %50s : %1.1e seconds\n", "Inverse FFT Z Taylor",         OCC->CS.InverseZFFTTaylor );
+    fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Forward FFT Z Multipoles", OCC->CS.ForwardZFFTMultipoles );
+    fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Inverse FFT Z Taylor",         OCC->CS.InverseZFFTTaylor );
     
-    fprintf(fp,"\t %50s : %1.1e seconds which is %d%% \n", "Unaccounted remaining wallclock time", discrepency, (int) (discrepency/OCC->CS.ConvolveWallClock*100) );
+    fprintf(fp,"\t %50s : %1.2e seconds which is %d%% \n", "Unaccounted remaining wallclock time", discrepency, (int) (discrepency/OCC->CS.ConvolveWallClock*100) );
 
     double cae = OCC->CS.ConvolutionArithmetic;
     double farithp   = cae/OCC->CS.ConvolveWallClock*100;
