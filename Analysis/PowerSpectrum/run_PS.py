@@ -17,6 +17,9 @@ import argparse
 from glob import glob
 from contextlib import ExitStack
 
+import matplotlib as mpl
+mpl.use('Agg')
+import matplotlib.pyplot as plt
 import numpy as np
 import pynbody
 import pandas as pd
@@ -277,7 +280,7 @@ def setup_bins(args):
 
     return all_bins, all_nfft
 
-import matplotlib.pyplot as plt
+
 def make_plot(results, header, csvfn):
     '''
     Make a preview plot of the results.

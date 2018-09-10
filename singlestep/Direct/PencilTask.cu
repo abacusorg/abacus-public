@@ -227,12 +227,13 @@ void GPUPencilTask(void *item, int g){
         task->SinkPlan[j].copy_from_pinned_memory((void *)PinnedBuffer.SinkSetAccelerations, task->SinkSetStart[j], task->SinkSetCount[j], (void *)task->SinkAccSlab, j, task->nfradius, task->Nslab[task->nfradius]);
     }
 
-    // Declare victory!
-    task->SetCompleted();  // This sets the signal bit in SIC
     // Stop the timing
     MarkCompleted(DeviceStreams[g], cudaSuccess, (void *) task);
     task->CopyAccelFromPinned.Stop();
     task->DeviceThreadTimer.Stop();
+
+    // Declare victory!
+    task->SetCompleted();  // This sets the signal bit in SIC
 #endif
 }
 

@@ -64,37 +64,37 @@ void dumpstats(OutofCoreConvolution *OCC, char *fn) {
     fprintf(fp,"\n\n");
 
     fprintf(fp,"\t ConvolutionWallClock:  %2.2e seconds \n", OCC->CS.ConvolveWallClock );
-    fprintf(fp,"\t \t %50s : %1.1e seconds\n", "Array Swizzling", OCC->CS.ArraySwizzle );
+    fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Array Swizzling", OCC->CS.ArraySwizzle );
     
 #ifdef CONVIOTHREADED
     double e = OCC->CS.ReadDerivativesBytes/OCC->CS.ReadDerivatives/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "ReadDiskDerivatives [per thread]", OCC->CS.ReadDerivatives, e );
+    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskDerivatives [per thread]", OCC->CS.ReadDerivatives, e );
     
     e = OCC->CS.ReadMultipolesBytes/OCC->CS.ReadMultipoles/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles [per thread]", OCC->CS.ReadMultipoles, e );
+    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles [per thread]", OCC->CS.ReadMultipoles, e );
     
     e = OCC->CS.WriteTaylorBytes/OCC->CS.WriteTaylor/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor [per thread]", OCC->CS.WriteTaylor, e );
+    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor [per thread]", OCC->CS.WriteTaylor, e );
     
-    fprintf(fp,"\t \t %50s : %1.1e seconds\n", "Waiting for IO thread", OCC->CS.WaitForIO);
+    fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Waiting for IO thread", OCC->CS.WaitForIO);
 #else
     double e = OCC->CS.ReadDerivativesBytes/OCC->CS.ReadDerivatives/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "ReadDiskDerivatives", OCC->CS.ReadDerivatives, e );
+    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskDerivatives", OCC->CS.ReadDerivatives, e );
     
     e = OCC->CS.ReadMultipolesBytes/OCC->CS.ReadMultipoles/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles", OCC->CS.ReadMultipoles, e );
+    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles", OCC->CS.ReadMultipoles, e );
     
     e = OCC->CS.WriteTaylorBytes/OCC->CS.WriteTaylor/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.1e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor", OCC->CS.WriteTaylor, e );
+    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor", OCC->CS.WriteTaylor, e );
 #endif
     
     double Gops = ((double) OCC->CS.ops)/(1.0e+9);
-    fprintf(fp,"\t \t %50s : %1.1e seconds for %5.3f billion double precision operations\n", "Convolution Arithmetic", OCC->CS.ConvolutionArithmetic, Gops );
+    fprintf(fp,"\t \t %50s : %1.2e seconds for %5.3f billion double precision operations\n", "Convolution Arithmetic", OCC->CS.ConvolutionArithmetic, Gops );
     
-    fprintf(fp,"\t \t %50s : %1.1e seconds\n", "Forward FFT Z Multipoles", OCC->CS.ForwardZFFTMultipoles );
-    fprintf(fp,"\t \t %50s : %1.1e seconds\n", "Inverse FFT Z Taylor",         OCC->CS.InverseZFFTTaylor );
+    fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Forward FFT Z Multipoles", OCC->CS.ForwardZFFTMultipoles );
+    fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Inverse FFT Z Taylor",         OCC->CS.InverseZFFTTaylor );
     
-    fprintf(fp,"\t %50s : %1.1e seconds which is %d%% \n", "Unaccounted remaining wallclock time", discrepency, (int) (discrepency/OCC->CS.ConvolveWallClock*100) );
+    fprintf(fp,"\t %50s : %1.2e seconds which is %d%% \n", "Unaccounted remaining wallclock time", discrepency, (int) (discrepency/OCC->CS.ConvolveWallClock*100) );
 
     double cae = OCC->CS.ConvolutionArithmetic;
     double farithp   = cae/OCC->CS.ConvolveWallClock*100;
@@ -192,30 +192,27 @@ int main(int argc, char ** argv){
         STDLOG(1, "Using cache size %d MB\n", p.runtime_ConvolutionCacheSizeMB);
 	    p.runtime_DerivativeExpansionRadius = P.DerivativeExpansionRadius;
 	    strcpy(p.runtime_DerivativesDirectory,P.DerivativesDirectory);
-	    p.runtime_DiskBufferSizeKB = 1LL<<21;
+	    p.runtime_DiskBufferSizeKB = 1LL<<11;
 	    p.runtime_IsRamDisk = P.RamDisk;
 	    p.runtime_MaxConvolutionRAMMB = P.MAXRAMMB;
 	    strcpy(p.runtime_MultipoleDirectory,P.MultipoleDirectory);
 
-        // Multipole/TaylorDirectory2 will default to the primary directory
         p.niothreads = 1;
-        if(strcmp(P.MultipoleDirectory2,STRUNDEF) == 0)
-            strcpy(p.runtime_MultipoleDirectory2,P.MultipoleDirectory);
-        else{
+        if(strcmp(P.MultipoleDirectory2,STRUNDEF) != 0){
             strcpy(p.runtime_MultipoleDirectory2,P.MultipoleDirectory2);
 #ifdef CONVIOTHREADED
             // Two IO threads if we were given two Multipole directories
             p.niothreads = 2;
 #endif
         }
-        if(strcmp(P.TaylorDirectory2,STRUNDEF) == 0)
-            strcpy(p.runtime_TaylorDirectory2,P.TaylorDirectory);
-        else{
+        if(strcmp(P.TaylorDirectory2,STRUNDEF) != 0){
             strcpy(p.runtime_TaylorDirectory2,P.TaylorDirectory2);
 #ifdef CONVIOTHREADED
             p.niothreads = 2;
 #endif
         }
+
+        p.ProfilingMode = P.ProfilingMode;
 
 	    sprintf(p.runtime_MultipolePrefix, "Multipoles");
 	    p.runtime_NearFieldRadius = P.NearFieldRadius;
@@ -225,7 +222,9 @@ int main(int argc, char ** argv){
         p.rml = (P.order+1)*(P.order+1);
         p.CompressedMultipoleLengthXY = ((1+P.cpd)*(3+P.cpd))/8;
 	    sprintf(p.runtime_TaylorPrefix, "Taylor");
-        p.delete_multipoles_after_read = P.OverwriteState;
+        
+        p.delete_multipoles_after_read = strcmp(P.Conv_IOMode, "overwrite") == 0;
+        p.StripeConvState = strcmp(P.Conv_IOMode, "stripe") == 0;
         
         int cml = ((P.order+1)*(P.order+2)*(P.order+3))/6;
         int nprocs = omp_get_max_threads();
@@ -299,5 +298,16 @@ int main(int argc, char ** argv){
 	    sprintf(timingfn,"%s/last.convtime",P.LogDirectory);
 	    dumpstats(&OCC,timingfn);
 	    stdlog.close();
+
+        // Delete the Taylors if this was profiling mode
+        if(p.ProfilingMode == 2){
+            char cmd[1024];
+            sprintf(cmd, "rm -f %s/Taylor_????", p.runtime_TaylorDirectory);
+            system(cmd);
+            if(p.StripeConvState){
+                sprintf(cmd, "rm -f %s/Taylor_????", p.runtime_TaylorDirectory2);
+                system(cmd);
+            }
+        }
         exit(0);
 }

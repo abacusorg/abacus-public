@@ -112,6 +112,11 @@ public:
     
     int Do2LPTVelocityRereading;
 
+    int OverwriteState;
+    int OverwriteConvState;
+    int StripeState;
+    int StripeConvState;
+
     void read_from_file(const char *fn);
     void write_to_file(const char *dir);
     
@@ -199,6 +204,12 @@ public:
     DoGroupFindingOutput = 0;
         
     Do2LPTVelocityRereading = 0;
+
+    // These will be set in InitWriteState() based on StateIOMode and Conv_IOMode in the parameters file
+    OverwriteState = 0;
+    OverwriteConvState = 0;
+    StripeState = 0;
+    StripeConvState = 0;
     }
 
 

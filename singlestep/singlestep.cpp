@@ -168,58 +168,6 @@ double ChooseTimeStep(){
 	return da;
 }
 
-// A few actions that we need to do before choosing the timestep
-void InitWriteState(int ic){
-    // Even though we do this in BuildWriteState, we want to have the step number
-    // available when we choose the time step.
-    WriteState.FullStepNumber = ReadState.FullStepNumber+1;
-    WriteState.LPTStepNumber = LPTStepNumber();
-    
-    // We generally want to do re-reading on the last LPT step
-    WriteState.Do2LPTVelocityRereading = 0;
-    if (LPTStepNumber() > 0 && LPTStepNumber() == P.LagrangianPTOrder
-        && (strcmp(P.ICFormat, "RVdoubleZel") == 0 || strcmp(P.ICFormat, "RVZel") == 0))
-        WriteState.Do2LPTVelocityRereading = 1;
-    
-    // Decrease the softening length if we are doing a 2LPT step
-    // This helps ensure that we are using the true 1/r^2 force
-    /*if(LPTStepNumber()>0){
-        WriteState.SofteningLength = P.SofteningLength / 1e4;  // This might not be in the growing mode for this choice of softening, though
-        STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLength);
-        
-        // Only have to do this because GPU gives bad forces sometimes, causing particles to shoot off.
-        // Remove this once the GPU is reliable again
-        //P.ForceCPU = 1;
-        //STDLOG(0,"Forcing CPU because this is a 2LPT step.\n");
-    }
-    else{
-        WriteState.SofteningLength = P.SofteningLength;
-    }*/
-    
-    WriteState.SofteningLength = P.SofteningLength;
-    
-    // Now scale the softening to match the minimum Plummer orbital period
-#if defined DIRECTCUBICSPLINE
-    strcpy(WriteState.SofteningType, "cubic_spline");
-    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 1.10064;
-#elif defined DIRECTSINGLESPLINE
-    strcpy(WriteState.SofteningType, "single_spline");
-    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 2.15517;
-#elif defined DIRECTCUBICPLUMMER
-    strcpy(WriteState.SofteningType, "cubic_plummer");
-    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 1.;
-#else
-    strcpy(WriteState.SofteningType, "plummer");
-    WriteState.SofteningLengthInternal = WriteState.SofteningLength;
-#endif
-    
-    if(WriteState.Do2LPTVelocityRereading)
-        init_2lpt_rereading();
-
-    Slab = new SlabSize(P.cpd);
-    if(!ic)
-        JJ = new NearFieldDriver(P.NearFieldRadius);
-}
 
 void BuildWriteState(double da){
 	STDLOG(0,"Building WriteState for a step from a=%f by da=%f\n", cosm->current.a, da);
@@ -242,7 +190,7 @@ void BuildWriteState(double da){
 	STDLOG(0,"Host machine name is %s\n", WriteState.MachineName);
 
 	WriteState.DoublePrecision = (sizeof(FLOAT)==8)?1:0;
-	STDLOG(0,"Bytes per float is %d\n", (WriteState.DoublePrecision+1)*4);
+	STDLOG(0,"Bytes per float is %d\n", sizeof(FLOAT));
 	STDLOG(0,"Bytes per auxstruct is %d\n", sizeof(auxstruct));
 	STDLOG(0,"Bytes per cellinfo is %d\n", sizeof(cellinfo));
 	WriteState.FullStepNumber = ReadState.FullStepNumber+1;
@@ -426,7 +374,7 @@ int main(int argc, char **argv) {
     //Check if WriteStateDirectory/state exists, and fail if it does
     char wstatefn[1050];
     sprintf(wstatefn,"%s/state",P.WriteStateDirectory);
-    if(access(wstatefn,0) !=-1 && !P.OverwriteState)
+    if(access(wstatefn,0) !=-1)
     	QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
 
     // Initialize the Cosmology and set up the State epochs and the time step
@@ -444,8 +392,9 @@ int main(int argc, char **argv) {
     }
     
     //Enable floating point exceptions unless we are doing profiling (where they tend to break the profilier)
-    if(!P.ProfilingMode)feenableexcept(FE_INVALID | FE_DIVBYZERO);
-    else fedisableexcept(FE_INVALID | FE_DIVBYZERO);
+    feenableexcept(FE_INVALID | FE_DIVBYZERO);
+    //if(!P.ProfilingMode) feenableexcept(FE_INVALID | FE_DIVBYZERO);
+    //else fedisableexcept(FE_INVALID | FE_DIVBYZERO);
     
     BuildWriteState(da);
     LCOrigin = (double3 *) malloc(8*sizeof(double3));  // max 8 light cones
@@ -482,7 +431,13 @@ int main(int argc, char **argv) {
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
     WriteState.write_to_file(P.WriteStateDirectory);
     STDLOG(0,"Wrote WriteState to %s\n",P.WriteStateDirectory);
-    if (!MakeIC && P.ProfilingMode) int ret = system("rm -rf write/state write/position_* multipole/Multipoles_* write/velocity_* write/auxillary* write/cellinfo_* write/globaldipole write/redlack write/slabsize out/*");
+    
+    if (!MakeIC && P.ProfilingMode){
+        STDLOG(0,"ProfilingMode is active. Removing the write state in %s\n",P.WriteStateDirectory);
+        char command[1024];
+        sprintf(command, "rm -rf %s/*", P.WriteStateDirectory);
+        int ret = system(command);  // hacky!
+    }
     stdlog.close();
         
     exit(0);

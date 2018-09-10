@@ -1,5 +1,6 @@
 RamDisk = 0
-OverwriteState = 0
+StateIOMode = "normal"
+Conv_IOMode = "normal"
 IODirs = ["multipole/", "taylor/"]
 nIODirs = 2
 IODirThreads = [2, 2]

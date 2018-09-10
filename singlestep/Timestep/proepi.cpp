@@ -432,3 +432,69 @@ void check_read_state(int AllowIC, bool &MakeIC, double &da){
         }
     }
 }
+
+// A few actions that we need to do before choosing the timestep
+void InitWriteState(int ic){
+    // Even though we do this in BuildWriteState, we want to have the step number
+    // available when we choose the time step.
+    WriteState.FullStepNumber = ReadState.FullStepNumber+1;
+    WriteState.LPTStepNumber = LPTStepNumber();
+    
+    // We generally want to do re-reading on the last LPT step
+    WriteState.Do2LPTVelocityRereading = 0;
+    if (LPTStepNumber() > 0 && LPTStepNumber() == P.LagrangianPTOrder
+        && (strcmp(P.ICFormat, "RVdoubleZel") == 0 || strcmp(P.ICFormat, "RVZel") == 0))
+        WriteState.Do2LPTVelocityRereading = 1;
+    
+    // Decrease the softening length if we are doing a 2LPT step
+    // This helps ensure that we are using the true 1/r^2 force
+    /*if(LPTStepNumber()>0){
+        WriteState.SofteningLength = P.SofteningLength / 1e4;  // This might not be in the growing mode for this choice of softening, though
+        STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLength);
+        
+        // Only have to do this because GPU gives bad forces sometimes, causing particles to shoot off.
+        // Remove this once the GPU is reliable again
+        //P.ForceCPU = 1;
+        //STDLOG(0,"Forcing CPU because this is a 2LPT step.\n");
+    }
+    else{
+        WriteState.SofteningLength = P.SofteningLength;
+    }*/
+    
+    WriteState.SofteningLength = P.SofteningLength;
+    
+    // Now scale the softening to match the minimum Plummer orbital period
+#if defined DIRECTCUBICSPLINE
+    strcpy(WriteState.SofteningType, "cubic_spline");
+    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 1.10064;
+#elif defined DIRECTSINGLESPLINE
+    strcpy(WriteState.SofteningType, "single_spline");
+    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 2.15517;
+#elif defined DIRECTCUBICPLUMMER
+    strcpy(WriteState.SofteningType, "cubic_plummer");
+    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 1.;
+#else
+    strcpy(WriteState.SofteningType, "plummer");
+    WriteState.SofteningLengthInternal = WriteState.SofteningLength;
+#endif
+    
+    if(WriteState.Do2LPTVelocityRereading)
+        init_2lpt_rereading();
+
+    if(strcmp(P.StateIOMode, "stripe") == 0){
+        WriteState.StripeState = 1;
+        assertf(0, "State striping currently not implemented\n");
+    }
+    if(strcmp(P.Conv_IOMode, "stripe") == 0){
+        WriteState.StripeConvState = 1;
+        STDLOG(1,"Striping multipoles and taylors\n");
+    }
+    else if(strcmp(P.Conv_IOMode, "overwrite") == 0){
+        WriteState.OverwriteConvState = 1;
+        STDLOG(1,"Overwriting multipoles and taylors\n");
+    }
+
+    Slab = new SlabSize(P.cpd);
+    if(!ic)
+        JJ = new NearFieldDriver(P.NearFieldRadius);
+}
