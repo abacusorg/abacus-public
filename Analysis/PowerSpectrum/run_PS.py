@@ -3,6 +3,8 @@
 '''
 A user-friendly command-line interface to PowerSpectrum.
 
+Usage: $ ./run_PS.py --help
+
 Author: Lehman Garrison
 '''
 
@@ -13,6 +15,7 @@ import pdb
 import shutil
 import argparse
 from glob import glob
+from contextlib import ExitStack
 
 import numpy as np
 import pynbody
@@ -63,10 +66,41 @@ def ps_suffix(**kwargs):
 # we put the result in the same directory
 def get_output_path_ps(input):
     return os.path.dirname(input)
-    
+
+def get_header(dir, retfn=False):
+    # Read the header to get the boxsize
+    header_pats = [pjoin(dir, 'header'), pjoin(dir, os.pardir, 'info/*.par'), pjoin(dir, os.pardir, '*.par')]
+    headers = sum([glob(h) for h in header_pats], [])
+    for header_fn in headers:
+        try:
+            header = InputFile(header_fn)
+            BoxSize = header['BoxSize']
+        except IOError:
+            continue
+        break
+    else:
+        # Maybe it's a gadget file?
+        # Extract the relevant properties from the gadget header and return them in a dict
+        try:
+            gadget_fn = sorted(glob(pjoin(dir, gadget_pattern)))[0]
+            header_fn= None
+            f = pynbody.load(gadget_fn)
+            header = {'BoxSize': float(f.properties['boxsize']),
+                      'ScaleFactor': float(f.properties['a'])}
+        except:
+            print('Could not find a header in ' + str(header_pats))
+            print('or as a gadget file')
+            raise
+
+    if retfn:
+        return header, header_fn
+    return header
+
+gadget_pattern = r'*.[0-9]*'
+
     
 def run_PS_on_dir(folder, **kwargs):
-    patterns = [pjoin(folder, '*.dat'), pjoin(folder, 'ic_*'), pjoin(folder, 'position_*'), pjoin(folder, r'*.[0-9]*')]
+    patterns = [pjoin(folder, '*.dat'), pjoin(folder, 'ic_*'), pjoin(folder, 'position_*'), pjoin(folder, gadget_pattern)]
     # Decide which pattern to use
     for pattern in patterns:
         if glob(pattern):
@@ -82,50 +116,24 @@ def run_PS_on_dir(folder, **kwargs):
     outdir = common.get_output_dir(product_name, folder)
     ps_fn = product_name + this_suffix
 
-    # Read the header to get the boxsize
-    header_pats = [pjoin(folder, 'header'), pjoin(folder, os.pardir, 'info/*.par'), pjoin(folder, os.pardir, '*.par')]
-    headers = sum([glob(h) for h in header_pats], [])
-    for header_fn in headers:
-        try:
-            header = InputFile(header_fn)
-            BoxSize = header['BoxSize']
-        except IOError:
-            continue
-        break
-    else:
-        try:
-            del header_fn
-        except:
-            pass  # Maybe no headers were found 
-        # Maybe it's a gadget file?
-        try:
-            gadget_fn = sorted(glob(pattern))[0]
-            f = pynbody.load(gadget_fn)
-            BoxSize = float(f.properties['boxsize'])
-        except:
-            print('Could not find a header in ' + str(header_pats))
-            print('or as a gadget file')
-            raise
+    header, header_fn = get_header(folder, retfn=True)
+    BoxSize = header['BoxSize']
             
     # Make the output dir and store the header
-    if not os.path.exists(outdir):
-        os.makedirs(outdir)
-    try:
-        shutil.copy(header_fn, outdir + '/header')
-    except:
-        # If a normal header doesn't exist, try copying an example gadget file
-        shutil.copy(gadget_fn, outdir + '/gadget_header')
+    os.makedirs(outdir, exist_ok=True)
+    if header_fn:
+        shutil.copy(header_fn, pjoin(outdir, 'header'))
 
     # Copy the sim-level parameter files
     if not os.path.isdir(outdir + '/../info'):
         try:
             shutil.copytree(folder+'/../info', outdir + '/../info')
         except:
-            print('Could not copy ../info')
+            pass
     
-    print('Starting {} on {}'.format('PS' if not just_density else 'density', pattern))
+    print('* Starting {} on {}'.format('PS' if not just_density else 'density', pattern))
     save_fn = os.path.join(outdir, ps_fn)
-    print('and saving to {}'.format(save_fn))
+    print('* and saving to {}'.format(save_fn))
     
     if not just_density:
         bins = kwargs['bins']  # needed for kmin,kmax
@@ -164,7 +172,7 @@ def run_PS_on_PS(input_ps_fn, **kwargs):
     return results, header, outfn
 
     
-# folders is a list of slice folders
+# inputs is a list of slice directories
 def run_PS(inputs, **kwargs):
     all_bins = kwargs.pop('all_bins')
     all_nfft = kwargs.pop('all_nfft')
@@ -174,11 +182,10 @@ def run_PS(inputs, **kwargs):
         input = inputs[i]
         # If the input is an output or IC directory
         if os.path.isdir(input):
-            if kwargs.get('format').lower() == 'pack14':
-                with common.extract_slabs(input):
-                    _res = run_PS_on_dir(input, bins=all_bins[i], nfft=all_nfft[i], **kwargs)
-            else:  # pretty kludgy (TODO: ExitStack)
-                _res = run_PS_on_dir(input, **kwargs)
+            with ExitStack() as stack:
+                if kwargs.get('format').lower() == 'pack14':
+                    stack.enter_context(common.extract_slabs(input))
+                _res = run_PS_on_dir(input, bins=all_bins[i], nfft=all_nfft[i], **kwargs)
         # If the input is a PS file
         elif os.path.isfile(input):
             _res = run_PS_on_PS(input, **kwargs)
@@ -230,9 +237,9 @@ def setup_bins(args):
     if nbins == -1:
         nbins = nfft//4
 
-    headers = [InputFile(pjoin(p,'header')) for p in args['input']]
+    headers = [get_header(p) for p in args['input']]
     if ns is not None:
-        all_scalefactor = np.array([h.ScaleFactor for h in headers])
+        all_scalefactor = np.array([h['ScaleFactor'] for h in headers])
         if basea is None:
             base_scalefactor = all_scalefactor.max()
         else:
@@ -241,9 +248,9 @@ def setup_bins(args):
         len_rescale = (all_scalefactor/base_scalefactor)**(2./(3+ns))
 
         # Define kmin and kmax at the base time (latest time)
-        kmin = 2*np.pi/headers[all_scalefactor.argmax()].BoxSize
+        kmin = 2*np.pi/headers[all_scalefactor.argmax()]['BoxSize']
         # at the earliest time, then scale to latest time
-        kmax = np.pi/(headers[all_scalefactor.argmin()].BoxSize/nfft)*len_rescale[all_scalefactor.argmin()]
+        kmax = np.pi/(headers[all_scalefactor.argmin()]['BoxSize']/nfft)*len_rescale[all_scalefactor.argmin()]
 
         if args['log']:
             _bins = np.logspace(np.log10(kmin), np.log10(kmax), num=nbins+1)
@@ -256,7 +263,7 @@ def setup_bins(args):
         all_bins /= len_rescale[:,None]
 
         # Now choose the smallest even nfft larger than kmax for each time
-        all_nfft = np.ceil(all_bins.max(axis=-1)*np.array([h.BoxSize for h in headers])/np.pi).astype(int)
+        all_nfft = np.ceil(all_bins.max(axis=-1)*np.array([h['BoxSize'] for h in headers])/np.pi).astype(int)
         all_nfft[all_nfft % 2 == 1] += 1
         assert (all_nfft <= nfft).all()
 
@@ -264,7 +271,7 @@ def setup_bins(args):
         print('\tComputed NFFTs: ' + str(all_nfft))
     else:
         # Set up normal bins
-        all_bins = np.array([Histogram.k_bin_edges(nfft, headers[i].BoxSize, nbins=nbins, log=args['log']) \
+        all_bins = np.array([Histogram.k_bin_edges(nfft, headers[i]['BoxSize'], nbins=nbins, log=args['log']) \
                                 for i in range(nslice)])
         all_nfft = np.full(nslice, nfft)
 

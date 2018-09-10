@@ -619,7 +619,7 @@ def read_pack14_lite(fn, return_vel=True, return_pid=False, return_header=False,
 # Begin utils
 #############
     
-def skip_header(fp, max_tries=10):
+def skip_header(fp, max_tries=10, encoding='utf-8'):
     """
     Some of our files are written with an ASCII header before
     the data section begins.  Given a file pointer, this fast-
@@ -678,7 +678,7 @@ def skip_header(fp, max_tries=10):
     header = fp.read(headersize)
     assert len(header) == headersize, "Header unexpectedly small!"
     header = header[:-2]  # trim the last two bytes
-    return str(header)
+    return header.decode(encoding)
 
 
 # These defaults have to be consistent with the reader function defaults
