@@ -21,7 +21,6 @@ import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
-import pynbody
 import pandas as pd
 
 from Abacus.Analysis import common
@@ -70,40 +69,9 @@ def ps_suffix(**kwargs):
 def get_output_path_ps(input):
     return os.path.dirname(input)
 
-def get_header(dir, retfn=False):
-    # Read the header to get the boxsize
-    header_pats = [pjoin(dir, 'header'), pjoin(dir, os.pardir, 'info/*.par'), pjoin(dir, os.pardir, '*.par')]
-    headers = sum([glob(h) for h in header_pats], [])
-    for header_fn in headers:
-        try:
-            header = InputFile(header_fn)
-            BoxSize = header['BoxSize']
-        except IOError:
-            continue
-        break
-    else:
-        # Maybe it's a gadget file?
-        # Extract the relevant properties from the gadget header and return them in a dict
-        try:
-            gadget_fn = sorted(glob(pjoin(dir, gadget_pattern)))[0]
-            header_fn= None
-            f = pynbody.load(gadget_fn)
-            header = {'BoxSize': float(f.properties['boxsize']),
-                      'ScaleFactor': float(f.properties['a'])}
-        except:
-            print('Could not find a header in ' + str(header_pats))
-            print('or as a gadget file')
-            raise
-
-    if retfn:
-        return header, header_fn
-    return header
-
-gadget_pattern = r'*.[0-9]*'
-
     
 def run_PS_on_dir(folder, **kwargs):
-    patterns = [pjoin(folder, '*.dat'), pjoin(folder, 'ic_*'), pjoin(folder, 'position_*'), pjoin(folder, gadget_pattern)]
+    patterns = [pjoin(folder, '*.dat'), pjoin(folder, 'ic_*'), pjoin(folder, 'position_*'), pjoin(folder, common.gadget_pattern)]
     # Decide which pattern to use
     for pattern in patterns:
         if glob(pattern):
@@ -119,8 +87,14 @@ def run_PS_on_dir(folder, **kwargs):
     outdir = common.get_output_dir(product_name, folder)
     ps_fn = product_name + this_suffix
 
-    header, header_fn = get_header(folder, retfn=True)
-    BoxSize = header['BoxSize']
+    header, header_fn = common.get_header(folder, retfn=True)
+    
+    # box kwargs overrides header
+    argbox = kwargs.pop('box')
+    if argbox:
+        BoxSize = argbox
+    else:
+        BoxSize = header['BoxSize']
             
     # Make the output dir and store the header
     os.makedirs(outdir, exist_ok=True)
@@ -181,7 +155,8 @@ def run_PS(inputs, **kwargs):
     all_nfft = kwargs.pop('all_nfft')
 
     # Loop in order of difficulty; i.e. largest nfft first
-    for i in np.argsort(all_nfft)[::-1]:
+    # TODO: reverse stable argsort?
+    for i in np.argsort(all_nfft, kind='stable')[::-1]:
         input = inputs[i]
         # If the input is an output or IC directory
         if os.path.isdir(input):
@@ -236,12 +211,20 @@ def setup_bins(args):
     nbins = args.pop('nbins')
     nslice = len(args['input'])
     nfft = args.pop('nfft')
+    bin_like_nfft = args.pop('bin_like_nfft')
 
-    if nbins == -1:
-        nbins = nfft//4
+    headers = [common.get_header(p) for p in args['input']]
 
-    headers = [get_header(p) for p in args['input']]
+    # "box" specified on the command line overrides the header
+    if args.get('box'):
+        all_boxsize = np.asfarray([args['box'] for p in args['input']])
+    else:
+        all_boxsize = np.asfarray([h['BoxSize'] for h in headers])
+
     if ns is not None:
+        if nbins == -1:
+            nbins = nfft//4
+
         all_scalefactor = np.array([h['ScaleFactor'] for h in headers])
         if basea is None:
             base_scalefactor = all_scalefactor.max()
@@ -251,9 +234,9 @@ def setup_bins(args):
         len_rescale = (all_scalefactor/base_scalefactor)**(2./(3+ns))
 
         # Define kmin and kmax at the base time (latest time)
-        kmin = 2*np.pi/headers[all_scalefactor.argmax()]['BoxSize']
+        kmin = 2*np.pi/all_boxsize[all_scalefactor.argmax()]
         # at the earliest time, then scale to latest time
-        kmax = np.pi/(headers[all_scalefactor.argmin()]['BoxSize']/nfft)*len_rescale[all_scalefactor.argmin()]
+        kmax = np.pi/(all_boxsize[all_scalefactor.argmin()]/nfft)*len_rescale[all_scalefactor.argmin()]
 
         if args['log']:
             _bins = np.logspace(np.log10(kmin), np.log10(kmax), num=nbins+1)
@@ -266,7 +249,7 @@ def setup_bins(args):
         all_bins /= len_rescale[:,None]
 
         # Now choose the smallest even nfft larger than kmax for each time
-        all_nfft = np.ceil(all_bins.max(axis=-1)*np.array([h['BoxSize'] for h in headers])/np.pi).astype(int)
+        all_nfft = np.ceil(all_bins.max(axis=-1)*all_boxsize/np.pi).astype(int)
         all_nfft[all_nfft % 2 == 1] += 1
         assert (all_nfft <= nfft).all()
 
@@ -274,7 +257,7 @@ def setup_bins(args):
         print('\tComputed NFFTs: ' + str(all_nfft))
     else:
         # Set up normal bins
-        all_bins = np.array([Histogram.k_bin_edges(nfft, headers[i]['BoxSize'], nbins=nbins, log=args['log']) \
+        all_bins = np.array([Histogram.k_bin_edges(nfft, all_boxsize[i], nbins=nbins, log=args['log'], bin_like_nfft=bin_like_nfft) \
                                 for i in range(nslice)])
         all_nfft = np.full(nslice, nfft)
 
@@ -313,17 +296,19 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Compute power spectra on Abacus outputs or ICs.  Can also evaluate a power spectrum on an FFT mesh.', formatter_class=Tools.ArgParseFormatter)
     parser.add_argument('input', help='The timeslice outputs (or IC directories, or power spectrum file) on which to run PS', nargs='+')
     parser.add_argument('--nfft', help='The size of the FFT (side length of the FFT cube).  Default: 1024', default=1024, type=int)
-    parser.add_argument('--format', help='Format of the data to be read.  Default: Pack14', default='Pack14', choices=['RVdouble', 'Pack14', 'RVZel', 'state', 'gadget'])
+    parser.add_argument('--format', help='Format of the data to be read.  Default: Pack14', default='Pack14', choices=['RVdouble', 'Pack14', 'RVZel', 'state', 'gadget', 'RVTag'])
     parser.add_argument('--rotate-to', help='Rotate the z-axis to the given axis [e.g. (1,2,3)].  Rotations will shrink the FFT domain by sqrt(3) to avoid cutting off particles.', default=None, type=vector_arg, metavar='(X,Y,Z)')
     parser.add_argument('--projected', help='Project the simulation along the z-axis.  Projections are done after rotations.', action='store_true')
     parser.add_argument('--zspace', help='Displace the particles according to their redshift-space positions.', action='store_true')
     parser.add_argument('--nbins', help='Number of k bins.  Default: nfft//4.', default=-1, type=int)
+    parser.add_argument('--bin-like-nfft', help='Choose bins to be commensurate with this NFFT', default=0, type=int)
     parser.add_argument('--dtype', help='Data type for the binning and FFT.', choices=['float', 'double'], default='float')
     parser.add_argument('--log', help='Do the k-binning in log space.', action='store_true')
     # TODO: move just-density to different util
     parser.add_argument('--just-density', help='Write the density cube out to disk instead of doing an FFT.', action='store_true')
     parser.add_argument('--scalefree_index', help='Automatically scales k_min and k_max according to the scale free cosmology with the given spectral index.  Uses the lowest redshift of all slices as the "base time".', default=None, type=float)
     parser.add_argument('--scalefree_base_a', help='Override the fiducial scale factor for automatic k_min/k_max computation in a scale-free cosmology. Only has an effect with the --scalefree_index option.', default=None, type=float)
+    parser.add_argument('--box', help='Override the box size from the header', type=float)
     
     args = parser.parse_args()
     args = vars(args)
