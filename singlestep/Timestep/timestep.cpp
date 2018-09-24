@@ -666,39 +666,39 @@ void timestep(void) {
     STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
     STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
 
-    int cpd = P.cpd;
+    int nslabs = P.cpd;
     int first = 0;  // First slab to load
     STDLOG(1,"First slab to load will be %d\n", first);
 
-        FetchSlabs.instantiate(cpd, first, &FetchSlabPrecondition,          &FetchSlabAction         );
-      TransposePos.instantiate(cpd, first, &TransposePosPrecondition,       &TransposePosAction      );
-         NearForce.instantiate(cpd, first + FORCE_RADIUS, &NearForcePrecondition,          &NearForceAction         );
-       TaylorForce.instantiate(cpd, first + FORCE_RADIUS, &TaylorForcePrecondition,        &TaylorForceAction       );
-              Kick.instantiate(cpd, first + FORCE_RADIUS, &KickPrecondition,               &KickAction              );
-            Output.instantiate(cpd, first + FORCE_RADIUS + 2*GROUP_RADIUS, &OutputPrecondition,             &OutputAction            );
-             Drift.instantiate(cpd, first + FORCE_RADIUS + 2*GROUP_RADIUS, &DriftPrecondition,              &DriftAction             );
-            Finish.instantiate(cpd, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &FinishPrecondition,             &FinishAction            );
+        FetchSlabs.instantiate(nslabs, first, &FetchSlabPrecondition,          &FetchSlabAction         );
+      TransposePos.instantiate(nslabs, first, &TransposePosPrecondition,       &TransposePosAction      );
+         NearForce.instantiate(nslabs, first + FORCE_RADIUS, &NearForcePrecondition,          &NearForceAction         );
+       TaylorForce.instantiate(nslabs, first + FORCE_RADIUS, &TaylorForcePrecondition,        &TaylorForceAction       );
+              Kick.instantiate(nslabs, first + FORCE_RADIUS, &KickPrecondition,               &KickAction              );
+            Output.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS, &OutputPrecondition,             &OutputAction            );
+             Drift.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS, &DriftPrecondition,              &DriftAction             );
+            Finish.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &FinishPrecondition,             &FinishAction            );
             
     // If group finding is disabled, we can make the dependencies no-ops so they don't hold up the pipeline
     if(GFC != NULL){
-        MakeCellGroups.instantiate(cpd, first + FORCE_RADIUS, &MakeCellGroupsPrecondition,     &MakeCellGroupsAction    );
-    FindCellGroupLinks.instantiate(cpd, first + FORCE_RADIUS + 1, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction);
-        DoGlobalGroups.instantiate(cpd, first + FORCE_RADIUS + 2*GROUP_RADIUS, &DoGlobalGroupsPrecondition,     &DoGlobalGroupsAction    );
-             Microstep.instantiate(cpd, first + FORCE_RADIUS + 2*GROUP_RADIUS, &MicrostepPrecondition,          &MicrostepAction         );
-          FinishGroups.instantiate(cpd, first + FORCE_RADIUS + 2*GROUP_RADIUS, &FinishGroupsPrecondition,       &FinishGroupsAction      );
+        MakeCellGroups.instantiate(nslabs, first + FORCE_RADIUS, &MakeCellGroupsPrecondition,     &MakeCellGroupsAction    );
+    FindCellGroupLinks.instantiate(nslabs, first + FORCE_RADIUS + 1, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction);
+        DoGlobalGroups.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS, &DoGlobalGroupsPrecondition,     &DoGlobalGroupsAction    );
+             Microstep.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS, &MicrostepPrecondition,          &MicrostepAction         );
+          FinishGroups.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS, &FinishGroupsPrecondition,       &FinishGroupsAction      );
     } else {
-        MakeCellGroups.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
-    FindCellGroupLinks.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
-        DoGlobalGroups.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
-             Microstep.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
-          FinishGroups.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
+        MakeCellGroups.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
+    FindCellGroupLinks.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
+        DoGlobalGroups.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
+             Microstep.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
+          FinishGroups.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
     }
            
     if(WriteState.Do2LPTVelocityRereading)
-        LPTVelocityReRead.instantiate(cpd, first + FORCE_RADIUS + 2*GROUP_RADIUS - FINISH_WAIT_RADIUS,
+        LPTVelocityReRead.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS - FINISH_WAIT_RADIUS,
                                           &FetchLPTVelPrecondition,   &FetchLPTVelAction   );
     else
-        LPTVelocityReRead.instantiate(cpd, first, &NoopPrecondition, &NoopAction );
+        LPTVelocityReRead.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
 
     while( !Finish.alldone() ) {
            for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
