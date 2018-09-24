@@ -239,7 +239,7 @@ def distance_array(gridshape, box, cell_centered=False, periodic=True, dtype=np.
     return dist
 
 
-def k_bin_edges(gridshape, boxsize, nbins=-1, log=False):
+def k_bin_edges(gridshape, boxsize, nbins=-1, log=False, bin_like_nfft=0):
     '''
     Produce radial bins in k-space for a given mesh shape.
     Produces spherical bins using the largest bin dimension.
@@ -259,8 +259,11 @@ def k_bin_edges(gridshape, boxsize, nbins=-1, log=False):
     '''
     if type(gridshape) is int:
         gridshape = (gridshape,)*3
-        
-    ngrid = max(gridshape)
+       
+    if bin_like_nfft:
+        ngrid = bin_like_nfft
+    else:
+        ngrid = min(gridshape)  # use min so the k-spheres always fit
     
     kmin = 2*np.pi/boxsize  # fundamental mode
     kmax = np.pi/(boxsize/ngrid)  # nyquist
@@ -274,5 +277,10 @@ def k_bin_edges(gridshape, boxsize, nbins=-1, log=False):
         bin_edges = np.logspace(np.log10(kmin), np.log10(kmax), num=nbins+1)
     else:
         bin_edges = np.linspace(kmin, kmax, num=nbins+1)
+
+    # Now clip bins to the real ngrid
+    if bin_like_nfft:
+        real_kmax = np.pi/(boxsize/min(gridshape))
+        bin_edges = bin_edges[bin_edges <= real_kmax]
 
     return bin_edges

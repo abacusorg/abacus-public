@@ -61,7 +61,7 @@ class MultiplicityStats {
 	GLOG(2,"Max bin is %d\n", nbin);
 	for (j=0,m=1; j<=nbin; j++, m*=2)
 	    if (count[j]>0) 
-		GLOG(0,"%6d -- %6d: %7u groups, %6.3f%% of particles, %6.3f%% of pairs\n",
+		GLOG(0,"%7d -- %7d: %8u groups, %6.3f%% of particles, %6.3f%% of pairs\n",
 		    (m<MS_MIN?MS_MIN:m), m*2-1, count[j],
 		    100.0*sumn[j]/tot, 100.0*sumn2[j]/tot2);
     }
