@@ -110,12 +110,12 @@ class GroupFindingControl {
 #endif
 
 	char onoff[5];
-	#ifdef AVX_FOF
+	#ifdef AVXFOF
 	    sprintf(onoff, "on");
 	#else
 	    sprintf(onoff, "off");
 	#endif
-	STDLOG(0,"Group finding sizeof(FOFloat)=%d, sizeof(FLOAT)=%d, AVX_FOF is %s\n", sizeof(FOFloat), sizeof(FLOAT), onoff);
+	STDLOG(0,"Group finding sizeof(FOFloat)=%d, sizeof(FLOAT)=%d, AVXFOF is %s\n", sizeof(FOFloat), sizeof(FLOAT), onoff);
 
 	cpd = _cpd; 
 	linking_length = _linking_length;

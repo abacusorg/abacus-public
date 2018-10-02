@@ -63,7 +63,7 @@ def run(paramfn, allow_eigmodes_fn_override=False):
     if not path.isdir(params.InitialConditionsDirectory):
         os.makedirs(params.InitialConditionsDirectory)
 
-    if not path.isfile(params.ZD_PLT_filename):
+    if 'ZD_PLT_filename' in params and not path.isfile(params.ZD_PLT_filename):
         # If the filename is the same, then the files should be identical and we can silently override
         if path.basename(params.ZD_PLT_filename) != path.basename(eigmodes_path):
             print('Eigenmodes file "{}" did not exist!'.format(params.ZD_PLT_filename))

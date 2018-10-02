@@ -35,7 +35,7 @@ def convert(dpath, from_dtype=np.float64, to_dtype=np.float32, tag="float32"):
     new_fn = path.join(ddir, dfn.replace('fourierspace', 'fourierspace_' + tag))
     
     new_derivs = derivs.astype(to_dtype)
-    assert np.isfinite(new_derivs).all()
+    assert np.isfinite(new_derivs).all(), "Derivatives not finite after conversion.  Did an exponent overfloat float32?"
     
     new_derivs.tofile(new_fn)
     

@@ -74,7 +74,7 @@ class InputFile:
                     	# valid as a string if we wrap the whole RHS in quotes?
                     	value = eval('"{}"'.format(valstr))
                     except:
-                        raise ValueError('Error: Could not parse line: "{:s}"'.format(line))
+                        raise ValueError('Error: Could not parse line: "{:s}"\n\tfrom file "{}"'.format(line, fn))
             setattr(self, key, value)
         
         # A common pathology is that BoxSize is interpreted as an int by ParseHeader

@@ -28,12 +28,15 @@ def hist_helper_3D(boxsize, gridshape, bin_edges, rfft):
     nx,ny,nz = gridshape
     Lx=Ly=Lz = boxsize
 
-    # When binning an rfft grid in k-space, the lattice is 2*pi*i/L
-    # Normally, the lattice is i*L/nx
+    # Lattice spacings
     if rfft:
-        Lx = nx*2*pi/boxsize
-        Ly = ny*2*pi/boxsize
-        Lz = nz*2*pi/boxsize
+        _dx = 2*pi/boxsize
+        _dy = 2*pi/boxsize
+        _dz = 2*pi/boxsize
+    else:
+        _dx = Lx/nx
+        _dy = Ly/ny
+        _dz = Lz/nz
 
     # Do binning with squared distances
     bin_edges2 = bin_edges**2
@@ -45,19 +48,19 @@ def hist_helper_3D(boxsize, gridshape, bin_edges, rfft):
 
     for i in nb.prange(nx):
         if i > nx//2:  # periodic wrap
-            dx2 = ((nx-i)*Lx/nx)**2
+            dx2 = ((nx-i)*_dx)**2
         else:
-            dx2 = (i*Lx/nx)**2
+            dx2 = (i*_dx)**2
         for j in range(ny):
             if j > ny//2:
-                dy2 = ((ny-j)*Ly/ny)**2
+                dy2 = ((ny-j)*_dy)**2
             else:
-                dy2 = (j*Ly/ny)**2
+                dy2 = (j*_dy)**2
             for k in range(nz):
                 if not rfft and k > nz//2:
-                    dz2 = ((nz-k)*Lz/nz)**2
+                    dz2 = ((nz-k)*_dz)**2
                 else:
-                    dz2 = (k*Lz/nz)**2
+                    dz2 = (k*_dz)**2
                 dist2 = dx2 + dy2 + dz2
                 if dist2 < bmin2 or dist2 > bmax2:
                     continue
@@ -79,10 +82,15 @@ def rhist_helper_3D(boxsize, gridshape, bin_edges, rfft):
     nx,ny,nz = gridshape
     Lx=Ly=Lz = boxsize
 
+    # Lattice spacings
     if rfft:
-        Lx = nx*2*pi/boxsize
-        Ly = ny*2*pi/boxsize
-        Lz = nz*2*pi/boxsize
+        _dx = 2*pi/boxsize
+        _dy = 2*pi/boxsize
+        _dz = 2*pi/boxsize
+    else:
+        _dx = Lx/nx
+        _dy = Ly/ny
+        _dz = Lz/nz
 
     # Do binning with squared distances
     bin_edges2 = bin_edges**2
@@ -94,19 +102,19 @@ def rhist_helper_3D(boxsize, gridshape, bin_edges, rfft):
 
     for i in nb.prange(nx):
         if i > nx//2:  # periodic wrap
-            dx2 = ((nx-i)*Lx/nx)**2
+            dx2 = ((nx-i)*_dx)**2
         else:
-            dx2 = (i*Lx/nx)**2
+            dx2 = (i*_dx)**2
         for j in range(ny):
             if j > ny//2:
-                dy2 = ((ny-j)*Ly/ny)**2
+                dy2 = ((ny-j)*_dy)**2
             else:
-                dy2 = (j*Ly/ny)**2
+                dy2 = (j*_dy)**2
             for k in range(nz):
                 if not rfft and k > nz//2:
-                    dz2 = ((nz-k)*Lz/nz)**2
+                    dz2 = ((nz-k)*_dz)**2
                 else:
-                    dz2 = (k*Lz/nz)**2
+                    dz2 = (k*_dz)**2
                 dist2 = dx2 + dy2 + dz2
                 if dist2 < bmin2 or dist2 > bmax2:
                     continue
@@ -134,13 +142,19 @@ def whist_helper_3D(boxsize, values, bin_edges, rfft, multipoles=np.array([0])):
         raise NotImplementedError  # the if statement kills numba parallelization 
     nx,ny,nz = values.shape
     Lx=Ly=Lz = boxsize
-    nznyquist = nz//2
 
+    # Lattice spacings
     if rfft:
-        Lx = nx*2*pi/boxsize
-        Ly = ny*2*pi/boxsize
-        Lz = nz*2*pi/boxsize
+        _dx = 2*pi/boxsize
+        _dy = 2*pi/boxsize
+        _dz = 2*pi/boxsize
         nznyquist = nz
+    else:
+        _dx = Lx/nx
+        _dy = Ly/ny
+        _dz = Lz/nz
+        nznyquist = nz//2
+        
 
     # Do binning with squared distances
     bin_edges2 = bin_edges**2
@@ -151,12 +165,12 @@ def whist_helper_3D(boxsize, values, bin_edges, rfft, multipoles=np.array([0])):
     # we will handle the monopole explicitly without mu_k calculation
     n_poles = len(multipoles)
     do_monopole = False
-    if multipoles[0] == 0:
+    if multipoles[0] == 0:  # guaranteed sorted
         do_monopole = True
 
     # "extra poles" are non-monopoles
     have_extra_poles = not do_monopole or n_poles > 1
-    extra_pole_start = 1 if do_monopole else 0  # guaranteed sorted
+    extra_pole_start = 1 if do_monopole else 0
 
     #Lmax = multipoles.max() if len(multipoles) > 0 else 0
 
@@ -164,13 +178,13 @@ def whist_helper_3D(boxsize, values, bin_edges, rfft, multipoles=np.array([0])):
     _hist = np.zeros((nx, nbp1-1, n_poles), dtype=values.dtype)
 
     for i in nb.prange(nx):
-        dx2 = (Lx/nx*(i if i <= nx//2 else nx - i))**2
+        dx2 = (_dx*(i if i <= nx//2 else nx - i))**2
         for j in range(ny):
-            dy2 = (Ly/ny*(j if j <= ny//2 else ny - j))**2
+            dy2 = (_dy*(j if j <= ny//2 else ny - j))**2
             
             b = 0
             for k in range(nznyquist):
-                dz2 = (Lz/nz*k)**2
+                dz2 = (_dz*k)**2
                 dist2 = dx2 + dy2 + dz2
 
                 if dist2 < bmin2:
