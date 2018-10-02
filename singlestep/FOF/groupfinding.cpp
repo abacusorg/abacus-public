@@ -442,7 +442,7 @@ void FindAndProcessGlobalGroups(int slab) {
 	
 	int do_output;
 #ifndef STANDALONE_FOF
-    do_output = ReadState.DoGroupFindingOutput;
+    do_output = ReadState.DoGroupFindingOutput;  // This is decided in InitGroupFinding()
 #else
 	do_output = 1;
 #endif
