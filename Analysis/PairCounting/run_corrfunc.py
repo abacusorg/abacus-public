@@ -46,30 +46,43 @@ if __name__ == '__main__':
         print('* Starting to read particles...')
         crosscorr = args['secondary'] is not None
         ds = args['downsample']
-        if args['format'] == 'gadget':
-            p,box = utils.read_gadget(primary, downsample=ds)
+        box = args.get('box')
 
+        if args['format'] == 'gadget':
+            p,_box = utils.read_gadget(primary, downsample=ds)
+
+            if not box:
+                box = _box
             header = {'NP':len(p[0]), 'BoxSize':box}
 
             if crosscorr:
                 # TODO: if we have multiple primaries and one secondary this will re-read each time
                 # TODO: support format2
-                ps,box = utils.read_gadget(args['secondary'], downsample=ds)
-
+                ps,_box = utils.read_gadget(args['secondary'], downsample=ds)
+                
+                assert _box == box
                 header2 = {'NP':len(ps[0]), 'BoxSize':box}
         else:
             p, header = ReadAbacus.from_dir(primary, format=args['format'], dtype=args['dtype'], return_vel=False, return_header=True)
-            box = header['BoxSize']
             p = p['pos'][::ds]
-            header['NP'] = len(p)
+            
+            _box = header.get('BoxSize')
+            if not box:
+                box = _box
+            header = dict(header)
+            header.update({'NP':len(p), 'BoxSize':box})
+
             ne.evaluate('p*b', out=p, local_dict={'p':p,'b':p.dtype.type(box)})
             p = p.T
 
             if crosscorr:
                 ps, header2 = ReadAbacus.from_dir(args['secondary'], format=args['format'], dtype=args['dtype'], return_vel=False, return_header=True)
-                assert header2['BoxSize'] == box
+                _box = header2.get('BoxSize')
+                if _box:
+                    assert _box == box
                 ps = ps['pos'][::ds]
-                header2['NP'] = len(ps)
+                header2 = dict(header2)
+                header2.update({'NP':len(ps), 'BoxSize':box})
                 ne.evaluate('ps*b', out=ps, local_dict={'ps':ps,'b':ps.dtype.type(box)})
                 ps = ps.T
 
@@ -92,7 +105,6 @@ if __name__ == '__main__':
         print('* Done.')
 
         # Save the header and results
-        utils.save_header(output_dir, primary, args)
 
         pdresults = pd.DataFrame(results)
         with open(output_fn, 'w') as fp:
@@ -101,5 +113,7 @@ if __name__ == '__main__':
             if crosscorr:
                 fp.write('# N_secondary = {}\n'.format(header2['NP']))
             pdresults.to_csv(fp, index=False)
+
+        utils.save_header(output_dir, primary, args)
 
         utils.make_plot(results, output_fn_plot, headers)
