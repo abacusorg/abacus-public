@@ -86,7 +86,7 @@ void RescaleAndCoAddAcceleration(int slab) {
     #pragma omp parallel for schedule(static)
     // TODO: Because nacc and facc can differ in type, we can't use SIMD.  
     //       Ok?  Perhaps bandwidth limited anyways?
-    #pragma simd assert
+    //#pragma simd assert
     for (uint64 j=0; j<N;j++) {
         #ifdef DIRECTSINGLESPLINE
         nacc[j] = (nacc[j]*inv_eps3+facc[j])*rescale;

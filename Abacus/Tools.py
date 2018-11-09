@@ -95,7 +95,7 @@ def chdir(dirname=None):
     os.chdir(curdir)
 
 # Adds a tick to the given axis with the given value and name
-def add_tick(ax, loc, label):
+def add_tick(ax, loc, label, ha=None):
     # Generate ticks and lims
     ax.figure.canvas.draw()
     lims = ax.get_xlim()
@@ -108,6 +108,10 @@ def add_tick(ax, loc, label):
     ax.set_xticks(locs)
     ax.set_xticklabels(labels)
     ax.set_xlim(lims)
+
+    if ha:
+        labels = ax.get_xticklabels()
+        labels[-1].set_ha(ha)
     
 import matplotlib.pyplot as plt
 def matrix_plot(m, fig=None, ax=None, contour=False, subplots_kwargs={}, contour_kwargs={}, imshow_kwargs={}, **kwargs):

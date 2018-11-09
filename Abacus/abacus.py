@@ -45,6 +45,7 @@ import numpy as np
 from glob import glob
 import pathlib
 import re
+import fnmatch
 
 from .InputFile import InputFile
 from . import Tools
@@ -63,9 +64,8 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     copies parameter files, and parses parameter files as appropriate, then
     invokes `singlestep()`.
 
-    Important files should generally be placed in the 'info' directory in
-    `config_dir`.  This directory will be copied alongside outputs, data
-    products, etc.  `parfn` can also be in the info dir.
+    Files in the `config_dir` directory will be carried around in the `info`
+    directory alongside time slices, data products, etc.
     
     Parameters
     ----------
@@ -159,33 +159,23 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     os.makedirs(basedir, exist_ok=True)
     os.makedirs(logdir, exist_ok=True)
     
-    info_in_path = pjoin(config_dir, 'info')
     try:
-        shutil.copy(output_parfile, '{basedir:s}/'.format(basedir=basedir))
-        info_out_path = pjoin('{basedir:s}'.format(basedir=basedir), 'info')
-        if path.isdir(info_out_path):
-            shutil.rmtree(info_out_path)
-        shutil.copytree(info_in_path, info_out_path)
-    except (shutil.Error, OSError):
-        pass  # input == output
+        shutil.copy(output_parfile, basedir)
+    except shutil.Error:
+        pass  # same file?
+
+    info_out_path = pjoin(basedir, 'info')
+    copy_contents(config_dir, info_out_path, clean=True)
 
     # Copy over all of the input files to the output folder for reference
     os.makedirs(outdir, exist_ok=True)
     try:
-        shutil.copy(output_parfile, '{outdir:s}/'.format(outdir=outdir))
+        shutil.copy(output_parfile, outdir)
     except shutil.Error:
         pass  # same file?
     
-    info_out_path = pjoin('{outdir:s}'.format(outdir=outdir), 'info')
-    try:
-        shutil.rmtree(info_out_path)
-    except:
-        pass
-        
-    try:
-        shutil.copytree(info_in_path, info_out_path)
-    except (shutil.Error, OSError):
-        pass  # no info dir
+    info_out_path = pjoin(outdir, 'info')
+    copy_contents(config_dir, info_out_path, clean=True)
         
     with Tools.chdir(basedir):
         # The parfile is directly stored in the basedir
@@ -197,6 +187,23 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
         retval = singlestep(output_parfile, maxsteps, AllowIC=clean)
 
     return retval
+
+
+def copy_contents(in_dir, out_dir, clean=True, ignore='*.py'):
+    if clean:
+        if path.isdir(out_dir):
+            shutil.rmtree(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+
+    if type(ignore) == str:
+        ignore = [ignore]
+
+    for fn in os.scandir(in_dir):
+        if not fn.is_file():
+            continue
+        if any(fnmatch.fnmatch(fn, ipat) for ipat in ignore):
+            continue
+        shutil.copy(fn, out_dir)
 
 
 def clean_dir(bd, preserve=None, rmdir_ifempty=True):
