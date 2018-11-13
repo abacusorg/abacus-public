@@ -10,19 +10,21 @@
 #include <stdio.h> 
 
 class SlabSize: public grid {
-    uint64 *_size;
+    uint64 *_size;  // the slab sizes in the read state
+    uint64 *_newsize;  // the slab sizes in the write state
     public:
     uint64 max;
     uint64 min;
     SlabSize(int cpd): grid(cpd) {
         _size = new uint64[cpd];
+        _newsize = new uint64[cpd];
         max = 0;
         min = UINT64_MAX;
     }
-    ~SlabSize(void) { delete[] _size; }
+    ~SlabSize(void) { delete[] _size; delete[] _newsize; }
 
     // Provide access with a wrapped index.
-    void set(int slab, uint64 size) { _size[WrapSlab(slab)] = size; }
+    void set(int slab, uint64 size) { _newsize[WrapSlab(slab)] = size; }
     uint64 size(int slab) { return _size[WrapSlab(slab)]; }
 
     // Read and write from files.  Return 0 if ok.
@@ -53,7 +55,7 @@ class SlabSize: public grid {
         assertf(fp!=NULL, "Couldn't open SlabSize write file %s\n", fname);
         fprintf(fp, "%d\n", cpd);
         for (int j = 0; j<cpd; j++) {
-            fprintf(fp, "%ld\n", _size[j]);
+            fprintf(fp, "%ld\n", _newsize[j]);
         }
         fclose(fp);
         return 0;
