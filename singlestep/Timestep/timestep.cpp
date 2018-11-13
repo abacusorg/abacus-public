@@ -134,6 +134,8 @@ void TransposePosAction(int slab){
 
 int NearForcePrecondition(int slab) {
     for(int i=-FORCE_RADIUS;i<=FORCE_RADIUS;i++){
+        // Technically, I think we only need the CellInfo to construct pencils
+        // But it's convenient to have pos so the GPU can immediately execute any pencil
         if(TransposePos.notdone(slab+i))
             return 0;
         if( !LBW->IOCompleted( CellInfoSlab, slab+i ) ){
@@ -384,9 +386,16 @@ void DoGlobalGroupsAction(int slab) {
 int OutputPrecondition(int slab) {
     if (DoGlobalGroups.notdone(slab)) return 0;  // Must have found groups to be able to output light cones
     // note that group outputs were already done
+
+    // Note the following conditions only have any effect if group finding is turned off
     
     if (Kick.notdone(slab)) return 0;  // Must have accelerations
-    // note that this condition only has any effect if group finding is turned off
+
+    // Also obviously need the aux!
+    if( !LBW->IOCompleted( AuxSlab, slab ) ) {
+        Dependency::NotifySpinning(WAITING_FOR_IO);
+        return 0;
+    }
     
     return 1;
 }
