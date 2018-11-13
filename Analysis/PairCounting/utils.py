@@ -93,6 +93,7 @@ def default_argparse():
     parser.add_argument('--linear', help='Do the histogramming in linear space.  Default is log10 space.', default=False, action='store_true')
     parser.add_argument('--out_parent', help='Directory in which to place the data products.', default=None)
     parser.add_argument('--nthreads', help='Number of OpenMP threads for Corrfunc.  NTHREADS <= 0 means use all cores.', default=-1, type=int)
+    parser.add_argument('--box', help='Override the box size from the header', type=float)
 
     #parser.add_argument('--zspace', help='Displace the particles according to their redshift-space positions.', action='store_true')
     # TODO: support non-integer downsampling
@@ -135,11 +136,16 @@ def save_header(output_dir, primary, args):
     but recognize that we also allow processing of non-Abacus
     particles like Gadget that may not have headers.
     '''
-    try:
-        shutil.copy(pjoin(primary, 'header'), output_dir)
-    except FileNotFoundError:
+    for fn in ['header', 'state']:
+        try:
+            shutil.copy(pjoin(primary, fn), pjoin(output_dir, 'header'))
+            break
+        except FileNotFoundError as e:
+            pass
+    else:
         if args['format'] != 'gadget':
-            raise
+            raise e
+            
 
     if args['secondary']:
         try:

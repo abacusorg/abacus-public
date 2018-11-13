@@ -45,7 +45,7 @@ def read(*args, **kwargs):
     format = format.lower()
     return reader_functions[format](*args, **kwargs)
 
-def from_dir(dir, pattern='*.dat', key=None, **kwargs):
+def from_dir(dir, pattern=None, key=None, **kwargs):
     """
     Read all files from `dir` that match `pattern`.
     
@@ -53,8 +53,9 @@ def from_dir(dir, pattern='*.dat', key=None, **kwargs):
     ----------
     dir: str
         The directory to read files from
-    pattern: str, optional
-        A bash globbing pattern to find all the files to read
+    pattern: str or None, optional
+        A bash globbing pattern to find all the files to read.
+        If None, use the default pattern for the given format.
     format: str, optional
         The file format.  Determines which reader function will be used.
     return_header: bool, optional
@@ -71,6 +72,10 @@ def from_dir(dir, pattern='*.dat', key=None, **kwargs):
     header: InputFile, optional
         If `return_header` and a header is found, return parsed InputFile
     """
+    if pattern is None:
+        format = kwargs.get('format')
+        pattern = get_file_pattern(format)
+
     _key = (lambda k: key(path.basename(k))) if key else None
     files = sorted(glob(path.join(dir, pattern)), key=_key)
     assert files, "No files found matching {}".format(path.join(dir, pattern))
@@ -727,3 +732,11 @@ reader_functions = {'pack14':read_pack14, 'rvdouble':read_rvdouble,
                     'rvdoubletag':read_rvdoubletag,
                     'rvtag':read_rvtag, 'rv':read_rvtag,
                     'pack14_lite':read_pack14_lite}
+default_file_patterns = {'pack14':'*.dat', 'state':'position_*'}
+fallback_file_pattern = '*.dat'
+
+def get_file_pattern(format):
+    try:
+        return default_file_patterns[format]
+    except KeyError:
+        return fallback_file_pattern
