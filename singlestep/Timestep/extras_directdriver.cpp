@@ -15,6 +15,7 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
     ExecuteSlabCPU(slabID);  // Compute the CPU result
     memcpy(a_cpu,a_gpu,len);  // Save the CPU result
     memcpy(a_gpu,a_tmp,len); // Load the GPU result
+    free(a_tmp);
     #ifdef DOUBLEPRECISION
     FLOAT target = 1e-10;
     #else
@@ -24,6 +25,15 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
     for(int i = 0; i < Slab->size(slabID);i++){
         acc3struct ai_g = TOFLOAT3(a_gpu[i]);
         acc3struct ai_c = TOFLOAT3(a_cpu[i]);
+        
+        assert(isfinite(ai_g.x));
+        assert(isfinite(ai_g.y));
+        assert(isfinite(ai_g.z));
+
+        assert(isfinite(ai_c.x));
+        assert(isfinite(ai_c.y));
+        assert(isfinite(ai_c.z));
+
         if(ai_g.norm() == 0. && ai_c.norm() == 0.)
             continue;
         FLOAT delta =2* (ai_g-ai_c).norm()/(ai_g.norm() + ai_c.norm());
@@ -32,16 +42,8 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
                     slabID,i,ai_g.x,ai_g.y,ai_g.z,i,ai_c.x,ai_c.y,ai_c.z,delta);
             //assert(delta < target);
         }
-        assert(isfinite(ai_g.x));
-        assert(isfinite(ai_g.y));
-        assert(isfinite(ai_g.z));
-
-        assert(isfinite(ai_c.x));
-        assert(isfinite(ai_c.y));
-        assert(isfinite(ai_c.z));
     }
     free(a_cpu);
-    free(a_tmp);
     
     STDLOG(1,"GPU-CPU comparison passed for slab %d\n", slabID);
 }

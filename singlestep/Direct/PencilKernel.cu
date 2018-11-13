@@ -124,7 +124,7 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
 		    #ifdef COMPUTE_FOF_DENSITY
 		    &(a.w),
 		    #endif
-                    &eps,&d.b2);  // try non-pointer?
+                    &eps,&d.b2);
             __syncthreads();
         }
 
