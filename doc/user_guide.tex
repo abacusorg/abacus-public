@@ -197,8 +197,11 @@ DJE recommends at least 20 steps per $e$-fold for most applications, or .05.
 If not supplied, then we use the lowest redshift TimeSlice output.
 However, one might want to run further to complete light cones.
 
-\param{OverwriteState}{int} If $\ge 0$, ReadDirectory and WriteDirectory are internally set to the ReadDirectory.
+\param{StateIOMode}{string} One of "normal", "overwrite", "stripe", or "slosh".  If "overwrite", ReadDirectory and WriteDirectory are internally set to the ReadDirectory.
 This saves space, and can be particularly useful for a ramdisk.
+
+\param{Conv_IOMode}{string} One of "normal", "overwrite", "stripe", or "slosh".  Just as \texttt{StateIOMode}, but for the multipoles and Taylors.
+
 
 \param{RamDisk}{int} If $\ge 0$, let the IO code know that we can't use DIO (which ramdisks don't support).
 

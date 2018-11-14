@@ -370,12 +370,6 @@ int main(int argc, char **argv) {
     bool MakeIC; //True if we should make the initial state instead of doing a real timestep
 
     check_read_state(AllowIC, MakeIC, da);
-    
-    //Check if WriteStateDirectory/state exists, and fail if it does
-    char wstatefn[1050];
-    sprintf(wstatefn,"%s/state",P.WriteStateDirectory);
-    if(access(wstatefn,0) !=-1)
-    	QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
 
     // Initialize the Cosmology and set up the State epochs and the time step
     cosm = InitializeCosmology(ReadState.ScaleFactor);
@@ -383,6 +377,12 @@ int main(int argc, char **argv) {
     
     // Set some WriteState values before ChooseTimeStep()
     InitWriteState(MakeIC);
+
+    // Check if WriteStateDirectory/state exists, and fail if it does
+    char wstatefn[1050];
+    sprintf(wstatefn,"%s/state", P.WriteStateDirectory);
+    if(access(wstatefn,0) !=-1 && !WriteState.OverwriteState)
+        QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
     
     if (da!=0) da = ChooseTimeStep();
     double dlna = da/ReadState.ScaleFactor;

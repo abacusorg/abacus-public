@@ -1,5 +1,6 @@
 RamDisk = 1
-OverwriteState = 1
+StateIOMode = "overwrite"
+Conv_IOMode = "overwrite"
 #IODirs = ["multipole/", "taylor/", "multipole2/", "taylor2/"]
 #nIODirs = 4
 #IODirThreads = [2, 2, 3, 3]

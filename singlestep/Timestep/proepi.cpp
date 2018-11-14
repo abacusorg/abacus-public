@@ -481,10 +481,15 @@ void InitWriteState(int ic){
     if(WriteState.Do2LPTVelocityRereading)
         init_2lpt_rereading();
 
+    if(strcmp(P.StateIOMode, "overwrite") == 0){
+        WriteState.OverwriteState = 1;
+        STDLOG(1, "StateIOMode = \"overwrite\"; write state will overwrite read state\n");
+    }
     if(strcmp(P.StateIOMode, "stripe") == 0){
         WriteState.StripeState = 1;
         assertf(0, "State striping currently not implemented\n");
     }
+
     if(strcmp(P.Conv_IOMode, "stripe") == 0){
         WriteState.StripeConvState = 1;
         STDLOG(1,"Striping multipoles and taylors\n");
