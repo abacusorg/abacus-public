@@ -596,6 +596,8 @@ def remove_MT(md, pattern, rmdir=False):
             pass  # remove dir if empty; we re-create at each step in setup_dirs
 
 import table_logger
+# via https://stackoverflow.com/a/2293793
+fp_regex = r'(([1-9][0-9]*\.?[0-9]*)|(\.[0-9]+))([Ee][+-]?[0-9]+)?'
 class StatusLogWriter:
     #header = "Step  Redshift  Singlestep  Conv"
     #line_fmt = '{step:4d}  {z:6.1f}  {ss_rate:.1g} Mp/s ({ss_time:.1g} s) {conv_time:.1g}'
@@ -622,38 +624,41 @@ class StatusLogWriter:
         self.logger.make_horizontal_border()
         self.log_fp.close()
 
-    def update(self, **kwargs):
-        self.logger(*(kwargs[k] for k in self.fields))
+    def update(self, param, state):
+        '''
+        Update the log with some info about the singlestep and conv
+        that just finished.
 
+        The logs have already been moved to their new names, indicated
+        by step_num.
+        '''
+        step_num = state.FullStepNumber
 
-# via https://stackoverflow.com/a/2293793
-fp_regex = r'(([1-9][0-9]*\.?[0-9]*)|(\.[0-9]+))([Ee][+-]?[0-9]+)?'
-def update_status_log(param, state, status_log):
-    '''
-    Update the log with some info about the singlestep and conv
-    that just finished.
+        ss_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.time'.format(step_num))
+        ss_log_txt = pathlib.Path(ss_log_fn).read_text()
 
-    The logs have already been moved to their new names, indicated
-    by step_num.
-    '''
-    step_num = state.FullStepNumber
+        matches = re.search(r'Total Wall Clock Time\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), ss_log_txt)
+        ss_time = float(matches.group('time'))
+        ss_rate = param['NP']/1e6/ss_time  # Mpart/s
 
-    ss_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.time'.format(step_num))
-    ss_log_txt = pathlib.Path(ss_log_fn).read_text()
+        conv_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.convtime'.format(step_num))
+        try:
+            conv_log_txt = pathlib.Path(conv_log_fn).read_text()
+            matches = re.search(r'ConvolutionWallClock\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), conv_log_txt)
+            conv_time = float(matches.group('time'))
+        except:
+            conv_time = 0.
 
-    matches = re.search(r'Total Wall Clock Time\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), ss_log_txt)
-    ss_time = float(matches.group('time'))
-    ss_rate = param['NP']/1e6/ss_time  # Mpart/s
+        info = dict(Step=step_num, Redshift=state.Redshift, Singlestep=(ss_rate,ss_time), Conv=conv_time)
 
-    conv_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.convtime'.format(step_num))
-    try:
-        conv_log_txt = pathlib.Path(conv_log_fn).read_text()
-        matches = re.search(r'ConvolutionWallClock\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), conv_log_txt)
-        conv_time = float(matches.group('time'))
-    except:
-        conv_time = 0.
+        self.logger(*(info[k] for k in self.fields))
 
-    status_log.update(Step=step_num, Redshift=state.Redshift, Singlestep=(ss_rate,ss_time), Conv=conv_time)
+    def print(self, fmtstring, end='\n', *args, **kwargs):
+        '''
+        Print a plain statement to the status log
+        '''
+        self.log_fp.write(('\n * ' + fmtstring.format(*args, **kwargs) + end).encode('utf-8'))
+    
 
 
 def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
@@ -811,7 +816,7 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
         save_log_files(param.LogDirectory, 'step{:04d}'.format(write_state.FullStepNumber))
 
         # Update the status log
-        update_status_log(param, write_state, status_log)
+        status_log.update(param, write_state)
                         
         shutil.copy(pjoin(write, "state"), pjoin(param.LogDirectory, "step{:04d}.state".format(write_state.FullStepNumber)))
         print(( "\t Finished state {:d}. a = {:.4f}, dlna = {:.3g}, rms velocity = {:.3g}".format(
@@ -873,7 +878,8 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
         # This logic is deliberately consistent with singlestep.cpp
         # If this is an IC step then we won't have read_state
         if not AllowIC and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0:
-            print("Final redshift reached; terminating normally.")
+            print("Final redshift of {:g} reached; terminating normally.".format(finalz))
+            status_log.print("Final redshift of {:g} reached; terminating normally.".format(finalz))
             finished = True
             break
         
