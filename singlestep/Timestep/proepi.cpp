@@ -87,7 +87,6 @@ State ReadState, WriteState;
 // #include "maxcellsize.cpp"
 #include "IC_classes.h"
 #include "slabtypes.cpp"
-SlabBuffer *LBW;
 
 // Two quick functions so that the I/O routines don't need to know 
 // about the LBW object. TODO: Move these to an io specific file
@@ -99,6 +98,7 @@ void IO_DeleteArena(int arenatype, int arenaslab)    {
 
 #include "threadaffinity.h"
 
+// TODO: do we need to support non-threaded io? threaded io still has the blocking option
 #ifdef IOTHREADED
 #include "io_thread.cpp"
 #else

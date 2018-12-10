@@ -4,10 +4,16 @@
 #ifndef IOREQUEST
 #define IOREQUEST
 
-#define IO_READ  1
-#define IO_WRITE 2
-#define IO_QUIT  3
-#define IO_ERROR 4		// To signal trouble!
+enum iocommand { IO_READ = 1,
+                    IO_WRITE,
+                    IO_QUIT,
+                    IO_ERROR
+};
+
+enum iomethod { IO_DIRECT,
+                IO_FOPEN,
+                IO_RAMDISK
+};
 
 #include "file.cpp"
 
@@ -36,6 +42,7 @@ class iorequest {
     off_t     fileoffset = 0; 	// only used for reading
     int     deleteafterwriting = 0; // use IO_DELETE, IO_KEEP
     int     blocking = 0;		// use IO_BLOCKING, IO_NONBLOCKING
+    int     io_method = 0;  // use IO_DIRECT, IO_FOPEN, IO_RAMDISK
 
     void dumpior() {
         printf("IOR memory = %p ", memory);
@@ -44,13 +51,13 @@ class iorequest {
         printf("command = %d ", command);
         printf("arenatype = %d ", arenatype);
         printf("arenaslab = %d ", arenaslab);
-        printf("fileoffset = %lu ", fileoffset );
+        printf("fileoffset = %lu ", fileoffset);
         printf("deleteafterwriting = %d ", deleteafterwriting);
-        printf("blocking = %d\n", blocking );
+        printf("blocking = %d\n", blocking);
     }
 
     iorequest() {
-	memset(this, 0, sizeof(iorequest));   // Set to zero to appease valgrind
+        memset(this, 0, sizeof(iorequest));   // Set to zero to appease valgrind
     }
 
     iorequest(
@@ -64,7 +71,12 @@ class iorequest {
         int     _deleteafterwriting,
         int     _blocking) {
         
-	memset(this, 0, sizeof(iorequest));   // Set to zero to appease valgrind
+        memset(this, 0, sizeof(iorequest));   // Set to zero to appease valgrind
+
+        // TODO: unify DIO and fopen interfaces; use this as the switch
+        if(LBW->IsRamdiskSlab(_arenatype) != RAMDISK_NO)
+            io_method = IO_RAMDISK;
+
         memory = _memory;
         sizebytes = _sizebytes;
         strncpy(filename, _filename, 1024);

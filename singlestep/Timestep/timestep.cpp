@@ -760,10 +760,11 @@ void FetchICAction(int slab) {
     NP_from_IC += LoadSlab2IL(slab);
     
     // We also need to create a null slab
-    LBW->AllocateSpecificSize(PosSlab,slab, 0);
-    LBW->AllocateSpecificSize(VelSlab,slab, 0);
-    LBW->AllocateSpecificSize(AuxSlab,slab, 0);
-    LBW->AllocateArena(CellInfoSlab,slab);
+    // These slabs will never come off ramdisk because this is the first timestep
+    LBW->AllocateSpecificSize(PosSlab,slab, 0, RAMDISK_NO);
+    LBW->AllocateSpecificSize(VelSlab,slab, 0, RAMDISK_NO);
+    LBW->AllocateSpecificSize(AuxSlab,slab, 0, RAMDISK_NO);
+    LBW->AllocateArena(CellInfoSlab,slab, RAMDISK_NO);
     int cpd = PP->cpd;
     for (int y=0; y<cpd; y++)
         for (int z=0; z<cpd; z++) {
@@ -830,11 +831,17 @@ int FetchPosSlabPrecondition(int slab) {
 
 void FetchPosSlabAction(int slab) {
     STDLOG(0,"Fetching slab %d with %d particles\n", slab, Slab->size(slab));
-    // Load all of the particle files together
-    LBW->LoadArenaNonBlocking(MergeCellInfoSlab,slab);
-    LBW->LoadArenaNonBlocking(MergePosSlab,slab);  // Load directly into the merge slabs
+
+    // Load directly into the merge slabs
+    // LBW would normally assume a merge slab needs a new ramdisk allocation (if using ramdisk)
+    LBW->AllocateArena(MergeCellInfoSlab, slab, RAMDISK_READSLAB);
+    ReadArena(MergeCellInfoSlab, slab, IO_NONBLOCKING, ReadSlabDescriptorName(CellInfoSlab,slab).c_str());
+
+    LBW->AllocateArena(MergePosSlab, slab, RAMDISK_READSLAB);
+    ReadArena(MergePosSlab, slab, IO_NONBLOCKING, ReadSlabDescriptorName(PosSlab,slab).c_str());
+
     assertf(Slab->size(slab)*sizeof(posstruct)<=
-        fsize(LBW->ReadSlabDescriptorName(MergePosSlab,slab).c_str()),
+        fsize(LBW->ReadSlabDescriptorName(PosSlab,slab).c_str()),
         "PosSlab size doesn't match prediction\n");
     /*LBW->LoadArenaNonBlocking(AuxSlab,slab);
     assertf(Slab->size(slab)*sizeof(auxstruct)<=

@@ -160,7 +160,11 @@ private:
         // Read the file, wait to complete.
         IOLOG(1,"Reading file %s\n", ior->filename);
 
-        RD->BlockingRead( ior->filename, ior->memory, ior->sizebytes, ior->fileoffset);
+        // TODO: other IO methods
+
+        // Ramdisk IO is strictly handled through linearbuffer, so do nothing but mark success
+        if(ior->io_method != IO_RAMDISK)
+            RD->BlockingRead(ior->filename, ior->memory, ior->sizebytes, ior->fileoffset);
 
         IOLOG(1,"Done reading file\n");
         IO_SetIOCompleted(ior->arenatype, ior->arenaslab);
@@ -175,12 +179,14 @@ private:
         //ioassertf(ior->fileoffset==0, 
         //	"WriteFile fileoffest = %d.  Non-zero values not supported.\n", ior->fileoffset);
 
+        // Ramdisk IO is strictly handled through linearbuffer, so do nothing but mark success
+        if(ior->io_method != IO_RAMDISK){
+            FILE * outfile = fopen(ior->filename,"wb");
+            ioassertf(outfile != NULL,"Touching file %s failed\n", ior->filename);
+            fclose(outfile);
 
-        FILE * outfile = fopen(ior->filename,"wb");
-        ioassertf(outfile != NULL,"Touching file %s failed\n", ior->filename);
-        fclose(outfile);
-
-        WD->BlockingAppend( ior->filename, ior->memory, ior->sizebytes);
+            WD->BlockingAppend(ior->filename, ior->memory, ior->sizebytes);
+        }
 
         IOLOG(1,"Done writing file\n");
         if (ior->deleteafterwriting==IO_DELETE) IO_DeleteArena(ior->arenatype, ior->arenaslab);
