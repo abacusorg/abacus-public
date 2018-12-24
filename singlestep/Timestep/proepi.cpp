@@ -16,6 +16,7 @@
  *      should be done by deleting the object, with specific teardown code in the destructor 
  *      for that module. 
 */
+
 #include <sys/time.h>
 #include <sys/resource.h> 
 
@@ -76,6 +77,7 @@ uint64 naive_directinteractions = 0;
 
 #include "file.h"
 #include "grid.cpp"
+grid *Grid;
 
 #include "particlestruct.cpp"
 
@@ -83,17 +85,20 @@ uint64 naive_directinteractions = 0;
 #include "statestructure.cpp"
 State ReadState, WriteState;
 
+
+
 // #include "ParticleCellInfoStructure.cpp"
 // #include "maxcellsize.cpp"
 #include "IC_classes.h"
-#include "slabtypes.cpp"
+#include "slabbuffer.cpp"
+SlabBuffer *SB;
 
 // Two quick functions so that the I/O routines don't need to know 
-// about the LBW object. TODO: Move these to an io specific file
+// about the SB object. TODO: Move these to an io specific file
 void IO_SetIOCompleted(int arenatype, int arenaslab) { 
-	LBW->SetIOCompleted(arenatype, arenaslab); }
+	SB->SetIOCompleted(arenatype, arenaslab); }
 void IO_DeleteArena(int arenatype, int arenaslab)    { 
-	LBW->DeAllocate(arenatype, arenaslab); }
+	SB->DeAllocate(arenatype, arenaslab); }
 
 
 #include "threadaffinity.h"
@@ -107,10 +112,10 @@ void IO_DeleteArena(int arenatype, int arenaslab)    {
 #endif
 
 #include "slabsize.cpp"
-SlabSize *Slab;
+SlabSize *SS;
 
-#include "particles.cpp"
-Particles *PP;
+#include "cellparticles.cpp"
+CellParticles *CP;
 
 #include "dependency.cpp"
 
@@ -164,13 +169,6 @@ FLOAT * density; //!< Array to accumulate gridded densities in for low resolutio
 
 #include <fenv.h>
 
-void load_slabsize(Parameters &P){
-    char filename[1024];
-    sprintf(filename,"%s/slabsize",P.ReadStateDirectory);
-    Slab->read(filename);
-    STDLOG(1,"Reading SlabSize file from %s\n", filename);
-}
-
 
 /*! \brief Initializes global objects
  *
@@ -188,8 +186,9 @@ void Prologue(Parameters &P, bool ic) {
     long long int np = P.np;
     assert(np>0);
 
-    LBW = new SlabBuffer(cpd, order, MAXIDS, P.MAXRAMMB*1024*1024);
-    PP = new Particles(cpd, LBW);
+    Grid = new grid(cpd);
+    SB = new SlabBuffer(cpd, order, P.MAXRAMMB*1024*1024);
+    CP = new CellParticles(cpd, SB);
     STDLOG(1,"Initializing Multipoles()\n");
     MF  = new SlabMultipoles(order, cpd);
 
@@ -214,7 +213,7 @@ void Prologue(Parameters &P, bool ic) {
 
     if(!ic) {
             // ReadMaxCellSize(P);
-        load_slabsize(P);
+        SS->load_from_params(P);
         TY  = new SlabTaylor(order,cpd);
         RL = new Redlack(cpd);
 
@@ -226,7 +225,7 @@ void Prologue(Parameters &P, bool ic) {
     } else {
         TY = NULL;
         RL = NULL;
-        JJ = NULL;
+        NFD = NULL;
     }
     STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
 
@@ -242,8 +241,8 @@ void Epilogue(Parameters &P, bool ic) {
     epilogue.Clear();
     epilogue.Start();
 
-    if(JJ)
-        JJ->AggregateStats();
+    if(NFD)
+        NFD->AggregateStats();
 
     // Write out the timings.  This must precede the rest of the epilogue, because 
     // we need to look inside some instances of classes for runtimes.
@@ -259,11 +258,8 @@ void Epilogue(Parameters &P, bool ic) {
 
     if(IL->length!=0) { IL->DumpParticles(); assert(IL->length==0); }
     
-    if(Slab != NULL){
-        char filename[1024];
-        sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
-        Slab->write(filename);
-        STDLOG(1,"Writing SlabSize file to %s\n", filename);
+    if(SS != NULL){
+        SS->store_from_params(P);
     }
 
     // Some pipelines, like standalone_fof, don't use multipoles
@@ -286,22 +282,22 @@ void Epilogue(Parameters &P, bool ic) {
     if(WriteState.Do2LPTVelocityRereading)
         finish_2lpt_rereading();
 
-    LBW->report();
-    delete LBW;
-    delete PP;
+    SB->report();
+    delete SB;
+    delete CP;
     delete IL;
-    delete Slab;
+    delete SS;
 
 
     if(!ic) {
         if(0 and P.ForceOutputDebug){
             #ifdef CUDADIRECT
             STDLOG(1,"Direct Interactions: CPU (%lu) and GPU (%lu)\n",
-                        JJ->DirectInteractions_CPU,JJ->TotalDirectInteractions_GPU);
-            if(!(JJ->DirectInteractions_CPU == JJ->TotalDirectInteractions_GPU)){
+                        NFD->DirectInteractions_CPU,NFD->TotalDirectInteractions_GPU);
+            if(!(NFD->DirectInteractions_CPU == NFD->TotalDirectInteractions_GPU)){
                 printf("Error:\n\tDirect Interactions differ between CPU (%lu) and GPU (%lu)\n",
-                        JJ->DirectInteractions_CPU,JJ->TotalDirectInteractions_GPU);
-                //assert(JJ->DirectInteractions_CPU == JJ->TotalDirectInteractions_GPU);
+                        NFD->DirectInteractions_CPU,NFD->TotalDirectInteractions_GPU);
+                //assert(NFD->DirectInteractions_CPU == NFD->TotalDirectInteractions_GPU);
             }
             #endif
         }
@@ -311,7 +307,7 @@ void Epilogue(Parameters &P, bool ic) {
             delete[] SlabForceLatency;
             delete[] SlabForceTime;
             delete[] SlabFarForceTime;
-            delete JJ;
+            delete NFD;
             delete GFC;
     }
 
@@ -499,7 +495,7 @@ void InitWriteState(int ic){
         STDLOG(1,"Overwriting multipoles and taylors\n");
     }
 
-    Slab = new SlabSize(P.cpd);
+    SS = new SlabSize(P.cpd);
     if(!ic)
-        JJ = new NearFieldDriver(P.NearFieldRadius);
+        NFD = new NearFieldDriver(P.NearFieldRadius);
 }

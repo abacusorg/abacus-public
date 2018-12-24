@@ -31,8 +31,7 @@
 
     // Now execute the timestep
     Prologue(P,MakeIC);
-    Slab = new SlabSize(P.cpd);
-    load_slabsize(P);
+    SS = new SlabSize(P);
     int nslab = argc >= 3 ? atoi(argv[2]) : -1;
     timestepBenchmarkIO(nslab);
 

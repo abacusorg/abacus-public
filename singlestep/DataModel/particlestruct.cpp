@@ -19,7 +19,7 @@ So we actually are limited to about 680 million particles in a cell.
 #define posstruct FLOAT3
 #define velstruct FLOAT3
 #define acc3struct FLOAT3
-	// The far-field code operates on float3's.
+        // The far-field code operates on float3's.
 
 #ifdef COMPUTE_FOF_DENSITY
 #define accstruct FLOAT3p1
@@ -56,7 +56,7 @@ public:
     uint64 key() { return pid(); }
     void setpid(uint64 pid) { 
     	assertf(pid<=AUXPID,
-		"PID %d is too big\n", pid); 
+        	"PID %d is too big\n", pid); 
         aux = pid + (aux&~AUXPID);
     }
 
@@ -90,14 +90,14 @@ public:
 
     // Group and subsample related bits
     inline void set_taggable() {
-	// The TAGGABLE bit should be set at the beginning of the sim and not changed.
+        // The TAGGABLE bit should be set at the beginning of the sim and not changed.
         aux |= ((uint64)1 << AUXTAGGABLEBIT);
     }
     inline bool is_taggable() {
         return aux & ((uint64)1 << AUXTAGGABLEBIT);
     }
     inline void set_tagged() {
-	// The TAGGED bit is a lasting tag, once set.
+        // The TAGGED bit is a lasting tag, once set.
         aux |= ((uint64)1 << AUXTAGGEDBIT);
     }
     inline bool is_tagged() {
@@ -105,9 +105,9 @@ public:
     }
 
     inline void reset_L01_bits() {
-	// We need to be able to unset these bits each time we run groupfinding
-	uint64 mask = ((uint64)1 << AUXINL0BIT) + ((uint64)1 << AUXINL1BIT);
-	aux &= ~mask;
+        // We need to be able to unset these bits each time we run groupfinding
+        uint64 mask = ((uint64)1 << AUXINL0BIT) + ((uint64)1 << AUXINL1BIT);
+        aux &= ~mask;
     }
     inline void set_L0() {
         aux |= ((uint64)1 << AUXINL0BIT);
@@ -158,8 +158,8 @@ public:
     }
     int legalvalue(uint64 slabsize) {
         // Do a sanity check on the cellinfo values; return 1 if ok, 0 if not.
-	// slabsize is the number of particles in the slab.
-	if (!isfinite(startindex)){
+        // slabsize is the number of particles in the slab.
+        if (!isfinite(startindex)){
         STDLOG(0, "Bad 'startindex' in cellinfo: %u\n", startindex);
         return 0;
     }
@@ -171,15 +171,15 @@ public:
         STDLOG(0, "Bad 'active' in cellinfo: %u\n", active);
         return 0;
     }
-	if (startindex+count > slabsize){
+        if (startindex+count > slabsize){
         STDLOG(0, "'startindex+count' (%u + %d = %d) > 'slabsize' (%u) in cellinfo\n", startindex, count, startindex+count, slabsize);
         return 0;
     }
-	if (active>count){
+        if (active>count){
         STDLOG(0, "'active' (%d) > 'count' (%d) in cellinfo\n", active, count);
         return 0;
     }
-	return 1;
+        return 1;
     }
 };
 

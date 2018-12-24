@@ -35,14 +35,14 @@ class iorequest {
     char    *memory = NULL;		// Where the data is in memory
     uint64     sizebytes = 0;		// How much data
     char    filename[1024] = "";	// File name
-    char    dir[1024] = "";	// Directory name
+    char    dir[1024] = "";	// The name of the containing directory (i.e. not the full path)
     int     command = 0; 		// use IO_READ, IO_WRITE, IO_QUIT
-    int     arenaslab = 0;		// Which arena number this is
-    int     arenatype = 0;		// Which arena number this is
+    int     arenaslab = 0;		// Which slab number this is
+    int     arenatype = 0;		// Which slab type this is
     off_t     fileoffset = 0; 	// only used for reading
     int     deleteafterwriting = 0; // use IO_DELETE, IO_KEEP
     int     blocking = 0;		// use IO_BLOCKING, IO_NONBLOCKING
-    int     io_method = 0;  // use IO_DIRECT, IO_FOPEN, IO_RAMDISK
+    int     io_method = 0;  // use IO_DIRECT, IO_FOPEN  (TODO: not yet implemented)
 
     void dumpior() {
         printf("IOR memory = %p ", memory);
@@ -74,8 +74,11 @@ class iorequest {
         memset(this, 0, sizeof(iorequest));   // Set to zero to appease valgrind
 
         // TODO: unify DIO and fopen interfaces; use this as the switch
-        if(LBW->IsRamdiskSlab(_arenatype) != RAMDISK_NO)
-            io_method = IO_RAMDISK;
+        if(is_path_on_ramdisk(filename))
+            io_method = IO_FOPEN;
+        else
+            io_method = IO_DIRECT;
+            
 
         memory = _memory;
         sizebytes = _sizebytes;

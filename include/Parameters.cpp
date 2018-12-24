@@ -573,6 +573,24 @@ void Parameters::ValidateParameters(void) {
     assert(nIODirs < MAX_IODIRS);
     for (int i = 0; i < nIODirs; i++)
         assert(IODirThreads[i] >= 1);
+
+    assertf(
+        strcmp(StateIOMode, "normal") == 0 ||
+        strcmp(StateIOMode, "overwrite") == 0 ||
+        strcmp(StateIOMode, "slosh") == 0 ||
+        strcmp(StateIOMode, "stripe") == 0,
+        "StateIOMode = \"%s\" must be one of normal, overwrite, slosh, stripe.",
+        StateIOMode
+        );
+
+    assertf(
+        strcmp(Conv_IOMode, "normal") == 0 ||
+        strcmp(Conv_IOMode, "overwrite") == 0 ||
+        strcmp(Conv_IOMode, "slosh") == 0 ||
+        strcmp(Conv_IOMode, "stripe") == 0,
+        "Conv_IOMode = \"%s\" must be one of normal, overwrite, slosh, stripe.",
+        Conv_IOMode
+        );
 }
 Parameters P;
 

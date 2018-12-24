@@ -316,8 +316,6 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
     require computation of some sort and can't be done with static
     parsing.
 
-    TODO: probably want an explicit SplitMultipoles parameter
-
     1) Compute ZD_Pk_sigma from sigma_8
     2) If $ABACUS_SSD2 is defined, define the params {Multipole,Taylor}Directory2
     3) If $ABACUS_TMP2 is defined and StateIOMode is "slosh", define WorkingDirectory2
@@ -489,12 +487,13 @@ def setup_state_dirs(paramfn):
 
     # If the links don't exist, create them and the underlying dirs
     # If they do exist, don't touch them
-    def make_link(link, target):
+    def make_link(link, target, is_file=False):
         if path.exists(link):
-            # link already existing as a directory insetad of a link is an error!
+            # link already existing as a file/directory instead of a link is an error!
             assert path.islink(link)
         else:
-            os.makedirs(target, exist_ok=True)
+            if not is_file:
+                os.makedirs(target, exist_ok=True)
             os.symlink(target, link)
     
     # Set up symlinks to slosh the state
@@ -550,7 +549,7 @@ def move_state_dirs(read, write, past, multipoles, taylors):
     If we're sloshing the state, we instead want to swap the
     symlinks for `read` and `write`.  We also want to swap
     the symlink for the Taylors (but not the multipoles because
-    the convove hasn't happened yet).
+    the convolve hasn't happened yet).
 
     TODO: double check this still works when overwriting the state
     '''
@@ -588,7 +587,10 @@ def move_state_dirs(read, write, past, multipoles, taylors):
 def remove_MT(md, pattern, rmdir=False):
     # Quick util to clear multipoles/taylors
     for mfn in glob(pjoin(md, pattern)):
-        os.remove(mfn)
+        # If the file is actually a symlink, keep it
+        # This is how we implement M/T overwriting, for example
+        if not path.islink(mfn):
+            os.remove(mfn)
     if rmdir:
         try:
             os.rmdir(md)

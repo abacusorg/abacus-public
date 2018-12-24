@@ -124,11 +124,11 @@ void ReportTimings(FILE * timingfile) {
     
     int NGPU = GetNGPU();
 
-    if(JJ){
+    if(NFD){
         REPORT(1, "NearForce [blocking]", NearForce.Elapsed()); total += thistime;
-        REPORT(1, "NearForce [non-blocking]", JJ->GPUThroughputTime); //total += thistime;
-        fprintf(timingfile,"---> %6.2f effective GDIPS, %6.2f Gdirects, %.2f Mpart/sec", thistime ? JJ->gdi_gpu/thistime : 0, JJ->gdi_gpu, thistime ? P.np/thistime/1e6 : 0.);
-        double total_di = (JJ->DirectInteractions_CPU +JJ->TotalDirectInteractions_GPU)/1e9;
+        REPORT(1, "NearForce [non-blocking]", NFD->GPUThroughputTime); //total += thistime;
+        fprintf(timingfile,"---> %6.2f effective GDIPS, %6.2f Gdirects, %.2f Mpart/sec", thistime ? NFD->gdi_gpu/thistime : 0, NFD->gdi_gpu, thistime ? P.np/thistime/1e6 : 0.);
+        double total_di = (NFD->DirectInteractions_CPU +NFD->TotalDirectInteractions_GPU)/1e9;
     }
 #else
     REPORT(1, "NearForce", NearForce.Elapsed()); total += thistime;
@@ -171,7 +171,7 @@ void ReportTimings(FILE * timingfile) {
     double slabforcemaxlatency = 0;
     double slabforceminlatency = 1e9;
 
-    if(JJ){
+    if(NFD){
         char fn[1024];
         sprintf(fn,"%s/lastrun.slabtimes",P.LogDirectory);
         FILE* slabtimefile = fopen(fn,"wb");
@@ -202,50 +202,50 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1,"Mean Force Latency",slabforcelatencymean);
     fprintf(timingfile,"\n\t\tSigma(STD): %.2e s\t Min: %.2e s\t Max: %.2e s ",slabforcelatencysigma,slabforceminlatency,slabforcemaxlatency);
     
-    if(JJ){
+    if(NFD){
         fprintf(timingfile, "\n\nBreakdown of Near Force:");
-        double gdi_cpu = JJ->DirectInteractions_CPU/1e9;  // Measure per-core load balancing?
+        double gdi_cpu = NFD->DirectInteractions_CPU/1e9;  // Measure per-core load balancing?
 #ifdef CUDADIRECT
         fprintf(timingfile, "\n\tNotes about non-blocking timing:\n");
         fprintf(timingfile, "\t- \"Directs Throughput\" is the wall clock time while at least one GPU thread is running (copy or compute).\n");
         fprintf(timingfile, "\t- \"Effective\" GDIPS is based on this throughput.\n");
         denom = NearForce.Elapsed();
         REPORT(1, "Blocking", NearForce.Elapsed());
-        REPORT(2, "Calculate Splits", JJ->CalcSplitDirects.Elapsed());
-        REPORT(2, "Construct Pencils", JJ->SICConstruction.Elapsed());
-        REPORT(2, "Dispatch Interaction", JJ->SICExecute.Elapsed());
-        REPORT(2, "CPU Fallback", JJ->CPUFallbackTimer.Elapsed());
-                fprintf(timingfile,"---> %6.2f GDIPS, %6.2f Gdirects, %6.2f Mpart/sec\n", thistime ? gdi_cpu/thistime : 0., gdi_cpu, thistime ? JJ->NSink_CPU/thistime/1e6 : 0.);
+        REPORT(2, "Calculate Splits", NFD->CalcSplitDirects.Elapsed());
+        REPORT(2, "Construct Pencils", NFD->SICConstruction.Elapsed());
+        REPORT(2, "Dispatch Interaction", NFD->SICExecute.Elapsed());
+        REPORT(2, "CPU Fallback", NFD->CPUFallbackTimer.Elapsed());
+                fprintf(timingfile,"---> %6.2f GDIPS, %6.2f Gdirects, %6.2f Mpart/sec\n", thistime ? gdi_cpu/thistime : 0., gdi_cpu, thistime ? NFD->NSink_CPU/thistime/1e6 : 0.);
         
-        denom = JJ->DeviceThreadTimer;
+        denom = NFD->DeviceThreadTimer;
         char str[1024];  sprintf(str, "Non-Blocking (thread-seconds, %d threads)", NGPU*DirectBPD);
-        REPORT(1, str, JJ->DeviceThreadTimer);
-            REPORT(2, "Fill Sinks", JJ->FillSinks);  // filling is unpadded
-                    fprintf(timingfile,"---> %6.1f MB/s, %6.2f MSink/sec", thistime ? JJ->total_sinks*sizeof(posstruct)/1e6/thistime : 0., thistime ? JJ->total_sinks/1e6/thistime : 0.);
-            REPORT(2, "Fill Sources", JJ->FillSources);
-                    fprintf(timingfile,"---> %6.1f MB/s, %6.2f MSource/sec", thistime ? JJ->total_sources*sizeof(posstruct)/1e6/thistime : 0., thistime ? JJ->total_sources/1e6/thistime : 0.);
-            REPORT(2, "Launch Kernels", JJ->LaunchDeviceKernels);
-            REPORT(2, "Wait for GPU Result", JJ->WaitForResult);
-            REPORT(2, "Copy Accel from Pinned", JJ->CopyAccelFromPinned);
-                    fprintf(timingfile,"---> %6.1f MB/s, %6.2f MSink/sec\n", thistime ? JJ->total_sinks*sizeof(accstruct)/1e6/thistime : 0., thistime ? JJ->total_sinks/1e6/thistime : 0.);  // same number of accels as sinks
+        REPORT(1, str, NFD->DeviceThreadTimer);
+            REPORT(2, "Fill Sinks", NFD->FillSinks);  // filling is unpadded
+                    fprintf(timingfile,"---> %6.1f MB/s, %6.2f MSink/sec", thistime ? NFD->total_sinks*sizeof(posstruct)/1e6/thistime : 0., thistime ? NFD->total_sinks/1e6/thistime : 0.);
+            REPORT(2, "Fill Sources", NFD->FillSources);
+                    fprintf(timingfile,"---> %6.1f MB/s, %6.2f MSource/sec", thistime ? NFD->total_sources*sizeof(posstruct)/1e6/thistime : 0., thistime ? NFD->total_sources/1e6/thistime : 0.);
+            REPORT(2, "Launch Kernels", NFD->LaunchDeviceKernels);
+            REPORT(2, "Wait for GPU Result", NFD->WaitForResult);
+            REPORT(2, "Copy Accel from Pinned", NFD->CopyAccelFromPinned);
+                    fprintf(timingfile,"---> %6.1f MB/s, %6.2f MSink/sec\n", thistime ? NFD->total_sinks*sizeof(accstruct)/1e6/thistime : 0., thistime ? NFD->total_sinks/1e6/thistime : 0.);  // same number of accels as sinks
             
-        denom = JJ->GPUThroughputTime;
-        REPORT(1, "Non-Blocking Throughput (Wall Clock)", JJ->GPUThroughputTime);
-                fprintf(timingfile,"\n\t\t\t\t---> %6.2f effective GDIPS, %6.2f Mpart/sec, %6.2f Msink/sec", thistime ? JJ->gdi_gpu/thistime : 0., thistime ? P.np/thistime/1e6 : 0., thistime ? JJ->total_sinks/thistime/1e6 : 0.);
-                fprintf(timingfile,"\n\t\t\t\t---> %6.2f Gdirects, %6.2f padded Gdirects", JJ->gdi_gpu, JJ->gdi_padded_gpu);
-                fprintf(timingfile,"\n\t\t\t\t---> with %d device threads, estimate %.1f%% thread concurrency", NGPU*DirectBPD, (JJ->DeviceThreadTimer - JJ->GPUThroughputTime)/(JJ->DeviceThreadTimer - JJ->DeviceThreadTimer/(NGPU*DirectBPD))*100);
+        denom = NFD->GPUThroughputTime;
+        REPORT(1, "Non-Blocking Throughput (Wall Clock)", NFD->GPUThroughputTime);
+                fprintf(timingfile,"\n\t\t\t\t---> %6.2f effective GDIPS, %6.2f Mpart/sec, %6.2f Msink/sec", thistime ? NFD->gdi_gpu/thistime : 0., thistime ? P.np/thistime/1e6 : 0., thistime ? NFD->total_sinks/thistime/1e6 : 0.);
+                fprintf(timingfile,"\n\t\t\t\t---> %6.2f Gdirects, %6.2f padded Gdirects", NFD->gdi_gpu, NFD->gdi_padded_gpu);
+                fprintf(timingfile,"\n\t\t\t\t---> with %d device threads, estimate %.1f%% thread concurrency", NGPU*DirectBPD, (NFD->DeviceThreadTimer - NFD->GPUThroughputTime)/(NFD->DeviceThreadTimer - NFD->DeviceThreadTimer/(NGPU*DirectBPD))*100);
                 
             fprintf(timingfile, "\n    Device stats:\n");
             for(int g = 0; g < NGPU*DirectBPD; g++){
                 fprintf(timingfile, "        Device thread %d (GPU %d):", g, g % NGPU);
-                fprintf(timingfile, " %.2f GB to device, %.2f GB from device, %.2f Msink, %.2f Gdirects\n", JJ->GB_to_device[g], JJ->GB_from_device[g], JJ->DeviceSinks[g]/1e6, JJ->DirectInteractions_GPU[g]/1e9);
+                fprintf(timingfile, " %.2f GB to device, %.2f GB from device, %.2f Msink, %.2f Gdirects\n", NFD->GB_to_device[g], NFD->GB_from_device[g], NFD->DeviceSinks[g]/1e6, NFD->DirectInteractions_GPU[g]/1e9);
             }
 #else
         REPORT(1, "CPU directs", NearForce.Elapsed());
-            fprintf(timingfile,"---> %6.2f GDIPS, %6.2f Gdirects, %6.2f Mpart/sec", thistime ? gdi_cpu/thistime : 0., gdi_cpu, thistime ? JJ->NSink_CPU/thistime/1e6 : 0.);
+            fprintf(timingfile,"---> %6.2f GDIPS, %6.2f Gdirects, %6.2f Mpart/sec", thistime ? gdi_cpu/thistime : 0., gdi_cpu, thistime ? NFD->NSink_CPU/thistime/1e6 : 0.);
 
 #endif
-        } // if(JJ)
+        } // if(NFD)
     
     if (TY!=NULL) {    // Not in IC steps
         fprintf(timingfile, "\nBreakdown of Taylor Evaluate:");
@@ -266,8 +266,8 @@ void ReportTimings(FILE * timingfile) {
     REPORT(1, "Kick", Kick.Elapsed());
         REPORT_RATE();
     denom = thistime;
-        if(JJ){
-            REPORT(2, "Accumulate Pencil Stats", JJ->FinalizeTimer.Elapsed());
+        if(NFD){
+            REPORT(2, "Accumulate Pencil Stats", NFD->FinalizeTimer.Elapsed());
         }
         REPORT(2, "Add Near + Far Accel", AddAccel.Elapsed());
             fprintf(timingfile,"---> %6.2f GB/sec", thistime ? P.np/thistime*3*sizeof(accstruct)/1e9 : 0.);
@@ -364,8 +364,11 @@ void ReportTimings(FILE * timingfile) {
     
     // Misc global timings
     denom = TimeStepWallClock.Elapsed();
-    REPORT(0, "\nAllocate Arena Memory", LBW->ArenaMalloc.Elapsed());
-    REPORT(0, "Free Arena Memory", LBW->ArenaFreeTime());
+    double arena_malloc, arena_free;
+    SB->GetMallocFreeTimes(&arena_malloc, &arena_free);
+
+    REPORT(0, "\nAllocate Arena Memory", arena_malloc);
+    REPORT(0, "Free Arena Memory", arena_free);
     REPORT(0, "Free SlabAccum Variables", SlabAccumFree.Elapsed());
     
     fprintf(timingfile, "\n\nReasons for Spinning:");
