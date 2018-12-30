@@ -42,7 +42,7 @@ class iorequest {
     off_t     fileoffset = 0; 	// only used for reading
     int     deleteafterwriting = 0; // use IO_DELETE, IO_KEEP
     int     blocking = 0;		// use IO_BLOCKING, IO_NONBLOCKING
-    int     io_method = 0;  // use IO_DIRECT, IO_FOPEN  (TODO: not yet implemented)
+    int     io_method = 0;  // use IO_DIRECT, IO_FOPEN
 
     void dumpior() {
         printf("IOR memory = %p ", memory);

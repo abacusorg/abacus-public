@@ -212,7 +212,6 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
         char filename[1024];
         getLightConeFN(lcn,slab,filename);
         SB->ResizeSlab(lightcone, slab, AA->bytes_written());
-        // TODO: make sure this interacts as we want with the ramdisk
         SB->WriteArena(lightcone, slab, IO_DELETE, IO_NONBLOCKING, filename);
     } else {
         // No particles in this lc; don't write anything

@@ -118,15 +118,12 @@ int is_path_on_ramdisk(std::string path){
     const char *c_str = path.c_str();
     int res = is_path_on_ramdisk(c_str);
     return res;
-    /*
-    // TODO: Ramdisk detection via path name is not very elegant
-    // The alternative would be to add separate P.RamDisk parameters for the state and convolution state
-    // But this way works for all directories, even oddballs like TimeSlice
-    std::string ramdisk_prefix(RAMDISK_PATH);
-    return path.compare(0, ramdisk_prefix.length(), ramdisk_prefix) == 0;*/
 }
 
 int is_path_on_ramdisk(const char* path){
+    // This Ramdisk detection via path name is not very elegant
+    // But if there is a programmatic way to determine it, I haven't found it
+
     char str[1024];
     strncpy(str, path, 1024);
     ExpandPathName(str);

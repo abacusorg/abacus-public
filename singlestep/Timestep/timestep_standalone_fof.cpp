@@ -29,7 +29,6 @@ void StandaloneFOFLoadSlabAction(int slab) {
     // We will read the raw pack14 asynchronously with SB
     // then unpack it in a separate dependency
     // TODO: support states as well as time slices
-    // TODO: ignores ramdisk
     SB->ReadArena(TimeSlice, slab, IO_NONBLOCKING, fname);
 }
 

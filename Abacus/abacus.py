@@ -487,13 +487,12 @@ def setup_state_dirs(paramfn):
 
     # If the links don't exist, create them and the underlying dirs
     # If they do exist, don't touch them
-    def make_link(link, target, is_file=False):
+    def make_link(link, target):
         if path.exists(link):
             # link already existing as a file/directory instead of a link is an error!
             assert path.islink(link)
         else:
-            if not is_file:
-                os.makedirs(target, exist_ok=True)
+            os.makedirs(target, exist_ok=True)
             os.symlink(target, link)
     
     # Set up symlinks to slosh the state
@@ -587,10 +586,7 @@ def move_state_dirs(read, write, past, multipoles, taylors):
 def remove_MT(md, pattern, rmdir=False):
     # Quick util to clear multipoles/taylors
     for mfn in glob(pjoin(md, pattern)):
-        # If the file is actually a symlink, keep it
-        # This is how we implement M/T overwriting, for example
-        if not path.islink(mfn):
-            os.remove(mfn)
+        os.remove(mfn)
     if rmdir:
         try:
             os.rmdir(md)

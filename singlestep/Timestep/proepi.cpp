@@ -287,6 +287,7 @@ void Epilogue(Parameters &P, bool ic) {
     delete CP;
     delete IL;
     delete SS;
+    delete Grid;
 
 
     if(!ic) {

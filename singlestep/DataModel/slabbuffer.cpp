@@ -500,9 +500,6 @@ void SlabBuffer::ReadArena(int type, int slab, int blocking){
         return;
     }
 
-    // TODO: a more flexible way to do this might be to explicitly pass paths down the stack into the ArenaAllocator
-    // That way, any arena can get attached to any shared memory path
-    // Right now, we're married to allocations only coming from the canonical Descriptor path
     ReadArena(type, slab, blocking, path);
 }
 
