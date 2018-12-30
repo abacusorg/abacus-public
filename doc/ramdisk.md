@@ -282,13 +282,13 @@ we enforce mapping the whole file at once if we're on ramdisk which effectively 
 ## Footnotes
 [↩](#a1) <b name="f1">1:</b> This path seems quite standard.  From https://www.kernel.org/doc/Documentation/filesystems/tmpfs.txt: 
 > glibc 2.2 and above expects tmpfs to be mounted at /dev/shm for
-> POSIX shared memory"
+> POSIX shared memory
 
 [↩](#a2) <b name="f2">2:</b> From http://man7.org/linux/man-pages/man7/shm_overview.7.html:
 > POSIX shared memory objects have kernel persistence: a shared memory
 > object will exist until the system is shut down, or until all
 > processes have unmapped the object and it has been deleted with
-> shm_unlink(3)."
+> shm_unlink(3).
 
 ## Resources
 - https://github.com/abacusorg/abacus/issues/215
