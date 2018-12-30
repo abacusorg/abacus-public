@@ -124,7 +124,7 @@ public:
 
             if(!(CP.OverwriteConvState && ramdisk_MT)){
                 // Either we're not on the ramdisk, in which case we're doing an ordinary DIO read
-                // or we are on the ramdisk but we're overwriting, so we need to read into the newly-allocated Taylors block
+                // or we are on the ramdisk but we aren't overwriting, so we need to read into the newly-allocated Taylors block
                 RD_RDM->BlockingRead( fn, (char *) mtblock[x], size, file_offset, ramdisk_MT);
                 ReadMultipoleBytes += size;
             }

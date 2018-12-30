@@ -163,6 +163,64 @@ void setup_openmp(){
 
 }
 
+int choose_zwidth(int Conv_zwidth, int cpd, ConvolutionParameters &CP){
+    // Choose the convolution zwidth (number of planes to operate on at once)
+    // Use the zwidth in the parameter file if given
+    // Negative (default) means choose one based on available RAM
+    // Zero means set zwidth to max
+
+    uint64_t rambytes = CP.runtime_MaxConvolutionRAMMB;
+    rambytes *= 1024*1024;
+    
+    // If doing IO in parallel, need one block for reading, one for compute
+    // The swizzle "block" can just be a single z-plane, but is usually twice the precision
+#ifdef CONVIOTHREADED
+    int n_alloc_block = 2;
+#else
+    int n_alloc_block = 1;
+#endif
+    uint64_t zslabbytes = CP.rml*cpd*cpd*n_alloc_block*sizeof(MTCOMPLEX);
+    zslabbytes += n_alloc_block*sizeof(DFLOAT)*CP.rml*CP.CompressedMultipoleLengthXY;  // derivatives block
+    STDLOG(0,"Each slab requires      %.2f MB\n",zslabbytes/1024/1024.);
+    STDLOG(0,"You allow a maximum of  %.2f MB\n",rambytes/1024/1024.);
+    uint64_t swizzlebytes = CP.rml*cpd*cpd*sizeof(Complex);
+    if(rambytes < zslabbytes) { 
+        fprintf(stderr, "Each slab requires      %.2f MB\n", zslabbytes/1024/1024.);
+        fprintf(stderr, "You allow a maximum of  %.2f MB\n", rambytes/1024/1024.);
+        fprintf(stderr, "[ERROR] rambytes<zslabbytes\n");
+        exit(1);
+    }
+
+    // If we are on the ramdisk, then we know the problem fits in memory! Just do the whole thing at once
+    // If we aren't overwriting, there might be a small efficiency gain from smaller zwidth since reading requires a memcpy()
+    // TODO: need to support ramdisk offsets if we want to support zwidth < max
+    if(CP.is_ramdisk()){
+        STDLOG(0, "Forcing zwidth = full since we are using ramdisk\n");
+        return (cpd + 1)/2;  // full width
+    }
+
+    if(Conv_zwidth > 0){
+        return Conv_zwidth;
+    }
+    else if(Conv_zwidth == 0){
+        return (cpd + 1)/2;  // full width
+    }
+    else {
+        int zwidth = 0;
+        for(zwidth = (cpd+1)/2; zwidth >= 1;zwidth--) {
+            if(zwidth*zslabbytes + swizzlebytes < rambytes)
+                break;
+        }
+
+        // If we're allocating more than one block, make sure we have at least one z-split
+        if(n_alloc_block > 1)
+            zwidth = min((cpd+1)/4, zwidth);
+        return zwidth;
+    }
+
+    return -1;
+}
+
 int main(int argc, char ** argv){
 	TotalWallClock.Start();
 	Setup.Start();
@@ -196,6 +254,21 @@ int main(int argc, char ** argv){
 	    CP.runtime_MaxConvolutionRAMMB = P.MAXRAMMB;
 	    strcpy(CP.runtime_MultipoleDirectory, P.MultipoleDirectory);
 
+        CP.ProfilingMode = P.ProfilingMode;
+
+	    sprintf(CP.runtime_MultipolePrefix, "Multipoles");
+	    CP.runtime_NearFieldRadius = P.NearFieldRadius;
+	    strcpy(CP.runtime_TaylorDirectory, P.TaylorDirectory);
+	    CP.runtime_cpd = P.cpd;
+	    CP.runtime_order = P.order;
+        CP.rml = (P.order+1)*(P.order+1);
+        CP.CompressedMultipoleLengthXY = ((1+P.cpd)*(3+P.cpd))/8;
+	    sprintf(CP.runtime_TaylorPrefix, "Taylor");
+        
+        CP.StripeConvState = strcmp(P.Conv_IOMode, "stripe") == 0;
+        CP.OverwriteConvState = strcmp(P.Conv_IOMode, "overwrite") == 0;
+
+        // Determine number of IO threads
         CP.niothreads = 1;
         if(strcmp(P.MultipoleDirectory2,STRUNDEF) != 0){
             strcpy(CP.runtime_MultipoleDirectory2,P.MultipoleDirectory2);
@@ -210,20 +283,6 @@ int main(int argc, char ** argv){
             CP.niothreads = 2;
 #endif
         }
-
-        CP.ProfilingMode = P.ProfilingMode;
-
-	    sprintf(CP.runtime_MultipolePrefix, "Multipoles");
-	    CP.runtime_NearFieldRadius = P.NearFieldRadius;
-	    strcpy(CP.runtime_TaylorDirectory, P.TaylorDirectory);
-	    CP.runtime_cpd = P.cpd;
-	    CP.runtime_order = P.order;
-        CP.rml = (P.order+1)*(P.order+1);
-        CP.CompressedMultipoleLengthXY = ((1+P.cpd)*(3+P.cpd))/8;
-	    sprintf(CP.runtime_TaylorPrefix, "Taylor");
-        
-        CP.StripeConvState = strcmp(P.Conv_IOMode, "stripe") == 0;
-        CP.OverwriteConvState = strcmp(P.Conv_IOMode, "overwrite") == 0;
         
         int cml = ((P.order+1)*(P.order+2)*(P.order+3))/6;
         int nprocs = omp_get_max_threads();
@@ -236,46 +295,7 @@ int main(int argc, char ** argv){
                     // 2.5 = 2 Complex (mcache,tcache) 1 double dcache
         CP.blocksize = blocksize;
         
-        uint64_t rambytes = CP.runtime_MaxConvolutionRAMMB;
-        rambytes *= 1024*1024;
-        
-        // If doing IO in parallel, need one block for reading, one for compute
-        // The swizzle "block" can just be a single z-plane, but is usually twice the precision
-#ifdef CONVIOTHREADED
-        int n_alloc_block = 2;
-#else
-        int n_alloc_block = 1;
-#endif
-        uint64_t zslabbytes = CP.rml*P.cpd*P.cpd*n_alloc_block*sizeof(MTCOMPLEX);
-        zslabbytes += n_alloc_block*sizeof(DFLOAT)*CP.rml*CP.CompressedMultipoleLengthXY;  // derivatives block
-        STDLOG(0,"Each slab requires      %.2f MB\n",zslabbytes/1024/1024.);
-        STDLOG(0,"You allow a maximum of  %.2f MB\n",rambytes/1024/1024.);
-        uint64_t swizzlebytes = CP.rml*P.cpd*P.cpd*sizeof(Complex);
-        if(rambytes < zslabbytes) { 
-            fprintf(stderr, "Each slab requires      %.2f MB\n", zslabbytes/1024/1024.);
-            fprintf(stderr, "You allow a maximum of  %.2f MB\n", rambytes/1024/1024.);
-            fprintf(stderr, "[ERROR] rambytes<zslabbytes\n");
-            exit(1);
-        }
-
-        // Use the zwidth in the parameter file if given
-        // Negative (default) means choose one based on available RAM
-        // Zero means set zwidth to max
-        if(P.Conv_zwidth > 0)
-            CP.zwidth = P.Conv_zwidth;
-        else if(P.Conv_zwidth == 0)
-            CP.zwidth = (P.cpd + 1)/2;
-        else {
-            int zwidth = 0;
-            for(zwidth=(P.cpd+1)/2;zwidth >= 1;zwidth--) {
-                if( zwidth*zslabbytes + swizzlebytes < rambytes) break;
-            }
-            // If we're allocating more than one block, make sure we have at least one z-split
-            if(n_alloc_block > 1)
-                zwidth = min((P.cpd+1)/4, zwidth);
-            CP.zwidth = zwidth;
-        }
-
+        CP.zwidth = choose_zwidth(P.Conv_zwidth, P.cpd, CP);
         STDLOG(0,"Using zwidth: %d \n", CP.zwidth);
         
         for (int i = 0; i < MAX_IO_THREADS; i++)

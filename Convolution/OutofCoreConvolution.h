@@ -74,6 +74,15 @@ public:
         else
             sprintf(fn, "%s/%s_%04d", runtime_TaylorDirectory, runtime_TaylorPrefix, slab);
     }
+
+    // For zwidth purposes, we'll need to know if the MT are on ramdisk
+    int is_ramdisk(){
+        // For simplicity, multipoles and taylors must be either both or neither on ramdisk
+        int mramdisk = is_path_on_ramdisk(runtime_MultipoleDirectory);
+        assert(mramdisk == is_path_on_ramdisk(runtime_TaylorDirectory));
+
+        return mramdisk;
+    }
 };
 
 #include "block_io_utils.cpp"

@@ -28,21 +28,16 @@ void FetchPosSlabAction(int slab) {
     STDLOG(0,"Fetching slab %d with %d particles\n", slab, SS->size(slab));
 
     // Load directly into the merge slabs
-    //SB->LoadArenaNonBlocking(MergeCellInfoSlab, slab, CellInfoSlab);
-    //SB->LoadArenaNonBlocking(MergePosSlab, slab, CellInfoSlab);
+    SB->LoadArenaNonBlocking(MergeCellInfoSlab, slab);
+    SB->LoadArenaNonBlocking(MergePosSlab, slab);
 
     assertf(SS->size(slab)*sizeof(posstruct) <= fsize(SB->ReadSlabPath(PosSlab,slab).c_str()),
         "PosSlab size doesn't match prediction\n");
-    /*SB->LoadArenaNonBlocking(AuxSlab,slab);
-    assertf(SS->size(slab)*sizeof(auxstruct)<=
-        fsize(SB->ReadSlabPath(AuxSlab,slab).c_str()),
-        "AuxSlab size doesn't match prediction\n");*/
 }
 
 int FinishMultipolesPrecondition(int slab) {
     if( !SB->IsIOCompleted( MergePosSlab,      slab )
         || !SB->IsIOCompleted( MergeCellInfoSlab, slab )
-        //|| !SB->IsIOCompleted( AuxSlab,      slab )
         ) return 0;
     return 1;
 }

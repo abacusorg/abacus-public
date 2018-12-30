@@ -13,7 +13,7 @@ for the creation of the initial state.  This just loads particles
 to the insert list and then calls finish.
 
 We also provide another simplified pipeline to recover multipoles
-from position slabs.  This is invoked via the `make_multipoles`
+from position slabs.  This is invoked via the `recover_multipoles`
 executable.
 
 */
@@ -174,7 +174,7 @@ void NearForceAction(int slab) {
         accstruct *nearacc = (accstruct *) SB->GetSlabPtr(AccSlab, slab);
         memcpy(nearacctmp, nearacc, npslab*sizeof(accstruct));
         FLOAT inv_eps3 = 1./(NFD->SofteningLengthInternal*NFD->SofteningLengthInternal*NFD->SofteningLengthInternal);
-        for(int i = 0; i < npslab; i++)
+        for(uint64 i = 0; i < npslab; i++)
             nearacc[i] *= inv_eps3; 
 #endif
         SB->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
@@ -207,8 +207,7 @@ int TaylorForcePrecondition(int slab) {
 void TaylorForceAction(int slab) {
     STDLOG(1,"Computing far-field force for slab %d\n", slab);
     SlabFarForceTime[slab].Start();
-    SB->AllocateArena(FarAccSlab, slab,
-                        P.ForceOutputDebug ? RAMDISK_AUTO : RAMDISK_NO);
+    SB->AllocateArena(FarAccSlab, slab);
     
     TaylorCompute.Start();
     ComputeTaylorForce(slab);

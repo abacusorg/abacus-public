@@ -73,16 +73,14 @@ class iorequest {
         
         memset(this, 0, sizeof(iorequest));   // Set to zero to appease valgrind
 
-        // TODO: unify DIO and fopen interfaces; use this as the switch
+        memory = _memory;
+        sizebytes = _sizebytes;
+        strncpy(filename, _filename, 1024);
+
         if(is_path_on_ramdisk(filename))
             io_method = IO_FOPEN;
         else
             io_method = IO_DIRECT;
-            
-
-        memory = _memory;
-        sizebytes = _sizebytes;
-        strncpy(filename, _filename, 1024);
         
         // Get the directory of the file for logging purposes
         // Believe it or not, dirname modifies its argument

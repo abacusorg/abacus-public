@@ -1,4 +1,3 @@
-RamDisk = 0
 StateIOMode = "normal"
 Conv_IOMode = "normal"
 IODirs = ["multipole/", "taylor/", "multipole2/", "taylor2/"]

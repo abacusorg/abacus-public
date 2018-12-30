@@ -299,8 +299,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     char *buffer = SB->GetSlabPtr(NearField_SIC_Slab, slabID);
 
     // And allocate space for the accelerations
-    SB->AllocateArena(AccSlab,slabID,
-        P.ForceOutputDebug ? RAMDISK_AUTO_WRITESLAB : RAMDISK_NO);
+    SB->AllocateArena(AccSlab,slabID);
 
     CalcSplitDirects.Stop();
 

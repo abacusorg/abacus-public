@@ -301,9 +301,6 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
 
             // Use open() to create the shm fd instead of shm_open()
             // They do the same thing, but open() takes a full path and allows subdirectories
-            
-            //char ramdisk_fn[1024];
-            //sprintf(ramdisk_fn, "/dev/shm/lgarrison/ewald/arena_%d", id);
 
             // Remove the shared memory handle if it exists
             // Technically, this is only necessary if we're overwriting the state

@@ -192,9 +192,8 @@ public:
   */
 int SlabBuffer::IsRamdiskSlab(int type, int hint){
 
-    // TODO: It's still possible to write a slab to ramdisk even if it's not listed below
-    // One just has to use P.RamDisk = 1 to tell the IO module not to try DIO
-    // That flag is a pretty clumsy global setting though
+    // It's still possible to write a slab to ramdisk even if it's not listed below
+    // The IO module should detect that it's a ramdisk path and use fopen instead of DIO
 
     // Does the hint indicate that we already decided the fate of this slab?
     if(hint >= RAMDISK_NO && hint < RAMDISK_AUTO)
@@ -314,12 +313,19 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
             }
             ss << P.TaylorDirectory << "/Taylor_"     << slabnum; break;
         }
+
+        // The Merge slabs are usually write slabs, but can be used as read slabs in multipole recovery mode
+        case MergeCellInfoSlab :
         case CellInfoSlab  : { ss << P.ReadStateDirectory << "/cellinfo_"   << slabnum; break; }
+
+        case MergePosSlab :
         case PosSlab       : { ss << P.ReadStateDirectory << "/position_"   << slabnum; break; }
+
         case VelSlab       : { ss << P.ReadStateDirectory << "/velocity_"   << slabnum; break; }
         case AuxSlab       : { ss << P.ReadStateDirectory << "/auxillary_"  << slabnum; break; }
         case VelLPTSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
         case TimeSlice     : { ss << WriteSlabPath(type, slab); }  // used for standalone FOF
+
         default:
             QUIT("Illegal type %d given to ReadSlabPath()\n", type);
     }
@@ -332,6 +338,7 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
     int rml = (order+1)*(order+1);
     uint64 lcpd = cpd;  // Just to assure that we don't spill 32-bits
 
+    // TODO: can we use the SlabSize info instead of fsize for these?
     switch(type) {
         case CellInfoSlab        : { return sizeof(cellinfo)*lcpd*lcpd; }
         case MergeCellInfoSlab   : { return sizeof(cellinfo)*lcpd*lcpd; }
@@ -511,8 +518,10 @@ void SlabBuffer::LoadArenaNonBlocking(int type, int slab) {
 
 
 void SlabBuffer::ReadArena(int type, int slab, int blocking, const char *fn) {
-    // This will read into an arena.  
+    // This will read into an arena.
+    // This always triggers a real read, even if the path is on the ramdisk!
     // The read is always ordered to be the full usable size of the arena.
+
     if (P.ForceBlockingIO!=0)
         blocking = IO_BLOCKING;
 
@@ -535,6 +544,8 @@ void SlabBuffer::ReadArena(int type, int slab, int blocking, const char *fn) {
 
 void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, const char *fn) {
     // This will write into an arena.
+    // This always triggers a real write, even if the path is on the ramdisk!
+
     if (P.ForceBlockingIO!=0)
         blocking = IO_BLOCKING;
 

@@ -15,7 +15,7 @@ ifeq ($(CUDA_ENABLED),CUDA_ENABLED)
 	SINGLESTEP_LIBS += $(CUDA_LIBS)
 endif
 
-PIPELINES = singlestep make_multipoles benchmark_io standalone_fof
+PIPELINES = singlestep recover_multipoles benchmark_io standalone_fof
 
 all: singlestep
 

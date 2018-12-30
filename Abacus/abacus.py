@@ -747,14 +747,14 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
                 # Invole multipole recovery mode
                 print("Warning: missing multipoles! Performing multipole recovery for step {:d}".format(i))
                 
-                # Build the make_multipoles executable
+                # Build the recover_multipoles executable
                 with Tools.chdir(pjoin(abacuspath, "singlestep")):
-                    subprocess.check_call(['make', 'make_multipoles'])
+                    subprocess.check_call(['make', 'recover_multipoles'])
 
                 # Execute it
-                print("Running make_multipoles for step {:d}".format(stepnum))
-                subprocess.check_call([pjoin(abacuspath, "singlestep", "make_multipoles"), paramfn], env=singlestep_env)
-                save_log_files(param.LogDirectory, 'step{:04d}.make_multipoles'.format(read_state.FullStepNumber))
+                print("Running recover_multipoles for step {:d}".format(stepnum))
+                subprocess.check_call([pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn], env=singlestep_env)
+                save_log_files(param.LogDirectory, 'step{:04d}.recover_multipoles'.format(read_state.FullStepNumber))
                 print('\tFinished multipole recovery for read state {}.'.format(read_state.FullStepNumber))
 
             # Swap the Taylors link.  In effect, this will place the Taylors on the same disk as the multipoles.
