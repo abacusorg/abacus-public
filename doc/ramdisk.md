@@ -1,6 +1,7 @@
 # Abacus Ramdisk Interface
 Author: Lehman Garrison
-PR [#218](https://github.com/abacusorg/abacus/pull/218)
+
+[Pull Request #218](https://github.com/abacusorg/abacus/pull/218)
 
 Abacus is ramdisk-aware, meaning some of its memory allocation and IO behaviors
 are different when files are on ramdisk instead of a normal file system.  This document
@@ -68,8 +69,8 @@ we should make a new allocation.  Again, these are explicitly itemized in `SlabB
 
 When `SlabBuffer` asks `ArenaAllocator` to make a new allocation, it may pass the ramdisk
 read/write type flag to request a shared-memory allocation.  If it does so, it must also pass
-the path at which to read/write the slab.  This path is usually just the `Read`/`WriteSlabPath`.
-It is possible to supply other paths, though; see Multipole Recovery below.
+the path at which to read/write the slab.  This path is usually just the canonical path from 
+`Read`/`WriteSlabPath()`.
 
 Some slabs may not be allocated in shared memory but end up with an output request to ramdisk,
 like `TimeSlice` or group finding outputs.  Unfortunately, direct IO will break if one tries
@@ -79,7 +80,7 @@ Now, when an IO request is created, the path is checked and flagged as ramdisk/n
 The IO thread then uses the appropriate IO mode.
 
 This automatic detection and switching is only implemented for the IO thread module; it's
-likely we want to deprecate the other IO modules (io_fopen and io_dio).  The IO thread
+likely we want to deprecate the other IO modules (`io_fopen` and `io_dio`).  The IO thread
 module has a blocking mode, so we're not losing flexibility that way.
 
 The `ArenaAllocator` keeps a flag indicating whether an arena exists in shared memory.
@@ -95,7 +96,7 @@ is indeed a read type.  We use this in multipole recovery mode (see below).
 
 ### Ramdisk slab life cycle
 
-Let's look at a concrete example of the life cycle of `PosSlab`
+To understand the ramdisk interface, consider how we would load a `PosSlab`:
 
 1) `FetchSlabAction(...)` starts the read with `SlabBuffer::LoadArenaNonBlocking(PosSlab,slab)`.
 2) `LoadArenaNonBlocking(...)` calls `SlabBuffer::AllocateArena(...)`, which triggers `SlabBuffer::AllocateSpecificSize(...)`.
@@ -135,8 +136,8 @@ read slab.  Thus, `AA` will read from an existing allocation (in this case, the 
 
 When overwriting a slab, we're writing a new "file" on the ramdisk with the same name.  But we
 might not be done with that slab; for example, the orginal `CellInfo` slabs are still used after
-we write the `MergeCellInfo` slab.  Fortunately, the memory remains available if one deletes
-the file on ramdisk, as long as there's an open `mmap`-ing.  This is POSIX guaranteed<sup name="a2">[2](#f2)</sup>.
+we write the `MergeCellInfo` slab.  Fortunately, the memory remains available even if one deletes
+the file on ramdisk, as long as there's an open `mmap`-ing.  This is POSIX guaranteed <sup name="a2">[2](#f2)</sup>.
 So one just has to delete/unlink the file and create a new one with the same name; this will
 produce a new file descriptor and thus a new shared memory allocation.
 
@@ -221,7 +222,7 @@ from the shared memory into a new buffer.  The convolution
 operates on this buffer, and the result is "unswizzled" into the original location in the
 shared memory.  Thus, we go plane-by-plane overwriting Taylors onto multipoles.
 
-At the end of the convolution, if we were overwriting we thus have CPD files named "Multipole_XXXX" that are in
+At the end of the convolution, if we were overwriting we thus have CPD files named `Multipole_XXXX` that are in
 fact not filled with multipoles but Taylors!  The final step of convolution is thus to
 rename these files.  This is always true if we are overwriting, regardless of whether it's a
 ramdisk overwrite.
@@ -279,13 +280,15 @@ we enforce mapping the whole file at once if we're on ramdisk which effectively 
 
 
 ## Footnotes
-<b name="f1">1:</b> This path seems quite standard: "glibc 2.2 and above expects tmpfs to be mounted at /dev/shm for
-   POSIX shared memory" (https://www.kernel.org/doc/Documentation/filesystems/tmpfs.txt). [↩](#a1)
-<b name="f2">2:</b> From http://man7.org/linux/man-pages/man7/shm_overview.7.html:
-       "POSIX shared memory objects have kernel persistence: a shared memory
-       object will exist until the system is shut down, or until all
-       processes have unmapped the object and it has been deleted with
-       shm_unlink(3)." [↩](#a2)
+[↩](#a1) <b name="f1">1:</b> This path seems quite standard.  From https://www.kernel.org/doc/Documentation/filesystems/tmpfs.txt: 
+> glibc 2.2 and above expects tmpfs to be mounted at /dev/shm for
+> POSIX shared memory"
+
+[↩](#a2) <b name="f2">2:</b> From http://man7.org/linux/man-pages/man7/shm_overview.7.html:
+> POSIX shared memory objects have kernel persistence: a shared memory
+> object will exist until the system is shut down, or until all
+> processes have unmapped the object and it has been deleted with
+> shm_unlink(3)."
 
 ## Resources
 - https://github.com/abacusorg/abacus/issues/215
