@@ -141,6 +141,15 @@ the file on ramdisk, as long as there's an open `mmap`-ing.  This is POSIX guara
 So one just has to delete/unlink the file and create a new one with the same name; this will
 produce a new file descriptor and thus a new shared memory allocation.
 
+### Performance
+
+`munmap()` seems to be a fairly expensive operation, probably because it holds a global lock
+for the duration of the syscall.  `tcmalloc` probably can't help with this, since the call
+needs to operate on kernel-held memory.  We don't strictly need to `munmap()` everything though,
+only the slabs that are getting deleted.  So we could skip the `munmap()` for the merge
+slabs (for example) and save about half the calls.  The rest will be unmapped at process exit.
+We would have to test if that actually saves time or just defers it to the end.
+
 ### Design justifications
 
 We explicitly itemize the slabs that go on the ramdisk.  One could imagine just determining
@@ -278,6 +287,10 @@ Ramdisk mappings must start at page boundaries.  This only matters for covnoluti
 we operate in chunks and thus start reading/mapping at progressive file offsets.  In practice,
 we enforce mapping the whole file at once if we're on ramdisk which effectively enforces 0 offset.
 
+### Errors
+
+One can receive the unusual `SIGBUS` (bus error, signal 7) while using a ramdisk.  Usually this
+just means the ramdisk has run out of space.
 
 ## Footnotes
 [↩](#a1) <b name="f1">1:</b> This path seems quite standard.  From https://www.kernel.org/doc/Documentation/filesystems/tmpfs.txt: 
