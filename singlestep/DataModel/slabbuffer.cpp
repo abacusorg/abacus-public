@@ -467,7 +467,7 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking){
     // Determine the actual, allocated Ramdisk type of the current slab
     // If it was allocated on Ramdisk, then the writing is already done by definition!
     if(AA->ArenaRamdiskType(TypeSlab2ID(type,slab)) != RAMDISK_NO){
-        STDLOG(1, "Skipping explicit write of Ramdisk slab \"%s\"", path);
+        STDLOG(1, "Skipping explicit write of Ramdisk slab \"%s\"\n", path);
 
         // still might have to deallocate
         if(deleteafter == IO_DELETE)
@@ -495,7 +495,7 @@ void SlabBuffer::ReadArena(int type, int slab, int blocking){
     // If it was allocated from existing shared memory (i.e. RAMDISK_READSLAB),
     // we probably don't want to read into it
     if(AA->ArenaRamdiskType(TypeSlab2ID(type,slab)) == RAMDISK_READSLAB){
-        STDLOG(1, "Skipping explicit read of Ramdisk slab \"%s\"", path);
+        STDLOG(1, "Skipping explicit read of Ramdisk slab \"%s\"\n", path);
         SetIOCompleted(type, slab);
         return;
     }
