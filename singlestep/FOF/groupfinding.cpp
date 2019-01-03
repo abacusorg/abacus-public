@@ -273,7 +273,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
         PencilAccum<CellGroup> *cg = cellgroups[slab].StartPencil(j);
         for (int k=0; k<cpd; k++) {
 	    // Find CellGroups in (slab,j,k).  Append results to cg.
-	    Cell c = PP->GetCell(slab, j, k);
+	    Cell c = CP->GetCell(slab, j, k);
 
 	    int active_particles = c.count();
 	    #ifdef COMPUTE_FOF_DENSITY
@@ -372,8 +372,8 @@ uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid, FLOAT
     for (int j=0; j<GFC->cpd; j++)
 	for (int k=0; k<GFC->cpd; k++) {
 	    // Loop over cells
-	    posstruct offset = PP->CellCenter(slab, j, k);
-	    Cell c = PP->GetCell(slab, j, k);
+	    posstruct offset = CP->CellCenter(slab, j, k);
+	    Cell c = CP->GetCell(slab, j, k);
 	    for (int p=0; p<c.count(); p++)
 		if (c.aux[p].is_taggable() && !c.aux[p].is_L1()) {
 		    // We found a taggable field particle

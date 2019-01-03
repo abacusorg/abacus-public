@@ -316,8 +316,6 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
     require computation of some sort and can't be done with static
     parsing.
 
-    TODO: probably want an explicit SplitMultipoles parameter
-
     1) Compute ZD_Pk_sigma from sigma_8
     2) If $ABACUS_SSD2 is defined, define the params {Multipole,Taylor}Directory2
     3) If $ABACUS_TMP2 is defined and StateIOMode is "slosh", define WorkingDirectory2
@@ -491,7 +489,7 @@ def setup_state_dirs(paramfn):
     # If they do exist, don't touch them
     def make_link(link, target):
         if path.exists(link):
-            # link already existing as a directory insetad of a link is an error!
+            # link already existing as a file/directory instead of a link is an error!
             assert path.islink(link)
         else:
             os.makedirs(target, exist_ok=True)
@@ -550,7 +548,7 @@ def move_state_dirs(read, write, past, multipoles, taylors):
     If we're sloshing the state, we instead want to swap the
     symlinks for `read` and `write`.  We also want to swap
     the symlink for the Taylors (but not the multipoles because
-    the convove hasn't happened yet).
+    the convolve hasn't happened yet).
 
     TODO: double check this still works when overwriting the state
     '''
@@ -750,14 +748,14 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
                 # Invole multipole recovery mode
                 print("Warning: missing multipoles! Performing multipole recovery for step {:d}".format(i))
                 
-                # Build the make_multipoles executable
+                # Build the recover_multipoles executable
                 with Tools.chdir(pjoin(abacuspath, "singlestep")):
-                    subprocess.check_call(['make', 'make_multipoles'])
+                    subprocess.check_call(['make', 'recover_multipoles'])
 
                 # Execute it
-                print("Running make_multipoles for step {:d}".format(stepnum))
-                subprocess.check_call([pjoin(abacuspath, "singlestep", "make_multipoles"), paramfn], env=singlestep_env)
-                save_log_files(param.LogDirectory, 'step{:04d}.make_multipoles'.format(read_state.FullStepNumber))
+                print("Running recover_multipoles for step {:d}".format(stepnum))
+                subprocess.check_call([pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn], env=singlestep_env)
+                save_log_files(param.LogDirectory, 'step{:04d}.recover_multipoles'.format(read_state.FullStepNumber))
                 print('\tFinished multipole recovery for read state {}.'.format(read_state.FullStepNumber))
 
             # Swap the Taylors link.  In effect, this will place the Taylors on the same disk as the multipoles.

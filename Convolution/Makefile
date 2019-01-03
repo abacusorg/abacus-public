@@ -8,7 +8,7 @@ endif
 
 CXXFLAGS += $(PARSEHEADER_LIBS) $(THREAD_LIBS) $(SINGLESTEP_LIBS)
 
-CPPFLAGS += $(PARSEHEADER_CPPFLAGS) $(THREAD_CPPFLAGS) $(TCMALLOC_CPPFLAGS) -I $(ROOT_DIR)/singlestep/Multipoles
+CPPFLAGS += $(PARSEHEADER_CPPFLAGS) $(THREAD_CPPFLAGS) $(TCMALLOC_CPPFLAGS) -I $(ROOT_DIR)/singlestep/Multipoles -I $(ROOT_DIR)/DirectIO
 
 ConvolutionDriver: convolutionwrapper.cpp
 	$(CXX) -o $@ $< $(CPPFLAGS) $(CXXFLAGS) -MMD

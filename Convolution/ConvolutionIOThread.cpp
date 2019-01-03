@@ -89,6 +89,7 @@ public:
         thread_num = _thread_num;
         read_ahead = _read_ahead;
         nblocks = (int) ceil((CP.runtime_cpd+1)/2./CP.zwidth);
+
         STDLOG(0, "Starting IO thread %d\n", thread_num);
         
         for(int i = 0; i < read_ahead; i++)

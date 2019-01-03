@@ -160,7 +160,20 @@ private:
         // Read the file, wait to complete.
         IOLOG(1,"Reading file %s\n", ior->filename);
 
-        RD->BlockingRead( ior->filename, ior->memory, ior->sizebytes, ior->fileoffset);
+        // Determine the ramdisk flag
+        int ramdisk = -1;
+        switch(ior->io_method){
+            case IO_DIRECT:
+                ramdisk = 0;
+                break;
+            case IO_FOPEN:
+                ramdisk = 1;
+                break;
+            default:
+                QUIT("Unknown IO method %d\n", ior->io_method);
+        }
+
+        RD->BlockingRead(ior->filename, ior->memory, ior->sizebytes, ior->fileoffset, ramdisk);
 
         IOLOG(1,"Done reading file\n");
         IO_SetIOCompleted(ior->arenatype, ior->arenaslab);
@@ -175,12 +188,24 @@ private:
         //ioassertf(ior->fileoffset==0, 
         //	"WriteFile fileoffest = %d.  Non-zero values not supported.\n", ior->fileoffset);
 
-
         FILE * outfile = fopen(ior->filename,"wb");
         ioassertf(outfile != NULL,"Touching file %s failed\n", ior->filename);
         fclose(outfile);
 
-        WD->BlockingAppend( ior->filename, ior->memory, ior->sizebytes);
+        // Determine the ramdisk flag
+        int ramdisk = -1;
+        switch(ior->io_method){
+            case IO_DIRECT:
+                ramdisk = 0;
+                break;
+            case IO_FOPEN:
+                ramdisk = 1;
+                break;
+            default:
+                QUIT("Unknown IO method %d\n", ior->io_method);
+        }
+
+        WD->BlockingAppend(ior->filename, ior->memory, ior->sizebytes, ramdisk);
 
         IOLOG(1,"Done writing file\n");
         if (ior->deleteafterwriting==IO_DELETE) IO_DeleteArena(ior->arenatype, ior->arenaslab);

@@ -82,10 +82,10 @@ uint64 LoadSlab2IL(int slab) {
         // What cell does this go in?
 #ifdef GLOBALPOS
         // For box-centered positions:
-        integer3 newcell = PP->WrapPosition2Cell(&global_pos);
+        integer3 newcell = CP->WrapPosition2Cell(&global_pos);
 #else
         // For cell-centered positions:
-        integer3 newcell = PP->LocalPosition2Cell(&global_pos);
+        integer3 newcell = CP->LocalPosition2Cell(&global_pos);
 #endif
         pos = global_pos;
 

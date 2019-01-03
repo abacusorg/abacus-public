@@ -10,8 +10,8 @@
 // Unpack a TimeSlice pack14 slab into pos,vel,aux,cellinfo slabs
 // This is used by our standalone_fof pipeline
 int unpack_slab_pack14(int slab, double taggable_frac) {
-    void *rawslab = LBW->ReturnIDPtr(TimeSlice, slab);
-    uint64 rawsize = LBW->IDSizeBytes(TimeSlice, slab);
+    void *rawslab = SB->GetSlabPtr(TimeSlice, slab);
+    uint64 rawsize = SB->SlabSizeBytes(TimeSlice, slab);
     FILE *buffer_file = fmemopen(rawslab, rawsize, "rb");
     assert(buffer_file != NULL);
 
@@ -20,26 +20,26 @@ int unpack_slab_pack14(int slab, double taggable_frac) {
     STDLOG(2,"Skipped a %d byte header\n", header_size);
 
     // This includes cell headers, so it's actually an upper limit
-    // We will allocate LBW slabs of this size, then shrink later
+    // We will allocate SB slabs of this size, then shrink later
     // We will return the number of particles actually read.
     uint64 datasize = rawsize - header_size;
     assert(datasize % 14 == 0);
     uint64 maxnp = datasize/14;
     STDLOG(2,"Allocating space for %d particles\n", maxnp);
 
-    LBW->AllocateSpecificSize(PosSlab,slab,maxnp*sizeof(posstruct));
-    LBW->AllocateSpecificSize(VelSlab,slab,maxnp*sizeof(velstruct));
-    LBW->AllocateSpecificSize(AuxSlab,slab,maxnp*sizeof(auxstruct));
-    LBW->AllocateSpecificSize(CellInfoSlab,slab,maxnp*sizeof(cellinfo));
+    SB->AllocateSpecificSize(PosSlab,slab,maxnp*sizeof(posstruct));
+    SB->AllocateSpecificSize(VelSlab,slab,maxnp*sizeof(velstruct));
+    SB->AllocateSpecificSize(AuxSlab,slab,maxnp*sizeof(auxstruct));
+    SB->AllocateSpecificSize(CellInfoSlab,slab,maxnp*sizeof(cellinfo));
         // this one is grossly overallocated! but L0 might have more than cpd^2 cells...
 
-    posstruct *pos = (posstruct *) LBW->ReturnIDPtr(PosSlab, slab);
-    velstruct *vel = (velstruct *) LBW->ReturnIDPtr(VelSlab, slab);
-    auxstruct *aux = (auxstruct *) LBW->ReturnIDPtr(AuxSlab, slab);
-    cellinfo *ci = (cellinfo *) LBW->ReturnIDPtr(CellInfoSlab, slab);
+    posstruct *pos = (posstruct *) SB->GetSlabPtr(PosSlab, slab);
+    velstruct *vel = (velstruct *) SB->GetSlabPtr(VelSlab, slab);
+    auxstruct *aux = (auxstruct *) SB->GetSlabPtr(AuxSlab, slab);
+    cellinfo *ci = (cellinfo *) SB->GetSlabPtr(CellInfoSlab, slab);
 
     // Initialize to empty cells
-    int cpd = PP->cpd;
+    int cpd = CP->cpd;
     for (int j=0; j<cpd*cpd; j++)
         ci[j].makenull();
 
@@ -70,7 +70,7 @@ int unpack_slab_pack14(int slab, double taggable_frac) {
         } else {
             assert(cellhead.islegal());
             particle.unpack(posd,veld,id,cellhead);
-            pos[nump] = posd - PP->CellCenter(cellhead.cellid());
+            pos[nump] = posd - CP->CellCenter(cellhead.cellid());
                 // Move back to cell-centered positions
             vel[nump] = veld*ReadState.VelZSpace_to_Canonical;
             aux[nump].aux = id;
@@ -89,7 +89,7 @@ int unpack_slab_pack14(int slab, double taggable_frac) {
 
 
 #ifdef STANDALONE_FOF
-class Particles {
+class CellParticles {
 public:
     int cpd;
     int cpdhalf;
@@ -105,7 +105,7 @@ public:
     int **cellslab;
     int **nslab;
 
-    Particles(int _cpd) {
+    CellParticles(int _cpd) {
         cpd = _cpd;
         invcpd = 1.0/cpd;
         cpdhalf = cpd/2;
@@ -139,7 +139,7 @@ public:
         return;
     }
 
-    ~Particles() {
+    ~CellParticles() {
         for (int j=0; j<cpd; j++) free_slab(j);
         delete[] posslab;
         delete[] velslab;
@@ -251,5 +251,5 @@ Cell::~Cell(){
     delete cellinfo;
 }
 
-Particles *PP;
+CellParticles *CP;
 #endif
