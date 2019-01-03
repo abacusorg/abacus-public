@@ -37,7 +37,7 @@ public:
     int runtime_DerivativeExpansionRadius;
 
     int runtime_IsRamDisk;
-    int runtime_DiskBufferSizeKB;
+    int runtime_DIOBufferSizeKB;
     int runtime_ConvolutionCacheSizeMB;
     int runtime_MaxConvolutionRAMMB;
 
@@ -50,26 +50,38 @@ public:
     char runtime_MultipolePrefix[1024];
     char runtime_TaylorPrefix[1024];
     
-    int delete_multipoles_after_read;
-    
     uint64_t blocksize, zwidth, rml, CompressedMultipoleLengthXY;
     int io_cores[MAX_IO_THREADS];
     int niothreads;
 
-    void MultipoleDirectory(int slab, char * const fn){
+    int ProfilingMode;
+
+    int StripeConvState;  // in analogy with WriteState.StripeConvState
+    int OverwriteConvState;  // in analogy with WriteState.OverwriteConvState
+
+    void MultipoleFN(int slab, char * const fn){
         // We elsewhere generically support N threads, but here is where we assume 2
-        if(slab % 2 == 0)
-            sprintf(fn, "%s/%s_%04d", runtime_MultipoleDirectory, runtime_MultipolePrefix, slab);
-        else
+        if(StripeConvState && slab % 2 == 1)
             sprintf(fn, "%s/%s_%04d", runtime_MultipoleDirectory2, runtime_MultipolePrefix, slab);
+        else
+            sprintf(fn, "%s/%s_%04d", runtime_MultipoleDirectory, runtime_MultipolePrefix, slab);
     }
 
-    void TaylorDirectory(int slab, char * const fn){
+    void TaylorFN(int slab, char * const fn){
         // We elsewhere generically support N threads, but here is where we assume 2
-        if(slab % 2 == 0)
-            sprintf(fn, "%s/%s_%04d", runtime_TaylorDirectory, runtime_TaylorPrefix, slab);
-        else
+        if(StripeConvState && slab % 2 == 1)
             sprintf(fn, "%s/%s_%04d", runtime_TaylorDirectory2, runtime_TaylorPrefix, slab);
+        else
+            sprintf(fn, "%s/%s_%04d", runtime_TaylorDirectory, runtime_TaylorPrefix, slab);
+    }
+
+    // For zwidth purposes, we'll need to know if the MT are on ramdisk
+    int is_ramdisk(){
+        // For simplicity, multipoles and taylors must be either both or neither on ramdisk
+        int mramdisk = is_path_on_ramdisk(runtime_MultipoleDirectory);
+        assert(mramdisk == is_path_on_ramdisk(runtime_TaylorDirectory));
+
+        return mramdisk;
     }
 };
 
@@ -88,7 +100,7 @@ public:
     ~OutofCoreConvolution(void) { } 
 
     ConvolutionParameters CP;
-    void Convolve( ConvolutionParameters CP );
+    void Convolve( ConvolutionParameters &_CP );
 
     uint64_t blocksize, zwidth;
 
@@ -116,9 +128,11 @@ private:
     void SwizzleMultipoles(int z);
     void SwizzleTaylors(int z);
 
-    Complex *DiskBuffer;
+    void RenameMultipolesToTaylors();
+
+    Complex *PlaneBuffer;
     DFLOAT **CompressedDerivatives;
-    MTCOMPLEX **PlaneBuffer;
+    MTCOMPLEX **DiskBuffer;
     Block *CurrentBlock;
     
     double invcpd3;

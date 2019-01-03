@@ -1,5 +1,5 @@
-RamDisk = 0
-OverwriteState = 0
+StateIOMode = "normal"
+Conv_IOMode = "normal"
 IODirs = ["multipole/", "taylor/"]
 nIODirs = 2
 IODirThreads = [2, 2]
@@ -7,12 +7,12 @@ IODirThreads = [2, 2]
 # ConvolutionCacheSizeMB = 30  # This will be automatically detected
 
 # OpenMP and thread parameters
-OMP_NUM_THREADS = 4
-OMP_PLACES = "{0}:4"
+OMP_NUM_THREADS = 5
+OMP_PLACES = "{0}:5"
 OMP_PROC_BIND = "spread"
 IOCores = [5, 5]
-GPUThreadCoreStart = [4, 4]
-NGPUThreadCores = 2
+GPUThreadCoreStart = [5, 5]
+NGPUThreadCores = 1
 
 # Convolution OpenMP parameters
 Conv_OMP_NUM_THREADS = 5

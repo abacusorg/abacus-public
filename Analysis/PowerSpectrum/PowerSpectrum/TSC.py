@@ -2,11 +2,14 @@
 A Python implementation of triangle-shaped cloud
 binning, using Numba for C-like efficiency.
 '''
+from glob import glob
+import warnings
+import os.path
+import re
 
 import numpy as np
 import numba
 
-from glob import glob
 import Abacus.ReadAbacus
 
 def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.float32, rotate_to=None, prep_rfft=False, nthreads=-1, inplace=False, norm=False):
@@ -143,6 +146,11 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
         data = Abacus.ReadAbacus.read_rvzel(fn, return_vel=False, return_zel=False, zspace=zspace, dtype=dtype, add_grid=True, boxsize=boxsize)
         TSC(data['pos'], density, boxsize, rotate_to=rotate_to, prep_rfft=rfft, nthreads=nthreads, inplace=True)
         return len(data)
+
+    def read_and_tsc_rvtag(fn, density, boxsize, zspace, rotate_to, rfft):
+        data = Abacus.ReadAbacus.read_rvtag(fn, return_vel=False, return_pid=False, zspace=zspace, dtype=dtype)
+        TSC(data['pos'], density, boxsize, rotate_to=rotate_to, prep_rfft=rfft, nthreads=nthreads, inplace=True)
+        return len(data)
         
     def read_and_tsc_state(fn, density, boxsize, zspace, rotate_to, rfft):
         data = Abacus.ReadAbacus.read_state_positions(fn, dtype=dtype)  # TODO: update this
@@ -160,6 +168,7 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
     valid_formats = {'rvdouble':read_and_tsc_rvdouble,
                      'pack14':read_and_tsc_pack14,
                      'rvzel':read_and_tsc_rvzel,
+                     'rvtag':read_and_tsc_rvtag,
                      'state':read_and_tsc_state,
                      'gadget':read_and_tsc_gadget}
     format = format.lower()
@@ -185,13 +194,19 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
     if rotate_to:
         rotate_to = np.array(rotate_to, dtype=np.float64)
         boxsize /= 3**.5
+
+    # Does the directory name contain 'ic'?
+    abspattern = os.path.abspath(file_pattern)
+    abspattern = abspattern.split(os.sep)
+    isic = re.search(r'\bic(\b|(?=_))', abspattern[-2])
     
     # Read and bin the particles
     NP = 0
     files = sorted(glob(file_pattern))
     for filename in files:
         # We assume the rvzel data is IC data stored with a BoxSize box, not unit box
-        box_on_disk = boxsize if format in ['rvzel', 'gadget'] else 1.
+        # TODO: better way to communicate this
+        box_on_disk = boxsize if isic or format in ['rvtag', 'gadget'] else 1.
         NP += read_and_tsc(filename, density, box_on_disk, zspace, rotate_to, prep_rfft)
     
     return density
@@ -254,10 +269,7 @@ def TSC(positions, density, boxsize, weights=None, prep_rfft=False, rotate_to=No
     # We may eventually want to provide two wrapping modes
     # 'wrap' and 'clip' (mostly for mocks)
     # Also, this only handles one periodic wrap
-    # we do this regardless of inplace or not
-    #positions[positions >= boxsize/2.] -= boxsize
-    #positions[positions < -boxsize/2.] += boxsize
-
+    # Warning: we do this regardless of inplace or not! Probably okay.
     box_wrap(positions, boxsize)
         
     if prep_rfft:
@@ -348,10 +360,13 @@ def _box_wrap(p, box):
 
 def sort_pos_and_weight(p, w, inplace):
     # our FFI lib uses 32 bit floats right now
-    assert p.dtype == np.float32
-
     # our FFI lib assumes 3D right now
-    assert p.shape[-1] == 3
+    if p.dtype != np.float32 or p.shape[-1] != 3:
+        warnings.warn("Warning: particles not float32 in 3D. Falling back to slow sort.")
+        order = p[:,0].argsort()
+        p = p[order]
+        if w is not None and len(w) > 1:
+            w = w[order]
 
     if w is not None and len(w) > 1:
         assert w.dtype == p.dtype
@@ -375,7 +390,6 @@ def sort_pos_and_weight(p, w, inplace):
     return p, w
 
 
-        
 @numba.vectorize
 def rightwrap(x, L):
     if x >= L:

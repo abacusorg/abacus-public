@@ -93,7 +93,7 @@ void FFT_FUNC_NAME(FLOAT *density, uint64_t gridN1D, double boxsize){
     #else
         #define DEN den_2D
     #endif
-    #define OUT(i,j) reinterpret_cast<__complex__ FLOAT*>(output)[(gridN1D/2+1)*i + j]
+    #define OUT(i,j) reinterpret_cast<std::complex<FLOAT>*>(output)[(gridN1D/2+1)*i + j]
 
     #pragma omp parallel for schedule(dynamic,1)
     for(uint64_t i = 0; i < gridN1D; i++){
@@ -121,7 +121,7 @@ void FFT_FUNC_NAME(FLOAT *density, uint64_t gridN1D, double boxsize){
     #else
         #define DEN den
     #endif
-    #define OUT(i,j,k) reinterpret_cast<__complex__ FLOAT*>(output)[gridN1D*(gridN1D/2+1)*i + (gridN1D/2+1)*j + k]
+    #define OUT(i,j,k) reinterpret_cast<std::complex<FLOAT>*>(output)[gridN1D*(gridN1D/2+1)*i + (gridN1D/2+1)*j + k]
     
     #pragma omp parallel for schedule(dynamic,1)
     for(uint64_t i = 0; i < gridN1D; i++){

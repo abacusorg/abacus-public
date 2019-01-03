@@ -1,5 +1,9 @@
+/** This provides a simple statistical summary of the group sizes,
+particularly generating a histogram.  
+*/
+
 #define MS_NBIN 24
-#define MS_MIN 32
+#define MS_MIN 16
 class MultiplicityStats {
   public:
     uint64 ngroups;
@@ -27,8 +31,8 @@ class MultiplicityStats {
 	}
     }
 
+    /// Given a group multiplicity, add it to the stats
     void push(uint64 np) {
-        // Given a group multiplicity, add it to the list
 	if (np>largest) largest=np;
 	ngroups++;
 	tot += np;
@@ -44,10 +48,11 @@ class MultiplicityStats {
 	return;
     }
 	
+    /// This generates a report for the log
     void report_multiplicities(std::ofstream *grouplog) {
-        GLOG(0,"Total number of groups %u\n", ngroups);
+        GLOG(0,"Total number of groups %f M\n", ngroups/1e6);
 	int j, m, nbin;
-        GLOG(0,"Groups contain %u particles\n", tot);
+        GLOG(0,"Groups contain %f M particles\n", tot/1e6);
 	GLOG(0,"Average group has %f particles and %f pairs\n", 
 		(float)tot/ngroups, (float)tot2/ngroups);
         GLOG(0,"Largest Group contains %u particles\n", largest);
@@ -56,7 +61,7 @@ class MultiplicityStats {
 	GLOG(2,"Max bin is %d\n", nbin);
 	for (j=0,m=1; j<=nbin; j++, m*=2)
 	    if (count[j]>0) 
-		GLOG(0,"%6d -- %6d: %7u groups, %6.3f%% of particles, %6.3f%% of pairs\n",
+		GLOG(0,"%7d -- %7d: %8u groups, %6.3f%% of particles, %6.3f%% of pairs\n",
 		    (m<MS_MIN?MS_MIN:m), m*2-1, count[j],
 		    100.0*sumn[j]/tot, 100.0*sumn2[j]/tot2);
     }

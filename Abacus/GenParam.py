@@ -46,7 +46,8 @@ def shellreplace(line):
         raise ValueError
     return line[:pos1] + value + line[pos2 +1:]
     
-#look for previously defined variables and replace them with the proper python syntax
+# Replace tokens like @VAR@ with their previously defined value
+# Replace tokens like @_VAR@ indicates an optional parameter
 def varreplace(line, values):
     pos1 = line.find("@")
     if pos1 == -1:
@@ -57,9 +58,16 @@ def varreplace(line, values):
         raise SyntaxError
     
     varname = line[pos1+1:pos2]
+    optional = varname[0] == '_'
+    if optional:
+        varname = varname[1:]
     if not (varname in values.keys()):
-        print(("Variable %s is not defined!"%(varname)))
-        raise SyntaxError
+        if optional:
+            # variable wasn't defined but was optional; do nothing
+            return line[:pos1] + '""' + line[pos2+1:]
+        else:
+            print(("Variable %s is not defined!"%(varname)))
+            raise SyntaxError
     return line[:pos1] + 'varreplace_values["{:s}"]'.format(varname) + line[pos2 +1:]
 
 def parseInput(filename, values=None, fixvalues=None, varreplace_values=None):

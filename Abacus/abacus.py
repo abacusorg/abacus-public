@@ -43,6 +43,9 @@ import ctypes as ct
 import argparse
 import numpy as np
 from glob import glob
+import pathlib
+import re
+import fnmatch
 
 from .InputFile import InputFile
 from . import Tools
@@ -61,9 +64,8 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     copies parameter files, and parses parameter files as appropriate, then
     invokes `singlestep()`.
 
-    Important files should generally be placed in the 'info' directory in
-    `config_dir`.  This directory will be copied alongside outputs, data
-    products, etc.  `parfn` can also be in the info dir.
+    Files in the `config_dir` directory will be carried around in the `info`
+    directory alongside time slices, data products, etc.
     
     Parameters
     ----------
@@ -154,39 +156,26 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
 
         print("Erased previous working directories.")
             
-    if not path.exists(basedir):
-        os.makedirs(basedir)
-    if not path.exists(logdir):
-        os.makedirs(logdir)
+    os.makedirs(basedir, exist_ok=True)
+    os.makedirs(logdir, exist_ok=True)
     
-    info_in_path = pjoin(config_dir, 'info')
     try:
-        shutil.copy(output_parfile, '{basedir:s}/'.format(basedir=basedir))
-        info_out_path = pjoin('{basedir:s}'.format(basedir=basedir), 'info')
-        if path.isdir(info_out_path):
-            shutil.rmtree(info_out_path)
-        shutil.copytree(info_in_path, info_out_path)
-    except (shutil.Error, OSError):
-        pass  # input == output
+        shutil.copy(output_parfile, basedir)
+    except shutil.Error:
+        pass  # same file?
+
+    info_out_path = pjoin(basedir, 'info')
+    copy_contents(config_dir, info_out_path, clean=True)
 
     # Copy over all of the input files to the output folder for reference
-    if not path.exists(outdir):
-        os.makedirs(outdir)
+    os.makedirs(outdir, exist_ok=True)
     try:
-        shutil.copy(output_parfile, '{outdir:s}/'.format(outdir=outdir))
+        shutil.copy(output_parfile, outdir)
     except shutil.Error:
         pass  # same file?
     
-    info_out_path = pjoin('{outdir:s}'.format(outdir=outdir), 'info')
-    try:
-        shutil.rmtree(info_out_path)
-    except:
-        pass
-        
-    try:
-        shutil.copytree(info_in_path, info_out_path)
-    except (shutil.Error, OSError):
-        pass  # no info dir
+    info_out_path = pjoin(outdir, 'info')
+    copy_contents(config_dir, info_out_path, clean=True)
         
     with Tools.chdir(basedir):
         # The parfile is directly stored in the basedir
@@ -198,6 +187,23 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
         retval = singlestep(output_parfile, maxsteps, AllowIC=clean)
 
     return retval
+
+
+def copy_contents(in_dir, out_dir, clean=True, ignore='*.py'):
+    if clean:
+        if path.isdir(out_dir):
+            shutil.rmtree(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+
+    if type(ignore) == str:
+        ignore = [ignore]
+
+    for fn in os.scandir(in_dir):
+        if not fn.is_file():
+            continue
+        if any(fnmatch.fnmatch(fn, ipat) for ipat in ignore):
+            continue
+        shutil.copy(fn, out_dir)
 
 
 def clean_dir(bd, preserve=None, rmdir_ifempty=True):
@@ -226,43 +232,62 @@ def clean_dir(bd, preserve=None, rmdir_ifempty=True):
             except OSError:
                 pass
 
-def MakeDerivatives(param, floatprec=False): #look for the derivatives required for param and make them if they don't exist
-    if not path.exists(param.DerivativesDirectory):
-        os.makedirs(param.DerivativesDirectory)
-    for ADfn in ['AD32_001.dat','AD32_002.dat','AD32_003.dat','AD32_004.dat','AD32_005.dat','AD32_006.dat','AD32_007.dat','AD32_008.dat', 'AD32_016.dat']: #note! added this in to run Ewald test for far_radius 1-8,16 
+def MakeDerivatives(param, derivs_archive_dir=True, floatprec=False):
+    '''
+    Look for the derivatives required for param and make them if they don't exist.
+    '''
+
+    # We will attempt to copy derivatives from the archive dir if they aren't found
+    if derivs_archive_dir == True:
+        derivs_archive_dir = pjoin(os.getenv('ABACUS_PERSIST',None), 'Derivatives')
+    
+    os.makedirs(param.DerivativesDirectory, exist_ok=True)
+
+    #note! added this in to run Ewald test for far_radius 1-8,16 
+    for ADnum in list(range(1,9)) + [16]:
+        ADfn = 'AD32_{:03d}.dat'.format(ADnum)
         source_ADfn = pjoin(abacuspath, "Derivatives", ADfn)
         if not path.isfile(pjoin(param.DerivativesDirectory, ADfn)):
             shutil.copy(source_ADfn,param.DerivativesDirectory)
     
-    fnfmt32 = "fourierspace_float32_%d_%d_%d_%d"%(param.CPD,param.Order,param.NearFieldRadius,param.DerivativeExpansionRadius) + "_%d"
-    fnfmt64 = "fourierspace_%d_%d_%d_%d"%(param.CPD,param.Order,param.NearFieldRadius,param.DerivativeExpansionRadius) + "_%d"
+    suffix = "{0.CPD:d}_{0.Order:d}_{0.NearFieldRadius:d}_{0.DerivativeExpansionRadius:d}".format(param) + "_{slab:d}"
+    fnfmt32 = "fourierspace_float32_" + suffix
+    fnfmt64 = "fourierspace_" + suffix
             
-    derivativenames32 = []; derivativenames64 = []
+    derivativenames32, derivativenames64 = [], []
     for i in range(0,param.CPD//2+1):
-        derivativenames32 += [pjoin(param.DerivativesDirectory, fnfmt32%i)]
-        derivativenames64 += [pjoin(param.DerivativesDirectory, fnfmt64%i)]
+        derivativenames32 += [fnfmt32.format(slab=i)]
+        derivativenames64 += [fnfmt64.format(slab=i)]
     derivativenames = derivativenames32 if floatprec else derivativenames64
     fnfmt = fnfmt32 if floatprec else fnfmt64
 
-    if not all(map(path.isfile, derivativenames)):
-        print('Could not find derivatives in "' + param.DerivativesDirectory + '" ...Creating them')
-        print("Error was on file pattern '{}'".format(fnfmt))
-
-        if floatprec:
-            # first make sure the derivatives exist in double format
-            MakeDerivatives(param, floatprec=False)
-            # now make a 32-bit copy
-            from . import convert_derivs_to_float32
-            for dpath in derivativenames64:
-                convert_derivs_to_float32.convert(dpath)
+    # First check if the derivatives are in the DerivativesDirectory
+    if not all(path.isfile(pjoin(param.DerivativesDirectory, dn)) for dn in derivativenames):
+        
+        # If not, check if they are in the canonical $ABACUS_PERSIST/Derivatives directory
+        if all(path.isfile(pjoin(derivs_archive_dir, dn)) for dn in derivativenames):
+            print('Found derivatives in archive dir "{}". Copying to DerivativesDirectory "{}".'.format(derivs_archive_dir, param.DerivativesDirectory))
+            for dn in derivativenames:
+                shutil.copy(pjoin(derivs_archive_dir, dn), pjoin(param.DerivativesDirectory, dn))
         else:
-            with Tools.chdir(param.DerivativesDirectory):
-                try:
-                    os.remove("./farderivatives")
-                except OSError:
-                    pass
-                subprocess.check_call([pjoin(abacuspath, "Derivatives", "CreateDerivatives"),
-                str(param.CPD),str(param.Order),str(param.NearFieldRadius),str(param.DerivativeExpansionRadius)])
+            print('Could not find derivatives in "{}" or archive dir "{}". Creating them...'.format(param.DerivativesDirectory, derivs_archive_dir))
+            print("Error was on file pattern '{}'".format(fnfmt))
+
+            if floatprec:
+                # first make sure the derivatives exist in double format
+                MakeDerivatives(param, floatprec=False)
+                # now make a 32-bit copy
+                from . import convert_derivs_to_float32
+                for dpath in derivativenames64:
+                    convert_derivs_to_float32.convert(pjoin(param.DerivativesDirectory, dpath))
+            else:
+                with Tools.chdir(param.DerivativesDirectory):
+                    try:
+                        os.remove("./farderivatives")
+                    except OSError:
+                        pass
+                    subprocess.check_call([pjoin(abacuspath, "Derivatives", "CreateDerivatives"),
+                    str(param.CPD),str(param.Order),str(param.NearFieldRadius),str(param.DerivativeExpansionRadius)])
     
     
 def default_parser():
@@ -277,7 +302,7 @@ def default_parser():
     retcode = abacus.run('abacus.par2', **vars(args))
     
     """
-    parser = argparse.ArgumentParser(description='Run this sim.')
+    parser = argparse.ArgumentParser(description='Run this sim.', formatter_class=Tools.ArgParseFormatter)
     parser.add_argument('--clean', action='store_true', help="Erase the working directory and start over.  Otherwise, continue from the existing state.  Always preserves the ICs unless --erase-ic.")
     parser.add_argument('--erase-ic', action='store_true', help="Remove the ICs if they exist.")
     parser.add_argument('--maxsteps', type=int, help="Take at most N steps", metavar='N')
@@ -291,11 +316,9 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
     require computation of some sort and can't be done with static
     parsing.
 
-    TODO: probably want an explicit SplitMultipoles parameter
-
     1) Compute ZD_Pk_sigma from sigma_8
     2) If $ABACUS_SSD2 is defined, define the params {Multipole,Taylor}Directory2
-    3) If $ABACUS_TMP2 is defined and SloshState is True, define WorkingDirectory2
+    3) If $ABACUS_TMP2 is defined and StateIOMode is "slosh", define WorkingDirectory2
     4) If `use_site_overrides` is set, load params from the site.def file
     5) If `override_directories` is set, overwrite directories with defaults from the environment
     '''
@@ -326,18 +349,22 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
         param_kwargs['ZD_Pk_sigma'] = sigma8_at_zinit
         params = GenParam.makeInput(output_parfile, parfn, **param_kwargs)
 
-    if params.get('SloshState',False):
+    if params.get('StateIOMode','normal').lower() in ('slosh','stripe'):
+        # TODO: state striping not implemented
         if 'ABACUS_TMP2' in os.environ:
-            # WorkingDirectory2 is never processed by Abacus.
+            # WorkingDirectory2 is never processed by Abacus if we are sloshing
             # It will be intercepted by the sloshing logic
             if 'WorkingDirectory2' not in params:
                 param_kwargs['WorkingDirectory2'] = pjoin(os.environ['ABACUS_TMP2'], params['SimName'])
 
-        if 'ABACUS_SSD2' in os.environ:
+    Conv_IOMode = params.get('Conv_IOMode','normal').lower()
+    if 'ABACUS_SSD2' in os.environ:
+        if Conv_IOMode == 'slosh':
+            # Don't bother failing with assertions here.  We'll check everything when we actually try to set up the state dirs
+            # Similar to WorkingDirectory2, this dir is never used by Abacus proper
             if 'ConvolutionWorkingDir2' not in params:
                 param_kwargs['ConvolutionWorkingDir2'] = pjoin(os.environ['ABACUS_SSD2'], params['SimName'])
-    else:
-        if 'ABACUS_SSD2' in os.environ:
+        elif Conv_IOMode == 'stripe':
             if 'MultipoleDirectory2' not in params:
                 param_kwargs['MultipoleDirectory2'] = pjoin(os.environ['ABACUS_SSD2'], params['SimName'], 'multipole2')
             if 'TaylorDirectory2' not in params:
@@ -412,20 +439,18 @@ def setup_state_dirs(paramfn):
     '''
     This function is called once before the singlestep loop begins.
     Its main purpose is to setup the state directories, including
-    the symlinks if state sloshing is requested.
+    the symlinks if state sloshing is requested via `StateIOMode`.
 
     When state sloshing, everything looks normal to the singlestep
     binary, except "read" and "write" are actually symlinks
     to the "state1" and "state2" directories elsewhere.
 
-    When sloshing the state, multipoles & taylors are sloshed
-    as well.  The Convolution
-
-    TODO: there will probably be times when we want to slosh
-    the main state but split the MT
+    Sloshing/striping of the multipole/taylors can be requested
+    with the `Conv_IOMode` parameter.
     '''
     params = GenParam.makeInput(paramfn, paramfn)
-    OverwriteState = params.get('OverwriteState',False)
+    StateIOMode = params.get('StateIOMode','normal').lower()
+    Conv_IOMode = params.get('Conv_IOMode','normal').lower()
     
     # Normal operation: everything is under the WorkingDirectory or specified individually
     # Can't specify both WorkingDir and ReadDir
@@ -448,66 +473,68 @@ def setup_state_dirs(paramfn):
     taylors = normpath(params['TaylorDirectory'])
     multipoles = normpath(params['MultipoleDirectory'])
 
-    if OverwriteState:
+    if StateIOMode == 'overwrite':
         write = read
         past = None
 
     # Check if the write state already exists
-    if path.isfile(pjoin(write, "state")) and not OverwriteState:
+    if path.isfile(pjoin(write, "state")) and StateIOMode != 'overwrite':
         answer = input('\nWrite state "{}" exists and would be overwritten. Do you want to delete it? (y/[n]) '.format(write))
         if answer == "y":
             shutil.rmtree(write)
         else:
             raise ValueError("Cannot proceed if write state exists!")
+
+    # If the links don't exist, create them and the underlying dirs
+    # If they do exist, don't touch them
+    def make_link(link, target):
+        if path.exists(link):
+            # link already existing as a file/directory instead of a link is an error!
+            assert path.islink(link)
+        else:
+            os.makedirs(target, exist_ok=True)
+            os.symlink(target, link)
     
     # Set up symlinks to slosh the state
-    if params.get('SloshState',False):
-        assert not OverwriteState, 'SloshState is mutually exclusive with OverwriteState!'
+    # This approach ensures that Abacus proper doesn't need to know anything about sloshing
+    if StateIOMode == 'slosh':
         # Should be populated manually or from ABACUS_TMP2
         assert 'WorkingDirectory' in params  # need a working directory to put the symlinks
-        assert 'WorkingDirectory2' in params, "Must specify WorkingDirectory2 via $ABACUS_TMP2 or directly in the parameter file!"
-        assert 'ConvolutionWorkingDir2' in params, "Must specify ConvolutionWorkingDir2 via $ABACUS_SSD2 or directly in the parameter file!"
-        # this signals parity splitting to singlestep
-        # TODO: make another parameter to signal this?
-        assert 'MultipoleDirectory2' not in params and 'TaylorDirectory2' not in params
-
-        # we use dirname(taylors) as ConvolutionWorkingDir
-        assert dirname(taylors) == dirname(multipoles)
-
-        # If the links don't exist, create them and the underlying dirs
-        # If they do exist, don't touch them
-        def make_link(link, target):
-            if path.exists(link):
-                # link already existing as a directory insetad of a link is an error!
-                assert path.islink(link)
-            else:
-                try: os.makedirs(target)
-                except OSError: pass  # already exists; that's fine
-                os.symlink(target, link)
+        assert 'WorkingDirectory2' in params, \
+            "If StateIOMode = slosh, must specify WorkingDirectory2 via $ABACUS_TMP2 or directly in the parameter file!"
 
         make_link(read, pjoin(params['WorkingDirectory'], 'state1'))
         make_link(write, pjoin(params['WorkingDirectory2'], 'state2'))
-        make_link(taylors, pjoin(dirname(taylors), 'convstate1'))
-        make_link(multipoles, pjoin(params['ConvolutionWorkingDir2'], 'convstate2'))
 
+        # Normally we move 'read' to 'past' after singlestep, but that might cross devices if sloshing!
         # Technically we could keep two past states (one in each slosh directory)
         # but in practice this may be too many copies of the state
         past = None
     else:
-        if not path.isdir(read):
-            os.makedirs(read)
-        if not path.isdir(write):
-            os.makedirs(write)
-        if past and not path.isdir(past):
-            os.makedirs(past)
+        os.makedirs(read, exist_ok=True)
+        os.makedirs(write, exist_ok=True)
+        if past:
+            os.makedirs(past, exist_ok=True)
+
+    # Need M/TDirectory2 for either sloshing or striping
+    if Conv_IOMode == 'slosh':
+        assert 'ConvolutionWorkingDir2' in params, \
+            "If Conv_IOMode = slosh, must specify ConvolutionWorkingDir2 via $ABACUS_SSD2 or directly in the parameter file!"
+
+        # we use dirname(taylors) as ConvolutionWorkingDir
+        assert dirname(taylors) == dirname(multipoles)
+
+        make_link(taylors, pjoin(dirname(taylors), 'convstate1'))
+        make_link(multipoles, pjoin(params['ConvolutionWorkingDir2'], 'convstate2'))
+
+    if Conv_IOMode == 'stripe':
+        assert 'MultipoleDirectory2' in params and 'TaylorDirectory2' in params, \
+            "If Conv_IOMode = stripe, must specify MultipoleDirectory2 & TaylorDirectory2 via $ABACUS_SSD2 or directly in the parameter file!"
 
     # Create dirs
     for d in ['MultipoleDirectory', 'MultipoleDirectory2', 'TaylorDirectory', 'TaylorDirectory2']:
         if d in params:
-            try:
-                os.makedirs(params[d])
-            except FileExistsError:
-                pass
+            os.makedirs(params[d], exist_ok=True)
 
     return read,write,past,multipoles,taylors
 
@@ -521,7 +548,7 @@ def move_state_dirs(read, write, past, multipoles, taylors):
     If we're sloshing the state, we instead want to swap the
     symlinks for `read` and `write`.  We also want to swap
     the symlink for the Taylors (but not the multipoles because
-    the convove hasn't happened yet).
+    the convolve hasn't happened yet).
 
     TODO: double check this still works when overwriting the state
     '''
@@ -566,10 +593,71 @@ def remove_MT(md, pattern, rmdir=False):
         except OSError:
             pass  # remove dir if empty; we re-create at each step in setup_dirs
 
+import table_logger
+class StatusLogWriter:
+    #header = "Step  Redshift  Singlestep  Conv"
+    #line_fmt = '{step:4d}  {z:6.1f}  {ss_rate:.1g} Mp/s ({ss_time:.1g} s) {conv_time:.1g}'
+
+    fields = {'Step': '{:4d}',
+              'Redshift': '{:.3g}',
+              'Singlestep': '{0[0]:.3g} Mp/s ({0[1]:.3g} s)',
+              'Conv': '{:.3g} s'}
+
+    topmatter = ['Abacus Status Log',
+                 'simname, timestamp',
+                 '==================\n\n',]
+
+    def __init__(self, log_fn):
+        self.fields = {k:v.format for k,v in self.fields.items()}
+        self.log_fp = open(log_fn, 'ab')
+
+        self.log_fp.write('\n'.join(self.topmatter).format().encode('utf-8'))
+
+        self.logger = table_logger.TableLogger(file=self.log_fp,
+                                               columns=list(self.fields),
+                                               formatters=self.fields)
+    def __del__(self):
+        self.logger.make_horizontal_border()
+        self.log_fp.close()
+
+    def update(self, **kwargs):
+        self.logger(*(kwargs[k] for k in self.fields))
+
+
+# via https://stackoverflow.com/a/2293793
+fp_regex = r'(([1-9][0-9]*\.?[0-9]*)|(\.[0-9]+))([Ee][+-]?[0-9]+)?'
+def update_status_log(param, state, status_log):
+    '''
+    Update the log with some info about the singlestep and conv
+    that just finished.
+
+    The logs have already been moved to their new names, indicated
+    by step_num.
+    '''
+    step_num = state.FullStepNumber
+
+    ss_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.time'.format(step_num))
+    ss_log_txt = pathlib.Path(ss_log_fn).read_text()
+
+    matches = re.search(r'Total Wall Clock Time\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), ss_log_txt)
+    ss_time = float(matches.group('time'))
+    ss_rate = param['NP']/1e6/ss_time  # Mpart/s
+
+    conv_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.convtime'.format(step_num))
+    try:
+        conv_log_txt = pathlib.Path(conv_log_fn).read_text()
+        matches = re.search(r'ConvolutionWallClock\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), conv_log_txt)
+        conv_time = float(matches.group('time'))
+    except:
+        conv_time = 0.
+
+    status_log.update(Step=step_num, Redshift=state.Redshift, Singlestep=(ss_rate,ss_time), Conv=conv_time)
+
 
 def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
     """
-    Run a number of Abacus timesteps by invoking the `singlestep` executable.
+    Run a number of Abacus timesteps by invoking the `singlestep` and
+    `ConvolutionDriver` executables.
 
     Parameters
     ----------
@@ -608,15 +696,14 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
 
     #if not backups_enabled:
     #    print 'Warning: automatic state backup not enabled.  Set "BackupStepInterval" and "BackupDirectory" in the parameters file.'
+
+    ProfilingMode = param.get('ProfilingMode',False)
         
     # Set up OpenMP singlestep environment
     singlestep_env = setup_singlestep_env(param)
     convolution_env = setup_convolution_env(param)
 
-    status_log_fn = pjoin(param.OutputDirectory, 'status.log')
-    if not os.path.isfile(status_log_fn):
-        with open(status_log_fn, 'w') as status_log:
-            status_log.write("Step  Redshift\n")
+    status_log = StatusLogWriter(pjoin(param.OutputDirectory, 'status.log'))
 
     print("Using parameter file %s and working directory %s."%(paramfn,param.WorkingDirectory))
 
@@ -626,8 +713,8 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
 
     # Create directories
     for d in ['LogDirectory', 'OutputDirectory', 'GroupDirectory']:
-        if d in param and param[d] and not path.isdir(param[d]):
-            os.makedirs(param[d])
+        if d in param and param[d]:
+            os.makedirs(param[d], exist_ok=True)
 
     print("Beginning abacus steps:")
 
@@ -656,13 +743,14 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
                 # Invole multipole recovery mode
                 print("Warning: missing multipoles! Performing multipole recovery for step {:d}".format(i))
                 
-                # Build the make_multipoles executable
+                # Build the recover_multipoles executable
                 with Tools.chdir(pjoin(abacuspath, "singlestep")):
-                    subprocess.check_call(['make', 'make_multipoles'])
+                    subprocess.check_call(['make', 'recover_multipoles'])
 
                 # Execute it
-                subprocess.check_call([pjoin(abacuspath, "singlestep", "make_multipoles"), paramfn], env=singlestep_env)
-                save_log_files(param.LogDirectory, 'step{:04d}.make_multipoles'.format(read_state.FullStepNumber))
+                print("Running recover_multipoles for step {:d}".format(stepnum))
+                subprocess.check_call([pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn], env=singlestep_env)
+                save_log_files(param.LogDirectory, 'step{:04d}.recover_multipoles'.format(read_state.FullStepNumber))
                 print('\tFinished multipole recovery for read state {}.'.format(read_state.FullStepNumber))
 
             # Swap the Taylors link.  In effect, this will place the Taylors on the same disk as the multipoles.
@@ -675,7 +763,11 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
             
             print("Performing convolution for step {:d}".format(stepnum))
             subprocess.check_call([pjoin(abacuspath, "Convolution", "ConvolutionDriver"), paramfn], env=convolution_env)
-                
+
+            if ProfilingMode == 2:
+                print('\tConvolution step {} finished. ProfilingMode = 2 (Convolution) is active; Abacus will now quit.'.format(stepnum))
+                break
+
             if not check_multipole_taylor_done(param, read_state, kind='Taylor'):
                 raise ValueError("Convolution did not complete")
             
@@ -704,7 +796,8 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
         subprocess.check_call([pjoin(abacuspath, "singlestep", "singlestep") , paramfn, str(int(AllowIC))], env=singlestep_env)
         
         # In profiling mode, we don't move the states so we can immediately run the same step again
-        if param.get('ProfilingMode', False):
+        if ProfilingMode and ProfilingMode != 2:
+            print('\tStep {} finished. ProfilingMode is active; Abacus will now quit and states will not be moved.'.format(stepnum))
             break
             
         # Check that write/state was written as a test of success
@@ -712,12 +805,11 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
             raise ValueError("Singlestep did not complete!")
         write_state = InputFile(pjoin(write, "state"))
 
-        # Update the status log
-        with open(status_log_fn, 'a') as status_log:
-            status_log.write('{step:4d}  {z:6.3f}\n'.format(step=stepnum, z=write_state.Redshift))
-
         # save the log and timing files under this step number
         save_log_files(param.LogDirectory, 'step{:04d}'.format(write_state.FullStepNumber))
+
+        # Update the status log
+        update_status_log(param, write_state, status_log)
                         
         shutil.copy(pjoin(write, "state"), pjoin(param.LogDirectory, "step{:04d}.state".format(write_state.FullStepNumber)))
         print(( "\t Finished state {:d}. a = {:.4f}, dlna = {:.3g}, rms velocity = {:.3g}".format(
@@ -798,12 +890,3 @@ def save_log_files(logdir, newprefix, oldprefix='lastrun'):
         if logfn.startswith(oldprefix):
             newname = logfn.replace(oldprefix, newprefix, 1)
             shutil.move(pjoin(logdir, logfn), pjoin(logdir, newname))
-
-
-if __name__ == '__main__':
-    parser = default_parser()
-    parser.add_argument('parfile', help="The parameter file")
-    args = parser.parse_args()
-    args = vars(args)
-    retcode = run(args.pop('parfile'), **args)
-    sys.exit(retcode)

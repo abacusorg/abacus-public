@@ -52,7 +52,7 @@ uint64 ZelPID(integer3 ijk) {
 double3 ZelPos(integer3 ijk) {
     // This will be the position, in code units, of the initial grid.
     double3 p;
-    //ijk = PP->WrapCell(ijk);
+    //ijk = CP->WrapCell(ijk);
     p.x = (double)(ijk.x)/WriteState.ppd -.5;
     p.y = (double)(ijk.y)/WriteState.ppd -.5;
     p.z = (double)(ijk.z)/WriteState.ppd -.5;
@@ -80,11 +80,11 @@ double3 ZelPos(uint64 PID) {
 
 // If we're doing 2LPT, then we will overwrite those initial velocities.
 
-void KickCell_2LPT_1(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
+void KickCell_2LPT_1(Cell &c, FLOAT kick1, FLOAT kick2) {
     // Just store the acceleration
     int N = c.count();
     for (int i = 0; i < N; i++) {
-        c.vel[i] = TOFLOAT3(cellacc[i]);
+        c.vel[i] = TOFLOAT3(c.acc[i]);
     }
 }
 
@@ -95,7 +95,7 @@ void DriftCell_2LPT_1(Cell &c, FLOAT driftfactor) {
     // Set cellcenter to zero to return to box-centered positions
     double3 cellcenter = double3(0.0);
 #else
-    double3 cellcenter = PP->WrapCellCenter(c.ijk);
+    double3 cellcenter = CP->WrapCellCenter(c.ijk);
 #endif
 
     for (int b = 0; b<e; b++) {
@@ -107,11 +107,11 @@ void DriftCell_2LPT_1(Cell &c, FLOAT driftfactor) {
     }
 }
 
-void KickCell_2LPT_2(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
+void KickCell_2LPT_2(Cell &c, FLOAT kick1, FLOAT kick2) {
     // Now we can co-add the first two kicks to isolate the second-order
     // part.  This will be stored in the velocity.
     for (int i=0;i<c.count();i++) {
-        c.vel[i] += TOFLOAT3(cellacc[i]);
+        c.vel[i] += TOFLOAT3(c.acc[i]);
     }
 }
 
@@ -123,27 +123,27 @@ void init_2lpt_rereading(){
 // Free 2LPT velocity bookkeeping
 void finish_2lpt_rereading(){
     for(int i = 0; i < P.cpd; i++)
-        assertf(!LBW->IDPresent(VelLPTSlab, i), "A 2LPT velocity slab was left loaded\n");
+        assertf(!SB->IsSlabPresent(VelLPTSlab, i), "A 2LPT velocity slab was left loaded\n");
     delete[] vel_ics_npart;
 }
 
 // Load an IC velocity slab into an arena through the LoadIC module
 void load_ic_vel_slab(int slabnum){
-    slabnum = PP->WrapSlab(slabnum);
-    assertf(!LBW->IDPresent(VelLPTSlab, slabnum), "Trying to re-load velocity IC slab %d, which is already loaded.\n", slabnum);
+    slabnum = CP->WrapSlab(slabnum);
+    assertf(!SB->IsSlabPresent(VelLPTSlab, slabnum), "Trying to re-load velocity IC slab %d, which is already loaded.\n", slabnum);
     
     assertf(vel_ics_npart[slabnum] == 0, "Trying to load velocity IC slab %d, which should have already been completely re-read for 2LPT.\n", slabnum);
     STDLOG(1, "Re-reading velocity IC slab %d\n", slabnum);
     
     // Initialize the arena
-    velstruct* slab = (velstruct*) LBW->AllocateArena(VelLPTSlab, slabnum);  // Automatically determines the arena size from the IC file size 
+    velstruct* slab = (velstruct*) SB->AllocateArena(VelLPTSlab, slabnum);  // Automatically determines the arena size from the IC file size 
     
     // Use the LoadIC module to do the reading
     ICfile* ic_file;
     if(strcmp(P.ICFormat, "RVdoubleZel") == 0){
-        ic_file = new ICfile_RVdoubleZel((char*)LBW->ReadSlabDescriptorName(VelLPTSlab, slabnum).c_str());
+        ic_file = new ICfile_RVdoubleZel((char*)SB->ReadSlabPath(VelLPTSlab, slabnum).c_str());
     } else if(strcmp(P.ICFormat, "RVZel") == 0){
-        ic_file = new ICfile_RVZel((char*)LBW->ReadSlabDescriptorName(VelLPTSlab, slabnum).c_str());
+        ic_file = new ICfile_RVZel((char*)SB->ReadSlabPath(VelLPTSlab, slabnum).c_str());
     }
     
     uint64 count = 0;
@@ -157,7 +157,7 @@ void load_ic_vel_slab(int slabnum){
     }
     
     // Initialize the VelIC struct, as a signal that the slab is truly ready
-    vel_ics_npart[slabnum] = LBW->IDSizeBytes(VelLPTSlab, slabnum) / sizeof(velstruct);
+    vel_ics_npart[slabnum] = SB->SlabSizeBytes(VelLPTSlab, slabnum) / sizeof(velstruct);
     
     assertf(count == vel_ics_npart[slabnum], "The number of particles (%d) read from slab %d did not match the number computed from its file size (%d)\n", slabnum, count, vel_ics_npart[slabnum]);
     delete ic_file;
@@ -172,11 +172,11 @@ inline velstruct* get_ic_vel(uint64 pid){
     // We know the exact slab number and position of the velocity we want.
     uint64 offset = ijk.z + WriteState.ppd*(ijk.y + WriteState.ppd*slab_offset);
     
-    assertf(LBW->IDPresent(VelLPTSlab, slabnum), "IC vel slab %d not loaded.  Possibly an IC particle crossed two slab boundaries?\n", slabnum);
+    assertf(SB->IsSlabPresent(VelLPTSlab, slabnum), "IC vel slab %d not loaded.  Possibly an IC particle crossed two slab boundaries?\n", slabnum);
     
-    velstruct* slab = (velstruct*) LBW->ReturnIDPtr(VelLPTSlab, slabnum);
+    velstruct* slab = (velstruct*) SB->GetSlabPtr(VelLPTSlab, slabnum);
     
-    assertf(offset < vel_ics_npart[slabnum], "Tried to read particle %lld from IC slab %d, which only has %d particles\n", offset, slabnum, vel_ics_npart[slabnum]);  // Ensure that we're not reading past the end of the slab
+    assertf(offset < vel_ics_npart[slabnum], "Tried to read particle %d from IC slab %d, which only has %d particles\n", offset, slabnum, vel_ics_npart[slabnum]);  // Ensure that we're not reading past the end of the slab
     velstruct* vel = slab + offset;
     
     assertf(std::isfinite(vel->x), "vel.x bad value: %f\n", vel->x);
@@ -201,7 +201,7 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
     // Set cellcenter to zero to return to box-centered positions
     double3 cellcenter = double3(0.0);
 #else
-    double3 cellcenter = PP->WrapCellCenter(c.ijk);
+    double3 cellcenter = CP->WrapCellCenter(c.ijk);
 #endif
     
     double H = 1;
@@ -240,7 +240,7 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
 
 // 3LPT kick and drift
 
-void KickCell_2LPT_3(Cell &c, accstruct *cellacc, FLOAT kick1, FLOAT kick2) {
+void KickCell_2LPT_3(Cell &c, FLOAT kick1, FLOAT kick2) {
     // We could update the 3LPT velocity from the acceleration here,
     // but then we'd be repeating the same calculations for the position update in the Drift
     return;
@@ -250,7 +250,6 @@ void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
     // Now we have to adjust the positions and velocities    
     // Usually, Drift doesn't need accelerations, but 3LPT does
     int slab = c.ijk.x;
-    accstruct *cellacc = ((accstruct *) LBW->ReturnIDPtr(AccSlab,slab)) + c.ci->startindex;
     
     int e = c.count();
     posstruct displ12, displ3;
@@ -264,7 +263,7 @@ void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
     // Set cellcenter to zero to return to box-centered positions
     double3 cellcenter = double3(0.0);
 #else
-    double3 cellcenter = PP->WrapCellCenter(c.ijk);
+    double3 cellcenter = CP->WrapCellCenter(c.ijk);
 #endif
     
     double H = 1;
@@ -274,7 +273,7 @@ void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
         displ12 -= displ12.round();
             
         // Third order displacement
-        displ3 = (2./(3*H*H*P.Omega_M)*TOFLOAT3(cellacc[b]) - (7./(3*H*WriteState.f_growth*convert_velocity)*c.vel[b] - 4./3*displ12))/6;
+        displ3 = (2./(3*H*H*P.Omega_M)*TOFLOAT3(c.acc[b]) - (7./(3*H*WriteState.f_growth*convert_velocity)*c.vel[b] - 4./3*displ12))/6;
         displ3 -= displ3.round();
         assertf(displ3.norm() < displ12.norm(), "Error: 3rd-order LPT displacement (%f, %f, %f) is larger than 1st+2nd order (%f, %f, %f)!\n",
                displ3.x, displ3.y, displ3.z, displ12.x, displ12.y, displ12.z);

@@ -28,24 +28,21 @@
 #include <inttypes.h>
 
 #include <stdint.h>
-#include "file.h"
-#include "file.cpp"
-#include "read_dio.h"
-#include "read_dio.cpp"
+#include "iolib.cpp"
 
 #ifdef DOUBLEPRECISION
 #define FLOAT3 double3
 #define FLOAT double
 #define PI 3.141592653589793116
-#define CABS cabs
+#define CABS std::abs
 #else
 #define FLOAT3 float3
 #define FLOAT float
 #define PI 3.141592653589793116f
-#define CABS cabsf
+#define CABS std::abs
 #endif
 
-#include "read_abacus.h"
+#include "readabacus.h"
 
 #define squ(x) ((x)*(x))
 #define arr(a,x,y,z) a[gridN1D*gridN1D *(x) + gridN1D*(y) + (z)]

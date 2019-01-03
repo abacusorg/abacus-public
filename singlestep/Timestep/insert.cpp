@@ -64,7 +64,23 @@ void ConfirmSorting(ilstruct *il, uint64 len) {
     assertf(il[j].key()<=il[j+1].key(), 
             "Insert list sorting failed: il[%d]=%d,  il[%d]=%d\n",
         j, il[j].key(), j+1, il[j+1].key());
-    return;
+    
+
+    //STDLOG(1, "Sorting confirmed on insert list segment of length %d\n", len);
+}
+
+void ConfirmPartition(ilstruct *il, uint64 len, int slab) {
+    // Just an extra check that partitioning is working
+    int n_partitioned = 0;
+    for (uint64 j=0; j<len; j++){
+        if(il[j].xyz.x == slab)
+            n_partitioned++;
+        assertf((il[j].xyz.x == slab) == (n_partitioned > 0),
+                "Insert list partitioning failed: il[%d].slab = %d; partition slab = %d; n_partitioned = %d\n",
+                j, il[j].xyz.x, slab, n_partitioned);
+    }
+
+    STDLOG(1, "Partitioning confirmed on insert list of length %d for slab %d (found %d partitioned particles)\n", len, slab, n_partitioned);
 }
 
 
@@ -152,9 +168,8 @@ public:
         // Ensure that we are not trying to push a particle to a slab
         // that might already have finished
         int slab_distance = abs(x - newcell.x);
-        if(slab_distance >= (P.cpd+1)/2){
+        if(slab_distance >= (P.cpd+1)/2)
             slab_distance = P.cpd - slab_distance;
-        }
         if (slab_distance > FINISH_WAIT_RADIUS){
             posstruct p = *pos;
             velstruct v = *vel;
@@ -189,10 +204,15 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     uint64 slablength = 0;
     FinishPartition.Start();
 
+    // We've been pushing particles to spread-out locations in the MAL; now make them contiguous
+    CollectGaps();
+
     uint64 mid = ParallelPartition(list, length, slab, is_in_slab);  // [0..mid-1] are not in slab, [mid..length-1] are in slab
+
+    //ConfirmPartition(list, length, slab);
     
-    /* VESTIGIAL CODE, in case one doesn't trust the ParallelPartition code
-    uint64 h = 0;
+    // VESTIGIAL CODE, in case one doesn't trust the ParallelPartition code
+    /*uint64 h = 0;
     uint64 mid = length;   // This will be one more than the last value
 
     while(h<mid) {

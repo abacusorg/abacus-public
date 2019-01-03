@@ -37,9 +37,10 @@ public:
     int  DerivativeExpansionRadius;
     int  MAXRAMMB;
     int  ConvolutionCacheSizeMB; // Set to manually override the detected cache size
-    int RamDisk;        // ==0 for a normal disk, ==1 for a ramdisk (which don't have DIO support)
-    int OverwriteState; // 0 for normal, separate read and write states; 1 to overwrite the read state to save space
+    int RamDisk;        // ==0 for a normal disk, ==1 for a ramdisk (which don't have DIO support)  // TODO: automatically detect this, or at least provide per-directory options
     int ForceBlockingIO;   // ==1 if you want to force all IO to be blocking.
+    char StateIOMode[64];  //  "normal", "slosh", "overwrite", "stripe"
+    char Conv_IOMode[64];  //  "normal", "slosh", "overwrite", "stripe"
     
     int OMP_NUM_THREADS;  // Number of OpenMP threads.  0 does not modify the system value (usually OMP_NUM_THREADS, or all threads).
                         // Negative values use that many fewer than the max.
@@ -130,6 +131,7 @@ public:
     
     int Conv_OMP_NUM_THREADS;
     int Conv_IOCores[MAX_IO_THREADS];
+    int Conv_zwidth;
     
     // TODO: this scheme doesn't account for more complicated NUMA architectures
     int GPUThreadCoreStart[MAX_GPUS];  // The core on which to start placing GPU device threads.
@@ -137,9 +139,11 @@ public:
 
     int AllowGroupFinding;
     double FoFLinkingLength[3]; //Linking lengths for level 0,1,2 groupfinding in fractional interparticle spacing 
+    double SODensity[2];  // Overdensities for SO groupfinding level 1 and 2
     int MinL1HaloNP; // minimum L1 halo size to output
 	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
     double HaloTaggableFraction; // fraction of particles in a L2 halo to tag and output
+    int OutputAllHaloParticles;  // ==0 normally, to output only taggable L1 particles.  If non-zero, output all particles.
 
     double MicrostepTimeStep; // Timestep parameter that controls microstep refinement
 
@@ -179,10 +183,13 @@ public:
         installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB, DONT_CARE);
         RamDisk = 0;
         installscalar("RamDisk",RamDisk,DONT_CARE);
-        OverwriteState = 0;
-        installscalar("OverwriteState",OverwriteState,DONT_CARE);
         ForceBlockingIO = 0;
         installscalar("ForceBlockingIO",ForceBlockingIO,DONT_CARE);
+
+        sprintf(StateIOMode, "normal");
+        installscalar("StateIOMode", StateIOMode, DONT_CARE);
+        sprintf(Conv_IOMode, "normal");
+        installscalar("Conv_IOMode", Conv_IOMode, DONT_CARE);
 
         OMP_NUM_THREADS = 0;
         installscalar("OMP_NUM_THREADS",OMP_NUM_THREADS,DONT_CARE);
@@ -192,10 +199,12 @@ public:
 
         installscalar("DerivativesDirectory",DerivativesDirectory,MUST_DEFINE);
 
-        installscalar("InitialConditionsDirectory",InitialConditionsDirectory,MUST_DEFINE);   // The initial condition file name
-        installscalar("ICFormat",ICFormat,MUST_DEFINE);   // The initial condition file format
-        installscalar("ICPositionRange",ICPositionRange,MUST_DEFINE);   // The initial condition file position convention
-        installscalar("ICVelocity2Displacement",ICVelocity2Displacement,MUST_DEFINE);   // The initial condition file velocity convention
+        installscalar("InitialConditionsDirectory",InitialConditionsDirectory,DONT_CARE);   // The initial condition file name
+        installscalar("ICFormat",ICFormat,DONT_CARE);   // The initial condition file format
+        ICPositionRange = -1.;
+        installscalar("ICPositionRange",ICPositionRange,DONT_CARE);   // The initial condition file position convention
+        ICVelocity2Displacement = -1;
+        installscalar("ICVelocity2Displacement",ICVelocity2Displacement,DONT_CARE);   // The initial condition file velocity convention
         FlipZelDisp = 0;
         installscalar("FlipZelDisp",FlipZelDisp,DONT_CARE);   // Flip Zeldovich ICs
 
@@ -288,6 +297,9 @@ public:
         Conv_OMP_NUM_THREADS = 0;
         installscalar("Conv_OMP_NUM_THREADS", Conv_OMP_NUM_THREADS, DONT_CARE);
 
+        Conv_zwidth = -1;
+        installscalar("Conv_zwidth", Conv_zwidth, DONT_CARE);
+
         // Using staticly allocated memory didn't seem to work with installvector
         IODirs = (char**) malloc(MAX_IODIRS*sizeof(char*));
         char *block = (char *) malloc(MAX_IODIRS*1024*sizeof(char));
@@ -314,12 +326,17 @@ public:
         FoFLinkingLength[1] = .186;
         FoFLinkingLength[2] = .138;
         installvector("FoFLinkingLength",FoFLinkingLength,3,1,DONT_CARE);
+        SODensity[0] = 180.0;
+        SODensity[1] = 720.0;
+        installvector("SODensity",SODensity,2,1,DONT_CARE);
         MinL1HaloNP = 10;
         installscalar("MinL1HaloNP", MinL1HaloNP, DONT_CARE);
 		L1Output_dlna = .1;
 		installscalar("L1Output_dlna", L1Output_dlna, DONT_CARE);
         HaloTaggableFraction = 0.1;
         installscalar("HaloTaggableFraction", HaloTaggableFraction, DONT_CARE);
+        OutputAllHaloParticles = 0;
+        installscalar("OutputAllHaloParticles", OutputAllHaloParticles, DONT_CARE);
 
         MicrostepTimeStep = 1.;
         installscalar("MicrostepTimeStep", MicrostepTimeStep, DONT_CARE);
@@ -374,7 +391,16 @@ private:
     void ProcessStateDirectories();
 };
 
+// Convert a whole string to lower case, in place.
+void strlower(char* str){
+    for ( ; *str; ++str)
+        *str = tolower(*str);
+}
+
 void Parameters::ProcessStateDirectories(){
+    strlower(StateIOMode);
+    strlower(Conv_IOMode);
+
     if (strcmp(WorkingDirectory,STRUNDEF) !=0){
         if ( strcmp(ReadStateDirectory,STRUNDEF)!=0 || strcmp(WriteStateDirectory,STRUNDEF)!=0 ){
             QUIT("If WorkingDirectory is defined, {Read,Write}StateDirectory should be undefined. Terminating\n")
@@ -382,7 +408,7 @@ void Parameters::ProcessStateDirectories(){
         else{
             sprintf(ReadStateDirectory,"%s/read",WorkingDirectory);
             sprintf(WriteStateDirectory,"%s/write",WorkingDirectory);
-            if(OverwriteState){
+            if(strcmp(StateIOMode, "overwrite") == 0) {  // later, we will set WriteState.OverwriteState
                 strcpy(WriteStateDirectory, ReadStateDirectory);
             }
         }
@@ -547,6 +573,24 @@ void Parameters::ValidateParameters(void) {
     assert(nIODirs < MAX_IODIRS);
     for (int i = 0; i < nIODirs; i++)
         assert(IODirThreads[i] >= 1);
+
+    assertf(
+        strcmp(StateIOMode, "normal") == 0 ||
+        strcmp(StateIOMode, "overwrite") == 0 ||
+        strcmp(StateIOMode, "slosh") == 0 ||
+        strcmp(StateIOMode, "stripe") == 0,
+        "StateIOMode = \"%s\" must be one of normal, overwrite, slosh, stripe.",
+        StateIOMode
+        );
+
+    assertf(
+        strcmp(Conv_IOMode, "normal") == 0 ||
+        strcmp(Conv_IOMode, "overwrite") == 0 ||
+        strcmp(Conv_IOMode, "slosh") == 0 ||
+        strcmp(Conv_IOMode, "stripe") == 0,
+        "Conv_IOMode = \"%s\" must be one of normal, overwrite, slosh, stripe.",
+        Conv_IOMode
+        );
 }
 Parameters P;
 

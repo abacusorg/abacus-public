@@ -95,7 +95,7 @@ def chdir(dirname=None):
     os.chdir(curdir)
 
 # Adds a tick to the given axis with the given value and name
-def add_tick(ax, loc, label):
+def add_tick(ax, loc, label, ha=None):
     # Generate ticks and lims
     ax.figure.canvas.draw()
     lims = ax.get_xlim()
@@ -108,6 +108,10 @@ def add_tick(ax, loc, label):
     ax.set_xticks(locs)
     ax.set_xticklabels(labels)
     ax.set_xlim(lims)
+
+    if ha:
+        labels = ax.get_xticklabels()
+        labels[-1].set_ha(ha)
     
 import matplotlib.pyplot as plt
 def matrix_plot(m, fig=None, ax=None, contour=False, subplots_kwargs={}, contour_kwargs={}, imshow_kwargs={}, **kwargs):
@@ -300,6 +304,37 @@ import argparse
 # >>> parser = argparse.ArgumentParser(description='...', formatter_class=Tools.ArgParseFormatter)
 class ArgParseFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
     pass
+
+
+import numba
+def wrap_zero_centered(pos, box):
+    """
+    Wraps an array of positions in-place
+    to the range [-box/2, box/2).
+    
+    Parameters
+    ----------
+    pos: ndarray
+        The positions to wrap, already in the same units as box
+    box: float
+        The box edge length (box is zero-centered)
+    """
+    
+    return _box_wrap(pos.ravel(), box)
+
+@numba.njit(parallel=True)
+def _box_wrap(p, box):
+    '''
+    An in-place fast periodic wrap
+    This is a kludgy workaround for https://github.com/numba/numba/issues/2954
+    '''
+    #p = p.flat
+    N = len(p)
+    for i in numba.prange(N):
+        while p[i] >= box/2:
+            p[i] -= box
+        while p[i] < -box/2:
+            p[i] += box
     
 if __name__ == '__main__':
     fm = get_RAM_info()

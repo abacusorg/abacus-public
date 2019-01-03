@@ -10,8 +10,8 @@ $(SUBDIRS):
 	
 all: $(SUBDIRS)
 
+# Pass on all targets to children
 %:
 	for DIR in $(SUBDIRS); do \
 		$(MAKE) -C $$DIR $@; \
 	done
-	

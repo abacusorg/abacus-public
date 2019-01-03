@@ -136,8 +136,8 @@ double ChooseTimeStep(){
 	maxdrift *= ReadState.MaxAcceleration;
 	maxdrift /= P.TimeStepAccel*P.TimeStepAccel;
 	double da_eona = da;
-	if (maxdrift>JJ->SofteningLength) {  // Plummer-equivalent softening length
-	    if(maxdrift >1e-12) da_eona *= sqrt(JJ->SofteningLength/maxdrift);
+	if (maxdrift>NFD->SofteningLength) {  // Plummer-equivalent softening length
+	    if(maxdrift >1e-12) da_eona *= sqrt(NFD->SofteningLength/maxdrift);
 	    STDLOG(0,"da based on sqrt(epsilon/amax) is %f.\n", da_eona);
         // We deliberately do not limit the timestep based on this criterion
 	}
@@ -168,58 +168,6 @@ double ChooseTimeStep(){
 	return da;
 }
 
-// A few actions that we need to do before choosing the timestep
-void InitWriteState(int ic){
-    // Even though we do this in BuildWriteState, we want to have the step number
-    // available when we choose the time step.
-    WriteState.FullStepNumber = ReadState.FullStepNumber+1;
-    WriteState.LPTStepNumber = LPTStepNumber();
-    
-    // We generally want to do re-reading on the last LPT step
-    WriteState.Do2LPTVelocityRereading = 0;
-    if (LPTStepNumber() > 0 && LPTStepNumber() == P.LagrangianPTOrder
-        && (strcmp(P.ICFormat, "RVdoubleZel") == 0 || strcmp(P.ICFormat, "RVZel") == 0))
-        WriteState.Do2LPTVelocityRereading = 1;
-    
-    // Decrease the softening length if we are doing a 2LPT step
-    // This helps ensure that we are using the true 1/r^2 force
-    /*if(LPTStepNumber()>0){
-        WriteState.SofteningLength = P.SofteningLength / 1e4;  // This might not be in the growing mode for this choice of softening, though
-        STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLength);
-        
-        // Only have to do this because GPU gives bad forces sometimes, causing particles to shoot off.
-        // Remove this once the GPU is reliable again
-        //P.ForceCPU = 1;
-        //STDLOG(0,"Forcing CPU because this is a 2LPT step.\n");
-    }
-    else{
-        WriteState.SofteningLength = P.SofteningLength;
-    }*/
-    
-    WriteState.SofteningLength = P.SofteningLength;
-    
-    // Now scale the softening to match the minimum Plummer orbital period
-#if defined DIRECTCUBICSPLINE
-    strcpy(WriteState.SofteningType, "cubic_spline");
-    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 1.10064;
-#elif defined DIRECTSINGLESPLINE
-    strcpy(WriteState.SofteningType, "single_spline");
-    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 2.15517;
-#elif defined DIRECTCUBICPLUMMER
-    strcpy(WriteState.SofteningType, "cubic_plummer");
-    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 1.;
-#else
-    strcpy(WriteState.SofteningType, "plummer");
-    WriteState.SofteningLengthInternal = WriteState.SofteningLength;
-#endif
-    
-    if(WriteState.Do2LPTVelocityRereading)
-        init_2lpt_rereading();
-
-    Slab = new SlabSize(P.cpd);
-    if(!ic)
-        JJ = new NearFieldDriver();
-}
 
 void BuildWriteState(double da){
 	STDLOG(0,"Building WriteState for a step from a=%f by da=%f\n", cosm->current.a, da);
@@ -242,7 +190,7 @@ void BuildWriteState(double da){
 	STDLOG(0,"Host machine name is %s\n", WriteState.MachineName);
 
 	WriteState.DoublePrecision = (sizeof(FLOAT)==8)?1:0;
-	STDLOG(0,"Bytes per float is %d\n", (WriteState.DoublePrecision+1)*4);
+	STDLOG(0,"Bytes per float is %d\n", sizeof(FLOAT));
 	STDLOG(0,"Bytes per auxstruct is %d\n", sizeof(auxstruct));
 	STDLOG(0,"Bytes per cellinfo is %d\n", sizeof(cellinfo));
 	WriteState.FullStepNumber = ReadState.FullStepNumber+1;
@@ -340,6 +288,62 @@ void PlanOutput(bool MakeIC) {
 
 }
 
+
+void InitGroupFinding(int ic){
+    int do_output;
+    // Request output of L1 groups and halo/field subsamples if:
+        // - By going from ReadState to WriteState we are crossing a L1Output_dlna checkpoint
+        // - We are doing a TimeSlice output
+    // We may not end up outputting group if GFC is not initialized below
+    if(P.L1Output_dlna >= 0)
+        do_output = log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ||
+                    fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna);
+    else
+        do_output = 0;
+    do_output |= ReadState.DoTimeSliceOutput;
+
+    WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities
+
+    // We need to enable group finding if:
+        // - We are doing microstepping
+        // - We are outputting groups
+    // But we can't enable it if:
+        // - AllowGroupFinding is disabled
+        // - ForceOutputDebug is enabled
+        // - This is an IC step
+    // ForceOutputDebug outputs accelerations as soon as we compute them
+    // i.e. before GroupFinding has a chance to rearrange them
+    if((P.MicrostepTimeStep > 0 || do_output) &&
+        !(!P.AllowGroupFinding || P.ForceOutputDebug || ic)){
+        STDLOG(1, "Setting up group finding\n");
+        
+        ReadState.DoGroupFindingOutput = do_output;
+
+        GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
+                    #ifdef SPHERICAL_OVERDENSITY
+                    P.SODensity[0], P.SODensity[1],
+                    #else
+                    P.FoFLinkingLength[1]/pow(P.np,1./3),
+                    P.FoFLinkingLength[2]/pow(P.np,1./3),
+                    #endif
+                    P.cpd, P.GroupRadius, P.MinL1HaloNP, P.np);
+
+        #ifdef COMPUTE_FOF_DENSITY
+        #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
+        WriteState.DensityKernelRad2 = GFC->linking_length;
+        WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5); 
+        // We use square radii.  The radius is padded just a little
+        // bit so we don't risk underflow with 1 particle at r=b
+        // in comparison to the self-count.
+        #endif
+        #endif
+
+    } else{
+        STDLOG(1, "Group finding not enabled for this step.\n");
+    }
+}
+
+
 int main(int argc, char **argv) {
     WallClockDirect.Start();
     SingleStepSetup.Start();
@@ -366,12 +370,6 @@ int main(int argc, char **argv) {
     bool MakeIC; //True if we should make the initial state instead of doing a real timestep
 
     check_read_state(AllowIC, MakeIC, da);
-    
-    //Check if WriteStateDirectory/state exists, and fail if it does
-    char wstatefn[1050];
-    sprintf(wstatefn,"%s/state",P.WriteStateDirectory);
-    if(access(wstatefn,0) !=-1 && !P.OverwriteState)
-    	QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
 
     // Initialize the Cosmology and set up the State epochs and the time step
     cosm = InitializeCosmology(ReadState.ScaleFactor);
@@ -379,6 +377,12 @@ int main(int argc, char **argv) {
     
     // Set some WriteState values before ChooseTimeStep()
     InitWriteState(MakeIC);
+
+    // Check if WriteStateDirectory/state exists, and fail if it does
+    char wstatefn[1050];
+    sprintf(wstatefn,"%s/state", P.WriteStateDirectory);
+    if(access(wstatefn,0) !=-1 && !WriteState.OverwriteState)
+        QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
     
     if (da!=0) da = ChooseTimeStep();
     double dlna = da/ReadState.ScaleFactor;
@@ -388,8 +392,9 @@ int main(int argc, char **argv) {
     }
     
     //Enable floating point exceptions unless we are doing profiling (where they tend to break the profilier)
-    if(!P.ProfilingMode)feenableexcept(FE_INVALID | FE_DIVBYZERO);
-    else fedisableexcept(FE_INVALID | FE_DIVBYZERO);
+    feenableexcept(FE_INVALID | FE_DIVBYZERO);
+    //if(!P.ProfilingMode) feenableexcept(FE_INVALID | FE_DIVBYZERO);
+    //else fedisableexcept(FE_INVALID | FE_DIVBYZERO);
     
     BuildWriteState(da);
     LCOrigin = (double3 *) malloc(8*sizeof(double3));  // max 8 light cones
@@ -398,6 +403,8 @@ int main(int argc, char **argv) {
     
     // Make a plan for output
     PlanOutput(MakeIC);
+
+    InitGroupFinding(MakeIC);
 
     SingleStepSetup.Stop();
 
@@ -424,7 +431,13 @@ int main(int argc, char **argv) {
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
     WriteState.write_to_file(P.WriteStateDirectory);
     STDLOG(0,"Wrote WriteState to %s\n",P.WriteStateDirectory);
-    if (!MakeIC && P.ProfilingMode) int ret = system("rm -rf write/state write/position_* multipole/Multipoles_* write/velocity_* write/auxillary* write/cellinfo_* write/globaldipole write/redlack write/slabsize out/*");
+    
+    if (!MakeIC && P.ProfilingMode){
+        STDLOG(0,"ProfilingMode is active. Removing the write state in %s\n",P.WriteStateDirectory);
+        char command[1024];
+        sprintf(command, "rm -rf %s/*", P.WriteStateDirectory);
+        int ret = system(command);  // hacky!
+    }
     stdlog.close();
         
     exit(0);

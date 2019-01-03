@@ -11,7 +11,6 @@ NearFieldRadius = 2
 NumSlabsInsertList = 0
 NumSlabsInsertListIC = 0
 OverwriteState = 0
-RamDisk = 1
 ForceOutputDebug = 0
 OutputFormat="RVdouble"
 CPD = 33

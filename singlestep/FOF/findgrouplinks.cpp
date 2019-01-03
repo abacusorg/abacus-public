@@ -1,4 +1,4 @@
-/* This is the code that searches for links between CellGroups in neighboring
+/** \file This is the code that searches for links between CellGroups in neighboring
 cells.  When a link is found, it is placed in the GroupLinkList GLL.
 Aside from those GroupLinks, there is no other output from this code.
 
@@ -19,6 +19,9 @@ the faces are already small enough that the bookkeeping overheads
 would overwhelm the value.
 */
 
+
+/** A FaceGroup is a 
+*/
 class FaceGroup {
     public:
     int start;
@@ -36,22 +39,26 @@ class FaceGroup {
 typedef FOFparticle FacePseudoParticle;
 typedef FOFparticle FaceGroupParticle;
 
+/** A CellFaceSlab contains all of the information needed to represent
+the groups near one face of a cell.
+*/
+
 class CellFaceSlab {
     public:
     SlabAccum<FacePseudoParticle> pseudoParticles;
-	// We create a set of searchable FacePseudoParticles for each face.
-	// index = cell group number for singlets, -FaceGroup number for multiplets
+	///< We create a set of searchable FacePseudoParticles for each face.
+	///< index = cell group number for singlets, -FaceGroup number for multiplets
     SlabAccum<float> pseudoRadii;
-	// Every pseudo particle has a bounding radius; 0 for singlets.
+	///< Every pseudo particle has a bounding radius; 0 for singlets.
 
     SlabAccum<FaceGroupParticle> faceParticles;
-	// The actual face particles in the multiplets, index undefined
+	///< The actual face particles in the multiplets, index undefined
     SlabAccum<FaceGroup> faceGroups;
-        // The lookup information for each multiplet, plus its cell group number.
+        ///< The lookup information for each multiplet, plus its cell group number.
 
-    int edgebit;	// The edge we're going to select
-    int slab; 		// The slab we're computing (wrapped)
-    int slab_prewrap; 	// The slab we're told to compute (unwrapped)
+    int edgebit;	///< The edge we're going to select
+    int slab; 		///< The slab we're computing (wrapped)
+    int slab_prewrap; 	///< The slab we're told to compute (unwrapped)
 
     CellFaceSlab(int _slab, int _edgebit, int cpd, int maxsize) {
 	// maxsize should be the number of particles in a cell
@@ -79,9 +86,9 @@ class CellFaceSlab {
     }
 };
 
+/// This is a simple accumulation, so that we can make other code more concise
 class FaceSet {
     public:
-    // This is a simple accumulation, so that we can make other code more concise
     PencilAccum<FacePseudoParticle> *pP;
     PencilAccum<float>              *pR;
     PencilAccum<FaceGroupParticle>  *fP;
@@ -120,9 +127,12 @@ class FaceSet {
 	fG->FinishPencil();
     }
 
+    /** This is the routine that searches one cell for face particles.
+    It will create singlet particles or FaceGroups and pseudoParticles
+    as needed.
+    */
     void ProcessCell(int j, int k) {
-	// Search this cell for face particles
-	Cell c = PP->GetCell(face->slab, j, k);
+	Cell c = CP->GetCell(face->slab, j, k);
 	integer3 wc = GFC->WrapCell(face->slab, j, k);
 	CellPtr<CellGroup> cg = GFC->cellgroups[wc.x][wc.y][wc.z];
 	const FOFloat boundary = GFC->boundary;   // The boundaries, cell-centered
@@ -213,11 +223,13 @@ class FaceSet {
 };  // End class FaceSet
 
 
+/** We're going to create all the faces, looping over the j,k cells for the slab.
+This routine does all 5 at once for each cell, on the hopes that
+we only load the particles into cache once.
+*/
+
 void CreateFaces( CellFaceSlab &xm, CellFaceSlab &xp,
 	CellFaceSlab &ym, CellFaceSlab &yp, CellFaceSlab &zm, CellFaceSlab &zp) {
-    // We're going to create all the faces, looping over the j,k cells for the slab.
-    // This routine does all 5 at once for each cell, on the hopes that
-    // we only load the particles into cache once.
 
     #pragma omp parallel for schedule(static)
     for (int j=0; j<GFC->cpd; j++) {
@@ -265,13 +277,14 @@ void CreateFaces( CellFaceSlab &xm, CellFaceSlab &xp,
 
 // ===================== Faces: Searching for Links =================================
 
+/** Given two CellFaceSlabs and the desired cells, search for Links.
+This starts by comparing the pseudoParticles.
+If they are close enough, then consider whether they are compound.
+If either or both is compound, search all those pairs.
+Whenever one finds a link, mark the pair and move on to the next one.
+*/
 void SearchPair(CellFaceSlab &c1, int j1, int k1, 
 	    CellFaceSlab &c2, int j2, int k2) {
-    // Given two CellFaceSlabs and the desired cells, search for Links.
-    // This starts by comparing the pseudoParticles.
-    // If they are close enough, then consider whether they are compound.
-    // If either or both is compound, search all those pairs.
-    // Whenever one finds a link, mark the pair and move on to the next one.
 
     int i1 = c1.slab;
     int i2 = c2.slab;
@@ -394,10 +407,14 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
     return; 
 }
 
+
+// ========================================================
+
+/** Find the CellGroup borders for all cells in slab, including
+those to slab-1.  Then search them, adding to the List of Links.
+*/
+
 void FindGroupLinks(int slab) {
-    // Find the CellGroup borders for all cells in slab, including
-    // those to slab-1.
-    // Then search them, adding to the List of Links.
     GFC->CreateFaceTime.Start();
     slab = GFC->WrapSlab(slab);
     uint64 Ltot_start = GFC->GLL->length;
@@ -442,70 +459,6 @@ void FindGroupLinks(int slab) {
     	xp.faceGroups.get_slab_size() + xm.faceGroups.get_slab_size() +
     	yp.faceGroups.get_slab_size() + ym.faceGroups.get_slab_size() +
     	zp.faceGroups.get_slab_size() + zm.faceGroups.get_slab_size();
-
-    /* 
-    // These files are consistent, even with different threading.
-    char fname[200];
-    sprintf(fname, "Z/pP.xp.%02d", slab); xp.pseudoParticles.dump_to_file(fname);
-    sprintf(fname, "Z/pP.xm.%02d", slab); xm.pseudoParticles.dump_to_file(fname);
-    sprintf(fname, "Z/pP.yp.%02d", slab); yp.pseudoParticles.dump_to_file(fname);
-    sprintf(fname, "Z/pP.ym.%02d", slab); ym.pseudoParticles.dump_to_file(fname);
-    sprintf(fname, "Z/pP.zp.%02d", slab); zp.pseudoParticles.dump_to_file(fname);
-    sprintf(fname, "Z/pP.zm.%02d", slab); zm.pseudoParticles.dump_to_file(fname);
-
-    sprintf(fname, "Z/fP.xp.%02d", slab); xp.faceParticles.dump_to_file(fname);
-    sprintf(fname, "Z/fP.xm.%02d", slab); xm.faceParticles.dump_to_file(fname);
-    sprintf(fname, "Z/fP.yp.%02d", slab); yp.faceParticles.dump_to_file(fname);
-    sprintf(fname, "Z/fP.ym.%02d", slab); ym.faceParticles.dump_to_file(fname);
-    sprintf(fname, "Z/fP.zp.%02d", slab); zp.faceParticles.dump_to_file(fname);
-    sprintf(fname, "Z/fP.zm.%02d", slab); zm.faceParticles.dump_to_file(fname);
-
-    sprintf(fname, "Z/fG.xp.%02d", slab); xp.faceGroups.dump_to_file(fname);
-    sprintf(fname, "Z/fG.xm.%02d", slab); xm.faceGroups.dump_to_file(fname);
-    sprintf(fname, "Z/fG.yp.%02d", slab); yp.faceGroups.dump_to_file(fname);
-    sprintf(fname, "Z/fG.ym.%02d", slab); ym.faceGroups.dump_to_file(fname);
-    sprintf(fname, "Z/fG.zp.%02d", slab); zp.faceGroups.dump_to_file(fname);
-    sprintf(fname, "Z/fG.zm.%02d", slab); zm.faceGroups.dump_to_file(fname);
-
-    sprintf(fname, "Z/pR.xp.%02d", slab); xp.pseudoRadii.dump_to_file(fname);
-    sprintf(fname, "Z/pR.xm.%02d", slab); xm.pseudoRadii.dump_to_file(fname);
-    sprintf(fname, "Z/pR.yp.%02d", slab); yp.pseudoRadii.dump_to_file(fname);
-    sprintf(fname, "Z/pR.ym.%02d", slab); ym.pseudoRadii.dump_to_file(fname);
-    sprintf(fname, "Z/pR.zp.%02d", slab); zp.pseudoRadii.dump_to_file(fname);
-    sprintf(fname, "Z/pR.zm.%02d", slab); zm.pseudoRadii.dump_to_file(fname);
-    */
-
-    /* 
-    // These also matched between threadings:
-    char fname[200];
-    sprintf(fname, "Z/pP.xp.%02d", slab); xp.pseudoParticles.dump_cells_to_file(fname);
-    sprintf(fname, "Z/pP.xm.%02d", slab); xm.pseudoParticles.dump_cells_to_file(fname);
-    sprintf(fname, "Z/pP.yp.%02d", slab); yp.pseudoParticles.dump_cells_to_file(fname);
-    sprintf(fname, "Z/pP.ym.%02d", slab); ym.pseudoParticles.dump_cells_to_file(fname);
-    sprintf(fname, "Z/pP.zp.%02d", slab); zp.pseudoParticles.dump_cells_to_file(fname);
-    sprintf(fname, "Z/pP.zm.%02d", slab); zm.pseudoParticles.dump_cells_to_file(fname);
-
-    sprintf(fname, "Z/fP.xp.%02d", slab); xp.faceParticles.dump_cells_to_file(fname);
-    sprintf(fname, "Z/fP.xm.%02d", slab); xm.faceParticles.dump_cells_to_file(fname);
-    sprintf(fname, "Z/fP.yp.%02d", slab); yp.faceParticles.dump_cells_to_file(fname);
-    sprintf(fname, "Z/fP.ym.%02d", slab); ym.faceParticles.dump_cells_to_file(fname);
-    sprintf(fname, "Z/fP.zp.%02d", slab); zp.faceParticles.dump_cells_to_file(fname);
-    sprintf(fname, "Z/fP.zm.%02d", slab); zm.faceParticles.dump_cells_to_file(fname);
-
-    sprintf(fname, "Z/fG.xp.%02d", slab); xp.faceGroups.dump_cells_to_file(fname);
-    sprintf(fname, "Z/fG.xm.%02d", slab); xm.faceGroups.dump_cells_to_file(fname);
-    sprintf(fname, "Z/fG.yp.%02d", slab); yp.faceGroups.dump_cells_to_file(fname);
-    sprintf(fname, "Z/fG.ym.%02d", slab); ym.faceGroups.dump_cells_to_file(fname);
-    sprintf(fname, "Z/fG.zp.%02d", slab); zp.faceGroups.dump_cells_to_file(fname);
-    sprintf(fname, "Z/fG.zm.%02d", slab); zm.faceGroups.dump_cells_to_file(fname);
-
-    sprintf(fname, "Z/pR.xp.%02d", slab); xp.pseudoRadii.dump_cells_to_file(fname);
-    sprintf(fname, "Z/pR.xm.%02d", slab); xm.pseudoRadii.dump_cells_to_file(fname);
-    sprintf(fname, "Z/pR.yp.%02d", slab); yp.pseudoRadii.dump_cells_to_file(fname);
-    sprintf(fname, "Z/pR.ym.%02d", slab); ym.pseudoRadii.dump_cells_to_file(fname);
-    sprintf(fname, "Z/pR.zp.%02d", slab); zp.pseudoRadii.dump_cells_to_file(fname);
-    sprintf(fname, "Z/pR.zm.%02d", slab); zm.pseudoRadii.dump_cells_to_file(fname);
-    */
 
     GFC->CreateFaceTime.Stop();
     GFC->FindLinkTime.Start();

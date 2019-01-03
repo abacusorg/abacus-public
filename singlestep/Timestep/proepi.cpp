@@ -16,6 +16,7 @@
  *      should be done by deleting the object, with specific teardown code in the destructor 
  *      for that module. 
 */
+
 #include <sys/time.h>
 #include <sys/resource.h> 
 
@@ -76,6 +77,7 @@ uint64 naive_directinteractions = 0;
 
 #include "file.h"
 #include "grid.cpp"
+grid *Grid;
 
 #include "particlestruct.cpp"
 
@@ -83,22 +85,25 @@ uint64 naive_directinteractions = 0;
 #include "statestructure.cpp"
 State ReadState, WriteState;
 
+
+
 // #include "ParticleCellInfoStructure.cpp"
 // #include "maxcellsize.cpp"
 #include "IC_classes.h"
-#include "slabtypes.cpp"
-SlabBuffer *LBW;
+#include "slabbuffer.cpp"
+SlabBuffer *SB;
 
 // Two quick functions so that the I/O routines don't need to know 
-// about the LBW object. TODO: Move these to an io specific file
+// about the SB object. TODO: Move these to an io specific file
 void IO_SetIOCompleted(int arenatype, int arenaslab) { 
-	LBW->SetIOCompleted(arenatype, arenaslab); }
+	SB->SetIOCompleted(arenatype, arenaslab); }
 void IO_DeleteArena(int arenatype, int arenaslab)    { 
-	LBW->DeAllocate(arenatype, arenaslab); }
+	SB->DeAllocate(arenatype, arenaslab); }
 
 
 #include "threadaffinity.h"
 
+// TODO: do we need to support non-threaded io? threaded io still has the blocking option
 #ifdef IOTHREADED
 #include "io_thread.cpp"
 #else
@@ -107,10 +112,10 @@ void IO_DeleteArena(int arenatype, int arenaslab)    {
 #endif
 
 #include "slabsize.cpp"
-SlabSize *Slab;
+SlabSize *SS;
 
-#include "particles.cpp"
-Particles *PP;
+#include "cellparticles.cpp"
+CellParticles *CP;
 
 #include "dependency.cpp"
 
@@ -170,13 +175,6 @@ int first_slab_on_node, total_slabs_on_node;
 
 #include <fenv.h>
 
-void load_slabsize(Parameters &P){
-    char filename[1024];
-    sprintf(filename,"%s/slabsize",P.ReadStateDirectory);
-    Slab->read(filename);
-    STDLOG(1,"Reading SlabSize file from %s\n", filename);
-}
-
 
 /*! \brief Initializes global objects
  *
@@ -194,6 +192,7 @@ void Prologue(Parameters &P, bool ic) {
     long long int np = P.np;
     assert(np>0);
 
+
     // Look in ReadState to see what PosSlab files are available
     // TODO: Haven't implemented this yet
     first_slab_on_node = 0;
@@ -205,14 +204,17 @@ void Prologue(Parameters &P, bool ic) {
     // Call this to use thread-based Manifests
     NonBlockingManifest();
 
-    LBW = new SlabBuffer(cpd, order, MAXIDS, P.MAXRAMMB*1024*1024);
-    PP = new Particles(cpd, LBW);
+    Grid = new grid(cpd);
+    SB = new SlabBuffer(cpd, order, P.MAXRAMMB*1024*1024);
+    CP = new CellParticles(cpd, SB);
+
     STDLOG(1,"Initializing Multipoles()\n");
     MF  = new SlabMultipoles(order, cpd);
 
     STDLOG(1,"Setting up insert list\n");
     uint64 maxILsize = P.np+1;
-    if (ic) {
+    // IC steps and LPT steps may need more IL slabs.  Their pipelines are not as long as full (i.e. group finding) steps
+    if (ic || LPTStepNumber() > 0) {
         if (P.NumSlabsInsertListIC>0) maxILsize =(maxILsize* P.NumSlabsInsertListIC)/P.cpd+1;
     } else {
         if (P.NumSlabsInsertList>0) maxILsize   =(maxILsize* P.NumSlabsInsertList)/P.cpd+1;
@@ -228,41 +230,21 @@ void Prologue(Parameters &P, bool ic) {
     STDLOG(0,"Setting RamDisk == %d\n", P.RamDisk);
     IO_Initialize(logfn);
 
-    WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities
-
     if(!ic) {
             // ReadMaxCellSize(P);
-        load_slabsize(P);
+        SS->load_from_params(P);
         TY  = new SlabTaylor(order,cpd);
-            RL = new Redlack(cpd);
+        RL = new Redlack(cpd);
 
-            SlabForceTime = new STimer[cpd];
-            SlabForceLatency = new STimer[cpd];
-            SlabFarForceTime = new STimer[cpd];
+        SlabForceTime = new STimer[cpd];
+        SlabForceLatency = new STimer[cpd];
+        SlabFarForceTime = new STimer[cpd];
 
-            RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
-        
-		// ForceOutputDebug outputs accelerations as soon as we compute them
-		// i.e. before GroupFinding has a chance to rearrange them
-        if(P.AllowGroupFinding && !P.ForceOutputDebug){
-            GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
-                                          P.FoFLinkingLength[1]/pow(P.np,1./3),
-                                          P.FoFLinkingLength[2]/pow(P.np,1./3),
-                                          P.cpd, PP->invcpd, P.GroupRadius, P.MinL1HaloNP, P.np);
-	    #ifdef COMPUTE_FOF_DENSITY
-	    #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
-		WriteState.DensityKernelRad2 = GFC->linking_length;
-		WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5); 
-		// We use square radii.  The radius is padded just a little
-		// bit so we don't risk underflow with 1 particle at r=b
-		// in comparison to the self-count.
-	    #endif
-	    #endif
-	}
+        RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
     } else {
-            TY = NULL;
-            RL = NULL;
-            JJ = NULL;
+        TY = NULL;
+        RL = NULL;
+        NFD = NULL;
     }
     STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
 
@@ -278,8 +260,8 @@ void Epilogue(Parameters &P, bool ic) {
     epilogue.Clear();
     epilogue.Start();
 
-    if(JJ)
-        JJ->AggregateStats();
+    if(NFD)
+        NFD->AggregateStats();
 
     // Write out the timings.  This must precede the rest of the epilogue, because 
     // we need to look inside some instances of classes for runtimes.
@@ -295,11 +277,8 @@ void Epilogue(Parameters &P, bool ic) {
 
     if(IL->length!=0) { IL->DumpParticles(); assert(IL->length==0); }
     
-    if(Slab != NULL){
-        char filename[1024];
-        sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
-        Slab->write(filename);
-        STDLOG(1,"Writing SlabSize file to %s\n", filename);
+    if(SS != NULL){
+        SS->store_from_params(P);
     }
 
     // Some pipelines, like standalone_fof, don't use multipoles
@@ -322,22 +301,23 @@ void Epilogue(Parameters &P, bool ic) {
     if(WriteState.Do2LPTVelocityRereading)
         finish_2lpt_rereading();
 
-    LBW->report();
-    delete LBW;
-    delete PP;
+    SB->report();
+    delete SB;
+    delete CP;
     delete IL;
-    delete Slab;
+    delete SS;
+    delete Grid;
 
 
     if(!ic) {
         if(0 and P.ForceOutputDebug){
             #ifdef CUDADIRECT
             STDLOG(1,"Direct Interactions: CPU (%lu) and GPU (%lu)\n",
-                        JJ->DirectInteractions_CPU,JJ->TotalDirectInteractions_GPU);
-            if(!(JJ->DirectInteractions_CPU == JJ->TotalDirectInteractions_GPU)){
+                        NFD->DirectInteractions_CPU,NFD->TotalDirectInteractions_GPU);
+            if(!(NFD->DirectInteractions_CPU == NFD->TotalDirectInteractions_GPU)){
                 printf("Error:\n\tDirect Interactions differ between CPU (%lu) and GPU (%lu)\n",
-                        JJ->DirectInteractions_CPU,JJ->TotalDirectInteractions_GPU);
-                //assert(JJ->DirectInteractions_CPU == JJ->TotalDirectInteractions_GPU);
+                        NFD->DirectInteractions_CPU,NFD->TotalDirectInteractions_GPU);
+                //assert(NFD->DirectInteractions_CPU == NFD->TotalDirectInteractions_GPU);
             }
             #endif
         }
@@ -347,7 +327,7 @@ void Epilogue(Parameters &P, bool ic) {
             delete[] SlabForceLatency;
             delete[] SlabForceTime;
             delete[] SlabFarForceTime;
-            delete JJ;
+            delete NFD;
             delete GFC;
     }
 
@@ -369,12 +349,17 @@ void Epilogue(Parameters &P, bool ic) {
     STDLOG(1,"Leaving Epilogue(). Epilogue took %.2g sec.\n", epilogue.Elapsed());
 }
 
-std::vector<std::vector<int>> free_cores;  // list of free cores for each socket
+std::vector<std::vector<int>> free_cores;  // list of cores on each socket that are not assigned a thread (openmp, gpu, io, etc)
 void init_openmp(){
     // Tell singlestep to use the desired number of threads
     int max_threads = omp_get_max_threads();
     int ncores = omp_get_num_procs();
     int nthreads = P.OMP_NUM_THREADS > 0 ? P.OMP_NUM_THREADS : max_threads + P.OMP_NUM_THREADS;
+
+    // On summitdev (which has 160 thread slices), singlestep crashes.
+    // I suspect this is because some of our stack-allocated arrays of size nthreads get too big
+    // In practice, we will probably not use this many cores because there aren't nearly that many physical cores
+    nthreads = min(128, nthreads);
     
     assertf(nthreads <= max_threads, "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n",
         nthreads, max_threads);
@@ -462,4 +447,75 @@ void check_read_state(int AllowIC, bool &MakeIC, double &da){
             da = 0;
         }
     }
+}
+
+// A few actions that we need to do before choosing the timestep
+void InitWriteState(int ic){
+    // Even though we do this in BuildWriteState, we want to have the step number
+    // available when we choose the time step.
+    WriteState.FullStepNumber = ReadState.FullStepNumber+1;
+    WriteState.LPTStepNumber = LPTStepNumber();
+    
+    // We generally want to do re-reading on the last LPT step
+    WriteState.Do2LPTVelocityRereading = 0;
+    if (LPTStepNumber() > 0 && LPTStepNumber() == P.LagrangianPTOrder
+        && (strcmp(P.ICFormat, "RVdoubleZel") == 0 || strcmp(P.ICFormat, "RVZel") == 0))
+        WriteState.Do2LPTVelocityRereading = 1;
+    
+    // Decrease the softening length if we are doing a 2LPT step
+    // This helps ensure that we are using the true 1/r^2 force
+    /*if(LPTStepNumber()>0){
+        WriteState.SofteningLength = P.SofteningLength / 1e4;  // This might not be in the growing mode for this choice of softening, though
+        STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLength);
+        
+        // Only have to do this because GPU gives bad forces sometimes, causing particles to shoot off.
+        // Remove this once the GPU is reliable again
+        //P.ForceCPU = 1;
+        //STDLOG(0,"Forcing CPU because this is a 2LPT step.\n");
+    }
+    else{
+        WriteState.SofteningLength = P.SofteningLength;
+    }*/
+    
+    WriteState.SofteningLength = P.SofteningLength;
+    
+    // Now scale the softening to match the minimum Plummer orbital period
+#if defined DIRECTCUBICSPLINE
+    strcpy(WriteState.SofteningType, "cubic_spline");
+    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 1.10064;
+#elif defined DIRECTSINGLESPLINE
+    strcpy(WriteState.SofteningType, "single_spline");
+    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 2.15517;
+#elif defined DIRECTCUBICPLUMMER
+    strcpy(WriteState.SofteningType, "cubic_plummer");
+    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 1.;
+#else
+    strcpy(WriteState.SofteningType, "plummer");
+    WriteState.SofteningLengthInternal = WriteState.SofteningLength;
+#endif
+    
+    if(WriteState.Do2LPTVelocityRereading)
+        init_2lpt_rereading();
+
+    if(strcmp(P.StateIOMode, "overwrite") == 0){
+        WriteState.OverwriteState = 1;
+        STDLOG(1, "StateIOMode = \"overwrite\"; write state will overwrite read state\n");
+    }
+    if(strcmp(P.StateIOMode, "stripe") == 0){
+        WriteState.StripeState = 1;
+        assertf(0, "State striping currently not implemented\n");
+    }
+
+    if(strcmp(P.Conv_IOMode, "stripe") == 0){
+        WriteState.StripeConvState = 1;
+        STDLOG(1,"Striping multipoles and taylors\n");
+    }
+    else if(strcmp(P.Conv_IOMode, "overwrite") == 0){
+        WriteState.OverwriteConvState = 1;
+        STDLOG(1,"Overwriting multipoles and taylors\n");
+    }
+
+    SS = new SlabSize(P.cpd);
+    if(!ic)
+        NFD = new NearFieldDriver(P.NearFieldRadius);
 }

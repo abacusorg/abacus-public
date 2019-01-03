@@ -17,7 +17,7 @@ void ZeroAcceleration(int slab,int Slabtype);
 
 class NearFieldDriver{
     public:
-        NearFieldDriver();
+        NearFieldDriver(int NearFieldRadius);
         ~NearFieldDriver();
     
         double SofteningLength;  // Effective Plummer length, used for timestepping.  Unit-box units.
@@ -29,7 +29,9 @@ class NearFieldDriver{
         void Finalize(int slabID);
         uint64 DirectInteractions_CPU;
         uint64 *DirectInteractions_GPU;
+        uint64 *PaddedDirectInteractions_GPU;
         uint64 TotalDirectInteractions_GPU = 0;
+        uint64 TotalPaddedDirectInteractions_GPU = 0;
         uint64 NSink_CPU;
 
         // Total timings from running the SetInteractionCollections in the host threads that communicate with the GPUs
@@ -41,11 +43,13 @@ class NearFieldDriver{
         double     WaitForResult = 0;
         double     CopyAccelFromPinned = 0;
 
-	int MaxNSplits = 0;
+        int MaxNSplits = 0;
     
         double *GB_to_device, *GB_from_device;
         uint64 *DeviceSinks;
         uint64 *DeviceSources;
+        uint64 *PaddedDeviceSinks;
+        uint64 *PaddedDeviceSources;
         
         STimer CalcSplitDirects;
         STimer SICConstruction;
@@ -56,7 +60,9 @@ class NearFieldDriver{
         void AggregateStats();  // Called before shutdown
         // The following totals are filled in by AggregateStats()
         double GPUThroughputTime = 0;
-        double total_GB_to = 0, total_GB_from = 0, total_sinks = 0, total_sources = 0, gdi_gpu = 0;
+        double total_GB_to = 0, total_GB_from = 0;
+        double total_sinks = 0, total_sources = 0, total_padded_sinks = 0, total_padded_sources = 0;
+        double gdi_gpu = 0, gdi_padded_gpu = 0;
         double mean_splits_per_slab = 0;
 
     private:
@@ -68,7 +74,7 @@ class NearFieldDriver{
         int RADIUS;
         Direct *DD;
         int NGPU;
-	int NBuffers;
+        int NBuffers;
         double GPUMemoryGB;
         int MaxSourceBlocks;
         int MaxSinkBlocks;
@@ -83,10 +89,14 @@ class NearFieldDriver{
 };
 
 
+/* TODO: The code is now mostly plumbed to allow multiple NFD with
+different NearFieldRadius.  However, the one pending item is that 
+NFD creates the GPU threads.
+*/
 
 // This constructor calls GPUSetup() to start the GPU threads.
 // But first, it has to set up some configurations.
-NearFieldDriver::NearFieldDriver() :
+NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
         SofteningLength{WriteState.SofteningLength/P.BoxSize},
         SofteningLengthInternal{WriteState.SofteningLengthInternal/P.BoxSize},
             
@@ -110,13 +120,13 @@ NearFieldDriver::NearFieldDriver() :
     DirectInteractions_CPU = 0;
     NSink_CPU = 0;
 
-    assert(NFRADIUS==P.NearFieldRadius);
+    assert(NFRADIUS>=NearFieldRadius);
     slabcomplete = new int [P.cpd];
     SlabNSplit = new int[P.cpd];
     SlabInteractionCollections = new SetInteractionCollection **[P.cpd];
     for(int i = 0; i < P.cpd;i++) slabcomplete[i]=0;
-    WIDTH = P.NearFieldRadius*2+1;
-    RADIUS = P.NearFieldRadius;
+    WIDTH = NearFieldRadius*2+1;
+    RADIUS = NearFieldRadius;
     
 #ifdef CUDADIRECT
     NGPU = GetNGPU();
@@ -131,7 +141,7 @@ NearFieldDriver::NearFieldDriver() :
     // 1/WIDTH as sinks WIDTH-times over.  That's 2*WIDTH FLOAT3 + WIDTH FLOAT4,
     // divided over NBuffers.  
     // Round up by a factor of 1.3 and an extra 4 MB, just to be generous
-    GPUMemoryGB = std::min(GPUMemoryGB, P.np*1e-9*sizeof(accstruct)*3*WIDTH/NBuffers*1.3+0.004);
+    GPUMemoryGB = std::min(GPUMemoryGB, P.np*1e-9*sizeof(accstruct)*3*(2*NFRADIUS+1)/NBuffers*1.3+0.004);
 
     // GPUMemoryGB = std::min(GPUMemoryGB, 5.0*P.np*1e-9*sizeof(FLOAT3)+0.004);
 
@@ -160,10 +170,13 @@ NearFieldDriver::NearFieldDriver() :
         NSink_GPU_final[g] = 0;
     
     DirectInteractions_GPU = new uint64[NBuffers]();
+    PaddedDirectInteractions_GPU = new uint64[NBuffers]();
     GB_to_device = new double[NBuffers]();
     GB_from_device = new double[NBuffers]();
     DeviceSinks = new uint64[NBuffers]();
     DeviceSources = new uint64[NBuffers]();
+    PaddedDeviceSinks = new uint64[NBuffers]();
+    PaddedDeviceSources = new uint64[NBuffers]();
 #endif
 }
 
@@ -176,10 +189,13 @@ NearFieldDriver::~NearFieldDriver()
 #ifdef CUDADIRECT
     free(NSink_GPU_final);
     delete[] DirectInteractions_GPU;
+    delete[] PaddedDirectInteractions_GPU;
     delete[] GB_to_device;
     delete[] GB_from_device;
     delete[] DeviceSinks;
     delete[] DeviceSources;
+    delete[] PaddedDeviceSinks;
+    delete[] PaddedDeviceSources;
     
     GPUReset();
 #endif
@@ -198,8 +214,8 @@ sink particle 5 times.
 // ================ Code to queue up work for the GPU ==================
 
 uint64 ComputeSICSize(int cpd, int np, int WIDTH, int NSplit);
-int ComputeSinkBlocks(int slab, int j);
-int ComputeSourceBlocks(int slab, int j);
+int ComputeSinkBlocks(int slab, int j, int NearFieldRadius);
+int ComputeSourceBlocks(int slab, int j, int NearFieldRadius);
 
 void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     // This will construct the relevant SetInteractionCollections,
@@ -214,9 +230,9 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     int totSourceBlocks = 0;
 
     for (int j=0;j<P.cpd;j++) {
-	SinkBlocks[j] = ComputeSinkBlocks(slabID, j);
+	SinkBlocks[j] = ComputeSinkBlocks(slabID, j, RADIUS);
 	totSinkBlocks += SinkBlocks[j];
-	SourceBlocks[j] = ComputeSourceBlocks(slabID, j);
+	SourceBlocks[j] = ComputeSourceBlocks(slabID, j, RADIUS);
 	totSourceBlocks += SourceBlocks[j];
 	// These contain the number of blocks in each j.
     }
@@ -240,20 +256,20 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 
     for (int j=0; j<P.cpd; j++) {
 	thisSink += SinkBlocks[j];
-	thisSource += SourceBlocks[PP->WrapSlab(j+RADIUS)];
+	thisSource += SourceBlocks[CP->WrapSlab(j+RADIUS)];
         if (j==0 || thisSink>useMaxSink ||
             thisSource>useMaxSource) {
 	    // We've overflowed the previous set; end it 
 	    if (NSplit>0) {
 		SplitPoint[NSplit-1] = j;
 		STDLOG(1,"Split %d ending at y=%d; %d sink and %d source blocks\n", 
-		    NSplit-1, j, thisSink-SinkBlocks[j], thisSource-SourceBlocks[PP->WrapSlab(j+RADIUS)]);
+		    NSplit-1, j, thisSink-SinkBlocks[j], thisSource-SourceBlocks[CP->WrapSlab(j+RADIUS)]);
 	    }
 	    // Time to start a new one
 	    thisSink = SinkBlocks[j];
 	    thisSource = 0;
 	    for (int c=-RADIUS; c<=RADIUS; c++) 
-		thisSource += SourceBlocks[PP->WrapSlab(j-c)];
+		thisSource += SourceBlocks[CP->WrapSlab(j-c)];
 	    NSplit++;
 	}
     }
@@ -266,7 +282,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     assertf(thisSink<MaxSinkBlocks && thisSource<MaxSourceBlocks,
     	"Sinks or Sources of the last skewer overflow the maxima.");
 
-    uint64 NSink = Slab->size(slabID);
+    uint64 NSink = SS->size(slabID);
     STDLOG(1,"Using %d direct splits on slab %d, max blocks %d sink and %d source\n", 
     	NSplit, slabID, useMaxSink, useMaxSource);
 
@@ -279,18 +295,18 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 
     // Now we need to make the NearField_SIC_Slab
     uint64 bsize = ComputeSICSize(P.cpd, NSink, WIDTH, NSplit);
-    LBW->AllocateSpecificSize(NearField_SIC_Slab, slabID, bsize);
-    char *buffer = LBW->ReturnIDPtr(NearField_SIC_Slab, slabID);
+    SB->AllocateSpecificSize(NearField_SIC_Slab, slabID, bsize);
+    char *buffer = SB->GetSlabPtr(NearField_SIC_Slab, slabID);
 
     // And allocate space for the accelerations
-    LBW->AllocateArena(AccSlab,slabID);
+    SB->AllocateArena(AccSlab,slabID);
 
     CalcSplitDirects.Stop();
 
     // Initialize the space -- This should no longer be needed
     /*
-    FLOAT *p = (FLOAT *)LBW->ReturnIDPtr(AccSlab, slabID);
-    for (int j=0; j<LBW->IDSizeBytes(AccSlab,slabID)/sizeof(accstruct)*4; j++) p[j] = 0.0;
+    FLOAT *p = (FLOAT *)SB->GetSlabPtr(AccSlab, slabID);
+    for (int j=0; j<SB->SlabSizeBytes(AccSlab,slabID)/sizeof(accstruct)*4; j++) p[j] = 0.0;
     */
 
 
@@ -299,8 +315,8 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
         #pragma omp parallel for schedule(static)
         for(int y = 0; y < P.cpd; y++){
             for(int z = 0; z < P.cpd; z++){
-                accstruct *acc = PP->NearAccCell(slabID, y, z);
-                int count = PP->NumberParticle(slabID,y,z);
+                accstruct *acc = CP->NearAccCell(slabID, y, z);
+                int count = CP->NumberParticle(slabID,y,z);
                 
                 for(int i = 0; i < count; i++)
                     acc[i] = accstruct(std::numeric_limits<float>::infinity());
@@ -317,7 +333,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 	// This is where the SetInteractionCollection is actually constructed
 	// STDLOG(1,"Entering SIC Construction with %d bytes\n", bsize);
 	SlabInteractionCollections[slabID][n] = 
-	    new SetInteractionCollection(slabID,jl,jh,WriteState.DensityKernelRad2, buffer, bsize);
+	    new SetInteractionCollection(slabID,jl,jh,WriteState.DensityKernelRad2, buffer, bsize, RADIUS);
 	// STDLOG(1,"Leaving SIC Construction with %d bytes\n", bsize);
 	
 	// Check that we have enough blocks
@@ -340,7 +356,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     }
 
     STDLOG(1, "%l bytes remaining after SIC allocation on slab %d (%4.1f%% unused)\n", 
-	bsize, slabID, 100.0*bsize/LBW->IDSizeBytes(NearField_SIC_Slab, slabID));
+	bsize, slabID, 100.0*bsize/SB->SlabSizeBytes(NearField_SIC_Slab, slabID));
     return;
 }
 
@@ -367,7 +383,7 @@ void NearFieldDriver::ExecuteSlab(int slabID, int blocking){
 
 int NearFieldDriver::SlabDone(int slab){
     // Return 1 if all SetInteractionCollections have been completed.
-    slab = PP->WrapSlab(slab);
+    slab = CP->WrapSlab(slab);
 
     if (slabcomplete[slab] == 0){
 
@@ -395,7 +411,7 @@ void NearFieldDriver::Finalize(int slab){
     // When all of the SIC are finished, call this routine.
     // It will accumulate the timings and statistics, 
     // and then delete the SIC.
-    slab = PP->WrapSlab(slab);
+    slab = CP->WrapSlab(slab);
 
     assertf(SlabDone(slab) != 0,
             "Finalize called for slab %d but it is not complete\n",slab);
@@ -422,18 +438,21 @@ void NearFieldDriver::Finalize(int slab){
 
         int g = Slice->AssignedDevice;
         DirectInteractions_GPU[g] += Slice->DirectTotal;
-        TotalDirectInteractions_GPU += Slice->DirectTotal;
+        PaddedDirectInteractions_GPU[g] += Slice->PaddedDirectTotal;
 
         GB_to_device[g] += Slice->bytes_to_device/1e9;
         GB_from_device[g] += Slice->bytes_from_device/1e9;
+
         DeviceSinks[g] += Slice->SinkTotal;
         DeviceSources[g] += Slice->SourceTotal;
+        PaddedDeviceSinks[g] += Slice->PaddedSinkTotal;
+        PaddedDeviceSources[g] += Slice->PaddedSourceTotal;
     }
 
     // Just test that AccSlab is not crazy
     /*
-    FLOAT *p = (FLOAT *)LBW->ReturnIDPtr(AccSlab, slab);
-    for (int j=0; j<LBW->IDSizeBytes(AccSlab,slab)/sizeof(accstruct)*4; j++) 
+    FLOAT *p = (FLOAT *)SB->GetSlabPtr(AccSlab, slab);
+    for (int j=0; j<SB->SlabSizeBytes(AccSlab,slab)/sizeof(accstruct)*4; j++) 
     	assertf(isfinite(p[j]) && abs(p[j])<10, "Accelerations appear crazy\n");
     */
 
@@ -442,7 +461,7 @@ void NearFieldDriver::Finalize(int slab){
         SetInteractionCollection *Slice = Slices[sliceIdx];
         delete Slice;
     }
-    LBW->DeAllocate(NearField_SIC_Slab, slab);
+    SB->DeAllocate(NearField_SIC_Slab, slab);
     delete[] Slices;
     
     if(P.ForceOutputDebug) CheckGPUCPU(slab);
@@ -460,6 +479,11 @@ void NearFieldDriver::AggregateStats(){
         total_GB_from += GB_from_device[g];
         total_sinks += DeviceSinks[g];
         total_sources += DeviceSources[g];
+        total_padded_sinks += DeviceSinks[g];
+        total_padded_sources += DeviceSources[g];
+
+        TotalDirectInteractions_GPU += DirectInteractions_GPU[g];
+        TotalPaddedDirectInteractions_GPU += PaddedDirectInteractions_GPU[g];
     }
 
     // Measures the total amount of time we have at least one GPU thread running
@@ -467,6 +491,7 @@ void NearFieldDriver::AggregateStats(){
     GPUThroughputTime = SetInteractionCollection::GPUThroughputTimer.Elapsed();
 
     gdi_gpu = TotalDirectInteractions_GPU/1e9;
+    gdi_padded_gpu = TotalPaddedDirectInteractions_GPU/1e9;
 
     for(int s = 0; s < P.cpd; s++)
         mean_splits_per_slab += SlabNSplit[s];
@@ -478,7 +503,7 @@ void NearFieldDriver::AggregateStats(){
 }
 
 
-NearFieldDriver *JJ;
+NearFieldDriver *NFD;
     
 #include "PencilOnPencil.cc"
 #include "PencilPlan.cc"

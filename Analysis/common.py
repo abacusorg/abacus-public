@@ -6,6 +6,7 @@ to standardize paths for analysis products.
 """
 import os
 import os.path as path
+from os.path import join as pjoin
 import tarfile
 import shutil
 from glob import glob
@@ -53,6 +54,49 @@ def prompt_removal(dir, make_new=False, noprompt=False):
     
     if make_new:
         os.makedirs(dir)
+
+
+gadget_pattern = r'*.[0-9]*'
+
+
+def get_header(dir, retfn=False):
+    # Read the header to get the boxsize
+    header_pats = [pjoin(dir, 'header'), pjoin(dir, os.pardir, 'info/*.par'), pjoin(dir, os.pardir, '*.par')]
+    headers = sum([glob(h) for h in header_pats], [])
+    for header_fn in headers:
+        try:
+            header = InputFile(header_fn)
+            BoxSize = header['BoxSize']
+        except IOError:
+            continue
+        break
+    else:
+        # Maybe it's a gadget file?
+        # Extract the relevant properties from the gadget header and return them in a dict
+        try:
+            gadget_fn = sorted(glob(pjoin(dir, gadget_pattern)))[0]
+            header_fn= None
+            import pynbody
+            f = pynbody.load(gadget_fn)
+            header = {'BoxSize': float(f.properties['boxsize']),
+                      'ScaleFactor': float(f.properties['a'])}
+        except:
+            print('* Warning: Could not find a header in ' + str(header_pats) + ' or as a gadget file')
+            header, header_fn = None, None
+
+    if retfn:
+        return header, header_fn
+    return header
+
+
+def get_gadget_prefix(dir):
+    '''
+    Gadget snapshots consist of many files with names {prefix}.0, {prefix}.1, etc.
+    This tries to extract just the prefix part, which can be passed to pynbody.load().
+    '''
+    gadget_prefix = glob(pjoin(dir, gadget_pattern))[0]
+    gadget_prefix = gadget_prefix[:gadget_prefix.rfind('.')]
+    return gadget_prefix
 
 
 import multiprocessing

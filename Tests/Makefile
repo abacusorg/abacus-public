@@ -1,15 +1,11 @@
-
-
-
 all: spiral
 
+RECURSIVE = clean distclean
+
 spiral:
-	cd Spiral &&$(MAKE)
+	$(MAKE) -C Spiral
 	
-clean:
-	cd Spiral &&$(MAKE) $@
+$(RECURSIVE): %:
+	$(MAKE) -C Spiral $@
 
-distclean:
-	cd Spiral &&$(MAKE) $@
-
-.PHONY: spiral clean distclean
+.PHONY: spiral clean distclean all

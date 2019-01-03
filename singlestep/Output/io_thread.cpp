@@ -160,7 +160,20 @@ private:
         // Read the file, wait to complete.
         IOLOG(1,"Reading file %s\n", ior->filename);
 
-        RD->BlockingRead( ior->filename, ior->memory, ior->sizebytes, ior->fileoffset);
+        // Determine the ramdisk flag
+        int ramdisk = -1;
+        switch(ior->io_method){
+            case IO_DIRECT:
+                ramdisk = 0;
+                break;
+            case IO_FOPEN:
+                ramdisk = 1;
+                break;
+            default:
+                QUIT("Unknown IO method %d\n", ior->io_method);
+        }
+
+        RD->BlockingRead(ior->filename, ior->memory, ior->sizebytes, ior->fileoffset, ramdisk);
 
         IOLOG(1,"Done reading file\n");
         IO_SetIOCompleted(ior->arenatype, ior->arenaslab);
@@ -175,12 +188,24 @@ private:
         //ioassertf(ior->fileoffset==0, 
         //	"WriteFile fileoffest = %d.  Non-zero values not supported.\n", ior->fileoffset);
 
-
         FILE * outfile = fopen(ior->filename,"wb");
         ioassertf(outfile != NULL,"Touching file %s failed\n", ior->filename);
         fclose(outfile);
 
-        WD->BlockingAppend( ior->filename, ior->memory, ior->sizebytes);
+        // Determine the ramdisk flag
+        int ramdisk = -1;
+        switch(ior->io_method){
+            case IO_DIRECT:
+                ramdisk = 0;
+                break;
+            case IO_FOPEN:
+                ramdisk = 1;
+                break;
+            default:
+                QUIT("Unknown IO method %d\n", ior->io_method);
+        }
+
+        WD->BlockingAppend(ior->filename, ior->memory, ior->sizebytes, ramdisk);
 
         IOLOG(1,"Done writing file\n");
         if (ior->deleteafterwriting==IO_DELETE) IO_DeleteArena(ior->arenatype, ior->arenaslab);
@@ -204,7 +229,7 @@ private:
             STDLOG(0, "IO thread not bound to core\n");
         }
 
-        {
+        /*{ // Related to the CPU scheduling experiment above
             // Double-check the thread priority
             int policy = 0, ret = 0;
             sched_param params;
@@ -221,7 +246,7 @@ private:
                 // Print thread scheduling priority
                 STDLOG(0,"IO thread scheduling priority is %d\n", params.sched_priority);
             }
-        }
+        }*/
 
         IOLOG(0,"Opening IO pipes\n");
         fifo_cmd = open(IO_CMD_PIPE, O_RDONLY);
@@ -422,8 +447,6 @@ int GetIOThread(const char* dir){
 void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
 	    const char *filename, off_t fileoffset, int blocking) {
     
-    //blocking = 1;
-    
     STDLOG(2,"Using IO_thread module to read file %f, blocking %d\n", filename, blocking);
     iorequest ior(ram, sizebytes, filename, IO_READ, arenatype, arenaslab, fileoffset, 0, blocking);
     
@@ -432,8 +455,6 @@ void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
 
 void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, 
 	    const char *filename, off_t fileoffset, int deleteafter, int blocking) {
-
-    //blocking = 1;
     
     STDLOG(2,"Using IO_thread module to write file %f, blocking %d\n", filename, blocking);
     iorequest ior(ram, sizebytes, filename, IO_WRITE, arenatype, arenaslab, fileoffset, deleteafter, blocking );

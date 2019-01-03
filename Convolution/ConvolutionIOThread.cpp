@@ -47,7 +47,7 @@ private:
             if(write_buffer != NULL) {
                 int zstart = n_blocks_written*CP.zwidth;
                 int this_zwidth = min(zwidth, (cpd+1)/2-zstart);
-                write_buffer->write(this_zwidth, thread_num);
+                write_buffer->write(n_blocks_written*CP.zwidth, this_zwidth, thread_num);
                 free_queue.push(write_buffer);
                 write_buffer = NULL;
                 n_blocks_written++;
@@ -89,6 +89,7 @@ public:
         thread_num = _thread_num;
         read_ahead = _read_ahead;
         nblocks = (int) ceil((CP.runtime_cpd+1)/2./CP.zwidth);
+
         STDLOG(0, "Starting IO thread %d\n", thread_num);
         
         for(int i = 0; i < read_ahead; i++)

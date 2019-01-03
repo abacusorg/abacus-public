@@ -108,8 +108,14 @@ public:
     int DoTimeSliceOutput;
     int OutputIsAllowed;
     int DoBinning;
+    int DoGroupFindingOutput;
     
     int Do2LPTVelocityRereading;
+
+    int OverwriteState;
+    int OverwriteConvState;
+    int StripeState;
+    int StripeConvState;
 
     void read_from_file(const char *fn);
     void write_to_file(const char *dir);
@@ -136,32 +142,32 @@ public:
 
     	sprintf(CodeVersion,"version_not_defined");
     	installscalar("CodeVersion",CodeVersion,DONT_CARE);
-	// These will now be set in BuildWriteState();
-	// Don't bother loading these in ReadState
+        // These will now be set in BuildWriteState();
+        // Don't bother loading these in ReadState
     	// time_t timet = time(0);
     	// string now = string(asctime(localtime(&timet)));
     	// sprintf(RunTime,"%s",now.substr(0,now.length()-1).c_str()); //valid
     	// gethostname(MachineName,1024); //valid
     	installscalar("DoublePrecision",DoublePrecision, DONT_CARE);
 
-	installscalar("ScaleFactor",ScaleFactor, MUST_DEFINE);
-	installscalar("FullStepNumber",FullStepNumber,MUST_DEFINE);
+        installscalar("ScaleFactor",ScaleFactor, MUST_DEFINE);
+        installscalar("FullStepNumber",FullStepNumber,MUST_DEFINE);
     installscalar("LPTStepNumber",LPTStepNumber,DONT_CARE);
-	installscalar("BoxSizeMpc",BoxSizeMpc,DONT_CARE);
-	installscalar("BoxSizeHMpc",BoxSizeHMpc,DONT_CARE);
-	installscalar("HubbleTimeGyr",HubbleTimeGyr,DONT_CARE);
-	installscalar("HubbleTimeHGyr",HubbleTimeHGyr,DONT_CARE);
-	installscalar("ParticleMassHMsun",ParticleMassHMsun,DONT_CARE);
-	installscalar("ParticleMassMsun",ParticleMassMsun,DONT_CARE);
-	installscalar("VelZSpace_to_kms",VelZSpace_to_kms,DONT_CARE);
-	installscalar("VelZSpace_to_Canonical",VelZSpace_to_Canonical,DONT_CARE);
-	installscalar("LastHalfEtaKick",LastHalfEtaKick,MUST_DEFINE);
+        installscalar("BoxSizeMpc",BoxSizeMpc,DONT_CARE);
+        installscalar("BoxSizeHMpc",BoxSizeHMpc,DONT_CARE);
+        installscalar("HubbleTimeGyr",HubbleTimeGyr,DONT_CARE);
+        installscalar("HubbleTimeHGyr",HubbleTimeHGyr,DONT_CARE);
+        installscalar("ParticleMassHMsun",ParticleMassHMsun,DONT_CARE);
+        installscalar("ParticleMassMsun",ParticleMassMsun,DONT_CARE);
+        installscalar("VelZSpace_to_kms",VelZSpace_to_kms,DONT_CARE);
+        installscalar("VelZSpace_to_Canonical",VelZSpace_to_Canonical,DONT_CARE);
+        installscalar("LastHalfEtaKick",LastHalfEtaKick,MUST_DEFINE);
     	installscalar("ScaleFactorHalf",ScaleFactorHalf,DONT_CARE);
     	installscalar("FirstHalfEtaKick",FirstHalfEtaKick,DONT_CARE);
     	installscalar("DeltaEtaDrift",DeltaEtaDrift,DONT_CARE);
     	installscalar("Redshift",Redshift,DONT_CARE);
-	installscalar("Time",Time,MUST_DEFINE);        // In Gyr or Gyr/h, depending on hMpc flag
-	installscalar("etaK",etaK,MUST_DEFINE);
+        installscalar("Time",Time,MUST_DEFINE);        // In Gyr or Gyr/h, depending on hMpc flag
+        installscalar("etaK",etaK,MUST_DEFINE);
     	installscalar("etaD",etaD,DONT_CARE);
     	installscalar("Growth",Growth,DONT_CARE);
     	installscalar("Growth_on_a",Growth_on_a,DONT_CARE);
@@ -176,27 +182,34 @@ public:
     	installscalar("DeltaScaleFactor",DeltaScaleFactor,DONT_CARE);
     	installscalar("DeltaRedshift",DeltaRedshift,DONT_CARE);
     	installscalar("DensityKernelRad2",DensityKernelRad2,DONT_CARE);
-	
-	MaxVelocity = 0;
+        
+        MaxVelocity = 0;
     	installscalar("MaxVelocity",MaxVelocity,DONT_CARE);
-	MaxAcceleration = 0;
+        MaxAcceleration = 0;
     	installscalar("MaxAcceleration",MaxAcceleration,DONT_CARE);
         MinVrmsOnAmax = 1e10;
     	installscalar("MinVrmsOnAmax",MinVrmsOnAmax,DONT_CARE);
-	MaxCellSize = 0;
+        MaxCellSize = 0;
     	installscalar("MaxCellSize",MaxCellSize,DONT_CARE);
-	MinCellSize = 1e9;
+        MinCellSize = 1e9;
     	installscalar("MinCellSize",MinCellSize,DONT_CARE);
-	StdDevCellSize = 0.0;
+        StdDevCellSize = 0.0;
     	installscalar("StdDevCellSize",StdDevCellSize,DONT_CARE);
-	RMS_Velocity = 0.0;
+        RMS_Velocity = 0.0;
     	installscalar("RMS_Velocity",RMS_Velocity,DONT_CARE);
 
-	// Initialize helper variables
-	DoTimeSliceOutput = 0;
-     	OutputIsAllowed = 0;
+        // Initialize helper variables
+        DoTimeSliceOutput = 0;
+        OutputIsAllowed = 0;
+    DoGroupFindingOutput = 0;
         
     Do2LPTVelocityRereading = 0;
+
+    // These will be set in InitWriteState() based on StateIOMode and Conv_IOMode in the parameters file
+    OverwriteState = 0;
+    OverwriteConvState = 0;
+    StripeState = 0;
+    StripeConvState = 0;
     }
 
 
@@ -318,17 +331,17 @@ void State::write_to_file(const char *dir) {
 void State::AssertStateLegal(Parameters &P) {
     //make sure read state and parameters are compatible
     assertf(order_state == P.order, 
-	    "State and Parameter order do not match, %d != %d\n", 
-	    order_state, P.order);
+            "State and Parameter order do not match, %d != %d\n", 
+            order_state, P.order);
     assertf(cpd_state == P.cpd, 
-	    "State and Parameter cpd do not match, %d != %d\n", 
-	    cpd_state, P.cpd);
+            "State and Parameter cpd do not match, %d != %d\n", 
+            cpd_state, P.cpd);
     assertf(np_state == P.np, 
-	    "State and Parameter np do not match, %d != %d\n", 
-	    np_state, P.np);
+            "State and Parameter np do not match, %d != %d\n", 
+            np_state, P.np);
     assertf(MaxCellSize < (2.048e9)/3,
-	    "The largest cell has %d particles, exceeding the allowed amount.\n",
-	    MaxCellSize);
+            "The largest cell has %d particles, exceeding the allowed amount.\n",
+            MaxCellSize);
 }
 
 
