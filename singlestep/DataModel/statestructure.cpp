@@ -118,7 +118,8 @@ public:
     int StripeConvState;
 
     void read_from_file(const char *fn);
-    void write_to_file(const char *dir);
+    void write_to_file(const char *dir, const char *fname);
+    void write_to_file(const char *dir) { write_to_file(dir,"state"); }
     
     State();
     
@@ -300,9 +301,9 @@ void State::make_output_header() {
 // #define WPR(X,XSYM) fprintf(statefp, PRQUOTEME(X = %XSYM\n), X)
 // #define WPRS(X,XSYM) fprintf(statefp, PRQUOTEME(X) " = \"%s\" \n", X)
 
-void State::write_to_file(const char *dir) {
+void State::write_to_file(const char *dir, const char *fname) {
     char statefn[1050];
-    sprintf(statefn,"%s/state",dir);
+    sprintf(statefn,"%s/%s",dir, fname);
     FILE *statefp;
     statefp = fopen(statefn,"wb");
     assertf(statefp!=NULL, "Couldn't open file %s to write state\n", statefn);
