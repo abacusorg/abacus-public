@@ -15,8 +15,8 @@ void ReadNodeSlabs() {
         first_slab_finished = -1;   // Just a silly value
         return;
     #else
-        int NNode = 1; // MPI_Number_of_Nodes;
-        int rank = 0; // MPI_Rank;
+        int NNode = 1; // MPI_Comm_size(MPI_COMM_WORLD, &NNode);
+        int rank = 0; // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         int neighbor = (rank+1)%NNode;
         char fname[1024];
         int value, last_slab;
@@ -53,7 +53,7 @@ void WriteNodeSlabs() {
         // Note that first_slab_finished is only set in PARALLEL
         return;
     #else
-        int NNode = 1; // MPI_Number_of_Nodes;
+        int NNode = 1; // MPI_Comm_size(MPI_COMM_WORLD, &NNode);
         if (NNode==1) return;   // We don't want to use this file if we're serial
         int first[NNode];
         // TODO MPI: Send first_slab_finished to fill in this element in the vector

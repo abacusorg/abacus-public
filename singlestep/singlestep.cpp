@@ -22,7 +22,7 @@ void BuildWriteState(double da){
 	gethostname(WriteState.MachineName,1024);
 	STDLOG(0,"Host machine name is %s\n", WriteState.MachineName);
     #ifdef PARALLEL
-        // TODO: WriteState.NodeRank = MPI_RANK
+        // MPI_Comm_rank(MPI_COMM_WORLD, &WriteState.NodeRank);
     #else 
         WriteState.NodeRank = 0;
     #endif
