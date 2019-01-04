@@ -36,6 +36,7 @@ public:
     char CodeVersion[1024];
     char RunTime[1024];
     char MachineName[1024];
+    int NodeRank;   // The MPI rank, 0 if serial
     double ppd;		// Particles per dimension
     int DoublePrecision;  // =1 if code is using double precision positions
     char SofteningType[128];
@@ -246,6 +247,7 @@ void State::make_output_header() {
     WPRS(CodeVersion              , s);
     WPRS(RunTime                  , s);
     WPRS(MachineName              , s);
+    WPR(NodeRank                 , ISYM);
     WPR(DoublePrecision          , ISYM);
     WPR(ppd                      , FSYM);
 
