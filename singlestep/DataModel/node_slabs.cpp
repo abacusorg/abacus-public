@@ -19,20 +19,25 @@ void ReadNodeSlabs() {
         int rank = 0; // MPI_Rank;
         int neighbor = (rank+1)%NNode;
         char fname[1024];
+        int value, last_slab;
         // TODO: This needs to be the Global Read State
         sprintf(fname, "%s/nodeslabs", P.ReadStateDirectory);
         FILE *fp;
         fp = fopen(fname,"r");
-        assertf(fp!=NULL, "Couldn't find nodeslabs file %s\n", fname);
-        // TODO: Or create some default or crash
-        int value, last_slab;
-        for (int j=0; j<NNode; j++) {
-            int nread = fscanf(fp, "%d", &value);
-            assertf(nread==1, "Couldn't read entry %j from NodeSlabs file\n", j);
-            if (j==rank) first_slab_on_node = value;
-            if (j==neighbor) last_slab = value;
+        // assertf(fp!=NULL, "Couldn't find nodeslabs file %s\n", fname);
+        if (fp==NULL) {
+            // We couldn't find a file, so let's make up something
+            first_slab_on_node = floor((float)P.cpd*rank/NNode);
+            last_slab = floor((float)P.cpd*(rank+1)/NNode);
+        } else {
+            for (int j=0; j<NNode; j++) {
+                int nread = fscanf(fp, "%d", &value);
+                assertf(nread==1, "Couldn't read entry %j from NodeSlabs file\n", j);
+                if (j==rank) first_slab_on_node = value;
+                if (j==neighbor) last_slab = value;
+            }
+            fclose(fp);
         }
-        fclose(fp);
         total_slabs_on_node = last_slab - first_slab_on_node;
         if (total_slabs_on_node<0) total_slabs_on_node += P.cpd;
         STDLOG(1,"Read NodeSlab file: will do %d slabs from [%d,%d)\n",
@@ -49,6 +54,7 @@ void WriteNodeSlabs() {
         return;
     #else
         int NNode = 1; // MPI_Number_of_Nodes;
+        if (NNode==1) return;   // We don't want to use this file if we're serial
         int first[NNode];
         // TODO MPI: Send first_slab_finished to fill in this element in the vector
         if (WriteState.NodeRank==0) {
