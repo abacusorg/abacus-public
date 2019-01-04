@@ -211,6 +211,8 @@ void Prologue(Parameters &P, bool MakeIC) {
     STDLOG(0,"Setting RamDisk == %d\n", P.RamDisk);
     IO_Initialize(logfn);
 
+    SS = new SlabSize(P.cpd);
+
     if(!MakeIC) {
             // ReadMaxCellSize(P);
         SS->load_from_params(P);
@@ -222,6 +224,7 @@ void Prologue(Parameters &P, bool MakeIC) {
         SlabFarForceTime = new STimer[cpd];
 
         RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
+        NFD = new NearFieldDriver(P.NearFieldRadius);
     } else {
         TY = NULL;
         RL = NULL;
@@ -495,7 +498,4 @@ void InitWriteState(int MakeIC){
         STDLOG(1,"Overwriting multipoles and taylors\n");
     }
 
-    SS = new SlabSize(P.cpd);
-    if(!MakeIC)
-        NFD = new NearFieldDriver(P.NearFieldRadius);
 }
