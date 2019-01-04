@@ -289,7 +289,7 @@ void PlanOutput(bool MakeIC) {
 }
 
 
-void InitGroupFinding(int ic){
+void InitGroupFinding(int MakeIC){
     int do_output;
     // Request output of L1 groups and halo/field subsamples if:
         // - By going from ReadState to WriteState we are crossing a L1Output_dlna checkpoint
@@ -314,7 +314,7 @@ void InitGroupFinding(int ic){
     // ForceOutputDebug outputs accelerations as soon as we compute them
     // i.e. before GroupFinding has a chance to rearrange them
     if((P.MicrostepTimeStep > 0 || do_output) &&
-        !(!P.AllowGroupFinding || P.ForceOutputDebug || ic)){
+        !(!P.AllowGroupFinding || P.ForceOutputDebug || MakeIC)){
         STDLOG(1, "Setting up group finding\n");
         
         ReadState.DoGroupFindingOutput = do_output;
