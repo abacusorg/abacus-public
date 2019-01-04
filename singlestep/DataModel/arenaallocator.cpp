@@ -282,6 +282,7 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
         case RAMDISK_WRITESLAB:  // create a new shared memory allocation
         case RAMDISK_READSLAB:  // attach an existing shared memory allocation
 
+            {
             // If a ramdisk allocation was requested, must have received the path
             assert(ramdisk_fn != NULL);
             assert(strnlen(ramdisk_fn,1) > 0);
@@ -347,6 +348,7 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
             arena[id].IsIOCompleted = 0;  
             arena[id].start_offset = 0;  //GUARDSIZE;
             break;
+            }  // Need this to contain the variable initializations for this branch
         default:
             QUIT("Illegal value %d for ramdisk\n", ramdisk);
     }
