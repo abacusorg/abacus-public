@@ -25,6 +25,8 @@ the data when it is received.
 
 */
 
+#define NO_MPI    // Just keep these routines blocked out for now
+
 
 // ================== Manifest helpers =====================================
 
@@ -246,12 +248,15 @@ void *ManifestSendThread(void *p) {
 
 void *ManifestReceiveThread(void *p) {
     Manifest *m = (Manifest *)p;
+#ifdef NO_MPI
     char fname[1024];
     sprintf(fname, "%s/manifest_done", P.WriteStateDirectory);
 
     while (FileExists(fname)==0) usleep(10000);
     	// Wait until the file exists
-	// TODO: In MPI, this would look different!
+#else
+    // In MPI, we just launch and wait for MPI_Recv() to return
+#endif 
     m->Receive();
     return NULL;
 }
@@ -374,8 +379,9 @@ void Manifest::QueueToSend(int finished_slab) {
 /// It can delete arenas as it finishes.
 
 void Manifest::Send() {
-
     Transmit.Start();
+
+#ifdef NO_MPI
     // TODO: Send the ManifestCore.  Maybe wait for handshake?
     char fname[1024];
     size_t retval;
@@ -385,12 +391,12 @@ void Manifest::Send() {
     STDLOG(1,"Sending the Manifest Core to %s\n", fname);
 
     for (int n=0; n<m.numarenas; n++) {
-	// TODO: Send arenas[n].size bytes from arenas[n].ptr
-	retval = fwrite(m.arenas[n].ptr, 1, m.arenas[n].size, fp);
-	bytes += retval;
-	if (blocking) STDLOG(1,"Writing %l bytes of arenas to file\n", retval);
-	// Now we can delete this arena
-	SB->DeAllocate(m.arenas[n].type, m.arenas[n].slab);
+        // TODO: Send arenas[n].size bytes from arenas[n].ptr
+        retval = fwrite(m.arenas[n].ptr, 1, m.arenas[n].size, fp);
+        bytes += retval;
+        if (blocking) STDLOG(1,"Writing %l bytes of arenas to file\n", retval);
+        // Now we can delete this arena
+        SB->DeAllocate(m.arenas[n].type, m.arenas[n].slab);
     }
     // TODO: Send the insert list: m.numil*sizeof(ilstruct) bytes from *il
     retval = fwrite(il, sizeof(ilstruct), m.numil, fp);
@@ -400,10 +406,10 @@ void Manifest::Send() {
     free(il);
     // TODO: Send the list: m.numlinks*sizeof(GroupLink) bytes from *links
     if (GFC!=NULL) {
-	retval = fwrite(links, sizeof(GroupLink), m.numlinks, fp);
-	bytes += retval*sizeof(GroupLink);
-	if (blocking) STDLOG(1,"Writing %l objects of group links to file\n", retval);
-	free(links);
+        retval = fwrite(links, sizeof(GroupLink), m.numlinks, fp);
+        bytes += retval*sizeof(GroupLink);
+        if (blocking) STDLOG(1,"Writing %l objects of group links to file\n", retval);
+        free(links);
     }
     fclose(fp);
     // usleep(5e6);   // Just force a wait here, to see what the code does.
@@ -413,7 +419,27 @@ void Manifest::Send() {
     sprintf(fname, "%s/manifest_done", P.WriteStateDirectory);
     fp=fopen(fname,"w");
     fclose(fp);
-
+#else
+    STDLOG(1,"Starting to send the SendManifest\n");
+    int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
+    int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    rank--; if (rank<0) rank+=size;   // Now rank is the destination node
+    // Send the ManifestCore
+    MPI_Send(&m, sizeof(ManifestCore), MPI_BYTE, rank, 1000, MPI_COMM_WORLD);
+    // Send all the Arenas
+    for (int n=0; n<m.numarenas; n++) {
+        MPI_Send(m.arenas[n].ptr, m.arenas[n].size, MPI_BYTE, rank, n, MPI_COMM_WORLD);
+    }
+    // Send all the Insert List fragment
+    MPI_Send(il, sizeof(ilstruct)*m.numil, MPI_BYTE, rank, 2000, MPI_COMM_WORLD);
+    // Send all the GroupLink List fragment
+    if (GFC!=NULL) {
+        MPI_Send(links, sizeof(GroupLink)*m.numlinks, MPI_BYTE, rank, 3000, MPI_COMM_WORLD);
+    }
+    // Victory!
+    STDLOG(1,"Done sending the SendManifest\n");
+    completed = 1;
+#endif
     Transmit.Stop();
 }
 
@@ -427,6 +453,8 @@ inline void Manifest::Check() {
     #ifndef PARALLEL
     return;	// If we're not doing PARALLEL, let this optimize to a no-op
     #endif
+
+#ifdef NO_MPI
     if (blocking==0) return; 	// We're doing this by a thread
     if (completed>0) return;	// We've already been here once
     char fname[1024];
@@ -436,6 +464,9 @@ inline void Manifest::Check() {
     // Otherwise, we're ready to go
     STDLOG(1,"Check indicates we are ready to Receive the Manifest\n");
     Receive();
+#else
+    assertf(blocking==0, "MPI requires using non-blocking thread for Receive Manifest\n");
+#endif
 }
 
 /// This is the routine invoked by the communication thread.
@@ -443,6 +474,7 @@ inline void Manifest::Check() {
 /// It allocates the needed space.
 void Manifest::Receive() {
     Transmit.Start();
+#ifdef NO_MPI
     // TODO: Receive the Manifest and overload the variables in *this.
     char fname[1024];
     size_t retval;
@@ -452,12 +484,12 @@ void Manifest::Receive() {
     STDLOG(1,"Reading Manifest Core from %s\n", fname);
 
     for (int n=0; n<m.numarenas; n++) {
-	SB->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size);
-	m.arenas[n].ptr = SB->GetSlabPtr(m.arenas[n].type, m.arenas[n].slab);
-	// TODO: Receive arenas[n].size bytes into arenas[n].ptr
-	retval = fread(m.arenas[n].ptr, 1, m.arenas[n].size, fp);
-	bytes += retval;
-	if (blocking) STDLOG(1,"Reading %l bytes of arenas to file\n", retval);
+        SB->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size);
+        m.arenas[n].ptr = SB->GetSlabPtr(m.arenas[n].type, m.arenas[n].slab);
+        // TODO: Receive arenas[n].size bytes into arenas[n].ptr
+        retval = fread(m.arenas[n].ptr, 1, m.arenas[n].size, fp);
+        bytes += retval;
+        if (blocking) STDLOG(1,"Reading %l bytes of arenas to file\n", retval);
     }
 
     int ret = posix_memalign((void **)&il, 64, m.numil*sizeof(ilstruct));
@@ -472,13 +504,40 @@ void Manifest::Receive() {
     assert(links!=NULL);
     // TODO: Receive m.numlinks*sizeof(GroupLink) bytes into *links
     if (GFC!=NULL) {
-	retval = fread(links, sizeof(GroupLink), m.numlinks, fp);
-	bytes += retval*sizeof(GroupLink);
-	if (blocking) STDLOG(1,"Reading %l objects of links from file\n", retval);
+        retval = fread(links, sizeof(GroupLink), m.numlinks, fp);
+        bytes += retval*sizeof(GroupLink);
+        if (blocking) STDLOG(1,"Reading %l objects of links from file\n", retval);
     }
     // TODO: Can terminate the communication thread after this
     completed = 1;
     fclose(fp);
+#else
+    STDLOG(1,"Starting receiving the ReceiveManifest\n");
+    int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
+    int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    rank++; if (rank>=size) rank-=size;   // Now rank is the source node
+    // Receive the ManifestCore
+    MPI_Recv(&m, sizeof(ManifestCore), MPI_BYTE, rank, 1000, MPI_COMM_WORLD);
+    // Receive all the Arenas
+    for (int n=0; n<m.numarenas; n++) {
+        SB->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size);
+        m.arenas[n].ptr = SB->GetSlabPtr(m.arenas[n].type, m.arenas[n].slab);
+        MPI_Recv(m.arenas[n].ptr, m.arenas[n].size, MPI_BYTE, rank, n, MPI_COMM_WORLD);
+    }
+    // Receive all the Insert List fragment
+    int ret = posix_memalign((void **)&il, 64, m.numil*sizeof(ilstruct));
+    assert(il!=NULL);
+    MPI_Recv(il, sizeof(ilstruct)*m.numil, MPI_BYTE, rank, 2000, MPI_COMM_WORLD);
+    // Receive all the GroupLink List fragment
+    ret = posix_memalign((void **)&links, 64, m.numlinks*sizeof(GroupLink));
+    assert(links!=NULL);
+    if (GFC!=NULL) {
+        MPI_Recv(links, sizeof(GroupLink)*m.numlinks, MPI_BYTE, rank, 3000, MPI_COMM_WORLD);
+    }
+    // Victory!
+    STDLOG(1,"Done receiving the ReceiveManifest\n");
+    completed = 1;
+#endif
     Transmit.Stop();
 }
 
@@ -567,11 +626,6 @@ parallel code, each node has its own state directory.
 
 Need to adjust ForceSlabPrecondition to not attempt to read
 beyond the slabs on disk.
-
-Need to adjust the overall timestep.cpp loop to complete the
-correct number of slabs, which I think should be the number that
-are on disk.  E.g., !Finish.alldone() needs to change to
-while(Finish.number_of_slabs_executed<number_of_local_slabs).  
 
 */
 
