@@ -521,6 +521,42 @@ void InitWriteState(int MakeIC){
 void FinalizeWriteState() {
     WriteNodeSlabs();  // We do this here because it will need a MPI Barrier
 
+    #ifdef PARALLEL
+        STDLOG(1,"Node MinCellSize = %d, MaxCellSize = %d\n", 
+            WriteState.MinCellSize, WriteState.MaxCellSize);
+        STDLOG(1,"Maximum v_j in node is %f.\n", WriteState.MaxVelocity);
+        STDLOG(1,"Maximum a_j in node is %f.\n", WriteState.MaxAcceleration);
+        STDLOG(1,"Minimum cell Vrms/Amax in node is %f.\n", WriteState.MinVrmsOnAmax);
+        STDLOG(1,"Unnormalized node RMS_Velocity = %f.\n", WriteState.RMS_Velocity);
+        STDLOG(1,"Unnormalized node StdDevCellSize = %f.\n", WriteState.StdDevCellSize);
+    
+        // If we're running in parallel, then we want to gather some
+        // state statistics across the nodes.  We start by writing the 
+        // original state file to the local disk.
+        // TODO: Do we really want to do this?  Maybe just echo the stats to the log?
+        WriteState.write_to_file(P.WriteStateDirectory, NodeString);
+
+        // Now we need to do MPI reductions for stats
+        // These stats are all in double precision (or int)
+        // Maximize MaxAcceleration
+        MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxAcceleration, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
+        // Maximize MaxVelocity
+        MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxVelocity, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
+        // Minimize MinVrmsOnAmax
+        MPI_Reduce(MPI_IN_PLACE, &WriteState.MinVrmsOnAmax, 1, MPI_DOUBLE, MPI_MIN, 0, comm);
+        // Minimize MinCellSize
+        MPI_Reduce(MPI_IN_PLACE, &WriteState.MinCellSize, 1, MPI_INT, MPI_MIN, 0, comm);
+        // Maximize MaxCellSize
+        MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxCellSize, 1, MPI_INT, MPI_MIN, 0, comm);
+        // sqrt(Sum(SQR of RMS_Velocity))
+        MPI_Reduce(MPI_IN_PLACE, &WriteState.RMS_Velocity, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
+        // sqrt(Sum(SQR of StdDevCellSize))
+        MPI_Reduce(MPI_IN_PLACE, &WriteState.StdDevCellSize, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
+
+        // Note that we're not summing up any timing or group finding reporting;
+        // these just go in the logs
+    #endif
+
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
         // This is the standard deviation of the fractional overdensity in cells.
         // But for the parallel code: this has been divided by CPD^3, not the number of cells on the node
@@ -531,29 +567,6 @@ void FinalizeWriteState() {
     STDLOG(0,"Maximum v_j in simulation is %f.\n", WriteState.MaxVelocity);
     STDLOG(0,"Maximum a_j in simulation is %f.\n", WriteState.MaxAcceleration);
     STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f.\n", WriteState.MinVrmsOnAmax);
-    
-    #ifdef PARALLEL
-        // If we're running in parallel, then we want to gather some
-        // state statistics across the nodes.  We start by writing the 
-        // original state file to the local disk.
-        // TODO: Do we really want to do this?  Maybe just echo the stats to the log?
-        WriteState.write_to_file(P.WriteStateDirectory, NodeString);
-
-        // Now we need to do MPI reductions for stats
-        // These stats are all in double precision (or int)
-        // TODO: MPI_Barrier
-        // TODO: Maximize MaxAcceleration
-        // Example: MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxVelocity, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
-        // TODO: Maximize MaxVelocity
-        // TODO: Minimize MinVrmsOnAmax
-        // TODO: Minimize MinCellSize
-        // TODO: Maximize MaxCellSize
-        // TODO: sqrt(Sum(SQR of RMS_Velocity))
-        // TODO: sqrt(Sum(SQR of StdDevCellSize))
-
-        // Note that we're not summing up any timing or group finding reporting;
-        // these just go in the logs
-    #endif
 
     return;
 }
