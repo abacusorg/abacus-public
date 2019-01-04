@@ -337,6 +337,7 @@ void InitGroupFinding(int MakeIC){
         // in comparison to the self-count.
         #endif
         #endif
+        STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
 
     } else{
         STDLOG(1, "Group finding not enabled for this step.\n");

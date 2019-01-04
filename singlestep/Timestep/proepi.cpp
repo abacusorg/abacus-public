@@ -227,7 +227,6 @@ void Prologue(Parameters &P, bool MakeIC) {
         RL = NULL;
         NFD = NULL;
     }
-    STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
 
     prologue.Stop();
     STDLOG(1,"Leaving Prologue()\n");
