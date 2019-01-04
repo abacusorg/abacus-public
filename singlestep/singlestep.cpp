@@ -1,8 +1,5 @@
 #include "proepi.cpp"
 
-#define BIGNUM 1000000.0
-#define DATOLERANCE 1.e-12
-
 Cosmology *InitializeCosmology(double ScaleFactor) {
     // Be warned that all of the Cosmology routines quote time units
     // by what is entered as H0.  The code wants to use H0=1 units.
@@ -375,9 +372,13 @@ int main(int argc, char **argv) {
     // Initialize the Cosmology and set up the State epochs and the time step
     cosm = InitializeCosmology(ReadState.ScaleFactor);
     if (MakeIC) FillStateWithCosmology(ReadState);
-    
+
     // Set some WriteState values before ChooseTimeStep()
+    // This also sets the SofteningLength, needed by the NFD constructor
     InitWriteState(MakeIC);
+
+    // Set up the major classes (including NFD)
+    Prologue(P,MakeIC);
 
     // Check if WriteStateDirectory/state exists, and fail if it does
     char wstatefn[1050];
@@ -405,13 +406,13 @@ int main(int argc, char **argv) {
     // Make a plan for output
     PlanOutput(MakeIC);
 
+    // Set up the Group Finding concepts
     InitGroupFinding(MakeIC);
+    BuildWriteStateOutput();    // Have to delay this until after GFC is made
 
     SingleStepSetup.Stop();
 
     // Now execute the timestep
-    Prologue(P,MakeIC);
-    BuildWriteStateOutput();    // Have to delay this until after GFC is made
     if (MakeIC)  timestepIC();
 	    else timestep();
 
