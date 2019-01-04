@@ -616,17 +616,3 @@ void Manifest::ImportData() {
     done();
     Load.Stop();
 }
-
-/* ================= Putting this in the code ======================
-
-Probably easiest if we early on query the disk to get the range of
-slabs in the ReadState and hence the number of slabs.  Or maybe the
-range of slabs is a property of the state, on the idea that in the
-parallel code, each node has its own state directory.
-
-Need to adjust ForceSlabPrecondition to not attempt to read
-beyond the slabs on disk.
-
-*/
-
-
