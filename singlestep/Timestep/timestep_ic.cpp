@@ -13,6 +13,15 @@ uint64 NP_from_IC = 0;
 
 int FetchICPrecondition(int slab) {
     // We always do this.
+    #ifdef PARALLEL
+    if (Drift.raw_number_executed>=total_slabs_on_node) return 0;
+    // This prevents FetchSlabAction from reading beyond the 
+    // range of slabs on the node.  In the PARALLEL code, these
+    // data will arrive from the Manifest.  We have to implement
+    // this on the raw_number because the reported number is adjusted
+    // by the Manifest, which leads to a race condition when running
+    // the PARALLEL code on a single node test.
+    #endif
     return 1;
 }
 void FetchICAction(int slab) {
@@ -49,13 +58,18 @@ void timestepIC(void) {
     GROUP_RADIUS = 0;
     FINISH_WAIT_RADIUS = 2;  // The IC pipeline is very short; we have plenty of RAM to allow for large IC displacements
 
-    int cpd = P.cpd; int first = 0;
+    int cpd = P.cpd; int first = first_slab_on_node;
     Drift.instantiate(cpd, first, &FetchICPrecondition, &FetchICAction );
     Finish.instantiate(cpd, first + FINISH_WAIT_RADIUS,  &FinishPrecondition,  &FinishAction );
 
     while( !Finish.alldone() ) {
         Drift.Attempt();
        Finish.Attempt();
+    // TODO: The following line will be omitted once the MPI monitoring thread is in place.
+    ReceiveManifest.Check();   // This checks if Send is ready; no-op in non-blocking mode
+    // If the manifest has been received, install it.
+    if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
+
     }
 
     STDLOG(1, "Read %d particles from IC files\n", NP_from_IC);

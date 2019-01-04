@@ -29,6 +29,7 @@ class SlabSize {
 
     // Provide access with a wrapped index.
     void set(int slab, uint64 size) { _newsize[Grid->WrapSlab(slab)] = size; }
+    void setold(int slab, uint64 size) { _size[Grid->WrapSlab(slab)] = size; }
     uint64 size(int slab) { return _size[Grid->WrapSlab(slab)]; }
 
     void load_from_params(Parameters &P){

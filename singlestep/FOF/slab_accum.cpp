@@ -32,7 +32,7 @@ and s[j][k][n] will return an individual element
 
 s.get_slab_size() will return the total elements in the slab.
 s.get_slab_bytes() will return the total bytes in the slab.
-s[j].size will return the number in a pencil.
+s[j]._size will return the number in a pencil.
 
 s.copy_to_ptr(p) will copy the whole slab contents, in pencil order, to a 
 contiguous buffer at p, which must be pre-allocated to size().  
@@ -143,6 +143,14 @@ class SlabAccumBuffer {
 	#endif
     }
 
+    // If we already have data to load in, do it here.
+    void load_from_ptr(void *p, int _size) {
+	setup(_size);
+	memcpy(data, p, sizeof(T)*_size);
+	size = maxsize;
+	start = 0;
+    }
+
     // When we start work on a pencil, declare its starting point,
     // in case we need to move the data.
     void set_pencil_start() { start = size; }
@@ -206,6 +214,7 @@ class SlabAccumBuffer {
 //  a pencil.
 template <class T>
 class PencilAccum {
+    // These two variables are left in an ill-defined state after FinishPencil(0 is called.
     CellAccum *thiscell;     // Point to the current cell
     int thisstart;	// Start index of current cell
 
@@ -215,7 +224,8 @@ class PencilAccum {
     T *data;		// Eventually we point to the data, location of start index 0
     int _size;		// The number of elements in this pencil
     			// Important: this isn't set until the end!
-			// use get_pencil_size() instead
+			// use get_pencil_size() before FinishPencil;
+			// use _size after
 
     // Null constructor, and nothing to destroy/free
     PencilAccum<T>() {
@@ -223,6 +233,7 @@ class PencilAccum {
     ~PencilAccum<T>() {
     }
 
+    // Note that get_pencil_size() should only be used before FinishPencil
     inline int get_pencil_size() {
          return buffer->get_pencil_size();
     }
@@ -349,7 +360,7 @@ class SlabAccum {
 	    int ret;
 	    ret = posix_memalign((void **)&pencils, 4096, sizeof(PencilAccum<T>)*cpd); assert(ret==0);
 	    ret = posix_memalign((void **)&cells, 4096, sizeof(CellAccum)*cpd*cpd); assert(ret==0);
-	    ret = posix_memalign((void **)&pstart, 4096, sizeof(uint64)*cpd); assert(ret==0);
+	    ret = posix_memalign((void **)&pstart, 4096, sizeof(uint64)*(cpd+1)); assert(ret==0);
 	    for (int j=0; j<cpd; j++) pencils[j].cells = cells+j*cpd;
 	}
 	if (buffers==NULL) {
@@ -409,19 +420,23 @@ class SlabAccum {
 	    pstart[j] = offset;
 	    offset += pencils[j]._size;
 	}
+	pstart[cpd] = offset;
     }
 
     /// Copy all of the data to a new buffer, making this contiguous 
     /// and in pencil order.  This does not allocate space; use size()
     /// to do that in advance.
-    /// Also build the pstart[] array
+	/// Also build the pstart[] array (so this will overwrite it
+	/// if build_pstart() was called first, usually harmless).
     void copy_to_ptr(T *destination) {
 	uint64 offset = 0;
 	for (int j=0; j<cpd; j++) {
+	    pstart[j] = offset;
 	    memcpy(destination+offset, pencils[j].data, 
 	    	sizeof(T)*pencils[j]._size);
 	    offset += pencils[j]._size;
 	}
+	pstart[cpd] = offset;
     }
     
     
@@ -459,8 +474,71 @@ class SlabAccum {
 	}
 	fclose(fp);
     }
-	
-};
+
+#ifndef TEST		// The test code doesn't provide SB
+    void pack(int type, int slab) {
+        // This will copy a SlabAccum into an unallocated arena
+	// We need to allocate space for, and then fill, SB->(type,slab)
+	// This does not delete the SlabAccum
+
+	char *p;
+	build_pstart();
+	// Precompute the size needed and then allocate it
+	uint64 size = 0;
+	size+= sizeof(CellAccum)*cpd*cpd;
+	size+= sizeof(uint64)*(cpd+1);
+	size+= sizeof(T)*pstart[cpd];
+	SB->AllocateSpecificSize(type,slab,size);
+	p = SB->GetSlabPtr(type,slab);
+
+	memcpy(p, cells, sizeof(CellAccum)*cpd*cpd);
+	p+= sizeof(CellAccum)*cpd*cpd;
+
+	memcpy(p, pstart, sizeof(uint64)*(cpd+1));
+	p+= sizeof(uint64)*(cpd+1);
+
+	for (int j=0; j<cpd; j++) {
+	    memcpy(p, pencils[j].data, sizeof(T)*pencils[j]._size);
+	    p+= sizeof(T)*pencils[j]._size;
+	}
+	return;
+    }
+
+    void unpack(int type, int slab) {
+	// This unpacks the given Arena into the given SlabAccum, which is 
+	// assumed to be uninitialized.
+	// This puts the SlabAccum into a static state, after Finish is called.
+	// One cannot add any more data.
+
+	// By creating buffers first, we avoid creating one per thread.
+	maxthreads = 1;
+	buffers = new SlabAccumBuffer<T>[maxthreads];
+	setup(P.cpd, 0);
+	    // Now cells[], pencils[], and pstart[] exist and pencils[].cells is filled.
+
+	char *p = (char *) SB->GetSlabPtr(type,slab);  // Here's where our data is
+	// Load the cells[] array
+	memcpy(cells, p, sizeof(CellAccum)*cpd*cpd);
+	p+= sizeof(CellAccum)*cpd*cpd;
+
+	// Load the pstart[] array and the total size
+	memcpy(pstart, p, sizeof(uint64)*(cpd+1));
+	p+= sizeof(uint64)*(cpd+1);
+
+	// Allocate the required buffer size
+	assertf(pstart[cpd]<2e9, "This arena is too big to be unpacked into one SlabBuffer\n");
+	buffers[0].load_from_ptr(p, pstart[cpd]);
+
+	for (int j=0; j<cpd; j++) {
+	    pencils[j].buffer = buffers;
+	    pencils[j].data = buffers[0].get_pencil_start()+pstart[j];
+	    pencils[j]._size = pstart[j+1]-pstart[j];
+	}
+	return;
+    }
+#endif
+
+};    // End SlabAccum class
 
 // --------------------------------------------------------------
 

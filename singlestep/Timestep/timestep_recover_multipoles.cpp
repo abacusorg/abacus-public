@@ -66,13 +66,17 @@ void timestepMultipoles(void) {
     FORCE_RADIUS = 0;  // so we know when we can free CellInfo in Finish
     GROUP_RADIUS = 0;
 
-    int cpd = P.cpd; int first = 0;
+    int cpd = P.cpd; int first = first_slab_on_node;
     FetchSlabs.instantiate(cpd, first, &FetchPosSlabPrecondition, &FetchPosSlabAction );
     Finish.instantiate(cpd, first,  &FinishMultipolesPrecondition,  &FinishMultipolesAction );
 
     while( !Finish.alldone() ) {
         FetchSlabs.Attempt();
             Finish.Attempt();
+        // TODO: The following line will be omitted once the MPI monitoring thread is in place.
+        ReceiveManifest.Check();   // This checks if Send is ready; no-op in non-blocking mode
+        // If the manifest has been received, install it.
+        if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
     }
 
     STDLOG(1,"Completing timestepMultipoles()\n");

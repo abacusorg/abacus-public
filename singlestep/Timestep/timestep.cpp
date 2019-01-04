@@ -48,17 +48,30 @@ Dependency LPTVelocityReRead;
 // of the spin-locked time in the timestep() loop.
 STimer TimeStepWallClock;
 
+#include "manifest.cpp"
+
 // -----------------------------------------------------------------
 /*
  * The precondition for loading new slabs into memory
  * We limit the additional slabs read to FETCHAHEAD
  */
-int FetchSlabPrecondition(int slab) {
+int FetchSlabsPrecondition(int slab) {
     if(slab > Kick.last_slab_executed + FETCHAHEAD)
         // This was +1, but for non-blocking reads 
         // I think we want to work one more ahead
         return 0;
     
+    #ifdef PARALLEL
+    if (FetchSlabs.raw_number_executed>=total_slabs_on_node) return 0;
+    	// This prevents FetchSlabAction from reading beyond the 
+	// range of slabs on the node.  In the PARALLEL code, these
+	// data will arrive from the Manifest.  We have to implement
+	// this on the raw_number because the reported number is adjusted
+	// by the Manifest, which leads to a race condition when running
+	// the PARALLEL code on a single node test.
+	// In the non-PARALLEL code, we have intentionally re-queued some slabs,
+	// so don't apply this test.
+    #endif
     return 1;
 }
 
@@ -66,7 +79,7 @@ int FetchSlabPrecondition(int slab) {
  * Loads a set of slabs at a common x slice into memory
  * All "normal" slabtypes should be loaded here. Note that loads may be async.
  */
-void FetchSlabAction(int slab) {
+void FetchSlabsAction(int slab) {
     STDLOG(0,"Fetching slab %d with %d particles\n", slab, SS->size(slab));
     // Load all of the particle files together
     SB->LoadArenaNonBlocking(CellInfoSlab,slab);
@@ -76,8 +89,10 @@ void FetchSlabAction(int slab) {
         "PosSlab size doesn't match prediction\n");
 
     // Don't bother to load the vel/aux/taylors for slabs that won't be kicked until the wrap
+    #ifndef PARALLEL
     if(FetchSlabs.number_of_slabs_executed < FORCE_RADIUS)
         return;
+    #endif
 
     SB->LoadArenaNonBlocking(VelSlab, slab);
     assertf(SS->size(slab)*sizeof(velstruct)<=
@@ -124,9 +139,11 @@ void TransposePosAction(int slab){
         }
     }
     
+    #ifndef PARALLEL
     // If this is a "ghost" slab, we only need its transpose
     if(TransposePos.number_of_slabs_executed < FORCE_RADIUS)
         SB->DeAllocate(PosSlab, slab);
+    #endif
 }
 
 
@@ -269,13 +286,14 @@ void KickAction(int slab) {
         SB->DeAllocate(PosXYZSlab, slab - FORCE_RADIUS);
 
     // Special case: if this is the last slab, free all +/- FORCE_RADIUS
+    STDLOG(1,"%d slabs have been Kicked so far\n", Kick.number_of_slabs_executed);
     if(Kick.number_of_slabs_executed == CP->cpd-1)
         for(int j = slab - FORCE_RADIUS+1; j <= slab + FORCE_RADIUS; j++)
             SB->DeAllocate(PosXYZSlab, j);
 
     // Queue up slabs near the wrap to be loaded again later
     // This way, we don't have idle slabs taking up memory while waiting for the pipeline to wrap around
-    // TODO: Could this be 2*FORCE_RADIUS for PosXYZ?
+    #ifndef PARALLEL
     if(Kick.number_of_slabs_executed < FORCE_RADIUS){
         STDLOG(2,"Marking slab %d for repeat\n", slab - FORCE_RADIUS);
         TransposePos.mark_to_repeat(slab - FORCE_RADIUS);
@@ -286,6 +304,7 @@ void KickAction(int slab) {
         SB->DeAllocate(CellInfoSlab, slab - FORCE_RADIUS);
         FetchSlabs.mark_to_repeat(slab - FORCE_RADIUS);
     }
+    #endif
 
     //If we are doing blocking forces, the finalization happens in NearForceAction
     if(!P.ForceOutputDebug && !P.ForceCPU)
@@ -366,6 +385,7 @@ int DoGlobalGroupsPrecondition(int slab) {
     // That said, if the nearby slab has already closed global groups, then
     // we can proceed.
     // The lower bound has a +1 because FindLinks looks one slab back
+    if (Kick.notdone(slab)) return 0;
     for (int j=-2*GROUP_RADIUS+1; j<=2*GROUP_RADIUS; j++){
         if (FindCellGroupLinks.notdone(slab+j)) return 0;
     }
@@ -638,6 +658,9 @@ void FinishAction(int slab) {
     int pwidth = FetchSlabs.number_of_slabs_executed - Finish.number_of_slabs_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
 
+    #ifdef PARALLEL
+    if (Finish.number_of_slabs_executed==0) SendManifest.QueueToSend(slab);
+    #endif
     // TODO: is there a different place in the code where we would rather report this?
     ReportMemoryAllocatorStats();
 }
@@ -675,10 +698,10 @@ void timestep(void) {
     STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
 
     int nslabs = P.cpd;
-    int first = 0;  // First slab to load
+    int first = first_slab_on_node;  // First slab to load
     STDLOG(1,"First slab to load will be %d\n", first);
 
-        FetchSlabs.instantiate(nslabs, first, &FetchSlabPrecondition,          &FetchSlabAction         );
+        FetchSlabs.instantiate(nslabs, first, &FetchSlabsPrecondition,          &FetchSlabsAction         );
       TransposePos.instantiate(nslabs, first, &TransposePosPrecondition,       &TransposePosAction      );
          NearForce.instantiate(nslabs, first + FORCE_RADIUS, &NearForcePrecondition,          &NearForceAction         );
        TaylorForce.instantiate(nslabs, first + FORCE_RADIUS, &TaylorForcePrecondition,        &TaylorForceAction       );
@@ -723,6 +746,11 @@ void timestep(void) {
     LPTVelocityReRead.Attempt();
                 Drift.Attempt();
                Finish.Attempt();
+	// TODO: The following line will be omitted once the MPI monitoring thread is in place.
+	ReceiveManifest.Check();   // This checks if Send is ready; no-op in non-blocking mode
+	
+	// If the manifest has been received, install it.
+	if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
     }
 
     if(IL->length!=0)
@@ -732,6 +760,9 @@ void timestep(void) {
         "Insert List not empty (%d) at the end of timestep().  Time step too big?\n", IL->length);
     
     assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
+
+    if (GFC != NULL) assertf(GFC->GLL->length==0,
+	"GroupLinkList not empty (%d) at the end of timestep.  Global group finding didn't run properly.\n", GFC->GLL->length);
 
     uint64 total_n_output = n_output;
     if(GFC != NULL)

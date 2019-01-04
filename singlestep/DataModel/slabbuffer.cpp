@@ -37,6 +37,7 @@ enum SlabType { CellInfoSlab,
                 FarAccSlab,
                 TimeSlice,
                 VelLPTSlab,
+                CellGroupArena,
                 NearField_SIC_Slab, 
                 
                 L1halosSlab,
