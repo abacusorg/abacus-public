@@ -275,6 +275,7 @@ void Manifest::QueueToSend(int finished_slab) {
     // E.g., we really should not have any slabs that have open GlobalGroupSlabs
     // in our wake.  Might check, since one could screw up the Dependencies.
 
+    first_slab_finished = finished_slab;   // A global record of this
     STDLOG(1,"Queueing the SendManifest at slab=%d\n", finished_slab);
     Load.Start();
 

@@ -165,11 +165,11 @@ FLOAT * density; //!< Array to accumulate gridded densities in for low resolutio
 #include "groupfinding.cpp"
 #include "microstep.cpp"
 
-// #define PARALLEL
-int first_slab_on_node, total_slabs_on_node;
+int first_slab_on_node, total_slabs_on_node, first_slab_finished;
 	// The first read slab to be executed by this nodes,
-	// as well as the total number.
+	// as well as the total number and the first finished
 	// In the single node code, this is simply 0 and CPD.
+#include "node_slabs.cpp"
 
 #include "timestep.cpp"
 #include "reporting.cpp"
@@ -232,6 +232,7 @@ void Prologue(Parameters &P, bool MakeIC) {
     IO_Initialize(logfn);
 
     SS = new SlabSize(P.cpd);
+    ReadNodeSlabs();
 
     if(!MakeIC) {
             // ReadMaxCellSize(P);
@@ -286,8 +287,10 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     // Some pipelines, like standalone_fof, don't use multipoles
     if(MF != NULL){
+        MF->GatherRedlack();    // For the parallel code, we have to coadd the inputs
         MF->ComputeRedlack();  // NB when we terminate SlabMultipoles we write out these
-        MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
+        if (WriteState.NodeRank==0)
+            MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
         delete MF;
     }
 
@@ -516,6 +519,8 @@ void InitWriteState(int MakeIC){
     
 
 void FinalizeWriteState() {
+    WriteNodeSlabs();  // We do this here because it will need a MPI Barrier
+
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
         // This is the standard deviation of the fractional overdensity in cells.
         // But for the parallel code: this has been divided by CPD^3, not the number of cells on the node
@@ -531,11 +536,14 @@ void FinalizeWriteState() {
         // If we're running in parallel, then we want to gather some
         // state statistics across the nodes.  We start by writing the 
         // original state file to the local disk.
+        // TODO: Do we really want to do this?  Maybe just echo the stats to the log?
         WriteState.write_to_file(P.WriteStateDirectory, NodeString);
 
         // Now we need to do MPI reductions for stats
+        // These stats are all in double precision (or int)
         // TODO: MPI_Barrier
         // TODO: Maximize MaxAcceleration
+        // Example: MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxVelocity, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
         // TODO: Maximize MaxVelocity
         // TODO: Minimize MinVrmsOnAmax
         // TODO: Minimize MinCellSize
