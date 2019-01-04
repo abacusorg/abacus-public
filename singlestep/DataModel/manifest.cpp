@@ -308,18 +308,22 @@ void Manifest::QueueToSend(int finished_slab) {
     // Now load all of the arenas into the Manifest
     int min_slab = finished_slab;
     for (int type=0; type<NUMTYPES; type++) {
-	// Loop over all SlabTypes
-	for (int s=finished_slab-1; s>finished_slab-cpd; s--) {
-	    // Check each trailing slab; if present, load it up
-	    if (SB->IsSlabPresent(type,s)) {
-	    	LoadArena(type,s);
-		min_slab = std::min(min_slab, s);
+	    // Loop over all SlabTypes
+	    for (int s=finished_slab-1; s>finished_slab-cpd; s--) {
+	        // Check each trailing slab; if present, load it up
+	        if (SB->IsSlabPresent(type,s)) {
+	    	    LoadArena(type,s);
+		        min_slab = std::min(min_slab, s);
+                if (type==PosSlab) {
+                    // Zero out the SlabSize for all particles being sent
+                    SS->setold(s,0);
+                }
+	        }
+	        else if (s<min_slab) break;
+	        // Some slabs have been already been deallocated by the finish slab,            // but we need the ones that were waiting for the periodic wrap.
+	        // This relies on the fact that the first SlabType, PosSlab, 
+	        // stretches back to the beginning.
 	    }
-	    else if (s<min_slab) break;
-	    // Some slabs have been already been deallocated by the finish slab,            // but we need the ones that were waiting for the periodic wrap.
-	    // This relies on the fact that the first SlabType, PosSlab, 
-	    // stretches back to the beginning.
-	}
     }
     STDLOG(1,"Done Queuing Arenas, spanning [%d,%d)\n", min_slab, finished_slab);
 
@@ -499,9 +503,13 @@ void Manifest::ImportData() {
     STDLOG(1,"Importing ReceiveManifest of %l bytes into the flow\n", bytes);
     Load.Start();
     for (int n=0; n<m.numarenas; n++) {
-	SB->SetIOCompleted(m.arenas[n].type, m.arenas[n].slab);
-	STDLOG(1,"Completing Import of arena slab %d of type %d and size %l\n", 
-		m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size);
+	    SB->SetIOCompleted(m.arenas[n].type, m.arenas[n].slab);
+	    STDLOG(1,"Completing Import of arena slab %d of type %d and size %l\n", 
+	    	m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size);
+        if (m.arenas[n].type==PosSlab) {
+            // Set the SlabSize based on the newly arrived PosSlab
+            SS->setold(m.arenas[n].slab, m.arenas[n].size/sizeof(posstruct));
+        }
     }
 
     // Set the dependencies.   Be careful that this keeps the Dependencies 
