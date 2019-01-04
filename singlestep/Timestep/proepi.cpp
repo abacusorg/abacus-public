@@ -539,19 +539,19 @@ void FinalizeWriteState() {
         // Now we need to do MPI reductions for stats
         // These stats are all in double precision (or int)
         // Maximize MaxAcceleration
-        MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxAcceleration, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
+        // MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxAcceleration, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
         // Maximize MaxVelocity
-        MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxVelocity, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
+        // MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxVelocity, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
         // Minimize MinVrmsOnAmax
-        MPI_Reduce(MPI_IN_PLACE, &WriteState.MinVrmsOnAmax, 1, MPI_DOUBLE, MPI_MIN, 0, comm);
+        // MPI_Reduce(MPI_IN_PLACE, &WriteState.MinVrmsOnAmax, 1, MPI_DOUBLE, MPI_MIN, 0, comm);
         // Minimize MinCellSize
-        MPI_Reduce(MPI_IN_PLACE, &WriteState.MinCellSize, 1, MPI_INT, MPI_MIN, 0, comm);
+        // MPI_Reduce(MPI_IN_PLACE, &WriteState.MinCellSize, 1, MPI_INT, MPI_MIN, 0, comm);
         // Maximize MaxCellSize
-        MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxCellSize, 1, MPI_INT, MPI_MIN, 0, comm);
+        // MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxCellSize, 1, MPI_INT, MPI_MIN, 0, comm);
         // sqrt(Sum(SQR of RMS_Velocity))
-        MPI_Reduce(MPI_IN_PLACE, &WriteState.RMS_Velocity, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
+        // MPI_Reduce(MPI_IN_PLACE, &WriteState.RMS_Velocity, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
         // sqrt(Sum(SQR of StdDevCellSize))
-        MPI_Reduce(MPI_IN_PLACE, &WriteState.StdDevCellSize, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
+        // MPI_Reduce(MPI_IN_PLACE, &WriteState.StdDevCellSize, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
 
         // Note that we're not summing up any timing or group finding reporting;
         // these just go in the logs
