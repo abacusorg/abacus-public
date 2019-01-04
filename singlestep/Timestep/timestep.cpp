@@ -731,7 +731,7 @@ void timestep(void) {
     else
         LPTVelocityReRead.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
 
-    while( !Finish.alldone() ) {
+    while( !Finish.alldone(total_slabs_on_node) ) {
            for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
          TransposePos.Attempt();
             NearForce.Attempt();
