@@ -15,8 +15,8 @@ void ReadNodeSlabs() {
         first_slab_finished = -1;   // Just a silly value
         return;
     #else
-        int NNode = MPI_Number_of_Nodes;
-        int rank = MPI_Rank;
+        int NNode = 1; // MPI_Number_of_Nodes;
+        int rank = 0; // MPI_Rank;
         int neighbor = (rank+1)%NNode;
         char fname[1024];
         // TODO: This needs to be the Global Read State
@@ -27,12 +27,12 @@ void ReadNodeSlabs() {
         // TODO: Or create some default or crash
         int value, last_slab;
         for (int j=0; j<NNode; j++) {
-            nread = fscanf(fp, "%d", &value);
-            assert(nread==1, "Couldn't read entry %j from NodeSlabs file\n", j);
+            int nread = fscanf(fp, "%d", &value);
+            assertf(nread==1, "Couldn't read entry %j from NodeSlabs file\n", j);
             if (j==rank) first_slab_on_node = value;
             if (j==neighbor) last_slab = value;
         }
-        fclose(fname);
+        fclose(fp);
         total_slabs_on_node = last_slab - first_slab_on_node;
         if (total_slabs_on_node<0) total_slabs_on_node += P.cpd;
         STDLOG(1,"Read NodeSlab file: will do %d slabs from [%d,%d)\n",
@@ -48,7 +48,7 @@ void WriteNodeSlabs() {
         // Note that first_slab_finished is only set in PARALLEL
         return;
     #else
-        int NNode = MPI_Number_of_Nodes;
+        int NNode = 1; // MPI_Number_of_Nodes;
         int first[NNode];
         // TODO MPI: Send first_slab_finished to fill in this element in the vector
         if (WriteState.NodeRank==0) {
@@ -59,9 +59,9 @@ void WriteNodeSlabs() {
             fp = fopen(fname,"w");
             assertf(fp!=NULL, "Couldn't create nodeslabs file %s\n", fname);
             for (int j=0; j<NNode; j++) {
-                fprintf("%d\n", first[j]);
+                fprintf(fp, "%d\n", first[j]);
             }
-            fclose(fname);
+            fclose(fp);
             STDLOG(1, "Wrote the NodeSlab file to %s\n", fname);
         }
     #endif
