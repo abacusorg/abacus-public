@@ -185,7 +185,7 @@ void ReportTimings(FILE * timingfile) {
 
     if(NFD){
         char fn[1024];
-        sprintf(fn,"%s/lastrun.slabtimes",P.LogDirectory);
+        sprintf(fn,"%s/lastrun%s.slabtimes",P.LogDirectory, NodeString);
         FILE* slabtimefile = fopen(fn,"wb");
         for(int i =0; i < P.cpd;i++){
             double slabtime = SlabForceTime[i].Elapsed();

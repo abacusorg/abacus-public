@@ -226,7 +226,7 @@ void Prologue(Parameters &P, bool MakeIC) {
     STDLOG(1,"Setting up IO\n");
 
     char logfn[1050];
-    sprintf(logfn,"%s/lastrun.iolog", P.LogDirectory);
+    sprintf(logfn,"%s/lastrun%s.iolog", P.LogDirectory, NodeString);
     io_ramdisk_global = P.RamDisk;
     STDLOG(0,"Setting RamDisk == %d\n", P.RamDisk);
     IO_Initialize(logfn);
@@ -270,7 +270,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
     // Write out the timings.  This must precede the rest of the epilogue, because 
     // we need to look inside some instances of classes for runtimes.
     char timingfn[1050];
-    sprintf(timingfn,"%s/lastrun.time", P.LogDirectory);
+    sprintf(timingfn,"%s/lastrun%s.time", P.LogDirectory, NodeString);
     FILE * timingfile = fopen(timingfn,"w");
     assertf(timingfile != NULL, "Couldn't open timing file \"%s\"\n", timingfile);
     ReportTimings(timingfile);
@@ -297,7 +297,8 @@ void Epilogue(Parameters &P, bool MakeIC) {
     if(ReadState.DoBinning){
             STDLOG(1,"Outputting Binned Density\n");
             char denfn[2048];
-            sprintf(denfn,"%s/density",P.ReadStateDirectory);
+            // TODO: Should this be going to ReadState or WriteState or Output?
+            sprintf(denfn,"%s/density%s",P.ReadStateDirectory, NodeString);
             FILE * densout = fopen(denfn,"wb");
             fwrite(density,sizeof(FLOAT),P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d,densout);
             fclose(densout);
@@ -405,7 +406,7 @@ void setup_log(){
 
     stdlog_threshold_global = P.LogVerbosity;
     char logfn[1050];
-    sprintf(logfn,"%s/lastrun.log", P.LogDirectory);
+    sprintf(logfn,"%s/lastrun%s.log", P.LogDirectory, NodeString);
     stdlog.open(logfn);
     STDLOG_TIMESTAMP;
     STDLOG(0, "Log established with verbosity %d.\n", stdlog_threshold_global);
