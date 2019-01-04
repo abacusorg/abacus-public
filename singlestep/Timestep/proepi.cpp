@@ -84,6 +84,7 @@ grid *Grid;
 #include "Parameters.cpp"
 #include "statestructure.cpp"
 State ReadState, WriteState;
+char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
 
 
 
@@ -333,14 +334,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
             delete GFC;
     }
 
-    STDLOG(0,"MinCellSize = %d, MaxCellSize = %d\n", 
-        WriteState.MinCellSize, WriteState.MaxCellSize);
-    WriteState.RMS_Velocity = sqrt(WriteState.RMS_Velocity/P.np);
-    STDLOG(0,"Rms |v| in simulation is %f.\n", WriteState.RMS_Velocity);
-    STDLOG(0,"Maximum v_j in simulation is %f.\n", WriteState.MaxVelocity);
-    STDLOG(0,"Maximum a_j in simulation is %f.\n", WriteState.MaxAcceleration);
-    STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f.\n", WriteState.MinVrmsOnAmax);
-    
+
     // Report peak memory usage
     struct rusage rusage;
     assert(getrusage(RUSAGE_SELF, &rusage) == 0);
@@ -418,6 +412,7 @@ void check_read_state(int AllowIC, bool &MakeIC, double &da){
     // Check if ReadStateDirectory is accessible, or if we should 
     // build a new state from the IC file
     char rstatefn[1050];
+    // TODO: For MPI, this should be the Global Read State
     sprintf(rstatefn,"%s/state",P.ReadStateDirectory);
 
     if(access(rstatefn,0) ==-1){
@@ -517,4 +512,40 @@ void InitWriteState(int MakeIC){
         STDLOG(1,"Overwriting multipoles and taylors\n");
     }
 
+}
+    
+
+void FinalizeWriteState() {
+    WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
+        // This is the standard deviation of the fractional overdensity in cells.
+        // But for the parallel code: this has been divided by CPD^3, not the number of cells on the node
+    STDLOG(0,"MinCellSize = %d, MaxCellSize = %d\n", 
+        WriteState.MinCellSize, WriteState.MaxCellSize);
+    WriteState.RMS_Velocity = sqrt(WriteState.RMS_Velocity/P.np);
+    STDLOG(0,"Rms |v| in simulation is %f.\n", WriteState.RMS_Velocity);
+    STDLOG(0,"Maximum v_j in simulation is %f.\n", WriteState.MaxVelocity);
+    STDLOG(0,"Maximum a_j in simulation is %f.\n", WriteState.MaxAcceleration);
+    STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f.\n", WriteState.MinVrmsOnAmax);
+    
+    #ifdef PARALLEL
+        // If we're running in parallel, then we want to gather some
+        // state statistics across the nodes.  We start by writing the 
+        // original state file to the local disk.
+        WriteState.write_to_file(P.WriteStateDirectory, NodeString);
+
+        // Now we need to do MPI reductions for stats
+        // TODO: MPI_Barrier
+        // TODO: Maximize MaxAcceleration
+        // TODO: Maximize MaxVelocity
+        // TODO: Minimize MinVrmsOnAmax
+        // TODO: Minimize MinCellSize
+        // TODO: Maximize MaxCellSize
+        // TODO: sqrt(Sum(SQR of RMS_Velocity))
+        // TODO: sqrt(Sum(SQR of StdDevCellSize))
+
+        // Note that we're not summing up any timing or group finding reporting;
+        // these just go in the logs
+    #endif
+
+    return;
 }
