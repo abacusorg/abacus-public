@@ -72,7 +72,7 @@ void timestepBenchmarkIO(int nslabs) {
         nslabs = cpd;
 
     // Use the Kick as finish because FetchSlabs fetches FETCHAHEAD past the kick
-    FetchSlabs.instantiate(nslabs, first, &FetchSlabPrecondition, &FetchSlabAction );
+    FetchSlabs.instantiate(nslabs, first, &FetchSlabsPrecondition, &FetchSlabsAction );
     Kick.instantiate(nslabs, first,  &FinishBenchmarkIOPrecondition,  &FinishBenchmarkIOAction );
 
     while( !Kick.alldone() ) {

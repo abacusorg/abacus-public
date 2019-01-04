@@ -79,7 +79,7 @@ int FetchSlabsPrecondition(int slab) {
  * Loads a set of slabs at a common x slice into memory
  * All "normal" slabtypes should be loaded here. Note that loads may be async.
  */
-void FetchSlabAction(int slab) {
+void FetchSlabsAction(int slab) {
     STDLOG(0,"Fetching slab %d with %d particles\n", slab, SS->size(slab));
     // Load all of the particle files together
     SB->LoadArenaNonBlocking(CellInfoSlab,slab);
@@ -701,7 +701,7 @@ void timestep(void) {
     int first = first_slab_on_node;  // First slab to load
     STDLOG(1,"First slab to load will be %d\n", first);
 
-        FetchSlabs.instantiate(nslabs, first, &FetchSlabPrecondition,          &FetchSlabAction         );
+        FetchSlabs.instantiate(nslabs, first, &FetchSlabsPrecondition,          &FetchSlabsAction         );
       TransposePos.instantiate(nslabs, first, &TransposePosPrecondition,       &TransposePosAction      );
          NearForce.instantiate(nslabs, first + FORCE_RADIUS, &NearForcePrecondition,          &NearForceAction         );
        TaylorForce.instantiate(nslabs, first + FORCE_RADIUS, &TaylorForcePrecondition,        &TaylorForceAction       );

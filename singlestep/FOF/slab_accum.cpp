@@ -475,10 +475,10 @@ class SlabAccum {
 	fclose(fp);
     }
 
-#ifndef TEST		// The test code doesn't provide LBW
+#ifndef TEST		// The test code doesn't provide SB
     void pack(int type, int slab) {
         // This will copy a SlabAccum into an unallocated arena
-	// We need to allocate space for, and then fill, LBW->(type,slab)
+	// We need to allocate space for, and then fill, SB->(type,slab)
 	// This does not delete the SlabAccum
 
 	char *p;
@@ -488,8 +488,8 @@ class SlabAccum {
 	size+= sizeof(CellAccum)*cpd*cpd;
 	size+= sizeof(uint64)*(cpd+1);
 	size+= sizeof(T)*pstart[cpd];
-	LBW->AllocateSpecificSize(type,slab,size);
-	p = LBW->ReturnIDPtr(type,slab);
+	SB->AllocateSpecificSize(type,slab,size);
+	p = SB->GetSlabPtr(type,slab);
 
 	memcpy(p, cells, sizeof(CellAccum)*cpd*cpd);
 	p+= sizeof(CellAccum)*cpd*cpd;
@@ -516,7 +516,7 @@ class SlabAccum {
 	setup(P.cpd, 0);
 	    // Now cells[], pencils[], and pstart[] exist and pencils[].cells is filled.
 
-	char *p = (char *) LBW->ReturnIDPtr(type,slab);  // Here's where our data is
+	char *p = (char *) SB->GetSlabPtr(type,slab);  // Here's where our data is
 	// Load the cells[] array
 	memcpy(cells, p, sizeof(CellAccum)*cpd*cpd);
 	p+= sizeof(CellAccum)*cpd*cpd;

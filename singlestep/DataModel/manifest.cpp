@@ -72,10 +72,10 @@ class DependencyRecord {
 	if (GFC==NULL) { begin=end = finished_slab-1; return;}
 	STDLOG(1, "LoadCG start\n");
 	end = finished_slab-1;
-	while (GFC->cellgroups_status[PP->WrapSlab(end)]==2) end--;
+	while (GFC->cellgroups_status[CP->WrapSlab(end)]==2) end--;
 	end++;   // Now this marks the first ==2.
 	for (begin=end-1; begin>end-GFC->cpd; begin--) {
-	    int s = PP->WrapSlab(begin);
+	    int s = CP->WrapSlab(begin);
 	    if (GFC->cellgroups_status[s]==0) break;
 	    // Need to load this over to the Arenas
 	    STDLOG(1,"Packing CellGroupArena for slab %d\n", s);
@@ -91,11 +91,11 @@ class DependencyRecord {
     /// Set the cellgroups_status to 1 for the indicated slabs
     void SetCG() {
 	for (int s=begin; s<end; s++) {
-	    GFC->cellgroups_status[PP->WrapSlab(s)]=1;
+	    GFC->cellgroups_status[CP->WrapSlab(s)]=1;
 	    // And move the information from the Arenas back into the SlabArray
-	    GFC->cellgroups[PP->WrapSlab(s)].unpack(CellGroupArena,s);
+	    GFC->cellgroups[CP->WrapSlab(s)].unpack(CellGroupArena,s);
 	    // Now we can delete the CellGroupArena
-	    LBW->DeAllocate(CellGroupArena,s);
+	    SB->DeAllocate(CellGroupArena,s);
 	}
 	return;
     }
@@ -107,7 +107,7 @@ int global_minslab_search;    // Used to pass an extra variable into partition
 // Will select things between [x,slab), where x=slab-CPD/2, handling the wrap
 inline bool is_below_slab(ilstruct *particle, int slab) {
     int x = particle->xyz.x-slab;  // We want x<0, but not too much.
-    x = PP->WrapSlab(x);
+    x = CP->WrapSlab(x);
     return x>=global_minslab_search;
 }
 
@@ -117,7 +117,7 @@ inline bool is_below_slab(ilstruct *particle, int slab) {
 /// most one slab.  So it is enough to test one end.
 inline bool link_below_slab(GroupLink *link, int slab) {
     int sa = link->a.slab();
-    sa = PP->WrapSlab(sa-slab);
+    sa = CP->WrapSlab(sa-slab);
     return sa>=global_minslab_search;
 }
 
@@ -189,8 +189,8 @@ class Manifest {
 	ManifestArena *a = m.arenas+m.numarenas;
 	a->type = type;
 	a->slab = s;
-	a->size = LBW->IDSizeBytes(type, s);
-	a->ptr =  LBW->ReturnIDPtr(type, s);
+	a->size = SB->SlabSizeBytes(type, s);
+	a->ptr =  SB->GetSlabPtr(type, s);
 	STDLOG(1, "Queuing slab %d of type %d, size %l\n", s, type, a->size);
 	m.numarenas++;
 	assertf(m.numarenas<MAXMANIFEST, "numarenas has overflowed; increase MAXMANIFEST.");
@@ -307,11 +307,11 @@ void Manifest::QueueToSend(int finished_slab) {
     STDLOG(1,"Queuing Arenas into the SendManifest\n");
     // Now load all of the arenas into the Manifest
     int min_slab = finished_slab;
-    for (int type=0; type<MAXIDS; type++) {
+    for (int type=0; type<NUMTYPES; type++) {
 	// Loop over all SlabTypes
 	for (int s=finished_slab-1; s>finished_slab-cpd; s--) {
 	    // Check each trailing slab; if present, load it up
-	    if (LBW->IDPresent(type,s)) {
+	    if (SB->IsSlabPresent(type,s)) {
 	    	LoadArena(type,s);
 		min_slab = std::min(min_slab, s);
 	    }
@@ -326,7 +326,7 @@ void Manifest::QueueToSend(int finished_slab) {
     STDLOG(1,"Queuing Insert List into the SendManifest, extracting [%d,%d)\n",
     	min_il_slab, finished_slab);
     // Partition the Insert List, malloc *il, and save it off
-    global_minslab_search = PP->WrapSlab(min_il_slab-finished_slab);
+    global_minslab_search = CP->WrapSlab(min_il_slab-finished_slab);
     uint64 mid = ParallelPartition(IL->list, IL->length, finished_slab, is_below_slab);
 
     m.numil = IL->length-mid;
@@ -340,7 +340,7 @@ void Manifest::QueueToSend(int finished_slab) {
     // TODO: Do these group finding variables always exist?
     if (GFC!=NULL) {
 	STDLOG(1,"Queuing GroupLink List into the SendManifest, extracting [%d,%d)\n", min_links_slab, finished_slab);
-	global_minslab_search = PP->WrapSlab(min_links_slab-finished_slab);
+	global_minslab_search = CP->WrapSlab(min_links_slab-finished_slab);
 	mid = ParallelPartition(GFC->GLL->list, GFC->GLL->length, finished_slab, link_below_slab);
 	ret = posix_memalign((void **)&links, 4096, sizeof(GroupLink)*(GFC->GLL->length-mid));
 	m.numlinks = GFC->GLL->length-mid;
@@ -385,7 +385,7 @@ void Manifest::Send() {
 	bytes += retval;
 	if (blocking) STDLOG(1,"Writing %l bytes of arenas to file\n", retval);
 	// Now we can delete this arena
-	LBW->DeAllocate(m.arenas[n].type, m.arenas[n].slab);
+	SB->DeAllocate(m.arenas[n].type, m.arenas[n].slab);
     }
     // TODO: Send the insert list: m.numil*sizeof(ilstruct) bytes from *il
     retval = fwrite(il, sizeof(ilstruct), m.numil, fp);
@@ -447,8 +447,8 @@ void Manifest::Receive() {
     STDLOG(1,"Reading Manifest Core from %s\n", fname);
 
     for (int n=0; n<m.numarenas; n++) {
-	LBW->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size);
-	m.arenas[n].ptr = LBW->ReturnIDPtr(m.arenas[n].type, m.arenas[n].slab);
+	SB->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size);
+	m.arenas[n].ptr = SB->GetSlabPtr(m.arenas[n].type, m.arenas[n].slab);
 	// TODO: Receive arenas[n].size bytes into arenas[n].ptr
 	retval = fread(m.arenas[n].ptr, 1, m.arenas[n].size, fp);
 	bytes += retval;
@@ -499,7 +499,7 @@ void Manifest::ImportData() {
     STDLOG(1,"Importing ReceiveManifest of %l bytes into the flow\n", bytes);
     Load.Start();
     for (int n=0; n<m.numarenas; n++) {
-	LBW->SetIOCompleted(m.arenas[n].type, m.arenas[n].slab);
+	SB->SetIOCompleted(m.arenas[n].type, m.arenas[n].slab);
 	STDLOG(1,"Completing Import of arena slab %d of type %d and size %l\n", 
 		m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size);
     }
