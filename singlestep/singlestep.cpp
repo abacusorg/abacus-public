@@ -185,8 +185,13 @@ void InitGroupFinding(int MakeIC){
 void InitializeParallel() {
     #ifdef PARALLEL
          // TODO: MPI_Init() and other items
-         // TODO:  sprintf(NodeString,".%04d",MPI_Rank);
-         STDLOG(0,"Initializing MPI");   // Supply other info
+         int size = 0, rank = 0;
+         // MPI_Init(NULL, NULL);
+         STDLOG(0,"Initializing MPI.");   
+         // MPI_Comm_size(MPI_COMM_WORLD, &size);
+         // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+         STDLOG(0,"Node %d of %d total\n", rank, size);
+         sprintf(NodeString,".%04d",rank);
     #else
     #endif
     return;
@@ -195,6 +200,7 @@ void InitializeParallel() {
 void FinalizeParallel() {
     #ifdef PARALLEL
          // TODO: MPI_Finalize() and other items
+         // MPI_Finalize();
          STDLOG(0,"Calling MPI_Finalize()");
     #else
     #endif
