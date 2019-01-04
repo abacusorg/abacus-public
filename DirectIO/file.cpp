@@ -4,6 +4,10 @@
 #include <sys/stat.h>
 #include <libgen.h>
 
+#include <string.h>
+#include <limits.h>     /* PATH_MAX */
+#include <errno.h>
+
 // TODO: This routine is too heavy on asserts.  Would be better
 // to return an answer to the calling program and let it decide how
 // to react.
@@ -37,28 +41,68 @@ void CheckDirectoryExists(const char *fn) {
     }
 }
 
+// A recursive mkdir function.
+// This is semantically similar to Python's os.makedirs()
+// from https://gist.github.com/JonathonReinhart/8c0d90191c38af2dcadb102c4e202950
+int CreateDirectories(const char *path){
+    const size_t len = strlen(path);
+    char _path[PATH_MAX];
+    char *p; 
+
+    errno = 0;
+
+    /* Copy string so its mutable */
+    if (len > sizeof(_path)-1) {
+        errno = ENAMETOOLONG;
+        return -1; 
+    }   
+    strcpy(_path, path);
+
+    /* Iterate the string */
+    for (p = _path + 1; *p; p++) {
+        if (*p == '/') {
+            /* Temporarily truncate */
+            *p = '\0';
+
+            if (mkdir(_path, S_IRWXU) != 0) {
+                if (errno != EEXIST)
+                    return -1; 
+            }
+
+            *p = '/';
+        }
+    }   
+
+    if (mkdir(_path, S_IRWXU) != 0) {
+        if (errno != EEXIST)
+            return -1;
+    }   
+
+    return 0;
+}
+
 int CreateSubDirectory(const char *path, const char *subdir) {
     // This should check whether the subdirectory exists and if not make it.
     // Return 0 if all well.
-    CheckDirectoryExists(path);		// Does the parent exist?
+    CheckDirectoryExists(path);                // Does the parent exist?
     char fn[1100];
     sprintf(fn, "%s/%s", path, subdir);
     if (access(fn,0)==0) {
-	// Subdir name already exists
+        // Subdir name already exists
         struct stat status;
-	stat(fn, &status);
-	if (!(status.st_mode & S_IFDIR)) {
-	    fprintf(stderr,"%s exists but is a file\n", fn);
-	    assert(1==0);
-	} else {
-	    // Subdirectory already exists
-	    return 0;
-	}
+        stat(fn, &status);
+        if (!(status.st_mode & S_IFDIR)) {
+            fprintf(stderr,"%s exists but is a file\n", fn);
+            assert(1==0);
+        } else {
+            // Subdirectory already exists
+            return 0;
+        }
     } else {
         // Subdir doesn't exist
-	mkdir(fn, 0775);
-	assert(access(fn,0)==0);
-	return 0;
+        mkdir(fn, 0775);
+        assert(access(fn,0)==0);
+        return 0;
     }
 }
 
@@ -100,10 +144,10 @@ void containing_dirname(const char *filename, char dir[1024]){
     char buffer[1024];
     strncpy(buffer,filename,1024);
     char *_dir = basename(dirname(buffer));
-	if(strncmp(_dir, "Step", 4) == 0){
-		strncpy(buffer,filename,1024);
-		_dir = basename(dirname(dirname(buffer)));
-	}
+        if(strncmp(_dir, "Step", 4) == 0){
+                strncpy(buffer,filename,1024);
+                _dir = basename(dirname(dirname(buffer)));
+        }
     strncpy(dir, _dir, 1024);
     
     // now append a trailing slash
