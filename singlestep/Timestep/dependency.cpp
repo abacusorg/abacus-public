@@ -27,7 +27,11 @@ public:
     int cpd;
     int *_executed_status;	// An array to keep track of what we've done
     int number_of_slabs_executed;   // Total number of slabs so far
+    	// This is the number we report; it can differ from the raw number
+	// because we may intentionally queue some for re-execution.
     int last_slab_executed;         // The last slab we did
+    int raw_number_executed;	// This is the number of times the action()
+    	// has been run, which may differ 
     int (*precondition)(int slab);
     void (*action)(int slab);
     
@@ -57,6 +61,7 @@ public:
         for(int s=0;s<cpd;s++) _executed_status[s] = 0;
 
         number_of_slabs_executed = 0; 
+        raw_number_executed = 0; 
         last_slab_executed = _initialslab-1;
     }
                     
@@ -80,6 +85,7 @@ public:
 	    _executed_status[slab] = 1;
 	    last_slab_executed = slab;
 	    number_of_slabs_executed++;
+	    raw_number_executed++;
     }
 
     int wrap(int s) { while(s<0) s += cpd; while(s>=cpd) s -= cpd; return s; }
@@ -111,6 +117,27 @@ public:
         _executed_status[slab] = 0;
         number_of_slabs_executed--;
     }
+
+    int return_done_range(int end) {
+	// Returns begin, such that [begin,end) is done and begin-1 is not.
+	// We don't check if end is done.
+	// The check is wrapped, but the return value is not, so begin<=end.
+	int begin = wrap(end-1);
+	while (done(begin) && end-begin<cpd) {
+	    begin--;
+	}
+	return begin;
+    }
+
+    void force_done(int s) {
+	// This overrides the actions and declares it done.
+	// last_slab_executed is never updated, nor is any timing done.
+	// This is intended to be used when we have executed the action()
+	// on another parallel node and are moving the results over.
+	_executed_status[wrap(s)] = 1;
+	number_of_slabs_executed++;
+    }
+
 };
 
 int *Dependency::spin_flags = new int[NUM_SPIN_FLAGS];

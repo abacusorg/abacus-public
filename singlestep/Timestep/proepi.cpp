@@ -164,6 +164,12 @@ FLOAT * density; //!< Array to accumulate gridded densities in for low resolutio
 #include "groupfinding.cpp"
 #include "microstep.cpp"
 
+// #define PARALLEL
+int first_slab_on_node, total_slabs_on_node;
+	// The first read slab to be executed by this nodes,
+	// as well as the total number.
+	// In the single node code, this is simply 0 and CPD.
+
 #include "timestep.cpp"
 #include "reporting.cpp"
 
@@ -173,7 +179,7 @@ FLOAT * density; //!< Array to accumulate gridded densities in for low resolutio
 /*! \brief Initializes global objects
  *
  */
-void Prologue(Parameters &P, bool ic) {
+void Prologue(Parameters &P, bool MakeIC) {
     omp_set_nested(true);
 
     STDLOG(1,"Entering Prologue()\n");
@@ -186,16 +192,29 @@ void Prologue(Parameters &P, bool ic) {
     long long int np = P.np;
     assert(np>0);
 
+
+    // Look in ReadState to see what PosSlab files are available
+    // TODO: Haven't implemented this yet
+    first_slab_on_node = 0;
+    // first_slab_on_node = ReadState.FullStepNumber; // A fun test
+    total_slabs_on_node = cpd;
+    // TODO: This fails for Spiral with first!=0 because the IC have
+    // put all particles into input slab 0.
+
+    // Call this to use thread-based Manifests
+    NonBlockingManifest();
+
     Grid = new grid(cpd);
     SB = new SlabBuffer(cpd, order, P.MAXRAMMB*1024*1024);
     CP = new CellParticles(cpd, SB);
+
     STDLOG(1,"Initializing Multipoles()\n");
     MF  = new SlabMultipoles(order, cpd);
 
     STDLOG(1,"Setting up insert list\n");
     uint64 maxILsize = P.np+1;
     // IC steps and LPT steps may need more IL slabs.  Their pipelines are not as long as full (i.e. group finding) steps
-    if (ic || LPTStepNumber() > 0) {
+    if (MakeIC || LPTStepNumber() > 0) {
         if (P.NumSlabsInsertListIC>0) maxILsize =(maxILsize* P.NumSlabsInsertListIC)/P.cpd+1;
     } else {
         if (P.NumSlabsInsertList>0) maxILsize   =(maxILsize* P.NumSlabsInsertList)/P.cpd+1;
@@ -211,7 +230,9 @@ void Prologue(Parameters &P, bool ic) {
     STDLOG(0,"Setting RamDisk == %d\n", P.RamDisk);
     IO_Initialize(logfn);
 
-    if(!ic) {
+    SS = new SlabSize(P.cpd);
+
+    if(!MakeIC) {
             // ReadMaxCellSize(P);
         SS->load_from_params(P);
         TY  = new SlabTaylor(order,cpd);
@@ -222,12 +243,12 @@ void Prologue(Parameters &P, bool ic) {
         SlabFarForceTime = new STimer[cpd];
 
         RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
+        NFD = new NearFieldDriver(P.NearFieldRadius);
     } else {
         TY = NULL;
         RL = NULL;
         NFD = NULL;
     }
-    STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
 
     prologue.Stop();
     STDLOG(1,"Leaving Prologue()\n");
@@ -236,7 +257,7 @@ void Prologue(Parameters &P, bool ic) {
 /*! \brief Tears down global objects
  *
  */
-void Epilogue(Parameters &P, bool ic) {
+void Epilogue(Parameters &P, bool MakeIC) {
     STDLOG(1,"Entering Epilogue()\n");
     epilogue.Clear();
     epilogue.Start();
@@ -290,7 +311,7 @@ void Epilogue(Parameters &P, bool ic) {
     delete Grid;
 
 
-    if(!ic) {
+    if(!MakeIC) {
         if(0 and P.ForceOutputDebug){
             #ifdef CUDADIRECT
             STDLOG(1,"Direct Interactions: CPU (%lu) and GPU (%lu)\n",
@@ -431,7 +452,7 @@ void check_read_state(int AllowIC, bool &MakeIC, double &da){
 }
 
 // A few actions that we need to do before choosing the timestep
-void InitWriteState(int ic){
+void InitWriteState(int MakeIC){
     // Even though we do this in BuildWriteState, we want to have the step number
     // available when we choose the time step.
     WriteState.FullStepNumber = ReadState.FullStepNumber+1;
@@ -496,7 +517,4 @@ void InitWriteState(int ic){
         STDLOG(1,"Overwriting multipoles and taylors\n");
     }
 
-    SS = new SlabSize(P.cpd);
-    if(!ic)
-        NFD = new NearFieldDriver(P.NearFieldRadius);
 }

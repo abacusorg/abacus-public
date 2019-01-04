@@ -232,7 +232,7 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     slablength = length - mid;
 
     FinishPartition.Stop();
-    STDLOG(2, "Partition done; starting sort.\n");
+    STDLOG(2, "Partition done, yielding %d particles; starting sort.\n", slablength);
     FinishSort.Start();
 
     ilstruct *ilnew;

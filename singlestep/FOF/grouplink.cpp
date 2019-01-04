@@ -45,6 +45,9 @@ class LinkID {
     inline void mark_for_deletion() {
         id = -1; return;
     }
+    inline int slab() {
+        return (id&(long long int)0xfff00000000000)>>44;
+    }
 };
 
 /** A GroupLink is simply a pair of LinkIDs.  

@@ -85,7 +85,7 @@ void timestepStandaloneFOF(const char* slice_dir) {
     assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS); 
     STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
 
-    int first = 0;
+    int first = first_slab_on_node;
             FetchSlabs.instantiate(cpd, first, &StandaloneFOFLoadSlabPrecondition, &StandaloneFOFLoadSlabAction);
           TransposePos.instantiate(cpd, first, &StandaloneFOFUnpackSlabPrecondition, &StandaloneFOFUnpackSlabAction);
         MakeCellGroups.instantiate(cpd, first, &StandaloneFOFMakeCellGroupsPrecondition, &MakeCellGroupsAction);
@@ -100,6 +100,10 @@ void timestepStandaloneFOF(const char* slice_dir) {
         FindCellGroupLinks.Attempt();
         DoGlobalGroups.Attempt();
         Finish.Attempt();
+    // TODO: The following line will be omitted once the MPI monitoring thread is in place.
+    ReceiveManifest.Check();   // This checks if Send is ready; no-op in non-blocking mode
+    // If the manifest has been received, install it.
+    if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
     }
 
     TimeStepWallClock.Stop();

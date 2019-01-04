@@ -66,13 +66,13 @@ void timestepBenchmarkIO(int nslabs) {
     FORCE_RADIUS = 0;
     GROUP_RADIUS = 0;
 
-    int cpd = P.cpd; int first = 0;
+    int cpd = P.cpd; int first = first_slab_on_node;
     assertf(nslabs <= cpd, "nslabs (%d) cannot be larger than cpd (%d)\n", nslabs, cpd);
     if (nslabs <= 0)
         nslabs = cpd;
 
     // Use the Kick as finish because FetchSlabs fetches FETCHAHEAD past the kick
-    FetchSlabs.instantiate(nslabs, first, &FetchSlabPrecondition, &FetchSlabAction );
+    FetchSlabs.instantiate(nslabs, first, &FetchSlabsPrecondition, &FetchSlabsAction );
     Kick.instantiate(nslabs, first,  &FinishBenchmarkIOPrecondition,  &FinishBenchmarkIOAction );
 
     while( !Kick.alldone() ) {

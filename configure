@@ -727,6 +727,7 @@ enable_gpu_directs
 with_cuda
 enable_gpu_convolution
 enable_fof_density
+enable_parallel
 with_direct_bpd
 with_max_gpus
 with_softening
@@ -1387,6 +1388,7 @@ Optional Features:
   --enable-gpu-convolution
                           Convolution FFT on GPU [no]
   --enable-fof-density    Compute FOF-scale density [yes]
+  --enable-parallel       Generate MPI parallel code [no]
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -6217,6 +6219,21 @@ _ACEOF
 
 fi
 
+# Check whether --enable-parallel was given.
+if test "${enable_parallel+set}" = set; then :
+  enableval=$enable_parallel;
+else
+  enable_parallel="no"
+fi
+
+if test x$enable_parallel == xyes; then
+
+cat >>confdefs.h <<_ACEOF
+#define PARALLEL /**/
+_ACEOF
+
+fi
+
 # Get the number of GPUs
 if test x$enable_gpu_directs == xyes; then
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking number of GPUs" >&5
@@ -6677,6 +6694,7 @@ echo "Threaded IO:                     $enable_threaded_io"
 echo "Direct buffers-per-device:       $with_direct_bpd"
 echo "GPU directs:                     $enable_gpu_directs"
 echo "Compute FOF-scale density:       $enable_fof_density"
+echo "MPI parallel code:               $enable_parallel"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Maximum GPUs:                    $with_max_gpus"
