@@ -19,3 +19,5 @@ Conv_OMP_NUM_THREADS = 5
 Conv_OMP_PLACES = "{1}:5"
 Conv_OMP_PROC_BIND = "close"
 Conv_IOCores = [0]
+
+mpirun_cmd = "mpirun -np 1"

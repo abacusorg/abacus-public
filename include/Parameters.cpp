@@ -70,6 +70,13 @@ public:
 
     char ReadStateDirectory[1024];  // Where the input State lives
     char WriteStateDirectory[1024]; // Where the output State lives
+
+    // The node-local directories in the parallel verison
+    // These will be equal to the global directories if not given
+    char LocalWorkingDirectory[1024];        // node-local working directory
+    char LocalReadStateDirectory[1024];
+    char LocalWriteStateDirectory[1024];
+
     char MultipoleDirectory[1024];
     char TaylorDirectory[1024];
     char MultipoleDirectory2[1024];  // for splitting even/odd multipoles
@@ -219,6 +226,10 @@ public:
         sprintf(MultipoleDirectory2,STRUNDEF);
         sprintf(TaylorDirectory2,STRUNDEF);
 
+        sprintf(LocalWorkingDirectory,STRUNDEF);
+        sprintf(LocalReadStateDirectory,STRUNDEF);
+        sprintf(LocalWriteStateDirectory,STRUNDEF);
+
         installscalar("ReadStateDirectory",ReadStateDirectory,DONT_CARE);  // Where the input State lives
         installscalar("WriteStateDirectory",WriteStateDirectory,DONT_CARE); // Where the output State lives
         installscalar("WorkingDirectory",WorkingDirectory,DONT_CARE);
@@ -229,6 +240,10 @@ public:
     	installscalar("LogDirectory",LogDirectory,MUST_DEFINE);
     	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
         installscalar("GroupDirectory",GroupDirectory,MUST_DEFINE);
+
+        installscalar("LocalWorkingDirectory",LocalWorkingDirectory,DONT_CARE);
+        installscalar("LocalReadStateDirectory",LocalReadStateDirectory,DONT_CARE);
+        installscalar("LocalWriteStateDirectory",LocalWriteStateDirectory,DONT_CARE);
 
     	OutputEveryStep = 0;
     	installscalar("OutputEveryStep",OutputEveryStep,DONT_CARE);
@@ -401,7 +416,7 @@ void Parameters::ProcessStateDirectories(){
     strlower(StateIOMode);
     strlower(Conv_IOMode);
 
-    if (strcmp(WorkingDirectory,STRUNDEF) !=0){
+    if (strcmp(WorkingDirectory,STRUNDEF) != 0){
         if ( strcmp(ReadStateDirectory,STRUNDEF)!=0 || strcmp(WriteStateDirectory,STRUNDEF)!=0 ){
             QUIT("If WorkingDirectory is defined, {Read,Write}StateDirectory should be undefined. Terminating\n")
         }
@@ -411,6 +426,27 @@ void Parameters::ProcessStateDirectories(){
             if(strcmp(StateIOMode, "overwrite") == 0) {  // later, we will set WriteState.OverwriteState
                 strcpy(WriteStateDirectory, ReadStateDirectory);
             }
+        }
+    }
+
+    if (strcmp(LocalWorkingDirectory,STRUNDEF) != 0){
+        if ( strcmp(LocalWorkingDirectory,STRUNDEF)!=0 || strcmp(LocalWorkingDirectory,STRUNDEF)!=0 ){
+            QUIT("If LocalWorkingDirectory is defined, Local{Read,Write}StateDirectory should be undefined. Terminating\n")
+        }
+        else{
+            sprintf(LocalReadStateDirectory,"%s/read",LocalWorkingDirectory);
+            sprintf(LocalWriteStateDirectory,"%s/write",LocalWorkingDirectory);
+            if(strcmp(StateIOMode, "overwrite") == 0) {  // later, we will set WriteState.OverwriteState
+                strcpy(LocalWriteStateDirectory, LocalReadStateDirectory);
+            }
+        }
+    } else {
+        // LocalWorkingDirectory not given; copy the global values (unless the local values were explicitly given)
+        if(strcmp(LocalReadStateDirectory,STRUNDEF) == 0){
+            strcpy(LocalReadStateDirectory, ReadStateDirectory);
+        }
+        if(strcmp(LocalWriteStateDirectory,STRUNDEF) == 0){
+            strcpy(LocalWriteStateDirectory, WriteStateDirectory);
         }
     }
 }
@@ -493,14 +529,7 @@ void Parameters::ValidateParameters(void) {
     }
 
 
-    if( (DerivativeExpansionRadius!=1) && 
-		(DerivativeExpansionRadius!=2) && 
-		(DerivativeExpansionRadius!=3) && //note! added to change far radius
-		(DerivativeExpansionRadius!=4) && 
-		(DerivativeExpansionRadius!=5) && 
-		(DerivativeExpansionRadius!=6) && 
-		(DerivativeExpansionRadius!=7) && 
-		(DerivativeExpansionRadius!=8) &&
+    if( !((DerivativeExpansionRadius >= 1) && (DerivativeExpansionRadius <= 8)) &&
         (DerivativeExpansionRadius!=16) &&
         (DerivativeExpansionRadius!=32) ) {
 

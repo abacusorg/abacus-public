@@ -20,3 +20,5 @@ Conv_IOMode = "normal"
 #Conv_OMP_PLACES = "{1}:27"
 #Conv_OMP_PROC_BIND = "close"
 #Conv_IOCores = [0]
+
+#mpirun_cmd = "mpirun -np 1"
