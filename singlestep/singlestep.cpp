@@ -21,6 +21,11 @@ void BuildWriteState(double da){
 	sprintf(WriteState.RunTime,"%s",now.substr(0,now.length()-1).c_str());
 	gethostname(WriteState.MachineName,1024);
 	STDLOG(0,"Host machine name is %s\n", WriteState.MachineName);
+    #ifdef PARALLEL
+        // MPI_Comm_rank(MPI_COMM_WORLD, &WriteState.NodeRank);
+    #else 
+        WriteState.NodeRank = 0;
+    #endif
 
 	WriteState.DoublePrecision = (sizeof(FLOAT)==8)?1:0;
 	STDLOG(0,"Bytes per float is %d\n", sizeof(FLOAT));
@@ -177,6 +182,30 @@ void InitGroupFinding(int MakeIC){
     }
 }
 
+void InitializeParallel() {
+    #ifdef PARALLEL
+         // TODO: MPI_Init() and other items
+         int size = 0, rank = 0;
+         // MPI_Init(NULL, NULL);
+         STDLOG(0,"Initializing MPI.");   
+         // MPI_Comm_size(MPI_COMM_WORLD, &size);
+         // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+         STDLOG(0,"Node %d of %d total\n", rank, size);
+         sprintf(NodeString,".%04d",rank);
+    #else
+    #endif
+    return;
+}
+
+void FinalizeParallel() {
+    #ifdef PARALLEL
+         // TODO: MPI_Finalize() and other items
+         // MPI_Finalize();
+         STDLOG(0,"Calling MPI_Finalize()");
+    #else
+    #endif
+}
+
 
 int main(int argc, char **argv) {
     WallClockDirect.Start();
@@ -187,6 +216,7 @@ int main(int argc, char **argv) {
        fprintf(stderr, "singlestep(): command line must have 3 parameters given, not %d.\nLegal usage: singlestep PARAMETER_FILE MAKE_IC\n\tPARAMETER_FILE: path to parameter file (usually called abacus.par)\n\tMAKE_IC: 0 or 1, whether this is an IC step.\n", argc);
        return 1;
     }
+    InitializeParallel();
     
     int MakeIC = atoi(argv[2]);
     P.ReadParameters(argv[1],0);
@@ -266,10 +296,16 @@ int main(int argc, char **argv) {
     delete cosm;
     free(LCOrigin);
 
+    // Print out some final stats
+    FinalizeWriteState();
+
     // The state should be written last, since that officially signals success.
-    WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
-    WriteState.write_to_file(P.WriteStateDirectory);
-    STDLOG(0,"Wrote WriteState to %s\n",P.WriteStateDirectory);
+    // TODO: For MPI, this should be the Global Write State.
+    // TODO: For MPI, only rank 0 node does this
+    if (WriteState.NodeRank==0) {
+        WriteState.write_to_file(P.WriteStateDirectory);
+        STDLOG(0,"Wrote WriteState to %s\n",P.WriteStateDirectory);
+    }
     
     if (!MakeIC && P.ProfilingMode){
         STDLOG(0,"ProfilingMode is active. Removing the write state in %s\n",P.LocalWriteStateDirectory);
@@ -278,6 +314,7 @@ int main(int argc, char **argv) {
         int ret = system(command);  // hacky!
     }
     stdlog.close();
-        
+
+    FinalizeParallel();  // This may be the last synchronization point?
     exit(0);
 }

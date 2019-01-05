@@ -62,7 +62,7 @@ void timestepIC(void) {
     Drift.instantiate(cpd, first, &FetchICPrecondition, &FetchICAction );
     Finish.instantiate(cpd, first + FINISH_WAIT_RADIUS,  &FinishPrecondition,  &FinishAction );
 
-    while( !Finish.alldone() ) {
+    while( !Finish.alldone(total_slabs_on_node) ) {
         Drift.Attempt();
        Finish.Attempt();
     // TODO: The following line will be omitted once the MPI monitoring thread is in place.

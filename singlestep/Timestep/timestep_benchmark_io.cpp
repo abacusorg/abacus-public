@@ -75,7 +75,7 @@ void timestepBenchmarkIO(int nslabs) {
     FetchSlabs.instantiate(nslabs, first, &FetchSlabsPrecondition, &FetchSlabsAction );
     Kick.instantiate(nslabs, first,  &FinishBenchmarkIOPrecondition,  &FinishBenchmarkIOAction );
 
-    while( !Kick.alldone() ) {
+    while( !Kick.alldone(total_slabs_on_node) ) {
         FetchSlabs.Attempt();
               Kick.Attempt();
     }

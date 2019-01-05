@@ -93,7 +93,7 @@ void timestepStandaloneFOF(const char* slice_dir) {
         DoGlobalGroups.instantiate(cpd, first + 2*GFC->GroupRadius, &DoGlobalGroupsPrecondition, &DoGlobalGroupsAction);
                 Finish.instantiate(cpd, first + 2*GFC->GroupRadius, &StandaloneFOFFinishPrecondition, &StandaloneFOFFinishAction);
 
-    while (!Finish.alldone()) {
+    while (!Finish.alldone(total_slabs_on_node)) {
         FetchSlabs.Attempt();
         TransposePos.Attempt();
         MakeCellGroups.Attempt();
