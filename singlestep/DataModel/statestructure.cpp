@@ -36,6 +36,7 @@ public:
     char CodeVersion[1024];
     char RunTime[1024];
     char MachineName[1024];
+    int NodeRank;   // The MPI rank, 0 if serial
     double ppd;		// Particles per dimension
     int DoublePrecision;  // =1 if code is using double precision positions
     char SofteningType[128];
@@ -118,7 +119,8 @@ public:
     int StripeConvState;
 
     void read_from_file(const char *fn);
-    void write_to_file(const char *dir);
+    void write_to_file(const char *dir, const char *fname);
+    void write_to_file(const char *dir) { write_to_file(dir,""); }
     
     State();
     
@@ -245,6 +247,7 @@ void State::make_output_header() {
     WPRS(CodeVersion              , s);
     WPRS(RunTime                  , s);
     WPRS(MachineName              , s);
+    WPR(NodeRank                 , ISYM);
     WPR(DoublePrecision          , ISYM);
     WPR(ppd                      , FSYM);
 
@@ -300,9 +303,9 @@ void State::make_output_header() {
 // #define WPR(X,XSYM) fprintf(statefp, PRQUOTEME(X = %XSYM\n), X)
 // #define WPRS(X,XSYM) fprintf(statefp, PRQUOTEME(X) " = \"%s\" \n", X)
 
-void State::write_to_file(const char *dir) {
+void State::write_to_file(const char *dir, const char *suffix) {
     char statefn[1050];
-    sprintf(statefn,"%s/state",dir);
+    sprintf(statefn,"%s/state%s",dir, suffix);
     FILE *statefp;
     statefp = fopen(statefn,"wb");
     assertf(statefp!=NULL, "Couldn't open file %s to write state\n", statefn);

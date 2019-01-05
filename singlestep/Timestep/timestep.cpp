@@ -731,7 +731,7 @@ void timestep(void) {
     else
         LPTVelocityReRead.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
 
-    while( !Finish.alldone() ) {
+    while( !Finish.alldone(total_slabs_on_node) ) {
            for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
          TransposePos.Attempt();
             NearForce.Attempt();
@@ -746,11 +746,11 @@ void timestep(void) {
     LPTVelocityReRead.Attempt();
                 Drift.Attempt();
                Finish.Attempt();
-	// TODO: The following line will be omitted once the MPI monitoring thread is in place.
-	ReceiveManifest.Check();   // This checks if Send is ready; no-op in non-blocking mode
+	    // TODO: The following line will be omitted once the MPI monitoring thread is in place.
+	    ReceiveManifest.Check();   // This checks if Send is ready; no-op in non-blocking mode
 	
-	// If the manifest has been received, install it.
-	if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
+	    // If the manifest has been received, install it.
+	    if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
     }
 
     if(IL->length!=0)

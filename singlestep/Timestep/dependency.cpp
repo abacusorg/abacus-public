@@ -67,7 +67,9 @@ public:
                     
     int done(int s) { return _executed_status[ wrap(s)];  }
     int notdone(int s) { return _executed_status[wrap(s)]?0:1;  }
+    /// We can compare alldone to cpd, but usually we want total_slabs_on_node
     int alldone(void) { return number_of_slabs_executed==cpd?1:0; }
+    int alldone(int total) { return number_of_slabs_executed==total?1:0; }
 
     void do_action(int slab) {
         // We're taking an action!  Stop any spin timers

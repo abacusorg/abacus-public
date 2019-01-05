@@ -84,6 +84,7 @@ grid *Grid;
 #include "Parameters.cpp"
 #include "statestructure.cpp"
 State ReadState, WriteState;
+char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
 
 
 
@@ -164,11 +165,11 @@ FLOAT * density; //!< Array to accumulate gridded densities in for low resolutio
 #include "groupfinding.cpp"
 #include "microstep.cpp"
 
-// #define PARALLEL
-int first_slab_on_node, total_slabs_on_node;
+int first_slab_on_node, total_slabs_on_node, first_slab_finished;
 	// The first read slab to be executed by this nodes,
-	// as well as the total number.
+	// as well as the total number and the first finished
 	// In the single node code, this is simply 0 and CPD.
+#include "node_slabs.cpp"
 
 #include "timestep.cpp"
 #include "reporting.cpp"
@@ -225,12 +226,13 @@ void Prologue(Parameters &P, bool MakeIC) {
     STDLOG(1,"Setting up IO\n");
 
     char logfn[1050];
-    sprintf(logfn,"%s/lastrun.iolog", P.LogDirectory);
+    sprintf(logfn,"%s/lastrun%s.iolog", P.LogDirectory, NodeString);
     io_ramdisk_global = P.RamDisk;
     STDLOG(0,"Setting RamDisk == %d\n", P.RamDisk);
     IO_Initialize(logfn);
 
     SS = new SlabSize(P.cpd);
+    ReadNodeSlabs();
 
     if(!MakeIC) {
             // ReadMaxCellSize(P);
@@ -268,7 +270,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
     // Write out the timings.  This must precede the rest of the epilogue, because 
     // we need to look inside some instances of classes for runtimes.
     char timingfn[1050];
-    sprintf(timingfn,"%s/lastrun.time", P.LogDirectory);
+    sprintf(timingfn,"%s/lastrun%s.time", P.LogDirectory, NodeString);
     FILE * timingfile = fopen(timingfn,"w");
     assertf(timingfile != NULL, "Couldn't open timing file \"%s\"\n", timingfile);
     ReportTimings(timingfile);
@@ -285,15 +287,18 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     // Some pipelines, like standalone_fof, don't use multipoles
     if(MF != NULL){
+        MF->GatherRedlack();    // For the parallel code, we have to coadd the inputs
         MF->ComputeRedlack();  // NB when we terminate SlabMultipoles we write out these
-        MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
+        if (WriteState.NodeRank==0)
+            MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
         delete MF;
     }
 
     if(ReadState.DoBinning){
             STDLOG(1,"Outputting Binned Density\n");
             char denfn[2048];
-            sprintf(denfn,"%s/density",P.ReadStateDirectory);
+            // TODO: Should this be going to ReadState or WriteState or Output?
+            sprintf(denfn,"%s/density%s",P.ReadStateDirectory, NodeString);
             FILE * densout = fopen(denfn,"wb");
             fwrite(density,sizeof(FLOAT),P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d,densout);
             fclose(densout);
@@ -333,14 +338,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
             delete GFC;
     }
 
-    STDLOG(0,"MinCellSize = %d, MaxCellSize = %d\n", 
-        WriteState.MinCellSize, WriteState.MaxCellSize);
-    WriteState.RMS_Velocity = sqrt(WriteState.RMS_Velocity/P.np);
-    STDLOG(0,"Rms |v| in simulation is %f.\n", WriteState.RMS_Velocity);
-    STDLOG(0,"Maximum v_j in simulation is %f.\n", WriteState.MaxVelocity);
-    STDLOG(0,"Maximum a_j in simulation is %f.\n", WriteState.MaxAcceleration);
-    STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f.\n", WriteState.MinVrmsOnAmax);
-    
+
     // Report peak memory usage
     struct rusage rusage;
     assert(getrusage(RUSAGE_SELF, &rusage) == 0);
@@ -408,7 +406,7 @@ void setup_log(){
 
     stdlog_threshold_global = P.LogVerbosity;
     char logfn[1050];
-    sprintf(logfn,"%s/lastrun.log", P.LogDirectory);
+    sprintf(logfn,"%s/lastrun%s.log", P.LogDirectory, NodeString);
     stdlog.open(logfn);
     STDLOG_TIMESTAMP;
     STDLOG(0, "Log established with verbosity %d.\n", stdlog_threshold_global);
@@ -418,6 +416,7 @@ void check_read_state(int AllowIC, bool &MakeIC, double &da){
     // Check if ReadStateDirectory is accessible, or if we should 
     // build a new state from the IC file
     char rstatefn[1050];
+    // TODO: For MPI, this should be the Global Read State
     sprintf(rstatefn,"%s/state",P.ReadStateDirectory);
 
     if(access(rstatefn,0) ==-1){
@@ -517,4 +516,58 @@ void InitWriteState(int MakeIC){
         STDLOG(1,"Overwriting multipoles and taylors\n");
     }
 
+}
+    
+
+void FinalizeWriteState() {
+    WriteNodeSlabs();  // We do this here because it will need a MPI Barrier
+
+    #ifdef PARALLEL
+        STDLOG(1,"Node MinCellSize = %d, MaxCellSize = %d\n", 
+            WriteState.MinCellSize, WriteState.MaxCellSize);
+        STDLOG(1,"Maximum v_j in node is %f.\n", WriteState.MaxVelocity);
+        STDLOG(1,"Maximum a_j in node is %f.\n", WriteState.MaxAcceleration);
+        STDLOG(1,"Minimum cell Vrms/Amax in node is %f.\n", WriteState.MinVrmsOnAmax);
+        STDLOG(1,"Unnormalized node RMS_Velocity = %f.\n", WriteState.RMS_Velocity);
+        STDLOG(1,"Unnormalized node StdDevCellSize = %f.\n", WriteState.StdDevCellSize);
+    
+        // If we're running in parallel, then we want to gather some
+        // state statistics across the nodes.  We start by writing the 
+        // original state file to the local disk.
+        // TODO: Do we really want to do this?  Maybe just echo the stats to the log?
+        WriteState.write_to_file(P.WriteStateDirectory, NodeString);
+
+        // Now we need to do MPI reductions for stats
+        // These stats are all in double precision (or int)
+        // Maximize MaxAcceleration
+        // MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxAcceleration, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+        // Maximize MaxVelocity
+        // MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxVelocity, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+        // Minimize MinVrmsOnAmax
+        // MPI_Reduce(MPI_IN_PLACE, &WriteState.MinVrmsOnAmax, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
+        // Minimize MinCellSize
+        // MPI_Reduce(MPI_IN_PLACE, &WriteState.MinCellSize, 1, MPI_INT, MPI_MIN, 0, MPI_COMM_WORLD);
+        // Maximize MaxCellSize
+        // MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxCellSize, 1, MPI_INT, MPI_MIN, 0, MPI_COMM_WORLD);
+        // sqrt(Sum(SQR of RMS_Velocity))
+        // MPI_Reduce(MPI_IN_PLACE, &WriteState.RMS_Velocity, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        // sqrt(Sum(SQR of StdDevCellSize))
+        // MPI_Reduce(MPI_IN_PLACE, &WriteState.StdDevCellSize, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
+        // Note that we're not summing up any timing or group finding reporting;
+        // these just go in the logs
+    #endif
+
+    WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
+        // This is the standard deviation of the fractional overdensity in cells.
+        // But for the parallel code: this has been divided by CPD^3, not the number of cells on the node
+    STDLOG(0,"MinCellSize = %d, MaxCellSize = %d\n", 
+        WriteState.MinCellSize, WriteState.MaxCellSize);
+    WriteState.RMS_Velocity = sqrt(WriteState.RMS_Velocity/P.np);
+    STDLOG(0,"Rms |v| in simulation is %f.\n", WriteState.RMS_Velocity);
+    STDLOG(0,"Maximum v_j in simulation is %f.\n", WriteState.MaxVelocity);
+    STDLOG(0,"Maximum a_j in simulation is %f.\n", WriteState.MaxAcceleration);
+    STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f.\n", WriteState.MinVrmsOnAmax);
+
+    return;
 }

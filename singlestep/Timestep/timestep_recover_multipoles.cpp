@@ -70,7 +70,7 @@ void timestepMultipoles(void) {
     FetchSlabs.instantiate(cpd, first, &FetchPosSlabPrecondition, &FetchPosSlabAction );
     Finish.instantiate(cpd, first,  &FinishMultipolesPrecondition,  &FinishMultipolesAction );
 
-    while( !Finish.alldone() ) {
+    while( !Finish.alldone(total_slabs_on_node) ) {
         FetchSlabs.Attempt();
             Finish.Attempt();
         // TODO: The following line will be omitted once the MPI monitoring thread is in place.

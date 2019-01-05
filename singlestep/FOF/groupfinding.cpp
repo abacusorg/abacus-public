@@ -104,7 +104,7 @@ class GroupFindingControl {
     grouplog = &stdlog;
 #else
     std::string glogfn = P.LogDirectory;
-    glogfn += "/lastrun.groupstats";
+    glogfn += "/lastrun"; glogfn += NodeString; glogfn += ".groupstats";
     grouplog = new std::ofstream();
     grouplog->open(glogfn);
 #endif

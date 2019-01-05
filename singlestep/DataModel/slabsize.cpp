@@ -16,6 +16,7 @@ class SlabSize {
     SlabSize(int cpd) {
         _size = new uint64[cpd];
         _newsize = new uint64[cpd];
+        for (int j=0;j<cpd;j++) _newsize[j] = 0;
         max = 0;
         min = UINT64_MAX;
     }
@@ -32,15 +33,29 @@ class SlabSize {
     void setold(int slab, uint64 size) { _size[Grid->WrapSlab(slab)] = size; }
     uint64 size(int slab) { return _size[Grid->WrapSlab(slab)]; }
 
+    // For parallel codes, we want to gather the newsize information
+    void parallel_gather() {
+        #ifdef PARALLEL
+            // Send all non-zero values of _newsize to node 0
+            // Since _newsize is set only when a slab is finished,
+            // we can economize our code and just add the vectors.
+            // MPI_Reduce(MPI_IN_PLACE, &_newsize, cpd, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+        #endif
+        return;
+    }
+
     void load_from_params(Parameters &P){
         char filename[1024];
+        // TODO MPI: This needs to be the global Write State
         sprintf(filename, "%s/slabsize", P.ReadStateDirectory);
         read(filename);
         STDLOG(1,"Reading SlabSize file from %s\n", filename);
     }
 
     void store_from_params(Parameters &P){
+        parallel_gather();
         char filename[1024];
+        // TODO MPI: This needs to be the global Write State
         sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
         write(filename);
         STDLOG(1,"Writing SlabSize file to %s\n", filename);
