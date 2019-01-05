@@ -2,6 +2,7 @@
 #define INCLUDE_FILE
 
 #include <sys/stat.h>
+#include <dirent.h>
 #include <libgen.h>
 
 #include <string.h>
@@ -27,7 +28,7 @@ void ExpandPathName(char *foo) {
     STDLOG(2,"realpath error code %d %s\n", errno, strerror(errno));
     // TODO: This STDLOG appears needed to avoid a buffer overflow in -O3 in g++
     // on ted.
-    assert(retval!=NULL);
+    assertf(retval!=NULL, "realpath failed on path \"%s\"\n", foo);
 }
 
 void CheckDirectoryExists(const char *fn) {
@@ -84,6 +85,68 @@ int CreateDirectories(const char *path){
     }   
 
     return 0;
+}
+
+// Recursively remove directories
+// Semantically similar to Python's shutil.rmtree
+// from https://stackoverflow.com/questions/2256945/removing-a-non-empty-directory-programmatically-in-c-or-c
+int RemoveDirectories(const char *path){
+   DIR *d = opendir(path);
+   size_t path_len = strlen(path);
+   int r = -1;
+
+   if (d)
+   {
+      struct dirent *p;
+
+      r = 0;
+
+      while (!r && (p=readdir(d)))
+      {
+          int r2 = -1;
+          char *buf;
+          size_t len;
+
+          /* Skip the names "." and ".." as we don't want to recurse on them. */
+          if (!strcmp(p->d_name, ".") || !strcmp(p->d_name, ".."))
+          {
+             continue;
+          }
+
+          len = path_len + strlen(p->d_name) + 2; 
+          buf = (char *) malloc(len);
+          assert(buf != NULL);
+
+         struct stat statbuf;
+
+         snprintf(buf, len, "%s/%s", path, p->d_name);
+
+         if (!lstat(buf, &statbuf))  // stat or lstat?
+         {
+            if (S_ISDIR(statbuf.st_mode))
+            {
+               r2 = RemoveDirectories(buf);
+            }
+            else
+            {
+               r2 = unlink(buf);
+            }
+         }
+
+         free(buf);
+
+          r = r2;
+      }
+
+      closedir(d);
+   }
+
+   if (!r)
+   {
+      r = rmdir(path);
+   }
+
+   return r;
 }
 
 int CreateSubDirectory(const char *path, const char *subdir) {

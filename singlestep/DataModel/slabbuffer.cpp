@@ -272,10 +272,10 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
             }
             ss << P.MultipoleDirectory << "/Multipoles_" << slabnum; break;
         }
-        case MergeCellInfoSlab   : { ss << P.WriteStateDirectory << "/cellinfo_"   << slabnum; break; }
-        case MergePosSlab        : { ss << P.WriteStateDirectory << "/position_"   << slabnum; break; }
-        case MergeVelSlab        : { ss << P.WriteStateDirectory << "/velocity_"   << slabnum; break; }
-        case MergeAuxSlab        : { ss << P.WriteStateDirectory << "/auxillary_"  << slabnum; break; }
+        case MergeCellInfoSlab   : { ss << P.LocalWriteStateDirectory << "/cellinfo_"   << slabnum; break; }
+        case MergePosSlab        : { ss << P.LocalWriteStateDirectory << "/position_"   << slabnum; break; }
+        case MergeVelSlab        : { ss << P.LocalWriteStateDirectory << "/velocity_"   << slabnum; break; }
+        case MergeAuxSlab        : { ss << P.LocalWriteStateDirectory << "/auxillary_"  << slabnum; break; }
         case AccSlab             : { ss << P.OutputDirectory << "/acc_"            << slabnum; break; }
         case NearAccSlab         : { ss << P.OutputDirectory << "/nearacc_"        << slabnum; break; }
         case FarAccSlab          : { ss << P.OutputDirectory << "/faracc_"         << slabnum; break; }
@@ -317,13 +317,13 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
 
         // The Merge slabs are usually write slabs, but can be used as read slabs in multipole recovery mode
         case MergeCellInfoSlab :
-        case CellInfoSlab  : { ss << P.ReadStateDirectory << "/cellinfo_"   << slabnum; break; }
+        case CellInfoSlab  : { ss << P.LocalReadStateDirectory << "/cellinfo_"   << slabnum; break; }
 
         case MergePosSlab :
-        case PosSlab       : { ss << P.ReadStateDirectory << "/position_"   << slabnum; break; }
+        case PosSlab       : { ss << P.LocalReadStateDirectory << "/position_"   << slabnum; break; }
 
-        case VelSlab       : { ss << P.ReadStateDirectory << "/velocity_"   << slabnum; break; }
-        case AuxSlab       : { ss << P.ReadStateDirectory << "/auxillary_"  << slabnum; break; }
+        case VelSlab       : { ss << P.LocalReadStateDirectory << "/velocity_"   << slabnum; break; }
+        case AuxSlab       : { ss << P.LocalReadStateDirectory << "/auxillary_"  << slabnum; break; }
         case VelLPTSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
         case TimeSlice     : { ss << WriteSlabPath(type, slab); }  // used for standalone FOF
 

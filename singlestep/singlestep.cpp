@@ -184,26 +184,27 @@ int main(int argc, char **argv) {
 
     if (argc!=3) {
        // Can't use assertf() or QUIT here: stdlog not yet defined!
-       fprintf(stderr, "singlestep(): command line must have 3 parameters given, not %d.\nLegal usage: singlestep <parameter_file> <allow creation of initial conditions 1/0>\n", argc);
-       assert(0==99);
+       fprintf(stderr, "singlestep(): command line must have 3 parameters given, not %d.\nLegal usage: singlestep PARAMETER_FILE MAKE_IC\n\tPARAMETER_FILE: path to parameter file (usually called abacus.par)\n\tMAKE_IC: 0 or 1, whether this is an IC step.\n", argc);
+       return 1;
     }
     
-    int AllowIC = atoi(argv[2]);
+    int MakeIC = atoi(argv[2]);
     P.ReadParameters(argv[1],0);
     strcpy(WriteState.ParameterFileName, argv[1]);
 
     setup_log(); // STDLOG and assertf now available
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
-    STDLOG(0,"AllowIC = %d\n", AllowIC);
+    STDLOG(0,"MakeIC = %d\n", MakeIC);
+
+    SetupStateDirectories(P, MakeIC);
     
     // Set up OpenMP
     init_openmp();
     
     // Decide what kind of step to do
     double da = -1.0;   // If we set this to zero, it will skip the timestep choice
-    bool MakeIC; //True if we should make the initial state instead of doing a real timestep
 
-    check_read_state(AllowIC, MakeIC, da);
+    check_read_state(MakeIC, da);
 
     // Initialize the Cosmology and set up the State epochs and the time step
     cosm = InitializeCosmology(ReadState.ScaleFactor);
@@ -271,9 +272,9 @@ int main(int argc, char **argv) {
     STDLOG(0,"Wrote WriteState to %s\n",P.WriteStateDirectory);
     
     if (!MakeIC && P.ProfilingMode){
-        STDLOG(0,"ProfilingMode is active. Removing the write state in %s\n",P.WriteStateDirectory);
+        STDLOG(0,"ProfilingMode is active. Removing the write state in %s\n",P.LocalWriteStateDirectory);
         char command[1024];
-        sprintf(command, "rm -rf %s/*", P.WriteStateDirectory);
+        sprintf(command, "rm -rf %s/*", P.LocalWriteStateDirectory);
         int ret = system(command);  // hacky!
     }
     stdlog.close();

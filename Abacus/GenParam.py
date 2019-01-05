@@ -12,8 +12,10 @@ import time
 import sys
 import os
 import os.path
-import Abacus.Tools
 import copy
+import shlex
+
+import Abacus.Tools
 
 def getDefaults(filename):
     infile = csv.reader(open(filename,'r'),delimiter = ',',quoting = csv.QUOTE_NONE)
@@ -78,7 +80,7 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None):
     if not varreplace_values:
         varreplace_values = values
 
-    with  open(filename, 'r') as param:
+    with open(filename, 'r') as param:
         for line in param:
             if '\n' in line:
                 # The end of header token is '^B\n'.
@@ -126,12 +128,12 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None):
                 value =line[equals+1:]
             # try to parse value
             try:
-                items = value.split()
+                items = shlex.split(value)
                 vec  = ""
                 for item in items:
                     vec += item + ","
                 x = eval("({})".format(vec[:-1]))
-            except SyntaxError:
+            except (SyntaxError, NameError):
                 #perhaps value is a vector
                 try:
                     x = eval(value)

@@ -293,7 +293,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
     if(ReadState.DoBinning){
             STDLOG(1,"Outputting Binned Density\n");
             char denfn[2048];
-            sprintf(denfn,"%s/density",P.ReadStateDirectory);
+            sprintf(denfn,"%s/density",P.LocalReadStateDirectory);
             FILE * densout = fopen(denfn,"wb");
             fwrite(density,sizeof(FLOAT),P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d,densout);
             fclose(densout);
@@ -414,36 +414,41 @@ void setup_log(){
     STDLOG(0, "Log established with verbosity %d.\n", stdlog_threshold_global);
 }
 
-void check_read_state(int AllowIC, bool &MakeIC, double &da){
+void check_read_state(const int MakeIC, double &da){
     // Check if ReadStateDirectory is accessible, or if we should 
     // build a new state from the IC file
     char rstatefn[1050];
-    sprintf(rstatefn,"%s/state",P.ReadStateDirectory);
+    sprintf(rstatefn, "%s/state", P.ReadStateDirectory);
 
-    if(access(rstatefn,0) ==-1){
-        STDLOG(0,"Can't find ReadStateDirectory %s\n", P.ReadStateDirectory);
-        if(AllowIC != 1){
-            QUIT("Read State Directory ( %s ) is inaccessible and initial state creation is prohibited. Terminating.\n",P.ReadStateDirectory);
+    if(MakeIC){
+        STDLOG(0,"Generating initial State from initial conditions\n");
 
-        } else{
-            STDLOG(0,"Generating initial State from initial conditions\n");
+        // By this point, we should have cleaned up any old state directories
+        if(access(rstatefn,0) != -1){
+            QUIT("Read state file \"%s\" was found, but this is supposed to be an IC step. Terminating.\n", rstatefn);
+        }
+
         // We have to fill in a few items, just to bootstrap the rest of the code.
-            ReadState.ScaleFactor = 1.0/(1+P.InitialRedshift);
-            ReadState.FullStepNumber = -1;  
+        
         // So that this number is the number of times forces have been computed.
         // The IC construction will yield a WriteState that is number 0,
         // so our first time computing forces will read from 0 and write to 1.
-            da = 0;
-            MakeIC = true;
-        }
+        ReadState.ScaleFactor = 1.0/(1+P.InitialRedshift);
+        ReadState.FullStepNumber = -1;  
+        
+        da = 0;
     } else {
-    // We're doing a normal step
-        CheckDirectoryExists(P.ReadStateDirectory);
+        // We're doing a normal step
+        // Check that the read state file exists
+        if(access(rstatefn,0) == -1){
+            QUIT("Read state file \"%s\" is inaccessible and this is not an IC step. Terminating.\n", rstatefn);
+        }
+
         STDLOG(0,"Reading ReadState from %s\n",P.ReadStateDirectory);
         ReadState.read_from_file(P.ReadStateDirectory);
         ReadState.AssertStateLegal(P);
-        MakeIC = false;
-    // Handle some special cases
+        
+        // Handle some special cases
         if (P.ForceOutputDebug==1) {
             STDLOG(0,"ForceOutputDebug option invoked; setting time step to 0.\n");
             da = 0;
@@ -517,4 +522,49 @@ void InitWriteState(int MakeIC){
         STDLOG(1,"Overwriting multipoles and taylors\n");
     }
 
+}
+
+// Check whether "d" is actually a global directory, and thus not eligible for deletion
+// TODO: need more robust way of comparing file paths
+int IsSafeToDelete(Parameters &P, const char* d){
+    if(strcmp(d, P.WorkingDirectory) == 0 ||
+        strcmp(d, P.ReadStateDirectory) == 0 ||
+        strcmp(d, P.WriteStateDirectory) == 0 ||
+        strcmp(d, P.InitialConditionsDirectory) == 0
+        ) {
+        return 0;
+    }
+
+    return 1;
+}
+
+// This function recursively creates all the "local" directories for singlestep;
+// i.e. all the directories that the Python code didn't create.
+// In the parallel code, that means this function is responsible for creating all node-local directories
+// This also deletes existing state directories if MakeIC is invoked
+void SetupStateDirectories(Parameters &P, const int MakeIC){
+    // TODO: might want to delete old derivatives directory here,
+    // but the risk of accidentally deleting the global derivatives is very high
+    char *dirs[] = {P.LocalWorkingDirectory,
+                    P.LocalReadStateDirectory,
+                    P.LocalWriteStateDirectory,
+                    P.TaylorDirectory,
+                    P.MultipoleDirectory,
+                    P.TaylorDirectory2,
+                    P.MultipoleDirectory2
+                };
+
+    for(int i = 0; i < sizeof(dirs)/sizeof(char*); i++){
+        const char *d = dirs[i];
+
+        if(strcmp(d, STRUNDEF) != 0 && strlen(d) > 0){
+            // The following functions don't care if the directory already exists or not
+            if(MakeIC && IsSafeToDelete(P, d)){
+                RemoveDirectories(d);
+                STDLOG(1, "Removed directory \"%s\"\n", d);
+            }
+            CreateDirectories(d);
+            STDLOG(1, "Created directory \"%s\"\n", d);
+        }
+    }
 }
