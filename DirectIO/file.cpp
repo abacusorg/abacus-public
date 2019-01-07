@@ -88,7 +88,7 @@ int CreateDirectories(const char *path){
 }
 
 // Recursively remove directories
-// Semantically similar to Python's shutil.rmtree
+// Semantically similar to Python's shutil.rmtree()
 // from https://stackoverflow.com/questions/2256945/removing-a-non-empty-directory-programmatically-in-c-or-c
 int RemoveDirectories(const char *path){
    DIR *d = opendir(path);
@@ -147,6 +147,27 @@ int RemoveDirectories(const char *path){
    }
 
    return r;
+}
+
+// Check if two paths point to the same file/directory
+// This is semantically similar to Python's os.path.samefile()
+int samefile(const char *path1, const char *path2) {
+    struct stat s1, s2;
+    /*assertf(stat(path1, &s1) == 0, "Stat on \"%s\" failed\n", path1);
+    assertf(stat(path2, &s2) == 0, "Stat on \"%s\" failed\n", path2);*/
+
+    int res1 = stat(path1, &s1);
+    int res2 = stat(path2, &s2);
+
+    // If one exists but the other doesn't, then they're not the same file!
+    if(res1 != res2)
+        return 0;
+
+    // Neither exists... do we compare paths now?
+    if(res1 != 0 && res2 != 0)
+        QUIT("stat failed on both \"%s\" and \"%s\"", path1, path2);
+
+    return (s1.st_ino == s2.st_ino) && (s1.st_dev == s2.st_dev);
 }
 
 int CreateSubDirectory(const char *path, const char *subdir) {
@@ -220,9 +241,7 @@ void containing_dirname(const char *filename, char dir[1024]){
     
     // now append a trailing slash
     int len = strlen(dir);
-    if (len >= 1022){
-        fprintf(stderr,"Directory \"%s\" name too long!", dir);
-    }
+    assertf(len < 1022, "Directory \"%s\" name too long!", dir);
     dir[len] = '/'; dir[len+1] = '\0';
 }
 

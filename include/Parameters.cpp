@@ -430,7 +430,7 @@ void Parameters::ProcessStateDirectories(){
     }
 
     if (strcmp(LocalWorkingDirectory,STRUNDEF) != 0){
-        if ( strcmp(LocalWorkingDirectory,STRUNDEF)!=0 || strcmp(LocalWorkingDirectory,STRUNDEF)!=0 ){
+        if ( strcmp(LocalReadStateDirectory,STRUNDEF)!=0 || strcmp(LocalWriteStateDirectory,STRUNDEF)!=0 ){
             QUIT("If LocalWorkingDirectory is defined, Local{Read,Write}StateDirectory should be undefined. Terminating\n")
         }
         else{

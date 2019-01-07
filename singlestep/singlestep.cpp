@@ -226,7 +226,7 @@ int main(int argc, char **argv) {
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
     STDLOG(0,"MakeIC = %d\n", MakeIC);
 
-    SetupStateDirectories(P, MakeIC);
+    SetupLocalDirectories(MakeIC);
     
     // Set up OpenMP
     init_openmp();
@@ -313,6 +313,11 @@ int main(int argc, char **argv) {
         sprintf(command, "rm -rf %s/*", P.LocalWriteStateDirectory);
         int ret = system(command);  // hacky!
     }
+
+    // Delete the read state and move write to read
+    if(!P.ProfilingMode)
+        MoveLocalDirectories();
+
     stdlog.close();
 
     FinalizeParallel();  // This may be the last synchronization point?

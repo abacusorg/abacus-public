@@ -568,7 +568,6 @@ def move_state_dirs(read, write, past):
             except OSError:
                 # can't rmtree symlink! but we at least want to delete the contents
                 clean_dir(read, preserve=None, rmdir_ifempty=False)
-                pass
     else:
         try:
             shutil.rmtree(past)

@@ -523,12 +523,11 @@ void InitWriteState(int MakeIC){
 }
 
 // Check whether "d" is actually a global directory, and thus not eligible for deletion
-// TODO: need more robust way of comparing file paths
-int IsSafeToDelete(Parameters &P, const char* d){
-    if(strcmp(d, P.WorkingDirectory) == 0 ||
-        strcmp(d, P.ReadStateDirectory) == 0 ||
-        strcmp(d, P.WriteStateDirectory) == 0 ||
-        strcmp(d, P.InitialConditionsDirectory) == 0
+int IsTrueLocalDirectory(const char* d){
+    if(samefile(d, P.WorkingDirectory) ||
+        samefile(d, P.ReadStateDirectory) ||
+        samefile(d, P.WriteStateDirectory) ||
+        samefile(d, P.InitialConditionsDirectory)
         ) {
         return 0;
     }
@@ -537,11 +536,11 @@ int IsSafeToDelete(Parameters &P, const char* d){
 }
 
 
-// This function recursively creates all the "local" directories for singlestep;
+// This function creates all the "local" directories for singlestep;
 // i.e. all the directories that the Python code didn't create.
 // In the parallel code, that means this function is responsible for creating all node-local directories
 // This also deletes existing state directories if MakeIC is invoked
-void SetupStateDirectories(Parameters &P, const int MakeIC){
+void SetupLocalDirectories(const int MakeIC){
     // TODO: might want to delete old derivatives directory here,
     // but the risk of accidentally deleting the global derivatives is very high
     char *dirs[] = {P.LocalWorkingDirectory,
@@ -558,13 +557,36 @@ void SetupStateDirectories(Parameters &P, const int MakeIC){
 
         if(strcmp(d, STRUNDEF) != 0 && strlen(d) > 0){
             // The following functions don't care if the directory already exists or not
-            if(MakeIC && IsSafeToDelete(P, d)){
+            if(MakeIC && IsTrueLocalDirectory(d)){
                 RemoveDirectories(d);
                 STDLOG(1, "Removed directory \"%s\"\n", d);
             }
-            CreateDirectories(d);
+            int res = CreateDirectories(d);
+            assertf(res == 0, "Directory creation failed!\n");
             STDLOG(1, "Created directory \"%s\"\n", d);
         }
+    }
+}
+
+// Move the state directories at the end of a timestep.
+// Deletes "read", and moves "write" to "read"
+// singlestep doesn't know about "past" directory.
+void MoveLocalDirectories(){
+    if(WriteState.OverwriteState){
+        // Nothing to do!
+        return;
+    }
+
+    if(IsTrueLocalDirectory(P.LocalReadStateDirectory)){
+        STDLOG(1, "Removing read directory\n")
+        int res = RemoveDirectories(P.LocalReadStateDirectory);
+        assertf(res == 0, "Failed to remove read directory!\n");
+    }
+
+    if(IsTrueLocalDirectory(P.LocalWriteStateDirectory)){
+        STDLOG(1, "Moving write directory to read\n")
+        int res = rename(P.LocalWriteStateDirectory, P.LocalReadStateDirectory);
+        assertf(res == 0, "Failed to rename write to read!\n");
     }
 }
     
