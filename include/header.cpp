@@ -28,6 +28,10 @@
 #include <sys/select.h>
 #include <stdlib.h>
 
+#ifdef PARALLEL
+#include "mpi.h"
+#endif
+
 #include <stdint.h>
 #include <unistd.h>
 

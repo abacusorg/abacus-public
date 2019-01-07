@@ -182,15 +182,12 @@ void InitGroupFinding(int MakeIC){
     }
 }
 
-void InitializeParallel() {
+void InitializeParallel(int &size, int &rank) {
     #ifdef PARALLEL
-         // TODO: MPI_Init() and other items
-         int size = 0, rank = 0;
-         // MPI_Init(NULL, NULL);
-         STDLOG(0,"Initializing MPI.");   
-         // MPI_Comm_size(MPI_COMM_WORLD, &size);
-         // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-         STDLOG(0,"Node %d of %d total\n", rank, size);
+         // Start up MPI
+         MPI_Init(NULL, NULL);
+         MPI_Comm_size(MPI_COMM_WORLD, &size);
+         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
          sprintf(NodeString,".%04d",rank);
     #else
     #endif
@@ -199,8 +196,8 @@ void InitializeParallel() {
 
 void FinalizeParallel() {
     #ifdef PARALLEL
-         // TODO: MPI_Finalize() and other items
-         // MPI_Finalize();
+         // Finalize MPI
+         MPI_Finalize();
          STDLOG(0,"Calling MPI_Finalize()");
     #else
     #endif
@@ -216,7 +213,11 @@ int main(int argc, char **argv) {
        fprintf(stderr, "singlestep(): command line must have 3 parameters given, not %d.\nLegal usage: singlestep <parameter_file> <allow creation of initial conditions 1/0>\n", argc);
        assert(0==99);
     }
-    InitializeParallel();
+    
+    // Set up MPI
+    
+    int size=1, rank=0;
+    InitializeParallel(size, rank);
     
     int AllowIC = atoi(argv[2]);
     P.ReadParameters(argv[1],0);
@@ -225,7 +226,11 @@ int main(int argc, char **argv) {
     setup_log(); // STDLOG and assertf now available
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
     STDLOG(0,"AllowIC = %d\n", AllowIC);
-    
+    #ifdef PARALLEL
+        STDLOG(0,"Initialized MPI.\n");   
+        STDLOG(0,"Node rank %d of %d total\n", rank, size);
+    #endif
+
     // Set up OpenMP
     init_openmp();
     
