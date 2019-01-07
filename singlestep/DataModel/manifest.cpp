@@ -25,7 +25,7 @@ the data when it is received.
 
 */
 
-#define NO_MPI    // Just keep these routines blocked out for now
+// #define NO_MPI    // Just keep these routines blocked out for now
 
 
 // ================== Manifest helpers =====================================
@@ -208,20 +208,20 @@ class Manifest {
 
     /// Create the non-blocking Send thread
     void LaunchSendThread() {
-	assertf(blocking==0, "Asked to start Send Thread, but blocking = %d\n", blocking);
-	int retval = pthread_create(&thread, NULL, ManifestSendThread, (void *)this);
-	assertf(retval==0, "Failed to create SendManifest thread! %d", retval);
-	launched = 1;
-	STDLOG(1, "Launched SendManifest Thread\n");
+        assertf(blocking==0, "Asked to start Send Thread, but blocking = %d\n", blocking);
+        int retval = pthread_create(&thread, NULL, ManifestSendThread, (void *)this);
+        assertf(retval==0, "Failed to create SendManifest thread! %d", retval);
+        launched = 1;
+        STDLOG(1, "Launched SendManifest Thread\n");
     }
 
     /// Create the non-blocking Receive thread
     void LaunchReceiveThread() {
-	assertf(blocking==0, "Asked to start Receive Thread, but blocking = %d\n", blocking);
-	int retval = pthread_create(&thread, NULL, ManifestReceiveThread, (void *)this);
-	assertf(retval==0, "Failed to create ReceiveManifest thread! %d", retval);
-	launched = 1;
-	STDLOG(1, "Launched ReceiveManifest Thread\n");
+        assertf(blocking==0, "Asked to start Receive Thread, but blocking = %d\n", blocking);
+        int retval = pthread_create(&thread, NULL, ManifestReceiveThread, (void *)this);
+        assertf(retval==0, "Failed to create ReceiveManifest thread! %d", retval);
+        launched = 1;
+        STDLOG(1, "Launched ReceiveManifest Thread\n");
     }
 };    
 
@@ -420,21 +420,30 @@ void Manifest::Send() {
     fp=fopen(fname,"w");
     fclose(fp);
 #else
-    STDLOG(1,"Starting to send the SendManifest\n");
     int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
     int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     rank--; if (rank<0) rank+=size;   // Now rank is the destination node
+    STDLOG(1,"Starting to send the SendManifest to node rank %d\n", rank);
     // Send the ManifestCore
     MPI_Send(&m, sizeof(ManifestCore), MPI_BYTE, rank, 1000, MPI_COMM_WORLD);
+    STDLOG(1,"Sent Manifest Core\n");
     // Send all the Arenas
     for (int n=0; n<m.numarenas; n++) {
         MPI_Send(m.arenas[n].ptr, m.arenas[n].size, MPI_BYTE, rank, n, MPI_COMM_WORLD);
+        STDLOG(1,"Sent Manifest Arena %d (type %d, slab %d) of size %d\n", 
+            n, m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size);
+        SB->DeAllocate(m.arenas[n].type, m.arenas[n].slab);
+        // TODO: Need to Delete the file?
     }
     // Send all the Insert List fragment
     MPI_Send(il, sizeof(ilstruct)*m.numil, MPI_BYTE, rank, 2000, MPI_COMM_WORLD);
+    STDLOG(1,"Sent Manifest Insert List of length %d\n", m.numil);
+    free(il);
     // Send all the GroupLink List fragment
     if (GFC!=NULL) {
         MPI_Send(links, sizeof(GroupLink)*m.numlinks, MPI_BYTE, rank, 3000, MPI_COMM_WORLD);
+        STDLOG(1,"Sent Manifest GroupLink List of length %d\n", m.numlinks);
+        free(links);
     }
     // Victory!
     STDLOG(1,"Done sending the SendManifest\n");
@@ -485,6 +494,7 @@ void Manifest::Receive() {
 
     for (int n=0; n<m.numarenas; n++) {
         SB->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size);
+        // TODO: Need to force these to be in memory with RamDisk=NO
         m.arenas[n].ptr = SB->GetSlabPtr(m.arenas[n].type, m.arenas[n].slab);
         // TODO: Receive arenas[n].size bytes into arenas[n].ptr
         retval = fread(m.arenas[n].ptr, 1, m.arenas[n].size, fp);
@@ -512,27 +522,33 @@ void Manifest::Receive() {
     completed = 1;
     fclose(fp);
 #else
-    STDLOG(1,"Starting receiving the ReceiveManifest\n");
     int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
     int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Status retval;
     rank++; if (rank>=size) rank-=size;   // Now rank is the source node
+    STDLOG(1,"Starting receiving the ReceiveManifest from node rank %d\n", rank);
     // Receive the ManifestCore
-    MPI_Recv(&m, sizeof(ManifestCore), MPI_BYTE, rank, 1000, MPI_COMM_WORLD);
+    MPI_Recv(&m, sizeof(ManifestCore), MPI_BYTE, rank, 1000, MPI_COMM_WORLD, &retval);
+    STDLOG(1,"Received Manifest Core\n");
     // Receive all the Arenas
     for (int n=0; n<m.numarenas; n++) {
         SB->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size);
         m.arenas[n].ptr = SB->GetSlabPtr(m.arenas[n].type, m.arenas[n].slab);
-        MPI_Recv(m.arenas[n].ptr, m.arenas[n].size, MPI_BYTE, rank, n, MPI_COMM_WORLD);
+        MPI_Recv(m.arenas[n].ptr, m.arenas[n].size, MPI_BYTE, rank, n, MPI_COMM_WORLD, &retval);
+        STDLOG(1,"Received Manifest Arena %d (type %d, slab %d) of size %d\n", 
+            n, m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size);
     }
     // Receive all the Insert List fragment
     int ret = posix_memalign((void **)&il, 64, m.numil*sizeof(ilstruct));
     assert(il!=NULL);
-    MPI_Recv(il, sizeof(ilstruct)*m.numil, MPI_BYTE, rank, 2000, MPI_COMM_WORLD);
+    MPI_Recv(il, sizeof(ilstruct)*m.numil, MPI_BYTE, rank, 2000, MPI_COMM_WORLD, &retval);
+    STDLOG(1,"Received Manifest Insert List of length %d\n", m.numil);
     // Receive all the GroupLink List fragment
     ret = posix_memalign((void **)&links, 64, m.numlinks*sizeof(GroupLink));
     assert(links!=NULL);
     if (GFC!=NULL) {
-        MPI_Recv(links, sizeof(GroupLink)*m.numlinks, MPI_BYTE, rank, 3000, MPI_COMM_WORLD);
+        MPI_Recv(links, sizeof(GroupLink)*m.numlinks, MPI_BYTE, rank, 3000, MPI_COMM_WORLD, &retval);
+        STDLOG(1,"Received Manifest GroupLink List of length %d\n", m.numlinks);
     }
     // Victory!
     STDLOG(1,"Done receiving the ReceiveManifest\n");
