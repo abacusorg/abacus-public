@@ -535,24 +535,24 @@ void FinalizeWriteState() {
         // state statistics across the nodes.  We start by writing the 
         // original state file to the local disk.
         // TODO: Do we really want to do this?  Maybe just echo the stats to the log?
-        WriteState.write_to_file(P.WriteStateDirectory, NodeString);
+        // WriteState.write_to_file(P.WriteStateDirectory, NodeString);
 
         // Now we need to do MPI reductions for stats
         // These stats are all in double precision (or int)
         // Maximize MaxAcceleration
-        // MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxAcceleration, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+        MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxAcceleration, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
         // Maximize MaxVelocity
-        // MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxVelocity, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+        MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxVelocity, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
         // Minimize MinVrmsOnAmax
-        // MPI_Reduce(MPI_IN_PLACE, &WriteState.MinVrmsOnAmax, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
+        MPI_Reduce(MPI_IN_PLACE, &WriteState.MinVrmsOnAmax, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
         // Minimize MinCellSize
-        // MPI_Reduce(MPI_IN_PLACE, &WriteState.MinCellSize, 1, MPI_INT, MPI_MIN, 0, MPI_COMM_WORLD);
+        MPI_Reduce(MPI_IN_PLACE, &WriteState.MinCellSize, 1, MPI_INT, MPI_MIN, 0, MPI_COMM_WORLD);
         // Maximize MaxCellSize
-        // MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxCellSize, 1, MPI_INT, MPI_MIN, 0, MPI_COMM_WORLD);
+        MPI_Reduce(MPI_IN_PLACE, &WriteState.MaxCellSize, 1, MPI_INT, MPI_MIN, 0, MPI_COMM_WORLD);
         // sqrt(Sum(SQR of RMS_Velocity))
-        // MPI_Reduce(MPI_IN_PLACE, &WriteState.RMS_Velocity, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Reduce(MPI_IN_PLACE, &WriteState.RMS_Velocity, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
         // sqrt(Sum(SQR of StdDevCellSize))
-        // MPI_Reduce(MPI_IN_PLACE, &WriteState.StdDevCellSize, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Reduce(MPI_IN_PLACE, &WriteState.StdDevCellSize, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 
         // Note that we're not summing up any timing or group finding reporting;
         // these just go in the logs

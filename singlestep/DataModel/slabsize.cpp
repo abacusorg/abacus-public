@@ -8,12 +8,14 @@
 class SlabSize {
     uint64 *_size;  // the slab sizes in the read state
     uint64 *_newsize;  // the slab sizes in the write state
+    int _cpd;
     
     public:
     uint64 max;
     uint64 min;
     
     SlabSize(int cpd) {
+        _cpd = cpd;
         _size = new uint64[cpd];
         _newsize = new uint64[cpd];
         for (int j=0;j<cpd;j++) _newsize[j] = 0;
@@ -39,7 +41,7 @@ class SlabSize {
             // Send all non-zero values of _newsize to node 0
             // Since _newsize is set only when a slab is finished,
             // we can economize our code and just add the vectors.
-            // MPI_Reduce(MPI_IN_PLACE, &_newsize, cpd, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+            MPI_Reduce(MPI_IN_PLACE, &_newsize, _cpd, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
         #endif
         return;
     }
