@@ -52,54 +52,54 @@ class DependencyRecord {
 
     /// Load the status of this dependency 
     void Load(Dependency &d, int finished_slab) {
-	end = finished_slab;
-	for (begin=end-1; begin>end-d.cpd; begin--) {
-	    if (d.notdone(begin)) break;
-	    d.mark_to_repeat(begin);
-	}
-	// We've found the first notdone slab
-	begin++;   // Want to pass the first done one
-	STDLOG(1, "Dependency [%d,%d)\n", begin, end);
-	return;
+        end = finished_slab;
+        for (begin=end-1; begin>end-d.cpd; begin--) {
+            if (d.notdone(begin)) break;
+            d.mark_to_repeat(begin);
+        }
+        // We've found the first notdone slab
+        begin++;   // Want to pass the first done one
+        STDLOG(1, "Dependency [%d,%d)\n", begin, end);
+        return;
     }
     void Set(Dependency &d) {
-	for (int s=begin; s<end; s++) d.force_done(s);
-	return;
+        for (int s=begin; s<end; s++) d.force_done(s);
+        return;
     }
 
     /// We also are going to use this same logic to hold the cellgroup_status[]
     /// information from GFC.  In particular, we need to transmit all cases
     /// where this is ==1.  We don't care about ==2.
     void LoadCG(int finished_slab) {
-	if (GFC==NULL) { begin=end = finished_slab-1; return;}
-	STDLOG(1, "LoadCG start\n");
-	end = finished_slab-1;
-	while (GFC->cellgroups_status[CP->WrapSlab(end)]==2) end--;
-	end++;   // Now this marks the first ==2.
-	for (begin=end-1; begin>end-GFC->cpd; begin--) {
-	    int s = CP->WrapSlab(begin);
-	    if (GFC->cellgroups_status[s]==0) break;
-	    // Need to load this over to the Arenas
-	    STDLOG(1,"Packing CellGroupArena for slab %d\n", s);
-	    GFC->cellgroups[s].pack(CellGroupArena,s);
-	    // Having moved it, we can delete the original
-	    GFC->DestroyCellGroups(s);
-	}
-	begin++;   // Now this marks the first ==1.
-	STDLOG(1, "CG Dependency [%d,%d)\n", begin, end);
-	return;
+        if (GFC==NULL) { begin=end = finished_slab-1; return;}
+        STDLOG(1, "LoadCG start\n");
+        end = finished_slab-1;
+        while (GFC->cellgroups_status[CP->WrapSlab(end)]==2) end--;
+        end++;   // Now this marks the first ==2.
+        for (begin=end-1; begin>end-GFC->cpd; begin--) {
+            int s = CP->WrapSlab(begin);
+            if (GFC->cellgroups_status[s]==0) break;
+            // Need to load this over to the Arenas
+            STDLOG(1,"Packing CellGroupArena for slab %d\n", s);
+            GFC->cellgroups[s].pack(CellGroupArena,s);
+            // Having moved it, we can delete the original
+            GFC->DestroyCellGroups(s);
+        }
+        begin++;   // Now this marks the first ==1.
+        STDLOG(1, "CG Dependency [%d,%d)\n", begin, end);
+        return;
     }
 
     /// Set the cellgroups_status to 1 for the indicated slabs
     void SetCG() {
-	for (int s=begin; s<end; s++) {
-	    GFC->cellgroups_status[CP->WrapSlab(s)]=1;
-	    // And move the information from the Arenas back into the SlabArray
-	    GFC->cellgroups[CP->WrapSlab(s)].unpack(CellGroupArena,s);
-	    // Now we can delete the CellGroupArena
-	    SB->DeAllocate(CellGroupArena,s);
-	}
-	return;
+        for (int s=begin; s<end; s++) {
+            GFC->cellgroups_status[CP->WrapSlab(s)]=1;
+            // And move the information from the Arenas back into the SlabArray
+            GFC->cellgroups[CP->WrapSlab(s)].unpack(CellGroupArena,s);
+            // Now we can delete the CellGroupArena
+            SB->DeAllocate(CellGroupArena,s);
+        }
+        return;
     }
 };
 
@@ -164,20 +164,20 @@ class Manifest {
 
     Manifest() {
     	m.numarenas = m.numil = m.numlinks = m.numdep = 0;
-	completed = 0;
-	bytes = 0;
-	blocking = 1;
-	launched = 0;
-	il = NULL;
-	links = NULL;
-	return;
+        completed = 0;
+        bytes = 0;
+        blocking = 1;
+        launched = 0;
+        il = NULL;
+        links = NULL;
+        return;
     }
     ~Manifest() { 
-	void *p;
-	// We want to do a blocking pthread_join here, because
-	// if one node has finished early, before the Send has been
-	// completed, then we need to hang on until it has.
-	if (launched==1) int retval = pthread_join(thread, NULL); 
+        void *p;
+        // We want to do a blocking pthread_join here, because
+        // if one node has finished early, before the Send has been
+        // completed, then we need to hang on until it has.
+        if (launched==1) int retval = pthread_join(thread, NULL); 
     }
 
     void set_blocking() { blocking = 1; }
@@ -188,15 +188,15 @@ class Manifest {
     void done() { completed = 2; }
 
     void LoadArena(int type, int s) {
-	ManifestArena *a = m.arenas+m.numarenas;
-	a->type = type;
-	a->slab = s;
-	a->size = SB->SlabSizeBytes(type, s);
-	a->ptr =  SB->GetSlabPtr(type, s);
-	STDLOG(1, "Queuing slab %d of type %d, size %l\n", s, type, a->size);
-	m.numarenas++;
-	assertf(m.numarenas<MAXMANIFEST, "numarenas has overflowed; increase MAXMANIFEST.");
-	return;
+        ManifestArena *a = m.arenas+m.numarenas;
+        a->type = type;
+        a->slab = s;
+        a->size = SB->SlabSizeBytes(type, s);
+        a->ptr =  SB->GetSlabPtr(type, s);
+        STDLOG(1, "Queuing slab %d of type %d, size %l\n", s, type, a->size);
+        m.numarenas++;
+        assertf(m.numarenas<MAXMANIFEST, "numarenas has overflowed; increase MAXMANIFEST.");
+        return;
     }
 
     // Here's the prototypes for the main routines
