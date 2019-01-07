@@ -15,8 +15,10 @@ void ReadNodeSlabs() {
         first_slab_finished = -1;   // Just a silly value
         return;
     #else
-        int NNode = 1; // MPI_Comm_size(MPI_COMM_WORLD, &NNode);
-        int rank = 0; // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        int NNode = 1; 
+        MPI_Comm_size(MPI_COMM_WORLD, &NNode);
+        int rank = 0; 
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         int neighbor = (rank+1)%NNode;
         char fname[1024];
         int value, last_slab;
@@ -53,10 +55,17 @@ void WriteNodeSlabs() {
         // Note that first_slab_finished is only set in PARALLEL
         return;
     #else
-        int NNode = 1; // MPI_Comm_size(MPI_COMM_WORLD, &NNode);
+        int NNode = 1; MPI_Comm_size(MPI_COMM_WORLD, &NNode);
+        int rank = 0; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         if (NNode==1) return;   // We don't want to use this file if we're serial
         int first[NNode];
-        // TODO MPI: Send first_slab_finished to fill in this element in the vector
+        for (int j=0; j<NNode; j++) first[j]=0;
+        first[rank] = first_slab_finished;
+        // MPI: Send first_slab_finished to fill in this element in the vector
+        // We just do this as a boring summation.
+        // TODO: Might seek more minimal transaction
+        MPI_Reduce(MPI_IN_PLACE, &first, NNode, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
         if (WriteState.NodeRank==0) {
             char fname[1024];
             // TODO: This needs to be the Global Write State
