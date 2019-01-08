@@ -381,16 +381,13 @@ void ArenaAllocator::DiscardArena(int id) {
         total_shm_allocation -= arena[id].allocated_size;
     }
     else {
-        STDLOG(1,"Point G\n");
         DumpArena(id,1);
         free(arena[id].addr);
-        STDLOG(1,"Point G2\n");
     }
 
     arena[id].present = 0;
     total_allocation -= arena[id].allocated_size;
     ArenaFree->Stop(id);
-    STDLOG(1,"Point H\n");
     ResetArena(id);
 }
 
@@ -412,32 +409,22 @@ void ArenaAllocator::DeAllocateArena(int id, int reuseID) {
     assertf( CheckGuardStart(id)==0, "Arena %d failed its check of GuardStart\n", id);
     assertf( CheckGuardEnd(  id)==0, "Arena %d failed its check of GuardEnd\n", id);
 
-    STDLOG(1,"Point A: %d %d\n", id, reuseID);
-
     if (IsArenaPresent(reuseID)) {
         // We already have an arena available to reuse
-        STDLOG(1,"Point B\n");
-        if (arena[id].max_usable_size<arena[reuseID].max_usable_size) {
+        if (arena[id].max_usable_size<=arena[reuseID].max_usable_size) {
             // The reuse buffer is bigger, so discard the current one
             // TODO: Might be better to use <= here
-            STDLOG(1,"Point C\n");
             DiscardArena(id);
         } else {
             // Discard the reuse buffer and move the current storage over
-            STDLOG(1,"Point D\n");
             DiscardArena(reuseID);
-            STDLOG(1,"Point E\n");
-            DumpArena(id,1);
             arena[reuseID] = arena[id];
-            DumpArena(reuseID,1);
-            STDLOG(1,"Compare %p %p\n", (void *)(arena[reuseID].addr), (void *)(arena[id].addr));
             assertf(arena[reuseID].addr == arena[id].addr,
                 "We set the pointers in arenas %d and %d equal, but it didn't work\n", reuseID, id);
             ResetArena(id);
         }
     } else {
         // We don't have a reuse buffer.  Move this one over.
-        STDLOG(1,"Point F\n");
         arena[reuseID] = arena[id];
         ResetArena(id);
     }
