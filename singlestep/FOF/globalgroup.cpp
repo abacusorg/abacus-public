@@ -247,7 +247,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
     // cells = (LinkIndex *)malloc(sizeof(LinkIndex)*diam*cpd*cpdpad);
     for (int s=0; s<diam; s++) {
         int thisslab = GFC->WrapSlab(slab+s-diam/2);
-        assertf(GFC->cellgroups_status[thisslab]>0, "Cellgroup slab not present.  Something is wrong in dependencies!");
+        assertf(GFC->cellgroups_status[thisslab]>0, "Cellgroup slab %d not present (value %d).  Something is wrong in dependencies!\n", thisslab, GFC->cellgroups_status[thisslab]);
             // Just to check that the CellGroups are present or already closed.
         #pragma omp parallel for schedule(dynamic,1)
         for (int j=0; j<cpd; j++) {
