@@ -202,8 +202,8 @@ void Prologue(Parameters &P, bool MakeIC) {
     // TODO: This fails for Spiral with first!=0 because the IC have
     // put all particles into input slab 0.
 
-    // Call this to use thread-based Manifests
-    NonBlockingManifest();
+    // Call this to setup the Manifests
+    SetupManifest();
 
     Grid = new grid(cpd);
     SB = new SlabBuffer(cpd, order, P.MAXRAMMB*1024*1024);

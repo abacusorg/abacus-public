@@ -120,21 +120,29 @@ private:
         arena[id].shared_mem = 0;
     }
 
-    void DumpArena(int id) {
+    void DumpArena(int id, int less) {
         assert(!arena[id].shared_mem);  // not implemented
 
         // Be wary of calling this from the IO thread; STDLOG is not thread-safe.
         char start[GUARDSIZE+1], end[GUARDSIZE+1];
         memcpy(start, arena[id].addr, GUARDSIZE); start[GUARDSIZE] = '\0';
         memcpy(end, arena[id].addr+GUARDSIZE+arena[id].usable_size, GUARDSIZE); end[GUARDSIZE] = '\0';
-        STDLOG(1,"Arena %d: %d %d %d %d %d %p %s %s\n", 
+        if (less) { STDLOG(1,"Arena %d: %d %d %d %d %d %p\n", 
             id,
             arena[id].present,
             arena[id].IsIOCompleted,
             arena[id].allocated_size, 
             arena[id].usable_size, 
             arena[id].start_offset, 
-            (void *) arena[id].addr, 
+            (void *) (arena[id].addr)); 
+        } else STDLOG(1,"Arena %d: %d %d %d %d %d %p %s %s\n", 
+            id,
+            arena[id].present,
+            arena[id].IsIOCompleted,
+            arena[id].allocated_size, 
+            arena[id].usable_size, 
+            arena[id].start_offset, 
+            (void *) (arena[id].addr), 
             start, end);
     }
 
@@ -288,6 +296,7 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
             // If a ramdisk allocation was requested, must have received the path
             assert(ramdisk_fn != NULL);
             assert(strnlen(ramdisk_fn,1) > 0);
+            STDLOG(1,"Mapping slab %d from shared memory\n", id);
 
             // Shared memory arenas:
             // 1) do not have guard space
@@ -371,12 +380,17 @@ void ArenaAllocator::DiscardArena(int id) {
         assertf(res == 0, "munmap failed\n");
         total_shm_allocation -= arena[id].allocated_size;
     }
-    else
+    else {
+        STDLOG(1,"Point G\n");
+        DumpArena(id,1);
         free(arena[id].addr);
+        STDLOG(1,"Point G2\n");
+    }
 
     arena[id].present = 0;
     total_allocation -= arena[id].allocated_size;
     ArenaFree->Stop(id);
+    STDLOG(1,"Point H\n");
     ResetArena(id);
 }
 
@@ -398,19 +412,32 @@ void ArenaAllocator::DeAllocateArena(int id, int reuseID) {
     assertf( CheckGuardStart(id)==0, "Arena %d failed its check of GuardStart\n", id);
     assertf( CheckGuardEnd(  id)==0, "Arena %d failed its check of GuardEnd\n", id);
 
+    STDLOG(1,"Point A: %d %d\n", id, reuseID);
+
     if (IsArenaPresent(reuseID)) {
         // We already have an arena available to reuse
+        STDLOG(1,"Point B\n");
         if (arena[id].max_usable_size<arena[reuseID].max_usable_size) {
             // The reuse buffer is bigger, so discard the current one
+            // TODO: Might be better to use <= here
+            STDLOG(1,"Point C\n");
             DiscardArena(id);
         } else {
             // Discard the reuse buffer and move the current storage over
+            STDLOG(1,"Point D\n");
             DiscardArena(reuseID);
+            STDLOG(1,"Point E\n");
+            DumpArena(id,1);
             arena[reuseID] = arena[id];
+            DumpArena(reuseID,1);
+            STDLOG(1,"Compare %p %p\n", (void *)(arena[reuseID].addr), (void *)(arena[id].addr));
+            assertf(arena[reuseID].addr == arena[id].addr,
+                "We set the pointers in arenas %d and %d equal, but it didn't work\n", reuseID, id);
             ResetArena(id);
         }
     } else {
         // We don't have a reuse buffer.  Move this one over.
+        STDLOG(1,"Point F\n");
         arena[reuseID] = arena[id];
         ResetArena(id);
     }
@@ -423,6 +450,7 @@ void ArenaAllocator::ResizeArena(int id, uint64 s) {
     // We can resize an arena, but only up to the currently allocated size!
     // The primary use here is to shrink an arena to limit the output amount.
     assert(IsArenaPresent(id));
+    lb_mutex.lock();
 
     // TODO: I think this could be done with a combination of ftruncate and mremap()
     //  but would require saving the shared memory path
@@ -434,6 +462,7 @@ void ArenaAllocator::ResizeArena(int id, uint64 s) {
             id, s, arena[id].max_usable_size);
     arena[id].usable_size = s;
     SetGuardEnd(id);
+    lb_mutex.unlock();
     return;
 }
 
