@@ -26,6 +26,13 @@ the data when it is received.
 */
 
 // #define NO_MPI    // Just keep these routines blocked out for now
+#ifdef NO_MPI
+#include "manifest_io.cpp"
+#else
+// It was too confusing to keep the MPI and I/O based codes in the same
+// file.  The I/O code is just a touch-stone single-node version.
+
+// TODO: The below probably doesn't compile without PARALLEL and MPI
 
 
 // ================== Manifest helpers =====================================
@@ -164,6 +171,7 @@ class Manifest {
     int *pending;       ///< An array listing who is pending.
 
     void free_requests() {
+        assertf(numpending<=0, "We've been asked to free the MPI listing before all is completed.\n");
         if (requests!=NULL) delete[] requests;
         if (pending!=NULL) delete[] pending;
         numpending = -1;
@@ -176,7 +184,7 @@ class Manifest {
         il = NULL;
         links = NULL;
         requests = NULL;
-        pending = NULL;
+        //// pending = NULL;
         numpending = -1;
         return;
     }
@@ -188,17 +196,20 @@ class Manifest {
     /// Allocate N things to track
     void set_pending(int n) {
         requests = new MPI_Request[n];
-        pending = new int[n];
-        for (int j=0; j<n; j++) pending[n]=1;
+        for (int j=0; j<n; j++) requests[n]=MPI_REQUEST_NULL;
+        //// pending = new int[n];
+        //// for (int j=0; j<n; j++) pending[n]=1;
         numpending = n;
     }
     inline void mark_as_done(int j) {
-        pending[j] = 0;
+        assertf(requests[j]==MPI_REQUEST_NULL,"MPI_Request %d wasn't NULL\n", j);
+        //// pending[j] = 0;
         numpending--;
     }
     /// Return 1 if newly found to be done, 0 otherwise
     inline int check_if_done(int j) {
-        if (pending[j]) {
+        //// if (pending[j]) {
+        if (requests[j]!=MPI_REQUEST_NULL) {
             int err, sent=0;
             err = MPI_Test(requests+j,&sent,MPI_STATUS_IGNORE);   
             if (sent) { mark_as_done(j); return 1; }
@@ -340,7 +351,7 @@ void Manifest::QueueToSend(int finished_slab) {
     Load.Stop();
 
     this->Send(); 
-    usleep(1e6);
+    usleep(2e6);   // TODO: Don't forget to remove this
     return;
 }
 
@@ -359,8 +370,8 @@ void Manifest::Send() {
     // Send all the Arenas
     for (int n=0; n<m.numarenas; n++) {
         MPI_Isend(m.arenas[n].ptr, m.arenas[n].size, MPI_BYTE, rank, n+3, MPI_COMM_WORLD,requests+n+3);
-        STDLOG(1,"Isend Manifest Arena %d (type %d, slab %d) of size %d\n", 
-            n, m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size);
+        STDLOG(1,"Isend Manifest Arena %d (slab %d of type %d) of size %d\n", 
+            n, m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size);
         // SB->DeAllocate(m.arenas[n].type, m.arenas[n].slab);
         // TODO: Need to Delete the file?
     }
@@ -383,7 +394,7 @@ void Manifest::Send() {
 /// This is the routine to call frequently to try to clean up 
 /// space after Send's have happened.
 inline void Manifest::FreeAfterSend() {
-    if (numpending<0 || completed>=2) return;   // Nothing's active yet
+    if (completed!=2) return;   // No active Isend's yet
     CheckCompletion.Start();
     check_if_done(0);    // Manifest Core
     if (check_if_done(1)) {
@@ -397,8 +408,8 @@ inline void Manifest::FreeAfterSend() {
     for (int n=0; n<m.numarenas; n++) 
         if (check_if_done(n+3)) {  // Arenas
             SB->DeAllocate(m.arenas[n].type, m.arenas[n].slab);
-            STDLOG(1,"Freeing the Send Manifest Arena, type %d slab %d\n",
-                m.arenas[n].type, m.arenas[n].slab);
+            STDLOG(1,"Freeing the Send Manifest Arena, slab %d of type %d\n",
+                m.arenas[n].slab, m.arenas[n].type);
         }
     if (numpending==0) {
         completed=2;
@@ -452,8 +463,8 @@ inline void Manifest::Check() {
         }
         for (int n=0; n<m.numarenas; n++) 
             if (check_if_done(n+2)) {  // Arenas
-                STDLOG(1,"Received the Manifest Arena, type %d slab %d, %d left\n",
-                    m.arenas[n].type, m.arenas[n].slab, numpending);
+                STDLOG(1,"Received the Manifest Arena, slab %d of type %d, %d left\n",
+                    m.arenas[n].slab, m.arenas[n].type, numpending);
             }
         if (numpending==0) {
             completed=2;
@@ -481,8 +492,8 @@ void Manifest::Receive() {
         memset(m.arenas[n].ptr, 0, m.arenas[n].size);   // TODO remove
         MPI_Irecv(m.arenas[n].ptr, m.arenas[n].size, MPI_BYTE, rank, n+3, MPI_COMM_WORLD, requests+n+2);
         bytes += m.arenas[n].size;
-        STDLOG(1,"Ireceive Manifest Arena %d (type %d, slab %d) of size %d\n", 
-            n, m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size);
+        STDLOG(1,"Ireceive Manifest Arena %d (slab %d of type %d) of size %d\n", 
+            n, m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size);
     }
     // Receive all the Insert List fragment
     int ret = posix_memalign((void **)&il, 64, m.numil*sizeof(ilstruct));
@@ -504,7 +515,7 @@ void Manifest::Receive() {
     // STDLOG(1,"Done receiving the ReceiveManifest\n");
     completed = 1;
     Transmit.Stop();
-    usleep(1e6);
+    usleep(2e6);   // TODO: Don't forget to remove this
 }
 
 
@@ -582,3 +593,5 @@ void Manifest::ImportData() {
     done();
     Load.Stop();
 }
+
+#endif
