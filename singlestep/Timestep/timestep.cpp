@@ -747,6 +747,7 @@ void timestep(void) {
                 Drift.Attempt();
                Finish.Attempt();
 	    // TODO: The following line will be omitted once the MPI monitoring thread is in place.
+           SendManifest.FreeAfterSend();
 	    ReceiveManifest.Check();   // This checks if Send is ready; no-op in non-blocking mode
 	
 	    // If the manifest has been received, install it.

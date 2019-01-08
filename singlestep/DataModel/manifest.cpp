@@ -153,10 +153,16 @@ class Manifest {
     GroupLink *links;   ///< Storage for the GLL
     
     // Control logic
-    int completed;	///< ==1 if the Manifest is ready for use, ==0 if not yet , ==2 if we've already imported it.
+    int completed;	///< ==2 if the Manifest is ready for use, ==0 if not yet , ==3 if we've already imported it, ==1 if transfer in progress.
     STimer Load;        ///< The timing for the Queue & Import blocking routines
     STimer Transmit;	///< The timing for the Send & Receive routines, usually non-blocking
     size_t bytes;       ///< The number of bytes received
+
+    #ifdef PARALLEL
+    MPI_Request *requests;    ///< A list of the non-blocking requests issued
+    #endif
+    int numpending;        ///< The number of requests pending
+    int *pending;       ///< An array listing who is pending.
 
     int blocking;	///< =1 if blocking, =0 if non-blocking
     pthread_t thread;	///< The thread object
@@ -170,22 +176,57 @@ class Manifest {
         launched = 0;
         il = NULL;
         links = NULL;
+        #ifdef PARALLEL
+        requests = NULL;
+        #endif
+        pending = NULL;
+        numpending = -1;
         return;
     }
     ~Manifest() { 
         void *p;
+        #ifdef PARALLEL
+        if (requests!=NULL) delete[] requests;
+        #endif
+        if (pending!=NULL) delete[] pending;
         // We want to do a blocking pthread_join here, because
         // if one node has finished early, before the Send has been
         // completed, then we need to hang on until it has.
         if (launched==1) int retval = pthread_join(thread, NULL); 
     }
 
+    /// Allocate N things to track
+    void set_pending(int n) {
+        #ifdef PARALLEL
+        requests = new MPI_Request[n];
+        #endif
+        pending = new int[n];
+        for (int j=0; j<n; j++) pending[n]=1;
+        numpending = n;
+    }
+    inline void mark_as_done(int j) {
+        pending[j] = 0;
+        numpending--;
+    }
+    /// Return 1 if newly found to be done, 0 otherwise
+    inline int check_if_done(int j) {
+        if (pending[j]) {
+            int err, sent=0;
+            #ifdef PARALLEL
+            err = MPI_Test(requests+j,&sent,MPI_STATUS_IGNORE);   
+            #endif
+            if (sent) { mark_as_done(j); return 1; }
+        }
+        return 0;
+    }
+    inline int no_more_pending() { if (numpending==0) return 1; else return 0; }
+
     void set_blocking() { blocking = 1; }
     void set_nonblocking() { blocking = 0; }
 
-    inline int is_ready() { if (completed==1) return 1; return 0;}
+    inline int is_ready() { if (completed==2) return 1; return 0;}
 	// Call this to see if the Manifest is ready to retrieve
-    void done() { completed = 2; }
+    void done() { completed = 3; }
 
     void LoadArena(int type, int s) {
         ManifestArena *a = m.arenas+m.numarenas;
@@ -202,7 +243,9 @@ class Manifest {
     // Here's the prototypes for the main routines
     void QueueToSend(int finished_slab);
     void Send();
+    void FreeAfterSend();
     void Check();
+    void SetupToReceive();
     void Receive();
     void ImportData();
 
@@ -232,10 +275,14 @@ Manifest SendManifest, ReceiveManifest;
 /// Call this routine to turn on Non-blocking Manifest
 void NonBlockingManifest() {
     #ifdef PARALLEL
+    #ifdef NO_MPI
     STDLOG(1,"Turning on non-blocking Manifest Code\n");
     SendManifest.set_nonblocking();
     ReceiveManifest.set_nonblocking();
     ReceiveManifest.LaunchReceiveThread();
+    #else
+    ReceiveManifest.SetupToReceive();
+    #endif
     #endif
 }
 
@@ -413,47 +460,83 @@ void Manifest::Send() {
     }
     fclose(fp);
     // usleep(5e6);   // Just force a wait here, to see what the code does.
-    completed = 1;
+    completed = 2;
     // TODO: Can terminate the communication thread after this.
     // Touch a file to indicate that we're done
     sprintf(fname, "%s/manifest_done", P.WriteStateDirectory);
     fp=fopen(fname,"w");
     fclose(fp);
 #else
+    set_pending(m.numarenas+3);
     int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
     int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     rank--; if (rank<0) rank+=size;   // Now rank is the destination node
-    STDLOG(1,"Starting to send the SendManifest to node rank %d\n", rank);
+    STDLOG(1,"Queuing to send the SendManifest to node rank %d\n", rank);
     // Send the ManifestCore
-    MPI_Send(&m, sizeof(ManifestCore), MPI_BYTE, rank, 1000, MPI_COMM_WORLD);
-    STDLOG(1,"Sent Manifest Core\n");
+    MPI_Isend(&m, sizeof(ManifestCore), MPI_BYTE, rank, 0, MPI_COMM_WORLD,requests);
+    STDLOG(1,"Queuing to Send Manifest Core\n");
     // Send all the Arenas
     for (int n=0; n<m.numarenas; n++) {
-        MPI_Send(m.arenas[n].ptr, m.arenas[n].size, MPI_BYTE, rank, n, MPI_COMM_WORLD);
-        STDLOG(1,"Sent Manifest Arena %d (type %d, slab %d) of size %d\n", 
+        MPI_Isend(m.arenas[n].ptr, m.arenas[n].size, MPI_BYTE, rank, n+3, MPI_COMM_WORLD,requests+n+3);
+        STDLOG(1,"Queuing to Send Manifest Arena %d (type %d, slab %d) of size %d\n", 
             n, m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size);
-        SB->DeAllocate(m.arenas[n].type, m.arenas[n].slab);
+        // SB->DeAllocate(m.arenas[n].type, m.arenas[n].slab);
         // TODO: Need to Delete the file?
     }
     // Send all the Insert List fragment
-    MPI_Send(il, sizeof(ilstruct)*m.numil, MPI_BYTE, rank, 2000, MPI_COMM_WORLD);
-    STDLOG(1,"Sent Manifest Insert List of length %d\n", m.numil);
-    free(il);
+    MPI_Isend(il, sizeof(ilstruct)*m.numil, MPI_BYTE, rank, 1, MPI_COMM_WORLD,requests+1);
+    STDLOG(1,"Queuing to Send Manifest Insert List of length %d\n", m.numil);
+    //free(il);
     // Send all the GroupLink List fragment
     if (GFC!=NULL) {
-        MPI_Send(links, sizeof(GroupLink)*m.numlinks, MPI_BYTE, rank, 3000, MPI_COMM_WORLD);
-        STDLOG(1,"Sent Manifest GroupLink List of length %d\n", m.numlinks);
-        free(links);
-    }
+        MPI_Isend(links, sizeof(GroupLink)*m.numlinks, MPI_BYTE, rank, 2, MPI_COMM_WORLD,requests+2);
+        STDLOG(1,"Queuing to Send Manifest GroupLink List of length %d\n", m.numlinks);
+        //free(links);
+    } else mark_as_done(2); // We won't be sending this one
     // Victory!
-    STDLOG(1,"Done sending the SendManifest\n");
+    STDLOG(1,"Done queuing the SendManifest\n");
     completed = 1;
 #endif
     Transmit.Stop();
 }
 
+/// This is the routine to call frequently to try to clean up 
+/// space after Send's have happened.
+inline void Manifest::FreeAfterSend() {
+    if (numpending<0 || completed>=2) return;   // Nothing's active yet
+    check_if_done(0);    // Manifest Core
+    if (check_if_done(1)) {
+        free(il);    // Insert List
+        STDLOG(1,"Freeing the Send Manifest Insert List\n");
+    }
+    if (check_if_done(2)) {
+        free(links);    // GroupLink List; won't get called if already marked_as_done
+        STDLOG(1,"Freeing the Send Manifest GroupLink List\n");
+    }
+    for (int n=0; n<m.numarenas; n++) 
+        if (check_if_done(n+3)) {  // Arenas
+            SB->DeAllocate(m.arenas[n].type, m.arenas[n].slab);
+            STDLOG(1,"Freeing the Send Manifest Arena, type %d slab %d\n",
+                m.arenas[n].type, m.arenas[n].slab);
+        }
+    if (numpending==0) {
+        completed=2;
+        STDLOG(1,"Marking the Send Manifest as completely sent\n");
+    }
+}
+
 
 // =============== Routine to actually receive the incoming info ====
+
+/// We have to issue the request to receive the ManifestCore
+void Manifest::SetupToReceive() {
+    set_pending(1);
+    int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
+    int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    rank++; if (rank>=size) rank-=size;   // Now rank is the source node
+    MPI_Irecv(&m, sizeof(ManifestCore), MPI_BYTE, rank, 0, MPI_COMM_WORLD, requests);
+    STDLOG(1,"Queuing to Receive the Manifest Core from node rank %d\n", rank);
+}
 
 /// This can be called in timestep.cpp to manually check (blocking)
 /// whether Receive is ready to run.
@@ -474,7 +557,31 @@ inline void Manifest::Check() {
     STDLOG(1,"Check indicates we are ready to Receive the Manifest\n");
     Receive();
 #else
-    assertf(blocking==0, "MPI requires using non-blocking thread for Receive Manifest\n");
+    if (numpending<0 || completed>=2) return;   // Nothing's active now
+    if (completed==0 && check_if_done(0)) { 
+        // The ManifestCore has arrived!  
+        // We need to allocate the space and trigger Irecv's for the rest
+        delete[] requests;
+        delete[] pending;
+        Receive();
+    }
+    if (completed==1) {
+        if (check_if_done(0)) {
+            STDLOG(1,"Received the Manifest Insert List\n");
+        }
+        if (check_if_done(1)) {
+            STDLOG(1,"Received the Manifest GroupLink List\n");
+        }
+        for (int n=0; n<m.numarenas; n++) 
+            if (check_if_done(n+2)) {  // Arenas
+                STDLOG(1,"Received the Manifest Arena, type %d slab %d\n",
+                    m.arenas[n].type, m.arenas[n].slab);
+            }
+        if (numpending==0) {
+            completed=2;
+            STDLOG(1,"Marking the Receive Manifest as fully received\n");
+        }
+    }
 #endif
 }
 
@@ -519,39 +626,37 @@ void Manifest::Receive() {
         if (blocking) STDLOG(1,"Reading %l objects of links from file\n", retval);
     }
     // TODO: Can terminate the communication thread after this
-    completed = 1;
+    completed = 2;
     fclose(fp);
 #else
+    set_pending(m.numarenas+2);
     int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
     int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Status retval;
     rank++; if (rank>=size) rank-=size;   // Now rank is the source node
     STDLOG(1,"Starting receiving the ReceiveManifest from node rank %d\n", rank);
-    // Receive the ManifestCore
-    MPI_Recv(&m, sizeof(ManifestCore), MPI_BYTE, rank, 1000, MPI_COMM_WORLD, &retval);
-    STDLOG(1,"Received Manifest Core\n");
     // Receive all the Arenas
     for (int n=0; n<m.numarenas; n++) {
         SB->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size);
         m.arenas[n].ptr = SB->GetSlabPtr(m.arenas[n].type, m.arenas[n].slab);
-        MPI_Recv(m.arenas[n].ptr, m.arenas[n].size, MPI_BYTE, rank, n, MPI_COMM_WORLD, &retval);
-        STDLOG(1,"Received Manifest Arena %d (type %d, slab %d) of size %d\n", 
+        MPI_Irecv(m.arenas[n].ptr, m.arenas[n].size, MPI_BYTE, rank, n+3, MPI_COMM_WORLD, requests+n+2);
+        STDLOG(1,"Queuing to receive Manifest Arena %d (type %d, slab %d) of size %d\n", 
             n, m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size);
     }
     // Receive all the Insert List fragment
     int ret = posix_memalign((void **)&il, 64, m.numil*sizeof(ilstruct));
     assert(il!=NULL);
-    MPI_Recv(il, sizeof(ilstruct)*m.numil, MPI_BYTE, rank, 2000, MPI_COMM_WORLD, &retval);
-    STDLOG(1,"Received Manifest Insert List of length %d\n", m.numil);
+    MPI_Irecv(il, sizeof(ilstruct)*m.numil, MPI_BYTE, rank, 1, MPI_COMM_WORLD, requests);
+    STDLOG(1,"Queuing to receive Manifest Insert List of length %d\n", m.numil);
     // Receive all the GroupLink List fragment
     ret = posix_memalign((void **)&links, 64, m.numlinks*sizeof(GroupLink));
     assert(links!=NULL);
     if (GFC!=NULL) {
-        MPI_Recv(links, sizeof(GroupLink)*m.numlinks, MPI_BYTE, rank, 3000, MPI_COMM_WORLD, &retval);
-        STDLOG(1,"Received Manifest GroupLink List of length %d\n", m.numlinks);
-    }
+        MPI_Irecv(links, sizeof(GroupLink)*m.numlinks, MPI_BYTE, rank, 2, MPI_COMM_WORLD, requests+1);
+        STDLOG(1,"Queuing to receive Manifest GroupLink List of length %d\n", m.numlinks);
+    } else mark_as_done(2);
     // Victory!
-    STDLOG(1,"Done receiving the ReceiveManifest\n");
+    // STDLOG(1,"Done receiving the ReceiveManifest\n");
     completed = 1;
 #endif
     Transmit.Stop();
@@ -574,7 +679,7 @@ opening this region for use.
 */
 
 void Manifest::ImportData() {
-    assertf(completed==1, "ImportData has been called when completed==%d\n", completed);
+    assertf(completed==2, "ImportData has been called when completed==%d\n", completed);
 
     STDLOG(1,"Importing ReceiveManifest of %l bytes into the flow\n", bytes);
     Load.Start();
