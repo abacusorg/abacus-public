@@ -139,6 +139,7 @@ public:
 
     inline char* GetSlabPtr(int type, int slab) {
         int id = TypeSlab2ID(type,slab);
+        assertf(AA->IsArenaPresent(id), "Error: slab %d of type %d was not present, when pointer requested.\n", slab, type);
         return AA->GetArenaPtr(id);
     }
 
