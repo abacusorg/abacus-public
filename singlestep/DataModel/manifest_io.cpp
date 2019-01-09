@@ -241,16 +241,18 @@ Manifest SendManifest, ReceiveManifest;
 /// Call this routine to turn on Non-blocking Manifest
 void SetupManifest() {
     #ifdef PARALLEL
-    STDLOG(1,"Turning on non-blocking Manifest Code\n");
     int rank = MPI_rank+1;
     if (rank>=MPI_size) rank-=MPI_size;
     sprintf(ReceiveManifest.RecNodeString,".%04d", rank);
     #ifdef IOTHREADED
         // The following routines turn on the non-blocking I/O
         // For now we tie this to IO Threading, but it's not the same threads
+        STDLOG(1,"Turning on non-blocking Manifest I/O Code\n");
         SendManifest.set_nonblocking();
         ReceiveManifest.set_nonblocking();
         ReceiveManifest.LaunchReceiveThread();
+    #else
+        STDLOG(1,"Turning on blocking Manifest I/O Code\n");
     #endif
     #endif
 }
