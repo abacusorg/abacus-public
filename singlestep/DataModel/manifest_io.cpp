@@ -167,6 +167,8 @@ class Manifest {
     pthread_t thread;	///< The thread object
     int launched;	///< =1 if the thread was launced
 
+    char RecNodeString[7];     // The node string we're reading from
+
     Manifest() {
     	m.numarenas = m.numil = m.numlinks = m.numdep = 0;
         completed = 0;
@@ -244,6 +246,9 @@ void SetupManifest() {
     ReceiveManifest.set_nonblocking();
     ReceiveManifest.LaunchReceiveThread();
     #endif
+    int rank = MPI_rank+1;
+    if (rank>=MPI_size) rank-=MPI_size;
+    sprintf(RecNodeString,".%04d", rank);
 }
 
 
@@ -256,7 +261,7 @@ void *ManifestSendThread(void *p) {
 void *ManifestReceiveThread(void *p) {
     Manifest *m = (Manifest *)p;
     char fname[1024];
-    sprintf(fname, "%s/manifest_done", P.WriteStateDirectory);
+    sprintf(fname, "%s/manifest_done%s", P.WriteStateDirectory, RecNodeString);
 
     while (FileExists(fname)==0) usleep(10000);
     	// Wait until the file exists
@@ -387,7 +392,7 @@ void Manifest::Send() {
     // TODO: Send the ManifestCore.  Maybe wait for handshake?
     char fname[1024];
     size_t retval;
-    sprintf(fname, "%s/manifest", P.WriteStateDirectory);
+    sprintf(fname, "%s/manifest%s", P.WriteStateDirectory, NodeString);
     FILE *fp = fopen(fname, "wb");
     bytes = fwrite(&m, sizeof(ManifestCore), 1, fp)*sizeof(ManifestCore);
     STDLOG(1,"Sending the Manifest Core to %s\n", fname);
@@ -418,7 +423,7 @@ void Manifest::Send() {
     completed = 2;
     // TODO: Can terminate the communication thread after this.
     // Touch a file to indicate that we're done
-    sprintf(fname, "%s/manifest_done", P.WriteStateDirectory);
+    sprintf(fname, "%s/manifest_done%s", P.WriteStateDirectory, NodeString);
     fp=fopen(fname,"w");
     fclose(fp);
     Transmit.Stop();
@@ -447,7 +452,7 @@ inline void Manifest::Check() {
     if (blocking==0) return; 	// We're doing this by a thread
     if (completed>0) return;	// We've already been here once
     char fname[1024];
-    sprintf(fname, "%s/manifest_done", P.WriteStateDirectory);
+    sprintf(fname, "%s/manifest_done%s", P.WriteStateDirectory, RecNodeString);
     if (FileExists(fname)==0) return;
     	// The signal file doesn't yet exist, so try again later
     // Otherwise, we're ready to go
@@ -463,7 +468,7 @@ void Manifest::Receive() {
     // TODO: Receive the Manifest and overload the variables in *this.
     char fname[1024];
     size_t retval;
-    sprintf(fname, "%s/manifest", P.WriteStateDirectory);
+    sprintf(fname, "%s/manifest%s", P.WriteStateDirectory, RecNodeString);
     FILE *fp = fopen(fname, "rb");
     bytes += fread(&m, sizeof(ManifestCore), 1, fp)*sizeof(ManifestCore);
     STDLOG(1,"Reading Manifest Core from %s\n", fname);

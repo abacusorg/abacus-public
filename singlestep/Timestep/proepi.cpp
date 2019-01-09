@@ -85,6 +85,7 @@ grid *Grid;
 #include "statestructure.cpp"
 State ReadState, WriteState;
 char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
+int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
 
 
 

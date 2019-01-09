@@ -369,9 +369,10 @@ void Manifest::Send() {
     #ifdef PARALLEL
     Transmit.Start();
     set_pending(m.numarenas+3);
-    int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
-    int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    rank--; if (rank<0) rank+=size;   // Now rank is the destination node
+    //REMOVE: int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
+    //REMOVE: int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    int rank = MPI_rank;
+    rank--; if (rank<0) rank+=MPI_size;   // Now rank is the destination node
     STDLOG(1,"Will send the SendManifest to node rank %d\n", rank);
     // Send the ManifestCore
     MPI_Isend(&m, sizeof(ManifestCore), MPI_BYTE, rank, 0, MPI_COMM_WORLD,requests);
@@ -440,9 +441,10 @@ void Manifest::SetupToReceive() {
     #ifdef PARALLEL
     Transmit.Start();
     set_pending(1);
-    int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
-    int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    rank++; if (rank>=size) rank-=size;   // Now rank is the source node
+    //REMOVE: int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
+    //REMOVE: int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    int rank = MPI_rank;
+    rank++; if (rank>=MPI_size) rank-=MPI_size;   // Now rank is the source node
     MPI_Irecv(&m, sizeof(ManifestCore), MPI_BYTE, rank, 0, MPI_COMM_WORLD, requests);
     bytes += sizeof(ManifestCore);
     STDLOG(1,"Ireceive the Manifest Core from node rank %d\n", rank);
@@ -497,10 +499,11 @@ void Manifest::Receive() {
     #ifdef PARALLEL
     Transmit.Start();
     set_pending(m.numarenas+2);
-    int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
-    int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    //REMOVE: int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
+    //REMOVE: int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    int rank = MPI_rank;
     MPI_Status retval;
-    rank++; if (rank>=size) rank-=size;   // Now rank is the source node
+    rank++; if (rank>=MPI_size) rank-=MPI_size;   // Now rank is the source node
     STDLOG(1,"Will receive the ReceiveManifest from node rank %d\n", rank);
     // Receive all the Arenas
     for (int n=0; n<m.numarenas; n++) {

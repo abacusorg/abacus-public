@@ -21,11 +21,8 @@ void BuildWriteState(double da){
 	sprintf(WriteState.RunTime,"%s",now.substr(0,now.length()-1).c_str());
 	gethostname(WriteState.MachineName,1024);
 	STDLOG(0,"Host machine name is %s\n", WriteState.MachineName);
-    #ifdef PARALLEL
-        // MPI_Comm_rank(MPI_COMM_WORLD, &WriteState.NodeRank);
-    #else 
-        WriteState.NodeRank = 0;
-    #endif
+    WriteState.NodeRank = MPI_rank;
+    WriteState.NodeSize = MPI_size;
 
 	WriteState.DoublePrecision = (sizeof(FLOAT)==8)?1:0;
 	STDLOG(0,"Bytes per float is %d\n", sizeof(FLOAT));
@@ -216,8 +213,8 @@ int main(int argc, char **argv) {
     
     // Set up MPI
     
-    int size=1, rank=0;
-    InitializeParallel(size, rank);
+    //REMOVE:  int size=1, rank=0;
+    InitializeParallel(MPI_size, MPI_rank);
     
     int AllowIC = atoi(argv[2]);
     P.ReadParameters(argv[1],0);
@@ -228,7 +225,7 @@ int main(int argc, char **argv) {
     STDLOG(0,"AllowIC = %d\n", AllowIC);
     #ifdef PARALLEL
         STDLOG(0,"Initialized MPI.\n");   
-        STDLOG(0,"Node rank %d of %d total\n", rank, size);
+        STDLOG(0,"Node rank %d of %d total\n", MPI_rank, MPI_size);
     #endif
 
     // Set up OpenMP
