@@ -383,10 +383,18 @@ int DoGlobalGroupsPrecondition(int slab) {
     // But even though we usually encounter a CellGroup in its minimum slab,
     // we could be anywhere in the first instance.  So we have to query a big range.
     // That said, if the nearby slab has already closed global groups, then
-    // we can proceed.
-    // The lower bound has a +1 because FindLinks looks one slab back
+    // we can proceed.  This particularly matters in the parallel version, where
+    // we may already have closed groups in higher numbered slabs.
     if (Kick.notdone(slab)) return 0;
-    for (int j=-2*GROUP_RADIUS+1; j<=2*GROUP_RADIUS; j++){
+    // Look behind; can stop as soon as one finds a closed slab
+    // The lower bound has a +1 (> not >=) because FindLinks(n) connects n and n-1
+    for (int j=0; j>-2*GROUP_RADIUS; j--) {
+        if (DoGlobalGroups.done(slab+j-1)) break;
+        if (FindCellGroupLinks.notdone(slab+j)) return 0;
+    }
+    // Look ahead; can stop as soon as one finds a closed slab
+    for (int j=1; j<=2*GROUP_RADIUS; j++){
+        if (DoGlobalGroups.done(slab+j)) break;
         if (FindCellGroupLinks.notdone(slab+j)) return 0;
     }
     return 1;
