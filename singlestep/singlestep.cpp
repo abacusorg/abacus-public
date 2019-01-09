@@ -182,7 +182,9 @@ void InitGroupFinding(int MakeIC){
 void InitializeParallel(int &size, int &rank) {
     #ifdef PARALLEL
          // Start up MPI
-         MPI_Init(NULL, NULL);
+         int ret;
+         MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
+         assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
          MPI_Comm_size(MPI_COMM_WORLD, &size);
          MPI_Comm_rank(MPI_COMM_WORLD, &rank);
          sprintf(NodeString,".%04d",rank);
