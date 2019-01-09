@@ -25,7 +25,7 @@ the data when it is received.
 
 */
 
-// #define NO_MPI    // Just keep these routines blocked out for now
+#define NO_MPI    // Just keep these routines blocked out for now
 #ifdef NO_MPI
 #include "manifest_io.cpp"
 #else
@@ -66,11 +66,12 @@ class DependencyRecord {
         }
         // We've found the first notdone slab
         begin++;   // Want to pass the first done one
-        STDLOG(1, "Dependency [%d,%d)\n", begin, end);
+        STDLOG(1, "Load Dependency [%d,%d)\n", begin, end);
         return;
     }
     void Set(Dependency &d) {
         for (int s=begin; s<end; s++) d.force_done(s);
+        STDLOG(1, "Set Dependency [%d,%d)\n", begin, end);
         return;
     }
 
@@ -106,9 +107,11 @@ class DependencyRecord {
             // Now we can delete the CellGroupArena
             SB->DeAllocate(CellGroupArena,s);
         }
-        // TODO BUG: We need to set cellgroups_status=2 for [end,finished_slab)
-        for (int s=end; s<finished_slab; s++)
+        STDLOG(1, "Marking cellgroups_status = 2 for [%d,%d)\n", begin, end);
+        // We need to set cellgroups_status=2 for [end,finished_slab]
+        for (int s=end; s<=finished_slab; s++)
             GFC->cellgroups_status[CP->WrapSlab(s)]=2;
+        STDLOG(1, "Marking cellgroups_status = 2 for [%d,%d]\n", end, finished_slab);
         return;
     }
 };
@@ -586,6 +589,11 @@ void Manifest::ImportData() {
     m.dep[n++].Set(Output);
     m.dep[n++].Set(Microstep);
     m.dep[n++].Set(FinishGroups);
+    m.dep[n].end++;
+        // We need to also mark the first_finished_slab on the other node
+        // as having been completed.  This is because Finish requires this
+        // as a precondition, and the particles incoming to Finish are on the
+        // insert list.
     m.dep[n++].Set(Drift);
     m.dep[n++].Set(Finish);
     m.dep[n++].Set(LPTVelocityReRead);
