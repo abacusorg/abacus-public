@@ -258,6 +258,10 @@ Manifest SendManifest, ReceiveManifest;
 
 /// Call this routine at the beginning of the timestep
 void SetupManifest() {
+    #ifdef PARALLEL
+        assertf(MPI_size>1, "Can't run MPI-based manifest code with only 1 process.\n"); 
+        // TODO: I don't see a way around this.  One ends up with the destination and source arenas being the same.
+    #endif
     ReceiveManifest.SetupToReceive();
 }
 
