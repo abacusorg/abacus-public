@@ -15,11 +15,11 @@ void ReadNodeSlabs() {
         first_slab_finished = -1;   // Just a silly value
         return;
     #else
-        int NNode = 1; 
-        MPI_Comm_size(MPI_COMM_WORLD, &NNode);
-        int rank = 0; 
-        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-        int neighbor = (rank+1)%NNode;
+        //REMOVE: int NNode = 1; 
+        //REMOVE: MPI_Comm_size(MPI_COMM_WORLD, &NNode);
+        //REMOVE: int rank = 0; 
+        //REMOVE: MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        int neighbor = (MPI_rank+1)%MPI_size;
         char fname[1024];
         int value, last_slab;
         // TODO: This needs to be the Global Read State
@@ -29,10 +29,10 @@ void ReadNodeSlabs() {
         // assertf(fp!=NULL, "Couldn't find nodeslabs file %s\n", fname);
         if (fp==NULL) {
             // We couldn't find a file, so let's make up something
-            first_slab_on_node = floor((float)P.cpd*rank/NNode);
-            last_slab = floor((float)P.cpd*(rank+1)/NNode);
+            first_slab_on_node = floor((float)P.cpd*MPI_rank/MPI_size);
+            last_slab = floor((float)P.cpd*(MPI_rank+1)/MPI_size);
         } else {
-            for (int j=0; j<NNode; j++) {
+            for (int j=0; j<MPI_size; j++) {
                 int nread = fscanf(fp, "%d", &value);
                 assertf(nread==1, "Couldn't read entry %j from NodeSlabs file\n", j);
                 if (j==rank) first_slab_on_node = value;
@@ -55,16 +55,16 @@ void WriteNodeSlabs() {
         // Note that first_slab_finished is only set in PARALLEL
         return;
     #else
-        int NNode = 1; MPI_Comm_size(MPI_COMM_WORLD, &NNode);
-        int rank = 0; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-        if (NNode==1) return;   // We don't want to use this file if we're serial
-        int first[NNode];
-        for (int j=0; j<NNode; j++) first[j]=0;
-        first[rank] = first_slab_finished;
+        //REMOVE: int NNode = 1; MPI_Comm_size(MPI_COMM_WORLD, &NNode);
+        //REMOVE: int rank = 0; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        if (MPI_size==1) return;   // We don't want to use this file if we're serial
+        int first[MPI_size];
+        for (int j=0; j<MPI_size; j++) first[j]=0;
+        first[MPI_rank] = first_slab_finished;
         // MPI: Send first_slab_finished to fill in this element in the vector
         // We just do this as a boring summation.
         // TODO: Might seek more minimal transaction
-        MPI_Reduce(MPI_IN_PLACE, &first, NNode, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Reduce(MPI_IN_PLACE, &first, MPI_size, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
         if (WriteState.NodeRank==0) {
             char fname[1024];
@@ -73,7 +73,7 @@ void WriteNodeSlabs() {
             FILE *fp;
             fp = fopen(fname,"w");
             assertf(fp!=NULL, "Couldn't create nodeslabs file %s\n", fname);
-            for (int j=0; j<NNode; j++) {
+            for (int j=0; j<MPI_size; j++) {
                 fprintf(fp, "%d\n", first[j]);
             }
             fclose(fp);
