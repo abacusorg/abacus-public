@@ -25,7 +25,7 @@ the data when it is received.
 
 */
 
-#define NO_MPI    // Just keep these routines blocked out for now
+// #define NO_MPI    // Just keep these routines blocked out for now
 #ifdef NO_MPI
 #include "manifest_io.cpp"
 #else
@@ -58,7 +58,7 @@ class DependencyRecord {
     DependencyRecord() { begin = end = 0; }
 
     /// Load the status of this dependency 
-    void Load(Dependency &d, int finished_slab) {
+    void Load(Dependency &d, int finished_slab, const char label[]) {
         end = finished_slab;
         for (begin=end-1; begin>end-d.cpd; begin--) {
             if (d.notdone(begin)) break;
@@ -66,12 +66,12 @@ class DependencyRecord {
         }
         // We've found the first notdone slab
         begin++;   // Want to pass the first done one
-        STDLOG(1, "Load Dependency [%d,%d)\n", begin, end);
+        STDLOG(1, "Load Dependency %s [%d,%d)\n", label, begin, end);
         return;
     }
-    void Set(Dependency &d) {
+    void Set(Dependency &d, const char label[]) {
         for (int s=begin; s<end; s++) d.force_done(s);
-        STDLOG(1, "Set Dependency [%d,%d)\n", begin, end);
+        STDLOG(1, "Set Dependency %s [%d,%d)\n", label, begin, end);
         return;
     }
 
@@ -289,26 +289,26 @@ void Manifest::QueueToSend(int finished_slab) {
 
     // Load the information from the Dependencies
     m.numdep = 0;
-    m.dep[m.numdep++].Load(FetchSlabs, finished_slab);
-    m.dep[m.numdep++].Load(TransposePos, finished_slab);
-    m.dep[m.numdep++].Load(NearForce, finished_slab);
-    m.dep[m.numdep++].Load(TaylorForce, finished_slab);
-    m.dep[m.numdep++].Load(Kick, finished_slab);
-    m.dep[m.numdep++].Load(MakeCellGroups, finished_slab);
-    m.dep[m.numdep++].Load(FindCellGroupLinks, finished_slab);
+    m.dep[m.numdep++].Load(FetchSlabs, finished_slab, "FetchSlabs");
+    m.dep[m.numdep++].Load(TransposePos, finished_slab, "TransposePos");
+    m.dep[m.numdep++].Load(NearForce, finished_slab, "NearForce");
+    m.dep[m.numdep++].Load(TaylorForce, finished_slab, "TaylorForce");
+    m.dep[m.numdep++].Load(Kick, finished_slab, "Kick");
+    m.dep[m.numdep++].Load(MakeCellGroups, finished_slab, "MakeCellGroups");
+    m.dep[m.numdep++].Load(FindCellGroupLinks, finished_slab, "FindCellGroupLinks");
     int min_links_slab = m.dep[m.numdep-1].begin-1;
     	// We just determined that FindCellGroupLinks has executed on begin, so
 	// the GLL might contain links including begin-1.
-    m.dep[m.numdep++].Load(DoGlobalGroups, finished_slab);
-    m.dep[m.numdep++].Load(Output, finished_slab);
-    m.dep[m.numdep++].Load(Microstep, finished_slab);
-    m.dep[m.numdep++].Load(FinishGroups, finished_slab);
-    m.dep[m.numdep++].Load(Drift, finished_slab);
+    m.dep[m.numdep++].Load(DoGlobalGroups, finished_slab, "DoGlobalGroups");
+    m.dep[m.numdep++].Load(Output, finished_slab, "Output");
+    m.dep[m.numdep++].Load(Microstep, finished_slab, "Microstep");
+    m.dep[m.numdep++].Load(FinishGroups, finished_slab, "FinishGroups");
+    m.dep[m.numdep++].Load(Drift, finished_slab, "Drift");
     int min_il_slab = m.dep[m.numdep-1].begin-1;
     	// We just determined that Drift has executed on begin, so
 	// the rebinning might have taken particles to begin-1.
-    m.dep[m.numdep++].Load(Finish, finished_slab);
-    m.dep[m.numdep++].Load(LPTVelocityReRead, finished_slab);
+    m.dep[m.numdep++].Load(Finish, finished_slab, "Finish");
+    m.dep[m.numdep++].Load(LPTVelocityReRead, finished_slab, "LPTVelocityReRead");
     m.dep[m.numdep++].LoadCG(finished_slab);
     	// LoadCG() includes moving info into the CellGroupArenas
     assertf(m.numdep<MAXDEPENDENCY, "m.numdep has overflowed its MAX value");
@@ -582,25 +582,25 @@ void Manifest::ImportData() {
     // Set the dependencies.   Be careful that this keeps the Dependencies 
     // matched to the dep[] order set in QueueToSend().
     int n = 0;
-    m.dep[n++].Set(FetchSlabs);
-    m.dep[n++].Set(TransposePos);
-    m.dep[n++].Set(NearForce);
-    m.dep[n++].Set(TaylorForce);
-    m.dep[n++].Set(Kick);
-    m.dep[n++].Set(MakeCellGroups);
-    m.dep[n++].Set(FindCellGroupLinks);
-    m.dep[n++].Set(DoGlobalGroups);
-    m.dep[n++].Set(Output);
-    m.dep[n++].Set(Microstep);
-    m.dep[n++].Set(FinishGroups);
+    m.dep[n++].Set(FetchSlabs, "FetchSlabs");
+    m.dep[n++].Set(TransposePos, "TransposePos");
+    m.dep[n++].Set(NearForce, "NearForce");
+    m.dep[n++].Set(TaylorForce, "TaylorForce");
+    m.dep[n++].Set(Kick, "Kick");
+    m.dep[n++].Set(MakeCellGroups, "MakeCellGroups");
+    m.dep[n++].Set(FindCellGroupLinks, "FindCellGroupLinks");
+    m.dep[n++].Set(DoGlobalGroups, "DoGlobalGroups");
+    m.dep[n++].Set(Output, "Output");
+    m.dep[n++].Set(Microstep, "Microstep");
+    m.dep[n++].Set(FinishGroups, "FinishGroups");
     m.dep[n].end++;
         // We need to also mark the first_finished_slab on the other node
         // as having been completed.  This is because Finish requires this
         // as a precondition, and the particles incoming to Finish are on the
         // insert list.
-    m.dep[n++].Set(Drift);
-    m.dep[n++].Set(Finish);
-    m.dep[n++].Set(LPTVelocityReRead);
+    m.dep[n++].Set(Drift, "Drift");
+    m.dep[n++].Set(Finish, "Finish");
+    m.dep[n++].Set(LPTVelocityReRead, "LPTVelocityReRead");
     m.dep[n++].SetCG(m.remote_first_slab_finished);
     	// This will copy data back to GFC from CellGroupArenas
     assert(n==m.numdep);
