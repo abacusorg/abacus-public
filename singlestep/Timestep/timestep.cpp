@@ -768,6 +768,13 @@ void timestep(void) {
     assertf(IL->length==0, 
         "Insert List not empty (%d) at the end of timestep().  Time step too big?\n", IL->length);
     
+    #ifdef PARALLEL
+        usleep(1e6);
+        STDLOG(1,"Finished timestep loop!!\n");
+        unsigned int tmp = merged_particles;
+        MPI_Allreduce(MPI_IN_PLACE, &tmp, 1, MPI_UNSIGNED, MPI_SUM, MPI_COMM_WORLD);
+        merged_particles = tmp;
+    #endif 
     assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
 
     if (GFC != NULL) assertf(GFC->GLL->length==0,
