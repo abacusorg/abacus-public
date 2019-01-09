@@ -35,7 +35,7 @@ void ReadNodeSlabs() {
             for (int j=0; j<MPI_size; j++) {
                 int nread = fscanf(fp, "%d", &value);
                 assertf(nread==1, "Couldn't read entry %j from NodeSlabs file\n", j);
-                if (j==rank) first_slab_on_node = value;
+                if (j==MPI_rank) first_slab_on_node = value;
                 if (j==neighbor) last_slab = value;
             }
             fclose(fp);

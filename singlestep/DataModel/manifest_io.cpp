@@ -242,13 +242,17 @@ Manifest SendManifest, ReceiveManifest;
 void SetupManifest() {
     #ifdef PARALLEL
     STDLOG(1,"Turning on non-blocking Manifest Code\n");
-    SendManifest.set_nonblocking();
-    ReceiveManifest.set_nonblocking();
-    ReceiveManifest.LaunchReceiveThread();
-    #endif
     int rank = MPI_rank+1;
     if (rank>=MPI_size) rank-=MPI_size;
-    sprintf(RecNodeString,".%04d", rank);
+    sprintf(ReceiveManifest.RecNodeString,".%04d", rank);
+    #ifdef IOTHREADED
+        // The following routines turn on the non-blocking I/O
+        // For now we tie this to IO Threading, but it's not the same threads
+        SendManifest.set_nonblocking();
+        ReceiveManifest.set_nonblocking();
+        ReceiveManifest.LaunchReceiveThread();
+    #endif
+    #endif
 }
 
 
@@ -261,7 +265,7 @@ void *ManifestSendThread(void *p) {
 void *ManifestReceiveThread(void *p) {
     Manifest *m = (Manifest *)p;
     char fname[1024];
-    sprintf(fname, "%s/manifest_done%s", P.WriteStateDirectory, RecNodeString);
+    sprintf(fname, "%s/manifest_done%s", P.WriteStateDirectory, m->RecNodeString);
 
     while (FileExists(fname)==0) usleep(10000);
     	// Wait until the file exists
