@@ -91,7 +91,7 @@ class DependencyRecord {
     }
 
     /// Set the cellgroups_status to 1 for the indicated slabs
-    void SetCG() {
+    void SetCG(int finished_slab) {
         for (int s=begin; s<end; s++) {
             GFC->cellgroups_status[CP->WrapSlab(s)]=1;
             // And move the information from the Arenas back into the SlabArray
@@ -99,6 +99,9 @@ class DependencyRecord {
             // Now we can delete the CellGroupArena
             SB->DeAllocate(CellGroupArena,s);
         }
+        // We need to set cellgroups_status=2 for [end,finished_slab)
+        for (int s=end; s<finished_slab; s++)
+            GFC->cellgroups_status[CP->WrapSlab(s)]=2;
         return;
     }
 };
@@ -141,6 +144,7 @@ struct ManifestCore {
     int numlinks;	///< The number of GroupLink objects
     DependencyRecord dep[MAXDEPENDENCY];   ///< The dependency info
     int numdep;  ///< And the number of dependencies, just to check.
+    int remote_first_slab_finished;
 };
 
 /// This is the class for sending information between the nodes.
@@ -280,6 +284,7 @@ void Manifest::QueueToSend(int finished_slab) {
     // in our wake.  Might check, since one could screw up the Dependencies.
 
     first_slab_finished = finished_slab;   // A global record of this
+    m.remote_first_slab_finished = finished_slab; 
     STDLOG(1,"Queueing the SendManifest at slab=%d\n", finished_slab);
     Load.Start();
 
@@ -543,7 +548,7 @@ void Manifest::ImportData() {
     m.dep[n++].Set(Drift);
     m.dep[n++].Set(Finish);
     m.dep[n++].Set(LPTVelocityReRead);
-    m.dep[n++].SetCG();
+    m.dep[n++].SetCG(m.remote_first_slab_finished);
     	// This will copy data back to GFC from CellGroupArenas
     assert(n==m.numdep);
 
