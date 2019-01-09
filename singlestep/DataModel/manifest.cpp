@@ -183,12 +183,15 @@ class Manifest {
 
     Manifest() {
     	m.numarenas = m.numil = m.numlinks = m.numdep = 0;
-        completed = 0;
+        #ifdef PARALLEL
+            completed = 0;
+        #else
+            completed = 3;   // We're not doing anything
+        #endif
         bytes = 0;
         il = NULL;
         links = NULL;
         requests = NULL;
-        //// pending = NULL;
         numpending = -1;
         return;
     }
@@ -201,21 +204,19 @@ class Manifest {
     void set_pending(int n) {
         requests = new MPI_Request[n];
         for (int j=0; j<n; j++) requests[n]=MPI_REQUEST_NULL;
-        //// pending = new int[n];
-        //// for (int j=0; j<n; j++) pending[n]=1;
         numpending = n;
     }
     inline void mark_as_done(int j) {
         assertf(requests[j]==MPI_REQUEST_NULL,"MPI_Request %d wasn't NULL\n", j);
-        //// pending[j] = 0;
         numpending--;
     }
     /// Return 1 if newly found to be done, 0 otherwise
     inline int check_if_done(int j) {
-        //// if (pending[j]) {
         if (requests[j]!=MPI_REQUEST_NULL) {
             int err, sent=0;
+            #ifdef PARALLEL
             err = MPI_Test(requests+j,&sent,MPI_STATUS_IGNORE);   
+            #endif
             if (sent) { mark_as_done(j); return 1; }
         }
         return 0;
@@ -267,6 +268,7 @@ Then call the non-blocking communication and return.
 */
 
 void Manifest::QueueToSend(int finished_slab) {
+    #ifdef PARALLEL
     Load.Start();
     int cpd = P.cpd;
 
@@ -357,12 +359,14 @@ void Manifest::QueueToSend(int finished_slab) {
 
     this->Send(); 
     // usleep(2e6);   // TODO: Don't forget to remove this
+    #endif
     return;
 }
 
 // =============== Routine to actually transmit the outgoing info ====
 
 void Manifest::Send() {
+    #ifdef PARALLEL
     Transmit.Start();
     set_pending(m.numarenas+3);
     int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -394,11 +398,14 @@ void Manifest::Send() {
     STDLOG(1,"Done queuing the SendManifest\n");
     completed = 1;
     Transmit.Stop();
+    #endif
+    return;
 }
 
 /// This is the routine to call frequently to try to clean up 
 /// space after Send's have happened.
 inline void Manifest::FreeAfterSend() {
+    #ifdef PARALLEL
     if (completed!=2) return;   // No active Isend's yet
     CheckCompletion.Start();
     check_if_done(0);    // Manifest Core
@@ -421,6 +428,8 @@ inline void Manifest::FreeAfterSend() {
         STDLOG(1,"Marking the Send Manifest as completely sent\n");
     }
     CheckCompletion.Stop();
+    #endif
+    return;
 }
 
 
@@ -428,6 +437,7 @@ inline void Manifest::FreeAfterSend() {
 
 /// We have to issue the request to receive the ManifestCore
 void Manifest::SetupToReceive() {
+    #ifdef PARALLEL
     Transmit.Start();
     set_pending(1);
     int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -437,15 +447,14 @@ void Manifest::SetupToReceive() {
     bytes += sizeof(ManifestCore);
     STDLOG(1,"Ireceive the Manifest Core from node rank %d\n", rank);
     Transmit.Stop();
+    #endif
+    return;
 }
 
 /// This can be called in timestep.cpp to manually check 
 /// whether Receive is ready to run.
 inline void Manifest::Check() {
-    #ifndef PARALLEL
-    return;	// If we're not doing PARALLEL, let this optimize to a no-op
-    #endif
-
+    #ifdef PARALLEL
     if (completed>=2) return;   // Nothing's active now
     if (completed==0) {
         CheckCompletion.Start();
@@ -477,12 +486,15 @@ inline void Manifest::Check() {
         }
         CheckCompletion.Stop();
     }
+    #endif
+    return;
 }
 
 /// This is the routine invoked by the communication thread.
 /// It should store the results.
 /// It allocates the needed space.
 void Manifest::Receive() {
+    #ifdef PARALLEL
     Transmit.Start();
     set_pending(m.numarenas+2);
     int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -521,6 +533,8 @@ void Manifest::Receive() {
     completed = 1;
     Transmit.Stop();
     // usleep(2e6);   // TODO: Don't forget to remove this
+    #endif
+    return;
 }
 
 
@@ -540,6 +554,7 @@ opening this region for use.
 */
 
 void Manifest::ImportData() {
+    #ifdef PARALLEL
     assertf(completed==2, "ImportData has been called when completed==%d\n", completed);
 
     STDLOG(1,"Importing ReceiveManifest of %l bytes into the flow\n", bytes);
@@ -597,6 +612,8 @@ void Manifest::ImportData() {
     // TODO: Could erase the file, but we won't for now
     done();
     Load.Stop();
+    #endif
+    return;
 }
 
-#endif
+#endif    // NO_MPI
