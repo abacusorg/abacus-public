@@ -356,7 +356,7 @@ void Manifest::QueueToSend(int finished_slab) {
     Load.Stop();
 
     this->Send(); 
-    usleep(2e6);   // TODO: Don't forget to remove this
+    // usleep(2e6);   // TODO: Don't forget to remove this
     return;
 }
 
@@ -520,7 +520,7 @@ void Manifest::Receive() {
     // STDLOG(1,"Done receiving the ReceiveManifest\n");
     completed = 1;
     Transmit.Stop();
-    usleep(2e6);   // TODO: Don't forget to remove this
+    // usleep(2e6);   // TODO: Don't forget to remove this
 }
 
 
