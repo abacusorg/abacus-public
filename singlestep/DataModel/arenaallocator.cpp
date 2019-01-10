@@ -216,7 +216,8 @@ ArenaAllocator::~ArenaAllocator(void) {
     for(int i=0;i<maxids;i++) 
             if (arena[i].present) {
                 STDLOG(0,"Arena %d was not deallocated before arena allocator destructor was called.\n", i);
-                fprintf(stderr,"Arena %d was not deallocated before arena allocator destructor was called.\n", i);
+                // This used to be a major concern, but it's not in the parallel code
+                // fprintf(stderr,"Arena %d was not deallocated before arena allocator destructor was called.\n", i);
                 assertf(arena[i].addr!=NULL, "Arena %d is present, but NULL\n", i);
                 DiscardArena(i); 
             }
