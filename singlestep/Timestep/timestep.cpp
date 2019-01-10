@@ -282,10 +282,12 @@ void KickAction(int slab) {
     // Release the trailing slab if it won't be needed at the wrap
     // Technically we could release it anyway and re-do the transpose from PosSlab,
     // but if we're not doing group finding we may have already written and released PosSlab
-    if(Kick.number_of_slabs_executed >= 2*FORCE_RADIUS)
+    if(Kick.raw_number_executed >= 2*FORCE_RADIUS)
         SB->DeAllocate(PosXYZSlab, slab - FORCE_RADIUS);
 
+    #ifndef PARALLEL
     // Special case: if this is the last slab, free all +/- FORCE_RADIUS
+    // Not worrying about this in the PARALLEL case; we have other non-destructions
     STDLOG(1,"%d slabs have been Kicked so far\n", Kick.number_of_slabs_executed);
     if(Kick.number_of_slabs_executed == CP->cpd-1)
         for(int j = slab - FORCE_RADIUS+1; j <= slab + FORCE_RADIUS; j++)
@@ -293,7 +295,6 @@ void KickAction(int slab) {
 
     // Queue up slabs near the wrap to be loaded again later
     // This way, we don't have idle slabs taking up memory while waiting for the pipeline to wrap around
-    #ifndef PARALLEL
     if(Kick.number_of_slabs_executed < FORCE_RADIUS){
         STDLOG(2,"Marking slab %d for repeat\n", slab - FORCE_RADIUS);
         TransposePos.mark_to_repeat(slab - FORCE_RADIUS);
@@ -537,8 +538,8 @@ void FinishGroupsAction(int slab){
  */
 int FetchLPTVelPrecondition(int slab){
     // Don't read too far ahead
-    if(LPTVelocityReRead.number_of_slabs_executed > 
-            Drift.number_of_slabs_executed + 2*FINISH_WAIT_RADIUS + 1) {
+    if(LPTVelocityReRead.raw_number_executed > 
+            Drift.raw_number_executed + 2*FINISH_WAIT_RADIUS + 1) {
         return 0;
     }
 
@@ -666,11 +667,11 @@ void FinishAction(int slab) {
     SB->StoreArenaNonBlocking(MultipoleSlab,slab);
     WriteMultipoleSlab.Stop();
 
-    int pwidth = FetchSlabs.number_of_slabs_executed - Finish.number_of_slabs_executed;
+    int pwidth = FetchSlabs.raw_number_executed - Finish.raw_number_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
 
     #ifdef PARALLEL
-    if (Finish.number_of_slabs_executed==0) SendManifest->QueueToSend(slab);
+    if (Finish.raw_number_executed==0) SendManifest->QueueToSend(slab);
     #endif
     // TODO: is there a different place in the code where we would rather report this?
     ReportMemoryAllocatorStats();

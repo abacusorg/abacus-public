@@ -25,9 +25,6 @@ the data when it is received.
 
 */
 
-// #define NO_MPI    // Just keep these routines blocked out for now
-
-
 // ================== Manifest helpers =====================================
 
 /// The information we're passing for a single arena
