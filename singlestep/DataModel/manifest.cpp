@@ -178,7 +178,7 @@ class Manifest {
     int *pending;       ///< An array listing who is pending.
 
     void free_requests() {
-        assertf(numpending<=0, "We've been asked to free the MPI listing before all is completed.\n");
+        assertf(numpending<=0, "We've been asked to free the MPI listing before all is completed, %d.\n", numpending);
         if (requests!=NULL) delete[] requests;
         if (pending!=NULL) delete[] pending;
         numpending = -1;
@@ -208,10 +208,12 @@ class Manifest {
         requests = new MPI_Request[n];
         for (int j=0; j<n; j++) requests[n]=MPI_REQUEST_NULL;
         numpending = n;
+        // STDLOG(1,"Establishing Manifest MPI listing of %d activities\n", numpending);
     }
     inline void mark_as_done(int j) {
         assertf(requests[j]==MPI_REQUEST_NULL,"MPI_Request %d wasn't NULL\n", j);
         numpending--;
+        // STDLOG(1,"Marked Manifest activity %d as done.  %d remain\n", j, numpending);
     }
     /// Return 1 if newly found to be done, 0 otherwise
     inline int check_if_done(int j) {
@@ -414,7 +416,7 @@ void Manifest::Send() {
 /// space after Send's have happened.
 inline void Manifest::FreeAfterSend() {
     #ifdef PARALLEL
-    if (completed!=2) return;   // No active Isend's yet
+    if (completed!=1) return;   // No active Isend's yet
     CheckCompletion.Start();
     check_if_done(0);    // Manifest Core
     if (check_if_done(1)) {
