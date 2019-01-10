@@ -64,7 +64,7 @@ void WriteNodeSlabs() {
         // MPI: Send first_slab_finished to fill in this element in the vector
         // We just do this as a boring summation.
         // TODO: Might seek more minimal transaction
-        MPI_Allreduce(MPI_IN_PLACE, &first, MPI_size, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(MPI_IN_PLACE, first, MPI_size, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
         if (WriteState.NodeRank==0) {
             char fname[1024];

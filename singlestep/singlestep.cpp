@@ -316,8 +316,8 @@ int main(int argc, char **argv) {
         sprintf(command, "rm -rf %s/*", P.WriteStateDirectory);
         int ret = system(command);  // hacky!
     }
-    stdlog.close();
 
     FinalizeParallel();  // This may be the last synchronization point?
+    stdlog.close();
     exit(0);
 }

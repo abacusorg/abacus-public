@@ -568,7 +568,10 @@ int DriftPrecondition(int slab) {
     // We also must have the 2LPT velocities
     // The finish radius is a good guess of how ordered the ICs are
     for(int i=-FINISH_WAIT_RADIUS;i<=FINISH_WAIT_RADIUS;i++) 
-        if (LPTVelocityReRead.notdone(slab+i)) return 0;
+        if (LPTVelocityReRead.notdone(slab+i)) {
+            STDLOG(1,"Failed a LPTVel test on slab %d\n", slab+i);
+            // return 0;   // TODO: REMOVE THIS!!
+        }
         
     return 1;
 }
@@ -768,12 +771,13 @@ void timestep(void) {
     assertf(IL->length==0, 
         "Insert List not empty (%d) at the end of timestep().  Time step too big?\n", IL->length);
     
+    STDLOG(1,"Finished timestep dependency loop!!\n");
     #ifdef PARALLEL
         usleep(1e6);
-        STDLOG(1,"Finished timestep loop!!\n");
-        unsigned int tmp = merged_particles;
-        MPI_Allreduce(MPI_IN_PLACE, &tmp, 1, MPI_UNSIGNED, MPI_SUM, MPI_COMM_WORLD);
-        merged_particles = tmp;
+        MPI_Allreduce(MPI_IN_PLACE, &merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
+        STDLOG(1,"Ready to proceed to the remaining work\n");
+        // This MPI call also forces a syncrhonization over the MPI processes, 
+        // so things like Reseting GPUs could fire multiple times on one node.
     #endif 
     assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
 

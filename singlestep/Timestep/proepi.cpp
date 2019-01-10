@@ -335,8 +335,9 @@ void Epilogue(Parameters &P, bool MakeIC) {
             delete[] SlabForceLatency;
             delete[] SlabForceTime;
             delete[] SlabFarForceTime;
-            delete NFD;
             delete GFC;
+            STDLOG(1,"Done with Epilogue; about to kill the GPUs\n");
+            delete NFD;
     }
 
 

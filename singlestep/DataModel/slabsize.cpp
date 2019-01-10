@@ -18,6 +18,7 @@ class SlabSize {
         _cpd = cpd;
         _size = new uint64[cpd];
         _newsize = new uint64[cpd];
+        STDLOG(1,"SlabSize vectors %p %p\n", (void *)_size, (void *)_newsize);
         for (int j=0;j<cpd;j++) _newsize[j] = 0;
         max = 0;
         min = UINT64_MAX;
@@ -28,7 +29,10 @@ class SlabSize {
         load_from_params(P);
     }
 
-    ~SlabSize(void) { delete[] _size; delete[] _newsize; }
+    ~SlabSize(void) { 
+        delete[] _size; 
+        delete[] _newsize; 
+    }
 
     // Provide access with a wrapped index.
     void set(int slab, uint64 size) { _newsize[Grid->WrapSlab(slab)] = size; }
@@ -41,7 +45,7 @@ class SlabSize {
             // Send all non-zero values of _newsize to node 0
             // Since _newsize is set only when a slab is finished,
             // we can economize our code and just add the vectors.
-            MPI_Allreduce(MPI_IN_PLACE, &_newsize, _cpd, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
+            MPI_Allreduce(MPI_IN_PLACE, _newsize, _cpd, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
         #endif
         return;
     }
