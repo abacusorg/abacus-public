@@ -381,7 +381,7 @@ void ArenaAllocator::DiscardArena(int id) {
         total_shm_allocation -= arena[id].allocated_size;
     }
     else {
-        DumpArena(id,1);
+        // DumpArena(id,1);
         free(arena[id].addr);
     }
 

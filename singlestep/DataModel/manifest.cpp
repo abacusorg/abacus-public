@@ -237,7 +237,7 @@ class Manifest {
         a->slab = s;
         a->size = SB->SlabSizeBytes(type, s);
         a->ptr =  SB->GetSlabPtr(type, s);
-        STDLOG(1, "Queuing slab %d of type %d, size %l\n", s, type, a->size);
+        STDLOG(2, "Queuing slab %d of type %d, size %l\n", s, type, a->size);
         m.numarenas++;
         assertf(m.numarenas<MAXMANIFEST, "numarenas has overflowed; increase MAXMANIFEST.");
         return;
@@ -573,7 +573,7 @@ void Manifest::ImportData() {
     Load.Start();
     for (int n=0; n<m.numarenas; n++) {
 	    SB->SetIOCompleted(m.arenas[n].type, m.arenas[n].slab);
-	    STDLOG(1,"Completing Import of arena slab %d of type %d and size %l\n", 
+	    STDLOG(2,"Completing Import of arena slab %d of type %d and size %l\n", 
 	    	m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size);
         if (m.arenas[n].type==PosSlab) {
             // Set the SlabSize based on the newly arrived PosSlab
