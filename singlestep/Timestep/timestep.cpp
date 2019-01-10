@@ -567,11 +567,11 @@ int DriftPrecondition(int slab) {
     
     // We also must have the 2LPT velocities
     // The finish radius is a good guess of how ordered the ICs are
-    for(int i=-FINISH_WAIT_RADIUS;i<=FINISH_WAIT_RADIUS;i++) 
-        if (LPTVelocityReRead.notdone(slab+i)) {
-            STDLOG(1,"Failed a LPTVel test on slab %d\n", slab+i);
-            // return 0;   // TODO: REMOVE THIS!!
-        }
+    if(WriteState.Do2LPTVelocityRereading)
+        for(int i=-FINISH_WAIT_RADIUS;i<=FINISH_WAIT_RADIUS;i++) 
+            if (LPTVelocityReRead.notdone(slab+i)) {
+                return 0;   
+            }
         
     return 1;
 }
