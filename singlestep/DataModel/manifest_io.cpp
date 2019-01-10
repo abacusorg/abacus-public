@@ -239,27 +239,33 @@ class Manifest {
 
 
 /// Here are our outgoing and incoming Manifest instances
-Manifest SendManifest, ReceiveManifest; 
+Manifest *SendManifest, *ReceiveManifest; 
 
 /// Call this routine to turn on Non-blocking Manifest
 void SetupManifest() {
+    SendManifest = new Manifest;
+    ReceiveManifest = new Manifest;
     #ifdef PARALLEL
     int rank = MPI_rank+1;
     if (rank>=MPI_size) rank-=MPI_size;
-    sprintf(ReceiveManifest.RecNodeString,".%04d", rank);
+    sprintf(ReceiveManifest->RecNodeString,".%04d", rank);
     #ifdef IOTHREADED
         // The following routines turn on the non-blocking I/O
         // For now we tie this to IO Threading, but it's not the same threads
         STDLOG(1,"Turning on non-blocking Manifest I/O Code\n");
-        SendManifest.set_nonblocking();
-        ReceiveManifest.set_nonblocking();
-        ReceiveManifest.LaunchReceiveThread();
+        SendManifest->set_nonblocking();
+        ReceiveManifest->set_nonblocking();
+        ReceiveManifest->LaunchReceiveThread();
     #else
         STDLOG(1,"Turning on blocking Manifest I/O Code\n");
     #endif
     #endif
 }
 
+void FreeManifest() {
+    delete SendManifest;
+    delete ReceiveManifest;
+}
 
 void *ManifestSendThread(void *p) {
     Manifest *m = (Manifest *)p;
@@ -384,7 +390,7 @@ void Manifest::QueueToSend(int finished_slab) {
 	STDLOG(1, "Preparing to Send the Manifest by blocking method.\n");
     	this->Send(); 
     } else {
-    	STDLOG(1, "Forking the SendManifest.Send() thread.\n");
+    	STDLOG(1, "Forking the SendManifest->Send() thread.\n");
     	LaunchSendThread();
     }
     return;

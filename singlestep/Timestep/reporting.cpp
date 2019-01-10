@@ -160,13 +160,13 @@ void ReportTimings(FILE * timingfile) {
         fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
 
     REPORT(1, "Manifest", 
-        SendManifest.Load.Elapsed()
-        +SendManifest.Transmit.Elapsed()
-        +SendManifest.CheckCompletion.Elapsed()
-        +ReceiveManifest.Load.Elapsed()
-        +ReceiveManifest.Transmit.Elapsed()
-        +ReceiveManifest.CheckCompletion.Elapsed()); total += thistime;
-        fprintf(timingfile,"---> %6.3f MB", ReceiveManifest.bytes/1e6);
+        SendManifest->Load.Elapsed()
+        +SendManifest->Transmit.Elapsed()
+        +SendManifest->CheckCompletion.Elapsed()
+        +ReceiveManifest->Load.Elapsed()
+        +ReceiveManifest->Transmit.Elapsed()
+        +ReceiveManifest->CheckCompletion.Elapsed()); total += thistime;
+        fprintf(timingfile,"---> %6.3f MB", ReceiveManifest->bytes/1e6);
     REPORT(1, "Spinning", spinning); total += thistime;
     REPORT(1, "Unaccounted", TimeStepWallClock.Elapsed()-total);
 
@@ -370,7 +370,7 @@ void ReportTimings(FILE * timingfile) {
             REPORT_RATE();
         REPORT(2, "Write Particles", WriteMergeSlab.Elapsed());
         REPORT(2, "Write Multipoles", WriteMultipoleSlab.Elapsed());
-        REPORT(2, "Queuing Send Manifest", SendManifest.Load.Elapsed()+SendManifest.Transmit.Elapsed());
+        REPORT(2, "Queuing Send Manifest", SendManifest->Load.Elapsed()+SendManifest->Transmit.Elapsed());
     
     // Misc global timings
     denom = TimeStepWallClock.Elapsed();

@@ -316,6 +316,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
     delete IL;
     delete SS;
     delete Grid;
+    FreeManifest();
 
 
     if(!MakeIC) {

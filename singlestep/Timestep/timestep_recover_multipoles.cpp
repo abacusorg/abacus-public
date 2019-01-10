@@ -73,10 +73,10 @@ void timestepMultipoles(void) {
     while( !Finish.alldone(total_slabs_on_node) ) {
         FetchSlabs.Attempt();
             Finish.Attempt();
-        // TODO: The following line will be omitted once the MPI monitoring thread is in place.
-        ReceiveManifest.Check();   // This checks if Send is ready; no-op in non-blocking mode
+           SendManifest->FreeAfterSend();
+        ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
         // If the manifest has been received, install it.
-        if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
+        if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
     }
 
     STDLOG(1,"Completing timestepMultipoles()\n");

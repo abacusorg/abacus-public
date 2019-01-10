@@ -670,7 +670,7 @@ void FinishAction(int slab) {
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
 
     #ifdef PARALLEL
-    if (Finish.number_of_slabs_executed==0) SendManifest.QueueToSend(slab);
+    if (Finish.number_of_slabs_executed==0) SendManifest->QueueToSend(slab);
     #endif
     // TODO: is there a different place in the code where we would rather report this?
     ReportMemoryAllocatorStats();
@@ -758,11 +758,11 @@ void timestep(void) {
                 Drift.Attempt();
                Finish.Attempt();
 	    // TODO: The following line will be omitted once the MPI monitoring thread is in place.
-           SendManifest.FreeAfterSend();
-	    ReceiveManifest.Check();   // This checks if Send is ready; no-op in non-blocking mode
+           SendManifest->FreeAfterSend();
+	    ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
 	
 	    // If the manifest has been received, install it.
-	    if (ReceiveManifest.is_ready()) ReceiveManifest.ImportData();
+	    if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
     }
 
     if(IL->length!=0)
