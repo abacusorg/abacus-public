@@ -20,6 +20,7 @@
 #include <sys/time.h>
 #include <sys/resource.h> 
 
+#include "mpi_header.cpp"
 #include "header.cpp"
 #include "threevector.hh"
 #include "float3p1.cpp"    // This will define FLOAT3p1
