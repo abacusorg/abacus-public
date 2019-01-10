@@ -1,6 +1,7 @@
 #level 2 parameter file for spiral test
 SimName = "spiral"
 #include "$ABACUS$/Tests/test.def"
+#include "$ABACUS$/Production/site_files/site.def"
 
 #include "$ABACUS$/Abacus/directory.def"
 DerivativesDirectory= "$ABACUS_TMP$/Derivatives/"
@@ -14,3 +15,6 @@ OverwriteState = 0
 ForceOutputDebug = 0
 OutputFormat="RVdouble"
 CPD = 33
+
+Parallel = 1
+LocalWorkingDirectory = "/mnt/raid/lgarrison/local/" + @SimName@

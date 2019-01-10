@@ -46,6 +46,7 @@ from glob import glob
 import pathlib
 import re
 import fnmatch
+import shlex
 
 from .InputFile import InputFile
 from . import Tools
@@ -108,20 +109,18 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     pardir = dirname(parfn)
     if not output_parfile:
         output_parfile = pjoin(pardir, 'abacus.par')
-        
-    try:
-        maxsteps = int(maxsteps)
-        assert(maxsteps >= 0)
-    except:
-        maxsteps = 10000
 
     params = preprocess_params(output_parfile, parfn, use_site_overrides=use_site_overrides,
                 override_directories=override_directories, **param_kwargs)
-    
-    basedir = params['WorkingDirectory']
-    logdir = params['LogDirectory']
+
+    parallel = params.get('Parallel', False)
+
+    # These directories are global; i.e. treated the same in the parallel and serial versions
     icdir = params['InitialConditionsDirectory']
     outdir = params['OutputDirectory']
+    logdir = params['LogDirectory']
+    basedir = params['WorkingDirectory']
+    groupdir = params.get('GroupDirectory', '')
 
     # If we requested a resume, but there is no state, assume we are starting fresh
     if not clean:
@@ -135,29 +134,18 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
         print('Erasing IC dir')
         shutil.rmtree(icdir)
 
-    # If not resuming, erase everything but the ICs
+    # If not resuming, erase old global dirs
     if clean:
-        clean_dir(params['WorkingDirectory'], preserve=None if erase_ic else icdir)
-        try:
-            clean_dir(params['WorkingDirectory2'], preserve=None if erase_ic else icdir)
-        except KeyError: pass
-        clean_dir(params['MultipoleDirectory'])
-        try: clean_dir(params['MultipoleDirectory2'])
-        except KeyError: pass
-        clean_dir(params['TaylorDirectory'])
-        try: clean_dir(params['TaylorDirectory2'])
-        except KeyError: pass
-        # TODO: deleting the parent ad-hoc is dangerous!  should switch to ConvolutionWorkingDirectory
-        clean_dir(dirname(normpath(params['TaylorDirectory'])), preserve=None if erase_ic else icdir)
-        clean_dir(dirname(normpath(params['MultipoleDirectory'])), preserve=None if erase_ic else icdir)
-
-        if path.exists(logdir):
-            shutil.rmtree(logdir)
-
-        print("Erased previous working directories.")
+        clean_dir(basedir, preserve=icdir if not erase_ic else None)
+        clean_dir(outdir, preserve=icdir if not erase_ic else None)
+        clean_dir(logdir, preserve=icdir if not erase_ic else None)
+        clean_dir(groupdir, preserve=icdir if not erase_ic else None)
             
     os.makedirs(basedir, exist_ok=True)
-    os.makedirs(logdir, exist_ok=True)
+
+    for d in ['LogDirectory', 'OutputDirectory', 'GroupDirectory']:
+        if d in params and params[d]:
+            os.makedirs(params[d], exist_ok=True)
     
     try:
         shutil.copy(output_parfile, basedir)
@@ -177,6 +165,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     info_out_path = pjoin(outdir, 'info')
     copy_contents(config_dir, info_out_path, clean=True)
         
+    # Note: we are cd-ing into the global working directory if this is a parallel run
     with Tools.chdir(basedir):
         # The parfile is directly stored in the basedir
         output_parfile = basename(output_parfile)
@@ -184,7 +173,8 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
             zeldovich.run(output_parfile, allow_eigmodes_fn_override=override_directories)
         elif clean:
             print('Reusing existing ICs')
-        retval = singlestep(output_parfile, maxsteps, AllowIC=clean)
+
+        retval = singlestep(output_parfile, maxsteps, make_ic=clean)
 
     return retval
 
@@ -447,10 +437,20 @@ def setup_state_dirs(paramfn):
 
     Sloshing/striping of the multipole/taylors can be requested
     with the `Conv_IOMode` parameter.
+
+    When doing a parallel run, we can set up global directories here,
+    but not node-local ones.
     '''
     params = GenParam.makeInput(paramfn, paramfn)
     StateIOMode = params.get('StateIOMode','normal').lower()
     Conv_IOMode = params.get('Conv_IOMode','normal').lower()
+
+    parallel = params.get('Parallel', False)
+
+    # Presently, we only support normal operation and overwriting in the parallel version
+    if parallel:
+        assert StateIOMode in ('normal', 'overwrite')
+        assert Conv_IOMode in ('normal', 'overwrite')
     
     # Normal operation: everything is under the WorkingDirectory or specified individually
     # Can't specify both WorkingDir and ReadDir
@@ -470,8 +470,13 @@ def setup_state_dirs(paramfn):
     read = normpath(read)
     write = normpath(write)
 
-    taylors = normpath(params['TaylorDirectory'])
-    multipoles = normpath(params['MultipoleDirectory'])
+    if not parallel:
+        taylors = normpath(params['TaylorDirectory'])
+        multipoles = normpath(params['MultipoleDirectory'])
+    else:
+        # In parallel version, M/T are purely node-local
+        taylors = None
+        multipoles = None
 
     if StateIOMode == 'overwrite':
         write = read
@@ -532,14 +537,15 @@ def setup_state_dirs(paramfn):
             "If Conv_IOMode = stripe, must specify MultipoleDirectory2 & TaylorDirectory2 via $ABACUS_SSD2 or directly in the parameter file!"
 
     # Create dirs
-    for d in ['MultipoleDirectory', 'MultipoleDirectory2', 'TaylorDirectory', 'TaylorDirectory2']:
-        if d in params:
-            os.makedirs(params[d], exist_ok=True)
+    if not parallel:
+        for d in ['MultipoleDirectory', 'MultipoleDirectory2', 'TaylorDirectory', 'TaylorDirectory2']:
+            if d in params:
+                os.makedirs(params[d], exist_ok=True)
 
     return read,write,past,multipoles,taylors
 
 
-def move_state_dirs(read, write, past, multipoles, taylors):
+def move_state_dirs(read, write, past):
     '''
     At the end of every timestep, we to move the "write" state
     to the read directory, move "read" to "past", and discard
@@ -562,7 +568,6 @@ def move_state_dirs(read, write, past, multipoles, taylors):
             except OSError:
                 # can't rmtree symlink! but we at least want to delete the contents
                 clean_dir(read, preserve=None, rmdir_ifempty=False)
-                pass
     else:
         try:
             shutil.rmtree(past)
@@ -654,10 +659,14 @@ def update_status_log(param, state, status_log):
     status_log.update(Step=step_num, Redshift=state.Redshift, Singlestep=(ss_rate,ss_time), Conv=conv_time)
 
 
-def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
+def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     """
     Run a number of Abacus timesteps by invoking the `singlestep` and
-    `ConvolutionDriver` executables.
+    `ConvolutionDriver` executables in a tick-tock fashion.
+
+    If running a parallel job, instead calls `mpirun singlestep` and
+    `mpirun ConvolutionDriver` (or whatever MPI launch command has
+    been configured).
 
     Parameters
     ----------
@@ -665,7 +674,7 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
         File name of the parameter file for this simulation
     maxsteps: int
         Run (at most) `maxsteps` timesteps.
-    AllowIC: bool, optional
+    make_ic: bool, optional
         Make the first timestep an IC ingestion step.
     stopbefore: int, optional
         Run abacus until it is about to call "singlestep" for step `stopbefore`.
@@ -680,7 +689,12 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
     """
     finished = False
 
-    if maxsteps == 0:
+    if maxsteps is None:
+        maxsteps = 10000
+
+    maxsteps = int(maxsteps)
+
+    if maxsteps <= 0:
         return 0
 
     if not path.exists(paramfn):
@@ -688,11 +702,17 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
         
     param = InputFile(paramfn)
 
+    parallel = param.get('Parallel', False)
+
     # Set up backups
     try:
         backups_enabled = param['BackupStepInterval'] > 0
     except:
         backups_enabled = False  # No BackupIntervalSteps parameter
+    
+    if parallel:
+        # TODO: figure out how to signal a backup to the nodes
+        backups_enabled = False
 
     #if not backups_enabled:
     #    print 'Warning: automatic state backup not enabled.  Set "BackupStepInterval" and "BackupDirectory" in the parameters file.'
@@ -700,100 +720,124 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
     ProfilingMode = param.get('ProfilingMode',False)
         
     # Set up OpenMP singlestep environment
+    # TODO: check that calling mpirun with this environment is equivalent to calling singlestep with the environment
     singlestep_env = setup_singlestep_env(param)
     convolution_env = setup_convolution_env(param)
 
     status_log = StatusLogWriter(pjoin(param.OutputDirectory, 'status.log'))
 
-    print("Using parameter file %s and working directory %s."%(paramfn,param.WorkingDirectory))
+    print("Using parameter file {:s} and working directory {:s}.".format(paramfn,param.WorkingDirectory))
 
     # floatprec=True effectively guarantees both precisions are available
     # TODO: how to tell if Abacus was compiled in double precision?
-    MakeDerivatives(param, floatprec=True)
-
-    # Create directories
-    for d in ['LogDirectory', 'OutputDirectory', 'GroupDirectory']:
-        if d in param and param[d]:
-            os.makedirs(param[d], exist_ok=True)
+    if not parallel:
+        # TODO: I think convolution will figure this out in the parallel version
+        MakeDerivatives(param, floatprec=True)
 
     print("Beginning abacus steps:")
 
-    if AllowIC:
+    if make_ic:
         print("Ingesting IC from "+param.InitialConditionsDirectory+" ... Skipping convolution")
         if path.exists(pjoin(param.InitialConditionsDirectory, "input.pow")):
             shutil.copy(pjoin(param.InitialConditionsDirectory, "input.pow"), pjoin(param.LogDirectory, "input.pow"))
 
     # Finalize the directories, possibly setting up symlinks for state sloshing
+    # Careful: multipoles & taylors can be None if doing a parallel run!
     read,write,past,multipoles,taylors = setup_state_dirs(paramfn)
 
-    for i in range(maxsteps):
+    if parallel:
         try:
-            read_state = InputFile(pjoin(read,"state"))
-            ConvDone = check_multipole_taylor_done(param, read_state, kind='Taylor')
-            stepnum = read_state.FullStepNumber+1
-        except IOError:
-            assert AllowIC, "If there is no read state, this must be an IC step!"
+            mpirun_cmd = shlex.split(param['mpirun_cmd'])
+        except KeyError:
+            raise RuntimeError('"mpirun_cmd" must be specified in the parameter file if "Parallel = 1"!')
+        #print('__{:s}__'.format(mpirun_cmd))
+
+    for i in range(maxsteps):
+        if make_ic:
             ConvDone = True  # No need to convolve for an IC step
             stepnum = 0
+        else:
+            read_state = InputFile(pjoin(read,"state"))
+            if parallel:
+                ConvDone = False  # Have to take it on faith that the nodes have multipoles and are ready to convolve!
+            else:
+                ConvDone = check_multipole_taylor_done(param, read_state, kind='Taylor')
+            stepnum = read_state.FullStepNumber + 1
 
         # Do the convolution
         if not ConvDone:
-            # Now check if we have all the multipoles the convolution will need
-            if not check_multipole_taylor_done(param, read_state, kind='Multipole'):
-                # Invole multipole recovery mode
-                print("Warning: missing multipoles! Performing multipole recovery for step {:d}".format(i))
-                
-                # Build the recover_multipoles executable
-                with Tools.chdir(pjoin(abacuspath, "singlestep")):
-                    subprocess.check_call(['make', 'recover_multipoles'])
+            if not parallel:
+                # Now check if we have all the multipoles the convolution will need
+                if not check_multipole_taylor_done(param, read_state, kind='Multipole'):
+                    # Invoke multipole recovery mode
+                    print("Warning: missing multipoles! Performing multipole recovery for step {:d}".format(i))
+                    
+                    # Build the recover_multipoles executable
+                    with Tools.chdir(pjoin(abacuspath, "singlestep")):
+                        subprocess.check_call(['make', 'recover_multipoles'])
 
-                # Execute it
-                print("Running recover_multipoles for step {:d}".format(stepnum))
-                subprocess.check_call([pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn], env=singlestep_env)
-                save_log_files(param.LogDirectory, 'step{:04d}.recover_multipoles'.format(read_state.FullStepNumber))
-                print('\tFinished multipole recovery for read state {}.'.format(read_state.FullStepNumber))
+                    # Execute it
+                    print("Running recover_multipoles for step {:d}".format(stepnum))
+                    subprocess.check_call([pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn], env=singlestep_env)
+                    save_log_files(param.LogDirectory, 'step{:04d}.recover_multipoles'.format(read_state.FullStepNumber))
+                    print('\tFinished multipole recovery for read state {}.'.format(read_state.FullStepNumber))
 
-            # Swap the Taylors link.  In effect, this will place the Taylors on the same disk as the multipoles.
-            # But that's what we want for sloshing: this was the write disk, so now it will be the upcoming read disk
-            # We'll swap the multipoles as soon as we convolve
-            if path.islink(taylors):
-                taylors_convstate = os.readlink(taylors)
-                os.unlink(taylors)
-                os.symlink(os.readlink(multipoles), taylors)
+                # Swap the Taylors link.  In effect, this will place the Taylors on the same disk as the multipoles.
+                # But that's what we want for sloshing: this was the write disk, so now it will be the upcoming read disk
+                # We'll swap the multipoles as soon as we convolve
+                if path.islink(taylors):
+                    taylors_convstate = os.readlink(taylors)
+                    os.unlink(taylors)
+                    os.symlink(os.readlink(multipoles), taylors)
             
-            print("Performing convolution for step {:d}".format(stepnum))
-            subprocess.check_call([pjoin(abacuspath, "Convolution", "ConvolutionDriver"), paramfn], env=convolution_env)
+            ConvolutionDriver_cmd = [pjoin(abacuspath, "Convolution", "ConvolutionDriver"), paramfn]
+            if parallel:
+                ConvolutionDriver_cmd = mpirun_cmd + ConvolutionDriver_cmd
+                print('Performing PARELLEL convolution for step {:d} with command "{:s}"'.format(stepnum, ' '.join(ConvolutionDriver_cmd)))
+                subprocess.check_call(ConvolutionDriver_cmd, env=convolution_env)
+            else:
+                print("Performing convolution for step {:d}".format(stepnum))
+                subprocess.check_call(ConvolutionDriver_cmd, env=convolution_env)
 
             if ProfilingMode == 2:
                 print('\tConvolution step {} finished. ProfilingMode = 2 (Convolution) is active; Abacus will now quit.'.format(stepnum))
                 break
 
-            if not check_multipole_taylor_done(param, read_state, kind='Taylor'):
+            if not parallel and not check_multipole_taylor_done(param, read_state, kind='Taylor'):
+                # have to take it on faith in the parallel version!
                 raise ValueError("Convolution did not complete")
             
-            convlogs = glob(pjoin(param.LogDirectory, 'last.conv*'))
+            convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
             for cl in convlogs:
                 shutil.move(cl, cl.replace('last', 'step{:04d}'.format(read_state.FullStepNumber+1)))
 
-            # Warning: Convolution won't work if MultipoleDirectory is the write (or read) state
-            # because the states get moved after multipole generation but before convolution.
-            remove_MT(param.MultipoleDirectory, 'Multipole*')
-            if 'MultipoleDirectory2' in param:
-                remove_MT(param.MultipoleDirectory2, 'Multipole*')
+            if not parallel:
+                # Warning: Convolution won't work if MultipoleDirectory is the write (or read) state
+                # because the states get moved after multipole generation but before convolution.
+                remove_MT(param.MultipoleDirectory, 'Multipole*')
+                if 'MultipoleDirectory2' in param:
+                    remove_MT(param.MultipoleDirectory2, 'Multipole*')
 
-            # Now we can move the multipole symlinks
-            if path.islink(multipoles):
-                os.unlink(multipoles)
-                os.symlink(taylors_convstate, multipoles)
+                # Now we can move the multipole symlinks
+                if path.islink(multipoles):
+                    os.unlink(multipoles)
+                    os.symlink(taylors_convstate, multipoles)
 
             print("\t Finished convolution for state %d"%(read_state.FullStepNumber+1))
 
         #run singlestep
-        print("Running singlestep for step {:d}".format(stepnum))
         if i == stopbefore:
             print('stopbefore = %d was specified; stopping before calling singlestep'%i)
             return 0
-        subprocess.check_call([pjoin(abacuspath, "singlestep", "singlestep") , paramfn, str(int(AllowIC))], env=singlestep_env)
+        
+        singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic))]
+        if parallel:
+            singlestep_cmd = mpirun_cmd + singlestep_cmd
+            print('Running PARELLEL singlestep for step {:d} with command "{:s}"'.format(stepnum, ' '.join(singlestep_cmd)))
+            subprocess.check_call(singlestep_cmd, env=singlestep_env)
+        else:
+            print("Running singlestep for step {:d}".format(stepnum))
+            subprocess.check_call(singlestep_cmd, env=singlestep_env)
         
         # In profiling mode, we don't move the states so we can immediately run the same step again
         if ProfilingMode and ProfilingMode != 2:
@@ -817,11 +861,12 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
             write_state.DeltaScaleFactor/(write_state.ScaleFactor-write_state.DeltaScaleFactor),
             write_state.RMS_Velocity)))
 
-        # Delete the Taylors right away; want to avoid accidentally
-        # running with inconsistent positions and Taylors
-        remove_MT(param.TaylorDirectory, 'Taylor_*')
-        if 'TaylorDirectory2' in param:
-            remove_MT(param.TaylorDirectory2, 'Taylor_*')
+        if not parallel:
+            # Delete the Taylors right away; want to avoid accidentally
+            # running with inconsistent positions and Taylors
+            remove_MT(param.TaylorDirectory, 'Taylor_*')
+            if 'TaylorDirectory2' in param:
+                remove_MT(param.TaylorDirectory2, 'Taylor_*')
 
         # Check if we need to back up the write state
         if backups_enabled and write_state.FullStepNumber > 0 and write_state.FullStepNumber % param['BackupStepInterval'] == 0:
@@ -833,25 +878,26 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
                 shutil.rmtree(backup_dir)
             shutil.move(tmp_backup, backup_dir)
         
-        # Make a power spectrum
-        dfn = pjoin(read, "density")
-        if path.exists(dfn):
-            # This import can be slow, so we only do it as necessary
-            from Abacus.Analysis.PowerSpectrum import PowerSpectrum as PS
-            ngrid = param.PowerSpectrumN1d
+        if not parallel:
+            # Make a power spectrum
+            dfn = pjoin(read, "density")
+            if path.exists(dfn):
+                # This import can be slow, so we only do it as necessary
+                from Abacus.Analysis.PowerSpectrum import PowerSpectrum as PS
+                ngrid = param.PowerSpectrumN1d
 
-            psdtype = np.float64 if read_state.DoublePrecision else np.float32
-            density = np.empty((ngrid, ngrid, ngrid + 2), dtype=psdtype)
-            density[...,:-2] = np.fromfile(dfn, dtype=psdtype).reshape(ngrid,ngrid,ngrid)
-            k,P,nb = PS.FFTAndBin(density, param.BoxSize, inplace=True)
-            # we use the write state step number here, even though the particles are positioned at the read state positions
-            # this is consistent with the time slice behavior
-            shutil.copy(dfn, pjoin(param.LogDirectory, "step{:04d}.density".format(write_state.FullStepNumber)))
-            np.savez(pjoin(param.LogDirectory, "step{:04d}.pow".format(write_state.FullStepNumber)), k=k,P=P,nb=nb)
-            os.remove(dfn)
+                psdtype = np.float64 if read_state.DoublePrecision else np.float32
+                density = np.empty((ngrid, ngrid, ngrid + 2), dtype=psdtype)
+                density[...,:-2] = np.fromfile(dfn, dtype=psdtype).reshape(ngrid,ngrid,ngrid)
+                k,P,nb = PS.FFTAndBin(density, param.BoxSize, inplace=True)
+                # we use the write state step number here, even though the particles are positioned at the read state positions
+                # this is consistent with the time slice behavior
+                shutil.copy(dfn, pjoin(param.LogDirectory, "step{:04d}.density".format(write_state.FullStepNumber)))
+                np.savez(pjoin(param.LogDirectory, "step{:04d}.pow".format(write_state.FullStepNumber)), k=k,P=P,nb=nb)
+                os.remove(dfn)
         
         # Now shift the states down by one
-        taylors_convstate = move_state_dirs(read, write, past, multipoles, taylors)
+        move_state_dirs(read, write, past)
         
         # check if we've reached the stopping redshift
         # Note that FinalRedshift always trumps,
@@ -870,12 +916,12 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
 
         # This logic is deliberately consistent with singlestep.cpp
         # If this is an IC step then we won't have read_state
-        if not AllowIC and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0:
+        if not make_ic and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0:
             print("Final redshift reached; terminating normally.")
             finished = True
             break
         
-        AllowIC = False
+        make_ic = False
 
         ### end singlestep loop
 
