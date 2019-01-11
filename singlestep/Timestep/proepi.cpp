@@ -290,9 +290,11 @@ void Epilogue(Parameters &P, bool MakeIC) {
     // Some pipelines, like standalone_fof, don't use multipoles
     if(MF != NULL){
         MF->GatherRedlack();    // For the parallel code, we have to coadd the inputs
-        MF->ComputeRedlack();  // NB when we terminate SlabMultipoles we write out these
-        if (WriteState.NodeRank==0)
-            MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
+        if (MPI_rank==0) {
+            MF->ComputeRedlack();  // NB when we terminate SlabMultipoles we write out these
+            if (WriteState.NodeRank==0)
+                MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
+        }
         delete MF;
     }
 
