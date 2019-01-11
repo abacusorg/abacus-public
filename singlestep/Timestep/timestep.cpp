@@ -285,14 +285,15 @@ void KickAction(int slab) {
     if(Kick.raw_number_executed >= 2*FORCE_RADIUS)
         SB->DeAllocate(PosXYZSlab, slab - FORCE_RADIUS);
 
-    #ifndef PARALLEL
     // Special case: if this is the last slab, free all +/- FORCE_RADIUS
     // Not worrying about this in the PARALLEL case; we have other non-destructions
     STDLOG(1,"%d slabs have been Kicked so far\n", Kick.number_of_slabs_executed);
-    if(Kick.number_of_slabs_executed == CP->cpd-1)
+    // REMOVE: if(Kick.number_of_slabs_executed == CP->cpd-1)
+    if(Kick.raw_number_executed == total_slabs_on_node-1)
         for(int j = slab - FORCE_RADIUS+1; j <= slab + FORCE_RADIUS; j++)
             SB->DeAllocate(PosXYZSlab, j);
 
+    #ifndef PARALLEL
     // Queue up slabs near the wrap to be loaded again later
     // This way, we don't have idle slabs taking up memory while waiting for the pipeline to wrap around
     if(Kick.number_of_slabs_executed < FORCE_RADIUS){
