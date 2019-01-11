@@ -613,24 +613,24 @@ void FinalizeWriteState() {
         // TODO: Do we really want to do this?  Maybe just echo the stats to the log?
         // WriteState.write_to_file(P.WriteStateDirectory, NodeString);
 
-#define MPI_REDUCE_IN_PLACE(vec,len,type,op) MPI_Reduce(MPI_rank!=0?(vec):MPI_IN_PLACE, vec, len, type, op, 0, MPI_COMM_WORLD)
+// #define MPI_REDUCE_IN_PLACE(vec,len,type,op) MPI_Reduce(MPI_rank!=0?(vec):MPI_IN_PLACE, vec, len, type, op, 0, MPI_COMM_WORLD)
         // Now we need to do MPI reductions for stats
         // These stats are all in double precision (or int)
         // Maximize MaxAcceleration
-        MPI_REDUCE_IN_PLACE(&WriteState.MaxAcceleration, 1, MPI_DOUBLE, MPI_MAX);
+        MPI_REDUCE_TO_ZERO(&WriteState.MaxAcceleration, 1, MPI_DOUBLE, MPI_MAX);
         // Maximize MaxVelocity
-        MPI_REDUCE_IN_PLACE(&WriteState.MaxVelocity, 1, MPI_DOUBLE, MPI_MAX);
+        MPI_REDUCE_TO_ZERO(&WriteState.MaxVelocity, 1, MPI_DOUBLE, MPI_MAX);
         // Minimize MinVrmsOnAmax
-        MPI_REDUCE_IN_PLACE(&WriteState.MinVrmsOnAmax, 1, MPI_DOUBLE, MPI_MIN);
+        MPI_REDUCE_TO_ZERO(&WriteState.MinVrmsOnAmax, 1, MPI_DOUBLE, MPI_MIN);
         // Minimize MinCellSize
-        MPI_REDUCE_IN_PLACE(&WriteState.MinCellSize, 1, MPI_INT, MPI_MIN);
+        MPI_REDUCE_TO_ZERO(&WriteState.MinCellSize, 1, MPI_INT, MPI_MIN);
         // Maximize MaxCellSize
-        MPI_REDUCE_IN_PLACE(&WriteState.MaxCellSize, 1, MPI_INT, MPI_MIN);
+        MPI_REDUCE_TO_ZERO(&WriteState.MaxCellSize, 1, MPI_INT, MPI_MIN);
         // sqrt(Sum(SQR of RMS_Velocity))
-        MPI_REDUCE_IN_PLACE(&WriteState.RMS_Velocity, 1, MPI_DOUBLE, MPI_SUM);
+        MPI_REDUCE_TO_ZERO(&WriteState.RMS_Velocity, 1, MPI_DOUBLE, MPI_SUM);
         // sqrt(Sum(SQR of StdDevCellSize))
-        MPI_REDUCE_IN_PLACE(&WriteState.StdDevCellSize, 1, MPI_DOUBLE, MPI_SUM);
-#undef MPI_REDUCE_IN_PLACE
+        MPI_REDUCE_TO_ZERO(&WriteState.StdDevCellSize, 1, MPI_DOUBLE, MPI_SUM);
+// #undef MPI_REDUCE_IN_PLACE
 
         // Note that we're not summing up any timing or group finding reporting;
         // these just go in the logs

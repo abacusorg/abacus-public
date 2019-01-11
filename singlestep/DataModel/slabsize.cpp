@@ -45,7 +45,7 @@ class SlabSize {
             // Send all non-zero values of _newsize to node 0
             // Since _newsize is set only when a slab is finished,
             // we can economize our code and just add the vectors.
-            MPI_Allreduce(MPI_IN_PLACE, _newsize, _cpd, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
+            MPI_REDUCE_TO_ZERO(_newsize, _cpd, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
         #endif
         return;
     }
@@ -60,11 +60,12 @@ class SlabSize {
 
     void store_from_params(Parameters &P){
         parallel_gather();
-        char filename[1024];
-        // TODO MPI: This needs to be the global Write State
-        sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
-        write(filename);
-        STDLOG(1,"Writing SlabSize file to %s\n", filename);
+        if (MPI_rank==0) {
+            char filename[1024];
+            sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
+            write(filename);
+            STDLOG(1,"Writing SlabSize file to %s\n", filename);
+        }
     }
 
     // Read and write from files.  Return 0 if ok.
