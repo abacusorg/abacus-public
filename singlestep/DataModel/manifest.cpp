@@ -382,8 +382,6 @@ void Manifest::Send() {
     #ifdef PARALLEL
     Transmit.Start();
     set_pending(m.numarenas+3);
-    //REMOVE: int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
-    //REMOVE: int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     int rank = MPI_rank;
     rank--; if (rank<0) rank+=MPI_size;   // Now rank is the destination node
     STDLOG(1,"Will send the SendManifest to node rank %d\n", rank);
@@ -454,8 +452,6 @@ void Manifest::SetupToReceive() {
     #ifdef PARALLEL
     Transmit.Start();
     set_pending(1);
-    //REMOVE: int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
-    //REMOVE: int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     int rank = MPI_rank;
     rank++; if (rank>=MPI_size) rank-=MPI_size;   // Now rank is the source node
     MPI_Irecv(&m, sizeof(ManifestCore), MPI_BYTE, rank, 0, MPI_COMM_WORLD, requests);
@@ -512,8 +508,6 @@ void Manifest::Receive() {
     #ifdef PARALLEL
     Transmit.Start();
     set_pending(m.numarenas+2);
-    //REMOVE: int size; MPI_Comm_size(MPI_COMM_WORLD, &size);
-    //REMOVE: int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     int rank = MPI_rank;
     MPI_Status retval;
     rank++; if (rank>=MPI_size) rank-=MPI_size;   // Now rank is the source node

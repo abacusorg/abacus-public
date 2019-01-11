@@ -215,7 +215,6 @@ int main(int argc, char **argv) {
     
     // Set up MPI
     
-    //REMOVE:  int size=1, rank=0;
     InitializeParallel(MPI_size, MPI_rank);
     
     int MakeIC = atoi(argv[2]);
