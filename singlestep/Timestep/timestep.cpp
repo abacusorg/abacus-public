@@ -173,8 +173,8 @@ void NearForceAction(int slab) {
     STDLOG(1,"Computing near-field force for slab %d\n", slab);
     SlabForceTime[slab].Start();
         
-    NFD->ExecuteSlab(slab, P.ForceOutputDebug);
-    //NFD->ExecuteSlab(slab, 1);  // Use this line instead to force blocking GPU work
+    //NFD->ExecuteSlab(slab, P.ForceOutputDebug);
+    NFD->ExecuteSlab(slab, 1);  // Use this line instead to force blocking GPU work
 
     SlabForceLatency[slab].Start();
     if (P.ForceOutputDebug) {
@@ -232,9 +232,11 @@ void TaylorForceAction(int slab) {
     SlabFarForceTime[slab].Start();
     SB->AllocateArena(FarAccSlab, slab);
     
+    STDLOG(1,"Starting Taylor Forces\n");
     TaylorCompute.Start();
     ComputeTaylorForce(slab);
     TaylorCompute.Stop();
+    STDLOG(1,"Ending Taylor Forces\n");
 
     if(P.ForceOutputDebug){
         // We want to output the FarAccSlab to the FarAcc file.
@@ -620,7 +622,14 @@ int FinishPrecondition(int slab) {
     for(int j=-FINISH_WAIT_RADIUS;j<=FINISH_WAIT_RADIUS;j++) {
         if( Drift.notdone(slab+j) ) return 0;
     }
-    
+
+    #ifdef IGNORE
+        if (Finish.raw_number_executed==0) {
+            if (Kick.notdone(slab-FORCE_RADIUS)) return 0;
+            if (Kick.notdone(slab-1+FORCE_RADIUS)) return 0;
+        }
+    #endif
+
     return 1;
 }
 
@@ -706,6 +715,24 @@ void timestep(void) {
     FINISH_WAIT_RADIUS = LPTStepNumber() > 0 ? 2 : 1;
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
     assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS); 
+    #ifdef PARALLEL
+        /* In the parallel code, we're about to send all of the info up to
+        slab-1 to the neighbor.  This can cause a problem if the pipeline
+        is thin (e.g., no group finding), because the PosXYZSlabs are needed
+        over a domain of +-FORCE_RADIUS.
+        
+        For the first slab to finish, we have to assure that PosXYZSlab[slab]
+        is not needed to Kick any slabs on the neighbor.  That means we must
+        have done Kick[slab-FORCE_RADIUS] on this node.
+
+        Further, we have to assure that PosXYZSlab[slab-1] is not still needed
+        as a source to any slabs on this node.  Need Kick[slab-1+FORCE_RADIUS]
+        to be done to avoid this.
+
+        We fix this by forcing FINISH_WAIT_RADIUS to be big enough.  */
+        if (FINISH_WAIT_RADIUS+2*GROUP_RADIUS<FORCE_RADIUS)
+            FINISH_WAIT_RADIUS = FORCE_RADIUS-2*GROUP_RADIUS;
+    #endif
     STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
     STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
     STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
@@ -777,6 +804,7 @@ void timestep(void) {
     #ifdef PARALLEL
         MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
         STDLOG(1,"Ready to proceed to the remaining work\n");
+        MPI_Barrier(MPI_COMM_WORLD);
         // This MPI call also forces a syncrhonization over the MPI processes, 
         // so things like Reseting GPUs could fire multiple times on one node.
     #endif 

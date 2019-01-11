@@ -52,10 +52,14 @@ class DependencyRecord {
         end = finished_slab;
         for (begin=end-1; begin>end-d.cpd; begin--) {
             if (d.notdone(begin)) break;
-            d.mark_to_repeat(begin);
+            //// d.mark_to_repeat(begin);  // We're not unmarking anymore
         }
         // We've found the first notdone slab
         begin++;   // Want to pass the first done one
+        // Now look for the last done slab
+        for (;end<finished_slab+d.cpd;end++) {
+            if (d.notdone(end)) break;
+        } end--;
         STDLOG(1, "Load Dependency [%d,%d)\n", begin, end);
         return;
     }
@@ -90,6 +94,7 @@ class DependencyRecord {
 
     /// Set the cellgroups_status to 1 for the indicated slabs
     void SetCG(int finished_slab) {
+        if (GFC==NULL) return;
         for (int s=begin; s<end; s++) {
             GFC->cellgroups_status[CP->WrapSlab(s)]=1;
             // And move the information from the Arenas back into the SlabArray

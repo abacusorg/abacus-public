@@ -59,10 +59,14 @@ class DependencyRecord {
         end = finished_slab;
         for (begin=end-1; begin>end-d.cpd; begin--) {
             if (d.notdone(begin)) break;
-            d.mark_to_repeat(begin);
+            //// d.mark_to_repeat(begin);   // We're not going to unmark
         }
         // We've found the first notdone slab
         begin++;   // Want to pass the first done one
+        // Now look for the last done slab
+        for (;end<finished_slab+d.cpd;end++) {
+            if (d.notdone(end)) break;
+        } end--;
         STDLOG(1, "Load Dependency %s [%d,%d)\n", label, begin, end);
         return;
     }
@@ -97,6 +101,7 @@ class DependencyRecord {
 
     /// Set the cellgroups_status to 1 for the indicated slabs
     void SetCG(int finished_slab) {
+        if (GFC==NULL) return;
         for (int s=begin; s<end; s++) {
             GFC->cellgroups_status[CP->WrapSlab(s)]=1;
             // And move the information from the Arenas back into the SlabArray
@@ -358,15 +363,15 @@ void Manifest::QueueToSend(int finished_slab) {
     // Partition the GroupLink List, malloc *links, and save it off
     // TODO: Do these group finding variables always exist?
     if (GFC!=NULL) {
-	STDLOG(1,"Queuing GroupLink List into the SendManifest, extracting [%d,%d)\n", min_links_slab, finished_slab);
-	global_minslab_search = CP->WrapSlab(min_links_slab-finished_slab);
-	mid = ParallelPartition(GFC->GLL->list, GFC->GLL->length, finished_slab, link_below_slab);
-	ret = posix_memalign((void **)&links, 4096, sizeof(GroupLink)*(GFC->GLL->length-mid));
-	m.numlinks = GFC->GLL->length-mid;
-	memcpy(links, GFC->GLL->list+mid, sizeof(GroupLink)*m.numlinks);
-	    // Possible TODO: Consider whether this copy should be multi-threaded
-	STDLOG(1, "Grouplink list had size %l, now size %l; sending %l\n", GFC->GLL->length, mid, m.numlinks);
-	GFC->GLL->ShrinkMAL(mid);
+        STDLOG(1,"Queuing GroupLink List into the SendManifest, extracting [%d,%d)\n", min_links_slab, finished_slab);
+        global_minslab_search = CP->WrapSlab(min_links_slab-finished_slab);
+        mid = ParallelPartition(GFC->GLL->list, GFC->GLL->length, finished_slab, link_below_slab);
+        ret = posix_memalign((void **)&links, 4096, sizeof(GroupLink)*(GFC->GLL->length-mid));
+        m.numlinks = GFC->GLL->length-mid;
+        memcpy(links, GFC->GLL->list+mid, sizeof(GroupLink)*m.numlinks);
+            // Possible TODO: Consider whether this copy should be multi-threaded
+        STDLOG(1, "Grouplink list had size %l, now size %l; sending %l\n", GFC->GLL->length, mid, m.numlinks);
+        GFC->GLL->ShrinkMAL(mid);
     }
     Load.Stop();
 
@@ -541,8 +546,8 @@ void Manifest::Receive() {
         bytes += sizeof(GroupLink)*m.numlinks;
         STDLOG(1,"Ireceive Manifest GroupLink List of length %d\n", m.numlinks);
     } else {
-        requests[2] = MPI_REQUEST_NULL;
-        mark_as_done(2);
+        requests[1] = MPI_REQUEST_NULL;
+        mark_as_done(1);
     }
     // Victory!
     // STDLOG(1,"Done receiving the ReceiveManifest\n");
@@ -621,12 +626,12 @@ void Manifest::ImportData() {
 
     // Add *links to the GroupLink list
     if (GFC!=NULL) {
-	len = GFC->GLL->length;
-	GFC->GLL->GrowMAL(len+m.numlinks);
-	memcpy(GFC->GLL->list+len, links, m.numlinks*sizeof(GroupLink));
-	// Possible TODO: Should this copy be multi-threaded?
-	free(links);
-	STDLOG(1, "Growing GroupLink list from %d by %d = %l\n", len, m.numil, GFC->GLL->length);
+        len = GFC->GLL->length;
+        GFC->GLL->GrowMAL(len+m.numlinks);
+        memcpy(GFC->GLL->list+len, links, m.numlinks*sizeof(GroupLink));
+        // Possible TODO: Should this copy be multi-threaded?
+        free(links);
+        STDLOG(1, "Growing GroupLink list from %d by %d = %l\n", len, m.numil, GFC->GLL->length);
     }
     
     // We're done with this Manifest!
