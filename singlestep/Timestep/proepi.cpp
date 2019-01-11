@@ -314,6 +314,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     SB->report();
     delete SB;
+    STDLOG(1,"Deleted SB\n");
     delete CP;
     delete IL;
     delete SS;
@@ -335,11 +336,12 @@ void Epilogue(Parameters &P, bool MakeIC) {
         }
         
             delete TY;
+            STDLOG(1,"Deleted TY\n");
             delete RL;
             delete[] SlabForceLatency;
             delete[] SlabForceTime;
             delete[] SlabFarForceTime;
-            delete GFC;
+            if (GFC!=NULL) delete GFC;
             STDLOG(1,"Done with Epilogue; about to kill the GPUs\n");
             delete NFD;
     }
