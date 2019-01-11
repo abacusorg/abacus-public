@@ -774,13 +774,13 @@ void timestep(void) {
     
     STDLOG(1,"Finished timestep dependency loop!!\n");
     #ifdef PARALLEL
-        usleep(1e6);
-        MPI_Allreduce(MPI_IN_PLACE, &merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, MPI_COMM_WORLD);
+        MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
         STDLOG(1,"Ready to proceed to the remaining work\n");
         // This MPI call also forces a syncrhonization over the MPI processes, 
         // so things like Reseting GPUs could fire multiple times on one node.
     #endif 
-    assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
+    if (MPI_rank==0)
+        assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
 
     if (GFC != NULL) assertf(GFC->GLL->length==0,
 	"GroupLinkList not empty (%d) at the end of timestep.  Global group finding didn't run properly.\n", GFC->GLL->length);

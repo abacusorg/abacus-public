@@ -73,8 +73,17 @@ void timestepIC(void) {
     }
 
     STDLOG(1, "Read %d particles from IC files\n", NP_from_IC);
-    STDLOG(1, "Merged %d particles\n", merged_particles);
+    #ifdef PARALLEL
+        MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
+        STDLOG(1,"Ready to proceed to the remaining work\n");
+        // This MPI call also forces a syncrhonization over the MPI processes, 
+        // so things like Reseting GPUs could fire multiple times on one node.
+    #endif
     STDLOG(1, "Particles remaining on insert list: %d\n", IL->length);
+    if (MPI_rank==0) {
+        STDLOG(1, "Merged %d particles\n", merged_particles);
+        assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
+    }
 
     if(IL->length!=0)
         IL->DumpParticles();
@@ -82,7 +91,6 @@ void timestepIC(void) {
     assertf(NP_from_IC == P.np, "Expected to read a total of %u particles from IC files, but only read %u.\n", P.np, NP_from_IC);
     assertf(IL->length==0,
         "Insert List not empty (%d) at the end of timestep().  Particles in IC files not sufficiently sorted?\n", IL->length);
-    assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
     
     char filename[1024];
     sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
