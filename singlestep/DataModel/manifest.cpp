@@ -405,7 +405,10 @@ void Manifest::Send() {
         MPI_Isend(links, sizeof(GroupLink)*m.numlinks, MPI_BYTE, rank, 2, MPI_COMM_WORLD,requests+2);
         STDLOG(1,"Isend Manifest GroupLink List of length %d\n", m.numlinks);
         //free(links);
-    } else mark_as_done(2); // We won't be sending this one
+    } else {
+        requests[2] = MPI_REQUEST_NULL;
+        mark_as_done(2); // We won't be sending this one
+    }
     // Victory!
     STDLOG(1,"Done queuing the SendManifest\n");
     completed = 1;
@@ -537,7 +540,10 @@ void Manifest::Receive() {
         MPI_Irecv(links, sizeof(GroupLink)*m.numlinks, MPI_BYTE, rank, 2, MPI_COMM_WORLD, requests+1);
         bytes += sizeof(GroupLink)*m.numlinks;
         STDLOG(1,"Ireceive Manifest GroupLink List of length %d\n", m.numlinks);
-    } else mark_as_done(2);
+    } else {
+        requests[2] = MPI_REQUEST_NULL;
+        mark_as_done(2);
+    }
     // Victory!
     // STDLOG(1,"Done receiving the ReceiveManifest\n");
     completed = 1;
