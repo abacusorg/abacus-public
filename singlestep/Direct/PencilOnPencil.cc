@@ -83,9 +83,9 @@ practice.
 
 /// Return the number of particles in this (i,j) skewer, summing over k.
 uint64 NumParticlesInSkewer(int slab, int j) {
-    uint64 np = PP->CellInfo(slab, j, 0)->startindex;
-    uint64 end = Slab->size(slab);
-    if (j<P.cpd-1) end = PP->CellInfo(slab,j+1,0)->startindex;
+    uint64 np = CP->CellInfo(slab, j, 0)->startindex;
+    uint64 end = SS->size(slab);
+    if (j<P.cpd-1) end = CP->CellInfo(slab,j+1,0)->startindex;
     return end-np;	// This is the number of particles in this skewer
 }
 
@@ -157,7 +157,7 @@ int posix_memalign_wrap(char * &buffer, size_t &bsize, void ** ptr,
 /// with the pointer to and size of the unused space.
 
 SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhigh, FLOAT _b2, char * &buffer, size_t &bsize, int NearFieldRadius){
-    eps = JJ->eps;
+    eps = NFD->eps;
     
     //set known class variables
     CompletionFlag = 0;
@@ -176,16 +176,16 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     Nk = cpd;
 
     // Load the Pointers to the PosXYZ Slabs
-    SinkPosSlab = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab);
+    SinkPosSlab = (void *)SB->GetSlabPtr(PosXYZSlab,slab);
     for (int c=0; c<2*nfradius+1; c++) {
-	SourcePosSlab[c] = (void *)LBW->ReturnIDPtr(PosXYZSlab,slab+c-nfradius);
+	SourcePosSlab[c] = (void *)SB->GetSlabPtr(PosXYZSlab,slab+c-nfradius);
 
-        Nslab[c] = Slab->size(slab - nfradius + c);
+        Nslab[c] = SS->size(slab - nfradius + c);
     }
 
     // There is a slab that has the WIDTH Partial Acceleration fields.
     // Get a pointer to the appropriate segment of that.
-    SinkAccSlab = (void *)((accstruct *)LBW->ReturnIDPtr(AccSlab,slab));
+    SinkAccSlab = (void *)((accstruct *)SB->GetSlabPtr(AccSlab,slab));
 
     // Make a bunch of the SinkSet and SourceSet containers
     
@@ -356,7 +356,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
             "Interaction Count exceeds 32-bit signed int");
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSourceInteractionList, 4096, sizeof(int) * InteractionCount) == 0);
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSourceYOffset, 4096, sizeof(FLOAT) * InteractionCount) == 0);
-    FLOAT cellsize = PP->invcpd;
+    FLOAT cellsize = CP->invcpd;
     
     uint64 localDirectTotal = 0, localPaddedDirectTotal = 0;
     #pragma omp parallel for schedule(static) reduction(+:localDirectTotal) reduction(+:localPaddedDirectTotal)
@@ -380,7 +380,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
                 #else
                     // The y coordinate is (j_low+j+y-nfwidth/2)
                     int tmpy = j_low+j+y-nfradius;
-                    SinkSourceYOffset[l+y] = (tmpy-PP->WrapSlab(tmpy))*cellsize;
+                    SinkSourceYOffset[l+y] = (tmpy-CP->WrapSlab(tmpy))*cellsize;
                 #endif
                 localDirectTotal += SinkSetCount[sinkindex] * SourceSetCount[sourceindex];
                 localPaddedDirectTotal += PaddedSinkCount(sinkindex) * SourceSetCount[sourceindex];

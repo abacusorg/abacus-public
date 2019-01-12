@@ -87,18 +87,18 @@ class AppendArena {
     cell_header current_cell;
 
     void initialize(SlabType type, int slab, int _cpd, double VelZSpace_to_Canonical) {
-        arena = LBW->ReturnIDPtr(type,slab);
-	size_available = LBW->IDSizeBytes(type,slab);
-	bytes = 0;
-	cpd = _cpd;
-	VelCanonical_to_ZSpace = 1.0/VelZSpace_to_Canonical;
-	endcell();
+        arena = SB->GetSlabPtr(type,slab);
+        size_available = SB->SlabSizeBytes(type,slab);
+        bytes = 0;
+        cpd = _cpd;
+        VelCanonical_to_ZSpace = 1.0/VelZSpace_to_Canonical;
+        endcell();
     }
 
     // ~AppendArena(void) { }
 
     char *ptr_to_end() {
-	// In case you need to know where you are!
+        // In case you need to know where you are!
         return arena;
     }
     long long int bytes_written() {
@@ -106,37 +106,37 @@ class AppendArena {
     }
 
     void addcell(integer3 ijk, float vscale) {
-	// Append this cell and make this cell active.
-	int size = sizeof_cell();
-	assertf(bytes+size<=size_available, "AppendArena() has run out of space!\n");
-	appendcell(arena, ijk, vscale);
-	arena+=size; bytes+=size;
+        // Append this cell and make this cell active.
+        int size = sizeof_cell();
+        assertf(bytes+size<=size_available, "AppendArena() has run out of space!\n");
+        appendcell(arena, ijk, vscale);
+        arena+=size; bytes+=size;
     }
     void endcell() { 
-	// This makes it illegal to add more particles
+        // This makes it illegal to add more particles
     	current_cell.vscale = 0; 
     }
 
     void addparticle(posstruct pos, velstruct vel, auxstruct aux) {
-	// Append this particle
-	assertf(current_cell.islegal(), "addparticle() called without an active cell\n");
-	int size = sizeof_particle();
-	assertf(bytes+size<=size_available, "AppendArena() has run out of space!\n");
-	// We were given the particle in code units, need to convert to Zspace.
-	vel *= VelCanonical_to_ZSpace;
-	// The appendparticle() function is responsible for any further conversions,
-	// e.g., from local to global positions or to km/s or from unit box to unit cell..
+        // Append this particle
+        assertf(current_cell.islegal(), "addparticle() called without an active cell\n");
+        int size = sizeof_particle();
+        assertf(bytes+size<=size_available, "AppendArena() has run out of space!\n");
+        // We were given the particle in code units, need to convert to Zspace.
+        vel *= VelCanonical_to_ZSpace;
+        // The appendparticle() function is responsible for any further conversions,
+        // e.g., from local to global positions or to km/s or from unit box to unit cell..
         appendparticle(arena, pos, vel, aux);
-	arena+=size; bytes+=size;
+        arena+=size; bytes+=size;
     }
 
     void addheader(const char *c) {
         // Write the given string to the arena, without the final \0.
-	int size = 0;
-	while (*c!='\0') {
-	    *arena = *c;
-	    arena++; c++; bytes++;
-	}
+        int size = 0;
+        while (*c!='\0') {
+            *arena = *c;
+            arena++; c++; bytes++;
+        }
     }
     void addheader(char *c) {
         addheader((const char *)c);
@@ -144,13 +144,13 @@ class AppendArena {
 
     void finalize_header() {
         // terminate the ParseHeader header.  
-	// Pad out the header to a multiple of 4096 bytes just to keep the data DIO aligned.
-	long long int size = bytes_written()+2;  // including the header
-	int pad = 4096-size%4096; 
-	if (pad>0) { arena[0] = '\n'; }
-	for (int n=1; n<pad; n++) { arena[n] = ' '; }
-	arena += pad; bytes += pad;
-	arena[0] = ''; arena[1] = '\n'; arena+=2; bytes+=2;
+        // Pad out the header to a multiple of 4096 bytes just to keep the data DIO aligned.
+        long long int size = bytes_written()+2;  // including the header
+        int pad = 4096-size%4096; 
+        if (pad>0) { arena[0] = '\n'; }
+        for (int n=1; n<pad; n++) { arena[n] = ' '; }
+        arena += pad; bytes += pad;
+        arena[0] = ''; arena[1] = '\n'; arena+=2; bytes+=2;
     }
 };
 
@@ -164,16 +164,16 @@ class OutputPacked: public AppendArena {
   private:
     void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
         PACKED *p = (PACKED *) c;
-	// p->pack_global(pos, vel, aux.pid(), current_cell);
-	p->pack(pos, vel, aux.pid(), current_cell);
+        // p->pack_global(pos, vel, aux.pid(), current_cell);
+        p->pack(pos, vel, aux.pid(), current_cell);
     }
     void appendcell(char *c, integer3 ijk, float vscale) {
-	// We're given vscale in Zspace unit-box units, same as velocities.
-	// But we need to hand it to the pack14 method in unit-cell units
+        // We're given vscale in Zspace unit-box units, same as velocities.
+        // But we need to hand it to the pack14 method in unit-cell units
         PACKED *p = (PACKED *) c;
-	int vs = ceil(vscale*cpd); 
-	if (vs<=0) vs = 10;    // Probably just not initialized correctly
-	current_cell = p->pack_cell(ijk, cpd, vs);
+        int vs = ceil(vscale*cpd); 
+        if (vs<=0) vs = 10;    // Probably just not initialized correctly
+        current_cell = p->pack_cell(ijk, cpd, vs);
     }
     float velocity_conversion;
 
@@ -183,9 +183,9 @@ class OutputPacked: public AppendArena {
 
     OutputPacked() {
         // Use ReadState to figure out the correct conversion of the
-	// velocity!  The pack14 class assumes velocites are in 
-	// redshift-space units; it *then* applies the given vscale.
-	velocity_conversion = 1.0;
+        // velocity!  The pack14 class assumes velocites are in 
+        // redshift-space units; it *then* applies the given vscale.
+        velocity_conversion = 1.0;
     }
     ~OutputPacked(void) { }
 };
@@ -198,32 +198,29 @@ class OutputRVdouble: public AppendArena {
   private:
     struct ICparticle {
         double pos[3];		// Global position, unit box
-	double vel[3];		// Zspace, unit box
+        double vel[3];		// Zspace, unit box
     };
 
     float velocity_conversion;
     
     void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
-	struct ICparticle *p = (struct ICparticle *)c;
+        struct ICparticle *p = (struct ICparticle *)c;
 #ifdef GLOBALPOS
-	// This is for global box-referenced positions
-	// p->pos[0] = pos.x;
-	// p->pos[1] = pos.y;
-	// p->pos[2] = pos.z;
-	double3 cc = double3(0.0);
+        // This is for global box-referenced positions
+        double3 cc = double3(0.0);
 #else
-	// If we instead have cell-referenced positions, then:
-	double3 cc = PP->WrapCellCenter(current_cell.cellid());
+        // If we instead have cell-referenced positions, then:
+        double3 cc = CP->WrapCellCenter(current_cell.cellid());
 #endif
-	p->pos[0] = (double) pos.x+cc.x;
-	p->pos[1] = (double) pos.y+cc.y;
-	p->pos[2] = (double) pos.z+cc.z;
-	p->vel[0] = vel.x*velocity_conversion;
-	p->vel[1] = vel.y*velocity_conversion;
-	p->vel[2] = vel.z*velocity_conversion;
+        p->pos[0] = (double) pos.x+cc.x;
+        p->pos[1] = (double) pos.y+cc.y;
+        p->pos[2] = (double) pos.z+cc.z;
+        p->vel[0] = vel.x*velocity_conversion;
+        p->vel[1] = vel.y*velocity_conversion;
+        p->vel[2] = vel.z*velocity_conversion;
     }
     void appendcell(char *c, integer3 ijk, float vscale) {
-	current_cell = cell_header(ijk, cpd, 1);
+        current_cell = cell_header(ijk, cpd, 1);
     }
 
   public:
@@ -231,7 +228,7 @@ class OutputRVdouble: public AppendArena {
     int sizeof_particle() { return sizeof(struct ICparticle); }
 
     OutputRVdouble() {
-	velocity_conversion = 1.0;  // Leave it in Zspace, unit box units
+        velocity_conversion = 1.0;  // Leave it in Zspace, unit box units
     }
     ~OutputRVdouble(void) { }
 };
@@ -256,16 +253,16 @@ class OutputLightcone: public AppendArena {
     float velocity_conversion;
   public:
     void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
-	struct ICparticle *p = (struct ICparticle *)c;
-	p->pos[0] = (float) pos.x;
-	p->pos[1] = (float) pos.y;
-	p->pos[2] = (float) pos.z;
-	p->vel[0] = vel.x ;
-	p->vel[1] = vel.y;
-	p->vel[2] = vel.z;
-	p->aux = aux;
-	assert(np !=0);
-	(*np)++;
+        struct ICparticle *p = (struct ICparticle *)c;
+        p->pos[0] = (float) pos.x;
+        p->pos[1] = (float) pos.y;
+        p->pos[2] = (float) pos.z;
+        p->vel[0] = vel.x ;
+        p->vel[1] = vel.y;
+        p->vel[2] = vel.z;
+        p->aux = aux;
+        assert(np !=0);
+        (*np)++;
     }
 
 
@@ -287,8 +284,8 @@ class OutputLightcone: public AppendArena {
     int sizeof_particle() { return sizeof(struct ICparticle); }
 
     OutputLightcone() {
-	velocity_conversion = 1.0;  // Leave it in Zspace, unit box units
-	np =0;
+        velocity_conversion = 1.0;  // Leave it in Zspace, unit box units
+        np =0;
     }
     ~OutputLightcone(void) { }
 };
@@ -307,29 +304,26 @@ class OutputHeitmann: public AppendArena {
     float velocity_conversion;
     
     void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
-	ICparticle *p = (ICparticle *)c;
+        ICparticle *p = (ICparticle *)c;
 #ifdef GLOBALPOS
-	// This is for global box-referenced positions
-	// p->xv[0] = pos[0];
-	// p->xv[2] = pos[1];
-	// p->xv[4] = pos[2];
-	double3 cc = double3(0.0);
+        // This is for global box-referenced positions
+        double3 cc = double3(0.0);
 #else
-	// If we instead have cell-referenced positions, then:
-	double3 cc = PP->WrapCellCenter(current_cell.cellid());
+        // If we instead have cell-referenced positions, then:
+        double3 cc = CP->WrapCellCenter(current_cell.cellid());
 #endif
-	p->xv[0] = (double) pos.x+cc.x;
-	p->xv[2] = (double) pos.y+cc.y;
-	p->xv[4] = (double) pos.z+cc.z;
-	p->xv[1] = vel[0]*velocity_conversion;
-	p->xv[3] = vel[1]*velocity_conversion;
-	p->xv[5] = vel[2]*velocity_conversion;
-	p->mass = 1.0;
-	p->tag = (unsigned int) aux.pid();	
-		// This could overflow, as we allow 40-bit ids
+        p->xv[0] = (double) pos.x+cc.x;
+        p->xv[2] = (double) pos.y+cc.y;
+        p->xv[4] = (double) pos.z+cc.z;
+        p->xv[1] = vel[0]*velocity_conversion;
+        p->xv[3] = vel[1]*velocity_conversion;
+        p->xv[5] = vel[2]*velocity_conversion;
+        p->mass = 1.0;
+        p->tag = (unsigned int) aux.pid();	
+        	// This could overflow, as we allow 40-bit ids
     }
     void appendcell(char *c, integer3 ijk, float vscale) {
-	current_cell = cell_header(ijk, cpd, 1);
+        current_cell = cell_header(ijk, cpd, 1);
     }
 
   public:
@@ -337,7 +331,7 @@ class OutputHeitmann: public AppendArena {
     int sizeof_particle() { return sizeof(ICparticle); }
 
     OutputHeitmann() {
-	velocity_conversion = 1.0;  // Leave it in Zspace, unit box units
+        velocity_conversion = 1.0;  // Leave it in Zspace, unit box units
     }
     ~OutputHeitmann(void) { }
 };
@@ -347,30 +341,30 @@ class OutputRVdoubleTag: public AppendArena {
   private:
     struct ICparticle {
         double pos[3];		// Global position, unit box
-	    double vel[3];		// Zspace, unit box
-	    uint64 tag;
+            double vel[3];		// Zspace, unit box
+            uint64 tag;
     };
 
     void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
-	struct ICparticle *p = (struct ICparticle *)c;
+        struct ICparticle *p = (struct ICparticle *)c;
 #ifdef GLOBALPOS
-	// This is for global box-referenced positions
-	double3 cc = double3(0.0);
+        // This is for global box-referenced positions
+        double3 cc = double3(0.0);
 #else
-	// If we instead have cell-referenced positions, then:
-	double3 cc = PP->WrapCellCenter(current_cell.cellid());
+        // If we instead have cell-referenced positions, then:
+        double3 cc = CP->WrapCellCenter(current_cell.cellid());
 #endif
-	p->pos[0] = (double) pos.x+cc.x;
-	p->pos[1] = (double) pos.y+cc.y;
-	p->pos[2] = (double) pos.z+cc.z;
-	p->vel[0] = vel.x;  // Leave it in Zspace, unit box units
-	p->vel[1] = vel.y;
-	p->vel[2] = vel.z;
-	p->tag = aux.pid();
-	
+        p->pos[0] = (double) pos.x+cc.x;
+        p->pos[1] = (double) pos.y+cc.y;
+        p->pos[2] = (double) pos.z+cc.z;
+        p->vel[0] = vel.x;  // Leave it in Zspace, unit box units
+        p->vel[1] = vel.y;
+        p->vel[2] = vel.z;
+        p->tag = aux.pid();
+        
     }
     void appendcell(char *c, integer3 ijk, float vscale) {
-	current_cell = cell_header(ijk, cpd, 1);
+        current_cell = cell_header(ijk, cpd, 1);
     }
 
   public:
@@ -378,7 +372,7 @@ class OutputRVdoubleTag: public AppendArena {
     int sizeof_particle() { return sizeof(struct ICparticle); }
 
     OutputRVdoubleTag() {
-	    STDLOG(0,"Particle size: %d\n",sizeof_particle());
+            STDLOG(0,"Particle size: %d\n",sizeof_particle());
     }
     ~OutputRVdoubleTag(void) { }
 };
@@ -399,7 +393,7 @@ class OutputRVZel: public AppendArena {
     double3 cc = double3(0.0);
 #else
     // If we instead have cell-referenced positions, then:
-    double3 cc = PP->WrapCellCenter(current_cell.cellid());
+    double3 cc = CP->WrapCellCenter(current_cell.cellid());
 #endif
     integer3 ijk = ZelIJK(aux.pid());
     double3 zelpos = ZelPos(aux.pid());
@@ -436,40 +430,40 @@ class OutputRVZel: public AppendArena {
 Sample use:
 */
 
-    LBW->AllocateSpecificSize(TimeSlice, slab, (Slab->size(slab)+PP->cpd*(PP->cpd))*sizeof(PACKED));
-    char *start = LBW->ReturnIDPtr(TimeSlice,slab);
-    AppendArena AA(start, LBW->IDSizeBytes(TimeSlice,slab));
+    SB->AllocateSpecificSize(TimeSlice, slab, (SS->size(slab)+CP->cpd*(CP->cpd))*sizeof(PACKED));
+    char *start = SB->GetSlabPtr(TimeSlice,slab);
+    AppendArena AA(start, SB->SlabSizeBytes(TimeSlice,slab));
 
     FLOAT vel_to_zspace = 1.0;   // Factor to convert from canonical to zspace
     FLOAT kickfactor = 1.0;	   // Amount to unkick.
 
-    for (integer3 ijk(slab,0,0); ijk.y<PP->cpd; ijk.y++) 
-	for (ijk.z=0;ijk.z<PP->cpd;ijk.z++) {
-	    Cell c = PP->GetCell(ijk);
-	    accstruct *acc = PP->AccCell(ijk);
-	    // Decide on vscale
-	    for (int p=0,float3 max = 0, float3 tmp; p<c.count(); p++) {
-		if ((tmp.x=fabs(c.vel[p].x))>max.x) max.x=tmp.x;
-		if ((tmp.y=fabs(c.vel[p].y))>max.y) max.y=tmp.y;
-		if ((tmp.z=fabs(c.vel[p].z))>max.z) max.z=tmp.z;
-	    }
-	    if (max.y>max.x) max.x = max.y;
-	    if (max.z>max.x) max.x = max.z;
-	    max.x*=vel_to_zspace;
-	    int vscale = ceiling(max.x);
-	        
-	    // Now pack the particles
-	    AA.addcell(ijk, vscale);
-	    for (p=0;p<c.count();p++) {
-		FLOAT3 vel = (c.vel[p]-acc[p]*kickfactor)*vel_to_zspace;
-		AA.addparticle(c.pos[p], vel, c.aux[p]);
-	    }
-	    AA.endcell();
-	}
+    for (integer3 ijk(slab,0,0); ijk.y<CP->cpd; ijk.y++) 
+        for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
+            Cell c = CP->GetCell(ijk);
+            accstruct *acc = CP->AccCell(ijk);
+            // Decide on vscale
+            for (int p=0,float3 max = 0, float3 tmp; p<c.count(); p++) {
+        	if ((tmp.x=fabs(c.vel[p].x))>max.x) max.x=tmp.x;
+        	if ((tmp.y=fabs(c.vel[p].y))>max.y) max.y=tmp.y;
+        	if ((tmp.z=fabs(c.vel[p].z))>max.z) max.z=tmp.z;
+            }
+            if (max.y>max.x) max.x = max.y;
+            if (max.z>max.x) max.x = max.z;
+            max.x*=vel_to_zspace;
+            int vscale = ceiling(max.x);
+                
+            // Now pack the particles
+            AA.addcell(ijk, vscale);
+            for (p=0;p<c.count();p++) {
+        	FLOAT3 vel = (c.vel[p]-acc[p]*kickfactor)*vel_to_zspace;
+        	AA.addparticle(c.pos[p], vel, c.aux[p]);
+            }
+            AA.endcell();
+        }
 
-    LBW->ResizeSlab(TimeSlice, slab, AA.bytes_written());
+    SB->ResizeSlab(TimeSlice, slab, AA.bytes_written());
 
     char filename[1024]; 	// Make the file name!
-    LBW->WriteArena(TimeSlice, slab, IO_DELETE, IO_NONBLOCKING, filename);
+    SB->WriteArena(TimeSlice, slab, IO_DELETE, IO_NONBLOCKING, filename);
 
 #endif

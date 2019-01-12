@@ -17,6 +17,7 @@
 #include <float.h>
 #include <complex>
 #include <omp.h>
+#include <sys/mman.h>
 
 #include <sys/time.h>
 #include <errno.h>
@@ -31,6 +32,7 @@
 #include <unistd.h>
 
 #define uint64 uint64_t
+#define int64 int64_t
 
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>

@@ -12,10 +12,7 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <errno.h>
-#include "file.h"
-#include "file.cpp"
-#include "read_dio.h"
-#include "read_dio.cpp"
+#include "iolib.cpp"
 
 
 // Reads from byte `read_start` to the end of the file.

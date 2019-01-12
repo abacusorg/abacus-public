@@ -6,7 +6,7 @@
  *new particles per cell, then allocating a new arena and copying 
  *both old and new into the appropriate locations.
  *
- *This is one of the few places that linear buffer arenas are 
+ *This is one of the few places that arenas are 
  *created or destroyed outside of the timestep.cpp file.  Otherwise
  *we try to keep that behavior explicit in timestep.
  *
@@ -51,7 +51,7 @@ public:
         // Initialize the per-skewer statistics
         maxcellsize = 0;
         mincellsize = 1e9;
-        mean_cellsize = P.np*PP->invcpd3;
+        mean_cellsize = P.np*CP->invcpd3;
         stddev_cellsize = 0.0;
         sum_square_velocity = 0.0;
         max_velocity = 0;
@@ -130,8 +130,8 @@ uint64 FillMergeSlab(int slab) {
 
     FinishCellIndex.Start();
 
-    LBW->AllocateArena(MergeCellInfoSlab, slab);
-    LBW->AllocateArena(InsertCellInfoSlab, slab);   // Will delete at bottom
+    SB->AllocateArena(MergeCellInfoSlab, slab);
+    SB->AllocateArena(InsertCellInfoSlab, slab);   // Will delete at bottom
 
     // Make the SkewerIndex objects
     SkewerIndex *skewer = new SkewerIndex[cpd];
@@ -154,7 +154,7 @@ uint64 FillMergeSlab(int slab) {
     for (int y=0; y < cpd; y++) {
         skewer[y].activelength = 0;
         for (int z=0; z < cpd; z++) {
-            cellinfo *ci =  PP->CellInfo(slab,y,z);
+            cellinfo *ci =  CP->CellInfo(slab,y,z);
             skewer[y].activelength += ci->active;
         }
     }
@@ -188,9 +188,9 @@ uint64 FillMergeSlab(int slab) {
         uint64 mci_index = skewer[y].mergestart;
 
         for(int z=0;z<cpd;z++) {
-            cellinfo *ici = PP->InsertCellInfo(slab,y,z);
-            cellinfo *mci = PP->MergeCellInfo(slab,y,z);
-            cellinfo *ci =  PP->CellInfo(slab,y,z);
+            cellinfo *ici = CP->InsertCellInfo(slab,y,z);
+            cellinfo *mci = CP->MergeCellInfo(slab,y,z);
+            cellinfo *ci =  CP->CellInfo(slab,y,z);
 
             // Now count the particles on the insert list
             // Note that this requires the insert list sorted to be in y,z order
@@ -231,7 +231,7 @@ uint64 FillMergeSlab(int slab) {
     TRACK_MAX(WriteState.MaxCellSize, skewer->maxcellsize);
     TRACK_MIN(WriteState.MinCellSize, skewer->mincellsize);
 
-    WriteState.StdDevCellSize += skewer->stddev_cellsize*PP->invcpd3;
+    WriteState.StdDevCellSize += skewer->stddev_cellsize*CP->invcpd3;
 
     TRACK_MAX(WriteState.MaxVelocity, skewer->max_velocity);
     TRACK_MAX(WriteState.MaxAcceleration, skewer->max_acceleration);
@@ -252,19 +252,19 @@ uint64 FillMergeSlab(int slab) {
             // This should be the total number of merged particles
 
     // Allocate the Merging Slabs to hold 'inslab' number of particles
-    Slab->set(slab, inslab);
-    LBW->AllocateSpecificSize(MergePosSlab, slab, inslab*sizeof(posstruct));
-    LBW->AllocateSpecificSize(MergeVelSlab, slab, inslab*sizeof(velstruct));
-    LBW->AllocateSpecificSize(MergeAuxSlab, slab, inslab*sizeof(auxstruct));
+    SS->set(slab, inslab);
+    SB->AllocateSpecificSize(MergePosSlab, slab, inslab*sizeof(posstruct));
+    SB->AllocateSpecificSize(MergeVelSlab, slab, inslab*sizeof(velstruct));
+    SB->AllocateSpecificSize(MergeAuxSlab, slab, inslab*sizeof(auxstruct));
     STDLOG(1,"Allocating Merge Slabs to contain %d particles\n", inslab);
 
     #pragma omp parallel for schedule(static)
     for(int y=0;y<cpd;y++){
         for(int z=0;z<cpd;z++) {
             Cell c;
-            c = PP->GetCell(slab, y, z);
-            Cell mc = PP->GetMergeCell(slab, y, z);
-            cellinfo *ici = PP->InsertCellInfo(slab,y,z);
+            c = CP->GetCell(slab, y, z);
+            Cell mc = CP->GetMergeCell(slab, y, z);
+            cellinfo *ici = CP->InsertCellInfo(slab,y,z);
             int insert_count = ici->count;
             
             assertf(insert_count + c.active() == mc.count(),
@@ -291,7 +291,7 @@ uint64 FillMergeSlab(int slab) {
             // In the vast majority of cases, the PIDs are numbered [0,NP).
             // One could check this condition here; failure could indicate
             // PID corruption
-			mc = PP->GetMergeCell(slab, y, z);
+			mc = CP->GetMergeCell(slab, y, z);
 			for (int j = 0; j < mc.count(); j++) {
 				assertf(mc.aux[j].pid() < P.np, "PID %d too big\n", mc.aux[j].pid());
 			}
@@ -312,7 +312,7 @@ uint64 FillMergeSlab(int slab) {
     free(ILnew);   // Need to free this space!
     // IL->ShrinkIL(IL->length - ilslablength);
     STDLOG(1,"After merge, insert list contains a total of %d particles.\n", IL->length);
-    LBW->DeAllocate(InsertCellInfoSlab, slab);
+    SB->DeAllocate(InsertCellInfoSlab, slab);
     FinishMerge.Stop();
     return inslab;
 }

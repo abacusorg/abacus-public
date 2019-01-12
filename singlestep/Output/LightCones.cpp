@@ -110,10 +110,10 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
     uint64_t slabtotal = 0;
     uint64_t strayslabtotal = 0;
 
-    LBW->AllocateSpecificSize(lightcone, slab,
+    SB->AllocateSpecificSize(lightcone, slab,
             // allocate enough space for the case where every particle is "stray" and gets its own cell
-            Slab->size(slab)*(AA->sizeof_particle() + AA->sizeof_cell()) + headersize);
-    AA->initialize(lightcone, slab, PP->cpd, ReadState.VelZSpace_to_Canonical);
+            SS->size(slab)*(AA->sizeof_particle() + AA->sizeof_cell()) + headersize);
+    AA->initialize(lightcone, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
 
     if (!P.OmitOutputHeader) {
             AA->addheader((const char *) P.header());
@@ -128,22 +128,22 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
     integer3 ijk(slab,0,0);
     // if a particle interpolates outside its cell, store its index here
     vector<int> stray_particles;
-    stray_particles.reserve(P.np * PP->invcpd3);
+    stray_particles.reserve(P.np * CP->invcpd3);
     
-    for (ijk.y=0; ijk.y<PP->cpd; ijk.y++){
-        for (ijk.z=0;ijk.z<PP->cpd;ijk.z++) {
+    for (ijk.y=0; ijk.y<CP->cpd; ijk.y++){
+        for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             // Check if the cell center is in the lightcone, with some wiggle room
-            if(!inLightCone(PP->CellCenter(ijk),0*pos,lcn,3.0/P.cpd, 3.0/P.cpd))
+            if(!inLightCone(CP->CellCenter(ijk),0*pos,lcn,3.0/P.cpd, 3.0/P.cpd))
                 continue;
-            Cell c = PP->GetCell(ijk);
+            Cell c = CP->GetCell(ijk);
             // vscale should be the max possible velocity
             // which could be greater than the cell stats would suggest, because we interpolate
             // we could compute the maximum possible interpolated velocity, or just fudge a bit
             float vscale = c.ci->max_component_velocity/ReadState.VelZSpace_to_Canonical;
-            accstruct *acc = PP->AccCell(ijk);
+            accstruct *acc = CP->AccCell(ijk);
             uint64_t cell_np = 0;
 
-            double3 cc = PP->CellCenter(ijk);
+            double3 cc = CP->CellCenter(ijk);
 #ifdef GLOBALPOS
             cc= 0*cc;
 #endif
@@ -157,7 +157,7 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
                         // and make the position local to that cell
                         // If the interpolated position has left the cell, deal with it after we've closed the current cell
                         // Same with exceeding the max velocity
-                        if(PP->LocalPosition2Cell(&pos) != ijk || vel.maxabscomponent() > c.ci->max_component_velocity){
+                        if(CP->LocalPosition2Cell(&pos) != ijk || vel.maxabscomponent() > c.ci->max_component_velocity){
                             stray_particles.push_back(p);
                             continue;
                         }
@@ -185,13 +185,13 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
                 interpolateParticle(pos,vel,acc[p],lcn);
                 
                 // find the new cell
-                integer3 stray_ijk = PP->LocalPosition2Cell(&pos);  // pos now local
+                integer3 stray_ijk = CP->LocalPosition2Cell(&pos);  // pos now local
                 int slab_distance = abs(stray_ijk.x - slab);
                 slab_distance -= P.cpd*round(slab_distance/P.cpd);
                 // one of our guarantees should be that particles in a slab file are never actually more than 1 slab away
                 // but how can we ensure that without a hard assert?
                 //assertf(slab_distance <= 1, "Lightcone particle in slab %d interpolated too many slabs away (to slab %d).\n", slab, stray_ijk.x);
-                Cell stray_cell = PP->GetCell(stray_ijk);
+                Cell stray_cell = CP->GetCell(stray_ijk);
 
                 // add one particle and close
                 // for a single particle, the vscale can be its own velocity
@@ -211,11 +211,11 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
         // Write out this filename
         char filename[1024];
         getLightConeFN(lcn,slab,filename);
-        LBW->ResizeSlab(lightcone, slab, AA->bytes_written());
-        LBW->WriteArena(lightcone, slab, IO_DELETE, IO_NONBLOCKING, filename);
+        SB->ResizeSlab(lightcone, slab, AA->bytes_written());
+        SB->WriteArena(lightcone, slab, IO_DELETE, IO_NONBLOCKING, filename);
     } else {
         // No particles in this lc; don't write anything
-        LBW->DeAllocate(lightcone, slab);
+        SB->DeAllocate(lightcone, slab);
     }
     delete AA;
 }
