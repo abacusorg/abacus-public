@@ -173,8 +173,8 @@ void NearForceAction(int slab) {
     STDLOG(1,"Computing near-field force for slab %d\n", slab);
     SlabForceTime[slab].Start();
         
-    //NFD->ExecuteSlab(slab, P.ForceOutputDebug);
-    NFD->ExecuteSlab(slab, 1);  // Use this line instead to force blocking GPU work
+    NFD->ExecuteSlab(slab, P.ForceOutputDebug);
+    // NFD->ExecuteSlab(slab, 1);  // Use this line instead to force blocking GPU work
 
     SlabForceLatency[slab].Start();
     if (P.ForceOutputDebug) {
@@ -289,7 +289,7 @@ void KickAction(int slab) {
 
     // Special case: if this is the last slab, free all +/- FORCE_RADIUS
     // Not worrying about this in the PARALLEL case; we have other non-destructions
-    STDLOG(1,"%d slabs have been Kicked so far\n", Kick.number_of_slabs_executed);
+    STDLOG(1,"%d slabs have been Kicked so far\n", Kick.raw_number_executed);
     // REMOVE: if(Kick.number_of_slabs_executed == CP->cpd-1)
     if(Kick.raw_number_executed == total_slabs_on_node-1)
         for(int j = slab - FORCE_RADIUS+1; j <= slab + FORCE_RADIUS; j++)
@@ -623,13 +623,6 @@ int FinishPrecondition(int slab) {
         if( Drift.notdone(slab+j) ) return 0;
     }
 
-    #ifdef IGNORE
-        if (Finish.raw_number_executed==0) {
-            if (Kick.notdone(slab-FORCE_RADIUS)) return 0;
-            if (Kick.notdone(slab-1+FORCE_RADIUS)) return 0;
-        }
-    #endif
-
     return 1;
 }
 
@@ -807,9 +800,14 @@ void timestep(void) {
         MPI_Barrier(MPI_COMM_WORLD);
         // This MPI call also forces a syncrhonization over the MPI processes, 
         // so things like Reseting GPUs could fire multiple times on one node.
+       SendManifest->FreeAfterSend();
+       // Run this again, just in case the dependency loop on this node finished
+       // before the neighbor received the non-blocking MPI transfer.
     #endif 
+    /*
     if (MPI_rank==0)
         assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
+        */
 
     if (GFC != NULL) assertf(GFC->GLL->length==0,
 	"GroupLinkList not empty (%d) at the end of timestep.  Global group finding didn't run properly.\n", GFC->GLL->length);
