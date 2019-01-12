@@ -315,9 +315,9 @@ void Manifest::QueueToSend(int finished_slab) {
     m.dep[m.numdep++].Load(Microstep, finished_slab, "Microstep");
     m.dep[m.numdep++].Load(FinishGroups, finished_slab, "FinishGroups");
     m.dep[m.numdep++].Load(Drift, finished_slab, "Drift");
-    int min_il_slab = m.dep[m.numdep-1].begin-1;
+    int min_il_slab = m.dep[m.numdep-1].begin-FINISH_RADIUS;
     	// We just determined that Drift has executed on begin, so
-	// the rebinning might have taken particles to begin-1.
+	// the rebinning might have taken particles to begin-FINISH_RADIUS.
     m.dep[m.numdep++].Load(Finish, finished_slab, "Finish");
     m.dep[m.numdep++].Load(LPTVelocityReRead, finished_slab, "LPTVelocityReRead");
     m.dep[m.numdep++].LoadCG(finished_slab);
