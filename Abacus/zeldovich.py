@@ -60,8 +60,7 @@ def run(paramfn, allow_eigmodes_fn_override=False):
         print("Warning: old ICs already exist; removing.")
         shutil.rmtree(params.InitialConditionsDirectory)
 
-    if not path.isdir(params.InitialConditionsDirectory):
-        os.makedirs(params.InitialConditionsDirectory)
+    os.makedirs(params.InitialConditionsDirectory, exist_ok=True)
 
     if 'ZD_PLT_filename' in params and not path.isfile(params.ZD_PLT_filename):
         # If the filename is the same, then the files should be identical and we can silently override
@@ -98,10 +97,7 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):
     sim_dir = pjoin(out_parent, old_params.SimName)
     new_parfn = pjoin(sim_dir, 'info', new_parfn)
     ic_dir = pjoin(sim_dir, 'ic')
-    try:
-        os.makedirs(sim_dir)
-    except OSError:  # exists
-        pass
+    os.makedirs(sim_dir, exist_ok=True)
         
     # If the eigmodes file doesn't exist, look for it in the zeldovich dir
     eigmodes_fn = old_params.ZD_PLT_filename
@@ -140,14 +136,22 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run the zeldovich code (located in {})'.format(zeldovich_dir))
     parser.add_argument('parfile', help='The parameter file.  This is usually the same as the .par file for singlestep.', nargs='+')
-    parser.add_argument('--out-parent', help="Overrides the parfile InitialConditionsDirectory (i.e. the zeldovich output directory) with PARENT/SimName/ic.  Create a new abacus_ic.par with the modified parameters: IC dir; and if don't exist: eigmodes, camb_matterpower", metavar='PARENT')
+    parser.add_argument('--out-parent', help="Overrides the parfile InitialConditionsDirectory (i.e. the zeldovich output directory) with PARENT/SimName/ic."
+                                             "  Create a new abacus_ic.par with the modified parameters: IC dir; and if don't exist: eigmodes, camb_matterpower", metavar='PARENT')
+    parser.add_argument('--show-growth', help='Just compute the growth factor from z=0 to z_init from the cosmology in the given parameter file. Does not generate ICs.', action='store_true')
     
     args = parser.parse_args()
     args = vars(args)
     out_parent = args.pop('out_parent')
     
     for parfn in args.pop('parfile'):
-        if out_parent:
-            run_override_dirs(parfn, out_parent, **args)
+        if args['show_growth']:
+            par = InputFile(parfn)
+            sigma8_zinit = calc_sigma8(par, z='init')
+
+            print("sigma_8(z={}) = {}\nsigma_8(z=0) = {}\nGrowth ratio D(z=200)/D(z=0) = {}\n".format(par['InitialRedshift'], sigma8_zinit, par['sigma_8'], sigma8_zinit/par['sigma_8']))
         else:
-            run(parfn, **args)
+            if out_parent:
+                run_override_dirs(parfn, out_parent, **args)
+            else:
+                run(parfn, **args)
