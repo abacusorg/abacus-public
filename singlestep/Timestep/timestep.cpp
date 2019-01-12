@@ -804,10 +804,8 @@ void timestep(void) {
        // Run this again, just in case the dependency loop on this node finished
        // before the neighbor received the non-blocking MPI transfer.
     #endif 
-    /*
     if (MPI_rank==0)
         assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
-        */
 
     if (GFC != NULL) assertf(GFC->GLL->length==0,
 	"GroupLinkList not empty (%d) at the end of timestep.  Global group finding didn't run properly.\n", GFC->GLL->length);
