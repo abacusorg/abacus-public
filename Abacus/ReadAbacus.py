@@ -722,6 +722,7 @@ try:
         f.restype = ct.c_uint64
         f.argtypes = (asciistring_arg, ct.c_size_t, ct.c_int, ct.c_int, ct.c_int, ct.c_int, ndarray_arg)
 except (OSError, ImportError):
+    raise
     pass  # no pack14 library found
 
 # An upper limit on the number of particles in a file, based on its size on disk
