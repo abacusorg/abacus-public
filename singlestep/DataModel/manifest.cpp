@@ -177,12 +177,12 @@ class Manifest {
 
     MPI_Request *requests;    ///< A list of the non-blocking requests issued
     int numpending;        ///< The number of requests pending
-    int *pending;       ///< An array listing who is pending.
+    //// int *pending;       ///< An array listing who is pending.
 
     void free_requests() {
         assertf(numpending<=0, "We've been asked to free the MPI listing before all is completed, %d.\n", numpending);
         if (requests!=NULL) delete[] requests;
-        if (pending!=NULL) delete[] pending;
+        //// if (pending!=NULL) delete[] pending;
         numpending = -1;
     }
 
@@ -538,9 +538,9 @@ void Manifest::Receive() {
     bytes += sizeof(ilstruct)*m.numil;
     STDLOG(1,"Ireceive Manifest Insert List of length %d\n", m.numil);
     // Receive all the GroupLink List fragment
-    ret = posix_memalign((void **)&links, 64, m.numlinks*sizeof(GroupLink));
-    assert(links!=NULL);
     if (GFC!=NULL) {
+        ret = posix_memalign((void **)&links, 64, m.numlinks*sizeof(GroupLink));
+        assert(links!=NULL);
         memset(links, 0, sizeof(GroupLink)*m.numlinks);   // TODO remove
         MPI_Irecv(links, sizeof(GroupLink)*m.numlinks, MPI_BYTE, rank, 2, MPI_COMM_WORLD, requests+1);
         bytes += sizeof(GroupLink)*m.numlinks;
