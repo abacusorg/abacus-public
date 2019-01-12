@@ -431,17 +431,17 @@ inline void Manifest::FreeAfterSend() {
     check_if_done(0);    // Manifest Core
     if (check_if_done(1)) {
         free(il);    // Insert List
-        STDLOG(1,"Freeing the Send Manifest Insert List\n");
+        STDLOG(1,"Freeing the Send Manifest Insert List, %d left\n", numpending);
     }
     if (check_if_done(2)) {
         free(links);    // GroupLink List; won't get called if already marked_as_done
-        STDLOG(1,"Freeing the Send Manifest GroupLink List\n");
+        STDLOG(1,"Freeing the Send Manifest GroupLink List, %d left\n", numpending);
     }
     for (int n=0; n<m.numarenas; n++) 
         if (check_if_done(n+3)) {  // Arenas
             SB->DeAllocate(m.arenas[n].type, m.arenas[n].slab);
-            STDLOG(1,"Freeing the Send Manifest Arena, slab %d of type %d\n",
-                m.arenas[n].slab, m.arenas[n].type);
+            STDLOG(1,"Freeing the Send Manifest Arena, slab %d of type %d, %d left\n",
+                m.arenas[n].slab, m.arenas[n].type, numpending);
         }
     if (numpending==0) {
         completed=2;
