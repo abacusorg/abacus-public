@@ -100,7 +100,7 @@ public:
 
     MultiAppendList(uint64 maxlistsize) { 
         length = 0; 
-	longest = 0;
+        longest = 0;
         Ngaps = omp_get_max_threads();
         // we may try to grow the list by an extra block per thread
         maxlist = maxlistsize + MALGAP_SIZE*Ngaps;
@@ -143,7 +143,7 @@ public:
         // in an ad hoc manner.
         // Call this after CollectGaps()
         GrowMALGap(newlength);
-	if (length>longest) longest = length;
+        if (length>longest) longest = length;
         reset_gaps();
     }
 
