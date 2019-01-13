@@ -287,6 +287,15 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters &_CP ) {
         CheckFileExists(fn);
     }
 
+    // Create the Taylor files, erasing them if they existed
+    for(int i=0;i<cpd;i++) {
+        char fn[1024];
+        CP.TaylorFN(i, fn);
+        FILE *f = fopen(fn, "wb");
+        assert(f != NULL);
+        fclose(f);
+    }
+
     size_t sdb = CP.runtime_DIOBufferSizeKB;
     sdb *= 1024LLU;
 
@@ -330,15 +339,6 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters &_CP ) {
     DiskBuffer = CurrentBlock->mtblock;
     CompressedDerivatives = CurrentBlock->dblock;
 #endif
-
-    // Create the Taylor files, erasing them if they existed
-    for(int i=0;i<cpd;i++) {
-        char fn[1024];
-        CP.TaylorFN(i, fn);
-        FILE *f = fopen(fn, "wb");
-        assert(f != NULL);
-        fclose(f);
-    }
     
     BlockConvolve();
 
