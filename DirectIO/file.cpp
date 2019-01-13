@@ -19,6 +19,7 @@
 void ExpandPathName(char *foo) {
     char str[1024];
     sprintf(str,"%s",foo);
+    errno = 0;
     char *retval = realpath(str,foo);
     if(errno)
         fprintf(stderr, "realpath error code %d %s\n", errno, strerror(errno));
