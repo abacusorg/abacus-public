@@ -177,12 +177,10 @@ class Manifest {
 
     MPI_Request *requests;    ///< A list of the non-blocking requests issued
     int numpending;        ///< The number of requests pending
-    //// int *pending;       ///< An array listing who is pending.
 
     void free_requests() {
         assertf(numpending<=0, "We've been asked to free the MPI listing before all is completed, %d.\n", numpending);
         if (requests!=NULL) delete[] requests;
-        //// if (pending!=NULL) delete[] pending;
         numpending = -1;
     }
 
@@ -208,7 +206,7 @@ class Manifest {
     /// Allocate N things to track
     void set_pending(int n) {
         requests = new MPI_Request[n];
-        for (int j=0; j<n; j++) requests[n]=MPI_REQUEST_NULL;
+        for (int j=0; j<n; j++) requests[j]=MPI_REQUEST_NULL;
         numpending = n;
         // STDLOG(1,"Establishing Manifest MPI listing of %d activities\n", numpending);
     }
