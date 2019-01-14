@@ -348,6 +348,7 @@ void Manifest::QueueToSend(int finished_slab) {
     STDLOG(1,"Queuing Insert List into the SendManifest, extracting [%d,%d)\n",
     	min_il_slab, finished_slab);
     // Partition the Insert List, malloc *il, and save it off
+    IL->CollectGaps();   // Want to assure no MALgaps
     global_minslab_search = CP->WrapSlab(min_il_slab-finished_slab);
     uint64 mid = ParallelPartition(IL->list, IL->length, finished_slab, is_below_slab);
 
@@ -615,6 +616,7 @@ void Manifest::ImportData() {
     assert(n==m.numdep);
 
     // Add *il to the insert list
+    IL->CollectGaps();    // Want to assure we have no MALgaps
     uint64 len = IL->length;
     IL->GrowMAL(len+m.numil);
     STDLOG(1, "Growing IL list from %d by %d = %l\n", len, m.numil, IL->length);

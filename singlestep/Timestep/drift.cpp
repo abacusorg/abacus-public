@@ -191,7 +191,6 @@ void DriftSlabAndCopy2InsertList(int slab, FLOAT driftfactor, void (*DriftSlab)(
 
     STDLOG(1,"Drifting slab %d has rebinned %d particles (%d - %d).\n",
         slab, IL->length-ILbefore, IL->length, ILbefore);
-    IL->CollectGaps();
     
     DriftMove.increment(move.timer);
     DriftRebin.increment(rebin.timer);
