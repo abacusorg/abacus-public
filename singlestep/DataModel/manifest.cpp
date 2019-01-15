@@ -553,7 +553,6 @@ void Manifest::Receive() {
     // STDLOG(1,"Done receiving the ReceiveManifest\n");
     completed = 1;
     Transmit.Stop();
-    // usleep(2e6);   // TODO: Don't forget to remove this
     #endif
     return;
 }
@@ -636,7 +635,6 @@ void Manifest::ImportData() {
     }
     
     // We're done with this Manifest!
-    // TODO: Could erase the file, but we won't for now
     done();
     Load.Stop();
     #endif
