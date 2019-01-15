@@ -102,11 +102,12 @@ class DependencyRecord {
             // Now we can delete the CellGroupArena
             SB->DeAllocate(CellGroupArena,s);
         }
-        STDLOG(1, "Marking cellgroups_status = 2 for [%d,%d)\n", begin, end);
-        // We need to set cellgroups_status=2 for [end,finished_slab]
-        for (int s=end; s<=finished_slab; s++)
+        STDLOG(1, "Marking cellgroups_status = 1 for [%d,%d)\n", begin, end);
+        // We need to set cellgroups_status=2 for [end,end+2*GroupRadius]
+        // This is so that CreateGlobalGroups() doesn't crash
+        for (int s=end; s<=end+2*GFC->GroupRadius; s++)
             GFC->cellgroups_status[CP->WrapSlab(s)]=2;
-        STDLOG(1, "Marking cellgroups_status = 2 for [%d,%d]\n", end, finished_slab);
+        STDLOG(1, "Marking cellgroups_status = 2 for [%d,%d]\n", end, end+2*GFC->GroupRadius);
         return;
     }
 };
