@@ -2,7 +2,7 @@ ROOT_DIR := ..
 include $(ROOT_DIR)/common.mk
 
 CPPFLAGS += $(PARSEHEADER_CPPFLAGS) $(THREAD_CPPFLAGS) $(TCMALLOC_CPPFLAGS)
-CPPFLAGS += -I $(ROOT_DIR)/Derivatives -I $(ROOT_DIR)/Convolution\
+CPPFLAGS += -I $(ROOT_DIR)/Derivatives -I $(ROOT_DIR)/Convolution -I $(ROOT_DIR)/DirectIO\
 	   		-I DataModel -I Direct -I IC -I Multipoles -I Output -I Timestep -I FOF
 
 SINGLESTEP_LIBS += $(PARSEHEADER_LIBS) $(THREAD_LIBS)
@@ -15,7 +15,7 @@ ifeq ($(CUDA_ENABLED),CUDA_ENABLED)
 	SINGLESTEP_LIBS += $(CUDA_LIBS)
 endif
 
-PIPELINES = singlestep make_multipoles benchmark_io standalone_fof
+PIPELINES = singlestep recover_multipoles benchmark_io standalone_fof
 
 all: singlestep
 

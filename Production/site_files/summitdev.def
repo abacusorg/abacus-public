@@ -1,4 +1,3 @@
-RamDisk = 1
 StateIOMode = "overwrite"
 Conv_IOMode = "overwrite"
 #IODirs = ["multipole/", "taylor/", "multipole2/", "taylor2/"]
@@ -17,8 +16,8 @@ GPUThreadCoreStart = [64, 72, 144, 152]
 NGPUThreadCores = 1  # will this work when we're supposed to use cores 0,8,16, etc?
 
 # Convolution OpenMP parameters
-Conv_OMP_NUM_THREADS = 19
-Conv_OMP_PLACES = "{8}:19:8"
+Conv_OMP_NUM_THREADS = 20
+Conv_OMP_PLACES = "{0}:20:8"
 Conv_OMP_PROC_BIND = "close"
 Conv_IOCores = [0]
 Conv_zwidth = 0

@@ -28,10 +28,7 @@
 #include <inttypes.h>
 
 #include <stdint.h>
-#include "file.h"
-#include "file.cpp"
-#include "read_dio.h"
-#include "read_dio.cpp"
+#include "iolib.cpp"
 
 #ifdef DOUBLEPRECISION
 #define FLOAT3 double3

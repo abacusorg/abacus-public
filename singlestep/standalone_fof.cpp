@@ -50,8 +50,7 @@
     InitGroupFinding(0);
 
     // Do we need a SlabSizePack14?
-    //Slab = new SlabSize(P.cpd);
-    //load_slabsize(P);
+    //SS = new SlabSize(P);
     timestepStandaloneFOF(argv[1]);
 
     // Let the IO finish, so that it is included in the time log.

@@ -132,7 +132,7 @@ class FaceSet {
     as needed.
     */
     void ProcessCell(int j, int k) {
-	Cell c = PP->GetCell(face->slab, j, k);
+	Cell c = CP->GetCell(face->slab, j, k);
 	integer3 wc = GFC->WrapCell(face->slab, j, k);
 	CellPtr<CellGroup> cg = GFC->cellgroups[wc.x][wc.y][wc.z];
 	const FOFloat boundary = GFC->boundary;   // The boundaries, cell-centered

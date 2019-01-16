@@ -12,7 +12,6 @@ STimer TotalWallClock;
 STimer Setup;
 STimer ConvolutionWallClock;
 
-#include "file.cpp"
 #include "factorial.cpp"
 #include "iolib.cpp"
 
@@ -142,7 +141,7 @@ void setup_openmp(){
         int core_assignments[nthreads];
         #pragma omp parallel for schedule(static)
         for(int g = 0; g < nthreads; g++){
-            assertf(g == omp_get_thread_num(), "OpenMP thread %d is executing wrong loop ieration (%d)\n", omp_get_thread_num(), g);
+            assertf(g == omp_get_thread_num(), "OpenMP thread %d is executing wrong loop iteration (%d)\n", omp_get_thread_num(), g);
             core_assignments[g] = sched_getcpu();
         }
         std::ostringstream core_log;
@@ -162,6 +161,64 @@ void setup_openmp(){
                 assertf(core_assignments[g] != core_assignments[h], "Two OpenMP threads were assigned to the same core! This will probably be very slow. Check OMP_NUM_THREADS and OMP_PLACES?\n");
     }
 
+}
+
+int choose_zwidth(int Conv_zwidth, int cpd, ConvolutionParameters &CP){
+    // Choose the convolution zwidth (number of planes to operate on at once)
+    // Use the zwidth in the parameter file if given
+    // Negative (default) means choose one based on available RAM
+    // Zero means set zwidth to max
+
+    uint64_t rambytes = CP.runtime_MaxConvolutionRAMMB;
+    rambytes *= 1024*1024;
+    
+    // If doing IO in parallel, need one block for reading, one for compute
+    // The swizzle "block" can just be a single z-plane, but is usually twice the precision
+#ifdef CONVIOTHREADED
+    int n_alloc_block = 2;
+#else
+    int n_alloc_block = 1;
+#endif
+    uint64_t zslabbytes = CP.rml*cpd*cpd*n_alloc_block*sizeof(MTCOMPLEX);
+    zslabbytes += n_alloc_block*sizeof(DFLOAT)*CP.rml*CP.CompressedMultipoleLengthXY;  // derivatives block
+    STDLOG(0,"Each slab requires      %.2f MB\n",zslabbytes/1024/1024.);
+    STDLOG(0,"You allow a maximum of  %.2f MB\n",rambytes/1024/1024.);
+    uint64_t swizzlebytes = CP.rml*cpd*cpd*sizeof(Complex);
+    if(rambytes < zslabbytes) { 
+        fprintf(stderr, "Each slab requires      %.2f MB\n", zslabbytes/1024/1024.);
+        fprintf(stderr, "You allow a maximum of  %.2f MB\n", rambytes/1024/1024.);
+        fprintf(stderr, "[ERROR] rambytes<zslabbytes\n");
+        exit(1);
+    }
+
+    // If we are on the ramdisk, then we know the problem fits in memory! Just do the whole thing at once
+    // If we aren't overwriting, there might be a small efficiency gain from smaller zwidth since reading requires a memcpy()
+    // TODO: need to support ramdisk offsets if we want to support zwidth < max
+    if(CP.is_ramdisk()){
+        STDLOG(0, "Forcing zwidth = full since we are using ramdisk\n");
+        return (cpd + 1)/2;  // full width
+    }
+
+    if(Conv_zwidth > 0){
+        return Conv_zwidth;
+    }
+    else if(Conv_zwidth == 0){
+        return (cpd + 1)/2;  // full width
+    }
+    else {
+        int zwidth = 0;
+        for(zwidth = (cpd+1)/2; zwidth >= 1;zwidth--) {
+            if(zwidth*zslabbytes + swizzlebytes < rambytes)
+                break;
+        }
+
+        // If we're allocating more than one block, make sure we have at least one z-split
+        if(n_alloc_block > 1)
+            zwidth = min((cpd+1)/4, zwidth);
+        return zwidth;
+    }
+
+    return -1;
 }
 
 int main(int argc, char ** argv){
@@ -187,107 +244,69 @@ int main(int argc, char ** argv){
         
         setup_openmp();
 
-	    ConvolutionParameters p;
-	    p.runtime_ConvolutionCacheSizeMB = P.ConvolutionCacheSizeMB;
-        STDLOG(1, "Using cache size %d MB\n", p.runtime_ConvolutionCacheSizeMB);
-	    p.runtime_DerivativeExpansionRadius = P.DerivativeExpansionRadius;
-	    strcpy(p.runtime_DerivativesDirectory,P.DerivativesDirectory);
-	    p.runtime_DiskBufferSizeKB = 1LL<<11;
-	    p.runtime_IsRamDisk = P.RamDisk;
-	    p.runtime_MaxConvolutionRAMMB = P.MAXRAMMB;
-	    strcpy(p.runtime_MultipoleDirectory,P.MultipoleDirectory);
+	    ConvolutionParameters CP;
+	    CP.runtime_ConvolutionCacheSizeMB = P.ConvolutionCacheSizeMB;
+        STDLOG(1, "Using cache size %d MB\n", CP.runtime_ConvolutionCacheSizeMB);
+	    CP.runtime_DerivativeExpansionRadius = P.DerivativeExpansionRadius;
+	    strcpy(CP.runtime_DerivativesDirectory,P.DerivativesDirectory);
+	    CP.runtime_DIOBufferSizeKB = 1LL<<11;
+	    CP.runtime_IsRamDisk = P.RamDisk;
+	    CP.runtime_MaxConvolutionRAMMB = P.MAXRAMMB;
+	    strcpy(CP.runtime_MultipoleDirectory, P.MultipoleDirectory);
 
-        p.niothreads = 1;
+        CP.ProfilingMode = P.ProfilingMode;
+
+	    sprintf(CP.runtime_MultipolePrefix, "Multipoles");
+	    CP.runtime_NearFieldRadius = P.NearFieldRadius;
+	    strcpy(CP.runtime_TaylorDirectory, P.TaylorDirectory);
+	    CP.runtime_cpd = P.cpd;
+	    CP.runtime_order = P.order;
+        CP.rml = (P.order+1)*(P.order+1);
+        CP.CompressedMultipoleLengthXY = ((1+P.cpd)*(3+P.cpd))/8;
+	    sprintf(CP.runtime_TaylorPrefix, "Taylor");
+        
+        CP.StripeConvState = strcmp(P.Conv_IOMode, "stripe") == 0;
+        CP.OverwriteConvState = strcmp(P.Conv_IOMode, "overwrite") == 0;
+
+        // Determine number of IO threads
+        CP.niothreads = 1;
         if(strcmp(P.MultipoleDirectory2,STRUNDEF) != 0){
-            strcpy(p.runtime_MultipoleDirectory2,P.MultipoleDirectory2);
+            strcpy(CP.runtime_MultipoleDirectory2,P.MultipoleDirectory2);
 #ifdef CONVIOTHREADED
             // Two IO threads if we were given two Multipole directories
-            p.niothreads = 2;
+            CP.niothreads = 2;
 #endif
         }
         if(strcmp(P.TaylorDirectory2,STRUNDEF) != 0){
-            strcpy(p.runtime_TaylorDirectory2,P.TaylorDirectory2);
+            strcpy(CP.runtime_TaylorDirectory2,P.TaylorDirectory2);
 #ifdef CONVIOTHREADED
-            p.niothreads = 2;
+            CP.niothreads = 2;
 #endif
         }
-
-        p.ProfilingMode = P.ProfilingMode;
-
-	    sprintf(p.runtime_MultipolePrefix, "Multipoles");
-	    p.runtime_NearFieldRadius = P.NearFieldRadius;
-	    strcpy(p.runtime_TaylorDirectory,P.TaylorDirectory);
-	    p.runtime_cpd = P.cpd;
-	    p.runtime_order = P.order;
-        p.rml = (P.order+1)*(P.order+1);
-        p.CompressedMultipoleLengthXY = ((1+P.cpd)*(3+P.cpd))/8;
-	    sprintf(p.runtime_TaylorPrefix, "Taylor");
-        
-        p.delete_multipoles_after_read = strcmp(P.Conv_IOMode, "overwrite") == 0;
-        p.StripeConvState = strcmp(P.Conv_IOMode, "stripe") == 0;
         
         int cml = ((P.order+1)*(P.order+2)*(P.order+3))/6;
         int nprocs = omp_get_max_threads();
-        size_t cacherambytes = p.runtime_ConvolutionCacheSizeMB*(1024LL*1024LL);
+        size_t cacherambytes = CP.runtime_ConvolutionCacheSizeMB*(1024LL*1024LL);
 
         int blocksize = 0;
         for(blocksize=P.cpd*P.cpd;blocksize>=2;blocksize--) 
             if((P.cpd*P.cpd)%blocksize==0)
                 if(nprocs*2.5*cml*blocksize*sizeof(Complex) < cacherambytes) break;
                     // 2.5 = 2 Complex (mcache,tcache) 1 double dcache
-        p.blocksize = blocksize;
+        CP.blocksize = blocksize;
         
-        uint64_t rambytes = p.runtime_MaxConvolutionRAMMB;
-        rambytes *= 1024*1024;
-        
-        // If doing IO in parallel, need one block for reading, one for compute
-        // The swizzle "block" can just be a single z-plane, but is usually twice the precision
-#ifdef CONVIOTHREADED
-        int n_alloc_block = 2;
-#else
-        int n_alloc_block = 1;
-#endif
-        uint64_t zslabbytes = p.rml*P.cpd*P.cpd*n_alloc_block*sizeof(MTCOMPLEX);
-        zslabbytes += n_alloc_block*sizeof(DFLOAT)*p.rml*p.CompressedMultipoleLengthXY;  // derivatives block
-        STDLOG(0,"Each slab requires      %.2f MB\n",zslabbytes/1024/1024.);
-        STDLOG(0,"You allow a maximum of  %.2f MB\n",rambytes/1024/1024.);
-        uint64_t swizzlebytes = p.rml*P.cpd*P.cpd*sizeof(Complex);
-        if(rambytes < zslabbytes) { 
-            fprintf(stderr, "Each slab requires      %.2f MB\n", zslabbytes/1024/1024.);
-            fprintf(stderr, "You allow a maximum of  %.2f MB\n", rambytes/1024/1024.);
-            fprintf(stderr, "[ERROR] rambytes<zslabbytes\n");
-            exit(1);
-        }
-
-        // Use the zwidth in the parameter file if given
-        // Negative (default) means choose one based on available RAM
-        // Zero means set zwidth to max
-        if(P.Conv_zwidth > 0)
-            p.zwidth = P.Conv_zwidth;
-        else if(P.Conv_zwidth == 0)
-            p.zwidth = (P.cpd + 1)/2;
-        else {
-            int zwidth = 0;
-            for(zwidth=(P.cpd+1)/2;zwidth >= 1;zwidth--) {
-                if( zwidth*zslabbytes + swizzlebytes < rambytes) break;
-            }
-            // If we're allocating more than one block, make sure we have at least one z-split
-            if(n_alloc_block > 1)
-                zwidth = min((P.cpd+1)/4, zwidth);
-            p.zwidth = zwidth;
-        }
-
-        STDLOG(0,"Using zwidth: %d \n", p.zwidth);
+        CP.zwidth = choose_zwidth(P.Conv_zwidth, P.cpd, CP);
+        STDLOG(0,"Using zwidth: %d \n", CP.zwidth);
         
         for (int i = 0; i < MAX_IO_THREADS; i++)
-            p.io_cores[i] = P.Conv_IOCores[i];
+            CP.io_cores[i] = P.Conv_IOCores[i];
     
         STDLOG(2, "MTCOMPLEX (multipole/taylor) dtype width: %d\n", (int) sizeof(MTCOMPLEX));
         STDLOG(2, "DFLOAT (derivatives)         dtype width: %d\n", (int) sizeof(DFLOAT));
 
 	    ConvolutionWallClock.Start();
 	    STDLOG(1,"Starting Convolution\n");
-	    OCC.Convolve(p);
+	    OCC.Convolve(CP);
 	    STDLOG(1,"Convolution Complete\n");
 	    ConvolutionWallClock.Stop();
 	    TotalWallClock.Stop();
@@ -300,12 +319,12 @@ int main(int argc, char ** argv){
 	    stdlog.close();
 
         // Delete the Taylors if this was profiling mode
-        if(p.ProfilingMode == 2){
+        if(CP.ProfilingMode == 2){
             char cmd[1024];
-            sprintf(cmd, "rm -f %s/Taylor_????", p.runtime_TaylorDirectory);
+            sprintf(cmd, "rm -f %s/Taylor_????", CP.runtime_TaylorDirectory);
             system(cmd);
-            if(p.StripeConvState){
-                sprintf(cmd, "rm -f %s/Taylor_????", p.runtime_TaylorDirectory2);
+            if(CP.StripeConvState){
+                sprintf(cmd, "rm -f %s/Taylor_????", CP.runtime_TaylorDirectory2);
                 system(cmd);
             }
         }
