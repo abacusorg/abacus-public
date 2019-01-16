@@ -236,7 +236,7 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     FinishSort.Start();
 
     ilstruct *ilnew;
-    assert(posix_memalign((void **)&ilnew, 64, sizeof(ilstruct)*(slablength)) == 0);
+    assert(posix_memalign((void **)&ilnew, CACHE_LINE_SIZE, sizeof(ilstruct)*(slablength)) == 0);
 
     MultiMergeSort<ilstruct> mm;
     mm.mmsort(&(list[mid]), ilnew, slablength, cpd*cpd, 2e6, 16);

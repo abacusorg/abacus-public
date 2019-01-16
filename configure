@@ -631,6 +631,7 @@ NVCC
 CUDA_LDFLAGS
 CUDA_CFLAGS
 CUDA_MAJOR_VER
+UNROLLEDMULTIPOLES
 AVX512MULTIPOLES
 AVXMULTIPOLES
 SIMD_EXTENSIONS
@@ -717,9 +718,11 @@ enable_avx_directs
 enable_avx512_directs
 enable_avx_multipoles
 enable_avx512_multipoles
+enable_unrolled_multipoles
 enable_avx_fof
 with_max_cpd
 with_max_source_length
+with_max_order
 enable_threaded_io
 enable_spherical_overdensity
 enable_gpu_directs
@@ -729,6 +732,7 @@ enable_fof_density
 with_direct_bpd
 with_max_gpus
 with_softening
+with_cache_line_size
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1366,6 +1370,8 @@ Optional Features:
   --enable-avx-multipoles AVX multipoles [yes if AVX present]
   --enable-avx512-multipoles
                           AVX-512 multipoles [yes if AVX-512 present]
+  --enable-unrolled-multipoles
+                          Unrolled (plain C) multipoles [yes]
   --enable-avx-fof        AVX FOF [yes if AVX present]
   --enable-threaded-io    Threaded IO [yes]
   --enable-spherical-overdensity
@@ -1383,12 +1389,14 @@ Optional Packages:
   --with-max-cpd=CPD      Maximum cells-per-dimension [8192]
   --with-max-source-length=S
                           Maximum source length [1048576]
+  --with-max-order=O      Maximum multipole order [16]
   --with-cuda=PREFIX      Prefix of your CUDA installation [$CUDA_HOME or
                           $CUDA_DIR or $CUDAPATH or /usr/local/cuda]
   --with-direct-bpd=B     Direct buffers per device [ceil((2*NFR+1)/NGPU) = 3]
   --with-max-gpus=M       Maximum number of GPUs to use [16]
   --with-softening={plummer | single_spline | cubic_spline | cubic_plummer}
                           Near-force softening technique [single_spline]
+  --with-cache-line=N     Cache line size in bytes [auto]
 
 Some influential environment variables:
   CXX         C++ compiler command
@@ -5792,6 +5800,24 @@ _ACEOF
 fi
 
 
+# Check whether --enable-unrolled-multipoles was given.
+if test "${enable_unrolled_multipoles+set}" = set; then :
+  enableval=$enable_unrolled_multipoles;
+else
+  enable_unrolled_multipoles=yes
+fi
+
+UNROLLEDMULTIPOLES="UNROLLEDMULTIPOLES_DISABLED"
+if test x$enable_unrolled_multipoles == xyes; then
+
+cat >>confdefs.h <<_ACEOF
+#define UNROLLEDMULTIPOLES /**/
+_ACEOF
+
+    UNROLLEDMULTIPOLES="UNROLLEDMULTIPOLES_ENABLED"
+fi
+
+
 # Check whether --enable-avx-fof was given.
 if test "${enable_avx_fof+set}" = set; then :
   enableval=$enable_avx_fof;
@@ -5832,6 +5858,20 @@ fi
 
 cat >>confdefs.h <<_ACEOF
 #define MAXSOURCELENGTH $with_max_source_length
+_ACEOF
+
+
+
+# Check whether --with-max-order was given.
+if test "${with_max_order+set}" = set; then :
+  withval=$with_max_order;
+else
+  with_max_order="16"
+fi
+
+
+cat >>confdefs.h <<_ACEOF
+#define MAXORDER $with_max_order
 _ACEOF
 
 
@@ -6520,6 +6560,24 @@ fi
 
 fi
 
+
+# Check whether --with-cache-line-size was given.
+if test "${with_cache_line_size+set}" = set; then :
+  withval=$with_cache_line_size;
+else
+  with_cache_line="auto"
+fi
+
+if test "x$with_cache_line" == xauto; then
+    # This is the only way to do this I've found that works on x86 and ppc
+    with_cache_line=$(cat /sys/devices/system/cpu/cpu0/cache/index0/coherency_line_size)
+fi
+
+cat >>confdefs.h <<_ACEOF
+#define CACHE_LINE_SIZE $with_cache_line
+_ACEOF
+
+
 # If the user is using Anaconda Python, we have to be careful
 # about how we build C/C++ libraries that will be loaded by Python.
 # Anaconda Python has the Python executable rpath set to find
@@ -6617,10 +6675,9 @@ echo "AVX directs:                     $enable_avx_directs"
 echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "AVX multipoles:                  $enable_avx_multipoles"
 echo "AVX-512 multipoles:              $enable_avx512_multipoles"
+echo "Unrolled multipoles:             $enable_unrolled_multipoles"
 echo "AVX FOF:                         $enable_avx_fof"
 echo "Spherical Overdensity:           $enable_spherical_overdensity"
-echo "Maximum CPD:                     $with_max_cpd"
-echo "Maximum source length:           $with_max_source_length"
 echo "Threaded IO:                     $enable_threaded_io"
 echo "Direct buffers-per-device:       $with_direct_bpd"
 echo "GPU directs:                     $enable_gpu_directs"
@@ -6628,10 +6685,16 @@ echo "Compute FOF-scale density:       $enable_fof_density"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Maximum GPUs:                    $with_max_gpus"
+echo "Cache line size:                 $with_cache_line"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
 echo "------------------------------------------------------"
 echo
+
+# These are configurable but uncommon to change
+#echo "Maximum CPD:                     $with_max_cpd"
+#echo "Maximum source length:           $with_max_source_length"
+#echo "Maximum order:                   $with_max_order"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure

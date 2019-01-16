@@ -16,7 +16,7 @@ class PencilStats {
   public:
     float work;   // The estimated amount of work this pencil will require
     int pnum;         // The pencil number
-    int pad[14];   // To avoid cache line contention.
+    uint8_t pad[CACHE_LINE_SIZE-8];   // To avoid cache line contention.
     
     PencilStats() { pnum = -1; work = 0.0; }
     // We provide a sort operator that will yield a decreasing list
@@ -67,7 +67,7 @@ class LinkPencil {
   public:
     GroupLink *data;   ///< Where this pencil starts
     LinkIndex *cells;         ///< [0,cpd)
-    // uint64 pad[6];        // To fill up 64 bytes
+    // uint8_t pad[CACHE_LINE_SIZE];        // To fill up 64 bytes
 
     LinkPencil() { data = NULL; cells = NULL; }
     ~LinkPencil() {}
@@ -145,7 +145,7 @@ class GlobalGroupSlab {
         assertf(pstat==NULL, "GlobalGroupSlab setup is not legal");    // Otherwise, we're re-allocating something!
         pos = NULL; vel = NULL; aux = NULL; acc = NULL; np = 0;
         slab = GFC->WrapSlab(_slab); largest_group = 0;
-        int ret = posix_memalign((void **) &pstat, 64, sizeof(PencilStats)*GFC->cpd);
+        int ret = posix_memalign((void **) &pstat, CACHE_LINE_SIZE, sizeof(PencilStats)*GFC->cpd);
         assert(ret==0);
         for (int j=0; j<GFC->cpd; j++) pstat[j].reset(j);
 
@@ -240,10 +240,10 @@ void GlobalGroupSlab::CreateGlobalGroups() {
     LinkPencil **links;                // For several slabs and all pencils in each
     links = (LinkPencil **)malloc(sizeof(LinkPencil *)*diam);
 
-    {int ret = posix_memalign((void **)&(links[0]), 64, sizeof(LinkPencil)*diam*cpd); assert(ret==0);}
+    {int ret = posix_memalign((void **)&(links[0]), CACHE_LINE_SIZE, sizeof(LinkPencil)*diam*cpd); assert(ret==0);}
     for (int j=1; j<diam; j++) links[j] = links[j-1]+cpd;
     LinkIndex *cells;
-    {int ret = posix_memalign((void **)&cells, 64, sizeof(LinkIndex)*diam*cpd*cpdpad); assert(ret==0);}
+    {int ret = posix_memalign((void **)&cells, CACHE_LINE_SIZE, sizeof(LinkIndex)*diam*cpd*cpdpad); assert(ret==0);}
     // cells = (LinkIndex *)malloc(sizeof(LinkIndex)*diam*cpd*cpdpad);
     for (int s=0; s<diam; s++) {
         int thisslab = GFC->WrapSlab(slab+s-diam/2);

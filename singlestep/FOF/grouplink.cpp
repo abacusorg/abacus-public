@@ -17,8 +17,8 @@ traversing the graph defined by these GroupLinks.
 /** A LinkID is a unique reference to a CellGroup, using cell i,j,k
 and then the group number.
 
-We pack 12 bytes of cell location (so CPD<4096!)
-and then 20 bytes of group number, to make a sortable object.
+We pack 12 bits of cell location (so CPD<4096!)
+and then 20 bits of group number, to make a sortable object.
 Use the sign bit to mark items for deletion
 
 If the id is -1, then this link is unusable and marked for deletion.
@@ -140,7 +140,7 @@ public:
 	GroupSort.Stop();
 	// Our other stuff doesn't work because these keys are uint64.
 	// GroupLink *hlnew;
-	// int ret = posix_memalign((void **)&glnew, 64, sizeof(GroupLink)*(length));
+	// int ret = posix_memalign((void **)&glnew, CACHE_LINE_SIZE, sizeof(GroupLink)*(length));
 	// assertf(ret==0, "GroupLinkList Sort() failed to allocate memory.\n");
 	// MultiMergeSort<GroupLink> mm;
 	// mm.mmsort(&(list[mid]), glnew, length, cpd*cpd, 2e6, 16);

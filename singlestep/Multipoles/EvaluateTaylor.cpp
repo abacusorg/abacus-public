@@ -1,8 +1,13 @@
 #ifdef TEST
+
 // Compile test driver with:
 // $ make EvaluateTaylorTest
-#define AVXMULTIPOLES
-#define AVX512MULTIPOLES
+
+// Can use these to override ./configure for testing
+//#define AVXMULTIPOLES
+//#define AVX512MULTIPOLES
+#define UNROLLEDMULTIPOLES
+
 #include "threevector.hh"
 #define FLOAT float
 #define FLOAT3 float3
@@ -12,27 +17,6 @@
 #endif
 
 #include "EvaluateTaylor.h"
-
-#ifdef AVXMULTIPOLES
-void (*Tptr[17])(d4 * px, d4 * py, d4 * pz, d4 * cx, d4 * cy, d4 * cz, 
-                 d4 * tx, d4 * ty, d4 * tz, d4 * ax, d4 * ay, d4 * az) = { 
- TaylorKernel0, TaylorKernel1, TaylorKernel2, TaylorKernel3, TaylorKernel4, 
- TaylorKernel5, TaylorKernel6, TaylorKernel7, TaylorKernel8, 
- TaylorKernel9, TaylorKernel10, TaylorKernel11, TaylorKernel12, 
- TaylorKernel13, TaylorKernel14, TaylorKernel15, TaylorKernel16 }; 
-#endif
-
-
-// We are not using the manually unrolled versions right now
-#ifdef AVX512MULTIPOLES
-void (*Tptr512[17])(AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, 
-                    AVX512_DOUBLES *tx, AVX512_DOUBLES *ty, AVX512_DOUBLES *tz, AVX512_DOUBLES &ax, AVX512_DOUBLES &ay, AVX512_DOUBLES &az) = { 
- Taylor512Kernel0, Taylor512Kernel1, Taylor512Kernel2, Taylor512Kernel3, Taylor512Kernel4, 
- Taylor512Kernel5, Taylor512Kernel6, Taylor512Kernel7, Taylor512Kernel8, 
- Taylor512Kernel9, Taylor512Kernel10, Taylor512Kernel11, Taylor512Kernel12, 
- Taylor512Kernel13, Taylor512Kernel14, Taylor512Kernel15, Taylor512Kernel16 };
-
-#endif
 
 
 Taylor::~Taylor(void) {
@@ -58,6 +42,8 @@ Taylor::~Taylor(void) {
 }
 
 Taylor::Taylor(int order) : basemultipoles(order) {
+    assert(omp_get_max_threads() < MAXTHREADS);
+    
 #ifdef AVXMULTIPOLES
     for(int g=0;g<omp_get_max_threads();g++) {
         int rv;
@@ -115,6 +101,8 @@ void Taylor::EvaluateTaylor(double *CT, FLOAT3 expansioncenter, int np,
     AVX512EvaluateTaylor(CT, expansioncenter, np, ps, acc);
     #elif defined(AVXMULTIPOLES)
     ASMEvaluateTaylor(CT, expansioncenter, np, ps, acc);
+    #elif defined(UNROLLEDMULTIPOLES)
+    UnrolledEvaluateTaylor(CT, expansioncenter, np, ps, acc);
     #else
     AnalyticEvaluateTaylor(CT, expansioncenter, np, ps, acc);
     #endif
@@ -149,6 +137,34 @@ void Taylor::AnalyticEvaluateTaylor(double *CT, FLOAT3 expansioncenter, int np,
         acc[p] += a;
     }
 }
+
+#ifdef UNROLLEDMULTIPOLES
+
+void Taylor::UnrolledEvaluateTaylor(double *CT, FLOAT3 center, int n, FLOAT3 *p, FLOAT3 *acc) {
+    int cml_orderm1 = (order)*(order+1)*(order+2)/6;
+    double3 Q[cml_orderm1];
+
+
+    // We could unroll the below loop for more speed, but it already runs at ~60 Mpart/s/core
+    int i,a,b,c;
+    i = 0;
+    FOR(a,0,order-1)
+        FOR(b,0,order-1-a)
+            FOR(c,0,order-1-a-b) {
+                Q[i].x = (a+1)*CT[ cmap(a+1,b  ,c  ) ];
+                Q[i].y = (b+1)*CT[ cmap(a  ,b+1,c  ) ];
+                Q[i].z = (c+1)*CT[ cmap(a  ,b  ,c+1) ];
+                i++;
+            }
+
+    // We up-cast the positions in the AVX versions, so for consistency do that here
+    double3 dcenter = double3(center);
+
+    // This function call contains the loop over particles; allows vectorization
+    Tptr_unrolled[order](p, n, dcenter, Q, acc);
+}
+
+#endif
 
 #ifdef AVXMULTIPOLES
 void Taylor::ASMEvaluateTaylor( double *CT, FLOAT3 center, int n, FLOAT3 *xyz,
@@ -364,8 +380,8 @@ void report(const char* prefix, int64_t npart, std::chrono::duration<double> ela
 int main(int argc, char **argv){
 	Taylor TY(8);
 
-	int ncell = 1*1125*1125;
-	int ppc = 55;
+	int ncell = 1*405*405;
+	int ppc = 44;
     if (argc > 1)
         ppc = atoi(argv[1]);
 	float rtol=1e-6;
@@ -374,7 +390,7 @@ int main(int argc, char **argv){
 	double *cartesian;  // re-use cartesians for all cells (?)
 	FLOAT3 center(0.1,0.2,0.3);
 	FLOAT3 *xyz;
-	FLOAT3 *acc1, *acc2, *acc3;
+	FLOAT3 *acc1, *acc2, *acc3, *acc4;
 
 	assert(posix_memalign((void **) &cartesian, 4096, sizeof(double)*TY.cml) == 0);
 	for (int i = 0; i < TY.cml; i++)
@@ -390,10 +406,14 @@ int main(int argc, char **argv){
 	assert(posix_memalign((void **) &acc1, 4096, sizeof(FLOAT3)*npart) == 0);
 	assert(posix_memalign((void **) &acc2, 4096, sizeof(FLOAT3)*npart) == 0);
     assert(posix_memalign((void **) &acc3, 4096, sizeof(FLOAT3)*npart) == 0);
+    assert(posix_memalign((void **) &acc4, 4096, sizeof(FLOAT3)*npart) == 0);
 
-    /****************************************/
+    auto begin = std::chrono::steady_clock::now();
+    auto end = std::chrono::steady_clock::now();
+
+#ifdef AVXMULTIPOLES
     // ASM Taylors
-	auto begin = std::chrono::steady_clock::now();
+	begin = std::chrono::steady_clock::now();
 	#pragma omp parallel for schedule(static)
 	for(int k = 0; k < ncell; k++){
 		FLOAT3 *thisxyz = xyz + k*ppc;
@@ -402,10 +422,11 @@ int main(int argc, char **argv){
 		memset(thisacc, 0, sizeof(FLOAT3)*ppc);
 		TY.ASMEvaluateTaylor(cartesian, center, ppc, thisxyz, thisacc);
 	}
-	auto end = std::chrono::steady_clock::now();
+	end = std::chrono::steady_clock::now();
     report("ASM Taylors", npart, end-begin);
+#endif
 
-    /****************************************/
+#ifdef AVX512MULTIPOLES
     // AVX-512 Taylors
     begin = std::chrono::steady_clock::now();
     #pragma omp parallel for schedule(static)
@@ -419,8 +440,9 @@ int main(int argc, char **argv){
     end = std::chrono::steady_clock::now();
     report("AVX-512 Taylors", npart, end-begin);
     compare_acc(acc1, acc3, npart, rtol);
+#endif
 
-    /****************************************/
+
     // Analytic Taylors
     begin = std::chrono::steady_clock::now();
 	#pragma omp parallel for schedule(static)
@@ -433,7 +455,23 @@ int main(int argc, char **argv){
 	}
 	end = std::chrono::steady_clock::now();
 	report("Analytic Taylors", npart, end-begin);
-	compare_acc(acc1, acc2, npart, rtol);
+	//compare_acc(acc1, acc2, npart, rtol);
+
+#ifdef UNROLLEDMULTIPOLES
+    // Analytic Taylors
+    begin = std::chrono::steady_clock::now();
+    #pragma omp parallel for schedule(static)
+    for(int k = 0; k < ncell; k++){
+        FLOAT3 *thisxyz = xyz + k*ppc;
+        FLOAT3 *thisacc = acc4 + k*ppc;
+        
+        memset(thisacc, 0, sizeof(FLOAT3)*ppc);
+        TY.UnrolledEvaluateTaylor(cartesian, center, ppc, thisxyz, thisacc);
+    }
+    end = std::chrono::steady_clock::now();
+    report("Unrolled Taylors", npart, end-begin);
+    compare_acc(acc4, acc2, npart, rtol);
+#endif
 
     return 0;
 }

@@ -8,6 +8,7 @@ The compiler can't figure out how to unroll some of the nested
 loops, so the purpose of this program is to "manually" unroll them.
 
 Curiously, the "un-unrolled" version of the Taylors seem faster.
+That's implemented in EvaluateTaylors.cpp.
 '''
 
 def emit_AVX512_Multipoles(maxorder=16, fn='CMAVX512.cpp'):

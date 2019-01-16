@@ -1,38 +1,21 @@
 #ifdef TEST
+
 // Compile test driver with:
 // $ make EvaluateMultipolesTest
-#define AVXMULTIPOLES
-#define AVX512MULTIPOLES
+
+// Can use these to override ./configure for testing
+//#define AVXMULTIPOLES
+//#define AVX512MULTIPOLES
+#define UNROLLEDMULTIPOLES
+
 #include "threevector.hh"
 #define FLOAT float
 #define FLOAT3 float3
 
 #include "basemultipoles.cpp"
-#endif
+#endif  // #ifdef TEST
 
 #include "EvaluateMultipoles.h"
-
-#ifdef AVXMULTIPOLES 
-void (*CMptr[24])( d4 *ip1x, d4 *ip2x, d4 *ip1y, d4 *ip2y, d4 *ip1z, d4 *ip2z, 
-                   d4 *cx, d4 *cy, d4 *cz, d4 *globalM, 
-                   d4 *mass1, d4 *mass2) = {
-     MultipoleKernel1,  MultipoleKernel2,  MultipoleKernel3,  MultipoleKernel4,
-     MultipoleKernel5,  MultipoleKernel6,  MultipoleKernel7,  MultipoleKernel8,
-     MultipoleKernel9,  MultipoleKernel10, MultipoleKernel11, MultipoleKernel12,
-     MultipoleKernel13, MultipoleKernel14, MultipoleKernel15, MultipoleKernel16
-};
-#endif
-
-#ifdef AVX512MULTIPOLES 
-void (*CM512ptr[24])( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz,
-                      AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz,
-                      AVX512_DOUBLES *CM ) = {
-     Multipole512Kernel1,  Multipole512Kernel2,  Multipole512Kernel3,  Multipole512Kernel4,
-     Multipole512Kernel5,  Multipole512Kernel6,  Multipole512Kernel7,  Multipole512Kernel8,
-     Multipole512Kernel9,  Multipole512Kernel10, Multipole512Kernel11, Multipole512Kernel12,
-     Multipole512Kernel13, Multipole512Kernel14, Multipole512Kernel15, Multipole512Kernel16
-};
-#endif
 
 Multipoles::Multipoles(int order) : basemultipoles(order) {
 #ifdef AVXMULTIPOLES
@@ -83,6 +66,8 @@ void Multipoles::EvaluateCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 center, do
     AVX512CartesianMultipoles(p, n, center, cm);
     #elif defined(AVXMULTIPOLES)
     ASMCartesianMultipoles(p, n, center, cm);
+    #elif defined(UNROLLEDMULTIPOLES)
+    UnrolledCartesianMultipoles(p, n, center, cm);
     #else
     AnalyticCartesianMultipoles(p, n, center, cm);
     #endif
@@ -115,6 +100,23 @@ void Multipoles::AnalyticCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 center,
         }
     }
 }
+
+#ifdef UNROLLEDMULTIPOLES
+
+void Multipoles::UnrolledCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 center, 
+                                             double *CM) {
+
+    for(int m = 0; m < completemultipolelength; m++)
+        CM[m] = 0;
+
+    // We up-cast the positions in the AVX versions, so for consistency do that here
+    double3 dcenter = double3(center);
+    for(int q=0;q<n;q++) {
+        CM_unrolled_ptr[order-1](p[q], dcenter, CM);
+    }
+}
+
+#endif
 
 #ifdef AVXMULTIPOLES
 void Multipoles::ASMCartesianMultipoles(FLOAT3 *xyz, int n, FLOAT3 center, 
@@ -193,6 +195,7 @@ void Multipoles::AVX512CartesianMultipoles(FLOAT3 *xyz, int n, FLOAT3 center, do
             pz512[j] = xyz[k+j].z;
         }
 
+        // This function calls a manually unrolled version of the commented-out code below
         CM512ptr[order-1](px512, py512, pz512,
                         cx512, cy512, cz512,
                         CM512);
@@ -268,6 +271,7 @@ void Multipoles::AVX512CartesianMultipoles(FLOAT3 *xyz, int n, FLOAT3 center, do
     for(int a=0;a<=order;a++)
         for(int b=0;b<=order-a;b++)
             for(int c=0;c<=order-a-b;c++)
+                // TODO: I think this can just be i
                 CM[cmap(a,b,c)] = AVX512_HORIZONTAL_SUM_DOUBLES(CM512[i++]);
 #endif
 }
@@ -307,20 +311,21 @@ void report(const char* prefix, int64_t npart, std::chrono::duration<double> ela
 int main(int argc, char **argv){
     Multipoles MP(8);
 
-    int64_t ncell = 1*1125*1125;
-    int64_t ppc = 64;
+    int64_t ncell = 1*405*405;
+    int64_t ppc = 44;
     if (argc > 1)
         ppc = atoi(argv[1]);
     float rtol=1e-6;
     int64_t npart = (int64_t)ncell*ppc;
 
-    double *cartesian1, *cartesian2, *cartesian3;
+    double *cartesian1, *cartesian2, *cartesian3, *cartesian4;
     FLOAT3 center(0.1,0.2,0.3);
     FLOAT3 *xyz;
 
     assert(posix_memalign((void **) &cartesian1, 4096, sizeof(double)*MP.cml*ncell) == 0);
     assert(posix_memalign((void **) &cartesian2, 4096, sizeof(double)*MP.cml*ncell) == 0);
     assert(posix_memalign((void **) &cartesian3, 4096, sizeof(double)*MP.cml*ncell) == 0);
+    assert(posix_memalign((void **) &cartesian4, 4096, sizeof(double)*MP.cml*ncell) == 0);
 
     assert(posix_memalign((void **) &xyz, 4096, sizeof(FLOAT3)*npart) == 0);
     //#pragma omp parallel for schedule(static)
@@ -331,8 +336,11 @@ int main(int argc, char **argv){
     }
 
     /****************************************/
+
     auto begin = std::chrono::steady_clock::now();
     auto end = std::chrono::steady_clock::now();
+
+#ifdef AVXMULTIPOLES
     // ASM Multipoles
     begin = std::chrono::steady_clock::now();
     #pragma omp parallel for schedule(static)
@@ -344,8 +352,9 @@ int main(int argc, char **argv){
     }
     end = std::chrono::steady_clock::now();
     report("ASM Multipoles", npart, end-begin);
+#endif
 
-    /****************************************/
+#ifdef AVX512MULTIPOLES
     // AVX-512 Multipoles
     begin = std::chrono::steady_clock::now();
     #pragma omp parallel for schedule(static)
@@ -358,8 +367,8 @@ int main(int argc, char **argv){
     end = std::chrono::steady_clock::now();
     report("AVX-512 Multipoles", npart, end-begin);
     compare_multipoles(cartesian1, cartesian3, MP.cml*ncell, rtol);
+#endif
 
-    /****************************************/
     // Analytic Multipoles
     begin = std::chrono::steady_clock::now();
     #pragma omp parallel for schedule(static)
@@ -371,7 +380,22 @@ int main(int argc, char **argv){
     }
     end = std::chrono::steady_clock::now();
     report("Analytic Multipoles", npart, end-begin);
-    compare_multipoles(cartesian1, cartesian2, MP.cml*ncell, rtol);
+    //compare_multipoles(cartesian1, cartesian2, MP.cml*ncell, rtol);
+
+#ifdef UNROLLEDMULTIPOLES
+    // Unrolled Multipoles
+    begin = std::chrono::steady_clock::now();
+    #pragma omp parallel for schedule(static)
+    for(int64_t k = 0; k < ncell; k++){
+        FLOAT3 *thisxyz = xyz + k*ppc;
+        double *thisct = cartesian4 + k*MP.cml;
+        
+        MP.UnrolledCartesianMultipoles(thisxyz, ppc, center, thisct);
+    }
+    end = std::chrono::steady_clock::now();
+    report("Unrolled Multipoles", npart, end-begin);
+    compare_multipoles(cartesian2, cartesian4, MP.cml*ncell, rtol);
+#endif
 
     free(cartesian1); free(cartesian2); free(cartesian3);
     free(xyz);
