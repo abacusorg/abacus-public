@@ -1,3 +1,5 @@
+#include "mpi_header.cpp"
+
 #include "header.cpp"
 #include "threevector.hh"
 
@@ -11,6 +13,9 @@
 STimer TotalWallClock;
 STimer Setup;
 STimer ConvolutionWallClock;
+
+char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
+int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
 
 #include "factorial.cpp"
 #include "iolib.cpp"
@@ -191,6 +196,13 @@ int choose_zwidth(int Conv_zwidth, int cpd, ConvolutionParameters &CP){
         exit(1);
     }
 
+
+	//If we are doing a multi-node Convolve, set zwidth = n_nodes. NAM TODO: May want to extend this to have multiple z per node later. 
+#ifdef PARALLEL
+	STDLOG(0, "Forcing zwitdh = %d (MPI_size) since we are using multi-node convolve\n", MPI_size);
+	return MPI_size;
+#endif
+	
     // If we are on the ramdisk, then we know the problem fits in memory! Just do the whole thing at once
     // If we aren't overwriting, there might be a small efficiency gain from smaller zwidth since reading requires a memcpy()
     // TODO: need to support ramdisk offsets if we want to support zwidth < max
@@ -221,6 +233,30 @@ int choose_zwidth(int Conv_zwidth, int cpd, ConvolutionParameters &CP){
     return -1;
 }
 
+
+void InitializeParallel(int &size, int &rank) {
+    #ifdef PARALLEL
+         // Start up MPI
+         int ret;
+         MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
+         assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
+         MPI_Comm_size(MPI_COMM_WORLD, &size);
+         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+         sprintf(NodeString,".%04d",rank);
+    #else
+    #endif
+    return;
+}
+
+void FinalizeParallel() {
+    #ifdef PARALLEL
+         // Finalize MPI
+         MPI_Finalize();
+         STDLOG(0,"Calling MPI_Finalize()");
+    #else
+    #endif
+}
+
 int main(int argc, char ** argv){
 	TotalWallClock.Start();
 	Setup.Start();
@@ -230,13 +266,17 @@ int main(int argc, char ** argv){
 	       fprintf(stderr, "Error: command line must have 1 parameter given, not %d.\nLegal usage: %s PARAM_FILE\n", argc-1, argv[0]);
 	       assert(0==99);
 	    }
+		
+	// Set up MPI
+		InitializeParallel(MPI_size, MPI_rank);
+    
 
 	    P.ReadParameters(argv[1],1);
 
 	    // Setup the log
 	    stdlog_threshold_global = P.LogVerbosity;
 	    char logfn[1050];
-	    sprintf(logfn,"%s/last.convlog", P.LogDirectory);
+	    sprintf(logfn,"%s/last%s.convlog", P.LogDirectory, NodeString);
 	    stdlog.open(logfn);
 	    OutofCoreConvolution OCC;
 	    STDLOG(1,"Read parameter file\n");
@@ -297,6 +337,14 @@ int main(int argc, char ** argv){
         
         CP.zwidth = choose_zwidth(P.Conv_zwidth, P.cpd, CP);
         STDLOG(0,"Using zwidth: %d \n", CP.zwidth);
+		
+		
+		
+		
+		exit(1); //NAM EXIT.
+		
+		
+		
         
         for (int i = 0; i < MAX_IO_THREADS; i++)
             CP.io_cores[i] = P.Conv_IOCores[i];
@@ -314,7 +362,11 @@ int main(int argc, char ** argv){
         OCC.CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
         
 	    char timingfn[1050];
-	    sprintf(timingfn,"%s/last.convtime",P.LogDirectory);
+	    sprintf(timingfn,"%s/last%s.convtime",P.LogDirectory,NodeString);
+		
+	    FinalizeParallel();  // This may be the last synchronization point?
+		
+		
 	    dumpstats(&OCC,timingfn);
 	    stdlog.close();
 
