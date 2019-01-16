@@ -1,3 +1,5 @@
+#include "write_dio.h"
+
 // Some compilers didn't that this was a macro
 inline int is_aligned(const void* pointer, unsigned int byte_count){
     return (((uintptr_t)(const void *)(pointer)) % (byte_count) == 0);

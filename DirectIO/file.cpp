@@ -15,10 +15,17 @@
 #define DERRNO      do {fprintf(stderr, "  errno(%d)::%s  ", errno, strerror(errno) ); } while(0)
 #define FAILERRNO   do { if(errno) { DFPL; DERRNO; assert(errno==0); } } while(0)
 
+// This expands to a real path, but the given name must exist!
 void ExpandPathName(char *foo) {
     char str[1024];
     sprintf(str,"%s",foo);
-    realpath(str,foo);
+    errno = 0;
+    char *retval = realpath(str,foo);
+    if(errno)
+        fprintf(stderr, "realpath error code %d %s\n", errno, strerror(errno));
+    // TODO: This STDLOG appears needed to avoid a buffer overflow in -O3 in g++
+    // on ted.
+    assert(retval!=NULL);
 }
 
 void CheckDirectoryExists(const char *fn) {
@@ -126,6 +133,12 @@ int is_path_on_ramdisk(const char* path){
 
     char str[1024];
     strncpy(str, path, 1024);
+    // We've been handed a file name, but that file may not yet exist.
+    // We'd prefer to only pass in the directory path, not the file itself.
+    // Clip off the file name
+    for (int j=strlen(str)-1; j>=0; j--)
+        if (str[j]=='/') break; else str[j]='\0';
+
     ExpandPathName(str);
     assert(strlen(str) < 1024);
     return strncmp(str, RAMDISK_PATH, strlen(RAMDISK_PATH)) == 0;
