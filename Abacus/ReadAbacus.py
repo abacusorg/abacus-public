@@ -389,10 +389,10 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
         if add_grid or return_pid:
             if header:
                 header = InputFile(str_source=header)
-                ppd = np.array([np.round(header['NP']**(1./3))], dtype=np.uint64)
+                ppd = np.array([np.round(header['NP']**(1./3))], dtype=np.int64)
             else:
                 # This will only work for ICs, where we don't have a header
-                ppd = np.array([raw['zel'].max() + 1], dtype=np.uint64)  # necessary for numpy to not truncate the result
+                ppd = np.array([raw['zel'].max() + 1], dtype=np.int64)  # necessary for numpy to not truncate the result
 
         # We are only guaranteed to have a whole number of planes from the zeldovich code, but this might be an Abacus output
         #if add_grid or return_pid:
@@ -699,7 +699,7 @@ def output_dtype(return_vel=True, return_pid=False, return_zel=False, return_aux
     """
     ndt_list = []
     if return_pid:
-        ndt_list += [('pid', np.uint64)]
+        ndt_list += [('pid', np.int64)]
     if return_aux:
         ndt_list += [('aux', np.uint64)]
     ndt_list += [('pos', dtype, 3)]
