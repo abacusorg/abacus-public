@@ -77,8 +77,8 @@ def setup_bins(args):
     return all_bins
 
 
-def default_argparse():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=Tools.ArgParseFormatter)
+def default_argparse(doc=__doc__):
+    parser = argparse.ArgumentParser(description=doc, formatter_class=Tools.ArgParseFormatter)
     parser.add_argument('primary', help='The time slice directory containing the particles.', nargs='+')
     # We want the user to think about rmin and rmax, since any defaults may not be optimal for cross-sim comparison, which is a very common use-case
     parser.add_argument('rmin', help='Minimum pair counting distance (Mpc/h).  Value of "auto" will use 1/3 of softening.')
