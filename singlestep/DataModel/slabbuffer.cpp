@@ -168,9 +168,16 @@ public:
         AA->SetIOCompletedArena(id);
     }
 
-    void DeAllocate(int type, int slab) {
+    void DeAllocate(int type, int slab, int delete_file=0) {
         STDLOG(1,"Deallocating slab %d of type %d.\n", slab, type);
         AA->DeAllocateArena(TypeSlab2ID(type,slab), ReuseID(type));
+
+        if(delete_file){
+            // TODO: do we ever need delete a write slab, e.g. in the manifest code?
+            std::string path = ReadSlabPath(type, slab);
+            STDLOG(1,"Deleting slab file \"%s\"\n", path);
+            assertf(unlink(path.c_str()) == 0, "Failed to remove path \"%s\"", path);
+        }
     }
 
     void GetMallocFreeTimes(double *malloc_time, double *free_time){

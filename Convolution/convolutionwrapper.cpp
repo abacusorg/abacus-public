@@ -126,8 +126,12 @@ void setup_openmp(){
     }
 #endif
     
-    assertf(nthreads <= max_threads, "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n");
-    assertf(nthreads <= ncores, "Trying to use more threads (%d) than cores (%d).  This will probably be very slow.\n", nthreads, ncores);
+    assertf(nthreads <= max_threads,
+        "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n",
+        nthreads, max_threads);
+    assertf(nthreads <= ncores,
+        "Trying to use more threads (%d) than cores (%d).  This will probably be very slow.\n",
+        nthreads, ncores);
     
     omp_set_num_threads(nthreads);
     STDLOG(1, "Initializing OpenMP with %d threads (system max is %d; P.Conv_OMP_NUM_THREADS is %d)\n", nthreads, max_threads, P.Conv_OMP_NUM_THREADS);
