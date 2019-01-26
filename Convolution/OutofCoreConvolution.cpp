@@ -16,20 +16,20 @@ void OutofCoreConvolution::ReadDiskMultipolesAndDerivs(int zstart) {
     DiskBuffer = CurrentBlock->mtblock;
     CompressedDerivatives = CurrentBlock->dblock;
 	
-	
-	printf("we are here: rank %d, first slab %d, tot slabs %d, zstart %d.\n",MPI_rank, first_slab_on_node,  total_slabs_on_node, zstart);
-
-	for(int x=first_slab_on_node; x<first_slab_on_node+total_slabs_on_node;x++)
-		for(int m=0;m<rml;m++)
-			for(int y=0;y<cpd;y++){
-				printf("%d %d %d %d %f\n", MPI_rank, x, m, y, DiskBuffer[x][(zstart + MPI_rank) *cpd*rml + m*cpd + y ]);
-			}
-
-
-
-
-
-			exit(1);
+		//
+	// printf("we are here: rank %d, first slab %d, tot slabs %d, zstart %d.\n",MPI_rank, first_slab_on_node,  total_slabs_on_node, zstart);
+	//
+	// for(int x=first_slab_on_node; x<first_slab_on_node+total_slabs_on_node;x++)
+	// 	for(int m=0;m<rml;m++)
+	// 		for(int y=0;y<cpd;y++){
+	// 			printf("%d %d %d %d %f\n", MPI_rank, x, m, y, DiskBuffer[x][(zstart + MPI_rank) *cpd*rml + m*cpd + y ]);
+	// 		}
+	//
+	//
+	//
+	//
+	//
+	// 		exit(1);
 
 
 	
@@ -50,12 +50,12 @@ void OutofCoreConvolution::ReadDiskMultipolesAndDerivs(int zstart) {
 void OutofCoreConvolution::SwizzleMultipoles(int z){
     // Array swizzle selects the plane belonging to a single slab/file from a block
     // Swizzle does actually benefit from multithreading, so we don't want to do that in the IO thread
-
-    ArraySwizzle.Start();
+	
+	ArraySwizzle.Start();
     #pragma omp parallel for schedule(static)
     for(int m=0;m<rml;m++)
         for(int x=0;x<cpd;x++)
-            for(int y=0;y<cpd;y++)
+			for(int y=0;y<cpd;y++)
                 PlaneBuffer[m*cpd*cpd + x*cpd + y] = 
                     DiskBuffer[x][z*cpd*rml + m*cpd + y ];
     ArraySwizzle.Stop();
@@ -69,9 +69,15 @@ void OutofCoreConvolution::SwizzleTaylors(int z){
     #pragma omp parallel for schedule(static)
     for(int x=0;x<cpd;x++) {
         for(int m=0;m<rml;m++)
-            for(int y=0;y<cpd;y++)
+            for(int y=0;y<cpd;y++) 
+		{
                 DiskBuffer[x][z*cpd*rml + m*cpd + y ] = 
                     PlaneBuffer[ m*cpd*cpd + x*cpd + y]*invcpd3;
+				
+				printf("%d %d %d %d %d %f\n", MPI_rank, z, x, m, y, DiskBuffer[x][z*cpd*rml + m*cpd + y ]);
+				
+				
+		}
     }
     ArraySwizzle.Stop();
 }
@@ -157,85 +163,103 @@ void OutofCoreConvolution::BlockConvolve(void) {
 		
 		STDLOG(1, "Starting z %d to %d\n", zblock, zblock + zwidth);	
         ReadDiskMultipolesAndDerivs(zblock); 
+		
+#ifdef PARALLEL
+		int zstart = zblock + MPI_rank; 
+		int zend = zstart + 1; 
 
-        // for(int z = zblock; z < zblock + zwidth; z++) {
- //            SwizzleMultipoles(z - zblock);
- //
- //            Complex *Mtmp = &( PlaneBuffer[0] );
- //
- //            ForwardZFFTMultipoles.Start();
- //            #ifdef GPUFFT
- //            for(int m=0;m<rml;m++) {
- //                int g = m%ngpu;
- //                checkCudaErrors(cuda::cudaSetDevice(g));
- //                checkCudaErrors(cuda::cudaMemcpyAsync(in_1d[g],&(Mtmp[m*cpd*cpd]),
- //                            cpd*cpd*sizeof(cuda::cufftDoubleComplex),cuda::cudaMemcpyHostToDevice,dev_stream[g] ));
- //                checkCufftErrors(cuda::cufftExecZ2Z(plan_forward[g],in_1d[g],out_1d[g],CUFFT_FORWARD));
- //                checkCudaErrors(cuda::cudaMemcpyAsync(&(Mtmp[m*cpd*cpd]),out_1d[g],
- //                            cpd*cpd*sizeof(cuda::cufftDoubleComplex),cuda::cudaMemcpyDeviceToHost,dev_stream[g] ));
- //            }
- //            for(int g = 0; g <ngpu; g++){
- //                checkCudaErrors(cuda::cudaSetDevice(g));
- //                cudaStreamSynchronize(dev_stream[g]);
- //            }
- //            #else
- //            #pragma omp parallel for schedule(static)
- //            for(int m=0;m<rml;m++) {
- //                int g = omp_get_thread_num();
- //                for(int y=0;y<cpd;y++) {
- //                    for(int x=0;x<cpd;x++)
- //                        in_1d[g][x] = Mtmp[m*cpd*cpd + x*cpd + y];
- //                    fftw_execute(plan_forward_1d[g]);
- //                    for(int x=0;x<cpd;x++)
- //                        Mtmp[m*cpd*cpd + x*cpd + y] = out_1d[g][x];
- //                }
- //            }
- //
- //            #endif
- //            ForwardZFFTMultipoles.Stop();
- //
- //            ConvolutionArithmetic.Start();
- //            ICC->InCoreConvolve(Mtmp, CompressedDerivatives[z-zblock]);
- //            ConvolutionArithmetic.Stop();
- //
- //            InverseZFFTTaylor.Start();
- //            #ifdef GPUFFT
- //            for(int m=0;m<rml;m++) {
- //                int g = m%ngpu;
- //                checkCudaErrors(cuda::cudaSetDevice(g));
- //                checkCudaErrors(cuda::cudaMemcpyAsync(in_1d[g],&(Mtmp[m*cpd*cpd]),
- //                            cpd*cpd*sizeof(cuda::cufftDoubleComplex),cuda::cudaMemcpyHostToDevice,dev_stream[g] ));
- //                checkCufftErrors(cuda::cufftExecZ2Z(plan_forward[g],in_1d[g],out_1d[g],CUFFT_INVERSE));
- //                checkCudaErrors(cuda::cudaMemcpyAsync(&(Mtmp[m*cpd*cpd]),out_1d[g],
- //                            cpd*cpd*sizeof(cuda::cufftDoubleComplex),cuda::cudaMemcpyDeviceToHost,dev_stream[g] ));
- //            }
- //            for(int g = 0; g <ngpu; g++){
- //                checkCudaErrors(cuda::cudaSetDevice(g));
- //                cudaStreamSynchronize(dev_stream[g]);
- //            }
- //            #else
- //            #pragma omp parallel for schedule(static)
- //            for(int m=0;m<rml;m++) {
- //                int g = omp_get_thread_num();
- //                for(int y=0;y<cpd;y++) {
- //                    for(int x=0;x<cpd;x++)
- //                        in_1d[g][x] = Mtmp[m*cpd*cpd + x*cpd + y];
- //                    fftw_execute(plan_backward_1d[g]);
- //                    for(int x=0;x<cpd;x++)
- //                        Mtmp[m*cpd*cpd + x*cpd + y] = out_1d[g][x];
- //                }
- //            }
- //            #endif
- //            InverseZFFTTaylor.Stop();
- //
- //            SwizzleTaylors(z - zblock);
- //        }
- //
+#else
+		int zstart = zblock;
+		int zend = zblock + zwidth; 
+#endif
+        for(int z = zstart; z < zend; z++) {
+			
+		
+			printf("I am node %d doing z = %d. zwidth = %d\n", MPI_rank, z, zwidth);
+			
+            SwizzleMultipoles(z - zblock);
+			
+            Complex *Mtmp = &( PlaneBuffer[0] );
+
+            ForwardZFFTMultipoles.Start();
+            #ifdef GPUFFT
+            for(int m=0;m<rml;m++) {
+                int g = m%ngpu;
+                checkCudaErrors(cuda::cudaSetDevice(g));
+                checkCudaErrors(cuda::cudaMemcpyAsync(in_1d[g],&(Mtmp[m*cpd*cpd]),
+                            cpd*cpd*sizeof(cuda::cufftDoubleComplex),cuda::cudaMemcpyHostToDevice,dev_stream[g] ));
+                checkCufftErrors(cuda::cufftExecZ2Z(plan_forward[g],in_1d[g],out_1d[g],CUFFT_FORWARD));
+                checkCudaErrors(cuda::cudaMemcpyAsync(&(Mtmp[m*cpd*cpd]),out_1d[g],
+                            cpd*cpd*sizeof(cuda::cufftDoubleComplex),cuda::cudaMemcpyDeviceToHost,dev_stream[g] ));
+            }
+            for(int g = 0; g <ngpu; g++){
+                checkCudaErrors(cuda::cudaSetDevice(g));
+                cudaStreamSynchronize(dev_stream[g]);
+            }
+            #else
+            #pragma omp parallel for schedule(static)
+            for(int m=0;m<rml;m++) {
+                int g = omp_get_thread_num();
+                for(int y=0;y<cpd;y++) {
+                    for(int x=0;x<cpd;x++)
+                        in_1d[g][x] = Mtmp[m*cpd*cpd + x*cpd + y];
+                    fftw_execute(plan_forward_1d[g]);
+                    for(int x=0;x<cpd;x++)
+                        Mtmp[m*cpd*cpd + x*cpd + y] = out_1d[g][x];
+                }
+            }
+
+            #endif
+            ForwardZFFTMultipoles.Stop();
+						
+
+            ConvolutionArithmetic.Start();
+            ICC->InCoreConvolve(Mtmp, CompressedDerivatives[z-zblock]);
+            ConvolutionArithmetic.Stop();
+
+            InverseZFFTTaylor.Start();
+            #ifdef GPUFFT
+            for(int m=0;m<rml;m++) {
+                int g = m%ngpu;
+                checkCudaErrors(cuda::cudaSetDevice(g));
+                checkCudaErrors(cuda::cudaMemcpyAsync(in_1d[g],&(Mtmp[m*cpd*cpd]),
+                            cpd*cpd*sizeof(cuda::cufftDoubleComplex),cuda::cudaMemcpyHostToDevice,dev_stream[g] ));
+                checkCufftErrors(cuda::cufftExecZ2Z(plan_forward[g],in_1d[g],out_1d[g],CUFFT_INVERSE));
+                checkCudaErrors(cuda::cudaMemcpyAsync(&(Mtmp[m*cpd*cpd]),out_1d[g],
+                            cpd*cpd*sizeof(cuda::cufftDoubleComplex),cuda::cudaMemcpyDeviceToHost,dev_stream[g] ));
+            }
+            for(int g = 0; g <ngpu; g++){
+                checkCudaErrors(cuda::cudaSetDevice(g));
+                cudaStreamSynchronize(dev_stream[g]);
+            }
+            #else
+            #pragma omp parallel for schedule(static)
+            for(int m=0;m<rml;m++) {
+                int g = omp_get_thread_num();
+                for(int y=0;y<cpd;y++) {
+                    for(int x=0;x<cpd;x++)
+                        in_1d[g][x] = Mtmp[m*cpd*cpd + x*cpd + y];
+                    fftw_execute(plan_backward_1d[g]);
+                    for(int x=0;x<cpd;x++)
+                        Mtmp[m*cpd*cpd + x*cpd + y] = out_1d[g][x];
+                }
+            }
+            #endif
+            InverseZFFTTaylor.Stop();
+					
+
+            SwizzleTaylors(z - zblock);
+			
+					
+        }
+		
+
+			exit(1);
  //        WriteDiskTaylor(zblock);
     }
 	
 	
-	exit(1);
+	
 	
     #ifdef GPUFFT
     for(int g = 0; g <ngpu; g++){
