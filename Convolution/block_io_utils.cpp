@@ -75,7 +75,10 @@ public:
         // We give the offset in units of MTCOMPLEXes
         int buffer_start_offset = (int)((file_offset%4096)/sizeof(MTCOMPLEX));
 				
-        for(int x = first_slab_on_node; x < first_slab_on_node + total_slabs_on_node; x++) {
+       // for(int x = first_slab_on_node; x < first_slab_on_node + total_slabs_on_node; x++) {
+	
+        for(int x = 0; x < P.cpd; x++) {
+		
             // Different threads are responsible for different files (but they all read into one block)
             if (x % CP.niothreads != thread_num)
                 continue;
@@ -174,22 +177,21 @@ public:
 		MPI_Barrier(MPI_COMM_WORLD);
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_COMPLEX, recvbuf, recvcounts, rdispls, MPI_COMPLEX, MPI_COMM_WORLD);
 		MPI_Barrier(MPI_COMM_WORLD);
-
-
-
-		// for(int x=0; x<P.cpd;x++){
-// 		  		for(int m=0;m<rml;m++){
-// 					for(int y=0;y<cpd;y++){
-// 						int i = x*rml_times_cpd + m*cpd + y;
-// 						printf("%d %d %d %d %f \n", MPI_rank, x, m, y, recvbuf[i]);
-// 					}
-// 				}
-// 			}
-//
-// 		exit(1);
-
 		
+		int z = zstart + MPI_rank; 
 
+		for(int x=0; x<P.cpd;x++){
+		  		for(int m=0;m<rml;m++){
+					for(int y=0;y<cpd;y++){
+						
+						mtblock[x][z*rml_times_cpd + m*cpd + y] = recvbuf[x*rml_times_cpd + m*cpd + y]; 
+						
+						// int i = x*rml_times_cpd + m*cpd + y;
+ 						//printf("%d %d %d %d %f \n", MPI_rank, x, m, y, recvbuf[i]);
+					}
+				}
+			}
+			
 		free(sendbuf);
 		free(recvbuf);
 	
