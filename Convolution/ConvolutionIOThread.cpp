@@ -1,3 +1,5 @@
+#include "../singlestep/DataModel/node_slabs.cpp"
+
 #include "tbb/concurrent_queue.h"
 
 class ConvIOThread {
@@ -54,15 +56,27 @@ private:
             }
 
             // Read into any free blocks
-            if(n_blocks_read < nblocks && free_queue.try_pop(read_buffer)){
-                int zstart = n_blocks_read*CP.zwidth;
+            if(n_blocks_read < nblocks && free_queue.try_pop(read_buffer)){      
+				
+				//fetch all nodes' domains in x from ReadNodeSlabs.
+				int read_all_nodes = 1;
+				ReadNodeSlabs(read_all_nodes);
+
+
+                int zstart = n_blocks_read*CP.zwidth; //each node loads all z's for current chunk of z's. Each node will eventually be responsible for a subset of these. 
                 int this_zwidth = min(zwidth, (cpd+1)/2-zstart);
-                
+
                 read_buffer->read_derivs(zstart, this_zwidth, thread_num);
                 read_buffer->read(zstart, this_zwidth, thread_num);
-                
-                n_blocks_read++;
+				
+				
+#ifdef PARALLEL
+  				read_buffer->transpose(zstart, this_zwidth, thread_num);
+#endif
+				
+				n_blocks_read++;
                 read_queue.push(read_buffer);
+
             }
         }
 

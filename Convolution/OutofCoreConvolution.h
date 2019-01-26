@@ -51,7 +51,8 @@ public:
     char runtime_TaylorPrefix[1024];
     
     uint64_t blocksize, zwidth, rml, CompressedMultipoleLengthXY;
-    int io_cores[MAX_IO_THREADS];
+	
+	int io_cores[MAX_IO_THREADS];
     int niothreads;
 
     int ProfilingMode;

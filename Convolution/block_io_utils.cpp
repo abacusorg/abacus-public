@@ -21,7 +21,7 @@ public:
     
     size_t alloc_bytes = 0;
     size_t ReadMultipoleBytes = 0, WriteTaylorBytes = 0, ReadDerivativeBytes = 0;
-    PTimer ReadDerivatives, ReadMultipoles, WriteTaylor;
+    PTimer ReadDerivatives, ReadMultipoles, TransposeMultipoles, WriteTaylor;
     
     Block(ConvolutionParameters &_CP) : ReadDerivatives(_CP.niothreads),
                                         ReadMultipoles(_CP.niothreads),
@@ -68,14 +68,14 @@ public:
 
     void read(int zstart, int zwidth, int thread_num){
         ReadMultipoles.Start(thread_num);
-        
+
         size_t size = sizeof(MTCOMPLEX)*zwidth*cpd*rml;
         size_t file_offset = zstart*cpd*rml*sizeof(MTCOMPLEX);
-        // The IO module can only do DIO if the file and memory buffer have the same alignemnt
+        // The IO module can only do DIO if the file and memory buffer have the same alignment
         // We give the offset in units of MTCOMPLEXes
         int buffer_start_offset = (int)((file_offset%4096)/sizeof(MTCOMPLEX));
-        
-        for(int x = 0; x < cpd; x++) {
+				
+        for(int x = first_slab_on_node; x < first_slab_on_node + total_slabs_on_node; x++) {
             // Different threads are responsible for different files (but they all read into one block)
             if (x % CP.niothreads != thread_num)
                 continue;
@@ -83,7 +83,7 @@ public:
             char fn[1024];
             int mapM_slab = (x+cpd-1)%cpd;
             CP.MultipoleFN(mapM_slab, fn);
-
+			
             if(ramdisk_MT){
                 char tfn[1024];    // used by non-overwriting ramdisk
                 int shm_fd_flags;
@@ -114,6 +114,7 @@ public:
                 // TODO: file_offset must be page-aligned. So we could back up to a page boundary and then return an offset pointer, not dissimilar to the DIO library
                 // Or is it that bad to require zwidth = full?
                 mtblock[x] = (MTCOMPLEX *) mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, file_offset);
+				
                 int res = close(fd);
                 assertf((void *) mtblock[x] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d at offset = %d failed\n", fd, size, file_offset);
                 assertf(mtblock[x] != NULL, "mmap shared memory from fd = %d of size = %d at offset = %d failed\n", fd, size, file_offset);
@@ -132,6 +133,68 @@ public:
         
         ReadMultipoles.Stop(thread_num);
     }
+	
+#ifdef PARALLEL
+	void transpose(int zstart, int zwidth, int thread_num){
+		
+		int rml_times_cpd = rml * cpd; 
+
+		MTCOMPLEX * sendbuf;
+		MTCOMPLEX * recvbuf;
+		int sendcounts[MPI_size];
+		int    sdispls[MPI_size];
+		int recvcounts[MPI_size];
+		int    rdispls[MPI_size];
+
+		sendbuf = (MTCOMPLEX *) malloc(zwidth * total_slabs_on_node * rml_times_cpd * sizeof(MTCOMPLEX));
+		recvbuf = (MTCOMPLEX *) malloc(rml_times_cpd * cpd * sizeof(MTCOMPLEX));
+
+
+		for (int i = 0; i < MPI_size; i++)
+		{
+			sendcounts[i] = total_slabs_on_node * rml_times_cpd; // send total_slabs_on_node * rml * cpd complex numbers)
+			sdispls[i]    = i * total_slabs_on_node * rml_times_cpd; // contiguous chunk starts after sdispls[i] complex numbers.
+			recvcounts[i] = total_slabs_all[i] * rml_times_cpd; //*zwidth
+			rdispls[i]    = first_slabs_all[i] * rml_times_cpd; //doesn't work for zwidth/node > 1
+		}
+		
+		
+		
+		for(int z=zstart; z<zstart + zwidth; z++){
+			for(int x=0; x<total_slabs_on_node;x++){
+		  		for(int m=0;m<rml;m++){
+					for(int y=0;y<cpd;y++){
+						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
+						sendbuf[i] = mtblock[x + first_slab_on_node][z*rml_times_cpd + m*cpd + y ];
+					}
+				}
+			}
+		}
+		
+		MPI_Barrier(MPI_COMM_WORLD);
+		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_COMPLEX, recvbuf, recvcounts, rdispls, MPI_COMPLEX, MPI_COMM_WORLD);
+		MPI_Barrier(MPI_COMM_WORLD);
+
+
+
+		// for(int x=0; x<P.cpd;x++){
+// 		  		for(int m=0;m<rml;m++){
+// 					for(int y=0;y<cpd;y++){
+// 						int i = x*rml_times_cpd + m*cpd + y;
+// 						printf("%d %d %d %d %f \n", MPI_rank, x, m, y, recvbuf[i]);
+// 					}
+// 				}
+// 			}
+//
+// 		exit(1);
+
+		
+
+		free(sendbuf);
+		free(recvbuf);
+	
+	}
+#endif
 
     void write(int zstart, int zwidth, int thread_num){
         // zstart is only used to determine if this is the last iteration

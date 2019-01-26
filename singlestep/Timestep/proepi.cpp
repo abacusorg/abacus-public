@@ -168,6 +168,9 @@ FLOAT * density; //!< Array to accumulate gridded densities in for low resolutio
 #include "microstep.cpp"
 
 int first_slab_on_node, total_slabs_on_node, first_slab_finished;
+int * first_slabs_all = NULL;
+int * total_slabs_all = NULL;
+
 	// The first read slab to be executed by this nodes,
 	// as well as the total number and the first finished
 	// In the single node code, this is simply 0 and CPD.
