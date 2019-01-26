@@ -14,8 +14,6 @@ STimer TotalWallClock;
 STimer Setup;
 STimer ConvolutionWallClock;
 
-char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
-int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
 
 #include "factorial.cpp"
 #include "iolib.cpp"
@@ -23,6 +21,39 @@ int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don'
 #include "stdlog.cc"
 
 #include "Parameters.cpp"
+
+char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
+int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
+int node_zstart = -1, node_zwidth = 1;
+int first_slab_on_node = 0, first_slab_finished = -1, total_slabs_on_node = -1;
+int * first_slabs_all = NULL;
+int * total_slabs_all = NULL;
+
+
+/*
+Each node will read multipole files for:
+	-- all m
+	-- all y
+	-- range of z current BlockConvolve() is doing. 
+    -- range of x each node is responsible for (set in singlestep). 
+
+Each node will then send multipole files to its buddy nodes 
+such that at the end of the day, each node has multipoles (and derivs) for:
+	-- all m
+	-- all y
+	-- range of z NODE is responsible for (a subset of the z's the current BlockConvolve() is doing)
+    -- all x.  
+
+Each node will then perform convolution and get Taylors for the range of z the NODE is responsible for.
+
+Each node will then receive Taylors from its buddy nodes 
+such that at the end of the day, each node has Taylors for:
+	-- range of z current BlockConvolve() is doing. 
+    -- range of x each node is responsible for (set in singlestep).  
+ 
+*/
+
+
 
 #ifdef GPUFFT
 namespace cuda{
@@ -197,11 +228,40 @@ int choose_zwidth(int Conv_zwidth, int cpd, ConvolutionParameters &CP){
     }
 
 
-	//If we are doing a multi-node Convolve, set zwidth = n_nodes. NAM TODO: May want to extend this to have multiple z per node later. 
+	//If we are doing a multi-node Convolve, set zwidth = 1. NAM TODO: May want to extend this to have multiple z per node later. 
 #ifdef PARALLEL
-	STDLOG(0, "Forcing zwitdh = %d (MPI_size) since we are using multi-node convolve\n", MPI_size);
-	return MPI_size;
+	int slabs_per_node = 1;
+	STDLOG(0, "Forcing zwidth = %d in multi-node convolve, where each node does %d slab(s).\n", slabs_per_node * MPI_size, slabs_per_node);
+	return slabs_per_node * MPI_size;
 #endif
+	
+	
+	
+	
+	
+	
+	return 2;
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 	
     // If we are on the ramdisk, then we know the problem fits in memory! Just do the whole thing at once
     // If we aren't overwriting, there might be a small efficiency gain from smaller zwidth since reading requires a memcpy()
@@ -238,7 +298,7 @@ void InitializeParallel(int &size, int &rank) {
     #ifdef PARALLEL
          // Start up MPI
          int ret;
-         MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
+         MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret); //NAM TODO DE MPI_THREAD_FUNNELED may change
          assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
          MPI_Comm_size(MPI_COMM_WORLD, &size);
          MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -335,17 +395,8 @@ int main(int argc, char ** argv){
                     // 2.5 = 2 Complex (mcache,tcache) 1 double dcache
         CP.blocksize = blocksize;
         
-        CP.zwidth = choose_zwidth(P.Conv_zwidth, P.cpd, CP);
-        STDLOG(0,"Using zwidth: %d \n", CP.zwidth);
+        CP.zwidth = choose_zwidth(P.Conv_zwidth, P.cpd, CP);		
 		
-		
-		
-		
-		exit(1); //NAM EXIT.
-		
-		
-		
-        
         for (int i = 0; i < MAX_IO_THREADS; i++)
             CP.io_cores[i] = P.Conv_IOCores[i];
     
@@ -363,6 +414,9 @@ int main(int argc, char ** argv){
         
 	    char timingfn[1050];
 	    sprintf(timingfn,"%s/last%s.convtime",P.LogDirectory,NodeString);
+		
+		delete first_slabs_all;
+		delete total_slabs_all;
 		
 	    FinalizeParallel();  // This may be the last synchronization point?
 		
