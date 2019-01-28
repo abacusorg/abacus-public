@@ -359,7 +359,7 @@ class alignas(16) FOFgroup {
   public:
     FOFparticle BBmin, BBmax;
     int start, n;   // Starting index and Number of particles
-    int tmp[2];     // For alignment padding
+    uint8_t tmp[CACHE_LINE_SIZE-8-sizeof(FOFparticle)];     // For alignment padding
     	// During calculation, these are in FOF units, but at the
 	// end we restore them to input code units
 
@@ -414,7 +414,7 @@ class FOFcell {
     FOFloat b;		///< The linking length, in FOF units
     FOFloat b2;		///< The linking length squared, in FOF units
 
-    char pad[64];	// Just to ensure that we don't have cache line fights 
+    uint8_t pad[CACHE_LINE_SIZE];	// Just to ensure that we don't have cache line fights 
     		// within an array of FOFCell's.
 
     inline void reset(int _size) {
@@ -429,18 +429,18 @@ class FOFcell {
 	    // But current Abacus plans do not produce cells this big.
 	// printf("Allocating FOFCell to maxsize = %d\n", maxsize);
         if (p!=NULL) free(p);
-	ret = posix_memalign((void **)&p, 64, sizeof(FOFparticle)*maxsize);  assert(ret == 0);
+	ret = posix_memalign((void **)&p, CACHE_LINE_SIZE, sizeof(FOFparticle)*maxsize);  assert(ret == 0);
 	memset(p, 0, sizeof(FOFparticle)*maxsize);
 
         if (permutebuf!=NULL) free(permutebuf);
-	ret = posix_memalign((void **)&permutebuf, 64, sizeof(accstruct)*maxsize);  assert(ret == 0);
+	ret = posix_memalign((void **)&permutebuf, CACHE_LINE_SIZE, sizeof(accstruct)*maxsize);  assert(ret == 0);
 
         if (d2buffer!=NULL) free(d2buffer);
-	ret = posix_memalign((void **)&d2buffer, 64, sizeof(FOFloat)*maxsize);  assert(ret == 0);
+	ret = posix_memalign((void **)&d2buffer, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
         if (groups!=NULL) free(groups);
-	ret = posix_memalign((void **)&groups, 64, sizeof(FOFgroup)*maxsize);  assert(ret == 0);
+	ret = posix_memalign((void **)&groups, CACHE_LINE_SIZE, sizeof(FOFgroup)*maxsize);  assert(ret == 0);
         if (index!=NULL) free(index);
-	ret = posix_memalign((void **)&index, 64, sizeof(int)*maxsize);  assert(ret == 0);
+	ret = posix_memalign((void **)&index, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
     }
 
     /// We have a null constructor, since we'll define one for each thread.

@@ -1,10 +1,7 @@
-#include "header.cpp"
-#include "threevector.hh"
-
 #include "basemultipoles.h"
 
 inline int basemultipoles::lmap(int a, int b, int c) {
-    return a*(MAXORDER+1)*(MAXORDER+1)+b*(MAXORDER+1)+c;
+    return a*(MAXORDER+1)*(MAXORDER+1) + b*(MAXORDER+1) + c;
 }
 
 basemultipoles::basemultipoles(int order) : order(order) {

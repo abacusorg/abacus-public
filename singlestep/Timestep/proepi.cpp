@@ -70,6 +70,7 @@ STimer epilogue;
 STimer WallClockDirect;
 STimer SingleStepSetup;
 STimer SingleStepTearDown;
+STimer IOFinish;
 
 STimer SlabAccumFree;
 
@@ -183,8 +184,6 @@ int first_slab_on_node, total_slabs_on_node, first_slab_finished;
  *
  */
 void Prologue(Parameters &P, bool MakeIC) {
-    omp_set_nested(true);
-
     STDLOG(1,"Entering Prologue()\n");
     STDLOG(1,"Size of accstruct is %d bytes\n", sizeof(accstruct));
     prologue.Clear();
@@ -265,19 +264,6 @@ void Epilogue(Parameters &P, bool MakeIC) {
     STDLOG(1,"Entering Epilogue()\n");
     epilogue.Clear();
     epilogue.Start();
-
-    if(NFD)
-        NFD->AggregateStats();
-
-    // Write out the timings.  This must precede the rest of the epilogue, because 
-    // we need to look inside some instances of classes for runtimes.
-    char timingfn[1050];
-    sprintf(timingfn,"%s/lastrun%s.time", P.LogDirectory, NodeString);
-    FILE * timingfile = fopen(timingfn,"w");
-    assertf(timingfile != NULL, "Couldn't open timing file \"%s\"\n", timingfile);
-    ReportTimings(timingfile);
-    fclose(timingfile);
-    STDLOG(0,"Wrote Timing File to %s\n",timingfn);
 
     // IO_Terminate();
 

@@ -1,5 +1,6 @@
-StateIOMode = "normal"
-Conv_IOMode = "normal"
+StateIOMode = "overwrite"
+Conv_IOMode = "overwrite"
+RamDisk = 1
 #IODirs = ["multipole/", "taylor/", "multipole2/", "taylor2/"]
 #nIODirs = 4
 #IODirThreads = [2, 2, 3, 3]
@@ -7,16 +8,17 @@ Conv_IOMode = "normal"
 # ConvolutionCacheSizeMB = 30  # This will be automatically detected
 
 # OpenMP and thread parameters
-#OMP_NUM_THREADS = 19
-#OMP_PLACES = "{0}:11,{14}:8"
-#OMP_PROC_BIND = "spread"
-#IOCores = [11, 12, 13]
-#GPUThreadCoreStart = [22, 25]
-#GPUThreadCoreStart = [8, 11]
-#NGPUThreadCores = 3
+OMP_NUM_THREADS = 15
+# {0},{8},{16},{24},{32},{40},{48},{56},{64},{72},{80},{88},{96},{104},{112},{120},{128},{136},{144},{152}
+OMP_PLACES = "{0}:7:8,{80}:8:8"
+OMP_PROC_BIND = "spread"
+IOCores = [56]
+GPUThreadCoreStart = [64, 72, 144, 152]
+NGPUThreadCores = 1  # will this work when we're supposed to use cores 0,8,16, etc?
 
 # Convolution OpenMP parameters
-#Conv_OMP_NUM_THREADS = -1
-#Conv_OMP_PLACES = "{1}:27"
-#Conv_OMP_PROC_BIND = "close"
-#Conv_IOCores = [0]
+Conv_OMP_NUM_THREADS = 20
+Conv_OMP_PLACES = "{0}:20:8"
+Conv_OMP_PROC_BIND = "close"
+Conv_IOCores = [0]
+Conv_zwidth = 0

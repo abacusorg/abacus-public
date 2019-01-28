@@ -24,8 +24,10 @@
 void ExpandPathName(char *foo) {
     char str[1024];
     sprintf(str,"%s",foo);
+    errno = 0;
     char *retval = realpath(str,foo);
-    STDLOG(2,"realpath error code %d %s\n", errno, strerror(errno));
+    if(errno)
+        fprintf(stderr, "realpath error code %d %s\n", errno, strerror(errno));
     // TODO: This STDLOG appears needed to avoid a buffer overflow in -O3 in g++
     // on ted.
     assertf(retval!=NULL, "realpath failed on path \"%s\"\n", foo);

@@ -9,8 +9,8 @@ class MultiplicityStats {
     uint64 ngroups;
     uint64 largest;
     uint64 tot, tot2;
-    uint64 pad[4];
     uint64 count[MS_NBIN], sumn[MS_NBIN], sumn2[MS_NBIN];
+    uint8_t pad[CACHE_LINE_SIZE];
 	// Count will be log2 bins.  np=1 is in bin 0.
 	// np = 2-3 in bin 1, 4-7 in bin 2, etc
 
@@ -56,7 +56,8 @@ class MultiplicityStats {
 	GLOG(0,"Average group has %f particles and %f pairs\n", 
 		(float)tot/ngroups, (float)tot2/ngroups);
         GLOG(0,"Largest Group contains %u particles\n", largest);
-	for (nbin=MS_NBIN-1; nbin>=0 && count[nbin]==0; nbin--);
+	for (nbin=MS_NBIN-1; nbin>=0 && count[nbin]==0; nbin--)
+        ;
 	    // nbin is now the number of the highest non-empty bin
 	GLOG(2,"Max bin is %d\n", nbin);
 	for (j=0,m=1; j<=nbin; j++, m*=2)

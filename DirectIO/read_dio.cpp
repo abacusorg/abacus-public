@@ -1,3 +1,5 @@
+#include "read_dio.h"
+
 #define is_aligned(POINTER, BYTE_COUNT) \
     (((uintptr_t)(const void *)(POINTER)) % (BYTE_COUNT) == 0)
 int ReadDirect::rdopenflags(void) {

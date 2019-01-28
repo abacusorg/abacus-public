@@ -222,12 +222,6 @@ int TaylorForcePrecondition(int slab) {
 }
 
 void TaylorForceAction(int slab) {
-     // We finished reading this TaylorSlab, so we can delete it to save space
-    if (WriteState.OverwriteConvState){
-        STDLOG(1, "Deleting TaylorSlab %d since we have finished reading it\n",slab);
-        assertf(remove(SB->ReadSlabPath(TaylorSlab,slab).c_str()) == 0, "Could not remove TaylorSlab %d\n",slab);
-    }
-
     STDLOG(1,"Computing far-field force for slab %d\n", slab);
     SlabFarForceTime[slab].Start();
     SB->AllocateArena(FarAccSlab, slab);
@@ -243,7 +237,8 @@ void TaylorForceAction(int slab) {
         // This must be a blocking write.
         SB->WriteArena(FarAccSlab, slab, IO_KEEP, IO_BLOCKING);
     }
-    SB->DeAllocate(TaylorSlab,slab);
+    // Deallocate and delete the underlying file if we're overwriting
+    SB->DeAllocate(TaylorSlab, slab, WriteState.OverwriteConvState);
     SlabFarForceTime[slab].Stop();
 }
 
