@@ -52,6 +52,10 @@ public:
     
     uint64_t blocksize, zwidth, rml, CompressedMultipoleLengthXY;
 	
+#ifdef PARALLEL
+	uint64_t z_slabs_per_node; 
+#endif
+	
 	int io_cores[MAX_IO_THREADS];
     int niothreads;
 

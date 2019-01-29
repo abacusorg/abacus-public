@@ -16,13 +16,13 @@ void OutofCoreConvolution::ReadDiskMultipolesAndDerivs(int zstart) {
     DiskBuffer = CurrentBlock->mtblock;
     CompressedDerivatives = CurrentBlock->dblock;
 	
-		//
+
 	// printf("we are here: rank %d, first slab %d, tot slabs %d, zstart %d.\n",MPI_rank, first_slab_on_node,  total_slabs_on_node, zstart);
 	//
-	// for(int x=first_slab_on_node; x<first_slab_on_node+total_slabs_on_node;x++)
+	// for(int x=0; x<cpd;x++)
 	// 	for(int m=0;m<rml;m++)
 	// 		for(int y=0;y<cpd;y++){
-	// 			printf("%d %d %d %d %f\n", MPI_rank, x, m, y, DiskBuffer[x][(zstart + MPI_rank) *cpd*rml + m*cpd + y ]);
+	// 			printf("%d %d %d %d %f\n", MPI_rank, x, m, y, DiskBuffer[x][MPI_rank *cpd*rml + m*cpd + y ]);
 	// 		}
 	//
 	//
@@ -50,7 +50,7 @@ void OutofCoreConvolution::ReadDiskMultipolesAndDerivs(int zstart) {
 void OutofCoreConvolution::SwizzleMultipoles(int z){
     // Array swizzle selects the plane belonging to a single slab/file from a block
     // Swizzle does actually benefit from multithreading, so we don't want to do that in the IO thread
-	
+
 	ArraySwizzle.Start();
     #pragma omp parallel for schedule(static)
     for(int m=0;m<rml;m++)
@@ -58,6 +58,18 @@ void OutofCoreConvolution::SwizzleMultipoles(int z){
 			for(int y=0;y<cpd;y++)
                 PlaneBuffer[m*cpd*cpd + x*cpd + y] = 
                     DiskBuffer[x][z*cpd*rml + m*cpd + y ];
+	
+	
+	
+						//
+			//     for(int m=0;m<rml;m++)
+			//         for(int x=0;x<cpd;x++)
+			// for(int y=0;y<cpd;y++)
+			//                 printf("%d %d %d %d %d %f %d\n", MPI_rank, z, m, x, y, PlaneBuffer[m*cpd*cpd + x*cpd + y], zdebug);
+
+		
+
+					
     ArraySwizzle.Stop();
 }
 
@@ -74,7 +86,7 @@ void OutofCoreConvolution::SwizzleTaylors(int z){
                 DiskBuffer[x][z*cpd*rml + m*cpd + y ] = 
                     PlaneBuffer[ m*cpd*cpd + x*cpd + y]*invcpd3;
 				
-				printf("%d %d %d %d %d %f\n", MPI_rank, z, x, m, y, DiskBuffer[x][z*cpd*rml + m*cpd + y ]);
+				//printf("%d %d %d %d %d %f\n", MPI_rank, z, x, m, y, DiskBuffer[x][z*cpd*rml + m*cpd + y ]);
 				
 				
 		}
@@ -84,6 +96,18 @@ void OutofCoreConvolution::SwizzleTaylors(int z){
 
 
 void OutofCoreConvolution::WriteDiskTaylor(int z) {
+	
+	
+	
+		//     for(int x=first_slab_on_node;x<first_slab_on_node+total_slabs_on_node;x++) {
+		//         for(int m=0;m<rml;m++)
+		//             for(int y=0;y<cpd;y++)
+		// {
+		//                 printf("%d %d %d %d %d %f\n", MPI_rank, z, x, m, y, DiskBuffer[x][z*cpd*rml + m*cpd + y ]);
+		// }
+		//     }
+	
+	
 #ifdef CONVIOTHREADED
     // Push to all threads.  Each will take the part of the block it needs.
     for(int i = 0; i < CP.niothreads; i++)
@@ -161,23 +185,40 @@ void OutofCoreConvolution::BlockConvolve(void) {
 
     for(int zblock = 0; zblock < (cpd + 1)/2; zblock += zwidth) { //MPI_rank is set to 0 in single node case and we recover standard convolution case. 
 		
+		
+    	if (zblock + zwidth >= (cpd + 1)/2) zwidth = (cpd+1)/2 - zblock;
+		
 		STDLOG(1, "Starting z %d to %d\n", zblock, zblock + zwidth);	
         ReadDiskMultipolesAndDerivs(zblock); 
 		
+		
 #ifdef PARALLEL
+		// printf("node %d b1\n", MPI_rank);
+		//
+		// MPI_Barrier(MPI_COMM_WORLD);
+		//
+		// printf("node %d b2\n", MPI_rank);
+		
+		
 		int zstart = zblock + MPI_rank; 
-		int zend = zstart + 1; 
+		int zend = zstart + 1;
+		
+		if (zstart + zwidth < zend) zend = zstart + zwidth;
 
 #else
 		int zstart = zblock;
 		int zend = zblock + zwidth; 
+		int MPI_rank = -1; 
 #endif
         for(int z = zstart; z < zend; z++) {
 			
-		
-			printf("I am node %d doing z = %d. zwidth = %d\n", MPI_rank, z, zwidth);
+			//printf("I am node %d doing z = %d. zwidth = %d. zblock = %d. zstart = %d. zend = %d. \n", MPI_rank, z, zwidth, zblock, zstart, zend);
 			
             SwizzleMultipoles(z - zblock);
+			
+
+			
+		//printf("%d a\n", MPI_rank);
 			
             Complex *Mtmp = &( PlaneBuffer[0] );
 
@@ -211,6 +252,9 @@ void OutofCoreConvolution::BlockConvolve(void) {
 
             #endif
             ForwardZFFTMultipoles.Stop();
+						
+						
+			//printf("%d b\n", MPI_rank);
 						
 
             ConvolutionArithmetic.Start();
@@ -247,15 +291,42 @@ void OutofCoreConvolution::BlockConvolve(void) {
             #endif
             InverseZFFTTaylor.Stop();
 					
+					
+			//printf("%d c\n", MPI_rank);
+					
 
             SwizzleTaylors(z - zblock);
 			
+			//printf("%d d\n", MPI_rank);	
 					
         }
 		
+// #ifdef PARALLEL
+// 		printf("node %d e1\n", MPI_rank);
+//
+// 			MPI_Barrier(MPI_COMM_WORLD);
+// 			printf("node %d e2\n", MPI_rank);
+//
+// #endif
+//
+	//	 			printf("%d e\n", MPI_rank);
+//	
 
-			exit(1);
- //        WriteDiskTaylor(zblock);
+        WriteDiskTaylor(zblock);
+		
+		if (zblock == 16)sleep(10);
+
+
+		
+		
+#ifdef PARALLEL
+		//printf("node %d f1\n", MPI_rank);
+		MPI_Barrier(MPI_COMM_WORLD);
+		//printf("node %d f2\n", MPI_rank);
+#endif
+		
+// 		 		printf("%d f\n", MPI_rank);
+
     }
 	
 	
@@ -288,6 +359,11 @@ void OutofCoreConvolution::BlockConvolve(void) {
     #endif
     
     delete ICC;
+	
+
+
+	
+//	exit(1);
 
 }
 
