@@ -138,7 +138,7 @@ public:
     }
 	
 #ifdef PARALLEL
-	void transpose(int zstart, int zwidth, int thread_num){
+	void transpose_z_to_x(int zstart, int zwidth, int thread_num, int z_slabs_per_node){
 		
 		int rml_times_cpd = rml * cpd; 
 
@@ -149,26 +149,28 @@ public:
 		int recvcounts[MPI_size];
 		int    rdispls[MPI_size];
 
-		sendbuf = (MTCOMPLEX *) malloc(zwidth * total_slabs_on_node * rml_times_cpd * sizeof(MTCOMPLEX));
-		recvbuf = (MTCOMPLEX *) malloc(rml_times_cpd * cpd * sizeof(MTCOMPLEX));
+		sendbuf = (MTCOMPLEX *) malloc(z_slabs_per_node * MPI_size * total_slabs_on_node * rml_times_cpd * sizeof(MTCOMPLEX));
+		recvbuf = (MTCOMPLEX *) malloc(z_slabs_per_node * rml_times_cpd * cpd * sizeof(MTCOMPLEX));
 
 
 		for (int i = 0; i < MPI_size; i++)
 		{
-			sendcounts[i] = total_slabs_on_node * rml_times_cpd; // send total_slabs_on_node * rml * cpd complex numbers)
-			sdispls[i]    = i * total_slabs_on_node * rml_times_cpd; // contiguous chunk starts after sdispls[i] complex numbers.
-			recvcounts[i] = total_slabs_all[i] * rml_times_cpd; //*zwidth
-			rdispls[i]    = first_slabs_all[i] * rml_times_cpd; //doesn't work for zwidth/node > 1
+			sendcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; // send total_slabs_on_node * rml * cpd complex numbers)
+			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; // contiguous chunk starts after sdispls[i] complex numbers.
+			recvcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; //*zwidth
+			rdispls[i]    = z_slabs_per_node * first_slabs_all[i] * rml_times_cpd; //doesn't work for zwidth/node > 1
 		}
 		
 		
 		
-		for(int z=zstart; z<zstart + zwidth; z++){
+		for(int z=0; z< z_slabs_per_node * MPI_size; z++){
 			for(int x=0; x<total_slabs_on_node;x++){
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
 						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
-						sendbuf[i] = mtblock[x + first_slab_on_node][z*rml_times_cpd + m*cpd + y ];
+						
+						if (z > zwidth) sendbuf[i] = 0.0;
+						else sendbuf[i] = mtblock[x + first_slab_on_node][z*rml_times_cpd + m*cpd + y ];
 					}
 				}
 			}
@@ -178,24 +180,96 @@ public:
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_COMPLEX, recvbuf, recvcounts, rdispls, MPI_COMPLEX, MPI_COMM_WORLD);
 		MPI_Barrier(MPI_COMM_WORLD);
 		
-		int z = zstart + MPI_rank; 
-
-		for(int x=0; x<P.cpd;x++){
+		for (int z_buffer = 0; z_buffer < z_slabs_per_node; z_buffer ++){ //each node needs to put z_slabs_per_node rows of data into its mtblock here. 
+			for(int x=0; x<P.cpd;x++){
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
 						
-						mtblock[x][z*rml_times_cpd + m*cpd + y] = recvbuf[x*rml_times_cpd + m*cpd + y]; 
+						int z = z_slabs_per_node * MPI_rank + z_buffer;  //in the event that z_slabs_per_node = 1, this loop reduces to z = MPI_rank. 
 						
-						// int i = x*rml_times_cpd + m*cpd + y;
- 						//printf("%d %d %d %d %f \n", MPI_rank, x, m, y, recvbuf[i]);
+						if (z < zwidth) mtblock[x][z*rml_times_cpd + m*cpd + y] = recvbuf[z_buffer*cpd*rml_times_cpd + x*rml_times_cpd + m*cpd + y]; 
 					}
 				}
 			}
+		}
 			
 		free(sendbuf);
 		free(recvbuf);
 	
 	}
+	
+	
+	
+	void transpose_x_to_z(int zstart, int zwidth, int thread_num, int z_slabs_per_node){
+		
+		int rml_times_cpd = rml * cpd; 
+
+		MTCOMPLEX * sendbuf;
+		MTCOMPLEX * recvbuf;
+		int sendcounts[MPI_size];
+		int    sdispls[MPI_size];
+		int recvcounts[MPI_size];
+		int    rdispls[MPI_size];
+
+		sendbuf = (MTCOMPLEX *) malloc(z_slabs_per_node * rml_times_cpd * cpd * sizeof(MTCOMPLEX));
+		recvbuf = (MTCOMPLEX *) malloc(z_slabs_per_node * MPI_size * total_slabs_on_node * rml_times_cpd * sizeof(MTCOMPLEX));
+
+		for (int i = 0; i < MPI_size; i++)
+		{
+			sendcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; //*zwidth
+			sdispls[i]    = z_slabs_per_node * first_slabs_all[i] * rml_times_cpd; //doesn't work for zwidth/node > 1
+			recvcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; // send total_slabs_on_node * rml * cpd complex numbers)
+			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; // contiguous chunk starts after sdispls[i] complex numbers.
+		}
+		
+		//printf("I am node %d doing WRITE %d %d a\n", MPI_rank, zstart, zwidth);
+		
+		
+		for (int z_buffer = 0; z_buffer < z_slabs_per_node; z_buffer ++){ //each node needs to put z_slabs_per_node rows of data into its mtblock here. 
+			for(int x=0; x<P.cpd;x++){
+		  		for(int m=0;m<rml;m++){
+					for(int y=0;y<cpd;y++){
+						int i = z_buffer*cpd*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
+						int z = z_slabs_per_node * MPI_rank + z_buffer;  //in the event that z_slabs_per_node = 1, this loop reduces to z = MPI_rank. 
+						
+						if (z < zwidth) sendbuf[i] = mtblock[x][z*rml_times_cpd + m*cpd + y];
+						else sendbuf[i] = 0.0; 
+					}
+				}
+			}
+		}
+		
+		//printf("I am node %d doing WRITE %d %d b\n", MPI_rank, zstart, zwidth);
+		
+
+		MPI_Barrier(MPI_COMM_WORLD);
+		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_COMPLEX, recvbuf, recvcounts, rdispls, MPI_COMPLEX, MPI_COMM_WORLD);
+		MPI_Barrier(MPI_COMM_WORLD);
+		
+		//printf("I am node %d doing WRITE %d %d c\n", MPI_rank, zstart, zwidth);
+		
+		
+
+		for(int z=0; z<z_slabs_per_node * MPI_size; z++){
+			for(int x=0; x<total_slabs_on_node;x++){
+		  		for(int m=0;m<rml;m++){
+					for(int y=0;y<cpd;y++){
+						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
+						mtblock[x + first_slab_on_node][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
+					}
+				}
+			}
+		}
+		
+		//printf("I am node %d doing WRITE %d %d d\n", MPI_rank, zstart, zwidth);
+		
+
+			
+		free(sendbuf);
+		free(recvbuf);
+	
+	}
+	
 #endif
 
     void write(int zstart, int zwidth, int thread_num){
@@ -204,14 +278,21 @@ public:
         WriteTaylor.Start(thread_num);
         
         size_t size = sizeof(MTCOMPLEX)*zwidth*cpd*rml;
-        
-        for(int x = 0; x < cpd; x++) {
+
+        for(int x = first_slab_on_node; x < first_slab_on_node + total_slabs_on_node; x++) {
+			
             if (x % CP.niothreads != thread_num)
                 continue;
 
             char fn[1024];
             int remap_slab = (x+cpd-1)%cpd;
             CP.TaylorFN(remap_slab, fn);
+			
+			//printf("writing %d %d %d %d", MPI_rank, zstart, zwidth, x); 
+			//int c= 0 ;
+			//while(fn[c]!='\0'){ printf("%c", fn[c]); c++;}
+			//printf("\n");
+			
             
             if(ramdisk_MT){
                 // If mtblock is on the ramdisk, then the Taylors swizzle was effectively our "write"
