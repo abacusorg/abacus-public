@@ -36,6 +36,23 @@ private:
         int n_blocks_written = 0;
         int cpd = CP.runtime_cpd;
         int zwidth = CP.zwidth;
+		
+		//fetch all nodes' domains in x from ReadNodeSlabs.
+		int read_all_nodes = 1;
+		ReadNodeSlabs(read_all_nodes);
+		
+		
+		MTCOMPLEX * sendbuf;
+		MTCOMPLEX * recvbuf;
+				
+		sendbuf = (MTCOMPLEX *) malloc(CP.z_slabs_per_node * MPI_size * total_slabs_on_node * cpd * CP.rml * sizeof(MTCOMPLEX));
+		recvbuf = (MTCOMPLEX *) malloc(CP.z_slabs_per_node * cpd * CP.rml * cpd * sizeof(MTCOMPLEX));
+		
+		assert(sendbuf != NULL);
+		assert(recvbuf != NULL);
+		
+		//sendbuf = (MTCOMPLEX *) malloc(z_slabs_per_node * MPI_size * total_slabs_on_node * rml_times_cpd * sizeof(MTCOMPLEX));
+		//recvbuf = (MTCOMPLEX *) malloc(z_slabs_per_node * rml_times_cpd * cpd * sizeof(MTCOMPLEX));
 
         assert(!free_queue.empty());
         while(n_blocks_written < nblocks){
@@ -52,18 +69,18 @@ private:
 				
 #ifdef PARALLEL
 				
-				//printf("I am node %d doing WRITE zstart = %d nblocksread = %d \n", MPI_rank, zstart, n_blocks_read);
+				printf("I am node %d doing WRITE zstart = %d nblocksread = %d \n", MPI_rank, zstart, n_blocks_read);
 				MPI_Barrier(MPI_COMM_WORLD);
 				
-  				write_buffer->transpose_x_to_z(zstart, this_zwidth, thread_num,  CP.z_slabs_per_node);
+  				write_buffer->transpose_x_to_z(zstart, this_zwidth, thread_num,  CP.z_slabs_per_node, recvbuf, sendbuf);
 				MPI_Barrier(MPI_COMM_WORLD);
-				//printf("I am node %d FINISHED WTIH WRITE TRANSPOSE zstart = %d nblocksread = %d \n", MPI_rank, zstart, n_blocks_read);
+				printf("I am node %d FINISHED WTIH WRITE TRANSPOSE zstart = %d nblocksread = %d \n", MPI_rank, zstart, n_blocks_read);
 				
 #endif
 				
                 write_buffer->write(n_blocks_written*CP.zwidth, this_zwidth, thread_num);
 #ifdef PARALLEL
-				//printf("I am node %d FINISHED WTIH WRITE zstart = %d nblocksread = %d \n", MPI_rank, zstart, n_blocks_read);
+				printf("I am node %d FINISHED WTIH WRITE zstart = %d nblocksread = %d \n", MPI_rank, zstart, n_blocks_read);
 #endif
                 free_queue.push(write_buffer);
                 write_buffer = NULL;
@@ -77,9 +94,9 @@ private:
 				
 				 
 				
-				//fetch all nodes' domains in x from ReadNodeSlabs.
-				int read_all_nodes = 1;
-				ReadNodeSlabs(read_all_nodes);
+				// //fetch all nodes' domains in x from ReadNodeSlabs.
+// 				int read_all_nodes = 1;
+// 				ReadNodeSlabs(read_all_nodes);
 
 
                 int zstart = n_blocks_read*CP.zwidth; //each node loads all z's for current chunk of z's. Each node will eventually be responsible for a subset of these. 
@@ -89,7 +106,7 @@ private:
 				
                 int this_zwidth = min(zwidth, (cpd+1)/2-zstart);
 				
-				//printf("I am node %d doing READ zstart = %d nblocksread = %d, %d \n", MPI_rank, zstart, n_blocks_read, this_zwidth);
+				printf("I am node %d doing READ zstart = %d nblocksread = %d, %d \n", MPI_rank, zstart, n_blocks_read, this_zwidth);
 				
 
                 read_buffer->read_derivs(zstart, this_zwidth, thread_num);
@@ -100,10 +117,10 @@ private:
 				
 #ifdef PARALLEL
 				MPI_Barrier(MPI_COMM_WORLD);
-  				read_buffer->transpose_z_to_x(zstart, this_zwidth, thread_num, CP.z_slabs_per_node);
+  				read_buffer->transpose_z_to_x(zstart, this_zwidth, thread_num, CP.z_slabs_per_node, sendbuf, recvbuf);
 				MPI_Barrier(MPI_COMM_WORLD);
 				
-				//printf("I am node %d finished with READ and TRANSPOSE zstart = %d nblocksread = %d \n", MPI_rank, zstart, n_blocks_read);
+				printf("I am node %d finished with READ and TRANSPOSE zstart = %d nblocksread = %d \n", MPI_rank, zstart, n_blocks_read);
 				
 #endif
 				
@@ -118,6 +135,9 @@ private:
         assert(read_queue.empty());
         assert(write_queue.empty());
         assert(free_queue.size() == read_ahead);
+		
+		free(sendbuf);
+		free(recvbuf);
     }
 
     static void *start_thread(void *iothread_obj){

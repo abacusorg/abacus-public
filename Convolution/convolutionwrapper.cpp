@@ -239,7 +239,7 @@ int choose_zwidth(int Conv_zwidth, int cpd, ConvolutionParameters &CP){
 	
 	
 	
-	return 2;
+	return 4;
 	
 	
 	
@@ -395,6 +395,10 @@ int main(int argc, char ** argv){
         CP.blocksize = blocksize;
 		
 #ifdef PARALLEL
+		if (CP.niothreads != 1){
+			if (MPI_rank == 0) printf("Multi-node (parallel, MPI) implementation does not support more than one IO thread! Crashing...\n");
+			assert(0==99);
+		} 
 		CP.z_slabs_per_node = 1; 
 #endif
         
