@@ -138,37 +138,32 @@ public:
     }
 	
 #ifdef PARALLEL
-	void transpose_z_to_x(int zstart, int zwidth, int thread_num, int z_slabs_per_node){
+	void transpose_z_to_x(int zstart, int zwidth, int thread_num, int z_slabs_per_node, MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf){
 		
 		int rml_times_cpd = rml * cpd; 
 
-		MTCOMPLEX * sendbuf;
-		MTCOMPLEX * recvbuf;
 		int sendcounts[MPI_size];
 		int    sdispls[MPI_size];
 		int recvcounts[MPI_size];
 		int    rdispls[MPI_size];
-
-		sendbuf = (MTCOMPLEX *) malloc(z_slabs_per_node * MPI_size * total_slabs_on_node * rml_times_cpd * sizeof(MTCOMPLEX));
-		recvbuf = (MTCOMPLEX *) malloc(z_slabs_per_node * rml_times_cpd * cpd * sizeof(MTCOMPLEX));
+		
+		printf("I am node %d doing READ a\n", MPI_rank);
+		
 
 
 		for (int i = 0; i < MPI_size; i++)
 		{
-			sendcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; // send total_slabs_on_node * rml * cpd complex numbers)
-			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; // contiguous chunk starts after sdispls[i] complex numbers.
-			recvcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; //*zwidth
-			rdispls[i]    = z_slabs_per_node * first_slabs_all[i] * rml_times_cpd; //doesn't work for zwidth/node > 1
+			sendcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
+			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
+			recvcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
+			rdispls[i]    = z_slabs_per_node * first_slabs_all[i] * rml_times_cpd; 
 		}
-		
-		
 		
 		for(int z=0; z< z_slabs_per_node * MPI_size; z++){
 			for(int x=0; x<total_slabs_on_node;x++){
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
 						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
-						
 						if (z > zwidth) sendbuf[i] = 0.0;
 						else sendbuf[i] = mtblock[x + first_slab_on_node][z*rml_times_cpd + m*cpd + y ];
 					}
@@ -176,77 +171,82 @@ public:
 			}
 		}
 		
+		printf("I am node %d doing READ b\n", MPI_rank);
+		
+		
 		MPI_Barrier(MPI_COMM_WORLD);
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_COMPLEX, recvbuf, recvcounts, rdispls, MPI_COMPLEX, MPI_COMM_WORLD);
 		MPI_Barrier(MPI_COMM_WORLD);
 		
-		for (int z_buffer = 0; z_buffer < z_slabs_per_node; z_buffer ++){ //each node needs to put z_slabs_per_node rows of data into its mtblock here. 
-			for(int x=0; x<P.cpd;x++){
-		  		for(int m=0;m<rml;m++){
-					for(int y=0;y<cpd;y++){
+		printf("I am node %d doing READ c\n", MPI_rank);
+		
+		
+		int r = 0; 
+		for (int i = 0; i < MPI_size; i ++){			
+			for (int z_buffer = 0; z_buffer < z_slabs_per_node; z_buffer ++){ //each node needs to put z_slabs_per_node rows of data into its mtblock here. 
+				for(int x=0; x<total_slabs_all[i]; x++){
+			  		for(int m=0;m<rml;m++){
+						for(int y=0;y<cpd;y++){
 						
-						int z = z_slabs_per_node * MPI_rank + z_buffer;  //in the event that z_slabs_per_node = 1, this loop reduces to z = MPI_rank. 
+							int z = z_slabs_per_node * MPI_rank + z_buffer;  //in the event that z_slabs_per_node = 1, this loop reduces to z = MPI_rank. 
 						
-						if (z < zwidth) mtblock[x][z*rml_times_cpd + m*cpd + y] = recvbuf[z_buffer*cpd*rml_times_cpd + x*rml_times_cpd + m*cpd + y]; 
+							if (z < zwidth) mtblock[x + first_slabs_all[i]][z*rml_times_cpd + m*cpd + y] = recvbuf[r]; 
+							
+							r++; 
+						}
 					}
 				}
 			}
 		}
-			
-		free(sendbuf);
-		free(recvbuf);
 	
 	}
 	
 	
 	
-	void transpose_x_to_z(int zstart, int zwidth, int thread_num, int z_slabs_per_node){
+	void transpose_x_to_z(int zstart, int zwidth, int thread_num, int z_slabs_per_node,  MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf){
 		
 		int rml_times_cpd = rml * cpd; 
 
-		MTCOMPLEX * sendbuf;
-		MTCOMPLEX * recvbuf;
 		int sendcounts[MPI_size];
 		int    sdispls[MPI_size];
 		int recvcounts[MPI_size];
 		int    rdispls[MPI_size];
 
-		sendbuf = (MTCOMPLEX *) malloc(z_slabs_per_node * rml_times_cpd * cpd * sizeof(MTCOMPLEX));
-		recvbuf = (MTCOMPLEX *) malloc(z_slabs_per_node * MPI_size * total_slabs_on_node * rml_times_cpd * sizeof(MTCOMPLEX));
-
 		for (int i = 0; i < MPI_size; i++)
 		{
-			sendcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; //*zwidth
-			sdispls[i]    = z_slabs_per_node * first_slabs_all[i] * rml_times_cpd; //doesn't work for zwidth/node > 1
-			recvcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; // send total_slabs_on_node * rml * cpd complex numbers)
-			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; // contiguous chunk starts after sdispls[i] complex numbers.
+			sendcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
+			sdispls[i]    = z_slabs_per_node * first_slabs_all[i] * rml_times_cpd; 
+			recvcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
+			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 		}
 		
-		//printf("I am node %d doing WRITE %d %d a\n", MPI_rank, zstart, zwidth);
+		printf("I am node %d doing WRITE %d %d a\n", MPI_rank, zstart, zwidth);		
 		
 		
-		for (int z_buffer = 0; z_buffer < z_slabs_per_node; z_buffer ++){ //each node needs to put z_slabs_per_node rows of data into its mtblock here. 
-			for(int x=0; x<P.cpd;x++){
-		  		for(int m=0;m<rml;m++){
-					for(int y=0;y<cpd;y++){
-						int i = z_buffer*cpd*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
-						int z = z_slabs_per_node * MPI_rank + z_buffer;  //in the event that z_slabs_per_node = 1, this loop reduces to z = MPI_rank. 
-						
-						if (z < zwidth) sendbuf[i] = mtblock[x][z*rml_times_cpd + m*cpd + y];
-						else sendbuf[i] = 0.0; 
+		int r = 0; 
+		for (int i = 0; i < MPI_size; i ++){			
+			for (int z_buffer = 0; z_buffer < z_slabs_per_node; z_buffer ++){ 
+				for(int x=0; x<total_slabs_all[i]; x++){
+			  		for(int m=0;m<rml;m++){
+						for(int y=0;y<cpd;y++){
+							int z = z_slabs_per_node * MPI_rank + z_buffer;  
+							if (z < zwidth) sendbuf[r] = mtblock[x + first_slabs_all[i]][z*rml_times_cpd + m*cpd + y];
+							else sendbuf[r] = 0.0; 							
+							r++; 
+						}
 					}
 				}
 			}
 		}
 		
-		//printf("I am node %d doing WRITE %d %d b\n", MPI_rank, zstart, zwidth);
+		printf("I am node %d doing WRITE %d %d b\n", MPI_rank, zstart, zwidth);
 		
 
 		MPI_Barrier(MPI_COMM_WORLD);
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_COMPLEX, recvbuf, recvcounts, rdispls, MPI_COMPLEX, MPI_COMM_WORLD);
 		MPI_Barrier(MPI_COMM_WORLD);
 		
-		//printf("I am node %d doing WRITE %d %d c\n", MPI_rank, zstart, zwidth);
+		printf("I am node %d doing WRITE %d %d c\n", MPI_rank, zstart, zwidth);
 		
 		
 
@@ -261,12 +261,7 @@ public:
 			}
 		}
 		
-		//printf("I am node %d doing WRITE %d %d d\n", MPI_rank, zstart, zwidth);
-		
-
-			
-		free(sendbuf);
-		free(recvbuf);
+		printf("I am node %d doing WRITE %d %d d\n", MPI_rank, zstart, zwidth);
 	
 	}
 	

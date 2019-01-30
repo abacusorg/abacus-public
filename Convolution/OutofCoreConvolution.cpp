@@ -185,41 +185,38 @@ void OutofCoreConvolution::BlockConvolve(void) {
 
     for(int zblock = 0; zblock < (cpd + 1)/2; zblock += zwidth) { //MPI_rank is set to 0 in single node case and we recover standard convolution case. 
 		
-		
     	if (zblock + zwidth >= (cpd + 1)/2) zwidth = (cpd+1)/2 - zblock;
 		
 		STDLOG(1, "Starting z %d to %d\n", zblock, zblock + zwidth);	
         ReadDiskMultipolesAndDerivs(zblock); 
 		
 		
-#ifdef PARALLEL
-		// printf("node %d b1\n", MPI_rank);
-		//
-		// MPI_Barrier(MPI_COMM_WORLD);
-		//
-		// printf("node %d b2\n", MPI_rank);
+#ifdef PARALLEL		
+		int zstart = zblock + MPI_rank * z_slabs_per_node; 
+		int zend = zstart + z_slabs_per_node;
 		
+		//printf("rank %d, zstart %d, zblock %d, zslabs %d, zend %d, zwidth %d, ", MPI_rank, zstart, zblock, z_slabs_per_node, zend, zwidth);
 		
-		int zstart = zblock + MPI_rank; 
-		int zend = zstart + 1;
+		if (zstart > (cpd + 1)/2) zend = zstart;
+		else if (zstart + zwidth < zend) zend = zstart + zwidth;
 		
-		if (zstart + zwidth < zend) zend = zstart + zwidth;
+		//printf("new zend %d\n", zend);
 
 #else
 		int zstart = zblock;
 		int zend = zblock + zwidth; 
-		int MPI_rank = -1; 
+		int MPI_rank = -1; //for debugging. 
 #endif
         for(int z = zstart; z < zend; z++) {
 			
-			//printf("I am node %d doing z = %d. zwidth = %d. zblock = %d. zstart = %d. zend = %d. \n", MPI_rank, z, zwidth, zblock, zstart, zend);
-			
-            SwizzleMultipoles(z - zblock);
-			
+			printf("I am node %d doing z = %d. zwidth = %d. zblock = %d. zstart = %d. zend = %d. \n", MPI_rank, z, zwidth, zblock, zstart, zend);
 
-			
-		//printf("%d a\n", MPI_rank);
-			
+            SwizzleMultipoles(z - zblock);
+
+
+
+ 			//printf("%d a\n", MPI_rank);
+
             Complex *Mtmp = &( PlaneBuffer[0] );
 
             ForwardZFFTMultipoles.Start();
@@ -252,10 +249,10 @@ void OutofCoreConvolution::BlockConvolve(void) {
 
             #endif
             ForwardZFFTMultipoles.Stop();
-						
-						
-			//printf("%d b\n", MPI_rank);
-						
+
+
+ 			//printf("%d b\n", MPI_rank);
+
 
             ConvolutionArithmetic.Start();
             ICC->InCoreConvolve(Mtmp, CompressedDerivatives[z-zblock]);
@@ -290,14 +287,14 @@ void OutofCoreConvolution::BlockConvolve(void) {
             }
             #endif
             InverseZFFTTaylor.Stop();
-					
-					
-			//printf("%d c\n", MPI_rank);
-					
+
+
+ 			//printf("%d c\n", MPI_rank);
+
 
             SwizzleTaylors(z - zblock);
-			
-			//printf("%d d\n", MPI_rank);	
+
+			printf("%d d\n", MPI_rank);	
 					
         }
 		
@@ -407,7 +404,9 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters &_CP ) {
     CompressedMultipoleLengthXY = CP.CompressedMultipoleLengthXY;
     rml = CP.rml;
     zwidth = CP.zwidth;
-    
+#ifdef PARALLEL
+	z_slabs_per_node = CP.z_slabs_per_node; 
+#endif
     // Check that all the multipole files exists
     // This is to prevent losing Taylors by accidentally convolving after an interrupted singlestep
     for(int i=0;i<cpd;i++) {

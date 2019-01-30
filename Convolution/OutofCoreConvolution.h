@@ -51,7 +51,7 @@ public:
     char runtime_TaylorPrefix[1024];
     
     uint64_t blocksize, zwidth, rml, CompressedMultipoleLengthXY;
-	
+
 #ifdef PARALLEL
 	uint64_t z_slabs_per_node; 
 #endif
@@ -108,6 +108,10 @@ public:
     void Convolve( ConvolutionParameters &_CP );
 
     uint64_t blocksize, zwidth;
+	
+#ifdef PARALLEL
+	uint64_t z_slabs_per_node; 
+#endif
 
     ConvolutionStatistics CS; 
 
