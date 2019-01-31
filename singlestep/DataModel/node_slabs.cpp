@@ -9,7 +9,7 @@ slabs and construct a new file.
 
 /// Read the global file to set two global variables for this node:
 /// first_slab_on_node and total_slab_on_node
-void ReadNodeSlabs(int get_all_nodes = 0) {
+void ReadNodeSlabs(int get_all_nodes = 0, int * first_slabs_all = NULL, int * total_slabs_all = NULL) {
     #ifndef PARALLEL
         first_slab_on_node = 0; total_slabs_on_node = P.cpd;
         first_slab_finished = -1;   // Just a silly value
@@ -18,12 +18,7 @@ void ReadNodeSlabs(int get_all_nodes = 0) {
         int neighbor = (MPI_rank+1)%MPI_size;
         char fname[1024];
         int value, last_slab;
-		
-		if (get_all_nodes) { 
-			first_slabs_all = new int(MPI_size);
-			total_slabs_all = new int(MPI_size);
-		}
-		
+			
         // TODO: This needs to be the Global Read State
         sprintf(fname, "%s/nodeslabs", P.ReadStateDirectory); //NAM DE TODO have convolution look at MultipoleDirectory for node x domain. Check 0th step --> what comes first, singlestep or convolve? 
         FILE *fp;
@@ -33,9 +28,12 @@ void ReadNodeSlabs(int get_all_nodes = 0) {
             // We couldn't find a file, so let's make up something
             first_slab_on_node = floor((float)P.cpd*MPI_rank/MPI_size);
             last_slab = floor((float)P.cpd*(MPI_rank+1)/MPI_size);
-			
+						
 			if (get_all_nodes){
-				for (int j=0; j<MPI_size; j++) first_slabs_all[j] = floor((float)P.cpd*j/MPI_size);
+				for (int j=0; j<MPI_size; j++) {
+					first_slabs_all[j] = floor((float)P.cpd*j/MPI_size);
+					total_slabs_all[j] = floor((float)P.cpd*(j+1)/MPI_size) - floor((float)P.cpd*j/MPI_size);
+				}
 			}
 			
         } else {
@@ -44,19 +42,21 @@ void ReadNodeSlabs(int get_all_nodes = 0) {
                 assertf(nread==1, "Couldn't read entry %j from NodeSlabs file\n", j);
                 if (j==MPI_rank) first_slab_on_node = value;
                 if (j==neighbor) last_slab = value;
-								
-				if (get_all_nodes) first_slabs_all[j] = value; 
 				
+				if (get_all_nodes) {
+					printf("to do (NAM): ReadNodeSlabs importing from file. This has not been tested thoroughly for convolution! Take a look to make sure all is well.\n");
+					first_slabs_all[j] = value;
+					if (j > 0) total_slabs_all[j-1] = value - first_slabs_all[j-1]; //populates total_slabs_all entries from 0 to MPI_size - 2. 
+					total_slabs_all[MPI_size - 1] = P.cpd - first_slabs_all[MPI_size - 1]; //set the last total_slabs_all entry. 
+				}
+								
             }
             fclose(fp);
         }
+		
         total_slabs_on_node = last_slab - first_slab_on_node;
-		
-		if (get_all_nodes){
-			for (int j=0; j<MPI_size-1; j++) total_slabs_all[j] = first_slabs_all[j+1] - first_slabs_all[j]; 
-			total_slabs_all[MPI_size - 1] = P.cpd - first_slabs_all[MPI_size - 1];
-		}
-		
+				
+
         if (total_slabs_on_node<0) total_slabs_on_node += P.cpd;
         STDLOG(1,"Read NodeSlab file: will do %d slabs from [%d,%d)\n",
             total_slabs_on_node, first_slab_on_node, last_slab);

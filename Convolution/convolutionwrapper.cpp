@@ -26,8 +26,8 @@ char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
 int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
 int node_zstart = -1, node_zwidth = 1;
 int first_slab_on_node = 0, first_slab_finished = -1, total_slabs_on_node = -1;
-int * first_slabs_all = NULL;
-int * total_slabs_all = NULL;
+// int * first_slabs_all = NULL;
+// int * total_slabs_all = NULL;
 
 
 /*
@@ -234,34 +234,6 @@ int choose_zwidth(int Conv_zwidth, int cpd, ConvolutionParameters &CP){
 	return CP.z_slabs_per_node * MPI_size;
 #endif
 	
-	
-	
-	
-	
-	
-	return 4;
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
     // If we are on the ramdisk, then we know the problem fits in memory! Just do the whole thing at once
     // If we aren't overwriting, there might be a small efficiency gain from smaller zwidth since reading requires a memcpy()
     // TODO: need to support ramdisk offsets if we want to support zwidth < max
@@ -399,7 +371,7 @@ int main(int argc, char ** argv){
 			if (MPI_rank == 0) printf("Multi-node (parallel, MPI) implementation does not support more than one IO thread! Crashing...\n");
 			assert(0==99);
 		} 
-		CP.z_slabs_per_node = 1; 
+		CP.z_slabs_per_node = 8; //may want to automate this choice or put an assert here to make sure we choose a value that uses all nodes. but the overkill version works too, where some nodes don't do anything at all (i.e. cpd = 33, num nodes = 5, zslabspernode = 8. )
 #endif
         
         CP.zwidth = choose_zwidth(P.Conv_zwidth, P.cpd, CP);		
@@ -422,8 +394,6 @@ int main(int argc, char ** argv){
 	    char timingfn[1050];
 	    sprintf(timingfn,"%s/last%s.convtime",P.LogDirectory,NodeString);
 		
-		delete first_slabs_all;
-		delete total_slabs_all;
 		
 	    FinalizeParallel();  // This may be the last synchronization point?
 		
