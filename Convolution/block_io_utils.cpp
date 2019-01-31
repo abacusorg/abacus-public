@@ -138,7 +138,7 @@ public:
     }
 	
 #ifdef PARALLEL
-	void transpose_z_to_x(int zstart, int zwidth, int thread_num, int z_slabs_per_node, MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf){
+	void transpose_z_to_x(int zstart, int zwidth, int thread_num, int z_slabs_per_node, MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all){
 		
 		int rml_times_cpd = rml * cpd; 
 
@@ -147,10 +147,6 @@ public:
 		int recvcounts[MPI_size];
 		int    rdispls[MPI_size];
 		
-		printf("I am node %d doing READ a\n", MPI_rank);
-		
-
-
 		for (int i = 0; i < MPI_size; i++)
 		{
 			sendcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
@@ -171,15 +167,9 @@ public:
 			}
 		}
 		
-		printf("I am node %d doing READ b\n", MPI_rank);
-		
-		
 		MPI_Barrier(MPI_COMM_WORLD);
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_COMPLEX, recvbuf, recvcounts, rdispls, MPI_COMPLEX, MPI_COMM_WORLD);
 		MPI_Barrier(MPI_COMM_WORLD);
-		
-		printf("I am node %d doing READ c\n", MPI_rank);
-		
 		
 		int r = 0; 
 		for (int i = 0; i < MPI_size; i ++){			
@@ -187,23 +177,19 @@ public:
 				for(int x=0; x<total_slabs_all[i]; x++){
 			  		for(int m=0;m<rml;m++){
 						for(int y=0;y<cpd;y++){
-						
 							int z = z_slabs_per_node * MPI_rank + z_buffer;  //in the event that z_slabs_per_node = 1, this loop reduces to z = MPI_rank. 
-						
 							if (z < zwidth) mtblock[x + first_slabs_all[i]][z*rml_times_cpd + m*cpd + y] = recvbuf[r]; 
-							
 							r++; 
 						}
 					}
 				}
 			}
 		}
-	
 	}
 	
 	
 	
-	void transpose_x_to_z(int zstart, int zwidth, int thread_num, int z_slabs_per_node,  MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf){
+	void transpose_x_to_z(int zstart, int zwidth, int thread_num, int z_slabs_per_node,  MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all){
 		
 		int rml_times_cpd = rml * cpd; 
 
@@ -219,9 +205,6 @@ public:
 			recvcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 		}
-		
-		printf("I am node %d doing WRITE %d %d a\n", MPI_rank, zstart, zwidth);		
-		
 		
 		int r = 0; 
 		for (int i = 0; i < MPI_size; i ++){			
@@ -239,17 +222,10 @@ public:
 			}
 		}
 		
-		printf("I am node %d doing WRITE %d %d b\n", MPI_rank, zstart, zwidth);
-		
-
 		MPI_Barrier(MPI_COMM_WORLD);
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_COMPLEX, recvbuf, recvcounts, rdispls, MPI_COMPLEX, MPI_COMM_WORLD);
 		MPI_Barrier(MPI_COMM_WORLD);
 		
-		printf("I am node %d doing WRITE %d %d c\n", MPI_rank, zstart, zwidth);
-		
-		
-
 		for(int z=0; z<z_slabs_per_node * MPI_size; z++){
 			for(int x=0; x<total_slabs_on_node;x++){
 		  		for(int m=0;m<rml;m++){
@@ -259,10 +235,7 @@ public:
 					}
 				}
 			}
-		}
-		
-		printf("I am node %d doing WRITE %d %d d\n", MPI_rank, zstart, zwidth);
-	
+		}	
 	}
 	
 #endif
