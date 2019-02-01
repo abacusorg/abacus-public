@@ -320,10 +320,20 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters &_CP ) {
         CheckFileExists(fn);
     }
 
+    // Create the Taylor files, erasing them if they existed
+    for(int i=0;i<cpd;i++) {
+        char fn[1024];
+        CP.TaylorFN(i, fn);
+        FILE *f = fopen(fn, "wb");
+        assert(f != NULL);
+        fclose(f);
+    }
+
     size_t sdb = CP.runtime_DIOBufferSizeKB;
     sdb *= 1024LLU;
 
-    int direct = CP.runtime_IsRamDisk; 
+    // the RamDisk flag is deprecated; we use finer-grain control over direct IO now
+    int direct = 0;  //CP.runtime_IsRamDisk; 
 
     RD_RDD = new ReadDirect(direct,sdb);
     RD_RDM = new ReadDirect(direct,sdb);
@@ -363,15 +373,6 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters &_CP ) {
     DiskBuffer = CurrentBlock->mtblock;
     CompressedDerivatives = CurrentBlock->dblock;
 #endif
-
-    // Create the Taylor files, erasing them if they existed
-    for(int i=0;i<cpd;i++) {
-        char fn[1024];
-        CP.TaylorFN(i, fn);
-        FILE *f = fopen(fn, "wb");
-        assert(f != NULL);
-        fclose(f);
-    }
     
     BlockConvolve();
 

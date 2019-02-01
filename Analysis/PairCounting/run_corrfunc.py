@@ -28,7 +28,7 @@ from Abacus import ReadAbacus
 from Abacus.Analysis import common
 
 if __name__ == '__main__':
-    parser = utils.default_argparse()
+    parser = utils.default_argparse(doc=__doc__)
     args = parser.parse_args()
     args = utils.process_args(args)
 

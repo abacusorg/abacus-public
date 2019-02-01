@@ -93,7 +93,7 @@ class SlabAccumBuffer {
     T *data;
     SlabAccumBuffer<T> *previous;
     int size, maxsize, start;
-    char padding[36];    // Just to make this cacheline safe
+    char padding[CACHE_LINE_SIZE-28];    // Just to make this cacheline safe
 
   public:
     SlabAccumBuffer<T>() { 
@@ -365,7 +365,7 @@ class SlabAccum {
 	}
 	if (buffers==NULL) {
 	    // printf("%lu\n",(sizeof(SlabAccumBuffer<T>)));
-	    assert(sizeof(SlabAccumBuffer<T>)==64);
+	    assert(sizeof(SlabAccumBuffer<T>)==CACHE_LINE_SIZE);
 	    // Adjust the SlabAccumBuffer padding, if this fails
 	    maxthreads = omp_get_max_threads();
 	    buffers = new SlabAccumBuffer<T>[maxthreads];

@@ -124,12 +124,12 @@ void PlanOutput(bool MakeIC) {
 }
 
 
-void InitGroupFinding(int MakeIC){
+void InitGroupFinding(bool MakeIC){
     int do_output;
     // Request output of L1 groups and halo/field subsamples if:
         // - By going from ReadState to WriteState we are crossing a L1Output_dlna checkpoint
-        // - We are doing a TimeSlice output
-    // We may not end up outputting group if GFC is not initialized below
+        // - Or, we are doing a TimeSlice output
+    // We may not end up outputting groups if GFC is not initialized below
     if(P.L1Output_dlna >= 0)
         do_output = log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ||
                     fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna);
@@ -263,10 +263,8 @@ int main(int argc, char **argv) {
         STDLOG(0, "\t\tAt the current rate, this implies %d more steps to z_final=%f\n", (int)ceil(log(1./ReadState.ScaleFactor/(1. + P.FinishingRedshift()))/dlna), P.FinishingRedshift());
     }
     
-    //Enable floating point exceptions unless we are doing profiling (where they tend to break the profilier)
+    //Enable floating point exceptions
     feenableexcept(FE_INVALID | FE_DIVBYZERO);
-    //if(!P.ProfilingMode) feenableexcept(FE_INVALID | FE_DIVBYZERO);
-    //else fedisableexcept(FE_INVALID | FE_DIVBYZERO);
     
     BuildWriteState(da);
     LCOrigin = (double3 *) malloc(8*sizeof(double3));  // max 8 light cones
@@ -286,16 +284,22 @@ int main(int argc, char **argv) {
     if (MakeIC)  timestepIC();
 	    else timestep();
 
-    // Let the IO finish, so that it is included in the time log.
-    SingleStepTearDown.Start();
-    IO_Terminate();
     fedisableexcept(FE_INVALID | FE_DIVBYZERO);
 
-    SingleStepTearDown.Stop();
+    // Let the IO finish, so that it is included in the time log.
+    IOFinish.Start();
+    IO_Terminate();
+    IOFinish.Stop();
     WallClockDirect.Stop();
+
+    SingleStepTearDown.Start();
+    
+    // While we still have global objects, log their timings
+    GatherTimings();
 
     // The epilogue contains some tests of success.
     Epilogue(P,MakeIC);
+    
     delete cosm;
     free(LCOrigin);
 
@@ -322,6 +326,11 @@ int main(int argc, char **argv) {
         MoveLocalDirectories();
 
     FinalizeParallel();  // This may be the last synchronization point?
+    SingleStepTearDown.Stop();
+    
+    // Finished cleanup.  Now we can log that time too.
+    ReportTimings();
+
     stdlog.close();
     exit(0);
 }

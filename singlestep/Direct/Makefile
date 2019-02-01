@@ -8,7 +8,8 @@ ARCHFLAGS = --generate-code arch=compute_35,code=sm_35\
 	    --generate-code arch=compute_30,code=sm_30\
 	    --generate-code arch=compute_52,code=sm_52\
 	    --generate-code arch=compute_52,code=sm_61\
-	    --generate-code arch=compute_60,code=sm_60
+	    --generate-code arch=compute_60,code=sm_60\
+	    --generate-code arch=compute_70,code=sm_70
 
 # CUDA doesn't like to support recent g++ versions because they're untested,
 # but in practice they often work just fine.  The following is an example of

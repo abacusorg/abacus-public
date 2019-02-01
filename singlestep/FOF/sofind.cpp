@@ -91,7 +91,7 @@ class SOcell {
     long long numcenters; ///< Total number of SO centers considered
 
 
-    char pad[64];    // Just to ensure an array of these always fall on
+    char pad[CACHE_LINE_SIZE];    // Just to ensure an array of these always fall on
         // a different cache line
 
     inline void reset(int _size) {
@@ -106,16 +106,16 @@ class SOcell {
             // But current Abacus plans do not produce cells this big.
         // printf("Allocating FOFCell to maxsize = %d\n", maxsize);
         if (p!=NULL) free(p);
-        ret = posix_memalign((void **)&p, 64, sizeof(FOFparticle)*maxsize);  assert(ret == 0);
+        ret = posix_memalign((void **)&p, CACHE_LINE_SIZE, sizeof(FOFparticle)*maxsize);  assert(ret == 0);
         memset(p, 0, sizeof(FOFparticle)*maxsize);
         if (d2buffer!=NULL) free(d2buffer);
-        ret = posix_memalign((void **)&d2buffer, 64, sizeof(FOFloat)*maxsize);  assert(ret == 0);
+        ret = posix_memalign((void **)&d2buffer, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
         if (d2sort!=NULL) free(d2sort);
-        ret = posix_memalign((void **)&d2sort, 64, sizeof(FOFloat)*maxsize);  assert(ret == 0);
+        ret = posix_memalign((void **)&d2sort, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
         if (groups!=NULL) free(groups);
-        ret = posix_memalign((void **)&groups, 64, sizeof(FOFgroup)*maxsize);  assert(ret == 0);
+        ret = posix_memalign((void **)&groups, CACHE_LINE_SIZE, sizeof(FOFgroup)*maxsize);  assert(ret == 0);
         if (density!=NULL) free(density);
-        ret = posix_memalign((void **)&density, 64, sizeof(FOFloat)*maxsize);  assert(ret == 0);
+        ret = posix_memalign((void **)&density, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
     }
 
     SOcell() {

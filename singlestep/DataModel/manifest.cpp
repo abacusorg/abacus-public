@@ -271,7 +271,9 @@ void SetupManifest() {
 }
 
 void FreeManifest() {
+    STDLOG(1,"Freeing SendManifest\n")
     delete SendManifest;
+    STDLOG(1,"Freeing ReceiveManifest\n")
     delete ReceiveManifest;
 }
 
@@ -439,7 +441,7 @@ inline void Manifest::FreeAfterSend() {
     }
     for (int n=0; n<m.numarenas; n++) 
         if (check_if_done(n+3)) {  // Arenas
-            SB->DeAllocate(m.arenas[n].type, m.arenas[n].slab);
+            SB->DeAllocate(m.arenas[n].type, m.arenas[n].slab, 1);  // Deallocate, deleting any underlying file
             STDLOG(1,"Freeing the Send Manifest Arena, slab %d of type %d, %d left\n",
                 m.arenas[n].slab, m.arenas[n].type, numpending);
         }
@@ -522,7 +524,8 @@ void Manifest::Receive() {
     STDLOG(1,"Will receive the ReceiveManifest from node rank %d\n", rank);
     // Receive all the Arenas
     for (int n=0; n<m.numarenas; n++) {
-        SB->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size);
+        // TODO: is it true that none of the manifest slabs should land on ramdisk?
+        SB->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size, RAMDISK_NO);
         m.arenas[n].ptr = SB->GetSlabPtr(m.arenas[n].type, m.arenas[n].slab);
         memset(m.arenas[n].ptr, 0, m.arenas[n].size);   // TODO remove
         MPI_Irecv(m.arenas[n].ptr, m.arenas[n].size, MPI_BYTE, rank, n+3, MPI_COMM_WORLD, requests+n+2);

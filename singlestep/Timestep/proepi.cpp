@@ -70,6 +70,7 @@ STimer epilogue;
 STimer WallClockDirect;
 STimer SingleStepSetup;
 STimer SingleStepTearDown;
+STimer IOFinish;
 
 STimer SlabAccumFree;
 
@@ -93,6 +94,10 @@ int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don'
 // #include "ParticleCellInfoStructure.cpp"
 // #include "maxcellsize.cpp"
 #include "IC_classes.h"
+
+#include "slabsize.cpp"
+SlabSize *SS;
+
 #include "slabbuffer.cpp"
 SlabBuffer *SB;
 
@@ -113,9 +118,6 @@ void IO_DeleteArena(int arenatype, int arenaslab)    {
 #include "io_dio.cpp"
 //#include "io_fopen.cpp"
 #endif
-
-#include "slabsize.cpp"
-SlabSize *SS;
 
 #include "cellparticles.cpp"
 CellParticles *CP;
@@ -186,8 +188,6 @@ int * total_slabs_all = NULL;
  *
  */
 void Prologue(Parameters &P, bool MakeIC) {
-    omp_set_nested(true);
-
     STDLOG(1,"Entering Prologue()\n");
     STDLOG(1,"Size of accstruct is %d bytes\n", sizeof(accstruct));
     prologue.Clear();
@@ -269,19 +269,6 @@ void Epilogue(Parameters &P, bool MakeIC) {
     epilogue.Clear();
     epilogue.Start();
 
-    if(NFD)
-        NFD->AggregateStats();
-
-    // Write out the timings.  This must precede the rest of the epilogue, because 
-    // we need to look inside some instances of classes for runtimes.
-    char timingfn[1050];
-    sprintf(timingfn,"%s/lastrun%s.time", P.LogDirectory, NodeString);
-    FILE * timingfile = fopen(timingfn,"w");
-    assertf(timingfile != NULL, "Couldn't open timing file \"%s\"\n", timingfile);
-    ReportTimings(timingfile);
-    fclose(timingfile);
-    STDLOG(0,"Wrote Timing File to %s\n",timingfn);
-
     // IO_Terminate();
 
     if(IL->length!=0) { IL->DumpParticles(); assert(IL->length==0); }
@@ -311,9 +298,6 @@ void Epilogue(Parameters &P, bool MakeIC) {
             fclose(densout);
             delete density; density = 0;
     }
-    
-    if(WriteState.Do2LPTVelocityRereading)
-        finish_2lpt_rereading();
 
     SB->report();
     delete SB;
@@ -509,9 +493,6 @@ void InitWriteState(int MakeIC){
     strcpy(WriteState.SofteningType, "plummer");
     WriteState.SofteningLengthInternal = WriteState.SofteningLength;
 #endif
-    
-    if(WriteState.Do2LPTVelocityRereading)
-        init_2lpt_rereading();
 
     if(strcmp(P.StateIOMode, "overwrite") == 0){
         WriteState.OverwriteState = 1;

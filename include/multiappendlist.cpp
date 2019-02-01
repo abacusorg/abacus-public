@@ -54,7 +54,7 @@ class MALgap {
     uint64 start;
     uint64 end;
     uint64 next;
-    uint64 pad[5];   // We want fill a 64-byte cache line to avoid contention
+    uint8_t pad[CACHE_LINE_SIZE-24];   // We want fill a cache line to avoid contention
     #define MALGAP_SIZE 512
     // We want something big enough that we don't have threads
     // waiting for the mutex to clear.  But small enough that 

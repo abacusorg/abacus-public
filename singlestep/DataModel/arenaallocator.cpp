@@ -297,7 +297,7 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
             // If a ramdisk allocation was requested, must have received the path
             assert(ramdisk_fn != NULL);
             assert(strnlen(ramdisk_fn,1) > 0);
-            STDLOG(1,"Mapping slab %d from shared memory\n", id);
+            STDLOG(1,"Mapping arena id %d from shared memory\n", id);
 
             // Shared memory arenas:
             // 1) do not have guard space
