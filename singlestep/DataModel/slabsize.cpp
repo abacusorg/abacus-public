@@ -5,6 +5,7 @@
 
 #include <stdio.h> 
 
+// The global instantiation of this object is called `SS`.
 class SlabSize {
     uint64 *_size;  // the slab sizes in the read state
     uint64 *_newsize;  // the slab sizes in the write state
@@ -52,7 +53,6 @@ class SlabSize {
 
     void load_from_params(Parameters &P){
         char filename[1024];
-        // TODO MPI: This needs to be the global Write State
         sprintf(filename, "%s/slabsize", P.ReadStateDirectory);
         read(filename);
         STDLOG(1,"Reading SlabSize file from %s\n", filename);

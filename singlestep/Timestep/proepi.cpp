@@ -94,6 +94,10 @@ int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don'
 // #include "ParticleCellInfoStructure.cpp"
 // #include "maxcellsize.cpp"
 #include "IC_classes.h"
+
+#include "slabsize.cpp"
+SlabSize *SS;
+
 #include "slabbuffer.cpp"
 SlabBuffer *SB;
 
@@ -114,9 +118,6 @@ void IO_DeleteArena(int arenatype, int arenaslab)    {
 #include "io_dio.cpp"
 //#include "io_fopen.cpp"
 #endif
-
-#include "slabsize.cpp"
-SlabSize *SS;
 
 #include "cellparticles.cpp"
 CellParticles *CP;
@@ -294,9 +295,6 @@ void Epilogue(Parameters &P, bool MakeIC) {
             fclose(densout);
             delete density; density = 0;
     }
-    
-    if(WriteState.Do2LPTVelocityRereading)
-        finish_2lpt_rereading();
 
     SB->report();
     delete SB;
@@ -492,9 +490,6 @@ void InitWriteState(int MakeIC){
     strcpy(WriteState.SofteningType, "plummer");
     WriteState.SofteningLengthInternal = WriteState.SofteningLength;
 #endif
-    
-    if(WriteState.Do2LPTVelocityRereading)
-        init_2lpt_rereading();
 
     if(strcmp(P.StateIOMode, "overwrite") == 0){
         WriteState.OverwriteState = 1;

@@ -20,6 +20,16 @@
 #define DERRNO      do {fprintf(stderr, "  errno(%d)::%s  ", errno, strerror(errno) ); } while(0)
 #define FAILERRNO   do { if(errno) { DFPL; DERRNO; assert(errno==0); } } while(0)
 
+#ifndef assertf
+#define assertf(_mytest,...) do { \
+    if (!(_mytest)) { \
+        fprintf(stderr,"Failed Assertion: %s\n", #_mytest); \
+        fprintf(stderr, __VA_ARGS__); \
+        assert(0==99); \
+    }} while(0)
+#endif
+
+
 // This expands to a real path, but the given name must exist!
 void ExpandPathName(char *foo) {
     char str[1024];
@@ -167,7 +177,7 @@ int samefile(const char *path1, const char *path2) {
 
     // Neither exists... do we compare paths now?
     if(res1 != 0 && res2 != 0)
-        QUIT("stat failed on both \"%s\" and \"%s\"", path1, path2);
+        assertf(0, "stat failed on both \"%s\" and \"%s\"", path1, path2);
 
     return (s1.st_ino == s2.st_ino) && (s1.st_dev == s2.st_dev);
 }
@@ -269,5 +279,7 @@ int is_path_on_ramdisk(const char* path){
     assert(strlen(str) < 1024);
     return strncmp(str, RAMDISK_PATH, strlen(RAMDISK_PATH)) == 0;
 }
+
+int IsTrueLocalDirectory(const char*);
 
 #endif // INCLUDE_FILE

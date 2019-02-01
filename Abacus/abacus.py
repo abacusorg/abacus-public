@@ -251,6 +251,18 @@ def MakeDerivatives(param, derivs_archive_dir=True, floatprec=False):
     derivativenames = derivativenames32 if floatprec else derivativenames64
     fnfmt = fnfmt32 if floatprec else fnfmt64
 
+    create_derivs_cmd = [pjoin(abacuspath, "Derivatives", "CreateDerivatives"),
+                        str(param.CPD),str(param.Order),str(param.NearFieldRadius),str(param.DerivativeExpansionRadius)]
+
+    parallel = param.get('Parallel', False)
+
+    if parallel:
+        # TODO: parallel CreateDerivs?
+        if 'Conv_mpirun_cmd' in param:
+            create_derivs_cmd = shlex.split(param['Conv_mpirun_cmd']) + create_derivs_cmd
+        else:
+            create_derivs_cmd = shlex.split(param['mpirun_cmd']) + create_derivs_cmd
+
     # First check if the derivatives are in the DerivativesDirectory
     if not all(path.isfile(pjoin(param.DerivativesDirectory, dn)) for dn in derivativenames):
         
@@ -276,8 +288,9 @@ def MakeDerivatives(param, derivs_archive_dir=True, floatprec=False):
                         os.remove("./farderivatives")
                     except OSError:
                         pass
-                    subprocess.check_call([pjoin(abacuspath, "Derivatives", "CreateDerivatives"),
-                    str(param.CPD),str(param.Order),str(param.NearFieldRadius),str(param.DerivativeExpansionRadius)])
+                    if parallel:
+                        print('Dispatching CreateDerivatives with command "{}"'.format(' '.join(create_derivs_cmd)))
+                    subprocess.check_call(create_derivs_cmd)
     
     
 def default_parser():
@@ -638,7 +651,11 @@ class StatusLogWriter:
         step_num = state.FullStepNumber
 
         ss_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.time'.format(step_num))
-        ss_log_txt = pathlib.Path(ss_log_fn).read_text()
+        try:
+            ss_log_txt = pathlib.Path(ss_log_fn).read_text()
+        except FileNotFoundError:
+            self.print('Warning: could not find timing file "{}"'.format(ss_log_fn))
+            return
 
         matches = re.search(r'Total Wall Clock Time\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), ss_log_txt)
         ss_time = float(matches.group('time'))
@@ -699,9 +716,6 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
 
     maxsteps = int(maxsteps)
 
-    if maxsteps <= 0:
-        return 0
-
     if not path.exists(paramfn):
         raise ValueError('Parameter file "{:s}" is not accessible'.format(paramfn))
         
@@ -735,9 +749,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
 
     # floatprec=True effectively guarantees both precisions are available
     # TODO: how to tell if Abacus was compiled in double precision?
-    if not parallel:
-        # TODO: I think convolution will figure this out in the parallel version
-        MakeDerivatives(param, floatprec=True)
+    MakeDerivatives(param, floatprec=True)
 
     print("Beginning abacus steps:")
 
@@ -753,9 +765,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     if parallel:
         try:
             mpirun_cmd = shlex.split(param['mpirun_cmd'])
+            if 'Conv_mpirun_cmd' in param:
+                Conv_mpirun_cmd = shlex.split(param['Conv_mpirun_cmd'])
+            else:
+                Conv_mpirun_cmd = mpirun_cmd
         except KeyError:
             raise RuntimeError('"mpirun_cmd" must be specified in the parameter file if "Parallel = 1"!')
-        #print('__{:s}__'.format(mpirun_cmd))
 
     for i in range(maxsteps):
         if make_ic:
@@ -797,12 +812,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             
             ConvolutionDriver_cmd = [pjoin(abacuspath, "Convolution", "ConvolutionDriver"), paramfn]
             if parallel:
-                ConvolutionDriver_cmd = mpirun_cmd + ConvolutionDriver_cmd
+                ConvolutionDriver_cmd = Conv_mpirun_cmd + ConvolutionDriver_cmd
                 print('Performing PARELLEL convolution for step {:d} with command "{:s}"'.format(stepnum, ' '.join(ConvolutionDriver_cmd)))
-                subprocess.check_call(ConvolutionDriver_cmd, env=convolution_env)
             else:
                 print("Performing convolution for step {:d}".format(stepnum))
-                subprocess.check_call(ConvolutionDriver_cmd, env=convolution_env)
+            subprocess.check_call(ConvolutionDriver_cmd, env=convolution_env)
 
             if ProfilingMode == 2:
                 print('\tConvolution step {} finished. ProfilingMode = 2 (Convolution) is active; Abacus will now quit.'.format(stepnum))
@@ -839,10 +853,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         if parallel:
             singlestep_cmd = mpirun_cmd + singlestep_cmd
             print('Running PARELLEL singlestep for step {:d} with command "{:s}"'.format(stepnum, ' '.join(singlestep_cmd)))
-            subprocess.check_call(singlestep_cmd, env=singlestep_env)
         else:
             print("Running singlestep for step {:d}".format(stepnum))
-            subprocess.check_call(singlestep_cmd, env=singlestep_env)
+        subprocess.check_call(singlestep_cmd, env=singlestep_env)
         
         # In profiling mode, we don't move the states so we can immediately run the same step again
         if ProfilingMode and ProfilingMode != 2:
@@ -859,7 +872,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
 
         # Update the status log
         status_log.update(param, write_state)
-                        
+        
         shutil.copy(pjoin(write, "state"), pjoin(param.LogDirectory, "step{:04d}.state".format(write_state.FullStepNumber)))
         print(( "\t Finished state {:d}. a = {:.4f}, dlna = {:.3g}, rms velocity = {:.3g}".format(
             write_state.FullStepNumber, write_state.ScaleFactor,
@@ -921,7 +934,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
 
         # This logic is deliberately consistent with singlestep.cpp
         # If this is an IC step then we won't have read_state
-        if not AllowIC and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0:
+        if not make_ic and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0:
             print("Final redshift of {:g} reached; terminating normally.".format(finalz))
             status_log.print("Final redshift of {:g} reached; terminating normally.".format(finalz))
             finished = True

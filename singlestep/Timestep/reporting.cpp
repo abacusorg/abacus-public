@@ -169,7 +169,7 @@ void GatherTimings() {
     REPORT(1, "Drift", Drift.Elapsed()); total += thistime;
         REPORT_RATE();
     REPORT(1, "Finish", Finish.Elapsed()); total += thistime;
-        fprintf(timingfile,"---> %6.3f Mpart/sec", P.np/(thistime+1e-15)/1e6 );
+        REPORT_RATE();
 
     double ManifestTotal = 
         ReceiveManifest->Load.Elapsed()
@@ -178,7 +178,7 @@ void GatherTimings() {
         // are not included, because they are essentially like spinning.
         // SendManifest->Load.Elapsed() and Transmit.Elapsed() are in Finish
     REPORT(1, "Manifest", ManifestTotal); total += thistime;
-        fprintf(timingfile,"---> %6.3f MB", ReceiveManifest->bytes/1e6);
+        fprintf(reportfp,"---> %6.3f MB", ReceiveManifest->bytes/1e6);
     REPORT(1, "Spinning", spinning); total += thistime;
     REPORT(1, "Unaccounted", TimeStepWallClock.Elapsed()-total);
 
@@ -385,7 +385,7 @@ void GatherTimings() {
         REPORT(2, "Queuing Send Manifest", SendManifest->Load.Elapsed()+SendManifest->Transmit.Elapsed());
 
 
-    fprintf(timingfile, "\n\nBreakdown of Manifest:");
+    fprintf(reportfp, "\n\nBreakdown of Manifest:");
     REPORT(1, "Manifest", ManifestTotal);
     denom = ManifestTotal;
     REPORT(2, "SendManifest Check (spinning)", SendManifest->CheckCompletion.Elapsed());

@@ -17,6 +17,8 @@ import sys
 import shutil
 import parser
 import argparse
+import shlex
+
 from .InputFile import InputFile
 from . import GenParam
 from . import abacus
@@ -77,7 +79,17 @@ def run(paramfn, allow_eigmodes_fn_override=False):
         shutil.copy(params['ZD_Pk_filename'], pjoin(params['InitialConditionsDirectory'], "input.pow"))
     else:
         assert 'ZD_Pk_powerlaw_index' in params
-    subprocess.check_call([pjoin(zeldovich_dir, "zeldovich"), paramfn])
+
+    ZD_cmd = [pjoin(zeldovich_dir, "zeldovich"), paramfn]
+
+    parallel = params.get('Parallel', False)
+
+    if parallel:
+        try:
+            ZD_cmd = shlex.split(params['ZD_mpirun_cmd']) + ZD_cmd
+        except KeyError:
+            ZD_cmd = shlex.split(params['mpirun_cmd']) + ZD_cmd
+    subprocess.check_call(ZD_cmd)
 
     
 def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):

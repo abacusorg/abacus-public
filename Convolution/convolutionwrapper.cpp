@@ -1,6 +1,8 @@
 #include "header.cpp"
 #include "threevector.hh"
 
+#include "stdlog.cc"
+
 #ifdef IOTHREADED
 #define CONVIOTHREADED
 #endif
@@ -14,8 +16,6 @@ STimer ConvolutionWallClock;
 
 #include "factorial.cpp"
 #include "iolib.cpp"
-
-#include "stdlog.cc"
 
 #include "Parameters.cpp"
 

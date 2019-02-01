@@ -75,9 +75,15 @@ void timestepIC(void) {
     STDLOG(1, "Read %d particles from IC files\n", NP_from_IC);
     #ifdef PARALLEL
         MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
+        MPI_REDUCE_TO_ZERO(&NP_from_IC, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
         STDLOG(1,"Ready to proceed to the remaining work\n");
+        
+        MPI_Barrier(MPI_COMM_WORLD);
         // This MPI call also forces a syncrhonization over the MPI processes, 
         // so things like Reseting GPUs could fire multiple times on one node.
+        SendManifest->FreeAfterSend();
+        // Run this again, just in case the dependency loop on this node finished
+       // before the neighbor received the non-blocking MPI transfer.
     #endif
     STDLOG(1, "Particles remaining on insert list: %d\n", IL->length);
     if (MPI_rank==0) {
@@ -88,7 +94,9 @@ void timestepIC(void) {
     if(IL->length!=0)
         IL->DumpParticles();
 
-    assertf(NP_from_IC == P.np, "Expected to read a total of %u particles from IC files, but only read %u.\n", P.np, NP_from_IC);
+    if(MPI_rank == 0)
+        assertf(NP_from_IC == P.np, "Expected to read a total of %u particles from IC files, but only read %u.\n", P.np, NP_from_IC);
+
     assertf(IL->length==0,
         "Insert List not empty (%d) at the end of timestep().  Particles in IC files not sufficiently sorted?\n", IL->length);
     

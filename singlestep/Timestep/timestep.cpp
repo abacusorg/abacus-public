@@ -84,9 +84,6 @@ void FetchSlabsAction(int slab) {
     // Load all of the particle files together
     SB->LoadArenaNonBlocking(CellInfoSlab,slab);
     SB->LoadArenaNonBlocking(PosSlab,slab);
-    assertf(SS->size(slab)*sizeof(posstruct)<=
-        fsize(SB->ReadSlabPath(PosSlab,slab).c_str()),
-        "PosSlab size doesn't match prediction\n");
 
     // Don't bother to load the vel/aux/taylors for slabs that won't be kicked until the wrap
     #ifndef PARALLEL
@@ -95,13 +92,7 @@ void FetchSlabsAction(int slab) {
     #endif
 
     SB->LoadArenaNonBlocking(VelSlab, slab);
-    assertf(SS->size(slab)*sizeof(velstruct)<=
-        fsize(SB->ReadSlabPath(VelSlab,slab).c_str()),
-        "VelSlab size doesn't match prediction\n");
     SB->LoadArenaNonBlocking(AuxSlab, slab);
-    assertf(SS->size(slab)*sizeof(auxstruct)<=
-        fsize(SB->ReadSlabPath(AuxSlab, slab).c_str()),
-        "AuxSlab size doesn't match prediction\n");
     SB->LoadArenaNonBlocking(TaylorSlab,slab);
 }
 
@@ -720,6 +711,10 @@ void timestep(void) {
         We fix this by forcing FINISH_WAIT_RADIUS to be big enough.  */
         if (FINISH_WAIT_RADIUS+2*GROUP_RADIUS<FORCE_RADIUS)
             FINISH_WAIT_RADIUS = FORCE_RADIUS-2*GROUP_RADIUS;
+
+        // TODO: I'm not sure inflating FINISH_WAIT_RADIUS is the best way to deal with this
+        // TODO: Also not sure this is the minimum number of slabs, even in that case
+        assertf(total_slabs_on_node >= 2*FINISH_WAIT_RADIUS + 1 + 2*FORCE_RADIUS + 4*GROUP_RADIUS, "Not enough slabs on node to finish any slabs!\n");
     #endif
     STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
     STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
@@ -793,7 +788,7 @@ void timestep(void) {
         MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
         STDLOG(1,"Ready to proceed to the remaining work\n");
         MPI_Barrier(MPI_COMM_WORLD);
-        // This MPI call also forces a syncrhonization over the MPI processes, 
+        // This MPI call also forces a synchronization over the MPI processes, 
         // so things like Reseting GPUs could fire multiple times on one node.
        SendManifest->FreeAfterSend();
        // Run this again, just in case the dependency loop on this node finished

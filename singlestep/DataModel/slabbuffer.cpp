@@ -60,6 +60,11 @@ enum SlabType { CellInfoSlab,
                 NUMTYPES
                 };
 
+enum SlabIntent { READSLAB,
+                  WRITESLAB,
+                  INMEMORY
+                };
+
 class SlabBuffer {
 private:
     ArenaAllocator *AA;
@@ -101,6 +106,9 @@ public:
 
         delete AA;
     }
+
+    // Determine whether a slab is used for reading or writing by default
+    int GetSlabIntent(int type);
     
     // The write and read names for the files of this SlabType.
     // The slab number will be wrapped.
@@ -137,6 +145,8 @@ public:
     void ReadArena(int type, int slab, int blocking, const char *fn);
     void WriteArena(int type, int slab, int deleteafter, int blocking, const char *fn);
 
+    void DeAllocate(int type, int slab, int delete_file=0);
+
     inline char* GetSlabPtr(int type, int slab) {
         int id = TypeSlab2ID(type,slab);
         assertf(AA->IsArenaPresent(id), "Error: slab %d of type %d was not present, when pointer requested.\n", slab, type);
@@ -170,18 +180,6 @@ public:
         AA->SetIOCompletedArena(id);
     }
 
-    void DeAllocate(int type, int slab, int delete_file=0) {
-        STDLOG(1,"Deallocating slab %d of type %d.\n", slab, type);
-        AA->DeAllocateArena(TypeSlab2ID(type,slab), ReuseID(type));
-
-        if(delete_file){
-            // TODO: do we ever need delete a write slab, e.g. in the manifest code?
-            std::string path = ReadSlabPath(type, slab);
-            STDLOG(1,"Deleting slab file \"%s\"\n", path);
-            assertf(unlink(path.c_str()) == 0, "Failed to remove path \"%s\"", path);
-        }
-    }
-
     void GetMallocFreeTimes(double *malloc_time, double *free_time){
         *malloc_time = AA->ArenaMalloc.Elapsed();
         *free_time = AA->ArenaFree->Elapsed();
@@ -212,15 +210,16 @@ int SlabBuffer::IsRamdiskSlab(int type, int hint){
 
     const int ReadHint = NUMTYPES;
     const int WriteHint = NUMTYPES+1;
-    assert(type < ReadHint);  // for sanity
 
-    int type_or_hint = type;
+    int intent_or_hint = GetSlabIntent(type);
+    assert(intent_or_hint < ReadHint);  // for sanity
+
     switch(hint){
         case RAMDISK_AUTO_READSLAB:
-            type_or_hint = ReadHint;
+            intent_or_hint = ReadHint;
             break;
         case RAMDISK_AUTO_WRITESLAB:
-            type_or_hint = WriteHint;
+            intent_or_hint = WriteHint;
             break;
         case RAMDISK_AUTO:
             break;
@@ -228,23 +227,14 @@ int SlabBuffer::IsRamdiskSlab(int type, int hint){
             QUIT("Did not understand ramdisk hint %d\n", hint);
     }
 
-    switch(type_or_hint){
-        // Here we express defaults about a slab being a "read type" or "write type"
-        case TaylorSlab:
-        case CellInfoSlab:
-        case PosSlab:
-        case VelSlab:
-        case AuxSlab:
+    switch(intent_or_hint){
+        case READSLAB:
         case ReadHint:
             if(is_path_on_ramdisk(ReadSlabPath(type, -1)))
                 return RAMDISK_READSLAB;
             break;
 
-        case MultipoleSlab:
-        case MergeCellInfoSlab:
-        case MergePosSlab:
-        case MergeVelSlab:
-        case MergeAuxSlab:
+        case WRITESLAB:
         case WriteHint:
             if(is_path_on_ramdisk(WriteSlabPath(type, -1)))
                 return RAMDISK_WRITESLAB;
@@ -254,11 +244,42 @@ int SlabBuffer::IsRamdiskSlab(int type, int hint){
         // An example is TimeSlice, which usually requires slab resizing, which is not trivial with shared memory
         // If the TimeSlice path lands on /dev/shm anyway, io_thread knows to use fopen instead of direct IO,
         // so it should be safe, just slower.
+        case INMEMORY:
         default:
             break;
     }
 
     return RAMDISK_NO;
+}
+
+/* Determine whether a given slab type (e.g. PosSlab) is something that we typically read from disk
+ * or write to disk (or neither).
+ *
+ * There are at least two scenarios when we need this information: the ramdisk code needs to know
+ * whether to overwrite an existing file or not, and the manifest code needs to know whether a slab
+ * has a corresponding file on disk.
+*/
+int SlabBuffer::GetSlabIntent(int type){
+    switch(type){
+        case TaylorSlab:
+        case CellInfoSlab:
+        case PosSlab:
+        case VelSlab:
+        case AuxSlab:
+            return READSLAB;
+
+        case MultipoleSlab:
+        case MergeCellInfoSlab:
+        case MergePosSlab:
+        case MergeVelSlab:
+        case MergeAuxSlab:
+            return WRITESLAB;
+
+        default:
+            return INMEMORY;
+    }
+
+    return -1;
 }
 
 
@@ -347,7 +368,6 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
     int rml = (order+1)*(order+1);
     uint64 lcpd = cpd;  // Just to assure that we don't spill 32-bits
 
-    // TODO: can we use the SlabSize info instead of fsize for these?
     switch(type) {
         case CellInfoSlab        : { return sizeof(cellinfo)*lcpd*lcpd; }
         case MergeCellInfoSlab   : { return sizeof(cellinfo)*lcpd*lcpd; }
@@ -356,28 +376,27 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
         case TaylorSlab     : { return lcpd*(lcpd+1)/2*rml*sizeof(MTCOMPLEX); }
         case PosXYZSlab     :  // let these fall through to PosSlab
         case PosSlab        : { 
-            return fsize(ReadSlabPath(PosSlab,slab).c_str());
+            return SS->size(slab)*sizeof(posstruct);
         }
         case MergePosSlab   : { 
-            return fsize(ReadSlabPath(MergePosSlab,slab).c_str());
+            return SS->size(slab)*sizeof(posstruct);
         }
         case VelSlab        : { 
-            return fsize(ReadSlabPath(VelSlab,slab).c_str());
+            return SS->size(slab)*sizeof(velstruct);
         }
         case AuxSlab        : { 
-            return fsize(ReadSlabPath(AuxSlab,slab).c_str());
+            return SS->size(slab)*sizeof(auxstruct);
         }
         case AccSlab        : {
-            return fsize(ReadSlabPath(PosSlab,slab).c_str())/sizeof(posstruct) * sizeof(accstruct);
+            return SS->size(slab)*sizeof(accstruct);
         }
-        case FarAccSlab        : {
-                    return fsize(ReadSlabPath(PosSlab,slab).c_str())/sizeof(posstruct) * sizeof(acc3struct);
-                }
-        case NearAccSlab        : {
-                // TODO: We might be able to remove this
-                    return fsize(ReadSlabPath(PosSlab,slab).c_str())/sizeof(posstruct) * sizeof(accstruct);
-                }
-        case VelLPTSlab        : {
+        case FarAccSlab     : {
+            return SS->size(slab)*sizeof(acc3struct);
+        }
+        case NearAccSlab    : {
+            return SS->size(slab)*sizeof(accstruct);
+        }
+        case VelLPTSlab     : {
             if(strcmp(P.ICFormat, "RVZel") == 0)
                 // TODO: when we re-route LoadIC through SB to be non-blocking for 2LPT velocity IO, get rid of these magic numbers
                 //return fsize(ReadSlabPath(VelLPTSlab,slab).c_str())/sizeof(ICfile_RVZel::ICparticle) * sizeof(velstruct);
@@ -515,11 +534,17 @@ void SlabBuffer::ReadArena(int type, int slab, int blocking){
 void SlabBuffer::LoadArenaBlocking(int type, int slab) {
     AllocateArena(type, slab, RAMDISK_AUTO_READSLAB);
     ReadArenaBlocking(type, slab);
+
+    assertf(SlabSizeBytes(type, slab) == fsize(ReadSlabPath(type,slab).c_str()),
+            "Unexpected file size for slab %d of type %d\n", slab, type);
 }
 
 void SlabBuffer::LoadArenaNonBlocking(int type, int slab) {
     AllocateArena(type, slab, RAMDISK_AUTO_READSLAB);
     ReadArenaNonBlocking(type, slab);
+
+    assertf(SlabSizeBytes(type, slab) == fsize(ReadSlabPath(type,slab).c_str()),
+            "Unexpected file size for slab %d of type %d\n", slab, type);
 }
 
 
@@ -567,6 +592,48 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, c
         0,      // No file offset
         deleteafter, 
         blocking);
+}
+
+// Free the memory associated with this slab.  Might stash the arena as a reuse slab!
+// One can request deletion of the file that corresponds to this slab, too.
+void SlabBuffer::DeAllocate(int type, int slab, int delete_file) {
+    STDLOG(1,"Deallocating slab %d of type %d.\n", slab, type);
+    AA->DeAllocateArena(TypeSlab2ID(type,slab), ReuseID(type));
+
+    if(delete_file){
+        int intent = GetSlabIntent(type);
+        std::string path;
+        switch(intent){
+            case READSLAB:
+                path = ReadSlabPath(type, slab);
+                break;
+            case WRITESLAB:
+                path = WriteSlabPath(type, slab);
+                break;
+            case INMEMORY:
+                return;  // No file; nothing to delete from disk!
+            default:
+                QUIT("Did not understand slab intent %d\n", intent);
+        }
+
+        char buffer[1024];
+        strcpy(buffer, path.c_str());
+        char *tmp = dirname(buffer);
+        ExpandPathName(tmp);
+
+        if(!IsTrueLocalDirectory(tmp)){
+            STDLOG(1,"Not deleting slab file \"%s\" because it is in a global directory\n", path);
+            return;
+        }
+
+        STDLOG(1,"Deleting slab file \"%s\"\n", path);
+        int ret = unlink(path.c_str());
+        if(ret != 0){
+            assertf(errno == ENOENT, "Failed to remove path \"%s\" for reason %d: %s\n", path, errno, strerror(errno));
+            // TODO: is it really safe to fail to remove the file?
+            STDLOG(1, "Failed to remove path \"%s\"; does not exist. Continuing.\n", path)
+        }
+    }
 }
 
 #endif // INCLUDE_SLABBUFFER
