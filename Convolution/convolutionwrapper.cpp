@@ -273,7 +273,7 @@ void InitializeParallel(int &size, int &rank) {
     #ifdef PARALLEL
          // Start up MPI
          int ret;
-         MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret); //NAM TODO DE MPI_THREAD_FUNNELED may change
+         MPI_Init_thread(NULL, NULL, MPI_THREAD_SERIALIZED, &ret);  // TODO can we move this into the IO thread and change to funneled?
          assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
          MPI_Comm_size(MPI_COMM_WORLD, &size);
          MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -372,8 +372,7 @@ int main(int argc, char ** argv){
 		
 #ifdef PARALLEL
 		if (CP.niothreads != 1){
-			if (MPI_rank == 0) printf("Multi-node (parallel, MPI) implementation does not support more than one IO thread! Crashing...\n");
-			assert(0==99);
+			QUIT("Multi-node (parallel, MPI) implementation does not support more than one IO thread! Crashing...\n");
 		} 
 		CP.z_slabs_per_node = 8; //may want to automate this choice or put an assert here to make sure we choose a value that uses all nodes. but the overkill version works too, where some nodes don't do anything at all (i.e. cpd = 33, num nodes = 5, zslabspernode = 8. )
 #endif
