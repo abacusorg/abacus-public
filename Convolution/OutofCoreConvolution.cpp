@@ -18,7 +18,7 @@ void OutofCoreConvolution::ReadDiskMultipolesAndDerivs(int zstart) {
 	
 #else
 #ifdef PARALLEL
-	printf("Non IO-threaded parallel convolve not implemented....\n");
+	#error "Non IO-threaded parallel convolve not implemented...."
    // CurrentBlock->read_local(node_zstart, node_zwidth, 0); ???
 	// CurrentBlock->transpose(); ???
    // CurrentBlock->read_derivs(zstart, zwidth, 0);
@@ -269,16 +269,15 @@ void OutofCoreConvolution::BlockConvolve(void) {
 
 }
 
-void OutofCoreConvolution::Convolve( ConvolutionParameters &_CP ) {
-
-    CP = _CP;
+OutofCoreConvolution::OutofCoreConvolution(ConvolutionParameters &_CP) : CP(_CP) {
+    memset(&CS, 0, sizeof(ConvolutionStatistics));
 
     assert(CP.runtime_cpd%2==1); assert(CP.runtime_cpd>0);
     assert(CP.runtime_order<=16); assert(CP.runtime_order>=1);
     assert(CP.runtime_NearFieldRadius>=1);
     assert(CP.runtime_NearFieldRadius<=(CP.runtime_cpd-1)/2);
 
-    assert(	(CP.runtime_DerivativeExpansionRadius>=1) && (CP.runtime_DerivativeExpansionRadius <= 8)
+    assert( (CP.runtime_DerivativeExpansionRadius>=1) && (CP.runtime_DerivativeExpansionRadius <= 8)
             || (CP.runtime_DerivativeExpansionRadius==16) );
     assert( (CP.runtime_IsRamDisk == 1) || (CP.runtime_IsRamDisk==0) );
     assert(CP.runtime_DIOBufferSizeKB>=1);
@@ -310,20 +309,21 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters &_CP ) {
     rml = CP.rml;
     zwidth = CP.zwidth;
 #ifdef PARALLEL
-	z_slabs_per_node = CP.z_slabs_per_node; 
+    z_slabs_per_node = CP.z_slabs_per_node; 
 #endif
-    // Check that all the multipole files exists
+
+    // Check that all the multipole files exist
     // This is to prevent losing Taylors by accidentally convolving after an interrupted singlestep
-    for(int i=0;i<cpd;i++) {
+    for(int i = first_slab_on_node; i < first_slab_on_node + total_slabs_on_node; i++) {
         char fn[1024];
-        CP.MultipoleFN(i, fn);
-        CheckFileExists(fn);
+        CP.MultipoleFN(i % cpd, fn);
+        assertf(CheckFileExists(fn) == 0, "Multipole file \"%s\" does not exist! Aborting convolve.\n");
     }
 
     // Create the Taylor files, erasing them if they existed
-    for(int i=0;i<cpd;i++) {
+    for(int i = first_slab_on_node; i < first_slab_on_node + total_slabs_on_node; i++) {
         char fn[1024];
-        CP.TaylorFN(i, fn);
+        CP.TaylorFN(i % cpd, fn);
         FILE *f = fopen(fn, "wb");
         assert(f != NULL);
         fclose(f);
@@ -338,7 +338,9 @@ void OutofCoreConvolution::Convolve( ConvolutionParameters &_CP ) {
     RD_RDD = new ReadDirect(direct,sdb);
     RD_RDM = new ReadDirect(direct,sdb);
     WD_WDT = new WriteDirect(direct,sdb);
-    
+} 
+
+void OutofCoreConvolution::Convolve() {    
     size_t s;
 
     // Plane buffer will only hold one z-slab at a time

@@ -26,8 +26,6 @@ char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
 int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
 int node_zstart = -1, node_zwidth = 1;
 int first_slab_on_node = 0, first_slab_finished = -1, total_slabs_on_node = -1;
-// int * first_slabs_all = NULL;
-// int * total_slabs_all = NULL;
 
 
 /*
@@ -313,13 +311,12 @@ int main(int argc, char ** argv){
 	    char logfn[1050];
 	    sprintf(logfn,"%s/last%s.convlog", P.LogDirectory, NodeString);
 	    stdlog.open(logfn);
-	    OutofCoreConvolution OCC;
 	    STDLOG(1,"Read parameter file\n");
 	    Setup.Stop();
         
         setup_openmp();
 
-	    ConvolutionParameters CP;
+	    ConvolutionParameters CP(MPI_size);
 	    CP.runtime_ConvolutionCacheSizeMB = P.ConvolutionCacheSizeMB;
         STDLOG(1, "Using cache size %d MB\n", CP.runtime_ConvolutionCacheSizeMB);
 	    CP.runtime_DerivativeExpansionRadius = P.DerivativeExpansionRadius;
@@ -376,8 +373,13 @@ int main(int argc, char ** argv){
 		} 
 		CP.z_slabs_per_node = 8; //may want to automate this choice or put an assert here to make sure we choose a value that uses all nodes. but the overkill version works too, where some nodes don't do anything at all (i.e. cpd = 33, num nodes = 5, zslabspernode = 8. )
 #endif
+
+        // Find out which slabs reside on which nodes
+        // This will initialize first_slab_on_node and total_slabs_on_node even in the non-parallel version
+        int read_all_nodes = 1;
+        ReadNodeSlabs(read_all_nodes, CP.first_slabs_all, CP.total_slabs_all);
         
-        CP.zwidth = choose_zwidth(P.Conv_zwidth, P.cpd, CP);		
+        CP.zwidth = choose_zwidth(P.Conv_zwidth, P.cpd, CP);
 		
         for (int i = 0; i < MAX_IO_THREADS; i++)
             CP.io_cores[i] = P.Conv_IOCores[i];
@@ -385,9 +387,12 @@ int main(int argc, char ** argv){
         STDLOG(2, "MTCOMPLEX (multipole/taylor) dtype width: %d\n", (int) sizeof(MTCOMPLEX));
         STDLOG(2, "DFLOAT (derivatives)         dtype width: %d\n", (int) sizeof(DFLOAT));
 
+        // Finished determining parameters; start the main work object
+        OutofCoreConvolution OCC(CP);
+
 	    ConvolutionWallClock.Start();
 	    STDLOG(1,"Starting Convolution\n");
-	    OCC.Convolve(CP);
+	    OCC.Convolve();
 	    STDLOG(1,"Convolution Complete\n");
 	    ConvolutionWallClock.Stop();
 	    TotalWallClock.Stop();

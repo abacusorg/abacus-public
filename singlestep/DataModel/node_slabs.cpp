@@ -19,7 +19,6 @@ void ReadNodeSlabs(int get_all_nodes = 0, int * first_slabs_all = NULL, int * to
         char fname[1024];
         int value, last_slab;
 			
-        // TODO: This needs to be the Global Read State
         sprintf(fname, "%s/nodeslabs", P.ReadStateDirectory); //NAM DE TODO have convolution look at MultipoleDirectory for node x domain. Check 0th step --> what comes first, singlestep or convolve? 
         FILE *fp;
         fp = fopen(fname,"r");
@@ -28,7 +27,7 @@ void ReadNodeSlabs(int get_all_nodes = 0, int * first_slabs_all = NULL, int * to
             // We couldn't find a file, so let's make up something
             first_slab_on_node = floor((float)P.cpd*MPI_rank/MPI_size);
             last_slab = floor((float)P.cpd*(MPI_rank+1)/MPI_size);
-						
+			
 			if (get_all_nodes){
 				for (int j=0; j<MPI_size; j++) {
 					first_slabs_all[j] = floor((float)P.cpd*j/MPI_size);

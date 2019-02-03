@@ -211,25 +211,28 @@ int FileExists(const char *fn) {
     return (access(fn,0) == 0);
 }
 
-void CheckFileExists(const char *fn) {
+// Returns 0 if `fn` exists
+// Returns 1 if `fn` does not exist
+// Returns 2 if `fn` exists but is a directory
+int CheckFileExists(const char *fn) {
     if ( access( fn, 0 ) == 0 ) {
         struct stat status;
         stat( fn, &status );
 
         if (status.st_mode & S_IFDIR )  {
-            fprintf(stderr,"%s is a directory\n",fn);
-            assert(1==0);
+            return 2;
         }
     }
     else {
-        fprintf(stderr,"%s doesn't even exist\n",fn);
-        assert(1==0);
+        return 1;
     }
+
+    return 0;
 }
 
 off_t fsize(const char *filename) {
     struct stat st;
-    CheckFileExists(filename);
+    assertf(CheckFileExists(filename) == 0, "fsize failed to get size of file \"%s\" because it does not exist or is a dir\n", filename);
 
     if (stat(filename, &st) == 0)
         return st.st_size;

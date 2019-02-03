@@ -1,3 +1,9 @@
+#ifdef DOUBLEPRECISION
+#define MPI_MTCOMPLEX MPI_DOUBLE_COMPLEX
+#else
+#define MPI_MTCOMPLEX MPI_COMPLEX
+#endif
+
 class Block {
     /* All of our IO is done on z-blocks.  The block class is a wrapper
        to manage memory and IO on these blocks.
@@ -23,7 +29,8 @@ public:
     size_t ReadMultipoleBytes = 0, WriteTaylorBytes = 0, ReadDerivativeBytes = 0;
     PTimer ReadDerivatives, ReadMultipoles, TransposeMultipoles, WriteTaylor;
     
-    Block(ConvolutionParameters &_CP) : ReadDerivatives(_CP.niothreads),
+    Block(ConvolutionParameters &_CP) : CP(_CP),
+                                        ReadDerivatives(_CP.niothreads),
                                         ReadMultipoles(_CP.niothreads),
                                         WriteTaylor(_CP.niothreads) {
         CP = _CP;
@@ -75,20 +82,22 @@ public:
         // We give the offset in units of MTCOMPLEXes
         int buffer_start_offset = (int)((file_offset%4096)/sizeof(MTCOMPLEX));
 				
-       // for(int x = first_slab_on_node; x < first_slab_on_node + total_slabs_on_node; x++) {
-	
-        for(int x = 0; x < P.cpd; x++) {
+        for(int _x = first_slab_on_node; _x < first_slab_on_node + total_slabs_on_node; _x++) {
+            int x = _x % cpd;
 		
             // Different threads are responsible for different files (but they all read into one block)
             if (x % CP.niothreads != thread_num)
                 continue;
 
             char fn[1024];
-            int mapM_slab = (x+cpd-1)%cpd;
-            CP.MultipoleFN(mapM_slab, fn);
+            char tfn[1024];    // used by non-overwriting ramdisk
+            CP.MultipoleFN(x, fn);
+            CP.TaylorFN(x, tfn);
+
+            // The convolve code expects the data from file x to be in mtblock[x+1]
+            x = (x+1)%cpd;
 			
             if(ramdisk_MT){
-                char tfn[1024];    // used by non-overwriting ramdisk
                 int shm_fd_flags;
                 char *ramdisk_fn;
 
@@ -97,7 +106,6 @@ public:
                     ramdisk_fn = fn;
                 } else {
                     shm_fd_flags = O_RDWR | O_CREAT;
-                    CP.TaylorFN(mapM_slab, tfn);
                     ramdisk_fn = tfn;
                 }
 
@@ -161,14 +169,15 @@ public:
 					for(int y=0;y<cpd;y++){
 						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
 						if (z > zwidth) sendbuf[i] = 0.0;
-						else sendbuf[i] = mtblock[x + first_slab_on_node][z*rml_times_cpd + m*cpd + y ];
+						else sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ];
 					}
 				}
 			}
 		}
 		
+        // TODO: are these barriers needed?
 		MPI_Barrier(MPI_COMM_WORLD);
-		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_COMPLEX, recvbuf, recvcounts, rdispls, MPI_COMPLEX, MPI_COMM_WORLD);
+		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
 		MPI_Barrier(MPI_COMM_WORLD);
 		
 		int r = 0; 
@@ -178,7 +187,7 @@ public:
 			  		for(int m=0;m<rml;m++){
 						for(int y=0;y<cpd;y++){
 							int z = z_slabs_per_node * MPI_rank + z_buffer;  //in the event that z_slabs_per_node = 1, this loop reduces to z = MPI_rank. 
-							if (z < zwidth) mtblock[x + first_slabs_all[i]][z*rml_times_cpd + m*cpd + y] = recvbuf[r]; 
+							if (z < zwidth) mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y] = recvbuf[r]; 
 							r++; 
 						}
 					}
@@ -213,7 +222,7 @@ public:
 			  		for(int m=0;m<rml;m++){
 						for(int y=0;y<cpd;y++){
 							int z = z_slabs_per_node * MPI_rank + z_buffer;  
-							if (z < zwidth) sendbuf[r] = mtblock[x + first_slabs_all[i]][z*rml_times_cpd + m*cpd + y];
+							if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i]) % cpd][z*rml_times_cpd + m*cpd + y];
 							else sendbuf[r] = 0.0; 							
 							r++; 
 						}
@@ -223,7 +232,7 @@ public:
 		}
 		
 		MPI_Barrier(MPI_COMM_WORLD);
-		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_COMPLEX, recvbuf, recvcounts, rdispls, MPI_COMPLEX, MPI_COMM_WORLD);
+		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
 		MPI_Barrier(MPI_COMM_WORLD);
 		
 		for(int z=0; z<z_slabs_per_node * MPI_size; z++){
@@ -231,7 +240,7 @@ public:
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
 						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
-						mtblock[x + first_slab_on_node][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
+						mtblock[(x + first_slab_on_node) % cpd][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
 					}
 				}
 			}
@@ -247,14 +256,17 @@ public:
         
         size_t size = sizeof(MTCOMPLEX)*zwidth*cpd*rml;
 
-        for(int x = first_slab_on_node; x < first_slab_on_node + total_slabs_on_node; x++) {
+        for(int _x = first_slab_on_node; _x < first_slab_on_node + total_slabs_on_node; _x++) {
+            int x = _x % cpd;
 			
             if (x % CP.niothreads != thread_num)
                 continue;
 
             char fn[1024];
-            int remap_slab = (x+cpd-1)%cpd;
-            CP.TaylorFN(remap_slab, fn);
+            CP.TaylorFN(x, fn);
+
+            // The convolve code expects the data from file x to be in mtblock[x+1]
+            x = (x+1)%cpd;
 			
 			//printf("writing %d %d %d %d", MPI_rank, zstart, zwidth, x); 
 			//int c= 0 ;
@@ -336,7 +348,7 @@ public:
 private:
     // Allocate CPD separate chunks of space for multipoles.  This ensures they all have the same alignment offset
     void alloc(){
-        mtblock = new MTCOMPLEX*[cpd];
+        mtblock = new MTCOMPLEX*[cpd]();
         if(ramdisk_MT)
             return;
 

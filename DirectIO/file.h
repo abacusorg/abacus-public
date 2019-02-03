@@ -7,7 +7,7 @@ void ExpandPathName(char *foo);
 int DirectoryExists(const char *fn);
 void CheckDirectoryExists(const char *fn);
 int FileExists(const char *fn);
-void CheckFileExists(const char *fn);
+int CheckFileExists(const char *fn);
 off_t fsize(const char *filename);
 
 int is_path_on_ramdisk(std::string path);
