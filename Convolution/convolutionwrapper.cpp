@@ -374,7 +374,7 @@ int main(int argc, char ** argv){
 
 			QUIT("Multi-node (parallel, MPI) implementation does not support more than one IO thread! Crashing...\n");
 		} 
-		CP.z_slabs_per_node = 2; //may want to automate this choice or put an assert here to make sure we choose a value that uses all nodes. but the overkill version works too, where some nodes don't do anything at all (i.e. cpd = 33, num nodes = 5, zslabspernode = 8. )
+		CP.z_slabs_per_node = 8; //may want to automate this choice or put an assert here to make sure we choose a value that uses all nodes. but the overkill version works too, where some nodes don't do anything at all (i.e. cpd = 33, num nodes = 5, zslabspernode = 8. )
 #endif
 
         // Find out which slabs reside on which nodes

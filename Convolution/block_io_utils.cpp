@@ -113,15 +113,7 @@ public:
 	                    ramdisk_fn = tfn;
 	                }
 
-	                int fd = open(ramdisk_fn, shm_fd_flags, S_IRUSR | S_IWUSR);
-	                assertf(fd != -1, "Failed to open shared memory file at \"%s\"\n", ramdisk_fn);
-
-	                if(!CP.OverwriteConvState){
-	                    // expand the Taylors file
-	                    // TODO: page alignment?
-	                    int res = ftruncate(fd, file_offset + size);
-	                    assertf(res == 0, "ftruncate on shared memory ramdisk_fn = %s to size = %d failed\n", ramdisk_fn, file_offset + size);
-	                }
+	                
 
 	                // map the shared memory fd to an address
 	                // If we're doing a ramdisk overwrite, this maps the multipoles directly into memory
@@ -130,18 +122,46 @@ public:
 	                // Or is it that bad to require zwidth = full?
 					
 					if (_x >= first_slab_on_node and _x < first_slab_on_node + total_slabs_on_node){
+						
+		                int fd = open(ramdisk_fn, shm_fd_flags, S_IRUSR | S_IWUSR);
+		                assertf(fd != -1, "Failed to open shared memory file at \"%s\"\n", ramdisk_fn);
+
+		                if(!CP.OverwriteConvState){
+		                    // expand the Taylors file
+		                    // TODO: page alignment?
+		                    int res = ftruncate(fd, file_offset + size);
+		                    assertf(res == 0, "ftruncate on shared memory ramdisk_fn = %s to size = %d failed\n", ramdisk_fn, file_offset + size);
+		                }
 	                	mtblock[x] = (MTCOMPLEX *) mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, file_offset);
+						
+						
+		                int res = close(fd);
+		                assertf((void *) mtblock[x] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d at offset = %d failed\n", fd, size, file_offset);
+		                assertf(mtblock[x] != NULL, "mmap shared memory from fd = %d of size = %d at offset = %d failed\n", fd, size, file_offset);
+		                assertf(res == 0, "Failed to close fd %d\n", fd);
+						
 					}
 					else{
 	                	mtblock[x] = (MTCOMPLEX *) mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
 					}
 				
-	                int res = close(fd);
-	                assertf((void *) mtblock[x] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d at offset = %d failed\n", fd, size, file_offset);
-	                assertf(mtblock[x] != NULL, "mmap shared memory from fd = %d of size = %d at offset = %d failed\n", fd, size, file_offset);
-	                assertf(res == 0, "Failed to close fd %d\n", fd);
+	               
 	            } else {
 	                mtblock[x] = raw_mtblock[x] + buffer_start_offset;
+					
+					
+					//NAM debugging without running things off ramdisk. Here the node has loaded in all multipole files from the global directory but now we set the ones it won't be able to see in the ramdisk case to zero. If we can still recover the right answer at the end, with each node only writing its taylor files for its x domain, then we should be in good shape. 
+					if (_x < first_slab_on_node or _x >= first_slab_on_node + total_slabs_on_node) {
+						printf("Node %d with slabs [%d, %d) is zeroing mtblock x = %d, file ", MPI_rank, first_slab_on_node, first_slab_on_node + total_slabs_on_node, x);
+						int c= 0 ;
+						while(fn[c]!='\0'){ printf("%c", fn[c]); c++;}
+						printf("\n"); 
+						
+						for(int m=0; m < zwidth*rml*cpd; m++) mtblock[x][m] = 0.0; 
+					}
+						
+					
+					
 	            }
 
 	            if(!(CP.OverwriteConvState && ramdisk_MT)){
@@ -151,11 +171,7 @@ public:
 	                ReadMultipoleBytes += size;
 	            }
 			
-				// printf("done reading %d %d %d into mtblock %d, file ", MPI_rank, first_slab_on_node, total_slabs_on_node, x);
-//
-// 				int c= 0 ;
-// 				while(fn[c]!='\0'){ printf("%c", fn[c]); c++;}
-// 				printf("\n");
+				
 			
 			
         }
@@ -296,10 +312,10 @@ public:
             // The convolve code expects the data from file x to be in mtblock[x+1]
             x = (x+1)%cpd;
 			
-			// printf("writing %d %d %d mtblock %d, file ", MPI_rank, zstart, zwidth, x);
-// 			int c= 0 ;
-// 			while(fn[c]!='\0'){ printf("%c", fn[c]); c++;}
-// 			printf("\n");
+			printf("Node %d with slabs [%d %d), zstart = %d, zwidth = %d, is writing out mtblock %d, file ", MPI_rank, first_slab_on_node, first_slab_on_node + total_slabs_on_node, zstart, zwidth, x);
+			int c= 0 ;
+			while(fn[c]!='\0'){ printf("%c", fn[c]); c++;}
+			printf("\n");
 			
             
             if(ramdisk_MT){
