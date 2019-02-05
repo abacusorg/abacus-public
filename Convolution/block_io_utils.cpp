@@ -84,8 +84,9 @@ public:
 				
 
         for(int _x = first_slab_on_node; _x < first_slab_on_node + total_slabs_on_node; _x++) {
+			
             int x = _x % cpd;
-		
+
             // Different threads are responsible for different files (but they all read into one block)
             if (x % CP.niothreads != thread_num)
                 continue;
@@ -95,9 +96,10 @@ public:
             char tfn[1024];    // used by non-overwriting ramdisk
             CP.MultipoleFN(x, fn);
             CP.TaylorFN(x, tfn);
+			
 
             // The convolve code expects the data from file x to be in mtblock[x+1]
-            x = (x+1)%cpd;
+            //x = (x+1)%cpd;
 			
             if(ramdisk_MT){
                 int shm_fd_flags;
@@ -142,13 +144,24 @@ public:
                 RD_RDM->BlockingRead( fn, (char *) mtblock[x], size, file_offset, ramdisk_MT);
                 ReadMultipoleBytes += size;
             }
+			
+			printf("done reading %d %d %d into mtblock %d, file ", MPI_rank, first_slab_on_node, total_slabs_on_node, x); 
+			
+			int c= 0 ;
+			while(fn[c]!='\0'){ printf("%c", fn[c]); c++;}
+			printf("\n");
+			
         }
         
+		
+		
         ReadMultipoles.Stop(thread_num);
     }
 	
 #ifdef PARALLEL
 	void transpose_z_to_x(int zstart, int zwidth, int thread_num, int z_slabs_per_node, MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all){
+		
+		printf("transpose z to x, A %d %d %d %d %d\n", MPI_rank, zstart, zwidth, first_slab_on_node, total_slabs_on_node);
 		
 		int rml_times_cpd = rml * cpd; 
 
@@ -162,7 +175,9 @@ public:
 			sendcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 			recvcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
+			//rdispls[i]    = z_slabs_per_node * ((first_slabs_all[i] + 1)%P.cpd) * rml_times_cpd; 
 			rdispls[i]    = z_slabs_per_node * first_slabs_all[i] * rml_times_cpd; 
+			
 		}
 		
 		for(int z=0; z< z_slabs_per_node * MPI_size; z++){
@@ -172,17 +187,24 @@ public:
 						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
 						if (z > zwidth) sendbuf[i] = 0.0;
 
-						else sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ];
+						//else sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ];
+						else sendbuf[i] = mtblock[x + first_slab_on_node][z*rml_times_cpd + m*cpd + y ];
 					}
 				}
 			}
 		}
+		
+		printf("transpose z to x, B %d %d %d\n", MPI_rank, zstart, zwidth);
 		
 
         // TODO: are these barriers needed?
 		MPI_Barrier(MPI_COMM_WORLD);
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
 		MPI_Barrier(MPI_COMM_WORLD);
+		
+		
+		printf("transpose z to x, C %d %d %d\n", MPI_rank, zstart, zwidth);
+		
 		
 		int r = 0; 
 		for (int i = 0; i < MPI_size; i ++){			
@@ -191,19 +213,26 @@ public:
 			  		for(int m=0;m<rml;m++){
 						for(int y=0;y<cpd;y++){
 							int z = z_slabs_per_node * MPI_rank + z_buffer;  //in the event that z_slabs_per_node = 1, this loop reduces to z = MPI_rank. 
-
-							if (z < zwidth) mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y] = recvbuf[r]; 
+													
+							if (z < zwidth) mtblock[x + first_slabs_all[i]][z*rml_times_cpd + m*cpd + y] = recvbuf[r]; 
+							
+							//if (z < zwidth) mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y] = recvbuf[r]; 
 							r++; 
 						}
 					}
 				}
 			}
 		}
+		
+		printf("transpose z to x, D %d %d %d\n", MPI_rank, zstart, zwidth);
+		
 	}
 	
 	
 	
 	void transpose_x_to_z(int zstart, int zwidth, int thread_num, int z_slabs_per_node,  MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all){
+		
+		printf("transpose x to z, A %d %d %d %d %d\n", MPI_rank, zstart, zwidth, first_slab_on_node, total_slabs_on_node);
 		
 		int rml_times_cpd = rml * cpd; 
 
@@ -215,7 +244,9 @@ public:
 		for (int i = 0; i < MPI_size; i++)
 		{
 			sendcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
+			//sdispls[i]    = z_slabs_per_node * ((first_slabs_all[i] + 1)%P.cpd) * rml_times_cpd; 
 			sdispls[i]    = z_slabs_per_node * first_slabs_all[i] * rml_times_cpd; 
+			
 			recvcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 		}
@@ -227,8 +258,9 @@ public:
 			  		for(int m=0;m<rml;m++){
 						for(int y=0;y<cpd;y++){
 							int z = z_slabs_per_node * MPI_rank + z_buffer;  
-
-							if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i]) % cpd][z*rml_times_cpd + m*cpd + y];
+							//if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y];
+							if (z < zwidth) sendbuf[r] = mtblock[x + first_slabs_all[i] ][z*rml_times_cpd + m*cpd + y];
+							
 							else sendbuf[r] = 0.0; 							
 							r++; 
 						}
@@ -236,6 +268,9 @@ public:
 				}
 			}
 		}
+		
+		printf("transpose x to z, B %d %d %d\n", MPI_rank, zstart, zwidth);
+		
 		
 		MPI_Barrier(MPI_COMM_WORLD);
 
@@ -247,12 +282,16 @@ public:
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
 						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
-
-						mtblock[(x + first_slab_on_node) % cpd][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
+						mtblock[x + first_slab_on_node][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
+						
+						//mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
 					}
 				}
 			}
 		}	
+		
+		printf("transpose x to z, C %d %d %d\n", MPI_rank, zstart, zwidth);
+		
 	}
 	
 #endif
@@ -276,9 +315,9 @@ public:
             CP.TaylorFN(x, fn);
 
             // The convolve code expects the data from file x to be in mtblock[x+1]
-            x = (x+1)%cpd;
+           // x = (x+1)%cpd;
 			
-			//printf("writing %d %d %d %d", MPI_rank, zstart, zwidth, x); 
+			printf("writing %d %d %d %d\n", MPI_rank, zstart, zwidth, x); 
 			//int c= 0 ;
 			//while(fn[c]!='\0'){ printf("%c", fn[c]); c++;}
 			//printf("\n");

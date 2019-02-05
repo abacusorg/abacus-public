@@ -25,14 +25,16 @@ void ReadNodeSlabs(int get_all_nodes = 0, int * first_slabs_all = NULL, int * to
         fp = fopen(fname,"r");
         // assertf(fp!=NULL, "Couldn't find nodeslabs file %s\n", fname);
         if (fp==NULL) {
-            // We couldn't find a file, so let's make up something
-            first_slab_on_node = floor((float)P.cpd*MPI_rank/MPI_size);
-            last_slab = floor((float)P.cpd*(MPI_rank+1)/MPI_size);
+			int offset = 0;
+            // We couldn't find a file, so let's make up something. +3 is to test periodic wrapping! 
+            first_slab_on_node = (int)(floor((float)P.cpd*MPI_rank/MPI_size) + offset)%P.cpd;
+            last_slab = (int)(floor((float)P.cpd*(MPI_rank+1)/MPI_size) + offset)%P.cpd;
 
 			if (get_all_nodes){
 				for (int j=0; j<MPI_size; j++) {
-					first_slabs_all[j] = floor((float)P.cpd*j/MPI_size);
+					first_slabs_all[j] = (int)(floor((float)P.cpd*j/MPI_size) + offset)%P.cpd;
 					total_slabs_all[j] = floor((float)P.cpd*(j+1)/MPI_size) - floor((float)P.cpd*j/MPI_size);
+					
 				}
 			}
 			
