@@ -20,12 +20,24 @@
 #define DERRNO      do {fprintf(stderr, "  errno(%d)::%s  ", errno, strerror(errno) ); } while(0)
 #define FAILERRNO   do { if(errno) { DFPL; DERRNO; assert(errno==0); } } while(0)
 
+#ifndef assertf
+#define assertf(_mytest,...) do { \
+    if (!(_mytest)) { \
+        fprintf(stderr,"Failed Assertion: %s\n", #_mytest); \
+        fprintf(stderr, __VA_ARGS__); \
+        assert(0==99); \
+    }} while(0)
+#endif
+
+
 // This expands to a real path, but the given name must exist!
 void ExpandPathName(char *foo) {
     char str[1024];
     sprintf(str,"%s",foo);
+    errno = 0;
     char *retval = realpath(str,foo);
-    STDLOG(2,"realpath error code %d %s\n", errno, strerror(errno));
+    if(errno)
+        fprintf(stderr, "realpath error code %d %s\n", errno, strerror(errno));
     // TODO: This STDLOG appears needed to avoid a buffer overflow in -O3 in g++
     // on ted.
     assertf(retval!=NULL, "realpath failed on path \"%s\"\n", foo);
@@ -165,7 +177,7 @@ int samefile(const char *path1, const char *path2) {
 
     // Neither exists... do we compare paths now?
     if(res1 != 0 && res2 != 0)
-        QUIT("stat failed on both \"%s\" and \"%s\"", path1, path2);
+        assertf(0, "stat failed on both \"%s\" and \"%s\"", path1, path2);
 
     return (s1.st_ino == s2.st_ino) && (s1.st_dev == s2.st_dev);
 }
@@ -199,25 +211,28 @@ int FileExists(const char *fn) {
     return (access(fn,0) == 0);
 }
 
-void CheckFileExists(const char *fn) {
+// Returns 0 if `fn` exists
+// Returns 1 if `fn` does not exist
+// Returns 2 if `fn` exists but is a directory
+int CheckFileExists(const char *fn) {
     if ( access( fn, 0 ) == 0 ) {
         struct stat status;
         stat( fn, &status );
 
         if (status.st_mode & S_IFDIR )  {
-            fprintf(stderr,"%s is a directory\n",fn);
-            assert(1==0);
+            return 2;
         }
     }
     else {
-        fprintf(stderr,"%s doesn't even exist\n",fn);
-        assert(1==0);
+        return 1;
     }
+
+    return 0;
 }
 
 off_t fsize(const char *filename) {
     struct stat st;
-    CheckFileExists(filename);
+    assertf(CheckFileExists(filename) == 0, "fsize failed to get size of file \"%s\" because it does not exist or is a dir\n", filename);
 
     if (stat(filename, &st) == 0)
         return st.st_size;
@@ -267,5 +282,7 @@ int is_path_on_ramdisk(const char* path){
     assert(strlen(str) < 1024);
     return strncmp(str, RAMDISK_PATH, strlen(RAMDISK_PATH)) == 0;
 }
+
+int IsTrueLocalDirectory(const char*);
 
 #endif // INCLUDE_FILE

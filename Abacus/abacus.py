@@ -251,6 +251,18 @@ def MakeDerivatives(param, derivs_archive_dir=True, floatprec=False):
     derivativenames = derivativenames32 if floatprec else derivativenames64
     fnfmt = fnfmt32 if floatprec else fnfmt64
 
+    create_derivs_cmd = [pjoin(abacuspath, "Derivatives", "CreateDerivatives"),
+                        str(param.CPD),str(param.Order),str(param.NearFieldRadius),str(param.DerivativeExpansionRadius)]
+
+    parallel = param.get('Parallel', False)
+
+    if parallel:
+        # TODO: parallel CreateDerivs?
+        if 'Conv_mpirun_cmd' in param:
+            create_derivs_cmd = shlex.split(param['Conv_mpirun_cmd']) + create_derivs_cmd
+        else:
+            create_derivs_cmd = shlex.split(param['mpirun_cmd']) + create_derivs_cmd
+
     # First check if the derivatives are in the DerivativesDirectory
     if not all(path.isfile(pjoin(param.DerivativesDirectory, dn)) for dn in derivativenames):
         
@@ -276,8 +288,9 @@ def MakeDerivatives(param, derivs_archive_dir=True, floatprec=False):
                         os.remove("./farderivatives")
                     except OSError:
                         pass
-                    subprocess.check_call([pjoin(abacuspath, "Derivatives", "CreateDerivatives"),
-                    str(param.CPD),str(param.Order),str(param.NearFieldRadius),str(param.DerivativeExpansionRadius)])
+                    if parallel:
+                        print('Dispatching CreateDerivatives with command "{}"'.format(' '.join(create_derivs_cmd)))
+                    subprocess.check_call(create_derivs_cmd)
     
     
 def default_parser():
@@ -599,6 +612,8 @@ def remove_MT(md, pattern, rmdir=False):
             pass  # remove dir if empty; we re-create at each step in setup_dirs
 
 import table_logger
+# via https://stackoverflow.com/a/2293793
+fp_regex = r'(([1-9][0-9]*\.?[0-9]*)|(\.[0-9]+))([Ee][+-]?[0-9]+)?'
 class StatusLogWriter:
     #header = "Step  Redshift  Singlestep  Conv"
     #line_fmt = '{step:4d}  {z:6.1f}  {ss_rate:.1g} Mp/s ({ss_time:.1g} s) {conv_time:.1g}'
@@ -625,38 +640,45 @@ class StatusLogWriter:
         self.logger.make_horizontal_border()
         self.log_fp.close()
 
-    def update(self, **kwargs):
-        self.logger(*(kwargs[k] for k in self.fields))
+    def update(self, param, state):
+        '''
+        Update the log with some info about the singlestep and conv
+        that just finished.
 
+        The logs have already been moved to their new names, indicated
+        by step_num.
+        '''
+        step_num = state.FullStepNumber
 
-# via https://stackoverflow.com/a/2293793
-fp_regex = r'(([1-9][0-9]*\.?[0-9]*)|(\.[0-9]+))([Ee][+-]?[0-9]+)?'
-def update_status_log(param, state, status_log):
-    '''
-    Update the log with some info about the singlestep and conv
-    that just finished.
+        ss_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.time'.format(step_num))
+        try:
+            ss_log_txt = pathlib.Path(ss_log_fn).read_text()
+        except FileNotFoundError:
+            self.print('Warning: could not find timing file "{}"'.format(ss_log_fn))
+            return
 
-    The logs have already been moved to their new names, indicated
-    by step_num.
-    '''
-    step_num = state.FullStepNumber
+        matches = re.search(r'Total Wall Clock Time\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), ss_log_txt)
+        ss_time = float(matches.group('time'))
+        ss_rate = param['NP']/1e6/ss_time  # Mpart/s
 
-    ss_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.time'.format(step_num))
-    ss_log_txt = pathlib.Path(ss_log_fn).read_text()
+        conv_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.convtime'.format(step_num))
+        try:
+            conv_log_txt = pathlib.Path(conv_log_fn).read_text()
+            matches = re.search(r'ConvolutionWallClock\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), conv_log_txt)
+            conv_time = float(matches.group('time'))
+        except:
+            conv_time = 0.
 
-    matches = re.search(r'Total Wall Clock Time\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), ss_log_txt)
-    ss_time = float(matches.group('time'))
-    ss_rate = param['NP']/1e6/ss_time  # Mpart/s
+        info = dict(Step=step_num, Redshift=state.Redshift, Singlestep=(ss_rate,ss_time), Conv=conv_time)
 
-    conv_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.convtime'.format(step_num))
-    try:
-        conv_log_txt = pathlib.Path(conv_log_fn).read_text()
-        matches = re.search(r'ConvolutionWallClock\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), conv_log_txt)
-        conv_time = float(matches.group('time'))
-    except:
-        conv_time = 0.
+        self.logger(*(info[k] for k in self.fields))
 
-    status_log.update(Step=step_num, Redshift=state.Redshift, Singlestep=(ss_rate,ss_time), Conv=conv_time)
+    def print(self, fmtstring, end='\n', *args, **kwargs):
+        '''
+        Print a plain statement to the status log
+        '''
+        self.log_fp.write(('\n * ' + fmtstring.format(*args, **kwargs) + end).encode('utf-8'))
+    
 
 
 def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
@@ -694,9 +716,6 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
 
     maxsteps = int(maxsteps)
 
-    if maxsteps <= 0:
-        return 0
-
     if not path.exists(paramfn):
         raise ValueError('Parameter file "{:s}" is not accessible'.format(paramfn))
         
@@ -730,9 +749,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
 
     # floatprec=True effectively guarantees both precisions are available
     # TODO: how to tell if Abacus was compiled in double precision?
-    if not parallel:
-        # TODO: I think convolution will figure this out in the parallel version
-        MakeDerivatives(param, floatprec=True)
+    MakeDerivatives(param, floatprec=True)
 
     print("Beginning abacus steps:")
 
@@ -748,9 +765,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     if parallel:
         try:
             mpirun_cmd = shlex.split(param['mpirun_cmd'])
+            if 'Conv_mpirun_cmd' in param:
+                Conv_mpirun_cmd = shlex.split(param['Conv_mpirun_cmd'])
+            else:
+                Conv_mpirun_cmd = mpirun_cmd
         except KeyError:
             raise RuntimeError('"mpirun_cmd" must be specified in the parameter file if "Parallel = 1"!')
-        #print('__{:s}__'.format(mpirun_cmd))
 
     for i in range(maxsteps):
         if make_ic:
@@ -792,12 +812,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             
             ConvolutionDriver_cmd = [pjoin(abacuspath, "Convolution", "ConvolutionDriver"), paramfn]
             if parallel:
-                ConvolutionDriver_cmd = mpirun_cmd + ConvolutionDriver_cmd
+                ConvolutionDriver_cmd = Conv_mpirun_cmd + ConvolutionDriver_cmd
                 print('Performing PARELLEL convolution for step {:d} with command "{:s}"'.format(stepnum, ' '.join(ConvolutionDriver_cmd)))
-                subprocess.check_call(ConvolutionDriver_cmd, env=convolution_env)
             else:
                 print("Performing convolution for step {:d}".format(stepnum))
-                subprocess.check_call(ConvolutionDriver_cmd, env=convolution_env)
+            subprocess.check_call(ConvolutionDriver_cmd, env=convolution_env)
 
             if ProfilingMode == 2:
                 print('\tConvolution step {} finished. ProfilingMode = 2 (Convolution) is active; Abacus will now quit.'.format(stepnum))
@@ -834,10 +853,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         if parallel:
             singlestep_cmd = mpirun_cmd + singlestep_cmd
             print('Running PARELLEL singlestep for step {:d} with command "{:s}"'.format(stepnum, ' '.join(singlestep_cmd)))
-            subprocess.check_call(singlestep_cmd, env=singlestep_env)
         else:
             print("Running singlestep for step {:d}".format(stepnum))
-            subprocess.check_call(singlestep_cmd, env=singlestep_env)
+        subprocess.check_call(singlestep_cmd, env=singlestep_env)
         
         # In profiling mode, we don't move the states so we can immediately run the same step again
         if ProfilingMode and ProfilingMode != 2:
@@ -853,8 +871,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         save_log_files(param.LogDirectory, 'step{:04d}'.format(write_state.FullStepNumber))
 
         # Update the status log
-        update_status_log(param, write_state, status_log)
-                        
+        status_log.update(param, write_state)
+        
         shutil.copy(pjoin(write, "state"), pjoin(param.LogDirectory, "step{:04d}.state".format(write_state.FullStepNumber)))
         print(( "\t Finished state {:d}. a = {:.4f}, dlna = {:.3g}, rms velocity = {:.3g}".format(
             write_state.FullStepNumber, write_state.ScaleFactor,
@@ -917,7 +935,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         # This logic is deliberately consistent with singlestep.cpp
         # If this is an IC step then we won't have read_state
         if not make_ic and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0:
-            print("Final redshift reached; terminating normally.")
+            print("Final redshift of {:g} reached; terminating normally.".format(finalz))
+            status_log.print("Final redshift of {:g} reached; terminating normally.".format(finalz))
             finished = True
             break
         

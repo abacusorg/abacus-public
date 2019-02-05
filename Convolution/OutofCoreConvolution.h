@@ -55,6 +55,10 @@ public:
 #ifdef PARALLEL
 	uint64_t z_slabs_per_node; 
 #endif
+
+
+    int *first_slabs_all;
+    int *total_slabs_all;
 	
 	int io_cores[MAX_IO_THREADS];
     int niothreads;
@@ -63,6 +67,16 @@ public:
 
     int StripeConvState;  // in analogy with WriteState.StripeConvState
     int OverwriteConvState;  // in analogy with WriteState.OverwriteConvState
+
+    ConvolutionParameters(int mpi_nranks){
+        first_slabs_all = new int[mpi_nranks];
+        total_slabs_all = new int[mpi_nranks];
+    }
+
+    ~ConvolutionParameters(){
+        delete[] first_slabs_all;
+        delete[] total_slabs_all;
+    }
 
     void MultipoleFN(int slab, char * const fn){
         // We elsewhere generically support N threads, but here is where we assume 2
@@ -98,14 +112,13 @@ public:
 
 class OutofCoreConvolution { 
 public: 
-    
-    OutofCoreConvolution(void) {
-        memset(&CS, 0, sizeof(ConvolutionStatistics));
-    } 
-    ~OutofCoreConvolution(void) { } 
 
+    ConvolutionStatistics CS; 
     ConvolutionParameters CP;
-    void Convolve( ConvolutionParameters &_CP );
+    
+    OutofCoreConvolution(ConvolutionParameters &_CP);
+    ~OutofCoreConvolution(void) { }     
+    void Convolve();
 
     uint64_t blocksize, zwidth;
 	
@@ -113,9 +126,9 @@ public:
 	uint64_t z_slabs_per_node; 
 #endif
 
-    ConvolutionStatistics CS; 
 
 private:
+
     STimer ForwardZFFTMultipoles;
     STimer InverseZFFTTaylor;
 

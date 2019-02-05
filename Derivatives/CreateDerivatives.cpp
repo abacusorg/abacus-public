@@ -15,7 +15,6 @@
 #include "header.cpp"
 #include "threevector.hh"
 #include "fftw3.h"
-#define MAXORDER 16
 
 typedef ThreeVector<qd_real> qd_real3;
 

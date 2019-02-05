@@ -77,7 +77,7 @@ class iorequest {
         sizebytes = _sizebytes;
         strncpy(filename, _filename, 1024);
 
-        if(is_path_on_ramdisk(filename))
+        if(is_path_on_ramdisk(filename) || io_ramdisk_global)
             io_method = IO_FOPEN;
         else
             io_method = IO_DIRECT;

@@ -151,6 +151,16 @@ if test x$enable_avx512_multipoles == xyes; then
 fi
 AC_SUBST(AVX512MULTIPOLES)
 
+AC_ARG_ENABLE(unrolled-multipoles,
+[AS_HELP_STRING([--enable-unrolled-multipoles], [Unrolled (plain C) multipoles [yes]])],
+    [], enable_unrolled_multipoles=yes)
+UNROLLEDMULTIPOLES="UNROLLEDMULTIPOLES_DISABLED"
+if test x$enable_unrolled_multipoles == xyes; then
+    AC_DEFINE_UNQUOTED(UNROLLEDMULTIPOLES, [], "Use unrolled plain-C multipoles")
+    UNROLLEDMULTIPOLES="UNROLLEDMULTIPOLES_ENABLED"
+fi
+AC_SUBST(UNROLLEDMULTIPOLES)
+
 AC_ARG_ENABLE(avx-fof,
 [AS_HELP_STRING([--enable-avx-fof], [AVX FOF [yes if AVX present]])],
     [], enable_avx_fof=$enable_avx)
@@ -167,6 +177,11 @@ AC_ARG_WITH(max-source-length,
 [AS_HELP_STRING([--with-max-source-length=S], [Maximum source length [1048576]])],
 	[], with_max_source_length="1048576")
 AC_DEFINE_UNQUOTED(MAXSOURCELENGTH,$with_max_source_length, "Maximum source length")
+
+AC_ARG_WITH(max-order,
+[AS_HELP_STRING([--with-max-order=O], [Maximum multipole order [16]])],
+    [], with_max_order="16")
+AC_DEFINE_UNQUOTED(MAXORDER,$with_max_order, "Maximum multipole order")
 
 AC_ARG_ENABLE(threaded-io,
 [AS_HELP_STRING([--enable-threaded-io], [Threaded IO [yes]])],
@@ -271,6 +286,15 @@ if test x$enable_mkl != xyes; then
     AC_SEARCH_LIBS(fftwf_init_threads, [fftw3f_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
 fi
 
+AC_ARG_WITH(cache-line-size,
+[AS_HELP_STRING([--with-cache-line=N], [Cache line size in bytes [auto]])],
+    [], with_cache_line="auto")
+if test "x$with_cache_line" == xauto; then
+    # This is the only way to do this I've found that works on x86 and ppc
+    with_cache_line=$(cat /sys/devices/system/cpu/cpu0/cache/index0/coherency_line_size)
+fi
+AC_DEFINE_UNQUOTED(CACHE_LINE_SIZE, $with_cache_line, "Cache line size in bytes")
+
 # If the user is using Anaconda Python, we have to be careful
 # about how we build C/C++ libraries that will be loaded by Python.
 # Anaconda Python has the Python executable rpath set to find
@@ -366,10 +390,9 @@ echo "AVX directs:                     $enable_avx_directs"
 echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "AVX multipoles:                  $enable_avx_multipoles"
 echo "AVX-512 multipoles:              $enable_avx512_multipoles"
+echo "Unrolled multipoles:             $enable_unrolled_multipoles"
 echo "AVX FOF:                         $enable_avx_fof"
 echo "Spherical Overdensity:           $enable_spherical_overdensity"
-echo "Maximum CPD:                     $with_max_cpd"
-echo "Maximum source length:           $with_max_source_length"
 echo "Threaded IO:                     $enable_threaded_io"
 echo "Direct buffers-per-device:       $with_direct_bpd"
 echo "GPU directs:                     $enable_gpu_directs"
@@ -378,9 +401,15 @@ echo "MPI parallel code:               $enable_parallel"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Maximum GPUs:                    $with_max_gpus"
+echo "Cache line size:                 $with_cache_line"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
 echo "------------------------------------------------------"
 echo
+
+# These are configurable but uncommon to change
+#echo "Maximum CPD:                     $with_max_cpd"
+#echo "Maximum source length:           $with_max_source_length"
+#echo "Maximum order:                   $with_max_order"
 
 AC_OUTPUT

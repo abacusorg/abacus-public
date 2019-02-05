@@ -15,6 +15,9 @@
 /* "Use AVX multipoles" */
 #undef AVXMULTIPOLES
 
+/* "Cache line size in bytes" */
+#undef CACHE_LINE_SIZE
+
 /* "Compute FOF-scale density on the GPU */
 #undef COMPUTE_FOF_DENSITY
 
@@ -185,6 +188,9 @@
 /* "Maximum cells-per-dimension" */
 #undef MAXCPD
 
+/* "Maximum multipole order" */
+#undef MAXORDER
+
 /* "Maximum source length" */
 #undef MAXSOURCELENGTH
 
@@ -232,3 +238,6 @@
 
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
+
+/* "Use unrolled plain-C multipoles" */
+#undef UNROLLEDMULTIPOLES

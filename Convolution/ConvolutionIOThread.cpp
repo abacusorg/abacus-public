@@ -21,7 +21,7 @@ private:
     int thread_num = -1;
 
     // This is the main thread loop
-    void ConvolutionIOThread(){
+    void ThreadWorkLoop(){
         {
         int io_core = CP.io_cores[thread_num];
         if(io_core >= 0){
@@ -37,16 +37,10 @@ private:
         int cpd = CP.runtime_cpd;
         int zwidth = CP.zwidth;
 		
-		//fetch all nodes' domains in x from ReadNodeSlabs.
-		
-		int read_all_nodes = 1;
- 	    int * first_slabs_all = new int[MPI_size];
-		int * total_slabs_all = new int[MPI_size];
 
-		ReadNodeSlabs(read_all_nodes, first_slabs_all, total_slabs_all);
-		
-		first_slab_on_node = first_slabs_all[MPI_rank];
-		total_slabs_on_node = total_slabs_all[MPI_rank];
+#ifdef PARALLEL		
+ 	    int * first_slabs_all = CP.first_slabs_all;
+		int * total_slabs_all = CP.total_slabs_all;
 		
 		MTCOMPLEX * sendbuf;
 		MTCOMPLEX * recvbuf;
@@ -56,6 +50,8 @@ private:
 		
 		assert(sendbuf != NULL);
 		assert(recvbuf != NULL);
+
+#endif
 		
         assert(!free_queue.empty());
         while(n_blocks_written < nblocks){
@@ -104,16 +100,16 @@ private:
         assert(read_queue.empty());
         assert(write_queue.empty());
         assert(free_queue.size() == read_ahead);
-		
+
+
+#ifdef PARALLEL
 		free(sendbuf);
 		free(recvbuf);
-		
-		delete first_slabs_all;
-		delete total_slabs_all;
+#endif
     }
 
     static void *start_thread(void *iothread_obj){
-        ((ConvIOThread *) iothread_obj)->ConvolutionIOThread();
+        ((ConvIOThread *) iothread_obj)->ThreadWorkLoop();
         return NULL;
     }
 
@@ -123,8 +119,7 @@ public:
     // Read N blocks ahead of the last block written
     int read_ahead;
 
-    ConvIOThread(ConvolutionParameters &_CP, int _read_ahead, Block **blocks, int _thread_num){
-        CP = _CP;
+    ConvIOThread(ConvolutionParameters &_CP, int _read_ahead, Block **blocks, int _thread_num) : CP(_CP) {
         thread_num = _thread_num;
         read_ahead = _read_ahead;
         nblocks = (int) ceil((CP.runtime_cpd+1)/2./CP.zwidth);

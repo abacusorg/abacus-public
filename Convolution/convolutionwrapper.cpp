@@ -3,6 +3,8 @@
 #include "header.cpp"
 #include "threevector.hh"
 
+#include "stdlog.cc"
+
 #ifdef IOTHREADED
 #define CONVIOTHREADED
 #endif
@@ -18,16 +20,13 @@ STimer ConvolutionWallClock;
 #include "factorial.cpp"
 #include "iolib.cpp"
 
-#include "stdlog.cc"
-
 #include "Parameters.cpp"
 
 char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
 int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
 int node_zstart = -1, node_zwidth = 1;
 int first_slab_on_node = 0, first_slab_finished = -1, total_slabs_on_node = -1;
-// int * first_slabs_all = NULL;
-// int * total_slabs_all = NULL;
+
 
 
 /*
@@ -162,8 +161,12 @@ void setup_openmp(){
     }
 #endif
     
-    assertf(nthreads <= max_threads, "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n");
-    assertf(nthreads <= ncores, "Trying to use more threads (%d) than cores (%d).  This will probably be very slow.\n", nthreads, ncores);
+    assertf(nthreads <= max_threads,
+        "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n",
+        nthreads, max_threads);
+    assertf(nthreads <= ncores,
+        "Trying to use more threads (%d) than cores (%d).  This will probably be very slow.\n",
+        nthreads, ncores);
     
     omp_set_num_threads(nthreads);
     STDLOG(1, "Initializing OpenMP with %d threads (system max is %d; P.Conv_OMP_NUM_THREADS is %d)\n", nthreads, max_threads, P.Conv_OMP_NUM_THREADS);
@@ -269,7 +272,8 @@ void InitializeParallel(int &size, int &rank) {
     #ifdef PARALLEL
          // Start up MPI
          int ret;
-         MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret); //NAM TODO DE MPI_THREAD_FUNNELED may change
+
+         MPI_Init_thread(NULL, NULL, MPI_THREAD_SERIALIZED, &ret);  // TODO can we move this into the IO thread and change to funneled?
          assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
          MPI_Comm_size(MPI_COMM_WORLD, &size);
          MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -309,13 +313,12 @@ int main(int argc, char ** argv){
 	    char logfn[1050];
 	    sprintf(logfn,"%s/last%s.convlog", P.LogDirectory, NodeString);
 	    stdlog.open(logfn);
-	    OutofCoreConvolution OCC;
 	    STDLOG(1,"Read parameter file\n");
 	    Setup.Stop();
         
         setup_openmp();
 
-	    ConvolutionParameters CP;
+	    ConvolutionParameters CP(MPI_size);
 	    CP.runtime_ConvolutionCacheSizeMB = P.ConvolutionCacheSizeMB;
         STDLOG(1, "Using cache size %d MB\n", CP.runtime_ConvolutionCacheSizeMB);
 	    CP.runtime_DerivativeExpansionRadius = P.DerivativeExpansionRadius;
@@ -368,13 +371,18 @@ int main(int argc, char ** argv){
 		
 #ifdef PARALLEL
 		if (CP.niothreads != 1){
-			if (MPI_rank == 0) printf("Multi-node (parallel, MPI) implementation does not support more than one IO thread! Crashing...\n");
-			assert(0==99);
+
+			QUIT("Multi-node (parallel, MPI) implementation does not support more than one IO thread! Crashing...\n");
 		} 
 		CP.z_slabs_per_node = 8; //may want to automate this choice or put an assert here to make sure we choose a value that uses all nodes. but the overkill version works too, where some nodes don't do anything at all (i.e. cpd = 33, num nodes = 5, zslabspernode = 8. )
 #endif
+
+        // Find out which slabs reside on which nodes
+        // This will initialize first_slab_on_node and total_slabs_on_node even in the non-parallel version
+        int read_all_nodes = 1;
+        ReadNodeSlabs(read_all_nodes, CP.first_slabs_all, CP.total_slabs_all);
         
-        CP.zwidth = choose_zwidth(P.Conv_zwidth, P.cpd, CP);		
+        CP.zwidth = choose_zwidth(P.Conv_zwidth, P.cpd, CP);
 		
         for (int i = 0; i < MAX_IO_THREADS; i++)
             CP.io_cores[i] = P.Conv_IOCores[i];
@@ -382,9 +390,12 @@ int main(int argc, char ** argv){
         STDLOG(2, "MTCOMPLEX (multipole/taylor) dtype width: %d\n", (int) sizeof(MTCOMPLEX));
         STDLOG(2, "DFLOAT (derivatives)         dtype width: %d\n", (int) sizeof(DFLOAT));
 
+        // Finished determining parameters; start the main work object
+        OutofCoreConvolution OCC(CP);
+
 	    ConvolutionWallClock.Start();
 	    STDLOG(1,"Starting Convolution\n");
-	    OCC.Convolve(CP);
+	    OCC.Convolve();
 	    STDLOG(1,"Convolution Complete\n");
 	    ConvolutionWallClock.Stop();
 	    TotalWallClock.Stop();

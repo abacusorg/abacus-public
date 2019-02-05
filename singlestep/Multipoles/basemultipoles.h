@@ -1,6 +1,8 @@
 #ifndef BASEMULTIPOLES
 #define BASEMULTIPOLES
 
+#include "header.cpp"
+#include "threevector.hh"
 
 #define FOR(a,b,c) for(a=b;a<=c;a++) 
 
@@ -12,8 +14,6 @@
 
 #define TRACEFREERECURSION(a,b,c,u) \
             FOR(c,2,u) FOR(a,0,u-c) FOR(b,0,u-c-a)
-
-#define MAXORDER 16
 
 class basemultipoles { 
 public:
