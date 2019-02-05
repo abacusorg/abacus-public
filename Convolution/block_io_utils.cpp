@@ -83,73 +83,80 @@ public:
         int buffer_start_offset = (int)((file_offset%4096)/sizeof(MTCOMPLEX));
 				
 
-        for(int _x = first_slab_on_node; _x < first_slab_on_node + total_slabs_on_node; _x++) {
-			
-            int x = _x % cpd;
+		for (int _x = 0; _x < P.cpd; _x++) //each node must mmap full size of mtblock for all x. if _x in this loop is one of the nodes files, it will load it, otherwise it will initialize mmap to a bunch of zeros. 
+		{				
+	            int x = _x % cpd;
 
-            // Different threads are responsible for different files (but they all read into one block)
-            if (x % CP.niothreads != thread_num)
-                continue;
+	            // Different threads are responsible for different files (but they all read into one block)
+	            if (x % CP.niothreads != thread_num)
+	                continue;
 
-            char fn[1024];
+	            char fn[1024];
 
-            char tfn[1024];    // used by non-overwriting ramdisk
-            CP.MultipoleFN(x, fn);
-            CP.TaylorFN(x, tfn);
-			
+	            char tfn[1024];    // used by non-overwriting ramdisk
+	            CP.MultipoleFN(x, fn);
+	            CP.TaylorFN(x, tfn);
 
-            // The convolve code expects the data from file x to be in mtblock[x+1]
-            //x = (x+1)%cpd;
-			
-            if(ramdisk_MT){
-                int shm_fd_flags;
-                char *ramdisk_fn;
 
-                if(CP.OverwriteConvState){
-                    shm_fd_flags = O_RDWR;
-                    ramdisk_fn = fn;
-                } else {
-                    shm_fd_flags = O_RDWR | O_CREAT;
-                    ramdisk_fn = tfn;
-                }
+	            // The convolve code expects the data from file x to be in mtblock[x+1]
+	            x = (x+1)%cpd;
 
-                int fd = open(ramdisk_fn, shm_fd_flags, S_IRUSR | S_IWUSR);
-                assertf(fd != -1, "Failed to open shared memory file at \"%s\"\n", ramdisk_fn);
+	            if(ramdisk_MT){
+	                int shm_fd_flags;
+	                char *ramdisk_fn;
 
-                if(!CP.OverwriteConvState){
-                    // expand the Taylors file
-                    // TODO: page alignment?
-                    int res = ftruncate(fd, file_offset + size);
-                    assertf(res == 0, "ftruncate on shared memory ramdisk_fn = %s to size = %d failed\n", ramdisk_fn, file_offset + size);
-                }
+	                if(CP.OverwriteConvState){
+	                    shm_fd_flags = O_RDWR;
+	                    ramdisk_fn = fn;
+	                } else {
+	                    shm_fd_flags = O_RDWR | O_CREAT;
+	                    ramdisk_fn = tfn;
+	                }
 
-                // map the shared memory fd to an address
-                // If we're doing a ramdisk overwrite, this maps the multipoles directly into memory
-                // If it's not an overwrite, this maps our new Taylors write arena into memory (so we still have a read/memcpy to do)
-                // TODO: file_offset must be page-aligned. So we could back up to a page boundary and then return an offset pointer, not dissimilar to the DIO library
-                // Or is it that bad to require zwidth = full?
-                mtblock[x] = (MTCOMPLEX *) mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, file_offset);
+	                int fd = open(ramdisk_fn, shm_fd_flags, S_IRUSR | S_IWUSR);
+	                assertf(fd != -1, "Failed to open shared memory file at \"%s\"\n", ramdisk_fn);
+
+	                if(!CP.OverwriteConvState){
+	                    // expand the Taylors file
+	                    // TODO: page alignment?
+	                    int res = ftruncate(fd, file_offset + size);
+	                    assertf(res == 0, "ftruncate on shared memory ramdisk_fn = %s to size = %d failed\n", ramdisk_fn, file_offset + size);
+	                }
+
+	                // map the shared memory fd to an address
+	                // If we're doing a ramdisk overwrite, this maps the multipoles directly into memory
+	                // If it's not an overwrite, this maps our new Taylors write arena into memory (so we still have a read/memcpy to do)
+	                // TODO: file_offset must be page-aligned. So we could back up to a page boundary and then return an offset pointer, not dissimilar to the DIO library
+	                // Or is it that bad to require zwidth = full?
+					
+					if (_x >= first_slab_on_node and _x < first_slab_on_node + total_slabs_on_node){
+	                	mtblock[x] = (MTCOMPLEX *) mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, file_offset);
+					}
+					else{
+	                	mtblock[x] = (MTCOMPLEX *) mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
+					}
 				
-                int res = close(fd);
-                assertf((void *) mtblock[x] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d at offset = %d failed\n", fd, size, file_offset);
-                assertf(mtblock[x] != NULL, "mmap shared memory from fd = %d of size = %d at offset = %d failed\n", fd, size, file_offset);
-                assertf(res == 0, "Failed to close fd %d\n", fd);
-            } else {
-                mtblock[x] = raw_mtblock[x] + buffer_start_offset;
-            }
+	                int res = close(fd);
+	                assertf((void *) mtblock[x] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d at offset = %d failed\n", fd, size, file_offset);
+	                assertf(mtblock[x] != NULL, "mmap shared memory from fd = %d of size = %d at offset = %d failed\n", fd, size, file_offset);
+	                assertf(res == 0, "Failed to close fd %d\n", fd);
+	            } else {
+	                mtblock[x] = raw_mtblock[x] + buffer_start_offset;
+	            }
 
-            if(!(CP.OverwriteConvState && ramdisk_MT)){
-                // Either we're not on the ramdisk, in which case we're doing an ordinary DIO read
-                // or we are on the ramdisk but we aren't overwriting, so we need to read into the newly-allocated Taylors block
-                RD_RDM->BlockingRead( fn, (char *) mtblock[x], size, file_offset, ramdisk_MT);
-                ReadMultipoleBytes += size;
-            }
+	            if(!(CP.OverwriteConvState && ramdisk_MT)){
+	                // Either we're not on the ramdisk, in which case we're doing an ordinary DIO read
+	                // or we are on the ramdisk but we aren't overwriting, so we need to read into the newly-allocated Taylors block
+	                RD_RDM->BlockingRead( fn, (char *) mtblock[x], size, file_offset, ramdisk_MT);
+	                ReadMultipoleBytes += size;
+	            }
 			
-			printf("done reading %d %d %d into mtblock %d, file ", MPI_rank, first_slab_on_node, total_slabs_on_node, x); 
+				// printf("done reading %d %d %d into mtblock %d, file ", MPI_rank, first_slab_on_node, total_slabs_on_node, x);
+//
+// 				int c= 0 ;
+// 				while(fn[c]!='\0'){ printf("%c", fn[c]); c++;}
+// 				printf("\n");
 			
-			int c= 0 ;
-			while(fn[c]!='\0'){ printf("%c", fn[c]); c++;}
-			printf("\n");
 			
         }
         
@@ -160,9 +167,7 @@ public:
 	
 #ifdef PARALLEL
 	void transpose_z_to_x(int zstart, int zwidth, int thread_num, int z_slabs_per_node, MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all){
-		
-		printf("transpose z to x, A %d %d %d %d %d\n", MPI_rank, zstart, zwidth, first_slab_on_node, total_slabs_on_node);
-		
+				
 		int rml_times_cpd = rml * cpd; 
 
 		int sendcounts[MPI_size];
@@ -175,9 +180,7 @@ public:
 			sendcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 			recvcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
-			//rdispls[i]    = z_slabs_per_node * ((first_slabs_all[i] + 1)%P.cpd) * rml_times_cpd; 
-			rdispls[i]    = z_slabs_per_node * first_slabs_all[i] * rml_times_cpd; 
-			
+			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd; 
 		}
 		
 		for(int z=0; z< z_slabs_per_node * MPI_size; z++){
@@ -187,52 +190,37 @@ public:
 						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
 						if (z > zwidth) sendbuf[i] = 0.0;
 
-						//else sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ];
-						else sendbuf[i] = mtblock[x + first_slab_on_node][z*rml_times_cpd + m*cpd + y ];
+						else sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ];
 					}
 				}
 			}
 		}
 		
-		printf("transpose z to x, B %d %d %d\n", MPI_rank, zstart, zwidth);
-		
-
         // TODO: are these barriers needed?
 		MPI_Barrier(MPI_COMM_WORLD);
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
 		MPI_Barrier(MPI_COMM_WORLD);
 		
-		
-		printf("transpose z to x, C %d %d %d\n", MPI_rank, zstart, zwidth);
-		
-		
 		int r = 0; 
 		for (int i = 0; i < MPI_size; i ++){			
 			for (int z_buffer = 0; z_buffer < z_slabs_per_node; z_buffer ++){ //each node needs to put z_slabs_per_node rows of data into its mtblock here. 
 				for(int x=0; x<total_slabs_all[i]; x++){
-			  		for(int m=0;m<rml;m++){
+					for(int m=0;m<rml;m++){
 						for(int y=0;y<cpd;y++){
 							int z = z_slabs_per_node * MPI_rank + z_buffer;  //in the event that z_slabs_per_node = 1, this loop reduces to z = MPI_rank. 
-													
-							if (z < zwidth) mtblock[x + first_slabs_all[i]][z*rml_times_cpd + m*cpd + y] = recvbuf[r]; 
 							
-							//if (z < zwidth) mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y] = recvbuf[r]; 
+							if (z < zwidth) mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y] = recvbuf[r]; 
 							r++; 
 						}
 					}
 				}
 			}
 		}
-		
-		printf("transpose z to x, D %d %d %d\n", MPI_rank, zstart, zwidth);
-		
 	}
 	
 	
 	
 	void transpose_x_to_z(int zstart, int zwidth, int thread_num, int z_slabs_per_node,  MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all){
-		
-		printf("transpose x to z, A %d %d %d %d %d\n", MPI_rank, zstart, zwidth, first_slab_on_node, total_slabs_on_node);
 		
 		int rml_times_cpd = rml * cpd; 
 
@@ -244,8 +232,8 @@ public:
 		for (int i = 0; i < MPI_size; i++)
 		{
 			sendcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
-			//sdispls[i]    = z_slabs_per_node * ((first_slabs_all[i] + 1)%P.cpd) * rml_times_cpd; 
-			sdispls[i]    = z_slabs_per_node * first_slabs_all[i] * rml_times_cpd; 
+			sdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd; 
+			//sdispls[i]    = z_slabs_per_node * first_slabs_all[i] * rml_times_cpd; 
 			
 			recvcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
@@ -258,8 +246,8 @@ public:
 			  		for(int m=0;m<rml;m++){
 						for(int y=0;y<cpd;y++){
 							int z = z_slabs_per_node * MPI_rank + z_buffer;  
-							//if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y];
-							if (z < zwidth) sendbuf[r] = mtblock[x + first_slabs_all[i] ][z*rml_times_cpd + m*cpd + y];
+							if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y];
+							//if (z < zwidth) sendbuf[r] = mtblock[x + first_slabs_all[i] ][z*rml_times_cpd + m*cpd + y];
 							
 							else sendbuf[r] = 0.0; 							
 							r++; 
@@ -269,11 +257,7 @@ public:
 			}
 		}
 		
-		printf("transpose x to z, B %d %d %d\n", MPI_rank, zstart, zwidth);
-		
-		
 		MPI_Barrier(MPI_COMM_WORLD);
-
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
 		MPI_Barrier(MPI_COMM_WORLD);
 		
@@ -282,16 +266,13 @@ public:
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
 						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
-						mtblock[x + first_slab_on_node][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
+						//mtblock[x + first_slab_on_node][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
 						
-						//mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
+						mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
 					}
 				}
 			}
-		}	
-		
-		printf("transpose x to z, C %d %d %d\n", MPI_rank, zstart, zwidth);
-		
+		}			
 	}
 	
 #endif
@@ -303,7 +284,6 @@ public:
         
         size_t size = sizeof(MTCOMPLEX)*zwidth*cpd*rml;
 
-
         for(int _x = first_slab_on_node; _x < first_slab_on_node + total_slabs_on_node; _x++) {
             int x = _x % cpd;
 			
@@ -311,16 +291,15 @@ public:
                 continue;
 
             char fn[1024];
-
             CP.TaylorFN(x, fn);
 
             // The convolve code expects the data from file x to be in mtblock[x+1]
-           // x = (x+1)%cpd;
+            x = (x+1)%cpd;
 			
-			printf("writing %d %d %d %d\n", MPI_rank, zstart, zwidth, x); 
-			//int c= 0 ;
-			//while(fn[c]!='\0'){ printf("%c", fn[c]); c++;}
-			//printf("\n");
+			// printf("writing %d %d %d mtblock %d, file ", MPI_rank, zstart, zwidth, x);
+// 			int c= 0 ;
+// 			while(fn[c]!='\0'){ printf("%c", fn[c]); c++;}
+// 			printf("\n");
 			
             
             if(ramdisk_MT){
