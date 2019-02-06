@@ -15,6 +15,10 @@ private:
     MTCOMPLEX **raw_mtblock = NULL;
     ConvolutionParameters CP;
     uint64_t cpd = 0, rml = 0, alloc_zwidth = 0;
+	
+#ifdef PARALLEL
+	int first_slab_on_disk; 
+#endif
 
     int ramdisk_MT = 0;
     int ramdisk_derivs = 0;
@@ -58,6 +62,14 @@ public:
                     free(raw_mtblock[x]);
             delete[] raw_mtblock;
         }
+#ifdef PARALLEL
+		int last_slab = first_slab_on_node + total_slabs_on_node + 1;
+		for (int _x = last_slab; _x < last_slab + cpd - total_slabs_on_node; _x++){
+			int x = _x % cpd; 
+			free(mtblock[x]);
+		}
+#endif
+		
         delete[] mtblock;
 
         for (int z = 0; z < alloc_zwidth; z++){
@@ -83,7 +95,7 @@ public:
         int buffer_start_offset = (int)((file_offset%4096)/sizeof(MTCOMPLEX));
 				
 
-		for (int _x = 0; _x < P.cpd; _x++) //each node must mmap full size of mtblock for all x. if _x in this loop is one of the nodes files, it will load it, otherwise it will initialize mmap to a bunch of zeros. 
+		for (int _x = first_slab_on_node; _x < first_slab_on_node + total_slabs_on_node; _x++) //each node must mmap full size of mtblock for all x. if _x in this loop is one of the nodes files, it will load it, otherwise it will initialize mmap to a bunch of zeros. 
 		{				
 	            int x = _x % cpd;
 
@@ -121,46 +133,27 @@ public:
 	                // TODO: file_offset must be page-aligned. So we could back up to a page boundary and then return an offset pointer, not dissimilar to the DIO library
 	                // Or is it that bad to require zwidth = full?
 					
-					if (_x >= first_slab_on_node and _x < first_slab_on_node + total_slabs_on_node){
-						
-		                int fd = open(ramdisk_fn, shm_fd_flags, S_IRUSR | S_IWUSR);
-		                assertf(fd != -1, "Failed to open shared memory file at \"%s\"\n", ramdisk_fn);
+					
+	                int fd = open(ramdisk_fn, shm_fd_flags, S_IRUSR | S_IWUSR);
+	                assertf(fd != -1, "Failed to open shared memory file at \"%s\"\n", ramdisk_fn);
 
-		                if(!CP.OverwriteConvState){
-		                    // expand the Taylors file
-		                    // TODO: page alignment?
-		                    int res = ftruncate(fd, file_offset + size);
-		                    assertf(res == 0, "ftruncate on shared memory ramdisk_fn = %s to size = %d failed\n", ramdisk_fn, file_offset + size);
-		                }
-	                	mtblock[x] = (MTCOMPLEX *) mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, file_offset);
-						
-						
-		                int res = close(fd);
-		                assertf((void *) mtblock[x] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d at offset = %d failed\n", fd, size, file_offset);
-		                assertf(mtblock[x] != NULL, "mmap shared memory from fd = %d of size = %d at offset = %d failed\n", fd, size, file_offset);
-		                assertf(res == 0, "Failed to close fd %d\n", fd);
-						
-					}
-					else{
-	                	mtblock[x] = (MTCOMPLEX *) mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS, -1, 0);
-					}
-				
+	                if(!CP.OverwriteConvState){
+	                    // expand the Taylors file
+	                    // TODO: page alignment?
+	                    int res = ftruncate(fd, file_offset + size);
+	                    assertf(res == 0, "ftruncate on shared memory ramdisk_fn = %s to size = %d failed\n", ramdisk_fn, file_offset + size);
+	                }
+                	mtblock[x] = (MTCOMPLEX *) mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, file_offset);
+					
+					
+	                int res = close(fd);
+	                assertf((void *) mtblock[x] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d at offset = %d failed\n", fd, size, file_offset);
+	                assertf(mtblock[x] != NULL, "mmap shared memory from fd = %d of size = %d at offset = %d failed\n", fd, size, file_offset);
+	                assertf(res == 0, "Failed to close fd %d\n", fd);
+			
 	               
 	            } else {
 	                mtblock[x] = raw_mtblock[x] + buffer_start_offset;
-					
-					
-					//NAM debugging without running things off ramdisk. Here the node has loaded in all multipole files from the global directory but now we set the ones it won't be able to see in the ramdisk case to zero. If we can still recover the right answer at the end, with each node only writing its taylor files for its x domain, then we should be in good shape. 
-					if (_x < first_slab_on_node or _x >= first_slab_on_node + total_slabs_on_node) {
-						printf("Node %d with slabs [%d, %d) is zeroing mtblock x = %d, file ", MPI_rank, first_slab_on_node, first_slab_on_node + total_slabs_on_node, x);
-						int c= 0 ;
-						while(fn[c]!='\0'){ printf("%c", fn[c]); c++;}
-						printf("\n"); 
-						
-						for(int m=0; m < zwidth*rml*cpd; m++) mtblock[x][m] = 0.0; 
-					}
-						
-					
 					
 	            }
 
@@ -183,7 +176,6 @@ public:
 	
 #ifdef PARALLEL
 	void transpose_z_to_x(int zstart, int zwidth, int thread_num, int z_slabs_per_node, MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all){
-				
 		int rml_times_cpd = rml * cpd; 
 
 		int sendcounts[MPI_size];
@@ -232,6 +224,7 @@ public:
 				}
 			}
 		}
+				
 	}
 	
 	
@@ -393,8 +386,21 @@ private:
     // Allocate CPD separate chunks of space for multipoles.  This ensures they all have the same alignment offset
     void alloc(){
         mtblock = new MTCOMPLEX*[cpd]();
-        if(ramdisk_MT)
-            return;
+		
+#ifdef PARALLEL
+        size_t size = sizeof(MTCOMPLEX)*CP.z_slabs_per_node*cpd*rml;
+
+    	//for x slabs not in this nodes domain, allocate mtblock room of z_slabs_per_node to receive transposes. 
+		int last_slab = first_slab_on_node + total_slabs_on_node + 1;
+		for (int _x = last_slab; _x < last_slab + cpd - total_slabs_on_node; _x++){
+			int x = _x % cpd; 
+			mtblock[x] = (MTCOMPLEX*) malloc(size);
+		}
+#endif
+		
+        if(ramdisk_MT){
+			return;
+        }
 
         raw_mtblock = new MTCOMPLEX*[cpd];
         size_t s = sizeof(MTCOMPLEX) * alloc_zwidth * rml * cpd + 4096;  // wiggle room to adjust start to align with file
