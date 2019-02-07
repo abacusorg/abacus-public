@@ -100,7 +100,7 @@ public:
 			
 	            int x = _x % cpd;
 
-				STDLOG(1,"Node %d reading file x %d\n", MPI_rank, x);
+				STDLOG(1,"Reading multipoles for x-slab %d\n", MPI_rank, x);
 
 	            // Different threads are responsible for different files (but they all read into one block)
 	            if (x % CP.niothreads != thread_num)
@@ -138,11 +138,6 @@ public:
 	                int fd = open(ramdisk_fn, shm_fd_flags, S_IRUSR | S_IWUSR);
 	                assertf(fd != -1, "Failed to open shared memory file at \"%s\"\n", ramdisk_fn);
 					
-					
-					printf("Node %d with slabs [%d %d), zstart = %d, zwidth = %d, is reading into mtblock %d, file ", MPI_rank, first_slab_on_node, first_slab_on_node + total_slabs_on_node, zstart, zwidth, x);
-					int c= 0 ;
-					while(ramdisk_fn[c]!='\0'){ printf("%c", ramdisk_fn[c]); c++;}
-					printf("\n");
 
 	                if(!CP.OverwriteConvState){
 	                    // expand the Taylors file
@@ -309,16 +304,10 @@ public:
             char fn[1024];
             CP.TaylorFN(x, fn);
 
+			STDLOG(1, "Writing out to Taylor x-slab %d \n", x);	
+			
             // The convolve code expects the data from file x to be in mtblock[x+1]
-            x = (x+1)%cpd;
-			
-			STDLOG(1, "Node %d with slabs [%d %d), zstart = %d, zwidth = %d, is writing out mtblock %d \n", MPI_rank, first_slab_on_node, first_slab_on_node + total_slabs_on_node, zstart, zwidth, x);
-			printf("Node %d with slabs [%d %d), zstart = %d, zwidth = %d, is writing out mtblock %d \n", MPI_rank, first_slab_on_node, first_slab_on_node + total_slabs_on_node, zstart, zwidth, x);
-			
-			int c= 0 ;
-			while(fn[c]!='\0'){ printf("%c", fn[c]); c++;}
-			printf("\n");		
-			
+            x = (x+1)%cpd;			
             
             if(ramdisk_MT){
                 // If mtblock is on the ramdisk, then the Taylors swizzle was effectively our "write"
