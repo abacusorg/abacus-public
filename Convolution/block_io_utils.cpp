@@ -96,8 +96,11 @@ public:
 				
 
 		for (int _x = first_slab_on_node; _x < first_slab_on_node + total_slabs_on_node; _x++) //each node must mmap full size of mtblock for all x. if _x in this loop is one of the nodes files, it will load it, otherwise it will initialize mmap to a bunch of zeros. 
-		{				
+		{			
+			
 	            int x = _x % cpd;
+
+				STDLOG(1,"Node %d reading file x %d\n", MPI_rank, x);
 
 	            // Different threads are responsible for different files (but they all read into one block)
 	            if (x % CP.niothreads != thread_num)
@@ -125,8 +128,6 @@ public:
 	                    ramdisk_fn = tfn;
 	                }
 
-	                
-
 	                // map the shared memory fd to an address
 	                // If we're doing a ramdisk overwrite, this maps the multipoles directly into memory
 	                // If it's not an overwrite, this maps our new Taylors write arena into memory (so we still have a read/memcpy to do)
@@ -136,6 +137,12 @@ public:
 					
 	                int fd = open(ramdisk_fn, shm_fd_flags, S_IRUSR | S_IWUSR);
 	                assertf(fd != -1, "Failed to open shared memory file at \"%s\"\n", ramdisk_fn);
+					
+					
+					printf("Node %d with slabs [%d %d), zstart = %d, zwidth = %d, is reading into mtblock %d, file ", MPI_rank, first_slab_on_node, first_slab_on_node + total_slabs_on_node, zstart, zwidth, x);
+					int c= 0 ;
+					while(ramdisk_fn[c]!='\0'){ printf("%c", ramdisk_fn[c]); c++;}
+					printf("\n");
 
 	                if(!CP.OverwriteConvState){
 	                    // expand the Taylors file
@@ -147,7 +154,7 @@ public:
 					
 					
 	                int res = close(fd);
-	                assertf((void *) mtblock[x] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d at offset = %d failed\n", fd, size, file_offset);
+	                assertf((void *) mtblock[x] != MAP_FAILED, "%d mmap shared memory from fd = %d of size = %d at offset = %d failed\n", MPI_rank, fd, size, file_offset);
 	                assertf(mtblock[x] != NULL, "mmap shared memory from fd = %d of size = %d at offset = %d failed\n", fd, size, file_offset);
 	                assertf(res == 0, "Failed to close fd %d\n", fd);
 			
@@ -188,7 +195,7 @@ public:
 			sendcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 			recvcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
-			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd; 
+			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd; 		
 		}
 		
 		for(int z=0; z< z_slabs_per_node * MPI_size; z++){
@@ -305,10 +312,12 @@ public:
             // The convolve code expects the data from file x to be in mtblock[x+1]
             x = (x+1)%cpd;
 			
-			printf("Node %d with slabs [%d %d), zstart = %d, zwidth = %d, is writing out mtblock %d, file ", MPI_rank, first_slab_on_node, first_slab_on_node + total_slabs_on_node, zstart, zwidth, x);
+			STDLOG(1, "Node %d with slabs [%d %d), zstart = %d, zwidth = %d, is writing out mtblock %d \n", MPI_rank, first_slab_on_node, first_slab_on_node + total_slabs_on_node, zstart, zwidth, x);
+			printf("Node %d with slabs [%d %d), zstart = %d, zwidth = %d, is writing out mtblock %d \n", MPI_rank, first_slab_on_node, first_slab_on_node + total_slabs_on_node, zstart, zwidth, x);
+			
 			int c= 0 ;
 			while(fn[c]!='\0'){ printf("%c", fn[c]); c++;}
-			printf("\n");
+			printf("\n");		
 			
             
             if(ramdisk_MT){

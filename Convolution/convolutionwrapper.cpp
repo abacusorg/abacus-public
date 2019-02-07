@@ -231,19 +231,23 @@ int choose_zwidth(int Conv_zwidth, int cpd, ConvolutionParameters &CP){
     }
 
 
+
+    // If we are on the ramdisk, then we know the problem fits in memory! Just do the whole thing at once
+    // If we aren't overwriting, there might be a small efficiency gain from smaller zwidth since reading requires a memcpy()
+    // TODO: need to support ramdisk offsets if we want to support zwidth < max
+    if(CP.is_ramdisk()){
+		CP.z_slabs_per_node = (int)((cpd + 1)/2 / MPI_size) + 1; 
+        STDLOG(0, "Forcing zwidth = full and z_slabs_per_node = %d since we are using ramdisk\n", CP.z_slabs_per_node);
+        return (cpd + 1)/2;  // full width
+    }
+	
+	
 	//If we are doing a multi-node Convolve, set zwidth = 1. NAM TODO: May want to extend this to have multiple z per node later. 
 #ifdef PARALLEL
 	STDLOG(0, "Forcing zwidth = %d in multi-node convolve, where each node does %d slab(s).\n", CP.z_slabs_per_node * MPI_size, CP.z_slabs_per_node);
 	return CP.z_slabs_per_node * MPI_size;
 #endif
 	
-    // If we are on the ramdisk, then we know the problem fits in memory! Just do the whole thing at once
-    // If we aren't overwriting, there might be a small efficiency gain from smaller zwidth since reading requires a memcpy()
-    // TODO: need to support ramdisk offsets if we want to support zwidth < max
-    if(CP.is_ramdisk()){
-        STDLOG(0, "Forcing zwidth = full since we are using ramdisk\n");
-        return (cpd + 1)/2;  // full width
-    }
 
     if(Conv_zwidth > 0){
         return Conv_zwidth;
@@ -374,7 +378,7 @@ int main(int argc, char ** argv){
 
 			QUIT("Multi-node (parallel, MPI) implementation does not support more than one IO thread! Crashing...\n");
 		} 
-		CP.z_slabs_per_node = 8; //may want to automate this choice or put an assert here to make sure we choose a value that uses all nodes. but the overkill version works too, where some nodes don't do anything at all (i.e. cpd = 33, num nodes = 5, zslabspernode = 8. )
+		CP.z_slabs_per_node = 2; //may want to automate this choice or put an assert here to make sure we choose a value that uses all nodes. but the overkill version works too, where some nodes don't do anything at all (i.e. cpd = 33, num nodes = 5, zslabspernode = 8. )
 #endif
 
         // Find out which slabs reside on which nodes
