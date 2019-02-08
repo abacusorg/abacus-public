@@ -57,9 +57,9 @@ public:
     
     ~Block(){
         if(!ramdisk_MT){
-            for(int x = 0; x < cpd; x++)
-                if(raw_mtblock[x] != NULL)
-                    free(raw_mtblock[x]);
+            for(int x = first_slab_on_node; x < first_slab_on_node + total_slabs_on_node; x++)
+                if(raw_mtblock[x%cpd] != NULL)
+                    free(raw_mtblock[x%cpd]);
             delete[] raw_mtblock;
         }
 #ifdef PARALLEL
@@ -404,8 +404,8 @@ private:
 
         raw_mtblock = new MTCOMPLEX*[cpd];
         size_t s = sizeof(MTCOMPLEX) * alloc_zwidth * rml * cpd + 4096;  // wiggle room to adjust start to align with file
-        for (int x = 0; x < cpd; x++){
-            int memalign_ret = posix_memalign((void **) (raw_mtblock + x), 4096, s);
+        for (int x = first_slab_on_node; x < first_slab_on_node + total_slabs_on_node; x++){
+            int memalign_ret = posix_memalign((void **) (raw_mtblock + (x%cpd)), 4096, s);
             assert(memalign_ret == 0);
             alloc_bytes += s;
         }

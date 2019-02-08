@@ -366,13 +366,15 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     else
         sprintf(logstr, "Allocating host-side memory, but not pinning because this is a small problem\n");
     STDLOG(1,logstr);
+
+    thread_setup_done = 0;
     
     for(int g = 0; g < NBuf; g++){
             Buffers[g].size = MaxBufferSize;
             Buffers[g].sizeWC = Buffers[g].size*(1.0-RatioDeftoAll);
             Buffers[g].sizeDef = Buffers[g].size*RatioDeftoAll;
 
-        int buffer_and_core[3];
+        int *buffer_and_core = new int[3];
         int core_start = ThreadCoreStart[g % NGPU];
         int core = -1;
         // If either the core start or the core count are invalid, do not bind this thread to a core
@@ -390,10 +392,16 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
         STDLOG(0, logstr);
         
         // Start one thread per buffer
-        thread_setup_done = 0;
+        //thread_setup_done = 0;
         int p_retval = pthread_create(&(DeviceThread[g]), NULL, QueueWatcher, buffer_and_core);
         assertf(p_retval == 0, "pthread_create failed with value %d\n", p_retval);
-        while(!thread_setup_done){}  // only let one thread init at a time
+        
+        // The first NGPUs need to set device configuration
+        // TODO: change to real barrier if this helps
+        if(g == NGPU-1)
+            while(!thread_setup_done){}
+
+        host_alloc_bytes += Buffers[g].sizeWC + Buffers[g].sizeDef;
     }
     sprintf(logstr, "Allocated %f MB host-side memory\n", host_alloc_bytes/1024./1024);
     STDLOG(1,logstr);
@@ -428,10 +436,10 @@ void GPUReset(){
 #define CudaAllocate(ptr,size) checkCudaErrors(cudaMalloc((void **)&(ptr), size))
 
 #define PinnedAllocate(ptr,size) if(use_pinned) checkCudaErrors(cudaHostAlloc((void **)&(ptr), size, cudaHostAllocDefault)); \
-                                    else assert(posix_memalign((void **)&(ptr), CACHE_LINE_SIZE, size) == 0); host_alloc_bytes += size
+                                    else assert(posix_memalign((void **)&(ptr), CACHE_LINE_SIZE, size) == 0);
 
 #define WCAllocate(ptr,size) if(use_pinned) checkCudaErrors(cudaHostAlloc((void **)&(ptr), size, cudaHostAllocWriteCombined)); \
-                                    else assert(posix_memalign((void **)&(ptr), CACHE_LINE_SIZE, size) == 0); host_alloc_bytes += size
+                                    else assert(posix_memalign((void **)&(ptr), CACHE_LINE_SIZE, size) == 0);
 
 #include "cuda_profiler_api.h"
 
@@ -465,11 +473,14 @@ void *QueueWatcher(void *_arg){
     if (assigned_core >= 0)
         set_core_affinity(assigned_core);
     int use_pinned = ((int*) arg)[2];
+    free(_arg);
+
     sprintf(logstr,"Running GPU thread %d, core %d\n", n, assigned_core); STDLOG(1,logstr);
 
     checkCudaErrors(cudaSetDevice(gpu));
     if (assigned_device < NGPU) {
         // Only run these the first time a GPU is seen
+        // TOOD: is this safe if all GPU threads start up simultaneously?
         checkCudaErrors(cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync));
         checkCudaErrors(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
     }
@@ -487,7 +498,6 @@ void *QueueWatcher(void *_arg){
     // better for returning the data from the GPU.
     
 #ifdef HAVE_LIBNUMA
-    // Attempt some NUMA specifics
     // Query the current NUMA node of the allocated buffers
     // We are using the move_pages function purely to query NUMA state, not move anything
     int page = -1;
@@ -498,7 +508,8 @@ void *QueueWatcher(void *_arg){
     STDLOG(1, logstr);
 #endif
 
-    thread_setup_done = 1;  // signal that the next thread can start its setup
+    if(n == NGPU-1)
+        thread_setup_done = 1;  // signal that the next thread can start its setup
 
     // Main work loop: watch the queue
     while(true){
