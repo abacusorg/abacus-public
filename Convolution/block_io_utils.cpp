@@ -100,7 +100,7 @@ public:
 			
 	            int x = _x % cpd;
 
-				STDLOG(1,"Reading multipoles for x-slab %d\n", MPI_rank, x);
+				STDLOG(1,"Reading multipoles for x-slab %d\n", x);
 
 	            // Different threads are responsible for different files (but they all read into one block)
 	            if (x % CP.niothreads != thread_num)
