@@ -163,6 +163,8 @@ void MergeDerivatives(int inner_radius, int order, int far_radius, double *FarDe
 	                }
 	            }
 	        }
+		// FarDerivatives is in the order [m][k][i][j], but subject to the 
+		// constraing that j<=i and that i,j,k are all in the first octant.
     }
     free(FDSlab);
     return;
@@ -286,6 +288,9 @@ void Part2(int order, int inner_radius, int far_radius) {
 	assert(sizeread == CompressedMultipoleLengthXYZ);
         fclose(fpfar);
 
+	// We've loaded in [k][i][j] with j<=i for one [m], only in first octant.
+	// First, we reflect [i][j] to fill the first octant.
+
 
         for(int k=0;k<=CPDHALF;k++)
             for(int i=0;i<=CPDHALF;i++)
@@ -294,6 +299,8 @@ void Part2(int order, int inner_radius, int far_radius) {
                     if(j<=i) td[l] = FarDerivatives_ab[RINDEXYZ(i,j,k)];
                     else     td[l] = FarDerivatives_ba[RINDEXYZ(j,i,k)];
                 }
+
+        // Now we fill the other octants
 
         for(int k=0;k<=CPDHALF;k++)
             for(int i=0;i<=CPDHALF;i++)
