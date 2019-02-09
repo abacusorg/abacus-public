@@ -68,7 +68,7 @@ void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber
     int rml = (order+1)*(order+1);
 
     ULLI fdsize = sizeof(double) * rml*CompressedMultipoleLengthXY;
-    printf("Allocating %d GB\n", (int) (fdsize/(1<<30)) );
+    printf("Allocating %d GB for slab derivs\n", (int) (fdsize/(1<<30)) );
     double *FDSlab = (double *) malloc(fdsize);
 
 
@@ -137,7 +137,7 @@ void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber
 void MergeDerivatives(int inner_radius, int order, int far_radius, double *FarDerivatives) {
     int rml = (order+1)*(order+1);
     ULLI fdsize = sizeof(double) * rml*CompressedMultipoleLengthXY;
-    printf("Allocating %d GB\n", (int) (fdsize/(1<<30)) );
+    printf("Allocating %d GB for far derivs\n", (int) (fdsize/(1<<30)) );
     double *FDSlab = (double *) malloc(fdsize);
 	
 	//Merge all slab's derivatives tensors into a single farderivatives file. This will be used to calculate \hat{\mathcal{D}}^{ABC}: the Fourier transform of the derivatives tensor required to calculate the Taylor coefficients for any given sink cell by convolving the multipole moments and the derivatives tensor. 
@@ -152,7 +152,7 @@ void MergeDerivatives(int inner_radius, int order, int far_radius, double *FarDe
 		ULLI sizeread = fread(&(FDSlab[0]), sizeof(double), rml*CompressedMultipoleLengthXY, fp); 
 		assert(sizeread == rml*CompressedMultipoleLengthXY);
 		fclose(fp);
-
+		
 		#pragma omp parallel for schedule(dynamic,1) 
 		for(int m=0;m<rml;m++) {
 		    for(int i=0;i<=CPDHALF;i++) {
@@ -184,25 +184,29 @@ void CreateFourierFiles(int order, int inner_radius, int far_radius) {
 //calculate Fast Fourier transform of far derivatives tensor and store. 
 void Part2(int order, int inner_radius, int far_radius) { 
     
+	
+    fftw_init_threads();
+	
+	
     basemultipoles bm(order);
     int cpd = CPD;
 
     ULLI fdsize = sizeof(double) * CompressedMultipoleLengthXYZ;
-    printf("Allocating %d GB\n", (int) (2*fdsize/(1<<30)) );
+    printf("Allocating %d GB for FarDerivatives_ab and _ba in Part2\n", (int) (2*fdsize/(1<<30)) );
     double *FarDerivatives_ab = (double *) malloc(fdsize);
     double *FarDerivatives_ba = (double *) malloc(fdsize);
     assert( FarDerivatives_ab != NULL );
     assert( FarDerivatives_ba != NULL );
 
     ULLI tdsize = sizeof(double)*CPD3;
-    printf("Allocating %d GB\n", (int) (2*tdsize/(1<<30)) );
+    printf("Allocating %d GB for tdprime in Part2\n", (int) (2*tdsize/(1<<30)) );
     double *tdprime = (double *) malloc(tdsize);
     double *td = (double *) malloc(tdsize);
     assert(tdprime!=NULL);
     assert(td!=NULL);
 
     ULLI tmpDsize = sizeof(Complex)*CPD3;
-    printf("Allocating %d GB\n", (int) (tmpDsize/(1<<30)) );
+    printf("Allocating %d GB for tmpD in Part2\n", (int) (tmpDsize/(1<<30)) );
     Complex *tmpD   = (Complex *) malloc(tmpDsize);
     assert(tmpD!=NULL);
 
@@ -214,7 +218,7 @@ void Part2(int order, int inner_radius, int far_radius) {
     Complex out_2d[CPD*CPD];
 
     // We're going to setup to do CPD FFTs at once, each of size CPD
-    ULLI CPDpad = (CPD%16+1)*16;    // Just want to pad out to separate these FFTs.
+    ULLI CPDpad = (CPD/16+1)*16;    // Just want to pad out to separate these FFTs.
     // We are supposed to put the [CPD][CPD] info into [CPD][CPDpad] space.  FFT is on the rightmost index.
     fftw_plan plan_forward_1d_r2c;
     double   in_r2c[CPDpad*CPD];
@@ -226,10 +230,10 @@ void Part2(int order, int inner_radius, int far_radius) {
     //plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
     //plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD,  &(in_r2c[0]), (fftw_complex *) &(out_r2c[0]), FFTW_PATIENT);
 	
-	//NAM: commented this out for large CPD run overnight.
-	//int wisdomExists = fftw_import_wisdom_from_filename("Part2.wisdom");
-	//if (!wisdomExists)
-	//     printf("No wisdom file exists!\n");
+	printf("Planning fftw with omp\n");
+	fftw_plan_with_nthreads(omp_get_max_threads());
+	printf("Done planning with %d threads\n", omp_get_max_threads());
+	
 
     // This is the plan to do the 2d CPD*CPD complex-to-complex XY FFTs
     plan_forward_2d  =  fftw_plan_dft_2d( CPD, CPD, 
@@ -240,24 +244,22 @@ void Part2(int order, int inner_radius, int far_radius) {
     // This is the plan to do CPD real-to-complex Z FFTs, each of size CPD, with a stride of CPDpad
     int fftw_n[] = { CPD };    // This is how long the FFTs are
     int howmany = CPD;		// How many FFTs we're doing
-    int idist = odist = CPDpad;   // This is how the FFTs are separated in memory
-    int istride = ostride = 1;
+    int idist, odist; idist = odist = CPDpad;   // This is how the FFTs are separated in memory
+    int istride, ostride; istride = ostride = 1;
     // iembed and oembed are just NULL
     plan_forward_1d_r2c  =  fftw_plan_many_dft_r2c( 1, fftw_n, howmany, 
 	&(in_r2c[0]), NULL, istride, idist,
 	(fftw_complex *) &(out_r2c[0]), NULL, ostride, odist,
-	FFTW_FORWARD, FFTW_PATIENT);
+	FFTW_FORWARD);
 	
-	//if(!wisdomExists)
-	//	printf("Exporting wisdom to file == %d\n", fftw_export_wisdom_to_filename("Part2.wisdom"));
-	//	
-	//NAM: end commented out section. 
+	printf("Plans created.\n");
+	
+
 	
 
     ULLI sizeread;
 	
 	
-	//myTimer.Start(); //NAM 
 	
 
     int a,b,c;
@@ -339,20 +341,39 @@ void Part2(int order, int inner_radius, int far_radius) {
                 for(int k=0;k<CPD;k++) {
                     ULLI l = linearFFTW(i-CPDHALF,j-CPDHALF,k-CPDHALF);
                     ULLI ll = linearindex(i,j,k);
-                    tdprime[l] = td[ll];
+                    tdprime[l] = td[ll];					
                 }
+				
 
         double *tmpreal = tdprime;
 
         for(int x=0;x<CPD;x++) {
-	    // Put pragma here
-            for(int y=0;y<CPD;y++) 
-                for(int z=0;z<CPD;z++) in_r2c[y*CPDpad+z] = tmpreal[x*CPD*CPD + y*CPD + z];
-	    fftw_execute(plan_forward_1d_r2c);   // Z FFT, done R->C
-	    // Put pragma here
-            for(int y=0;y<CPD;y++) 
-                for(int z=0;z<(CPD+1)/2;z++) tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ] = out_r2c[y*CPDpad+z];
-	}
+	   	 	// Put pragma here
+            for(int y=0;y<CPD;y++) {
+                for(int z=0;z<CPD;z++) {
+					in_r2c[y*CPDpad+z] = tmpreal[x*CPD*CPD + y*CPD + z];
+				}
+			}
+	    	fftw_execute(plan_forward_1d_r2c);   // Z FFT, done R->C
+	    	// Put pragma here
+            for(int y=0;y<CPD;y++) {
+                for(int z=0;z<(CPD+1)/2;z++) {
+					tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ] = out_r2c[y*CPDpad+z];
+				}
+			}
+		}
+		
+		
+		
+		 // for(int x=0;x<CPD;x++) {
+ //            for(int y=0;y<CPD;y++) {
+ // 				for(int z=0;z<(CPD+1)/2;z++) {
+ // 					printf("%d %d %d %f\n", x,y,z,real(tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ]));
+ // 				}
+ // 			}
+ // 		}
+ // 		exit(1);
+		
 
 	// DJE TODO: The above moves the data from tmpreal=tdprime (which could have been td)
 	// into tmpD.  If td had gotten the CPD+1 padding, this could have been in place.
@@ -371,6 +392,14 @@ void Part2(int order, int inner_radius, int far_radius) {
 		// This gather requires a ton of random access!
 	    fftw_execute(plan_forward_2d);    // X-Y FFT, done C->C
 	    	// Now the results are in out_2d[x*CPD+y]
+		
+		
+		
+		 // for(int x=0;x<CPD;x++)
+//             for(int y=0;y<CPD;y++) {
+// 					printf("%d %d %d %f\n", x,y,z,real(tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ]));
+// 				}
+// 		exit(1);
 
 
 /* OLD CODE
@@ -507,7 +536,7 @@ int main(int argc, char **argv) {
     ULLI fdsize = sizeof(double) * rml*CompressedMultipoleLengthXYZ;
 		
 	//calculate total far derivatives tensor for entire simulation box by merging components for every cell. {\mathcal{D}^{ABC}_{jkl}} = \mathcal{D}^{ABC}.
-    printf("Allocating %d GB\n", (int) (fdsize/(1<<30)) );
+    printf("Allocating %d GB before MergeDerivatives\n", (int) (fdsize/(1<<30)) );
     double *FarDerivatives = (double *) malloc(fdsize);
     MergeDerivatives(inner_radius, order, far_radius, FarDerivatives);
 	//myTimer.Stop();
