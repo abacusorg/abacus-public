@@ -249,25 +249,25 @@ class Manifest {
     /// This launches a send of N bytes, perhaps split into multiple Isend calls
     /// size must be in bytes; we only deal with bytes
     void do_MPI_Isend(void *ptr, uint64 size, int rank) {
-	bytes += size;
-	while (size>0) {
-	    assertf(maxpending<MAX_PENDING, "Too many MPI requests %d\n", maxpending);
-	    int thissize = std::min(size, SIZE_MPI);
-	    MPI_Isend(ptr, thissize, MPI_BYTE, rank, maxpending, MPI_COMM_WORLD,requests+maxpending);
-	    numpending++; maxpending++; size -= thissize; ptr += thissize;
-	}
+        bytes += size;
+        while (size>0) {
+            assertf(maxpending<MAX_REQUESTS, "Too many MPI requests %d\n", maxpending);
+            int thissize = std::min(size, (uint64) SIZE_MPI);
+            MPI_Isend(ptr, thissize, MPI_BYTE, rank, maxpending, MPI_COMM_WORLD,requests+maxpending);
+            numpending++; maxpending++; size -= thissize; ptr = (char *)ptr+thissize;
+        }
     }
 
     /// This launches a receive of N bytes, perhaps split into multiple Irecv calls
     /// size must be in bytes; we only deal with bytes
     void do_MPI_Irecv(void *ptr, uint64 size, int rank) {
-	bytes += size;
-	while (size>0) {
-	    assertf(maxpending<MAX_PENDING, "Too many MPI requests %d\n", maxpending);
-	    int thissize = std::min(size, SIZE_MPI);
-	    MPI_Irecv(ptr, thissize, MPI_BYTE, rank, maxpending, MPI_COMM_WORLD,requests+maxpending);
-	    numpending++; maxpending++; size -= thissize; ptr += thissize;
-	}
+        bytes += size;
+        while (size>0) {
+            assertf(maxpending<MAX_REQUESTS, "Too many MPI requests %d\n", maxpending);
+            int thissize = std::min(size, (uint64) SIZE_MPI);
+            MPI_Irecv(ptr, thissize, MPI_BYTE, rank, maxpending, MPI_COMM_WORLD,requests+maxpending);
+            numpending++; maxpending++; size -= thissize; ptr = (char *)ptr+thissize;
+        }
     }
 
 
