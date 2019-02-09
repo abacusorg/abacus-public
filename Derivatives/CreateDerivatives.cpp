@@ -233,7 +233,7 @@ void Part2(int order, int inner_radius, int far_radius) {
 	printf("Planning fftw with omp\n");
 	fftw_plan_with_nthreads(omp_get_max_threads());
 	printf("Done planning with %d threads\n", omp_get_max_threads());
-	
+
 
     // This is the plan to do the 2d CPD*CPD complex-to-complex XY FFTs
     plan_forward_2d  =  fftw_plan_dft_2d( CPD, CPD, 
@@ -250,7 +250,7 @@ void Part2(int order, int inner_radius, int far_radius) {
     plan_forward_1d_r2c  =  fftw_plan_many_dft_r2c( 1, fftw_n, howmany, 
 	&(in_r2c[0]), NULL, istride, idist,
 	(fftw_complex *) &(out_r2c[0]), NULL, ostride, odist,
-	FFTW_FORWARD);
+	FFTW_PATIENT);
 	
 	printf("Plans created.\n");
 	
@@ -348,31 +348,20 @@ void Part2(int order, int inner_radius, int far_radius) {
         double *tmpreal = tdprime;
 
         for(int x=0;x<CPD;x++) {
-	   	 	// Put pragma here
+#pragma omp parallel for schedule(static)
             for(int y=0;y<CPD;y++) {
                 for(int z=0;z<CPD;z++) {
 					in_r2c[y*CPDpad+z] = tmpreal[x*CPD*CPD + y*CPD + z];
 				}
 			}
 	    	fftw_execute(plan_forward_1d_r2c);   // Z FFT, done R->C
-	    	// Put pragma here
+#pragma omp parallel for schedule(static)
             for(int y=0;y<CPD;y++) {
                 for(int z=0;z<(CPD+1)/2;z++) {
 					tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ] = out_r2c[y*CPDpad+z];
 				}
 			}
 		}
-		
-		
-		
-		 // for(int x=0;x<CPD;x++) {
- //            for(int y=0;y<CPD;y++) {
- // 				for(int z=0;z<(CPD+1)/2;z++) {
- // 					printf("%d %d %d %f\n", x,y,z,real(tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ]));
- // 				}
- // 			}
- // 		}
- // 		exit(1);
 		
 
 	// DJE TODO: The above moves the data from tmpreal=tdprime (which could have been td)
@@ -386,20 +375,12 @@ void Part2(int order, int inner_radius, int far_radius) {
 	// per skewer, and we don't want to do that more than we have to. 
 
 	for(int z=0;z<(CPD+1)/2;z++) {
-	    // Put pragma here
+#pragma omp parallel for schedule(static)
 	    for(int x=0;x<CPD;x++) 
                 for(int y=0;y<CPD;y++) in_2d[x*CPD+y] = tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ];
 		// This gather requires a ton of random access!
 	    fftw_execute(plan_forward_2d);    // X-Y FFT, done C->C
 	    	// Now the results are in out_2d[x*CPD+y]
-		
-		
-		
-		 // for(int x=0;x<CPD;x++)
-//             for(int y=0;y<CPD;y++) {
-// 					printf("%d %d %d %f\n", x,y,z,real(tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ]));
-// 				}
-// 		exit(1);
 
 
 /* OLD CODE
@@ -423,13 +404,13 @@ void Part2(int order, int inner_radius, int far_radius) {
 END OLD CODE */
 
             if( ((a+b+c)%2) == 0 )
-		// Put pragma here
+#pragma omp parallel for schedule(static)
                 for(int x=0;x<(CPD+1)/2;x++) 
                     for(int y=0;y<=x;y++) 
                         tmpreal[ RINDEXY(x,y) ] = real(conj(out_2d[x*CPD+y]));
                         // tmpreal[ RINDEXY(x,y) ] = real(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
             else
-		// Put pragma here
+#pragma omp parallel for schedule(static)
                 for(int x=0;x<(CPD+1)/2;x++) 
                     for(int y=0;y<=x;y++) 
                         tmpreal[ RINDEXY(x,y) ] = imag(conj(out_2d[x*CPD+y]));
