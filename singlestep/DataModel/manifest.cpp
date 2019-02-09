@@ -176,14 +176,20 @@ class Manifest {
     STimer CheckCompletion;        ///< The timing to check for completion
     size_t bytes;       ///< The number of bytes received
 
-    MPI_Request *requests;    ///< A list of the non-blocking requests issued
+    MPI_Request *requests;    ///< A list of the non-blocking requests issued, each used once
     int numpending;        ///< The number of requests pending
+    int maxpending;	   ///< The maximum number we're using
 
-    void free_requests() {
-        assertf(numpending<=0, "We've been asked to free the MPI listing before all is completed, %d.\n", numpending);
-        if (requests!=NULL) delete[] requests;
-        numpending = -1;
-    }
+//    void free_requests() {
+//        assertf(numpending<=0, "We've been asked to free the MPI listing before all is completed, %d.\n", numpending);
+//        if (requests!=NULL) delete[] requests;
+//        numpending = 0;
+//	max_pending = 0;
+//    }
+
+
+    #define MAX_REQUESTS 1024    // This is the most MPI work we can handle; hopefully very generous
+    #define SIZE_MPI (1<<30)     // The maximum size of each MPI Isend.
 
     Manifest() {
     	m.numarenas = m.numil = m.numlinks = m.numdep = 0;
@@ -195,28 +201,34 @@ class Manifest {
         bytes = 0;
         il = NULL;
         links = NULL;
-        requests = NULL;
-        numpending = -1;
+        requests = new MPI_Request[MAX_REQUESTS];
+        for (int j=0; j<MAX_REQUESTS; j++) requests[j]=MPI_REQUEST_NULL;
+        numpending = 0;
+	maxpending = 0;
         return;
     }
     ~Manifest() { 
         void *p;
-        free_requests();
+	delete[] requests;
+        // free_requests();
     }
 
     /// Allocate N things to track
-    void set_pending(int n) {
-        requests = new MPI_Request[n];
-        for (int j=0; j<n; j++) requests[j]=MPI_REQUEST_NULL;
-        numpending = n;
-        // STDLOG(1,"Establishing Manifest MPI listing of %d activities\n", numpending);
-    }
+//    void set_pending(int n) {
+//        requests = new MPI_Request[n];
+//        for (int j=0; j<n; j++) requests[j]=MPI_REQUEST_NULL;
+//        numpending = n;
+//        // STDLOG(1,"Establishing Manifest MPI listing of %d activities\n", numpending);
+//    }
+
     inline void mark_as_done(int j) {
         assertf(requests[j]==MPI_REQUEST_NULL,"MPI_Request %d wasn't NULL\n", j);
         numpending--;
         // STDLOG(1,"Marked Manifest activity %d as done.  %d remain\n", j, numpending);
     }
-    /// Return 1 if newly found to be done, 0 otherwise
+
+    /// Return 1 if newly found to be done, 0 otherwise.
+    /// This will only return 1 once; it's ok to call again, but will return 0
     inline int check_if_done(int j) {
         if (requests[j]!=MPI_REQUEST_NULL) {
             int err, sent=0;
@@ -227,6 +239,37 @@ class Manifest {
         }
         return 0;
     }
+
+    /// Return 1 if there is no more work
+    inline int check_all_done() {
+        if (numpending==0) return 1; 
+	else return 0; 
+    }
+
+    /// This launches a send of N bytes, perhaps split into multiple Isend calls
+    /// size must be in bytes; we only deal with bytes
+    void do_MPI_Isend(void *ptr, uint64 size, int rank) {
+	bytes += size;
+	while (size>0) {
+	    assertf(maxpending<MAX_PENDING, "Too many MPI requests %d\n", maxpending);
+	    int thissize = std::min(size, SIZE_MPI);
+	    MPI_Isend(ptr, thissize, MPI_BYTE, rank, maxpending, MPI_COMM_WORLD,requests+maxpending);
+	    numpending++; maxpending++; size -= thissize; ptr += thissize;
+	}
+    }
+
+    /// This launches a receive of N bytes, perhaps split into multiple Irecv calls
+    /// size must be in bytes; we only deal with bytes
+    void do_MPI_Irecv(void *ptr, uint64 size, int rank) {
+	bytes += size;
+	while (size>0) {
+	    assertf(maxpending<MAX_PENDING, "Too many MPI requests %d\n", maxpending);
+	    int thissize = std::min(size, SIZE_MPI);
+	    MPI_Irecv(ptr, thissize, MPI_BYTE, rank, maxpending, MPI_COMM_WORLD,requests+maxpending);
+	    numpending++; maxpending++; size -= thissize; ptr += thissize;
+	}
+    }
+
 
     inline int is_ready() { if (completed==2) return 1; return 0;}
 	// Call this to see if the Manifest is ready to retrieve
@@ -388,36 +431,29 @@ void Manifest::QueueToSend(int finished_slab) {
 void Manifest::Send() {
     #ifdef PARALLEL
     Transmit.Start();
-    set_pending(m.numarenas+3);
+    /// set_pending(m.numarenas+3);
     int rank = MPI_rank;
     rank--; if (rank<0) rank+=MPI_size;   // Now rank is the destination node
     STDLOG(1,"Will send the SendManifest to node rank %d\n", rank);
     // Send the ManifestCore
-    MPI_Isend(&m, sizeof(ManifestCore), MPI_BYTE, rank, 0, MPI_COMM_WORLD,requests);
     STDLOG(1,"Isend Manifest Core\n");
+    do_MPI_Isend(&m, sizeof(ManifestCore), rank);
     // Send all the Arenas
     for (int n=0; n<m.numarenas; n++) {
-        MPI_Isend(m.arenas[n].ptr, m.arenas[n].size, MPI_BYTE, rank, n+3, MPI_COMM_WORLD,requests+n+3);
         STDLOG(1,"Isend Manifest Arena %d (slab %d of type %d) of size %d\n", 
             n, m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size);
-        // SB->DeAllocate(m.arenas[n].type, m.arenas[n].slab);
-        // TODO: Need to Delete the file?
+        do_MPI_Isend(m.arenas[n].ptr, m.arenas[n].size, rank);
     }
     // Send all the Insert List fragment
-    MPI_Isend(il, sizeof(ilstruct)*m.numil, MPI_BYTE, rank, 1, MPI_COMM_WORLD,requests+1);
     STDLOG(1,"Isend Manifest Insert List of length %d\n", m.numil);
-    //free(il);
-    // Send all the GroupLink List fragment
+    do_MPI_Isend(il, sizeof(ilstruct)*m.numil, rank);
     if (GFC!=NULL) {
-        MPI_Isend(links, sizeof(GroupLink)*m.numlinks, MPI_BYTE, rank, 2, MPI_COMM_WORLD,requests+2);
+	// Send all the GroupLink List fragment
         STDLOG(1,"Isend Manifest GroupLink List of length %d\n", m.numlinks);
-        //free(links);
-    } else {
-        requests[2] = MPI_REQUEST_NULL;
-        mark_as_done(2); // We won't be sending this one
-    }
+        do_MPI_Isend(links, sizeof(GroupLink)*m.numlinks, rank);
+    } 
     // Victory!
-    STDLOG(1,"Done queuing the SendManifest\n");
+    STDLOG(1,"Done queuing the SendManifest, %d total MPI parts\n", maxpending);
     completed = 1;
     Transmit.Stop();
     #endif
@@ -430,6 +466,8 @@ inline void Manifest::FreeAfterSend() {
     #ifdef PARALLEL
     if (completed!=1) return;   // No active Isend's yet
     CheckCompletion.Start();
+
+    /* OLDCODE
     check_if_done(0);    // Manifest Core
     if (check_if_done(1)) {
         free(il);    // Insert List
@@ -445,7 +483,23 @@ inline void Manifest::FreeAfterSend() {
             STDLOG(1,"Freeing the Send Manifest Arena, slab %d of type %d, %d left\n",
                 m.arenas[n].slab, m.arenas[n].type, numpending);
         }
-    if (numpending==0) {
+    END OLDCODE */
+
+    for (int n=0; n<maxpending; n++) 
+	if (check_if_done(n)) {
+	    STDLOG(1,"Sent Manifest part %d, %d left\n", n, numpending);
+	}
+    if (check_all_done()) {
+	// At present, we don't know which MPI send fragment maps to which arena, 
+	// so we have to wait until all are sent to delete.
+        STDLOG(1,"Send Manifest appears to be completely sent\n");
+        free(il);    // Insert List
+        if (GFC!=NULL) free(links);    // GroupLink List
+	for (int n=0; n<m.numarenas; n++) {
+            SB->DeAllocate(m.arenas[n].type, m.arenas[n].slab, 1);  // Deallocate, deleting any underlying file
+            STDLOG(1,"Freeing the Send Manifest Arena, slab %d of type %d\n",
+                m.arenas[n].slab, m.arenas[n].type);
+	}
         completed=2;
         STDLOG(1,"Marking the Send Manifest as completely sent\n");
     }
@@ -461,12 +515,11 @@ inline void Manifest::FreeAfterSend() {
 void Manifest::SetupToReceive() {
     #ifdef PARALLEL
     Transmit.Start();
-    set_pending(1);
+    /// set_pending(1);
     int rank = MPI_rank;
     rank++; if (rank>=MPI_size) rank-=MPI_size;   // Now rank is the source node
-    MPI_Irecv(&m, sizeof(ManifestCore), MPI_BYTE, rank, 0, MPI_COMM_WORLD, requests);
-    bytes += sizeof(ManifestCore);
     STDLOG(1,"Ireceive the Manifest Core from node rank %d\n", rank);
+    do_MPI_Irecv(&m, sizeof(ManifestCore), rank);
     Transmit.Stop();
     #endif
     return;
@@ -477,39 +530,53 @@ void Manifest::SetupToReceive() {
 inline void Manifest::Check() {
     #ifdef PARALLEL
     if (completed>=2) return;   // Nothing's active now
+    CheckCompletion.Start();
+    for (int n=0; n<maxpending; n++) 
+	if (check_if_done(n)) {
+	    STDLOG(1,"Received Manifest part %d, %d left\n", n, numpending);
+	}
+    CheckCompletion.Stop();
+    if (check_all_done()) {
+	if (completed==1) {
+            STDLOG(1,"Marking the Receive Manifest as fully received\n");
+            completed=2;
+	}
+	if (completed==0) {
+            STDLOG(1,"Received the Manifest Core\n");
+            Receive();
+	    completed = 1;
+	} 
+    }
+    #endif
+    return;
+}
+
+/* OLDCODE
     if (completed==0) {
         CheckCompletion.Start();
         if (check_if_done(0)) { 
             // The ManifestCore has arrived!  
             // We need to allocate the space and trigger Irecv's for the rest
             STDLOG(1,"Received the Manifest Core\n");
-            free_requests();
+	    if (!check_all_done())
+	        STDLOG(1,"Error: Receive Manifest should be done, but claims it isn't\n");
             CheckCompletion.Stop();
             Receive();
         } else CheckCompletion.Stop();
     }
     if (completed==1) {
         CheckCompletion.Start();
-        if (check_if_done(0)) {
-            STDLOG(1,"Received the Manifest Insert List, %d left\n", numpending);
-        }
-        if (check_if_done(1)) {
-            STDLOG(1,"Received the Manifest GroupLink List, %d left\n", numpending);
-        }
-        for (int n=0; n<m.numarenas; n++) 
-            if (check_if_done(n+2)) {  // Arenas
-                STDLOG(1,"Received the Manifest Arena, slab %d of type %d, %d left\n",
-                    m.arenas[n].slab, m.arenas[n].type, numpending);
-            }
-        if (numpending==0) {
+        for (int n=0; n<maxpending; n++) 
+	    if (check_if_done(n)) {
+		STDLOG(1,"Received Manifest part %d, %d left\n", n, numpending);
+	    }
+        if (check_all_done()) {
             completed=2;
             STDLOG(1,"Marking the Receive Manifest as fully received\n");
         }
         CheckCompletion.Stop();
     }
-    #endif
-    return;
-}
+END OLDCODE */
 
 /// This is the routine invoked by the communication thread.
 /// It should store the results.
@@ -517,7 +584,7 @@ inline void Manifest::Check() {
 void Manifest::Receive() {
     #ifdef PARALLEL
     Transmit.Start();
-    set_pending(m.numarenas+2);
+    /// set_pending(m.numarenas+2);
     int rank = MPI_rank;
     MPI_Status retval;
     rank++; if (rank>=MPI_size) rank-=MPI_size;   // Now rank is the source node
@@ -528,33 +595,26 @@ void Manifest::Receive() {
         SB->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size, RAMDISK_NO);
         m.arenas[n].ptr = SB->GetSlabPtr(m.arenas[n].type, m.arenas[n].slab);
         memset(m.arenas[n].ptr, 0, m.arenas[n].size);   // TODO remove
-        MPI_Irecv(m.arenas[n].ptr, m.arenas[n].size, MPI_BYTE, rank, n+3, MPI_COMM_WORLD, requests+n+2);
-        bytes += m.arenas[n].size;
         STDLOG(1,"Ireceive Manifest Arena %d (slab %d of type %d) of size %d\n", 
             n, m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size);
+        do_MPI_Irecv(m.arenas[n].ptr, m.arenas[n].size, rank);
     }
     // Receive all the Insert List fragment
     int ret = posix_memalign((void **)&il, 64, m.numil*sizeof(ilstruct));
     assert(il!=NULL);
     memset(il, 0, sizeof(ilstruct)*m.numil);   // TODO remove
-    MPI_Irecv(il, sizeof(ilstruct)*m.numil, MPI_BYTE, rank, 1, MPI_COMM_WORLD, requests);
-    bytes += sizeof(ilstruct)*m.numil;
     STDLOG(1,"Ireceive Manifest Insert List of length %d\n", m.numil);
+    do_MPI_Irecv(il, sizeof(ilstruct)*m.numil, rank);
     // Receive all the GroupLink List fragment
     if (GFC!=NULL) {
         ret = posix_memalign((void **)&links, 64, m.numlinks*sizeof(GroupLink));
         assert(links!=NULL);
         memset(links, 0, sizeof(GroupLink)*m.numlinks);   // TODO remove
-        MPI_Irecv(links, sizeof(GroupLink)*m.numlinks, MPI_BYTE, rank, 2, MPI_COMM_WORLD, requests+1);
-        bytes += sizeof(GroupLink)*m.numlinks;
         STDLOG(1,"Ireceive Manifest GroupLink List of length %d\n", m.numlinks);
-    } else {
-        requests[1] = MPI_REQUEST_NULL;
-        mark_as_done(1);
-    }
+        do_MPI_Irecv(links, sizeof(GroupLink)*m.numlinks, rank);
+    } 
     // Victory!
-    // STDLOG(1,"Done receiving the ReceiveManifest\n");
-    completed = 1;
+    STDLOG(1,"Done issuing the ReceiveManifest, %d MPI parts\n", maxpending);
     Transmit.Stop();
     #endif
     return;
