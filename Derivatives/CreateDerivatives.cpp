@@ -206,35 +206,52 @@ void Part2(int order, int inner_radius, int far_radius) {
     Complex *tmpD   = (Complex *) malloc(tmpDsize);
     assert(tmpD!=NULL);
 
-    fftw_plan plan_forward_1d;
-     Complex in_1d[CPD];
-    Complex out_1d[CPD];
 
+
+    // The X-Y FFTs are just a simple 2D C->C FFT
+    fftw_plan plan_forward_2d;
+    Complex in_2d[CPD*CPD];    
+    Complex out_2d[CPD*CPD];
+
+    // We're going to setup to do CPD FFTs at once, each of size CPD
+    ULLI CPDpad = (CPD%16+1)*16;    // Just want to pad out to separate these FFTs.
+    // We are supposed to put the [CPD][CPD] info into [CPD][CPDpad] space.  FFT is on the rightmost index.
     fftw_plan plan_forward_1d_r2c;
-    double   in_r2c[CPD];
-    Complex out_r2c[CPD];
+    double   in_r2c[CPDpad*CPD];
+    Complex out_r2c[CPDpad*CPD];    
+    // This is overkill: only needed half the elements, i.e., CPDpad/2; don't need to economize
 
+
+    // Old 1-d code
     //plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
     //plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD,  &(in_r2c[0]), (fftw_complex *) &(out_r2c[0]), FFTW_PATIENT);
-	
-	
 	
 	//NAM: commented this out for large CPD run overnight.
 	//int wisdomExists = fftw_import_wisdom_from_filename("Part2.wisdom");
 	//if (!wisdomExists)
 	//     printf("No wisdom file exists!\n");
-	
-	
-    plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
-    plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD,  &(in_r2c[0]), (fftw_complex *) &(out_r2c[0]), FFTW_PATIENT);
+
+    // This is the plan to do the 2d CPD*CPD complex-to-complex XY FFTs
+    plan_forward_2d  =  fftw_plan_dft_2d( CPD, CPD, 
+	(fftw_complex *) &(in_2d[0]), 
+	(fftw_complex *) &(out_2d[0]), 
+	FFTW_FORWARD, FFTW_PATIENT);
+
+    // This is the plan to do CPD real-to-complex Z FFTs, each of size CPD, with a stride of CPDpad
+    int fftw_n[] = { CPD };    // This is how long the FFTs are
+    int howmany = CPD;		// How many FFTs we're doing
+    int idist = odist = CPDpad;   // This is how the FFTs are separated in memory
+    int istride = ostride = 1;
+    // iembed and oembed are just NULL
+    plan_forward_1d_r2c  =  fftw_plan_many_dft_r2c( 1, fftw_n, howmany, 
+	&(in_r2c[0]), NULL, istride, idist,
+	(fftw_complex *) &(out_r2c[0]), NULL, ostride, odist,
+	FFTW_FORWARD, FFTW_PATIENT);
 	
 	//if(!wisdomExists)
 	//	printf("Exporting wisdom to file == %d\n", fftw_export_wisdom_to_filename("Part2.wisdom"));
 	//	
 	//NAM: end commented out section. 
-	
-	
-	
 	
 
     ULLI sizeread;
@@ -242,13 +259,6 @@ void Part2(int order, int inner_radius, int far_radius) {
 	
 	//myTimer.Start(); //NAM 
 	
-
-
-	
-
-
-
-
 
     int a,b,c;
     FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
@@ -321,6 +331,9 @@ void Part2(int order, int inner_radius, int far_radius) {
         
         int m = mab;
 
+	// Do a CPDHALF 3-d cyclic translation of the values.
+	// DJE TODO: With care, this could be done in place, which would save a big array
+
         for(int i=0;i<CPD;i++)
             for(int j=0;j<CPD;j++)
                 for(int k=0;k<CPD;k++) {
@@ -332,36 +345,66 @@ void Part2(int order, int inner_radius, int far_radius) {
         double *tmpreal = tdprime;
 
         for(int x=0;x<CPD;x++) {
-            for(int y=0;y<CPD;y++) {
-                for(int z=0;z<CPD;z++) in_r2c[z] = tmpreal[x*CPD*CPD + y*CPD + z];
-                fftw_execute(plan_forward_1d_r2c);
-                for(int z=0;z<(CPD+1)/2;z++) tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z  ] = out_r2c[z];
-            }
+	    // Put pragma here
+            for(int y=0;y<CPD;y++) 
+                for(int z=0;z<CPD;z++) in_r2c[y*CPDpad+z] = tmpreal[x*CPD*CPD + y*CPD + z];
+	    fftw_execute(plan_forward_1d_r2c);   // Z FFT, done R->C
+	    // Put pragma here
+            for(int y=0;y<CPD;y++) 
+                for(int z=0;z<(CPD+1)/2;z++) tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ] = out_r2c[y*CPDpad+z];
+	}
 
-            for(int z=0;z<(CPD+1)/2;z++) {
-                for(int y=0;y<CPD;y++) in_1d[y] = tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ];
-                 fftw_execute(plan_forward_1d); 
-                for(int y=0;y<CPD;y++) tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ] = out_1d[y];
-            }
+	// DJE TODO: The above moves the data from tmpreal=tdprime (which could have been td)
+	// into tmpD.  If td had gotten the CPD+1 padding, this could have been in place.
+	
+	// Now we have a purely complex problem, but we need to do the X-Y FFTs 
+	// on the (CPD+1)/2 separate KZ problems.
+	// Since we're outputing different files for each KZ, we're going to handle each 
+	// one at a time -- and write out the result directly.
+	// This is important, because we have to do a nasty transpose -- fetching one KZ entry
+	// per skewer, and we don't want to do that more than we have to. 
+
+	for(int z=0;z<(CPD+1)/2;z++) {
+	    // Put pragma here
+	    for(int x=0;x<CPD;x++) 
+                for(int y=0;y<CPD;y++) in_2d[x*CPD+y] = tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ];
+		// This gather requires a ton of random access!
+	    fftw_execute(plan_forward_2d);    // X-Y FFT, done C->C
+	    	// Now the results are in out_2d[x*CPD+y]
+
+
+/* OLD CODE
+	    // Put pragma here
+            for(int z=0;z<(CPD+1)/2;z++) 
+        for(int x=0;x<CPD;x++) {
+                for(int y=0;y<CPD;y++) tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ] = out_1d[z*CPDpad+y];
         }
 
-        for(int z=0;z<(CPD+1)/2;z++)
-            for(int y=0;y<CPD;y++) {
+        for(int z=0;z<(CPD+1)/2;z++) {
+	    // Put pragma here
+            for(int y=0;y<CPD;y++) 
                 for(int x=0;x<CPD;x++) in_1d[x] = tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ];
-                 fftw_execute(plan_forward_1d);
+	    fftw_execute(plan_forward_1d);  // X FFT done, C->C
+	    // Put pragma here
+            for(int y=0;y<CPD;y++) 
                 for(int x=0;x<CPD;x++) tmpD[  x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ] = out_1d[x];
-            }
-
+	}
 
         for(int z=0;z<(CPD+1)/2;z++) {
+END OLD CODE */
+
             if( ((a+b+c)%2) == 0 )
+		// Put pragma here
                 for(int x=0;x<(CPD+1)/2;x++) 
                     for(int y=0;y<=x;y++) 
-                        tmpreal[ RINDEXY(x,y) ] = real(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
+                        tmpreal[ RINDEXY(x,y) ] = real(conj(out_2d[x*CPD+y]));
+                        // tmpreal[ RINDEXY(x,y) ] = real(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
             else
+		// Put pragma here
                 for(int x=0;x<(CPD+1)/2;x++) 
                     for(int y=0;y<=x;y++) 
-                        tmpreal[ RINDEXY(x,y) ] = imag(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
+                        tmpreal[ RINDEXY(x,y) ] = imag(conj(out_2d[x*CPD+y]));
+                        // tmpreal[ RINDEXY(x,y) ] = imag(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
 
             FILE *fp;
             char fn[1024];
