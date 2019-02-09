@@ -243,7 +243,7 @@ class Manifest {
     /// Return 1 if there is no more work
     inline int check_all_done() {
         if (numpending==0) return 1; 
-	else return 0; 
+        else return 0; 
     }
 
     /// This launches a send of N bytes, perhaps split into multiple Isend calls
@@ -453,7 +453,7 @@ void Manifest::Send() {
         do_MPI_Isend(links, sizeof(GroupLink)*m.numlinks, rank);
     } 
     // Victory!
-    STDLOG(1,"Done queuing the SendManifest, %d total MPI parts\n", maxpending);
+    STDLOG(1,"Done queuing the SendManifest, %d total MPI parts, %l bytes\n", maxpending, bytes);
     completed = 1;
     Transmit.Stop();
     #endif
@@ -495,11 +495,11 @@ inline void Manifest::FreeAfterSend() {
         STDLOG(1,"Send Manifest appears to be completely sent\n");
         free(il);    // Insert List
         if (GFC!=NULL) free(links);    // GroupLink List
-	for (int n=0; n<m.numarenas; n++) {
+        for (int n=0; n<m.numarenas; n++) {
             SB->DeAllocate(m.arenas[n].type, m.arenas[n].slab, 1);  // Deallocate, deleting any underlying file
             STDLOG(1,"Freeing the Send Manifest Arena, slab %d of type %d\n",
                 m.arenas[n].slab, m.arenas[n].type);
-	}
+        }
         completed=2;
         STDLOG(1,"Marking the Send Manifest as completely sent\n");
     }
@@ -537,15 +537,15 @@ inline void Manifest::Check() {
 	}
     CheckCompletion.Stop();
     if (check_all_done()) {
-	if (completed==1) {
+        if (completed==1) {
             STDLOG(1,"Marking the Receive Manifest as fully received\n");
             completed=2;
-	}
-	if (completed==0) {
+        }
+        if (completed==0) {
             STDLOG(1,"Received the Manifest Core\n");
             Receive();
-	    completed = 1;
-	} 
+            completed = 1;
+        } 
     }
     #endif
     return;
@@ -614,7 +614,7 @@ void Manifest::Receive() {
         do_MPI_Irecv(links, sizeof(GroupLink)*m.numlinks, rank);
     } 
     // Victory!
-    STDLOG(1,"Done issuing the ReceiveManifest, %d MPI parts\n", maxpending);
+    STDLOG(1,"Done issuing the ReceiveManifest, %d MPI parts, %l bytes\n", maxpending, bytes);
     Transmit.Stop();
     #endif
     return;
