@@ -447,7 +447,8 @@ void Part2(int order, int inner_radius, int far_radius) {
     assert(tdprime!=NULL);
     assert(td!=NULL);
 
-    ULLI tmpDsize = sizeof(Complex)*CPD3;
+    // ULLI tmpDsize = sizeof(Complex)*CPD3;
+    ULLI tmpDsize = sizeof(Complex)*CPD*CPD*(CPD+1)/2;
     printf("Allocating %d GB for tmpD in Part2\n", (int) (tmpDsize/(1<<30)) );
     Complex *tmpD   = (Complex *) malloc(tmpDsize);
     assert(tmpD!=NULL);
