@@ -36,6 +36,8 @@ void ReadNodeSlabs(int get_all_nodes = 0, int * first_slabs_all = NULL, int * to
 				for (int j=0; j<MPI_size; j++) {
 					first_slabs_all[j] = (int)(floor((float)P.cpd*j/MPI_size) + offset)%P.cpd;
 					total_slabs_all[j] = floor((float)P.cpd*(j+1)/MPI_size) - floor((float)P.cpd*j/MPI_size);			
+					
+					printf("a %d %d\n", first_slabs_all[j], total_slabs_all[j]);
 																
 				}				
 			}
@@ -50,29 +52,37 @@ void ReadNodeSlabs(int get_all_nodes = 0, int * first_slabs_all = NULL, int * to
 				if (get_all_nodes) {
 					first_slabs_all[j] = value;
 					last_slabs[(j+1)%MPI_size] = value; 
+					
+					printf("b %d %d\n", first_slabs_all[j], last_slabs[j]);
+					
 				}
 						
             }
+			
+			
+			if (get_all_nodes) {
+				for (int j=0; j<MPI_size; j++) {
+					total_slabs_all[j] = first_slabs_all[j] - last_slabs[j] ; 
+			        if (total_slabs_all[j]<0) total_slabs_all[j] += P.cpd;
+				
+				
+			        STDLOG(1,"Read NodeSlab file: node %d will do slabs [%d,%d)\n", j, first_slabs_all[j], total_slabs_all[j]);
+				
+				}
+			}
             fclose(fp);
         }
 		
 		total_slabs_on_node = last_slab - first_slab_on_node;
 
-		if (get_all_nodes) {
-			for (int j=0; j<MPI_size; j++) {
-				total_slabs_all[j] = last_slabs[j] - first_slabs_all[j]; 
-		        if (total_slabs_all[j]<0) total_slabs_all[j] += P.cpd;
-				
-		        STDLOG(1,"Read NodeSlab file: node %d will do slabs [%d,%d)\n", j, first_slabs_all[j], total_slabs_all[j]);
-				
-			}
-		}
-
-		
 		
         if (total_slabs_on_node<0) total_slabs_on_node += P.cpd;
         STDLOG(1,"Read NodeSlab file: will do %d slabs from [%d,%d)\n",
             total_slabs_on_node, first_slab_on_node, last_slab);
+			
+		assert(total_slabs_all[MPI_rank] == total_slabs_on_node) ;
+		assert(first_slabs_all[MPI_rank] == first_slab_on_node) ;
+			
 			
 		delete last_slabs; 	
     #endif
