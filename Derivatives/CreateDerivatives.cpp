@@ -753,6 +753,9 @@ END OLD CODE */
         // This is the number of multipoles we have saved up.
         // If we ended at mod 0, then we must have a full set.
 
+        // Here we're doing highly threaded output.  Will the disk like this QueueDepth?
+        // Optional pragma!
+        // #pragma omp parallel for schedule(static)
         for(int z=0;z<(CPD+1)/2;z++) {
             // We loop over files
             FILE *fp;
