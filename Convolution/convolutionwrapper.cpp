@@ -285,9 +285,9 @@ void InitializeParallel(int &size, int &rank, int rml, int CPD) {
          MPI_Comm_rank(MPI_COMM_WORLD, &rank);
          sprintf(NodeString,".%04d",rank);
 		 
-		 
   		 MPI_Type_contiguous(rml*CPD, MPI_MTCOMPLEX, &MPI_skewer);
   		 MPI_Type_commit(&MPI_skewer);
+		 
     #else
     #endif
     return;
@@ -314,10 +314,11 @@ int main(int argc, char ** argv){
 	    }
 		
 	// Set up MPI
-		InitializeParallel(MPI_size, MPI_rank, (P.order+1)*(P.order+1), P.cpd);
-    
 
 	    P.ReadParameters(argv[1],1);
+		
+		InitializeParallel(MPI_size, MPI_rank, (P.order+1)*(P.order+1), P.cpd);
+		
 
 	    // Setup the log
 	    stdlog_threshold_global = P.LogVerbosity;

@@ -6,7 +6,7 @@
 
 
 
-#define DEBUG
+//#define DEBUG
 
 class Block {
     /* All of our IO is done on z-blocks.  The block class is a wrapper
@@ -183,6 +183,11 @@ public:
 #ifdef PARALLEL
 	void transpose_z_to_x(int zstart, int zwidth, int thread_num, int z_slabs_per_node, MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all){
 		int rml_times_cpd = rml * cpd; 
+		
+		 int size_skewer;
+		 MPI_Type_size(MPI_skewer, &size_skewer);
+		 assert(size_skewer == sizeof(MTCOMPLEX)*rml_times_cpd);
+	 
 
 		int sendcounts[MPI_size];
 		int    sdispls[MPI_size];
@@ -203,10 +208,7 @@ public:
 			recvcounts[i] = z_slabs_per_node * total_slabs_all[i];// * rml_times_cpd;
 			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]);// * rml_times_cpd;
 		 
-#endif
-			
-			printf("z to x %d %d %d %d %d %d, total %d first %d\n", MPI_rank, i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i], total_slabs_all[i], first_slabs_all[i]);
-					
+#endif					
 		}
 		
 		for(int z=0; z< z_slabs_per_node * MPI_size; z++){
@@ -260,6 +262,12 @@ public:
 	void transpose_x_to_z(int zstart, int zwidth, int thread_num, int z_slabs_per_node,  MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all){
 		
 		int rml_times_cpd = rml * cpd; 
+		
+		
+		 int size_skewer;
+		 MPI_Type_size(MPI_skewer, &size_skewer);
+		 assert(size_skewer == sizeof(MTCOMPLEX)*rml_times_cpd);
+ 
 
 		int sendcounts[MPI_size];
 		int    sdispls[MPI_size];
@@ -280,9 +288,7 @@ public:
 			recvcounts[i] = z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
 			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
 #endif
-			
-			printf("x to z %d %d %d %d %d %d\n", MPI_rank, i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
-			
+
 		}
 		
 		int r = 0; 
