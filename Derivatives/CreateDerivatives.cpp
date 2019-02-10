@@ -454,12 +454,12 @@ void Part2(int order, int inner_radius, int far_radius) {
     assert(tmpD!=NULL);
 
     int rml = (order+1)*(order+1);
-    int MultipoleBuffer = 20;     // We're going to save up this many multipoles before writing out.
+    int MultipoleBuffer = 9;     // We're going to save up this many multipoles before writing out.
     int MultipoleNumber[rml];
     ULLI diskbuffersize = sizeof(double)*MultipoleBuffer*(CPD+1)/2*CompressedMultipoleLengthXY;
         // This is enough to hold all the z slabs for these multipoles
-    printf("Allocating %d GB for diskbuffer in Part2, enough for %d multipoles\n", (int) (diskbuffersize/(1<<30)), MultipoleBuffer);
-    double *diskbuffer   = (double *) malloc(tmpDsize);
+    printf("Allocating %d GB for diskbuffer in Part2, enough for %d multipoles, %llu\n", (int) (diskbuffersize/(1<<30)), MultipoleBuffer, diskbuffersize/sizeof(double));
+    double *diskbuffer   = (double *) malloc(diskbuffersize);
     assert(diskbuffer!=NULL);
     int MultipoleCount = 0;
 
@@ -716,22 +716,23 @@ void Part2(int order, int inner_radius, int far_radius) {
                 for(int x=0;x<CPD;x++) tmpD[  x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ] = out_1d[x];
 	}
 
-        for(int z=0;z<(CPD+1)/2;z++) {
+        for(int z=0;z<(CPD+1)/2;z++) 
 END OLD CODE */
 
 
             // We're going to store the results here, so that we can gather up some multipoles
             // before writing out.
-            double *buf = diskbuffer+((MultipoleCount%MultipoleBuffer)*(CPD+1)/2 + z)
+            ULLI offset = ((MultipoleCount%MultipoleBuffer)*(CPD+1)/2 + z)
                                 *CompressedMultipoleLengthXY;
+            double *buf = diskbuffer+offset;
             if (z==0) {
-                printf("Saving Multipole %d (position %d in file)from buffer %d\n", MultipoleCount, m, MultipoleCount%MultipoleBuffer); fflush(NULL);
+                printf("Saving Multipole %d (position %d in file) from buffer %d; offset %llu\n", MultipoleCount, m, MultipoleCount%MultipoleBuffer, offset); fflush(NULL);
             }
 
             if( ((a+b+c)%2) == 0 )
 				#pragma omp parallel for schedule(static)
                 for(int x=0;x<(CPD+1)/2;x++)
-                    for(int y=0;y<=x;y++)
+                    for(int y=0;y<=x;y++) 
                         buf[ RINDEXY(x,y) ] = real(conj(out_2d[x*CPD+y]));
                         // tmpreal[ RINDEXY(x,y) ] = real(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
             else
@@ -743,7 +744,7 @@ END OLD CODE */
         }
 
 		part2timer.Stop();
-		printf("Finished xy FFT %d %d %d. Time elapsed = %f\n",a,b,c, part2timer.Elapsed()); fflush(NULL);
+		printf("Finished xy FFT %d. Time elapsed = %f\n",MultipoleCount, part2timer.Elapsed()); fflush(NULL);
 		part2timer.Start();
 
         // Now we're done with this multipole; consider whether to write out
@@ -753,6 +754,7 @@ END OLD CODE */
         if (MultipoleCount%MultipoleBuffer>0 && MultipoleCount<rml) continue;  // Go on to next multipole
 
         int nMult = (MultipoleCount-1)%MultipoleBuffer+1;
+		printf("Preparing to write %d multipoles\n",nMult); fflush(NULL);
         // This is the number of multipoles we have saved up.
         // If we ended at mod 0, then we must have a full set.
 
