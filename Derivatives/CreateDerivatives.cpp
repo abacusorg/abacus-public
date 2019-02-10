@@ -454,7 +454,7 @@ void Part2(int order, int inner_radius, int far_radius) {
     assert(tmpD!=NULL);
 
     int rml = (order+1)*(order+1);
-    int MultipoleBuffer = 9;     // We're going to save up this many multipoles before writing out.
+    int MultipoleBuffer = 20;     // We're going to save up this many multipoles before writing out.
     int MultipoleNumber[rml];
     ULLI diskbuffersize = sizeof(double)*MultipoleBuffer*(CPD+1)/2*CompressedMultipoleLengthXY;
         // This is enough to hold all the z slabs for these multipoles
