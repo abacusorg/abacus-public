@@ -187,42 +187,47 @@ public:
 		
 		for (int i = 0; i < MPI_size; i++)
 		{
-			sendcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
-			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
-			recvcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
-			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd; 		
+			sendcounts[i] = z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd; 
+			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd; 
+			recvcounts[i] = z_slabs_per_node * total_slabs_all[i];// * rml_times_cpd; 
+			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]);// * rml_times_cpd; 		
 		}
 		
 		for(int z=0; z< z_slabs_per_node * MPI_size; z++){
 			for(int x=0; x<total_slabs_on_node;x++){
-		  		for(int m=0;m<rml;m++){
-					for(int y=0;y<cpd;y++){
-						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
+		  		//for(int m=0;m<rml;m++){
+				//	for(int y=0;y<cpd;y++){
+						int i = z*total_slabs_on_node + x;
+					
+						//int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
 						if (z > zwidth) sendbuf[i] = 0.0;
-
-						else sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ];
-					}
-				}
+						//else sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ];
+						else sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd];
+						//}
+					//}
 			}
 		}
 		
         // TODO: are these barriers needed?
 		MPI_Barrier(MPI_COMM_WORLD);
-		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
+		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_skewer, recvbuf, recvcounts, rdispls, MPI_skewer, MPI_COMM_WORLD);
+		//MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
 		MPI_Barrier(MPI_COMM_WORLD);
 		
 		int r = 0; 
 		for (int i = 0; i < MPI_size; i ++){			
 			for (int z_buffer = 0; z_buffer < z_slabs_per_node; z_buffer ++){ //each node needs to put z_slabs_per_node rows of data into its mtblock here. 
 				for(int x=0; x<total_slabs_all[i]; x++){
-					for(int m=0;m<rml;m++){
-						for(int y=0;y<cpd;y++){
+					//for(int m=0;m<rml;m++){
+					//	for(int y=0;y<cpd;y++){
 							int z = z_slabs_per_node * MPI_rank + z_buffer;  //in the event that z_slabs_per_node = 1, this loop reduces to z = MPI_rank. 
 							
-							if (z < zwidth) mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y] = recvbuf[r]; 
+							if (z < zwidth) mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd] = recvbuf[r]; 
+							
+							//if (z < zwidth) mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y] = recvbuf[r]; 
 							r++; 
-						}
-					}
+						// }
+	// 				}
 				}
 			}
 		}
@@ -242,46 +247,50 @@ public:
 
 		for (int i = 0; i < MPI_size; i++)
 		{
-			sendcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
-			sdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd; 
-			//sdispls[i]    = z_slabs_per_node * first_slabs_all[i] * rml_times_cpd; 
-			
-			recvcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
-			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
+			sendcounts[i] = z_slabs_per_node * total_slabs_all[i];// * rml_times_cpd; 
+			sdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]);// * rml_times_cpd; 			
+			recvcounts[i] = z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd; 
+			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd; 
 		}
 		
 		int r = 0; 
 		for (int i = 0; i < MPI_size; i ++){			
 			for (int z_buffer = 0; z_buffer < z_slabs_per_node; z_buffer ++){ 
 				for(int x=0; x<total_slabs_all[i]; x++){
-			  		for(int m=0;m<rml;m++){
-						for(int y=0;y<cpd;y++){
+			  		//for(int m=0;m<rml;m++){
+					//	for(int y=0;y<cpd;y++){
 							int z = z_slabs_per_node * MPI_rank + z_buffer;  
-							if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y];
+							
+							if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd ];
+							
+							//if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y];
 							//if (z < zwidth) sendbuf[r] = mtblock[x + first_slabs_all[i] ][z*rml_times_cpd + m*cpd + y];
 							
 							else sendbuf[r] = 0.0; 							
 							r++; 
-						}
-					}
+					//	}
+					//}
 				}
 			}
 		}
 		
 		MPI_Barrier(MPI_COMM_WORLD);
-		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
+		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_skewer, recvbuf, recvcounts, rdispls, MPI_skewer, MPI_COMM_WORLD);
+		//MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
 		MPI_Barrier(MPI_COMM_WORLD);
 		
 		for(int z=0; z<z_slabs_per_node * MPI_size; z++){
 			for(int x=0; x<total_slabs_on_node;x++){
-		  		for(int m=0;m<rml;m++){
-					for(int y=0;y<cpd;y++){
-						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
-						//mtblock[x + first_slab_on_node][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
+		  		//for(int m=0;m<rml;m++){
+				//	for(int y=0;y<cpd;y++){
+						// int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
+						int i = z*total_slabs_on_node + x;
+					
+						mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd  ] = recvbuf[i];
 						
-						mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
-					}
-				}
+						//mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
+				//	}
+				//}
 			}
 		}			
 	}

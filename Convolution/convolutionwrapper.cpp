@@ -27,7 +27,9 @@ int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don'
 int node_zstart = -1, node_zwidth = 1;
 int first_slab_on_node = 0, first_slab_finished = -1, total_slabs_on_node = -1;
 
-
+#ifdef PARALLEL
+	MPI_Datatype MPI_skewer;
+#endif
 
 /*
 Each node will read multipole files for:
@@ -272,7 +274,7 @@ int choose_zwidth(int Conv_zwidth, int cpd, ConvolutionParameters &CP){
 }
 
 
-void InitializeParallel(int &size, int &rank) {
+void InitializeParallel(int &size, int &rank, int rml, int CPD) {
     #ifdef PARALLEL
          // Start up MPI
          int ret;
@@ -282,6 +284,10 @@ void InitializeParallel(int &size, int &rank) {
          MPI_Comm_size(MPI_COMM_WORLD, &size);
          MPI_Comm_rank(MPI_COMM_WORLD, &rank);
          sprintf(NodeString,".%04d",rank);
+		 
+		 
+  		 MPI_Type_contiguous(rml*CPD, MPI_MTCOMPLEX, &MPI_skewer);
+  		 MPI_Type_commit(&MPI_skewer);
     #else
     #endif
     return;
@@ -290,6 +296,7 @@ void InitializeParallel(int &size, int &rank) {
 void FinalizeParallel() {
     #ifdef PARALLEL
          // Finalize MPI
+		 MPI_Type_free(&MPI_skewer);
          MPI_Finalize();
          STDLOG(0,"Calling MPI_Finalize()");
     #else
@@ -307,7 +314,7 @@ int main(int argc, char ** argv){
 	    }
 		
 	// Set up MPI
-		InitializeParallel(MPI_size, MPI_rank);
+		InitializeParallel(MPI_size, MPI_rank, (P.order+1)*(P.order+1), P.cpd);
     
 
 	    P.ReadParameters(argv[1],1);
