@@ -40,32 +40,35 @@ void ReadNodeSlabs(int get_all_nodes = 0, int * first_slabs_all = NULL, int * to
 				}				
 			}
 			
-        } else {
-            for (int j=0; j<MPI_size; j++) {
+        } else {		
+			for (int j=0; j<MPI_size; j++) {
                 int nread = fscanf(fp, "%d", &value);
                 assertf(nread==1, "Couldn't read entry %j from NodeSlabs file\n", j);
                 if (j==MPI_rank) first_slab_on_node = value;
                 if (j==neighbor) last_slab = value;
-				
+		
 				if (get_all_nodes) {
 					first_slabs_all[j] = value;
 					last_slabs[(j+1)%MPI_size] = value; 
 				}
-								
+						
             }
             fclose(fp);
-			
-			if (get_all_nodes) {
-				for (int j=0; j<MPI_size; j++) {
-					total_slabs_all[j] = last_slabs[j] - first_slabs_all[j]; 
-			        if (total_slabs_all[j]<0) total_slabs_all[j] += P.cpd;
-				}
-			}
-			
-			
         }
 		
 		total_slabs_on_node = last_slab - first_slab_on_node;
+
+		if (get_all_nodes) {
+			for (int j=0; j<MPI_size; j++) {
+				total_slabs_all[j] = last_slabs[j] - first_slabs_all[j]; 
+		        if (total_slabs_all[j]<0) total_slabs_all[j] += P.cpd;
+				
+		        STDLOG(1,"Read NodeSlab file: node %d will do slabs [%d,%d)\n", j, first_slabs_all[j], total_slabs_all[j]);
+				
+			}
+		}
+
+		
 		
         if (total_slabs_on_node<0) total_slabs_on_node += P.cpd;
         STDLOG(1,"Read NodeSlab file: will do %d slabs from [%d,%d)\n",

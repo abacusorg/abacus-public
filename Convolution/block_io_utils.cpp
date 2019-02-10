@@ -5,7 +5,6 @@
 #endif
 
 
-
 //#define DEBUG
 
 class Block {
@@ -169,8 +168,9 @@ public:
 	                RD_RDM->BlockingRead( fn, (char *) mtblock[x], size, file_offset, ramdisk_MT);
 	                ReadMultipoleBytes += size;
 	            }
-			
 				
+				
+				STDLOG(1,"Finished reading multipoles for x-slab %d\n", x);
 			
 			
         }
@@ -187,6 +187,9 @@ public:
 		 int size_skewer;
 		 MPI_Type_size(MPI_skewer, &size_skewer);
 		 assert(size_skewer == sizeof(MTCOMPLEX)*rml_times_cpd);
+		 
+		STDLOG(1,"Beginning first transpose for zstart %d\n", zstart);
+		 
 	 
 
 		int sendcounts[MPI_size];
@@ -254,12 +257,17 @@ public:
 		}
 		
 	
+		STDLOG(1,"Finishing first transpose for zstart %d\n", zstart);
+	
 				
 	}
 	
 	
 	
 	void transpose_x_to_z(int zstart, int zwidth, int thread_num, int z_slabs_per_node,  MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all){
+		
+		
+		STDLOG(1,"Beginning second transpose for zstart %d\n", zstart);
 		
 		int rml_times_cpd = rml * cpd; 
 		
@@ -326,6 +334,9 @@ public:
 		
 			}
 		}			
+		
+		STDLOG(1,"Finishing second transpose for zstart %d\n", zstart);
+		
 	}
 	
 #endif
@@ -333,12 +344,17 @@ public:
     void write(int zstart, int zwidth, int thread_num){
         // zstart is only used to determine if this is the last iteration
         // and thus memory is eligible to be freed
+		
+		
         WriteTaylor.Start(thread_num);
         
         size_t size = sizeof(MTCOMPLEX)*zwidth*cpd*rml;
 
         for(int _x = first_slab_on_node; _x < first_slab_on_node + total_slabs_on_node; _x++) {
             int x = _x % cpd;
+			
+			STDLOG(1,"Beginning write for x %d\n", x);
+			
 			
             if (x % CP.niothreads != thread_num)
                 continue;
@@ -373,7 +389,10 @@ public:
                     raw_mtblock[x] = NULL;
                 }
             }
-        }
+        
+			STDLOG(1,"Finishing write for x %d\n", x);
+			
+		}
         
         WriteTaylor.Stop(thread_num);
     }
@@ -435,6 +454,7 @@ private:
 		for (int _x = last_slab; _x < last_slab + cpd - total_slabs_on_node; _x++){
 			int x = _x % cpd; 
 			mtblock[x] = (MTCOMPLEX*) malloc(size);
+			assert(mtblock[x]!=NULL);
 		}
 #endif
 		

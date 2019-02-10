@@ -813,7 +813,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             ConvolutionDriver_cmd = [pjoin(abacuspath, "Convolution", "ConvolutionDriver"), paramfn]
             if parallel:
                 ConvolutionDriver_cmd = Conv_mpirun_cmd + ConvolutionDriver_cmd
-                print('Performing PARELLEL convolution for step {:d} with command "{:s}"'.format(stepnum, ' '.join(ConvolutionDriver_cmd)))
+                print('Performing parallel convolution for step {:d} with command "{:s}"'.format(stepnum, ' '.join(ConvolutionDriver_cmd)))
             else:
                 print("Performing convolution for step {:d}".format(stepnum))
             subprocess.check_call(ConvolutionDriver_cmd, env=convolution_env)
@@ -852,7 +852,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic))]
         if parallel:
             singlestep_cmd = mpirun_cmd + singlestep_cmd
-            print('Running PARELLEL singlestep for step {:d} with command "{:s}"'.format(stepnum, ' '.join(singlestep_cmd)))
+            print('Running parallel singlestep for step {:d} with command "{:s}"'.format(stepnum, ' '.join(singlestep_cmd)))
         else:
             print("Running singlestep for step {:d}".format(stepnum))
         subprocess.check_call(singlestep_cmd, env=singlestep_env)
