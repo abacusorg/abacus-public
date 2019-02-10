@@ -676,7 +676,7 @@ void Part2(int order, int inner_radius, int far_radius) {
 		}
 
 		part2timer.Stop();
-		printf("Finished z fftw %d %d %d. Time elapsed = %f\n",a,b,c, part2timer.Elapsed()); fflush(NULL);
+		printf("Finished z fftw %d. Time elapsed = %f\n",m, part2timer.Elapsed()); fflush(NULL);
 		part2timer.Start();
 
 
@@ -724,6 +724,9 @@ END OLD CODE */
             // before writing out.
             double *buf = diskbuffer+((MultipoleCount%MultipoleBuffer)*(CPD+1)/2 + z)
                                 *CompressedMultipoleLengthXY;
+            if (z==0) {
+                printf("Saving Multipole %d (position %d in file)from buffer %d\n", MultipoleCount, m, MultipoleCount%MultipoleBuffer); fflush(NULL);
+            }
 
             if( ((a+b+c)%2) == 0 )
 				#pragma omp parallel for schedule(static)
@@ -765,6 +768,9 @@ END OLD CODE */
             assert(fp!=NULL);
             for (int j=0; j<nMult; j++) {
                 int thisMult = MultipoleCount-nMult+j;
+                if (z==0) {
+                    printf("Writing Multipole %d (position %d in file)from buffer %d\n", thisMult, MultipoleNumber[thisMult], thisMult%MultipoleBuffer); fflush(NULL);
+                }
                 fseek(fp, MultipoleNumber[thisMult]*CompressedMultipoleLengthXY*sizeof(double), SEEK_SET );
                 double *buf = diskbuffer+((thisMult%MultipoleBuffer)*(CPD+1)/2 + z)
                                 *CompressedMultipoleLengthXY;
