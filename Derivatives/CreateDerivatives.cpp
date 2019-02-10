@@ -557,37 +557,60 @@ void Part2(int order, int inner_radius, int far_radius) {
         // Now we fill the other octants
 
 	#pragma omp parallel for schedule(static)
-        for(int k=0;k<=CPDHALF;k++)
-            for(int i=0;i<=CPDHALF;i++)
-                for(int j=0;j<=CPDHALF;j++)
-                    for(int sx = -1; sx<=1; sx+=2)
-                        for(int sy=-1; sy<=1; sy+=2)
-                            for(int sz=-1; sz<=1; sz+=2) {
-                                if( sx + sy + sz < 3 ) {
+        for(int i=0;i<=CPDHALF;i++)
+            for(int j=0;j<=CPDHALF;j++)
+                for(int sx = -1; sx<=1; sx+=2)
+                    for(int sy=-1; sy<=1; sy+=2)
+                        for(int sz=-1; sz<=1; sz+=2) {
+                            if( sx + sy + sz < 3 ) {
 
-                                    int s = 1;
-                                    if(a%2==1) s *= sign(sx);
-                                    if(b%2==1) s *= sign(sy);
-                                    if(c%2==1) s *= sign(sz);
+                                int s = 1;
+                                if(a%2==1) s *= sign(sx);
+                                if(b%2==1) s *= sign(sy);
+                                if(c%2==1) s *= sign(sz);
 
-                                    int xi = sx*i + CPDHALF;
-                                    int yj = sy*j + CPDHALF;
-                                    int zk = sz*k + CPDHALF;
+                                int xi = sx*i + CPDHALF;
+                                int yj = sy*j + CPDHALF;
 
-                                    assert(xi>=0); assert(xi<CPD);
-                                    assert(yj>=0); assert(yj<CPD);
-                                    assert(zk>=0); assert(zk<CPD);
+                                // assert(xi>=0); assert(xi<CPD);
+                                // assert(yj>=0); assert(yj<CPD);
 
-                                    ULLI  l = linearindex( i+CPDHALF, j+CPDHALF, k+CPDHALF );
-                                    ULLI ll = linearindex( xi, yj, zk );
+                                // These are the starting indices for k=0
+                                ULLI  l = linearindex( i+CPDHALF, j+CPDHALF, CPDHALF );
+                                ULLI ll = linearindex( xi, yj, CPDHALF );
 
-                                    if(s>0)
-                                        td[ll] =  td[l];
-                                    else
-                                        td[ll] = -td[l];
-
+                                // If sz=+1, we're copying [CPDHALF,2*CPDHALF] onto itself.
+                                // If sz=-1, we're reflecting [CPDHALF,2*CPDHALF] into [CPDHALF,0]
+                                if(s>0) {
+                                    if (sz>0) for(int k=0;k<=CPDHALF;k++) td[ll++] =  td[l++];
+                                         else for(int k=0;k<=CPDHALF;k++) td[ll--] =  td[l++];
+                                } else {
+                                    if (sz>0) for(int k=0;k<=CPDHALF;k++) td[ll++] = -td[l++];
+                                         else for(int k=0;k<=CPDHALF;k++) td[ll--] = -td[l++];
                                 }
-                            }
+
+                                // for(int k=0;k<=CPDHALF;k++,l++,ll+=sz) {
+                                    // int zk = sz*k + CPDHALF;
+                                    // assert(zk>=0); assert(zk<CPD);
+                                    // ULLI  l = linearindex( i+CPDHALF, j+CPDHALF, k+CPDHALF );
+                                    // ULLI ll = linearindex( xi, yj, zk );
+
+                                    // We are mapping from z = k+CPDHALF to zk = CPDHALF+k*sz
+
+                                    // if(s>0)
+                                      //   td[ll] =  td[l];
+                                    // else
+                                        // td[ll] = -td[l];
+                                // }
+
+                                /* We actually want to put everything in a tdprime spot that is 
+                                shifted down by -CPDHALF in each coordinate, and then periodic wrapped.
+
+                                If we had started with td already having things in the correct octant,
+                                then these reflections would have 
+                                */
+                            } // else td[l] = td[l];
+                        }
 
         // now write back into the global array
 							
@@ -602,12 +625,21 @@ void Part2(int order, int inner_radius, int far_radius) {
 
 		#pragma omp parallel for schedule(static)
         for(int i=0;i<CPD;i++)
-            for(int j=0;j<CPD;j++)
-                for(int k=0;k<CPD;k++) {
-                    ULLI l = linearFFTW(i-CPDHALF,j-CPDHALF,k-CPDHALF);
-                    ULLI ll = linearindex(i,j,k);
-                    tdprime[l] = td[ll];
-                }
+            for(int j=0;j<CPD;j++) {
+                ULLI l = linearFFTW(i-CPDHALF,j-CPDHALF,-CPDHALF);
+                ULLI ll = linearindex(i,j,0);
+                for(int k=0;k<CPDHALF;k++) tdprime[l++] = td[ll++];
+                l -= CPD;    // Need to reset to the beginning of the row
+                // ULLI l = linearFFTW(i-CPDHALF,j-CPDHALF,0);
+                // ULLI ll = linearindex(i,j,CPDHALF);
+                for(int k=CPDHALF;k<CPD;k++) tdprime[l++] = td[ll++];
+            }
+
+                // for(int k=0;k<CPD;k++) {
+                    // ULLI l = linearFFTW(i-CPDHALF,j-CPDHALF,k-CPDHALF);
+                    // ULLI ll = linearindex(i,j,k);
+                    // tdprime[l] = td[ll];
+                // }
 
 
         double *tmpreal = tdprime;
