@@ -45,8 +45,8 @@ private:
 		MTCOMPLEX * sendbuf;
 		MTCOMPLEX * recvbuf;
 
-		sendbuf = (MTCOMPLEX *) malloc(CP.z_slabs_per_node * MPI_size * total_slabs_on_node * cpd * CP.rml * sizeof(MTCOMPLEX));
-		recvbuf = (MTCOMPLEX *) malloc(CP.z_slabs_per_node * cpd * CP.rml * cpd * sizeof(MTCOMPLEX));
+		sendbuf = (MTCOMPLEX *) malloc(sizeof(MTCOMPLEX) * CP.z_slabs_per_node * MPI_size * total_slabs_on_node * cpd * CP.rml );
+		recvbuf = (MTCOMPLEX *) malloc(sizeof(MTCOMPLEX) * CP.z_slabs_per_node * cpd * CP.rml * cpd);
 
 		assert(sendbuf != NULL);
 		assert(recvbuf != NULL);

@@ -182,7 +182,7 @@ public:
 	
 #ifdef PARALLEL
 	void transpose_z_to_x(int zstart, int zwidth, int thread_num, int z_slabs_per_node, MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all){
-		int rml_times_cpd = rml * cpd; 
+		uint64_t rml_times_cpd = rml * cpd; 
 		
 		 int size_skewer;
 		 MPI_Type_size(MPI_skewer, &size_skewer);
@@ -218,7 +218,7 @@ public:
 			for(int x=0; x<total_slabs_on_node;x++){	
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
-						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
+						uint64_t i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
 						if (z > zwidth) sendbuf[i] = 0.0;
 						else sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ];
 					}
@@ -239,7 +239,7 @@ public:
 		
 	
 		
-		int r = 0; 
+		uint64_t r = 0; 
 		for (int i = 0; i < MPI_size; i ++){			
 			for (int z_buffer = 0; z_buffer < z_slabs_per_node; z_buffer ++){ //each node needs to put z_slabs_per_node rows of data into its mtblock here. 
 				for(int x=0; x<total_slabs_all[i]; x++){
@@ -269,7 +269,7 @@ public:
 		
 		STDLOG(1,"Beginning second transpose for zstart %d\n", zstart);
 		
-		int rml_times_cpd = rml * cpd; 
+		uint64_t rml_times_cpd = rml * cpd; 
 		
 		
 		 int size_skewer;
@@ -299,7 +299,7 @@ public:
 
 		}
 		
-		int r = 0; 
+		uint64_t r = 0; 
 		for (int i = 0; i < MPI_size; i ++){			
 			for (int z_buffer = 0; z_buffer < z_slabs_per_node; z_buffer ++){ 
 				for(int x=0; x<total_slabs_all[i]; x++){
@@ -327,7 +327,7 @@ public:
 			for(int x=0; x<total_slabs_on_node;x++){
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
-						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
+						uint64_t i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
 						mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
 					}
 				}
