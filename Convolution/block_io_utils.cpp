@@ -188,7 +188,7 @@ public:
 		 MPI_Type_size(MPI_skewer, &size_skewer);
 		 assert(size_skewer == sizeof(MTCOMPLEX)*rml_times_cpd);
 		 
-		STDLOG(1,"Beginning first transpose for zstart %d\n", zstart);
+		STDLOG(1,"Beginning first transpose for zstart with int64 %d\n", zstart);
 		 
 	 
 
@@ -218,9 +218,9 @@ public:
 			for(int x=0; x<total_slabs_on_node;x++){	
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
-						uint64_t i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
+						uint64_t i = rml_times_cpd * z*total_slabs_on_node + rml_times_cpd * x + m*cpd + y;
 						if (z > zwidth) sendbuf[i] = 0.0;
-						else sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ];
+						else sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + m*cpd + y ];
 					}
 				}
 			}
@@ -248,7 +248,7 @@ public:
 
 							int z = z_slabs_per_node * MPI_rank + z_buffer;  //in the event that z_slabs_per_node = 1, this loop reduces to z = MPI_rank.
 
-							if (z < zwidth) mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y] = recvbuf[r];
+							if (z < zwidth) mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + m*cpd + y] = recvbuf[r];
 							r++;
 						 }
 	 				}
@@ -306,7 +306,7 @@ public:
 					for(int m=0;m<rml;m++){
 						for(int y=0;y<cpd;y++){
 							int z = z_slabs_per_node * MPI_rank + z_buffer;
-							if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y];
+							if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + m*cpd + y];
 							r++;
 						}
 					}
@@ -327,8 +327,8 @@ public:
 			for(int x=0; x<total_slabs_on_node;x++){
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
-						uint64_t i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
-						mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
+						uint64_t i = rml_times_cpd*z*total_slabs_on_node + rml_times_cpd*x + m*cpd + y;
+						mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + m*cpd + y ] = recvbuf[i];
 					}
 				}
 		
