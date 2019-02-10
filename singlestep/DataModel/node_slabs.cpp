@@ -35,7 +35,8 @@ void ReadNodeSlabs(int get_all_nodes = 0, int * first_slabs_all = NULL, int * to
 			if (get_all_nodes){
 				for (int j=0; j<MPI_size; j++) {
 					first_slabs_all[j] = (int)(floor((float)P.cpd*j/MPI_size) + offset)%P.cpd;
-					total_slabs_all[j] = floor((float)P.cpd*(j+1)/MPI_size) - floor((float)P.cpd*j/MPI_size);										
+					total_slabs_all[j] = floor((float)P.cpd*(j+1)/MPI_size) - floor((float)P.cpd*j/MPI_size);			
+																
 				}				
 			}
 			
@@ -53,17 +54,19 @@ void ReadNodeSlabs(int get_all_nodes = 0, int * first_slabs_all = NULL, int * to
 								
             }
             fclose(fp);
+			
+			if (get_all_nodes) {
+				for (int j=0; j<MPI_size; j++) {
+					total_slabs_all[j] = last_slabs[j] - first_slabs_all[j]; 
+			        if (total_slabs_all[j]<0) total_slabs_all[j] += P.cpd;
+				}
+			}
+			
+			
         }
 		
 		total_slabs_on_node = last_slab - first_slab_on_node;
 		
-		if (get_all_nodes) {
-			for (int j=0; j<MPI_size; j++) {
-				total_slabs_all[j] = last_slabs[j] - first_slabs_all[j]; 
-		        if (total_slabs_all[j]<0) total_slabs_all[j] += P.cpd;
-			}
-		}
-
         if (total_slabs_on_node<0) total_slabs_on_node += P.cpd;
         STDLOG(1,"Read NodeSlab file: will do %d slabs from [%d,%d)\n",
             total_slabs_on_node, first_slab_on_node, last_slab);

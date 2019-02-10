@@ -4,6 +4,10 @@
 #define MPI_MTCOMPLEX MPI_COMPLEX
 #endif
 
+
+
+//#define DEBUG
+
 class Block {
     /* All of our IO is done on z-blocks.  The block class is a wrapper
        to manage memory and IO on these blocks.
@@ -187,50 +191,111 @@ public:
 		
 		for (int i = 0; i < MPI_size; i++)
 		{
-			sendcounts[i] = z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd; 
-			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd; 
-			recvcounts[i] = z_slabs_per_node * total_slabs_all[i];// * rml_times_cpd; 
-			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]);// * rml_times_cpd; 		
+			
+#ifdef DEBUG	
+			sendcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
+			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
+			recvcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
+			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd;
+#else		
+			sendcounts[i] = z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
+			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
+			recvcounts[i] = z_slabs_per_node * total_slabs_all[i];// * rml_times_cpd;
+			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]);// * rml_times_cpd;
+		 
+#endif
+			
+			printf("z to x %d %d %d %d %d %d, total %d first %d\n", MPI_rank, i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i], total_slabs_all[i], first_slabs_all[i]);
+					
 		}
 		
 		for(int z=0; z< z_slabs_per_node * MPI_size; z++){
 			for(int x=0; x<total_slabs_on_node;x++){
-		  		//for(int m=0;m<rml;m++){
-				//	for(int y=0;y<cpd;y++){
-						int i = z*total_slabs_on_node + x;
-					
-						//int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
+				
+#ifdef DEBUG	
+		  		for(int m=0;m<rml;m++){
+					for(int y=0;y<cpd;y++){
+						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
 						if (z > zwidth) sendbuf[i] = 0.0;
-						//else sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ];
-						else sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd];
-						//}
-					//}
+						else sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ];
+					}
+				}
+
+// #else
+// 		  		for(int m=0;m<rml;m++){
+// 					for(int y=0;y<cpd;y++){
+// 						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
+// 						if (z > zwidth) sendbuf[i] = 0.0;
+// 						else sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ];
+// 					}
+// 				}
+// 						// int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd;
+// // 						if (z > zwidth) memset (&sendbuf[i], 0, sizeof(MPI_skewer));
+// // 					    else  memcpy ( &sendbuf[i], &mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd], sizeof(MPI_skewer) );
+// //
+// // 						printf(" %f \n", mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd]);
+#endif			
 			}
 		}
 		
+		
+					//
+		// if (MPI_rank == 0) for (int j = 0; j < z_slabs_per_node*total_slabs_on_node*rml*cpd;j++) printf("%d %f %f\n", j, sendbuf[j]);
+		// exit(1);
+		
+		
+		
         // TODO: are these barriers needed?
 		MPI_Barrier(MPI_COMM_WORLD);
+		
+#ifdef DEBUG
+		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
+#else
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_skewer, recvbuf, recvcounts, rdispls, MPI_skewer, MPI_COMM_WORLD);
-		//MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
+#endif
 		MPI_Barrier(MPI_COMM_WORLD);
+		
+	
 		
 		int r = 0; 
 		for (int i = 0; i < MPI_size; i ++){			
 			for (int z_buffer = 0; z_buffer < z_slabs_per_node; z_buffer ++){ //each node needs to put z_slabs_per_node rows of data into its mtblock here. 
 				for(int x=0; x<total_slabs_all[i]; x++){
-					//for(int m=0;m<rml;m++){
-					//	for(int y=0;y<cpd;y++){
-							int z = z_slabs_per_node * MPI_rank + z_buffer;  //in the event that z_slabs_per_node = 1, this loop reduces to z = MPI_rank. 
+#ifdef DEBUG
+					for(int m=0;m<rml;m++){
+						for(int y=0;y<cpd;y++){
+
+							int z = z_slabs_per_node * MPI_rank + z_buffer;  //in the event that z_slabs_per_node = 1, this loop reduces to z = MPI_rank.
+
+							if (z < zwidth) mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y] = recvbuf[r];
+							r++;
+						 }
+	 				}
+// #else
+// 							// int z = z_slabs_per_node * MPI_rank + z_buffer;  //in the event that z_slabs_per_node = 1, this loop reduces to z = MPI_rank.
+// //
+// // 							if (z < zwidth) memcpy ( &mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd], &recvbuf[r], sizeof(MPI_skewer) );
+// // 							r+= rml_times_cpd;
+//
+// 					for(int m=0;m<rml;m++){
+// 						for(int y=0;y<cpd;y++){
+//
+// 							int z = z_slabs_per_node * MPI_rank + z_buffer;  //in the event that z_slabs_per_node = 1, this loop reduces to z = MPI_rank.
+//
+// 							if (z < zwidth) mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y] = recvbuf[r];
+//
+//
+// 							r++;
+// 						 }
+// 	 				}
+#endif
 							
-							if (z < zwidth) mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd] = recvbuf[r]; 
-							
-							//if (z < zwidth) mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y] = recvbuf[r]; 
-							r++; 
-						// }
-	// 				}
+					
 				}
 			}
 		}
+		
+	
 				
 	}
 	
@@ -247,50 +312,86 @@ public:
 
 		for (int i = 0; i < MPI_size; i++)
 		{
-			sendcounts[i] = z_slabs_per_node * total_slabs_all[i];// * rml_times_cpd; 
-			sdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]);// * rml_times_cpd; 			
-			recvcounts[i] = z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd; 
-			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd; 
+#ifdef DEBUG
+			sendcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
+			sdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd; 			
+			recvcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
+			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
+#else
+			
+			sendcounts[i] = z_slabs_per_node * total_slabs_all[i];// * rml_times_cpd;
+			sdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]);// * rml_times_cpd;
+			recvcounts[i] = z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
+			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
+#endif
+			
+			printf("x to z %d %d %d %d %d %d\n", MPI_rank, i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
+			
 		}
 		
 		int r = 0; 
 		for (int i = 0; i < MPI_size; i ++){			
 			for (int z_buffer = 0; z_buffer < z_slabs_per_node; z_buffer ++){ 
 				for(int x=0; x<total_slabs_all[i]; x++){
-			  		//for(int m=0;m<rml;m++){
-					//	for(int y=0;y<cpd;y++){
-							int z = z_slabs_per_node * MPI_rank + z_buffer;  
-							
-							if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd ];
-							
-							//if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y];
-							//if (z < zwidth) sendbuf[r] = mtblock[x + first_slabs_all[i] ][z*rml_times_cpd + m*cpd + y];
-							
-							else sendbuf[r] = 0.0; 							
-							r++; 
-					//	}
-					//}
+#ifdef DEBUG					
+					for(int m=0;m<rml;m++){
+						for(int y=0;y<cpd;y++){
+							int z = z_slabs_per_node * MPI_rank + z_buffer;
+							if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y];
+							r++;
+						}
+					}
+// #else
+// 							// int z = z_slabs_per_node * MPI_rank + z_buffer;
+// // 							if (z < zwidth) memcpy ( &sendbuf[r], &mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd], sizeof(MPI_skewer) );
+// //
+// // 							else sendbuf[r] = 0.0;
+// // 							r+=rml_times_cpd;
+//
+// 					for(int m=0;m<rml;m++){
+// 						for(int y=0;y<cpd;y++){
+// 							int z = z_slabs_per_node * MPI_rank + z_buffer;
+// 							if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i] + 1) % cpd][z*rml_times_cpd + m*cpd + y];
+// 							r++;
+// 						}
+// 					}
+#endif				
 				}
 			}
 		}
 		
 		MPI_Barrier(MPI_COMM_WORLD);
+#ifdef DEBUG
+		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
+#else
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_skewer, recvbuf, recvcounts, rdispls, MPI_skewer, MPI_COMM_WORLD);
-		//MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
+#endif
+		
 		MPI_Barrier(MPI_COMM_WORLD);
 		
 		for(int z=0; z<z_slabs_per_node * MPI_size; z++){
 			for(int x=0; x<total_slabs_on_node;x++){
-		  		//for(int m=0;m<rml;m++){
-				//	for(int y=0;y<cpd;y++){
-						// int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
-						int i = z*total_slabs_on_node + x;
-					
-						mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd  ] = recvbuf[i];
+#ifdef DEBUG
+		  		for(int m=0;m<rml;m++){
+					for(int y=0;y<cpd;y++){
+						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
+						mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
+					}
+				}
+// #else
+// 						// int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd;
+// 		//
+// 		// 			    memcpy ( &mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd], &recvbuf[i], sizeof(MPI_skewer) );
+// 		//
+//
+// 		  		for(int m=0;m<rml;m++){
+// 					for(int y=0;y<cpd;y++){
+// 						int i = z*total_slabs_on_node*rml_times_cpd + x*rml_times_cpd + m*cpd + y;
+// 						mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
+// 					}
+// 				}
+#endif
 						
-						//mtblock[(x + first_slab_on_node + 1) % cpd][z*rml_times_cpd + m*cpd + y ] = recvbuf[i];
-				//	}
-				//}
 			}
 		}			
 	}
