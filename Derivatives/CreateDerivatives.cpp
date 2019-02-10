@@ -671,13 +671,13 @@ void Part2(int order, int inner_radius, int far_radius) {
 END OLD CODE */
 
             if( ((a+b+c)%2) == 0 )
-#pragma omp parallel for schedule(static)
+				#pragma omp parallel for schedule(static)
                 for(int x=0;x<(CPD+1)/2;x++)
                     for(int y=0;y<=x;y++)
                         tmpreal[ RINDEXY(x,y) ] = real(conj(out_2d[x*CPD+y]));
                         // tmpreal[ RINDEXY(x,y) ] = real(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
             else
-#pragma omp parallel for schedule(static)
+				#pragma omp parallel for schedule(static)
                 for(int x=0;x<(CPD+1)/2;x++)
                     for(int y=0;y<=x;y++)
                         tmpreal[ RINDEXY(x,y) ] = imag(conj(out_2d[x*CPD+y]));
