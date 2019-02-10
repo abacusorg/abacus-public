@@ -453,6 +453,16 @@ void Part2(int order, int inner_radius, int far_radius) {
     Complex *tmpD   = (Complex *) malloc(tmpDsize);
     assert(tmpD!=NULL);
 
+    int rml = (order+1)*(order+1);
+    int MultipoleBuffer = 9;     // We're going to save up this many multipoles before writing out.
+    int MultipoleNumber[rml];
+    ULLI diskbuffersize = sizeof(double)*MultipoleBuffer*(CPD+1)/2*CompressedMultipoleLengthXY;
+        // This is enough to hold all the z slabs for these multipoles
+    printf("Allocating %d GB for diskbuffer in Part2, enough for %d multipoles\n", (int) (diskbuffersize/(1<<30)), MultipoleBuffer);
+    double *diskbuffer   = (double *) malloc(tmpDsize);
+    assert(diskbuffer!=NULL);
+    int MultipoleCount = 0;
+
 
 
     // The X-Y FFTs are just a simple 2D C->C FFT
@@ -541,9 +551,9 @@ void Part2(int order, int inner_radius, int far_radius) {
 	// First, we reflect [i][j] to fill the first octant.
 
 
-	printf("A: %d %d %d %d: \n", a,b,c, order); fflush(NULL);
+        printf("A: %d %d %d %d: \n", a,b,c, order); fflush(NULL);
 		
-	#pragma omp parallel for schedule(static)
+        #pragma omp parallel for schedule(static)
         for(int k=0;k<=CPDHALF;k++)
             for(int i=0;i<=CPDHALF;i++)
                 for(int j=0;j<=CPDHALF;j++)  {
@@ -553,11 +563,11 @@ void Part2(int order, int inner_radius, int far_radius) {
                 }
 				
 				
-	printf("."); fflush(NULL);
+        printf("."); fflush(NULL);
 
         // Now we fill the other octants
 
-	#pragma omp parallel for schedule(static)
+        #pragma omp parallel for schedule(static)
         for(int i=0;i<=CPDHALF;i++)
             for(int j=0;j<=CPDHALF;j++)
                 for(int sx = -1; sx<=1; sx+=2)
@@ -615,14 +625,14 @@ void Part2(int order, int inner_radius, int far_radius) {
 
         // now write back into the global array
 							
-	part2timer.Stop();
-	printf("Done with td population %d %d %d. Time elapsed = %f\n", a,b,c,part2timer.Elapsed()); fflush(NULL);
-	part2timer.Start();
+        part2timer.Stop();
+        printf("Done with td population %d %d %d. Time elapsed = %f\n", a,b,c,part2timer.Elapsed()); fflush(NULL);
+        part2timer.Start();
 
         int m = mab;
 
-	// Do a CPDHALF 3-d cyclic translation of the values.
-	// DJE TODO: With care, this could be done in place, which would save a big array
+        // Do a CPDHALF 3-d cyclic translation of the values.
+        // DJE TODO: With care, this could be done in place, which would save a big array
 
 		#pragma omp parallel for schedule(static)
         for(int i=0;i<CPD;i++)
@@ -666,7 +676,7 @@ void Part2(int order, int inner_radius, int far_radius) {
 		}
 
 		part2timer.Stop();
-		printf("Finished yz fftw %d %d %d. Time elapsed = %f\n",a,b,c, part2timer.Elapsed()); fflush(NULL);
+		printf("Finished z fftw %d %d %d. Time elapsed = %f\n",a,b,c, part2timer.Elapsed()); fflush(NULL);
 		part2timer.Start();
 
 
@@ -709,30 +719,58 @@ void Part2(int order, int inner_radius, int far_radius) {
         for(int z=0;z<(CPD+1)/2;z++) {
 END OLD CODE */
 
+
+            // We're going to store the results here, so that we can gather up some multipoles
+            // before writing out.
+            double *buf = diskbuffer+((MultipoleCount%MultipoleBuffer)*(CPD+1)/2 + z)
+                                *CompressedMultipoleLengthXY;
+
             if( ((a+b+c)%2) == 0 )
 				#pragma omp parallel for schedule(static)
                 for(int x=0;x<(CPD+1)/2;x++)
                     for(int y=0;y<=x;y++)
-                        tmpreal[ RINDEXY(x,y) ] = real(conj(out_2d[x*CPD+y]));
+                        buf[ RINDEXY(x,y) ] = real(conj(out_2d[x*CPD+y]));
                         // tmpreal[ RINDEXY(x,y) ] = real(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
             else
 				#pragma omp parallel for schedule(static)
                 for(int x=0;x<(CPD+1)/2;x++)
                     for(int y=0;y<=x;y++)
-                        tmpreal[ RINDEXY(x,y) ] = imag(conj(out_2d[x*CPD+y]));
+                        buf[ RINDEXY(x,y) ] = imag(conj(out_2d[x*CPD+y]));
                         // tmpreal[ RINDEXY(x,y) ] = imag(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
+        }
 
+		part2timer.Stop();
+		printf("Finished xy FFT %d %d %d. Time elapsed = %f\n",a,b,c, part2timer.Elapsed()); fflush(NULL);
+		part2timer.Start();
+
+        // Now we're done with this multipole; consider whether to write out
+        MultipoleNumber[MultipoleCount] = m;
+        MultipoleCount++;
+
+        if (MultipoleCount%MultipoleBuffer>0 && MultipoleCount<rml) continue;  // Go on to next multipole
+
+        int nMult = (MultipoleCount-1)%MultipoleBuffer+1;
+        // This is the number of multipoles we have saved up.
+        // If we ended at mod 0, then we must have a full set.
+
+        for(int z=0;z<(CPD+1)/2;z++) {
+            // We loop over files
             FILE *fp;
             char fn[1024];
             sprintf(fn,"fourierspace_%d_%d_%d_%d_%d",cpd,order,inner_radius,far_radius,z);
             fp = fopen(fn,"r+b");
             assert(fp!=NULL);
-            fseek(fp, m*CompressedMultipoleLengthXY*sizeof(double), SEEK_SET );
-            fwrite( &(tmpreal[0]), sizeof(double), CompressedMultipoleLengthXY, fp);
+            for (int j=0; j<nMult; j++) {
+                int thisMult = MultipoleCount-nMult+j;
+                fseek(fp, MultipoleNumber[thisMult]*CompressedMultipoleLengthXY*sizeof(double), SEEK_SET );
+                double *buf = diskbuffer+((thisMult%MultipoleBuffer)*(CPD+1)/2 + z)
+                                *CompressedMultipoleLengthXY;
+                fwrite( &(buf[0]), sizeof(double), CompressedMultipoleLengthXY, fp);
+                // fseek(fp, m*CompressedMultipoleLengthXY*sizeof(double), SEEK_SET );
+                // fwrite( &(tmpreal[0]), sizeof(double), CompressedMultipoleLengthXY, fp);
+            }
             fclose(fp);
         }
-
-
 
 		part2timer.Stop();
 		printf("Finished writing %d %d %d. Time elapsed = %f\n",a,b,c, part2timer.Elapsed()); fflush(NULL);
