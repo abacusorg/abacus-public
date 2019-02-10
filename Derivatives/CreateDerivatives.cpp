@@ -421,7 +421,7 @@ void CreateFourierFiles(int order, int inner_radius, int far_radius) {
 
 
 //calculate Fast Fourier transform of far derivatives tensor and store. 
-void Part2(int order, int inner_radius, int far_radius) {
+void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
 
 
 	STimer part2timer;
@@ -463,6 +463,14 @@ void Part2(int order, int inner_radius, int far_radius) {
     assert(diskbuffer!=NULL);
     int MultipoleCount = 0;
 
+    if (MultipoleStart!=0) {
+        if (MultipoleStart%MultipoleBuffer>0) {
+             // We only deal with entire buffers, round down
+             printf("Apparent size of fourier file was %d, but didn't divide buffer size %d evenly.  Adjusting\n", MultipoleStart, MultipoleBuffer);
+             MultipoleStart = (MultipoleStart/MultipoleBuffer)*MultipoleBuffer;
+        }
+    }
+    printf("We will start at multipole %d\n", MultipoleStart);
 
 
     // The X-Y FFTs are just a simple 2D C->C FFT
@@ -522,6 +530,10 @@ void Part2(int order, int inner_radius, int far_radius) {
 
         int mab = bm.rmap(a,b,c);
         int mba = bm.rmap(b,a,c);
+        if (MultipoleCount<MultipoleStart) {
+            MultipoleCount++;
+            continue;
+        }
 
         FILE *fpfar;
         char fpfar_fn[1024];
@@ -842,14 +854,30 @@ int main(int argc, char **argv) {
 
 	//check if the derivatives tensor we're about to calculate already stored on disk? If so, don't repeat the work! 
     char fn[1024];
-    sprintf(fn,"fourierspace_%d_%d_%d_%d_%d",cpd,order,inner_radius,far_radius, 0);
+    sprintf(fn,"fourierspace_%d_%d_%d_%d_%d",cpd,order,inner_radius,far_radius, (CPD+1)/2-1);
+    // This is the last file
 
+    int MultipoleStart;
     FILE *fp;
     fp = fopen(fn,"rb");
     fprintf(stderr, "Trying to find derivativesfile=%s on disk\n", fn);
-    if(fp!=NULL) {
-        printf("Derivatives already present \n");
-        exit(0);
+    if(fp==NULL) {
+        // Derivatives don't exist
+        MultipoleStart = 0;
+    } else {
+        // Derivatives files do exist
+        struct stat st;
+        int ret = stat(fn, &st);
+        assert(ret==0);
+        MultipoleStart = floor(st.st_size/(CompressedMultipoleLengthXY)/sizeof(double));
+            // This uses the file size to determine how many multipoles were completed in the last z file
+        if (MultipoleStart==rml) {
+            printf("Derivatives already present \n");
+            exit(0);
+        }
+        printf("Derivative files were started, but appear to contain only %d of %d multipoles\n",
+            MultipoleStart, rml);
+        // If the fourier files are corrupted, delete them to start over
     }
 	
 	//myTimer.Stop();
@@ -899,7 +927,7 @@ int main(int argc, char **argv) {
 
 
 	//create empty fourier files to store the fourier transforms of the far derivatives in, to be calculated in Part2. 
-    CreateFourierFiles(order,inner_radius, far_radius);
+    if (MultipoleStart==0) CreateFourierFiles(order,inner_radius, far_radius);
 	//myTimer.Stop();
 	//double CFFRuntime = myTimer.Elapsed();
 	//printf("Time spent in CreateFourierFiles = %f \n", CFFRuntime);
@@ -907,7 +935,7 @@ int main(int argc, char **argv) {
 	//myTimer.Start();
 	
 	//calculate Fast Fourier transforms of far derivatives tensor and store. 
-    Part2(order, inner_radius, far_radius);
+    Part2(order, inner_radius, far_radius, MultipoleStart);
 	//myTimer.Stop();
 	//double Part2Runtime = myTimer.Elapsed();
 	//printf("Time spent in Part2 (not including fftw plan)= %f \n", Part2Runtime);
