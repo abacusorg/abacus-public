@@ -181,7 +181,7 @@ public:
     }
 	
 #ifdef PARALLEL
-	void transpose_z_to_x(int zstart, int zwidth, int thread_num, int z_slabs_per_node, MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all){
+	void transpose_z_to_x(int zstart, int zwidth, int thread_num, int z_slabs_per_node, MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all, uint64_t sendbufsize, uint64_t recvbufsize){
 		uint64_t rml_times_cpd = rml * cpd; 
 		
 		 int size_skewer;
@@ -196,6 +196,9 @@ public:
 		int    sdispls[MPI_size];
 		int recvcounts[MPI_size];
 		int    rdispls[MPI_size];
+		
+		STDLOG(1,"Allocated send/recvcounts/displs. %d\n", zstart);
+		
 		
 		for (int i = 0; i < MPI_size; i++)
 		{
@@ -214,17 +217,27 @@ public:
 #endif					
 		}
 		
+		STDLOG(1,"Populated send/recvcounts/displs. %d\n", zstart);
+		
+		
 		for(int z=0; z< z_slabs_per_node * MPI_size; z++){
 			for(int x=0; x<total_slabs_on_node;x++){	
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
 						uint64_t i = rml_times_cpd * z*total_slabs_on_node + rml_times_cpd * x + m*cpd + y;
-						if (z > zwidth) sendbuf[i] = 0.0;
-						else sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + m*cpd + y ];
+						
+						assertf(sizeof(MTCOMPLEX)*i<sendbufsize, "%ld, %d %d %d %d, %ld", i, z, x, m, y, sendbufsize);
+						
+						
+						if (z < zwidth) sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + m*cpd + y ];
+						else sendbuf[i] = 0.0;
 					}
 				}
 			}
 		}
+		
+		STDLOG(1,"Populated sendbuf. %d\n", zstart);
+		
 		
 	
         // TODO: are these barriers needed?
@@ -236,6 +249,9 @@ public:
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_skewer, recvbuf, recvcounts, rdispls, MPI_skewer, MPI_COMM_WORLD);
 #endif
 		MPI_Barrier(MPI_COMM_WORLD);
+		
+		
+		STDLOG(1,"Did Alltoallv. %d\n", zstart);
 		
 	
 		
@@ -307,6 +323,7 @@ public:
 						for(int y=0;y<cpd;y++){
 							int z = z_slabs_per_node * MPI_rank + z_buffer;
 							if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + m*cpd + y];
+							else sendbuf[r] = 0.0; 
 							r++;
 						}
 					}
@@ -328,7 +345,8 @@ public:
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
 						uint64_t i = rml_times_cpd*z*total_slabs_on_node + rml_times_cpd*x + m*cpd + y;
-						mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + m*cpd + y ] = recvbuf[i];
+						
+						if (z < zwidth) mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + m*cpd + y ] = recvbuf[i];
 					}
 				}
 		

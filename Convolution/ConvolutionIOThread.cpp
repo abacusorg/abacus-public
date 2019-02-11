@@ -47,6 +47,11 @@ private:
 
 		sendbuf = (MTCOMPLEX *) malloc(sizeof(MTCOMPLEX) * CP.z_slabs_per_node * MPI_size * total_slabs_on_node * cpd * CP.rml );
 		recvbuf = (MTCOMPLEX *) malloc(sizeof(MTCOMPLEX) * CP.z_slabs_per_node * cpd * CP.rml * cpd);
+		
+		uint64_t sendbufsize = sizeof(MTCOMPLEX) * CP.z_slabs_per_node * MPI_size * total_slabs_on_node * cpd * CP.rml ;
+		uint64_t recvbufsize = sizeof(MTCOMPLEX) * CP.z_slabs_per_node * cpd * CP.rml * cpd;
+		
+		STDLOG(1, "Malloced %ld and %ld bytes for send and recvbuf\n", sendbufsize, recvbufsize);
 
 		assert(sendbuf != NULL);
 		assert(recvbuf != NULL);
@@ -86,7 +91,7 @@ private:
                 read_buffer->read(zstart, this_zwidth, thread_num);
 
 #ifdef PARALLEL
-  				read_buffer->transpose_z_to_x(zstart, this_zwidth, thread_num, CP.z_slabs_per_node, sendbuf, recvbuf, first_slabs_all, total_slabs_all);
+  				read_buffer->transpose_z_to_x(zstart, this_zwidth, thread_num, CP.z_slabs_per_node, sendbuf, recvbuf, first_slabs_all, total_slabs_all, sendbufsize, recvbufsize);
 #endif
 				
 				n_blocks_read++;
