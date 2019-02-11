@@ -327,10 +327,10 @@ public:
 			rdispls[i]    = i * total_slabs_on_node * rml_times_cpd; 
 #else
 			
-			sendcounts[i] = total_slabs_all[i];// * rml_times_cpd;
-			sdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]);// * rml_times_cpd;
-			recvcounts[i] = total_slabs_on_node;// * rml_times_cpd;
-			rdispls[i]    = i * total_slabs_on_node;// * rml_times_cpd;
+			sendcounts[i] = total_slabs_all[i];
+			sdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]);
+			recvcounts[i] = total_slabs_on_node;
+			rdispls[i]    = i * total_slabs_on_node;
 #endif
 
 		}
@@ -345,11 +345,11 @@ public:
             int z = zbig+z_slabs_per_node * MPI_rank;  // This is the z for this node
             for (int i = 0; i < MPI_size; i++){			
 				for(int x=0; x<total_slabs_all[i]; x++,r+=rml_times_cpd){
-                    if (z < zwidth) memcpy(
-                        &(sendbuf[r]),
-                        &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
-                        sizeof(MTCOMPLEX)*rml_times_cpd);
-                    else memset( &(sendbuf[r]), 0, sizeof(MTCOMPLEX)*rml_times_cpd);
+                    if (z < zwidth) 
+                        memcpy( &(sendbuf[r]),
+                            &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
+                            sizeof(MTCOMPLEX)*rml_times_cpd);
+                     else memset( &(sendbuf[r]), 0, sizeof(MTCOMPLEX)*rml_times_cpd);
 
                     /* // Equivalent to this:
 					for(int m=0;m<rml;m++){
@@ -378,6 +378,7 @@ public:
           for (int zr=0; zr<MPI_size; zr++) {
             int z = zbig+zr*z_slabs_per_node;    // The z that is intended for rank zr
             if (z>=zwidth) continue;    // Skip writing any information; we received filler
+            assertf(z>=0 && z<(cpd+1)/2, "z is out of bounds\n", z);
 			for(int x=0; x<total_slabs_on_node;x++){
                 memcpy( &( mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]),
                         &(recvbuf[rml_times_cpd*zr*total_slabs_on_node + rml_times_cpd*x + 0*cpd + 0]),
