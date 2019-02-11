@@ -219,6 +219,10 @@ public:
             // recv: contains the indexing of the inbound information for this rank
 			recvcounts[i] = total_slabs_all[i];
 			rdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]);
+			
+			if (rdispls[i] < 0) rdispls[i] += cpd; 
+			
+			printf("%d %d %d\n", i, first_slabs_all[i], rdispls[i]);
             // DJE TODO: Is this assuming that first_slabs_all[] is monotonically increasing?
 #endif					
 		}
@@ -235,15 +239,6 @@ public:
           for (int zr=0; zr<MPI_size; zr++) {
             int z = zbig+zr*z_slabs_per_node;    // The z that is intended for rank zr
 			for(int x=0; x<total_slabs_on_node;x++){	
-                if (z < zwidth) memcpy(
-						&(sendbuf[rml_times_cpd * zr*total_slabs_on_node + rml_times_cpd * x + 0*cpd + 0]),
-                        &(mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]),
-                        sizeof(MTCOMPLEX)*rml_times_cpd);
-                else memset(
-						&(sendbuf[rml_times_cpd * zr*total_slabs_on_node + rml_times_cpd * x + 0*cpd + 0]),
-                        0, sizeof(MTCOMPLEX)*rml_times_cpd);
-
-                /* // Equivalent to this:
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
 						uint64_t i = rml_times_cpd * zr*total_slabs_on_node + rml_times_cpd * x + m*cpd + y;
@@ -255,7 +250,6 @@ public:
 						else sendbuf[i] = 0.0;
 					}
 				}
-                */
 			}
 		  } // End zr loop
 		
@@ -280,17 +274,11 @@ public:
         if (z<zwidth) {     // Skip if it's out of bounds; we received filler data
             for (int i = 0; i < MPI_size; i ++){			
 				for(int x=0; x<total_slabs_all[i]; x++){
-                    memcpy( &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
-                            &(recvbuf[r]),
-                            sizeof(MTCOMPLEX)*rml_times_cpd);
-                    r+=rml_times_cpd;
-                    /* // Equivalent to this:
 					for(int m=0;m<rml;m++){
 						for(int y=0;y<cpd;y++){
 							mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + m*cpd + y] = recvbuf[r++];
 						 }
 	 				}
-                    */
 				}
 			}
 		}
@@ -329,11 +317,15 @@ public:
 			rdispls[i]    = i * total_slabs_on_node * rml_times_cpd; 
 #else
 			
-			sendcounts[i] = total_slabs_all[i];
-			sdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]);
-			if (sdispls[i] < 0) sdispls[i]  += cpd;
-			recvcounts[i] = total_slabs_on_node;
-			rdispls[i]    = i * total_slabs_on_node;
+
+			sendcounts[i] = total_slabs_all[i];// * rml_times_cpd;
+			sdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]);// * rml_times_cpd;
+			
+			if (sdispls[i] < 0) sdispls[i] += cpd; 
+			
+			
+			recvcounts[i] = total_slabs_on_node;// * rml_times_cpd;
+			rdispls[i]    = i * total_slabs_on_node;// * rml_times_cpd;
 #endif
 
 		}
@@ -344,58 +336,49 @@ public:
           // The z's being sent in each call are spaced out, so that after all of the
           // MPI calls, each node will have a contiguous range of z's.
 		
-            uint64_t r = 0; 
-            int z = zbig+z_slabs_per_node * MPI_rank;  // This is the z for this node
-            for (int i = 0; i < MPI_size; i++){			
-				for(int x=0; x<total_slabs_all[i]; x++,r+=rml_times_cpd){
-                    if (z < zwidth) 
-                        memcpy( &(sendbuf[r]),
-                            &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
-                            sizeof(MTCOMPLEX)*rml_times_cpd);
-                     else memset( &(sendbuf[r]), 0, sizeof(MTCOMPLEX)*rml_times_cpd);
-
-                    /* // Equivalent to this:
-					for(int m=0;m<rml;m++){
-						for(int y=0;y<cpd;y++){
-                            // TODO: Would be better to get this conditional out of the inner loop
-							if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + m*cpd + y];
-							else sendbuf[r] = 0.0; 
-							r++;
+	            uint64_t r = 0; 
+	            int z = zbig+z_slabs_per_node * MPI_rank;  // This is the z for this node
+	            for (int i = 0; i < MPI_size; i ++){			
+					for(int x=0; x<total_slabs_all[i]; x++){
+						for(int m=0;m<rml;m++){
+							for(int y=0;y<cpd;y++){
+	                            // TODO: Would be better to get this conditional out of the inner loop
+								if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + m*cpd + y];
+								else sendbuf[r] = 0.0; 
+								r++;
+							}
 						}
 					}
-                    */
 				}
-			}
 		
 		
-		MPI_Barrier(MPI_COMM_WORLD);
-#ifdef DEBUG
-		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
-#else
-		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_skewer, recvbuf, recvcounts, rdispls, MPI_skewer, MPI_COMM_WORLD);
-#endif
+			MPI_Barrier(MPI_COMM_WORLD);
+	#ifdef DEBUG
+			MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
+	#else
+			MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_skewer, recvbuf, recvcounts, rdispls, MPI_skewer, MPI_COMM_WORLD);
+	#endif
 		
-		MPI_Barrier(MPI_COMM_WORLD);
+			MPI_Barrier(MPI_COMM_WORLD);
 		
-		// for(int z=0; z<z_slabs_per_node * MPI_size; z++)
-          for (int zr=0; zr<MPI_size; zr++) {
-            int z = zbig+zr*z_slabs_per_node;    // The z that is intended for rank zr
-            if (z>=zwidth) continue;    // Skip writing any information; we received filler
-            assertf(z>=0 && z<(cpd+1)/2, "z is out of bounds\n", z);
-			for(int x=0; x<total_slabs_on_node;x++){
-                memcpy( &( mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]),
-                        &(recvbuf[rml_times_cpd*zr*total_slabs_on_node + rml_times_cpd*x + 0*cpd + 0]),
-                        sizeof(MTCOMPLEX)*rml_times_cpd);
-                /* // Equivalent to this:
-		  		for(int m=0;m<rml;m++){
-					for(int y=0;y<cpd;y++){
-						uint64_t i = rml_times_cpd*z*total_slabs_on_node + rml_times_cpd*x + m*cpd + y;
-						mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + m*cpd + y ] = recvbuf[i++];
+			// for(int z=0; z<z_slabs_per_node * MPI_size; z++)
+	          for (int zr=0; zr<MPI_size; zr++) {
+	            int z = zbig+zr*z_slabs_per_node;    // The z that is intended for rank zr
+	            if (z>=zwidth) continue;    // Skip writing any information; we received filler
+				for(int x=0; x<total_slabs_on_node;x++){
+	                memcpy( &( mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]),
+	                        &(recvbuf[rml_times_cpd*zr*total_slabs_on_node + rml_times_cpd*x + 0*cpd + 0]),
+	                        sizeof(MTCOMPLEX)*rml_times_cpd);
+	                /* // Equivalent to this:
+			  		for(int m=0;m<rml;m++){
+						for(int y=0;y<cpd;y++){
+							uint64_t i = rml_times_cpd*z*total_slabs_on_node + rml_times_cpd*x + m*cpd + y;
+							mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + m*cpd + y ] = recvbuf[i++];
+						}
 					}
+	                */
 				}
-                */
-			}
-		  }			
+			  }			
 		
         }  // zbig
 		STDLOG(1,"Finishing second transpose for zstart %d\n", zstart);
