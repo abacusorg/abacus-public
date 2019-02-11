@@ -204,27 +204,39 @@ public:
 		{
 			
 #ifdef DEBUG	
+            // DJE: These are now broken
 			sendcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 			recvcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
 			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd;
 #else		
-			sendcounts[i] = z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
-			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
-			recvcounts[i] = z_slabs_per_node * total_slabs_all[i];// * rml_times_cpd;
-			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]);// * rml_times_cpd;
-		 
+            // All of these are in units of rml_times_cpd.
+            // We only are sending one z per pairwise interaction, so we just need to know the range of x's.
+            // send: contains the indexing of the outbound information for each rank
+			sendcounts[i] = total_slabs_on_node;
+			sdispls[i]    = i * total_slabs_on_node;
+            // recv: contains the indexing of the inbound information for this rank
+			recvcounts[i] = total_slabs_all[i];
+			rdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]);
+            // DJE TODO: Is this assuming that first_slabs_all[] is monotonically increasing?
 #endif					
 		}
 		
 		STDLOG(1,"Populated send/recvcounts/displs. %d\n", zstart);
 		
-		
-		for(int z=0; z< z_slabs_per_node * MPI_size; z++){
+        for (int zbig=0; zbig<z_slabs_per_node; zbig++) {
+          // We're going to have to do z_slabs_per_node separate MPI_Alltoallv() calls.
+          // Each one will send one z (and all x's) to each node.
+          // The z's being sent in each call are spaced out, so that after all of the
+          // MPI calls, each node will have a contiguous range of z's.
+
+		//for(int z=0; z< z_slabs_per_node * MPI_size; z++)
+          for (int zr=0; zr<MPI_size; zr++) {
+            int z = zbig+zr*z_slabs_on_node;    // The z that is intended for rank zr
 			for(int x=0; x<total_slabs_on_node;x++){	
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
-						uint64_t i = rml_times_cpd * z*total_slabs_on_node + rml_times_cpd * x + m*cpd + y;
+						uint64_t i = rml_times_cpd * zr*total_slabs_on_node + rml_times_cpd * x + m*cpd + y;
 						
 						assertf(sizeof(MTCOMPLEX)*i<sendbufsize, "%ld, %d %d %d %d, %ld", i, z, x, m, y, sendbufsize);
 						
@@ -234,11 +246,9 @@ public:
 					}
 				}
 			}
-		}
+		  } // End zr loop
 		
-		STDLOG(1,"Populated sendbuf. %d\n", zstart);
-		
-		
+		STDLOG(1,"Populated sendbuf. %d\n", zbig);
 	
         // TODO: are these barriers needed?
 		MPI_Barrier(MPI_COMM_WORLD);
@@ -251,31 +261,26 @@ public:
 		MPI_Barrier(MPI_COMM_WORLD);
 		
 		
-		STDLOG(1,"Did Alltoallv. %d\n", zstart);
+		STDLOG(1,"Did Alltoallv. %d\n", zbig);
 		
 	
-		
 		uint64_t r = 0; 
-		for (int i = 0; i < MPI_size; i ++){			
-			for (int z_buffer = 0; z_buffer < z_slabs_per_node; z_buffer ++){ //each node needs to put z_slabs_per_node rows of data into its mtblock here. 
+        int z = zbig+z_slabs_per_node * MPI_rank;  // This is the z for this node
+        if (z<zwidth) {     // Skip if it's out of bounds; we received filler data
+            for (int i = 0; i < MPI_size; i ++){			
 				for(int x=0; x<total_slabs_all[i]; x++){
 					for(int m=0;m<rml;m++){
 						for(int y=0;y<cpd;y++){
-
-							int z = z_slabs_per_node * MPI_rank + z_buffer;  //in the event that z_slabs_per_node = 1, this loop reduces to z = MPI_rank.
-
-							if (z < zwidth) mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + m*cpd + y] = recvbuf[r];
-							r++;
+							mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + m*cpd + y] = recvbuf[r++];
 						 }
 	 				}
 				}
 			}
 		}
 		
+        }
 	
 		STDLOG(1,"Finishing first transpose for zstart %d\n", zstart);
-	
-				
 	}
 	
 	
