@@ -209,7 +209,14 @@ public:
 			recvcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
 			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd;
 			
-			if (rdispls[i] < 0) rdispls[i] += cpd * rml_times_cpd; 
+			
+			printf("%d %d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i], cpd * rml_times_cpd);
+			
+			
+			if (rdispls[i] < 0) rdispls[i] += cpd * rml_times_cpd * z_slabs_per_node; 
+			
+			printf("%d %d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i], cpd * rml_times_cpd);
+			
 			
 #else		
 			sendcounts[i] = z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
@@ -217,7 +224,9 @@ public:
 			recvcounts[i] = z_slabs_per_node * total_slabs_all[i];// * rml_times_cpd;
 			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]);// * rml_times_cpd;
 			
-			if (rdispls[i] < 0) rdispls[i] += cpd; 
+			if (rdispls[i] < 0) rdispls[i] += cpd * z_slabs_per_node; 
+			
+			printf("%d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
 		 
 #endif					
 		}
@@ -311,7 +320,10 @@ public:
 			recvcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 			
-			if (sdispls[i] < 0) sdispls[i] += cpd  * rml_times_cpd;  
+			if (sdispls[i] < 0) sdispls[i] += cpd  * rml_times_cpd * z_slabs_per_node;  
+			
+			printf("%d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
+			
 			
 #else
 			
@@ -320,7 +332,10 @@ public:
 			recvcounts[i] = z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
 			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
 			
-			if (sdispls[i] < 0) sdispls[i] += cpd; 
+			if (sdispls[i] < 0) sdispls[i] += cpd * z_slabs_per_node; 
+			
+			printf("%d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
+			
 			
 #endif
 
