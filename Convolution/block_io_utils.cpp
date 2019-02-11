@@ -228,7 +228,13 @@ public:
 		
 		STDLOG(1,"Populated send/recvcounts/displs. %d\n", zstart);
 		
+		
+		STDLOG(1, "zslabspernode = %d\n", z_slabs_per_node);
+		
         for (int zbig=0; zbig<z_slabs_per_node; zbig++) {
+			
+			
+		
           // We're going to have to do z_slabs_per_node separate MPI_Alltoallv() calls.
           // Each one will send one z (and all x's) to each node.
           // The z's being sent in each call are spaced out, so that after all of the

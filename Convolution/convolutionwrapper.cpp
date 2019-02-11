@@ -246,8 +246,12 @@ int choose_zwidth(int Conv_zwidth, int cpd, ConvolutionParameters &CP){
 	
 	//If we are doing a multi-node Convolve, set zwidth = 1. NAM TODO: May want to extend this to have multiple z per node later. 
 #ifdef PARALLEL
-	STDLOG(0, "Forcing zwidth = %d in multi-node convolve, where each node does %d slab(s).\n", CP.z_slabs_per_node * MPI_size, CP.z_slabs_per_node);
-	return CP.z_slabs_per_node * MPI_size;
+	// STDLOG(0, "Forcing zwidth = %d in multi-node convolve, where each node does %d slab(s).\n", CP.z_slabs_per_node * MPI_size, CP.z_slabs_per_node);
+// 	return CP.z_slabs_per_node * MPI_size;
+	
+	CP.z_slabs_per_node = (int)((cpd + 1)/2 / MPI_size) + 1; 
+    STDLOG(0, "Forcing zwidth = full and z_slabs_per_node = %d since we are using ramdisk\n", CP.z_slabs_per_node);
+    return (cpd + 1)/2;  // full width
 #endif
 	
 
