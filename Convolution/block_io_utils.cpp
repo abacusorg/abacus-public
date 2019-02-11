@@ -420,8 +420,9 @@ public:
                     for(int m=0;m<rml;m++)
                         for(int y=0;y<cpd;y++)
                             assertf(mttmp[m*cpd+y]==rtmp[m*cpd+y],
-                                "Echoing test failed: %d %d %d %d %d %d.  Input %f %f, Output %f %f\n", 
+                                "Echoing test failed: %d %d %d %d %d %d mt[%d][%d].  Input %f %f, Output %f %f\n", 
                                 zbig, zr, z, x, m, y, 
+                                (x + first_slab_on_node + 1) % cpd, rml_times_cpd*z + m*cpd + y,
                                 real(mttmp[m*cpd+y]),
                                 imag(mttmp[m*cpd+y]),
                                 real(rtmp[m*cpd+y]),
