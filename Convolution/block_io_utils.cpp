@@ -411,7 +411,7 @@ public:
                     MTCOMPLEX *rtmp = &(recvbuf[rml_times_cpd*zr*total_slabs_on_node + rml_times_cpd*x + 0*cpd + 0]);
                     for(int m=0;m<rml;m++)
                         for(int y=0;y<cpd;y++)
-                            assertf(mttmp[m*cpd+y]==rtmp[m*cpd+y,
+                            assertf(mttmp[m*cpd+y]==rtmp[m*cpd+y],
                                 "Echoing test failed: %d %d %d %d %d %d\n", zbig, zr, z, x, m, y);
                 #endif
                 /* // Equivalent to this:
