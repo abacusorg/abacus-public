@@ -220,6 +220,8 @@ public:
 			recvcounts[i] = total_slabs_all[i];
 			rdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]);
 			if (rdispls[i] < 0) rdispls[i]  += cpd;
+            STDLOG(1,"Send to node %d: %d %d\n", i, sendcounts[i], sdispls[i]);
+            STDLOG(1,"Receive from node %d: %d %d\n", i, recvcounts[i], rdispls[i]);
             // DJE TODO: Is this assuming that first_slabs_all[] is monotonically increasing?
 #endif					
 		}
@@ -231,18 +233,24 @@ public:
           // Each one will send one z (and all x's) to each node.
           // The z's being sent in each call are spaced out, so that after all of the
           // MPI calls, each node will have a contiguous range of z's.
+          STDLOG(1, "Starting first transpose zbig = %d\n", zbig);
 
 		//for(int z=0; z< z_slabs_per_node * MPI_size; z++)
           for (int zr=0; zr<MPI_size; zr++) {
             int z = zbig+zr*z_slabs_per_node;    // The z that is intended for rank zr
 			for(int x=0; x<total_slabs_on_node;x++){	
-                if (z < zwidth) memcpy(
+                if (z < zwidth) {
+                    STDLOG(1, "Loading z=%d x=%d into zr=%d x=%d, slot %d\n", z, (x+first_slab_on_node)%cpd, zr, x, zr*total_slabs_on_node+x);
+                     memcpy(
 						&(sendbuf[rml_times_cpd * zr*total_slabs_on_node + rml_times_cpd * x + 0*cpd + 0]),
                         &(mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]),
                         sizeof(MTCOMPLEX)*rml_times_cpd);
-                else memset(
+                } else {
+                    STDLOG(1, "Zeroing z=%d x=%d in slot zr=%d x=%d\n", z, (x+first_slab_on_node)%cpd, zr, x);
+                     memset(
 						&(sendbuf[rml_times_cpd * zr*total_slabs_on_node + rml_times_cpd * x + 0*cpd + 0]),
                         0, sizeof(MTCOMPLEX)*rml_times_cpd);
+                }
 
                 /* // Equivalent to this:
 		  		for(int m=0;m<rml;m++){
@@ -281,6 +289,7 @@ public:
         if (z<zwidth) {     // Skip if it's out of bounds; we received filler data
             for (int i = 0; i < MPI_size; i ++){			
 				for(int x=0; x<total_slabs_all[i]; x++){
+                    STDLOG(1, "Storing slot %d into z=%d x=%d\n", r/rml_times_cpd, z, (x+first_slabs_all[i])%cpd);
                     memcpy( &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
                             &(recvbuf[r]),
                             sizeof(MTCOMPLEX)*rml_times_cpd);
@@ -345,16 +354,21 @@ public:
           // Each one will send one z (and all x's) to each node.
           // The z's being sent in each call are spaced out, so that after all of the
           // MPI calls, each node will have a contiguous range of z's.
+          STDLOG(1, "Starting second transpose zbig = %d\n", zbig);
 		
             uint64_t r = 0; 
             int z = zbig+z_slabs_per_node * MPI_rank;  // This is the z for this node
             for (int i = 0; i < MPI_size; i++){			
 				for(int x=0; x<total_slabs_all[i]; x++,r+=rml_times_cpd){
-                    if (z < zwidth) 
+                    if (z < zwidth) {
+                        STDLOG(1, "Loading z=%d x=%d into slot %d\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
                         memcpy( &(sendbuf[r]),
                             &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
                             sizeof(MTCOMPLEX)*rml_times_cpd);
-                     else memset( &(sendbuf[r]), 0, sizeof(MTCOMPLEX)*rml_times_cpd);
+                     } else {
+                        STDLOG(1, "Zeroing zr=%d x=%d into slot %d\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
+                         memset( &(sendbuf[r]), 0, sizeof(MTCOMPLEX)*rml_times_cpd);
+                     }
 
                     /* // Equivalent to this:
 					for(int m=0;m<rml;m++){
@@ -385,6 +399,8 @@ public:
             if (z>=zwidth) continue;    // Skip writing any information; we received filler
             assertf(z>=0 && z<(cpd+1)/2, "z is out of bounds\n", z);
 			for(int x=0; x<total_slabs_on_node;x++){
+                STDLOG(1,"Storing zr=%d x=%d, slot %d, into z=%d x=%d\n", zr, x, zr*total_slabs_on_node+x,
+                    z, (x + first_slab_on_node) % cpd);
                 memcpy( &( mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]),
                         &(recvbuf[rml_times_cpd*zr*total_slabs_on_node + rml_times_cpd*x + 0*cpd + 0]),
                         sizeof(MTCOMPLEX)*rml_times_cpd);
