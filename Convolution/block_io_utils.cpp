@@ -208,7 +208,7 @@ public:
 			sdispls[i]    = i * total_slabs_on_node * rml_times_cpd; 
 			recvcounts[i] = total_slabs_all[i] * rml_times_cpd; 
 			rdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd;
-			if (rdispls[i] < 0) rdispls[i]  += cpd;
+			if (rdispls[i] < 0) rdispls[i]  += cpd*rml_times_cpd;
 			
 #else		
             // All of these are in units of rml_times_cpd.
@@ -219,6 +219,7 @@ public:
             // recv: contains the indexing of the inbound information for this rank
 			recvcounts[i] = total_slabs_all[i];
 			rdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]);
+			if (rdispls[i] < 0) rdispls[i]  += cpd;
             // DJE TODO: Is this assuming that first_slabs_all[] is monotonically increasing?
 #endif					
 		}
@@ -325,6 +326,7 @@ public:
 #ifdef DEBUG
 			sendcounts[i] = total_slabs_all[i] * rml_times_cpd; 
 			sdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd; 			
+			if (sdispls[i] < 0) sdispls[i]  += cpd*rml_times_cpd;
 			recvcounts[i] = total_slabs_on_node * rml_times_cpd; 
 			rdispls[i]    = i * total_slabs_on_node * rml_times_cpd; 
 #else
