@@ -208,6 +208,8 @@ public:
 			sdispls[i]    = i * total_slabs_on_node * rml_times_cpd; 
 			recvcounts[i] = total_slabs_all[i] * rml_times_cpd; 
 			rdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd;
+			if (rdispls[i] < 0) rdispls[i]  += cpd;
+			
 #else		
             // All of these are in units of rml_times_cpd.
             // We only are sending one z per pairwise interaction, so we just need to know the range of x's.
@@ -329,6 +331,7 @@ public:
 			
 			sendcounts[i] = total_slabs_all[i];
 			sdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]);
+			if (sdispls[i] < 0) sdispls[i]  += cpd;
 			recvcounts[i] = total_slabs_on_node;
 			rdispls[i]    = i * total_slabs_on_node;
 #endif
