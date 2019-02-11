@@ -204,11 +204,10 @@ public:
 		{
 			
 #ifdef DEBUG	
-            // DJE: These are now broken
-			sendcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
-			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
-			recvcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
-			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd;
+			sendcounts[i] = total_slabs_on_node * rml_times_cpd; 
+			sdispls[i]    = i * total_slabs_on_node * rml_times_cpd; 
+			recvcounts[i] = total_slabs_all[i] * rml_times_cpd; 
+			rdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd;
 #else		
             // All of these are in units of rml_times_cpd.
             // We only are sending one z per pairwise interaction, so we just need to know the range of x's.
@@ -306,27 +305,33 @@ public:
 		for (int i = 0; i < MPI_size; i++)
 		{
 #ifdef DEBUG
-			sendcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
-			sdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd; 			
-			recvcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
-			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
+			sendcounts[i] = total_slabs_all[i] * rml_times_cpd; 
+			sdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd; 			
+			recvcounts[i] = total_slabs_on_node * rml_times_cpd; 
+			rdispls[i]    = i * total_slabs_on_node * rml_times_cpd; 
 #else
 			
-			sendcounts[i] = z_slabs_per_node * total_slabs_all[i];// * rml_times_cpd;
-			sdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]);// * rml_times_cpd;
-			recvcounts[i] = z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
-			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
+			sendcounts[i] = total_slabs_all[i];// * rml_times_cpd;
+			sdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]);// * rml_times_cpd;
+			recvcounts[i] = total_slabs_on_node;// * rml_times_cpd;
+			rdispls[i]    = i * total_slabs_on_node;// * rml_times_cpd;
 #endif
 
 		}
+
+        for (int zbig=0; zbig<z_slabs_per_node; zbig++) {
+          // We're going to have to do z_slabs_per_node separate MPI_Alltoallv() calls.
+          // Each one will send one z (and all x's) to each node.
+          // The z's being sent in each call are spaced out, so that after all of the
+          // MPI calls, each node will have a contiguous range of z's.
 		
-		uint64_t r = 0; 
-		for (int i = 0; i < MPI_size; i ++){			
-			for (int z_buffer = 0; z_buffer < z_slabs_per_node; z_buffer ++){ 
+            uint64_t r = 0; 
+            int z = zbig+z_slabs_per_node * MPI_rank;  // This is the z for this node
+            for (int i = 0; i < MPI_size; i ++){			
 				for(int x=0; x<total_slabs_all[i]; x++){
 					for(int m=0;m<rml;m++){
 						for(int y=0;y<cpd;y++){
-							int z = z_slabs_per_node * MPI_rank + z_buffer;
+                            // TODO: Would be better to get this conditional out of the inner loop
 							if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + m*cpd + y];
 							else sendbuf[r] = 0.0; 
 							r++;
@@ -334,7 +339,7 @@ public:
 					}
 				}
 			}
-		}
+		
 		
 		MPI_Barrier(MPI_COMM_WORLD);
 #ifdef DEBUG
@@ -345,19 +350,26 @@ public:
 		
 		MPI_Barrier(MPI_COMM_WORLD);
 		
-		for(int z=0; z<z_slabs_per_node * MPI_size; z++){
+		// for(int z=0; z<z_slabs_per_node * MPI_size; z++)
+          for (int zr=0; zr<MPI_size; zr++) {
+            int z = zbig+zr*z_slabs_on_node;    // The z that is intended for rank zr
+            if (z>=zwidth) continue;    // Skip writing any information; we received filler
 			for(int x=0; x<total_slabs_on_node;x++){
+                memcpy( &( mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]),
+                        &(recvbuf[rml_times_cpd*zr*total_slabs_on_node + rml_times_cpd*x + 0*cpd + 0]),
+                        sizeof(MTCOMPLEX)*rml_times_cpd);
+                /* // Equivalent to this:
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
 						uint64_t i = rml_times_cpd*z*total_slabs_on_node + rml_times_cpd*x + m*cpd + y;
-						
-						if (z < zwidth) mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + m*cpd + y ] = recvbuf[i];
+						mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + m*cpd + y ] = recvbuf[i++];
 					}
 				}
-		
+                */
 			}
-		}			
+		  }			
 		
+        }  // zbig
 		STDLOG(1,"Finishing second transpose for zstart %d\n", zstart);
 		
 	}
