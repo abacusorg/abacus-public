@@ -45,11 +45,15 @@ private:
 		MTCOMPLEX * sendbuf;
 		MTCOMPLEX * recvbuf;
 
-		sendbuf = (MTCOMPLEX *) malloc(sizeof(MTCOMPLEX) * CP.z_slabs_per_node * MPI_size * total_slabs_on_node * cpd * CP.rml );
-		recvbuf = (MTCOMPLEX *) malloc(sizeof(MTCOMPLEX) * CP.z_slabs_per_node * cpd * CP.rml * cpd);
+		//uint64_t sendbufsize = sizeof(MTCOMPLEX) * CP.z_slabs_per_node * MPI_size * total_slabs_on_node * cpd * CP.rml ;
+		//uint64_t recvbufsize = sizeof(MTCOMPLEX) * CP.z_slabs_per_node * cpd * CP.rml * cpd;
+
+		uint64_t sendbufsize = sizeof(MTCOMPLEX) * MPI_size * total_slabs_on_node * cpd * CP.rml ;
+		uint64_t recvbufsize = sizeof(MTCOMPLEX) * cpd * CP.rml * cpd;
+
+		sendbuf = (MTCOMPLEX *) malloc(sendbufsize);
+		recvbuf = (MTCOMPLEX *) malloc(recvbufsize);
 		
-		uint64_t sendbufsize = sizeof(MTCOMPLEX) * CP.z_slabs_per_node * MPI_size * total_slabs_on_node * cpd * CP.rml ;
-		uint64_t recvbufsize = sizeof(MTCOMPLEX) * CP.z_slabs_per_node * cpd * CP.rml * cpd;
 		
 		STDLOG(1, "Malloced %ld and %ld bytes for send and recvbuf\n", sendbufsize, recvbufsize);
 
