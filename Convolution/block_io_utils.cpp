@@ -241,6 +241,14 @@ public:
 			for(int x=0; x<total_slabs_on_node;x++){	
                 if (z < zwidth) {
                     STDLOG(1, "Loading z=%d x=%d into zr=%d x=%d, slot %d\n", z, (x+first_slab_on_node)%cpd, zr, x, zr*total_slabs_on_node+x);
+                    #ifdef DO_NOTHING
+                    // Overwrite the values
+                    for(int m=0;m<rml;m++)
+                        for(int y=0;y<cpd;y++)
+                            mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + m*cpd + y ] = 
+                                MTCOMPLEX(z*1000+((x + first_slab_on_node + 1) % cpd), m*1000+y);
+                    #endif
+
                      memcpy(
 						&(sendbuf[rml_times_cpd * zr*total_slabs_on_node + rml_times_cpd * x + 0*cpd + 0]),
                         &(mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]),
@@ -412,7 +420,12 @@ public:
                     for(int m=0;m<rml;m++)
                         for(int y=0;y<cpd;y++)
                             assertf(mttmp[m*cpd+y]==rtmp[m*cpd+y],
-                                "Echoing test failed: %d %d %d %d %d %d\n", zbig, zr, z, x, m, y);
+                                "Echoing test failed: %d %d %d %d %d %d.  Input %f %f, Output %f %f\n", 
+                                zbig, zr, z, x, m, y, 
+                                real(mttmp[m*cpd+y]),
+                                imag(mttmp[m*cpd+y]),
+                                real(rtmp[m*cpd+y]),
+                                imag(rtmp[m*cpd+y]) );
                 #endif
                 /* // Equivalent to this:
 		  		for(int m=0;m<rml;m++){
