@@ -1,3 +1,4 @@
+#define DO_NOTHING
 #include "InCoreConvolution.cpp"
 #include "OutofCoreConvolution.h"
 
@@ -164,6 +165,7 @@ void OutofCoreConvolution::BlockConvolve(void) {
 			
             Complex *Mtmp = &( PlaneBuffer[0] );
 
+#ifndef DO_NOTHING
             ForwardZFFTMultipoles.Start();
             #ifdef GPUFFT
             for(int m=0;m<rml;m++) {
@@ -228,6 +230,7 @@ void OutofCoreConvolution::BlockConvolve(void) {
             }
             #endif
             InverseZFFTTaylor.Stop();
+#endif // DO_NOTHING
 
             SwizzleTaylors(z - zblock);
 		

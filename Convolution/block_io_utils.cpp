@@ -401,9 +401,19 @@ public:
 			for(int x=0; x<total_slabs_on_node;x++){
                 STDLOG(1,"Storing zr=%d x=%d, slot %d, into z=%d x=%d\n", zr, x, zr*total_slabs_on_node+x,
                     z, (x + first_slab_on_node) % cpd);
+                #ifndef DO_NOTHING
                 memcpy( &( mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]),
                         &(recvbuf[rml_times_cpd*zr*total_slabs_on_node + rml_times_cpd*x + 0*cpd + 0]),
                         sizeof(MTCOMPLEX)*rml_times_cpd);
+                #else
+                    // We claim we've done nothing; let's check that recvbuf matches to mtblock
+                    MTCOMPLEX *mttmp = &(mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]);
+                    MTCOMPLEX *rtmp = &(recvbuf[rml_times_cpd*zr*total_slabs_on_node + rml_times_cpd*x + 0*cpd + 0]);
+                    for(int m=0;m<rml;m++)
+                        for(int y=0;y<cpd;y++)
+                            assertf(mttmp[m*cpd+y]==rtmp[m*cpd+y,
+                                "Echoing test failed: %d %d %d %d %d %d\n", zbig, zr, z, x, m, y);
+                #endif
                 /* // Equivalent to this:
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
