@@ -55,8 +55,13 @@ void OutofCoreConvolution::SwizzleTaylors(int z){
     for(int x=0;x<cpd;x++) {
         for(int m=0;m<rml;m++)
 		for(int y=0;y<cpd;y++) {
+#ifndef DO_NOTHING
                 DiskBuffer[x][z*cpd*rml + m*cpd + y ] = 
                     PlaneBuffer[ m*cpd*cpd + x*cpd + y]*invcpd3;
+#else
+                DiskBuffer[x][z*cpd*rml + m*cpd + y ] = 
+                    PlaneBuffer[ m*cpd*cpd + x*cpd + y];
+#endif
 		}
     }
     ArraySwizzle.Stop();
