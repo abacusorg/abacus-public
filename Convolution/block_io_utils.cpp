@@ -307,6 +307,19 @@ public:
                     memcpy( &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
                             &(recvbuf[r]),
                             sizeof(MTCOMPLEX)*rml_times_cpd);
+                    #ifdef DO_NOTHING
+                    // We claim we've done nothing; let's check that recvbuf matches to mtblock
+                    MTCOMPLEX *mttmp = &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]);
+                    for(int m=0;m<rml;m++)
+                        for(int y=0;y<cpd;y++) 
+                            assertf(mttmp[m*cpd+y] == 
+                                MTCOMPLEX(z*1000+((x + first_slabs_all[i] + 1) % cpd), m*1000+y),
+                                "Echoing test failed: %d %d %d %d %d %d mt[%d][%d].  Output %f %f\n",
+                                zbig, z, i, x, m, y, 
+                                (x + first_slabs_all[i] + 1) % cpd, rml_times_cpd*z + m*cpd + y,
+                                real(mttmp[m*cpd+y]),
+                                imag(mttmp[m*cpd+y]) );
+                    #endif
                     r+=rml_times_cpd;
                     /* // Equivalent to this:
 					for(int m=0;m<rml;m++){
