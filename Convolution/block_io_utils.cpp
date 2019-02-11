@@ -208,11 +208,16 @@ public:
 			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 			recvcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
 			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd;
+			
+			if (rdispls[i] < 0) rdispls[i] += cpd * rml_times_cpd; 
+			
 #else		
 			sendcounts[i] = z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
 			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
 			recvcounts[i] = z_slabs_per_node * total_slabs_all[i];// * rml_times_cpd;
 			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]);// * rml_times_cpd;
+			
+			if (rdispls[i] < 0) rdispls[i] += cpd; 
 		 
 #endif					
 		}
@@ -305,12 +310,18 @@ public:
 			sdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd; 			
 			recvcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
 			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
+			
+			if (sdispls[i] < 0) sdispls[i] += cpd  * rml_times_cpd;  
+			
 #else
 			
 			sendcounts[i] = z_slabs_per_node * total_slabs_all[i];// * rml_times_cpd;
 			sdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]);// * rml_times_cpd;
 			recvcounts[i] = z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
 			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
+			
+			if (sdispls[i] < 0) sdispls[i] += cpd; 
+			
 #endif
 
 		}
