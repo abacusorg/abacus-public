@@ -308,12 +308,12 @@ public:
             for (int i = 0; i < MPI_size; i ++){			
 				for(int x=0; x<total_slabs_all[i]; x++){
                     STDLOG(1, "Storing slot %d into z=%d x=%d\n", r/rml_times_cpd, z, (x+first_slabs_all[i])%cpd);
-                    memcpy( &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
+                    memcpy( &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*zbig + 0*cpd + 0]),
                             &(recvbuf[r]),
                             sizeof(MTCOMPLEX)*rml_times_cpd);
                     #ifdef DO_NOTHING
                     // We claim we've done nothing; let's check that recvbuf matches to mtblock
-                    MTCOMPLEX *mttmp = &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]);
+                    MTCOMPLEX *mttmp = &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*zbig + 0*cpd + 0 ]);
                     for(int m=0;m<rml;m++)
                         for(int y=0;y<cpd;y++) 
                             assertf(mttmp[m*cpd+y] == 
@@ -400,7 +400,7 @@ public:
 						 if (z < zwidth) {
 	                        STDLOG(1, "Loading z=%d x=%d into slot %d\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
 	                        memcpy( &(sendbuf[r]),
-	                            &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
+	                            &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*zbig + 0*cpd + 0]),
 	                            sizeof(MTCOMPLEX)*rml_times_cpd);
 							
 						 } else {
