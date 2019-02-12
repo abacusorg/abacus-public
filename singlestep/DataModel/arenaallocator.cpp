@@ -20,6 +20,9 @@
 #ifndef INCLUDE_LB
 #define INCLUDE_LB
 
+//#include "tbb/concurrent_queue.h"
+#include "simple_concurrent_queue.cpp"
+
 #include <mutex>
 
 #define GUARDSIZE 4096
@@ -46,7 +49,7 @@ enum RamdiskArenaType { RAMDISK_NO,
 
 class ArenaAllocator {
 public:
-    ArenaAllocator(int maximum_number_ids, uint64 max_allocations);
+    ArenaAllocator(int maximum_number_ids, uint64 max_allocations, int use_disposal_thread=1);
     ~ArenaAllocator(void);
 
     void report();
@@ -104,6 +107,8 @@ private:
     uint64 allocation_guard;
     uint64 peak_alloc;
     std::mutex lb_mutex;
+
+    pthread_t disposal_thread;
 
     void DiscardArena(int id);
 
@@ -195,10 +200,29 @@ private:
         assert(IsArenaPresent(id));
             return arena[id].max_usable_size;
     }
+
+
+    // Fields related to the disposal thread
+    int use_disposal_thread;
+
+    static void *start_thread(void *AA_obj){
+        ((ArenaAllocator *) AA_obj)->DisposalThreadLoop();
+        return NULL;
+    }
+
+    void DisposalThreadLoop();
+
+    struct disposal_item {
+        void *addr;
+        size_t size;
+    };
+    //tbb::concurrent_bounded_queue<struct disposal_item> disposal_queue;
+    SimpleConcurrentQueue<struct disposal_item> disposal_queue;
 };
 
 
-ArenaAllocator::ArenaAllocator(int maximum_number_ids, uint64 max_allocations) {
+ArenaAllocator::ArenaAllocator(int maximum_number_ids, uint64 max_allocations, int use_disposal_thread)
+        : use_disposal_thread(use_disposal_thread) {
     maxids = maximum_number_ids;
     ArenaFree = new PTimer(maxids);
     arena = new arenainfo[maxids];
@@ -210,6 +234,10 @@ ArenaAllocator::ArenaAllocator(int maximum_number_ids, uint64 max_allocations) {
     allocation_guard = max_allocations;
     for(int i=0;i<maxids;i++)
         ResetArena(i);
+
+    if(use_disposal_thread){
+        assert(pthread_create(&disposal_thread, NULL, start_thread, this) == 0);
+    }
 }
 
 ArenaAllocator::~ArenaAllocator(void) { 
@@ -225,6 +253,13 @@ ArenaAllocator::~ArenaAllocator(void) {
                 ResetArena(i);
     delete[] arena;
     delete ArenaFree;
+
+    if(use_disposal_thread){
+        disposal_queue.push((struct disposal_item){NULL, 0});
+
+        assert(pthread_join(disposal_thread, NULL) == 0);
+        assertf(disposal_queue.empty(), "Disposal queue not empty!\n");
+    }
 }
 
 void ArenaAllocator::report(){
@@ -344,7 +379,8 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
                 assertf(shmstat.st_size == ss, "Found shared memory size %d; expected %d (ramdisk_fn = %s)\n", shmstat.st_size, ss, ramdisk_fn);
             }
             // map the shared memory fd to an address
-            arena[id].addr = (char *) mmap(NULL, ss, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+            int mmap_flags = ramdisk == RAMDISK_WRITESLAB ? (PROT_READ | PROT_WRITE) : (PROT_READ | PROT_WRITE);  // the same
+            arena[id].addr = (char *) mmap(NULL, ss, mmap_flags, MAP_SHARED, fd, 0);
             int res = close(fd);
             assertf((void *) arena[id].addr != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, ss);
             assertf(arena[id].addr != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, ss);
@@ -356,6 +392,7 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
             
             // Either the shared memory already exists or it was just allocated
             total_shm_allocation += arena[id].allocated_size;
+            total_allocation += arena[id].allocated_size;
 
             arena[id].IsIOCompleted = 0;  
             arena[id].start_offset = 0;  //GUARDSIZE;
@@ -377,8 +414,16 @@ void ArenaAllocator::DiscardArena(int id) {
     if(arena[id].shared_mem){
         // This might free the underlying memory if the /dev/shm handle has been deleted
         // TODO: is there a way to check, just for logging/accounting purposes?
-        int res = 0;  //munmap(arena[id].addr, arena[id].allocated_size);
-        assertf(res == 0, "munmap failed\n");
+
+        if(use_disposal_thread){
+            STDLOG(2, "Pushing %d to discard thread...\n", id);
+            struct disposal_item di = {arena[id].addr, arena[id].allocated_size};
+            disposal_queue.push(di);
+            STDLOG(2, "Done pushing %d.\n", id);
+        } else {
+            int res = munmap(arena[id].addr, arena[id].allocated_size);
+            assertf(res == 0, "munmap failed\n");
+        }
         total_shm_allocation -= arena[id].allocated_size;
     }
     else {
@@ -520,8 +565,28 @@ void ReportMemoryAllocatorStats(){
             endbytes <<= 1;
         }
     }
-
 #endif
+}
+
+void ArenaAllocator::DisposalThreadLoop(){
+    struct disposal_item di;
+
+    STDLOG(1, "Starting arena allocator disposal thread\n");
+
+    int n = 0;
+    while(true){
+        disposal_queue.pop(di);  // blocking
+
+        // NULL is a safe termination flag because munmap(NULL) is not safe!
+        if(di.addr == NULL)
+            break;
+
+        int res = munmap(di.addr, di.size);
+        assertf(res == 0, "munmap failed\n");
+        n++;
+    }
+
+    STDLOG(1, "Terminating arena allocator disposal thread.  Executed %d munmap()s.\n", n);
 }
 
 #endif // INCLUDE_LB
