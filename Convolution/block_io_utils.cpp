@@ -235,7 +235,7 @@ public:
 		STDLOG(1,"Populated send/recvcounts/displs. %d\n", zstart);
 		
 		
-		STDLOG(1, "zslabspernode = %d\n", z_slabs_per_node);
+		//STDLOG(1, "zslabspernode = %d\n", z_slabs_per_node);
 		
         for (int zbig=0; zbig<z_slabs_per_node; zbig++) {
 			
@@ -245,7 +245,7 @@ public:
           // Each one will send one z (and all x's) to each node.
           // The z's being sent in each call are spaced out, so that after all of the
           // MPI calls, each node will have a contiguous range of z's.
-          STDLOG(1, "Starting first transpose zbig = %d\n", zbig);
+          //STDLOG(1, "Starting first transpose zbig = %d\n", zbig);
 
 		//for(int z=0; z< z_slabs_per_node * MPI_size; z++)
           for (int zr=0; zr<MPI_size; zr++) {
@@ -253,7 +253,7 @@ public:
 #pragma omp parallel for schedule(static)
 			for(int x=0; x<total_slabs_on_node;x++){	
                 if (z < zwidth) {
-                    STDLOG(1, "Loading z=%d x=%d into zr=%d x=%d, slot %d\n", z, (x+first_slab_on_node)%cpd, zr, x, zr*total_slabs_on_node+x);
+                    //STDLOG(1, "Loading z=%d x=%d into zr=%d x=%d, slot %d\n", z, (x+first_slab_on_node)%cpd, zr, x, zr*total_slabs_on_node+x);
                     #ifdef DO_NOTHING
                     // Overwrite the values
                     for(int m=0;m<rml;m++)
@@ -267,7 +267,7 @@ public:
                         &(mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]),
                         sizeof(MTCOMPLEX)*rml_times_cpd);
                 } else {
-                    STDLOG(1, "Zeroing z=%d x=%d in slot zr=%d x=%d\n", z, (x+first_slab_on_node)%cpd, zr, x);
+                    //STDLOG(1, "Zeroing z=%d x=%d in slot zr=%d x=%d\n", z, (x+first_slab_on_node)%cpd, zr, x);
                      memset(
 						&(sendbuf[rml_times_cpd * zr*total_slabs_on_node + rml_times_cpd * x + 0*cpd + 0]),
                         0, sizeof(MTCOMPLEX)*rml_times_cpd);
@@ -311,7 +311,7 @@ public:
             for (int i = 0; i < MPI_size; i ++){		
 #pragma omp parallel for schedule(static)					
 				for(int x=0; x<total_slabs_all[i]; x++){
-                    STDLOG(1, "Storing slot %d into z=%d x=%d\n", r/rml_times_cpd, z, (x+first_slabs_all[i])%cpd);
+                    //STDLOG(1, "Storing slot %d into z=%d x=%d\n", r/rml_times_cpd, z, (x+first_slabs_all[i])%cpd);
                     memcpy( &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
                             &(recvbuf[r]),
                             sizeof(MTCOMPLEX)*rml_times_cpd);
@@ -382,7 +382,7 @@ public:
 			rdispls[i]    = i * total_slabs_on_node;
 			
 			
-			printf("%d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
+			//printf("%d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
 #endif
 
 		}
@@ -392,7 +392,7 @@ public:
           // Each one will send one z (and all x's) to each node.
           // The z's being sent in each call are spaced out, so that after all of the
           // MPI calls, each node will have a contiguous range of z's.
-          STDLOG(1, "Starting second transpose zbig = %d\n", zbig);
+			// STDLOG(1, "Starting second transpose zbig = %d\n", zbig);
 		  
 		  
 
@@ -403,13 +403,13 @@ public:
 #pragma omp parallel for schedule(static)				 		
 					for(int x=0; x<total_slabs_all[i]; x++){
 						 if (z < zwidth) {
-	                        STDLOG(1, "Loading z=%d x=%d into slot %d\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
+	                        //STDLOG(1, "Loading z=%d x=%d into slot %d\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
 	                        memcpy( &(sendbuf[r]),
 	                            &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
 	                            sizeof(MTCOMPLEX)*rml_times_cpd);
 							
 						 } else {
-                        	STDLOG(1, "Zeroing zr=%d x=%d into slot %d\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
+                        	//STDLOG(1, "Zeroing zr=%d x=%d into slot %d\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
                          	memset( &(sendbuf[r]), 0, sizeof(MTCOMPLEX)*rml_times_cpd);
                      	 }
 						 
@@ -450,7 +450,7 @@ public:
 				
 				if (z < zwidth) {
 				
-	                STDLOG(1,"Storing zr=%d x=%d, slot %d, into z=%d x=%d\n", zr, x, zr*total_slabs_on_node+x,
+	               // STDLOG(1,"Storing zr=%d x=%d, slot %d, into z=%d x=%d\n", zr, x, zr*total_slabs_on_node+x,
 	                    z, (x + first_slab_on_node) % cpd);
 	                #ifndef DO_NOTHING
 	                memcpy( &( mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]),
