@@ -169,7 +169,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     with Tools.chdir(basedir):
         # The parfile is directly stored in the basedir
         output_parfile = basename(output_parfile)
-        if clean and not path.exists(icdir):
+        if clean and not path.exists(icdir) and not zeldovich.is_on_the_fly_format(params['ICFormat']):
             zeldovich.run(output_parfile, allow_eigmodes_fn_override=override_directories)
         elif clean:
             print('Reusing existing ICs')
@@ -787,12 +787,17 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             ConvDone = True  # No need to convolve for an IC step
             stepnum = 0
         else:
-            read_state = InputFile(pjoin(read,"state"))
-            if parallel:
-                ConvDone = False  # Have to take it on faith that the nodes have multipoles and are ready to convolve!
-            else:
-                ConvDone = check_multipole_taylor_done(param, read_state, kind='Taylor')
-            stepnum = read_state.FullStepNumber + 1
+            try:
+                read_state = InputFile(pjoin(read,"state"))
+                if parallel:
+                    ConvDone = False  # Have to take it on faith that the nodes have multipoles and are ready to convolve!
+                else:
+                    ConvDone = check_multipole_taylor_done(param, read_state, kind='Taylor')
+                stepnum = read_state.FullStepNumber + 1
+            except:
+                # TODO: might have no read state if we're restoring from a backup
+                ConvDone = False
+                stepnum = 0
 
         ss_timer, conv_time = None, None
 
