@@ -31,6 +31,7 @@ private:
 public:
     MTCOMPLEX **mtblock = NULL; // multipoles/taylors
     DFLOAT **dblock = NULL;  // derivatives
+    int64 mtblock_offset;
     
     size_t alloc_bytes = 0;
     size_t ReadMultipoleBytes = 0, WriteTaylorBytes = 0, ReadDerivativeBytes = 0;
@@ -69,6 +70,7 @@ public:
 		int last_slab = first_slab_on_node + total_slabs_on_node + 1;
 		for (int _x = last_slab; _x < last_slab + cpd - total_slabs_on_node; _x++){
 			int x = _x % cpd; 
+            mtblock[x] += (size_t) MPI_rank*mtblock_offset;
 			free(mtblock[x]);
 		}
 #endif
@@ -308,12 +310,12 @@ public:
             for (int i = 0; i < MPI_size; i ++){			
 				for(int x=0; x<total_slabs_all[i]; x++){
                     STDLOG(1, "Storing slot %d into z=%d x=%d\n", r/rml_times_cpd, z, (x+first_slabs_all[i])%cpd);
-                    memcpy( &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*zbig + 0*cpd + 0]),
+                    memcpy( &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
                             &(recvbuf[r]),
                             sizeof(MTCOMPLEX)*rml_times_cpd);
                     #ifdef DO_NOTHING
                     // We claim we've done nothing; let's check that recvbuf matches to mtblock
-                    MTCOMPLEX *mttmp = &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*zbig + 0*cpd + 0 ]);
+                    MTCOMPLEX *mttmp = &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]);
                     for(int m=0;m<rml;m++)
                         for(int y=0;y<cpd;y++) 
                             assertf(mttmp[m*cpd+y] == 
@@ -400,7 +402,7 @@ public:
 						 if (z < zwidth) {
 	                        STDLOG(1, "Loading z=%d x=%d into slot %d\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
 	                        memcpy( &(sendbuf[r]),
-	                            &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*zbig + 0*cpd + 0]),
+	                            &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
 	                            sizeof(MTCOMPLEX)*rml_times_cpd);
 							
 						 } else {
@@ -595,6 +597,7 @@ private:
 		
 #ifdef PARALLEL
         size_t size = sizeof(MTCOMPLEX)*CP.z_slabs_per_node*cpd*rml;
+        mtblock_offset = CP.z_slabs_per_node*cpd*rml;
 
     	//for x slabs not in this nodes domain, allocate mtblock room of z_slabs_per_node to receive transposes. 
 		int last_slab = first_slab_on_node + total_slabs_on_node + 1;
@@ -602,6 +605,9 @@ private:
 			int x = _x % cpd; 
 			mtblock[x] = (MTCOMPLEX*) malloc(size);
 			assert(mtblock[x]!=NULL);
+            // We have to make this look like it starts at z = MPI_rank * z_slabs_per_node
+            mtblock[x] -= (size_t) MPI_rank*mtblock_offset;
+            // Will need to restore this when we free it!
 		}
 #endif
 		
