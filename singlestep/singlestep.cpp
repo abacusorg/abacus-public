@@ -204,6 +204,9 @@ void FinalizeParallel() {
 
 
 int main(int argc, char **argv) {
+    //Enable floating point exceptions
+    feenableexcept(FE_INVALID | FE_DIVBYZERO);
+    
     WallClockDirect.Start();
     SingleStepSetup.Start();
 
@@ -260,11 +263,8 @@ int main(int argc, char **argv) {
     double dlna = da/ReadState.ScaleFactor;
     STDLOG(0,"Chose Time Step da = %6.4f, dlna = %6.4f\n", da, dlna);
     if(dlna > 0){
-        STDLOG(0, "\t\tAt the current rate, this implies %d more steps to z_final=%f\n", (int)ceil(log(1./ReadState.ScaleFactor/(1. + P.FinishingRedshift()))/dlna), P.FinishingRedshift());
+        STDLOG(0, "\t\tAt the current rate, this implies %d more steps to z_final=%f\n", (int64)ceil(log(1./ReadState.ScaleFactor/(1. + P.FinishingRedshift()))/dlna), P.FinishingRedshift());
     }
-    
-    //Enable floating point exceptions
-    feenableexcept(FE_INVALID | FE_DIVBYZERO);
     
     BuildWriteState(da);
     LCOrigin = (double3 *) malloc(8*sizeof(double3));  // max 8 light cones
@@ -307,8 +307,6 @@ int main(int argc, char **argv) {
     FinalizeWriteState();
 
     // The state should be written last, since that officially signals success.
-    // TODO: For MPI, this should be the Global Write State.
-    // TODO: For MPI, only rank 0 node does this
     if (WriteState.NodeRank==0) {
         WriteState.write_to_file(P.WriteStateDirectory);
         STDLOG(0,"Wrote WriteState to %s\n",P.WriteStateDirectory);

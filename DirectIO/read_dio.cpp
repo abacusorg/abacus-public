@@ -77,7 +77,6 @@ void ReadDirect::Blockingfread( char *fn, char *x, size_t length, off_t fileoffs
 }
 
 void ReadDirect::BlockingReadDirect(char *fn, char *x, size_t length, off_t fileoffsetbytes) {
-    assert(ramdiskflag==0);
     assert( fileoffsetbytes + (off_t) length <= fsize(fn) ); // can't read off the end of the file
 
     size_t bytesleft = length;
@@ -117,8 +116,8 @@ void ReadDirect::BlockingRead(char *fn, char *x, size_t length, off_t fileoffset
     ReadDirect::BlockingRead(fn, x, length, fileoffsetbytes, ramdiskflag);
 }
 
-void ReadDirect::BlockingRead(char *fn, char *x, size_t length, off_t fileoffsetbytes, int ramdisk) {
-    if(ramdisk) 
+void ReadDirect::BlockingRead(char *fn, char *x, size_t length, off_t fileoffsetbytes, int no_dio) {
+    if(no_dio || ramdiskflag) 
         Blockingfread(fn,x,length,fileoffsetbytes);
     else
         BlockingReadDirect(fn,x,length,fileoffsetbytes);

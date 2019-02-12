@@ -4,7 +4,8 @@ public:
         alignedbytes = 0;
         alignedbuffer = NULL;
         ramdiskflag = isramdisk;
-        if(!isramdisk) {
+        
+        if(!ramdiskflag){
             alignedbytes = buffersize;
             int rv = posix_memalign((void **) (&alignedbuffer), 4096, buffersize);
             assert(rv==0);
@@ -21,7 +22,7 @@ public:
     void BlockingRead(char *fn, char *x, size_t length, off_t fileoffsetbytes);
 
     // Passing the ramdisk flag explicitly will override the global "ramdiskflag"
-    void BlockingRead(char *fn, char *x, size_t length, off_t fileoffsetbytes, int ramdisk);
+    void BlockingRead(char *fn, char *x, size_t length, off_t fileoffsetbytes, int no_dio);
 
 private:
 
