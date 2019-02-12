@@ -360,7 +360,7 @@ OutofCoreConvolution::OutofCoreConvolution(ConvolutionParameters &_CP) : CP(_CP)
     sdb *= 1024LLU;
 
     // the RamDisk flag is deprecated; we use finer-grain control over direct IO now
-    int direct = 0;  //CP.runtime_IsRamDisk; 
+    int direct = CP.runtime_IsRamDisk; 
 
     RD_RDD = new ReadDirect(direct,sdb);
     RD_RDM = new ReadDirect(direct,sdb);
