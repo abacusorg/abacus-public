@@ -155,18 +155,26 @@ void OutofCoreConvolution::BlockConvolve(void) {
 #ifdef PARALLEL		
 		int zstart = zblock + MPI_rank * z_slabs_per_node; 
 		int zend = zstart + z_slabs_per_node;
-				
-		if (zstart > (cpd + 1)/2) zend = zstart;
-		else if (zstart + zwidth < zend) zend = zstart + zwidth;
-
+						
+		if (zstart > (cpd + 1)/2) zend = zstart; //if zstart is not a valid z, set zend=zstart to effectively bypass the following loop. 
+		else if (zstart + zwidth < zend) zend = zstart + zwidth; //TODO what does this do?
+		else if (zend > zwidth) zend = zwidth; //make sure we don't go off the end of valid zs. 
 #else
 		int zstart = zblock;
 		int zend = zblock + zwidth; 
 		int MPI_rank = -1; //for debugging. 
 #endif
+		
+		STDLOG(1, "zblock %d, zwidth %d, zstart %d, zend %d\n", zblock, zwidth, zstart, zend);	
+		
         for(int z = zstart; z < zend; z++) {
 			
+			STDLOG(1, "Swizzling multipoles for z %d\n", z);	
+			
 			SwizzleMultipoles(z - zblock);
+			
+			STDLOG(1, "Done with swizzling multipoles for z %d\n", z);	
+			
 			
             Complex *Mtmp = &( PlaneBuffer[0] );
 
@@ -235,9 +243,17 @@ void OutofCoreConvolution::BlockConvolve(void) {
             }
             #endif
             InverseZFFTTaylor.Stop();
+			
+			STDLOG(1, "Done with fftws for z %d\n", z);	
+			
 #endif // DO_NOTHING
+			
+			
 
             SwizzleTaylors(z - zblock);
+			
+			STDLOG(1, "Done with swizzling taylors for z %d\n", z);	
+			
 		
         }
 		
