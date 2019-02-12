@@ -148,8 +148,8 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
 
     // GPUMemoryGB = std::min(GPUMemoryGB, 5.0*P.np*1e-9*sizeof(FLOAT3)+0.004);
 
-    // Don't pin more than 10% of the host memory.
-    GPUMemoryGB = std::min(GPUMemoryGB,0.10/(NBuffers)*P.MAXRAMMB/1024);  
+    // Don't pin more than a given percentage of the host memory.
+    GPUMemoryGB = std::min(GPUMemoryGB, 0.02/(NBuffers)*P.MAXRAMMB/1024);  
 
     STDLOG(1, "Using %f GB of GPU memory (per GPU thread)\n", GPUMemoryGB);
     MinSplits = NBuffers;
