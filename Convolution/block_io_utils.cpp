@@ -250,6 +250,7 @@ public:
 		//for(int z=0; z< z_slabs_per_node * MPI_size; z++)
           for (int zr=0; zr<MPI_size; zr++) {
             int z = zbig+zr*z_slabs_per_node;    // The z that is intended for rank zr
+#pragma omp parallel for schedule(static)
 			for(int x=0; x<total_slabs_on_node;x++){	
                 if (z < zwidth) {
                     STDLOG(1, "Loading z=%d x=%d into zr=%d x=%d, slot %d\n", z, (x+first_slab_on_node)%cpd, zr, x, zr*total_slabs_on_node+x);
@@ -307,7 +308,8 @@ public:
 		uint64_t r = 0; 
         int z = zbig+z_slabs_per_node * MPI_rank;  // This is the z for this node
         if (z<zwidth) {     // Skip if it's out of bounds; we received filler data
-            for (int i = 0; i < MPI_size; i ++){			
+            for (int i = 0; i < MPI_size; i ++){		
+#pragma omp parallel for schedule(static)					
 				for(int x=0; x<total_slabs_all[i]; x++){
                     STDLOG(1, "Storing slot %d into z=%d x=%d\n", r/rml_times_cpd, z, (x+first_slabs_all[i])%cpd);
                     memcpy( &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
@@ -397,7 +399,8 @@ public:
 		
             uint64_t r = 0; 
             int z = zbig+z_slabs_per_node * MPI_rank;  // This is the z for this node
-           	 for (int i = 0; i < MPI_size; i++){			
+           	 for (int i = 0; i < MPI_size; i++){	
+#pragma omp parallel for schedule(static)				 		
 					for(int x=0; x<total_slabs_all[i]; x++){
 						 if (z < zwidth) {
 	                        STDLOG(1, "Loading z=%d x=%d into slot %d\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
@@ -442,6 +445,7 @@ public:
             int z = zbig+zr*z_slabs_per_node;    // The z that is intended for rank zr
             //if (z>=zwidth) continue;    // Skip writing any information; we received filler
             //assertf(z>=0 && z<(cpd+1)/2, "z is out of bounds\n", z);
+#pragma omp parallel for schedule(static)			
 			for(int x=0; x<total_slabs_on_node;x++){
 				
 				if (z < zwidth) {
