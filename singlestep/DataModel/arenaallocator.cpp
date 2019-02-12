@@ -377,7 +377,7 @@ void ArenaAllocator::DiscardArena(int id) {
     if(arena[id].shared_mem){
         // This might free the underlying memory if the /dev/shm handle has been deleted
         // TODO: is there a way to check, just for logging/accounting purposes?
-        int res = 0;  //munmap(arena[id].addr, arena[id].allocated_size);
+        int res =  munmap(arena[id].addr, arena[id].allocated_size);
         assertf(res == 0, "munmap failed\n");
         total_shm_allocation -= arena[id].allocated_size;
     }
