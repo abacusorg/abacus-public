@@ -222,6 +222,10 @@ public:
 			if (rdispls[i] < 0) rdispls[i]  += cpd;
             STDLOG(1,"Send to node %d: %d %d\n", i, sendcounts[i], sdispls[i]);
             STDLOG(1,"Receive from node %d: %d %d\n", i, recvcounts[i], rdispls[i]);
+			
+			
+			printf("%d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
+			
             // DJE TODO: Is this assuming that first_slabs_all[] is monotonically increasing?
 #endif					
 		}
@@ -372,6 +376,9 @@ public:
 			if (sdispls[i] < 0) sdispls[i]  += cpd;
 			recvcounts[i] = total_slabs_on_node;
 			rdispls[i]    = i * total_slabs_on_node;
+			
+			
+			printf("%d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
 #endif
 
 		}
@@ -382,20 +389,26 @@ public:
           // The z's being sent in each call are spaced out, so that after all of the
           // MPI calls, each node will have a contiguous range of z's.
           STDLOG(1, "Starting second transpose zbig = %d\n", zbig);
+		  
+		  
+
 		
             uint64_t r = 0; 
             int z = zbig+z_slabs_per_node * MPI_rank;  // This is the z for this node
-            for (int i = 0; i < MPI_size; i++){			
-				for(int x=0; x<total_slabs_all[i]; x++,r+=rml_times_cpd){
-                    if (z < zwidth) {
-                        STDLOG(1, "Loading z=%d x=%d into slot %d\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
-                        memcpy( &(sendbuf[r]),
-                            &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
-                            sizeof(MTCOMPLEX)*rml_times_cpd);
-                     } else {
-                        STDLOG(1, "Zeroing zr=%d x=%d into slot %d\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
-                         memset( &(sendbuf[r]), 0, sizeof(MTCOMPLEX)*rml_times_cpd);
-                     }
+           	 for (int i = 0; i < MPI_size; i++){			
+					for(int x=0; x<total_slabs_all[i]; x++){
+						 if (z < zwidth) {
+	                        STDLOG(1, "Loading z=%d x=%d into slot %d\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
+	                        memcpy( &(sendbuf[r]),
+	                            &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
+	                            sizeof(MTCOMPLEX)*rml_times_cpd);
+							
+						 } else {
+                        	STDLOG(1, "Zeroing zr=%d x=%d into slot %d\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
+                         	memset( &(sendbuf[r]), 0, sizeof(MTCOMPLEX)*rml_times_cpd);
+                     	 }
+						 
+						 r+=rml_times_cpd;	
 
                     /* // Equivalent to this:
 					for(int m=0;m<rml;m++){
@@ -407,8 +420,10 @@ public:
 						}
 					}
                     */
+						
+					}			
 				}
-			}
+			
 		
 		
 		MPI_Barrier(MPI_COMM_WORLD);
@@ -423,31 +438,38 @@ public:
 		// for(int z=0; z<z_slabs_per_node * MPI_size; z++)
           for (int zr=0; zr<MPI_size; zr++) {
             int z = zbig+zr*z_slabs_per_node;    // The z that is intended for rank zr
-            if (z>=zwidth) continue;    // Skip writing any information; we received filler
-            assertf(z>=0 && z<(cpd+1)/2, "z is out of bounds\n", z);
+            //if (z>=zwidth) continue;    // Skip writing any information; we received filler
+            //assertf(z>=0 && z<(cpd+1)/2, "z is out of bounds\n", z);
 			for(int x=0; x<total_slabs_on_node;x++){
-                STDLOG(1,"Storing zr=%d x=%d, slot %d, into z=%d x=%d\n", zr, x, zr*total_slabs_on_node+x,
-                    z, (x + first_slab_on_node) % cpd);
-                #ifndef DO_NOTHING
-                memcpy( &( mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]),
-                        &(recvbuf[rml_times_cpd*zr*total_slabs_on_node + rml_times_cpd*x + 0*cpd + 0]),
-                        sizeof(MTCOMPLEX)*rml_times_cpd);
-                #else
-                    // We claim we've done nothing; let's check that recvbuf matches to mtblock
-                    MTCOMPLEX *mttmp = &(mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]);
-                    MTCOMPLEX *rtmp = &(recvbuf[rml_times_cpd*zr*total_slabs_on_node + rml_times_cpd*x + 0*cpd + 0]);
-                    for(int m=0;m<rml;m++)
-                        for(int y=0;y<cpd;y++) 
-                            assertf(rtmp[m*cpd+y] == 
-                                MTCOMPLEX(z*1000+((x + first_slab_on_node + 1) % cpd), m*1000+y),
-                                "Echoing test failed: %d %d %d %d %d %d mt[%d][%d].  Input %f %f, Output %f %f\n", 
-                                zbig, zr, z, x, m, y, 
-                                (x + first_slab_on_node + 1) % cpd, rml_times_cpd*z + m*cpd + y,
-                                real(mttmp[m*cpd+y]),
-                                imag(mttmp[m*cpd+y]),
-                                real(rtmp[m*cpd+y]),
-                                imag(rtmp[m*cpd+y]) );
-                #endif
+				
+				if (z < zwidth) {
+				
+	                STDLOG(1,"Storing zr=%d x=%d, slot %d, into z=%d x=%d\n", zr, x, zr*total_slabs_on_node+x,
+	                    z, (x + first_slab_on_node) % cpd);
+	                #ifndef DO_NOTHING
+	                memcpy( &( mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]),
+	                        &(recvbuf[rml_times_cpd*zr*total_slabs_on_node + rml_times_cpd*x + 0*cpd + 0]),
+	                        sizeof(MTCOMPLEX)*rml_times_cpd);
+	                #else
+	                    // We claim we've done nothing; let's check that recvbuf matches to mtblock
+	                    MTCOMPLEX *mttmp = &(mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]);
+	                    MTCOMPLEX *rtmp = &(recvbuf[rml_times_cpd*zr*total_slabs_on_node + rml_times_cpd*x + 0*cpd + 0]);
+	                    for(int m=0;m<rml;m++)
+	                        for(int y=0;y<cpd;y++) 
+	                            assertf(rtmp[m*cpd+y] == 
+	                                MTCOMPLEX(z*1000+((x + first_slab_on_node + 1) % cpd), m*1000+y),
+	                                "Echoing test failed: rank %d zbig %d zr %d z %d x %d m %d y %d mt[%d][%d].  Input %f %f, Output %f %f. firstslab = %d. cpd = %d. x = %d\n", 
+	                                MPI_rank, 
+									zbig, zr, z, x, m, y, 
+	                                (x + first_slab_on_node + 1) % cpd, rml_times_cpd*z + m*cpd + y,
+	                                real(mttmp[m*cpd+y]),
+	                                imag(mttmp[m*cpd+y]),
+	                                real(rtmp[m*cpd+y]),
+	                                imag(rtmp[m*cpd+y]),
+									first_slab_on_node, cpd, x );
+	                #endif
+				}
+
                 /* // Equivalent to this:
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
