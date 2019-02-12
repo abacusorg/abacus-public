@@ -611,9 +611,10 @@ def remove_MT(md, pattern, rmdir=False):
         except OSError:
             pass  # remove dir if empty; we re-create at each step in setup_dirs
 
-import table_logger
 # via https://stackoverflow.com/a/2293793
 fp_regex = r'(([1-9][0-9]*\.?[0-9]*)|(\.[0-9]+))([Ee][+-]?[0-9]+)?'
+
+import table_logger
 class StatusLogWriter:
     #header = "Step  Redshift  Singlestep  Conv"
     #line_fmt = '{step:4d}  {z:6.1f}  {ss_rate:.1g} Mp/s ({ss_time:.1g} s) {conv_time:.1g}'
@@ -632,6 +633,7 @@ class StatusLogWriter:
         self.log_fp = open(log_fn, 'ab')
 
         self.log_fp.write('\n'.join(self.topmatter).format().encode('utf-8'))
+        self.log_fp.flush()
 
         self.logger = table_logger.TableLogger(file=self.log_fp,
                                                columns=list(self.fields),
@@ -640,7 +642,7 @@ class StatusLogWriter:
         self.logger.make_horizontal_border()
         self.log_fp.close()
 
-    def update(self, param, state):
+    def update(self, param, state, ss_time=None, conv_time=None):
         '''
         Update the log with some info about the singlestep and conv
         that just finished.
@@ -648,36 +650,43 @@ class StatusLogWriter:
         The logs have already been moved to their new names, indicated
         by step_num.
         '''
+
         step_num = state.FullStepNumber
 
-        ss_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.time'.format(step_num))
-        try:
-            ss_log_txt = pathlib.Path(ss_log_fn).read_text()
-        except FileNotFoundError:
-            self.print('Warning: could not find timing file "{}"'.format(ss_log_fn))
-            return
+        if not ss_time:
+            self.print('Warning: parsing logs to get singlestep time, may miss startup time')
+            ss_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.time'.format(step_num))
+            try:
+                ss_log_txt = pathlib.Path(ss_log_fn).read_text()
+            except FileNotFoundError:
+                self.print('Warning: could not find timing file "{}"'.format(ss_log_fn))
+                ss_time = np.nan
 
-        matches = re.search(r'Total Wall Clock Time\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), ss_log_txt)
-        ss_time = float(matches.group('time'))
+            matches = re.search(r'Total Wall Clock Time\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), ss_log_txt)
+            ss_time = float(matches.group('time'))
         ss_rate = param['NP']/1e6/ss_time  # Mpart/s
 
-        conv_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.convtime'.format(step_num))
-        try:
-            conv_log_txt = pathlib.Path(conv_log_fn).read_text()
-            matches = re.search(r'ConvolutionWallClock\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), conv_log_txt)
-            conv_time = float(matches.group('time'))
-        except:
-            conv_time = 0.
+        if not conv_time:
+            conv_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.convtime'.format(step_num))
+            try:
+                conv_log_txt = pathlib.Path(conv_log_fn).read_text()
+                matches = re.search(r'ConvolutionWallClock\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), conv_log_txt)
+                conv_time = float(matches.group('time'))
+                self.print('Warning: parsing logs to get convolution time, may miss startup time')
+            except:
+                conv_time = 0.
 
         info = dict(Step=step_num, Redshift=state.Redshift, Singlestep=(ss_rate,ss_time), Conv=conv_time)
 
         self.logger(*(info[k] for k in self.fields))
+
 
     def print(self, fmtstring, end='\n', *args, **kwargs):
         '''
         Print a plain statement to the status log
         '''
         self.log_fp.write(('\n * ' + fmtstring.format(*args, **kwargs) + end).encode('utf-8'))
+        self.log_fp.flush()
     
 
 
@@ -744,6 +753,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     convolution_env = setup_convolution_env(param)
 
     status_log = StatusLogWriter(pjoin(param.OutputDirectory, 'status.log'))
+    conv_time = None
 
     print("Using parameter file {:s} and working directory {:s}.".format(paramfn,param.WorkingDirectory))
 
@@ -784,6 +794,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                 ConvDone = check_multipole_taylor_done(param, read_state, kind='Taylor')
             stepnum = read_state.FullStepNumber + 1
 
+        ss_timer, conv_time = None, None
+
         # Do the convolution
         if not ConvDone:
             if not parallel:
@@ -816,7 +828,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                 print('Performing parallel convolution for step {:d} with command "{:s}"'.format(stepnum, ' '.join(ConvolutionDriver_cmd)))
             else:
                 print("Performing convolution for step {:d}".format(stepnum))
-            subprocess.check_call(ConvolutionDriver_cmd, env=convolution_env)
+            with Tools.ContextTimer() as conv_timer:
+                subprocess.check_call(ConvolutionDriver_cmd, env=convolution_env)
+            conv_time = conv_timer.elapsed
 
             if ProfilingMode == 2:
                 print('\tConvolution step {} finished. ProfilingMode = 2 (Convolution) is active; Abacus will now quit.'.format(stepnum))
@@ -855,7 +869,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             print('Running parallel singlestep for step {:d} with command "{:s}"'.format(stepnum, ' '.join(singlestep_cmd)))
         else:
             print("Running singlestep for step {:d}".format(stepnum))
-        subprocess.check_call(singlestep_cmd, env=singlestep_env)
+        with Tools.ContextTimer() as ss_timer:
+            subprocess.check_call(singlestep_cmd, env=singlestep_env)
         
         # In profiling mode, we don't move the states so we can immediately run the same step again
         if ProfilingMode and ProfilingMode != 2:
@@ -871,7 +886,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         save_log_files(param.LogDirectory, 'step{:04d}'.format(write_state.FullStepNumber))
 
         # Update the status log
-        status_log.update(param, write_state)
+        status_log.update(param, write_state, ss_timer.elapsed, conv_time)
         
         shutil.copy(pjoin(write, "state"), pjoin(param.LogDirectory, "step{:04d}.state".format(write_state.FullStepNumber)))
         print(( "\t Finished state {:d}. a = {:.4f}, dlna = {:.3g}, rms velocity = {:.3g}".format(

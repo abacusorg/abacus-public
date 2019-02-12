@@ -99,11 +99,19 @@ void FetchSlabsAction(int slab) {
 // -----------------------------------------------------------------
 
 int TransposePosPrecondition(int slab){
-    if(   !SB->IsIOCompleted(PosSlab,      slab) ||
-          !SB->IsIOCompleted(CellInfoSlab, slab)   ) {
-        Dependency::NotifySpinning(WAITING_FOR_IO);
+    // TODO: technically need separate WAITING_FOR_IO flags for each slab, otherwise "reasons" can cross-talk
+    if(!SB->IsIOCompleted(PosSlab, slab)){
+        if(SB->IsSlabPresent(PosSlab, slab))
+            Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
+
+    if(!SB->IsIOCompleted(CellInfoSlab, slab)){
+        if(SB->IsSlabPresent(CellInfoSlab, slab))
+            Dependency::NotifySpinning(WAITING_FOR_IO);
+        return 0;
+    }
+
         return 1;
 }
 
@@ -147,7 +155,8 @@ int NearForcePrecondition(int slab) {
         if(TransposePos.notdone(slab+i))
             return 0;
         if( !SB->IsIOCompleted( CellInfoSlab, slab+i ) ){
-            Dependency::NotifySpinning(WAITING_FOR_IO);
+            if(SB->IsSlabPresent(CellInfoSlab, slab+i))
+                Dependency::NotifySpinning(WAITING_FOR_IO);
             return 0;
         }
     }
@@ -203,12 +212,22 @@ void NearForceAction(int slab) {
 // -----------------------------------------------------------------
 
 int TaylorForcePrecondition(int slab) {
-    if( !SB->IsIOCompleted( CellInfoSlab,  slab ) ||
-        !SB->IsIOCompleted( PosSlab,       slab ) ||
-        !SB->IsIOCompleted( TaylorSlab,    slab ) ){
-        Dependency::NotifySpinning(WAITING_FOR_IO);
+    if( !SB->IsIOCompleted( CellInfoSlab, slab ) ){
+        if(SB->IsSlabPresent(CellInfoSlab, slab))
+            Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
+    if( !SB->IsIOCompleted( PosSlab, slab ) ){
+        if(SB->IsSlabPresent(PosSlab, slab))
+            Dependency::NotifySpinning(WAITING_FOR_IO);
+        return 0;
+    }
+    if( !SB->IsIOCompleted( TaylorSlab, slab ) ){
+        if(SB->IsSlabPresent(TaylorSlab, slab))
+            Dependency::NotifySpinning(WAITING_FOR_IO);
+        return 0;
+    }
+
     return 1;
 }
 
@@ -237,8 +256,9 @@ void TaylorForceAction(int slab) {
 // -----------------------------------------------------------------
 
 int KickPrecondition(int slab) {
-    if( !SB->IsIOCompleted( VelSlab, slab ) ) {
-        Dependency::NotifySpinning(WAITING_FOR_IO);
+    if( !SB->IsIOCompleted( VelSlab, slab ) ){
+        if(SB->IsSlabPresent(VelSlab, slab))
+            Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
     
@@ -338,8 +358,9 @@ int MakeCellGroupsPrecondition(int slab) {
     if( Kick.notdone(slab) ) return 0;
     
     // Also need the auxs, because we're going to re-order
-    if( !SB->IsIOCompleted( AuxSlab, slab ) ) {
-        Dependency::NotifySpinning(WAITING_FOR_IO);
+    if( !SB->IsIOCompleted( AuxSlab, slab ) ){
+        if(SB->IsSlabPresent(AuxSlab, slab))
+            Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
     return 1;
@@ -409,8 +430,9 @@ int OutputPrecondition(int slab) {
     if (Kick.notdone(slab)) return 0;  // Must have accelerations
 
     // Also obviously need the aux!
-    if( !SB->IsIOCompleted( AuxSlab, slab ) ) {
-        Dependency::NotifySpinning(WAITING_FOR_IO);
+    if( !SB->IsIOCompleted( AuxSlab, slab ) ){
+        if(SB->IsSlabPresent(AuxSlab, slab))
+            Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
     
