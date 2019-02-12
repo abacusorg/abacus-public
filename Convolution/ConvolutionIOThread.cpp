@@ -15,8 +15,8 @@ private:
     
     ConvolutionParameters CP;
     
-    size_t taylor_bytes_written = 0, multipole_bytes_read = 0, derivative_bytes_read = 0;
-    double taylor_write_time = 0, multipole_read_time = 0, derivative_read_time = 0;
+    size_t taylor_bytes_written = 0, multipole_bytes_read = 0, transpose_bytes_buffered = 0, transpose_bytes_MPI_sent = 0, derivative_bytes_read = 0;
+    double taylor_write_time = 0, multipole_read_time = 0, derivative_read_time = 0, transpose_buffering_time = 0, transpose_alltoall_time = 0;
     int nblocks = 0;
     int thread_num = -1;
 
@@ -76,6 +76,8 @@ private:
                 int this_zwidth = min(zwidth, (cpd+1)/2-zstart);
 				
 #ifdef PARALLEL
+				write_buffer->TransposeBufferingBytes += ( sendbufsize + recvbufsize ) * CP.z_slabs_per_node;
+				write_buffer->TransposeAlltoAllvBytes += sendbufsize * CP.z_slabs_per_node;
   				write_buffer->transpose_x_to_z(zstart, this_zwidth, thread_num,  CP.z_slabs_per_node, recvbuf, sendbuf, first_slabs_all, total_slabs_all);
 #endif
 				
@@ -95,6 +97,8 @@ private:
                 read_buffer->read(zstart, this_zwidth, thread_num);
 
 #ifdef PARALLEL
+				read_buffer->TransposeBufferingBytes += ( sendbufsize + recvbufsize ) * CP.z_slabs_per_node;
+				read_buffer->TransposeAlltoAllvBytes += sendbufsize * CP.z_slabs_per_node;
   				read_buffer->transpose_z_to_x(zstart, this_zwidth, thread_num, CP.z_slabs_per_node, sendbuf, recvbuf, first_slabs_all, total_slabs_all, sendbufsize, recvbufsize);
 #endif
 				
@@ -164,18 +168,34 @@ public:
         while(free_queue.try_pop(block)){
             taylor_bytes_written += block->WriteTaylorBytes;
             multipole_bytes_read += block->ReadMultipoleBytes;
+			transpose_bytes_buffered += block->TransposeBufferingBytes;
+			transpose_bytes_MPI_sent += block->TransposeAlltoAllvBytes;
             derivative_bytes_read += block->ReadDerivativeBytes;
+			
             taylor_write_time += block->WriteTaylor.Elapsed();
             multipole_read_time += block->ReadMultipoles.Elapsed();
+			transpose_buffering_time += block->TransposeBuffering.Elapsed();
+			transpose_alltoall_time += block->TransposeAlltoAllv.Elapsed();
             derivative_read_time += block->ReadDerivatives.Elapsed();
         }
         
         thread_joined = true;
     }
+		
     
     size_t get_multipole_bytes_read(){
         assert(thread_joined);
         return multipole_bytes_read;
+    }
+	
+    size_t get_transpose_bytes_buffered(){
+        assert(thread_joined);
+        return transpose_bytes_buffered;
+    }
+	
+    size_t get_transpose_bytes_MPI_sent(){
+        assert(thread_joined);
+        return transpose_bytes_MPI_sent;
     }
     
     size_t get_derivative_bytes_read(){
@@ -196,6 +216,16 @@ public:
     double get_multipole_read_time(){
         assert(thread_joined);
         return multipole_read_time;
+    }
+	
+    double get_transpose_buffering_time(){
+        assert(thread_joined);
+        return transpose_buffering_time;
+    }
+	
+    double get_tranpose_alltoall_time(){
+        assert(thread_joined);
+        return transpose_alltoall_time;
     }
     
     double get_deriv_read_time(){

@@ -9,11 +9,17 @@ WriteDirect *WD_WDT;
 typedef struct { 
     double ReadDerivatives;
     double ReadMultipoles;
+	double TransposeBuffering;
+	double TransposeAlltoAllv;
     double WriteTaylor;
     double ForwardZFFTMultipoles;
     double InverseZFFTTaylor;
     double ConvolutionArithmetic;
     double ArraySwizzle;
+	
+		
+	
+	
 #ifdef CONVIOTHREADED
     double WaitForIO;
 #endif
@@ -21,7 +27,7 @@ typedef struct {
     double ConvolveWallClock;
     double Discrepency;
 
-    uint64_t ReadDerivativesBytes, ReadMultipolesBytes, WriteTaylorBytes;
+    uint64_t ReadDerivativesBytes, ReadMultipolesBytes, TransposeBufferingBytes, TransposeAlltoAllvBytes, WriteTaylorBytes;
     uint64_t ops;
     uint64_t totalMemoryAllocated;
 

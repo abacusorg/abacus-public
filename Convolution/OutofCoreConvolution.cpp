@@ -316,6 +316,8 @@ OutofCoreConvolution::OutofCoreConvolution(ConvolutionParameters &_CP) : CP(_CP)
     
     CS.ReadDerivativesBytes=0;
     CS.ReadMultipolesBytes=0;
+	CS.TransposeBufferingBytes=0;
+	CS.TransposeAlltoAllvBytes=0;
     CS.WriteTaylorBytes=0;
     CS.ops=0;
     CS.totalMemoryAllocated=0;
@@ -410,12 +412,16 @@ void OutofCoreConvolution::Convolve() {
         iothread->join();  // wait for io to terminate
         WaitForIO.Stop();
         
-        CS.ReadDerivatives       += iothread->get_deriv_read_time();
-        CS.ReadMultipoles        += iothread->get_multipole_read_time();
-        CS.WriteTaylor           += iothread->get_taylor_write_time();
-        CS.ReadMultipolesBytes   += iothread->get_multipole_bytes_read();
-        CS.WriteTaylorBytes      += iothread->get_taylor_bytes_written();
-        CS.ReadDerivativesBytes  += iothread->get_derivative_bytes_read();
+        CS.ReadDerivatives         += iothread->get_deriv_read_time();
+        CS.ReadMultipoles          += iothread->get_multipole_read_time();
+		CS.TransposeBuffering      += iothread->get_transpose_buffering_time();
+		CS.TransposeAlltoAllv      += iothread->get_tranpose_alltoall_time();
+		CS.TransposeBufferingBytes += iothread->get_transpose_bytes_buffered();
+		CS.TransposeAlltoAllvBytes += iothread->get_transpose_bytes_MPI_sent();
+        CS.WriteTaylor             += iothread->get_taylor_write_time();
+        CS.ReadMultipolesBytes     += iothread->get_multipole_bytes_read();
+        CS.WriteTaylorBytes        += iothread->get_taylor_bytes_written();
+        CS.ReadDerivativesBytes    += iothread->get_derivative_bytes_read();
         delete iothread;
     }
     delete[] iothreads;

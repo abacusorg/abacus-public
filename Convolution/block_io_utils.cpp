@@ -34,13 +34,16 @@ public:
     int64 mtblock_offset;
     
     size_t alloc_bytes = 0;
-    size_t ReadMultipoleBytes = 0, WriteTaylorBytes = 0, ReadDerivativeBytes = 0;
-    PTimer ReadDerivatives, ReadMultipoles, TransposeMultipoles, WriteTaylor;
+    size_t ReadMultipoleBytes = 0, WriteTaylorBytes = 0, ReadDerivativeBytes = 0, TransposeBufferingBytes = 0, TransposeAlltoAllvBytes = 0;
+    PTimer ReadDerivatives, ReadMultipoles, WriteTaylor, TransposeBuffering, TransposeAlltoAllv;
+		
     
     Block(ConvolutionParameters &_CP) : CP(_CP),
                                         ReadDerivatives(_CP.niothreads),
                                         ReadMultipoles(_CP.niothreads),
-                                        WriteTaylor(_CP.niothreads) {
+                                        WriteTaylor(_CP.niothreads),
+										TransposeBuffering(_CP.niothreads),
+										TransposeAlltoAllv(_CP.niothreads){
         CP = _CP;
         cpd = CP.runtime_cpd; rml = CP.rml; alloc_zwidth = CP.zwidth;
 
@@ -184,6 +187,10 @@ public:
 	
 #ifdef PARALLEL
 	void transpose_z_to_x(int zstart, int zwidth, int thread_num, int z_slabs_per_node, MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all, uint64_t sendbufsize, uint64_t recvbufsize){
+				
+		TransposeBuffering.Start(thread_num); 
+				
+				
 		uint64_t rml_times_cpd = rml * cpd; 
 		
 		 int size_skewer;
@@ -294,12 +301,22 @@ public:
         // TODO: are these barriers needed?
 		MPI_Barrier(MPI_COMM_WORLD);
 		
+		TransposeBuffering.Stop(thread_num); 
+		TransposeAlltoAllv.Start(thread_num); 
+		
+		
+		
 #ifdef DEBUG
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
 #else
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_skewer, recvbuf, recvcounts, rdispls, MPI_skewer, MPI_COMM_WORLD);
 #endif
+		TransposeAlltoAllv.Stop(thread_num); 
+		TransposeBuffering.Start(thread_num); 
+		
 		MPI_Barrier(MPI_COMM_WORLD);
+		
+		
 		
 		
 		STDLOG(1,"Did Alltoallv. %d\n", zbig);
@@ -341,13 +358,17 @@ public:
 		}
 		
         }
-	
+		
 		STDLOG(1,"Finishing first transpose for zstart %d\n", zstart);
+				
+		TransposeBuffering.Stop(thread_num); 
+				
 	}
 	
 	
 	
 	void transpose_x_to_z(int zstart, int zwidth, int thread_num, int z_slabs_per_node,  MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all){
+		TransposeBuffering.Start(thread_num); 
 		
 		
 		STDLOG(1,"Beginning second transpose for zstart %d\n", zstart);
@@ -432,11 +453,18 @@ public:
 		
 		
 		MPI_Barrier(MPI_COMM_WORLD);
+		
+		TransposeBuffering.Stop(thread_num); 
+		TransposeAlltoAllv.Start(thread_num); 
+		
 #ifdef DEBUG
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
 #else
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_skewer, recvbuf, recvcounts, rdispls, MPI_skewer, MPI_COMM_WORLD);
 #endif
+		TransposeAlltoAllv.Stop(thread_num); 
+		TransposeBuffering.Start(thread_num); 
+		
 		
 		MPI_Barrier(MPI_COMM_WORLD);
 		
@@ -489,6 +517,7 @@ public:
 		
         }  // zbig
 		STDLOG(1,"Finishing second transpose for zstart %d\n", zstart);
+		TransposeBuffering.Stop(thread_num); 
 		
 	}
 	
