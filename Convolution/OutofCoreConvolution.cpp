@@ -460,9 +460,9 @@ void OutofCoreConvolution::RenameMultipolesToTaylors(){
     assert(CP.OverwriteConvState);
 
     char mfn[1024], tfn[1024];
-    for(int x = 0; x < cpd; x++){
-        CP.MultipoleFN(x, mfn);
-        CP.TaylorFN(x, tfn);
+    for(int x = first_slab_on_node; x < first_slab_on_node + total_slabs_on_node; x++){
+        CP.MultipoleFN(x % cpd, mfn);
+        CP.TaylorFN(x % cpd, tfn);
 
         int res = rename(mfn, tfn);
         assertf(res == 0, "Failed to rename multipoles file \"%s\" to taylors file \"%s\".", mfn, tfn);
