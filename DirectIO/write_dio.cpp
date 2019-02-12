@@ -85,8 +85,6 @@ void WriteDirect::BlockingAppendfwrite( char *fn, char *x, size_t length ) {
 }
 
 void WriteDirect::BlockingAppendDirect(char *fn, char *x, size_t length) {
-
-    assert(ramdiskflag==0);
     size_t bytesleft = length;
     size_t offset = 0;
 
@@ -120,8 +118,8 @@ void WriteDirect::BlockingAppend(char *fn, char *x, size_t length) {
     WriteDirect::BlockingAppend(fn, x, length, ramdiskflag);
 }
 
-void WriteDirect::BlockingAppend(char *fn, char *x, size_t length, int ramdisk) { 
-    if(ramdisk) 
+void WriteDirect::BlockingAppend(char *fn, char *x, size_t length, int no_dio) { 
+    if(no_dio || ramdiskflag) 
         BlockingAppendfwrite(fn,x,length);
     else
         BlockingAppendDirect(fn,x,length);

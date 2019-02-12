@@ -5,19 +5,17 @@ public:
         alignedbuffer = NULL;
         ramdiskflag = isramdisk;
 
-        // Allocate an aligned buffer regardless of the ramdiskflag
-        // because we may override the global setting during an individual write call
-        alignedbytes = buffersize;
-        int rv = posix_memalign( (void **) (&alignedbuffer), 4096, buffersize);
-        assert(rv==0);
-        assert(alignedbuffer!=NULL);
+        if(!ramdiskflag){
+            alignedbytes = buffersize;
+            int rv = posix_memalign( (void **) (&alignedbuffer), 4096, buffersize);
+            assert(rv==0);
+            assert(alignedbuffer!=NULL);
+        }
     }
     ~WriteDirect(void) { if(alignedbuffer!=NULL) free(alignedbuffer); }
 
     void BlockingAppend( char *fn, char *x, size_t length );
-
-    // Passing the ramdisk flag explicitly will override the global "ramdiskflag"
-    void BlockingAppend( char *fn, char *x, size_t length, int ramdisk);
+    void BlockingAppend( char *fn, char *x, size_t length, int no_dio);
 
 private:
 
