@@ -233,7 +233,7 @@ public:
             STDLOG(1,"Receive from node %d: %d %d\n", i, recvcounts[i], rdispls[i]);
 			
 			
-			printf("%d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
+			//printf("%d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
 			
             // DJE TODO: Is this assuming that first_slabs_all[] is monotonically increasing?
 #endif					
@@ -600,7 +600,11 @@ public:
                     (int) cpd, CP.runtime_order, CP.runtime_NearFieldRadius, 
                     CP.runtime_DerivativeExpansionRadius, z);
 
-            if(!ramdisk_derivs){
+            if(!ramdisk_derivs){				
+				
+				//NAM TODO check that this pointer isn't garbage! 
+				assert(dblock[z-zstart] != NULL); 
+				
                 RD_RDD->BlockingRead( fn, (char *) dblock[z-zstart], size, 0);
                 ReadDerivativeBytes += size;
             } else {
@@ -672,4 +676,5 @@ private:
             alloc_bytes += s;
         }
     }
+	
 };
