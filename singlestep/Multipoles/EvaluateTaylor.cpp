@@ -351,6 +351,7 @@ void Taylor::AVX512EvaluateTaylor( double *CT, FLOAT3 center, int n, FLOAT3 *xyz
 #include <cstdlib>
 #include <cstring>
 #include <chrono>
+#include <gsl/gsl_rng.h>
 
 void compare_acc(FLOAT3 *acc1, FLOAT3* acc2, int nacc, double rtol){
     int nbad = 0;
@@ -378,33 +379,46 @@ void report(const char* prefix, int64_t npart, std::chrono::duration<double> ela
 }
 
 int main(int argc, char **argv){
-	Taylor TY(8);
+    Taylor TY(8);
 
-	int ncell = 1*405*405;
-	int ppc = 44;
+    int ncell = 10*405*405;
+    int ppc = 44;
     if (argc > 1)
         ppc = atoi(argv[1]);
-	float rtol=1e-6;
-	uint64_t npart = ncell*ppc;
+    float rtol=1e-6;
+    uint64_t npart = ncell*ppc;
 
-	double *cartesian;  // re-use cartesians for all cells (?)
-	FLOAT3 center(0.1,0.2,0.3);
-	FLOAT3 *xyz;
-	FLOAT3 *acc1, *acc2, *acc3, *acc4;
+    double *cartesian;  // re-use cartesians for all cells (?)
+    FLOAT3 center(0.1,0.2,0.3);
+    FLOAT3 *xyz;
+    FLOAT3 *acc1, *acc2, *acc3, *acc4;
 
-	assert(posix_memalign((void **) &cartesian, 4096, sizeof(double)*TY.cml) == 0);
-	for (int i = 0; i < TY.cml; i++)
-		cartesian[i] = (double)rand()/RAND_MAX;
+    // ========================== //
+    // Set up RNG
+    int nthread = omp_get_max_threads();
+    gsl_rng *rng[nthread];
 
-	assert(posix_memalign((void **) &xyz, 4096, sizeof(FLOAT3)*npart) == 0);
-	for(uint64_t i = 0; i < npart; i++){
-		xyz[i].x = (double)rand()/RAND_MAX;
-		xyz[i].y = (double)rand()/RAND_MAX;
-		xyz[i].z = (double)rand()/RAND_MAX;
-	}
+    for(int i = 0; i < nthread; i++){
+        rng[i] = gsl_rng_alloc(gsl_rng_mt19937);
+        gsl_rng_set(rng[i], 999 + i);  // Seed the RNG
+    }
 
-	assert(posix_memalign((void **) &acc1, 4096, sizeof(FLOAT3)*npart) == 0);
-	assert(posix_memalign((void **) &acc2, 4096, sizeof(FLOAT3)*npart) == 0);
+
+    assert(posix_memalign((void **) &cartesian, 4096, sizeof(double)*TY.cml) == 0);
+    for (int i = 0; i < TY.cml; i++)
+        cartesian[i] = (double)rand()/RAND_MAX;
+
+    assert(posix_memalign((void **) &xyz, 4096, sizeof(FLOAT3)*npart) == 0);
+    #pragma omp parallel for schedule(static)
+    for(uint64_t i = 0; i < npart; i++){
+        int t = omp_get_thread_num();
+        xyz[i].x = gsl_rng_uniform(rng[t]);
+        xyz[i].y = gsl_rng_uniform(rng[t]);
+        xyz[i].z = gsl_rng_uniform(rng[t]);
+    }
+
+    assert(posix_memalign((void **) &acc1, 4096, sizeof(FLOAT3)*npart) == 0);
+    assert(posix_memalign((void **) &acc2, 4096, sizeof(FLOAT3)*npart) == 0);
     assert(posix_memalign((void **) &acc3, 4096, sizeof(FLOAT3)*npart) == 0);
     assert(posix_memalign((void **) &acc4, 4096, sizeof(FLOAT3)*npart) == 0);
 
@@ -413,16 +427,16 @@ int main(int argc, char **argv){
 
 #ifdef AVXMULTIPOLES
     // ASM Taylors
-	begin = std::chrono::steady_clock::now();
-	#pragma omp parallel for schedule(static)
-	for(int k = 0; k < ncell; k++){
-		FLOAT3 *thisxyz = xyz + k*ppc;
-		FLOAT3 *thisacc = acc1 + k*ppc;
-		
-		memset(thisacc, 0, sizeof(FLOAT3)*ppc);
-		TY.ASMEvaluateTaylor(cartesian, center, ppc, thisxyz, thisacc);
-	}
-	end = std::chrono::steady_clock::now();
+    begin = std::chrono::steady_clock::now();
+    #pragma omp parallel for schedule(static)
+    for(int k = 0; k < ncell; k++){
+        FLOAT3 *thisxyz = xyz + k*ppc;
+        FLOAT3 *thisacc = acc1 + k*ppc;
+        
+        memset(thisacc, 0, sizeof(FLOAT3)*ppc);
+        TY.ASMEvaluateTaylor(cartesian, center, ppc, thisxyz, thisacc);
+    }
+    end = std::chrono::steady_clock::now();
     report("ASM Taylors", npart, end-begin);
 #endif
 
@@ -445,17 +459,17 @@ int main(int argc, char **argv){
 
     // Analytic Taylors
     begin = std::chrono::steady_clock::now();
-	#pragma omp parallel for schedule(static)
-	for(int k = 0; k < ncell; k++){
-		FLOAT3 *thisxyz = xyz + k*ppc;
-		FLOAT3 *thisacc = acc2 + k*ppc;
-		
-		memset(thisacc, 0, sizeof(FLOAT3)*ppc);
-		TY.AnalyticEvaluateTaylor(cartesian, center, ppc, thisxyz, thisacc);
-	}
-	end = std::chrono::steady_clock::now();
-	report("Analytic Taylors", npart, end-begin);
-	//compare_acc(acc1, acc2, npart, rtol);
+    #pragma omp parallel for schedule(static)
+    for(int k = 0; k < ncell; k++){
+        FLOAT3 *thisxyz = xyz + k*ppc;
+        FLOAT3 *thisacc = acc2 + k*ppc;
+        
+        memset(thisacc, 0, sizeof(FLOAT3)*ppc);
+        TY.AnalyticEvaluateTaylor(cartesian, center, ppc, thisxyz, thisacc);
+    }
+    end = std::chrono::steady_clock::now();
+    report("Analytic Taylors", npart, end-begin);
+    //compare_acc(acc1, acc2, npart, rtol);
 
 #ifdef UNROLLEDMULTIPOLES
     // Analytic Taylors

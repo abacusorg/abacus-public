@@ -106,7 +106,6 @@ void WriteNodeSlabs() {
             char fname[1024];
 			char mname[1024];
 			
-            // TODO: This needs to be the Global Write State
             sprintf(fname, "%s/nodeslabs", P.WriteStateDirectory); //NAM DE TODO consider putting another copy in multipole directory so convolve can look at it. 
 			sprintf(mname, "%s/nodeslabs", P.MultipoleDirectory);
 			

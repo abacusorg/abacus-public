@@ -1,5 +1,5 @@
 StateIOMode = "overwrite"
-Conv_IOMode = "normal"
+Conv_IOMode = "overwrite"
 RamDisk = 1
 #IODirs = ["multipole/", "taylor/", "multipole2/", "taylor2/"]
 #nIODirs = 4
@@ -23,8 +23,8 @@ Conv_IOCores = [0]
 Conv_zwidth = 0
 
 Parallel = 1
-mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -gALL_GPUS -b none "
-Conv_mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -b none "
+mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -gALL_GPUS -b none"
+Conv_mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -b none"
 WorkingDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@
 LocalWorkingDirectory = "$ABACUS_SSD$/" + @SimName@
 DerivativesDirectory = "$ABACUS_PERSIST$/Derivatives"

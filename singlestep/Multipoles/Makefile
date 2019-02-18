@@ -45,10 +45,10 @@ $(Cartesian2Reduced_OBJ): %.o: %.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $(@:.o=.cpp)
 
 EvaluateTaylorTest: EvaluateTaylor.cpp ETAVX512.o ETASM.o ET_unrolled.o
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -Wall -fopenmp -DTEST $^ -o $@ -I../../include
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -Wall -fopenmp -DTEST $^ -o $@ -I../../include -lgsl -lgslcblas
 
 EvaluateMultipolesTest: EvaluateMultipoles.cpp CMAVX512.o CMASM.o CM_unrolled.o
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -Wall -fopenmp -DTEST $^ -o $@ -I../../include
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -Wall -fopenmp -DTEST $^ -o $@ -I../../include -lgsl -lgslcblas
 
 clean:
 	$(RM) ETASM.c CMASM.c ETAVX512.cpp CMAVX512.cpp *.o *.a
