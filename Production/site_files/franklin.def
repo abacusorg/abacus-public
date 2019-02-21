@@ -3,7 +3,6 @@ Conv_IOMode = "normal"
 IODirs = ["multipole/", "taylor/"]
 nIODirs = 2
 IODirThreads = [2, 2]
-SloshState = 0
 #MAXRAMMB = 200000  # This will be automatically detected
 # ConvolutionCacheSizeMB = 30  # This will be automatically detected
 

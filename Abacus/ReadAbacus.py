@@ -32,6 +32,7 @@ import numba
 from .InputFile import InputFile
 from .Tools import ndarray_arg, asciistring_arg
 
+
 def read(*args, **kwargs):
     """
     A convenience function to read particle data from
@@ -44,6 +45,7 @@ def read(*args, **kwargs):
     format = kwargs.pop('format')
     format = format.lower()
     return reader_functions[format](*args, **kwargs)
+
 
 def from_dir(dir, pattern=None, key=None, **kwargs):
     """
@@ -378,6 +380,24 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
     with open(fn, 'rb') as fp:
         header = skip_header(fp)
         raw = np.fromfile(fp, dtype=rvzel_dt)
+
+    if header:
+        header = InputFile(str_source=header)
+    else:
+        # Look for a file named 'header'
+        try:
+            header = InputFile(fn=path.join(path.dirname(fn), 'header'))
+        except:
+            header = None
+
+    if header and not boxsize:
+        output_type = header.get('OutputType', 'ic')
+        if output_type == 'TimeSlice':
+            boxsize = 1.
+        elif output_type == 'ic':
+            boxsize = header['BoxSize']
+        else:
+            raise ValueError(af_type)
     
     if out is None:
         return_dt = output_dtype(return_vel=return_vel, return_zel=return_zel, return_pid=return_pid, dtype=dtype)
@@ -388,11 +408,10 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
     if len(raw) > 0:
         if add_grid or return_pid:
             if header:
-                header = InputFile(str_source=header)
-                ppd = np.array([np.round(header['NP']**(1./3))], dtype=np.uint64)
+                ppd = np.array([np.round(header['NP']**(1./3))], dtype=np.int64)
             else:
                 # This will only work for ICs, where we don't have a header
-                ppd = np.array([raw['zel'].max() + 1], dtype=np.uint64)  # necessary for numpy to not truncate the result
+                ppd = np.array([raw['zel'].max() + 1], dtype=np.int64)  # necessary for numpy to not truncate the result
 
         # We are only guaranteed to have a whole number of planes from the zeldovich code, but this might be an Abacus output
         #if add_grid or return_pid:
@@ -699,7 +718,7 @@ def output_dtype(return_vel=True, return_pid=False, return_zel=False, return_aux
     """
     ndt_list = []
     if return_pid:
-        ndt_list += [('pid', np.uint64)]
+        ndt_list += [('pid', np.int64)]
     if return_aux:
         ndt_list += [('aux', np.uint64)]
     ndt_list += [('pos', dtype, 3)]

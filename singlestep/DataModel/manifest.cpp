@@ -249,6 +249,9 @@ class Manifest {
     /// This launches a send of N bytes, perhaps split into multiple Isend calls
     /// size must be in bytes; we only deal with bytes
     void do_MPI_Isend(void *ptr, uint64 size, int rank) {
+
+        // TODO: why ifdef every function? Can't we ifdef the inclusion of the file and stub the (few) interfaces?
+        #ifdef PARALLEL
         bytes += size;
         while (size>0) {
             assertf(maxpending<MAX_REQUESTS, "Too many MPI requests %d\n", maxpending);
@@ -256,11 +259,13 @@ class Manifest {
             MPI_Isend(ptr, thissize, MPI_BYTE, rank, maxpending, MPI_COMM_WORLD,requests+maxpending);
             numpending++; maxpending++; size -= thissize; ptr = (char *)ptr+thissize;
         }
+        #endif
     }
 
     /// This launches a receive of N bytes, perhaps split into multiple Irecv calls
     /// size must be in bytes; we only deal with bytes
     void do_MPI_Irecv(void *ptr, uint64 size, int rank) {
+        #ifdef PARALLEL
         bytes += size;
         while (size>0) {
             assertf(maxpending<MAX_REQUESTS, "Too many MPI requests %d\n", maxpending);
@@ -268,6 +273,7 @@ class Manifest {
             MPI_Irecv(ptr, thissize, MPI_BYTE, rank, maxpending, MPI_COMM_WORLD,requests+maxpending);
             numpending++; maxpending++; size -= thissize; ptr = (char *)ptr+thissize;
         }
+        #endif
     }
 
 
