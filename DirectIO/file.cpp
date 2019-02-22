@@ -176,8 +176,10 @@ int samefile(const char *path1, const char *path2) {
         return 0;
 
     // Neither exists... do we compare paths now?
-    if(res1 != 0 && res2 != 0)
-        assertf(0, "stat failed on both \"%s\" and \"%s\"", path1, path2);
+    if(res1 != 0 && res2 != 0){
+        //assertf(0, "stat failed on both \"%s\" and \"%s\"", path1, path2);
+        return strcmp(path1, path2) == 0;
+    }
 
     return (s1.st_ino == s2.st_ino) && (s1.st_dev == s2.st_dev);
 }

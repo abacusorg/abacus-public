@@ -1,3 +1,4 @@
+// #define DO_NOTHING
 #include "InCoreConvolution.cpp"
 #include "OutofCoreConvolution.h"
 
@@ -54,8 +55,13 @@ void OutofCoreConvolution::SwizzleTaylors(int z){
     for(int x=0;x<cpd;x++) {
         for(int m=0;m<rml;m++)
 		for(int y=0;y<cpd;y++) {
+#ifndef DO_NOTHING
                 DiskBuffer[x][z*cpd*rml + m*cpd + y ] = 
                     PlaneBuffer[ m*cpd*cpd + x*cpd + y]*invcpd3;
+#else
+                DiskBuffer[x][z*cpd*rml + m*cpd + y ] = 
+                    PlaneBuffer[ m*cpd*cpd + x*cpd + y];
+#endif
 		}
     }
     ArraySwizzle.Stop();
@@ -149,21 +155,30 @@ void OutofCoreConvolution::BlockConvolve(void) {
 #ifdef PARALLEL		
 		int zstart = zblock + MPI_rank * z_slabs_per_node; 
 		int zend = zstart + z_slabs_per_node;
-				
-		if (zstart > (cpd + 1)/2) zend = zstart;
-		else if (zstart + zwidth < zend) zend = zstart + zwidth;
-
+						
+		if (zstart > (cpd + 1)/2) zend = zstart; //if zstart is not a valid z, set zend=zstart to effectively bypass the following loop. 
+		else if (zstart + zwidth < zend) zend = zstart + zwidth; //TODO what does this do?
+		else if (zend > zwidth) zend = zwidth; //make sure we don't go off the end of valid zs. 
 #else
 		int zstart = zblock;
 		int zend = zblock + zwidth; 
 		int MPI_rank = -1; //for debugging. 
 #endif
+		
+		STDLOG(1, "zblock %d, zwidth %d, zstart %d, zend %d\n", zblock, zwidth, zstart, zend);	
+		
         for(int z = zstart; z < zend; z++) {
+			
+			STDLOG(1, "Swizzling multipoles for z %d\n", z);	
 			
 			SwizzleMultipoles(z - zblock);
 			
+			STDLOG(1, "Done with swizzling multipoles for z %d\n", z);	
+			
+			
             Complex *Mtmp = &( PlaneBuffer[0] );
 
+#ifndef DO_NOTHING
             ForwardZFFTMultipoles.Start();
             #ifdef GPUFFT
             for(int m=0;m<rml;m++) {
@@ -228,8 +243,17 @@ void OutofCoreConvolution::BlockConvolve(void) {
             }
             #endif
             InverseZFFTTaylor.Stop();
+			
+			STDLOG(1, "Done with fftws for z %d\n", z);	
+			
+#endif // DO_NOTHING
+			
+			
 
             SwizzleTaylors(z - zblock);
+			
+			STDLOG(1, "Done with swizzling taylors for z %d\n", z);	
+			
 		
         }
 		
@@ -292,6 +316,8 @@ OutofCoreConvolution::OutofCoreConvolution(ConvolutionParameters &_CP) : CP(_CP)
     
     CS.ReadDerivativesBytes=0;
     CS.ReadMultipolesBytes=0;
+	CS.TransposeBufferingBytes=0;
+	CS.TransposeAlltoAllvBytes=0;
     CS.WriteTaylorBytes=0;
     CS.ops=0;
     CS.totalMemoryAllocated=0;
@@ -334,7 +360,7 @@ OutofCoreConvolution::OutofCoreConvolution(ConvolutionParameters &_CP) : CP(_CP)
     sdb *= 1024LLU;
 
     // the RamDisk flag is deprecated; we use finer-grain control over direct IO now
-    int direct = 0;  //CP.runtime_IsRamDisk; 
+    int direct = CP.runtime_IsRamDisk; 
 
     RD_RDD = new ReadDirect(direct,sdb);
     RD_RDM = new ReadDirect(direct,sdb);
@@ -386,12 +412,16 @@ void OutofCoreConvolution::Convolve() {
         iothread->join();  // wait for io to terminate
         WaitForIO.Stop();
         
-        CS.ReadDerivatives       += iothread->get_deriv_read_time();
-        CS.ReadMultipoles        += iothread->get_multipole_read_time();
-        CS.WriteTaylor           += iothread->get_taylor_write_time();
-        CS.ReadMultipolesBytes   += iothread->get_multipole_bytes_read();
-        CS.WriteTaylorBytes      += iothread->get_taylor_bytes_written();
-        CS.ReadDerivativesBytes  += iothread->get_derivative_bytes_read();
+        CS.ReadDerivatives         += iothread->get_deriv_read_time();
+        CS.ReadMultipoles          += iothread->get_multipole_read_time();
+		CS.TransposeBuffering      += iothread->get_transpose_buffering_time();
+		CS.TransposeAlltoAllv      += iothread->get_tranpose_alltoall_time();
+		CS.TransposeBufferingBytes += iothread->get_transpose_bytes_buffered();
+		CS.TransposeAlltoAllvBytes += iothread->get_transpose_bytes_MPI_sent();
+        CS.WriteTaylor             += iothread->get_taylor_write_time();
+        CS.ReadMultipolesBytes     += iothread->get_multipole_bytes_read();
+        CS.WriteTaylorBytes        += iothread->get_taylor_bytes_written();
+        CS.ReadDerivativesBytes    += iothread->get_derivative_bytes_read();
         delete iothread;
     }
     delete[] iothreads;
@@ -430,9 +460,9 @@ void OutofCoreConvolution::RenameMultipolesToTaylors(){
     assert(CP.OverwriteConvState);
 
     char mfn[1024], tfn[1024];
-    for(int x = 0; x < cpd; x++){
-        CP.MultipoleFN(x, mfn);
-        CP.TaylorFN(x, tfn);
+    for(int x = first_slab_on_node; x < first_slab_on_node + total_slabs_on_node; x++){
+        CP.MultipoleFN(x % cpd, mfn);
+        CP.TaylorFN(x % cpd, tfn);
 
         int res = rename(mfn, tfn);
         assertf(res == 0, "Failed to rename multipoles file \"%s\" to taylors file \"%s\".", mfn, tfn);

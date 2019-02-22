@@ -31,15 +31,19 @@ private:
 public:
     MTCOMPLEX **mtblock = NULL; // multipoles/taylors
     DFLOAT **dblock = NULL;  // derivatives
+    int64 mtblock_offset;
     
     size_t alloc_bytes = 0;
-    size_t ReadMultipoleBytes = 0, WriteTaylorBytes = 0, ReadDerivativeBytes = 0;
-    PTimer ReadDerivatives, ReadMultipoles, TransposeMultipoles, WriteTaylor;
+    size_t ReadMultipoleBytes = 0, WriteTaylorBytes = 0, ReadDerivativeBytes = 0, TransposeBufferingBytes = 0, TransposeAlltoAllvBytes = 0;
+    PTimer ReadDerivatives, ReadMultipoles, WriteTaylor, TransposeBuffering, TransposeAlltoAllv;
+		
     
     Block(ConvolutionParameters &_CP) : CP(_CP),
                                         ReadDerivatives(_CP.niothreads),
                                         ReadMultipoles(_CP.niothreads),
-                                        WriteTaylor(_CP.niothreads) {
+                                        WriteTaylor(_CP.niothreads),
+										TransposeBuffering(_CP.niothreads),
+										TransposeAlltoAllv(_CP.niothreads){
         CP = _CP;
         cpd = CP.runtime_cpd; rml = CP.rml; alloc_zwidth = CP.zwidth;
 
@@ -60,15 +64,16 @@ public:
     
     ~Block(){
         if(!ramdisk_MT){
-            for(int x = 0; x < cpd; x++)
-                if(raw_mtblock[x] != NULL)
-                    free(raw_mtblock[x]);
+            for(int x = first_slab_on_node; x < first_slab_on_node + total_slabs_on_node; x++)
+                if(raw_mtblock[x%cpd] != NULL)
+                    free(raw_mtblock[x%cpd]);
             delete[] raw_mtblock;
         }
 #ifdef PARALLEL
 		int last_slab = first_slab_on_node + total_slabs_on_node + 1;
 		for (int _x = last_slab; _x < last_slab + cpd - total_slabs_on_node; _x++){
 			int x = _x % cpd; 
+            mtblock[x] += (size_t) MPI_rank*mtblock_offset;
 			free(mtblock[x]);
 		}
 #endif
@@ -182,6 +187,10 @@ public:
 	
 #ifdef PARALLEL
 	void transpose_z_to_x(int zstart, int zwidth, int thread_num, int z_slabs_per_node, MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all, uint64_t sendbufsize, uint64_t recvbufsize){
+				
+		TransposeBuffering.Start(thread_num); 
+				
+				
 		uint64_t rml_times_cpd = rml * cpd; 
 		
 		 int size_skewer;
@@ -204,41 +213,77 @@ public:
 		{
 			
 #ifdef DEBUG	
-			sendcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
-			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
-			recvcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
-			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd;
-			
-			
-			printf("%d %d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i], cpd * rml_times_cpd);
-			
-			
-			if (rdispls[i] < 0) rdispls[i] += cpd * rml_times_cpd * z_slabs_per_node; 
-			
-			printf("%d %d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i], cpd * rml_times_cpd);
-			
+			sendcounts[i] = total_slabs_on_node * rml_times_cpd; 
+			sdispls[i]    = i * total_slabs_on_node * rml_times_cpd; 
+			recvcounts[i] = total_slabs_all[i] * rml_times_cpd; 
+			rdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd;
+			if (rdispls[i] < 0) rdispls[i]  += cpd*rml_times_cpd;
 			
 #else		
-			sendcounts[i] = z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
-			sdispls[i]    = i * z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
-			recvcounts[i] = z_slabs_per_node * total_slabs_all[i];// * rml_times_cpd;
-			rdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]);// * rml_times_cpd;
+            // All of these are in units of rml_times_cpd.
+            // We only are sending one z per pairwise interaction, so we just need to know the range of x's.
+            // send: contains the indexing of the outbound information for each rank
+			sendcounts[i] = total_slabs_on_node;
+			sdispls[i]    = i * total_slabs_on_node;
+            // recv: contains the indexing of the inbound information for this rank
+			recvcounts[i] = total_slabs_all[i];
+			rdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]);
+			if (rdispls[i] < 0) rdispls[i]  += cpd;
+            STDLOG(1,"Send to node %d: %d %d\n", i, sendcounts[i], sdispls[i]);
+            STDLOG(1,"Receive from node %d: %d %d\n", i, recvcounts[i], rdispls[i]);
 			
-			if (rdispls[i] < 0) rdispls[i] += cpd * z_slabs_per_node; 
 			
-			printf("%d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
-		 
+			//printf("%d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
+			
+            // DJE TODO: Is this assuming that first_slabs_all[] is monotonically increasing?
 #endif					
 		}
 		
 		STDLOG(1,"Populated send/recvcounts/displs. %d\n", zstart);
 		
 		
-		for(int z=0; z< z_slabs_per_node * MPI_size; z++){
+		//STDLOG(1, "zslabspernode = %d\n", z_slabs_per_node);
+		
+        for (int zbig=0; zbig<z_slabs_per_node; zbig++) {
+			
+			
+		
+          // We're going to have to do z_slabs_per_node separate MPI_Alltoallv() calls.
+          // Each one will send one z (and all x's) to each node.
+          // The z's being sent in each call are spaced out, so that after all of the
+          // MPI calls, each node will have a contiguous range of z's.
+          //STDLOG(1, "Starting first transpose zbig = %d\n", zbig);
+
+		//for(int z=0; z< z_slabs_per_node * MPI_size; z++)
+          for (int zr=0; zr<MPI_size; zr++) {
+            int z = zbig+zr*z_slabs_per_node;    // The z that is intended for rank zr
+#pragma omp parallel for schedule(static)
 			for(int x=0; x<total_slabs_on_node;x++){	
+                if (z < zwidth) {
+                    //STDLOG(1, "Loading z=%d x=%d into zr=%d x=%d, slot %d\n", z, (x+first_slab_on_node)%cpd, zr, x, zr*total_slabs_on_node+x);
+                    #ifdef DO_NOTHING
+                    // Overwrite the values
+                    for(int m=0;m<rml;m++)
+                        for(int y=0;y<cpd;y++)
+                            mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + m*cpd + y ] = 
+                                MTCOMPLEX(z*1000+((x + first_slab_on_node + 1) % cpd), m*1000+y);
+                    #endif
+
+                     memcpy(
+						&(sendbuf[rml_times_cpd * zr*total_slabs_on_node + rml_times_cpd * x + 0*cpd + 0]),
+                        &(mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]),
+                        sizeof(MTCOMPLEX)*rml_times_cpd);
+                } else {
+                    //STDLOG(1, "Zeroing z=%d x=%d in slot zr=%d x=%d\n", z, (x+first_slab_on_node)%cpd, zr, x);
+                     memset(
+						&(sendbuf[rml_times_cpd * zr*total_slabs_on_node + rml_times_cpd * x + 0*cpd + 0]),
+                        0, sizeof(MTCOMPLEX)*rml_times_cpd);
+                }
+
+                /* // Equivalent to this:
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
-						uint64_t i = rml_times_cpd * z*total_slabs_on_node + rml_times_cpd * x + m*cpd + y;
+						uint64_t i = rml_times_cpd * zr*total_slabs_on_node + rml_times_cpd * x + m*cpd + y;
 						
 						assertf(sizeof(MTCOMPLEX)*i<sendbufsize, "%ld, %d %d %d %d, %ld", i, z, x, m, y, sendbufsize);
 						
@@ -247,54 +292,83 @@ public:
 						else sendbuf[i] = 0.0;
 					}
 				}
+                */
 			}
-		}
+		  } // End zr loop
 		
-		STDLOG(1,"Populated sendbuf. %d\n", zstart);
-		
-		
+		STDLOG(1,"Populated sendbuf. %d\n", zbig);
 	
         // TODO: are these barriers needed?
 		MPI_Barrier(MPI_COMM_WORLD);
+		
+		TransposeBuffering.Stop(thread_num); 
+		TransposeAlltoAllv.Start(thread_num); 
+		
+		
 		
 #ifdef DEBUG
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
 #else
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_skewer, recvbuf, recvcounts, rdispls, MPI_skewer, MPI_COMM_WORLD);
 #endif
+		TransposeAlltoAllv.Stop(thread_num); 
+		TransposeBuffering.Start(thread_num); 
+		
 		MPI_Barrier(MPI_COMM_WORLD);
 		
 		
-		STDLOG(1,"Did Alltoallv. %d\n", zstart);
+		
+		
+		STDLOG(1,"Did Alltoallv. %d\n", zbig);
 		
 	
-		
 		uint64_t r = 0; 
-		for (int i = 0; i < MPI_size; i ++){			
-			for (int z_buffer = 0; z_buffer < z_slabs_per_node; z_buffer ++){ //each node needs to put z_slabs_per_node rows of data into its mtblock here. 
+        int z = zbig+z_slabs_per_node * MPI_rank;  // This is the z for this node
+        if (z<zwidth) {     // Skip if it's out of bounds; we received filler data
+            for (int i = 0; i < MPI_size; i ++){		
+				//#pragma omp parallel for schedule(static)					
 				for(int x=0; x<total_slabs_all[i]; x++){
+                    //STDLOG(1, "Storing slot %d into z=%d x=%d\n", r/rml_times_cpd, z, (x+first_slabs_all[i])%cpd);
+                    memcpy( &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
+                            &(recvbuf[r]),
+                            sizeof(MTCOMPLEX)*rml_times_cpd);
+                    #ifdef DO_NOTHING
+                    // We claim we've done nothing; let's check that recvbuf matches to mtblock
+                    MTCOMPLEX *mttmp = &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]);
+                    for(int m=0;m<rml;m++)
+                        for(int y=0;y<cpd;y++) 
+                            assertf(mttmp[m*cpd+y] == 
+                                MTCOMPLEX(z*1000+((x + first_slabs_all[i] + 1) % cpd), m*1000+y),
+                                "Echoing test failed: %d %d %d %d %d %d mt[%d][%d].  Output %f %f\n",
+                                zbig, z, i, x, m, y, 
+                                (x + first_slabs_all[i] + 1) % cpd, rml_times_cpd*z + m*cpd + y,
+                                real(mttmp[m*cpd+y]),
+                                imag(mttmp[m*cpd+y]) );
+                    #endif
+                    r+=rml_times_cpd;
+                    /* // Equivalent to this:
 					for(int m=0;m<rml;m++){
 						for(int y=0;y<cpd;y++){
-
-							int z = z_slabs_per_node * MPI_rank + z_buffer;  //in the event that z_slabs_per_node = 1, this loop reduces to z = MPI_rank.
-
-							if (z < zwidth) mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + m*cpd + y] = recvbuf[r];
-							r++;
+							mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + m*cpd + y] = recvbuf[r++];
 						 }
 	 				}
+                    */
 				}
 			}
 		}
 		
-	
+        }
+		
 		STDLOG(1,"Finishing first transpose for zstart %d\n", zstart);
-	
+				
+		TransposeBuffering.Stop(thread_num); 
 				
 	}
 	
 	
 	
 	void transpose_x_to_z(int zstart, int zwidth, int thread_num, int z_slabs_per_node,  MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all){
+		TransposeBuffering.Start(thread_num); 
 		
 		
 		STDLOG(1,"Beginning second transpose for zstart %d\n", zstart);
@@ -315,71 +389,135 @@ public:
 		for (int i = 0; i < MPI_size; i++)
 		{
 #ifdef DEBUG
-			sendcounts[i] = z_slabs_per_node * total_slabs_all[i] * rml_times_cpd; 
-			sdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd; 			
-			recvcounts[i] = z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
-			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node * rml_times_cpd; 
-			
-			if (sdispls[i] < 0) sdispls[i] += cpd  * rml_times_cpd * z_slabs_per_node;  
-			
-			printf("%d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
-			
-			
+			sendcounts[i] = total_slabs_all[i] * rml_times_cpd; 
+			sdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]) * rml_times_cpd; 			
+			if (sdispls[i] < 0) sdispls[i]  += cpd*rml_times_cpd;
+			recvcounts[i] = total_slabs_on_node * rml_times_cpd; 
+			rdispls[i]    = i * total_slabs_on_node * rml_times_cpd; 
 #else
 			
-			sendcounts[i] = z_slabs_per_node * total_slabs_all[i];// * rml_times_cpd;
-			sdispls[i]    = z_slabs_per_node * (first_slabs_all[i] - first_slabs_all[0]);// * rml_times_cpd;
-			recvcounts[i] = z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
-			rdispls[i]    = i * z_slabs_per_node * total_slabs_on_node;// * rml_times_cpd;
-			
-			if (sdispls[i] < 0) sdispls[i] += cpd * z_slabs_per_node; 
-			
-			printf("%d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
+			sendcounts[i] = total_slabs_all[i];
+			sdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]);
+			if (sdispls[i] < 0) sdispls[i]  += cpd;
+			recvcounts[i] = total_slabs_on_node;
+			rdispls[i]    = i * total_slabs_on_node;
 			
 			
+			//printf("%d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
 #endif
 
 		}
+
+        for (int zbig=0; zbig<z_slabs_per_node; zbig++) {
+          // We're going to have to do z_slabs_per_node separate MPI_Alltoallv() calls.
+          // Each one will send one z (and all x's) to each node.
+          // The z's being sent in each call are spaced out, so that after all of the
+          // MPI calls, each node will have a contiguous range of z's.
+			// STDLOG(1, "Starting second transpose zbig = %d\n", zbig);
+		  
+		  
+
 		
-		uint64_t r = 0; 
-		for (int i = 0; i < MPI_size; i ++){			
-			for (int z_buffer = 0; z_buffer < z_slabs_per_node; z_buffer ++){ 
-				for(int x=0; x<total_slabs_all[i]; x++){
+            uint64_t r = 0; 
+            int z = zbig+z_slabs_per_node * MPI_rank;  // This is the z for this node
+           	 for (int i = 0; i < MPI_size; i++){	
+				 //#pragma omp parallel for schedule(static)				 		
+					for(int x=0; x<total_slabs_all[i]; x++){
+						 if (z < zwidth) {
+	                        //STDLOG(1, "Loading z=%d x=%d into slot %d\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
+	                        memcpy( &(sendbuf[r]),
+	                            &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
+	                            sizeof(MTCOMPLEX)*rml_times_cpd);
+							
+						 } else {
+                        	//STDLOG(1, "Zeroing zr=%d x=%d into slot %d\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
+                         	memset( &(sendbuf[r]), 0, sizeof(MTCOMPLEX)*rml_times_cpd);
+                     	 }
+						 
+						 r+=rml_times_cpd;	
+
+                    /* // Equivalent to this:
 					for(int m=0;m<rml;m++){
 						for(int y=0;y<cpd;y++){
-							int z = z_slabs_per_node * MPI_rank + z_buffer;
+                            // TODO: Would be better to get this conditional out of the inner loop
 							if (z < zwidth) sendbuf[r] = mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + m*cpd + y];
 							else sendbuf[r] = 0.0; 
 							r++;
 						}
 					}
+                    */
+						
+					}			
 				}
-			}
-		}
+			
+		
 		
 		MPI_Barrier(MPI_COMM_WORLD);
+		
+		TransposeBuffering.Stop(thread_num); 
+		TransposeAlltoAllv.Start(thread_num); 
+		
 #ifdef DEBUG
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_MTCOMPLEX, recvbuf, recvcounts, rdispls, MPI_MTCOMPLEX, MPI_COMM_WORLD);
 #else
 		MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_skewer, recvbuf, recvcounts, rdispls, MPI_skewer, MPI_COMM_WORLD);
 #endif
+		TransposeAlltoAllv.Stop(thread_num); 
+		TransposeBuffering.Start(thread_num); 
+		
 		
 		MPI_Barrier(MPI_COMM_WORLD);
 		
-		for(int z=0; z<z_slabs_per_node * MPI_size; z++){
+		// for(int z=0; z<z_slabs_per_node * MPI_size; z++)
+          for (int zr=0; zr<MPI_size; zr++) {
+            int z = zbig+zr*z_slabs_per_node;    // The z that is intended for rank zr
+            //if (z>=zwidth) continue;    // Skip writing any information; we received filler
+            //assertf(z>=0 && z<(cpd+1)/2, "z is out of bounds\n", z);
+#pragma omp parallel for schedule(static)			
 			for(int x=0; x<total_slabs_on_node;x++){
+				
+				if (z < zwidth) {
+				
+	               // STDLOG(1,"Storing zr=%d x=%d, slot %d, into z=%d x=%d\n", zr, x, zr*total_slabs_on_node+x,
+	                //    z, (x + first_slab_on_node) % cpd);
+	                #ifndef DO_NOTHING
+	                memcpy( &( mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]),
+	                        &(recvbuf[rml_times_cpd*zr*total_slabs_on_node + rml_times_cpd*x + 0*cpd + 0]),
+	                        sizeof(MTCOMPLEX)*rml_times_cpd);
+	                #else
+	                    // We claim we've done nothing; let's check that recvbuf matches to mtblock
+	                    MTCOMPLEX *mttmp = &(mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]);
+	                    MTCOMPLEX *rtmp = &(recvbuf[rml_times_cpd*zr*total_slabs_on_node + rml_times_cpd*x + 0*cpd + 0]);
+	                    for(int m=0;m<rml;m++)
+	                        for(int y=0;y<cpd;y++) 
+	                            assertf(rtmp[m*cpd+y] == 
+	                                MTCOMPLEX(z*1000+((x + first_slab_on_node + 1) % cpd), m*1000+y),
+	                                "Echoing test failed: rank %d zbig %d zr %d z %d x %d m %d y %d mt[%d][%d].  Input %f %f, Output %f %f. firstslab = %d. cpd = %d. x = %d\n", 
+	                                MPI_rank, 
+									zbig, zr, z, x, m, y, 
+	                                (x + first_slab_on_node + 1) % cpd, rml_times_cpd*z + m*cpd + y,
+	                                real(mttmp[m*cpd+y]),
+	                                imag(mttmp[m*cpd+y]),
+	                                real(rtmp[m*cpd+y]),
+	                                imag(rtmp[m*cpd+y]),
+									first_slab_on_node, cpd, x );
+	                #endif
+				}
+
+                /* // Equivalent to this:
 		  		for(int m=0;m<rml;m++){
 					for(int y=0;y<cpd;y++){
 						uint64_t i = rml_times_cpd*z*total_slabs_on_node + rml_times_cpd*x + m*cpd + y;
-						
-						if (z < zwidth) mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + m*cpd + y ] = recvbuf[i];
+						mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + m*cpd + y ] = recvbuf[i++];
 					}
 				}
-		
+                */
 			}
-		}			
+		  }			
 		
+        }  // zbig
 		STDLOG(1,"Finishing second transpose for zstart %d\n", zstart);
+		TransposeBuffering.Stop(thread_num); 
 		
 	}
 	
@@ -462,7 +600,11 @@ public:
                     (int) cpd, CP.runtime_order, CP.runtime_NearFieldRadius, 
                     CP.runtime_DerivativeExpansionRadius, z);
 
-            if(!ramdisk_derivs){
+            if(!ramdisk_derivs){				
+				
+				//NAM TODO check that this pointer isn't garbage! 
+				assert(dblock[z-zstart] != NULL); 
+				
                 RD_RDD->BlockingRead( fn, (char *) dblock[z-zstart], size, 0);
                 ReadDerivativeBytes += size;
             } else {
@@ -492,6 +634,7 @@ private:
 		
 #ifdef PARALLEL
         size_t size = sizeof(MTCOMPLEX)*CP.z_slabs_per_node*cpd*rml;
+        mtblock_offset = CP.z_slabs_per_node*cpd*rml;
 
     	//for x slabs not in this nodes domain, allocate mtblock room of z_slabs_per_node to receive transposes. 
 		int last_slab = first_slab_on_node + total_slabs_on_node + 1;
@@ -499,6 +642,9 @@ private:
 			int x = _x % cpd; 
 			mtblock[x] = (MTCOMPLEX*) malloc(size);
 			assert(mtblock[x]!=NULL);
+            // We have to make this look like it starts at z = MPI_rank * z_slabs_per_node
+            mtblock[x] -= (size_t) MPI_rank*mtblock_offset;
+            // Will need to restore this when we free it!
 		}
 #endif
 		
@@ -508,8 +654,8 @@ private:
 
         raw_mtblock = new MTCOMPLEX*[cpd];
         size_t s = sizeof(MTCOMPLEX) * alloc_zwidth * rml * cpd + 4096;  // wiggle room to adjust start to align with file
-        for (int x = 0; x < cpd; x++){
-            int memalign_ret = posix_memalign((void **) (raw_mtblock + x), 4096, s);
+        for (int x = first_slab_on_node; x < first_slab_on_node + total_slabs_on_node; x++){
+            int memalign_ret = posix_memalign((void **) (raw_mtblock + (x%cpd)), 4096, s);
             assert(memalign_ret == 0);
             alloc_bytes += s;
         }
@@ -530,4 +676,5 @@ private:
             alloc_bytes += s;
         }
     }
+	
 };

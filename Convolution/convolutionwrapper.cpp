@@ -108,6 +108,12 @@ void dumpstats(OutofCoreConvolution *OCC, char *fn) {
     
     e = OCC->CS.ReadMultipolesBytes/OCC->CS.ReadMultipoles/(1.0e+6);
     fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles [per thread]", OCC->CS.ReadMultipoles, e );
+	
+    e = OCC->CS.TransposeBufferingBytes/OCC->CS.TransposeBuffering/(1.0e+6);
+    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "Transpose Buffering", OCC->CS.TransposeBuffering, e );
+	
+    e = OCC->CS.TransposeAlltoAllvBytes/OCC->CS.TransposeAlltoAllv/(1.0e+6);
+    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "Transpose MPI AlltoAllv", OCC->CS.TransposeAlltoAllv, e );
     
     e = OCC->CS.WriteTaylorBytes/OCC->CS.WriteTaylor/(1.0e+6);
     fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor [per thread]", OCC->CS.WriteTaylor, e );
@@ -119,7 +125,7 @@ void dumpstats(OutofCoreConvolution *OCC, char *fn) {
     
     e = OCC->CS.ReadMultipolesBytes/OCC->CS.ReadMultipoles/(1.0e+6);
     fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles", OCC->CS.ReadMultipoles, e );
-    
+	
     e = OCC->CS.WriteTaylorBytes/OCC->CS.WriteTaylor/(1.0e+6);
     fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor", OCC->CS.WriteTaylor, e );
 #endif
@@ -136,6 +142,9 @@ void dumpstats(OutofCoreConvolution *OCC, char *fn) {
     double farithp   = cae/OCC->CS.ConvolveWallClock*100;
     double ffftp     = (OCC->CS.ForwardZFFTMultipoles + OCC->CS.InverseZFFTTaylor)/OCC->CS.ConvolveWallClock*100;
     double fiop      = (OCC->CS.ReadDerivatives + OCC->CS.ReadMultipoles + OCC->CS.WriteTaylor )/OCC->CS.ConvolveWallClock*100;
+#ifdef PARALLEL
+	fiop += (OCC->CS.TransposeBuffering + OCC->CS.TransposeAlltoAllv)/OCC->CS.ConvolveWallClock*100;
+#endif
     double swzp      = OCC->CS.ArraySwizzle/OCC->CS.ConvolveWallClock*100;
 
     fprintf(fp,"\n \t Summary: Fourier Transforms = %2.0f%%     Convolution Arithmetic = %2.0f%%     Array Swizzle = %2.0f%%", ffftp, farithp, swzp );
@@ -246,8 +255,12 @@ int choose_zwidth(int Conv_zwidth, int cpd, ConvolutionParameters &CP){
 	
 	//If we are doing a multi-node Convolve, set zwidth = 1. NAM TODO: May want to extend this to have multiple z per node later. 
 #ifdef PARALLEL
-	STDLOG(0, "Forcing zwidth = %d in multi-node convolve, where each node does %d slab(s).\n", CP.z_slabs_per_node * MPI_size, CP.z_slabs_per_node);
-	return CP.z_slabs_per_node * MPI_size;
+	// STDLOG(0, "Forcing zwidth = %d in multi-node convolve, where each node does %d slab(s).\n", CP.z_slabs_per_node * MPI_size, CP.z_slabs_per_node);
+// 	return CP.z_slabs_per_node * MPI_size;
+	
+	CP.z_slabs_per_node = (int)((cpd + 1)/2 / MPI_size) + 1; 
+    STDLOG(0, "Forcing zwidth = full and z_slabs_per_node = %d since we are using ramdisk\n", CP.z_slabs_per_node);
+    return (cpd + 1)/2;  // full width
 #endif
 	
 
