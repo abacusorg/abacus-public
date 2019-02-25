@@ -2,3 +2,4 @@ build
 AbacusCosmo_wrap.cpp
 AbacusCosmo.py
 .cache
+.pytest_cache

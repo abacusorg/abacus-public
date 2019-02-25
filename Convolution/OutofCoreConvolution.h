@@ -58,10 +58,7 @@ public:
     
     uint64_t blocksize, zwidth, rml, CompressedMultipoleLengthXY;
 
-#ifdef PARALLEL
-	uint64_t z_slabs_per_node; 
-#endif
-
+	uint64_t z_slabs_per_node;
 
     int *first_slabs_all;
     int *total_slabs_all;

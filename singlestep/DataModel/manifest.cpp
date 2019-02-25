@@ -170,7 +170,14 @@ class Manifest {
     GroupLink *links;   ///< Storage for the GLL
     
     // Control logic
-    int completed;	///< ==2 if the Manifest is ready for use, ==0 if not yet , ==3 if we've already imported it, ==1 if transfer in progress.
+    enum ManifestStatus {
+        MANIFEST_NOTREADY,
+        MANIFEST_TRANSFERRING,
+        MANIFEST_READY,
+        MANIFEST_ALREADYIMPORTED,
+    };
+
+    enum ManifestStatus completed;	///< The current status of the manifest
     STimer Load;        ///< The timing for the Queue & Import blocking routines
     STimer Transmit;	///< The timing for the Send & Receive routines, usually non-blocking
     STimer CheckCompletion;        ///< The timing to check for completion
@@ -194,9 +201,9 @@ class Manifest {
     Manifest() {
     	m.numarenas = m.numil = m.numlinks = m.numdep = 0;
         #ifdef PARALLEL
-            completed = 0;
+            completed = MANIFEST_NOTREADY;
         #else
-            completed = 3;   // We're not doing anything
+            completed = MANIFEST_ALREADYIMPORTED;   // We're not doing anything
         #endif
         bytes = 0;
         il = NULL;
@@ -277,9 +284,9 @@ class Manifest {
     }
 
 
-    inline int is_ready() { if (completed==2) return 1; return 0;}
+    inline int is_ready() { if (completed==MANIFEST_READY) return 1; return 0;}
 	// Call this to see if the Manifest is ready to retrieve
-    void done() { completed = 3; }
+    void done() { completed = MANIFEST_ALREADYIMPORTED; }
 
     void LoadArena(int type, int s) {
         ManifestArena *a = m.arenas+m.numarenas;
@@ -460,7 +467,7 @@ void Manifest::Send() {
     } 
     // Victory!
     STDLOG(1,"Done queuing the SendManifest, %d total MPI parts, %l bytes\n", maxpending, bytes);
-    completed = 1;
+    completed = MANIFEST_TRANSFERRING;
     Transmit.Stop();
     #endif
     return;
@@ -470,7 +477,7 @@ void Manifest::Send() {
 /// space after Send's have happened.
 inline void Manifest::FreeAfterSend() {
     #ifdef PARALLEL
-    if (completed!=1) return;   // No active Isend's yet
+    if (completed != MANIFEST_TRANSFERRING) return;   // No active Isend's yet
     CheckCompletion.Start();
 
     /* OLDCODE
@@ -506,7 +513,7 @@ inline void Manifest::FreeAfterSend() {
             STDLOG(1,"Freeing the Send Manifest Arena, slab %d of type %d\n",
                 m.arenas[n].slab, m.arenas[n].type);
         }
-        completed=2;
+        completed=MANIFEST_READY;
         STDLOG(1,"Marking the Send Manifest as completely sent\n");
     }
     CheckCompletion.Stop();
@@ -535,7 +542,7 @@ void Manifest::SetupToReceive() {
 /// whether Receive is ready to run.
 inline void Manifest::Check() {
     #ifdef PARALLEL
-    if (completed>=2) return;   // Nothing's active now
+    if (completed >= MANIFEST_READY) return;   // Nothing's active now
     CheckCompletion.Start();
     for (int n=0; n<maxpending; n++) 
 	if (check_if_done(n)) {
@@ -543,14 +550,14 @@ inline void Manifest::Check() {
 	}
     CheckCompletion.Stop();
     if (check_all_done()) {
-        if (completed==1) {
+        if (completed == MANIFEST_TRANSFERRING) {
             STDLOG(1,"Marking the Receive Manifest as fully received\n");
-            completed=2;
+            completed = MANIFEST_READY;
         }
-        if (completed==0) {
+        if (completed == MANIFEST_NOTREADY) {
             STDLOG(1,"Received the Manifest Core\n");
             Receive();
-            completed = 1;
+            completed = MANIFEST_TRANSFERRING;
         } 
     }
     #endif
@@ -644,7 +651,7 @@ opening this region for use.
 
 void Manifest::ImportData() {
     #ifdef PARALLEL
-    assertf(completed==2, "ImportData has been called when completed==%d\n", completed);
+    assertf(completed==MANIFEST_READY, "ImportData has been called when completed==%d\n", completed);
 
     STDLOG(1,"Importing ReceiveManifest of %l bytes into the flow\n", bytes);
     Load.Start();

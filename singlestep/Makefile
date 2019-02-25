@@ -13,6 +13,7 @@ EXTRA_OBJ = $(MULTIPOLES_OBJ)
 ifeq ($(CUDA_ENABLED),CUDA_ENABLED)
 	EXTRA_OBJ += Direct/gpudirect.a
 	SINGLESTEP_LIBS += $(CUDA_LIBS)
+	MAKE_DIRECT += _gpudirect
 endif
 
 PIPELINES = singlestep recover_multipoles benchmark_io standalone_fof
@@ -21,7 +22,7 @@ all: singlestep
 
 -include $(addsuffix .d,$(PIPELINES))
 
-$(PIPELINES): % : %.o $(EXTRA_OBJ)
+$(PIPELINES): % : %.o $(EXTRA_OBJ) | $(MAKE_DIRECT)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ $^ $(SINGLESTEP_LIBS)
 
 %.o: %.cpp
@@ -29,6 +30,10 @@ $(PIPELINES): % : %.o $(EXTRA_OBJ)
 
 Direct/gpudirect.a:
 	$(MAKE) -C Direct $(notdir $@)
+
+# This ensures we check if gpudirect.a needs to be remade without forcing a spurious re-link
+_gpudirect:
+	$(MAKE) -C Direct gpudirect.a
 
 $(MULTIPOLES_OBJ): % :
 	$(MAKE) -C Multipoles $(notdir $@)
@@ -43,4 +48,4 @@ distclean: clean distclean_recurse
 	$(MAKE) -C Direct $*
 	$(MAKE) -C Multipoles $*
 
-.PHONY: all clean distclean cleanhere distcleanhere
+.PHONY: all clean distclean cleanhere distcleanhere _gpudirect

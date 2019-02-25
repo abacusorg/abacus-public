@@ -31,6 +31,7 @@ ifeq (@CUDA_ENABLED@,CUDA_ENABLED)
     CUDA_LIBS := @CUDA_LDFLAGS@ -lcuda -lcudart
     NVCC := @NVCC@
     CUDA_MAJOR_VER := @CUDA_MAJOR_VER@
+    CUDA_ARCH := @CUDA_ARCH@
 endif
 
 # It's not okay to link everything against tcmalloc.

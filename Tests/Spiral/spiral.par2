@@ -15,6 +15,3 @@ OverwriteState = 0
 ForceOutputDebug = 0
 OutputFormat="RVdouble"
 CPD = 33
-
-Parallel = 1
-LocalWorkingDirectory = "/mnt/raid/lgarrison/local/" + @SimName@

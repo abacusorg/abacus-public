@@ -237,14 +237,25 @@ if test x$enable_parallel == xyes; then
 	AC_DEFINE_UNQUOTED(PARALLEL, [], "Generate MPI-parallel code.")
 fi
 
-# Get the number of GPUs
+# Query the GPUs to find the number and compute capability
 if test x$enable_gpu_directs == xyes; then
-	AC_MSG_CHECKING([number of GPUs])
-	NGPU=$(nvidia-smi -q | grep 'Attached GPUs'| awk -F ':' '{print $NF}' | tr -d [[:space:]])
+    AC_MSG_CHECKING([number & compute capability of GPUs])
+
+    make --quiet -C singlestep/Direct detect_gpus MAKE_CONTEXT=AUTOCONF NVCC=$NVCC
+    DETECT_GPUS_OUTPUT=$(./singlestep/Direct/detect_gpus)
+
+    NGPU=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Device count: )\d+')
+    CUDA_ARCH=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Compute capability: )\d+')
+
+    #NGPU=$(nvidia-smi -q | grep 'Attached GPUs'| awk -F ':' '{print $NF}' | tr -d [[:space:]])
     if test x$NGPU == x""; then
         NGPU=0
     fi
-	AC_MSG_RESULT([$NGPU found])
+    if test x$CUDA_ARCH == x""; then
+        CUDA_ARCH=0
+    fi
+    AC_MSG_RESULT([$NGPU GPUs found, compute capability $CUDA_ARCH])
+    AC_SUBST(CUDA_ARCH)
 fi
 
 # If we don't have any GPUs, pretend there's one for BPD

@@ -624,6 +624,7 @@ WARNING
 PYTHON_LDFLAGS
 PYTHON_CXX
 PYTHON_CC
+CUDA_ARCH
 GPU_CONVOLUTION_ENABLED
 CUDA_ENABLED
 CUDA_LIBDIR
@@ -6274,16 +6275,27 @@ _ACEOF
 
 fi
 
-# Get the number of GPUs
+# Query the GPUs to find the number and compute capability
 if test x$enable_gpu_directs == xyes; then
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking number of GPUs" >&5
-$as_echo_n "checking number of GPUs... " >&6; }
-	NGPU=$(nvidia-smi -q | grep 'Attached GPUs'| awk -F ':' '{print $NF}' | tr -d [:space:])
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking number & compute capability of GPUs" >&5
+$as_echo_n "checking number & compute capability of GPUs... " >&6; }
+
+    make --quiet -C singlestep/Direct detect_gpus MAKE_CONTEXT=AUTOCONF NVCC=$NVCC
+    DETECT_GPUS_OUTPUT=$(./singlestep/Direct/detect_gpus)
+
+    NGPU=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Device count: )\d+')
+    CUDA_ARCH=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Compute capability: )\d+')
+
+    #NGPU=$(nvidia-smi -q | grep 'Attached GPUs'| awk -F ':' '{print $NF}' | tr -d [[:space:]])
     if test x$NGPU == x""; then
         NGPU=0
     fi
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $NGPU found" >&5
-$as_echo "$NGPU found" >&6; }
+    if test x$CUDA_ARCH == x""; then
+        CUDA_ARCH=0
+    fi
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: $NGPU GPUs found, compute capability $CUDA_ARCH" >&5
+$as_echo "$NGPU GPUs found, compute capability $CUDA_ARCH" >&6; }
+
 fi
 
 # If we don't have any GPUs, pretend there's one for BPD
