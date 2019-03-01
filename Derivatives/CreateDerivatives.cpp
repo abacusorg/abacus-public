@@ -68,7 +68,7 @@ void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber
     int rml = (order+1)*(order+1);
 
     ULLI fdsize = sizeof(double) * rml*CompressedMultipoleLengthXY;
-    printf("Allocating %d GB\n", (int) (fdsize/(1<<30)) );
+    printf("Allocating %d GB for slab derivs\n", (int) (fdsize/(1<<30)) );
     double *FDSlab = (double *) malloc(fdsize);
 
 
@@ -137,7 +137,7 @@ void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber
 void MergeDerivatives(int inner_radius, int order, int far_radius, double *FarDerivatives) {
     int rml = (order+1)*(order+1);
     ULLI fdsize = sizeof(double) * rml*CompressedMultipoleLengthXY;
-    printf("Allocating %d GB\n", (int) (fdsize/(1<<30)) );
+    printf("Allocating %d GB for far derivs\n", (int) (fdsize/(1<<30)) );
     double *FDSlab = (double *) malloc(fdsize);
 	
 	//Merge all slab's derivatives tensors into a single farderivatives file. This will be used to calculate \hat{\mathcal{D}}^{ABC}: the Fourier transform of the derivatives tensor required to calculate the Taylor coefficients for any given sink cell by convolving the multipole moments and the derivatives tensor. 
@@ -152,7 +152,7 @@ void MergeDerivatives(int inner_radius, int order, int far_radius, double *FarDe
 		ULLI sizeread = fread(&(FDSlab[0]), sizeof(double), rml*CompressedMultipoleLengthXY, fp); 
 		assert(sizeread == rml*CompressedMultipoleLengthXY);
 		fclose(fp);
-
+		
 		#pragma omp parallel for schedule(dynamic,1) 
 		for(int m=0;m<rml;m++) {
 		    for(int i=0;i<=CPDHALF;i++) {
@@ -163,6 +163,8 @@ void MergeDerivatives(int inner_radius, int order, int far_radius, double *FarDe
 	                }
 	            }
 	        }
+		// FarDerivatives is in the order [m][k][i][j], but subject to the 
+		// constraing that j<=i and that i,j,k are all in the first octant.
     }
     free(FDSlab);
     return;
@@ -181,85 +183,362 @@ void CreateFourierFiles(int order, int inner_radius, int far_radius) {
     }
 }
 
+
+
+
+
+
+
+
+
+// //calculate Fast Fourier transform of far derivatives tensor and store.
+// void Part2(int order, int inner_radius, int far_radius) {
+//
+//
+// 	STimer part2timer;
+// 	part2timer.Start();
+//
+//     basemultipoles bm(order);
+//     int cpd = CPD;
+//
+//     ULLI fdsize = sizeof(double) * CompressedMultipoleLengthXYZ;
+//     printf("Allocating %d GB\n", (int) (2*fdsize/(1<<30)) );
+//     double *FarDerivatives_ab = (double *) malloc(fdsize);
+//     double *FarDerivatives_ba = (double *) malloc(fdsize);
+//     assert( FarDerivatives_ab != NULL );
+//     assert( FarDerivatives_ba != NULL );
+//
+//     ULLI tdsize = sizeof(double)*CPD3;
+//     printf("Allocating %d GB\n", (int) (2*tdsize/(1<<30)) );
+//     double *tdprime = (double *) malloc(tdsize);
+//     double *td = (double *) malloc(tdsize);
+//     assert(tdprime!=NULL);
+//     assert(td!=NULL);
+//
+//     ULLI tmpDsize = sizeof(Complex)*CPD3;
+//     printf("Allocating %d GB\n", (int) (tmpDsize/(1<<30)) );
+//     Complex *tmpD   = (Complex *) malloc(tmpDsize);
+//     assert(tmpD!=NULL);
+//
+//     fftw_plan plan_forward_1d;
+//      Complex in_1d[CPD];
+//     Complex out_1d[CPD];
+//
+//     fftw_plan plan_forward_1d_r2c;
+//     double   in_r2c[CPD];
+//     Complex out_r2c[CPD];
+//
+//     //plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
+//     //plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD,  &(in_r2c[0]), (fftw_complex *) &(out_r2c[0]), FFTW_PATIENT);
+//
+//
+//
+// 	//NAM: commented this out for large CPD run overnight.
+// 	//int wisdomExists = fftw_import_wisdom_from_filename("Part2.wisdom");
+// 	//if (!wisdomExists)
+// 	//     printf("No wisdom file exists!\n");
+//
+//
+//     plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
+//     plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD,  &(in_r2c[0]), (fftw_complex *) &(out_r2c[0]), FFTW_PATIENT);
+//
+// 	//if(!wisdomExists)
+// 	//	printf("Exporting wisdom to file == %d\n", fftw_export_wisdom_to_filename("Part2.wisdom"));
+// 	//
+// 	//NAM: end commented out section.
+//
+//
+//
+//
+//
+//     ULLI sizeread;
+//
+//
+// 	//myTimer.Start(); //NAM
+//
+//
+//
+//
+//
+//
+//
+// 	part2timer.Stop();
+// 	printf("About to begin multipoles lap. Time elapsed = %f\n", part2timer.Elapsed()); fflush(NULL);
+// 	part2timer.Start();
+//
+//     int a,b,c;
+//     FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
+//
+//         int mab = bm.rmap(a,b,c);
+//         int mba = bm.rmap(b,a,c);
+//
+//         FILE *fpfar;
+//         char fpfar_fn[1024];
+//
+// 		//Open and unpack farderivatives file.
+//         sprintf(fpfar_fn,"farderivatives");
+//
+//         fpfar = fopen(fpfar_fn,"rb");
+//         assert(fpfar!=NULL);
+//         fseek(fpfar, mab*CompressedMultipoleLengthXYZ*sizeof(double)  , SEEK_SET );
+//         sizeread = fread(&(FarDerivatives_ab[0]), sizeof(double), CompressedMultipoleLengthXYZ, fpfar);
+// 	assert(sizeread == CompressedMultipoleLengthXYZ);
+//         fclose(fpfar);
+//
+//         fpfar = fopen(fpfar_fn,"rb");
+//         assert(fpfar!=NULL);
+//         fseek(fpfar, mba*CompressedMultipoleLengthXYZ*sizeof(double) , SEEK_SET );
+//         sizeread = fread(&(FarDerivatives_ba[0]), sizeof(double), CompressedMultipoleLengthXYZ, fpfar);
+// 	assert(sizeread == CompressedMultipoleLengthXYZ);
+//         fclose(fpfar);
+//
+//
+//         for(int k=0;k<=CPDHALF;k++)
+//             for(int i=0;i<=CPDHALF;i++)
+//                 for(int j=0;j<=CPDHALF;j++)  {
+//                     ULLI l = linearindex( i+CPDHALF, j+CPDHALF, k+CPDHALF );
+//                     if(j<=i) td[l] = FarDerivatives_ab[RINDEXYZ(i,j,k)];
+//                     else     td[l] = FarDerivatives_ba[RINDEXYZ(j,i,k)];
+//                 }
+//
+//         for(int k=0;k<=CPDHALF;k++)
+//             for(int i=0;i<=CPDHALF;i++)
+//                 for(int j=0;j<=CPDHALF;j++)
+//                     for(int sx = -1; sx<=1; sx+=2)
+//                         for(int sy=-1; sy<=1; sy+=2)
+//                             for(int sz=-1; sz<=1; sz+=2) {
+//                                 if( sx + sy + sz < 3 ) {
+//
+//                                     int s = 1;
+//                                     if(a%2==1) s *= sign(sx);
+//                                     if(b%2==1) s *= sign(sy);
+//                                     if(c%2==1) s *= sign(sz);
+//
+//                                     int xi = sx*i + CPDHALF;
+//                                     int yj = sy*j + CPDHALF;
+//                                     int zk = sz*k + CPDHALF;
+//
+//                                     assert(xi>=0); assert(xi<CPD);
+//                                     assert(yj>=0); assert(yj<CPD);
+//                                     assert(zk>=0); assert(zk<CPD);
+//
+//                                     ULLI  l = linearindex( i+CPDHALF, j+CPDHALF, k+CPDHALF );
+//                                     ULLI ll = linearindex( xi, yj, zk );
+//
+//                                     if(s>0)
+//                                         td[ll] =  td[l];
+//                                     else
+//                                         td[ll] = -td[l];
+//
+//                                 }
+//                             }
+//
+//         // now write back into the global array
+//
+//         int m = mab;
+//
+//         for(int i=0;i<CPD;i++)
+//             for(int j=0;j<CPD;j++)
+//                 for(int k=0;k<CPD;k++) {
+//                     ULLI l = linearFFTW(i-CPDHALF,j-CPDHALF,k-CPDHALF);
+//                     ULLI ll = linearindex(i,j,k);
+//                     tdprime[l] = td[ll];
+//                 }
+//
+//         double *tmpreal = tdprime;
+//
+//
+// 		part2timer.Stop();
+// 		printf("Starting yz fftw %d %d %d. Time elapsed = %f\n", a,b,c,part2timer.Elapsed()); fflush(NULL);
+// 		part2timer.Start();
+//
+//         for(int x=0;x<CPD;x++) {
+//             for(int y=0;y<CPD;y++) {
+//                 for(int z=0;z<CPD;z++) in_r2c[z] = tmpreal[x*CPD*CPD + y*CPD + z];
+//                 fftw_execute(plan_forward_1d_r2c);
+//                 for(int z=0;z<(CPD+1)/2;z++) tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z  ] = out_r2c[z];
+//             }
+//
+//             for(int z=0;z<(CPD+1)/2;z++) {
+//                 for(int y=0;y<CPD;y++) in_1d[y] = tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ];
+//                  fftw_execute(plan_forward_1d);
+//                 for(int y=0;y<CPD;y++) tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ] = out_1d[y];
+//             }
+//         }
+//
+//
+// 		part2timer.Stop();
+// 		printf("Finished yz fftw %d %d %d. Time elapsed = %f\n",a,b,c, part2timer.Elapsed()); fflush(NULL);
+// 		part2timer.Start();
+//
+//         for(int z=0;z<(CPD+1)/2;z++)
+//             for(int y=0;y<CPD;y++) {
+//                 for(int x=0;x<CPD;x++) in_1d[x] = tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ];
+//                  fftw_execute(plan_forward_1d);
+//                 for(int x=0;x<CPD;x++) tmpD[  x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ] = out_1d[x];
+//             }
+//
+//
+//         for(int z=0;z<(CPD+1)/2;z++) {
+//             if( ((a+b+c)%2) == 0 )
+//                 for(int x=0;x<(CPD+1)/2;x++)
+//                     for(int y=0;y<=x;y++)
+//                         tmpreal[ RINDEXY(x,y) ] = real(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
+//             else
+//                 for(int x=0;x<(CPD+1)/2;x++)
+//                     for(int y=0;y<=x;y++)
+//                         tmpreal[ RINDEXY(x,y) ] = imag(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
+//
+//             FILE *fp;
+//             char fn[1024];
+//             sprintf(fn,"fourierspace_%d_%d_%d_%d_%d",cpd,order,inner_radius,far_radius,z);
+//             fp = fopen(fn,"r+b");
+//             assert(fp!=NULL);
+//             fseek(fp, m*CompressedMultipoleLengthXY*sizeof(double), SEEK_SET );
+//             fwrite( &(tmpreal[0]), sizeof(double), CompressedMultipoleLengthXY, fp);
+//             fclose(fp);
+//         }
+//
+//
+// 		part2timer.Stop();
+// 		printf("Finished writing %d %d %d. Time elapsed = %f\n",a,b,c, part2timer.Elapsed()); fflush(NULL);
+// 		part2timer.Start();
+//     }
+//
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 //calculate Fast Fourier transform of far derivatives tensor and store. 
-void Part2(int order, int inner_radius, int far_radius) { 
-    
+void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
+
+
+	STimer part2timer;
+	part2timer.Start();
+
+    fftw_init_threads();
+
+
     basemultipoles bm(order);
     int cpd = CPD;
 
     ULLI fdsize = sizeof(double) * CompressedMultipoleLengthXYZ;
-    printf("Allocating %d GB\n", (int) (2*fdsize/(1<<30)) );
+    printf("Allocating %d GB for FarDerivatives_ab and _ba in Part2\n", (int) (2*fdsize/(1<<30)) );
     double *FarDerivatives_ab = (double *) malloc(fdsize);
     double *FarDerivatives_ba = (double *) malloc(fdsize);
     assert( FarDerivatives_ab != NULL );
     assert( FarDerivatives_ba != NULL );
 
     ULLI tdsize = sizeof(double)*CPD3;
-    printf("Allocating %d GB\n", (int) (2*tdsize/(1<<30)) );
+    printf("Allocating %d GB for tdprime in Part2\n", (int) (2*tdsize/(1<<30)) );
     double *tdprime = (double *) malloc(tdsize);
     double *td = (double *) malloc(tdsize);
     assert(tdprime!=NULL);
     assert(td!=NULL);
 
-    ULLI tmpDsize = sizeof(Complex)*CPD3;
-    printf("Allocating %d GB\n", (int) (tmpDsize/(1<<30)) );
+    // ULLI tmpDsize = sizeof(Complex)*CPD3;
+    ULLI tmpDsize = sizeof(Complex)*CPD*CPD*(CPD+1)/2;
+    printf("Allocating %d GB for tmpD in Part2\n", (int) (tmpDsize/(1<<30)) );
     Complex *tmpD   = (Complex *) malloc(tmpDsize);
     assert(tmpD!=NULL);
 
-    fftw_plan plan_forward_1d;
-     Complex in_1d[CPD];
-    Complex out_1d[CPD];
+    int rml = (order+1)*(order+1);
+    int MultipoleBuffer = 9;     // We're going to save up this many multipoles before writing out.
+    int MultipoleNumber[rml];
+    ULLI diskbuffersize = sizeof(double)*MultipoleBuffer*(CPD+1)/2*CompressedMultipoleLengthXY;
+        // This is enough to hold all the z slabs for these multipoles
+    printf("Allocating %d GB for diskbuffer in Part2, enough for %d multipoles, %llu\n", (int) (diskbuffersize/(1<<30)), MultipoleBuffer, diskbuffersize/sizeof(double));
+    double *diskbuffer   = (double *) malloc(diskbuffersize);
+    assert(diskbuffer!=NULL);
+    int MultipoleCount = 0;
 
+    if (MultipoleStart!=0) {
+        if (MultipoleStart%MultipoleBuffer>0) {
+             // We only deal with entire buffers, round down
+             printf("Apparent size of fourier file was %d, but didn't divide buffer size %d evenly.  Adjusting\n", MultipoleStart, MultipoleBuffer);
+             MultipoleStart = (MultipoleStart/MultipoleBuffer)*MultipoleBuffer;
+        }
+    }
+    printf("We will start at multipole %d\n", MultipoleStart);
+
+
+    // The X-Y FFTs are just a simple 2D C->C FFT
+    fftw_plan plan_forward_2d;
+    Complex in_2d[CPD*CPD];
+    Complex out_2d[CPD*CPD];
+
+    // We're going to setup to do CPD FFTs at once, each of size CPD
+    ULLI CPDpad = (CPD/16+1)*16;    // Just want to pad out to separate these FFTs.
+    // We are supposed to put the [CPD][CPD] info into [CPD][CPDpad] space.  FFT is on the rightmost index.
     fftw_plan plan_forward_1d_r2c;
-    double   in_r2c[CPD];
-    Complex out_r2c[CPD];
+    double   in_r2c[CPDpad*CPD];
+    Complex out_r2c[CPDpad*CPD];
+    // This is overkill: only needed half the elements, i.e., CPDpad/2; don't need to economize
 
+
+    // Old 1-d code
     //plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
     //plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD,  &(in_r2c[0]), (fftw_complex *) &(out_r2c[0]), FFTW_PATIENT);
-	
-	
-	
-	//NAM: commented this out for large CPD run overnight.
-	//int wisdomExists = fftw_import_wisdom_from_filename("Part2.wisdom");
-	//if (!wisdomExists)
-	//     printf("No wisdom file exists!\n");
-	
-	
-    plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
-    plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD,  &(in_r2c[0]), (fftw_complex *) &(out_r2c[0]), FFTW_PATIENT);
-	
-	//if(!wisdomExists)
-	//	printf("Exporting wisdom to file == %d\n", fftw_export_wisdom_to_filename("Part2.wisdom"));
-	//	
-	//NAM: end commented out section. 
-	
-	
-	
-	
+
+	printf("Planning fftw with omp\n");
+	fftw_plan_with_nthreads(omp_get_max_threads());
+	printf("Done planning with %d threads\n", omp_get_max_threads());
+
+
+    // This is the plan to do the 2d CPD*CPD complex-to-complex XY FFTs
+    plan_forward_2d  =  fftw_plan_dft_2d( CPD, CPD,
+	(fftw_complex *) &(in_2d[0]),
+	(fftw_complex *) &(out_2d[0]),
+	FFTW_FORWARD, FFTW_PATIENT);
+
+    // This is the plan to do CPD real-to-complex Z FFTs, each of size CPD, with a stride of CPDpad
+    int fftw_n[] = { CPD };    // This is how long the FFTs are
+    int howmany = CPD;		// How many FFTs we're doing
+    int idist, odist; idist = odist = CPDpad;   // This is how the FFTs are separated in memory
+    int istride, ostride; istride = ostride = 1;
+    // iembed and oembed are just NULL
+    plan_forward_1d_r2c  =  fftw_plan_many_dft_r2c( 1, fftw_n, howmany,
+	&(in_r2c[0]), NULL, istride, idist,
+	(fftw_complex *) &(out_r2c[0]), NULL, ostride, odist,
+	FFTW_PATIENT);
+
+	printf("Plans created.\n");
+
+
+
 
     ULLI sizeread;
-	
-	
-	//myTimer.Start(); //NAM 
-	
 
 
-	
-
-
-
-
+	part2timer.Stop();
+	printf("About to begin multipoles lap. Time elapsed = %f\n", part2timer.Elapsed()); fflush(NULL);
+	part2timer.Start();
 
     int a,b,c;
     FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
-        
+
         int mab = bm.rmap(a,b,c);
         int mba = bm.rmap(b,a,c);
+        if (MultipoleCount<MultipoleStart) {
+            MultipoleCount++;
+            continue;
+        }
 
         FILE *fpfar;
         char fpfar_fn[1024];
-		
-		//Open and unpack farderivatives file. 
+
+		//Open and unpack farderivatives file.
         sprintf(fpfar_fn,"farderivatives");
 
         fpfar = fopen(fpfar_fn,"rb");
@@ -275,8 +554,18 @@ void Part2(int order, int inner_radius, int far_radius) {
         sizeread = fread(&(FarDerivatives_ba[0]), sizeof(double), CompressedMultipoleLengthXYZ, fpfar);
 	assert(sizeread == CompressedMultipoleLengthXYZ);
         fclose(fpfar);
+		
+		part2timer.Stop();
+		printf("Done reading farderivs %d %d %d. Time elapsed = %f\n", a,b,c,part2timer.Elapsed()); fflush(NULL);
+		part2timer.Start();
+
+	// We've loaded in [k][i][j] with j<=i for one [m], only in first octant.
+	// First, we reflect [i][j] to fill the first octant.
 
 
+        printf("A: %d %d %d %d: \n", a,b,c, order); fflush(NULL);
+		
+        #pragma omp parallel for schedule(static)
         for(int k=0;k<=CPDHALF;k++)
             for(int i=0;i<=CPDHALF;i++)
                 for(int j=0;j<=CPDHALF;j++)  {
@@ -284,95 +573,234 @@ void Part2(int order, int inner_radius, int far_radius) {
                     if(j<=i) td[l] = FarDerivatives_ab[RINDEXYZ(i,j,k)];
                     else     td[l] = FarDerivatives_ba[RINDEXYZ(j,i,k)];
                 }
+				
+				
+        printf("."); fflush(NULL);
 
-        for(int k=0;k<=CPDHALF;k++)
-            for(int i=0;i<=CPDHALF;i++)
-                for(int j=0;j<=CPDHALF;j++)
-                    for(int sx = -1; sx<=1; sx+=2)
-                        for(int sy=-1; sy<=1; sy+=2)
-                            for(int sz=-1; sz<=1; sz+=2) {
-                                if( sx + sy + sz < 3 ) { 
+        // Now we fill the other octants
 
-                                    int s = 1;
-                                    if(a%2==1) s *= sign(sx);
-                                    if(b%2==1) s *= sign(sy);
-                                    if(c%2==1) s *= sign(sz);
+        #pragma omp parallel for schedule(static)
+        for(int i=0;i<=CPDHALF;i++)
+            for(int j=0;j<=CPDHALF;j++)
+                for(int sx = -1; sx<=1; sx+=2)
+                    for(int sy=-1; sy<=1; sy+=2)
+                        for(int sz=-1; sz<=1; sz+=2) {
+                            if( sx + sy + sz < 3 ) {
 
-                                    int xi = sx*i + CPDHALF;
-                                    int yj = sy*j + CPDHALF;
-                                    int zk = sz*k + CPDHALF;
+                                int s = 1;
+                                if(a%2==1) s *= sign(sx);
+                                if(b%2==1) s *= sign(sy);
+                                if(c%2==1) s *= sign(sz);
 
-                                    assert(xi>=0); assert(xi<CPD);
-                                    assert(yj>=0); assert(yj<CPD);
-                                    assert(zk>=0); assert(zk<CPD);
+                                int xi = sx*i + CPDHALF;
+                                int yj = sy*j + CPDHALF;
 
-                                    ULLI  l = linearindex( i+CPDHALF, j+CPDHALF, k+CPDHALF );
-                                    ULLI ll = linearindex( xi, yj, zk );
+                                // assert(xi>=0); assert(xi<CPD);
+                                // assert(yj>=0); assert(yj<CPD);
 
-                                    if(s>0) 
-                                        td[ll] =  td[l];
-                                    else
-                                        td[ll] = -td[l];
+                                // These are the starting indices for k=0
+                                ULLI  l = linearindex( i+CPDHALF, j+CPDHALF, CPDHALF );
+                                ULLI ll = linearindex( xi, yj, CPDHALF );
 
+                                // If sz=+1, we're copying [CPDHALF,2*CPDHALF] onto itself.
+                                // If sz=-1, we're reflecting [CPDHALF,2*CPDHALF] into [CPDHALF,0]
+                                if(s>0) {
+                                    if (sz>0) for(int k=0;k<=CPDHALF;k++) td[ll++] =  td[l++];
+                                         else for(int k=0;k<=CPDHALF;k++) td[ll--] =  td[l++];
+                                } else {
+                                    if (sz>0) for(int k=0;k<=CPDHALF;k++) td[ll++] = -td[l++];
+                                         else for(int k=0;k<=CPDHALF;k++) td[ll--] = -td[l++];
                                 }
-                            }
 
-        // now write back into the global array 
-        
+                                // for(int k=0;k<=CPDHALF;k++,l++,ll+=sz) {
+                                    // int zk = sz*k + CPDHALF;
+                                    // assert(zk>=0); assert(zk<CPD);
+                                    // ULLI  l = linearindex( i+CPDHALF, j+CPDHALF, k+CPDHALF );
+                                    // ULLI ll = linearindex( xi, yj, zk );
+
+                                    // We are mapping from z = k+CPDHALF to zk = CPDHALF+k*sz
+
+                                    // if(s>0)
+                                      //   td[ll] =  td[l];
+                                    // else
+                                        // td[ll] = -td[l];
+                                // }
+
+                                /* We actually want to put everything in a tdprime spot that is 
+                                shifted down by -CPDHALF in each coordinate, and then periodic wrapped.
+
+                                If we had started with td already having things in the correct octant,
+                                then these reflections would have 
+                                */
+                            } // else td[l] = td[l];
+                        }
+
+        // now write back into the global array
+							
+        part2timer.Stop();
+        printf("Done with td population %d %d %d. Time elapsed = %f\n", a,b,c,part2timer.Elapsed()); fflush(NULL);
+        part2timer.Start();
+
         int m = mab;
 
+        // Do a CPDHALF 3-d cyclic translation of the values.
+        // DJE TODO: With care, this could be done in place, which would save a big array
+
+		#pragma omp parallel for schedule(static)
         for(int i=0;i<CPD;i++)
-            for(int j=0;j<CPD;j++)
-                for(int k=0;k<CPD;k++) {
-                    ULLI l = linearFFTW(i-CPDHALF,j-CPDHALF,k-CPDHALF);
-                    ULLI ll = linearindex(i,j,k);
-                    tdprime[l] = td[ll];
-                }
+            for(int j=0;j<CPD;j++) {
+                ULLI l = linearFFTW(i-CPDHALF,j-CPDHALF,-CPDHALF);
+                ULLI ll = linearindex(i,j,0);
+                for(int k=0;k<CPDHALF;k++) tdprime[l++] = td[ll++];
+                l -= CPD;    // Need to reset to the beginning of the row
+                // ULLI l = linearFFTW(i-CPDHALF,j-CPDHALF,0);
+                // ULLI ll = linearindex(i,j,CPDHALF);
+                for(int k=CPDHALF;k<CPD;k++) tdprime[l++] = td[ll++];
+            }
+
+                // for(int k=0;k<CPD;k++) {
+                    // ULLI l = linearFFTW(i-CPDHALF,j-CPDHALF,k-CPDHALF);
+                    // ULLI ll = linearindex(i,j,k);
+                    // tdprime[l] = td[ll];
+                // }
+
 
         double *tmpreal = tdprime;
 
-        for(int x=0;x<CPD;x++) {
-            for(int y=0;y<CPD;y++) {
-                for(int z=0;z<CPD;z++) in_r2c[z] = tmpreal[x*CPD*CPD + y*CPD + z];
-                fftw_execute(plan_forward_1d_r2c);
-                for(int z=0;z<(CPD+1)/2;z++) tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z  ] = out_r2c[z];
-            }
+		part2timer.Stop();
+		printf("Starting yz fftw %d %d %d. Time elapsed = %f\n", a,b,c,part2timer.Elapsed()); fflush(NULL);
+		part2timer.Start();
 
-            for(int z=0;z<(CPD+1)/2;z++) {
-                for(int y=0;y<CPD;y++) in_1d[y] = tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ];
-                 fftw_execute(plan_forward_1d); 
-                for(int y=0;y<CPD;y++) tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ] = out_1d[y];
-            }
+        for(int x=0;x<CPD;x++) {
+			#pragma omp parallel for schedule(static)
+            for(int y=0;y<CPD;y++) {
+                for(int z=0;z<CPD;z++) {
+					in_r2c[y*CPDpad+z] = tmpreal[x*CPD*CPD + y*CPD + z];
+				}
+			}
+	    	fftw_execute(plan_forward_1d_r2c);   // Z FFT, done R->C
+			#pragma omp parallel for schedule(static)
+            for(int y=0;y<CPD;y++) {
+                for(int z=0;z<(CPD+1)/2;z++) {
+					tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ] = out_r2c[y*CPDpad+z];
+				}
+			}
+		}
+
+		part2timer.Stop();
+		printf("Finished z fftw %d. Time elapsed = %f\n",m, part2timer.Elapsed()); fflush(NULL);
+		part2timer.Start();
+
+
+	// DJE TODO: The above moves the data from tmpreal=tdprime (which could have been td)
+	// into tmpD.  If td had gotten the CPD+1 padding, this could have been in place.
+
+	// Now we have a purely complex problem, but we need to do the X-Y FFTs
+	// on the (CPD+1)/2 separate KZ problems.
+	// Since we're outputing different files for each KZ, we're going to handle each
+	// one at a time -- and write out the result directly.
+	// This is important, because we have to do a nasty transpose -- fetching one KZ entry
+	// per skewer, and we don't want to do that more than we have to.
+
+	for(int z=0;z<(CPD+1)/2;z++) {
+		#pragma omp parallel for schedule(static)
+	    for(int x=0;x<CPD;x++)
+                for(int y=0;y<CPD;y++) in_2d[x*CPD+y] = tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ];
+		// This gather requires a ton of random access!
+	    fftw_execute(plan_forward_2d);    // X-Y FFT, done C->C
+	    	// Now the results are in out_2d[x*CPD+y]
+
+
+/* OLD CODE
+	    // Put pragma here
+            for(int z=0;z<(CPD+1)/2;z++)
+        for(int x=0;x<CPD;x++) {
+                for(int y=0;y<CPD;y++) tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ] = out_1d[z*CPDpad+y];
         }
 
-        for(int z=0;z<(CPD+1)/2;z++)
-            for(int y=0;y<CPD;y++) {
+        for(int z=0;z<(CPD+1)/2;z++) {
+	    // Put pragma here
+            for(int y=0;y<CPD;y++)
                 for(int x=0;x<CPD;x++) in_1d[x] = tmpD[ x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ];
-                 fftw_execute(plan_forward_1d);
+	    fftw_execute(plan_forward_1d);  // X FFT done, C->C
+	    // Put pragma here
+            for(int y=0;y<CPD;y++)
                 for(int x=0;x<CPD;x++) tmpD[  x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z ] = out_1d[x];
+	}
+
+        for(int z=0;z<(CPD+1)/2;z++) 
+END OLD CODE */
+
+
+            // We're going to store the results here, so that we can gather up some multipoles
+            // before writing out.
+            ULLI offset = ((MultipoleCount%MultipoleBuffer)*(CPD+1)/2 + z)
+                                *CompressedMultipoleLengthXY;
+            double *buf = diskbuffer+offset;
+            if (z==0) {
+                printf("Saving Multipole %d (position %d in file) from buffer %d; offset %llu\n", MultipoleCount, m, MultipoleCount%MultipoleBuffer, offset); fflush(NULL);
             }
 
-
-        for(int z=0;z<(CPD+1)/2;z++) {
             if( ((a+b+c)%2) == 0 )
-                for(int x=0;x<(CPD+1)/2;x++) 
+				#pragma omp parallel for schedule(static)
+                for(int x=0;x<(CPD+1)/2;x++)
                     for(int y=0;y<=x;y++) 
-                        tmpreal[ RINDEXY(x,y) ] = real(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
+                        buf[ RINDEXY(x,y) ] = real(conj(out_2d[x*CPD+y]));
+                        // tmpreal[ RINDEXY(x,y) ] = real(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
             else
-                for(int x=0;x<(CPD+1)/2;x++) 
-                    for(int y=0;y<=x;y++) 
-                        tmpreal[ RINDEXY(x,y) ] = imag(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
+				#pragma omp parallel for schedule(static)
+                for(int x=0;x<(CPD+1)/2;x++)
+                    for(int y=0;y<=x;y++)
+                        buf[ RINDEXY(x,y) ] = imag(conj(out_2d[x*CPD+y]));
+                        // tmpreal[ RINDEXY(x,y) ] = imag(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
+        }
 
+		part2timer.Stop();
+		printf("Finished xy FFT %d. Time elapsed = %f\n",MultipoleCount, part2timer.Elapsed()); fflush(NULL);
+		part2timer.Start();
+
+        // Now we're done with this multipole; consider whether to write out
+        MultipoleNumber[MultipoleCount] = m;
+        MultipoleCount++;
+
+        if (MultipoleCount%MultipoleBuffer>0 && MultipoleCount<rml) continue;  // Go on to next multipole
+
+        int nMult = (MultipoleCount-1)%MultipoleBuffer+1;
+		printf("Preparing to write %d multipoles\n",nMult); fflush(NULL);
+        // This is the number of multipoles we have saved up.
+        // If we ended at mod 0, then we must have a full set.
+
+        // Here we're doing highly threaded output.  Will the disk like this QueueDepth?
+        // Optional pragma!
+        // #pragma omp parallel for schedule(static)
+        for(int z=0;z<(CPD+1)/2;z++) {
+            // We loop over files
             FILE *fp;
             char fn[1024];
             sprintf(fn,"fourierspace_%d_%d_%d_%d_%d",cpd,order,inner_radius,far_radius,z);
             fp = fopen(fn,"r+b");
             assert(fp!=NULL);
-            fseek(fp, m*CompressedMultipoleLengthXY*sizeof(double), SEEK_SET );
-            fwrite( &(tmpreal[0]), sizeof(double), CompressedMultipoleLengthXY, fp);
+            for (int j=0; j<nMult; j++) {
+                int thisMult = MultipoleCount-nMult+j;
+                if (z==0) {
+                    printf("Writing Multipole %d (position %d in file)from buffer %d\n", thisMult, MultipoleNumber[thisMult], thisMult%MultipoleBuffer); fflush(NULL);
+                }
+                fseek(fp, MultipoleNumber[thisMult]*CompressedMultipoleLengthXY*sizeof(double), SEEK_SET );
+                double *buf = diskbuffer+((thisMult%MultipoleBuffer)*(CPD+1)/2 + z)
+                                *CompressedMultipoleLengthXY;
+                fwrite( &(buf[0]), sizeof(double), CompressedMultipoleLengthXY, fp);
+                // fseek(fp, m*CompressedMultipoleLengthXY*sizeof(double), SEEK_SET );
+                // fwrite( &(tmpreal[0]), sizeof(double), CompressedMultipoleLengthXY, fp);
+            }
             fclose(fp);
         }
+
+		part2timer.Stop();
+		printf("Finished writing %d %d %d. Time elapsed = %f\n",a,b,c, part2timer.Elapsed()); fflush(NULL);
+		part2timer.Start();
+
     }
+
 
 }
 
@@ -426,14 +854,30 @@ int main(int argc, char **argv) {
 
 	//check if the derivatives tensor we're about to calculate already stored on disk? If so, don't repeat the work! 
     char fn[1024];
-    sprintf(fn,"fourierspace_%d_%d_%d_%d_%d",cpd,order,inner_radius,far_radius, 0);
+    sprintf(fn,"fourierspace_%d_%d_%d_%d_%d",cpd,order,inner_radius,far_radius, (CPD+1)/2-1);
+    // This is the last file
 
+    int MultipoleStart;
     FILE *fp;
     fp = fopen(fn,"rb");
     fprintf(stderr, "Trying to find derivativesfile=%s on disk\n", fn);
-    if(fp!=NULL) {
-        printf("Derivatives already present \n");
-        exit(0);
+    if(fp==NULL) {
+        // Derivatives don't exist
+        MultipoleStart = 0;
+    } else {
+        // Derivatives files do exist
+        struct stat st;
+        int ret = stat(fn, &st);
+        assert(ret==0);
+        MultipoleStart = floor(st.st_size/(CompressedMultipoleLengthXY)/sizeof(double));
+            // This uses the file size to determine how many multipoles were completed in the last z file
+        if (MultipoleStart==rml) {
+            printf("Derivatives already present \n");
+            exit(0);
+        }
+        printf("Derivative files were started, but appear to contain only %d of %d multipoles\n",
+            MultipoleStart, rml);
+        // If the fourier files are corrupted, delete them to start over
     }
 	
 	//myTimer.Stop();
@@ -464,7 +908,7 @@ int main(int argc, char **argv) {
     ULLI fdsize = sizeof(double) * rml*CompressedMultipoleLengthXYZ;
 		
 	//calculate total far derivatives tensor for entire simulation box by merging components for every cell. {\mathcal{D}^{ABC}_{jkl}} = \mathcal{D}^{ABC}.
-    printf("Allocating %d GB\n", (int) (fdsize/(1<<30)) );
+    printf("Allocating %d GB before MergeDerivatives\n", (int) (fdsize/(1<<30)) );
     double *FarDerivatives = (double *) malloc(fdsize);
     MergeDerivatives(inner_radius, order, far_radius, FarDerivatives);
 	//myTimer.Stop();
@@ -483,7 +927,7 @@ int main(int argc, char **argv) {
 
 
 	//create empty fourier files to store the fourier transforms of the far derivatives in, to be calculated in Part2. 
-    CreateFourierFiles(order,inner_radius, far_radius);
+    if (MultipoleStart==0) CreateFourierFiles(order,inner_radius, far_radius);
 	//myTimer.Stop();
 	//double CFFRuntime = myTimer.Elapsed();
 	//printf("Time spent in CreateFourierFiles = %f \n", CFFRuntime);
@@ -491,7 +935,7 @@ int main(int argc, char **argv) {
 	//myTimer.Start();
 	
 	//calculate Fast Fourier transforms of far derivatives tensor and store. 
-    Part2(order, inner_radius, far_radius);
+    Part2(order, inner_radius, far_radius, MultipoleStart);
 	//myTimer.Stop();
 	//double Part2Runtime = myTimer.Elapsed();
 	//printf("Time spent in Part2 (not including fftw plan)= %f \n", Part2Runtime);
