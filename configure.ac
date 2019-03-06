@@ -131,9 +131,28 @@ if test x$enable_avx512_directs == xyes; then
 	AC_DEFINE_UNQUOTED(AVX512DIRECT, [], "Use AVX-512 directs")
 fi
 
+# TODO: change all this to --with-multipoles
+# Only the test driver cares about access to multiple implementations, and it has full control over that
+have_multipoles=no
+
+AC_ARG_ENABLE(avx512-multipoles,
+[AS_HELP_STRING([--enable-avx512-multipoles], [AVX-512 multipoles [yes if AVX-512 present]])],
+    [], enable_avx512_multipoles=$enable_avx512)
+AVX512MULTIPOLES="AVX512MULTIPOLES_DISABLED"
+if test x$enable_avx512_multipoles == xyes; then
+    AC_DEFINE_UNQUOTED(AVX512MULTIPOLES, [], "Use AVX-512 multipoles")
+    AVX512MULTIPOLES="AVX512MULTIPOLES_ENABLED"
+    have_multipoles=yes
+fi
+AC_SUBST(AVX512MULTIPOLES)
+
 AC_ARG_ENABLE(avx-multipoles,
 [AS_HELP_STRING([--enable-avx-multipoles], [AVX multipoles [yes if AVX present]])],
-	[], enable_avx_multipoles=$enable_avx)
+	[], enable_avx_multipoles=auto)
+if test x$enable_avx_multipoles == xauto && test x$have_multipoles == no; then
+    enable_avx_multipoles=$have_avx
+    have_multipoles=yes
+fi
 AVXMULTIPOLES="AVXMULTIPOLES_DISABLED"
 if test x$enable_avx_multipoles == xyes; then
 	AC_DEFINE_UNQUOTED(AVXMULTIPOLES, [], "Use AVX multipoles")
@@ -141,19 +160,12 @@ if test x$enable_avx_multipoles == xyes; then
 fi
 AC_SUBST(AVXMULTIPOLES)
 
-AC_ARG_ENABLE(avx512-multipoles,
-[AS_HELP_STRING([--enable-avx512-multipoles], [AVX-512 multipoles [yes if AVX-512 present]])],
-	[], enable_avx512_multipoles=$enable_avx512)
-AVX512MULTIPOLES="AVX512MULTIPOLES_DISABLED"
-if test x$enable_avx512_multipoles == xyes; then
-	AC_DEFINE_UNQUOTED(AVX512MULTIPOLES, [], "Use AVX-512 multipoles")
-    AVX512MULTIPOLES="AVX512MULTIPOLES_ENABLED"
-fi
-AC_SUBST(AVX512MULTIPOLES)
-
 AC_ARG_ENABLE(unrolled-multipoles,
-[AS_HELP_STRING([--enable-unrolled-multipoles], [Unrolled (plain C) multipoles [yes]])],
-    [], enable_unrolled_multipoles=yes)
+[AS_HELP_STRING([--enable-unrolled-multipoles], [Unrolled (plain C) multipoles [yes if no AVX/AVX-512]])],
+    [], enable_unrolled_multipoles=auto)
+
+if test x$enable_unrolled_multipoles == xauto
+
 UNROLLEDMULTIPOLES="UNROLLEDMULTIPOLES_DISABLED"
 if test x$enable_unrolled_multipoles == xyes; then
     AC_DEFINE_UNQUOTED(UNROLLEDMULTIPOLES, [], "Use unrolled plain-C multipoles")
@@ -270,8 +282,11 @@ AC_ARG_WITH(direct-bpd,
 AC_DEFINE_UNQUOTED(DirectBPD,$with_direct_bpd, "Direct buffers per device")
 
 AC_ARG_WITH(max-gpus,
-[AS_HELP_STRING([--with-max-gpus=M], [Maximum number of GPUs to use [16]])],
-	[], with_max_gpus="16")
+[AS_HELP_STRING([--with-max-gpus=M], [Maximum number of GPUs to use [auto]])],
+	[], with_max_gpus="auto")
+if test x$with_max_gpus == xauto; then
+    with_max_gpus=$NGPU
+fi
 AC_DEFINE_UNQUOTED(MAX_GPUS,$with_max_gpus, "Limit on the number of GPUs")
 
 AC_ARG_WITH(softening,
@@ -415,6 +430,7 @@ echo "Maximum GPUs:                    $with_max_gpus"
 echo "Cache line size:                 $with_cache_line"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
+echo "Ramdisk path:                    $with_ramdisk"
 echo "------------------------------------------------------"
 echo
 

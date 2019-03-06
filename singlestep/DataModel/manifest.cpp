@@ -256,8 +256,6 @@ class Manifest {
     /// This launches a send of N bytes, perhaps split into multiple Isend calls
     /// size must be in bytes; we only deal with bytes
     void do_MPI_Isend(void *ptr, uint64 size, int rank) {
-
-        // TODO: why ifdef every function? Can't we ifdef the inclusion of the file and stub the (few) interfaces?
         #ifdef PARALLEL
         bytes += size;
         while (size>0) {

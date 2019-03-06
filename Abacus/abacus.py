@@ -222,14 +222,18 @@ def clean_dir(bd, preserve=None, rmdir_ifempty=True):
             except OSError:
                 pass
 
-def MakeDerivatives(param, derivs_archive_dir=True, floatprec=False):
+def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
     '''
     Look for the derivatives required for param and make them if they don't exist.
     '''
 
     # We will attempt to copy derivatives from the archive dir if they aren't found
-    if derivs_archive_dir == True:
-        derivs_archive_dir = pjoin(os.getenv('ABACUS_PERSIST',None), 'Derivatives')
+    if derivs_archive_dirs == True:
+        derivs_archive_dirs = [pjoin(os.getenv('ABACUS_PERSIST',None), 'Derivatives'),
+                              pjoin(os.getenv('ABACUS_SSD',None), 'Derivatives')]
+
+    if type(derivs_archive_dirs) is str:
+        derivs_archive_dirs = [derivs_archive_dirs]
     
     os.makedirs(param.DerivativesDirectory, exist_ok=True)
 
@@ -267,10 +271,12 @@ def MakeDerivatives(param, derivs_archive_dir=True, floatprec=False):
     if not all(path.isfile(pjoin(param.DerivativesDirectory, dn)) for dn in derivativenames):
         
         # If not, check if they are in the canonical $ABACUS_PERSIST/Derivatives directory
-        if all(path.isfile(pjoin(derivs_archive_dir, dn)) for dn in derivativenames):
-            print('Found derivatives in archive dir "{}". Copying to DerivativesDirectory "{}".'.format(derivs_archive_dir, param.DerivativesDirectory))
-            for dn in derivativenames:
-                shutil.copy(pjoin(derivs_archive_dir, dn), pjoin(param.DerivativesDirectory, dn))
+        for derivs_archive_dir in derivs_archive_dirs:
+            if all(path.isfile(pjoin(derivs_archive_dir, dn)) for dn in derivativenames):
+                print('Found derivatives in archive dir "{}". Copying to DerivativesDirectory "{}".'.format(derivs_archive_dir, param.DerivativesDirectory))
+                for dn in derivativenames:
+                    shutil.copy(pjoin(derivs_archive_dir, dn), pjoin(param.DerivativesDirectory, dn))
+                break
         else:
             print('Could not find derivatives in "{}" or archive dir "{}". Creating them...'.format(param.DerivativesDirectory, derivs_archive_dir))
             print("Error was on file pattern '{}'".format(fnfmt))

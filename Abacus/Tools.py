@@ -239,9 +239,10 @@ class ContextTimer(contexttimer.Timer):
         return self.cumulative_time*self.factor + last_time
 
 from matplotlib.mlab import griddata
-from sklearn.neighbors.kde import KernelDensity
-from scipy.stats import gaussian_kde
-def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03):
+#from sklearn.neighbors.kde import KernelDensity
+#from scipy.stats import gaussian_kde
+from KDEpy.TreeKDE import TreeKDE
+def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03, adaptive=False):
     '''
     A common problem in scatter plots is overlapped points.
     One can use 2D histogramming to plot densities instead, but
@@ -284,9 +285,34 @@ def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03):
         x = np.log10(x[pos])
         y = np.log10(y[pos])
     
+    # Method 1: scipy
     #color = gaussian_kde(xy)(xy)
-    kde = KernelDensity(kernel='gaussian', bandwidth=bw, rtol=1e-2).fit(xy)
-    color = kde.score_samples(xy)
+    
+    # Method 2: sklearn
+    #kde = KernelDensity(kernel='gaussian', bandwidth=bw, rtol=1e-2).fit(xy)
+    #color = kde.score_samples(xy)
+
+    # Method 3: KDEpy
+    kde = TreeKDE(bw=bw).fit(xy)
+    color = kde.evaluate(xy)
+    color = np.log(color)
+
+    if adaptive:
+        # Shrink the bw in high-density regions; grow it in low density regions
+        # TODO: very little effect.  Might need to shrink in log space.
+
+        # scale to 0 to 1
+        color -= color.min()
+        color /= color.max()
+        #import pdb; pdb.set_trace()
+        alpha = 0.99999
+        newbw = bw*(1 - alpha*color)
+
+        print('Starting new KDE...')
+        kde = TreeKDE(bw=newbw).fit(xy)
+        color = kde.evaluate(xy)
+        color = np.log(color)
+
     
     idx = color.argsort()
     x, y, color = x[idx], y[idx], color[idx]

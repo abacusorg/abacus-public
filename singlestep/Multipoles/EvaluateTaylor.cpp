@@ -381,7 +381,7 @@ void report(const char* prefix, int64_t npart, std::chrono::duration<double> ela
 int main(int argc, char **argv){
     Taylor TY(8);
 
-    int ncell = 10*405*405;
+    int ncell = 10*1875*1875;
     int ppc = 44;
     if (argc > 1)
         ppc = atoi(argv[1]);

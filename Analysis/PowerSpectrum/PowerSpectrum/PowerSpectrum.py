@@ -638,7 +638,6 @@ def _IFFT(input, boxsize, *, inplace=False, axes='max3'):
     # output array is always the input array, but the input may already be a copy
     output = input.view(dtype=dtype).reshape(paddedsignalshape)[tuple(slice(None,ss) for ss in signalshape)]
     
-    #import pdb; pdb.set_trace()
     fft_obj = pyfftw.FFTW(input, output, axes=axes, threads=nthreads, direction='FFTW_BACKWARD', flags=flags)
     fft_obj.execute()
     

@@ -251,7 +251,7 @@ def setup_bins(args):
         # Now choose the smallest even nfft larger than kmax for each time
         all_nfft = np.ceil(all_bins.max(axis=-1)*all_boxsize/np.pi).astype(int)
         all_nfft[all_nfft % 2 == 1] += 1
-        assert (all_nfft <= nfft).all()
+        assert (all_nfft <= nfft).all(), all_nfft
 
         print('--scalefree_index option was specified.  Computed k ranges: ' + str([('{:.3g}'.format(b.min()), '{:.3g}'.format(b.max())) for b in all_bins]))
         print('\tComputed NFFTs: ' + str(all_nfft))
@@ -277,8 +277,10 @@ def make_plot(results, header, csvfn):
 
     fig, ax = plt.subplots()
 
+    valid = results['N_modes'] > 0
+
     label = 'Auto power spectrum'
-    ax.loglog(results['kavg'], results['power'], label=label)
+    ax.loglog(results[valid]['kavg'], results[valid]['power'], label=label)
     ax.legend()
     ax.set_xlabel(r'$k$ [$h$/Mpc]')
     ax.set_ylabel(r'$P(k)$ $[(\mathrm{{Mpc}}/h)^{ndim:d}]$'.format(ndim=(2 if projected else 3)))

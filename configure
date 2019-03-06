@@ -1386,7 +1386,8 @@ Optional Features:
   --enable-avx512-multipoles
                           AVX-512 multipoles [yes if AVX-512 present]
   --enable-unrolled-multipoles
-                          Unrolled (plain C) multipoles [yes]
+                          Unrolled (plain C) multipoles [yes if no
+                          AVX/AVX-512]
   --enable-avx-fof        AVX FOF [yes if AVX present]
   --enable-threaded-io    Threaded IO [yes]
   --enable-spherical-overdensity
@@ -1409,7 +1410,7 @@ Optional Packages:
   --with-cuda=PREFIX      Prefix of your CUDA installation [$CUDA_HOME or
                           $CUDA_DIR or $CUDAPATH or /usr/local/cuda]
   --with-direct-bpd=B     Direct buffers per device [ceil((2*NFR+1)/NGPU) = 3]
-  --with-max-gpus=M       Maximum number of GPUs to use [16]
+  --with-max-gpus=M       Maximum number of GPUs to use [auto]
   --with-softening={plummer | single_spline | cubic_spline | cubic_plummer}
                           Near-force softening technique [single_spline]
   --with-cache-line=N     Cache line size in bytes [auto]
@@ -6322,9 +6323,12 @@ _ACEOF
 if test "${with_max_gpus+set}" = set; then :
   withval=$with_max_gpus;
 else
-  with_max_gpus="16"
+  with_max_gpus="auto"
 fi
 
+if test x$with_max_gpus == xauto; then
+    with_max_gpus=$NGPU
+fi
 
 cat >>confdefs.h <<_ACEOF
 #define MAX_GPUS $with_max_gpus
@@ -6770,6 +6774,7 @@ echo "Maximum GPUs:                    $with_max_gpus"
 echo "Cache line size:                 $with_cache_line"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
+echo "Ramdisk path:                    $with_ramdisk"
 echo "------------------------------------------------------"
 echo
 
