@@ -238,10 +238,6 @@ class ContextTimer(contexttimer.Timer):
         last_time = super(ContextTimer, self).elapsed
         return self.cumulative_time*self.factor + last_time
 
-from matplotlib.mlab import griddata
-#from sklearn.neighbors.kde import KernelDensity
-#from scipy.stats import gaussian_kde
-from KDEpy.TreeKDE import TreeKDE
 def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03, adaptive=False):
     '''
     A common problem in scatter plots is overlapped points.
@@ -274,6 +270,12 @@ def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03, adaptive=Fals
         This hugely impacts the runtime. If plotting is taking
         a while, try reducing this.
     '''
+
+    from matplotlib.mlab import griddata
+    #from sklearn.neighbors.kde import KernelDensity
+    #from scipy.stats import gaussian_kde
+    from KDEpy.TreeKDE import TreeKDE
+
     if z is not None:
         xy = np.vstack([x,y,z]).T
     else:
