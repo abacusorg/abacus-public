@@ -17,18 +17,25 @@ ifeq ($(CUDA_ENABLED),CUDA_ENABLED)
 endif
 
 PIPELINES = singlestep recover_multipoles benchmark_io standalone_fof
+BOOTSTRAPS := $(addprefix _,$(PIPELINES))
 
-all: singlestep
+all: _singlestep
 
 -include $(addsuffix .d,$(PIPELINES))
 
-$(PIPELINES): % : %.o $(EXTRA_OBJ) | $(MAKE_DIRECT)
+# We need to run the recursion step (_gpudirect) first, before checking Direct/gpudirect.a
+# But _gpudirect needs to be order-only w.r.t. singlestep, and unfortunately these seem to run last
+# This fake parent enforces the desired ordering
+# Warning: this means 'make singlestep' will not notice if the gpudirect.a has changed!
+$(BOOTSTRAPS): _%: $(MAKE_DIRECT) %
+
+$(PIPELINES): % : %.o $(EXTRA_OBJ)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ $^ $(SINGLESTEP_LIBS)
 
 %.o: %.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -c -o $@ $<
 
-Direct/gpudirect.a:
+Direct/gpudirect.a: | _gpudirect
 	$(MAKE) -C Direct $(notdir $@)
 
 # This ensures we check if gpudirect.a needs to be remade without forcing a spurious re-link
@@ -48,4 +55,4 @@ distclean: clean distclean_recurse
 	$(MAKE) -C Direct $*
 	$(MAKE) -C Multipoles $*
 
-.PHONY: all clean distclean cleanhere distcleanhere _gpudirect
+.PHONY: all clean distclean cleanhere distcleanhere _gpudirect $(BOOTSTRAPS)

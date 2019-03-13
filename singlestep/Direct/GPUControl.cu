@@ -127,8 +127,8 @@ int NGPU = 0;                // Number of actual CUDA devices (not threads)
 /// the inter-thread communication.
 struct GPUQueueTask {
     void *task; ///< The pointer to the task data
-    int type;   ///< ==0 signals to kill the Watcher
-            ///< ==1 is for SetInteractionCollections
+    int type;   ///< == TASKTYPE_KILL signals to kill the Watcher
+                ///< == TASKTYPE_SIC is for SetInteractionCollections
 };
 
 enum GPUQueueTaskType { TASKTYPE_KILL,
@@ -136,6 +136,40 @@ enum GPUQueueTaskType { TASKTYPE_KILL,
 
 #include "tbb/concurrent_queue.h"
 tbb::concurrent_bounded_queue<GPUQueueTask> work_queues[MAX_GPUS];
+
+
+
+// =============== GPU Buffers =============================
+
+/// The memory in each GPU is divided into a handful of equal sized
+/// buffers, with matching pinned space on the host.  
+/// Each buffer is paired with one thread.  Tasks will occupy one
+/// buffer.  The memory allocations persist until the thread ends.
+
+struct GPUBuffer {
+    uint64 size;        ///< The size in bytes
+    uint64 sizeWC;        ///< The size in bytes of the WC part
+    uint64 sizeDef;        ///< The size in bytes of the non-WC part
+    char * device;        ///< The device-side memory
+    char * host;        ///< The host-side memory allocated as default
+    char * hostWC;        ///< The host-side memory allocated as write combined
+    int ready;            ///< Have we finished initializing the CUDA stream for this buffer?
+};
+
+// GPUSetup() spins up one thread per GPU buffer
+// Each will be passed this struct which contains information
+// about which GPU to attach to, whether to use pinned memory, etc.
+struct ThreadInfo {
+    int thread_num;  // thread/buffer number
+    int core;
+    int use_pinned;
+    pthread_barrier_t *barrier;
+};
+
+cudaStream_t * DeviceStreams;        ///< The actual CUDA streams, one per thread
+GPUBuffer * Buffers;                 ///< The pointers to the allocated memory
+pthread_t *DeviceThread;        ///< The threads!
+
 
 // =============== Code to invoke execution on a SIC ============
 
@@ -158,8 +192,13 @@ void SetInteractionCollection::GPUExecute(int blocking){
     AssignedDevice = g;  // no meaning for work_queue
     Blocking = blocking;
     
-    if(blocking)
+    if(blocking){
+        // We're running the task from the main thread;
+        // make sure the GPU threads have finished the necessary CUDA setup
+        while(!Buffers[g].ready){}
+        
         GPUPencilTask(this, AssignedDevice);
+    }
     else {
         GPUQueueTask t;
         t.type = TASKTYPE_SIC;
@@ -168,39 +207,6 @@ void SetInteractionCollection::GPUExecute(int blocking){
     }
     //CurrentGPU = (CurrentGPU + 1) %(NGPU * BPD);
 }
-
-
-
-// =============== GPU Buffers =============================
-
-/// The memory in each GPU is divided into a handful of equal sized
-/// buffers, with matching pinned space on the host.  
-/// Each buffer is paired with one thread.  Tasks will occupy one
-/// buffer.  The memory allocations persist until the thread ends.
-
-struct GPUBuffer {
-    uint64 size;        ///< The size in bytes
-    uint64 sizeWC;        ///< The size in bytes of the WC part
-    uint64 sizeDef;        ///< The size in bytes of the non-WC part
-    char * device;        ///< The device-side memory
-    char * host;        ///< The host-side memory allocated as default
-    char * hostWC;        ///< The host-side memory allocated as write combined
-};
-
-// GPUSetup() spins up one thread per GPU buffer
-// Each will be passed this struct which contains information
-// about which GPU to attach to, whether to use pinned memory, etc.
-struct ThreadInfo {
-    int thread_num;  // thread/buffer number
-    int core;
-    int use_pinned;
-    pthread_barrier_t *barrier;
-};
-
-cudaStream_t * DeviceStreams;        ///< The actual CUDA streams, one per thread
-GPUBuffer * Buffers;                 ///< The pointers to the allocated memory
-pthread_t *DeviceThread;        ///< The threads!
-
 
 
 // ====================== GPU configuration =====================
@@ -392,7 +398,8 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
 
         if(g < NGPU){
             thread_startup_barriers[g] = new pthread_barrier_t;
-            pthread_barrier_init(thread_startup_barriers[g], NULL, BPD);
+            int p_ret = pthread_barrier_init(thread_startup_barriers[g], NULL, BPD);
+            assertf(p_ret == 0, "pthread_barrier_init failed with value %d\n", p_ret);
         }
         
         info->thread_num = g;
@@ -411,6 +418,7 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
 
         host_alloc_bytes += Buffers[g].sizeWC + Buffers[g].sizeDef;
     }
+
     STDLOG(1, "Allocated %f MB host-side memory\n", host_alloc_bytes/1024./1024);
 
     init = 1;
@@ -517,6 +525,8 @@ void *QueueWatcher(void *arg){
     else
         STDLOG(1, "NUMA page query failed on host write-combined buffer for GPU %d on core %d\n", gpu, assigned_core);
 #endif
+
+    Buffers[n].ready = 1;
 
     // Main work loop: watch the queue
     while(true){

@@ -49,14 +49,7 @@ AC_SEARCH_LIBS([cos],[m])
 AC_SEARCH_LIBS(cblas_dgemm, [gslcblas], [], [AC_MSG_ERROR([unable to find gslcblas!])])
 AC_SEARCH_LIBS(gsl_rng_uniform, [gsl], [], [AC_MSG_ERROR([unable to find gsl!])])
 AC_SEARCH_LIBS(TBB_runtime_interface_version, [tbb], [], [AC_MSG_ERROR([unable to find tbb!])])
-AC_CHECK_LIB(tcmalloc_minimal, malloc, [], [AC_MSG_WARN([unable to find tcmalloc!])])
 AC_CHECK_LIB(numa, move_pages, [], [AC_MSG_WARN([unable to find numa!])])
-
-AC_SUBST(TCMALLOC)
-TCMALLOC="TCMALLOC_DISABLED"
-if test x$ac_cv_lib_tcmalloc_minimal_malloc == xyes; then
-    TCMALLOC="TCMALLOC_ENABLED"
-fi
 
 # Check for some utilities we use
 AC_CHECK_PROGS(LEX, flex)
@@ -86,6 +79,18 @@ AC_ARG_ENABLE(double,
 	[], enable_double="no")
 if test x$enable_double == xyes; then
 	AC_DEFINE_UNQUOTED(DOUBLEPRECISION, [], "Do all computations in double precision instead of single")
+fi
+
+AC_SUBST(TCMALLOC)
+TCMALLOC="TCMALLOC_DISABLED"
+AC_ARG_ENABLE(tcmalloc,
+[AS_HELP_STRING([--enable-tcmalloc], [TCMalloc heap allocator [auto]])],
+    [], enable_tcmalloc="auto")
+if test x$enable_tcmalloc == xyes || test x$enable_tcmalloc == xauto; then
+    AC_CHECK_LIB(tcmalloc_minimal, malloc, [], [AC_MSG_WARN([unable to find tcmalloc!])])
+fi
+if test x$ac_cv_lib_tcmalloc_minimal_malloc == xyes; then
+    TCMALLOC="TCMALLOC_ENABLED"
 fi
 
 AC_ARG_ENABLE(mkl,
@@ -164,7 +169,7 @@ AC_ARG_ENABLE(unrolled-multipoles,
 [AS_HELP_STRING([--enable-unrolled-multipoles], [Unrolled (plain C) multipoles [yes if no AVX/AVX-512]])],
     [], enable_unrolled_multipoles=auto)
 
-if test x$enable_unrolled_multipoles == xauto
+#if test x$enable_unrolled_multipoles == xauto
 
 UNROLLEDMULTIPOLES="UNROLLEDMULTIPOLES_DISABLED"
 if test x$enable_unrolled_multipoles == xyes; then

@@ -633,8 +633,9 @@ CUDA_LDFLAGS
 CUDA_CFLAGS
 CUDA_MAJOR_VER
 UNROLLEDMULTIPOLES
-AVX512MULTIPOLES
 AVXMULTIPOLES
+AVX512MULTIPOLES
+TCMALLOC
 SIMD_EXTENSIONS
 CPUEXT_FLAGS
 SIMD_FLAGS
@@ -646,7 +647,6 @@ SWIG
 AR
 YACC
 LEX
-TCMALLOC
 ARCH
 build_os
 build_vendor
@@ -711,6 +711,7 @@ ac_subst_files=''
 ac_user_opts='
 enable_option_checking
 enable_double
+enable_tcmalloc
 enable_mkl
 with_radius
 with_block_size
@@ -718,8 +719,8 @@ enable_avx
 enable_avx512
 enable_avx_directs
 enable_avx512_directs
-enable_avx_multipoles
 enable_avx512_multipoles
+enable_avx_multipoles
 enable_unrolled_multipoles
 enable_avx_fof
 with_max_cpd
@@ -1375,6 +1376,7 @@ Optional Features:
   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --enable-double         Double precision [no]
+  --enable-tcmalloc       TCMalloc heap allocator [auto]
   --enable-mkl            Intel Math Kernel Library FFT [yes if using icc]
   --enable-avx            All AVX (overridden by individual options) [yes if
                           AVX present]
@@ -1382,9 +1384,9 @@ Optional Features:
                           if AVX-512 present]
   --enable-avx-directs    AVX directs [no]
   --enable-avx512-directs AVX-512 directs [no]
-  --enable-avx-multipoles AVX multipoles [yes if AVX present]
   --enable-avx512-multipoles
                           AVX-512 multipoles [yes if AVX-512 present]
+  --enable-avx-multipoles AVX multipoles [yes if AVX present]
   --enable-unrolled-multipoles
                           Unrolled (plain C) multipoles [yes if no
                           AVX/AVX-512]
@@ -4408,54 +4410,6 @@ else
   as_fn_error $? "unable to find tbb!" "$LINENO" 5
 fi
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for malloc in -ltcmalloc_minimal" >&5
-$as_echo_n "checking for malloc in -ltcmalloc_minimal... " >&6; }
-if ${ac_cv_lib_tcmalloc_minimal_malloc+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-ltcmalloc_minimal  $LIBS"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-/* Override any GCC internal prototype to avoid an error.
-   Use char because int might match the return type of a GCC
-   builtin and then its argument prototype would still apply.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-char malloc ();
-int
-main ()
-{
-return malloc ();
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"; then :
-  ac_cv_lib_tcmalloc_minimal_malloc=yes
-else
-  ac_cv_lib_tcmalloc_minimal_malloc=no
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_tcmalloc_minimal_malloc" >&5
-$as_echo "$ac_cv_lib_tcmalloc_minimal_malloc" >&6; }
-if test "x$ac_cv_lib_tcmalloc_minimal_malloc" = xyes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_LIBTCMALLOC_MINIMAL 1
-_ACEOF
-
-  LIBS="-ltcmalloc_minimal $LIBS"
-
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to find tcmalloc!" >&5
-$as_echo "$as_me: WARNING: unable to find tcmalloc!" >&2;}
-fi
-
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for move_pages in -lnuma" >&5
 $as_echo_n "checking for move_pages in -lnuma... " >&6; }
 if ${ac_cv_lib_numa_move_pages+:} false; then :
@@ -4504,12 +4458,6 @@ else
 $as_echo "$as_me: WARNING: unable to find numa!" >&2;}
 fi
 
-
-
-TCMALLOC="TCMALLOC_DISABLED"
-if test x$ac_cv_lib_tcmalloc_minimal_malloc == xyes; then
-    TCMALLOC="TCMALLOC_ENABLED"
-fi
 
 # Check for some utilities we use
 for ac_prog in flex
@@ -5693,6 +5641,69 @@ _ACEOF
 
 fi
 
+
+TCMALLOC="TCMALLOC_DISABLED"
+# Check whether --enable-tcmalloc was given.
+if test "${enable_tcmalloc+set}" = set; then :
+  enableval=$enable_tcmalloc;
+else
+  enable_tcmalloc="auto"
+fi
+
+if test x$enable_tcmalloc == xyes || test x$enable_tcmalloc == xauto; then
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for malloc in -ltcmalloc_minimal" >&5
+$as_echo_n "checking for malloc in -ltcmalloc_minimal... " >&6; }
+if ${ac_cv_lib_tcmalloc_minimal_malloc+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-ltcmalloc_minimal  $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char malloc ();
+int
+main ()
+{
+return malloc ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_lib_tcmalloc_minimal_malloc=yes
+else
+  ac_cv_lib_tcmalloc_minimal_malloc=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_tcmalloc_minimal_malloc" >&5
+$as_echo "$ac_cv_lib_tcmalloc_minimal_malloc" >&6; }
+if test "x$ac_cv_lib_tcmalloc_minimal_malloc" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBTCMALLOC_MINIMAL 1
+_ACEOF
+
+  LIBS="-ltcmalloc_minimal $LIBS"
+
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to find tcmalloc!" >&5
+$as_echo "$as_me: WARNING: unable to find tcmalloc!" >&2;}
+fi
+
+fi
+if test x$ac_cv_lib_tcmalloc_minimal_malloc == xyes; then
+    TCMALLOC="TCMALLOC_ENABLED"
+fi
+
 # Check whether --enable-mkl was given.
 if test "${enable_mkl+set}" = set; then :
   enableval=$enable_mkl;
@@ -5782,23 +5793,9 @@ _ACEOF
 
 fi
 
-# Check whether --enable-avx-multipoles was given.
-if test "${enable_avx_multipoles+set}" = set; then :
-  enableval=$enable_avx_multipoles;
-else
-  enable_avx_multipoles=$enable_avx
-fi
-
-AVXMULTIPOLES="AVXMULTIPOLES_DISABLED"
-if test x$enable_avx_multipoles == xyes; then
-
-cat >>confdefs.h <<_ACEOF
-#define AVXMULTIPOLES /**/
-_ACEOF
-
-    AVXMULTIPOLES="AVXMULTIPOLES_ENABLED"
-fi
-
+# TODO: change all this to --with-multipoles
+# Only the test driver cares about access to multiple implementations, and it has full control over that
+have_multipoles=no
 
 # Check whether --enable-avx512-multipoles was given.
 if test "${enable_avx512_multipoles+set}" = set; then :
@@ -5815,6 +5812,29 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
 
     AVX512MULTIPOLES="AVX512MULTIPOLES_ENABLED"
+    have_multipoles=yes
+fi
+
+
+# Check whether --enable-avx-multipoles was given.
+if test "${enable_avx_multipoles+set}" = set; then :
+  enableval=$enable_avx_multipoles;
+else
+  enable_avx_multipoles=auto
+fi
+
+if test x$enable_avx_multipoles == xauto && test x$have_multipoles == no; then
+    enable_avx_multipoles=$have_avx
+    have_multipoles=yes
+fi
+AVXMULTIPOLES="AVXMULTIPOLES_DISABLED"
+if test x$enable_avx_multipoles == xyes; then
+
+cat >>confdefs.h <<_ACEOF
+#define AVXMULTIPOLES /**/
+_ACEOF
+
+    AVXMULTIPOLES="AVXMULTIPOLES_ENABLED"
 fi
 
 
@@ -5822,8 +5842,11 @@ fi
 if test "${enable_unrolled_multipoles+set}" = set; then :
   enableval=$enable_unrolled_multipoles;
 else
-  enable_unrolled_multipoles=yes
+  enable_unrolled_multipoles=auto
 fi
+
+
+#if test x$enable_unrolled_multipoles == xauto
 
 UNROLLEDMULTIPOLES="UNROLLEDMULTIPOLES_DISABLED"
 if test x$enable_unrolled_multipoles == xyes; then
