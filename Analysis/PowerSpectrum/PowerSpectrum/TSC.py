@@ -93,11 +93,9 @@ def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.fl
 def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zspace=False, format='pack14', rotate_to=None, prep_rfft=False, nthreads=-1, readahead=-1):
     '''
     Main entry point for density field computation from files on disk of various formats.
-
-    IO is overlapped with compute (TSC binning).
     
     The reading and binning is done slab-by-slab, so we don't need to fit the whole particle set
-    in memory.
+    in memory.  The reading is overlapped with the binning.
 
     Parameters:
     -----------
