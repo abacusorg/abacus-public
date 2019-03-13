@@ -222,14 +222,18 @@ def clean_dir(bd, preserve=None, rmdir_ifempty=True):
             except OSError:
                 pass
 
-def MakeDerivatives(param, derivs_archive_dir=True, floatprec=False):
+def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
     '''
     Look for the derivatives required for param and make them if they don't exist.
     '''
 
     # We will attempt to copy derivatives from the archive dir if they aren't found
-    if derivs_archive_dir == True:
-        derivs_archive_dir = pjoin(os.getenv('ABACUS_PERSIST',None), 'Derivatives')
+    if derivs_archive_dirs == True:
+        derivs_archive_dirs = [pjoin(os.getenv('ABACUS_PERSIST',None), 'Derivatives'),
+                              pjoin(os.getenv('ABACUS_SSD',None), 'Derivatives')]
+
+    if type(derivs_archive_dirs) is str:
+        derivs_archive_dirs = [derivs_archive_dirs]
     
     os.makedirs(param.DerivativesDirectory, exist_ok=True)
 
@@ -267,10 +271,12 @@ def MakeDerivatives(param, derivs_archive_dir=True, floatprec=False):
     if not all(path.isfile(pjoin(param.DerivativesDirectory, dn)) for dn in derivativenames):
         
         # If not, check if they are in the canonical $ABACUS_PERSIST/Derivatives directory
-        if all(path.isfile(pjoin(derivs_archive_dir, dn)) for dn in derivativenames):
-            print('Found derivatives in archive dir "{}". Copying to DerivativesDirectory "{}".'.format(derivs_archive_dir, param.DerivativesDirectory))
-            for dn in derivativenames:
-                shutil.copy(pjoin(derivs_archive_dir, dn), pjoin(param.DerivativesDirectory, dn))
+        for derivs_archive_dir in derivs_archive_dirs:
+            if all(path.isfile(pjoin(derivs_archive_dir, dn)) for dn in derivativenames):
+                print('Found derivatives in archive dir "{}". Copying to DerivativesDirectory "{}".'.format(derivs_archive_dir, param.DerivativesDirectory))
+                for dn in derivativenames:
+                    shutil.copy(pjoin(derivs_archive_dir, dn), pjoin(param.DerivativesDirectory, dn))
+                break
         else:
             print('Could not find derivatives in "{}" or archive dir "{}". Creating them...'.format(param.DerivativesDirectory, derivs_archive_dir))
             print("Error was on file pattern '{}'".format(fnfmt))
@@ -466,18 +472,20 @@ def setup_state_dirs(paramfn):
         assert Conv_IOMode in ('normal', 'overwrite')
     
     # Normal operation: everything is under the WorkingDirectory or specified individually
-    # Can't specify both WorkingDir and ReadDir
-    if 'WorkingDirectory' in params:
-        assert 'ReadStateDirectory' not in params
-        assert 'WriteStateDirectory' not in params
-        assert 'PastStateDirectory' not in params
-        past = pjoin(params['WorkingDirectory'], "past")
-        read = pjoin(params['WorkingDirectory'], "read")
-        write = pjoin(params['WorkingDirectory'], "write")
-    else:
-        past = params['PastStateDirectory']
+    try:
         read = params['ReadStateDirectory']
-        write =params['WriteStateDirectory']
+    except KeyError:
+        read = pjoin(params['WorkingDirectory'], "read")
+
+    try:
+        write = params['WriteStateDirectory']
+    except KeyError:
+        write = pjoin(params['WorkingDirectory'], "write")
+
+    try:
+        past = params['PastStateDirectory']
+    except KeyError:
+        past = pjoin(params['WorkingDirectory'], "past")
 
     past = normpath(past)
     read = normpath(read)
@@ -732,6 +740,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
 
     parallel = param.get('Parallel', False)
 
+    do_fake_convolve = param.get('FakeConvolve', False)
+
     # Set up backups
     try:
         backups_enabled = param['BackupStepInterval'] > 0
@@ -759,9 +769,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
 
     # floatprec=True effectively guarantees both precisions are available
     # TODO: how to tell if Abacus was compiled in double precision?
-    MakeDerivatives(param, floatprec=True)
-
-    print("Beginning abacus steps:")
+    if not do_fake_convolve:
+        MakeDerivatives(param, floatprec=True)
 
     if make_ic:
         print("Ingesting IC from "+param.InitialConditionsDirectory+" ... Skipping convolution")
@@ -781,6 +790,15 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                 Conv_mpirun_cmd = mpirun_cmd
         except KeyError:
             raise RuntimeError('"mpirun_cmd" must be specified in the parameter file if "Parallel = 1"!')
+
+        # Dole out the state to the node if requested (e.g. resuming from a saved state on the network file system)
+        distribute_state_from = param.get('DistributeStateFrom', None)
+        if distribute_state_from:
+            print('Distributing state to nodes...')
+            distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'distribute_state_to_nodes.py'), paramfn, distribute_state_from]
+            subprocess.check_call(Conv_mpirun_cmd + distribute_state_cmd)
+
+    print("Beginning abacus steps:")
 
     for i in range(maxsteps):
         if make_ic:
@@ -803,7 +821,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
 
         # Do the convolution
         if not ConvDone:
-            if not parallel:
+            if not parallel and not do_fake_convolve:
                 # Now check if we have all the multipoles the convolution will need
                 if not check_multipole_taylor_done(param, read_state, kind='Multipole'):
                     # Invoke multipole recovery mode
@@ -827,7 +845,10 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                     os.unlink(taylors)
                     os.symlink(os.readlink(multipoles), taylors)
             
-            ConvolutionDriver_cmd = [pjoin(abacuspath, "Convolution", "ConvolutionDriver"), paramfn]
+            if do_fake_convolve:
+                ConvolutionDriver_cmd = [pjoin(abacuspath, "Convolution", "FakeConvolution.py"), paramfn]
+            else:
+                ConvolutionDriver_cmd = [pjoin(abacuspath, "Convolution", "ConvolutionDriver"), paramfn]
             if parallel:
                 ConvolutionDriver_cmd = Conv_mpirun_cmd + ConvolutionDriver_cmd
                 print('Performing parallel convolution for step {:d} with command "{:s}"'.format(stepnum, ' '.join(ConvolutionDriver_cmd)))

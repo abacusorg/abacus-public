@@ -12,7 +12,7 @@ planes/slabs.
 To read the output file as a Numpy record array,
 once can use
 
->>> df = pd.read_csv(fn)
+>>> df = pandas.read_csv(fn)
 >>> results = df.to_records(index=False)
 '''
 

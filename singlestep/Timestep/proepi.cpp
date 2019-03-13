@@ -533,6 +533,23 @@ int IsTrueLocalDirectory(const char* d){
 // In the parallel code, that means this function is responsible for creating all node-local directories
 // This also deletes existing state directories if MakeIC is invoked
 void SetupLocalDirectories(const int MakeIC){
+    /* TODO: probably deprecated
+    // Resume from a backed-up state
+    if(!MakeIC){
+        // If BackupDirectory exists and LocalReadStateDirectory does not
+        // then we should set [Local]ReadStateDirectory to BackupDirectory
+        // Need to set both because can't risk an inconsistent Read and LocalRead state!
+
+        if(CheckFileExists(P.BackupDirectory) == 2
+            && CheckFileExists(P.LocalReadStateDirectory) != 2){
+            fprintf(stderr, "Local read state dir \"%s\" not found; reading from BackupDirectory \"%s\"\n",
+                P.LocalReadStateDirectory, P.BackupDirectory);
+
+            sprintf(P.LocalReadStateDirectory, "%s/read", P.BackupDirectory);
+            sprintf(P.ReadStateDirectory, "%s/read", P.BackupDirectory);
+        }
+    }*/
+
     // TODO: might want to delete old derivatives directory here,
     // but the risk of accidentally deleting the global derivatives is very high
     char *dirs[] = {P.LocalWorkingDirectory,

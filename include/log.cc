@@ -45,6 +45,7 @@ void _log(IO &out, const char *name, const char *s, Args... args) {
         // out << time.substr(0,time.length()-1) << "  " << std::setw(20) << std::left << name+std::string("()  ");
     }
     fpprint(out, ss.c_str(), args...);
+    out.flush();
     _log_mutex.unlock();
 }
 

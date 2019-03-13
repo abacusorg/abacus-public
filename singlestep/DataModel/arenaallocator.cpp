@@ -507,7 +507,10 @@ void ArenaAllocator::ResizeArena(int id, uint64 s) {
  * should go somewhere related to memory management.
  * Reference: https://gperftools.github.io/gperftools/tcmalloc.html
  */
+#if defined(HAVE_LIBTCMALLOC_MINIMAL) || defined(HAVE_LIBTCMALLOC)
 #include "gperftools/malloc_extension.h"
+#endif
+
 void ReportMemoryAllocatorStats(){
 #if defined(HAVE_LIBTCMALLOC_MINIMAL) || defined(HAVE_LIBTCMALLOC)
     size_t bytes_allocated = 0;

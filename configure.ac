@@ -49,14 +49,7 @@ AC_SEARCH_LIBS([cos],[m])
 AC_SEARCH_LIBS(cblas_dgemm, [gslcblas], [], [AC_MSG_ERROR([unable to find gslcblas!])])
 AC_SEARCH_LIBS(gsl_rng_uniform, [gsl], [], [AC_MSG_ERROR([unable to find gsl!])])
 AC_SEARCH_LIBS(TBB_runtime_interface_version, [tbb], [], [AC_MSG_ERROR([unable to find tbb!])])
-AC_CHECK_LIB(tcmalloc_minimal, malloc, [], [AC_MSG_WARN([unable to find tcmalloc!])])
 AC_CHECK_LIB(numa, move_pages, [], [AC_MSG_WARN([unable to find numa!])])
-
-AC_SUBST(TCMALLOC)
-TCMALLOC="TCMALLOC_DISABLED"
-if test x$ac_cv_lib_tcmalloc_minimal_malloc == xyes; then
-    TCMALLOC="TCMALLOC_ENABLED"
-fi
 
 # Check for some utilities we use
 AC_CHECK_PROGS(LEX, flex)
@@ -86,6 +79,18 @@ AC_ARG_ENABLE(double,
 	[], enable_double="no")
 if test x$enable_double == xyes; then
 	AC_DEFINE_UNQUOTED(DOUBLEPRECISION, [], "Do all computations in double precision instead of single")
+fi
+
+AC_SUBST(TCMALLOC)
+TCMALLOC="TCMALLOC_DISABLED"
+AC_ARG_ENABLE(tcmalloc,
+[AS_HELP_STRING([--enable-tcmalloc], [TCMalloc heap allocator [auto]])],
+    [], enable_tcmalloc="auto")
+if test x$enable_tcmalloc == xyes || test x$enable_tcmalloc == xauto; then
+    AC_CHECK_LIB(tcmalloc_minimal, malloc, [], [AC_MSG_WARN([unable to find tcmalloc!])])
+fi
+if test x$ac_cv_lib_tcmalloc_minimal_malloc == xyes; then
+    TCMALLOC="TCMALLOC_ENABLED"
 fi
 
 AC_ARG_ENABLE(mkl,
@@ -131,9 +136,28 @@ if test x$enable_avx512_directs == xyes; then
 	AC_DEFINE_UNQUOTED(AVX512DIRECT, [], "Use AVX-512 directs")
 fi
 
+# TODO: change all this to --with-multipoles
+# Only the test driver cares about access to multiple implementations, and it has full control over that
+have_multipoles=no
+
+AC_ARG_ENABLE(avx512-multipoles,
+[AS_HELP_STRING([--enable-avx512-multipoles], [AVX-512 multipoles [yes if AVX-512 present]])],
+    [], enable_avx512_multipoles=$enable_avx512)
+AVX512MULTIPOLES="AVX512MULTIPOLES_DISABLED"
+if test x$enable_avx512_multipoles == xyes; then
+    AC_DEFINE_UNQUOTED(AVX512MULTIPOLES, [], "Use AVX-512 multipoles")
+    AVX512MULTIPOLES="AVX512MULTIPOLES_ENABLED"
+    have_multipoles=yes
+fi
+AC_SUBST(AVX512MULTIPOLES)
+
 AC_ARG_ENABLE(avx-multipoles,
 [AS_HELP_STRING([--enable-avx-multipoles], [AVX multipoles [yes if AVX present]])],
-	[], enable_avx_multipoles=$enable_avx)
+	[], enable_avx_multipoles=auto)
+if test x$enable_avx_multipoles == xauto && test x$have_multipoles == no; then
+    enable_avx_multipoles=$have_avx
+    have_multipoles=yes
+fi
 AVXMULTIPOLES="AVXMULTIPOLES_DISABLED"
 if test x$enable_avx_multipoles == xyes; then
 	AC_DEFINE_UNQUOTED(AVXMULTIPOLES, [], "Use AVX multipoles")
@@ -141,19 +165,12 @@ if test x$enable_avx_multipoles == xyes; then
 fi
 AC_SUBST(AVXMULTIPOLES)
 
-AC_ARG_ENABLE(avx512-multipoles,
-[AS_HELP_STRING([--enable-avx512-multipoles], [AVX-512 multipoles [yes if AVX-512 present]])],
-	[], enable_avx512_multipoles=$enable_avx512)
-AVX512MULTIPOLES="AVX512MULTIPOLES_DISABLED"
-if test x$enable_avx512_multipoles == xyes; then
-	AC_DEFINE_UNQUOTED(AVX512MULTIPOLES, [], "Use AVX-512 multipoles")
-    AVX512MULTIPOLES="AVX512MULTIPOLES_ENABLED"
-fi
-AC_SUBST(AVX512MULTIPOLES)
-
 AC_ARG_ENABLE(unrolled-multipoles,
-[AS_HELP_STRING([--enable-unrolled-multipoles], [Unrolled (plain C) multipoles [yes]])],
-    [], enable_unrolled_multipoles=yes)
+[AS_HELP_STRING([--enable-unrolled-multipoles], [Unrolled (plain C) multipoles [yes if no AVX/AVX-512]])],
+    [], enable_unrolled_multipoles=auto)
+
+#if test x$enable_unrolled_multipoles == xauto
+
 UNROLLEDMULTIPOLES="UNROLLEDMULTIPOLES_DISABLED"
 if test x$enable_unrolled_multipoles == xyes; then
     AC_DEFINE_UNQUOTED(UNROLLEDMULTIPOLES, [], "Use unrolled plain-C multipoles")
@@ -237,14 +254,25 @@ if test x$enable_parallel == xyes; then
 	AC_DEFINE_UNQUOTED(PARALLEL, [], "Generate MPI-parallel code.")
 fi
 
-# Get the number of GPUs
+# Query the GPUs to find the number and compute capability
 if test x$enable_gpu_directs == xyes; then
-	AC_MSG_CHECKING([number of GPUs])
-	NGPU=$(nvidia-smi -q | grep 'Attached GPUs'| awk -F ':' '{print $NF}' | tr -d [[:space:]])
+    AC_MSG_CHECKING([number & compute capability of GPUs])
+
+    make --quiet -C singlestep/Direct detect_gpus MAKE_CONTEXT=AUTOCONF NVCC=$NVCC
+    DETECT_GPUS_OUTPUT=$(./singlestep/Direct/detect_gpus)
+
+    NGPU=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Device count: )\d+')
+    CUDA_ARCH=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Compute capability: )\d+')
+
+    #NGPU=$(nvidia-smi -q | grep 'Attached GPUs'| awk -F ':' '{print $NF}' | tr -d [[:space:]])
     if test x$NGPU == x""; then
         NGPU=0
     fi
-	AC_MSG_RESULT([$NGPU found])
+    if test x$CUDA_ARCH == x""; then
+        CUDA_ARCH=0
+    fi
+    AC_MSG_RESULT([$NGPU GPUs found, compute capability $CUDA_ARCH])
+    AC_SUBST(CUDA_ARCH)
 fi
 
 # If we don't have any GPUs, pretend there's one for BPD
@@ -259,8 +287,11 @@ AC_ARG_WITH(direct-bpd,
 AC_DEFINE_UNQUOTED(DirectBPD,$with_direct_bpd, "Direct buffers per device")
 
 AC_ARG_WITH(max-gpus,
-[AS_HELP_STRING([--with-max-gpus=M], [Maximum number of GPUs to use [16]])],
-	[], with_max_gpus="16")
+[AS_HELP_STRING([--with-max-gpus=M], [Maximum number of GPUs to use [auto]])],
+	[], with_max_gpus="auto")
+if test x$with_max_gpus == xauto; then
+    with_max_gpus=$NGPU
+fi
 AC_DEFINE_UNQUOTED(MAX_GPUS,$with_max_gpus, "Limit on the number of GPUs")
 
 AC_ARG_WITH(softening,
@@ -404,6 +435,7 @@ echo "Maximum GPUs:                    $with_max_gpus"
 echo "Cache line size:                 $with_cache_line"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
+echo "Ramdisk path:                    $with_ramdisk"
 echo "------------------------------------------------------"
 echo
 

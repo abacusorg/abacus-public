@@ -95,7 +95,7 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None):
             while "@" in line:
                 line = varreplace(line,varreplace_values)
                             
-            if "#include" in line[0:10]:
+            if line.startswith("#include"):
                 #We are including the values from another parameter file. This will overwrite any already specified values
                 qt1loc = line.find('"')
                 qt2loc = line[qt1loc+1:].find('"')

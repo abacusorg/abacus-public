@@ -280,6 +280,7 @@ void Multipoles::AVX512CartesianMultipoles(FLOAT3 *xyz, int n, FLOAT3 center, do
 #include <cstdlib>
 #include <cstring>
 #include <chrono>
+#include <gsl/gsl_rng.h>
 
 void compare_multipoles(double *cm1, double* cm2, int64_t n, double rtol){
     int64_t nbad = 0;
@@ -311,7 +312,7 @@ void report(const char* prefix, int64_t npart, std::chrono::duration<double> ela
 int main(int argc, char **argv){
     Multipoles MP(8);
 
-    int64_t ncell = 1*405*405;
+    int64_t ncell = 10*1875*1875;
     int64_t ppc = 44;
     if (argc > 1)
         ppc = atoi(argv[1]);
@@ -322,17 +323,28 @@ int main(int argc, char **argv){
     FLOAT3 center(0.1,0.2,0.3);
     FLOAT3 *xyz;
 
+    // ========================== //
+    // Set up RNG
+    int nthread = omp_get_max_threads();
+    gsl_rng *rng[nthread];
+
+    for(int i = 0; i < nthread; i++){
+        rng[i] = gsl_rng_alloc(gsl_rng_mt19937);
+        gsl_rng_set(rng[i], 999 + i);  // Seed the RNG
+    }
+
     assert(posix_memalign((void **) &cartesian1, 4096, sizeof(double)*MP.cml*ncell) == 0);
     assert(posix_memalign((void **) &cartesian2, 4096, sizeof(double)*MP.cml*ncell) == 0);
     assert(posix_memalign((void **) &cartesian3, 4096, sizeof(double)*MP.cml*ncell) == 0);
     assert(posix_memalign((void **) &cartesian4, 4096, sizeof(double)*MP.cml*ncell) == 0);
 
     assert(posix_memalign((void **) &xyz, 4096, sizeof(FLOAT3)*npart) == 0);
-    //#pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static)
     for(uint64_t i = 0; i < npart; i++){
-        xyz[i].x = (double)rand()/RAND_MAX;
-        xyz[i].y = (double)rand()/RAND_MAX;
-        xyz[i].z = (double)rand()/RAND_MAX;
+        int t = omp_get_thread_num();
+        xyz[i].x = gsl_rng_uniform(rng[t]);
+        xyz[i].y = gsl_rng_uniform(rng[t]);
+        xyz[i].z = gsl_rng_uniform(rng[t]);
     }
 
     /****************************************/

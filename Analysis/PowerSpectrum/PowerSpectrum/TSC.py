@@ -6,6 +6,7 @@ from glob import glob
 import warnings
 import os.path
 import re
+import queue
 
 import numpy as np
 import numba
@@ -89,12 +90,12 @@ def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.fl
     return density
     
     
-def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zspace=False, format='pack14', rotate_to=None, prep_rfft=False, nthreads=-1):
+def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zspace=False, format='pack14', rotate_to=None, prep_rfft=False, nthreads=-1, readahead=-1):
     '''
     Main entry point for density field computation from files on disk of various formats.
     
     The reading and binning is done slab-by-slab, so we don't need to fit the whole particle set
-    in memory.
+    in memory.  The reading is overlapped with the binning.
 
     Parameters:
     -----------
@@ -122,6 +123,8 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
         Default: False.
     nthreads: int, optional
         Number of threads.  Default of -1 uses all available cores.
+    readahead: int, optional
+        How many files to read ahead of what's been binned.  Default of -1 allows unbounded readahead.
 
     Returns
     -------
@@ -129,52 +132,11 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
         The density field, in units of (weighted) counts per cell.
         Shape is determined by `gridshape` and `prep_rfft`.
     '''
-    
-    # Our reader functions are in Python, so chain them with tsc calls
-    # TODO: clean this up
-    def read_and_tsc_pack14(fn, density, boxsize, zspace, rotate_to, rfft):
-        data = Abacus.ReadAbacus.read_pack14(fn, return_vel=False, zspace=zspace, dtype=dtype, ramdisk=True)
-        TSC(data['pos'], density, boxsize, rotate_to=rotate_to, prep_rfft=rfft, nthreads=nthreads, inplace=True)
-        return len(data)
-    
-    def read_and_tsc_rvdouble(fn, density, boxsize, zspace, rotate_to, rfft):
-        data = Abacus.ReadAbacus.read_rvdouble(fn, return_vel=False, zspace=zspace, dtype=dtype)
-        TSC(data['pos'], density, boxsize, rotate_to=rotate_to, prep_rfft=rfft, nthreads=nthreads, inplace=True)
-        return len(data)
-    
-    def read_and_tsc_rvzel(fn, density, boxsize, zspace, rotate_to, rfft):
-        data = Abacus.ReadAbacus.read_rvzel(fn, return_vel=False, return_zel=False, zspace=zspace, dtype=dtype, add_grid=True, boxsize=boxsize)
-        TSC(data['pos'], density, boxsize, rotate_to=rotate_to, prep_rfft=rfft, nthreads=nthreads, inplace=True)
-        return len(data)
-
-    def read_and_tsc_rvtag(fn, density, boxsize, zspace, rotate_to, rfft):
-        data = Abacus.ReadAbacus.read_rvtag(fn, return_vel=False, return_pid=False, zspace=zspace, dtype=dtype)
-        TSC(data['pos'], density, boxsize, rotate_to=rotate_to, prep_rfft=rfft, nthreads=nthreads, inplace=True)
-        return len(data)
         
-    def read_and_tsc_state(fn, density, boxsize, zspace, rotate_to, rfft):
-        data = Abacus.ReadAbacus.read_state_positions(fn, dtype=dtype)  # TODO: update this
-        data *= boxsize
-        TSC(data['pos'], density, boxsize, rotate_to=rotate_to, prep_rfft=rfft, nthreads=nthreads, inplace=True)
-        return len(data)
-        
-    def read_and_tsc_gadget(fn, density, boxsize, zspace, rotate_to, rfft):
-        import pynbody
-        f = pynbody.load(fn)
-        data = np.array(f['pos'], dtype=dtype) - boxsize/2.  # Shift to zero-centered
-        TSC(data, density, boxsize, rotate_to=rotate_to, prep_rfft=rfft, nthreads=nthreads, inplace=True)
-        return len(f)
-        
-    valid_formats = {'rvdouble':read_and_tsc_rvdouble,
-                     'pack14':read_and_tsc_pack14,
-                     'rvzel':read_and_tsc_rvzel,
-                     'rvtag':read_and_tsc_rvtag,
-                     'state':read_and_tsc_state,
-                     'gadget':read_and_tsc_gadget}
+    valid_formats = ['rvdouble', 'pack14', 'rvzel', 'rvtag', 'state', 'gadget']
     format = format.lower()
     if format not in valid_formats:
-        raise ValueError(format, 'Use one of: {}'.format(list(valid_formats.keys())))
-    read_and_tsc = valid_formats[format]
+        raise ValueError(format, 'Use one of: {}'.format(valid_formats))
     
     # make int gridshape a cube
     gridshape = np.atleast_1d(gridshape)
@@ -199,15 +161,51 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
     abspattern = os.path.abspath(file_pattern)
     abspattern = abspattern.split(os.sep)
     isic = re.search(r'\bic(\b|(?=_))', abspattern[-2])
-    
-    # Read and bin the particles
-    NP = 0
+
+    # Start an IO thread that will read files and push them to a queue that will be watched by the TSC code
     files = sorted(glob(file_pattern))
-    for filename in files:
-        # We assume the rvzel data is IC data stored with a BoxSize box, not unit box
-        # TODO: better way to communicate this
-        box_on_disk = boxsize if isic or format in ['rvtag', 'gadget'] else 1.
-        NP += read_and_tsc(filename, density, box_on_disk, zspace, rotate_to, prep_rfft)
+
+    NP = 0
+    if readahead < 0:
+        readahead = len(files)
+    file_queue = queue.Queue(maxsize=readahead+1)
+
+    def reader_loop():
+        nonlocal NP
+        reader_kwargs = dict(return_vel=False, zspace=zspace, dtype=dtype)
+
+        if format == 'pack14':
+            reader_kwargs.update(ramdisk=True)
+        elif format == 'rvzel':
+            reader_kwargs.update(return_zel=False, add_grid=True, boxsize=boxsize)
+
+        # Read and bin the particles
+        for filename in files:
+            # We assume the rvzel data is IC data stored with a BoxSize box, not unit box
+            # TODO: better way to communicate this
+            if format == 'gadget':
+                import pynbody
+                f = pynbody.load(fn)
+                data = np.array(f['pos'], dtype=dtype) - boxsize/2.  # Shift to zero-centered
+            else:
+                data = Abacus.ReadAbacus.read(filename, format=format, **reader_kwargs)
+            NP += len(data)
+
+            file_queue.put(data)  # blocks until free slot available
+        file_queue.put(None)  # signal termination
+
+    io_thread = threading.Thread(target=reader_loop)
+    io_thread.start()
+    
+    box_on_disk = boxsize if isic or format in ['rvtag', 'gadget'] else 1.
+    while True:
+        data = file_queue.get()
+        if data is None:
+            break
+        TSC(data['pos'], density, box_on_disk, rotate_to=rotate_to, prep_rfft=prep_rfft, nthreads=nthreads, inplace=True)
+
+    io_thread.join()
+    assert file_queue.empty()
     
     return density
     

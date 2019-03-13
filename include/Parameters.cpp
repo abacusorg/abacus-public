@@ -85,6 +85,8 @@ public:
     char LogDirectory[1024];
     char OutputDirectory[1024];     // Where the outputs go
     char GroupDirectory[1024]; //Where the Group files go
+    char BackupDirectory[1024]; // The directory from which to restore backups (the Python code also writes backups here)
+    
     int OutputEveryStep; //Force timeslices to be output every step if 1
     char OutputFormat[1024];                // The format of the Output files
     int  OmitOutputHeader;                // =1 if you want to skip the ascii header
@@ -225,6 +227,7 @@ public:
         sprintf(WorkingDirectory,STRUNDEF);
         sprintf(MultipoleDirectory2,STRUNDEF);
         sprintf(TaylorDirectory2,STRUNDEF);
+        sprintf(BackupDirectory,STRUNDEF);
 
         sprintf(LocalWorkingDirectory,STRUNDEF);
         sprintf(LocalReadStateDirectory,STRUNDEF);
@@ -240,6 +243,7 @@ public:
     	installscalar("LogDirectory",LogDirectory,MUST_DEFINE);
     	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
         installscalar("GroupDirectory",GroupDirectory,MUST_DEFINE);
+        installscalar("BackupDirectory",BackupDirectory,DONT_CARE);
 
         installscalar("LocalWorkingDirectory",LocalWorkingDirectory,DONT_CARE);
         installscalar("LocalReadStateDirectory",LocalReadStateDirectory,DONT_CARE);
@@ -416,12 +420,11 @@ void Parameters::ProcessStateDirectories(){
     strlower(StateIOMode);
     strlower(Conv_IOMode);
 
+    // Set read dir and write dir from working dir if they were not given
     if (strcmp(WorkingDirectory,STRUNDEF) != 0){
-        if ( strcmp(ReadStateDirectory,STRUNDEF)!=0 || strcmp(WriteStateDirectory,STRUNDEF)!=0 ){
-            QUIT("If WorkingDirectory is defined, {Read,Write}StateDirectory should be undefined. Terminating\n")
-        }
-        else{
+        if(strcmp(ReadStateDirectory,STRUNDEF) == 0)
             sprintf(ReadStateDirectory,"%s/read",WorkingDirectory);
+        if(strcmp(WriteStateDirectory,STRUNDEF) == 0){
             sprintf(WriteStateDirectory,"%s/write",WorkingDirectory);
             if(strcmp(StateIOMode, "overwrite") == 0) {  // later, we will set WriteState.OverwriteState
                 strcpy(WriteStateDirectory, ReadStateDirectory);
@@ -429,12 +432,11 @@ void Parameters::ProcessStateDirectories(){
         }
     }
 
+    // Set read dir and write dir from local working dir if they were not given
     if (strcmp(LocalWorkingDirectory,STRUNDEF) != 0){
-        if ( strcmp(LocalReadStateDirectory,STRUNDEF)!=0 || strcmp(LocalWriteStateDirectory,STRUNDEF)!=0 ){
-            QUIT("If LocalWorkingDirectory is defined, Local{Read,Write}StateDirectory should be undefined. Terminating\n")
-        }
-        else{
+        if(strcmp(LocalReadStateDirectory,STRUNDEF) == 0)
             sprintf(LocalReadStateDirectory,"%s/read",LocalWorkingDirectory);
+        if(strcmp(LocalWriteStateDirectory,STRUNDEF) == 0){
             sprintf(LocalWriteStateDirectory,"%s/write",LocalWorkingDirectory);
             if(strcmp(StateIOMode, "overwrite") == 0) {  // later, we will set WriteState.OverwriteState
                 strcpy(LocalWriteStateDirectory, LocalReadStateDirectory);

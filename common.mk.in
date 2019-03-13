@@ -31,6 +31,7 @@ ifeq (@CUDA_ENABLED@,CUDA_ENABLED)
     CUDA_LIBS := @CUDA_LDFLAGS@ -lcuda -lcudart
     NVCC := @NVCC@
     CUDA_MAJOR_VER := @CUDA_MAJOR_VER@
+    CUDA_ARCH := @CUDA_ARCH@
 endif
 
 # It's not okay to link everything against tcmalloc.
@@ -52,7 +53,7 @@ ifeq (@UNROLLEDMULTIPOLES@,UNROLLEDMULTIPOLES_ENABLED)
     MULTIPOLES_OBJ += CM_unrolled.o ET_unrolled.o
 endif
 
-# Really only singlestep and friends should use @LIBS@. It's not safe to link everything against all the libs here (e.g. tcmalloc)
+# Really only singlestep and friends should use the following libs. It's not safe to link everything against all the libs here (e.g. tcmalloc)
 SINGLESTEP_LIBS := @LIBS@
 
 # Some of this setup could surely be done inside configure
