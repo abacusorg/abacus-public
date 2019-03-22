@@ -90,7 +90,7 @@ def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.fl
     return density
     
     
-def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zspace=False, format='pack14', rotate_to=None, prep_rfft=False, nthreads=-1, readahead=-1):
+def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zspace=False, format='pack14', rotate_to=None, prep_rfft=False, nthreads=-1, readahead=1):
     '''
     Main entry point for density field computation from files on disk of various formats.
     
@@ -124,7 +124,8 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
     nthreads: int, optional
         Number of threads.  Default of -1 uses all available cores.
     readahead: int, optional
-        How many files to read ahead of what's been binned.  Default of -1 allows unbounded readahead.
+        How many files to read ahead of what's been binned. -1 allows unbounded readahead.
+        Default: 1.
 
     Returns
     -------
@@ -290,7 +291,7 @@ def TSC(positions, density, boxsize, weights=None, prep_rfft=False, rotate_to=No
         # But parallel sort algorithms are more readily available
 
         xbins = np.linspace(-boxsize/2, boxsize/2, num=nchunks+1, endpoint=True, dtype=positions.dtype)
-        positions, weights = sort_pos_and_weight(positions, weights, inplace=inplace)
+        positions, weights = sort_pos_and_weight(positions, weights, inplace=inplace)  # TODO: maybe sort on Y for better slab-by-slab performance?
         splits = np.searchsorted(positions[:,0], xbins[1:-1])
         pchunks = np.array_split(positions, splits)
 

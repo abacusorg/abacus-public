@@ -281,7 +281,7 @@ def setup_bins(args):
             # Now choose the smallest even nfft larger than kmax for each time
             all_nfft = np.ceil(all_bins.max(axis=-1)*all_boxsize/np.pi).astype(int)
             all_nfft[all_nfft % 2 == 1] += 1
-            assert (all_nfft <= nfft).all(), all_nfft
+            #assert (all_nfft <= nfft).all(), all_nfft
 
             print('--scalefree_index option was specified.  Computed k ranges: ' + str([('{:.3g}'.format(b.min()), '{:.3g}'.format(b.max())) for b in all_bins]))
             print('\tComputed NFFTs: ' + str(all_nfft))
@@ -300,10 +300,10 @@ def setup_bins(args):
     for t in range(ntracks):
         # Evenly spaced by number of slices
         # Would we prefer a different spacing?
-        tlabel = t if ntracks > 1 else None
+        tlabel = t if ntracks > 1 else None  # for the file name
 
         # These are the slice indices for this track (increasing towards later times)
-        i_thistrack = isort[t*nslices//ntracks:]
+        i_thistrack = isort[(ntracks-1-t)*nslices//ntracks:]
         headers_thistrack = [headers[i] for i in i_thistrack]
 
         all_bins_thistrack, all_nfft_thistrack = setup_onetrack(headers_thistrack)
@@ -362,6 +362,7 @@ if __name__ == '__main__':
     parser.add_argument('--scalefree_base_a', help='Override the fiducial scale factor for automatic k_min/k_max computation in a scale-free cosmology. Only has an effect with the --scalefree_index option.', default=None, type=float)
     parser.add_argument('--box', help='Override the box size from the header', type=float)
     parser.add_argument('--ntracks', help='The number of "tracks" of power spectra to measure.  Only has an effect with the --scalefree_index option.', type=int, default=1)
+    # TODO: wisdom option
     
     args = parser.parse_args()
     args = vars(args)
@@ -380,5 +381,6 @@ if __name__ == '__main__':
     elif args['dtype'] == 'double':
         args['dtype'] = np.float64
 
-    run_PS(args.pop('input'), **args)
+    with Tools.ContextTimer('* All slices'):
+        run_PS(args.pop('input'), **args)
     

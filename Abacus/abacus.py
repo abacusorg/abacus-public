@@ -191,9 +191,9 @@ def copy_contents(in_dir, out_dir, clean=True, ignore='*.py'):
     for fn in os.scandir(in_dir):
         if not fn.is_file():
             continue
-        if any(fnmatch.fnmatch(fn.name, ipat) for ipat in ignore):
+        if any(fnmatch.fnmatch(fn, ipat) for ipat in ignore):
             continue
-        shutil.copy(fn.name, out_dir)
+        shutil.copy(fn, out_dir)
 
 
 def clean_dir(bd, preserve=None, rmdir_ifempty=True):
