@@ -21,10 +21,12 @@ Todo:
 """
 
 import os
-import os.path as path
+import os.path as ppath
+from os.path import join as pjoin
 from glob import glob
 import ctypes as ct
 import re
+import threading
 
 import numpy as np
 import numba
@@ -39,12 +41,21 @@ def read(*args, **kwargs):
     file type `format`.  Simply calls
     the appropriate `read_[format]()` function.
 
+    `format` may also be a function that accepts a filename
+    and returns the particle data.
+
     For usage, see the docstring of the reader
     function for the file format you are using.
     """
     format = kwargs.pop('format')
-    format = format.lower()
-    return reader_functions[format](*args, **kwargs)
+    if type(format) == str:
+        format = format.lower()
+
+    try:
+        return reader_functions[format](*args, **kwargs)
+    except:
+        # Try calling format as a function
+        return format(*args, **kwargs)
 
 
 def from_dir(dir, pattern=None, key=None, **kwargs):
@@ -78,9 +89,9 @@ def from_dir(dir, pattern=None, key=None, **kwargs):
         format = kwargs.get('format')
         pattern = get_file_pattern(format)
 
-    _key = (lambda k: key(path.basename(k))) if key else None
-    files = sorted(glob(path.join(dir, pattern)), key=_key)
-    assert files, "No files found matching {}".format(path.join(dir, pattern))
+    _key = (lambda k: key(ppath.basename(k))) if key else None
+    files = sorted(glob(pjoin(dir, pattern)), key=_key)
+    assert files, "No files found matching {}".format(pjoin(dir, pattern))
 
     return read_many(files, **kwargs)
 
@@ -104,6 +115,7 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
         The list of file names
     format: str
         The file format. Specifies the reader function.
+        TODO: if format is a function, need to guess alloc_NP
     separate_fields: bool, optional
         Split the (e.g.) pos and vel fields of the contiguous array returned
         by the reader function into two separate, contiguous arrays.
@@ -121,7 +133,7 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
 
     # Allocate enough space to hold the concatenated particle array
     assert files
-    total_fsize = sum(path.getsize(fn) for fn in files)
+    total_fsize = sum(ppath.getsize(fn) for fn in files)
     
     # State has multiple 'psize_on_disk' values
     format = format.lower()
@@ -188,6 +200,95 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
     
         return particles
 
+
+def AsyncReader(path, readahead=1, chunksize=1, key=None, **kwargs):
+    '''
+    This is a generator that reads files in a separate thread in the background,
+    yielding them one at a time as they become available.
+
+    The intended usage is:
+    ```
+    for chunk_of_particles in AsyncReader('/slice/directory'):
+        process(chunk_of_particles)
+    ```
+    The next file will be read in the background while `process` is running.  For code
+    that only needs a small chunk of the simulation in memory at a time, this will run
+    faster and use less memory.
+
+    The amount of readahead is configurable to ensure one doesn't run out of memory.
+
+    In order to overlap compute and IO, the IO code must release the GIL.  Since np.fromfile()
+    does that, most of our readers do that as well.  pack14 doesn't use fromfile, but ctypes
+    also releases the GIL.
+
+    Parameters
+    ----------
+    path: str or list of str
+        A directory or file pattern, or a list of files.
+    readahead: int, optional
+        The number of files to read ahead of the last-yielded file.
+        Default of 1 is fine when compute is slower than IO; a value
+        too big might run out of memory.
+    chunksize: int, optional
+        The number of files to read at a time (into a contiguous array).
+        Default: 1.
+    key: callable, optional
+        A filename sorting key.  Default: None
+    **kwargs: dict, optional
+        Extra arguments to be passed to `read` or `read_many`.
+
+    '''
+
+    assert chunksize == 1, "chunksize > 1 not yet implemented"
+    
+    # First, determine the file names to read
+    if ppath.isdir(path):
+        pattern = get_file_pattern(kwargs.get('format'))
+        _key = (lambda k: key(ppath.basename(k))) if key else None
+        files = sorted(glob(pjoin(path, pattern)), key=_key)
+    elif ppath.isfile(path):
+        files = [path]
+    else:
+        # Not a dir and not a file; interpret as a glob pattern
+        files = sorted(glob(path), key=_key)
+
+    assert files, f'No files found matching "{path}"!'
+
+    NP = 0
+    if readahead < 0:
+        readahead = len(files)
+    file_queue = queue.Queue(maxsize=readahead+1)
+
+    def reader_loop():
+        nonlocal NP
+        reader_kwargs = kwargs.copy()
+        format = reader_kwargs.pop('format')
+
+        # Read and bin the particles
+        for filename in files:
+            # We assume the rvzel data is IC data stored with a BoxSize box, not unit box
+            # TODO: better way to communicate this
+            data = read(filename, format=format, **reader_kwargs)
+            NP += len(data)
+
+            file_queue.put(data)  # blocks until free slot available
+        file_queue.put(None)  # signal termination
+
+    io_thread = threading.Thread(target=reader_loop)
+    io_thread.start()
+    
+    box_on_disk = boxsize if isic or format in ['rvtag', 'gadget'] else 1.
+    while True:
+        data = file_queue.get()
+        if data is None:
+            break
+        yield data
+
+    io_thread.join()
+    assert file_queue.empty()
+
+    
+
 ################################
 # Begin list of reader functions
 ################################
@@ -249,7 +350,7 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
     if out is not None:
         _out = out
     else:  # or allocate one
-        fsize = path.getsize(fn)
+        fsize = ppath.getsize(fn)
         alloc_NP = get_np_from_fsize(fsize, format='pack14')
         ndt = output_dtype(return_vel=return_vel, return_pid=return_pid, dtype=dtype)
         _out = np.empty(alloc_NP, dtype=ndt)
@@ -386,7 +487,7 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
     else:
         # Look for a file named 'header'
         try:
-            header = InputFile(fn=path.join(path.dirname(fn), 'header'))
+            header = InputFile(fn=pjoin(ppath.dirname(fn), 'header'))
         except:
             header = None
 
@@ -477,7 +578,7 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
     NP: int
         If `out` is given, returns the number of rows read into `out`.
     """
-    basename = path.basename(fn)
+    basename = ppath.basename(fn)
     if return_pos == 'auto':
         return_pos = 'position' in basename
     if return_vel == 'auto':
@@ -499,10 +600,10 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
     slab = int(re.search(r'\d{4}$', fn).group(0))
 
     if return_header:
-        state = InputFile(path.join(path.dirname(fn), 'state'))
+        state = InputFile(pjoin(ppath.dirname(fn), 'state'))
     
     # Count the particles to read in
-    fsize = path.getsize(pos_fn)
+    fsize = ppath.getsize(pos_fn)
     _format = {np.float32:'state', np.float64:'state64'}[dtype_on_disk]
     NP = get_np_from_fsize(fsize, format=_format)
     
@@ -606,7 +707,7 @@ def read_pack14_lite(fn, return_vel=True, return_pid=False, return_header=False,
         outdt = out.dtype
     # or allocate one
     else:
-        fsize = path.getsize(fn)
+        fsize = ppath.getsize(fn)
         alloc_NP = get_np_from_fsize(fsize, format='pack14')
         outdt = output_dtype(return_vel=return_vel, return_pid=return_pid, dtype=dtype)
         _out = np.empty(alloc_NP, dtype=outdt)
@@ -640,6 +741,20 @@ def read_pack14_lite(fn, return_vel=True, return_pid=False, return_header=False,
     if len(retval) == 1:
         return retval[0]
     return retval
+
+
+def read_gadget(fn, boxsize=1., **kwargs):
+    '''
+    Bare-bones Gadget reader using pynbody.
+    '''
+    dtype = kwargs['dtype']
+    boxsize = kwargs['boxsize']
+
+    import pynbody
+    f = pynbody.load(fn)
+    data = np.array(f['pos'] - boxsize/2., dtype=('pos',dtype,3))  # Shift to zero-centered
+
+    return data
 
 ##############################
 # End list of reader functions
@@ -675,7 +790,7 @@ def skip_header(fp, max_tries=10, encoding='utf-8'):
     header: str
         The skipped header, if one is found.
     """
-    fsize = path.getsize(fp.name)
+    fsize = ppath.getsize(fp.name)
     fpstart = fp.tell()
     
     # Specify that the header must end on a 4096 byte boundary
@@ -733,7 +848,7 @@ def output_dtype(return_vel=True, return_pid=False, return_zel=False, return_aux
 # Set up a few library utils
 try:
     from . import abacus
-    ralib = ct.cdll.LoadLibrary(path.join(abacus.abacuspath, "clibs", "libreadabacus.so"))
+    ralib = ct.cdll.LoadLibrary(pjoin(abacus.abacuspath, "clibs", "libreadabacus.so"))
 
     # Set up the arguments and return type for the library functions
     # TODO: switch our C library to use CFFI
@@ -751,7 +866,8 @@ reader_functions = {'pack14':read_pack14, 'rvdouble':read_rvdouble,
                     'rvzel':read_rvzel, 'state':read_state,
                     'rvdoubletag':read_rvdoubletag,
                     'rvtag':read_rvtag, 'rv':read_rvtag,
-                    'pack14_lite':read_pack14_lite}
+                    'pack14_lite':read_pack14_lite,
+                    'gadget':read_gadget}
 default_file_patterns = {'pack14':'*.dat', 'state':'position_*'}
 fallback_file_pattern = '*.dat'
 

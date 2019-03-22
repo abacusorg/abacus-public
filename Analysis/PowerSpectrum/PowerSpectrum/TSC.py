@@ -11,7 +11,7 @@ import queue
 import numpy as np
 import numba
 
-import Abacus.ReadAbacus
+from Abacus import ReadAbacus
 
 def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.float32, rotate_to=None, prep_rfft=False, nthreads=-1, inplace=False, norm=False):
     """
@@ -110,8 +110,9 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
         Precision for the density array.  Default: np.float32.
     zspace: bool, optional
         Whether to bin the particles in redshift space.  Default: False.
-    format: str, optional
+    format: str or callable, optional
         File format for the input files.  Options are 'rvdouble', 'pack14', 'rvzel', 'state', 'gadget'.
+        Can also be a function that takes a filename string and returns a (N,d) position array.
         Default: 'pack14'
     rotate_to: array of floats of shape (3,), optional
         `rotate_to` defines a vector that the cartesian z-hat will be rotated to align with.
@@ -134,9 +135,10 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
     '''
         
     valid_formats = ['rvdouble', 'pack14', 'rvzel', 'rvtag', 'state', 'gadget']
-    format = format.lower()
-    if format not in valid_formats:
-        raise ValueError(format, 'Use one of: {}'.format(valid_formats))
+    if type(format) == str:
+        format = format.lower()
+    if format not in valid_formats and not callable(format):
+        raise ValueError(format, 'Use one of: {}, or callable'.format(valid_formats))
     
     # make int gridshape a cube
     gridshape = np.atleast_1d(gridshape)
@@ -162,50 +164,19 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
     abspattern = abspattern.split(os.sep)
     isic = re.search(r'\bic(\b|(?=_))', abspattern[-2])
 
-    # Start an IO thread that will read files and push them to a queue that will be watched by the TSC code
-    files = sorted(glob(file_pattern))
-
-    NP = 0
-    if readahead < 0:
-        readahead = len(files)
-    file_queue = queue.Queue(maxsize=readahead+1)
-
-    def reader_loop():
-        nonlocal NP
-        reader_kwargs = dict(return_vel=False, zspace=zspace, dtype=dtype)
-
-        if format == 'pack14':
-            reader_kwargs.update(ramdisk=True)
-        elif format == 'rvzel':
-            reader_kwargs.update(return_zel=False, add_grid=True, boxsize=boxsize)
-
-        # Read and bin the particles
-        for filename in files:
-            # We assume the rvzel data is IC data stored with a BoxSize box, not unit box
-            # TODO: better way to communicate this
-            if format == 'gadget':
-                import pynbody
-                f = pynbody.load(fn)
-                data = np.array(f['pos'], dtype=dtype) - boxsize/2.  # Shift to zero-centered
-            else:
-                data = Abacus.ReadAbacus.read(filename, format=format, **reader_kwargs)
-            NP += len(data)
-
-            file_queue.put(data)  # blocks until free slot available
-        file_queue.put(None)  # signal termination
-
-    io_thread = threading.Thread(target=reader_loop)
-    io_thread.start()
-    
     box_on_disk = boxsize if isic or format in ['rvtag', 'gadget'] else 1.
-    while True:
-        data = file_queue.get()
-        if data is None:
-            break
-        TSC(data['pos'], density, box_on_disk, rotate_to=rotate_to, prep_rfft=prep_rfft, nthreads=nthreads, inplace=True)
 
-    io_thread.join()
-    assert file_queue.empty()
+    reader_kwargs = dict(return_vel=False, zspace=zspace, dtype=dtype)
+
+    if format == 'pack14':
+        reader_kwargs.update(ramdisk=True)
+    elif format == 'rvzel':
+        reader_kwargs.update(return_zel=False, add_grid=True, boxsize=boxsize)
+    elif format == 'gadget':
+        reader_kwargs.update(boxsize=boxsize)
+
+    for data in ReadAbacus.AsyncReader(file_pattern, **reader_kwargs):
+        TSC(data, density, box_on_disk, rotate_to=rotate_to, prep_rfft=prep_rfft, nthreads=nthreads, inplace=True)
     
     return density
     
