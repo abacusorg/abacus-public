@@ -820,8 +820,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         ss_timer, conv_time = None, None
 
         # Do the convolution
-        if not ConvDone:
-            if not parallel and not do_fake_convolve:
+        if not ConvDone and not parallel :
+            if not do_fake_convolve:
                 # Now check if we have all the multipoles the convolution will need
                 if not check_multipole_taylor_done(param, read_state, kind='Multipole'):
                     # Invoke multipole recovery mode
@@ -849,11 +849,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                 ConvolutionDriver_cmd = [pjoin(abacuspath, "Convolution", "FakeConvolution.py"), paramfn]
             else:
                 ConvolutionDriver_cmd = [pjoin(abacuspath, "Convolution", "ConvolutionDriver"), paramfn]
-            if parallel:
-                ConvolutionDriver_cmd = Conv_mpirun_cmd + ConvolutionDriver_cmd
-                print('Performing parallel convolution for step {:d} with command "{:s}"'.format(stepnum, ' '.join(ConvolutionDriver_cmd)))
-            else:
-                print("Performing convolution for step {:d}".format(stepnum))
+            
+            print("Performing convolution for step {:d}".format(stepnum))
             with Tools.ContextTimer() as conv_timer:
                 subprocess.check_call(ConvolutionDriver_cmd, env=convolution_env)
             conv_time = conv_timer.elapsed
@@ -862,7 +859,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                 print('\tConvolution step {} finished. ProfilingMode = 2 (Convolution) is active; Abacus will now quit.'.format(stepnum))
                 break
 
-            if not parallel and not check_multipole_taylor_done(param, read_state, kind='Taylor'):
+            if not check_multipole_taylor_done(param, read_state, kind='Taylor'):
                 # have to take it on faith in the parallel version!
                 raise ValueError("Convolution did not complete")
             
@@ -870,17 +867,16 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             for cl in convlogs:
                 shutil.move(cl, cl.replace('last', 'step{:04d}'.format(read_state.FullStepNumber+1)))
 
-            if not parallel:
-                # Warning: Convolution won't work if MultipoleDirectory is the write (or read) state
-                # because the states get moved after multipole generation but before convolution.
-                remove_MT(param.MultipoleDirectory, 'Multipole*')
-                if 'MultipoleDirectory2' in param:
-                    remove_MT(param.MultipoleDirectory2, 'Multipole*')
+            # Warning: Convolution won't work if MultipoleDirectory is the write (or read) state
+            # because the states get moved after multipole generation but before convolution.
+            remove_MT(param.MultipoleDirectory, 'Multipole*')
+            if 'MultipoleDirectory2' in param:
+                remove_MT(param.MultipoleDirectory2, 'Multipole*')
 
-                # Now we can move the multipole symlinks
-                if path.islink(multipoles):
-                    os.unlink(multipoles)
-                    os.symlink(taylors_convstate, multipoles)
+            # Now we can move the multipole symlinks
+            if path.islink(multipoles):
+                os.unlink(multipoles)
+                os.symlink(taylors_convstate, multipoles)
 
             print("\t Finished convolution for state %d"%(read_state.FullStepNumber+1))
 
@@ -892,7 +888,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic))]
         if parallel:
             singlestep_cmd = mpirun_cmd + singlestep_cmd
-            print('Running parallel singlestep for step {:d} with command "{:s}"'.format(stepnum, ' '.join(singlestep_cmd)))
+            print('Running parallel convolution + singlestep for step {:d} with command "{:s}"'.format(stepnum, ' '.join(singlestep_cmd)))
         else:
             print("Running singlestep for step {:d}".format(stepnum))
         with Tools.ContextTimer() as ss_timer:

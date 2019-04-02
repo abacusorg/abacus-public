@@ -1,5 +1,4 @@
 // #define DO_NOTHING
-#include "InCoreConvolution.cpp"
 #include "OutofCoreConvolution.h"
 
 

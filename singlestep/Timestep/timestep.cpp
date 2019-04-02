@@ -44,6 +44,12 @@ Dependency Finish;
 
 Dependency LPTVelocityReRead;
 
+#ifdef PARALLEL
+#include "ConvolutionLibrary.cpp"
+STimer ConvolutionWallClock;
+ParallelConvolution ParallelConvolveDriver;
+#endif
+
 // The wall-clock time minus all of the above Timers might be a measure
 // of the spin-locked time in the timestep() loop.
 STimer TimeStepWallClock;
@@ -94,6 +100,11 @@ void FetchSlabsAction(int slab) {
     SB->LoadArenaNonBlocking(VelSlab, slab);
     SB->LoadArenaNonBlocking(AuxSlab, slab);
     SB->LoadArenaNonBlocking(TaylorSlab,slab);
+	
+#ifdef PARALLEL
+	//TODO does the above still apply in parallel case? no, I don't think so.
+	ParallelConvolveDriver.RecvTaylorSlab(slab); 
+#endif
 }
 
 // -----------------------------------------------------------------
@@ -227,6 +238,11 @@ int TaylorForcePrecondition(int slab) {
             Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
+	
+#ifdef PARALLEL //TODO do the above still apply in the parallel case? 
+	if( !ParallelConvolveDriver.CheckRecvTaylorComplete(slab)) 
+		return 0; 
+#endif
 
     return 1;
 }
@@ -673,10 +689,21 @@ void FinishAction(int slab) {
     SB->StoreArenaNonBlocking(MergeAuxSlab,slab);
     SB->StoreArenaNonBlocking(MergeCellInfoSlab,slab);
     WriteMergeSlab.Stop();
-
+	
     WriteMultipoleSlab.Start();
+#ifdef PARALLEL
+	ParallelConvolveDriver.SendMultipoleSlab(slab); //distribute z's to appropriate nodes for this node's x domain
+	ParallelConvolveDriver.RecvMultipoleSlab(slab); //receive z's from other nodes for all x's. 
+		
+	//NAM TODO save multipoles to [x][znode][m][y] array in shared memory! 	except... what does this comment mean: 
+		// // Determine the actual, allocated Ramdisk type of the current slab
+    	   // If it was allocated on Ramdisk, then the writing is already done by definition!
+#else
     SB->StoreArenaNonBlocking(MultipoleSlab,slab);
+#endif	
     WriteMultipoleSlab.Stop();
+	
+    
 
     int pwidth = FetchSlabs.raw_number_executed - Finish.raw_number_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
@@ -706,6 +733,26 @@ void NoopAction(int slab){
  * The Dependency module is responsible for running the registered steps.
  */
 void timestep(void) {
+	
+	
+//NAM do parallel convolution now if multi-node.
+#ifdef PARALLEL
+	ConvolutionWallClock.Clear();
+	ConvolutionWallClock.Start();
+	
+	char * MTfile = strcat(P.MultipoleDirectory, "/Multipoles");//in previous timestep's finish action, multipoles were distributed to nodes such that each node now stores multipole moments for all x and its given range of z that it will convolve. Fetch these from shared memory.
+    STDLOG(1,"Working with MTfile %s\n", MTfile);
+	
+	ConvolutionParameters ConvolveParams(MPI_size); 
+    strcpy(ConvolveParams.runtime_MultipoleDirectory, P.MultipoleDirectory);
+	
+	ParallelConvolveDriver = ParallelConvolution(P.cpd, P.order, MTfile, ConvolveParams);
+	ParallelConvolveDriver.Convolve(); 
+	
+	ConvolutionWallClock.Stop(); 
+#endif
+	
+	
     TimeStepWallClock.Clear();
     TimeStepWallClock.Start();
     STDLOG(1,"Initiating timestep()\n");
@@ -791,6 +838,15 @@ void timestep(void) {
     LPTVelocityReRead.Attempt();
                 Drift.Attempt();
                Finish.Attempt();
+			   
+#ifdef PARALLEL  
+		// as each node for given slab finishes drifting the particles and computing multipoles in the Finish dependency, 
+		// it will send the multipoles for its x domains out to all the other nodes such that, after the MPI sends/receives,
+		// each node has multipoles for ALL x slabs and for a SUBSET of z's (the range assigned to that node to convolve).
+		ParallelConvolveDriver.WaitForMultipoleTransferComplete(); 
+#endif
+	   
+			   
 	    // TODO: The following line will be omitted once the MPI monitoring thread is in place.
            SendManifest->FreeAfterSend();
 	    ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
