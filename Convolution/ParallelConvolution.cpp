@@ -27,7 +27,7 @@ int ParallelConvolution::Zstart(int rank) {
 	//TODO NAM does below code handle the case where some nodes have nothing to do or not a full range of z? 
 }
 
-
+// ParallelConvolution::ParallelConvolution(){}
 /// The constructor.  This should open the MTfile as read/write or allocate
 /// space if it doesn't exist.
 ParallelConvolution::ParallelConvolution(int _cpd, int _order, char *MTfile, ConvolutionParameters &_ConvolveParams) : ConvolveParams(_ConvolveParams) { //TODO NAM does this always assume convolution overwrite mode? 

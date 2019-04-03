@@ -45,9 +45,11 @@ Dependency Finish;
 Dependency LPTVelocityReRead;
 
 #ifdef PARALLEL
-#include "ConvolutionLibrary.cpp"
+#include "ConvolutionParametersStatistics.cpp"
+#include "InCoreConvolution.cpp"
+#include "ParallelConvolution.cpp"
+
 STimer ConvolutionWallClock;
-ParallelConvolution ParallelConvolveDriver;
 #endif
 
 // The wall-clock time minus all of the above Timers might be a measure
@@ -103,7 +105,7 @@ void FetchSlabsAction(int slab) {
 	
 #ifdef PARALLEL
 	//TODO does the above still apply in parallel case? no, I don't think so.
-	ParallelConvolveDriver.RecvTaylorSlab(slab); 
+	ParallelConvolveDriver->RecvTaylorSlab(slab); 
 #endif
 }
 
@@ -240,7 +242,7 @@ int TaylorForcePrecondition(int slab) {
     }
 	
 #ifdef PARALLEL //TODO do the above still apply in the parallel case? 
-	if( !ParallelConvolveDriver.CheckRecvTaylorComplete(slab)) 
+	if( !ParallelConvolveDriver->CheckRecvTaylorComplete(slab)) 
 		return 0; 
 #endif
 
@@ -692,8 +694,8 @@ void FinishAction(int slab) {
 	
     WriteMultipoleSlab.Start();
 #ifdef PARALLEL
-	ParallelConvolveDriver.SendMultipoleSlab(slab); //distribute z's to appropriate nodes for this node's x domain
-	ParallelConvolveDriver.RecvMultipoleSlab(slab); //receive z's from other nodes for all x's. 
+	ParallelConvolveDriver->SendMultipoleSlab(slab); //distribute z's to appropriate nodes for this node's x domain
+	ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's. 
 		
 	//NAM TODO save multipoles to [x][znode][m][y] array in shared memory! 	except... what does this comment mean: 
 		// // Determine the actual, allocated Ramdisk type of the current slab
@@ -740,14 +742,15 @@ void timestep(void) {
 	ConvolutionWallClock.Clear();
 	ConvolutionWallClock.Start();
 	
+	
 	char * MTfile = strcat(P.MultipoleDirectory, "/Multipoles");//in previous timestep's finish action, multipoles were distributed to nodes such that each node now stores multipole moments for all x and its given range of z that it will convolve. Fetch these from shared memory.
     STDLOG(1,"Working with MTfile %s\n", MTfile);
 	
 	ConvolutionParameters ConvolveParams(MPI_size); 
     strcpy(ConvolveParams.runtime_MultipoleDirectory, P.MultipoleDirectory);
 	
-	ParallelConvolveDriver = ParallelConvolution(P.cpd, P.order, MTfile, ConvolveParams);
-	ParallelConvolveDriver.Convolve(); 
+	ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, MTfile, ConvolveParams);
+	ParallelConvolveDriver->Convolve(); 
 	
 	ConvolutionWallClock.Stop(); 
 #endif
@@ -843,7 +846,7 @@ void timestep(void) {
 		// as each node for given slab finishes drifting the particles and computing multipoles in the Finish dependency, 
 		// it will send the multipoles for its x domains out to all the other nodes such that, after the MPI sends/receives,
 		// each node has multipoles for ALL x slabs and for a SUBSET of z's (the range assigned to that node to convolve).
-		ParallelConvolveDriver.WaitForMultipoleTransferComplete(); 
+		ParallelConvolveDriver->WaitForMultipoleTransferComplete(); 
 #endif
 	   
 			   
@@ -871,6 +874,9 @@ void timestep(void) {
        SendManifest->FreeAfterSend();
        // Run this again, just in case the dependency loop on this node finished
        // before the neighbor received the non-blocking MPI transfer.
+	   
+   	   delete ParallelConvolveDriver;
+	   
     #endif 
     if (MPI_rank==0)
         assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
@@ -884,6 +890,8 @@ void timestep(void) {
     
     if(ReadState.DoTimeSliceOutput)
         assertf(total_n_output == P.np, "TimeSlice output contains %d particles instead of %d!\n", total_n_output, P.np);
+
+
 
     STDLOG(1,"Completing timestep()\n");
     TimeStepWallClock.Stop();

@@ -13,7 +13,7 @@ public:
 
     //ConvolutionStatistics CS; 
     
-	ParallelConvolution();
+	// ParallelConvolution();
     ParallelConvolution(int _cpd, int _order, char *MTfile, ConvolutionParameters &_CP);
     ~ParallelConvolution(void);
 	
@@ -101,3 +101,6 @@ private:
     
     // double invcpd3;
 };
+
+ParallelConvolution *ParallelConvolveDriver;
+
