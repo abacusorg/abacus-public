@@ -225,6 +225,9 @@ class ContextTimer(contexttimer.Timer):
         args = list(args)
         if len(args) > 0:
             kwargs['prefix'] = args.pop(0)
+
+        kwargs['fmt'] = kwargs.get('fmt', 'time: {:.2f} seconds')
+        
         super(ContextTimer, self).__init__(*args, **kwargs)
         
     def __enter__(self):

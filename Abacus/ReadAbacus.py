@@ -27,6 +27,7 @@ from glob import glob
 import ctypes as ct
 import re
 import threading
+import queue
 
 import numpy as np
 import numba
@@ -236,7 +237,6 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, **kwargs):
         A filename sorting key.  Default: None
     **kwargs: dict, optional
         Extra arguments to be passed to `read` or `read_many`.
-
     '''
 
     assert chunksize == 1, "chunksize > 1 not yet implemented"
@@ -277,7 +277,6 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, **kwargs):
     io_thread = threading.Thread(target=reader_loop)
     io_thread.start()
     
-    box_on_disk = boxsize if isic or format in ['rvtag', 'gadget'] else 1.
     while True:
         data = file_queue.get()
         if data is None:
@@ -293,7 +292,7 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, **kwargs):
 # Begin list of reader functions
 ################################
 
-def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=False, return_header=False, dtype=np.float32, out=None):
+def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=False, return_header=False, dtype=np.float32, boxsize=None, out=None):
     """
     Read particle data from a file in pack14 format.
     
@@ -315,6 +314,8 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
         Either np.float32 or np.float64.  Determines the data type the particle data is loaded into
     out: ndarray, optional
         A pre-allocated array into which the particles will be directly loaded.
+    boxsize: optional
+        Ignored; included for compatibility
         
     Returns
     -------
