@@ -1,5 +1,9 @@
+#include "mpi_header.cpp"
+
 #include "header.cpp"
 #include "threevector.hh"
+
+#include "stdlog.cc"
 
 #ifdef IOTHREADED
 #define CONVIOTHREADED
@@ -12,13 +16,45 @@ STimer TotalWallClock;
 STimer Setup;
 STimer ConvolutionWallClock;
 
-#include "file.cpp"
+
 #include "factorial.cpp"
 #include "iolib.cpp"
 
-#include "stdlog.cc"
-
 #include "Parameters.cpp"
+
+char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
+int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
+int node_zstart = -1, node_zwidth = 1;
+int first_slab_on_node = 0, first_slab_finished = -1, total_slabs_on_node = -1;
+
+#ifdef PARALLEL
+	MPI_Datatype MPI_skewer;
+#endif
+
+/*
+Each node will read multipole files for:
+	-- all m
+	-- all y
+	-- range of z current BlockConvolve() is doing. 
+    -- range of x each node is responsible for (set in singlestep). 
+
+Each node will then send multipole files to its buddy nodes 
+such that at the end of the day, each node has multipoles (and derivs) for:
+	-- all m
+	-- all y
+	-- range of z NODE is responsible for (a subset of the z's the current BlockConvolve() is doing)
+    -- all x.  
+
+Each node will then perform convolution and get Taylors for the range of z the NODE is responsible for.
+
+Each node will then receive Taylors from its buddy nodes 
+such that at the end of the day, each node has Taylors for:
+	-- range of z current BlockConvolve() is doing. 
+    -- range of x each node is responsible for (set in singlestep).  
+ 
+*/
+
+
 
 #ifdef GPUFFT
 namespace cuda{
@@ -72,6 +108,12 @@ void dumpstats(OutofCoreConvolution *OCC, char *fn) {
     
     e = OCC->CS.ReadMultipolesBytes/OCC->CS.ReadMultipoles/(1.0e+6);
     fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles [per thread]", OCC->CS.ReadMultipoles, e );
+	
+    e = OCC->CS.TransposeBufferingBytes/OCC->CS.TransposeBuffering/(1.0e+6);
+    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "Transpose Buffering", OCC->CS.TransposeBuffering, e );
+	
+    e = OCC->CS.TransposeAlltoAllvBytes/OCC->CS.TransposeAlltoAllv/(1.0e+6);
+    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "Transpose MPI AlltoAllv", OCC->CS.TransposeAlltoAllv, e );
     
     e = OCC->CS.WriteTaylorBytes/OCC->CS.WriteTaylor/(1.0e+6);
     fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor [per thread]", OCC->CS.WriteTaylor, e );
@@ -83,7 +125,7 @@ void dumpstats(OutofCoreConvolution *OCC, char *fn) {
     
     e = OCC->CS.ReadMultipolesBytes/OCC->CS.ReadMultipoles/(1.0e+6);
     fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles", OCC->CS.ReadMultipoles, e );
-    
+	
     e = OCC->CS.WriteTaylorBytes/OCC->CS.WriteTaylor/(1.0e+6);
     fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor", OCC->CS.WriteTaylor, e );
 #endif
@@ -100,6 +142,9 @@ void dumpstats(OutofCoreConvolution *OCC, char *fn) {
     double farithp   = cae/OCC->CS.ConvolveWallClock*100;
     double ffftp     = (OCC->CS.ForwardZFFTMultipoles + OCC->CS.InverseZFFTTaylor)/OCC->CS.ConvolveWallClock*100;
     double fiop      = (OCC->CS.ReadDerivatives + OCC->CS.ReadMultipoles + OCC->CS.WriteTaylor )/OCC->CS.ConvolveWallClock*100;
+#ifdef PARALLEL
+	fiop += (OCC->CS.TransposeBuffering + OCC->CS.TransposeAlltoAllv)/OCC->CS.ConvolveWallClock*100;
+#endif
     double swzp      = OCC->CS.ArraySwizzle/OCC->CS.ConvolveWallClock*100;
 
     fprintf(fp,"\n \t Summary: Fourier Transforms = %2.0f%%     Convolution Arithmetic = %2.0f%%     Array Swizzle = %2.0f%%", ffftp, farithp, swzp );
@@ -127,8 +172,12 @@ void setup_openmp(){
     }
 #endif
     
-    assertf(nthreads <= max_threads, "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n");
-    assertf(nthreads <= ncores, "Trying to use more threads (%d) than cores (%d).  This will probably be very slow.\n", nthreads, ncores);
+    assertf(nthreads <= max_threads,
+        "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n",
+        nthreads, max_threads);
+    assertf(nthreads <= ncores,
+        "Trying to use more threads (%d) than cores (%d).  This will probably be very slow.\n",
+        nthreads, ncores);
     
     omp_set_num_threads(nthreads);
     STDLOG(1, "Initializing OpenMP with %d threads (system max is %d; P.Conv_OMP_NUM_THREADS is %d)\n", nthreads, max_threads, P.Conv_OMP_NUM_THREADS);
@@ -142,7 +191,7 @@ void setup_openmp(){
         int core_assignments[nthreads];
         #pragma omp parallel for schedule(static)
         for(int g = 0; g < nthreads; g++){
-            assertf(g == omp_get_thread_num(), "OpenMP thread %d is executing wrong loop ieration (%d)\n", omp_get_thread_num(), g);
+            assertf(g == omp_get_thread_num(), "OpenMP thread %d is executing wrong loop iteration (%d)\n", omp_get_thread_num(), g);
             core_assignments[g] = sched_getcpu();
         }
         std::ostringstream core_log;
@@ -164,6 +213,109 @@ void setup_openmp(){
 
 }
 
+int choose_zwidth(int Conv_zwidth, int cpd, ConvolutionParameters &CP){
+    // Choose the convolution zwidth (number of planes to operate on at once)
+    // Use the zwidth in the parameter file if given
+    // Negative (default) means choose one based on available RAM
+    // Zero means set zwidth to max
+
+    uint64_t rambytes = CP.runtime_MaxConvolutionRAMMB;
+    rambytes *= 1024*1024;
+    
+    // If doing IO in parallel, need one block for reading, one for compute
+    // The swizzle "block" can just be a single z-plane, but is usually twice the precision
+#ifdef CONVIOTHREADED
+    int n_alloc_block = 2;
+#else
+    int n_alloc_block = 1;
+#endif
+    uint64_t zslabbytes = CP.rml*cpd*cpd*n_alloc_block*sizeof(MTCOMPLEX);
+    zslabbytes += n_alloc_block*sizeof(DFLOAT)*CP.rml*CP.CompressedMultipoleLengthXY;  // derivatives block
+    STDLOG(0,"Each slab requires      %.2f MB\n",zslabbytes/1024/1024.);
+    STDLOG(0,"You allow a maximum of  %.2f MB\n",rambytes/1024/1024.);
+    uint64_t swizzlebytes = CP.rml*cpd*cpd*sizeof(Complex);
+    if(rambytes < zslabbytes) { 
+        fprintf(stderr, "Each slab requires      %.2f MB\n", zslabbytes/1024/1024.);
+        fprintf(stderr, "You allow a maximum of  %.2f MB\n", rambytes/1024/1024.);
+        fprintf(stderr, "[ERROR] rambytes<zslabbytes\n");
+        exit(1);
+    }
+
+
+
+    // If we are on the ramdisk, then we know the problem fits in memory! Just do the whole thing at once
+    // If we aren't overwriting, there might be a small efficiency gain from smaller zwidth since reading requires a memcpy()
+    // TODO: need to support ramdisk offsets if we want to support zwidth < max
+    if(CP.is_ramdisk()){
+		CP.z_slabs_per_node = (int)((cpd + 1)/2 / MPI_size) + 1; 
+        STDLOG(0, "Forcing zwidth = full and z_slabs_per_node = %d since we are using ramdisk\n", CP.z_slabs_per_node);
+        return (cpd + 1)/2;  // full width
+    }
+	
+	
+	//If we are doing a multi-node Convolve, set zwidth = 1. NAM TODO: May want to extend this to have multiple z per node later. 
+#ifdef PARALLEL
+	// STDLOG(0, "Forcing zwidth = %d in multi-node convolve, where each node does %d slab(s).\n", CP.z_slabs_per_node * MPI_size, CP.z_slabs_per_node);
+// 	return CP.z_slabs_per_node * MPI_size;
+	
+	CP.z_slabs_per_node = (int)((cpd + 1)/2 / MPI_size) + 1; 
+    STDLOG(0, "Forcing zwidth = full and z_slabs_per_node = %d since we are using ramdisk\n", CP.z_slabs_per_node);
+    return (cpd + 1)/2;  // full width
+#endif
+	
+
+    if(Conv_zwidth > 0){
+        return Conv_zwidth;
+    }
+    else if(Conv_zwidth == 0){
+        return (cpd + 1)/2;  // full width
+    }
+    else {
+        int zwidth = 0;
+        for(zwidth = (cpd+1)/2; zwidth >= 1;zwidth--) {
+            if(zwidth*zslabbytes + swizzlebytes < rambytes)
+                break;
+        }
+
+        // If we're allocating more than one block, make sure we have at least one z-split
+        if(n_alloc_block > 1)
+            zwidth = min((cpd+1)/4, zwidth);
+        return zwidth;
+    }
+
+    return -1;
+}
+
+
+void InitializeParallel(int &size, int &rank, int rml, int CPD) {
+    #ifdef PARALLEL
+         // Start up MPI
+         int ret;
+
+         MPI_Init_thread(NULL, NULL, MPI_THREAD_SERIALIZED, &ret);  // TODO can we move this into the IO thread and change to funneled?
+         assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
+         MPI_Comm_size(MPI_COMM_WORLD, &size);
+         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+         sprintf(NodeString,".%04d",rank);
+		 
+  		 MPI_Type_contiguous(rml*CPD, MPI_MTCOMPLEX, &MPI_skewer);
+  		 MPI_Type_commit(&MPI_skewer);
+		 
+    #else
+    #endif
+    return;
+}
+
+void FinalizeParallel() {
+    #ifdef PARALLEL
+         // Finalize MPI
+		 MPI_Type_free(&MPI_skewer);
+         MPI_Finalize();
+         STDLOG(0,"Calling MPI_Finalize()");
+    #else
+    #endif
+}
+
 int main(int argc, char ** argv){
 	TotalWallClock.Start();
 	Setup.Start();
@@ -173,121 +325,102 @@ int main(int argc, char ** argv){
 	       fprintf(stderr, "Error: command line must have 1 parameter given, not %d.\nLegal usage: %s PARAM_FILE\n", argc-1, argv[0]);
 	       assert(0==99);
 	    }
+		
+	// Set up MPI
 
 	    P.ReadParameters(argv[1],1);
+		
+		InitializeParallel(MPI_size, MPI_rank, (P.order+1)*(P.order+1), P.cpd);
+		
 
 	    // Setup the log
 	    stdlog_threshold_global = P.LogVerbosity;
 	    char logfn[1050];
-	    sprintf(logfn,"%s/last.convlog", P.LogDirectory);
+	    sprintf(logfn,"%s/last%s.convlog", P.LogDirectory, NodeString);
 	    stdlog.open(logfn);
-	    OutofCoreConvolution OCC;
 	    STDLOG(1,"Read parameter file\n");
 	    Setup.Stop();
         
         setup_openmp();
 
-	    ConvolutionParameters p;
-	    p.runtime_ConvolutionCacheSizeMB = P.ConvolutionCacheSizeMB;
-        STDLOG(1, "Using cache size %d MB\n", p.runtime_ConvolutionCacheSizeMB);
-	    p.runtime_DerivativeExpansionRadius = P.DerivativeExpansionRadius;
-	    strcpy(p.runtime_DerivativesDirectory,P.DerivativesDirectory);
-	    p.runtime_DiskBufferSizeKB = 1LL<<11;
-	    p.runtime_IsRamDisk = P.RamDisk;
-	    p.runtime_MaxConvolutionRAMMB = P.MAXRAMMB;
-	    strcpy(p.runtime_MultipoleDirectory,P.MultipoleDirectory);
+	    ConvolutionParameters CP(MPI_size);
+	    CP.runtime_ConvolutionCacheSizeMB = P.ConvolutionCacheSizeMB;
+        STDLOG(1, "Using cache size %d MB\n", CP.runtime_ConvolutionCacheSizeMB);
+	    CP.runtime_DerivativeExpansionRadius = P.DerivativeExpansionRadius;
+	    strcpy(CP.runtime_DerivativesDirectory,P.DerivativesDirectory);
+	    CP.runtime_DIOBufferSizeKB = 1LL<<11;
+	    CP.runtime_IsRamDisk = P.RamDisk;
+	    CP.runtime_MaxConvolutionRAMMB = P.MAXRAMMB;
+	    strcpy(CP.runtime_MultipoleDirectory, P.MultipoleDirectory);
 
-        p.niothreads = 1;
+        CP.ProfilingMode = P.ProfilingMode;
+
+	    sprintf(CP.runtime_MultipolePrefix, "Multipoles");
+	    CP.runtime_NearFieldRadius = P.NearFieldRadius;
+	    strcpy(CP.runtime_TaylorDirectory, P.TaylorDirectory);
+	    CP.runtime_cpd = P.cpd;
+	    CP.runtime_order = P.order;
+        CP.rml = (P.order+1)*(P.order+1);
+        CP.CompressedMultipoleLengthXY = ((1+P.cpd)*(3+P.cpd))/8;
+	    sprintf(CP.runtime_TaylorPrefix, "Taylor");
+        
+        CP.StripeConvState = strcmp(P.Conv_IOMode, "stripe") == 0;
+        CP.OverwriteConvState = strcmp(P.Conv_IOMode, "overwrite") == 0;
+
+        // Determine number of IO threads
+        CP.niothreads = 1;
         if(strcmp(P.MultipoleDirectory2,STRUNDEF) != 0){
-            strcpy(p.runtime_MultipoleDirectory2,P.MultipoleDirectory2);
+            strcpy(CP.runtime_MultipoleDirectory2,P.MultipoleDirectory2);
 #ifdef CONVIOTHREADED
             // Two IO threads if we were given two Multipole directories
-            p.niothreads = 2;
+            CP.niothreads = 2;
 #endif
         }
         if(strcmp(P.TaylorDirectory2,STRUNDEF) != 0){
-            strcpy(p.runtime_TaylorDirectory2,P.TaylorDirectory2);
+            strcpy(CP.runtime_TaylorDirectory2,P.TaylorDirectory2);
 #ifdef CONVIOTHREADED
-            p.niothreads = 2;
+            CP.niothreads = 2;
 #endif
         }
-
-        p.ProfilingMode = P.ProfilingMode;
-
-	    sprintf(p.runtime_MultipolePrefix, "Multipoles");
-	    p.runtime_NearFieldRadius = P.NearFieldRadius;
-	    strcpy(p.runtime_TaylorDirectory,P.TaylorDirectory);
-	    p.runtime_cpd = P.cpd;
-	    p.runtime_order = P.order;
-        p.rml = (P.order+1)*(P.order+1);
-        p.CompressedMultipoleLengthXY = ((1+P.cpd)*(3+P.cpd))/8;
-	    sprintf(p.runtime_TaylorPrefix, "Taylor");
-        
-        p.delete_multipoles_after_read = strcmp(P.Conv_IOMode, "overwrite") == 0;
-        p.StripeConvState = strcmp(P.Conv_IOMode, "stripe") == 0;
         
         int cml = ((P.order+1)*(P.order+2)*(P.order+3))/6;
         int nprocs = omp_get_max_threads();
-        size_t cacherambytes = p.runtime_ConvolutionCacheSizeMB*(1024LL*1024LL);
+        size_t cacherambytes = CP.runtime_ConvolutionCacheSizeMB*(1024LL*1024LL);
 
         int blocksize = 0;
         for(blocksize=P.cpd*P.cpd;blocksize>=2;blocksize--) 
             if((P.cpd*P.cpd)%blocksize==0)
                 if(nprocs*2.5*cml*blocksize*sizeof(Complex) < cacherambytes) break;
                     // 2.5 = 2 Complex (mcache,tcache) 1 double dcache
-        p.blocksize = blocksize;
-        
-        uint64_t rambytes = p.runtime_MaxConvolutionRAMMB;
-        rambytes *= 1024*1024;
-        
-        // If doing IO in parallel, need one block for reading, one for compute
-        // The swizzle "block" can just be a single z-plane, but is usually twice the precision
-#ifdef CONVIOTHREADED
-        int n_alloc_block = 2;
-#else
-        int n_alloc_block = 1;
+        CP.blocksize = blocksize;
+		
+#ifdef PARALLEL
+		if (CP.niothreads != 1){
+
+			QUIT("Multi-node (parallel, MPI) implementation does not support more than one IO thread! Crashing...\n");
+		} 
+		CP.z_slabs_per_node = 2; //may want to automate this choice or put an assert here to make sure we choose a value that uses all nodes. but the overkill version works too, where some nodes don't do anything at all (i.e. cpd = 33, num nodes = 5, zslabspernode = 8. )
 #endif
-        uint64_t zslabbytes = p.rml*P.cpd*P.cpd*n_alloc_block*sizeof(MTCOMPLEX);
-        zslabbytes += n_alloc_block*sizeof(DFLOAT)*p.rml*p.CompressedMultipoleLengthXY;  // derivatives block
-        STDLOG(0,"Each slab requires      %.2f MB\n",zslabbytes/1024/1024.);
-        STDLOG(0,"You allow a maximum of  %.2f MB\n",rambytes/1024/1024.);
-        uint64_t swizzlebytes = p.rml*P.cpd*P.cpd*sizeof(Complex);
-        if(rambytes < zslabbytes) { 
-            fprintf(stderr, "Each slab requires      %.2f MB\n", zslabbytes/1024/1024.);
-            fprintf(stderr, "You allow a maximum of  %.2f MB\n", rambytes/1024/1024.);
-            fprintf(stderr, "[ERROR] rambytes<zslabbytes\n");
-            exit(1);
-        }
 
-        // Use the zwidth in the parameter file if given
-        // Negative (default) means choose one based on available RAM
-        // Zero means set zwidth to max
-        if(P.Conv_zwidth > 0)
-            p.zwidth = P.Conv_zwidth;
-        else if(P.Conv_zwidth == 0)
-            p.zwidth = (P.cpd + 1)/2;
-        else {
-            int zwidth = 0;
-            for(zwidth=(P.cpd+1)/2;zwidth >= 1;zwidth--) {
-                if( zwidth*zslabbytes + swizzlebytes < rambytes) break;
-            }
-            // If we're allocating more than one block, make sure we have at least one z-split
-            if(n_alloc_block > 1)
-                zwidth = min((P.cpd+1)/4, zwidth);
-            p.zwidth = zwidth;
-        }
-
-        STDLOG(0,"Using zwidth: %d \n", p.zwidth);
+        // Find out which slabs reside on which nodes
+        // This will initialize first_slab_on_node and total_slabs_on_node even in the non-parallel version
+        int read_all_nodes = 1;
+        ReadNodeSlabs(read_all_nodes, CP.first_slabs_all, CP.total_slabs_all);
         
+        CP.zwidth = choose_zwidth(P.Conv_zwidth, P.cpd, CP);
+		
         for (int i = 0; i < MAX_IO_THREADS; i++)
-            p.io_cores[i] = P.Conv_IOCores[i];
+            CP.io_cores[i] = P.Conv_IOCores[i];
     
         STDLOG(2, "MTCOMPLEX (multipole/taylor) dtype width: %d\n", (int) sizeof(MTCOMPLEX));
         STDLOG(2, "DFLOAT (derivatives)         dtype width: %d\n", (int) sizeof(DFLOAT));
 
+        // Finished determining parameters; start the main work object
+        OutofCoreConvolution OCC(CP);
+
 	    ConvolutionWallClock.Start();
 	    STDLOG(1,"Starting Convolution\n");
-	    OCC.Convolve(p);
+	    OCC.Convolve();
 	    STDLOG(1,"Convolution Complete\n");
 	    ConvolutionWallClock.Stop();
 	    TotalWallClock.Stop();
@@ -295,17 +428,22 @@ int main(int argc, char ** argv){
         OCC.CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
         
 	    char timingfn[1050];
-	    sprintf(timingfn,"%s/last.convtime",P.LogDirectory);
+	    sprintf(timingfn,"%s/last%s.convtime",P.LogDirectory,NodeString);
+		
+		
+	    FinalizeParallel();  // This may be the last synchronization point?
+		
+		
 	    dumpstats(&OCC,timingfn);
 	    stdlog.close();
 
         // Delete the Taylors if this was profiling mode
-        if(p.ProfilingMode == 2){
+        if(CP.ProfilingMode == 2){
             char cmd[1024];
-            sprintf(cmd, "rm -f %s/Taylor_????", p.runtime_TaylorDirectory);
+            sprintf(cmd, "rm -f %s/Taylor_????", CP.runtime_TaylorDirectory);
             system(cmd);
-            if(p.StripeConvState){
-                sprintf(cmd, "rm -f %s/Taylor_????", p.runtime_TaylorDirectory2);
+            if(CP.StripeConvState){
+                sprintf(cmd, "rm -f %s/Taylor_????", CP.runtime_TaylorDirectory2);
                 system(cmd);
             }
         }

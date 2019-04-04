@@ -56,11 +56,11 @@ inline void KickCell(Cell &c, FLOAT kick1, FLOAT kick2) {
 
 void KickSlab(int slab, FLOAT kick1, FLOAT kick2,
 void (*KickCell)(Cell &c, FLOAT kick1, FLOAT kick2)) {
-    int cpd = PP->cpd;
+    int cpd = CP->cpd;
     #pragma omp parallel for schedule(static)
     for (int y=0;y<cpd;y++) {
         for (int z=0;z<cpd;z++) {
-            Cell c = PP->GetCell(slab, y, z);
+            Cell c = CP->GetCell(slab, y, z);
             (*KickCell)(c,kick1,kick2);
         }
     }
@@ -70,17 +70,17 @@ void RescaleAndCoAddAcceleration(int slab) {
     // The accelerations are computed with unit particle mass.
     // We need to rescale them to the correct cosmology.
     FLOAT rescale = -3.0*P.Omega_M/(8.0*M_PI*P.np);
-    accstruct *nacc = (accstruct *) LBW->ReturnIDPtr(AccSlab,slab);
-    acc3struct *facc = (acc3struct *) LBW->ReturnIDPtr(FarAccSlab,slab);
+    accstruct *nacc = (accstruct *) SB->GetSlabPtr(AccSlab,slab);
+    acc3struct *facc = (acc3struct *) SB->GetSlabPtr(FarAccSlab,slab);
     
     // Reverse the sign of the acceleration if we are making glass
     if(strcmp(P.ICFormat, "Glass") == 0)
         rescale *= -1;
     
-    uint64 N = Slab->size(slab);
+    uint64 N = SS->size(slab);
 
     #ifdef DIRECTSINGLESPLINE
-    FLOAT inv_eps3 = 1./(JJ->SofteningLengthInternal*JJ->SofteningLengthInternal*JJ->SofteningLengthInternal);
+    FLOAT inv_eps3 = 1./(NFD->SofteningLengthInternal*NFD->SofteningLengthInternal*NFD->SofteningLengthInternal);
     #endif
     
     #pragma omp parallel for schedule(static)
@@ -101,6 +101,6 @@ void RescaleAndCoAddAcceleration(int slab) {
 void ZeroAcceleration(int slab,int Slabtype) {
     // Null out the acceleration
     // Note that this is specific to accstruct, not acc3struct!
-    accstruct *acc = (accstruct *) LBW->ReturnIDPtr(Slabtype,slab);
-    memset(acc,0,Slab->size(slab)*sizeof(accstruct));
+    accstruct *acc = (accstruct *) SB->GetSlabPtr(Slabtype,slab);
+    memset(acc,0,SS->size(slab)*sizeof(accstruct));
 }

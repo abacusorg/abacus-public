@@ -16,9 +16,11 @@
  *      should be done by deleting the object, with specific teardown code in the destructor 
  *      for that module. 
 */
+
 #include <sys/time.h>
 #include <sys/resource.h> 
 
+#include "mpi_header.cpp"
 #include "header.cpp"
 #include "threevector.hh"
 #include "float3p1.cpp"    // This will define FLOAT3p1
@@ -68,6 +70,7 @@ STimer epilogue;
 STimer WallClockDirect;
 STimer SingleStepSetup;
 STimer SingleStepTearDown;
+STimer IOFinish;
 
 STimer SlabAccumFree;
 
@@ -76,29 +79,39 @@ uint64 naive_directinteractions = 0;
 
 #include "file.h"
 #include "grid.cpp"
+grid *Grid;
 
 #include "particlestruct.cpp"
 
 #include "Parameters.cpp"
 #include "statestructure.cpp"
 State ReadState, WriteState;
+char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
+int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
+
+
 
 // #include "ParticleCellInfoStructure.cpp"
 // #include "maxcellsize.cpp"
 #include "IC_classes.h"
-#include "slabtypes.cpp"
-SlabBuffer *LBW;
+
+#include "slabsize.cpp"
+SlabSize *SS;
+
+#include "slabbuffer.cpp"
+SlabBuffer *SB;
 
 // Two quick functions so that the I/O routines don't need to know 
-// about the LBW object. TODO: Move these to an io specific file
+// about the SB object. TODO: Move these to an io specific file
 void IO_SetIOCompleted(int arenatype, int arenaslab) { 
-	LBW->SetIOCompleted(arenatype, arenaslab); }
+	SB->SetIOCompleted(arenatype, arenaslab); }
 void IO_DeleteArena(int arenatype, int arenaslab)    { 
-	LBW->DeAllocate(arenatype, arenaslab); }
+	SB->DeAllocate(arenatype, arenaslab); }
 
 
 #include "threadaffinity.h"
 
+// TODO: do we need to support non-threaded io? threaded io still has the blocking option
 #ifdef IOTHREADED
 #include "io_thread.cpp"
 #else
@@ -106,11 +119,8 @@ void IO_DeleteArena(int arenatype, int arenaslab)    {
 //#include "io_fopen.cpp"
 #endif
 
-#include "slabsize.cpp"
-SlabSize *Slab;
-
-#include "particles.cpp"
-Particles *PP;
+#include "cellparticles.cpp"
+CellParticles *CP;
 
 #include "dependency.cpp"
 
@@ -159,25 +169,25 @@ FLOAT * density; //!< Array to accumulate gridded densities in for low resolutio
 #include "groupfinding.cpp"
 #include "microstep.cpp"
 
+int first_slab_on_node, total_slabs_on_node, first_slab_finished;
+int * first_slabs_all = NULL;
+int * total_slabs_all = NULL;
+
+	// The first read slab to be executed by this nodes,
+	// as well as the total number and the first finished
+	// In the single node code, this is simply 0 and CPD.
+#include "node_slabs.cpp"
+
 #include "timestep.cpp"
 #include "reporting.cpp"
 
 #include <fenv.h>
 
-void load_slabsize(Parameters &P){
-    char filename[1024];
-    sprintf(filename,"%s/slabsize",P.ReadStateDirectory);
-    Slab->read(filename);
-    STDLOG(1,"Reading SlabSize file from %s\n", filename);
-}
-
 
 /*! \brief Initializes global objects
  *
  */
-void Prologue(Parameters &P, bool ic) {
-    omp_set_nested(true);
-
+void Prologue(Parameters &P, bool MakeIC) {
     STDLOG(1,"Entering Prologue()\n");
     STDLOG(1,"Size of accstruct is %d bytes\n", sizeof(accstruct));
     prologue.Clear();
@@ -188,15 +198,29 @@ void Prologue(Parameters &P, bool ic) {
     long long int np = P.np;
     assert(np>0);
 
-    LBW = new SlabBuffer(cpd, order, MAXIDS, P.MAXRAMMB*1024*1024);
-    PP = new Particles(cpd, LBW);
+
+    // Look in ReadState to see what PosSlab files are available
+    // TODO: Haven't implemented this yet
+    first_slab_on_node = 0;
+    // first_slab_on_node = ReadState.FullStepNumber; // A fun test
+    total_slabs_on_node = cpd;
+    // TODO: This fails for Spiral with first!=0 because the IC have
+    // put all particles into input slab 0.
+
+    // Call this to setup the Manifests
+    SetupManifest();
+
+    Grid = new grid(cpd);
+    SB = new SlabBuffer(cpd, order, P.MAXRAMMB*1024*1024);
+    CP = new CellParticles(cpd, SB);
+
     STDLOG(1,"Initializing Multipoles()\n");
     MF  = new SlabMultipoles(order, cpd);
 
     STDLOG(1,"Setting up insert list\n");
     uint64 maxILsize = P.np+1;
     // IC steps and LPT steps may need more IL slabs.  Their pipelines are not as long as full (i.e. group finding) steps
-    if (ic || LPTStepNumber() > 0) {
+    if (MakeIC || LPTStepNumber() > 0) {
         if (P.NumSlabsInsertListIC>0) maxILsize =(maxILsize* P.NumSlabsInsertListIC)/P.cpd+1;
     } else {
         if (P.NumSlabsInsertList>0) maxILsize   =(maxILsize* P.NumSlabsInsertList)/P.cpd+1;
@@ -207,14 +231,17 @@ void Prologue(Parameters &P, bool ic) {
     STDLOG(1,"Setting up IO\n");
 
     char logfn[1050];
-    sprintf(logfn,"%s/lastrun.iolog", P.LogDirectory);
+    sprintf(logfn,"%s/lastrun%s.iolog", P.LogDirectory, NodeString);
     io_ramdisk_global = P.RamDisk;
     STDLOG(0,"Setting RamDisk == %d\n", P.RamDisk);
     IO_Initialize(logfn);
 
-    if(!ic) {
+    SS = new SlabSize(P.cpd);
+    ReadNodeSlabs();
+
+    if(!MakeIC) {
             // ReadMaxCellSize(P);
-        load_slabsize(P);
+        SS->load_from_params(P);
         TY  = new SlabTaylor(order,cpd);
         RL = new Redlack(cpd);
 
@@ -223,12 +250,12 @@ void Prologue(Parameters &P, bool ic) {
         SlabFarForceTime = new STimer[cpd];
 
         RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
+        NFD = new NearFieldDriver(P.NearFieldRadius);
     } else {
         TY = NULL;
         RL = NULL;
-        JJ = NULL;
+        NFD = NULL;
     }
-    STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
 
     prologue.Stop();
     STDLOG(1,"Leaving Prologue()\n");
@@ -237,92 +264,76 @@ void Prologue(Parameters &P, bool ic) {
 /*! \brief Tears down global objects
  *
  */
-void Epilogue(Parameters &P, bool ic) {
+void Epilogue(Parameters &P, bool MakeIC) {
     STDLOG(1,"Entering Epilogue()\n");
     epilogue.Clear();
     epilogue.Start();
-
-    if(JJ)
-        JJ->AggregateStats();
-
-    // Write out the timings.  This must precede the rest of the epilogue, because 
-    // we need to look inside some instances of classes for runtimes.
-    char timingfn[1050];
-    sprintf(timingfn,"%s/lastrun.time", P.LogDirectory);
-    FILE * timingfile = fopen(timingfn,"w");
-    assertf(timingfile != NULL, "Couldn't open timing file \"%s\"\n", timingfile);
-    ReportTimings(timingfile);
-    fclose(timingfile);
-    STDLOG(0,"Wrote Timing File to %s\n",timingfn);
 
     // IO_Terminate();
 
     if(IL->length!=0) { IL->DumpParticles(); assert(IL->length==0); }
     
-    if(Slab != NULL){
-        char filename[1024];
-        sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
-        Slab->write(filename);
-        STDLOG(1,"Writing SlabSize file to %s\n", filename);
+    if(SS != NULL){
+        SS->store_from_params(P);
     }
 
     // Some pipelines, like standalone_fof, don't use multipoles
     if(MF != NULL){
-        MF->ComputeRedlack();  // NB when we terminate SlabMultipoles we write out these
-        MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
+        MF->GatherRedlack();    // For the parallel code, we have to coadd the inputs
+        if (MPI_rank==0) {
+            MF->ComputeRedlack();  // NB when we terminate SlabMultipoles we write out these
+            if (WriteState.NodeRank==0)
+                MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
+        }
         delete MF;
     }
 
     if(ReadState.DoBinning){
             STDLOG(1,"Outputting Binned Density\n");
             char denfn[2048];
-            sprintf(denfn,"%s/density",P.ReadStateDirectory);
+            // TODO: Should this be going to ReadState or WriteState or Output?
+            sprintf(denfn,"%s/density%s",P.ReadStateDirectory, NodeString);
             FILE * densout = fopen(denfn,"wb");
             fwrite(density,sizeof(FLOAT),P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d,densout);
             fclose(densout);
             delete density; density = 0;
     }
-    
-    if(WriteState.Do2LPTVelocityRereading)
-        finish_2lpt_rereading();
 
-    LBW->report();
-    delete LBW;
-    delete PP;
+    SB->report();
+    delete SB;
+    STDLOG(1,"Deleted SB\n");
+    delete CP;
     delete IL;
-    delete Slab;
+    delete SS;
+    delete Grid;
+    FreeManifest();
 
 
-    if(!ic) {
+    if(!MakeIC) {
         if(0 and P.ForceOutputDebug){
             #ifdef CUDADIRECT
             STDLOG(1,"Direct Interactions: CPU (%lu) and GPU (%lu)\n",
-                        JJ->DirectInteractions_CPU,JJ->TotalDirectInteractions_GPU);
-            if(!(JJ->DirectInteractions_CPU == JJ->TotalDirectInteractions_GPU)){
+                        NFD->DirectInteractions_CPU,NFD->TotalDirectInteractions_GPU);
+            if(!(NFD->DirectInteractions_CPU == NFD->TotalDirectInteractions_GPU)){
                 printf("Error:\n\tDirect Interactions differ between CPU (%lu) and GPU (%lu)\n",
-                        JJ->DirectInteractions_CPU,JJ->TotalDirectInteractions_GPU);
-                //assert(JJ->DirectInteractions_CPU == JJ->TotalDirectInteractions_GPU);
+                        NFD->DirectInteractions_CPU,NFD->TotalDirectInteractions_GPU);
+                //assert(NFD->DirectInteractions_CPU == NFD->TotalDirectInteractions_GPU);
             }
             #endif
         }
         
             delete TY;
+            STDLOG(1,"Deleted TY\n");
             delete RL;
             delete[] SlabForceLatency;
             delete[] SlabForceTime;
             delete[] SlabFarForceTime;
-            delete JJ;
-            delete GFC;
+            if (GFC!=NULL) delete GFC;
+            STDLOG(1,"Done with Epilogue; about to kill the GPUs\n");
+            delete NFD;
     }
 
-    STDLOG(0,"MinCellSize = %d, MaxCellSize = %d\n", 
-        WriteState.MinCellSize, WriteState.MaxCellSize);
-    WriteState.RMS_Velocity = sqrt(WriteState.RMS_Velocity/P.np);
-    STDLOG(0,"Rms |v| in simulation is %f.\n", WriteState.RMS_Velocity);
-    STDLOG(0,"Maximum v_j in simulation is %f.\n", WriteState.MaxVelocity);
-    STDLOG(0,"Maximum a_j in simulation is %f.\n", WriteState.MaxAcceleration);
-    STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f.\n", WriteState.MinVrmsOnAmax);
-    
+
     // Report peak memory usage
     struct rusage rusage;
     assert(getrusage(RUSAGE_SELF, &rusage) == 0);
@@ -390,42 +401,47 @@ void setup_log(){
 
     stdlog_threshold_global = P.LogVerbosity;
     char logfn[1050];
-    sprintf(logfn,"%s/lastrun.log", P.LogDirectory);
+    sprintf(logfn,"%s/lastrun%s.log", P.LogDirectory, NodeString);
     stdlog.open(logfn);
     STDLOG_TIMESTAMP;
     STDLOG(0, "Log established with verbosity %d.\n", stdlog_threshold_global);
 }
 
-void check_read_state(int AllowIC, bool &MakeIC, double &da){
+void check_read_state(const int MakeIC, double &da){
     // Check if ReadStateDirectory is accessible, or if we should 
     // build a new state from the IC file
     char rstatefn[1050];
-    sprintf(rstatefn,"%s/state",P.ReadStateDirectory);
+    sprintf(rstatefn, "%s/state", P.ReadStateDirectory);
 
-    if(access(rstatefn,0) ==-1){
-        STDLOG(0,"Can't find ReadStateDirectory %s\n", P.ReadStateDirectory);
-        if(AllowIC != 1){
-            QUIT("Read State Directory ( %s ) is inaccessible and initial state creation is prohibited. Terminating.\n",P.ReadStateDirectory);
+    if(MakeIC){
+        STDLOG(0,"Generating initial State from initial conditions\n");
 
-        } else{
-            STDLOG(0,"Generating initial State from initial conditions\n");
+        // By this point, we should have cleaned up any old state directories
+        if(access(rstatefn,0) != -1){
+            QUIT("Read state file \"%s\" was found, but this is supposed to be an IC step. Terminating.\n", rstatefn);
+        }
+
         // We have to fill in a few items, just to bootstrap the rest of the code.
-            ReadState.ScaleFactor = 1.0/(1+P.InitialRedshift);
-            ReadState.FullStepNumber = -1;  
+        
         // So that this number is the number of times forces have been computed.
         // The IC construction will yield a WriteState that is number 0,
         // so our first time computing forces will read from 0 and write to 1.
-            da = 0;
-            MakeIC = true;
-        }
+        ReadState.ScaleFactor = 1.0/(1+P.InitialRedshift);
+        ReadState.FullStepNumber = -1;  
+        
+        da = 0;
     } else {
-    // We're doing a normal step
-        CheckDirectoryExists(P.ReadStateDirectory);
+        // We're doing a normal step
+        // Check that the read state file exists
+        if(access(rstatefn,0) == -1){
+            QUIT("Read state file \"%s\" is inaccessible and this is not an IC step. Terminating.\n", rstatefn);
+        }
+
         STDLOG(0,"Reading ReadState from %s\n",P.ReadStateDirectory);
         ReadState.read_from_file(P.ReadStateDirectory);
         ReadState.AssertStateLegal(P);
-        MakeIC = false;
-    // Handle some special cases
+        
+        // Handle some special cases
         if (P.ForceOutputDebug==1) {
             STDLOG(0,"ForceOutputDebug option invoked; setting time step to 0.\n");
             da = 0;
@@ -434,7 +450,7 @@ void check_read_state(int AllowIC, bool &MakeIC, double &da){
 }
 
 // A few actions that we need to do before choosing the timestep
-void InitWriteState(int ic){
+void InitWriteState(int MakeIC){
     // Even though we do this in BuildWriteState, we want to have the step number
     // available when we choose the time step.
     WriteState.FullStepNumber = ReadState.FullStepNumber+1;
@@ -477,14 +493,16 @@ void InitWriteState(int ic){
     strcpy(WriteState.SofteningType, "plummer");
     WriteState.SofteningLengthInternal = WriteState.SofteningLength;
 #endif
-    
-    if(WriteState.Do2LPTVelocityRereading)
-        init_2lpt_rereading();
 
+    if(strcmp(P.StateIOMode, "overwrite") == 0){
+        WriteState.OverwriteState = 1;
+        STDLOG(1, "StateIOMode = \"overwrite\"; write state will overwrite read state\n");
+    }
     if(strcmp(P.StateIOMode, "stripe") == 0){
         WriteState.StripeState = 1;
         assertf(0, "State striping currently not implemented\n");
     }
+
     if(strcmp(P.Conv_IOMode, "stripe") == 0){
         WriteState.StripeConvState = 1;
         STDLOG(1,"Striping multipoles and taylors\n");
@@ -494,7 +512,145 @@ void InitWriteState(int ic){
         STDLOG(1,"Overwriting multipoles and taylors\n");
     }
 
-    Slab = new SlabSize(P.cpd);
-    if(!ic)
-        JJ = new NearFieldDriver(P.NearFieldRadius);
+}
+
+// Check whether "d" is actually a global directory, and thus not eligible for deletion
+int IsTrueLocalDirectory(const char* d){
+    if(samefile(d, P.WorkingDirectory) ||
+        samefile(d, P.ReadStateDirectory) ||
+        samefile(d, P.WriteStateDirectory) ||
+        samefile(d, P.InitialConditionsDirectory)
+        ) {
+        return 0;
+    }
+
+    return 1;
+}
+
+
+// This function creates all the "local" directories for singlestep;
+// i.e. all the directories that the Python code didn't create.
+// In the parallel code, that means this function is responsible for creating all node-local directories
+// This also deletes existing state directories if MakeIC is invoked
+void SetupLocalDirectories(const int MakeIC){
+    /* TODO: probably deprecated
+    // Resume from a backed-up state
+    if(!MakeIC){
+        // If BackupDirectory exists and LocalReadStateDirectory does not
+        // then we should set [Local]ReadStateDirectory to BackupDirectory
+        // Need to set both because can't risk an inconsistent Read and LocalRead state!
+
+        if(CheckFileExists(P.BackupDirectory) == 2
+            && CheckFileExists(P.LocalReadStateDirectory) != 2){
+            fprintf(stderr, "Local read state dir \"%s\" not found; reading from BackupDirectory \"%s\"\n",
+                P.LocalReadStateDirectory, P.BackupDirectory);
+
+            sprintf(P.LocalReadStateDirectory, "%s/read", P.BackupDirectory);
+            sprintf(P.ReadStateDirectory, "%s/read", P.BackupDirectory);
+        }
+    }*/
+
+    // TODO: might want to delete old derivatives directory here,
+    // but the risk of accidentally deleting the global derivatives is very high
+    char *dirs[] = {P.LocalWorkingDirectory,
+                    P.LocalReadStateDirectory,
+                    P.LocalWriteStateDirectory,
+                    P.TaylorDirectory,
+                    P.MultipoleDirectory,
+                    P.TaylorDirectory2,
+                    P.MultipoleDirectory2
+                };
+
+    for(int i = 0; i < sizeof(dirs)/sizeof(char*); i++){
+        const char *d = dirs[i];
+
+        if(strcmp(d, STRUNDEF) != 0 && strlen(d) > 0){
+            // The following functions don't care if the directory already exists or not
+            if(MakeIC && IsTrueLocalDirectory(d)){
+                RemoveDirectories(d);
+                STDLOG(1, "Removed directory \"%s\"\n", d);
+            }
+            int res = CreateDirectories(d);
+            assertf(res == 0, "Directory creation failed!\n");
+            STDLOG(1, "Created directory \"%s\"\n", d);
+        }
+    }
+}
+
+// Move the state directories at the end of a timestep.
+// Deletes "read", and moves "write" to "read"
+// singlestep doesn't know about "past" directory.
+void MoveLocalDirectories(){
+    if(WriteState.OverwriteState){
+        // Nothing to do!
+        return;
+    }
+
+    if(IsTrueLocalDirectory(P.LocalReadStateDirectory)){
+        STDLOG(1, "Removing read directory\n")
+        int res = RemoveDirectories(P.LocalReadStateDirectory);
+        assertf(res == 0, "Failed to remove read directory!\n");
+    }
+
+    if(IsTrueLocalDirectory(P.LocalWriteStateDirectory)){
+        STDLOG(1, "Moving write directory to read\n")
+        int res = rename(P.LocalWriteStateDirectory, P.LocalReadStateDirectory);
+        assertf(res == 0, "Failed to rename write to read!\n");
+    }
+}
+    
+
+void FinalizeWriteState() {
+    WriteNodeSlabs();  // We do this here because it will need a MPI Barrier
+
+    #ifdef PARALLEL
+        STDLOG(1,"Node MinCellSize = %d, MaxCellSize = %d\n", 
+            WriteState.MinCellSize, WriteState.MaxCellSize);
+        STDLOG(1,"Maximum v_j in node is %f.\n", WriteState.MaxVelocity);
+        STDLOG(1,"Maximum a_j in node is %f.\n", WriteState.MaxAcceleration);
+        STDLOG(1,"Minimum cell Vrms/Amax in node is %f.\n", WriteState.MinVrmsOnAmax);
+        STDLOG(1,"Unnormalized node RMS_Velocity = %f.\n", WriteState.RMS_Velocity);
+        STDLOG(1,"Unnormalized node StdDevCellSize = %f.\n", WriteState.StdDevCellSize);
+    
+        // If we're running in parallel, then we want to gather some
+        // state statistics across the nodes.  We start by writing the 
+        // original state file to the local disk.
+        // TODO: Do we really want to do this?  Maybe just echo the stats to the log?
+        // WriteState.write_to_file(P.WriteStateDirectory, NodeString);
+
+// #define MPI_REDUCE_IN_PLACE(vec,len,type,op) MPI_Reduce(MPI_rank!=0?(vec):MPI_IN_PLACE, vec, len, type, op, 0, MPI_COMM_WORLD)
+        // Now we need to do MPI reductions for stats
+        // These stats are all in double precision (or int)
+        // Maximize MaxAcceleration
+        MPI_REDUCE_TO_ZERO(&WriteState.MaxAcceleration, 1, MPI_DOUBLE, MPI_MAX);
+        // Maximize MaxVelocity
+        MPI_REDUCE_TO_ZERO(&WriteState.MaxVelocity, 1, MPI_DOUBLE, MPI_MAX);
+        // Minimize MinVrmsOnAmax
+        MPI_REDUCE_TO_ZERO(&WriteState.MinVrmsOnAmax, 1, MPI_DOUBLE, MPI_MIN);
+        // Minimize MinCellSize
+        MPI_REDUCE_TO_ZERO(&WriteState.MinCellSize, 1, MPI_INT, MPI_MIN);
+        // Maximize MaxCellSize
+        MPI_REDUCE_TO_ZERO(&WriteState.MaxCellSize, 1, MPI_INT, MPI_MIN);
+        // sqrt(Sum(SQR of RMS_Velocity))
+        MPI_REDUCE_TO_ZERO(&WriteState.RMS_Velocity, 1, MPI_DOUBLE, MPI_SUM);
+        // sqrt(Sum(SQR of StdDevCellSize))
+        MPI_REDUCE_TO_ZERO(&WriteState.StdDevCellSize, 1, MPI_DOUBLE, MPI_SUM);
+// #undef MPI_REDUCE_IN_PLACE
+
+        // Note that we're not summing up any timing or group finding reporting;
+        // these just go in the logs
+    #endif
+
+    WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
+        // This is the standard deviation of the fractional overdensity in cells.
+        // But for the parallel code: this has been divided by CPD^3, not the number of cells on the node
+    STDLOG(0,"MinCellSize = %d, MaxCellSize = %d\n", 
+        WriteState.MinCellSize, WriteState.MaxCellSize);
+    WriteState.RMS_Velocity = sqrt(WriteState.RMS_Velocity/P.np);
+    STDLOG(0,"Rms |v| in simulation is %f.\n", WriteState.RMS_Velocity);
+    STDLOG(0,"Maximum v_j in simulation is %f.\n", WriteState.MaxVelocity);
+    STDLOG(0,"Maximum a_j in simulation is %f.\n", WriteState.MaxAcceleration);
+    STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f.\n", WriteState.MinVrmsOnAmax);
+
+    return;
 }

@@ -17,3 +17,4 @@ core
 lsf-*.out
 *.prof
 *.lprof
+googletest

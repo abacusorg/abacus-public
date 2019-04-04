@@ -132,7 +132,7 @@ class FaceSet {
     as needed.
     */
     void ProcessCell(int j, int k) {
-	Cell c = PP->GetCell(face->slab, j, k);
+	Cell c = CP->GetCell(face->slab, j, k);
 	integer3 wc = GFC->WrapCell(face->slab, j, k);
 	CellPtr<CellGroup> cg = GFC->cellgroups[wc.x][wc.y][wc.z];
 	const FOFloat boundary = GFC->boundary;   // The boundaries, cell-centered
@@ -291,7 +291,7 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
 
     // We also need to account for the cell-centered positions
     FOFparticle offset;
-    //? int ret = posix_memalign((void **)&offset, 64, sizeof(FOFparticle));   assert(ret==0); // Need this aligned
+    //? int ret = posix_memalign((void **)&offset, CACHE_LINE_SIZE, sizeof(FOFparticle));   assert(ret==0); // Need this aligned
     int del_i = c2.slab_prewrap - c1.slab_prewrap;   // Need this info before wrapping
     offset.x = GFC->invcpd*FOF_RESCALE*(del_i);
     offset.y = GFC->invcpd*FOF_RESCALE*(j2-j1);

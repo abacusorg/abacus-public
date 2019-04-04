@@ -496,14 +496,14 @@ while (fread(&particle, sizeof(pack14), 1, fp)!=EOF) {
 // Sample code to write one abacus cell to a file:
 
 // Fetch the data and setup
-Cell c = PP->GetCell(i,j,k);
+Cell c = CP->GetCell(i,j,k);
 int vscale = 32;  // Choose this based on the max velocity
 float vel_to_zspace = 1.0;   // Apply the cosmological factor to get to zspace units
 
 // Write the cell:
 cell_header cell;
 pack14 particle;
-cell = particle.pack_cell(i,j,k,PP->cpd,vscale);
+cell = particle.pack_cell(i,j,k,CP->cpd,vscale);
 fwrite(&particle, sizeof(pack14), 1, fp);
 
 // And now the particles:

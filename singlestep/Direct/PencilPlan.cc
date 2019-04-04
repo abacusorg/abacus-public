@@ -21,7 +21,7 @@ void SinkPencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, in
     // start is the offset from the beginning of the buffers
     int cumulative_number = 0;
     FLOAT dz;
-    FLOAT cellsize = PP->invcpd;
+    FLOAT cellsize = CP->invcpd;
     for (int c=0; c<NearFieldRadius*2+1; c++) {
         FLOAT *p = (FLOAT *)SinkPosSlab + cell[c].start + 2*Nslab;
         int N = cell[c].N;
@@ -69,17 +69,17 @@ int SinkPencilPlan::load(int x, int y, int z, int NearFieldRadius) {
     wrapcell = -1;
 
     int total = 0;
-    FLOAT cellsize = PP->invcpd;
+    FLOAT cellsize = CP->invcpd;
     const int width = NearFieldRadius*2+1;
     for (int c=0; c<width; c++) {
         int zc = z+c-width/2;
-        cellinfo *info = PP->CellInfo(x,y,zc);
+        cellinfo *info = CP->CellInfo(x,y,zc);
         cell[c].start = info->startindex;
         cell[c].N = info->count;
         total += (int) cell[c].N;
         #ifdef GLOBAL_POS
             // Can use the z cell number to do this.
-            cell[c].offset = (zc-PP->WrapSlab(zc))*cellsize;
+            cell[c].offset = (zc-CP->WrapSlab(zc))*cellsize;
         #endif
 
         // We could simply use the cell coords, but best to check cell continuity for sanity
@@ -166,7 +166,7 @@ void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, 
     // start is the offset from the beginning of the buffers
     int cumulative_number = 0;
     FLOAT dx;
-    FLOAT cellsize = PP->invcpd;
+    FLOAT cellsize = CP->invcpd;
     int width = NearFieldRadius*2+1;
     for (int c=0; c<width; c++) {
         int N = cell[c].N;
@@ -196,17 +196,19 @@ int SourcePencilPlan::load(int x, int y, int z, int NearFieldRadius) {
     // Given the center cell index, load the cell information
     // Return the total number of particles in the cell (un-padded)
     int total = 0;
-    FLOAT cellsize = PP->invcpd;
+    FLOAT cellsize = CP->invcpd;
     const int width = NearFieldRadius*2+1;
     for (int c=0; c<width; c++) {
         int xc = x+c-width/2;
-        cellinfo *info = PP->CellInfo(xc,y,z);
+        
+        cellinfo *info = CP->CellInfo(xc,y,z);
         cell[c].start = info->startindex;
         cell[c].N = info->count;
+
         total += (int) cell[c].N;
         #ifdef GLOBAL_POS
             // Can use the x cell number to do this.
-            cell[c].offset = (xc-PP->WrapSlab(xc))*cellsize;
+            cell[c].offset = (xc-CP->WrapSlab(xc))*cellsize;
         #endif
     }
     return total;

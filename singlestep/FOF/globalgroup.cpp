@@ -16,7 +16,7 @@ class PencilStats {
   public:
     float work;   // The estimated amount of work this pencil will require
     int pnum;         // The pencil number
-    int pad[14];   // To avoid cache line contention.
+    uint8_t pad[CACHE_LINE_SIZE-8];   // To avoid cache line contention.
     
     PencilStats() { pnum = -1; work = 0.0; }
     // We provide a sort operator that will yield a decreasing list
@@ -67,7 +67,7 @@ class LinkPencil {
   public:
     GroupLink *data;   ///< Where this pencil starts
     LinkIndex *cells;         ///< [0,cpd)
-    // uint64 pad[6];        // To fill up 64 bytes
+    // uint8_t pad[CACHE_LINE_SIZE];        // To fill up 64 bytes
 
     LinkPencil() { data = NULL; cells = NULL; }
     ~LinkPencil() {}
@@ -145,7 +145,7 @@ class GlobalGroupSlab {
         assertf(pstat==NULL, "GlobalGroupSlab setup is not legal");    // Otherwise, we're re-allocating something!
         pos = NULL; vel = NULL; aux = NULL; acc = NULL; np = 0;
         slab = GFC->WrapSlab(_slab); largest_group = 0;
-        int ret = posix_memalign((void **) &pstat, 64, sizeof(PencilStats)*GFC->cpd);
+        int ret = posix_memalign((void **) &pstat, CACHE_LINE_SIZE, sizeof(PencilStats)*GFC->cpd);
         assert(ret==0);
         for (int j=0; j<GFC->cpd; j++) pstat[j].reset(j);
 
@@ -178,7 +178,7 @@ class GlobalGroupSlab {
         ret = posix_memalign((void **)&pos, 4096, sizeof(posstruct)*np); assert(ret==0);
         ret = posix_memalign((void **)&vel, 4096, sizeof(velstruct)*np); assert(ret==0);
         ret = posix_memalign((void **)&aux, 4096, sizeof(auxstruct)*np); assert(ret==0);
-        if(LBW->IDPresent(AccSlab,slab))  // leave NULL if no acc
+        if(SB->IsSlabPresent(AccSlab,slab))  // leave NULL if no acc
             ret = posix_memalign((void **)&acc, 4096, sizeof(accstruct)*np); assert(ret==0);
     }
 
@@ -240,14 +240,14 @@ void GlobalGroupSlab::CreateGlobalGroups() {
     LinkPencil **links;                // For several slabs and all pencils in each
     links = (LinkPencil **)malloc(sizeof(LinkPencil *)*diam);
 
-    {int ret = posix_memalign((void **)&(links[0]), 64, sizeof(LinkPencil)*diam*cpd); assert(ret==0);}
+    {int ret = posix_memalign((void **)&(links[0]), CACHE_LINE_SIZE, sizeof(LinkPencil)*diam*cpd); assert(ret==0);}
     for (int j=1; j<diam; j++) links[j] = links[j-1]+cpd;
     LinkIndex *cells;
-    {int ret = posix_memalign((void **)&cells, 64, sizeof(LinkIndex)*diam*cpd*cpdpad); assert(ret==0);}
+    {int ret = posix_memalign((void **)&cells, CACHE_LINE_SIZE, sizeof(LinkIndex)*diam*cpd*cpdpad); assert(ret==0);}
     // cells = (LinkIndex *)malloc(sizeof(LinkIndex)*diam*cpd*cpdpad);
     for (int s=0; s<diam; s++) {
         int thisslab = GFC->WrapSlab(slab+s-diam/2);
-        assertf(GFC->cellgroups_status[thisslab]>0, "Cellgroup slab not present.  Something is wrong in dependencies!");
+        assertf(GFC->cellgroups_status[thisslab]>0, "Cellgroup slab %d not present (value %d).  Something is wrong in dependencies!\n", thisslab, GFC->cellgroups_status[thisslab]);
             // Just to check that the CellGroups are present or already closed.
         #pragma omp parallel for schedule(dynamic,1)
         for (int j=0; j<cpd; j++) {
@@ -449,7 +449,7 @@ void GlobalGroupSlab::GatherGlobalGroups() {
                     // printf("%d %d %d %d in %d %d %d n=%d\n", 
                         // j, k, n, c, cellijk.x, cellijk.y, cellijk.z, cg->size());
                     // CellGroup cg = GFC->cellgroups[cellijk.x][cellijk.y][cellijk.z][cglink->cellgroup()];
-                    Cell cell = PP->GetCell(cellijk);
+                    Cell cell = CP->GetCell(cellijk);
                     // Copy the particles, including changing positions to 
                     // the cell-centered coord of the first cell.  
                     // Note periodic wrap.
@@ -506,7 +506,7 @@ void GlobalGroupSlab::ScatterGlobalGroupsAux() {
                     // Loop over CellGroups
                     integer3 cellijk = cglink->cell();
                     CellGroup *cg = LinkToCellGroup(*cglink);
-                    Cell cell = PP->GetCell(cellijk);
+                    Cell cell = CP->GetCell(cellijk);
                     // Copy the aux back
                     memcpy(cell.aux+cg->start, aux+start, sizeof(auxstruct)*cg->size());
                     start += cg->size();
@@ -546,7 +546,7 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
                     // Loop over CellGroups
                     integer3 cellijk = cglink->cell();
                     CellGroup *cg = LinkToCellGroup(*cglink);
-                    Cell cell = PP->GetCell(cellijk);
+                    Cell cell = CP->GetCell(cellijk);
                     // Copy the particles, including changing positions to 
                     // the cell-centered coord of the first cell.  
                     // Note periodic wrap.
@@ -707,7 +707,7 @@ void GlobalGroupSlab::FindSubGroups() {
 
                     // Output the Taggable Particles. 
 		    // If P.OutputAllHaloParticles is set, then we output all L1 particles
-                    posstruct offset = PP->CellCenter(slab, j, k);
+                    posstruct offset = CP->CellCenter(slab, j, k);
                     for (int b=0; b<size; b++)
                         if (groupaux[start[b].index()].is_taggable()
 				|| P.OutputAllHaloParticles) {
@@ -901,22 +901,22 @@ void GlobalGroupSlab::HaloOutput() {
     // Write out the taggable particles not in L1 halos
         // TODO: better heuristic? what will happen in very small sims?  Also technically HaloTaggableFraction is only used in the IC step
         uint64 maxsize = P.np*P.HaloTaggableFraction*1.05;
-        LBW->AllocateSpecificSize(TaggableFieldSlab, slab, maxsize*sizeof(RVfloat));
-        LBW->AllocateSpecificSize(TaggableFieldPIDSlab, slab, maxsize*sizeof(TaggedPID));
+        SB->AllocateSpecificSize(TaggableFieldSlab, slab, maxsize*sizeof(RVfloat));
+        SB->AllocateSpecificSize(TaggableFieldPIDSlab, slab, maxsize*sizeof(TaggedPID));
         
     uint64 nfield = GatherTaggableFieldParticles(slab,
-                        (RVfloat *) LBW->ReturnIDPtr(TaggableFieldSlab, slab),
-                        (TaggedPID *) LBW->ReturnIDPtr(TaggableFieldPIDSlab, slab),
+                        (RVfloat *) SB->GetSlabPtr(TaggableFieldSlab, slab),
+                        (TaggedPID *) SB->GetSlabPtr(TaggableFieldPIDSlab, slab),
                         WriteState.FirstHalfEtaKick);
         if(nfield > 0){
                 // only write the uniform subsample files if they will have non-zero size
-                LBW->ResizeSlab(TaggableFieldSlab, slab, nfield*sizeof(RVfloat));
-                LBW->ResizeSlab(TaggableFieldPIDSlab, slab, nfield*sizeof(TaggedPID));
-                LBW->StoreArenaNonBlocking(TaggableFieldSlab, slab);
-                LBW->StoreArenaNonBlocking(TaggableFieldPIDSlab, slab);
+                SB->ResizeSlab(TaggableFieldSlab, slab, nfield*sizeof(RVfloat));
+                SB->ResizeSlab(TaggableFieldPIDSlab, slab, nfield*sizeof(TaggedPID));
+                SB->StoreArenaNonBlocking(TaggableFieldSlab, slab);
+                SB->StoreArenaNonBlocking(TaggableFieldPIDSlab, slab);
         } else {
-                LBW->DeAllocate(TaggableFieldSlab, slab);
-                LBW->DeAllocate(TaggableFieldPIDSlab, slab);
+                SB->DeAllocate(TaggableFieldSlab, slab);
+                SB->DeAllocate(TaggableFieldPIDSlab, slab);
         }
                 
     if (L1halos.pencils == NULL || L1halos.get_slab_size() == 0){
@@ -929,29 +929,29 @@ void GlobalGroupSlab::HaloOutput() {
         // No point making empty files!
 
     // Write out the stats on the L1 halos
-        LBW->AllocateSpecificSize(L1halosSlab, slab, L1halos.get_slab_bytes());
-    L1halos.copy_to_ptr((HaloStat *)LBW->ReturnIDPtr(L1halosSlab, slab));
-    LBW->StoreArenaNonBlocking(L1halosSlab, slab);
+        SB->AllocateSpecificSize(L1halosSlab, slab, L1halos.get_slab_bytes());
+    L1halos.copy_to_ptr((HaloStat *)SB->GetSlabPtr(L1halosSlab, slab));
+    SB->StoreArenaNonBlocking(L1halosSlab, slab);
 
     // Write out tagged PIDs from the L1 halos
-        LBW->AllocateSpecificSize(TaggedPIDsSlab, slab, TaggedPIDs.get_slab_bytes());
-    TaggedPIDs.copy_to_ptr((TaggedPID *)LBW->ReturnIDPtr(TaggedPIDsSlab, slab));
-    LBW->StoreArenaNonBlocking(TaggedPIDsSlab, slab);
+        SB->AllocateSpecificSize(TaggedPIDsSlab, slab, TaggedPIDs.get_slab_bytes());
+    TaggedPIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(TaggedPIDsSlab, slab));
+    SB->StoreArenaNonBlocking(TaggedPIDsSlab, slab);
 
     // Write out the pos/vel of the taggable particles in L1 halos
-        LBW->AllocateSpecificSize(L1ParticlesSlab, slab, L1Particles.get_slab_bytes());
-    L1Particles.copy_convert((RVfloat *)LBW->ReturnIDPtr(L1ParticlesSlab, slab),
+        SB->AllocateSpecificSize(L1ParticlesSlab, slab, L1Particles.get_slab_bytes());
+    L1Particles.copy_convert((RVfloat *)SB->GetSlabPtr(L1ParticlesSlab, slab),
         // somewhat experimental: pass a lambda to convert velocities to ZSpace
         [](RVfloat xv) {  xv.vel[0] *= 1./ReadState.VelZSpace_to_Canonical;
                           xv.vel[1] *= 1./ReadState.VelZSpace_to_Canonical;
                           xv.vel[2] *= 1./ReadState.VelZSpace_to_Canonical;
                           return xv; } );
-    LBW->StoreArenaNonBlocking(L1ParticlesSlab, slab);
+    SB->StoreArenaNonBlocking(L1ParticlesSlab, slab);
 
     // Write out the PIDs of the taggable particles in the L1 halos
-        LBW->AllocateSpecificSize(L1PIDsSlab, slab, L1PIDs.get_slab_bytes());
-    L1PIDs.copy_to_ptr((TaggedPID *)LBW->ReturnIDPtr(L1PIDsSlab, slab));
-    LBW->StoreArenaNonBlocking(L1PIDsSlab, slab);
+        SB->AllocateSpecificSize(L1PIDsSlab, slab, L1PIDs.get_slab_bytes());
+    L1PIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(L1PIDsSlab, slab));
+    SB->StoreArenaNonBlocking(L1PIDsSlab, slab);
 
     GFC->OutputLevel1.Stop();
 
@@ -977,9 +977,9 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
 
     // Setup the Arena
     int headersize = 1024*1024;
-    LBW->AllocateSpecificSize(L0TimeSlice, slab, np*AA->sizeof_particle()
+    SB->AllocateSpecificSize(L0TimeSlice, slab, np*AA->sizeof_particle()
                                 + ncellgroups*AA->sizeof_cell() + headersize);
-    AA->initialize(L0TimeSlice, slab, PP->cpd, ReadState.VelZSpace_to_Canonical);
+    AA->initialize(L0TimeSlice, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
 
     // add the ParseHeader
     AA->addheader((const char *) P.header());
@@ -1010,7 +1010,7 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
                     // Loop over CellGroups
                     integer3 cellijk = cglink->cell();
                     CellGroup *cg = LinkToCellGroup(*cglink);
-                    Cell _cell = PP->GetCell(cellijk);
+                    Cell _cell = CP->GetCell(cellijk);
                     // Convert pos back to global. Note periodic wrap.
                     cellijk -= firstcell;
                     if (cellijk.x> diam) cellijk.x-=GFC->cpd;
@@ -1037,10 +1037,10 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
                 }
             }
 
-    LBW->ResizeSlab(L0TimeSlice, slab, AA->bytes_written());
+    SB->ResizeSlab(L0TimeSlice, slab, AA->bytes_written());
 
     // Write out this time slice
-    LBW->StoreArenaNonBlocking(L0TimeSlice, slab);
+    SB->StoreArenaNonBlocking(L0TimeSlice, slab);
     delete AA;
 
     return n_added;

@@ -25,9 +25,6 @@ be consistent with loadIC.  Best to force that with a function!
 
 */
 
-// Bookkeeping for 2LPT velocity re-reading
-uint64 *vel_ics_npart;
-
 // Provide a simple routine to check that this is an LPT IC step.
 
 int LPTStepNumber() {
@@ -52,7 +49,7 @@ uint64 ZelPID(integer3 ijk) {
 double3 ZelPos(integer3 ijk) {
     // This will be the position, in code units, of the initial grid.
     double3 p;
-    //ijk = PP->WrapCell(ijk);
+    //ijk = CP->WrapCell(ijk);
     p.x = (double)(ijk.x)/WriteState.ppd -.5;
     p.y = (double)(ijk.y)/WriteState.ppd -.5;
     p.z = (double)(ijk.z)/WriteState.ppd -.5;
@@ -95,7 +92,7 @@ void DriftCell_2LPT_1(Cell &c, FLOAT driftfactor) {
     // Set cellcenter to zero to return to box-centered positions
     double3 cellcenter = double3(0.0);
 #else
-    double3 cellcenter = PP->WrapCellCenter(c.ijk);
+    double3 cellcenter = CP->WrapCellCenter(c.ijk);
 #endif
 
     for (int b = 0; b<e; b++) {
@@ -115,35 +112,22 @@ void KickCell_2LPT_2(Cell &c, FLOAT kick1, FLOAT kick2) {
     }
 }
 
-// Allocate 2LPT velocity bookkeeping
-void init_2lpt_rereading(){
-    vel_ics_npart = new uint64[P.cpd]();
-}
-
-// Free 2LPT velocity bookkeeping
-void finish_2lpt_rereading(){
-    for(int i = 0; i < P.cpd; i++)
-        assertf(!LBW->IDPresent(VelLPTSlab, i), "A 2LPT velocity slab was left loaded\n");
-    delete[] vel_ics_npart;
-}
-
 // Load an IC velocity slab into an arena through the LoadIC module
 void load_ic_vel_slab(int slabnum){
-    slabnum = PP->WrapSlab(slabnum);
-    assertf(!LBW->IDPresent(VelLPTSlab, slabnum), "Trying to re-load velocity IC slab %d, which is already loaded.\n", slabnum);
+    slabnum = CP->WrapSlab(slabnum);
+    assertf(!SB->IsSlabPresent(VelLPTSlab, slabnum), "Trying to re-load velocity IC slab %d, which is already loaded.\n", slabnum);
     
-    assertf(vel_ics_npart[slabnum] == 0, "Trying to load velocity IC slab %d, which should have already been completely re-read for 2LPT.\n", slabnum);
     STDLOG(1, "Re-reading velocity IC slab %d\n", slabnum);
     
     // Initialize the arena
-    velstruct* slab = (velstruct*) LBW->AllocateArena(VelLPTSlab, slabnum);  // Automatically determines the arena size from the IC file size 
+    velstruct* slab = (velstruct*) SB->AllocateArena(VelLPTSlab, slabnum);  // Automatically determines the arena size from the IC file size 
     
     // Use the LoadIC module to do the reading
     ICfile* ic_file;
     if(strcmp(P.ICFormat, "RVdoubleZel") == 0){
-        ic_file = new ICfile_RVdoubleZel((char*)LBW->ReadSlabDescriptorName(VelLPTSlab, slabnum).c_str());
+        ic_file = new ICfile_RVdoubleZel((char*)SB->ReadSlabPath(VelLPTSlab, slabnum).c_str());
     } else if(strcmp(P.ICFormat, "RVZel") == 0){
-        ic_file = new ICfile_RVZel((char*)LBW->ReadSlabDescriptorName(VelLPTSlab, slabnum).c_str());
+        ic_file = new ICfile_RVZel((char*)SB->ReadSlabPath(VelLPTSlab, slabnum).c_str());
     }
     
     uint64 count = 0;
@@ -152,18 +136,16 @@ void load_ic_vel_slab(int slabnum){
     auxstruct aux;
     while (ic_file->getparticle(&pos, &vel, &aux)) {
         vel *= WriteState.VelZSpace_to_Canonical;
-        slab[count] = vel;
-        count++;
+        slab[count++] = vel;
     }
     
-    // Initialize the VelIC struct, as a signal that the slab is truly ready
-    vel_ics_npart[slabnum] = LBW->IDSizeBytes(VelLPTSlab, slabnum) / sizeof(velstruct);
-    
-    assertf(count == vel_ics_npart[slabnum], "The number of particles (%d) read from slab %d did not match the number computed from its file size (%d)\n", slabnum, count, vel_ics_npart[slabnum]);
+    assertf(count * sizeof(velstruct) == SB->SlabSizeBytes(VelLPTSlab, slabnum),
+        "The size of particle vel data (%d) read from slab %d did not match the arena size (%d)\n", count, slab, SB->SlabSizeBytes(VelLPTSlab, slabnum));
     delete ic_file;
 }
 
 // Returns the IC velocity of the particle with the given PID
+// TODO: this "random access" lookup is really slow.  Consider whether there's another way to phrase this.
 inline velstruct* get_ic_vel(uint64 pid){
     integer3 ijk = ZelIJK(pid);
     int slabnum = ijk.x*P.cpd / WriteState.ppd;  // slab number
@@ -172,16 +154,16 @@ inline velstruct* get_ic_vel(uint64 pid){
     // We know the exact slab number and position of the velocity we want.
     uint64 offset = ijk.z + WriteState.ppd*(ijk.y + WriteState.ppd*slab_offset);
     
-    assertf(LBW->IDPresent(VelLPTSlab, slabnum), "IC vel slab %d not loaded.  Possibly an IC particle crossed two slab boundaries?\n", slabnum);
+    assertf(SB->IsSlabPresent(VelLPTSlab, slabnum), "IC vel slab %d not loaded.  Possibly an IC particle crossed more than FINISH_WAIT_RADIUS=%d slab boundaries?\n", slabnum, FINISH_WAIT_RADIUS);
     
-    velstruct* slab = (velstruct*) LBW->ReturnIDPtr(VelLPTSlab, slabnum);
+    velstruct* slab = (velstruct*) SB->GetSlabPtr(VelLPTSlab, slabnum);
     
-    assertf(offset < vel_ics_npart[slabnum], "Tried to read particle %lld from IC slab %d, which only has %d particles\n", offset, slabnum, vel_ics_npart[slabnum]);  // Ensure that we're not reading past the end of the slab
+    // Ensure that we're not reading past the end of the slab
+    assertf(offset < SB->SlabSizeBytes(VelLPTSlab, slabnum)/sizeof(velstruct),
+        "Tried to read particle %d from IC slab %d, which only has %d particles\n", offset, slabnum, SB->SlabSizeBytes(VelLPTSlab, slabnum)/sizeof(velstruct));
     velstruct* vel = slab + offset;
     
-    assertf(std::isfinite(vel->x), "vel.x bad value: %f\n", vel->x);
-    assertf(std::isfinite(vel->y), "vel.y bad value: %f\n", vel->y);
-    assertf(std::isfinite(vel->z), "vel.z bad value: %f\n", vel->z);
+    assertf(vel->is_finite(), "vel bad value: (%f,%f,%f)\n", vel->x, vel->y, vel->z);
 
     return vel;
 }
@@ -201,7 +183,7 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
     // Set cellcenter to zero to return to box-centered positions
     double3 cellcenter = double3(0.0);
 #else
-    double3 cellcenter = PP->WrapCellCenter(c.ijk);
+    double3 cellcenter = CP->WrapCellCenter(c.ijk);
 #endif
     
     double H = 1;
@@ -225,13 +207,13 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
             vel1 = WriteState.f_growth*displ1*convert_velocity;
         }
         // If we were supplied with Zel'dovich velocities and displacements,
-        // we want to re-read the IC files to restore the velocities, which were overwritten above
+        // we want to re-read the IC files to restore the velocities, which were overwritten in the 1st 2LPT step
         else if(WriteState.Do2LPTVelocityRereading){
             vel1 = *get_ic_vel(c.aux[b].pid());
         }
         // Unexpected IC format; fail.
         else {
-            assertf(false, "Unexpected ICformat \"%s\" in 2LPT code.  Must be one of: Zeldovich, RVdoubleZel, RVZel\n", P.ICFormat);
+            QUIT("Unexpected ICformat \"%s\" in 2LPT code.  Must be one of: Zeldovich, RVdoubleZel, RVZel\n", P.ICFormat);
         }
         
         c.vel[b] = vel1 + WriteState.f_growth*2*displ2*convert_velocity;
@@ -263,7 +245,7 @@ void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
     // Set cellcenter to zero to return to box-centered positions
     double3 cellcenter = double3(0.0);
 #else
-    double3 cellcenter = PP->WrapCellCenter(c.ijk);
+    double3 cellcenter = CP->WrapCellCenter(c.ijk);
 #endif
     
     double H = 1;

@@ -1,0 +1,32 @@
+StateIOMode = "overwrite"
+Conv_IOMode = "overwrite"
+RamDisk = 1
+#IODirs = ["multipole/", "taylor/", "multipole2/", "taylor2/"]
+#nIODirs = 4
+#IODirThreads = [2, 2, 3, 3]
+#MAXRAMMB = 200000  # This will be automatically detected
+# ConvolutionCacheSizeMB = 30  # This will be automatically detected
+
+# OpenMP and thread parameters
+OMP_NUM_THREADS = 36
+OMP_PLACES = "{0}:18:4,{88}:18:4"
+OMP_PROC_BIND = "spread"
+IOCores = [0]
+GPUThreadCoreStart = [72, 76, 80, 160, 164, 168]
+NGPUThreadCores = 1  # will this work when we're supposed to use cores 0,8,16, etc?
+
+# Convolution OpenMP parameters
+Conv_OMP_NUM_THREADS = 42
+Conv_OMP_PLACES = "{0}:21:4,{88}:21:4"
+Conv_OMP_PROC_BIND = "spread"
+Conv_IOCores = [0]
+Conv_zwidth = 0
+
+Parallel = 1
+mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -gALL_GPUS -b none"
+Conv_mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -b none"
+WorkingDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@
+LocalWorkingDirectory = "$ABACUS_SSD$/" + @SimName@
+DerivativesDirectory = "$ABACUS_PERSIST$/Derivatives"
+#MultipoleDirectory = @WorkingDirectory@ + "/multipole"
+#TaylorDirectory = @WorkingDirectory@ + "/taylor"

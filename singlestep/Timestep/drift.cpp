@@ -19,10 +19,10 @@ inline void DriftCell(Cell &c, FLOAT driftfactor) {
 
 // Unlike DriftCell, this operator drifts the whole slab
 void DriftSlab(int slab, FLOAT driftfactor){
-    FLOAT* pos = (FLOAT *) LBW->ReturnIDPtr(PosSlab, slab);
-    FLOAT* vel = (FLOAT *) LBW->ReturnIDPtr(VelSlab, slab);
+    FLOAT* pos = (FLOAT *) SB->GetSlabPtr(PosSlab, slab);
+    FLOAT* vel = (FLOAT *) SB->GetSlabPtr(VelSlab, slab);
 
-    uint64 N = 3*Slab->size(slab);
+    uint64 N = 3*SS->size(slab);
 
     #pragma omp parallel for schedule(static)
     //#pragma simd assert
@@ -39,9 +39,9 @@ inline int RebinCell(Cell &c, int x, int y, int z) {
     // end is then moved in.
 
     #ifdef GLOBALPOS
-        posstruct cellcenter = PP->LocalCellCenter(x,y,z);
+        posstruct cellcenter = CP->LocalCellCenter(x,y,z);
     #endif
-    FLOAT halfinvcpd = PP->halfinvcpd;
+    FLOAT halfinvcpd = CP->halfinvcpd;
     int b = 0;
     int e = c.count();
 
@@ -73,7 +73,7 @@ inline int RebinCell(Cell &c, int x, int y, int z) {
 // So far, it appears to be very slightly slower in practice
 // TODO: neither approach seems really vector friendly.  We could do one sweep to establish high/low, and another to rebin via bitmask
 inline int RebinCell2(Cell &c, int x, int y, int z) {
-    FLOAT halfinvcpd = PP->halfinvcpd;
+    FLOAT halfinvcpd = CP->halfinvcpd;
     int b = 0;
     int count = c.count();
     int e = count-1;
@@ -122,7 +122,7 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
 
     wc.Start();
     
-    int cpd = PP->cpd;
+    int cpd = CP->cpd;
 
     uint64 ILbefore = IL->length;
 
@@ -132,7 +132,7 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
             // We'll do the drifting and rebinning separately because
             // sometimes we'll want special rules for drifting.
             Cell c;
-            c = PP->GetCell(slab ,y,z);
+            c = CP->GetCell(slab ,y,z);
             move.Start();
             (*DriftCell)(c,driftfactor);
             move.Stop();
@@ -169,7 +169,7 @@ void DriftSlabAndCopy2InsertList(int slab, FLOAT driftfactor, void (*DriftSlab)(
     STimer move;
     STimer rebin;
     
-    int cpd = PP->cpd;
+    int cpd = CP->cpd;
 
     uint64 ILbefore = IL->length;
     
@@ -183,7 +183,7 @@ void DriftSlabAndCopy2InsertList(int slab, FLOAT driftfactor, void (*DriftSlab)(
         for(int z=0;z<cpd;z++) {
             // We'll do the drifting and rebinning separately because
             // sometimes we'll want special rules for drifting.
-            Cell c = PP->GetCell(slab ,y,z);
+            Cell c = CP->GetCell(slab ,y,z);
             RebinCell(c, slab, y, z);
         }
     }

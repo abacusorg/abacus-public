@@ -4,9 +4,6 @@
 #include <cassert>
 #include <sys/time.h>
 
-// TODO: move this to configure
-#define CACHE_LINE_SIZE 64
-
 class PTimer {
 public:
     PTimer(void); 

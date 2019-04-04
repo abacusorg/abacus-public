@@ -1,3 +1,10 @@
+/*
+ * This class creates an AppendArena object of the desired output type
+ * and repeatedly calls "addparticle()" on it.  The actual implementation
+ * of the writing functions is in appendarena.cpp.
+ *
+*/
+
 #include "appendarena.cpp"
 
 AppendArena *get_AA_by_format(const char* format){
@@ -43,10 +50,10 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
 
     // Setup the Arena
     int headersize = 1024*1024;
-    LBW->AllocateSpecificSize(TimeSlice, slab, 
-    	   Slab->size(slab)*(AA->sizeof_particle())
-	+ PP->cpd*(PP->cpd)*(AA->sizeof_cell()) + headersize);
-    AA->initialize(TimeSlice, slab, PP->cpd, ReadState.VelZSpace_to_Canonical);
+    SB->AllocateSpecificSize(TimeSlice, slab, 
+    	   SS->size(slab)*(AA->sizeof_particle())
+	+ CP->cpd*(CP->cpd)*(AA->sizeof_cell()) + headersize);
+    AA->initialize(TimeSlice, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
 
     // Write the header to its own file
     if(slab == 0){
@@ -74,9 +81,9 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     velstruct vel;
     integer3 ijk(slab,0,0);
     uint64 n_added = 0;
-    for (ijk.y=0; ijk.y<PP->cpd; ijk.y++) 
-        for (ijk.z=0;ijk.z<PP->cpd;ijk.z++) {
-            Cell c = PP->GetCell(ijk);
+    for (ijk.y=0; ijk.y<CP->cpd; ijk.y++) 
+        for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
+            Cell c = CP->GetCell(ijk);
 
             // We sometimes use the maximum velocity to scale.
             // But we do not yet have the global velocity (slab max will be set in Finish,
@@ -89,7 +96,7 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
             AA->addcell(ijk, vscale);
             
             // Now pack the particles
-            accstruct *acc = PP->AccCell(ijk);
+            accstruct *acc = CP->AccCell(ijk);
             for (int p=0;p<c.count();p++) {
                 vel = (c.vel[p] - TOFLOAT3(acc[p])*unkickfactor);    // We supply in code units
                 // Detail: we write particles with their L0 bits intact.  So if we want to run a non-group-finding step
@@ -102,10 +109,10 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
             AA->endcell();
         }
 
-    LBW->ResizeSlab(TimeSlice, slab, AA->bytes_written());
+    SB->ResizeSlab(TimeSlice, slab, AA->bytes_written());
 
     // Write out this time slice
-    LBW->StoreArenaNonBlocking(TimeSlice, slab);
+    SB->StoreArenaNonBlocking(TimeSlice, slab);
     delete AA;
     
     return n_added;

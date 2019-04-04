@@ -308,7 +308,7 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     minvalue[Nparts] = maxkey;    // Just for interpolation
 
     unsigned int *index;
-    assert(posix_memalign((void **)&index, 64, sizeof(unsigned int)*(Nsublist*Nparts+1))==0);
+    assert(posix_memalign((void **)&index, CACHE_LINE_SIZE, sizeof(unsigned int)*(Nsublist*Nparts+1))==0);
     index[Nsublist*Nparts] = N;
     for (int j=0; j<Nsublist; j++) index[j*Nparts] = j*sublistsize;
     // We will have to fill in the other values as we go.

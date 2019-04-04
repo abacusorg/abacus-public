@@ -10,7 +10,7 @@ void SetInteractionCollection::CPUExecute(){
     
     int WIDTH = nfwidth;
     
-    FLOAT cpu_eps = JJ->SofteningLengthInternal*JJ->SofteningLengthInternal;
+    FLOAT cpu_eps = NFD->SofteningLengthInternal*NFD->SofteningLengthInternal;
     
     // This hasn't been allocated yet, so do it here.
     assert(posix_memalign((void **) &SinkSetAccelerations, 4096, sizeof(accstruct) * PaddedSinkTotal) == 0);

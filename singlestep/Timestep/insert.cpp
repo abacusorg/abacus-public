@@ -205,7 +205,7 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     FinishPartition.Start();
 
     // We've been pushing particles to spread-out locations in the MAL; now make them contiguous
-    CollectGaps();
+    CollectGaps();   
 
     uint64 mid = ParallelPartition(list, length, slab, is_in_slab);  // [0..mid-1] are not in slab, [mid..length-1] are in slab
 
@@ -232,11 +232,11 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     slablength = length - mid;
 
     FinishPartition.Stop();
-    STDLOG(2, "Partition done; starting sort.\n");
+    STDLOG(2, "Partition done, yielding %d particles; starting sort.\n", slablength);
     FinishSort.Start();
 
     ilstruct *ilnew;
-    assert(posix_memalign((void **)&ilnew, 64, sizeof(ilstruct)*(slablength)) == 0);
+    assert(posix_memalign((void **)&ilnew, CACHE_LINE_SIZE, sizeof(ilstruct)*(slablength)) == 0);
 
     MultiMergeSort<ilstruct> mm;
     mm.mmsort(&(list[mid]), ilnew, slablength, cpd*cpd, 2e6, 16);

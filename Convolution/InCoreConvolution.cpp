@@ -1,5 +1,3 @@
-#define MAXORDER 16
-
 class InCoreConvolution : public basemultipoles {
 public:
     InCoreConvolution(int order, int cpd, int blocksize) : 

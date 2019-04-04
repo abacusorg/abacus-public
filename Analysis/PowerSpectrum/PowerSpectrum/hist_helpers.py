@@ -178,13 +178,13 @@ def whist_helper_3D(boxsize, values, bin_edges, rfft, multipoles=np.array([0])):
     _hist = np.zeros((nx, nbp1-1, n_poles), dtype=values.dtype)
 
     for i in nb.prange(nx):
-        dx2 = (_dx*(i if i <= nx//2 else nx - i))**2
+        dx2 = ((i if i <= nx//2 else nx - i)*_dx)**2
         for j in range(ny):
-            dy2 = (_dy*(j if j <= ny//2 else ny - j))**2
+            dy2 = ((j if j <= ny//2 else ny - j)*_dy)**2
             
-            b = 0
+            b = 1
             for k in range(nznyquist):
-                dz2 = (_dz*k)**2
+                dz2 = (k*_dz)**2
                 dist2 = dx2 + dy2 + dz2
 
                 if dist2 < bmin2:

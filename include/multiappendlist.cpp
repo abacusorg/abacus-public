@@ -54,7 +54,7 @@ class MALgap {
     uint64 start;
     uint64 end;
     uint64 next;
-    uint64 pad[5];   // We want fill a 64-byte cache line to avoid contention
+    uint8_t pad[CACHE_LINE_SIZE-24];   // We want fill a cache line to avoid contention
     #define MALGAP_SIZE 512
     // We want something big enough that we don't have threads
     // waiting for the mutex to clear.  But small enough that 
@@ -100,7 +100,7 @@ public:
 
     MultiAppendList(uint64 maxlistsize) { 
         length = 0; 
-	longest = 0;
+        longest = 0;
         Ngaps = omp_get_max_threads();
         // we may try to grow the list by an extra block per thread
         maxlist = maxlistsize + MALGAP_SIZE*Ngaps;
@@ -143,7 +143,7 @@ public:
         // in an ad hoc manner.
         // Call this after CollectGaps()
         GrowMALGap(newlength);
-	if (length>longest) longest = length;
+        if (length>longest) longest = length;
         reset_gaps();
     }
 

@@ -10,7 +10,7 @@ class SortStruct {
       bool operator< (const SortStruct& c) const { return (aux.val<c.aux.val); }
 };
 
-class Particles {
+class CellParticles {
     public:
     int cpd;
     int cpd3;
@@ -25,10 +25,10 @@ class Particles {
     int *cell;   // Store the starting point of each cell
     int *n;      // Store the size of each cell
 
-    Particles() {
+    CellParticles() {
     	pos = NULL; vel = NULL; aux = NULL; acc = NULL; cell = NULL; n = NULL;
     }
-    ~Particles() {
+    ~CellParticles() {
 	if (pos!=NULL) free(pos); pos=NULL;
 	if (vel!=NULL) free(vel); vel=NULL;
 	if (aux!=NULL) free(aux); aux=NULL;
@@ -189,5 +189,5 @@ class Particles {
     }
 };
 
-Particles *PP;
+CellParticles *CP;
 

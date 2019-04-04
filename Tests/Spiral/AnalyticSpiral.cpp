@@ -113,7 +113,7 @@ void AnalyticSpiral::PMintegrate( float Aexpn, float Astep ) {
     for(i=0;i<blitzNX;i++) {
         l = i;
 
-        if( (l==0) ) Green[i]= 0;
+        if(l==0) Green[i]= 0;
         else {
             if( l > blitzNX/2 ) l = -(blitzNX-l);
             gg = -0.5 * ( cos(wx*l) - 1  );

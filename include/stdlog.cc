@@ -25,8 +25,10 @@ std::ofstream stdlog;
 int stdlog_threshold_global = 1;
 
 #define STDLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
-	LOG(stdlog,__VA_ARGS__); stdlog.flush(); } }
+	LOG(stdlog,__VA_ARGS__); } }
 
+// C++-style variadic args don't work well across compilation units, so ensure a pure-string
+// entry point for modules like the GPU directs
 void stdlog_hook(int verbosity, const char* str){
     STDLOG(verbosity, str);
 }
@@ -38,7 +40,7 @@ void stdlog_hook(int verbosity, const char* str){
 	STDLOG(0,"Timestamp %s\n", time.substr(0,time.length()-1)); \
     } while (0)
 
-#define QUIT(...) { STDLOG(0,"Fatal error (QUIT)\n"); STDLOG(0,__VA_ARGS__); stdlog.flush(); \
+#define QUIT(...) { STDLOG(0,"Fatal error (QUIT)\n"); STDLOG(0,__VA_ARGS__); \
         fprintf(stderr,"Fatal error (QUIT): "); \
 	fpprint(std::cerr, __VA_ARGS__); \
 	assert(0==98); }

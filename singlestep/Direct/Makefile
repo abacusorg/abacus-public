@@ -1,14 +1,13 @@
 ROOT_DIR := ../..
+
+# We invoke the "detect_gpus" recipe from the ./configure script, but common.mk won't yet exist!
+ifneq ($(MAKE_CONTEXT),AUTOCONF)
 include $(ROOT_DIR)/common.mk
+endif
 
 ifeq ($(CUDA_ENABLED),CUDA_ENABLED)
 
-# Weird that CUDA makes you do this manually!
-ARCHFLAGS = --generate-code arch=compute_35,code=sm_35\
-	    --generate-code arch=compute_30,code=sm_30\
-	    --generate-code arch=compute_52,code=sm_52\
-	    --generate-code arch=compute_52,code=sm_61\
-	    --generate-code arch=compute_60,code=sm_60
+ARCHFLAGS := --generate-code arch=compute_$(CUDA_ARCH),code=sm_$(CUDA_ARCH)
 
 # CUDA doesn't like to support recent g++ versions because they're untested,
 # but in practice they often work just fine.  The following is an example of
@@ -29,7 +28,7 @@ ARCHFLAGS = --generate-code arch=compute_35,code=sm_35\
 # _FORCE_INLINES fixes a weird compilation bug
 CPPFLAGS += -D_FORCE_INLINES
 
-CUDAFLAGS = $(ARCHFLAGS) -lineinfo -Xptxas="-v" -maxrregcount 63 --default-stream per-thread $(NVCC_FLAGS)
+CUDAFLAGS := $(ARCHFLAGS) -lineinfo -Xptxas="-v" --default-stream per-thread $(NVCC_FLAGS)
 
 all: gpudirect.a
 
@@ -43,7 +42,7 @@ ifeq (,$(findstring clean,$(MAKECMDGOALS)))
 endif
 
 GPUControl.d:
-	$(NVCC) $(CUDAFLAGS) -Xcompiler "$(NVCC_XCOMPILERFLAGS)" -M $(@:.d=.cu) -o $@
+	$(NVCC) $(NVCC_FLAGS) -Wno-deprecated-gpu-targets -Xcompiler "$(NVCC_XCOMPILERFLAGS)" -M $(@:.d=.cu) -o $@
 
 GPUControl.o: GPUControl.cu GPUControl.d
 	$(NVCC) $(CUDAFLAGS) -Xcompiler "$(NVCC_XCOMPILERFLAGS)" -o $@ -c $<
@@ -52,7 +51,12 @@ else
 all:
 endif
 
-BINARIES=avx512direct
+BINARIES=avx512direct detect_gpus
+
+# NVCC may not exist outside the CUDA_ENABLED region!
+# But ./configure won't invoke this unless we do have CUDA
+detect_gpus: detect_gpus.cu
+	$(NVCC) -Wno-deprecated-gpu-targets -o $@ $< -ccbin $(CXX)
 
 avx512direct: avx512direct.cc
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -DTEST -o $@ $<

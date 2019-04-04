@@ -11,12 +11,14 @@
 # We'd prefer to coordinate that all from here.
 
 CXX := @CXX@
-CC := @CXX@ -x c # Is this a canonical option?
-LDFLAGS := -Wl\,--as-needed  # seems to help us avoid a lot of mischief
+CC := @CXX@ -x c
+# seems to help us avoid a lot of mischief:
+LDFLAGS := -Wl\,--as-needed
 CXXFLAGS := -std=c++11
 ROOT_DIR ?= .
 OPT := -O3 -g
-CPPFLAGS := @DEFS@ -m64 -I $(ROOT_DIR)/include $(OPT) $(LDFLAGS)  # definitely not a preprocessor option, but it's the one flag we pass to gcc and g++
+# definitely not a preprocessor option, but it's the one flag we pass to gcc and g++:
+CPPFLAGS := @DEFS@ -m64 -I $(ROOT_DIR)/include $(OPT) $(LDFLAGS)
 #CPPFLAGS += -Wall  #TODO: clean up compiler warnings
 
 # We use bash syntax in some Makefiles
@@ -29,6 +31,7 @@ ifeq (@CUDA_ENABLED@,CUDA_ENABLED)
     CUDA_LIBS := @CUDA_LDFLAGS@ -lcuda -lcudart
     NVCC := @NVCC@
     CUDA_MAJOR_VER := @CUDA_MAJOR_VER@
+    CUDA_ARCH := @CUDA_ARCH@
 endif
 
 # It's not okay to link everything against tcmalloc.
@@ -46,8 +49,11 @@ endif
 ifeq (@AVX512MULTIPOLES@,AVX512MULTIPOLES_ENABLED)
     MULTIPOLES_OBJ += CMAVX512.o ETAVX512.o
 endif
+ifeq (@UNROLLEDMULTIPOLES@,UNROLLEDMULTIPOLES_ENABLED)
+    MULTIPOLES_OBJ += CM_unrolled.o ET_unrolled.o
+endif
 
-# Really only singlestep and friends should use @LIBS@. It's not safe to link everything against all the libs here (e.g. tcmalloc)
+# Really only singlestep and friends should use the following libs. It's not safe to link everything against all the libs here (e.g. tcmalloc)
 SINGLESTEP_LIBS := @LIBS@
 
 # Some of this setup could surely be done inside configure
@@ -72,7 +78,8 @@ READABACUS_LIBS := -L $(ROOT_DIR)/clibs
 PYTHON_CC := @PYTHON_CC@
 PYTHON_CXX := @PYTHON_CXX@
 PYTHON_LDFLAGS := @PYTHON_LDFLAGS@
-PYTHON_CPPFLAGS := $(CPPFLAGS)  # before we do icc customizations (in theory we could detect which compiler PYTHON_CC is)
+# before we do icc customizations (in theory we could detect which compiler PYTHON_CC is):
+PYTHON_CPPFLAGS := $(CPPFLAGS)
 
 # Define GNU/Intel specific compiler options
 # We do this towards the bottom of the Makefile so we can modify options set above
@@ -89,10 +96,15 @@ ifeq (@CXX@,g++)
         CPPFLAGS += -march=native
     endif
 
-    THREAD_CPPFLAGS += -foffload=disable  # offloading sends openmp to the GPU
+    # offloading sends openmp to the GPU
+    THREAD_CPPFLAGS += -foffload=disable
 else ifeq (@CXX@,icc)
     CPPFLAGS += -xHost -fp-model precise -fbuiltin -ip -mkl #-ipo #-prof-use=weighted
     NVCC_CPPFLAGS += -fp-model precise -ip -mkl
+else ifeq (@CXX@,clang++)
+    # for debugging clang under gdb
+    # clang refuses to catch exceptions. something to do with rtti?
+    CPPFLAGS += -D_GLIBCXX_DEBUG -frtti -fexceptions -fcxx-exceptions
 endif
 
 TCMALLOC_CPPFLAGS :=

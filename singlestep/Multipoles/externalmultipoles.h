@@ -6,6 +6,7 @@ typedef struct { double v[4]; } d4;
 #ifndef EXTERNALMULTIPOLES
 #define EXTERNALMULTIPOLES
 
+#ifdef AVXMULTIPOLES
  extern "C" void MultipoleKernel1(   d4 *ip1x, d4 *ip2x, d4 *ip1y, d4 *ip2y, d4 *ip1z, d4 *ip2z, d4 *cx, d4 *cy, d4 *cz, d4 *globalM, d4 *mass1, d4 *mass2); 
  extern "C" void MultipoleKernel2(   d4 *ip1x, d4 *ip2x, d4 *ip1y, d4 *ip2y, d4 *ip1z, d4 *ip2z, d4 *cx, d4 *cy, d4 *cz, d4 *globalM, d4 *mass1, d4 *mass2); 
  extern "C" void MultipoleKernel3(   d4 *ip1x, d4 *ip2x, d4 *ip1y, d4 *ip2y, d4 *ip1z, d4 *ip2z, d4 *cx, d4 *cy, d4 *cz, d4 *globalM, d4 *mass1, d4 *mass2); 
@@ -22,6 +23,7 @@ typedef struct { double v[4]; } d4;
  extern "C" void MultipoleKernel14(   d4 *ip1x, d4 *ip2x, d4 *ip1y, d4 *ip2y, d4 *ip1z, d4 *ip2z, d4 *cx, d4 *cy, d4 *cz, d4 *globalM, d4 *mass1, d4 *mass2); 
  extern "C" void MultipoleKernel15(   d4 *ip1x, d4 *ip2x, d4 *ip1y, d4 *ip2y, d4 *ip1z, d4 *ip2z, d4 *cx, d4 *cy, d4 *cz, d4 *globalM, d4 *mass1, d4 *mass2); 
  extern "C" void MultipoleKernel16(   d4 *ip1x, d4 *ip2x, d4 *ip1y, d4 *ip2y, d4 *ip1z, d4 *ip2z, d4 *cx, d4 *cy, d4 *cz, d4 *globalM, d4 *mass1, d4 *mass2); 
+#endif
 
 #ifdef AVX512MULTIPOLES
  extern "C" void Multipole512Kernel1( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
@@ -40,6 +42,25 @@ typedef struct { double v[4]; } d4;
  extern "C" void Multipole512Kernel14( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
  extern "C" void Multipole512Kernel15( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
  extern "C" void Multipole512Kernel16( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
+#endif
+
+ #ifdef UNROLLEDMULTIPOLES
+ extern "C" void MultipoleUnrolledKernel1(FLOAT3 p, double3 center, double *CM);
+ extern "C" void MultipoleUnrolledKernel2(FLOAT3 p, double3 center, double *CM);
+ extern "C" void MultipoleUnrolledKernel3(FLOAT3 p, double3 center, double *CM);
+ extern "C" void MultipoleUnrolledKernel4(FLOAT3 p, double3 center, double *CM);
+ extern "C" void MultipoleUnrolledKernel5(FLOAT3 p, double3 center, double *CM);
+ extern "C" void MultipoleUnrolledKernel6(FLOAT3 p, double3 center, double *CM);
+ extern "C" void MultipoleUnrolledKernel7(FLOAT3 p, double3 center, double *CM);
+ extern "C" void MultipoleUnrolledKernel8(FLOAT3 p, double3 center, double *CM);
+ extern "C" void MultipoleUnrolledKernel9(FLOAT3 p, double3 center, double *CM);
+ extern "C" void MultipoleUnrolledKernel10(FLOAT3 p, double3 center, double *CM);
+ extern "C" void MultipoleUnrolledKernel11(FLOAT3 p, double3 center, double *CM);
+ extern "C" void MultipoleUnrolledKernel12(FLOAT3 p, double3 center, double *CM);
+ extern "C" void MultipoleUnrolledKernel13(FLOAT3 p, double3 center, double *CM);
+ extern "C" void MultipoleUnrolledKernel14(FLOAT3 p, double3 center, double *CM);
+ extern "C" void MultipoleUnrolledKernel15(FLOAT3 p, double3 center, double *CM);
+ extern "C" void MultipoleUnrolledKernel16(FLOAT3 p, double3 center, double *CM);
 #endif
 
 #endif

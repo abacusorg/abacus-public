@@ -70,6 +70,13 @@ public:
 
     char ReadStateDirectory[1024];  // Where the input State lives
     char WriteStateDirectory[1024]; // Where the output State lives
+
+    // The node-local directories in the parallel verison
+    // These will be equal to the global directories if not given
+    char LocalWorkingDirectory[1024];        // node-local working directory
+    char LocalReadStateDirectory[1024];
+    char LocalWriteStateDirectory[1024];
+
     char MultipoleDirectory[1024];
     char TaylorDirectory[1024];
     char MultipoleDirectory2[1024];  // for splitting even/odd multipoles
@@ -78,6 +85,8 @@ public:
     char LogDirectory[1024];
     char OutputDirectory[1024];     // Where the outputs go
     char GroupDirectory[1024]; //Where the Group files go
+    char BackupDirectory[1024]; // The directory from which to restore backups (the Python code also writes backups here)
+    
     int OutputEveryStep; //Force timeslices to be output every step if 1
     char OutputFormat[1024];                // The format of the Output files
     int  OmitOutputHeader;                // =1 if you want to skip the ascii header
@@ -218,6 +227,11 @@ public:
         sprintf(WorkingDirectory,STRUNDEF);
         sprintf(MultipoleDirectory2,STRUNDEF);
         sprintf(TaylorDirectory2,STRUNDEF);
+        sprintf(BackupDirectory,STRUNDEF);
+
+        sprintf(LocalWorkingDirectory,STRUNDEF);
+        sprintf(LocalReadStateDirectory,STRUNDEF);
+        sprintf(LocalWriteStateDirectory,STRUNDEF);
 
         installscalar("ReadStateDirectory",ReadStateDirectory,DONT_CARE);  // Where the input State lives
         installscalar("WriteStateDirectory",WriteStateDirectory,DONT_CARE); // Where the output State lives
@@ -229,6 +243,11 @@ public:
     	installscalar("LogDirectory",LogDirectory,MUST_DEFINE);
     	installscalar("OutputDirectory",OutputDirectory,MUST_DEFINE);     // Where the outputs go
         installscalar("GroupDirectory",GroupDirectory,MUST_DEFINE);
+        installscalar("BackupDirectory",BackupDirectory,DONT_CARE);
+
+        installscalar("LocalWorkingDirectory",LocalWorkingDirectory,DONT_CARE);
+        installscalar("LocalReadStateDirectory",LocalReadStateDirectory,DONT_CARE);
+        installscalar("LocalWriteStateDirectory",LocalWriteStateDirectory,DONT_CARE);
 
     	OutputEveryStep = 0;
     	installscalar("OutputEveryStep",OutputEveryStep,DONT_CARE);
@@ -401,16 +420,35 @@ void Parameters::ProcessStateDirectories(){
     strlower(StateIOMode);
     strlower(Conv_IOMode);
 
-    if (strcmp(WorkingDirectory,STRUNDEF) !=0){
-        if ( strcmp(ReadStateDirectory,STRUNDEF)!=0 || strcmp(WriteStateDirectory,STRUNDEF)!=0 ){
-            QUIT("If WorkingDirectory is defined, {Read,Write}StateDirectory should be undefined. Terminating\n")
-        }
-        else{
+    // Set read dir and write dir from working dir if they were not given
+    if (strcmp(WorkingDirectory,STRUNDEF) != 0){
+        if(strcmp(ReadStateDirectory,STRUNDEF) == 0)
             sprintf(ReadStateDirectory,"%s/read",WorkingDirectory);
+        if(strcmp(WriteStateDirectory,STRUNDEF) == 0){
             sprintf(WriteStateDirectory,"%s/write",WorkingDirectory);
             if(strcmp(StateIOMode, "overwrite") == 0) {  // later, we will set WriteState.OverwriteState
                 strcpy(WriteStateDirectory, ReadStateDirectory);
             }
+        }
+    }
+
+    // Set read dir and write dir from local working dir if they were not given
+    if (strcmp(LocalWorkingDirectory,STRUNDEF) != 0){
+        if(strcmp(LocalReadStateDirectory,STRUNDEF) == 0)
+            sprintf(LocalReadStateDirectory,"%s/read",LocalWorkingDirectory);
+        if(strcmp(LocalWriteStateDirectory,STRUNDEF) == 0){
+            sprintf(LocalWriteStateDirectory,"%s/write",LocalWorkingDirectory);
+            if(strcmp(StateIOMode, "overwrite") == 0) {  // later, we will set WriteState.OverwriteState
+                strcpy(LocalWriteStateDirectory, LocalReadStateDirectory);
+            }
+        }
+    } else {
+        // LocalWorkingDirectory not given; copy the global values (unless the local values were explicitly given)
+        if(strcmp(LocalReadStateDirectory,STRUNDEF) == 0){
+            strcpy(LocalReadStateDirectory, ReadStateDirectory);
+        }
+        if(strcmp(LocalWriteStateDirectory,STRUNDEF) == 0){
+            strcpy(LocalWriteStateDirectory, WriteStateDirectory);
         }
     }
 }
@@ -493,14 +531,7 @@ void Parameters::ValidateParameters(void) {
     }
 
 
-    if( (DerivativeExpansionRadius!=1) && 
-		(DerivativeExpansionRadius!=2) && 
-		(DerivativeExpansionRadius!=3) && //note! added to change far radius
-		(DerivativeExpansionRadius!=4) && 
-		(DerivativeExpansionRadius!=5) && 
-		(DerivativeExpansionRadius!=6) && 
-		(DerivativeExpansionRadius!=7) && 
-		(DerivativeExpansionRadius!=8) &&
+    if( !((DerivativeExpansionRadius >= 1) && (DerivativeExpansionRadius <= 8)) &&
         (DerivativeExpansionRadius!=16) &&
         (DerivativeExpansionRadius!=32) ) {
 
@@ -573,6 +604,24 @@ void Parameters::ValidateParameters(void) {
     assert(nIODirs < MAX_IODIRS);
     for (int i = 0; i < nIODirs; i++)
         assert(IODirThreads[i] >= 1);
+
+    assertf(
+        strcmp(StateIOMode, "normal") == 0 ||
+        strcmp(StateIOMode, "overwrite") == 0 ||
+        strcmp(StateIOMode, "slosh") == 0 ||
+        strcmp(StateIOMode, "stripe") == 0,
+        "StateIOMode = \"%s\" must be one of normal, overwrite, slosh, stripe.",
+        StateIOMode
+        );
+
+    assertf(
+        strcmp(Conv_IOMode, "normal") == 0 ||
+        strcmp(Conv_IOMode, "overwrite") == 0 ||
+        strcmp(Conv_IOMode, "slosh") == 0 ||
+        strcmp(Conv_IOMode, "stripe") == 0,
+        "Conv_IOMode = \"%s\" must be one of normal, overwrite, slosh, stripe.",
+        Conv_IOMode
+        );
 }
 Parameters P;
 

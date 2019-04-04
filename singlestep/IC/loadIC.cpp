@@ -22,12 +22,7 @@
 #include "IC_classes.h"
 #include "particle_subsample.cpp"
 
-uint64 LoadSlab2IL(int slab) {
-    double3 global_pos;
-    posstruct pos;
-    velstruct vel;
-    auxstruct aux;
-    
+uint64 LoadSlab2IL(int slab) {    
     double convert_velocity = 1.0;
     // The getparticle() routine should return velocities in 
     // redshift-space comoving displacements in length units where
@@ -75,29 +70,71 @@ uint64 LoadSlab2IL(int slab) {
     }
 
     uint64 count = 0;
-    while (ic->getparticle(&global_pos, &vel, &aux)) {
-        // The getparticle routine is responsible for translation
-        // to the unit box and comoving z-space velocities.
 
-        // What cell does this go in?
-#ifdef GLOBALPOS
-        // For box-centered positions:
-        integer3 newcell = PP->WrapPosition2Cell(&global_pos);
-#else
-        // For cell-centered positions:
-        integer3 newcell = PP->LocalPosition2Cell(&global_pos);
-#endif
-        pos = global_pos;
+    STDLOG(2, "IC format permits %d thread(s)\n", ic->maxthreads);
 
-        vel *= convert_velocity;
-        
-        // Set the 'taggable' bit for particles as a function of their PID
-        // this bit will be used for group finding and merger trees
-        if (is_subsample_particle(aux.pid(), P.HaloTaggableFraction))
-            aux.set_taggable();
-        
-        IL->Push(&pos, &vel, &aux, newcell);
-        count++;
+    // TODO: it's hard to OMP a while loop, so for now we have two versions to support multi-threaded in-memory IC generation
+    if(ic->maxthreads > 1){
+        #pragma omp parallel for schedule(static) num_threads(ic->maxthreads)
+        for(int64 i = 0; i < ic->this_NP; i++){
+            double3 global_pos;
+            posstruct pos;
+            velstruct vel;
+            auxstruct aux;
+
+            // Let's be sneaky and pass in i via aux
+            aux.aux = i;
+
+            assertf(ic->getparticle(&global_pos, &vel, &aux) == 1, "Expected count wrong for IC file?\n");
+
+    #ifdef GLOBALPOS
+            integer3 newcell = CP->WrapPosition2Cell(&global_pos);
+    #else
+            integer3 newcell = CP->LocalPosition2Cell(&global_pos);
+    #endif
+            pos = global_pos;
+
+            vel *= convert_velocity;
+            
+            if (is_subsample_particle(aux.pid(), P.HaloTaggableFraction))
+                aux.set_taggable();
+            
+            IL->Push(&pos, &vel, &aux, newcell);
+        }
+
+        count = ic->this_NP;
+
+    } else {
+        double3 global_pos;
+        posstruct pos;
+        velstruct vel;
+        auxstruct aux;
+
+        // The normal, serial IC code
+        while (ic->getparticle(&global_pos, &vel, &aux)) {
+            // The getparticle routine is responsible for translation
+            // to the unit box and comoving z-space velocities.
+
+            // What cell does this go in?
+    #ifdef GLOBALPOS
+            // For box-centered positions:
+            integer3 newcell = CP->WrapPosition2Cell(&global_pos);
+    #else
+            // For cell-centered positions:
+            integer3 newcell = CP->LocalPosition2Cell(&global_pos);
+    #endif
+            posstruct pos = global_pos;
+
+            vel *= convert_velocity;
+            
+            // Set the 'taggable' bit for particles as a function of their PID
+            // this bit will be used for group finding and merger trees
+            if (is_subsample_particle(aux.pid(), P.HaloTaggableFraction))
+                aux.set_taggable();
+            
+            IL->Push(&pos, &vel, &aux, newcell);
+            count++;
+        }
     }
     delete ic;    // Call the destructor.
     STDLOG(0,"Read %d particles from IC file %s\n", count, filename);

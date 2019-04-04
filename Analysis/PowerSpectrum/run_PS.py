@@ -10,7 +10,7 @@ Author: Lehman Garrison
 
 import sys
 import os
-from os.path import join as pjoin
+from os.path import join as pjoin, abspath, basename, dirname
 import pdb
 import shutil
 import argparse
@@ -47,6 +47,8 @@ def ps_suffix(**kwargs):
     
     ps_fn = ''
     if not kwargs['just_density']:
+        if kwargs['track'] is not None:
+            ps_fn += '_track{}'.format(kwargs['track'])
         ps_fn += '_nfft{}'.format(kwargs['nfft'])
     else:
         ps_fn += '_ngrid{}'.format(kwargs['nfft'])
@@ -81,6 +83,7 @@ def run_PS_on_dir(folder, **kwargs):
 
     # Make a descriptive filename
     this_suffix = ps_suffix(**kwargs)
+    kwargs.pop('track')
     
     just_density = kwargs.pop('just_density')
     product_name = 'power' if not just_density else 'density'
@@ -112,15 +115,19 @@ def run_PS_on_dir(folder, **kwargs):
     save_fn = os.path.join(outdir, ps_fn)
     print('* and saving to {}'.format(save_fn))
     
+    nfft = kwargs.pop('nfft')
     if not just_density:
         bins = kwargs['bins']  # needed for kmin,kmax
-        raw_results = PS.CalculateBySlab(pattern, kwargs.pop('nfft'), BoxSize, **kwargs)
+        raw_results = PS.CalculateBySlab(pattern, nfft, BoxSize, **kwargs)
         results = to_csv(raw_results, bins, save_fn)
 
     else:
-        density = TSC.BinParticlesFromFile(pattern, BoxSize, kwargs.pop('nfft'), **kwargs)
+        density = TSC.BinParticlesFromFile(pattern, BoxSize, nfft, **kwargs)
         density.tofile(save_fn)
         results = density
+
+    pardirname = basename(dirname(abspath(save_fn)))
+    print(f'* Finished PS ({pardirname}, nfft {nfft})')
 
     return results, header, save_fn
             
@@ -151,27 +158,35 @@ def run_PS_on_PS(input_ps_fn, **kwargs):
     
 # inputs is a list of slice directories
 def run_PS(inputs, **kwargs):
-    all_bins = kwargs.pop('all_bins')
-    all_nfft = kwargs.pop('all_nfft')
+    # Loop over slices
+    # Each slice may have multiple binnings/nffts
+    # We process all binnings for a given slice in hopes of hitting the filesystem cache
+    # TODO: implement our own cache, probably by reworking the power spectrum library into something stateful
+    
+    binnings = kwargs.pop('binnings')
+    maxnfft = np.array([max(t['nfft'] for t in b) for b in binnings])
+    order = np.argsort(maxnfft, kind='stable')[::-1]
 
     # Loop in order of difficulty; i.e. largest nfft first
+    # That way we'll fail-fast if we don't fit in memory
     # TODO: reverse stable argsort?
-    for i in np.argsort(all_nfft, kind='stable')[::-1]:
+    for i in order:
         input = inputs[i]
-        # If the input is an output or IC directory
-        if os.path.isdir(input):
-            with ExitStack() as stack:
-                if kwargs.get('format').lower() == 'pack14':
-                    stack.enter_context(common.extract_slabs(input))
-                _res = run_PS_on_dir(input, bins=all_bins[i], nfft=all_nfft[i], **kwargs)
-        # If the input is a PS file
-        elif os.path.isfile(input):
-            _res = run_PS_on_PS(input, **kwargs)
-        else:
-            raise ValueError(input, "does not exist!")
 
-        make_plot(*_res)
-        print('Finished PS.')
+        for binning in binnings[i]:  # binning: dict of bins, nfft, track
+            # If the input is an output or IC directory
+            if os.path.isdir(input):
+                with ExitStack() as stack:
+                    if kwargs.get('format').lower() == 'pack14':
+                        stack.enter_context(common.extract_slabs(input))
+                    _res = run_PS_on_dir(input, **binning, **kwargs)
+            # If the input is a PS file
+            elif os.path.isfile(input):
+                _res = run_PS_on_PS(input, **kwargs)
+            else:
+                raise ValueError(input, "does not exist!")
+
+            make_plot(*_res)
 
 
 def to_csv(raw_results, bins, fn):
@@ -191,7 +206,7 @@ def to_csv(raw_results, bins, fn):
 def setup_bins(args):
     '''
     -If not scale-free, just pass nbins to k_bin_edges
-    -Scale bins on a per-sim basis if scale-free:
+    -Scale bins on a per-slice basis if scale-free:
         -Set kmin to the fundamental mode of the largest scale factor
         -Set kmax to Nyquist of the smallest scale factor
         -So later slices will have smaller kmin/kmax
@@ -201,67 +216,102 @@ def setup_bins(args):
 
     TODO: this assumes the presence of a 'header' file
 
-    Sometimes we wish to choose NFFT for each sim as well, so that
+    Sometimes we wish to choose NFFT for each slice as well, so that
     kmax/nfft is roughly constant.
 
-    Returns one bin edges array per sim, and one nfft value per sim
+    Returns a 2D list of binning/nfft pairs for every slice.
+    Shape is (nslices, ntrack); each binning is a dict with `bins`, `nfft`, and `track`.
+    `ntrack` may vary from slice to slice, as not all tracks extend the full z range.
     '''
+
     ns = args.pop('scalefree_index')
     basea = args.pop('scalefree_base_a')
     nbins = args.pop('nbins')
-    nslice = len(args['input'])
+    slices = args['input']
     nfft = args.pop('nfft')
     bin_like_nfft = args.pop('bin_like_nfft')
+    ntracks = args.pop('ntracks')
 
-    headers = [common.get_header(p) for p in args['input']]
+    ### end popping args
 
-    # "box" specified on the command line overrides the header
-    if args.get('box'):
-        all_boxsize = np.asfarray([args['box'] for p in args['input']])
+    if ns is None:
+        ntracks = 1  # tracks only make sense for scale-free
     else:
-        all_boxsize = np.asfarray([h['BoxSize'] for h in headers])
-
-    if ns is not None:
         if nbins == -1:
             nbins = nfft//4
 
-        all_scalefactor = np.array([h['ScaleFactor'] for h in headers])
-        if basea is None:
-            base_scalefactor = all_scalefactor.max()
+    nslices = len(slices)
+
+    headers = [common.get_header(p) for p in slices]
+    all_scalefactor = np.array([h['ScaleFactor'] for h in headers])
+
+    def setup_onetrack(headers):
+        nslices = len(headers)
+
+        # "box" specified on the command line overrides the header
+        if args.get('box'):
+            all_boxsize = np.full(nslices, args['box'])
         else:
-            base_scalefactor = basea
+            all_boxsize = np.asfarray([h['BoxSize'] for h in headers])
 
-        len_rescale = (all_scalefactor/base_scalefactor)**(2./(3+ns))
+        if ns is not None:
+            all_scalefactor = np.array([h['ScaleFactor'] for h in headers])
+            if basea is None:
+                base_scalefactor = all_scalefactor.max()
+            else:
+                base_scalefactor = basea
 
-        # Define kmin and kmax at the base time (latest time)
-        kmin = 2*np.pi/all_boxsize[all_scalefactor.argmax()]
-        # at the earliest time, then scale to latest time
-        kmax = np.pi/(all_boxsize[all_scalefactor.argmin()]/nfft)*len_rescale[all_scalefactor.argmin()]
+            len_rescale = (all_scalefactor/base_scalefactor)**(2./(3+ns))
 
-        if args['log']:
-            _bins = np.logspace(np.log10(kmin), np.log10(kmax), num=nbins+1)
+            # Define kmin and kmax at the base time (latest time)
+            kmin = 2*np.pi/all_boxsize[all_scalefactor.argmax()]
+            # at the earliest time, then scale to latest time
+            kmax = np.pi/(all_boxsize[all_scalefactor.argmin()]/nfft)*len_rescale[all_scalefactor.argmin()]
+
+            if args['log']:
+                _bins = np.logspace(np.log10(kmin), np.log10(kmax), num=nbins+1)
+            else:
+                _bins = np.linspace(kmin, kmax, num=nbins+1)
+            all_bins = np.tile(_bins, (nslices,1))
+
+            # these are k bins: the scaling is the inverse of the length rescaling
+            # all k will thus get bigger
+            all_bins /= len_rescale[:,None]
+
+            # Now choose the smallest even nfft larger than kmax for each time
+            all_nfft = np.ceil(all_bins.max(axis=-1)*all_boxsize/np.pi).astype(int)
+            all_nfft[all_nfft % 2 == 1] += 1
+            #assert (all_nfft <= nfft).all(), all_nfft
+
+            print('--scalefree_index option was specified.  Computed k ranges: ' + str([('{:.3g}'.format(b.min()), '{:.3g}'.format(b.max())) for b in all_bins]))
+            print('\tComputed NFFTs: ' + str(all_nfft))
         else:
-            _bins = np.linspace(kmin, kmax, num=nbins+1)
-        all_bins = np.tile(_bins, (len(args['input']),1))
+            # Set up normal bins
+            all_bins = np.array([Histogram.k_bin_edges(nfft, all_boxsize[i], nbins=nbins, log=args['log'], bin_like_nfft=bin_like_nfft) \
+                                    for i in range(nslices)])
+            all_nfft = np.full(nslices, nfft)
 
-        # these are k bins: the scaling is the inverse of the length rescaling
-        # all k will thus get bigger
-        all_bins /= len_rescale[:,None]
+        return all_bins, all_nfft
 
-        # Now choose the smallest even nfft larger than kmax for each time
-        all_nfft = np.ceil(all_bins.max(axis=-1)*all_boxsize/np.pi).astype(int)
-        all_nfft[all_nfft % 2 == 1] += 1
-        assert (all_nfft <= nfft).all()
+    isort = np.argsort(all_scalefactor, kind='stable')
 
-        print('--scalefree_index option was specified.  Computed k ranges: ' + str([('{:.3g}'.format(b.min()), '{:.3g}'.format(b.max())) for b in all_bins]))
-        print('\tComputed NFFTs: ' + str(all_nfft))
-    else:
-        # Set up normal bins
-        all_bins = np.array([Histogram.k_bin_edges(nfft, all_boxsize[i], nbins=nbins, log=args['log'], bin_like_nfft=bin_like_nfft) \
-                                for i in range(nslice)])
-        all_nfft = np.full(nslice, nfft)
+    binnings = [list() for _ in range(nslices)]  # one per slice
 
-    return all_bins, all_nfft
+    for t in range(ntracks):
+        # Evenly spaced by number of slices
+        # Would we prefer a different spacing?
+        tlabel = t if ntracks > 1 else None  # for the file name
+
+        # These are the slice indices for this track (increasing towards later times)
+        i_thistrack = isort[(ntracks-1-t)*nslices//ntracks:]
+        headers_thistrack = [headers[i] for i in i_thistrack]
+
+        all_bins_thistrack, all_nfft_thistrack = setup_onetrack(headers_thistrack)
+
+        for i,itrack in enumerate(i_thistrack):
+            binnings[itrack] += [dict(bins=all_bins_thistrack[i], nfft=all_nfft_thistrack[i], track=tlabel)]
+
+    return binnings
 
 
 def make_plot(results, header, csvfn):
@@ -277,8 +327,10 @@ def make_plot(results, header, csvfn):
 
     fig, ax = plt.subplots()
 
+    valid = results['N_modes'] > 0
+
     label = 'Auto power spectrum'
-    ax.loglog(results['kavg'], results['power'], label=label)
+    ax.loglog(results[valid]['kavg'], results[valid]['power'], label=label)
     ax.legend()
     ax.set_xlabel(r'$k$ [$h$/Mpc]')
     ax.set_ylabel(r'$P(k)$ $[(\mathrm{{Mpc}}/h)^{ndim:d}]$'.format(ndim=(2 if projected else 3)))
@@ -309,6 +361,8 @@ if __name__ == '__main__':
     parser.add_argument('--scalefree_index', help='Automatically scales k_min and k_max according to the scale free cosmology with the given spectral index.  Uses the lowest redshift of all slices as the "base time".', default=None, type=float)
     parser.add_argument('--scalefree_base_a', help='Override the fiducial scale factor for automatic k_min/k_max computation in a scale-free cosmology. Only has an effect with the --scalefree_index option.', default=None, type=float)
     parser.add_argument('--box', help='Override the box size from the header', type=float)
+    parser.add_argument('--ntracks', help='The number of "tracks" of power spectra to measure.  Only has an effect with the --scalefree_index option.', type=int, default=1)
+    # TODO: wisdom option
     
     args = parser.parse_args()
     args = vars(args)
@@ -320,12 +374,13 @@ if __name__ == '__main__':
         # No meaning for density cube
         del args['nbins'], args['log']
     else:
-        args['all_bins'], args['all_nfft'] = setup_bins(args)
+        args['binnings'] = setup_bins(args)
     
     if args['dtype'] == 'float':
         args['dtype'] = np.float32
     elif args['dtype'] == 'double':
         args['dtype'] = np.float64
 
-    run_PS(args.pop('input'), **args)
+    with Tools.ContextTimer('* All slices'):
+        run_PS(args.pop('input'), **args)
     

@@ -205,7 +205,7 @@ def RebinTheoryPS(ps, gridshape, boxsize, *, bins=-1, log=False, dtype=np.float3
     return k, s, nmodes
 
 
-#@processargs  # need to thin about args for this function
+#@processargs  # need to think about args for this function
 def StackedPower(*args, **kwargs):
     """
     Estimate a power spectrum by averaging many realizations.
@@ -516,6 +516,8 @@ def _FFT(delta, boxsize, *, window='window_aliased', inplace=False, power=True, 
         N = signalshape[axes].prod()
         norm = dtype(boxsize**signal.ndim/N**2.)
         # numexpr insists complex64.real -> float64, so force it to use a smaller array with loser casting rule
+        # It's annoying that we have to use extra memory here, but we want a contiguous array for what comes next
+        # Wild idea: could we reuse the top half of the complex array??  If we loop carefully then probably yes.
         _power = np.empty(output.shape, dtype=dtype)
         ne.evaluate('(output*conj(output)).real*norm', out=_power, casting='same_kind')
         output = _power
@@ -638,7 +640,6 @@ def _IFFT(input, boxsize, *, inplace=False, axes='max3'):
     # output array is always the input array, but the input may already be a copy
     output = input.view(dtype=dtype).reshape(paddedsignalshape)[tuple(slice(None,ss) for ss in signalshape)]
     
-    #import pdb; pdb.set_trace()
     fft_obj = pyfftw.FFTW(input, output, axes=axes, threads=nthreads, direction='FFTW_BACKWARD', flags=flags)
     fft_obj.execute()
     
