@@ -882,7 +882,7 @@ def singlestep(paramfn, maxsteps, AllowIC=False, stopbefore=-1):
         ### end singlestep loop
 
     # If there is more work to be done, signal that we are ready for requeue
-    if not finished:
+    if not finished and not ProfilingMode:
         return EXIT_REQUEUE
 
     return 0
