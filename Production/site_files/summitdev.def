@@ -22,3 +22,13 @@ Conv_OMP_PLACES = "{0}:20:8"
 Conv_OMP_PROC_BIND = "close"
 Conv_IOCores = [0]
 Conv_zwidth = 0
+
+
+Parallel = 1
+mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -gALL_GPUS -b none"
+Conv_mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -b none"
+WorkingDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@
+LocalWorkingDirectory = "$ABACUS_SSD$/" + @SimName@
+DerivativesDirectory = "$ABACUS_PERSIST$/Derivatives"
+#MultipoleDirectory = @WorkingDirectory@ + "/multipole"
+#TaylorDirectory = @WorkingDirectory@ + "/taylor"
