@@ -5,6 +5,8 @@
 # Athena (https://trac.princeton.edu/Athena/)
 
 # Initialization
+AC_LANG([C++])  # does this work?
+
 AC_INIT([abacus], [0.9], [], [], [github.com/nbody/abacus])
 AC_CONFIG_HEADERS([./include/config.h])  # this places DEFS in a global header file instead of Makefiles
 AC_CONFIG_AUX_DIR([./Configuration])

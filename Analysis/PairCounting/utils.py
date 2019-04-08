@@ -100,7 +100,7 @@ def setup_bins(args):
         all_box = np.array([h['BoxSize'] for h in all_headers])
         assert all(all_box[0] == all_box), ("BoxSize must agree across slices in order to determine resolution scale for scale-free binning", all_box)
 
-        resolution_scale = 25*all_box[0]/all_n1d[0]  # 25*(particle spacing), a kludgy guess!
+        resolution_scale = 70*all_box[0]/all_n1d[0]  # 70*(particle spacing), a kludgy guess!
         res_rescale = (all_scalefactor/firsta)**-1
         resolution_scale *= res_rescale[:,None]
 
@@ -234,6 +234,8 @@ def make_plot(results, fn, headers):
     fig.tight_layout()
 
     fig.savefig(fn)
+
+    plt.close(fig)  # why doesn't this happen when fig goes out of scope?
 
 def read_gadget(dir, downsample=1):
     '''
