@@ -9,8 +9,4 @@
 
 #include "basemultipoles.h"
 
-#include "ConvolutionParametersStatistics.cpp"
-
-#include "InCoreConvolution.cpp"
-
 #include "OutofCoreConvolution.cpp"

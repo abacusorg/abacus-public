@@ -50,6 +50,21 @@ void FetchICAction(int slab) {
  */
 
 void timestepIC(void) {
+#ifdef PARALLEL	
+    std::stringstream ss;
+    std::string s;
+	ss << P.MultipoleDirectory << "/Multipoles";
+	s = ss.str();
+	const char * MTfile = s.c_str(); 
+	
+	//in previous timestep's finish action, multipoles were distributed to nodes such that each node now stores multipole moments for all x and its given range of z that it will convolve. Fetch these from shared memory.
+	
+    STDLOG(1,"This is an IC step. Creating MTfile %s.\n", MTfile);
+	
+	int create_MT_file = 1; 
+	ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, MTfile, create_MT_file);
+#endif
+	
     STDLOG(0,"Initiating timestepIC()\n");
     TimeStepWallClock.Clear();
     TimeStepWallClock.Start();
@@ -61,19 +76,32 @@ void timestepIC(void) {
     int cpd = P.cpd; int first = first_slab_on_node;
     Drift.instantiate(cpd, first, &FetchICPrecondition, &FetchICAction );
     Finish.instantiate(cpd, first + FINISH_WAIT_RADIUS,  &FinishPrecondition,  &FinishAction );
-
-    while( !Finish.alldone(total_slabs_on_node) ) {
+	#ifdef PARALLEL
+	CheckForMultipoles.instantiate(cpd, first + FINISH_WAIT_RADIUS, &CheckForMultipolesPrecondition,  &CheckForMultipolesAction );
+	#else
+	CheckForMultipoles.instantiate(cpd, first + FINISH_WAIT_RADIUS, &NoopPrecondition,  &NoopAction );
+	#endif
+    while( !CheckForMultipoles.alldone(total_slabs_on_node) ) {
         Drift.Attempt();
        Finish.Attempt();
+	   CheckForMultipoles.Attempt();
+	   
        SendManifest->FreeAfterSend();
     ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
     // If the manifest has been received, install it.
     if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
 
     }
+	
 
     STDLOG(1, "Read %d particles from IC files\n", NP_from_IC);
     #ifdef PARALLEL
+	//NAM TODO if I do this on a per slab basis in Finish Action, I get a strange crash (a bunch of memory related print outs)
+	//if I do this in an extra dependency, do I have to be careful about Manifest?
+	
+	//ParallelConvolveDriver->WaitForMultipoleTransferComplete(FINISH_WAIT_RADIUS); //wait for MPI work to finish and deallocate MultipoleSlab.
+	
+	
         MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
         MPI_REDUCE_TO_ZERO(&NP_from_IC, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
         STDLOG(1,"Ready to proceed to the remaining work\n");
@@ -84,6 +112,9 @@ void timestepIC(void) {
         SendManifest->FreeAfterSend();
         // Run this again, just in case the dependency loop on this node finished
        // before the neighbor received the non-blocking MPI transfer.
+		
+    	delete ParallelConvolveDriver;
+		
     #endif
     STDLOG(1, "Particles remaining on insert list: %d\n", IL->length);
     if (MPI_rank==0) {

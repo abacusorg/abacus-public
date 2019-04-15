@@ -14,8 +14,12 @@ public:
     //ConvolutionStatistics CS; 
     
 	// ParallelConvolution();
-    ParallelConvolution(int _cpd, int _order, char *MTfile, ConvolutionParameters &_CP);
+    ParallelConvolution(int _cpd, int _order, const char *MTfile, int _create_MT_file = 0);
     ~ParallelConvolution(void);
+		
+	void AllocMT_two();	
+	void AllocMT();
+	void AllocDerivs(); 
 	
     /// The zstart for the node of the given rank.
     int Zstart(int rank);  
@@ -24,7 +28,10 @@ public:
 	
 	void RecvMultipoleSlab(int first_slab_finished);
 	void SendMultipoleSlab(int slab);
-	void WaitForMultipoleTransferComplete();
+	void WaitForMultipoleTransferComplete(int offset);
+	
+	int CheckForMultipoleTransferComplete(int slab);
+	
 	
 	void RecvTaylorSlab(int slab);
 	void SendTaylorSlab(int slab); //TODO do we need this?
@@ -33,7 +40,13 @@ public:
     uint64_t blocksize, zwidth, z_slabs_per_node; 
 
 private:
-	ConvolutionParameters ConvolveParams; //NAM TODO do we really need this? 
+	
+	const char * mt_file; 
+	int create_MT_file = 0; 
+	
+	int OverwriteConvState;
+	int StripeConvState;
+	
 	
     uint64_t cpd;
     uint64_t cpd2p1;   // (CPD+1)/2 is the length of the z array
@@ -41,12 +54,21 @@ private:
     int order;    // multipole order
     uint64_t rml;      // (order+1)**2
 	uint64_t this_node_size; 
+	uint64_t CompressedMultipoleLengthXY; 
 
+	size_t mt_offset;
+	
     int zstart;   // The first z for this node
     int znode;    // The number of z's on this node
 	
 	int * node_start;
 	int * node_size; 
+	
+	int * first_slabs_all;
+	int * total_slabs_all; 
+	
+	int first_slab_on_node;
+	int total_slabs_on_node;
 
     MTCOMPLEX * MTdisk;   // This is the pointer to the [x][znode][m][y] buffer on disk //NAM TODO * or ** ?
 	DFLOAT ** Ddisk; //This is the pointer to the derivatives buffer. 
@@ -62,17 +84,25 @@ private:
     MPI_Request **Trecv_requests;    // We'll set up a [CPD][MPI_size] array even though each node will only use the x's in its NodeSlabs range
 	int Trecv_active; 
 	
-	void AllocMT(char * MTfile);
-	void AllocDerivs(); 
 	
-	void LoadDerivatives(int zstart, int zwidth = 1);
+	void MultipoleFN(int slab, char * const fn);
+	void TaylorFN(int slab, char * const fn);
+	
+	void LoadDerivatives(int z);
 	void Swizzle_to_zmxy();
 	void Swizzle_to_xzmy();
-	void FFT();
-	void iFFT();
 	
-	int  CheckSendMultipoleComplete();
-	void WaitRecvMultipoleComplete();
+	fftw_plan PlanFFT(int sign);
+	void FFT(fftw_plan plan);
+	
+	//void RenameMultipolesToTaylors();
+	
+	int  CheckSendMultipoleComplete(int slab);
+	void WaitRecvMultipoleComplete(int slab);
+	
+	
+	int CheckRecvMultipoleComplete(int slab);
+	
 	
 	int GetTaylorRecipient(int slab);
 	

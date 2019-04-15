@@ -41,7 +41,7 @@ Dependency Microstep;
 Dependency FinishGroups;
 Dependency Drift;
 Dependency Finish;
-
+Dependency CheckForMultipoles; //only for parallel case. otherwise NOOP. 
 Dependency LPTVelocityReRead;
 
 #ifdef PARALLEL
@@ -98,15 +98,23 @@ void FetchSlabsAction(int slab) {
     if(FetchSlabs.number_of_slabs_executed < FORCE_RADIUS)
         return;
     #endif
+	
+#ifdef PARALLEL
+	STDLOG(1, "About to AllocateArena for TaylorSlab with RAMDISK = %d, slab %d\n", P.RamDisk, slab); 
+    SB->AllocateArena(TaylorSlab, slab, RAMDISK_WRITESLAB); 
+	STDLOG(1, "About to RecvTaylorSlab slab %d\n", slab); 
+	
+	ParallelConvolveDriver->RecvTaylorSlab(slab); 
+	STDLOG(1, "Done with RecvTaylorSlab slab %d\n", slab); 
+	
+#else
+    SB->LoadArenaNonBlocking(TaylorSlab,slab); //if we're doing PARALLEL, we've just queued up the recv mpi calls. wait for these to finish and load the TaylorSlabs in TaylorForceAction. TODO ask about this. 
+#endif
 
     SB->LoadArenaNonBlocking(VelSlab, slab);
     SB->LoadArenaNonBlocking(AuxSlab, slab);
-    SB->LoadArenaNonBlocking(TaylorSlab,slab);
 	
-#ifdef PARALLEL
-	//TODO does the above still apply in parallel case? no, I don't think so.
-	ParallelConvolveDriver->RecvTaylorSlab(slab); 
-#endif
+
 }
 
 // -----------------------------------------------------------------
@@ -235,21 +243,22 @@ int TaylorForcePrecondition(int slab) {
             Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
+	
+#ifdef PARALLEL //TODO do the above still apply in the parallel case? 
+	if( !ParallelConvolveDriver->CheckRecvTaylorComplete(slab)) 
+		return 0; 
+#else
     if( !SB->IsIOCompleted( TaylorSlab, slab ) ){
         if(SB->IsSlabPresent(TaylorSlab, slab))
             Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
-	
-#ifdef PARALLEL //TODO do the above still apply in the parallel case? 
-	if( !ParallelConvolveDriver->CheckRecvTaylorComplete(slab)) 
-		return 0; 
 #endif
 
     return 1;
 }
 
-void TaylorForceAction(int slab) {
+void TaylorForceAction(int slab) {	
     STDLOG(1,"Computing far-field force for slab %d\n", slab);
     SlabFarForceTime[slab].Start();
     SB->AllocateArena(FarAccSlab, slab);
@@ -680,8 +689,13 @@ void FinishAction(int slab) {
     SB->DeAllocate(VelSlab,slab);
     SB->DeAllocate(AuxSlab,slab);
     
+	STDLOG(1,"Done deallocing pos, vel, aux for slab %d\n", slab);
+	
     // Make the multipoles
     SB->AllocateArena(MultipoleSlab,slab);
+	
+	STDLOG(1,"About to compute multipoles for slab %d, %p\n", slab, SB->GetSlabPtr(MultipoleSlab, slab));
+	
     ComputeMultipoleSlab(slab);
     
     // Write out the particles and multipoles and delete
@@ -694,28 +708,54 @@ void FinishAction(int slab) {
 	
     WriteMultipoleSlab.Start();
 #ifdef PARALLEL
-	ParallelConvolveDriver->SendMultipoleSlab(slab); //distribute z's to appropriate nodes for this node's x domain
-	ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's. 
+	STDLOG(1, "Attemping to WriteArenaBlockingWithoutDeletion %d\n", slab);
+	
+    SB->WriteArenaBlockingWithoutDeletion(MultipoleSlab,slab);
+	
+	STDLOG(1, "Attemping to SendMultipoleSlab %d\n", slab);
+	ParallelConvolveDriver->SendMultipoleSlab(slab); //distribute z's to appropriate nodes for this node's x domain.
+	if (Finish.raw_number_executed==0){ //if we are finishing the first slab, set up receive MPI calls for incoming multipoles. 
+		STDLOG(1, "Attemping to RecvMultipoleSlab %d\n", slab);
+		ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's. 
+	}
 		
-	//NAM TODO save multipoles to [x][znode][m][y] array in shared memory! 	except... what does this comment mean: 
-		// // Determine the actual, allocated Ramdisk type of the current slab
-    	   // If it was allocated on Ramdisk, then the writing is already done by definition!
+    //ParallelConvolveDriver->WaitForMultipoleTransferComplete(slab, first_slab_finished); //this will spin until MPI multipole sends/recvs are complete for this slab and will then deallocate the multipole slab.
+	
 #else
     SB->StoreArenaNonBlocking(MultipoleSlab,slab);
 #endif	
     WriteMultipoleSlab.Stop();
 	
-    
 
     int pwidth = FetchSlabs.raw_number_executed - Finish.raw_number_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
 
     #ifdef PARALLEL
+	
     if (Finish.raw_number_executed==0) SendManifest->QueueToSend(slab);
     #endif
+
+    STDLOG(1, "About to ReportMemoryAllocatorStats\n");
+	
     // TODO: is there a different place in the code where we would rather report this?
     ReportMemoryAllocatorStats();
+	
+    STDLOG(1, "Done ReportMemoryAllocatorStats\n");
+	
+	
 }
+
+int CheckForMultipolesPrecondition(int slab) {
+    if( Finish.notdone(slab) ) return 0;
+	else if (ParallelConvolveDriver->CheckForMultipoleTransferComplete(slab)) return 1; //this will spin until MPI multipole sends/recvs are complete for this slab and will then deallocate the multipole slab.
+    return 0;
+}
+
+void CheckForMultipolesAction(int slab) {
+	SB->DeAllocate(MultipoleSlab, slab);  
+	
+}
+	
 
 // -----------------------------------------------------------------
 // A no-op precondition that always passes
@@ -742,15 +782,24 @@ void timestep(void) {
 	ConvolutionWallClock.Clear();
 	ConvolutionWallClock.Start();
 	
+    std::stringstream ss;
+    std::string s;
+	ss << P.MultipoleDirectory << "/Multipoles";
+	s = ss.str();
+	const char * MTfile = s.c_str(); 
 	
-	char * MTfile = strcat(P.MultipoleDirectory, "/Multipoles");//in previous timestep's finish action, multipoles were distributed to nodes such that each node now stores multipole moments for all x and its given range of z that it will convolve. Fetch these from shared memory.
+	//in previous timestep's finish action, multipoles were distributed to nodes such that each node now stores multipole moments for all x and its given range of z that it will convolve. Fetch these from shared memory.
+	
     STDLOG(1,"Working with MTfile %s\n", MTfile);
 	
-	ConvolutionParameters ConvolveParams(MPI_size); 
-    strcpy(ConvolveParams.runtime_MultipoleDirectory, P.MultipoleDirectory);
-	
-	ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, MTfile, ConvolveParams);
+	ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, MTfile);
+
 	ParallelConvolveDriver->Convolve(); 
+	
+	for (int slab = 0; slab < P.cpd; slab ++){
+		STDLOG(1, "About to SendTaylor Slab %d\n", slab); 
+		ParallelConvolveDriver->SendTaylorSlab(slab);
+	}
 	
 	ConvolutionWallClock.Stop(); 
 #endif
@@ -797,13 +846,18 @@ void timestep(void) {
     STDLOG(1,"First slab to load will be %d\n", first);
 
         FetchSlabs.instantiate(nslabs, first, &FetchSlabsPrecondition,          &FetchSlabsAction         );
-      TransposePos.instantiate(nslabs, first, &TransposePosPrecondition,       &TransposePosAction      );
+      TransposePos.instantiate(nslabs, first, &TransposePosPrecondition,        &TransposePosAction       );
          NearForce.instantiate(nslabs, first + FORCE_RADIUS, &NearForcePrecondition,          &NearForceAction         );
        TaylorForce.instantiate(nslabs, first + FORCE_RADIUS, &TaylorForcePrecondition,        &TaylorForceAction       );
               Kick.instantiate(nslabs, first + FORCE_RADIUS, &KickPrecondition,               &KickAction              );
             Output.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS, &OutputPrecondition,             &OutputAction            );
              Drift.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS, &DriftPrecondition,              &DriftAction             );
             Finish.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &FinishPrecondition,             &FinishAction            );
+#ifdef PARALLEL
+CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &CheckForMultipolesPrecondition,  &CheckForMultipolesAction );
+#else
+CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &NoopPrecondition,  &NoopAction );
+#endif
             
     // If group finding is disabled, we can make the dependencies no-ops so they don't hold up the pipeline
     if(GFC != NULL){
@@ -826,7 +880,7 @@ void timestep(void) {
     else
         LPTVelocityReRead.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
 
-    while( !Finish.alldone(total_slabs_on_node) ) {
+    while( !CheckForMultipoles.alldone(total_slabs_on_node) ) {
            for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
          TransposePos.Attempt();
             NearForce.Attempt();
@@ -841,14 +895,7 @@ void timestep(void) {
     LPTVelocityReRead.Attempt();
                 Drift.Attempt();
                Finish.Attempt();
-			   
-#ifdef PARALLEL  
-		// as each node for given slab finishes drifting the particles and computing multipoles in the Finish dependency, 
-		// it will send the multipoles for its x domains out to all the other nodes such that, after the MPI sends/receives,
-		// each node has multipoles for ALL x slabs and for a SUBSET of z's (the range assigned to that node to convolve).
-		ParallelConvolveDriver->WaitForMultipoleTransferComplete(); 
-#endif
-	   
+   CheckForMultipoles.Attempt();
 			   
 	    // TODO: The following line will be omitted once the MPI monitoring thread is in place.
            SendManifest->FreeAfterSend();
@@ -857,6 +904,7 @@ void timestep(void) {
 	    // If the manifest has been received, install it.
 	    if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
     }
+	   
 
     if(IL->length!=0)
         IL->DumpParticles();
@@ -866,6 +914,10 @@ void timestep(void) {
     
     STDLOG(1,"Finished timestep dependency loop!!\n");
     #ifdef PARALLEL
+		
+	//ParallelConvolveDriver->WaitForMultipoleTransferComplete(FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS); //wait for MPI work to finish and deallocate MultipoleSlab.
+	
+	
         MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
         STDLOG(1,"Ready to proceed to the remaining work\n");
         MPI_Barrier(MPI_COMM_WORLD);

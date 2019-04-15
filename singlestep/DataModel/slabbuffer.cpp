@@ -20,42 +20,42 @@ for slab memory allocation and IO.
 #include "arenaallocator.cpp"
 #include "io_interface.h"
 
-enum SlabType { CellInfoSlab,
-                PosSlab,
-                PosXYZSlab,
-                VelSlab,
-                AuxSlab,
-                AccSlab,
-                MergeCellInfoSlab,
-                MergePosSlab,
-                MergeVelSlab,
-                MergeAuxSlab,
-                TaylorSlab, 
-                MultipoleSlab, 
-                InsertCellInfoSlab,
-                NearAccSlab,
-                FarAccSlab,
-                TimeSlice,
-                VelLPTSlab,
-                CellGroupArena,
-                NearField_SIC_Slab, 
+enum SlabType { CellInfoSlab,           //0
+                PosSlab,                //1
+                PosXYZSlab,             //2
+                VelSlab,                //3
+                AuxSlab,                //4
+                AccSlab,                //5
+                MergeCellInfoSlab,      //6
+                MergePosSlab,           //7
+                MergeVelSlab,           //8
+                MergeAuxSlab,           //9
+                TaylorSlab,             //10
+                MultipoleSlab,          //11
+                InsertCellInfoSlab,     //12
+                NearAccSlab,            //13
+                FarAccSlab,             //14
+                TimeSlice,              //15
+                VelLPTSlab,             //16
+                CellGroupArena,         //17
+                NearField_SIC_Slab,     //18
                 
-                L1halosSlab,
-                TaggedPIDsSlab,
-                L1ParticlesSlab,
-                L1PIDsSlab,
-                TaggableFieldSlab,
-                TaggableFieldPIDSlab,
-                L0TimeSlice,
+                L1halosSlab,            //19
+                TaggedPIDsSlab,         //20
+                L1ParticlesSlab,        //21
+                L1PIDsSlab,             //22
+                TaggableFieldSlab,      //23
+                TaggableFieldPIDSlab,   //24
+                L0TimeSlice,            //25
                 
-                LightCone0,
-                LightCone1,
-                LightCone2,
-                LightCone3,
-                LightCone4,
-                LightCone5,
-                LightCone6,
-                LightCone7,
+                LightCone0,             //26
+                LightCone1,             //27
+                LightCone2,             //28
+                LightCone3,             //29
+                LightCone4,             //30
+                LightCone5,             //31
+                LightCone6,             //32
+                LightCone7,             //33
 
                 NUMTYPES
                 };
@@ -261,11 +261,11 @@ int SlabBuffer::IsRamdiskSlab(int type, int hint){
 */
 int SlabBuffer::GetSlabIntent(int type){
     switch(type){
-        case TaylorSlab:
         case CellInfoSlab:
         case PosSlab:
         case VelSlab:
         case AuxSlab:
+        case TaylorSlab: 
             return READSLAB;
 
         case MultipoleSlab:
@@ -293,7 +293,23 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
     std::string s;
 
     switch(type) {
+#ifdef PARALLEL
+        case TaylorSlab     : {
+            // Read odd taylors from TaylorDirectory2, if it's defined
+            if (WriteState.StripeConvState && slab % 2 == 1) {
+                ss << P.TaylorDirectory2 << "/Taylor_" << slabnum;
+                break;
+            }
+            ss << P.TaylorDirectory << "/Taylor_"     << slabnum; break;
+        }
+#endif
         case MultipoleSlab       : {
+			
+			
+			
+			STDLOG(1, "P.MultipoleDirectory = %s\n", P.MultipoleDirectory);
+			
+			
             // Send odd multipoles to MultipoleDirectory2, if it's defined
             if (WriteState.StripeConvState && slab % 2 == 1) {
                 ss << P.MultipoleDirectory2 << "/Multipoles_" << slabnum;
@@ -433,17 +449,17 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
     return -1; //should be unreachable
 }
 
-char *SlabBuffer::AllocateArena(int type, int slab, int ramdisk) {
+char *SlabBuffer::AllocateArena(int type, int slab, int ramdisk) {	
     slab = Grid->WrapSlab(slab);
-    uint64 s = ArenaSize(type, slab);
-    AllocateSpecificSize(type, slab, s, ramdisk);
-
-    return GetSlabPtr(type, slab);
+	uint64 s = ArenaSize(type, slab);
+	AllocateSpecificSize(type, slab, s, ramdisk);
+	return GetSlabPtr(type, slab);
 }
 
 void SlabBuffer::AllocateSpecificSize(int type, int slab, uint64 sizebytes, int ramdisk) {
-    // Most slabs are happy with RAMDISK_AUTO
+    // Most slabs are happy with RAMDISK_AUTO	
     ramdisk = IsRamdiskSlab(type, ramdisk);
+		
     std::string spath;
     switch(ramdisk){
         case RAMDISK_READSLAB:
@@ -459,13 +475,12 @@ void SlabBuffer::AllocateSpecificSize(int type, int slab, uint64 sizebytes, int 
             QUIT("Unexpected value %d of ramdisk\n", ramdisk);
             break;
     }
-    const char *ramdisk_fn = spath.c_str();
-
-    STDLOG(1, "Allocating slab %d of type %d to size %l (ramdisk = %d), total %5.3f GB\n",
+	const char *ramdisk_fn = spath.c_str();
+	STDLOG(1, "Allocating slab %d of type %d to size %l (ramdisk = %d), total %5.3f GB\n",
                 slab, type, sizebytes, ramdisk, AA->total_allocation/1024./1024./1024.);
 
-    int id = TypeSlab2ID(type,slab);
-    AA->Allocate(id, sizebytes, ReuseID(type), ramdisk, ramdisk_fn);
+    int id = TypeSlab2ID(type,slab);	
+    AA->Allocate(id, sizebytes, ReuseID(type), ramdisk, ramdisk_fn);	
 }
 
 void SlabBuffer::WriteArenaBlockingWithoutDeletion(int type, int slab) {
@@ -619,7 +634,13 @@ void SlabBuffer::DeAllocate(int type, int slab, int delete_file) {
         char buffer[1024];
         strcpy(buffer, path.c_str());
         char *tmp = dirname(buffer);
+			
+	    STDLOG(1,"About to expand path name slab %d of type %d.\n", slab, type);
+		
         ExpandPathName(tmp);
+		
+	    STDLOG(1,"Done expanding path name slab %d of type %d.\n", slab, type);
+		
 
         if(!IsTrueLocalDirectory(tmp)){
             STDLOG(1,"Not deleting slab file \"%s\" because it is in a global directory\n", path);

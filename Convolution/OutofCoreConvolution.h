@@ -1,8 +1,10 @@
+#include "ConvolutionParametersStatistics.cpp" //NAM TODO haven't tested if this compiles. 
 #include "block_io_utils.cpp"
 
 #ifdef CONVIOTHREADED
 #include "ConvolutionIOThread.cpp"
 #endif
+
 
 class OutofCoreConvolution { 
 public: 

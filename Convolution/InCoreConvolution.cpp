@@ -2,20 +2,32 @@ class InCoreConvolution : public basemultipoles {
 public:
     InCoreConvolution(int order, int cpd, int blocksize) : 
             basemultipoles(order), cpd(cpd), blocksize(blocksize) {
+				
+				STDLOG(1," Entering ICC constructor\n");
 
         CompressedMultipoleLengthXY  = ((1+cpd)*(3+cpd))/8;
         nblocks = (cpd*cpd)/blocksize;
         cpdhalf = (cpd-1)/2;
         int cs = omp_get_max_threads() * (completemultipolelength * blocksize + thread_padding);  // extra 1K padding between threads
+		
+		STDLOG(1," Entering ICC constructor 2 \n");
+		
         _mcache = new Complex[cs]; 
         _dcache = new  double[cs]; 
         _tcache = new Complex[cs];
         mfactor = new double[completemultipolelength];
+		
+		STDLOG(1," Entering ICC constructor 3\n");
+		
+		
         int a,b,c;
         FORALL_COMPLETE_MULTIPOLES_BOUND(a,b,c,order) {
             mfactor[ cmap(a,b,c) ] = 
                 pow(-1.0,a+b+c)/(fact2(2*(a+b+c)-1)*fact(a)*fact(b)*fact(c));
         }
+		
+		STDLOG(1," Entering ICC constructor 4\n");
+		
     }
     ~InCoreConvolution(void) {
         delete[] _mcache; delete[] _dcache; delete[] _tcache; delete[] mfactor;
@@ -68,6 +80,9 @@ void MVM(Complex *t, Complex *m, double *d, int n) {
 
 void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
     // why is this 50% faster with dynamic?
+	
+	STDLOG(1, "Entering InCoreConvolve\n");
+
     #pragma omp parallel for schedule(dynamic)
     for(int block=0;block<nblocks;block++) {
             
@@ -161,4 +176,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
             Complex I(0,1); FOR(xyz,0,blocksize-1) FT[xyz] += tcache[xyz]*I;
         }
     }
+	
+	STDLOG(1, "Exiting InCoreConvolve\n");
+	
 }
