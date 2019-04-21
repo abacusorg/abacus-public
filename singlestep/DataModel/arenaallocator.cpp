@@ -381,6 +381,7 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
             // map the shared memory fd to an address
             int mmap_flags = ramdisk == RAMDISK_WRITESLAB ? (PROT_READ | PROT_WRITE) : (PROT_READ | PROT_WRITE);  // the same
             arena[id].addr = (char *) mmap(NULL, ss, mmap_flags, MAP_SHARED, fd, 0);
+						
             int res = close(fd);
             assertf((void *) arena[id].addr != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, ss);
             assertf(arena[id].addr != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, ss);

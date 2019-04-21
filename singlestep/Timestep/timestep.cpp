@@ -18,6 +18,9 @@ executable.
 
 */
 
+//#define WAIT_MULTIPOLES 1
+
+
 int FORCE_RADIUS = -1;
 int GROUP_RADIUS = -1;
 
@@ -100,13 +103,11 @@ void FetchSlabsAction(int slab) {
     #endif
 	
 #ifdef PARALLEL
-	STDLOG(1, "About to AllocateArena for TaylorSlab with RAMDISK = %d, slab %d\n", P.RamDisk, slab); 
-    SB->AllocateArena(TaylorSlab, slab, RAMDISK_WRITESLAB); 
-	STDLOG(1, "About to RecvTaylorSlab slab %d\n", slab); 
-	
-	ParallelConvolveDriver->RecvTaylorSlab(slab); 
-	STDLOG(1, "Done with RecvTaylorSlab slab %d\n", slab); 
-	
+    SB->AllocateArena(TaylorSlab, slab + FORCE_RADIUS, RAMDISK_NO); 
+	STDLOG(1, "About to RecvTaylorSlab slab %d\n", slab  + FORCE_RADIUS); 
+	ParallelConvolveDriver->RecvTaylorSlab(slab + FORCE_RADIUS); 
+	STDLOG(1, "Done with RecvTaylorSlab slab %d\n", slab + FORCE_RADIUS); 
+		
 #else
     SB->LoadArenaNonBlocking(TaylorSlab,slab); //if we're doing PARALLEL, we've just queued up the recv mpi calls. wait for these to finish and load the TaylorSlabs in TaylorForceAction. TODO ask about this. 
 #endif
@@ -245,7 +246,7 @@ int TaylorForcePrecondition(int slab) {
     }
 	
 #ifdef PARALLEL //TODO do the above still apply in the parallel case? 
-	if( !ParallelConvolveDriver->CheckRecvTaylorComplete(slab)) 
+	if( !ParallelConvolveDriver->CheckTaylorSlabReady(slab)) 
 		return 0; 
 #else
     if( !SB->IsIOCompleted( TaylorSlab, slab ) ){
@@ -259,6 +260,8 @@ int TaylorForcePrecondition(int slab) {
 }
 
 void TaylorForceAction(int slab) {	
+	MTCOMPLEX *t = (MTCOMPLEX *) SB->GetSlabPtr(TaylorSlab, slab);
+	
     STDLOG(1,"Computing far-field force for slab %d\n", slab);
     SlabFarForceTime[slab].Start();
     SB->AllocateArena(FarAccSlab, slab);
@@ -655,9 +658,10 @@ void DriftAction(int slab) {
 
 int FinishPrecondition(int slab) {
     for(int j=-FINISH_WAIT_RADIUS;j<=FINISH_WAIT_RADIUS;j++) {
-        if( Drift.notdone(slab+j) ) return 0;
+        if( Drift.notdone(slab+j) )  return 0; 
     }
-
+	
+	if (Finish.alldone(total_slabs_on_node)) return 0; 
     return 1;
 }
 
@@ -692,9 +696,9 @@ void FinishAction(int slab) {
 	STDLOG(1,"Done deallocing pos, vel, aux for slab %d\n", slab);
 	
     // Make the multipoles
-    SB->AllocateArena(MultipoleSlab,slab);
+    SB->AllocateArena(MultipoleSlab,slab, RAMDISK_NO);
 	
-	STDLOG(1,"About to compute multipoles for slab %d, %p\n", slab, SB->GetSlabPtr(MultipoleSlab, slab));
+	STDLOG(1,"About to compute multipoles for slab %d, %p\n", slab, (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab));
 	
     ComputeMultipoleSlab(slab);
     
@@ -708,18 +712,16 @@ void FinishAction(int slab) {
 	
     WriteMultipoleSlab.Start();
 #ifdef PARALLEL
-	STDLOG(1, "Attemping to WriteArenaBlockingWithoutDeletion %d\n", slab);
+	STDLOG(1, "Attemping to WriteArenaBlockingWithoutDeletion for MultipoleSlab %d\n", slab);
+	STDLOG(1, "Attemping to WriteArenaBlockingWithoutDeletion for MultipoleSlab %d at address %p\n", slab, (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab));
+	
+	
+	
 	
     SB->WriteArenaBlockingWithoutDeletion(MultipoleSlab,slab);
 	
-	STDLOG(1, "Attemping to SendMultipoleSlab %d\n", slab);
-	ParallelConvolveDriver->SendMultipoleSlab(slab); //distribute z's to appropriate nodes for this node's x domain.
-	if (Finish.raw_number_executed==0){ //if we are finishing the first slab, set up receive MPI calls for incoming multipoles. 
-		STDLOG(1, "Attemping to RecvMultipoleSlab %d\n", slab);
-		ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's. 
-	}
-		
-    //ParallelConvolveDriver->WaitForMultipoleTransferComplete(slab, first_slab_finished); //this will spin until MPI multipole sends/recvs are complete for this slab and will then deallocate the multipole slab.
+	
+	
 	
 #else
     SB->StoreArenaNonBlocking(MultipoleSlab,slab);
@@ -730,10 +732,18 @@ void FinishAction(int slab) {
     int pwidth = FetchSlabs.raw_number_executed - Finish.raw_number_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
 
-    #ifdef PARALLEL
+#ifdef PARALLEL
 	
     if (Finish.raw_number_executed==0) SendManifest->QueueToSend(slab);
-    #endif
+	
+	STDLOG(1, "Attempting to SendMultipoleSlab %d\n", slab);
+	ParallelConvolveDriver->SendMultipoleSlab(slab); //distribute z's to appropriate nodes for this node's x domain.
+	if (Finish.raw_number_executed==0){ //if we are finishing the first slab, set up receive MPI calls for incoming multipoles.
+		STDLOG(1, "Attempting to RecvMultipoleSlab %d\n", slab);
+		ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's.
+	}
+#endif
+	
 
     STDLOG(1, "About to ReportMemoryAllocatorStats\n");
 	
@@ -745,18 +755,21 @@ void FinishAction(int slab) {
 	
 }
 
+#ifndef WAIT_MULTIPOLES
 int CheckForMultipolesPrecondition(int slab) {
     if( Finish.notdone(slab) ) return 0;
-	else if (ParallelConvolveDriver->CheckForMultipoleTransferComplete(slab)) return 1; //this will spin until MPI multipole sends/recvs are complete for this slab and will then deallocate the multipole slab.
-    return 0;
+	
+	int multipole_transfer_complete = ParallelConvolveDriver->CheckForMultipoleTransferComplete(slab);
+	if (multipole_transfer_complete) return 1; 
+    else return 0;
 }
 
 void CheckForMultipolesAction(int slab) {
+	STDLOG(1, "DeAllocating Multipole slab %d at address %p\n", slab, (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab));
 	SB->DeAllocate(MultipoleSlab, slab);  
 	
-}
-	
-
+}	
+#endif
 // -----------------------------------------------------------------
 // A no-op precondition that always passes
 int NoopPrecondition(int slab){
@@ -775,36 +788,7 @@ void NoopAction(int slab){
  * The Dependency module is responsible for running the registered steps.
  */
 void timestep(void) {
-	
-	
-//NAM do parallel convolution now if multi-node.
-#ifdef PARALLEL
-	ConvolutionWallClock.Clear();
-	ConvolutionWallClock.Start();
-	
-    std::stringstream ss;
-    std::string s;
-	ss << P.MultipoleDirectory << "/Multipoles";
-	s = ss.str();
-	const char * MTfile = s.c_str(); 
-	
-	//in previous timestep's finish action, multipoles were distributed to nodes such that each node now stores multipole moments for all x and its given range of z that it will convolve. Fetch these from shared memory.
-	
-    STDLOG(1,"Working with MTfile %s\n", MTfile);
-	
-	ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, MTfile);
-
-	ParallelConvolveDriver->Convolve(); 
-	
-	for (int slab = 0; slab < P.cpd; slab ++){
-		STDLOG(1, "About to SendTaylor Slab %d\n", slab); 
-		ParallelConvolveDriver->SendTaylorSlab(slab);
-	}
-	
-	ConvolutionWallClock.Stop(); 
-#endif
-	
-	
+		
     TimeStepWallClock.Clear();
     TimeStepWallClock.Start();
     STDLOG(1,"Initiating timestep()\n");
@@ -836,7 +820,38 @@ void timestep(void) {
         // TODO: I'm not sure inflating FINISH_WAIT_RADIUS is the best way to deal with this
         // TODO: Also not sure this is the minimum number of slabs, even in that case
         assertf(total_slabs_on_node >= 2*FINISH_WAIT_RADIUS + 1 + 2*FORCE_RADIUS + 4*GROUP_RADIUS, "Not enough slabs on node to finish any slabs!\n");
-    #endif
+  
+  
+		ConvolutionWallClock.Clear();
+		ConvolutionWallClock.Start();
+	
+	    std::stringstream ss;
+	    std::string s;
+		ss << P.MultipoleDirectory << "/Multipoles";
+		s = ss.str();
+		const char * MTfile = s.c_str(); 
+	
+		//in previous timestep's finish action, multipoles were distributed to nodes such that each node now stores multipole moments for all x and its given range of z that it will convolve. Fetch these from shared memory.
+	
+	    STDLOG(1,"Working with MTfile %s\n", MTfile);
+	
+		ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, MTfile);
+
+		ParallelConvolveDriver->Convolve(); 
+	
+		for (int slab = 0; slab < P.cpd; slab ++){ //NAM TODO move loop into SendTaylors
+			STDLOG(1, "About to SendTaylor Slab %d with offset %d\n", slab, FORCE_RADIUS); 
+			ParallelConvolveDriver->SendTaylorSlab(slab, FORCE_RADIUS);
+		}
+	
+		ConvolutionWallClock.Stop(); 
+	#endif	
+		
+		
+		
+		
+		
+		
     STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
     STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
     STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
@@ -853,10 +868,14 @@ void timestep(void) {
             Output.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS, &OutputPrecondition,             &OutputAction            );
              Drift.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS, &DriftPrecondition,              &DriftAction             );
             Finish.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &FinishPrecondition,             &FinishAction            );
-#ifdef PARALLEL
-CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &CheckForMultipolesPrecondition,  &CheckForMultipolesAction );
-#else
-CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &NoopPrecondition,  &NoopAction );
+
+
+#ifndef WAIT_MULTIPOLES
+	#ifdef PARALLEL
+	CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &CheckForMultipolesPrecondition,  &CheckForMultipolesAction );
+	#else
+	CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &NoopPrecondition,  &NoopAction );
+	#endif
 #endif
             
     // If group finding is disabled, we can make the dependencies no-ops so they don't hold up the pipeline
@@ -879,8 +898,11 @@ CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + F
                                           &FetchLPTVelPrecondition,   &FetchLPTVelAction   );
     else
         LPTVelocityReRead.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
+	
+	
 
-    while( !CheckForMultipoles.alldone(total_slabs_on_node) ) {
+#ifndef WAIT_MULTIPOLES	
+	while (!CheckForMultipoles.alldone(total_slabs_on_node)){
            for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
          TransposePos.Attempt();
             NearForce.Attempt();
@@ -895,7 +917,32 @@ CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + F
     LPTVelocityReRead.Attempt();
                 Drift.Attempt();
                Finish.Attempt();
-   CheckForMultipoles.Attempt();
+			   
+	    // TODO: The following line will be omitted once the MPI monitoring thread is in place.
+           SendManifest->FreeAfterSend();
+	    ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
+	
+	    // If the manifest has been received, install it.
+	    if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
+	    CheckForMultipoles.Attempt();	
+    }
+	
+#else		
+	while (!Finish.alldone(total_slabs_on_node)){
+           for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
+         TransposePos.Attempt();
+            NearForce.Attempt();
+          TaylorForce.Attempt();
+                 Kick.Attempt();
+       MakeCellGroups.Attempt();
+   FindCellGroupLinks.Attempt();
+       DoGlobalGroups.Attempt();
+               Output.Attempt();
+            Microstep.Attempt();
+         FinishGroups.Attempt();
+    LPTVelocityReRead.Attempt();
+                Drift.Attempt();
+               Finish.Attempt();
 			   
 	    // TODO: The following line will be omitted once the MPI monitoring thread is in place.
            SendManifest->FreeAfterSend();
@@ -904,7 +951,7 @@ CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + F
 	    // If the manifest has been received, install it.
 	    if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
     }
-	   
+#endif
 
     if(IL->length!=0)
         IL->DumpParticles();
@@ -914,8 +961,10 @@ CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + F
     
     STDLOG(1,"Finished timestep dependency loop!!\n");
     #ifdef PARALLEL
-		
-	//ParallelConvolveDriver->WaitForMultipoleTransferComplete(FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS); //wait for MPI work to finish and deallocate MultipoleSlab.
+	
+#ifdef WAIT_MULTIPOLES		
+	ParallelConvolveDriver->WaitForMultipoleTransferComplete(FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS); //wait for MPI work to finish and deallocate MultipoleSlab.
+#endif
 	
 	
         MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);

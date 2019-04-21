@@ -307,7 +307,7 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
 			
 			
 			
-			STDLOG(1, "P.MultipoleDirectory = %s\n", P.MultipoleDirectory);
+			STDLOG(1, "P.MultipoleDirectory = %s, slabnum = %c\n", P.MultipoleDirectory, slabnum);
 			
 			
             // Send odd multipoles to MultipoleDirectory2, if it's defined
@@ -316,6 +316,7 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
                 break;
             }
             ss << P.MultipoleDirectory << "/Multipoles_" << slabnum; break;
+						
         }
         case MergeCellInfoSlab   : { ss << P.LocalWriteStateDirectory << "/cellinfo_"   << slabnum; break; }
         case MergePosSlab        : { ss << P.LocalWriteStateDirectory << "/position_"   << slabnum; break; }
@@ -338,8 +339,14 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         default:
             QUIT("Illegal type %d given to WriteSlabPath()\n", type);
     }
+	
+	STDLOG(1, "Exiting write slab path.\n");
+	
 
     s = ss.str();
+	
+	STDLOG(1, "Exiting write slab path  string = %s.\n", s);
+	
     return s;
 }
 
@@ -506,17 +513,27 @@ void SlabBuffer::StoreArenaNonBlocking(int type, int slab) {
 void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking){
     std::string spath = WriteSlabPath(type,slab);
     const char *path = spath.c_str();
+	
+	STDLOG(1, "a\n");
 
     // Determine the actual, allocated Ramdisk type of the current slab
     // If it was allocated on Ramdisk, then the writing is already done by definition!
     if(AA->ArenaRamdiskType(TypeSlab2ID(type,slab)) != RAMDISK_NO){
-        STDLOG(1, "Skipping explicit write of Ramdisk slab \"%s\"\n", path);
+        STDLOG(1, "Skipping explicit write of type %d Ramdisk slab \"%s\"\n", type, path);
 
         // still might have to deallocate
-        if(deleteafter == IO_DELETE)
+        if(deleteafter == IO_DELETE){
+			if (type == 11) STDLOG(1, "Uh oh. DeAllocating Multipole slab prematurely\n");
             DeAllocate(type, slab);
+		}
+		
+		STDLOG(1, "b_2\n");
+		
         return;
     }
+	
+	STDLOG(1, "b\n");
+	
 
     WriteArena(type, slab, deleteafter, blocking, path);
 }

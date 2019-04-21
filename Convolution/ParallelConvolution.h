@@ -30,12 +30,12 @@ public:
 	void SendMultipoleSlab(int slab);
 	void WaitForMultipoleTransferComplete(int offset);
 	
-	int CheckForMultipoleTransferComplete(int slab);
+	int  CheckForMultipoleTransferComplete(int slab);
 	
 	
 	void RecvTaylorSlab(int slab);
-	void SendTaylorSlab(int slab); //TODO do we need this?
-	int  CheckRecvTaylorComplete(int slab);
+	void SendTaylorSlab(int slab, int offset); //TODO do we need this?
+	int  CheckTaylorSlabReady(int slab);
 	
     uint64_t blocksize, zwidth, z_slabs_per_node; 
 
@@ -74,14 +74,18 @@ private:
 	DFLOAT ** Ddisk; //This is the pointer to the derivatives buffer. 
     Complex * MTzmxy;   // This is the pointer to the [znode][m][x][y] work buffer 
 
-    #define M_TAG (10000)     // An offset for the multipole tags
+    #define M_TAG (100000)     // An offset for the multipole tags
     MPI_Request *Mrecv_requests;    // We'll set up a [CPD] array to receive one packet per x
     MPI_Request **Msend_requests;    // We'll set up a [CPD][MPI_size] array even though each node will only use the x's in its NodeSlabs range
+	int *Mrecv_flags;
+	int **Msend_flags;
     int Msend_active;
 
-    #define T_TAG (20000)     // An offset for the taylor tags
+    #define T_TAG (200000)     // An offset for the taylor tags
     MPI_Request *Tsend_requests;    // We'll set up a [CPD] array to send one packet per x
     MPI_Request **Trecv_requests;    // We'll set up a [CPD][MPI_size] array even though each node will only use the x's in its NodeSlabs range
+	int *Tsend_flags;
+	int **Trecv_flags;
 	int Trecv_active; 
 	
 	
@@ -104,7 +108,10 @@ private:
 	int CheckRecvMultipoleComplete(int slab);
 	
 	
-	int GetTaylorRecipient(int slab);
+	int GetTaylorRecipient(int slab, int offset);
+	int CheckTaylorRecvReady(int slab);
+	int CheckTaylorSendComplete(int slab);
+		
 	
     // STimer ForwardZFFTMultipoles;
 //     STimer InverseZFFTTaylor;

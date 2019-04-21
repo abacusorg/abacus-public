@@ -48,6 +48,11 @@ import re
 import fnmatch
 import shlex
 
+import time 
+import signal
+from tempfile import mkstemp
+
+
 from .InputFile import InputFile
 from . import Tools
 from . import GenParam
@@ -58,6 +63,8 @@ import Abacus
 EXIT_REQUEUE = 200
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
 directory_param_fn = pjoin(abacuspath, 'Abacus', 'directory.def')
+
+
 
 def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False, erase_ic=False, output_parfile=None, use_site_overrides=False, override_directories=False, **param_kwargs):
     """
@@ -121,6 +128,9 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     logdir = params['LogDirectory']
     basedir = params['WorkingDirectory']
     groupdir = params.get('GroupDirectory', '')
+    
+    if params.get('DistributeToResume') == 1: 
+        clean = 0
 
     # If we requested a resume, but there is no state, assume we are starting fresh
     if not clean:
@@ -164,7 +174,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     
     info_out_path = pjoin(outdir, 'info')
     copy_contents(config_dir, info_out_path, clean=True)
-        
+  
     # Note: we are cd-ing into the global working directory if this is a parallel run
     with Tools.chdir(basedir):
         # The parfile is directly stored in the basedir
@@ -175,9 +185,39 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
             print('Reusing existing ICs')
 
         retval = singlestep(output_parfile, maxsteps, make_ic=clean)
+        
+    if parallel:
+        handle_requeue(retval, parfn)
 
     return retval
 
+def handle_requeue(retval, parfn):
+    #if singlestep returns a retval of EXIT_REQUEUE, we will quit this job and resubmit it to the queue. 
+    #by this point we should have gracefully retrieved the state from the nodes to the global directory. 
+    #we will need to tell the next queued job that it should redistribute the state back to the nodes. 
+    #this function modifies the abacus.par2 file in the Production directory to handle this. 
+    
+    #first, check if DistributeToResume is defined in abacus.par2 from a previous run. If so, delete this line.
+    fh, abs_path = mkstemp()
+    
+    with os.fdopen(fh,'w') as new_file:
+        with open(parfn) as old_file:
+            for line in old_file:
+                new_file.write(line.replace('DistributeToResume = 1\n',  '\n'))
+                
+    #Remove original file
+    os.remove(parfn)
+    #Move new file
+    shutil.move(abs_path, parfn)
+
+    #then check if we are about to requeue the job, and set DistributeToResume = 1 if yes. 
+    if retval == EXIT_REQUEUE:
+        print('Exit requeue triggered. Modifying parameter file to DistributeToResume next time around.')
+        f= open(parfn,"a")
+        f.write('DistributeToResume = 1\n')
+        f.close()     
+        
+        #sys.exit()
 
 def copy_contents(in_dir, out_dir, clean=True, ignore='*.py'):
     if clean:
@@ -698,6 +738,15 @@ class StatusLogWriter:
     
 
 
+
+class SignalHandler(object):
+    def __init__(self):
+        self.graceful_exit = None
+    def handle(self, signalNumber, frame):
+        print('Received signal:', signalNumber)
+        self.graceful_exit = 1
+        print('We are running out of time in the job! Setting signal handler graceful_exit flag to ', self.graceful_exit)
+    
 def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     """
     Run a number of Abacus timesteps by invoking the `singlestep` and
@@ -750,6 +799,10 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     
     if parallel:
         # TODO: figure out how to signal a backup to the nodes
+        
+        s = SignalHandler()
+        signal.signal(signal.SIGUSR1, s.handle)
+
         backups_enabled = False
 
     #if not backups_enabled:
@@ -797,8 +850,19 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             print('Distributing state to nodes...')
             distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'distribute_state_to_nodes.py'), paramfn, distribute_state_from]
             subprocess.check_call(Conv_mpirun_cmd + distribute_state_cmd)
-
+        
+        #check if our previous run was interruptered and saved in the global directory. If yes, redistribute state to nodes. 
+        distribute_to_resume = param.get('DistributeToResume', None)
+        
+        print('distribute_to_resume = ', distribute_to_resume); 
+        
+        if distribute_to_resume:
+            print('Distributing in order to resume...')
+            distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'distribute_state_to_nodes.py'), paramfn, '--distribute_to_resume', '--verbose']
+            subprocess.check_call(Conv_mpirun_cmd + distribute_state_cmd)
+        
     print("Beginning abacus steps:")
+    
 
     for i in range(maxsteps):
         if make_ic:
@@ -893,6 +957,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             print("Running singlestep for step {:d}".format(stepnum))
         with Tools.ContextTimer() as ss_timer:
             subprocess.check_call(singlestep_cmd, env=singlestep_env)
+            
         
         # In profiling mode, we don't move the states so we can immediately run the same step again
         if ProfilingMode and ProfilingMode != 2:
@@ -909,13 +974,14 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
 
         # Update the status log
         status_log.update(param, write_state, ss_timer.elapsed, conv_time)
+
         
         shutil.copy(pjoin(write, "state"), pjoin(param.LogDirectory, "step{:04d}.state".format(write_state.FullStepNumber)))
         print(( "\t Finished state {:d}. a = {:.4f}, dlna = {:.3g}, rms velocity = {:.3g}".format(
             write_state.FullStepNumber, write_state.ScaleFactor,
             write_state.DeltaScaleFactor/(write_state.ScaleFactor-write_state.DeltaScaleFactor),
             write_state.RMS_Velocity)))
-
+                    
         if not parallel:
             # Delete the Taylors right away; want to avoid accidentally
             # running with inconsistent positions and Taylors
@@ -950,6 +1016,16 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                 shutil.copy(dfn, pjoin(param.LogDirectory, "step{:04d}.density".format(write_state.FullStepNumber)))
                 np.savez(pjoin(param.LogDirectory, "step{:04d}.pow".format(write_state.FullStepNumber)), k=k,P=P,nb=nb)
                 os.remove(dfn)
+                
+                
+   
+        if parallel and s.graceful_exit:
+            print('Graceful exit triggered. Retrieving state from nodes and saving in global directory.')
+            retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'distribute_state_to_nodes.py'), paramfn, '--retrieve', '--verbose']
+            subprocess.check_call(Conv_mpirun_cmd + retrieve_state_cmd)
+            
+            print('Exiting and requeueing.')
+            return EXIT_REQUEUE  
         
         # Now shift the states down by one
         move_state_dirs(read, write, past)
@@ -981,9 +1057,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
 
         ### end singlestep loop
 
-    # If there is more work to be done, signal that we are ready for requeue
-    if not finished:
-        return EXIT_REQUEUE
+    # # If there is more work to be done, signal that we are ready for requeue
+    # if not finished:
+    #     return EXIT_REQUEUE
 
     return 0
 

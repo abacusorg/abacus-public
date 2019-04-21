@@ -76,31 +76,57 @@ void timestepIC(void) {
     int cpd = P.cpd; int first = first_slab_on_node;
     Drift.instantiate(cpd, first, &FetchICPrecondition, &FetchICAction );
     Finish.instantiate(cpd, first + FINISH_WAIT_RADIUS,  &FinishPrecondition,  &FinishAction );
+#ifndef WAIT_MULTIPOLES
 	#ifdef PARALLEL
 	CheckForMultipoles.instantiate(cpd, first + FINISH_WAIT_RADIUS, &CheckForMultipolesPrecondition,  &CheckForMultipolesAction );
 	#else
 	CheckForMultipoles.instantiate(cpd, first + FINISH_WAIT_RADIUS, &NoopPrecondition,  &NoopAction );
 	#endif
-    while( !CheckForMultipoles.alldone(total_slabs_on_node) ) {
+#endif
+	
+	
+	
+#ifndef WAIT_MULTIPOLES	
+	while (!CheckForMultipoles.alldone(total_slabs_on_node)){
         Drift.Attempt();
-       Finish.Attempt();
-	   CheckForMultipoles.Attempt();
-	   
+       Finish.Attempt();	   
        SendManifest->FreeAfterSend();
     ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
     // If the manifest has been received, install it.
     if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
-
+   		CheckForMultipoles.Attempt();
     }
+#else
+	while (!Finish.alldone(total_slabs_on_node)){
+        Drift.Attempt();		
+       Finish.Attempt();	   
+	   	   
+       SendManifest->FreeAfterSend();
+    	ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
+    	// If the manifest has been received, install it.
+   		if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
+	}
+#endif
 	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+		
 
     STDLOG(1, "Read %d particles from IC files\n", NP_from_IC);
     #ifdef PARALLEL
 	//NAM TODO if I do this on a per slab basis in Finish Action, I get a strange crash (a bunch of memory related print outs)
 	//if I do this in an extra dependency, do I have to be careful about Manifest?
 	
-	//ParallelConvolveDriver->WaitForMultipoleTransferComplete(FINISH_WAIT_RADIUS); //wait for MPI work to finish and deallocate MultipoleSlab.
-	
+#ifdef WAIT_MULTIPOLES
+	ParallelConvolveDriver->WaitForMultipoleTransferComplete(FINISH_WAIT_RADIUS); //wait for MPI work to finish and deallocate MultipoleSlab.
+#endif	
 	
         MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
         MPI_REDUCE_TO_ZERO(&NP_from_IC, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);

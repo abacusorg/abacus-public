@@ -18,14 +18,13 @@ be requested, which allocates space and triggers the MPI call
 to gather the information.  And a method to check that the MPI
 work has been completed.
 */
-//#define DO_NOTHING
+ #define DO_NOTHING
 
 #include "ParallelConvolution.h"
 
 /// The zstart for the node of the given rank.
 int ParallelConvolution::Zstart(int rank) {
-    return (cpd2p1*rank/MPI_size); //TODO NAM sanity check: check that this returns integer division answers. 
-	//TODO NAM does below code handle the case where some nodes have nothing to do or not a full range of z? 
+    return (cpd2p1*rank/MPI_size); 
 }
 
 // ParallelConvolution::ParallelConvolution(){}
@@ -41,7 +40,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, const char *MTfil
 	mt_file = MTfile;
 	create_MT_file = _create_MT_file; 
 	cpd = _cpd;
-	cpd2p1 = (cpd+1)/2; //NAM TODO why is range of z only half the cpd length? Definitely introduced some inconsistencies further down. Fix. 
+	cpd2p1 = (cpd+1)/2; 
 	
 	int pad = CPD2PAD/sizeof(Complex);
 	cpd2pad = floor((cpd*cpd+pad)/pad)*pad;
@@ -54,7 +53,6 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, const char *MTfil
 	
 	STDLOG(1, "Doing zstart = %d and znode = %d\n", zstart, znode);
 	
-	
 	CompressedMultipoleLengthXY = ((1+P.cpd)*(3+P.cpd))/8;
 		 
     int cml = ((order+1)*(order+2)*(order+3))/6;
@@ -66,9 +64,6 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, const char *MTfil
         if((cpd*cpd)%blocksize==0)
             if(nprocs*2.5*cml*blocksize*sizeof(Complex) < cacherambytes) break;
                 // 2.5 = 2 Complex (mcache,tcache) 1 double dcache
-
-    
-	STDLOG(1, "Conv params: %d %d %d %d %d\n", cml, nprocs, cacherambytes, blocksize, CompressedMultipoleLengthXY);
 	
 	first_slabs_all = new int[MPI_size];
     total_slabs_all = new int[MPI_size]; 
@@ -107,7 +102,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, const char *MTfil
 		Msend_requests[x] = NULL;  // This indicates no pending req
 		Mrecv_requests[x] = MPI_REQUEST_NULL;  // This indicates no pending req
 		Trecv_requests[x] = NULL;  // This indicates no pending req
-		Tsend_requests[x] = MPI_REQUEST_NULL;  // This indicates no pending req
+		Tsend_requests[x] = MPI_REQUEST_NULL;  // This indicates no pending req	
 	} 
 	
 	AllocMT();
@@ -117,8 +112,6 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, const char *MTfil
 /// The destructor.  This should close the MTfile. NAM: MTfile can be closed right after mapping, I think. 
 /// Also can do any checks to make sure that all work was completed.
 ParallelConvolution::~ParallelConvolution() {
-	
-	STDLOG(1, "Entering desctructor\n")
 	//NAM how to check work was completed, ideas:
 	// assert all values of the four arrays below have been set to MPI_REQUEST_NULL? 
 	// add class variable that keeps track of the number of FFTS, their success? check this? 
@@ -134,7 +127,6 @@ ParallelConvolution::~ParallelConvolution() {
 	delete[] node_start; 
 	delete[] node_size; 
 	
-	
 	delete[] first_slabs_all;
 	delete[] total_slabs_all; 
 	
@@ -148,36 +140,15 @@ ParallelConvolution::~ParallelConvolution() {
 	
 	delete[] Ddisk; 
 	
-	fftw_cleanup_threads();
-	
-	STDLOG(1, "Exiting destructor\n")
-			
-	
-   
+	fftw_cleanup_threads(); //NAM check usage. 
 }
 
-/* TODO move these back to CP.cpp */
 
-void ParallelConvolution::MultipoleFN(int slab, char * const fn){
-    // We elsewhere generically support N threads, but here is where we assume 2
-    if(StripeConvState && slab % 2 == 1)
-        sprintf(fn, "%s/%s_%04d", P.MultipoleDirectory2, "Multipoles", slab);
-    else
-        sprintf(fn, "%s/%s_%04d", P.MultipoleDirectory, "Multipoles", slab);
-}
-
-void ParallelConvolution::TaylorFN(int slab, char * const fn){
-    // We elsewhere generically support N threads, but here is where we assume 2
-    if(StripeConvState && slab % 2 == 1)
-        sprintf(fn, "%s/%s_%04d", P.TaylorDirectory2, "Taylor", slab);
-    else
-        sprintf(fn, "%s/%s_%04d", P.TaylorDirectory, "Taylor", slab);
-}
 
 /* =========================   ALLOC BUFFERS   ================== */ 
 
 
-void ParallelConvolution::AllocMT(){ //could add create flag to this to handle file creation and pass in 1 from timestep_IC and default to 0 otherwise. 
+void ParallelConvolution::AllocMT(){ 
 	//MTdisk has shape [x][znode][m][y]
 	
 	//TODO this appears almost exactly as in arena allocator. Consider factoring out to ramdisk util. 
@@ -214,43 +185,26 @@ void ParallelConvolution::AllocMT(){ //could add create flag to this to handle f
     assertf(MTdisk != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
     assertf(res == 0, "Failed to close fd %d\n", fd);
 	
-	STDLOG(1, "Successfully mapped MTdisk of size %d bytes.\n", size)
+	STDLOG(1, "Successfully mapped MTdisk of size %d bytes at address %p.\n", size, MTdisk);
 		
     size_t bufsize = sizeof(Complex)*znode*rml*cpd2pad; 	
-
-	// int ret = posix_memalign((void **)&MTzmxy, 4096, bufsize);
-// 	assertf(ret==0, "Failed to memalign MTzmxy\n");
-// 	STDLOG(1,"Allocated %d bytes for MTzmxy buffer\n", bufsize);
-
-
+	
 	MTzmxy = (Complex *) fftw_malloc(bufsize);
 	assertf(MTzmxy!=NULL, "Failed fftw_malloc for MTzmxy\n");
-	STDLOG(1, "Successfully malloced MTzmxy\n");
+	STDLOG(1, "Successfully malloced MTzmxy at address %p\n", MTzmxy);
 	return;
 }
 
 void ParallelConvolution::AllocDerivs(){
-	
-	STDLOG(1,"AllocDerivs a, %d\n", MPI_rank);
-	
-    Ddisk = new DFLOAT*[znode];
-	
-	STDLOG(1,"AllocDerivs b, %d\n", MPI_rank);
-	
-	
-    for(int z = 0; z < znode; z++)
-        Ddisk[z] = NULL; //NAM TODO  why not another malloc? taken from block_io utils. Double check. 
-	
-	STDLOG(1,"AllocDerivs c, %d\n", MPI_rank);
-	
+	Ddisk = new DFLOAT*[znode];
+	for(int z = 0; z < znode; z++)
+        Ddisk[z] = NULL;
 }
 
 /* =========================   DERIVATIVES   ================== */ 
 
 void ParallelConvolution::LoadDerivatives(int z) {
-	int z_file = z + zstart;
-	STDLOG(1,"Entering LoadDerivatives z %d from file z_file = %d, zstart = %d\n", z, z_file, zstart);
-	
+	int z_file = z + zstart;	
     //ReadDerivatives.Start(); 
 	
 	size_t size = sizeof(DFLOAT)*rml*CompressedMultipoleLengthXY;
@@ -262,9 +216,9 @@ void ParallelConvolution::LoadDerivatives(int z) {
         fnfmt = "%s/fourierspace_%d_%d_%d_%d_%d";
 	
     // note the derivatives are stored in z-slabs, not x-slabs
-    char fn[1024];
+    char fn[1024]; //abacus.py has code to copy Derivs to DerivativesDirectory, and this looks for them there. Change DerivsDirec = RAMDISK?
     sprintf(fn, fnfmt,
-            P.DerivativesDirectory,
+            P.DerivativesDirectory, 
             (int) cpd, order, P.NearFieldRadius,
             P.DerivativeExpansionRadius, z_file);
 
@@ -282,10 +236,8 @@ void ParallelConvolution::LoadDerivatives(int z) {
     assertf((void *) Ddisk[z] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
     assertf(Ddisk[z] != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
     assertf(res == 0, "Failed to close fd %d\n", fd);
-
-
-	STDLOG(1,"Exiting LoadDerivatives z %d at z_file %d\n", z, z_file);
 	
+	STDLOG(1, "Mapped derivatives for z = %d at address %p\n", z, Ddisk[z]);
 	//ReadDerivatives.Stop();
 }
  
@@ -297,25 +249,15 @@ void ParallelConvolution::LoadDerivatives(int z) {
 /// Call this when the first slab is being finished.
 /// We need to know the slabs that will be computed on each node.
 void ParallelConvolution::RecvMultipoleSlab(int first_slab_finished) {
-	
-	STDLOG(1,"Setting MPI_Irecv for incoming Multipoles\n");
-	
-	STDLOG(1,"finished: %d on node with first slab %d \n", first_slab_finished, first_slab_on_node);
-	
-	
 	int offset = first_slab_finished - first_slab_on_node;
 	for (int r = 0; r < MPI_size; r++) {
 		
 	    for (int xraw = first_slabs_all[r] + offset; xraw < first_slabs_all[r] + offset + total_slabs_all[r]; xraw++) {
 			int x = CP->WrapSlab(xraw);
-			int tag = x + M_TAG;
+			int tag = (MPI_rank+1) * 10000 + x + M_TAG; 
 			
-			STDLOG(1, "recv tag = %d, x= %d\n", tag, x); 
 			// We're receiving the full range of z's in each transfer.
 			// Key thing is to route this to the correct x location
-			
-			STDLOG(1, "%p\n", MTdisk + x * this_node_size); 
-			
 			MPI_Irecv(MTdisk + x * this_node_size, this_node_size,
 			    MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Mrecv_requests[x]);
 	    }
@@ -330,29 +272,27 @@ void ParallelConvolution::RecvMultipoleSlab(int first_slab_finished) {
 void ParallelConvolution::SendMultipoleSlab(int slab) {
 	slab = CP->WrapSlab(slab);
 	
-	STDLOG(1,"slab %d wrapped slab\n", slab);
+	MTCOMPLEX * mt = (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab);
 	
-    MTCOMPLEX * mt = (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab);
-	
-	STDLOG(1,"slab %d got slab ptr %p \n", slab, mt);
+#ifdef DO_NOTHING	
+	//fill up multipole slab with predictable values and pass them through MPI piping without convolving.
+	int zcpd = (cpd+1)/2;
+	for (int z = 0; z < zcpd; z++){
+		for (int m = 0; m < rml; m ++){
+			for (int y = 0; y < cpd; y ++){ 
+				int i = z*cpd*rml + m*cpd + y; 
+				MTCOMPLEX value = (slab+1)*1000000 + y * 1000 + z + 0.01 * m ; 
+				mt[i] = value; 				
+			}
+		}
+	}
+#endif	
 	
 	Msend_requests[slab] = new MPI_Request[MPI_size];
-	
-	STDLOG(1,"slab %d init Msend_requests\n", slab);
-	
-	
 	Msend_active++;
 	for (int r = 0; r < MPI_size; r++) {
-    	int tag = slab + M_TAG;
-		
-		STDLOG(1,"slab %d about to send %d, node_start[r] = %d, send tag  = %d\n", slab, r, node_start[r], tag);
-				
-		STDLOG(1, "%p\n", mt + node_start[r]); 
-				
-    	MPI_Isend(mt + node_start[r], node_size[r], MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Msend_requests[slab][r]);
-		
-		STDLOG(1,"slab %d sent %d\n", slab, r);
-		
+		int tag = (r+1) * 10000 + slab + M_TAG; 
+		MPI_Isend(mt + node_start[r], node_size[r], MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Msend_requests[slab][r]);		
 	}
 	STDLOG(1,"Multipole slab %d has been queued for MPI_Isend, Msend_active = %d\n", slab, Msend_active);
 }
@@ -361,82 +301,66 @@ void ParallelConvolution::SendMultipoleSlab(int slab) {
 // /// Return only once all of the multipole slabs have been received.
 // /// We'll only check this at the end of the timestep loop, so
 // /// this will just spin until done.
+// #ifdef WAIT_MULTIPOLES
 // void ParallelConvolution::WaitRecvMultipoleComplete(int slab) {
-//
-// 	STDLOG(1,"Entering WaitRecvMultipoleComplete for slab = %d\n", slab);
-//
-//
 // 	while (1) //spin until done.
 // 	{
-// 		STDLOG(1,"WaitRecvMultipoleComplete spinning for slab = %d\n", slab);
+// 		STDLOG(1,"WaitRecvMultipoleComplete beginning spin for slab = %d\n", slab);
 // 		int err = MPI_Wait(&Mrecv_requests[slab], MPI_STATUS_IGNORE);
-// 		//int err = MPI_Waitall(cpd, Mrecv_requests[slab], MPI_STATUSES_IGNORE);  // TODO: NAM okay to have MPI_STATUSES_IGNORE, or need array_of_statuses?
-// 		STDLOG(1,"WaitRecvMultipoleComplete spinning, err = %d for slab = %d\n", err, slab);
+// 		STDLOG(1,"WaitRecvMultipoleComplete finished spin, err = %d for slab = %d\n", err, slab);
 //
 // 		if (err == 0) return;
 // 	}
 // }
+// #endif
+
 
 int ParallelConvolution::CheckRecvMultipoleComplete(int slab) {
-	
-	STDLOG(1,"Entering WaitRecvMultipoleComplete for slab = %d\n", slab);
-	int done = 0; 
-	
-	STDLOG(1,"WaitRecvMultipoleComplete spinning for slab = %d\n", slab);
-	int err = MPI_Wait(&Mrecv_requests[slab], MPI_STATUS_IGNORE);
-	//int err = MPI_Waitall(cpd, Mrecv_requests[slab], MPI_STATUSES_IGNORE);  // TODO: NAM okay to have MPI_STATUSES_IGNORE, or need array_of_statuses? 
-	STDLOG(1,"WaitRecvMultipoleComplete spinning, err = %d for slab = %d\n", err, slab);
-	
-	if (err == 0) done = 1;
-	
-	return done;  
+	STDLOG(1,"CheckRecvMultipoleComplete testing for slab = %d\n", slab);
+	int received = 0; 
+	int err = MPI_Test(&Mrecv_requests[slab], &received, MPI_STATUS_IGNORE);
+	STDLOG(1,"CheckRecvMultipoleComplete tested, err = %d  received = %d for slab = %d\n", err, received, slab);
+		
+	return received;  
 }
 
 /// Call periodically to check on the status of the MPI calls
 /// and delete the MultipoleSlab when a send is complete.
 /// Probably best if this is not expecting the completion to be 
 /// in order, but we could discuss this.
-int ParallelConvolution::CheckSendMultipoleComplete(int slab) {
+int ParallelConvolution::CheckSendMultipoleComplete(int slab) {	
 	STDLOG(1,"Entering CheckSendMultipoleComplete for slab %d\n", slab);
 	
     int x = slab; 	
     if (Msend_requests[x] == NULL) return 1;  // Nothing to do for this slab
-	
-	STDLOG(1,"2 CheckSendMultipoleComplete for slab %d\n", slab);
-	
-	
+
     // This slab has pending MPI calls
-    int err, sent = 0, done = 1;
+    int err = 0, sent = 0, done = 1;
 	
     for (int r = 0; r < MPI_size; r++) {		
-		if (Msend_requests[x][r] == MPI_REQUEST_NULL) continue;  // Already done
-		
-		STDLOG(1,"4 %d CheckSendMultipoleComplete for slab %d\n", r, slab);
-		
-		
+		if (Msend_requests[x][r]==MPI_REQUEST_NULL) continue;  // Already done
 		err = MPI_Test(Msend_requests[x] + r, &sent, MPI_STATUS_IGNORE);
-		STDLOG(1,"CheckSendMultipoleComplete, r= %d, err= %d, sent = %d\n", r, err, sent);
-		
+	
 		if (not sent) {
 		    // Found one that is not done
 		    done=0; break;
 		}
+		
     }
     
 	if (done) {
         delete[] Msend_requests[x];
-		Msend_requests[x] = NULL;   // This will allow us to check faster
+ 		Msend_requests[x] = NULL;   // This will allow us to check faster
+
 		Msend_active--;
-		
 		STDLOG(1,"MPI_Isend complete for MultipoleSlab %d, Msend_active = %d\n", x, Msend_active);
-		
-		// SB->DeAllocate(MultipoleSlab, x);
-		// TODO: May need to force this to skip writing out?
     }
 	
 	return done; 
 }
 
+// #ifdef WAIT_MULTIPOLES
+//
 // /// Call after the timestep loop to spin until all of the
 // /// MPI calls have been finished.
 // void ParallelConvolution::WaitForMultipoleTransferComplete(int offset) {
@@ -445,24 +369,26 @@ int ParallelConvolution::CheckSendMultipoleComplete(int slab) {
 // 		STDLOG(1,"Begin waiting to determine that all incoming Multipoles received for slab %d, first %d, total %d\n", slab, first_slab_on_node, total_slabs_on_node);
 // 		WaitRecvMultipoleComplete(slab); //this spins until recvs are done.
 // 		STDLOG(1,"End waiting to determine that all incoming Multipoles received for slab %d\n", slab);
-// 		STDLOG(1,"Begin waiting to determine that all outgoing Multipoles sent for slab %d\n", slab);
+//
+//
+// 		//STDLOG(1, "RECEIVING MULTIPOLE slab %d, %1.7f\n", slab, real(MTdisk[slab * this_node_size + 2]));
+//
+//
+//
 // 		int done = 0;
 // 		while (not done)
 // 			done = CheckSendMultipoleComplete(slab); //this spins until sends are done.
-// 		STDLOG(1,"End waiting to determine that all outgoing Multipoles sent for slab %d\n", slab);
 // 	}
 // }
+// #endif
 
 int ParallelConvolution::CheckForMultipoleTransferComplete(int _slab) {
 	int slab = _slab % cpd;
 	int done_recv = 0; 
-	STDLOG(1,"Begin waiting to determine that all incoming Multipoles received for slab %d, first %d, total %d\n", slab, first_slab_on_node, total_slabs_on_node);
 	done_recv = CheckRecvMultipoleComplete(slab); //this spins until recvs are done. 
-	STDLOG(1,"End waiting to determine that all incoming Multipoles received for slab %d\n", slab);
-	STDLOG(1,"Begin waiting to determine that all outgoing Multipoles sent for slab %d\n", slab);
 	int done_send = 0; 
 	done_send = CheckSendMultipoleComplete(slab); //this spins until sends are done. 
-	STDLOG(1,"End waiting to determine that all outgoing Multipoles sent for slab %d\n", slab);
+	STDLOG(1,"Multipoles for slab %d: send_done %d, recv_done %d\n", slab, done_send, done_recv);
 	
 	return done_send and done_recv; 
 }
@@ -481,31 +407,49 @@ int ParallelConvolution::CheckForMultipoleTransferComplete(int _slab) {
 // If we put tags on every message, might it help to avoid flooding a buffer?
 
 ///for a given x slab = slab, figure out which node rank is responsible for it and should receive its Taylors. 
-int ParallelConvolution::GetTaylorRecipient(int slab){
+int ParallelConvolution::GetTaylorRecipient(int slab, int offset){
 	STDLOG(1,"Entering GetTaylorRecipient\n");
 	
-	for (int r = 0; r < MPI_size; r++){
-		if (first_slabs_all[r] <= slab and slab < first_slabs_all[r] + total_slabs_all[r]){
-			STDLOG(1, "For slab %d, identified node %d as Taylor target\n", slab, r);
-			return r;
+	for (int r = 0; r < MPI_size; r++) {
+		for (int _x = first_slabs_all[r] + offset; _x < first_slabs_all[r] + offset + total_slabs_all[r]; _x++) {
+			int x = _x % cpd;
+			if (x == slab){
+				STDLOG(1, "For slab %d, identified node %d as Taylor target\n", slab, r);
+				return r;
+			}
 		} 
 	}
 }
 
-void ParallelConvolution::SendTaylorSlab(int slab) {
+void ParallelConvolution::SendTaylorSlab(int slab, int offset) {
 	//Each node has Taylors for a limited range of z but for every x slab. 
 	//figure out who the receipient should be based on x slab and send to them. 
-	// Take from MTdisk. Set Tsend_requests[x] as request. 
-	STDLOG(1,"Entering SendTaylorSlab\n");
-	
+	// Take from MTdisk. Set Tsend_requests[x] as request. 	
 	slab = CP->WrapSlab(slab);
-	int r = GetTaylorRecipient(slab); //x-slab slab is in node r's domain. Send to node r. 
+	int r = GetTaylorRecipient(slab, offset); //x-slab slab is in node r's domain. Send to node r. 
 	
-	int tag = slab + T_TAG; 
-	STDLOG(1,"About to Isend SendTaylorSlab with tag %d to node %d for slab %d\n", tag, r, slab);
+	int tag = (MPI_rank+1) * 10000 + slab + T_TAG; 
+	
+#ifdef DO_NOTHING
+	for (int z = 0; z < znode; z++){
+		for(int m = 0; m < rml; m ++){ ;
+			for(int y = 0; y < cpd; y++){
+				
+				int i = z*cpd*rml + m*cpd + y;
+				MTCOMPLEX expected = (slab+1)*1000000 + y * 1000 + (z+zstart) + 0.01 * m ; 
+				MTCOMPLEX observed = MTdisk[slab*this_node_size + i]; 
+				if (abs(real(expected - observed)) > 0.00001 or abs(imag(expected - observed)) > 0.00001){
+					STDLOG(1, "ERROR SENDING MTDISK SLAB %d, i %d, z %d, m %d, y %d, obs = %1.7f %1.7f, exp = %1.7f %1.7f\n", slab, i, z, m, y, real(MTdisk[slab*this_node_size + i]), imag(MTdisk[slab*this_node_size + i]), real(expected), imag(expected));
+					assertf(0 == 99, "Failed piping test during SendTaylorSlab!\n");		
+				}
+			}
+		}
+	}
+
+#endif
+	
 	
 	MPI_Isend(MTdisk + slab * this_node_size, this_node_size, MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Tsend_requests[slab]);
-	
 	STDLOG(1,"Taylor slab %d has been queued for MPI_Isend to rank %d\n", slab, r);
 }
 	
@@ -513,60 +457,102 @@ void ParallelConvolution::SendTaylorSlab(int slab) {
 /// to gather the information from other nodes.  To be used in FetchSlab.
 void ParallelConvolution::RecvTaylorSlab(int slab) {	
 	//We are receiving a specified x slab. For each node, receive its z packet for this x. For each node, use Trecv_requests[x][rank] as request. 
-	
-	STDLOG(1,"Entering RecvTaylorSlab\n");
-	
 	slab = CP->WrapSlab(slab);
     MTCOMPLEX *mt = (MTCOMPLEX *) SB->GetSlabPtr(TaylorSlab, slab);
 	
 	Trecv_requests[slab] = new MPI_Request[MPI_size];
 	Trecv_active++; 
-	
 	for (int r = 0; r < MPI_size; r++) {
-		int tag = slab + T_TAG; 
-		
-		STDLOG(1,"About to Irecv RecvTaylorSlab rank = %d, tag = %d\n",r, tag);
-		
+		int tag = (r+1) * 10000 + slab + T_TAG; 
 		MPI_Irecv(mt + node_start[r], node_size[r], MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Trecv_requests[slab][r]);
+		
+		
 	}
 	STDLOG(1,"MPI_Irecv set for incoming Taylors\n");
 	return;
 }
 
-/// Check whether the MPI calls are complete for this TaylorSlab,
-/// returning 1 if yes.  To be used in the TaylorForcePrecondition.
-/// Also, have to be careful about the SendManifest.
-int ParallelConvolution::CheckRecvTaylorComplete(int slab) {
-	
-	STDLOG(1,"Entering CheckRecvTaylorComplete for slab %d\n", slab);
-	
-	slab = CP->WrapSlab(slab);
-	
+int ParallelConvolution::CheckTaylorRecvReady(int slab){
     if (Trecv_requests[slab]==NULL) return 1;  // Nothing to do for this slab
 	
-    // This slab has pending MPI calls
-    int err, sent=0, done=1;
-	
+    int err, received=0, done=1;
     for (int r=0; r<MPI_size; r++) {
 		if (Trecv_requests[slab][r]==MPI_REQUEST_NULL) continue;  // Already done
 		
-		err = MPI_Test(Trecv_requests[slab]+r, &sent,MPI_STATUS_IGNORE);
-		STDLOG(1,"err = %d, sent = %d CheckRecvTaylorComplete\n", err, sent);
+		received = 0 ;
+		err = MPI_Test(&Trecv_requests[slab][r], &received, MPI_STATUS_IGNORE);
 		
-		if (not sent) {
+		if (not received) {
 		    // Found one that is not done
 		    done=0; break;
-		}
-    }
-    
-	if (done) {
-		STDLOG(1,"MPI_Irecv complete for TaylorSlab %d\n", slab);
-        delete[] Trecv_requests[slab];
-		Trecv_requests[slab] = NULL;   // This will allow us to check faster
-		Trecv_active--;
+		}		
     }
 	
-	return done; 
+	if (done) {
+		delete[] Trecv_requests[slab];
+		Trecv_requests[slab] = NULL; 
+		Trecv_active--; 
+	}
+	
+	return done;
+}
+
+int ParallelConvolution::CheckTaylorSendComplete(int slab){
+	int sent = 0; 
+	int err = MPI_Test(&Tsend_requests[slab], &sent, MPI_STATUS_IGNORE);
+	return sent; 
+}
+
+/// Check whether the MPI calls are complete for this TaylorSlab,
+/// returning 1 if yes.  To be used in the TaylorForcePrecondition.
+/// Also, have to be careful about the SendManifest.
+int ParallelConvolution::CheckTaylorSlabReady(int slab) {
+	slab = CP->WrapSlab(slab);	
+	int send_done = 0; int recv_done = 0; 
+	send_done = CheckTaylorSendComplete(slab); 
+	
+	if (send_done) {
+		recv_done = CheckTaylorRecvReady(slab);
+	}
+	
+	STDLOG(1, "Taylor slab %d send_done %d, recv_done %d\n", slab, send_done, recv_done); 
+	
+#ifdef DO_NOTHING
+	if (send_done and recv_done){
+		//////
+	    MTCOMPLEX *mt = (MTCOMPLEX *) SB->GetSlabPtr(TaylorSlab, slab);
+		//////
+		
+		int zcpd = (P.cpd+1)/2;
+		int oops = 0; 
+		MTCOMPLEX expected; 
+		MTCOMPLEX observed; 
+	
+		for (int z = 0; z < zcpd; z++){
+			for (int m = 0; m < rml; m ++){
+				for (int y = 0; y < cpd; y ++){ //lcpd*(lcpd+1)/2*rml*sizeof(MTCOMPLEX)
+				
+					int i = z*cpd*rml + m*cpd + y; 
+			
+					MTCOMPLEX value = (slab+1)*1000000 + y * 1000 + z + 0.01 * m ; 
+			
+					if (oops == 0  and (abs(real(value - mt[i])) > 0.00001 or abs(imag(value - mt[i])) > 0.00001) ){
+						if (oops) STDLOG(1, "Slab %d, i %d y %d z %d m %d received %1.7f %1.7f, expected %1.7f %1.7f\n", 
+								slab, i, y, z, m, real(observed), imag(observed), real(expected), imag(expected));
+						assertf(0 == 99, "Failed piping test during CheckTaylorSlabReady!\n");		
+					}
+					mt[i] = 0.0; 		
+				}
+			}
+		}
+	}
+	
+
+#endif
+	
+	
+	return (send_done and recv_done); 
+
 }
 
 
@@ -589,12 +575,12 @@ void ParallelConvolution::Swizzle_to_zmxy() {
 	    int zoffset = zm/rml;   // This is not actually z, but z-zstart
 	    int m = zm-zoffset*rml; 
 		for (int x=0; x<cpd; x++) {
-			int xuse = x+1; if (xuse>=0) xuse=0;   
+			int xuse = x;//-1; if (xuse < 0) xuse = cpd; //if (xuse>=cpd) xuse=0;   
 			//int xuse = x; 
 			
 			for (int y=0; y<cpd; y++) {
-			    MTzmxy[(int64)zm*cpd2pad + xuse*cpd + y] = //MTdisk[x][zoffset*rml*cpd + m*cpd + y];
-				       MTdisk[(int64)x*znode*rml*cpd + (int64)zoffset*rml*cpd + m*cpd + y];
+			    MTzmxy[(int64)zm*cpd2pad + xuse*cpd + y] =  
+				       MTdisk[(int64)x*znode*rml*cpd + (int64)zoffset*rml*cpd + m*cpd + y];//normalization constant for inverse fftw.
 				   }
 	    }
 	}
@@ -606,10 +592,7 @@ void ParallelConvolution::Swizzle_to_zmxy() {
 
 /// Copy from MTzmxy buffer back to MTdisk, then free buffer
 void ParallelConvolution::Swizzle_to_xzmy() {
-	// TODO: Do the copies, including the -1 x offset
-	// TODO: Might prefer a different pragma structure than the other Swizzle
-	// e.g., to combine the [x][znode] loop, so that each thread writes contiguous [m][y].
-	STDLOG(1,"Entering Swizzle_to_xzmy\n");
+	STDLOG(1,"Swizzling to xzmy\n");
 
 	#pragma omp parallel for schedule(static)
 	for (int xz = 0; xz < cpd * znode; xz ++) {
@@ -617,33 +600,17 @@ void ParallelConvolution::Swizzle_to_xzmy() {
 		int z = xz - xoffset * znode; 
 		
 		//int x = xoffset;
-		int x = xoffset+1; if (x>=0) x = 0;
+		int x = xoffset;//-1; if (x < 0) x = cpd; //if (x>=cpd) x = 0;
 		
 		for (int m = 0; m < rml; m ++){
 			for (int y = 0; y < cpd; y++){	 
-				
-#ifdef DO_NOTHING
-				STDLOG(1, "%f %f %f %f\n", real(MTdisk[ (int64)((xz  * rml + m)) * cpd + y ]), real(MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ]/((Complex)cpd)), imag(MTdisk[ (int64)((xz  * rml + m)) * cpd + y ]), imag(MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ]/((Complex)cpd)));
-										
-#else
 				MTdisk[ (int64)((xz  * rml + m)) * cpd + y ] = 
-					MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ]/((Complex)cpd); //normalization constant for inverse fftw. 
- #endif	  
-				
+					MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ] /((Complex)cpd); 			
 			}
 		}
 	}
-#ifdef DO_NOTHING
-	STDLOG(1, "Do nothing swizzle passed.\n");
-#endif
-	
-	STDLOG(1,"Exiting Swizzle_to_xzmy\n");
 
-	
     fftw_free(MTzmxy);
-	
-	STDLOG(1,"Exiting (freed) Swizzle_to_xzmy\n");
-	
 	return;
 }
 
@@ -662,8 +629,6 @@ fftw_plan ParallelConvolution::PlanFFT(int sign){
 		(fftw_complex *) MTzmxy, NULL, 1, cpd,
 		sign, FFTW_PATIENT);
 		
-	STDLOG(1,"Planned FFT with sign %d\n", sign);
-	
 	return plan;
 		
 }
@@ -684,10 +649,6 @@ void ParallelConvolution::FFT(fftw_plan plan) {
 	}
 		
 	fftw_destroy_plan(plan);
-
-	STDLOG(1,"Exiting FFT\n");
-	
-	//fftw_cleanup_threads() NAM TODO do we need this?  or maybe in destructor? 
 	return;
 }
 
@@ -695,16 +656,10 @@ void ParallelConvolution::FFT(fftw_plan plan) {
 
 /// This executes the convolve on the MTfile info.
 void ParallelConvolution::Convolve() {
-	STDLOG(1,"Entering convolve\n");
-	
-	STDLOG(1,"order %d cpd %d\n", order, cpd);
-	
-	STDLOG(1,"blocksize %d\n", blocksize);
+	STDLOG(1,"Beginning Convolution.\n");
 	
     InCoreConvolution *ICC = new InCoreConvolution(order,cpd,blocksize);
-	
-	STDLOG(1,"Made ICC convolve\n");
-	
+
 	// We're beginning in [x][znode][m][y] order on the RAMdisk
 	// Copy to the desired order in a new buffer
 	fftw_plan forward_plan  = PlanFFT(FFTW_FORWARD);
@@ -716,9 +671,6 @@ void ParallelConvolution::Convolve() {
 	FFT(forward_plan);
 	
 #ifndef DO_NOTHING
-	
-	
-	
 
 	// Two options: 
 	// a) Swizzle to zmyx, then do a bunch of already-contiguous FFTs, and alter ICC
@@ -727,12 +679,7 @@ void ParallelConvolution::Convolve() {
 	// Option b can be boring code.
 	for (int z = 0; z < znode; z++) {
 	    LoadDerivatives(z);
-		
-		//void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
-		// InCoreConvolution(int order, int cpd, int blocksize) 
-		//NAM TODO careful! does ICC know about doing one z at a time? 
-
-	    ICC->InCoreConvolve(MTzmxy+z*rml*cpd2pad, Ddisk[z]); // TODO NAM add z argument. , z);
+	    ICC->InCoreConvolve(MTzmxy+z*rml*cpd2pad, Ddisk[z]); 
 	}
 	
 	
@@ -742,33 +689,8 @@ void ParallelConvolution::Convolve() {
 	FFT(backward_plan);
 	Swizzle_to_xzmy();   // Restore to the RAMdisk
 	
-#ifdef DO_NOTHING
-	exit(1);
-#endif
-	
 	delete ICC;
 	
-    // if(OverwriteConvState){
-//         RenameMultipolesToTaylors();
-//     }
-	
-	STDLOG(1,"Leaving convolve\n");
+	STDLOG(1,"Convolution complete.\n");
 	
 }
-
-// void ParallelConvolution::RenameMultipolesToTaylors(){
-//     assert(OverwriteConvState);
-//
-// 	STDLOG(1, "Renaming multipole files to taylors\n");
-//
-//     char mfn[1024], tfn[1024];
-//     for(int x = first_slab_on_node; x < first_slab_on_node + total_slabs_on_node; x++){
-//         MultipoleFN(x % cpd, mfn);
-//         TaylorFN(x % cpd, tfn);
-//
-//         int res = rename(mfn, tfn);
-//         assertf(res == 0, "Failed to rename multipoles file \"%s\" to taylors file \"%s\".", mfn, tfn);
-//     }
-// }
-//
-//
