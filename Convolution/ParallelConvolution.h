@@ -55,8 +55,11 @@ private:
     uint64_t rml;      // (order+1)**2
 	uint64_t this_node_size; 
 	uint64_t CompressedMultipoleLengthXY; 
+	
+	Complex invcpd3; 
 
 	size_t mt_offset;
+	int ramdisk_derivs = 0; 
 	
     int zstart;   // The first z for this node
     int znode;    // The number of z's on this node

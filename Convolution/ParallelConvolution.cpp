@@ -18,7 +18,7 @@ be requested, which allocates space and triggers the MPI call
 to gather the information.  And a method to check that the MPI
 work has been completed.
 */
- #define DO_NOTHING
+//#define DO_NOTHING
 
 #include "ParallelConvolution.h"
 
@@ -54,6 +54,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, const char *MTfil
 	STDLOG(1, "Doing zstart = %d and znode = %d\n", zstart, znode);
 	
 	CompressedMultipoleLengthXY = ((1+P.cpd)*(3+P.cpd))/8;
+	invcpd3 = (Complex) (pow(cpd * cpd * cpd, -1.0));
 		 
     int cml = ((order+1)*(order+2)*(order+3))/6;
     int nprocs = omp_get_max_threads();
@@ -105,6 +106,15 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, const char *MTfil
 		Tsend_requests[x] = MPI_REQUEST_NULL;  // This indicates no pending req	
 	} 
 	
+	int DIOBufferSizeKB = 1LL<<11;
+    size_t sdb = DIOBufferSizeKB;
+    sdb *= 1024LLU;
+
+    int direct = P.RamDisk; 
+	assert( (direct == 1) || (direct==0) );
+	STDLOG(1, "Making RD object with %d %f\n", direct, sdb);
+	ReadDirect * RD_RDD = new ReadDirect(direct,sdb);
+	
 	AllocMT();
 	AllocDerivs();
 }
@@ -123,24 +133,31 @@ ParallelConvolution::~ParallelConvolution() {
 	delete[] Trecv_requests; 
 	delete[] Mrecv_requests; 
 	delete[] Tsend_requests; 
-	
+
 	delete[] node_start; 
 	delete[] node_size; 
-	
+
 	delete[] first_slabs_all;
 	delete[] total_slabs_all; 
-	
+
     size_t size = sizeof(MTCOMPLEX)*this_node_size;
     int res = munmap(MTdisk, size);
     assertf(res == 0, "munmap failed\n");
-	
+
     for (int z = 0; z < znode; z++){
-		delete[] Ddisk[z];
+	    if(ramdisk_derivs){
+		    if(Ddisk[z] != NULL){
+		        int res = munmap(Ddisk[z], size);
+		        assertf(res == 0, "Failed to munmap derivs %d\n", z); 
+		    }
+		} else {
+			free(Ddisk[z]); 
+		}
 	}
 	
 	delete[] Ddisk; 
-	
-	fftw_cleanup_threads(); //NAM check usage. 
+	delete RD_RDD;
+	fftw_cleanup_threads(); //NAM check usage. 	
 }
 
 
@@ -196,9 +213,22 @@ void ParallelConvolution::AllocMT(){
 }
 
 void ParallelConvolution::AllocDerivs(){
+    if(is_path_on_ramdisk(P.DerivativesDirectory))
+        ramdisk_derivs = 1;
+	
 	Ddisk = new DFLOAT*[znode];
 	for(int z = 0; z < znode; z++)
         Ddisk[z] = NULL;
+	
+    if(ramdisk_derivs)
+        return;
+		
+    size_t s = sizeof(DFLOAT)*(rml*CompressedMultipoleLengthXY);
+    for (int z = 0; z < znode; z++){
+        int memalign_ret = posix_memalign((void **) (Ddisk + z), 4096, s);
+        assert(memalign_ret == 0);
+        //alloc_bytes += s;
+    }
 }
 
 /* =========================   DERIVATIVES   ================== */ 
@@ -222,22 +252,31 @@ void ParallelConvolution::LoadDerivatives(int z) {
             (int) cpd, order, P.NearFieldRadius,
             P.DerivativeExpansionRadius, z_file);
 
-    if(Ddisk[z] != NULL){ //NAM TODO why munmap here? 
-        int res = munmap(Ddisk[z], size);
-        assertf(res == 0, "Failed to munmap derivs\n"); 
+    if(!ramdisk_derivs){						
+		assert(Ddisk[z] != NULL); 
+        RD_RDD->BlockingRead( fn, (char *) Ddisk[z], size, 0, 1); //NAM TODO the last arg (1) should be ReadDirect's ramdisk flag set during constructor, but that seg faults right now. Fix! 
+		
+		        // ReadDerivativeBytes += size;
+		
+    } else {
+	    if(Ddisk[z] != NULL){ //NAM TODO why munmap here? 
+	        int res = munmap(Ddisk[z], size);
+	        assertf(res == 0, "Failed to munmap derivs\n"); 
+	    }
+
+	    int fd = open(fn, O_RDWR, S_IRUSR | S_IWUSR);
+	    assertf(fd != -1, "Failed to open shared memory file at \"%s\"\n", fn);
+
+	    // map the shared memory fd to an address
+	    Ddisk[z] = (DFLOAT *) mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	    int res = close(fd);
+	    assertf((void *) Ddisk[z] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
+	    assertf(Ddisk[z] != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
+	    assertf(res == 0, "Failed to close fd %d\n", fd);
     }
 
-    int fd = open(fn, O_RDWR, S_IRUSR | S_IWUSR);
-    assertf(fd != -1, "Failed to open shared memory file at \"%s\"\n", fn);
-
-    // map the shared memory fd to an address
-    Ddisk[z] = (DFLOAT *) mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    int res = close(fd);
-    assertf((void *) Ddisk[z] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
-    assertf(Ddisk[z] != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
-    assertf(res == 0, "Failed to close fd %d\n", fd);
 	
-	STDLOG(1, "Mapped derivatives for z = %d at address %p\n", z, Ddisk[z]);
+	STDLOG(1, "Mapped derivatives for z = %d from file %c\n", z_file, fn);
 	//ReadDerivatives.Stop();
 }
  
@@ -575,12 +614,15 @@ void ParallelConvolution::Swizzle_to_zmxy() {
 	    int zoffset = zm/rml;   // This is not actually z, but z-zstart
 	    int m = zm-zoffset*rml; 
 		for (int x=0; x<cpd; x++) {
-			int xuse = x;//-1; if (xuse < 0) xuse = cpd; //if (xuse>=cpd) xuse=0;   
+			int xuse = x + 1;
+			if (xuse>=cpd) xuse=0;
 			//int xuse = x; 
+			// int xuse = x - 1;
+			// if (xuse < 0) xuse = cpd;
 			
 			for (int y=0; y<cpd; y++) {
 			    MTzmxy[(int64)zm*cpd2pad + xuse*cpd + y] =  
-				       MTdisk[(int64)x*znode*rml*cpd + (int64)zoffset*rml*cpd + m*cpd + y];//normalization constant for inverse fftw.
+				       MTdisk[(int64)x*znode*rml*cpd + (int64)zoffset*rml*cpd + m*cpd + y] ;
 				   }
 	    }
 	}
@@ -600,12 +642,23 @@ void ParallelConvolution::Swizzle_to_xzmy() {
 		int z = xz - xoffset * znode; 
 		
 		//int x = xoffset;
-		int x = xoffset;//-1; if (x < 0) x = cpd; //if (x>=cpd) x = 0;
+		
+		// int x = xoffset - 1;
+// 		if (x < 0) x = cpd;
+		
+		int x = xoffset + 1;
+		if (x>=cpd) x = 0;
 		
 		for (int m = 0; m < rml; m ++){
 			for (int y = 0; y < cpd; y++){	 
+				
+#ifdef DO_NOTHING
 				MTdisk[ (int64)((xz  * rml + m)) * cpd + y ] = 
-					MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ] /((Complex)cpd); 			
+					MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ] / ((Complex) cpd);	
+#else
+				MTdisk[ (int64)((xz  * rml + m)) * cpd + y ] = 
+					MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ] * invcpd3; //NAM TODO  ??explain.
+#endif 
 			}
 		}
 	}
@@ -658,7 +711,7 @@ void ParallelConvolution::FFT(fftw_plan plan) {
 void ParallelConvolution::Convolve() {
 	STDLOG(1,"Beginning Convolution.\n");
 	
-    InCoreConvolution *ICC = new InCoreConvolution(order,cpd,blocksize);
+    InCoreConvolution *ICC = new InCoreConvolution(order,cpd,blocksize, cpd2pad);
 
 	// We're beginning in [x][znode][m][y] order on the RAMdisk
 	// Copy to the desired order in a new buffer
@@ -682,6 +735,19 @@ void ParallelConvolution::Convolve() {
 	    ICC->InCoreConvolve(MTzmxy+z*rml*cpd2pad, Ddisk[z]); 
 	}
 	
+	
+	// for (int z = 0 ; z < znode; z ++) {
+// 		for (int m = 0; m < rml; m ++) {
+// 			for (int x = 0; x < cpd; x ++) {
+// 				for (int y = 0; y < cpd; y ++) {
+// 					int i = z * rml  * cpd2pad + m * cpd2pad + x * cpd + y;
+// 					STDLOG(1, "%d %f %f\n", i, real(MTzmxy[i]), imag(MTzmxy[i]));
+// 				}
+// 			}
+// 		}
+// 	}
+//
+// 	exit(1);
 	
 	
 #endif 
