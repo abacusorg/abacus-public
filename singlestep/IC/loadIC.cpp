@@ -59,10 +59,10 @@ uint64 LoadSlab2IL(int slab) {
     } else if (strcmp(P.ICFormat,"Heitmann") == 0){
         STDLOG(1,"Using format Heitmann\n");
         ic = new ICfile_Heitmann(filename);
-    } else if (strcmp(P.ICFormat, "Glass") == 0){
-        STDLOG(1,"Using format Glass\n");
-        STDLOG(1,"Note: ICFormat \"Glass\" means that we ignore any IC files and generate the glass in memory.\n");
-        ic = new ICfile_Glass(slab);
+    } else if (strcmp(P.ICFormat, "Poisson") == 0){
+        STDLOG(1,"Using format Poisson\n");
+        STDLOG(1,"Note: ICFormat \"Poisson\" means that we ignore any IC files and generate the random particles in memory.\n");
+        ic = new ICfile_Poisson(slab);
     }
     else {
         // We weren't given a legal format name.

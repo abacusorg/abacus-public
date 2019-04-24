@@ -127,6 +127,8 @@ public:
     int StoreForces; // If 1, store the accelerations
     int ForceOutputDebug; // If 1, output near and far forces seperately. 
 
+    int MakeGlass; // Reverse the sign of the acceleration
+
     int ForceCPU; //IF 1, force directs to be executed exclusively on cpu even if cuda is available
     int GPUMinCellSinks;// If AVX directs are compiled, cells with less than this many particles go to cpu
     int ProfilingMode;//If 1, enable profiling mode, i.e. delete the write-state after creating it to run repeatedly on same dat
@@ -287,9 +289,13 @@ public:
         installscalar("LogVerbosity",LogVerbosity, DONT_CARE);
         StoreForces = 0;
         installscalar("StoreForces",StoreForces, DONT_CARE);
+        
         ForceOutputDebug = 0;
-
         installscalar("ForceOutputDebug",ForceOutputDebug,DONT_CARE);
+
+        MakeGlass = 0;
+        installscalar("MakeGlass",MakeGlass,DONT_CARE);
+
         ForceCPU = 0;
         installscalar("ForceCPU",ForceCPU,DONT_CARE);
         GPUMinCellSinks = 0;

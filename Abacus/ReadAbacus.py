@@ -266,8 +266,6 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, **kwargs):
 
         # Read and bin the particles
         for filename in files:
-            # We assume the rvzel data is IC data stored with a BoxSize box, not unit box
-            # TODO: better way to communicate this
             data = read(filename, format=format, **reader_kwargs)
             NP += len(data)
 

@@ -165,6 +165,8 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
     abspattern = abspattern.split(os.sep)
     isic = re.search(r'\bic(\b|(?=_))', abspattern[-2])
 
+    # We assume IC data is stored with a BoxSize box, not unit box
+    # TODO: better way to communicate this
     box_on_disk = boxsize if isic or format in ['rvtag', 'gadget'] else 1.
 
     reader_kwargs = dict(return_vel=False, zspace=zspace, dtype=dtype)
