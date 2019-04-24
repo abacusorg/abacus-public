@@ -33,9 +33,9 @@ int ParallelConvolution::Zstart(int rank) {
 ParallelConvolution::ParallelConvolution(int _cpd, int _order, const char *MTfile, int _create_MT_file) { //TODO NAM does this always assume convolution overwrite mode? 
 	
 	STDLOG(1, "Calling constructor for ParallelConvolution\n");
-	
-    StripeConvState = strcmp(P.Conv_IOMode, "stripe") == 0;
-    OverwriteConvState = strcmp(P.Conv_IOMode, "overwrite") == 0;	
+
+    //StripeConvState = strcmp(P.Conv_IOMode, "stripe") == 0;
+    //OverwriteConvState = strcmp(P.Conv_IOMode, "overwrite") == 0;	
 	
 	mt_file = MTfile;
 	create_MT_file = _create_MT_file; 
@@ -54,7 +54,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, const char *MTfil
 	STDLOG(1, "Doing zstart = %d and znode = %d\n", zstart, znode);
 	
 	CompressedMultipoleLengthXY = ((1+P.cpd)*(3+P.cpd))/8;
-	invcpd3 = (Complex) (pow(cpd * cpd * cpd, -1.0));
+	invcpd3 = (Complex) (pow(cpd * cpd * cpd, -1.0)); //NAM TODO get rid of Complex typecasting. 
 		 
     int cml = ((order+1)*(order+2)*(order+3))/6;
     int nprocs = omp_get_max_threads();
@@ -337,23 +337,6 @@ void ParallelConvolution::SendMultipoleSlab(int slab) {
 }
 
 
-// /// Return only once all of the multipole slabs have been received.
-// /// We'll only check this at the end of the timestep loop, so
-// /// this will just spin until done.
-// #ifdef WAIT_MULTIPOLES
-// void ParallelConvolution::WaitRecvMultipoleComplete(int slab) {
-// 	while (1) //spin until done.
-// 	{
-// 		STDLOG(1,"WaitRecvMultipoleComplete beginning spin for slab = %d\n", slab);
-// 		int err = MPI_Wait(&Mrecv_requests[slab], MPI_STATUS_IGNORE);
-// 		STDLOG(1,"WaitRecvMultipoleComplete finished spin, err = %d for slab = %d\n", err, slab);
-//
-// 		if (err == 0) return;
-// 	}
-// }
-// #endif
-
-
 int ParallelConvolution::CheckRecvMultipoleComplete(int slab) {
 	STDLOG(1,"CheckRecvMultipoleComplete testing for slab = %d\n", slab);
 	int received = 0; 
@@ -397,29 +380,6 @@ int ParallelConvolution::CheckSendMultipoleComplete(int slab) {
 	
 	return done; 
 }
-
-// #ifdef WAIT_MULTIPOLES
-//
-// /// Call after the timestep loop to spin until all of the
-// /// MPI calls have been finished.
-// void ParallelConvolution::WaitForMultipoleTransferComplete(int offset) {
-// 	for (int _slab = first_slab_on_node + offset; _slab < first_slab_on_node + offset + total_slabs_on_node; _slab ++){
-// 		int slab = _slab % cpd;
-// 		STDLOG(1,"Begin waiting to determine that all incoming Multipoles received for slab %d, first %d, total %d\n", slab, first_slab_on_node, total_slabs_on_node);
-// 		WaitRecvMultipoleComplete(slab); //this spins until recvs are done.
-// 		STDLOG(1,"End waiting to determine that all incoming Multipoles received for slab %d\n", slab);
-//
-//
-// 		//STDLOG(1, "RECEIVING MULTIPOLE slab %d, %1.7f\n", slab, real(MTdisk[slab * this_node_size + 2]));
-//
-//
-//
-// 		int done = 0;
-// 		while (not done)
-// 			done = CheckSendMultipoleComplete(slab); //this spins until sends are done.
-// 	}
-// }
-// #endif
 
 int ParallelConvolution::CheckForMultipoleTransferComplete(int _slab) {
 	int slab = _slab % cpd;
@@ -558,9 +518,7 @@ int ParallelConvolution::CheckTaylorSlabReady(int slab) {
 	
 #ifdef DO_NOTHING
 	if (send_done and recv_done){
-		//////
 	    MTCOMPLEX *mt = (MTCOMPLEX *) SB->GetSlabPtr(TaylorSlab, slab);
-		//////
 		
 		int zcpd = (P.cpd+1)/2;
 		int oops = 0; 
@@ -603,9 +561,7 @@ int ParallelConvolution::CheckTaylorSlabReady(int slab) {
 // I wonder if this is why this step has been slow?
 void ParallelConvolution::Swizzle_to_zmxy() {
 	STDLOG(1,"Entering Swizzle_to_zmxy\n");
-	
-  
-	// TODO: Do the copies, including the -1 x offset
+	  
 	// The convolve code expects the data from file x (MTdisk[x]) to be in MTzmxy[x+1]
 	// Converting from [x][znode][m][y] to [znode][m][x][y]
 	// Loop over the combination of [znode][m]
@@ -616,9 +572,6 @@ void ParallelConvolution::Swizzle_to_zmxy() {
 		for (int x=0; x<cpd; x++) {
 			int xuse = x + 1;
 			if (xuse>=cpd) xuse=0;
-			//int xuse = x; 
-			// int xuse = x - 1;
-			// if (xuse < 0) xuse = cpd;
 			
 			for (int y=0; y<cpd; y++) {
 			    MTzmxy[(int64)zm*cpd2pad + xuse*cpd + y] =  
@@ -641,11 +594,6 @@ void ParallelConvolution::Swizzle_to_xzmy() {
 		int xoffset = xz / znode; 
 		int z = xz - xoffset * znode; 
 		
-		//int x = xoffset;
-		
-		// int x = xoffset - 1;
-// 		if (x < 0) x = cpd;
-		
 		int x = xoffset + 1;
 		if (x>=cpd) x = 0;
 		
@@ -657,7 +605,7 @@ void ParallelConvolution::Swizzle_to_xzmy() {
 					MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ] / ((Complex) cpd);	
 #else
 				MTdisk[ (int64)((xz  * rml + m)) * cpd + y ] = 
-					MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ] * invcpd3; //NAM TODO  ??explain.
+					MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ] * invcpd3; //one factor of 1/CPD comes from the FFT below. Two more are needed for the FFTs in slab taylor -- we choose to throw them in here. 
 #endif 
 			}
 		}
@@ -669,18 +617,22 @@ void ParallelConvolution::Swizzle_to_xzmy() {
 
 
 
-fftw_plan ParallelConvolution::PlanFFT(int sign){
-	int err = fftw_init_threads(); 
-	assertf(err != 0, "Failed to fftw_init_threads\n");
-	fftw_plan_with_nthreads(omp_get_max_threads()); //NAM TODO how many threads in here? 
-	
+fftw_plan ParallelConvolution::PlanFFT(int sign ){
 	fftw_plan plan;
 	
+	// TODO: Import wisdom
+	// We're going to plan to process each [x][y] slab separately,
+	// doing the cpd FFTs of cpd length.
+	// stride = cpd, dist = 1, nembed = NULL
+	
+	
 	int  n[] = {cpd};	
-	plan = fftw_plan_many_dft(1, n, cpd, //we will do znode*rml of these FFTS
-		(fftw_complex *) MTzmxy, NULL, 1, cpd, //each new [x][y] chunk is located at strides of cpd. 
-		(fftw_complex *) MTzmxy, NULL, 1, cpd,
+	plan = fftw_plan_many_dft(1, n, cpd, //we will do znode*rml of sets of cpd FFTs.
+		(fftw_complex *) MTzmxy, NULL, cpd, 1, //each new [x][y] chunk is located at strides of cpd.
+		(fftw_complex *) MTzmxy, NULL, cpd, 1,
 		sign, FFTW_PATIENT);
+		
+
 		
 	return plan;
 		
@@ -688,18 +640,14 @@ fftw_plan ParallelConvolution::PlanFFT(int sign){
 
 
 /// Create the plan and do the FFT
-void ParallelConvolution::FFT(fftw_plan plan) {
-	// TODO: Import wisdom
-	// We're going to plan to process each [x][y] slab separately,
-	// doing the cpd FFTs of cpd length.
-	// stride = cpd, dist = 1, nembed = NULL
-				
+void ParallelConvolution::FFT(fftw_plan plan) {			
 	// Now we loop over the combination of [znode][m]
-	#pragma omp parallel for schedule(static) //pragma appears okay 
+	#pragma omp parallel for schedule(static) //pragma appears okay
 	for (int zm = 0; zm < znode*rml; zm++) {
-		    fftw_execute_dft(plan, (fftw_complex *)(MTzmxy+zm*cpd2pad),
+		fftw_execute_dft(plan, (fftw_complex *)(MTzmxy+zm*cpd2pad),
 				       (fftw_complex *)(MTzmxy+zm*cpd2pad));
 	}
+	
 		
 	fftw_destroy_plan(plan);
 	return;
@@ -715,6 +663,10 @@ void ParallelConvolution::Convolve() {
 
 	// We're beginning in [x][znode][m][y] order on the RAMdisk
 	// Copy to the desired order in a new buffer
+	int err = fftw_init_threads(); 
+	assertf(err != 0, "Failed to fftw_init_threads\n");
+	fftw_plan_with_nthreads(omp_get_max_threads()); //NAM TODO how many threads in here? 
+	
 	fftw_plan forward_plan  = PlanFFT(FFTW_FORWARD);
 	fftw_plan backward_plan = PlanFFT(FFTW_BACKWARD);
 		
@@ -725,30 +677,12 @@ void ParallelConvolution::Convolve() {
 	
 #ifndef DO_NOTHING
 
-	// Two options: 
-	// a) Swizzle to zmyx, then do a bunch of already-contiguous FFTs, and alter ICC
-	// b) Swizzle to zmxy, then do a bunch of FFTs with a stride; use ICC as is
-	// If option a, then the swizzle should be a smarter transpose.
-	// Option b can be boring code.
+	//Swizzle to zmxy, then do a bunch of FFTs with a stride; use ICC as is
 	for (int z = 0; z < znode; z++) {
 	    LoadDerivatives(z);
-	    ICC->InCoreConvolve(MTzmxy+z*rml*cpd2pad, Ddisk[z]); 
+		ICC->InCoreConvolve(MTzmxy+z*rml*cpd2pad, Ddisk[z]); 
+		
 	}
-	
-	
-	// for (int z = 0 ; z < znode; z ++) {
-// 		for (int m = 0; m < rml; m ++) {
-// 			for (int x = 0; x < cpd; x ++) {
-// 				for (int y = 0; y < cpd; y ++) {
-// 					int i = z * rml  * cpd2pad + m * cpd2pad + x * cpd + y;
-// 					STDLOG(1, "%d %f %f\n", i, real(MTzmxy[i]), imag(MTzmxy[i]));
-// 				}
-// 			}
-// 		}
-// 	}
-//
-// 	exit(1);
-	
 	
 #endif 
 	STDLOG(1, "Beginning inverse FFT\n");

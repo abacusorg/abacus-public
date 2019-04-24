@@ -1,7 +1,5 @@
 #define CPD2PAD 1024    // Byte padding
 
-
-
 /// The ParallelConvolution class is responsible for performing the Fourier space convolution of the multipole moments with the derivatives tensor to obtain the Taylor coefficients required to compute the far field, in the use case where Abacus is running on multipole nodes. 
 /// ParallelConvolution:
 /// 1) handles the MPI work that re-distributes existing multipole moment data to all nodes from each node (which has multipoles generated during singlestep for a limited set of x and for all z, but requires multipoles for all x and for a limitet set of z to perform the convolution). 
@@ -44,9 +42,8 @@ private:
 	const char * mt_file; 
 	int create_MT_file = 0; 
 	
-	int OverwriteConvState;
-	int StripeConvState;
-	
+	//int OverwriteConvState;
+	//int StripeConvState;
 	
     uint64_t cpd;
     uint64_t cpd2p1;   // (CPD+1)/2 is the length of the z array
@@ -101,9 +98,7 @@ private:
 	
 	fftw_plan PlanFFT(int sign);
 	void FFT(fftw_plan plan);
-	
-	//void RenameMultipolesToTaylors();
-	
+		
 	int  CheckSendMultipoleComplete(int slab);
 	void WaitRecvMultipoleComplete(int slab);
 	
@@ -115,31 +110,6 @@ private:
 	int CheckTaylorRecvReady(int slab);
 	int CheckTaylorSendComplete(int slab);
 		
-	
-    // STimer ForwardZFFTMultipoles;
-//     STimer InverseZFFTTaylor;
-//
-//     STimer ConvolutionArithmetic;
-//     STimer ArraySwizzle;
-//
-//     STimer ConvolveWallClock;
-//
-//     uint64_t cpd,order,rml,CompressedMultipoleLengthXY;
-//
-//     void BlockConvolve(void);
-//     void WriteDiskTaylor(int z);
-//     void ReadDiskMultipolesAndDerivs(int z);
-//     void SwizzleMultipoles(int z);
-//     void SwizzleTaylors(int z);
-//
-//     void RenameMultipolesToTaylors();
-
-    // Complex *PlaneBuffer;
- //    DFLOAT **CompressedDerivatives;
- //    MTCOMPLEX **DiskBuffer;
- //    Block *CurrentBlock;
-    
-    // double invcpd3;
 };
 
 ParallelConvolution *ParallelConvolveDriver;
