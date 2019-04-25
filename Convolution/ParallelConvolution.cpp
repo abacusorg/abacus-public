@@ -18,9 +18,19 @@ be requested, which allocates space and triggers the MPI call
 to gather the information.  And a method to check that the MPI
 work has been completed.
 */
-//#define DO_NOTHING
 
 #include "ParallelConvolution.h"
+
+STimer  Constructor;
+STimer  AllocateMT; 
+STimer  AllocateDerivs; 
+STimer  QueueTaylors; 
+STimer  FFTPlanning;
+STimer 	ForwardZFFTMultipoles;
+STimer  InverseZFFTTaylor; 
+STimer  ArraySwizzle; 
+STimer  ReadDerivatives;
+STimer  ConvolutionArithmetic; 
 
 /// The zstart for the node of the given rank.
 int ParallelConvolution::Zstart(int rank) {
@@ -30,14 +40,20 @@ int ParallelConvolution::Zstart(int rank) {
 // ParallelConvolution::ParallelConvolution(){}
 /// The constructor.  This should open the MTfile as read/write or allocate
 /// space if it doesn't exist.
-ParallelConvolution::ParallelConvolution(int _cpd, int _order, const char *MTfile, int _create_MT_file) { //TODO NAM does this always assume convolution overwrite mode? 
+ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDirectory[1024], int _create_MT_file) { //TODO NAM does this always assume convolution overwrite mode? 
 	
 	STDLOG(1, "Calling constructor for ParallelConvolution\n");
-
-    //StripeConvState = strcmp(P.Conv_IOMode, "stripe") == 0;
-    //OverwriteConvState = strcmp(P.Conv_IOMode, "overwrite") == 0;	
 	
-	mt_file = MTfile;
+	Constructor.Clear(); Constructor.Start(); 
+	
+    std::stringstream ss;
+    std::string s;
+	ss << MultipoleDirectory << "/Multipoles";
+	s = ss.str();
+	mt_file = s.c_str(); 
+    STDLOG(1,"Working with MTfile %s\n", mt_file);
+
+	//in previous timestep's finish action, multipoles were distributed to nodes such that each node now stores multipole moments for all x and its given range of z that it will convolve. Fetch these from shared memory.
 	create_MT_file = _create_MT_file; 
 	cpd = _cpd;
 	cpd2p1 = (cpd+1)/2; 
@@ -65,6 +81,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, const char *MTfil
         if((cpd*cpd)%blocksize==0)
             if(nprocs*2.5*cml*blocksize*sizeof(Complex) < cacherambytes) break;
                 // 2.5 = 2 Complex (mcache,tcache) 1 double dcache
+	
 	
 	first_slabs_all = new int[MPI_size];
     total_slabs_all = new int[MPI_size]; 
@@ -115,8 +132,14 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, const char *MTfil
 	STDLOG(1, "Making RD object with %d %f\n", direct, sdb);
 	ReadDirect * RD_RDD = new ReadDirect(direct,sdb);
 	
+	Constructor.Stop(); 
+	CS.Constructor = Constructor.Elapsed();
+	
 	AllocMT();
 	AllocDerivs();
+	
+	CS.ops = 0;
+	CS.ComputeCores = omp_get_max_threads();
 }
 
 /// The destructor.  This should close the MTfile. NAM: MTfile can be closed right after mapping, I think. 
@@ -144,6 +167,8 @@ ParallelConvolution::~ParallelConvolution() {
     int res = munmap(MTdisk, size);
     assertf(res == 0, "munmap failed\n");
 
+	assertf(ramdisk_derivs == 0 || ramdisk_derivs == 1, "Ramdisk_derivs detected bad value: %d.\n", ramdisk_derivs);
+	
     for (int z = 0; z < znode; z++){
 	    if(ramdisk_derivs){
 		    if(Ddisk[z] != NULL){
@@ -162,6 +187,7 @@ ParallelConvolution::~ParallelConvolution() {
 
 
 
+
 /* =========================   ALLOC BUFFERS   ================== */ 
 
 
@@ -169,6 +195,8 @@ void ParallelConvolution::AllocMT(){
 	//MTdisk has shape [x][znode][m][y]
 	
 	//TODO this appears almost exactly as in arena allocator. Consider factoring out to ramdisk util. 
+	AllocateMT.Clear(); AllocateMT.Start(); 
+	
 	
 	assert(mt_file != NULL);
     assert(strnlen(mt_file,1) > 0);
@@ -209,26 +237,40 @@ void ParallelConvolution::AllocMT(){
 	MTzmxy = (Complex *) fftw_malloc(bufsize);
 	assertf(MTzmxy!=NULL, "Failed fftw_malloc for MTzmxy\n");
 	STDLOG(1, "Successfully malloced MTzmxy at address %p\n", MTzmxy);
+	
+	AllocateMT.Stop(); 
+	CS.AllocMT = AllocateMT.Elapsed();
+	
 	return;
 }
 
 void ParallelConvolution::AllocDerivs(){
-    if(is_path_on_ramdisk(P.DerivativesDirectory))
-        ramdisk_derivs = 1;
+	AllocateDerivs.Clear(); AllocateDerivs.Start();
+	
+    if(is_path_on_ramdisk(P.DerivativesDirectory)) ramdisk_derivs = 1;
+	else ramdisk_derivs = 0; 
+	assertf(ramdisk_derivs == 0 || ramdisk_derivs == 1, "Ramdisk_derivs detected bad value: %d.\n", ramdisk_derivs);
 	
 	Ddisk = new DFLOAT*[znode];
 	for(int z = 0; z < znode; z++)
         Ddisk[z] = NULL;
 	
-    if(ramdisk_derivs)
+    if(ramdisk_derivs){
+		AllocateDerivs.Stop();
+		CS.AllocDerivs = AllocateDerivs.Elapsed(); 
         return;
-		
+	}
+	
     size_t s = sizeof(DFLOAT)*(rml*CompressedMultipoleLengthXY);
     for (int z = 0; z < znode; z++){
         int memalign_ret = posix_memalign((void **) (Ddisk + z), 4096, s);
         assert(memalign_ret == 0);
         //alloc_bytes += s;
     }
+	
+	CS.ReadDerivativesBytes = 0.0; 
+	AllocateDerivs.Stop();
+	CS.AllocDerivs = AllocateDerivs.Elapsed(); 
 }
 
 /* =========================   DERIVATIVES   ================== */ 
@@ -251,15 +293,18 @@ void ParallelConvolution::LoadDerivatives(int z) {
             P.DerivativesDirectory, 
             (int) cpd, order, P.NearFieldRadius,
             P.DerivativeExpansionRadius, z_file);
-
+	
+	assertf(ramdisk_derivs == 0 || ramdisk_derivs == 1, "Ramdisk_derivs detected bad value: %d.\n", ramdisk_derivs);
+	
     if(!ramdisk_derivs){						
 		assert(Ddisk[z] != NULL); 
         RD_RDD->BlockingRead( fn, (char *) Ddisk[z], size, 0, 1); //NAM TODO the last arg (1) should be ReadDirect's ramdisk flag set during constructor, but that seg faults right now. Fix! 
+        CS.ReadDerivativesBytes += size;
+		STDLOG(1, "BlockingRead derivatives for z = %d from file %c\n", z_file, fn);
 		
-		        // ReadDerivativeBytes += size;
 		
     } else {
-	    if(Ddisk[z] != NULL){ //NAM TODO why munmap here? 
+	    if(Ddisk[z] != NULL){ 
 	        int res = munmap(Ddisk[z], size);
 	        assertf(res == 0, "Failed to munmap derivs\n"); 
 	    }
@@ -273,10 +318,9 @@ void ParallelConvolution::LoadDerivatives(int z) {
 	    assertf((void *) Ddisk[z] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
 	    assertf(Ddisk[z] != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
 	    assertf(res == 0, "Failed to close fd %d\n", fd);
+		STDLOG(1, "Mapped derivatives for z = %d from file %c\n", z_file, fn);
     }
-
 	
-	STDLOG(1, "Mapped derivatives for z = %d from file %c\n", z_file, fn);
 	//ReadDerivatives.Stop();
 }
  
@@ -312,21 +356,7 @@ void ParallelConvolution::SendMultipoleSlab(int slab) {
 	slab = CP->WrapSlab(slab);
 	
 	MTCOMPLEX * mt = (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab);
-	
-#ifdef DO_NOTHING	
-	//fill up multipole slab with predictable values and pass them through MPI piping without convolving.
-	int zcpd = (cpd+1)/2;
-	for (int z = 0; z < zcpd; z++){
-		for (int m = 0; m < rml; m ++){
-			for (int y = 0; y < cpd; y ++){ 
-				int i = z*cpd*rml + m*cpd + y; 
-				MTCOMPLEX value = (slab+1)*1000000 + y * 1000 + z + 0.01 * m ; 
-				mt[i] = value; 				
-			}
-		}
-	}
-#endif	
-	
+
 	Msend_requests[slab] = new MPI_Request[MPI_size];
 	Msend_active++;
 	for (int r = 0; r < MPI_size; r++) {
@@ -420,36 +450,24 @@ int ParallelConvolution::GetTaylorRecipient(int slab, int offset){
 	}
 }
 
-void ParallelConvolution::SendTaylorSlab(int slab, int offset) {
-	//Each node has Taylors for a limited range of z but for every x slab. 
-	//figure out who the receipient should be based on x slab and send to them. 
-	// Take from MTdisk. Set Tsend_requests[x] as request. 	
-	slab = CP->WrapSlab(slab);
-	int r = GetTaylorRecipient(slab, offset); //x-slab slab is in node r's domain. Send to node r. 
+void ParallelConvolution::SendTaylors(int offset) {
+	QueueTaylors.Clear(); QueueTaylors.Start();
+	for (int slab = 0; slab < cpd; slab ++){ 
+		//Each node has Taylors for a limited range of z but for every x slab. 
+		//figure out who the receipient should be based on x slab and send to them. 
+		// Take from MTdisk. Set Tsend_requests[x] as request. 	
+		slab = CP->WrapSlab(slab);
+		STDLOG(1, "About to SendTaylor Slab %d with offset %d\n", slab, FORCE_RADIUS); 
+		
+		int r = GetTaylorRecipient(slab, offset); //x-slab slab is in node r's domain. Send to node r. 
 	
-	int tag = (MPI_rank+1) * 10000 + slab + T_TAG; 
-	
-#ifdef DO_NOTHING
-	for (int z = 0; z < znode; z++){
-		for(int m = 0; m < rml; m ++){ ;
-			for(int y = 0; y < cpd; y++){
-				
-				int i = z*cpd*rml + m*cpd + y;
-				MTCOMPLEX expected = (slab+1)*1000000 + y * 1000 + (z+zstart) + 0.01 * m ; 
-				MTCOMPLEX observed = MTdisk[slab*this_node_size + i]; 
-				if (abs(real(expected - observed)) > 0.00001 or abs(imag(expected - observed)) > 0.00001){
-					STDLOG(1, "ERROR SENDING MTDISK SLAB %d, i %d, z %d, m %d, y %d, obs = %1.7f %1.7f, exp = %1.7f %1.7f\n", slab, i, z, m, y, real(MTdisk[slab*this_node_size + i]), imag(MTdisk[slab*this_node_size + i]), real(expected), imag(expected));
-					assertf(0 == 99, "Failed piping test during SendTaylorSlab!\n");		
-				}
-			}
-		}
+		int tag = (MPI_rank+1) * 10000 + slab + T_TAG; 
+		
+		MPI_Isend(MTdisk + slab * this_node_size, this_node_size, MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Tsend_requests[slab]);
+		STDLOG(1,"Taylor slab %d has been queued for MPI_Isend to rank %d\n", slab, r);
 	}
-
-#endif
 	
-	
-	MPI_Isend(MTdisk + slab * this_node_size, this_node_size, MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Tsend_requests[slab]);
-	STDLOG(1,"Taylor slab %d has been queued for MPI_Isend to rank %d\n", slab, r);
+	QueueTaylors.Stop(); CS.SendTaylors = QueueTaylors.Elapsed(); 
 }
 	
 /// Allocate space for this TaylorSlab, and trigger the MPI calls
@@ -515,39 +533,7 @@ int ParallelConvolution::CheckTaylorSlabReady(int slab) {
 	}
 	
 	STDLOG(1, "Taylor slab %d send_done %d, recv_done %d\n", slab, send_done, recv_done); 
-	
-#ifdef DO_NOTHING
-	if (send_done and recv_done){
-	    MTCOMPLEX *mt = (MTCOMPLEX *) SB->GetSlabPtr(TaylorSlab, slab);
-		
-		int zcpd = (P.cpd+1)/2;
-		int oops = 0; 
-		MTCOMPLEX expected; 
-		MTCOMPLEX observed; 
-	
-		for (int z = 0; z < zcpd; z++){
-			for (int m = 0; m < rml; m ++){
-				for (int y = 0; y < cpd; y ++){ //lcpd*(lcpd+1)/2*rml*sizeof(MTCOMPLEX)
-				
-					int i = z*cpd*rml + m*cpd + y; 
-			
-					MTCOMPLEX value = (slab+1)*1000000 + y * 1000 + z + 0.01 * m ; 
-			
-					if (oops == 0  and (abs(real(value - mt[i])) > 0.00001 or abs(imag(value - mt[i])) > 0.00001) ){
-						if (oops) STDLOG(1, "Slab %d, i %d y %d z %d m %d received %1.7f %1.7f, expected %1.7f %1.7f\n", 
-								slab, i, y, z, m, real(observed), imag(observed), real(expected), imag(expected));
-						assertf(0 == 99, "Failed piping test during CheckTaylorSlabReady!\n");		
-					}
-					mt[i] = 0.0; 		
-				}
-			}
-		}
-	}
-	
 
-#endif
-	
-	
 	return (send_done and recv_done); 
 
 }
@@ -599,14 +585,8 @@ void ParallelConvolution::Swizzle_to_xzmy() {
 		
 		for (int m = 0; m < rml; m ++){
 			for (int y = 0; y < cpd; y++){	 
-				
-#ifdef DO_NOTHING
-				MTdisk[ (int64)((xz  * rml + m)) * cpd + y ] = 
-					MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ] / ((Complex) cpd);	
-#else
 				MTdisk[ (int64)((xz  * rml + m)) * cpd + y ] = 
 					MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ] * invcpd3; //one factor of 1/CPD comes from the FFT below. Two more are needed for the FFTs in slab taylor -- we choose to throw them in here. 
-#endif 
 			}
 		}
 	}
@@ -648,7 +628,6 @@ void ParallelConvolution::FFT(fftw_plan plan) {
 				       (fftw_complex *)(MTzmxy+zm*cpd2pad));
 	}
 	
-		
 	fftw_destroy_plan(plan);
 	return;
 }
@@ -663,34 +642,130 @@ void ParallelConvolution::Convolve() {
 
 	// We're beginning in [x][znode][m][y] order on the RAMdisk
 	// Copy to the desired order in a new buffer
-	int err = fftw_init_threads(); 
-	assertf(err != 0, "Failed to fftw_init_threads\n");
-	fftw_plan_with_nthreads(omp_get_max_threads()); //NAM TODO how many threads in here? 
+	FFTPlanning.Clear(); FFTPlanning.Start();
+		int err = fftw_init_threads(); 
+		assertf(err != 0, "Failed to fftw_init_threads\n");
+		fftw_plan_with_nthreads(omp_get_max_threads()); //NAM TODO how many threads in here? 
 	
-	fftw_plan forward_plan  = PlanFFT(FFTW_FORWARD);
-	fftw_plan backward_plan = PlanFFT(FFTW_BACKWARD);
+		fftw_plan forward_plan  = PlanFFT(FFTW_FORWARD);
+		fftw_plan backward_plan = PlanFFT(FFTW_BACKWARD);
+	FFTPlanning.Stop();
+	CS.FFTPlanning = FFTPlanning.Elapsed();	
+	
 		
-	Swizzle_to_zmxy();   // Probably apply the -1 x offset here
+	ArraySwizzle.Clear(); ArraySwizzle.Start(); 	
+		Swizzle_to_zmxy();   // Probably apply the -1 x offset here
+	ArraySwizzle.Stop(); 
 	
 	STDLOG(1, "Beginning forward FFT\n");
-	FFT(forward_plan);
+	ForwardZFFTMultipoles.Clear(); 
+	ForwardZFFTMultipoles.Start(); 
+		FFT(forward_plan);
+	ForwardZFFTMultipoles.Stop(); 
+	CS.ForwardZFFTMultipoles = ForwardZFFTMultipoles.Elapsed();
 	
-#ifndef DO_NOTHING
-
+	ConvolutionArithmetic.Clear(); 
+	ReadDerivatives.Clear(); 
 	//Swizzle to zmxy, then do a bunch of FFTs with a stride; use ICC as is
 	for (int z = 0; z < znode; z++) {
-	    LoadDerivatives(z);
-		ICC->InCoreConvolve(MTzmxy+z*rml*cpd2pad, Ddisk[z]); 
+		ReadDerivatives.Start();
+	    	LoadDerivatives(z);
+		ReadDerivatives.Stop(); 
 		
+		ConvolutionArithmetic.Start(); 
+			ICC->InCoreConvolve(MTzmxy+z*rml*cpd2pad, Ddisk[z]); 
+		ConvolutionArithmetic.Stop();
 	}
 	
-#endif 
+	CS.ConvolutionArithmetic = ConvolutionArithmetic.Elapsed();
+	CS.ReadDerivatives       =       ReadDerivatives.Elapsed(); 
+
 	STDLOG(1, "Beginning inverse FFT\n");
-	FFT(backward_plan);
-	Swizzle_to_xzmy();   // Restore to the RAMdisk
+	InverseZFFTTaylor.Clear(); 
+	InverseZFFTTaylor.Start(); 
+		FFT(backward_plan);
+	InverseZFFTTaylor.Stop(); 
+	CS.InverseZFFTTaylor = InverseZFFTTaylor.Elapsed();
+
+	ArraySwizzle.Start();
+		Swizzle_to_xzmy();   // Restore to the RAMdisk
+	ArraySwizzle.Stop(); 
+	CS.ArraySwizzle = ArraySwizzle.Elapsed(); 
 	
+	
+	CS.ops = ICC->ConvolutionArithmeticCount();
 	delete ICC;
 	
 	STDLOG(1,"Convolution complete.\n");
 	
+}
+
+
+
+/* ======================== REPORTING ======================== */ 
+
+void ParallelConvolution::dumpstats(char *fn) {
+
+    FILE *fp;
+    fp = fopen(fn,"w");
+    assert(fp!=NULL);
+
+
+    double accountedtime  = CS.ConvolutionArithmetic;
+           accountedtime += CS.ForwardZFFTMultipoles + CS.InverseZFFTTaylor;
+           accountedtime += CS.ReadDerivatives;
+		   accountedtime += CS.Constructor + CS.AllocMT + CS.AllocDerivs + CS.SendTaylors + CS.FFTPlanning; 
+           accountedtime += CS.ArraySwizzle;
+    double discrepency = CS.ConvolveWallClock - accountedtime;
+	
+	
+	
+
+    int computecores = CS.ComputeCores;
+    fprintf(fp,"Convolution parameters:  RamAllocated = %dMB CacheSizeMB = %dMB nreal_cores=%d blocksize=%d zwidth=%d cpd=%d order=%d",
+	         (int) (CS.totalMemoryAllocated/(1<<20)), P.ConvolutionCacheSizeMB, computecores, (int) blocksize, (int) zwidth, cpd, order);
+			 
+
+     fprintf(fp,"\n\n");
+	 
+     fprintf(fp,"\t ConvolutionWallClock:  %2.2e seconds \n", CS.ConvolveWallClock );
+     fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Constructor", CS.Constructor );
+     fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Allocating Multipole/Taylor", CS.AllocMT);
+     fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Allocating Derivatives", CS.AllocDerivs);	 
+	 
+     fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Array Swizzling", CS.ArraySwizzle );
+
+     double e = CS.ReadDerivativesBytes/CS.ReadDerivatives/(1.0e+6);
+     fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskDerivatives", CS.ReadDerivatives, e );
+
+
+     double Gops = ((double) CS.ops)/(1.0e+9);
+     fprintf(fp,"\t \t %50s : %1.2e seconds for %5.3f billion double precision operations\n", "Convolution Arithmetic", CS.ConvolutionArithmetic, Gops );
+	 
+     fprintf(fp,"\t \t %50s : %1.2e seconds\n", "FFT Planning", CS.FFTPlanning );
+     fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Forward FFT Z Multipoles", CS.ForwardZFFTMultipoles );
+     fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Inverse FFT Z Taylor",         CS.InverseZFFTTaylor );
+	 
+     fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Queuing MPI Isends for Taylors", CS.SendTaylors );
+
+     fprintf(fp,"\t %50s : %1.2e seconds which is %d%% \n", "Unaccounted remaining wallclock time", discrepency, (int) (discrepency/CS.ConvolveWallClock*100) );
+
+     double cae       = CS.ConvolutionArithmetic;
+     double farithp   = cae/CS.ConvolveWallClock*100;
+	 double setupp    = (CS.Constructor + CS.AllocMT + CS.AllocDerivs)/CS.ConvolveWallClock*100;
+	 double planp     = (CS.FFTPlanning)/CS.ConvolveWallClock*100;
+	 double sendp     = (CS.SendTaylors)/CS.ConvolveWallClock*100;
+	 double ffftp     = (CS.ForwardZFFTMultipoles + CS.InverseZFFTTaylor)/CS.ConvolveWallClock*100;
+     double fiop      = (CS.ReadDerivatives)/CS.ConvolveWallClock*100;
+
+     double swzp      = CS.ArraySwizzle/CS.ConvolveWallClock*100;
+
+     fprintf(fp,"\n \t Summary: Fourier Transforms = %2.0f%%     Convolution Arithmetic = %2.0f%%     Array Swizzle = %2.0f%%    Disk IO = %2.0f%%     ", ffftp, farithp, swzp, fiop );
+
+     fprintf(fp,"\n \t Set up (constructor + allocs/mmaps) = %2.0f%%     FFT planning = %2.0f%%     Queuing Taylor Isends = %2.0f%%    \n", setupp, planp, sendp);
+     fprintf(fp,"\t          Arithmetic rate = %2.0f DGOPS --> rate per core = %1.1f DGOPS\n", Gops/cae, Gops/cae/computecores );
+     fprintf(fp,"\t          [DGOPS == Double Precision Billion operations per second]\n");
+     fprintf(fp,"\n");
+     
+    fclose(fp);
 }

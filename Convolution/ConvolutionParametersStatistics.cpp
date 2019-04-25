@@ -18,7 +18,13 @@ typedef struct {
     double ArraySwizzle;
 	
 		
-	
+#ifdef PARALLEL
+	double Constructor;
+	double AllocMT;
+	double AllocDerivs;
+	double SendTaylors; 
+	double FFTPlanning; 
+#endif	
 	
 #ifdef CONVIOTHREADED
     double WaitForIO;

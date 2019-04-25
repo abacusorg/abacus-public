@@ -169,7 +169,9 @@ void GatherTimings() {
     REPORT(1, "Drift", Drift.Elapsed()); total += thistime;
         REPORT_RATE();
     REPORT(1, "Finish", Finish.Elapsed()); total += thistime;
-        REPORT_RATE();
+        REPORT_RATE();		
+    REPORT(1, "Check Multipoles", CheckForMultipoles.Elapsed()); total += thistime;
+        REPORT_RATE();	
 
     double ManifestTotal = 
         ReceiveManifest->Load.Elapsed()

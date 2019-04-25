@@ -7,12 +7,9 @@
 /// 3) does the MPI work to send the Taylors back to the nodes they live on (each node needs, to run singlestep, Taylors for a set of x and for all z). 
 
 class ParallelConvolution { 
-public: 
-
-    //ConvolutionStatistics CS; 
-    
+public:     
 	// ParallelConvolution();
-    ParallelConvolution(int _cpd, int _order, const char *MTfile, int _create_MT_file = 0);
+    ParallelConvolution(int _cpd, int _order, char MultipoleDirectory[1024], int _create_MT_file = 0);
     ~ParallelConvolution(void);
 		
 	void AllocMT_two();	
@@ -32,10 +29,13 @@ public:
 	
 	
 	void RecvTaylorSlab(int slab);
-	void SendTaylorSlab(int slab, int offset); //TODO do we need this?
+	void SendTaylors(int offset); //TODO do we need this?
 	int  CheckTaylorSlabReady(int slab);
 	
+	//timers and stats to log:
+    ConvolutionStatistics CS; 
     uint64_t blocksize, zwidth, z_slabs_per_node; 
+	void dumpstats(char *fn);
 
 private:
 	
@@ -56,7 +56,7 @@ private:
 	Complex invcpd3; 
 
 	size_t mt_offset;
-	int ramdisk_derivs = 0; 
+	int ramdisk_derivs = -1; 
 	
     int zstart;   // The first z for this node
     int znode;    // The number of z's on this node

@@ -953,6 +953,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         if parallel:
             singlestep_cmd = mpirun_cmd + singlestep_cmd
             print('Running parallel convolution + singlestep for step {:d} with command "{:s}"'.format(stepnum, ' '.join(singlestep_cmd)))
+            convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
+            for cl in convlogs:
+                shutil.move(cl, cl.replace('last', 'step{:04d}'.format(read_state.FullStepNumber+1)))
         else:
             print("Running singlestep for step {:d}".format(stepnum))
         with Tools.ContextTimer() as ss_timer:

@@ -51,7 +51,6 @@ Dependency LPTVelocityReRead;
 #include "ConvolutionParametersStatistics.cpp"
 #include "InCoreConvolution.cpp"
 #include "ParallelConvolution.cpp"
-
 STimer ConvolutionWallClock;
 #endif
 
@@ -712,17 +711,7 @@ void FinishAction(int slab) {
 	
     WriteMultipoleSlab.Start();
 #ifdef PARALLEL
-	STDLOG(1, "Attemping to WriteArenaBlockingWithoutDeletion for MultipoleSlab %d\n", slab);
-	STDLOG(1, "Attemping to WriteArenaBlockingWithoutDeletion for MultipoleSlab %d at address %p\n", slab, (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab));
-	
-	
-	
-	
     SB->WriteArenaBlockingWithoutDeletion(MultipoleSlab,slab);
-	
-	
-	
-	
 #else
     SB->StoreArenaNonBlocking(MultipoleSlab,slab);
 #endif	
@@ -787,69 +776,59 @@ void NoopAction(int slab){
  * Registers all of the dependencies and their associated actions.
  * The Dependency module is responsible for running the registered steps.
  */
-void timestep(void) {
-		
-    TimeStepWallClock.Clear();
-    TimeStepWallClock.Start();
-    STDLOG(1,"Initiating timestep()\n");
-
+void timestep(void) { 
+	
     FORCE_RADIUS = P.NearFieldRadius;
     GROUP_RADIUS = GFC != NULL ? P.GroupRadius : 0;
     // The 2LPT pipeline is short (no group finding). We can afford to wait an extra slab to allow for large IC displacements
     FINISH_WAIT_RADIUS = LPTStepNumber() > 0 ? 2 : 1;
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
-    assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS); 
-    #ifdef PARALLEL
-        /* In the parallel code, we're about to send all of the info up to
-        slab-1 to the neighbor.  This can cause a problem if the pipeline
-        is thin (e.g., no group finding), because the PosXYZSlabs are needed
-        over a domain of +-FORCE_RADIUS.
-        
-        For the first slab to finish, we have to assure that PosXYZSlab[slab]
-        is not needed to Kick any slabs on the neighbor.  That means we must
-        have done Kick[slab-FORCE_RADIUS] on this node.
+    assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS); 	
+	
+ #ifdef PARALLEL
+	ConvolutionWallClock.Clear();
+	ConvolutionWallClock.Start();
 
-        Further, we have to assure that PosXYZSlab[slab-1] is not still needed
-        as a source to any slabs on this node.  Need Kick[slab-1+FORCE_RADIUS]
-        to be done to avoid this.
+	ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory);
 
-        We fix this by forcing FINISH_WAIT_RADIUS to be big enough.  */
-        if (FINISH_WAIT_RADIUS+2*GROUP_RADIUS<FORCE_RADIUS)
-            FINISH_WAIT_RADIUS = FORCE_RADIUS-2*GROUP_RADIUS;
+	ParallelConvolveDriver->Convolve(); 
+	ParallelConvolveDriver->SendTaylors(FORCE_RADIUS);
 
-        // TODO: I'm not sure inflating FINISH_WAIT_RADIUS is the best way to deal with this
-        // TODO: Also not sure this is the minimum number of slabs, even in that case
-        assertf(total_slabs_on_node >= 2*FINISH_WAIT_RADIUS + 1 + 2*FORCE_RADIUS + 4*GROUP_RADIUS, "Not enough slabs on node to finish any slabs!\n");
-  
-  
-		ConvolutionWallClock.Clear();
-		ConvolutionWallClock.Start();
+	ConvolutionWallClock.Stop(); 
+	ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed(); 
 	
-	    std::stringstream ss;
-	    std::string s;
-		ss << P.MultipoleDirectory << "/Multipoles";
-		s = ss.str();
-		const char * MTfile = s.c_str(); 
+    char timingfn[1050];
+    sprintf(timingfn,"%s/last%s.convtime",P.LogDirectory,NodeString);
+    ParallelConvolveDriver->dumpstats(timingfn); 
+#endif	
+		
+    TimeStepWallClock.Clear();
+    TimeStepWallClock.Start();
+    STDLOG(1,"Initiating timestep()\n");	
 	
-		//in previous timestep's finish action, multipoles were distributed to nodes such that each node now stores multipole moments for all x and its given range of z that it will convolve. Fetch these from shared memory.
-	
-	    STDLOG(1,"Working with MTfile %s\n", MTfile);
-	
-		ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, MTfile);
+#ifdef PARALLEL
+    /* In the parallel code, we're about to send all of the info up to
+    slab-1 to the neighbor.  This can cause a problem if the pipeline
+    is thin (e.g., no group finding), because the PosXYZSlabs are needed
+    over a domain of +-FORCE_RADIUS.
+    
+    For the first slab to finish, we have to assure that PosXYZSlab[slab]
+    is not needed to Kick any slabs on the neighbor.  That means we must
+    have done Kick[slab-FORCE_RADIUS] on this node.
 
-		ParallelConvolveDriver->Convolve(); 
+    Further, we have to assure that PosXYZSlab[slab-1] is not still needed
+    as a source to any slabs on this node.  Need Kick[slab-1+FORCE_RADIUS]
+    to be done to avoid this.
+
+    We fix this by forcing FINISH_WAIT_RADIUS to be big enough.  */
+    if (FINISH_WAIT_RADIUS+2*GROUP_RADIUS<FORCE_RADIUS)
+        FINISH_WAIT_RADIUS = FORCE_RADIUS-2*GROUP_RADIUS;
+
+    // TODO: I'm not sure inflating FINISH_WAIT_RADIUS is the best way to deal with this
+    // TODO: Also not sure this is the minimum number of slabs, even in that case
+    assertf(total_slabs_on_node >= 2*FINISH_WAIT_RADIUS + 1 + 2*FORCE_RADIUS + 4*GROUP_RADIUS, "Not enough slabs on node to finish any slabs!\n");
 	
-		for (int slab = 0; slab < P.cpd; slab ++){ //NAM TODO move loop into SendTaylors
-			STDLOG(1, "About to SendTaylor Slab %d with offset %d\n", slab, FORCE_RADIUS); 
-			ParallelConvolveDriver->SendTaylorSlab(slab, FORCE_RADIUS);
-		}
-	
-		ConvolutionWallClock.Stop(); 
-	#endif	
-		
-		
-		
-		
+#endif
 		
 		
     STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
@@ -868,14 +847,10 @@ void timestep(void) {
             Output.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS, &OutputPrecondition,             &OutputAction            );
              Drift.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS, &DriftPrecondition,              &DriftAction             );
             Finish.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &FinishPrecondition,             &FinishAction            );
-
-
-#ifndef WAIT_MULTIPOLES
-	#ifdef PARALLEL
-	CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &CheckForMultipolesPrecondition,  &CheckForMultipolesAction );
-	#else
-	CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &NoopPrecondition,  &NoopAction );
-	#endif
+#ifdef PARALLEL
+CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &CheckForMultipolesPrecondition,  &CheckForMultipolesAction );
+#else
+CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &NoopPrecondition,  &NoopAction );
 #endif
             
     // If group finding is disabled, we can make the dependencies no-ops so they don't hold up the pipeline
@@ -900,9 +875,8 @@ void timestep(void) {
         LPTVelocityReRead.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
 	
 	
-
-#ifndef WAIT_MULTIPOLES	
-	while (!CheckForMultipoles.alldone(total_slabs_on_node)){
+	int timestep_loop_complete = 0; 
+	while (!timestep_loop_complete){
            for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
          TransposePos.Attempt();
             NearForce.Attempt();
@@ -925,33 +899,14 @@ void timestep(void) {
 	    // If the manifest has been received, install it.
 	    if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
 	    CheckForMultipoles.Attempt();	
-    }
-	
-#else		
-	while (!Finish.alldone(total_slabs_on_node)){
-           for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
-         TransposePos.Attempt();
-            NearForce.Attempt();
-          TaylorForce.Attempt();
-                 Kick.Attempt();
-       MakeCellGroups.Attempt();
-   FindCellGroupLinks.Attempt();
-       DoGlobalGroups.Attempt();
-               Output.Attempt();
-            Microstep.Attempt();
-         FinishGroups.Attempt();
-    LPTVelocityReRead.Attempt();
-                Drift.Attempt();
-               Finish.Attempt();
-			   
-	    // TODO: The following line will be omitted once the MPI monitoring thread is in place.
-           SendManifest->FreeAfterSend();
-	    ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
-	
-	    // If the manifest has been received, install it.
-	    if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
-    }
+		
+#ifdef PARALLEL
+		timestep_loop_complete = CheckForMultipoles.alldone(total_slabs_on_node);
+#else
+		timestep_loop_complete = Finish.alldone(total_slabs_on_node);
 #endif
+    }
+
 
     if(IL->length!=0)
         IL->DumpParticles();
@@ -962,21 +917,16 @@ void timestep(void) {
     STDLOG(1,"Finished timestep dependency loop!!\n");
     #ifdef PARALLEL
 	
-#ifdef WAIT_MULTIPOLES		
-	ParallelConvolveDriver->WaitForMultipoleTransferComplete(FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS); //wait for MPI work to finish and deallocate MultipoleSlab.
-#endif
-	
-	
         MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
         STDLOG(1,"Ready to proceed to the remaining work\n");
         MPI_Barrier(MPI_COMM_WORLD);
         // This MPI call also forces a synchronization over the MPI processes, 
         // so things like Reseting GPUs could fire multiple times on one node.
-       SendManifest->FreeAfterSend();
-       // Run this again, just in case the dependency loop on this node finished
-       // before the neighbor received the non-blocking MPI transfer.
+        SendManifest->FreeAfterSend();
+        // Run this again, just in case the dependency loop on this node finished
+        // before the neighbor received the non-blocking MPI transfer.
 	   
-   	   delete ParallelConvolveDriver;
+   	    delete ParallelConvolveDriver;
 	   
     #endif 
     if (MPI_rank==0)

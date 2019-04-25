@@ -50,19 +50,11 @@ void FetchICAction(int slab) {
  */
 
 void timestepIC(void) {
-#ifdef PARALLEL	
-    std::stringstream ss;
-    std::string s;
-	ss << P.MultipoleDirectory << "/Multipoles";
-	s = ss.str();
-	const char * MTfile = s.c_str(); 
+#ifdef PARALLEL
 	
-	//in previous timestep's finish action, multipoles were distributed to nodes such that each node now stores multipole moments for all x and its given range of z that it will convolve. Fetch these from shared memory.
-	
-    STDLOG(1,"This is an IC step. Creating MTfile %s.\n", MTfile);
-	
+	//in previous timestep's finish action, multipoles were distributed to nodes such that each node now stores multipole moments for all x and its given range of z that it will convolve. Fetch these from shared memory.	
 	int create_MT_file = 1; 
-	ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, MTfile, create_MT_file);
+	ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory, create_MT_file);
 #endif
 	
     STDLOG(0,"Initiating timestepIC()\n");
@@ -76,58 +68,34 @@ void timestepIC(void) {
     int cpd = P.cpd; int first = first_slab_on_node;
     Drift.instantiate(cpd, first, &FetchICPrecondition, &FetchICAction );
     Finish.instantiate(cpd, first + FINISH_WAIT_RADIUS,  &FinishPrecondition,  &FinishAction );
-#ifndef WAIT_MULTIPOLES
-	#ifdef PARALLEL
+
+#ifdef PARALLEL
 	CheckForMultipoles.instantiate(cpd, first + FINISH_WAIT_RADIUS, &CheckForMultipolesPrecondition,  &CheckForMultipolesAction );
-	#else
-	CheckForMultipoles.instantiate(cpd, first + FINISH_WAIT_RADIUS, &NoopPrecondition,  &NoopAction );
-	#endif
-#endif
-	
-	
-	
-#ifndef WAIT_MULTIPOLES	
-	while (!CheckForMultipoles.alldone(total_slabs_on_node)){
-        Drift.Attempt();
-       Finish.Attempt();	   
-       SendManifest->FreeAfterSend();
-    ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
-    // If the manifest has been received, install it.
-    if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
-   		CheckForMultipoles.Attempt();
-    }
 #else
-	while (!Finish.alldone(total_slabs_on_node)){
-        Drift.Attempt();		
-       Finish.Attempt();	   
-	   	   
-       SendManifest->FreeAfterSend();
-    	ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
-    	// If the manifest has been received, install it.
-   		if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
-	}
+	CheckForMultipoles.instantiate(cpd, first + FINISH_WAIT_RADIUS, &NoopPrecondition,  &NoopAction );
 #endif
 	
 	
-	
-	
-	
-	
-	
-	
-	
-	
+	int timestep_loop_complete = 0; 
+	while (!timestep_loop_complete){
+        Drift.Attempt();
+       	Finish.Attempt();	   
+       	SendManifest->FreeAfterSend();
+    	ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
+    // If the manifest has been received, install it.
+    	if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
+   		CheckForMultipoles.Attempt();
 		
+#ifdef PARALLEL
+		timestep_loop_complete = CheckForMultipoles.alldone(total_slabs_on_node);
+#else
+		timestep_loop_complete = Finish.alldone(total_slabs_on_node);
+#endif
+    }
+
 
     STDLOG(1, "Read %d particles from IC files\n", NP_from_IC);
     #ifdef PARALLEL
-	//NAM TODO if I do this on a per slab basis in Finish Action, I get a strange crash (a bunch of memory related print outs)
-	//if I do this in an extra dependency, do I have to be careful about Manifest?
-	
-#ifdef WAIT_MULTIPOLES
-	ParallelConvolveDriver->WaitForMultipoleTransferComplete(FINISH_WAIT_RADIUS); //wait for MPI work to finish and deallocate MultipoleSlab.
-#endif	
-	
         MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
         MPI_REDUCE_TO_ZERO(&NP_from_IC, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
         STDLOG(1,"Ready to proceed to the remaining work\n");
