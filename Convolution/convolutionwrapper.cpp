@@ -18,8 +18,9 @@ STimer ConvolutionWallClock;
 
 
 #include "factorial.cpp"
-//#include "iolib.cpp"
-
+#ifndef PARALLEL
+#include "iolib.cpp"
+#endif
 
 #include "Parameters.cpp"
 

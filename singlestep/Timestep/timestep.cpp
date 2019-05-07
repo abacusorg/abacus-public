@@ -744,7 +744,7 @@ void FinishAction(int slab) {
 	
 }
 
-#ifndef WAIT_MULTIPOLES
+#ifdef PARALLEL
 int CheckForMultipolesPrecondition(int slab) {
     if( Finish.notdone(slab) ) return 0;
 	
