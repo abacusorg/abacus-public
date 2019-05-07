@@ -913,12 +913,24 @@ CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + F
     
     assertf(IL->length==0, 
         "Insert List not empty (%d) at the end of timestep().  Time step too big?\n", IL->length);
+		
+		
     
     STDLOG(1,"Finished timestep dependency loop!!\n");
-    #ifdef PARALLEL
 	
-        MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
+	
+    if (GFC != NULL) assertf(GFC->GLL->length==0,
+	"GroupLinkList not empty (%d) at the end of timestep.  Global group finding didn't run properly.\n", GFC->GLL->length);
+
+    uint64 total_n_output = n_output;
+    if(GFC != NULL)
+        total_n_output += GFC->n_L0_output;
+    #ifdef PARALLEL
+    	MPI_REDUCE_TO_ZERO(&total_n_output,   1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);		
+        MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);		
+		
         STDLOG(1,"Ready to proceed to the remaining work\n");
+				
         MPI_Barrier(MPI_COMM_WORLD);
         // This MPI call also forces a synchronization over the MPI processes, 
         // so things like Reseting GPUs could fire multiple times on one node.
@@ -932,15 +944,10 @@ CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + F
     if (MPI_rank==0)
         assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
 
-    if (GFC != NULL) assertf(GFC->GLL->length==0,
-	"GroupLinkList not empty (%d) at the end of timestep.  Global group finding didn't run properly.\n", GFC->GLL->length);
-
-    uint64 total_n_output = n_output;
-    if(GFC != NULL)
-        total_n_output += GFC->n_L0_output;
     
-    if(ReadState.DoTimeSliceOutput)
+    if(ReadState.DoTimeSliceOutput && MPI_rank==0){
         assertf(total_n_output == P.np, "TimeSlice output contains %d particles instead of %d!\n", total_n_output, P.np);
+	}
 
 
 
