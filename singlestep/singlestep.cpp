@@ -138,6 +138,7 @@ void InitGroupFinding(bool MakeIC){
     do_output |= ReadState.DoTimeSliceOutput;
 
     WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities
+    WriteState.L0DensityThreshold = 0.0;
 
     // We need to enable group finding if:
         // - We are doing microstepping
@@ -165,14 +166,31 @@ void InitGroupFinding(bool MakeIC){
 
         #ifdef COMPUTE_FOF_DENSITY
         #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
-        WriteState.DensityKernelRad2 = GFC->linking_length;
-        WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5); 
-        // We use square radii.  The radius is padded just a little
-        // bit so we don't risk underflow with 1 particle at r=b
-        // in comparison to the self-count.
+	if (P.DensityKernelRad==0) {
+	    // Default to the L0 linking length
+	    WriteState.DensityKernelRad2 = GFC->linking_length;
+	    WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5); 
+	    // We use square radii.  The radius is padded just a little
+	    // bit so we don't risk underflow with 1 particle at r=b
+	    // in comparison to the self-count.
+	    WriteState.L0DensityThreshold = 0.0;
+	    // Use this as a signal to use DensityKernalRad2 (in code units,
+	    // not cosmic units) as the threshold,
+	    // which means that a particle is L0 eligible if there is any
+	    // non-self particle within the L0 linking length
+	} else {
+	    WriteState.DensityKernelRad2 = P.DensityKernelRad/pow(P.np,1./3);
+	    WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2;
+	    WriteState.L0DensityThreshold = P.L0DensityThreshold;
+	}
         #endif
         #endif
         STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
+	if (WriteState.L0DensityThreshold==0) {
+	    STDLOG(1,"Passing L0DensityThreshold = 0 to signal to use anything with a neighbor\n");
+	} else {
+	    STDLOG(1,"Using L0DensityThreshold = %f\n", WriteState.L0DensityThreshold);
+	}
 
     } else{
         STDLOG(1, "Group finding not enabled for this step.\n");
