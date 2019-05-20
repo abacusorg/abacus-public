@@ -3,7 +3,7 @@
 /* "Use AVX-512 directs" */
 #undef AVX512DIRECT
 
-/* "Use AVX-512 multipoles" */
+/* "AVX-512 multipoes/Taylors" */
 #undef AVX512MULTIPOLES
 
 /* "Use AVX directs" */
@@ -12,7 +12,7 @@
 /* "Use AVX for FOF and SO" */
 #undef AVXFOF
 
-/* "Use AVX multipoles" */
+/* "AVX multipoles/Taylors" */
 #undef AVXMULTIPOLES
 
 /* "Cache line size in bytes" */
@@ -239,5 +239,5 @@
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
 
-/* "Use unrolled plain-C multipoles" */
+/* "Unrolled plain-C multipoles/Taylors" */
 #undef UNROLLEDMULTIPOLES

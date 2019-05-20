@@ -241,7 +241,7 @@ class ContextTimer(contexttimer.Timer):
         last_time = super(ContextTimer, self).elapsed
         return self.cumulative_time*self.factor + last_time
 
-def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03, adaptive=False):
+def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03, adaptive=False, **scatter_kwargs):
     '''
     A common problem in scatter plots is overlapped points.
     One can use 2D histogramming to plot densities instead, but
@@ -274,10 +274,10 @@ def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03, adaptive=Fals
         a while, try reducing this.
     '''
 
-    from matplotlib.mlab import griddata
-    #from sklearn.neighbors.kde import KernelDensity
+    #from matplotlib.mlab import griddata
+    from sklearn.neighbors.kde import KernelDensity
     #from scipy.stats import gaussian_kde
-    from KDEpy.TreeKDE import TreeKDE
+    #from KDEpy.TreeKDE import TreeKDE
 
     if z is not None:
         xy = np.vstack([x,y,z]).T
@@ -294,13 +294,13 @@ def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03, adaptive=Fals
     #color = gaussian_kde(xy)(xy)
     
     # Method 2: sklearn
-    #kde = KernelDensity(kernel='gaussian', bandwidth=bw, rtol=1e-2).fit(xy)
-    #color = kde.score_samples(xy)
+    kde = KernelDensity(kernel='gaussian', bandwidth=bw, rtol=1e-2).fit(xy)
+    color = kde.score_samples(xy)
 
     # Method 3: KDEpy
-    kde = TreeKDE(bw=bw).fit(xy)
-    color = kde.evaluate(xy)
-    color = np.log(color)
+    #kde = TreeKDE(bw=bw).fit(xy)
+    #color = kde.evaluate(xy)
+    #color = np.log(color)
 
     if adaptive:
         # Shrink the bw in high-density regions; grow it in low density regions
@@ -323,9 +323,9 @@ def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03, adaptive=Fals
     x, y, color = x[idx], y[idx], color[idx]
     
     if log:
-        sc = ax.scatter(10**x, 10**y, s=size, c=color)
+        sc = ax.scatter(10**x, 10**y, s=size, c=color, **scatter_kwargs)
     else:
-        sc = ax.scatter(x, y, s=size, c=color)
+        sc = ax.scatter(x, y, s=size, c=color, **scatter_kwargs)
         
     return x, y, color, kde, sc
 

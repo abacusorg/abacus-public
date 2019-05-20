@@ -632,9 +632,7 @@ NVCC
 CUDA_LDFLAGS
 CUDA_CFLAGS
 CUDA_MAJOR_VER
-UNROLLEDMULTIPOLES
-AVXMULTIPOLES
-AVX512MULTIPOLES
+MULTIPOLES_SIMD
 TCMALLOC
 SIMD_EXTENSIONS
 CPUEXT_FLAGS
@@ -719,9 +717,7 @@ enable_avx
 enable_avx512
 enable_avx_directs
 enable_avx512_directs
-enable_avx512_multipoles
-enable_avx_multipoles
-enable_unrolled_multipoles
+with_multipoles_simd
 enable_avx_fof
 with_max_cpd
 with_max_source_length
@@ -1384,12 +1380,6 @@ Optional Features:
                           if AVX-512 present]
   --enable-avx-directs    AVX directs [no]
   --enable-avx512-directs AVX-512 directs [no]
-  --enable-avx512-multipoles
-                          AVX-512 multipoles [yes if AVX-512 present]
-  --enable-avx-multipoles AVX multipoles [yes if AVX present]
-  --enable-unrolled-multipoles
-                          Unrolled (plain C) multipoles [yes if no
-                          AVX/AVX-512]
   --enable-avx-fof        AVX FOF [yes if AVX present]
   --enable-threaded-io    Threaded IO [yes]
   --enable-spherical-overdensity
@@ -1405,6 +1395,9 @@ Optional Packages:
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
   --with-radius=NFR       Near field radius [2]
   --with-block-size=B     Near field block size [64]
+  --multipoles-simd={avx512 | avx | unrolled | none}
+                          Multipoles/Taylors implementation [highest
+                          supported]
   --with-max-cpd=CPD      Maximum cells-per-dimension [8192]
   --with-max-source-length=S
                           Maximum source length [1048576]
@@ -5888,71 +5881,56 @@ _ACEOF
 
 fi
 
-# TODO: change all this to --with-multipoles
-# Only the test driver cares about access to multiple implementations, and it has full control over that
-have_multipoles=no
 
-# Check whether --enable-avx512-multipoles was given.
-if test "${enable_avx512_multipoles+set}" = set; then :
-  enableval=$enable_avx512_multipoles;
+# Begin multipoles SIMD options
+
+
+# Check whether --with-multipoles-simd was given.
+if test "${with_multipoles_simd+set}" = set; then :
+  withval=$with_multipoles_simd;
 else
-  enable_avx512_multipoles=$enable_avx512
+  with_multipoles_simd="auto"
 fi
 
-AVX512MULTIPOLES="AVX512MULTIPOLES_DISABLED"
-if test x$enable_avx512_multipoles == xyes; then
+
+if test "x$with_multipoles_simd" == xauto; then
+    if test "x$have_avx512f" == xyes; then
+        with_multipoles_simd="avx512"
+    elif test "x$have_avx" == xyes; then
+        with_multipoles_simd="avx"
+    else
+        with_multipoles_simd="unrolled"
+    fi
+fi
+
+
+MULTIPOLES_SIMD="MULTIPOLES_SIMD_NONE"
+if test "x$with_multipoles_simd" == xavx512; then
 
 cat >>confdefs.h <<_ACEOF
 #define AVX512MULTIPOLES /**/
 _ACEOF
 
-    AVX512MULTIPOLES="AVX512MULTIPOLES_ENABLED"
-    have_multipoles=yes
-fi
-
-
-# Check whether --enable-avx-multipoles was given.
-if test "${enable_avx_multipoles+set}" = set; then :
-  enableval=$enable_avx_multipoles;
-else
-  enable_avx_multipoles=auto
-fi
-
-if test x$enable_avx_multipoles == xauto && test x$have_multipoles == no; then
-    enable_avx_multipoles=$have_avx
-    have_multipoles=yes
-fi
-AVXMULTIPOLES="AVXMULTIPOLES_DISABLED"
-if test x$enable_avx_multipoles == xyes; then
+    MULTIPOLES_SIMD="MULTIPOLES_SIMD_AVX512"
+elif test "x$with_multipoles_simd" == xavx; then
 
 cat >>confdefs.h <<_ACEOF
 #define AVXMULTIPOLES /**/
 _ACEOF
 
-    AVXMULTIPOLES="AVXMULTIPOLES_ENABLED"
-fi
-
-
-# Check whether --enable-unrolled-multipoles was given.
-if test "${enable_unrolled_multipoles+set}" = set; then :
-  enableval=$enable_unrolled_multipoles;
-else
-  enable_unrolled_multipoles=auto
-fi
-
-
-#if test x$enable_unrolled_multipoles == xauto
-
-UNROLLEDMULTIPOLES="UNROLLEDMULTIPOLES_DISABLED"
-if test x$enable_unrolled_multipoles == xyes; then
+    MULTIPOLES_SIMD="MULTIPOLES_SIMD_AVX"
+elif test "x$with_multipoles_simd" == xunrolled; then
 
 cat >>confdefs.h <<_ACEOF
 #define UNROLLEDMULTIPOLES /**/
 _ACEOF
 
-    UNROLLEDMULTIPOLES="UNROLLEDMULTIPOLES_ENABLED"
+    MULTIPOLES_SIMD="MULTIPOLES_SIMD_UNROLLED"
+elif test "x$with_multipoles_simd" != xnone; then
+    as_fn_error $? "Unknown multipoles simd option \"$with_multipoles_simd\"!" "$LINENO" 5
 fi
 
+# end multipoles SIMD
 
 # Check whether --enable-avx-fof was given.
 if test "${enable_avx_fof+set}" = set; then :
@@ -6868,9 +6846,7 @@ echo "Near field max radius:           $with_radius"
 echo "Near field block size:           $with_block_size"
 echo "AVX directs:                     $enable_avx_directs"
 echo "AVX-512 directs:                 $enable_avx512_directs"
-echo "AVX multipoles:                  $enable_avx_multipoles"
-echo "AVX-512 multipoles:              $enable_avx512_multipoles"
-echo "Unrolled multipoles:             $enable_unrolled_multipoles"
+echo "SIMD multipoles:                 $with_multipoles_simd"
 echo "AVX FOF:                         $enable_avx_fof"
 echo "Spherical Overdensity:           $enable_spherical_overdensity"
 echo "Threaded IO:                     $enable_threaded_io"

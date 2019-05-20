@@ -138,47 +138,39 @@ if test x$enable_avx512_directs == xyes; then
 	AC_DEFINE_UNQUOTED(AVX512DIRECT, [], "Use AVX-512 directs")
 fi
 
-# TODO: change all this to --with-multipoles
-# Only the test driver cares about access to multiple implementations, and it has full control over that
-have_multipoles=no
 
-AC_ARG_ENABLE(avx512-multipoles,
-[AS_HELP_STRING([--enable-avx512-multipoles], [AVX-512 multipoles [yes if AVX-512 present]])],
-    [], enable_avx512_multipoles=$enable_avx512)
-AVX512MULTIPOLES="AVX512MULTIPOLES_DISABLED"
-if test x$enable_avx512_multipoles == xyes; then
-    AC_DEFINE_UNQUOTED(AVX512MULTIPOLES, [], "Use AVX-512 multipoles")
-    AVX512MULTIPOLES="AVX512MULTIPOLES_ENABLED"
-    have_multipoles=yes
+# Begin multipoles SIMD options
+
+AC_ARG_WITH(multipoles-simd,
+[AS_HELP_STRING([--multipoles-simd={avx512 | avx | unrolled | none}], [Multipoles/Taylors implementation [highest supported]])],
+    [], with_multipoles_simd="auto")
+
+if test "x$with_multipoles_simd" == xauto; then
+    if test "x$have_avx512f" == xyes; then
+        with_multipoles_simd="avx512"
+    elif test "x$have_avx" == xyes; then
+        with_multipoles_simd="avx"
+    else
+        with_multipoles_simd="unrolled"
+    fi
 fi
-AC_SUBST(AVX512MULTIPOLES)
 
-AC_ARG_ENABLE(avx-multipoles,
-[AS_HELP_STRING([--enable-avx-multipoles], [AVX multipoles [yes if AVX present]])],
-	[], enable_avx_multipoles=auto)
-if test x$enable_avx_multipoles == xauto && test x$have_multipoles == no; then
-    enable_avx_multipoles=$have_avx
-    have_multipoles=yes
+AC_SUBST(MULTIPOLES_SIMD)
+MULTIPOLES_SIMD="MULTIPOLES_SIMD_NONE"
+if test "x$with_multipoles_simd" == xavx512; then
+    AC_DEFINE_UNQUOTED(AVX512MULTIPOLES, [], "AVX-512 multipoes/Taylors")
+    MULTIPOLES_SIMD="MULTIPOLES_SIMD_AVX512"
+elif test "x$with_multipoles_simd" == xavx; then
+    AC_DEFINE_UNQUOTED(AVXMULTIPOLES, [], "AVX multipoles/Taylors")
+    MULTIPOLES_SIMD="MULTIPOLES_SIMD_AVX"
+elif test "x$with_multipoles_simd" == xunrolled; then
+    AC_DEFINE_UNQUOTED(UNROLLEDMULTIPOLES, [], "Unrolled plain-C multipoles/Taylors")
+    MULTIPOLES_SIMD="MULTIPOLES_SIMD_UNROLLED"
+elif test "x$with_multipoles_simd" != xnone; then
+    AC_MSG_ERROR([Unknown multipoles simd option "$with_multipoles_simd"!])
 fi
-AVXMULTIPOLES="AVXMULTIPOLES_DISABLED"
-if test x$enable_avx_multipoles == xyes; then
-	AC_DEFINE_UNQUOTED(AVXMULTIPOLES, [], "Use AVX multipoles")
-    AVXMULTIPOLES="AVXMULTIPOLES_ENABLED"
-fi
-AC_SUBST(AVXMULTIPOLES)
 
-AC_ARG_ENABLE(unrolled-multipoles,
-[AS_HELP_STRING([--enable-unrolled-multipoles], [Unrolled (plain C) multipoles [yes if no AVX/AVX-512]])],
-    [], enable_unrolled_multipoles=auto)
-
-#if test x$enable_unrolled_multipoles == xauto
-
-UNROLLEDMULTIPOLES="UNROLLEDMULTIPOLES_DISABLED"
-if test x$enable_unrolled_multipoles == xyes; then
-    AC_DEFINE_UNQUOTED(UNROLLEDMULTIPOLES, [], "Use unrolled plain-C multipoles")
-    UNROLLEDMULTIPOLES="UNROLLEDMULTIPOLES_ENABLED"
-fi
-AC_SUBST(UNROLLEDMULTIPOLES)
+# end multipoles SIMD
 
 AC_ARG_ENABLE(avx-fof,
 [AS_HELP_STRING([--enable-avx-fof], [AVX FOF [yes if AVX present]])],
@@ -421,9 +413,7 @@ echo "Near field max radius:           $with_radius"
 echo "Near field block size:           $with_block_size"
 echo "AVX directs:                     $enable_avx_directs"
 echo "AVX-512 directs:                 $enable_avx512_directs"
-echo "AVX multipoles:                  $enable_avx_multipoles"
-echo "AVX-512 multipoles:              $enable_avx512_multipoles"
-echo "Unrolled multipoles:             $enable_unrolled_multipoles"
+echo "SIMD multipoles:                 $with_multipoles_simd"
 echo "AVX FOF:                         $enable_avx_fof"
 echo "Spherical Overdensity:           $enable_spherical_overdensity"
 echo "Threaded IO:                     $enable_threaded_io"

@@ -860,7 +860,7 @@ except (OSError, ImportError):
 
 # An upper limit on the number of particles in a file, based on its size on disk
 get_np_from_fsize = lambda fsize, format, downsample=1: int(np.ceil(float(fsize)/psize_on_disk[format]/downsample**3.))
-psize_on_disk = {'pack14': 14, 'pack14_lite':14, 'rvdouble': 6*8, 'state64':3*8, 'state':3*4, 'rvzel':32, 'rvdoubletag':7*8}
+psize_on_disk = {'pack14': 14, 'pack14_lite':14, 'rvdouble': 6*8, 'state64':3*8, 'state':3*4, 'rvzel':32, 'rvtag':32, 'rvdoubletag':7*8}
 reader_functions = {'pack14':read_pack14, 'rvdouble':read_rvdouble,
                     'rvzel':read_rvzel, 'state':read_state,
                     'rvdoubletag':read_rvdoubletag,

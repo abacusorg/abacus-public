@@ -260,6 +260,7 @@ int main(int argc, char **argv) {
         QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
     
     if (da!=0) da = ChooseTimeStep();
+    // da *= -1;  // reverse the time step TODO: make parameter
     double dlna = da/ReadState.ScaleFactor;
     STDLOG(0,"Chose Time Step da = %6.4f, dlna = %6.4f\n", da, dlna);
     if(dlna > 0){
