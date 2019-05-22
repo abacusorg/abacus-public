@@ -3,7 +3,7 @@
 /* "Use AVX-512 directs" */
 #undef AVX512DIRECT
 
-/* "AVX-512 multipoes/Taylors" */
+/* "AVX-512 multipoles/Taylors" */
 #undef AVX512MULTIPOLES
 
 /* "Use AVX directs" */
@@ -233,7 +233,7 @@
 /* The size of `long', as computed by sizeof. */
 #undef SIZEOF_LONG
 
-/* "Use SO finder for L1/L2 hhalos */
+/* "Use SO finder for L1/L2 halos */
 #undef SPHERICAL_OVERDENSITY
 
 /* Define to 1 if you have the ANSI C header files. */

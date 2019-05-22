@@ -63,13 +63,13 @@ AC_CHECK_PROGS(SWIG, swig)
 AX_EXT
 
 # We prefer yes/no, not yes/blank
-if test x$ax_cv_have_avx_ext == xyes; then
+if test x$ax_cv_support_avx_ext == xyes; then
     have_avx=yes
 else
     have_avx=no
 fi
 
-if test x$ax_cv_have_avx512f_ext == xyes; then
+if test x$ax_cv_support_avx512f_ext == xyes; then
     have_avx512f=yes
 else
     have_avx512f=no
@@ -146,9 +146,9 @@ AC_ARG_WITH(multipoles-simd,
     [], with_multipoles_simd="auto")
 
 if test "x$with_multipoles_simd" == xauto; then
-    if test "x$have_avx512f" == xyes; then
+    if test "x$enable_avx512" == xyes; then
         with_multipoles_simd="avx512"
-    elif test "x$have_avx" == xyes; then
+    elif test "x$enable_avx" == xyes; then
         with_multipoles_simd="avx"
     else
         with_multipoles_simd="unrolled"
@@ -158,7 +158,7 @@ fi
 AC_SUBST(MULTIPOLES_SIMD)
 MULTIPOLES_SIMD="MULTIPOLES_SIMD_NONE"
 if test "x$with_multipoles_simd" == xavx512; then
-    AC_DEFINE_UNQUOTED(AVX512MULTIPOLES, [], "AVX-512 multipoes/Taylors")
+    AC_DEFINE_UNQUOTED(AVX512MULTIPOLES, [], "AVX-512 multipoles/Taylors")
     MULTIPOLES_SIMD="MULTIPOLES_SIMD_AVX512"
 elif test "x$with_multipoles_simd" == xavx; then
     AC_DEFINE_UNQUOTED(AVXMULTIPOLES, [], "AVX multipoles/Taylors")
@@ -205,7 +205,7 @@ AC_ARG_ENABLE(spherical-overdensity,
 [AS_HELP_STRING([--enable-spherical-overdensity], [Use SO finder [no]])],
 	[], enable_spherical_overdensity="no")
 if test x$enable_spherical_overdensity == xyes; then
-	AC_DEFINE_UNQUOTED(SPHERICAL_OVERDENSITY, [], "Use SO finder for L1/L2 hhalos, rather than FOF")
+	AC_DEFINE_UNQUOTED(SPHERICAL_OVERDENSITY, [], "Use SO finder for L1/L2 halos, rather than FOF")
 fi
 
 AC_ARG_ENABLE(gpu-directs,

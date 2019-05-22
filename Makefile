@@ -1,6 +1,18 @@
--include common.mk
+
+HAVE_COMMON_MK := $(wildcard common.mk)
+
+# In most cases, the user must have run ./configure before make
+# But we want the user to be able to clean regardless!
+ifeq (,$(findstring clean,$(MAKECMDGOALS))$(findstring tcmalloc,$(MAKECMDGOALS)))
+	include common.mk
+endif
 
 all: clibs singlestep CreateDerivatives ConvolutionDriver zeldovich util tests analysis AbacusCosmo
+
+common.mk:
+ifeq (,$(HAVE_COMMON_MK))
+	$(error common.mk not found! Did you run ./configure?)
+endif
 
 singlestep: ParseHeader
 	$(MAKE) -C singlestep all

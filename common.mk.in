@@ -43,7 +43,7 @@ endif
 MULTIPOLES_OBJ :=
 # These are the optimized multipole/taylor object files that
 # singlestep/Multipoles/Makefile will generate and singlestep/Makefile will link against
-ifeq (@MULTIPOLES_SIMD@,MULTIPOLES_SIMD_AVX_512)
+ifeq (@MULTIPOLES_SIMD@,MULTIPOLES_SIMD_AVX512)
     MULTIPOLES_OBJ += CMAVX512.o ETAVX512.o
 else ifeq (@MULTIPOLES_SIMD@,MULTIPOLES_SIMD_AVX)
     MULTIPOLES_OBJ += ETASM.o CMASM.o
@@ -95,7 +95,10 @@ ifeq (@CXX@,g++)
     endif
 
     # offloading sends openmp to the GPU
-    THREAD_CPPFLAGS += -foffload=disable
+    GNUC_GE_7 := $(shell [ $(CXX_MAJOR_VER) -ge 7 ] && echo true)
+    ifeq ($(GNUC_GE_7),true)
+        THREAD_CPPFLAGS += -foffload=disable
+    endif
 else ifeq (@CXX@,icc)
     CPPFLAGS += -xHost -fp-model precise -fbuiltin -ip -mkl #-ipo #-prof-use=weighted
     NVCC_CPPFLAGS += -fp-model precise -ip -mkl
