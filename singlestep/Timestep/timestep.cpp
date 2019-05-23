@@ -52,11 +52,13 @@ Dependency LPTVelocityReRead;
 #include "InCoreConvolution.cpp"
 #include "ParallelConvolution.cpp"
 STimer ConvolutionWallClock;
+STimer BarrierWallClock; 
 #endif
 
 // The wall-clock time minus all of the above Timers might be a measure
 // of the spin-locked time in the timestep() loop.
 STimer TimeStepWallClock;
+ 
 
 #include "manifest.cpp"
 
@@ -108,7 +110,7 @@ void FetchSlabsAction(int slab) {
 	STDLOG(1, "Done with RecvTaylorSlab slab %d\n", slab + FORCE_RADIUS); 
 		
 #else
-    SB->LoadArenaNonBlocking(TaylorSlab,slab); //if we're doing PARALLEL, we've just queued up the recv mpi calls. wait for these to finish and load the TaylorSlabs in TaylorForceAction. TODO ask about this. 
+    SB->LoadArenaNonBlocking(TaylorSlab,slab); 
 #endif
 
     SB->LoadArenaNonBlocking(VelSlab, slab);
@@ -240,13 +242,16 @@ int TaylorForcePrecondition(int slab) {
     }
     if( !SB->IsIOCompleted( PosSlab, slab ) ){
         if(SB->IsSlabPresent(PosSlab, slab))
-            Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
 	
 #ifdef PARALLEL //TODO do the above still apply in the parallel case? 
-	if( !ParallelConvolveDriver->CheckTaylorSlabReady(slab)) 
+	if( !ParallelConvolveDriver->CheckTaylorSlabReady(slab)) {
+        if(SB->IsSlabPresent(TaylorSlab, slab))
+			Dependency::NotifySpinning(WAITING_FOR_MPI);	
 		return 0; 
+	}
+		
 #else
     if( !SB->IsIOCompleted( TaylorSlab, slab ) ){
         if(SB->IsSlabPresent(TaylorSlab, slab))
@@ -695,7 +700,13 @@ void FinishAction(int slab) {
 	STDLOG(1,"Done deallocing pos, vel, aux for slab %d\n", slab);
 	
     // Make the multipoles
-    SB->AllocateArena(MultipoleSlab,slab, RAMDISK_NO);
+	int ramdisk_multipole_flag; 
+#ifdef PARALLEL
+	ramdisk_multipole_flag = RAMDISK_NO;
+#else
+	ramdisk_multipole_flag = RAMDISK_AUTO;
+#endif
+    SB->AllocateArena(MultipoleSlab,slab, ramdisk_multipole_flag);
 	
 	STDLOG(1,"About to compute multipoles for slab %d, %p\n", slab, (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab));
 	
@@ -710,9 +721,10 @@ void FinishAction(int slab) {
     WriteMergeSlab.Stop();
 	
     WriteMultipoleSlab.Start();
-#ifdef PARALLEL
-    SB->WriteArenaBlockingWithoutDeletion(MultipoleSlab,slab);
-#else
+	//#ifdef PARALLEL
+    //SB->WriteArenaBlockingWithoutDeletion(MultipoleSlab,slab); //NAM TODO don't need this
+	//#else
+#ifndef PARALLEL
     SB->StoreArenaNonBlocking(MultipoleSlab,slab);
 #endif	
     WriteMultipoleSlab.Stop();
@@ -725,12 +737,16 @@ void FinishAction(int slab) {
 	
     if (Finish.raw_number_executed==0) SendManifest->QueueToSend(slab);
 	
+	
+	QueueMultipoleMPI.Clear(); QueueMultipoleMPI.Start(); 
 	STDLOG(1, "Attempting to SendMultipoleSlab %d\n", slab);
 	ParallelConvolveDriver->SendMultipoleSlab(slab); //distribute z's to appropriate nodes for this node's x domain.
 	if (Finish.raw_number_executed==0){ //if we are finishing the first slab, set up receive MPI calls for incoming multipoles.
 		STDLOG(1, "Attempting to RecvMultipoleSlab %d\n", slab);
 		ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's.
 	}
+	
+	QueueMultipoleMPI.Stop(); 
 #endif
 	
 
@@ -750,7 +766,11 @@ int CheckForMultipolesPrecondition(int slab) {
 	
 	int multipole_transfer_complete = ParallelConvolveDriver->CheckForMultipoleTransferComplete(slab);
 	if (multipole_transfer_complete) return 1; 
-    else return 0;
+    else {
+		if(SB->IsSlabPresent(MultipoleSlab, slab))
+				Dependency::NotifySpinning(WAITING_FOR_MPI);	
+		return 0;
+	}
 }
 
 void CheckForMultipolesAction(int slab) {
@@ -796,10 +816,6 @@ void timestep(void) {
 
 	ConvolutionWallClock.Stop(); 
 	ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed(); 
-	
-    char timingfn[1050];
-    sprintf(timingfn,"%s/last%s.convtime",P.LogDirectory,NodeString);
-    ParallelConvolveDriver->dumpstats(timingfn); 
 #endif	
 		
     TimeStepWallClock.Clear();
@@ -908,6 +924,8 @@ CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + F
     }
 
 
+	WrappingUp1.Clear(); WrappingUp1.Start(); 
+	
     if(IL->length!=0)
         IL->DumpParticles();
     
@@ -925,20 +943,33 @@ CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + F
     uint64 total_n_output = n_output;
     if(GFC != NULL)
         total_n_output += GFC->n_L0_output;
+	
+	WrappingUp1.Stop(); 
+	
     #ifdef PARALLEL
+	
+		WrappingUp2.Clear(); WrappingUp2.Start(); 
+	
     	MPI_REDUCE_TO_ZERO(&total_n_output,   1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);		
         MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);		
 		
         STDLOG(1,"Ready to proceed to the remaining work\n");
+		
+		WrappingUp2.Stop(); 
+		
+		BarrierWallClock.Clear(); BarrierWallClock.Start();
 				
         MPI_Barrier(MPI_COMM_WORLD);
+		
+		BarrierWallClock.Stop(); 
         // This MPI call also forces a synchronization over the MPI processes, 
         // so things like Reseting GPUs could fire multiple times on one node.
         SendManifest->FreeAfterSend();
         // Run this again, just in case the dependency loop on this node finished
         // before the neighbor received the non-blocking MPI transfer.
-	   
-   	    delete ParallelConvolveDriver;
+	    TimeStepWallClock.Stop(); ConvolutionWallClock.Start(); 
+    	delete ParallelConvolveDriver;
+	    ConvolutionWallClock.Stop(); TimeStepWallClock.Start(); 
 	   
     #endif 
     if (MPI_rank==0)
@@ -953,6 +984,8 @@ CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + F
 
     STDLOG(1,"Completing timestep()\n");
     TimeStepWallClock.Stop();
+	
+	
 }
 
 

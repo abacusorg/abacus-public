@@ -852,6 +852,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             subprocess.check_call(Conv_mpirun_cmd + distribute_state_cmd)
         
         #check if our previous run was interruptered and saved in the global directory. If yes, redistribute state to nodes. 
+        #TODO do this by checking if we have a backed-up state available in global directory (instead of looking at param file). 
         distribute_to_resume = param.get('DistributeToResume', None)
         
         print('distribute_to_resume = ', distribute_to_resume); 

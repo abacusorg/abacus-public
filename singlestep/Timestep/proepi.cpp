@@ -43,6 +43,12 @@ STimer FinishMerge;
 STimer ComputeMultipoles;
 STimer WriteMergeSlab;
 STimer WriteMultipoleSlab;
+STimer QueueMultipoleMPI; 
+STimer PCDDestructor; 
+STimer WrappingUp1;
+STimer WrappingUp2;
+STimer ParallelConvolveDestructor; 
+
 
 STimer OutputTimeSlice;
 STimer OutputLightCone;

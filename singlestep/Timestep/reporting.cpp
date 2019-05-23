@@ -62,6 +62,7 @@ void GatherTimings() {
 
     total = 0.0;
     REPORT(0, "SingleStep Setup", SingleStepSetup.Elapsed()); total += thistime;
+    REPORT(0, "Convolution", ConvolutionWallClock.Elapsed()); total += thistime;
     REPORT(0, "TimeStep", TimeStepWallClock.Elapsed()); total += thistime;
     REPORT(0, "Finish IO", IOFinish.Elapsed()); total += thistime;
     REPORT(0, "Unaccounted", WallClockDirect.Elapsed()-total);
@@ -182,6 +183,11 @@ void GatherTimings() {
     REPORT(1, "Manifest", ManifestTotal); total += thistime;
         fprintf(reportfp,"---> %6.3f MB", ReceiveManifest->bytes/1e6);
     REPORT(1, "Spinning", spinning); total += thistime;
+	
+#ifdef PARALLEL
+	REPORT(1, "MPI Barrier", BarrierWallClock.Elapsed()); total += thistime;
+#endif
+	
     REPORT(1, "Unaccounted", TimeStepWallClock.Elapsed()-total);
 
     fprintf(reportfp, "\n\nBreakdown per slab (Wall Clock)");
@@ -385,6 +391,10 @@ void GatherTimings() {
         REPORT(2, "Write Particles", WriteMergeSlab.Elapsed());
         REPORT(2, "Write Multipoles", WriteMultipoleSlab.Elapsed());
         REPORT(2, "Queuing Send Manifest", SendManifest->Load.Elapsed()+SendManifest->Transmit.Elapsed());
+		REPORT(2, "Queuing Multipole MPI", QueueMultipoleMPI.Elapsed());
+		REPORT(2, "Wrapup 1", WrappingUp1.Elapsed());
+		REPORT(2, "Wrapup 2", WrappingUp2.Elapsed());
+		
 
 
     fprintf(reportfp, "\n\nBreakdown of Manifest:");
@@ -402,6 +412,8 @@ void GatherTimings() {
     REPORT(1, "Not enough RAM to load slabs", Dependency::spin_timers[NOT_ENOUGH_RAM].Elapsed());
     REPORT(1, "Waiting for slab IO", Dependency::spin_timers[WAITING_FOR_IO].Elapsed());
     REPORT(1, "Waiting for GPU", Dependency::spin_timers[WAITING_FOR_GPU].Elapsed());
+    REPORT(1, "Waiting for MPI", Dependency::spin_timers[WAITING_FOR_MPI].Elapsed());
+	
 
     denom = TimeStepWallClock.Elapsed();
     double arena_malloc, arena_free;

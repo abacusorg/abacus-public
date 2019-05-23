@@ -19,18 +19,28 @@ typedef struct {
 	
 		
 #ifdef PARALLEL
-	double Constructor;
-	double AllocMT;
-	double AllocDerivs;
-	double SendTaylors; 
-	double FFTPlanning; 
+	double Constructor = 0.0;
+	double AllocMT = 0.0;
+	double AllocDerivs = 0.0;
+	double SendTaylors = 0.0; 
+	double FFTPlanning = 0.0; 
+	double Destructor = 0.0; 
+	double ThreadCleanUp = 0.0; 
+	
+
+	double MmapMT = 0.0; 
+	double MunmapMT = 0.0; 
+	double MmapDerivs = 0.0; 
+	double MunmapDerivs = 0.0;
+	
+	
 #endif	
 	
 #ifdef CONVIOTHREADED
     double WaitForIO;
 #endif
     
-    double ConvolveWallClock;
+    double ConvolveWallClock = 0.0;
     double Discrepency;
 
     uint64_t ReadDerivativesBytes, ReadMultipolesBytes, TransposeBufferingBytes, TransposeAlltoAllvBytes, WriteTaylorBytes;

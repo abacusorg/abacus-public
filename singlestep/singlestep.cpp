@@ -205,7 +205,7 @@ void FinalizeParallel() {
     #ifdef PARALLEL
          // Finalize MPI
          MPI_Finalize();
-         STDLOG(0,"Calling MPI_Finalize()");
+         STDLOG(0,"Calling MPI_Finalize()\n");
     #else
     #endif
 }
