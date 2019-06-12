@@ -54,7 +54,7 @@ def read(*args, **kwargs):
 
     try:
         return reader_functions[format](*args, **kwargs)
-    except:
+    except KeyError:
         # Try calling format as a function
         return format(*args, **kwargs)
 
@@ -240,11 +240,12 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, **kwargs):
     '''
 
     assert chunksize == 1, "chunksize > 1 not yet implemented"
+
+    _key = (lambda k: key(ppath.basename(k))) if key else None
     
     # First, determine the file names to read
     if ppath.isdir(path):
         pattern = get_file_pattern(kwargs.get('format'))
-        _key = (lambda k: key(ppath.basename(k))) if key else None
         files = sorted(glob(pjoin(path, pattern)), key=_key)
     elif ppath.isfile(path):
         files = [path]
@@ -497,7 +498,7 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
         elif output_type == 'ic':
             boxsize = header['BoxSize']
         else:
-            raise ValueError(af_type)
+            raise ValueError(output_type)
     
     if out is None:
         return_dt = output_dtype(return_vel=return_vel, return_zel=return_zel, return_pid=return_pid, dtype=dtype)
@@ -521,6 +522,8 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
         
         particles['pos'][:len(raw)] = raw['r']
         if add_grid:
+            if not boxsize:
+                raise ValueError("Need to specify boxsize if using add_grid (or a header must be present from which the box size can be read)")
             grid = (1.*raw['zel'] / ppd - 0.5)*boxsize
             particles['pos'][:len(raw)] += grid
         if zspace:

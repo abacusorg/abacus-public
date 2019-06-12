@@ -195,9 +195,9 @@ void InitializeParallel(int &size, int &rank) {
 
 void FinalizeParallel() {
     #ifdef PARALLEL
-         // Finalize MPI
-         MPI_Finalize();
-         STDLOG(0,"Calling MPI_Finalize()");
+        // Finalize MPI
+        STDLOG(0,"Calling MPI_Finalize()");
+        MPI_Finalize();
     #else
     #endif
 }
