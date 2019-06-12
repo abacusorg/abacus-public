@@ -146,6 +146,9 @@ public:
     int GPUThreadCoreStart[MAX_GPUS];  // The core on which to start placing GPU device threads.
     int NGPUThreadCores;  // The number of free cores on which to place GPU device threads.
 
+    double DensityKernelRad;  // The kernel Radius for the density computation, specified in units of the interparticle spacing.  0 will default to FoFLinkingLength[0]
+    double L0DensityThreshold;  // The kernel density required for a particle to be eligible to be in a L0 group; specified in units of the cosmic mean density. This is ignored (uses 0) if DensityKernelRad==0.  Value = 0 triggers code to make a particle eligible if it has any non-self neighbor within DensityKernelRad
+
     int AllowGroupFinding;
     double FoFLinkingLength[3]; //Linking lengths for level 0,1,2 groupfinding in fractional interparticle spacing 
     double SODensity[2];  // Overdensities for SO groupfinding level 1 and 2
@@ -338,6 +341,11 @@ public:
         installvector("GPUThreadCoreStart", GPUThreadCoreStart, MAX_GPUS, 1, DONT_CARE);
         NGPUThreadCores = -1;
         installscalar("NGPUThreadCores", NGPUThreadCores, DONT_CARE);
+
+	DensityKernelRad = 0.0;
+        installscalar("DensityKernelRad",DensityKernelRad, DONT_CARE);
+	L0DensityThreshold = 0.0;
+        installscalar("L0DensityThreshold",L0DensityThreshold, DONT_CARE);
 
         AllowGroupFinding = 1;
         installscalar("AllowGroupFinding",AllowGroupFinding, DONT_CARE);

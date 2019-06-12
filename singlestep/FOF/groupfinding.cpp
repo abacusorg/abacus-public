@@ -180,7 +180,8 @@ class GroupFindingControl {
    	 // (2/15)*4*PI*b^5*np
 	 float FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
 	 GLOG(0,"Maximum reported density = %f (%e in code units)\n", maxFOFdensity/FOFunitdensity, maxFOFdensity);
-	 meanFOFdensity /= P.np-WriteState.DensityKernelRad2;
+	 meanFOFdensity /= P.np;    
+	 meanFOFdensity -= WriteState.DensityKernelRad2;  // Subtract self-count
 	 GLOG(0,"Mean reported non-self density = %f (%e in code units)\n", meanFOFdensity/FOFunitdensity, meanFOFdensity);
 	 GLOG(0,"Found %f G cell groups (including boundary singlets)\n", CGtot/1e9);
 	 GLOG(0,"Used %f G pseudoParticles, %f G faceParticles, %f G faceGroups\n",
@@ -267,6 +268,22 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     FLOAT _maxFOFdensity = 0.0;
     double _meanFOFdensity = 0.0;
     FLOAT DensityKernelRad2 = WriteState.DensityKernelRad2;
+    FLOAT L0DensityThreshold = WriteState.L0DensityThreshold;
+
+    if (L0DensityThreshold>0) {
+        // We've been asked to compare the kernel density to a particular
+	// density (unit of cosmic mean) to make a particle L0 eligible.
+	// Remember that this density does include the self-count.
+	// The FOFdensities are weighted by b^2-r^2.  When integrated,
+	// that yields a mass at unit density of 
+	// (2/15)*4*PI*b^5*np
+	FLOAT FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
+	L0DensityThreshold *= FOFunitdensity;  // Now in code units
+    } else {
+        L0DensityThreshold = DensityKernelRad2;
+	// We want to be sensitive to a single particle beyond the self-count.
+    }
+
     #pragma omp parallel for schedule(dynamic,1) reduction(+:_CGactive) reduction(max:_maxFOFdensity) reduction(+:_meanFOFdensity)
     for (int j=0; j<cpd; j++) {
 	int g = omp_get_thread_num();
@@ -284,7 +301,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 		    _meanFOFdensity += c.acc[p].w;
 			// This will be the mean over all particles, not just
 			// the active ones
-		    if (c.acc[p].w>DensityKernelRad2) {
+		    if (c.acc[p].w>L0DensityThreshold) {
 			// Active particle; retain and accumulate stats
 			_maxFOFdensity=std::max(_maxFOFdensity, c.acc[p].w);
 		    } else {
