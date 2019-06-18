@@ -147,7 +147,7 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
     _format = format
     if _format == 'state' and kwargs.pop('dtype_on_disk', np.float32) == np.float64:
         _format = 'state64'
-    alloc_NP = get_np_from_fsize(total_fsize, format=_format)
+    alloc_NP = get_np_from_fsize(total_fsize, format=_format, downsample=kwargs.get('downsample'))
     outdt = output_dtype(**kwargs)
     
     if separate_fields:
@@ -291,7 +291,7 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, **kwargs):
 # Begin list of reader functions
 ################################
 
-def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=False, return_header=False, dtype=np.float32, boxsize=None, out=None):
+def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=False, return_header=False, dtype=np.float32, boxsize=None, downsample=None, out=None):
     """
     Read particle data from a file in pack14 format.
     
@@ -315,6 +315,9 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
         A pre-allocated array into which the particles will be directly loaded.
     boxsize: optional
         Ignored; included for compatibility
+    downsample: float, optional
+        The downsample fraction.  Downsampling is performed using the same PID hash as Abacus proper.
+        Default of None means no downsampling.
         
     Returns
     -------
@@ -351,12 +354,21 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
         _out = out
     else:  # or allocate one
         fsize = ppath.getsize(fn)
-        alloc_NP = get_np_from_fsize(fsize, format='pack14')
+        alloc_NP = get_np_from_fsize(fsize, format='pack14', downsample=downsample)
         ndt = output_dtype(return_vel=return_vel, return_pid=return_pid, dtype=dtype)
         _out = np.empty(alloc_NP, dtype=ndt)
+
+    if downsample is None:
+        downsample = 1.1  # any number larger than 1 will take all particles
     
-    NP = readers[dtype](fn, offset, ramdisk, return_vel, zspace, return_pid, _out.view(dtype=dtype))
-    _out = _out[:NP]  # shrink the buffer to the real size
+    NP = readers[dtype](fn, offset, ramdisk, return_vel, zspace, return_pid, downsample, _out.view(dtype=dtype))
+
+    # shrink the buffer to the real size
+    if out is None:
+        _out.resize(NP, refcheck=False)
+    else:
+        _out = _out[:NP]
+        
     
     retval = (NP,) if out is not None else (_out,)
     if return_header:
@@ -856,13 +868,30 @@ try:
     # TODO: switch our C library to use CFFI
     for f in (ralib.read_pack14, ralib.read_pack14f):
         f.restype = ct.c_uint64
-        f.argtypes = (asciistring_arg, ct.c_size_t, ct.c_int, ct.c_int, ct.c_int, ct.c_int, ndarray_arg)
+        f.argtypes = (asciistring_arg, ct.c_size_t, ct.c_int, ct.c_int, ct.c_int, ct.c_int, ct.c_double, ndarray_arg)
 except (OSError, ImportError):
     raise
     pass  # no pack14 library found
 
-# An upper limit on the number of particles in a file, based on its size on disk
-get_np_from_fsize = lambda fsize, format, downsample=1: int(np.ceil(float(fsize)/psize_on_disk[format]/downsample**3.))
+
+# An UPPER LIMIT on the number of particles in a file, based on its size on disk and downsampling rate
+def get_np_from_fsize(fsize, format, downsample=None):
+
+    ds = 1. if downsample is None else downsample
+
+    ds = max(min(1.,ds),0.)  # clip to [0,1]
+
+    N = float(fsize)/psize_on_disk[format]*ds
+
+    # No downsampling uncertainty
+    if downsample is None:
+        return int(np.ceil(N))
+
+    # Add 6-sigma downsampling uncertainty
+    N += 6*np.sqrt(N)
+
+    return int(np.ceil(N))
+
 psize_on_disk = {'pack14': 14, 'pack14_lite':14, 'rvdouble': 6*8, 'state64':3*8, 'state':3*4, 'rvzel':32, 'rvtag':32, 'rvdoubletag':7*8}
 reader_functions = {'pack14':read_pack14, 'rvdouble':read_rvdouble,
                     'rvzel':read_rvzel, 'state':read_state,
