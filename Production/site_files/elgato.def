@@ -1,3 +1,5 @@
+SiteName = "elgato"
+
 StateIOMode = "overwrite"
 Conv_IOMode = "overwrite"
 #IODirs = ["multipole/", "taylor/", "multipole2/", "taylor2/"]
