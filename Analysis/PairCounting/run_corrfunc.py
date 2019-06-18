@@ -112,7 +112,7 @@ def run(args):
                                 verbose=True, periodic=True, boxsize=box,
                                 output_ravg=False,
                                 max_cells_per_dim=300,
-                                copy_particles=False)
+                                copy_particles=True)
         del p, X2, Y2, Z2
         print('* Done.')
 

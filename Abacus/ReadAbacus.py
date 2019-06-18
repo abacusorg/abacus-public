@@ -28,6 +28,7 @@ import ctypes as ct
 import re
 import threading
 import queue
+from warnings import warn
 
 import numpy as np
 import numba
@@ -357,6 +358,9 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
         alloc_NP = get_np_from_fsize(fsize, format='pack14', downsample=downsample)
         ndt = output_dtype(return_vel=return_vel, return_pid=return_pid, dtype=dtype)
         _out = np.empty(alloc_NP, dtype=ndt)
+
+    if downsample > 1:
+        warn(f'Downsample factor {downsample} is greater than 1!  A fraction less than 1 is expected.')
 
     if downsample is None:
         downsample = 1.1  # any number larger than 1 will take all particles
