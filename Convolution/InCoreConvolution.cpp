@@ -3,7 +3,7 @@ public:
     InCoreConvolution(int order, int cpd, int blocksize, int _cpd2pad = 0) : 
             basemultipoles(order), cpd(cpd), blocksize(blocksize) {
 				
-		STDLOG(1," Entering ICC constructor\n");
+		STDLOG(3," Entering ICC constructor\n");
 		//in normal case, a set of x-y multipoles has cpd*cpd cells. in the parallel case, though, we pad out y to cpd2pad -- some number slightly bigger than cpd. 
 		
 		if (_cpd2pad == 0) cpd2pad = cpd * cpd; 
@@ -14,25 +14,19 @@ public:
         cpdhalf = (cpd-1)/2;
         int cs = omp_get_max_threads() * (completemultipolelength * blocksize + thread_padding);  // extra 1K padding between threads
 		
-		
-		STDLOG(1," Entering ICC constructor 2, %d \n", cpd2pad);
-		
+				
         _mcache = new Complex[cs]; 
         _dcache = new  double[cs]; 
         _tcache = new Complex[cs];
         mfactor = new double[completemultipolelength];
-		
-		STDLOG(1," Entering ICC constructor 3\n");
-		
+				
 		
         int a,b,c;
         FORALL_COMPLETE_MULTIPOLES_BOUND(a,b,c,order) {
             mfactor[ cmap(a,b,c) ] = 
                 pow(-1.0,a+b+c)/(fact2(2*(a+b+c)-1)*fact(a)*fact(b)*fact(c));
         }
-		
-		STDLOG(1," Entering ICC constructor 4\n");
-		
+				
     }
     ~InCoreConvolution(void) {
         delete[] _mcache; delete[] _dcache; delete[] _tcache; delete[] mfactor;
@@ -86,7 +80,7 @@ void MVM(Complex *t, Complex *m, double *d, int n) {
 void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
     // why is this 50% faster with dynamic?
 	
-	STDLOG(1, "Entering InCoreConvolve\n");
+	STDLOG(3, "Entering InCoreConvolve\n");
 
 	#pragma omp parallel for schedule(dynamic)
     for(int block=0;block<nblocks;block++) {
@@ -182,6 +176,6 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
         }
     }
 	
-	STDLOG(1, "Exiting InCoreConvolve\n");
+	STDLOG(3, "Exiting InCoreConvolve\n");
 	
 }

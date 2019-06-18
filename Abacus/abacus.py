@@ -799,9 +799,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     
     if parallel:
         # TODO: figure out how to signal a backup to the nodes
-        
+        start_time = time.time(); 
+        print("Beginning run at Unix epoch time", start_time, ", running for 120 minutes.\n", start_time);
         s = SignalHandler()
         signal.signal(signal.SIGUSR1, s.handle)
+        signal.signal(signal.SIGUSR2, s.handle)
+        
 
         backups_enabled = False
 
@@ -835,6 +838,10 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     read,write,past,multipoles,taylors = setup_state_dirs(paramfn)
 
     if parallel:
+        
+        run_time_minutes = 10
+        run_time_secs = 60 * run_time_minutes
+        
         try:
             mpirun_cmd = shlex.split(param['mpirun_cmd'])
             if 'Conv_mpirun_cmd' in param:
@@ -866,6 +873,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     
 
     for i in range(maxsteps):
+        
+        
         if make_ic:
             ConvDone = True  # No need to convolve for an IC step
             stepnum = 0
@@ -957,10 +966,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
             for cl in convlogs:
                 shutil.move(cl, cl.replace('last', 'step{:04d}'.format(read_state.FullStepNumber+1)))
+                
         else:
             print("Running singlestep for step {:d}".format(stepnum))
-        with Tools.ContextTimer() as ss_timer:
+        with Tools.ContextTimer() as ss_timer:            
             subprocess.check_call(singlestep_cmd, env=singlestep_env)
+            
             
         
         # In profiling mode, we don't move the states so we can immediately run the same step again
@@ -1023,10 +1034,20 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                 
                 
    
-        if parallel and s.graceful_exit:
+        #if parallel and s.graceful_exit:
+        print("Current time: ", time.time(), start_time, 0.9*run_time_secs)
+        
+        if parallel and (time.time() - start_time >= 0.9 * run_time_secs):
+            
+            restore_time = time.time(); 
+            
             print('Graceful exit triggered. Retrieving state from nodes and saving in global directory.')
             retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'distribute_state_to_nodes.py'), paramfn, '--retrieve', '--verbose']
             subprocess.check_call(Conv_mpirun_cmd + retrieve_state_cmd)
+            
+            restore_time = time.time() - restore_time; 
+            
+            print('Retrieving and storing state took %f seconds\n', restore_time); 
             
             print('Exiting and requeueing.')
             return EXIT_REQUEUE  

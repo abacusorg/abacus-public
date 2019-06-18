@@ -380,6 +380,7 @@ void GatherTimings() {
     REPORT(1, "Finish", Finish.Elapsed());
         REPORT_RATE();
     denom = Finish.Elapsed();
+		REPORT(2, "Finish Preamble", FinishPreamble.Elapsed());
         REPORT(2, "Partition Insert List", IL->FinishPartition.Elapsed());
         REPORT(2, "Sort Insert List", IL->FinishSort.Elapsed());
             fprintf(reportfp,"---> %6.2f Mitems/sec (%.2g items)", thistime ? IL->n_sorted/thistime/1e6 : 0., (double) IL->n_sorted);
@@ -392,8 +393,25 @@ void GatherTimings() {
         REPORT(2, "Write Multipoles", WriteMultipoleSlab.Elapsed());
         REPORT(2, "Queuing Send Manifest", SendManifest->Load.Elapsed()+SendManifest->Transmit.Elapsed());
 		REPORT(2, "Queuing Multipole MPI", QueueMultipoleMPI.Elapsed());
-		REPORT(2, "Wrapup 1", WrappingUp1.Elapsed());
-		REPORT(2, "Wrapup 2", WrappingUp2.Elapsed());
+		
+		
+    fprintf(reportfp, "\n\nBreakdown of Finish, debug timers:");
+    denom = TimeStepWallClock.Elapsed();
+    REPORT(1, "Finish", Finish.Elapsed());
+        REPORT_RATE();
+    denom = Finish.Elapsed();
+		REPORT(2, "Finish Preamble", FinishPreamble.Elapsed());
+        REPORT(2, "debug_Merge == partition insert + sort insert + index + merge", debug_Merge.Elapsed());
+            REPORT_RATE();
+	    REPORT(2, "debug_log_and_computer == Compute Multipoles", debug_log_and_compute.Elapsed());
+            REPORT_RATE();
+        REPORT(2, "Write Particles", WriteMergeSlab.Elapsed());
+        REPORT(2, "Write Multipoles", WriteMultipoleSlab.Elapsed());
+        REPORT(2, "debug_Manifest_and_log == Queuing Send Manifest", debug_Manifest_and_log.Elapsed());
+		REPORT(2, "Queuing Multipole MPI", QueueMultipoleMPI.Elapsed());
+		REPORT(2, "debug_log_report_mem", debug_log_report_mem.Elapsed());
+
+
 		
 
 
@@ -422,6 +440,9 @@ void GatherTimings() {
     REPORT(0, "\nAllocate Arena Memory", arena_malloc);
     REPORT(0, "Free Arena Memory", arena_free);
     REPORT(0, "Free SlabAccum Variables", SlabAccumFree.Elapsed());
+	
+	REPORT(0, "Wrapup 1", WrappingUp1.Elapsed());
+	REPORT(0, "Wrapup 2", WrappingUp2.Elapsed());
 }
 
 /* This function writes the timing report to disk.

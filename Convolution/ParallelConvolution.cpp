@@ -1,6 +1,6 @@
 /* This class will handle the Multipoles and Taylors in a parallel
 in-memory setting.  The timestep code should compute MultipoleSlab
-and then hand it to this code.  Here, we trigger MPI_Isends() and
+and then hand it to this code.  Here, we trigger MPI_Issends() and
 MPI_Irecvs() to disperse the information out to the nodes that will handle
 the individual z's.  This gets stored in a large buffer on a RAMdisk,
 in [x][znode][m][y] order.  We provide a method to check that a 
@@ -49,7 +49,7 @@ int ParallelConvolution::Zstart(int rank) {
 /// space if it doesn't exist.
 ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDirectory[1024], int _create_MT_file) { //TODO NAM does this always assume convolution overwrite mode? 
 	
-	STDLOG(1, "Calling constructor for ParallelConvolution\n");
+	STDLOG(2, "Calling constructor for ParallelConvolution\n");
 	
 	Constructor.Clear(); Constructor.Start(); 
 	
@@ -58,7 +58,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	ss << MultipoleDirectory << "/Multipoles";
 	s = ss.str();
 	mt_file = s.c_str(); 
-    STDLOG(1,"Working with MTfile %s\n", mt_file);
+    STDLOG(2,"Working with MTfile %s\n", mt_file);
 
 	//in previous timestep's finish action, multipoles were distributed to nodes such that each node now stores multipole moments for all x and its given range of z that it will convolve. Fetch these from shared memory.
 	create_MT_file = _create_MT_file; 
@@ -74,7 +74,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	znode = Zstart(MPI_rank+1)-zstart;
 	this_node_size = znode*rml*cpd;
 	
-	STDLOG(1, "Doing zstart = %d and znode = %d\n", zstart, znode);
+	STDLOG(2, "Doing zstart = %d and znode = %d\n", zstart, znode);
 	
 	CompressedMultipoleLengthXY = ((1+P.cpd)*(3+P.cpd))/8;
 	invcpd3 = (Complex) (pow(cpd * cpd * cpd, -1.0)); //NAM TODO get rid of Complex typecasting. 
@@ -136,7 +136,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 
     int direct = P.RamDisk; 
 	assert( (direct == 1) || (direct==0) );
-	STDLOG(1, "Making RD object with %d %f\n", direct, sdb);
+	STDLOG(2, "Making RD object with %d %f\n", direct, sdb);
 	ReadDirect * RD_RDD = new ReadDirect(direct,sdb);
 	
 	Constructor.Stop(); 
@@ -229,7 +229,7 @@ void ParallelConvolution::AllocMT(){
 	
 	assert(mt_file != NULL);
     assert(strnlen(mt_file,1) > 0);
-    STDLOG(1,"Mapping MTdisk from shared memory\n");
+    STDLOG(2,"Mapping MTdisk from shared memory\n");
 
 	if(create_MT_file)
 		unlink(mt_file);
@@ -262,7 +262,7 @@ void ParallelConvolution::AllocMT(){
     assertf(MTdisk != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
     assertf(res == 0, "Failed to close fd %d\n", fd);
 	
-	STDLOG(1, "Successfully mapped MTdisk of size %d bytes at address %p.\n", size, MTdisk);
+	STDLOG(2, "Successfully mapped MTdisk of size %d bytes at address %p.\n", size, MTdisk);
 	
 	MmapMT.Stop(); 
 		
@@ -270,7 +270,7 @@ void ParallelConvolution::AllocMT(){
 	
 	MTzmxy = (Complex *) fftw_malloc(bufsize);
 	assertf(MTzmxy!=NULL, "Failed fftw_malloc for MTzmxy\n");
-	STDLOG(1, "Successfully malloced MTzmxy at address %p\n", MTzmxy);
+	STDLOG(2, "Successfully malloced MTzmxy at address %p\n", MTzmxy);
 	
 	AllocateMT.Stop(); 
 	CS.AllocMT = AllocateMT.Elapsed();
@@ -334,7 +334,7 @@ void ParallelConvolution::LoadDerivatives(int z) {
 		assert(Ddisk[z] != NULL); 
         RD_RDD->BlockingRead( fn, (char *) Ddisk[z], size, 0, 1); //NAM TODO the last arg (1) should be ReadDirect's ramdisk flag set during constructor, but that seg faults right now. Fix! 
         CS.ReadDerivativesBytes += size;
-		STDLOG(1, "BlockingRead derivatives for z = %d from file %c\n", z_file, fn);
+		STDLOG(2, "BlockingRead derivatives for z = %d from file %c\n", z_file, fn);
 		
 		
     } else {
@@ -354,7 +354,7 @@ void ParallelConvolution::LoadDerivatives(int z) {
 	    assertf((void *) Ddisk[z] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
 	    assertf(Ddisk[z] != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
 	    assertf(res == 0, "Failed to close fd %d\n", fd);
-		STDLOG(1, "Mapped derivatives for z = %d from file %c\n", z_file, fn);
+		STDLOG(2, "Mapped derivatives for z = %d from file %c\n", z_file, fn);
 		
 		MmapDerivs.Stop(); 
 		CS.MmapDerivs += MmapDerivs.Elapsed(); 
@@ -382,7 +382,7 @@ void ParallelConvolution::RecvMultipoleSlab(int first_slab_finished) {
 			    MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Mrecv_requests[x]);
 	    }
 	}
-	STDLOG(1,"MPI_Irecv set for incoming Multipoles\n");
+	STDLOG(2,"MPI_Irecv set for incoming Multipoles\n");
 	return;
 }
 
@@ -398,9 +398,9 @@ void ParallelConvolution::SendMultipoleSlab(int slab) {
 	Msend_active++;
 	for (int r = 0; r < MPI_size; r++) {
 		int tag = (r+1) * 10000 + slab + M_TAG; 
-		MPI_Isend(mt + node_start[r], node_size[r], MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Msend_requests[slab][r]);		
+		MPI_Issend(mt + node_start[r], node_size[r], MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Msend_requests[slab][r]);		
 	}
-	STDLOG(1,"Multipole slab %d has been queued for MPI_Isend, Msend_active = %d\n", slab, Msend_active);
+	STDLOG(2,"Multipole slab %d has been queued for MPI_Issend, Msend_active = %d\n", slab, Msend_active);
 }
 
 
@@ -438,7 +438,7 @@ int ParallelConvolution::CheckSendMultipoleComplete(int slab) {
  		Msend_requests[x] = NULL;   // This will allow us to check faster
 
 		Msend_active--;
-		STDLOG(1,"MPI_Isend complete for MultipoleSlab %d, Msend_active = %d\n", x, Msend_active);
+		STDLOG(2,"MPI_Issend complete for MultipoleSlab %d, Msend_active = %d\n", x, Msend_active);
     }
 	
 	return done; 
@@ -459,8 +459,8 @@ int ParallelConvolution::CheckForMultipoleTransferComplete(int _slab) {
 
 
 // TODO: Need to figure out how to pull the Taylors over.
-// Need to be careful about the ordering of the Isend's.
-// If we queue up all of the Isend's, will we flood the buffers and
+// Need to be careful about the ordering of the Issend's.
+// If we queue up all of the Issend's, will we flood the buffers and
 // block the Manifest?  But we have no guarantee that the nodes will
 // stay in timing agreement.  Do we need to provision to hold all of the 
 // TaylorSlabs at once, as opposed to providing on request?
@@ -474,7 +474,7 @@ int ParallelConvolution::GetTaylorRecipient(int slab, int offset){
 		for (int _x = first_slabs_all[r] + offset; _x < first_slabs_all[r] + offset + total_slabs_all[r]; _x++) {
 			int x = _x % cpd;
 			if (x == slab){
-				STDLOG(1, "For slab %d, identified node %d as Taylor target\n", slab, r);
+				STDLOG(2, "For slab %d, identified node %d as Taylor target\n", slab, r);
 				return r;
 			}
 		} 
@@ -488,14 +488,14 @@ void ParallelConvolution::SendTaylors(int offset) {
 		//figure out who the receipient should be based on x slab and send to them. 
 		// Take from MTdisk. Set Tsend_requests[x] as request. 	
 		slab = CP->WrapSlab(slab);
-		STDLOG(1, "About to SendTaylor Slab %d with offset %d\n", slab, FORCE_RADIUS); 
+		STDLOG(2, "About to SendTaylor Slab %d with offset %d\n", slab, FORCE_RADIUS); 
 		
 		int r = GetTaylorRecipient(slab, offset); //x-slab slab is in node r's domain. Send to node r. 
 	
 		int tag = (MPI_rank+1) * 10000 + slab + T_TAG; 
 		
-		MPI_Isend(MTdisk + slab * this_node_size, this_node_size, MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Tsend_requests[slab]);
-		STDLOG(1,"Taylor slab %d has been queued for MPI_Isend to rank %d\n", slab, r);
+		MPI_Issend(MTdisk + slab * this_node_size, this_node_size, MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Tsend_requests[slab]);
+		STDLOG(2,"Taylor slab %d has been queued for MPI_Issend to rank %d\n", slab, r);
 	}
 	
 	QueueTaylors.Stop(); CS.SendTaylors = QueueTaylors.Elapsed(); 
@@ -516,7 +516,7 @@ void ParallelConvolution::RecvTaylorSlab(int slab) {
 		
 		
 	}
-	STDLOG(1,"MPI_Irecv set for incoming Taylors\n");
+	STDLOG(2,"MPI_Irecv set for incoming Taylors\n");
 	return;
 }
 
@@ -577,7 +577,7 @@ int ParallelConvolution::CheckTaylorSlabReady(int slab) {
 // Note that this is also a type-casting from float to double.
 // I wonder if this is why this step has been slow?
 void ParallelConvolution::Swizzle_to_zmxy() {
-	STDLOG(1,"Entering Swizzle_to_zmxy\n");
+	STDLOG(2,"Entering Swizzle_to_zmxy\n");
 	  
 	// The convolve code expects the data from file x (MTdisk[x]) to be in MTzmxy[x+1]
 	// Converting from [x][znode][m][y] to [znode][m][x][y]
@@ -597,14 +597,14 @@ void ParallelConvolution::Swizzle_to_zmxy() {
 	    }
 	}
 
-	STDLOG(1,"Exiting Swizzle_to_zmxy\n");
+	STDLOG(2,"Exiting Swizzle_to_zmxy\n");
 	
 	return;
 }
 
 /// Copy from MTzmxy buffer back to MTdisk, then free buffer
 void ParallelConvolution::Swizzle_to_xzmy() {
-	STDLOG(1,"Swizzling to xzmy\n");
+	STDLOG(2,"Swizzling to xzmy\n");
 
 	#pragma omp parallel for schedule(static)
 	for (int xz = 0; xz < cpd * znode; xz ++) {
@@ -698,7 +698,7 @@ void ParallelConvolution::Convolve() {
 		Swizzle_to_zmxy();   // Probably apply the -1 x offset here
 	ArraySwizzle.Stop(); 
 	
-	STDLOG(1, "Beginning forward FFT\n");
+	STDLOG(2, "Beginning forward FFT\n");
 	ForwardZFFTMultipoles.Clear(); 
 	ForwardZFFTMultipoles.Start(); 
 		FFT(forward_plan);
@@ -721,7 +721,7 @@ void ParallelConvolution::Convolve() {
 	CS.ConvolutionArithmetic = ConvolutionArithmetic.Elapsed();
 	CS.ReadDerivatives       =       ReadDerivatives.Elapsed(); 
 
-	STDLOG(1, "Beginning inverse FFT\n");
+	STDLOG(2, "Beginning inverse FFT\n");
 	InverseZFFTTaylor.Clear(); 
 	InverseZFFTTaylor.Start(); 
 		FFT(backward_plan);
@@ -792,7 +792,7 @@ void ParallelConvolution::dumpstats(char *fn) {
      fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Forward FFT Z Multipoles", CS.ForwardZFFTMultipoles );
      fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Inverse FFT Z Taylor",         CS.InverseZFFTTaylor );
 	 
-     fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Queuing MPI Isends for Taylors", CS.SendTaylors );
+     fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Queuing MPI Issends for Taylors", CS.SendTaylors );
 	 
      fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Destructor", CS.Destructor );
      fprintf(fp,"\t \t %50s : %1.2e seconds\n", "fftw thread clean up (part of destructor)", CS.ThreadCleanUp );
@@ -815,7 +815,7 @@ void ParallelConvolution::dumpstats(char *fn) {
 
      fprintf(fp,"\n \t Summary: Fourier Transforms = %2.0f%%     Convolution Arithmetic = %2.0f%%     Array Swizzle = %2.0f%%    Disk IO = %2.0f%%     ", ffftp, farithp, swzp, fiop );
 
-     fprintf(fp,"\n \t Set up (con/destructor + allocs/mmaps) = %2.0f%%     FFT planning = %2.0f%%     FFT threan clean up = %2.0f%%   Queuing Taylor Isends = %2.0f%%    \n", setupp, planp, fclean, sendp);
+     fprintf(fp,"\n \t Set up (con/destructor + allocs/mmaps) = %2.0f%%     FFT planning = %2.0f%%     FFT threan clean up = %2.0f%%   Queuing Taylor Issends = %2.0f%%    \n", setupp, planp, fclean, sendp);
      fprintf(fp,"\t          Arithmetic rate = %2.0f DGOPS --> rate per core = %1.1f DGOPS\n", Gops/cae, Gops/cae/computecores );
      fprintf(fp,"\t          [DGOPS == Double Precision Billion operations per second]\n");
      fprintf(fp,"\n");

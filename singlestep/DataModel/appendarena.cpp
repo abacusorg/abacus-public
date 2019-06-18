@@ -372,7 +372,7 @@ class OutputRVdoubleTag: public AppendArena {
     int sizeof_particle() { return sizeof(struct ICparticle); }
 
     OutputRVdoubleTag() {
-            STDLOG(0,"Particle size: %d\n",sizeof_particle());
+            STDLOG(1,"Particle size: %d\n",sizeof_particle());
     }
     ~OutputRVdoubleTag(void) { }
 };
