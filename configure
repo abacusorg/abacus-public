@@ -728,7 +728,6 @@ with_cuda
 enable_gpu_convolution
 enable_fof_density
 enable_parallel
-with_direct_bpd
 with_max_gpus
 with_softening
 with_cache_line_size
@@ -1392,7 +1391,6 @@ Optional Packages:
   --with-max-order=O      Maximum multipole order [16]
   --with-cuda=PREFIX      Prefix of your CUDA installation [$CUDA_HOME or
                           $CUDA_DIR or $CUDAPATH or /usr/local/cuda]
-  --with-direct-bpd=B     Direct buffers per device [ceil((2*NFR+1)/NGPU) = 3]
   --with-max-gpus=M       Maximum number of GPUs to use [auto]
   --with-softening={plummer | single_spline | cubic_spline | cubic_plummer}
                           Near-force softening technique [single_spline]
@@ -3951,6 +3949,8 @@ esac
 
 
 # These files will be generated from their Makefile.in counterparts
+# All ./configure information goes into common.mk
+# Makefiles must inherit any ./configure information from there
 ac_config_files="$ac_config_files common.mk"
 
 
@@ -6354,8 +6354,8 @@ fi
 
 # Query the GPUs to find the number and compute capability
 if test x$enable_gpu_directs == xyes; then
-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking number & compute capability of GPUs" >&5
-$as_echo_n "checking number & compute capability of GPUs... " >&6; }
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking compute capability of GPUs" >&5
+$as_echo_n "checking compute capability of GPUs... " >&6; }
 
     make --quiet -C singlestep/Direct detect_gpus MAKE_CONTEXT=AUTOCONF NVCC=$NVCC
     DETECT_GPUS_OUTPUT=$(./singlestep/Direct/detect_gpus)
@@ -6363,43 +6363,23 @@ $as_echo_n "checking number & compute capability of GPUs... " >&6; }
     NGPU=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Device count: )\d+')
     CUDA_ARCH=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Compute capability: )\d+')
 
-    #NGPU=$(nvidia-smi -q | grep 'Attached GPUs'| awk -F ':' '{print $NF}' | tr -d [[:space:]])
     if test x$NGPU == x""; then
         NGPU=0
     fi
     if test x$CUDA_ARCH == x""; then
         CUDA_ARCH=0
     fi
-    { $as_echo "$as_me:${as_lineno-$LINENO}: result: $NGPU GPUs found, compute capability $CUDA_ARCH" >&5
-$as_echo "$NGPU GPUs found, compute capability $CUDA_ARCH" >&6; }
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: compute capability $CUDA_ARCH" >&5
+$as_echo "compute capability $CUDA_ARCH" >&6; }
 
 fi
-
-# If we don't have any GPUs, pretend there's one for BPD
-if test x$NGPU == x -o x$NGPU == x0; then
-    NGPU=1
-fi
-DEFAULT_BPD=$((2*$with_radius/$NGPU + 1))
-
-# Check whether --with-direct-bpd was given.
-if test "${with_direct_bpd+set}" = set; then :
-  withval=$with_direct_bpd;
-else
-  with_direct_bpd=$DEFAULT_BPD
-fi
-
-
-cat >>confdefs.h <<_ACEOF
-#define DirectBPD $with_direct_bpd
-_ACEOF
-
 
 
 # Check whether --with-max-gpus was given.
 if test "${with_max_gpus+set}" = set; then :
   withval=$with_max_gpus;
 else
-  with_max_gpus="auto"
+  with_max_gpus=32
 fi
 
 if test x$with_max_gpus == xauto; then
@@ -6838,17 +6818,14 @@ echo "SIMD multipoles:                 $with_multipoles_simd"
 echo "AVX FOF:                         $enable_avx_fof"
 echo "Spherical Overdensity:           $enable_spherical_overdensity"
 echo "Threaded IO:                     $enable_threaded_io"
-echo "Direct buffers-per-device:       $with_direct_bpd"
 echo "GPU directs:                     $enable_gpu_directs"
 echo "Compute FOF-scale density:       $enable_fof_density"
 echo "MPI parallel code:               $enable_parallel"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
-echo "Maximum GPUs:                    $with_max_gpus"
 echo "Cache line size:                 $with_cache_line"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
-echo "Ramdisk path:                    $with_ramdisk"
 echo "------------------------------------------------------"
 echo
 
@@ -6856,6 +6833,8 @@ echo
 #echo "Maximum CPD:                     $with_max_cpd"
 #echo "Maximum source length:           $with_max_source_length"
 #echo "Maximum order:                   $with_max_order"
+#echo "Maximum GPUs:                    $with_max_gpus"
+#echo "Ramdisk path:                    $with_ramdisk"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure

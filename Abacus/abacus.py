@@ -772,7 +772,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     if not do_fake_convolve:
         MakeDerivatives(param, floatprec=True)
 
-    if make_ic:
+    if make_ic and not zeldovich.is_on_the_fly_format(param.ICFormat):
         print("Ingesting IC from "+param.InitialConditionsDirectory+" ... Skipping convolution")
         if path.exists(pjoin(param.InitialConditionsDirectory, "input.pow")):
             shutil.copy(pjoin(param.InitialConditionsDirectory, "input.pow"), pjoin(param.LogDirectory, "input.pow"))
