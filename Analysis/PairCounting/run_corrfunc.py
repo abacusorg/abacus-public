@@ -55,7 +55,7 @@ def run(args):
             box = args.get('box')
 
             if args['format'] == 'gadget':
-                p,_box = utils.read_gadget(primary, downsample=ds)
+                p,_box = utils.read_gadget(primary)  #, downsample=ds)
 
                 if not box:
                     box = _box
@@ -64,14 +64,15 @@ def run(args):
                 if crosscorr:
                     # TODO: if we have multiple primaries and one secondary this will re-read each time
                     # TODO: support format2
-                    ps,_box = utils.read_gadget(args['secondary'], downsample=ds)
+                    ps,_box = utils.read_gadget(args['secondary'])  #, downsample=ds)
                     
                     assert _box == box
                     header2 = {'NP':len(ps[0]), 'BoxSize':box}
             else:
-                p, header = ReadAbacus.from_dir(primary, format=args['format'], dtype=args['dtype'], return_vel=False, return_header=True)
-                assert header['NP'] == len(p)
-                p = p['pos'][::ds]
+                p, header = ReadAbacus.from_dir(primary, format=args['format'], dtype=args['dtype'], return_vel=False, return_header=True, downsample=ds)
+                if ds == None:
+                    assert header['NP'] == len(p)
+                p = p['pos']
                 
                 _box = header.get('BoxSize')
                 if not box:
@@ -83,11 +84,11 @@ def run(args):
                 p = p.T
 
                 if crosscorr:
-                    ps, header2 = ReadAbacus.from_dir(args['secondary'], format=args['format'], dtype=args['dtype'], return_vel=False, return_header=True)
+                    ps, header2 = ReadAbacus.from_dir(args['secondary'], format=args['format'], dtype=args['dtype'], return_vel=False, return_header=True, downsample=ds)
                     _box = header2.get('BoxSize')
                     if _box:
                         assert _box == box
-                    ps = ps['pos'][::ds]
+                    ps = ps['pos']
                     header2 = dict(header2)
                     header2.update({'NP':len(ps), 'BoxSize':box})
                     ne.evaluate('ps*b', out=ps, local_dict={'ps':ps,'b':ps.dtype.type(box)})
@@ -110,7 +111,8 @@ def run(args):
                                 X2=X2, Y2=Y2, Z2=Z2,
                                 verbose=True, periodic=True, boxsize=box,
                                 output_ravg=False,
-                                max_cells_per_dim=500)
+                                max_cells_per_dim=300,
+                                copy_particles=True)
         del p, X2, Y2, Z2
         print('* Done.')
 
@@ -122,10 +124,13 @@ def run(args):
         allres['rmin'] = bin_edges.data[:-1]
         allres['rmax'] = bin_edges.data[1:]
 
-        mask = (bin_edges.mask[:-1] | bin_edges.mask[1:])
-        allres[~mask] = results
-
-        allres['mask'] = mask
+        try:
+            mask = (bin_edges.mask[:-1] | bin_edges.mask[1:])
+            allres[~mask] = results
+            allres['mask'] = mask
+        except AttributeError:
+            allres[:] = results
+            allres['mask'] = False
 
         # Save the actual, downsampled number of particles
         allres.meta['N_primary'] = header['NP']
@@ -144,6 +149,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args = utils.process_args(args)
 
-    with ContextTimer('All pair counting'):
+    with ContextTimer('Total run time'):
         run(args)
 
