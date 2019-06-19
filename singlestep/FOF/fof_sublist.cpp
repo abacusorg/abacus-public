@@ -945,6 +945,28 @@ class FOFcell {
 	return ngroups;
     }
 
+    /// This routine does a trivial pass-through: all particles are assigned to
+    /// one single group.  This is useful if two levels of the FOF hierarchy have
+    /// the same linking length.
+    inline int assign_to_one_group(posstruct *pos, velstruct *vel, auxstruct *aux, accstruct *acc, int n) {
+        time_total.Start();
+        FOFparticle BBmin, BBmax;
+        reset(n);
+        np = n;
+        for (int j=0; j<np; j++) {
+            p[j] = FOFparticle(pos[j],j);
+            if (j==0) {
+                BBmin = *p; BBmax = *p;
+            } else {
+                BBmin.min(p[j]);
+                BBmax.max(p[j]);
+            }
+        }
+        // Now mark one group
+        groups[ngroups++] = FOFgroup(0, n, BBmin, BBmax);
+        time_total.Stop();
+        return ngroups;
+    }
 
 };    // End FOFcell
 
