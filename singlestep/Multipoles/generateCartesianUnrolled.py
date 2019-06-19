@@ -9,6 +9,7 @@ loops, so the purpose of this program is to "manually" unroll them.
 '''
 
 import textwrap
+import argparse
 
 class Writer:
     def __init__(self, fn):
@@ -162,5 +163,10 @@ def emit_unrolled_Taylors(maxorder=16, fn='ET_unrolled.cpp'):
     w('#endif')  # UNROLLEDMULTIPOLES
 
 if __name__ == '__main__':
-    emit_unrolled_Multipoles()
-    emit_unrolled_Taylors()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--maxorder', help='Maximum Multipole/Taylor series order to output', type=int, default=16)
+    args = parser.parse_args()
+    args = vars(args)
+
+    emit_unrolled_Multipoles(**args)
+    emit_unrolled_Taylors(**args)

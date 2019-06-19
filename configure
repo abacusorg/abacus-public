@@ -632,6 +632,7 @@ NVCC
 CUDA_LDFLAGS
 CUDA_CFLAGS
 CUDA_MAJOR_VER
+MAXORDER
 MULTIPOLES_SIMD
 TCMALLOC
 SIMD_EXTENSIONS
@@ -5970,6 +5971,8 @@ if test "${with_max_order+set}" = set; then :
 else
   with_max_order="16"
 fi
+
+MAXORDER=$with_max_order
 
 
 cat >>confdefs.h <<_ACEOF

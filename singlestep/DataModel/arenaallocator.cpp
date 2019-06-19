@@ -378,12 +378,17 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
                 assertf(res == 0, "fstat on shared memory ramdisk_fn = %s\n", ramdisk_fn);
                 assertf(shmstat.st_size == ss, "Found shared memory size %d; expected %d (ramdisk_fn = %s)\n", shmstat.st_size, ss, ramdisk_fn);
             }
-            // map the shared memory fd to an address
-            int mmap_flags = ramdisk == RAMDISK_WRITESLAB ? (PROT_READ | PROT_WRITE) : (PROT_READ | PROT_WRITE);  // the same
-            arena[id].addr = (char *) mmap(NULL, ss, mmap_flags, MAP_SHARED, fd, 0);
+
+            if(ss > 0){  // zero-length mmap is prohibited
+                // map the shared memory fd to an address
+                int mmap_flags = ramdisk == RAMDISK_WRITESLAB ? (PROT_READ | PROT_WRITE) : (PROT_READ | PROT_WRITE);  // the same
+                arena[id].addr = (char *) mmap(NULL, ss, mmap_flags, MAP_SHARED, fd, 0);
+                assertf((void *) arena[id].addr != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, ss);
+                assertf(arena[id].addr != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, ss);
+            } else {
+                arena[id].addr = NULL;
+            }
             int res = close(fd);
-            assertf((void *) arena[id].addr != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, ss);
-            assertf(arena[id].addr != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, ss);
             assertf(res == 0, "Failed to close fd %d\n", fd);
 
             num_shm_alloc++;
@@ -421,8 +426,10 @@ void ArenaAllocator::DiscardArena(int id) {
             disposal_queue.push(di);
             STDLOG(2, "Done pushing %d.\n", id);
         } else {
-            int res = munmap(arena[id].addr, arena[id].allocated_size);
-            assertf(res == 0, "munmap failed\n");
+            if(arena[id].allocated_size > 0){
+                int res = munmap(arena[id].addr, arena[id].allocated_size);
+                assertf(res == 0, "munmap failed\n");
+            }
         }
         total_shm_allocation -= arena[id].allocated_size;
     }
@@ -584,9 +591,11 @@ void ArenaAllocator::DisposalThreadLoop(){
         if(di.addr == NULL)
             break;
 
-        int res = munmap(di.addr, di.size);
-        assertf(res == 0, "munmap failed\n");
-        n++;
+        if(di.size > 0){
+            int res = munmap(di.addr, di.size);
+            assertf(res == 0, "munmap failed\n");
+            n++;
+        }
     }
 
     STDLOG(1, "Terminating arena allocator disposal thread.  Executed %d munmap()s.\n", n);
