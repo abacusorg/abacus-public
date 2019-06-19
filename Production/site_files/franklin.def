@@ -1,3 +1,5 @@
+SiteName = "franklin"
+
 StateIOMode = "normal"
 Conv_IOMode = "normal"
 IODirs = ["multipole/", "taylor/"]
