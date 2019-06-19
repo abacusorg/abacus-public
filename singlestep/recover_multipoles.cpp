@@ -27,7 +27,7 @@
 
     bool MakeIC;
     double da;
-    check_read_state(0, MakeIC, da);
+    check_read_state(MakeIC, da);
     MakeIC = true;  // For most purposes, pretend we're making ICs
     da = 0.; // never used, but let's be clear
     

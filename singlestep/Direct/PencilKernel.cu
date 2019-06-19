@@ -115,6 +115,7 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
             SourceCacheX[threadIdx.x] = d.SourceSetPositions.X[idx];
             SourceCacheY[threadIdx.x] = d.SourceSetPositions.Y[idx]+yOffset;
             SourceCacheZ[threadIdx.x] = d.SourceSetPositions.Z[idx];
+
             __syncthreads();
             
             myDI += NFBlockSize;
@@ -150,11 +151,13 @@ __global__ void ComputeDirects(DeviceData d, FLOAT eps){
     }
 
     if(id < d.SinkSetIdMax[sinkIdx]){
-        // TODO: haven't seen these trip in a long, long time. Remove them?
+        // One can enable these if the GPU is giving funny answers
         /*assert(::isfinite(a.x));
         assert(::isfinite(a.y));
         assert(::isfinite(a.z));
-        assert(::isfinite(a.w));*/
+        #ifdef COMPUTE_FOF_DENSITY
+        assert(::isfinite(a.w));
+        #endif*/
         d.SinkSetAccelerations[id] = a;
         atomicAdd(&DI, myDI);
     }

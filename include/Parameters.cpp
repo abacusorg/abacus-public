@@ -127,6 +127,8 @@ public:
     int StoreForces; // If 1, store the accelerations
     int ForceOutputDebug; // If 1, output near and far forces seperately. 
 
+    int MakeGlass; // Reverse the sign of the acceleration
+
     int ForceCPU; //IF 1, force directs to be executed exclusively on cpu even if cuda is available
     int GPUMinCellSinks;// If AVX directs are compiled, cells with less than this many particles go to cpu
     int ProfilingMode;//If 1, enable profiling mode, i.e. delete the write-state after creating it to run repeatedly on same dat
@@ -145,12 +147,15 @@ public:
     // TODO: this scheme doesn't account for more complicated NUMA architectures
     int GPUThreadCoreStart[MAX_GPUS];  // The core on which to start placing GPU device threads.
     int NGPUThreadCores;  // The number of free cores on which to place GPU device threads.
+    int DirectBPD;
 
     int AllowGroupFinding;
     double FoFLinkingLength[3]; //Linking lengths for level 0,1,2 groupfinding in fractional interparticle spacing 
     double SODensity[2];  // Overdensities for SO groupfinding level 1 and 2
     int MinL1HaloNP; // minimum L1 halo size to output
 	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
+    #define MAX_L1OUTPUT_REDSHIFTS 1024
+    float L1OutputRedshifts[MAX_L1OUTPUT_REDSHIFTS];
     double HaloTaggableFraction; // fraction of particles in a L2 halo to tag and output
     int OutputAllHaloParticles;  // ==0 normally, to output only taggable L1 particles.  If non-zero, output all particles.
 
@@ -287,9 +292,13 @@ public:
         installscalar("LogVerbosity",LogVerbosity, DONT_CARE);
         StoreForces = 0;
         installscalar("StoreForces",StoreForces, DONT_CARE);
+        
         ForceOutputDebug = 0;
-
         installscalar("ForceOutputDebug",ForceOutputDebug,DONT_CARE);
+
+        MakeGlass = 0;
+        installscalar("MakeGlass",MakeGlass,DONT_CARE);
+
         ForceCPU = 0;
         installscalar("ForceCPU",ForceCPU,DONT_CARE);
         GPUMinCellSinks = 0;
@@ -338,6 +347,8 @@ public:
         installvector("GPUThreadCoreStart", GPUThreadCoreStart, MAX_GPUS, 1, DONT_CARE);
         NGPUThreadCores = -1;
         installscalar("NGPUThreadCores", NGPUThreadCores, DONT_CARE);
+        DirectBPD = 3;
+        installscalar("DirectBPD", DirectBPD, DONT_CARE);
 
         AllowGroupFinding = 1;
         installscalar("AllowGroupFinding",AllowGroupFinding, DONT_CARE);
@@ -352,6 +363,11 @@ public:
         installscalar("MinL1HaloNP", MinL1HaloNP, DONT_CARE);
 		L1Output_dlna = .1;
 		installscalar("L1Output_dlna", L1Output_dlna, DONT_CARE);
+
+        for (int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++)
+            L1OutputRedshifts[i] = -2;
+        installvector("L1OutputRedshifts", L1OutputRedshifts, MAX_L1OUTPUT_REDSHIFTS, 1, DONT_CARE);
+
         HaloTaggableFraction = 0.1;
         installscalar("HaloTaggableFraction", HaloTaggableFraction, DONT_CARE);
         OutputAllHaloParticles = 0;

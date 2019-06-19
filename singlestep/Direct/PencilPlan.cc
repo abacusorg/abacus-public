@@ -95,6 +95,7 @@ int SinkPencilPlan::load(int x, int y, int z, int NearFieldRadius) {
 
 void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start, 
     int total, void *SinkAccSlab, int sinkindex, int NearFieldRadius, uint64 Nslab) {
+
     // Copy pinacc, which holds the padded list 
     // accstruct[start..start+total)
     //  cells contiguously into pinpos->X[start..start+total), Y[), Z[)
@@ -145,6 +146,13 @@ void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start,
         else
             memcpy(p, pin, sizeof(accstruct)*last_N);
     }
+
+    /*// Check that all particles have finite accel
+    for(int c = 0; c < 2*NearFieldRadius+1; c++){
+        accstruct *p = (accstruct *) SinkAccSlab + cell[c].start;
+        for(int i = 0; i < cell[c].N; i++)
+            assertf(TOFLOAT3(p[i]).is_finite(), "p[%d of %d] in cell %d (wrapcell %d): %f %f %f\n", i, cell[c].N, c, wrapcell, p[i].x, p[i].y, p[i].z);
+    }*/
 }
 
 
@@ -161,13 +169,13 @@ void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, 
     FLOAT cellsize = CP->invcpd;
     int width = NearFieldRadius*2+1;
     for (int c=0; c<width; c++) {
-	int N = cell[c].N;
-    FLOAT *p = (FLOAT *)SourcePosSlab[c] + cell[c].start;
-	#ifdef GLOBAL_POS
-	    dx = cell[c].offset;
-	#else 
+        int N = cell[c].N;
+        FLOAT *p = (FLOAT *)SourcePosSlab[c] + cell[c].start;
+        #ifdef GLOBAL_POS
+            dx = cell[c].offset;
+        #else 
             dx = (c-NearFieldRadius)*cellsize;
-	#endif
+        #endif
 
         FLOAT *d = pinpos.X+start+cumulative_number;
         if (dx!=0) 
@@ -179,7 +187,6 @@ void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, 
         cumulative_number+=N;
     }
     assertf(cumulative_number==total, "Pencil contents doesn't match space supplied");
-    return;
 }
 
 /// This loads up the plan for a SourcePencil with pointers to the 
@@ -193,9 +200,11 @@ int SourcePencilPlan::load(int x, int y, int z, int NearFieldRadius) {
     const int width = NearFieldRadius*2+1;
     for (int c=0; c<width; c++) {
         int xc = x+c-width/2;
-	cellinfo *info = CP->CellInfo(xc,y,z);
-	cell[c].start = info->startindex;
-	cell[c].N = info->count;
+        
+        cellinfo *info = CP->CellInfo(xc,y,z);
+        cell[c].start = info->startindex;
+        cell[c].N = info->count;
+
         total += (int) cell[c].N;
         #ifdef GLOBAL_POS
             // Can use the x cell number to do this.

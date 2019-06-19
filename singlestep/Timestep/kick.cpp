@@ -74,7 +74,7 @@ void RescaleAndCoAddAcceleration(int slab) {
     acc3struct *facc = (acc3struct *) SB->GetSlabPtr(FarAccSlab,slab);
     
     // Reverse the sign of the acceleration if we are making glass
-    if(strcmp(P.ICFormat, "Glass") == 0)
+    if(P.MakeGlass)
         rescale *= -1;
     
     uint64 N = SS->size(slab);

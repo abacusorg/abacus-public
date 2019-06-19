@@ -14,6 +14,7 @@ OMP_PROC_BIND = "spread"
 IOCores = [0]
 GPUThreadCoreStart = [72, 76, 80, 160, 164, 168]
 NGPUThreadCores = 1  # will this work when we're supposed to use cores 0,8,16, etc?
+DirectBPD = 2  # 2 threads per GPU
 
 # Convolution OpenMP parameters
 Conv_OMP_NUM_THREADS = 42
