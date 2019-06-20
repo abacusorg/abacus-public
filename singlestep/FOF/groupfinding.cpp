@@ -440,20 +440,15 @@ void FindAndProcessGlobalGroups(int slab) {
     // TODO: This largest_GG work is now superceded by MultiplicityHalos
     // The GGS->globalgroups[j][k][n] now reference these as [start,start+np)
 	
-	int do_output;
-#ifndef STANDALONE_FOF
-    do_output = ReadState.DoGroupFindingOutput;  // This is decided in InitGroupFinding()
-#else
-	do_output = 1;
-#endif
-	if(do_output)
+	// ReadState.DoGroupFindingOutput is decided in InitGroupFinding()
+	if(ReadState.DoGroupFindingOutput)
 		GGS->FindSubGroups();
     GGS->ScatterGlobalGroupsAux();
 
     #ifdef ASCII_TEST_OUTPUT
     GGS->SimpleOutput();
     #endif
-	if(do_output)
+	if(ReadState.DoGroupFindingOutput)
 		GGS->HaloOutput();
 
 #ifndef STANDALONE_FOF
