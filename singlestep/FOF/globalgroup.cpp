@@ -899,8 +899,9 @@ void GlobalGroupSlab::HaloOutput() {
         WriteHeaderFile(headerfn.c_str());
 
     // Write out the taggable particles not in L1 halos
-        // TODO: better heuristic? what will happen in very small sims?  Also technically HaloTaggableFraction is only used in the IC step
-        uint64 maxsize = P.np*P.HaloTaggableFraction*1.05;
+        // TODO: Technically HaloTaggableFraction is only used in the IC step
+        uint64 maxsize = SS->size(slab)*P.HaloTaggableFraction;
+        maxsize += 6*sqrt(maxsize);  // 6-sigma buffer
         SB->AllocateSpecificSize(TaggableFieldSlab, slab, maxsize*sizeof(RVfloat));
         SB->AllocateSpecificSize(TaggableFieldPIDSlab, slab, maxsize*sizeof(TaggedPID));
         
