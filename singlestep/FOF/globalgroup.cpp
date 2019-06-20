@@ -653,7 +653,7 @@ void GlobalGroupSlab::FindSubGroups() {
                 int groupn = globalgroups[j][k][n].np;
                 GFC->L1FOF.Start();
                 #ifndef SPHERICAL_OVERDENSITY
-                if (GFC->linking_length_level1==GFC->linking_length_level0)
+                if (GFC->linking_length_level1==GFC->linking_length)
                     FOFlevel1[g].assign_to_one_group(grouppos, NULL, NULL, groupacc, groupn);
                 else    // This grabs the findgroups statement!
                 #endif
