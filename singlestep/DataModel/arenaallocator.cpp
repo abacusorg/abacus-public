@@ -489,6 +489,7 @@ void ArenaAllocator::DeAllocateArena(int id, int reuseID) {
 void ArenaAllocator::ResizeArena(int id, uint64 s) {
     // We can resize an arena, but only up to the currently allocated size!
     // The primary use here is to shrink an arena to limit the output amount.
+    // No memory is actually freed for other uses
     assert(IsArenaPresent(id));
     lb_mutex.lock();
 

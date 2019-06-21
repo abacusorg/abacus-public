@@ -32,12 +32,19 @@ public:
     int last_slab_executed;         // The last slab we did
     int raw_number_executed;	// This is the number of times the action()
     	// has been run, which may differ 
+
+    int instantiated;  // Have we called instantiate on this dependency?
+
     int (*precondition)(int slab);
     void (*action)(int slab);
     
     static int *spin_flags;
     static STimer *spin_timers;
     static STimer global_spin_timer;
+
+    Dependency(){
+        instantiated = 0;
+    }
 
     ~Dependency(void) { 
         if(_executed_status != NULL) 
@@ -63,15 +70,31 @@ public:
         number_of_slabs_executed = 0; 
         raw_number_executed = 0; 
         last_slab_executed = _initialslab-1;
+
+        instantiated = 1;
     }
                     
-    int done(int s) { return _executed_status[ wrap(s)];  }
-    int notdone(int s) { return _executed_status[wrap(s)]?0:1;  }
+    int done(int s) {
+        assert(instantiated);
+        return _executed_status[ wrap(s)];
+    }
+    int notdone(int s) {
+        assert(instantiated);
+        return _executed_status[wrap(s)]?0:1;
+    }
     /// We can compare alldone to cpd, but usually we want total_slabs_on_node
-    int alldone(void) { return number_of_slabs_executed==cpd?1:0; }
-    int alldone(int total) { return number_of_slabs_executed==total?1:0; }
+    int alldone(void) {
+        assert(instantiated);
+        return number_of_slabs_executed==cpd?1:0;
+    }
+    int alldone(int total) {
+        assert(instantiated);
+        return number_of_slabs_executed==total?1:0;
+    }
 
     void do_action(int slab) {
+        assert(instantiated);
+
         // We're taking an action!  Stop any spin timers
         for(int i = 0; i < NUM_SPIN_FLAGS; i++){
             spin_flags[i] = 0;
@@ -90,9 +113,16 @@ public:
 	    raw_number_executed++;
     }
 
-    int wrap(int s) { while(s<0) s += cpd; while(s>=cpd) s -= cpd; return s; }
+    int wrap(int s) {
+        assert(instantiated);
+        while(s<0) s += cpd;
+        while(s>=cpd) s -= cpd;
+        return s;
+    }
 
     void Attempt(void) {
+        assert(instantiated);
+
         // Take at most one action.
         int ws = wrap(last_slab_executed+1);
         if( notdone(ws) && precondition(ws) ) do_action(ws);
@@ -115,6 +145,8 @@ public:
     }
 
     void mark_to_repeat(int slab) {
+        assert(instantiated);
+
         slab = wrap(slab);
         _executed_status[slab] = 0;
         number_of_slabs_executed--;
@@ -124,6 +156,8 @@ public:
 	// Returns begin, such that [begin,end) is done and begin-1 is not.
 	// We don't check if end is done.
 	// The check is wrapped, but the return value is not, so begin<=end.
+    assert(instantiated);
+
 	int begin = wrap(end-1);
 	while (done(begin) && end-begin<cpd) {
 	    begin--;
@@ -136,6 +170,8 @@ public:
 	// last_slab_executed is never updated, nor is any timing done.
 	// This is intended to be used when we have executed the action()
 	// on another parallel node and are moving the results over.
+    assert(instantiated);
+    
 	_executed_status[wrap(s)] = 1;
 	number_of_slabs_executed++;
     }

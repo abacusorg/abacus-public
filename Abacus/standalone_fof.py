@@ -40,8 +40,7 @@ def standalone_fof(slicedir, output_paramfn='standalone_fof.par', use_site_overr
     for d in ['LogDirectory', 'OutputDirectory', 'GroupDirectory']:
             if d in params and params[d]:
                 params[d] = normpath(params[d]) 
-                if not isdir(params[d]):
-                    os.makedirs(params[d])
+                os.makedirs(params[d], exist_ok=True)
 
     # set up the final output directory
     this_groupdir_name = 'Step{:04d}_z{:5.3f}'.format(params['FullStepNumber'], params['Redshift'])
@@ -57,6 +56,10 @@ def standalone_fof(slicedir, output_paramfn='standalone_fof.par', use_site_overr
         subprocess.check_call(['make', 'standalone_fof'])
         subprocess.check_call(['./standalone_fof', slicedir, pjoin(params['GroupDirectory'], output_paramfn)])
 
+    return 
+
+    # TODO: do we want to move to a products directory?
+
     # Now move the results to a _products directory
     if not isdir(dirname(product_dir)):
         os.makedirs(dirname(product_dir))
@@ -64,10 +67,13 @@ def standalone_fof(slicedir, output_paramfn='standalone_fof.par', use_site_overr
     this_groupdir_path = pjoin(params['GroupDirectory'], this_groupdir_name)
     shutil.move(this_groupdir_path, product_dir)
 
-    # copy over the info dir
-    dest_info_dir = pjoin(dirname(product_dir), 'info')
-    if not isdir(dest_info_dir):
-        shutil.copytree(pjoin(dirname(slicedir), 'info'), pjoin(dirname(product_dir), 'info'))
+    try:
+        # copy over the info dir
+        dest_info_dir = pjoin(dirname(product_dir), 'info')
+        if not isdir(dest_info_dir):
+            shutil.copytree(pjoin(dirname(slicedir), 'info'), dest_info_dir)
+    except:
+        pass
 
 
 if __name__ == '__main__':

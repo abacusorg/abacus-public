@@ -40,8 +40,10 @@ int StandaloneFOFUnpackSlabPrecondition(int slab) {
 void StandaloneFOFUnpackSlabAction(int slab) {
     printf("Unpacking slab %d\n", slab);
     STDLOG(1, "Unpacking slab %d\n", slab);
-    int nump = unpack_slab_pack14(slab, P.HaloTaggableFraction);
+    int64_t nump = unpack_slab_pack14(slab, P.HaloTaggableFraction);
     STDLOG(1,"Found %d particles in slab %d\n", nump, slab);
+
+    SS->setold(slab, nump);
 
     SB->DeAllocate(TimeSlice, slab);
 }
