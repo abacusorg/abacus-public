@@ -151,6 +151,10 @@ public:
     double SODensity[2];  // Overdensities for SO groupfinding level 1 and 2
     int MinL1HaloNP; // minimum L1 halo size to output
 	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
+	
+	#define MAX_L1OUTPUT_REDSHIFTS 1024
+    float L1OutputRedshifts[MAX_L1OUTPUT_REDSHIFTS];
+	
     double HaloTaggableFraction; // fraction of particles in a L2 halo to tag and output
     int OutputAllHaloParticles;  // ==0 normally, to output only taggable L1 particles.  If non-zero, output all particles.
 
@@ -352,6 +356,12 @@ public:
         installscalar("MinL1HaloNP", MinL1HaloNP, DONT_CARE);
 		L1Output_dlna = .1;
 		installscalar("L1Output_dlna", L1Output_dlna, DONT_CARE);
+		
+		for (int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++)
+		    L1OutputRedshifts[i] = -2;
+			installvector("L1OutputRedshifts", L1OutputRedshifts, MAX_L1OUTPUT_REDSHIFTS, 1, DONT_CARE);
+		
+		
         HaloTaggableFraction = 0.1;
         installscalar("HaloTaggableFraction", HaloTaggableFraction, DONT_CARE);
         OutputAllHaloParticles = 0;

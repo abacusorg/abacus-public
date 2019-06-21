@@ -125,16 +125,50 @@ void PlanOutput(bool MakeIC) {
 
 
 void InitGroupFinding(bool MakeIC){
+/*
+    Request output of L1 groups and halo/field subsamples if:
+    - this redshift is a L1OutputRedshift; or
+    - we are doing a TimeSlice output.
+     If L1OutputRedshifts is not set, then we instead fall back to L1Output_dlna.
+    In that case, we check if we are crossing a L1Output_dlna checkpoint by going from ReadState to WriteState.
+    
+    We may not end up outputting groups if group finding is not enabled.  This is signaled by GFC = NULL.
+     We need to enable group finding if:
+    - We are doing microstepping
+    - We are outputting groups
+     But we can't enable it if:
+    - AllowGroupFinding is disabled
+    - ForceOutputDebug is enabled
+    - This is an IC step
+    ForceOutputDebug outputs accelerations as soon as we compute them
+    i.e. before GroupFinding has a chance to rearrange them
+    */
+	
     int do_output;
-    // Request output of L1 groups and halo/field subsamples if:
-        // - By going from ReadState to WriteState we are crossing a L1Output_dlna checkpoint
-        // - Or, we are doing a TimeSlice output
-    // We may not end up outputting groups if GFC is not initialized below
-    if(P.L1Output_dlna >= 0)
+	
+	for(int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++){
+	        // - Or, we are doing a TimeSlice output	        
+		double L1z = P.L1OutputRedshifts[i];
+		if(L1z <= -2)
+			continue;
+	    if(abs(ReadState.Redshift - L1z) < 1e-12){	           
+			STDLOG(0,"Group finding at this redshift requested by L1OutputRedshifts[%d]\n", i);
+			do_output = 1;
+			goto have_L1z; 
+		}
+	}
+
+	if(P.L1Output_dlna >= 0){
+
         do_output = log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ||
                     fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna);
-    else
-        do_output = 0;
+		STDLOG(0,"Group finding at this redshift requested by L1Output_dlna\n");
+	}
+	else{
+    	do_output = 0;
+	}
+
+	have_L1z:
     do_output |= ReadState.DoTimeSliceOutput;
 
     WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities

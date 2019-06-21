@@ -839,7 +839,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
 
     if parallel:
         
-        run_time_minutes = 10
+        run_time_minutes = 100
         run_time_secs = 60 * run_time_minutes
         
         try:
