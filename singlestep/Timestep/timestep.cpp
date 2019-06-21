@@ -104,9 +104,9 @@ void FetchSlabsAction(int slab) {
     #endif
 	
 #ifdef PARALLEL
-    SB->AllocateArena(TaylorSlab, slab + FORCE_RADIUS, RAMDISK_NO); 
-	ParallelConvolveDriver->RecvTaylorSlab(slab + FORCE_RADIUS); 
-	STDLOG(2, "Received Taylor slab via MPI%d\n", slab + FORCE_RADIUS); 
+    // SB->AllocateArena(TaylorSlab, slab + FORCE_RADIUS, RAMDISK_NO);
+// 	ParallelConvolveDriver->RecvTaylorSlab(slab + FORCE_RADIUS);
+// 	STDLOG(2, "Received Taylor slab via MPI%d\n", slab + FORCE_RADIUS);
 		
 #else
     SB->LoadArenaNonBlocking(TaylorSlab,slab); 
@@ -918,9 +918,20 @@ void timestep(void) {
     STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
     STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
 
+	
+
     int nslabs = P.cpd;
     int first = first_slab_on_node;  // First slab to load
     STDLOG(1,"First slab to load will be %d\n", first);
+	
+#ifdef PARALLEL
+	
+	for (int slab = first + FORCE_RADIUS; slab < first + FORCE_RADIUS + total_slabs_on_node; slab ++ ){
+    	SB->AllocateArena(TaylorSlab, slab, RAMDISK_NO); 
+		ParallelConvolveDriver->RecvTaylorSlab(slab); 
+		STDLOG(2, "Set up to receive Taylor slab %d via MPI\n", slab); 
+	}
+#endif
 
         FetchSlabs.instantiate(nslabs, first, &FetchSlabsPrecondition,          &FetchSlabsAction         );
       TransposePos.instantiate(nslabs, first, &TransposePosPrecondition,        &TransposePosAction       );

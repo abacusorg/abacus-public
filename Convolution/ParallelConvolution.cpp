@@ -406,7 +406,8 @@ void ParallelConvolution::SendMultipoleSlab(int slab) {
 
 int ParallelConvolution::CheckRecvMultipoleComplete(int slab) {
 	int received = 0; 
-	int err = MPI_Test(&Mrecv_requests[slab], &received, MPI_STATUS_IGNORE);		
+	int err = MPI_Test(&Mrecv_requests[slab], &received, MPI_STATUS_IGNORE);	
+	if (not received) STDLOG(4, "Multipole slab %d not received yet...\n", slab);	
 	return received;  
 }
 
@@ -428,6 +429,8 @@ int ParallelConvolution::CheckSendMultipoleComplete(int slab) {
 	
 		if (not sent) {
 		    // Found one that is not done
+			STDLOG(4, "Multipole slab %d not sent yet...\n", slab);
+			
 		    done=0; break;
 		}
 		
@@ -532,6 +535,7 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
 		
 		if (not received) {
 		    // Found one that is not done
+			STDLOG(4, "Taylor slab %d not received yet...\n", slab);
 		    done=0; break;
 		}		
     }
@@ -548,6 +552,9 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
 int ParallelConvolution::CheckTaylorSendComplete(int slab){
 	int sent = 0; 
 	int err = MPI_Test(&Tsend_requests[slab], &sent, MPI_STATUS_IGNORE);
+	
+	if (not sent) STDLOG(4, "Taylor slab %d not sent yet...\n", slab);
+	
 	return sent; 
 }
 
