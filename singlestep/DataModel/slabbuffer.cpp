@@ -121,7 +121,7 @@ public:
     uint64 ArenaSize(int type, int slab);
     
     char *AllocateArena(int type, int slab, int ramdisk = RAMDISK_AUTO);
-    void AllocateSpecificSize(int type, int slab, uint64 sizebytes, int ramdisk = RAMDISK_AUTO);
+    char *AllocateSpecificSize(int type, int slab, uint64 sizebytes, int ramdisk = RAMDISK_AUTO);
 
     // "Write" commands write the arena but do not delete it
     void WriteArenaBlockingWithoutDeletion(int type, int slab);
@@ -436,12 +436,10 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
 char *SlabBuffer::AllocateArena(int type, int slab, int ramdisk) {
     slab = Grid->WrapSlab(slab);
     uint64 s = ArenaSize(type, slab);
-    AllocateSpecificSize(type, slab, s, ramdisk);
-
-    return GetSlabPtr(type, slab);
+    return AllocateSpecificSize(type, slab, s, ramdisk);
 }
 
-void SlabBuffer::AllocateSpecificSize(int type, int slab, uint64 sizebytes, int ramdisk) {
+char *SlabBuffer::AllocateSpecificSize(int type, int slab, uint64 sizebytes, int ramdisk) {
     // Most slabs are happy with RAMDISK_AUTO
     ramdisk = IsRamdiskSlab(type, ramdisk);
     std::string spath;
@@ -466,6 +464,8 @@ void SlabBuffer::AllocateSpecificSize(int type, int slab, uint64 sizebytes, int 
 
     int id = TypeSlab2ID(type,slab);
     AA->Allocate(id, sizebytes, ReuseID(type), ramdisk, ramdisk_fn);
+
+    return GetSlabPtr(type, slab);
 }
 
 void SlabBuffer::WriteArenaBlockingWithoutDeletion(int type, int slab) {
