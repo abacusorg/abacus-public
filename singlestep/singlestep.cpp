@@ -166,6 +166,7 @@ int main(int argc, char **argv) {
     
     int MakeIC = atoi(argv[2]);
     P.ReadParameters(argv[1],0);
+    strcpy(WriteState.Pipeline, "singlestep");
     strcpy(WriteState.ParameterFileName, argv[1]);
 
     setup_log(); // STDLOG and assertf now available

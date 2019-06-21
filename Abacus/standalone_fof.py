@@ -29,12 +29,15 @@ from Abacus import GenParam
 from Abacus.InputFile import InputFile
 import Abacus.Analysis.common
 
-def standalone_fof(slicedir, output_paramfn='standalone_fof.par', use_site_overrides=True, override_directories=True):
+def standalone_fof(slicedir, output_paramfn='standalone_fof.par', use_site_overrides=True, override_directories=True, group_radius=None):
     slicedir = normpath(slicedir)
 
     # This parameters file is special: it acts as both the parameters and read state file
     headerfn = pjoin(slicedir, 'header')
-    params = abacus.preprocess_params(output_paramfn, headerfn, use_site_overrides=use_site_overrides, override_directories=override_directories)
+    param_kwargs = {}
+    if group_radius != None:
+        param_kwargs['GroupRadius'] = group_radius
+    params = abacus.preprocess_params(output_paramfn, headerfn, use_site_overrides=use_site_overrides, override_directories=override_directories, **param_kwargs)
 
     # Make an output directory for group outputs and log files
     for d in ['LogDirectory', 'OutputDirectory', 'GroupDirectory']:
@@ -79,12 +82,15 @@ def standalone_fof(slicedir, output_paramfn='standalone_fof.par', use_site_overr
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('slice', nargs='+')
-    parser.add_argument('--no_site_overrides', action='store_true', default=False)
-    parser.add_argument('--no_dir_overrides', action='store_true', default=False)
+    parser.add_argument('--no-site-overrides', help="Don't replace runtime tuning values with those from site.def", action='store_true', default=False)
+    parser.add_argument('--no-dir-overrides', help="Don't guess appropriate paths for this machine", action='store_true', default=False)
+    parser.add_argument('--group-radius', help='Override the maximum group finding slab radius', type=int)
+
     args = parser.parse_args()
+    args = vars(args)
 
-    use_site_overrides = not args.no_site_overrides
-    override_directories = not args.no_dir_overrides
+    use_site_overrides = not args.pop('no_site_overrides')
+    override_directories = not args.pop('no_dir_overrides')
 
-    for sl in args.slice:
-        standalone_fof(sl, use_site_overrides=use_site_overrides, override_directories=override_directories)
+    for sl in args.pop('slice'):
+        standalone_fof(sl, use_site_overrides=use_site_overrides, override_directories=override_directories, **args)

@@ -153,7 +153,7 @@ struct GPUBuffer {
     char * device;        ///< The device-side memory
     char * host;        ///< The host-side memory allocated as default
     char * hostWC;        ///< The host-side memory allocated as write combined
-    int ready;            ///< Have we finished initializing the CUDA stream for this buffer?
+    volatile int ready;            ///< Have we finished initializing the CUDA stream for this buffer?
 };
 
 // GPUSetup() spins up one thread per GPU buffer

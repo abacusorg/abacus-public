@@ -192,6 +192,7 @@ class GlobalGroupSlab {
     void FindSubGroups();
     void SimpleOutput();
     void HaloOutput();
+    void WriteGroupHeaderFile(const char* fn);
     uint64 L0TimeSliceOutput(FLOAT unkick_factor);
 
 };
@@ -904,9 +905,11 @@ void GlobalGroupSlab::HaloOutput() {
         sprintf(dir, "Step%04d_z%5.3f", ReadState.FullStepNumber, ReadState.Redshift);
         CreateSubDirectory(P.GroupDirectory, dir);
         
-        std::string headerfn = "";
-        headerfn = headerfn + P.GroupDirectory + "/" + dir + "/header";
-        WriteHeaderFile(headerfn.c_str());
+        if(slab == 0){
+            std::string headerfn = "";
+            headerfn = headerfn + P.GroupDirectory + "/" + dir + "/header";
+            WriteGroupHeaderFile(headerfn.c_str());
+        }
 
     // Write out the taggable particles not in L1 halos
         // TODO: Technically HaloTaggableFraction is only used in the IC step
@@ -968,6 +971,16 @@ void GlobalGroupSlab::HaloOutput() {
 
     return;
 }
+
+void GlobalGroupSlab::WriteGroupHeaderFile(const char* fn){
+    std::ofstream headerfile;
+    headerfile.open(fn);
+    headerfile << P.header();
+    headerfile << ReadState.header();
+    headerfile << "\nOutputType = \"GroupOutput\"\n";
+    headerfile.close();
+}
+
 #endif
 
 #ifndef STANDALONE_FOF

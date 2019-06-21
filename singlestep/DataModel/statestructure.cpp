@@ -119,6 +119,8 @@ public:
     int StripeState;
     int StripeConvState;
 
+    char Pipeline[64];
+
     void read_from_file(const char *fn);
     void write_to_file(const char *dir, const char *fname);
     void write_to_file(const char *dir) { write_to_file(dir,""); }
@@ -137,6 +139,7 @@ public:
     	installscalar("cpd_state",cpd_state,DONT_CARE);
     	installscalar("order_state",order_state,DONT_CARE);
 
+        installscalar("Pipeline",Pipeline,DONT_CARE);
     	installscalar("ParameterFileName",ParameterFileName,DONT_CARE);
     	installscalar("ppd",ppd,DONT_CARE);
         installscalar("SofteningType", SofteningType,DONT_CARE);
@@ -244,6 +247,7 @@ void State::make_output_header() {
     char tmp[1024];
     std::stringstream ss;
 
+    WPRS(Pipeline                 , s);
     WPRS(ParameterFileName        , s);
     WPRS(CodeVersion              , s);
     WPRS(RunTime                  , s);
