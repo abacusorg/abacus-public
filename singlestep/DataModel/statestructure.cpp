@@ -88,6 +88,8 @@ public:
     // The FOF density scale being used (in code units)
     // This matters because 0 indicates that it was not computed.
     double DensityKernelRad2;
+    // The density threshold for L0 particle eligibility (units of cosmic mean)
+    double L0DensityThreshold;
 
     // Some statistics about the particle distribution that might be useful.
     double MaxVelocity;
