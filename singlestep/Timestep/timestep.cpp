@@ -803,8 +803,8 @@ void FinishAction(int slab) {
 	debug_Manifest_and_log.Stop(); 
 	
 	QueueMultipoleMPI.Start(); 
-	STDLOG(2, "Attempting to SendMultipoleSlab %d\n", slab);
-	ParallelConvolveDriver->SendMultipoleSlab(slab); //distribute z's to appropriate nodes for this node's x domain.
+ STDLOG(2, "Attempting to SendMultipoleSlab %d\n", slab);
+ 	ParallelConvolveDriver->SendMultipoleSlab(slab); //distribute z's to appropriate nodes for this node's x domain.
 	if (Finish.raw_number_executed==0){ //if we are finishing the first slab, set up receive MPI calls for incoming multipoles.
 		STDLOG(2, "Attempting to RecvMultipoleSlab %d\n", slab);
 		ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's.
@@ -830,7 +830,13 @@ void FinishAction(int slab) {
 
 #ifdef PARALLEL
 int CheckForMultipolesPrecondition(int slab) {
+	
     if( Finish.notdone(slab) ) return 0;
+	
+	// if (Finish.raw_number_executed==0){ //if we are finishing the first slab, set up receive MPI calls for incoming multipoles.
+	// 	STDLOG(2, "Attempting to RecvMultipoleSlab %d\n", slab);
+	// 	ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's.
+	// }
 	
 	int multipole_transfer_complete = ParallelConvolveDriver->CheckForMultipoleTransferComplete(slab);
 	if (multipole_transfer_complete) return 1; 

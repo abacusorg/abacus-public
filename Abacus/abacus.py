@@ -739,13 +739,13 @@ class StatusLogWriter:
 
 
 
-class SignalHandler(object):
-    def __init__(self):
-        self.graceful_exit = None
-    def handle(self, signalNumber, frame):
-        print('Received signal:', signalNumber)
-        self.graceful_exit = 1
-        print('We are running out of time in the job! Setting signal handler graceful_exit flag to ', self.graceful_exit)
+# class SignalHandler(object):
+#     def __init__(self):
+#         self.graceful_exit = None
+#     def handle(self, signalNumber, frame):
+#         print('Received signal:', signalNumber)
+#         self.graceful_exit = 1
+#         print('We are running out of time in the job! Setting signal handler graceful_exit flag to ', self.graceful_exit)
     
 def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     """
@@ -799,11 +799,13 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     
     if parallel:
         # TODO: figure out how to signal a backup to the nodes
+        run_time_minutes = 100
+        run_time_secs = 60 * run_time_minutes
         start_time = time.time(); 
-        print("Beginning run at Unix epoch time", start_time, ", running for 120 minutes.\n", start_time);
-        s = SignalHandler()
-        signal.signal(signal.SIGUSR1, s.handle)
-        signal.signal(signal.SIGUSR2, s.handle)
+        print("Beginning run at Unix epoch time", start_time, ", running for ", run_time_minutes, " minutes.\n");
+        # s = SignalHandler()
+#         signal.signal(signal.SIGUSR1, s.handle)
+#         signal.signal(signal.SIGUSR2, s.handle)
         
 
         backups_enabled = False
@@ -838,9 +840,6 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     read,write,past,multipoles,taylors = setup_state_dirs(paramfn)
 
     if parallel:
-        
-        run_time_minutes = 100
-        run_time_secs = 60 * run_time_minutes
         
         try:
             mpirun_cmd = shlex.split(param['mpirun_cmd'])

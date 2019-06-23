@@ -25,8 +25,8 @@ Conv_zwidth = 0
 
 
 Parallel = 1
-mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -gALL_GPUS -b none"
-Conv_mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -b none"
+mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -gALL_GPUS -b rs"
+Conv_mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -b rs"
 WorkingDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@
 LocalWorkingDirectory = "$ABACUS_SSD$/" + @SimName@
 DerivativesDirectory = "$ABACUS_PERSIST$/Derivatives"
