@@ -161,6 +161,8 @@ public:
 
     double MicrostepTimeStep; // Timestep parameter that controls microstep refinement
 
+    long long int MaxPID;  // Maximum PID to expect.  A PID equal or larger than this indicates corruption of some sort.  0 means NP; -1 means don't check.
+
     // in MB
     unsigned int getCacheSize(){
         unsigned int cache_size = 0;
@@ -375,6 +377,9 @@ public:
 
         MicrostepTimeStep = 1.;
         installscalar("MicrostepTimeStep", MicrostepTimeStep, DONT_CARE);
+
+        MaxPID = 0;
+        installscalar("MaxPID", MaxPID, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.
@@ -481,6 +486,10 @@ void Parameters::ReadParameters(char *parameterfile, int icflag) {
 void Parameters::ValidateParameters(void) {
     // Warning: Can't use STDLOG(), QUIT(), or assertf() calls in here:
     // We haven't opened the stdlog file yet!
+
+    if(MaxPID == 0){
+        MaxPID = np;
+    }
 
     if(np<0) {
         fprintf(stderr,

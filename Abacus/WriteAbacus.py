@@ -10,7 +10,7 @@ See ReadAbacus.py for equivalent interfaces to read these formats.
 import numpy as np
 import numba
 
-import line_profiler
+#import line_profiler
 
 def write(outfn, particles=None, pos=None, vel=None, pid=None, ppd=None, write_zel=False, write_pid=False, append=False, dtype=np.float32):
     '''

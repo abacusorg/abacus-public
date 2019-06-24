@@ -118,7 +118,7 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None):
             
             
             x = "I HAVE NO VALUE"
-            key = line[0:equals].strip()
+            key = line[:equals].strip()
             if key in fixvalues.keys():
                 continue
             value = 0
@@ -128,11 +128,9 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None):
                 value =line[equals+1:]
             # try to parse value
             try:
-                items = shlex.split(value)
-                vec  = ""
-                for item in items:
-                    vec += item + ","
-                x = eval("({})".format(vec[:-1]))
+                items = value.split()
+                vec  = ','.join(items)
+                x = eval(f"({vec})")
             except (SyntaxError, NameError):
                 #perhaps value is a vector
                 try:
@@ -168,9 +166,7 @@ def tostr(item): #recursively decompose the argument into a string we can print 
         except TypeError:
             return repr(item)
         else:
-            b = ""
-            for part in item:
-                b+= " "+tostr(part)+" "
+            b = " ".join([tostr(i) for i in item])
             return b
          
         
