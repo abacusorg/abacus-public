@@ -22,7 +22,7 @@ CMAVX512%cpp ETAVX512%cpp: generateCartesianAVX512.py
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $<
 
 CM_unrolled%cpp ET_unrolled%cpp: generateCartesianUnrolled.py
-	./generateCartesianUnrolled.py
+	./generateCartesianUnrolled.py --maxorder=$(MAXORDER)
 
 %_unrolled.o: %_unrolled.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $<

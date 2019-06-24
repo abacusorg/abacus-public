@@ -134,9 +134,11 @@ void GatherTimings() {
 #ifdef CUDADIRECT
     REPORT(1, "Transpose Positions", TransposePos.Elapsed()); total += thistime;
     
-    int NGPU = GetNGPU();
+    int NGPU = 0;
 
     if(NFD){
+        NGPU = NFD->NGPU;
+        
         REPORT(1, "NearForce [blocking]", NearForce.Elapsed()); total += thistime;
         REPORT(1, "NearForce [non-blocking]", NFD->GPUThroughputTime); //total += thistime;
         fprintf(reportfp,"---> %6.2f effective GDIPS, %6.2f Gdirects, %.2f Mpart/sec", thistime ? NFD->gdi_gpu/thistime : 0, NFD->gdi_gpu, thistime ? P.np/thistime/1e6 : 0.);
@@ -239,7 +241,7 @@ void GatherTimings() {
                 fprintf(reportfp,"---> %6.2f GDIPS, %6.2f Gdirects, %6.2f Mpart/sec\n", thistime ? gdi_cpu/thistime : 0., gdi_cpu, thistime ? NFD->NSink_CPU/thistime/1e6 : 0.);
         
         denom = NFD->DeviceThreadTimer;
-        char str[1024];  sprintf(str, "Non-Blocking (thread-seconds, %d threads)", NGPU*DirectBPD);
+        char str[1024];  sprintf(str, "Non-Blocking (thread-seconds, %d threads)", NFD->NBuffers);
         REPORT(1, str, NFD->DeviceThreadTimer);
             REPORT(2, "Fill Sinks", NFD->FillSinks);  // filling is unpadded
                     fprintf(reportfp,"---> %6.1f MB/s, %6.2f MSink/sec", thistime ? NFD->total_sinks*sizeof(posstruct)/1e6/thistime : 0., thistime ? NFD->total_sinks/1e6/thistime : 0.);
@@ -254,10 +256,10 @@ void GatherTimings() {
         REPORT(1, "Non-Blocking Throughput (Wall Clock)", NFD->GPUThroughputTime);
                 fprintf(reportfp,"\n\t\t\t\t---> %6.2f effective GDIPS, %6.2f Mpart/sec, %6.2f Msink/sec", thistime ? NFD->gdi_gpu/thistime : 0., thistime ? P.np/thistime/1e6 : 0., thistime ? NFD->total_sinks/thistime/1e6 : 0.);
                 fprintf(reportfp,"\n\t\t\t\t---> %6.2f Gdirects, %6.2f padded Gdirects", NFD->gdi_gpu, NFD->gdi_padded_gpu);
-                fprintf(reportfp,"\n\t\t\t\t---> with %d device threads, estimate %.1f%% thread concurrency", NGPU*DirectBPD, (NFD->DeviceThreadTimer - NFD->GPUThroughputTime)/(NFD->DeviceThreadTimer - NFD->DeviceThreadTimer/(NGPU*DirectBPD))*100);
+                fprintf(reportfp,"\n\t\t\t\t---> with %d device threads, estimate %.1f%% thread concurrency", NFD->NBuffers, (NFD->DeviceThreadTimer - NFD->GPUThroughputTime)/(NFD->DeviceThreadTimer - NFD->DeviceThreadTimer/NFD->NBuffers)*100);
                 
             fprintf(reportfp, "\n    Device stats:\n");
-            for(int g = 0; g < NGPU*DirectBPD; g++){
+            for(int g = 0; g < NFD->NBuffers; g++){
                 fprintf(reportfp, "        Device thread %d (GPU %d):", g, g % NGPU);
                 fprintf(reportfp, " %.2f GB to device, %.2f GB from device, %.2f Msink, %.2f Gdirects\n", NFD->GB_to_device[g], NFD->GB_from_device[g], NFD->DeviceSinks[g]/1e6, NFD->DirectInteractions_GPU[g]/1e9);
             }

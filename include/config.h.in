@@ -39,9 +39,6 @@
 /* "Do all computations in double precision instead of single" */
 #undef DOUBLEPRECISION
 
-/* "Direct buffers per device" */
-#undef DirectBPD
-
 /* "The current git revision" */
 #undef GITVERSION
 

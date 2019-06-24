@@ -29,19 +29,21 @@ from Abacus import GenParam
 from Abacus.InputFile import InputFile
 import Abacus.Analysis.common
 
-def standalone_fof(slicedir, output_paramfn='standalone_fof.par', use_site_overrides=True, override_directories=True):
+def standalone_fof(slicedir, output_paramfn='standalone_fof.par', use_site_overrides=True, override_directories=True, group_radius=None):
     slicedir = normpath(slicedir)
 
     # This parameters file is special: it acts as both the parameters and read state file
     headerfn = pjoin(slicedir, 'header')
-    params = abacus.preprocess_params(output_paramfn, headerfn, use_site_overrides=use_site_overrides, override_directories=override_directories)
+    param_kwargs = {}
+    if group_radius != None:
+        param_kwargs['GroupRadius'] = group_radius
+    params = abacus.preprocess_params(output_paramfn, headerfn, use_site_overrides=use_site_overrides, override_directories=override_directories, **param_kwargs)
 
     # Make an output directory for group outputs and log files
     for d in ['LogDirectory', 'OutputDirectory', 'GroupDirectory']:
             if d in params and params[d]:
                 params[d] = normpath(params[d]) 
-                if not isdir(params[d]):
-                    os.makedirs(params[d])
+                os.makedirs(params[d], exist_ok=True)
 
     # set up the final output directory
     this_groupdir_name = 'Step{:04d}_z{:5.3f}'.format(params['FullStepNumber'], params['Redshift'])
@@ -57,6 +59,10 @@ def standalone_fof(slicedir, output_paramfn='standalone_fof.par', use_site_overr
         subprocess.check_call(['make', 'standalone_fof'])
         subprocess.check_call(['./standalone_fof', slicedir, pjoin(params['GroupDirectory'], output_paramfn)])
 
+    return 
+
+    # TODO: do we want to move to a products directory?
+
     # Now move the results to a _products directory
     if not isdir(dirname(product_dir)):
         os.makedirs(dirname(product_dir))
@@ -64,21 +70,27 @@ def standalone_fof(slicedir, output_paramfn='standalone_fof.par', use_site_overr
     this_groupdir_path = pjoin(params['GroupDirectory'], this_groupdir_name)
     shutil.move(this_groupdir_path, product_dir)
 
-    # copy over the info dir
-    dest_info_dir = pjoin(dirname(product_dir), 'info')
-    if not isdir(dest_info_dir):
-        shutil.copytree(pjoin(dirname(slicedir), 'info'), pjoin(dirname(product_dir), 'info'))
+    try:
+        # copy over the info dir
+        dest_info_dir = pjoin(dirname(product_dir), 'info')
+        if not isdir(dest_info_dir):
+            shutil.copytree(pjoin(dirname(slicedir), 'info'), dest_info_dir)
+    except:
+        pass
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('slice', nargs='+')
-    parser.add_argument('--no_site_overrides', action='store_true', default=False)
-    parser.add_argument('--no_dir_overrides', action='store_true', default=False)
+    parser.add_argument('--no-site-overrides', help="Don't replace runtime tuning values with those from site.def", action='store_true', default=False)
+    parser.add_argument('--no-dir-overrides', help="Don't guess appropriate paths for this machine", action='store_true', default=False)
+    parser.add_argument('--group-radius', help='Override the maximum group finding slab radius', type=int)
+
     args = parser.parse_args()
+    args = vars(args)
 
-    use_site_overrides = not args.no_site_overrides
-    override_directories = not args.no_dir_overrides
+    use_site_overrides = not args.pop('no_site_overrides')
+    override_directories = not args.pop('no_dir_overrides')
 
-    for sl in args.slice:
-        standalone_fof(sl, use_site_overrides=use_site_overrides, override_directories=override_directories)
+    for sl in args.pop('slice'):
+        standalone_fof(sl, use_site_overrides=use_site_overrides, override_directories=override_directories, **args)

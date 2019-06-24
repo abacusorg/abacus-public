@@ -26,6 +26,8 @@ AS_CASE([$build_cpu],
 AC_SUBST([ARCH])
 
 # These files will be generated from their Makefile.in counterparts
+# All ./configure information goes into common.mk
+# Makefiles must inherit any ./configure information from there
 AC_CONFIG_FILES([
  common.mk
 ])
@@ -192,6 +194,8 @@ AC_DEFINE_UNQUOTED(MAXSOURCELENGTH,$with_max_source_length, "Maximum source leng
 AC_ARG_WITH(max-order,
 [AS_HELP_STRING([--with-max-order=O], [Maximum multipole order [16]])],
     [], with_max_order="16")
+MAXORDER=$with_max_order
+AC_SUBST(MAXORDER)
 AC_DEFINE_UNQUOTED(MAXORDER,$with_max_order, "Maximum multipole order")
 
 AC_ARG_ENABLE(threaded-io,
@@ -250,7 +254,7 @@ fi
 
 # Query the GPUs to find the number and compute capability
 if test x$enable_gpu_directs == xyes; then
-    AC_MSG_CHECKING([number & compute capability of GPUs])
+    AC_MSG_CHECKING([compute capability of GPUs])
 
     make --quiet -C singlestep/Direct detect_gpus MAKE_CONTEXT=AUTOCONF NVCC=$NVCC
     DETECT_GPUS_OUTPUT=$(./singlestep/Direct/detect_gpus)
@@ -258,31 +262,19 @@ if test x$enable_gpu_directs == xyes; then
     NGPU=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Device count: )\d+')
     CUDA_ARCH=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Compute capability: )\d+')
 
-    #NGPU=$(nvidia-smi -q | grep 'Attached GPUs'| awk -F ':' '{print $NF}' | tr -d [[:space:]])
     if test x$NGPU == x""; then
         NGPU=0
     fi
     if test x$CUDA_ARCH == x""; then
         CUDA_ARCH=0
     fi
-    AC_MSG_RESULT([$NGPU GPUs found, compute capability $CUDA_ARCH])
+    AC_MSG_RESULT([compute capability $CUDA_ARCH])
     AC_SUBST(CUDA_ARCH)
 fi
 
-# If we don't have any GPUs, pretend there's one for BPD
-if test x$NGPU == x -o x$NGPU == x0; then
-    NGPU=1
-fi
-DEFAULT_BPD=$((2*$with_radius/$NGPU + 1))
-AC_ARG_WITH(direct-bpd,
-[AS_HELP_STRING([--with-direct-bpd=B],
-[Direct buffers per device [ceil((2*NFR+1)/NGPU) = 3]])],
-	[], with_direct_bpd=$DEFAULT_BPD)
-AC_DEFINE_UNQUOTED(DirectBPD,$with_direct_bpd, "Direct buffers per device")
-
 AC_ARG_WITH(max-gpus,
 [AS_HELP_STRING([--with-max-gpus=M], [Maximum number of GPUs to use [auto]])],
-	[], with_max_gpus="auto")
+	[], with_max_gpus=32)
 if test x$with_max_gpus == xauto; then
     with_max_gpus=$NGPU
 fi
@@ -417,17 +409,14 @@ echo "SIMD multipoles:                 $with_multipoles_simd"
 echo "AVX FOF:                         $enable_avx_fof"
 echo "Spherical Overdensity:           $enable_spherical_overdensity"
 echo "Threaded IO:                     $enable_threaded_io"
-echo "Direct buffers-per-device:       $with_direct_bpd"
 echo "GPU directs:                     $enable_gpu_directs"
 echo "Compute FOF-scale density:       $enable_fof_density"
 echo "MPI parallel code:               $enable_parallel"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
-echo "Maximum GPUs:                    $with_max_gpus"
 echo "Cache line size:                 $with_cache_line"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
-echo "Ramdisk path:                    $with_ramdisk"
 echo "------------------------------------------------------"
 echo
 
@@ -435,5 +424,7 @@ echo
 #echo "Maximum CPD:                     $with_max_cpd"
 #echo "Maximum source length:           $with_max_source_length"
 #echo "Maximum order:                   $with_max_order"
+#echo "Maximum GPUs:                    $with_max_gpus"
+#echo "Ramdisk path:                    $with_ramdisk"
 
 AC_OUTPUT

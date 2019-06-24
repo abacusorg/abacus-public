@@ -136,8 +136,7 @@ def default_argparse(doc=__doc__):
     parser.add_argument('--box', help='Override the box size from the header', type=float)
 
     #parser.add_argument('--zspace', help='Displace the particles according to their redshift-space positions.', action='store_true')
-    # TODO: support non-integer downsampling
-    parser.add_argument('--downsample', help='The factor by which to randomly downselect particles before pair counting. Useful for accelerating the computation.', type=int)
+    parser.add_argument('--downsample', help='The fraction by which to downselect particles before pair counting. Useful for accelerating the computation.', type=float)
 
     return parser
 
