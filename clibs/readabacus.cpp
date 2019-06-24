@@ -1,6 +1,7 @@
 #include "cell_header.h"
 #include "pack14_storage.cpp"
 #include "threevector.hh"
+#include "particle_subsample.cpp"
 
 #include <stdlib.h>
 #include <sys/types.h>

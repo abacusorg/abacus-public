@@ -87,7 +87,7 @@ def x2s(x, box, cpd):
     slab = np.empty(N, dtype=np.int64)
     
     for i in numba.prange(N):
-        slab[i] = (x[i]/box + .5)*cpd
+        slab[i] = (x[i]/box + .5)*cpd % cpd
         assert 0 <= slab[i] < cpd
     return slab
 

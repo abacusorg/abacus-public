@@ -27,7 +27,7 @@ from Abacus.Cosmology import AbacusCosmo
 zeldovich_dir = pjoin(abacus.abacuspath, 'zeldovich-PLT')
 eigmodes_path = pjoin(zeldovich_dir, 'eigmodes128')
 
-on_the_fly_formats = ['glass']
+on_the_fly_formats = ['poisson']
 
 def is_on_the_fly_format(fmt):
     return fmt.lower() in on_the_fly_formats
@@ -160,9 +160,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args = vars(args)
     out_parent = args.pop('out_parent')
+    show_growth = args.pop('show_growth')
     
     for parfn in args.pop('parfile'):
-        if args['show_growth']:
+        if show_growth:
             par = InputFile(parfn)
             sigma8_zinit = calc_sigma8(par, z='init')
 

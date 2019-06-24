@@ -90,7 +90,7 @@ def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.fl
     return density
     
     
-def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zspace=False, format='pack14', rotate_to=None, prep_rfft=False, nthreads=-1, readahead=-1):
+def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zspace=False, format='pack14', rotate_to=None, prep_rfft=False, nthreads=-1, readahead=1):
     '''
     Main entry point for density field computation from files on disk of various formats.
     
@@ -125,7 +125,8 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
     nthreads: int, optional
         Number of threads.  Default of -1 uses all available cores.
     readahead: int, optional
-        How many files to read ahead of what's been binned.  Default of -1 allows unbounded readahead.
+        How many files to read ahead of what's been binned. -1 allows unbounded readahead.
+        Default: 1.
 
     Returns
     -------
@@ -162,11 +163,13 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
     # Does the directory name contain 'ic'?
     abspattern = os.path.abspath(file_pattern)
     abspattern = abspattern.split(os.sep)
-    isic = re.search(r'\bic(\b|(?=_))', abspattern[-2])
+    isic = re.search(r'\bic(\b|(?=_))', os.sep.join(abspattern[-2:]))
 
+    # We assume IC data is stored with a BoxSize box, not unit box
+    # TODO: better way to communicate this
     box_on_disk = boxsize if isic or format in ['rvtag', 'gadget'] else 1.
 
-    reader_kwargs = dict(return_vel=False, zspace=zspace, dtype=dtype)
+    reader_kwargs = dict(return_vel=False, zspace=zspace, dtype=dtype, format=format)
 
     if format == 'pack14':
         reader_kwargs.update(ramdisk=True)
@@ -176,7 +179,7 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
         reader_kwargs.update(boxsize=boxsize)
 
     for data in ReadAbacus.AsyncReader(file_pattern, **reader_kwargs):
-        TSC(data, density, box_on_disk, rotate_to=rotate_to, prep_rfft=prep_rfft, nthreads=nthreads, inplace=True)
+        TSC(data['pos'], density, box_on_disk, rotate_to=rotate_to, prep_rfft=prep_rfft, nthreads=nthreads, inplace=True)
     
     return density
     
@@ -257,12 +260,12 @@ def TSC(positions, density, boxsize, weights=None, prep_rfft=False, rotate_to=No
 
     if nchunks > 1:
         # Partition the particles into chunks
-        # The algorithm we really need here is a parallel partition that splits on x-values (not indices)
+        # The algorithm we really need here is a parallel partition that splits on y-values (not indices)
         # But parallel sort algorithms are more readily available
 
-        xbins = np.linspace(-boxsize/2, boxsize/2, num=nchunks+1, endpoint=True, dtype=positions.dtype)
+        ybins = np.linspace(-boxsize/2, boxsize/2, num=nchunks+1, endpoint=True, dtype=positions.dtype)
         positions, weights = sort_pos_and_weight(positions, weights, inplace=inplace)
-        splits = np.searchsorted(positions[:,0], xbins[1:-1])
+        splits = np.searchsorted(positions[:,0], ybins[1:-1])
         pchunks = np.array_split(positions, splits)
 
         if weights is None or len(weights) == 0:
@@ -332,12 +335,12 @@ def sort_pos_and_weight(p, w, inplace):
     # our FFI lib assumes 3D right now
     if p.dtype != np.float32 or p.shape[-1] != 3:
         warnings.warn("Warning: particles not float32 in 3D. Falling back to slow sort.")
-        order = p[:,0].argsort()
+        order = p[:,1].argsort()
         p = p[order]
         if w is not None and len(w) > 1:
             w = w[order]
 
-    if w is not None and len(w) > 1:
+    elif w is not None and len(w) > 1:
         assert w.dtype == p.dtype
 
         # pack into float4
@@ -346,7 +349,7 @@ def sort_pos_and_weight(p, w, inplace):
         pw = np.empty((len(p), p.shape[-1] + 1), dtype=p.dtype)
         pw[:,:3] = p
         pw[:,3] = w
-        _psffilib.lib.x_sorter_weighted(_psffilib.ffi.cast("float *", _psffilib.ffi.from_buffer(pw)), len(pw))
+        _psffilib.lib.y_sorter_weighted(_psffilib.ffi.cast("float *", _psffilib.ffi.from_buffer(pw)), len(pw))
         # unpack
         # this returns views, but will it make TSC slow?
         p = pw[:,:3]
@@ -354,7 +357,7 @@ def sort_pos_and_weight(p, w, inplace):
     else:
         if not inplace:
             p = p.copy()
-        _psffilib.lib.x_sorter(_psffilib.ffi.cast("float *", _psffilib.ffi.from_buffer(p)), len(p))
+        _psffilib.lib.y_sorter(_psffilib.ffi.cast("float *", _psffilib.ffi.from_buffer(p)), len(p))
 
     return p, w
 

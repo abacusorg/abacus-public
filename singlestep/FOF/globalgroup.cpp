@@ -652,6 +652,11 @@ void GlobalGroupSlab::FindSubGroups() {
                     groupacc = acc+globalgroups[j][k][n].start;
                 int groupn = globalgroups[j][k][n].np;
                 GFC->L1FOF.Start();
+                #ifndef SPHERICAL_OVERDENSITY
+                if (GFC->linking_length_level1==GFC->linking_length)
+                    FOFlevel1[g].assign_to_one_group(grouppos, NULL, NULL, groupacc, groupn);
+                else    // This grabs the findgroups statement!
+                #endif
                 FOFlevel1[g].findgroups(grouppos, NULL, NULL, groupacc, groupn);
                 GFC->L1FOF.Stop();
                 // Now we've found the L1 groups
@@ -678,6 +683,11 @@ void GlobalGroupSlab::FindSubGroups() {
                         }
                     }
                     GFC->L2FOF.Start();
+                    #ifndef SPHERICAL_OVERDENSITY
+                    if (GFC->linking_length_level1==GFC->linking_length_level2)
+                        FOFlevel2[g].assign_to_one_group(L1pos[g], NULL, NULL, L1acc[g], size);
+                    else    // This grabs the findgroups statement!
+                    #endif
                     FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, L1acc[g], size);
                     GFC->L2FOF.Stop();
 

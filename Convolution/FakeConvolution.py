@@ -23,6 +23,9 @@ import numpy as np
 from Abacus import Tools
 from Abacus.InputFile import InputFile
 
+_print = print
+print = lambda *args,**kwargs: print(*args,**kwargs,file=sys.stderr, flush=True)
+
 def fake_convolution(parfile, verbose=False):
     par = InputFile(parfile)
 
@@ -31,7 +34,7 @@ def fake_convolution(parfile, verbose=False):
     rank = comm.Get_rank()
 
     if verbose:
-        print('FakeConvolution invoked on rank {} of {}'.format(rank, size), file=sys.stderr)
+        print('FakeConvolution invoked on rank {} of {}'.format(rank, size))
 
     try:
         read = par['ReadStateDirectory']
@@ -54,7 +57,7 @@ def fake_convolution(parfile, verbose=False):
     overwrite = par['Conv_IOMode'].lower() == 'overwrite'
 
     if verbose:
-        print('Rank {} will process {} slabs [{},{}) with overwrite = {}'.format(rank, nslab, firstslab, lastslab, overwrite), file=sys.stderr)
+        print('Rank {} will process {} slabs [{},{}) with overwrite = {}'.format(rank, nslab, firstslab, lastslab, overwrite))
 
     rml = (par['Order']+1)**2
     ncomplex = cpd*(cpd+1)//2*rml
@@ -62,6 +65,8 @@ def fake_convolution(parfile, verbose=False):
 
     os.makedirs(taylors, exist_ok=True)
 
+    zero_taylors = np.zeros(ncomplex, dtype=cdt)
+    
     for s in range(firstslab,firstslab+nslab):
         s = s % cpd
 
@@ -71,11 +76,10 @@ def fake_convolution(parfile, verbose=False):
             except FileNotFoundError:
                 pass  # Multipoles may not exist; that's fine
 
-        zero_taylors = np.zeros(ncomplex, dtype=cdt)
         zero_taylors.tofile(pjoin(taylors, 'Taylor_{:04d}'.format(s)))
 
     if verbose:
-        print('Rank {} done.'.format(rank), file=sys.stderr)
+        print('Rank {} done.'.format(rank))
 
 
 if __name__ == '__main__':

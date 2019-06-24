@@ -1,3 +1,5 @@
+SiteName = "summitdev"
+
 StateIOMode = "overwrite"
 Conv_IOMode = "overwrite"
 RamDisk = 1

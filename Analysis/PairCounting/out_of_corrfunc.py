@@ -212,14 +212,14 @@ def DD(primary, secondary=None, pattern='*.dat', format='pack14', dtype=np.float
             
             prevcross = Corrfunc.theory.DD(X1=primary[:,0], Y1=primary[:,1], Z1=primary[:,2],
                        X2=prev[:,0], Y2=prev[:,1], Z2=prev[:,2],
-                        *args, autocorr=False, **kwargs)
+                        *args, autocorr=False, copy_particles=False, **kwargs)
             del prev
         del next
             
         # this might be an autocorrelation of primary, or a cross-correlation with the secondary
         auto = Corrfunc.theory.DD(X1=primary[:,0], Y1=primary[:,1], Z1=primary[:,2],
                                   X2=secondary[:,0], Y2=secondary[:,1], Z2=secondary[:,2],
-                                    *args, autocorr=autocorr, **kwargs)
+                                    *args, autocorr=autocorr, copy_particles=False, **kwargs)
                      
         if autocorr:
             del secondary
@@ -228,7 +228,7 @@ def DD(primary, secondary=None, pattern='*.dat', format='pack14', dtype=np.float
         # this will always be a cross with the next
         cross = Corrfunc.theory.DD(X1=primary[:,0], Y1=primary[:,1], Z1=primary[:,2],
                                    X2=next[:,0], Y2=next[:,1], Z2=next[:,2],
-                                    *args, autocorr=False, **kwargs)
+                                    *args, autocorr=False, copy_particles=False, **kwargs)
         # Corrfunc doubles autocorrelation pair counts but not cross-correlation
         if autocorr:
             cross['npairs'] *= 2

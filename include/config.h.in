@@ -3,7 +3,7 @@
 /* "Use AVX-512 directs" */
 #undef AVX512DIRECT
 
-/* "Use AVX-512 multipoles" */
+/* "AVX-512 multipoles/Taylors" */
 #undef AVX512MULTIPOLES
 
 /* "Use AVX directs" */
@@ -12,7 +12,7 @@
 /* "Use AVX for FOF and SO" */
 #undef AVXFOF
 
-/* "Use AVX multipoles" */
+/* "AVX multipoles/Taylors" */
 #undef AVXMULTIPOLES
 
 /* "Cache line size in bytes" */
@@ -38,9 +38,6 @@
 
 /* "Do all computations in double precision instead of single" */
 #undef DOUBLEPRECISION
-
-/* "Direct buffers per device" */
-#undef DirectBPD
 
 /* "The current git revision" */
 #undef GITVERSION
@@ -233,11 +230,11 @@
 /* The size of `long', as computed by sizeof. */
 #undef SIZEOF_LONG
 
-/* "Use SO finder for L1/L2 hhalos */
+/* "Use SO finder for L1/L2 halos */
 #undef SPHERICAL_OVERDENSITY
 
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
 
-/* "Use unrolled plain-C multipoles" */
+/* "Unrolled plain-C multipoles/Taylors" */
 #undef UNROLLEDMULTIPOLES

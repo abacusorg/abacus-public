@@ -375,7 +375,7 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     //STDLOG(1, "Detected %d sockets/NUMA nodes\n", n_socket);
     //assertf(n_socket > 0, "n_socket %d less than 1\n", n_socket);
 
-    int use_pinned = MaxSinkBlocks >= 10000;  // Pinning is slow, so for very small problems it's faster to use unpinned memory
+    int use_pinned = MaxSinkBlocks >= 100000;  // Pinning is slow, so for very small problems it's faster to use unpinned memory
 
     if(use_pinned)
         STDLOG(1, "Allocating pinned memory\n");
@@ -384,9 +384,10 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
 
     pthread_barrier_t *thread_startup_barriers[NGPU];
     for(int g = 0; g < NBuf; g++){
-            Buffers[g].size = MaxBufferSize;
-            Buffers[g].sizeWC = Buffers[g].size*(1.0-RatioDeftoAll);
-            Buffers[g].sizeDef = Buffers[g].size*RatioDeftoAll;
+        Buffers[g].size = MaxBufferSize;
+        Buffers[g].sizeWC = Buffers[g].size*(1.0-RatioDeftoAll);
+        Buffers[g].sizeDef = Buffers[g].size*RatioDeftoAll;
+        Buffers[g].ready = 0;
 
         ThreadInfo *info = new ThreadInfo;
         int core_start = ThreadCoreStart[g % NGPU];
