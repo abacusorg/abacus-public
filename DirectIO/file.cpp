@@ -9,6 +9,8 @@
 #include <limits.h>     /* PATH_MAX */
 #include <errno.h>
 
+#include "config.h"
+
 // TODO: This routine is too heavy on asserts.  Would be better
 // to return an answer to the calling program and let it decide how
 // to react.
