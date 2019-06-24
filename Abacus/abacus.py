@@ -799,7 +799,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     
     if parallel:
         # TODO: figure out how to signal a backup to the nodes
-        run_time_minutes = 100
+        run_time_minutes = 360 #360
         run_time_secs = 60 * run_time_minutes
         start_time = time.time(); 
         print("Beginning run at Unix epoch time", start_time, ", running for ", run_time_minutes, " minutes.\n");
@@ -1034,9 +1034,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                 
    
         #if parallel and s.graceful_exit:
-        print("Current time: ", time.time(), start_time, 0.9*run_time_secs)
+        print("Current time: ", time.time(), start_time, 0.93 *run_time_secs)
         
-        if parallel and (time.time() - start_time >= 0.9 * run_time_secs):
+        if parallel and (time.time() - start_time >= 0.93 * run_time_secs):
             
             restore_time = time.time(); 
             
