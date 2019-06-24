@@ -10,17 +10,18 @@ $ ./rockstar.py --help
 
 import argparse
 import datetime
-import subprocess32
 from glob import glob
 import os
 import contextlib
 import shutil
 import pdb
-import numpy as np
-from Abacus.Tools import chdir
+import subprocess
 import tarfile
-from Abacus.InputFile import InputFile
 
+import numpy as np
+
+from Abacus.Tools import chdir
+from Abacus.InputFile import InputFile
 from Abacus.Analysis import common
 
 def get_output_dir(indir, downsample, suffix=''):
@@ -83,7 +84,7 @@ def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=25, downsample=1, confi
                     autofile.write(config)
                 
             # Launch Rockstar server
-            retcode = subprocess32.check_call(['./rockstar', '-c', outdir+'/abacus-auto-server.cfg', '-s', '0'])
+            retcode = subprocess.check_call(['./rockstar', '-c', outdir+'/abacus-auto-server.cfg', '-s', '0'])
             # Now the Rockstar client is ready to be started once rockstar writes the auto-rockstar.cfg file
 
         return retcode
