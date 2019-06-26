@@ -192,6 +192,7 @@ class GlobalGroupSlab {
     void FindSubGroups();
     void SimpleOutput();
     void HaloOutput();
+    void WriteGroupHeaderFile(const char* fn);
     uint64 L0TimeSliceOutput(FLOAT unkick_factor);
 
 };
@@ -652,6 +653,11 @@ void GlobalGroupSlab::FindSubGroups() {
                     groupacc = acc+globalgroups[j][k][n].start;
                 int groupn = globalgroups[j][k][n].np;
                 GFC->L1FOF.Start();
+                #ifndef SPHERICAL_OVERDENSITY
+                if (GFC->linking_length_level1==GFC->linking_length)
+                    FOFlevel1[g].assign_to_one_group(grouppos, NULL, NULL, groupacc, groupn);
+                else    // This grabs the findgroups statement!
+                #endif
                 FOFlevel1[g].findgroups(grouppos, NULL, NULL, groupacc, groupn);
                 GFC->L1FOF.Stop();
                 // Now we've found the L1 groups
@@ -678,6 +684,11 @@ void GlobalGroupSlab::FindSubGroups() {
                         }
                     }
                     GFC->L2FOF.Start();
+                    #ifndef SPHERICAL_OVERDENSITY
+                    if (GFC->linking_length_level1==GFC->linking_length_level2)
+                        FOFlevel2[g].assign_to_one_group(L1pos[g], NULL, NULL, L1acc[g], size);
+                    else    // This grabs the findgroups statement!
+                    #endif
                     FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, L1acc[g], size);
                     GFC->L2FOF.Stop();
 
@@ -894,13 +905,16 @@ void GlobalGroupSlab::HaloOutput() {
         sprintf(dir, "Step%04d_z%5.3f", ReadState.FullStepNumber, ReadState.Redshift);
         CreateSubDirectory(P.GroupDirectory, dir);
         
-        std::string headerfn = "";
-        headerfn = headerfn + P.GroupDirectory + "/" + dir + "/header";
-        WriteHeaderFile(headerfn.c_str());
+        if(slab == 0){
+            std::string headerfn = "";
+            headerfn = headerfn + P.GroupDirectory + "/" + dir + "/header";
+            WriteGroupHeaderFile(headerfn.c_str());
+        }
 
     // Write out the taggable particles not in L1 halos
-        // TODO: better heuristic? what will happen in very small sims?  Also technically HaloTaggableFraction is only used in the IC step
-        uint64 maxsize = P.np*P.HaloTaggableFraction*1.05;
+        // TODO: Technically HaloTaggableFraction is only used in the IC step
+        uint64 maxsize = SS->size(slab)*P.HaloTaggableFraction;
+        maxsize += 6*sqrt(maxsize);  // 6-sigma buffer
         SB->AllocateSpecificSize(TaggableFieldSlab, slab, maxsize*sizeof(RVfloat));
         SB->AllocateSpecificSize(TaggableFieldPIDSlab, slab, maxsize*sizeof(TaggedPID));
         
@@ -957,6 +971,16 @@ void GlobalGroupSlab::HaloOutput() {
 
     return;
 }
+
+void GlobalGroupSlab::WriteGroupHeaderFile(const char* fn){
+    std::ofstream headerfile;
+    headerfile.open(fn);
+    headerfile << P.header();
+    headerfile << ReadState.header();
+    headerfile << "\nOutputType = \"GroupOutput\"\n";
+    headerfile.close();
+}
+
 #endif
 
 #ifndef STANDALONE_FOF

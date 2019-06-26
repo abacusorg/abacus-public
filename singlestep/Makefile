@@ -27,6 +27,7 @@ all: _singlestep
 # But _gpudirect needs to be order-only w.r.t. singlestep, and unfortunately these seem to run last
 # This fake parent enforces the desired ordering
 # Warning: this means 'make singlestep' will not notice if the gpudirect.a has changed!
+# TODO: this is an unsatisfying solution
 $(BOOTSTRAPS): _%: $(MAKE_DIRECT) %
 
 $(PIPELINES): % : %.o $(EXTRA_OBJ)

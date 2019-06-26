@@ -49,7 +49,7 @@
 
     InitGroupFinding(0);
 
-    // Do we need a SlabSizePack14?
+    // Do we need a SlabSizePack14?  Right now we populate SS on-the-fly
     //SS = new SlabSize(P);
     timestepStandaloneFOF(argv[1]);
 
@@ -58,6 +58,10 @@
     IO_Terminate();
     SingleStepTearDown.Stop();
     WallClockDirect.Stop();
+
+    // Stop Epilogue from trying to write slabsize
+    delete SS;
+    SS = NULL;
 
     // The epilogue contains some tests of success.
     Epilogue(P,MakeIC);

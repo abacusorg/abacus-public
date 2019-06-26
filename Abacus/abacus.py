@@ -191,9 +191,9 @@ def copy_contents(in_dir, out_dir, clean=True, ignore='*.py'):
     for fn in os.scandir(in_dir):
         if not fn.is_file():
             continue
-        if any(fnmatch.fnmatch(fn.name, ipat) for ipat in ignore):
+        if any(fnmatch.fnmatch(fn, ipat) for ipat in ignore):
             continue
-        shutil.copy(fn.name, out_dir)
+        shutil.copy(fn, out_dir)
 
 
 def clean_dir(bd, preserve=None, rmdir_ifempty=True):
@@ -772,7 +772,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     if not do_fake_convolve:
         MakeDerivatives(param, floatprec=True)
 
-    if make_ic:
+    if make_ic and not zeldovich.is_on_the_fly_format(param.ICFormat):
         print("Ingesting IC from "+param.InitialConditionsDirectory+" ... Skipping convolution")
         if path.exists(pjoin(param.InitialConditionsDirectory, "input.pow")):
             shutil.copy(pjoin(param.InitialConditionsDirectory, "input.pow"), pjoin(param.LogDirectory, "input.pow"))
@@ -986,7 +986,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         ### end singlestep loop
 
     # If there is more work to be done, signal that we are ready for requeue
-    if not finished:
+    if not finished and not ProfilingMode:
         return EXIT_REQUEUE
 
     return 0

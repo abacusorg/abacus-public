@@ -22,57 +22,96 @@ from Abacus.Analysis import common
 def setup_bins(args):
     '''
     -Set rmin default to eps/3
-    -Scale bins on a per-sim basis if scale-free
+    -Scale bins on a per-slice basis if scale-free
     -Choose log/linear binning
 
-    Returns one bin edges array per sim
+    Returns one bin edges array per slice
     '''
     ns = args.pop('scalefree_index')
-    basea = args.pop('scalefree_base_a')
+    #basea = args.pop('scalefree_base_a', None)
 
-    rmin, rmax, nbins = args.pop('rmin'), args.pop('rmax'), args.pop('nbins')
+    rmin, rmax, nbin_per_decade = args.pop('rmin'), args.pop('rmax'), args.pop('nbins_decade')
 
     all_headers = [common.get_header(p) for p in args['primary']]
 
-    # auto defaults to softening/3
-    if rmin.lower() == 'auto':
-        all_eps = np.array([h['SofteningLength'] for h in all_headers])
-        rmin = all_eps.min()/3.
-
-        if ns is not None:
-            if (all_eps[0] != all_eps).any():
-                raise ValueError("Cannot use auto rmin and specify auto scale-free rescaling if all don't agree.", all_eps)
-    else:
+    # Parse rmin input
+    # User can enter 'eps/10' for 10th softening, for example
+    try:
         rmin = float(rmin)
+    except:
+        all_eps = np.array([h['SofteningLength'] for h in all_headers])
+        eps = all_eps[0]
 
-    # auto defaults to .002*BoxSize
-    if rmax.lower() == 'auto':
-        all_box = np.array([h['BoxSize'] for h in all_headers])
-        rmax = all_box.max()*0.002
+        rmin = eval(rmin)
 
-        if ns is not None:
-            if (all_box[0] != all_box).any():
-                raise ValueError("Cannot use auto rmax and specify auto scale-free rescaling if all don't agree.", all_box)
-    else:
+        if (eps != all_eps).any():
+            raise ValueError("TODO: Cannot use 'eps' in rmin if all eps don't agree.", all_eps)
+
+        del eps
+
+    # rmin is defined at the last time
+    # scale it back to the first time; that's where our fiducial bins are defined!
+    rmin_last = rmin
+    if ns is not None:
+        all_scalefactor = np.array([h['ScaleFactor'] for h in all_headers])
+        
+        firsta = all_scalefactor.min()
+        lasta = all_scalefactor.max()
+
+        len_rescale = (all_scalefactor/firsta)**(2./(3+ns))  # greater than 1
+
+        rmin /= len_rescale[all_scalefactor.argmax()]
+
+    # Parse rmax input
+    # User can enter 'box/500' for .002*box, for example
+    try:
         rmax = float(rmax)
+    except:
+        all_box = np.array([h['BoxSize'] for h in all_headers])
+        box = all_box[0]
 
-    # set up base bins
+        rmax = eval(box)
+
+        if (box != all_box).any():
+            raise ValueError("TODO: Cannot use 'box' in rmax if all box don't agree.", all_box)
+
+        del box
+
+    # set up base bins (at the earliest time)
+    nbins = int(np.log10(rmax/rmin)*nbin_per_decade)
+
     if args.pop('linear'):
-        bins = np.linspace(rmin, rmax, nbins)
+        bins = np.linspace(rmin, rmax, nbins+1)
     else:
-        bins = np.logspace(np.log10(rmin), np.log10(rmax), nbins)
+        bins = np.geomspace(rmin, rmax, nbins+1)
     all_bins = np.tile(bins, (len(args['primary']),1))
 
     if ns is not None:
-        all_scalefactor = np.array([h['ScaleFactor'] for h in all_headers])
-        if basea is None:
-            base_scalefactor = all_scalefactor.max()
-        else:
-            base_scalefactor = basea
-        len_rescale = (all_scalefactor/base_scalefactor)**(2./(3+ns))
         all_bins *= len_rescale[:,None]
 
+        # Previously, we let rmax grow with the non-linear scale.  This facilitated easy ratios of the results across redshift.
+        # But per Michael Joyce, the resolution scale actually *decreases* as 1/a, so it's not actually interesting to go to large rmax at late times
+        # So the rmax that the user inputs is now used at the *earliest* time, with later rmaxes decreasing according to an estimate of the resolution scale
+        # rmin is set at the latest time, so earlier times probe smaller scales
+
+        all_n1d = np.array([h['NP']**(1/3) for h in all_headers])
+        assert all(all_n1d[0] == all_n1d), ("NP must agree across slices in order to determine resolution scale for scale-free binning", all_n1d)
+
+        all_box = np.array([h['BoxSize'] for h in all_headers])
+        assert all(all_box[0] == all_box), ("BoxSize must agree across slices in order to determine resolution scale for scale-free binning", all_box)
+
+        resolution_scale = 70*all_box[0]/all_n1d[0]  # 70*(particle spacing), a kludgy guess!
+        res_rescale = (all_scalefactor/firsta)**-1
+        resolution_scale *= res_rescale[:,None]
+
+        # Now mask bins above the resolution cut
+        all_bins = np.ma.masked_greater(all_bins, np.minimum(rmax, resolution_scale))
+        # and bins below rmin *in un-rescaled coords*
+        all_bins.mask |= all_bins < rmin_last
+
         print('--scalefree_index option was specified.  Computed rmaxes: ' + str(all_bins.max(axis=-1)))
+
+        #print(list(zip(all_bins.min(axis=-1), all_bins.max(axis=-1))))
     
     return all_bins
 
@@ -81,14 +120,15 @@ def default_argparse(doc=__doc__):
     parser = argparse.ArgumentParser(description=doc, formatter_class=Tools.ArgParseFormatter)
     parser.add_argument('primary', help='The time slice directory containing the particles.', nargs='+')
     # We want the user to think about rmin and rmax, since any defaults may not be optimal for cross-sim comparison, which is a very common use-case
-    parser.add_argument('rmin', help='Minimum pair counting distance (Mpc/h).  Value of "auto" will use 1/3 of softening.')
-    parser.add_argument('rmax', help='Maximum pair counting distance (Mpc/h). Value of "auto" will use 1/500 of the box size.')
+    parser.add_argument('rmin', help='Minimum pair counting distance (Mpc/h).  Accepts simple math like "eps/10".')
+    parser.add_argument('rmax', help='Maximum pair counting distance (Mpc/h). Accepts simple math like "box/500".')
     parser.add_argument('--secondary', help='The time slice directory containing the secondary particles for cross-correlations.')
     
     parser.add_argument('--format', help='Format of the particle data.', default='Pack14', choices=['RVdouble', 'Pack14', 'RVZel', 'RVTag', 'state', 'gadget'])
-    parser.add_argument('--scalefree_index', help='Automatically scales rmin and rmax according to the scale free cosmology with the given spectral index.  Uses the lowest redshift of all primaries as the "base time".', default=None, type=float)
-    parser.add_argument('--scalefree_base_a', help='Override the fiducial scale factor for automatic rmin/rmax computation in a scale-free cosmology. Only has an effect with the --scalefree_index option.', default=None, type=float)
-    parser.add_argument('--nbins', help='Number of radial bins.', default=100, type=int)
+    parser.add_argument('--scalefree_index', help='Automatically scales rmin and rmax according to the scale free cosmology with the given spectral index.  Uses the highest redshift for rmax, and the lowest redshift for rmin.', default=None, type=float)
+    # TODO: change to amin and amax
+    #parser.add_argument('--scalefree_base_a', help='Override the fiducial scale factor for automatic rmin/rmax computation in a scale-free cosmology. Only has an effect with the --scalefree_index option.', default=None, type=float)
+    parser.add_argument('--nbins_decade', help='Number of radial bins *per decade*.', default=40, type=int)
     parser.add_argument('--dtype', help='Data type for internal calculations.', choices=['float', 'double'], default='float')
     parser.add_argument('--linear', help='Do the histogramming in linear space.  Default is log10 space.', default=False, action='store_true')
     parser.add_argument('--out_parent', help='Directory in which to place the data products.', default=None)
@@ -96,8 +136,7 @@ def default_argparse(doc=__doc__):
     parser.add_argument('--box', help='Override the box size from the header', type=float)
 
     #parser.add_argument('--zspace', help='Displace the particles according to their redshift-space positions.', action='store_true')
-    # TODO: support non-integer downsampling
-    parser.add_argument('--downsample', help='The factor by which to randomly downselect particles before pair counting. Useful for accelerating the computation.', type=int)
+    parser.add_argument('--downsample', help='The fraction by which to downselect particles before pair counting. Useful for accelerating the computation.', type=float)
 
     return parser
 
@@ -111,6 +150,11 @@ def process_args(args):
         nthreads = multiprocessing.cpu_count()
     args['nthreads'] = nthreads
 
+    # homogenize a few args to lowercase
+    for k in ['rmin', 'rmax', 'format']:
+        if type(args[k]) == str:
+            args[k] = args[k].lower()
+
     return args
 
 
@@ -118,9 +162,9 @@ def setup_output_file(primary, out_parent, args, this_rmax):
     output_dir = common.get_output_dir('pair_counting', primary, out_parent=out_parent)
     if args['secondary']:
         simname = path.basename(path.dirname(path.normpath(args['secondary'])))
-        output_fn_base = pjoin(output_dir, 'cross_corr_rmax{:.2g}_{}'.format(this_rmax, simname))
+        output_fn_base = pjoin(output_dir, 'cross_corr_rmax{:.3g}_{}'.format(this_rmax, simname))
     else:
-        output_fn_base = pjoin(output_dir, 'auto_corr_rmax{:.2g}'.format(this_rmax))
+        output_fn_base = pjoin(output_dir, 'auto_corr_rmax{:.3g}'.format(this_rmax))
     output_fn = output_fn_base + '.csv'
     output_fn_plot = output_fn_base + '.png'
 
@@ -189,6 +233,8 @@ def make_plot(results, fn, headers):
     fig.tight_layout()
 
     fig.savefig(fn)
+
+    plt.close(fig)  # why doesn't this happen when fig goes out of scope?
 
 def read_gadget(dir, downsample=1):
     '''

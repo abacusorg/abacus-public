@@ -105,10 +105,10 @@ if test -x "$cuda_prefix/bin/nvcc"; then
 		LDFLAGS="$CUDA_LDFLAGS $LDFLAGS"
 
 		# And the header and the lib
-		AC_CHECK_HEADER([cuda.h], [],
-			AC_MSG_WARN([Could not find cuda.h])
-			VALID_CUDA=no
-			,[#include <cuda.h>])
+		#AC_CHECK_HEADER([cuda.h], [],
+		#	AC_MSG_WARN([Could not find cuda.h])
+		#	VALID_CUDA=no
+		#	,[#include <cuda.h>])
 		if test "x$VALID_CUDA" != "xno" ; then
 			AC_CHECK_LIB([cuda], [cuInit], [VALID_CUDA=yes], [AC_MSG_WARN([Could not find libcuda])
             VALID_CUDA=no])

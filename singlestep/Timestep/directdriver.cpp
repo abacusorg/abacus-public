@@ -19,14 +19,19 @@ class NearFieldDriver{
     public:
         NearFieldDriver(int NearFieldRadius);
         ~NearFieldDriver();
+
+        void ExecuteSlab(int slabID, int blocking);
+        int SlabDone(int slabID);
+        void Finalize(int slabID);
     
         double SofteningLength;  // Effective Plummer length, used for timestepping.  Unit-box units.
         double SofteningLengthInternal;  // The equivalent length for the current softening technique.  Unit-box units.
         FLOAT eps; // Some power of SofteningLengthInternal, like ^2 or ^3, precomputed for the softening kernel
 
-        void ExecuteSlab(int slabID, int blocking);
-        int SlabDone(int slabID);
-        void Finalize(int slabID);
+        int NGPU;
+        int DirectBPD;
+        int NBuffers;
+        
         uint64 DirectInteractions_CPU;
         uint64 *DirectInteractions_GPU;
         uint64 *PaddedDirectInteractions_GPU;
@@ -73,8 +78,6 @@ class NearFieldDriver{
         int WIDTH;
         int RADIUS;
         Direct *DD;
-        int NGPU;
-        int NBuffers;
         double GPUMemoryGB;
         int MaxSourceBlocks;
         int MaxSinkBlocks;
@@ -131,6 +134,9 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
 #ifdef CUDADIRECT
     STDLOG(1, "Fetching number of GPUs... this will start the CUDA context\n");
     NGPU = GetNGPU();
+    DirectBPD = P.DirectBPD;
+
+
     STDLOG(1, "Fetching device memory...\n");
     GPUMemoryGB = GetDeviceMemory();
     GPUMemoryGB /= DirectBPD;	// Nominal GB per buffer

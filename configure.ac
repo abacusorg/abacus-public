@@ -5,6 +5,8 @@
 # Athena (https://trac.princeton.edu/Athena/)
 
 # Initialization
+AC_LANG([C++])  # does this work?
+
 AC_INIT([abacus], [0.9], [], [], [github.com/nbody/abacus])
 AC_CONFIG_HEADERS([./include/config.h])  # this places DEFS in a global header file instead of Makefiles
 AC_CONFIG_AUX_DIR([./Configuration])
@@ -24,6 +26,8 @@ AS_CASE([$build_cpu],
 AC_SUBST([ARCH])
 
 # These files will be generated from their Makefile.in counterparts
+# All ./configure information goes into common.mk
+# Makefiles must inherit any ./configure information from there
 AC_CONFIG_FILES([
  common.mk
 ])
@@ -61,13 +65,13 @@ AC_CHECK_PROGS(SWIG, swig)
 AX_EXT
 
 # We prefer yes/no, not yes/blank
-if test x$ax_cv_have_avx_ext == xyes; then
+if test x$ax_cv_support_avx_ext == xyes; then
     have_avx=yes
 else
     have_avx=no
 fi
 
-if test x$ax_cv_have_avx512f_ext == xyes; then
+if test x$ax_cv_support_avx512f_ext == xyes; then
     have_avx512f=yes
 else
     have_avx512f=no
@@ -136,47 +140,39 @@ if test x$enable_avx512_directs == xyes; then
 	AC_DEFINE_UNQUOTED(AVX512DIRECT, [], "Use AVX-512 directs")
 fi
 
-# TODO: change all this to --with-multipoles
-# Only the test driver cares about access to multiple implementations, and it has full control over that
-have_multipoles=no
 
-AC_ARG_ENABLE(avx512-multipoles,
-[AS_HELP_STRING([--enable-avx512-multipoles], [AVX-512 multipoles [yes if AVX-512 present]])],
-    [], enable_avx512_multipoles=$enable_avx512)
-AVX512MULTIPOLES="AVX512MULTIPOLES_DISABLED"
-if test x$enable_avx512_multipoles == xyes; then
-    AC_DEFINE_UNQUOTED(AVX512MULTIPOLES, [], "Use AVX-512 multipoles")
-    AVX512MULTIPOLES="AVX512MULTIPOLES_ENABLED"
-    have_multipoles=yes
+# Begin multipoles SIMD options
+
+AC_ARG_WITH(multipoles-simd,
+[AS_HELP_STRING([--multipoles-simd={avx512 | avx | unrolled | none}], [Multipoles/Taylors implementation [highest supported]])],
+    [], with_multipoles_simd="auto")
+
+if test "x$with_multipoles_simd" == xauto; then
+    if test "x$enable_avx512" == xyes; then
+        with_multipoles_simd="avx512"
+    elif test "x$enable_avx" == xyes; then
+        with_multipoles_simd="avx"
+    else
+        with_multipoles_simd="unrolled"
+    fi
 fi
-AC_SUBST(AVX512MULTIPOLES)
 
-AC_ARG_ENABLE(avx-multipoles,
-[AS_HELP_STRING([--enable-avx-multipoles], [AVX multipoles [yes if AVX present]])],
-	[], enable_avx_multipoles=auto)
-if test x$enable_avx_multipoles == xauto && test x$have_multipoles == no; then
-    enable_avx_multipoles=$have_avx
-    have_multipoles=yes
+AC_SUBST(MULTIPOLES_SIMD)
+MULTIPOLES_SIMD="MULTIPOLES_SIMD_NONE"
+if test "x$with_multipoles_simd" == xavx512; then
+    AC_DEFINE_UNQUOTED(AVX512MULTIPOLES, [], "AVX-512 multipoles/Taylors")
+    MULTIPOLES_SIMD="MULTIPOLES_SIMD_AVX512"
+elif test "x$with_multipoles_simd" == xavx; then
+    AC_DEFINE_UNQUOTED(AVXMULTIPOLES, [], "AVX multipoles/Taylors")
+    MULTIPOLES_SIMD="MULTIPOLES_SIMD_AVX"
+elif test "x$with_multipoles_simd" == xunrolled; then
+    AC_DEFINE_UNQUOTED(UNROLLEDMULTIPOLES, [], "Unrolled plain-C multipoles/Taylors")
+    MULTIPOLES_SIMD="MULTIPOLES_SIMD_UNROLLED"
+elif test "x$with_multipoles_simd" != xnone; then
+    AC_MSG_ERROR([Unknown multipoles simd option "$with_multipoles_simd"!])
 fi
-AVXMULTIPOLES="AVXMULTIPOLES_DISABLED"
-if test x$enable_avx_multipoles == xyes; then
-	AC_DEFINE_UNQUOTED(AVXMULTIPOLES, [], "Use AVX multipoles")
-    AVXMULTIPOLES="AVXMULTIPOLES_ENABLED"
-fi
-AC_SUBST(AVXMULTIPOLES)
 
-AC_ARG_ENABLE(unrolled-multipoles,
-[AS_HELP_STRING([--enable-unrolled-multipoles], [Unrolled (plain C) multipoles [yes if no AVX/AVX-512]])],
-    [], enable_unrolled_multipoles=auto)
-
-#if test x$enable_unrolled_multipoles == xauto
-
-UNROLLEDMULTIPOLES="UNROLLEDMULTIPOLES_DISABLED"
-if test x$enable_unrolled_multipoles == xyes; then
-    AC_DEFINE_UNQUOTED(UNROLLEDMULTIPOLES, [], "Use unrolled plain-C multipoles")
-    UNROLLEDMULTIPOLES="UNROLLEDMULTIPOLES_ENABLED"
-fi
-AC_SUBST(UNROLLEDMULTIPOLES)
+# end multipoles SIMD
 
 AC_ARG_ENABLE(avx-fof,
 [AS_HELP_STRING([--enable-avx-fof], [AVX FOF [yes if AVX present]])],
@@ -198,6 +194,8 @@ AC_DEFINE_UNQUOTED(MAXSOURCELENGTH,$with_max_source_length, "Maximum source leng
 AC_ARG_WITH(max-order,
 [AS_HELP_STRING([--with-max-order=O], [Maximum multipole order [16]])],
     [], with_max_order="16")
+MAXORDER=$with_max_order
+AC_SUBST(MAXORDER)
 AC_DEFINE_UNQUOTED(MAXORDER,$with_max_order, "Maximum multipole order")
 
 AC_ARG_ENABLE(threaded-io,
@@ -211,7 +209,7 @@ AC_ARG_ENABLE(spherical-overdensity,
 [AS_HELP_STRING([--enable-spherical-overdensity], [Use SO finder [no]])],
 	[], enable_spherical_overdensity="no")
 if test x$enable_spherical_overdensity == xyes; then
-	AC_DEFINE_UNQUOTED(SPHERICAL_OVERDENSITY, [], "Use SO finder for L1/L2 hhalos, rather than FOF")
+	AC_DEFINE_UNQUOTED(SPHERICAL_OVERDENSITY, [], "Use SO finder for L1/L2 halos, rather than FOF")
 fi
 
 AC_ARG_ENABLE(gpu-directs,
@@ -256,7 +254,7 @@ fi
 
 # Query the GPUs to find the number and compute capability
 if test x$enable_gpu_directs == xyes; then
-    AC_MSG_CHECKING([number & compute capability of GPUs])
+    AC_MSG_CHECKING([compute capability of GPUs])
 
     make --quiet -C singlestep/Direct detect_gpus MAKE_CONTEXT=AUTOCONF NVCC=$NVCC
     DETECT_GPUS_OUTPUT=$(./singlestep/Direct/detect_gpus)
@@ -264,31 +262,19 @@ if test x$enable_gpu_directs == xyes; then
     NGPU=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Device count: )\d+')
     CUDA_ARCH=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Compute capability: )\d+')
 
-    #NGPU=$(nvidia-smi -q | grep 'Attached GPUs'| awk -F ':' '{print $NF}' | tr -d [[:space:]])
     if test x$NGPU == x""; then
         NGPU=0
     fi
     if test x$CUDA_ARCH == x""; then
         CUDA_ARCH=0
     fi
-    AC_MSG_RESULT([$NGPU GPUs found, compute capability $CUDA_ARCH])
+    AC_MSG_RESULT([compute capability $CUDA_ARCH])
     AC_SUBST(CUDA_ARCH)
 fi
 
-# If we don't have any GPUs, pretend there's one for BPD
-if test x$NGPU == x -o x$NGPU == x0; then
-    NGPU=1
-fi
-DEFAULT_BPD=$((2*$with_radius/$NGPU + 1))
-AC_ARG_WITH(direct-bpd,
-[AS_HELP_STRING([--with-direct-bpd=B],
-[Direct buffers per device [ceil((2*NFR+1)/NGPU) = 3]])],
-	[], with_direct_bpd=$DEFAULT_BPD)
-AC_DEFINE_UNQUOTED(DirectBPD,$with_direct_bpd, "Direct buffers per device")
-
 AC_ARG_WITH(max-gpus,
 [AS_HELP_STRING([--with-max-gpus=M], [Maximum number of GPUs to use [auto]])],
-	[], with_max_gpus="auto")
+	[], with_max_gpus=32)
 if test x$with_max_gpus == xauto; then
     with_max_gpus=$NGPU
 fi
@@ -419,23 +405,18 @@ echo "Near field max radius:           $with_radius"
 echo "Near field block size:           $with_block_size"
 echo "AVX directs:                     $enable_avx_directs"
 echo "AVX-512 directs:                 $enable_avx512_directs"
-echo "AVX multipoles:                  $enable_avx_multipoles"
-echo "AVX-512 multipoles:              $enable_avx512_multipoles"
-echo "Unrolled multipoles:             $enable_unrolled_multipoles"
+echo "SIMD multipoles:                 $with_multipoles_simd"
 echo "AVX FOF:                         $enable_avx_fof"
 echo "Spherical Overdensity:           $enable_spherical_overdensity"
 echo "Threaded IO:                     $enable_threaded_io"
-echo "Direct buffers-per-device:       $with_direct_bpd"
 echo "GPU directs:                     $enable_gpu_directs"
 echo "Compute FOF-scale density:       $enable_fof_density"
 echo "MPI parallel code:               $enable_parallel"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
-echo "Maximum GPUs:                    $with_max_gpus"
 echo "Cache line size:                 $with_cache_line"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
-echo "Ramdisk path:                    $with_ramdisk"
 echo "------------------------------------------------------"
 echo
 
@@ -443,5 +424,7 @@ echo
 #echo "Maximum CPD:                     $with_max_cpd"
 #echo "Maximum source length:           $with_max_source_length"
 #echo "Maximum order:                   $with_max_order"
+#echo "Maximum GPUs:                    $with_max_gpus"
+#echo "Ramdisk path:                    $with_ramdisk"
 
 AC_OUTPUT

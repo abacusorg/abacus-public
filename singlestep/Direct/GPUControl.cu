@@ -153,7 +153,7 @@ struct GPUBuffer {
     char * device;        ///< The device-side memory
     char * host;        ///< The host-side memory allocated as default
     char * hostWC;        ///< The host-side memory allocated as write combined
-    int ready;            ///< Have we finished initializing the CUDA stream for this buffer?
+    volatile int ready;            ///< Have we finished initializing the CUDA stream for this buffer?
 };
 
 // GPUSetup() spins up one thread per GPU buffer
@@ -384,9 +384,10 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
 
     pthread_barrier_t *thread_startup_barriers[NGPU];
     for(int g = 0; g < NBuf; g++){
-            Buffers[g].size = MaxBufferSize;
-            Buffers[g].sizeWC = Buffers[g].size*(1.0-RatioDeftoAll);
-            Buffers[g].sizeDef = Buffers[g].size*RatioDeftoAll;
+        Buffers[g].size = MaxBufferSize;
+        Buffers[g].sizeWC = Buffers[g].size*(1.0-RatioDeftoAll);
+        Buffers[g].sizeDef = Buffers[g].size*RatioDeftoAll;
+        Buffers[g].ready = 0;
 
         ThreadInfo *info = new ThreadInfo;
         int core_start = ThreadCoreStart[g % NGPU];

@@ -9,7 +9,7 @@
 
 // Unpack a TimeSlice pack14 slab into pos,vel,aux,cellinfo slabs
 // This is used by our standalone_fof pipeline
-int unpack_slab_pack14(int slab, double taggable_frac) {
+int64_t unpack_slab_pack14(int slab, double taggable_frac) {
     void *rawslab = SB->GetSlabPtr(TimeSlice, slab);
     uint64 rawsize = SB->SlabSizeBytes(TimeSlice, slab);
     FILE *buffer_file = fmemopen(rawslab, rawsize, "rb");
@@ -27,23 +27,18 @@ int unpack_slab_pack14(int slab, double taggable_frac) {
     uint64 maxnp = datasize/14;
     STDLOG(2,"Allocating space for %d particles\n", maxnp);
 
-    SB->AllocateSpecificSize(PosSlab,slab,maxnp*sizeof(posstruct));
-    SB->AllocateSpecificSize(VelSlab,slab,maxnp*sizeof(velstruct));
-    SB->AllocateSpecificSize(AuxSlab,slab,maxnp*sizeof(auxstruct));
-    SB->AllocateSpecificSize(CellInfoSlab,slab,maxnp*sizeof(cellinfo));
+    posstruct *pos = (posstruct *) SB->AllocateSpecificSize(PosSlab,slab,maxnp*sizeof(posstruct), RAMDISK_NO);
+    velstruct *vel = (velstruct *) SB->AllocateSpecificSize(VelSlab,slab,maxnp*sizeof(velstruct), RAMDISK_NO);
+    auxstruct *aux = (auxstruct *) SB->AllocateSpecificSize(AuxSlab,slab,maxnp*sizeof(auxstruct), RAMDISK_NO);
+    cellinfo *ci = (cellinfo *) SB->AllocateSpecificSize(CellInfoSlab,slab,maxnp*sizeof(cellinfo), RAMDISK_NO);
         // this one is grossly overallocated! but L0 might have more than cpd^2 cells...
-
-    posstruct *pos = (posstruct *) SB->GetSlabPtr(PosSlab, slab);
-    velstruct *vel = (velstruct *) SB->GetSlabPtr(VelSlab, slab);
-    auxstruct *aux = (auxstruct *) SB->GetSlabPtr(AuxSlab, slab);
-    cellinfo *ci = (cellinfo *) SB->GetSlabPtr(CellInfoSlab, slab);
 
     // Initialize to empty cells
     int cpd = CP->cpd;
-    for (int j=0; j<cpd*cpd; j++)
+    for (int j=0; j<maxnp; j++)
         ci[j].makenull();
 
-    uint64 nump = 0;
+    int64_t nump = 0;
     int thiscell = -1;
 
     double3 posd, veld;
@@ -84,6 +79,13 @@ int unpack_slab_pack14(int slab, double taggable_frac) {
     if(thiscell>=0)
         ci[thiscell].count = ci[thiscell].active = nump - ci[thiscell].startindex;
     fclose(buffer_file);
+
+    // Shrink to the actual read size
+    SB->ResizeSlab(PosSlab, slab, nump*sizeof(posstruct));
+    SB->ResizeSlab(VelSlab, slab, nump*sizeof(velstruct));
+    SB->ResizeSlab(AuxSlab, slab, nump*sizeof(auxstruct));
+    // TODO: figure out how much we can shrink CellInfoSlab
+
     return nump;
 }
 

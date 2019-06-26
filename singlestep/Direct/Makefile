@@ -28,7 +28,7 @@ ARCHFLAGS := --generate-code arch=compute_$(CUDA_ARCH),code=sm_$(CUDA_ARCH)
 # _FORCE_INLINES fixes a weird compilation bug
 CPPFLAGS += -D_FORCE_INLINES
 
-CUDAFLAGS := $(ARCHFLAGS) -lineinfo -Xptxas="-v" -maxrregcount 63 --default-stream per-thread $(NVCC_FLAGS)
+CUDAFLAGS := $(ARCHFLAGS) -lineinfo -Xptxas="-v" --default-stream per-thread $(NVCC_FLAGS)
 
 all: gpudirect.a
 
