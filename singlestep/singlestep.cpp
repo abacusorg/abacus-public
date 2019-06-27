@@ -123,6 +123,12 @@ void PlanOutput(bool MakeIC) {
 
 }
 
+#include <signal.h>
+void graceful_exit_signal_handler(int sig)
+{
+    STDLOG(0, "Caught signal %d.\n", sig);
+}
+
 void InitializeParallel(int &size, int &rank) {
     #ifdef PARALLEL
          // Start up MPI
@@ -143,6 +149,7 @@ void InitializeParallel(int &size, int &rank) {
 
 void FinalizeParallel() {
     #ifdef PARALLEL
+
         // Finalize MPI
         STDLOG(0,"Calling MPI_Finalize()\n");
         MPI_Finalize();
@@ -177,6 +184,8 @@ int main(int argc, char **argv) {
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
     STDLOG(0,"MakeIC = %d\n", MakeIC);
     #ifdef PARALLEL
+		signal(SIGUSR1, graceful_exit_signal_handler); 
+	
         STDLOG(0,"Initialized MPI.\n");   
         STDLOG(0,"Node rank %d of %d total\n", MPI_rank, MPI_size);
     #endif

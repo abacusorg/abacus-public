@@ -157,6 +157,7 @@ public:
     double SODensity[2];  // Overdensities for SO groupfinding level 1 and 2
     int MinL1HaloNP; // minimum L1 halo size to output
 	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
+
     #define MAX_L1OUTPUT_REDSHIFTS 1024
     float L1OutputRedshifts[MAX_L1OUTPUT_REDSHIFTS];
     double HaloTaggableFraction; // fraction of particles in a L2 halo to tag and output

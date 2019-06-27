@@ -50,6 +50,16 @@ void FetchICAction(int slab) {
  */
 
 void timestepIC(void) {
+#ifdef PARALLEL
+	
+	//in previous timestep's finish action, multipoles were distributed to nodes such that each node now stores multipole moments for all x and its given range of z that it will convolve. Fetch these from shared memory.	
+	int create_MT_file = 1; 
+	ConvolutionWallClock.Clear(); ConvolutionWallClock.Start(); 
+	ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory, create_MT_file);
+	ConvolutionWallClock.Stop(); 
+	ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed(); 
+#endif
+	
     STDLOG(0,"Initiating timestepIC()\n");
     TimeStepWallClock.Clear();
     TimeStepWallClock.Start();
@@ -62,15 +72,30 @@ void timestepIC(void) {
     Drift.instantiate(cpd, first, &FetchICPrecondition, &FetchICAction );
     Finish.instantiate(cpd, first + FINISH_WAIT_RADIUS,  &FinishPrecondition,  &FinishAction );
 
-    while( !Finish.alldone(total_slabs_on_node) ) {
+#ifdef PARALLEL
+	CheckForMultipoles.instantiate(cpd, first + FINISH_WAIT_RADIUS, &CheckForMultipolesPrecondition,  &CheckForMultipolesAction );
+#else
+	CheckForMultipoles.instantiate(cpd, first + FINISH_WAIT_RADIUS, &NoopPrecondition,  &NoopAction );
+#endif
+	
+	
+	int timestep_loop_complete = 0; 
+	while (!timestep_loop_complete){
         Drift.Attempt();
-       Finish.Attempt();
-       SendManifest->FreeAfterSend();
-    ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
+       	Finish.Attempt();	   
+       	SendManifest->FreeAfterSend();
+    	ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
     // If the manifest has been received, install it.
-    if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
-
+    	if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
+   		CheckForMultipoles.Attempt();
+		
+#ifdef PARALLEL
+		timestep_loop_complete = CheckForMultipoles.alldone(total_slabs_on_node);
+#else
+		timestep_loop_complete = Finish.alldone(total_slabs_on_node);
+#endif
     }
+
 
     STDLOG(1, "Read %d particles from IC files\n", NP_from_IC);
     #ifdef PARALLEL
@@ -84,6 +109,10 @@ void timestepIC(void) {
         SendManifest->FreeAfterSend();
         // Run this again, just in case the dependency loop on this node finished
        // before the neighbor received the non-blocking MPI transfer.
+	    TimeStepWallClock.Stop(); ConvolutionWallClock.Start(); 
+    	delete ParallelConvolveDriver;
+	    ConvolutionWallClock.Stop(); TimeStepWallClock.Start(); 
+		
     #endif
     STDLOG(1, "Particles remaining on insert list: %d\n", IL->length);
     if (MPI_rank==0) {

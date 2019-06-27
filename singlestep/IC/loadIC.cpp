@@ -71,7 +71,7 @@ uint64 LoadSlab2IL(int slab) {
 
     uint64 count = 0;
 
-    STDLOG(2, "IC format permits %d thread(s)\n", ic->maxthreads);
+    STDLOG(3, "IC format permits %d thread(s)\n", ic->maxthreads);
 
     // TODO: it's hard to OMP a while loop, so for now we have two versions to support multi-threaded in-memory IC generation
     if(ic->maxthreads > 1){

@@ -432,17 +432,17 @@ void FindGroupLinks(int slab) {
     // We do all at once, in order to get repeated access to individual cells.
     CreateFaces(xm, xp, ym, yp, zm, zp);
 
-    STDLOG(2,"XP for slab %d: %u pseudoParticles, %u faceParticles, %u faceGroups\n",
+    STDLOG(3,"XP for slab %d: %u pseudoParticles, %u faceParticles, %u faceGroups\n",
 	slab, xp.pseudoParticles.get_slab_size(), xp.faceParticles.get_slab_size(), xp.faceGroups.get_slab_size());
-    STDLOG(2,"XM for slab %d: %u pseudoParticles, %u faceParticles, %u faceGroups\n",
+    STDLOG(3,"XM for slab %d: %u pseudoParticles, %u faceParticles, %u faceGroups\n",
 	slab, xm.pseudoParticles.get_slab_size(), xm.faceParticles.get_slab_size(), xm.faceGroups.get_slab_size());
-    STDLOG(2,"YP for slab %d: %u pseudoParticles, %u faceParticles, %u faceGroups\n",
+    STDLOG(3,"YP for slab %d: %u pseudoParticles, %u faceParticles, %u faceGroups\n",
 	slab, yp.pseudoParticles.get_slab_size(), yp.faceParticles.get_slab_size(), yp.faceGroups.get_slab_size());
-    STDLOG(2,"YM for slab %d: %u pseudoParticles, %u faceParticles, %u faceGroups\n",
+    STDLOG(3,"YM for slab %d: %u pseudoParticles, %u faceParticles, %u faceGroups\n",
 	slab, ym.pseudoParticles.get_slab_size(), ym.faceParticles.get_slab_size(), ym.faceGroups.get_slab_size());
-    STDLOG(2,"ZP for slab %d: %u pseudoParticles, %u faceParticles, %u faceGroups\n",
+    STDLOG(3,"ZP for slab %d: %u pseudoParticles, %u faceParticles, %u faceGroups\n",
 	slab, zp.pseudoParticles.get_slab_size(), zp.faceParticles.get_slab_size(), zp.faceGroups.get_slab_size());
-    STDLOG(2,"ZM for slab %d: %u pseudoParticles, %u faceParticles, %u faceGroups\n",
+    STDLOG(3,"ZM for slab %d: %u pseudoParticles, %u faceParticles, %u faceGroups\n",
 	slab, zm.pseudoParticles.get_slab_size(), zm.faceParticles.get_slab_size(), zm.faceGroups.get_slab_size());
 
     GFC->pPtot += 

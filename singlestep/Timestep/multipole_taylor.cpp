@@ -58,7 +58,7 @@ void ComputeMultipoleSlab(int slab) {
     // Recall that our accelerations/positions may be in single-precision.
     posstruct *pos = (posstruct *) SB->GetSlabPtr(MergePosSlab,slab);
     uint64 slabsize;
-    STDLOG(2,"Calling multipole module.\n");
+    STDLOG(3,"Calling multipole module.\n");
     MTCOMPLEX *slabmultipoles = (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab,slab);
     MF->ComputeMultipoleFFTYZ( slab, pos, MF->count, MF->offset, MF->cc, slabmultipoles);
 

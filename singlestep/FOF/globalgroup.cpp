@@ -912,11 +912,12 @@ void GlobalGroupSlab::HaloOutput() {
         }
 
     // Write out the taggable particles not in L1 halos
-        // TODO: Technically HaloTaggableFraction is only used in the IC step
-        uint64 maxsize = SS->size(slab)*P.HaloTaggableFraction;
-        maxsize += 6*sqrt(maxsize);  // 6-sigma buffer
-        SB->AllocateSpecificSize(TaggableFieldSlab, slab, maxsize*sizeof(RVfloat));
-        SB->AllocateSpecificSize(TaggableFieldPIDSlab, slab, maxsize*sizeof(TaggedPID));
+    // TODO: Technically HaloTaggableFraction is only used in the IC step
+    uint64 maxsize = SS->size(slab)*P.HaloTaggableFraction;
+    maxsize += 6*sqrt(maxsize);  // 6-sigma buffer
+
+    SB->AllocateSpecificSize(TaggableFieldSlab, slab, maxsize*sizeof(RVfloat));
+    SB->AllocateSpecificSize(TaggableFieldPIDSlab, slab, maxsize*sizeof(TaggedPID));
         
     uint64 nfield = GatherTaggableFieldParticles(slab,
                         (RVfloat *) SB->GetSlabPtr(TaggableFieldSlab, slab),

@@ -18,7 +18,9 @@ STimer ConvolutionWallClock;
 
 
 #include "factorial.cpp"
+#ifndef PARALLEL
 #include "iolib.cpp"
+#endif
 
 #include "Parameters.cpp"
 
@@ -168,7 +170,7 @@ void setup_openmp(){
 #ifdef CONVIOTHREADED
     for (int i = 0; i < MAX_IO_THREADS; i++){
         P.Conv_IOCores[i] = P.Conv_IOCores[i];
-        //STDLOG(2, "IO thread %d assigned to core %d\n", i, P.Conv_IOCores[i]);
+        //STDLOG(3, "IO thread %d assigned to core %d\n", i, P.Conv_IOCores[i]);
     }
 #endif
     
@@ -412,8 +414,8 @@ int main(int argc, char ** argv){
         for (int i = 0; i < MAX_IO_THREADS; i++)
             CP.io_cores[i] = P.Conv_IOCores[i];
     
-        STDLOG(2, "MTCOMPLEX (multipole/taylor) dtype width: %d\n", (int) sizeof(MTCOMPLEX));
-        STDLOG(2, "DFLOAT (derivatives)         dtype width: %d\n", (int) sizeof(DFLOAT));
+        STDLOG(3, "MTCOMPLEX (multipole/taylor) dtype width: %d\n", (int) sizeof(MTCOMPLEX));
+        STDLOG(3, "DFLOAT (derivatives)         dtype width: %d\n", (int) sizeof(DFLOAT));
 
         // Finished determining parameters; start the main work object
         OutofCoreConvolution OCC(CP);

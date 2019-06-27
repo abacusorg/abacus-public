@@ -124,9 +124,9 @@ uint64 FillMergeSlab(int slab) {
     // Sort the insert list
     uint64 ilslablength;
 
-    STDLOG(2,"Insert list contains a total of %d particles.\n", IL->length);
+    STDLOG(3,"Insert list contains a total of %d particles.\n", IL->length);
     ilstruct *ILnew = IL->PartitionAndSort(slab,&ilslablength);
-    STDLOG(1,"Insert list contains %d new particles for slab %d; %d remaining\n", ilslablength, slab, IL->length);
+    STDLOG(2,"Insert list contains %d new particles for slab %d; %d remaining\n", ilslablength, slab, IL->length);
 
     FinishCellIndex.Start();
 
@@ -218,7 +218,7 @@ uint64 FillMergeSlab(int slab) {
             skewer[y].stats(ci, mci);    // Gather the skewer stats
         }
     }
-    STDLOG(1,"Slab %d contains %d old particles and %d new particles\n", slab, inslab, ilslablength);
+    STDLOG(2,"Slab %d contains %d old particles and %d new particles\n", slab, inslab, ilslablength);
 
     // Accumulate the stats for the full slab
     // Scalar loop
@@ -227,7 +227,7 @@ uint64 FillMergeSlab(int slab) {
     // Can refer to these as skewer->variable
 
     // Write out the stats
-    STDLOG(1,"Cells in slab %d range from %d to %d particles\n", slab, skewer->mincellsize, skewer->maxcellsize);
+    STDLOG(2,"Cells in slab %d range from %d to %d particles\n", slab, skewer->mincellsize, skewer->maxcellsize);
     TRACK_MAX(WriteState.MaxCellSize, skewer->maxcellsize);
     TRACK_MIN(WriteState.MinCellSize, skewer->mincellsize);
 
@@ -237,7 +237,7 @@ uint64 FillMergeSlab(int slab) {
     TRACK_MAX(WriteState.MaxAcceleration, skewer->max_acceleration);
     TRACK_MIN(WriteState.MinVrmsOnAmax, skewer->min_vrms_on_amax);
 
-    STDLOG(1, "Slab %d: Max v_j %f, Max a_j %f, Min <|v|>/amax %f\n", 
+    STDLOG(2, "Slab %d: Max v_j %f, Max a_j %f, Min <|v|>/amax %f\n", 
     	slab, skewer->max_velocity, skewer->max_acceleration, skewer->min_vrms_on_amax);
 
     WriteState.RMS_Velocity += skewer->sum_square_velocity;
@@ -256,7 +256,7 @@ uint64 FillMergeSlab(int slab) {
     SB->AllocateSpecificSize(MergePosSlab, slab, inslab*sizeof(posstruct));
     SB->AllocateSpecificSize(MergeVelSlab, slab, inslab*sizeof(velstruct));
     SB->AllocateSpecificSize(MergeAuxSlab, slab, inslab*sizeof(auxstruct));
-    STDLOG(1,"Allocating Merge Slabs to contain %d particles\n", inslab);
+    STDLOG(2,"Allocating Merge Slabs to contain %d particles\n", inslab);
 
     #pragma omp parallel for schedule(static)
     for(int y=0;y<cpd;y++){
@@ -313,7 +313,7 @@ uint64 FillMergeSlab(int slab) {
     // Delete the particles from the insert list.
     free(ILnew);   // Need to free this space!
     // IL->ShrinkIL(IL->length - ilslablength);
-    STDLOG(1,"After merge, insert list contains a total of %d particles.\n", IL->length);
+    STDLOG(2,"After merge, insert list contains a total of %d particles.\n", IL->length);
     SB->DeAllocate(InsertCellInfoSlab, slab);
     FinishMerge.Stop();
     return inslab;

@@ -1,21 +1,32 @@
 class InCoreConvolution : public basemultipoles {
 public:
-    InCoreConvolution(int order, int cpd, int blocksize) : 
+    InCoreConvolution(int order, int cpd, int blocksize, int _cpd2pad = 0) : 
             basemultipoles(order), cpd(cpd), blocksize(blocksize) {
-
+				
+		STDLOG(3," Entering ICC constructor\n");
+		//in normal case, a set of x-y multipoles has cpd*cpd cells. in the parallel case, though, we pad out y to cpd2pad -- some number slightly bigger than cpd. 
+		
+		if (_cpd2pad == 0) cpd2pad = cpd * cpd; 
+		else cpd2pad = _cpd2pad; 
+		
         CompressedMultipoleLengthXY  = ((1+cpd)*(3+cpd))/8;
         nblocks = (cpd*cpd)/blocksize;
         cpdhalf = (cpd-1)/2;
         int cs = omp_get_max_threads() * (completemultipolelength * blocksize + thread_padding);  // extra 1K padding between threads
+		
+				
         _mcache = new Complex[cs]; 
         _dcache = new  double[cs]; 
         _tcache = new Complex[cs];
         mfactor = new double[completemultipolelength];
+				
+		
         int a,b,c;
         FORALL_COMPLETE_MULTIPOLES_BOUND(a,b,c,order) {
             mfactor[ cmap(a,b,c) ] = 
                 pow(-1.0,a+b+c)/(fact2(2*(a+b+c)-1)*fact(a)*fact(b)*fact(c));
         }
+				
     }
     ~InCoreConvolution(void) {
         delete[] _mcache; delete[] _dcache; delete[] _tcache; delete[] mfactor;
@@ -26,7 +37,7 @@ public:
 private:
     Complex *_mcache,*_tcache;
     double *_dcache,*mfactor;
-    int cpd,blocksize,nblocks,cpdhalf,CompressedMultipoleLengthXY;
+    int cpd, cpd2pad, blocksize,nblocks,cpdhalf,CompressedMultipoleLengthXY;
     const int thread_padding = 1024;
 };
 
@@ -68,7 +79,10 @@ void MVM(Complex *t, Complex *m, double *d, int n) {
 
 void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
     // why is this 50% faster with dynamic?
-    #pragma omp parallel for schedule(dynamic)
+	
+	STDLOG(3, "Entering InCoreConvolve\n");
+
+	#pragma omp parallel for schedule(dynamic)
     for(int block=0;block<nblocks;block++) {
             
         Complex *FM, *FMabc, *FMap2bcm2, *FMabp2cm2;
@@ -84,7 +98,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
 
         xyzbegin = block*blocksize;
         FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
-            FM = &(FFTM[rmap(a,b,c) * cpd*cpd + xyzbegin]);
+            FM = &(FFTM[rmap(a,b,c) * cpd2pad + xyzbegin]);
             int m = cmap(a,b,c);
             FOR(xyz,0,blocksize-1) mcache[m*blocksize + xyz] = FM[xyz];
         }
@@ -137,8 +151,8 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
                 FDabc[xyz] = - FDap2bcm2[xyz] - FDabp2cm2[xyz];
         }
 
-        FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
-            Complex *FT = &(FFTM[rmap(a,b,c) * cpd*cpd + xyzbegin]);
+        FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {			
+            Complex *FT = &(FFTM[rmap(a,b,c) * cpd2pad + xyzbegin]);
 
             FOR(xyz,0,blocksize-1) tcache[xyz] = 0;
             FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,order-a-b-c) {
@@ -161,4 +175,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
             Complex I(0,1); FOR(xyz,0,blocksize-1) FT[xyz] += tcache[xyz]*I;
         }
     }
+	
+	STDLOG(3, "Exiting InCoreConvolve\n");
+	
 }

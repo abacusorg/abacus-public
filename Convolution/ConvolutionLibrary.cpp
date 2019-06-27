@@ -7,6 +7,12 @@
 
 #include "factorial.h"
 
+#ifdef PARALLEL
+//#include "read_dio.h"
+#include "iolib.cpp"
+#endif
+
 #include "basemultipoles.h"
 
 #include "OutofCoreConvolution.cpp"
+
