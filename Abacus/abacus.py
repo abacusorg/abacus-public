@@ -904,9 +904,10 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             break
             
         # Check that write/state was written as a test of success
-        if not path.exists(pjoin(write, "state")):
-            raise ValueError("Singlestep did not complete!")
-        write_state = InputFile(pjoin(write, "state"))
+        write_state_path = pjoin(write, "state")
+        if not path.isfile(write_state_path):
+            raise ValueError(f'No write state file at "{write_state_path}"; singlestep did not complete!')
+        write_state = InputFile(write_state_path)
 
         # save the log and timing files under this step number
         save_log_files(param.LogDirectory, 'step{:04d}'.format(write_state.FullStepNumber))

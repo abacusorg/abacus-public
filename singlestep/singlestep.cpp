@@ -126,7 +126,11 @@ void PlanOutput(bool MakeIC) {
 void InitializeParallel(int &size, int &rank) {
     #ifdef PARALLEL
          // Start up MPI
-         int ret;
+         int init = 1;
+         MPI_Initialized(&init);
+         assertf(!init, "MPI was already initialized!\n");
+
+         int ret = -1;
          MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
          assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
          MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -140,7 +144,7 @@ void InitializeParallel(int &size, int &rank) {
 void FinalizeParallel() {
     #ifdef PARALLEL
         // Finalize MPI
-        STDLOG(0,"Calling MPI_Finalize()");
+        STDLOG(0,"Calling MPI_Finalize()\n");
         MPI_Finalize();
     #else
     #endif
