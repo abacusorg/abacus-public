@@ -704,28 +704,16 @@ int FinishPrecondition(int slab) {
 
 uint64 merged_particles = 0;
 void FinishAction(int slab) {
-	// FinishPreamble.Clear();
-// 	debug_Merge.Clear();
-// 	debug_log_and_compute.Clear();
-// 	WriteMergeSlab.Clear();
-// 	WriteMultipoleSlab.Clear();
-// 	debug_Manifest_and_log.Clear();
-// 	QueueMultipoleMPI.Clear();
-// 	debug_log_report_mem.Clear();
-	
 	FinishPreamble.Start();
 	
-    STDLOG(0,"Entering Finish action for slab %d\n", slab);
-	
+    STDLOG(0,"Entering Finish action for slab %d\n", slab);	
     
     if (WriteState.Do2LPTVelocityRereading)
         SB->DeAllocate(VelLPTSlab, slab);
 	
-	
 	FinishPreamble.Stop(); 
 	
 	debug_Merge.Start(); 
-    
 	
     // Gather particles from the insert list and make the merge slabs
     uint64 n_merge = FillMergeSlab(slab);
@@ -751,7 +739,6 @@ void FinishAction(int slab) {
     SB->DeAllocate(PosSlab,slab);
     SB->DeAllocate(VelSlab,slab);
     SB->DeAllocate(AuxSlab,slab);
-    
 	
 	STDLOG(2,"Done deallocing pos, vel, aux for slab %d\n", slab);
 	

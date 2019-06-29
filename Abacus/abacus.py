@@ -29,41 +29,39 @@ Command line usage:
 '''
 
 import os
+import sys
 abacuspath = os.getenv("ABACUS")
 if not abacuspath:
-    print("Error: Please define $ABACUS to be the absolute path to your abacus distribution")
+    print("Error: Please define $ABACUS to be the absolute path to your abacus distribution", file=sys.stderr)
     sys.exit(1)
     
 import os.path as path
 from os.path import join as pjoin, normpath, basename, dirname
 import subprocess
-import sys
 import shutil
 import ctypes as ct
 import argparse
-import numpy as np
 from glob import glob
 import pathlib
 import re
 import fnmatch
 import shlex
-
-import time 
+import time
 import signal
 from tempfile import mkstemp
 
+import numpy as np
 
 from .InputFile import InputFile
 from . import Tools
 from . import GenParam
 from . import zeldovich
 from Abacus.Cosmology import AbacusCosmo
-import Abacus
 
 EXIT_REQUEUE = 200
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
 directory_param_fn = pjoin(abacuspath, 'Abacus', 'directory.def')
-
+wall_timer = time.perf_counter()  # monotonic wall clock time
 
 
 def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False, erase_ic=False, output_parfile=None, use_site_overrides=False, override_directories=False, **param_kwargs):
@@ -129,8 +127,9 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     basedir = params['WorkingDirectory']
     groupdir = params.get('GroupDirectory', '')
     
-    if params.get('DistributeToResume') == 1: 
-        clean = 0
+    # TODO: does DistributeToResume override the clean parameter?
+    if params.get('DistributeToResume'):
+        clean = False
 
     # If we requested a resume, but there is no state, assume we are starting fresh
     if not clean:
@@ -200,10 +199,10 @@ def handle_requeue(retval, parfn):
     #first, check if DistributeToResume is defined in abacus.par2 from a previous run. If so, delete this line.
     fh, abs_path = mkstemp()
     
-    with os.fdopen(fh,'w') as new_file:
-        with open(parfn) as old_file:
-            for line in old_file:
-                new_file.write(line.replace('DistributeToResume = 1\n',  '\n'))
+    # TODO: how to signal this without modifying the .par2 file?
+    with os.fdopen(fh,'w') as new_file, open(parfn) as old_file:
+        for line in old_file:
+            new_file.write(line.replace('DistributeToResume = 1\n',  '\n'))
                 
     #Remove original file
     os.remove(parfn)
@@ -213,10 +212,8 @@ def handle_requeue(retval, parfn):
     #then check if we are about to requeue the job, and set DistributeToResume = 1 if yes. 
     if retval == EXIT_REQUEUE:
         print('Exit requeue triggered. Modifying parameter file to DistributeToResume next time around.')
-        f= open(parfn,"a")
-        f.write('DistributeToResume = 1\n')
-        f.close()     
-        
+        with open(parfn,"a") as f:
+            f.write('DistributeToResume = 1\n')
         #sys.exit()
 
 def copy_contents(in_dir, out_dir, clean=True, ignore='*.py'):
@@ -801,8 +798,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         # TODO: figure out how to signal a backup to the nodes
         run_time_minutes = 360 #360
         run_time_secs = 60 * run_time_minutes
-        start_time = time.time(); 
-        print("Beginning run at Unix epoch time", start_time, ", running for ", run_time_minutes, " minutes.\n");
+        start_time = wall_timer()
+        print("Beginning run at Unix epoch time", start_time, ", running for ", run_time_minutes, " minutes.\n")
         # s = SignalHandler()
 #         signal.signal(signal.SIGUSR1, s.handle)
 #         signal.signal(signal.SIGUSR2, s.handle)
@@ -854,25 +851,24 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         distribute_state_from = param.get('DistributeStateFrom', None)
         if distribute_state_from:
             print('Distributing state to nodes...')
-            distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'distribute_state_to_nodes.py'), paramfn, distribute_state_from]
+            distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, distribute_state_from, '--distribute-from-serial']
             subprocess.check_call(Conv_mpirun_cmd + distribute_state_cmd)
         
-        #check if our previous run was interruptered and saved in the global directory. If yes, redistribute state to nodes. 
+        #check if our previous run was interrupted and saved in the global directory. If yes, redistribute state to nodes. 
         #TODO do this by checking if we have a backed-up state available in global directory (instead of looking at param file). 
         distribute_to_resume = param.get('DistributeToResume', None)
         
-        print('distribute_to_resume = ', distribute_to_resume); 
+        print('distribute_to_resume = ', distribute_to_resume)
         
         if distribute_to_resume:
             print('Distributing in order to resume...')
-            distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'distribute_state_to_nodes.py'), paramfn, '--distribute_to_resume', '--verbose']
+            distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', '--verbose']
             subprocess.check_call(Conv_mpirun_cmd + distribute_state_cmd)
         
     print("Beginning abacus steps:")
     
 
     for i in range(maxsteps):
-        
         
         if make_ic:
             ConvDone = True  # No need to convolve for an IC step
@@ -893,7 +889,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         ss_timer, conv_time = None, None
 
         # Do the convolution
-        if not ConvDone and not parallel :
+        # TODO: do we want to continue to support tick-tock parallel convolve/singlestep?
+        if not ConvDone and not parallel:
             if not do_fake_convolve:
                 # Now check if we have all the multipoles the convolution will need
                 if not check_multipole_taylor_done(param, read_state, kind='Multipole'):
@@ -1035,19 +1032,19 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                 
    
         #if parallel and s.graceful_exit:
-        print("Current time: ", time.time(), start_time, 0.93 *run_time_secs)
+        print("Current time: ", wall_timer(), start_time, 0.93 *run_time_secs)
         
-        if parallel and (time.time() - start_time >= 0.93 * run_time_secs):
+        if parallel and (wall_timer() - start_time >= 0.93 * run_time_secs):
             
-            restore_time = time.time(); 
+            restore_time = wall_timer()
             
             print('Graceful exit triggered. Retrieving state from nodes and saving in global directory.')
-            retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'distribute_state_to_nodes.py'), paramfn, '--retrieve', '--verbose']
+            retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--retrieve', '--verbose']
             subprocess.check_call(Conv_mpirun_cmd + retrieve_state_cmd)
             
-            restore_time = time.time() - restore_time; 
+            restore_time = wall_timer() - restore_time
             
-            print('Retrieving and storing state took %f seconds\n', restore_time); 
+            print(f'Retrieving and storing state took {restore_time} seconds\n')
             
             print('Exiting and requeueing.')
             return EXIT_REQUEUE  
