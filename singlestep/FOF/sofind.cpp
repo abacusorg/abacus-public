@@ -508,7 +508,7 @@ class SOcell {
 	if (size==len) {
 	  size = len;
 	  //printf("WOOHOO size =%5i \n",size);
-	  d2sort[size] += 1.5e19;
+	  d2sort[size] *= 2.;
 	}
 	return (d2sort[size]); 
     }
@@ -593,7 +593,7 @@ class SOcell {
 	    if (count>50) break; // cap on number of halos per FOF group
 	    
 	    // for testing purposes
-	    //if (np<385) break;
+	    if (np<385) break;
 	    //if (np>256) break;
 	    //if (np<9900) break;
 	    
@@ -617,7 +617,8 @@ class SOcell {
 	    // VERSION 1 with respect to Delta
 	    FOFloat d2SO = original_search(d2use, np)+1.e15;//+1.e19;
 	    //FOFloat d2SO = hist_search(d2use, np)+1.;
-	    FOFloat d2SO_pr = d2SO*.75;//*.9;//*0.75;// used to be .5 but a bit weird
+	    //FOFloat d2SO_pr = original_search_pr(d2use, np)+1.e15;//d2SO*.75;//*.9;//*0.75;// used to be .5 but a bit weird
+	    FOFloat d2SO_pr = d2SO*.9;//*.9;//*0.75;// used to be .5 but a bit weird
 	    // VERSION 2 with respect to Delta primer
 	    //FOFloat d2SO_pr = original_search_pr(d2use, np)+1.;
 	    
