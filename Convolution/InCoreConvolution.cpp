@@ -1,4 +1,11 @@
 class InCoreConvolution : public basemultipoles {
+private:
+    Complex *_mcache,*_tcache;
+    double *_dcache,*mfactor;
+    int cpd,blocksize,nblocks,cpdhalf,CompressedMultipoleLengthXY;
+    const int thread_padding = 1024;
+    int bufsize;
+
 public:
     InCoreConvolution(int order, int cpd, int blocksize) : 
             basemultipoles(order), cpd(cpd), blocksize(blocksize) {
@@ -6,7 +13,22 @@ public:
         CompressedMultipoleLengthXY  = ((1+cpd)*(3+cpd))/8;
         nblocks = (cpd*cpd)/blocksize;
         cpdhalf = (cpd-1)/2;
-        int cs = omp_get_max_threads() * (completemultipolelength * blocksize + thread_padding);  // extra 1K padding between threads
+
+        // We're going to allocate a bunch of work arrays, three per thread
+        bufsize = completemultipolelength*blocksize;
+        bufsize = 512*(bufsize/512+1);   // Round up to a multiple of 512
+
+        int cs = omp_get_max_threads() * bufsize;
+        /*
+        int ret;
+        ret = posix_memalign((void **)&_mcache, 4096, cs*sizeof(Complex));
+        assert(ret==0);
+        ret = posix_memalign((void **)&_tcache, 4096, cs*sizeof(Complex));
+        assert(ret==0);
+        ret = posix_memalign((void **)&_dcache, 4096, cs*sizeof(double));
+        assert(ret==0);
+        */
+
         _mcache = new Complex[cs]; 
         _dcache = new  double[cs]; 
         _tcache = new Complex[cs];
@@ -18,16 +40,12 @@ public:
         }
     }
     ~InCoreConvolution(void) {
-        delete[] _mcache; delete[] _dcache; delete[] _tcache; delete[] mfactor;
+        delete[] _mcache; delete[] _dcache; delete[] _tcache; 
+        // free(_mcache); free(_tcache); free(_dcache);
+        delete[] mfactor;
     }
     void InCoreConvolve(Complex *FFTM, DFLOAT *CompressedDerivatives);
     unsigned long long int  ConvolutionArithmeticCount(void);
-
-private:
-    Complex *_mcache,*_tcache;
-    double *_dcache,*mfactor;
-    int cpd,blocksize,nblocks,cpdhalf,CompressedMultipoleLengthXY;
-    const int thread_padding = 1024;
 };
 
 unsigned long long int InCoreConvolution::ConvolutionArithmeticCount(void) {
@@ -35,7 +53,9 @@ unsigned long long int InCoreConvolution::ConvolutionArithmeticCount(void) {
 
     unsigned long long int l = 0;
 
+    /// This appears to be a bug
     unsigned long long int cpd3 = ((unsigned long long int ) cpd)*cpd*cpd;
+    /// unsigned long long int cpd3 = ((unsigned long long int ) cpd)*cpd*(1+cpd)/2;
 
     FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
 
@@ -77,7 +97,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
         double  *dcache;
         int xyz,a,b,c,i,j,k,xyzbegin;
 
-        int gindex = omp_get_thread_num()*(blocksize*completemultipolelength + thread_padding);
+        int gindex = omp_get_thread_num()*bufsize;
         dcache = &(_dcache[gindex]); 
         mcache = &(_mcache[gindex]);
         tcache = &(_tcache[gindex]);
@@ -123,8 +143,8 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
                     xR = (double) CompressedD[ i + (xp*(xp+1))/2 + yp ];
                 }
 
-                if( (yp!=y) && (b%2==1) ) xR *= -1;
-                if( (xp!=x) && (a%2==1) ) xR *= -1;
+                if( (yp!=y) && ((b&0x1)==1) ) xR *= -1;
+                if( (xp!=x) && ((a&0x1)==1) ) xR *= -1;
                 dcache[m*blocksize + xyz] = xR;
             }
         }
@@ -142,7 +162,8 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
 
             FOR(xyz,0,blocksize-1) tcache[xyz] = 0;
             FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,order-a-b-c) {
-                if( ((a+i)+(b+j)+(c+k))%2 ==0 ) {
+                // Even parity only 
+                if( (((a+i)+(b+j)+(c+k))&0x1) ==0 ) {
                     FD  = &(dcache[cmap(a+i,b+j,c+k) * blocksize]);
                     FM  = &(mcache[cmap(i  ,j  ,k  ) * blocksize]);
                     MVM(tcache, FM, FD, blocksize);
@@ -152,7 +173,8 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
 
             FOR(xyz,0,blocksize-1) tcache[xyz] = 0;
             FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,order-a-b-c) {
-                if( ((a+i)+(b+j)+(c+k))%2 == 1 ) {
+                // Odd parity only
+                if( (((a+i)+(b+j)+(c+k))&0x1) == 1 ) {
                     FD  = &(dcache[cmap(a+i,b+j,c+k) * blocksize]);
                     FM  = &(mcache[cmap(i  ,j  ,k  ) * blocksize]);
                     MVM(tcache,FM, FD, blocksize); 
