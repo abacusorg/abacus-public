@@ -387,11 +387,24 @@ int main(int argc, char ** argv){
         int nprocs = omp_get_max_threads();
         size_t cacherambytes = CP.runtime_ConvolutionCacheSizeMB*(1024LL*1024LL);
 
+        int blocksize = 1;
+        for (int b=2; b<P.cpd*P.cpd; b++) {
+            if (nprocs*2.5*cml*b*sizeof(Complex)>=cacherambytes) break;
+                // Too much memory, so stop looking
+            if ((P.cpd*P.cpd)%b == 0) blocksize = b;  // Could use this value
+        }
+            // 2.5 = 2 Complex (mcache,tcache) 1 double dcache
+            // 3.0 = 3 Complex (mcache,tcache,dcache)
+
+
+        // TODO: This algorithm is silly.  We should start at the bottom!
+        /*
         int blocksize = 0;
         for(blocksize=P.cpd*P.cpd;blocksize>=2;blocksize--) 
             if((P.cpd*P.cpd)%blocksize==0)
-                if(nprocs*2.5*cml*blocksize*sizeof(Complex) < cacherambytes) break;
-                    // 2.5 = 2 Complex (mcache,tcache) 1 double dcache
+                if(nprocs*3.0*cml*blocksize*sizeof(Complex) < cacherambytes) break;
+        */
+                    
         CP.blocksize = blocksize;
 		
 #ifdef PARALLEL

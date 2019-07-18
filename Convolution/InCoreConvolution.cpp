@@ -19,19 +19,18 @@ public:
         bufsize = 512*(bufsize/512+1);   // Round up to a multiple of 512
 
         int cs = omp_get_max_threads() * bufsize;
-        /*
         int ret;
         ret = posix_memalign((void **)&_mcache, 4096, cs*sizeof(Complex));
         assert(ret==0);
         ret = posix_memalign((void **)&_tcache, 4096, cs*sizeof(Complex));
         assert(ret==0);
         ret = posix_memalign((void **)&_dcache, 4096, cs*sizeof(double));
+        // ret = posix_memalign((void **)&_dcache, 4096, cs*sizeof(Complex));
         assert(ret==0);
-        */
 
-        _mcache = new Complex[cs]; 
-        _dcache = new  double[cs]; 
-        _tcache = new Complex[cs];
+        /// _mcache = new Complex[cs]; 
+        /// _dcache = new  double[cs]; 
+        /// _tcache = new Complex[cs];
         mfactor = new double[completemultipolelength];
         int a,b,c;
         FORALL_COMPLETE_MULTIPOLES_BOUND(a,b,c,order) {
@@ -40,8 +39,8 @@ public:
         }
     }
     ~InCoreConvolution(void) {
-        delete[] _mcache; delete[] _dcache; delete[] _tcache; 
-        // free(_mcache); free(_tcache); free(_dcache);
+        /// delete[] _mcache; delete[] _dcache; delete[] _tcache; 
+        free(_mcache); free(_tcache); free(_dcache);
         delete[] mfactor;
     }
     void InCoreConvolve(Complex *FFTM, DFLOAT *CompressedDerivatives);
@@ -78,11 +77,20 @@ unsigned long long int InCoreConvolution::ConvolutionArithmeticCount(void) {
 
 }
 
-void MVM(Complex *t, Complex *m, double *d, int n) { 
+inline void MVMpair(Complex *t, Complex *m, double *d, int n) { 
+    // We require here that d[] is already broadcast into a list of pairs
+    // of doubles, so that we can do the FMA math as a pure vector of doubles.
+    double *td = (double *)t;
+    double *md = (double *)m;
+    n*=2;
+    #pragma simd assert
+    for(int i=0;i<n;i++) td[i] += md[i] * d[i]; 
+}
+
+inline void MVM(Complex *t, Complex *m, double *d, int n) { 
     //#pragma simd
     // __builtin_assume_aligned
     //#pragma vector aligned
-    #pragma simd assert
     for(int i=0;i<n;i++) t[i] += m[i] * d[i]; 
 }
 
@@ -92,7 +100,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
     for(int block=0;block<nblocks;block++) {
             
         Complex *FM, *FMabc, *FMap2bcm2, *FMabp2cm2;
-        double  *FD, *FDabc, *FDap2bcm2, *FDabp2cm2;
+        double  *FD, *FDabc, *FDap2bcm2, *FDabp2cm2, *FDd;
         Complex *mcache, *tcache;
         double  *dcache;
         int xyz,a,b,c,i,j,k,xyzbegin;
@@ -103,12 +111,14 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
         tcache = &(_tcache[gindex]);
 
         xyzbegin = block*blocksize;
+        // Load the reduced multipoles into the cache
         FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
             FM = &(FFTM[rmap(a,b,c) * cpd*cpd + xyzbegin]);
-            int m = cmap(a,b,c);
-            FOR(xyz,0,blocksize-1) mcache[m*blocksize + xyz] = FM[xyz];
+            int m = cmap(a,b,c)*blocksize;
+            FOR(xyz,0,blocksize-1) mcache[m + xyz] = FM[xyz];
         }
 
+        // Apply the trace-free recursion to generate complete multipoles
         TRACEFREERECURSION(a,b,c,order) {
             FMabc       = &(mcache[cmap(a  ,b  ,c  ) * blocksize]);
             FMap2bcm2   = &(mcache[cmap(a+2,b  ,c-2) * blocksize]);
@@ -117,19 +127,29 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
                 FMabc[xyz] = - FMap2bcm2[xyz] - FMabp2cm2[xyz];
         }
 
+        // Apply the scaling to the complete multipoles
         FORALL_COMPLETE_MULTIPOLES_BOUND(a,b,c,order)  {
             FM = &(mcache[cmap(a,b,c) * blocksize]);
             double mf = mfactor[ cmap(a,b,c) ];
             FOR(xyz,0,blocksize-1) FM[xyz] *= mf;
         }
 
+        // Load the derivatives.  This requires some care.
+        // The derivatives were only stored in one half-quadrant.
+        // Swapping (x,y) and (i,j) makes no change; that completes the quadrant.
+        // Then the other quadrants are related by parity.
+        
         FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
 
             int m = cmap(a,b,c);
+            // Rather than unpacking the (x,y) by mod, we'll do 
+            // one and then increment
+            int y = xyzbegin%cpd;
+            int x = (xyzbegin-y)/cpd;
             FOR(xyz,0,blocksize-1) {
-                int l = xyzbegin + xyz;
-                int y = l%cpd;
-                int x = (l-y)/cpd;
+                /// int l = xyzbegin + xyz;
+                /// int y = l%cpd;
+                /// int x = (l-y)/cpd;
                 int xp = x; if(xp>cpdhalf) xp = cpd - x;
                 int yp = y; if(yp>cpdhalf) yp = cpd - y;
 
@@ -146,9 +166,21 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
                 if( (yp!=y) && ((b&0x1)==1) ) xR *= -1;
                 if( (xp!=x) && ((a&0x1)==1) ) xR *= -1;
                 dcache[m*blocksize + xyz] = xR;
+                y++;
+                if (y==cpd) { y = 0; x++; }  // Accomplish the mod wrap
             }
         }
+        /* TODO: In the above code, the completion of the first quadrant
+        results in a poor access pattern.  Is this really worth the speed
+        penalty to halve the size of the derivative file?  It would be 
+        1/8 of the Multipoles even if we didn't.  And even if we do
+        want that small size, is it wise to do the half-quadrant 
+        completion only on demand?  Perhaps a block-tranpose would be faster.
+        At present, we're filling half the plane with badly-ordered
+        accesses, whereas we could get away with only a half-quadrant.
+        */
 
+        // Recurse to restore the complete derivatives
         TRACEFREERECURSION(a,b,c,order) {
             FDabc       = &(dcache[cmap(a  ,b  ,c  ) * blocksize]);
             FDap2bcm2   = &(dcache[cmap(a+2,b  ,c-2) * blocksize]);
@@ -157,19 +189,23 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
                 FDabc[xyz] = - FDap2bcm2[xyz] - FDabp2cm2[xyz];
         }
 
-        FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
-            Complex *FT = &(FFTM[rmap(a,b,c) * cpd*cpd + xyzbegin]);
+/*
+        // Now we want to broadcast each double into two, so that
+        // the MVM math is trivial double-FMA.  Until now, dcache
+        // has only used the first half of its buffer, length
+        // completemultipolelength*blocksize.  Now we want to double
+        // that.
+        FDd = dcache+completemultipolelength*blocksize*2-2;
+        for (xyz=completemultipolelength*blocksize-1; xyz>=0; xyz--, FDd-=2) {
+            FDd[1] = FDd[0] = dcache[xyz];
+        }
+*/
 
-            FOR(xyz,0,blocksize-1) tcache[xyz] = 0;
-            FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,order-a-b-c) {
-                // Even parity only 
-                if( (((a+i)+(b+j)+(c+k))&0x1) ==0 ) {
-                    FD  = &(dcache[cmap(a+i,b+j,c+k) * blocksize]);
-                    FM  = &(mcache[cmap(i  ,j  ,k  ) * blocksize]);
-                    MVM(tcache, FM, FD, blocksize);
-                }
-            }
-            FOR(xyz,0,blocksize-1) FT[xyz] = tcache[xyz];
+        // Now compute the Taylors from M & D
+        // We do this in two parts, since the D's are stored as real,
+        // but are either pure real or pure imaginary, according
+        // to their i+j+k parity.
+        FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
 
             FOR(xyz,0,blocksize-1) tcache[xyz] = 0;
             FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,order-a-b-c) {
@@ -177,10 +213,27 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
                 if( (((a+i)+(b+j)+(c+k))&0x1) == 1 ) {
                     FD  = &(dcache[cmap(a+i,b+j,c+k) * blocksize]);
                     FM  = &(mcache[cmap(i  ,j  ,k  ) * blocksize]);
+                    MVM(tcache, FM, FD, blocksize);
+                }
+            }
+            // Now multiply by i, before we accumulate the rest
+            double *tcache_dbl = (double *)tcache;
+            for (xyz=0; xyz<2*blocksize; xyz+=2) {
+                double tmp = tcache_dbl[xyz];
+                tcache_dbl[xyz] = -tcache_dbl[xyz+1];
+                tcache_dbl[xyz+1] = tmp;
+            }
+
+            FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,order-a-b-c) {
+                // Even parity only 
+                if( (((a+i)+(b+j)+(c+k))&0x1) ==0 ) {
+                    FD  = &(dcache[cmap(a+i,b+j,c+k) * blocksize]);
+                    FM  = &(mcache[cmap(i  ,j  ,k  ) * blocksize]);
                     MVM(tcache,FM, FD, blocksize); 
                 }
             }
-            Complex I(0,1); FOR(xyz,0,blocksize-1) FT[xyz] += tcache[xyz]*I;
+            Complex *FT = &(FFTM[rmap(a,b,c) * cpd*cpd + xyzbegin]);
+            FOR(xyz,0,blocksize-1) FT[xyz] = tcache[xyz];
         }
     }
 }
