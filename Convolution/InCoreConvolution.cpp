@@ -4,7 +4,7 @@ private:
     double *_dcache,*mfactor;
     int cpd,blocksize,nblocks,cpdhalf,CompressedMultipoleLengthXY;
     const int thread_padding = 1024;
-    int bufsize;
+    int bufsize, padblocksize;
 
 public:
     InCoreConvolution(int order, int cpd, int blocksize) : 
@@ -14,9 +14,17 @@ public:
         nblocks = (cpd*cpd)/blocksize;
         cpdhalf = (cpd-1)/2;
 
-        // We're going to allocate a bunch of work arrays, three per thread
-        bufsize = completemultipolelength*blocksize;
-        bufsize = 512*(bufsize/512+1);   // Round up to a multiple of 512
+        /* We're going to allocate a bunch of work arrays, three per thread.
+        We've been given a blocksize, and at present it must divide CPD^2
+        evenly, which means that it must be odd.  
+        However, we'd like to pad each multipole out to a multiple of 4,
+        so that even doubles are 32-byte aligned.
+        */
+        padblocksize = (blocksize/4+1)*4;
+
+        bufsize = completemultipolelength*padblocksize;
+        bufsize = 512*(bufsize/512+1);   
+            // Round up to a multiple of 512 to avoid thread contention
 
 
         // TODO: Actually, we only need tcache for one blocksize
@@ -98,6 +106,8 @@ inline void MVM(Complex *t, Complex *m, double *d, int n) {
     // __builtin_assume_aligned
     //#pragma vector aligned
     // for(int i=0;i<n;i++) t[i] += m[i] * d[i]; 
+
+    // An SSE equivalent
     for (int i=0; i<n; i++) {
         __m128d xx = _mm_load1_pd((double *)(d+i));
         __m128d yy = _mm_load_pd((double *)(m+i));
@@ -128,22 +138,22 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
         // Load the reduced multipoles into the cache
         FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
             FM = &(FFTM[rmap(a,b,c) * cpd*cpd + xyzbegin]);
-            int m = cmap(a,b,c)*blocksize;
+            int m = cmap(a,b,c)*padblocksize;
             FOR(xyz,0,blocksize-1) mcache[m + xyz] = FM[xyz];
         }
 
         // Apply the trace-free recursion to generate complete multipoles
         TRACEFREERECURSION(a,b,c,order) {
-            FMabc       = &(mcache[cmap(a  ,b  ,c  ) * blocksize]);
-            FMap2bcm2   = &(mcache[cmap(a+2,b  ,c-2) * blocksize]);
-            FMabp2cm2   = &(mcache[cmap(a  ,b+2,c-2) * blocksize]);
+            FMabc       = &(mcache[cmap(a  ,b  ,c  ) * padblocksize]);
+            FMap2bcm2   = &(mcache[cmap(a+2,b  ,c-2) * padblocksize]);
+            FMabp2cm2   = &(mcache[cmap(a  ,b+2,c-2) * padblocksize]);
             FOR(xyz,0,blocksize-1) 
                 FMabc[xyz] = - FMap2bcm2[xyz] - FMabp2cm2[xyz];
         }
 
         // Apply the scaling to the complete multipoles
         FORALL_COMPLETE_MULTIPOLES_BOUND(a,b,c,order)  {
-            FM = &(mcache[cmap(a,b,c) * blocksize]);
+            FM = &(mcache[cmap(a,b,c) * padblocksize]);
             double mf = mfactor[ cmap(a,b,c) ];
             FOR(xyz,0,blocksize-1) FM[xyz] *= mf;
         }
@@ -155,7 +165,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
         
         FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
 
-            int m = cmap(a,b,c);
+            int m = cmap(a,b,c)*padblocksize;
             // Rather than unpacking the (x,y) by mod, we'll do 
             // one and then increment
             int y = xyzbegin%cpd;
@@ -179,7 +189,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
 
                 if( (yp!=y) && ((b&0x1)==1) ) xR *= -1;
                 if( (xp!=x) && ((a&0x1)==1) ) xR *= -1;
-                dcache[m*blocksize + xyz] = xR;
+                dcache[m + xyz] = xR;
                 y++;
                 if (y==cpd) { y = 0; x++; }  // Accomplish the mod wrap
             }
@@ -196,9 +206,9 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
 
         // Recurse to restore the complete derivatives
         TRACEFREERECURSION(a,b,c,order) {
-            FDabc       = &(dcache[cmap(a  ,b  ,c  ) * blocksize]);
-            FDap2bcm2   = &(dcache[cmap(a+2,b  ,c-2) * blocksize]);
-            FDabp2cm2   = &(dcache[cmap(a  ,b+2,c-2) * blocksize]);
+            FDabc       = &(dcache[cmap(a  ,b  ,c  ) * padblocksize]);
+            FDap2bcm2   = &(dcache[cmap(a+2,b  ,c-2) * padblocksize]);
+            FDabp2cm2   = &(dcache[cmap(a  ,b+2,c-2) * padblocksize]);
             FOR(xyz,0,blocksize-1) 
                 FDabc[xyz] = - FDap2bcm2[xyz] - FDabp2cm2[xyz];
         }
@@ -225,8 +235,8 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
             FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,order-a-b-c) {
                 // Odd parity only
                 if( (((a+i)+(b+j)+(c+k))&0x1) == 1 ) {
-                    FD  = &(dcache[cmap(a+i,b+j,c+k) * blocksize]);
-                    FM  = &(mcache[cmap(i  ,j  ,k  ) * blocksize]);
+                    FD  = &(dcache[cmap(a+i,b+j,c+k) * padblocksize]);
+                    FM  = &(mcache[cmap(i  ,j  ,k  ) * padblocksize]);
                     MVM(tcache, FM, FD, blocksize);
                 }
             }
@@ -241,8 +251,8 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
             FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,order-a-b-c) {
                 // Even parity only 
                 if( (((a+i)+(b+j)+(c+k))&0x1) ==0 ) {
-                    FD  = &(dcache[cmap(a+i,b+j,c+k) * blocksize]);
-                    FM  = &(mcache[cmap(i  ,j  ,k  ) * blocksize]);
+                    FD  = &(dcache[cmap(a+i,b+j,c+k) * padblocksize]);
+                    FM  = &(mcache[cmap(i  ,j  ,k  ) * padblocksize]);
                     MVM(tcache,FM, FD, blocksize); 
                 }
             }
