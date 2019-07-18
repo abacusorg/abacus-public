@@ -102,11 +102,29 @@ inline void MVMpair(Complex *t, Complex *m, double *d, int n) {
 }
 
 inline void MVM(Complex *t, Complex *m, double *d, int n) { 
-    //#pragma simd
-    // __builtin_assume_aligned
-    //#pragma vector aligned
-    // for(int i=0;i<n;i++) t[i] += m[i] * d[i]; 
 
+    #ifdef HAVE_AVX
+    // An AVX equivalent -- this does two at once, so we have to pad!
+    // Will compute off the end
+    for (int i=0; i<n; i+=2) {
+        __m256d _xx = _mm256_broadcast_pd((__m128d *)(d+i));
+            // So now we have _xx = (c,d,c,d).
+        __m256d xx = _mm256_shuffle_pd(_xx,_xx, 0xc);
+            // Now this is (c,c,d,d)
+        __m256d yy = _mm256_load_pd((double *)(m+i));
+        __m256d zz = _mm256_load_pd((double *)(t+i));
+        // TODO: Could consider a FMA here, but testing showed little
+        // gain given bandwidth limitations.
+        __m256d xy = _mm256_mul_pd(xx,yy);
+        zz = _mm256_add_pd(zz,xy);
+        _mm256_store_pd((double *)(t+i), zz);
+    }
+    #else
+    #pragma omp simd aligned(t,m:16) aligned(d:8)
+    for(int i=0;i<n;i++) t[i] += m[i] * d[i]; 
+    #endif
+
+    /*
     // An SSE equivalent
     for (int i=0; i<n; i++) {
         __m128d xx = _mm_load1_pd((double *)(d+i));
@@ -116,6 +134,8 @@ inline void MVM(Complex *t, Complex *m, double *d, int n) {
         zz = _mm_add_pd(zz,xy);
         _mm_store_pd((double *)(t+i),zz);
     }
+    */
+
 }
 
 void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
@@ -230,7 +250,6 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
         // but are either pure real or pure imaginary, according
         // to their i+j+k parity.
         FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
-
             FOR(xyz,0,blocksize-1) tcache[xyz] = 0;
             FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,order-a-b-c) {
                 // Odd parity only
