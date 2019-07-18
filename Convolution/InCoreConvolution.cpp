@@ -97,7 +97,15 @@ inline void MVM(Complex *t, Complex *m, double *d, int n) {
     //#pragma simd
     // __builtin_assume_aligned
     //#pragma vector aligned
-    for(int i=0;i<n;i++) t[i] += m[i] * d[i]; 
+    // for(int i=0;i<n;i++) t[i] += m[i] * d[i]; 
+    for (int i=0; i<n; i++) {
+        __m128d xx = _mm_load1_pd((double *)(d+i));
+        __m128d yy = _mm_load_pd((double *)(m+i));
+        __m128d zz = _mm_load_pd((double *)(t+i));
+        __m128d xy = _mm_mul_pd(xx,yy);
+        zz = _mm_add_pd(zz,xy);
+        _mm_store_pd((double *)(t+i),zz);
+    }
 }
 
 void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
