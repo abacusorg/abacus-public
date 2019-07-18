@@ -393,6 +393,7 @@ int main(int argc, char ** argv){
                 // Too much memory, so stop looking
             if ((P.cpd*P.cpd)%b == 0) blocksize = b;  // Could use this value
         }
+            // 1.5 = 1 Complex (mcache) 1 double dcache
             // 2.5 = 2 Complex (mcache,tcache) 1 double dcache
             // 3.0 = 3 Complex (mcache,tcache,dcache)
 

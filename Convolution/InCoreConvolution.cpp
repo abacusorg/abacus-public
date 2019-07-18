@@ -18,6 +18,12 @@ public:
         bufsize = completemultipolelength*blocksize;
         bufsize = 512*(bufsize/512+1);   // Round up to a multiple of 512
 
+
+        // TODO: Actually, we only need tcache for one blocksize
+        // per core, since we compute each multipole and then save it.
+        // That could increase the blocksize.  But initial testing
+        // showed this slowed the code down, so DJE didn't implement.
+
         int cs = omp_get_max_threads() * bufsize;
         int ret;
         ret = posix_memalign((void **)&_mcache, 4096, cs*sizeof(Complex));
