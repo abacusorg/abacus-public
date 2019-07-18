@@ -79,7 +79,7 @@ unsigned long long int InCoreConvolution::ConvolutionArithmeticCount(void) {
 
     FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
         FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,order-a-b-c) {
-            l += 4;  // MVM work
+            l += 4;  // FMA work
         }
         l += 2; // multiply by I
     }
@@ -87,8 +87,13 @@ unsigned long long int InCoreConvolution::ConvolutionArithmeticCount(void) {
     return l*cpd3;
 }
 
-inline void MVM(Complex *t, Complex *m, double *d, int n) { 
 
+/* The following routines are trying to speed up calculations on the
+complex<double> vectors.  It seems that gcc isn't vectorizing effectively;
+we're seeing notable improvements with simple intrinsics. */
+
+inline void FMAvector(Complex *t, Complex *m, double *d, int n) { 
+    // Multiply a complex vector by a scalar and add to a complex accumulator
     #ifdef HAVE_AVX
     // An AVX equivalent -- this does two at once, so we have to pad to 2!
     // Will compute off the end.  
@@ -124,8 +129,23 @@ inline void MVM(Complex *t, Complex *m, double *d, int n) {
 
 }
 
+inline void Multiply_by_scalar(Complex *m, double &s, int blocksize) {
+    // Multiply a complex vector by a constant scalar
+    int xyz;
+    #ifndef HAVE_AVX
+        FOR(xyz,0,blocksize-1) m[xyz] *= s;
+    #else
+        __m256d scalar = _mm256_broadcast_sd((double *)&s);
+        for (xyz=0; xyz<blocksize; xyz+=2) {
+            __m256d mm = _mm256_load_pd((double *)(m+xyz));
+            mm = _mm256_mul_pd(mm,scalar);
+            _mm256_store_pd((double *)(m+xyz),mm);
+        }
+    #endif
+}
+
 inline void Multiply_by_I(Complex *t, int blocksize) {
-    // Multiplying by i really means swapping to (-im, re)
+    // Multiply a complex vector by i really means swapping to (-im, re)
     int xyz;
     #ifndef HAVE_AVX
         double *tcache_dbl = (double *)t;
@@ -145,6 +165,9 @@ inline void Multiply_by_I(Complex *t, int blocksize) {
         }
     #endif
 }
+
+// =============================================================
+// And now here's the main routine
 
 void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
     // why is this 50% faster with dynamic?
@@ -175,6 +198,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
             FMabc       = &(mcache[cmap(a  ,b  ,c  ) * padblocksize]);
             FMap2bcm2   = &(mcache[cmap(a+2,b  ,c-2) * padblocksize]);
             FMabp2cm2   = &(mcache[cmap(a  ,b+2,c-2) * padblocksize]);
+            // TODO: Could vectorize this, at some cost of obscurity
             FOR(xyz,0,blocksize-1) 
                 FMabc[xyz] = - FMap2bcm2[xyz] - FMabp2cm2[xyz];
         }
@@ -183,8 +207,9 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
         FORALL_COMPLETE_MULTIPOLES_BOUND(a,b,c,order)  {
             int cmap_abc = cmap(a,b,c);
             FM = &(mcache[cmap_abc * padblocksize]);
-            double mf = mfactor[ cmap_abc ];
-            FOR(xyz,0,blocksize-1) FM[xyz] *= mf;
+            Multiply_by_scalar(FM, mfactor[cmap_abc], blocksize);
+            // double mf = mfactor[ cmap_abc ];
+            // FOR(xyz,0,blocksize-1) FM[xyz] *= mf;
         }
 
         // Load the derivatives.  This requires some care.
@@ -255,7 +280,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
                     FM  = &(mcache[cmap(i  ,j  ,k  ) * padblocksize]);
                     // We know the rest of the k's are simple
                     for (; k<=order-a-b-c-i-j; k+=2, FD+=padblocksize*2, FM+=padblocksize*2)
-                    MVM(tcache, FM, FD, blocksize);
+                    FMAvector(tcache, FM, FD, blocksize);
                 }
             }
             // Now multiply by i, before we accumulate the rest
@@ -268,7 +293,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
                     FM  = &(mcache[cmap(i  ,j  ,k  ) * padblocksize]);
                     // We know the rest of the k's are simple
                     for (; k<=order-a-b-c-i-j; k+=2, FD+=padblocksize*2, FM+=padblocksize*2)
-                    MVM(tcache,FM, FD, blocksize); 
+                    FMAvector(tcache,FM, FD, blocksize); 
                 }
             }
             Complex *FT = &(FFTM[rmap(a,b,c) * cpd*cpd + xyzbegin]);
