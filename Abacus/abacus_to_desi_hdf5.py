@@ -22,13 +22,19 @@ import pynbody
 import numpy as np
 import h5py
 
-def convert(fn, format, ds=None):
+def convert(fn, format, ds=None, out_parent=None):
     header = InputFile(pjoin(dirname(fn), 'header'))
     ppd = np.int64(np.round(header.NP**(1./3)))
     assert ppd**3 == header.NP
 
-    p = ReadAbacus.read(fn, format=format, dtype=np.float64,
-                        return_vel=True, return_pid=True, return_zel=True, add_grid=True, boxsize=header.BoxSize)
+    read_args = {}
+    if ds and ds > 1:
+        read_args['return_zel'] = True
+    if format == 'rvzel':
+        read_args['add_grid'] = True
+        read_args[boxsize] = header.BoxSize
+
+    p = ReadAbacus.read(fn, format=format, dtype=np.float64, return_vel=True, return_pid=True, **read_args)
 
     if ds and ds > 1:
         assert int(ds) == ds
@@ -68,13 +74,18 @@ def convert(fn, format, ds=None):
         h5header[h5k] = header[k]
 
     # 'Growth' in Abacus is normalized to D~a at early times, not D~1 at z=0
-    h5header['GrowthRatio'] = header.ZD_Pk_sigma/header['sigma_8']
+    cosmo = Abacus.Cosmology.from_params(header, z=header['Redshift'])
+    h5header['GrowthRatio'] = cosmo.current.growth/cosmo.today.growth
+    #h5header['GrowthRatio'] = header.ZD_Pk_sigma/header['sigma_8']
+
     # `HubbleNow` in Abacus is in units of H0
     h5header['HubbleNow'] = header['HubbleNow']*header['H0']
     # `VelZSpace_to_kms` in Abacus is the inverse of RSDFactor
     h5header['RSDFactor'] = (header['VelZSpace_to_kms']/header['BoxSize'])**-1
-    
-    h5dir = dirname(fn) + '_desi_hdf5_' + str(ppd_ds)
+
+    if out_parent is None:
+        out_parent = dirname(dirname(fn))
+    h5dir = pjoin(out_parent, basename(dirname(fn)) + '_desi_hdf5_' + str(ppd_ds))
     os.makedirs(h5dir, exist_ok=True)
 
     h5fn = pjoin(h5dir, basename(fn) + '.hdf5')
@@ -96,14 +107,15 @@ def convert(fn, format, ds=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=Tools.ArgParseFormatter)
-    parser.add_argument('abacus_file', help='One or more Abacus files', nargs='+')
+    parser.add_argument('abacus-file', help='One or more Abacus files', nargs='+')
     parser.add_argument('--format', help='The Abacus file format', choices=ReadAbacus.reader_functions.keys(), default='rvzel')
     parser.add_argument('--ds', help='Downsample-per-dimension factor', type=int)
+    parser.add_argument('--out-parent', help='Directory in which to create a directory for the outputs')
     
     args = parser.parse_args()
     args = vars(args)
 
-    abacus_files = args.pop('abacus_file')
+    abacus_files = args.pop('abacus-file')
 
     for i,af in enumerate(abacus_files):
         print('Converting {}/{} (\"{}\")... '.format(i+1,len(abacus_files), basename(af)), end='', flush=True)

@@ -6548,6 +6548,8 @@ else
   as_fn_error $? "unable to find fftw3_omp!" "$LINENO" 5
 fi
 
+
+    # Single-precision libs are only used for analysis routines right now
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing fftwf_execute" >&5
 $as_echo_n "checking for library containing fftwf_execute... " >&6; }
 if ${ac_cv_search_fftwf_execute+:} false; then :
@@ -6603,7 +6605,8 @@ if test "$ac_res" != no; then :
   test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
 
 else
-  as_fn_error $? "unable to find fftw3!" "$LINENO" 5
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to find fftw3f!" >&5
+$as_echo "$as_me: WARNING: unable to find fftw3f!" >&2;}
 fi
 
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing fftwf_init_threads" >&5
@@ -6661,7 +6664,8 @@ if test "$ac_res" != no; then :
   test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
 
 else
-  as_fn_error $? "unable to find fftw3_omp!" "$LINENO" 5
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to find fftw3f_omp!" >&5
+$as_echo "$as_me: WARNING: unable to find fftw3f_omp!" >&2;}
 fi
 
 fi

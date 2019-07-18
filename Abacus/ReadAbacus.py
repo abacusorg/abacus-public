@@ -359,7 +359,7 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
         ndt = output_dtype(return_vel=return_vel, return_pid=return_pid, dtype=dtype)
         _out = np.empty(alloc_NP, dtype=ndt)
 
-    if downsample > 1:
+    if downsample is not None and downsample > 1:
         warn(f'Downsample factor {downsample} is greater than 1!  A fraction less than 1 is expected.')
 
     if downsample is None:
