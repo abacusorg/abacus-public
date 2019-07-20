@@ -4,7 +4,7 @@ private:
     double *_dcache,*mfactor;
     int cpd,blocksize,nblocks,cpdhalf,CompressedMultipoleLengthXY;
     const int thread_padding = 1024;
-    int bufsize, padblocksize;
+    int bufsize, padblocksize, blocksize_even;
 
 public:
     InCoreConvolution(int order, int cpd, int blocksize) : 
@@ -17,10 +17,13 @@ public:
         /* We're going to allocate a bunch of work arrays, three per thread.
         We've been given a blocksize, and at present it must divide CPD^2
         evenly, which means that it must be odd.  
-        However, we'd like to pad each multipole out to a multiple of 4,
-        so that doubles are 32-byte aligned and can use AVX.
+        However, we'd like to pad each multipole out to a multiple of 2,
+        so that Complex are 32-byte aligned and can use AVX.
         */
-        padblocksize = (blocksize/4+1)*4;
+
+        blocksize_even = blocksize;
+        if ((blocksize&1)==1) blocksize_even += 1; 
+        padblocksize = blocksize_even;
 
         bufsize = completemultipolelength*padblocksize;
         bufsize = 512*(bufsize/512+1);   
@@ -39,12 +42,8 @@ public:
         ret = posix_memalign((void **)&_tcache, 4096, cs*sizeof(Complex));
         assert(ret==0);
         ret = posix_memalign((void **)&_dcache, 4096, cs*sizeof(double));
-        // ret = posix_memalign((void **)&_dcache, 4096, cs*sizeof(Complex));
         assert(ret==0);
 
-        /// _mcache = new Complex[cs]; 
-        /// _dcache = new  double[cs]; 
-        /// _tcache = new Complex[cs];
         mfactor = new double[completemultipolelength];
         int a,b,c;
         FORALL_COMPLETE_MULTIPOLES_BOUND(a,b,c,order) {
@@ -53,13 +52,13 @@ public:
         }
     }
     ~InCoreConvolution(void) {
-        /// delete[] _mcache; delete[] _dcache; delete[] _tcache; 
         free(_mcache); free(_tcache); free(_dcache);
         delete[] mfactor;
     }
     void InCoreConvolve(Complex *FFTM, DFLOAT *CompressedDerivatives);
     unsigned long long int  ConvolutionArithmeticCount(void);
 };
+
 
 unsigned long long int InCoreConvolution::ConvolutionArithmeticCount(void) {
     int a,b,c,i,j,k;
@@ -87,6 +86,9 @@ unsigned long long int InCoreConvolution::ConvolutionArithmeticCount(void) {
     return l*cpd3;
 }
 
+// =======================================================
+// Some intrinsics for Complex vector operations, as we have 
+// some evidence that gcc isn't figuring these out.
 
 /* The following routines are trying to speed up calculations on the
 complex<double> vectors.  It seems that gcc isn't vectorizing effectively;
@@ -94,25 +96,29 @@ we're seeing notable improvements with simple intrinsics. */
 
 inline void FMAvector(Complex *t, Complex *m, double *d, int n) { 
     // Multiply a complex vector by a scalar and add to a complex accumulator
-    #ifdef HAVE_AVX
-    // An AVX equivalent -- this does two at once, so we have to pad to 2!
-    // Will compute off the end.  
-    for (int i=0; i<n; i+=2) {
-        __m256d _xx = _mm256_broadcast_pd((__m128d *)(d+i));
-            // So now we have _xx = (c,d,c,d).
-        __m256d xx = _mm256_shuffle_pd(_xx,_xx, 0xc);
-            // Now this is (c,c,d,d)
-        __m256d yy = _mm256_load_pd((double *)(m+i));
-        __m256d zz = _mm256_load_pd((double *)(t+i));
-        // TODO: Could consider a FMA here, but testing showed little
-        // gain given bandwidth limitations.
-        __m256d xy = _mm256_mul_pd(xx,yy);
-        zz = _mm256_add_pd(zz,xy);
-        _mm256_store_pd((double *)(t+i), zz);
-    }
-    #else
+    // We are doing this in sets of two cells, since that fits AVX
+    // and may also suit the memory access pattern of Power9 slices.
+    #ifndef HAVE_AVX
         #pragma omp simd aligned(t,m:16) aligned(d:8)
         for(int i=0;i<n;i++) t[i] += m[i] * d[i]; 
+    #else
+    // An AVX equivalent -- this does two at once, so we have to pad to 2!
+    // Will compute off the end.  
+    // We have to broadcast two consecutive doubles into (g,g,h,h)
+    // First broadcast to = (g,h,g,h), then shuffle to (g,g,h,h)
+    // TODO: Could FMA here, but testing showed little gain 
+    #define AVX_COMPLEX_DOUBLE_FMA \
+        {__m256d _xx = _mm256_broadcast_pd((__m128d *)(d)); d+=2; \
+        __m256d xx = _mm256_shuffle_pd(_xx,_xx, 0xc); \
+        __m256d yy = _mm256_load_pd((double *)(m)); m+=2; \
+        __m256d zz = _mm256_load_pd((double *)(t)); \
+        zz = _mm256_add_pd(_mm256_mul_pd(xx,yy),zz); \
+        _mm256_store_pd((double *)(t), zz); t+=2;}
+
+    assert((n&1)==0);   // n must be even
+    n = (n>>1);   // Divide by 2; this is how many cell pairs
+    for (int i=0;i<n;i++) AVX_COMPLEX_DOUBLE_FMA
+    return;
     #endif
 
     /*
@@ -129,17 +135,19 @@ inline void FMAvector(Complex *t, Complex *m, double *d, int n) {
 
 }
 
-inline void Multiply_by_scalar(Complex *m, double &s, int blocksize) {
+inline void Multiply_by_scalar(Complex *m, double &s, int n) {
     // Multiply a complex vector by a constant scalar
+    // The AVX code requires blocksize to be divisible by 2
     int xyz;
     #ifndef HAVE_AVX
-        FOR(xyz,0,blocksize-1) m[xyz] *= s;
+        FOR(xyz,0,n-1) m[xyz] *= s;
     #else
         __m256d scalar = _mm256_broadcast_sd((double *)&s);
-        for (xyz=0; xyz<blocksize; xyz+=2) {
-            __m256d mm = _mm256_load_pd((double *)(m+xyz));
+        n = (n>>1);
+        for (xyz=0; xyz<n; xyz++) {
+            __m256d mm = _mm256_load_pd((double *)(m));
             mm = _mm256_mul_pd(mm,scalar);
-            _mm256_store_pd((double *)(m+xyz),mm);
+            _mm256_store_pd((double *)(m),mm); m+=2;
         }
     #endif
 }
@@ -163,6 +171,17 @@ inline void Multiply_by_I(Complex *t, int blocksize) {
             tswap = _mm_xor_pd(tswap, neg);
             _mm_store_pd((double *)(t+xyz),tswap);
         }
+    #endif
+}
+
+inline void Set_Vector_to_Zero(Complex *t, int n) {
+    // The AVX code requires t to be 32-byte aligned and n to be even
+    #ifndef HAVE_AVX
+        for (int i=0; i<n; i++) t[i] = 0.0;
+    #else
+        __m256d zero = _mm256_set1_pd(0.0);
+        n = (n>>1);
+        for (int i=0; i<n; i++) { _mm256_store_pd((double *)t, zero); t+=2; }
     #endif
 }
 
@@ -207,7 +226,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
         FORALL_COMPLETE_MULTIPOLES_BOUND(a,b,c,order)  {
             int cmap_abc = cmap(a,b,c);
             FM = &(mcache[cmap_abc * padblocksize]);
-            Multiply_by_scalar(FM, mfactor[cmap_abc], blocksize);
+            Multiply_by_scalar(FM, mfactor[cmap_abc], blocksize_even);
             // double mf = mfactor[ cmap_abc ];
             // FOR(xyz,0,blocksize-1) FM[xyz] *= mf;
         }
@@ -272,7 +291,8 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
         // but are either pure real or pure imaginary, according
         // to their i+j+k parity.
         FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
-            FOR(xyz,0,blocksize-1) tcache[xyz] = 0;
+            // FOR(xyz,0,blocksize-1) tcache[xyz] = 0;
+            Set_Vector_to_Zero(tcache, blocksize_even);
             FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,order-a-b-c) {
                 // Odd parity only
                 if( (((a+i)+(b+j)+(c+k))&0x1) == 1 ) {
@@ -280,11 +300,11 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
                     FM  = &(mcache[cmap(i  ,j  ,k  ) * padblocksize]);
                     // We know the rest of the k's are simple
                     for (; k<=order-a-b-c-i-j; k+=2, FD+=padblocksize*2, FM+=padblocksize*2)
-                    FMAvector(tcache, FM, FD, blocksize);
+                    FMAvector(tcache, FM, FD, blocksize_even);
                 }
             }
             // Now multiply by i, before we accumulate the rest
-            Multiply_by_I(tcache, blocksize);
+            Multiply_by_I(tcache, blocksize_even);
 
             FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,order-a-b-c) {
                 // Even parity only 
@@ -293,11 +313,12 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
                     FM  = &(mcache[cmap(i  ,j  ,k  ) * padblocksize]);
                     // We know the rest of the k's are simple
                     for (; k<=order-a-b-c-i-j; k+=2, FD+=padblocksize*2, FM+=padblocksize*2)
-                    FMAvector(tcache,FM, FD, blocksize); 
+                    FMAvector(tcache,FM, FD, blocksize_even); 
                 }
             }
             Complex *FT = &(FFTM[rmap(a,b,c) * cpd*cpd + xyzbegin]);
-            FOR(xyz,0,blocksize-1) FT[xyz] = tcache[xyz];
+            // FOR(xyz,0,blocksize-1) FT[xyz] = tcache[xyz];
+            memcpy(FT, tcache, blocksize*sizeof(Complex));
         }
     }
 }
