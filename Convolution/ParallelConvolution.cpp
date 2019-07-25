@@ -83,12 +83,21 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
     int nprocs = omp_get_max_threads();
 	size_t cacherambytes = P.ConvolutionCacheSizeMB*(1024LL*1024LL);
 
+/* Old code: better to count up than count down!
     blocksize = 0;
     for(blocksize=cpd*cpd;blocksize>=2;blocksize--) 
         if((cpd*cpd)%blocksize==0)
             if(nprocs*2.5*cml*blocksize*sizeof(Complex) < cacherambytes) break;
                 // 2.5 = 2 Complex (mcache,tcache) 1 double dcache
+*/
 	
+    int blocksize = 1;
+    for (int b=2; b<P.cpd*P.cpd; b++) {
+        if (nprocs*2.5*cml*b*sizeof(Complex)>=cacherambytes) break;
+            // Too much memory, so stop looking
+        if ((P.cpd*P.cpd)%b == 0) blocksize = b;  // Could use this value
+    }
+        // 2.5 = 2 Complex (mcache,tcache) 1 double dcache
 	
 	first_slabs_all = new int[MPI_size];
     total_slabs_all = new int[MPI_size]; 
