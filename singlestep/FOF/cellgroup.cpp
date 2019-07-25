@@ -1,8 +1,9 @@
 /** \file We create a CellGroup for every multiplets and every boundary singlet.
-We hide the bounding box test in the upper 7 bits of the multiplicity
-This limits cell groups to 33M particles, which is safe
+We hide the bounding box test and status bits in the upper 8 bits of the multiplicity
+This limits cell groups to 16M particles, which is safe
 */
 
+#define DEFER  (1<<24)
 #define XM_BIT (1<<25)
 #define YM_BIT (1<<26)
 #define ZM_BIT (1<<27)
@@ -30,37 +31,41 @@ class CellGroup {
          ///< Particles are at locations [start, start+n)
 
     CellGroup(FOFgroup &g, FOFloat boundary) {
-	start = g.start;
-	n = g.n;
-	// The BoundingBoxes are in code units
-	if (g.BBmin.x<-boundary) n|= XM_BIT;
-	if (g.BBmin.y<-boundary) n|= YM_BIT;
-	if (g.BBmin.z<-boundary) n|= ZM_BIT;
-	if (g.BBmax.x> boundary) n|= XP_BIT;
-	if (g.BBmax.y> boundary) n|= YP_BIT;
-	if (g.BBmax.z> boundary) n|= ZP_BIT;
-	return;
+        start = g.start;
+        n = g.n;
+        // The BoundingBoxes are in code units
+        if (g.BBmin.x<-boundary) n|= XM_BIT;
+        if (g.BBmin.y<-boundary) n|= YM_BIT;
+        if (g.BBmin.z<-boundary) n|= ZM_BIT;
+        if (g.BBmax.x> boundary) n|= XP_BIT;
+        if (g.BBmax.y> boundary) n|= YP_BIT;
+        if (g.BBmax.z> boundary) n|= ZP_BIT;
+        return;
     }
     CellGroup(int particlenum, posstruct &pos, FOFloat boundary) {
 	// This is the constructor to load up a singlet
         start = particlenum;
-	n = 1;
-	if (pos.x> boundary) n|= XP_BIT;
-	if (pos.y> boundary) n|= YP_BIT;
-	if (pos.z> boundary) n|= ZP_BIT;
-	if (pos.x<-boundary) n|= XM_BIT;
-	if (pos.y<-boundary) n|= YM_BIT;
-	if (pos.z<-boundary) n|= ZM_BIT;
-	return;
+        n = 1;
+        if (pos.x> boundary) n|= XP_BIT;
+        if (pos.y> boundary) n|= YP_BIT;
+        if (pos.z> boundary) n|= ZP_BIT;
+        if (pos.x<-boundary) n|= XM_BIT;
+        if (pos.y<-boundary) n|= YM_BIT;
+        if (pos.z<-boundary) n|= ZM_BIT;
+        return;
     }
 
     void close_group() { n |= 0x80000000; return; }
     bool is_open() { return (n & 0x80000000)==0; }
 
-    int size() { return n&(0x01ffffff); }
+    void defer_group() { n |= DEFER_BIT; return; }
+    bool is_active() { return (n & DEFER_BIT)>0; }
+    void clear_deferral() { n &= ((int)0xffffffff)^DEFER_BIT); return; }
+
+    int size() { return n&(0x00ffffff); }
     int test(int edgebit) {
-	// Returns !=0 if the bit is set, 0 if false
-	return n & edgebit;
+        // Returns !=0 if the bit is set, 0 if false
+        return n & edgebit;
     }
 };
 
