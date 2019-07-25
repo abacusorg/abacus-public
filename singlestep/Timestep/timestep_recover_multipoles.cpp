@@ -50,13 +50,49 @@ void FinishMultipolesAction(int slab) {
     ComputeMultipoleSlab(slab);
     
     WriteMultipoleSlab.Start();
+#ifndef PARALLEL
     SB->StoreArenaNonBlocking(MultipoleSlab,slab);
+#endif
     WriteMultipoleSlab.Stop();
-    
+
+#ifdef PARALLEL	
+	// QueueMultipoleMPI.Start();
+	//  STDLOG(2, "Attempting to SendMultipoleSlab %d\n", slab);
+	//  	ParallelConvolveDriver->SendMultipoleSlab(slab); //distribute z's to appropriate nodes for this node's x domain.
+	// if (Finish.raw_number_executed==0){ //if we are finishing the first slab, set up receive MPI calls for incoming multipoles.
+	// 	STDLOG(2, "Attempting to RecvMultipoleSlab %d\n", slab);
+	// 	ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's.
+	// }
+	//
+	// QueueMultipoleMPI.Stop();
+#endif
+	    
     SB->DeAllocate(MergePosSlab,slab);
     SB->DeAllocate(MergeCellInfoSlab,slab);
 }
 
+// #ifdef PARALLEL
+// int CheckForMultipolesRecoveryPrecondition(int slab) {
+//
+//     if( Finish.notdone(slab) ) return 0;
+//
+//
+// 	int multipole_transfer_complete = ParallelConvolveDriver->CheckForMultipoleTransferComplete(slab);
+// 	if (multipole_transfer_complete) return 1;
+//     else {
+// 		if(SB->IsSlabPresent(MultipoleSlab, slab))
+// 				Dependency::NotifySpinning(WAITING_FOR_MPI);
+// 		return 0;
+// 	}
+// }
+//
+// void CheckForMultipolesRecoveryAction(int slab) {
+// 	STDLOG(1, "Entering Check for Multipoles action and deallocating multipole slab %d\n",  slab);
+// 	SB->DeAllocate(MultipoleSlab, slab);
+// 	STDLOG(1, "Exiting Check for Multipoles action for slab %d\n",  slab);
+//
+// }
+// #endif
 
 void timestepMultipoles(void) {
     STDLOG(0,"Initiating timestepMultipoles()\n");
@@ -69,14 +105,29 @@ void timestepMultipoles(void) {
     int cpd = P.cpd; int first = first_slab_on_node;
     FetchSlabs.instantiate(cpd, first, &FetchPosSlabPrecondition, &FetchPosSlabAction );
     Finish.instantiate(cpd, first,  &FinishMultipolesPrecondition,  &FinishMultipolesAction );
+// #ifdef PARALLEL
+// CheckForMultipoles.instantiate(cpd, first, &CheckForMultipolesRecoveryPrecondition,  &CheckForMultipolesRecoveryAction );
+// #else
+// CheckForMultipoles.instantiate(cpd, first, &NoopPrecondition,  &NoopAction );
+// #endif
 
-    while( !Finish.alldone(total_slabs_on_node) ) {
+ //   while( !Finish.alldone(total_slabs_on_node) ) {
+int timestep_loop_complete = 0; 
+while (!timestep_loop_complete){
         FetchSlabs.Attempt();
             Finish.Attempt();
            SendManifest->FreeAfterSend();
         ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
         // If the manifest has been received, install it.
         if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
+		
+		// CheckForMultipoles.Attempt();	
+//
+// #ifdef PARALLEL
+// 		timestep_loop_complete = CheckForMultipoles.alldone(total_slabs_on_node);
+// #else
+		timestep_loop_complete = Finish.alldone(total_slabs_on_node);
+		//#endif		
     }
 
     STDLOG(1,"Completing timestepMultipoles()\n");

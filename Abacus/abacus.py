@@ -61,6 +61,10 @@ from Abacus.Cosmology import AbacusCosmo
 import Abacus
 
 EXIT_REQUEUE = 200
+RUN_TIME_MINUTES = 360 #360
+STOP_PERCENT_RUNTIME = 0.93
+
+
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
 directory_param_fn = pjoin(abacuspath, 'Abacus', 'directory.def')
 
@@ -798,11 +802,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         backups_enabled = False  # No BackupIntervalSteps parameter
     
     if parallel:
-        # TODO: figure out how to signal a backup to the nodes
-        run_time_minutes = 360 #360
-        run_time_secs = 60 * run_time_minutes
+        run_time_secs = 60 * RUN_TIME_MINUTES
         start_time = time.time(); 
-        print("Beginning run at Unix epoch time", start_time, ", running for ", run_time_minutes, " minutes.\n");
+        print("Beginning run at Unix epoch time", start_time, ", running for ", RUN_TIME_MINUTES, " minutes.\n");
+        
+        
         # s = SignalHandler()
 #         signal.signal(signal.SIGUSR1, s.handle)
 #         signal.signal(signal.SIGUSR2, s.handle)
@@ -958,8 +962,42 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             print('stopbefore = %d was specified; stopping before calling singlestep'%i)
             return 0
         
-        singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic))]
+        singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic)), str(0)]
         if parallel:
+            
+            
+            # if not check_multipole_taylor_done(param, read_state, kind='Multipole'):
+ #                # Invoke multipole recovery mode
+ #                print("Warning: missing multipoles! Performing multipole recovery for step {:d}".format(i))
+ #
+ #                # Build the recover_multipoles executable
+ #                with Tools.chdir(pjoin(abacuspath, "singlestep")):
+ #                    subprocess.check_call(['make', 'recover_multipoles'])
+ #
+ #                # Execute it
+ #                print("Running recover_multipoles for step {:d}".format(stepnum))
+ #                subprocess.check_call([pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn], env=singlestep_env)
+ #                save_log_files(param.LogDirectory, 'step{:04d}.recover_multipoles'.format(read_state.FullStepNumber))
+ #                print('\tFinished multipole recovery for read state {}.'.format(read_state.FullStepNumber))
+ #
+ #
+ #
+ #
+ #
+ #
+            print(os.listdir(read))
+            if distribute_to_resume and ( 'globaldipole' not in os.listdir(read) or 'redlack' not in os.listdir(read) ) :
+                 redlack_recovery = 1
+                 singlestep_cmd[-1] = '1' 
+                 print(singlestep_cmd) 
+            else:
+                redlack_recovery = 0     
+            
+            
+            
+            
+            
+            
             singlestep_cmd = mpirun_cmd + singlestep_cmd
             print('Running parallel convolution + singlestep for step {:d} with command "{:s}"'.format(stepnum, ' '.join(singlestep_cmd)))
             convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
@@ -1034,13 +1072,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                 
    
         #if parallel and s.graceful_exit:
-        print("Current time: ", time.time(), start_time, 0.93 *run_time_secs)
-        
-        if parallel and (time.time() - start_time >= 0.93 * run_time_secs):
+        print("Current time: ", time.time(), start_time, STOP_PERCENT_RUNTIME * run_time_secs)
+        if parallel and (time.time() - start_time >= STOP_PERCENT_RUNTIME * run_time_secs):
             
             restore_time = time.time(); 
             
-            print('Graceful exit triggered. Retrieving state from nodes and saving in global directory.')
+            print('We are running out of time in the job! Retrieving state from nodes and saving in global directory.')
             retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'distribute_state_to_nodes.py'), paramfn, '--retrieve', '--verbose']
             subprocess.check_call(Conv_mpirun_cmd + retrieve_state_cmd)
             
@@ -1078,6 +1115,10 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             break
         
         make_ic = False
+        
+        if redlack_recovery: 
+            print("Redlack recovery complete. Exiting loop.")
+            return 0 
 
         ### end singlestep loop
 

@@ -202,7 +202,7 @@ ParallelConvolution::~ParallelConvolution() {
 	Destructor.Stop(); CS.Destructor = Destructor.Elapsed();
 	
 	ThreadCleanUp.Clear(); ThreadCleanUp.Start();
-	fftw_cleanup_threads(); //NAM check usage. 	
+	//fftw_cleanup_threads(); //NAM check usage. 	
 	ThreadCleanUp.Stop(); CS.ThreadCleanUp = ThreadCleanUp.Elapsed();
 	
 	CS.ConvolveWallClock += Destructor.Elapsed() + ThreadCleanUp.Elapsed(); 
