@@ -32,6 +32,10 @@ def setup_bins(args):
 
     rmin, rmax, nbin_per_decade = args.pop('rmin'), args.pop('rmax'), args.pop('nbins_decade')
 
+    rmax_mask = args.pop('rmax_mask')
+    if rmax_mask is None:
+        rmax_mask = rmax
+
     all_headers = [common.get_header(p) for p in args['primary']]
 
     # Parse rmin input
@@ -78,12 +82,15 @@ def setup_bins(args):
         del box
 
     # set up base bins (at the earliest time)
+    # TODO: should use fixed bin widths, this means bin widths may change with rmax
     nbins = int(np.log10(rmax/rmin)*nbin_per_decade)
 
     if args.pop('linear'):
         bins = np.linspace(rmin, rmax, nbins+1)
+        print('Bin spacing:',bins[1] - bins[0])
     else:
         bins = np.geomspace(rmin, rmax, nbins+1)
+        print('Bin log10 spacing:',np.log10(bins[1]/bins[0]))
     all_bins = np.tile(bins, (len(args['primary']),1))
 
     if ns is not None:
@@ -100,12 +107,12 @@ def setup_bins(args):
         all_box = np.array([h['BoxSize'] for h in all_headers])
         assert all(all_box[0] == all_box), ("BoxSize must agree across slices in order to determine resolution scale for scale-free binning", all_box)
 
-        resolution_scale = 70*all_box[0]/all_n1d[0]  # 70*(particle spacing), a kludgy guess!
+        resolution_scale = args['resolution_scale']*all_box[0]/all_n1d[0]  # 70*(particle spacing), a kludgy guess!
         res_rescale = (all_scalefactor/firsta)**-1
         resolution_scale *= res_rescale[:,None]
 
         # Now mask bins above the resolution cut
-        all_bins = np.ma.masked_greater(all_bins, np.minimum(rmax, resolution_scale))
+        all_bins = np.ma.masked_greater(all_bins, np.minimum(rmax_mask, resolution_scale))
         # and bins below rmin *in un-rescaled coords*
         all_bins.mask |= all_bins < rmin_last
 
@@ -122,16 +129,18 @@ def default_argparse(doc=__doc__):
     # We want the user to think about rmin and rmax, since any defaults may not be optimal for cross-sim comparison, which is a very common use-case
     parser.add_argument('rmin', help='Minimum pair counting distance (Mpc/h).  Accepts simple math like "eps/10".')
     parser.add_argument('rmax', help='Maximum pair counting distance (Mpc/h). Accepts simple math like "box/500".')
+    parser.add_argument('--rmax-mask', help='For scale-free binning, actually only do pair counting up to this RMAX_MASK.  Bins will be set up as if for RMAX though.', type=float, default=None)
+    parser.add_argument('--resolution-scale', help='For scale-free binning, mask bins above this effective resolution scale (units of interparticle spacing)', type=float, default=35)
     parser.add_argument('--secondary', help='The time slice directory containing the secondary particles for cross-correlations.')
     
     parser.add_argument('--format', help='Format of the particle data.', default='Pack14', choices=['RVdouble', 'Pack14', 'RVZel', 'RVTag', 'state', 'gadget'])
-    parser.add_argument('--scalefree_index', help='Automatically scales rmin and rmax according to the scale free cosmology with the given spectral index.  Uses the highest redshift for rmax, and the lowest redshift for rmin.', default=None, type=float)
+    parser.add_argument('--scalefree-index', help='Automatically scales rmin and rmax according to the scale free cosmology with the given spectral index.  Uses the highest redshift for rmax, and the lowest redshift for rmin.', default=None, type=float)
     # TODO: change to amin and amax
     #parser.add_argument('--scalefree_base_a', help='Override the fiducial scale factor for automatic rmin/rmax computation in a scale-free cosmology. Only has an effect with the --scalefree_index option.', default=None, type=float)
-    parser.add_argument('--nbins_decade', help='Number of radial bins *per decade*.', default=40, type=int)
+    parser.add_argument('--nbins-decade', help='Number of radial bins *per decade*.', default=40, type=int)
     parser.add_argument('--dtype', help='Data type for internal calculations.', choices=['float', 'double'], default='float')
     parser.add_argument('--linear', help='Do the histogramming in linear space.  Default is log10 space.', default=False, action='store_true')
-    parser.add_argument('--out_parent', help='Directory in which to place the data products.', default=None)
+    parser.add_argument('--out-parent', help='Directory in which to place the data products.', default=None)
     parser.add_argument('--nthreads', help='Number of OpenMP threads for Corrfunc.  NTHREADS <= 0 means use all cores.', default=-1, type=int)
     parser.add_argument('--box', help='Override the box size from the header', type=float)
 

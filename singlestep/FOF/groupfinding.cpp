@@ -299,7 +299,10 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 
 	    int active_particles = c.count();
 	    #ifdef COMPUTE_FOF_DENSITY
-	    if (DensityKernelRad2>0) {
+	    if (DensityKernelRad2>0 && c.acc != NULL) {
+            // We may be calling this from a context like standalone_fof where we haven't computed accelerations
+            // TOOD: maybe we want to turn off COMPUTE_FOF_DENSITY instead?
+
 	        // The FOF-scale density is in acc.w.  
 		// All zeros cannot be in groups, partition them to the end
 		for (int p=0; p<active_particles; p++) {
@@ -429,7 +432,8 @@ void FindAndProcessGlobalGroups(int slab) {
     // The GGS->globalgroups[j][k][n] now reference these as [start,start+np)
 	// ReadState.DoGroupFindingOutput is decided in InitGroupFinding()
 	
-    if(ReadState.DoGroupFindingOutput)
+	// ReadState.DoGroupFindingOutput is decided in InitGroupFinding()
+	if(ReadState.DoGroupFindingOutput)
 		GGS->FindSubGroups();
     GGS->ScatterGlobalGroupsAux();
 

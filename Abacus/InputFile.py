@@ -27,6 +27,7 @@ EXERCISE EXTREME CAUTION: THIS CLASS ALLOWS ARBITRARY EXECUTION OF TEXT FILES AS
 import sys
 import os.path as path
 from io import StringIO
+import shlex
 
 class InputFile:
     def __init__(self, fn=None, str_source=None):
@@ -61,14 +62,14 @@ class InputFile:
             key = line[:equals].strip()
             valstr = line[equals+1:].strip()
             try:
-            	# valid python as-is?
-            	value = eval(valstr)
+            	# valid as a tuple, if we replace spaces with commas?
+                items = shlex.split(valstr)
+                vec  = ','.join(items)
+                value = eval('({})'.format(vec))
             except (SyntaxError,NameError):
                 try:
-                	# valid as a tuple, if we replace spaces with commas?
-                    items = valstr.split()
-                    vec  = ','.join(items)
-                    value = eval('({})'.format(vec))
+                    # valid python as-is?
+                    value = eval(valstr)
                 except:
                     try:
                     	# valid as a string if we wrap the whole RHS in quotes?

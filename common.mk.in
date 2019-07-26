@@ -51,6 +51,8 @@ else ifeq (@MULTIPOLES_SIMD@,MULTIPOLES_SIMD_UNROLLED)
     MULTIPOLES_OBJ += CM_unrolled.o ET_unrolled.o
 endif
 
+MAXORDER := @MAXORDER@
+
 # Really only singlestep and friends should use the following libs. It's not safe to link everything against all the libs here (e.g. tcmalloc)
 SINGLESTEP_LIBS := @LIBS@
 

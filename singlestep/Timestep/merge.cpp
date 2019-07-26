@@ -291,10 +291,12 @@ uint64 FillMergeSlab(int slab) {
             // In the vast majority of cases, the PIDs are numbered [0,NP).
             // One could check this condition here; failure could indicate
             // PID corruption
-			mc = CP->GetMergeCell(slab, y, z);
-			for (int j = 0; j < mc.count(); j++) {
-				assertf(mc.aux[j].pid() < P.np, "PID %d too big\n", mc.aux[j].pid());
-			}
+            if(P.MaxPID >= 0){
+    			mc = CP->GetMergeCell(slab, y, z);
+    			for (int j = 0; j < mc.count(); j++) {
+    				assertf(mc.aux[j].pid() < P.MaxPID, "PID %d bigger than MaxPID %d\n", mc.aux[j].pid(), P.MaxPID);
+    			}
+            }
             
             //DoCellMultipoles(slab, y, z);
         }

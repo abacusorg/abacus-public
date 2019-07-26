@@ -460,7 +460,6 @@ int DoGlobalGroupsPrecondition(int slab) {
     // we can proceed.  This particularly matters in the parallel version, where
     // we may already have closed groups in higher numbered slabs.
 
-    if (Kick.notdone(slab)) return 0;
     // Look behind; can stop as soon as one finds a closed slab
     // The lower bound has a +1 (> not >=) because FindLinks(n) connects n and n-1
     for (int j=0; j>-2*GROUP_RADIUS; j--) {

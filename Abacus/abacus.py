@@ -968,10 +968,13 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                 
         else:
             print("Running singlestep for step {:d}".format(stepnum))
-        with Tools.ContextTimer() as ss_timer:            
-            subprocess.check_call(singlestep_cmd, env=singlestep_env)
-            
-            
+        with Tools.ContextTimer() as ss_timer:
+            try:
+                subprocess.check_call(singlestep_cmd, env=singlestep_env)
+            except subprocess.CalledProcessError as cpe:
+                if cpe.returncode == -signal.SIGBUS:
+                    print('singlestep died with signal SIGBUS! Did the ramdisk run out of memory?', file=sys.stderr)
+                raise
         
         # In profiling mode, we don't move the states so we can immediately run the same step again
         if ProfilingMode and ProfilingMode != 2:
@@ -979,9 +982,10 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             break
             
         # Check that write/state was written as a test of success
-        if not path.exists(pjoin(write, "state")):
-            raise ValueError("Singlestep did not complete!")
-        write_state = InputFile(pjoin(write, "state"))
+        write_state_path = pjoin(write, "state")
+        if not path.isfile(write_state_path):
+            raise ValueError(f'No write state file at "{write_state_path}"; singlestep did not complete!')
+        write_state = InputFile(write_state_path)
 
         # save the log and timing files under this step number
         save_log_files(param.LogDirectory, 'step{:04d}'.format(write_state.FullStepNumber))

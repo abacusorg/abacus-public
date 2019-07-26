@@ -194,6 +194,8 @@ AC_DEFINE_UNQUOTED(MAXSOURCELENGTH,$with_max_source_length, "Maximum source leng
 AC_ARG_WITH(max-order,
 [AS_HELP_STRING([--with-max-order=O], [Maximum multipole order [16]])],
     [], with_max_order="16")
+MAXORDER=$with_max_order
+AC_SUBST(MAXORDER)
 AC_DEFINE_UNQUOTED(MAXORDER,$with_max_order, "Maximum multipole order")
 
 AC_ARG_ENABLE(threaded-io,

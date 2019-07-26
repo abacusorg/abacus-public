@@ -153,7 +153,7 @@ struct GPUBuffer {
     char * device;        ///< The device-side memory
     char * host;        ///< The host-side memory allocated as default
     char * hostWC;        ///< The host-side memory allocated as write combined
-    int ready;            ///< Have we finished initializing the CUDA stream for this buffer?
+    volatile int ready;            ///< Have we finished initializing the CUDA stream for this buffer?
 };
 
 // GPUSetup() spins up one thread per GPU buffer
@@ -375,7 +375,7 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     //STDLOG(1, "Detected %d sockets/NUMA nodes\n", n_socket);
     //assertf(n_socket > 0, "n_socket %d less than 1\n", n_socket);
 
-    int use_pinned = MaxSinkBlocks >= 100000;  // Pinning is slow, so for very small problems it's faster to use unpinned memory
+    int use_pinned = MaxSinkBlocks >= 10000;  // Pinning is slow, so for very small problems it's faster to use unpinned memory
 
     if(use_pinned)
         STDLOG(1, "Allocating pinned memory\n");

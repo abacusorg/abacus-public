@@ -236,6 +236,7 @@ class GlobalGroupSlab {
     void FindSubGroups();
     void SimpleOutput();
     void HaloOutput();
+    void WriteGroupHeaderFile(const char* fn);
     uint64 L0TimeSliceOutput(FLOAT unkick_factor);
 
 };
@@ -1058,20 +1059,12 @@ void GlobalGroupSlab::HaloOutput() {
     GFC->OutputLevel1.Start();
     STDLOG(0,"Beginning halo output for slab %d\n", slab);
         
-    // Ensure the output directory for this step exists
-    char dir[32];
-    sprintf(dir, "Step%04d_z%5.3f", ReadState.FullStepNumber, ReadState.Redshift);
-    CreateSubDirectory(P.GroupDirectory, dir);
-    
-    // Write a header file in this directory
-    std::string headerfn = "";
-    headerfn = headerfn + P.GroupDirectory + "/" + dir + "/header";
-    WriteHeaderFile(headerfn.c_str());
+    if(slab == 0){
+        std::string headerfn = "";
+        headerfn = headerfn + P.GroupDirectory + "/" + dir + "/header";
+        WriteGroupHeaderFile(headerfn.c_str());
+    }
 
-    // If pencils is NULL, then FindSubgroups() wasn't run and
-    // nothing about L1 groups is even defined.
-    // And if get_slab_size() is 0, then we found ran FOF but found nothing.
-    // No point making empty files!
     if (L1halos.pencils == NULL || L1halos.get_slab_size() == 0){
         GFC->OutputLevel1.Stop();
         return;
@@ -1105,6 +1098,16 @@ void GlobalGroupSlab::HaloOutput() {
     GFC->OutputLevel1.Stop();
     return;
 }
+
+void GlobalGroupSlab::WriteGroupHeaderFile(const char* fn){
+    std::ofstream headerfile;
+    headerfile.open(fn);
+    headerfile << P.header();
+    headerfile << ReadState.header();
+    headerfile << "\nOutputType = \"GroupOutput\"\n";
+    headerfile.close();
+}
+
 #endif
 
 
