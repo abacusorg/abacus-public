@@ -210,6 +210,13 @@ if test x$enable_spherical_overdensity == xyes; then
 	AC_DEFINE_UNQUOTED(SPHERICAL_OVERDENSITY, [], "Use SO finder for L1/L2 halos, rather than FOF")
 fi
 
+AC_ARG_ENABLE(one-sided-group-finding,
+[AS_HELP_STRING([--enable-one-sided-group-finding], [Perform L0 finding one-sided [yes]])],
+	[], enable_one_sided_group_finding="yes")
+if test x$enable_spherical_overdensity == xyes; then
+	AC_DEFINE_UNQUOTED(ONE_SIDED_GROUP_FINDING, [], "Use one-sided algorithm for L0 group finding")
+fi
+
 AC_ARG_ENABLE(gpu-directs,
 [AS_HELP_STRING([--enable-gpu-directs], [GPU directs [yes if CUDA detected]])],
 	[], enable_gpu_directs="check")
