@@ -476,15 +476,10 @@ char *SlabBuffer::AllocateSpecificSize(int type, int slab, uint64 sizebytes, int
 	STDLOG(3, "Allocating slab %d of type %d to size %l (ramdisk = %d), total %5.3f GB\n",
                 slab, type, sizebytes, ramdisk, AA->total_allocation/1024./1024./1024.);
 
-<<<<<<< HEAD
-    int id = TypeSlab2ID(type,slab);	
-    AA->Allocate(id, sizebytes, ReuseID(type), ramdisk, ramdisk_fn);	
-=======
     int id = TypeSlab2ID(type,slab);
     AA->Allocate(id, sizebytes, ReuseID(type), ramdisk, ramdisk_fn);
 
     return GetSlabPtr(type, slab);
->>>>>>> lehman-dev
 }
 
 void SlabBuffer::WriteArenaBlockingWithoutDeletion(int type, int slab) {
