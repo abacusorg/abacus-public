@@ -170,9 +170,9 @@ GroupFindingControl *GFC;
 #include "Cosmology.cpp"
 Cosmology *cosm;
 #include "lpt.cpp"
+
 #include "output_timeslice.cpp"
 #include "LightCones.cpp"
-
 #include "loadIC.cpp"
 
 #include "binning.cpp"
@@ -180,6 +180,7 @@ FLOAT * density; //!< Array to accumulate gridded densities in for low resolutio
 
 #include "groupfinding.cpp"
 #include "microstep.cpp"
+#include "output_field.cpp"    // Field particle subsample output
 
 int first_slab_on_node, total_slabs_on_node, first_slab_finished;
 int * first_slabs_all = NULL;
