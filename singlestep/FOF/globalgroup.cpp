@@ -227,7 +227,7 @@ class GlobalGroupSlab {
     ~GlobalGroupSlab() { destroy(); }
 
     void IndexLinks();
-    void DeferCellGroups();
+    void DeferGlobalGroups();
     void ClearDeferrals();
     void CreateGlobalGroups();
     void GatherGlobalGroups();
@@ -336,7 +336,7 @@ void GlobalGroupSlab::DeferGlobalGroups() {
                 GroupLink *gg; int t;
                 // Loop over links from this cell
                 for (gg = slablp->data + slablp->cells[k].start, t = 0;
-                    t<slablp->cells[thiscell.z].n; t++, gg++) {
+                    t<slablp->cells[k].n; t++, gg++) {
                     // If the link doesn't point to S-1, skip to next
                     integer3 linkcell = gg->b.cell();
                     if (linkcell.x != lastslab) continue;
@@ -353,7 +353,7 @@ void GlobalGroupSlab::DeferGlobalGroups() {
                         integer3 thiscell = cglist[searching].cell();  
                         CellGroup *thiscg = LinkToCellGroup(cglist[searching]);
                         // There's a chance we've already been here; if yes, skip
-                        if (!(thiscg->is_open)) continue;
+                        if (!(thiscg->is_open())) continue;
 
                         int s = GFC->WrapSlab(thiscell.x-slab+slabbias);  // Map to [0,diam)
                         LinkPencil *lp = links[s]+thiscell.y;
@@ -366,19 +366,22 @@ void GlobalGroupSlab::DeferGlobalGroups() {
                                 // The link originates from the group we're considering
                                 // But now we need to check its destination
                                 uint64 seek = 0;
+                                integer3 thatcell;
+                                CellGroup *thatcg;
                                 while (seek<cglist.size())
                                     if (g->b.id == cglist[seek++].id) goto FoundIt;
                                 // We didn't find the link in the list, but maybe we don't care.
-                                integer3 thatcell = g->b.cell();
+                                thatcell = g->b.cell();
                                 if (thatcell.x==lastslab) goto IgnoreIt;
                                     // Cell is in the no-go slab
-                                CellGroup *thatcell = LinkToCellGroup(g->b);
-                                if (!(thatcell->is_open)) goto IgnoreIt;
+                                thatcg = LinkToCellGroup(g->b);
+                                if (!(thatcg->is_open())) goto IgnoreIt;
                                     // CellGroup is already marked as deferred
                                     // We've been there before; don't return!.
                                 cglist.push_back(g->b);  // Yes, we'll need to consider that CellGroup
                                 FoundIt:
                                 IgnoreIt:
+                                continue;  // Just effectively a no-op
                             }
                         }  // Done with links from this CellGroup
                         thiscg->defer_group();    // Mark it as deferred
@@ -393,7 +396,7 @@ void GlobalGroupSlab::DeferGlobalGroups() {
 
 void GlobalGroupSlab::ClearDeferrals() {
     // We need to loop over the relevant slabs to clear the deferral flags from all CellGroups
-    ClearDefer.Start();
+    GFC->ClearDefer.Start();
     for (int s=0; s<diam; s++) {
         int thisslab = GFC->WrapSlab(slab+s-slabbias);
         #pragma omp parallel for schedule(static)
@@ -409,7 +412,7 @@ void GlobalGroupSlab::ClearDeferrals() {
             */
         }
     }
-    ClearDefer.Stop();
+    GFC->ClearDefer.Stop();
     return;
 }
 
