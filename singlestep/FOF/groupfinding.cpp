@@ -80,6 +80,7 @@ class GroupFindingControl {
 
     STimer CellGroupTime, CreateFaceTime, FindLinkTime, 
     	SortLinks, IndexLinks, FindGlobalGroupTime, IndexGroups, 
+        DeferGroups, ClearDefer,
 	GatherGroups, ScatterAux, ScatterGroups, ProcessLevel1, OutputLevel1;
     PTimer L1FOF, L2FOF, L1Tot;
     PTimer IndexLinksSearch, IndexLinksIndex;
@@ -225,8 +226,12 @@ class GroupFindingControl {
 			RFORMAT(IndexLinks));
 	 // printf("     Searching:               %8.4f sec\n", IndexLinksSearch.Elapsed());
 	 GLOG(0,"Indexing (P):                %8.4f sec\n", IndexLinksIndex.Elapsed());
+	 GLOG(0,"Defer Groups:            %8.4f sec (%5.2f%%)\n",
+			RFORMAT(DeferGroups));
 	 GLOG(0,"Find Global Groups:      %8.4f sec (%5.2f%%)\n",
 			RFORMAT(FindGlobalGroupTime));
+	 GLOG(0,"Clear Deferrals:         %8.4f sec (%5.2f%%)\n",
+			RFORMAT(ClearDefer));
 	 GLOG(0,"Index Global Groups:     %8.4f sec (%5.2f%%)\n",
 			RFORMAT(IndexGroups));
 	 GLOG(0,"Gather Group Particles:  %8.4f sec (%5.2f%%)\n",
