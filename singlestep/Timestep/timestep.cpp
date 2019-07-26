@@ -437,6 +437,21 @@ void FindCellGroupLinksAction(int slab) {
 // -----------------------------------------------------------------
 
 int DoGlobalGroupsPrecondition(int slab) {
+#ifdef ONE_SIDED_GROUPFINDING
+    /* We're going to search for GlobalGroups that include cells from
+    slabs [slab,slab+2*GroupRadius].  However, this also includes the idea
+    that we will *not* find groups if they include anything in slab-1.
+    So we must have GroupLinks between [slab-1,slab] as well.  Moreover,
+    we must go all the way up to [slab+2*GR-1,slab+2*GR], as there may
+    be groups that are only now becoming eligible.
+    */
+
+    if (Kick.notdone(slab)) return 0;
+    for (int j=0; j<=2*GROUP_RADIUS; j++){
+        if (FindCellGroupLinks.notdone(slab+j)) return 0;
+    }
+
+#else
     // We're going to close all CellGroups in this slab.
     // GlobalGroups can span 2*GroupRadius+1.
     // But even though we usually encounter a CellGroup in its minimum slab,
@@ -444,6 +459,7 @@ int DoGlobalGroupsPrecondition(int slab) {
     // That said, if the nearby slab has already closed global groups, then
     // we can proceed.  This particularly matters in the parallel version, where
     // we may already have closed groups in higher numbered slabs.
+
     if (Kick.notdone(slab)) return 0;
     // Look behind; can stop as soon as one finds a closed slab
     // The lower bound has a +1 (> not >=) because FindLinks(n) connects n and n-1
@@ -456,6 +472,7 @@ int DoGlobalGroupsPrecondition(int slab) {
         if (DoGlobalGroups.done(slab+j)) break;
         if (FindCellGroupLinks.notdone(slab+j)) return 0;
     }
+#endif
     return 1;
 }
 
@@ -472,8 +489,20 @@ void DoGlobalGroupsAction(int slab) {
  * Anything that modifies the particles at the current time should happen before here
  */
 int OutputPrecondition(int slab) {
-    if (DoGlobalGroups.notdone(slab)) return 0;  // Must have found groups to be able to output light cones
+
+    #ifdef ONE_SIDED_GROUP_FINDING
+    /* This must wait until all groups including the slab have been found.  
+    It used to be that closing groups on the current slab S would do this,
+    but now groups are only found looking upwards from S, so we need to have
+    closed groups on all slabs from S to S-2*GroupRadius, inclusive.
+    */
+    for (int s=0; s<=2*GROUP_RADIUS; s++)
+        if (DoGlobalGroups.notdone(slab-s)) return 0;  
+    // Must have found groups to be able to output light cones
     // note that group outputs were already done
+    #else
+        if (DoGlobalGroups.notdone(slab)) return 0;  
+    #endif
 
     // Note the following conditions only have any effect if group finding is turned off
     
@@ -499,6 +528,10 @@ void OutputAction(int slab) {
     // e.g., no light cones
 
     OutputTimeSlice.Start();
+
+    // Having found all groups, we should output the Non-L1 (i.e., field) Taggable subsample
+    if(ReadState.DoGroupFindingOutput)
+        OutputNonL1Taggable(slab);
 
     if (ReadState.DoTimeSliceOutput) {
         // We've already done a K(1) and thus need a K(-1/2)
@@ -547,6 +580,7 @@ void OutputAction(int slab) {
 
 int MicrostepPrecondition(int slab){
     // We are going to second-half kick this slab
+    // TODO: With the GroupFinding change, this could possibly change
     if (Output.notdone(slab))
         return 0;
     return 1;
@@ -584,6 +618,8 @@ int FinishGroupsPrecondition(int slab){
     //if (!GFC->microstepcontrol[slab]->GPUGroupsDone()) return 0
 
     // We are going to release these groups.
+    // TODO: If Microstep changes, this may change.  At present, we really need Output to be done
+    // because this step triggers the writeback of the new Pos/Vel.
     if (Microstep.notdone(slab)) return 0;
     
     return 1;

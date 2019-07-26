@@ -374,44 +374,10 @@ GroupFindingControl *GFC = NULL;
 	// Code to search between pairs of cells and find the linked groups,
 	// which get added to GLL.
 
-
-// ===================== Output Field Particles ===============
+// ===================== Global Groups ===============
 
 #include "halostat.cpp"
-	// Code to compute L1 halo properties
-
-/** Gather all of the taggable particles that aren't in L1 groups into
-two vectors, converting to global positions.  
-
-Space must be allocated beforehand.  Returns the number of elements used.
-Warning: This must be called after ScatterGlobalGroupsAux() and before
-ScatterGlobalGroups()
-*/
-
-uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid, FLOAT unkickfactor) {
-    slab = GFC->WrapSlab(slab);
-    uint64 nfield = 0;
-    for (int j=0; j<GFC->cpd; j++)
-	for (int k=0; k<GFC->cpd; k++) {
-	    // Loop over cells
-	    posstruct offset = CP->CellCenter(slab, j, k);
-	    Cell c = CP->GetCell(slab, j, k);
-	    for (int p=0; p<c.count(); p++)
-		if (c.aux[p].is_taggable() && !c.aux[p].is_L1()) {
-		    // We found a taggable field particle
-		    posstruct r = c.pos[p] + offset;
-		    velstruct v = c.vel[p];
-            if(c.acc != NULL)
-                v -= unkickfactor*TOFLOAT3(c.acc[p]);
-		    pv[nfield] = RVfloat(r.x, r.y, r.z, v.x, v.y, v.z);
-		    pid[nfield] = c.aux[p].pid();
-		    nfield++;
-		}
-	}
-    return nfield;
-}
-
-// ===================== Global Groups ===============
+    // Code to compute L1 halo properties
 
 #include "globalgroup.cpp"
 
@@ -463,12 +429,13 @@ void FindAndProcessGlobalGroups(int slab) {
     // The GGS->globalgroups[j][k][n] now reference these as [start,start+np)
 	// ReadState.DoGroupFindingOutput is decided in InitGroupFinding()
 	
-if(ReadState.DoGroupFindingOutput)
+    if(ReadState.DoGroupFindingOutput)
 		GGS->FindSubGroups();
     GGS->ScatterGlobalGroupsAux();
 
+    // Output the information about the Global Groups
     #ifdef ASCII_TEST_OUTPUT
-    GGS->SimpleOutput();
+        GGS->SimpleOutput();
     #endif
 	if(ReadState.DoGroupFindingOutput)
 		GGS->HaloOutput();
