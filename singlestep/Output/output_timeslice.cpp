@@ -180,5 +180,5 @@ void OutputNonL1Taggable(int slab) {
         SB->DeAllocate(TaggableFieldSlab, slab);
         SB->DeAllocate(TaggableFieldPIDSlab, slab);
     }
-
+    STDLOG(1,"Writing %d non-L1 Taggable particles in slab %d\n", nfield, slab);
 }
