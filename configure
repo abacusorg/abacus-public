@@ -6029,7 +6029,7 @@ else
   enable_one_sided_group_finding="yes"
 fi
 
-if test x$enable_spherical_overdensity == xyes; then
+if test x$enable_one_sided_group_finding == xyes; then
 
 cat >>confdefs.h <<_ACEOF
 #define ONE_SIDED_GROUP_FINDING /**/
@@ -6847,6 +6847,7 @@ echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "SIMD multipoles:                 $with_multipoles_simd"
 echo "AVX FOF:                         $enable_avx_fof"
 echo "Spherical Overdensity:           $enable_spherical_overdensity"
+echo "One-sided L0 Finding:            $enable_one_sided_group_finding"
 echo "Threaded IO:                     $enable_threaded_io"
 echo "GPU directs:                     $enable_gpu_directs"
 echo "Compute FOF-scale density:       $enable_fof_density"

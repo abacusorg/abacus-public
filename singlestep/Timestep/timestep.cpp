@@ -437,7 +437,7 @@ void FindCellGroupLinksAction(int slab) {
 // -----------------------------------------------------------------
 
 int DoGlobalGroupsPrecondition(int slab) {
-#ifdef ONE_SIDED_GROUPFINDING
+#ifdef ONE_SIDED_GROUP_FINDING
     /* We're going to search for GlobalGroups that include cells from
     slabs [slab,slab+2*GroupRadius].  However, this also includes the idea
     that we will *not* find groups if they include anything in slab-1.

@@ -213,7 +213,7 @@ fi
 AC_ARG_ENABLE(one-sided-group-finding,
 [AS_HELP_STRING([--enable-one-sided-group-finding], [Perform L0 finding one-sided [yes]])],
 	[], enable_one_sided_group_finding="yes")
-if test x$enable_spherical_overdensity == xyes; then
+if test x$enable_one_sided_group_finding == xyes; then
 	AC_DEFINE_UNQUOTED(ONE_SIDED_GROUP_FINDING, [], "Use one-sided algorithm for L0 group finding")
 fi
 
@@ -413,6 +413,7 @@ echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "SIMD multipoles:                 $with_multipoles_simd"
 echo "AVX FOF:                         $enable_avx_fof"
 echo "Spherical Overdensity:           $enable_spherical_overdensity"
+echo "One-sided L0 Finding:            $enable_one_sided_group_finding"
 echo "Threaded IO:                     $enable_threaded_io"
 echo "GPU directs:                     $enable_gpu_directs"
 echo "Compute FOF-scale density:       $enable_fof_density"
