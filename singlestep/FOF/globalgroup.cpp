@@ -913,6 +913,7 @@ void GlobalGroupSlab::FindSubGroups() {
                 // E.g., we could output the non-L1 particles in this L0 group.
                 /*
                 for (int b=0; b<groupn; b++) {
+                    if (groupaux[b].is_L1()) continue;  // Already in the L1 set
                     if (groupaux[b].is_taggable()
                             || P.OutputAllHaloParticles) {
                         posstruct r = WrapPosition(grouppos[b]+offset);
