@@ -563,11 +563,11 @@ int OutputPrecondition(int slab) {
     closed groups on all slabs from S to S-2*GroupRadius, inclusive.
     */
     for (int s=0; s<=2*GROUP_RADIUS; s++)
-        if (FinishGroup.notdone(slab-s)) return 0;  
+        if (FinishGroups.notdone(slab-s)) return 0;  
     // Must have found groups to be able to output light cones
     // note that group outputs were already done
     #else
-        if (FinishGroup.notdone(slab)) return 0;  
+        if (FinishGroups.notdone(slab)) return 0;  
     #endif
 
     // Note the following conditions only have any effect if group finding is turned off

@@ -107,7 +107,7 @@ public:
         to IsArenaPresent() will return False.  Pretty much the only 
         thing that will work after that is a call to DeAllocate() */
         /* One should *never* make the ReuseArena unavailable! */
-        present = 2;
+        arena[id].present = 2;
         return;
     }
 

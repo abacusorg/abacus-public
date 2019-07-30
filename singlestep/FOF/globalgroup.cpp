@@ -808,6 +808,7 @@ void GlobalGroupSlab::FindSubGroups() {
             // uint64 groupid = ((slab*GFC->cpd+j)*GFC->cpd+k)*4096;
             uint64 groupidstart = (((uint64)slab*MAXCPD+(uint64)j)*MAXCPD+(uint64)k)*10000;
             uint64 nextid = groupidstart;
+            posstruct offset = CP->CellCenter(slab, j, k);
                     // A basic label for this group
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 if (globalgroups[j][k][n].np<GFC->minhalosize) continue;
@@ -886,7 +887,6 @@ void GlobalGroupSlab::FindSubGroups() {
                     // Output the Taggable Particles. 
                     // If P.OutputAllHaloParticles is set, then we output 
                     //      all L1 particles
-                    posstruct offset = CP->CellCenter(slab, j, k);
                     for (int b=0; b<size; b++)
                         if (groupaux[start[b].index()].is_taggable()
                                     || P.OutputAllHaloParticles) {
@@ -922,6 +922,7 @@ void GlobalGroupSlab::FindSubGroups() {
                             v -= TOFLOAT3(groupacc[b])*WriteState.FirstHalfEtaKick;
                         pL1Particles->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
                         pL1PIDs->append(TaggedPID(groupaux[b].pid()));
+                    }
                 }
                 // If we want to do anything else with the L0 particles,
                 // we could do so here.
