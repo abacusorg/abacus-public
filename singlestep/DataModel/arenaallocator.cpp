@@ -32,7 +32,7 @@
 
 typedef struct {
     uint64 allocated_size, usable_size, max_usable_size, start_offset;
-    int present;
+    int present;    // This will be 1 if the arena is available.  2 if allocated, but not available for normal work.
     int IsIOCompleted;
     int shared_mem;  // does this arena reside in shared memory?
     char *addr;
@@ -71,8 +71,8 @@ public:
 
     inline int IsArenaPresent(int id) { 
         // Returns 1 if the Arena is Allocated, 0 otherwise
-            assert(id>=0 && id<maxids); 
-        return arena[id].present; 
+        assert(id>=0 && id<maxids); 
+        return (arena[id].present==1)?1:0; 
     }
 
     inline void SetIOCompletedArena(int id) { 
@@ -89,17 +89,26 @@ public:
     inline int IsIOCompleted(int id) { 
         // Returns 1 if the Arena has completed I/O and is ready for use.
         assert(IsArenaPresent(id));
-            return arena[id].IsIOCompleted; 
+        return arena[id].IsIOCompleted; 
     }
 
     uint64 ArenaSizeBytes(int id) { 
         // Return the usable size of the Arena
         assert(IsArenaPresent(id));
-            return arena[id].usable_size; 
+        return arena[id].usable_size; 
     }
 
     int ArenaRamdiskType(int id){
         return arena[id].shared_mem;
+    }
+
+    inline void MarkArenaUnavailable(int id) {
+        /* This should be used sparingly.  It makes it so that calls
+        to IsArenaPresent() will return False.  Pretty much the only 
+        thing that will work after that is a call to DeAllocate() */
+        /* One should *never* make the ReuseArena unavailable! */
+        present = 2;
+        return;
     }
 
 
@@ -277,7 +286,7 @@ void ArenaAllocator::report(){
 void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const char *ramdisk_fn) {
     lb_mutex.lock();
     
-    assertf(IsArenaPresent(id)==0, "Error: Asking for Allocation of arena %d that already exists!\n", id);   // This is always a bad idea
+    assertf(arena[id].present==0, "Error: Asking for Allocation of arena %d that already exists!\n", id);   // This is always a bad idea
     assert(id < maxids);
     
     size_t ss;
@@ -465,7 +474,8 @@ void ArenaAllocator::DeAllocateArena(int id, int reuseID) {
     // It is illegal to call this on an arena that hasn't been allocated.
     lb_mutex.lock();
     assert(id >= 0 && id < maxids); 
-    assertf(arena[id].present == 1, "Arena %d requested for deallocation, but it doesn't exist\n", id ); 
+    assertf(arena[id].present>0, "Arena %d requested for deallocation, but it doesn't exist\n", id ); 
+    arena[id].present = 1;   // If it was marked unavailable, fix that before it propagates
 
     // If we're asked to discard the reuse slab or a shared memory slab, just do it
     if (id == reuseID || arena[id].shared_mem) {
