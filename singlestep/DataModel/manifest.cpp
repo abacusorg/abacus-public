@@ -292,6 +292,7 @@ class Manifest {
         a->slab = s;
         a->size = SB->SlabSizeBytes(type, s);
         a->ptr =  SB->GetSlabPtr(type, s);
+        SB->MarkSlabUnavailable(type,s);   // Place this arena off limits
         STDLOG(3, "Queuing slab %d of type %d, size %l\n", s, type, a->size);
         m.numarenas++;
         assertf(m.numarenas<MAXMANIFEST, "numarenas has overflowed; increase MAXMANIFEST.");
