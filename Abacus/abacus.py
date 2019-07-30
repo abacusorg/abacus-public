@@ -896,7 +896,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         else:
             print("Running singlestep for step {:d}".format(stepnum))
         with Tools.ContextTimer() as ss_timer:
-            subprocess.check_call(singlestep_cmd, env=singlestep_env)
+            try:
+                subprocess.check_call(singlestep_cmd, env=singlestep_env)
+            except subprocess.CalledProcessError as cpe:
+                if cpe.returncode == -signal.SIGBUS:
+                    print('singlestep died with signal SIGBUS! Did the ramdisk run out of memory?', file=sys.stderr)
+                raise
         
         # In profiling mode, we don't move the states so we can immediately run the same step again
         if ProfilingMode and ProfilingMode != 2:
