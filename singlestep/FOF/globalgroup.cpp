@@ -884,11 +884,12 @@ void GlobalGroupSlab::FindSubGroups() {
                             pTaggedPIDs->append(TaggedPID(groupaux[start[b].index()].pid()));
 
                     // Output the Taggable Particles. 
-		    // If P.OutputAllHaloParticles is set, then we output all L1 particles
+                    // If P.OutputAllHaloParticles is set, then we output 
+                    //      all L1 particles
                     posstruct offset = CP->CellCenter(slab, j, k);
                     for (int b=0; b<size; b++)
                         if (groupaux[start[b].index()].is_taggable()
-				|| P.OutputAllHaloParticles) {
+                                    || P.OutputAllHaloParticles) {
                             posstruct r = WrapPosition(grouppos[start[b].index()]+offset);
                             velstruct v = groupvel[start[b].index()];
                             // Velocities were full kicked; half-unkick before halostats
@@ -907,7 +908,23 @@ void GlobalGroupSlab::FindSubGroups() {
                     h.npout = pL1Particles->get_pencil_size()-npstart;
                     pL1halos->append(h);
                 } // Done with this L1 halo
-            } // Done with this group
+                // OPTION: If we want to do anything else with the L0 particles,
+                // we could do so here.
+                // E.g., we could output the non-L1 particles in this L0 group.
+                /*
+                for (int b=0; b<groupn; b++) {
+                    if (groupaux[b].is_taggable()
+                            || P.OutputAllHaloParticles) {
+                        posstruct r = WrapPosition(grouppos[b]+offset);
+                        velstruct v = groupvel[b];
+                        // Velocities were full kicked; half-unkick before halostats
+                        if (groupacc != NULL)
+                            v -= TOFLOAT3(groupacc[b])*WriteState.FirstHalfEtaKick;
+                        pL1Particles->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
+                        pL1PIDs->append(TaggedPID(groupaux[b].pid()));
+                }
+                */
+            } // Done with this L0 group
             pL1halos->FinishCell();
             pTaggedPIDs->FinishCell();
             pL1Particles->FinishCell();
