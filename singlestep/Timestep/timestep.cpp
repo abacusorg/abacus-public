@@ -507,7 +507,8 @@ int OutputPrecondition(int slab) {
     
     if (Kick.notdone(slab)) return 0;  // Must have accelerations
 
-    // Also obviously need the aux!
+    // Also obviously need the aux!  This was checked in CellGroups,
+    // but that may have been skipped if there's no group finding.
     if( !SB->IsIOCompleted( AuxSlab, slab ) ){
         if(SB->IsSlabPresent(AuxSlab, slab))
             Dependency::NotifySpinning(WAITING_FOR_IO);
