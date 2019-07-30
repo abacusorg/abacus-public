@@ -908,10 +908,9 @@ void GlobalGroupSlab::FindSubGroups() {
                     h.npout = pL1Particles->get_pencil_size()-npstart;
                     pL1halos->append(h);
                 } // Done with this L1 halo
-                // OPTION: If we want to do anything else with the L0 particles,
-                // we could do so here.
-                // E.g., we could output the non-L1 particles in this L0 group.
-                /*
+                // We now output the non-L1 particles in this L0 group.
+                // This must happen here because the microstepping might 
+                // alter the L0 pos/vel before we output the field particles.
                 for (int b=0; b<groupn; b++) {
                     if (groupaux[b].is_L1()) continue;  // Already in the L1 set
                     if (groupaux[b].is_taggable()
@@ -924,7 +923,8 @@ void GlobalGroupSlab::FindSubGroups() {
                         pL1Particles->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
                         pL1PIDs->append(TaggedPID(groupaux[b].pid()));
                 }
-                */
+                // If we want to do anything else with the L0 particles,
+                // we could do so here.
             } // Done with this L0 group
             pL1halos->FinishCell();
             pTaggedPIDs->FinishCell();

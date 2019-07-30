@@ -1,6 +1,6 @@
-// ================  Routines for the non-L1 taggable output =============
+// ================  Routines for the non-L0 taggable output =============
 
-/** Gather all of the taggable particles that aren't in L1 groups into
+/** Gather all of the taggable particles that aren't in L0 groups into
 two vectors, converting to global positions.
 
 Space must be allocated beforehand.  Returns the number of elements used.
@@ -21,7 +21,7 @@ uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid, FLOAT
             posstruct offset = CP->CellCenter(slab, j, k);
             Cell c = CP->GetCell(slab, j, k);
             for (int p=0; p<c.count(); p++)
-                if (c.aux[p].is_taggable() && !c.aux[p].is_L1()) {
+                if (c.aux[p].is_taggable() && !c.aux[p].is_L0()) {
                     // We found a taggable field particle
                     posstruct r = c.pos[p] + offset;
                     velstruct v = c.vel[p];
@@ -35,8 +35,8 @@ uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid, FLOAT
     return nfield;
 }
 
-void OutputNonL1Taggable(int slab) {
-    // Write out the taggable particles not in L1 halos.
+void OutputNonL0Taggable(int slab) {
+    // Write out the taggable particles not in 01 halos.
     // This has to get called after all GlobalGroups in this slab
     // have been found.
 
@@ -62,5 +62,5 @@ void OutputNonL1Taggable(int slab) {
         SB->DeAllocate(TaggableFieldSlab, slab);
         SB->DeAllocate(TaggableFieldPIDSlab, slab);
     }
-    STDLOG(1,"Writing %d non-L1 Taggable particles in slab %d\n", nfield, slab);
+    STDLOG(1,"Writing %d non-L0 Taggable particles in slab %d\n", nfield, slab);
 }

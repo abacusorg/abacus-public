@@ -529,9 +529,9 @@ void OutputAction(int slab) {
 
     OutputTimeSlice.Start();
 
-    // Having found all groups, we should output the Non-L1 (i.e., field) Taggable subsample
+    // Having found all groups, we should output the Non-L0 (i.e., field) Taggable subsample
     if(ReadState.DoGroupFindingOutput)
-        OutputNonL1Taggable(slab);
+        OutputNonL0Taggable(slab);
 
     if (ReadState.DoTimeSliceOutput) {
         // We've already done a K(1) and thus need a K(-1/2)
