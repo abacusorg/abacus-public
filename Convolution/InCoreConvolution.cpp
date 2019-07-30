@@ -23,6 +23,7 @@ public:
 
         blocksize_even = blocksize;
         if ((blocksize&1)==1) blocksize_even += 1; 
+        assert((blocksize_even&1)==0);   // n must be even
         padblocksize = blocksize_even;
 
         bufsize = completemultipolelength*padblocksize;
@@ -99,8 +100,25 @@ inline void FMAvector(Complex *t, Complex *m, double *d, int n) {
     // We are doing this in sets of two cells, since that fits AVX
     // and may also suit the memory access pattern of Power9 slices.
     #ifndef HAVE_AVX
+        int i=0;
+        /* This is the base version */
         #pragma omp simd aligned(t,m:16) aligned(d:8)
-        for(int i=0;i<n;i++) t[i] += m[i] * d[i]; 
+        for(;i<n;i++) t[i] += m[i] * d[i]; 
+
+        /* // A simple unrolled version; will compute off the end in 2's 
+        #pragma omp simd aligned(t,m:32) aligned(d:16)
+        for(;i<n;i+=2) {
+            t[i] += m[i] * d[i]; 
+            t[i+1] += m[i+1] * d[i+1]; 
+        }
+        */ 
+        /* // An alternate, with pointer movement 
+        for(;i<(n>>1);i++) {
+            *t += (*m)*(*d); t++; m++; d++;
+            *t += (*m)*(*d); t++; m++; d++;
+        }
+        */
+
     #else
     // An AVX equivalent -- this does two at once, so we have to pad to 2!
     // Will compute off the end.  
@@ -115,7 +133,6 @@ inline void FMAvector(Complex *t, Complex *m, double *d, int n) {
         zz = _mm256_add_pd(_mm256_mul_pd(xx,yy),zz); \
         _mm256_store_pd((double *)(t), zz); t+=2;}
 
-    assert((n&1)==0);   // n must be even
     n = (n>>1);   // Divide by 2; this is how many cell pairs
     for (int i=0;i<n;i++) AVX_COMPLEX_DOUBLE_FMA
     return;
@@ -137,9 +154,10 @@ inline void FMAvector(Complex *t, Complex *m, double *d, int n) {
 
 inline void Multiply_by_scalar(Complex *m, double &s, int n) {
     // Multiply a complex vector by a constant scalar
-    // The AVX code requires blocksize to be divisible by 2
+    // The AVX code requires n to be divisible by 2
     int xyz;
     #ifndef HAVE_AVX
+        #pragma omp simd aligned(m:16) 
         FOR(xyz,0,n-1) m[xyz] *= s;
     #else
         __m256d scalar = _mm256_broadcast_sd((double *)&s);
@@ -156,6 +174,7 @@ inline void Multiply_by_I(Complex *t, int blocksize) {
     // Multiply a complex vector by i really means swapping to (-im, re)
     int xyz;
     #ifndef HAVE_AVX
+        #pragma omp simd aligned(t:16) 
         double *tcache_dbl = (double *)t;
         for (xyz=0; xyz<2*blocksize; xyz+=2) {
             double tmp = tcache_dbl[xyz];
@@ -177,6 +196,7 @@ inline void Multiply_by_I(Complex *t, int blocksize) {
 inline void Set_Vector_to_Zero(Complex *t, int n) {
     // The AVX code requires t to be 32-byte aligned and n to be even
     #ifndef HAVE_AVX
+        #pragma omp simd aligned(t:16) 
         for (int i=0; i<n; i++) t[i] = 0.0;
     #else
         __m256d zero = _mm256_set1_pd(0.0);
