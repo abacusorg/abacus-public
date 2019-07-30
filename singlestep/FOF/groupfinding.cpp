@@ -116,10 +116,11 @@ class GroupFindingControl {
 	#else
 	    sprintf(onoff, "off");
 	#endif
-	STDLOG(1,"Group finding sizeof(FOFloat)=%d, sizeof(FLOAT)=%d, AVXFOF is %s\n", sizeof(FOFloat), sizeof(FLOAT), onoff);
+	STDLOG(0,"Group finding sizeof(FOFloat)=%d, sizeof(FLOAT)=%d, AVXFOF is %s\n", sizeof(FOFloat), sizeof(FLOAT), onoff);
 
 	cpd = _cpd; 
 	linking_length = _linking_length;
+    STDLOG(0,"Planning for L0 group finding with FOF: %f\n", linking_length);
 	#ifdef SPHERICAL_OVERDENSITY
 	    SOdensity1 = _level1;
 	    SOdensity2 = _level2;
@@ -460,7 +461,9 @@ void FinishGlobalGroups(int slab){
 
 	// pos,vel have been updated in the group-local particle copies by microstepping
     // now push these updates to the original slabs
-    GGS->ScatterGlobalGroups();
+    if(GFC->microstepcontrol[slab]!=NULL) {
+        GGS->ScatterGlobalGroups();
+    }
     delete GGS;
     GFC->globalslabs[slab] = NULL;
 }

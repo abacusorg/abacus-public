@@ -627,9 +627,9 @@ int FinishGroupsPrecondition(int slab){
 void FinishGroupsAction(int slab){
     // Scatter pos,vel updates to slabs, and release GGS
     STDLOG(0, "Entering finish groups action in slab %d\n", slab);
+    FinishGlobalGroups(slab);
     delete GFC->microstepcontrol[slab];
     GFC->microstepcontrol[slab] = NULL;
-    FinishGlobalGroups(slab);
     GFC->DestroyCellGroups(slab);
     STDLOG(0, "Exiting finish groups action in slab %d\n", slab);
 	
@@ -686,7 +686,7 @@ int DriftPrecondition(int slab) {
 
 void DriftAction(int slab) {
 	
-	STDLOG(0, "Entering Drift action for slab %d", slab);
+	STDLOG(0, "Entering Drift action for slab %d\n", slab);
 	
     int step = LPTStepNumber();
     if (step) {
@@ -722,7 +722,7 @@ void DriftAction(int slab) {
 	    }
 	}
 	
-	STDLOG(0, "Exiting Drift action for slab %d", slab);
+	STDLOG(0, "Exiting Drift action for slab %d\n", slab);
 	
 }
 
@@ -828,12 +828,12 @@ void FinishAction(int slab) {
     WriteMultipoleSlab.Stop();
 	
 
-	debug_Manifest_and_log.Start();
     int pwidth = FetchSlabs.raw_number_executed - Finish.raw_number_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
 
 #ifdef PARALLEL
 	
+	debug_Manifest_and_log.Start();
     if (Finish.raw_number_executed==0) SendManifest->QueueToSend(slab);
 	debug_Manifest_and_log.Stop(); 
 	
@@ -979,22 +979,22 @@ void timestep(void) {
          NearForce.instantiate(nslabs, first + FORCE_RADIUS, &NearForcePrecondition,          &NearForceAction         );
        TaylorForce.instantiate(nslabs, first + FORCE_RADIUS, &TaylorForcePrecondition,        &TaylorForceAction       );
               Kick.instantiate(nslabs, first + FORCE_RADIUS, &KickPrecondition,               &KickAction              );
-            Output.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS, &OutputPrecondition,             &OutputAction            );
-             Drift.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS, &DriftPrecondition,              &DriftAction             );
-            Finish.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &FinishPrecondition,             &FinishAction            );
+            Output.instantiate(nslabs, first + FORCE_RADIUS + 1 + 2*GROUP_RADIUS, &OutputPrecondition,             &OutputAction            );
+             Drift.instantiate(nslabs, first + FORCE_RADIUS + 1 + 2*GROUP_RADIUS, &DriftPrecondition,              &DriftAction             );
+            Finish.instantiate(nslabs, first + FORCE_RADIUS + 1 + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &FinishPrecondition,             &FinishAction            );
 #ifdef PARALLEL
-CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &CheckForMultipolesPrecondition,  &CheckForMultipolesAction );
+CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 1 + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &CheckForMultipolesPrecondition,  &CheckForMultipolesAction );
 #else
-CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &NoopPrecondition,  &NoopAction );
+CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 1 + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &NoopPrecondition,  &NoopAction );
 #endif
             
     // If group finding is disabled, we can make the dependencies no-ops so they don't hold up the pipeline
     if(GFC != NULL){
         MakeCellGroups.instantiate(nslabs, first + FORCE_RADIUS, &MakeCellGroupsPrecondition,     &MakeCellGroupsAction    );
     FindCellGroupLinks.instantiate(nslabs, first + FORCE_RADIUS + 1, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction);
-        DoGlobalGroups.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS, &DoGlobalGroupsPrecondition,     &DoGlobalGroupsAction    );
-             Microstep.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS, &MicrostepPrecondition,          &MicrostepAction         );
-          FinishGroups.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS, &FinishGroupsPrecondition,       &FinishGroupsAction      );
+        DoGlobalGroups.instantiate(nslabs, first + FORCE_RADIUS + 1, &DoGlobalGroupsPrecondition,     &DoGlobalGroupsAction    );
+             Microstep.instantiate(nslabs, first + FORCE_RADIUS + 1 + 2*GROUP_RADIUS, &MicrostepPrecondition,          &MicrostepAction         );
+          FinishGroups.instantiate(nslabs, first + FORCE_RADIUS + 1 + 2*GROUP_RADIUS, &FinishGroupsPrecondition,       &FinishGroupsAction      );
     } else {
         MakeCellGroups.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
     FindCellGroupLinks.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
@@ -1004,7 +1004,7 @@ CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS + F
     }
            
     if(WriteState.Do2LPTVelocityRereading)
-        LPTVelocityReRead.instantiate(nslabs, first + FORCE_RADIUS + 2*GROUP_RADIUS - FINISH_WAIT_RADIUS,
+        LPTVelocityReRead.instantiate(nslabs, first + FORCE_RADIUS + 1 +2*GROUP_RADIUS - FINISH_WAIT_RADIUS,
                                           &FetchLPTVelPrecondition,   &FetchLPTVelAction   );
     else
         LPTVelocityReRead.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );

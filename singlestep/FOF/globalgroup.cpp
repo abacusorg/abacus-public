@@ -323,14 +323,15 @@ void GlobalGroupSlab::DeferGlobalGroups() {
         At the end, we must clear the deferrals.
         // TODO: Or we could do it before we start?
     */
+    STDLOG(1, "Starting Deferral search on slab %d\n", slab);
     GFC->DeferGroups.Start();
     int lastslab = GFC->WrapSlab(slab-slabbias-1);
 
     for (int w=0; w<split; w++) {
         #pragma omp parallel for schedule(dynamic,1)
         for (int j=w; j<cpd; j+=split) {
-            // Do this pencil.  
-            LinkPencil *slablp = links[slab]+j;
+            // Do this pencil within the boundary slab.  
+            LinkPencil *slablp = links[0]+j;
             std::vector<LinkID> cglist;    // List of CellGroups in this GlobalGroup
             cglist.reserve(64);
             for (int k=0; k<cpd; k++) {   // Loop over cells
@@ -354,7 +355,7 @@ void GlobalGroupSlab::DeferGlobalGroups() {
                         integer3 thiscell = cglist[searching].cell();  
                         CellGroup *thiscg = LinkToCellGroup(cglist[searching]);
                         // There's a chance we've already been here; if yes, skip
-                        if (!(thiscg->is_open())) continue;
+                        if (!(thiscg->is_open())) { searching++; continue; }
 
                         int s = GFC->WrapSlab(thiscell.x-slab+slabbias);  // Map to [0,diam)
                         LinkPencil *lp = links[s]+thiscell.y;
@@ -386,18 +387,21 @@ void GlobalGroupSlab::DeferGlobalGroups() {
                             }
                         }  // Done with links from this CellGroup
                         thiscg->defer_group();    // Mark it as deferred
+                        searching++;   // Ready for next CellGroup in the queue
                     } // Done processing this item in the CellGroup queue
                 } // Done with this seed link
             } // Done with this cell 
         }  // Done with this pencil
     }  // Done with this split
-    GFC->DeferGroups.Start();
+    GFC->DeferGroups.Stop();
+    STDLOG(1, "Done looking for Deferrals in slab %d\n", slab);
     return;
 }
 
 void GlobalGroupSlab::ClearDeferrals() {
     // We need to loop over the relevant slabs to clear the deferral flags from all CellGroups
     GFC->ClearDefer.Start();
+    STDLOG(1,"Clearing Deferrals for slab %d\n", slab);
     for (int s=0; s<diam; s++) {
         int thisslab = GFC->WrapSlab(slab+s-slabbias);
         #pragma omp parallel for schedule(static)
@@ -413,6 +417,7 @@ void GlobalGroupSlab::ClearDeferrals() {
             */
         }
     }
+    STDLOG(1,"Done Deferrals for slab %d\n", slab);
     GFC->ClearDefer.Stop();
     return;
 }
@@ -691,6 +696,7 @@ as some uses don't need Pos/Vel to be returned.
 void GlobalGroupSlab::ScatterGlobalGroups() {
     GFC->ScatterGroups.Start();
 
+    STDLOG(1,"Scattering global group pos/vel from slab %d\n", slab);
     #pragma omp parallel for schedule(static)
     for (int j=0; j<GFC->cpd; j++)
         for (int k=0; k<GFC->cpd; k++)
@@ -729,6 +735,7 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
             } // End loop over globalgroups in a cell
     // End loop over cells
     GFC->ScatterGroups.Stop();
+    STDLOG(1,"Done scattering global group pos/vel from slab %d\n", slab);
     return;
 }
 
@@ -1060,6 +1067,9 @@ void GlobalGroupSlab::HaloOutput() {
     STDLOG(0,"Beginning halo output for slab %d\n", slab);
         
     if(slab == 0){
+        char dir[32];
+        sprintf(dir, "Step%04d_z%5.3f", ReadState.FullStepNumber, ReadState.Redshift);
+        CreateSubDirectory(P.GroupDirectory, dir);
         std::string headerfn = "";
         headerfn = headerfn + P.GroupDirectory + "/" + dir + "/header";
         WriteGroupHeaderFile(headerfn.c_str());
