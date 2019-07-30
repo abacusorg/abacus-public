@@ -483,9 +483,76 @@ void DoGlobalGroupsAction(int slab) {
 }
 
 // -----------------------------------------------------------------
+
+int MicrostepPrecondition(int slab){
+    // We are going to second-half kick this slab
+    if (DoGlobalGroups.notdone(slab))
+        return 0;
+    return 1;
+}
+
+void MicrostepAction(int slab){
+    STDLOG(0,"Entering microstep action for slab %d\n", slab);
+
+    // TODO: This is now not the place to do this.
+    // All kicks (and half-unkicks) for output are done; discard accels.
+    // We de-allocate in Drift if we aren't doing group finding
+    // SB->DeAllocate(AccSlab,slab);
+
+    return;
+    MicrostepCPU.Start();
+    // Do microstepping here
+    if(MicrostepEpochs != NULL){
+        STDLOG(1,"Beginning microsteps for slab %d\n", slab);
+        MicrostepControl *MC = new MicrostepControl;
+        MC->setup(GFC->globalslabs[slab], *MicrostepEpochs, P.MicrostepTimeStep, NFD->eps);
+        //MC->LaunchGroupsGPU();
+        MC->ComputeGroupsCPU();
+
+        GFC->microstepcontrol[slab] = MC;
+    }
+    MicrostepCPU.Stop();
+	
+    STDLOG(0,"Exiting microstep action for slab %d\n", slab);
+	
+}
+
+// -----------------------------------------------------------------
+
+int FinishGroupsPrecondition(int slab){
+    // Is the asychronous GPU microstepping done?
+    //if (!GFC->microstepcontrol[slab]->GPUGroupsDone()) return 0
+
+    // We are going to release these groups.
+    // TODO: If Microstep changes, this may change.  At present, we really need Output to be done
+    // because this step triggers the writeback of the new Pos/Vel.
+    if (Microstep.notdone(slab)) return 0;
+    
+    return 1;
+}
+
+void FinishGroupsAction(int slab){
+    // Scatter pos,vel updates to slabs, and release GGS
+    STDLOG(0, "Entering finish groups action in slab %d\n", slab);
+    FinishGlobalGroups(slab);   // This will Scatter Pos/Vel
+    delete GFC->microstepcontrol[slab];
+    GFC->microstepcontrol[slab] = NULL;
+    GFC->DestroyCellGroups(slab);
+
+    // TODO: When we're ready to send Group-based Manifests, it would go here.
+    // Would pass slab+1 to the manifest code as the faux finished slab.
+
+    STDLOG(0, "Exiting finish groups action in slab %d\n", slab);
+	
+}
+
+// -----------------------------------------------------------------
 /*
  * Checks if we are ready to do all outputs for this step
  * Anything that modifies the particles at the current time should happen before here
+ * Importantly: the OutputAction is only for non-L0 particles.
+ * L0 particle outputs need to happen in the DoGlobalGroupsAction(),
+ * before Microstepping.
  */
 int OutputPrecondition(int slab) {
 
@@ -496,11 +563,11 @@ int OutputPrecondition(int slab) {
     closed groups on all slabs from S to S-2*GroupRadius, inclusive.
     */
     for (int s=0; s<=2*GROUP_RADIUS; s++)
-        if (DoGlobalGroups.notdone(slab-s)) return 0;  
+        if (FinishGroup.notdone(slab-s)) return 0;  
     // Must have found groups to be able to output light cones
     // note that group outputs were already done
     #else
-        if (DoGlobalGroups.notdone(slab)) return 0;  
+        if (FinishGroup.notdone(slab)) return 0;  
     #endif
 
     // Note the following conditions only have any effect if group finding is turned off
@@ -577,66 +644,6 @@ void OutputAction(int slab) {
 }
 
 // -----------------------------------------------------------------
-
-int MicrostepPrecondition(int slab){
-    // We are going to second-half kick this slab
-    // TODO: With the GroupFinding change, this could possibly change
-    if (Output.notdone(slab))
-        return 0;
-    return 1;
-}
-
-void MicrostepAction(int slab){
-    STDLOG(0,"Entering microstep action for slab %d\n", slab);
-
-    // All kicks (and half-unkicks) for output are done; discard accels.
-    // We de-allocate in Drift if we aren't doing group finding
-    SB->DeAllocate(AccSlab,slab);
-
-    return;
-    MicrostepCPU.Start();
-    // Do microstepping here
-    if(MicrostepEpochs != NULL){
-        STDLOG(1,"Beginning microsteps for slab %d\n", slab);
-        MicrostepControl *MC = new MicrostepControl;
-        MC->setup(GFC->globalslabs[slab], *MicrostepEpochs, P.MicrostepTimeStep, NFD->eps);
-        //MC->LaunchGroupsGPU();
-        MC->ComputeGroupsCPU();
-
-        GFC->microstepcontrol[slab] = MC;
-    }
-    MicrostepCPU.Stop();
-	
-    STDLOG(0,"Exiting microstep action for slab %d\n", slab);
-	
-}
-
-// -----------------------------------------------------------------
-
-int FinishGroupsPrecondition(int slab){
-    // Is the asychronous GPU microstepping done?
-    //if (!GFC->microstepcontrol[slab]->GPUGroupsDone()) return 0
-
-    // We are going to release these groups.
-    // TODO: If Microstep changes, this may change.  At present, we really need Output to be done
-    // because this step triggers the writeback of the new Pos/Vel.
-    if (Microstep.notdone(slab)) return 0;
-    
-    return 1;
-}
-
-void FinishGroupsAction(int slab){
-    // Scatter pos,vel updates to slabs, and release GGS
-    STDLOG(0, "Entering finish groups action in slab %d\n", slab);
-    FinishGlobalGroups(slab);
-    delete GFC->microstepcontrol[slab];
-    GFC->microstepcontrol[slab] = NULL;
-    GFC->DestroyCellGroups(slab);
-    STDLOG(0, "Exiting finish groups action in slab %d\n", slab);
-	
-}
-
-// -----------------------------------------------------------------
 /*
  * Checks if we are ready to load the LPT velocities during an IC step.
  * Should not happen in normal execution
@@ -666,7 +673,7 @@ void FetchLPTVelAction(int slab){
  */
 int DriftPrecondition(int slab) {
     // We must have finished scattering into this slab
-    if (FinishGroups.notdone(slab)) return 0;
+    // if (FinishGroups.notdone(slab)) return 0;
     
     // We will move the particles, so we must have done outputs
     if (Output.notdone(slab)) return 0;
@@ -712,7 +719,8 @@ void DriftAction(int slab) {
     }
     
     // We freed AccSlab in Microstep to save space
-    if (GFC == NULL){
+    // if (GFC == NULL){
+    // TODO: Remove that condition; we always can do this here.
 	    // We kept the accelerations until here because of third-order LPT
 	    if (P.StoreForces && !P.ForceOutputDebug) {
 	        STDLOG(1,"Storing Forces in slab %d\n", slab);
@@ -721,7 +729,7 @@ void DriftAction(int slab) {
 	    else{
 	        SB->DeAllocate(AccSlab,slab);
 	    }
-	}
+	// }
 	
 	STDLOG(0, "Exiting Drift action for slab %d\n", slab);
 	
@@ -994,8 +1002,8 @@ CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 1 + 2*GROUP_RADIUS
         MakeCellGroups.instantiate(nslabs, first + FORCE_RADIUS, &MakeCellGroupsPrecondition,     &MakeCellGroupsAction    );
     FindCellGroupLinks.instantiate(nslabs, first + FORCE_RADIUS + 1, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction);
         DoGlobalGroups.instantiate(nslabs, first + FORCE_RADIUS + 1, &DoGlobalGroupsPrecondition,     &DoGlobalGroupsAction    );
-             Microstep.instantiate(nslabs, first + FORCE_RADIUS + 1 + 2*GROUP_RADIUS, &MicrostepPrecondition,          &MicrostepAction         );
-          FinishGroups.instantiate(nslabs, first + FORCE_RADIUS + 1 + 2*GROUP_RADIUS, &FinishGroupsPrecondition,       &FinishGroupsAction      );
+             Microstep.instantiate(nslabs, first + FORCE_RADIUS + 1, &MicrostepPrecondition,          &MicrostepAction         );
+          FinishGroups.instantiate(nslabs, first + FORCE_RADIUS + 1, &FinishGroupsPrecondition,       &FinishGroupsAction      );
     } else {
         MakeCellGroups.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
     FindCellGroupLinks.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
