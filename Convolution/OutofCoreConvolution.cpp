@@ -306,7 +306,8 @@ OutofCoreConvolution::OutofCoreConvolution(ConvolutionParameters &_CP) : CP(_CP)
             || (CP.runtime_DerivativeExpansionRadius==16) );
     assert( (CP.runtime_IsRamDisk == 1) || (CP.runtime_IsRamDisk==0) );
     assert(CP.runtime_DIOBufferSizeKB>=1);
-    assert(CP.runtime_ConvolutionCacheSizeMB >= 1);
+    assert(CP.runtime_ConvolutionCacheSizeMB > 0);
+    assert(CP.runtime_ConvolutionL1CacheSizeMB > 0);
     assert(CP.runtime_MaxConvolutionRAMMB >= 1);
 
     ForwardZFFTMultipoles.Clear();
@@ -323,6 +324,7 @@ OutofCoreConvolution::OutofCoreConvolution(ConvolutionParameters &_CP) : CP(_CP)
     CS.totalMemoryAllocated=0;
 
     CS.runtime_ConvolutionCacheSizeMB = CP.runtime_ConvolutionCacheSizeMB;
+    CS.runtime_ConvolutionL1CacheSizeMB = CP.runtime_ConvolutionL1CacheSizeMB;
 
     CheckDirectoryExists(CP.runtime_TaylorDirectory);
     CheckDirectoryExists(CP.runtime_MultipoleDirectory);
