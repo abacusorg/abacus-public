@@ -8,7 +8,9 @@ AVX tricks to accelerate the computation of distances.
 As written, the input particle set cannot exceed 2**23 particles.
 */
 
-#define FOFTimer DummyTimer
+// B.H. trying to do timing
+//#define FOFTimer DummyTimer
+#define FOFTimer STimer
 
 #ifdef TEST
 

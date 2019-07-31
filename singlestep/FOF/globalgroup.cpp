@@ -776,7 +776,9 @@ void GlobalGroupSlab::FindSubGroups() {
     STDLOG(1,"Found %l L1 halos\n", previous);
     #ifdef SPHERICAL_OVERDENSITY
     if (FOFlevel1[0].Total.Elapsed()>0.0) {
-	STDLOG(3,"L1 Timing: %f = %f %f %f %f\n",
+      // B.H. trying to do timing
+      //STDLOG(3,"L1 Timing: %f = %f %f %f %f\n",
+      STDLOG(1,"L1 Timing: %f = %f %f %f %f\n",
 	    FOFlevel1[0].Total.Elapsed(),
 	    FOFlevel1[0].Copy.Elapsed(),
 	    FOFlevel1[0].Sweep.Elapsed(),
