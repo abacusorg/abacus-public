@@ -92,8 +92,16 @@ void timestepStandaloneFOF(const char* slice_dir) {
           TransposePos.instantiate(cpd, first, &StandaloneFOFUnpackSlabPrecondition, &StandaloneFOFUnpackSlabAction);
         MakeCellGroups.instantiate(cpd, first, &StandaloneFOFMakeCellGroupsPrecondition, &MakeCellGroupsAction);
     FindCellGroupLinks.instantiate(cpd, first + 1, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction);
-        DoGlobalGroups.instantiate(cpd, first + 2*GFC->GroupRadius, &DoGlobalGroupsPrecondition, &DoGlobalGroupsAction);
-                Finish.instantiate(cpd, first + 2*GFC->GroupRadius, &StandaloneFOFFinishPrecondition, &StandaloneFOFFinishAction);
+    #ifdef ONE_SIDED_GROUP_FINDING
+        int first_groupslab = first+1;
+        // We'll do a search on [first_groupslab,first_groupslab+2*GROUP_RADIUS]
+        // Eventually first_groupslab+2*GROUP_RADIUS will be the first completed
+    #else
+        int first_groupslab = first+2*GROUP_RADIUS;
+    #endif
+        DoGlobalGroups.instantiate(cpd, first_groupslab, &DoGlobalGroupsPrecondition, &DoGlobalGroupsAction);
+                Finish.instantiate(cpd, first+1+2*GFC->GroupRadius, &StandaloneFOFFinishPrecondition, &StandaloneFOFFinishAction);
+        // This is increased by one in the 2-sided case, but it shouldn't matter.
 
     while (!Finish.alldone(total_slabs_on_node)) {
         FetchSlabs.Attempt();
