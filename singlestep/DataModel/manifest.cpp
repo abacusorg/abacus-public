@@ -216,7 +216,7 @@ class Manifest {
     }
     ~Manifest() { 
         void *p;
-	delete[] requests;
+        delete[] requests;
         // free_requests();
     }
 
@@ -312,12 +312,18 @@ class Manifest {
 
 
 /// Here are our outgoing and incoming Manifest instances
+/// We're going to have a sequence of these, which operate disjointly in time.  
+/// We can just increment the pointer when one is done.
+/// The original pointers are in the _vars; we keep these for deleting.
 Manifest *SendManifest, *ReceiveManifest; 
+Manifest *_SendManifest, *_ReceiveManifest; 
+int nManifest;
 
 /// Call this routine at the beginning of the timestep
-void SetupManifest() {
-    SendManifest = new Manifest;
-    ReceiveManifest = new Manifest;
+void SetupManifest(int _nManifest) {
+    nManifest = _nManifest;
+    SendManifest = _SendManifest = new Manifest[nManifest];
+    ReceiveManifest = _ReceiveManifest = new Manifest[nManifest];
     #ifdef PARALLEL
         assertf(MPI_size>1, "Can't run MPI-based manifest code with only 1 process.\n"); 
         // TODO: I don't see a way around this.  One ends up with the destination and source arenas being the same.
@@ -327,10 +333,16 @@ void SetupManifest() {
 
 void FreeManifest() {
     STDLOG(2,"Freeing SendManifest\n")
-    delete SendManifest;
+    delete[] _SendManifest;
     STDLOG(2,"Freeing ReceiveManifest\n")
-    delete ReceiveManifest;
+    delete[] _ReceiveManifest;
 }
+
+void CheckSendManifest() {
+    for (int j=0; j<nManifest; j++) _SendManifest[j].FreeAfterSend();
+    return;
+}
+
 
 // ================  Routine to define the outgoing information =======
 

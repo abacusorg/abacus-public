@@ -221,7 +221,7 @@ void Prologue(Parameters &P, bool MakeIC) {
     // put all particles into input slab 0.
 
     // Call this to setup the Manifests
-    SetupManifest();
+    SetupManifest(2*P.GroupRadius+1);
 
     Grid = new grid(cpd);
     SB = new SlabBuffer(cpd, order, P.MAXRAMMB*1024*1024);

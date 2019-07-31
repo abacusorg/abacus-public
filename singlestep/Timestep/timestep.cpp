@@ -478,6 +478,15 @@ int DoGlobalGroupsPrecondition(int slab) {
 void DoGlobalGroupsAction(int slab) {
     STDLOG(0,"Entering Find Global Groups action in slab %d\n", slab);
     FindAndProcessGlobalGroups(slab);
+
+    // The first 2*GroupRadius times we get here, we can attempt to free
+    // info from slab-1.
+    #ifdef ONE_SIDED_GROUP_FINDING
+        if (DoGlobalGroups.raw_number_executed<2*GROUP_RADIUS) {
+            SendManifest->QueueToSend(slab);
+            SendManifest++;
+        }
+    #endif
     STDLOG(0,"Exiting Find Global Groups action in slab %d\n", slab);
 	
 }
@@ -845,6 +854,8 @@ void FinishAction(int slab) {
 
 #ifdef PARALLEL
 	
+    // TODO: It would be nice to move this to Drift, but I'm unsure
+    // about impact on LPT step, for instance.
 	debug_Manifest_and_log.Start();
     if (Finish.raw_number_executed==0) SendManifest->QueueToSend(slab);
 	debug_Manifest_and_log.Stop(); 
@@ -1050,12 +1061,17 @@ CheckForMultipoles.instantiate(nslabs, first_outputslab + FINISH_WAIT_RADIUS, &N
                 Drift.Attempt();
                Finish.Attempt();
 			   
-	    // TODO: The following line will be omitted once the MPI monitoring thread is in place.
-           SendManifest->FreeAfterSend();
+        CheckSendManifest();  // We look at each Send Manifest to see if there's material to free.
+                        //   SendManifest->FreeAfterSend();
 	    ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
 	
 	    // If the manifest has been received, install it.
-	    if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
+	    if (ReceiveManifest->is_ready()) {
+            ReceiveManifest->ImportData();
+            ReceiveManifest++;
+            STDLOG(1, "Readying the next Manifest, number %d\n", ReceiveManifest-_ReceiveManifest);
+            ReceiveManifest->SetupToReceive();
+        }
 	    CheckForMultipoles.Attempt();	
 		
 #ifdef PARALLEL
