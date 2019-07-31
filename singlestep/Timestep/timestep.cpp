@@ -991,22 +991,33 @@ void timestep(void) {
          NearForce.instantiate(nslabs, first + FORCE_RADIUS, &NearForcePrecondition,          &NearForceAction         );
        TaylorForce.instantiate(nslabs, first + FORCE_RADIUS, &TaylorForcePrecondition,        &TaylorForceAction       );
               Kick.instantiate(nslabs, first + FORCE_RADIUS, &KickPrecondition,               &KickAction              );
-            Output.instantiate(nslabs, first + FORCE_RADIUS + 1 + 2*GROUP_RADIUS, &OutputPrecondition,             &OutputAction            );
-             Drift.instantiate(nslabs, first + FORCE_RADIUS + 1 + 2*GROUP_RADIUS, &DriftPrecondition,              &DriftAction             );
-            Finish.instantiate(nslabs, first + FORCE_RADIUS + 1 + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &FinishPrecondition,             &FinishAction            );
+        #ifdef ONE_SIDED_GROUP_FINDING
+            int first_outputslab = first + FORCE_RADIUS + 1 + 2*GROUP_RADIUS;
+        #else
+            int first_outputslab = first + FORCE_RADIUS + 2*GROUP_RADIUS;
+        #endif
+
+            Output.instantiate(nslabs, first_outputslab, &OutputPrecondition,             &OutputAction            );
+             Drift.instantiate(nslabs, first_outputslab, &DriftPrecondition,              &DriftAction             );
+            Finish.instantiate(nslabs, first_outputslab + FINISH_WAIT_RADIUS, &FinishPrecondition,             &FinishAction            );
 #ifdef PARALLEL
-CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 1 + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &CheckForMultipolesPrecondition,  &CheckForMultipolesAction );
+CheckForMultipoles.instantiate(nslabs, first_outputslab + FINISH_WAIT_RADIUS, &CheckForMultipolesPrecondition,  &CheckForMultipolesAction );
 #else
-CheckForMultipoles.instantiate(nslabs, first + FORCE_RADIUS + 1 + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS, &NoopPrecondition,  &NoopAction );
+CheckForMultipoles.instantiate(nslabs, first_outputslab + FINISH_WAIT_RADIUS, &NoopPrecondition,  &NoopAction );
 #endif
             
     // If group finding is disabled, we can make the dependencies no-ops so they don't hold up the pipeline
     if(GFC != NULL){
         MakeCellGroups.instantiate(nslabs, first + FORCE_RADIUS, &MakeCellGroupsPrecondition,     &MakeCellGroupsAction    );
     FindCellGroupLinks.instantiate(nslabs, first + FORCE_RADIUS + 1, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction);
-        DoGlobalGroups.instantiate(nslabs, first + FORCE_RADIUS + 1, &DoGlobalGroupsPrecondition,     &DoGlobalGroupsAction    );
-             Microstep.instantiate(nslabs, first + FORCE_RADIUS + 1, &MicrostepPrecondition,          &MicrostepAction         );
-          FinishGroups.instantiate(nslabs, first + FORCE_RADIUS + 1, &FinishGroupsPrecondition,       &FinishGroupsAction      );
+        #ifdef ONE_SIDED_GROUP_FINDING
+            int first_groupslab = first+FORCE_RADIUS+1;
+        #else
+            int first_groupslab = first+FORCE_RADIUS+2*GROUP_RADIUS;
+        #endif
+        DoGlobalGroups.instantiate(nslabs, first_groupslab, &DoGlobalGroupsPrecondition,     &DoGlobalGroupsAction    );
+             Microstep.instantiate(nslabs, first_groupslab, &MicrostepPrecondition,          &MicrostepAction         );
+          FinishGroups.instantiate(nslabs, first_groupslab, &FinishGroupsPrecondition,       &FinishGroupsAction      );
     } else {
         MakeCellGroups.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
     FindCellGroupLinks.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );

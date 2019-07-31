@@ -139,6 +139,10 @@ CellParticles *CP;
 // Need this for both insert.cpp and timestep.cpp.
 int FINISH_WAIT_RADIUS = 1;
 
+// Forward-declare GFC
+class GroupFindingControl;
+GroupFindingControl *GFC;
+
 #include "multiappendlist.cpp"
 #include "insert.cpp"
 #include "drift.cpp"
@@ -162,10 +166,6 @@ Redlack *RL;
 #include "multipole_taylor.cpp"
 
 #include "check.cpp"
-
-// Forward-declare GFC
-class GroupFindingControl;
-GroupFindingControl *GFC;
 
 #include "Cosmology.cpp"
 Cosmology *cosm;
