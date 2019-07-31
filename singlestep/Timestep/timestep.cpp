@@ -537,7 +537,6 @@ void FinishGroupsAction(int slab){
     FinishGlobalGroups(slab);   // This will Scatter Pos/Vel
     delete GFC->microstepcontrol[slab];
     GFC->microstepcontrol[slab] = NULL;
-    GFC->DestroyCellGroups(slab);
 
     // TODO: When we're ready to send Group-based Manifests, it would go here.
     // Would pass slab+1 to the manifest code as the faux finished slab.
@@ -588,6 +587,10 @@ int OutputPrecondition(int slab) {
 uint64 n_output = 0;
 void OutputAction(int slab) {
     STDLOG(0,"Entering Output action for slab %d\n", slab);
+
+    // We are finally done with the groups for this slab.
+    // Delete the Cell Groups.
+    if (GFC!=NULL) GFC->DestroyCellGroups(slab);
 
     int step = WriteState.FullStepNumber;
     if (LPTStepNumber()>0) return;
