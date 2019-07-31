@@ -291,8 +291,9 @@ uint64 FillMergeSlab(int slab) {
             // We should reset the L0/L1 bits, so they don't affect
             // future outputs on steps that don't involve group finding.
             if (GFC!=NULL) {  // Group finding happened
+                auxstruct *origaux = mc.aux-c.active();
                 for (int j = 0; j < mc.count(); j++) 
-                    mc.aux[j].reset_L01_bits();
+                    origaux[j].reset_L01_bits();
             }
 			
             // In the vast majority of cases, the PIDs are numbered [0,NP).
