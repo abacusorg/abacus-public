@@ -187,6 +187,8 @@ class Manifest {
     int numpending;        ///< The number of requests pending
     int maxpending;	   ///< The maximum number we're using
 
+    int tag_offset;    ///< We'll add this to our MPI tags, just to keep them separate
+
 //    void free_requests() {
 //        assertf(numpending<=0, "We've been asked to free the MPI listing before all is completed, %d.\n", numpending);
 //        if (requests!=NULL) delete[] requests;
@@ -211,13 +213,17 @@ class Manifest {
         requests = new MPI_Request[MAX_REQUESTS];
         for (int j=0; j<MAX_REQUESTS; j++) requests[j]=MPI_REQUEST_NULL;
         numpending = 0;
-	maxpending = 0;
+        maxpending = 0;
         return;
     }
     ~Manifest() { 
         void *p;
         delete[] requests;
         // free_requests();
+    }
+
+    void set_tag(int j) {
+        tag_offset = j*MAX_REQUESTS;
     }
 
     /// Allocate N things to track
@@ -261,7 +267,7 @@ class Manifest {
         while (size>0) {
             assertf(maxpending<MAX_REQUESTS, "Too many MPI requests %d\n", maxpending);
             int thissize = std::min(size, (uint64) SIZE_MPI);
-            MPI_Isend(ptr, thissize, MPI_BYTE, rank, maxpending, MPI_COMM_WORLD,requests+maxpending);
+            MPI_Isend(ptr, thissize, MPI_BYTE, rank, tag_offset+maxpending, MPI_COMM_WORLD,requests+maxpending);
             numpending++; maxpending++; size -= thissize; ptr = (char *)ptr+thissize;
         }
         #endif
@@ -275,7 +281,7 @@ class Manifest {
         while (size>0) {
             assertf(maxpending<MAX_REQUESTS, "Too many MPI requests %d\n", maxpending);
             int thissize = std::min(size, (uint64) SIZE_MPI);
-            MPI_Irecv(ptr, thissize, MPI_BYTE, rank, maxpending, MPI_COMM_WORLD,requests+maxpending);
+            MPI_Irecv(ptr, thissize, MPI_BYTE, rank, tag_offset+maxpending, MPI_COMM_WORLD,requests+maxpending);
             numpending++; maxpending++; size -= thissize; ptr = (char *)ptr+thissize;
         }
         #endif
@@ -321,9 +327,14 @@ int nManifest;
 
 /// Call this routine at the beginning of the timestep
 void SetupManifest(int _nManifest) {
-    nManifest = _nManifest;
+    nManifest = _nManifest+1;
+        // We put on an extra one, just to avoid accidental overrunning.
     SendManifest = _SendManifest = new Manifest[nManifest];
     ReceiveManifest = _ReceiveManifest = new Manifest[nManifest];
+    for (int j=0;j<nManifest;j++) {
+        SendManifest.set_tag(j);
+        ReceiveManifest.set_tag(j);
+    }
     #ifdef PARALLEL
         assertf(MPI_size>1, "Can't run MPI-based manifest code with only 1 process.\n"); 
         // TODO: I don't see a way around this.  One ends up with the destination and source arenas being the same.
