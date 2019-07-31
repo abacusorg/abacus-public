@@ -332,8 +332,8 @@ void SetupManifest(int _nManifest) {
     SendManifest = _SendManifest = new Manifest[nManifest];
     ReceiveManifest = _ReceiveManifest = new Manifest[nManifest];
     for (int j=0;j<nManifest;j++) {
-        SendManifest.set_tag(j);
-        ReceiveManifest.set_tag(j);
+        SendManifest[j].set_tag(j);
+        ReceiveManifest[j].set_tag(j);
     }
     #ifdef PARALLEL
         assertf(MPI_size>1, "Can't run MPI-based manifest code with only 1 process.\n"); 
