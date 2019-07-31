@@ -287,6 +287,13 @@ uint64 FillMergeSlab(int slab) {
                     mc.vel[j] = ilpart[j].vel;
                     mc.aux[j] = ilpart[j].aux;
             }
+
+            // We should reset the L0/L1 bits, so they don't affect
+            // future outputs on steps that don't involve group finding.
+            if (GFC!=NULL) {  // Group finding happened
+                for (int j = 0; j < mc.count(); j++) 
+                    mc.aux[j].reset_L01_bits();
+            }
 			
             // In the vast majority of cases, the PIDs are numbered [0,NP).
             // One could check this condition here; failure could indicate

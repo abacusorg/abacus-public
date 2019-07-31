@@ -332,8 +332,11 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	    _CGactive += active_particles;
 
 	    doFOF[g].findgroups(c.pos, c.vel, c.aux, c.acc, active_particles);
+
 	    // We need to clear the L0 & L1 bits for this timestep
-	    for (int p=0; p<c.count(); p++) c.aux[p].reset_L01_bits();
+        // This has been moved to the merge, so the bits never get written out
+	    // for (int p=0; p<c.count(); p++) c.aux[p].reset_L01_bits();
+
 	    for (int gr=0; gr<doFOF[g].ngroups; gr++) {
 		CellGroup tmp(doFOF[g].groups[gr], boundary);
 		cg->append(tmp);
