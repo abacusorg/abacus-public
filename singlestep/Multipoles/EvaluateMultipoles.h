@@ -60,7 +60,7 @@ void (*CMptr[24])( d4 *ip1x, d4 *ip2x, d4 *ip1y, d4 *ip2y, d4 *ip1z, d4 *ip2z,
      MultipoleKernel5,  MultipoleKernel6,  MultipoleKernel7,  MultipoleKernel8,
      MultipoleKernel9,  MultipoleKernel10, MultipoleKernel11, MultipoleKernel12,
      MultipoleKernel13, MultipoleKernel14, MultipoleKernel15, MultipoleKernel16
-}
+};
 #endif
 
 #ifdef AVX512MULTIPOLES 
