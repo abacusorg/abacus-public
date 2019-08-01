@@ -36,6 +36,12 @@
 #include "STimer.cc"
 #include "PTimer.cc"
 
+STimer debug_Merge;
+STimer debug_log_and_compute;
+STimer debug_Manifest_and_log;
+STimer debug_log_report_mem;
+
+STimer FinishPreamble; 
 STimer FinishPartition;
 STimer FinishSort;
 STimer FinishCellIndex;
@@ -43,6 +49,12 @@ STimer FinishMerge;
 STimer ComputeMultipoles;
 STimer WriteMergeSlab;
 STimer WriteMultipoleSlab;
+STimer QueueMultipoleMPI; 
+STimer PCDDestructor; 
+STimer WrappingUp1;
+STimer WrappingUp2;
+STimer ParallelConvolveDestructor; 
+
 
 STimer OutputTimeSlice;
 STimer OutputLightCone;
@@ -189,7 +201,7 @@ int * total_slabs_all = NULL;
  */
 void Prologue(Parameters &P, bool MakeIC) {
     STDLOG(1,"Entering Prologue()\n");
-    STDLOG(1,"Size of accstruct is %d bytes\n", sizeof(accstruct));
+    STDLOG(2,"Size of accstruct is %d bytes\n", sizeof(accstruct));
     prologue.Clear();
     prologue.Start();
     
@@ -214,10 +226,10 @@ void Prologue(Parameters &P, bool MakeIC) {
     SB = new SlabBuffer(cpd, order, P.MAXRAMMB*1024*1024);
     CP = new CellParticles(cpd, SB);
 
-    STDLOG(1,"Initializing Multipoles()\n");
+    STDLOG(2,"Initializing Multipoles()\n");
     MF  = new SlabMultipoles(order, cpd);
 
-    STDLOG(1,"Setting up insert list\n");
+    STDLOG(2,"Setting up insert list\n");
     uint64 maxILsize = P.np+1;
     // IC steps and LPT steps may need more IL slabs.  Their pipelines are not as long as full (i.e. group finding) steps
     if (MakeIC || LPTStepNumber() > 0) {
@@ -226,9 +238,9 @@ void Prologue(Parameters &P, bool MakeIC) {
         if (P.NumSlabsInsertList>0) maxILsize   =(maxILsize* P.NumSlabsInsertList)/P.cpd+1;
     }
     IL = new InsertList(cpd, maxILsize);
-    STDLOG(1,"Maximum insert list size = %ld, size %l MB\n", maxILsize, maxILsize*sizeof(ilstruct)/1024/1024);
+    STDLOG(2,"Maximum insert list size = %ld, size %l MB\n", maxILsize, maxILsize*sizeof(ilstruct)/1024/1024);
 
-    STDLOG(1,"Setting up IO\n");
+    STDLOG(2,"Setting up IO\n");
 
     char logfn[1050];
     sprintf(logfn,"%s/lastrun%s.iolog", P.LogDirectory, NodeString);
@@ -301,7 +313,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     SB->report();
     delete SB;
-    STDLOG(1,"Deleted SB\n");
+    STDLOG(2,"Deleted SB\n");
     delete CP;
     delete IL;
     delete SS;
@@ -323,13 +335,13 @@ void Epilogue(Parameters &P, bool MakeIC) {
         }
         
             delete TY;
-            STDLOG(1,"Deleted TY\n");
+            STDLOG(2,"Deleted TY\n");
             delete RL;
             delete[] SlabForceLatency;
             delete[] SlabForceTime;
             delete[] SlabFarForceTime;
             if (GFC!=NULL) delete GFC;
-            STDLOG(1,"Done with Epilogue; about to kill the GPUs\n");
+            STDLOG(2,"Done with Epilogue; about to kill the GPUs\n");
             delete NFD;
     }
 
@@ -382,7 +394,7 @@ void init_openmp(){
         for(int g = 0; g < nthreads; g++)
             core_log << " " << g << "->" << core_assignments[g];
         core_log << "\n";
-        STDLOG(1, core_log.str().c_str());
+        STDLOG(2, core_log.str().c_str());
         
         for(int g = 0; g < nthreads; g++)
             for(int h = 0; h < g; h++)
@@ -391,7 +403,7 @@ void init_openmp(){
         // Assign the main CPU thread to core 0 to avoid the GPU/IO threads during serial parts of the code
         int main_thread_core = 0;
         set_core_affinity(main_thread_core);
-        STDLOG(1, "Assigning main singlestep thread to core %d\n", main_thread_core);
+        STDLOG(2, "Assigning main singlestep thread to core %d\n", main_thread_core);
     }
 }
 

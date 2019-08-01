@@ -2,6 +2,9 @@ CMASM.c
 ETASM.c
 CMAVX512.cpp
 ETAVX512.cpp
+CM_unrolled.cpp
+ET_unrolled.cpp
+CM_VSX.cpp
+ET_VSX.cpp
 EvaluateMultipolesTest
 EvaluateTaylorTest
-

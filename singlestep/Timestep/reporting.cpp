@@ -62,6 +62,9 @@ void GatherTimings() {
 
     total = 0.0;
     REPORT(0, "SingleStep Setup", SingleStepSetup.Elapsed()); total += thistime;
+#ifdef PARALLEL
+    REPORT(0, "Convolution", ConvolutionWallClock.Elapsed()); total += thistime;
+#endif
     REPORT(0, "TimeStep", TimeStepWallClock.Elapsed()); total += thistime;
     REPORT(0, "Finish IO", IOFinish.Elapsed()); total += thistime;
     REPORT(0, "Unaccounted", WallClockDirect.Elapsed()-total);
@@ -165,13 +168,15 @@ void GatherTimings() {
     }
    
     if(WriteState.Do2LPTVelocityRereading){
-        REPORT(1, "Velocity Re-reading for LPT", LPTVelocityReRead.Elapsed()); total += thistime;
+        REPORT(1, "Velocity Re-reading for LPT", FetchLPTVelocity.Elapsed()); total += thistime;
         REPORT_RATE();
     }
     REPORT(1, "Drift", Drift.Elapsed()); total += thistime;
         REPORT_RATE();
     REPORT(1, "Finish", Finish.Elapsed()); total += thistime;
-        REPORT_RATE();
+        REPORT_RATE();		
+    REPORT(1, "Check Multipoles", CheckForMultipoles.Elapsed()); total += thistime;
+        REPORT_RATE();	
 
     double ManifestTotal = 
         ReceiveManifest->Load.Elapsed()
@@ -182,6 +187,11 @@ void GatherTimings() {
     REPORT(1, "Manifest", ManifestTotal); total += thistime;
         fprintf(reportfp,"---> %6.3f MB", ReceiveManifest->bytes/1e6);
     REPORT(1, "Spinning", spinning); total += thistime;
+	
+#ifdef PARALLEL
+	REPORT(1, "MPI Barrier", BarrierWallClock.Elapsed()); total += thistime;
+#endif
+	
     REPORT(1, "Unaccounted", TimeStepWallClock.Elapsed()-total);
 
     fprintf(reportfp, "\n\nBreakdown per slab (Wall Clock)");
@@ -374,6 +384,7 @@ void GatherTimings() {
     REPORT(1, "Finish", Finish.Elapsed());
         REPORT_RATE();
     denom = Finish.Elapsed();
+		REPORT(2, "Finish Preamble", FinishPreamble.Elapsed());
         REPORT(2, "Partition Insert List", IL->FinishPartition.Elapsed());
         REPORT(2, "Sort Insert List", IL->FinishSort.Elapsed());
             fprintf(reportfp,"---> %6.2f Mitems/sec (%.2g items)", thistime ? IL->n_sorted/thistime/1e6 : 0., (double) IL->n_sorted);
@@ -385,6 +396,27 @@ void GatherTimings() {
         REPORT(2, "Write Particles", WriteMergeSlab.Elapsed());
         REPORT(2, "Write Multipoles", WriteMultipoleSlab.Elapsed());
         REPORT(2, "Queuing Send Manifest", SendManifest->Load.Elapsed()+SendManifest->Transmit.Elapsed());
+		REPORT(2, "Queuing Multipole MPI", QueueMultipoleMPI.Elapsed());
+		
+		
+    fprintf(reportfp, "\n\nBreakdown of Finish, debug timers:");
+    denom = TimeStepWallClock.Elapsed();
+    REPORT(1, "Finish", Finish.Elapsed());
+        REPORT_RATE();
+    denom = Finish.Elapsed();
+		REPORT(2, "Finish Preamble", FinishPreamble.Elapsed());
+        REPORT(2, "debug_Merge == partition insert + sort insert + index + merge", debug_Merge.Elapsed());
+            REPORT_RATE();
+	    REPORT(2, "debug_log_and_computer == Compute Multipoles", debug_log_and_compute.Elapsed());
+            REPORT_RATE();
+        REPORT(2, "Write Particles", WriteMergeSlab.Elapsed());
+        REPORT(2, "Write Multipoles", WriteMultipoleSlab.Elapsed());
+        REPORT(2, "debug_Manifest_and_log == Queuing Send Manifest", debug_Manifest_and_log.Elapsed());
+		REPORT(2, "Queuing Multipole MPI", QueueMultipoleMPI.Elapsed());
+		REPORT(2, "debug_log_report_mem", debug_log_report_mem.Elapsed());
+
+
+		
 
 
     fprintf(reportfp, "\n\nBreakdown of Manifest:");
@@ -402,6 +434,8 @@ void GatherTimings() {
     REPORT(1, "Not enough RAM to load slabs", Dependency::spin_timers[NOT_ENOUGH_RAM].Elapsed());
     REPORT(1, "Waiting for slab IO", Dependency::spin_timers[WAITING_FOR_IO].Elapsed());
     REPORT(1, "Waiting for GPU", Dependency::spin_timers[WAITING_FOR_GPU].Elapsed());
+    REPORT(1, "Waiting for MPI", Dependency::spin_timers[WAITING_FOR_MPI].Elapsed());
+	
 
     denom = TimeStepWallClock.Elapsed();
     double arena_malloc, arena_free;
@@ -410,6 +444,9 @@ void GatherTimings() {
     REPORT(0, "\nAllocate Arena Memory", arena_malloc);
     REPORT(0, "Free Arena Memory", arena_free);
     REPORT(0, "Free SlabAccum Variables", SlabAccumFree.Elapsed());
+	
+	REPORT(0, "Wrapup 1", WrappingUp1.Elapsed());
+	REPORT(0, "Wrapup 2", WrappingUp2.Elapsed());
 }
 
 /* This function writes the timing report to disk.

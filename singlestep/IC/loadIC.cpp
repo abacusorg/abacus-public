@@ -53,6 +53,9 @@ uint64 LoadSlab2IL(int slab) {
     } else if (strcmp(P.ICFormat,"RVTag")==0) {
         STDLOG(1,"Using format RVTag\n");
         ic = new ICfile_RVTag(filename);
+    } else if (strcmp(P.ICFormat,"RVdoubleTag")==0) {
+        STDLOG(1,"Using format RVdoubleTag\n");
+        ic = new ICfile_RVdoubleTag(filename);
     } else if (strcmp(P.ICFormat,"Zeldovich")==0) {
         STDLOG(1,"Using format Zeldovich\n");
         ic = new ICfile_Zel(filename);
@@ -71,7 +74,7 @@ uint64 LoadSlab2IL(int slab) {
 
     uint64 count = 0;
 
-    STDLOG(2, "IC format permits %d thread(s)\n", ic->maxthreads);
+    STDLOG(3, "IC format permits %d thread(s)\n", ic->maxthreads);
 
     // TODO: it's hard to OMP a while loop, so for now we have two versions to support multi-threaded in-memory IC generation
     if(ic->maxthreads > 1){

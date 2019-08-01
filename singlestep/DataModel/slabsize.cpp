@@ -19,7 +19,7 @@ class SlabSize {
         _cpd = cpd;
         _size = new uint64[cpd];
         _newsize = new uint64[cpd];
-        STDLOG(1,"SlabSize vectors %p %p\n", (void *)_size, (void *)_newsize);
+        STDLOG(2,"SlabSize vectors %p %p\n", (void *)_size, (void *)_newsize);
         for (int j=0;j<cpd;j++) _newsize[j] = 0;
         max = 0;
         min = UINT64_MAX;
@@ -55,7 +55,7 @@ class SlabSize {
         char filename[1024];
         sprintf(filename, "%s/slabsize", P.ReadStateDirectory);
         read(filename);
-        STDLOG(1,"Reading SlabSize file from %s\n", filename);
+        STDLOG(2,"Reading SlabSize file from %s\n", filename);
     }
 
     void store_from_params(Parameters &P){
@@ -64,7 +64,7 @@ class SlabSize {
             char filename[1024];
             sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
             write(filename);
-            STDLOG(1,"Writing SlabSize file to %s\n", filename);
+            STDLOG(2,"Writing SlabSize file to %s\n", filename);
         }
     }
 

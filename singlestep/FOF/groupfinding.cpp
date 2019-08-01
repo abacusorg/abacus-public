@@ -115,7 +115,7 @@ class GroupFindingControl {
 	#else
 	    sprintf(onoff, "off");
 	#endif
-	STDLOG(0,"Group finding sizeof(FOFloat)=%d, sizeof(FLOAT)=%d, AVXFOF is %s\n", sizeof(FOFloat), sizeof(FLOAT), onoff);
+	STDLOG(1,"Group finding sizeof(FOFloat)=%d, sizeof(FLOAT)=%d, AVXFOF is %s\n", sizeof(FOFloat), sizeof(FLOAT), onoff);
 
 	cpd = _cpd; 
 	linking_length = _linking_length;
@@ -351,7 +351,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     CGactive += _CGactive;
     meanFOFdensity += _meanFOFdensity;
     maxFOFdensity = std::max(maxFOFdensity, _maxFOFdensity);
-    STDLOG(1,"Found %d cell groups in slab %d\n", tot, slab);
+    STDLOG(2,"Found %d cell groups in slab %d\n", tot, slab);
     CellGroupTime.Stop();
     return;
 }
@@ -449,7 +449,7 @@ void FindAndProcessGlobalGroups(int slab) {
     GFC->globalslabs[slab] = GGS;
     GGS->setup(slab);
     GGS->CreateGlobalGroups();
-    STDLOG(1,"Closed global groups in slab %d, finding %d groups involving %d cell groups\n", slab, GGS->globalgroups.get_slab_size(), GGS->globalgrouplist.get_slab_size());
+    STDLOG(2,"Closed global groups in slab %d, finding %d groups involving %d cell groups\n", slab, GGS->globalgroups.get_slab_size(), GGS->globalgrouplist.get_slab_size());
     GFC->GGtot += GGS->globalgroups.get_slab_size();
 
     // Now process and output each one....

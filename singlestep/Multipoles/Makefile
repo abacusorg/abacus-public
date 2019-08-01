@@ -22,10 +22,15 @@ CMAVX512%cpp ETAVX512%cpp: generateCartesianAVX512.py
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $<
 
 CM_unrolled%cpp ET_unrolled%cpp: generateCartesianUnrolled.py
-	./generateCartesianUnrolled.py --maxorder=$(MAXORDER)
+	./generateCartesianUnrolled.py --maxorder=$(MAXORDER) --onlyorder=8
+
+CM_VSX%cpp ET_VSX%cpp: generateCartesianVSX.py
+	./generateCartesianVSX.py --maxorder=$(MAXORDER) --onlyorder=8
 
 %_unrolled.o: %_unrolled.cpp
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $<
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fopt-info -Ofast -DUNROLLEDMULTIPOLES -Wall -c $<
+%_VSX.o: %_VSX.cpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fopt-info -Ofast -Wall -c $<
 
 Cartesian2Reduced_OBJ := $(shell echo Cartesian2Reduced{0..16}.o)
 Cartesian2Reduced_TARGETPAT := $(Cartesian2Reduced_OBJ:.o=%cpp)
@@ -47,14 +52,13 @@ $(Cartesian2Reduced_OBJ): %.o: %.cpp
 EvaluateTaylorTest: EvaluateTaylor.cpp ETAVX512.o ETASM.o ET_unrolled.o
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -Wall -fopenmp -DTEST $^ -o $@ -I../../include -lgsl -lgslcblas
 
-EvaluateMultipolesTest: EvaluateMultipoles.cpp CMAVX512.o CMASM.o CM_unrolled.o
+EvaluateMultipolesTest: EvaluateMultipoles.cpp CMAVX512.o CMASM.o CM_unrolled.o CM_VSX.o
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -Wall -fopenmp -DTEST $^ -o $@ -I../../include -lgsl -lgslcblas
 
 clean:
-	$(RM) ETASM.c CMASM.c ETAVX512.cpp CMAVX512.cpp *.o *.a
+	$(RM) ETASM.c CMASM.c ETAVX512.cpp CMAVX512.cpp CM_VSX.cpp CM_unrolled.cpp ET_unrolled.cpp *.o *.a
 	$(RM) genTaylorASM genMultipoleASM CC2R
-	$(RM) EvaluateTaylorTest EvaluateMultipolesTest
-	$(RM) *_unrolled.cpp
+	$(RM) EvaluateTaylorTest EvaluateMultipolesTest 
 	$(RM) $(Cartesian2Reduced_OBJ) $(Cartesian2Reduced_SRC)  CC2R
 
 distclean: clean

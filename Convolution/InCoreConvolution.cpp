@@ -7,9 +7,15 @@ private:
     int bufsize, padblocksize, blocksize_even;
 
 public:
-    InCoreConvolution(int order, int cpd, int blocksize) : 
+    InCoreConvolution(int order, int cpd, int blocksize, int _cpd2pad = 0) : 
             basemultipoles(order), cpd(cpd), blocksize(blocksize) {
-
+				
+		STDLOG(3," Entering ICC constructor\n");
+		//in normal case, a set of x-y multipoles has cpd*cpd cells. in the parallel case, though, we pad out y to cpd2pad -- some number slightly bigger than cpd. 
+		
+		if (_cpd2pad == 0) cpd2pad = cpd * cpd; 
+		else cpd2pad = _cpd2pad; 
+		
         CompressedMultipoleLengthXY  = ((1+cpd)*(3+cpd))/8;
         nblocks = (cpd*cpd)/blocksize;
         cpdhalf = (cpd-1)/2;
@@ -46,11 +52,14 @@ public:
         assert(ret==0);
 
         mfactor = new double[completemultipolelength];
+				
+		
         int a,b,c;
         FORALL_COMPLETE_MULTIPOLES_BOUND(a,b,c,order) {
             mfactor[ cmap(a,b,c) ] = 
                 pow(-1.0,a+b+c)/(fact2(2*(a+b+c)-1)*fact(a)*fact(b)*fact(c));
         }
+				
     }
     ~InCoreConvolution(void) {
         free(_mcache); free(_tcache); free(_dcache);
@@ -210,7 +219,10 @@ inline void Set_Vector_to_Zero(Complex *t, int n) {
 
 void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
     // why is this 50% faster with dynamic?
-    #pragma omp parallel for schedule(dynamic)
+	
+	STDLOG(3, "Entering InCoreConvolve\n");
+
+	#pragma omp parallel for schedule(dynamic)
     for(int block=0;block<nblocks;block++) {
             
         Complex *FM, *FMabc, *FMap2bcm2, *FMabp2cm2;
@@ -227,9 +239,15 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
         xyzbegin = block*blocksize;
         // Load the reduced multipoles into the cache
         FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
+<<<<<<< HEAD
             FM = &(FFTM[rmap(a,b,c) * cpd*cpd + xyzbegin]);
             int m = cmap(a,b,c)*padblocksize;
             FOR(xyz,0,blocksize-1) mcache[m + xyz] = FM[xyz];
+=======
+            FM = &(FFTM[rmap(a,b,c) * cpd2pad + xyzbegin]);
+            int m = cmap(a,b,c);
+            FOR(xyz,0,blocksize-1) mcache[m*blocksize + xyz] = FM[xyz];
+>>>>>>> master
         }
 
         // Apply the trace-free recursion to generate complete multipoles
@@ -306,6 +324,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
                 FDabc[xyz] = - FDap2bcm2[xyz] - FDabp2cm2[xyz];
         }
 
+<<<<<<< HEAD
         // Now compute the Taylors from M & D
         // We do this in two parts, since the D's are stored as real,
         // but are either pure real or pure imaginary, according
@@ -313,6 +332,12 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
         FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
             // FOR(xyz,0,blocksize-1) tcache[xyz] = 0;
             Set_Vector_to_Zero(tcache, blocksize_even);
+=======
+        FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {			
+            Complex *FT = &(FFTM[rmap(a,b,c) * cpd2pad + xyzbegin]);
+
+            FOR(xyz,0,blocksize-1) tcache[xyz] = 0;
+>>>>>>> master
             FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,order-a-b-c) {
                 // Odd parity only
                 if( (((a+i)+(b+j)+(c+k))&0x1) == 1 ) {
@@ -341,4 +366,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
             memcpy(FT, tcache, blocksize*sizeof(Complex));
         }
     }
+	
+	STDLOG(3, "Exiting InCoreConvolve\n");
+	
 }

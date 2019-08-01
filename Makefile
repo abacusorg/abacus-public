@@ -7,7 +7,7 @@ ifeq (,$(findstring clean,$(MAKECMDGOALS))$(findstring tcmalloc,$(MAKECMDGOALS))
 	include common.mk
 endif
 
-all: clibs singlestep CreateDerivatives ConvolutionDriver zeldovich util tests analysis AbacusCosmo
+all: clibs singlestep CreateDerivatives convolution zeldovich util tests analysis AbacusCosmo
 
 common.mk:
 ifeq (,$(HAVE_COMMON_MK))
@@ -45,7 +45,7 @@ distclean: clean distclean_recurse
 	-$(MAKE) -C Analysis $*
 	-$(MAKE) -C clibs $*
 
-ConvolutionDriver: ParseHeader
+convolution: ParseHeader
 	$(MAKE) -C Convolution $@
 		
 clibs:
@@ -83,4 +83,4 @@ gperftools/lib/libtcmalloc_minimal.so:
 	./configure --enable-minimal --prefix=$(shell pwd)/gperftools > /dev/null && \
 	make > /dev/null && make install > /dev/null
 	
-.PHONY:all clean distclean zeldovich util tests analysis singlestep dist AbacusCosmo clibs ConvolutionDriver tcmalloc ParseHeader
+.PHONY:all clean distclean zeldovich util tests analysis singlestep dist AbacusCosmo clibs convolution tcmalloc ParseHeader

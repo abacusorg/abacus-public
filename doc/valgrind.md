@@ -21,7 +21,7 @@ most of these. (TODO: haven't checked the suppressions file
 in a while, may need updating).
 
 Usually one will want to invoke valgrind directly on the 
-`singlestep` or `ConvolutionDriver` executable instead of the
+`singlestep` or `convolution` executable instead of the
 Python wrapper, although it is possible to do either.  One should
 use `--trace-children=yes` in this case to follow the exectuables
 that the Python wrapper spawns.  Python will likely generate additional
