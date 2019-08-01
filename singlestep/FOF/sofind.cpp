@@ -488,6 +488,9 @@ class SOcell {
 	int start = 0;	// Index of the first particle of the current group
 	int densest = -1;
 	FOFloat maxdens = -1.0;
+
+	// TESTING
+	FOFloat FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5);
 	
 	int count = 1;        /// The number of the group
 	
@@ -505,14 +508,13 @@ class SOcell {
 	Sweep.Stop();
 	start = densest;	
 
-	// TESTING
-	//while (start>0 && density[densest]>min_central) {
 	while (start>=0) {
 	// Find the densest particle, move it to the front
 	  // No eligible central is left.  But we always 
 	  // try at least one central.
-	    
-	    if (count>50) break; // cap on number of halos per FOF group	    
+
+	    // TESTING
+	    //if (count>50) break; // cap on number of halos per FOF group	    
 	    Distance.Start();
 	    // compute the distance to all particles
 	    FOFloat *d2use = compute_d2(p+start, p, np, d2buffer, numdists);
@@ -547,7 +549,9 @@ class SOcell {
 	      }
 	      // look for the next densest particle which is still active
 	      // check the second condition tuk
-	      else if (density[j]>maxdens && density[j]*min_inv_den_part[j]>mag_loc && halo_part[j]>=0) {
+	      // TESTING
+	      //else if (density[j]>maxdens && density[j]*min_inv_den_part[j]>mag_loc && halo_part[j]>=0) {
+	      else if (density[j]>maxdens && density[j]*min_inv_den_part[j]/FOFunitdensity>mag_loc && halo_part[j]>=0) {
 		  maxdens=density[j];
 		  densest = j;
 		  if (d2use[j]>d2SO) continue; // in this way the next line of code is only exec if pcle j is within d2SO
