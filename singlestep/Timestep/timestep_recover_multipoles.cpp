@@ -66,9 +66,11 @@ void timestepMultipoles(void) {
     FORCE_RADIUS = 0;  // so we know when we can free CellInfo in Finish
     GROUP_RADIUS = 0;
 
-    int cpd = P.cpd; int first = first_slab_on_node;
-    FetchSlabs.instantiate(cpd, first, &FetchPosSlabPrecondition, &FetchPosSlabAction );
-    Finish.instantiate(cpd, first,  &FinishMultipolesPrecondition,  &FinishMultipolesAction );
+    int nslabs = P.cpd;
+    int first = first_slab_on_node;
+
+    FetchSlabs.instantiate(nslabs, first, &FetchPosSlabPrecondition, &FetchPosSlabAction, "FetchPosSlab");
+    Finish.instantiate(nslabs, first,  &FinishMultipolesPrecondition,  &FinishMultipolesAction, "FinishMultipoles");
 
     while( !Finish.alldone(total_slabs_on_node) ) {
         FetchSlabs.Attempt();

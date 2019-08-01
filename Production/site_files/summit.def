@@ -7,7 +7,7 @@ RamDisk = 1
 #nIODirs = 4
 #IODirThreads = [2, 2, 3, 3]
 #MAXRAMMB = 200000  # This will be automatically detected
-# ConvolutionCacheSizeMB = 30  # This will be automatically detected
+ConvolutionCacheSizeMB = 200  # Two procs, 21 user-facing SMCs per proc; pairs of SMCs share a 10 MB L3 cache.
 
 # OpenMP and thread parameters
 OMP_NUM_THREADS = 36

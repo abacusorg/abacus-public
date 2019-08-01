@@ -68,14 +68,16 @@ void timestepIC(void) {
     GROUP_RADIUS = 0;
     FINISH_WAIT_RADIUS = 2;  // The IC pipeline is very short; we have plenty of RAM to allow for large IC displacements
 
-    int cpd = P.cpd; int first = first_slab_on_node;
-    Drift.instantiate(cpd, first, &FetchICPrecondition, &FetchICAction );
-    Finish.instantiate(cpd, first + FINISH_WAIT_RADIUS,  &FinishPrecondition,  &FinishAction );
+    int nslabs = P.cpd;
+    int first = first_slab_on_node;
+
+    Drift.instantiate(nslabs, first, &FetchICPrecondition, &FetchICAction, "Drift");
+    INSTANTIATE(Finish, FINISH_WAIT_RADIUS);
 
 #ifdef PARALLEL
-	CheckForMultipoles.instantiate(cpd, first + FINISH_WAIT_RADIUS, &CheckForMultipolesPrecondition,  &CheckForMultipolesAction );
+	INSTANTIATE(CheckForMultipoles, FINISH_WAIT_RADIUS);
 #else
-	CheckForMultipoles.instantiate(cpd, first + FINISH_WAIT_RADIUS, &NoopPrecondition,  &NoopAction );
+	INSTANTIATE_NOOP(CheckForMultipoles, FINISH_WAIT_RADIUS);
 #endif
 	
 	

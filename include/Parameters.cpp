@@ -170,12 +170,18 @@ public:
     // in MB
     unsigned int getCacheSize(){
         unsigned int cache_size = 0;
-        FILE *fp = 0;
-        fp = fopen("/sys/devices/system/cpu/cpu0/cache/index3/size", "r");  // L3 cache size in KB
-        if(fp){
-            int nscan = fscanf(fp, "%dK", &cache_size);
-            assert(nscan == 1);
+        FILE *fp = NULL;
+        char fn[1024];
+
+        // find the last-level cache
+        for(int i = 0; ; i++){
+            sprintf(fn, "/sys/devices/system/cpu/cpu0/cache/index%d/size", i);
+            fp = fopen(fn, "r");
+            if(fp == NULL)
+                break;
+            int nscan = fscanf(fp, "%dK", &cache_size);  // cache size in KB
             fclose(fp);
+            assertf(nscan == 1, "Unexpected cache size file format (\"%s\")\n", fn);
         }
         cache_size /= 1024; // to MB
         return cache_size;

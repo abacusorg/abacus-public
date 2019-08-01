@@ -77,6 +77,12 @@ else
     have_avx512f=no
 fi
 
+if test x$ax_cv_have_vsx_ext == xyes; then
+    have_vsx=yes
+else
+    have_vsx=no
+fi
+
 # Define the ./configure options
 AC_ARG_ENABLE(double,
 [AS_HELP_STRING([--enable-double], [Double precision [no]])],
@@ -126,6 +132,10 @@ AC_ARG_ENABLE(avx512,
 [AS_HELP_STRING([--enable-avx512], [All AVX-512 (overridden by individual options) [yes if AVX-512 present]])],
 	[], enable_avx512=$have_avx512f)
 
+AC_ARG_ENABLE(vsx,
+[AS_HELP_STRING([--enable-vsx], [All VSX (overridden by individual options) [yes if VSX present]])],
+    [], enable_vsx=$have_vsx)
+
 AC_ARG_ENABLE(avx-directs,
 [AS_HELP_STRING([--enable-avx-directs], [AVX directs [no]])],
 	[], enable_avx_directs=no)
@@ -144,7 +154,7 @@ fi
 # Begin multipoles SIMD options
 
 AC_ARG_WITH(multipoles-simd,
-[AS_HELP_STRING([--multipoles-simd={avx512 | avx | unrolled | none}], [Multipoles/Taylors implementation [highest supported]])],
+[AS_HELP_STRING([--multipoles-simd={avx512 | avx | vsx | unrolled | none}], [Multipoles/Taylors implementation [highest supported]])],
     [], with_multipoles_simd="auto")
 
 if test "x$with_multipoles_simd" == xauto; then
@@ -152,6 +162,8 @@ if test "x$with_multipoles_simd" == xauto; then
         with_multipoles_simd="avx512"
     elif test "x$enable_avx" == xyes; then
         with_multipoles_simd="avx"
+    elif test "x$enable_vsx" == xyes; then
+        with_multipoles_simd="vsx"
     else
         with_multipoles_simd="unrolled"
     fi
@@ -165,6 +177,9 @@ if test "x$with_multipoles_simd" == xavx512; then
 elif test "x$with_multipoles_simd" == xavx; then
     AC_DEFINE_UNQUOTED(AVXMULTIPOLES, [], "AVX multipoles/Taylors")
     MULTIPOLES_SIMD="MULTIPOLES_SIMD_AVX"
+elif test "x$with_multipoles_simd" == xvsx; then
+    AC_DEFINE_UNQUOTED(VSXMULTIPOLES, [], "VSX (PowerPC) multipoles/Taylors")
+    MULTIPOLES_SIMD="MULTIPOLES_SIMD_VSX"
 elif test "x$with_multipoles_simd" == xunrolled; then
     AC_DEFINE_UNQUOTED(UNROLLEDMULTIPOLES, [], "Unrolled plain-C multipoles/Taylors")
     MULTIPOLES_SIMD="MULTIPOLES_SIMD_UNROLLED"

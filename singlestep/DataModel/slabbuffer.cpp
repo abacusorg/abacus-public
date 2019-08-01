@@ -512,7 +512,10 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking){
 
         // still might have to deallocate
         if(deleteafter == IO_DELETE){
-			if (type == 11) STDLOG(1, "Uh oh. DeAllocating Multipole slab %d prematurely\n", slab);
+#ifdef PARALLEL
+			if (type == MultipoleSlab)
+                STDLOG(1, "Uh oh. DeAllocating Multipole slab %d prematurely\n", slab);
+#endif
             DeAllocate(type, slab);
 		}
 				

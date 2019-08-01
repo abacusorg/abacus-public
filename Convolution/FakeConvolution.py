@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 '''
-This is a drop-in replacement for ConvolutionDriver.  It generates blank
+This is a drop-in replacement for the convolution executable.  It generates blank
 Taylors and will overwrite multipoles if the parameter file requests it.
 This is useful for singlestep performance testing when the convolution
 isn't working on a parallel system, for example.

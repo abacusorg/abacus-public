@@ -20,6 +20,8 @@
 #ifndef INCLUDE_DEPENDENCY
 #define INCLUDE_DEPENDENCY
 
+#include "stdlog.cc"
+
 enum SpinFlag { NOT_ENOUGH_RAM, WAITING_FOR_IO, WAITING_FOR_GPU, WAITING_FOR_MPI, NUM_SPIN_FLAGS };
 
 class Dependency : public STimer {
@@ -34,6 +36,8 @@ public:
     	// has been run, which may differ 
 
     int instantiated;  // Have we called instantiate on this dependency?
+
+    const char *name;  // dependency name, like Drift
 
     int (*precondition)(int slab);
     void (*action)(int slab);
@@ -54,11 +58,17 @@ public:
      }
 
     void instantiate(   int _cpd, int _initialslab, 
-                        int (*_precondition)(int), void (*_action)(int) ) { 
+                        int (*_precondition)(int), void (*_action)(int),
+                        const char* _name) { 
 
         action       = _action;
         precondition = _precondition;
         cpd          = _cpd;
+
+        if(strnlen(_name,1) == 0)
+            name = NULL;
+        else
+            name         = _name;
 
         if(_executed_status!=NULL) { // changing cpd
             delete[] _executed_status;
@@ -104,9 +114,13 @@ public:
         if(global_spin_timer.timeron)
             global_spin_timer.Stop();
         
+        if(name)
+            STDLOG(0, "Entering %s action for slab %d\n", name, slab);
         Start();
         (*action)(slab);
         Stop();
+        if(name)
+            STDLOG(0, "Exited %s action for slab %d\n", name, slab);
 	    _executed_status[slab] = 1;
 	    last_slab_executed = slab;
 	    number_of_slabs_executed++;

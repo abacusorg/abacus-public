@@ -61,7 +61,7 @@ from Abacus.Cosmology import AbacusCosmo
 EXIT_REQUEUE = 200
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
 directory_param_fn = pjoin(abacuspath, 'Abacus', 'directory.def')
-wall_timer = time.perf_counter()  # monotonic wall clock time
+wall_timer = time.perf_counter  # monotonic wall clock time
 
 
 def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False, erase_ic=False, output_parfile=None, use_site_overrides=False, override_directories=False, **param_kwargs):
@@ -115,6 +115,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     if not output_parfile:
         output_parfile = pjoin(pardir, 'abacus.par')
 
+    # TODO: summit doesn't let us write files from the compute nodes.  Is that a problem?
     params = preprocess_params(output_parfile, parfn, use_site_overrides=use_site_overrides,
                 override_directories=override_directories, **param_kwargs)
 
@@ -276,12 +277,12 @@ def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
 
     #note! added this in to run Ewald test for far_radius 1-8,16 
     for ADnum in list(range(1,9)) + [16]:
-        ADfn = 'AD32_{:03d}.dat'.format(ADnum)
+        ADfn = f'AD32_{ADnum:03d}.dat'
         source_ADfn = pjoin(abacuspath, "Derivatives", ADfn)
         if not path.isfile(pjoin(param.DerivativesDirectory, ADfn)):
             shutil.copy(source_ADfn,param.DerivativesDirectory)
     
-    suffix = "{0.CPD:d}_{0.Order:d}_{0.NearFieldRadius:d}_{0.DerivativeExpansionRadius:d}".format(param) + "_{slab:d}"
+    suffix = f"{param.CPD:d}_{param.Order:d}_{param.NearFieldRadius:d}_{param.DerivativeExpansionRadius:d}" + "_{slab:d}"
     fnfmt32 = "fourierspace_float32_" + suffix
     fnfmt64 = "fourierspace_" + suffix
             
@@ -310,13 +311,13 @@ def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
         # If not, check if they are in the canonical $ABACUS_PERSIST/Derivatives directory
         for derivs_archive_dir in derivs_archive_dirs:
             if all(path.isfile(pjoin(derivs_archive_dir, dn)) for dn in derivativenames):
-                print('Found derivatives in archive dir "{}". Copying to DerivativesDirectory "{}".'.format(derivs_archive_dir, param.DerivativesDirectory))
+                print(f'Found derivatives in archive dir "{derivs_archive_dir}". Copying to DerivativesDirectory "{param.DerivativesDirectory}".')
                 for dn in derivativenames:
                     shutil.copy(pjoin(derivs_archive_dir, dn), pjoin(param.DerivativesDirectory, dn))
                 break
         else:
-            print('Could not find derivatives in "{}" or archive dir "{}". Creating them...'.format(param.DerivativesDirectory, derivs_archive_dir))
-            print("Error was on file pattern '{}'".format(fnfmt))
+            print(f'Could not find derivatives in "{param.DerivativesDirectory}" or archive dir "{derivs_archive_dir}". Creating them...')
+            print(f"Error was on file pattern '{fnfmt}'")
 
             if floatprec:
                 # first make sure the derivatives exist in double format
@@ -391,7 +392,7 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
         sigma8_at_zinit = zeldovich.calc_sigma8(params)
         if 'ZD_Pk_sigma' in params:
             assert np.isclose(params['ZD_Pk_sigma'], sigma8_at_zinit, rtol=1e-4),\
-                "ZD_Pk_sigma ({:f}) calculated from sigma_8 ({:f}) conflicts with the provided value of ZD_Pk_sigma ({:f})!".format(sigma8_at_zinit, params['sigma_8'], params['ZD_Pk_sigma'])
+                f"ZD_Pk_sigma ({sigma8_at_zinit:f}) calculated from sigma_8 ({params['sigma_8']:f}) conflicts with the provided value of ZD_Pk_sigma ({params['ZD_Pk_sigma']:f})!"
         param_kwargs['ZD_Pk_sigma'] = sigma8_at_zinit
         params = GenParam.makeInput(output_parfile, parfn, **param_kwargs)
 
@@ -437,9 +438,9 @@ def check_multipole_taylor_done(param, state, kind):
     if kind == 'Multipole':
         kind += 's'  # should consider standardizing our pluralization
     try:
-        even = all(path.getsize(pjoin(even_dir, kind+'_{:04d}'.format(i))) == size
+        even = all(path.getsize(pjoin(even_dir, kind+f'_{i:04d}')) == size
             for i in range(0,param.CPD,2))
-        odd = all(path.getsize(pjoin(odd_dir, kind+'_{:04d}'.format(i))) == size
+        odd = all(path.getsize(pjoin(odd_dir, kind+f'_{i:04d}')) == size
             for i in range(1,param.CPD,2))
     except FileNotFoundError:
         return False
@@ -542,7 +543,7 @@ def setup_state_dirs(paramfn):
 
     # Check if the write state already exists
     if path.isfile(pjoin(write, "state")) and StateIOMode != 'overwrite':
-        answer = input('\nWrite state "{}" exists and would be overwritten. Do you want to delete it? (y/[n]) '.format(write))
+        answer = input(f'\nWrite state "{write}" exists and would be overwritten. Do you want to delete it? (y/[n]) ')
         if answer == "y":
             shutil.rmtree(write)
         else:
@@ -700,22 +701,22 @@ class StatusLogWriter:
 
         if not ss_time:
             self.print('Warning: parsing logs to get singlestep time, may miss startup time')
-            ss_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.time'.format(step_num))
+            ss_log_fn = pjoin(param['LogDirectory'], f'step{step_num:04d}.time')
             try:
                 ss_log_txt = pathlib.Path(ss_log_fn).read_text()
             except FileNotFoundError:
-                self.print('Warning: could not find timing file "{}"'.format(ss_log_fn))
+                self.print(f'Warning: could not find timing file "{ss_log_fn}"')
                 ss_time = np.nan
 
-            matches = re.search(r'Total Wall Clock Time\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), ss_log_txt)
+            matches = re.search(rf'Total Wall Clock Time\s*:\s*(?P<time>{fp_regex:s})', ss_log_txt)
             ss_time = float(matches.group('time'))
         ss_rate = param['NP']/1e6/ss_time  # Mpart/s
 
         if not conv_time:
-            conv_log_fn = pjoin(param['LogDirectory'], 'step{:04d}.convtime'.format(step_num))
+            conv_log_fn = pjoin(param['LogDirectory'], f'step{step_num:04d}.convtime')
             try:
                 conv_log_txt = pathlib.Path(conv_log_fn).read_text()
-                matches = re.search(r'ConvolutionWallClock\s*:\s*(?P<time>{fp:s})'.format(fp=fp_regex), conv_log_txt)
+                matches = re.search(rf'ConvolutionWallClock\s*:\s*(?P<time>{fp_regex:s})', conv_log_txt)
                 conv_time = float(matches.group('time'))
                 self.print('Warning: parsing logs to get convolution time, may miss startup time')
             except:
@@ -747,10 +748,10 @@ class StatusLogWriter:
 def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     """
     Run a number of Abacus timesteps by invoking the `singlestep` and
-    `ConvolutionDriver` executables in a tick-tock fashion.
+    `convolution` executables in a tick-tock fashion.
 
     If running a parallel job, instead calls `mpirun singlestep` and
-    `mpirun ConvolutionDriver` (or whatever MPI launch command has
+    `mpirun convolution` (or whatever MPI launch command has
     been configured).
 
     Parameters
@@ -780,7 +781,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     maxsteps = int(maxsteps)
 
     if not path.exists(paramfn):
-        raise ValueError('Parameter file "{:s}" is not accessible'.format(paramfn))
+        raise ValueError(f'Parameter file "{paramfn:s}" is not accessible')
         
     param = InputFile(paramfn)
 
@@ -799,12 +800,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         run_time_minutes = 360 #360
         run_time_secs = 60 * run_time_minutes
         start_time = wall_timer()
-        print("Beginning run at Unix epoch time", start_time, ", running for ", run_time_minutes, " minutes.\n")
+        print("Beginning run at time", start_time, ", running for ", run_time_minutes, " minutes.\n")
         # s = SignalHandler()
 #         signal.signal(signal.SIGUSR1, s.handle)
 #         signal.signal(signal.SIGUSR2, s.handle)
         
-
         backups_enabled = False
 
     #if not backups_enabled:
@@ -820,7 +820,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     status_log = StatusLogWriter(pjoin(param.OutputDirectory, 'status.log'))
     conv_time = None
 
-    print("Using parameter file {:s} and working directory {:s}.".format(paramfn,param.WorkingDirectory))
+    print(f"Using parameter file {paramfn:s} and working directory {param.WorkingDirectory:s}.")
 
     # floatprec=True effectively guarantees both precisions are available
     # TODO: how to tell if Abacus was compiled in double precision?
@@ -895,17 +895,17 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                 # Now check if we have all the multipoles the convolution will need
                 if not check_multipole_taylor_done(param, read_state, kind='Multipole'):
                     # Invoke multipole recovery mode
-                    print("Warning: missing multipoles! Performing multipole recovery for step {:d}".format(i))
+                    print(f"Warning: missing multipoles! Performing multipole recovery for step {i:d}")
                     
                     # Build the recover_multipoles executable
                     with Tools.chdir(pjoin(abacuspath, "singlestep")):
                         subprocess.check_call(['make', 'recover_multipoles'])
 
                     # Execute it
-                    print("Running recover_multipoles for step {:d}".format(stepnum))
+                    print(f"Running recover_multipoles for step {stepnum:d}")
                     subprocess.check_call([pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn], env=singlestep_env)
-                    save_log_files(param.LogDirectory, 'step{:04d}.recover_multipoles'.format(read_state.FullStepNumber))
-                    print('\tFinished multipole recovery for read state {}.'.format(read_state.FullStepNumber))
+                    save_log_files(param.LogDirectory, f'step{read_state.FullStepNumber:04d}.recover_multipoles')
+                    print(f'\tFinished multipole recovery for read state {read_state.FullStepNumber}.')
 
                 # Swap the Taylors link.  In effect, this will place the Taylors on the same disk as the multipoles.
                 # But that's what we want for sloshing: this was the write disk, so now it will be the upcoming read disk
@@ -916,17 +916,17 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                     os.symlink(os.readlink(multipoles), taylors)
             
             if do_fake_convolve:
-                ConvolutionDriver_cmd = [pjoin(abacuspath, "Convolution", "FakeConvolution.py"), paramfn]
+                convolution_cmd = [pjoin(abacuspath, "Convolution", "FakeConvolution.py"), paramfn]
             else:
-                ConvolutionDriver_cmd = [pjoin(abacuspath, "Convolution", "ConvolutionDriver"), paramfn]
+                convolution_cmd = [pjoin(abacuspath, "Convolution", "convolution"), paramfn]
             
-            print("Performing convolution for step {:d}".format(stepnum))
+            print(f"Performing convolution for step {stepnum:d}")
             with Tools.ContextTimer() as conv_timer:
-                subprocess.check_call(ConvolutionDriver_cmd, env=convolution_env)
+                subprocess.check_call(convolution_cmd, env=convolution_env)
             conv_time = conv_timer.elapsed
 
             if ProfilingMode == 2:
-                print('\tConvolution step {} finished. ProfilingMode = 2 (Convolution) is active; Abacus will now quit.'.format(stepnum))
+                print(f'\tConvolution step {stepnum} finished. ProfilingMode = 2 (Convolution) is active; Abacus will now quit.')
                 break
 
             if not check_multipole_taylor_done(param, read_state, kind='Taylor'):
@@ -935,7 +935,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             
             convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
             for cl in convlogs:
-                shutil.move(cl, cl.replace('last', 'step{:04d}'.format(read_state.FullStepNumber+1)))
+                shutil.move(cl, cl.replace('last', f'step{read_state.FullStepNumber+1:04d}'))
 
             # Warning: Convolution won't work if MultipoleDirectory is the write (or read) state
             # because the states get moved after multipole generation but before convolution.
@@ -958,13 +958,13 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic))]
         if parallel:
             singlestep_cmd = mpirun_cmd + singlestep_cmd
-            print('Running parallel convolution + singlestep for step {:d} with command "{:s}"'.format(stepnum, ' '.join(singlestep_cmd)))
+            print(f'Running parallel convolution + singlestep for step {stepnum:d} with command "{" ".join(singlestep_cmd):s}"')
             convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
             for cl in convlogs:
-                shutil.move(cl, cl.replace('last', 'step{:04d}'.format(read_state.FullStepNumber+1)))
+                shutil.move(cl, cl.replace('last', f'step{read_state.FullStepNumber+1:04d}'))
                 
         else:
-            print("Running singlestep for step {:d}".format(stepnum))
+            print(f"Running singlestep for step {stepnum:d}")
         with Tools.ContextTimer() as ss_timer:            
             subprocess.check_call(singlestep_cmd, env=singlestep_env)
             
@@ -972,7 +972,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         
         # In profiling mode, we don't move the states so we can immediately run the same step again
         if ProfilingMode and ProfilingMode != 2:
-            print('\tStep {} finished. ProfilingMode is active; Abacus will now quit and states will not be moved.'.format(stepnum))
+            print(f'\tStep {stepnum} finished. ProfilingMode is active; Abacus will now quit and states will not be moved.')
             break
             
         # Check that write/state was written as a test of success
@@ -982,13 +982,13 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         write_state = InputFile(write_state_path)
 
         # save the log and timing files under this step number
-        save_log_files(param.LogDirectory, 'step{:04d}'.format(write_state.FullStepNumber))
+        save_log_files(param.LogDirectory, f'step{write_state.FullStepNumber:04d}')
 
         # Update the status log
         status_log.update(param, write_state, ss_timer.elapsed, conv_time)
 
         
-        shutil.copy(pjoin(write, "state"), pjoin(param.LogDirectory, "step{:04d}.state".format(write_state.FullStepNumber)))
+        shutil.copy(pjoin(write, "state"), pjoin(param.LogDirectory, f"step{write_state.FullStepNumber:04d}.state"))
         print(( "\t Finished state {:d}. a = {:.4f}, dlna = {:.3g}, rms velocity = {:.3g}".format(
             write_state.FullStepNumber, write_state.ScaleFactor,
             write_state.DeltaScaleFactor/(write_state.ScaleFactor-write_state.DeltaScaleFactor),
@@ -1004,7 +1004,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         # Check if we need to back up the write state
         if backups_enabled and write_state.FullStepNumber > 0 and write_state.FullStepNumber % param['BackupStepInterval'] == 0:
             backup_dir = pjoin(param['BackupDirectory'], 'backup')
-            print('Backing up state to {}'.format(backup_dir))
+            print(f'Backing up state to {backup_dir}')
             tmp_backup = pjoin(param['BackupDirectory'], 'backup_inprogress')
             shutil.copytree(write, tmp_backup)
             if path.isdir(backup_dir):
@@ -1025,16 +1025,16 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                 k,P,nb = PS.FFTAndBin(density, param.BoxSize, inplace=True)
                 # we use the write state step number here, even though the particles are positioned at the read state positions
                 # this is consistent with the time slice behavior
-                shutil.copy(dfn, pjoin(param.LogDirectory, "step{:04d}.density".format(write_state.FullStepNumber)))
-                np.savez(pjoin(param.LogDirectory, "step{:04d}.pow".format(write_state.FullStepNumber)), k=k,P=P,nb=nb)
+                shutil.copy(dfn, pjoin(param.LogDirectory, f"step{write_state.FullStepNumber:04d}.density".format()))
+                np.savez(pjoin(param.LogDirectory, f"step{write_state.FullStepNumber:04d}.pow"), k=k,P=P,nb=nb)
                 os.remove(dfn)
                 
                 
    
         #if parallel and s.graceful_exit:
-        print("Current time: ", wall_timer(), start_time, 0.93 *run_time_secs)
         
         if parallel and (wall_timer() - start_time >= 0.93 * run_time_secs):
+            print("Current time: ", wall_timer(), start_time, 0.93 *run_time_secs)
             
             restore_time = wall_timer()
             
@@ -1070,8 +1070,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         # This logic is deliberately consistent with singlestep.cpp
         # If this is an IC step then we won't have read_state
         if not make_ic and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0:
-            print("Final redshift of {:g} reached; terminating normally.".format(finalz))
-            status_log.print("Final redshift of {:g} reached; terminating normally.".format(finalz))
+            print(f"Final redshift of {finalz:g} reached; terminating normally.")
+            status_log.print(f"Final redshift of {finalz:g} reached; terminating normally.")
             finished = True
             break
         
