@@ -965,10 +965,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                 
         else:
             print(f"Running singlestep for step {stepnum:d}")
-        with Tools.ContextTimer() as ss_timer:            
-            subprocess.check_call(singlestep_cmd, env=singlestep_env)
-            
-            
+            with Tools.ContextTimer() as ss_timer:
+                try:
+                    subprocess.check_call(singlestep_cmd, env=singlestep_env)
+                except subprocess.CalledProcessError as cpe:
+                    handle_singlestep_error(cpe)
+                    raise
         
         # In profiling mode, we don't move the states so we can immediately run the same step again
         if ProfilingMode and ProfilingMode != 2:
@@ -1092,3 +1094,17 @@ def save_log_files(logdir, newprefix, oldprefix='lastrun'):
         if logfn.startswith(oldprefix):
             newname = logfn.replace(oldprefix, newprefix, 1)
             shutil.move(pjoin(logdir, logfn), pjoin(logdir, newname))
+
+def handle_singlestep_error(error):
+    '''
+    The singlestep executable may quit with an informative return value,
+    such as from a Unix signal.  Let's interpret that for the user.
+    The error will still be raised upstream.
+
+    Parameters
+    ----------
+    error: subprocess.CalledProcessError
+        The singlestep exception object
+    '''
+    if error.returncode == -signal.SIGBUS:
+        print('singlestep died with signal SIGBUS! Did the ramdisk run out of memory?', file=sys.stderr)
