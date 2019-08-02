@@ -19,11 +19,11 @@ PTimer::~PTimer() {
     free(timer);
 }
 
-void PTimer::Start(void){
+inline void PTimer::Start(void){
     Start(omp_get_thread_num());
 }
 
-void PTimer::Start(int thread_num) {
+inline void PTimer::Start(int thread_num) {
     int g = thread_num;
     
     assert(g < nprocs);  // If this fails omp_get_max_threads() may not be returning the global max # of threads
@@ -36,11 +36,11 @@ void PTimer::Start(int thread_num) {
     timer[g].on = 1;
 }
 
-void PTimer::Stop(void){
+inline void PTimer::Stop(void){
     Stop(omp_get_thread_num());
 }
 
-void PTimer::Stop(int thread_num) {
+inline void PTimer::Stop(int thread_num) {
     int g = thread_num;
     assert(timer[g].on);
     struct timespec dt;
