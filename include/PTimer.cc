@@ -7,20 +7,16 @@ PTimer::PTimer(void) : PTimer(omp_get_max_threads()) { }
 
 PTimer::PTimer(int nthreads) { 
     nprocs = nthreads;
-    assert(posix_memalign((void **) &tuse, CACHE_LINE_SIZE, sizeof(padded_timeval)*nprocs) == 0);
-    assert(posix_memalign((void **) &tstart, CACHE_LINE_SIZE, sizeof(padded_timeval)*nprocs) == 0);
-    assert(posix_memalign((void **) &timer, CACHE_LINE_SIZE, sizeof(padded_timeval)*nprocs) == 0);
-    assert(posix_memalign((void **) &timeron, CACHE_LINE_SIZE, sizeof(padded_int)*nprocs) == 0);
+    assert(posix_memalign((void **) &timer, CACHE_LINE_SIZE, sizeof(padded_timespec)*nprocs) == 0);
 
-    for(int g=0; g<nprocs; g++) timerclear(&timer[g].t);
-    for(int g=0; g<nprocs; g++) timeron[g].i = 0;
+    for(int g=0; g<nprocs; g++) {
+        timer[g].tot.tv_sec = 0; timer[g].tot.tv_nsec = 0;
+    }
+    for(int g=0; g<nprocs; g++) timer[g].on = 0;
 }
 
 PTimer::~PTimer() {
-    free(tuse);
-    free(tstart);
     free(timer);
-    free(timeron);
 }
 
 void PTimer::Start(void){
@@ -35,9 +31,9 @@ void PTimer::Start(int thread_num) {
         printf("Timer %d already on! nprocs = %d\n", g, nprocs);
     }*/
     
-    assert(!timeron[g].i);
-    assert( gettimeofday( &(tstart[g].t), (struct timezone *)NULL ) == 0 );
-    timeron[g].i = 1;
+    assert(!timer[g].on);
+    assert( clock_gettime( CLOCK_REALTIME, &(timer[g].tstart)) == 0 );
+    timer[g].on = 1;
 }
 
 void PTimer::Stop(void){
@@ -46,30 +42,27 @@ void PTimer::Stop(void){
 
 void PTimer::Stop(int thread_num) {
     int g = thread_num;
-    
-    assert(timeron[g].i);
-
-    struct timeval dt;
-    assert( gettimeofday( &(tuse[g].t), (struct timezone *)NULL ) == 0 );
-    timersub(&(tuse[g].t), &(tstart[g].t), &dt);
-    timeradd(&dt, &(timer[g].t), &(timer[g].t));
-    timeron[g].i = 0;
+    assert(timer[g].on);
+    struct timespec dt;
+    struct timespec *t = &(timer[g].tot);
+    assert( clock_gettime( CLOCK_REALTIME, &dt) == 0 );
+    t->tv_nsec += dt.tv_nsec-timer[g].tstart.tv_nsec;
+    t->tv_sec += dt.tv_sec-timer[g].tstart.tv_sec;
+    if (t->tv_nsec<0) { t->tv_nsec += 1000000000; t->tv_sec--; }
+    else if (t->tv_nsec>1000000000) { t->tv_nsec -= 1000000000; t->tv_sec++; }
+    timer[g].on = 0;
 }
 
 void PTimer::Clear(void) {
-    for(int g=0; g<nprocs; g++)  assert(!timeron[g].i);  
-    for(int g=0; g<nprocs; g++) timerclear(&(timer[g].t));
+    for(int g=0; g<nprocs; g++)  assert(!timer[g].on);  
+    for(int g=0; g<nprocs; g++) {
+        timer[g].tot.tv_sec = 0; timer[g].tot.tv_nsec = 0;
+    }
 }
 
 double PTimer::Elapsed(void) {
+    for(int g=0; g<nprocs; g++)  assert(!timer[g].on);  
     double sum = 0;
-    for(int g=0; g<nprocs; g++) sum += timer[g].t.tv_sec + 1e-6*timer[g].t.tv_usec;
+    for(int g=0; g<nprocs; g++) sum += timer[g].tot.tv_sec + 1e-9*timer[g].tot.tv_nsec;
     return sum;
-}
-
-struct timeval PTimer::get_timer_seq(void) {
-    struct timeval t;
-    timerclear(&t);
-    for(int g=0; g<nprocs; g++) timeradd(&(timer[g].t), &t, &t); 
-    return t;
 }
