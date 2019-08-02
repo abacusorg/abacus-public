@@ -48,6 +48,7 @@ typedef struct {
     uint64_t totalMemoryAllocated;
 
     int runtime_ConvolutionCacheSizeMB;
+    int runtime_ConvolutionL1CacheSizeMB;
     int ComputeCores;
 } ConvolutionStatistics;
 

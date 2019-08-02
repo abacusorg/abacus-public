@@ -2,7 +2,7 @@ class InCoreConvolution : public basemultipoles {
 private:
     Complex *_mcache,*_tcache;
     double *_dcache,*mfactor;
-    int cpd,blocksize,nblocks,cpdhalf,CompressedMultipoleLengthXY;
+    int cpd,cpd2pad,blocksize,nblocks,cpdhalf,CompressedMultipoleLengthXY;
     const int thread_padding = 1024;
     int bufsize, padblocksize, blocksize_even;
 
@@ -239,15 +239,9 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
         xyzbegin = block*blocksize;
         // Load the reduced multipoles into the cache
         FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
-<<<<<<< HEAD
-            FM = &(FFTM[rmap(a,b,c) * cpd*cpd + xyzbegin]);
+            FM = &(FFTM[rmap(a,b,c) * cpd2pad + xyzbegin]);
             int m = cmap(a,b,c)*padblocksize;
             FOR(xyz,0,blocksize-1) mcache[m + xyz] = FM[xyz];
-=======
-            FM = &(FFTM[rmap(a,b,c) * cpd2pad + xyzbegin]);
-            int m = cmap(a,b,c);
-            FOR(xyz,0,blocksize-1) mcache[m*blocksize + xyz] = FM[xyz];
->>>>>>> master
         }
 
         // Apply the trace-free recursion to generate complete multipoles
@@ -324,7 +318,6 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
                 FDabc[xyz] = - FDap2bcm2[xyz] - FDabp2cm2[xyz];
         }
 
-<<<<<<< HEAD
         // Now compute the Taylors from M & D
         // We do this in two parts, since the D's are stored as real,
         // but are either pure real or pure imaginary, according
@@ -332,12 +325,6 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
         FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
             // FOR(xyz,0,blocksize-1) tcache[xyz] = 0;
             Set_Vector_to_Zero(tcache, blocksize_even);
-=======
-        FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {			
-            Complex *FT = &(FFTM[rmap(a,b,c) * cpd2pad + xyzbegin]);
-
-            FOR(xyz,0,blocksize-1) tcache[xyz] = 0;
->>>>>>> master
             FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,order-a-b-c) {
                 // Odd parity only
                 if( (((a+i)+(b+j)+(c+k))&0x1) == 1 ) {
@@ -361,7 +348,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
                     FMAvector(tcache,FM, FD, blocksize_even); 
                 }
             }
-            Complex *FT = &(FFTM[rmap(a,b,c) * cpd*cpd + xyzbegin]);
+            Complex *FT = &(FFTM[rmap(a,b,c) * cpd2pad + xyzbegin]);
             // FOR(xyz,0,blocksize-1) FT[xyz] = tcache[xyz];
             memcpy(FT, tcache, blocksize*sizeof(Complex));
         }
