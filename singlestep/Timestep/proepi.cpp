@@ -34,6 +34,7 @@
 //The following section declares a variety of global timers for several steps in the code
 //TODO: This should probably go in some sort of reporting class to clean up this section.
 #include "STimer.cc"
+// #define PTIMER_DUMMY   // Uncommenting this will cause all PTimers to no-op and return Elapsed() = 1e-12 sec.
 #include "PTimer.cc"
 
 STimer debug_Merge;
