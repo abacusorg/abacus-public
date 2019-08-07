@@ -11,6 +11,8 @@ loops, so the purpose of this program is to "manually" unroll them.
 import textwrap
 import argparse
 
+fiducial_max_order=16
+
 class Writer:
     def __init__(self, fn):
         self.indent_level = 0
@@ -47,7 +49,7 @@ def emit_unrolled_Multipoles(maxorder=16, onlyorder=None, fn='CM_unrolled.cpp'):
         void MultipoleUnrolledKernel(FLOAT3 *particles, int n, double3 center, double *CM);
         ''')
 
-    for order in range(maxorder+1):
+    for order in range(fiducial_max_order+1):
         w(f'''
             template <>
             void MultipoleUnrolledKernel<{order}>(FLOAT3 *particles, int n, double3 center, double *CM){{''')
@@ -125,7 +127,7 @@ def emit_unrolled_Multipoles_FMA(maxorder=16, onlyorder=None, fn='CM_unrolled.cp
         void MultipoleUnrolledKernel(FLOAT3 *particles, int n, double3 center, double *CM);
         ''')
 
-    for order in range(maxorder+1):
+    for order in range(fiducial_max_order+1):
         this_max_zk = min(order+1, max_zk)
         cml = (order+1)*(order+2)*(order+3)//6
 
@@ -197,12 +199,12 @@ def emit_unrolled_Taylors(maxorder=16, fn='ET_unrolled.cpp', onlyorder=None):
         extern "C" {
         ''')
 
-    for order in range(maxorder+1):
+    for order in range(fiducial_max_order+1):
         w(f'void TaylorUnrolledKernel{order}(FLOAT3 *particles, int n, double3 center, double3 *Q, float3 *acc){{')
         w.indent()
 
-        if order == 0 or (onlyorder != None and order-1 != onlyorder):
-            w('assert(0); // should never be called')
+        if order == 0 or order > maxorder or (onlyorder != None and order != onlyorder):
+            w(f'assert(0 && "Did not compile with order {order}.  Try ./configure --with-max-order={order}?");')
             w.dedent()
             w('}\n')
             continue

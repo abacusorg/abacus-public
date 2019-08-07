@@ -1386,7 +1386,7 @@ Optional Packages:
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
   --with-radius=NFR       Near field radius [2]
   --with-block-size=B     Near field block size [64]
-  --multipoles-simd={avx512 | avx | vsx | unrolled | none}
+  --with-multipoles-simd={avx512 | avx | vsx | unrolled | none}
                           Multipoles/Taylors implementation [highest
                           supported]
   --with-max-cpd=CPD      Maximum cells-per-dimension [8192]

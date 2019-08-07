@@ -154,7 +154,7 @@ fi
 # Begin multipoles SIMD options
 
 AC_ARG_WITH(multipoles-simd,
-[AS_HELP_STRING([--multipoles-simd={avx512 | avx | vsx | unrolled | none}], [Multipoles/Taylors implementation [highest supported]])],
+[AS_HELP_STRING([--with-multipoles-simd={avx512 | avx | vsx | unrolled | none}], [Multipoles/Taylors implementation [highest supported]])],
     [], with_multipoles_simd="auto")
 
 if test "x$with_multipoles_simd" == xauto; then
