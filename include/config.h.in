@@ -238,3 +238,6 @@
 
 /* "Unrolled plain-C multipoles/Taylors" */
 #undef UNROLLEDMULTIPOLES
+
+/* "VSX (PowerPC) multipoles/Taylors" */
+#undef VSXMULTIPOLES

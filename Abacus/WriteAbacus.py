@@ -10,7 +10,7 @@ See ReadAbacus.py for equivalent interfaces to read these formats.
 import numpy as np
 import numba
 
-import line_profiler
+#import line_profiler
 
 def write(outfn, particles=None, pos=None, vel=None, pid=None, ppd=None, write_zel=False, write_pid=False, append=False, dtype=np.float32):
     '''
@@ -105,16 +105,20 @@ class SlabWriter:
 
     '''
     # TODO: clean up format support with new write function
-    writers = {'RVdouble': lambda *args,**kwargs: write(*args,Vel=True,Double=True,**kwargs),
-               'RVdoubleZel': lambda *args,**kwargs: write(*args,Vel=True,Double=True,Zel=True,**kwargs),
+    writers = {'RVdouble': lambda *args,**kwargs: write(*args,Vel=True, dtype=np.float64,**kwargs),
+               'RVdoubleZel': lambda *args,**kwargs: write(*args,Vel=True, dtype=np.float64, Zel=True,**kwargs),
                'RVZel': lambda *args,**kwargs: write(*args,Vel=True,Zel=True,**kwargs),
                'RVTag': lambda *args,**kwargs: write(*args, write_pid=True, **kwargs),
-               'Zeldovich': lambda *args,**kwargs: write(*args,Zel=True,Double=True,**kwargs),
+               'RVdoubleTag': lambda *args,**kwargs: write(*args, write_pid=True, dtype=np.float64, **kwargs),
+               'Zeldovich': lambda *args,**kwargs: write(*args,Zel=True, dtype=np.float64,**kwargs),
                'same':lambda *args,**kwargs: write(*args,**kwargs)
                }
 
     def x2s(self, x):
         return x2s(x, self.boxsize, self.cpd)
+
+    def __call__(self, *args, **kwargs):
+        return self.ingest(*args, **kwargs)
 
     # Assigns particles to slabs
     def ingest(self, particles=None, pos=None, vel=None, pid=None, slabinfo=None):

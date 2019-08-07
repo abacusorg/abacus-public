@@ -152,7 +152,8 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
     // divided over NBuffers.  
     // Round up by a factor of 1.3 and an extra 4 MB, just to be generous
     // Use NP/MPI_size as an estimate of the number of particles that will actually be processed by this node
-    GPUMemoryGB = std::min(GPUMemoryGB, 1.*P.np/MPI_size*1e-9*sizeof(accstruct)*3*(2*NFRADIUS+1)/NBuffers*1.3*2.0+0.004);
+
+    GPUMemoryGB = std::min(GPUMemoryGB, 1.*P.np/MPI_size*1e-9*sizeof(accstruct)*3*(2*NFRADIUS + 1)/NBuffers*1.3*2 + 0.004);
 
     // GPUMemoryGB = std::min(GPUMemoryGB, 5.0*P.np*1e-9*sizeof(FLOAT3)+0.004);
 

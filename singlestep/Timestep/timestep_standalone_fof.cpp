@@ -40,8 +40,10 @@ int StandaloneFOFUnpackSlabPrecondition(int slab) {
 void StandaloneFOFUnpackSlabAction(int slab) {
     printf("Unpacking slab %d\n", slab);
     STDLOG(1, "Unpacking slab %d\n", slab);
-    int nump = unpack_slab_pack14(slab, P.HaloTaggableFraction);
+    int64_t nump = unpack_slab_pack14(slab, P.HaloTaggableFraction);
     STDLOG(1,"Found %d particles in slab %d\n", nump, slab);
+
+    SS->setold(slab, nump);
 
     SB->DeAllocate(TimeSlice, slab);
 }
@@ -76,8 +78,6 @@ void timestepStandaloneFOF(const char* slice_dir) {
     TimeStepWallClock.Clear();
     TimeStepWallClock.Start();
 
-    int cpd = GFC->cpd;
-
     StandaloneFOF_slice_dir = slice_dir;
 
     FORCE_RADIUS = 0;
@@ -85,13 +85,15 @@ void timestepStandaloneFOF(const char* slice_dir) {
     assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS); 
     STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
 
+    int nslabs = GFC->cpd;
     int first = first_slab_on_node;
-            FetchSlabs.instantiate(cpd, first, &StandaloneFOFLoadSlabPrecondition, &StandaloneFOFLoadSlabAction);
-          TransposePos.instantiate(cpd, first, &StandaloneFOFUnpackSlabPrecondition, &StandaloneFOFUnpackSlabAction);
-        MakeCellGroups.instantiate(cpd, first, &StandaloneFOFMakeCellGroupsPrecondition, &MakeCellGroupsAction);
-    FindCellGroupLinks.instantiate(cpd, first + 1, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction);
-        DoGlobalGroups.instantiate(cpd, first + 2*GFC->GroupRadius, &DoGlobalGroupsPrecondition, &DoGlobalGroupsAction);
-                Finish.instantiate(cpd, first + 2*GFC->GroupRadius, &StandaloneFOFFinishPrecondition, &StandaloneFOFFinishAction);
+
+            FetchSlabs.instantiate(nslabs, first, &StandaloneFOFLoadSlabPrecondition, &StandaloneFOFLoadSlabAction, "FetchSlabs");
+          TransposePos.instantiate(nslabs, first, &StandaloneFOFUnpackSlabPrecondition, &StandaloneFOFUnpackSlabAction, "TransposePos");
+        MakeCellGroups.instantiate(nslabs, first, &StandaloneFOFMakeCellGroupsPrecondition, &MakeCellGroupsAction, "MakeCellGroups");
+    FindCellGroupLinks.instantiate(nslabs, first + 1, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction, "FindCellGroupLinks");
+        DoGlobalGroups.instantiate(nslabs, first + 2*GFC->GroupRadius, &DoGlobalGroupsPrecondition, &DoGlobalGroupsAction, "DoGlobalGroups");
+                Finish.instantiate(nslabs, first + 2*GFC->GroupRadius, &StandaloneFOFFinishPrecondition, &StandaloneFOFFinishAction, "Finish");
 
     while (!Finish.alldone(total_slabs_on_node)) {
         FetchSlabs.Attempt();

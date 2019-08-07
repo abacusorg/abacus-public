@@ -20,6 +20,8 @@
 #ifndef INCLUDE_DEPENDENCY
 #define INCLUDE_DEPENDENCY
 
+#include "stdlog.cc"
+
 enum SpinFlag { NOT_ENOUGH_RAM, WAITING_FOR_IO, WAITING_FOR_GPU, WAITING_FOR_MPI, NUM_SPIN_FLAGS };
 
 class Dependency : public STimer {
@@ -32,12 +34,21 @@ public:
     int last_slab_executed;         // The last slab we did
     int raw_number_executed;	// This is the number of times the action()
     	// has been run, which may differ 
+
+    int instantiated;  // Have we called instantiate on this dependency?
+
+    const char *name;  // dependency name, like Drift
+
     int (*precondition)(int slab);
     void (*action)(int slab);
     
     static int *spin_flags;
     static STimer *spin_timers;
     static STimer global_spin_timer;
+
+    Dependency(){
+        instantiated = 0;
+    }
 
     ~Dependency(void) { 
         if(_executed_status != NULL) 
@@ -47,11 +58,17 @@ public:
      }
 
     void instantiate(   int _cpd, int _initialslab, 
-                        int (*_precondition)(int), void (*_action)(int) ) { 
+                        int (*_precondition)(int), void (*_action)(int),
+                        const char* _name) { 
 
         action       = _action;
         precondition = _precondition;
         cpd          = _cpd;
+
+        if(strnlen(_name,1) == 0)
+            name = NULL;
+        else
+            name         = _name;
 
         if(_executed_status!=NULL) { // changing cpd
             delete[] _executed_status;
@@ -63,15 +80,31 @@ public:
         number_of_slabs_executed = 0; 
         raw_number_executed = 0; 
         last_slab_executed = _initialslab-1;
+
+        instantiated = 1;
     }
                     
-    int done(int s) { return _executed_status[ wrap(s)];  }
-    int notdone(int s) { return _executed_status[wrap(s)]?0:1;  }
+    int done(int s) {
+        assert(instantiated);
+        return _executed_status[ wrap(s)];
+    }
+    int notdone(int s) {
+        assert(instantiated);
+        return _executed_status[wrap(s)]?0:1;
+    }
     /// We can compare alldone to cpd, but usually we want total_slabs_on_node
-    int alldone(void) { return number_of_slabs_executed==cpd?1:0; }
-    int alldone(int total) { return number_of_slabs_executed==total?1:0; }
+    int alldone(void) {
+        assert(instantiated);
+        return number_of_slabs_executed==cpd?1:0;
+    }
+    int alldone(int total) {
+        assert(instantiated);
+        return number_of_slabs_executed==total?1:0;
+    }
 
     void do_action(int slab) {
+        assert(instantiated);
+
         // We're taking an action!  Stop any spin timers
         for(int i = 0; i < NUM_SPIN_FLAGS; i++){
             spin_flags[i] = 0;
@@ -81,18 +114,29 @@ public:
         if(global_spin_timer.timeron)
             global_spin_timer.Stop();
         
+        if(name)
+            STDLOG(0, "Entering %s action for slab %d\n", name, slab);
         Start();
         (*action)(slab);
         Stop();
+        if(name)
+            STDLOG(0, "Exited %s action for slab %d\n", name, slab);
 	    _executed_status[slab] = 1;
 	    last_slab_executed = slab;
 	    number_of_slabs_executed++;
 	    raw_number_executed++;
     }
 
-    int wrap(int s) { while(s<0) s += cpd; while(s>=cpd) s -= cpd; return s; }
+    int wrap(int s) {
+        assert(instantiated);
+        while(s<0) s += cpd;
+        while(s>=cpd) s -= cpd;
+        return s;
+    }
 
     void Attempt(void) {
+        assert(instantiated);
+
         // Take at most one action.
         int ws = wrap(last_slab_executed+1);
         if( notdone(ws) && precondition(ws) ) do_action(ws);
@@ -115,6 +159,8 @@ public:
     }
 
     void mark_to_repeat(int slab) {
+        assert(instantiated);
+
         slab = wrap(slab);
         _executed_status[slab] = 0;
         number_of_slabs_executed--;
@@ -124,6 +170,8 @@ public:
 	// Returns begin, such that [begin,end) is done and begin-1 is not.
 	// We don't check if end is done.
 	// The check is wrapped, but the return value is not, so begin<=end.
+    assert(instantiated);
+
 	int begin = wrap(end-1);
 	while (done(begin) && end-begin<cpd) {
 	    begin--;
@@ -136,6 +184,8 @@ public:
 	// last_slab_executed is never updated, nor is any timing done.
 	// This is intended to be used when we have executed the action()
 	// on another parallel node and are moving the results over.
+    assert(instantiated);
+    
 	_executed_status[wrap(s)] = 1;
 	number_of_slabs_executed++;
     }

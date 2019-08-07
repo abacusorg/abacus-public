@@ -19,6 +19,8 @@
     ReadState.ReadHeader(hs);
     hs.Close();
     P.ReadParameters(argv[2], 0);
+    strcpy(ReadState.Pipeline, "standalone_fof");
+    strcpy(ReadState.ParameterFileName, argv[1]);
 
     // Override any parameters that it don't make sense in this context
     P.AllowGroupFinding = 1;
@@ -49,7 +51,7 @@
 
     InitGroupFinding(0);
 
-    // Do we need a SlabSizePack14?
+    // Do we need a SlabSizePack14?  Right now we populate SS on-the-fly
     //SS = new SlabSize(P);
     timestepStandaloneFOF(argv[1]);
 
@@ -58,6 +60,10 @@
     IO_Terminate();
     SingleStepTearDown.Stop();
     WallClockDirect.Stop();
+
+    // Stop Epilogue from trying to write slabsize
+    delete SS;
+    SS = NULL;
 
     // The epilogue contains some tests of success.
     Epilogue(P,MakeIC);

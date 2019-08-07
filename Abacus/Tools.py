@@ -3,14 +3,15 @@
 import ctypes as ct
 import os
 import csv
-import numpy as np
 import contextlib
 import re
 from glob import glob
-
 import string
-import numexpr as ne
 from collections import OrderedDict
+
+import numpy as np
+import numexpr as ne
+
 from .Reglob import reglob
 
 # all values returned in GB

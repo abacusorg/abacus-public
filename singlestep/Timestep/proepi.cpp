@@ -544,6 +544,104 @@ void InitWriteState(int MakeIC){
 
 }
 
+void InitGroupFinding(bool MakeIC){
+    /*
+    Request output of L1 groups and halo/field subsamples if:
+    - this redshift is a L1OutputRedshift; or
+    - we are doing a TimeSlice output.
+
+    If L1OutputRedshifts is not set, then we instead fall back to L1Output_dlna.
+    In that case, we check if we are crossing a L1Output_dlna checkpoint by going from ReadState to WriteState.
+    
+    We may not end up outputting groups if group finding is not enabled.  This is signaled by GFC = NULL.
+
+    We need to enable group finding if:
+    - We are doing microstepping
+    - We are outputting groups
+     But we can't enable it if:
+    - AllowGroupFinding is disabled
+    - ForceOutputDebug is enabled
+    - This is an IC step
+    ForceOutputDebug outputs accelerations as soon as we compute them
+    i.e. before GroupFinding has a chance to rearrange them
+    */
+
+    int do_output;
+
+    for(int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++){
+        double L1z = P.L1OutputRedshifts[i];
+        if(L1z <= -2)
+            continue;
+        if(abs(ReadState.Redshift - L1z) < 1e-12){
+            STDLOG(0,"Group finding at this redshift requested by L1OutputRedshifts[%d]\n", i);
+            do_output = 1;
+            goto have_L1z;
+        }
+    }
+
+    if(P.L1Output_dlna >= 0){
+        do_output = log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ||
+                    fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna);
+        STDLOG(0,"Group finding at this redshift requested by L1Output_dlna\n");
+    }
+    else{
+        do_output = 0;
+    }
+
+    have_L1z:
+    do_output |= ReadState.DoTimeSliceOutput;
+
+    WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities
+    WriteState.L0DensityThreshold = 0.0;
+
+    // Can we enable group finding?
+    if((P.MicrostepTimeStep > 0 || do_output) &&
+        !(!P.AllowGroupFinding || P.ForceOutputDebug || MakeIC)){
+        STDLOG(1, "Setting up group finding\n");
+        
+        ReadState.DoGroupFindingOutput = do_output;
+
+        GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
+                    #ifdef SPHERICAL_OVERDENSITY
+                    P.SODensity[0], P.SODensity[1],
+                    #else
+                    P.FoFLinkingLength[1]/pow(P.np,1./3),
+                    P.FoFLinkingLength[2]/pow(P.np,1./3),
+                    #endif
+                    P.cpd, P.GroupRadius, P.MinL1HaloNP, P.np);
+
+        #ifdef COMPUTE_FOF_DENSITY
+        #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
+        if (P.DensityKernelRad==0) {
+            // Default to the L0 linking length
+            WriteState.DensityKernelRad2 = GFC->linking_length;
+            WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5); 
+            // We use square radii.  The radius is padded just a little
+            // bit so we don't risk underflow with 1 particle at r=b
+            // in comparison to the self-count.
+            WriteState.L0DensityThreshold = 0.0;
+            // Use this as a signal to use DensityKernalRad2 (in code units,
+            // not cosmic units) as the threshold,
+            // which means that a particle is L0 eligible if there is any
+            // non-self particle within the L0 linking length
+        } else {
+            WriteState.DensityKernelRad2 = P.DensityKernelRad/pow(P.np,1./3);
+            WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2;
+            WriteState.L0DensityThreshold = P.L0DensityThreshold;
+        }
+        #endif
+        #endif
+        STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
+        if (WriteState.L0DensityThreshold==0) {
+            STDLOG(1,"Passing L0DensityThreshold = 0 to signal to use anything with a neighbor\n");
+        } else {
+            STDLOG(1,"Using L0DensityThreshold = %f\n", WriteState.L0DensityThreshold);
+        }
+    } else{
+        STDLOG(1, "Group finding not enabled for this step.\n");
+    }
+}
+
 // Check whether "d" is actually a global directory, and thus not eligible for deletion
 int IsTrueLocalDirectory(const char* d){
     if(samefile(d, P.WorkingDirectory) ||

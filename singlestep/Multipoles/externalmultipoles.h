@@ -26,41 +26,18 @@ typedef struct { double v[4]; } d4;
 #endif
 
 #ifdef AVX512MULTIPOLES
- extern "C" void Multipole512Kernel1( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
- extern "C" void Multipole512Kernel2( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
- extern "C" void Multipole512Kernel3( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
- extern "C" void Multipole512Kernel4( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
- extern "C" void Multipole512Kernel5( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
- extern "C" void Multipole512Kernel6( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
- extern "C" void Multipole512Kernel7( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
- extern "C" void Multipole512Kernel8( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
- extern "C" void Multipole512Kernel9( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
- extern "C" void Multipole512Kernel10( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
- extern "C" void Multipole512Kernel11( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
- extern "C" void Multipole512Kernel12( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
- extern "C" void Multipole512Kernel13( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
- extern "C" void Multipole512Kernel14( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
- extern "C" void Multipole512Kernel15( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
- extern "C" void Multipole512Kernel16( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
+template <int Order>
+void Multipole512Kernel( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
 #endif
 
- #ifdef UNROLLEDMULTIPOLES
- extern "C" void MultipoleUnrolledKernel1(FLOAT3 p, double3 center, double *CM);
- extern "C" void MultipoleUnrolledKernel2(FLOAT3 p, double3 center, double *CM);
- extern "C" void MultipoleUnrolledKernel3(FLOAT3 p, double3 center, double *CM);
- extern "C" void MultipoleUnrolledKernel4(FLOAT3 p, double3 center, double *CM);
- extern "C" void MultipoleUnrolledKernel5(FLOAT3 p, double3 center, double *CM);
- extern "C" void MultipoleUnrolledKernel6(FLOAT3 p, double3 center, double *CM);
- extern "C" void MultipoleUnrolledKernel7(FLOAT3 p, double3 center, double *CM);
- extern "C" void MultipoleUnrolledKernel8(FLOAT3 p, double3 center, double *CM);
- extern "C" void MultipoleUnrolledKernel9(FLOAT3 p, double3 center, double *CM);
- extern "C" void MultipoleUnrolledKernel10(FLOAT3 p, double3 center, double *CM);
- extern "C" void MultipoleUnrolledKernel11(FLOAT3 p, double3 center, double *CM);
- extern "C" void MultipoleUnrolledKernel12(FLOAT3 p, double3 center, double *CM);
- extern "C" void MultipoleUnrolledKernel13(FLOAT3 p, double3 center, double *CM);
- extern "C" void MultipoleUnrolledKernel14(FLOAT3 p, double3 center, double *CM);
- extern "C" void MultipoleUnrolledKernel15(FLOAT3 p, double3 center, double *CM);
- extern "C" void MultipoleUnrolledKernel16(FLOAT3 p, double3 center, double *CM);
+#ifdef UNROLLEDMULTIPOLES
+template <int Order>
+void MultipoleUnrolledKernel(FLOAT3 *p, int n, double3 center, double *CM);
+#endif
+
+#ifdef VSXMULTIPOLES
+template <int Order>
+void MultipoleVSXKernel(FLOAT3 *p, int n, double3 center, double *CM);
 #endif
 
 #endif

@@ -5,7 +5,7 @@ CXX ?= g++
 CXXFLAGS ?= -Wall 
 
 CPPFLAGS ?= -I$(ROOT_DIR)/include/
-CPPFLAGS += -O1
+CPPFLAGS += -O3
 LIBS ?= -lm
 
 TARGET = phheader phdata \

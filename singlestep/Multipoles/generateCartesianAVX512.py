@@ -27,10 +27,14 @@ def emit_AVX512_Multipoles(maxorder=16, fn='CMAVX512.cpp'):
         w('#ifdef AVX512MULTIPOLES')
         w('#include "avx512_calls.h"')
         w('#include "assert.h"')
-        w('extern "C" {{')
+        w('''
+            template <int Order>
+            void Multipole512Kernel(AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz,
+                AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz,
+                AVX512_DOUBLES *CM );''')
 
         for order in range(maxorder+1):
-            w('void Multipole512Kernel{order}(AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz,')
+            w('void Multipole512Kernel<{order}>(AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz,')
             w('                         AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz,')
             w('                         AVX512_DOUBLES *CM ){{')
 
@@ -64,7 +68,6 @@ def emit_AVX512_Multipoles(maxorder=16, fn='CMAVX512.cpp'):
                     w('\n        fi = AVX512_MULTIPLY_DOUBLES(fi, deltax);')
 
             w('}}')  # Kernel
-        w('}}')  # extern "C"
         w('#endif')  # AVX512MULTIPOLES
 
 # this is only marginally faster than the non-FMA version
@@ -89,12 +92,16 @@ def emit_AVX512_Multipoles_FMA(maxorder=16, fn='CMAVX512.cpp', max_zk=None):
         w('#ifdef AVX512MULTIPOLES')
         w('#include "avx512_calls.h"')
         w('#include "assert.h"')
-        w('extern "C" {{')
+        w('''
+            template <int Order>
+            void Multipole512Kernel(AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz,
+                AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz,
+                AVX512_DOUBLES *CM );''')
 
         for order in range(maxorder+1):
             this_max_zk = min(order+1, max_zk)
 
-            w('void Multipole512Kernel{order}(AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz,')
+            w('void Multipole512Kernel<{order}>(AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz,')
             w('                         AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz,')
             w('                         AVX512_DOUBLES *CM ){{')
 
@@ -131,7 +138,6 @@ def emit_AVX512_Multipoles_FMA(maxorder=16, fn='CMAVX512.cpp', max_zk=None):
                     w('\n        fi = AVX512_MULTIPLY_DOUBLES(fi, deltax);')
 
             w('}}')  # Kernel
-        w('}}')  # extern "C"
         w('#endif')  # AVX512MULTIPOLES
 
 def emit_AVX512_Taylors(maxorder=16, fn='ETAVX512.cpp'):

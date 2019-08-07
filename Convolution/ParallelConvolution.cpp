@@ -500,6 +500,8 @@ int ParallelConvolution::GetTaylorRecipient(int slab, int offset){
 			}
 		} 
 	}
+    QUIT("Did not find target node for slab %d!", slab);
+    return -1;
 }
 
 void ParallelConvolution::SendTaylors(int offset) {

@@ -62,7 +62,9 @@ void GatherTimings() {
 
     total = 0.0;
     REPORT(0, "SingleStep Setup", SingleStepSetup.Elapsed()); total += thistime;
+#ifdef PARALLEL
     REPORT(0, "Convolution", ConvolutionWallClock.Elapsed()); total += thistime;
+#endif
     REPORT(0, "TimeStep", TimeStepWallClock.Elapsed()); total += thistime;
     REPORT(0, "Finish IO", IOFinish.Elapsed()); total += thistime;
     REPORT(0, "Unaccounted", WallClockDirect.Elapsed()-total);
@@ -166,7 +168,7 @@ void GatherTimings() {
     }
    
     if(WriteState.Do2LPTVelocityRereading){
-        REPORT(1, "Velocity Re-reading for LPT", LPTVelocityReRead.Elapsed()); total += thistime;
+        REPORT(1, "Velocity Re-reading for LPT", FetchLPTVelocity.Elapsed()); total += thistime;
         REPORT_RATE();
     }
     REPORT(1, "Drift", Drift.Elapsed()); total += thistime;

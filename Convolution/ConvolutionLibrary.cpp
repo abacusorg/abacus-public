@@ -8,7 +8,6 @@
 #include "factorial.h"
 
 #ifdef PARALLEL
-//#include "read_dio.h"
 #include "iolib.cpp"
 #endif
 
