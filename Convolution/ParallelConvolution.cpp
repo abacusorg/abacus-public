@@ -82,7 +82,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
     int cml = ((order+1)*(order+2)*(order+3))/6;
     int nprocs = omp_get_max_threads();
 	size_t cacherambytes = P.ConvolutionCacheSizeMB*(1024LL*1024LL);
-    size_t L1cacherambytes = CP.runtime_ConvolutionL1CacheSizeMB*(1024LL*1024L
+    size_t L1cacherambytes = CS.runtime_ConvolutionL1CacheSizeMB*(1024LL*1024L);
 
 /* Old code: better to count up than count down!
     blocksize = 0;

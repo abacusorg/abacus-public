@@ -112,17 +112,17 @@ inline void FMAvector(Complex *t, Complex *m, double *d, int n) {
         int i=0;
         /* This is the base version */
         #pragma omp simd aligned(t,m:16) aligned(d:8)
-        for(;i<n;i++) t[i] += m[i] * d[i]; 
+        for(i=0; i<n;i++) t[i] += m[i] * d[i]; 
 
         /* // A simple unrolled version; will compute off the end in 2's 
         #pragma omp simd aligned(t,m:32) aligned(d:16)
-        for(;i<n;i+=2) {
+        for(i=0; i<n;i+=2) {
             t[i] += m[i] * d[i]; 
             t[i+1] += m[i+1] * d[i+1]; 
         }
         */ 
         /* // An alternate, with pointer movement 
-        for(;i<(n>>1);i++) {
+        for(i=0; i<(n>>1);i++) {
             *t += (*m)*(*d); t++; m++; d++;
             *t += (*m)*(*d); t++; m++; d++;
         }
@@ -183,8 +183,8 @@ inline void Multiply_by_I(Complex *t, int blocksize) {
     // Multiply a complex vector by i really means swapping to (-im, re)
     int xyz;
     #ifndef HAVE_AVX
-        #pragma omp simd aligned(t:16) 
         double *tcache_dbl = (double *)t;
+		#pragma omp simd aligned(t:16) 		
         for (xyz=0; xyz<2*blocksize; xyz+=2) {
             double tmp = tcache_dbl[xyz];
             tcache_dbl[xyz] = -tcache_dbl[xyz+1];

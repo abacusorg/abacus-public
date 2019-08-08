@@ -77,4 +77,6 @@ void (*CM_unrolled_ptr[24])(FLOAT3 *p, int n, double3 center, double *CM) = REP1
 void (*CM_VSX_ptr[24])(FLOAT3 *p, int n, double3 center, double *CM) = REP16(MultipoleVSXKernel);
 #endif
 
+#undef REP16
+
 #endif

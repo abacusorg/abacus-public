@@ -34,6 +34,7 @@ def emit_AVX512_Multipoles(maxorder=16, fn='CMAVX512.cpp'):
                 AVX512_DOUBLES *CM );''')
 
         for order in range(maxorder+1):
+            w('template <>')
             w('void Multipole512Kernel<{order}>(AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz,')
             w('                         AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz,')
             w('                         AVX512_DOUBLES *CM ){{')
@@ -101,6 +102,7 @@ def emit_AVX512_Multipoles_FMA(maxorder=16, fn='CMAVX512.cpp', max_zk=None):
         for order in range(maxorder+1):
             this_max_zk = min(order+1, max_zk)
 
+            w('template <>')
             w('void Multipole512Kernel<{order}>(AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz,')
             w('                         AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz,')
             w('                         AVX512_DOUBLES *CM ){{')

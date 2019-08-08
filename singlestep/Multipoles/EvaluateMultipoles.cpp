@@ -1,13 +1,25 @@
 #ifdef TEST
 
+#include "config.h"
+
 // Compile test driver with:
 // $ make EvaluateMultipolesTest
 
 // Can use these to override ./configure for testing
+
+#ifdef HAVE_AVX
 //#define AVXMULTIPOLES
-//#define AVX512MULTIPOLES
+#endif
+
+#ifdef HAVE_AVX512_F
+#define AVX512MULTIPOLES
+#endif
+
 #define UNROLLEDMULTIPOLES
+
+#ifdef HAVE_VSX
 #define VSXMULTIPOLES
+#endif
 
 #include "threevector.hh"
 #define FLOAT float
@@ -335,7 +347,7 @@ void report(const char* prefix, int64_t npart, std::chrono::duration<double> ela
 int main(int argc, char **argv){
     Multipoles MP(8);
 
-    int64_t ncell = 10*1875*1875;
+    int64_t ncell = 4*1875*1875;
     int64_t ppc = 52;   
     if (argc > 1)
         ppc = atoi(argv[1]);
@@ -401,7 +413,7 @@ int main(int argc, char **argv){
     }
     end = std::chrono::steady_clock::now();
     report("AVX-512 Multipoles", npart, end-begin, MP.cml, nthread);
-    compare_multipoles(cartesian1, cartesian3, MP.cml*ncell, rtol);
+    //compare_multipoles(cartesian1, cartesian3, MP.cml*ncell, rtol);
 #endif
 
 #ifdef VSXMULTIPOLES
@@ -435,7 +447,7 @@ int main(int argc, char **argv){
     }
     end = std::chrono::steady_clock::now();
     report("Unrolled Multipoles", npart, end-begin, MP.cml, nthread);
-    //compare_multipoles(cartesian2, cartesian4, MP.cml*ncell, rtol);
+    compare_multipoles(cartesian3, cartesian4, MP.cml*ncell, rtol);
 #endif
 
     // Analytic Multipoles

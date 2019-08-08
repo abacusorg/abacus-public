@@ -1003,12 +1003,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                 
         else:
             print(f"Running singlestep for step {stepnum:d}")
-            with Tools.ContextTimer() as ss_timer:
-                try:
-                    subprocess.check_call(singlestep_cmd, env=singlestep_env)
-                except subprocess.CalledProcessError as cpe:
-                    handle_singlestep_error(cpe)
-                    raise
+        with Tools.ContextTimer() as ss_timer:
+            try:
+                subprocess.check_call(singlestep_cmd, env=singlestep_env)
+            except subprocess.CalledProcessError as cpe:
+                handle_singlestep_error(cpe)
+                raise
         
         # In profiling mode, we don't move the states so we can immediately run the same step again
         if ProfilingMode and ProfilingMode != 2:

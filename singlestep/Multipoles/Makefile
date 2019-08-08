@@ -22,13 +22,13 @@ CMAVX512%cpp ETAVX512%cpp: generateCartesianAVX512.py
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $<
 
 CM_unrolled%cpp ET_unrolled%cpp: generateCartesianUnrolled.py
-	./generateCartesianUnrolled.py --maxorder=$(MAXORDER) --onlyorder=8
+	./generateCartesianUnrolled.py --maxorder=$(MAXORDER)
 
 CM_VSX%cpp ET_VSX%cpp: generateCartesianVSX.py
-	./generateCartesianVSX.py --maxorder=$(MAXORDER) --onlyorder=8
+	./generateCartesianVSX.py --maxorder=$(MAXORDER)
 
 %_unrolled.o: %_unrolled.cpp
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fopt-info -Ofast -DUNROLLEDMULTIPOLES -Wall -c $<
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fopt-info -Ofast -Wall -DUNROLLEDMULTIPOLES -c $<
 %_VSX.o: %_VSX.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fopt-info -Ofast -Wall -c $<
 

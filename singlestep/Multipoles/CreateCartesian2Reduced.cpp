@@ -9,6 +9,7 @@
 
 #define LLI long long int 
 
+// TODO: why 12 cause this to hang?
 #define MAXORDER 16 
 
 #define FOR(a,b,c) for(a=b;a<=c;a++) 
