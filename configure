@@ -1387,7 +1387,7 @@ Optional Features:
   --enable-avx-fof        AVX FOF [yes if AVX present]
   --enable-threaded-io    Threaded IO [yes]
   --enable-spherical-overdensity
-                          Use SO finder [no]
+                          Use SO finder [yes]
   --enable-one-sided-group-finding
                           Perform L0 finding one-sided [yes]
   --enable-gpu-directs    GPU directs [yes if CUDA detected]
@@ -6040,7 +6040,7 @@ fi
 if test "${enable_spherical_overdensity+set}" = set; then :
   enableval=$enable_spherical_overdensity;
 else
-  enable_spherical_overdensity="no"
+  enable_spherical_overdensity="yes"
 fi
 
 if test x$enable_spherical_overdensity == xyes; then

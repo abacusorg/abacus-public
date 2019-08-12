@@ -221,8 +221,8 @@ if test x$enable_threaded_io == xyes; then
 fi
 
 AC_ARG_ENABLE(spherical-overdensity,
-[AS_HELP_STRING([--enable-spherical-overdensity], [Use SO finder [no]])],
-	[], enable_spherical_overdensity="no")
+[AS_HELP_STRING([--enable-spherical-overdensity], [Use SO finder [yes]])],
+	[], enable_spherical_overdensity="yes")
 if test x$enable_spherical_overdensity == xyes; then
 	AC_DEFINE_UNQUOTED(SPHERICAL_OVERDENSITY, [], "Use SO finder for L1/L2 halos, rather than FOF")
 fi
