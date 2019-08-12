@@ -123,6 +123,12 @@ void PlanOutput(bool MakeIC) {
 
 }
 
+#include <signal.h>
+void graceful_exit_signal_handler(int sig)
+{
+    STDLOG(0, "Caught signal %d.\n", sig);
+}
+
 void InitializeParallel(int &size, int &rank) {
     #ifdef PARALLEL
          // Start up MPI

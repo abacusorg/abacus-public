@@ -503,7 +503,7 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
 	FFTW_FORWARD, FFTW_PATIENT);
 
     // This is the plan to do CPD real-to-complex Z FFTs, each of size CPD, with a stride of CPDpad
-    int fftw_n[] = { CPD };    // This is how long the FFTs are
+    int fftw_n[] = { (int) CPD };    // This is how long the FFTs are
     int howmany = CPD;		// How many FFTs we're doing
     int idist, odist; idist = odist = CPDpad;   // This is how the FFTs are separated in memory
     int istride, ostride; istride = ostride = 1;

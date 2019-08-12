@@ -45,8 +45,9 @@ Dependency FinishGroups;
 Dependency Drift;
 Dependency Finish;
 Dependency CheckForMultipoles; //only for parallel case. otherwise NOOP. 
-Dependency LPTVelocityReRead;
+Dependency FetchLPTVelocity;
 
+// TODO: should we consider de-coupling PARALLEL from the concept of a merged convolve/singlestep?
 #ifdef PARALLEL
 #include "ConvolutionParametersStatistics.cpp"
 #include "InCoreConvolution.cpp"
@@ -92,7 +93,8 @@ int FetchSlabsPrecondition(int slab) {
  * All "normal" slabtypes should be loaded here. Note that loads may be async.
  */
 void FetchSlabsAction(int slab) {
-    STDLOG(0,"Entering fetch slabs action for slab %d with %d particles\n", slab, SS->size(slab));
+    STDLOG(1,"Fetching slab %d with %d particles\n", slab, SS->size(slab));
+
     // Load all of the particle files together
     SB->LoadArenaNonBlocking(CellInfoSlab,slab);
     SB->LoadArenaNonBlocking(PosSlab,slab);
@@ -114,9 +116,6 @@ void FetchSlabsAction(int slab) {
 
     SB->LoadArenaNonBlocking(VelSlab, slab);
     SB->LoadArenaNonBlocking(AuxSlab, slab);
-	
-    STDLOG(0,"Exiting fetch slabs action for slab %d with %d particles\n", slab, SS->size(slab));
-
 }
 
 // -----------------------------------------------------------------
@@ -139,8 +138,6 @@ int TransposePosPrecondition(int slab){
 }
 
 void TransposePosAction(int slab){
-    STDLOG(0,"Entering transpose positions action for slab %d with %d particles\n", slab, SS->size(slab));
-    
     SB->AllocateArena(PosXYZSlab, slab);
     int cpd = P.cpd;
     
@@ -166,9 +163,6 @@ void TransposePosAction(int slab){
     if(TransposePos.number_of_slabs_executed < FORCE_RADIUS)
         SB->DeAllocate(PosSlab, slab);
     #endif
-	
-    STDLOG(0,"Exiting transpose positions action for slab %d with %d particles\n", slab, SS->size(slab));
-	
 }
 
 
@@ -196,7 +190,6 @@ void NearForceAction(int slab) {
             "Cell info of slab %d contain out of bounds data\n", slab);
     // Could also check that the sum of the cell counts add up to SS->size(slab);
 
-    STDLOG(0,"Entering near-field force action for slab %d\n", slab);
     SlabForceTime[slab].Start();
         
     NFD->ExecuteSlab(slab, P.ForceOutputDebug);
@@ -228,10 +221,6 @@ void NearForceAction(int slab) {
         memcpy(nearacc, nearacctmp, npslab*sizeof(accstruct));
         delete[] nearacctmp;
 #endif
-		
-	    STDLOG(0,"Exiting near-field force action for slab %d\n", slab);
-		
-
     }
 
     // Busy-wait for all GPU work for this slab to finish
@@ -272,7 +261,6 @@ int TaylorForcePrecondition(int slab) {
 void TaylorForceAction(int slab) {	
 	MTCOMPLEX *t = (MTCOMPLEX *) SB->GetSlabPtr(TaylorSlab, slab);
 	
-    STDLOG(0,"Entering Taylor force action for slab %d\n", slab);
     SlabFarForceTime[slab].Start();
     SB->AllocateArena(FarAccSlab, slab);
     
@@ -288,9 +276,6 @@ void TaylorForceAction(int slab) {
     // Deallocate and delete the underlying file if we're overwriting
     SB->DeAllocate(TaylorSlab, slab, WriteState.OverwriteConvState);
     SlabFarForceTime[slab].Stop();
-	
-    STDLOG(0,"Exiting Taylor force action for slab %d\n", slab);
-	
 }
 
 
@@ -327,7 +312,7 @@ int KickPrecondition(int slab) {
 void KickAction(int slab) {
     SlabForceTime[slab].Stop();
     SlabForceLatency[slab].Stop();
-	STDLOG(0, "Entering Kick action for slab %d\n", slab);
+	
     // Release the trailing slab if it won't be needed at the wrap
     // Technically we could release it anyway and re-do the transpose from PosSlab,
     // but if we're not doing group finding we may have already written and released PosSlab
@@ -386,9 +371,6 @@ void KickAction(int slab) {
         KickSlab(slab, kickfactor1, kickfactor2, KickCell);
     }
     KickCellTimer.Stop();
-	
-	STDLOG(0, "Exiting Kick action for slab %d\n", slab);
-	
 }
 
 // -----------------------------------------------------------------
@@ -411,10 +393,7 @@ int MakeCellGroupsPrecondition(int slab) {
 }
 
 void MakeCellGroupsAction(int slab) {
-	STDLOG(0,"Entering Make Cell Groups action in slab %d\n", slab);
 	GFC->ConstructCellGroups(slab);
-	STDLOG(0,"Exiting Make Cell Groups action in slab %d\n", slab);
-	
 }
 
 // -----------------------------------------------------------------
@@ -428,10 +407,7 @@ int FindCellGroupLinksPrecondition(int slab) {
 
 void FindCellGroupLinksAction(int slab) {
     // Find links between slab and slab-1
-	STDLOG(0,"Entering Find Group Links action between slab %d and %d\n", slab, slab-1);
 	FindGroupLinks(slab);
-	STDLOG(0,"Exiting Find Group Links action between slab %d and %d\n", slab, slab-1);
-	
 }
 
 // -----------------------------------------------------------------
@@ -476,7 +452,6 @@ int DoGlobalGroupsPrecondition(int slab) {
 }
 
 void DoGlobalGroupsAction(int slab) {
-    STDLOG(0,"Entering Find Global Groups action in slab %d\n", slab);
     FindAndProcessGlobalGroups(slab);
 
     // The first 2*GroupRadius times we get here, we can attempt to free
@@ -501,7 +476,6 @@ int MicrostepPrecondition(int slab){
 }
 
 void MicrostepAction(int slab){
-    STDLOG(0,"Entering microstep action for slab %d\n", slab);
 
     // TODO: This is now not the place to do this.
     // All kicks (and half-unkicks) for output are done; discard accels.
@@ -522,8 +496,6 @@ void MicrostepAction(int slab){
     }
     MicrostepCPU.Stop();
 	
-    STDLOG(0,"Exiting microstep action for slab %d\n", slab);
-	
 }
 
 // -----------------------------------------------------------------
@@ -542,16 +514,12 @@ int FinishGroupsPrecondition(int slab){
 
 void FinishGroupsAction(int slab){
     // Scatter pos,vel updates to slabs, and release GGS
-    STDLOG(0, "Entering finish groups action in slab %d\n", slab);
     FinishGlobalGroups(slab);   // This will Scatter Pos/Vel
     delete GFC->microstepcontrol[slab];
     GFC->microstepcontrol[slab] = NULL;
 
     // TODO: When we're ready to send Group-based Manifests, it would go here.
     // Would pass slab+1 to the manifest code as the faux finished slab.
-
-    STDLOG(0, "Exiting finish groups action in slab %d\n", slab);
-	
 }
 
 // -----------------------------------------------------------------
@@ -595,7 +563,6 @@ int OutputPrecondition(int slab) {
 
 uint64 n_output = 0;
 void OutputAction(int slab) {
-    STDLOG(0,"Entering Output action for slab %d\n", slab);
 
     // We are finally done with the groups for this slab.
     // Delete the Cell Groups.
@@ -649,10 +616,6 @@ void OutputAction(int slab) {
         }
     }
     OutputBin.Stop();
-	
-    STDLOG(0,"Exiting Output action for slab %d\n", slab);
-	
-
 }
 
 // -----------------------------------------------------------------
@@ -660,9 +623,9 @@ void OutputAction(int slab) {
  * Checks if we are ready to load the LPT velocities during an IC step.
  * Should not happen in normal execution
  */
-int FetchLPTVelPrecondition(int slab){
+int FetchLPTVelocityPrecondition(int slab){
     // Don't read too far ahead
-    if(LPTVelocityReRead.raw_number_executed > 
+    if(FetchLPTVelocity.raw_number_executed > 
             Drift.raw_number_executed + 2*FINISH_WAIT_RADIUS + 1) {
         return 0;
     }
@@ -670,12 +633,9 @@ int FetchLPTVelPrecondition(int slab){
     return 1;
 }
 
-void FetchLPTVelAction(int slab){
-    STDLOG(0, "Entering Fetch LPT Vel  action in slab %d\n", slab);
+void FetchLPTVelocityAction(int slab){
     // This is blocking because it uses the LoadIC module, not SB
     load_ic_vel_slab(slab);
-    STDLOG(0, "Exiting Fetch LPT Vel  action in slab %d\n", slab);
-	
 }
 
 // -----------------------------------------------------------------
@@ -697,7 +657,7 @@ int DriftPrecondition(int slab) {
     // The finish radius is a good guess of how ordered the ICs are
     if(WriteState.Do2LPTVelocityRereading)
         for(int i=-FINISH_WAIT_RADIUS;i<=FINISH_WAIT_RADIUS;i++) 
-            if (LPTVelocityReRead.notdone(slab+i)) {
+            if (FetchLPTVelocity.notdone(slab+i)) {
                 return 0;   
             }
         
@@ -705,9 +665,6 @@ int DriftPrecondition(int slab) {
 }
 
 void DriftAction(int slab) {
-	
-	STDLOG(0, "Entering Drift action for slab %d\n", slab);
-	
     int step = LPTStepNumber();
     if (step) {
         // We have LPT IC work to do
@@ -741,10 +698,7 @@ void DriftAction(int slab) {
 	    else{
 	        SB->DeAllocate(AccSlab,slab);
 	    }
-	// }
-	
-	STDLOG(0, "Exiting Drift action for slab %d\n", slab);
-	
+	}
 }
 
 // -----------------------------------------------------------------
@@ -760,28 +714,14 @@ int FinishPrecondition(int slab) {
 
 uint64 merged_particles = 0;
 void FinishAction(int slab) {
-	// FinishPreamble.Clear();
-// 	debug_Merge.Clear();
-// 	debug_log_and_compute.Clear();
-// 	WriteMergeSlab.Clear();
-// 	WriteMultipoleSlab.Clear();
-// 	debug_Manifest_and_log.Clear();
-// 	QueueMultipoleMPI.Clear();
-// 	debug_log_report_mem.Clear();
-	
 	FinishPreamble.Start();
-	
-    STDLOG(0,"Entering Finish action for slab %d\n", slab);
-	
     
     if (WriteState.Do2LPTVelocityRereading)
         SB->DeAllocate(VelLPTSlab, slab);
 	
-	
 	FinishPreamble.Stop(); 
 	
 	debug_Merge.Start(); 
-    
 	
     // Gather particles from the insert list and make the merge slabs
     uint64 n_merge = FillMergeSlab(slab);
@@ -807,7 +747,6 @@ void FinishAction(int slab) {
     SB->DeAllocate(PosSlab,slab);
     SB->DeAllocate(VelSlab,slab);
     SB->DeAllocate(AuxSlab,slab);
-    
 	
 	STDLOG(2,"Done deallocing pos, vel, aux for slab %d\n", slab);
 	
@@ -839,24 +778,14 @@ void FinishAction(int slab) {
     SB->StoreArenaNonBlocking(MergeCellInfoSlab,slab);
     WriteMergeSlab.Stop();
 	
-    WriteMultipoleSlab.Start();
-	//#ifdef PARALLEL
-    //SB->WriteArenaBlockingWithoutDeletion(MultipoleSlab,slab); //NAM TODO don't need this
-	//#else
 #ifndef PARALLEL
+    WriteMultipoleSlab.Start();
     SB->StoreArenaNonBlocking(MultipoleSlab,slab);
-#endif	
     WriteMultipoleSlab.Stop();
-	
-
-    int pwidth = FetchSlabs.raw_number_executed - Finish.raw_number_executed;
-    STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
+#endif
 
 #ifdef PARALLEL
-	
-    // TODO: It would be nice to move this to Drift, but I'm unsure
-    // about impact on LPT step, for instance.
-	debug_Manifest_and_log.Start();
+    debug_Manifest_and_log.Start();	
     if (Finish.raw_number_executed==0) SendManifest->QueueToSend(slab);
 	debug_Manifest_and_log.Stop(); 
 	
@@ -872,18 +801,15 @@ void FinishAction(int slab) {
 #endif
 	
 	debug_log_report_mem.Start();
+    int pwidth = FetchSlabs.raw_number_executed - Finish.raw_number_executed;
+    STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
+
     STDLOG(2, "About to ReportMemoryAllocatorStats\n");
 	
-    // TODO: is there a different place in the code where we would rather report this?
     ReportMemoryAllocatorStats();
 	
     STDLOG(2, "Done ReportMemoryAllocatorStats\n");
 	debug_log_report_mem.Stop();
-	
-    STDLOG(0,"Exiting finish action for slab %d\n", slab);
-	
-	
-	
 }
 
 #ifdef PARALLEL
@@ -906,10 +832,7 @@ int CheckForMultipolesPrecondition(int slab) {
 }
 
 void CheckForMultipolesAction(int slab) {
-	STDLOG(1, "Entering Check for Multipoles action and deallocating multipole slab %d\n",  slab);
 	SB->DeAllocate(MultipoleSlab, slab);  
-	STDLOG(1, "Exiting Check for Multipoles action for slab %d\n",  slab);
-	
 }	
 #endif
 // -----------------------------------------------------------------
@@ -997,51 +920,52 @@ void timestep(void) {
 	}
 #endif
 
-        FetchSlabs.instantiate(nslabs, first, &FetchSlabsPrecondition,          &FetchSlabsAction         );
-      TransposePos.instantiate(nslabs, first, &TransposePosPrecondition,        &TransposePosAction       );
-         NearForce.instantiate(nslabs, first + FORCE_RADIUS, &NearForcePrecondition,          &NearForceAction         );
-       TaylorForce.instantiate(nslabs, first + FORCE_RADIUS, &TaylorForcePrecondition,        &TaylorForceAction       );
-              Kick.instantiate(nslabs, first + FORCE_RADIUS, &KickPrecondition,               &KickAction              );
-        #ifdef ONE_SIDED_GROUP_FINDING
-            int first_outputslab = first + FORCE_RADIUS + 1 + 2*GROUP_RADIUS;
-        #else
-            int first_outputslab = first + FORCE_RADIUS + 2*GROUP_RADIUS;
-        #endif
+#define INSTANTIATE(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &dependency##Precondition, &dependency##Action, #dependency); } while(0)
+#define INSTANTIATE_NOOP(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &NoopPrecondition, &NoopAction, ""); } while(0)
 
-            Output.instantiate(nslabs, first_outputslab, &OutputPrecondition,             &OutputAction            );
-             Drift.instantiate(nslabs, first_outputslab, &DriftPrecondition,              &DriftAction             );
-            Finish.instantiate(nslabs, first_outputslab + FINISH_WAIT_RADIUS, &FinishPrecondition,             &FinishAction            );
+    INSTANTIATE(                  FetchSlabs, 0);
+    INSTANTIATE(                TransposePos, 0);
+    INSTANTIATE(                   NearForce, FORCE_RADIUS);
+    INSTANTIATE(                 TaylorForce, FORCE_RADIUS);
+    INSTANTIATE(                        Kick, FORCE_RADIUS);
+    #ifdef ONE_SIDED_GROUP_FINDING
+        int first_outputslab = FORCE_RADIUS + 1 + 2*GROUP_RADIUS;
+    #else
+        int first_outputslab = FORCE_RADIUS + 2*GROUP_RADIUS;
+    #endif
+    INSTANTIATE(                      Output, first_outputslab);
+    INSTANTIATE(                       Drift, first_outputslab);
+    INSTANTIATE(                      Finish, first_outputslab + FINISH_WAIT_RADIUS);
 #ifdef PARALLEL
-CheckForMultipoles.instantiate(nslabs, first_outputslab + FINISH_WAIT_RADIUS, &CheckForMultipolesPrecondition,  &CheckForMultipolesAction );
+    INSTANTIATE(          CheckForMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #else
-CheckForMultipoles.instantiate(nslabs, first_outputslab + FINISH_WAIT_RADIUS, &NoopPrecondition,  &NoopAction );
+    INSTANTIATE_NOOP(     CheckForMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #endif
             
     // If group finding is disabled, we can make the dependencies no-ops so they don't hold up the pipeline
+    #ifdef ONE_SIDED_GROUP_FINDING
+        int first_groupslab = FORCE_RADIUS+1;
+    #else
+        int first_groupslab = FORCE_RADIUS+2*GROUP_RADIUS;
+    #endif
     if(GFC != NULL){
-        MakeCellGroups.instantiate(nslabs, first + FORCE_RADIUS, &MakeCellGroupsPrecondition,     &MakeCellGroupsAction    );
-    FindCellGroupLinks.instantiate(nslabs, first + FORCE_RADIUS + 1, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction);
-        #ifdef ONE_SIDED_GROUP_FINDING
-            int first_groupslab = first+FORCE_RADIUS+1;
-        #else
-            int first_groupslab = first+FORCE_RADIUS+2*GROUP_RADIUS;
-        #endif
-        DoGlobalGroups.instantiate(nslabs, first_groupslab, &DoGlobalGroupsPrecondition,     &DoGlobalGroupsAction    );
-             Microstep.instantiate(nslabs, first_groupslab, &MicrostepPrecondition,          &MicrostepAction         );
-          FinishGroups.instantiate(nslabs, first_groupslab, &FinishGroupsPrecondition,       &FinishGroupsAction      );
+        INSTANTIATE(          MakeCellGroups, FORCE_RADIUS);
+        INSTANTIATE(      FindCellGroupLinks, FORCE_RADIUS + 1);
+        INSTANTIATE(          DoGlobalGroups, first_groupslab);
+        INSTANTIATE(               Microstep, first_groupslab);
+        INSTANTIATE(            FinishGroups, first_groupslab);
     } else {
-        MakeCellGroups.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
-    FindCellGroupLinks.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
-        DoGlobalGroups.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
-             Microstep.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
-          FinishGroups.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
+        INSTANTIATE_NOOP(     MakeCellGroups, FORCE_RADIUS);
+        INSTANTIATE_NOOP( FindCellGroupLinks, FORCE_RADIUS + 1);
+        INSTANTIATE_NOOP(     DoGlobalGroups, first_groupslab);
+        INSTANTIATE_NOOP(          Microstep, first_groupslab);
+        INSTANTIATE_NOOP(       FinishGroups, first_groupslab);
     }
            
     if(WriteState.Do2LPTVelocityRereading)
-        LPTVelocityReRead.instantiate(nslabs, first + FORCE_RADIUS + 1 +2*GROUP_RADIUS - FINISH_WAIT_RADIUS,
-                                          &FetchLPTVelPrecondition,   &FetchLPTVelAction   );
+        INSTANTIATE(       FetchLPTVelocity, FORCE_RADIUS + 2*GROUP_RADIUS - FINISH_WAIT_RADIUS);
     else
-        LPTVelocityReRead.instantiate(nslabs, first, &NoopPrecondition, &NoopAction );
+        INSTANTIATE_NOOP(  FetchLPTVelocity, FORCE_RADIUS + 2*GROUP_RADIUS - FINISH_WAIT_RADIUS);
 	
 	
 	int timestep_loop_complete = 0; 
@@ -1057,7 +981,7 @@ CheckForMultipoles.instantiate(nslabs, first_outputslab + FINISH_WAIT_RADIUS, &N
                Output.Attempt();
             Microstep.Attempt();
          FinishGroups.Attempt();
-    LPTVelocityReRead.Attempt();
+     FetchLPTVelocity.Attempt();
                 Drift.Attempt();
                Finish.Attempt();
 			   

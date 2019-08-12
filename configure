@@ -716,6 +716,7 @@ with_radius
 with_block_size
 enable_avx
 enable_avx512
+enable_vsx
 enable_avx_directs
 enable_avx512_directs
 with_multipoles_simd
@@ -1379,6 +1380,8 @@ Optional Features:
                           AVX present]
   --enable-avx512         All AVX-512 (overridden by individual options) [yes
                           if AVX-512 present]
+  --enable-vsx            All VSX (overridden by individual options) [yes if
+                          VSX present]
   --enable-avx-directs    AVX directs [no]
   --enable-avx512-directs AVX-512 directs [no]
   --enable-avx-fof        AVX FOF [yes if AVX present]
@@ -1398,7 +1401,7 @@ Optional Packages:
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
   --with-radius=NFR       Near field radius [2]
   --with-block-size=B     Near field block size [64]
-  --multipoles-simd={avx512 | avx | unrolled | none}
+  --with-multipoles-simd={avx512 | avx | vsx | unrolled | none}
                           Multipoles/Taylors implementation [highest
                           supported]
   --with-max-cpd=CPD      Maximum cells-per-dimension [8192]
@@ -5717,6 +5720,12 @@ else
     have_avx512f=no
 fi
 
+if test x$ax_cv_have_vsx_ext == xyes; then
+    have_vsx=yes
+else
+    have_vsx=no
+fi
+
 # Define the ./configure options
 # Check whether --enable-double was given.
 if test "${enable_double+set}" = set; then :
@@ -5855,6 +5864,14 @@ else
 fi
 
 
+# Check whether --enable-vsx was given.
+if test "${enable_vsx+set}" = set; then :
+  enableval=$enable_vsx;
+else
+  enable_vsx=$have_vsx
+fi
+
+
 # Check whether --enable-avx-directs was given.
 if test "${enable_avx_directs+set}" = set; then :
   enableval=$enable_avx_directs;
@@ -5902,6 +5919,8 @@ if test "x$with_multipoles_simd" == xauto; then
         with_multipoles_simd="avx512"
     elif test "x$enable_avx" == xyes; then
         with_multipoles_simd="avx"
+    elif test "x$enable_vsx" == xyes; then
+        with_multipoles_simd="vsx"
     else
         with_multipoles_simd="unrolled"
     fi
@@ -5923,6 +5942,13 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
 
     MULTIPOLES_SIMD="MULTIPOLES_SIMD_AVX"
+elif test "x$with_multipoles_simd" == xvsx; then
+
+cat >>confdefs.h <<_ACEOF
+#define VSXMULTIPOLES /**/
+_ACEOF
+
+    MULTIPOLES_SIMD="MULTIPOLES_SIMD_VSX"
 elif test "x$with_multipoles_simd" == xunrolled; then
 
 cat >>confdefs.h <<_ACEOF

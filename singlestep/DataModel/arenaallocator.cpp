@@ -401,6 +401,7 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
             } else {
                 arena[id].addr = NULL;
             }
+
             int res = close(fd);
             assertf(res == 0, "Failed to close fd %d\n", fd);
 

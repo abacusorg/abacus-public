@@ -211,7 +211,7 @@ ParallelConvolution::~ParallelConvolution() {
 	Destructor.Stop(); CS.Destructor = Destructor.Elapsed();
 	
 	ThreadCleanUp.Clear(); ThreadCleanUp.Start();
-	fftw_cleanup_threads(); //NAM check usage. 	
+	//fftw_cleanup_threads(); //NAM check usage. 	
 	ThreadCleanUp.Stop(); CS.ThreadCleanUp = ThreadCleanUp.Elapsed();
 	
 	CS.ConvolveWallClock += Destructor.Elapsed() + ThreadCleanUp.Elapsed(); 
@@ -500,6 +500,8 @@ int ParallelConvolution::GetTaylorRecipient(int slab, int offset){
 			}
 		} 
 	}
+    QUIT("Did not find target node for slab %d!", slab);
+    return -1;
 }
 
 void ParallelConvolution::SendTaylors(int offset) {

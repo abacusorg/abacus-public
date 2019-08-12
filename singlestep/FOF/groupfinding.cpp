@@ -434,7 +434,6 @@ void FindAndProcessGlobalGroups(int slab) {
     GFC->largest_GG = std::max(GFC->largest_GG, GGS->largest_group);
     // TODO: This largest_GG work is now superceded by MultiplicityHalos
     // The GGS->globalgroups[j][k][n] now reference these as [start,start+np)
-	// ReadState.DoGroupFindingOutput is decided in InitGroupFinding()
 	
 	// ReadState.DoGroupFindingOutput is decided in InitGroupFinding()
 	if(ReadState.DoGroupFindingOutput)

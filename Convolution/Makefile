@@ -10,15 +10,15 @@ CXXFLAGS += $(PARSEHEADER_LIBS) $(THREAD_LIBS) $(SINGLESTEP_LIBS)
 
 CPPFLAGS += $(PARSEHEADER_CPPFLAGS) $(THREAD_CPPFLAGS) $(TCMALLOC_CPPFLAGS) -I $(ROOT_DIR)/singlestep/Multipoles -I $(ROOT_DIR)/DirectIO
 
-ConvolutionDriver: convolutionwrapper.cpp
+convolution: convolutionwrapper.cpp
 	$(CXX) -o $@ $< $(CPPFLAGS) $(CXXFLAGS) -MMD
 
--include ConvolutionDriver.d
+-include convolution.d
 
 distclean: clean
 	$(RM) *.d
 
 clean:
-	$(RM) *.o ConvolutionDriver
+	$(RM) *.o convolution
 
 .PHONY: clean distclean

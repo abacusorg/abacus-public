@@ -72,8 +72,8 @@ void timestepBenchmarkIO(int nslabs) {
         nslabs = cpd;
 
     // Use the Kick as finish because FetchSlabs fetches FETCHAHEAD past the kick
-    FetchSlabs.instantiate(nslabs, first, &FetchSlabsPrecondition, &FetchSlabsAction );
-    Kick.instantiate(nslabs, first,  &FinishBenchmarkIOPrecondition,  &FinishBenchmarkIOAction );
+    INSTANTIATE(FetchSlabs, 0);
+    Kick.instantiate(nslabs, first,  &FinishBenchmarkIOPrecondition,  &FinishBenchmarkIOAction, "FinishBenchmarkIO");
 
     while( !Kick.alldone(total_slabs_on_node) ) {
         FetchSlabs.Attempt();

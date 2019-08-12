@@ -53,6 +53,9 @@ uint64 LoadSlab2IL(int slab) {
     } else if (strcmp(P.ICFormat,"RVTag")==0) {
         STDLOG(1,"Using format RVTag\n");
         ic = new ICfile_RVTag(filename);
+    } else if (strcmp(P.ICFormat,"RVdoubleTag")==0) {
+        STDLOG(1,"Using format RVdoubleTag\n");
+        ic = new ICfile_RVdoubleTag(filename);
     } else if (strcmp(P.ICFormat,"Zeldovich")==0) {
         STDLOG(1,"Using format Zeldovich\n");
         ic = new ICfile_Zel(filename);

@@ -34,16 +34,23 @@ public:
     d4 *globalM[128];
 #endif
 
-    void EvaluateCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 expansioncenter, double *cm);
-    void AnalyticCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 expansioncenter, double *cm);
-    void      ASMCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 expansioncenter, double *cm);
-    void   AVX512CartesianMultipoles(FLOAT3 *p, int n, FLOAT3 expansioncenter, double *cm);
-    void UnrolledCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 expansioncenter, double *cm);
-
+    void EvaluateCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 center, double *CM);
+    void AnalyticCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 center, double *CM);
+    void      ASMCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 center, double *CM);
+    void   AVX512CartesianMultipoles(FLOAT3 *p, int n, FLOAT3 center, double *CM);
+    void UnrolledCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 center, double *CM);
+    void      VSXCartesianMultipoles(FLOAT3 *p, int n, FLOAT3 center, double *CM);
 };
 
 // The following are the function pointers to the automatically generated kernels
 // e.g. the AVX512 kernels from generateCartesianAVX512.py
+
+#define REP16(K) { \
+     K<1>,  K<2>,  K<3>,  K<4>, \
+     K<5>,  K<6>,  K<7>,  K<8>, \
+     K<9>,  K<10>, K<11>, K<12>, \
+     K<13>, K<14>, K<15>, K<16> \
+};
 
 #ifdef AVXMULTIPOLES 
 void (*CMptr[24])( d4 *ip1x, d4 *ip2x, d4 *ip1y, d4 *ip2y, d4 *ip1z, d4 *ip2z, 
@@ -59,21 +66,17 @@ void (*CMptr[24])( d4 *ip1x, d4 *ip2x, d4 *ip1y, d4 *ip2y, d4 *ip1z, d4 *ip2z,
 #ifdef AVX512MULTIPOLES 
 void (*CM512ptr[24])( AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz,
                       AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz,
-                      AVX512_DOUBLES *CM ) = {
-     Multipole512Kernel1,  Multipole512Kernel2,  Multipole512Kernel3,  Multipole512Kernel4,
-     Multipole512Kernel5,  Multipole512Kernel6,  Multipole512Kernel7,  Multipole512Kernel8,
-     Multipole512Kernel9,  Multipole512Kernel10, Multipole512Kernel11, Multipole512Kernel12,
-     Multipole512Kernel13, Multipole512Kernel14, Multipole512Kernel15, Multipole512Kernel16
-};
+                      AVX512_DOUBLES *CM ) = REP16(Multipole512Kernel);
 #endif
 
 #ifdef UNROLLEDMULTIPOLES 
-void (*CM_unrolled_ptr[24])(FLOAT3 p, double3 center, double *CM) = {
-     MultipoleUnrolledKernel1,  MultipoleUnrolledKernel2,  MultipoleUnrolledKernel3,  MultipoleUnrolledKernel4,
-     MultipoleUnrolledKernel5,  MultipoleUnrolledKernel6,  MultipoleUnrolledKernel7,  MultipoleUnrolledKernel8,
-     MultipoleUnrolledKernel9,  MultipoleUnrolledKernel10, MultipoleUnrolledKernel11, MultipoleUnrolledKernel12,
-     MultipoleUnrolledKernel13, MultipoleUnrolledKernel14, MultipoleUnrolledKernel15, MultipoleUnrolledKernel16
-};
+void (*CM_unrolled_ptr[24])(FLOAT3 *p, int n, double3 center, double *CM) = REP16(MultipoleUnrolledKernel);
 #endif
+
+#ifdef VSXMULTIPOLES 
+void (*CM_VSX_ptr[24])(FLOAT3 *p, int n, double3 center, double *CM) = REP16(MultipoleVSXKernel);
+#endif
+
+#undef REP16
 
 #endif
