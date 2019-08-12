@@ -81,9 +81,9 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 		 
     int cml = ((order+1)*(order+2)*(order+3))/6;
     int nprocs = omp_get_max_threads();
-	size_t cacherambytes = P.ConvolutionCacheSizeMB*(1024LL*1024LL);
-    size_t L1cacherambytes = CS.runtime_ConvolutionL1CacheSizeMB*(1024LL*1024L);
-
+	size_t cacherambytes   = P.ConvolutionCacheSizeMB*(1024LL*1024LL);
+    size_t L1cacherambytes = P.ConvolutionL1CacheSizeMB*(1024LL*1024L);
+	
 /* Old code: better to count up than count down!
     blocksize = 0;
     for(blocksize=cpd*cpd;blocksize>=2;blocksize--) 
@@ -92,7 +92,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
                 // 2.5 = 2 Complex (mcache,tcache) 1 double dcache
 */
 	
-    int blocksize = 1;
+    blocksize = 1;
     for (int b=2; b<P.cpd*P.cpd; b++) {
         if (2.5*b*sizeof(Complex)>=L1cacherambytes) break;
             // Too much L1 memory: can't hold one example of D,M,T
@@ -710,7 +710,7 @@ void ParallelConvolution::FFT(fftw_plan plan) {
 void ParallelConvolution::Convolve() {
 	STDLOG(1,"Beginning Convolution.\n");
 	
-    InCoreConvolution *ICC = new InCoreConvolution(order,cpd,blocksize, cpd2pad);
+    InCoreConvolution *ICC = new InCoreConvolution(order, cpd, blocksize, cpd2pad);
 
 	// We're beginning in [x][znode][m][y] order on the RAMdisk
 	// Copy to the desired order in a new buffer
@@ -788,12 +788,11 @@ void ParallelConvolution::dumpstats(char *fn) {
            accountedtime += CS.ReadDerivatives;
 		   accountedtime += CS.Constructor + CS.AllocMT + CS.AllocDerivs + CS.SendTaylors + CS.FFTPlanning + CS.Destructor + CS.ThreadCleanUp; 
            accountedtime += CS.ArraySwizzle;
-    double discrepency = CS.ConvolveWallClock - accountedtime;
+    double discrepancy = CS.ConvolveWallClock - accountedtime;
 	
-
     int computecores = CS.ComputeCores;
-    fprintf(fp,"Convolution parameters:  RamAllocated = %dMB CacheSizeMB = %dMB nreal_cores=%d blocksize=%d zwidth=%d cpd=%d order=%d",
-	         (int) (CS.totalMemoryAllocated/(1<<20)), P.ConvolutionCacheSizeMB, computecores, (int) blocksize, (int) zwidth, cpd, order);
+    fprintf(fp,"Convolution parameters:  RamAllocated = %4.1fMB CacheSizeMB = %4.1fMB nreal_cores=%d blocksize=%d zwidth=%d cpd=%d order=%d",
+	         (int) (CS.totalMemoryAllocated/(1<<20)), P.ConvolutionCacheSizeMB, computecores, (int) blocksize, (int) znode, cpd, order);
 			 
 
      fprintf(fp,"\n\n");
@@ -817,7 +816,7 @@ void ParallelConvolution::dumpstats(char *fn) {
 
 
      double Gops = ((double) CS.ops)/(1.0e+9);
-     fprintf(fp,"\t \t %50s : %1.2e seconds for %5.3f billion double precision operations\n", "Convolution Arithmetic", CS.ConvolutionArithmetic, Gops );
+     fprintf(fp,"\t \t %50s : %1.2e seconds for %5.3f billion double precision operations per node\n", "Convolution Arithmetic", CS.ConvolutionArithmetic, Gops/MPI_size );
 	 
      fprintf(fp,"\t \t %50s : %1.2e seconds\n", "FFT Planning", CS.FFTPlanning );
      fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Forward FFT Z Multipoles", CS.ForwardZFFTMultipoles );
@@ -831,7 +830,7 @@ void ParallelConvolution::dumpstats(char *fn) {
 	 
 	 	 
 
-     fprintf(fp,"\t %50s : %1.2e seconds which is %d%% \n", "Unaccounted remaining wallclock time", discrepency, (int) (discrepency/CS.ConvolveWallClock*100) );
+     fprintf(fp,"\t %50s : %1.2e seconds which is %d%% \n", "Unaccounted remaining wallclock time", discrepancy, (int) (discrepancy/CS.ConvolveWallClock*100) );
 
      double cae       = CS.ConvolutionArithmetic;
      double farithp   = cae/CS.ConvolveWallClock*100;
@@ -847,7 +846,7 @@ void ParallelConvolution::dumpstats(char *fn) {
      fprintf(fp,"\n \t Summary: Fourier Transforms = %2.0f%%     Convolution Arithmetic = %2.0f%%     Array Swizzle = %2.0f%%    Disk IO = %2.0f%%     ", ffftp, farithp, swzp, fiop );
 
      fprintf(fp,"\n \t Set up (con/destructor + allocs/mmaps) = %2.0f%%     FFT planning = %2.0f%%     FFT threan clean up = %2.0f%%   Queuing Taylor Issends = %2.0f%%    \n", setupp, planp, fclean, sendp);
-     fprintf(fp,"\t          Arithmetic rate = %2.0f DGOPS --> rate per core = %1.1f DGOPS\n", Gops/cae, Gops/cae/computecores );
+     fprintf(fp,"\t          Arithmetic rate = %2.0f DGOPS --> rate per core = %1.1f DGOPS\n", Gops/cae, Gops/cae/computecores/MPI_size );
      fprintf(fp,"\t          [DGOPS == Double Precision Billion operations per second]\n");
      fprintf(fp,"\n");
      
