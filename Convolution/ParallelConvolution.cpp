@@ -788,11 +788,10 @@ void ParallelConvolution::dumpstats(char *fn) {
            accountedtime += CS.ReadDerivatives;
 		   accountedtime += CS.Constructor + CS.AllocMT + CS.AllocDerivs + CS.SendTaylors + CS.FFTPlanning + CS.Destructor + CS.ThreadCleanUp; 
            accountedtime += CS.ArraySwizzle;
-    double discrepency = CS.ConvolveWallClock - accountedtime;
+    double discrepancy = CS.ConvolveWallClock - accountedtime;
 	
-
     int computecores = CS.ComputeCores;
-    fprintf(fp,"Convolution parameters:  RamAllocated = %dMB CacheSizeMB = %dMB nreal_cores=%d blocksize=%d zwidth=%d cpd=%d order=%d",
+    fprintf(fp,"Convolution parameters:  RamAllocated = %4.1fMB CacheSizeMB = %4.1fMB nreal_cores=%d blocksize=%d zwidth=%d cpd=%d order=%d",
 	         (int) (CS.totalMemoryAllocated/(1<<20)), P.ConvolutionCacheSizeMB, computecores, (int) blocksize, (int) znode, cpd, order);
 			 
 
@@ -817,7 +816,7 @@ void ParallelConvolution::dumpstats(char *fn) {
 
 
      double Gops = ((double) CS.ops)/(1.0e+9);
-     fprintf(fp,"\t \t %50s : %1.2e seconds for %5.3f billion double precision operations\n", "Convolution Arithmetic", CS.ConvolutionArithmetic, Gops );
+     fprintf(fp,"\t \t %50s : %1.2e seconds for %5.3f billion double precision operations per node\n", "Convolution Arithmetic", CS.ConvolutionArithmetic, Gops/MPI_size );
 	 
      fprintf(fp,"\t \t %50s : %1.2e seconds\n", "FFT Planning", CS.FFTPlanning );
      fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Forward FFT Z Multipoles", CS.ForwardZFFTMultipoles );
@@ -831,7 +830,7 @@ void ParallelConvolution::dumpstats(char *fn) {
 	 
 	 	 
 
-     fprintf(fp,"\t %50s : %1.2e seconds which is %d%% \n", "Unaccounted remaining wallclock time", discrepency, (int) (discrepency/CS.ConvolveWallClock*100) );
+     fprintf(fp,"\t %50s : %1.2e seconds which is %d%% \n", "Unaccounted remaining wallclock time", discrepancy, (int) (discrepancy/CS.ConvolveWallClock*100) );
 
      double cae       = CS.ConvolutionArithmetic;
      double farithp   = cae/CS.ConvolveWallClock*100;
@@ -847,7 +846,7 @@ void ParallelConvolution::dumpstats(char *fn) {
      fprintf(fp,"\n \t Summary: Fourier Transforms = %2.0f%%     Convolution Arithmetic = %2.0f%%     Array Swizzle = %2.0f%%    Disk IO = %2.0f%%     ", ffftp, farithp, swzp, fiop );
 
      fprintf(fp,"\n \t Set up (con/destructor + allocs/mmaps) = %2.0f%%     FFT planning = %2.0f%%     FFT threan clean up = %2.0f%%   Queuing Taylor Issends = %2.0f%%    \n", setupp, planp, fclean, sendp);
-     fprintf(fp,"\t          Arithmetic rate = %2.0f DGOPS --> rate per core = %1.1f DGOPS\n", Gops/cae, Gops/cae/computecores );
+     fprintf(fp,"\t          Arithmetic rate = %2.0f DGOPS --> rate per core = %1.1f DGOPS\n", Gops/cae, Gops/cae/computecores/MPI_size );
      fprintf(fp,"\t          [DGOPS == Double Precision Billion operations per second]\n");
      fprintf(fp,"\n");
      
