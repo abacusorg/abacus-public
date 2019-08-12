@@ -34,7 +34,7 @@ public:
 	
 	//timers and stats to log:
     ConvolutionStatistics CS; 
-    uint64_t blocksize, zwidth, z_slabs_per_node; 
+    uint64_t blocksize, znode; // The number of z's on this node
 	void dumpstats(char *fn);
 
 private:
@@ -59,7 +59,6 @@ private:
 	int ramdisk_derivs = -1; 
 	
     int zstart;   // The first z for this node
-    int znode;    // The number of z's on this node
 	
 	int * node_start;
 	int * node_size; 

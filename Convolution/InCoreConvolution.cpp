@@ -111,8 +111,8 @@ inline void FMAvector(Complex *t, Complex *m, double *d, int n) {
     #ifndef HAVE_AVX
         int i=0;
         /* This is the base version */
-        #pragma omp simd aligned(t,m:16) aligned(d:8)
-        for(i=0; i<n;i++) t[i] += m[i] * d[i]; 
+        // #pragma omp simd aligned(t,m:16) aligned(d:8)
+//         for(i=0; i<n;i++) t[i] += m[i] * d[i];
 
         /* // A simple unrolled version; will compute off the end in 2's 
         #pragma omp simd aligned(t,m:32) aligned(d:16)
@@ -121,13 +121,12 @@ inline void FMAvector(Complex *t, Complex *m, double *d, int n) {
             t[i+1] += m[i+1] * d[i+1]; 
         }
         */ 
-        /* // An alternate, with pointer movement 
+        // An alternate, with pointer movement
         for(i=0; i<(n>>1);i++) {
             *t += (*m)*(*d); t++; m++; d++;
             *t += (*m)*(*d); t++; m++; d++;
         }
-        */
-
+        
     #else
     // An AVX equivalent -- this does two at once, so we have to pad to 2!
     // Will compute off the end.  
