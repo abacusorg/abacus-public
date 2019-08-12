@@ -87,10 +87,10 @@ void timestepStandaloneFOF(const char* slice_dir) {
 
     int nslabs = GFC->cpd;
     int first = first_slab_on_node;
-            FetchSlabs.instantiate(cpd, first, &StandaloneFOFLoadSlabPrecondition, &StandaloneFOFLoadSlabAction, "FetchSlabs");
-          TransposePos.instantiate(cpd, first, &StandaloneFOFUnpackSlabPrecondition, &StandaloneFOFUnpackSlabAction, "TransposePos");
-        MakeCellGroups.instantiate(cpd, first, &StandaloneFOFMakeCellGroupsPrecondition, &MakeCellGroupsAction, "MakeCellGroups");
-    FindCellGroupLinks.instantiate(cpd, first + 1, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction, FindCellGroupLinks");
+            FetchSlabs.instantiate(nslabs, first, &StandaloneFOFLoadSlabPrecondition, &StandaloneFOFLoadSlabAction, "FetchSlabs");
+          TransposePos.instantiate(nslabs, first, &StandaloneFOFUnpackSlabPrecondition, &StandaloneFOFUnpackSlabAction, "TransposePos");
+        MakeCellGroups.instantiate(nslabs, first, &StandaloneFOFMakeCellGroupsPrecondition, &MakeCellGroupsAction, "MakeCellGroups");
+    FindCellGroupLinks.instantiate(nslabs, first + 1, &FindCellGroupLinksPrecondition, &FindCellGroupLinksAction, "FindCellGroupLinks");
     #ifdef ONE_SIDED_GROUP_FINDING
         int first_groupslab = first+1;
         // We'll do a search on [first_groupslab,first_groupslab+2*GROUP_RADIUS]
@@ -98,8 +98,8 @@ void timestepStandaloneFOF(const char* slice_dir) {
     #else
         int first_groupslab = first+2*GROUP_RADIUS;
     #endif
-        DoGlobalGroups.instantiate(cpd, first_groupslab, &DoGlobalGroupsPrecondition, &DoGlobalGroupsAction, "DoGlobalGroups");
-                Finish.instantiate(cpd, first+1+2*GFC->GroupRadius, &StandaloneFOFFinishPrecondition, &StandaloneFOFFinishAction, "Finish");
+        DoGlobalGroups.instantiate(nslabs, first_groupslab, &DoGlobalGroupsPrecondition, &DoGlobalGroupsAction, "DoGlobalGroups");
+                Finish.instantiate(nslabs, first+1+2*GFC->GroupRadius, &StandaloneFOFFinishPrecondition, &StandaloneFOFFinishAction, "Finish");
         // This is increased by one in the 2-sided case, but it shouldn't matter.
 
     while (!Finish.alldone(total_slabs_on_node)) {
