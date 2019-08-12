@@ -123,6 +123,7 @@ void PlanOutput(bool MakeIC) {
 
 }
 
+
 #include <signal.h>
 void graceful_exit_signal_handler(int sig)
 {
@@ -165,9 +166,9 @@ int main(int argc, char **argv) {
     WallClockDirect.Start();
     SingleStepSetup.Start();
 
-    if (argc!=3) {
+    if (argc!=4) {
        // Can't use assertf() or QUIT here: stdlog not yet defined!
-       fprintf(stderr, "singlestep(): command line must have 3 parameters given, not %d.\nLegal usage: singlestep PARAMETER_FILE MAKE_IC\n\tPARAMETER_FILE: path to parameter file (usually called abacus.par)\n\tMAKE_IC: 0 or 1, whether this is an IC step.\n", argc);
+       fprintf(stderr, "singlestep(): command line must have 4 parameters given, not %d.\nLegal usage: singlestep PARAMETER_FILE MAKE_IC\n\tPARAMETER_FILE: path to parameter file (usually called abacus.par)\n\tMAKE_IC: 0 or 1, whether this is an IC step.\n", argc);
        return 1;
     }
     
@@ -184,7 +185,7 @@ int main(int argc, char **argv) {
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
     STDLOG(0,"MakeIC = %d\n", MakeIC);
     #ifdef PARALLEL
-		signal(SIGUSR1, graceful_exit_signal_handler); 
+		//signal(SIGUSR1, graceful_exit_signal_handler); 
 	
         STDLOG(0,"Initialized MPI.\n");   
         STDLOG(0,"Node rank %d of %d total\n", MPI_rank, MPI_size);
@@ -194,6 +195,9 @@ int main(int argc, char **argv) {
     
     // Set up OpenMP
     init_openmp();
+	
+	
+
     
     // Decide what kind of step to do
     double da = -1.0;   // If we set this to zero, it will skip the timestep choice
@@ -207,9 +211,40 @@ int main(int argc, char **argv) {
     // Set some WriteState values before ChooseTimeStep()
     // This also sets the SofteningLength, needed by the NFD constructor
     InitWriteState(MakeIC);
+	
+	
+
+#ifdef PARALLEL
+	int recover_redlack = atoi(argv[3]); 
+	if(recover_redlack) {
+		
+	    // int cpd = P.cpd;
+// 	    int order = P.order;
+// 		MF  = new SlabMultipoles(order, cpd);
+		Prologue(P,MakeIC,1);
+		STDLOG(1, "Calling timestep recover multipoles.\n");
+		
+		timestepMultipoles();
+		
+		STDLOG(1, "Calling redlack dipole recovery.\n");
+		RecoverRedlackDipole(P); 
+		STDLOG(1, "Completed redlack dipole recovery. Exiting\n");
+		
+		
+	    FinalizeParallel();  // This may be the last synchronization point?
+		
+		exit(0); 
+	}
+#endif
+	
 
     // Set up the major classes (including NFD)
     Prologue(P,MakeIC);
+	
+	
+
+	
+	
 
     // Check if WriteStateDirectory/state exists, and fail if it does
     char wstatefn[1050];

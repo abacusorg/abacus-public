@@ -34,6 +34,7 @@
 //The following section declares a variety of global timers for several steps in the code
 //TODO: This should probably go in some sort of reporting class to clean up this section.
 #include "STimer.cc"
+// #define PTIMER_DUMMY   // Uncommenting this will cause all PTimers to no-op and return Elapsed() = 1e-12 sec.
 #include "PTimer.cc"
 
 STimer debug_Merge;
@@ -200,8 +201,9 @@ int * total_slabs_all = NULL;
 /*! \brief Initializes global objects
  *
  */
-void Prologue(Parameters &P, bool MakeIC) {
+void Prologue(Parameters &P, bool MakeIC, int recover_redlack = 0) {
     STDLOG(1,"Entering Prologue()\n");
+	STDLOG(2,"Recover redlack = %d\n", recover_redlack);
     STDLOG(2,"Size of accstruct is %d bytes\n", sizeof(accstruct));
     prologue.Clear();
     prologue.Start();
@@ -262,7 +264,7 @@ void Prologue(Parameters &P, bool MakeIC) {
         SlabForceLatency = new STimer[cpd];
         SlabFarForceTime = new STimer[cpd];
 
-        RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
+		if (!recover_redlack) RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
         NFD = new NearFieldDriver(P.NearFieldRadius);
     } else {
         TY = NULL;
@@ -272,6 +274,21 @@ void Prologue(Parameters &P, bool MakeIC) {
 
     prologue.Stop();
     STDLOG(1,"Leaving Prologue()\n");
+}
+
+void RecoverRedlackDipole(Parameters &P){
+	STDLOG(1, "Recovering redlack and globaldipole files\n");
+  
+    // Some pipelines, like standalone_fof, don't use multipoles
+    if(MF != NULL){
+        MF->GatherRedlack();    // For the parallel code, we have to coadd the inputs
+        if (MPI_rank==0) {
+            MF->ComputeRedlack();  // NB when we terminate SlabMultipoles we write out these
+            if (WriteState.NodeRank==0)
+                MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
+        }
+        delete MF;
+    }
 }
 
 /*! \brief Tears down global objects
@@ -351,6 +368,8 @@ void Epilogue(Parameters &P, bool MakeIC) {
     struct rusage rusage;
     assert(getrusage(RUSAGE_SELF, &rusage) == 0);
     STDLOG(0, "Peak resident memory usage was %.3g GB\n", (double) rusage.ru_maxrss / 1024 / 1024);
+	
+	fftw_cleanup();
     
     epilogue.Stop();
     // This timing does not get written to the timing log, so it had better be small!

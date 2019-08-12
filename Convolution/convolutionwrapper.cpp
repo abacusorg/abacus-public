@@ -93,7 +93,7 @@ void dumpstats(OutofCoreConvolution *OCC, char *fn) {
     double discrepency = OCC->CS.ConvolveWallClock - accountedtime;
 
     int computecores = OCC->CS.ComputeCores;
-    fprintf(fp,"Convolution parameters:  RamAllocated = %dMB CacheSizeMB = %dMB nreal_cores=%d blocksize=%d zwidth=%d cpd=%d order=%d",
+    fprintf(fp,"Convolution parameters:  RamAllocated = %dMB CacheSizeMB = %4.1fMB nreal_cores=%d blocksize=%d zwidth=%d cpd=%d order=%d",
         (int) (OCC->CS.totalMemoryAllocated/(1<<20)), OCC->CS.runtime_ConvolutionCacheSizeMB, computecores, (int) OCC->CP.blocksize, (int) OCC->CP.zwidth, OCC->CP.runtime_cpd, OCC->CP.runtime_order);
 
 #ifdef CONVIOTHREADED
@@ -347,7 +347,9 @@ int main(int argc, char ** argv){
 
 	    ConvolutionParameters CP(MPI_size);
 	    CP.runtime_ConvolutionCacheSizeMB = P.ConvolutionCacheSizeMB;
-        STDLOG(1, "Using cache size %d MB\n", CP.runtime_ConvolutionCacheSizeMB);
+	    CP.runtime_ConvolutionL1CacheSizeMB = P.ConvolutionL1CacheSizeMB;
+        STDLOG(1, "Using L3 cache size %d MB\n", CP.runtime_ConvolutionCacheSizeMB);
+        STDLOG(1, "Using L1 cache size %d MB\n", CP.runtime_ConvolutionL1CacheSizeMB);
 	    CP.runtime_DerivativeExpansionRadius = P.DerivativeExpansionRadius;
 	    strcpy(CP.runtime_DerivativesDirectory,P.DerivativesDirectory);
 	    CP.runtime_DIOBufferSizeKB = 1LL<<11;
@@ -388,12 +390,29 @@ int main(int argc, char ** argv){
         int cml = ((P.order+1)*(P.order+2)*(P.order+3))/6;
         int nprocs = omp_get_max_threads();
         size_t cacherambytes = CP.runtime_ConvolutionCacheSizeMB*(1024LL*1024LL);
+        size_t L1cacherambytes = CP.runtime_ConvolutionL1CacheSizeMB*(1024LL*1024LL);
 
+        int blocksize = 1;
+        for (int b=2; b<P.cpd*P.cpd; b++) {
+            if (2.5*b*sizeof(Complex)>=L1cacherambytes) break;
+                // Too much L1 memory: can't hold one example of D,M,T
+            if (nprocs*2.5*cml*b*sizeof(Complex)>=cacherambytes) break;
+                // Too much L3 memory, can't hold all D,M,T, so stop looking
+            if ((P.cpd*P.cpd)%b == 0) blocksize = b;  // Could use this value
+        }
+            // 1.5 = 1 Complex (mcache) 1 double dcache
+            // 2.5 = 2 Complex (mcache,tcache) 1 double dcache
+            // 3.0 = 3 Complex (mcache,tcache,dcache)
+
+
+        // TODO: This algorithm is silly.  We should start at the bottom!
+        /*
         int blocksize = 0;
         for(blocksize=P.cpd*P.cpd;blocksize>=2;blocksize--) 
             if((P.cpd*P.cpd)%blocksize==0)
-                if(nprocs*2.5*cml*blocksize*sizeof(Complex) < cacherambytes) break;
-                    // 2.5 = 2 Complex (mcache,tcache) 1 double dcache
+                if(nprocs*3.0*cml*blocksize*sizeof(Complex) < cacherambytes) break;
+        */
+                    
         CP.blocksize = blocksize;
 		
 #ifdef PARALLEL
