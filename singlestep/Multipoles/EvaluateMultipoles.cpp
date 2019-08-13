@@ -200,107 +200,7 @@ void Multipoles::AVXCartesianMultipoles(FLOAT3 *xyz, int n, FLOAT3 center,
 
 void Multipoles::AVX512CartesianMultipoles(FLOAT3 *xyz, int n, FLOAT3 center, double *CM) {
 #ifdef AVX512MULTIPOLES
-    AVX512_DOUBLES cx512 = AVX512_SET_DOUBLE(center.x);
-    AVX512_DOUBLES cy512 = AVX512_SET_DOUBLE(center.y);
-    AVX512_DOUBLES cz512 = AVX512_SET_DOUBLE(center.z);
-
-    AVX512_DOUBLES CM512[cml];
-    for(int i = 0; i < cml; i++)
-        CM512[i] = AVX512_SETZERO_DOUBLE();
-
-    //AVX512_DOUBLES zk[order+1];
-    //zk[0] = AVX512_SET_DOUBLE(1.0);
-
-    int n_aligned = n - (n % AVX512_NVEC_DOUBLE);
-    int nleft = n - n_aligned;
-
-    for(int k=0; k <= n_aligned-AVX512_NVEC_DOUBLE; k += AVX512_NVEC_DOUBLE) {
-        // Load 8 DOUBLE3s as List3s
-        AVX512_DOUBLES px512, py512, pz512;
-        for(int j = 0; j < AVX512_NVEC_DOUBLE; j++){
-            px512[j] = xyz[k+j].x;
-            py512[j] = xyz[k+j].y;
-            pz512[j] = xyz[k+j].z;
-        }
-
-        // This function calls a manually unrolled version of the commented-out code below
-        DispatchMultipole512Kernel(order, px512, py512, pz512,
-                        cx512, cy512, cz512,
-                        CM512);
-
-        /*AVX512_DOUBLES deltax = AVX512_SUBTRACT_DOUBLES(px512, cx512);
-        AVX512_DOUBLES deltay = AVX512_SUBTRACT_DOUBLES(py512, cy512);
-        AVX512_DOUBLES deltaz = AVX512_SUBTRACT_DOUBLES(pz512, cz512);
-
-        // Evaluate these 8 particles
-        AVX512_DOUBLES fi,fij; //,fijk;
-        fi = AVX512_SET_DOUBLE(1.0);
-
-        // Precompute z^k
-        for(int i = 1; i <= order; i++)
-            zk[i] = AVX512_MULTIPLY_DOUBLES(zk[i-1], deltaz);
-
-        int i = 0;
-        for(int a=0;a<=order;a++) {
-            fij = fi;
-            for(int b=0;b<=order-a;b++) {
-                //fijk = fij;
-                for(int c=0;c<=order-a-b;c++) {
-                    //CM512[i] = AVX512_ADD_DOUBLES(CM512[i], fijk);
-                    //fijk = AVX512_MULTIPLY_DOUBLES(fijk, deltaz);
-                    CM512[i] = AVX512_FMA_ADD_DOUBLES(fij, zk[c], CM512[i]);
-                    i++;
-                }
-                fij = AVX512_MULTIPLY_DOUBLES(fij, deltay);
-            }
-            fi = AVX512_MULTIPLY_DOUBLES(fi, deltax);
-        }*/
-    }
-
-    // We could manually unroll this masked version too.  Might be faster for small cells, which could be important
-    if(n_aligned < n){
-        // Load nleft DOUBLE3s as List3s
-        AVX512_DOUBLES px512 = AVX512_SETZERO_DOUBLE();
-        AVX512_DOUBLES py512 = AVX512_SETZERO_DOUBLE();
-        AVX512_DOUBLES pz512 = AVX512_SETZERO_DOUBLE();
-        for(int j = 0; j < nleft; j++){
-            px512[j] = xyz[n_aligned+j].x;
-            py512[j] = xyz[n_aligned+j].y;
-            pz512[j] = xyz[n_aligned+j].z;
-        }
-
-        AVX512_DOUBLES deltax = AVX512_SUBTRACT_DOUBLES(px512, cx512);
-        AVX512_DOUBLES deltay = AVX512_SUBTRACT_DOUBLES(py512, cy512);
-        AVX512_DOUBLES deltaz = AVX512_SUBTRACT_DOUBLES(pz512, cz512);
-
-        // Evaluate these 8 particles
-        AVX512_DOUBLES fi,fij,fijk;
-        fi = AVX512_SET_DOUBLE(1.0);
-        AVX512_MASK_DOUBLE left_mask = masks_per_misalignment_value_double[nleft];
-
-        int i = 0;
-        for(int a=0;a<=order;a++) {
-            fij = fi;
-            for(int b=0;b<=order-a;b++) {
-                fijk = fij;
-                for(int c=0;c<=order-a-b;c++) {
-                    // Using the FMA version here isn't faster
-                    CM512[i] = AVX512_MASK_ADD_DOUBLES(CM512[i], left_mask, CM512[i], fijk);
-                    i++;
-                    fijk = AVX512_MULTIPLY_DOUBLES(fijk, deltaz);
-                }
-                fij = AVX512_MULTIPLY_DOUBLES(fij, deltay);
-            }
-            fi = AVX512_MULTIPLY_DOUBLES(fi, deltax);
-        }
-    }
-
-    int i = 0;
-    for(int a=0;a<=order;a++)
-        for(int b=0;b<=order-a;b++)
-            for(int c=0;c<=order-a-b;c++)
-                // TODO: I think this can just be i
-                CM[cmap(a,b,c)] = AVX512_HORIZONTAL_SUM_DOUBLES(CM512[i++]);
+    DispatchMultipole512Kernel(order, xyz, n, center, CM);
 #endif
 }
 
@@ -423,7 +323,6 @@ int main(int argc, char **argv){
     std::swap(current_cartesian, last_cartesian);
     #pragma omp parallel for schedule(static)
     for(int64_t k = 0; k < ncell; k++){
-        FLOAT3 *thisxyz = xyz + k*ppc;
         double *thisct = current_cartesian + k*MP.cml;
         memset(thisct, 0, MP.cml*sizeof(double));
     }

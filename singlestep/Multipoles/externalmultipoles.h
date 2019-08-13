@@ -13,8 +13,7 @@ extern "C" void DispatchMultipoleAVXKernel(int order, d4 *ip1x, d4 *ip2x, d4 *ip
 #endif
 
 #ifdef AVX512MULTIPOLES
-void DispatchMultipole512Kernel(int order, AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz,
-    AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz, AVX512_DOUBLES *CM );
+void DispatchMultipole512Kernel(int order, FLOAT3 *xyz, int n, FLOAT3 center, double *CM);
 #endif
 
 #ifdef UNROLLEDMULTIPOLES

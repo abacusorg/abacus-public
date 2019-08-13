@@ -42,7 +42,7 @@ typedef std::complex<double> Complex;
 // So that we can easily adjust to double precision for kinematics
 #ifdef DOUBLEPRECISION
 #define FLOAT double
-#define FLOAT3 double3      
+#define FLOAT3 double3
 #else 
 #define FLOAT float 
 #define FLOAT3 float3
