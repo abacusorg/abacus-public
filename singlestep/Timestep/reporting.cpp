@@ -290,7 +290,7 @@ void GatherTimings() {
             REPORT(2, "Compute Cell Offsets", TY->ConstructOffsets.Elapsed());
             REPORT(2, "Taylor FFT", TY->FFTTaylor.Elapsed());
             REPORT(2, "Taylor R to C", TY->TaylorR2C.Elapsed());
-            REPORT(2, "Taylor ASM", TY->TaylorASM.Elapsed());
+            REPORT(2, "Taylor Kernel", TY->TaylorKernel.Elapsed());
             REPORT(2, "Taylor Redlack", RL->TaylorRedlack.Elapsed());
     }
 
@@ -374,7 +374,7 @@ void GatherTimings() {
             REPORT_RATE();
         denom = thistime;
             REPORT(2, "Compute Cell Offsets", MF->ConstructOffsets.Elapsed());
-            REPORT(2, "Multipole ASM", MF->MultipoleASM.Elapsed());
+            REPORT(2, "Multipole Kernel", MF->MultipoleKernel.Elapsed());
             REPORT(2, "Multipole C to R", MF->MultipoleC2R.Elapsed());
             REPORT(2, "Multipole FFT", MF->FFTMultipole.Elapsed());
     }

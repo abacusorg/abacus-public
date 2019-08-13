@@ -46,7 +46,7 @@ MULTIPOLES_OBJ :=
 ifeq (@MULTIPOLES_SIMD@,MULTIPOLES_SIMD_AVX512)
     MULTIPOLES_OBJ += CMAVX512.o ETAVX512.o
 else ifeq (@MULTIPOLES_SIMD@,MULTIPOLES_SIMD_AVX)
-    MULTIPOLES_OBJ += ETASM.o CMASM.o
+    MULTIPOLES_OBJ += ETAVX.o CMAVX.o
 else ifeq (@MULTIPOLES_SIMD@,MULTIPOLES_SIMD_VSX)
     MULTIPOLES_OBJ += CM_VSX.o ET_VSX.o
 else ifeq (@MULTIPOLES_SIMD@,MULTIPOLES_SIMD_UNROLLED)
@@ -81,7 +81,10 @@ PYTHON_CC := @PYTHON_CC@
 PYTHON_CXX := @PYTHON_CXX@
 PYTHON_LDFLAGS := @PYTHON_LDFLAGS@
 # before we do icc customizations (in theory we could detect which compiler PYTHON_CC is):
-PYTHON_CPPFLAGS := $(CPPFLAGS)
+PYTHON_CPPFLAGS := $(CPPFLAGS) @PYTHON_CPPFLAGS@
+
+GSL_CPPFLAGS :=
+GSL_LIBS := -lgsl -lgslcblas
 
 # Define GNU/Intel specific compiler options
 # We do this towards the bottom of the Makefile so we can modify options set above
@@ -135,3 +138,5 @@ $(ROOT_DIR)/ParseHeader/libparseheader.a:
 # We provided the ParseHeader definition in this file which may be
 # included at the top of other Makefiles.  Don't let it be the default target!
 .DEFAULT_GOAL :=
+
+HAVE_COMMON_MK := True

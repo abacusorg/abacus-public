@@ -854,7 +854,7 @@ int main(int argc, char **argv) {
 
 	//check if the derivatives tensor we're about to calculate already stored on disk? If so, don't repeat the work! 
     char fn[1024];
-    sprintf(fn,"fourierspace_%d_%d_%d_%d_%d",cpd,order,inner_radius,far_radius, (CPD+1)/2-1);
+    sprintf(fn,"fourierspace_%d_%d_%d_%d_%d",cpd,order,inner_radius,far_radius, (cpd+1)/2-1);
     // This is the last file
 
     int MultipoleStart;

@@ -443,10 +443,12 @@ int main(int argc, char ** argv){
         if(CP.ProfilingMode == 2){
             char cmd[1024];
             sprintf(cmd, "rm -f %s/Taylor_????", CP.runtime_TaylorDirectory);
-            system(cmd);
+            int ret = system(cmd);
+            assertf(ret == 0, "Command \"%s\" failed\n", cmd);
             if(CP.StripeConvState){
                 sprintf(cmd, "rm -f %s/Taylor_????", CP.runtime_TaylorDirectory2);
-                system(cmd);
+                ret = system(cmd);
+                assertf(ret == 0, "Command \"%s\" failed\n", cmd);
             }
         }
         exit(0);
