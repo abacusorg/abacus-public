@@ -130,8 +130,8 @@ inline void FMAvector(Complex *t, Complex *m, double *d, int n) {
 
     #ifdef HAVE_VSX
     // In VSX, let's try typecasting from Complex
-    vector double *_t = (vector double *)t;
-    vector double *_m = (vector double *)m;
+    vector<double> *_t = (vector<double> *)t;
+    vector<double> *_m = (vector<double> *)m;
     #pragma GCC ivdep
     for (int i=0; i<n;i++) t[i] += m[i] * d[i];
     return;
