@@ -94,7 +94,7 @@ int FetchSlabsPrecondition(int slab) {
  */
 void FetchSlabsAction(int slab) {
     STDLOG(1,"Fetching slab %d with %d particles\n", slab, SS->size(slab));
-
+	
     // Load all of the particle files together
     SB->LoadArenaNonBlocking(CellInfoSlab,slab);
     SB->LoadArenaNonBlocking(PosSlab,slab);
@@ -148,7 +148,7 @@ void TransposePosAction(int slab){
             posstruct *pos = CP->PosCell(slab, y, z);
             List3<FLOAT> posxyz = CP->PosXYZCell(slab, y, z);
             int count = CP->NumberParticle(slab,y,z);
-            
+			            
             #pragma ivdep
             for(int i = 0; i < count; i++){
                 posxyz.X[i] = pos[i].x;
@@ -163,6 +163,7 @@ void TransposePosAction(int slab){
     if(TransposePos.number_of_slabs_executed < FORCE_RADIUS)
         SB->DeAllocate(PosSlab, slab);
     #endif
+	
 }
 
 
@@ -521,7 +522,6 @@ int MicrostepPrecondition(int slab){
 }
 
 void MicrostepAction(int slab){
-
     // All kicks (and half-unkicks) for output are done; discard accels.
     // We de-allocate in Drift if we aren't doing group finding
     SB->DeAllocate(AccSlab,slab);
@@ -538,6 +538,11 @@ void MicrostepAction(int slab){
 
         GFC->microstepcontrol[slab] = MC;
     }
+
+	//Dependency do_action() assumes that each dependency processes all particles in a given slab.
+	//Microstepping is an exception; it only does the group particles! Correct the bookkeeping here. 
+	Microstep.num_particles += GFC->globalslabs[slab]->np - SS->size(slab); 
+	
     MicrostepCPU.Stop();
 }
 
@@ -663,14 +668,10 @@ void FinishAction(int slab) {
         SB->DeAllocate(VelLPTSlab, slab);
 	
 	FinishPreamble.Stop(); 
-	
-	debug_Merge.Start(); 
-	
+
     // Gather particles from the insert list and make the merge slabs
     uint64 n_merge = FillMergeSlab(slab);
     merged_particles += n_merge;
-	
-	debug_Merge.Stop(); 
 	
 	FinishPreamble.Start(); 
     
@@ -703,15 +704,11 @@ void FinishAction(int slab) {
     SB->AllocateArena(MultipoleSlab,slab, ramdisk_multipole_flag);
 	
 	FinishPreamble.Stop(); 
-	
-	debug_log_and_compute.Start(); 
-	
+		
 	STDLOG(2,"About to compute multipoles for slab %d, %p\n", slab, (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab));
 	
     ComputeMultipoleSlab(slab);
-	
-	debug_log_and_compute.Stop(); 
-	
+		
     
     // Write out the particles and multipoles and delete
     WriteMergeSlab.Start();
@@ -728,9 +725,7 @@ void FinishAction(int slab) {
 #endif
 
 #ifdef PARALLEL
-    debug_Manifest_and_log.Start();	
     if (Finish.raw_number_executed==0) SendManifest->QueueToSend(slab);
-	debug_Manifest_and_log.Stop(); 
 	
 	QueueMultipoleMPI.Start(); 
  STDLOG(2, "Attempting to SendMultipoleSlab %d\n", slab);
@@ -743,16 +738,11 @@ void FinishAction(int slab) {
 	QueueMultipoleMPI.Stop(); 
 #endif
 	
-	debug_log_report_mem.Start();
     int pwidth = FetchSlabs.raw_number_executed - Finish.raw_number_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
-
     STDLOG(2, "About to ReportMemoryAllocatorStats\n");
-	
     ReportMemoryAllocatorStats();
-	
     STDLOG(2, "Done ReportMemoryAllocatorStats\n");
-	debug_log_report_mem.Stop();
 }
 
 #ifdef PARALLEL
@@ -945,6 +935,7 @@ void timestep(void) {
 		
     
     STDLOG(1,"Finished timestep dependency loop!\n");
+
 	
 	
     if (GFC != NULL) assertf(GFC->GLL->length==0,

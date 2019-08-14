@@ -47,7 +47,8 @@ typedef struct {
     uint64_t ops;
     uint64_t totalMemoryAllocated;
 
-    int runtime_ConvolutionCacheSizeMB;
+    float runtime_ConvolutionCacheSizeMB;
+    float runtime_ConvolutionL1CacheSizeMB;
     int ComputeCores;
 } ConvolutionStatistics;
 
@@ -60,8 +61,9 @@ public:
 
     int runtime_IsRamDisk;
     int runtime_DIOBufferSizeKB;
-    int runtime_ConvolutionCacheSizeMB;
-    int runtime_MaxConvolutionRAMMB;
+    float runtime_ConvolutionCacheSizeMB;
+    float runtime_ConvolutionL1CacheSizeMB;
+    float runtime_MaxConvolutionRAMMB;
 
     // These directories should be accessed through the functions below
     char runtime_MultipoleDirectory[1024];

@@ -2,7 +2,7 @@
 #define PTIMER
 
 #include <cassert>
-#include <sys/time.h>
+#include <time.h>
 
 class PTimer {
 public:
@@ -11,12 +11,10 @@ public:
     ~PTimer();
 
     // It really feels like there's a more elegant way to do this, but I haven't found it yet
-    struct alignas(CACHE_LINE_SIZE) padded_timeval {
-        struct timeval t;
-    };
-
-    struct alignas(CACHE_LINE_SIZE) padded_int {
-        int i;
+    struct alignas(CACHE_LINE_SIZE) padded_timespec {
+        struct timespec tstart;
+        struct timespec tot;
+        int on;
     };
 
     void Start(void);
@@ -25,10 +23,9 @@ public:
     void Stop(int thread_num);
     double Elapsed(void);
     void Clear(void);
-    struct timeval get_timer_seq(void);
+
     int nprocs;
-    padded_int *timeron;
-    struct padded_timeval *tuse, *tstart, *timer;
+    struct padded_timespec *timer;
 };
 
 #endif

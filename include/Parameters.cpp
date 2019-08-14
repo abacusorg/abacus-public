@@ -36,7 +36,8 @@ public:
 
     int  DerivativeExpansionRadius;
     int  MAXRAMMB;
-    int  ConvolutionCacheSizeMB; // Set to manually override the detected cache size
+    float  ConvolutionCacheSizeMB; // Set to manually override the detected cache size; this is for L3
+    float  ConvolutionL1CacheSizeMB; // Set to manually override the detected cache size
     int RamDisk;        // ==0 for a normal disk, ==1 for a ramdisk (which don't have DIO support)  // TODO: automatically detect this, or at least provide per-directory options
     int ForceBlockingIO;   // ==1 if you want to force all IO to be blocking.
     char StateIOMode[64];  //  "normal", "slosh", "overwrite", "stripe"
@@ -167,14 +168,14 @@ public:
 
     long long int MaxPID;  // Maximum PID to expect.  A PID equal or larger than this indicates corruption of some sort.  0 means NP; -1 means don't check.
 
-    // in MB
-    unsigned int getCacheSize(){
-        unsigned int cache_size = 0;
+    // Return the L{tier} size in MB
+    float getCacheSize(int tier){
+        int cache_size = 0;
         FILE *fp = NULL;
         char fn[1024];
 
         // find the last-level cache
-        for(int i = 0; ; i++){
+        for(int i = 0; i<=tier; i++){
             sprintf(fn, "/sys/devices/system/cpu/cpu0/cache/index%d/size", i);
             fp = fopen(fn, "r");
             if(fp == NULL)
@@ -183,8 +184,7 @@ public:
             fclose(fp);
             assertf(nscan == 1, "Unexpected cache size file format (\"%s\")\n", fn);
         }
-        cache_size /= 1024; // to MB
-        return cache_size;
+        return (float)cache_size/1024.0;    // to MB
     }
     
     // in MB
@@ -205,8 +205,10 @@ public:
         installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
         MAXRAMMB = getRAMSize();
         installscalar("MAXRAMMB", MAXRAMMB, DONT_CARE);
-        ConvolutionCacheSizeMB = getCacheSize();
+        ConvolutionCacheSizeMB = getCacheSize(4);
         installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB, DONT_CARE);
+        ConvolutionL1CacheSizeMB = getCacheSize(1);
+        installscalar("ConvolutionL1CacheSizeMB", ConvolutionL1CacheSizeMB, DONT_CARE);
         RamDisk = 0;
         installscalar("RamDisk",RamDisk,DONT_CARE);
         ForceBlockingIO = 0;
@@ -565,8 +567,15 @@ void Parameters::ValidateParameters(void) {
 
     if(ConvolutionCacheSizeMB<=0) {
         fprintf(stderr,
-            "[ERROR] ConvolutionCacheSizeMB = %d must be greater than 0 \n",
+            "[ERROR] ConvolutionCacheSizeMB = %f must be greater than 0 \n",
                 ConvolutionCacheSizeMB);
+        assert(1==0);
+    }
+
+    if(ConvolutionL1CacheSizeMB<=0) {
+        fprintf(stderr,
+            "[ERROR] ConvolutionL1CacheSizeMB = %f must be greater than 0 \n",
+                ConvolutionL1CacheSizeMB);
         assert(1==0);
     }
 
