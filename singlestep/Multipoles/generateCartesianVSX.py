@@ -192,8 +192,10 @@ def emit_VSX_Multipoles_interleaved(orders, fn='CM_VSX.cpp'):
             VSX_DOUBLES cz = vec_splats(center.z);
 
             VSX_DOUBLES CMvec[{cml}], CMvec2[{cml}];
-            for(int k = 0; k < {cml}; k++)
+            for(int k = 0; k < {cml}; k++){{
                 CMvec[k] = vec_splats(0.);
+                CMvec2[k] = vec_splats(0.);
+            }}
 
             int n_left = n % (2*VSX_NVEC_DOUBLE);
             int n_aligned = n - n_left;
