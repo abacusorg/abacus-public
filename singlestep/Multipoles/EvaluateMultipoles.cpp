@@ -18,7 +18,7 @@
 #define UNROLLEDMULTIPOLES
 
 #ifdef HAVE_VSX
-#define VSXMULTIPOLES
+//#define VSXMULTIPOLES
 #endif
 
 #include "threevector.hh"
