@@ -1119,15 +1119,3 @@ def handle_singlestep_error(error):
     if error.returncode == -signal.SIGBUS:
         print('singlestep died with signal SIGBUS! Did the ramdisk run out of memory?', file=sys.stderr)
 
-# def handle_distribute_to_resume_error(error):
-#     '''
-#     The distribute to resume executable -- which fetches a backed up
-#     intermediate state from the global disk and distributes it to the
-#     compute nodes for a requeued job -- may exit with a return value
-#     indicating that something went wrong during the re-distribution.
-#     Usually this means some important files are missing or are the
-#     wrong size. When this is the case, check if we have recovery
-#     mechanisms that can reconstruct the missing/corrupted files.
-#     '''
-#
-#     if error.returncode ==
