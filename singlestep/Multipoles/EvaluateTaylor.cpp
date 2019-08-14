@@ -145,21 +145,6 @@ void Taylor::UnrolledEvaluateTaylor(double *CT, FLOAT3 center, int n, FLOAT3 *p,
 #ifdef VSXMULTIPOLES
 
 void Taylor::VSXEvaluateTaylor(double *CT, FLOAT3 center, int n, FLOAT3 *p, FLOAT3 *acc) {
-    int cml_orderm1 = (order)*(order+1)*(order+2)/6;
-    double3 Q[cml_orderm1];
-
-
-    // We could unroll the below loop for more speed, but it already runs at ~60 Mpart/s/core
-    int i,a,b,c;
-    i = 0;
-    FOR(a,0,order-1)
-        FOR(b,0,order-1-a)
-            FOR(c,0,order-1-a-b) {
-                Q[i].x = (a+1)*CT[ cmap(a+1,b  ,c  ) ];
-                Q[i].y = (b+1)*CT[ cmap(a  ,b+1,c  ) ];
-                Q[i].z = (c+1)*CT[ cmap(a  ,b  ,c+1) ];
-                i++;
-            }
 
     // We up-cast the positions in the AVX versions, so for consistency do that here
     double3 dcenter = double3(center);
@@ -387,9 +372,13 @@ void compare_acc(FLOAT3 *acc1, FLOAT3* acc2, int nacc, double rtol){
     printf("\t>>> Max frac error: %.2g \n", max_frac_diff);
 }
 
-void report(const char* prefix, int64_t npart, std::chrono::duration<double> elapsed){
-    std::cout << prefix << " time: " << elapsed.count() << " sec" << std::endl;
-    std::cout << "\t" << npart/1e6/elapsed.count() << " Mpart per second" << std::endl;
+void report(const char* prefix, int64_t npart, std::chrono::duration<double> elapsed, int nthread){
+    double nflop = 842*npart + 360;
+
+    auto t = elapsed.count();
+
+    std::cout << prefix << " time: " << t << " sec" << std::endl;
+    printf("\t %.3f Mpart per second (%.3g DP-GFLOPS per thread)\n", npart/1e6/t, nflop/1e9/t/nthread);
 }
 
 int main(int argc, char **argv){
@@ -457,7 +446,7 @@ int main(int argc, char **argv){
         TY.AVXEvaluateTaylor(cartesian, center, ppc, thisxyz, thisacc);
     }
     end = std::chrono::steady_clock::now();
-    report("AVX Taylors", npart, end-begin);
+    report("AVX Taylors", npart, end-begin, nthread);
     compare_acc(current_acc, last_acc, npart, rtol);
 #endif
 
@@ -481,7 +470,7 @@ int main(int argc, char **argv){
         TY.AVX512EvaluateTaylor(cartesian, center, ppc, thisxyz, thisacc);
     }
     end = std::chrono::steady_clock::now();
-    report("AVX-512 Taylors", npart, end-begin);
+    report("AVX-512 Taylors", npart, end-begin, nthread);
     compare_acc(current_acc, last_acc, npart, rtol);
 #endif
 
@@ -505,7 +494,7 @@ int main(int argc, char **argv){
         TY.VSXEvaluateTaylor(cartesian, center, ppc, thisxyz, thisacc);
     }
     end = std::chrono::steady_clock::now();
-    report("VSX Taylors", npart, end-begin);
+    report("VSX Taylors", npart, end-begin, nthread);
     compare_acc(current_acc, last_acc, npart, rtol);
 #endif
 
@@ -530,7 +519,7 @@ int main(int argc, char **argv){
         TY.UnrolledEvaluateTaylor(cartesian, center, ppc, thisxyz, thisacc);
     }
     end = std::chrono::steady_clock::now();
-    report("Unrolled Taylors", npart, end-begin);
+    report("Unrolled Taylors", npart, end-begin, nthread);
     compare_acc(current_acc, last_acc, npart, rtol);
 #endif
 
@@ -553,7 +542,7 @@ int main(int argc, char **argv){
         TY.AnalyticEvaluateTaylor(cartesian, center, ppc, thisxyz, thisacc);
     }
     end = std::chrono::steady_clock::now();
-    report("Analytic Taylors", npart, end-begin);
+    report("Analytic Taylors", npart, end-begin, nthread);
     compare_acc(current_acc, last_acc, npart, rtol);
 
     return 0;

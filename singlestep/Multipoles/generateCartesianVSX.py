@@ -654,6 +654,8 @@ def emit_VSX_Taylors(orders, fn='ET_VSX.cpp'):
 
     for order in orders:
         cml_orderm1 = (order)*(order+1)*(order+2)//6
+        nflop = 0
+        nflop_fixed = 0
 
         cmap = cmapper(order)
 
@@ -676,6 +678,7 @@ def emit_VSX_Taylors(orders, fn='ET_VSX.cpp'):
                         Qz[{i}] = vec_splats({c+1}*CT[{cmap(a  , b  , c+1)}]);
                     ''')
                     i += 1
+                    nflop_fixed += 3
 
         # Now compute the accelerations
         w(f'''
@@ -701,7 +704,7 @@ def emit_VSX_Taylors(orders, fn='ET_VSX.cpp'):
                 pz[j] = particles[i+j].z;
             }}
 
-            VSX_DOUBLES fi, fij;
+            VSX_DOUBLES fi, fij, fijk;
             fi = vec_splats(1.);
             
             VSX_DOUBLES deltax, deltay, deltaz;
@@ -714,6 +717,7 @@ def emit_VSX_Taylors(orders, fn='ET_VSX.cpp'):
             ay = vec_splats(0.);
             az = vec_splats(0.);
             ''')  # TODO: could make first loop set instead of accumulate
+        nflop += 3 
 
         i = 0
         for a in range(order):
@@ -726,13 +730,17 @@ def emit_VSX_Taylors(orders, fn='ET_VSX.cpp'):
                         ay -= Qy[{i}] * fijk;
                         az -= Qz[{i}] * fijk;
                         ''')
+                    nflop += 6
                     i += 1
                     if c < order-a-b-1:
                         w('fijk *= deltaz;')
+                        nflop += 1
                 if b < order-a-1:
                     w('fij *= deltay;')
+                    nflop += 1
             if a < order-1:
                 w('\nfi *= deltax;')
+                nflop += 1
 
         w(f'''
             for(int j = 0; j < VSX_NVEC_DOUBLE; j++){{
@@ -747,7 +755,9 @@ def emit_VSX_Taylors(orders, fn='ET_VSX.cpp'):
         w.dedent()
         w('}\n')  # Kernel
 
-    emit_dispatch_function(w, 'TaylorVSXKernel(FLOAT3 *particles, int n, double3 center, double3 *Q, float3 *acc)', orders)
+        print(f'Order {order}: {nflop} flop per particle ({nflop_fixed} fixed flop)')
+
+    emit_dispatch_function(w, 'TaylorVSXKernel(FLOAT3 *particles, int n, double3 center, double *CT, float3 *acc)', orders)
 
     w('#endif')  # VSXMULTIPOLES
 
