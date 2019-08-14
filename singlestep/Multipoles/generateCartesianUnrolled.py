@@ -2,39 +2,19 @@
 '''
 This program generates plain C code for the Taylors and Multipoles
 evaluation. You shouldn't have to run this program manually; it will
-be invoked from the Makefile.
+be invoked from the Makefile.  But to see the manual usage, run:
+
+$ ./generateCartesianUnrolled.py --help
 
 The compiler can't figure out how to unroll some of the nested
 loops, so the purpose of this program is to "manually" unroll them.
 '''
 
-import textwrap
-import argparse
-
-fiducial_max_order=16
-
-class Writer:
-    def __init__(self, fn):
-        self.indent_level = 0
-        self.fp = open(fn, 'w')
-
-    def __call__(self, txt, *args,**kwargs):
-        txt = textwrap.dedent(txt)
-        txt = textwrap.indent(txt, ' '*4*self.indent_level)
-        self.fp.write(txt, *args,**kwargs)
-        self.fp.write('\n')
-
-    def __del__(self):
-        self.fp.close()
-
-    def indent(self):
-        self.indent_level += 1
-
-    def dedent(self):
-        self.indent_level -= 1
+from multipoles_metacode_utils \
+    import emit_dispatch_function, Writer, default_metacode_argparser
 
 
-def emit_unrolled_Multipoles(maxorder=16, onlyorder=None, fn='CM_unrolled.cpp'):
+def emit_unrolled_Multipoles(orders, fn='CM_unrolled.cpp'):
     w = Writer(fn)
 
     w('''
@@ -49,17 +29,11 @@ def emit_unrolled_Multipoles(maxorder=16, onlyorder=None, fn='CM_unrolled.cpp'):
         void MultipoleUnrolledKernel(FLOAT3 *particles, int n, double3 center, double *CM);
         ''')
 
-    for order in range(fiducial_max_order+1):
+    for order in orders:
         w(f'''
             template <>
             void MultipoleUnrolledKernel<{order}>(FLOAT3 *particles, int n, double3 center, double *CM){{''')
         w.indent()
-
-        if order == 0 or (onlyorder is not None and order != onlyorder):
-            w('assert(0); // should never be called')
-            w.dedent()
-            w('}\n')
-            continue
 
         w('for(int i = 0; i < n; i++){')
         w.indent()
@@ -105,13 +79,16 @@ def emit_unrolled_Multipoles(maxorder=16, onlyorder=None, fn='CM_unrolled.cpp'):
         w('}')  # particle loop
         w.dedent()
         w('}\n')  # Kernel
+
+    emit_dispatch_function(w, 'MultipoleUnrolledKernel(FLOAT3 *particles, int n, double3 center, double *CM)', orders)
+
     w('#endif')  # UNROLLEDMULTIPOLES
 
 
-def emit_unrolled_Multipoles_FMA(maxorder=16, onlyorder=None, fn='CM_unrolled.cpp', max_zk=None):
+def emit_unrolled_Multipoles_FMA(orders, fn='CM_unrolled.cpp', max_zk=None):
     assert max_zk is None, "max_zk implementation not finished"
     if max_zk is None:
-        max_zk = maxorder + 1
+        max_zk = max(orders) + 1
 
     w = Writer(fn)
 
@@ -127,7 +104,7 @@ def emit_unrolled_Multipoles_FMA(maxorder=16, onlyorder=None, fn='CM_unrolled.cp
         void MultipoleUnrolledKernel(FLOAT3 *particles, int n, double3 center, double *CM);
         ''')
 
-    for order in range(fiducial_max_order+1):
+    for order in orders:
         this_max_zk = min(order+1, max_zk)
         cml = (order+1)*(order+2)*(order+3)//6
 
@@ -135,12 +112,6 @@ def emit_unrolled_Multipoles_FMA(maxorder=16, onlyorder=None, fn='CM_unrolled.cp
             template <>
             void MultipoleUnrolledKernel<{order}>(FLOAT3 *particles, int n, double3 center, double *CM){{''')
         w.indent()
-
-        if order == 0 or (onlyorder is not None and order != onlyorder):
-            w('assert(0); // should never be called')
-            w.dedent()
-            w('}\n')
-            continue
 
         w('for(int i = 0; i < n; i++){')
         w.indent()
@@ -185,29 +156,33 @@ def emit_unrolled_Multipoles_FMA(maxorder=16, onlyorder=None, fn='CM_unrolled.cp
         w('}')  # particle loop
         w.dedent()
         w('}\n')  # Kernel
+
+    emit_dispatch_function(w, 'MultipoleUnrolledKernel(FLOAT3 *particles, int n, double3 center, double *CM)', orders)
+
     w('#endif')  # UNROLLEDMULTIPOLES
 
 
-def emit_unrolled_Taylors(maxorder=16, fn='ET_unrolled.cpp', onlyorder=None):
+def emit_unrolled_Taylors(orders, fn='ET_unrolled.cpp'):
     w = Writer(fn)
 
     w('''
         #include "threevector.hh"
         #include "header.cpp"
+        
         #ifdef UNROLLEDMULTIPOLES
+        
         #include "assert.h"
-        extern "C" {
+
+        template <int Order>
+        void TaylorUnrolledKernel(FLOAT3 *particles, int n, double3 center, double3 *Q, float3 *acc);
+
         ''')
 
-    for order in range(fiducial_max_order+1):
-        w(f'void TaylorUnrolledKernel{order}(FLOAT3 *particles, int n, double3 center, double3 *Q, float3 *acc){{')
+    for order in orders:
+        w(f'''
+            template <>
+            void TaylorUnrolledKernel<{order}>(FLOAT3 *particles, int n, double3 center, double3 *Q, float3 *acc){{''')
         w.indent()
-
-        if order == 0 or order > maxorder or (onlyorder != None and order != onlyorder):
-            w(f'assert(0 && "Did not compile with order {order}.  Try ./configure --with-max-order={order}?");')
-            w.dedent()
-            w('}\n')
-            continue
 
         cml_orderm1 = (order)*(order+1)*(order+2)//6
 
@@ -257,16 +232,21 @@ def emit_unrolled_Taylors(maxorder=16, fn='ET_unrolled.cpp', onlyorder=None):
 
         w.dedent()
         w('}\n')  # Kernel
-    w('}')  # extern "C"
+
+    emit_dispatch_function(w, 'TaylorUnrolledKernel(FLOAT3 *particles, int n, double3 center, double3 *Q, float3 *acc)', orders)
+
     w('#endif')  # UNROLLEDMULTIPOLES
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--maxorder', help='Maximum Multipole/Taylor series order to output', type=int, default=16)
-    parser.add_argument('--onlyorder', help='Stub all but the given order (useful for fast compilation/debugging)', type=int)
-    args = parser.parse_args()
-    args = vars(args)
 
-    emit_unrolled_Multipoles(**args)
-    #emit_unrolled_Multipoles_FMA(**args)
-    emit_unrolled_Taylors(**args)
+if __name__ == '__main__':
+    parser = default_metacode_argparser(doc=__doc__)
+    args = parser.parse_args()
+
+    if args.onlyorder:
+        orders = [args.onlyorder]
+    else:
+        orders = list(range(1,args.maxorder+1))
+
+    emit_unrolled_Multipoles(orders)
+    #emit_unrolled_Multipoles_FMA(orders)
+    emit_unrolled_Taylors(orders)

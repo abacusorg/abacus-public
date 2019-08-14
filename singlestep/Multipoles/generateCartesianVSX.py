@@ -3,37 +3,19 @@
 This program generates assembly code for the Taylors and Multipoles on
 IBM POWER architectures using AltiVec/VSX intrinsics.
 You shouldn't have to run this program manually; it will
-be invoked from the Makefile.
+be invoked from the Makefile.  But to see the manual usage, run:
+
+$ ./generateCartesianVSX.py --help
 
 The compiler can't figure out how to unroll some of the nested
 loops, so the purpose of this program is to "manually" unroll them.
 '''
 
-import textwrap
-import argparse
-
-class Writer:
-    def __init__(self, fn):
-        self.indent_level = 0
-        self.fp = open(fn, 'w')
-
-    def __call__(self, txt, *args,**kwargs):
-        txt = textwrap.dedent(txt)
-        txt = textwrap.indent(txt, ' '*4*self.indent_level)
-        self.fp.write(txt, *args,**kwargs)
-        self.fp.write('\n')
-
-    def __del__(self):
-        self.fp.close()
-
-    def indent(self):
-        self.indent_level += 1
-
-    def dedent(self):
-        self.indent_level -= 1
+from multipoles_metacode_utils \
+    import emit_dispatch_function, Writer, default_metacode_argparser
 
 
-def emit_VSX_Multipoles(maxorder=16, onlyorder=None, fn='CM_VSX.cpp'):
+def emit_VSX_Multipoles(orders, fn='CM_VSX.cpp'):
     w = Writer(fn)
 
     w('''
@@ -52,19 +34,13 @@ def emit_VSX_Multipoles(maxorder=16, onlyorder=None, fn='CM_VSX.cpp'):
         void MultipoleVSXKernel(FLOAT3 *particles, int n, double3 center, double *CM);
         ''')
 
-    for order in range(maxorder+1):
+    for order in orders:
         cml = (order+1)*(order+2)*(order+3)//6
 
         w(f'''
             template <>
             void MultipoleVSXKernel<{order}>(FLOAT3 *particles, int n, double3 center, double *CM){{''')
         w.indent()
-
-        if order == 0 or (onlyorder is not None and order != onlyorder):
-            w('assert(0); // should never be called')
-            w.dedent()
-            w('}\n')
-            continue
 
         w(f'''
             VSX_DOUBLES cx = vec_splats(center.x);
@@ -175,15 +151,18 @@ def emit_VSX_Multipoles(maxorder=16, onlyorder=None, fn='CM_VSX.cpp'):
 
         w.dedent()
         w('}\n')  # Kernel
+
+    emit_dispatch_function(w, 'MultipoleVSXKernel(FLOAT3 *particles, int n, double3 center, double *CM)', orders)
+
     w('''
         #undef VSX_NVEC_DOUBLE
         #endif''')  # VSXMULTIPOLES
 
 
-def emit_VSX_Multipoles_FMA(maxorder=16, onlyorder=None, fn='CM_VSX.cpp', max_zk=None):
+def emit_VSX_Multipoles_FMA(orders, fn='CM_VSX.cpp', max_zk=None):
     assert max_zk is None, "max_zk implementation not finished"
     if max_zk is None:
-        max_zk = maxorder + 1
+        max_zk = max(orders) + 1
 
     w = Writer(fn)
 
@@ -203,7 +182,7 @@ def emit_VSX_Multipoles_FMA(maxorder=16, onlyorder=None, fn='CM_VSX.cpp', max_zk
         void MultipoleVSXKernel(FLOAT3 *particles, int n, double3 center, double *CM);
         ''')
 
-    for order in range(maxorder+1):
+    for order in orders:
         cml = (order+1)*(order+2)*(order+3)//6
         this_max_zk = min(order+1, max_zk)
 
@@ -211,12 +190,6 @@ def emit_VSX_Multipoles_FMA(maxorder=16, onlyorder=None, fn='CM_VSX.cpp', max_zk
             template <>
             void MultipoleVSXKernel<{order}>(FLOAT3 *particles, int n, double3 center, double *CM){{''')
         w.indent()
-
-        if order == 0 or (onlyorder is not None and order != onlyorder):
-            w('assert(0); // should never be called')
-            w.dedent()
-            w('}\n')
-            continue
 
         w(f'''
             VSX_DOUBLES cx = vec_splats(center.x);
@@ -325,31 +298,34 @@ def emit_VSX_Multipoles_FMA(maxorder=16, onlyorder=None, fn='CM_VSX.cpp', max_zk
 
         w.dedent()
         w('}\n')  # Kernel
+
+    emit_dispatch_function(w, 'MultipoleVSXKernel(FLOAT3 *particles, int n, double3 center, double *CM)', orders)
+
     w('''
         #undef VSX_NVEC_DOUBLE
         #endif''')  # VSXMULTIPOLES
 
 
-def emit_VSX_Taylors(maxorder=16, fn='ET_VSX.cpp', onlyorder=None):
+def emit_VSX_Taylors(orders, fn='ET_VSX.cpp'):
     w = Writer(fn)
 
     w('''
         #include "threevector.hh"
         #include "header.cpp"
+        
         #ifdef VSXMULTIPOLES
+        
         #include "assert.h"
-        extern "C" {
+
+        template <int Order>
+        void TaylorVSXKernel(FLOAT3 *particles, int n, double3 center, double3 *Q, float3 *acc);
         ''')
 
-    for order in range(maxorder+1):
-        w(f'void TaylorVSXKernel{order}(FLOAT3 *particles, int n, double3 center, double3 *Q, float3 *acc){{')
+    for order in orders:
+        w(f'''
+            template <>
+            void TaylorVSXKernel<{order}>(FLOAT3 *particles, int n, double3 center, double3 *Q, float3 *acc){{''')
         w.indent()
-
-        if order == 0 or (onlyorder != None and order != onlyorder):
-            w('assert(0); // should never be called')
-            w.dedent()
-            w('}\n')
-            continue
 
         cml_orderm1 = (order)*(order+1)*(order+2)//6
 
@@ -399,16 +375,20 @@ def emit_VSX_Taylors(maxorder=16, fn='ET_VSX.cpp', onlyorder=None):
 
         w.dedent()
         w('}\n')  # Kernel
-    w('}')  # extern "C"
+
+    emit_dispatch_function(w, 'TaylorVSXKernel(FLOAT3 *particles, int n, double3 center, double *CM)', orders)
+
     w('#endif')  # VSXMULTIPOLES
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--maxorder', help='Maximum Multipole/Taylor series order to output', type=int, default=16)
-    parser.add_argument('--onlyorder', help='Stub all but the given order (useful for fast compilation/debugging)', type=int)
+    parser = default_metacode_argparser(doc=__doc__)
     args = parser.parse_args()
-    args = vars(args)
 
-    #emit_VSX_Multipoles(**args)
-    emit_VSX_Multipoles_FMA(**args)
-    emit_VSX_Taylors(**args)
+    if args.onlyorder:
+        orders = [args.onlyorder]
+    else:
+        orders = list(range(1,args.maxorder+1))
+
+    #emit_VSX_Multipoles(orders)
+    emit_VSX_Multipoles_FMA(orders)
+    emit_VSX_Taylors(orders)
