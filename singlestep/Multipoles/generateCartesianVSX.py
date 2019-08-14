@@ -537,6 +537,7 @@ def emit_VSX_Multipoles_FMA_interleaved(orders, fn='CM_VSX.cpp', max_zk=None):
             fi2 = vec_splats(1.);
             
             VSX_DOUBLES deltax, deltay, deltaz;
+            VSX_DOUBLES deltax2, deltay2, deltaz2;
             deltax = px - cx;
             deltax2 = px2 - cx;
             deltay = py - cy;
@@ -618,8 +619,7 @@ def emit_VSX_Multipoles_FMA_interleaved(orders, fn='CM_VSX.cpp', max_zk=None):
         w(f'''
             for(int k = 0; k < {cml}; k++)
                 for(int j = 0; j < VSX_NVEC_DOUBLE; j++){{
-                    CM[k] += CMvec[k][j];
-                    CM2[k] += CMvec2[k][j];
+                    CM[k] += CMvec[k][j] + CMvec2[k][j];
                 }}
             ''')
 
@@ -717,6 +717,7 @@ if __name__ == '__main__':
         orders = list(range(1,args.maxorder+1))
 
     #emit_VSX_Multipoles(orders)
-    emit_VSX_Multipoles_interleaved(orders)
-    #emit_VSX_Multipoles_FMA(orders)
+    #emit_VSX_Multipoles_interleaved(orders)
+    emit_VSX_Multipoles_FMA(orders)
+    #emit_VSX_Multipoles_FMA_interleaved(orders)
     emit_VSX_Taylors(orders)
