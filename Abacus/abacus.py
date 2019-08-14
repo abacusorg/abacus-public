@@ -1119,9 +1119,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         
         make_ic = False
         
-        if redlack_recovery: 
-            print("Redlack recovery complete. Exiting loop.")
-            return 0 
+        # if redlack_recovery:
+  #           print("Redlack recovery complete. Exiting loop.")
+  #           return 0
 
         ### end singlestep loop
 
