@@ -703,7 +703,7 @@ def emit_VSX_Taylors(orders, fn='ET_VSX.cpp'):
         w.dedent()
         w('}\n')  # Kernel
 
-    emit_dispatch_function(w, 'TaylorVSXKernel(FLOAT3 *particles, int n, double3 center, double *CM)', orders)
+    emit_dispatch_function(w, 'TaylorVSXKernel(FLOAT3 *particles, int n, double3 center, double3 *Q, float3 *acc)', orders)
 
     w('#endif')  # VSXMULTIPOLES
 
