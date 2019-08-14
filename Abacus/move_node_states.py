@@ -71,6 +71,7 @@ def distribute_from_serial(parfile, source_dir, verbose=True):
         shutil.rmtree(localread)
     except FileNotFoundError:
         pass
+        
     try:
         shutil.rmtree(read)
     except FileNotFoundError:
@@ -98,6 +99,9 @@ def distribute_from_serial(parfile, source_dir, verbose=True):
         # Some files we know we'll need for consistency
         assert 'state' in names
         assert 'slabsize' in names
+        assert 'redlack' in names
+        assert 'globaldipole' in names
+        assert 'nodeslabs' in names
 
         for fn in fns:
             # If the filename does not look like 'asdf_1234', copy it
@@ -114,22 +118,52 @@ def distribute_to_resume(parfile, verbose=True):
     if verbose:
         print('Distribute_to_resume state invoked on rank {} of {}'.format(rank, size), file=sys.stderr)
     
-    source = pjoin(os.path.dirname(par['WorkingDirectory']), par['SimName'] + '_retrieved_state_' + str(rank))
+    source = pjoin(os.path.dirname(par['WorkingDirectory']), par['SimName'] + '_retrieved_state', 'rank_' + str(rank))
     dest = pjoin(par['LocalWorkingDirectory'])
-
+    
+    
     try:
         shutil.rmtree(dest)
     except FileNotFoundError:
         pass
-    
+  
     if verbose:
         print('Will copy node {}s state from {} to {}'.format(rank, source, dest), file=sys.stderr)
     
     shutil.copytree(source, dest)
     
+    # The first rank will also copy the state file, etc, 
+    read_fns_present = True #assume they're present. node 0 will complain if they're not. 
+    if rank == 0:
+        localread = pjoin(os.path.dirname(par['WorkingDirectory']), par['SimName'], 'read') 
+    
+        try:
+            shutil.rmtree(localread)
+        except FileNotFoundError:
+            pass
+            
+        os.mkdir(localread)    
+        
+        fns = glob(pjoin(os.path.dirname(par['WorkingDirectory']), par['SimName'] + '_retrieved_state', 'read', '*'))
+        names = [basename(f) for f in fns]
+        
+        # Some files we know we'll need for consistency
+        read_fns_present = ( set(['state', 'slabsize', 'redlack', 'globaldipole', 'nodeslabs']) <= set(names) )
+        
+        for fn in fns:
+            # If the filename does not look like 'asdf_1234', copy it
+            if re.match(r'^((?!_\d{4}).)*$', basename(fn)):
+                print('Copying read state file {} to {}'.format(fn, localread), file=sys.stderr)
+                shutil.copy(fn, localread)
+    
+    #wait for read state/multipole recovery if necessary. 
+    comm.Barrier()
+    read_fns_present = MPI.LAND(read_fns_present)  
+    
     if verbose:
-        print('Success distributing to resume!')
-
+        print('Success distributing to resume! Read files present = {}'.format(read_fns_present)))
+    
+    return read_fns_present
           
 
 def retrieve_state(parfile, verbose=True):
@@ -144,17 +178,19 @@ def retrieve_state(parfile, verbose=True):
         print('Retrieve state invoked on rank {} of {}'.format(rank, size), file=sys.stderr)
     
 
-    dest = pjoin(os.path.dirname(par['WorkingDirectory']), par['SimName'] + '_retrieved_state_' + str(rank))
-    backup_dest = pjoin(os.path.dirname(par['WorkingDirectory']), par['SimName'] + '_retrieved_state_' + str(rank) + '_backup')
+    dest = pjoin(os.path.dirname(par['WorkingDirectory']), par['SimName'] + '_retrieved_state', 'rank_' + str(rank))
+    
+    backup_dest_root =  pjoin(os.path.dirname(par['WorkingDirectory']), par['SimName'] + '_retrieved_state_backup')
+    backup_dest = pjoin(backup_dest_root, 'rank_' + str(rank))
     
     source = par['LocalWorkingDirectory']
+    
+    try:
+        shutil.rmtree(backup_dest)
+    except FileNotFoundError:
+        pass
+    
      
-    # try:
-#         shutil.rmtree(dest)
-#     except FileNotFoundError:
-#         pass
-#
-
     try: 
         print('Renaming previous runs retrieved states to backup files')
         shutil.move(dest, backup_dest)
@@ -167,14 +203,43 @@ def retrieve_state(parfile, verbose=True):
     
     shutil.copytree(source, dest)
     
+    #rank 0 will also back up the read directory misc. files, which are about to modified when we requeue during every consecutive timestep. 
+    #We want to keep a copy of the set that corresponds to the backed up state we're retrieving. 
+    if rank == 0:
+        
+        dest = pjoin(os.path.dirname(par['WorkingDirectory']), par['SimName'] + '_retrieved_state', 'read')
+        
+        try:
+            shutil.rmtree(dest)
+        except FileNotFoundError:
+            pass
+        
+        os.mkdir(dest)
+        
+        fns = glob(pjoin(os.path.dirname(par['WorkingDirectory']), par['SimName'], 'read', '*'))
+        names = [basename(f) for f in fns]
+
+        assert 'state' in names
+        assert 'slabsize' in names
+        assert 'redlack' in names
+        assert 'globaldipole' in names
+        assert 'nodeslabs' in names
+
+        for fn in fns:
+            # If the filename does not look like 'asdf_1234', copy it
+            if re.match(r'^((?!_\d{4}).)*$', basename(fn)): 
+                shutil.copy(fn, dest)
+    
     if verbose:
-        print('Success retrieving state!')
-        print('removing backup files.')
+        print('Success retrieving state! Removing backup files.')
 
     try:
-        shutil.rmtree(backup_dest)
+        shutil.rmtree(backup_dest_root)
     except FileNotFoundError:
         pass
+        
+    if verbose:
+        print('State retrieval complete.')
     
 
 

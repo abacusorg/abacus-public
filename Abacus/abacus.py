@@ -59,8 +59,8 @@ from . import zeldovich
 from Abacus.Cosmology import AbacusCosmo
 
 EXIT_REQUEUE = 200
-RUN_TIME_MINUTES = 360 #360
-STOP_PERCENT_RUNTIME = 0.93
+RUN_TIME_MINUTES = 120 #360
+STOP_PERCENT_RUNTIME = 0.75
 
 
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
@@ -429,7 +429,7 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
 def check_multipole_taylor_done(param, state, kind):
     """
     Checks that all the multipoles or Taylors exist and have the expected
-    file size. `kind` must be 'Multipole' or 'Taylor'.
+    file size for the serial code. `kind` must be 'Multipole' or 'Taylor'.
     """
 
     assert kind in ['Multipole', 'Taylor']
@@ -450,6 +450,12 @@ def check_multipole_taylor_done(param, state, kind):
         return False
 
     return even and odd
+
+def  check_read_dir_present():
+    return True
+    
+def check_multipole_present():
+    return True
 
 
 def setup_singlestep_env(param):
@@ -741,6 +747,8 @@ class StatusLogWriter:
 
 
 
+
+
 # class SignalHandler(object):
 #     def __init__(self):
 #         self.graceful_exit = None
@@ -868,6 +876,45 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             print('Distributing in order to resume...')
             distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', '--verbose']
             subprocess.check_call(Conv_mpirun_cmd + distribute_state_cmd)
+            
+            # #if we are distributing to resume, before proceed to the parallel convolution + singlestep, let's check a few things:
+#             reconstruct_read_files =  check_read_dir_present()
+#             reconstruct_multipoles = check_multipole_present()
+#
+#             if reconstruct_read_files or reconstruct_multipoles:
+#                 print(f'Recovering read state files and/or multipoles...')
+#
+#                 # Build the recover_multipoles executable
+#                 with Tools.chdir(pjoin(abacuspath, "singlestep")):
+#                     subprocess.check_call(['make', 'recover_multipoles'])
+#
+#                 reconstruct_read_multipoles_cmd = [pjoin(abacuspath, 'singlestep', 'recover_multipoles'), paramfn, reconstruct_read_files, reconstruct_multipoles]
+#
+#                 print(f'Running reconstruction for using command {reconstruct_read_multipoles_cmd}.\n  read state: {reconstruct_read_files}\n  multipoles: {reconstruct_multipoles}; ')
+#                 subprocess.check_call(Conv_mpirun_cmd + reconstruct_read_multipoles_cmd)
+#
+#                 save_log_files(param.LogDirectory, f'step{read_state.FullStepNumber:04d}.recover_multipoles')
+#                 print(f'\tFinished parallel multipole recovery for read state {read_state.FullStepNumber}.')
+#
+#                 # do we have the state, nodeslabs, globaldipole, redlack, and posslab-size files ready to go?
+#                 # do we have the multipoles ready to go?
+#                     # if the answer to either of these two questions is NO, then:
+#                         # compile and run recover_multipoles.cpp.
+#                         # recover_multipoles should detect what's missing and then recontruct it. This is effectively an abridged version of the i-1-th singlestep.
+#
+#             # print(os.listdir(read))
+#             # if distribute_to_resume and ( 'globaldipole' not in os.listdir(read) or 'redlack' not in os.listdir(read) ) :
+#             #      redlack_recovery = 1
+#             #      singlestep_cmd[-1] = '1'
+#             #      print(singlestep_cmd)
+#             # else:
+#             #     redlack_recovery = 0
+#             #
+            
+            
+            
+            
+            
         
     print("Beginning abacus steps:")
     
@@ -961,39 +1008,6 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         
         singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic)), str(0)]
         if parallel:
-            
-            
-            # if not check_multipole_taylor_done(param, read_state, kind='Multipole'):
- #                # Invoke multipole recovery mode
- #                print("Warning: missing multipoles! Performing multipole recovery for step {:d}".format(i))
- #
- #                # Build the recover_multipoles executable
- #                with Tools.chdir(pjoin(abacuspath, "singlestep")):
- #                    subprocess.check_call(['make', 'recover_multipoles'])
- #
- #                # Execute it
- #                print("Running recover_multipoles for step {:d}".format(stepnum))
- #                subprocess.check_call([pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn], env=singlestep_env)
- #                save_log_files(param.LogDirectory, 'step{:04d}.recover_multipoles'.format(read_state.FullStepNumber))
- #                print('\tFinished multipole recovery for read state {}.'.format(read_state.FullStepNumber))
- #
- #
- #
- #
- #
- #
-            print(os.listdir(read))
-            if distribute_to_resume and ( 'globaldipole' not in os.listdir(read) or 'redlack' not in os.listdir(read) ) :
-                 redlack_recovery = 1
-                 singlestep_cmd[-1] = '1' 
-                 print(singlestep_cmd) 
-            else:
-                redlack_recovery = 0     
-            
-            
-            
-            
-            
             
             singlestep_cmd = mpirun_cmd + singlestep_cmd
             print(f'Running parallel convolution + singlestep for step {stepnum:d} with command "{" ".join(singlestep_cmd):s}"')
@@ -1119,9 +1133,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         
         make_ic = False
         
-        if redlack_recovery: 
-            print("Redlack recovery complete. Exiting loop.")
-            return 0 
+        # if redlack_recovery:
+#             print("Redlack recovery complete. Exiting loop.")
+#             return 0
 
         ### end singlestep loop
 

@@ -658,19 +658,13 @@ int FinishPrecondition(int slab) {
 uint64 merged_particles = 0;
 void FinishAction(int slab) {
 	FinishPreamble.Start();
-    
     if (WriteState.Do2LPTVelocityRereading)
         SB->DeAllocate(VelLPTSlab, slab);
-	
 	FinishPreamble.Stop(); 
-	
-	debug_Merge.Start(); 
 	
     // Gather particles from the insert list and make the merge slabs
     uint64 n_merge = FillMergeSlab(slab);
     merged_particles += n_merge;
-	
-	debug_Merge.Stop(); 
 	
 	FinishPreamble.Start(); 
     
@@ -701,18 +695,12 @@ void FinishAction(int slab) {
 	ramdisk_multipole_flag = RAMDISK_AUTO;
 #endif
     SB->AllocateArena(MultipoleSlab,slab, ramdisk_multipole_flag);
-	
 	FinishPreamble.Stop(); 
-	
-	debug_log_and_compute.Start(); 
 	
 	STDLOG(2,"About to compute multipoles for slab %d, %p\n", slab, (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab));
 	
     ComputeMultipoleSlab(slab);
 	
-	debug_log_and_compute.Stop(); 
-	
-    
     // Write out the particles and multipoles and delete
     WriteMergeSlab.Start();
     SB->StoreArenaNonBlocking(MergePosSlab,slab);
@@ -728,9 +716,7 @@ void FinishAction(int slab) {
 #endif
 
 #ifdef PARALLEL
-    debug_Manifest_and_log.Start();	
     if (Finish.raw_number_executed==0) SendManifest->QueueToSend(slab);
-	debug_Manifest_and_log.Stop(); 
 	
 	QueueMultipoleMPI.Start(); 
  STDLOG(2, "Attempting to SendMultipoleSlab %d\n", slab);
@@ -743,16 +729,11 @@ void FinishAction(int slab) {
 	QueueMultipoleMPI.Stop(); 
 #endif
 	
-	debug_log_report_mem.Start();
     int pwidth = FetchSlabs.raw_number_executed - Finish.raw_number_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
-
     STDLOG(2, "About to ReportMemoryAllocatorStats\n");
-	
     ReportMemoryAllocatorStats();
-	
     STDLOG(2, "Done ReportMemoryAllocatorStats\n");
-	debug_log_report_mem.Stop();
 }
 
 #ifdef PARALLEL
@@ -775,7 +756,10 @@ int CheckForMultipolesPrecondition(int slab) {
 }
 
 void CheckForMultipolesAction(int slab) {
+	STDLOG(1, "Entering Check for Multipoles action and deallocating multipole slab %d\n",  slab);
 	SB->DeAllocate(MultipoleSlab, slab);  
+	STDLOG(1, "Exiting Check for Multipoles action for slab %d\n",  slab);
+	
 }	
 #endif
 // -----------------------------------------------------------------
@@ -795,6 +779,11 @@ void NoopAction(int slab){
  * Registers all of the dependencies and their associated actions.
  * The Dependency module is responsible for running the registered steps.
  */
+
+#define INSTANTIATE(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &dependency##Precondition, &dependency##Action, #dependency); } while(0)
+#define INSTANTIATE_NOOP(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &NoopPrecondition, &NoopAction, ""); } while(0)
+
+
 void timestep(void) { 
 	
     FORCE_RADIUS = P.NearFieldRadius;
@@ -863,8 +852,6 @@ void timestep(void) {
 	}
 #endif
 
-#define INSTANTIATE(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &dependency##Precondition, &dependency##Action, #dependency); } while(0)
-#define INSTANTIATE_NOOP(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &NoopPrecondition, &NoopAction, ""); } while(0)
 
     INSTANTIATE(                  FetchSlabs, 0);
     INSTANTIATE(                TransposePos, 0);

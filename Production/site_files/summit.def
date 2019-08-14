@@ -8,10 +8,14 @@ RamDisk = 1
 #IODirThreads = [2, 2, 3, 3]
 #MAXRAMMB = 200000  # This will be automatically detected
 ConvolutionCacheSizeMB = 200  # Two procs, 21 user-facing SMCs per proc; pairs of SMCs share a 10 MB L3 cache.
+ConvolutionL1CacheSizeMB = 0.015625
 
 # OpenMP and thread parameters
-OMP_NUM_THREADS = 36
-OMP_PLACES = "{0}:18:4,{88}:18:4"
+#OMP_NUM_THREADS = 36
+#OMP_PLACES = "{0}:18:4,{88}:18:4"
+OMP_NUM_THREADS = 72 
+OMP_PLACES = "{0}:36:2,{88}:36:2"
+
 OMP_PROC_BIND = "spread"
 IOCores = [0]
 GPUThreadCoreStart = [72, 76, 80, 160, 164, 168]

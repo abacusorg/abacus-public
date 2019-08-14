@@ -397,26 +397,6 @@ void GatherTimings() {
         REPORT(2, "Write Multipoles", WriteMultipoleSlab.Elapsed());
         REPORT(2, "Queuing Send Manifest", SendManifest->Load.Elapsed()+SendManifest->Transmit.Elapsed());
 		REPORT(2, "Queuing Multipole MPI", QueueMultipoleMPI.Elapsed());
-		
-		
-    fprintf(reportfp, "\n\nBreakdown of Finish, debug timers:");
-    denom = TimeStepWallClock.Elapsed();
-    REPORT(1, "Finish", Finish.Elapsed());
-        REPORT_RATE();
-    denom = Finish.Elapsed();
-		REPORT(2, "Finish Preamble", FinishPreamble.Elapsed());
-        REPORT(2, "debug_Merge == partition insert + sort insert + index + merge", debug_Merge.Elapsed());
-            REPORT_RATE();
-	    REPORT(2, "debug_log_and_computer == Compute Multipoles", debug_log_and_compute.Elapsed());
-            REPORT_RATE();
-        REPORT(2, "Write Particles", WriteMergeSlab.Elapsed());
-        REPORT(2, "Write Multipoles", WriteMultipoleSlab.Elapsed());
-        REPORT(2, "debug_Manifest_and_log == Queuing Send Manifest", debug_Manifest_and_log.Elapsed());
-		REPORT(2, "Queuing Multipole MPI", QueueMultipoleMPI.Elapsed());
-		REPORT(2, "debug_log_report_mem", debug_log_report_mem.Elapsed());
-
-
-		
 
 
     fprintf(reportfp, "\n\nBreakdown of Manifest:");

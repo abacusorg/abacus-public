@@ -6,17 +6,39 @@
  */
  
  #include "proepi.cpp"
+
+#ifdef PARALLEL
+void RecoverReadStateFiles(Parameters &P){
+	STDLOG(0, "Beginning read state file recovery:\n");
+	
+	STDLOG(1, "\t nodeslabs\n");
+	
+	STDLOG(1, "\t state\n");
+	
+	STDLOG(1, "\t slabsize\n");
+	
+	STDLOG(0, "Completed read state file recovery.\n");
+	
+}
+#endif
+
  
  int main(int argc, char **argv) {
     WallClockDirect.Start();
     SingleStepSetup.Start();
 
-    if (argc!=2) {
+#ifdef PARALLEL 
+	int num_args = 4; 
+#else
+	int num_args = 2;
+#endif 
+	
+    if (argc!=num_args) {
        // Can't use assertf() or QUIT here: stdlog not yet defined!
-       fprintf(stderr, "recover_multipoles: command line must have 2 parameters given, not %d.\nLegal usage: recover_multipoles <parameter_file>\n", argc);
+       fprintf(stderr, "recover_multipoles: command line must have 2 (serial) or 4 (parallel) parameters given, not %d.\nLegal usage: recover_multipoles <parameter_file> (and, if parallel: <reconstruct_read_files> <reconstruct_multipoles>)\n", argc);
        assert(0==99);
-    }
-    
+    }  
+	
     P.ReadParameters(argv[1],0);
     strcpy(WriteState.ParameterFileName, argv[1]);
     strcpy(WriteState.Pipeline, "recover_multipoles");
@@ -37,6 +59,27 @@
     // Informs some of our directory structure
     // Also sets up SlabSize
     InitWriteState(MakeIC);
+	
+#ifdef PARALLEL
+	int reconstruct_read_files = atoi(argv[3]); 
+	int reconstruct_multipoles = atoi(argv[4]);
+
+	Prologue(P, MakeIC, reconstruct_read_files);
+	STDLOG(1, "Calling timestep for multipole and/or read state file recovery. reconstruct_multipoles = %d.\n", reconstruct_multipoles);
+	
+	timestepMultipoles(reconstruct_multipoles);
+	if (reconstruct_read_files) RecoverReadStateFiles(P); 		
+	
+    // The epilogue contains some tests of success.
+    Epilogue(P, MakeIC, reconstruct_read_files);
+	
+	stdlog.close();
+	
+    FinalizeParallel();  // This may be the last synchronization point?
+	
+	exit(0); 
+	}
+#else
 
     // Now execute the timestep
     Prologue(P,MakeIC);
@@ -54,4 +97,6 @@
     stdlog.close();
         
     exit(0);
+	
+#endif
 }

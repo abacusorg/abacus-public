@@ -214,28 +214,25 @@ int main(int argc, char **argv) {
 	
 	
 
-#ifdef PARALLEL
-	int recover_redlack = atoi(argv[3]); 
-	if(recover_redlack) {
-		
-	    // int cpd = P.cpd;
-// 	    int order = P.order;
-// 		MF  = new SlabMultipoles(order, cpd);
-		Prologue(P,MakeIC,1);
-		STDLOG(1, "Calling timestep recover multipoles.\n");
-		
-		timestepMultipoles();
-		
-		STDLOG(1, "Calling redlack dipole recovery.\n");
-		RecoverRedlackDipole(P); 
-		STDLOG(1, "Completed redlack dipole recovery. Exiting\n");
-		
-		
-	    FinalizeParallel();  // This may be the last synchronization point?
-		
-		exit(0); 
-	}
-#endif
+// #ifdef PARALLEL
+// 	int recover_redlack = atoi(argv[3]);
+// 	if(recover_redlack) {
+//
+// 		Prologue(P,MakeIC,1);
+// 		STDLOG(1, "Calling timestep recover multipoles.\n");
+//
+// 		timestepMultipoles();
+//
+// 		STDLOG(1, "Calling redlack dipole recovery.\n");
+// 		RecoverRedlackDipole(P);
+// 		STDLOG(1, "Completed redlack dipole recovery. Exiting\n");
+//
+//
+// 	    FinalizeParallel();  // This may be the last synchronization point?
+//
+// 		exit(0);
+// 	}
+// #endif
 	
 
     // Set up the major classes (including NFD)
