@@ -411,7 +411,7 @@ void init_openmp(){
         for(int g = 0; g < nthreads; g++)
             core_log << " " << g << "->" << core_assignments[g];
         core_log << "\n";
-        STDLOG(2, core_log.str().c_str());
+        STDLOG(1, core_log.str().c_str());
         
         for(int g = 0; g < nthreads; g++)
             for(int h = 0; h < g; h++)
@@ -420,7 +420,7 @@ void init_openmp(){
         // Assign the main CPU thread to core 0 to avoid the GPU/IO threads during serial parts of the code
         int main_thread_core = 0;
         set_core_affinity(main_thread_core);
-        STDLOG(2, "Assigning main singlestep thread to core %d\n", main_thread_core);
+        STDLOG(1, "Assigning main singlestep thread to core %d\n", main_thread_core);
     }
 }
 

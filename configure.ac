@@ -7,7 +7,7 @@
 # Initialization
 AC_LANG([C++])  # does this work?
 
-AC_INIT([abacus], [0.9], [], [], [github.com/nbody/abacus])
+AC_INIT([abacus], [2.0], [], [], [github.com/abacusorg/abacus])
 AC_CONFIG_HEADERS([./include/config.h])  # this places DEFS in a global header file instead of Makefiles
 AC_CONFIG_AUX_DIR([./Configuration])
 #AC_PROG_CC
@@ -42,6 +42,17 @@ m4_include(Configuration/m4/ax_check_compile_flag.m4)
 m4_include(Configuration/m4/ax_gcc_x86_avx_xgetbv.m4)
 m4_include(Configuration/m4/ax_gcc_x86_cpuid.m4)
 m4_include(Configuration/m4/ax_ext.m4)
+
+# The following uses gsl-config to find GSL.  That sounds like
+# a good thing, but Anaconda puts gsl-config on the PATH, but not
+# the library paths.
+# So we can't resolve the libraries at link/runtime if we do this.
+# Putting the Anaconda lib dir on the search path is dangerous because
+# it includes many versions of system libraries, and we might worry that
+# their performance (and even behavior) would be different from
+# the "real" system libraries.
+#m4_include(Configuration/m4/gsl.m4)
+#AX_PATH_GSL(,[], AC_MSG_ERROR(could not find required version of GSL))
 
 # Calling make from configure... pretty sketchy!
 # But we want tcmalloc to be available for configure to find
@@ -207,8 +218,8 @@ AC_ARG_WITH(max-source-length,
 AC_DEFINE_UNQUOTED(MAXSOURCELENGTH,$with_max_source_length, "Maximum source length")
 
 AC_ARG_WITH(max-order,
-[AS_HELP_STRING([--with-max-order=O], [Maximum multipole order [16]])],
-    [], with_max_order="16")
+[AS_HELP_STRING([--with-max-order=O], [Maximum multipole order [8]])],
+    [], with_max_order="8")
 MAXORDER=$with_max_order
 AC_SUBST(MAXORDER)
 AC_DEFINE_UNQUOTED(MAXORDER,$with_max_order, "Maximum multipole order")
@@ -348,10 +359,12 @@ PYTHON_EXEC=$(command -v python)
 PYTHON_CC=$CC
 PYTHON_CXX=$CXX
 PYTHON_LDFLAGS=
+PYTHON_CPPFLAGS=
 PYTHON_COMPILER_WARNING=
 AC_SUBST(PYTHON_CC)
 AC_SUBST(PYTHON_CXX)
 AC_SUBST(PYTHON_LDFLAGS)
+AC_SUBST(PYTHON_CPPFLAGS)
 # Check if the user is using Anaconda Python (better way to do this? sys.version doesn't work for me)
 AC_MSG_CHECKING([for Anaconda Python])
 if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
@@ -359,7 +372,8 @@ if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
     # Now look in the Anaconda/bin directory
     CONDA_BINDIR=$(dirname $PYTHON_EXEC)
     CONDA_BINDIRNAME=$(basename $CONDA_BINDIR)
-    CONDA_LIBDIR=$CONDA_BINDIR/../lib
+    CONDA_LIBDIR=$(dirname $CONDA_BINDIR)/lib
+    CONDA_INCLUDEDIR=$(dirname $CONDA_BINDIR)/include
 
     # sanity check
     if test xbin != x$CONDA_BINDIRNAME; then
@@ -377,7 +391,7 @@ if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
         PYTHON_CC=$(echo $GCC_FILES | awk '{print $1}')
     fi
     if test $NGCC_FILES -ne 1; then
-        AC_MSG_WARN(Could not find a unique *gcc file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gcc*_impl package for your platform to get rid of this message.)
+        AC_MSG_WARN(Could not find a unique *gcc file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gcc_impl_linux-64 package (or the equivalent for your platform) to get rid of this message.)
         AC_MSG_WARN(Using: "$PYTHON_CC")
     fi
 
@@ -387,7 +401,7 @@ if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
         PYTHON_CXX=$(echo $GXX_FILES | awk '{print $1}')
     fi
     if test $NGXX_FILES -ne 1; then
-        AC_MSG_WARN(Could not find a unique *g++ file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gxx*_impl package for your platform to get rid of this message.)
+        AC_MSG_WARN(Could not find a unique *g++ file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gxx_impl_linux-64 package (or the equivalent for your platform) to get rid of this message.)
         AC_MSG_WARN(Using: "$PYTHON_CXX")
     fi
 
@@ -395,6 +409,7 @@ if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
     # Let's assume that Anaconda Python always does the rpath linkage (which I think is true),
     # so we might as well supply the lib at link time, no matter if we actually found a conda gcc
     PYTHON_LDFLAGS="-L $CONDA_LIBDIR"
+    PYTHON_CPPFLAGS="-I $CONDA_INCLUDEDIR"
 
     # Most likely the user is using Python compiled with GCC.  So if we are building extensions
     # using icc (which shouldn't happen if the user installed the conda compilers), link some
@@ -440,13 +455,13 @@ echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Cache line size:                 $with_cache_line"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
+echo "Maximum order:                   $with_max_order"
 echo "------------------------------------------------------"
 echo
 
 # These are configurable but uncommon to change
 #echo "Maximum CPD:                     $with_max_cpd"
 #echo "Maximum source length:           $with_max_source_length"
-#echo "Maximum order:                   $with_max_order"
 #echo "Maximum GPUs:                    $with_max_gpus"
 #echo "Ramdisk path:                    $with_ramdisk"
 

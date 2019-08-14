@@ -1,5 +1,7 @@
 CMASM.c
 ETASM.c
+CMAVX.c
+ETAVX.c
 CMAVX512.cpp
 ETAVX512.cpp
 CM_unrolled.cpp
