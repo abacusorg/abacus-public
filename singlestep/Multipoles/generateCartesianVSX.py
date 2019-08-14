@@ -159,6 +159,166 @@ def emit_VSX_Multipoles(orders, fn='CM_VSX.cpp'):
         #endif''')  # VSXMULTIPOLES
 
 
+def emit_VSX_Multipoles_interleaved(orders, fn='CM_VSX.cpp'):
+    w = Writer(fn)
+
+    w('''
+        #include "threevector.hh"
+        #include "header.cpp"
+
+        #ifdef VSXMULTIPOLES
+        #include <altivec.h>
+
+        #include "assert.h"
+
+        #define VSX_NVEC_DOUBLE 2
+        typedef vector double VSX_DOUBLES;
+
+        template <int Order>
+        void MultipoleVSXKernel(FLOAT3 *particles, int n, double3 center, double *CM);
+        ''')
+
+    for order in orders:
+        cml = (order+1)*(order+2)*(order+3)//6
+
+        w(f'''
+            template <>
+            void MultipoleVSXKernel<{order}>(FLOAT3 *particles, int n, double3 center, double *CM){{''')
+        w.indent()
+
+        w(f'''
+            VSX_DOUBLES cx = vec_splats(center.x);
+            VSX_DOUBLES cy = vec_splats(center.y);
+            VSX_DOUBLES cz = vec_splats(center.z);
+
+            VSX_DOUBLES CMvec[{cml}], CMvec2[{cml}];
+            for(int k = 0; k < {cml}; k++)
+                CMvec[k] = vec_splats(0.);
+
+            int n_left = n % (2*VSX_NVEC_DOUBLE);
+            int n_aligned = n - n_left;
+            ''')
+
+        w('for(int i = 0; i < n_aligned; i += 2*VSX_NVEC_DOUBLE){')
+        w.indent()
+
+        w('''
+            VSX_DOUBLES px, py, pz;
+            VSX_DOUBLES px2, py2, pz2;
+
+            for(int j = 0; j < VSX_NVEC_DOUBLE; j++){
+                px[j] = particles[i+j].x;
+                px2[j] = particles[i+j+VSX_NVEC_DOUBLE].x;
+                py[j] = particles[i+j].y;
+                py2[j] = particles[i+j+VSX_NVEC_DOUBLE].y;
+                pz[j] = particles[i+j].z;
+                pz2[j] = particles[i+j+VSX_NVEC_DOUBLE].z;
+            }
+
+            VSX_DOUBLES fi, fij, fijk;
+            VSX_DOUBLES fi2, fij2, fijk2;
+            fi = vec_splats(1.);
+            fi2 = vec_splats(1.);
+            ''')
+
+        w('''
+            VSX_DOUBLES deltax, deltay, deltaz;
+            VSX_DOUBLES deltax2, deltay2, deltaz2;
+            deltax = px - cx;
+            deltax2 = px2 - cx;
+            deltay = py - cy;
+            deltay2 = py2 - cy;
+            deltaz = pz - cz;
+            deltaz2 = pz2 - cz;
+            ''')
+
+        i = 0
+        nflop = 3  # deltas
+        for a in range(order+1):
+            w('fij = fi;')
+            w('fij2 = fi2;')
+            for b in range(order-a+1):
+                w('fijk = fij;')
+                w('fijk2 = fij2;')
+                for c in range(order-a-b+1):
+                    w(f'CMvec[{i}] += fijk;')
+                    w(f'CMvec2[{i}] += fijk2;')
+                    i += 1
+                    nflop += 1
+                    if c < order-a-b:
+                        w('fijk *= deltaz;')
+                        w('fijk2 *= deltaz2;')
+                        nflop += 1
+                if b < order-a:
+                    w('fij *= deltay;')
+                    w('fij2 *= deltay2;')
+                    nflop += 1
+            if a < order:
+                w('\nfi *= deltax;')
+                w('\nfi2 *= deltax2;')
+                nflop += 1
+
+        w.dedent()
+        w('}')  # particle loop
+
+        print(f'nflop: {nflop}; cml: {cml}')
+
+        w('if (n_left != 0){')
+        w.indent()
+        w('''
+            assert(0);  // TODO
+            // plain C, only one element!
+            FLOAT3 p = particles[n_aligned];
+            
+            double fi, fij, fijk;
+            fi = 1.0;
+
+            double deltax, deltay, deltaz;
+            deltax = p.x - center.x;
+            deltay = p.y - center.y;
+            deltaz = p.z - center.z;
+            ''')
+
+        cml = (order+1)*(order+2)*(order+3)//6
+
+        i = 0
+        for a in range(order+1):
+            w('fij = fi;')
+            for b in range(order-a+1):
+                w('fijk = fij;')
+                for c in range(order-a-b+1):
+                    w(f'CM[{i}] += fijk;')
+                    i += 1
+                    nflop += 1
+                    if c < order-a-b:
+                        w('fijk *= deltaz;')
+                        nflop += 1
+                if b < order-a:
+                    w('fij *= deltay;')
+                    nflop += 1
+            if a < order:
+                w('\nfi *= deltax;')
+                nflop += 1
+        w.dedent()
+        w('}')  # remainder block
+
+        w(f'''
+            for(int k = 0; k < {cml}; k++)
+                for(int j = 0; j < VSX_NVEC_DOUBLE; j++){{
+                    CM[k] += CMvec[k][j] + CMvec2[k][j];
+                }}
+            ''')
+
+        w.dedent()
+        w('}\n')  # Kernel
+
+    emit_dispatch_function(w, 'MultipoleVSXKernel(FLOAT3 *particles, int n, double3 center, double *CM)', orders)
+
+    w('''
+        #undef VSX_NVEC_DOUBLE
+        #endif''')  # VSXMULTIPOLES
+
+
 def emit_VSX_Multipoles_FMA(orders, fn='CM_VSX.cpp', max_zk=None):
     assert max_zk is None, "max_zk implementation not finished"
     if max_zk is None:
@@ -390,5 +550,6 @@ if __name__ == '__main__':
         orders = list(range(1,args.maxorder+1))
 
     #emit_VSX_Multipoles(orders)
-    emit_VSX_Multipoles_FMA(orders)
+    emit_VSX_Multipoles_interleaved(orders)
+    #emit_VSX_Multipoles_FMA(orders)
     emit_VSX_Taylors(orders)
