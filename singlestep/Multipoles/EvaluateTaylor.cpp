@@ -482,8 +482,33 @@ int main(int argc, char **argv){
     compare_acc(current_acc, last_acc, npart, rtol);
 #endif
 
-#ifdef UNROLLEDMULTIPOLES
+#ifdef VSXMULTIPOLES
     // Analytic Taylors
+
+    // zero the outputs
+    std::swap(current_acc, last_acc);
+    #pragma omp parallel for schedule(static)
+    for(int64_t k = 0; k < ncell; k++){
+        FLOAT3 *thisacc = current_acc + k*ppc;
+        memset(thisacc, 0, ppc*sizeof(FLOAT3));
+    }
+
+    begin = std::chrono::steady_clock::now();
+    #pragma omp parallel for schedule(static)
+    for(int k = 0; k < ncell; k++){
+        FLOAT3 *thisxyz = xyz + k*ppc;
+        FLOAT3 *thisacc = current_acc + k*ppc;
+
+        TY.VSXEvaluateTaylor(cartesian, center, ppc, thisxyz, thisacc);
+    }
+    end = std::chrono::steady_clock::now();
+    report("VSX Taylors", npart, end-begin);
+    compare_acc(current_acc, last_acc, npart, rtol);
+#endif
+
+
+#ifdef UNROLLEDMULTIPOLES
+    // Unrolled Taylors
 
     // zero the outputs
     std::swap(current_acc, last_acc);

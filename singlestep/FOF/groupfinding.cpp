@@ -80,6 +80,7 @@ class GroupFindingControl {
 
     STimer CellGroupTime, CreateFaceTime, FindLinkTime, 
     	SortLinks, IndexLinks, FindGlobalGroupTime, IndexGroups, 
+        DeferGroups, ClearDefer,
 	GatherGroups, ScatterAux, ScatterGroups, ProcessLevel1, OutputLevel1;
     PTimer L1FOF, L2FOF, L1Tot;
     PTimer IndexLinksSearch, IndexLinksIndex;
@@ -115,10 +116,11 @@ class GroupFindingControl {
 	#else
 	    sprintf(onoff, "off");
 	#endif
-	STDLOG(1,"Group finding sizeof(FOFloat)=%d, sizeof(FLOAT)=%d, AVXFOF is %s\n", sizeof(FOFloat), sizeof(FLOAT), onoff);
+	STDLOG(0,"Group finding sizeof(FOFloat)=%d, sizeof(FLOAT)=%d, AVXFOF is %s\n", sizeof(FOFloat), sizeof(FLOAT), onoff);
 
 	cpd = _cpd; 
 	linking_length = _linking_length;
+    STDLOG(0,"Planning for L0 group finding with FOF: %f\n", linking_length);
 	#ifdef SPHERICAL_OVERDENSITY
 	    SOdensity1 = _level1;
 	    SOdensity2 = _level2;
@@ -225,8 +227,12 @@ class GroupFindingControl {
 			RFORMAT(IndexLinks));
 	 // printf("     Searching:               %8.4f sec\n", IndexLinksSearch.Elapsed());
 	 GLOG(0,"Indexing (P):                %8.4f sec\n", IndexLinksIndex.Elapsed());
+	 GLOG(0,"Defer Groups:            %8.4f sec (%5.2f%%)\n",
+			RFORMAT(DeferGroups));
 	 GLOG(0,"Find Global Groups:      %8.4f sec (%5.2f%%)\n",
 			RFORMAT(FindGlobalGroupTime));
+	 GLOG(0,"Clear Deferrals:         %8.4f sec (%5.2f%%)\n",
+			RFORMAT(ClearDefer));
 	 GLOG(0,"Index Global Groups:     %8.4f sec (%5.2f%%)\n",
 			RFORMAT(IndexGroups));
 	 GLOG(0,"Gather Group Particles:  %8.4f sec (%5.2f%%)\n",
@@ -326,8 +332,11 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	    _CGactive += active_particles;
 
 	    doFOF[g].findgroups(c.pos, c.vel, c.aux, c.acc, active_particles);
+
 	    // We need to clear the L0 & L1 bits for this timestep
-	    for (int p=0; p<c.count(); p++) c.aux[p].reset_L01_bits();
+        // This has been moved to the merge, so the bits never get written out
+	    // for (int p=0; p<c.count(); p++) c.aux[p].reset_L01_bits();
+
 	    for (int gr=0; gr<doFOF[g].ngroups; gr++) {
 		CellGroup tmp(doFOF[g].groups[gr], boundary);
 		cg->append(tmp);
@@ -372,44 +381,10 @@ GroupFindingControl *GFC = NULL;
 	// Code to search between pairs of cells and find the linked groups,
 	// which get added to GLL.
 
-
-// ===================== Output Field Particles ===============
+// ===================== Global Groups ===============
 
 #include "halostat.cpp"
-	// Code to compute L1 halo properties
-
-/** Gather all of the taggable particles that aren't in L1 groups into
-two vectors, converting to global positions.  
-
-Space must be allocated beforehand.  Returns the number of elements used.
-Warning: This must be called after ScatterGlobalGroupsAux() and before
-ScatterGlobalGroups()
-*/
-
-uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid, FLOAT unkickfactor) {
-    slab = GFC->WrapSlab(slab);
-    uint64 nfield = 0;
-    for (int j=0; j<GFC->cpd; j++)
-	for (int k=0; k<GFC->cpd; k++) {
-	    // Loop over cells
-	    posstruct offset = CP->CellCenter(slab, j, k);
-	    Cell c = CP->GetCell(slab, j, k);
-	    for (int p=0; p<c.count(); p++)
-		if (c.aux[p].is_taggable() && !c.aux[p].is_L1()) {
-		    // We found a taggable field particle
-		    posstruct r = c.pos[p] + offset;
-		    velstruct v = c.vel[p];
-            if(c.acc != NULL)
-                v -= unkickfactor*TOFLOAT3(c.acc[p]);
-		    pv[nfield] = RVfloat(r.x, r.y, r.z, v.x, v.y, v.z);
-		    pid[nfield] = c.aux[p].pid();
-		    nfield++;
-		}
-	}
-    return nfield;
-}
-
-// ===================== Global Groups ===============
+    // Code to compute L1 halo properties
 
 #include "globalgroup.cpp"
 
@@ -465,8 +440,9 @@ void FindAndProcessGlobalGroups(int slab) {
 		GGS->FindSubGroups();
     GGS->ScatterGlobalGroupsAux();
 
+    // Output the information about the Global Groups
     #ifdef ASCII_TEST_OUTPUT
-    GGS->SimpleOutput();
+        GGS->SimpleOutput();
     #endif
 	if(ReadState.DoGroupFindingOutput)
 		GGS->HaloOutput();
@@ -487,7 +463,9 @@ void FinishGlobalGroups(int slab){
 
 	// pos,vel have been updated in the group-local particle copies by microstepping
     // now push these updates to the original slabs
-    GGS->ScatterGlobalGroups();
+    if(GFC->microstepcontrol[slab]!=NULL) {
+        GGS->ScatterGlobalGroups();
+    }
     delete GGS;
     GFC->globalslabs[slab] = NULL;
 }

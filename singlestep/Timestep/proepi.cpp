@@ -137,6 +137,10 @@ CellParticles *CP;
 // Need this for both insert.cpp and timestep.cpp.
 int FINISH_WAIT_RADIUS = 1;
 
+// Forward-declare GFC
+class GroupFindingControl;
+GroupFindingControl *GFC;
+
 #include "multiappendlist.cpp"
 #include "insert.cpp"
 #include "drift.cpp"
@@ -161,16 +165,12 @@ Redlack *RL;
 
 #include "check.cpp"
 
-// Forward-declare GFC
-class GroupFindingControl;
-GroupFindingControl *GFC;
-
 #include "Cosmology.cpp"
 Cosmology *cosm;
 #include "lpt.cpp"
+
 #include "output_timeslice.cpp"
 #include "LightCones.cpp"
-
 #include "loadIC.cpp"
 
 #include "binning.cpp"
@@ -178,6 +178,7 @@ FLOAT * density; //!< Array to accumulate gridded densities in for low resolutio
 
 #include "groupfinding.cpp"
 #include "microstep.cpp"
+#include "output_field.cpp"    // Field particle subsample output
 
 int first_slab_on_node, total_slabs_on_node, first_slab_finished;
 int * first_slabs_all = NULL;
@@ -219,7 +220,7 @@ void Prologue(Parameters &P, bool MakeIC, int recover_redlack = 0) {
     // put all particles into input slab 0.
 
     // Call this to setup the Manifests
-    SetupManifest();
+    SetupManifest(2*P.GroupRadius+1);
 
     Grid = new grid(cpd);
     SB = new SlabBuffer(cpd, order, P.MAXRAMMB*1024*1024);
