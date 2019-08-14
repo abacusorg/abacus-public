@@ -232,10 +232,17 @@ if test x$enable_threaded_io == xyes; then
 fi
 
 AC_ARG_ENABLE(spherical-overdensity,
-[AS_HELP_STRING([--enable-spherical-overdensity], [Use SO finder [no]])],
-	[], enable_spherical_overdensity="no")
+[AS_HELP_STRING([--enable-spherical-overdensity], [Use SO finder [yes]])],
+	[], enable_spherical_overdensity="yes")
 if test x$enable_spherical_overdensity == xyes; then
 	AC_DEFINE_UNQUOTED(SPHERICAL_OVERDENSITY, [], "Use SO finder for L1/L2 halos, rather than FOF")
+fi
+
+AC_ARG_ENABLE(one-sided-group-finding,
+[AS_HELP_STRING([--enable-one-sided-group-finding], [Perform L0 finding one-sided [yes]])],
+	[], enable_one_sided_group_finding="yes")
+if test x$enable_one_sided_group_finding == xyes; then
+	AC_DEFINE_UNQUOTED(ONE_SIDED_GROUP_FINDING, [], "Use one-sided algorithm for L0 group finding")
 fi
 
 AC_ARG_ENABLE(gpu-directs,
@@ -438,6 +445,7 @@ echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "SIMD multipoles:                 $with_multipoles_simd"
 echo "AVX FOF:                         $enable_avx_fof"
 echo "Spherical Overdensity:           $enable_spherical_overdensity"
+echo "One-sided L0 Finding:            $enable_one_sided_group_finding"
 echo "Threaded IO:                     $enable_threaded_io"
 echo "GPU directs:                     $enable_gpu_directs"
 echo "Compute FOF-scale density:       $enable_fof_density"

@@ -727,6 +727,7 @@ with_max_source_length
 with_max_order
 enable_threaded_io
 enable_spherical_overdensity
+enable_one_sided_group_finding
 enable_gpu_directs
 with_cuda
 enable_gpu_convolution
@@ -1387,7 +1388,9 @@ Optional Features:
   --enable-avx-fof        AVX FOF [yes if AVX present]
   --enable-threaded-io    Threaded IO [yes]
   --enable-spherical-overdensity
-                          Use SO finder [no]
+                          Use SO finder [yes]
+  --enable-one-sided-group-finding
+                          Perform L0 finding one-sided [yes]
   --enable-gpu-directs    GPU directs [yes if CUDA detected]
   --enable-gpu-convolution
                           Convolution FFT on GPU [no]
@@ -6049,13 +6052,28 @@ fi
 if test "${enable_spherical_overdensity+set}" = set; then :
   enableval=$enable_spherical_overdensity;
 else
-  enable_spherical_overdensity="no"
+  enable_spherical_overdensity="yes"
 fi
 
 if test x$enable_spherical_overdensity == xyes; then
 
 cat >>confdefs.h <<_ACEOF
 #define SPHERICAL_OVERDENSITY /**/
+_ACEOF
+
+fi
+
+# Check whether --enable-one-sided-group-finding was given.
+if test "${enable_one_sided_group_finding+set}" = set; then :
+  enableval=$enable_one_sided_group_finding;
+else
+  enable_one_sided_group_finding="yes"
+fi
+
+if test x$enable_one_sided_group_finding == xyes; then
+
+cat >>confdefs.h <<_ACEOF
+#define ONE_SIDED_GROUP_FINDING /**/
 _ACEOF
 
 fi
@@ -6874,6 +6892,7 @@ echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "SIMD multipoles:                 $with_multipoles_simd"
 echo "AVX FOF:                         $enable_avx_fof"
 echo "Spherical Overdensity:           $enable_spherical_overdensity"
+echo "One-sided L0 Finding:            $enable_one_sided_group_finding"
 echo "Threaded IO:                     $enable_threaded_io"
 echo "GPU directs:                     $enable_gpu_directs"
 echo "Compute FOF-scale density:       $enable_fof_density"
