@@ -37,10 +37,6 @@
 // #define PTIMER_DUMMY   // Uncommenting this will cause all PTimers to no-op and return Elapsed() = 1e-12 sec.
 #include "PTimer.cc"
 
-STimer debug_Merge;
-STimer debug_log_and_compute;
-STimer debug_Manifest_and_log;
-STimer debug_log_report_mem;
 
 STimer FinishPreamble; 
 STimer FinishPartition;
@@ -87,7 +83,8 @@ STimer IOFinish;
 
 STimer SlabAccumFree;
 
-uint64 naive_directinteractions = 0;    
+uint64 naive_directinteractions = 0;   
+
 //********************************************************************************
 
 #include "file.h"

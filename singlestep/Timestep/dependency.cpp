@@ -36,6 +36,8 @@ public:
     	// has been run, which may differ 
 
     int instantiated;  // Have we called instantiate on this dependency?
+	int process_all_particles;
+	int64_t num_particles; 
 
     const char *name;  // dependency name, like Drift
 
@@ -53,13 +55,14 @@ public:
     ~Dependency(void) { 
         if(_executed_status != NULL) 
             delete[] _executed_status; 
-
+		
+		
 //        printf("%s : %e \n", _name, Elapsed() );
      }
 
     void instantiate(   int _cpd, int _initialslab, 
-                        int (*_precondition)(int), void (*_action)(int),
-                        const char* _name) { 
+                        int (*_precondition)(int), void (*_action)(int), 
+                        const char* _name){ 
 
         action       = _action;
         precondition = _precondition;
@@ -80,6 +83,8 @@ public:
         number_of_slabs_executed = 0; 
         raw_number_executed = 0; 
         last_slab_executed = _initialslab-1;
+		
+		num_particles = 0; 
 
         instantiated = 1;
     }
@@ -125,6 +130,10 @@ public:
 	    last_slab_executed = slab;
 	    number_of_slabs_executed++;
 	    raw_number_executed++;
+		
+		
+		num_particles += SS->size(slab); 		
+		
     }
 
     int wrap(int s) {

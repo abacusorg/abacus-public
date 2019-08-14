@@ -94,7 +94,7 @@ int FetchSlabsPrecondition(int slab) {
  */
 void FetchSlabsAction(int slab) {
     STDLOG(1,"Fetching slab %d with %d particles\n", slab, SS->size(slab));
-
+	
     // Load all of the particle files together
     SB->LoadArenaNonBlocking(CellInfoSlab,slab);
     SB->LoadArenaNonBlocking(PosSlab,slab);
@@ -148,7 +148,7 @@ void TransposePosAction(int slab){
             posstruct *pos = CP->PosCell(slab, y, z);
             List3<FLOAT> posxyz = CP->PosXYZCell(slab, y, z);
             int count = CP->NumberParticle(slab,y,z);
-            
+			            
             #pragma ivdep
             for(int i = 0; i < count; i++){
                 posxyz.X[i] = pos[i].x;
@@ -163,6 +163,7 @@ void TransposePosAction(int slab){
     if(TransposePos.number_of_slabs_executed < FORCE_RADIUS)
         SB->DeAllocate(PosSlab, slab);
     #endif
+	
 }
 
 
@@ -521,7 +522,6 @@ int MicrostepPrecondition(int slab){
 }
 
 void MicrostepAction(int slab){
-
     // All kicks (and half-unkicks) for output are done; discard accels.
     // We de-allocate in Drift if we aren't doing group finding
     SB->DeAllocate(AccSlab,slab);
@@ -538,6 +538,11 @@ void MicrostepAction(int slab){
 
         GFC->microstepcontrol[slab] = MC;
     }
+
+	//Dependency do_action() assumes that each dependency processes all particles in a given slab.
+	//Microstepping is an exception; it only does the group particles! Correct the bookkeeping here. 
+	Microstep.num_particles += GFC->globalslabs[slab]->np - SS->size(slab); 
+	
     MicrostepCPU.Stop();
 }
 
@@ -661,7 +666,7 @@ void FinishAction(int slab) {
     if (WriteState.Do2LPTVelocityRereading)
         SB->DeAllocate(VelLPTSlab, slab);
 	FinishPreamble.Stop(); 
-	
+
     // Gather particles from the insert list and make the merge slabs
     uint64 n_merge = FillMergeSlab(slab);
     merged_particles += n_merge;
@@ -696,9 +701,8 @@ void FinishAction(int slab) {
 #endif
     SB->AllocateArena(MultipoleSlab,slab, ramdisk_multipole_flag);
 	FinishPreamble.Stop(); 
-	
+
 	STDLOG(2,"About to compute multipoles for slab %d, %p\n", slab, (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab));
-	
     ComputeMultipoleSlab(slab);
 	
     // Write out the particles and multipoles and delete
@@ -932,6 +936,7 @@ void timestep(void) {
 		
     
     STDLOG(1,"Finished timestep dependency loop!\n");
+
 	
 	
     if (GFC != NULL) assertf(GFC->GLL->length==0,
