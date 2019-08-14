@@ -9,16 +9,7 @@
 
 #ifdef PARALLEL
 void RecoverReadStateFiles(Parameters &P){
-	STDLOG(0, "Beginning read state file recovery:\n");
-	
-	STDLOG(1, "\t nodeslabs\n");
-	
-	STDLOG(1, "\t state\n");
-	
-	STDLOG(1, "\t slabsize\n");
-	
-	STDLOG(0, "Completed read state file recovery.\n");
-	
+	STDLOG(0, "RecoverReadStateFiles not yet implemented.");
 }
 #endif
 
@@ -27,17 +18,17 @@ void RecoverReadStateFiles(Parameters &P){
     WallClockDirect.Start();
     SingleStepSetup.Start();
 
-#ifdef PARALLEL 
-	int num_args = 4; 
-#else
 	int num_args = 2;
-#endif 
 	
     if (argc!=num_args) {
        // Can't use assertf() or QUIT here: stdlog not yet defined!
-       fprintf(stderr, "recover_multipoles: command line must have 2 (serial) or 4 (parallel) parameters given, not %d.\nLegal usage: recover_multipoles <parameter_file> (and, if parallel: <reconstruct_read_files> <reconstruct_multipoles>)\n", argc);
+       fprintf(stderr, "recover_multipoles: command line must have 2 parameters given, not %d.\nLegal usage: recover_multipoles <parameter_file> (and, if parallel: <reconstruct_read_files> <reconstruct_multipoles>)\n", argc);
        assert(0==99);
     }  
+	
+#ifdef PARALLEL
+    InitializeParallel(MPI_size, MPI_rank);
+#endif
 	
     P.ReadParameters(argv[1],0);
     strcpy(WriteState.ParameterFileName, argv[1]);
@@ -59,44 +50,29 @@ void RecoverReadStateFiles(Parameters &P){
     // Informs some of our directory structure
     // Also sets up SlabSize
     InitWriteState(MakeIC);
-	
-#ifdef PARALLEL
-	int reconstruct_read_files = atoi(argv[3]); 
-	int reconstruct_multipoles = atoi(argv[4]);
-
-	Prologue(P, MakeIC, reconstruct_read_files);
-	STDLOG(1, "Calling timestep for multipole and/or read state file recovery. reconstruct_multipoles = %d.\n", reconstruct_multipoles);
-	
-	timestepMultipoles(reconstruct_multipoles);
-	if (reconstruct_read_files) RecoverReadStateFiles(P); 		
-	
-    // The epilogue contains some tests of success.
-    Epilogue(P, MakeIC, reconstruct_read_files);
-	
-	stdlog.close();
-	
-    FinalizeParallel();  // This may be the last synchronization point?
-	
-	exit(0); 
-	}
-#else
-
-    // Now execute the timestep
-    Prologue(P,MakeIC);
+	Prologue(P, MakeIC);
     SS->load_from_params(P);  // normally done during Prologue, but we pretended this was an IC step
-    timestepMultipoles();
-
+	
+	timestepMultipoles();
+	
+#ifdef PARALLEL	
+	RecoverReadStateFiles(P); 
+#else
+			
     // Let the IO finish, so that it is included in the time log.
     SingleStepTearDown.Start();
     IO_Terminate();
     SingleStepTearDown.Stop();
     WallClockDirect.Stop();
-
+#endif 
     // The epilogue contains some tests of success.
-    Epilogue(P,MakeIC);
-    stdlog.close();
-        
-    exit(0);
+    Epilogue(P, MakeIC);
 	
-#endif
+	stdlog.close();
+#ifdef PARALLEL	
+    FinalizeParallel(); 
+#endif	
+	
+	exit(0); 
+	}
 }

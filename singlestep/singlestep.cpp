@@ -130,33 +130,33 @@ void graceful_exit_signal_handler(int sig)
     STDLOG(0, "Caught signal %d.\n", sig);
 }
 
-void InitializeParallel(int &size, int &rank) {
-    #ifdef PARALLEL
-         // Start up MPI
-         int init = 1;
-         MPI_Initialized(&init);
-         assertf(!init, "MPI was already initialized!\n");
-
-         int ret = -1;
-         MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
-         assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
-         MPI_Comm_size(MPI_COMM_WORLD, &size);
-         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-         sprintf(NodeString,".%04d",rank);
-    #else
-    #endif
-    return;
-}
-
-void FinalizeParallel() {
-    #ifdef PARALLEL
-
-        // Finalize MPI
-        STDLOG(0,"Calling MPI_Finalize()\n");
-        MPI_Finalize();
-    #else
-    #endif
-}
+// void InitializeParallel(int &size, int &rank) {
+//     #ifdef PARALLEL
+//          // Start up MPI
+//          int init = 1;
+//          MPI_Initialized(&init);
+//          assertf(!init, "MPI was already initialized!\n");
+//
+//          int ret = -1;
+//          MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
+//          assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
+//          MPI_Comm_size(MPI_COMM_WORLD, &size);
+//          MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+//          sprintf(NodeString,".%04d",rank);
+//     #else
+//     #endif
+//     return;
+// }
+//
+// void FinalizeParallel() {
+//     #ifdef PARALLEL
+//
+//         // Finalize MPI
+//         STDLOG(0,"Calling MPI_Finalize()\n");
+//         MPI_Finalize();
+//     #else
+//     #endif
+// }
 
 
 int main(int argc, char **argv) {
@@ -166,9 +166,9 @@ int main(int argc, char **argv) {
     WallClockDirect.Start();
     SingleStepSetup.Start();
 
-    if (argc!=4) {
+    if (argc!=3) {
        // Can't use assertf() or QUIT here: stdlog not yet defined!
-       fprintf(stderr, "singlestep(): command line must have 4 parameters given, not %d.\nLegal usage: singlestep PARAMETER_FILE MAKE_IC\n\tPARAMETER_FILE: path to parameter file (usually called abacus.par)\n\tMAKE_IC: 0 or 1, whether this is an IC step.\n", argc);
+       fprintf(stderr, "singlestep(): command line must have 3 parameters given, not %d.\nLegal usage: singlestep PARAMETER_FILE MAKE_IC\n\tPARAMETER_FILE: path to parameter file (usually called abacus.par)\n\tMAKE_IC: 0 or 1, whether this is an IC step.\n", argc);
        return 1;
     }
     
@@ -195,10 +195,7 @@ int main(int argc, char **argv) {
     
     // Set up OpenMP
     init_openmp();
-	
-	
-
-    
+	 
     // Decide what kind of step to do
     double da = -1.0;   // If we set this to zero, it will skip the timestep choice
 
@@ -211,37 +208,9 @@ int main(int argc, char **argv) {
     // Set some WriteState values before ChooseTimeStep()
     // This also sets the SofteningLength, needed by the NFD constructor
     InitWriteState(MakeIC);
-	
-	
-
-// #ifdef PARALLEL
-// 	int recover_redlack = atoi(argv[3]);
-// 	if(recover_redlack) {
-//
-// 		Prologue(P,MakeIC,1);
-// 		STDLOG(1, "Calling timestep recover multipoles.\n");
-//
-// 		timestepMultipoles();
-//
-// 		STDLOG(1, "Calling redlack dipole recovery.\n");
-// 		RecoverRedlackDipole(P);
-// 		STDLOG(1, "Completed redlack dipole recovery. Exiting\n");
-//
-//
-// 	    FinalizeParallel();  // This may be the last synchronization point?
-//
-// 		exit(0);
-// 	}
-// #endif
-	
 
     // Set up the major classes (including NFD)
     Prologue(P,MakeIC);
-	
-	
-
-	
-	
 
     // Check if WriteStateDirectory/state exists, and fail if it does
     char wstatefn[1050];

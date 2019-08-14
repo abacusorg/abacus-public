@@ -78,27 +78,6 @@ void FinishMultipolesAction(int slab) {
     SB->DeAllocate(MergeCellInfoSlab,slab);
 }
 
-#ifdef PARALLEL
-int CheckForMultipolesRecPrecondition(int slab) {
-
-    if( Finish.notdone(slab) ) return 0;
-
-	int multipole_transfer_complete = ParallelConvolveDriver->CheckForMultipoleTransferComplete(slab);
-	if (multipole_transfer_complete) return 1;
-    else {
-		if(SB->IsSlabPresent(MultipoleSlab, slab))
-				Dependency::NotifySpinning(WAITING_FOR_MPI);
-		return 0;
-	}
-}
-
-void CheckForMultipolesRecAction(int slab) {
-	STDLOG(1, "Entering Check for Multipoles (recovery mode) action and deallocating multipole slab %d\n",  slab);
-	SB->DeAllocate(MultipoleSlab, slab);
-	STDLOG(1, "Exiting Check for Multipoles (recovery mode) action for slab %d\n",  slab);
-
-}
-#endif
 
 void timestepMultipoles(void) {	
     STDLOG(0,"Initiating multipole recovery timestep.()\n");
@@ -114,7 +93,11 @@ void timestepMultipoles(void) {
 
     FetchSlabs.instantiate(         nslabs,  first,  &FetchPosSlabPrecondition,           &FetchPosSlabAction,           "FetchPosSlab");
     Finish.instantiate(             nslabs,  first,  &FinishMultipolesPrecondition,       &FinishMultipolesAction,       "FinishMultipoles");
-	CheckForMultipoles.instantiate( nslabs,  first,  &CheckForMultipolesRecPrecondition,  &CheckForMultipolesRecAction,  "CheckMultipoles"); 
+#ifdef PARALLEL
+	CheckForMultipoles.instantiate( nslabs,  first,  &CheckForMultipolesPrecondition,  &CheckForMultipolesAction,  "CheckMultipoles"); 
+#else
+	CheckForMultipoles.instantiate( nslabs,  first,  &NoopPrecondition,  &NoopAction,  "CheckMultipoles"); 
+#endif
 	
 	int timestep_loop_complete = 0; 
 	while (!timestep_loop_complete){

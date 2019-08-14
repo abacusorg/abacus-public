@@ -59,7 +59,7 @@ from . import zeldovich
 from Abacus.Cosmology import AbacusCosmo
 
 EXIT_REQUEUE = 200
-RUN_TIME_MINUTES = 120 #360
+RUN_TIME_MINUTES = 200 #360
 STOP_PERCENT_RUNTIME = 0.75
 
 
@@ -450,12 +450,6 @@ def check_multipole_taylor_done(param, state, kind):
         return False
 
     return even and odd
-
-def  check_read_dir_present():
-    return True
-    
-def check_multipole_present():
-    return True
 
 
 def setup_singlestep_env(param):
@@ -874,48 +868,18 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         
         if distribute_to_resume:
             print('Distributing in order to resume...')
-            distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', '--verbose']
-            subprocess.check_call(Conv_mpirun_cmd + distribute_state_cmd)
+            distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', '--verbose']            
             
-            # #if we are distributing to resume, before proceed to the parallel convolution + singlestep, let's check a few things:
-#             reconstruct_read_files =  check_read_dir_present()
-#             reconstruct_multipoles = check_multipole_present()
-#
-#             if reconstruct_read_files or reconstruct_multipoles:
-#                 print(f'Recovering read state files and/or multipoles...')
-#
-#                 # Build the recover_multipoles executable
+            distribute_fns_present = subprocess.check_call(Conv_mpirun_cmd + distribute_state_cmd)
+            
+            if not distribute_fns_present: 
+                raise RuntimeError('"Missing/corrupted files detected during distribute to resume. Exiting!')
+                # # Build the recover_multipoles executable
 #                 with Tools.chdir(pjoin(abacuspath, "singlestep")):
 #                     subprocess.check_call(['make', 'recover_multipoles'])
 #
-#                 reconstruct_read_multipoles_cmd = [pjoin(abacuspath, 'singlestep', 'recover_multipoles'), paramfn, reconstruct_read_files, reconstruct_multipoles]
-#
-#                 print(f'Running reconstruction for using command {reconstruct_read_multipoles_cmd}.\n  read state: {reconstruct_read_files}\n  multipoles: {reconstruct_multipoles}; ')
-#                 subprocess.check_call(Conv_mpirun_cmd + reconstruct_read_multipoles_cmd)
-#
-#                 save_log_files(param.LogDirectory, f'step{read_state.FullStepNumber:04d}.recover_multipoles')
-#                 print(f'\tFinished parallel multipole recovery for read state {read_state.FullStepNumber}.')
-#
-#                 # do we have the state, nodeslabs, globaldipole, redlack, and posslab-size files ready to go?
-#                 # do we have the multipoles ready to go?
-#                     # if the answer to either of these two questions is NO, then:
-#                         # compile and run recover_multipoles.cpp.
-#                         # recover_multipoles should detect what's missing and then recontruct it. This is effectively an abridged version of the i-1-th singlestep.
-#
-#             # print(os.listdir(read))
-#             # if distribute_to_resume and ( 'globaldipole' not in os.listdir(read) or 'redlack' not in os.listdir(read) ) :
-#             #      redlack_recovery = 1
-#             #      singlestep_cmd[-1] = '1'
-#             #      print(singlestep_cmd)
-#             # else:
-#             #     redlack_recovery = 0
-#             #
-            
-            
-            
-            
-            
-        
+#                 reconstruct_read_multipoles_cmd = [pjoin(abacuspath, 'singlestep', 'recover_multipoles'), paramfn]
+   
     print("Beginning abacus steps:")
     
 
@@ -1006,7 +970,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             print('stopbefore = %d was specified; stopping before calling singlestep'%i)
             return 0
         
-        singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic)), str(0)]
+        singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic))]
         if parallel:
             
             singlestep_cmd = mpirun_cmd + singlestep_cmd
@@ -1084,15 +1048,10 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                 os.remove(dfn)
                 
                 
-   
-        #if parallel and s.graceful_exit:
-
         
         if parallel and (wall_timer() - start_time >= STOP_PERCENT_RUNTIME * run_time_secs):
             print("Current time: ", wall_timer(), start_time, STOP_PERCENT_RUNTIME *run_time_secs)
-            
             restore_time = wall_timer()
-            
 
             print('Graceful exit triggered. Retrieving state from nodes and saving in global directory.')
             retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--retrieve', '--verbose']
@@ -1101,7 +1060,6 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             restore_time = wall_timer() - restore_time
             
             print(f'Retrieving and storing state took {restore_time} seconds\n')
-            
             print('Exiting and requeueing.')
             return EXIT_REQUEUE  
         
@@ -1133,16 +1091,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         
         make_ic = False
         
-        # if redlack_recovery:
-#             print("Redlack recovery complete. Exiting loop.")
-#             return 0
-
-
-        ### end singlestep loop
-
-
     # If there is more work to be done, signal that we are ready for requeue
     if not finished and not ProfilingMode:
+        print(f"About to return EXIT_REQUEUE code {EXIT_REQUEUE}")
         return EXIT_REQUEUE
 
 
@@ -1167,3 +1118,16 @@ def handle_singlestep_error(error):
     '''
     if error.returncode == -signal.SIGBUS:
         print('singlestep died with signal SIGBUS! Did the ramdisk run out of memory?', file=sys.stderr)
+
+# def handle_distribute_to_resume_error(error):
+#     '''
+#     The distribute to resume executable -- which fetches a backed up
+#     intermediate state from the global disk and distributes it to the
+#     compute nodes for a requeued job -- may exit with a return value
+#     indicating that something went wrong during the re-distribution.
+#     Usually this means some important files are missing or are the
+#     wrong size. When this is the case, check if we have recovery
+#     mechanisms that can reconstruct the missing/corrupted files.
+#     '''
+#
+#     if error.returncode ==

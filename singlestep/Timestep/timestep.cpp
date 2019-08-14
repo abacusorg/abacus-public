@@ -836,19 +836,15 @@ void timestep(void) {
 	
 #endif
 		
-		
     STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
     STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
     STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
-
-	
 
     int nslabs = P.cpd;
     int first = first_slab_on_node;  // First slab to load
     STDLOG(1,"First slab to load will be %d\n", first);
 	
 #ifdef PARALLEL
-	
 	for (int slab = first + FORCE_RADIUS; slab < first + FORCE_RADIUS + total_slabs_on_node; slab ++ ){
     	SB->AllocateArena(TaylorSlab, slab, RAMDISK_NO); 
 		ParallelConvolveDriver->RecvTaylorSlab(slab); 
@@ -923,22 +919,15 @@ void timestep(void) {
 		timestep_loop_complete = Finish.alldone(total_slabs_on_node);
 #endif
     }
-
-
-	WrappingUp1.Clear(); WrappingUp1.Start(); 
 	
     if(IL->length!=0)
         IL->DumpParticles();
     
     assertf(IL->length==0, 
         "Insert List not empty (%d) at the end of timestep().  Time step too big?\n", IL->length);
-		
-		
     
     STDLOG(1,"Finished timestep dependency loop!\n");
 
-	
-	
     if (GFC != NULL) assertf(GFC->GLL->length==0,
 	"GroupLinkList not empty (%d) at the end of timestep.  Global group finding didn't run properly.\n", GFC->GLL->length);
 
@@ -946,24 +935,17 @@ void timestep(void) {
     if(GFC != NULL)
         total_n_output += GFC->n_L0_output;
 	
-	WrappingUp1.Stop(); 
 	
-    #ifdef PARALLEL
-	
-		WrappingUp2.Clear(); WrappingUp2.Start(); 
-	
+    #ifdef PARALLEL	
     	MPI_REDUCE_TO_ZERO(&total_n_output,   1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);		
         MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);		
 		
         STDLOG(2,"Ready to proceed to the remaining work\n");
-		
-		WrappingUp2.Stop(); 
-		
-		BarrierWallClock.Clear(); BarrierWallClock.Start();
 				
+		BarrierWallClock.Clear(); BarrierWallClock.Start();
         MPI_Barrier(MPI_COMM_WORLD);
-		
 		BarrierWallClock.Stop(); 
+		
         // This MPI call also forces a synchronization over the MPI processes, 
         // so things like Reseting GPUs could fire multiple times on one node.
         SendManifest->FreeAfterSend();

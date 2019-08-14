@@ -33,6 +33,7 @@ import numpy as np
 from Abacus import Tools
 from Abacus import Reglob
 from Abacus.InputFile import InputFile
+
       
 
 def distribute_from_serial(parfile, source_dir, verbose=True):
@@ -133,7 +134,6 @@ def distribute_to_resume(parfile, verbose=True):
     shutil.copytree(source, dest)
     
     # The first rank will also copy the state file, etc, 
-    read_fns_present = True #assume they're present. node 0 will complain if they're not. 
     if rank == 0:
         localread = pjoin(os.path.dirname(par['WorkingDirectory']), par['SimName'], 'read') 
     
@@ -148,7 +148,14 @@ def distribute_to_resume(parfile, verbose=True):
         names = [basename(f) for f in fns]
         
         # Some files we know we'll need for consistency
-        read_fns_present = ( set(['state', 'slabsize', 'redlack', 'globaldipole', 'nodeslabs']) <= set(names) )
+        #read_fns_present = int(( set(['state', 'slabsize', 'redlack', 'globaldipole', 'nodeslabs']) <= set(names) ))
+        
+        # Some files we know we'll need for consistency
+        assert 'state' in names
+        assert 'slabsize' in names
+        assert 'redlack' in names
+        assert 'globaldipole' in names
+        assert 'nodeslabs' in names
         
         for fn in fns:
             # If the filename does not look like 'asdf_1234', copy it
@@ -156,14 +163,14 @@ def distribute_to_resume(parfile, verbose=True):
                 print('Copying read state file {} to {}'.format(fn, localread), file=sys.stderr)
                 shutil.copy(fn, localread)
     
-    #wait for read state/multipole recovery if necessary. 
-    comm.Barrier()
-    read_fns_present = MPI.LAND(read_fns_present)  
-    
     if verbose:
-        print('Success distributing to resume! Read files present = {}'.format(read_fns_present)))
+        print('Success distributing to resume!')
     
-    return read_fns_present
+    #wait for read state/multipole recovery if necessary. 
+    #comm.Barrier()
+    #read_fns_present = comm.Reduce([read_fns_present, MPI.INT], [read_fns_present, MPI.INT], op=MPI.LAND, root=0) 
+    #sys.exit(read_fns_present)
+    
           
 
 def retrieve_state(parfile, verbose=True):
