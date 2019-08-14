@@ -165,7 +165,7 @@ void Taylor::VSXEvaluateTaylor(double *CT, FLOAT3 center, int n, FLOAT3 *p, FLOA
     double3 dcenter = double3(center);
 
     // This function call contains the loop over particles; allows vectorization
-    DispatchTaylorVSXKernel(order, p, n, dcenter, Q, acc);
+    DispatchTaylorVSXKernel(order, p, n, dcenter, CT, acc);
 }
 
 #endif
@@ -225,6 +225,9 @@ void Taylor::AVXEvaluateTaylor( double *CT, FLOAT3 center, int n, FLOAT3 *xyz,
 void Taylor::AVX512EvaluateTaylor( double *CT, FLOAT3 center, int n, FLOAT3 *xyz,
                                 FLOAT3 *acc) {
 #ifdef AVX512MULTIPOLES
+
+    DispatchTaylor512Kernel(order, CT, center, n, xyz, acc);
+
     AVX512_DOUBLES _cx512 = AVX512_SET_DOUBLE(center.x);
     AVX512_DOUBLES _cy512 = AVX512_SET_DOUBLE(center.y);
     AVX512_DOUBLES _cz512 = AVX512_SET_DOUBLE(center.z);

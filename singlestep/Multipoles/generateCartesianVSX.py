@@ -12,7 +12,7 @@ loops, so the purpose of this program is to "manually" unroll them.
 '''
 
 from multipoles_metacode_utils \
-    import emit_dispatch_function, Writer, default_metacode_argparser
+    import emit_dispatch_function, Writer, default_metacode_argparser, cmapper
 
 
 def emit_VSX_Multipoles(orders, fn='CM_VSX.cpp'):
@@ -641,43 +641,79 @@ def emit_VSX_Taylors(orders, fn='ET_VSX.cpp'):
         #include "header.cpp"
         
         #ifdef VSXMULTIPOLES
-        
+        #include <altivec.h>
+
         #include "assert.h"
 
+        #define VSX_NVEC_DOUBLE 2
+        typedef vector double VSX_DOUBLES;
+
         template <int Order>
-        void TaylorVSXKernel(FLOAT3 *particles, int n, double3 center, double3 *Q, float3 *acc);
+        void TaylorVSXKernel(FLOAT3 *particles, int n, double3 center, double *CT, float3 *acc);
         ''')
 
     for order in orders:
-        w(f'''
-            template <>
-            void TaylorVSXKernel<{order}>(FLOAT3 *particles, int n, double3 center, double3 *Q, float3 *acc){{''')
-        w.indent()
-
         cml_orderm1 = (order)*(order+1)*(order+2)//6
 
-        w('''
-            #pragma GCC ivdep
-            for(int j = 0; j < n; j++){
+        cmap = cmapper(order)
+
+        w(f'''
+            template <>
+            void TaylorVSXKernel<{order}>(FLOAT3 *particles, int n, double3 center, double *CT, float3 *acc){{
+
+                VSX_DOUBLES Qx[{cml_orderm1}], Qy[{cml_orderm1}], Qz[{cml_orderm1}];
             ''')
         w.indent()
 
-        w('''
-            FLOAT3 p = particles[j];
-            double3 thisacc(0.);
-            ''')
+        # Precompute Qxyz
+        i = 0
+        for a in range(order):
+            for b in range(order-a):
+                for c in range(order-a-b):
+                    w(f'''
+                        Qx[{i}] = vec_splats({a+1}*CT[{cmap(a+1, b  , c  )}]);
+                        Qy[{i}] = vec_splats({b+1}*CT[{cmap(a  , b+1, c  )}]);
+                        Qz[{i}] = vec_splats({c+1}*CT[{cmap(a  , b  , c+1)}]);
+                    ''')
+                    i += 1
 
-        w('''
-            double fi, fij, fijk;
-            fi = 1.0;
-            ''')
+        # Now compute the accelerations
+        w(f'''
+                VSX_DOUBLES cx = vec_splats(center.x);
+                VSX_DOUBLES cy = vec_splats(center.y);
+                VSX_DOUBLES cz = vec_splats(center.z);
 
-        w('''
-            double deltax, deltay, deltaz;
-            deltax = p.x - center.x;
-            deltay = p.y - center.y;
-            deltaz = p.z - center.z;
+                int n_left = n % VSX_NVEC_DOUBLE;
+                int n_aligned = n - n_left;
+
+                for(int i = 0; i < n_aligned; i += VSX_NVEC_DOUBLE){{
             ''')
+        w.indent()
+
+        w(f'''
+            VSX_DOUBLES px;
+            VSX_DOUBLES py;
+            VSX_DOUBLES pz;
+
+            for(int j = 0; j < VSX_NVEC_DOUBLE; j++){{
+                px[j] = particles[i+j].x;
+                py[j] = particles[i+j].y;
+                pz[j] = particles[i+j].z;
+            }}
+
+            VSX_DOUBLES fi, fij;
+            fi = vec_splats(1.);
+            
+            VSX_DOUBLES deltax, deltay, deltaz;
+            deltax = px - cx;
+            deltay = py - cy;
+            deltaz = pz - cz;
+
+            VSX_DOUBLES ax, ay, az;
+            ax = vec_splats(0.); 
+            ay = vec_splats(0.);
+            az = vec_splats(0.);
+            ''')  # TODO: could make first loop set instead of accumulate
 
         i = 0
         for a in range(order):
@@ -686,7 +722,9 @@ def emit_VSX_Taylors(orders, fn='ET_VSX.cpp'):
                 w('fijk = fij;')
                 for c in range(order-a-b):
                     w(f'''
-                        thisacc -= Q[{i}] * fijk;
+                        ax -= Qx[{i}] * fijk;
+                        ay -= Qy[{i}] * fijk;
+                        az -= Qz[{i}] * fijk;
                         ''')
                     i += 1
                     if c < order-a-b-1:
@@ -696,7 +734,13 @@ def emit_VSX_Taylors(orders, fn='ET_VSX.cpp'):
             if a < order-1:
                 w('\nfi *= deltax;')
 
-        w('acc[j] = thisacc;')
+        w(f'''
+            for(int j = 0; j < VSX_NVEC_DOUBLE; j++){{
+                acc[i+j].x = ax[j];
+                acc[i+j].y = ay[j];
+                acc[i+j].z = az[j];
+            }}
+            ''')
         w.dedent()
         w('}\n')  # particle loop
 
