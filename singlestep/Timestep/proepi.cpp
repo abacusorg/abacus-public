@@ -133,6 +133,10 @@ CellParticles *CP;
 // Need this for both insert.cpp and timestep.cpp.
 int FINISH_WAIT_RADIUS = 1;
 
+// Forward-declare GFC
+class GroupFindingControl;
+GroupFindingControl *GFC;
+
 #include "multiappendlist.cpp"
 #include "insert.cpp"
 #include "drift.cpp"
@@ -157,16 +161,12 @@ Redlack *RL;
 
 #include "check.cpp"
 
-// Forward-declare GFC
-class GroupFindingControl;
-GroupFindingControl *GFC;
-
 #include "Cosmology.cpp"
 Cosmology *cosm;
 #include "lpt.cpp"
+
 #include "output_timeslice.cpp"
 #include "LightCones.cpp"
-
 #include "loadIC.cpp"
 
 #include "binning.cpp"
@@ -174,6 +174,7 @@ FLOAT * density; //!< Array to accumulate gridded densities in for low resolutio
 
 #include "groupfinding.cpp"
 #include "microstep.cpp"
+#include "output_field.cpp"    // Field particle subsample output
 
 int first_slab_on_node, total_slabs_on_node, first_slab_finished;
 int * first_slabs_all = NULL;
@@ -241,7 +242,7 @@ void Prologue(Parameters &P, bool MakeIC) {
     // put all particles into input slab 0.
 
     // Call this to setup the Manifests
-    SetupManifest();
+    SetupManifest(2*P.GroupRadius+1);
 
     Grid = new grid(cpd);
     SB = new SlabBuffer(cpd, order, P.MAXRAMMB*1024*1024);
@@ -419,7 +420,7 @@ void init_openmp(){
         for(int g = 0; g < nthreads; g++)
             core_log << " " << g << "->" << core_assignments[g];
         core_log << "\n";
-        STDLOG(2, core_log.str().c_str());
+        STDLOG(1, core_log.str().c_str());
         
         for(int g = 0; g < nthreads; g++)
             for(int h = 0; h < g; h++)
@@ -428,7 +429,7 @@ void init_openmp(){
         // Assign the main CPU thread to core 0 to avoid the GPU/IO threads during serial parts of the code
         int main_thread_core = 0;
         set_core_affinity(main_thread_core);
-        STDLOG(2, "Assigning main singlestep thread to core %d\n", main_thread_core);
+        STDLOG(1, "Assigning main singlestep thread to core %d\n", main_thread_core);
     }
 }
 

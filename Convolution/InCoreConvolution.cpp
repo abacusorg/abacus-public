@@ -108,26 +108,8 @@ inline void FMAvector(Complex *t, Complex *m, double *d, int n) {
     // Multiply a complex vector by a scalar and add to a complex accumulator
     // We are doing this in sets of two cells, since that fits AVX
     // and may also suit the memory access pattern of Power9 slices.
-    #ifndef HAVE_AVX
-        int i=0;
-        /* This is the base version */
-        // #pragma omp simd aligned(t,m:16) aligned(d:8)
-//         for(i=0; i<n;i++) t[i] += m[i] * d[i];
 
-        /* // A simple unrolled version; will compute off the end in 2's 
-        #pragma omp simd aligned(t,m:32) aligned(d:16)
-        for(i=0; i<n;i+=2) {
-            t[i] += m[i] * d[i]; 
-            t[i+1] += m[i+1] * d[i+1]; 
-        }
-        */ 
-        // An alternate, with pointer movement
-        for(i=0; i<(n>>1);i++) {
-            *t += (*m)*(*d); t++; m++; d++;
-            *t += (*m)*(*d); t++; m++; d++;
-        }
-        
-    #else
+    #ifdef HAVE_AVX
     // An AVX equivalent -- this does two at once, so we have to pad to 2!
     // Will compute off the end.  
     // We have to broadcast two consecutive doubles into (g,g,h,h)
@@ -145,6 +127,34 @@ inline void FMAvector(Complex *t, Complex *m, double *d, int n) {
     for (int i=0;i<n;i++) AVX_COMPLEX_DOUBLE_FMA
     return;
     #endif
+
+    #ifdef HAVE_VSX
+    // In VSX, let's try typecasting from Complex
+    vector double *_t = (vector double *)t;
+    vector double *_m = (vector double *)m;
+    #pragma GCC ivdep
+    for (int i=0; i<n;i++) t[i] += m[i] * d[i];
+    return;
+    #endif
+
+    int i=0;
+    /* This is the base version */
+    // #pragma omp simd aligned(t,m:16) aligned(d:8)
+    // for(i=0; i<n;i++) t[i] += m[i] * d[i];
+
+    /* // A simple unrolled version; will compute off the end in 2's 
+    #pragma omp simd aligned(t,m:32) aligned(d:16)
+    for(i=0; i<n;i+=2) {
+        t[i] += m[i] * d[i]; 
+        t[i+1] += m[i+1] * d[i+1]; 
+    }
+    */ 
+    // An alternate, with pointer movement
+    #pragma GCC ivdep
+    for(i=0; i<(n>>1);i++) {
+        *t += (*m)*(*d); t++; m++; d++;
+        *t += (*m)*(*d); t++; m++; d++;
+    }
 
     /*
     // An SSE equivalent, as an example for VSX

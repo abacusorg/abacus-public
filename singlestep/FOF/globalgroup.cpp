@@ -111,6 +111,20 @@ and then analyze the groups.
 
 Belonging to a slab means that it contains a CellGroup that hadn't
 been previously included into a GlobalGroup in a different slab.
+
+In past versions, we searched all remaining CellGroups in the supplied
+slab, meaning that when we were done with this search, all cellgroups in 
+this slab were completed, i.e., belonged to GlobalGroups either in
+this slab or a previous one.
+
+In the new version, we are only allowing the GlobalGroup search to
+run in the positive direction in slab number, searching out to
+S+GroupDiam.  If a search would take one to slab-1, then we mark
+those cellgroups as deferred for the present search and will return
+to them in a future slab's attempt.  The CellGroups in slab S will
+all have been used when CreateGlobalGroups() has been called on
+slab=S through S-GroupDiam.  It remains the case that each GlobalGroup
+is found only once, and each CellGroup is used only once.
 */
 
 class GlobalGroupSlab {
@@ -127,12 +141,19 @@ class GlobalGroupSlab {
     SlabAccum<TaggedPID> L1PIDs;        ///< The taggable subset in each L1 halo, PID
     
     int slab;    ///< This slab number
+    int rad; 
+    int diam, slabbias;
+    int split;    ///< The pencil splitting
+    int cpd;
     posstruct *pos;  ///< Big vectors of all of the pos/vel/aux for these global groups
     velstruct *vel;
     auxstruct *aux;
     accstruct *acc;
     uint64 np;
     uint64 ncellgroups;
+
+    LinkPencil **links;                // For several slabs and all pencils in each
+    LinkIndex *cells;               // For several slabs and all cells in each
 
     // We're going to accumulate an estimate of work in each pencil
     PencilStats *pstat;    ///< Will be [0,cpd)
@@ -145,13 +166,33 @@ class GlobalGroupSlab {
         assertf(pstat==NULL, "GlobalGroupSlab setup is not legal");    // Otherwise, we're re-allocating something!
         pos = NULL; vel = NULL; aux = NULL; acc = NULL; np = 0;
         slab = GFC->WrapSlab(_slab); largest_group = 0;
+
+        cpd = GFC->cpd;
+        rad = GFC->GroupRadius;        
+        // We will split the work by pencils, and this means that
+        // we have to reserve 2*r+1 in either direction.
+        split = 4*rad+1;
+        while (split<cpd && (cpd%split)!=0) split++;
+
+        #ifdef ONE_SIDED_GROUP_FINDING
+            // The groups can span 2*R+1 slabs.  
+            // We will only look in the upward direction.
+            diam = 2*rad+1; 
+            slabbias = 0;
+        #else
+            // The groups can span 2*R+1 slabs in either direction,
+            // so 4*R+1
+            diam = 4*rad+1; 
+            slabbias = diam/2;
+        #endif
+
         int ret = posix_memalign((void **) &pstat, CACHE_LINE_SIZE, sizeof(PencilStats)*GFC->cpd);
         assert(ret==0);
         for (int j=0; j<GFC->cpd; j++) pstat[j].reset(j);
 
-	// How many global groups do we expect?  Let's guess 10% of the particles
-	// The cellgroup list is modestly bigger, but not enough to care.
-	int maxsize = GFC->particles_per_slab/10;
+        // How many global groups do we expect?  Let's guess 10% of the particles
+        // The cellgroup list is modestly bigger, but not enough to care.
+        int maxsize = GFC->particles_per_slab/10;
         globalgroups.setup(GFC->cpd, maxsize);
         globalgrouplist.setup(GFC->cpd, maxsize);
     }
@@ -185,6 +226,9 @@ class GlobalGroupSlab {
     GlobalGroupSlab() { pstat = NULL; }    // We have a null constructor
     ~GlobalGroupSlab() { destroy(); }
 
+    void IndexLinks();
+    void DeferGlobalGroups();
+    void ClearDeferrals();
     void CreateGlobalGroups();
     void GatherGlobalGroups();
     void ScatterGlobalGroupsAux();
@@ -219,35 +263,30 @@ We also make heavy use of SlabAccum's to order the work by Pencil;
 this will aid in the later bookkeeping.
 */
 
-void GlobalGroupSlab::CreateGlobalGroups() {
-    // Given pstat[0,cpd)
-    assertf(pstat!=NULL,"setup() not yet called\n");   // Setup not yet called!
-    GFC->SortLinks.Start();
-
-    // The groups can span 2*R+1 slabs, but we might be on either end,
-    // so we have to consider 4*R+1.
-    int rad = GFC->GroupRadius;        
-    int diam = 4*rad+1;
-    int cpd = GFC->cpd;
-    // int cpdpad = (cpd/8+1)*8;   // A LinkIndex is 8 bytes, so let's get each pencil onto a different cacheline
-    int cpdpad = cpd;
-    
+void GlobalGroupSlab::IndexLinks() {
     // We're going to sort the GLL and then figure out the starting index 
     // of every cell in this slab.
+    // We only care about links that initiate from slabs between S and S+diam.
+    GFC->SortLinks.Start();
     GFC->GLL->Sort();                // Sorts by LinkID
     GFC->SortLinks.Stop();
+
     GFC->IndexLinks.Start();
     // GFC->GLL->AsciiPrint();
-    LinkPencil **links;                // For several slabs and all pencils in each
     links = (LinkPencil **)malloc(sizeof(LinkPencil *)*diam);
 
+    // int cpdpad = (cpd/8+1)*8;   // A LinkIndex is 8 bytes, so let's get each pencil onto a different cacheline
+    int cpdpad = cpd;
+    // Allocate space for the links[slab][y] LinkPencils.
     {int ret = posix_memalign((void **)&(links[0]), CACHE_LINE_SIZE, sizeof(LinkPencil)*diam*cpd); assert(ret==0);}
     for (int j=1; j<diam; j++) links[j] = links[j-1]+cpd;
-    LinkIndex *cells;
+    // Allocate space for the LinkIndex array, which is on a per-cell basis.
     {int ret = posix_memalign((void **)&cells, CACHE_LINE_SIZE, sizeof(LinkIndex)*diam*cpd*cpdpad); assert(ret==0);}
     // cells = (LinkIndex *)malloc(sizeof(LinkIndex)*diam*cpd*cpdpad);
+
+    // Now loop over slabs to construct the lookup tables
     for (int s=0; s<diam; s++) {
-        int thisslab = GFC->WrapSlab(slab+s-diam/2);
+        int thisslab = GFC->WrapSlab(slab+s-slabbias);
         assertf(GFC->cellgroups_status[thisslab]>0, "Cellgroup slab %d not present (value %d).  Something is wrong in dependencies!\n", thisslab, GFC->cellgroups_status[thisslab]);
             // Just to check that the CellGroups are present or already closed.
         #pragma omp parallel for schedule(dynamic,1)
@@ -267,17 +306,139 @@ void GlobalGroupSlab::CreateGlobalGroups() {
         }
     }
     GFC->IndexLinks.Stop();
-    GFC->FindGlobalGroupTime.Start();
+}
 
+
+
+void GlobalGroupSlab::DeferGlobalGroups() {
+    /* We want to find all of the global groups that cross to S-1 and mark those
+    cell groups as deferred.  To do this, we start by finding links that cross
+    from S to S-1.  We take the CellGroups marked by the S end of the link and 
+    follow the links for that group, considering only links to >=S.  Note that 
+    some GlobalGroups could be split into pieces when we ignore the connections
+    through <=S-1, but we don't care because we will still find all of the pieces
+    in the domain >=S and mark them as deferred.
+        Once we have the CellGroups deferred, then we can ignore those CellGroups
+    as starting points for valid GlobalGroups in this slab.
+        At the end, we must clear the deferrals.
+        // TODO: Or we could do it before we start?
+    */
+    STDLOG(1, "Starting Deferral search on slab %d\n", slab);
+    GFC->DeferGroups.Start();
+    int lastslab = GFC->WrapSlab(slab-slabbias-1);
+
+    for (int w=0; w<split; w++) {
+        #pragma omp parallel for schedule(dynamic,1)
+        for (int j=w; j<cpd; j+=split) {
+            // Do this pencil within the boundary slab.  
+            LinkPencil *slablp = links[0]+j;
+            std::vector<LinkID> cglist;    // List of CellGroups in this GlobalGroup
+            cglist.reserve(64);
+            for (int k=0; k<cpd; k++) {   // Loop over cells
+                GroupLink *gg; int t;
+                // Loop over links from this cell
+                for (gg = slablp->data + slablp->cells[k].start, t = 0;
+                    t<slablp->cells[k].n; t++, gg++) {
+                    // If the link doesn't point to S-1, skip to next
+                    integer3 linkcell = gg->b.cell();
+                    if (linkcell.x != lastslab) continue;
+                    // If this CellGroup is not open, we could skip the search
+                    
+                    // We've found a CellGroup that connects to slab S-1,
+                    // so we need to track it.
+                    cglist.resize(0);   // Reset to null list
+                    cglist.push_back(gg->a);   // Prime the queue
+                    uint64 searching=0;
+
+                    while (searching<cglist.size()) {
+                        // We have an unresolved group to search
+                        integer3 thiscell = cglist[searching].cell();  
+                        CellGroup *thiscg = LinkToCellGroup(cglist[searching]);
+                        // There's a chance we've already been here; if yes, skip
+                        if (!(thiscg->is_open())) { searching++; continue; }
+
+                        int s = GFC->WrapSlab(thiscell.x-slab+slabbias);  // Map to [0,diam)
+                        LinkPencil *lp = links[s]+thiscell.y;
+
+                        // Loop over the links that leave from this cell
+                        GroupLink *g; int t;
+                        for (g = lp->data + lp->cells[thiscell.z].start, t = 0;
+                                t<lp->cells[thiscell.z].n; t++, g++) {
+                            if (g->a.id == cglist[searching].id) {
+                                // The link originates from the group we're considering
+                                // But now we need to check its destination
+                                uint64 seek = 0;
+                                integer3 thatcell;
+                                CellGroup *thatcg;
+                                while (seek<cglist.size())
+                                    if (g->b.id == cglist[seek++].id) goto FoundIt;
+                                // We didn't find the link in the list, but maybe we don't care.
+                                thatcell = g->b.cell();
+                                if (thatcell.x==lastslab) goto IgnoreIt;
+                                    // Cell is in the no-go slab
+                                thatcg = LinkToCellGroup(g->b);
+                                if (!(thatcg->is_open())) goto IgnoreIt;
+                                    // CellGroup is already marked as deferred
+                                    // We've been there before; don't return!.
+                                cglist.push_back(g->b);  // Yes, we'll need to consider that CellGroup
+                                FoundIt:
+                                IgnoreIt:
+                                continue;  // Just effectively a no-op
+                            }
+                        }  // Done with links from this CellGroup
+                        thiscg->defer_group();    // Mark it as deferred
+                        searching++;   // Ready for next CellGroup in the queue
+                    } // Done processing this item in the CellGroup queue
+                } // Done with this seed link
+            } // Done with this cell 
+        }  // Done with this pencil
+    }  // Done with this split
+    GFC->DeferGroups.Stop();
+    STDLOG(1, "Done looking for Deferrals in slab %d\n", slab);
+    return;
+}
+
+void GlobalGroupSlab::ClearDeferrals() {
+    // We need to loop over the relevant slabs to clear the deferral flags from all CellGroups
+    GFC->ClearDefer.Start();
+    STDLOG(1,"Clearing Deferrals for slab %d\n", slab);
+    for (int s=0; s<diam; s++) {
+        int thisslab = GFC->WrapSlab(slab+s-slabbias);
+        #pragma omp parallel for schedule(static)
+        for (int j=0; j<cpd; j++) {  // Parallelize over pencils
+            PencilAccum<CellGroup> pencil = GFC->cellgroups[thisslab][j];
+            for (int g=0; g<pencil._size; g++) pencil.data[g].clear_deferral();
+
+            /*
+            for (int k=0; k<cpd; k++) { // Loop over cells
+                CellPtr<CellGroup> cg = GFC->cellgroups[thisslab][j][k];
+                for (int g=0; cg.size(); g++) cg[g].clear_deferral();
+            }
+            */
+        }
+    }
+    STDLOG(1,"Done Deferrals for slab %d\n", slab);
+    GFC->ClearDefer.Stop();
+    return;
+}
+
+void GlobalGroupSlab::CreateGlobalGroups() {
+    // Given pstat[0,cpd)
+    assertf(pstat!=NULL,"setup() not yet called\n");   // Setup not yet called!
+    IndexLinks();
+    #ifdef ONE_SIDED_GROUP_FINDING
+    DeferGlobalGroups();
+    #endif
+
+    GFC->FindGlobalGroupTime.Start();
     // Then need to go cell by cell to take unclosed groups and try to close them.
     // That step will need to be run every (2R+1) pencil to avoid from contention.
     // 4R+1 might be better, just to avoid any cache overlap.
     // Have to guard against contention across the periodic wrap, as well.
     // Pick a division no less than diam that divides into CPD so that 
     // we can skip this issue.
-    int split = diam;
     MultiplicityStats L0stats[omp_get_max_threads()];
-    while (split<cpd && cpd%split!=0) split++;
+
     for (int w=0; w<split; w++) {
         #pragma omp parallel for schedule(dynamic,1) 
         for (int j=w; j<cpd; j+=split) {
@@ -291,7 +452,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                 // Do this cell
                 CellPtr<CellGroup> c = GFC->cellgroups[slab][j][k];
                 for (int g=0; g<c.size(); g++) if (c[g].is_open()) {
-                    // Loop over groups, skipping closed ones
+                    // Loop over groups, skipping closed and deferred ones
                     int ggsize = 0; 
                     cglist.resize(0);   // Reset to null list
                     cglist.push_back(LinkID(slab, j, k, g));   // Prime the queue
@@ -312,8 +473,9 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                                     // thiscell.x, thiscell.y, thiscell.z, cglist[searching].cellgroup());
                         // }
                         // Now get these links
-                        int s = GFC->WrapSlab(thiscell.x-slab+diam/2);  // Map to [0,diam)
+                        int s = GFC->WrapSlab(thiscell.x-slab+slabbias);  // Map to [0,diam)
                         LinkPencil *lp = links[s]+thiscell.y;
+                        // TODO: This variable name shadows an earlier one
                         GroupLink *g; int t;
                         for (g = lp->data + lp->cells[thiscell.z].start, t = 0;
                                 t<lp->cells[thiscell.z].n; t++, g++) {
@@ -374,6 +536,11 @@ void GlobalGroupSlab::CreateGlobalGroups() {
     free(links[0]);
     free(links);
     GFC->FindGlobalGroupTime.Stop();
+
+    #ifdef ONE_SIDED_GROUP_FINDING
+    ClearDeferrals();
+    #endif
+    return;
 }
 
 
@@ -385,7 +552,6 @@ from each GlobalGroup into this slab-scale list.
 
 void GlobalGroupSlab::GatherGlobalGroups() {
     GFC->IndexGroups.Start();
-    int diam = 2*GFC->GroupRadius+1;
     assertf(GFC->cpd>=4*GFC->GroupRadius+1, "CPD is too small compared to GroupRadius\n");
     // This registers the periodic wrap using the cells.
     // However, this will misbehave if CPD is smaller than the group diameter,
@@ -528,9 +694,9 @@ as some uses don't need Pos/Vel to be returned.
 */
 
 void GlobalGroupSlab::ScatterGlobalGroups() {
-    int diam = 2*GFC->GroupRadius+1;
     GFC->ScatterGroups.Start();
 
+    STDLOG(1,"Scattering global group pos/vel from slab %d\n", slab);
     #pragma omp parallel for schedule(static)
     for (int j=0; j<GFC->cpd; j++)
         for (int k=0; k<GFC->cpd; k++)
@@ -569,6 +735,7 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
             } // End loop over globalgroups in a cell
     // End loop over cells
     GFC->ScatterGroups.Stop();
+    STDLOG(1,"Done scattering global group pos/vel from slab %d\n", slab);
     return;
 }
 
@@ -641,6 +808,7 @@ void GlobalGroupSlab::FindSubGroups() {
             // uint64 groupid = ((slab*GFC->cpd+j)*GFC->cpd+k)*4096;
             uint64 groupidstart = (((uint64)slab*MAXCPD+(uint64)j)*MAXCPD+(uint64)k)*10000;
             uint64 nextid = groupidstart;
+            posstruct offset = CP->CellCenter(slab, j, k);
                     // A basic label for this group
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 if (globalgroups[j][k][n].np<GFC->minhalosize) continue;
@@ -717,11 +885,11 @@ void GlobalGroupSlab::FindSubGroups() {
                             pTaggedPIDs->append(TaggedPID(groupaux[start[b].index()].pid()));
 
                     // Output the Taggable Particles. 
-		    // If P.OutputAllHaloParticles is set, then we output all L1 particles
-                    posstruct offset = CP->CellCenter(slab, j, k);
+                    // If P.OutputAllHaloParticles is set, then we output 
+                    //      all L1 particles
                     for (int b=0; b<size; b++)
                         if (groupaux[start[b].index()].is_taggable()
-				|| P.OutputAllHaloParticles) {
+                                    || P.OutputAllHaloParticles) {
                             posstruct r = WrapPosition(grouppos[start[b].index()]+offset);
                             velstruct v = groupvel[start[b].index()];
                             // Velocities were full kicked; half-unkick before halostats
@@ -740,7 +908,25 @@ void GlobalGroupSlab::FindSubGroups() {
                     h.npout = pL1Particles->get_pencil_size()-npstart;
                     pL1halos->append(h);
                 } // Done with this L1 halo
-            } // Done with this group
+                // We now output the non-L1 particles in this L0 group.
+                // This must happen here because the microstepping might 
+                // alter the L0 pos/vel before we output the field particles.
+                for (int b=0; b<groupn; b++) {
+                    if (groupaux[b].is_L1()) continue;  // Already in the L1 set
+                    if (groupaux[b].is_taggable()
+                            || P.OutputAllHaloParticles) {
+                        posstruct r = WrapPosition(grouppos[b]+offset);
+                        velstruct v = groupvel[b];
+                        // Velocities were full kicked; half-unkick before halostats
+                        if (groupacc != NULL)
+                            v -= TOFLOAT3(groupacc[b])*WriteState.FirstHalfEtaKick;
+                        pL1Particles->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
+                        pL1PIDs->append(TaggedPID(groupaux[b].pid()));
+                    }
+                }
+                // If we want to do anything else with the L0 particles,
+                // we could do so here.
+            } // Done with this L0 group
             pL1halos->FinishCell();
             pTaggedPIDs->FinishCell();
             pL1Particles->FinishCell();
@@ -897,64 +1083,34 @@ be skipped if no L1 halos were found (but taggable particles will still be writt
 
 void GlobalGroupSlab::HaloOutput() {
     GFC->OutputLevel1.Start();
-         
-        STDLOG(0,"Beginning halo output for slab %d\n", slab);
+    STDLOG(0,"Beginning halo output for slab %d\n", slab);
         
-        // Ensure the output directory for this step exists
+    if(slab == 0){
         char dir[32];
         sprintf(dir, "Step%04d_z%5.3f", ReadState.FullStepNumber, ReadState.Redshift);
         CreateSubDirectory(P.GroupDirectory, dir);
-        
-        if(slab == 0){
-            std::string headerfn = "";
-            headerfn = headerfn + P.GroupDirectory + "/" + dir + "/header";
-            WriteGroupHeaderFile(headerfn.c_str());
-        }
+        std::string headerfn = "";
+        headerfn = headerfn + P.GroupDirectory + "/" + dir + "/header";
+        WriteGroupHeaderFile(headerfn.c_str());
+    }
 
-    // Write out the taggable particles not in L1 halos
-    // TODO: Technically HaloTaggableFraction is only used in the IC step
-    uint64 maxsize = SS->size(slab)*P.HaloTaggableFraction;
-    maxsize += 6*sqrt(maxsize);  // 6-sigma buffer
-
-    SB->AllocateSpecificSize(TaggableFieldSlab, slab, maxsize*sizeof(RVfloat));
-    SB->AllocateSpecificSize(TaggableFieldPIDSlab, slab, maxsize*sizeof(TaggedPID));
-        
-    uint64 nfield = GatherTaggableFieldParticles(slab,
-                        (RVfloat *) SB->GetSlabPtr(TaggableFieldSlab, slab),
-                        (TaggedPID *) SB->GetSlabPtr(TaggableFieldPIDSlab, slab),
-                        WriteState.FirstHalfEtaKick);
-        if(nfield > 0){
-                // only write the uniform subsample files if they will have non-zero size
-                SB->ResizeSlab(TaggableFieldSlab, slab, nfield*sizeof(RVfloat));
-                SB->ResizeSlab(TaggableFieldPIDSlab, slab, nfield*sizeof(TaggedPID));
-                SB->StoreArenaNonBlocking(TaggableFieldSlab, slab);
-                SB->StoreArenaNonBlocking(TaggableFieldPIDSlab, slab);
-        } else {
-                SB->DeAllocate(TaggableFieldSlab, slab);
-                SB->DeAllocate(TaggableFieldPIDSlab, slab);
-        }
-                
     if (L1halos.pencils == NULL || L1halos.get_slab_size() == 0){
         GFC->OutputLevel1.Stop();
         return;
     }
-        // If pencils is NULL, then FindSubgroups() wasn't run and
-        // nothing about L1 groups is even defined.
-        // And if get_slab_size() is 0, then we found ran FOF but found nothing.
-        // No point making empty files!
 
     // Write out the stats on the L1 halos
-        SB->AllocateSpecificSize(L1halosSlab, slab, L1halos.get_slab_bytes());
+    SB->AllocateSpecificSize(L1halosSlab, slab, L1halos.get_slab_bytes());
     L1halos.copy_to_ptr((HaloStat *)SB->GetSlabPtr(L1halosSlab, slab));
     SB->StoreArenaNonBlocking(L1halosSlab, slab);
 
     // Write out tagged PIDs from the L1 halos
-        SB->AllocateSpecificSize(TaggedPIDsSlab, slab, TaggedPIDs.get_slab_bytes());
+    SB->AllocateSpecificSize(TaggedPIDsSlab, slab, TaggedPIDs.get_slab_bytes());
     TaggedPIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(TaggedPIDsSlab, slab));
     SB->StoreArenaNonBlocking(TaggedPIDsSlab, slab);
 
     // Write out the pos/vel of the taggable particles in L1 halos
-        SB->AllocateSpecificSize(L1ParticlesSlab, slab, L1Particles.get_slab_bytes());
+    SB->AllocateSpecificSize(L1ParticlesSlab, slab, L1Particles.get_slab_bytes());
     L1Particles.copy_convert((RVfloat *)SB->GetSlabPtr(L1ParticlesSlab, slab),
         // somewhat experimental: pass a lambda to convert velocities to ZSpace
         [](RVfloat xv) {  xv.vel[0] *= 1./ReadState.VelZSpace_to_Canonical;
@@ -964,12 +1120,11 @@ void GlobalGroupSlab::HaloOutput() {
     SB->StoreArenaNonBlocking(L1ParticlesSlab, slab);
 
     // Write out the PIDs of the taggable particles in the L1 halos
-        SB->AllocateSpecificSize(L1PIDsSlab, slab, L1PIDs.get_slab_bytes());
+    SB->AllocateSpecificSize(L1PIDsSlab, slab, L1PIDs.get_slab_bytes());
     L1PIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(L1PIDsSlab, slab));
     SB->StoreArenaNonBlocking(L1PIDsSlab, slab);
 
     GFC->OutputLevel1.Stop();
-
     return;
 }
 
@@ -983,6 +1138,11 @@ void GlobalGroupSlab::WriteGroupHeaderFile(const char* fn){
 }
 
 #endif
+
+
+
+
+
 
 #ifndef STANDALONE_FOF
 /** When we do group finding, we write all the non-L0 particles into normal
@@ -1017,7 +1177,6 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
     // For sanity, be careful that the previous lines end with a \n!
     AA->finalize_header();
 
-    int diam = 2*GFC->GroupRadius+1;
     // Now scan through cell groups
     for (int j=0; j<GFC->cpd; j++)
         for (int k=0; k<GFC->cpd; k++)
@@ -1038,6 +1197,7 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
                     Cell _cell = CP->GetCell(cellijk);
                     // Convert pos back to global. Note periodic wrap.
                     cellijk -= firstcell;
+                    /// TODO: Is this logic still correct??
                     if (cellijk.x> diam) cellijk.x-=GFC->cpd;
                     if (cellijk.x<-diam) cellijk.x+=GFC->cpd;
                     if (cellijk.y> diam) cellijk.y-=GFC->cpd;

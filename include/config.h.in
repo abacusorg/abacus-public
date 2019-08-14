@@ -203,6 +203,9 @@
 /* Path to nvcc binary */
 #undef NVCC_PATH
 
+/* "Use one-sided algorithm for L0 group finding" */
+#undef ONE_SIDED_GROUP_FINDING
+
 /* Define to the address where bug reports for this package should be sent. */
 #undef PACKAGE_BUGREPORT
 

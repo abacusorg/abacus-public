@@ -49,7 +49,7 @@ Cartesian2Reduced.a: $(Cartesian2Reduced_OBJ)
 $(Cartesian2Reduced_OBJ): %.o: %.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $(@:.o=.cpp)
 
-EvaluateTaylorTest: EvaluateTaylor.cpp ETAVX512.o ETAVX.o ET_unrolled.o
+EvaluateTaylorTest: EvaluateTaylor.cpp ETAVX512.o ETAVX.o ET_unrolled.o ET_VSX.o
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -Wall -fopenmp -DTEST $^ -o $@ -I../../include $(GSL_LIBS)
 
 EvaluateMultipolesTest: EvaluateMultipoles.cpp CMAVX512.o CMAVX.o CM_unrolled.o CM_VSX.o
