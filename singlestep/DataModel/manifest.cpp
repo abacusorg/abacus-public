@@ -75,7 +75,7 @@ class DependencyRecord {
            The issue is that case (1) needs to indicate the existence of 
            data that hasn't yet been shipped.  In particular, that FindLinks has happened on forward slabs.
         */
-        if (Finish.notdone(finished_slab)) {
+        if (Drift.notdone(finished_slab)) {
             // We're in the first case; don't pass along anything ahead.
             STDLOG(3, "Changing end from %d to %d\n", end, finished_slab);
             end = finished_slab;
