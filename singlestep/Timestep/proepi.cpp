@@ -47,11 +47,7 @@ STimer ComputeMultipoles;
 STimer WriteMergeSlab;
 STimer WriteMultipoleSlab;
 STimer QueueMultipoleMPI; 
-STimer PCDDestructor; 
-STimer WrappingUp1;
-STimer WrappingUp2;
 STimer ParallelConvolveDestructor; 
-
 
 STimer OutputTimeSlice;
 STimer OutputLightCone;
@@ -195,12 +191,38 @@ int * total_slabs_all = NULL;
 #include <fenv.h>
 
 
+void InitializeParallel(int &size, int &rank) {
+    #ifdef PARALLEL
+         // Start up MPI
+         int init = 1;
+         MPI_Initialized(&init);
+         assertf(!init, "MPI was already initialized!\n");
+
+         int ret = -1;
+         MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
+         assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
+         MPI_Comm_size(MPI_COMM_WORLD, &size);
+         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+         sprintf(NodeString,".%04d",rank);
+    #else
+    #endif
+    return;
+}
+
+void FinalizeParallel() {
+    #ifdef PARALLEL
+
+        // Finalize MPI
+        STDLOG(0,"Calling MPI_Finalize()\n");
+        MPI_Finalize();
+    #else
+    #endif
+}
 /*! \brief Initializes global objects
  *
  */
-void Prologue(Parameters &P, bool MakeIC, int recover_redlack = 0) {
+void Prologue(Parameters &P, bool MakeIC) {
     STDLOG(1,"Entering Prologue()\n");
-	STDLOG(2,"Recover redlack = %d\n", recover_redlack);
     STDLOG(2,"Size of accstruct is %d bytes\n", sizeof(accstruct));
     prologue.Clear();
     prologue.Start();
@@ -261,7 +283,8 @@ void Prologue(Parameters &P, bool MakeIC, int recover_redlack = 0) {
         SlabForceLatency = new STimer[cpd];
         SlabFarForceTime = new STimer[cpd];
 
-		if (!recover_redlack) RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
+		RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
+
         NFD = new NearFieldDriver(P.NearFieldRadius);
     } else {
         TY = NULL;
@@ -271,21 +294,6 @@ void Prologue(Parameters &P, bool MakeIC, int recover_redlack = 0) {
 
     prologue.Stop();
     STDLOG(1,"Leaving Prologue()\n");
-}
-
-void RecoverRedlackDipole(Parameters &P){
-	STDLOG(1, "Recovering redlack and globaldipole files\n");
-  
-    // Some pipelines, like standalone_fof, don't use multipoles
-    if(MF != NULL){
-        MF->GatherRedlack();    // For the parallel code, we have to coadd the inputs
-        if (MPI_rank==0) {
-            MF->ComputeRedlack();  // NB when we terminate SlabMultipoles we write out these
-            if (WriteState.NodeRank==0)
-                MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
-        }
-        delete MF;
-    }
 }
 
 /*! \brief Tears down global objects
@@ -298,14 +306,14 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     // IO_Terminate();
 
-    if(IL->length!=0) { IL->DumpParticles(); assert(IL->length==0); }
-    
+	if(IL->length!=0) { IL->DumpParticles(); assert(IL->length==0); }
+
     if(SS != NULL){
         SS->store_from_params(P);
-    }
+   	}
 
-    // Some pipelines, like standalone_fof, don't use multipoles
-    if(MF != NULL){
+    
+    if(MF != NULL){ // Some pipelines, like standalone_fof, don't use multipoles
         MF->GatherRedlack();    // For the parallel code, we have to coadd the inputs
         if (MPI_rank==0) {
             MF->ComputeRedlack();  // NB when we terminate SlabMultipoles we write out these
@@ -316,14 +324,14 @@ void Epilogue(Parameters &P, bool MakeIC) {
     }
 
     if(ReadState.DoBinning){
-            STDLOG(1,"Outputting Binned Density\n");
-            char denfn[2048];
-            // TODO: Should this be going to ReadState or WriteState or Output?
-            sprintf(denfn,"%s/density%s",P.ReadStateDirectory, NodeString);
-            FILE * densout = fopen(denfn,"wb");
-            fwrite(density,sizeof(FLOAT),P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d,densout);
-            fclose(densout);
-            delete density; density = 0;
+        STDLOG(1,"Outputting Binned Density\n");
+        char denfn[2048];
+        // TODO: Should this be going to ReadState or WriteState or Output?
+        sprintf(denfn,"%s/density%s",P.ReadStateDirectory, NodeString);
+        FILE * densout = fopen(denfn,"wb");
+        fwrite(density,sizeof(FLOAT),P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d,densout);
+        fclose(densout);
+        delete density; density = 0;
     }
 
     SB->report();
@@ -333,7 +341,8 @@ void Epilogue(Parameters &P, bool MakeIC) {
     delete IL;
     delete SS;
     delete Grid;
-    FreeManifest();
+	
+	FreeManifest();
 
 
     if(!MakeIC) {
