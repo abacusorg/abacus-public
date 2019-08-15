@@ -67,6 +67,18 @@ class DependencyRecord {
         for (;end<finished_slab+d.cpd;end++) {
             if (d.notdone(end)) break;
         } end--;
+        /* The manifest code is called in two different use cases:
+           1) when the GlobalGroups have happened and we want to pass 
+           along the earlier info so that Groups can proceed on the neighbor.
+           2) when Finish has happened and we want to get rid of everything
+           relevant to the earlier slabs.
+           The issue is that case (1) needs to indicate the existence of 
+           data that hasn't yet been shipped.  In particular, that FindLinks has happened on forward slabs.
+        */
+        if (Finish.notdone(finished_slab)) {
+            // We're in the first case; don't pass along anything ahead.
+            end = finished_slab;
+        }
         STDLOG(2, "Load Dependency %s [%d,%d)\n", label, begin, end);
         return;
     }
