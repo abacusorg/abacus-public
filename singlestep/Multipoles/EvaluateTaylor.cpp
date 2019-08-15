@@ -117,27 +117,11 @@ void Taylor::AnalyticEvaluateTaylor(double *CT, FLOAT3 expansioncenter, int np,
 #ifdef UNROLLEDMULTIPOLES
 
 void Taylor::UnrolledEvaluateTaylor(double *CT, FLOAT3 center, int n, FLOAT3 *p, FLOAT3 *acc) {
-    int cml_orderm1 = (order)*(order+1)*(order+2)/6;
-    double3 Q[cml_orderm1];
-
-
-    // We could unroll the below loop for more speed, but it already runs at ~60 Mpart/s/core
-    int i,a,b,c;
-    i = 0;
-    FOR(a,0,order-1)
-        FOR(b,0,order-1-a)
-            FOR(c,0,order-1-a-b) {
-                Q[i].x = (a+1)*CT[ cmap(a+1,b  ,c  ) ];
-                Q[i].y = (b+1)*CT[ cmap(a  ,b+1,c  ) ];
-                Q[i].z = (c+1)*CT[ cmap(a  ,b  ,c+1) ];
-                i++;
-            }
-
     // We up-cast the positions in the AVX versions, so for consistency do that here
     double3 dcenter = double3(center);
 
     // This function call contains the loop over particles; allows vectorization
-    DispatchTaylorUnrolledKernel(order, p, n, dcenter, Q, acc);
+    DispatchTaylorUnrolledKernel(order, p, n, dcenter, CT, acc);
 }
 
 #endif
@@ -370,21 +354,24 @@ void compare_acc(FLOAT3 *acc1, FLOAT3* acc2, int nacc, double rtol){
     }
     printf("\t>>> %d (%.2f%%) mismatched accels\n", nbad, (FLOAT) nbad/nacc*100);
     printf("\t>>> Max frac error: %.2g \n", max_frac_diff);
+    fflush(stdout);
 }
 
 void report(const char* prefix, int64_t npart, std::chrono::duration<double> elapsed, int nthread){
-    double nflop = 842*npart + 360;
+    //double nflop = 842*npart + 360;  // Q version
+    double nflop = 1199*npart;  // no Q version
 
     auto t = elapsed.count();
 
     std::cout << prefix << " time: " << t << " sec" << std::endl;
     printf("\t %.3f Mpart per second (%.3g DP-GFLOPS per thread)\n", npart/1e6/t, nflop/1e9/t/nthread);
+    fflush(stdout);
 }
 
 int main(int argc, char **argv){
     Taylor TY(8);
 
-    int ncell = 10*1875*1875;
+    int ncell = 1*1875*1875;
     int ppc = 52;
     if (argc > 1)
         ppc = atoi(argv[1]);

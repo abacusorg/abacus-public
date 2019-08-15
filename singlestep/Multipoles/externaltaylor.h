@@ -17,7 +17,7 @@ void DispatchTaylor512Kernel(int order, double *CT, FLOAT3 center, int n, FLOAT3
 #endif
 
 #ifdef UNROLLEDMULTIPOLES
-void DispatchTaylorUnrolledKernel(int order, FLOAT3 *p, int n, double3 center, double3 *Q, float3 *acc);
+void DispatchTaylorUnrolledKernel(int order, FLOAT3 *p, int n, double3 center, double *CT, float3 *acc);
 #endif
 
 #ifdef VSXMULTIPOLES
