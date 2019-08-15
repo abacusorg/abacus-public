@@ -57,12 +57,15 @@ class DependencyRecord {
     /// Load the status of this dependency 
     void Load(Dependency &d, int finished_slab, const char label[]) {
         end = finished_slab;
+		
         for (begin=end-1; begin>end-d.cpd; begin--) {
             if (d.notdone(begin)) break;
             //// d.mark_to_repeat(begin);   // We're not going to unmark
         }
+		
         // We've found the first notdone slab
         begin++;   // Want to pass the first done one
+		
         // Now look for the last done slab
         for (;end<finished_slab+d.cpd;end++) {
             if (d.notdone(end)) break;
@@ -100,7 +103,7 @@ class DependencyRecord {
         end++;   // Now this marks the first ==2.
         for (begin=end-1; begin>end-GFC->cpd; begin--) {
             int s = CP->WrapSlab(begin);
-            if (GFC->cellgroups_status[s]!=0) break;
+            if (GFC->cellgroups_status[s]!=1) break;
             // Need to load this over to the Arenas
             STDLOG(2,"Packing CellGroupArena for slab %d\n", s);
             GFC->cellgroups[s].pack(CellGroupArena,s);
