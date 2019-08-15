@@ -196,32 +196,6 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
 
     return retval
 
-# def handle_requeue(retval, parfn):
-#     #if singlestep returns a retval of EXIT_REQUEUE, we will quit this job and resubmit it to the queue.
-#     #by this point we should have gracefully retrieved the state from the nodes to the global directory.
-#     #we will need to tell the next queued job that it should redistribute the state back to the nodes.
-#     #this function modifies the abacus.par2 file in the Production directory to handle this.
-#
-#     #first, check if DistributeToResume is defined in abacus.par2 from a previous run. If so, delete this line.
-#     fh, abs_path = mkstemp()
-#
-#     # TODO: how to signal this without modifying the .par2 file?
-#     with os.fdopen(fh,'w') as new_file, open(parfn) as old_file:
-#         for line in old_file:
-#             new_file.write(line.replace('DistributeToResume = 1\n',  '\n'))
-#
-#     #Remove original file
-#     os.remove(parfn)
-#     #Move new file
-#     shutil.move(abs_path, parfn)
-#
-#     #then check if we are about to requeue the job, and set DistributeToResume = 1 if yes.
-#     if retval == EXIT_REQUEUE:
-#         print('Exit requeue triggered. Modifying parameter file to DistributeToResume next time around.')
-#         with open(parfn,"a") as f:
-#             f.write('DistributeToResume = 1\n')
-#         #sys.exit()
-
 def copy_contents(in_dir, out_dir, clean=True, ignore='*.py'):
     if clean:
         if path.isdir(out_dir):
@@ -885,7 +859,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 #
 #                 reconstruct_read_multipoles_cmd = [pjoin(abacuspath, 'singlestep', 'recover_multipoles'), paramfn]
    
+   
+    emergency_exit_fn = pjoin(param['WorkingDirectory'], 'abandon_ship')
     print("Beginning abacus steps:")
+    print("\n------------------")
+    print("To trigger emergency quit safely, create file", emergency_exit_fn)
+    print("------------------")
     
     singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic))]
     if parallel:
@@ -1057,9 +1036,16 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 np.savez(pjoin(param.LogDirectory, f"step{write_state.FullStepNumber:04d}.pow"), k=k,P=P,nb=nb)
                 os.remove(dfn)
         
-        if parallel and (wall_timer() - start_time >= run_time_secs):
+        abandon_ship = path.exists(emergency_exit_fn)
+        graceful_exit = (wall_timer() - start_time >= run_time_secs) or abandon_ship
+        
+        if parallel and graceful_exit:
             print("Current time: ", wall_timer(), start_time, run_time_secs)
             restore_time = wall_timer()
+            
+            if abandon_ship:
+                print('\nAbandoning ship!\n')
+                
 
             print('Graceful exit triggered. Retrieving state from nodes and saving in global directory.')
             retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, resume_dir, '--retrieve', '--verbose']
@@ -1069,6 +1055,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             
             print(f'Retrieving and storing state took {restore_time} seconds\n')
             print('Exiting and requeueing.')
+            
+            #checking if path exists explicitly just in case user requested emergency exit while we were retrieveing the state. 
+            if path.exists(emergency_exit_fn): 
+                os.remove(emergency_exit_fn)
+                
             return EXIT_REQUEUE  
         
         # Now shift the states down by one
@@ -1091,11 +1082,16 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
         # This logic is deliberately consistent with singlestep.cpp
         # If this is an IC step then we won't have read_state
-        if not make_ic and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0:
+        if (not make_ic and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0):
             print(f"Final redshift of {finalz:g} reached; terminating normally.")
             status_log.print(f"Final redshift of {finalz:g} reached; terminating normally.")
             finished = True
-            break
+            break 
+            
+        if abandon_ship:
+            print(f"Abandon ship triggered! Terminating job.")
+            os.remove(emergency_exit_fn)
+            break       
         
         make_ic = False
         

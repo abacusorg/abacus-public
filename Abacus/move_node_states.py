@@ -174,33 +174,36 @@ def distribute_to_resume(parfile, resumedir, verbose=True):
           
 
 def retrieve_state(parfile, resumedir, verbose=True):
+    
     par = InputFile(parfile)
     
     comm = MPI.COMM_WORLD
     size = comm.Get_size()
     rank = comm.Get_rank()
 
-
     if verbose:
         print('Retrieve state invoked on rank {} of {}'.format(rank, size), file=sys.stderr)
     
-
     dest = pjoin(resumedir, 'rank_' + str(rank))
     
-    backup_dest_root =  pjoin(os.path.dirname(par['WorkingDirectory']), par['SimName'] + '_retrieved_state_backup')
-    backup_dest = pjoin(backup_dest_root, 'rank_' + str(rank))
+    past =  pjoin(os.path.dirname(par['WorkingDirectory']), par['SimName'] + '_retrieved_state_past')
+    past_node = pjoin(past, 'rank_' + str(rank))
     
     source = par['LocalWorkingDirectory']
     
-    try:
-        shutil.rmtree(backup_dest)
-    except FileNotFoundError:
-        pass
+    comm.Barrier() 
     
+    if rank == 0:
+        try:
+            shutil.rmtree(past)
+        except FileNotFoundError:
+            pass
+            
+    comm.Barrier() 
      
     try: 
         print('Renaming previous runs retrieved states to backup files')
-        shutil.move(dest, backup_dest)
+        os.rename(resumedir, past)
     except FileNotFoundError:
         pass
 
@@ -237,17 +240,10 @@ def retrieve_state(parfile, resumedir, verbose=True):
             if re.match(r'^((?!_\d{4}).)*$', basename(fn)): 
                 shutil.copy(fn, dest)
     
-    if verbose:
-        print('Success retrieving state! Removing backup files.')
-
-    try:
-        shutil.rmtree(backup_dest_root)
-    except FileNotFoundError:
-        pass
-        
-    if verbose:
-        print('State retrieval complete.')
+    comm.Barrier() 
     
+    if verbose:
+        print('Success retrieving state off node ', rank, '!')
 
 
 if __name__ == '__main__':
