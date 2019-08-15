@@ -200,13 +200,15 @@ def retrieve_state(parfile, resumedir, verbose=True):
             pass
             
     comm.Barrier() 
-     
-    try: 
-        print('Renaming previous runs retrieved states to backup files')
-        os.rename(resumedir, past)
-    except FileNotFoundError:
-        pass
-
+    
+    if rank == 0: 
+        try: 
+            print('Renaming previous runs retrieved states to backup files')
+            os.rename(resumedir, past)
+        except FileNotFoundError:
+            pass
+    
+    comm.Barrier()
 
     if verbose:
         print('Will copy node {}s state from {} to {}'.format(rank, source, dest), file=sys.stderr)
