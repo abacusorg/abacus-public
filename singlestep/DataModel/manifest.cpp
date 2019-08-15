@@ -77,6 +77,7 @@ class DependencyRecord {
         */
         if (Finish.notdone(finished_slab)) {
             // We're in the first case; don't pass along anything ahead.
+            STDLOG(3, "Changing end from %d to %d\n", end, finished_slab);
             end = finished_slab;
         }
         STDLOG(2, "Load Dependency %s [%d,%d)\n", label, begin, end);
