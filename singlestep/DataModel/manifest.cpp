@@ -87,7 +87,7 @@ class DependencyRecord {
         end++;   // Now this marks the first ==2.
         for (begin=end-1; begin>end-GFC->cpd; begin--) {
             int s = CP->WrapSlab(begin);
-            if (GFC->cellgroups_status[s]==0) break;
+            if (GFC->cellgroups_status[s]!=0) break;
             // Need to load this over to the Arenas
             STDLOG(2,"Packing CellGroupArena for slab %d\n", s);
             GFC->cellgroups[s].pack(CellGroupArena,s);
