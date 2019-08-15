@@ -11,7 +11,7 @@ loops, so the purpose of this program is to "manually" unroll them.
 '''
 
 from multipoles_metacode_utils \
-    import emit_dispatch_function, Writer, default_metacode_argparser
+    import emit_dispatch_function, Writer, default_metacode_argparser, cmapper
 
 
 def emit_unrolled_Multipoles(orders, fn='CM_unrolled.cpp'):
@@ -174,17 +174,33 @@ def emit_unrolled_Taylors(orders, fn='ET_unrolled.cpp'):
         #include "assert.h"
 
         template <int Order>
-        void TaylorUnrolledKernel(FLOAT3 *particles, int n, double3 center, double3 *Q, float3 *acc);
+        void TaylorUnrolledKernel(FLOAT3 *particles, int n, double3 center, double *CT, float3 *acc);
 
         ''')
 
     for order in orders:
+        cml_orderm1 = (order)*(order+1)*(order+2)//6
+        cmap = cmapper(order)
+
         w(f'''
             template <>
-            void TaylorUnrolledKernel<{order}>(FLOAT3 *particles, int n, double3 center, double3 *Q, float3 *acc){{''')
+            void TaylorUnrolledKernel<{order}>(FLOAT3 *particles, int n, double3 center, double *CT, float3 *acc){{
+
+                double3 Q[{cml_orderm1}];
+            ''')
         w.indent()
 
-        cml_orderm1 = (order)*(order+1)*(order+2)//6
+        # Precompute Qxyz
+        i = 0
+        for a in range(order):
+            for b in range(order-a):
+                for c in range(order-a-b):
+                    w(f'''
+                        Q[{i}].x = {a+1}*CT[{cmap(a+1, b  , c  )}];
+                        Q[{i}].y = {b+1}*CT[{cmap(a  , b+1, c  )}];
+                        Q[{i}].z = {c+1}*CT[{cmap(a  , b  , c+1)}];
+                    ''')
+                    i += 1
 
         w('''
             #pragma GCC ivdep
@@ -233,7 +249,87 @@ def emit_unrolled_Taylors(orders, fn='ET_unrolled.cpp'):
         w.dedent()
         w('}\n')  # Kernel
 
-    emit_dispatch_function(w, 'TaylorUnrolledKernel(FLOAT3 *particles, int n, double3 center, double3 *Q, float3 *acc)', orders)
+    emit_dispatch_function(w, 'TaylorUnrolledKernel(FLOAT3 *particles, int n, double3 center, double *CT, float3 *acc)', orders)
+
+    w('#endif')  # UNROLLEDMULTIPOLES
+
+
+def emit_unrolled_Taylors_noQ(orders, fn='ET_unrolled.cpp'):
+    w = Writer(fn)
+
+    w('''
+        #include "threevector.hh"
+        #include "header.cpp"
+        
+        #ifdef UNROLLEDMULTIPOLES
+        
+        #include "assert.h"
+
+        template <int Order>
+        void TaylorUnrolledKernel(FLOAT3 *particles, int n, double3 center, double *CT, float3 *acc);
+
+        ''')
+
+    for order in orders:
+        cml_orderm1 = (order)*(order+1)*(order+2)//6
+        cmap = cmapper(order)
+
+        w(f'''
+            template <>
+            void TaylorUnrolledKernel<{order}>(FLOAT3 *particles, int n, double3 center, double *CT, float3 *acc){{
+            ''')
+        w.indent()
+
+        w('''
+            #pragma GCC ivdep
+            for(int j = 0; j < n; j++){
+            ''')
+        w.indent()
+
+        w('''
+            FLOAT3 p = particles[j];
+            double3 thisacc(0.);
+            ''')
+
+        w('''
+            double fi, fij, fijk;
+            fi = 1.0;
+            ''')
+
+        w('''
+            double deltax, deltay, deltaz;
+            deltax = p.x - center.x;
+            deltay = p.y - center.y;
+            deltaz = p.z - center.z;
+            ''')
+
+        i = 0
+        for a in range(order):
+            w('fij = fi;')
+            for b in range(order-a):
+                w('fijk = fij;')
+                for c in range(order-a-b):
+                    w(f'''
+                        thisacc.x -= {a+1}*CT[{cmap(a+1, b  , c  )}] * fijk;
+                        thisacc.y -= {b+1}*CT[{cmap(a  , b+1, c  )}] * fijk;
+                        thisacc.z -= {c+1}*CT[{cmap(a  , b  , c+1)}] * fijk;
+                        ''')
+                    i += 1
+                    if c < order-a-b-1:
+                        w('fijk *= deltaz;')
+                if b < order-a-1:
+                    w('fij *= deltay;')
+            if a < order-1:
+                w('\nfi *= deltax;')
+
+        w('acc[j] = thisacc;')
+        w.dedent()
+        w('}\n')  # particle loop
+
+        w.dedent()
+        w('}\n')  # Kernel
+
+    emit_dispatch_function(w, 'TaylorUnrolledKernel(FLOAT3 *particles, int n, double3 center, double *CT, float3 *acc)', orders)
 
     w('#endif')  # UNROLLEDMULTIPOLES
 
@@ -249,4 +345,5 @@ if __name__ == '__main__':
 
     emit_unrolled_Multipoles(orders)
     #emit_unrolled_Multipoles_FMA(orders)
-    emit_unrolled_Taylors(orders)
+    #emit_unrolled_Taylors(orders)
+    emit_unrolled_Taylors_noQ(orders)  # a little faster
