@@ -126,11 +126,16 @@ class DependencyRecord {
             SB->DeAllocate(CellGroupArena,s);
         }
         STDLOG(2, "Marking cellgroups_status = 1 for [%d,%d)\n", begin, end);
-        // We need to set cellgroups_status=2 for [end,end+2*GroupRadius]
-        // This is so that CreateGlobalGroups() doesn't crash.
-        for (int s=end; s<=end+2*GFC->GroupRadius; s++)
-            GFC->cellgroups_status[CP->WrapSlab(s)]=2;
-        STDLOG(2, "Marking cellgroups_status = 2 for [%d,%d]\n", end, end+2*GFC->GroupRadius);
+        #ifndef ONE_SIDED_GROUP_FINDING
+            // In the two-sided case, there is only one Manifest.
+            // We need to set cellgroups_status=2 for [end,end+2*GroupRadius]
+            // This is so that CreateGlobalGroups() doesn't crash.
+            // This isn't needed in the one-sided case; the dependencies 
+            // take care of the need.
+            for (int s=end; s<=end+2*GFC->GroupRadius; s++)
+                GFC->cellgroups_status[CP->WrapSlab(s)]=2;
+            STDLOG(2, "Marking cellgroups_status = 2 for [%d,%d]\n", end, end+2*GFC->GroupRadius);
+        #endif
         return;
     }
 };
