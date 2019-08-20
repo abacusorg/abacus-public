@@ -701,7 +701,7 @@ def emit_VSX_Taylors(orders, fn='ET_VSX.cpp'):
                 pz[j] = particles[i+j].z;
             }}
 
-            VSX_DOUBLES fi, fij;
+            VSX_DOUBLES fi, fij, fijk;
             fi = vec_splats(1.);
             
             VSX_DOUBLES deltax, deltay, deltaz;
@@ -747,7 +747,7 @@ def emit_VSX_Taylors(orders, fn='ET_VSX.cpp'):
         w.dedent()
         w('}\n')  # Kernel
 
-    emit_dispatch_function(w, 'TaylorVSXKernel(FLOAT3 *particles, int n, double3 center, double3 *Q, float3 *acc)', orders)
+    emit_dispatch_function(w, 'TaylorVSXKernel(FLOAT3 *particles, int n, double3 center, double *CT, float3 *acc)', orders)
 
     w('#endif')  # VSXMULTIPOLES
 

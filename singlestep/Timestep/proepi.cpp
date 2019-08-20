@@ -698,7 +698,7 @@ void SetupLocalDirectories(const int MakeIC){
                 STDLOG(1, "Removed directory \"%s\"\n", d);
             }
             int res = CreateDirectories(d);
-            assertf(res == 0, "Directory creation failed!\n");
+            assertf(res == 0, "Creating directory \"%s\" failed for reason %s!\n", d, strerror(errno));
             STDLOG(1, "Created directory \"%s\"\n", d);
         }
     }
