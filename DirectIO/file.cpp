@@ -201,6 +201,8 @@ int CreateSubDirectory(const char *path, const char *subdir) {
 
     // Or the parent directory might not exist, flag that for debugging
     CheckDirectoryExists(path);
+
+    return 0;
 }
 
 int FileExists(const char *fn) {

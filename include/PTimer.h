@@ -91,6 +91,28 @@ struct DummyHardwareTimer { };
 #ifdef _ARCH_PPC
 
 #include <sys/platform/ppc.h>
+struct alignas(CACHE_LINE_SIZE) tbr_timer {
+    uint64 tbr_start;
+    uint64 tbr_tot;
+    int on;
+
+    void Start(void){
+        tbr_start = __ppc_get_timebase();
+    }
+
+    void Stop(void){
+        tbr_tot += __ppc_get_timebase() - tbr_start;
+    }
+
+    uint64 Elapsed(void){
+        return tbr_tot;
+    }
+
+    void Clear(void){
+        tbr_start = 0;
+        tbr_tot = 0;
+    }
+};
 
 typedef PTimerBase<struct tbr_timer> PTimer;
 
