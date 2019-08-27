@@ -58,6 +58,75 @@ We are not implementing any unbinding here.
 
 #define SO_CACHE 1024
 
+// B.H. new
+
+/*
+// B.H. FIND WHERE GFC IS AND PUT THERE.  DJE -- may not be necessary
+FOFloat FOFhalfcell = FOF_RESCALE/2.0/cpd;    // Put in GFC
+FOFloat SOpartition = FOFhalfcell*2.0*sqrt(3.0)/3.0;  // The radial binning
+// This is chosen so that we get at most 4 zones across a cell.
+
+*/
+
+class alignas(16) SOcellgroup {
+  public:
+    FOFparticle center; // The center of the cell in GlobalGroup coords 
+    FOFLOAT d2;         // The minimum distance to the current halo nucleus position
+    int firstbin;       // The radial bin this cell first appears in.
+    int start[5];       // The starting point of particles in the L0 list
+    // We will allow 4 partitions of this list: 
+    // [ start[j], start[j+1] ) for j=0,1,2,3.
+    // So start[4] is start[0]+np_in_cellgroup
+
+    // Null constructors & destructors
+    // B.H. is it ok to leave like this or do explicit center = null etc. and void destroy?  DJE -- yes, this is ok.
+    SOcellgroup() { } 
+    ~SOcellgroup() { }
+
+    void load(int start_first, int start_next, FOFparticle _center) {
+        center = _center;
+        start[0] = start_first;
+        start[1] = -1;
+        start[4] = start_next; 
+    }
+
+    /// Compute the distance to the nearest point in the cell, from the supplied halocenter
+    void compute_d2(FOFparticle *halocen) {
+        dx = fabs(center.x-halocen->x)-halfcelllength; // B.H. I think that should just be FOFhalfcell.  DJE: agreed
+        dy = fabs(center.y-halocen->y)-halfcelllength;
+        dz = fabs(center.z-halocen->z)-halfcelllength;
+        if (dx<0) dx = 0.0;
+        if (dy<0) dy = 0.0;
+        if (dz<0) dz = 0.0;
+        // TODO: Figure out the cell offsets and wrapping // B.H. look up how this is usually done.  DJE I think I had done this, but not removed the TODO.
+        d2 = dx*dx+dy*dy+dz*dz;
+        firstbin = floor(sqrt(d2)/SOpartition); // B.H. I think it should be sqrt(d2)/SOpartition.  DJE: fixed, good catch
+        return;
+    }
+
+    /// Provide a sorting command, based on d2
+    // B.H. I think this just means define a sorting function
+    // DJE: if we define a < operator, then the standard sort will just work.
+    // But we may opt not to sort this list at all.
+    // TODO
+
+    // TODO: Consider moving this to the SOcell class
+    void partition() {
+        // Partition into 4 radial parts
+        FOFloat r2[4];
+        for (int j=1; j<4; j++) {
+            r2[j] = SOpartition*(firstbin+j); r2[j] *= r2[j];
+        }
+        // These now contain the boundaries (r[0] is irrelevant)
+        // TODO: partition d2[start[0],start[4]) on r2[2] to yield start[2]
+        // TODO: partition d2[start[0],start[2]) on r2[1] to yield start[1]
+        // TODO: partition d2[start[2],start[4]) on r2[3] to yield start[3]
+    }
+};
+
+
+// B.H. end new
+
 /** This class contains the workspace to do SO finding on a 
 given contiguous set of particles.
 
@@ -91,8 +160,11 @@ class SOcell {
 
 
     // B.H. new
-    SOcellgroup *socell; ///< a list of the cell groups
+    SOcellgroup *socg; ///< a list of the cell groups
     int *cellindex; ///< a list for each particle in pos of which cell it belongs to
+
+    int maxcg;          ///< The maximum number of cellgroups
+    int ncg;            ///< The active number of cellgroups
     // B.H. end new
     
     FOFTimer Total;
@@ -127,18 +199,33 @@ class SOcell {
         ret = posix_memalign((void **)&groups, CACHE_LINE_SIZE, sizeof(FOFgroup)*maxsize);  assert(ret == 0);
         if (density!=NULL) free(density);
         ret = posix_memalign((void **)&density, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
-	if (min_inv_den_part!=NULL) free(min_inv_den_part);
+        if (min_inv_den_part!=NULL) free(min_inv_den_part);
         ret = posix_memalign((void **)&min_inv_den_part, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
 
-	// B.H. new // is sizeof right?
-	if (socell!=NULL) free(socell);
-        ret = posix_memalign((void **)&socell, CACHE_LINE_SIZE, sizeof(SOcellgroup)*maxsize);  assert(ret == 0);
-	if (cellindex!=NULL) free(cellindex);
+        // B.H. new 
+        if (cellindex!=NULL) free(cellindex);
         ret = posix_memalign((void **)&cellindex, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
-	// B.H. end new
+        // B.H. end new
 	
-	if (halo_part!=NULL) free(halo_part);
+        if (halo_part!=NULL) free(halo_part);
         ret = posix_memalign((void **)&halo_part, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
+    }
+
+    void setup_socg(int size) {
+        maxcg = size;
+        ncg = 0;
+        if (socg!=NULL) free(socg);
+        int ret = posix_memalign((void **)&socg, CACHE_LINE_SIZE, sizeof(SOcellgroup)*maxcg);  assert(ret == 0);
+    }
+        
+    void resize_socg() {
+        SOcellgroup *newlist;
+        int ret = posix_memalign((void **)&newlist, CACHE_LINE_SIZE, sizeof(SOcellgroup)*maxcg*2);  assert(ret == 0);
+        memcpy(newlist, socg, sizeof(SOcellgroup)*maxcg);
+        maxcg *= 2;   // Double the previous
+        free(socg);
+        socg = newlist;
+        return;
     }
 
     SOcell() {
@@ -147,21 +234,23 @@ class SOcell {
         d2sort = NULL;
         groups = NULL;
         density = NULL;
-	min_inv_den_part = NULL;
-	halo_part = NULL;
+        min_inv_den_part = NULL;
+        halo_part = NULL;
 
-	// B.H. new 
-	socell = NULL;
-	cellindex = NULL;
-	// B.H. end new
+        // B.H. new 
+        socg = NULL;
+        cellindex = NULL;
+        // B.H. end new
 	
-	maxsize = -1;
+        maxsize = -1;
         numdists = 0;
         numsorts = 0;
         numcenters = 0;
         reset(32768);
+        setup_socg(2048);
+
         int ret = posix_memalign((void **)&twothirds, 64, sizeof(FOFloat)*(SO_CACHE+2));  assert(ret == 0);
-	for (int j=0; j<SO_CACHE+2; j++) twothirds[j] = pow(j,2.0/3.0);
+        for (int j=0; j<SO_CACHE+2; j++) twothirds[j] = pow(j,2.0/3.0);
         // We will have terrible bugs if these aren't true!
 	#ifdef AVXFOF
         assertf(sizeof(FOFparticle)==16, "FOFparticle is illegal size!");
@@ -176,18 +265,17 @@ class SOcell {
         if (d2sort!=NULL) free(d2sort); d2sort = NULL;
         if (groups!=NULL) free(groups); groups = NULL;
         if (density!=NULL) free(density); density = NULL;
-	if (min_inv_den_part!=NULL) free(min_inv_den_part); min_inv_den_part = NULL;
-	if (halo_part!=NULL) free(halo_part); halo_part = NULL;
+        if (min_inv_den_part!=NULL) free(min_inv_den_part); min_inv_den_part = NULL;
+        if (halo_part!=NULL) free(halo_part); halo_part = NULL;
 
-	// B.H. new 
-	if (socell!=NULL) free(socell); socell = NULL;
-	if (cellindex!=NULL) free(cellindex); cellindex = NULL;
-	// B.H. end new
-        
+        // B.H. new 
+        if (socg!=NULL) free(socg); socg = NULL;
+        if (cellindex!=NULL) free(cellindex); cellindex = NULL;
+        // B.H. end new
     }
     ~SOcell() {
         destroy();
-	free(twothirds);
+        free(twothirds);
     }
 
     // Co-add the timers in x to this one
@@ -207,60 +295,64 @@ class SOcell {
     /// to make a particle eligible to be the seed of a SO halo.
     /// One probably wants min_central = threshold/3 or so.
     void setup (FOFloat _threshold, FOFloat _min_central) {
-	// We're comparing the threshold to overdensity density:
-	// mass/(4*PI/3)/r^3.  So that means r^3*threshold*4*PI/3 < count
-	// in interparticle length units, which are PPD times the code units.
-	// Define T = (threshold*4*PI/3)**(1/3), so that
-	// we just compare (r*T)**3 to count.  The positions are in 
-	// FOF_RESCALE units, so we have to multiply by PPD/FOF_RESCALE
-	// to get to interparticle length units.
-	threshold = _threshold;
-	xthreshold = pow(threshold*4.0*M_PI/3.0*P.np, 1.0/3.0)/FOF_RESCALE;
-	// But we have distance squared, so we'll square this, so that
-	// multiplying this by d2 gives (r*T)**2, and ^(3/2) of that 
-	// is compared to count.
-	xthreshold *= xthreshold;
-	// tuk REMOVE OR DOCUMENT b.h.
-	// Cosmic unit density yields a count in our FOFscale densities of this:
-	FOFloat FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
-	FOFloat M_D = 30.;
-	FOFloat alpha_safety = 1.;
-	FOFloat sigma3 = M_D*sqrt(threshold*P.np/(48*M_PI*M_PI));
-	min_central = alpha_safety*5./WriteState.DensityKernelRad2*pow(sigma3,2./3); 
-	min_central /= (P.np);
-	min_central *= FOFunitdensity;
+        // We're comparing the threshold to overdensity density:
+        // mass/(4*PI/3)/r^3.  So that means r^3*threshold*4*PI/3 < count
+        // in interparticle length units, which are PPD times the code units.
+        // Define T = (threshold*4*PI/3)**(1/3), so that
+        // we just compare (r*T)**3 to count.  The positions are in 
+        // FOF_RESCALE units, so we have to multiply by PPD/FOF_RESCALE
+        // to get to interparticle length units.
+        threshold = _threshold;
+        xthreshold = pow(threshold*4.0*M_PI/3.0*P.np, 1.0/3.0)/FOF_RESCALE;
+        // But we have distance squared, so we'll square this, so that
+        // multiplying this by d2 gives (r*T)**2, and ^(3/2) of that 
+        // is compared to count.
+        xthreshold *= xthreshold;
+        // tuk REMOVE OR DOCUMENT b.h.
+        // Cosmic unit density yields a count in our FOFscale densities of this:
+        FOFloat FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
+        FOFloat M_D = 30.;
+        FOFloat alpha_safety = 1.;
+        FOFloat sigma3 = M_D*sqrt(threshold*P.np/(48*M_PI*M_PI));
+        min_central = alpha_safety*5./WriteState.DensityKernelRad2*pow(sigma3,2./3); 
+        min_central /= (P.np);
+        min_central *= FOFunitdensity;
         return;
     }
+
+
+
 
     // B.H. new
     // ======================  Fill SOcellgroup array  ===========================
     // for a given halo center fill an array of SOcell groups
-  void fill_socell(FOFparticle hcenter, SOcellgroup *socell, int *cellindex) {
-	// B.H. new 
+    void fill_socg(FOFparticle hcenter, SOcellgroup *socg, int *cellindex) {
+        // B.H. new 
         // please do more elegantly, Boryana
-	int count_cg = 0;
-	int start = 0;
-	socell[count_cg].center = hcenter; // center of halo check syntax in fof_sublink
-	socell[count_cg].start_first = start; // where first particle starts for this SOcellgroup
-	count_cg++;
-	// Then scan through list, looking for changes in cellindex to trigger new SOcellgroup
-	for (int j=1; j<np; j++) {
-	  if (cellindex[j]-cellindex[j-1] != 0) {
-	    start = j;
-	    socell[count_cg-1].start_next = start; // where next SOcellgroup starts
+        // DJE: I wrote a version of this below, but it's rather similar
+        int count_cg = 0;
+        int start = 0;
+        socg[count_cg].center = hcenter; // center of halo check syntax in fof_sublink
+        socg[count_cg].start_first = start; // where first particle starts for this SOcellgroup
+        count_cg++;
+        // Then scan through list, looking for changes in cellindex to trigger new SOcellgroup
+        for (int j=1; j<np; j++) {
+            if (cellindex[j]-cellindex[j-1] != 0) {
+                start = j;
+                socg[count_cg-1].start_next = start; // where next SOcellgroup starts
 
-	    socell[count_cg].center = hcenter; // center of halo check syntax
-	    socell[count_cg].start_first = start; // where first particle starts for this SOcellgroup
-	    count_cg++;
-	  }
-	}
+                socg[count_cg].center = hcenter; // center of halo check syntax
+                socg[count_cg].start_first = start; // where first particle starts for this SOcellgroup
+                count_cg++;
+            }
+        }
     }
     
 
 
     // ======================  Search SOcellgroup Threshold  ===========================
   // I HAVEN'T TOUCHED THIS YET BUT IT MAKES SENSE
-  // FOFloat search_socell_thresh(FOFparticle hcenter, SOcellgroup *socell) {
+  // FOFloat search_socg_thresh(FOFparticle hcenter, SOcellgroup *socg) {
 int mass = 0;
 float r2found = 0; // B.H. this is where threshold is maybe we want FOFloat
 
@@ -632,14 +724,14 @@ for (int r=0; ;r++) {
 	    Search.Start();
 
 	    // B.H. new
-	    // First fill the socell array with all cells in which pcles of this FOF reside
-	    // and distances d2 to this nucleus (i.e. call fill_socell(p[start],np)).
+	    // First fill the socg array with all cells in which pcles of this FOF reside
+	    // and distances d2 to this nucleus (i.e. call fill_socg(p[start],np)).
 	    // Instead of computing distances to all particles as done in compute_d2 
-	    // call compute_d2(p[start]) for each socell entry 
+	    // call compute_d2(p[start]) for each socg entry 
 	    // to get the distances to all cells
 	    // (so move function here and rename to compute_cell_d2 or keep in other class but
 	    // need to check syntax). Finally substitute original_search with
-	    // search_socell_thresh(p[start], socell) and voila
+	    // search_socg_thresh(p[start], socg) and voila
 	    // B.H. end new
 	    
 	    FOFloat inv_enc_den;
@@ -759,7 +851,66 @@ for (int r=0; ;r++) {
 	Sweep.Stop();
 	
     }
+    }
+    }
 
+// ---------------- Routines for cell indexes and cell groups -------------
+
+    // This provides a simple parsing of the positions back into uniquely
+    // numbered cell indices.  
+    // NOTE: This assumes that particles occupy [-halfinvcpd,+halfinvcpd) in cells
+    inline int compute_cellindex(posstruct &p) {
+        int i = floor((p.x+CP->halfinvcpd)*CP->cpd)+128;
+        int j = floor((p.y+CP->halfinvcpd)*CP->cpd)+128;
+        int k = floor((p.z+CP->halfinvcpd)*CP->cpd)+128;
+        return (i<<16)|(j<<8)|k;
+    }
+
+    /// Given the cellindex number, return the cell center
+    inline FOFparticle compute_cellcenter(int cellidx) {
+        int k = (cellidx&0xff);
+        int j = (cellidx&0xff00)>>8;
+        int i = (cellidx&0xff0000)>>16;
+        posstruct p;
+        p.z = CP->invcpd*(k-128);
+        p.y = CP->invcpd*(j-128);
+        p.x = CP->invcpd*(i-128);
+        return FOFparticle(p,0);
+    }
+
+    /// Optional: if we think the particles are not in a good order,
+    /// we could sort p[], density[], and cellindex[] based on cellindex[].
+    void sort_on_cellindex() {
+        // TODO: Write this
+        // TODO: But see below; I think this is not the simplest route
+    }
+
+    /// Given the cellindex[] array, we want to scan through
+    void load_socg() {
+        int lastidx = 0x0f000000;   // An impossible index
+        int laststart = -1;
+        ncg = 0;
+
+        for (int j=0; j<np; j++) {
+            if (cellindex[j] == lastidx) continue;
+                // else we've found the start of a new group
+            if (laststart==-1) {
+                // It's the first group, so just start it.
+                lastidx = cellindex[j]; laststart = j; continue;
+            }
+            // else record the old group and start anew
+            socg[ncg++].load(laststart, j, compute_cellcenter(lastidx));
+            if (ncg>=maxcg) resize_socg();   
+                    // This guards against overrunning the socg memory
+            lastidx = cellindex[j]; laststart = j; 
+        }
+        // Always have one group left at the end
+        socg[ncg++].load(laststart, np, compute_cellcenter(lastidx));
+        return;
+    }
+
+
+// ------------------- Main calling routine ---------------------------------
 
     /// This takes in all of the positions, velocities, and aux for
     /// a cell of size n.
@@ -780,11 +931,8 @@ for (int r=0; ;r++) {
         Copy.Start();
         for (int j=0; j<np; j++) {
             p[j] = FOFparticle(pos[j],j);
-	    density[j] = acc[j].w;   // TODO: Check syntax
-	    // B.H. new
-	    integer3 tmp = floor((pos[j]+posstruct(CP->halfinvcpd))*CP->cpd);
-	    cellindex[j] = (tmp.x+128)*256*256+(tmp.y+128)*256+(tmp.z+128);
-	    // B.H. end new
+            density[j] = acc[j].w;   // TODO: Check syntax
+            cellindex[j] = compute_cellindex(pos[j]);
         }
         Copy.Stop();
 
@@ -802,79 +950,22 @@ for (int r=0; ;r++) {
     // aka distances should be same size as socellgroup array
 */
 
-	
+    // Optional: call sort_on_cellindex()
+    // Load the cellgroup list
+    load_socg();
+
+    // TODO question: After this point, do we ever use the particle cellindex again?
+    // If not, then let's not permute it.
+    // I think we agreed that the particle index is in fact all that is needed
+    // if we want to put the L1 particles back into cellgroup order.
+
+
 	greedySO();
+
+    // Optional?  If L1, then we may want to sort the FOFparticles of each outgoing group into particle index order, as that will re-order into cellgroups and speed up L2.  May be simpler than sorting on the cellindex.  Could add a < operator to FOFparticle and make it a one-liner.
 
 	Total.Stop();
 	return ngroups;
     }
 };
 
-
-// B.H. new
-
-/*
-// B.H. FIND WHERE GFC IS AND PUT THERE
-FOFloat FOFhalfcell = FOF_RESCALE/2.0/cpd;    // Put in GFC
-FOFloat SOpartition = FOFhalfcell*2.0*sqrt(3.0)/3.0;  // The radial binning
-// This is chosen so that we get at most 4 zones across a cell.
-
-*/
-
-class alignas(16) SOcellgroup {
-  public:
-    FOFparticle center; // The center of the cell in GlobalGroup coords B.H. do this in gg
-    FOFLOAT d2;         // The minimum distance to the current halo nucleus position
-    int firstbin;       // The radial bin this cell first appears in.
-    int start[5];       // The starting point of particles in the L0 list
-    // We will allow 4 partitions of this list: [ start[j], start[j+1] ) for j=0,1,2,3.
-    // So start[4] is start[0]+np_in_cellgroup
-
-    // B.H. not sure
-    int start_first; // where do L0 particles for the SOcellgroup start
-    
-    
-    // Null constructors & destructors
-    // B.H. is it ok to leave like this or do explicit center = null etc. and void destroy?
-    SOcellgroup() { } 
-    ~SOcellgroup() { }
-
-    void load() {
-        start[0] = start_first;// TODO: Starting point // B.H. Check this should be done in globalgroups or internally
-        start[1] = -1;
-        start[4] = start_next; // TODO; End  // B.H. Check this should be done in globalgroups 
-    }
-
-    /// Compute the distance to the nearest point in the cell, from the supplied halocenter
-    void compute_d2(FOFparticle *halocen) {
-        dx = fabs(center.x-halocen->x)-halfcelllength; // B.H. I think that should just be FoFhalfcell
-        dy = fabs(center.y-halocen->y)-halfcelllength;
-        dz = fabs(center.z-halocen->z)-halfcelllength;
-        if (dx<0) dx = 0.0;
-        if (dy<0) dy = 0.0;
-        if (dz<0) dz = 0.0;
-        // TODO: Figure out the cell offsets and wrapping // B.H. look up how this is usually done
-        d2 = dx*dx+dy*dy+dz*dz;
-        firstbin = floor(sqrt(d2/SOpartition)); // B.H. I think it should be sqrt(d2)/SOpartition
-        return;
-    }
-
-    /// Provide a sorting command, based on d2
-    // B.H. I think this just means define a sorting function
-    // TODO
-
-    void partition() {
-        // Partition into 4 radial parts
-        FOFloat r2[4];
-        for (int j=1; j<4; j++) {
-            r2[j] = SOpartition*(firstbin+j); r2[j] *= r2[j];
-        }
-        // These now contain the boundaries (r[0] is irrelevant)
-        // TODO: partition d2[start[0],start[4]) on r2[2] to yield start[2]
-        // TODO: partition d2[start[0],start[2]) on r2[1] to yield start[1]
-        // TODO: partition d2[start[2],start[4]) on r2[3] to yield start[3]
-    }
-};
-
-
-// B.H. end new
