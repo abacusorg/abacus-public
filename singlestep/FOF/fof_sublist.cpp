@@ -134,6 +134,9 @@ class alignas(16) FOFparticle {
     inline void mult(FOFloat f) {
         x *= f; y *= f; z *= f; n *= f;
     }
+    
+    // Provide a sort operand based on the index
+    bool operator< (const FOFparticle& b) const { return (n<b.n); }
 };
 
 #ifdef AVX512DIRECT  // change this to AVX512FOF if we ever decide it's faster

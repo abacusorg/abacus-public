@@ -104,24 +104,11 @@ class alignas(16) SOcellgroup {
         return;
     }
 
-    /// Provide a sorting command, based on d2
+    /// TODO: Provide a sorting command, based on d2
     // B.H. I think this just means define a sorting function
     // DJE: if we define a < operator, then the standard sort will just work.
     // But we may opt not to sort this list at all.
-    // TODO
 
-    // TODO: Consider moving this to the SOcell class
-    void partition() {
-        // Partition into 4 radial parts
-        FOFloat r2[4];
-        for (int j=1; j<4; j++) {
-            r2[j] = SOpartition*(firstbin+j); r2[j] *= r2[j];
-        }
-        // These now contain the boundaries (r[0] is irrelevant)
-        // TODO: partition d2[start[0],start[4]) on r2[2] to yield start[2]
-        // TODO: partition d2[start[0],start[2]) on r2[1] to yield start[1]
-        // TODO: partition d2[start[2],start[4]) on r2[3] to yield start[3]
-    }
 };
 
 
@@ -321,6 +308,27 @@ class SOcell {
     }
 
 
+
+    // DJE: moving this to the SOcell class
+    void partition_cellgroup(SOcellgroup *cg, FOFparticle &center) {
+        // Compute the distances from all particles in group cg to 
+        // supplied halo center.
+        // TODO: Ideally these would go into the d2[] list with the 
+        // same indexing as the p list.  
+        // TODO for DJE: But we need to watch for misalignment
+        // coming from the AVX compute_d2() function.  May need to alter that code.
+        compute_d2(center, p+cg->start[0], cg->start[4]-cg->start[0], d2buffer, numdists);
+
+        // Partition into 4 radial parts
+        FOFloat r2[4];
+        for (int j=1; j<4; j++) {
+            r2[j] = SOpartition*(cg->firstbin+j); r2[j] *= r2[j];
+        }
+        // These now contain the boundaries (r[0] is irrelevant)
+        // TODO: partition d2[start[0],start[4]) on r2[2] to yield start[2]
+        // TODO: partition d2[start[0],start[2]) on r2[1] to yield start[1]
+        // TODO: partition d2[start[2],start[4]) on r2[3] to yield start[3]
+    }
 
 
     // B.H. new
@@ -878,13 +886,6 @@ for (int r=0; ;r++) {
         return FOFparticle(p,0);
     }
 
-    /// Optional: if we think the particles are not in a good order,
-    /// we could sort p[], density[], and cellindex[] based on cellindex[].
-    void sort_on_cellindex() {
-        // TODO: Write this
-        // TODO: But see below; I think this is not the simplest route
-    }
-
     /// Given the cellindex[] array, we want to scan through
     void load_socg() {
         int lastidx = 0x0f000000;   // An impossible index
@@ -936,6 +937,9 @@ for (int r=0; ;r++) {
         }
         Copy.Stop();
 
+        // Load the cellgroup list from the indices
+        load_socg();
+
 	
 // B.H. say which cell each particle in SOcell belongs to and then loop over each
 // member of cellindex which should have as many members as the whole pos array
@@ -950,22 +954,23 @@ for (int r=0; ;r++) {
     // aka distances should be same size as socellgroup array
 */
 
-    // Optional: call sort_on_cellindex()
-    // Load the cellgroup list
-    load_socg();
-
     // TODO question: After this point, do we ever use the particle cellindex again?
     // If not, then let's not permute it.
     // I think we agreed that the particle index is in fact all that is needed
     // if we want to put the L1 particles back into cellgroup order.
 
+        greedySO();
 
-	greedySO();
+    // Optional: If L1, then we could sort the FOFparticles of each outgoing group into particle index order, as that will re-order into cellgroups and speed up L2.  
+        // TODO: Didn't add any code to skip this for L2
+        // Note: I left the first particle unsorted, as it is planned to be the densest one.  This is a tiny inefficiency for L2: one extra group.
+        for (int g=0; g<ngroups; g++) {
+            std::sort(p+groups[g].start+1, p+groups[g].start+groups[g].n);
+        }
 
-    // Optional?  If L1, then we may want to sort the FOFparticles of each outgoing group into particle index order, as that will re-order into cellgroups and speed up L2.  May be simpler than sorting on the cellindex.  Could add a < operator to FOFparticle and make it a one-liner.
-
-	Total.Stop();
-	return ngroups;
+        Total.Stop();
+        return ngroups;
     }
+
 };
 
