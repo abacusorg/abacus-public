@@ -58,6 +58,7 @@ We are not implementing any unbinding here.
 
 #define SO_CACHE 1024
 
+
 // B.H. new
 
 class alignas(16) SOcellgroup {
@@ -71,8 +72,9 @@ class alignas(16) SOcellgroup {
     // So start[4] is start[0]+np_in_cellgroup
 
     // constants, maybe better location for these
-    FOFloat FOFhalfcell = FOF_RESCALE/2.0*CP->invcpd;     // The half cell size 
-    FOFloat SOpartition = FOFhalfcell*2.0*sqrt(3.0)/3.0;  // The radial binning
+    // TODO: Remove these from here; DJE moved them to GFC
+    // FOFloat FOFhalfcell = FOF_RESCALE/2.0*CP->invcpd;     // The half cell size 
+    // FOFloat SOpartition = FOFhalfcell*2.0*sqrt(3.0)/3.0;  // The radial binning
     
     // Null constructors & destructors
     SOcellgroup() { } 
@@ -87,15 +89,15 @@ class alignas(16) SOcellgroup {
 
     /// Compute the distance to the nearest point in the cell, from the supplied halocenter
     void compute_d2(FOFparticle *halocen) {
-        dx = fabs(center.x-halocen->x)-FOFhalfcell;
-        dy = fabs(center.y-halocen->y)-FOFhalfcell;
-        dz = fabs(center.z-halocen->z)-FOFhalfcell;
+        dx = fabs(center.x-halocen->x)-GFC->FOFhalfcell;
+        dy = fabs(center.y-halocen->y)-GFC->FOFhalfcell;
+        dz = fabs(center.z-halocen->z)-GFC->FOFhalfcell;
         if (dx<0) dx = 0.0;
         if (dy<0) dy = 0.0;
         if (dz<0) dz = 0.0;
 
         d2 = dx*dx+dy*dy+dz*dz;
-        firstbin = floor(sqrt(d2)/SOpartition);
+        firstbin = floor(sqrt(d2)/GFC->SOpartition);
         return;
     }
 
@@ -308,30 +310,34 @@ class SOcell {
     }
 
     
+    /// Consider the list d2_part[start,last) and partition it on the value r2_part
+    /// Return the index of the first value above r2_part
     int partition_only(FOFloat *d2_part, FOFloat r2_part, 
     	int start, int last) {
 
-	if (start==last) {
-	    return -1;    // Nothing to do, but this should never happen
-	}
-	int s = start;
+        if (start==last) {
+            return -1;    // Nothing to do, but this should never happen
+            // TODO: Are you sure you shouldn't return last?
+        }
+        int s = start;
         while (s<last && d2_part[s]<=r2_part) s++;
-		// Advance start to the first high spot
-	while (s<last) {
-	    last--; // Consider next element in the upper list
-	    if (d2_part[last]<=r2_part) {
-		// We've found an out of place one; flip it with start
-		std::swap(p[s],p[last]);
-		std::swap(density[s],density[last]);
-		std::swap(d2_part[s],d2_part[last]);
-		std::swap(halo_part[s],halo_part[last]); // B.H. depending on when you call this
-		s++;
-		while (s<last && d2_part[s]<=r2_part) s++;
-		// Advance s to the next high spot
-	    }
-	}
-	// We're done when start = last.  last is the first high particle
-	return last;
+        // Advance start to the first high spot
+        while (s<last) {
+            last--; // Consider next element in the upper list
+            // TODO: Shouldn't this search downward until d2_part[last] is below the search value?
+            if (d2_part[last]<=r2_part) {
+                // We've found an out of place one; flip it with start
+                std::swap(p[s],p[last]);
+                std::swap(density[s],density[last]);
+                std::swap(d2_part[s],d2_part[last]);
+                std::swap(halo_part[s],halo_part[last]); // B.H. depending on when you call this
+                s++;
+                while (s<last && d2_part[s]<=r2_part) s++;
+            // Advance s to the next high spot
+            }
+        }
+        // We're done when start = last.  last is the first high particle
+        return last;
     }
     
     void partition_cellgroup(SOcellgroup *cg, FOFparticle &center) {
@@ -349,16 +355,18 @@ class SOcell {
         // Partition into 4 radial parts
         FOFloat r2[4];
         for (int j=1; j<4; j++) {
-            r2[j] = SOpartition*(cg->firstbin+j); r2[j] *= r2[j];
+            r2[j] = GFC->SOpartition*(cg->firstbin+j); r2[j] *= r2[j];
         }
         // These now contain the boundaries (r[0] is irrelevant)
-	cg.start[2] = partition_only(d2,r2[2],p+cg->start[0],p+cg->start[4]);
-	cg.start[1] = partition_only(d2,r2[1],p+cg->start[0],p+cg->start[2]);
-	cg.start[3] = partition_only(d2,r2[3],p+cg->start[2],p+cg->start[4]);
+        cg.start[2] = partition_only(d2,r2[2],p+cg->start[0],p+cg->start[4]);
+        cg.start[1] = partition_only(d2,r2[1],p+cg->start[0],p+cg->start[2]);
+        cg.start[3] = partition_only(d2,r2[3],p+cg->start[2],p+cg->start[4]);
     }
 
 
     // B.H. new
+
+    // TODO: Please fix indentation: 4 spaces per level
 
     FOFloat partial_search(FOFloat *d2use, int len, int m, int &partial, FOFloat &inv_enc_den) {
 	int size = 0;	// We're going to unit-index d2sort[]
@@ -416,9 +424,11 @@ class SOcell {
 
 
     // ======================  Search SOcellgroup Threshold  ===========================
+    // TODO: Please fix indentation; 4 spaces per level
     
     FOFloat search_socg_thresh(FOFparticle hcenter, SOcellgroup *socg, FOFloat &inv_enc_den) {
         int mass = 0;
+    // TODO: r isn't defined here.  And we defined SOpartition to be the radial binning; shouldn't need to introduce this.
 	FOFloat FOF_CONV = FOF_RESCALE*r*CP->invcpd; // FOF_RESCALE/cpd gives same units as pcle pos 
 	FOFloat FOFr2 = 0;
 	FOFloat x = 0;
@@ -426,12 +436,15 @@ class SOcell {
 	// Find furthest first bin
 	int furthest_firstbin = -1;
 	for (int i = 0; i<ncg; i++) {
+        // TODO: Where do we compute the d2 for the cellgroup centers?
+        // Probably should do it here.
 	    if (socg[i]->firstbin > furthest_firstbin) {
 	        furthest_firstbin = socg[i]->firstbin;
 	    }
 	}
 
 	// If nothing is found, return furthest edge -- not ideal
+    // TODO: Did you mean this to be a radius or a square radius?
 	FOFloat r2found = (furthest_firstbin+4)*FOF_CONV; 
         FOFloat inv_enc_den = 0.;
 
@@ -439,14 +452,14 @@ class SOcell {
 	for (int r=0; r<furthest_firstbin+4; r++) {
 	    FOFr2 = FOF_CONV*r;
        	    FOFr2 *= FOFr2;
-	    x = xthreshold*FOFr2;
+	    x = xthreshold*FOFr2;   // TODO: Check that this conversion factor is correct
 	    
 	    // Partition the newly touched cells 
 	    for (int i = 0; i<ncg; i++) {
 	        if (socg[i]->firstbin == r) {
-		    // Get start[1] thru start[3] for every new SOgroupcell
-		    partition_cellgroup(socg[i], hcenter); 
-		}
+                // Get start[1] thru start[3] for every new SOgroupcell
+                partition_cellgroup(socg[i], hcenter); 
+            }
 	    }
 
 	    // Is there enough mass within to skip or not enough to look
@@ -475,9 +488,14 @@ class SOcell {
  		        int size_partition = (socg[i]->start[r-firstbin+1]-socg[i]->start[r-firstbin]);
 			// Compute d2 for them
 			// B.H. I should be able to use what I computed already in partition but not sure how 
+            // TODO: Yes, the idea is to re-use.  We need to clean this up.
+            // There needs to be a d2 vector for the full particle set that is
+            // in step with the particle ordering.
 			FOFloat *d2_partition = compute_d2(center, p+socg[i]->start[r-firstbin], size_partition, d2buffer, numdists);
 			
 			//Copy d2 of particles into combined list.
+            // TODO: Do we really need a new buffer d2comb?  We had d2sort, for example.
+            // Need to plan the d2 part more carefully.
 			for (int j = 0; j<size_partition; j++) {
 			    d2comb[size_comb++] = d2_partition[j];
 			}
@@ -486,6 +504,7 @@ class SOcell {
 		
 		// Search for density threshold in list, given previous mass.
 		FOFloat d2_thresh = partial_search(d2comb, size_partition, mass, size_partial, inv_enc_den);
+        // TODO: Is it happening that failing to find a match returns a value <0?
 
 		// If something was found, record it
 	        if (d2_thresh > 0) {
@@ -592,6 +611,8 @@ class SOcell {
 	size = last-start;
 	return densest;
     }
+
+
     // ======================  SO Hist Search  ===========================
     #define SO_HIST_SEARCH 16     ///< The size to switch to the histogram based method
 	// Timings suggest this is a very small cross-over point.
@@ -789,6 +810,8 @@ class SOcell {
 	    //if (count>50) break; // cap on number of halos per FOF group	    
 	    Distance.Start();
 	    // compute the distance to all particles
+        // TODO: In the new version, we might not need to do this here.
+        // It happens only in the cells that get partitioned.
 	    FOFloat *d2use = compute_d2(p+start, p, np, d2buffer, numdists);
 	    Distance.Stop();
 	    // d2use points to element start, and our interest is [start,np)
@@ -990,7 +1013,6 @@ class SOcell {
     /// Return the number of multiplet groups.
     /// pos[], etc. will be unchanged.
     int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, FLOAT3p1 *acc, int n) {
-
         Total.Start();
         reset(n);
         np = n;
