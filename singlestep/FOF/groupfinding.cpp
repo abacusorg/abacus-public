@@ -359,6 +359,7 @@ GroupFindingControl *GFC = NULL;
 	// Code to search between pairs of cells and find the linked groups,
 	// which get added to GLL.
 
+#include "sofind.cpp"
 
 // ===================== Output Field Particles ===============
 

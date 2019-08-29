@@ -956,8 +956,6 @@ class FOFcell {
 
 
 
-#include "sofind.cpp"
-
 
 
 
