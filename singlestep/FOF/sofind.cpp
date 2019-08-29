@@ -343,7 +343,7 @@ class SOcell {
 
 	// BTH safer version, but slow
         int len = cg.start[4]-cg.start[0];
-	FOFloat *d2 = compute_d2(center, p+cg.start[0], len, d2buffer, numdists);
+	FOFloat *d2 = compute_d2(&center, p+cg.start[0], len, d2buffer, numdists);
 	for (int j=0; j<len; j++)
 	  //d2comb[p+cg->start[0]+j] = d2[j];
 	    d2comb[cg.start[0]+j] = d2[j];
