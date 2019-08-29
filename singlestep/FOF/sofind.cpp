@@ -327,8 +327,8 @@ class SOcell {
         // We're done when start = last.  last is the first high particle
         return last;
     }
-    
-    void partition_cellgroup(SOcellgroup *cg, FOFparticle &center) {
+  // tuks
+    void partition_cellgroup(SOcellgroup cg, FOFparticle &center) {
         // Compute the distances from all particles in group cg to 
         // supplied halo center.
         // TODO for DJE: But we need to watch for misalignment
@@ -342,20 +342,21 @@ class SOcell {
         //d2comb[p+cg->start[0]] = compute_d2(center, p+cg->start[0], len, d2buffer, numdists);
 
 	// BTH safer version, but slow
-        int len = cg->start[4]-cg->start[0];
-	FOFloat *d2 = compute_d2(center, p+cg->start[0], len, d2buffer, numdists);
+        int len = cg.start[4]-cg.start[0];
+	FOFloat *d2 = compute_d2(center, p+cg.start[0], len, d2buffer, numdists);
 	for (int j=0; j<len; j++)
-       	    d2comb[p+cg->start[0]+j] = d2[j];
+	  //d2comb[p+cg->start[0]+j] = d2[j];
+	    d2comb[cg.start[0]+j] = d2[j];
 	
         // Partition into 4 radial parts
         FOFloat r2[4];
         for (int j=1; j<4; j++) {
-            r2[j] = GFC->SOpartition*(cg->firstbin+j); r2[j] *= r2[j];
+            r2[j] = GFC->SOpartition*(cg.firstbin+j); r2[j] *= r2[j];
         }
         // These now contain the boundaries (r2[0] is irrelevant)
-        cg->start[2] = partition_only(d2comb,r2[2],p+cg->start[0],p+cg->start[4]);
-        cg->start[1] = partition_only(d2comb,r2[1],p+cg->start[0],p+cg->start[2]);
-        cg->start[3] = partition_only(d2comb,r2[3],p+cg->start[2],p+cg->start[4]);
+        cg.start[2] = partition_only(d2comb,r2[2],cg.start[0],cg.start[4]);
+        cg.start[1] = partition_only(d2comb,r2[1],cg.start[0],cg.start[2]);
+        cg.start[3] = partition_only(d2comb,r2[3],cg.start[2],cg.start[4]);
     }
 
 
@@ -393,6 +394,7 @@ class SOcell {
 
     // ======================  Fill SOcellgroup array  ===========================
     // for a given halo center fill an array of SOcellgroups
+  /*
     void fill_socg(FOFparticle hcenter, SOcellgroup *socg, int *cellindex) {
         // B.H. new 
         // please do more elegantly, Boryana
@@ -414,7 +416,7 @@ class SOcell {
             }
         }
     }
-    
+  */
 
 
     // ======================  Search SOcellgroup Threshold  ===========================
@@ -428,10 +430,10 @@ class SOcell {
 	int furthest_firstbin = -1;
 	for (int i = 0; i<ncg; i++) {
             // TODO: Where do we compute the d2 for the cellgroup centers?
-            // Probably should do it here. BTH done 
+            // Probably should do it here. BTH done // only one  
 	    socg[i].compute_d2(hcenter); // uses minimum distance to halo center and gives us firstbin
-	    if (socg[i]->firstbin > furthest_firstbin) {
-	        furthest_firstbin = socg[i]->firstbin;
+	    if (socg[i].firstbin > furthest_firstbin) {
+	        furthest_firstbin = socg[i].firstbin;
 	    }
 	    
 	}
@@ -440,7 +442,7 @@ class SOcell {
 	FOFloat r2found = (furthest_firstbin+4)*GFC->SOpartition;
 	r2found *= r2found;
 	
-        FOFloat inv_enc_den = 0.;
+        inv_enc_den = 0.;
 
 	// Consider each bin r outwardly 
 	for (int r=0; r<furthest_firstbin+4; r++) {
@@ -452,7 +454,7 @@ class SOcell {
 	    // BTH do we always have to partition the newly touched cells?
 	    // Partition the newly touched cells 
 	    for (int i = 0; i<ncg; i++) {
-	        if (socg[i]->firstbin == r) {
+	        if (socg[i].firstbin == r) {
 		    // Get start[1] thru start[3] for every new SOgroupcell
 		    // Compute the d2 in particle order and then use this
 		    // for partition -- stored in d2comb when fn is called
@@ -464,9 +466,9 @@ class SOcell {
 	    if (x*sqrt(x) < mass) { 
  	        // Enough mass, so crossing cannot be inside and we just add that mass
 	        for (int i = 0; i<ncg; i++) {
-	            if (socg[i]->firstbin >= r-3 && socg[i]->firstbin <= r) {
+	            if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
 		        // Number of particles in this cell in this partition
-		        mass += start[r-socg[i]->firstbin+1]-start[r-socg[i]->firstbin];
+		        mass += socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
 		    }
 		}
 	    }
@@ -480,14 +482,14 @@ class SOcell {
 		
 		// for every SOcellgroup crossed by the radial bin
 		for (int i = 0; i<ncg; i++) {
-	            if (socg[i]->firstbin >= r-3 && socg[i]->firstbin <= r) {
+	            if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
 		      
 		        // Number of particles for that radial bin in that SOcellgroup
- 		        int size_partition = socg[i]->start[r-firstbin+1]-socg[i]->start[r-firstbin];
+ 		        int size_partition = socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
 			// Compute d2 for them
 			// B.H. I should be able to use what I computed already in partition but not sure how 
 			// BTH An attempt to reuse (therefore next line is obsolete)
-			//FOFloat *d2_partition = compute_d2(center, p+socg[i]->start[r-firstbin], size_partition, d2buffer, numdists); // old version
+			//FOFloat *d2_partition = compute_d2(center, p+socg[i].start[r-firstbin], size_partition, d2buffer, numdists); // old version
 			
 			//Copy d2 of particles into combined list.
 			// TODO: Do we really need a new buffer d2comb?  We had d2sort, for example.
@@ -496,7 +498,7 @@ class SOcell {
 			for (int j = 0; j<size_partition; j++) {
 			    // BTH An attempt to reuse 
 			    // d2comb[size_comb++] = d2_partition[j]; // old version
-			    d2buffer[size_comb++] = d2comb[j+p+socg[i]->start[r-firstbin]];
+			    d2buffer[size_comb++] = d2comb[j+socg[i].start[r-socg[i].firstbin]];
 			}
 		    }
 		}
