@@ -279,7 +279,7 @@ class SOcell {
 
         // Cosmic unit density yields a count in our FOFscale densities of this:
 	// Document better
-        FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
+        FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5);
         FOFloat M_D = 30.;
         FOFloat alpha_safety = 1.;
         FOFloat sigma3 = M_D*sqrt(threshold*P.np/(48*M_PI*M_PI));
@@ -330,10 +330,10 @@ class SOcell {
 
 	//safe version, but slow
         int len = cg.start[4]-cg.start[0];
-	
 	FOFloat *d2 = compute_d2(center, p+cg.start[0], len, d2buffer, numdists);
-	for (int j=0; j<len; j++)
+	for (int j=0; j<len; j++) {
 	    d2comb[cg.start[0]+j] = d2[j];
+	}
 	
         // Partition into 4 radial parts
         FOFloat r2[4];
@@ -366,7 +366,7 @@ class SOcell {
 	
 	inv_enc_den = (x*sqrt(x))/((partial+m)*threshold);
 	if (partial==len) return -1.0;
-	return (d2use[partial]); 
+	return (d2use[partial-1]); 
     }
 
     // ======================  Search SOcellgroup Threshold  ===========================
@@ -376,12 +376,15 @@ class SOcell {
 	FOFloat FOFr2 = 0;
 	FOFloat x = 0;
 
+	int size_comb;
+	int size_partial;
+	
 	// Find furthest first bin
 	int furthest_firstbin = -1;
+	
 	for (int i = 0; i<ncg; i++) {
-            // TODO: Where do we compute the d2 for the cellgroup centers?
-            // Probably should do it here. BTH done // only one  
-	    socg[i].compute_d2(hcenter); // uses minimum distance to halo center and gives us firstbin
+	    socg[i].compute_d2(hcenter);
+	    // uses minimum distance to halo center and gives us firstbin
 	    if (socg[i].firstbin > furthest_firstbin) {
 	        furthest_firstbin = socg[i].firstbin;
 	    }
@@ -392,10 +395,9 @@ class SOcell {
 	FOFloat r2found = (furthest_firstbin+4)*GFC->SOpartition;
 	r2found *= r2found;
 	
-        inv_enc_den = 0.;
-
 	// Consider each bin r outwardly 
-	for (int r=0; r<furthest_firstbin+4; r++) {
+	for (int r = 0; r<furthest_firstbin+4; r++) {
+	    
 	    FOFr2 = GFC->SOpartition*r;
        	    FOFr2 *= FOFr2;
 	    x = xthreshold*FOFr2; 
@@ -406,7 +408,7 @@ class SOcell {
 		    // Get start[1] thru start[3] for every new SOgroupcell
 		    // Compute the d2 in particle order and then use this
 		    // for partition -- stored in d2comb when fn is called
-		    partition_cellgroup(socg[i], hcenter); 
+		    partition_cellgroup(socg[i], hcenter);
 		}
 	    }
 
@@ -424,9 +426,9 @@ class SOcell {
 	    // Not enough mass, so could have crossing
             else { 
                 // Number of all particles that are within this radial bin
-	        int size_comb = 0;
+	        size_comb = 0;
 		// number of particles within threshold in that partition
-		int size_partial = 0;
+		size_partial = 0;
 		
 		// for every SOcellgroup crossed by the radial bin
 		for (int i = 0; i<ncg; i++) {
@@ -435,8 +437,9 @@ class SOcell {
 		        // Number of particles for that radial bin in that SOcellgroup
  		        int size_partition = socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
 	    
-			// BTH Using d2comb for combined list of all in bins [0,r] and
+			// Using d2comb for combined list of all in bins [0,r] and
 			// d2sort for distance to nuc of all FOF pcles in that radial bin
+			// Reason it cannot be d2buffer is that is used by d2compute
 			for (int j = 0; j<size_partition; j++) {
 			    d2sort[size_comb++] = d2comb[j+socg[i].start[r-socg[i].firstbin]];
 			}
@@ -453,19 +456,23 @@ class SOcell {
 		
 		// If something was found, record it
 	        if (d2_thresh > 0.) {
+		    
 		    mass += size_partial;
 		    r2found = d2_thresh;
 		    break;  
 		}
 		// False alarm: add all mass in that radial bin
 		else {
+ 	 	    
 		    mass += size_comb;
 		}
 	    }
 	}   
 	// Record inverse density and threshold radius
 	inv_enc_den = (x*sqrt(x))/(mass*threshold);
+	
 	return r2found;
+	
     }
     // B.H. new end
 
@@ -484,8 +491,7 @@ class SOcell {
     /// separation region, relative to start.  This may differ from 
     /// what was found externally if there is some conspiracy about 
     /// floating point equality comparisons of d2.  
-    int partition_alt_and_index(int *halos, int halo_i, int start, int last, int &size) {
-        // similar to the original partition function
+    int partition_and_index(int *halos, int halo_i, int start, int last, int &size) {
         int N_p = last;
 	FOFloat maxdens=-1.0;
 	int densest=-1;
@@ -632,8 +638,6 @@ class SOcell {
 	int start = 0;	// Index of the first particle of the current group
 	int densest = -1;
 	FOFloat maxdens = -1.0;
-
-	FOFloat FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5);
 	
 	int count = 1;        /// The number of the group
 	
@@ -668,10 +672,11 @@ class SOcell {
 	    // Call search function and obtain inverse density and threshold d2, but also mass within the threshold
 	    FOFloat inv_enc_den;
 	    int mass;
+
 	    FOFloat d2SO = search_socg_thresh(p+start,socg,mass,inv_enc_den);
 	    
-	    	    
 	    FOFloat d2SO_pr = d2SO*inner_rad2;
+	    
 	    Search.Stop();
 	    
 	    // inverse density used when interpolating 
@@ -685,8 +690,8 @@ class SOcell {
 
 	    Sweep.Start();
 	    // d2comb has d2 to the halo center of all particles in bins 0 through
-	    //  r; the order b/n p and d2comb should be the same and everyone up to mass
-	    // should be within the threshold. So let's just use what we know is
+	    // r. The order of p and d2comb should be the same for every pcle
+	    // within the threshold. So let's just use what we know is
 	    // within the threshold to mark their halos and then deal with the rest which
 	    // we only need in order to find the next densest
 	    for  (int j=0; j<mass; j++) {
@@ -697,10 +702,10 @@ class SOcell {
 		}
 		
 	        // look for the next densest particle which is still active and eligible
-	        else if (density[j]>maxdens && density[j]*min_inv_den_part[j]/FOFunitdensity>mag_loc && halo_part[j]>=0) {
+	        else if (density[j]>maxdens && density[j]*min_inv_den_part[j]>mag_loc*FOFunitdensity && halo_part[j]>=0) {
 		    maxdens=density[j];
 		    densest = j;
-		}
+               	}
 		
 	        // interpolate to get the density of the particle
 	        inv_d = d2comb[j]*(inv_d2del);
@@ -713,39 +718,15 @@ class SOcell {
 	    }
 	    // look for the next densest particle in the remainder as well
 	    for (int j=mass; j<np; j++) {
-	        if (density[j]>maxdens && density[j]*min_inv_den_part[j]/FOFunitdensity>mag_loc && halo_part[j]>=0) {
+	        if (density[j]>maxdens && density[j]*min_inv_den_part[j]>mag_loc*FOFunitdensity && halo_part[j]>=0) {
 		    maxdens=density[j];
 		    densest = j;
 		}
 	    }
 	    Sweep.Stop();
-
 	    count++; 
 	    start = densest;
 	}
-
-
-	/*
-	// retained for testing 
-	// except we now have negative numbers, too
-	int size;
-	start = 0;
-	
-	for (int i=1; i<count; i++) {
-	    size = 0;
-	    //printf("i = %6i\n",i);
-	    for (int j=0; j<np; j++) {
-	        if ((i == halo_part[j]) || (i == -halo_part[j])) size++;
-	    }
-	    //printf("count, size_group = %6i, %6i\n",i,size);
-	    if (size > 0) {
-	        numcenters++;
-	        groups[ngroups++] = FOFgroup(start,size);
-	        start += size;
-	    }
-	}
-	size = 0;
-	*/
 
 	for (int j=0; j<np; j++) {
 	  halo_part[j] = abs(halo_part[j]);
@@ -764,8 +745,8 @@ class SOcell {
 	    // rearrange so that you first sort to the left all particles in halo 0,
 	    // then all in halo 1, ... i, ... count;
 	    // and finding the densest particle of those to the right of i while doing so
-	    next_densest = partition_alt_and_index(halo_part, halo_ind, start, np, size);
-	    //printf("count, size_group, next dens, np = %6i, %6i, %6i, %6i\n",halo_ind,size,next_densest, np);
+	    next_densest = partition_and_index(halo_part, halo_ind, start, np, size);
+	    
 	    // Mark the group.  Note that the densest particle may not be first.
 	    if (next_densest < 0) {
 	        numcenters++;
