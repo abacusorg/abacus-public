@@ -62,7 +62,7 @@ We are not implementing any unbinding here.
 class alignas(16) SOcellgroup {
   public:
     FOFparticle center; // The center of the cell in GlobalGroup coords 
-    FOFloat d2;         // The minimum distance to the current halo nucleus position
+    //FOFloat d2;         // The minimum distance to the current halo nucleus position
     int firstbin;       // The radial bin this cell first appears in.
     int start[5];       // The starting point of particles in the L0 list
     int active;         // Has a cell been touched for this halo center
@@ -91,8 +91,10 @@ class alignas(16) SOcellgroup {
         if (dx<0) dx = 0.0;
         if (dy<0) dy = 0.0;
         if (dz<0) dz = 0.0;
-
-        d2 = dx*dx+dy*dy+dz*dz;
+	// The minimum distance to the current halo nucleus position
+	FOFloat d2 = dx*dx+dy*dy+dz*dz;
+	printf("sqrt(d2),SOpartit = %f %f\n",sqrt(d2),GFC->SOpartition);
+        
         firstbin = floor(sqrt(d2)/GFC->SOpartition);
         return;
     }
@@ -159,7 +161,7 @@ class SOcell {
             // indices in a float.  We could in principle work around
             // this, by using additional bits in a negative exponent.
             // But current Abacus plans do not produce cells this big.
-        // printf("Allocating FOFCell to maxsize = %d\n", maxsize);
+        
         if (p!=NULL) free(p);
         ret = posix_memalign((void **)&p, CACHE_LINE_SIZE, sizeof(FOFparticle)*maxsize);  assert(ret == 0);
         memset(p, 0, sizeof(FOFparticle)*maxsize);
@@ -316,8 +318,9 @@ int partition_only(FOFloat *d2_part, FOFloat r2_part, int start, int last) {
             // We've found an out of place one; flip it with start
             std::swap(p[s],p[last]);
             std::swap(density[s],density[last]);
-            std::swap(d2_part[s],d2_part[last]);
+            std::swap(d2comb[s],d2comb[last]);
             std::swap(halo_part[s],halo_part[last]);
+	    std::swap(min_inv_den_part[s],min_inv_den_part[last]);
             s++;
             while (s<last && d2_part[s]<=r2_part) s++;
             // Advance s to the next high spot
@@ -332,7 +335,7 @@ int partition_only(FOFloat *d2_part, FOFloat r2_part, int start, int last) {
 /// Sets up a given cellgroup for use.  This involves computing the
 /// distance to all particles and then partitioning them into 4 shells
 /// on the global registration around the already declared halo center.
-void partition_cellgroup(SOcellgroup cg, FOFparticle *center) {
+void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
     // Compute the distances from all particles in group cg to 
     // supplied halo center.
     // But the AVX compute_d2() function creates misalignment, so for
@@ -342,21 +345,27 @@ void partition_cellgroup(SOcellgroup cg, FOFparticle *center) {
     // (with same indexing as positions *p) to be used later in the loop 
     // from which partition_cellgroup is called;
 
-    int len = cg.start[4]-cg.start[0];
-    FOFloat *d2 = compute_d2(center, p+cg.start[0], len, d2buffer, numdists);
+    int len = cg->start[4]-cg->start[0];
+    printf("cellgroup len = %i\n",len);
+    FOFloat *d2 = compute_d2(center, p+cg->start[0], len, d2buffer, numdists);
     for (int j=0; j<len; j++) {
-        d2comb[cg.start[0]+j] = d2[j];
+        d2comb[cg->start[0]+j] = d2[j];
     }
 
     // Partition into 4 radial parts
-    FOFloat r2[4];
-    for (int j=1; j<4; j++) {
-        r2[j] = GFC->SOpartition*(cg.firstbin+j); r2[j] *= r2[j];
+    FOFloat r2[5];
+    for (int j=1; j<=4; j++) {
+        r2[j] = GFC->SOpartition*(cg->firstbin+j); r2[j] *= r2[j];
     }
     // These now contain the boundaries (r2[0] is irrelevant)
-    cg.start[2] = partition_only(d2comb,r2[2],cg.start[0],cg.start[4]);
-    cg.start[1] = partition_only(d2comb,r2[1],cg.start[0],cg.start[2]);
-    cg.start[3] = partition_only(d2comb,r2[3],cg.start[2],cg.start[4]);
+    cg->start[2] = partition_only(d2comb,r2[2],cg->start[0],cg->start[4]);
+    cg->start[1] = partition_only(d2comb,r2[1],cg->start[0],cg->start[2]);
+    cg->start[3] = partition_only(d2comb,r2[3],cg->start[2],cg->start[4]);
+    printf("cellgroup start[0] d2[3] = %i %f\n",cg->start[0],d2comb[cg->start[3]]);
+    printf("cellgroup start[1] r2[1] = %i %f\n",cg->start[1],r2[1]);
+    printf("cellgroup start[2] r2[2] = %i %f\n",cg->start[2],r2[2]);
+    printf("cellgroup start[3] r2[3] = %i %f\n",cg->start[3],r2[3]);
+    printf("cellgroup start[4] r2[4] = %i %f\n",cg->start[4],r2[4]);
 }
 
 
@@ -366,6 +375,7 @@ void partition_cellgroup(SOcellgroup cg, FOFparticle *center) {
 FOFloat partial_search(FOFloat *d2use, int len, int mass, int &partial, FOFloat &inv_enc_den) {
     // d2use should contain all particles in the given radial bin for FOF	
 	// Sort the distances in increasing order
+        printf("pcles in strip = %i\n",len);
 	std::sort(d2use, d2use+len); 
 	numsorts += len;
 
@@ -412,6 +422,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
 	int furthest_firstbin = -1;
 	for (int i = 0; i<ncg; i++) {
 	    socg[i].compute_d2(halocenter);
+	    
 	    // uses minimum distance to halo center and gives us firstbin
 	    if (socg[i].firstbin > furthest_firstbin) {
 	        furthest_firstbin = socg[i].firstbin;
@@ -420,6 +431,9 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
 
 	// If we find no density threshold crossing, we'll return furthest edge -- not ideal
 	FOFloat r2found;
+
+	r2found = (furthest_firstbin+4)*GFC->SOpartition;
+	r2found *= r2found;
 	
 	// Proceed outward through the shells
 	for (int r = 0; r<furthest_firstbin+4; r++) {
@@ -435,7 +449,9 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
 		    // Get start[1] thru start[3] for every new SOgroupcell
 		    // Compute the d2 in particle order and then use this
 		    // for partition -- stored in d2comb when fn is called
-		    partition_cellgroup(socg[i], halocenter);
+		    printf("i, socg[i].firstbin = %i %i \n",i,socg[i].firstbin);
+		    partition_cellgroup(socg+i, halocenter);
+		    
             }
 	    }
 
@@ -461,7 +477,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
 		    
                     // Number of particles for that radial bin in that SOcellgroup
                     size_partition = socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
-            
+		    printf("r,i,socg[i].firstbin, size_partition, socg[i].start[r-socg[i].firstbin] = %i %i %i %i %i \n",r,i,socg[i].firstbin,size_partition, socg[i].start[r-socg[i].firstbin]);
                     // Using d2comb for combined list of all in bins [0,r] and
                     // d2sort for distance to nuc of all FOF pcles in that radial bin
                     // Reason it cannot be d2buffer is that is used by d2compute
@@ -483,11 +499,13 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
 	    d2_thresh = partial_search(d2sort, size_comb, mass, size_partial, inv_enc_den);
 	    
 	    
-		
+	    // TODO: WHAT IF STRIP IS EMPTY
 	        if (d2_thresh > 0.) {
                 // If something was found, record it
+		  
                 mass += size_partial;
-                r2found = d2_thresh;
+		printf("mass = %i\n",mass);
+		r2found = d2_thresh;
                 break;  
             } else {
                 // False alarm: add all mass in that radial bin
@@ -495,8 +513,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             }
 	    }
 	}   
-	r2found = (furthest_firstbin+4)*GFC->SOpartition;
-	r2found *= r2found;
+	
 	// Record inverse density and threshold radius
 	inv_enc_den = (x*sqrt(x))/(mass*threshold);
 	return r2found;
@@ -506,6 +523,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
 // ======================  Partition ===========================
 
 // TODO: Is this documentation correct?
+  // B.H. No, will fix asap!
 
 /// Partition on d2buffer<=d2SO in the [start,last) region.
 /// Also find the index of the densest particle in the high-separation
@@ -587,8 +605,10 @@ void greedySO() {
 	    // try at least one central.
 
 	    // TESTING
-	    //if (count>50) break; // cap on number of halos per FOF group	    
+	    if (count>10) break; // cap on number of halos per FOF group	    
 
+	    // TESTING
+	    if (np < 9700) break;
 	    // In this next part, we need to arrive at a value of 
 	    // d2SO with the property that all of the particles with 
 	    // d2 <= d2SO are the largest body that satisfies 
@@ -619,22 +639,17 @@ void greedySO() {
 	    // within the threshold to mark their halos and then deal with the rest which
 	    // we only need in order to find the next densest
 
-        /* TODO BUG?: DJE doesn't understand this loop.  I don't think the
-           particles were in order, so we can't just go [0,mass).
-           Further, d2comb isn't set for all particles.
-           I think that we need to loop over the cell groups that were partitioned
-           and then look at all of their particles.
-           Note that d2SO does encode the last shell we'll need, or we could
-           pass that information out of search_socg_thresh().
-        */
 	    int np_in_cell = 0;
+	    int test = 0;
 	    for (int i = 0; i<ncg; i++) {
 	        if (socg[i].active == 1) {
+		    
 		    socg[i].active = 0;
 		    np_in_cell = socg[i].start[4]-socg[i].start[0];
 		    for (int j=0; j<np_in_cell; j++) {
 	                // for those within prime, set to inactive and count
-	                if (d2comb[j]<d2SO_pr) {
+		      if (d2comb[j]<d2SO_pr) {
+			    test++;
                             halo_part[j] = -(abs(halo_part[j])+(halo_part[j]==0));
 			}
 			
@@ -644,7 +659,7 @@ void greedySO() {
 			    densest = j;
 			    if (d2comb[j]>d2SO) continue;
 			}
-			else if (d2comb[j]>d2SO) continue;
+			else if (d2comb[j]>d2SO)  continue;
 		        // interpolate to get the density of the particle
 			inv_d = d2comb[j]*(inv_d2del);
 			// if j is the densest particle seen so far, mark this as its halo
@@ -656,6 +671,7 @@ void greedySO() {
 		    }
 		}
 		else {
+		  
 		    np_in_cell = socg[i].start[4]-socg[i].start[0];
 		    for (int j=0; j<np_in_cell; j++) {
 		        if (density[j]>maxdens && density[j]*min_inv_den_part[j]>mag_loc*FOFunitdensity && halo_part[j]>=0) {
@@ -665,7 +681,7 @@ void greedySO() {
 		    }
 		}
 	    }
-	    
+	    printf("test = %i\n",test);
         /* Indeed this last loop may become a bottleneck.  We are touching 
            every particle at the end of each nucleus, exactly the kind of 
            quadratic thing we were trying to avoid.  Is it feasible to keep 
@@ -675,7 +691,8 @@ void greedySO() {
            Let's get the algorithm working first, then think about this optimization.
         */
 	    Sweep.Stop();
-	    count++; 
+	    count++;
+	    printf("densest = %i\n",densest);
 	    start = densest;
 	}
 
@@ -731,9 +748,12 @@ void greedySO() {
 /// numbered cell indices.  
 // NOTE: This assumes that particles occupy [-halfinvcpd,+halfinvcpd) in cells
 inline int compute_cellindex(posstruct &p) {
-    int i = floor((p.x+CP->halfinvcpd)*CP->cpd)+128;
-    int j = floor((p.y+CP->halfinvcpd)*CP->cpd)+128;
-    int k = floor((p.z+CP->halfinvcpd)*CP->cpd)+128;
+  //int i = floor((p.x+CP->halfinvcpd)*CP->cpd)+128;
+  //int j = floor((p.y+CP->halfinvcpd)*CP->cpd)+128;
+  //int k = floor((p.z+CP->halfinvcpd)*CP->cpd)+128;
+    int i = floor((p.x+GFC->FOFhalfcell)/(2.*GFC->FOFhalfcell))+128;
+    int j = floor((p.y+GFC->FOFhalfcell)/(2.*GFC->FOFhalfcell))+128;
+    int k = floor((p.z+GFC->FOFhalfcell)/(2.*GFC->FOFhalfcell))+128;
     return (i<<16)|(j<<8)|k;
 }
 
@@ -743,9 +763,12 @@ inline FOFparticle compute_cellcenter(int cellidx) {
     int j = (cellidx&0xff00)>>8;
     int i = (cellidx&0xff0000)>>16;
     posstruct p;
-    p.z = CP->invcpd*(k-128);
-    p.y = CP->invcpd*(j-128);
-    p.x = CP->invcpd*(i-128);
+    //p.z = CP->invcpd*(k-128);
+    //p.y = CP->invcpd*(j-128);
+    //p.x = CP->invcpd*(i-128);
+    p.x = (i-128)*2.*GFC->FOFhalfcell;
+    p.y = (j-128)*2.*GFC->FOFhalfcell;
+    p.z = (k-128)*2.*GFC->FOFhalfcell;
     return FOFparticle(p,0);
 }
 
@@ -805,6 +828,7 @@ int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, FLOAT3p1 *acc, in
     // TODO question: After this point, do we ever use the particle cellindex again?
     // If not, then let's not permute it.
     // TODO: In fact, it seems we could have re-used halo_part[].
+    // B.H. Am in that case going to use halo_part here instead of cellindex though may make it a bit confusing in terms of names
     // I think we agreed that the particle index is in fact all that is needed
     // if we want to put the L1 particles back into cellgroup order.
 
