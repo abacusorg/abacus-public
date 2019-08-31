@@ -80,7 +80,7 @@ class alignas(16) SOcellgroup {
         start[0] = start_first;
         start[1] = -1;
         start[4] = start_next;
-	active = 0;
+        active = 0;
     }
 
     /// Compute the distance to the nearest point in the cell, from the supplied halocenter
@@ -91,9 +91,9 @@ class alignas(16) SOcellgroup {
         if (dx<0) dx = 0.0;
         if (dy<0) dy = 0.0;
         if (dz<0) dz = 0.0;
-	// The minimum distance to the current halo nucleus position
-	FOFloat d2 = dx*dx+dy*dy+dz*dz;
-	printf("sqrt(d2),SOpartit = %f %f\n",sqrt(d2),GFC->SOpartition);
+    // The minimum distance to the current halo nucleus position
+    FOFloat d2 = dx*dx+dy*dy+dz*dz;
+    printf("sqrt(d2),SOpartit = %f %f\n",sqrt(d2),GFC->SOpartition);
         
         firstbin = floor(sqrt(d2)/GFC->SOpartition);
         return;
@@ -186,7 +186,7 @@ class SOcell {
 
         if (cellindex!=NULL) free(cellindex);
         ret = posix_memalign((void **)&cellindex, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
-	
+    
         if (halo_part!=NULL) free(halo_part);
         ret = posix_memalign((void **)&halo_part, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
     }
@@ -220,7 +220,7 @@ class SOcell {
 
         socg = NULL;
         cellindex = NULL;
-	
+    
         maxsize = -1;
         numdists = 0;
         numsorts = 0;
@@ -231,9 +231,9 @@ class SOcell {
         int ret = posix_memalign((void **)&twothirds, 64, sizeof(FOFloat)*(SO_CACHE+2));  assert(ret == 0);
         for (int j=0; j<SO_CACHE+2; j++) twothirds[j] = pow(j,2.0/3.0);
         // We will have terrible bugs if these aren't true!
-	#ifdef AVXFOF
+    #ifdef AVXFOF
         assertf(sizeof(FOFparticle)==16, "FOFparticle is illegal size!");
-	#endif
+    #endif
         assertf(sizeof(FOFgroup)%16==0, "FOFgroup is illegal size!");
         return;
     }
@@ -320,7 +320,7 @@ int partition_only(FOFloat *d2_part, FOFloat r2_part, int start, int last) {
             std::swap(density[s],density[last]);
             std::swap(d2comb[s],d2comb[last]);
             std::swap(halo_part[s],halo_part[last]);
-	    std::swap(min_inv_den_part[s],min_inv_den_part[last]);
+        std::swap(min_inv_den_part[s],min_inv_den_part[last]);
             s++;
             while (s<last && d2_part[s]<=r2_part) s++;
             // Advance s to the next high spot
@@ -361,6 +361,7 @@ void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
     cg->start[2] = partition_only(d2comb,r2[2],cg->start[0],cg->start[4]);
     cg->start[1] = partition_only(d2comb,r2[1],cg->start[0],cg->start[2]);
     cg->start[3] = partition_only(d2comb,r2[3],cg->start[2],cg->start[4]);
+    // TODO: Note that this print statement doesn't seem matched up to me
     printf("cellgroup start[0] d2[3] = %i %f\n",cg->start[0],d2comb[cg->start[3]]);
     printf("cellgroup start[1] r2[1] = %i %f\n",cg->start[1],r2[1]);
     printf("cellgroup start[2] r2[2] = %i %f\n",cg->start[2],r2[2]);
@@ -374,28 +375,28 @@ void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
 /// to it.  Returns -1 if not found; else returns square distance of threshold.
 FOFloat partial_search(FOFloat *d2use, int len, int mass, int &partial, FOFloat &inv_enc_den) {
     // d2use should contain all particles in the given radial bin for FOF	
-	// Sort the distances in increasing order
+    // Sort the distances in increasing order
         printf("pcles in strip = %i\n",len);
-	std::sort(d2use, d2use+len); 
-	numsorts += len;
+    std::sort(d2use, d2use+len); 
+    numsorts += len;
 
-	if (len == 0) return -1.0;
-	
-	// Now sweep in from the center to find the threshold
-	partial = 1;
-	FOFloat x;
-	for (int j=0; j<len; j++) {
-	    x = d2use[j]*xthreshold;
-	    partial = j+1; // we want the rightmost on the left side of the density threshold
-	    if (x*sqrt(x)>(partial+mass) && d2use[j]>=.5*WriteState.DensityKernelRad2) {
-	        break;
-		// This particle exceeds the overdensity threshold
-	    }
-	}
-	
-	inv_enc_den = (x*sqrt(x))/((partial+mass)*threshold);
-	if (partial==len) return -1.0;
-	return (d2use[partial-1]); 
+    if (len == 0) return -1.0;
+    
+    // Now sweep in from the center to find the threshold
+    partial = 1;
+    FOFloat x;
+    for (int j=0; j<len; j++) {
+        x = d2use[j]*xthreshold;
+        partial = j+1; // we want the rightmost on the left side of the density threshold
+        if (x*sqrt(x)>(partial+mass) && d2use[j]>=.5*WriteState.DensityKernelRad2) {
+            break;
+        // This particle exceeds the overdensity threshold
+        }
+    }
+    
+    inv_enc_den = (x*sqrt(x))/((partial+mass)*threshold);
+    if (partial==len) return -1.0;
+    return (d2use[partial-1]); 
 }
 
 // ======================  Search SOcellgroup Threshold  ========================
@@ -409,75 +410,74 @@ FOFloat partial_search(FOFloat *d2use, int len, int mass, int &partial, FOFloat 
 
 FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_den) {
     mass = 0;
-	FOFloat FOFr2 = 0;
-	FOFloat x = 0;
+    FOFloat FOFr2 = 0;
+    FOFloat x = 0;
 
-	int size_comb;
-	int size_partial;
-	FOFloat d2_thresh;
-	int size_partition;
-	  
+    int size_comb;
+    int size_partial;
+    FOFloat d2_thresh;
+    int size_partition;
+      
     // Compute the distance to all of the cellgroup centers,
     // and find the furthest one.
-	int furthest_firstbin = -1;
-	for (int i = 0; i<ncg; i++) {
-	    socg[i].compute_d2(halocenter);
-	    
-	    // uses minimum distance to halo center and gives us firstbin
-	    if (socg[i].firstbin > furthest_firstbin) {
-	        furthest_firstbin = socg[i].firstbin;
-	    }
-	}
+    int furthest_firstbin = -1;
+    for (int i = 0; i<ncg; i++) {
+        socg[i].compute_d2(halocenter);
+        
+        // uses minimum distance to halo center and gives us firstbin
+        if (socg[i].firstbin > furthest_firstbin) {
+            furthest_firstbin = socg[i].firstbin;
+        }
+    }
 
-	// If we find no density threshold crossing, we'll return furthest edge -- not ideal
-	FOFloat r2found;
+    // If we find no density threshold crossing, we'll return furthest edge -- not ideal
+    FOFloat r2found;
 
-	r2found = (furthest_firstbin+4)*GFC->SOpartition;
-	r2found *= r2found;
-	
-	// Proceed outward through the shells
-	for (int r = 0; r<furthest_firstbin+4; r++) {
-	    // Compute the inner boundary of this shell
-	    FOFr2 = GFC->SOpartition*r;
+    r2found = (furthest_firstbin+4)*GFC->SOpartition;
+    r2found *= r2found;
+    
+    // Proceed outward through the shells
+    for (int r = 0; r<furthest_firstbin+4; r++) {
+        // Compute the inner boundary of this shell
+        FOFr2 = GFC->SOpartition*r;
         FOFr2 *= FOFr2;
-	    x = xthreshold*FOFr2; 
+        x = xthreshold*FOFr2; 
 
-	    // Partition the newly touched cells 
-	    for (int i = 0; i<ncg; i++) {
-	        if (socg[i].firstbin == r) {
-		    socg[i].active = 1;
-		    // Get start[1] thru start[3] for every new SOgroupcell
-		    // Compute the d2 in particle order and then use this
-		    // for partition -- stored in d2comb when fn is called
-		    printf("i, socg[i].firstbin = %i %i \n",i,socg[i].firstbin);
-		    partition_cellgroup(socg+i, halocenter);
-		    
+        // Partition the newly touched cells 
+        for (int i = 0; i<ncg; i++) {
+            if (socg[i].firstbin == r) {
+                socg[i].active = 1;
+                // Get start[1] thru start[3] for every new SOgroupcell
+                // Compute the d2 in particle order and then use this
+                // for partition -- stored in d2comb when fn is called
+                printf("i, socg[i].firstbin = %i %i \n",i,socg[i].firstbin);
+                partition_cellgroup(socg+i, halocenter);
             }
-	    }
+        }
 
-	    // Is there enough mass within to skip or not enough to look
-	    if (x*sqrt(x) < mass) { 
+        // Is there enough mass within to skip or not enough to look
+        if (x*sqrt(x) < mass) { 
  	        // Enough mass, so crossing cannot be inside and we just add that mass
-	        for (int i = 0; i<ncg; i++) {
-	            if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
+            for (int i = 0; i<ncg; i++) {
+                if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
                     // Number of particles in this cell in this partition
                     mass += socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
                 }
             }
-	    } else { 
+        } else { 
             // Not enough mass, so there could be a density crossing.
             // Number of all particles that are within this radial bin
-	        size_comb = 0;
+            size_comb = 0;
             // number of particles within threshold in that partition
             size_partial = 0;
-		
+        
             // for every SOcellgroup crossed by the radial bin
             for (int i = 0; i<ncg; i++) {
-	            if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
-		    
+                if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
+            
                     // Number of particles for that radial bin in that SOcellgroup
                     size_partition = socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
-		    printf("r,i,socg[i].firstbin, size_partition, socg[i].start[r-socg[i].firstbin] = %i %i %i %i %i \n",r,i,socg[i].firstbin,size_partition, socg[i].start[r-socg[i].firstbin]);
+            printf("r,i,socg[i].firstbin, size_partition, socg[i].start[r-socg[i].firstbin] = %i %i %i %i %i \n",r,i,socg[i].firstbin,size_partition, socg[i].start[r-socg[i].firstbin]);
                     // Using d2comb for combined list of all in bins [0,r] and
                     // d2sort for distance to nuc of all FOF pcles in that radial bin
                     // Reason it cannot be d2buffer is that is used by d2compute
@@ -495,28 +495,28 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             // to save only the particle distances in r
             
             // Search for density threshold in list, given previous mass.
-	    
-	    d2_thresh = partial_search(d2sort, size_comb, mass, size_partial, inv_enc_den);
-	    
-	    
-	    // TODO: WHAT IF STRIP IS EMPTY
-	        if (d2_thresh > 0.) {
+        
+            d2_thresh = partial_search(d2sort, size_comb, mass, size_partial, inv_enc_den);
+        
+        
+            // TODO: WHAT IF STRIP IS EMPTY
+            if (d2_thresh > 0.) {
                 // If something was found, record it
-		  
+          
                 mass += size_partial;
-		printf("mass = %i\n",mass);
-		r2found = d2_thresh;
+                printf("mass = %i\n",mass);
+                r2found = d2_thresh;
                 break;  
             } else {
                 // False alarm: add all mass in that radial bin
                 mass += size_comb;
             }
-	    }
-	}   
-	
-	// Record inverse density and threshold radius
-	inv_enc_den = (x*sqrt(x))/(mass*threshold);
-	return r2found;
+        }
+    }   
+    
+    // Record inverse density and threshold radius
+    inv_enc_den = (x*sqrt(x))/(mass*threshold);
+    return r2found;
 }
 
   
@@ -538,23 +538,23 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
 /// floating point equality comparisons of d2.  
 int partition_and_index(int *halos, int halo_i, int start, int last, int &size) {
     int N_p = last;
-	FOFloat maxdens=-1.0;
-	int densest=-1;
-	if (start==last) {
-	    size = 0;
-	    return -1;    // Nothing to do
-	}
+    FOFloat maxdens=-1.0;
+    int densest=-1;
+    if (start==last) {
+        size = 0;
+        return -1;    // Nothing to do
+    }
 
-	int halo_ip; // next halo
-	if (halo_i == 0) halo_ip = halo_i+2; // unassigned particle is after 1st halo
-	else if (halo_i == 1) halo_ip = halo_i-1; // first halo
-	else halo_ip = halo_i+1;
-	int s = start;
+    int halo_ip; // next halo
+    if (halo_i == 0) halo_ip = halo_i+2; // unassigned particle is after 1st halo
+    else if (halo_i == 1) halo_ip = halo_i-1; // first halo
+    else halo_ip = halo_i+1;
+    int s = start;
         while (s<last && halos[s]==halo_i) s++;
-	// Advance start to the first high spot
-	while (s<last) {
-	    last--; // Consider next element in the upper list
-	    if (halos[last]==halo_i) {
+    // Advance start to the first high spot
+    while (s<last) {
+        last--; // Consider next element in the upper list
+        if (halos[last]==halo_i) {
             // We've found an out of place one; flip it with start
             std::swap(p[s],p[last]);
             std::swap(density[s],density[last]);
@@ -562,16 +562,16 @@ int partition_and_index(int *halos, int halo_i, int start, int last, int &size) 
             s++;
             while (s<last && halos[s]==halo_i) s++;
             // Advance s to the next high spot	
-	    }
-	    if (density[last]>maxdens && halos[last]==halo_ip) {
-		  maxdens = density[last];
-		  densest = last;
-	    }
-	    // last points at a high particle.  Check if it's the densest
-	}
-	// We're done when start = last.  last is the first high particle
-	size = last-start;
-	return densest;
+        }
+        if (density[last]>maxdens && halos[last]==halo_ip) {
+          maxdens = density[last];
+          densest = last;
+        }
+        // last points at a high particle.  Check if it's the densest
+    }
+    // We're done when start = last.  last is the first high particle
+    size = last-start;
+    return densest;
 }
 
 
@@ -579,109 +579,116 @@ int partition_and_index(int *halos, int halo_i, int start, int last, int &size) 
 
 // ======================  SO Algorithm  ===========================
 void greedySO() {
-	int start = 0;	// Index of the first particle of the current group
-	int densest = -1;
-	FOFloat maxdens = -1.0;
-	
-	int count = 1;        /// The number of the group
-	
-	Sweep.Start();
-	for (int j=0; j<np; j++) {
-	    // initializing the arrays
-	    min_inv_den_part[j] = 1.e30;
-	    halo_part[j] = 0; // unassigned is 0; first is 1; second, third is 2, 3, etc.
-	    // looking for densest pcle
-	    if (density[j]>maxdens) {
+    int start = 0;	// Index of the first particle of the current group
+    int densest = -1;
+    FOFloat maxdens = -1.0;
+    
+    int count = 1;        /// The number of the group
+    
+    Sweep.Start();
+    for (int j=0; j<np; j++) {
+        // initializing the arrays
+        min_inv_den_part[j] = 1.e30;
+        halo_part[j] = 0; // unassigned is 0; first is 1; second, third is 2, 3, etc.
+        // looking for densest pcle
+        if (density[j]>maxdens) {
             maxdens=density[j];
             densest = j;
-	    }
-	}
-	Sweep.Stop();
-	start = densest;	
+        }
+    }
+    Sweep.Stop();
+    start = densest;	
 
-	while (start>=0) {
-	    // Find the densest particle, move it to the front
-	    // No eligible central is left.  But we always 
-	    // try at least one central.
+    while (start>=0) {
+        // Find the densest particle, move it to the front
+        // No eligible central is left.  But we always 
+        // try at least one central.
 
-	    // TESTING
-	    if (count>10) break; // cap on number of halos per FOF group	    
+        // TESTING
+        if (count>10) break; // cap on number of halos per FOF group	    
 
-	    // TESTING
-	    if (np < 9700) break;
-	    // In this next part, we need to arrive at a value of 
-	    // d2SO with the property that all of the particles with 
-	    // d2 <= d2SO are the largest body that satisfies 
-	    // the overdensity condition.
+        // TESTING
+        if (np < 9700) break;
+        // In this next part, we need to arrive at a value of 
+        // d2SO with the property that all of the particles with 
+        // d2 <= d2SO are the largest body that satisfies 
+        // the overdensity condition.
 
-	    // Call search function and obtain inverse density and threshold d2, 
+        // Call search function and obtain inverse density and threshold d2, 
         // but also mass within the threshold
-	    Search.Start();
-	    FOFloat inv_enc_den;
-	    int mass;
-	    FOFloat d2SO = search_socg_thresh(p+start,mass,inv_enc_den);
-	    FOFloat d2SO_pr = d2SO*inner_rad2;
-	    Search.Stop();
-	    
-	    // inverse density used when interpolating 
-	    FOFloat inv_d;
-	    // product of density and distance threshold
-	    FOFloat inv_d2del = inv_enc_den/(d2SO); 	    
-	    int size;
+        Search.Start();
+        FOFloat inv_enc_den;
+        int mass;
+        FOFloat d2SO = search_socg_thresh(p+start,mass,inv_enc_den);
+        FOFloat d2SO_pr = d2SO*inner_rad2;
+        Search.Stop();
+        
+        // inverse density used when interpolating 
+        FOFloat inv_d;
+        // product of density and distance threshold
+        FOFloat inv_d2del = inv_enc_den/(d2SO); 	    
+        int size;
 
-	    int densest = -1;
-	    FOFloat maxdens = -1.0;
+        int densest = -1;
+        FOFloat maxdens = -1.0;
 
-	    Sweep.Start();
-	    // d2comb has d2 to the halo center of all particles in bins 0 through
-	    // r. The order of p and d2comb should be the same for every particle
-	    // within the threshold. So let's just use what we know is
-	    // within the threshold to mark their halos and then deal with the rest which
-	    // we only need in order to find the next densest
+        Sweep.Start();
+        // d2comb has d2 to the halo center of all particles in bins 0 through
+        // r. The order of p and d2comb should be the same for every particle
+        // within the threshold. So let's just use what we know is
+        // within the threshold to mark their halos and then deal with the rest which
+        // we only need in order to find the next densest
 
-	    int np_in_cell = 0;
-	    int test = 0;
-	    for (int i = 0; i<ncg; i++) {
-	        if (socg[i].active == 1) {
-		    
-		    socg[i].active = 0;
-		    np_in_cell = socg[i].start[4]-socg[i].start[0];
-		    for (int j=0; j<np_in_cell; j++) {
-	                // for those within prime, set to inactive and count
-		      if (d2comb[j]<d2SO_pr) {
-			    test++;
-                            halo_part[j] = -(abs(halo_part[j])+(halo_part[j]==0));
-			}
-			
-		    // look for the next densest particle which is still active and eligible
-			else if (density[j]>maxdens && density[j]*min_inv_den_part[j]>mag_loc*FOFunitdensity && halo_part[j]>=0) {
-			    maxdens=density[j];
-			    densest = j;
-			    if (d2comb[j]>d2SO) continue;
-			}
-			else if (d2comb[j]>d2SO)  continue;
-		        // interpolate to get the density of the particle
-			inv_d = d2comb[j]*(inv_d2del);
-			// if j is the densest particle seen so far, mark this as its halo
-			if (min_inv_den_part[j] > inv_d) {
-			    // and update the max dens for that particle 
-			    min_inv_den_part[j] = inv_d;
-			    halo_part[j] = ((halo_part[j] >= 0)-(halo_part[j] < 0))*count;
-			}
-		    }
-		}
-		else {
-		  
-		    np_in_cell = socg[i].start[4]-socg[i].start[0];
-		    for (int j=0; j<np_in_cell; j++) {
-		        if (density[j]>maxdens && density[j]*min_inv_den_part[j]>mag_loc*FOFunitdensity && halo_part[j]>=0) {
-			    maxdens=density[j];
-			    densest = j;
-			}
-		    }
-		}
-	    }
-	    printf("test = %i\n",test);
+        int np_in_cell = 0;
+        int test = 0;
+        for (int i = 0; i<ncg; i++) {
+            if (socg[i].active == 1) {
+            
+                socg[i].active = 0;
+                np_in_cell = socg[i].start[4]-socg[i].start[0];
+                /* TODO BUG? If you want j to refer to particles in the global
+                   list (and I think it does), then this loop should be 
+                   for (int j = socg[i].start[0]; j<socg[i].start[4]; j++)
+                   Probably don't need np_in_cell var.
+                */
+                for (int j=0; j<np_in_cell; j++) {
+                    // for those within prime, set to inactive and count
+                    if (d2comb[j]<d2SO_pr) {
+                        test++;
+                        halo_part[j] = -(abs(halo_part[j])+(halo_part[j]==0));
+                    }
+                
+                    // look for the next densest particle which is still active and eligible
+                    else if (density[j]>maxdens && density[j]*min_inv_den_part[j]>mag_loc*FOFunitdensity && halo_part[j]>=0) {
+                        maxdens=density[j];
+                        densest = j;
+                        if (d2comb[j]>d2SO) continue;
+                    }
+                    else if (d2comb[j]>d2SO)  continue;
+
+                    // interpolate to get the density of the particle
+                    inv_d = d2comb[j]*(inv_d2del);
+                    // if j is the densest particle seen so far, mark this as its halo
+                    if (min_inv_den_part[j] > inv_d) {
+                        // and update the max dens for that particle 
+                        min_inv_den_part[j] = inv_d;
+                        halo_part[j] = ((halo_part[j] >= 0)-(halo_part[j] < 0))*count;
+                    }
+                }
+            }
+            else {
+          
+                np_in_cell = socg[i].start[4]-socg[i].start[0];
+                // TODO BUG: Same issue here
+                for (int j=0; j<np_in_cell; j++) {
+                    if (density[j]>maxdens && density[j]*min_inv_den_part[j]>mag_loc*FOFunitdensity && halo_part[j]>=0) {
+                        maxdens=density[j];
+                        densest = j;
+                    }
+                }
+            }
+        }
+        printf("test = %i\n",test);
         /* Indeed this last loop may become a bottleneck.  We are touching 
            every particle at the end of each nucleus, exactly the kind of 
            quadratic thing we were trying to avoid.  Is it feasible to keep 
@@ -690,56 +697,56 @@ void greedySO() {
            the cell group is involved in a halo?
            Let's get the algorithm working first, then think about this optimization.
         */
-	    Sweep.Stop();
-	    count++;
-	    printf("densest = %i\n",densest);
-	    start = densest;
-	}
+        Sweep.Stop();
+        count++;
+        printf("densest = %i\n",densest);
+        start = densest;
+    }
 
 
     // TODO: Could we split this function here?  Seems like the groups are firm after this.
 
-	for (int j=0; j<np; j++) {
-	  halo_part[j] = abs(halo_part[j]);
-	}
-	
-	Sweep.Start();
-	int size = 0;
-	start = 0;
-	int next_densest;
-	int halo_ind;
-	for (int i=0; i<count; i++) {
-	    if (i == 0) halo_ind = 1; // start with first subhalo                
+    for (int j=0; j<np; j++) {
+      halo_part[j] = abs(halo_part[j]);
+    }
+    
+    Sweep.Start();
+    int size = 0;
+    start = 0;
+    int next_densest;
+    int halo_ind;
+    for (int i=0; i<count; i++) {
+        if (i == 0) halo_ind = 1; // start with first subhalo                
         else if (i == 1) halo_ind = 0; // deal with the unassigned fluff     
         else halo_ind = i; // then rest
-	  
-	    // rearrange so that you first sort to the left all particles in halo 0,
-	    // then all in halo 1, ... i, ... count;
-	    // and finding the densest particle of those to the right of i while doing so
-	    next_densest = partition_and_index(halo_part, halo_ind, start, np, size);
+      
+        // rearrange so that you first sort to the left all particles in halo 0,
+        // then all in halo 1, ... i, ... count;
+        // and finding the densest particle of those to the right of i while doing so
+        next_densest = partition_and_index(halo_part, halo_ind, start, np, size);
         
         // TODO: it would be mildly more cache friendly to move the 
         // sorting by particle ID number here.
-	    
-	    // Mark the group.  Note that the densest particle may not be first.
-	    if (next_densest < 0) {
-	        numcenters++;
+        
+        // Mark the group.  Note that the densest particle may not be first.
+        if (next_densest < 0) {
+            numcenters++;
             if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size);
             start += size;
             continue;
-	    }
-	    if (size > 0) {
-	        numcenters++;
+        }
+        if (size > 0) {
+            numcenters++;
             if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size);
             start += size;
-	    }
-	  
-	    // Swap so that remaining particles start with the densest.
-	    std::swap(p[start], p[next_densest]);
-	    std::swap(density[start], density[next_densest]);
-	    std::swap(halo_part[start], halo_part[next_densest]);
-	}
-	Sweep.Stop();
+        }
+      
+        // Swap so that remaining particles start with the densest.
+        std::swap(p[start], p[next_densest]);
+        std::swap(density[start], density[next_densest]);
+        std::swap(halo_part[start], halo_part[next_densest]);
+    }
+    Sweep.Stop();
 }
 
 // ================ Routines for cell indexes and cell groups ================
@@ -862,95 +869,95 @@ int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, FLOAT3p1 *acc, in
 /// variant of a radix sort: we don't actually need to sort the whole
 /// list, but just find this one intercept.
 FOFloat hist_search(FOFloat *d2use, int len) {
-	#define SO_BINS 16
-	FOFloat norm = SO_BINS*xthreshold*pow(len,-2.0/3.0);
-	FOFloat inorm = xthreshold/norm;
-	// d2*xthreshold = x, which is to be compared x^(3/2) vs count
-	// d2*xthreshold*SO_BINS/len^(2/3) = d2*norm = our integer binning
-	// We want bin*inorm = x, so inorm = xthreshold/norm
-	// bin*inorm/xthreshold = d2 = bin/norm
+    #define SO_BINS 16
+    FOFloat norm = SO_BINS*xthreshold*pow(len,-2.0/3.0);
+    FOFloat inorm = xthreshold/norm;
+    // d2*xthreshold = x, which is to be compared x^(3/2) vs count
+    // d2*xthreshold*SO_BINS/len^(2/3) = d2*norm = our integer binning
+    // We want bin*inorm = x, so inorm = xthreshold/norm
+    // bin*inorm/xthreshold = d2 = bin/norm
 
-	int low = 0;        /// The low-edge of the lowest bin we'll search
-	int hi = SO_BINS;   /// The high-edge of the highest bin we'll search
-	int size = 0;	    /// The number of particles interior to the search range
+    int low = 0;        /// The low-edge of the lowest bin we'll search
+    int hi = SO_BINS;   /// The high-edge of the highest bin we'll search
+    int size = 0;	    /// The number of particles interior to the search range
 
-	if (len > SO_HIST_SEARCH) {
-	    // Histogram the particles to determine low, high, and size
-	    // of a more efficient range.
-	    int bins[SO_BINS];
-	    for (int j=0; j<SO_BINS; j++) bins[j]=0;
-	    for (int j=0; j<len; j++) {
+    if (len > SO_HIST_SEARCH) {
+        // Histogram the particles to determine low, high, and size
+        // of a more efficient range.
+        int bins[SO_BINS];
+        for (int j=0; j<SO_BINS; j++) bins[j]=0;
+        for (int j=0; j<len; j++) {
             int b = floor(d2use[j]*norm);
             if (b<SO_BINS) bins[b]++;
-	    }
-	    // Next, cumulate the bins so that bins[b] contains
-	    // all particles in bins <= b, i.e., all particles less than b+1
-	    for (int j=0; j<SO_BINS; j++) size += bins[j];
+        }
+        // Next, cumulate the bins so that bins[b] contains
+        // all particles in bins <= b, i.e., all particles less than b+1
+        for (int j=0; j<SO_BINS; j++) size += bins[j];
 
-	    // Now we've counted the particles in these bins.
-	    // If the overdensity criteria is satisfied at the outer
-	    // boundary of the bin, then we know those particles are in.
+        // Now we've counted the particles in these bins.
+        // If the overdensity criteria is satisfied at the outer
+        // boundary of the bin, then we know those particles are in.
 
-	    // If the criteria could be satisfied by placing the mass in the
-	    // bin at the inner boundary, then the boundary could be in that bin.
-	    // Unfortunately, there is guarantee that such bins are consecutive.
+        // If the criteria could be satisfied by placing the mass in the
+        // bin at the inner boundary, then the boundary could be in that bin.
+        // Unfortunately, there is guarantee that such bins are consecutive.
 
-	    // If the criteria can't be satisifed even placing all of the mass
-	    // exterior to that bin at the inner boundary, then we know the boundary
-	    // is not exterior to that point.  So let's bound the region
-	    // before committing resources to a sort.
-	    // We're going to consider whether bin 'low' is all inside
-	    for (low = SO_BINS-1;low>=0;low--) {
+        // If the criteria can't be satisifed even placing all of the mass
+        // exterior to that bin at the inner boundary, then we know the boundary
+        // is not exterior to that point.  So let's bound the region
+        // before committing resources to a sort.
+        // We're going to consider whether bin 'low' is all inside
+        for (low = SO_BINS-1;low>=0;low--) {
             FOFloat x = (low)*inorm;   // The inner boundary
             if (hi==SO_BINS && x*sqrt(x)<=size) hi = low;   
-		    // Putting all of this bin's mass at the inner edge,
-		    // we could possibly get above the density threshold.  
-		    // So the boundary is interior to (hi+1)*inorm.
-		    // Can only set this the first (outermost) time
+            // Putting all of this bin's mass at the inner edge,
+            // we could possibly get above the density threshold.  
+            // So the boundary is interior to (hi+1)*inorm.
+            // Can only set this the first (outermost) time
             x = (low+1)*inorm;   // The outer boundary
             if (x*sqrt(x)<=size) break;
-		    // Even putting all of this bin's mass at the outer edge, 
-		    // this bin and its interior exceeds the threshold.
+            // Even putting all of this bin's mass at the outer edge, 
+            // this bin and its interior exceeds the threshold.
             size -= bins[low];
-	    }
-	    low++; hi++; 
-	    // Now low*inorm is the lower bound on the boundary
-	    // We need to search the range [low,hi]*inorm
-	    // size contains all of the mass interior to low.
-	}
+        }
+        low++; hi++; 
+        // Now low*inorm is the lower bound on the boundary
+        // We need to search the range [low,hi]*inorm
+        // size contains all of the mass interior to low.
+    }
 
-	// We're going to load up particles in range [low,hi]*inorm into 
-	// the sorting array starting at size+1
-	int start = size;    
-	for (int j=0; j<len; j++) {
-	    FOFloat b = d2use[j]*norm;
-	    if (b>=low && b<hi) d2sort[++size] = d2use[j];
-	    // Need the >= here because if low==0, we need the d2=b=0 self-count
-	}
-	// Now the particles to be considered are in (start,size]
-	// Sort this smaller segment
-	std::sort(d2sort+start+1, d2sort+size+1);
-	numsorts += size-start;
+    // We're going to load up particles in range [low,hi]*inorm into 
+    // the sorting array starting at size+1
+    int start = size;    
+    for (int j=0; j<len; j++) {
+        FOFloat b = d2use[j]*norm;
+        if (b>=low && b<hi) d2sort[++size] = d2use[j];
+        // Need the >= here because if low==0, we need the d2=b=0 self-count
+    }
+    // Now the particles to be considered are in (start,size]
+    // Sort this smaller segment
+    std::sort(d2sort+start+1, d2sort+size+1);
+    numsorts += size-start;
 
-	// Now sweep in from the end to find the threshold
-	int max = std::max(start,SO_CACHE);
-	for (; size>max; size--) {
-	    FOFloat x = d2sort[size]*xthreshold;
-	    if (x*sqrt(x)<size) goto FoundSORadius;
-		// This particle exceeds the overdensity threshold
-	}
-	for (; size>start; size--) {
-	    FOFloat x = d2sort[size]*xthreshold;
-	    if (x<twothirds[size]) goto FoundSORadius;
-		// This particle exceeds the overdensity threshold
-		// We have cached the size^(2/3) values, just to avoid
-		// the square roots
-	}
+    // Now sweep in from the end to find the threshold
+    int max = std::max(start,SO_CACHE);
+    for (; size>max; size--) {
+        FOFloat x = d2sort[size]*xthreshold;
+        if (x*sqrt(x)<size) goto FoundSORadius;
+        // This particle exceeds the overdensity threshold
+    }
+    for (; size>start; size--) {
+        FOFloat x = d2sort[size]*xthreshold;
+        if (x<twothirds[size]) goto FoundSORadius;
+        // This particle exceeds the overdensity threshold
+        // We have cached the size^(2/3) values, just to avoid
+        // the square roots
+    }
 
-	FoundSORadius:
-	if (size==start) return low/norm;
-	    // We don't have the particle from the next lower bin, 
-	    // so just return the boundary
-	return d2sort[size];
+    FoundSORadius:
+    if (size==start) return low/norm;
+        // We don't have the particle from the next lower bin, 
+        // so just return the boundary
+    return d2sort[size];
 }
 #endif
