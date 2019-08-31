@@ -550,9 +550,10 @@ int partition_and_index(int *halos, int halo_i, int start, int last, int &size) 
     else if (halo_i == 1) halo_ip = halo_i-1; // first halo
     else halo_ip = halo_i+1;
     int s = start;
-        while (s<last && halos[s]==halo_i) s++;
+    while (s<last && halos[s]==halo_i) s++;
     // Advance start to the first high spot
     while (s<last) {
+        // BUG?: This seems wrong.  Should scan downwards to find the last low spot
         last--; // Consider next element in the upper list
         if (halos[last]==halo_i) {
             // We've found an out of place one; flip it with start
@@ -656,6 +657,8 @@ void greedySO() {
                     if (d2comb[j]<d2SO_pr) {
                         test++;
                         halo_part[j] = -(abs(halo_part[j])+(halo_part[j]==0));
+                        // TODO: Use ?: notation
+                        // TODO: But I'm not even sure what this math is doing, bug?
                     }
                 
                     // look for the next densest particle which is still active and eligible
@@ -673,6 +676,8 @@ void greedySO() {
                         // and update the max dens for that particle 
                         min_inv_den_part[j] = inv_d;
                         halo_part[j] = ((halo_part[j] >= 0)-(halo_part[j] < 0))*count;
+                        // TODO: Better C syntax is
+                        // halo_part[j] = (halo_part[j]<0)?(-count):count;
                     }
                 }
             }
@@ -727,6 +732,10 @@ void greedySO() {
         
         // TODO: it would be mildly more cache friendly to move the 
         // sorting by particle ID number here.
+        // And I guess we don't have to sort the unaffiliated particles?
+
+        // TODO BUG?? Sorry, I'm not sure what conventions are being used.
+        // There may be a bug in here.
         
         // Mark the group.  Note that the densest particle may not be first.
         if (next_densest < 0) {
