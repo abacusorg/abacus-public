@@ -113,10 +113,10 @@ class SOcell {
   public:
     FOFparticle *p;     ///< The particles
     FOFloat *density;   ///< The densities
-    FOFloat *min_inv_den_part;  ///< The min densities
+    FOFloat *min_inv_den;  ///< The min densities
 
-    int *halo_part;       ///< TODO: Fix documentation.  And this name is not crisp.
-    // BTH should I do indbuffer and use for cell index and halo index?
+    int *halo_inds;       ///< List of halo indices for each particle
+    // BTH should I do indbuffer and use it for both cell indices and halo indices?
     FOFloat *d2buffer;    ///< A buffer of distances
     FOFloat *d2_bin;      ///< A buffer of sorted distances
     int np;             ///< The number of particles in this group
@@ -182,14 +182,14 @@ class SOcell {
         if (density!=NULL) free(density);
         ret = posix_memalign((void **)&density, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
 
-        if (min_inv_den_part!=NULL) free(min_inv_den_part);
-        ret = posix_memalign((void **)&min_inv_den_part, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
+        if (min_inv_den!=NULL) free(min_inv_den);
+        ret = posix_memalign((void **)&min_inv_den, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
 
         if (cellindex!=NULL) free(cellindex);
         ret = posix_memalign((void **)&cellindex, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
     
-        if (halo_part!=NULL) free(halo_part);
-        ret = posix_memalign((void **)&halo_part, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
+        if (halo_inds!=NULL) free(halo_inds);
+        ret = posix_memalign((void **)&halo_inds, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
     }
 
     void setup_socg(int size) {
@@ -216,8 +216,8 @@ class SOcell {
         d2_active = NULL;
         groups = NULL;
         density = NULL;
-        min_inv_den_part = NULL;
-        halo_part = NULL;
+        min_inv_den = NULL;
+        halo_inds = NULL;
 
         socg = NULL;
         cellindex = NULL;
@@ -246,8 +246,8 @@ class SOcell {
         if (d2_active!=NULL) free(d2_active); d2_active = NULL;
         if (groups!=NULL) free(groups); groups = NULL;
         if (density!=NULL) free(density); density = NULL;
-        if (min_inv_den_part!=NULL) free(min_inv_den_part); min_inv_den_part = NULL;
-        if (halo_part!=NULL) free(halo_part); halo_part = NULL;
+        if (min_inv_den!=NULL) free(min_inv_den); min_inv_den = NULL;
+        if (halo_inds!=NULL) free(halo_inds); halo_inds = NULL;
 
         if (socg!=NULL) free(socg); socg = NULL;
         if (cellindex!=NULL) free(cellindex); cellindex = NULL;
@@ -292,9 +292,9 @@ class SOcell {
         // TODO: Document better
         FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5);
         FOFloat M_D = 30.;
-        FOFloat alpha_safety = 1.;
         FOFloat sigma3 = M_D*sqrt(threshold*P.np/(48*M_PI*M_PI));
-        min_central = alpha_safety*5./WriteState.DensityKernelRad2*pow(sigma3,2./3); 
+        // Density for a SIS with mass M_D
+        min_central = 5./WriteState.DensityKernelRad2*pow(sigma3,2./3); 
         min_central /= (P.np);
         min_central *= FOFunitdensity;
         return;
@@ -320,8 +320,8 @@ int partition_only(FOFloat r2_part, int start, int last) {
             std::swap(p[s],p[last]);
             std::swap(density[s],density[last]);
             std::swap(d2_active[s],d2_active[last]);
-            std::swap(halo_part[s],halo_part[last]);
-            std::swap(min_inv_den_part[s],min_inv_den_part[last]);
+            std::swap(halo_inds[s],halo_inds[last]);
+            std::swap(min_inv_den[s],min_inv_den[last]);
             s++;
             while (s<last && d2_active[s]<=r2_part) s++;
             // Advance s to the next high spot
@@ -369,31 +369,28 @@ void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
   
 /// Searches for the density crossing in this shell, assuming a mass interior
 /// to it.  Returns -1 if not found; else returns square distance of threshold.
-FOFloat partial_search(FOFloat *d2use, int len, int mass, int &partial, FOFloat &inv_enc_den, FOFloat &d2_max) {
+FOFloat partial_search(FOFloat *d2use, int len, int mass, int &size_thresh, FOFloat &inv_enc_den, FOFloat &d2_max) {
   
     // Sort the distances in increasing order
     std::sort(d2_bin, d2_bin+len); 
     numsorts += len;
     // Now sweep in from the center to find the threshold
-    int size = 0;
-
     FOFloat x;
     for (int j=0; j<len; j++) {
         if (d2_max < d2_bin[j]) d2_max = d2_bin[j];
         x = d2_bin[j]*xthreshold;
-        size = j+1; // we want the rightmost on the left side of the density threshold
-        if (x*sqrt(x)>(size+mass) && d2_bin[j]>=.5*WriteState.DensityKernelRad2) {
+        size_thresh = j+1; // we want the rightmost on the left side of the density threshold
+        if (x*sqrt(x)>(size_thresh+mass) && d2_bin[j]>=.5*WriteState.DensityKernelRad2) {
             break;
             // This particle exceeds the overdensity threshold
         }
     }
     // record result
-    partial = size;
-    if ((size+mass) == 0) return -1.0;
-    inv_enc_den = (x*sqrt(x))/((size+mass)*threshold);
-    if (partial==len) return -1.0;
-
-    return (d2_bin[size-1]); 
+    if ((size_thresh+mass) == 0) return -1.0;
+    inv_enc_den = (x*sqrt(x))/((size_thresh+mass)*threshold);
+    
+    if (size_thresh==len) return -1.0;
+    return (d2_bin[size_thresh-1]);
 }
     
 // ======================  Search SOcellgroup Threshold  ========================
@@ -434,7 +431,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
     //r2found = (furthest_firstbin+4)*GFC->SOpartition;
     r2found = (furthest_firstbin)*GFC->SOpartition;
     r2found *= r2found;
-    inv_enc_den = 1.e30;
+    inv_enc_den = 1./threshold;//1.e30; //TESTING
     
     // Proceed outward through the shells
     for (int r = 0; r<furthest_firstbin+4; r++) {
@@ -483,7 +480,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
                     // d2_bin for distance to nuc of all FOF pcles in that radial bin
                     // Reason it cannot be d2buffer is that is used by d2compute
                     // TODO: But not used at the same time, right?
-                    // BTH Eh I ran into trouble trying to reduce the number of buffer distances
+                    // BTH Eh, I ran into trouble trying to reduce the number of buffer distances
                     for (int j = 0; j<size_partition; j++) { 
                         d2_bin[size_bin+j] = d2_active[socg[i].start[r-socg[i].firstbin]+j];
                     }
@@ -497,16 +494,13 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             // to save only the particle distances in r
             
             // Search for density threshold in list, given previous mass.
-        
             d2_thresh = partial_search(d2_bin, size_bin, mass, size_thresh, inv_enc_den,d2_max);
             
-        
-            // TODO: WHAT IF STRIP IS EMPTY
             if (d2_thresh > 0.0) {
                 // If something was found, record it
                 mass += size_thresh;
                 r2found = d2_thresh;
-                break;  
+                return r2found;
             }
             else {
                 // False alarm: add all mass in that radial bin
@@ -515,10 +509,9 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             }
         }
     }
-    // if nothing was found return the largest distance to a particle encountered --> not ideal!
+    // If nothing was found return the largest distance to a particle encountered --> not ideal!
     if (d2_thresh < 0.0) x = xthreshold*d2_max; inv_enc_den = (x*sqrt(x))/(mass*threshold); return d2_max;
     // Record inverse density and threshold radius
-
     return r2found;
 }
 
@@ -578,7 +571,7 @@ int partition_and_index(int *halos, int halo_i, int start, int last, int &size) 
 
 
 // ======================  SO Algorithm  ===========================
-void greedySO() {
+int greedySO() {
     int start = 0;  // Index of the first particle of the current group
     int densest = -1;
     FOFloat maxdens = -1.0;
@@ -588,8 +581,8 @@ void greedySO() {
     Sweep.Start();
     for (int j=0; j<np; j++) {
         // initializing the arrays
-        min_inv_den_part[j] = 1.e30;
-        halo_part[j] = 0; // unassigned is 0; first is 1; second, third is 2, 3, etc.
+        min_inv_den[j] = 1.e30;
+        halo_inds[j] = 0; // unassigned is 0; first is 1; second, third is 2, 3, etc.
         // looking for densest pcle
         if (density[j]>maxdens) {
             maxdens=density[j];
@@ -622,7 +615,7 @@ void greedySO() {
         FOFloat inv_enc_den;
         int mass;
         FOFloat d2SO = search_socg_thresh(p+start,mass,inv_enc_den);
-        
+
         FOFloat d2SO_pr = d2SO*inner_rad2;
         Search.Stop();
         
@@ -649,11 +642,11 @@ void greedySO() {
                     // for those within prime, set to inactive and count
                     if (d2_active[j]<d2SO_pr) {
                         
-                        halo_part[j] = (halo_part[j]==0)?(-1):-abs(halo_part[j]);
+                        halo_inds[j] = (halo_inds[j]==0)?(-1):-abs(halo_inds[j]);
                     }
 
                     // look for the next densest particle which is still active and eligible
-                    else if (density[j]>maxdens && density[j]*min_inv_den_part[j]>mag_loc*FOFunitdensity && halo_part[j]>=0) {
+                    else if (density[j]>maxdens && density[j]*min_inv_den[j]>mag_loc*FOFunitdensity && halo_inds[j]>=0) {
                         maxdens=density[j];
                         densest = j;
                         if (d2_active[j]>d2SO) continue;
@@ -663,17 +656,17 @@ void greedySO() {
                     // interpolate to get the density of the particle
                     inv_d = d2_active[j]*(inv_d2del);
                     // if j is the densest particle seen so far, mark this as its halo
-                    if (min_inv_den_part[j] > inv_d) {
+                    if (min_inv_den[j] > inv_d) {
                         // and update the max dens for that particle 
-                        min_inv_den_part[j] = inv_d;
+                        min_inv_den[j] = inv_d;
                     
-                        halo_part[j] = (halo_part[j]<0)?(-count):count;
+                        halo_inds[j] = (halo_inds[j]<0)?(-count):count;
                     }
                 }
             }
             else {
                 for (int j=socg[i].start[0]; j<socg[i].start[4]; j++) {
-                    if (density[j]>maxdens && density[j]*min_inv_den_part[j]>mag_loc*FOFunitdensity && halo_part[j]>=0) {
+                    if (density[j]>maxdens && density[j]*min_inv_den[j]>mag_loc*FOFunitdensity && halo_inds[j]>=0) {
                         maxdens=density[j];
                         densest = j;
                     }
@@ -694,19 +687,19 @@ void greedySO() {
 
         start = densest;
     }
+    return count;
+}
 
-
-    // TODO: Could we split this function here?  Seems like the groups are firm after this.
-    // BTH will do asap
-
+void partition_halos(int count) {
+    
     for (int j=0; j<np; j++) {
-      halo_part[j] = abs(halo_part[j]);
+      halo_inds[j] = abs(halo_inds[j]);
     }
     
     
     Sweep.Start();
     int size = 0;
-    start = 0;
+    int start = 0;
     int next_densest;
     int halo_ind;
     for (int i=0; i<count; i++) {
@@ -717,8 +710,8 @@ void greedySO() {
         // rearrange so that you first sort to the left all particles in halo 0,
         // then all in halo 1, ... i, ... count;
         // and finding the densest particle of those to the right of i while doing so
-        next_densest = partition_and_index(halo_part, halo_ind, start, np, size);
-        //printf("count, size_group, next dens, np = %6i, %6i, %6i, %6i\n",halo_ind,size,next_densest, np);
+        next_densest = partition_and_index(halo_inds, halo_ind, start, np, size);
+        
         // TODO: it would be mildly more cache friendly to move the 
         // sorting by particle ID number here.
         // BTH Sure, though I am not sure the particle sorting for L2 should work yet.
@@ -728,7 +721,7 @@ void greedySO() {
         // There may be a bug in here.
         // BTH I have a slower version of this for double checking and the two results agree
         // Mark the group.  Note that the densest particle may not be first.
-        // TODO: Will write more documentation
+        // TODO: Will write more documentation tuks
         if (next_densest < 0) {
             numcenters++;
             if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size);
@@ -744,7 +737,7 @@ void greedySO() {
         // Swap so that remaining particles start with the densest.
         std::swap(p[start], p[next_densest]);
         std::swap(density[start], density[next_densest]);
-        std::swap(halo_part[start], halo_part[next_densest]);
+        std::swap(halo_inds[start], halo_inds[next_densest]);
     }
     Sweep.Stop();
 }
@@ -834,20 +827,21 @@ int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, FLOAT3p1 *acc, in
     load_socg();
 
     // TODO question: After this point, do we ever use the particle cellindex again?
-    // If not, then let's not permute it.
-    // TODO: In fact, it seems we could have re-used halo_part[].
-    // B.H. Am in that case going to use halo_part here instead of cellindex though may make it a bit confusing in terms of names
+    // If not, then let's not permute it. BTH I don't think it's being permuted
+    // TODO: In fact, it seems we could have re-used halo_inds[].
+    // B.H. Am in that case going to use halo_inds here instead of cellindex --> should it be indbuffer
     // I think we agreed that the particle index is in fact all that is needed
     // if we want to put the L1 particles back into cellgroup order.
 
-    greedySO();
-
+    int count_halos = greedySO();
+    partition_halos(count_halos);
+    
     // Sort the particles in each group into their original ordering,
     // as this restores the cell groups for L2.
     // TODO: Didn't add any code to skip this for L2
     // Note: I left the first particle unsorted, as it is planned to be the densest one.  This is a tiny inefficiency for L2: one extra group.
 
-    /* TESTING
+    /* BTH This is currently not working
     for (int g=0; g<ngroups; g++) {
         std::sort(p+groups[g].start+1, p+groups[g].start+groups[g].n);
     }
