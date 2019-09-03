@@ -6,17 +6,30 @@
  */
  
  #include "proepi.cpp"
+
+#ifdef PARALLEL
+void RecoverReadStateFiles(Parameters &P){
+	STDLOG(0, "RecoverReadStateFiles not yet implemented.");
+}
+#endif
+
  
  int main(int argc, char **argv) {
     WallClockDirect.Start();
     SingleStepSetup.Start();
 
-    if (argc!=2) {
+	int num_args = 2;
+	
+    if (argc!=num_args) {
        // Can't use assertf() or QUIT here: stdlog not yet defined!
-       fprintf(stderr, "recover_multipoles: command line must have 2 parameters given, not %d.\nLegal usage: recover_multipoles <parameter_file>\n", argc);
+       fprintf(stderr, "recover_multipoles: command line must have 2 parameters given, not %d.\nLegal usage: recover_multipoles <parameter_file> (and, if parallel: <reconstruct_read_files> <reconstruct_multipoles>)\n", argc);
        assert(0==99);
-    }
-    
+    }  
+	
+#ifdef PARALLEL
+    InitializeParallel(MPI_size, MPI_rank);
+#endif
+	
     P.ReadParameters(argv[1],0);
     strcpy(WriteState.ParameterFileName, argv[1]);
     strcpy(WriteState.Pipeline, "recover_multipoles");
@@ -37,21 +50,29 @@
     // Informs some of our directory structure
     // Also sets up SlabSize
     InitWriteState(MakeIC);
-
-    // Now execute the timestep
-    Prologue(P,MakeIC);
+	Prologue(P, MakeIC);
     SS->load_from_params(P);  // normally done during Prologue, but we pretended this was an IC step
-    timestepMultipoles();
-
+	
+	timestepMultipoles();
+	
+#ifdef PARALLEL	
+	RecoverReadStateFiles(P); 
+#else
+			
     // Let the IO finish, so that it is included in the time log.
     SingleStepTearDown.Start();
     IO_Terminate();
     SingleStepTearDown.Stop();
     WallClockDirect.Stop();
-
+#endif 
     // The epilogue contains some tests of success.
-    Epilogue(P,MakeIC);
-    stdlog.close();
-        
-    exit(0);
+    Epilogue(P, MakeIC);
+	
+	stdlog.close();
+#ifdef PARALLEL	
+    FinalizeParallel(); 
+#endif	
+	
+	exit(0); 
+	}
 }
