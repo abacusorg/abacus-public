@@ -543,7 +543,6 @@ int partition_and_index(int *halos, int halo_i, int start, int last, int &size) 
     while (s<last && halos[s]==halo_i) s++;
     // Advance start to the first high spot
     while (s<last) {
-        // BUG?: This seems wrong.  Should scan downwards to find the last low spot
         // BTH Is it the wording of next element in upper list confusing? It should just mean
         // on the other side of the array -- otherwise it does look for the last low spot
         last--; // Consider next low element in the last part of the list
@@ -824,10 +823,11 @@ int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, FLOAT3p1 *acc, in
         density[j] = acc[j].w; 
         cellindex[j] = compute_cellindex(pos[j]);
     }
-    Copy.Stop();
+    // Remove: Copy.Stop() was here
 
     // Load the cellgroup list from the indices
     load_socg();
+    Copy.Stop();
 
     // TODO question: After this point, do we ever use the particle cellindex again?
     // If not, then let's not permute it. BTH I don't think it's being permuted
