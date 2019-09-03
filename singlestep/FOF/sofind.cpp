@@ -844,11 +844,11 @@ int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, FLOAT3p1 *acc, in
     // TODO: Didn't add any code to skip this for L2
     // Note: I left the first particle unsorted, as it is planned to be the densest one.  This is a tiny inefficiency for L2: one extra group.
 
-    /* BTH This is currently not working
+
     for (int g=0; g<ngroups; g++) {
         std::sort(p+groups[g].start+1, p+groups[g].start+groups[g].n);
     }
-    */
+
     Total.Stop();
     return ngroups;
 }
