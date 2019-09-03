@@ -674,7 +674,7 @@ int greedySO() {
             }
         }
 
-        /* Indeed this last loop may become a bottleneck.  We are touching 
+        /* TODO: Indeed this last loop may become a bottleneck.  We are touching 
            every particle at the end of each nucleus, exactly the kind of 
            quadratic thing we were trying to avoid.  Is it feasible to keep 
            the "most attractive new center" in each cell group, so that this
@@ -832,7 +832,7 @@ int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, FLOAT3p1 *acc, in
     // TODO question: After this point, do we ever use the particle cellindex again?
     // If not, then let's not permute it. BTH I don't think it's being permuted
     // TODO: In fact, it seems we could have re-used halo_inds[].
-    // B.H. Am in that case going to use halo_inds here instead of cellindex --> should it be indbuffer
+    // BTH Am in that case going to use halo_inds here instead of cellindex --> should it be indbuffer
     // I think we agreed that the particle index is in fact all that is needed
     // if we want to put the L1 particles back into cellgroup order.
 
