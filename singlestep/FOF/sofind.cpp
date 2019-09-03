@@ -686,6 +686,9 @@ int greedySO() {
         count++;
 
         start = densest;
+	// If density is insufficient, do not form new halo
+	if (density[start]<min_central) break;
+
     }
     return count;
 }
