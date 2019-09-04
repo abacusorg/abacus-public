@@ -291,7 +291,7 @@ void ParallelConvolution::AllocMT(){
     size_t bufsize = sizeof(Complex)*znode*rml*cpd2pad; 	
 	
 	MTzmxy = (Complex *) fftw_malloc(bufsize);
-	assertf(MTzmxy!=NULL, "Failed fftw_malloc for MTzmxy\n");
+	assertf(MTzmxy!=NULL, "Failed fftw_malloc for MTzmxy of size %d\n", bufsize);
 	STDLOG(2, "Successfully malloced MTzmxy at address %p\n", MTzmxy);
 	
 	AllocateMT.Stop(); 

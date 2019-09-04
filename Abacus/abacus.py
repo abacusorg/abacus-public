@@ -49,6 +49,8 @@ import shlex
 import time
 import signal
 from tempfile import mkstemp
+import warnings
+from warnings import warn
 
 import numpy as np
 
@@ -468,6 +470,10 @@ def setup_singlestep_env(param):
         singlestep_env['OMP_PLACES'] = param.OMP_PLACES
     if 'OMP_PROC_BIND' in param:
         singlestep_env['OMP_PROC_BIND'] = param.OMP_PROC_BIND
+    if 'OMP_NUM_THREADS' in param and 'OMP_NUM_THREADS' in singlestep_env:
+        if param['OMP_NUM_THREADS'] != singlestep_env['OMP_NUM_THREADS']:
+            warn('OMP_NUM_THREADS in the parameter file and the environment do not match. '
+                'To avoid confusion, they should be the same (or the environment variable should be unset).')
         
     return singlestep_env
     
@@ -1152,3 +1158,16 @@ def handle_singlestep_error(error):
     '''
     if error.returncode == -signal.SIGBUS:
         print('singlestep died with signal SIGBUS! Did the ramdisk run out of memory?', file=sys.stderr)
+
+
+def showwarning(message, category, filename, lineno, file=None, line=None):
+    '''
+    A monkey patch for warnings.showwarning that is a little easier to parse.
+    '''
+
+    if file is None:
+        file = sys.stderr
+
+    print(f'{filename}:{lineno}: {category.__name__}: {message}', file=file)
+
+warnings.showwarning = showwarning

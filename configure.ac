@@ -5,6 +5,7 @@
 # Athena (https://trac.princeton.edu/Athena/)
 
 # Initialization
+# TODO: any way to use mpicxx if --enable-parallel?
 AC_LANG([C++])  # does this work?
 
 AC_INIT([abacus], [2.0], [], [], [github.com/abacusorg/abacus])
@@ -31,6 +32,14 @@ AC_SUBST([ARCH])
 AC_CONFIG_FILES([
  common.mk
 ])
+
+# Detect the underlying compiler when we are using a wrapper like mpicxx
+# TODO: better way to do this?
+AC_MSG_CHECKING([underlying compiler])
+AC_SUBST(REAL_CXX)
+REAL_CXX=$($CXX --version |\grep -qP '\bicc\b' && echo icc || echo g++)
+AC_MSG_RESULT([$REAL_CXX])
+REAL_CC="$REAL_CXX -x c"
 
 # git version
 GITVERSION=\"$(git rev-parse HEAD)\"
@@ -118,7 +127,7 @@ AC_ARG_ENABLE(mkl,
 [AS_HELP_STRING([--enable-mkl], [Intel Math Kernel Library FFT [yes if using icc]])],
 	[], enable_mkl="check")
 if test x$enable_mkl == xcheck; then
-    if test x$CXX == xicc; then
+    if test x$REAL_CXX == xicc; then
         enable_mkl="yes"
     else
         enable_mkl="no"
@@ -356,8 +365,8 @@ AC_DEFINE_UNQUOTED(CACHE_LINE_SIZE, $with_cache_line, "Cache line size in bytes"
 # is using Anaconda Python.
 # You may only want the impl packages; the activation scripts will mess with configure
 PYTHON_EXEC=$(command -v python)
-PYTHON_CC=$CC
-PYTHON_CXX=$CXX
+PYTHON_CC=$REAL_CC
+PYTHON_CXX=$REAL_CXX
 PYTHON_LDFLAGS=
 PYTHON_CPPFLAGS=
 PYTHON_COMPILER_WARNING=
