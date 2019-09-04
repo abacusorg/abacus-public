@@ -370,14 +370,14 @@ void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
 /// Searches for the density crossing in this shell, assuming a mass interior
 /// to it.  Returns -1 if not found; else returns square distance of threshold.
 FOFloat partial_search(FOFloat *d2use, int len, int mass, int &size_thresh, FOFloat &inv_enc_den, FOFloat &d2_max) {
-  
+    
     // Sort the distances in increasing order
     std::sort(d2_bin, d2_bin+len); 
     numsorts += len;
     // Now sweep in from the center to find the threshold
     FOFloat x;
     for (int j=0; j<len; j++) {
-        if (d2_max < d2_bin[j]) d2_max = d2_bin[j];
+        d2_max = d2_bin[j];
         x = d2_bin[j]*xthreshold;
         size_thresh = j+1; // we want the rightmost on the left side of the density threshold
         if (x*sqrt(x)>(size_thresh+mass) && d2_bin[j]>=.5*WriteState.DensityKernelRad2) {
@@ -431,7 +431,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
     //r2found = (furthest_firstbin+4)*GFC->SOpartition;
     r2found = (furthest_firstbin)*GFC->SOpartition;
     r2found *= r2found;
-    inv_enc_den = 1./threshold;//1.e30; //TESTING
+    //inv_enc_den = 1./threshold;//1.e30; //TESTING no defined inv
     
     // Proceed outward through the shells
     for (int r = 0; r<furthest_firstbin+4; r++) {
@@ -440,6 +440,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
         FOFr2 *= FOFr2;
         x = xthreshold*FOFr2; 
 
+        Distance.Start();
         // Partition the newly touched cells 
         for (int i = 0; i<ncg; i++) {
             if (socg[i].firstbin == r) {
@@ -447,11 +448,10 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
                 // Get start[1] thru start[3] for every new SOgroupcell
                 // Compute the d2 in particle order and then use this
                 // for partition -- stored in d2_active when fn is called
-               
                 partition_cellgroup(socg+i, halocenter);
             }
         }
-
+        Distance.Stop();
         // Is there enough mass within to skip or not enough to look
         if (x*sqrt(x) < mass) { 
             // Enough mass, so crossing cannot be inside and we just add that mass
@@ -494,8 +494,9 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             // to save only the particle distances in r
             
             // Search for density threshold in list, given previous mass.
+            //Distance.Start();
             d2_thresh = partial_search(d2_bin, size_bin, mass, size_thresh, inv_enc_den,d2_max);
-            
+            //Distance.Stop();
             if (d2_thresh > 0.0) {
                 // If something was found, record it
                 mass += size_thresh;
@@ -685,8 +686,8 @@ int greedySO() {
         count++;
 
         start = densest;
-	// If density is insufficient, do not form new halo
-	if (density[start]<min_central) break;
+    // If density is insufficient, do not form new halo
+    if (density[start]<min_central) break;
 
     }
     return count;
