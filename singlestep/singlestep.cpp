@@ -20,7 +20,6 @@ void BuildWriteState(double da){
 	string now = string(asctime(localtime(&timet)));
 	sprintf(WriteState.RunTime,"%s",now.substr(0,now.length()-1).c_str());
 	gethostname(WriteState.MachineName,1024);
-	STDLOG(0,"Host machine name is %s\n", WriteState.MachineName);
     WriteState.NodeRank = MPI_rank;
     WriteState.NodeSize = MPI_size;
 
@@ -189,6 +188,9 @@ int main(int argc, char **argv) {
 	
         STDLOG(0,"Initialized MPI.\n");   
         STDLOG(0,"Node rank %d of %d total\n", MPI_rank, MPI_size);
+        char hostname[1024];
+        gethostname(hostname,1024);
+        STDLOG(0,"Host machine name is %s\n", hostname);
     #endif
 
     SetupLocalDirectories(MakeIC);

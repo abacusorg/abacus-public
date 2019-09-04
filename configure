@@ -6427,7 +6427,7 @@ if test x$enable_gpu_directs == xyes; then
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking compute capability of GPUs" >&5
 $as_echo_n "checking compute capability of GPUs... " >&6; }
 
-    make --quiet -C singlestep/Direct detect_gpus MAKE_CONTEXT=AUTOCONF NVCC=$NVCC
+    make --quiet -C singlestep/Direct detect_gpus MAKE_CONTEXT=AUTOCONF NVCC=$NVCC CXX=$CXX
     DETECT_GPUS_OUTPUT=$(./singlestep/Direct/detect_gpus)
 
     NGPU=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Device count: )\d+')

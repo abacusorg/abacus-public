@@ -298,7 +298,7 @@ fi
 if test x$enable_gpu_directs == xyes; then
     AC_MSG_CHECKING([compute capability of GPUs])
 
-    make --quiet -C singlestep/Direct detect_gpus MAKE_CONTEXT=AUTOCONF NVCC=$NVCC
+    make --quiet -C singlestep/Direct detect_gpus MAKE_CONTEXT=AUTOCONF NVCC=$NVCC CXX=$CXX
     DETECT_GPUS_OUTPUT=$(./singlestep/Direct/detect_gpus)
 
     NGPU=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Device count: )\d+')
