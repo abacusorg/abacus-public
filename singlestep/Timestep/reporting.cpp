@@ -62,7 +62,8 @@ void GatherTimings() {
     double thistime, denom, total;
     denom = WallClockDirect.Elapsed();
     REPORT(0, "Total Wall Clock Time", WallClockDirect.Elapsed()); 
-    fprintf(reportfp,"---> %6.3f Mpart/sec", thistime ? P.np/thistime/1e6 : 0.);
+    fprintf(reportfp,"---> %6.3f Mpart/sec, %d particles processed by this node.", thistime ? P.np/thistime/1e6 : 0., NearForce.num_particles); 
+	//TODO : consider reporting number of particles microstepped here as well. 
     fprintf(reportfp,"\n");
 
     total = 0.0;
@@ -402,7 +403,6 @@ void GatherTimings() {
         REPORT(2, "Write Multipoles", WriteMultipoleSlab.Elapsed());
         REPORT(2, "Queuing Send Manifest", SendManifest->Load.Elapsed()+SendManifest->Transmit.Elapsed());
 		REPORT(2, "Queuing Multipole MPI", QueueMultipoleMPI.Elapsed());
-		
 
     fprintf(reportfp, "\n\nBreakdown of Manifest:");
     REPORT(1, "Manifest", ManifestTotal);
@@ -430,8 +430,6 @@ void GatherTimings() {
     REPORT(0, "Free Arena Memory", arena_free);
     REPORT(0, "Free SlabAccum Variables", SlabAccumFree.Elapsed());
 	
-	REPORT(0, "Wrapup 1", WrappingUp1.Elapsed());
-	REPORT(0, "Wrapup 2", WrappingUp2.Elapsed());
 }
 
 /* This function writes the timing report to disk.
