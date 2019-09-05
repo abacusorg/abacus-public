@@ -66,6 +66,10 @@ uint64 LoadSlab2IL(int slab) {
         STDLOG(1,"Using format Poisson\n");
         STDLOG(1,"Note: ICFormat \"Poisson\" means that we ignore any IC files and generate the random particles in memory.\n");
         ic = new ICfile_Poisson(slab);
+    } else if (strcmp(P.ICFormat, "Lattice") == 0){
+        STDLOG(1,"Using format Lattice\n");
+        STDLOG(1,"Note: ICFormat \"Lattice\" means that we ignore any IC files and generate the particles in memory.\n");
+        ic = new ICfile_Lattice(slab);
     }
     else {
         // We weren't given a legal format name.

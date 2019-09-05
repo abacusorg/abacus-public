@@ -988,7 +988,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
  #
  #
  #
-            print(os.listdir(read))
+            #print(os.listdir(read))
             if distribute_to_resume and ( 'globaldipole' not in os.listdir(read) or 'redlack' not in os.listdir(read) ) :
                  redlack_recovery = 1
                  singlestep_cmd[-1] = '1' 

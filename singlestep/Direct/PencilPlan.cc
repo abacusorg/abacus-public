@@ -147,11 +147,13 @@ void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start,
             memcpy(p, pin, sizeof(accstruct)*last_N);
     }
 
-    /*// Check that all particles have finite accel
-    for(int c = 0; c < 2*NearFieldRadius+1; c++){
+    // Check that all particles have finite accel
+    /*for(int c = 0; c < 2*NearFieldRadius+1; c++){
         accstruct *p = (accstruct *) SinkAccSlab + cell[c].start;
-        for(int i = 0; i < cell[c].N; i++)
+        for(int i = 0; i < cell[c].N; i++){
             assertf(TOFLOAT3(p[i]).is_finite(), "p[%d of %d] in cell %d (wrapcell %d): %f %f %f\n", i, cell[c].N, c, wrapcell, p[i].x, p[i].y, p[i].z);
+            //assertf(p[i].norm2() != 0., "p[%d of %d] in cell %d (wrapcell %d): %f %f %f\n", i, cell[c].N, c, wrapcell, p[i].x, p[i].y, p[i].z);
+        }
     }*/
 }
 
