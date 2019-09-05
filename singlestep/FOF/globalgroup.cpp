@@ -1085,14 +1085,14 @@ void GlobalGroupSlab::HaloOutput() {
     GFC->OutputLevel1.Start();
     STDLOG(0,"Beginning halo output for slab %d\n", slab);
         
-    if(slab == 0){
+    //if(slab == 0){
         char dir[32];
         sprintf(dir, "Step%04d_z%5.3f", ReadState.FullStepNumber, ReadState.Redshift);
         CreateSubDirectory(P.GroupDirectory, dir);
         std::string headerfn = "";
         headerfn = headerfn + P.GroupDirectory + "/" + dir + "/header";
         WriteGroupHeaderFile(headerfn.c_str());
-    }
+    //}
 
     if (L1halos.pencils == NULL || L1halos.get_slab_size() == 0){
         GFC->OutputLevel1.Stop();
