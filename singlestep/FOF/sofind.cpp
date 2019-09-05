@@ -755,8 +755,7 @@ void partition_halos(int count) {
 
 // ================ Routines for cell indexes and cell groups ================
 
-/// The positions are global, but wrapped to one cell's choice of periodicity.
-/// We want our indices to be more local, so let's get the values for one.
+/// We want our indices to be more local, so let's get the values for one cell.
 /// And then we subtract 128, so that the delta(cell) is around 128 +- few.
 inline void set_reference_cell(posstruct &p) {
     refcell.x = floor((p.x+CP->halfinvcpd)*CP->cpd)-128;
@@ -771,6 +770,9 @@ inline int compute_cellindex(posstruct &p) {
     int i = floor((p.x+CP->halfinvcpd)*CP->cpd)-refcell.x;
     int j = floor((p.y+CP->halfinvcpd)*CP->cpd)-refcell.y;
     int k = floor((p.z+CP->halfinvcpd)*CP->cpd)-refcell.z;
+    assertf(i>=0&&i<256, "Bad cell index i=%d", i);
+    assertf(j>=0&&j<256, "Bad cell index j=%d", j);
+    assertf(k>=0&&k<256, "Bad cell index k=%d", k);
     return (i<<16)|(j<<8)|k;
 }
 
@@ -779,6 +781,9 @@ inline FOFparticle compute_cellcenter(int cellidx) {
     int k = (cellidx&0xff);
     int j = (cellidx&0xff00)>>8;
     int i = (cellidx&0xff0000)>>16;
+    assertf(i>=0&&i<256, "Bad cell index i=%d", i);
+    assertf(j>=0&&j<256, "Bad cell index j=%d", j);
+    assertf(k>=0&&k<256, "Bad cell index k=%d", k);
     posstruct p;
     p.z = CP->invcpd*(k+refcell.z);
     p.y = CP->invcpd*(j+refcell.y);
