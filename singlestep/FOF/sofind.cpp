@@ -137,6 +137,7 @@ class SOcell {
 
     SOcellgroup *socg;  ///< a list of the cell groups
     int *cellindex;     ///< a list for each particle in pos of which cell it belongs to
+    integer3 refcell;   ///< the cell index triple for the first particle, -128
     FOFloat *d2_active; ///< A buffer of distances to the particles in active cells
   
     int maxcg;          ///< The maximum number of cellgroups
@@ -754,16 +755,22 @@ void partition_halos(int count) {
 
 // ================ Routines for cell indexes and cell groups ================
 
+/// The positions are global, but wrapped to one cell's choice of periodicity.
+/// We want our indices to be more local, so let's get the values for one.
+/// And then we subtract 128, so that the delta(cell) is around 128 +- few.
+inline void set_reference_cell(posstruct &p) {
+    refcell.x = floor((p.x+CP->halfinvcpd)*CP->cpd)-128;
+    refcell.y = floor((p.y+CP->halfinvcpd)*CP->cpd)-128;
+    refcell.z = floor((p.z+CP->halfinvcpd)*CP->cpd)-128;
+}
+
 /// This provides a simple parsing of the positions back into uniquely
 /// numbered cell indices.  
 // NOTE: This assumes that particles occupy [-halfinvcpd,+halfinvcpd) in cells
 inline int compute_cellindex(posstruct &p) {
-  //int i = floor((p.x+CP->halfinvcpd)*CP->cpd)+128;
-  //int j = floor((p.y+CP->halfinvcpd)*CP->cpd)+128;
-  //int k = floor((p.z+CP->halfinvcpd)*CP->cpd)+128;
-    int i = floor((p.x+GFC->FOFhalfcell)/(2.*GFC->FOFhalfcell))+128;
-    int j = floor((p.y+GFC->FOFhalfcell)/(2.*GFC->FOFhalfcell))+128;
-    int k = floor((p.z+GFC->FOFhalfcell)/(2.*GFC->FOFhalfcell))+128;
+    int i = floor((p.x+CP->halfinvcpd)*CP->cpd)-refcell.x;
+    int j = floor((p.y+CP->halfinvcpd)*CP->cpd)-refcell.y;
+    int k = floor((p.z+CP->halfinvcpd)*CP->cpd)-refcell.z;
     return (i<<16)|(j<<8)|k;
 }
 
@@ -773,12 +780,9 @@ inline FOFparticle compute_cellcenter(int cellidx) {
     int j = (cellidx&0xff00)>>8;
     int i = (cellidx&0xff0000)>>16;
     posstruct p;
-    //p.z = CP->invcpd*(k-128);
-    //p.y = CP->invcpd*(j-128);
-    //p.x = CP->invcpd*(i-128);
-    p.x = (i-128)*2.*GFC->FOFhalfcell;
-    p.y = (j-128)*2.*GFC->FOFhalfcell;
-    p.z = (k-128)*2.*GFC->FOFhalfcell;
+    p.z = CP->invcpd*(k+refcell.z);
+    p.y = CP->invcpd*(j+refcell.y);
+    p.x = CP->invcpd*(i+refcell.x);
     return FOFparticle(p,0);
 }
 
@@ -826,6 +830,7 @@ int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, FLOAT3p1 *acc, in
 
     // Load the particles
     Copy.Start();
+    set_reference_cell(pos[0]);
     for (int j=0; j<np; j++) {
         p[j] = FOFparticle(pos[j],j);
         density[j] = acc[j].w; 
