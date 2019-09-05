@@ -781,9 +781,9 @@ inline FOFparticle compute_cellcenter(int cellidx) {
     int k = (cellidx&0xff);
     int j = (cellidx&0xff00)>>8;
     int i = (cellidx&0xff0000)>>16;
-    assertf(i>=0&&i<256, "Bad cell index i=%d", i);
-    assertf(j>=0&&j<256, "Bad cell index j=%d", j);
-    assertf(k>=0&&k<256, "Bad cell index k=%d", k);
+    assertf(i>=0&&i<256, "Bad cell index i=%d from %d", i, cellidx);
+    assertf(j>=0&&j<256, "Bad cell index j=%d from %d", j, cellidx);
+    assertf(k>=0&&k<256, "Bad cell index k=%d from %d", k, cellidx);
     posstruct p;
     p.z = CP->invcpd*(k+refcell.z);
     p.y = CP->invcpd*(j+refcell.y);
