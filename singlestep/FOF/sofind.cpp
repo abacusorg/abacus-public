@@ -145,6 +145,7 @@ class SOcell {
 
     SOcellgroup *socg;  ///< a list of the cell groups
     int *cellindex;     ///< a list for each particle in pos of which cell it belongs to
+    integer3 refcell;   ///< the cell index triple for the first particle, -128
     FOFloat *d2_active; ///< A buffer of distances to the particles in active cells
     integer3 refcell;   ///< the cell index triple for the first particle, -128 BTH TUKS TESTING
   
@@ -380,7 +381,9 @@ void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
   
 /// Searches for the density crossing in this shell, assuming a mass interior
 /// to it.  Returns -1 if not found; else returns square distance of threshold.
-FOFloat partial_search(FOFloat *d2use, int len, int mass, int &size_thresh, FOFloat &inv_enc_den, FOFloat &d2_max) {
+FOFloat partial_search(int len, int mass, int &size_thresh, FOFloat &inv_enc_den, FOFloat &d2_max) {
+    // number of particles within threshold in that partition
+    size_thresh = 0;
     
     // Sort the distances in increasing order
     std::sort(d2_bin, d2_bin+len); 
@@ -389,16 +392,20 @@ FOFloat partial_search(FOFloat *d2use, int len, int mass, int &size_thresh, FOFl
     FOFloat x;
     for (int j=0; j<len; j++) {
       //d2_max = d2_bin[j]; TODO: delete
+
         x = d2_bin[j]*xthreshold;
         size_thresh = j+1; // we want the rightmost on the left side of the density threshold
         if (x*sqrt(x)>(size_thresh+mass) && d2_bin[j]>=.5*WriteState.DensityKernelRad2) {
             break;
-            // This particle exceeds the overdensity threshold
+            // This particle is below the overdensity threshold
         }
     }
     // record result
-    //assertf((size_thresh+mass) > 0, "No particles anywhere!\n");
-    if ((size_thresh+mass) == 0) return -1.0;
+
+    // TODO: Why does this ever happen?
+    assertf(size_thresh+mass>0, "Found a zero mass interior to a SO shell, len = %d", len);
+    // if ((size_thresh+mass) == 0) return -1.0;
+
     inv_enc_den = (x*sqrt(x))/((size_thresh+mass)*threshold);
     
     if (size_thresh==len) return -1.0;
@@ -478,8 +485,6 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             // Not enough mass, so there could be a density crossing.
             // Number of all particles that are within this radial bin
             size_bin = 0;
-            // number of particles within threshold in that partition
-            size_thresh = 0;
         
             // for every SOcellgroup crossed by the radial bin
             for (int i = 0; i<ncg; i++) {
@@ -516,8 +521,10 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             }
                 
             // Search for density threshold in list, given previous mass.
+
             Distance.Start(); //TODO: remove the args in partial_search
             d2_thresh = partial_search(d2_bin, size_bin, mass, size_thresh, inv_enc_den,d2_max);
+
             Distance.Stop();
             if (d2_thresh > 0.0) {
                 // If something was found, record it
@@ -533,6 +540,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
         }
     }
     // If nothing was found return the largest distance to a particle encountered --> not ideal!
+
     if (d2_thresh <= 0.0) {
         x = xthreshold*d2_max; //cause we do go to the edge of the furthest cell covering all its pcles
         inv_enc_den = (x*sqrt(x))/(mass*threshold);
@@ -769,31 +777,6 @@ void partition_halos(int count) {
 }
 
 // ================ Routines for cell indexes and cell groups ================
-
-
-/*
-/// This provides a simple parsing of the positions back into uniquely
-/// numbered cell indices.  
-// NOTE: This assumes that particles occupy [-halfinvcpd,+halfinvcpd) in cells
-inline int compute_cellindex(posstruct &p) {
-    int i = floor((p.x+GFC->FOFhalfcell)/(2.*GFC->FOFhalfcell))+128;
-    int j = floor((p.y+GFC->FOFhalfcell)/(2.*GFC->FOFhalfcell))+128;
-    int k = floor((p.z+GFC->FOFhalfcell)/(2.*GFC->FOFhalfcell))+128;
-    return (i<<16)|(j<<8)|k;
-}
-
-/// Given the cellindex number, return the cell center
-inline FOFparticle compute_cellcenter(int cellidx) {
-    int k = (cellidx&0xff);
-    int j = (cellidx&0xff00)>>8;
-    int i = (cellidx&0xff0000)>>16;
-    posstruct p;
-    p.x = (i-128)*2.*GFC->FOFhalfcell;
-    p.y = (j-128)*2.*GFC->FOFhalfcell;
-    p.z = (k-128)*2.*GFC->FOFhalfcell;
-    return FOFparticle(p,0);
-}
-*/
 
 /// We want our indices to be more local, so let's get the values for one cell.
 /// And then we subtract 128, so that the delta(cell) is around 128 +- few.

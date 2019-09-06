@@ -136,6 +136,7 @@ class GroupFindingControl {
         #endif
         FOFhalfcell = FOF_RESCALE/2.0*CP->invcpd;     // The half cell size
         SOpartition = FOFhalfcell*2.0*sqrt(3.0)/3.0;  // The radial binning
+        STDLOG(1,"SO parameters: FOFhalfcell = %f, SOpartition = %f\n", FOFhalfcell, SOpartition);
 
         minhalosize = _minhalosize;
         invcpd = 1. / (double) _cpd;
