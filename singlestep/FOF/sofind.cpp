@@ -145,7 +145,6 @@ class SOcell {
 
     SOcellgroup *socg;  ///< a list of the cell groups
     int *cellindex;     ///< a list for each particle in pos of which cell it belongs to
-    integer3 refcell;   ///< the cell index triple for the first particle, -128
     FOFloat *d2_active; ///< A buffer of distances to the particles in active cells
     integer3 refcell;   ///< the cell index triple for the first particle, -128 BTH TUKS TESTING
   
@@ -316,7 +315,6 @@ class SOcell {
 /// Consider the list d2_active[start,last) and partition it on the value r2_part
 /// Return the index of the first value above r2_part 
 int partition_only(FOFloat r2_part, int start, int last) {
-
     if (start==last) {
         return last;   // could happen if there are no particles in one of the partitions
     }
@@ -357,10 +355,7 @@ void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
     // from which partition_cellgroup is called;
 
     int len = cg->start[4]-cg->start[0];
-    
     FOFloat *d2 = compute_d2(center, p+cg->start[0], len, d2buffer, numdists);
-    
-    
     for (int j=0; j<len; j++) {
         d2_active[cg->start[0]+j] = d2[j];
         if (d2[j] > cg->d2_furthest) cg->d2_furthest = d2[j];
@@ -381,7 +376,7 @@ void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
   
 /// Searches for the density crossing in this shell, assuming a mass interior
 /// to it.  Returns -1 if not found; else returns square distance of threshold.
-FOFloat partial_search(int len, int mass, int &size_thresh, FOFloat &inv_enc_den, FOFloat &d2_max) {
+FOFloat partial_search(int len, int mass, int &size_thresh, FOFloat &inv_enc_den) {
     // number of particles within threshold in that partition
     size_thresh = 0;
     
@@ -391,8 +386,6 @@ FOFloat partial_search(int len, int mass, int &size_thresh, FOFloat &inv_enc_den
     // Now sweep in from the center to find the threshold
     FOFloat x;
     for (int j=0; j<len; j++) {
-      //d2_max = d2_bin[j]; TODO: delete
-
         x = d2_bin[j]*xthreshold;
         size_thresh = j+1; // we want the rightmost on the left side of the density threshold
         if (x*sqrt(x)>(size_thresh+mass) && d2_bin[j]>=.5*WriteState.DensityKernelRad2) {
@@ -401,11 +394,7 @@ FOFloat partial_search(int len, int mass, int &size_thresh, FOFloat &inv_enc_den
         }
     }
     // record result
-
-    // TODO: Why does this ever happen?
     assertf(size_thresh+mass>0, "Found a zero mass interior to a SO shell, len = %d", len);
-    // if ((size_thresh+mass) == 0) return -1.0;
-
     inv_enc_den = (x*sqrt(x))/((size_thresh+mass)*threshold);
     
     if (size_thresh==len) return -1.0;
@@ -445,8 +434,6 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
 
     // If we find no density threshold crossing, we'll return furthest edge -- not ideal
     FOFloat r2found;
-
-    //r2found = (furthest_firstbin+4)*GFC->SOpartition;
     r2found = (furthest_firstbin)*GFC->SOpartition;
     r2found *= r2found;
     //inv_enc_den = 1./threshold;//1.e30; //TESTING no defined inv
@@ -499,9 +486,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
                     // TODO: But not used at the same time, right?
                     // BTH Eh, I ran into trouble trying to reduce the number of buffer distances
                     for (int j = 0; j<size_partition; j++) {
-                        
                         d2_bin[size_bin+j] = d2_active[socg[i].start[r-socg[i].firstbin]+j];
-                        
                     }
                     size_bin+=size_partition;
                 }
@@ -511,19 +496,10 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             // r partitioned and should remain intact till done with the halo center
             // However, we need an array d2_bin
             // to save only the particle distances in r
-            int counter = 0;
-            if (r == 0) {
-                
-                for (int j = 0; j<size_bin; j++) {
-                    if (d2_bin[j] < 0.0001) counter++;
-                }
-                
-            }
-                
+            
             // Search for density threshold in list, given previous mass.
-
-            Distance.Start(); //TODO: remove the args in partial_search
-            d2_thresh = partial_search(d2_bin, size_bin, mass, size_thresh, inv_enc_den,d2_max);
+            Distance.Start(); 
+            d2_thresh = partial_search(size_bin, mass, size_thresh, inv_enc_den);
 
             Distance.Stop();
             if (d2_thresh > 0.0) {
@@ -546,6 +522,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
         inv_enc_den = (x*sqrt(x))/(mass*threshold);
         return d2_max;
     }
+    printf("it should never get here\n");
     // Record inverse density and threshold radius
 }
 
