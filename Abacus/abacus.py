@@ -62,7 +62,8 @@ from Abacus.Cosmology import AbacusCosmo
 
 
 EXIT_REQUEUE = 200
-RUN_TIME_MINUTES = os.getenv("JOB_ACTION_WARNING_TIME")
+#RUN_TIME_MINUTES = os.getenv("JOB_ACTION_WARNING_TIME")
+RUN_TIME_MINUTES = 1000000
 
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
 directory_param_fn = pjoin(abacuspath, 'Abacus', 'directory.def')
@@ -135,6 +136,8 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
 
     if parallel:
         resumedir = pjoin(os.path.dirname(params['WorkingDirectory']), params['SimName'] + '_retrieved_state')
+    else:
+        resumedir = ' '
 
     # If we requested a resume, but there is no state, assume we are starting fresh
     if not clean:
@@ -155,7 +158,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
         clean_dir(logdir, preserve=icdir if not erase_ic else None)
         clean_dir(groupdir, preserve=icdir if not erase_ic else None)
         #NAM make prettier. 
-        if path.exists(resumedir):
+        if parallel and path.exists(resumedir):
             clean_dir(resumedir)
             
     os.makedirs(basedir, exist_ok=True)
@@ -866,11 +869,13 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 #                 reconstruct_read_multipoles_cmd = [pjoin(abacuspath, 'singlestep', 'recover_multipoles'), paramfn]
    
    
-    emergency_exit_fn = pjoin(param['WorkingDirectory'], 'abandon_ship')
+   
     print("Beginning abacus steps:")
-    print("\n------------------")
-    print("To trigger emergency quit safely, create file", emergency_exit_fn)
-    print("------------------")
+    if parallel:
+        emergency_exit_fn = pjoin(param['WorkingDirectory'], 'abandon_ship')
+        print("\n------------------")
+        print("To trigger emergency quit safely, create file", emergency_exit_fn)
+        print("------------------")
     
     singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic))]
     if parallel:
@@ -1042,31 +1047,32 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 np.savez(pjoin(param.LogDirectory, f"step{write_state.FullStepNumber:04d}.pow"), k=k,P=P,nb=nb)
                 os.remove(dfn)
         
-        abandon_ship = path.exists(emergency_exit_fn)
-        graceful_exit = (wall_timer() - start_time >= run_time_secs) or abandon_ship
+        if parallel:
+            abandon_ship = path.exists(emergency_exit_fn)
+            graceful_exit = (wall_timer() - start_time >= run_time_secs) or abandon_ship
         
-        if parallel and graceful_exit:
-            print("Current time: ", wall_timer(), start_time, run_time_secs)
-            restore_time = wall_timer()
+            if graceful_exit:
+                print("Current time: ", wall_timer(), start_time, run_time_secs)
+                restore_time = wall_timer()
             
-            if abandon_ship:
-                print('\nAbandoning ship!\n')
+                if abandon_ship:
+                    print('\nAbandoning ship!\n')
                 
 
-            print('Graceful exit triggered. Retrieving state from nodes and saving in global directory.')
-            retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, resume_dir, '--retrieve', '--verbose']
-            subprocess.check_call(Conv_mpirun_cmd + retrieve_state_cmd)
+                print('Graceful exit triggered. Retrieving state from nodes and saving in global directory.')
+                retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, resume_dir, '--retrieve', '--verbose']
+                subprocess.check_call(Conv_mpirun_cmd + retrieve_state_cmd)
             
-            restore_time = wall_timer() - restore_time
+                restore_time = wall_timer() - restore_time
             
-            print(f'Retrieving and storing state took {restore_time} seconds\n')
-            print('Exiting and requeueing.')
+                print(f'Retrieving and storing state took {restore_time} seconds\n')
+                print('Exiting and requeueing.')
             
-            #checking if path exists explicitly just in case user requested emergency exit while we were retrieveing the state. 
-            if path.exists(emergency_exit_fn): 
-                os.remove(emergency_exit_fn)
+                #checking if path exists explicitly just in case user requested emergency exit while we were retrieveing the state. 
+                if path.exists(emergency_exit_fn): 
+                    os.remove(emergency_exit_fn)
                 
-            return EXIT_REQUEUE  
+                return EXIT_REQUEUE  
         
         # Now shift the states down by one
         move_state_dirs(read, write, past)
@@ -1094,7 +1100,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             finished = True
             break 
             
-        if abandon_ship:
+        if parallel and abandon_ship:
             print(f"Abandon ship triggered! Terminating job.")
             os.remove(emergency_exit_fn)
             break       
