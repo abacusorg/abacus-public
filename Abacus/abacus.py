@@ -67,7 +67,7 @@ directory_param_fn = pjoin(abacuspath, 'Abacus', 'directory.def')
 wall_timer = time.perf_counter  # monotonic wall clock time
 
 
-def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False, erase_ic=False, output_parfile=None, use_site_overrides=False, override_directories=False, **param_kwargs):
+def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False, erase_ic=False, output_parfile=None, use_site_overrides=False, override_directories=False, just_params=False, **param_kwargs):
     """
     The main entry point for running a simulation.  Initializes directories,
     copies parameter files, and parses parameter files as appropriate, then
@@ -121,6 +121,8 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     # TODO: summit doesn't let us write files from the compute nodes.  Is that a problem?
     params = preprocess_params(output_parfile, parfn, use_site_overrides=use_site_overrides,
                 override_directories=override_directories, **param_kwargs)
+    if just_params:
+        return 0
 
     parallel = params.get('Parallel', False)
 
@@ -132,7 +134,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     basedir = params['WorkingDirectory']
 
     if parallel:
-        resumedir = pjoin(os.path.dirname(params['WorkingDirectory']), params['SimName'] + '_retrieved_state')
+        resumedir = pjoin(dirname(params['WorkingDirectory']), params['SimName'] + '_retrieved_state')
 
     # If we requested a resume, but there is no state, assume we are starting fresh
     if not clean:
@@ -334,6 +336,7 @@ def default_parser():
     parser.add_argument('--clean', action='store_true', help="Erase the working directory and start over.  Otherwise, continue from the existing state.  Always preserves the ICs unless --erase-ic.")
     parser.add_argument('--erase-ic', action='store_true', help="Remove the ICs if they exist.")
     parser.add_argument('--maxsteps', type=int, help="Take at most N steps", metavar='N')
+    parser.add_argument('--just-params', help="Only generate the .par file from the .par2 file", action='store_true')
     return parser
 
 
