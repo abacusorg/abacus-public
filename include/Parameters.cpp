@@ -168,6 +168,9 @@ public:
 
     long long int MaxPID;  // Maximum PID to expect.  A PID equal or larger than this indicates corruption of some sort.  0 means NP; -1 means don't check.
 
+    int PhysicalSoftening;  // Keep the softening length fixed in physical coordinates.  SofteningLength is specified at z=0.
+    double SofteningMax;  // The maximum comoving softening to allow when using PhysicalSoftening
+
     // Return the L{tier} size in MB
     float getCacheSize(int tier){
         int cache_size = 0;
@@ -397,6 +400,12 @@ public:
 
         MaxPID = 0;
         installscalar("MaxPID", MaxPID, DONT_CARE);
+
+        PhysicalSoftening = 0;
+        installscalar("PhysicalSoftening", PhysicalSoftening, DONT_CARE);
+
+        SofteningMax = DBL_MAX;
+        installscalar("SofteningMax", SofteningMax, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.

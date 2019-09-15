@@ -505,17 +505,21 @@ void InitWriteState(int MakeIC){
     /*if(LPTStepNumber()>0){
         WriteState.SofteningLength = P.SofteningLength / 1e4;  // This might not be in the growing mode for this choice of softening, though
         STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLength);
-        
-        // Only have to do this because GPU gives bad forces sometimes, causing particles to shoot off.
-        // Remove this once the GPU is reliable again
-        //P.ForceCPU = 1;
-        //STDLOG(0,"Forcing CPU because this is a 2LPT step.\n");
     }
     else{
         WriteState.SofteningLength = P.SofteningLength;
     }*/
-    
-    WriteState.SofteningLength = P.SofteningLength;
+
+    // Is the softening fixed in physical coordinates?
+    if(P.PhysicalSoftening){
+        // TODO: use the ReadState or WriteState ScaleFactor?  We haven't chosen the timestep yet.
+        WriteState.SofteningLength = min(P.SofteningLength/ReadState.ScaleFactor, P.SofteningMax);
+        STDLOG(1, "Adopting a comoving softening of %d, fixed in physical units\n", WriteState.SofteningLength);
+    }
+    else{
+        WriteState.SofteningLength = P.SofteningLength;
+        STDLOG(1, "Adopting a comoving softening of %d, fixed in comoving units\n", WriteState.SofteningLength);
+    }
     
     // Now scale the softening to match the minimum Plummer orbital period
 #if defined DIRECTCUBICSPLINE
