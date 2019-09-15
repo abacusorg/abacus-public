@@ -16,7 +16,7 @@ That's implemented in EvaluateTaylors.cpp.
 # TODO: recently reformatted, test on hal
 
 from multipoles_metacode_utils \
-    import emit_dispatch_function, Writer, default_metacode_argparser
+    import emit_dispatch_function, Writer, default_metacode_argparser, cmapper
 
 def emit_AVX512_Multipoles(orders, fn='CMAVX512.cpp'):
     w = Writer(fn)
@@ -89,7 +89,6 @@ def emit_AVX512_Multipoles(orders, fn='CMAVX512.cpp'):
 
         # remainder loop
         w(f'''
-            // We could manually unroll this masked version too.  Might be faster for small cells, which could be important
             if(n_aligned < n){{
                 // Load nleft DOUBLE3s as List3s
                 AVX512_DOUBLES px = AVX512_SETZERO_DOUBLE();
@@ -235,6 +234,8 @@ def emit_AVX512_Taylors(orders, fn='ETAVX512.cpp'):
         #include "config.h"
         
         #ifdef AVX512MULTIPOLES
+        #include "header.cpp"
+        #include "threevector.hh"
         
         #include "avx512_calls.h"
         #include "assert.h"
@@ -247,40 +248,72 @@ def emit_AVX512_Taylors(orders, fn='ETAVX512.cpp'):
         # taylors use a=0..order, multipoles use a=0..order+1
         cml_orderm1 = (order)*(order+1)*(order+2)//6
 
+        cmap = cmapper(order)
+
         w(f'''
             template <>
             void Taylor512Kernel<{order}>(double *CT, FLOAT3 center, int n, FLOAT3 *xyz, FLOAT3 *acc) {{
 
-                AVX512_DOUBLES cx = AVX512_SET_DOUBLE(center.x);
-                AVX512_DOUBLES cy = AVX512_SET_DOUBLE(center.y);
-                AVX512_DOUBLES cz = AVX512_SET_DOUBLE(center.z);
-
-                AVX512_DOUBLES Qx[{cml_orderm1}];
-                AVX512_DOUBLES Qy[{cml_orderm1}];
-                AVX512_DOUBLES Qz[{cml_orderm1}];
-
-                AVX512_DOUBLES fi = AVX512_SET_DOUBLE(1.);
-                AVX512_DOUBLES fij, fijk;
-                AVX512_DOUBLES deltax = AVX512_SUBTRACT_DOUBLES(px, cx);
-                AVX512_DOUBLES deltay = AVX512_SUBTRACT_DOUBLES(py, cy);
-                AVX512_DOUBLES deltaz = AVX512_SUBTRACT_DOUBLES(pz, cz);
+                AVX512_DOUBLES Qx[{cml_orderm1}], Qy[{cml_orderm1}], Qz[{cml_orderm1}];
             ''')
         w.indent()
 
         i = 0
-        w('int i = 0;')
+        for a in range(order):
+            for b in range(order-a):
+                for c in range(order-a-b):
+                    w(f'''
+                        Qx[{i}] = AVX512_SET_DOUBLE(-{a+1}*CT[{cmap(a+1,b  ,c  )}]);
+                        Qy[{i}] = AVX512_SET_DOUBLE(-{b+1}*CT[{cmap(a  ,b+1,c  )}]);
+                        Qz[{i}] = AVX512_SET_DOUBLE(-{c+1}*CT[{cmap(a  ,b  ,c+1)}]);
+                        ''')
+                    i += 1
+
+        # Now compute the accelerations
+        w(f'''
+            AVX512_DOUBLES cx = AVX512_SET_DOUBLE(center.x);
+            AVX512_DOUBLES cy = AVX512_SET_DOUBLE(center.y);
+            AVX512_DOUBLES cz = AVX512_SET_DOUBLE(center.z);
+
+            int n_aligned = n - (n % AVX512_NVEC_DOUBLE);
+            int nleft = n - n_aligned;
+
+            for(int k=0; k < n_aligned; k += AVX512_NVEC_DOUBLE) {{
+            ''')
+        w.indent()
+
+        w(f'''
+            // Load 8 DOUBLE3s as List3s
+            AVX512_DOUBLES px, py, pz;
+            for(int j = 0; j < AVX512_NVEC_DOUBLE; j++){{
+                px[j] = xyz[k+j].x;
+                py[j] = xyz[k+j].y;
+                pz[j] = xyz[k+j].z;
+            }}
+
+            AVX512_DOUBLES fi = AVX512_SET_DOUBLE(1.);
+            AVX512_DOUBLES fij, fijk;
+            AVX512_DOUBLES deltax = AVX512_SUBTRACT_DOUBLES(px, cx);
+            AVX512_DOUBLES deltay = AVX512_SUBTRACT_DOUBLES(py, cy);
+            AVX512_DOUBLES deltaz = AVX512_SUBTRACT_DOUBLES(pz, cz);
+
+            AVX512_DOUBLES ax, ay, az;
+            ax = AVX512_SETZERO_DOUBLE();
+            ay = AVX512_SETZERO_DOUBLE();
+            az = AVX512_SETZERO_DOUBLE();
+            ''')
+
+        i = 0
         for a in range(order):
             w('fij = fi;')
             for b in range(order-a):
                 w('fijk = fij;')
                 for c in range(order-a-b):
-                    w('''
-                        ax = AVX512_FMA_ADD_DOUBLES(tx[i], fijk, ax);
-                        ay = AVX512_FMA_ADD_DOUBLES(ty[i], fijk, ay);
-                        az = AVX512_FMA_ADD_DOUBLES(tz[i], fijk, az);
+                    w(f'''
+                        ax = AVX512_FMA_ADD_DOUBLES(Qx[{i}], fijk, ax);
+                        ay = AVX512_FMA_ADD_DOUBLES(Qy[{i}], fijk, ay);
+                        az = AVX512_FMA_ADD_DOUBLES(Qz[{i}], fijk, az);
                         ''')
-                    if i < cml_orderm1-1:
-                        w('i++;')
                     i += 1
                     if(c < order-a-b-1):
                         w('fijk = AVX512_MULTIPLY_DOUBLES(fijk, deltaz);')
@@ -289,14 +322,79 @@ def emit_AVX512_Taylors(orders, fn='ETAVX512.cpp'):
             if(a < order-1):
                 w('\nfi = AVX512_MULTIPLY_DOUBLES(fi, deltax);')
 
-        w.dedent()
-        w('}')  # Taylor512Kernel
+        w(f'''
+            for(int j = 0; j < AVX512_NVEC_DOUBLE; j++){{
+                acc[k+j].x = ax[j];
+                acc[k+j].y = ay[j];
+                acc[k+j].z = az[j];
+            }}
+            ''')
 
-    emit_dispatch_function(w, '''Taylor512Kernel(
-        AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz,
-        AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz,
-        AVX512_DOUBLES *tx, AVX512_DOUBLES *ty, AVX512_DOUBLES *tz,
-        AVX512_DOUBLES &ax, AVX512_DOUBLES &ay, AVX512_DOUBLES &az)''', orders)
+        w.dedent()
+        w('}')  # particle loop
+
+        # Remainder loop
+        w(f'''
+            if (nleft) {{
+                // Load nleft DOUBLE3s as List3s
+                // Init these to zero to avoid FP signals
+                // There are other ways to do this, such as masked operations
+                AVX512_DOUBLES px = AVX512_SETZERO_DOUBLE();
+                AVX512_DOUBLES py = AVX512_SETZERO_DOUBLE();
+                AVX512_DOUBLES pz = AVX512_SETZERO_DOUBLE();
+
+                for(int j = 0; j < nleft; j++){{
+                    px[j] = xyz[n_aligned+j].x;
+                    py[j] = xyz[n_aligned+j].y;
+                    pz[j] = xyz[n_aligned+j].z;
+                }}
+
+                AVX512_DOUBLES fi = AVX512_SET_DOUBLE(1.);
+                AVX512_DOUBLES fij, fijk;
+                AVX512_DOUBLES deltax = AVX512_SUBTRACT_DOUBLES(px, cx);
+                AVX512_DOUBLES deltay = AVX512_SUBTRACT_DOUBLES(py, cy);
+                AVX512_DOUBLES deltaz = AVX512_SUBTRACT_DOUBLES(pz, cz);
+
+                AVX512_DOUBLES ax, ay, az;
+                ax = AVX512_SETZERO_DOUBLE();
+                ay = AVX512_SETZERO_DOUBLE();
+                az = AVX512_SETZERO_DOUBLE();
+            ''')
+        w.indent()
+
+        i = 0
+        for a in range(order):
+            w('fij = fi;')
+            for b in range(order-a):
+                w('fijk = fij;')
+                for c in range(order-a-b):
+                    w(f'''
+                        ax = AVX512_FMA_ADD_DOUBLES(Qx[{i}], fijk, ax);
+                        ay = AVX512_FMA_ADD_DOUBLES(Qy[{i}], fijk, ay);
+                        az = AVX512_FMA_ADD_DOUBLES(Qz[{i}], fijk, az);
+                        ''')
+                    i += 1
+                    if(c < order-a-b-1):
+                        w('fijk = AVX512_MULTIPLY_DOUBLES(fijk, deltaz);')
+                if(b < order-a-1):
+                    w('\nfij = AVX512_MULTIPLY_DOUBLES(fij, deltay);')
+            if(a < order-1):
+                w('\nfi = AVX512_MULTIPLY_DOUBLES(fi, deltax);')
+
+        w(f'''
+            for(int j = 0; j < nleft; j++){{
+                acc[n_aligned+j].x = ax[j];
+                acc[n_aligned+j].y = ay[j];
+                acc[n_aligned+j].z = az[j];
+            }}
+            ''')
+        w.dedent()
+        w('}')  # remainder loop
+
+        w.dedent()
+        w('}')  # kernel
+
+    emit_dispatch_function(w, 'Taylor512Kernel(double *CT, FLOAT3 center, int n, FLOAT3 *xyz, FLOAT3 *acc)', orders)
 
     w('#endif')  # AVX512MULTIPOLES
 

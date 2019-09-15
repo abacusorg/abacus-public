@@ -11,6 +11,7 @@
 # We'd prefer to coordinate that all from here.
 
 CXX := @CXX@
+REAL_CXX := @REAL_CXX@
 CC := @CXX@ -x c
 # seems to help us avoid a lot of mischief:
 LDFLAGS := -Wl\,--as-needed
@@ -86,12 +87,15 @@ PYTHON_CPPFLAGS := $(CPPFLAGS) @PYTHON_CPPFLAGS@
 GSL_CPPFLAGS :=
 GSL_LIBS := -lgsl -lgslcblas
 
+FFTW_LIBS := -lfftw3 -lfftw3f
+FFTW_OMP_LIBS := -lfftw3_omp -lfftw3f_omp
+
 # Define GNU/Intel specific compiler options
 # We do this towards the bottom of the Makefile so we can modify options set above
 # In theory this is all fairly "static" and could be done in configure.ac if performance were a concern
 # (since common.mk is reloaded for every Makefile)
 # But it might be easier to leave compiler customizations here for people to edit
-ifeq (@CXX@,g++)
+ifeq (@REAL_CXX@,g++)
     CXX_MAJOR_VER := $(shell $(CXX) -dumpversion | cut -f1 -d.)
 
     ifeq (@ARCH@,powerpc)
@@ -106,10 +110,14 @@ ifeq (@CXX@,g++)
     ifeq ($(GNUC_GE_7),true)
         THREAD_CPPFLAGS += -foffload=disable
     endif
-else ifeq (@CXX@,icc)
+else ifeq (@REAL_CXX@,icc)
     CPPFLAGS += -xHost -fp-model precise -fbuiltin -ip -mkl #-ipo #-prof-use=weighted
     NVCC_CPPFLAGS += -fp-model precise -ip -mkl
-else ifeq (@CXX@,clang++)
+
+    FFTW_LIBS := -mkl
+    FFTW_OMP_LIBS := -mkl
+
+else ifeq (@REAL_CXX@,clang++)
     # for debugging clang under gdb
     # clang refuses to catch exceptions. something to do with rtti?
     CPPFLAGS += -D_GLIBCXX_DEBUG -frtti -fexceptions -fcxx-exceptions

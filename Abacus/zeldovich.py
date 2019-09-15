@@ -27,7 +27,7 @@ from Abacus.Cosmology import AbacusCosmo
 zeldovich_dir = pjoin(abacus.abacuspath, 'zeldovich-PLT')
 eigmodes_path = pjoin(zeldovich_dir, 'eigmodes128')
 
-on_the_fly_formats = ['poisson']
+on_the_fly_formats = ['poisson', 'lattice']
 
 def is_on_the_fly_format(fmt):
     return fmt.lower() in on_the_fly_formats
