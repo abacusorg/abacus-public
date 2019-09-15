@@ -1,2 +1,8 @@
+numpy
+numexpr
+numba
+scipy
+matplotlib
 contexttimer
 table_logger
+
