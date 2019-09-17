@@ -76,46 +76,111 @@ HaloStat ComputeStats(int size,
     // We can use L2.d2buffer for scratch space; it is guaranteed to be big enough
     double vxx, vxy, vxz, vyy, vyz, vzz;
     float vmax, rvmax;
+	float dmean = 0.0; 
+	
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     for (int p=0; p<size; p++) {
-	posstruct dx = L1pos[p]-x;
-	L2.d2buffer[p] = dx.norm2();
-	velstruct dv = L1vel[p]/ReadState.VelZSpace_to_Canonical - v;
-	vxx += dv.x*dv.x; vxy += dv.x*dv.y; vxz += dv.x*dv.z;
-	vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
+		posstruct dx = L1pos[p]-x;
+		L2.d2buffer[p] = dx.norm2();
+		d2mean += sqrt(L2.d2buffer[p]);    //NAM doing this partially defeats the point of having the d2buffer-- here we do a sqrt for every particle. Is there a way to avoid this? 
+		velstruct dv = L1vel[p]/ReadState.VelZSpace_to_Canonical - v;
+		vxx += dv.x*dv.x; vxy += dv.x*dv.y; vxz += dv.x*dv.z;
+		vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
     }
+	dmean /= (float)size; 
+	
     FindEigenvalues(vxx, vxy, vxz, vyy, vyz, vzz, h.sigmav);
     for(int i = 0; i < 3; i++) h.sigmav[i] = sqrt(h.sigmav[i]);
     std::sort(L2.d2buffer, L2.d2buffer+size);
-    h.r25 = sqrt(L2.d2buffer[size/4]);   h.r50 = sqrt(L2.d2buffer[size/2]);
-    h.r75 = sqrt(L2.d2buffer[size*3/4]); h.r90 = sqrt(L2.d2buffer[size*9/10]);
+	
+	int16_t INT16SCALE = 32000; 
+	h.r100 = sqrt(L2.d2buffer[-1]; 
+	// r10, r25, r50, r67, r75, r90: Expressed as ratios of r100, and scaled to 32000 to store as int16s. 	
+	h.r10  = trunc(sqrt(L2.d2buffer[size/10  ]) / h.r100 * INT16SCALE); 
+	h.r25  = trunc(sqrt(L2.d2buffer[size/4   ]) / h.r100 * INT16SCALE); 
+	h.r50  = trunc(sqrt(L2.d2buffer[size/2   ]) / h.r100 * INT16SCALE); 
+	h.r67  = trunc(sqrt(L2.d2buffer[size*2/3 ]) / h.r100 * INT16SCALE); 
+	h.r75  = trunc(sqrt(L2.d2buffer[size*3/4 ]) / h.r100 * INT16SCALE); 
+	h.r90  = trunc(sqrt(L2.d2buffer[size*9/10]) / h.r100 * INT16SCALE); 
+	
+	float sigmar_accum = 0.0; 
+	for (int p=0; p<size; p++){
+		sigmar_accum += pow(sqrt(L2.d2buffer[p]) - dmean, 2.0);
+		
+		//this is redundant but avoids calculating this value every iteration of the loop. think if there's a better way to do this. 
+		if      (p == size/10  ) h.sigmar10  = trunc(sigmar_accum / h.r100 * INT16SCALE); 
+		else if (p == size/4   ) h.sigmar25  = trunc(sigmar_accum / h.r100 * INT16SCALE);
+		else if (p == size/2   ) h.sigmar50  = trunc(sigmar_accum / h.r100 * INT16SCALE);
+		else if (p == size*2/3 ) h.sigmar67  = trunc(sigmar_accum / h.r100 * INT16SCALE);
+		else if (p == size*3/4 ) h.sigmar75  = trunc(sigmar_accum / h.r100 * INT16SCALE);
+		else if (p == size*9/10) h.sigmar90  = trunc(sigmar_accum / h.r100 * INT16SCALE);
+		else if (p == size - 1 ) h.sigmar100 = trunc(sigmar_accum / h.r100 * INT16SCALE);
+		
+	}
+
+	
+#ifdef SPHERICAL_OVERDENSITY
+	h.SO_central_particle = L2.particles[0];
+	h.SO_central_density  = L2.density[0]; 
+	h.SO_radius           = sqrt(L2.d2buffer[-1]); 
+#endif 
+	
     // We search for the max of vcirc, which is proportional to sqrt(G*M/R).
     // The 4th power of that is proportional to N^2/R^2.
     vmax = 0.0;
     for (int p=size/10; p<size; p++) {
-	float v4 = p*p/L2.d2buffer[p];
-	if (v4>vmax) { vmax = v4; rvmax = L2.d2buffer[p]; }
+		float v4 = p*p/L2.d2buffer[p];
+		if (v4>vmax) { vmax = v4; rvmax = L2.d2buffer[p]; }
     }
-    h.rvcirc_max = sqrt(rvmax);    // Get to radial units
+    h.rvcirc_max = trunc(sqrt(rvmax) / r100 * INT16SCALE );    // Get to radial units and compress into int16. 
     float GMpart = 3*P.Omega_M*pow(100*ReadState.BoxSizeHMpc,2)/(8*M_PI*P.np*ReadState.ScaleFactor);
     h.vcirc_max = sqrt(GMpart*sqrt(vmax))/ReadState.VelZSpace_to_kms;  // This is sqrt(G*M_particle*N/R).
 
     // Repeat this, finding moments and radii around the largest subhalo COM
+	dmean = 0.0; 
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     for (int p=0; p<size; p++) {
-	posstruct dx = L1pos[p]-subhalo_x;
-	L2.d2buffer[p] = dx.norm2();
-	velstruct dv = L1vel[p]/ReadState.VelZSpace_to_Canonical - subhalo_v;
-	vxx += dv.x*dv.x; vxy += dv.x*dv.y; vxz += dv.x*dv.z;
-	vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
+		posstruct dx = L1pos[p]-subhalo_x;
+		L2.d2buffer[p] = dx.norm2();
+		dmean += sqrt(L2.d2buffer[p]); 
+		velstruct dv = L1vel[p]/ReadState.VelZSpace_to_Canonical - subhalo_v;
+		vxx += dv.x*dv.x; vxy += dv.x*dv.y; vxz += dv.x*dv.z;
+		vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
     }
+	dmean /= (float)size; 
+	
     FindEigenvalues(vxx, vxy, vxz, vyy, vyz, vzz, h.subhalo_sigmav);
     for(int i = 0; i < 3; i++) h.subhalo_sigmav[i] = sqrt(h.subhalo_sigmav[i]);
     std::sort(L2.d2buffer, L2.d2buffer+size);
-    h.subhalo_r25 = sqrt(L2.d2buffer[size/4]);   
-    h.subhalo_r50 = sqrt(L2.d2buffer[size/2]);
-    h.subhalo_r75 = sqrt(L2.d2buffer[size*3/4]); 
-    h.subhalo_r90 = sqrt(L2.d2buffer[size*9/10]);
+
+	h.subhalo_r100 = sqrt(L2.d2buffer[-1]);   
+	// r10, r25, r50, r67, r75, r90 relative to largest L2 center: Expressed as ratios of r100, and scaled to 32000 to store as int16s. 
+	h.subhalo_r10  = trunc(sqrt(L2.d2buffer[size/10  ]) / h.subhalo_r100 * INT16SCALE); 
+	h.subhalo_r25  = trunc(sqrt(L2.d2buffer[size/4   ]) / h.subhalo_r100 * INT16SCALE); 
+	h.subhalo_r50  = trunc(sqrt(L2.d2buffer[size/2   ]) / h.subhalo_r100 * INT16SCALE); 
+	h.subhalo_r67  = trunc(sqrt(L2.d2buffer[size*2/3 ]) / h.subhalo_r100 * INT16SCALE); 
+	h.subhalo_r75  = trunc(sqrt(L2.d2buffer[size*3/4 ]) / h.subhalo_r100 * INT16SCALE); 
+	h.subhalo_r90  = trunc(sqrt(L2.d2buffer[size*9/10]) / h.subhalo_r100 * INT16SCALE); 
+	
+	sigmar_accum = 0.0; 
+	for (int p=0; p<size; p++){
+		sigmar_accum += pow(sqrt(L2.d2buffer[p]) - dmean, 2.0);
+		
+		if      (p == size/10  ) h.subhalo_sigmar10  = trunc(sigmar_accum / h.r100 * INT16SCALE);
+		else if (p == size/4   ) h.subhalo_sigmar25  = trunc(sigmar_accum / h.r100 * INT16SCALE);
+		else if (p == size/2   ) h.subhalo_sigmar50  = trunc(sigmar_accum / h.r100 * INT16SCALE);
+		else if (p == size*2/3 ) h.subhalo_sigmar67  = trunc(sigmar_accum / h.r100 * INT16SCALE);
+		else if (p == size*3/4 ) h.subhalo_sigmar75  = trunc(sigmar_accum / h.r100 * INT16SCALE);
+		else if (p == size*9/10) h.subhalo_sigmar90  = trunc(sigmar_accum / h.r100 * INT16SCALE);
+		else if (p == size - 1 ) h.subhalo_sigmar100 = trunc(sigmar_accum / h.r100 * INT16SCALE);
+	}
+	
+#ifdef SPHERICAL_OVERDENSITY
+	h.SO_subhalo_central_particle = L2.particles[0];
+	h.SO_subhalo_central_density  = L2.density[0]; 
+	h.SO_subhalo_radius           = sqrt(L2.d2buffer[-1]); 
+#endif 
+
     // We search for the max of vcirc, which is proportional to sqrt(G*M/R).
     // The 4th power of that is proportional to N^2/R^2.
     vmax = 0.0;
@@ -125,7 +190,7 @@ HaloStat ComputeStats(int size,
     }
     h.subhalo_rvcirc_max = sqrt(rvmax);    // Get to radial units
     h.subhalo_vcirc_max = sqrt(GMpart*sqrt(vmax))/ReadState.VelZSpace_to_kms;  // This is sqrt(N/R).
-
+	
     x += offset; 
     x = WrapPosition(x);
     subhalo_x += offset; subhalo_x = WrapPosition(subhalo_x);

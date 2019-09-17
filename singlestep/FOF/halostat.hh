@@ -23,23 +23,37 @@ class HaloStat {
     float x[3];      ///< Center of mass position
     float v[3];      ///< Center of mass velocity
     float sigmav[3];  ///< sqrt(Eigenvalues) of the velocity tensor
-    float r25, r50, r75, r90;   ///< Radii of this percentage of mass
-    // float r100;
-    float vcirc_max, rvcirc_max;  ///< max velocity and radius thereof
-    // float xcen[3];	///< Center of the SO sphere
-    // float densitycen;  ///< FOF-scale density of the SO central particle
+    //float r25, r50, r75, r90;   ///< Radii of this percentage of mass
+    float r100; ///<Radius of 100% of mass 
+	int16_t r10, r25, r50, r67, r75, r90; ///<Expressed as ratios of r100, and scaled to 32000 to store as int16s. 
+	float sigmar100; ///<Second moments about the mean of/for all particles falling within r100. 
+	int16_t sigmar10, sigmar25, sigmar50, sigmar67, sigmar75, sigmar90; ///<Second moments about the mean of/for all particles falling within r_n. 
+	
+    float   vcirc_max; ///< max velocity 
+	int16_t rvcirc_max; ///< radius of max velocity, stored as int16 ratio of r100 scaled by 32000.
+
+	FOFparticle SO_central_particle; ///< Coordinates of the SO central particle (densest particle). 
+	FOFloat     SO_central_density;  ///< Density of the SO central particle. 
+	FOFloat     SO_radius;           ///< Radius of SO halo (distance to particle furthest from central particle) 
 
     // The largest (most massive) subhalo center of mass
     float subhalo_x[3];   ///< Center of mass pos of the largest L2 subhalo
     float subhalo_v[3];   ///< Center of mass vel of the largest L2 subhalo
     // The profile properties computed from that center point
     float subhalo_sigmav[3]; ///< sqrt(Eigenvalues) of the velocity tensor of the L1 halo from L2 center
-    float subhalo_r25, subhalo_r50, subhalo_r75, subhalo_r90;
-    	///< Radii of this percentage of mass, relative to L2 center
-    // float subhalo_r100;
+
+    float subhalo_r100; /// Radius of 100% of mass, relative to L2 center. 
+    int16_t subhalo_r10, subhalo_r25, subhalo_r50, subhalo_r67, subhalo_r75, subhalo_r90;
+    	///< Radii of this percentage of mass, relative to L2 center. Expressed as ratios of r100 and compressed to int16. 
+	float subhalo_sigmar100; ///<Second moments about the mean of/for all particles falling within r100, relative to L2 center. 
+	int16_t subhalo_sigmar10, subhalo_sigmar25, subhalo_sigmar50, subhalo_sigmar67, subhalo_sigmar75, subhalo_sigmar90; ///<Second moments about the mean of/for all particles falling within r_n, relative to L2 center. 
+	
     float subhalo_vcirc_max, subhalo_rvcirc_max;   ///< max circular velocity and radius thereof, relative to L2 center
-    // float subhalo_xcen[3];	///< Center of the SO sphere for largest L2 subhalo
-    // float subhalo_densitycen;  ///< FOF-scale density of the central particle of the largest L2 subhalo
+
+	FOFparticle SO_subhalo_central_particle; ///< Coordinates of the SO central particle (densest particle) for the largest L2 subhalo. 
+	FOFloat     SO_subhalo_central_density;  ///< Density of the SO central particle of the largest L2 subhalo. 
+	FOFloat     SO_subhalo_radius;           ///< Radius of SO halo (distance to particle furthest from central particle) for the largest L2 subhalo
+	
 };
 
 
