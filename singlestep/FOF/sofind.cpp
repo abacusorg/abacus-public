@@ -146,7 +146,7 @@ class SOcell {
     SOcellgroup *socg;  ///< a list of the cell groups
     int *cellindex;     ///< a list for each particle in pos of which cell it belongs to
     FOFloat *d2_active; ///< A buffer of distances to the particles in active cells
-    integer3 refcell;   ///< the cell index triple for the first particle, -128 BTH TUKS TESTING
+    integer3 refcell;   ///< the cell index triple for the first particle, -128
   
     int maxcg;          ///< The maximum number of cellgroups
     int ncg;            ///< The active number of cellgroups
@@ -387,7 +387,7 @@ FOFloat partial_search(int len, int mass, int &size_thresh, FOFloat &inv_enc_den
     FOFloat x;
     for (int j=0; j<len; j++) {
         x = d2_bin[j]*xthreshold;
-        size_thresh = j+1; // we want the rightmost on the left side of the density threshold
+        size_thresh = j+1; // we want the rightmost on the left side of the density threshold //TODO: ASK
         if (x*sqrt(x)>(size_thresh+mass) && d2_bin[j]>=.5*WriteState.DensityKernelRad2) {
             break;
             // This particle is below the overdensity threshold
@@ -397,7 +397,9 @@ FOFloat partial_search(int len, int mass, int &size_thresh, FOFloat &inv_enc_den
     assertf(size_thresh+mass>0, "Found a zero mass interior to a SO shell, len = %d", len);
     inv_enc_den = (x*sqrt(x))/((size_thresh+mass)*threshold);
     
-    if (size_thresh==len) return -1.0;
+    if (size_thresh==len) {
+        return -1.0;
+    }
     return (d2_bin[size_thresh-1]);
 }
     
@@ -433,9 +435,9 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
     }
 
     // If we find no density threshold crossing, we'll return furthest edge -- not ideal
-    FOFloat r2found;
-    r2found = (furthest_firstbin)*GFC->SOpartition;
-    r2found *= r2found;
+    FOFloat r2found; // TODO: REMOVE
+    //r2found = (furthest_firstbin)*GFC->SOpartition;
+    //r2found *= r2found;
     //inv_enc_den = 1./threshold;//1.e30; //TESTING no defined inv
     
     // Proceed outward through the shells
@@ -472,19 +474,11 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             // Not enough mass, so there could be a density crossing.
             // Number of all particles that are within this radial bin
             size_bin = 0;
-        
             // for every SOcellgroup crossed by the radial bin
             for (int i = 0; i<ncg; i++) {
                 if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
-            
                     // Number of particles for that radial bin in that SOcellgroup
                     size_partition = socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
-                    if (socg[i].d2_furthest > d2_max) d2_max = socg[i].d2_furthest;
-                    // Using d2_active for combined list of all particles in the active cells
-                    // d2_bin for distance to nuc of all FOF pcles in that radial bin
-                    // Reason it cannot be d2buffer is that is used by d2compute
-                    // TODO: But not used at the same time, right?
-                    // BTH Eh, I ran into trouble trying to reduce the number of buffer distances
                     for (int j = 0; j<size_partition; j++) {
                         d2_bin[size_bin+j] = d2_active[socg[i].start[r-socg[i].firstbin]+j];
                     }
@@ -505,8 +499,8 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             if (d2_thresh > 0.0) {
                 // If something was found, record it
                 mass += size_thresh;
-                r2found = d2_thresh;
-                return r2found;
+                //r2found = d2_thresh;
+                return d2_thresh;//r2found;
             }
             else {
                 // False alarm: add all mass in that radial bin
@@ -516,9 +510,14 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
         }
     }
     // If nothing was found return the largest distance to a particle encountered --> not ideal!
-
+    //TESTING
     if (d2_thresh <= 0.0) {
-        x = xthreshold*d2_max; //cause we do go to the edge of the furthest cell covering all its pcles
+        // TESTING
+        for (int i = 0; i<ncg; i++) {            
+            if (socg[i].d2_furthest > d2_max) d2_max = socg[i].d2_furthest;
+        }
+      
+        x = xthreshold*d2_max; 
         inv_enc_den = (x*sqrt(x))/(mass*threshold);
         return d2_max;
     }
@@ -621,6 +620,9 @@ int greedySO() {
 
         // Call search function and obtain inverse density and threshold d2, 
         // but also mass within the threshold
+
+        // If density is insufficient, do not form new halo
+        if (density[start]<min_central && count>1) break;
         Search.Start();
         FOFloat inv_enc_den;
         int mass;
@@ -697,8 +699,6 @@ int greedySO() {
         count++;
 
         start = densest;
-    // If density is insufficient, do not form new halo
-    if (density[start]<min_central) break;
 
     }
     return count;
