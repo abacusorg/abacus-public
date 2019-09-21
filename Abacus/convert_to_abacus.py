@@ -117,7 +117,7 @@ def main(files, cpd, input_format, output_format, flip=False):
             f['vel'].convert_units('km s^-1')  # Set ICVelocity2Displacement=-1 in the .par file to automatically handle km/s
 
         elif input_format == 'desi-hdf5':
-            f = h5py.File(fn)
+            f = h5py.File(fn, 'r')
             pos = f['/Matter/Position'][:]
             vel = f['/Matter/Velocity'][:]
             pid = f['/Matter/ParticleID'][:]

@@ -1,0 +1,3 @@
+astropy
+Corrfunc
+h5py
