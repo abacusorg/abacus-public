@@ -12,29 +12,42 @@ import argparse
 import os
 from os.path import dirname, basename, abspath, join as pjoin
 import re
+import gc
+import multiprocessing
 
 from Abacus import Tools
 from Abacus import ReadAbacus
 from Abacus.InputFile import InputFile
 import Abacus.Cosmology
 
-import pynbody
 import numpy as np
 import h5py
 
-def convert(fn, format, ds=None, out_parent=None):
-    header = InputFile(pjoin(dirname(fn), 'header'))
+class Converter:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+    def __call__(self, fns):
+        kwargs = self.kwargs
+        format = kwargs['format']
+        ds = kwargs['ds']
+        dtype = kwargs.pop('dtype')
+
+        read_args = dict(format=format, dtype=dtype, return_vel=True, return_pid=True, return_header=True, return_fn=True, verbose=True)
+        if ds and ds > 1:
+            read_args['return_zel'] = True
+        if format == 'rvzel':
+            read_args['add_grid'] = True
+
+        for (p,header),fn in ReadAbacus.AsyncReader(fns, **read_args):
+            convert(p, header, fn, **kwargs)
+        
+        print('All done.')
+
+
+def convert(p, header, fn, format, ds=None, out_parent=None):
     ppd = np.int64(np.round(header.NP**(1./3)))
     assert ppd**3 == header.NP
-
-    read_args = {}
-    if ds and ds > 1:
-        read_args['return_zel'] = True
-    if format == 'rvzel':
-        read_args['add_grid'] = True
-        read_args[boxsize] = header.BoxSize
-
-    p = ReadAbacus.read(fn, format=format, dtype=np.float64, return_vel=True, return_pid=True, **read_args)
 
     if ds and ds > 1:
         assert int(ds) == ds
@@ -58,7 +71,12 @@ def convert(fn, format, ds=None, out_parent=None):
     else:
         ppd_ds = ppd
 
-    p['vel'] *= header.VelZSpace_to_kms/header.BoxSize
+    # better way to know the box on disk?
+    if format == 'rvzel':
+        p['vel'] *= header.VelZSpace_to_kms/header.BoxSize
+    else:
+        p['pos'] *= header.BoxSize
+        p['vel'] *= header.VelZSpace_to_kms
 
     # Copy over header values from Abacus to the DESI cosmo sim names
     h5header = {}
@@ -88,6 +106,11 @@ def convert(fn, format, ds=None, out_parent=None):
     h5dir = pjoin(out_parent, basename(dirname(fn)) + '_desi_hdf5_' + str(ppd_ds))
     os.makedirs(h5dir, exist_ok=True)
 
+    name_stem = basename(fn)
+    # TODO: more general extension detection
+    if name_stem.endswith('.dat'):
+        name_stem = name_stem[:-4]
+
     h5fn = pjoin(h5dir, basename(fn) + '.hdf5')
 
     with h5py.File(h5fn, 'w') as fp:
@@ -104,6 +127,9 @@ def convert(fn, format, ds=None, out_parent=None):
         for k in h5header:
             dset.attrs[k] = h5header[k]
 
+    del p
+    gc.collect()
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=Tools.ArgParseFormatter)
@@ -111,13 +137,18 @@ if __name__ == '__main__':
     parser.add_argument('--format', help='The Abacus file format', choices=ReadAbacus.reader_functions.keys(), default='rvzel')
     parser.add_argument('--ds', help='Downsample-per-dimension factor', type=int)
     parser.add_argument('--out-parent', help='Directory in which to create a directory for the outputs')
+    parser.add_argument('--dtype', help='Precision in which to read and write the outputs', choices=['float32', 'float64'], default='float32')
+    parser.add_argument('--nproc', help='Number of processes to use to process files.', default=multiprocessing.cpu_count(), type=int)
     
     args = parser.parse_args()
     args = vars(args)
 
     abacus_files = args.pop('abacus-file')
+    nproc = args.pop('nproc')
+    print(f'Processing {len(abacus_files)} files with {nproc} processes', flush=True)
 
-    for i,af in enumerate(abacus_files):
-        print('Converting {}/{} (\"{}\")... '.format(i+1,len(abacus_files), basename(af)), end='', flush=True)
-        convert(af, **args)
-        print('Done.')
+    converter = Converter(**args)
+
+    chunks = [abacus_files[s::nproc] for s in range(nproc)]  # sad that chunksize won't do this!
+    with multiprocessing.get_context("fork").Pool(nproc) as pool:
+        pool.map(converter, chunks)
