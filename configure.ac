@@ -5,9 +5,10 @@
 # Athena (https://trac.princeton.edu/Athena/)
 
 # Initialization
+# TODO: any way to use mpicxx if --enable-parallel?
 AC_LANG([C++])  # does this work?
 
-AC_INIT([abacus], [0.9], [], [], [github.com/nbody/abacus])
+AC_INIT([abacus], [2.0], [], [], [github.com/abacusorg/abacus])
 AC_CONFIG_HEADERS([./include/config.h])  # this places DEFS in a global header file instead of Makefiles
 AC_CONFIG_AUX_DIR([./Configuration])
 #AC_PROG_CC
@@ -32,6 +33,14 @@ AC_CONFIG_FILES([
  common.mk
 ])
 
+# Detect the underlying compiler when we are using a wrapper like mpicxx
+# TODO: better way to do this?
+AC_MSG_CHECKING([underlying compiler])
+AC_SUBST(REAL_CXX)
+REAL_CXX=$($CXX --version |\grep -qP '\bicc\b' && echo icc || echo g++)
+AC_MSG_RESULT([$REAL_CXX])
+REAL_CC="$REAL_CXX -x c"
+
 # git version
 GITVERSION=\"$(git rev-parse HEAD)\"
 AC_DEFINE_UNQUOTED(GITVERSION, $GITVERSION, "The current git revision")
@@ -42,6 +51,17 @@ m4_include(Configuration/m4/ax_check_compile_flag.m4)
 m4_include(Configuration/m4/ax_gcc_x86_avx_xgetbv.m4)
 m4_include(Configuration/m4/ax_gcc_x86_cpuid.m4)
 m4_include(Configuration/m4/ax_ext.m4)
+
+# The following uses gsl-config to find GSL.  That sounds like
+# a good thing, but Anaconda puts gsl-config on the PATH, but not
+# the library paths.
+# So we can't resolve the libraries at link/runtime if we do this.
+# Putting the Anaconda lib dir on the search path is dangerous because
+# it includes many versions of system libraries, and we might worry that
+# their performance (and even behavior) would be different from
+# the "real" system libraries.
+#m4_include(Configuration/m4/gsl.m4)
+#AX_PATH_GSL(,[], AC_MSG_ERROR(could not find required version of GSL))
 
 # Calling make from configure... pretty sketchy!
 # But we want tcmalloc to be available for configure to find
@@ -77,6 +97,12 @@ else
     have_avx512f=no
 fi
 
+if test x$ax_cv_have_vsx_ext == xyes; then
+    have_vsx=yes
+else
+    have_vsx=no
+fi
+
 # Define the ./configure options
 AC_ARG_ENABLE(double,
 [AS_HELP_STRING([--enable-double], [Double precision [no]])],
@@ -101,7 +127,7 @@ AC_ARG_ENABLE(mkl,
 [AS_HELP_STRING([--enable-mkl], [Intel Math Kernel Library FFT [yes if using icc]])],
 	[], enable_mkl="check")
 if test x$enable_mkl == xcheck; then
-    if test x$CXX == xicc; then
+    if test x$REAL_CXX == xicc; then
         enable_mkl="yes"
     else
         enable_mkl="no"
@@ -126,6 +152,10 @@ AC_ARG_ENABLE(avx512,
 [AS_HELP_STRING([--enable-avx512], [All AVX-512 (overridden by individual options) [yes if AVX-512 present]])],
 	[], enable_avx512=$have_avx512f)
 
+AC_ARG_ENABLE(vsx,
+[AS_HELP_STRING([--enable-vsx], [All VSX (overridden by individual options) [yes if VSX present]])],
+    [], enable_vsx=$have_vsx)
+
 AC_ARG_ENABLE(avx-directs,
 [AS_HELP_STRING([--enable-avx-directs], [AVX directs [no]])],
 	[], enable_avx_directs=no)
@@ -144,7 +174,7 @@ fi
 # Begin multipoles SIMD options
 
 AC_ARG_WITH(multipoles-simd,
-[AS_HELP_STRING([--multipoles-simd={avx512 | avx | unrolled | none}], [Multipoles/Taylors implementation [highest supported]])],
+[AS_HELP_STRING([--with-multipoles-simd={avx512 | avx | vsx | unrolled | none}], [Multipoles/Taylors implementation [highest supported]])],
     [], with_multipoles_simd="auto")
 
 if test "x$with_multipoles_simd" == xauto; then
@@ -152,6 +182,8 @@ if test "x$with_multipoles_simd" == xauto; then
         with_multipoles_simd="avx512"
     elif test "x$enable_avx" == xyes; then
         with_multipoles_simd="avx"
+    elif test "x$enable_vsx" == xyes; then
+        with_multipoles_simd="vsx"
     else
         with_multipoles_simd="unrolled"
     fi
@@ -165,6 +197,9 @@ if test "x$with_multipoles_simd" == xavx512; then
 elif test "x$with_multipoles_simd" == xavx; then
     AC_DEFINE_UNQUOTED(AVXMULTIPOLES, [], "AVX multipoles/Taylors")
     MULTIPOLES_SIMD="MULTIPOLES_SIMD_AVX"
+elif test "x$with_multipoles_simd" == xvsx; then
+    AC_DEFINE_UNQUOTED(VSXMULTIPOLES, [], "VSX (PowerPC) multipoles/Taylors")
+    MULTIPOLES_SIMD="MULTIPOLES_SIMD_VSX"
 elif test "x$with_multipoles_simd" == xunrolled; then
     AC_DEFINE_UNQUOTED(UNROLLEDMULTIPOLES, [], "Unrolled plain-C multipoles/Taylors")
     MULTIPOLES_SIMD="MULTIPOLES_SIMD_UNROLLED"
@@ -192,8 +227,8 @@ AC_ARG_WITH(max-source-length,
 AC_DEFINE_UNQUOTED(MAXSOURCELENGTH,$with_max_source_length, "Maximum source length")
 
 AC_ARG_WITH(max-order,
-[AS_HELP_STRING([--with-max-order=O], [Maximum multipole order [16]])],
-    [], with_max_order="16")
+[AS_HELP_STRING([--with-max-order=O], [Maximum multipole order [8]])],
+    [], with_max_order="8")
 MAXORDER=$with_max_order
 AC_SUBST(MAXORDER)
 AC_DEFINE_UNQUOTED(MAXORDER,$with_max_order, "Maximum multipole order")
@@ -206,10 +241,17 @@ if test x$enable_threaded_io == xyes; then
 fi
 
 AC_ARG_ENABLE(spherical-overdensity,
-[AS_HELP_STRING([--enable-spherical-overdensity], [Use SO finder [no]])],
-	[], enable_spherical_overdensity="no")
+[AS_HELP_STRING([--enable-spherical-overdensity], [Use SO finder [yes]])],
+	[], enable_spherical_overdensity="yes")
 if test x$enable_spherical_overdensity == xyes; then
 	AC_DEFINE_UNQUOTED(SPHERICAL_OVERDENSITY, [], "Use SO finder for L1/L2 halos, rather than FOF")
+fi
+
+AC_ARG_ENABLE(one-sided-group-finding,
+[AS_HELP_STRING([--enable-one-sided-group-finding], [Perform L0 finding one-sided [yes]])],
+	[], enable_one_sided_group_finding="yes")
+if test x$enable_one_sided_group_finding == xyes; then
+	AC_DEFINE_UNQUOTED(ONE_SIDED_GROUP_FINDING, [], "Use one-sided algorithm for L0 group finding")
 fi
 
 AC_ARG_ENABLE(gpu-directs,
@@ -256,7 +298,7 @@ fi
 if test x$enable_gpu_directs == xyes; then
     AC_MSG_CHECKING([compute capability of GPUs])
 
-    make --quiet -C singlestep/Direct detect_gpus MAKE_CONTEXT=AUTOCONF NVCC=$NVCC
+    make --quiet -C singlestep/Direct detect_gpus MAKE_CONTEXT=AUTOCONF NVCC=$NVCC CXX=$CXX
     DETECT_GPUS_OUTPUT=$(./singlestep/Direct/detect_gpus)
 
     NGPU=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Device count: )\d+')
@@ -325,13 +367,15 @@ AC_DEFINE_UNQUOTED(CACHE_LINE_SIZE, $with_cache_line, "Cache line size in bytes"
 # is using Anaconda Python.
 # You may only want the impl packages; the activation scripts will mess with configure
 PYTHON_EXEC=$(command -v python)
-PYTHON_CC=$CC
-PYTHON_CXX=$CXX
+PYTHON_CC=$REAL_CC
+PYTHON_CXX=$REAL_CXX
 PYTHON_LDFLAGS=
+PYTHON_CPPFLAGS=
 PYTHON_COMPILER_WARNING=
 AC_SUBST(PYTHON_CC)
 AC_SUBST(PYTHON_CXX)
 AC_SUBST(PYTHON_LDFLAGS)
+AC_SUBST(PYTHON_CPPFLAGS)
 # Check if the user is using Anaconda Python (better way to do this? sys.version doesn't work for me)
 AC_MSG_CHECKING([for Anaconda Python])
 if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
@@ -339,7 +383,8 @@ if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
     # Now look in the Anaconda/bin directory
     CONDA_BINDIR=$(dirname $PYTHON_EXEC)
     CONDA_BINDIRNAME=$(basename $CONDA_BINDIR)
-    CONDA_LIBDIR=$CONDA_BINDIR/../lib
+    CONDA_LIBDIR=$(dirname $CONDA_BINDIR)/lib
+    CONDA_INCLUDEDIR=$(dirname $CONDA_BINDIR)/include
 
     # sanity check
     if test xbin != x$CONDA_BINDIRNAME; then
@@ -357,7 +402,7 @@ if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
         PYTHON_CC=$(echo $GCC_FILES | awk '{print $1}')
     fi
     if test $NGCC_FILES -ne 1; then
-        AC_MSG_WARN(Could not find a unique *gcc file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gcc*_impl package for your platform to get rid of this message.)
+        AC_MSG_WARN(Could not find a unique *gcc file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gcc_impl_linux-64 package (or the equivalent for your platform) to get rid of this message.)
         AC_MSG_WARN(Using: "$PYTHON_CC")
     fi
 
@@ -367,7 +412,7 @@ if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
         PYTHON_CXX=$(echo $GXX_FILES | awk '{print $1}')
     fi
     if test $NGXX_FILES -ne 1; then
-        AC_MSG_WARN(Could not find a unique *g++ file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gxx*_impl package for your platform to get rid of this message.)
+        AC_MSG_WARN(Could not find a unique *g++ file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gxx_impl_linux-64 package (or the equivalent for your platform) to get rid of this message.)
         AC_MSG_WARN(Using: "$PYTHON_CXX")
     fi
 
@@ -375,6 +420,7 @@ if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
     # Let's assume that Anaconda Python always does the rpath linkage (which I think is true),
     # so we might as well supply the lib at link time, no matter if we actually found a conda gcc
     PYTHON_LDFLAGS="-L $CONDA_LIBDIR"
+    PYTHON_CPPFLAGS="-I $CONDA_INCLUDEDIR"
 
     # Most likely the user is using Python compiled with GCC.  So if we are building extensions
     # using icc (which shouldn't happen if the user installed the conda compilers), link some
@@ -410,6 +456,7 @@ echo "AVX-512 directs:                 $enable_avx512_directs"
 echo "SIMD multipoles:                 $with_multipoles_simd"
 echo "AVX FOF:                         $enable_avx_fof"
 echo "Spherical Overdensity:           $enable_spherical_overdensity"
+echo "One-sided L0 Finding:            $enable_one_sided_group_finding"
 echo "Threaded IO:                     $enable_threaded_io"
 echo "GPU directs:                     $enable_gpu_directs"
 echo "Compute FOF-scale density:       $enable_fof_density"
@@ -419,13 +466,13 @@ echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Cache line size:                 $with_cache_line"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
+echo "Maximum order:                   $with_max_order"
 echo "------------------------------------------------------"
 echo
 
 # These are configurable but uncommon to change
 #echo "Maximum CPD:                     $with_max_cpd"
 #echo "Maximum source length:           $with_max_source_length"
-#echo "Maximum order:                   $with_max_order"
 #echo "Maximum GPUs:                    $with_max_gpus"
 #echo "Ramdisk path:                    $with_ramdisk"
 

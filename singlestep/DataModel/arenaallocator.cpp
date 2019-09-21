@@ -32,7 +32,7 @@
 
 typedef struct {
     uint64 allocated_size, usable_size, max_usable_size, start_offset;
-    int present;
+    int present;    // This will be 1 if the arena is available.  2 if allocated, but not available for normal work.
     int IsIOCompleted;
     int shared_mem;  // does this arena reside in shared memory?
     char *addr;
@@ -59,8 +59,11 @@ public:
     STimer ArenaMalloc;
     int numalloc, numreuse;
     int num_shm_alloc;
+	
+	
+	float ArenaFree_elapsed; 
 
-    PTimer *ArenaFree;
+   // PTimer *ArenaFree;
 
     void Allocate(int id, uint64 s, int reuseid, int ramdisk = RAMDISK_NO, const char *ramdisk_fn=NULL);
     void DeAllocateArena(int id, int reuseID);
@@ -68,8 +71,8 @@ public:
 
     inline int IsArenaPresent(int id) { 
         // Returns 1 if the Arena is Allocated, 0 otherwise
-            assert(id>=0 && id<maxids); 
-        return arena[id].present; 
+        assert(id>=0 && id<maxids); 
+        return (arena[id].present==1)?1:0; 
     }
 
     inline void SetIOCompletedArena(int id) { 
@@ -86,17 +89,26 @@ public:
     inline int IsIOCompleted(int id) { 
         // Returns 1 if the Arena has completed I/O and is ready for use.
         assert(IsArenaPresent(id));
-            return arena[id].IsIOCompleted; 
+        return arena[id].IsIOCompleted; 
     }
 
     uint64 ArenaSizeBytes(int id) { 
         // Return the usable size of the Arena
         assert(IsArenaPresent(id));
-            return arena[id].usable_size; 
+        return arena[id].usable_size; 
     }
 
     int ArenaRamdiskType(int id){
         return arena[id].shared_mem;
+    }
+
+    inline void MarkArenaUnavailable(int id) {
+        /* This should be used sparingly.  It makes it so that calls
+        to IsArenaPresent() will return False.  Pretty much the only 
+        thing that will work after that is a call to DeAllocate() */
+        /* One should *never* make the ReuseArena unavailable! */
+        arena[id].present = 2;
+        return;
     }
 
 
@@ -107,7 +119,8 @@ private:
     uint64 allocation_guard;
     uint64 peak_alloc;
     std::mutex lb_mutex;
-
+	std::mutex lb_freemutex;
+	
     pthread_t disposal_thread;
 
     void DiscardArena(int id);
@@ -132,7 +145,7 @@ private:
         char start[GUARDSIZE+1], end[GUARDSIZE+1];
         memcpy(start, arena[id].addr, GUARDSIZE); start[GUARDSIZE] = '\0';
         memcpy(end, arena[id].addr+GUARDSIZE+arena[id].usable_size, GUARDSIZE); end[GUARDSIZE] = '\0';
-        if (less) { STDLOG(1,"Arena %d: %d %d %d %d %d %p\n", 
+        if (less) { STDLOG(2,"Arena %d: %d %d %d %d %d %p\n", 
             id,
             arena[id].present,
             arena[id].IsIOCompleted,
@@ -140,7 +153,7 @@ private:
             arena[id].usable_size, 
             arena[id].start_offset, 
             (void *) (arena[id].addr)); 
-        } else STDLOG(1,"Arena %d: %d %d %d %d %d %p %s %s\n", 
+        } else STDLOG(2,"Arena %d: %d %d %d %d %d %p %s %s\n", 
             id,
             arena[id].present,
             arena[id].IsIOCompleted,
@@ -224,7 +237,7 @@ private:
 ArenaAllocator::ArenaAllocator(int maximum_number_ids, uint64 max_allocations, int use_disposal_thread)
         : use_disposal_thread(use_disposal_thread) {
     maxids = maximum_number_ids;
-    ArenaFree = new PTimer(maxids);
+   // ArenaFree = new PTimer(maxids);
     arena = new arenainfo[maxids];
     total_allocation = 0;
     total_shm_allocation = 0;
@@ -252,7 +265,7 @@ ArenaAllocator::~ArenaAllocator(void) {
             else
                 ResetArena(i);
     delete[] arena;
-    delete ArenaFree;
+   // delete ArenaFree;
 
     if(use_disposal_thread){
         disposal_queue.push((struct disposal_item){NULL, 0});
@@ -273,7 +286,7 @@ void ArenaAllocator::report(){
 void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const char *ramdisk_fn) {
     lb_mutex.lock();
     
-    assertf(IsArenaPresent(id)==0, "Error: Asking for Allocation of arena %d that already exists!\n", id);   // This is always a bad idea
+    assertf(arena[id].present==0, "Error: Asking for Allocation of arena %d that already exists!\n", id);   // This is always a bad idea
     assert(id < maxids);
     
     size_t ss;
@@ -332,7 +345,7 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
             // If a ramdisk allocation was requested, must have received the path
             assert(ramdisk_fn != NULL);
             assert(strnlen(ramdisk_fn,1) > 0);
-            STDLOG(1,"Mapping arena id %d from shared memory\n", id);
+            STDLOG(2,"Mapping arena id %d from shared memory\n", id);
 
             // Shared memory arenas:
             // 1) do not have guard space
@@ -388,6 +401,7 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
             } else {
                 arena[id].addr = NULL;
             }
+
             int res = close(fd);
             assertf(res == 0, "Failed to close fd %d\n", fd);
 
@@ -412,7 +426,12 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
 
 /// This discards an arena, freeing and resetting, no questions asked
 void ArenaAllocator::DiscardArena(int id) {
-    ArenaFree->Start(id);
+	
+	STimer ArenaFree; 
+    //ArenaFree->Start(id);
+	ArenaFree.Clear(); 
+	ArenaFree.Start();
+	
     assertf( arena[id].addr != NULL , 
         "Arena %d requested for deallocation, but it points to NULL\n", id); 
 
@@ -421,10 +440,10 @@ void ArenaAllocator::DiscardArena(int id) {
         // TODO: is there a way to check, just for logging/accounting purposes?
 
         if(use_disposal_thread){
-            STDLOG(2, "Pushing %d to discard thread...\n", id);
+            STDLOG(3, "Pushing %d to discard thread...\n", id);
             struct disposal_item di = {arena[id].addr, arena[id].allocated_size};
             disposal_queue.push(di);
-            STDLOG(2, "Done pushing %d.\n", id);
+            STDLOG(3, "Done pushing %d.\n", id);
         } else {
             if(arena[id].allocated_size > 0){
                 int res = munmap(arena[id].addr, arena[id].allocated_size);
@@ -440,7 +459,14 @@ void ArenaAllocator::DiscardArena(int id) {
 
     arena[id].present = 0;
     total_allocation -= arena[id].allocated_size;
-    ArenaFree->Stop(id);
+    //ArenaFree->Stop(id);
+	
+	ArenaFree.Stop();
+	
+	lb_freemutex.lock();
+	ArenaFree_elapsed += ArenaFree.Elapsed(); 
+	lb_freemutex.unlock();
+	
     ResetArena(id);
 }
 
@@ -449,7 +475,8 @@ void ArenaAllocator::DeAllocateArena(int id, int reuseID) {
     // It is illegal to call this on an arena that hasn't been allocated.
     lb_mutex.lock();
     assert(id >= 0 && id < maxids); 
-    assertf(arena[id].present == 1, "Arena %d requested for deallocation, but it doesn't exist\n", id ); 
+    assertf(arena[id].present>0, "Arena %d requested for deallocation, but it doesn't exist\n", id ); 
+    arena[id].present = 1;   // If it was marked unavailable, fix that before it propagates
 
     // If we're asked to discard the reuse slab or a shared memory slab, just do it
     if (id == reuseID || arena[id].shared_mem) {
@@ -527,8 +554,8 @@ void ReportMemoryAllocatorStats(){
     size_t bytes_total = 0;
     MallocExtension::instance()->GetNumericProperty("generic.heap_size", &bytes_total);
 
-    STDLOG(2, "%.3g GiB held by mallocs; %.3g GiB held from system by allocator\n", bytes_allocated/1024./1024/1024, bytes_total/1024./1024/1024);
-    STDLOG(2, "\t%.3g GiB (%.1f%%) held by allocator but not in use\n", (bytes_total - bytes_allocated)/1024./1024/1024, 100.*(bytes_total - bytes_allocated)/bytes_total);
+    STDLOG(3, "%.3g GiB held by mallocs; %.3g GiB held from system by allocator\n", bytes_allocated/1024./1024/1024, bytes_total/1024./1024/1024);
+    STDLOG(3, "\t%.3g GiB (%.1f%%) held by allocator but not in use\n", (bytes_total - bytes_allocated)/1024./1024/1024, 100.*(bytes_total - bytes_allocated)/bytes_total);
 
     // This dumps a human-readable summary of the current allocator state to the log
     char logstr[2048];
@@ -538,7 +565,7 @@ void ReportMemoryAllocatorStats(){
     std::istringstream logstream(logstr);
     // Split up the string on newlines so parsers don't break
     while(std::getline(logstream, line))
-        STDLOG(2, "%s\n", line.c_str());
+        STDLOG(3, "%s\n", line.c_str());
 
     // Malloc histogram
     // if you link against tcmalloc_minimal_debug (warning: slow!)
@@ -571,7 +598,7 @@ void ReportMemoryAllocatorStats(){
 
             char rightalignnum[16];  // I think STDLOG has a bug; this is the workaround
             sprintf(rightalignnum, "%4zu", startbytes);
-            STDLOG(2, "%s %s -- %4d %s: %d\n", rightalignnum, suffix, endbytes, suffix, hist[i]);
+            STDLOG(3, "%s %s -- %4d %s: %d\n", rightalignnum, suffix, endbytes, suffix, hist[i]);
             startbytes = endbytes;
             endbytes <<= 1;
         }
@@ -582,7 +609,7 @@ void ReportMemoryAllocatorStats(){
 void ArenaAllocator::DisposalThreadLoop(){
     struct disposal_item di;
 
-    STDLOG(1, "Starting arena allocator disposal thread\n");
+    STDLOG(2, "Starting arena allocator disposal thread\n");
 
     int n = 0;
     while(true){
@@ -599,7 +626,7 @@ void ArenaAllocator::DisposalThreadLoop(){
         }
     }
 
-    STDLOG(1, "Terminating arena allocator disposal thread.  Executed %d munmap()s.\n", n);
+    STDLOG(2, "Terminating arena allocator disposal thread.  Executed %d munmap()s.\n", n);
 }
 
 #endif // INCLUDE_LB

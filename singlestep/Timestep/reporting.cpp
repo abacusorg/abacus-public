@@ -37,10 +37,15 @@ FILE *reportfp;
          thistime = a; fprintf(reportfp, "%-30s: %10.2e sec (%5.2f%%) ", str, thistime, denom ? 100*thistime/denom : 0.); \
      } while(0)
 
-#define REPORT_RATE() \
+#define REPORT_RATE_ALL() \
      do { \
         fprintf(reportfp,"---> %6.2f Mpart/sec", thistime ? P.np/thistime/1e6 : 0.); \
      } while(0)
+		 
+#define REPORT_RATE(dependency) \
+     do { \
+        fprintf(reportfp,"---> %6.2f Mpart/sec", thistime ? dependency.num_particles/thistime/1e6 : 0.); \
+     } while(0)		 
 
 /* This function gathers timings from major global classes before they're destroyed in the Epilogue.
  * They're printed to a string buffer (via a file-like interface); this string buffer saves a few spots
@@ -57,11 +62,15 @@ void GatherTimings() {
     double thistime, denom, total;
     denom = WallClockDirect.Elapsed();
     REPORT(0, "Total Wall Clock Time", WallClockDirect.Elapsed()); 
-    fprintf(reportfp,"---> %6.3f Mpart/sec", thistime ? P.np/thistime/1e6 : 0.);
+    fprintf(reportfp,"---> %6.3f Mpart/sec, %d particles processed by this node.", thistime ? P.np/thistime/1e6 : 0., NearForce.num_particles); 
+	//TODO : consider reporting number of particles microstepped here as well. 
     fprintf(reportfp,"\n");
 
     total = 0.0;
     REPORT(0, "SingleStep Setup", SingleStepSetup.Elapsed()); total += thistime;
+#ifdef PARALLEL
+    REPORT(0, "Convolution", ConvolutionWallClock.Elapsed()); total += thistime;
+#endif
     REPORT(0, "TimeStep", TimeStepWallClock.Elapsed()); total += thistime;
     REPORT(0, "Finish IO", IOFinish.Elapsed()); total += thistime;
     REPORT(0, "Unaccounted", WallClockDirect.Elapsed()-total);
@@ -146,32 +155,34 @@ void GatherTimings() {
     }
 #else
     REPORT(1, "NearForce", NearForce.Elapsed()); total += thistime;
-    REPORT_RATE();
+    REPORT_RATE(NearForce);
 #endif
     REPORT(1, "TaylorForce", TaylorForce.Elapsed()); total += thistime;
-    REPORT_RATE();
+    REPORT_RATE(TaylorForce);
     REPORT(1, "Kick", Kick.Elapsed()); total += thistime;
-    REPORT_RATE();
+    REPORT_RATE(Kick);
     double gf_total = MakeCellGroups.Elapsed() + FindCellGroupLinks.Elapsed() + DoGlobalGroups.Elapsed() + FinishGroups.Elapsed();
     if (GFC != NULL){
         REPORT(1, "Group Finding", gf_total); total += thistime;
-        REPORT_RATE();
+        REPORT_RATE(DoGlobalGroups);
     }
     REPORT(1, "Output", Output.Elapsed()); total += thistime;
-    REPORT_RATE();
+    REPORT_RATE(Output);
     if (GFC != NULL){
         REPORT(1, "Microstep", Microstep.Elapsed()); total += thistime;
-        REPORT_RATE();
+        REPORT_RATE(Microstep);
     }
    
     if(WriteState.Do2LPTVelocityRereading){
-        REPORT(1, "Velocity Re-reading for LPT", LPTVelocityReRead.Elapsed()); total += thistime;
-        REPORT_RATE();
+        REPORT(1, "Velocity Re-reading for LPT", FetchLPTVelocity.Elapsed()); total += thistime;
+        REPORT_RATE(FetchLPTVelocity);
     }
     REPORT(1, "Drift", Drift.Elapsed()); total += thistime;
-        REPORT_RATE();
+        REPORT_RATE(Drift);
     REPORT(1, "Finish", Finish.Elapsed()); total += thistime;
-        REPORT_RATE();
+        REPORT_RATE(Finish);		
+    REPORT(1, "Check Multipoles", CheckForMultipoles.Elapsed()); total += thistime;
+        REPORT_RATE(CheckForMultipoles);	
 
     double ManifestTotal = 
         ReceiveManifest->Load.Elapsed()
@@ -182,6 +193,11 @@ void GatherTimings() {
     REPORT(1, "Manifest", ManifestTotal); total += thistime;
         fprintf(reportfp,"---> %6.3f MB", ReceiveManifest->bytes/1e6);
     REPORT(1, "Spinning", spinning); total += thistime;
+	
+#ifdef PARALLEL
+	REPORT(1, "MPI Barrier", BarrierWallClock.Elapsed()); total += thistime;
+#endif
+	
     REPORT(1, "Unaccounted", TimeStepWallClock.Elapsed()-total);
 
     fprintf(reportfp, "\n\nBreakdown per slab (Wall Clock)");
@@ -275,19 +291,19 @@ void GatherTimings() {
         //REPORT(1, "Taylor Computation", TaylorCompute.Elapsed());
         denom = TimeStepWallClock.Elapsed();
         REPORT(1, "Taylor Computation", TaylorForce.Elapsed());
-            REPORT_RATE();
+            REPORT_RATE(TaylorForce);
         denom = thistime;
             REPORT(2, "Compute Cell Offsets", TY->ConstructOffsets.Elapsed());
             REPORT(2, "Taylor FFT", TY->FFTTaylor.Elapsed());
             REPORT(2, "Taylor R to C", TY->TaylorR2C.Elapsed());
-            REPORT(2, "Taylor ASM", TY->TaylorASM.Elapsed());
+            REPORT(2, "Taylor Kernel", TY->TaylorKernel.Elapsed());
             REPORT(2, "Taylor Redlack", RL->TaylorRedlack.Elapsed());
     }
 
     fprintf(reportfp, "\n\nBreakdown of Kick:");
     denom = TimeStepWallClock.Elapsed();
     REPORT(1, "Kick", Kick.Elapsed());
-        REPORT_RATE();
+        REPORT_RATE(Kick);
     denom = thistime;
         if(NFD){
             REPORT(2, "Accumulate Pencil Stats", NFD->FinalizeTimer.Elapsed());
@@ -295,20 +311,20 @@ void GatherTimings() {
         REPORT(2, "Add Near + Far Accel", AddAccel.Elapsed());
             fprintf(reportfp,"---> %6.2f GB/sec", thistime ? P.np/thistime*3*sizeof(accstruct)/1e9 : 0.);
         REPORT(2, "Kick Cell", KickCellTimer.Elapsed());
-            REPORT_RATE();
+            REPORT_RATE(Kick);
     
     if(GFC != NULL){
         fprintf(reportfp, "\n\nBreakdown of Group Finding:");
         denom = TimeStepWallClock.Elapsed();
         REPORT(1, "Group Finding", gf_total);
-            REPORT_RATE();
+            REPORT_RATE(DoGlobalGroups);
         denom = thistime;
             REPORT(2, "MakeCellGroups", MakeCellGroups.Elapsed());
-                REPORT_RATE();
+                REPORT_RATE(MakeCellGroups);
             REPORT(2, "FindCellGroupLinks", FindCellGroupLinks.Elapsed());
-                REPORT_RATE();
+                REPORT_RATE(FindCellGroupLinks);
             REPORT(2, "DoGlobalGroups", DoGlobalGroups.Elapsed());
-                REPORT_RATE();
+                REPORT_RATE(DoGlobalGroups);
             denom = thistime;
             REPORT(3, "Create (Sort + Index + Find)", GFC->SortLinks.Elapsed() + GFC->IndexLinks.Elapsed() + GFC->FindGlobalGroupTime.Elapsed());
             REPORT(3, "Gather particles/Scatter aux", GFC->IndexGroups.Elapsed() + GFC->GatherGroups.Elapsed() + GFC->ScatterAux.Elapsed());
@@ -327,20 +343,20 @@ void GatherTimings() {
     fprintf(reportfp, "\n\nBreakdown of Output:");
     denom = TimeStepWallClock.Elapsed();
     REPORT(1, "Output", Output.Elapsed());
-        REPORT_RATE();
+        REPORT_RATE(Output);
     denom = thistime;
-        REPORT(2, "TimeSlice", OutputTimeSlice.Elapsed());
-            REPORT_RATE();
-        REPORT(2, "LightCone", OutputLightCone.Elapsed());
-            REPORT_RATE();
-        REPORT(2, "Binning", OutputBin.Elapsed());
-            REPORT_RATE();
+        REPORT(2, "Output", OutputTimeSlice.Elapsed());
+            REPORT_RATE(Output);
+        REPORT(2, "Output", OutputLightCone.Elapsed());
+            REPORT_RATE(Output);
+        REPORT(2, "Output", OutputBin.Elapsed());
+            REPORT_RATE(Output);
 
     if(GFC != NULL){
         fprintf(reportfp, "\n\nBreakdown of Microstep:");
         denom = TimeStepWallClock.Elapsed();
         REPORT(1, "Microstep", Microstep.Elapsed());
-            REPORT_RATE();
+            REPORT_RATE(Microstep);
         denom = thistime;
         REPORT(2, "CPU Microsteps", MicrostepCPU.Elapsed());
             fprintf(reportfp,"---> %6.2f M_group_part/sec", thistime ? GFC->L0stats.tot/thistime/1e6 : 0.);
@@ -349,22 +365,22 @@ void GatherTimings() {
     fprintf(reportfp, "\n\nBreakdown of Drift:");
     denom = TimeStepWallClock.Elapsed();
     REPORT(1, "Drift", Drift.Elapsed());
-        REPORT_RATE();
+        REPORT_RATE(Drift);
     denom = thistime;
         REPORT(2, "Move",         DriftMove.Elapsed());
-            REPORT_RATE();
+            REPORT_RATE(Drift);
         REPORT(2, "Rebin",        DriftRebin.Elapsed());
-            REPORT_RATE();
+            REPORT_RATE(Drift);
         REPORT(2, "Collect Insert List Gaps",    DriftInsert.Elapsed());
 
     if(MF != NULL){
         fprintf(reportfp, "\n\nBreakdown of Compute Multipole:");
         denom = Finish.Elapsed();
         REPORT(1, "Compute Multipoles", ComputeMultipoles.Elapsed());
-            REPORT_RATE();
+            REPORT_RATE(Finish);
         denom = thistime;
             REPORT(2, "Compute Cell Offsets", MF->ConstructOffsets.Elapsed());
-            REPORT(2, "Multipole ASM", MF->MultipoleASM.Elapsed());
+            REPORT(2, "Multipole Kernel", MF->MultipoleKernel.Elapsed());
             REPORT(2, "Multipole C to R", MF->MultipoleC2R.Elapsed());
             REPORT(2, "Multipole FFT", MF->FFTMultipole.Elapsed());
     }
@@ -372,20 +388,21 @@ void GatherTimings() {
     fprintf(reportfp, "\n\nBreakdown of Finish:");
     denom = TimeStepWallClock.Elapsed();
     REPORT(1, "Finish", Finish.Elapsed());
-        REPORT_RATE();
+        REPORT_RATE(Finish);
     denom = Finish.Elapsed();
+		REPORT(2, "Finish Preamble", FinishPreamble.Elapsed());
         REPORT(2, "Partition Insert List", IL->FinishPartition.Elapsed());
         REPORT(2, "Sort Insert List", IL->FinishSort.Elapsed());
             fprintf(reportfp,"---> %6.2f Mitems/sec (%.2g items)", thistime ? IL->n_sorted/thistime/1e6 : 0., (double) IL->n_sorted);
         REPORT(2, "Index Cells", FinishCellIndex.Elapsed());
         REPORT(2, "Merge", FinishMerge.Elapsed());
-            REPORT_RATE();
+        	REPORT_RATE(Finish);
         REPORT(2, "Compute Multipoles", ComputeMultipoles.Elapsed());
-            REPORT_RATE();
+        	REPORT_RATE(Finish);
         REPORT(2, "Write Particles", WriteMergeSlab.Elapsed());
         REPORT(2, "Write Multipoles", WriteMultipoleSlab.Elapsed());
         REPORT(2, "Queuing Send Manifest", SendManifest->Load.Elapsed()+SendManifest->Transmit.Elapsed());
-
+		REPORT(2, "Queuing Multipole MPI", QueueMultipoleMPI.Elapsed());
 
     fprintf(reportfp, "\n\nBreakdown of Manifest:");
     REPORT(1, "Manifest", ManifestTotal);
@@ -402,6 +419,8 @@ void GatherTimings() {
     REPORT(1, "Not enough RAM to load slabs", Dependency::spin_timers[NOT_ENOUGH_RAM].Elapsed());
     REPORT(1, "Waiting for slab IO", Dependency::spin_timers[WAITING_FOR_IO].Elapsed());
     REPORT(1, "Waiting for GPU", Dependency::spin_timers[WAITING_FOR_GPU].Elapsed());
+    REPORT(1, "Waiting for MPI", Dependency::spin_timers[WAITING_FOR_MPI].Elapsed());
+	
 
     denom = TimeStepWallClock.Elapsed();
     double arena_malloc, arena_free;
@@ -410,6 +429,7 @@ void GatherTimings() {
     REPORT(0, "\nAllocate Arena Memory", arena_malloc);
     REPORT(0, "Free Arena Memory", arena_free);
     REPORT(0, "Free SlabAccum Variables", SlabAccumFree.Elapsed());
+	
 }
 
 /* This function writes the timing report to disk.

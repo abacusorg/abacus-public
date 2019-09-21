@@ -1,3 +1,4 @@
+
 /* directdriver.cpp
  *
  * Abstraction layer that handles everything associated with launching the directs. 
@@ -134,10 +135,11 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
 #ifdef CUDADIRECT
     STDLOG(1, "Fetching number of GPUs... this will start the CUDA context\n");
     NGPU = GetNGPU();
+
     DirectBPD = P.DirectBPD;
 
 
-    STDLOG(1, "Fetching device memory...\n");
+    STDLOG(2, "Fetching device memory...\n");
     GPUMemoryGB = GetDeviceMemory();
     GPUMemoryGB /= DirectBPD;	// Nominal GB per buffer
     NBuffers = NGPU*DirectBPD;
@@ -150,19 +152,20 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
     // divided over NBuffers.  
     // Round up by a factor of 1.3 and an extra 4 MB, just to be generous
     // Use NP/MPI_size as an estimate of the number of particles that will actually be processed by this node
-    GPUMemoryGB = std::min(GPUMemoryGB, 1.*P.np/MPI_size*1e-9*sizeof(accstruct)*3*(2*NFRADIUS+1)/NBuffers*1.3+0.004);
+
+    GPUMemoryGB = std::min(GPUMemoryGB, 1.*P.np/MPI_size*1e-9*sizeof(accstruct)*3*(2*NFRADIUS + 1)/NBuffers*1.3*2 + 0.004);
 
     // GPUMemoryGB = std::min(GPUMemoryGB, 5.0*P.np*1e-9*sizeof(FLOAT3)+0.004);
 
     // Don't pin more than a given percentage of the host memory.
-    GPUMemoryGB = std::min(GPUMemoryGB, 0.02/(NBuffers)*P.MAXRAMMB/1024);  
+    GPUMemoryGB = std::min(GPUMemoryGB, 0.05/(NBuffers)*P.MAXRAMMB/1024);  
 
     STDLOG(1, "Using %f GB of GPU memory (per GPU thread)\n", GPUMemoryGB);
     MinSplits = NBuffers;
     MaxNSplits = MinSplits;
 
     // Put a floor to insist on using all GPUs
-    STDLOG(1,"MinSplits = %d\n", MinSplits);
+    STDLOG(2,"MinSplits = %d\n", MinSplits);
 
     GPUSetup(P.cpd, 1.0e9*GPUMemoryGB, NGPU, DirectBPD, P.GPUThreadCoreStart, P.NGPUThreadCores, &MaxSinkBlocks, &MaxSourceBlocks);
     STDLOG(1,"Initializing GPU with %7.3f x10^3 sink blocks and %7.3f x10^3 source blocks\n",
@@ -250,13 +253,13 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     // easy to pack these in.  But the problem is that we want to 
     // use all of the GPU buffers for efficiency, so that sets a 
     // minimum.
-    STDLOG(1,"Found %d sink and %d source blocks in slab %d\n", totSinkBlocks, totSourceBlocks, slabID);
+    STDLOG(2,"Found %d sink and %d source blocks in slab %d\n", totSinkBlocks, totSourceBlocks, slabID);
     int useMaxSink = totSinkBlocks/NBuffers;
     useMaxSink *= (1+1.1*NBuffers/P.cpd); 
 	// Trying to bias up to leave the last one short instead of long
     useMaxSink = std::min(useMaxSink, MaxSinkBlocks);
     int useMaxSource = MaxSourceBlocks;
-    STDLOG(2,"Using max sink %d and source %d.\n", useMaxSink, useMaxSource);
+    STDLOG(3,"Using max sink %d and source %d.\n", useMaxSink, useMaxSource);
 
     // Now we want to pack these in
     int SplitPoint[1024]; // Just a crazy number
@@ -271,7 +274,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 	    // We've overflowed the previous set; end it 
 	    if (NSplit>0) {
 		SplitPoint[NSplit-1] = j;
-		STDLOG(1,"Split %d ending at y=%d; %d sink and %d source blocks\n", 
+		STDLOG(2,"Split %d ending at y=%d; %d sink and %d source blocks\n", 
 		    NSplit-1, j, thisSink-SinkBlocks[j], thisSource-SourceBlocks[CP->WrapSlab(j+RADIUS)]);
 	    }
 	    // Time to start a new one
@@ -284,7 +287,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     }
     // And always end the last one
     SplitPoint[NSplit-1] = P.cpd;
-    STDLOG(1,"Split %d ending at y=%d; %d sink and %d source blocks\n", 
+    STDLOG(2,"Split %d ending at y=%d; %d sink and %d source blocks\n", 
 		    NSplit-1, P.cpd, thisSink, thisSource);
     // There is a failure mode here if the last skewer by itself
     // overflows; it will end up assigned without prior question.
@@ -292,7 +295,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     	"Sinks or Sources of the last skewer overflow the maxima.");
 
     uint64 NSink = SS->size(slabID);
-    STDLOG(1,"Using %d direct splits on slab %d, max blocks %d sink and %d source\n", 
+    STDLOG(2,"Using %d direct splits on slab %d, max blocks %d sink and %d source\n", 
     	NSplit, slabID, useMaxSink, useMaxSource);
 
     delete[] SinkBlocks;
@@ -356,7 +359,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     SICConstruction.Stop();
     SICExecute.Start();
 	
-	STDLOG(1,"Executing directs for slab %d, y: %d - %d\n",slabID,jl,jh);
+	STDLOG(2,"Executing directs for slab %d, y: %d - %d\n",slabID,jl,jh);
 	// This SIC is ready; send it to be executed
 	SlabInteractionCollections[slabID][n]->GPUExecute(blocking);
 	//SlabInteractionCollections[slabID][n]->CPUExecute();
@@ -364,7 +367,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     SICExecute.Stop();
     }
 
-    STDLOG(1, "%l bytes remaining after SIC allocation on slab %d (%4.1f%% unused)\n", 
+    STDLOG(2, "%l bytes remaining after SIC allocation on slab %d (%4.1f%% unused)\n", 
 	bsize, slabID, 100.0*bsize/SB->SlabSizeBytes(NearField_SIC_Slab, slabID));
     return;
 }
@@ -506,8 +509,8 @@ void NearFieldDriver::AggregateStats(){
         mean_splits_per_slab += SlabNSplit[s];
     mean_splits_per_slab /= P.cpd;
 
-    STDLOG(0, "Maximum NSplits used in Directs: %d\n", MaxNSplits);
-    STDLOG(0, "Mean NSplits used in Directs: %d\n", mean_splits_per_slab);
+    STDLOG(1, "Maximum NSplits used in Directs: %d\n", MaxNSplits);
+    STDLOG(1, "Mean NSplits used in Directs: %d\n", mean_splits_per_slab);
 #endif
 }
 

@@ -1,33 +1,60 @@
+/* PTimer.cc
+ * 
+ * Parallel Timer
+ * 
+ * PTimer is a high-resolution, low-overhead timer for performance-intensive
+ * parallel regions of the code.  We try to detect the host architecture and
+ * use the fastest available timer for that platform.  Usually this means
+ * that the resulting times are not wall-clock times, but instead something
+ * like CPU cycles.
+ *
+ * If you need wall-clock time, the PTimerWall class is provided.  One could
+ * use this for timing multi-threaded IO, for example. Of course, one can always
+ * use an array of STimer for that kind of task, but then you have to manage
+ * the array memory allocation manually.
+ */
+
 #include <omp.h>
 #include <cstdio>
 #include <cstdlib>
 #include "PTimer.h"
 
-PTimer::PTimer(void) : PTimer(omp_get_max_threads()) { }
+template <class HardwareTimer>
+PTimerBase<HardwareTimer>::PTimerBase(void) : PTimerBase(omp_get_max_threads()) { }
 
-PTimer::PTimer(int nthreads) { 
+template <class HardwareTimer>
+PTimerBase<HardwareTimer>::PTimerBase(int nthreads) { 
     nprocs = nthreads;
-    assert(posix_memalign((void **) &tuse, CACHE_LINE_SIZE, sizeof(padded_timeval)*nprocs) == 0);
-    assert(posix_memalign((void **) &tstart, CACHE_LINE_SIZE, sizeof(padded_timeval)*nprocs) == 0);
-    assert(posix_memalign((void **) &timer, CACHE_LINE_SIZE, sizeof(padded_timeval)*nprocs) == 0);
-    assert(posix_memalign((void **) &timeron, CACHE_LINE_SIZE, sizeof(padded_int)*nprocs) == 0);
 
-    for(int g=0; g<nprocs; g++) timerclear(&timer[g].t);
-    for(int g=0; g<nprocs; g++) timeron[g].i = 0;
+    assert(posix_memalign((void **) &timer, CACHE_LINE_SIZE, sizeof(*timer)*nprocs) == 0);
+
+    for(int g=0; g<nprocs; g++)
+        timer[g].on = 0;
+    Clear();
 }
 
-PTimer::~PTimer() {
-    free(tuse);
-    free(tstart);
+template <class HardwareTimer>
+PTimerBase<HardwareTimer>::~PTimerBase() {
     free(timer);
-    free(timeron);
 }
 
-void PTimer::Start(void){
+template <class HardwareTimer>
+void PTimerBase<HardwareTimer>::Clear(void) {
+    for(int g=0; g<nprocs; g++)
+        assert(!timer[g].on);
+
+    for(int g=0; g<nprocs; g++) {
+        timer[g].Clear();
+    }
+}
+
+template <class HardwareTimer>
+inline void PTimerBase<HardwareTimer>::Start(void){
     Start(omp_get_thread_num());
 }
 
-void PTimer::Start(int thread_num) {
+template <class HardwareTimer>
+inline void PTimerBase<HardwareTimer>::Start(int thread_num) {
     int g = thread_num;
     
     assert(g < nprocs);  // If this fails omp_get_max_threads() may not be returning the global max # of threads
@@ -35,41 +62,57 @@ void PTimer::Start(int thread_num) {
         printf("Timer %d already on! nprocs = %d\n", g, nprocs);
     }*/
     
-    assert(!timeron[g].i);
-    assert( gettimeofday( &(tstart[g].t), (struct timezone *)NULL ) == 0 );
-    timeron[g].i = 1;
+    assert(!timer[g].on);
+
+    timer[g].Start();
+    timer[g].on = 1;
+
+#ifdef PTIMER_PPC
+    tbr_count = __ppc_get_timebase();
+#endif
 }
 
-void PTimer::Stop(void){
+template <class HardwareTimer>
+inline void PTimerBase<HardwareTimer>::Stop(void){
     Stop(omp_get_thread_num());
 }
 
-void PTimer::Stop(int thread_num) {
+template <class HardwareTimer>
+inline void PTimerBase<HardwareTimer>::Stop(int thread_num) {
     int g = thread_num;
+    assert(timer[g].on);
+
+    timer[g].Stop();
+    timer[g].on = 0;
+}
+
+template <class HardwareTimer>
+double PTimerBase<HardwareTimer>::Elapsed(void) {
+    for(int g=0; g<nprocs; g++) 
+        assert(!timer[g].on);  
     
-    assert(timeron[g].i);
-
-    struct timeval dt;
-    assert( gettimeofday( &(tuse[g].t), (struct timezone *)NULL ) == 0 );
-    timersub(&(tuse[g].t), &(tstart[g].t), &dt);
-    timeradd(&dt, &(timer[g].t), &(timer[g].t));
-    timeron[g].i = 0;
-}
-
-void PTimer::Clear(void) {
-    for(int g=0; g<nprocs; g++)  assert(!timeron[g].i);  
-    for(int g=0; g<nprocs; g++) timerclear(&(timer[g].t));
-}
-
-double PTimer::Elapsed(void) {
     double sum = 0;
-    for(int g=0; g<nprocs; g++) sum += timer[g].t.tv_sec + 1e-6*timer[g].t.tv_usec;
+
+    for(int g=0; g<nprocs; g++)
+        sum += timer[g].Elapsed();
+
     return sum;
 }
 
-struct timeval PTimer::get_timer_seq(void) {
-    struct timeval t;
-    timerclear(&t);
-    for(int g=0; g<nprocs; g++) timeradd(&(timer[g].t), &t, &t); 
-    return t;
-}
+
+// Now provide template specializations for a dummy timer
+template <>
+inline PTimerBase<DummyHardwareTimer>::PTimerBase(int nthreads) { }
+template <>
+inline PTimerBase<DummyHardwareTimer>::~PTimerBase() { }
+template <>
+inline void PTimerBase<DummyHardwareTimer>::Start(void){ }
+template <>
+inline void PTimerBase<DummyHardwareTimer>::Start(int thread_num) { }
+template <>
+inline void PTimerBase<DummyHardwareTimer>::Stop(void){ }
+template <>
+inline void PTimerBase<DummyHardwareTimer>::Stop(int thread_num) { }
+template <>
+inline double PTimerBase<DummyHardwareTimer>::Elapsed(void){ return 1e-12; }
+    // We return a small number so that we don't divide by zero

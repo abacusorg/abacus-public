@@ -120,7 +120,7 @@ uint64 ComputeSICSize(int cpd, int np, int WIDTH, int NSplit) {
     size += (sizeof(int)+sizeof(FLOAT)) * WIDTH*NSinkSet;
     size += (sizeof(int)) * NSinkBlocks;
 
-    STDLOG(1,"Nsink = %d, NSource = %d, Nblocks = %d, size = %d\n",
+    STDLOG(2,"Nsink = %d, NSource = %d, Nblocks = %d, size = %d\n",
     	NSinkSet, NSourceSet, NSinkBlocks, size);
 
     size += 1024*1024; 	
@@ -399,7 +399,7 @@ SetInteractionCollection::~SetInteractionCollection(){
 
 /// Call this when the Set is detected as done!
 void SetInteractionCollection::SetCompleted(){
-    STDLOG(1,"Completed SIC for slab %d, y: %d - %d\n",SlabId,j_low,j_high); 
+    STDLOG(2,"Completed SIC for slab %d, y: %d - %d\n",SlabId,j_low,j_high); 
     CompletionFlag = 1;
 }
 

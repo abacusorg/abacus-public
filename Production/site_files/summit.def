@@ -7,11 +7,18 @@ RamDisk = 1
 #nIODirs = 4
 #IODirThreads = [2, 2, 3, 3]
 #MAXRAMMB = 200000  # This will be automatically detected
-# ConvolutionCacheSizeMB = 30  # This will be automatically detected
+ConvolutionCacheSizeMB = 200  # Two procs, 21 user-facing SMCs per proc; pairs of SMCs share a 10 MB L3 cache.
+ConvolutionL1CacheSizeMB = 0.015625
 
 # OpenMP and thread parameters
+# for SMT1: specify alloc_flags smt1 in lsf submission script. 
 OMP_NUM_THREADS = 36
 OMP_PLACES = "{0}:18:4,{88}:18:4"
+
+# for SMT2: specify alloc_flags smt2 in lsf submission script. 
+#OMP_NUM_THREADS = 72 
+#OMP_PLACES = "{0}:18:4,{1}:18:4,{88}:18:4,{89}:18:4"
+
 OMP_PROC_BIND = "spread"
 IOCores = [0]
 GPUThreadCoreStart = [72, 76, 80, 160, 164, 168]
@@ -26,8 +33,11 @@ Conv_IOCores = [0]
 Conv_zwidth = 0
 
 Parallel = 1
+
+#if running with smt2, need -b rs. 
 mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -gALL_GPUS -b rs"
-Conv_mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -b none"
+##Conv_mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -b rs"
+##ZD_mpirun_cmd = "jsrun -n1 -cALL_CPUS -a1 -r1 -b rs"
 WorkingDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@
 LocalWorkingDirectory = "$ABACUS_SSD$/" + @SimName@
 DerivativesDirectory = "$ABACUS_PERSIST$/Derivatives"

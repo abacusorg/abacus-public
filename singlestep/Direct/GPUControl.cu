@@ -45,7 +45,11 @@ to the rest of the code, because it needs CUDA.
 #include "config.h"
 #include "header.cpp"
 
-//#include <x86intrin.h>  // needed for _rdtsc(). only for icc...?
+
+#ifdef __INTEL_COMPILER
+#include <x86intrin.h>  // needed for _rdtsc(). only for nvcc using icc with certain gcc versions?
+#endif
+
 #include <cstring>
 #include <cstdio>
 #include <cassert>
@@ -327,7 +331,7 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     // Set the levels assuming WIDTH Sources per Sink
     float TotalBytesPerSinkBlock = BytesPerSinkBlockDef+
             BytesPerSinkBlockWC+WIDTH*BytesPerSourceBlockWC;
-    STDLOG(1, "Bytes per Block = %5.1f+%5.1f+%d*%5.1f = %5.1f\n",
+    STDLOG(2, "Bytes per Block = %5.1f+%5.1f+%d*%5.1f = %5.1f\n",
             BytesPerSinkBlockDef, BytesPerSinkBlockWC, WIDTH, BytesPerSourceBlockWC,
             TotalBytesPerSinkBlock);
 
@@ -345,7 +349,7 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     MaxSinkSize     = NFBlockSize * MaxSinkBlocks;
     MaxSourceSize   = NFBlockSize * MaxSourceBlocks;
 
-    STDLOG(1, "Planning for %d sink and %d source blocks, each %d particles\n",
+    STDLOG(2, "Planning for %d sink and %d source blocks, each %d particles\n",
             MaxSinkBlocks, MaxSourceBlocks, NFBlockSize);
 
     // And then we have storage for the Pencils.

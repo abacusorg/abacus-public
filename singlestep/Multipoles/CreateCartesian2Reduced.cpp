@@ -9,8 +9,6 @@
 
 #define LLI long long int 
 
-#define MAXORDER 16 
-
 #define FOR(a,b,c) for(a=b;a<=c;a++) 
 #define FORALL_COMPLETE_MULTIPOLES_BOUND(a,b,c,u) \
             FOR(a,0,u) FOR(b,0,u-a) FOR(c,0,u-a-b)
@@ -294,7 +292,7 @@ void DumpCartesian2Reduced(FILE *fp, int order, int a, int b, int c) {
 
 void CreateC2R(int order) {
     assert( order >= 0);
-    assert( order <= 16 );
+    assert( order <= MAXORDER );
 
     fillmultipoleindices(order);
 
@@ -319,7 +317,10 @@ void CreateC2R(int order) {
         }
     }
 
-    fprintf(fp,"extern \"C\" void Cartesian2Reduced%d(double *cm, double *rm) { \n", order);
+    fprintf(fp, "\ntemplate <int Order>\n"
+        "void Cartesian2Reduced(double *cm, double *rm);\n\n");
+
+    fprintf(fp,"template <>\nvoid Cartesian2Reduced<%d>(double *cm, double *rm) { \n", order);
     FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
         int rm = rmap(a,b,c);
         fprintf(fp," rm[%d] = Cartesian2Reduced%d_%d_%d_%d(cm); \n", rm, order,a,b,c);
@@ -329,9 +330,36 @@ void CreateC2R(int order) {
     fclose(fp);
 }
 
+void CreateDispatchFunction(){
+    FILE *fp;
+    char fn[1024];
+    sprintf(fn, "Cartesian2ReducedDispatch.cpp");
+    fp = fopen(fn, "w");
+    assert(fp != NULL);
+
+    fprintf(fp,
+        "#include <cstdlib>\n"
+        "#include <cstdio>\n"
+        "template <int Order>\n"
+        "void Cartesian2Reduced(double *cm, double *rm);\n\n"
+        "void DispatchCartesian2Reduced(int order, double *cartesian, double *reduced) {\n"
+        "   switch(order){\n"
+    );
+
+    for(int i = 1; i <= MAXORDER; i++){
+        fprintf(fp, "        case %d: Cartesian2Reduced<%d>(cartesian, reduced); break;\n", i, i);
+    }
+
+    fprintf(fp, "\n        default: fprintf(stderr, \"Error: unknown order in dispatch\\n\"); exit(1); break;\n"
+        "    }\n}\n");
+    assert(fclose(fp) == 0);
+}
+
 int main(void) {
 
-    for(int order=0;order<=16;order++)
+    CreateDispatchFunction();
+
+    for(int order=0;order<=MAXORDER;order++)
         CreateC2R(order); 
 
 }

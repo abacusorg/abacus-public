@@ -120,7 +120,7 @@ public:
             wait_for_ioack(io_ack, ior.arenatype, ior.arenaslab);
             STDLOG(1,"Blocking IO returned\n");
         } else {
-            STDLOG(2,"Non-blocking IO requested\n");
+            STDLOG(3,"Non-blocking IO requested\n");
         }
         
     }
@@ -447,7 +447,7 @@ int GetIOThread(const char* dir){
 void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
 	    const char *filename, off_t fileoffset, int blocking) {
     
-    STDLOG(2,"Using IO_thread module to read file %f, blocking %d\n", filename, blocking);
+    STDLOG(3,"Using IO_thread module to read file %f, blocking %d\n", filename, blocking);
     iorequest ior(ram, sizebytes, filename, IO_READ, arenatype, arenaslab, fileoffset, 0, blocking);
     
     iothreads[GetIOThread(ior.dir) - 1]->request(ior);
@@ -456,7 +456,7 @@ void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
 void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, 
 	    const char *filename, off_t fileoffset, int deleteafter, int blocking) {
     
-    STDLOG(2,"Using IO_thread module to write file %f, blocking %d\n", filename, blocking);
+    STDLOG(3,"Using IO_thread module to write file %f, blocking %d\n", filename, blocking);
     iorequest ior(ram, sizebytes, filename, IO_WRITE, arenatype, arenaslab, fileoffset, deleteafter, blocking );
     
     iothreads[GetIOThread(ior.dir) - 1]->request(ior);

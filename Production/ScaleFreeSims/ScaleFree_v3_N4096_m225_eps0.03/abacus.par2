@@ -1,0 +1,80 @@
+# Set up the simulation name and directory structure
+SimSet = "ScaleFreeSims"
+#SimName = "ScaleFree_v3_N4096_m225_eps0.03"
+SimName = "ScaleFree_N1500_eps0.03_LPT1"
+#SimName = "Lattice"
+#include "$ABACUS$/Abacus/directory.def"
+#include "$ABACUS$/Production/site_files/cannon.def"
+
+#LogDirectory = "/mnt/hardraid_ssd/lgarrison/" + @_SimSet@ + "/" + @SimName@ + "/log"
+InitialConditionsDirectory = "$ABACUS_PERSIST$" + "/ScaleFreeSims/ScaleFree_N1500_eps0.03/ic"
+
+# Cosmology and basic code parameters
+BoxSize = 1500
+InitialRedshift = 1999.
+H0 = 100.
+Omega_M = 1.
+Omega_DE = 0.
+Omega_K = 0.
+w0 = -1.
+wa = 0.
+NP = 1500**3
+SofteningLength = 1./30
+CPD = 405
+
+# Output parameters
+TimeSliceRedshifts = [106.14285714, 101.6003515, 97.2504332, 93.08493716, 89.09604449, 85.27626778, 81.61843708, 78.11568639, 74.76144084, 71.5494043, 68.47354757, 65.52809708, 62.70752402, 60.006534, 57.42005711, 54.94323834, 52.57142857, 50.30017575, 48.1252166, 46.04246858, 44.04802225, 42.13813389, 40.30921854, 38.55784319, 36.88072042, 35.27470215, 33.73677379, 32.26404854, 30.85376201, 29.503267, 28.21002855, 26.97161917, 25.78571429, 24.65008788, 23.5626083, 22.52123429]
+nTimeSlice = 36
+LightConeOrigins = (0.,0.,0.)
+NLightCones = 0
+#FinalRedshift = -1  # Only needed if finishing light cones
+PowerSpectrumN1d = 256
+PowerSpectrumStepInterval = -1
+OutputFormat = "Packed"
+BackupStepInterval = -1
+
+# Group finding parameters
+AllowGroupFinding = 0
+FoFLinkingLength = [.168, .168, .138]
+MinL1HaloNP = 25
+HaloTaggableFraction = 0.1
+L1Output_dlna = -1
+MicrostepTimeStep = 0.
+
+# Advanced code parameters
+LagrangianPTOrder = 1
+#LagrangianPTOrder = 1
+TimeStepAccel = .15
+TimeStepDlna = .03
+NumSlabsInsertList = 2
+NumSlabsInsertListIC = 8
+NearFieldRadius = 2
+Order = 8
+hMpc = 1
+GroupRadius = 10
+DerivativeExpansionRadius = 8
+
+# For additional performance tuning,
+# copy the contents of the `Production/site_files/site.def` file here and make modifications
+
+# Zeldovich and IC parameters
+ICVelocity2Displacement = 1.0
+ICPositionRange = @BoxSize@
+ICFormat = "RVZel"
+#ICFormat = "Lattice"
+ZD_NumBlock = 150
+ZD_Pk_powerlaw_index = -2.25
+ZD_Pk_sigma = 0.03
+ZD_Pk_norm = 1  # unit particle spacing
+ZD_Seed = 23456
+ZD_qPLT = 1
+ZD_PLT_filename = "$ABACUS$/zeldovich-PLT/eigmodes128"
+ZD_qPLT_rescale = 1
+ZD_PLT_target_z = 106.14285714285715
+ZD_k_cutoff = 1.
+ZD_Pk_scale = 1.0
+ZD_Pk_smooth = 0.0
+
+
+DerivativesDirectory = "/n/scratchlfs/eisenstein_lab/nam8/Derivatives" 
+LogVerbosity = 2

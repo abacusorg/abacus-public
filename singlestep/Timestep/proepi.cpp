@@ -34,8 +34,11 @@
 //The following section declares a variety of global timers for several steps in the code
 //TODO: This should probably go in some sort of reporting class to clean up this section.
 #include "STimer.cc"
+// #define PTIMER_DUMMY   // Uncommenting this will cause all PTimers to no-op and return Elapsed() = 1e-12 sec.
 #include "PTimer.cc"
 
+
+STimer FinishPreamble; 
 STimer FinishPartition;
 STimer FinishSort;
 STimer FinishCellIndex;
@@ -43,6 +46,8 @@ STimer FinishMerge;
 STimer ComputeMultipoles;
 STimer WriteMergeSlab;
 STimer WriteMultipoleSlab;
+STimer QueueMultipoleMPI; 
+STimer ParallelConvolveDestructor; 
 
 STimer OutputTimeSlice;
 STimer OutputLightCone;
@@ -74,7 +79,8 @@ STimer IOFinish;
 
 STimer SlabAccumFree;
 
-uint64 naive_directinteractions = 0;    
+uint64 naive_directinteractions = 0;   
+
 //********************************************************************************
 
 #include "file.h"
@@ -127,6 +133,10 @@ CellParticles *CP;
 // Need this for both insert.cpp and timestep.cpp.
 int FINISH_WAIT_RADIUS = 1;
 
+// Forward-declare GFC
+class GroupFindingControl;
+GroupFindingControl *GFC;
+
 #include "multiappendlist.cpp"
 #include "insert.cpp"
 #include "drift.cpp"
@@ -151,16 +161,12 @@ Redlack *RL;
 
 #include "check.cpp"
 
-// Forward-declare GFC
-class GroupFindingControl;
-GroupFindingControl *GFC;
-
 #include "Cosmology.cpp"
 Cosmology *cosm;
 #include "lpt.cpp"
+
 #include "output_timeslice.cpp"
 #include "LightCones.cpp"
-
 #include "loadIC.cpp"
 
 #include "binning.cpp"
@@ -168,6 +174,7 @@ FLOAT * density; //!< Array to accumulate gridded densities in for low resolutio
 
 #include "groupfinding.cpp"
 #include "microstep.cpp"
+#include "output_field.cpp"    // Field particle subsample output
 
 int first_slab_on_node, total_slabs_on_node, first_slab_finished;
 int * first_slabs_all = NULL;
@@ -184,12 +191,39 @@ int * total_slabs_all = NULL;
 #include <fenv.h>
 
 
+void InitializeParallel(int &size, int &rank) {
+    #ifdef PARALLEL
+         // Start up MPI
+         int init = 1;
+         MPI_Initialized(&init);
+         assertf(!init, "MPI was already initialized!\n");
+
+         int ret = -1;
+         MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
+         assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
+         MPI_Comm_size(MPI_COMM_WORLD, &size);
+         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+         sprintf(NodeString,".%04d",rank);
+    #else
+    #endif
+    return;
+}
+
+void FinalizeParallel() {
+    #ifdef PARALLEL
+
+        // Finalize MPI
+        STDLOG(0,"Calling MPI_Finalize()\n");
+        MPI_Finalize();
+    #else
+    #endif
+}
 /*! \brief Initializes global objects
  *
  */
 void Prologue(Parameters &P, bool MakeIC) {
     STDLOG(1,"Entering Prologue()\n");
-    STDLOG(1,"Size of accstruct is %d bytes\n", sizeof(accstruct));
+    STDLOG(2,"Size of accstruct is %d bytes\n", sizeof(accstruct));
     prologue.Clear();
     prologue.Start();
     
@@ -208,16 +242,16 @@ void Prologue(Parameters &P, bool MakeIC) {
     // put all particles into input slab 0.
 
     // Call this to setup the Manifests
-    SetupManifest();
+    SetupManifest(2*P.GroupRadius+1);
 
     Grid = new grid(cpd);
     SB = new SlabBuffer(cpd, order, P.MAXRAMMB*1024*1024);
     CP = new CellParticles(cpd, SB);
 
-    STDLOG(1,"Initializing Multipoles()\n");
+    STDLOG(2,"Initializing Multipoles()\n");
     MF  = new SlabMultipoles(order, cpd);
 
-    STDLOG(1,"Setting up insert list\n");
+    STDLOG(2,"Setting up insert list\n");
     uint64 maxILsize = P.np+1;
     // IC steps and LPT steps may need more IL slabs.  Their pipelines are not as long as full (i.e. group finding) steps
     if (MakeIC || LPTStepNumber() > 0) {
@@ -226,9 +260,9 @@ void Prologue(Parameters &P, bool MakeIC) {
         if (P.NumSlabsInsertList>0) maxILsize   =(maxILsize* P.NumSlabsInsertList)/P.cpd+1;
     }
     IL = new InsertList(cpd, maxILsize);
-    STDLOG(1,"Maximum insert list size = %ld, size %l MB\n", maxILsize, maxILsize*sizeof(ilstruct)/1024/1024);
+    STDLOG(2,"Maximum insert list size = %ld, size %l MB\n", maxILsize, maxILsize*sizeof(ilstruct)/1024/1024);
 
-    STDLOG(1,"Setting up IO\n");
+    STDLOG(2,"Setting up IO\n");
 
     char logfn[1050];
     sprintf(logfn,"%s/lastrun%s.iolog", P.LogDirectory, NodeString);
@@ -249,7 +283,8 @@ void Prologue(Parameters &P, bool MakeIC) {
         SlabForceLatency = new STimer[cpd];
         SlabFarForceTime = new STimer[cpd];
 
-        RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
+		RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
+
         NFD = new NearFieldDriver(P.NearFieldRadius);
     } else {
         TY = NULL;
@@ -271,14 +306,14 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     // IO_Terminate();
 
-    if(IL->length!=0) { IL->DumpParticles(); assert(IL->length==0); }
-    
+	if(IL->length!=0) { IL->DumpParticles(); assert(IL->length==0); }
+
     if(SS != NULL){
         SS->store_from_params(P);
-    }
+   	}
 
-    // Some pipelines, like standalone_fof, don't use multipoles
-    if(MF != NULL){
+    
+    if(MF != NULL){ // Some pipelines, like standalone_fof, don't use multipoles
         MF->GatherRedlack();    // For the parallel code, we have to coadd the inputs
         if (MPI_rank==0) {
             MF->ComputeRedlack();  // NB when we terminate SlabMultipoles we write out these
@@ -289,24 +324,25 @@ void Epilogue(Parameters &P, bool MakeIC) {
     }
 
     if(ReadState.DoBinning){
-            STDLOG(1,"Outputting Binned Density\n");
-            char denfn[2048];
-            // TODO: Should this be going to ReadState or WriteState or Output?
-            sprintf(denfn,"%s/density%s",P.ReadStateDirectory, NodeString);
-            FILE * densout = fopen(denfn,"wb");
-            fwrite(density,sizeof(FLOAT),P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d,densout);
-            fclose(densout);
-            delete density; density = 0;
+        STDLOG(1,"Outputting Binned Density\n");
+        char denfn[2048];
+        // TODO: Should this be going to ReadState or WriteState or Output?
+        sprintf(denfn,"%s/density%s",P.ReadStateDirectory, NodeString);
+        FILE * densout = fopen(denfn,"wb");
+        fwrite(density,sizeof(FLOAT),P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d,densout);
+        fclose(densout);
+        delete density; density = 0;
     }
 
     SB->report();
     delete SB;
-    STDLOG(1,"Deleted SB\n");
+    STDLOG(2,"Deleted SB\n");
     delete CP;
     delete IL;
     delete SS;
     delete Grid;
-    FreeManifest();
+	
+	FreeManifest();
 
 
     if(!MakeIC) {
@@ -323,13 +359,13 @@ void Epilogue(Parameters &P, bool MakeIC) {
         }
         
             delete TY;
-            STDLOG(1,"Deleted TY\n");
+            STDLOG(2,"Deleted TY\n");
             delete RL;
             delete[] SlabForceLatency;
             delete[] SlabForceTime;
             delete[] SlabFarForceTime;
             if (GFC!=NULL) delete GFC;
-            STDLOG(1,"Done with Epilogue; about to kill the GPUs\n");
+            STDLOG(2,"Done with Epilogue; about to kill the GPUs\n");
             delete NFD;
     }
 
@@ -338,6 +374,8 @@ void Epilogue(Parameters &P, bool MakeIC) {
     struct rusage rusage;
     assert(getrusage(RUSAGE_SELF, &rusage) == 0);
     STDLOG(0, "Peak resident memory usage was %.3g GB\n", (double) rusage.ru_maxrss / 1024 / 1024);
+	
+	fftw_cleanup();
     
     epilogue.Stop();
     // This timing does not get written to the timing log, so it had better be small!
@@ -467,17 +505,21 @@ void InitWriteState(int MakeIC){
     /*if(LPTStepNumber()>0){
         WriteState.SofteningLength = P.SofteningLength / 1e4;  // This might not be in the growing mode for this choice of softening, though
         STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLength);
-        
-        // Only have to do this because GPU gives bad forces sometimes, causing particles to shoot off.
-        // Remove this once the GPU is reliable again
-        //P.ForceCPU = 1;
-        //STDLOG(0,"Forcing CPU because this is a 2LPT step.\n");
     }
     else{
         WriteState.SofteningLength = P.SofteningLength;
     }*/
-    
-    WriteState.SofteningLength = P.SofteningLength;
+
+    // Is the softening fixed in physical coordinates?
+    if(P.PhysicalSoftening){
+        // TODO: use the ReadState or WriteState ScaleFactor?  We haven't chosen the timestep yet.
+        WriteState.SofteningLength = min(P.SofteningLength/ReadState.ScaleFactor, P.SofteningMax);
+        STDLOG(1, "Adopting a comoving softening of %d, fixed in physical units\n", WriteState.SofteningLength);
+    }
+    else{
+        WriteState.SofteningLength = P.SofteningLength;
+        STDLOG(1, "Adopting a comoving softening of %d, fixed in comoving units\n", WriteState.SofteningLength);
+    }
     
     // Now scale the softening to match the minimum Plummer orbital period
 #if defined DIRECTCUBICSPLINE
@@ -669,7 +711,7 @@ void SetupLocalDirectories(const int MakeIC){
                 STDLOG(1, "Removed directory \"%s\"\n", d);
             }
             int res = CreateDirectories(d);
-            assertf(res == 0, "Directory creation failed!\n");
+            assertf(res == 0, "Creating directory \"%s\" failed for reason %s!\n", d, strerror(errno));
             STDLOG(1, "Created directory \"%s\"\n", d);
         }
     }

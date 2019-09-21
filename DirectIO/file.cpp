@@ -189,26 +189,20 @@ int samefile(const char *path1, const char *path2) {
 int CreateSubDirectory(const char *path, const char *subdir) {
     // This should check whether the subdirectory exists and if not make it.
     // Return 0 if all well.
-    CheckDirectoryExists(path);                // Does the parent exist?
+
     char fn[1100];
     sprintf(fn, "%s/%s", path, subdir);
-    if (access(fn,0)==0) {
-        // Subdir name already exists
-        struct stat status;
-        stat(fn, &status);
-        if (!(status.st_mode & S_IFDIR)) {
-            fprintf(stderr,"%s exists but is a file\n", fn);
-            assert(1==0);
-        } else {
-            // Subdirectory already exists
-            return 0;
-        }
-    } else {
-        // Subdir doesn't exist
-        mkdir(fn, 0775);
-        assert(access(fn,0)==0);
-        return 0;
-    }
+
+    // It's okay for mkdir to fail! Another node could have beaten it to the punch
+    int ret = mkdir(fn, 0775);
+    int reason = errno;
+    assertf(ret == 0 || reason == EEXIST, "mkdir(\"%s\") failed for reason %s\n", fn, strerror(reason));
+    assert(access(fn,0)==0);
+
+    // Or the parent directory might not exist, flag that for debugging
+    CheckDirectoryExists(path);
+
+    return 0;
 }
 
 int FileExists(const char *fn) {
@@ -260,7 +254,7 @@ void containing_dirname(const char *filename, char dir[1024]){
     
     // now append a trailing slash
     int len = strlen(dir);
-    assertf(len < 1022, "Directory \"%s\" name too long!", dir);
+    assertf(len <= 1022, "Directory \"%s\" name too long!", dir);
     dir[len] = '/'; dir[len+1] = '\0';
 }
 

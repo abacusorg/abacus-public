@@ -19,6 +19,8 @@
     ReadState.ReadHeader(hs);
     hs.Close();
     P.ReadParameters(argv[2], 0);
+    strcpy(ReadState.Pipeline, "standalone_fof");
+    strcpy(ReadState.ParameterFileName, argv[1]);
 
     // Override any parameters that it don't make sense in this context
     P.AllowGroupFinding = 1;

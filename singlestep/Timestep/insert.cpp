@@ -80,7 +80,7 @@ void ConfirmPartition(ilstruct *il, uint64 len, int slab) {
                 j, il[j].xyz.x, slab, n_partitioned);
     }
 
-    STDLOG(1, "Partitioning confirmed on insert list of length %d for slab %d (found %d partitioned particles)\n", len, slab, n_partitioned);
+    STDLOG(2, "Partitioning confirmed on insert list of length %d for slab %d (found %d partitioned particles)\n", len, slab, n_partitioned);
 }
 
 
@@ -232,7 +232,7 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     slablength = length - mid;
 
     FinishPartition.Stop();
-    STDLOG(2, "Partition done, yielding %d particles; starting sort.\n", slablength);
+    STDLOG(3, "Partition done, yielding %d particles; starting sort.\n", slablength);
     FinishSort.Start();
 
     ilstruct *ilnew;

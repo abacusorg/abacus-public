@@ -46,37 +46,75 @@ void FinishMultipolesAction(int slab) {
     STDLOG(1,"Finishing multipole slab %d\n", slab);
         
     // Make the multipoles
+	int ramdisk_multipole_flag; 
+	#ifdef PARALLEL
+		ramdisk_multipole_flag = RAMDISK_NO;
+	#else
+		ramdisk_multipole_flag = RAMDISK_AUTO;
+	#endif
+		
     SB->AllocateArena(MultipoleSlab,slab);
     ComputeMultipoleSlab(slab);
     
     WriteMultipoleSlab.Start();
+#ifndef PARALLEL
     SB->StoreArenaNonBlocking(MultipoleSlab,slab);
+#endif
     WriteMultipoleSlab.Stop();
-    
+
+#ifdef PARALLEL	
+	QueueMultipoleMPI.Start();
+	 STDLOG(2, "Attempting to SendMultipoleSlab %d\n", slab);
+	 	ParallelConvolveDriver->SendMultipoleSlab(slab); //distribute z's to appropriate nodes for this node's x domain.
+	if (Finish.raw_number_executed==0){ //if we are finishing the first slab, set up receive MPI calls for incoming multipoles.
+		STDLOG(2, "Attempting to RecvMultipoleSlab %d\n", slab);
+		ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's.
+	}
+
+	QueueMultipoleMPI.Stop();
+#endif
+	    
     SB->DeAllocate(MergePosSlab,slab);
     SB->DeAllocate(MergeCellInfoSlab,slab);
 }
 
 
-void timestepMultipoles(void) {
-    STDLOG(0,"Initiating timestepMultipoles()\n");
+void timestepMultipoles(void) {	
+    STDLOG(0,"Initiating multipole recovery timestep.()\n");
     TimeStepWallClock.Clear();
     TimeStepWallClock.Start();
     
     FORCE_RADIUS = 0;  // so we know when we can free CellInfo in Finish
     GROUP_RADIUS = 0;
 
-    int cpd = P.cpd; int first = first_slab_on_node;
-    FetchSlabs.instantiate(cpd, first, &FetchPosSlabPrecondition, &FetchPosSlabAction );
-    Finish.instantiate(cpd, first,  &FinishMultipolesPrecondition,  &FinishMultipolesAction );
 
-    while( !Finish.alldone(total_slabs_on_node) ) {
+    int nslabs = P.cpd;
+    int first = first_slab_on_node;
+
+    FetchSlabs.instantiate(         nslabs,  first,  &FetchPosSlabPrecondition,           &FetchPosSlabAction,           "FetchPosSlab");
+    Finish.instantiate(             nslabs,  first,  &FinishMultipolesPrecondition,       &FinishMultipolesAction,       "FinishMultipoles");
+#ifdef PARALLEL
+	CheckForMultipoles.instantiate( nslabs,  first,  &CheckForMultipolesPrecondition,  &CheckForMultipolesAction,  "CheckMultipoles"); 
+#else
+	CheckForMultipoles.instantiate( nslabs,  first,  &NoopPrecondition,  &NoopAction,  "CheckMultipoles"); 
+#endif
+	
+	int timestep_loop_complete = 0; 
+	while (!timestep_loop_complete){
         FetchSlabs.Attempt();
             Finish.Attempt();
            SendManifest->FreeAfterSend();
         ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
         // If the manifest has been received, install it.
         if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
+		
+		CheckForMultipoles.Attempt();	
+
+	#ifdef PARALLEL
+		timestep_loop_complete = CheckForMultipoles.alldone(total_slabs_on_node);
+	#else
+		timestep_loop_complete = Finish.alldone(total_slabs_on_node);
+	#endif		
     }
 
     STDLOG(1,"Completing timestepMultipoles()\n");

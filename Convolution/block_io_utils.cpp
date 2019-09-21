@@ -35,7 +35,7 @@ public:
     
     size_t alloc_bytes = 0;
     size_t ReadMultipoleBytes = 0, WriteTaylorBytes = 0, ReadDerivativeBytes = 0, TransposeBufferingBytes = 0, TransposeAlltoAllvBytes = 0;
-    PTimer ReadDerivatives, ReadMultipoles, WriteTaylor, TransposeBuffering, TransposeAlltoAllv;
+    PTimerWall ReadDerivatives, ReadMultipoles, WriteTaylor, TransposeBuffering, TransposeAlltoAllv;
 		
     
     Block(ConvolutionParameters &_CP) : CP(_CP),
@@ -332,6 +332,7 @@ public:
                     memcpy( &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
                             &(recvbuf[r]),
                             sizeof(MTCOMPLEX)*rml_times_cpd);
+							
                     #ifdef DO_NOTHING
                     // We claim we've done nothing; let's check that recvbuf matches to mtblock
                     MTCOMPLEX *mttmp = &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]);
@@ -345,6 +346,7 @@ public:
                                 real(mttmp[m*cpd+y]),
                                 imag(mttmp[m*cpd+y]) );
                     #endif
+								
                     r+=rml_times_cpd;
                     /* // Equivalent to this:
 					for(int m=0;m<rml;m++){

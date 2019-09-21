@@ -128,7 +128,8 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None):
                 value =line[equals+1:]
             # try to parse value
             try:
-                items = value.split()
+                #items = value.split()
+                items = shlex.split(value)
                 vec  = ','.join(items)
                 x = eval(f"({vec})")
             except (SyntaxError, NameError):
