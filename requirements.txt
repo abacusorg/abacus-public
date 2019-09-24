@@ -1,3 +1,12 @@
+# This is a list of Python packages required to use the Abacus Python interface.
+# It is in pip format and can be installed with:
+# $ pip install -r requirements.txt
+
+# There is also an optional-requirements.txt file in this directory.  To install
+# both sets of requirements at the same time, use:
+# $ pip install -r requirements.txt -r optional-requirements.txt
+
+
 numpy
 numexpr
 numba
