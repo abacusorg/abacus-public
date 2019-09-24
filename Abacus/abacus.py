@@ -130,6 +130,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     groupdir  = params.get('GroupDirectory', '')
     basedir = params['WorkingDirectory']
 
+    resumedir = ""
     if parallel:
         resumedir = pjoin(os.path.dirname(params['WorkingDirectory']), params['SimName'] + '_retrieved_state')
 
