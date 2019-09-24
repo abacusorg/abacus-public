@@ -152,7 +152,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
         clean_dir(logdir, preserve=icdir if not erase_ic else None)
         clean_dir(groupdir, preserve=icdir if not erase_ic else None)
         #NAM make prettier. 
-        if path.exists(resumedir):
+        if parallel and path.exists(resumedir):
             clean_dir(resumedir)
             
     os.makedirs(basedir, exist_ok=True)
