@@ -460,13 +460,11 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
         }
 
         // Is there enough mass within to skip or not enough to look
-        if (x*sqrt(x) < mass) {
-            // Enough mass, so crossing cannot be inside and we just add that mass            
-            if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
-                // Number of particles in this cell in this partition
-                mass += socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
-            }
-           
+        if (x*sqrt(x) < mass) { 
+            // Enough mass, so crossing cannot be inside and we just add that mass
+	    if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
+	        // Number of particles in this cell in this partition
+	        mass += socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
         }
         else { 
             // Not enough mass, so there could be a density crossing.
