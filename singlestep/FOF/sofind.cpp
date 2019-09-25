@@ -102,7 +102,7 @@ class alignas(16) SOcellgroup {
         // The minimum distance to the current halo nucleus position
         FOFloat d2 = distx*distx+disty*disty+distz*distz;
         firstbin = floor(sqrt(d2)/GFC->SOpartition);
-
+	printf("distance to halocenter of all cells for FOF group = %f \n",d2);
         return;
     }
 };
@@ -370,7 +370,12 @@ void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
     cg->start[2] = partition_only(r2[2],cg->start[0],cg->start[4]);
     cg->start[1] = partition_only(r2[1],cg->start[0],cg->start[2]);
     cg->start[3] = partition_only(r2[3],cg->start[2],cg->start[4]);
-    
+    printf("Touched new cell!\n");
+    printf("start0 = %i \n", cg->start[0]);
+    printf("start1 = %i \n", cg->start[1]);
+    printf("start2 = %i \n", cg->start[2]);
+    printf("start3 = %i \n", cg->start[3]);
+    printf("start4 = %i \n", cg->start[4]);
 }
 
   
@@ -417,6 +422,8 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
     FOFloat FOFr2 = 0;
     FOFloat x = 0;
 
+    printf("mass0 (new halocenter) = %i \n",mass);
+    
     int size_bin;
     int size_thresh;
     FOFloat d2_thresh;
@@ -467,6 +474,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
                 if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
                     // Number of particles in this cell in this partition
                     mass += socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
+		    printf("mass1 (no crossing) = %i \n",mass);
                 }
             }
         }
@@ -497,27 +505,29 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
 
             Distance.Stop();
             if (d2_thresh > 0.0) {
+	        printf("Threshold found\n"); 
                 // If something was found, record it
                 mass += size_thresh;
+		printf("mass2 (thresh found (mass0 followed by this)) = %i \n",mass);
                 //r2found = d2_thresh;
                 return d2_thresh;//r2found;
             }
             else {
                 // False alarm: add all mass in that radial bin
                 mass += size_bin;
-                continue;
+		printf("mass3 (false alarm add all mass in rad bin (or mass0 followed by this)) = %i \n",mass);
+                //continue;
             }
         }
     }
-    // If nothing was found return the largest distance to a particle encountered --> not ideal!
-    //TESTING
+    // If nothing was found return the largest distance to a particle encountered 
     if (d2_thresh <= 0.0) {
-        // TESTING
+        printf("Nothing found\n");
         for (int i = 0; i<ncg; i++) {            
             if (socg[i].d2_furthest > d2_max) d2_max = socg[i].d2_furthest;
         }
       
-        x = xthreshold*d2_max; 
+        x = xthreshold*d2_max;
         inv_enc_den = (x*sqrt(x))/(mass*threshold);
         return d2_max;
     }
@@ -607,8 +617,10 @@ int greedySO() {
         // try at least one central.
 
         // TESTING
-        //if (count>6) break; // cap on number of halos per FOF group    
-
+        //if (count>43910) break; // cap on number of halos per FOF group
+	//if (count<43910) break; // cap on number of halos per FOF group    
+        printf("count,np = %i %i \n", count, np);
+	
         // TESTING
         //if (np < 3142) break;
         //if (np > 3142) break;
