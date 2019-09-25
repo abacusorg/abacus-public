@@ -102,7 +102,7 @@ class alignas(16) SOcellgroup {
         // The minimum distance to the current halo nucleus position
         FOFloat d2 = distx*distx+disty*disty+distz*distz;
         firstbin = floor(sqrt(d2)/GFC->SOpartition);
-	printf("distance to halocenter of all cells for FOF group = %f \n",d2);
+
         return;
     }
 };
@@ -370,12 +370,6 @@ void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
     cg->start[2] = partition_only(r2[2],cg->start[0],cg->start[4]);
     cg->start[1] = partition_only(r2[1],cg->start[0],cg->start[2]);
     cg->start[3] = partition_only(r2[3],cg->start[2],cg->start[4]);
-    printf("Touched new cell!\n");
-    printf("start0 = %i \n", cg->start[0]);
-    printf("start1 = %i \n", cg->start[1]);
-    printf("start2 = %i \n", cg->start[2]);
-    printf("start3 = %i \n", cg->start[3]);
-    printf("start4 = %i \n", cg->start[4]);
 }
 
   
@@ -421,8 +415,6 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
     mass = 0;
     FOFloat FOFr2 = 0;
     FOFloat x = 0;
-
-    printf("mass0 (new halocenter) = %i \n",mass);
     
     int size_bin;
     int size_thresh;
@@ -450,7 +442,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
     // Proceed outward through the shells
     for (int r = 0; r<furthest_firstbin+4; r++) {
         // Compute the inner boundary of this shell
-        FOFr2 = GFC->SOpartition*r;
+        FOFr2 = GFC->SOpartition*(r+1);
         FOFr2 *= FOFr2;
         x = xthreshold*FOFr2; 
 
@@ -465,18 +457,19 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
                 // for partition -- stored in d2_active when fn is called
                 partition_cellgroup(socg+i, halocenter);
             }
+            if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
+                // Number of particles in this cell in this partition
+                mass += socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
+            }
+            // mass outer edge of radius
+            
+            // add the number of pcles in this shell to mass
+            // check whether cross for x=r+1 (don't forget mass is at outer edge rn)
         }
 
         // Is there enough mass within to skip or not enough to look
         if (x*sqrt(x) < mass) { 
-            // Enough mass, so crossing cannot be inside and we just add that mass
-            for (int i = 0; i<ncg; i++) {
-                if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
-                    // Number of particles in this cell in this partition
-                    mass += socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
-		    printf("mass1 (no crossing) = %i \n",mass);
-                }
-            }
+            // Enough mass, so crossing cannot be inside and we just add that mass            
         }
         else { 
             // Not enough mass, so there could be a density crossing.
@@ -500,22 +493,23 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             // to save only the particle distances in r
             
             // Search for density threshold in list, given previous mass.
-            Distance.Start(); 
+            Distance.Start();
+            mass -= size_bin; // might be a better way to do BTH TODO
             d2_thresh = partial_search(size_bin, mass, size_thresh, inv_enc_den);
-
+        
             Distance.Stop();
             if (d2_thresh > 0.0) {
-	        printf("Threshold found\n"); 
+
                 // If something was found, record it
                 mass += size_thresh;
-		printf("mass2 (thresh found (mass0 followed by this)) = %i \n",mass);
+
                 //r2found = d2_thresh;
                 return d2_thresh;//r2found;
             }
             else {
                 // False alarm: add all mass in that radial bin
                 mass += size_bin;
-		printf("mass3 (false alarm add all mass in rad bin (or mass0 followed by this)) = %i \n",mass);
+
                 //continue;
             }
         }
@@ -618,13 +612,7 @@ int greedySO() {
 
         // TESTING
         //if (count>43910) break; // cap on number of halos per FOF group
-	//if (count<43910) break; // cap on number of halos per FOF group    
-        printf("count,np = %i %i \n", count, np);
-	
-        // TESTING
-        //if (np < 3142) break;
-        //if (np > 3142) break;
-        
+
         // In this next part, we need to arrive at a value of 
         // d2SO with the property that all of the particles with 
         // d2 <= d2SO are the largest body that satisfies 
