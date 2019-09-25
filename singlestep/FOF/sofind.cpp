@@ -457,10 +457,10 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
                 // for partition -- stored in d2_active when fn is called
                 partition_cellgroup(socg+i, halocenter);
             }
-            if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
-                // Number of particles in this cell in this partition
-                mass += socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
-            }
+            //if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
+            // Number of particles in this cell in this partition
+            //    mass += socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
+            //}
             // mass outer edge of radius
             
             // add the number of pcles in this shell to mass
@@ -469,7 +469,11 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
 
         // Is there enough mass within to skip or not enough to look
         if (x*sqrt(x) < mass) { 
-            // Enough mass, so crossing cannot be inside and we just add that mass            
+            // Enough mass, so crossing cannot be inside and we just add that mass
+	    if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
+	        // Number of particles in this cell in this partition
+	        mass += socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
+	    }
         }
         else { 
             // Not enough mass, so there could be a density crossing.
@@ -494,7 +498,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             
             // Search for density threshold in list, given previous mass.
             Distance.Start();
-            mass -= size_bin; // might be a better way to do BTH TODO
+            //mass -= size_bin; // might be a better way to do BTH TODO
             d2_thresh = partial_search(size_bin, mass, size_thresh, inv_enc_den);
         
             Distance.Stop();
