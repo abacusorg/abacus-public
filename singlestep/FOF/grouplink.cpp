@@ -48,7 +48,6 @@ class LinkID {
     inline int slab() {
         return (id&(long long int)0xfff00000000000)>>44;
     }
-    bool operator< (const LinkID& c) const { return (id<c.id); }
 };
 
 /** A GroupLink is simply a pair of LinkIDs.  

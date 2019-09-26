@@ -341,8 +341,10 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                         // We're going to sort the cellgroup list, so that
                         // multiple groups within one cell are contiguous
                         // But there's no point in doing this unless there are 3+ CG.
+                        /*
                         if (cglist.size()>2)
                             std::sort(cglist.data(), cglist.data()+cglist.size());
+                        */
 
                         for (uint64 t = 0; t<cglist.size(); t++) {
                             //integer3 tmp = cglist[t].cell();
@@ -790,7 +792,7 @@ void GlobalGroupSlab::FindSubGroups() {
 	    FOFlevel1[0].Sweep.Elapsed(),
 	    FOFlevel1[0].Distance.Elapsed(),
 	    FOFlevel1[0].Search.Elapsed());
-	STDLOG(1,"L2 Timing: %f = %f %f %f %f\n",
+	STDLOG(3,"L2 Timing: %f = %f %f %f %f\n",
 	    FOFlevel2[0].Total.Elapsed(),
 	    FOFlevel2[0].Copy.Elapsed(),
 	    FOFlevel2[0].Sweep.Elapsed(),
