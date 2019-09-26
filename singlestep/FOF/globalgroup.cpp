@@ -340,7 +340,8 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                         int start = gg_list->buffer->get_pencil_size();
                         // We're going to sort the cellgroup list, so that
                         // multiple groups within one cell are contiguous
-                        if (cglist.size()>1)
+                        // But there's no point in doing this unless there are 3+ CG.
+                        if (cglist.size()>2)
                             std::sort(cglist.data(), cglist.data()+cglist.size());
 
                         for (uint64 t = 0; t<cglist.size(); t++) {
