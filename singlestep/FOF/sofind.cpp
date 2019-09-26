@@ -387,7 +387,7 @@ FOFloat partial_search(int len, int mass, int &size_thresh, FOFloat &inv_enc_den
     for (int j=0; j<len; j++) {
         x = d2_bin[j]*xthreshold;
         size_thresh = j+1; // we want the rightmost on the left side of the density threshold //TODO: ASK
-        if (x*sqrt(x)>(size_thresh+mass) && d2_bin[j]>=.5*WriteState.DensityKernelRad2) {
+        if (x*sqrt(x)>(size_thresh+mass) && d2_bin[j]>=.25*WriteState.DensityKernelRad2) {
             break;
             // This particle is below the overdensity threshold
         }
