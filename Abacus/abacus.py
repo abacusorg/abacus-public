@@ -144,7 +144,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     # If we requested a resume, but there is no state, assume we are starting fresh
     if not clean:
         if (parallel and path.exists(resumedir)) or (not parallel and path.exists(basedir)):
-                print('Resuming from existing state.')    
+            print('Resuming from existing state.')    
         else:
             print('Resume requested but no state exists.  Creating one.')
             clean = True            
@@ -913,7 +913,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 # Now check if we have all the multipoles the convolution will need
                 if not check_multipole_taylor_done(param, read_state, kind='Multipole'):
                     # Invoke multipole recovery mode
-                    print(f"Warning: missing multipoles! Performing multipole recovery for step {i:d}")
+                    print(f"Warning: missing multipoles! Performing multipole recovery for step {stepnum:d}")
                     
                     # Build the recover_multipoles executable
                     with Tools.chdir(pjoin(abacuspath, "singlestep")):
@@ -921,7 +921,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
                     # Execute it
                     print(f"Running recover_multipoles for step {stepnum:d}")
-                    subprocess.check_call([pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn], env=singlestep_env)
+                    try:
+                        subprocess.check_call([pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn], env=singlestep_env)
+                    except subprocess.CalledProcessError as cpe:
+                        handle_singlestep_error(cpe)
+                        raise
                     save_log_files(param.LogDirectory, f'step{read_state.FullStepNumber:04d}.recover_multipoles')
                     print(f'\tFinished multipole recovery for read state {read_state.FullStepNumber}.')
 
