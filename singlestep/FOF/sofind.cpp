@@ -133,8 +133,8 @@ class SOcell {
     FOFloat threshold;  ///< The density threshold we are applying
     FOFloat xthreshold;
     FOFloat FOFunitdensity; //  cosmic mean in FOF units
-    FOFloat mag_loc = 2.;    /// Condition for creating a center
-    FOFloat inner_rad2 = .8*.8; /// What is the inner radius of Delta prime with respect to Delta
+    FOFloat mag_loc = 4.;    /// Condition for creating a center
+    FOFloat inner_rad2 = .9*.9; /// What is the inner radius of Delta prime with respect to Delta
     FOFloat min_central;   ///< The minimum FOF-scale density to require for a central particle.
     FOFloat *twothirds;    ///< We compare x^(3/2) to integers so much that we'll cache integers^(2/3)
 

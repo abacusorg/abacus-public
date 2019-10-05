@@ -65,6 +65,9 @@ class GroupFindingControl {
     double meanFOFdensity;
 
     MultiplicityStats L0stats, L1stats;
+    // BOT
+    MultiplicityStats L2stats;
+  
     long long numdists1, numdists2;	
     	///< The total number of distances computed
     long long numsorts1, numsorts2;	
@@ -206,7 +209,9 @@ class GroupFindingControl {
 	 GLOG(0,"L2 groups required %f G distances, %f G sorts, %f G centers\n", numdists2/1e9, numsorts2/1e9, numcenters2/1e9);
 	 GLOG(0,"L1 group multiplicity distribution:\n");
 	 L1stats.report_multiplicities(grouplog);
-
+     // BOT
+     L2stats.report_multiplicities(grouplog);
+     
 	 float total_time = CellGroupTime.Elapsed()+
 			CreateFaceTime.Elapsed()+
 			FindLinkTime.Elapsed()+

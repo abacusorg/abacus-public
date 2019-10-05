@@ -133,7 +133,7 @@ class GlobalGroupSlab {
     accstruct *acc;
     uint64 np;
     uint64 ncellgroups;
-
+  
     // We're going to accumulate an estimate of work in each pencil
     PencilStats *pstat;    ///< Will be [0,cpd)
 
@@ -338,6 +338,20 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                     // We only track the group if it has more than one particle
                     if (ggsize>1) {
                         int start = gg_list->buffer->get_pencil_size();
+                        // We're going to sort the cellgroup list, so that
+                        // multiple groups within one cell are contiguous
+                        // But there's no point in doing this unless there are 3+ CG.
+                        /*
+                        if (cglist.size()>2) {
+                            std::sort(cglist.data(), cglist.data()+cglist.size());
+                            for (uint64 t = 1; t<cglist.size(); t++) 
+                                assertf(cglist[t-1].id <= cglist[t].id,
+                                    "Failed to sort propertly: %lld > %lld\n", 
+                                        cglist[t-1].id,
+                                        cglist[t].id);
+                        }
+                        */
+
                         for (uint64 t = 0; t<cglist.size(); t++) {
                             //integer3 tmp = cglist[t].cell();
                             // printf("GGlist: %d %d %d %d\n",
@@ -594,6 +608,9 @@ void GlobalGroupSlab::FindSubGroups() {
     accstruct **L1acc = new accstruct *[maxthreads];
     MultiplicityStats L1stats[maxthreads];
 
+    // BOT
+    MultiplicityStats L2stats[maxthreads];
+
     #ifdef SPHERICAL_OVERDENSITY
 	SOcell FOFlevel1[maxthreads], FOFlevel2[maxthreads];
 	#pragma omp parallel for schedule(static,1)
@@ -681,6 +698,13 @@ void GlobalGroupSlab::FindSubGroups() {
                     FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, L1acc[g], size);
                     GFC->L2FOF.Stop();
 
+                    // BOT
+                    for (int b=0; b<FOFlevel2[g].ngroups; b++) {
+                        int size_L2 = FOFlevel2[g].groups[b].n;
+                        if (size_L2<GFC->minhalosize) continue;
+                        L2stats[g].push(size_L2);
+                    }
+                    
                     // Merger trees require tagging the taggable particles 
                     // of the biggest L2 group in the original aux array.  
                     // This can be done:
@@ -757,8 +781,12 @@ void GlobalGroupSlab::FindSubGroups() {
 
     // Coadd the stats
     uint64 previous = GFC->L1stats.ngroups;
+    // BOT
+    uint64 previous_L2 = GFC->L2stats.ngroups;
     for (int g=0; g<omp_get_max_threads(); g++) {
         GFC->L1stats.add(L1stats[g]);
+        // BOT
+        GFC->L2stats.add(L2stats[g]);
 	GFC->numdists1 += FOFlevel1[g].numdists;
 	GFC->numdists2 += FOFlevel2[g].numdists;
 	GFC->numsorts1 += FOFlevel1[g].numsorts;
@@ -774,6 +802,10 @@ void GlobalGroupSlab::FindSubGroups() {
     }
     previous = GFC->L1stats.ngroups-previous;
     STDLOG(1,"Found %l L1 halos\n", previous);
+    // BOT
+    previous_L2 = GFC->L2stats.ngroups-previous_L2;
+    STDLOG(1,"Found %l L2 halos\n", previous_L2);
+    
     #ifdef SPHERICAL_OVERDENSITY
     if (FOFlevel1[0].Total.Elapsed()>0.0) {
       // B.H. trying to do timing
