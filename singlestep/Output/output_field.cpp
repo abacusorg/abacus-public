@@ -12,55 +12,75 @@ updates of the positions and velocities.
 // These use data models from halostats.hh.
 // TODO: Consider refactoring that?
 
-uint64 GatherTaggableFieldParticles(int slab, RVfloat *pv, TaggedPID *pid, FLOAT unkickfactor) {
+void GatherTaggableFieldParticles(int slab, RVfloat ** pv, TaggedPID ** pid, FLOAT unkickfactor, uint64 * nfield) {
     slab = GFC->WrapSlab(slab);
-    uint64 nfield = 0;
     for (int j=0; j<GFC->cpd; j++)
         for (int k=0; k<GFC->cpd; k++) {
             // Loop over cells
             posstruct offset = CP->CellCenter(slab, j, k);
             Cell c = CP->GetCell(slab, j, k);
-            for (int p=0; p<c.count(); p++)
-                if (c.aux[p].is_taggable() && !c.aux[p].is_L0()) {
+            for (int p=0; p<c.count(); p++){
+                int tag = c.aux[p].is_taggable(); //0 non taggable, TAGGABLE_SUB_A or TAGGABLE_SUB_B for the subsamples. 
+                if (tag > 0 && !c.aux[p].is_L0()) {
                     // We found a taggable field particle
                     posstruct r = c.pos[p] + offset;
                     velstruct v = c.vel[p];
-            if(c.acc != NULL)
-                v -= unkickfactor*TOFLOAT3(c.acc[p]);
-                    pv[nfield] = RVfloat(r.x, r.y, r.z, v.x, v.y, v.z);
-                    pid[nfield] = c.aux[p].pid();
-                    nfield++;
+                    if(c.acc != NULL){ v -= unkickfactor*TOFLOAT3(c.acc[p]);}
+
+                    if (tag == TAGGABLE_SUB_A){
+                        pv[0][nfield[0]]  = RVfloat(r.x, r.y, r.z, v.x, v.y, v.z);
+                        pid[0][nfield[0]] = c.aux[p].pid();
+                        nfield[0]++;
+                    }
+                    else if (tag == TAGGABLE_SUB_B){
+                        pv[1][nfield[1]]  = RVfloat(r.x, r.y, r.z, v.x, v.y, v.z);
+                        pid[1][nfield[1]] = c.aux[p].pid();
+                        nfield[1]++;
+                    }
                 }
+            }
         }
-    return nfield;
 }
 
 void OutputNonL0Taggable(int slab) {
+    // If subsampling output is requested,
     // Write out the taggable particles not in 01 halos.
     // This has to get called after all GlobalGroups in this slab
     // have been found.
 
-    // TODO: better heuristic? what will happen in very small sims?  
-    // Also technically HaloTaggableFraction is only used in the IC step
-    uint64 maxsize = SS->size(slab)*P.HaloTaggableFraction;
-            maxsize += 6*sqrt(maxsize);  // 6-sigma buffer
+    //NAM not happy with this... 
 
-    SB->AllocateSpecificSize(TaggableFieldSlab, slab, maxsize*sizeof(RVfloat));
-    SB->AllocateSpecificSize(TaggableFieldPIDSlab, slab, maxsize*sizeof(TaggedPID));
+    float subsample_fracs[NUM_SUBSAMPLES] = [P.ParticleSubsampleA, P.ParticleSubsampleB]; 
+    int slab_type[NUM_SUBSAMPLES] = [FieldSubASlab, FieldSubBSlab, FieldPIDSubASlab, FieldPIDSubBSlab]; 
 
-    uint64 nfield = GatherTaggableFieldParticles(slab,
-            (RVfloat *) SB->GetSlabPtr(TaggableFieldSlab, slab),
-            (TaggedPID *) SB->GetSlabPtr(TaggableFieldPIDSlab, slab),
-            WriteState.FirstHalfEtaKick);
-    if(nfield > 0){
-        // only write the uniform subsample files if they will have non-zero size
-        SB->ResizeSlab(TaggableFieldSlab, slab, nfield*sizeof(RVfloat));
-        SB->ResizeSlab(TaggableFieldPIDSlab, slab, nfield*sizeof(TaggedPID));
-        SB->StoreArenaNonBlocking(TaggableFieldSlab, slab);
-        SB->StoreArenaNonBlocking(TaggableFieldPIDSlab, slab);
-    } else {
-        SB->DeAllocate(TaggableFieldSlab, slab);
-        SB->DeAllocate(TaggableFieldPIDSlab, slab);
+    for (int i = 0; i < NUM_SUBSAMPLES; i++){
+            // TODO: better heuristic? what will happen in very small sims?  
+        uint64 maxsize SS->size(slab)* subsample_fracs[i];
+        maxsize += 6*sqrt(maxsize); // 6-sigma buffer
+
+        SB->AllocateSpecificSize(slab_type[i],    slab, maxsizeA*sizeof(RVfloat));
+        SB->AllocateSpecificSize(slab_type[i+NUM_SUBSAMPLES],  slab, maxsizeA*sizeof(TaggedPID));
     }
-    STDLOG(1,"Writing %d non-L0 Taggable particles in slab %d\n", nfield, slab);
+
+    uint64 nfield[NUM_SUBSAMPLES] = [0, 0]; 
+    RVfloat   *  rvSlabs[NUM_SUBSAMPLES] = [SB->GetSlabPtr(slab_type[0], slab), SB->GetSlabPtr(slab_type[1], slab)];
+    TaggedPID * pidSlabs[NUM_SUBSAMPLES] = [SB->GetSlabPtr(slab_type[2], slab), SB->GetSlabPtr(slab_type[3], slab)];
+
+    GatherTaggableFieldParticles(slab, rvSlabs, pidSlabs, WriteState.FirstHalfEtaKick, nfield);
+
+    for (int i = 0; i < NUM_SUBSAMPLES; i++){
+        if(nfield[i] > 0){
+                // only write the uniform subsample files if they will have non-zero size
+            SB->ResizeSlab(slab_type[i], slab, nfield*sizeof(RVfloat));
+            SB->ResizeSlab(slab_type[i+NUM_SUBSAMPLES], slab, nfield*sizeof(TaggedPID));
+            SB->StoreArenaNonBlocking(slab_type[i], slab);
+            SB->StoreArenaNonBlocking(slab_type[i+NUM_SUBSAMPLES], slab);
+        } else {
+            SB->DeAllocate(slab_type[i], slab);
+            SB->DeAllocate(slab_type[i+NUM_SUBSAMPLES], slab);
+        }
+        STDLOG(1,"Writing %d non-L0 Taggable particles in slab %d in subsample %d of %d.\n", nfield[i], slab, i, NUM_SUBSAMPLES);
+    }
+    
+
 }

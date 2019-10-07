@@ -10,8 +10,10 @@ object.
 class HaloStat {
   public:
     uint64_t id;	///< A unique halo number.
-    uint64_t npstart;	///< Where to start counting in the particle output
-    uint64_t npout;	///< Number of taggable particles pos/vel/aux written out.
+    uint64_t npstartA;	///< Where to start counting in the particle output for subsample A
+    uint64_t npoutA;	///< Number of taggable particles pos/vel/aux written out in subsample A
+    uint64_t npstartB;  ///< Where to start counting in the particle output for subsample B
+    uint64_t npoutB;    ///< Number of taggable particles pos/vel/aux written out in subsample B
 
     uint64_t taggedstart;   ///< Where to start counting in the tagged particle output
     uint64_t ntagged;	    ///< Number of tagged particle PIDs written out.

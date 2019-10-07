@@ -124,13 +124,6 @@ void PlanOutput(bool MakeIC) {
 }
 
 
-#include <signal.h>
-void graceful_exit_signal_handler(int sig)
-{
-    STDLOG(0, "Caught signal %d.\n", sig);
-}
-
-
 int main(int argc, char **argv) {
     //Enable floating point exceptions
     feenableexcept(FE_INVALID | FE_DIVBYZERO);
@@ -206,7 +199,7 @@ int main(int argc, char **argv) {
     // Make a plan for output
     PlanOutput(MakeIC);
 
-    // Set up the Group Finding concepts
+    // Set up the Group Finding concepts and decide if Group Finding output is requested.
     InitGroupFinding(MakeIC);
     BuildWriteStateOutput();    // Have to delay this until after GFC is made
 

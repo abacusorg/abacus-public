@@ -99,8 +99,11 @@ uint64 LoadSlab2IL(int slab) {
 
             vel *= convert_velocity;
             
-            if (is_subsample_particle(aux.pid(), P.HaloTaggableFraction))
-                aux.set_taggable();
+            if (is_subsample_particle(aux.pid(), P.ParticleSubsampleSml)) // set all particles 0-ParticleSubsampleSml as taggable in set Sml. 
+                aux.set_taggable_subsml();
+
+            if (is_subsample_particle(aux.pid(), P.ParticleSubsampleBig, P.ParticleSubsampleSml)) //set all particles Sml - Big as taggable in set Big. 
+                aux.set_taggable_subbig();
             
             IL->Push(&pos, &vel, &aux, newcell);
         }
@@ -132,8 +135,10 @@ uint64 LoadSlab2IL(int slab) {
             
             // Set the 'taggable' bit for particles as a function of their PID
             // this bit will be used for group finding and merger trees
-            if (is_subsample_particle(aux.pid(), P.HaloTaggableFraction))
-                aux.set_taggable();
+            if (is_subsample_particle(aux.pid(), P.ParticleSubsampleA)) 
+                aux.set_taggable_subA();
+            else if (is_subsample_particle(aux.pid(), P.ParticleSubsampleB, P.ParticleSubsampleA)) 
+                aux.set_taggable_subB();
             
             IL->Push(&pos, &vel, &aux, newcell);
             count++;

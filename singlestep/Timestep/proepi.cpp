@@ -555,8 +555,9 @@ void InitWriteState(int MakeIC){
 void InitGroupFinding(bool MakeIC){
     /*
     Request output of L1 groups and halo/field subsamples if:
-    - this redshift is a L1OutputRedshift; or
-    - we are doing a TimeSlice output.
+    - this redshift is a member of L1OutputRedshift; or
+    - this redshift is a member of TimeSliceRedshifts_Subsample 
+    - this redshift is a member of TimeSliceRedshifts.
 
     If L1OutputRedshifts is not set, then we instead fall back to L1Output_dlna.
     In that case, we check if we are crossing a L1Output_dlna checkpoint by going from ReadState to WriteState.
@@ -574,40 +575,48 @@ void InitGroupFinding(bool MakeIC){
     i.e. before GroupFinding has a chance to rearrange them
     */
 
-    int do_output;
+    int do_grp_output, do_subsample_output;
 
-    for(int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++){
+     for(int i = 0; i < P.nTimeSliceSubsample; i++){
+        double subsample_z = P.TimeSliceRedshifts_Subsample[i];
+        if(abs(ReadState.Redshift - subsample_z) < 1e-12){
+            STDLOG(0,"Subsample output (and group finding) at this redshift requested by TimeSliceRedshifts_Subsample[%d]\n", i);
+            do_subsample_output = 1;
+        }
+    }
+
+    for(int i = 0; i < P.nTimeSliceL1; i++){
         double L1z = P.L1OutputRedshifts[i];
-        if(L1z <= -2)
-            continue;
         if(abs(ReadState.Redshift - L1z) < 1e-12){
             STDLOG(0,"Group finding at this redshift requested by L1OutputRedshifts[%d]\n", i);
-            do_output = 1;
+            do_grp_output = 1;
             goto have_L1z;
         }
     }
 
     if(P.L1Output_dlna >= 0){
-        do_output = log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ||
+        do_grp_output = log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ||
                     fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna);
         STDLOG(0,"Group finding at this redshift requested by L1Output_dlna\n");
     }
     else{
-        do_output = 0;
+        do_grp_output = 0;
     }
 
     have_L1z:
-    do_output |= ReadState.DoTimeSliceOutput;
+    do_subsample_output &= not ReadState.DoTimeSliceOutput; //if we're going to output the entire timeslice, don't bother with the subsamples. 
+    do_grp_output |= ReadState.DoTimeSliceOutput | do_subsample_output; //if any kind of output is requested, turn on group finding. 
 
     WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities
     WriteState.L0DensityThreshold = 0.0;
 
     // Can we enable group finding?
-    if((P.MicrostepTimeStep > 0 || do_output) &&
+    if((P.MicrostepTimeStep > 0 || do_grp_output) &&
         !(!P.AllowGroupFinding || P.ForceOutputDebug || MakeIC)){
         STDLOG(1, "Setting up group finding\n");
         
-        ReadState.DoGroupFindingOutput = do_output;
+        ReadState.DoGroupFindingOutput = do_grp_output; // if any kind of output is requested, turn on group finding.
+        ReadState.DoSubsampleOutput    = do_subsample_output;  // but don't always turn on subsampling! only want that if explicitly asked for. 
 
         GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
                     #ifdef SPHERICAL_OVERDENSITY

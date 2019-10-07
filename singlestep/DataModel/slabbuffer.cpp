@@ -36,26 +36,32 @@ enum SlabType { CellInfoSlab,           //0
                 NearAccSlab,            //13
                 FarAccSlab,             //14
                 TimeSlice,              //15
-                VelLPTSlab,             //16
-                CellGroupArena,         //17
-                NearField_SIC_Slab,     //18
+                TimeSlicePIDs,          //16
+                VelLPTSlab,             //17
+                CellGroupArena,         //18
+                NearField_SIC_Slab,     //19
                 
-                L1halosSlab,            //19
-                TaggedPIDsSlab,         //20
-                L1ParticlesSlab,        //21
-                L1PIDsSlab,             //22
-                TaggableFieldSlab,      //23
-                TaggableFieldPIDSlab,   //24
-                L0TimeSlice,            //25
+                L1halosSlab,            //20
+                TaggedPIDsSlab,         //21
+                L1ParticlesSubBigSlab,  //22
+                L1ParticlesSubSmlSlab,  //23
+                HaloPIDsSubBigSlab,     //24
+                HaloPIDsSubSmlSlab,     //25
+                FieldSubBigSlab,        //26
+				FieldSubSmlSlab,        //27
+                FieldPIDSubBigSlab,     //28
+                FieldPIDSubSmlSlab,     //29
+                L0TimeSlice,            //30
+                L0TimeSlicePIDs,        //31
                 
-                LightCone0,             //26
-                LightCone1,             //27
-                LightCone2,             //28
-                LightCone3,             //29
-                LightCone4,             //30
-                LightCone5,             //31
-                LightCone6,             //32
-                LightCone7,             //33
+                LightCone0,             //32
+                LightCone1,             //33
+                LightCone2,             //34
+                LightCone3,             //35
+                LightCone4,             //36
+                LightCone5,             //37
+                LightCone6,             //38
+                LightCone7,             //39
 
                 NUMTYPES
                 };
@@ -328,17 +334,27 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         case AccSlab             : { ss << P.OutputDirectory << "/acc_"            << slabnum; break; }
         case NearAccSlab         : { ss << P.OutputDirectory << "/nearacc_"        << slabnum; break; }
         case FarAccSlab          : { ss << P.OutputDirectory << "/faracc_"         << slabnum; break; }
-        
-        case L1halosSlab           : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halos_"                   << slabnum; break;}
-        case TaggedPIDsSlab        : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/tagged_pids_"             << slabnum; break;}
-        case L1ParticlesSlab       : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_particles_"          << slabnum; break;}
-        case L1PIDsSlab            : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_particle_ids_"       << slabnum; break;}
-        case TaggableFieldSlab     : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/taggable_particles_"      << slabnum; break;}
-        case TaggableFieldPIDSlab  : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/taggable_particle_ids_"   << slabnum; break;}
+		
+		//NAM do we still want this? 
+        case TaggedPIDsSlab        : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/tagged_pids_"         << slabnum; break;}
+       
+        case L1halosSlab           : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_info_"           << slabnum; break;}
+		
+        case HaloPIDsSubBigSlab    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_pids_subBig_"    << slabnum; break;}
+        case HaloPIDsSubSmlSlab    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_pids_subSml_"    << slabnum; break;}
+        case FieldPIDSubBigSlab    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_pids_subBig_"   << slabnum; break;}
+        case FieldPIDSubSmlSlab    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_pids_subSml_"   << slabnum; break;}
+		
+        case L1ParticlesSubBigSlab : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_rv_subBig_"      << slabnum; break;}
+        case L1ParticlesSubSmlSlab : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_rv_subSml_"      << slabnum; break;}
+        case FieldSubBigSlab       : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_rv_subBig_"     << slabnum; break;}
+        case FieldSubSmlSlab       : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_rv_subSml_"     << slabnum; break;}
 
-        case L0TimeSlice : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".L0.dat"; break; }
-        case TimeSlice   : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".dat"; break; }
-
+        case L0TimeSlice          : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".L0.dat"; break; }
+        case TimeSlice            : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field.dat"; break; }
+        case L0TimeSlicePIDs      : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".L0_pids.dat"; break; }
+        case TimeSlicePIDs        : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pids.dat"; break; }
+		
         default:
             QUIT("Illegal type %d given to WriteSlabPath()\n", type);
     }
@@ -438,7 +454,7 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
                 case L1halosSlab           : { return GFC->globalslabs[slab]->L1halos.get_slab_bytes(); }
         case TaggedPIDsSlab        : { return GFC->globalslabs[slab]->TaggedPIDs.get_slab_bytes(); }
         case L1ParticlesSlab       : { return GFC->globalslabs[slab]->L1Particles.get_slab_bytes(); }
-        case L1PIDsSlab            : { return GFC->globalslabs[slab]->L1PIDs.get_slab_bytes(); }
+        case HaloPIDsSlab            : { return GFC->globalslabs[slab]->L1PIDs.get_slab_bytes(); }
         case TaggableFieldSlab     : { 
             uint64 maxsize = P.np*P.HaloTaggableFraction*1.05;  // TODO: better heuristic? what will happen in very small sims?  Also technically HaloTaggableFraction is only used in the IC step
             return maxsize*sizeof(RVfloat);
