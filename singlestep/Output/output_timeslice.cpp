@@ -13,18 +13,31 @@ AppendArena *get_AA_by_format(const char* format){
     if (strcmp(format,"RVdouble")==0) {
         STDLOG(1,"Using Output Format RVdouble\n");
         AA = new OutputRVdouble();
-    } else if (strcmp(format,"Packed")==0) {
-        STDLOG(1,"Using Output Format Packed\n");
+
+    } else if (strcmp(format,"Packed9")==0) {
+        #define PACKED pack9
+        STDLOG(1,"Using Output Format Pack9\n");
         AA = new OutputPacked();
+        #undef PACKED
+
+    } else if (strcmp(format,"Packed")==0 or strcmp(format,"Packed14")==0) {
+        #define PACKED pack14
+        STDLOG(1,"Using Output Format Pack14\n");
+        AA = new OutputPacked();
+        #undef PACKED
+
     } else if (strcmp(format,"Heitmann")==0) {
         STDLOG(1,"Using Output Format Heitmann\n");
         AA = new OutputHeitmann();
+
     } else if (strcmp(format,"RVdoubleTag")==0) {
         STDLOG(1,"Using Output Format RVdoubleTag\n");
         AA = new OutputRVdoubleTag();
+
     } else if (strcmp(format,"RVZel")==0) {
         STDLOG(1,"Using Output Format RVZel\n");
         AA = new OutputRVZel();
+        
     }
     else {
         QUIT("Unrecognized case: OutputFormat = %s\n", format);
