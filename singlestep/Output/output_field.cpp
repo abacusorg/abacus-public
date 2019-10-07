@@ -50,29 +50,29 @@ void OutputNonL0Taggable(int slab) {
 
     //NAM not happy with this... 
 
-    float subsample_fracs[NUM_SUBSAMPLES] = [P.ParticleSubsampleA, P.ParticleSubsampleB]; 
-    int slab_type[NUM_SUBSAMPLES] = [FieldSubASlab, FieldSubBSlab, FieldPIDSubASlab, FieldPIDSubBSlab]; 
+    double subsample_fracs[NUM_SUBSAMPLES] = {P.ParticleSubsampleA, P.ParticleSubsampleB}; 
+    int slab_type[2*NUM_SUBSAMPLES] = {FieldSlabA, FieldSlabB, FieldPIDSlabA, FieldPIDSlabB}; 
 
     for (int i = 0; i < NUM_SUBSAMPLES; i++){
             // TODO: better heuristic? what will happen in very small sims?  
-        uint64 maxsize SS->size(slab)* subsample_fracs[i];
+        uint64 maxsize = SS->size(slab)* subsample_fracs[i];
         maxsize += 6*sqrt(maxsize); // 6-sigma buffer
 
-        SB->AllocateSpecificSize(slab_type[i],    slab, maxsizeA*sizeof(RVfloat));
-        SB->AllocateSpecificSize(slab_type[i+NUM_SUBSAMPLES],  slab, maxsizeA*sizeof(TaggedPID));
+        SB->AllocateSpecificSize(slab_type[i],    slab, maxsize*sizeof(RVfloat));
+        SB->AllocateSpecificSize(slab_type[i+NUM_SUBSAMPLES],  slab, maxsize*sizeof(TaggedPID));
     }
 
-    uint64 nfield[NUM_SUBSAMPLES] = [0, 0]; 
-    RVfloat   *  rvSlabs[NUM_SUBSAMPLES] = [SB->GetSlabPtr(slab_type[0], slab), SB->GetSlabPtr(slab_type[1], slab)];
-    TaggedPID * pidSlabs[NUM_SUBSAMPLES] = [SB->GetSlabPtr(slab_type[2], slab), SB->GetSlabPtr(slab_type[3], slab)];
+    uint64 nfield[NUM_SUBSAMPLES] = {0, 0}; 
+    RVfloat   *  rvSlabs[NUM_SUBSAMPLES] = {(RVfloat*)   SB->GetSlabPtr(slab_type[0], slab), (RVfloat*)   SB->GetSlabPtr(slab_type[1], slab)};
+    TaggedPID * pidSlabs[NUM_SUBSAMPLES] = {(TaggedPID*) SB->GetSlabPtr(slab_type[2], slab), (TaggedPID*) SB->GetSlabPtr(slab_type[3], slab)};
 
     GatherTaggableFieldParticles(slab, rvSlabs, pidSlabs, WriteState.FirstHalfEtaKick, nfield);
 
     for (int i = 0; i < NUM_SUBSAMPLES; i++){
         if(nfield[i] > 0){
                 // only write the uniform subsample files if they will have non-zero size
-            SB->ResizeSlab(slab_type[i], slab, nfield*sizeof(RVfloat));
-            SB->ResizeSlab(slab_type[i+NUM_SUBSAMPLES], slab, nfield*sizeof(TaggedPID));
+            SB->ResizeSlab(slab_type[i], slab, nfield[i]*sizeof(RVfloat));
+            SB->ResizeSlab(slab_type[i+NUM_SUBSAMPLES], slab, nfield[i]*sizeof(TaggedPID));
             SB->StoreArenaNonBlocking(slab_type[i], slab);
             SB->StoreArenaNonBlocking(slab_type[i+NUM_SUBSAMPLES], slab);
         } else {

@@ -167,6 +167,7 @@ public:
 	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
 
     #define MAX_L1OUTPUT_REDSHIFTS 1024
+    int nTimeSliceL1; 
     float L1OutputRedshifts[MAX_L1OUTPUT_REDSHIFTS];
     int OutputAllHaloParticles;  // ==0 normally, to output only taggable L1 particles.  If non-zero, output all particles
 

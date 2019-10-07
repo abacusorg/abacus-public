@@ -43,14 +43,14 @@ enum SlabType { CellInfoSlab,           //0
                 
                 L1halosSlab,            //20
                 TaggedPIDsSlab,         //21
-                L1ParticlesSubBigSlab,  //22
-                L1ParticlesSubSmlSlab,  //23
-                HaloPIDsSubBigSlab,     //24
-                HaloPIDsSubSmlSlab,     //25
-                FieldSubBigSlab,        //26
-				FieldSubSmlSlab,        //27
-                FieldPIDSubBigSlab,     //28
-                FieldPIDSubSmlSlab,     //29
+                L1ParticlesSlabA,  //22
+                L1ParticlesSlabB,  //23
+                HaloPIDsSlabA,     //24
+                HaloPIDsSlabB,     //25
+                FieldSlabA,        //26
+				FieldSlabB,        //27
+                FieldPIDSlabA,     //28
+                FieldPIDSlabB,     //29
                 L0TimeSlice,            //30
                 L0TimeSlicePIDs,        //31
                 
@@ -334,21 +334,20 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         case AccSlab             : { ss << P.OutputDirectory << "/acc_"            << slabnum; break; }
         case NearAccSlab         : { ss << P.OutputDirectory << "/nearacc_"        << slabnum; break; }
         case FarAccSlab          : { ss << P.OutputDirectory << "/faracc_"         << slabnum; break; }
-		
-		//NAM do we still want this? 
+
         case TaggedPIDsSlab        : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/tagged_pids_"         << slabnum; break;}
        
         case L1halosSlab           : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_info_"           << slabnum; break;}
 		
-        case HaloPIDsSubBigSlab    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_pids_subBig_"    << slabnum; break;}
-        case HaloPIDsSubSmlSlab    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_pids_subSml_"    << slabnum; break;}
-        case FieldPIDSubBigSlab    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_pids_subBig_"   << slabnum; break;}
-        case FieldPIDSubSmlSlab    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_pids_subSml_"   << slabnum; break;}
+        case HaloPIDsSlabA    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_pids_subBig_"    << slabnum; break;}
+        case HaloPIDsSlabB    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_pids_subSml_"    << slabnum; break;}
+        case FieldPIDSlabA    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_pids_subBig_"   << slabnum; break;}
+        case FieldPIDSlabB    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_pids_subSml_"   << slabnum; break;}
 		
-        case L1ParticlesSubBigSlab : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_rv_subBig_"      << slabnum; break;}
-        case L1ParticlesSubSmlSlab : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_rv_subSml_"      << slabnum; break;}
-        case FieldSubBigSlab       : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_rv_subBig_"     << slabnum; break;}
-        case FieldSubSmlSlab       : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_rv_subSml_"     << slabnum; break;}
+        case L1ParticlesSlabA : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_rv_subBig_"      << slabnum; break;}
+        case L1ParticlesSlabB : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_rv_subSml_"      << slabnum; break;}
+        case FieldSlabA       : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_rv_subBig_"     << slabnum; break;}
+        case FieldSlabB       : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_rv_subSml_"     << slabnum; break;}
 
         case L0TimeSlice          : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".L0.dat"; break; }
         case TimeSlice            : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field.dat"; break; }

@@ -82,7 +82,7 @@ HaloStat ComputeStats(int size,
     for (int p=0; p<size; p++) {
 		posstruct dx = L1pos[p]-x;
 		L2.d2buffer[p] = dx.norm2();
-		d2mean += sqrt(L2.d2buffer[p]);    //NAM doing this partially defeats the point of having the d2buffer-- here we do a sqrt for every particle. Is there a way to avoid this? 
+		dmean += sqrt(L2.d2buffer[p]);    //NAM doing this partially defeats the point of having the d2buffer-- here we do a sqrt for every particle. Is there a way to avoid this? 
 		velstruct dv = L1vel[p]/ReadState.VelZSpace_to_Canonical - v;
 		vxx += dv.x*dv.x; vxy += dv.x*dv.y; vxz += dv.x*dv.z;
 		vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
@@ -94,7 +94,7 @@ HaloStat ComputeStats(int size,
     std::sort(L2.d2buffer, L2.d2buffer+size);
 	
 	int16_t INT16SCALE = 32000; 
-	h.r100 = sqrt(L2.d2buffer[-1]; 
+	h.r100 = sqrt(L2.d2buffer[-1]); 
 	// r10, r25, r50, r67, r75, r90: Expressed as ratios of r100, and scaled to 32000 to store as int16s. 	
 	h.r10  = trunc(sqrt(L2.d2buffer[size/10  ]) / h.r100 * INT16SCALE); 
 	h.r25  = trunc(sqrt(L2.d2buffer[size/4   ]) / h.r100 * INT16SCALE); 
@@ -120,7 +120,7 @@ HaloStat ComputeStats(int size,
 
 	
 #ifdef SPHERICAL_OVERDENSITY
-	h.SO_central_particle = L2.particles[0];
+	h.SO_central_particle = L2.p[0];
 	h.SO_central_density  = L2.density[0]; 
 	h.SO_radius           = sqrt(L2.d2buffer[-1]); 
 #endif 
@@ -132,7 +132,7 @@ HaloStat ComputeStats(int size,
 		float v4 = p*p/L2.d2buffer[p];
 		if (v4>vmax) { vmax = v4; rvmax = L2.d2buffer[p]; }
     }
-    h.rvcirc_max = trunc(sqrt(rvmax) / r100 * INT16SCALE );    // Get to radial units and compress into int16. 
+    h.rvcirc_max = trunc(sqrt(rvmax) / h.r100 * INT16SCALE );    // Get to radial units and compress into int16. 
     float GMpart = 3*P.Omega_M*pow(100*ReadState.BoxSizeHMpc,2)/(8*M_PI*P.np*ReadState.ScaleFactor);
     h.vcirc_max = sqrt(GMpart*sqrt(vmax))/ReadState.VelZSpace_to_kms;  // This is sqrt(G*M_particle*N/R).
 
@@ -176,7 +176,7 @@ HaloStat ComputeStats(int size,
 	}
 	
 #ifdef SPHERICAL_OVERDENSITY
-	h.SO_subhalo_central_particle = L2.particles[0];
+	h.SO_subhalo_central_particle = L2.p[0];
 	h.SO_subhalo_central_density  = L2.density[0]; 
 	h.SO_subhalo_radius           = sqrt(L2.d2buffer[-1]); 
 #endif 
