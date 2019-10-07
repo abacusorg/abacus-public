@@ -58,10 +58,8 @@ from . import GenParam
 from . import zeldovich
 from Abacus.Cosmology import AbacusCosmo
 
+NEEDS_INTERIM_BACKUP_MINS = 240 #minimum job runtime (in minutes) for which we'd like to do a backup halfway through the job. 
 EXIT_REQUEUE = 200
-RUN_TIME_MINUTES = 360 #360
-STOP_PERCENT_RUNTIME = 0.93
-
 
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
 directory_param_fn = pjoin(abacuspath, 'Abacus', 'directory.def')
@@ -129,20 +127,20 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     icdir = params['InitialConditionsDirectory']
     outdir = params['OutputDirectory']
     logdir = params['LogDirectory']
+    groupdir  = params.get('GroupDirectory', '')
     basedir = params['WorkingDirectory']
-    groupdir = params.get('GroupDirectory', '')
-    
-    # TODO: does DistributeToResume override the clean parameter?
-    if params.get('DistributeToResume'):
-        clean = False
+
+    resumedir = ""
+    if parallel:
+        resumedir = pjoin(os.path.dirname(params['WorkingDirectory']), params['SimName'] + '_retrieved_state')
 
     # If we requested a resume, but there is no state, assume we are starting fresh
     if not clean:
-        if path.exists(basedir):
-            print('Resuming from existing state.')
+        if (parallel and path.exists(resumedir)) or (not parallel and path.exists(basedir)):
+                print('Resuming from existing state.')    
         else:
             print('Resume requested but no state exists.  Creating one.')
-            clean = True
+            clean = True            
 
     if erase_ic and path.exists(icdir):
         print('Erasing IC dir')
@@ -154,6 +152,9 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
         clean_dir(outdir, preserve=icdir if not erase_ic else None)
         clean_dir(logdir, preserve=icdir if not erase_ic else None)
         clean_dir(groupdir, preserve=icdir if not erase_ic else None)
+        #NAM make prettier. 
+        if parallel and path.exists(resumedir):
+            clean_dir(resumedir)
             
     os.makedirs(basedir, exist_ok=True)
 
@@ -188,38 +189,12 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
         elif clean:
             print('Reusing existing ICs')
 
-        retval = singlestep(output_parfile, maxsteps, make_ic=clean)
+        retval = singlestep(output_parfile, maxsteps, make_ic=clean, resume_dir = resumedir)
         
-    if parallel:
-        handle_requeue(retval, parfn)
+    #if parallel:
+    #    handle_requeue(retval, parfn)
 
     return retval
-
-def handle_requeue(retval, parfn):
-    #if singlestep returns a retval of EXIT_REQUEUE, we will quit this job and resubmit it to the queue. 
-    #by this point we should have gracefully retrieved the state from the nodes to the global directory. 
-    #we will need to tell the next queued job that it should redistribute the state back to the nodes. 
-    #this function modifies the abacus.par2 file in the Production directory to handle this. 
-    
-    #first, check if DistributeToResume is defined in abacus.par2 from a previous run. If so, delete this line.
-    fh, abs_path = mkstemp()
-    
-    # TODO: how to signal this without modifying the .par2 file?
-    with os.fdopen(fh,'w') as new_file, open(parfn) as old_file:
-        for line in old_file:
-            new_file.write(line.replace('DistributeToResume = 1\n',  '\n'))
-                
-    #Remove original file
-    os.remove(parfn)
-    #Move new file
-    shutil.move(abs_path, parfn)
-
-    #then check if we are about to requeue the job, and set DistributeToResume = 1 if yes. 
-    if retval == EXIT_REQUEUE:
-        print('Exit requeue triggered. Modifying parameter file to DistributeToResume next time around.')
-        with open(parfn,"a") as f:
-            f.write('DistributeToResume = 1\n')
-        #sys.exit()
 
 def copy_contents(in_dir, out_dir, clean=True, ignore='*.py'):
     if clean:
@@ -244,7 +219,9 @@ def clean_dir(bd, preserve=None, rmdir_ifempty=True):
     specified in the "preserve" argument.  Optionally remove
     the directory itself if it's empty.
     '''
-
+    if bd == None:
+        return 0 
+        
     if path.exists(bd):
         # Erase everything in basedir except the ICs
         for d in os.listdir(bd):
@@ -429,7 +406,7 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
 def check_multipole_taylor_done(param, state, kind):
     """
     Checks that all the multipoles or Taylors exist and have the expected
-    file size. `kind` must be 'Multipole' or 'Taylor'.
+    file size for the serial code. `kind` must be 'Multipole' or 'Taylor'.
     """
 
     assert kind in ['Multipole', 'Taylor']
@@ -738,18 +715,8 @@ class StatusLogWriter:
         self.log_fp.write(('\n * ' + fmtstring.format(*args, **kwargs) + end).encode('utf-8'))
         self.log_fp.flush()
     
-
-
-
-# class SignalHandler(object):
-#     def __init__(self):
-#         self.graceful_exit = None
-#     def handle(self, signalNumber, frame):
-#         print('Received signal:', signalNumber)
-#         self.graceful_exit = 1
-#         print('We are running out of time in the job! Setting signal handler graceful_exit flag to ', self.graceful_exit)
-    
-def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
+ 
+def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=None):
     """
     Run a number of Abacus timesteps by invoking the `singlestep` and
     `convolution` executables in a tick-tock fashion.
@@ -777,6 +744,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         Returns 0 or 1 for general success or failure;
         or EXIT_REQUEUE if we finish cleanly but have not reached the final z
     """
+    
     finished = False
 
     if maxsteps is None:
@@ -801,13 +769,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
     
     if parallel:
         # TODO: figure out how to signal a backup to the nodes
-        run_time_minutes = RUN_TIME_MINUTES #360
+        run_time_minutes = int(os.getenv("JOB_ACTION_WARNING_TIME"))
         run_time_secs = 60 * run_time_minutes
         start_time = wall_timer()
         print("Beginning run at time", start_time, ", running for ", run_time_minutes, " minutes.\n")
-        # s = SignalHandler()
-#         signal.signal(signal.SIGUSR1, s.handle)
-#         signal.signal(signal.SIGUSR2, s.handle)
+        
         
         backups_enabled = False
 
@@ -860,17 +826,27 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
         
         #check if our previous run was interrupted and saved in the global directory. If yes, redistribute state to nodes. 
         #TODO do this by checking if we have a backed-up state available in global directory (instead of looking at param file). 
-        distribute_to_resume = param.get('DistributeToResume', None)
         
-        print('distribute_to_resume = ', distribute_to_resume)
-        
-        if distribute_to_resume:
+        if not make_ic: #if this is not a clean run, redistribute the state out to the nodes. 
             print('Distributing in order to resume...')
-            distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', '--verbose']
-            subprocess.check_call(Conv_mpirun_cmd + distribute_state_cmd)
-        
+            distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', resume_dir]            
+            distribute_fns_present = subprocess.check_call(Conv_mpirun_cmd + distribute_state_cmd)
+            
+   
     print("Beginning abacus steps:")
+    if parallel:
+        emergency_exit_fn = pjoin(param['WorkingDirectory'], 'abandon_ship')
+        print("\n------------------")
+        print("To trigger emergency quit safely, create file", emergency_exit_fn)
+        print("------------------")
     
+    singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic))]
+    if parallel:
+        singlestep_cmd = mpirun_cmd + singlestep_cmd
+        print("Using singlestep_cmd ", singlestep_cmd) 
+    
+        #if this job is longer than a set time (NEEDS_INTERIM_BACKUP_MINS), we'll need to do a backup halfway through the run. 
+        interim_backup_complete = run_time_minutes <= NEEDS_INTERIM_BACKUP_MINS
 
     for i in range(maxsteps):
         
@@ -959,44 +935,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
             print('stopbefore = %d was specified; stopping before calling singlestep'%i)
             return 0
         
-        singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic)), str(0)]
+        singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic))]
         if parallel:
             
-            
-            # if not check_multipole_taylor_done(param, read_state, kind='Multipole'):
- #                # Invoke multipole recovery mode
- #                print("Warning: missing multipoles! Performing multipole recovery for step {:d}".format(i))
- #
- #                # Build the recover_multipoles executable
- #                with Tools.chdir(pjoin(abacuspath, "singlestep")):
- #                    subprocess.check_call(['make', 'recover_multipoles'])
- #
- #                # Execute it
- #                print("Running recover_multipoles for step {:d}".format(stepnum))
- #                subprocess.check_call([pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn], env=singlestep_env)
- #                save_log_files(param.LogDirectory, 'step{:04d}.recover_multipoles'.format(read_state.FullStepNumber))
- #                print('\tFinished multipole recovery for read state {}.'.format(read_state.FullStepNumber))
- #
- #
- #
- #
- #
- #
-            print(os.listdir(read))
-            if distribute_to_resume and ( 'globaldipole' not in os.listdir(read) or 'redlack' not in os.listdir(read) ) :
-                 redlack_recovery = 1
-                 singlestep_cmd[-1] = '1' 
-                 print(singlestep_cmd) 
-            else:
-                redlack_recovery = 0     
-            
-            
-            
-            
-            
-            
             singlestep_cmd = mpirun_cmd + singlestep_cmd
-            print(f'Running parallel convolution + singlestep for step {stepnum:d} with command "{" ".join(singlestep_cmd):s}"')
+            print(f'Running parallel convolution + singlestep for step {stepnum:d}.')
             convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
             for cl in convlogs:
                 shutil.move(cl, cl.replace('last', f'step{read_state.FullStepNumber+1:04d}'))
@@ -1068,28 +1011,70 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
                 shutil.copy(dfn, pjoin(param.LogDirectory, f"step{write_state.FullStepNumber:04d}.density".format()))
                 np.savez(pjoin(param.LogDirectory, f"step{write_state.FullStepNumber:04d}.pow"), k=k,P=P,nb=nb)
                 os.remove(dfn)
-                
-                
-   
-        #if parallel and s.graceful_exit:
-
         
-        if parallel and (wall_timer() - start_time >= STOP_PERCENT_RUNTIME * run_time_secs):
-            print("Current time: ", wall_timer(), start_time, STOP_PERCENT_RUNTIME *run_time_secs)
+        if parallel:
+            # check if we need to gracefully exit and/or backup:
+            #    is a group finding step next?          ---> backup to NVME and continue.   (group finding steps are more likely to crash!)
+            #    are we ~halfway through our long run?  ---> backup to NVME and continue.   (just in case.)
+            #    are we running out of time in the job? ---> backup to global dir and exit. 
+            #    did the user ask to abandon ship?      ---> backup to global dir and exit. 
+             
             
-            restore_time = wall_timer()
+            abandon_ship = path.exists(emergency_exit_fn)
+            out_of_time = (wall_timer() - start_time >= run_time_secs)
             
-
-            print('Graceful exit triggered. Retrieving state from nodes and saving in global directory.')
-            retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--retrieve', '--verbose']
-            subprocess.check_call(Conv_mpirun_cmd + retrieve_state_cmd)
+            #if the halfway-there backup hasn't been done already, and we're more than halfway through the job, backup the state now: 
+            interim_backup = (not interim_backup_complete) and (wall_timer() - start_time >= run_time_secs / 2)
             
-            restore_time = wall_timer() - restore_time
+            #are we coming up on a group finding step? If yes, backup the state, just in case. 
+            pre_gf_backup  = False 
+            nGFoutputs = len(param.L1OutputRedshifts)
+            for i in range(nGFoutputs):
+                L1z = param.L1OutputRedshifts[i] 
+                if L1z <= -1:
+                    continue
+                L1a = 1.0/(1.0+L1z)                
+                
+                #here we assume that the next da will be similar to the previous one. 
+                if (write_state.Redshift > L1z + 1e-12) and ( 1.0/(1.0+write_state.Redshift) + write_state.DeltaScaleFactor > L1a ):
+                    pre_gf_backup = True 
             
-            print(f'Retrieving and storing state took {restore_time} seconds\n')
+            exit = out_of_time or abandon_ship
+            save = exit or interim_backup or pre_gf_backup
+        
+            if save:
+                if abandon_ship:
+                    exit_message = 'EMERGENCY EXIT REQUESTED: '
+                if out_of_time:
+                    exit_message = 'RUNNING OUT OF JOB TIME: '                    
+                if interim_backup:
+                    exit_message = 'HALFWAY THROUGH A LONG JOB: '                    
+                if pre_gf_backup:
+                    exit_message = 'GROUP FINDING COMING UP: '
+                    
+                print(exit_message, 'backing up node state.')
+                
+                restore_time = wall_timer()
+        
+                retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, resume_dir, '--retrieve']
+                subprocess.check_call(Conv_mpirun_cmd + retrieve_state_cmd)
             
-            print('Exiting and requeueing.')
-            return EXIT_REQUEUE  
+                restore_time = wall_timer() - restore_time
+            
+                print(f'Retrieving and storing state took {restore_time} seconds. ', end = '')
+            
+                #checking if path exists explicitly just in case user requested emergency exit while we were retrieveing the state. 
+                if path.exists(emergency_exit_fn): 
+                    os.remove(emergency_exit_fn)
+                
+                if interim_backup:
+                    interim_backup_complete = True 
+                    
+                if exit:
+                    print('Exiting and requeueing.')
+                    return EXIT_REQUEUE  
+                else:
+                    print('Continuing run.')
         
         # Now shift the states down by one
         move_state_dirs(read, write, past)
@@ -1111,23 +1096,22 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1):
 
         # This logic is deliberately consistent with singlestep.cpp
         # If this is an IC step then we won't have read_state
-        if not make_ic and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0:
+        if (not make_ic and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0):
             print(f"Final redshift of {finalz:g} reached; terminating normally.")
             status_log.print(f"Final redshift of {finalz:g} reached; terminating normally.")
             finished = True
-            break
+            break 
+            
+        if parallel and abandon_ship:
+            print(f"Abandon ship triggered! Terminating job.")
+            os.remove(emergency_exit_fn)
+            break       
         
         make_ic = False
         
-        # if redlack_recovery:
-  #           print("Redlack recovery complete. Exiting loop.")
-  #           return 0
-
-        ### end singlestep loop
-
-
     # If there is more work to be done, signal that we are ready for requeue
     if not finished and not ProfilingMode:
+        print(f"About to return EXIT_REQUEUE code {EXIT_REQUEUE}")
         return EXIT_REQUEUE
 
 
@@ -1152,3 +1136,4 @@ def handle_singlestep_error(error):
     '''
     if error.returncode == -signal.SIGBUS:
         print('singlestep died with signal SIGBUS! Did the ramdisk run out of memory?', file=sys.stderr)
+

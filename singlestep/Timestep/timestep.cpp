@@ -414,6 +414,21 @@ void FindCellGroupLinksAction(int slab) {
 // -----------------------------------------------------------------
 
 int DoGlobalGroupsPrecondition(int slab) {
+#ifdef ONE_SIDED_GROUP_FINDING
+    /* We're going to search for GlobalGroups that include cells from
+    slabs [slab,slab+2*GroupRadius].  However, this also includes the idea
+    that we will *not* find groups if they include anything in slab-1.
+    So we must have GroupLinks between [slab-1,slab] as well.  Moreover,
+    we must go all the way up to [slab+2*GR-1,slab+2*GR], as there may
+    be groups that are only now becoming eligible.
+    */
+
+    if (Kick.notdone(slab)) return 0;
+    for (int j=0; j<=2*GROUP_RADIUS; j++){
+        if (FindCellGroupLinks.notdone(slab+j)) return 0;
+    }
+
+#else
     // We're going to close all CellGroups in this slab.
     // GlobalGroups can span 2*GroupRadius+1.
     // But even though we usually encounter a CellGroup in its minimum slab,
@@ -421,7 +436,7 @@ int DoGlobalGroupsPrecondition(int slab) {
     // That said, if the nearby slab has already closed global groups, then
     // we can proceed.  This particularly matters in the parallel version, where
     // we may already have closed groups in higher numbered slabs.
-    
+
     // Look behind; can stop as soon as one finds a closed slab
     // The lower bound has a +1 (> not >=) because FindLinks(n) connects n and n-1
     for (int j=0; j>-2*GROUP_RADIUS; j--) {
@@ -433,27 +448,115 @@ int DoGlobalGroupsPrecondition(int slab) {
         if (DoGlobalGroups.done(slab+j)) break;
         if (FindCellGroupLinks.notdone(slab+j)) return 0;
     }
+#endif
     return 1;
 }
 
 void DoGlobalGroupsAction(int slab) {
     FindAndProcessGlobalGroups(slab);
+
+    // The first 2*GroupRadius times we get here, we can attempt to free
+    // info from slab-1.
+    #ifdef ONE_SIDED_GROUP_FINDING
+        if (DoGlobalGroups.raw_number_executed<2*GROUP_RADIUS) {
+            SendManifest->QueueToSend(slab);
+            SendManifest++;
+        }
+    #endif
+    STDLOG(0,"Exiting Find Global Groups action in slab %d\n", slab);
+	
+}
+
+// -----------------------------------------------------------------
+
+int MicrostepPrecondition(int slab){
+    // We are going to second-half kick this slab
+    if (DoGlobalGroups.notdone(slab))
+        return 0;
+    return 1;
+}
+
+void MicrostepAction(int slab){
+
+    // TODO: This is now not the place to do this.
+    // All kicks (and half-unkicks) for output are done; discard accels.
+    // We de-allocate in Drift if we aren't doing group finding
+    // SB->DeAllocate(AccSlab,slab);
+
+    return;
+    MicrostepCPU.Start();
+    // Do microstepping here
+    if(MicrostepEpochs != NULL){
+        STDLOG(1,"Beginning microsteps for slab %d\n", slab);
+        MicrostepControl *MC = new MicrostepControl;
+        MC->setup(GFC->globalslabs[slab], *MicrostepEpochs, P.MicrostepTimeStep, NFD->eps);
+        //MC->LaunchGroupsGPU();
+        MC->ComputeGroupsCPU();
+
+        GFC->microstepcontrol[slab] = MC;
+    }
+
+	//Dependency do_action() assumes that each dependency processes all particles in a given slab.
+	//Microstepping is an exception; it only does the group particles! Correct the bookkeeping here. 
+	Microstep.num_particles += GFC->globalslabs[slab]->np - SS->size(slab); 
+
+    MicrostepCPU.Stop();
+}
+
+// -----------------------------------------------------------------
+
+int FinishGroupsPrecondition(int slab){
+    // Is the asychronous GPU microstepping done?
+    //if (!GFC->microstepcontrol[slab]->GPUGroupsDone()) return 0
+
+    // We are going to release these groups.
+    // TODO: If Microstep changes, this may change.  At present, we really need Output to be done
+    // because this step triggers the writeback of the new Pos/Vel.
+    if (Microstep.notdone(slab)) return 0;
+    
+    return 1;
+}
+
+void FinishGroupsAction(int slab){
+    // Scatter pos,vel updates to slabs, and release GGS
+    FinishGlobalGroups(slab);   // This will Scatter Pos/Vel
+    delete GFC->microstepcontrol[slab];
+    GFC->microstepcontrol[slab] = NULL;
+
+    // TODO: When we're ready to send Group-based Manifests, it would go here.
+    // Would pass slab+1 to the manifest code as the faux finished slab.
 }
 
 // -----------------------------------------------------------------
 /*
  * Checks if we are ready to do all outputs for this step
  * Anything that modifies the particles at the current time should happen before here
+ * Importantly: the OutputAction is only for non-L0 particles.
+ * L0 particle outputs need to happen in the DoGlobalGroupsAction(),
+ * before Microstepping.
  */
 int OutputPrecondition(int slab) {
-    if (DoGlobalGroups.notdone(slab)) return 0;  // Must have found groups to be able to output light cones
+
+    #ifdef ONE_SIDED_GROUP_FINDING
+    /* This must wait until all groups including the slab have been found.  
+    It used to be that closing groups on the current slab S would do this,
+    but now groups are only found looking upwards from S, so we need to have
+    closed groups on all slabs from S to S-2*GroupRadius, inclusive.
+    */
+    for (int s=0; s<=2*GROUP_RADIUS; s++)
+        if (FinishGroups.notdone(slab-s)) return 0;  
+    // Must have found groups to be able to output light cones
     // note that group outputs were already done
+    #else
+        if (FinishGroups.notdone(slab)) return 0;  
+    #endif
 
     // Note the following conditions only have any effect if group finding is turned off
     
     if (Kick.notdone(slab)) return 0;  // Must have accelerations
 
-    // Also obviously need the aux!
+    // Also obviously need the aux!  This was checked in CellGroups,
+    // but that may have been skipped if there's no group finding.
     if( !SB->IsIOCompleted( AuxSlab, slab ) ){
         if(SB->IsSlabPresent(AuxSlab, slab))
             Dependency::NotifySpinning(WAITING_FOR_IO);
@@ -466,12 +569,20 @@ int OutputPrecondition(int slab) {
 uint64 n_output = 0;
 void OutputAction(int slab) {
 
+    // We are finally done with the groups for this slab.
+    // Delete the Cell Groups.
+    if (GFC!=NULL) GFC->DestroyCellGroups(slab);
+
     int step = WriteState.FullStepNumber;
     if (LPTStepNumber()>0) return;
     // Some output might want to be skipped during an IC step,
     // e.g., no light cones
 
     OutputTimeSlice.Start();
+
+    // Having found all groups, we should output the Non-L0 (i.e., field) Taggable subsample
+    if(ReadState.DoGroupFindingOutput)
+        OutputNonL0Taggable(slab);
 
     if (ReadState.DoTimeSliceOutput) {
         // We've already done a K(1) and thus need a K(-1/2)
@@ -513,60 +624,6 @@ void OutputAction(int slab) {
 }
 
 // -----------------------------------------------------------------
-
-int MicrostepPrecondition(int slab){
-    // We are going to second-half kick this slab
-    if (Output.notdone(slab))
-        return 0;
-    return 1;
-}
-
-void MicrostepAction(int slab){
-    // All kicks (and half-unkicks) for output are done; discard accels.
-    // We de-allocate in Drift if we aren't doing group finding
-    SB->DeAllocate(AccSlab,slab);
-
-    return;
-    MicrostepCPU.Start();
-    // Do microstepping here
-    if(MicrostepEpochs != NULL){
-        STDLOG(1,"Beginning microsteps for slab %d\n", slab);
-        MicrostepControl *MC = new MicrostepControl;
-        MC->setup(GFC->globalslabs[slab], *MicrostepEpochs, P.MicrostepTimeStep, NFD->eps);
-        //MC->LaunchGroupsGPU();
-        MC->ComputeGroupsCPU();
-
-        GFC->microstepcontrol[slab] = MC;
-    }
-
-	//Dependency do_action() assumes that each dependency processes all particles in a given slab.
-	//Microstepping is an exception; it only does the group particles! Correct the bookkeeping here. 
-	Microstep.num_particles += GFC->globalslabs[slab]->np - SS->size(slab); 
-	
-    MicrostepCPU.Stop();
-}
-
-// -----------------------------------------------------------------
-
-int FinishGroupsPrecondition(int slab){
-    // Is the asychronous GPU microstepping done?
-    //if (!GFC->microstepcontrol[slab]->GPUGroupsDone()) return 0
-
-    // We are going to release these groups.
-    if (Microstep.notdone(slab)) return 0;
-    
-    return 1;
-}
-
-void FinishGroupsAction(int slab){
-    // Scatter pos,vel updates to slabs, and release GGS
-    delete GFC->microstepcontrol[slab];
-    GFC->microstepcontrol[slab] = NULL;
-    FinishGlobalGroups(slab);
-    GFC->DestroyCellGroups(slab);
-}
-
-// -----------------------------------------------------------------
 /*
  * Checks if we are ready to load the LPT velocities during an IC step.
  * Should not happen in normal execution
@@ -593,7 +650,7 @@ void FetchLPTVelocityAction(int slab){
  */
 int DriftPrecondition(int slab) {
     // We must have finished scattering into this slab
-    if (FinishGroups.notdone(slab)) return 0;
+    // if (FinishGroups.notdone(slab)) return 0;
     
     // We will move the particles, so we must have done outputs
     if (Output.notdone(slab)) return 0;
@@ -613,7 +670,6 @@ int DriftPrecondition(int slab) {
 }
 
 void DriftAction(int slab) {
-	
     int step = LPTStepNumber();
     if (step) {
         // We have LPT IC work to do
@@ -637,7 +693,8 @@ void DriftAction(int slab) {
     }
     
     // We freed AccSlab in Microstep to save space
-    if (GFC == NULL){
+    // if (GFC == NULL){
+    // TODO: Remove that condition; we always can do this here.
 	    // We kept the accelerations until here because of third-order LPT
 	    if (P.StoreForces && !P.ForceOutputDebug) {
 	        STDLOG(1,"Storing Forces in slab %d\n", slab);
@@ -646,7 +703,7 @@ void DriftAction(int slab) {
 	    else{
 	        SB->DeAllocate(AccSlab,slab);
 	    }
-	}
+	// }
 }
 
 // -----------------------------------------------------------------
@@ -663,10 +720,8 @@ int FinishPrecondition(int slab) {
 uint64 merged_particles = 0;
 void FinishAction(int slab) {
 	FinishPreamble.Start();
-    
     if (WriteState.Do2LPTVelocityRereading)
         SB->DeAllocate(VelLPTSlab, slab);
-	
 	FinishPreamble.Stop(); 
 
     // Gather particles from the insert list and make the merge slabs
@@ -702,14 +757,11 @@ void FinishAction(int slab) {
 	ramdisk_multipole_flag = RAMDISK_AUTO;
 #endif
     SB->AllocateArena(MultipoleSlab,slab, ramdisk_multipole_flag);
-	
 	FinishPreamble.Stop(); 
-		
+
 	STDLOG(2,"About to compute multipoles for slab %d, %p\n", slab, (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab));
-	
     ComputeMultipoleSlab(slab);
-		
-    
+	
     // Write out the particles and multipoles and delete
     WriteMergeSlab.Start();
     SB->StoreArenaNonBlocking(MergePosSlab,slab);
@@ -765,7 +817,10 @@ int CheckForMultipolesPrecondition(int slab) {
 }
 
 void CheckForMultipolesAction(int slab) {
+	STDLOG(1, "Entering Check for Multipoles action and deallocating multipole slab %d\n",  slab);
 	SB->DeAllocate(MultipoleSlab, slab);  
+	STDLOG(1, "Exiting Check for Multipoles action for slab %d\n",  slab);
+	
 }	
 #endif
 // -----------------------------------------------------------------
@@ -785,6 +840,11 @@ void NoopAction(int slab){
  * Registers all of the dependencies and their associated actions.
  * The Dependency module is responsible for running the registered steps.
  */
+
+#define INSTANTIATE(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &dependency##Precondition, &dependency##Action, #dependency); } while(0)
+#define INSTANTIATE_NOOP(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &NoopPrecondition, &NoopAction, ""); } while(0)
+
+
 void timestep(void) { 
 	
     FORCE_RADIUS = P.NearFieldRadius;
@@ -833,19 +893,15 @@ void timestep(void) {
 	
 #endif
 		
-		
     STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
     STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
     STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
-
-	
 
     int nslabs = P.cpd;
     int first = first_slab_on_node;  // First slab to load
     STDLOG(1,"First slab to load will be %d\n", first);
 	
 #ifdef PARALLEL
-	
 	for (int slab = first + FORCE_RADIUS; slab < first + FORCE_RADIUS + total_slabs_on_node; slab ++ ){
     	SB->AllocateArena(TaylorSlab, slab, RAMDISK_NO); 
 		ParallelConvolveDriver->RecvTaylorSlab(slab); 
@@ -853,36 +909,44 @@ void timestep(void) {
 	}
 #endif
 
-#define INSTANTIATE(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &dependency##Precondition, &dependency##Action, #dependency); } while(0)
-#define INSTANTIATE_NOOP(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &NoopPrecondition, &NoopAction, ""); } while(0)
 
     INSTANTIATE(                  FetchSlabs, 0);
     INSTANTIATE(                TransposePos, 0);
     INSTANTIATE(                   NearForce, FORCE_RADIUS);
     INSTANTIATE(                 TaylorForce, FORCE_RADIUS);
     INSTANTIATE(                        Kick, FORCE_RADIUS);
-    INSTANTIATE(                      Output, FORCE_RADIUS + 2*GROUP_RADIUS);
-    INSTANTIATE(                       Drift, FORCE_RADIUS + 2*GROUP_RADIUS);
-    INSTANTIATE(                      Finish, FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS);
+    #ifdef ONE_SIDED_GROUP_FINDING
+        int first_outputslab = FORCE_RADIUS + 1 + 2*GROUP_RADIUS;
+    #else
+        int first_outputslab = FORCE_RADIUS + 2*GROUP_RADIUS;
+    #endif
+    INSTANTIATE(                      Output, first_outputslab);
+    INSTANTIATE(                       Drift, first_outputslab);
+    INSTANTIATE(                      Finish, first_outputslab + FINISH_WAIT_RADIUS);
 #ifdef PARALLEL
-    INSTANTIATE(          CheckForMultipoles, FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS);
+    INSTANTIATE(          CheckForMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #else
-    INSTANTIATE_NOOP(     CheckForMultipoles, FORCE_RADIUS + 2*GROUP_RADIUS + FINISH_WAIT_RADIUS);
+    INSTANTIATE_NOOP(     CheckForMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #endif
             
     // If group finding is disabled, we can make the dependencies no-ops so they don't hold up the pipeline
+    #ifdef ONE_SIDED_GROUP_FINDING
+        int first_groupslab = FORCE_RADIUS+1;
+    #else
+        int first_groupslab = FORCE_RADIUS+2*GROUP_RADIUS;
+    #endif
     if(GFC != NULL){
         INSTANTIATE(          MakeCellGroups, FORCE_RADIUS);
         INSTANTIATE(      FindCellGroupLinks, FORCE_RADIUS + 1);
-        INSTANTIATE(          DoGlobalGroups, FORCE_RADIUS + 2*GROUP_RADIUS);
-        INSTANTIATE(               Microstep, FORCE_RADIUS + 2*GROUP_RADIUS);
-        INSTANTIATE(            FinishGroups, FORCE_RADIUS + 2*GROUP_RADIUS);
+        INSTANTIATE(          DoGlobalGroups, first_groupslab);
+        INSTANTIATE(               Microstep, first_groupslab);
+        INSTANTIATE(            FinishGroups, first_groupslab);
     } else {
         INSTANTIATE_NOOP(     MakeCellGroups, FORCE_RADIUS);
         INSTANTIATE_NOOP( FindCellGroupLinks, FORCE_RADIUS + 1);
-        INSTANTIATE_NOOP(     DoGlobalGroups, FORCE_RADIUS + 2*GROUP_RADIUS);
-        INSTANTIATE_NOOP(          Microstep, FORCE_RADIUS + 2*GROUP_RADIUS);
-        INSTANTIATE_NOOP(       FinishGroups, FORCE_RADIUS + 2*GROUP_RADIUS);
+        INSTANTIATE_NOOP(     DoGlobalGroups, first_groupslab);
+        INSTANTIATE_NOOP(          Microstep, first_groupslab);
+        INSTANTIATE_NOOP(       FinishGroups, first_groupslab);
     }
            
     if(WriteState.Do2LPTVelocityRereading)
@@ -908,12 +972,17 @@ void timestep(void) {
                 Drift.Attempt();
                Finish.Attempt();
 			   
-	    // TODO: The following line will be omitted once the MPI monitoring thread is in place.
-           SendManifest->FreeAfterSend();
+        CheckSendManifest();  // We look at each Send Manifest to see if there's material to free.
+                        //   SendManifest->FreeAfterSend();
 	    ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
 	
 	    // If the manifest has been received, install it.
-	    if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
+	    if (ReceiveManifest->is_ready()) {
+            ReceiveManifest->ImportData();
+            ReceiveManifest++;
+            STDLOG(1, "Readying the next Manifest, number %d\n", ReceiveManifest-_ReceiveManifest);
+            ReceiveManifest->SetupToReceive();
+        }
 	    CheckForMultipoles.Attempt();	
 		
 #ifdef PARALLEL
@@ -922,22 +991,15 @@ void timestep(void) {
 		timestep_loop_complete = Finish.alldone(total_slabs_on_node);
 #endif
     }
-
-
-	WrappingUp1.Clear(); WrappingUp1.Start(); 
 	
     if(IL->length!=0)
         IL->DumpParticles();
     
     assertf(IL->length==0, 
         "Insert List not empty (%d) at the end of timestep().  Time step too big?\n", IL->length);
-		
-		
     
     STDLOG(1,"Finished timestep dependency loop!\n");
 
-	
-	
     if (GFC != NULL) assertf(GFC->GLL->length==0,
 	"GroupLinkList not empty (%d) at the end of timestep.  Global group finding didn't run properly.\n", GFC->GLL->length);
 
@@ -945,24 +1007,17 @@ void timestep(void) {
     if(GFC != NULL)
         total_n_output += GFC->n_L0_output;
 	
-	WrappingUp1.Stop(); 
 	
-    #ifdef PARALLEL
-	
-		WrappingUp2.Clear(); WrappingUp2.Start(); 
-	
+    #ifdef PARALLEL	
     	MPI_REDUCE_TO_ZERO(&total_n_output,   1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);		
         MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);		
 		
         STDLOG(2,"Ready to proceed to the remaining work\n");
-		
-		WrappingUp2.Stop(); 
-		
-		BarrierWallClock.Clear(); BarrierWallClock.Start();
 				
+		BarrierWallClock.Clear(); BarrierWallClock.Start();
         MPI_Barrier(MPI_COMM_WORLD);
-		
 		BarrierWallClock.Stop(); 
+		
         // This MPI call also forces a synchronization over the MPI processes, 
         // so things like Reseting GPUs could fire multiple times on one node.
         SendManifest->FreeAfterSend();

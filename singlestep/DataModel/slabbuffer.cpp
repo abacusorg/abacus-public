@@ -158,6 +158,12 @@ public:
         return AA->IsArenaPresent(id);
     }
 
+    void MarkSlabUnavailable(int type, int slab) {
+        int id = TypeSlab2ID(type,slab);
+        AA->MarkArenaUnavailable(id);
+        return;
+    }
+
     uint64 SlabSizeBytes(int type, int slab) {
         int id = TypeSlab2ID(type,slab);
         return AA->ArenaSizeBytes(id);

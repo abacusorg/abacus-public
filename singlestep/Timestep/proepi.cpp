@@ -47,11 +47,7 @@ STimer ComputeMultipoles;
 STimer WriteMergeSlab;
 STimer WriteMultipoleSlab;
 STimer QueueMultipoleMPI; 
-STimer PCDDestructor; 
-STimer WrappingUp1;
-STimer WrappingUp2;
 STimer ParallelConvolveDestructor; 
-
 
 STimer OutputTimeSlice;
 STimer OutputLightCone;
@@ -137,6 +133,10 @@ CellParticles *CP;
 // Need this for both insert.cpp and timestep.cpp.
 int FINISH_WAIT_RADIUS = 1;
 
+// Forward-declare GFC
+class GroupFindingControl;
+GroupFindingControl *GFC;
+
 #include "multiappendlist.cpp"
 #include "insert.cpp"
 #include "drift.cpp"
@@ -161,16 +161,12 @@ Redlack *RL;
 
 #include "check.cpp"
 
-// Forward-declare GFC
-class GroupFindingControl;
-GroupFindingControl *GFC;
-
 #include "Cosmology.cpp"
 Cosmology *cosm;
 #include "lpt.cpp"
+
 #include "output_timeslice.cpp"
 #include "LightCones.cpp"
-
 #include "loadIC.cpp"
 
 #include "binning.cpp"
@@ -178,6 +174,7 @@ FLOAT * density; //!< Array to accumulate gridded densities in for low resolutio
 
 #include "groupfinding.cpp"
 #include "microstep.cpp"
+#include "output_field.cpp"    // Field particle subsample output
 
 int first_slab_on_node, total_slabs_on_node, first_slab_finished;
 int * first_slabs_all = NULL;
@@ -194,12 +191,38 @@ int * total_slabs_all = NULL;
 #include <fenv.h>
 
 
+void InitializeParallel(int &size, int &rank) {
+    #ifdef PARALLEL
+         // Start up MPI
+         int init = 1;
+         MPI_Initialized(&init);
+         assertf(!init, "MPI was already initialized!\n");
+
+         int ret = -1;
+         MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
+         assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
+         MPI_Comm_size(MPI_COMM_WORLD, &size);
+         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+         sprintf(NodeString,".%04d",rank);
+    #else
+    #endif
+    return;
+}
+
+void FinalizeParallel() {
+    #ifdef PARALLEL
+
+        // Finalize MPI
+        STDLOG(0,"Calling MPI_Finalize()\n");
+        MPI_Finalize();
+    #else
+    #endif
+}
 /*! \brief Initializes global objects
  *
  */
-void Prologue(Parameters &P, bool MakeIC, int recover_redlack = 0) {
+void Prologue(Parameters &P, bool MakeIC) {
     STDLOG(1,"Entering Prologue()\n");
-	STDLOG(2,"Recover redlack = %d\n", recover_redlack);
     STDLOG(2,"Size of accstruct is %d bytes\n", sizeof(accstruct));
     prologue.Clear();
     prologue.Start();
@@ -219,7 +242,7 @@ void Prologue(Parameters &P, bool MakeIC, int recover_redlack = 0) {
     // put all particles into input slab 0.
 
     // Call this to setup the Manifests
-    SetupManifest();
+    SetupManifest(2*P.GroupRadius+1);
 
     Grid = new grid(cpd);
     SB = new SlabBuffer(cpd, order, P.MAXRAMMB*1024*1024);
@@ -260,7 +283,8 @@ void Prologue(Parameters &P, bool MakeIC, int recover_redlack = 0) {
         SlabForceLatency = new STimer[cpd];
         SlabFarForceTime = new STimer[cpd];
 
-		if (!recover_redlack) RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
+		RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
+
         NFD = new NearFieldDriver(P.NearFieldRadius);
     } else {
         TY = NULL;
@@ -270,21 +294,6 @@ void Prologue(Parameters &P, bool MakeIC, int recover_redlack = 0) {
 
     prologue.Stop();
     STDLOG(1,"Leaving Prologue()\n");
-}
-
-void RecoverRedlackDipole(Parameters &P){
-	STDLOG(1, "Recovering redlack and globaldipole files\n");
-  
-    // Some pipelines, like standalone_fof, don't use multipoles
-    if(MF != NULL){
-        MF->GatherRedlack();    // For the parallel code, we have to coadd the inputs
-        if (MPI_rank==0) {
-            MF->ComputeRedlack();  // NB when we terminate SlabMultipoles we write out these
-            if (WriteState.NodeRank==0)
-                MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
-        }
-        delete MF;
-    }
 }
 
 /*! \brief Tears down global objects
@@ -297,14 +306,14 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     // IO_Terminate();
 
-    if(IL->length!=0) { IL->DumpParticles(); assert(IL->length==0); }
-    
+	if(IL->length!=0) { IL->DumpParticles(); assert(IL->length==0); }
+
     if(SS != NULL){
         SS->store_from_params(P);
-    }
+   	}
 
-    // Some pipelines, like standalone_fof, don't use multipoles
-    if(MF != NULL){
+    
+    if(MF != NULL){ // Some pipelines, like standalone_fof, don't use multipoles
         MF->GatherRedlack();    // For the parallel code, we have to coadd the inputs
         if (MPI_rank==0) {
             MF->ComputeRedlack();  // NB when we terminate SlabMultipoles we write out these
@@ -315,14 +324,14 @@ void Epilogue(Parameters &P, bool MakeIC) {
     }
 
     if(ReadState.DoBinning){
-            STDLOG(1,"Outputting Binned Density\n");
-            char denfn[2048];
-            // TODO: Should this be going to ReadState or WriteState or Output?
-            sprintf(denfn,"%s/density%s",P.ReadStateDirectory, NodeString);
-            FILE * densout = fopen(denfn,"wb");
-            fwrite(density,sizeof(FLOAT),P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d,densout);
-            fclose(densout);
-            delete density; density = 0;
+        STDLOG(1,"Outputting Binned Density\n");
+        char denfn[2048];
+        // TODO: Should this be going to ReadState or WriteState or Output?
+        sprintf(denfn,"%s/density%s",P.ReadStateDirectory, NodeString);
+        FILE * densout = fopen(denfn,"wb");
+        fwrite(density,sizeof(FLOAT),P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d,densout);
+        fclose(densout);
+        delete density; density = 0;
     }
 
     SB->report();
@@ -332,7 +341,8 @@ void Epilogue(Parameters &P, bool MakeIC) {
     delete IL;
     delete SS;
     delete Grid;
-    FreeManifest();
+	
+	FreeManifest();
 
 
     if(!MakeIC) {
@@ -410,7 +420,7 @@ void init_openmp(){
         for(int g = 0; g < nthreads; g++)
             core_log << " " << g << "->" << core_assignments[g];
         core_log << "\n";
-        STDLOG(2, core_log.str().c_str());
+        STDLOG(1, core_log.str().c_str());
         
         for(int g = 0; g < nthreads; g++)
             for(int h = 0; h < g; h++)
@@ -419,7 +429,7 @@ void init_openmp(){
         // Assign the main CPU thread to core 0 to avoid the GPU/IO threads during serial parts of the code
         int main_thread_core = 0;
         set_core_affinity(main_thread_core);
-        STDLOG(2, "Assigning main singlestep thread to core %d\n", main_thread_core);
+        STDLOG(1, "Assigning main singlestep thread to core %d\n", main_thread_core);
     }
 }
 

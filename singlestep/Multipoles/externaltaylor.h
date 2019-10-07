@@ -13,16 +13,15 @@ extern "C" void DispatchTaylorAVXKernel(int order, d4 * px, d4 * py, d4 * pz, d4
 #ifdef AVX512MULTIPOLES
 #include "avx512_calls.h"
 
-void DispatchTaylor512Kernel(int order, AVX512_DOUBLES &px, AVX512_DOUBLES &py, AVX512_DOUBLES &pz, AVX512_DOUBLES &cx, AVX512_DOUBLES &cy, AVX512_DOUBLES &cz,
-                                 AVX512_DOUBLES *tx, AVX512_DOUBLES *ty, AVX512_DOUBLES *tz, AVX512_DOUBLES &ax, AVX512_DOUBLES &ay, AVX512_DOUBLES &az )
+void DispatchTaylor512Kernel(int order, double *CT, FLOAT3 center, int n, FLOAT3 *xyz, FLOAT3 *acc);
 #endif
 
 #ifdef UNROLLEDMULTIPOLES
-void DispatchTaylorUnrolledKernel(int order, FLOAT3 *p, int n, double3 center, double3 *Q, float3 *acc);
+void DispatchTaylorUnrolledKernel(int order, FLOAT3 *p, int n, double3 center, double *CT, float3 *acc);
 #endif
 
 #ifdef VSXMULTIPOLES
-void DispatchTaylorVSXKernel(int order, FLOAT3 *p, int n, double3 center, double3 *Q, float3 *acc);
+void DispatchTaylorVSXKernel(int order, FLOAT3 *p, int n, double3 center, double *CT, float3 *acc);
 #endif
 
 

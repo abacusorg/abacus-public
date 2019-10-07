@@ -45,7 +45,11 @@ to the rest of the code, because it needs CUDA.
 #include "config.h"
 #include "header.cpp"
 
+
+#ifdef __INTEL_COMPILER
 #include <x86intrin.h>  // needed for _rdtsc(). only for nvcc using icc with certain gcc versions?
+#endif
+
 #include <cstring>
 #include <cstdio>
 #include <cassert>
