@@ -32,7 +32,11 @@ So we actually are limited to about 680 million particles in a cell.
 #define accstruct FLOAT3
 #endif
 
-#define AUXPID (uint64)  0xffffffffff	// The lower 5 bytes, bits 0..39
+
+#define AUXXPID (uint64) 0x7FFF	// Bits 0 to 14
+#define AUXYPID (uint64) 0x3FFF8000 // Bits 16 to 30
+#define AUXZPID (uint64) 0x7FFF00000000 // 32 to 46
+
 #define AUXLCZEROBIT 40		// The LC bits are 40..47
 #define AUXLC  (uint64)0xff0000000000	// The next byte
 #define AUXTAGGABLEBIT 48llu //Can the particle be tagged.//this will be deprecated. 
@@ -103,7 +107,7 @@ public:
 
     #define TAGGABLE_SUB_A 1
     #define TAGGABLE_SUB_B 2
-    inline int is_taggable() {
+    inline int is_taggable() { // >> and mask
         if      (aux & ((uint64)1 << AUXSUB_A_TAGGABLEBIT)) return TAGGABLE_SUB_A; 
         else if (aux & ((uint64)1 << AUXSUB_B_TAGGABLEBIT)) return TAGGABLE_SUB_B; 
         else return 0; 
