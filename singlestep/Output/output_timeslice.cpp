@@ -53,7 +53,7 @@ void WriteHeaderFile(const char* fn){
 	headerfile.open(fn);
 	headerfile << P.header();
 	headerfile << ReadState.header();
-	headerfile << "\nOutputType = \"TimeSlice\"\n";
+	headerfile << "\nOutputType = \"FieldTimeSlice\"\n";
 	headerfile.close();
 }
 
@@ -65,10 +65,10 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
 
     // Setup the Arena
     int headersize = 1024*1024;
-    SB->AllocateSpecificSize(TimeSlice, slab, 
+    SB->AllocateSpecificSize(FieldTimeSlice, slab, 
     	   SS->size(slab)*(AA->sizeof_particle())
 	+ CP->cpd*(CP->cpd)*(AA->sizeof_cell()) + headersize);
-    AA->initialize(TimeSlice, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
+    AA->initialize(FieldTimeSlice, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
 
     // Write the header to its own file
     if(slab == 0){
@@ -84,7 +84,7 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
         AA->addheader((const char *) P.header());
         AA->addheader((const char *) ReadState.header());
         char head[1024];
-        sprintf(head, "\nOutputType = \"TimeSlice\"\n"); 
+        sprintf(head, "\nOutputType = \"FieldTimeSlice\"\n"); 
         AA->addheader((const char *) head);
         sprintf(head, "SlabNumber = %d\n", slab);
         AA->addheader((const char *) head);
@@ -124,10 +124,10 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
             AA->endcell();
         }
 
-    SB->ResizeSlab(TimeSlice, slab, AA->bytes_written());
+    SB->ResizeSlab(FieldTimeSlice, slab, AA->bytes_written());
 
     // Write out this time slice
-    SB->StoreArenaNonBlocking(TimeSlice, slab);
+    SB->StoreArenaNonBlocking(FieldTimeSlice, slab);
     delete AA;
     
     return n_added;

@@ -51,7 +51,7 @@ void OutputNonL0Taggable(int slab) {
     //NAM not happy with this... 
 
     double subsample_fracs[NUM_SUBSAMPLES] = {P.ParticleSubsampleA, P.ParticleSubsampleB}; 
-    int slab_type[2*NUM_SUBSAMPLES] = {FieldSlabA, FieldSlabB, FieldPIDSlabA, FieldPIDSlabB}; 
+    int slab_type[2*NUM_SUBSAMPLES] = {FieldRVSlabA, FieldRVSlabB, FieldPIDSlabA, FieldPIDSlabB}; 
 
     for (int i = 0; i < NUM_SUBSAMPLES; i++){
             // TODO: better heuristic? what will happen in very small sims?  

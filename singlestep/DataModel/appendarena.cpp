@@ -429,9 +429,9 @@ class OutputRVZel: public AppendArena {
 Sample use:
 */
 
-    SB->AllocateSpecificSize(TimeSlice, slab, (SS->size(slab)+CP->cpd*(CP->cpd))*sizeof(PACKED));
-    char *start = SB->GetSlabPtr(TimeSlice,slab);
-    AppendArena AA(start, SB->SlabSizeBytes(TimeSlice,slab));
+    SB->AllocateSpecificSize(FieldTimeSlice, slab, (SS->size(slab)+CP->cpd*(CP->cpd))*sizeof(PACKED));
+    char *start = SB->GetSlabPtr(FieldTimeSlice,slab);
+    AppendArena AA(start, SB->SlabSizeBytes(FieldTimeSlice,slab));
 
     FLOAT vel_to_zspace = 1.0;   // Factor to convert from canonical to zspace
     FLOAT kickfactor = 1.0;	   // Amount to unkick.
@@ -460,9 +460,9 @@ Sample use:
             AA.endcell();
         }
 
-    SB->ResizeSlab(TimeSlice, slab, AA.bytes_written());
+    SB->ResizeSlab(FieldTimeSlice, slab, AA.bytes_written());
 
     char filename[1024]; 	// Make the file name!
-    SB->WriteArena(TimeSlice, slab, IO_DELETE, IO_NONBLOCKING, filename);
+    SB->WriteArena(FieldTimeSlice, slab, IO_DELETE, IO_NONBLOCKING, filename);
 
 #endif

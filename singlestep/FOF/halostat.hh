@@ -11,9 +11,9 @@ class HaloStat {
   public:
     uint64_t id;	///< A unique halo number.
     uint64_t npstartA;	///< Where to start counting in the particle output for subsample A
-    uint64_t npoutA;	///< Number of taggable particles pos/vel/aux written out in subsample A
+    uint32_t npoutA;	///< Number of taggable particles pos/vel/aux written out in subsample A
     uint64_t npstartB;  ///< Where to start counting in the particle output for subsample B
-    uint64_t npoutB;    ///< Number of taggable particles pos/vel/aux written out in subsample B
+    uint32_t npoutB;    ///< Number of taggable particles pos/vel/aux written out in subsample B
 
     uint64_t taggedstart;   ///< Where to start counting in the tagged particle output
     uint64_t ntagged;	    ///< Number of tagged particle PIDs written out.
@@ -24,12 +24,15 @@ class HaloStat {
 
     float x[3];      ///< Center of mass position
     float v[3];      ///< Center of mass velocity
-    float sigmav[3];  ///< sqrt(Eigenvalues) of the velocity tensor
+    float sigmavSum;  ///< sqrt( Eigenvalues of the velocity tensor, squared, added), sqrt(sigma_1^2 + sigma_2^2 + sigma_3^2) 
+    int16_t sigmavz_to_sigmav; ///< sigmav_z / sigmavSum, compressed
+    int16_t sigmavx_to_sigmav; ///< sigmav_x / sigmavSum, compressed
+    int16_t sigmav_eigenvecs;  ///<Eigenvectors of the velocity dispersion tensor, compressed into 16 bits. Compression format TBD. 
     //float r25, r50, r75, r90;   ///< Radii of this percentage of mass
     float r100; ///<Radius of 100% of mass 
 	int16_t r10, r25, r50, r67, r75, r90; ///<Expressed as ratios of r100, and scaled to 32000 to store as int16s. 
-	float sigmar100; ///<Second moments about the mean of/for all particles falling within r100. 
-	int16_t sigmar10, sigmar25, sigmar50, sigmar67, sigmar75, sigmar90; ///<Second moments about the mean of/for all particles falling within r_n. 
+    int16_t sigmar[3]; ///<sqrt( Eigenvalues of the moment of inertia tensor ) 
+    int16_t sigmar_eigenvecs;  ///<Eigenvectors of the moment of inertia tensor, compressed into 16 bits. Compression format TBD. 
 	
     float   vcirc_max; ///< max velocity 
 	int16_t rvcirc_max; ///< radius of max velocity, stored as int16 ratio of r100 scaled by 32000.
@@ -73,7 +76,7 @@ class TaggedPID {
   public:
     uint64_t _pid;
     uint64_t pid() { return _pid; }
-    TaggedPID(uint64_t p) { _pid = p; }
+    TaggedPID(auxstruct a) { _pid = a.aux & AUX_PID_TAG_DENS_MASK; }
 };
 
 class RVfloatPID {

@@ -7,11 +7,11 @@
 
 #include "particle_subsample.cpp"
 
-// Unpack a TimeSlice pack14 slab into pos,vel,aux,cellinfo slabs
+// Unpack a FieldTimeSlice pack14 slab into pos,vel,aux,cellinfo slabs
 // This is used by our standalone_fof pipeline
 int64_t unpack_slab_pack14(int slab, double taggable_frac) {
-    void *rawslab = SB->GetSlabPtr(TimeSlice, slab);
-    uint64 rawsize = SB->SlabSizeBytes(TimeSlice, slab);
+    void *rawslab = SB->GetSlabPtr(FieldTimeSlice, slab);
+    uint64 rawsize = SB->SlabSizeBytes(FieldTimeSlice, slab);
     FILE *buffer_file = fmemopen(rawslab, rawsize, "rb");
     assert(buffer_file != NULL);
 

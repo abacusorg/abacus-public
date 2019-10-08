@@ -57,6 +57,7 @@ When we store into the output TaggedPID format, we apply a bit mask to zero all 
 #define AUXZPID  (uint64)  0x7fff00000000  // bits 32 - 46
 
 #define AUXTAGGEDBIT 48llu //Has the particle been tagged
+#define AUXDENSITYZEROBIT 49llu //The density bits are 49-58. 
 #define AUXDENSITY (uint64) 0x7fe000000000000 //bits 49-58
 #define AUXINL0BIT 15llu //Is the particle in a level 0 group
 #define AUXINL1BIT 31llu //Is the particle in a level 1 group
@@ -69,7 +70,8 @@ When we store into the output TaggedPID format, we apply a bit mask to zero all 
 #define AUXLCZEROBIT 61llu		// The LC bits are 61,62,63.
 #define AUXLC  (uint64)0xe000000000000000	// The next three bits.
 
-#define AUXPIDMASK 0x07ff7fff7fff7fff //this masks out everything except for bits 0-14 (x pid), 16-30 (y pid), 32-46 (z pid), 48 (tagged), 49-58 (density).
+#define AUX_PID_TAG_DENS_MASK 0x07ff7fff7fff7fff //this masks out everything except for bits 0-14 (x pid), 16-30 (y pid), 32-46 (z pid), 48 (tagged), 49-58 (density).
+#define AUXPIDMASK 0x7fff7fff7fff
 
 class auxstruct {
 public:
@@ -165,7 +167,11 @@ public:
     inline bool is_tagged() {
         return aux & ((uint64)1 << AUXTAGGEDBIT);
     }
+    inline void set_density(uint64 _density){
+        assert(_density < (AUXDENSITY >> AUXDENSITYZEROBIT)); 
+        aux |= ((uint64) _density << AUXDENSITYZEROBIT);
 
+    }
     inline void reset_L01_bits() {
         // We need to be able to unset these bits each time we run groupfinding
         uint64 mask = ((uint64)1 << AUXINL0BIT) + ((uint64)1 << AUXINL1BIT);

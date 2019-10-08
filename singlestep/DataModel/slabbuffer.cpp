@@ -35,20 +35,19 @@ enum SlabType { CellInfoSlab,           //0
                 InsertCellInfoSlab,     //12
                 NearAccSlab,            //13
                 FarAccSlab,             //14
-                TimeSlice,              //15
-                TimeSlicePIDs,          //16
+                FieldTimeSlice,              //15
+                FieldTimeSlicePIDs,          //16
                 VelLPTSlab,             //17
                 CellGroupArena,         //18
                 NearField_SIC_Slab,     //19
                 
                 L1halosSlab,            //20
-                TaggedPIDsSlab,         //21
-                L1ParticlesSlabA,  //22
-                L1ParticlesSlabB,  //23
+                HaloRVSlabA,  //22
+                HaloRVSlabB,  //23
                 HaloPIDsSlabA,     //24
                 HaloPIDsSlabB,     //25
-                FieldSlabA,        //26
-				FieldSlabB,        //27
+                FieldRVSlabA,        //26
+				FieldRVSlabB,        //27
                 FieldPIDSlabA,     //28
                 FieldPIDSlabB,     //29
                 L0TimeSlice,            //30
@@ -57,11 +56,6 @@ enum SlabType { CellInfoSlab,           //0
                 LightCone0,             //32
                 LightCone1,             //33
                 LightCone2,             //34
-                LightCone3,             //35
-                LightCone4,             //36
-                LightCone5,             //37
-                LightCone6,             //38
-                LightCone7,             //39
 
                 NUMTYPES
                 };
@@ -334,25 +328,23 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         case AccSlab             : { ss << P.OutputDirectory << "/acc_"            << slabnum; break; }
         case NearAccSlab         : { ss << P.OutputDirectory << "/nearacc_"        << slabnum; break; }
         case FarAccSlab          : { ss << P.OutputDirectory << "/faracc_"         << slabnum; break; }
-
-        case TaggedPIDsSlab        : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/tagged_pids_"         << slabnum; break;}
        
         case L1halosSlab           : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_info_"           << slabnum; break;}
 		
-        case HaloPIDsSlabA    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_pids_subBig_"    << slabnum; break;}
-        case HaloPIDsSlabB    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_pids_subSml_"    << slabnum; break;}
-        case FieldPIDSlabA    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_pids_subBig_"   << slabnum; break;}
-        case FieldPIDSlabB    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_pids_subSml_"   << slabnum; break;}
+        case HaloPIDsSlabA    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_pids_A_"    << slabnum; break;}
+        case HaloPIDsSlabB    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_pids_B_"    << slabnum; break;}
+        case FieldPIDSlabA    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_pids_A_"   << slabnum; break;}
+        case FieldPIDSlabB    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_pids_B_"   << slabnum; break;}
 		
-        case L1ParticlesSlabA : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_rv_subBig_"      << slabnum; break;}
-        case L1ParticlesSlabB : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_rv_subSml_"      << slabnum; break;}
-        case FieldSlabA       : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_rv_subBig_"     << slabnum; break;}
-        case FieldSlabB       : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_rv_subSml_"     << slabnum; break;}
+        case HaloRVSlabA : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_rv_A_"      << slabnum; break;}
+        case HaloRVSlabB : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_rv_B_"      << slabnum; break;}
+        case FieldRVSlabA       : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_rv_A_"     << slabnum; break;}
+        case FieldRVSlabB       : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_rv_B_"     << slabnum; break;}
 
         case L0TimeSlice          : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".L0.dat"; break; }
-        case TimeSlice            : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field.dat"; break; }
+        case FieldTimeSlice            : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field.dat"; break; }
         case L0TimeSlicePIDs      : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".L0_pids.dat"; break; }
-        case TimeSlicePIDs        : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pids.dat"; break; }
+        case FieldTimeSlicePIDs        : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pids.dat"; break; }
 		
         default:
             QUIT("Illegal type %d given to WriteSlabPath()\n", type);
@@ -389,7 +381,7 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
         case VelSlab       : { ss << P.LocalReadStateDirectory << "/velocity_"   << slabnum; break; }
         case AuxSlab       : { ss << P.LocalReadStateDirectory << "/auxillary_"  << slabnum; break; }
         case VelLPTSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
-        case TimeSlice     : { ss << WriteSlabPath(type, slab); }  // used for standalone FOF
+        case FieldTimeSlice     : { ss << WriteSlabPath(type, slab); }  // used for standalone FOF
 
         default:
             QUIT("Illegal type %d given to ReadSlabPath()\n", type);
@@ -442,8 +434,8 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
             else
                 QUIT("Unknown ICFormat for re-reading LPT IC velocities\n");
         }
-        case TimeSlice : {
-            return fsize(ReadSlabPath(TimeSlice,slab).c_str());
+        case FieldTimeSlice : {
+            return fsize(ReadSlabPath(FieldTimeSlice,slab).c_str());
         }
         
         /* // Ideally this is how we would allocate group finding arenas
