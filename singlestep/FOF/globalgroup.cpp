@@ -1167,18 +1167,19 @@ void GlobalGroupSlab::HaloOutput() {
                               xv.vel[1] *= 1./ReadState.VelZSpace_to_Canonical;
                               xv.vel[2] *= 1./ReadState.VelZSpace_to_Canonical;
                               return xv; } );
-        SB->StoreArenaNonBlocking(L1ParticlesSlabA, slab);
-        SB->StoreArenaNonBlocking(L1ParticlesSlabB, slab);
+
+        if (P.ParticleSubsampleA > 0) SB->StoreArenaNonBlocking(L1ParticlesSlabA, slab);
+        if (P.ParticleSubsampleB > 0) SB->StoreArenaNonBlocking(L1ParticlesSlabB, slab);
     }
 
     // Write out the PIDs of the taggable particles in the halos. If DoSubsampleOutput, store L0 and L1. If DoGrpFindingOutput only, do L1 only. 
     SB->AllocateSpecificSize(HaloPIDsSlabA, slab, HaloPIDsA.get_slab_bytes());
     HaloPIDsA.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(HaloPIDsSlabA, slab));
-    SB->StoreArenaNonBlocking(HaloPIDsSlabA, slab);
+    if (P.ParticleSubsampleA > 0) SB->StoreArenaNonBlocking(HaloPIDsSlabA, slab);
 
     SB->AllocateSpecificSize(HaloPIDsSlabB, slab, HaloPIDsB.get_slab_bytes());
     HaloPIDsB.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(HaloPIDsSlabB, slab));
-    SB->StoreArenaNonBlocking(HaloPIDsSlabB, slab);
+    if (P.ParticleSubsampleB > 0) SB->StoreArenaNonBlocking(HaloPIDsSlabB, slab);
 
     GFC->OutputLevel1.Stop();
     return;

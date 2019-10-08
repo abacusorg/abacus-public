@@ -48,6 +48,9 @@ When we store into the output TaggedPID format, we apply a bit mask to zero all 
 #define accstruct FLOAT3
 #endif
 
+#ifndef uint16
+#define uint16 uint16_t
+#endif
 
 #define AUXXPID  (uint64)  0x7fff	// bits 0 - 14 (right-most)
 #define AUXYPID  (uint64)  0x7fff0000  // bits 16 - 30
@@ -95,19 +98,19 @@ public:
 
     void setpid(integer3 _pid) { 
         uint16 max = (uint16) AUXXPID; 
-            assert(pid.x <= max and pid.y <= max and pid.z <= max);
-        uint16 pid[3] = {_pid.x, _pid.y, _pid.z}; 
+            assert(_pid.x <= max and _pid.y <= max and _pid.z <= max);
+        uint16 pid[3] = {(uint16) _pid.x, (uint16) _pid.y, (uint16) _pid.z}; 
         setpid(pid); 
     }
 
-    void setpid(uint16 * pid) { 
+    void setpid(uint16 * _pid) { 
         uint16 max = (uint16) AUXXPID; 
-           assert(pid[0] <= max and pid[1] <= max and pid[2] <= max);
-        setpid((uint64) pid[0] | (uint64) pid[1]<<16| (uint64) pid[2] <<32);
+           assert(_pid[0] <= max and _pid[1] <= max and _pid[2] <= max);
+        setpid((uint64) _pid[0] | (uint64) _pid[1]<<16| (uint64) _pid[2] <<32);
     }
 
-    void setpid(uint64 pid) {
-        aux = pid | (aux &~ AUXPIDMASK); 
+    void setpid(uint64 _pid) {
+        aux = _pid | (aux &~ AUXPIDMASK); 
     }
     // We will provide a group ID too; this may overwrite the PID.
     uint64 gid() { return pid(); }
@@ -123,7 +126,7 @@ public:
     }
 
     inline bool lightconedone(uint64 mask) {
-        assert (mask<=AUXLC && mask >= a);  // better way to do this...
+        assert (mask<=AUXLC && mask >= AUXPIDMASK);  // better way to do this...
         return (aux&mask);
     }
     inline bool lightconedone(int number) {
@@ -139,20 +142,20 @@ public:
 
     inline void set_taggable_subA() {
         // The TAGGABLE SUBA bit should be set at the beginning of the sim and not changed.
-        aux |= ((uint64)1 << AUXSUB_A_TAGGABLEBIT);
+        aux |= ((uint64)1 << AUXTAGGABLE_A_BIT);
     }
 
     // Group and subsample related bits
     inline void set_taggable_subB() {
         // The TAGGABLE SUBB bit should be set at the beginning of the sim and not changed.
-        aux |= ((uint64)1 << AUXSUB_B_TAGGABLEBIT);
+        aux |= ((uint64)1 << AUXTAGGABLE_B_BIT);
     }
 
     #define TAGGABLE_SUB_A 1
     #define TAGGABLE_SUB_B 2
     inline int is_taggable() { // >> and mask
-        if      (aux & ((uint64)1 << AUXSUB_A_TAGGABLEBIT)) return TAGGABLE_SUB_A; 
-        else if (aux & ((uint64)1 << AUXSUB_B_TAGGABLEBIT)) return TAGGABLE_SUB_B; 
+        if      (aux & ((uint64)1 << AUXTAGGABLE_A_BIT)) return TAGGABLE_SUB_A; 
+        else if (aux & ((uint64)1 << AUXTAGGABLE_B_BIT)) return TAGGABLE_SUB_B; 
         else return 0; 
     }
     inline void set_tagged() {

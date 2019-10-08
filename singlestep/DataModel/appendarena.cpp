@@ -30,7 +30,7 @@
 // We need the cell_header class
 #include "cell_header.h"
 #include "pack14_storage.cpp"
-
+#include "pack9_storage.cpp"
 
 class AppendArena {
   private:
@@ -189,8 +189,7 @@ class OutputPacked: public AppendArena {
     }
     ~OutputPacked(void) { }
 };
-#undef PACKED
-
+#undef PACKED//. NAM is this right? 
 // =================================================================
 // And here's an example to put things into simple RVdouble
 

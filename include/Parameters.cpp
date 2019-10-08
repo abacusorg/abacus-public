@@ -438,6 +438,9 @@ public:
 
         MaxPID = 0;
         installscalar("MaxPID", MaxPID, DONT_CARE);
+
+
+        printf("NAM PARAMETERS.CPP done!\n");
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.
@@ -626,7 +629,7 @@ void Parameters::ValidateParameters(void) {
         (DerivativeExpansionRadius!=32) ) {
 
         fprintf(stderr,
-            "[ERROR] DerivativeExpansionRadius = %d has to be 8 or 16 or 32\n",
+            "[ERROR] DerivativeExpansionRadius = %d has to be 1-8, 16, or 32\n",
                 DerivativeExpansionRadius);
         assert(1==0);
     }

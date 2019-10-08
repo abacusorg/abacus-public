@@ -943,9 +943,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
             for cl in convlogs:
                 shutil.move(cl, cl.replace('last', f'step{read_state.FullStepNumber+1:04d}'))
-                
         else:
             print(f"Running singlestep for step {stepnum:d}")
+
         with Tools.ContextTimer() as ss_timer:
             try:
                 subprocess.check_call(singlestep_cmd, env=singlestep_env)
