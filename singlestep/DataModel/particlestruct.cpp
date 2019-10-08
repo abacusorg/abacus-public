@@ -48,12 +48,12 @@ When we store into the output TaggedPID format, we apply a bit mask to zero all 
 #define accstruct FLOAT3
 #endif
 
-#define AUXXPID (uint16)  0x7fff	// bits 0 - 14 (right-most)
-#define AUXYPID (uint16)  0x7fff0000  // bits 16 - 30
-#define AUXZPID (uint16)  0x7fff00000000  // bits 32 - 46
+#define AUXXPID  (uint64)  0x7fff	// bits 0 - 14 (right-most)
+#define AUXYPID  (uint64)  0x7fff0000  // bits 16 - 30
+#define AUXZPID  (uint64)  0x7fff00000000  // bits 32 - 46
 
 #define AUXTAGGEDBIT 48llu //Has the particle been tagged
-#define AUXDENSITY (uint16) 0x7fe000000000000 //bits 49-58
+#define AUXDENSITY (uint64) 0x7fe000000000000 //bits 49-58
 #define AUXINL0BIT 15llu //Is the particle in a level 0 group
 #define AUXINL1BIT 31llu //Is the particle in a level 1 group
 #define AUXINL2BIT 47llu //Is the particle in a level 2 group
@@ -73,20 +73,41 @@ public:
     // unsigned char lightcones; //1 bit for each of 8 lightcones
 
     // Methods to extact items, e.g.,
-    void clear() { aux = 0; }   // lightcones =0;}
+   void clear() { aux = 0; }   // lightcones =0;}
 
     // We will provide at least one ID, suitable for the particles.
     // This is required for the LPT implementation.
     uint64 pid() { return aux&AUXPIDMASK; }
-    uint64 key() { return pid(); }
-    void setpid(uint16 * pid) { 
-        int ndim = 3;
-        for (int i = 0; i < ndim; i++)
-        	assertf(pid[i]<=AUXXPID,
-            	"PID %d is too big (component %d)\n", pid[i], i); 
-        aux = pid[0]<<48 | pid[1]<<32 | pid[2]<<16 | (aux&~auxpidmask);
+
+    integer3 xyz() { 
+        integer3 xyz; 
+        xyz.x = (pid() & AUXXPID); 
+        xyz.y = (pid() & AUXYPID) >> 16;
+        xyz.z = (pid() & AUXZPID) >> 32;
+        return xyz; 
     }
 
+    void setpid(uint16 _pid) { 
+        uint16 pid[3] = {_pid, _pid, _pid};
+        setpid(pid); 
+    }
+
+    void setpid(integer3 _pid) { 
+        uint16 max = (uint16) AUXXPID; 
+            assert(pid.x <= max and pid.y <= max and pid.z <= max);
+        uint16 pid[3] = {_pid.x, _pid.y, _pid.z}; 
+        setpid(pid); 
+    }
+
+    void setpid(uint16 * pid) { 
+        uint16 max = (uint16) AUXXPID; 
+           assert(pid[0] <= max and pid[1] <= max and pid[2] <= max);
+        setpid((uint64) pid[0] | (uint64) pid[1]<<16| (uint64) pid[2] <<32);
+    }
+
+    void setpid(uint64 pid) {
+        aux = pid | (aux &~ AUXPIDMASK); 
+    }
     // We will provide a group ID too; this may overwrite the PID.
     uint64 gid() { return pid(); }
     void setgid(uint64 gid) { setpid(gid); }
