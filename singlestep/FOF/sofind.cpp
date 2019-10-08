@@ -133,7 +133,7 @@ class SOcell {
     FOFloat xthreshold;
     FOFloat FOFunitdensity; //  cosmic mean in FOF units
     FOFloat mag_loc = 4.;    /// Condition for creating a center
-    FOFloat inner_rad2 = .9*.9; /// What is the inner radius of Delta prime with respect to Delta
+    FOFloat inner_rad2 = 1.*1.; /// What is the inner radius of Delta prime with respect to Delta
     FOFloat min_central;   ///< The minimum FOF-scale density to require for a central particle.
     FOFloat *twothirds;    ///< We compare x^(3/2) to integers so much that we'll cache integers^(2/3)
 
@@ -299,7 +299,7 @@ class SOcell {
         // Cosmic unit density yields a count in our FOFscale densities of this:
         // TODO: Document better
         FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5);
-        FOFloat M_D = 30.;
+        FOFloat M_D = 35.;
         FOFloat sigma3 = M_D*sqrt(threshold*P.np/(48*M_PI*M_PI));
         // Density for a SIS with mass M_D
         min_central = 5./WriteState.DensityKernelRad2*pow(sigma3,2./3); 
