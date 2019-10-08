@@ -156,9 +156,7 @@ public:
     #define TAGGABLE_SUB_A 1
     #define TAGGABLE_SUB_B 2
     inline int is_taggable() { // >> and mask
-        if      (aux & ((uint64)1 << AUXTAGGABLE_A_BIT)) return TAGGABLE_SUB_A; 
-        else if (aux & ((uint64)1 << AUXTAGGABLE_B_BIT)) return TAGGABLE_SUB_B; 
-        else return 0; 
+        return ((aux >> AUXTAGGABLE_A_BIT) & 0x3); //returns > 0 if something is taggable, 0 otherwise. 
     }
     inline void set_tagged() {
         // The TAGGED bit is a lasting tag, once set.
