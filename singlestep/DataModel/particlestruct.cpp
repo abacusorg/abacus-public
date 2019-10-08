@@ -11,6 +11,22 @@ The number of particles in a cell must fit into a 32-bit signed integer,
 and moreover we have routines that refer to the components individually.
 So we actually are limited to about 680 million particles in a cell.
 
+
+z PID: bits 0-14
+y PID: 16-30
+z PID: 32-46
+Tagged: 48
+Density: 49-58
+
+L0: 15
+L1: 31
+L2: 47 (if we even use this?)
+SubA: 59
+SubB: 60
+LightCone (3): 61-63
+
+When we store into the output TaggedPID format, we apply a bit mask to zero all of the second set of bits. That's 0x07ff 7fff 7fff 7fff.
+
 */
 
 #ifndef INCLUDE_PARTICLESTRUCT
@@ -33,18 +49,24 @@ So we actually are limited to about 680 million particles in a cell.
 #endif
 
 
-#define AUXXPID (uint64) 0x7FFF	// Bits 0 to 14
-#define AUXYPID (uint64) 0x3FFF8000 // Bits 16 to 30
-#define AUXZPID (uint64) 0x7FFF00000000 // 32 to 46
+#define AUXXPID  (uint64)  0x7fff	// bits 0 - 14 (right-most)
+#define AUXYPID  (uint64)  0x7fff0000  // bits 16 - 30
+#define AUXZPID  (uint64)  0x7fff00000000  // bits 32 - 46
 
-#define AUXLCZEROBIT 40		// The LC bits are 40..47
-#define AUXLC  (uint64)0xff0000000000	// The next byte
-#define AUXTAGGABLEBIT 48llu //Can the particle be tagged.//this will be deprecated. 
-#define AUXTAGGEDBIT 49llu //Has the particle been tagged 
-#define AUXSUB_A_TAGGABLEBIT   59llu  //Can the particle be tagged in subsample A
-#define AUXSUB_B_TAGGABLEBIT   60llu //Can the particle be tagged in subsample B
-#define AUXINL0BIT 50llu //Is the particle in a level 0 group
-#define AUXINL1BIT 51llu //Is the particle in a level 1 group
+#define AUXTAGGEDBIT 48llu //Has the particle been tagged
+#define AUXDENSITY (uint64) 0x7fe000000000000 //bits 49-58
+#define AUXINL0BIT 15llu //Is the particle in a level 0 group
+#define AUXINL1BIT 31llu //Is the particle in a level 1 group
+#define AUXINL2BIT 47llu //Is the particle in a level 2 group
+
+#define AUXTAGGABLE_A_BIT 59llu //Can this particle be tagged in subsample A? 
+#define AUXTAGGABLE_B_BIT 60llu //Can this particle be tagged in subsample B? 
+
+
+#define AUXLCZEROBIT 61llu		// The LC bits are 61,62,63.
+#define AUXLC  (uint64)0xe000000000000000	// The next three bits.
+
+#define AUXPIDMASK 0x07ff7fff7fff7fff //this masks out everything except for bits 0-14 (x pid), 16-30 (y pid), 32-46 (z pid), 48 (tagged), 49-58 (density).
 
 class auxstruct {
 public:
@@ -52,20 +74,41 @@ public:
     // unsigned char lightcones; //1 bit for each of 8 lightcones
 
     // Methods to extact items, e.g.,
-    void clear() { aux = 0; }   // lightcones =0;}
+   void clear() { aux = 0; }   // lightcones =0;}
 
     // We will provide at least one ID, suitable for the particles.
     // This is required for the LPT implementation.
-    // The PID will fill the lower 5 bytes.
-    // The upper 3 bytes may be used for other items.
-    uint64 pid() { return aux&AUXPID; }
-    uint64 key() { return pid(); }
-    void setpid(uint64 pid) { 
-    	assertf(pid<=AUXPID,
-        	"PID %d is too big\n", pid); 
-        aux = pid + (aux&~AUXPID);
+    uint64 pid() { return aux&AUXPIDMASK; }
+
+    integer3 xyz() { 
+        integer3 xyz; 
+        xyz.x = (pid() & AUXXPID); 
+        xyz.y = (pid() & AUXYPID) >> 16;
+        xyz.z = (pid() & AUXZPID) >> 32;
+        return xyz; 
     }
 
+    void setpid(uint16 _pid) { 
+        uint16 pid[3] = {_pid, _pid, _pid};
+        setpid(pid); 
+    }
+
+    void setpid(integer3 _pid) { 
+        uint16 max = (uint16) AUXXPID; 
+            assert(pid.x <= max and pid.y <= max and pid.z <= max);
+        uint16 pid[3] = {_pid.x, _pid.y, _pid.z}; 
+        setpid(pid); 
+    }
+
+    void setpid(uint16 * pid) { 
+        uint16 max = (uint16) AUXXPID; 
+           assert(pid[0] <= max and pid[1] <= max and pid[2] <= max);
+        setpid((uint64) pid[0] | (uint64) pid[1]<<16| (uint64) pid[2] <<32);
+    }
+
+    void setpid(uint64 pid) {
+        aux = pid | (aux &~ AUXPIDMASK); 
+    }
     // We will provide a group ID too; this may overwrite the PID.
     uint64 gid() { return pid(); }
     void setgid(uint64 gid) { setpid(gid); }
@@ -80,7 +123,7 @@ public:
     }
 
     inline bool lightconedone(uint64 mask) {
-        assert (mask<=AUXLC && mask >= AUXPID);  // better way to do this...
+        assert (mask<=AUXLC && mask >= a);  // better way to do this...
         return (aux&mask);
     }
     inline bool lightconedone(int number) {

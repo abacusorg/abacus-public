@@ -395,8 +395,8 @@ class OutputRVZel: public AppendArena {
     // If we instead have cell-referenced positions, then:
     double3 cc = CP->WrapCellCenter(current_cell.cellid());
 #endif
-    integer3 ijk = ZelIJK(aux.pid());
-    double3 zelpos = ZelPos(aux.pid());
+    integer3 ijk = aux.xyz();
+    double3 zelpos = ZelPos(ijk);
     float3 disp = double3(pos) + cc - zelpos;
     disp -= disp.round();  // wrap to [-.5,+.5)
 

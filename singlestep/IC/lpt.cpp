@@ -36,16 +36,6 @@ int LPTStepNumber() {
     else return 0;
 }
 
-
-// Our Zel'dovich IC implementation must be coordinated with choices here.
-// Therefore, we will codify some items in some simple functions:
-
-uint64 ZelPID(integer3 ijk) {
-    // This will set the PID to be stored in aux.
-    uint64 ppd = WriteState.ppd;                // Must ensure promotion to 64-bit
-    return (ppd*ijk.x+ijk.y)*ppd+ijk.z;
-}
-
 double3 ZelPos(integer3 ijk) {
     // This will be the position, in code units, of the initial grid.
     double3 p;
@@ -55,22 +45,6 @@ double3 ZelPos(integer3 ijk) {
     p.z = (double)(ijk.z)/WriteState.ppd -.5;
     return p;
 }
-
-integer3 ZelIJK(uint64 PID) {
-    // Given a PID, unwrap it base-PPD and return the grid indices
-    integer3 ijk;
-    uint64 residual = PID/WriteState.ppd;
-    ijk.z = PID-residual*WriteState.ppd;
-    ijk.x = residual/WriteState.ppd;
-    ijk.y = residual-ijk.x*WriteState.ppd;
-    return ijk;
-}
-
-double3 ZelPos(uint64 PID) {
-    // Given a PID, unwrap it base-PPD and return the position.
-    return ZelPos(ZelIJK(PID));
-}
-
 
 // If we're doing Zel'dovich only, then no problems: the original
 // displacement times f is the velocity.  The current IC code does that.
@@ -99,7 +73,7 @@ void DriftCell_2LPT_1(Cell &c, FLOAT driftfactor) {
         // Flip the displacement: q = pos-grid; new = grid-q = grid*2-pos
         // Need to be careful in cell-centered case.  Now pos is cell-centered,
         // and grid is global.  We should subtract the cell-center from ZelPos.
-        c.pos[b] = 2.0*(ZelPos(c.aux[b].pid())-cellcenter) - c.pos[b]; // Does abacus automatically box wrap this?
+        c.pos[b] = 2.0*(ZelPos(c.aux[b].xyz())-cellcenter) - c.pos[b]; // Does abacus automatically box wrap this?
         c.pos[b] -= c.pos[b].round();
     }
 }
@@ -146,8 +120,7 @@ void load_ic_vel_slab(int slabnum){
 
 // Returns the IC velocity of the particle with the given PID
 // TODO: this "random access" lookup is really slow.  Consider whether there's another way to phrase this.
-inline velstruct* get_ic_vel(uint64 pid){
-    integer3 ijk = ZelIJK(pid);
+inline velstruct* get_ic_vel(integer3 ijk){
     int slabnum = ijk.x*P.cpd / WriteState.ppd;  // slab number
 
     uint64 slab_offset = ijk.x - ceil(((double)slabnum)*WriteState.ppd/P.cpd);  // number of planes into slab
@@ -189,7 +162,7 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
     double H = 1;
     for (int b = 0; b<e; b++) {
         // The first order displacement
-        displ1 = ZelPos(c.aux[b].pid())-cellcenter-c.pos[b];
+        displ1 = ZelPos(c.aux[b].xyz())-cellcenter-c.pos[b];
         // The second order displacement is vel/7H^2Omega_m
         displ2 = c.vel[b]/7/H/H/P.Omega_M;
         
@@ -197,7 +170,7 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
         displ1 -= displ1.round();
         displ2 -= displ2.round();
 
-        c.pos[b] = ZelPos(c.aux[b].pid())-cellcenter + displ1+displ2;
+        c.pos[b] = ZelPos(c.aux[b].xyz())-cellcenter + displ1+displ2;
         c.pos[b] -= c.pos[b].round();
     
         // If we were only supplied with Zel'dovich displacements, then construct the linear theory velocity
@@ -209,7 +182,7 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
         // If we were supplied with Zel'dovich velocities and displacements,
         // we want to re-read the IC files to restore the velocities, which were overwritten in the 1st 2LPT step
         else if(WriteState.Do2LPTVelocityRereading){
-            vel1 = *get_ic_vel(c.aux[b].pid());
+            vel1 = *get_ic_vel(c.aux[b].xyz());
         }
         // Unexpected IC format; fail.
         else {
@@ -251,7 +224,7 @@ void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
     double H = 1;
     for (int b = 0; b<e; b++) {
         // The first+second order displacement
-        displ12 = c.pos[b] - (ZelPos(c.aux[b].pid())-cellcenter);
+        displ12 = c.pos[b] - (ZelPos(c.aux[b].xyz())-cellcenter);
         displ12 -= displ12.round();
             
         // Third order displacement
@@ -260,7 +233,7 @@ void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
         assertf(displ3.norm() < displ12.norm(), "Error: 3rd-order LPT displacement (%f, %f, %f) is larger than 1st+2nd order (%f, %f, %f)!\n",
                displ3.x, displ3.y, displ3.z, displ12.x, displ12.y, displ12.z);
 
-        c.pos[b] = ZelPos(c.aux[b].pid())-cellcenter + displ12 + displ3;
+        c.pos[b] = ZelPos(c.aux[b].xyz())-cellcenter + displ12 + displ3;
         c.pos[b] -= c.pos[b].round();
         
         velstruct vel3 = 3*WriteState.f_growth*displ3*convert_velocity;
@@ -269,7 +242,7 @@ void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
         // we want to re-read the 1st order velocity
         if(WriteState.Do2LPTVelocityRereading){
             velstruct vel1, vel1_ic, vel2;
-            vel1_ic = *get_ic_vel(c.aux[b].pid());
+            vel1_ic = *get_ic_vel(c.aux[b].xyz());
             vel2 = c.vel[b] - displ12*WriteState.f_growth*convert_velocity;  // Isolate the 2nd order vel from the linear 1st order
             c.vel[b] = vel1_ic + vel2;
             
