@@ -59,7 +59,7 @@ class RVint {
         int32_t ix = round(x*1048576);
         if (ix<-524288) ix+=1048576;
         if (ix>=524288) ix-=1048576;
-        return (ix*4096)&0xfffff000;
+        return (ix*4096);
     }
     inline int32_t pack_vel(float v) {
         const float velscale = 6000.0;   // km/s
