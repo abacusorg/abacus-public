@@ -1085,14 +1085,17 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         try:
             finalz = param.FinalRedshift
         except AttributeError:
-            # param.FinalRedshift wasn't set, so we'll look for the minimum in the TimeSliceRedshifts array
-            if (param.nTimeSlice>0):
-                try:
-                    finalz = min(param.TimeSliceRedshifts[:param.nTimeSlice])
-                except TypeError:  # param.TimeSliceRedshifts is probably just a single number
-                    finalz = float(param.TimeSliceRedshifts)
-            else:
+            print("TODO! SEARCH FOR MIN ACROSS ALL OUTPUT REDSHIFT TYPES. (NAM)")
+            # param.FinalRedshift wasn't set, so we'll look for the minimum in the output redshifts arrays. 
+            try:
+                if (len(param.TimeSliceRedshifts)>0):
+                    finalz = min(param.TimeSliceRedshifts[:])
+            except TypeError:  # param.TimeSliceRedshifts is probably just a single number
+                finalz = float(param.TimeSliceRedshifts)
+            except AttributeError:
                 finalz = 0.0
+
+
 
         # This logic is deliberately consistent with singlestep.cpp
         # If this is an IC step then we won't have read_state

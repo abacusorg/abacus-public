@@ -231,6 +231,9 @@ class GlobalGroupSlab {
     void IndexLinks();
     void DeferGlobalGroups();
     void ClearDeferrals();
+    void AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, PencilAccum<TaggedPID> ** pHaloPIDs, 
+                                            posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, 
+                                            int index, posstruct offset);
     void CreateGlobalGroups();
     void GatherGlobalGroups();
     void ScatterGlobalGroupsAux();
@@ -747,8 +750,8 @@ work to find the L1 and L2 halos and generate output statistics
 about L1.  This can either use FOF or SO.
 */
 
-void GlobalGroupSlab::AppendParticleToPencils(PencilAccum<RVfloat> ** pHaloRVs, PencilAccum<TaggedPID> ** pHaloPIDs, 
-                                            posstruct * grouppos, velstruct * groupvel, auxstruct * groupaux, int index) {
+void GlobalGroupSlab::AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, PencilAccum<TaggedPID> ** pHaloPIDs, 
+                                            posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, int index, posstruct offset) {
     int taggable = groupaux[index].is_taggable();
     if (taggable != 0 || P.OutputAllHaloParticles) {
         posstruct r = WrapPosition(grouppos[index]+offset);
@@ -758,13 +761,13 @@ void GlobalGroupSlab::AppendParticleToPencils(PencilAccum<RVfloat> ** pHaloRVs, 
             v -= TOFLOAT3(groupacc[index])*WriteState.FirstHalfEtaKick;
 
         if (taggable == TAGGABLE_SUB_A){
-            pHaloPIDsA->append(TaggedPID(groupaux[index]));
-            pHaloRVA->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
+            pHaloPIDs[0]->append(TaggedPID(groupaux[index]));
+            pHaloRVs[0] ->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
 
         }
         else if (taggable == TAGGABLE_SUB_B){
-            pHaloPIDsB->append(TaggedPID(groupaux[index]));
-            pHaloRVB->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
+            pHaloPIDs[1]->append(TaggedPID(groupaux[index]));
+            pHaloRVs[1] ->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
         }
     }
 }
@@ -831,6 +834,10 @@ void GlobalGroupSlab::FindSubGroups() {
         PencilAccum<RVfloat>   *pHaloRVB = HaloRVB.StartPencil(j);
         PencilAccum<TaggedPID> *pHaloPIDsA    =    HaloPIDsA.StartPencil(j);
         PencilAccum<TaggedPID> *pHaloPIDsB    =    HaloPIDsB.StartPencil(j);
+
+        PencilAccum<TaggedPID> * pHaloPIDs[NUM_SUBSAMPLES] = {pHaloPIDsA, pHaloPIDsB}; 
+        PencilAccum<RVfloat>   *  pHaloRVs[NUM_SUBSAMPLES] = {pHaloRVA,   pHaloRVB  }; 
+
         for (int k=0; k<GFC->cpd; k++) {
             // uint64 groupid = ((slab*GFC->cpd+j)*GFC->cpd+k)*4096;
             uint64 groupidstart = (((uint64)slab*MAXCPD+(uint64)j)*MAXCPD+(uint64)k)*10000;
@@ -910,20 +917,14 @@ void GlobalGroupSlab::FindSubGroups() {
                     // If P.OutputAllHaloParticles is set, then we output 
                     //      all L1 particles
 
-                    PencilAccum<TaggedPID> * pHaloPIDs[NUM_SUBSAMPLES] = {pHaloPIDsA, pHaloPIDsB}; 
-                    PencilAccum<RVfloat>   *  pHaloRVs[NUM_SUBSAMPLES] = {pHaloRVA,   pHaloRVB  }; 
-
-
-
                     for (int b=0; b<size; b++){
                         int index = start[b].index(); 
-                        AppendParticleToPencil(pHaloPIDs, pHaloRVs, grouppos, groupvel, groupaux, index)
+                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset);
                     }
 
                     HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], offset);
                     h.id = nextid++;
                     h.L0_N = groupn;
-                    h.taggedstart = taggedstart;
                     h.npstartA = npstartA;
                     h.npstartB = npstartB;
                     h.npoutA = pHaloRVA->get_pencil_size()-npstartA;
@@ -938,7 +939,7 @@ void GlobalGroupSlab::FindSubGroups() {
                 if (ReadState.DoSubsampleOutput){
                     for (int b=0; b<groupn; b++) {
                         if (groupaux[b].is_L1()) continue;  // Already in the L1 set
-                        AppendParticleToPencil(pHaloPIDs, pHaloRVs, grouppos, groupvel, groupaux, b)
+                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset);
                     }
                 }
                 

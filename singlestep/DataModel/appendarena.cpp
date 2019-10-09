@@ -29,6 +29,7 @@
 
 // We need the cell_header class
 #include "cell_header.h"
+#include <pack_storage.cpp>
 #include "pack14_storage.cpp"
 #include "pack9_storage.cpp"
 
@@ -159,38 +160,71 @@ class AppendArena {
 //
 // FIXME: The different output formats should probably be in their own files
 
-#define PACKED pack14
-class OutputPacked: public AppendArena {
+class OutputPacked14: public AppendArena {
   private:
     void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
-        PACKED *p = (PACKED *) c;
+        pack14 *p = (pack14 *) c;
         // p->pack_global(pos, vel, aux.pid(), current_cell);
         p->pack(pos, vel, aux.pid(), current_cell);
     }
     void appendcell(char *c, integer3 ijk, float vscale) {
         // We're given vscale in Zspace unit-box units, same as velocities.
         // But we need to hand it to the pack14 method in unit-cell units
-        PACKED *p = (PACKED *) c;
+        pack14 *p = (pack14 *) c;
         int vs = ceil(vscale*cpd); 
         if (vs<=0) vs = 10;    // Probably just not initialized correctly
+        STDLOG(4, "About to pack cell in pack14, %d %d %d %d %d\n", ijk.x, ijk.y, ijk.z, cpd, vs);
         current_cell = p->pack_cell(ijk, cpd, vs);
     }
     float velocity_conversion;
 
   public:
-    int sizeof_cell()     { return sizeof(PACKED); }
-    int sizeof_particle() { return sizeof(PACKED); }
+    int sizeof_cell()     { return sizeof(pack14); }
+    int sizeof_particle() { return sizeof(pack14); }
 
-    OutputPacked() {
+    OutputPacked14() {
         // Use ReadState to figure out the correct conversion of the
         // velocity!  The pack14 class assumes velocites are in 
         // redshift-space units; it *then* applies the given vscale.
         velocity_conversion = 1.0;
     }
-    ~OutputPacked(void) { }
+    ~OutputPacked14(void) { }
 };
-#undef PACKED//. NAM is this right? 
 // =================================================================
+
+class OutputPacked9: public AppendArena {
+  private:
+    void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
+        pack9 *p = (pack9 *) c;
+        // p->pack_global(pos, vel, aux.pid(), current_cell);
+        p->pack(pos, vel, aux.pid(), current_cell);
+    }
+    void appendcell(char *c, integer3 ijk, float vscale) {
+        // We're given vscale in Zspace unit-box units, same as velocities.
+        // But we need to hand it to the pack14 method in unit-cell units
+        pack9 *p = (pack9 *) c;
+        int vs = ceil(vscale*cpd); 
+        if (vs<=0) vs = 10;    // Probably just not initialized correctly
+        STDLOG(4, "About to pack cell in pack9");
+        current_cell = p->pack_cell(ijk, cpd, vs);
+    }
+    float velocity_conversion;
+
+  public:
+    int sizeof_cell()     { return sizeof(pack9); }
+    int sizeof_particle() { return sizeof(pack9); }
+
+    OutputPacked9() {
+        // Use ReadState to figure out the correct conversion of the
+        // velocity!  The pack14 class assumes velocites are in 
+        // redshift-space units; it *then* applies the given vscale.
+        velocity_conversion = 1.0;
+    }
+    ~OutputPacked9(void) { }
+};
+// =================================================================
+
+
 // And here's an example to put things into simple RVdouble
 
 class OutputRVdouble: public AppendArena {

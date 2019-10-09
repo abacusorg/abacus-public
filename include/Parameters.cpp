@@ -288,45 +288,19 @@ public:
         for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++)
             TimeSliceRedshifts[i] = -2;		
         installvector("TimeSliceRedshifts",TimeSliceRedshifts,MAX_TIMESLICE_REDSHIFTS,1,DONT_CARE);
-
-        nTimeSlice = -1; 
-        for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++){
-            if (TimeSliceRedshifts[i] <= -1) {
-                nTimeSlice = i; 
-                break; 
-            }
-        }   
 		
         for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++)
             TimeSliceRedshifts_Subsample[i] = -2;		
         installvector("TimeSliceRedshifts_Subsample",TimeSliceRedshifts_Subsample,MAX_TIMESLICE_REDSHIFTS,1,DONT_CARE);
 
-        nTimeSliceSubsample = -1; 
-        for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++){
-            if (TimeSliceRedshifts_Subsample[i] <= -1) {
-                nTimeSliceSubsample = i; 
-                break; 
-            }
-        } 
-
         for (int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++)
             L1OutputRedshifts[i] = -2;
         installvector("L1OutputRedshifts", L1OutputRedshifts, MAX_L1OUTPUT_REDSHIFTS, 1, DONT_CARE);
-
-        nTimeSliceL1 = -1; 
-        for (int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++){
-            if (L1OutputRedshifts[i] <= -1) {
-                nTimeSliceL1 = i; 
-                break; 
-            }
-        } 
 
         //for the Summit sims, we always output PIDs of the two subsamples, even when only full timeslices are requested. So the two subsample fractions should always be defined.
         //for the future, however, it might make more sense to default them to 0.03 and 0.07, or 0.1 and 0.0. 
         installscalar("ParticleSubsampleB", ParticleSubsampleB, MUST_DEFINE); 
         installscalar("ParticleSubsampleA", ParticleSubsampleA, MUST_DEFINE);
-
-        assert(nTimeSlice > 0 || nTimeSliceSubsample > 0 || nTimeSliceL1 > 0);  //must request at least one kind of output. 
 		
         strcpy(OutputFormat,"RVdouble");
         // strcpy(OutputFormat,"Packed");
@@ -436,11 +410,8 @@ public:
         MicrostepTimeStep = 1.;
         installscalar("MicrostepTimeStep", MicrostepTimeStep, DONT_CARE);
 
-        MaxPID = 0;
+        MaxPID = -1;
         installscalar("MaxPID", MaxPID, DONT_CARE);
-
-
-        printf("NAM PARAMETERS.CPP done!\n");
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.
@@ -479,17 +450,18 @@ public:
         // not set (value<=-1), then we will run to the minimum of the TimeSliceRedshifts list.
         // If no TimeSlices are requested, then z=0.
         if (FinalRedshift>-1) return FinalRedshift;
-        if (nTimeSlice) {
-            double minz = 1e10;
-            for (int i=0; i<nTimeSlice; i++)
-                if (TimeSliceRedshifts[i]<minz) minz = TimeSliceRedshifts[i];
-            return minz;
-        }
+        double minz = 1e10;
+        for (int i=0; i<MAX_TIMESLICE_REDSHIFTS; i++)
+            if (TimeSliceRedshifts[i] <= -1) break; 
+            else if (TimeSliceRedshifts[i]<minz) minz = TimeSliceRedshifts[i];
+        return minz;
+    
         return 0.0;
     }
 
 private:
     void ProcessStateDirectories();
+    void CountTimeSlices();
 };
 
 // Convert a whole string to lower case, in place.
@@ -498,6 +470,33 @@ void strlower(char* str){
         *str = tolower(*str);
 }
 
+void Parameters::CountTimeSlices(){
+    nTimeSlice = -1; 
+    for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++){
+        if (TimeSliceRedshifts[i] <= -1) {
+            nTimeSlice = i; 
+            break; 
+        }
+    }   
+
+    nTimeSliceSubsample = -1; 
+    for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++){
+        if (TimeSliceRedshifts_Subsample[i] <= -1) {
+            nTimeSliceSubsample = i; 
+            break; 
+        }
+    } 
+
+    nTimeSliceL1 = -1; 
+    for (int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++){
+        if (L1OutputRedshifts[i] <= -1) {
+            nTimeSliceL1 = i; 
+            break; 
+        }
+    } 
+
+    assert(nTimeSlice > 0 || nTimeSliceSubsample > 0 || nTimeSliceL1 > 0);  //must request at least one kind of output. 
+}
 void Parameters::ProcessStateDirectories(){
     strlower(StateIOMode);
     strlower(Conv_IOMode);
@@ -540,6 +539,7 @@ void Parameters::ReadParameters(char *parameterfile, int icflag) {
     hs = new HeaderStream(parameterfile);
     ReadHeader(*hs);
     hs->Close();
+    CountTimeSlices();
     ProcessStateDirectories();
     if(!icflag) ValidateParameters();
 }

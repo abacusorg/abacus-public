@@ -15,7 +15,6 @@ class HaloStat {
     uint64_t npstartB;  ///< Where to start counting in the particle output for subsample B
     uint32_t npoutB;    ///< Number of taggable particles pos/vel/aux written out in subsample B
 
-    uint64_t taggedstart;   ///< Where to start counting in the tagged particle output
     uint64_t ntagged;	    ///< Number of tagged particle PIDs written out.
 
     uint32_t N;	///< The number of particles in this halo
@@ -45,15 +44,19 @@ class HaloStat {
     float subhalo_x[3];   ///< Center of mass pos of the largest L2 subhalo
     float subhalo_v[3];   ///< Center of mass vel of the largest L2 subhalo
     // The profile properties computed from that center point
-    float subhalo_sigmav[3]; ///< sqrt(Eigenvalues) of the velocity tensor of the L1 halo from L2 center
+    float subhalo_sigmavSum;  ///< sqrt( Eigenvalues of the velocity tensor, squared, added), sqrt(sigma_1^2 + sigma_2^2 + sigma_3^2) 
+    int16_t subhalo_sigmavz_to_sigmav; ///< sigmav_z / sigmavSum, compressed
+    int16_t subhalo_sigmavx_to_sigmav; ///< sigmav_x / sigmavSum, compressed
+    int16_t subhalo_sigmav_eigenvecs;  ///<Eigenvectors of the velocity dispersion tensor, compressed into 16 bits. Compression format TBD. 
 
     float subhalo_r100; /// Radius of 100% of mass, relative to L2 center. 
     int16_t subhalo_r10, subhalo_r25, subhalo_r50, subhalo_r67, subhalo_r75, subhalo_r90;
     	///< Radii of this percentage of mass, relative to L2 center. Expressed as ratios of r100 and compressed to int16. 
-	float subhalo_sigmar100; ///<Second moments about the mean of/for all particles falling within r100, relative to L2 center. 
-	int16_t subhalo_sigmar10, subhalo_sigmar25, subhalo_sigmar50, subhalo_sigmar67, subhalo_sigmar75, subhalo_sigmar90; ///<Second moments about the mean of/for all particles falling within r_n, relative to L2 center. 
-	
-    float subhalo_vcirc_max, subhalo_rvcirc_max;   ///< max circular velocity and radius thereof, relative to L2 center
+	int16_t subhalo_sigmar[3]; 
+    int16_t subhalo_sigmar_eigenvecs;
+
+    float subhalo_vcirc_max; 
+    int16_t subhalo_rvcirc_max;   ///< max circular velocity and radius thereof, relative to L2 center
 
 	FOFparticle SO_subhalo_central_particle; ///< Coordinates of the SO central particle (densest particle) for the largest L2 subhalo. 
 	FOFloat     SO_subhalo_central_density;  ///< Density of the SO central particle of the largest L2 subhalo. 

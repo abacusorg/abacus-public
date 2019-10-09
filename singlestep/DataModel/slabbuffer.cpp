@@ -35,27 +35,27 @@ enum SlabType { CellInfoSlab,           //0
                 InsertCellInfoSlab,     //12
                 NearAccSlab,            //13
                 FarAccSlab,             //14
-                FieldTimeSlice,              //15
-                FieldTimeSlicePIDs,          //16
+                FieldTimeSlice,         //15
+                FieldTimeSlicePIDs,     //16
                 VelLPTSlab,             //17
                 CellGroupArena,         //18
                 NearField_SIC_Slab,     //19
                 
                 L1halosSlab,            //20
-                HaloRVSlabA,  //22
-                HaloRVSlabB,  //23
-                HaloPIDsSlabA,     //24
-                HaloPIDsSlabB,     //25
-                FieldRVSlabA,        //26
-				FieldRVSlabB,        //27
-                FieldPIDSlabA,     //28
-                FieldPIDSlabB,     //29
-                L0TimeSlice,            //30
-                L0TimeSlicePIDs,        //31
+                HaloRVSlabA,            //21
+                HaloRVSlabB,            //22
+                HaloPIDsSlabA,          //23
+                HaloPIDsSlabB,          //24
+                FieldRVSlabA,           //25
+				FieldRVSlabB,           //26
+                FieldPIDSlabA,          //27
+                FieldPIDSlabB,          //28
+                L0TimeSlice,            //29
+                L0TimeSlicePIDs,        //30
                 
-                LightCone0,             //32
-                LightCone1,             //33
-                LightCone2,             //34
+                LightCone0,             //31
+                LightCone1,             //32
+                LightCone2,             //33
 
                 NUMTYPES
                 };

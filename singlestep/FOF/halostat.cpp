@@ -33,6 +33,8 @@ HaloStat ComputeStats(int size,
 	posstruct offset) {
     HaloStat h;
 
+    int16_t INT16SCALE = 32000;
+
     h.N = size;
     // Compute the center of mass
     double3 com = double3(0.0, 0.0, 0.0);
@@ -92,22 +94,21 @@ HaloStat ComputeStats(int size,
 		ryy += dr.y*dr.y; ryz += dr.y*dr.z; rzz += dr.z*dr.z;
     }
 	
-	float sigmav[3]; 
-	float sigmav_vecs[3][3]; 
-	float sigmar_vecs[3][3]; 
+	double sigmav[3], sigmar[3]; 
+	double sigmav_vecs[3][3]; 
+	double sigmar_vecs[3][3]; 
 
-	FindEigensystem(vxx, vxy, vxz, vyy, vyz, vzz, sigmav, sigmav_vecs);
-    FindEigensystem(rxx, rxy, rxz, ryy, ryz, rzz, h.sigmar, sigmar_vecs);
+	FindEigensystem(vxx, vxy, vxz, vyy, vyz, vzz, sigmav, (double * )sigmav_vecs);
+    FindEigensystem(rxx, rxy, rxz, ryy, ryz, rzz, sigmar, (double * )sigmar_vecs);
 
     h.sigmavSum = sqrt(sigmav[0] * sigmav[0] + sigmav[1] * sigmav[1] + sigmav[2] * sigmav[2]); 
-    h.sigmavz_to_sigmav = trunc( sigmav[2]/ h.sigmav * INT16SCALE ); 
-    h.sigmavx_to_sigmav = trunc( sigmav[0]/ h.sigmav * INT16SCALE )
+    h.sigmavz_to_sigmav = trunc( sigmav[2]/ h.sigmavSum * INT16SCALE ); 
+    h.sigmavx_to_sigmav = trunc( sigmav[0]/ h.sigmavSum * INT16SCALE );
 
-    for(int i = 0; i < 3; i++) h.sigmar[i] = trunc(sqrt(h.sigmar[i]) / h.r100 * INT16SCALE );
+    for(int i = 0; i < 3; i++) h.sigmar[i] = trunc(sqrt(sigmar[i]) / h.r100 * INT16SCALE );
 
     std::sort(L2.d2buffer, L2.d2buffer+size);
 	
-	int16_t INT16SCALE = 32000; 
 	h.r100 = sqrt(L2.d2buffer[size]); 
 	// r10, r25, r50, r67, r75, r90: Expressed as ratios of r100, and scaled to 32000 to store as int16s. 	
 	h.r10  = trunc(sqrt(L2.d2buffer[size/10  ]) / h.r100 * INT16SCALE); 
@@ -141,8 +142,8 @@ HaloStat ComputeStats(int size,
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     rxx = rxy = rxz = ryy = ryz = rzz = 0.0;
     for (int p=0; p<size; p++) {
-		posstruct dx = L1pos[p]-subhalo_x;
-		L2.d2buffer[p] = dx.norm2();
+		posstruct dr = L1pos[p]-subhalo_x;
+		L2.d2buffer[p] = dr.norm2();
 		velstruct dv = L1vel[p]/ReadState.VelZSpace_to_Canonical - subhalo_v;
 		vxx += dv.x*dv.x; vxy += dv.x*dv.y; vxz += dv.x*dv.z;
 		vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
@@ -150,14 +151,14 @@ HaloStat ComputeStats(int size,
 		ryy += dr.y*dr.y; ryz += dr.y*dr.z; rzz += dr.z*dr.z;
     }
 
-    FindEigensystem(vxx, vxy, vxz, vyy, vyz, vzz, sigmav, sigmav_vecs);
-    FindEigensystem(rxx, rxy, rxz, ryy, ryz, rzz, h.subhalo_sigmar, sigmar_vecs);
+    FindEigensystem(vxx, vxy, vxz, vyy, vyz, vzz, sigmav, (double * )sigmav_vecs);
+    FindEigensystem(rxx, rxy, rxz, ryy, ryz, rzz, sigmar, (double * )sigmar_vecs);
 
     h.subhalo_sigmavSum = sqrt(sigmav[0] * sigmav[0] + sigmav[1] * sigmav[1] + sigmav[2] * sigmav[2]); 
-    h.subhalo_sigmavz_to_sigmav = trunc( sigmav[2]/ h.subhalo_sigmav * INT16SCALE ); 
-    h.subhalo_sigmavx_to_sigmav = trunc( sigmav[0]/ h.subhalo_sigmav * INT16SCALE )
+    h.subhalo_sigmavz_to_sigmav = trunc( sigmav[2]/ h.subhalo_sigmavSum * INT16SCALE ); 
+    h.subhalo_sigmavx_to_sigmav = trunc( sigmav[0]/ h.subhalo_sigmavSum * INT16SCALE );
 	
-    for(int i = 0; i < 3; i++) h.subhalo_sigmar[i] = trunc(sqrt(h.subhalo_sigmar[i]) / h.r100 * INT16SCALE );
+    for(int i = 0; i < 3; i++) h.subhalo_sigmar[i] = trunc(sqrt(sigmar[i]) / h.r100 * INT16SCALE );
 
     std::sort(L2.d2buffer, L2.d2buffer+size);
 

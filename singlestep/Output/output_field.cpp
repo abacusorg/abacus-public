@@ -29,12 +29,12 @@ void GatherTaggableFieldParticles(int slab, RVfloat ** pv, TaggedPID ** pid, FLO
 
                     if (tag == TAGGABLE_SUB_A){
                         pv[0][nfield[0]]  = RVfloat(r.x, r.y, r.z, v.x, v.y, v.z);
-                        pid[0][nfield[0]] = c.aux[p].pid();
+                        pid[0][nfield[0]] = TaggedPID(c.aux[p]);
                         nfield[0]++;
                     }
                     else if (tag == TAGGABLE_SUB_B){
                         pv[1][nfield[1]]  = RVfloat(r.x, r.y, r.z, v.x, v.y, v.z);
-                        pid[1][nfield[1]] = c.aux[p].pid();
+                        pid[1][nfield[1]] = TaggedPID(c.aux[p]);
                         nfield[1]++;
                     }
                 }

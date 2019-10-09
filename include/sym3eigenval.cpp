@@ -1,4 +1,4 @@
-
+//#define SYMTEST
 #ifdef SYMTEST 
 #include <math.h>
 #include <stdio.h>
@@ -11,23 +11,23 @@
 
 //SOURCE: http://www.mymathlib.com/c_source/matrices/eigen/jacobi_cyclic_method.c  
 void FindEigensystem(double vxx, double vxy, double vxz, 
-        double vyy, double vyz, double vzz, float eigevalues[], float * eigenvectors)
+        double vyy, double vyz, double vzz, double eigenvalues[], double * eigenvectors)
 {
    int n = 3; // num dimensions
-   double A[3][3]; 
+   double A[9]; 
 
-    A[0][0] = vxx; 
-    A[0][1] = vxy; 
-    A[0][2] = vxz; 
-    A[1][0] = vxy; 
-    A[1][1] = vyy;
-    A[1][2] = vyz;
-    A[2][0] = vxz;
-    A[2][1] = vyz;
-    A[2][2] = vzz; 
+    A[0] = vxx; 
+    A[1] = vxy; 
+    A[2] = vxz; 
+    A[3] = vxy; 
+    A[4] = vyy;
+    A[5] = vyz;
+    A[6] = vxz;
+    A[7] = vyz;
+    A[8] = vzz; 
 
    int row, i, j, k, m;
-   double *pAk, *pAm, *p_r, *p_e;
+   double *pAk, *pAm, *p_r; double *p_e;
    double threshold_norm;
    double threshold;
    double tan_phi, sin_phi, cos_phi, tan2_phi, sin2_phi, cos2_phi;
@@ -107,7 +107,7 @@ void FindEigensystem(double vxx, double vxy, double vxz,
             else if ( max < fabs(*(pAk + i))) max = fabs(*(pAk + i));
       }
    }
-   for (pAk = A, k = 0; k < n; pAk += n, k++) eigenvalues[n-k-1] = *(pAk + k); 
+   for (pAk = A, k = 0; k < n; pAk += n, k++) eigenvalues[n-k-1] = (float) *(pAk + k); 
 
     // canned code spits these out in a different order than we want. 
     // someday I'll come back and do this properly, but for now
@@ -191,21 +191,9 @@ int main(int argc, char *argv[]) {
 //     double A[N][N], double eigenvalues[N], double eigenvectors[N][N]   
     double eigenvalues[3]; 
     double eigenvectors[3][3]; 
-    double A[3][3]; 
 
-//(double vxx, double vxy, double vxz, double vyy, double vyz, double vzz
-    A[0][0] = in[0]; 
-    A[0][1] = in[3]; 
-    A[0][2] = in[4]; 
-    A[1][0] = A[0][1]; 
-    A[1][1] = in[1];
-    A[1][2] = in[5];
-    A[2][0] = A[0][2];
-    A[2][1] = A[1][2];
-    A[2][2] = in[2]; 
+    FindEigensystem(in[0], in[3], in[4], in[1], in[5], in[2], eigenvalues, (double * )eigenvectors);
 
-
-    FindEigensystem(eigenvalues, (double *)eigenvectors, (double *)A, 3);
     printf("%f %f %f\n", eigenvalues[0], eigenvalues[1], eigenvalues[2]);
     printf("\t %f %f %f\n", eigenvectors[0][0], eigenvectors[0][1], eigenvectors[0][2]);
     printf("\t %f %f %f\n", eigenvectors[1][0], eigenvectors[1][1], eigenvectors[1][2]);

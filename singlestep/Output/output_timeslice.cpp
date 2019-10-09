@@ -17,16 +17,12 @@ AppendArena *get_AA_by_format(const char* format){
         AA = new OutputRVdouble();
 
     } else if (strcmp(format,"Packed9")==0) {
-        #define PACKED pack9
         STDLOG(1,"Using Output Format Pack9\n");
-        AA = new OutputPacked();
-        #undef PACKED
+        AA = new OutputPacked9();
 
     } else if (strcmp(format,"Packed")==0 or strcmp(format,"Packed14")==0) {
-        #define PACKED pack14
         STDLOG(1,"Using Output Format Pack14\n");
-        AA = new OutputPacked();
-        #undef PACKED
+        AA = new OutputPacked14();
 
     } else if (strcmp(format,"Heitmann")==0) {
         STDLOG(1,"Using Output Format Heitmann\n");
@@ -44,7 +40,7 @@ AppendArena *get_AA_by_format(const char* format){
     else {
         QUIT("Unrecognized case: OutputFormat = %s\n", format);
     }
-    
+    STDLOG(4,"Returning AA\n");
     return AA;
 }
 
@@ -70,6 +66,8 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
 	+ CP->cpd*(CP->cpd)*(AA->sizeof_cell()) + headersize);
     AA->initialize(FieldTimeSlice, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
 
+    STDLOG(4,"Writing header\n");
+
     // Write the header to its own file
     if(slab == 0){
         char filename[1024];
@@ -78,7 +76,8 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
             ReadState.Redshift);
         WriteHeaderFile(filename);
     }
-        
+
+    STDLOG(4,"Adding header to slab file\n");  
     // and also add the header to the slab file
     if (!P.OmitOutputHeader) {
         AA->addheader((const char *) P.header());
@@ -91,6 +90,7 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
         // For sanity, be careful that the previous lines end with a \n!
         AA->finalize_header();
     }
+    STDLOG(4,"Scanning through cells\n");
 
     // Now scan through the cells
     velstruct vel;
@@ -98,7 +98,10 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     uint64 n_added = 0;
     for (ijk.y=0; ijk.y<CP->cpd; ijk.y++) 
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
+            STDLOG(4,"\t getting cell\n");
+
             Cell c = CP->GetCell(ijk);
+            STDLOG(4,"\t got cell\n");
 
             // We sometimes use the maximum velocity to scale.
             // But we do not yet have the global velocity (slab max will be set in Finish,
@@ -106,10 +109,11 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
             // What is available after the kick is the max_component_velocity in each cell.
             vscale = c.ci->max_component_velocity/ReadState.VelZSpace_to_Canonical;	
             // The maximum velocity of this cell, converted to ZSpace unit-box units.
-
+            STDLOG(4,"\t adding cell\n");
             // Start the cell
             AA->addcell(ijk, vscale);
-            
+            STDLOG(4,"\t added cell\n");
+
             // Now pack the particles
             accstruct *acc = CP->AccCell(ijk);
             for (int p=0;p<c.count();p++) {
@@ -117,6 +121,8 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
                 // Detail: we write particles with their L0 bits intact.  So if we want to run a non-group-finding step
                 // after a group-finding step (e.g. for debugging), we need to know that we can ignore the L0 bit
                 if(GFC == NULL || !c.aux[p].is_L0()){
+                    STDLOG(4,"\t adding particle %d\n", p);
+
                     AA->addparticle(c.pos[p], vel, c.aux[p]);
                     n_added++;
                 }
@@ -124,8 +130,9 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
             AA->endcell();
         }
 
+    STDLOG(4,"Resizing slab\n");
     SB->ResizeSlab(FieldTimeSlice, slab, AA->bytes_written());
-
+    STDLOG(4,"StoreArenaNonBlocking\n");
     // Write out this time slice
     SB->StoreArenaNonBlocking(FieldTimeSlice, slab);
     delete AA;

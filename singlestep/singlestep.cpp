@@ -125,8 +125,6 @@ void PlanOutput(bool MakeIC) {
 
 
 int main(int argc, char **argv) {
-     printf("NAM SINGLESTEP.CPP beginning!\n");
-
     //Enable floating point exceptions
     feenableexcept(FE_INVALID | FE_DIVBYZERO);
     
@@ -176,12 +174,8 @@ int main(int argc, char **argv) {
     // This also sets the SofteningLength, needed by the NFD constructor
     InitWriteState(MakeIC);
 
-                printf("NAM SINGLESTEP.CPP about to do prologue!\n");
-
     // Set up the major classes (including NFD)
     Prologue(P,MakeIC);
-                printf("NAM SINGLESTEP.CPP done/w prologue!\n");
-
 
     // Check if WriteStateDirectory/state exists, and fail if it does
     char wstatefn[1050];
@@ -207,8 +201,6 @@ int main(int argc, char **argv) {
     
     // Make a plan for output
     PlanOutput(MakeIC);
-            printf("NAM SINGLESTEP.CPP planned output!\n");
- 
 
     // Set up the Group Finding concepts and decide if Group Finding output is requested.
     InitGroupFinding(MakeIC);
@@ -216,15 +208,9 @@ int main(int argc, char **argv) {
 
     SingleStepSetup.Stop();
 
-                    printf("NAM SINGLESTEP.CPP about to timestep!\n");
-
-
     // Now execute the timestep
     if (MakeIC)  timestepIC();
 	    else timestep();
-
-                        printf("NAM SINGLESTEP.CPP done/w timestep!\n");
-
 
     fedisableexcept(FE_INVALID | FE_DIVBYZERO);
 
