@@ -16,7 +16,7 @@ and performance tuning parameters (e.g. OMP_NUM_THREADS) with
 the site-local values.
 
 '''
-import subprocess
+
 import os
 import shutil
 from os.path import join as pjoin, isdir, basename, dirname, normpath
@@ -56,8 +56,8 @@ def standalone_fof(slicedir, output_paramfn='standalone_fof.par', use_site_overr
     shutil.move(output_paramfn, pjoin(params['GroupDirectory'], output_paramfn))
 
     with Tools.chdir(pjoin(abacus.abacuspath, 'singlestep')):
-        subprocess.check_call(['make', 'standalone_fof'])
-        subprocess.check_call(['./standalone_fof', slicedir, pjoin(params['GroupDirectory'], output_paramfn)])
+        abacus.call_subprocess(['make', 'standalone_fof'])
+        abacus.call_subprocess(['./standalone_fof', slicedir, pjoin(params['GroupDirectory'], output_paramfn)])
 
     return 
 

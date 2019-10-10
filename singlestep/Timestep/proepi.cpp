@@ -384,7 +384,20 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
 std::vector<std::vector<int>> free_cores;  // list of cores on each socket that are not assigned a thread (openmp, gpu, io, etc)
 void init_openmp(){
-    // Tell singlestep to use the desired number of threads
+    // First report the CPU affinity bitmask of the master thread; might be useful in diagnosing OMP_PLACES problems
+    cpu_set_t mask;
+    std::ostringstream affinitylog;
+
+    assertf(pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask) == 0, "pthread_getaffinity_np failed\n");
+    affinitylog << "Core affinity for the master thread: ";
+    for (int i = 0; i < CPU_SETSIZE; i++) {
+        if(CPU_ISSET(i, &mask))
+            affinitylog << i << " ";
+    }
+    affinitylog << "\n";
+    STDLOG(2, affinitylog.str().c_str());
+
+    // Now tell OpenMP singlestep to use the desired number of threads
     int max_threads = omp_get_max_threads();
     int ncores = omp_get_num_procs();
     int nthreads = P.OMP_NUM_THREADS > 0 ? P.OMP_NUM_THREADS : max_threads + P.OMP_NUM_THREADS;

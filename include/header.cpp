@@ -18,6 +18,8 @@
 #include <complex>
 #include <omp.h>
 #include <sys/mman.h>
+#include <sched.h>
+#include <pthread.h>
 
 #include <sys/time.h>
 #include <errno.h>

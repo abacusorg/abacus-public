@@ -322,7 +322,7 @@ def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
                         pass
                     if parallel:
                         print('Dispatching CreateDerivatives with command "{}"'.format(' '.join(create_derivs_cmd)))
-                    subprocess.check_call(create_derivs_cmd)
+                    call_subprocess(create_derivs_cmd)
     
     
 def default_parser():
@@ -852,7 +852,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         if distribute_state_from:
             print('Distributing state to nodes...')
             distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, distribute_state_from, '--distribute-from-serial']
-            subprocess.check_call(Conv_mpirun_cmd + distribute_state_cmd)
+            call_subprocess(Conv_mpirun_cmd + distribute_state_cmd)
         
         #check if our previous run was interrupted and saved in the global directory. If yes, redistribute state to nodes. 
         #TODO do this by checking if we have a backed-up state available in global directory (instead of looking at param file). 
@@ -860,14 +860,14 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         if not make_ic: #if this is not a clean run, redistribute the state out to the nodes. 
             print('Distributing in order to resume...')
             distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', resume_dir,  '--verbose']            
-            distribute_fns_present = subprocess.check_call(Conv_mpirun_cmd + distribute_state_cmd)
+            distribute_fns_present = call_subprocess(Conv_mpirun_cmd + distribute_state_cmd)
             
             
 #            if not distribute_fns_present: 
 #                raise RuntimeError('"Missing/corrupted files detected during distribute to resume. Exiting!')
 #                #Build the recover_multipoles executable
 #                 with Tools.chdir(pjoin(abacuspath, "singlestep")):
-#                     subprocess.check_call(['make', 'recover_multipoles'])
+#                     call_subprocess(['make', 'recover_multipoles'])
 #
 #                 reconstruct_read_multipoles_cmd = [pjoin(abacuspath, 'singlestep', 'recover_multipoles'), paramfn]
    
@@ -917,11 +917,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                     
                     # Build the recover_multipoles executable
                     with Tools.chdir(pjoin(abacuspath, "singlestep")):
-                        subprocess.check_call(['make', 'recover_multipoles'])
+                        call_subprocess(['make', 'recover_multipoles'])
 
                     # Execute it
                     print(f"Running recover_multipoles for step {stepnum:d}")
-                    subprocess.check_call([pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn], env=singlestep_env)
+                    call_subprocess([pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn], env=singlestep_env)
                     save_log_files(param.LogDirectory, f'step{read_state.FullStepNumber:04d}.recover_multipoles')
                     print(f'\tFinished multipole recovery for read state {read_state.FullStepNumber}.')
 
@@ -940,7 +940,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             
             print(f"Performing convolution for step {stepnum:d}")
             with Tools.ContextTimer() as conv_timer:
-                subprocess.check_call(convolution_cmd, env=convolution_env)
+                call_subprocess(convolution_cmd, env=convolution_env)
             conv_time = conv_timer.elapsed
 
             if ProfilingMode == 2:
@@ -986,7 +986,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             print(f"Running singlestep for step {stepnum:d}")
         with Tools.ContextTimer() as ss_timer:
             try:
-                subprocess.check_call(singlestep_cmd, env=singlestep_env)
+                call_subprocess(singlestep_cmd, env=singlestep_env)
             except subprocess.CalledProcessError as cpe:
                 handle_singlestep_error(cpe)
                 raise
@@ -1064,7 +1064,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
                 print('Graceful exit triggered. Retrieving state from nodes and saving in global directory.')
                 retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, resume_dir, '--retrieve', '--verbose']
-                subprocess.check_call(Conv_mpirun_cmd + retrieve_state_cmd)
+                call_subprocess(Conv_mpirun_cmd + retrieve_state_cmd)
             
                 restore_time = wall_timer() - restore_time
             
@@ -1150,3 +1150,31 @@ def showwarning(message, category, filename, lineno, file=None, line=None):
     print(f'{filename}:{lineno}: {category.__name__}: {message}', file=file)
 
 warnings.showwarning = showwarning
+
+
+def reset_affinity(max_core_id=1024):
+    '''
+    Resets the core affinity of the current process/thread.
+    Mainly used by `call_subprocess()`.
+    '''
+    # TODO: how to detect the maximum core id?
+    # For now, we can assume CPU_SETSIZE=1024 according to the man pages
+    os.sched_setaffinity(0, range(max_core_id))
+
+
+def call_subprocess(*args, **kwargs):
+    """
+    This is a wrapper to subprocess.check_call() that first resets CPU affinity.
+
+    Why do we need to do this?  The number of cores that OpenMP allows itself
+    to use is limited by the affinity mask of the process *at initialization*.
+    And the OMP_PLACES mechanism may have already limited Python's affinity
+    mask if we happened to load a shared object that uses OpenMP (say, an
+    analysis routine).
+
+    Why does OMP_PLACES affect the affinity mask of the master thread?
+    Because the master thread is actually the first member of the OpenMP
+    thread team!
+    """
+
+    subprocess.check_call(*args, **kwargs, preexec_fn=reset_affinity)
