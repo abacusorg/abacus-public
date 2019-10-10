@@ -55,10 +55,12 @@ void OutputNonL0Taggable(int slab) {
 
     for (int i = 0; i < NUM_SUBSAMPLES; i++){
             // TODO: better heuristic? what will happen in very small sims?  
-        uint64 maxsize = SS->size(slab)* subsample_fracs[i];
+        uint64 maxsize;
+        if (subsample_fracs[i] > 0) maxsize = SS->size(slab) * subsample_fracs[i]; 
+        else maxsize = SS->size(slab) * 0.1; //dummy size. 
         maxsize += 6*sqrt(maxsize); // 6-sigma buffer
 
-        SB->AllocateSpecificSize(slab_type[i],    slab, maxsize*sizeof(RVfloat));
+        SB->AllocateSpecificSize(slab_type[i],    slab,              maxsize*sizeof(RVfloat));
         SB->AllocateSpecificSize(slab_type[i+NUM_SUBSAMPLES],  slab, maxsize*sizeof(TaggedPID));
     }
 
@@ -69,9 +71,9 @@ void OutputNonL0Taggable(int slab) {
     GatherTaggableFieldParticles(slab, rvSlabs, pidSlabs, WriteState.FirstHalfEtaKick, nfield);
 
     for (int i = 0; i < NUM_SUBSAMPLES; i++){
-        if(nfield[i] > 0){
-                // only write the uniform subsample files if they will have non-zero size
-            SB->ResizeSlab(slab_type[i], slab, nfield[i]*sizeof(RVfloat));
+        if(subsample_fracs[i] > 0 and nfield[i] > 0){
+            // only write the uniform subsample files if they will have non-zero size
+            SB->ResizeSlab(slab_type[i],                slab, nfield[i]*sizeof(RVfloat));
             SB->ResizeSlab(slab_type[i+NUM_SUBSAMPLES], slab, nfield[i]*sizeof(TaggedPID));
             SB->StoreArenaNonBlocking(slab_type[i], slab);
             SB->StoreArenaNonBlocking(slab_type[i+NUM_SUBSAMPLES], slab);

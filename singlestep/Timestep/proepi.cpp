@@ -651,6 +651,8 @@ void InitGroupFinding(bool MakeIC){
     } else{
         STDLOG(1, "Group finding not enabled for this step.\n");
     }
+
+    STDLOG(4, "DoGroupFindingOutput %d, DoSubsampleOutput %d, DoTimeSliceOutput %d\n", ReadState.DoGroupFindingOutput, ReadState.DoSubsampleOutput, ReadState.DoTimeSliceOutput);
 }
 
 // Check whether "d" is actually a global directory, and thus not eligible for deletion

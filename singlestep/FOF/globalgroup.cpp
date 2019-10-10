@@ -753,6 +753,8 @@ about L1.  This can either use FOF or SO.
 void GlobalGroupSlab::AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, PencilAccum<TaggedPID> ** pHaloPIDs, 
                                             posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, int index, posstruct offset) {
     int taggable = groupaux[index].is_taggable();
+    STDLOG(4,"AppendParticleToPencil TAGGABLE::: %d\n", taggable); 
+
     if (taggable != 0 || P.OutputAllHaloParticles) {
         posstruct r = WrapPosition(grouppos[index]+offset);
         velstruct v = groupvel[index];
@@ -823,17 +825,19 @@ void GlobalGroupSlab::FindSubGroups() {
     // dynamic scheduling can't smooth it out.  So we're going to try ordering the
     // pencils by the work estimate (largest first)
     std::sort(pstat, pstat+GFC->cpd);
+
+    STDLOG(4, "Starting pencil accumulation\n");
     
     #pragma omp parallel for schedule(dynamic,1)
     for (int jj=0; jj<GFC->cpd; jj++) {
         int j = pstat[jj].pnum;    // Get the pencil number from the list
         GFC->L1Tot.Start();
         int g = omp_get_thread_num();
-        PencilAccum<HaloStat>  *pL1halos         =         L1halos.StartPencil(j);
-        PencilAccum<RVfloat>   *pHaloRVA = HaloRVA.StartPencil(j);
-        PencilAccum<RVfloat>   *pHaloRVB = HaloRVB.StartPencil(j);
-        PencilAccum<TaggedPID> *pHaloPIDsA    =    HaloPIDsA.StartPencil(j);
-        PencilAccum<TaggedPID> *pHaloPIDsB    =    HaloPIDsB.StartPencil(j);
+        PencilAccum<HaloStat>  *pL1halos   =   L1halos.StartPencil(j);
+        PencilAccum<RVfloat>   *pHaloRVA   =   HaloRVA.StartPencil(j);
+        PencilAccum<RVfloat>   *pHaloRVB   =   HaloRVB.StartPencil(j);
+        PencilAccum<TaggedPID> *pHaloPIDsA = HaloPIDsA.StartPencil(j);
+        PencilAccum<TaggedPID> *pHaloPIDsB = HaloPIDsB.StartPencil(j);
 
         PencilAccum<TaggedPID> * pHaloPIDs[NUM_SUBSAMPLES] = {pHaloPIDsA, pHaloPIDsB}; 
         PencilAccum<RVfloat>   *  pHaloRVs[NUM_SUBSAMPLES] = {pHaloRVA,   pHaloRVB  }; 
@@ -916,11 +920,13 @@ void GlobalGroupSlab::FindSubGroups() {
                     // Output the Tagged Particles and Taggable Particles. 
                     // If P.OutputAllHaloParticles is set, then we output 
                     //      all L1 particles
-
                     for (int b=0; b<size; b++){
                         int index = start[b].index(); 
+                        STDLOG(4, "Appending L1 particle, size = %d\n", size); 
                         AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset);
                     }
+
+                    STDLOG(4, "Computing stats\n"); 
 
                     HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], offset);
                     h.id = nextid++;
@@ -939,6 +945,7 @@ void GlobalGroupSlab::FindSubGroups() {
                 if (ReadState.DoSubsampleOutput){
                     for (int b=0; b<groupn; b++) {
                         if (groupaux[b].is_L1()) continue;  // Already in the L1 set
+                        STDLOG(4, "Appending L0 particle groupn %d\n", groupn); 
                         AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset);
                     }
                 }
@@ -970,6 +977,9 @@ void GlobalGroupSlab::FindSubGroups() {
         for (int k=0; k<GFC->cpd; k++) 
             for (int n=0; n<L1halos[j][k].size(); n++) {
                 HaloStat *h = L1halos[j][k].ptr(n);
+
+                STDLOG(4, "HALO HAS %d %d\n", h->npoutA, h->npoutB); 
+
                 h->npstartA += HaloRVA.pstart[j];
                 h->npstartB += HaloRVB.pstart[j];
             }
@@ -1117,36 +1127,40 @@ void GlobalGroupSlab::HaloOutput() {
 
     if (ReadState.DoSubsampleOutput){
          // Write out the pos/vel of the taggable particles in L1 halos
-        SB->AllocateSpecificSize(HaloRVSlabA, slab, HaloRVA.get_slab_bytes());
-        SB->AllocateSpecificSize(HaloRVSlabB, slab, HaloRVB.get_slab_bytes());
-
-        HaloRVA.copy_convert((RVfloat *)SB->GetSlabPtr(HaloRVSlabA, slab),
+        if (P.ParticleSubsampleA > 0){
+            SB->AllocateSpecificSize(HaloRVSlabA, slab, HaloRVA.get_slab_bytes());
+            HaloRVA.copy_convert((RVfloat *)SB->GetSlabPtr(HaloRVSlabA, slab),
             // somewhat experimental: pass a lambda to convert velocities to ZSpace
             [](RVfloat xv) {  xv.vel[0] *= 1./ReadState.VelZSpace_to_Canonical;
                               xv.vel[1] *= 1./ReadState.VelZSpace_to_Canonical;
                               xv.vel[2] *= 1./ReadState.VelZSpace_to_Canonical;
                               return xv; } );
-        HaloRVB.copy_convert((RVfloat *)SB->GetSlabPtr(HaloRVSlabB, slab),
+            SB->StoreArenaNonBlocking(HaloRVSlabA, slab);
+        }
+        if (P.ParticleSubsampleB > 0) {
+            SB->AllocateSpecificSize(HaloRVSlabB, slab, HaloRVB.get_slab_bytes());
+            HaloRVB.copy_convert((RVfloat *)SB->GetSlabPtr(HaloRVSlabB, slab),
             // somewhat experimental: pass a lambda to convert velocities to ZSpace
             [](RVfloat xv) {  xv.vel[0] *= 1./ReadState.VelZSpace_to_Canonical;
                               xv.vel[1] *= 1./ReadState.VelZSpace_to_Canonical;
                               xv.vel[2] *= 1./ReadState.VelZSpace_to_Canonical;
                               return xv; } );
-
-        if (P.ParticleSubsampleA > 0) SB->StoreArenaNonBlocking(HaloRVSlabA, slab);
-        if (P.ParticleSubsampleB > 0) SB->StoreArenaNonBlocking(HaloRVSlabB, slab);
+            SB->StoreArenaNonBlocking(HaloRVSlabB, slab);
+        }
     }
 
     // Write out the PIDs of the taggable particles in the halos. If DoSubsampleOutput, store L0 and L1. If DoGrpFindingOutput only, do L1 only. 
-    SB->AllocateSpecificSize(HaloPIDsSlabA, slab, HaloPIDsA.get_slab_bytes());
-    HaloPIDsA.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(HaloPIDsSlabA, slab));
-    if (P.ParticleSubsampleA > 0) SB->StoreArenaNonBlocking(HaloPIDsSlabA, slab);
-    else SB->DeAllocate(HaloPIDsSlabA, slab);
+    if (P.ParticleSubsampleA > 0){
+        SB->AllocateSpecificSize(HaloPIDsSlabA, slab, HaloPIDsA.get_slab_bytes());
+        HaloPIDsA.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(HaloPIDsSlabA, slab));
+        SB->StoreArenaNonBlocking(HaloPIDsSlabA, slab);
+    }
 
-    SB->AllocateSpecificSize(HaloPIDsSlabB, slab, HaloPIDsB.get_slab_bytes());
-    HaloPIDsB.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(HaloPIDsSlabB, slab));
-    if (P.ParticleSubsampleB > 0) SB->StoreArenaNonBlocking(HaloPIDsSlabB, slab);
-    else SB->DeAllocate(HaloPIDsSlabB, slab);
+    if (P.ParticleSubsampleB > 0) {
+        SB->AllocateSpecificSize(HaloPIDsSlabB, slab, HaloPIDsB.get_slab_bytes());
+        HaloPIDsB.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(HaloPIDsSlabB, slab));
+        SB->StoreArenaNonBlocking(HaloPIDsSlabB, slab);
+    }
 
     GFC->OutputLevel1.Stop();
     return;

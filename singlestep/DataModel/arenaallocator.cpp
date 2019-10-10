@@ -295,7 +295,7 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
 
     std::string spath;
 
-    // STDLOG(1,"AA slab=%d, size %d, ramdisk %d\n", id, s, ramdisk);
+    STDLOG(4,"AA slab=%d, size %d, ramdisk %d\n", id, s, ramdisk);
 
     switch(ramdisk){
         case RAMDISK_NO:  // normal arena allocation
