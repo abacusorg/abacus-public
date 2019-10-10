@@ -16,14 +16,14 @@ AppendArena *get_AA_by_format(const char* format){
         STDLOG(1,"Using Output Format RVdouble\n");
         AA = new OutputRVdouble();
 
-    } else if (strcmp(format,"Packed9")==0) {
-        STDLOG(1,"Using Output Format Pack9\n");
-        AA = new OutputPacked9();
+    // } else if (strcmp(format,"Packed9")==0) {
+    //     STDLOG(1,"Using Output Format Pack9\n");
+    //     AA = new OutputPacked<pack9>();
 
     } else if (strcmp(format,"Packed")==0 or strcmp(format,"Packed14")==0) {
         STDLOG(1,"Using Output Format Pack14\n");
-        AA = new OutputPacked14();
-
+        AA = new OutputPacked<pack14>();
+        
     } else if (strcmp(format,"Heitmann")==0) {
         STDLOG(1,"Using Output Format Heitmann\n");
         AA = new OutputHeitmann();

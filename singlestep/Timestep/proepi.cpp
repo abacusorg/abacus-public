@@ -585,14 +585,8 @@ void InitGroupFinding(bool MakeIC){
         }
     }
 
-    for(int i = 0; i < P.nTimeSliceL1; i++){
-        double L1z = P.L1OutputRedshifts[i];
-        if(abs(ReadState.Redshift - L1z) < 1e-12){
-            STDLOG(0,"Group finding at this redshift requested by L1OutputRedshifts[%d]\n", i);
-            do_grp_output = 1;
-            goto have_L1z;
-        }
-    }
+    if ( ReadState.DoGroupFindingOutput ) goto have_L1z; 
+
 
     if(P.L1Output_dlna >= 0){
         do_grp_output = log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ||
@@ -605,7 +599,7 @@ void InitGroupFinding(bool MakeIC){
 
     have_L1z:
     do_subsample_output &= not ReadState.DoTimeSliceOutput; //if we're going to output the entire timeslice, don't bother with the subsamples. 
-    do_grp_output |= ReadState.DoTimeSliceOutput | do_subsample_output; //if any kind of output is requested, turn on group finding. 
+    do_grp_output |= ReadState.DoTimeSliceOutput | do_subsample_output | ReadState.DoGroupFindingOutput; //if any kind of output is requested, turn on group finding. 
 
     WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities
     WriteState.L0DensityThreshold = 0.0;

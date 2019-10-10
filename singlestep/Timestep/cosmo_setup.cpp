@@ -122,6 +122,17 @@ double ChooseTimeStep(){
         }
     }
 
+    // Do we need to output a merger tree redshift during this step?
+    for(int i = 0; i < P.nTimeSliceL1; i++){
+        double L1z = P.L1OutputRedshifts[i];
+        double L1a = 1.0/(1+L1z);
+
+        if(ReadState.Redshift > L1z + 1e-12 && ReadState.ScaleFactor + da > L1a){
+            STDLOG(0,"Group finding at this redshift requested by L1OutputRedshifts[%d]\n", i);
+            ReadState.DoGroupFindingOutput = 1; 
+        }
+    }
+
 	// Particles should not be able to move more than one cell per timestep
 	double maxdrift = cosm->DriftFactor(cosm->current.a, da)*ReadState.MaxVelocity;
 	maxdrift *= P.cpd;
