@@ -32,7 +32,7 @@ def main(input_directory, in_pat, in_fmt, out_fmt, new_cpd, box, flip=None, verb
     # Create the output directory, removing it if it exists.
     input_directory = abspath(input_directory)
     indirname = basename(input_directory)
-    outdirname = indirname + '_' + str(new_cpd)
+    outdirname = indirname + '_cpd' + str(new_cpd)
     outdir = pjoin(dirname(input_directory), outdirname)
     shutil.rmtree(outdir, ignore_errors=True)
     os.makedirs(outdir, exist_ok=True)
@@ -40,10 +40,9 @@ def main(input_directory, in_pat, in_fmt, out_fmt, new_cpd, box, flip=None, verb
     writer = WriteAbacus.SlabWriter(NP=0, cpd=new_cpd, boxsize=box, outdir=outdir, format=out_fmt, verbose=True)
 
     files = sorted(glob(pjoin(input_directory, in_pat)))
-    for fn in files:
+    for particles,fn in ReadAbacus.AsyncReader(files, return_fn=True, format=in_fmt, return_pid=True):
         print('Processing file "{}"'.format(fn))
         # for now, PID is mandatory
-        particles = ReadAbacus.read(fn, format=in_fmt, return_pid=True)
         writer.NP += len(particles)  # writer will check that it wrote NP particles at the end
 
         writer.ingest(particles=particles)

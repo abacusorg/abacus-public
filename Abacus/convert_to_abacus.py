@@ -92,7 +92,7 @@ def main(files, cpd, input_format, output_format, flip=False):
     out_path = op.dirname(op.abspath(files[0]))
     if flip:
         out_path += "_flip"
-    out_path += f"_{output_format}"
+    out_path += f"_{output_format}_cpd{cpd}"
     
     # Make the output dir
     if op.isdir(out_path):

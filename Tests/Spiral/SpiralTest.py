@@ -25,7 +25,7 @@ abacuspath = abacus.abacuspath
 def run():
     kvec = (1,0,0)
     phase = (np.pi,0,0)
-    n1d = 128
+    n1d = 256
     BoxSize = 17.3205080756888
     ainitial = 0.09
     across = 0.1
@@ -117,17 +117,17 @@ def run():
     print("Vz: rms %e, max %e"%( np.std(xv[:,5]), np.max(np.absolute(xv[:,5])) ))
     print("Ratio of max velocity (analytic/computed): %f"%(np.max(analytic[:,1])/np.max(xv[:,3])))
 
-    check_pids(params)
+    check_pids(params, n1d)
 
 
 from Abacus import ReadAbacus
-def check_pids(params):
+def check_pids(params, n1d):
     particles = ReadAbacus.from_dir(pjoin(params['WorkingDirectory'], 'read'), pattern='position_*', return_pid=True, format='state')
     pids = particles['pid']
     pids.sort()
     assert pids[0] == 0
     assert (np.diff(pids) == 1).all()
-    assert len(pids) == params['NP']
+    assert len(pids) == n1d**3
     print('All particles present with no duplicates.')
 
 

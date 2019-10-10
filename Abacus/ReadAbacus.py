@@ -221,7 +221,7 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
         return particles
 
 
-def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=True, return_fn=False, **kwargs):
+def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=False, return_fn=False, **kwargs):
     '''
     This is a generator that reads files in a separate thread in the background,
     yielding them one at a time as they become available.
@@ -423,10 +423,10 @@ def read_rvtag(*args,**kwargs):
     return read_rv(*args, tag=True, **kwargs)
 
 def read_rvdouble(*args,**kwargs):
-    return read_rv(*args, double=True, **kwargs)
+    return read_rv(*args, double=True, dtype=np.float64, **kwargs)
 
 def read_rvdoubletag(*args,**kwargs):
-    return read_rv(*args, double=True, tag=True, **kwargs)
+    return read_rv(*args, double=True, tag=True, dtype=np.float64, **kwargs)
 
 def read_rv(fn, return_vel=True, return_pid=False, zspace=False, dtype=np.float32, out=None, return_header=False, double=False, tag=False):
     """
