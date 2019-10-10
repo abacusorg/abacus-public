@@ -16,13 +16,13 @@ AppendArena *get_AA_by_format(const char* format){
         STDLOG(1,"Using Output Format RVdouble\n");
         AA = new OutputRVdouble();
 
-    // } else if (strcmp(format,"Packed9")==0) {
-    //     STDLOG(1,"Using Output Format Pack9\n");
-    //     AA = new OutputPacked<pack9>();
+    } else if (strcmp(format,"Packed9")==0) {
+        STDLOG(1,"Using Output Format Pack9\n");
+        AA = new OutputPacked<9>();
 
     } else if (strcmp(format,"Packed")==0 or strcmp(format,"Packed14")==0) {
         STDLOG(1,"Using Output Format Pack14\n");
-        AA = new OutputPacked<pack14>();
+        AA = new OutputPacked<14>();
         
     } else if (strcmp(format,"Heitmann")==0) {
         STDLOG(1,"Using Output Format Heitmann\n");
@@ -98,22 +98,15 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     uint64 n_added = 0;
     for (ijk.y=0; ijk.y<CP->cpd; ijk.y++) 
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
-            STDLOG(4,"\t getting cell\n");
-
             Cell c = CP->GetCell(ijk);
-            STDLOG(4,"\t got cell\n");
-
             // We sometimes use the maximum velocity to scale.
             // But we do not yet have the global velocity (slab max will be set in Finish,
             // while the global max has to wait for all slabs to be done).
             // What is available after the kick is the max_component_velocity in each cell.
             vscale = c.ci->max_component_velocity/ReadState.VelZSpace_to_Canonical;	
             // The maximum velocity of this cell, converted to ZSpace unit-box units.
-            STDLOG(4,"\t adding cell\n");
             // Start the cell
             AA->addcell(ijk, vscale);
-            STDLOG(4,"\t added cell\n");
-
             // Now pack the particles
             accstruct *acc = CP->AccCell(ijk);
             for (int p=0;p<c.count();p++) {
@@ -121,8 +114,6 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
                 // Detail: we write particles with their L0 bits intact.  So if we want to run a non-group-finding step
                 // after a group-finding step (e.g. for debugging), we need to know that we can ignore the L0 bit
                 if(GFC == NULL || !c.aux[p].is_L0()){
-                    STDLOG(4,"\t adding particle %d\n", p);
-
                     AA->addparticle(c.pos[p], vel, c.aux[p]);
                     n_added++;
                 }
