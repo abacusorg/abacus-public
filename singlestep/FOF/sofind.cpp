@@ -140,7 +140,7 @@ class SOcell {
     FOFgroup *groups;   ///< The list of found groups
     int ngroups;        ///< The number of groups
 
-
+    FOFloat *halo_thresh2; ///< The distance to the threshold squared for each halo center B.H.
 
     SOcellgroup *socg;  ///< a list of the cell groups
     int *cellindex;     ///< a list for each particle in pos of which cell it belongs to
@@ -193,6 +193,9 @@ class SOcell {
         if (min_inv_den!=NULL) free(min_inv_den);
         ret = posix_memalign((void **)&min_inv_den, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
 
+        if (halo_thresh2!=NULL) free(halo_thresh2); //B.H.
+        ret = posix_memalign((void **)&halo_thresh2, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
+
         if (cellindex!=NULL) free(cellindex);
         ret = posix_memalign((void **)&cellindex, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
     
@@ -225,6 +228,7 @@ class SOcell {
         groups = NULL;
         density = NULL;
         min_inv_den = NULL;
+        halo_thresh2 = NULL; // B.H.
         halo_inds = NULL;
 
         socg = NULL;
@@ -255,6 +259,7 @@ class SOcell {
         if (groups!=NULL) free(groups); groups = NULL;
         if (density!=NULL) free(density); density = NULL;
         if (min_inv_den!=NULL) free(min_inv_den); min_inv_den = NULL;
+        if (halo_thresh2!=NULL) free(halo_thresh2); halo_thresh2 = NULL; // B.H.
         if (halo_inds!=NULL) free(halo_inds); halo_inds = NULL;
 
         if (socg!=NULL) free(socg); socg = NULL;
@@ -582,7 +587,8 @@ int greedySO() {
     int start = 0;  // Index of the first particle of the current group
     int densest = -1;
     FOFloat maxdens = -1.0;
-    
+
+    halo_thresh2[0] = 0.;  /// halo[0] is the unassigned fluff, counting starts at 1 B.H.
     int count = 1;        /// The number of the group
     
     Sweep.Start();
@@ -616,6 +622,7 @@ int greedySO() {
         // Threshold distance d2SO has the property that all particles within it
         // satisfy the overdensity condition
         FOFloat d2SO = search_socg_thresh(p+start,mass,inv_enc_den);
+        halo_thresh2[count] = d2SO;
         
         // Primed threshold distance d2SO_pr has the property that particles
         // found in it can never be eligible centers
@@ -735,13 +742,13 @@ void partition_halos(int count) {
         // TODO: Will write more documentation 
         if (next_densest < 0) {
             numcenters++;
-            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size);
+            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[i]); // B.H.
             start += size;
             continue;
         }
         if (size > 0) {
             numcenters++;
-            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size);
+            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[i]); // B.H.
             start += size;
         }
       
