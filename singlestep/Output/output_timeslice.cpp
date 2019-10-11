@@ -40,8 +40,15 @@ AppendArena *get_AA_by_format(const char* format){
     else {
         QUIT("Unrecognized case: OutputFormat = %s\n", format);
     }
-    STDLOG(4,"Returning AA\n");
+
     return AA;
+}
+
+AppendArena *get_PID_AA_by_format(const char* format){
+    AppendArena *PID_AA;
+    if (strcmp(P.OutputFormat,"Packed9")==0) PID_AA = new OutputPID(); 
+    else PID_AA = NULL; 
+    return PID_AA;
 }
 
 void WriteHeaderFile(const char* fn){
@@ -54,17 +61,23 @@ void WriteHeaderFile(const char* fn){
 }
 
 uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
-    AppendArena *AA;
+    AppendArena *AA, *PID_AA;
     FLOAT vscale;
 
     AA = get_AA_by_format(P.OutputFormat);
-
+    PID_AA = get_PID_AA_by_format(P.OutputFormat);
+    
     // Setup the Arena
     int headersize = 1024*1024;
     SB->AllocateSpecificSize(FieldTimeSlice, slab, 
     	   SS->size(slab)*(AA->sizeof_particle())
 	+ CP->cpd*(CP->cpd)*(AA->sizeof_cell()) + headersize);
     AA->initialize(FieldTimeSlice, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
+
+    SB->AllocateSpecificSize(FieldTimeSlicePIDs, slab, 
+           SS->size(slab)*(PID_AA->sizeof_particle())
+    + CP->cpd*(CP->cpd)*(PID_AA->sizeof_cell()) + headersize);
+    PID_AA->initialize(FieldTimeSlicePIDs, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
 
     STDLOG(4,"Writing header\n");
 
@@ -107,6 +120,7 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
             // The maximum velocity of this cell, converted to ZSpace unit-box units.
             // Start the cell
             AA->addcell(ijk, vscale);
+            if (PID_AA != NULL) PID_AA->addcell(ijk, vscale);
             // Now pack the particles
             accstruct *acc = CP->AccCell(ijk);
             for (int p=0;p<c.count();p++) {
@@ -115,10 +129,12 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
                 // after a group-finding step (e.g. for debugging), we need to know that we can ignore the L0 bit
                 if(GFC == NULL || !c.aux[p].is_L0()){
                     AA->addparticle(c.pos[p], vel, c.aux[p]);
+                    if (PID_AA != NULL) PID_AA->addparticle(c.pos[p], vel, c.aux[p]);
                     n_added++;
                 }
             }
             AA->endcell();
+            if (PID_AA != NULL) PID_AA->endcell(); 
         }
 
     STDLOG(4,"Resizing slab\n");
@@ -127,6 +143,13 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     // Write out this time slice
     SB->StoreArenaNonBlocking(FieldTimeSlice, slab);
     delete AA;
+
+    STDLOG(4,"Resizing slab\n");
+    SB->ResizeSlab(FieldTimeSlicePIDs, slab, PID_AA->bytes_written());
+    STDLOG(4,"StoreArenaNonBlocking\n");
+    // Write out this time slice
+    SB->StoreArenaNonBlocking(FieldTimeSlicePIDs, slab);
+    if (PID_AA != NULL) delete PID_AA;
     
     return n_added;
 }

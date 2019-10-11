@@ -190,39 +190,6 @@ class OutputPacked: public AppendArena {
     }
     ~OutputPacked(void) { }
 };
-// =================================================================
-
-// class OutputPacked9: public AppendArena {
-//   private:
-//     void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
-//         pack9 *p = (pack9 *) c;
-//         // p->pack_global(pos, vel, aux.pid(), current_cell);
-//         p->pack(pos, vel, aux.pid(), current_cell);
-//     }
-//     void appendcell(char *c, integer3 ijk, float vscale) {
-//         // We're given vscale in Zspace unit-box units, same as velocities.
-//         // But we need to hand it to the pack14 method in unit-cell units
-//         pack9 *p = (pack9 *) c;
-//         int vs = ceil(vscale*cpd); 
-//         if (vs<=0) vs = 10;    // Probably just not initialized correctly
-//         STDLOG(4, "About to pack cell in pack9");
-//         current_cell = p->pack_cell(ijk, cpd, vs);
-//     }
-//     float velocity_conversion;
-
-//   public:
-//     int sizeof_cell()     { return 9;}//sizeof(pack9); }
-//     int sizeof_particle() { return 9;}//sizeof(pack9); }
-
-//     OutputPacked9() {
-//         // Use ReadState to figure out the correct conversion of the
-//         // velocity!  The pack14 class assumes velocites are in 
-//         // redshift-space units; it *then* applies the given vscale.
-//         velocity_conversion = 1.0;
-//     }
-//     ~OutputPacked9(void) { }
-// };
-// =================================================================
 
 
 // And here's an example to put things into simple RVdouble
@@ -264,6 +231,28 @@ class OutputRVdouble: public AppendArena {
         velocity_conversion = 1.0;  // Leave it in Zspace, unit box units
     }
     ~OutputRVdouble(void) { }
+};
+
+
+class OutputPID: public AppendArena {
+  private:
+    uint64_t pid;
+
+    void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
+        struct OutputPID *p = (struct OutputPID *)c;
+        p->pid = aux.pid(); 
+    }
+
+    void appendcell(char *c, integer3 ijk, float vscale) {
+        current_cell = cell_header(ijk, cpd, 1);
+    }
+
+  public:
+    int sizeof_cell()     { return 0; }
+    int sizeof_particle() { return sizeof(pid); }
+
+    OutputPID() { }
+    ~OutputPID(void) { }
 };
 
 

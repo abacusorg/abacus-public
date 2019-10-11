@@ -1215,9 +1215,17 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
     // For sanity, be careful that the previous lines end with a \n!
     AA->finalize_header();
 
+
+    SlabAccum<TaggedPID> TimeSlicePIDs;
+    TimeSlicePIDs.setup(GFC->cpd, GFC->particles_per_slab);    
+
     // Now scan through cell groups
-    for (int j=0; j<GFC->cpd; j++)
-        for (int k=0; k<GFC->cpd; k++)
+    for (int j=0; j<GFC->cpd; j++){
+
+        PencilAccum<TaggedPID> *pTimeSlicePIDs = TimeSlicePIDs.StartPencil(j);
+
+
+        for (int k=0; k<GFC->cpd; k++){
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 // Process globalgroups[j][k][n]
                 // Recall where the particles start
@@ -1253,15 +1261,28 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
                         posstruct _p = pos[pi] - offset;
                         velstruct _v = vel[pi] - TOFLOAT3(acc[pi])*unkick_factor;
                         AA->addparticle(_p, _v, aux[pi]);
+                        if (strcmp(P.OutputFormat,"Packed9")==0) pTimeSlicePIDs->append(TaggedPID(aux[pi]));
                         n_added++;
                     }
                     AA->endcell();
                     start += cg->size();
                 }
             }
+            pTimeSlicePIDs->FinishCell();
+
+        }
+
+        pTimeSlicePIDs->FinishPencil();
+
+    }
+
+    if (strcmp(P.OutputFormat,"Packed9")==0){
+        SB->AllocateSpecificSize(L0TimeSlicePIDs, slab, TimeSlicePIDs.get_slab_bytes());
+        TimeSlicePIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(L0TimeSlicePIDs, slab));
+        SB->StoreArenaNonBlocking(L0TimeSlicePIDs, slab);
+    }
 
     SB->ResizeSlab(L0TimeSlice, slab, AA->bytes_written());
-
     // Write out this time slice
     SB->StoreArenaNonBlocking(L0TimeSlice, slab);
     delete AA;
