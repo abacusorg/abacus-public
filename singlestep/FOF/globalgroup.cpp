@@ -753,7 +753,6 @@ about L1.  This can either use FOF or SO.
 void GlobalGroupSlab::AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, PencilAccum<TaggedPID> ** pHaloPIDs, 
                                             posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, int index, posstruct offset) {
     int taggable = groupaux[index].is_taggable();
-    STDLOG(4,"AppendParticleToPencil TAGGABLE::: %d\n", taggable); 
 
     if (taggable != 0 || P.OutputAllHaloParticles) {
         posstruct r = WrapPosition(grouppos[index]+offset);
@@ -848,9 +847,7 @@ void GlobalGroupSlab::FindSubGroups() {
             uint64 nextid = groupidstart;
             posstruct offset = CP->CellCenter(slab, j, k);
                     // A basic label for this group
-            for (int n=0; n<globalgroups[j][k].size(); n++) {
-                if (globalgroups[j][k][n].np<GFC->minhalosize) continue;
-                // We have a large-enough global group to process
+            for (int n=0; n<globalgroups[j][k].size(); n++) { //loop over L0 groups. 
                 posstruct *grouppos = pos+globalgroups[j][k][n].start;
                 velstruct *groupvel = vel+globalgroups[j][k][n].start;
                 auxstruct *groupaux = aux+globalgroups[j][k][n].start;
@@ -858,51 +855,54 @@ void GlobalGroupSlab::FindSubGroups() {
                 if(acc != NULL)
                     groupacc = acc+globalgroups[j][k][n].start;
                 int groupn = globalgroups[j][k][n].np;
-                GFC->L1FOF.Start();
-                #ifndef SPHERICAL_OVERDENSITY
-                if (GFC->linking_length_level1==GFC->linking_length)
-                    FOFlevel1[g].assign_to_one_group(grouppos, NULL, NULL, groupacc, groupn);
-                else    // This grabs the findgroups statement!
-                #endif
-                FOFlevel1[g].findgroups(grouppos, NULL, NULL, groupacc, groupn);
-                GFC->L1FOF.Stop();
-                // Now we've found the L1 groups
-                for (int a=0; a<FOFlevel1[g].ngroups; a++) {
-                    int size = FOFlevel1[g].groups[a].n;
-                    if (size<GFC->minhalosize) continue;
-                    L1stats[g].push(size);
-                    // The group is big enough.
-                    FOFparticle *start = FOFlevel1[g].p+FOFlevel1[g].groups[a].start;
-                    // Particle indices are in start[0,size).index()
-                    // which deref the grouppos, groupvel, groupaux list.
 
-                    // We now need to find the L2 subgroups.
-                    // Make a temporary list of the particles in the L1 group
-                    for (int b=0; b<size; b++) {
-                        L1pos[g][b] = grouppos[start[b].index()];
-                        L1vel[g][b] = groupvel[start[b].index()];
-                        groupaux[start[b].index()].set_L1();
-                        L1aux[g][b] = groupaux[start[b].index()];
-                        if (groupacc != NULL){
-                            L1acc[g][b] = groupacc[start[b].index()];
-                            // Velocities were full kicked; half-unkick before halostats
-                            L1vel[g][b] -= TOFLOAT3(L1acc[g][b])*WriteState.FirstHalfEtaKick;
-                        }
-                    }
-                    GFC->L2FOF.Start();
+                if (groupn >= GFC->minhalosize){ //This L0 group is too small. Need to output its particles if we're doing subsampling, though. 
+
+                    GFC->L1FOF.Start();
                     #ifndef SPHERICAL_OVERDENSITY
-                    if (GFC->linking_length_level1==GFC->linking_length_level2)
-                        FOFlevel2[g].assign_to_one_group(L1pos[g], NULL, NULL, L1acc[g], size);
+                    if (GFC->linking_length_level1==GFC->linking_length)
+                        FOFlevel1[g].assign_to_one_group(grouppos, NULL, NULL, groupacc, groupn);
                     else    // This grabs the findgroups statement!
                     #endif
-                    FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, L1acc[g], size);
-                    GFC->L2FOF.Stop();
+                    FOFlevel1[g].findgroups(grouppos, NULL, NULL, groupacc, groupn);
+                    GFC->L1FOF.Stop();
+                    // Now we've found the L1 groups
+                    for (int a=0; a<FOFlevel1[g].ngroups; a++) {
+                        int size = FOFlevel1[g].groups[a].n;
+                        if (size<GFC->minhalosize) continue;
+                        L1stats[g].push(size);
+                        // The group is big enough.
+                        FOFparticle *start = FOFlevel1[g].p+FOFlevel1[g].groups[a].start;
+                        // Particle indices are in start[0,size).index()
+                        // which deref the grouppos, groupvel, groupaux list.
 
-                    // Merger trees require tagging the taggable particles 
-                    // of the biggest L2 group in the original aux array.  
-                    // This can be done:
-                    // The L2 index() gives the position in the L1 array,
-                    // and that index() gets back to aux.
+                        // We now need to find the L2 subgroups.
+                        // Make a temporary list of the particles in the L1 group
+                        for (int b=0; b<size; b++) {
+                            L1pos[g][b] = grouppos[start[b].index()];
+                            L1vel[g][b] = groupvel[start[b].index()];
+                            groupaux[start[b].index()].set_L1();
+                            L1aux[g][b] = groupaux[start[b].index()];
+                            if (groupacc != NULL){
+                                L1acc[g][b] = groupacc[start[b].index()];
+                                // Velocities were full kicked; half-unkick before halostats
+                                L1vel[g][b] -= TOFLOAT3(L1acc[g][b])*WriteState.FirstHalfEtaKick;
+                            }
+                        }
+                        GFC->L2FOF.Start();
+                        #ifndef SPHERICAL_OVERDENSITY
+                        if (GFC->linking_length_level1==GFC->linking_length_level2)
+                            FOFlevel2[g].assign_to_one_group(L1pos[g], NULL, NULL, L1acc[g], size);
+                        else    // This grabs the findgroups statement!
+                        #endif
+                        FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, L1acc[g], size);
+                        GFC->L2FOF.Stop();
+
+                        // Merger trees require tagging the taggable particles 
+                        // of the biggest L2 group in the original aux array.  
+                        // This can be done:
+                        // The L2 index() gives the position in the L1 array,
+                        // and that index() gets back to aux.
                         if(FOFlevel2[g].ngroups > 0){
                                 std::sort(FOFlevel2[g].groups, FOFlevel2[g].groups+FOFlevel2[g].ngroups);
                                 // Groups now in descending order of multiplicity
@@ -914,38 +914,40 @@ void GlobalGroupSlab::FindSubGroups() {
                                 }
                         }
 
-                    uint64 npstartA    = pHaloRVA->get_pencil_size();
-                    uint64 npstartB    = pHaloRVB->get_pencil_size();
+                        uint64 npstartA    = pHaloRVA->get_pencil_size();
+                        uint64 npstartB    = pHaloRVB->get_pencil_size();
+                       
+                        // Output the Tagged Particles and Taggable Particles. 
+                        // If P.OutputAllHaloParticles is set, then we output 
+                        //      all L1 particles
+                        for (int b=0; b<size; b++){
+                            int index = start[b].index(); 
+                            STDLOG(4, "Appending L1 particle, size = %d\n", size); 
+                            AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset);
+                        }
+
+                        STDLOG(4, "Computing stats\n"); 
+
+                        HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], offset);
+                        h.id = nextid++;
+                        h.L0_N = groupn;
+                        h.npstartA = npstartA;
+                        h.npstartB = npstartB;
+                        h.npoutA = pHaloRVA->get_pencil_size()-npstartA;
+                        h.npoutB = pHaloRVB->get_pencil_size()-npstartB;
                    
-                    // Output the Tagged Particles and Taggable Particles. 
-                    // If P.OutputAllHaloParticles is set, then we output 
-                    //      all L1 particles
-                    for (int b=0; b<size; b++){
-                        int index = start[b].index(); 
-                        STDLOG(4, "Appending L1 particle, size = %d\n", size); 
-                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset);
-                    }
+                        pL1halos->append(h);
+                    } // Done with this L1 halo
+                    // If this is a subsampling redshift, 
+                    // we now output the non-L1 particles in this L0 group.
+                    // This must happen here because the microstepping might 
+                    // alter the L0 pos/vel before we output the field particles.
+                }
 
-                    STDLOG(4, "Computing stats\n"); 
-
-                    HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], offset);
-                    h.id = nextid++;
-                    h.L0_N = groupn;
-                    h.npstartA = npstartA;
-                    h.npstartB = npstartB;
-                    h.npoutA = pHaloRVA->get_pencil_size()-npstartA;
-                    h.npoutB = pHaloRVB->get_pencil_size()-npstartB;
-               
-                    pL1halos->append(h);
-                } // Done with this L1 halo
-                // If this is a subsampling redshift, 
-                // we now output the non-L1 particles in this L0 group.
-                // This must happen here because the microstepping might 
-                // alter the L0 pos/vel before we output the field particles.
-                if (ReadState.DoSubsampleOutput){
+                if (ReadState.DoSubsampleOutput){ //Regardless of whether this L0 group is big enough to do L1 group finding, 
+                                                    //if we're outputing the particle subsample, output all of its L0 particles. 
                     for (int b=0; b<groupn; b++) {
                         if (groupaux[b].is_L1()) continue;  // Already in the L1 set
-                        STDLOG(4, "Appending L0 particle groupn %d\n", groupn); 
                         AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset);
                     }
                 }

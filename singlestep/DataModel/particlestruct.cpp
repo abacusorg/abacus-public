@@ -175,6 +175,13 @@ public:
         uint64 mask = ((uint64)1 << AUXINL0BIT) + ((uint64)1 << AUXINL1BIT);
         aux &= ~mask;
     }
+
+    inline void reset_L1_bit() {
+        // We need to be able to unset the L1 bit to output L1 particles in halos that are too small. 
+        uint64 mask = ((uint64)1 << AUXINL1BIT);
+        aux &= ~mask;
+    }
+
     inline void set_L0() {
         aux |= ((uint64)1 << AUXINL0BIT);
     }
