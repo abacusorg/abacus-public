@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 """
 A top-level script to launch a sim.  Usage is:
-
  You may wish to give a sim its own `run_sim.py` script and run it that
  way, as is done in the sim in the "Example" directory.  This also gives
 you the chance to edit environment variables from the Python script.
-
 For suites of simulations, you probably don't need or want a script
 for each individual sim.  In those cases, one can use this generic
 script to launch the sim by passing the directory containing the
