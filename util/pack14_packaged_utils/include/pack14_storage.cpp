@@ -476,7 +476,7 @@ int main() {
 #ifdef DONOTCOMPILE
 // Sample code to read a file:
 
-pack14 particle;
+packN<14> particle;
 cell_header cellhead;
 double pos[3], vel[3];
 uint64 id;
@@ -502,7 +502,7 @@ float vel_to_zspace = 1.0;   // Apply the cosmological factor to get to zspace u
 
 // Write the cell:
 cell_header cell;
-pack14 particle;
+packN<14> particle;
 cell = particle.pack_cell(i,j,k,CP->cpd,vscale);
 fwrite(&particle, sizeof(pack14), 1, fp);
 

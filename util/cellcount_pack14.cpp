@@ -10,7 +10,7 @@
 #include "util_main.c"
 
 #include "../include/cell_header.h"
-#include "../include/pack14_storage.cpp"
+#include "../include/pack_storage.cpp"
 
 typedef struct RVdouble {
 	double pos[3];          // Global position, unit box
@@ -35,7 +35,7 @@ void end() {
 
 void print_data(FILE *fp) {
     cell_header current_cell;
-    pack14 p;
+    packN<14> p;
     current_cell.vscale = 0;   // Make this illegal
 
     RVdouble rv;
