@@ -6,7 +6,7 @@
 #include "util_main.c"
 
 #include "../include/cell_header.h"
-#include "../include/pack14_storage.cpp"
+#include "../include/pack_storage.cpp"
 
 typedef struct RVdouble {
 	double pos[3];          // Global position, unit box
@@ -21,14 +21,14 @@ int RVrange(RVdouble *rv) {
 
 void print_data(FILE *fp) {
     cell_header current_cell;
-    pack14 p;
+    packN<14> p;
     current_cell.vscale = 0;   // Make this illegal
 
     RVdouble rv;
     uint64_t id;
 
     int count = 0;
-    while (fread(&p, sizeof(pack14), 1, fp)==1) {
+    while (fread(&p, sizeof(packN<14>), 1, fp)==1) {
 	if (p.iscell()) {
 	    current_cell = p.unpack_cell();
 	    // printf("# Cell %d %d %d\n", current_cell.i, current_cell.j, current_cell.k);

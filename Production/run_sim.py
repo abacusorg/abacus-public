@@ -1,31 +1,29 @@
 #!/usr/bin/env python
 """
-A top-level script to launch a sim.  Usage is:
+An example simulation script.
 
- You may wish to give a sim its own `run_sim.py` script and run it that
- way, as is done in the sim in the "Example" directory.  This also gives
-you the chance to edit environment variables from the Python script.
+Usage
+-----
+Make a copy of this directory:
+$ cp -r Example/ MySim/
 
-For suites of simulations, you probably don't need or want a script
-for each individual sim.  In those cases, one can use this generic
-script to launch the sim by passing the directory containing the
-configuration ("info" directory or "abacus.par2" file).
+Edit the sim parameters in MySim/abacus.par2.
+At least change SimName!
+
+Look at the command line options:
+$ ./run_sim.py --help
+
+Launch the sim:
+$ ./run_sim.py
+
 """
 
 from Abacus import abacus
 import sys
-from os.path import dirname, isfile, join as pjoin
 
 if __name__ == '__main__':
     parser = abacus.default_parser()
-    parser.add_argument('config_dir', help="The directory containing the 'info/' directory or the 'abacus.par2' file")
-    parser.add_argument('parfn', help="The parameter file, relative to CONFIG_DIR", nargs='?', default='abacus.par2')
     args = parser.parse_args()
-    args = vars(args)
-
-    if not isfile(pjoin(args['config_dir'], args['parfn'])):
-        if isfile(pjoin(args['config_dir'], 'info', args['parfn'])):
-            args['parfn'] = pjoin('info', args['parfn'])
-
-    retcode = abacus.run(**args)
+    retcode = abacus.run('abacus.par2', **vars(args))
+    
     sys.exit(retcode)

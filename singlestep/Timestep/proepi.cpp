@@ -578,6 +578,7 @@ void InitGroupFinding(bool MakeIC){
     */
 
     int do_grp_output, do_subsample_output;
+    do_subsample_output = do_grp_output = 0; 
 
      for(int i = 0; i < P.nTimeSliceSubsample; i++){
         double subsample_z = P.TimeSliceRedshifts_Subsample[i];
@@ -600,8 +601,8 @@ void InitGroupFinding(bool MakeIC){
     }
 
     have_L1z:
-    do_subsample_output &= not ReadState.DoTimeSliceOutput; //if we're going to output the entire timeslice, don't bother with the subsamples. 
-    do_grp_output |= ReadState.DoTimeSliceOutput | do_subsample_output | ReadState.DoGroupFindingOutput; //if any kind of output is requested, turn on group finding. 
+    if (ReadState.DoTimeSliceOutput) do_subsample_output = 0; //if we're going to output the entire timeslice, don't bother with the subsamples.
+    if (ReadState.DoTimeSliceOutput or do_subsample_output or ReadState.DoGroupFindingOutput) do_grp_output = 1;  //if any kind of output is requested, turn on group finding. 
 
     WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities
     WriteState.L0DensityThreshold = 0.0;
@@ -610,9 +611,12 @@ void InitGroupFinding(bool MakeIC){
     if((P.MicrostepTimeStep > 0 || do_grp_output) &&
         !(!P.AllowGroupFinding || P.ForceOutputDebug || MakeIC)){
         STDLOG(1, "Setting up group finding\n");
-        
+
         ReadState.DoGroupFindingOutput = do_grp_output; // if any kind of output is requested, turn on group finding.
         ReadState.DoSubsampleOutput    = do_subsample_output;  // but don't always turn on subsampling! only want that if explicitly asked for. 
+
+        STDLOG(4, "DoGroupFindingOutput %d, DoSubsampleOutput %d, DoTimeSliceOutput %d, do_grp_output %d, do_subsample_output %d\n",
+            ReadState.DoGroupFindingOutput, ReadState.DoSubsampleOutput, ReadState.DoTimeSliceOutput, do_grp_output, do_subsample_output);
 
         GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
                     #ifdef SPHERICAL_OVERDENSITY
@@ -654,7 +658,7 @@ void InitGroupFinding(bool MakeIC){
         STDLOG(1, "Group finding not enabled for this step.\n");
     }
 
-    STDLOG(4, "DoGroupFindingOutput %d, DoSubsampleOutput %d, DoTimeSliceOutput %d\n", ReadState.DoGroupFindingOutput, ReadState.DoSubsampleOutput, ReadState.DoTimeSliceOutput);
+    STDLOG(4, "End of InitGF: DoGroupFindingOutput %d, DoSubsampleOutput %d, DoTimeSliceOutput %d\n", ReadState.DoGroupFindingOutput, ReadState.DoSubsampleOutput, ReadState.DoTimeSliceOutput);
 }
 
 // Check whether "d" is actually a global directory, and thus not eligible for deletion

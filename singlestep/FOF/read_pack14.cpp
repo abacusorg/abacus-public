@@ -2,7 +2,7 @@
 
 
 #include "cell_header.h"
-#include "pack14_storage.cpp"
+#include "pack_storage.cpp"
 #include <sys/stat.h>
 
 #include "particle_subsample.cpp"
@@ -44,7 +44,7 @@ int64_t unpack_slab_pack14(int slab, double taggable_frac) {
     double3 posd, veld;
     uint64_t id;
     cell_header cellhead;
-    pack14 particle;
+    packN<14> particle;
     while (fread(&particle, sizeof(pack14), 1, buffer_file)==1) {
         if (particle.iscell()) {
             // Starting a new cell, so finish the old one.
@@ -57,7 +57,7 @@ int64_t unpack_slab_pack14(int slab, double taggable_frac) {
             assert(thiscell < cpd*cpd);
 
             // Make sure we haven't seen this cell before.
-            // This is a valid pack14 pattern, but in Abacus we expect all particles in be gathered in cell-order
+            // This is a valid packN<14> pattern, but in Abacus we expect all particles in be gathered in cell-order
             // TODO: to support L0 outputs, we need to push everything to the insert list (or index the L0 cells for fast lookup and merging)
             assert(ci[thiscell].startindex == 0);
 
@@ -159,7 +159,7 @@ public:
         double3 posd, veld;
         uint64_t id;
         cell_header cellhead;
-        pack14 particle;
+        packN<14> particle;
 
         FILE *fp = fopen(fname,"rb");
         assert(fp!=NULL);
