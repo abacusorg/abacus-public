@@ -179,8 +179,8 @@ class OutputPacked: public AppendArena {
     float velocity_conversion;
 
   public:
-    int sizeof_cell()     { return sizeof(packN<N>); }
-    int sizeof_particle() { return sizeof(packN<N>); }
+    int sizeof_cell()     { STDLOG(4, "SIZE OF PACKN %d\n", sizeof(packN<N>)); return sizeof(packN<N>); }
+    int sizeof_particle() { STDLOG(4, "SIZE OF PACKN %d\n", sizeof(packN<N>)); return sizeof(packN<N>); }
 
     OutputPacked() { 
         // Use ReadState to figure out the correct conversion of the
