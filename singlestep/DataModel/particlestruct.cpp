@@ -153,10 +153,10 @@ public:
         aux |= ((uint64)1 << AUXTAGGABLE_B_BIT);
     }
 
-    #define TAGGABLE_SUB_A 1
-    #define TAGGABLE_SUB_B 2
+    #define TAGGABLE_SUB_A 0x1
+    #define TAGGABLE_SUB_B 0x2
     inline int is_taggable() { // >> and mask
-        return ((aux >> AUXTAGGABLE_A_BIT) & 0x3); //returns > 0 if something is taggable, 0 otherwise. 
+        return ((aux >> AUXTAGGABLE_A_BIT) & 0x3); //returns > 0 if something is taggable, 0 otherwise
     }
     inline void set_tagged() {
         // The TAGGED bit is a lasting tag, once set.
@@ -173,12 +173,6 @@ public:
     inline void reset_L01_bits() {
         // We need to be able to unset these bits each time we run groupfinding
         uint64 mask = ((uint64)1 << AUXINL0BIT) + ((uint64)1 << AUXINL1BIT);
-        aux &= ~mask;
-    }
-
-    inline void reset_L1_bit() {
-        // We need to be able to unset the L1 bit to output L1 particles in halos that are too small. 
-        uint64 mask = ((uint64)1 << AUXINL1BIT);
         aux &= ~mask;
     }
 

@@ -17,6 +17,8 @@
  *      for that module. 
 */
 
+#include <bitset>
+
 #include <sys/time.h>
 #include <sys/resource.h> 
 

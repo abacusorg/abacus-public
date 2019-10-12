@@ -28,11 +28,15 @@ void GatherTaggableFieldParticles(int slab, RVfloat ** pv, TaggedPID ** pid, FLO
                     if(c.acc != NULL){ v -= unkickfactor*TOFLOAT3(c.acc[p]);}
 
                     if (tag == TAGGABLE_SUB_A){
+                        assertf(pv[0] != NULL and pid[0] != NULL, 
+                            "This particle is taggable in subset A, but OutputNonL0Taggable thinks P.ParticleSubsampleA should be zero.\n");
                         pv[0][nfield[0]]  = RVfloat(r.x, r.y, r.z, v.x, v.y, v.z);
                         pid[0][nfield[0]] = TaggedPID(c.aux[p]);
                         nfield[0]++;
                     }
                     else if (tag == TAGGABLE_SUB_B){
+                        assertf(pv[1] != NULL and pid[1] != NULL, 
+                            "This particle is taggable in subset B, but OutputNonL0Taggable thinks P.ParticleSubsampleB should be zero.\n");
                         pv[1][nfield[1]]  = RVfloat(r.x, r.y, r.z, v.x, v.y, v.z);
                         pid[1][nfield[1]] = TaggedPID(c.aux[p]);
                         nfield[1]++;
@@ -53,21 +57,31 @@ void OutputNonL0Taggable(int slab) {
     double subsample_fracs[NUM_SUBSAMPLES] = {P.ParticleSubsampleA, P.ParticleSubsampleB}; 
     int slab_type[2*NUM_SUBSAMPLES] = {FieldRVSlabA, FieldRVSlabB, FieldPIDSlabA, FieldPIDSlabB}; 
 
+    RVfloat   *  rvSlabs[NUM_SUBSAMPLES];
+    TaggedPID * pidSlabs[NUM_SUBSAMPLES];
+
     for (int i = 0; i < NUM_SUBSAMPLES; i++){
             // TODO: better heuristic? what will happen in very small sims?  
-        uint64 maxsize;
-        if (subsample_fracs[i] > 0) maxsize = SS->size(slab) * subsample_fracs[i]; 
-        else maxsize = SS->size(slab) * 0.1; //dummy size. 
-        maxsize += 6*sqrt(maxsize); // 6-sigma buffer
+        if (subsample_fracs[i] > 0) {
+            uint64 maxsize;
+            if (subsample_fracs[i] > 0) maxsize = SS->size(slab) * subsample_fracs[i]; 
+            else maxsize = SS->size(slab) * 0.1; //dummy size. 
+            maxsize += 6*sqrt(maxsize); // 6-sigma buffer
 
-        SB->AllocateSpecificSize(slab_type[i],    slab,              maxsize*sizeof(RVfloat));
-        SB->AllocateSpecificSize(slab_type[i+NUM_SUBSAMPLES],  slab, maxsize*sizeof(TaggedPID));
+            SB->AllocateSpecificSize(slab_type[i],                slab, maxsize*sizeof(RVfloat));
+            SB->AllocateSpecificSize(slab_type[i+NUM_SUBSAMPLES], slab, maxsize*sizeof(TaggedPID));
+
+            rvSlabs[i]   = (RVfloat*)   SB->GetSlabPtr(slab_type[i]  , slab);
+            pidSlabs[i] = (TaggedPID*) SB->GetSlabPtr(slab_type[i+2], slab);
+        }
+        else {
+            STDLOG(4, "Setting rvSlabs and pidSlabs to NULL for %d\n", i);
+            rvSlabs[i] = NULL;
+            pidSlabs[i] = NULL; 
+        }
     }
 
     uint64 nfield[NUM_SUBSAMPLES] = {0, 0}; 
-    RVfloat   *  rvSlabs[NUM_SUBSAMPLES] = {(RVfloat*)   SB->GetSlabPtr(slab_type[0], slab), (RVfloat*)   SB->GetSlabPtr(slab_type[1], slab)};
-    TaggedPID * pidSlabs[NUM_SUBSAMPLES] = {(TaggedPID*) SB->GetSlabPtr(slab_type[2], slab), (TaggedPID*) SB->GetSlabPtr(slab_type[3], slab)};
-
     GatherTaggableFieldParticles(slab, rvSlabs, pidSlabs, WriteState.FirstHalfEtaKick, nfield);
 
     for (int i = 0; i < NUM_SUBSAMPLES; i++){
@@ -81,7 +95,7 @@ void OutputNonL0Taggable(int slab) {
             SB->DeAllocate(slab_type[i], slab);
             SB->DeAllocate(slab_type[i+NUM_SUBSAMPLES], slab);
         }
-        STDLOG(1,"Writing %d non-L0 Taggable particles in slab %d in subsample %d of %d.\n", nfield[i], slab, i, NUM_SUBSAMPLES);
+        STDLOG(1,"Writing %d non-L0 Taggable particles in slab %d in subsample %d of %d.\n", nfield[i], slab, i+1, NUM_SUBSAMPLES);
     }
     
 

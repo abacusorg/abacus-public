@@ -402,7 +402,7 @@ public:
         installvector("SODensity",SODensity,2,1,DONT_CARE);
         MinL1HaloNP = 10;
         installscalar("MinL1HaloNP", MinL1HaloNP, DONT_CARE);
-		L1Output_dlna = .1;
+		L1Output_dlna = -1;
 		installscalar("L1Output_dlna", L1Output_dlna, DONT_CARE);
         OutputAllHaloParticles = 0;
         installscalar("OutputAllHaloParticles", OutputAllHaloParticles, DONT_CARE);

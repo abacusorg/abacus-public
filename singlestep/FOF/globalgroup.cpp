@@ -841,6 +841,8 @@ void GlobalGroupSlab::FindSubGroups() {
         PencilAccum<TaggedPID> * pHaloPIDs[NUM_SUBSAMPLES] = {pHaloPIDsA, pHaloPIDsB}; 
         PencilAccum<RVfloat>   *  pHaloRVs[NUM_SUBSAMPLES] = {pHaloRVA,   pHaloRVB  }; 
 
+        uint64 l0 = 0; //NAM DEBUG! 
+
         for (int k=0; k<GFC->cpd; k++) {
             // uint64 groupid = ((slab*GFC->cpd+j)*GFC->cpd+k)*4096;
             uint64 groupidstart = (((uint64)slab*MAXCPD+(uint64)j)*MAXCPD+(uint64)k)*10000;
@@ -933,8 +935,11 @@ void GlobalGroupSlab::FindSubGroups() {
                         h.L0_N = groupn;
                         h.npstartA = npstartA;
                         h.npstartB = npstartB;
+
                         h.npoutA = pHaloRVA->get_pencil_size()-npstartA;
                         h.npoutB = pHaloRVB->get_pencil_size()-npstartB;
+
+                        STDLOG(4, "Halo has %d %d\n", h.npoutA, h.npoutB);
                    
                         pL1halos->append(h);
                     } // Done with this L1 halo
@@ -948,7 +953,8 @@ void GlobalGroupSlab::FindSubGroups() {
                                                     //if we're outputing the particle subsample, output all of its L0 particles. 
                     for (int b=0; b<groupn; b++) {
                         if (groupaux[b].is_L1()) continue;  // Already in the L1 set
-                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset);
+                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset); 
+                        l0 ++; 
                     }
                 }
                 
