@@ -8,7 +8,8 @@ AVX tricks to accelerate the computation of distances.
 As written, the input particle set cannot exceed 2**23 particles.
 */
 
-#define FOFTimer DummyTimer
+//#define FOFTimer DummyTimer
+#define FOFTimer STimer
 
 #ifdef TEST
 
@@ -132,6 +133,9 @@ class alignas(16) FOFparticle {
     inline void mult(FOFloat f) {
         x *= f; y *= f; z *= f; n *= f;
     }
+    
+    // Provide a sort operand based on the index
+    bool operator< (const FOFparticle& b) const { return (n<b.n); }
 };
 
 #ifdef AVX512DIRECT  // change this to AVX512FOF if we ever decide it's faster
@@ -358,12 +362,14 @@ elements will be 16-byte aligned for SSE.
 class alignas(16) FOFgroup {
   public:
     FOFparticle BBmin, BBmax;
+    FOFloat halo_thresh = 0.; // The threshold distance squared for each halo center B.H.
     int start, n;   // Starting index and Number of particles
     uint8_t tmp[CACHE_LINE_SIZE-8-sizeof(FOFparticle)];     // For alignment padding
     	// During calculation, these are in FOF units, but at the
 	// end we restore them to input code units
-
-    FOFgroup(int _start, int _n) { start = _start; n = _n; }
+    // B.H. Including the threshold radius
+    //FOFgroup(int _start, int _n) { start = _start; n = _n; }
+    FOFgroup(int _start, int _n, FOFloat _halo_thresh) { start = _start; n = _n; halo_thresh = _halo_thresh;}
     FOFgroup(int _start, int _n, FOFparticle _BBmin, FOFparticle _BBmax) { 
 	BBmin = _BBmin; BBmax = _BBmax;
     	start = _start; n = _n; 
@@ -386,7 +392,7 @@ class FOFcell {
     accstruct *permutebuf;   ///< Space for doing permutations
     int *index;		///< The new indices in the original order
     int np;		///< The current size of the group
-
+  
     int maxsize;	///< The maximum size of these lists
 
     // Primary outputs, aside from the re-ordering of the input particles
@@ -890,7 +896,8 @@ class FOFcell {
 		// All done with this group
 		if (unassigned!=start+1) { 
 		    // Record the multiplet
-		    groups[ngroups++] = FOFgroup(start-p, unassigned-start);
+          //groups[ngroups++] = FOFgroup(start-p, unassigned-start);
+          groups[ngroups++] = FOFgroup(start-p, unassigned-start,0.); //B.H. doesn't matter-reference
 		}
 		// Set up the next group
 		start = primary; unassigned=primary+1;
@@ -972,8 +979,6 @@ class FOFcell {
 
 
 
-
-#include "sofind.cpp"
 
 
 
