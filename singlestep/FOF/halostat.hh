@@ -65,6 +65,53 @@ class HaloStat {
 };
 
 
+
+
+/// This class stores the position and velocity in a 20+12 bit format.
+/// The positions are supplied in the range [-0.5,0.5)
+/// For a 2 Gpc/h box, this implies resolution of about 2 kpc/h.
+/// The velocities are supplied in km/s and will saturate above +-6000 km/s.
+/// This means that velocities have a resolution of 3 km/s, injecting 1 km/s of rms rounding error.
+/// This saturation level is motivated by being mildly above the expected
+/// escape velocity of the largest clusters.
+class RVint {
+  public:
+    int32_t pv[3];
+    inline int32_t pack_pos(float x) {
+        int32_t ix = round(x*1048576);
+        if (ix<-524288) ix+=1048576;
+        if (ix>=524288) ix-=1048576;
+        return (ix*4096);
+    }
+    inline int32_t pack_vel(float v) {
+        const float velscale = 6000.0;   // km/s
+        int iv = round((v/velscale+1.0)*2048.0);
+        if (iv<0) iv=0;
+        if (iv>4095) iv=4095;    // We just saturate on super-velocity particles.
+        return iv;
+    }
+
+    RVint(float px, float py, float pz, float vx, float vy, float vz) {
+        pv[0] = pack_pos(px)|pack_vel(vx);
+        pv[1] = pack_pos(py)|pack_vel(vy);
+        pv[2] = pack_pos(pz)|pack_vel(vz);
+    }
+
+    /// This is the code to undo the packing above (for one coordinate).
+    // This is amenable to vectorization
+    unpack(int32_t input, float &pos, float &vel) {
+        int iv = input&0xfff;
+        const float velscale = 6000.0;   // km/s
+        vel = velscale*(iv-2048);   // km/s
+        int ix = input-iv;   // Slightly more expensive, but safer if input ended up cast to int64
+        // int ix = input&0xfffff000;         // Alternate
+        const float posscale= pow(2.0,-32.0); // Return to [-0.5,0.5)
+        // Alternatively, one might prefer include the boxsize
+        // const float posscale= boxsize*pow(2.0,-32.0); // Return to [-L/2,L/2)
+        pos = ix*posscale;   
+    }
+};
+
 class RVfloat {
   public:
     float pos[3];
