@@ -495,7 +495,8 @@ void Parameters::CountTimeSlices(){
         }
     } 
 
-    assert(nTimeSlice > 0 || nTimeSliceSubsample > 0 || nTimeSliceL1 > 0);  //must request at least one kind of output. 
+    if (not (nTimeSlice > 0 || nTimeSliceSubsample > 0 || nTimeSliceL1 > 0 || OutputEveryStep))
+        printf("Warning! No output requested. Are you sure you want this?\n");  //must request at least one kind of output. 
 }
 void Parameters::ProcessStateDirectories(){
     strlower(StateIOMode);

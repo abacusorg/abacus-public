@@ -16,11 +16,11 @@ AppendArena *get_AA_by_format(const char* format){
         STDLOG(1,"Using Output Format RVdouble\n");
         AA = new OutputRVdouble();
 
-    } else if (strcmp(format,"Packed9")==0) {
+    } else if (strcmp(format,"Pack9")==0) {
         STDLOG(1,"Using Output Format Pack9\n");
         AA = new OutputPacked<9>();
 
-    } else if (strcmp(format,"Packed")==0 or strcmp(format,"Packed14")==0) {
+    } else if (strcmp(format,"Pack")==0 or strcmp(format,"Pack14")==0) {
         STDLOG(1,"Using Output Format Pack14\n");
         AA = new OutputPacked<14>();
         
@@ -56,7 +56,6 @@ void WriteHeaderFile(const char* fn){
 	headerfile.open(fn);
 	headerfile << P.header();
 	headerfile << ReadState.header();
-	headerfile << "\nOutputType = \"FieldTimeSlice\"\n";
 	headerfile.close();
 }
 

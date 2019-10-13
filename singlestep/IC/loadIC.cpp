@@ -99,10 +99,11 @@ uint64 LoadSlab2IL(int slab) {
 
             vel *= convert_velocity;
             
-            if (is_subsample_particle(aux.pid(), P.ParticleSubsampleA)) // set all particles 0-ParticleSubsampleA as taggable in set A. 
+            int subsample = is_subsample_particle(aux.pid(), P.ParticleSubsampleA, P.ParticleSubsampleB);
+            if (subsample == SUBSAMPLE_A) // set all particles 0-ParticleSubsampleA as taggable in set A. 
                 aux.set_taggable_subA();
 
-            if (is_subsample_particle(aux.pid(), P.ParticleSubsampleB, P.ParticleSubsampleA)) //set all particles A BBig as taggable in set B. 
+            else if (subsample == SUBSAMPLE_B) //set all particles A BBig as taggable in set B. 
                 aux.set_taggable_subB();
             
             IL->Push(&pos, &vel, &aux, newcell);

@@ -577,14 +577,14 @@ void InitGroupFinding(bool MakeIC){
     i.e. before GroupFinding has a chance to rearrange them
     */
 
-    int do_grp_output, do_subsample_output;
-    do_subsample_output = do_grp_output = 0; 
+    int do_grp_output;
+    do_grp_output = 0; 
 
      for(int i = 0; i < P.nTimeSliceSubsample; i++){
         double subsample_z = P.TimeSliceRedshifts_Subsample[i];
         if(abs(ReadState.Redshift - subsample_z) < 1e-12){
             STDLOG(0,"Subsample output (and group finding) at this redshift requested by TimeSliceRedshifts_Subsample[%d]\n", i);
-            do_subsample_output = 1;
+            ReadState.DoSubsampleOutput = 1;
         }
     }
 
@@ -601,8 +601,8 @@ void InitGroupFinding(bool MakeIC){
     }
 
     have_L1z:
-    if (ReadState.DoTimeSliceOutput) do_subsample_output = 0; //if we're going to output the entire timeslice, don't bother with the subsamples.
-    if (ReadState.DoTimeSliceOutput or do_subsample_output or ReadState.DoGroupFindingOutput) do_grp_output = 1;  //if any kind of output is requested, turn on group finding. 
+    if (ReadState.DoTimeSliceOutput) ReadState.DoSubsampleOutput = 0; //if we're going to output the entire timeslice, don't bother with the subsamples.
+    if (ReadState.DoTimeSliceOutput or ReadState.DoSubsampleOutput or ReadState.DoGroupFindingOutput) do_grp_output = 1;  //if any kind of output is requested, turn on group finding. 
 
     WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities
     WriteState.L0DensityThreshold = 0.0;
@@ -613,10 +613,9 @@ void InitGroupFinding(bool MakeIC){
         STDLOG(1, "Setting up group finding\n");
 
         ReadState.DoGroupFindingOutput = do_grp_output; // if any kind of output is requested, turn on group finding.
-        ReadState.DoSubsampleOutput    = do_subsample_output;  // but don't always turn on subsampling! only want that if explicitly asked for. 
 
-        STDLOG(4, "DoGroupFindingOutput %d, DoSubsampleOutput %d, DoTimeSliceOutput %d, do_grp_output %d, do_subsample_output %d\n",
-            ReadState.DoGroupFindingOutput, ReadState.DoSubsampleOutput, ReadState.DoTimeSliceOutput, do_grp_output, do_subsample_output);
+        STDLOG(4, "DoGroupFindingOutput %d, DoSubsampleOutput %d, DoTimeSliceOutput %d, do_grp_output %d\n",
+            ReadState.DoGroupFindingOutput, ReadState.DoSubsampleOutput, ReadState.DoTimeSliceOutput, do_grp_output);
 
         GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
                     #ifdef SPHERICAL_OVERDENSITY
