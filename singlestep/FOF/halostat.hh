@@ -71,7 +71,7 @@ class HaloStat {
 
 
 /// This class stores the position and velocity in a 20+12 bit format.
-/// The positions are supplied in the range [-0.5,0.5)
+/// The positions are supplied relative to the first cell of the group, and converted to box units in the range [-0.5,0.5)
 /// For a 2 Gpc/h box, this implies resolution of about 2 kpc/h.
 /// The velocities are supplied in km/s and will saturate above +-6000 km/s.
 /// This means that velocities have a resolution of 3 km/s, injecting 1 km/s of rms rounding error.
@@ -95,6 +95,10 @@ class RVint {
     }
 
     RVint(float px, float py, float pz, float vx, float vy, float vz) {
+
+        // pos from global group coming in in units relative to group's first cell.
+        // calculate how much first cell is offset from box center, where box goes from -0.5 to 0.5. 
+        // then wrap. 
         pv[0] = pack_pos(px)|pack_vel(vx);
         pv[1] = pack_pos(py)|pack_vel(vy);
         pv[2] = pack_pos(pz)|pack_vel(vz);
