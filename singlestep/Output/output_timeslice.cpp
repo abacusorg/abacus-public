@@ -46,8 +46,14 @@ AppendArena *get_AA_by_format(const char* format){
 
 AppendArena *get_PID_AA_by_format(const char* format){
     AppendArena *PID_AA;
-    if (strcmp(P.OutputFormat,"Packed9")==0) PID_AA = new OutputPID(); 
-    else PID_AA = NULL; 
+    if (strcmp(P.OutputFormat,"Pack9")==0) {
+        PID_AA = new OutputPID(); 
+        STDLOG(2, "Chose PID timeslice append arena to complement pack9 RVs.\n");
+    }
+    else {
+        PID_AA = NULL; 
+        STDLOG(2, "No pack 9 timeslice requested; setting PID timeslice append area to NULL.\n");
+    }
     return PID_AA;
 }
 

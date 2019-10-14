@@ -5,6 +5,9 @@ object.
 #ifndef __HALOSTAT_HH
 #define __HALOSTAT_HH
 
+#define RVfloat RVint
+
+
 #define N_LARGEST_SUBHALOS 3
 
 class HaloStat {
@@ -99,7 +102,7 @@ class RVint {
 
     /// This is the code to undo the packing above (for one coordinate).
     // This is amenable to vectorization
-    unpack(int32_t input, float &pos, float &vel) {
+    void unpack(int32_t input, float &pos, float &vel) {
         int iv = input&0xfff;
         const float velscale = 6000.0;   // km/s
         vel = velscale*(iv-2048);   // km/s
@@ -112,11 +115,11 @@ class RVint {
     }
 };
 
-class RVfloat {
+class RVFloat {
   public:
     float pos[3];
     float vel[3];
-    RVfloat(float px, float py, float pz, float vx, float vy, float vz) {
+    RVFloat(float px, float py, float pz, float vx, float vy, float vz) {
     	pos[0] = px; pos[1] = py; pos[2] = pz;
     	vel[0] = vx; vel[1] = vy; vel[2] = vz;
     }

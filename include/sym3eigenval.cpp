@@ -132,7 +132,7 @@ void FindEigensystem(double vxx, double vxy, double vxz,
     eigenvectors[6] = e20; 
     eigenvectors[7] = e21;
     eigenvectors[8] = e22; 
-
+}
 
 
 void FindNullSpace(double fvxx, double fvyy, double fvzz, 

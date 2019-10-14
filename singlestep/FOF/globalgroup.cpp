@@ -1141,6 +1141,15 @@ taggable particles if we are also outputting halos. Halo outputs will
 be skipped if no L1 halos were found (but taggable particles will still be written).
  */
 
+RVfloat convert_units(RVfloat xv){
+    float pos_tmp[3]; float vel_tmp[3]; 
+     for (int i = 0; i<3; i++) xv.unpack(xv.pv[i], pos_tmp[i], vel_tmp[i]); 
+     float unit_convert = 1./ReadState.VelZSpace_to_Canonical; 
+     xv = RVint(pos_tmp[0], pos_tmp[1], pos_tmp[2], 
+                vel_tmp[0] * unit_convert, vel_tmp[1] * unit_convert, vel_tmp[2] * unit_convert); 
+     return xv;
+}
+
 void GlobalGroupSlab::HaloOutput() {
     GFC->OutputLevel1.Start();
     STDLOG(0,"Beginning halo output for slab %d\n", slab);
@@ -1170,20 +1179,14 @@ void GlobalGroupSlab::HaloOutput() {
             SB->AllocateSpecificSize(HaloRVSlabA, slab, HaloRVA.get_slab_bytes());
             HaloRVA.copy_convert((RVfloat *)SB->GetSlabPtr(HaloRVSlabA, slab),
             // somewhat experimental: pass a lambda to convert velocities to ZSpace
-            [](RVfloat xv) {  xv.vel[0] *= 1./ReadState.VelZSpace_to_Canonical;
-                              xv.vel[1] *= 1./ReadState.VelZSpace_to_Canonical;
-                              xv.vel[2] *= 1./ReadState.VelZSpace_to_Canonical;
-                              return xv; } );
+            convert_units );
             SB->StoreArenaNonBlocking(HaloRVSlabA, slab);
         }
         if (P.ParticleSubsampleB > 0) {
             SB->AllocateSpecificSize(HaloRVSlabB, slab, HaloRVB.get_slab_bytes());
             HaloRVB.copy_convert((RVfloat *)SB->GetSlabPtr(HaloRVSlabB, slab),
             // somewhat experimental: pass a lambda to convert velocities to ZSpace
-            [](RVfloat xv) {  xv.vel[0] *= 1./ReadState.VelZSpace_to_Canonical;
-                              xv.vel[1] *= 1./ReadState.VelZSpace_to_Canonical;
-                              xv.vel[2] *= 1./ReadState.VelZSpace_to_Canonical;
-                              return xv; } );
+           convert_units );
             SB->StoreArenaNonBlocking(HaloRVSlabB, slab);
         }
     }

@@ -88,11 +88,14 @@ class AppendArena {
     cell_header current_cell;
 
     void initialize(SlabType type, int slab, int _cpd, double VelZSpace_to_Canonical) {
+        STDLOG(4, "Initializing...\n");
         arena = SB->GetSlabPtr(type,slab);
         size_available = SB->SlabSizeBytes(type,slab);
         bytes = 0;
         cpd = _cpd;
         VelCanonical_to_ZSpace = 1.0/VelZSpace_to_Canonical;
+        STDLOG(4, "Done Initializing...\n");
+
         endcell();
     }
 
@@ -179,8 +182,8 @@ class OutputPacked: public AppendArena {
     float velocity_conversion;
 
   public:
-    int sizeof_cell()     { STDLOG(4, "SIZE OF PACKN %d\n", sizeof(packN<N>)); return sizeof(packN<N>); }
-    int sizeof_particle() { STDLOG(4, "SIZE OF PACKN %d\n", sizeof(packN<N>)); return sizeof(packN<N>); }
+    int sizeof_cell()     { return sizeof(packN<N>); }
+    int sizeof_particle() { return sizeof(packN<N>); }
 
     OutputPacked() { 
         // Use ReadState to figure out the correct conversion of the

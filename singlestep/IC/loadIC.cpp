@@ -136,9 +136,11 @@ uint64 LoadSlab2IL(int slab) {
             
             // Set the 'taggable' bit for particles as a function of their PID
             // this bit will be used for group finding and merger trees
-            if (is_subsample_particle(aux.pid(), P.ParticleSubsampleA)) 
+            int subsample = is_subsample_particle(aux.pid(), P.ParticleSubsampleA, P.ParticleSubsampleB);
+            if (subsample == SUBSAMPLE_A) // set all particles 0-ParticleSubsampleA as taggable in set A. 
                 aux.set_taggable_subA();
-            else if (is_subsample_particle(aux.pid(), P.ParticleSubsampleB, P.ParticleSubsampleA)) 
+
+            else if (subsample == SUBSAMPLE_B) //set all particles A BBig as taggable in set B. 
                 aux.set_taggable_subB();
             
             IL->Push(&pos, &vel, &aux, newcell);
