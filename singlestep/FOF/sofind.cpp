@@ -133,6 +133,7 @@ class SOcell {
     FOFloat xthreshold;
     FOFloat FOFunitdensity; //  cosmic mean in FOF units
     FOFloat mag_loc = 4.;    /// Condition for creating a center
+    FOFloat mag_roche = 2.;    /// Condition for a satellite halo to eat up particles belonging to a larger halo
     FOFloat inner_rad2 = 1.*1.; /// What is the inner radius of Delta prime with respect to Delta
     FOFloat min_central;   ///< The minimum FOF-scale density to require for a central particle.
     FOFloat *twothirds;    ///< We compare x^(3/2) to integers so much that we'll cache integers^(2/3)
@@ -688,7 +689,11 @@ int greedySO() {
                         // If this particle has already been marked as ineligible (i.e. has negative
 			// halo_inds), preserve the sign and just change its halo assignment (*** notice
 			// that the halo_inds in this case will definitely change within this loop)
-                        halo_inds[j] = (halo_inds[j]<0)?(-count):count;
+			// The halo index gets updated only if the enclosed density of the particle
+                        // with respect to the newcomer is  mag_roche times its largest enclosed density so far
+			if (min_inv_den[j] > mag_roche*inv_d) {
+                            halo_inds[j] = (halo_inds[j]<0)?(-count):count;
+			}
                     }
                 }
             }
