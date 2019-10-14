@@ -768,6 +768,9 @@ void GlobalGroupSlab::AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, P
                                             posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, int index, posstruct offset) {
     int taggable = groupaux[index].is_taggable();
 
+    double vel_convert_units = ReadState.VelZSpace_to_kms/ReadState.VelZSpace_to_Canonical; 
+    //double pos_convert_units = NAM TODO
+
     if (taggable != 0 || P.OutputAllHaloParticles) {
         posstruct r = WrapPosition(grouppos[index]+offset);
         velstruct v = groupvel[index];
@@ -1141,14 +1144,6 @@ taggable particles if we are also outputting halos. Halo outputs will
 be skipped if no L1 halos were found (but taggable particles will still be written).
  */
 
-RVfloat convert_units(RVfloat xv){
-    float pos_tmp[3]; float vel_tmp[3]; 
-     for (int i = 0; i<3; i++) xv.unpack(xv.pv[i], pos_tmp[i], vel_tmp[i]); 
-     float unit_convert = 1./ReadState.VelZSpace_to_Canonical; 
-     xv = RVint(pos_tmp[0], pos_tmp[1], pos_tmp[2], 
-                vel_tmp[0] * unit_convert, vel_tmp[1] * unit_convert, vel_tmp[2] * unit_convert); 
-     return xv;
-}
 
 void GlobalGroupSlab::HaloOutput() {
     GFC->OutputLevel1.Start();
@@ -1177,16 +1172,12 @@ void GlobalGroupSlab::HaloOutput() {
          // Write out the pos/vel of the taggable particles in L1 halos
         if (P.ParticleSubsampleA > 0){
             SB->AllocateSpecificSize(HaloRVSlabA, slab, HaloRVA.get_slab_bytes());
-            HaloRVA.copy_convert((RVfloat *)SB->GetSlabPtr(HaloRVSlabA, slab),
-            // somewhat experimental: pass a lambda to convert velocities to ZSpace
-            convert_units );
+            HaloRVA.copy_to_ptr((RVfloat *)SB->GetSlabPtr(HaloRVSlabA, slab));
             SB->StoreArenaNonBlocking(HaloRVSlabA, slab);
         }
         if (P.ParticleSubsampleB > 0) {
             SB->AllocateSpecificSize(HaloRVSlabB, slab, HaloRVB.get_slab_bytes());
-            HaloRVB.copy_convert((RVfloat *)SB->GetSlabPtr(HaloRVSlabB, slab),
-            // somewhat experimental: pass a lambda to convert velocities to ZSpace
-           convert_units );
+            HaloRVB.copy_to_ptr((RVfloat *)SB->GetSlabPtr(HaloRVSlabB, slab));
             SB->StoreArenaNonBlocking(HaloRVSlabB, slab);
         }
     }
