@@ -9,6 +9,10 @@ lot of infrastructure from there.
 
 */
 
+#define BROKEN
+
+#ifndef BROKEN
+
 #include "read_pack14.cpp"
 
 const char* StandaloneFOF_slice_dir;
@@ -118,3 +122,5 @@ void timestepStandaloneFOF(const char* slice_dir) {
 
     TimeStepWallClock.Stop();
 }
+
+#endif

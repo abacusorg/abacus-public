@@ -160,7 +160,8 @@ def distribute_to_resume(parfile, resumedir, verbose=True):
         for fn in fns:
             # If the filename does not look like 'asdf_1234', copy it
             if re.match(r'^((?!_\d{4}).)*$', basename(fn)):
-                print('Copying read state file {} to {}'.format(fn, localread), file=sys.stderr)
+                if verbose:
+                    print('Copying read state file {} to {}'.format(fn, localread), file=sys.stderr)
                 shutil.copy(fn, localread)
     
     if verbose:
@@ -200,13 +201,15 @@ def retrieve_state(parfile, resumedir, verbose=True):
             pass
             
     comm.Barrier() 
-     
-    try: 
-        print('Renaming previous runs retrieved states to backup files')
-        os.rename(resumedir, past)
-    except FileNotFoundError:
-        pass
-
+    
+    if rank == 0: 
+        try: 
+            print('Renaming previous runs retrieved states to backup files')
+            os.rename(resumedir, past)
+        except FileNotFoundError:
+            pass
+    
+    comm.Barrier()
 
     if verbose:
         print('Will copy node {}s state from {} to {}'.format(rank, source, dest), file=sys.stderr)

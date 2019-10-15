@@ -5,6 +5,8 @@
  *
 */
 
+
+
 #include "appendarena.cpp"
 
 AppendArena *get_AA_by_format(const char* format){
@@ -13,24 +15,46 @@ AppendArena *get_AA_by_format(const char* format){
     if (strcmp(format,"RVdouble")==0) {
         STDLOG(1,"Using Output Format RVdouble\n");
         AA = new OutputRVdouble();
-    } else if (strcmp(format,"Packed")==0) {
-        STDLOG(1,"Using Output Format Packed\n");
-        AA = new OutputPacked();
+
+    } else if (strcmp(format,"Pack9")==0) {
+        STDLOG(1,"Using Output Format Pack9\n");
+        AA = new OutputPacked<9>();
+
+    } else if (strcmp(format,"Pack")==0 or strcmp(format,"Pack14")==0) {
+        STDLOG(1,"Using Output Format Pack14\n");
+        AA = new OutputPacked<14>();
+        
     } else if (strcmp(format,"Heitmann")==0) {
         STDLOG(1,"Using Output Format Heitmann\n");
         AA = new OutputHeitmann();
+
     } else if (strcmp(format,"RVdoubleTag")==0) {
         STDLOG(1,"Using Output Format RVdoubleTag\n");
         AA = new OutputRVdoubleTag();
+
     } else if (strcmp(format,"RVZel")==0) {
         STDLOG(1,"Using Output Format RVZel\n");
         AA = new OutputRVZel();
+        
     }
     else {
         QUIT("Unrecognized case: OutputFormat = %s\n", format);
     }
-    
+
     return AA;
+}
+
+AppendArena *get_PID_AA_by_format(const char* format){
+    AppendArena *PID_AA;
+    if (strcmp(P.OutputFormat,"Pack9")==0) {
+        PID_AA = new OutputPID(); 
+        STDLOG(2, "Chose PID timeslice append arena to complement pack9 RVs.\n");
+    }
+    else {
+        PID_AA = NULL; 
+        STDLOG(2, "No pack 9 timeslice requested; setting PID timeslice append area to NULL.\n");
+    }
+    return PID_AA;
 }
 
 void WriteHeaderFile(const char* fn){
@@ -38,22 +62,29 @@ void WriteHeaderFile(const char* fn){
 	headerfile.open(fn);
 	headerfile << P.header();
 	headerfile << ReadState.header();
-	headerfile << "\nOutputType = \"TimeSlice\"\n";
 	headerfile.close();
 }
 
 uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
-    AppendArena *AA;
+    AppendArena *AA, *PID_AA;
     FLOAT vscale;
 
     AA = get_AA_by_format(P.OutputFormat);
-
+    PID_AA = get_PID_AA_by_format(P.OutputFormat);
+    
     // Setup the Arena
     int headersize = 1024*1024;
-    SB->AllocateSpecificSize(TimeSlice, slab, 
+    SB->AllocateSpecificSize(FieldTimeSlice, slab, 
     	   SS->size(slab)*(AA->sizeof_particle())
 	+ CP->cpd*(CP->cpd)*(AA->sizeof_cell()) + headersize);
-    AA->initialize(TimeSlice, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
+    AA->initialize(FieldTimeSlice, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
+
+    SB->AllocateSpecificSize(FieldTimeSlicePIDs, slab, 
+           SS->size(slab)*(PID_AA->sizeof_particle())
+    + CP->cpd*(CP->cpd)*(PID_AA->sizeof_cell()) + headersize);
+    PID_AA->initialize(FieldTimeSlicePIDs, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
+
+    STDLOG(4,"Writing header\n");
 
     // Write the header to its own file
     if(slab == 0){
@@ -63,19 +94,21 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
             ReadState.Redshift);
         WriteHeaderFile(filename);
     }
-        
+
+    STDLOG(4,"Adding header to slab file\n");  
     // and also add the header to the slab file
     if (!P.OmitOutputHeader) {
         AA->addheader((const char *) P.header());
         AA->addheader((const char *) ReadState.header());
         char head[1024];
-        sprintf(head, "\nOutputType = \"TimeSlice\"\n"); 
+        sprintf(head, "\nOutputType = \"FieldTimeSlice\"\n"); 
         AA->addheader((const char *) head);
         sprintf(head, "SlabNumber = %d\n", slab);
         AA->addheader((const char *) head);
         // For sanity, be careful that the previous lines end with a \n!
         AA->finalize_header();
     }
+    STDLOG(4,"Scanning through cells\n");
 
     // Now scan through the cells
     velstruct vel;
@@ -84,17 +117,15 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     for (ijk.y=0; ijk.y<CP->cpd; ijk.y++) 
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             Cell c = CP->GetCell(ijk);
-
             // We sometimes use the maximum velocity to scale.
             // But we do not yet have the global velocity (slab max will be set in Finish,
             // while the global max has to wait for all slabs to be done).
             // What is available after the kick is the max_component_velocity in each cell.
             vscale = c.ci->max_component_velocity/ReadState.VelZSpace_to_Canonical;	
             // The maximum velocity of this cell, converted to ZSpace unit-box units.
-
             // Start the cell
             AA->addcell(ijk, vscale);
-            
+            if (PID_AA != NULL) PID_AA->addcell(ijk, vscale);
             // Now pack the particles
             accstruct *acc = CP->AccCell(ijk);
             for (int p=0;p<c.count();p++) {
@@ -103,17 +134,27 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
                 // after a group-finding step (e.g. for debugging), we need to know that we can ignore the L0 bit
                 if(GFC == NULL || !c.aux[p].is_L0()){
                     AA->addparticle(c.pos[p], vel, c.aux[p]);
+                    if (PID_AA != NULL) PID_AA->addparticle(c.pos[p], vel, c.aux[p]);
                     n_added++;
                 }
             }
             AA->endcell();
+            if (PID_AA != NULL) PID_AA->endcell(); 
         }
 
-    SB->ResizeSlab(TimeSlice, slab, AA->bytes_written());
-
+    STDLOG(4,"Resizing slab\n");
+    SB->ResizeSlab(FieldTimeSlice, slab, AA->bytes_written());
+    STDLOG(4,"StoreArenaNonBlocking\n");
     // Write out this time slice
-    SB->StoreArenaNonBlocking(TimeSlice, slab);
+    SB->StoreArenaNonBlocking(FieldTimeSlice, slab);
     delete AA;
+
+    STDLOG(4,"Resizing slab\n");
+    SB->ResizeSlab(FieldTimeSlicePIDs, slab, PID_AA->bytes_written());
+    STDLOG(4,"StoreArenaNonBlocking\n");
+    // Write out this time slice
+    SB->StoreArenaNonBlocking(FieldTimeSlicePIDs, slab);
+    if (PID_AA != NULL) delete PID_AA;
     
     return n_added;
 }

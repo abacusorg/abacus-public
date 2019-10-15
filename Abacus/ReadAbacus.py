@@ -1,18 +1,15 @@
 """
 Tools for efficient reading of various Abacus file formats in Python.
 See the Abacus readme for details on the various formats.
-
 The main entry points are the `read()` and `from_dir()` functions
 to read a single file or a while directory of files, respectively.
 They are just wrappers to call the appropriate reader function
 for the given file format, like `read_pack14()` or `read_rvzel()`.
-
 To use the fast pack14 reader, you'll need to build the underlying
 library with
 `$ make analysis`
 from the top level Abacus directory.  Or just build all of Abacus.
 The alternative is to use the slow `read_pack14_lite()` function.
-
 Todo:
 - Unit conversion options
 - native ctypes float3* instead of void* (or CFFI?)
@@ -42,10 +39,8 @@ def read(*args, **kwargs):
     A convenience function to read particle data from
     file type `format`.  Simply calls
     the appropriate `read_[format]()` function.
-
     `format` may also be a function that accepts a filename
     and returns the particle data.
-
     For usage, see the docstring of the reader
     function for the file format you are using.
     """
@@ -101,7 +96,6 @@ def from_dir(dir, pattern=None, key=None, **kwargs):
 def read_many(files, format='pack14', separate_fields=False, **kwargs):
     """
     Read a list of files into a contiguous array.
-
     Our files are usually written as something like float6, where
     pos and vel are interwoven.  If one wants to de-interlave them
     into separate arrays, one can use the `separate_fields` arg.
@@ -110,7 +104,6 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
     fields.  This results in some small extra memory usage and
     time spent copying.  But it's granular at the level of the
     individual file sizes.
-
     Parameters
     ----------
     files: list of str
@@ -124,7 +117,6 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
         Default: False.
     kwargs: dict, optional
         Additional args to pass to the reader function.
-
     Returns
     -------
     particles: ndarray or dict of ndarray
@@ -207,7 +199,6 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, **kwargs):
     '''
     This is a generator that reads files in a separate thread in the background,
     yielding them one at a time as they become available.
-
     The intended usage is:
     ```
     for chunk_of_particles in AsyncReader('/slice/directory'):
@@ -216,13 +207,10 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, **kwargs):
     The next file will be read in the background while `process` is running.  For code
     that only needs a small chunk of the simulation in memory at a time, this will run
     faster and use less memory.
-
     The amount of readahead is configurable to ensure one doesn't run out of memory.
-
     In order to overlap compute and IO, the IO code must release the GIL.  Since np.fromfile()
     does that, most of our readers do that as well.  pack14 doesn't use fromfile, but ctypes
     also releases the GIL.
-
     Parameters
     ----------
     path: str or list of str
@@ -396,7 +384,6 @@ def read_rv(fn, return_vel=True, return_pid=False, zspace=False, dtype=np.float3
     Read particle data from a file in rvdoubletag format.
     
     Usage is the same as `read_pack14`.
-
     Parameters
     ----------
     double: bool, optional
@@ -486,7 +473,6 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
     or, if `out` is given,
     NP: int
         The number of particles loaded into `out`
-
     and optionally,
     
     header: InputFile
@@ -673,10 +659,8 @@ def read_pack14_lite(fn, return_vel=True, return_pid=False, return_header=False,
     """
     Read particle data from a file in pack14 format using a Numba-based library instead of
     a C library, as `read_pack14()` uses.
-
     N.B.: expect this function to be many times slower than read_pack14() (2-3x slower in my tests).
           Someday Numba will catch up...
-
     Parameters 
     ----------
     fn: str

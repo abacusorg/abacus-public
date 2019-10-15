@@ -3,9 +3,19 @@
 #include "MurmurHash3.cpp"
 
 #define SUBSAMPLE_SEED 0xBEEF
-inline int is_subsample_particle(const int64_t pid, const double subsample_frac){
+
+
+#define SUBSAMPLE_A 1
+#define SUBSAMPLE_B 2
+
+inline int is_subsample_particle(const int64_t pid, const double subsample_fracA, const double subsample_fracB){
     uint32_t hash = 0;
     MurmurHash3_x86_32(&pid, sizeof(pid), SUBSAMPLE_SEED, &hash);
     double prob = (double) hash / UINT32_MAX;
-    return prob < subsample_frac;
+
+    if ((prob < ( subsample_fracA)  ) || subsample_fracA == 1)
+    	return SUBSAMPLE_A; 
+
+    else if  (( (prob >= subsample_fracA) and (prob < (subsample_fracA + subsample_fracB) ) ) || subsample_fracB == 1)
+    	return SUBSAMPLE_B;
 }

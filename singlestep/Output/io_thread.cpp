@@ -445,7 +445,7 @@ int GetIOThread(const char* dir){
 
 // Here are the actual interfaces for writing an arena
 void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
-	    const char *filename, off_t fileoffset, int blocking) {
+	    const char *filename, off_t fileoffset, int blocking) { 
     
     STDLOG(3,"Using IO_thread module to read file %f, blocking %d\n", filename, blocking);
     iorequest ior(ram, sizebytes, filename, IO_READ, arenatype, arenaslab, fileoffset, 0, blocking);

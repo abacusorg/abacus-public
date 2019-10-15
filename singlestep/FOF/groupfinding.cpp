@@ -55,12 +55,19 @@ class GroupFindingControl {
     FOFloat SOdensity2;	///< The density threshold for SO L2
     int minhalosize;	///< The minimum size for a level 1 halo to be outputted
 
+    // Globals for SO finding
+    FOFloat FOFhalfcell;     // The half cell size
+    FOFloat SOpartition;  // The radial binning
+
     uint64 pPtot, fPtot, fGtot, CGtot, GGtot, Ltot, CGactive;
     int largest_GG;
     FLOAT maxFOFdensity;
     double meanFOFdensity;
 
     MultiplicityStats L0stats, L1stats;
+    // BOT
+    MultiplicityStats L2stats;
+  
     long long numdists1, numdists2;	
     	///< The total number of distances computed
     long long numsorts1, numsorts2;	
@@ -100,64 +107,68 @@ class GroupFindingControl {
     /// FOF lengths should be comoving lengths in code units (unit box)
     GroupFindingControl(FOFloat _linking_length, 
     	FOFloat _level1, FOFloat _level2,
-    int _cpd, int _GroupRadius, int _minhalosize, uint64 _np) {
-#ifdef STANDALONE_FOF
-    grouplog = &stdlog;
-#else
-    std::string glogfn = P.LogDirectory;
-    glogfn += "/lastrun"; glogfn += NodeString; glogfn += ".groupstats";
-    grouplog = new std::ofstream();
-    grouplog->open(glogfn);
-#endif
+        int _cpd, int _GroupRadius, int _minhalosize, uint64 _np) {
+    #ifdef STANDALONE_FOF
+        grouplog = &stdlog;
+    #else
+        std::string glogfn = P.LogDirectory;
+        glogfn += "/lastrun"; glogfn += NodeString; glogfn += ".groupstats";
+        grouplog = new std::ofstream();
+        grouplog->open(glogfn);
+    #endif
 
-	char onoff[5];
-	#ifdef AVXFOF
-	    sprintf(onoff, "on");
-	#else
-	    sprintf(onoff, "off");
-	#endif
-	STDLOG(0,"Group finding sizeof(FOFloat)=%d, sizeof(FLOAT)=%d, AVXFOF is %s\n", sizeof(FOFloat), sizeof(FLOAT), onoff);
 
-	cpd = _cpd; 
-	linking_length = _linking_length;
-    STDLOG(0,"Planning for L0 group finding with FOF: %f\n", linking_length);
-	#ifdef SPHERICAL_OVERDENSITY
-	    SOdensity1 = _level1;
-	    SOdensity2 = _level2;
-	    STDLOG(0,"Planning for L1/2 group finding with SO: %f and %f\n", 
-	    	SOdensity1, SOdensity2);
-	#else
-	    linking_length_level1 = _level1;
-	    linking_length_level2 = _level2;
-	    STDLOG(0,"Planning for L1/2 group finding with FOF: %f and %f\n", 
-	    	linking_length_level1, linking_length_level2);
-	#endif
-	minhalosize = _minhalosize;
-	invcpd = 1. / (double) _cpd;
-	boundary = (invcpd/2.0-linking_length);
-	np = _np;
-	particles_per_pencil = np/cpd/cpd;
-	particles_per_slab = np/cpd;
-	GroupRadius = _GroupRadius;
-	cellgroups = new SlabAccum<CellGroup>[cpd];
-	cellgroups_status = new int[cpd];
-	for (int j=0;j<cpd;j++) cellgroups_status[j] = 0;
-	GLL = new GroupLinkList(cpd, np/cpd*linking_length/invcpd*3*15);    
-    STDLOG(1,"Allocated %.2f GB for GroupLinkList\n", sizeof(GroupLink)*GLL->maxlist/1024./1024./1024.)
-	
-	setupGGS();
-	// This is a MultiAppendList, so the buffer cannot grow. 
-	// It will be storing links between cells.  Most particles do 
-	// not generate such a link; on average 3*linking_length/cellsize do. 
-	// But we will have up to 10 slabs worth in here.
-	// So we need to be a bit generous.
+        char onoff[5];
+        #ifdef AVXFOF
+            sprintf(onoff, "on");
+        #else
+            sprintf(onoff, "off");
+        #endif
+        STDLOG(0,"Group finding sizeof(FOFloat)=%d, sizeof(FLOAT)=%d, AVXFOF is %s\n", sizeof(FOFloat), sizeof(FLOAT), onoff);
+
+        cpd = _cpd; 
+        linking_length = _linking_length;
+        #ifdef SPHERICAL_OVERDENSITY
+            SOdensity1 = _level1;
+            SOdensity2 = _level2;
+            STDLOG(0,"Planning for L1/2 group finding with SO: %f and %f\n", 
+                SOdensity1, SOdensity2);
+        #else
+            linking_length_level1 = _level1;
+            linking_length_level2 = _level2;
+            STDLOG(0,"Planning for L1/2 group finding with FOF: %f and %f\n", 
+                linking_length_level1, linking_length_level2);
+        #endif
+        FOFhalfcell = FOF_RESCALE/2.0*CP->invcpd;     // The half cell size
+        SOpartition = FOFhalfcell*2.0*sqrt(3.0)/3.0;  // The radial binning
+        STDLOG(1,"SO parameters: FOFhalfcell = %f, SOpartition = %f\n", FOFhalfcell, SOpartition);
+
+        minhalosize = _minhalosize;
+        invcpd = 1. / (double) _cpd;
+        boundary = (invcpd/2.0-linking_length);
+        np = _np;
+        particles_per_pencil = np/cpd/cpd;
+        particles_per_slab = np/cpd;
+        GroupRadius = _GroupRadius;
+        cellgroups = new SlabAccum<CellGroup>[cpd];
+        cellgroups_status = new int[cpd];
+        for (int j=0;j<cpd;j++) cellgroups_status[j] = 0;
+        GLL = new GroupLinkList(cpd, np/cpd*linking_length/invcpd*3*15);    
+        STDLOG(1,"Allocated %.2f GB for GroupLinkList\n", sizeof(GroupLink)*GLL->maxlist/1024./1024./1024.)
+        
+        setupGGS();
+        // This is a MultiAppendList, so the buffer cannot grow. 
+        // It will be storing links between cells.  Most particles do 
+        // not generate such a link; on average 3*linking_length/cellsize do. 
+        // But we will have up to 10 slabs worth in here.
+        // So we need to be a bit generous.
         pPtot = fPtot = fGtot = CGtot = GGtot = Ltot = 0;
-	CGactive = 0;
-	maxFOFdensity = 0.0;
-	largest_GG = 0;
-	numdists1 = numsorts1 = numcenters1 = 0;
-	numdists2 = numsorts2 = numcenters2 = 0;
-	return;
+        CGactive = 0;
+        maxFOFdensity = 0.0;
+        largest_GG = 0;
+        numdists1 = numsorts1 = numcenters1 = 0;
+        numdists2 = numsorts2 = numcenters2 = 0;
+        return;
     }
 
     ~GroupFindingControl();
@@ -201,7 +212,9 @@ class GroupFindingControl {
 	 GLOG(0,"L2 groups required %f G distances, %f G sorts, %f G centers\n", numdists2/1e9, numsorts2/1e9, numcenters2/1e9);
 	 GLOG(0,"L1 group multiplicity distribution:\n");
 	 L1stats.report_multiplicities(grouplog);
-
+     // BOT
+     L2stats.report_multiplicities(grouplog);
+     
 	 float total_time = CellGroupTime.Elapsed()+
 			CreateFaceTime.Elapsed()+
 			FindLinkTime.Elapsed()+
@@ -381,7 +394,10 @@ GroupFindingControl *GFC = NULL;
 	// Code to search between pairs of cells and find the linked groups,
 	// which get added to GLL.
 
-// ===================== Global Groups ===============
+
+#include "sofind.cpp"
+
+// ===================== Output Field Particles ===============
 
 #include "halostat.cpp"
     // Code to compute L1 halo properties

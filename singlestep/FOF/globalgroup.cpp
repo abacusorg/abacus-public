@@ -135,10 +135,11 @@ class GlobalGroupSlab {
             ///< The cell group decompositions of these global groups
 
     // The following accumulate possible output 
-    SlabAccum<HaloStat> L1halos;        ///< Stats about each L1 halo
-    SlabAccum<TaggedPID> TaggedPIDs;        ///< The tagged PIDs in each L1 halo
-    SlabAccum<RVfloat> L1Particles;     ///< The taggable subset in each L1 halo, pos/vel
-    SlabAccum<TaggedPID> L1PIDs;        ///< The taggable subset in each L1 halo, PID
+    SlabAccum<HaloStat> L1halos;              ///< Stats about each L1 halo
+    SlabAccum<RVfloat> HaloRVA;       ///< The taggable subset in each L1 halo, pos/vel, subsample A
+    SlabAccum<RVfloat> HaloRVB;       ///< The taggable subset in each L1 halo, pos/vel, subsample B
+    SlabAccum<TaggedPID> HaloPIDsA;        ///< The taggable subset in each halo, PID, subsample A. If this is an L1OutputRedshift, we only output L1 halo pids. If this is a subsample redshift, we include the PIDs of the L0 halos.
+    SlabAccum<TaggedPID> HaloPIDsB;        ///< The taggable subset in each halo, PID, subsample B. If this is an L1OutputRedshift, we only output L1 halo pids. If this is a subsample redshift, we include the PIDs of the L0 halos.
     
     int slab;    ///< This slab number
     int rad; 
@@ -207,9 +208,10 @@ class GlobalGroupSlab {
         globalgroups.destroy();
         globalgrouplist.destroy();
         L1halos.destroy();
-        TaggedPIDs.destroy();
-        L1Particles.destroy();
-        L1PIDs.destroy();
+        HaloRVA.destroy();
+        HaloRVB.destroy();
+        HaloPIDsA.destroy();
+        HaloPIDsB.destroy();
     }
 
     void allocate(uint64 _np) {
@@ -229,6 +231,9 @@ class GlobalGroupSlab {
     void IndexLinks();
     void DeferGlobalGroups();
     void ClearDeferrals();
+    void AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, PencilAccum<TaggedPID> ** pHaloPIDs, 
+                                            posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, 
+                                            int index, posstruct offset);
     void CreateGlobalGroups();
     void GatherGlobalGroups();
     void ScatterGlobalGroupsAux();
@@ -501,6 +506,20 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                     // We only track the group if it has more than one particle
                     if (ggsize>1) {
                         int start = gg_list->buffer->get_pencil_size();
+                        // We're going to sort the cellgroup list, so that
+                        // multiple groups within one cell are contiguous
+                        // But there's no point in doing this unless there are 3+ CG.
+                        /*
+                        if (cglist.size()>2) {
+                            std::sort(cglist.data(), cglist.data()+cglist.size());
+                            for (uint64 t = 1; t<cglist.size(); t++) 
+                                assertf(cglist[t-1].id <= cglist[t].id,
+                                    "Failed to sort propertly: %lld > %lld\n", 
+                                        cglist[t-1].id,
+                                        cglist[t].id);
+                        }
+                        */
+
                         for (uint64 t = 0; t<cglist.size(); t++) {
                             //integer3 tmp = cglist[t].cell();
                             // printf("GGlist: %d %d %d %d\n",
@@ -745,22 +764,53 @@ work to find the L1 and L2 halos and generate output statistics
 about L1.  This can either use FOF or SO.
 */
 
+void GlobalGroupSlab::AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, PencilAccum<TaggedPID> ** pHaloPIDs, 
+                                            posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, int index, posstruct offset) {
+    int taggable = groupaux[index].is_taggable();
+
+    double vel_convert_units = ReadState.VelZSpace_to_kms/ReadState.VelZSpace_to_Canonical; 
+    //double pos_convert_units = NAM TODO
+
+    if (taggable != 0 || P.OutputAllHaloParticles) {
+        posstruct r = WrapPosition(grouppos[index]+offset);
+        velstruct v = groupvel[index];
+        // Velocities were full kicked; half-unkick before halostats
+        if (groupacc != NULL)
+            v -= TOFLOAT3(groupacc[index])*WriteState.FirstHalfEtaKick;
+
+        if (taggable == TAGGABLE_SUB_A){
+            pHaloPIDs[0]->append(TaggedPID(groupaux[index]));
+            pHaloRVs[0] ->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
+
+        }
+        else if (taggable == TAGGABLE_SUB_B){
+            pHaloPIDs[1]->append(TaggedPID(groupaux[index]));
+            pHaloRVs[1] ->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
+        }
+    }
+}
+
+
 void GlobalGroupSlab::FindSubGroups() {
     GFC->ProcessLevel1.Start();
     int maxthreads = omp_get_max_threads();
 
     // Guessing L1 halo count is 3% of particles, given minsize
     L1halos.setup(GFC->cpd, GFC->particles_per_slab/30);    
-    // Guessing Tagged particles are 2% of total 
-    TaggedPIDs.setup(GFC->cpd, GFC->particles_per_slab/50);    
     // Guessing L1 Particles are 3% of total (taggable)
-    L1Particles.setup(GFC->cpd, GFC->particles_per_slab/30);   
-    L1PIDs.setup(GFC->cpd, GFC->particles_per_slab/30);    
+    HaloRVA.setup(GFC->cpd, GFC->particles_per_slab/30);   
+    HaloRVB.setup(GFC->cpd, GFC->particles_per_slab/30);  
+     
+    HaloPIDsA.setup(GFC->cpd, GFC->particles_per_slab/30);    
+    HaloPIDsB.setup(GFC->cpd, GFC->particles_per_slab/30);    
     posstruct **L1pos = new posstruct *[maxthreads];
     velstruct **L1vel = new velstruct *[maxthreads];
     auxstruct **L1aux = new auxstruct *[maxthreads];
     accstruct **L1acc = new accstruct *[maxthreads];
     MultiplicityStats L1stats[maxthreads];
+
+    // BOT
+    MultiplicityStats L2stats[maxthreads];
 
     #ifdef SPHERICAL_OVERDENSITY
 	SOcell FOFlevel1[maxthreads], FOFlevel2[maxthreads];
@@ -794,25 +844,32 @@ void GlobalGroupSlab::FindSubGroups() {
     // dynamic scheduling can't smooth it out.  So we're going to try ordering the
     // pencils by the work estimate (largest first)
     std::sort(pstat, pstat+GFC->cpd);
+
+    STDLOG(4, "Starting pencil accumulation\n");
     
     #pragma omp parallel for schedule(dynamic,1)
     for (int jj=0; jj<GFC->cpd; jj++) {
         int j = pstat[jj].pnum;    // Get the pencil number from the list
         GFC->L1Tot.Start();
         int g = omp_get_thread_num();
-        PencilAccum<HaloStat> *pL1halos = L1halos.StartPencil(j);
-        PencilAccum<TaggedPID> *pTaggedPIDs = TaggedPIDs.StartPencil(j);
-        PencilAccum<RVfloat> *pL1Particles = L1Particles.StartPencil(j);
-        PencilAccum<TaggedPID> *pL1PIDs = L1PIDs.StartPencil(j);
+        PencilAccum<HaloStat>  *pL1halos   =   L1halos.StartPencil(j);
+        PencilAccum<RVfloat>   *pHaloRVA   =   HaloRVA.StartPencil(j);
+        PencilAccum<RVfloat>   *pHaloRVB   =   HaloRVB.StartPencil(j);
+        PencilAccum<TaggedPID> *pHaloPIDsA = HaloPIDsA.StartPencil(j);
+        PencilAccum<TaggedPID> *pHaloPIDsB = HaloPIDsB.StartPencil(j);
+
+        PencilAccum<TaggedPID> * pHaloPIDs[NUM_SUBSAMPLES] = {pHaloPIDsA, pHaloPIDsB}; 
+        PencilAccum<RVfloat>   *  pHaloRVs[NUM_SUBSAMPLES] = {pHaloRVA,   pHaloRVB  }; 
+
+        uint64 l0 = 0; //NAM DEBUG! 
+
         for (int k=0; k<GFC->cpd; k++) {
             // uint64 groupid = ((slab*GFC->cpd+j)*GFC->cpd+k)*4096;
             uint64 groupidstart = (((uint64)slab*MAXCPD+(uint64)j)*MAXCPD+(uint64)k)*10000;
             uint64 nextid = groupidstart;
             posstruct offset = CP->CellCenter(slab, j, k);
                     // A basic label for this group
-            for (int n=0; n<globalgroups[j][k].size(); n++) {
-                if (globalgroups[j][k][n].np<GFC->minhalosize) continue;
-                // We have a large-enough global group to process
+            for (int n=0; n<globalgroups[j][k].size(); n++) { //loop over L0 groups. 
                 posstruct *grouppos = pos+globalgroups[j][k][n].start;
                 velstruct *groupvel = vel+globalgroups[j][k][n].start;
                 auxstruct *groupaux = aux+globalgroups[j][k][n].start;
@@ -820,46 +877,52 @@ void GlobalGroupSlab::FindSubGroups() {
                 if(acc != NULL)
                     groupacc = acc+globalgroups[j][k][n].start;
                 int groupn = globalgroups[j][k][n].np;
-                GFC->L1FOF.Start();
-                #ifndef SPHERICAL_OVERDENSITY
-                if (GFC->linking_length_level1==GFC->linking_length)
-                    FOFlevel1[g].assign_to_one_group(grouppos, NULL, NULL, groupacc, groupn);
-                else    // This grabs the findgroups statement!
-                #endif
-                FOFlevel1[g].findgroups(grouppos, NULL, NULL, groupacc, groupn);
-                GFC->L1FOF.Stop();
-                // Now we've found the L1 groups
-                for (int a=0; a<FOFlevel1[g].ngroups; a++) {
-                    int size = FOFlevel1[g].groups[a].n;
-                    if (size<GFC->minhalosize) continue;
-                    L1stats[g].push(size);
-                    // The group is big enough.
-                    FOFparticle *start = FOFlevel1[g].p+FOFlevel1[g].groups[a].start;
-                    // Particle indices are in start[0,size).index()
-                    // which deref the grouppos, groupvel, groupaux list.
 
-                    // We now need to find the L2 subgroups.
-                    // Make a temporary list of the particles in the L1 group
-                    for (int b=0; b<size; b++) {
-                        L1pos[g][b] = grouppos[start[b].index()];
-                        L1vel[g][b] = groupvel[start[b].index()];
-                        groupaux[start[b].index()].set_L1();
-                        L1aux[g][b] = groupaux[start[b].index()];
-                        if (groupacc != NULL){
-                            L1acc[g][b] = groupacc[start[b].index()];
-                            // Velocities were full kicked; half-unkick before halostats
-                            L1vel[g][b] -= TOFLOAT3(L1acc[g][b])*WriteState.FirstHalfEtaKick;
-                        }
-                    }
-                    GFC->L2FOF.Start();
+                if (groupn >= GFC->minhalosize){ //This L0 group is too small. Need to output its particles if we're doing subsampling, though. 
+
+                    GFC->L1FOF.Start();
                     #ifndef SPHERICAL_OVERDENSITY
-                    if (GFC->linking_length_level1==GFC->linking_length_level2)
-                        FOFlevel2[g].assign_to_one_group(L1pos[g], NULL, NULL, L1acc[g], size);
+                    if (GFC->linking_length_level1==GFC->linking_length)
+                        FOFlevel1[g].assign_to_one_group(grouppos, NULL, NULL, groupacc, groupn);
                     else    // This grabs the findgroups statement!
                     #endif
-                    FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, L1acc[g], size);
-                    GFC->L2FOF.Stop();
+                    FOFlevel1[g].findgroups(grouppos, NULL, NULL, groupacc, groupn);
+                    GFC->L1FOF.Stop();
+                    // Now we've found the L1 groups
+                    for (int a=0; a<FOFlevel1[g].ngroups; a++) {
+                        int size = FOFlevel1[g].groups[a].n;
+                        if (size<GFC->minhalosize) continue;
+                        L1stats[g].push(size);
+                        // The group is big enough.
+                        FOFparticle *start = FOFlevel1[g].p+FOFlevel1[g].groups[a].start;
+                        // Particle indices are in start[0,size).index()
+                        // which deref the grouppos, groupvel, groupaux list.
 
+                        // We now need to find the L2 subgroups.
+                        // Make a temporary list of the particles in the L1 group
+                        for (int b=0; b<size; b++) {
+                            L1pos[g][b] = grouppos[start[b].index()];
+                            L1vel[g][b] = groupvel[start[b].index()];
+                            groupaux[start[b].index()].set_L1();
+                            L1aux[g][b] = groupaux[start[b].index()];
+                            if (groupacc != NULL){
+                                L1acc[g][b] = groupacc[start[b].index()];
+                                // Velocities were full kicked; half-unkick before halostats
+                                L1vel[g][b] -= TOFLOAT3(L1acc[g][b])*WriteState.FirstHalfEtaKick;
+                            }
+                        }
+
+                        GFC->L2FOF.Start();
+                        FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, L1acc[g], size);
+                        GFC->L2FOF.Stop();
+
+                        // BOT
+                        for (int b=0; b<FOFlevel2[g].ngroups; b++) {
+                            int size_L2 = FOFlevel2[g].groups[b].n;
+                            if (size_L2<GFC->minhalosize) continue;
+                            L2stats[g].push(size_L2);
+                    }
+                    
                     // Merger trees require tagging the taggable particles 
                     // of the biggest L2 group in the original aux array.  
                     // This can be done:
@@ -871,109 +934,120 @@ void GlobalGroupSlab::FindSubGroups() {
                         
                                 FOFparticle *L2start = FOFlevel2[g].p + FOFlevel2[g].groups[0].start;
                                 for (int p=0; p<FOFlevel2[g].groups[0].n; p++) {
-                                if (groupaux[start[L2start[p].index()].index()].is_taggable())
+                                if (groupaux[start[L2start[p].index()].index()].is_taggable() != 0) //1 or 2 = taggable. 0 = not taggable. 
                                         groupaux[start[L2start[p].index()].index()].set_tagged();
                                 }
                         }
 
-                    uint64 taggedstart = pTaggedPIDs->get_pencil_size();
-                    uint64 npstart = pL1Particles->get_pencil_size();
-
-                    // Output the Tagged PIDs
-                    for (int b=0; b<size; b++)
-                        if (groupaux[start[b].index()].is_tagged()) 
-                            pTaggedPIDs->append(TaggedPID(groupaux[start[b].index()].pid()));
-
-                    // Output the Taggable Particles. 
-                    // If P.OutputAllHaloParticles is set, then we output 
-                    //      all L1 particles
-                    for (int b=0; b<size; b++)
-                        if (groupaux[start[b].index()].is_taggable()
-                                    || P.OutputAllHaloParticles) {
-                            posstruct r = WrapPosition(grouppos[start[b].index()]+offset);
-                            velstruct v = groupvel[start[b].index()];
-                            // Velocities were full kicked; half-unkick before halostats
-                            if (groupacc != NULL)
-                                v -= TOFLOAT3(groupacc[start[b].index()])*WriteState.FirstHalfEtaKick;
-                            pL1Particles->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
-                            pL1PIDs->append(TaggedPID(groupaux[start[b].index()].pid()));
+                        uint64 npstartA    = pHaloRVA->get_pencil_size();
+                        uint64 npstartB    = pHaloRVB->get_pencil_size();
+                       
+                        // Output the Tagged Particles and Taggable Particles. 
+                        // If P.OutputAllHaloParticles is set, then we output 
+                        //      all L1 particles
+                        for (int b=0; b<size; b++){
+                            int index = start[b].index(); 
+                            STDLOG(4, "Appending L1 particle, size = %d\n", size); 
+                            AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset);
                         }
 
-                    HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], offset);
-                    h.id = nextid++;
-                    h.L0_N = groupn;
-                    h.taggedstart = taggedstart;
-                    h.ntagged = pTaggedPIDs->get_pencil_size()-taggedstart;
-                    h.npstart = npstart;
-                    h.npout = pL1Particles->get_pencil_size()-npstart;
-                    pL1halos->append(h);
-                } // Done with this L1 halo
-                // We now output the non-L1 particles in this L0 group.
-                // This must happen here because the microstepping might 
-                // alter the L0 pos/vel before we output the field particles.
-                for (int b=0; b<groupn; b++) {
-                    if (groupaux[b].is_L1()) continue;  // Already in the L1 set
-                    if (groupaux[b].is_taggable()
-                            || P.OutputAllHaloParticles) {
-                        posstruct r = WrapPosition(grouppos[b]+offset);
-                        velstruct v = groupvel[b];
-                        // Velocities were full kicked; half-unkick before halostats
-                        if (groupacc != NULL)
-                            v -= TOFLOAT3(groupacc[b])*WriteState.FirstHalfEtaKick;
-                        pL1Particles->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
-                        pL1PIDs->append(TaggedPID(groupaux[b].pid()));
+                        STDLOG(4, "Computing stats\n"); 
+
+                        HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], offset);
+                        h.id = nextid++;
+                        h.L0_N = groupn;
+                        h.npstartA = npstartA;
+                        h.npstartB = npstartB;
+
+                        h.npoutA = pHaloRVA->get_pencil_size()-npstartA;
+                        h.npoutB = pHaloRVB->get_pencil_size()-npstartB;
+
+                        STDLOG(4, "Halo has %d %d\n", h.npoutA, h.npoutB);
+                   
+                        pL1halos->append(h);
+                    } // Done with this L1 halo
+                    // If this is a subsampling redshift, 
+                    // we now output the non-L1 particles in this L0 group.
+                    // This must happen here because the microstepping might 
+                    // alter the L0 pos/vel before we output the field particles.
+                }
+
+                if (ReadState.DoSubsampleOutput){ //Regardless of whether this L0 group is big enough to do L1 group finding, 
+                                                    //if we're outputing the particle subsample, output all of its L0 particles. 
+                    for (int b=0; b<groupn; b++) {
+                        if (groupaux[b].is_L1()) continue;  // Already in the L1 set
+                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset); 
+                        l0 ++; 
                     }
                 }
+                
                 // If we want to do anything else with the L0 particles,
                 // we could do so here.
             } // Done with this L0 group
             pL1halos->FinishCell();
-            pTaggedPIDs->FinishCell();
-            pL1Particles->FinishCell();
-            pL1PIDs->FinishCell();
+            pHaloRVA->FinishCell();
+            pHaloRVB->FinishCell();
+            pHaloPIDsA->FinishCell();
+            pHaloPIDsB->FinishCell();
+
             
             assertf(nextid < groupidstart + 10000, "More than 10K groups in a cell?\n");
         }
         pL1halos->FinishPencil();
-        pTaggedPIDs->FinishPencil();
-        pL1Particles->FinishPencil();
-        pL1PIDs->FinishPencil();
+        pHaloRVA->FinishPencil();
+        pHaloRVB->FinishPencil();
+        pHaloPIDsA->FinishPencil();
+        pHaloPIDsB->FinishPencil();
         GFC->L1Tot.Stop();
     }
 
     // Need to update the pL1halos.npstart values for their pencil starts!
-    TaggedPIDs.build_pstart();
-    L1Particles.build_pstart();
+    HaloRVA.build_pstart();
+    HaloRVB.build_pstart();
     for (int j=0; j<GFC->cpd; j++) 
         for (int k=0; k<GFC->cpd; k++) 
             for (int n=0; n<L1halos[j][k].size(); n++) {
                 HaloStat *h = L1halos[j][k].ptr(n);
-                h->npstart += L1Particles.pstart[j];
-                h->taggedstart += TaggedPIDs.pstart[j];
+
+                STDLOG(4, "HALO HAS %d %d\n", h->npoutA, h->npoutB); 
+
+                h->npstartA += HaloRVA.pstart[j];
+                h->npstartB += HaloRVB.pstart[j];
             }
 
     // Coadd the stats
     uint64 previous = GFC->L1stats.ngroups;
+    // BOT
+    uint64 previous_L2 = GFC->L2stats.ngroups;
     for (int g=0; g<omp_get_max_threads(); g++) {
         GFC->L1stats.add(L1stats[g]);
-	GFC->numdists1 += FOFlevel1[g].numdists;
-	GFC->numdists2 += FOFlevel2[g].numdists;
-	GFC->numsorts1 += FOFlevel1[g].numsorts;
-	GFC->numsorts2 += FOFlevel2[g].numsorts;
-	GFC->numcenters1 += FOFlevel1[g].numcenters;
-	GFC->numcenters2 += FOFlevel2[g].numcenters;
-	#ifdef SPHERICAL_OVERDENSITY
-	if (g>0) {
-	    FOFlevel1[0].coadd_timers(FOFlevel1[g]);
-	    FOFlevel2[0].coadd_timers(FOFlevel2[g]);
+
+        // BOT
+        GFC->L2stats.add(L2stats[g]);
+    	GFC->numdists1 += FOFlevel1[g].numdists;
+    	GFC->numdists2 += FOFlevel2[g].numdists;
+    	GFC->numsorts1 += FOFlevel1[g].numsorts;
+    	GFC->numsorts2 += FOFlevel2[g].numsorts;
+    	GFC->numcenters1 += FOFlevel1[g].numcenters;
+    	GFC->numcenters2 += FOFlevel2[g].numcenters;
+    	#ifdef SPHERICAL_OVERDENSITY
+    	if (g>0) {
+    	    FOFlevel1[0].coadd_timers(FOFlevel1[g]);
+    	    FOFlevel2[0].coadd_timers(FOFlevel2[g]);
 	}
 	#endif
     }
     previous = GFC->L1stats.ngroups-previous;
     STDLOG(1,"Found %l L1 halos\n", previous);
+    // BOT
+    previous_L2 = GFC->L2stats.ngroups-previous_L2;
+    STDLOG(1,"Found %l L2 halos\n", previous_L2);
+    
     #ifdef SPHERICAL_OVERDENSITY
     if (FOFlevel1[0].Total.Elapsed()>0.0) {
-	STDLOG(3,"L1 Timing: %f = %f %f %f %f\n",
+      // B.H. trying to do timing
+      //STDLOG(3,"L1 Timing: %f = %f %f %f %f\n",
+      STDLOG(1,"L1 Timing: %f = %f %f %f %f\n",
 	    FOFlevel1[0].Total.Elapsed(),
 	    FOFlevel1[0].Copy.Elapsed(),
 	    FOFlevel1[0].Sweep.Elapsed(),
@@ -1012,6 +1086,7 @@ void GlobalGroupSlab::FindSubGroups() {
 
 
 
+
 void GlobalGroupSlab::SimpleOutput() {
     // This just writes two sets of ASCII files to see the outputs,
     // but it also helps to document how the global group information is stored.
@@ -1031,22 +1106,13 @@ void GlobalGroupSlab::SimpleOutput() {
         for (int k=0; k<GFC->cpd; k++)
             for (int n=0; n<L1halos[j][k].size(); n++) {
                 HaloStat h = L1halos[j][k][n];
-                fprintf(fp, "%4d %7.4f %7.4f %7.4f %f %4d %3d %3d %7.4f %7.4f %7.4f %f %lu %lu\n", 
+                fprintf(fp, "%4d %7.4f %7.4f %7.4f %d %4d %3d %3d %7.4f %7.4f %7.4f %d %lu %u %u\n", 
                     h.N, h.x[0], h.x[1], h.x[2], h.r50,
                     h.subhalo_N[0], h.subhalo_N[1], h.subhalo_N[2], 
                     h.subhalo_x[0], h.subhalo_x[1], h.subhalo_x[2], 
-                    h.subhalo_r50, h.id, h.npout);
+                    h.subhalo_r50, h.id, h.npoutA, h.npoutB);
             }
     fclose(fp);
-
-/*
-    fp = fopen(fname,"wb");
-    for (int j=0; j<GFC->cpd; j++) {
-        PencilAccum<TaggedPID> pids = TaggedPIDs[j];
-        fwrite((void *)pids.data, sizeof(TaggedPID), pids.get_pencil_size(), fp);
-    }
-    fclose(fp);
-*/
 
     // Remember that these positions are relative to the first-cell position,
     // which is why we include that cell ijk in the first outputs
@@ -1063,14 +1129,11 @@ void GlobalGroupSlab::HaloOutput() {
     sprintf(fname, "/tmp/out.binhalo.%03d", slab);
     L1halos.dump_to_file(fname);
 
-    sprintf(fname, "/tmp/out.tagged.%03d", slab);
-    TaggedPIDs.dump_to_file(fname);
-
     sprintf(fname, "/tmp/out.L1rv.%03d", slab);
-    L1Particles.dump_to_file(fname);
+    HaloRV.dump_to_file(fname);
 
     sprintf(fname, "/tmp/out.L1pid.%03d", slab);
-    L1PIDs.dump_to_file(fname);
+    HaloPIDs.dump_to_file(fname);
 }
 
 #else   // !STANDALONE_FOF
@@ -1081,18 +1144,19 @@ taggable particles if we are also outputting halos. Halo outputs will
 be skipped if no L1 halos were found (but taggable particles will still be written).
  */
 
+
 void GlobalGroupSlab::HaloOutput() {
     GFC->OutputLevel1.Start();
     STDLOG(0,"Beginning halo output for slab %d\n", slab);
         
-    if(slab == 0){
-        char dir[32];
-        sprintf(dir, "Step%04d_z%5.3f", ReadState.FullStepNumber, ReadState.Redshift);
-        CreateSubDirectory(P.GroupDirectory, dir);
-        std::string headerfn = "";
-        headerfn = headerfn + P.GroupDirectory + "/" + dir + "/header";
-        WriteGroupHeaderFile(headerfn.c_str());
-    }
+    // This will create the directory if it doesn't exist (and is parallel safe)
+    char dir[32];
+    sprintf(dir, "Step%04d_z%5.3f", ReadState.FullStepNumber, ReadState.Redshift);
+    CreateSubDirectory(P.GroupDirectory, dir);
+
+    std::string headerfn = "";
+    headerfn = headerfn + P.GroupDirectory + "/" + dir + "/header";
+    WriteGroupHeaderFile(headerfn.c_str());
 
     if (L1halos.pencils == NULL || L1halos.get_slab_size() == 0){
         GFC->OutputLevel1.Stop();
@@ -1104,25 +1168,32 @@ void GlobalGroupSlab::HaloOutput() {
     L1halos.copy_to_ptr((HaloStat *)SB->GetSlabPtr(L1halosSlab, slab));
     SB->StoreArenaNonBlocking(L1halosSlab, slab);
 
-    // Write out tagged PIDs from the L1 halos
-    SB->AllocateSpecificSize(TaggedPIDsSlab, slab, TaggedPIDs.get_slab_bytes());
-    TaggedPIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(TaggedPIDsSlab, slab));
-    SB->StoreArenaNonBlocking(TaggedPIDsSlab, slab);
+    if (ReadState.DoSubsampleOutput){
+         // Write out the pos/vel of the taggable particles in L1 halos
+        if (P.ParticleSubsampleA > 0){
+            SB->AllocateSpecificSize(HaloRVSlabA, slab, HaloRVA.get_slab_bytes());
+            HaloRVA.copy_to_ptr((RVfloat *)SB->GetSlabPtr(HaloRVSlabA, slab));
+            SB->StoreArenaNonBlocking(HaloRVSlabA, slab);
+        }
+        if (P.ParticleSubsampleB > 0) {
+            SB->AllocateSpecificSize(HaloRVSlabB, slab, HaloRVB.get_slab_bytes());
+            HaloRVB.copy_to_ptr((RVfloat *)SB->GetSlabPtr(HaloRVSlabB, slab));
+            SB->StoreArenaNonBlocking(HaloRVSlabB, slab);
+        }
+    }
 
-    // Write out the pos/vel of the taggable particles in L1 halos
-    SB->AllocateSpecificSize(L1ParticlesSlab, slab, L1Particles.get_slab_bytes());
-    L1Particles.copy_convert((RVfloat *)SB->GetSlabPtr(L1ParticlesSlab, slab),
-        // somewhat experimental: pass a lambda to convert velocities to ZSpace
-        [](RVfloat xv) {  xv.vel[0] *= 1./ReadState.VelZSpace_to_Canonical;
-                          xv.vel[1] *= 1./ReadState.VelZSpace_to_Canonical;
-                          xv.vel[2] *= 1./ReadState.VelZSpace_to_Canonical;
-                          return xv; } );
-    SB->StoreArenaNonBlocking(L1ParticlesSlab, slab);
+    // Write out the PIDs of the taggable particles in the halos. If DoSubsampleOutput, store L0 and L1. If DoGrpFindingOutput only, do L1 only. 
+    if (P.ParticleSubsampleA > 0){
+        SB->AllocateSpecificSize(HaloPIDsSlabA, slab, HaloPIDsA.get_slab_bytes());
+        HaloPIDsA.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(HaloPIDsSlabA, slab));
+        SB->StoreArenaNonBlocking(HaloPIDsSlabA, slab);
+    }
 
-    // Write out the PIDs of the taggable particles in the L1 halos
-    SB->AllocateSpecificSize(L1PIDsSlab, slab, L1PIDs.get_slab_bytes());
-    L1PIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(L1PIDsSlab, slab));
-    SB->StoreArenaNonBlocking(L1PIDsSlab, slab);
+    if (P.ParticleSubsampleB > 0) {
+        SB->AllocateSpecificSize(HaloPIDsSlabB, slab, HaloPIDsB.get_slab_bytes());
+        HaloPIDsB.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(HaloPIDsSlabB, slab));
+        SB->StoreArenaNonBlocking(HaloPIDsSlabB, slab);
+    }
 
     GFC->OutputLevel1.Stop();
     return;
@@ -1177,9 +1248,17 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
     // For sanity, be careful that the previous lines end with a \n!
     AA->finalize_header();
 
+
+    SlabAccum<TaggedPID> TimeSlicePIDs;
+    TimeSlicePIDs.setup(GFC->cpd, GFC->particles_per_slab);    
+
     // Now scan through cell groups
-    for (int j=0; j<GFC->cpd; j++)
-        for (int k=0; k<GFC->cpd; k++)
+    for (int j=0; j<GFC->cpd; j++){
+
+        PencilAccum<TaggedPID> *pTimeSlicePIDs = TimeSlicePIDs.StartPencil(j);
+
+
+        for (int k=0; k<GFC->cpd; k++){
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 // Process globalgroups[j][k][n]
                 // Recall where the particles start
@@ -1215,15 +1294,28 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
                         posstruct _p = pos[pi] - offset;
                         velstruct _v = vel[pi] - TOFLOAT3(acc[pi])*unkick_factor;
                         AA->addparticle(_p, _v, aux[pi]);
+                        if (strcmp(P.OutputFormat,"Pack9")==0) pTimeSlicePIDs->append(TaggedPID(aux[pi]));
                         n_added++;
                     }
                     AA->endcell();
                     start += cg->size();
                 }
             }
+            pTimeSlicePIDs->FinishCell();
+
+        }
+
+        pTimeSlicePIDs->FinishPencil();
+
+    }
+
+    if (strcmp(P.OutputFormat,"Pack9")==0){
+        SB->AllocateSpecificSize(L0TimeSlicePIDs, slab, TimeSlicePIDs.get_slab_bytes());
+        TimeSlicePIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(L0TimeSlicePIDs, slab));
+        SB->StoreArenaNonBlocking(L0TimeSlicePIDs, slab);
+    }
 
     SB->ResizeSlab(L0TimeSlice, slab, AA->bytes_written());
-
     // Write out this time slice
     SB->StoreArenaNonBlocking(L0TimeSlice, slab);
     delete AA;

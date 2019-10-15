@@ -109,37 +109,20 @@ double ChooseTimeStep(){
 	    STDLOG(0,"We have reached the Finishing Redshift of %f\n", P.FinishingRedshift());
 	    da = 0.0; return da;
 	}
-	
-// Do we need to output groups sooner?
-    for(int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++){
-        double L1z = P.L1OutputRedshifts[i];
-        // A non-output is signaled with -2
-        if (L1z <= -1)
-            continue;
 
-         double L1a = 1.0/(1+L1z);
-
-         if(ReadState.Redshift > L1z + 1e-12 && ReadState.ScaleFactor + da > L1a){
-            da = L1a - ReadState.ScaleFactor;
-            STDLOG(0,"da to reach next L1 group output is %f\n", da);
-        }
-    }
-
-    // Do we need to output groups sooner?
-    for(int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++){
-        double L1z = P.L1OutputRedshifts[i];
-        // A non-output is signaled with -2
-        if (L1z <= -1)
-            continue;
-
+    // Do we need to output a subsample sooner?
+    for(int i = 0; i < P.nTimeSliceSubsample; i++){
+        double L1z = P.TimeSliceRedshifts_Subsample[i];
         double L1a = 1.0/(1+L1z);
 
         if(ReadState.Redshift > L1z + 1e-12 && ReadState.ScaleFactor + da > L1a){
             da = L1a - ReadState.ScaleFactor;
-            STDLOG(0,"da to reach next L1 group output is %f\n", da);
+            STDLOG(0,"da to reach next timeslice subsample output is %f\n", da);
+
         }
     }
 
+    
 
 	// Particles should not be able to move more than one cell per timestep
 	double maxdrift = cosm->DriftFactor(cosm->current.a, da)*ReadState.MaxVelocity;
@@ -191,6 +174,16 @@ double ChooseTimeStep(){
     if(P.MicrostepTimeStep > 0)
         MicrostepEpochs = new MicrostepEpochTable(cosm, cosm->current.a, cosm->current.a + da, P.np);
 
+    // Do we need to output a merger tree redshift during this step?
+    for(int i = 0; i < P.nTimeSliceL1; i++){
+        double L1z = P.L1OutputRedshifts[i];
+        double L1a = 1.0/(1+L1z);
+
+        if(ReadState.Redshift > L1z + 1e-12 && ReadState.ScaleFactor + da > L1a){
+            STDLOG(0,"Group finding at this redshift requested by L1OutputRedshifts[%d]\n", i);
+            ReadState.DoGroupFindingOutput = 1; 
+        }
+    }
 	return da;
 }
 

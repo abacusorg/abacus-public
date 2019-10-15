@@ -62,7 +62,7 @@ void GatherTimings() {
     double thistime, denom, total;
     denom = WallClockDirect.Elapsed();
     REPORT(0, "Total Wall Clock Time", WallClockDirect.Elapsed()); 
-    fprintf(reportfp,"---> %6.3f Mpart/sec, %d particles processed by this node.", thistime ? P.np/thistime/1e6 : 0., NearForce.num_particles); 
+    fprintf(reportfp,"---> %6.3f Mpart/sec, %lu particles processed by this node.", thistime ? P.np/thistime/1e6 : 0., NearForce.num_particles); 
 	//TODO : consider reporting number of particles microstepped here as well. 
     fprintf(reportfp,"\n");
 

@@ -8,6 +8,8 @@ import textwrap
 import argparse
 import re
 
+import numpy as np
+
 from Abacus.Tools import ArgParseFormatter
 
 class Writer:
@@ -67,3 +69,21 @@ def default_metacode_argparser(doc):
     parser.add_argument('--onlyorder', help='Stub all but the given order (useful for fast compilation/debugging)', type=int)
 
     return parser
+
+
+class cmapper:
+    def __init__(self, order):
+        self.order = order
+        self.cml = (order+1)*(order+2)*(order+3)//6
+        self._cmap = np.empty((order+1)**3, dtype=int)
+        self._lmap = lambda a,b,c: (order+1)**2*a + (order+1)*b + c
+
+        i = 0
+        for a in range(order+1):
+            for b in range(order+1-a):
+                for c in range(order+1-a-b):
+                    self._cmap[self._lmap(a,b,c)] = i
+                    i += 1
+
+    def __call__(self, a, b, c):
+        return self._cmap[self._lmap(a,b,c)]

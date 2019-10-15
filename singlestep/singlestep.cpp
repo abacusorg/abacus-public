@@ -124,13 +124,6 @@ void PlanOutput(bool MakeIC) {
 }
 
 
-#include <signal.h>
-void graceful_exit_signal_handler(int sig)
-{
-    STDLOG(0, "Caught signal %d.\n", sig);
-}
-
-
 int main(int argc, char **argv) {
     //Enable floating point exceptions
     feenableexcept(FE_INVALID | FE_DIVBYZERO);
@@ -191,6 +184,9 @@ int main(int argc, char **argv) {
         QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
     
     if (da!=0) da = ChooseTimeStep();
+
+                printf("NAM SINGLESTEP.CPP chose timestep %6.4f!\n", da);
+
     // da *= -1;  // reverse the time step TODO: make parameter
     double dlna = da/ReadState.ScaleFactor;
     STDLOG(0,"Chose Time Step da = %6.4f, dlna = %6.4f\n", da, dlna);
@@ -206,7 +202,7 @@ int main(int argc, char **argv) {
     // Make a plan for output
     PlanOutput(MakeIC);
 
-    // Set up the Group Finding concepts
+    // Set up the Group Finding concepts and decide if Group Finding output is requested.
     InitGroupFinding(MakeIC);
     BuildWriteStateOutput();    // Have to delay this until after GFC is made
 

@@ -29,8 +29,9 @@
 
 // We need the cell_header class
 #include "cell_header.h"
-#include "pack14_storage.cpp"
-
+//#include "pack_storage.cpp"
+#include "pack_storage.cpp"
+//#include "pack9_storage.cpp"
 
 class AppendArena {
   private:
@@ -87,11 +88,14 @@ class AppendArena {
     cell_header current_cell;
 
     void initialize(SlabType type, int slab, int _cpd, double VelZSpace_to_Canonical) {
+        STDLOG(4, "Initializing...\n");
         arena = SB->GetSlabPtr(type,slab);
         size_available = SB->SlabSizeBytes(type,slab);
         bytes = 0;
         cpd = _cpd;
         VelCanonical_to_ZSpace = 1.0/VelZSpace_to_Canonical;
+        STDLOG(4, "Done Initializing...\n");
+
         endcell();
     }
 
@@ -159,18 +163,18 @@ class AppendArena {
 //
 // FIXME: The different output formats should probably be in their own files
 
-#define PACKED pack14
+template <int N> 
 class OutputPacked: public AppendArena {
   private:
     void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
-        PACKED *p = (PACKED *) c;
+        packN<N> *p = (packN<N> *) c;
         // p->pack_global(pos, vel, aux.pid(), current_cell);
         p->pack(pos, vel, aux.pid(), current_cell);
     }
     void appendcell(char *c, integer3 ijk, float vscale) {
         // We're given vscale in Zspace unit-box units, same as velocities.
         // But we need to hand it to the pack14 method in unit-cell units
-        PACKED *p = (PACKED *) c;
+        packN<N> *p = (packN<N> *) c;
         int vs = ceil(vscale*cpd); 
         if (vs<=0) vs = 10;    // Probably just not initialized correctly
         current_cell = p->pack_cell(ijk, cpd, vs);
@@ -178,10 +182,10 @@ class OutputPacked: public AppendArena {
     float velocity_conversion;
 
   public:
-    int sizeof_cell()     { return sizeof(PACKED); }
-    int sizeof_particle() { return sizeof(PACKED); }
+    int sizeof_cell()     { return sizeof(packN<N>); }
+    int sizeof_particle() { return sizeof(packN<N>); }
 
-    OutputPacked() {
+    OutputPacked() { 
         // Use ReadState to figure out the correct conversion of the
         // velocity!  The pack14 class assumes velocites are in 
         // redshift-space units; it *then* applies the given vscale.
@@ -189,9 +193,8 @@ class OutputPacked: public AppendArena {
     }
     ~OutputPacked(void) { }
 };
-#undef PACKED
 
-// =================================================================
+
 // And here's an example to put things into simple RVdouble
 
 class OutputRVdouble: public AppendArena {
@@ -231,6 +234,28 @@ class OutputRVdouble: public AppendArena {
         velocity_conversion = 1.0;  // Leave it in Zspace, unit box units
     }
     ~OutputRVdouble(void) { }
+};
+
+
+class OutputPID: public AppendArena {
+  private:
+    uint64_t pid;
+
+    void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
+        struct OutputPID *p = (struct OutputPID *)c;
+        p->pid = aux.pid(); 
+    }
+
+    void appendcell(char *c, integer3 ijk, float vscale) {
+        current_cell = cell_header(ijk, cpd, 1);
+    }
+
+  public:
+    int sizeof_cell()     { return 0; }
+    int sizeof_particle() { return sizeof(pid); }
+
+    OutputPID() { }
+    ~OutputPID(void) { }
 };
 
 
@@ -395,8 +420,8 @@ class OutputRVZel: public AppendArena {
     // If we instead have cell-referenced positions, then:
     double3 cc = CP->WrapCellCenter(current_cell.cellid());
 #endif
-    integer3 ijk = ZelIJK(aux.pid());
-    double3 zelpos = ZelPos(aux.pid());
+    integer3 ijk = aux.xyz();
+    double3 zelpos = ZelPos(ijk);
     float3 disp = double3(pos) + cc - zelpos;
     disp -= disp.round();  // wrap to [-.5,+.5)
 
@@ -430,9 +455,9 @@ class OutputRVZel: public AppendArena {
 Sample use:
 */
 
-    SB->AllocateSpecificSize(TimeSlice, slab, (SS->size(slab)+CP->cpd*(CP->cpd))*sizeof(PACKED));
-    char *start = SB->GetSlabPtr(TimeSlice,slab);
-    AppendArena AA(start, SB->SlabSizeBytes(TimeSlice,slab));
+    SB->AllocateSpecificSize(FieldTimeSlice, slab, (SS->size(slab)+CP->cpd*(CP->cpd))*sizeof(PACKED));
+    char *start = SB->GetSlabPtr(FieldTimeSlice,slab);
+    AppendArena AA(start, SB->SlabSizeBytes(FieldTimeSlice,slab));
 
     FLOAT vel_to_zspace = 1.0;   // Factor to convert from canonical to zspace
     FLOAT kickfactor = 1.0;	   // Amount to unkick.
@@ -461,9 +486,9 @@ Sample use:
             AA.endcell();
         }
 
-    SB->ResizeSlab(TimeSlice, slab, AA.bytes_written());
+    SB->ResizeSlab(FieldTimeSlice, slab, AA.bytes_written());
 
     char filename[1024]; 	// Make the file name!
-    SB->WriteArena(TimeSlice, slab, IO_DELETE, IO_NONBLOCKING, filename);
+    SB->WriteArena(FieldTimeSlice, slab, IO_DELETE, IO_NONBLOCKING, filename);
 
 #endif

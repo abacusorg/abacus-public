@@ -113,6 +113,7 @@ public:
     int OutputIsAllowed;
     int DoBinning;
     int DoGroupFindingOutput;
+    int DoSubsampleOutput; 
     
     int Do2LPTVelocityRereading;
 
@@ -210,6 +211,7 @@ public:
         DoTimeSliceOutput = 0;
         OutputIsAllowed = 0;
     DoGroupFindingOutput = 0;
+    DoSubsampleOutput = 0; 
         
     Do2LPTVelocityRereading = 0;
 

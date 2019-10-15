@@ -93,9 +93,16 @@ public:
     int  OmitOutputHeader;                // =1 if you want to skip the ascii header
 
     double FinalRedshift;        // When to stop.  This will override TimeSliceRedshifts.
-    double TimeSliceRedshifts[1024];
-    int nTimeSlice;
+	#define MAX_TIMESLICE_REDSHIFTS 1024
+    int    nTimeSlice;
+    int    nTimeSliceSubsample;
+    double TimeSliceRedshifts[MAX_TIMESLICE_REDSHIFTS];
+	double TimeSliceRedshifts_Subsample[MAX_TIMESLICE_REDSHIFTS];
 
+    #define NUM_SUBSAMPLES 2
+	double ParticleSubsampleA; //a consistently sampled small fraction of particles to output during some output steps. 
+	double ParticleSubsampleB; //an additional, unique fraction of particles to output during some output steps. 
+	
     double H0;          // The Hubble constant in km/s/Mpc
     double Omega_M;
     double Omega_DE;
@@ -160,9 +167,9 @@ public:
 	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
 
     #define MAX_L1OUTPUT_REDSHIFTS 1024
+    int nTimeSliceL1; 
     float L1OutputRedshifts[MAX_L1OUTPUT_REDSHIFTS];
-    double HaloTaggableFraction; // fraction of particles in a L2 halo to tag and output
-    int OutputAllHaloParticles;  // ==0 normally, to output only taggable L1 particles.  If non-zero, output all particles.
+    int OutputAllHaloParticles;  // ==0 normally, to output only taggable L1 particles.  If non-zero, output all particles
 
     double MicrostepTimeStep; // Timestep parameter that controls microstep refinement
 
@@ -277,9 +284,24 @@ public:
 
         FinalRedshift = -2.0;        // If <-1, then we will cascade back to the minimum of the TimeSliceRedshifts list
         installscalar("FinalRedshift",FinalRedshift,DONT_CARE);
-        installvector("TimeSliceRedshifts",TimeSliceRedshifts,1024,1,MUST_DEFINE);
-        installscalar("nTimeSlice",nTimeSlice,MUST_DEFINE);
+		
+        for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++)
+            TimeSliceRedshifts[i] = -2;		
+        installvector("TimeSliceRedshifts",TimeSliceRedshifts,MAX_TIMESLICE_REDSHIFTS,1,DONT_CARE);
+		
+        for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++)
+            TimeSliceRedshifts_Subsample[i] = -2;		
+        installvector("TimeSliceRedshifts_Subsample",TimeSliceRedshifts_Subsample,MAX_TIMESLICE_REDSHIFTS,1,DONT_CARE);
 
+        for (int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++)
+            L1OutputRedshifts[i] = -2;
+        installvector("L1OutputRedshifts", L1OutputRedshifts, MAX_L1OUTPUT_REDSHIFTS, 1, DONT_CARE);
+
+        //for the Summit sims, we always output PIDs of the two subsamples, even when only full timeslices are requested. So the two subsample fractions should always be defined.
+        //for the future, however, it might make more sense to default them to 0.03 and 0.07, or 0.1 and 0.0. 
+        installscalar("ParticleSubsampleB", ParticleSubsampleB, MUST_DEFINE); 
+        installscalar("ParticleSubsampleA", ParticleSubsampleA, MUST_DEFINE);
+		
         strcpy(OutputFormat,"RVdouble");
         // strcpy(OutputFormat,"Packed");
         installscalar("OutputFormat",OutputFormat,DONT_CARE);
@@ -364,9 +386,9 @@ public:
         DirectBPD = 3;
         installscalar("DirectBPD", DirectBPD, DONT_CARE);
 
-	DensityKernelRad = 0.0;
+	    DensityKernelRad = 0.0;
         installscalar("DensityKernelRad",DensityKernelRad, DONT_CARE);
-	L0DensityThreshold = 0.0;
+	    L0DensityThreshold = 0.0;
         installscalar("L0DensityThreshold",L0DensityThreshold, DONT_CARE);
 
         AllowGroupFinding = 1;
@@ -380,22 +402,15 @@ public:
         installvector("SODensity",SODensity,2,1,DONT_CARE);
         MinL1HaloNP = 10;
         installscalar("MinL1HaloNP", MinL1HaloNP, DONT_CARE);
-		L1Output_dlna = .1;
+		L1Output_dlna = -1;
 		installscalar("L1Output_dlna", L1Output_dlna, DONT_CARE);
-
-        for (int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++)
-            L1OutputRedshifts[i] = -2;
-        installvector("L1OutputRedshifts", L1OutputRedshifts, MAX_L1OUTPUT_REDSHIFTS, 1, DONT_CARE);
-
-        HaloTaggableFraction = 0.1;
-        installscalar("HaloTaggableFraction", HaloTaggableFraction, DONT_CARE);
         OutputAllHaloParticles = 0;
         installscalar("OutputAllHaloParticles", OutputAllHaloParticles, DONT_CARE);
 
         MicrostepTimeStep = 1.;
         installscalar("MicrostepTimeStep", MicrostepTimeStep, DONT_CARE);
 
-        MaxPID = 0;
+        MaxPID = -1;
         installscalar("MaxPID", MaxPID, DONT_CARE);
     }
 
@@ -435,17 +450,18 @@ public:
         // not set (value<=-1), then we will run to the minimum of the TimeSliceRedshifts list.
         // If no TimeSlices are requested, then z=0.
         if (FinalRedshift>-1) return FinalRedshift;
-        if (nTimeSlice) {
-            double minz = 1e10;
-            for (int i=0; i<nTimeSlice; i++)
-                if (TimeSliceRedshifts[i]<minz) minz = TimeSliceRedshifts[i];
-            return minz;
-        }
+        double minz = 1e10;
+        for (int i=0; i<MAX_TIMESLICE_REDSHIFTS; i++)
+            if (TimeSliceRedshifts[i] <= -1) break; 
+            else if (TimeSliceRedshifts[i]<minz) minz = TimeSliceRedshifts[i];
+        return minz;
+    
         return 0.0;
     }
 
 private:
     void ProcessStateDirectories();
+    void CountTimeSlices();
 };
 
 // Convert a whole string to lower case, in place.
@@ -454,6 +470,34 @@ void strlower(char* str){
         *str = tolower(*str);
 }
 
+void Parameters::CountTimeSlices(){
+    nTimeSlice = -1; 
+    for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++){
+        if (TimeSliceRedshifts[i] <= -1) {
+            nTimeSlice = i; 
+            break; 
+        }
+    }   
+
+    nTimeSliceSubsample = -1; 
+    for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++){
+        if (TimeSliceRedshifts_Subsample[i] <= -1) {
+            nTimeSliceSubsample = i; 
+            break; 
+        }
+    } 
+
+    nTimeSliceL1 = -1; 
+    for (int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++){
+        if (L1OutputRedshifts[i] <= -1) {
+            nTimeSliceL1 = i; 
+            break; 
+        }
+    } 
+
+    if (not (nTimeSlice > 0 || nTimeSliceSubsample > 0 || nTimeSliceL1 > 0 || OutputEveryStep))
+        printf("Warning! No output requested. Are you sure you want this?\n");  //must request at least one kind of output. 
+}
 void Parameters::ProcessStateDirectories(){
     strlower(StateIOMode);
     strlower(Conv_IOMode);
@@ -496,6 +540,7 @@ void Parameters::ReadParameters(char *parameterfile, int icflag) {
     hs = new HeaderStream(parameterfile);
     ReadHeader(*hs);
     hs->Close();
+    CountTimeSlices();
     ProcessStateDirectories();
     if(!icflag) ValidateParameters();
 }
@@ -585,7 +630,7 @@ void Parameters::ValidateParameters(void) {
         (DerivativeExpansionRadius!=32) ) {
 
         fprintf(stderr,
-            "[ERROR] DerivativeExpansionRadius = %d has to be 8 or 16 or 32\n",
+            "[ERROR] DerivativeExpansionRadius = %d has to be 1-8, 16, or 32\n",
                 DerivativeExpansionRadius);
         assert(1==0);
     }
