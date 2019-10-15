@@ -684,16 +684,16 @@ int greedySO() {
                     // If j is the densest particle seen so far, i.e. its enclosed density
 		    // with respect to this halo center is the largest yet, mark this as its halo
                     if (min_inv_den[j] > inv_d) {
-                        // Update the max dens for that particle 
+                        // Update the max dens for that particle
+                      if (min_inv_den[j] > mag_roche*inv_d) {
+                            halo_inds[j] = (halo_inds[j]<0)?(-count):count;
+                      }
                         min_inv_den[j] = inv_d;
                         // If this particle has already been marked as ineligible (i.e. has negative
 			// halo_inds), preserve the sign and just change its halo assignment (*** notice
 			// that the halo_inds in this case will definitely change within this loop)
 			// The halo index gets updated only if the enclosed density of the particle
-                        // with respect to the newcomer is  mag_roche times its largest enclosed density so far
-			if (min_inv_den[j] > mag_roche*inv_d) {
-                            halo_inds[j] = (halo_inds[j]<0)?(-count):count;
-			}
+            // with respect to the newcomer is  mag_roche times its largest enclosed density so far
                     }
                 }
             }
