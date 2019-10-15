@@ -6,6 +6,70 @@
 #include <assert.h>
 #endif 
 
+
+
+#ifdef OLD_CODE
+// TODO!  THIS IS CURRENTLY BROKEN
+/* I think that we have a conceptual problem: we need to subtract the 
+first basis vector from the rest.  Need to do Gauss-Jordan w/pivoting?
+Maybe we should be trying to construct orthogonal basis vectors first?
+*/
+
+// This will project away one vector, but only if it is non-zero to start with.
+// And only if the dot product is substantial
+#define NullProject(a,x,y,z) norm=x*x+y*y+z*z; dot=(a[0]*x+a[1]*y+a[2]*z); \
+    if (norm>scale&&dot*dot>norm*tol) { dot/=norm; a[0]-=dot*x; a[1]-=dot*y; a[2]-=dot*z;} \
+    printf("%f %f %f %f %f\n", a[0],a[1], a[2], norm, dot); \
+    while(0)
+
+/// We are given A-lambda*I and we need to find the null-space vector,
+/// to be returned in major[3].
+/// We will default to the axis given by fallback.
+/// We use scale as the typical scale of the eigenvalues, so that
+/// we can judge when we've gotten toward round-off problems.
+void FindNullSpace(double fvxx, double fvyy, double fvzz, 
+    double vxy, double vxz, double vyz, float scale, float *major, int fallback)
+{
+    // We're going to proceed by setting up a vector and then 
+    // projecting out the 3 columns we've been given.
+    double axis[3], dot, norm;
+    double tol = 1e-7;
+    scale = tol*tol*scale*scale;
+    int j=0; 
+
+    do {
+        axis[0] = axis[1] = axis[2] = 0.0; 
+        int k=fallback+j; if (k>2) k-=3; axis[k] = 1.0;
+        NullProject(axis, fvxx, vxy, vxz);
+        NullProject(axis,  vxy,fvyy, vyz);
+        NullProject(axis,  vxz, vyz,fvzz);
+        norm = axis[0]*axis[0]+axis[1]*axis[1]+axis[2]*axis[2];
+        j++;
+    } while (norm<scale && j<3);
+    // It will be very rare to fail this check, but if it happens it means that
+    // the initial direction has fallen purely in the non-null plane.
+    // Repeat with another choice.
+
+    if (norm<scale) {
+        /* If we got here, it's because we were handed columns that spanned
+        3-dim and hence didn't have a null space.  But that would happen
+        if the eigenvalues were imperfect. */
+        major[0] = major[1] = major[2] = 0; major[fallback] = 1.0;
+    } else {
+        norm = 1/sqrt(norm);
+        major[0] = axis[0]*norm;
+        major[1] = axis[1]*norm;
+        major[2] = axis[2]*norm;
+    }
+    return;
+}
+        
+    
+
+#endif
+
+
+
 void FindNullSpace(double fvxx, double fvyy, double fvzz, 
     double vxy, double vxz, double vyz, float scale, float *major, int fallback)
 {
