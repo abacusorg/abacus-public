@@ -18,4 +18,6 @@ inline int is_subsample_particle(const int64_t pid, const double subsample_fracA
 
     else if  (( (prob >= subsample_fracA) and (prob < (subsample_fracA + subsample_fracB) ) ) || subsample_fracB == 1)
     	return SUBSAMPLE_B;
+
+    else return 0; 
 }

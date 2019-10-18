@@ -120,6 +120,14 @@ class alignas(16) FOFparticle {
         FOFloat dz = q->z+offset->z-z;
 	return dx*dx+dy*dy+dz*dz;
     }
+    inline posstruct FOF_to_pos(){
+        posstruct pos; 
+        double inv_FOF_RESCALE = 1.0/ FOF_RESCALE;
+        pos.x = x * inv_FOF_RESCALE; 
+        pos.y = y * inv_FOF_RESCALE;
+        pos.z = z * inv_FOF_RESCALE;
+        return pos;
+    }
     // Hopefully the compiler is smart enough to convert the following to SSE!
     // If not, we could include the SSE primatives...
     inline void min(FOFparticle &q) {

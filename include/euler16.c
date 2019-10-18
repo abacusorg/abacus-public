@@ -23,7 +23,7 @@ of the pixels varies by about 1.6 peak-to-peak (and 15% rms).
 
 */
 
-#define EULER_TEST
+//#define EULER_TEST
 #ifdef EULER_TEST
 #include <math.h>
 #include <stdlib.h>
