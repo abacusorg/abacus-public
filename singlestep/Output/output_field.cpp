@@ -14,6 +14,8 @@ updates of the positions and velocities.
 
 void GatherTaggableFieldParticles(int slab, RVfloat ** pv, TaggedPID ** pid, FLOAT unkickfactor, uint64 * nfield) {
     slab = GFC->WrapSlab(slab);
+    double vel_convert_units = ReadState.VelZSpace_to_kms/ReadState.VelZSpace_to_Canonical; 
+
     for (int j=0; j<GFC->cpd; j++)
         for (int k=0; k<GFC->cpd; k++) {
             // Loop over cells
@@ -27,6 +29,8 @@ void GatherTaggableFieldParticles(int slab, RVfloat ** pv, TaggedPID ** pid, FLO
                     velstruct v = c.vel[p];
                     if(c.acc != NULL){ v -= unkickfactor*TOFLOAT3(c.acc[p]);}
 
+                    v *= vel_convert_units;  
+                      
                     if (tag == TAGGABLE_SUB_A){
                         assertf(pv[0] != NULL and pid[0] != NULL, 
                             "This particle is taggable in subset A, but OutputNonL0Taggable thinks P.ParticleSubsampleA should be zero.\n");

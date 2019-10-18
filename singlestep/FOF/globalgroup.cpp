@@ -777,7 +777,8 @@ void GlobalGroupSlab::AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, P
         // Velocities were full kicked; half-unkick before halostats
         if (groupacc != NULL)
             v -= TOFLOAT3(groupacc[index])*WriteState.FirstHalfEtaKick;
-
+        v *= vel_convert_units; 
+        
         if (taggable == TAGGABLE_SUB_A){
             pHaloPIDs[0]->append(TaggedPID(groupaux[index]));
             pHaloRVs[0] ->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
@@ -844,8 +845,6 @@ void GlobalGroupSlab::FindSubGroups() {
     // dynamic scheduling can't smooth it out.  So we're going to try ordering the
     // pencils by the work estimate (largest first)
     std::sort(pstat, pstat+GFC->cpd);
-
-    STDLOG(4, "Starting pencil accumulation\n");
     
     #pragma omp parallel for schedule(dynamic,1)
     for (int jj=0; jj<GFC->cpd; jj++) {
@@ -861,15 +860,15 @@ void GlobalGroupSlab::FindSubGroups() {
         PencilAccum<TaggedPID> * pHaloPIDs[NUM_SUBSAMPLES] = {pHaloPIDsA, pHaloPIDsB}; 
         PencilAccum<RVfloat>   *  pHaloRVs[NUM_SUBSAMPLES] = {pHaloRVA,   pHaloRVB  }; 
 
-        uint64 l0 = 0; //NAM DEBUG! 
 
         for (int k=0; k<GFC->cpd; k++) {
             // uint64 groupid = ((slab*GFC->cpd+j)*GFC->cpd+k)*4096;
-            uint64 groupidstart = (((uint64)slab*MAXCPD+(uint64)j)*MAXCPD+(uint64)k)*10000;
-            uint64 nextid = groupidstart;
+            uint64 groupidstart = (((uint64)slab*10000+(uint64)j)*10000+(uint64)k)*1000000;
+            uint64 nextid; 
             posstruct offset = CP->CellCenter(slab, j, k);
                     // A basic label for this group
             for (int n=0; n<globalgroups[j][k].size(); n++) { //loop over L0 groups. 
+                nextid = groupidstart + n*1000;
                 posstruct *grouppos = pos+globalgroups[j][k][n].start;
                 velstruct *groupvel = vel+globalgroups[j][k][n].start;
                 auxstruct *groupaux = aux+globalgroups[j][k][n].start;
@@ -921,22 +920,28 @@ void GlobalGroupSlab::FindSubGroups() {
                             int size_L2 = FOFlevel2[g].groups[b].n;
                             if (size_L2<GFC->minhalosize) continue;
                             L2stats[g].push(size_L2);
-                    }
+                        }
                     
-                    // Merger trees require tagging the taggable particles 
-                    // of the biggest L2 group in the original aux array.  
-                    // This can be done:
-                    // The L2 index() gives the position in the L1 array,
-                    // and that index() gets back to aux.
+                        // Merger trees require tagging the taggable particles 
+                        // of the biggest L2 group in the original aux array.  
+                        // This can be done:
+                        // The L2 index() gives the position in the L1 array,
+                        // and that index() gets back to aux.
+                        uint32_t ntaggedA = 0;
+                        uint32_t ntaggedB = 0;
                         if(FOFlevel2[g].ngroups > 0){
-                                std::sort(FOFlevel2[g].groups, FOFlevel2[g].groups+FOFlevel2[g].ngroups);
-                                // Groups now in descending order of multiplicity
-                        
-                                FOFparticle *L2start = FOFlevel2[g].p + FOFlevel2[g].groups[0].start;
-                                for (int p=0; p<FOFlevel2[g].groups[0].n; p++) {
-                                if (groupaux[start[L2start[p].index()].index()].is_taggable() != 0) //1 or 2 = taggable. 0 = not taggable. 
-                                        groupaux[start[L2start[p].index()].index()].set_tagged();
-                                }
+                            std::sort(FOFlevel2[g].groups, FOFlevel2[g].groups+FOFlevel2[g].ngroups);
+                            // Groups now in descending order of multiplicity
+                    
+                            FOFparticle *L2start = FOFlevel2[g].p + FOFlevel2[g].groups[0].start;
+                            for (int p=0; p<FOFlevel2[g].groups[0].n; p++) {
+                                int taggable = groupaux[start[L2start[p].index()].index()].is_taggable();
+                                if (taggable >0 ){ //1 or 2 = taggable. 0 = not taggable. 
+                                    if      (taggable == TAGGABLE_SUB_A) ntaggedA++;
+                                    else if (taggable == TAGGABLE_SUB_B) ntaggedB++;
+                                    groupaux[start[L2start[p].index()].index()].set_tagged();
+                                }                            
+                            }
                         }
 
                         uint64 npstartA    = pHaloRVA->get_pencil_size();
@@ -947,22 +952,19 @@ void GlobalGroupSlab::FindSubGroups() {
                         //      all L1 particles
                         for (int b=0; b<size; b++){
                             int index = start[b].index(); 
-                            STDLOG(4, "Appending L1 particle, size = %d\n", size); 
                             AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset);
                         }
-
-                        STDLOG(4, "Computing stats\n"); 
 
                         HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], offset);
                         h.id = nextid++;
                         h.L0_N = groupn;
                         h.npstartA = npstartA;
                         h.npstartB = npstartB;
+                        h.ntaggedA = ntaggedA;
+                        h.ntaggedB = ntaggedB;
 
                         h.npoutA = pHaloRVA->get_pencil_size()-npstartA;
                         h.npoutB = pHaloRVB->get_pencil_size()-npstartB;
-
-                        STDLOG(4, "Halo has %d %d\n", h.npoutA, h.npoutB);
                    
                         pL1halos->append(h);
                     } // Done with this L1 halo
@@ -977,7 +979,6 @@ void GlobalGroupSlab::FindSubGroups() {
                     for (int b=0; b<groupn; b++) {
                         if (groupaux[b].is_L1()) continue;  // Already in the L1 set
                         AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset); 
-                        l0 ++; 
                     }
                 }
                 
@@ -990,8 +991,6 @@ void GlobalGroupSlab::FindSubGroups() {
             pHaloPIDsA->FinishCell();
             pHaloPIDsB->FinishCell();
 
-            
-            assertf(nextid < groupidstart + 10000, "More than 10K groups in a cell?\n");
         }
         pL1halos->FinishPencil();
         pHaloRVA->FinishPencil();
@@ -1008,11 +1007,17 @@ void GlobalGroupSlab::FindSubGroups() {
         for (int k=0; k<GFC->cpd; k++) 
             for (int n=0; n<L1halos[j][k].size(); n++) {
                 HaloStat *h = L1halos[j][k].ptr(n);
-
-                STDLOG(4, "HALO HAS %d %d\n", h->npoutA, h->npoutB); 
-
                 h->npstartA += HaloRVA.pstart[j];
                 h->npstartB += HaloRVB.pstart[j];
+                
+
+                STDLOG(4, "%d  %d %d %d %d %d %d\n", h->id, h->npstartA, h->npoutA, h->npstartB, h->npoutB, h->ntaggedA, h->ntaggedB);
+                STDLOG(4, "%f %f %f %f %f %f %f\n", h->x[0], h->x[1], h->x[2], h->v[0], h->v[1], h->v[2], h->sigmav3d);
+                STDLOG(4, "%d %d %d %d %d %d %d %d \n ",
+                        h->sigmav3d_to_sigmavMaj, h->sigmavMin_to_sigmav3d,  h->r10, h->r25, h->r50, h->r67, h->r75, h->r90);
+                STDLOG(4, "%f %f %d %f %f %f %f %f\n", h->r100, h->vcirc_max, h->rvcirc_max, h->SO_central_particle[0], h->SO_central_particle[1], 
+                        h->SO_central_particle[2], h->SO_central_particle[3], h->SO_central_density); 
+
             }
 
     // Coadd the stats
@@ -1108,9 +1113,9 @@ void GlobalGroupSlab::SimpleOutput() {
                 HaloStat h = L1halos[j][k][n];
                 fprintf(fp, "%4d %7.4f %7.4f %7.4f %d %4d %3d %3d %7.4f %7.4f %7.4f %d %lu %u %u\n", 
                     h.N, h.x[0], h.x[1], h.x[2], h.r50,
-                    h.subhalo_N[0], h.subhalo_N[1], h.subhalo_N[2], 
-                    h.subhalo_x[0], h.subhalo_x[1], h.subhalo_x[2], 
-                    h.subhalo_r50, h.id, h.npoutA, h.npoutB);
+                    h.L2cntr_N[0], h.L2cntr_N[1], h.L2cntr_N[2], 
+                    h.L2cntr_x[0], h.L2cntr_x[1], h.L2cntr_x[2], 
+                    h.L2cntr_r50, h.id, h.npoutA, h.npoutB);
             }
     fclose(fp);
 
