@@ -963,6 +963,31 @@ void GlobalGroupSlab::FindSubGroups() {
                         h.ntaggedA = ntaggedA;
                         h.ntaggedB = ntaggedB;
 
+
+                        #ifdef SPHERICAL_OVERDENSITY
+                        //fetch SO stats for this L1 halo. 
+                        posstruct SO_particle = FOFlevel1[g].p[0].FOF_to_pos(); 
+                        h.SO_central_particle[0] = SO_particle.x;
+                        h.SO_central_particle[1] = SO_particle.y;
+                        h.SO_central_particle[2] = SO_particle.z;
+
+                        STDLOG(4, "%f %f %f\n", FOFlevel1[g].FOFunitdensity, FOFlevel2[g].FOFunitdensity, FOF_RESCALE); 
+
+                        h.SO_central_density  = FOFlevel1[g].density[0] / FOFlevel1[g].FOFunitdensity; 
+
+                        h.SO_radius = sqrt(FOFlevel1[g].groups[a].halo_thresh2) / FOF_RESCALE; 
+
+                        //now repeat for the largest L2 halo.
+                        SO_particle = FOFlevel2[g].p[0].FOF_to_pos(); 
+                        h.SO_L2max_central_particle[0] = SO_particle.x;
+                        h.SO_L2max_central_particle[1] = SO_particle.y;
+                        h.SO_L2max_central_particle[2] = SO_particle.z;
+
+                        h.SO_L2max_central_density  = FOFlevel2[g].density[0] / FOFlevel2[g].FOFunitdensity; 
+
+                        h.SO_L2max_radius = sqrt(FOFlevel2[g].groups[0].halo_thresh2) / FOF_RESCALE; 
+                        #endif 
+
                         h.npoutA = pHaloRVA->get_pencil_size()-npstartA;
                         h.npoutB = pHaloRVB->get_pencil_size()-npstartB;
                    

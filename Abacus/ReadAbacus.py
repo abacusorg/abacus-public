@@ -30,6 +30,8 @@ from warnings import warn
 import numpy as np
 import numba
 
+import ctypes
+
 from .InputFile import InputFile
 from .Tools import ndarray_arg, asciistring_arg
 
@@ -87,9 +89,11 @@ def from_dir(dir, pattern=None, key=None, **kwargs):
         pattern = get_file_pattern(format)
 
     _key = (lambda k: key(ppath.basename(k))) if key else None
-    files = sorted(glob(pjoin(dir, pattern)), key=_key)
-    assert files, "No files found matching {}".format(pjoin(dir, pattern))
-
+    files = []
+    for p in pattern:
+        files += glob(pjoin(dir, p))
+    files = sorted(files, key=_key)
+    
     return read_many(files, **kwargs)
 
 
@@ -231,11 +235,16 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, **kwargs):
     assert chunksize == 1, "chunksize > 1 not yet implemented"
 
     _key = (lambda k: key(ppath.basename(k))) if key else None
-    
+
+
     # First, determine the file names to read
     if ppath.isdir(path):
         pattern = get_file_pattern(kwargs.get('format'))
-        files = sorted(glob(pjoin(path, pattern)), key=_key)
+        files = []
+        for p in pattern:
+            files += glob(pjoin(path, pattern))
+        files = sorted(files, key=_key)
+        print(files)
     elif ppath.isfile(path):
         files = [path]
     else:
@@ -332,6 +341,7 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
                np.float64: ralib.read_pack14 }
     assert dtype in readers
     
+
     with open(fn, 'rb') as fp:
         header = skip_header(fp)
         if header:
@@ -347,12 +357,13 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
         ndt = output_dtype(return_vel=return_vel, return_pid=return_pid, dtype=dtype)
         _out = np.empty(alloc_NP, dtype=ndt)
 
-    if downsample > 1:
-        warn(f'Downsample factor {downsample} is greater than 1!  A fraction less than 1 is expected.')
-
-    if downsample is None:
-        downsample = 1.1  # any number larger than 1 will take all particles
-    
+    try:
+        if downsample > 1:
+            warn(f'Downsample factor {downsample} is greater than 1!  A fraction less than 1 is expected.')
+    except TypeError: 
+        if downsample is None:
+            downsample = 1.1  # any number larger than 1 will take all particles
+        
     NP = readers[dtype](fn, offset, ramdisk, return_vel, zspace, return_pid, downsample, _out.view(dtype=dtype))
 
     # shrink the buffer to the real size
@@ -369,6 +380,99 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
     if len(retval) == 1:
         return retval[0]
     return retval
+
+def read_pack9(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=False, return_header=False, dtype=np.float32, boxsize=None, downsample=None, out=None):
+    """
+    Read particle data from a file in pack9 format.
+    
+    Parameters 
+    ----------
+    fn: str
+        The filename to read
+    ramdisk: bool, optional
+        Whether `fn` resides on a ramdisk or not.  Necessary to know if we can do directIO.
+    return_vel: bool, optional
+        Return velocities along with other data
+    zspace: bool, optional
+        Apply redshift-space distortion to particle positions
+    return_pid: bool, optional
+        Return particle IDs along with other data
+    return_header: bool, optional
+        If the pack14 file has an ASCII header, return it as a second return value.
+    dtype: data-type, optional
+        Either np.float32 or np.float64.  Determines the data type the particle data is loaded into
+    out: ndarray, optional
+        A pre-allocated array into which the particles will be directly loaded.
+    boxsize: optional
+        Ignored; included for compatibility
+    downsample: float, optional
+        The downsample fraction.  Downsampling is performed using the same PID hash as Abacus proper.
+        Default of None means no downsampling.
+        
+    Returns
+    -------
+    data: ndarray of length (npart,)
+        The particle data.  Positions are in data['pos']; velocities are in data['vel'] (if `return_vel`),
+        and PIDs are in data['pid'] (if `return_pid`).
+        
+    or,
+        
+    NP: int
+        If `out` is given, returns the number of rows read into `out`.
+        
+    and optionally,
+    
+    header: InputFile
+        If `return_header` and a header is found, return parsed InputFile
+    """
+    return_pid = False
+    try:
+        ralib
+    except NameError:
+        raise RuntimeError("pack9 C library was not found. Try building Abacus with 'make analysis'?")
+    readers = {np.float32: ralib.read_pack9f,
+               np.float64: ralib.read_pack9 }
+    assert dtype in readers
+    
+    with open(fn, 'rb') as fp:
+        header = skip_header(fp)
+        if header:
+            header = InputFile(str_source=header)
+        offset = fp.tell()
+    
+    # Use the given buffer
+    if out is not None:
+        _out = out
+    else:  # or allocate one
+        fsize = ppath.getsize(fn)
+        alloc_NP = get_np_from_fsize(fsize, format='pack9', downsample=downsample)
+        ndt = output_dtype(return_vel=return_vel, return_pid=return_pid, dtype=dtype)
+        _out = np.empty(alloc_NP, dtype=ndt)
+
+    try:
+        if downsample > 1:
+            warn(f'Downsample factor {downsample} is greater than 1!  A fraction less than 1 is expected.')
+    except TypeError: 
+        if downsample is None:
+            downsample = 1.1  # any number larger than 1 will take all particles
+
+    readers[dtype].argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_double, ctypes.c_double, ctypes.c_void_p] 
+    NP = readers[dtype](bytes(fn, encoding='utf-8'), offset, ramdisk, return_vel, zspace, return_pid, downsample, 0, _out.view(dtype=dtype).ctypes.data_as(ctypes.POINTER(ctypes.c_void_p)))
+
+    # shrink the buffer to the real size
+    if out is None:
+        _out.resize(NP, refcheck=False)
+    else:
+        _out = _out[:NP]
+        
+    
+    retval = (NP,) if out is not None else (_out,)
+    if return_header:
+        retval += (header,)
+    
+    if len(retval) == 1:
+        return retval[0]
+    return retval    
     
 def read_rvtag(*args,**kwargs):
     return read_rv(*args, tag=True, **kwargs)
@@ -880,15 +984,15 @@ def get_np_from_fsize(fsize, format, downsample=None):
 
     return int(np.ceil(N))
 
-psize_on_disk = {'pack14': 14, 'pack14_lite':14, 'rvdouble': 6*8, 'state64':3*8, 'state':3*4, 'rvzel':32, 'rvtag':32, 'rvdoubletag':7*8}
-reader_functions = {'pack14':read_pack14, 'rvdouble':read_rvdouble,
+psize_on_disk = {'pack14': 14, 'pack14_lite':14, 'pack9': 9, 'rvdouble': 6*8, 'state64':3*8, 'state':3*4, 'rvzel':32, 'rvtag':32, 'rvdoubletag':7*8}
+reader_functions = {'pack14':read_pack14, 'pack9':read_pack9, 'rvdouble':read_rvdouble,
                     'rvzel':read_rvzel, 'state':read_state,
                     'rvdoubletag':read_rvdoubletag,
                     'rvtag':read_rvtag, 'rv':read_rvtag,
                     'pack14_lite':read_pack14_lite,
                     'gadget':read_gadget}
-default_file_patterns = {'pack14':'*.dat', 'state':'position_*'}
-fallback_file_pattern = '*.dat'
+default_file_patterns = {'pack14':('*.dat',), 'pack9':('*L0.dat', '*field.dat'), 'state':('position_*',)}
+fallback_file_pattern = ('*.dat',)
 
 def get_file_pattern(format):
     try:

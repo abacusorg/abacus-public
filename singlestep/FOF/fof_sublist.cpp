@@ -67,7 +67,7 @@ class DummyTimer {
     // For now, revert to the decision of the rest of the code.
 #endif
 
-#define FOF_RESCALE 1e12
+#define FOF_RESCALE 1e15
 
 /** We will copy the positions and index number into a float4, then
 do all of the rest of the work swapping this compact object.
@@ -119,6 +119,14 @@ class alignas(16) FOFparticle {
         FOFloat dy = q->y+offset->y-y;
         FOFloat dz = q->z+offset->z-z;
 	return dx*dx+dy*dy+dz*dz;
+    }
+    inline posstruct FOF_to_pos(){
+        posstruct pos; 
+        double inv_FOF_RESCALE = 1.0/ FOF_RESCALE;
+        pos.x = x * inv_FOF_RESCALE; 
+        pos.y = y * inv_FOF_RESCALE;
+        pos.z = z * inv_FOF_RESCALE;
+        return pos;
     }
     // Hopefully the compiler is smart enough to convert the following to SSE!
     // If not, we could include the SSE primatives...
@@ -362,14 +370,14 @@ elements will be 16-byte aligned for SSE.
 class alignas(16) FOFgroup {
   public:
     FOFparticle BBmin, BBmax;
-    FOFloat halo_thresh = 0.; // The threshold distance squared for each halo center B.H.
+    FOFloat halo_thresh2 = 0.; // The threshold distance squared for each halo center B.H.
     int start, n;   // Starting index and Number of particles
     uint8_t tmp[CACHE_LINE_SIZE-8-sizeof(FOFparticle)];     // For alignment padding
     	// During calculation, these are in FOF units, but at the
 	// end we restore them to input code units
     // B.H. Including the threshold radius
     //FOFgroup(int _start, int _n) { start = _start; n = _n; }
-    FOFgroup(int _start, int _n, FOFloat _halo_thresh) { start = _start; n = _n; halo_thresh = _halo_thresh;}
+    FOFgroup(int _start, int _n, FOFloat _halo_thresh2) { start = _start; n = _n; halo_thresh2 = _halo_thresh2;}
     FOFgroup(int _start, int _n, FOFparticle _BBmin, FOFparticle _BBmax) { 
 	BBmin = _BBmin; BBmax = _BBmax;
     	start = _start; n = _n; 
