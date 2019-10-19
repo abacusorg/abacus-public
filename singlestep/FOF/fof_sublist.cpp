@@ -67,7 +67,7 @@ class DummyTimer {
     // For now, revert to the decision of the rest of the code.
 #endif
 
-#define FOF_RESCALE 1e12
+#define FOF_RESCALE 1e15
 
 /** We will copy the positions and index number into a float4, then
 do all of the rest of the work swapping this compact object.
