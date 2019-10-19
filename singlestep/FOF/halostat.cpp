@@ -121,8 +121,24 @@ HaloStat ComputeStats(int size,
         if (sigmav[i] > sigmav[v_min]) v_min = i;
     }
 
-    h.sigmar_eigenvecs = pack_euler16((float * )sigmar_vecs[r_maj], (float * )sigmar_vecs[r_min]);
-    h.sigmav_eigenvecs = pack_euler16((float * )sigmar_vecs[r_maj], (float * )sigmar_vecs[r_min]);
+    float major[3], minor[3]; 
+    major[0] = sigmar_vecs[r_maj][0]; 
+    major[1] = sigmar_vecs[r_maj][1];
+    major[2] = sigmar_vecs[r_maj][2]; 
+    minor[0] = sigmar_vecs[r_min][0]; 
+    minor[1] = sigmar_vecs[r_min][1];
+    minor[2] = sigmar_vecs[r_min][2]; 
+
+    h.sigmar_eigenvecs = pack_euler16(major, minor);
+
+    major[0] = sigmav_vecs[v_maj][0]; 
+    major[1] = sigmav_vecs[v_maj][1];
+    major[2] = sigmav_vecs[v_maj][2]; 
+    minor[0] = sigmav_vecs[v_min][0]; 
+    minor[1] = sigmav_vecs[v_min][1];
+    minor[2] = sigmav_vecs[v_min][2]; 
+
+    h.sigmav_eigenvecs = pack_euler16(major, minor);
 
     h.sigmav3d = (sigmav[0] + sigmav[1] + sigmav[2]) / 3.0; 
     h.sigmavMin_to_sigmav3d = lround( sqrt(sigmav[2])  / h.sigmav3d * INT16SCALE ); 
@@ -165,6 +181,7 @@ HaloStat ComputeStats(int size,
     h.L2cntr_r75  = lround(sqrt(L2.d2buffer[size*3/4 ]) / h.L2cntr_r100 * INT16SCALE); 
     h.L2cntr_r90  = lround(sqrt(L2.d2buffer[size*9/10]) / h.L2cntr_r100 * INT16SCALE); 
 
+
     FindEigensystem(vxx, vxy, vxz, vyy, vyz, vzz, sigmav, (double * )sigmav_vecs);
     FindEigensystem(rxx, rxy, rxz, ryy, ryz, rzz, sigmar, (double * )sigmar_vecs);
 
@@ -177,8 +194,23 @@ HaloStat ComputeStats(int size,
         if (sigmav[i] > sigmav[v_min]) v_min = i;
     }
 
-    h.L2cntr_sigmar_eigenvecs = pack_euler16((float * )sigmar_vecs[r_maj], (float * )sigmar_vecs[r_min]);
-    h.L2cntr_sigmav_eigenvecs = pack_euler16((float * )sigmar_vecs[r_maj], (float * )sigmar_vecs[r_min]);
+    major[0] = sigmar_vecs[r_maj][0]; 
+    major[1] = sigmar_vecs[r_maj][1];
+    major[2] = sigmar_vecs[r_maj][2]; 
+    minor[0] = sigmar_vecs[r_min][0]; 
+    minor[1] = sigmar_vecs[r_min][1];
+    minor[2] = sigmar_vecs[r_min][2]; 
+
+    h.L2cntr_sigmar_eigenvecs = pack_euler16(major, minor);
+
+    major[0] = sigmav_vecs[v_maj][0]; 
+    major[1] = sigmav_vecs[v_maj][1];
+    major[2] = sigmav_vecs[v_maj][2]; 
+    minor[0] = sigmav_vecs[v_min][0]; 
+    minor[1] = sigmav_vecs[v_min][1];
+    minor[2] = sigmav_vecs[v_min][2]; 
+
+    h.L2cntr_sigmav_eigenvecs = pack_euler16(major, minor);
 
     h.L2cntr_sigmav3d = (sigmav[0] + sigmav[1] + sigmav[2]) / 3.0; 
     h.L2cntr_sigmavMin_to_sigmav3d = lround( sqrt(sigmav[2])  / h.L2cntr_sigmav3d * INT16SCALE ); 

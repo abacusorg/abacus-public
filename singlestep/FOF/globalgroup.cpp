@@ -971,9 +971,11 @@ void GlobalGroupSlab::FindSubGroups() {
                         h.SO_central_particle[1] = SO_particle.y;
                         h.SO_central_particle[2] = SO_particle.z;
 
+                        STDLOG(4, "%f %f %f\n", FOFlevel1[g].FOFunitdensity, FOFlevel2[g].FOFunitdensity, FOF_RESCALE); 
+
                         h.SO_central_density  = FOFlevel1[g].density[0] / FOFlevel1[g].FOFunitdensity; 
 
-                        h.SO_radius = sqrt(FOFlevel1[g].halo_thresh2[1]) / FOF_RESCALE; //index 0 of halo_thresh2 is junk. 
+                        h.SO_radius = sqrt(FOFlevel1[g].groups[a].halo_thresh2) / FOF_RESCALE; //index 0 of halo_thresh2 is junk. 
 
                         //now repeat for the largest L2 halo.
                         SO_particle = FOFlevel2[g].p[0].FOF_to_pos(); 
@@ -983,7 +985,7 @@ void GlobalGroupSlab::FindSubGroups() {
 
                         h.SO_L2max_central_density  = FOFlevel2[g].density[0] / FOFlevel2[g].FOFunitdensity; 
 
-                        h.SO_L2max_radius = sqrt(FOFlevel2[g].halo_thresh2[1]) / FOF_RESCALE; //index 0 of halo_thresh2 is junk. 
+                        h.SO_L2max_radius = sqrt(FOFlevel2[g].groups[0].halo_thresh2) / FOF_RESCALE; //index 0 of halo_thresh2 is junk. 
                         #endif 
 
                         h.npoutA = pHaloRVA->get_pencil_size()-npstartA;

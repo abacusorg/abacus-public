@@ -185,8 +185,6 @@ int main(int argc, char **argv) {
     
     if (da!=0) da = ChooseTimeStep();
 
-                printf("NAM SINGLESTEP.CPP chose timestep %6.4f!\n", da);
-
     // da *= -1;  // reverse the time step TODO: make parameter
     double dlna = da/ReadState.ScaleFactor;
     STDLOG(0,"Chose Time Step da = %6.4f, dlna = %6.4f\n", da, dlna);

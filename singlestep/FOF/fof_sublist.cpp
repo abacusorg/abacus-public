@@ -370,14 +370,14 @@ elements will be 16-byte aligned for SSE.
 class alignas(16) FOFgroup {
   public:
     FOFparticle BBmin, BBmax;
-    FOFloat halo_thresh = 0.; // The threshold distance squared for each halo center B.H.
+    FOFloat halo_thresh2 = 0.; // The threshold distance squared for each halo center B.H.
     int start, n;   // Starting index and Number of particles
     uint8_t tmp[CACHE_LINE_SIZE-8-sizeof(FOFparticle)];     // For alignment padding
     	// During calculation, these are in FOF units, but at the
 	// end we restore them to input code units
     // B.H. Including the threshold radius
     //FOFgroup(int _start, int _n) { start = _start; n = _n; }
-    FOFgroup(int _start, int _n, FOFloat _halo_thresh) { start = _start; n = _n; halo_thresh = _halo_thresh;}
+    FOFgroup(int _start, int _n, FOFloat _halo_thresh2) { start = _start; n = _n; halo_thresh2 = _halo_thresh2;}
     FOFgroup(int _start, int _n, FOFparticle _BBmin, FOFparticle _BBmax) { 
 	BBmin = _BBmin; BBmax = _BBmax;
     	start = _start; n = _n; 
