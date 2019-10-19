@@ -165,7 +165,6 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
             read_into = particles[start:]
         
         out = read(fn, format=format, out=read_into, **kwargs)
-
         if separate_fields:
             if return_header:
                 out, header = out
@@ -179,8 +178,10 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
                 NP, header = out
             else:
                 NP = out
+
+        print("hello" ,particles[start:])
         start += NP
-        
+
     # Shrink the array to the size that was actually read
     if separate_fields:
         for field in particle_arrays:
@@ -188,11 +189,11 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
 
         if return_header:
             return particle_arrays, header  # return header associated with last file
-    
+        print(particle_arrays)
         return particle_arrays
     else:
         particles = particles[:start]
-    
+        print(particles)
         if return_header:
             return particles, header  # return header associated with last file
     
@@ -464,7 +465,6 @@ def read_pack9(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fals
         _out.resize(NP, refcheck=False)
     else:
         _out = _out[:NP]
-        
     
     retval = (NP,) if out is not None else (_out,)
     if return_header:
@@ -473,6 +473,65 @@ def read_pack9(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fals
     if len(retval) == 1:
         return retval[0]
     return retval    
+
+def rvint_unpack( input ):
+    iv = (input&0xfff).astype(int)
+    velscale = 6000.0;   # km/s                                                                                                     
+    vel = velscale*(iv-2048)   # km/s                                                                                               
+    ix = (input-iv).astype(int)   # Slightly more expensive, but safer if input ended up cast to int64                            
+    posscale = 2.0**(-32.0) # Return to [-0.5,0.5)                                                                                  
+    pos = ix*posscale;
+
+    return pos,vel
+#def rvint_unpack (input): 
+#   
+#
+#
+
+def read_rvint(fn, return_vel = True, return_pid=False, zspace=False, dtype=np.float32, out=None, return_header=False, double=False, tag=False,  downsample=None):
+
+    disk_base_dt = np.int32 
+    disk_dt = [('pv',disk_base_dt,3)]
+
+    print("Reading rvint from ", fn)
+
+    with open(fn, 'rb') as fp:
+        header = skip_header(fp)
+        if header:
+            header = InputFile(str_source=header)
+        data = np.fromfile(fp, dtype=disk_dt)
+    
+    # Use the given buffer
+    if out is not None:
+        _out = out
+
+    pos = np.zeros([len(data), 3]) 
+    vel = np.zeros([len(data), 3])
+
+    #TODO : vectorize. nested loop below is awfully slow. 
+    #pos, vel = rvint_unpack(data) 
+
+    for r in range(len(data)): #loop over rows
+        for c in range(len(data[r][0])): #loop over columns
+            coordinate = data[r][0][c] 
+            pos[r, c], vel[r,c] = rvint_unpack(coordinate)
+    
+
+    _out['pos'][:len(data)] = pos
+    if zspace:
+        _out['pos'][:len(data)] += vel
+    if return_vel:
+        _out['vel'][:len(data)] = vel
+    
+    retval = (_out,) if out is None else (len(data),)
+    if return_header:
+        retval += (header,)
+
+    if len(retval) == 1:
+        return retval[0]
+
+    return retval
+
     
 def read_rvtag(*args,**kwargs):
     return read_rv(*args, tag=True, **kwargs)
@@ -984,14 +1043,14 @@ def get_np_from_fsize(fsize, format, downsample=None):
 
     return int(np.ceil(N))
 
-psize_on_disk = {'pack14': 14, 'pack14_lite':14, 'pack9': 9, 'rvdouble': 6*8, 'state64':3*8, 'state':3*4, 'rvzel':32, 'rvtag':32, 'rvdoubletag':7*8}
-reader_functions = {'pack14':read_pack14, 'pack9':read_pack9, 'rvdouble':read_rvdouble,
+psize_on_disk = {'pack14': 14, 'pack14_lite':14, 'pack9': 9, 'rvint': 3*4, 'rvdouble': 6*8, 'state64':3*8, 'state':3*4, 'rvzel':32, 'rvtag':32, 'rvdoubletag':7*8}
+reader_functions = {'pack14':read_pack14, 'pack9':read_pack9, 'rvint': read_rvint, 'rvdouble':read_rvdouble,
                     'rvzel':read_rvzel, 'state':read_state,
                     'rvdoubletag':read_rvdoubletag,
                     'rvtag':read_rvtag, 'rv':read_rvtag,
                     'pack14_lite':read_pack14_lite,
                     'gadget':read_gadget}
-default_file_patterns = {'pack14':('*.dat',), 'pack9':('*L0.dat', '*field.dat'), 'state':('position_*',)}
+default_file_patterns = {'pack14':('*.dat',), 'pack9':('*L0.dat', '*field.dat'), 'rvint' : ('*rv_A*', '*rv_B*'), 'state':('position_*',)}
 fallback_file_pattern = ('*.dat',)
 
 def get_file_pattern(format):

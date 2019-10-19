@@ -69,7 +69,12 @@ def run(args):
                     assert _box == box
                     header2 = {'NP':len(ps[0]), 'BoxSize':box}
             else:
+                header = dict({'NP':16777216, 'BoxSize':575})
+
                 p, header = ReadAbacus.from_dir(primary, format=args['format'], dtype=args['dtype'], return_vel=False, return_header=True, downsample=ds)
+                
+                header = dict({'NP':16777216, 'BoxSize':575})
+                print(p)
                 if ds == None:
                     assert header['NP'] == len(p)
                 p = p['pos']
