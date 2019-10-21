@@ -179,7 +179,6 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
             else:
                 NP = out
 
-        print("hello" ,particles[start:])
         start += NP
 
     # Shrink the array to the size that was actually read

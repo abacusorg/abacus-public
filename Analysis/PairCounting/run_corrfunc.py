@@ -71,8 +71,9 @@ def run(args):
             else:
                 header = dict({'NP':16777216, 'BoxSize':575})
 
-                p, header = ReadAbacus.from_dir(primary, format=args['format'], dtype=args['dtype'], return_vel=False, return_header=True, downsample=ds)
+                p, header = ReadAbacus.from_dir(primary, format=args['format'], dtype=args['dtype'], return_vel=False, return_header=True, downsample=ds, zspace=True)
                 
+
                 header = dict({'NP':16777216, 'BoxSize':575})
                 print(p)
                 if ds == None:
