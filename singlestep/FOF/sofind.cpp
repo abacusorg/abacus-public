@@ -132,9 +132,7 @@ class SOcell {
     FOFloat threshold;  ///< The density threshold we are applying
     FOFloat xthreshold;
     FOFloat FOFunitdensity; //  cosmic mean in FOF units
-    FOFloat mag_loc = 4.;    /// Condition for creating a center
     FOFloat mag_roche = 2.;    /// Condition for a satellite halo to eat up particles belonging to a larger halo
-    FOFloat inner_rad2 = 1.*1.; /// What is the inner radius of Delta prime with respect to Delta
     FOFloat min_central;   ///< The minimum FOF-scale density to require for a central particle.
     FOFloat *twothirds;    ///< We compare x^(3/2) to integers so much that we'll cache integers^(2/3)
 
@@ -624,10 +622,9 @@ int greedySO() {
         // satisfy the overdensity condition
         FOFloat d2SO = search_socg_thresh(p+start,mass,inv_enc_den);
         halo_thresh2[count] = d2SO;
-        
-        // Primed threshold distance d2SO_pr has the property that particles
+        // Threshold distance d2SO has the property that particles
         // found in it can never be eligible centers
-        FOFloat d2SO_pr = d2SO*inner_rad2;
+        
         Search.Stop();
         
         // Inverse density used when interpolating
@@ -654,20 +651,20 @@ int greedySO() {
                 socg[i].active = 0;
 		// Loop over all particles in that cell
                 for (int j=socg[i].start[0]; j<socg[i].start[4]; j++) {
-                    // for those within prime, set their halo_inds to a negative number to
+            // for those within the threshold distance, set their halo_inds to a negative number to
 		    // make them ineligible to be halo centers
-                    if (d2_active[j]<d2SO_pr) {
+                    if (d2_active[j]<d2SO) {
 		        // If this particle has not yet been assigned to a halo, set it to -1
 		        // as a placeholder (will be changed within loop, see ***). If already assigned,
 		        // make sure the halo_index remains negative (i.e. particle ineligible
 		        // to ever be a halo center)
                         halo_inds[j] = (halo_inds[j]==0)?(-1):-abs(halo_inds[j]);
                     }
-                    // For those outside prime which are
+                    // For those outside the threshold distance which are
 		    // still active (i.e. halo_inds is non-negative) and eligible, i.e. satisfies the
 		    // local density to max enclosed density ratio criterion,
 		    // check whether any can be the next densest particle.
-                    else if (density[j]>maxdens && density[j]*min_inv_den[j]>mag_loc*FOFunitdensity && halo_inds[j]>=0) {
+                    else if (density[j]>maxdens && halo_inds[j]>=0) {
                         maxdens=density[j];
                         densest = j;
 			// If the particle is outside the density threshold, we don't need to look
@@ -701,7 +698,7 @@ int greedySO() {
             // which are eligible to be halo centers to check whether any of them can be the next densest
             else {
                 for (int j=socg[i].start[0]; j<socg[i].start[4]; j++) {
-                    if (density[j]>maxdens && density[j]*min_inv_den[j]>mag_loc*FOFunitdensity && halo_inds[j]>=0) {
+                    if (density[j]>maxdens && halo_inds[j]>=0) {
                         maxdens=density[j];
                         densest = j;
                     }
