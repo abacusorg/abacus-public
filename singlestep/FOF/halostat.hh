@@ -42,17 +42,17 @@ class HaloStat {
 
     int16_t sigmavMin_to_sigmav3d; ///< sigmav_z / sigmavSum, compressed
     int16_t sigmav3d_to_sigmavMaj; ///< sigmav_x / sigmavSum, compressed
-    int16_t sigmav_eigenvecs;  ///<Eigenvectors of the velocity dispersion tensor, compressed into 16 bits. Compression format TBD. 
+    uint16_t sigmav_eigenvecs;  ///<Eigenvectors of the velocity dispersion tensor, compressed into 16 bits. Compression format TBD. 
 	int16_t r10, r25, r33, r50, r67, r75, r90; ///<Expressed as ratios of r100, and scaled to 32000 to store as int16s. 
     int16_t sigmar[3]; ///<sqrt( Eigenvalues of the moment of inertia tensor ) 
-    int16_t sigmar_eigenvecs;  ///<Eigenvectors of the moment of inertia tensor, compressed into 16 bits. Compression format TBD. 
+    uint16_t sigmar_eigenvecs;  ///<Eigenvectors of the moment of inertia tensor, compressed into 16 bits. Compression format TBD. 
 	int16_t rvcirc_max; ///< radius of max velocity, stored as int16 ratio of r100 scaled by 32000.
 	int16_t L2cntr_sigmavMin_to_sigmav3d; ///< sigmav_z / sigmavSum, compressed
     int16_t L2cntr_sigmav3d_to_sigmavMaj; ///< sigmav_x / sigmavSum, compressed
-    int16_t L2cntr_sigmav_eigenvecs;  ///<Eigenvectors of the velocity dispersion tensor, compressed into 16 bits. Compression format TBD. 
+    uint16_t L2cntr_sigmav_eigenvecs;  ///<Eigenvectors of the velocity dispersion tensor, compressed into 16 bits. Compression format TBD. 
     int16_t L2cntr_r10, L2cntr_r25, L2cntr_r33, L2cntr_r50, L2cntr_r67, L2cntr_r75, L2cntr_r90; ///< Radii of this percentage of mass, relative to L2 center. Expressed as ratios of r100 and compressed to int16. 
 	int16_t L2cntr_sigmar[3]; 
-    int16_t L2cntr_sigmar_eigenvecs;
+    uint16_t L2cntr_sigmar_eigenvecs;
     int16_t L2cntr_rvcirc_max;   ///< max circular velocity and radius thereof, relative to L2 center
 
 };
