@@ -132,7 +132,7 @@ class SOcell {
     FOFloat threshold;  ///< The density threshold we are applying
     FOFloat xthreshold;
     FOFloat FOFunitdensity; //  cosmic mean in FOF units
-    FOFloat mag_roche = 2.;    /// Condition for a satellite halo to eat up particles belonging to a larger halo
+    FOFloat mag_roche;    /// Condition for a satellite halo to eat up particles belonging to a larger halo
     FOFloat min_central;   ///< The minimum FOF-scale density to require for a central particle.
     FOFloat *twothirds;    ///< We compare x^(3/2) to integers so much that we'll cache integers^(2/3)
 
@@ -240,6 +240,9 @@ class SOcell {
         reset(32768);
         setup_socg(2048);
 
+        mag_roche = P.SO_RocheCoeff;    /// Condition for a satellite halo to eat up particles belonging to a larger halo
+
+
         int ret = posix_memalign((void **)&twothirds, 64, sizeof(FOFloat)*(SO_CACHE+2));  assert(ret == 0);
         for (int j=0; j<SO_CACHE+2; j++) twothirds[j] = pow(j,2.0/3.0);
         // We will have terrible bugs if these aren't true!
@@ -303,7 +306,7 @@ class SOcell {
         // Cosmic unit density yields a count in our FOFscale densities of this:
         // TODO: Document better
         FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5);
-        FOFloat M_D = 35.;
+        FOFloat M_D = P.SO_NPForMinDensity;
         FOFloat sigma3 = M_D*sqrt(threshold*P.np/(48*M_PI*M_PI));
         // Density for a SIS with mass M_D
         min_central = 5./WriteState.DensityKernelRad2*pow(sigma3,2./3); 

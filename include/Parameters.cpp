@@ -165,6 +165,9 @@ public:
     double SODensity[2];  // Overdensities for SO groupfinding level 1 and 2
     int MinL1HaloNP; // minimum L1 halo size to output
 	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
+    float SO_RocheCoeff; 
+    float SO_NPForMinDensity; 
+    int SO_EvolvingThreshold; //allow evolving (redshift-dependent) density threshold 
 
     #define MAX_L1OUTPUT_REDSHIFTS 1024
     int nTimeSliceL1; 
@@ -386,10 +389,10 @@ public:
         DirectBPD = 3;
         installscalar("DirectBPD", DirectBPD, DONT_CARE);
 
-	    DensityKernelRad = 0.0;
+	    DensityKernelRad = 0.0; // if no value is given, this will default to L0 linking length. 
         installscalar("DensityKernelRad",DensityKernelRad, DONT_CARE);
-	    L0DensityThreshold = 0.0;
-        installscalar("L0DensityThreshold",L0DensityThreshold, DONT_CARE);
+	    L0DensityThreshold = 75.0; 
+        installscalar("L0DensityThreshold",L0DensityThreshold, DONT_CARE); 
 
         AllowGroupFinding = 1;
         installscalar("AllowGroupFinding",AllowGroupFinding, DONT_CARE);
@@ -397,13 +400,21 @@ public:
         FoFLinkingLength[1] = .186;
         FoFLinkingLength[2] = .138;
         installvector("FoFLinkingLength",FoFLinkingLength,3,1,DONT_CARE);
-        SODensity[0] = 180.0;
-        SODensity[1] = 720.0;
+        SODensity[0] = 200.0;
+        SODensity[1] = 800.0;
         installvector("SODensity",SODensity,2,1,DONT_CARE);
-        MinL1HaloNP = 10;
+        MinL1HaloNP = 40;
         installscalar("MinL1HaloNP", MinL1HaloNP, DONT_CARE);
 		L1Output_dlna = -1;
 		installscalar("L1Output_dlna", L1Output_dlna, DONT_CARE);
+
+        SO_RocheCoeff = 2.0; 
+        installscalar("SO_RocheCoeff", SO_RocheCoeff, DONT_CARE);
+        SO_NPForMinDensity = 35.0; 
+        installscalar("SO_NPForMinDensity", SO_NPForMinDensity, DONT_CARE);
+        SO_EvolvingThreshold = 1; 
+        installscalar("SO_EvolvingThreshold", SO_EvolvingThreshold, DONT_CARE); 
+
         OutputAllHaloParticles = 0;
         installscalar("OutputAllHaloParticles", OutputAllHaloParticles, DONT_CARE);
 

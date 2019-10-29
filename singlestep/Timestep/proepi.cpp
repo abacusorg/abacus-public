@@ -554,6 +554,12 @@ void InitWriteState(int MakeIC){
 
 }
 
+double EvolvingDelta(float z){
+    float omegaMz = P.Omega_M * pow(1.0 + z, 3.0) / (P.Omega_DE + P.Omega_M *  pow(1.0 + z, 3.0) ); 
+    float Deltaz = (18.0*M_PI*M_PI + 82.0 * (omegaMz - 1.0) - 39.0 * pow(omegaMz - 1.0, 2.0) ) / omegaMz;
+    return Deltaz / (18.0*M_PI*M_PI); //Params are given at high-z, so divide by high-z asymptote to find rescaling. 
+}
+
 void InitGroupFinding(bool MakeIC){
     /*
     Request output of L1 groups and halo/field subsamples if:
@@ -614,12 +620,23 @@ void InitGroupFinding(bool MakeIC){
 
         ReadState.DoGroupFindingOutput = do_grp_output; // if any kind of output is requested, turn on group finding.
 
-        STDLOG(4, "DoGroupFindingOutput %d, DoSubsampleOutput %d, DoTimeSliceOutput %d, do_grp_output %d\n",
-            ReadState.DoGroupFindingOutput, ReadState.DoSubsampleOutput, ReadState.DoTimeSliceOutput, do_grp_output);
+        STDLOG(2, "Group finding: %d, subsample output: %d, timeslice output: %d.\n",
+            ReadState.DoGroupFindingOutput, ReadState.DoSubsampleOutput, ReadState.DoTimeSliceOutput);
+
+        #ifdef SPHERICAL_OVERDENSITY
+        if (P.SO_EvolvingThreshold) {
+            float rescale = EvolvingDelta(ReadState.Redshift); 
+            P.SODensity[0] *= rescale; 
+            P.SODensity[1] *= rescale; 
+            P.L0DensityThreshold *= rescale; 
+        }
+        #endif
+
+
 
         GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
                     #ifdef SPHERICAL_OVERDENSITY
-                    P.SODensity[0], P.SODensity[1],
+                    P.SODensity[0], P.SODensity[1], 
                     #else
                     P.FoFLinkingLength[1]/pow(P.np,1./3),
                     P.FoFLinkingLength[2]/pow(P.np,1./3),
@@ -647,6 +664,11 @@ void InitGroupFinding(bool MakeIC){
         }
         #endif
         #endif
+        #ifdef SPHERICAL_OVERDENSITY
+        WriteState.SODensityL1 = P.SODensity[0]; 
+        WriteState.SODensityL2 = P.SODensity[1]; 
+        #endif
+
         STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
         if (WriteState.L0DensityThreshold==0) {
             STDLOG(1,"Passing L0DensityThreshold = 0 to signal to use anything with a neighbor\n");
@@ -657,7 +679,6 @@ void InitGroupFinding(bool MakeIC){
         STDLOG(1, "Group finding not enabled for this step.\n");
     }
 
-    STDLOG(4, "End of InitGF: DoGroupFindingOutput %d, DoSubsampleOutput %d, DoTimeSliceOutput %d\n", ReadState.DoGroupFindingOutput, ReadState.DoSubsampleOutput, ReadState.DoTimeSliceOutput);
 }
 
 // Check whether "d" is actually a global directory, and thus not eligible for deletion

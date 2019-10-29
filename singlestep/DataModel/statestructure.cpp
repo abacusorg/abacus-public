@@ -90,6 +90,8 @@ public:
     double DensityKernelRad2;
     // The density threshold for L0 particle eligibility (units of cosmic mean)
     double L0DensityThreshold;
+    double SODensityL1; //density threshold for SO L1 groups.
+    double SODensityL2; //density threshold for SO L2 groups. 
 
     // Some statistics about the particle distribution that might be useful.
     double MaxVelocity;
@@ -161,7 +163,7 @@ public:
 
         installscalar("ScaleFactor",ScaleFactor, MUST_DEFINE);
         installscalar("FullStepNumber",FullStepNumber,MUST_DEFINE);
-    installscalar("LPTStepNumber",LPTStepNumber,DONT_CARE);
+        installscalar("LPTStepNumber",LPTStepNumber,DONT_CARE);
         installscalar("BoxSizeMpc",BoxSizeMpc,DONT_CARE);
         installscalar("BoxSizeHMpc",BoxSizeHMpc,DONT_CARE);
         installscalar("HubbleTimeGyr",HubbleTimeGyr,DONT_CARE);
@@ -191,6 +193,8 @@ public:
     	installscalar("DeltaScaleFactor",DeltaScaleFactor,DONT_CARE);
     	installscalar("DeltaRedshift",DeltaRedshift,DONT_CARE);
     	installscalar("DensityKernelRad2",DensityKernelRad2,DONT_CARE);
+        installscalar("SODensityL1",SODensityL1,DONT_CARE);
+        installscalar("SODensityL2",SODensityL2,DONT_CARE);
         
         MaxVelocity = 0;
     	installscalar("MaxVelocity",MaxVelocity,DONT_CARE);
@@ -210,16 +214,16 @@ public:
         // Initialize helper variables
         DoTimeSliceOutput = 0;
         OutputIsAllowed = 0;
-    DoGroupFindingOutput = 0;
-    DoSubsampleOutput = 0; 
+        DoGroupFindingOutput = 0;
+        DoSubsampleOutput = 0; 
         
-    Do2LPTVelocityRereading = 0;
+        Do2LPTVelocityRereading = 0;
 
-    // These will be set in InitWriteState() based on StateIOMode and Conv_IOMode in the parameters file
-    OverwriteState = 0;
-    OverwriteConvState = 0;
-    StripeState = 0;
-    StripeConvState = 0;
+        // These will be set in InitWriteState() based on StateIOMode and Conv_IOMode in the parameters file
+        OverwriteState = 0;
+        OverwriteConvState = 0;
+        StripeState = 0;
+        StripeConvState = 0;
     }
 
 
@@ -302,6 +306,9 @@ void State::make_output_header() {
     
     WPR(Do2LPTVelocityRereading  , ISYM);
     WPR(DensityKernelRad2        , FSYM);
+    WPR(L0DensityThreshold       , FSYM);
+    WPR(SODensityL1              , FSYM);
+    WPR(SODensityL2              , FSYM);
 
     output_header = ss.str();
 }

@@ -187,11 +187,12 @@ class GroupFindingControl {
 	
     /// This generates the log report
     void report() {
+     float FOFunitdensity    = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
+
 	 GLOG(0,"Considered %f G particles as active\n", CGactive/1e9);
 	 // The FOFdensities are weighted by b^2-r^2.  When integrated,
 	 // that yields a mass at unit density of 
    	 // (2/15)*4*PI*b^5*np
-	 float FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
 	 GLOG(0,"Maximum reported density = %f (%e in code units)\n", maxFOFdensity/FOFunitdensity, maxFOFdensity);
 	 meanFOFdensity /= P.np;    
 	 meanFOFdensity -= WriteState.DensityKernelRad2;  // Subtract self-count
@@ -289,6 +290,9 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     FLOAT DensityKernelRad2 = WriteState.DensityKernelRad2;
     FLOAT L0DensityThreshold = WriteState.L0DensityThreshold;
 
+    float FOFunitdensity    = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
+    float invFOFunitdensity = 1.0/FOFunitdensity;
+
     if (L0DensityThreshold>0) {
         // We've been asked to compare the kernel density to a particular
 	// density (unit of cosmic mean) to make a particle L0 eligible.
@@ -296,7 +300,6 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	// The FOFdensities are weighted by b^2-r^2.  When integrated,
 	// that yields a mass at unit density of 
 	// (2/15)*4*PI*b^5*np
-	FLOAT FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
 	L0DensityThreshold *= FOFunitdensity;  // Now in code units
     } else {
         L0DensityThreshold = DensityKernelRad2;
@@ -320,12 +323,15 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	        // The FOF-scale density is in acc.w.  
 		// All zeros cannot be in groups, partition them to the end
 		for (int p=0; p<active_particles; p++) {
-		    _meanFOFdensity += c.acc[p].w;
+            float dens = c.acc[p].w; 
+		    _meanFOFdensity += dens;
 			// This will be the mean over all particles, not just
 			// the active ones
-		    if (c.acc[p].w>L0DensityThreshold) {
+            c.aux[p].set_density( (uint64) (pow( dens * invFOFunitdensity, 0.5)) );  //store sqrt(density) in cosmic mean units, as an int. 
+
+		    if (dens>L0DensityThreshold) {
 			// Active particle; retain and accumulate stats
-			_maxFOFdensity=std::max(_maxFOFdensity, c.acc[p].w);
+			_maxFOFdensity=std::max(_maxFOFdensity, dens);
 		    } else {
 		        // We found an inactive particle; swap to end.
 			active_particles--;
