@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 Run the Abacus on-the-fly group finder on the given time slice(s).
 

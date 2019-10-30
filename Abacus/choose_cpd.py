@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 For a given PPD, calculates all the CPD that have small prime factors

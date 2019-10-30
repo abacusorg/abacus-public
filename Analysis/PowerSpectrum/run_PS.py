@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 A user-friendly command-line interface to PowerSpectrum.

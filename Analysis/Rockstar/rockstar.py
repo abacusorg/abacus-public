@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 A Python wrapper to run Rockstar on Abacus outputs.
 

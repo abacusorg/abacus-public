@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 This script converts Abacus particle data to the HDF5 format in the 
 schema set by the DESI cosmo-sim working group:

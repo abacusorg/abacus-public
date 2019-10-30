@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 This module is the main entry point for running an Abacus simulation.
 For a complete example of a simulation setup that demonstrates how
