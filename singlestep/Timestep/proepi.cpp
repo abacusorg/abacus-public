@@ -554,11 +554,6 @@ void InitWriteState(int MakeIC){
 
 }
 
-double EvolvingDelta(float z){
-    float omegaMz = P.Omega_M * pow(1.0 + z, 3.0) / (P.Omega_DE + P.Omega_M *  pow(1.0 + z, 3.0) ); 
-    float Deltaz = (18.0*M_PI*M_PI + 82.0 * (omegaMz - 1.0) - 39.0 * pow(omegaMz - 1.0, 2.0) ) / omegaMz;
-    return Deltaz / (18.0*M_PI*M_PI); //Params are given at high-z, so divide by high-z asymptote to find rescaling. 
-}
 
 void InitGroupFinding(bool MakeIC){
     /*
@@ -623,20 +618,10 @@ void InitGroupFinding(bool MakeIC){
         STDLOG(2, "Group finding: %d, subsample output: %d, timeslice output: %d.\n",
             ReadState.DoGroupFindingOutput, ReadState.DoSubsampleOutput, ReadState.DoTimeSliceOutput);
 
-        #ifdef SPHERICAL_OVERDENSITY
-        if (P.SO_EvolvingThreshold) {
-            float rescale = EvolvingDelta(ReadState.Redshift); 
-            P.SODensity[0] *= rescale; 
-            P.SODensity[1] *= rescale; 
-            P.L0DensityThreshold *= rescale; 
-        }
-        #endif
-
-
 
         GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
                     #ifdef SPHERICAL_OVERDENSITY
-                    P.SODensity[0], P.SODensity[1], 
+                    P.SODensity[0], P.SODensity[1],  //by this point, the SODensity and L0DensityThresholds have been rescaled with redshift, in PlanOutput. 
                     #else
                     P.FoFLinkingLength[1]/pow(P.np,1./3),
                     P.FoFLinkingLength[2]/pow(P.np,1./3),
