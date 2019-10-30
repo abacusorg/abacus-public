@@ -100,19 +100,27 @@ public:
     }
 
     void MultipoleFN(int slab, char * const fn){
+        int ret;
+
         // We elsewhere generically support N threads, but here is where we assume 2
         if(StripeConvState && slab % 2 == 1)
-            sprintf(fn, "%s/%s_%04d", runtime_MultipoleDirectory2, runtime_MultipolePrefix, slab);
+            ret = snprintf(fn, 1024, "%s/%s_%04d", runtime_MultipoleDirectory2, runtime_MultipolePrefix, slab);
         else
-            sprintf(fn, "%s/%s_%04d", runtime_MultipoleDirectory, runtime_MultipolePrefix, slab);
+            ret = snprintf(fn, 1024, "%s/%s_%04d", runtime_MultipoleDirectory, runtime_MultipolePrefix, slab);
+
+        assert(ret >= 0 && ret < 1024);
     }
 
     void TaylorFN(int slab, char * const fn){
+        int ret;
+
         // We elsewhere generically support N threads, but here is where we assume 2
         if(StripeConvState && slab % 2 == 1)
-            sprintf(fn, "%s/%s_%04d", runtime_TaylorDirectory2, runtime_TaylorPrefix, slab);
+            ret = snprintf(fn, 1024, "%s/%s_%04d", runtime_TaylorDirectory2, runtime_TaylorPrefix, slab);
         else
-            sprintf(fn, "%s/%s_%04d", runtime_TaylorDirectory, runtime_TaylorPrefix, slab);
+            ret = snprintf(fn, 1024, "%s/%s_%04d", runtime_TaylorDirectory, runtime_TaylorPrefix, slab);
+
+        assert(ret >= 0 && ret < 1024);
     }
 
     // For zwidth purposes, we'll need to know if the MT are on ramdisk

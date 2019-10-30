@@ -7,11 +7,18 @@ import warnings
 import os.path
 import re
 import queue
+import os
+import threading
 
 import numpy as np
 import numba
 
 from Abacus import ReadAbacus
+
+from . import _psffilib
+
+valid_file_formats = ['rvdouble', 'pack14', 'rvzel', 'rvtag', 'state', 'gadget', 'desi_hdf5']
+maxthreads = os.cpu_count()
 
 def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.float32, rotate_to=None, prep_rfft=False, nthreads=-1, inplace=False, norm=False):
     """
@@ -89,7 +96,7 @@ def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.fl
     
     return density
     
-    
+
 def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zspace=False, format='pack14', rotate_to=None, prep_rfft=False, nthreads=-1, readahead=1):
     '''
     Main entry point for density field computation from files on disk of various formats.
@@ -135,11 +142,10 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
         Shape is determined by `gridshape` and `prep_rfft`.
     '''
         
-    valid_formats = ['rvdouble', 'pack14', 'rvzel', 'rvtag', 'state', 'gadget']
     if type(format) == str:
         format = format.lower()
-    if format not in valid_formats and not callable(format):
-        raise ValueError(format, 'Use one of: {}, or callable'.format(valid_formats))
+    if format not in valid_file_formats and not callable(format):
+        raise ValueError(format, 'Use one of: {}, or callable'.format(valid_file_formats))
     
     # make int gridshape a cube
     gridshape = np.atleast_1d(gridshape)
@@ -166,10 +172,11 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
     isic = re.search(r'\bic(\b|(?=_))', os.sep.join(abspattern[-2:]))
 
     # We assume IC data is stored with a BoxSize box, not unit box
-    # TODO: better way to communicate this
-    box_on_disk = boxsize if isic or format in ['rvtag', 'gadget'] else 1.
+    #box_on_disk = boxsize if isic else 1.
+    if isic:
+        raise NotImplementedError("Add IC detection to ReadAbacus!")
 
-    reader_kwargs = dict(return_vel=False, zspace=zspace, dtype=dtype, format=format)
+    reader_kwargs = dict(return_vel=False, zspace=zspace, dtype=dtype, format=format, units='box')
 
     if format == 'pack14':
         reader_kwargs.update(ramdisk=True)
@@ -179,16 +186,10 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
         reader_kwargs.update(boxsize=boxsize)
 
     for data in ReadAbacus.AsyncReader(file_pattern, **reader_kwargs):
-        TSC(data['pos'], density, box_on_disk, rotate_to=rotate_to, prep_rfft=prep_rfft, nthreads=nthreads, inplace=True)
+        TSC(data['pos'], density, boxsize, rotate_to=rotate_to, prep_rfft=prep_rfft, nthreads=nthreads, inplace=True)
     
     return density
-    
 
-import multiprocessing
-maxthreads = multiprocessing.cpu_count()
-import threading
-
-from . import _psffilib
 
 import numexpr as ne
 # TODO: wrap modes

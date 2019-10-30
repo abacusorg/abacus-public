@@ -325,9 +325,10 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     if(ReadState.DoBinning){
         STDLOG(1,"Outputting Binned Density\n");
-        char denfn[2048];
+        char denfn[1024];
         // TODO: Should this be going to ReadState or WriteState or Output?
-        sprintf(denfn,"%s/density%s",P.ReadStateDirectory, NodeString);
+        int ret = snprintf(denfn, 1024, "%s/density%s",P.ReadStateDirectory, NodeString);
+        assert(ret >= 0 && ret < 1024);
         FILE * densout = fopen(denfn,"wb");
         fwrite(density,sizeof(FLOAT),P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d,densout);
         fclose(densout);
@@ -384,7 +385,20 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
 std::vector<std::vector<int>> free_cores;  // list of cores on each socket that are not assigned a thread (openmp, gpu, io, etc)
 void init_openmp(){
-    // Tell singlestep to use the desired number of threads
+    // First report the CPU affinity bitmask of the master thread; might be useful in diagnosing OMP_PLACES problems
+    cpu_set_t mask;
+    std::ostringstream affinitylog;
+
+    assertf(pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask) == 0, "pthread_getaffinity_np failed\n");
+    affinitylog << "Core affinity for the master thread: ";
+    for (int i = 0; i < CPU_SETSIZE; i++) {
+        if(CPU_ISSET(i, &mask))
+            affinitylog << i << " ";
+    }
+    affinitylog << "\n";
+    STDLOG(2, affinitylog.str().c_str());
+
+    // Now tell OpenMP singlestep to use the desired number of threads
     int max_threads = omp_get_max_threads();
     int ncores = omp_get_num_procs();
     int nthreads = P.OMP_NUM_THREADS > 0 ? P.OMP_NUM_THREADS : max_threads + P.OMP_NUM_THREADS;
@@ -505,17 +519,21 @@ void InitWriteState(int MakeIC){
     /*if(LPTStepNumber()>0){
         WriteState.SofteningLength = P.SofteningLength / 1e4;  // This might not be in the growing mode for this choice of softening, though
         STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLength);
-        
-        // Only have to do this because GPU gives bad forces sometimes, causing particles to shoot off.
-        // Remove this once the GPU is reliable again
-        //P.ForceCPU = 1;
-        //STDLOG(0,"Forcing CPU because this is a 2LPT step.\n");
     }
     else{
         WriteState.SofteningLength = P.SofteningLength;
     }*/
-    
-    WriteState.SofteningLength = P.SofteningLength;
+
+    // Is the softening fixed in physical coordinates?
+    if(P.PhysicalSoftening){
+        // TODO: use the ReadState or WriteState ScaleFactor?  We haven't chosen the timestep yet.
+        WriteState.SofteningLength = min(P.SofteningLength/ReadState.ScaleFactor, P.SofteningMax);
+        STDLOG(1, "Adopting a comoving softening of %d, fixed in physical units\n", WriteState.SofteningLength);
+    }
+    else{
+        WriteState.SofteningLength = P.SofteningLength;
+        STDLOG(1, "Adopting a comoving softening of %d, fixed in comoving units\n", WriteState.SofteningLength);
+    }
     
     // Now scale the softening to match the minimum Plummer orbital period
 #if defined DIRECTCUBICSPLINE
@@ -707,7 +725,7 @@ void SetupLocalDirectories(const int MakeIC){
                 STDLOG(1, "Removed directory \"%s\"\n", d);
             }
             int res = CreateDirectories(d);
-            assertf(res == 0, "Directory creation failed!\n");
+            assertf(res == 0, "Creating directory \"%s\" failed for reason %s!\n", d, strerror(errno));
             STDLOG(1, "Created directory \"%s\"\n", d);
         }
     }

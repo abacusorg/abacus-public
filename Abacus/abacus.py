@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 This module is the main entry point for running an Abacus simulation.
 For a complete example of a simulation setup that demonstrates how
@@ -49,6 +49,8 @@ import shlex
 import time
 import signal
 from tempfile import mkstemp
+import warnings
+from warnings import warn
 
 import numpy as np
 
@@ -60,13 +62,15 @@ from Abacus.Cosmology import AbacusCosmo
 
 NEEDS_INTERIM_BACKUP_MINS = 240 #minimum job runtime (in minutes) for which we'd like to do a backup halfway through the job. 
 EXIT_REQUEUE = 200
+#RUN_TIME_MINUTES = os.getenv("JOB_ACTION_WARNING_TIME")
+RUN_TIME_MINUTES = 1000000
 
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
 directory_param_fn = pjoin(abacuspath, 'Abacus', 'directory.def')
 wall_timer = time.perf_counter  # monotonic wall clock time
 
 
-def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False, erase_ic=False, output_parfile=None, use_site_overrides=False, override_directories=False, **param_kwargs):
+def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False, erase_ic=False, output_parfile=None, use_site_overrides=False, override_directories=False, just_params=False, **param_kwargs):
     """
     The main entry point for running a simulation.  Initializes directories,
     copies parameter files, and parses parameter files as appropriate, then
@@ -120,6 +124,8 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     # TODO: summit doesn't let us write files from the compute nodes.  Is that a problem?
     params = preprocess_params(output_parfile, parfn, use_site_overrides=use_site_overrides,
                 override_directories=override_directories, **param_kwargs)
+    if just_params:
+        return 0
 
     parallel = params.get('Parallel', False)
 
@@ -132,12 +138,14 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
 
     resumedir = ""
     if parallel:
-        resumedir = pjoin(os.path.dirname(params['WorkingDirectory']), params['SimName'] + '_retrieved_state')
+        resumedir = pjoin(dirname(params['WorkingDirectory']), params['SimName'] + '_retrieved_state')
+    else:
+        resumedir = None
 
     # If we requested a resume, but there is no state, assume we are starting fresh
     if not clean:
         if (parallel and path.exists(resumedir)) or (not parallel and path.exists(basedir)):
-                print('Resuming from existing state.')    
+            print('Resuming from existing state.')    
         else:
             print('Resume requested but no state exists.  Creating one.')
             clean = True            
@@ -315,7 +323,7 @@ def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
                         pass
                     if parallel:
                         print('Dispatching CreateDerivatives with command "{}"'.format(' '.join(create_derivs_cmd)))
-                    subprocess.check_call(create_derivs_cmd)
+                    call_subprocess(create_derivs_cmd)
     
     
 def default_parser():
@@ -334,6 +342,7 @@ def default_parser():
     parser.add_argument('--clean', action='store_true', help="Erase the working directory and start over.  Otherwise, continue from the existing state.  Always preserves the ICs unless --erase-ic.")
     parser.add_argument('--erase-ic', action='store_true', help="Remove the ICs if they exist.")
     parser.add_argument('--maxsteps', type=int, help="Take at most N steps", metavar='N')
+    parser.add_argument('--just-params', help="Only generate the .par file from the .par2 file", action='store_true')
     return parser
 
 
@@ -445,6 +454,10 @@ def setup_singlestep_env(param):
         singlestep_env['OMP_PLACES'] = param.OMP_PLACES
     if 'OMP_PROC_BIND' in param:
         singlestep_env['OMP_PROC_BIND'] = param.OMP_PROC_BIND
+    if 'OMP_NUM_THREADS' in param and 'OMP_NUM_THREADS' in singlestep_env:
+        if param['OMP_NUM_THREADS'] != singlestep_env['OMP_NUM_THREADS']:
+            warn('OMP_NUM_THREADS in the parameter file and the environment do not match. '
+                'To avoid confusion, they should be the same (or the environment variable should be unset).')
         
     return singlestep_env
     
@@ -821,8 +834,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         distribute_state_from = param.get('DistributeStateFrom', None)
         if distribute_state_from:
             print('Distributing state to nodes...')
+            # TODO: these subprocess invocations could probably be regular Python function calls
             distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, distribute_state_from, '--distribute-from-serial']
-            subprocess.check_call(Conv_mpirun_cmd + distribute_state_cmd)
+            call_subprocess(Conv_mpirun_cmd + distribute_state_cmd)
         
         #check if our previous run was interrupted and saved in the global directory. If yes, redistribute state to nodes. 
         #TODO do this by checking if we have a backed-up state available in global directory (instead of looking at param file). 
@@ -830,11 +844,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         if not make_ic: #if this is not a clean run, redistribute the state out to the nodes. 
             print('Distributing in order to resume...')
             distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', resume_dir]            
-            distribute_fns_present = subprocess.check_call(Conv_mpirun_cmd + distribute_state_cmd)
-            
+            distribute_fns_present = call_subprocess(Conv_mpirun_cmd + distribute_state_cmd)
    
     print("Beginning abacus steps:")
     if parallel:
+        # TODO: this would be useful in the serial code too, especially with ramdisk runs
         emergency_exit_fn = pjoin(param['WorkingDirectory'], 'abandon_ship')
         print("\n------------------")
         print("To trigger emergency quit safely, create file", emergency_exit_fn)
@@ -875,15 +889,21 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 # Now check if we have all the multipoles the convolution will need
                 if not check_multipole_taylor_done(param, read_state, kind='Multipole'):
                     # Invoke multipole recovery mode
-                    print(f"Warning: missing multipoles! Performing multipole recovery for step {i:d}")
+                    print(f"Warning: missing multipoles! Performing multipole recovery for step {stepnum:d}")
                     
                     # Build the recover_multipoles executable
                     with Tools.chdir(pjoin(abacuspath, "singlestep")):
-                        subprocess.check_call(['make', 'recover_multipoles'])
+                        call_subprocess(['make', 'recover_multipoles'])
 
                     # Execute it
                     print(f"Running recover_multipoles for step {stepnum:d}")
-                    subprocess.check_call([pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn], env=singlestep_env)
+
+                    try:
+                        call_subprocess([pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn], env=singlestep_env)
+                    except subprocess.CalledProcessError as cpe:
+                        handle_singlestep_error(cpe)
+                        raise
+
                     save_log_files(param.LogDirectory, f'step{read_state.FullStepNumber:04d}.recover_multipoles')
                     print(f'\tFinished multipole recovery for read state {read_state.FullStepNumber}.')
 
@@ -902,7 +922,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             
             print(f"Performing convolution for step {stepnum:d}")
             with Tools.ContextTimer() as conv_timer:
-                subprocess.check_call(convolution_cmd, env=convolution_env)
+                call_subprocess(convolution_cmd, env=convolution_env)
             conv_time = conv_timer.elapsed
 
             if ProfilingMode == 2:
@@ -948,7 +968,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             print(f"Running singlestep for step {stepnum:d}")
         with Tools.ContextTimer() as ss_timer:
             try:
-                subprocess.check_call(singlestep_cmd, env=singlestep_env)
+                call_subprocess(singlestep_cmd, env=singlestep_env)
             except subprocess.CalledProcessError as cpe:
                 handle_singlestep_error(cpe)
                 raise
@@ -1013,6 +1033,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 os.remove(dfn)
         
         if parallel:
+            # Merge all nodes' checksum files into one
+            merge_checksum_files(param)
+
             # check if we need to gracefully exit and/or backup:
             #    is a group finding step next?          ---> backup to NVME and continue.   (group finding steps are more likely to crash!)
             #    are we ~halfway through our long run?  ---> backup to NVME and continue.   (just in case.)
@@ -1060,7 +1083,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 restore_time = wall_timer()
         
                 retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, resume_dir, '--retrieve']
-                subprocess.check_call(Conv_mpirun_cmd + retrieve_state_cmd)
+                call_subprocess(Conv_mpirun_cmd + retrieve_state_cmd)
             
                 restore_time = wall_timer() - restore_time
             
@@ -1126,11 +1149,61 @@ def save_log_files(logdir, newprefix, oldprefix='lastrun'):
             newname = logfn.replace(oldprefix, newprefix, 1)
             shutil.move(pjoin(logdir, logfn), pjoin(logdir, newname))
 
+
+def merge_checksum_files(param=None, dir_globs=None):
+    '''
+    Each node computes the CRC32 checksum of its output files.
+    Rather than doing a messy MPI merge of the checksums so
+    that the root node can write one file, for now each node
+    just writes its own file.  So the last step is to merge
+    these files into one file, which this function does.
+
+    We basically guess which directories might have checksum
+    files.  It's not ideal.  The directories should match
+    the types in SlabBuffer::WantChecksum().
+
+    The checksums.crc32 file written by this function
+    should match the format of the GNU cksum util.
+    '''
+
+    if not dir_globs:
+        dir_globs = [pjoin(param.OutputDirectory, 'slice*'),
+                    pjoin(param.GroupDirectory, 'Step*'),
+                    pjoin(param.LightConeDirectory, 'LC_raw*'),
+            ]
+
+    for pat in dir_globs:
+        for d in glob(pat):
+            cksum_fns = glob(pjoin(d,'checksums.node*.crc32'))
+            if not cksum_fns:
+                # Nothing to do
+                continue
+
+            lines = []
+            for fn in cksum_fns:
+                with open(fn, 'r') as fp:
+                    lines += fp.readlines()
+            
+            # Sort on the file name
+            lines = [line.split() for line in lines]
+            assert(all(len(line) == 3 for line in lines))
+            lines = sorted(lines, key=lambda l:l[2])
+            lines = [' '.join(line) for line in lines]            
+
+            with open(pjoin(d,'checksums.crc32'), 'a') as fp:
+                fp.writelines(lines)
+
+            for fn in cksum_fns:
+                os.remove(fn)
+
+
+
 def handle_singlestep_error(error):
     '''
     The singlestep executable may quit with an informative return value,
     such as from a Unix signal.  Let's interpret that for the user.
-    The error will still be raised upstream.
+    The error is not suppressed here and can/should still be raised
+    upstream.
 
     Parameters
     ----------
@@ -1140,3 +1213,43 @@ def handle_singlestep_error(error):
     if error.returncode == -signal.SIGBUS:
         print('singlestep died with signal SIGBUS! Did the ramdisk run out of memory?', file=sys.stderr)
 
+
+def showwarning(message, category, filename, lineno, file=None, line=None):
+    '''
+    A monkey patch for warnings.showwarning that is a little easier to parse.
+    '''
+
+    if file is None:
+        file = sys.stderr
+
+    print(f'{filename}:{lineno}: {category.__name__}: {message}', file=file)
+
+warnings.showwarning = showwarning
+
+
+def reset_affinity(max_core_id=1024):
+    '''
+    Resets the core affinity of the current process/thread.
+    Mainly used by `call_subprocess()`.
+    '''
+    # TODO: how to detect the maximum core id?
+    # For now, we can assume CPU_SETSIZE=1024 according to the man pages
+    os.sched_setaffinity(0, range(max_core_id))
+
+
+def call_subprocess(*args, **kwargs):
+    """
+    This is a wrapper to subprocess.check_call() that first resets CPU affinity.
+
+    Why do we need to do this?  The number of cores that OpenMP allows itself
+    to use is limited by the affinity mask of the process *at initialization*.
+    And the OMP_PLACES mechanism may have already limited Python's affinity
+    mask if we happened to load a shared object that uses OpenMP (say, an
+    analysis routine).
+
+    Why does OMP_PLACES affect the affinity mask of the master thread?
+    Because the master thread is actually the first member of the OpenMP
+    thread team!
+    """
+
+    subprocess.check_call(*args, **kwargs, preexec_fn=reset_affinity)

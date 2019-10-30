@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 This program generates assembly code for the Taylors and Multipoles on
 IBM POWER architectures using AltiVec/VSX intrinsics.

@@ -58,9 +58,10 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     // Write the header to its own file
     if(slab == 0){
         char filename[1024];
-        sprintf(filename, "%s/slice%5.3f/header",  
+        int ret = snprintf(filename, 1024, "%s/slice%5.3f/header",  
             P.OutputDirectory, 
             ReadState.Redshift);
+        assert(ret >= 0 && ret < 1024);
         WriteHeaderFile(filename);
     }
         

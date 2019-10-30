@@ -5,7 +5,7 @@
  *  detects missing multipoles.
  */
  
- #include "proepi.cpp"
+#include "proepi.cpp"
 
 #ifdef PARALLEL
 void RecoverReadStateFiles(Parameters &P){
@@ -25,10 +25,8 @@ void RecoverReadStateFiles(Parameters &P){
        fprintf(stderr, "recover_multipoles: command line must have 2 parameters given, not %d.\nLegal usage: recover_multipoles <parameter_file> (and, if parallel: <reconstruct_read_files> <reconstruct_multipoles>)\n", argc);
        assert(0==99);
     }  
-	
-#ifdef PARALLEL
+
     InitializeParallel(MPI_size, MPI_rank);
-#endif
 	
     P.ReadParameters(argv[1],0);
     strcpy(WriteState.ParameterFileName, argv[1]);
@@ -57,22 +55,20 @@ void RecoverReadStateFiles(Parameters &P){
 	
 #ifdef PARALLEL	
 	RecoverReadStateFiles(P); 
-#else
-			
+#endif
+	
+    // TODO: is the following parallel-unsafe for any reason?		
     // Let the IO finish, so that it is included in the time log.
     SingleStepTearDown.Start();
     IO_Terminate();
     SingleStepTearDown.Stop();
     WallClockDirect.Stop();
-#endif 
+
     // The epilogue contains some tests of success.
     Epilogue(P, MakeIC);
 	
 	stdlog.close();
-#ifdef PARALLEL	
     FinalizeParallel(); 
-#endif	
 	
 	exit(0); 
-	}
 }

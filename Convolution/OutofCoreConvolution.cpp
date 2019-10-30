@@ -347,7 +347,7 @@ OutofCoreConvolution::OutofCoreConvolution(ConvolutionParameters &_CP) : CP(_CP)
     for(int i = first_slab_on_node; i < first_slab_on_node + total_slabs_on_node; i++) {
         char fn[1024];
         CP.MultipoleFN(i % cpd, fn);
-        assertf(CheckFileExists(fn) == 0, "Multipole file \"%s\" does not exist! Aborting convolve.\n");
+        assertf(CheckFileExists(fn) == 0, "Multipole file \"%s\" does not exist! Aborting convolve.\n", fn);
     }
 
     // Create the Taylor files, erasing them if they existed

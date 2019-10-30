@@ -133,7 +133,7 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
     RADIUS = NearFieldRadius;
     
 #ifdef CUDADIRECT
-    STDLOG(2, "Fetching number of GPUs... this will start the CUDA context\n");
+    STDLOG(1, "Fetching number of GPUs... this will start the CUDA context\n");
     NGPU = GetNGPU();
 
     DirectBPD = P.DirectBPD;
