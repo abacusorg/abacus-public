@@ -460,7 +460,7 @@ int main(int argc, char ** argv){
 
         // Delete the Taylors if this was profiling mode
         if(CP.ProfilingMode == 2){
-            char cmd[1024];
+            char cmd[1050];
             sprintf(cmd, "rm -f %s/Taylor_????", CP.runtime_TaylorDirectory);
             int ret = system(cmd);
             assertf(ret == 0, "Command \"%s\" failed\n", cmd);

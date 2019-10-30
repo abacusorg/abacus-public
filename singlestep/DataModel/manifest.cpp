@@ -57,16 +57,32 @@ class DependencyRecord {
     /// Load the status of this dependency 
     void Load(Dependency &d, int finished_slab, const char label[]) {
         end = finished_slab;
+		
         for (begin=end-1; begin>end-d.cpd; begin--) {
             if (d.notdone(begin)) break;
             //// d.mark_to_repeat(begin);   // We're not going to unmark
         }
+		
         // We've found the first notdone slab
         begin++;   // Want to pass the first done one
+		
         // Now look for the last done slab
         for (;end<finished_slab+d.cpd;end++) {
             if (d.notdone(end)) break;
         } end--;
+        /* The manifest code is called in two different use cases:
+           1) when the GlobalGroups have happened and we want to pass 
+           along the earlier info so that Groups can proceed on the neighbor.
+           2) when Finish has happened and we want to get rid of everything
+           relevant to the earlier slabs.
+           The issue is that case (1) needs to indicate the existence of 
+           data that hasn't yet been shipped.  In particular, that FindLinks has happened on forward slabs.
+        */
+        if (Drift.notdone(finished_slab)) {
+            // We're in the first case; don't pass along anything ahead.
+            STDLOG(3, "Changing end from %d to %d\n", end, finished_slab);
+            end = finished_slab;
+        }
         STDLOG(2, "Load Dependency %s [%d,%d)\n", label, begin, end);
         return;
     }
@@ -87,7 +103,7 @@ class DependencyRecord {
         end++;   // Now this marks the first ==2.
         for (begin=end-1; begin>end-GFC->cpd; begin--) {
             int s = CP->WrapSlab(begin);
-            if (GFC->cellgroups_status[s]==0) break;
+            if (GFC->cellgroups_status[s]!=1) break;
             // Need to load this over to the Arenas
             STDLOG(2,"Packing CellGroupArena for slab %d\n", s);
             GFC->cellgroups[s].pack(CellGroupArena,s);
@@ -110,11 +126,16 @@ class DependencyRecord {
             SB->DeAllocate(CellGroupArena,s);
         }
         STDLOG(2, "Marking cellgroups_status = 1 for [%d,%d)\n", begin, end);
-        // We need to set cellgroups_status=2 for [end,end+2*GroupRadius]
-        // This is so that CreateGlobalGroups() doesn't crash.
-        for (int s=end; s<=end+2*GFC->GroupRadius; s++)
-            GFC->cellgroups_status[CP->WrapSlab(s)]=2;
-        STDLOG(2, "Marking cellgroups_status = 2 for [%d,%d]\n", end, end+2*GFC->GroupRadius);
+        #ifndef ONE_SIDED_GROUP_FINDING
+            // In the two-sided case, there is only one Manifest.
+            // We need to set cellgroups_status=2 for [end,end+2*GroupRadius]
+            // This is so that CreateGlobalGroups() doesn't crash.
+            // This isn't needed in the one-sided case; the dependencies 
+            // take care of the need.
+            for (int s=end; s<=end+2*GFC->GroupRadius; s++)
+                GFC->cellgroups_status[CP->WrapSlab(s)]=2;
+            STDLOG(2, "Marking cellgroups_status = 2 for [%d,%d]\n", end, end+2*GFC->GroupRadius);
+        #endif
         return;
     }
 };

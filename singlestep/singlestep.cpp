@@ -20,7 +20,6 @@ void BuildWriteState(double da){
 	string now = string(asctime(localtime(&timet)));
 	sprintf(WriteState.RunTime,"%s",now.substr(0,now.length()-1).c_str());
 	gethostname(WriteState.MachineName,1024);
-	STDLOG(0,"Host machine name is %s\n", WriteState.MachineName);
     WriteState.NodeRank = MPI_rank;
     WriteState.NodeSize = MPI_size;
 
@@ -161,6 +160,9 @@ int main(int argc, char **argv) {
 	
         STDLOG(0,"Initialized MPI.\n");   
         STDLOG(0,"Node rank %d of %d total\n", MPI_rank, MPI_size);
+        char hostname[1024];
+        gethostname(hostname,1024);
+        STDLOG(0,"Host machine name is %s\n", hostname);
     #endif
 
     SetupLocalDirectories(MakeIC);
@@ -186,7 +188,8 @@ int main(int argc, char **argv) {
 
     // Check if WriteStateDirectory/state exists, and fail if it does
     char wstatefn[1050];
-    sprintf(wstatefn,"%s/state", P.WriteStateDirectory);
+    int ret = snprintf(wstatefn, 1050, "%s/state", P.WriteStateDirectory);
+    assert(ret >= 0 && ret < 1050);
     if(access(wstatefn,0) !=-1 && !WriteState.OverwriteState)
         QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
     
@@ -247,7 +250,8 @@ int main(int argc, char **argv) {
     if (!MakeIC && P.ProfilingMode){
         STDLOG(0,"ProfilingMode is active. Removing the write state in %s\n",P.LocalWriteStateDirectory);
         char command[1024];
-        sprintf(command, "rm -rf %s/*", P.LocalWriteStateDirectory);
+        int printret = snprintf(command, 1024, "rm -rf %s/*", P.LocalWriteStateDirectory);
+        assert(printret >= 0 && printret < 1024);
         int ret = system(command);  // hacky!
     }
 
