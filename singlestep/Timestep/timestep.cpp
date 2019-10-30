@@ -456,10 +456,10 @@ void DoGlobalGroupsAction(int slab) {
     FindAndProcessGlobalGroups(slab);
 
     // The first 2*GroupRadius times we get here, we can attempt to free
-    // info from slab-1.
+    // info from slab.  The Manifest code sends everything <S, so we need S=slab+1
     #ifdef ONE_SIDED_GROUP_FINDING
         if (DoGlobalGroups.raw_number_executed<2*GROUP_RADIUS) {
-            SendManifest->QueueToSend(slab);
+            SendManifest->QueueToSend(slab+1);
             SendManifest++;
         }
     #endif
