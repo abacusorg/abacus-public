@@ -188,11 +188,9 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
 
         if return_header:
             return particle_arrays, header  # return header associated with last file
-        print(particle_arrays)
         return particle_arrays
     else:
         particles = particles[:start]
-        print(particles)
         if return_header:
             return particles, header  # return header associated with last file
     
