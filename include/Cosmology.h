@@ -4,8 +4,6 @@
 #include <cmath>
 #include <cstdio>
 
-#define MAX(a,b) ((a)>(b)?(a):(b))
-
 class MyCosmology {
 // The cosmology:
 // Must include Omega_m, Omega_K, Omega_DE, H0

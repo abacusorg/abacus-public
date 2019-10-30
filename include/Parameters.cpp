@@ -171,6 +171,8 @@ public:
     int PhysicalSoftening;  // Keep the softening length fixed in physical coordinates.  SofteningLength is specified at z=0.
     double SofteningMax;  // The maximum comoving softening to allow when using PhysicalSoftening
 
+    int NoChecksum;  // Explicitly disable output checksumming
+
     // Return the L{tier} size in MB
     float getCacheSize(int tier){
         int cache_size = 0;
@@ -406,6 +408,9 @@ public:
 
         SofteningMax = DBL_MAX;
         installscalar("SofteningMax", SofteningMax, DONT_CARE);
+
+        NoChecksum = 0;
+        installscalar("NoChecksum", NoChecksum, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.

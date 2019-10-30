@@ -109,6 +109,9 @@ public:
 
     // Determine whether a slab is used for reading or writing by default
     int GetSlabIntent(int type);
+
+    // Determine whether a slab should have its checksum recorded
+    int WantChecksum(int type);
     
     // The write and read names for the files of this SlabType.
     // The slab number will be wrapped.
@@ -287,6 +290,42 @@ int SlabBuffer::GetSlabIntent(int type){
     }
 
     return -1;
+}
+
+/* Determine whether a given slab type (e.g. TimeSliceSlab) is an output type
+ * that we want to record the checksum of when we write it to disk.
+ *
+ * P.NoChecksum disables all checksumming.
+*/
+int SlabBuffer::WantChecksum(int type){
+    if(P.NoChecksum)
+        return 0;
+
+    switch(type){
+        case TimeSlice:
+        case L1halosSlab:
+        case TaggedPIDsSlab:
+        case L1ParticlesSlab:
+        case L1PIDsSlab:
+        case TaggableFieldSlab:
+        case TaggableFieldPIDSlab:
+        case L0TimeSlice:
+        
+        // Do we want to checksum light cones?  They're probably being merged/repacked very soon.
+        // Maybe same for the halos?  But if we move either of these to another filesystem
+        // for post-processing, then we'd like to be able to verify the checksums.
+        case LightCone0:
+        case LightCone1:
+        case LightCone2:
+        case LightCone3:
+        case LightCone4:
+        case LightCone5:
+        case LightCone6:
+        case LightCone7:
+            return 1;
+    }
+
+    return 0;
 }
 
 
@@ -616,7 +655,8 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, c
         fn, 
         0,      // No file offset
         deleteafter, 
-        blocking);
+        blocking,
+        WantChecksum(type));
 }
 
 // Free the memory associated with this slab.  Might stash the arena as a reuse slab!

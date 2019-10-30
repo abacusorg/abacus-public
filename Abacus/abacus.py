@@ -1057,6 +1057,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 os.remove(dfn)
         
         if parallel:
+            # Merge all nodes' files into one
+            merge_checksum_files(param)
+
             abandon_ship = path.exists(emergency_exit_fn)
             graceful_exit = (wall_timer() - start_time >= run_time_secs) or abandon_ship
         
@@ -1130,11 +1133,61 @@ def save_log_files(logdir, newprefix, oldprefix='lastrun'):
             newname = logfn.replace(oldprefix, newprefix, 1)
             shutil.move(pjoin(logdir, logfn), pjoin(logdir, newname))
 
+
+def merge_checksum_files(param=None, dir_globs=None):
+    '''
+    Each node computes the CRC32 checksum of its output files.
+    Rather than doing a messy MPI merge of the checksums so
+    that the root node can write one file, for now each node
+    just writes its own file.  So the last step is to merge
+    these files into one file, which this function does.
+
+    We basically guess which directories might have checksum
+    files.  It's not ideal.  The directories should match
+    the types in SlabBuffer::WantChecksum().
+
+    The checksums.crc32 file written by this function
+    should match the format of the GNU cksum util.
+    '''
+
+    if not dir_globs:
+        dir_globs = [pjoin(param.OutputDirectory, 'slice*'),
+                    pjoin(param.GroupDirectory, 'Step*'),
+                    pjoin(param.LightConeDirectory, 'LC_raw*'),
+            ]
+
+    for pat in dir_globs:
+        for d in glob(pat):
+            cksum_fns = glob(pjoin(d,'checksums.node*.crc32'))
+            if not cksum_fns:
+                # Nothing to do
+                continue
+
+            lines = []
+            for fn in cksum_fns:
+                with open(fn, 'r') as fp:
+                    lines += fp.readlines()
+            
+            # Sort on the file name
+            lines = [line.split() for line in lines]
+            assert(all(len(line) == 3 for line in lines))
+            lines = sorted(lines, key=lambda l:l[2])
+            lines = [' '.join(line) for line in lines]            
+
+            with open(pjoin(d,'checksums.crc32'), 'a') as fp:
+                fp.writelines(lines)
+
+            for fn in cksum_fns:
+                os.remove(fn)
+
+
+
 def handle_singlestep_error(error):
     '''
     The singlestep executable may quit with an informative return value,
     such as from a Unix signal.  Let's interpret that for the user.
-    The error will still be raised upstream.
+    The error is not suppressed here and can/should still be raised
+    upstream.
 
     Parameters
     ----------

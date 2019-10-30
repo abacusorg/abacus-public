@@ -105,6 +105,7 @@ void GatherTimings() {
     } while(0)
 
     for(int i = 0; i < niothreads; i++){
+        // TODO: could probably move some of this inside the IO thread destructor
         double total_read_time = 0., total_read_bytes = 0.;
         double total_write_time = 0., total_write_bytes = 0.;
 
@@ -129,6 +130,10 @@ void GatherTimings() {
         REPORT_DIR_IOSTATS(BlockingIOWrite, write, blocking);
         REPORT_DIR_IOSTATS(NonBlockingIORead, read, non-blocking);
         REPORT_DIR_IOSTATS(NonBlockingIOWrite, write, non-blocking);
+        if(ChecksumBytes[i]){
+            REPORT(1, "Calculate Checksum", ChecksumTime[i]);
+            fprintf(reportfp, "---> %6.1f MB/s on %6.2f GB", ChecksumTime[i] ? ChecksumBytes[i]/ChecksumTime[i]/1e6 : 0., ChecksumBytes[i]/1e9);
+        }
     }
 #undef niothreads
 
