@@ -178,6 +178,11 @@ public:
 
     long long int MaxPID;  // Maximum PID to expect.  A PID equal or larger than this indicates corruption of some sort.  0 means NP; -1 means don't check.
 
+    int PhysicalSoftening;  // Keep the softening length fixed in physical coordinates.  SofteningLength is specified at z=0.
+    double SofteningMax;  // The maximum comoving softening to allow when using PhysicalSoftening
+
+    int NoChecksum;  // Explicitly disable output checksumming
+
     // Return the L{tier} size in MB
     float getCacheSize(int tier){
         int cache_size = 0;
@@ -423,6 +428,15 @@ public:
 
         MaxPID = -1;
         installscalar("MaxPID", MaxPID, DONT_CARE);
+
+        PhysicalSoftening = 0;
+        installscalar("PhysicalSoftening", PhysicalSoftening, DONT_CARE);
+
+        SofteningMax = DBL_MAX;
+        installscalar("SofteningMax", SofteningMax, DONT_CARE);
+
+        NoChecksum = 0;
+        installscalar("NoChecksum", NoChecksum, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.
@@ -515,10 +529,13 @@ void Parameters::ProcessStateDirectories(){
 
     // Set read dir and write dir from working dir if they were not given
     if (strcmp(WorkingDirectory,STRUNDEF) != 0){
-        if(strcmp(ReadStateDirectory,STRUNDEF) == 0)
-            sprintf(ReadStateDirectory,"%s/read",WorkingDirectory);
+        if(strcmp(ReadStateDirectory,STRUNDEF) == 0){
+            int ret = snprintf(ReadStateDirectory, 1024, "%s/read",WorkingDirectory);
+            assert(ret >= 0 && ret < 1024);
+        }
         if(strcmp(WriteStateDirectory,STRUNDEF) == 0){
-            sprintf(WriteStateDirectory,"%s/write",WorkingDirectory);
+            int ret = snprintf(WriteStateDirectory, 1024, "%s/write",WorkingDirectory);
+            assert(ret >= 0 && ret < 1024);
             if(strcmp(StateIOMode, "overwrite") == 0) {  // later, we will set WriteState.OverwriteState
                 strcpy(WriteStateDirectory, ReadStateDirectory);
             }
@@ -527,10 +544,13 @@ void Parameters::ProcessStateDirectories(){
 
     // Set read dir and write dir from local working dir if they were not given
     if (strcmp(LocalWorkingDirectory,STRUNDEF) != 0){
-        if(strcmp(LocalReadStateDirectory,STRUNDEF) == 0)
-            sprintf(LocalReadStateDirectory,"%s/read",LocalWorkingDirectory);
+        if(strcmp(LocalReadStateDirectory,STRUNDEF) == 0){
+            int ret = snprintf(LocalReadStateDirectory, 1024, "%s/read",LocalWorkingDirectory);
+            assert(ret >= 0 && ret < 1024);
+        }
         if(strcmp(LocalWriteStateDirectory,STRUNDEF) == 0){
-            sprintf(LocalWriteStateDirectory,"%s/write",LocalWorkingDirectory);
+            int ret = snprintf(LocalWriteStateDirectory, 1024, "%s/write",LocalWorkingDirectory);
+            assert(ret >= 0 && ret < 1024);
             if(strcmp(StateIOMode, "overwrite") == 0) {  // later, we will set WriteState.OverwriteState
                 strcpy(LocalWriteStateDirectory, LocalReadStateDirectory);
             }

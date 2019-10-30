@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 This is an out-of-core wrapper to Corrfunc, designed to
 support pair-counting (auto-correlation or cross-correlation)

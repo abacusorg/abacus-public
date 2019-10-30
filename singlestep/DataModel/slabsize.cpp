@@ -53,7 +53,8 @@ class SlabSize {
 
     void load_from_params(Parameters &P){
         char filename[1024];
-        sprintf(filename, "%s/slabsize", P.ReadStateDirectory);
+        int ret = snprintf(filename, 1024, "%s/slabsize", P.ReadStateDirectory);
+        assert(ret >= 0 && ret < 1024);
         read(filename);
         STDLOG(2,"Reading SlabSize file from %s\n", filename);
     }
@@ -62,7 +63,8 @@ class SlabSize {
         parallel_gather();
         if (MPI_rank==0) {
             char filename[1024];
-            sprintf(filename,"%s/slabsize",P.WriteStateDirectory);
+            int ret = snprintf(filename, 1024, "%s/slabsize",P.WriteStateDirectory);
+            assert(ret >= 0 && ret < 1024);
             write(filename);
             STDLOG(2,"Writing SlabSize file to %s\n", filename);
         }

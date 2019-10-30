@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Warning!  h5py 2.6 has a few bugs that may affect the following code.
 

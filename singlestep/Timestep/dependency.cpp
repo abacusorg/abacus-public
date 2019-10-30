@@ -119,13 +119,17 @@ public:
         if(global_spin_timer.timeron)
             global_spin_timer.Stop();
         
+        // It's bad form to use _log instead of STDLOG,
+        // but we want to lie about the function name for readability
         if(name)
-            STDLOG(0, "Entering %s action for slab %d\n", name, slab);
+            _log(stdlog, name, "Entering %s action for slab %d\n", name, slab);
+
         Start();
         (*action)(slab);
         Stop();
+
         if(name)
-            STDLOG(0, "Exited %s action for slab %d\n", name, slab);
+            _log(stdlog, name, "Exited %s action for slab %d\n", name, slab);
 	    _executed_status[slab] = 1;
 	    last_slab_executed = slab;
 	    number_of_slabs_executed++;

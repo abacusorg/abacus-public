@@ -1,0 +1,14 @@
+SimName = "CheckForces"
+#include "$ABACUS$/Tests/test.def"
+
+SofteningLength = 1e-10  #50./1000
+BoxSize = 1.0
+ICPositionRange = 1.0
+InitialRedshift = 49
+NearFieldRadius=2
+Order = 8
+ICFormat = "Lattice"
+TimeSliceRedshifts = @InitialRedshift@
+NumSlabsInsertListIC = 8
+StoreForces = 0
+AllowGroupFinding = 0

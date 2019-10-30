@@ -9,8 +9,8 @@ SO_TARGETS = libpermute.so liblightcones.so libreadabacus.so
 
 all: libpermute.so libreadabacus.so
 
+# Always use PYTHON_CXX for python extension compilations
 %.o:%.cpp
-	@# Always use PYTHON_CXX for python extension compilations
 	$(PYTHON_CXX) ${CXXFLAGS} $(PYTHON_CPPFLAGS) -MMD -c $<
 
 $(SO_TARGETS): lib%.so: %.o

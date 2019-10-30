@@ -39,7 +39,7 @@ extern size_t MaxSinkSize, MaxSourceSize;
 
 #else
 // No GPU memory limits; could be RAM limits if we wanted
-extern int MaxSinkBlocks = INT32_MAX, MaxSourceBlocks = INT32_MAX;
-extern int MaxNSink = INT32_MAX, MaxNSource = INT32_MAX;
-extern size_t MaxSinkSize = INT32_MAX, MaxSourceSize = INT32_MAX;
+int MaxSinkBlocks = INT32_MAX, MaxSourceBlocks = INT32_MAX;
+int MaxNSink = INT32_MAX, MaxNSource = INT32_MAX;
+size_t MaxSinkSize = INT32_MAX, MaxSourceSize = INT32_MAX;
 #endif

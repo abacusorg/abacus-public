@@ -33,16 +33,19 @@ class ioacknowledge {
 class iorequest {
   public:
     char    *memory = NULL;		// Where the data is in memory
-    uint64     sizebytes = 0;		// How much data
+    uint64  sizebytes = 0;		// How much data
     char    filename[1024] = "";	// File name
-    char    dir[1024] = "";	// The name of the containing directory (i.e. not the full path)
+    char    dir[1024] = "";	        // The name of the containing directory (i.e. not the full path)
+    char    fulldir[1024] = "";
+    char    justname[1024] = "";
     int     command = 0; 		// use IO_READ, IO_WRITE, IO_QUIT
     int     arenaslab = 0;		// Which slab number this is
     int     arenatype = 0;		// Which slab type this is
-    off_t     fileoffset = 0; 	// only used for reading
+    off_t   fileoffset = 0; 	// only used for reading
     int     deleteafterwriting = 0; // use IO_DELETE, IO_KEEP
     int     blocking = 0;		// use IO_BLOCKING, IO_NONBLOCKING
     int     io_method = 0;  // use IO_DIRECT, IO_FOPEN
+    int     do_checksum = 0;  // compute the crc
 
     void dumpior() {
         printf("IOR memory = %p ", memory);
@@ -69,7 +72,8 @@ class iorequest {
         int     _arenaslab,
         off_t     _fileoffset,
         int     _deleteafterwriting,
-        int     _blocking) {
+        int     _blocking,
+        int     _do_checksum) {
         
         memset(this, 0, sizeof(iorequest));   // Set to zero to appease valgrind
 
@@ -85,6 +89,7 @@ class iorequest {
         // Get the directory of the file for logging purposes
         // Believe it or not, dirname modifies its argument
         containing_dirname(filename, dir);
+        split_path(filename, fulldir, justname);
         
         command = _command;
         arenatype = _arenatype;
@@ -92,6 +97,7 @@ class iorequest {
         fileoffset = _fileoffset;
         deleteafterwriting = _deleteafterwriting;
         blocking = _blocking;
+        do_checksum = _do_checksum;
     }
 
     ~iorequest(void) { }

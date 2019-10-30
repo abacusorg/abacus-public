@@ -647,6 +647,7 @@ SWIG
 AR
 YACC
 LEX
+REAL_CXX
 ARCH
 build_os
 build_vendor
@@ -687,7 +688,6 @@ infodir
 docdir
 oldincludedir
 includedir
-runstatedir
 localstatedir
 sharedstatedir
 sysconfdir
@@ -788,7 +788,6 @@ datadir='${datarootdir}'
 sysconfdir='${prefix}/etc'
 sharedstatedir='${prefix}/com'
 localstatedir='${prefix}/var'
-runstatedir='${localstatedir}/run'
 includedir='${prefix}/include'
 oldincludedir='/usr/include'
 docdir='${datarootdir}/doc/${PACKAGE_TARNAME}'
@@ -1041,15 +1040,6 @@ do
   | -silent | --silent | --silen | --sile | --sil)
     silent=yes ;;
 
-  -runstatedir | --runstatedir | --runstatedi | --runstated \
-  | --runstate | --runstat | --runsta | --runst | --runs \
-  | --run | --ru | --r)
-    ac_prev=runstatedir ;;
-  -runstatedir=* | --runstatedir=* | --runstatedi=* | --runstated=* \
-  | --runstate=* | --runstat=* | --runsta=* | --runst=* | --runs=* \
-  | --run=* | --ru=* | --r=*)
-    runstatedir=$ac_optarg ;;
-
   -sbindir | --sbindir | --sbindi | --sbind | --sbin | --sbi | --sb)
     ac_prev=sbindir ;;
   -sbindir=* | --sbindir=* | --sbindi=* | --sbind=* | --sbin=* \
@@ -1187,7 +1177,7 @@ fi
 for ac_var in	exec_prefix prefix bindir sbindir libexecdir datarootdir \
 		datadir sysconfdir sharedstatedir localstatedir includedir \
 		oldincludedir docdir infodir htmldir dvidir pdfdir psdir \
-		libdir localedir mandir runstatedir
+		libdir localedir mandir
 do
   eval ac_val=\$$ac_var
   # Remove trailing slashes.
@@ -1340,7 +1330,6 @@ Fine tuning of the installation directories:
   --sysconfdir=DIR        read-only single-machine data [PREFIX/etc]
   --sharedstatedir=DIR    modifiable architecture-independent data [PREFIX/com]
   --localstatedir=DIR     modifiable single-machine data [PREFIX/var]
-  --runstatedir=DIR       modifiable per-process data [LOCALSTATEDIR/run]
   --libdir=DIR            object code libraries [EPREFIX/lib]
   --includedir=DIR        C header files [PREFIX/include]
   --oldincludedir=DIR     C header files for non-gcc [/usr/include]
@@ -3974,6 +3963,16 @@ esac
 ac_config_files="$ac_config_files common.mk"
 
 
+# Detect the underlying compiler when we are using a wrapper like mpicxx
+# TODO: better way to do this?
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking underlying compiler" >&5
+$as_echo_n "checking underlying compiler... " >&6; }
+
+REAL_CXX=$($CXX --version |\grep -qP '\bicc\b' && echo icc || echo g++)
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $REAL_CXX" >&5
+$as_echo "$REAL_CXX" >&6; }
+REAL_CC="$REAL_CXX -x c"
+
 # git version
 GITVERSION=\"$(git rev-parse HEAD)\"
 
@@ -5825,7 +5824,7 @@ else
 fi
 
 if test x$enable_mkl == xcheck; then
-    if test x$CXX == xicc; then
+    if test x$REAL_CXX == xicc; then
         enable_mkl="yes"
     else
         enable_mkl="no"
@@ -6428,7 +6427,7 @@ if test x$enable_gpu_directs == xyes; then
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking compute capability of GPUs" >&5
 $as_echo_n "checking compute capability of GPUs... " >&6; }
 
-    make --quiet -C singlestep/Direct detect_gpus MAKE_CONTEXT=AUTOCONF NVCC=$NVCC
+    make --quiet -C singlestep/Direct detect_gpus MAKE_CONTEXT=AUTOCONF NVCC=$NVCC CXX=$CXX
     DETECT_GPUS_OUTPUT=$(./singlestep/Direct/detect_gpus)
 
     NGPU=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Device count: )\d+')
@@ -6616,6 +6615,8 @@ else
   as_fn_error $? "unable to find fftw3_omp!" "$LINENO" 5
 fi
 
+
+    # Single-precision libs are only used for analysis routines right now
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing fftwf_execute" >&5
 $as_echo_n "checking for library containing fftwf_execute... " >&6; }
 if ${ac_cv_search_fftwf_execute+:} false; then :
@@ -6671,7 +6672,8 @@ if test "$ac_res" != no; then :
   test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
 
 else
-  as_fn_error $? "unable to find fftw3!" "$LINENO" 5
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to find fftw3f!" >&5
+$as_echo "$as_me: WARNING: unable to find fftw3f!" >&2;}
 fi
 
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing fftwf_init_threads" >&5
@@ -6729,7 +6731,8 @@ if test "$ac_res" != no; then :
   test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
 
 else
-  as_fn_error $? "unable to find fftw3_omp!" "$LINENO" 5
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to find fftw3f_omp!" >&5
+$as_echo "$as_me: WARNING: unable to find fftw3f_omp!" >&2;}
 fi
 
 fi
@@ -6763,8 +6766,8 @@ _ACEOF
 # is using Anaconda Python.
 # You may only want the impl packages; the activation scripts will mess with configure
 PYTHON_EXEC=$(command -v python)
-PYTHON_CC=$CC
-PYTHON_CXX=$CXX
+PYTHON_CC=$REAL_CC
+PYTHON_CXX=$REAL_CXX
 PYTHON_LDFLAGS=
 PYTHON_CPPFLAGS=
 PYTHON_COMPILER_WARNING=

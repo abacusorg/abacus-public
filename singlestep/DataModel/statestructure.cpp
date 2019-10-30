@@ -244,8 +244,8 @@ void State::read_from_file(const char *fn) {
 
 
 #define PRQUOTEME(X) #X
-#define WPR(X,XSYM) sprintf(tmp, PRQUOTEME(%22s = %XSYM\n), PRQUOTEME(X), X); ss << tmp
-#define WPRS(X,XSYM) sprintf(tmp, "%22s = \"%s\" \n", PRQUOTEME(X), X); ss << tmp
+#define WPR(X,XSYM) {int ret = snprintf(tmp, 1024, PRQUOTEME(%22s = %XSYM\n), PRQUOTEME(X), X); assert(ret >= 0 && ret < 1024); ss << tmp;}
+#define WPRS(X,XSYM) {int ret = snprintf(tmp, 1024, "%22s = \"%s\" \n", PRQUOTEME(X), X); assert(ret >= 0 && ret < 1024); ss << tmp;}
 
 void State::make_output_header() {
     // We're going to output most, but not all of the fields, into a 
