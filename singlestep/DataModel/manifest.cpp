@@ -1,3 +1,4 @@
+
 /** \file We can implement a simple parallelism into abacus by
 doing a slab-oriented decomposition, in which different nodes are
 responsible for different slabs.
@@ -536,7 +537,7 @@ inline void Manifest::FreeAfterSend() {
                 m.arenas[n].slab, m.arenas[n].type);
         }
         completed=MANIFEST_READY;
-        STDLOG(2,"Marking the Send Manifest as completely sent\n");
+        STDLOG(1,"Marking the Send Manifest as completely sent\n");
     }
     CheckCompletion.Stop();
     #endif

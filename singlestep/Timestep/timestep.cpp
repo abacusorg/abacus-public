@@ -882,6 +882,8 @@ void timestep(void) {
     Further, we have to assure that PosXYZSlab[slab-1] is not still needed
     as a source to any slabs on this node.  Need Kick[slab-1+FORCE_RADIUS]
     to be done to avoid this.
+    
+    
 
     We fix this by forcing FINISH_WAIT_RADIUS to be big enough.  */
     if (FINISH_WAIT_RADIUS+2*GROUP_RADIUS<FORCE_RADIUS)
@@ -889,8 +891,10 @@ void timestep(void) {
 
     // TODO: I'm not sure inflating FINISH_WAIT_RADIUS is the best way to deal with this
     // TODO: Also not sure this is the minimum number of slabs, even in that case
-    assertf(total_slabs_on_node >= 2*FINISH_WAIT_RADIUS + 1 + 2*FORCE_RADIUS + 4*GROUP_RADIUS, "Not enough slabs on node to finish any slabs!\n");
-	
+    // assertf(total_slabs_on_node >= 2*FINISH_WAIT_RADIUS + 1 + 2*FORCE_RADIUS + 4*GROUP_RADIUS, "Not enough slabs on node to finish any slabs!\n");
+    int PAD = 3; 
+    assertf(total_slabs_on_node >= (2*GROUP_RADIUS + 1) + 2*FORCE_RADIUS + 1 + PAD, "Not enough slabs on node to close first group!\n");
+    assertf(total_slabs_on_node >= 2*GROUP_RADIUS + FORCE_RADIUS + 2 * FINISH_WAIT_RADIUS + 1 + PAD, "Not enough slabs on node to finish any slabs!\n"); 	
 #endif
 		
     STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);

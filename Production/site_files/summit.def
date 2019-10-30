@@ -12,12 +12,12 @@ ConvolutionL1CacheSizeMB = 0.015625
 
 # OpenMP and thread parameters
 # for SMT1: specify alloc_flags smt1 in lsf submission script. 
-OMP_NUM_THREADS = 36
-OMP_PLACES = "{0}:18:4,{88}:18:4"
+#OMP_NUM_THREADS = 36
+#OMP_PLACES = "{0}:18:4,{88}:18:4"
 
 # for SMT2: specify alloc_flags smt2 in lsf submission script. 
-#OMP_NUM_THREADS = 72 
-#OMP_PLACES = "{0}:18:4,{1}:18:4,{88}:18:4,{89}:18:4"
+OMP_NUM_THREADS = 72 
+OMP_PLACES = "{0}:18:4,{1}:18:4,{88}:18:4,{89}:18:4"
 
 OMP_PROC_BIND = "spread"
 IOCores = [0]

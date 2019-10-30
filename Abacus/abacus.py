@@ -1022,22 +1022,25 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             
             abandon_ship = path.exists(emergency_exit_fn)
             out_of_time = (wall_timer() - start_time >= run_time_secs)
+
+            LONGJOB = 3600
             
             #if the halfway-there backup hasn't been done already, and we're more than halfway through the job, backup the state now: 
-            interim_backup = (not interim_backup_complete) and (wall_timer() - start_time >= run_time_secs / 2)
+            interim_backup = (not interim_backup_complete) and (wall_timer() - start_time >= run_time_secs / 2) and (run_time_secs > LONGJOB ) #only relevant for long jobs.
             
             #are we coming up on a group finding step? If yes, backup the state, just in case. 
             pre_gf_backup  = False 
             nGFoutputs = len(param.L1OutputRedshifts)
-            for i in range(nGFoutputs):
-                L1z = param.L1OutputRedshifts[i] 
-                if L1z <= -1:
-                    continue
-                L1a = 1.0/(1.0+L1z)                
-                
-                #here we assume that the next da will be similar to the previous one. 
-                if (write_state.Redshift > L1z + 1e-12) and ( 1.0/(1.0+write_state.Redshift) + write_state.DeltaScaleFactor > L1a ):
-                    pre_gf_backup = True 
+            if (run_time_secs > LONGJOB): 
+                for i in range(nGFoutputs):
+                    L1z = param.L1OutputRedshifts[i] 
+                    if L1z <= -1:
+                        continue
+                    L1a = 1.0/(1.0+L1z)                
+                    
+                    #here we assume that the next da will be similar to the previous one. 
+                    if (write_state.Redshift > L1z + 1e-12) and ( 1.0/(1.0+write_state.Redshift) + write_state.DeltaScaleFactor > L1a ):
+                        pre_gf_backup = True 
             
             exit = out_of_time or abandon_ship
             save = exit or interim_backup or pre_gf_backup
