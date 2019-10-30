@@ -168,7 +168,6 @@ public:
     inline void set_density(uint64 _density){
         assert(_density < (AUXDENSITY >> AUXDENSITYZEROBIT)); 
         aux |= ((uint64) _density << AUXDENSITYZEROBIT);
-
     }
     inline void reset_L01_bits() {
         // We need to be able to unset these bits each time we run groupfinding
