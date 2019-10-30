@@ -136,6 +136,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     groupdir  = params.get('GroupDirectory', '')
     basedir = params['WorkingDirectory']
 
+    resumedir = ""
     if parallel:
         resumedir = pjoin(dirname(params['WorkingDirectory']), params['SimName'] + '_retrieved_state')
     else:
@@ -858,8 +859,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         singlestep_cmd = mpirun_cmd + singlestep_cmd
         print("Using singlestep_cmd ", singlestep_cmd) 
     
-    #if this job is longer than a set time (NEEDS_INTERIM_BACKUP_MINS), we'll need to do a backup halfway through the run. 
-    interim_backup_complete = run_time_minutes <= NEEDS_INTERIM_BACKUP_MINS
+        #if this job is longer than a set time (NEEDS_INTERIM_BACKUP_MINS), we'll need to do a backup halfway through the run. 
+        interim_backup_complete = run_time_minutes <= NEEDS_INTERIM_BACKUP_MINS
 
     for i in range(maxsteps):
         
