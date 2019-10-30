@@ -127,7 +127,8 @@ TCMALLOC_CPPFLAGS :=
 ifeq (@TCMALLOC@,TCMALLOC_ENABLED)
     TCMALLOC_CPPFLAGS += -I $(ROOT_DIR)/gperftools/include
     TCMALLOC_CPPFLAGS += -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
-    # -ltcmalloc automatically goes into LIBS if it's available
+    TCMALLOC_LIBS += -ltcmalloc_minimal
+    # -ltcmalloc automatically goes into LIBS if it's available, but maybe executables other than singlestep want it
 endif
 
 # If either PYTHON_CC or PYTHON_CXX is undefined

@@ -474,10 +474,13 @@ void Parameters::ProcessStateDirectories(){
 
     // Set read dir and write dir from working dir if they were not given
     if (strcmp(WorkingDirectory,STRUNDEF) != 0){
-        if(strcmp(ReadStateDirectory,STRUNDEF) == 0)
-            sprintf(ReadStateDirectory,"%s/read",WorkingDirectory);
+        if(strcmp(ReadStateDirectory,STRUNDEF) == 0){
+            int ret = snprintf(ReadStateDirectory, 1024, "%s/read",WorkingDirectory);
+            assert(ret >= 0 && ret < 1024);
+        }
         if(strcmp(WriteStateDirectory,STRUNDEF) == 0){
-            sprintf(WriteStateDirectory,"%s/write",WorkingDirectory);
+            int ret = snprintf(WriteStateDirectory, 1024, "%s/write",WorkingDirectory);
+            assert(ret >= 0 && ret < 1024);
             if(strcmp(StateIOMode, "overwrite") == 0) {  // later, we will set WriteState.OverwriteState
                 strcpy(WriteStateDirectory, ReadStateDirectory);
             }
@@ -486,10 +489,13 @@ void Parameters::ProcessStateDirectories(){
 
     // Set read dir and write dir from local working dir if they were not given
     if (strcmp(LocalWorkingDirectory,STRUNDEF) != 0){
-        if(strcmp(LocalReadStateDirectory,STRUNDEF) == 0)
-            sprintf(LocalReadStateDirectory,"%s/read",LocalWorkingDirectory);
+        if(strcmp(LocalReadStateDirectory,STRUNDEF) == 0){
+            int ret = snprintf(LocalReadStateDirectory, 1024, "%s/read",LocalWorkingDirectory);
+            assert(ret >= 0 && ret < 1024);
+        }
         if(strcmp(LocalWriteStateDirectory,STRUNDEF) == 0){
-            sprintf(LocalWriteStateDirectory,"%s/write",LocalWorkingDirectory);
+            int ret = snprintf(LocalWriteStateDirectory, 1024, "%s/write",LocalWorkingDirectory);
+            assert(ret >= 0 && ret < 1024);
             if(strcmp(StateIOMode, "overwrite") == 0) {  // later, we will set WriteState.OverwriteState
                 strcpy(LocalWriteStateDirectory, LocalReadStateDirectory);
             }

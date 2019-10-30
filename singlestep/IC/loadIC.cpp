@@ -22,7 +22,7 @@
 #include "IC_classes.h"
 #include "particle_subsample.cpp"
 
-uint64 LoadSlab2IL(int slab) {    
+uint64 LoadSlab2IL(int slab) {
     double convert_velocity = 1.0;
     // The getparticle() routine should return velocities in 
     // redshift-space comoving displacements in length units where
@@ -35,7 +35,8 @@ uint64 LoadSlab2IL(int slab) {
     // WriteState.ScaleFactor*WriteState.ScaleFactor*WriteState.HubbleNow;
 
     char filename[1024];
-    sprintf(filename,"%s/ic_%d",P.InitialConditionsDirectory,slab);
+    int ret = snprintf(filename, 1024, "%s/ic_%d",P.InitialConditionsDirectory,slab);
+    assert(ret >= 0 && ret < 1024);
 
     ICfile *ic;    // Abstract class to manipulate the derived class.
 

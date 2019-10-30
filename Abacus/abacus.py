@@ -851,6 +851,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         distribute_state_from = param.get('DistributeStateFrom', None)
         if distribute_state_from:
             print('Distributing state to nodes...')
+            # TODO: these subprocess invocations could probably be regular Python function calls
             distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, distribute_state_from, '--distribute-from-serial']
             call_subprocess(Conv_mpirun_cmd + distribute_state_cmd)
         
@@ -875,6 +876,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
    
     print("Beginning abacus steps:")
     if parallel:
+        # TODO: this would be useful in the serial code too, especially with ramdisk runs
         emergency_exit_fn = pjoin(param['WorkingDirectory'], 'abandon_ship')
         print("\n------------------")
         print("To trigger emergency quit safely, create file", emergency_exit_fn)

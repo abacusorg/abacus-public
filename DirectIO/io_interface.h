@@ -7,9 +7,6 @@ enum io_blocking_mode { IO_NONBLOCKING,
 enum io_deletion_mode { IO_KEEP,
                         IO_DELETE };
 
-// TODO: These definitions need to be external if this header
-// file is going to be read more than once.
-
 // Every implementation of ReadFile/WriteFile should record
 // their performance in these vars
 // The map keys are directory names

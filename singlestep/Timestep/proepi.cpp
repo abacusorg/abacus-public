@@ -325,9 +325,10 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     if(ReadState.DoBinning){
         STDLOG(1,"Outputting Binned Density\n");
-        char denfn[2048];
+        char denfn[1024];
         // TODO: Should this be going to ReadState or WriteState or Output?
-        sprintf(denfn,"%s/density%s",P.ReadStateDirectory, NodeString);
+        int ret = snprintf(denfn, 1024, "%s/density%s",P.ReadStateDirectory, NodeString);
+        assert(ret >= 0 && ret < 1024);
         FILE * densout = fopen(denfn,"wb");
         fwrite(density,sizeof(FLOAT),P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d,densout);
         fclose(densout);
