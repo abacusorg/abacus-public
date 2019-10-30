@@ -487,8 +487,11 @@ def read_rv(fn, return_vel=True, return_pid=False, zspace=False, dtype=np.float3
         return retval[0]
     return retval
     
+
+def read_rvdoublezel(*args, **kwargs):
+    return read_rvzel(*args, double=True, **kwargs)
     
-def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=False, add_grid=False, boxsize=None, dtype=np.float32, out=None, return_header=False):
+def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=False, add_grid=False, boxsize=None, dtype=np.float32, out=None, return_header=False, double=False):
     """
     Reads RVzel format particle data.  This can be output from our
     zeldovich IC generator or Abacus.  zeldovich outputs don't have
@@ -515,6 +518,8 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
         The dtype to load the particle data into
     out: np.ndarray, optional
         Pre-allocated space to put the particles into
+    double: bool, optional
+        Whether the input file format is RVdoubleZel
         
     Returns
     -------
@@ -530,7 +535,9 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
         If `return_header` and a header is found, return parsed InputFile
     """
     
-    rvzel_dt = np.dtype([("zel", np.uint16, 3), ("r", np.float32, 3), ("v", np.float32, 3)], align=True)
+    dtype_on_disk = np.float64 if double else np.float32
+
+    rvzel_dt = np.dtype([("zel", np.uint16, 3), ("r", dtype_on_disk, 3), ("v", dtype_on_disk, 3)], align=True)
     with open(fn, 'rb') as fp:
         header = skip_header(fp)
         raw = np.fromfile(fp, dtype=rvzel_dt)
@@ -948,9 +955,10 @@ def get_np_from_fsize(fsize, format, downsample=None):
     return int(np.ceil(N))
 
 # TODO: lots of properties for each format!  Need to make a proper registry.
-psize_on_disk = {'pack14': 14, 'pack14_lite':14, 'rvdouble': 6*8, 'state64':3*8, 'state':3*4, 'rvzel':32, 'rvtag':32, 'rvdoubletag':7*8}
+psize_on_disk = {'pack14': 14, 'pack14_lite':14, 'rvdouble': 6*8, 'state64':3*8, 'state':3*4, 'rvzel':32, 'rvdoublezel':56, 'rvtag':32, 'rvdoubletag':7*8}
 reader_functions = {'pack14':read_pack14, 'rvdouble':read_rvdouble,
                     'rvzel':read_rvzel, 'state':read_state,
+                    'rvdoublezel':read_rvdoublezel,
                     'rvdoubletag':read_rvdoubletag,
                     'rvtag':read_rvtag, 'rv':read_rvtag,
                     'pack14_lite':read_pack14_lite,
