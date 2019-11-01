@@ -8,7 +8,7 @@ object.
 #define RVfloat RVint
 
 
-#define N_LARGEST_SUBHALOS 3
+#define N_LARGEST_SUBHALOS 5
 
 class HaloStat {
   public:
@@ -25,7 +25,7 @@ class HaloStat {
 
     float x[3];      ///< Center of mass position
     float v[3];      ///< Center of mass velocity
-    float sigmav3d;  ///< sqrt( Eigenvalues of the velocity tensor, squared, added), sqrt(sigma_1^2 + sigma_2^2 + sigma_3^2) 
+    float sigmav3d;  ///< Sum of eigenvalues/3
     float r100; ///<Radius of 100% of mass 
     float vcirc_max; ///< max velocity 
     float SO_central_particle[3]; ///< Coordinates of the SO central particle (densest particle). 
@@ -33,7 +33,7 @@ class HaloStat {
     float SO_radius;           ///< Radius of SO halo (distance to particle furthest from central particle) 
     float L2cntr_x[3];   ///< Center of mass pos of the largest L2 subhalo
     float L2cntr_v[3];   ///< Center of mass vel of the largest L2 subhalo
-    float L2cntr_sigmav3d;  ///< sqrt( Eigenvalues of the velocity tensor, squared, added), sqrt(sigma_1^2 + sigma_2^2 + sigma_3^2) 
+    float L2cntr_sigmav3d;  ///< Sum of eigenvalues/3 
     float L2cntr_r100; /// Radius of 100% of mass, relative to L2 center. 
     float L2cntr_vcirc_max; 
     float SO_L2max_central_particle[3]; ///< Coordinates of the SO central particle (densest particle) for the largest L2 subhalo. 
