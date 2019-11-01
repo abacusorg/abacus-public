@@ -554,6 +554,7 @@ void InitWriteState(int MakeIC){
 
 }
 
+
 void InitGroupFinding(bool MakeIC){
     /*
     Request output of L1 groups and halo/field subsamples if:
@@ -614,12 +615,13 @@ void InitGroupFinding(bool MakeIC){
 
         ReadState.DoGroupFindingOutput = do_grp_output; // if any kind of output is requested, turn on group finding.
 
-        STDLOG(4, "DoGroupFindingOutput %d, DoSubsampleOutput %d, DoTimeSliceOutput %d, do_grp_output %d\n",
-            ReadState.DoGroupFindingOutput, ReadState.DoSubsampleOutput, ReadState.DoTimeSliceOutput, do_grp_output);
+        STDLOG(2, "Group finding: %d, subsample output: %d, timeslice output: %d.\n",
+            ReadState.DoGroupFindingOutput, ReadState.DoSubsampleOutput, ReadState.DoTimeSliceOutput);
+
 
         GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
                     #ifdef SPHERICAL_OVERDENSITY
-                    P.SODensity[0], P.SODensity[1],
+                    P.SODensity[0], P.SODensity[1],  //by this point, the SODensity and L0DensityThresholds have been rescaled with redshift, in PlanOutput. 
                     #else
                     P.FoFLinkingLength[1]/pow(P.np,1./3),
                     P.FoFLinkingLength[2]/pow(P.np,1./3),
@@ -647,6 +649,11 @@ void InitGroupFinding(bool MakeIC){
         }
         #endif
         #endif
+        #ifdef SPHERICAL_OVERDENSITY
+        WriteState.SODensityL1 = P.SODensity[0]; 
+        WriteState.SODensityL2 = P.SODensity[1]; 
+        #endif
+
         STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
         if (WriteState.L0DensityThreshold==0) {
             STDLOG(1,"Passing L0DensityThreshold = 0 to signal to use anything with a neighbor\n");
@@ -657,7 +664,6 @@ void InitGroupFinding(bool MakeIC){
         STDLOG(1, "Group finding not enabled for this step.\n");
     }
 
-    STDLOG(4, "End of InitGF: DoGroupFindingOutput %d, DoSubsampleOutput %d, DoTimeSliceOutput %d\n", ReadState.DoGroupFindingOutput, ReadState.DoSubsampleOutput, ReadState.DoTimeSliceOutput);
 }
 
 // Check whether "d" is actually a global directory, and thus not eligible for deletion

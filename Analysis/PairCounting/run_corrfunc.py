@@ -70,6 +70,10 @@ def run(args):
                     header2 = {'NP':len(ps[0]), 'BoxSize':box}
             else:
                 p, header = ReadAbacus.from_dir(primary, format=args['format'], dtype=args['dtype'], return_vel=False, return_header=True, downsample=ds)
+                
+
+                #NAM (hack, remove) header = dict({'NP':16777216, 'BoxSize':575})
+              
                 if ds == None:
                     assert header['NP'] == len(p)
                 p = p['pos']

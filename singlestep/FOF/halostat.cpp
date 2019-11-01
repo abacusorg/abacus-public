@@ -234,16 +234,6 @@ HaloStat ComputeStats(int size,
     assign_to_vector(h.x, x);
     assign_to_vector(h.L2cntr_x, L2cntr_x);
  
-    #ifndef SPHERICAL_OVERDENSITY
-    //set SO stats to zero.
-    for (int i = 0; i < 3; i ++){
-        h.SO_central_particle[i]       = 0.0; 
-        h.SO_L2max_central_particle[i] = 0.0;
-    }
-    h.SO_central_density = 0.0; h.SO_L2max_central_density = 0.0; 
-    h.SO_radius          = 0.0; h.SO_L2max_radius          = 0.0; 
-   
-    #endif
     return h;
 };
 

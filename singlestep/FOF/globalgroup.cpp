@@ -654,7 +654,7 @@ void GlobalGroupSlab::GatherGlobalGroups() {
                     if (cellijk.z<-diam) cellijk.z+=GFC->cpd;
                     posstruct offset = GFC->invcpd*(cellijk);
                     // printf("Using offset %f %f %f\n", offset.x, offset.y, offset.z);
-                    for (int p=0; p<cg->size(); p++) pos[start+p] = offset+cell.pos[cg->start+p];
+                    for (int p=0; p<cg->size(); p++) pos[start+p] = offset+cell.pos[cg->start+p]; 
                     start += cg->size();
                 } // End loop over cellgroups in this global group
 
@@ -946,7 +946,7 @@ void GlobalGroupSlab::FindSubGroups() {
 
                         uint64 npstartA    = pHaloRVA->get_pencil_size();
                         uint64 npstartB    = pHaloRVB->get_pencil_size();
-                       
+
                         // Output the Tagged Particles and Taggable Particles. 
                         // If P.OutputAllHaloParticles is set, then we output 
                         //      all L1 particles
@@ -971,10 +971,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         h.SO_central_particle[1] = SO_particle.y;
                         h.SO_central_particle[2] = SO_particle.z;
 
-                        STDLOG(4, "%f %f %f\n", FOFlevel1[g].FOFunitdensity, FOFlevel2[g].FOFunitdensity, FOF_RESCALE); 
-
                         h.SO_central_density  = FOFlevel1[g].density[0] / FOFlevel1[g].FOFunitdensity; 
-
                         h.SO_radius = sqrt(FOFlevel1[g].groups[a].halo_thresh2) / FOF_RESCALE; 
 
                         //now repeat for the largest L2 halo.
@@ -984,8 +981,16 @@ void GlobalGroupSlab::FindSubGroups() {
                         h.SO_L2max_central_particle[2] = SO_particle.z;
 
                         h.SO_L2max_central_density  = FOFlevel2[g].density[0] / FOFlevel2[g].FOFunitdensity; 
-
                         h.SO_L2max_radius = sqrt(FOFlevel2[g].groups[0].halo_thresh2) / FOF_RESCALE; 
+
+                        #else
+                        //set SO stats to zero.
+                        for (int i = 0; i < 3; i ++){
+                            h.SO_central_particle[i]       = 0.0; 
+                            h.SO_L2max_central_particle[i] = 0.0;
+                        }
+                        h.SO_central_density = 0.0; h.SO_L2max_central_density = 0.0; 
+                        h.SO_radius          = 0.0; h.SO_L2max_radius          = 0.0; 
                         #endif 
 
                         h.npoutA = pHaloRVA->get_pencil_size()-npstartA;
