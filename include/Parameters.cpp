@@ -178,8 +178,8 @@ public:
 
     long long int MaxPID;  // Maximum PID to expect.  A PID equal or larger than this indicates corruption of some sort.  0 means NP; -1 means don't check.
 
-    int PhysicalSoftening;  // Keep the softening length fixed in physical coordinates.  SofteningLength is specified at z=0.
-    double SofteningMax;  // The maximum comoving softening to allow when using PhysicalSoftening
+    int ProperSoftening;  // Keep the softening length fixed in proper coordinates.  SofteningLength is specified at z=0.
+    double SofteningMax;  // The maximum comoving softening to allow when using ProperSoftening
 
     int NoChecksum;  // Explicitly disable output checksumming
 
@@ -429,8 +429,8 @@ public:
         MaxPID = -1;
         installscalar("MaxPID", MaxPID, DONT_CARE);
 
-        PhysicalSoftening = 0;
-        installscalar("PhysicalSoftening", PhysicalSoftening, DONT_CARE);
+        ProperSoftening = 0;
+        installscalar("ProperSoftening", ProperSoftening, DONT_CARE);
 
         SofteningMax = DBL_MAX;
         installscalar("SofteningMax", SofteningMax, DONT_CARE);

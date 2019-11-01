@@ -40,9 +40,9 @@ public:
     int NodeSize;   // The MPI size, 1 if serial
     double ppd;		// Particles per dimension
     int DoublePrecision;  // =1 if code is using double precision positions
-    char SofteningType[128];
-    double SofteningLength;  // Effective Plummer length, used for timestepping.  Same units as BoxSize.
-    double SofteningLengthInternal;  // The equivalent length for the current softening technique.  Same units as BoxSize.
+    char SofteningType[128];  // The force law.  This is here because it's a compile-time parameter.
+    double SofteningLengthNow;  // Effective Plummer length, used for timestepping.  Same units as BoxSize.
+    double SofteningLengthNowInternal;  // The equivalent length for the current softening technique.  Same units as BoxSize.
 
     double ScaleFactor;
     int FullStepNumber; // Counting the full steps
@@ -148,8 +148,8 @@ public:
     	installscalar("ParameterFileName",ParameterFileName,DONT_CARE);
     	installscalar("ppd",ppd,DONT_CARE);
         installscalar("SofteningType", SofteningType,DONT_CARE);
-        installvector("SofteningLength", &SofteningLength, 2, 0, DONT_CARE);
-        installscalar("SofteningLengthInternal", SofteningLengthInternal,DONT_CARE);
+        installvector("SofteningLengthNow", &SofteningLengthNow, 2, 0, DONT_CARE);
+        installscalar("SofteningLengthNowInternal", SofteningLengthNowInternal,DONT_CARE);
 
     	sprintf(CodeVersion,"version_not_defined");
     	installscalar("CodeVersion",CodeVersion,DONT_CARE);
@@ -291,9 +291,9 @@ void State::make_output_header() {
     WPR(OmegaNow_K               , FSYM);
     WPR(OmegaNow_DE              , FSYM);
     
-    WPRS(SofteningType            , s);
-    WPR(SofteningLength          , ESYM);
-    WPR(SofteningLengthInternal  , ESYM);
+    WPRS(SofteningType           , s);
+    WPR(SofteningLengthNow       , ESYM);
+    WPR(SofteningLengthNowInternal, ESYM);
 
     WPR(DeltaTime                , FSYM);
     WPR(DeltaScaleFactor         , FSYM);
