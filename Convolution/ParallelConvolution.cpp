@@ -695,7 +695,7 @@ fftw_plan ParallelConvolution::PlanFFT(int sign ){
 	// stride = cpd, dist = 1, nembed = NULL
 	
 	
-	int  n[] = {cpd};	
+	int  n[] = {(int) cpd};	
 	plan = fftw_plan_many_dft(1, n, cpd, //we will do znode*rml of sets of cpd FFTs.
 		(fftw_complex *) MTzmxy, NULL, cpd, 1, //each new [x][y] chunk is located at strides of cpd.
 		(fftw_complex *) MTzmxy, NULL, cpd, 1,

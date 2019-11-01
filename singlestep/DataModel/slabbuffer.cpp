@@ -302,14 +302,19 @@ int SlabBuffer::WantChecksum(int type){
         return 0;
 
     switch(type){
-        case TimeSlice:
-        case L1halosSlab:
-        case TaggedPIDsSlab:
-        case L1ParticlesSlab:
-        case L1PIDsSlab:
-        case TaggableFieldSlab:
-        case TaggableFieldPIDSlab:
         case L0TimeSlice:
+        case FieldTimeSlice:
+	case L1halosSlab:
+        case HaloRVSlabA:
+	case HaloRVSlabB:
+        case HaloPIDsSlabA:
+	case HaloPIDsSlabB:
+        case FieldRVSlabA:
+	case FieldRVSlabB:
+        case FieldPIDSlabA:
+	case FieldPIDSlabB:
+	case L0TimeSlicePIDs:
+	case FieldTimeSlicePIDs:
         
         // Do we want to checksum light cones?  They're probably being merged/repacked very soon.
         // Maybe same for the halos?  But if we move either of these to another filesystem
@@ -317,11 +322,6 @@ int SlabBuffer::WantChecksum(int type){
         case LightCone0:
         case LightCone1:
         case LightCone2:
-        case LightCone3:
-        case LightCone4:
-        case LightCone5:
-        case LightCone6:
-        case LightCone7:
             return 1;
     }
 
