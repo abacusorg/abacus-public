@@ -62,8 +62,7 @@ from Abacus.Cosmology import AbacusCosmo
 
 NEEDS_INTERIM_BACKUP_MINS = 240 #minimum job runtime (in minutes) for which we'd like to do a backup halfway through the job. 
 EXIT_REQUEUE = 200
-#RUN_TIME_MINUTES = os.getenv("JOB_ACTION_WARNING_TIME")
-RUN_TIME_MINUTES = 1000000
+RUN_TIME_MINUTES = os.getenv("JOB_ACTION_WARNING_TIME")
 
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
 directory_param_fn = pjoin(abacuspath, 'Abacus', 'directory.def')
