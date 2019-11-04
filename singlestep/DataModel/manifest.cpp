@@ -432,7 +432,7 @@ void Manifest::QueueToSend(int finished_slab) {
 	    // Loop over all SlabTypes
 	    for (int s=finished_slab-1; s>finished_slab-cpd; s--) {
 	        // Check each trailing slab; if present, load it up
-	        if (SB->IsSlabPresent(type,s)) {
+	        if (SB->IsSlabPresent(type,s) and not SB->IsOutputSlab(type) ) {
 	    	    LoadArena(type,s);
 		        min_slab = std::min(min_slab, s);
                 if (type==PosSlab) {
