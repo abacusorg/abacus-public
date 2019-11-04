@@ -434,6 +434,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
     #ifdef ONE_SIDED_GROUP_FINDING
     DeferGlobalGroups();
     #endif
+    int max_group_diameter = 0;
 
     GFC->FindGlobalGroupTime.Start();
     // Then need to go cell by cell to take unclosed groups and try to close them.
@@ -445,7 +446,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
     MultiplicityStats L0stats[omp_get_max_threads()];
 
     for (int w=0; w<split; w++) {
-        #pragma omp parallel for schedule(dynamic,1) 
+        #pragma omp parallel for schedule(dynamic,1) reduction(max:max_group_diameter)
         for (int j=w; j<cpd; j+=split) {
             // Do this pencil
             int cumulative_np = 0;    // We count all particles in this pencil
@@ -480,6 +481,8 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                         // Now get these links
                         int s = GFC->WrapSlab(thiscell.x-slab+slabbias);  // Map to [0,diam)
                         LinkPencil *lp = links[s]+thiscell.y;
+                        // Keep track of the maximum slab accessed
+                        max_group_diameter = std::max(max_group_diameter, s);
                         // TODO: This variable name shadows an earlier one
                         GroupLink *g; int t;
                         for (g = lp->data + lp->cells[thiscell.z].start, t = 0;
@@ -549,6 +552,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
 
     // Cumulate the L0 statistics
     for (int j=0; j<omp_get_max_threads(); j++) GFC->L0stats.add(L0stats[j]);
+    GFC->max_group_diameter = std::max(GFC->max_group_diameter, max_group_diameter);
 
     // Free the indexing space
     free(cells);

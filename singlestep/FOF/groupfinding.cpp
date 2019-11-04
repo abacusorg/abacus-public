@@ -74,6 +74,7 @@ class GroupFindingControl {
     	///< The total number of sorting elements 
     long long numcenters1, numcenters2;	
     	///< The total number of centers considered
+    int max_group_diameter;
 
     SlabAccum<CellGroup> *cellgroups;   // Allocated [0,cpd), one for each slab
     int *cellgroups_status;     // Allocated [0,cpd) for each slab. 
@@ -168,6 +169,7 @@ class GroupFindingControl {
         largest_GG = 0;
         numdists1 = numsorts1 = numcenters1 = 0;
         numdists2 = numsorts2 = numcenters2 = 0;
+        max_group_diameter = 0;
         return;
     }
 
@@ -203,6 +205,7 @@ class GroupFindingControl {
 	 GLOG(0,"Found %f M links between groups.\n", Ltot/1e6);
 	 GLOG(0,"Found %f M global groups\n", GGtot/1e6);
 	 GLOG(0,"Longest GroupLink list was %f M, compared to %f M allocation (%f MB)\n", GLL->longest/1e6, GLL->maxlist/1e6, GLL->maxlist/1024/1024*sizeof(GroupLink));
+	 GLOG(0,"Widest L0 Diameter reached %d slabs from the first\n", max_group_diameter);
 	 GLOG(0,"Largest Global Group has %d particles\n", largest_GG);
 
 	 GLOG(0,"L0 group multiplicity distribution:\n");
