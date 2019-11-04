@@ -207,7 +207,9 @@ class GroupFindingControl {
 	 GLOG(0,"Longest GroupLink list was %f M, compared to %f M allocation (%f MB)\n", GLL->longest/1e6, GLL->maxlist/1e6, GLL->maxlist/1024/1024*sizeof(GroupLink));
 	 GLOG(0,"Widest L0 Diameter reached %d slabs from the first\n", max_group_diameter);
 
+#ifdef PARALLEL
 	 MPI_REDUCE_TO_ZERO(&max_group_diameter, 1, MPI_DOUBLE, MPI_MAX);
+#endif
 	 WriteState.MaxGroupDiameter = max_group_diameter; 
 
 	 GLOG(0,"Largest Global Group has %d particles\n", largest_GG);
