@@ -772,18 +772,15 @@ void GlobalGroupSlab::AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, P
                                             posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, int index, posstruct offset) {
     int taggable = groupaux[index].is_taggable();
 
-    double vel_convert_units = ReadState.VelZSpace_to_kms/ReadState.VelZSpace_to_Canonical; 
-    //double pos_convert_units = NAM TODO
-
     if (taggable != 0 || P.OutputAllHaloParticles) {
         posstruct r = WrapPosition(grouppos[index]+offset);
         velstruct v = groupvel[index];
         // Velocities were full kicked; half-unkick before halostats
         if (groupacc != NULL)
             v -= TOFLOAT3(groupacc[index])*WriteState.FirstHalfEtaKick;
-        v *= vel_convert_units; 
+        v *= ReadState.VelZSpace_to_kms/ReadState.VelZSpace_to_Canonical; 
         
-        if (taggable == TAGGABLE_SUB_A){
+        if ((taggable == TAGGABLE_SUB_A) || P.OutputAllHaloParticles){ // if we request all halo particles, output them in subsample 'A' files.
             pHaloPIDs[0]->append(TaggedPID(groupaux[index]));
             pHaloRVs[0] ->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
 

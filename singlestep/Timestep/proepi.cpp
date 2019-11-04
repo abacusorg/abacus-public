@@ -821,6 +821,6 @@ void FinalizeWriteState() {
     STDLOG(0,"Maximum v_j in simulation is %f.\n", WriteState.MaxVelocity);
     STDLOG(0,"Maximum a_j in simulation is %f.\n", WriteState.MaxAcceleration);
     STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f.\n", WriteState.MinVrmsOnAmax);
-
+    STDLOG(0,"Maximum group diameter in simulation is %d.\n", WriteState.MaxGroupDiameter); 
     return;
 }
