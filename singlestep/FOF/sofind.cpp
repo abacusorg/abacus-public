@@ -747,13 +747,13 @@ void partition_halos(int count) {
         // TODO: Will write more documentation 
         if (next_densest < 0) {
             numcenters++;
-            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[i]); // B.H.
+            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[halo_ind]); // B.H.
             start += size;
             continue;
         }
         if (size > 0) {
             numcenters++;
-            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[i]); // B.H.
+            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[halo_ind]); // B.H.
             start += size;
         }
       
