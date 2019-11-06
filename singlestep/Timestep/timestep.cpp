@@ -846,6 +846,18 @@ void NoopAction(int slab){
  * The Dependency module is responsible for running the registered steps.
  */
 
+void AttemptReceiveManifest(){
+    ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
+    // If the manifest has been received, install it.
+    if (ReceiveManifest->is_ready()) {
+        ReceiveManifest->ImportData();
+        ReceiveManifest++;
+        STDLOG(1, "Readying the next Manifest, number %d\n", ReceiveManifest-_ReceiveManifest);
+        ReceiveManifest->SetupToReceive();
+    }
+    return; 
+}
+
 #define INSTANTIATE(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &dependency##Precondition, &dependency##Action, #dependency); } while(0)
 #define INSTANTIATE_NOOP(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &NoopPrecondition, &NoopAction, ""); } while(0)
 
@@ -963,35 +975,36 @@ void timestep(void) {
     else
         INSTANTIATE_NOOP(  FetchLPTVelocity, FORCE_RADIUS + 2*GROUP_RADIUS - FINISH_WAIT_RADIUS);
 	
-	
 	int timestep_loop_complete = 0; 
 	while (!timestep_loop_complete){
+
            for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
          TransposePos.Attempt();
             NearForce.Attempt();
           TaylorForce.Attempt();
                  Kick.Attempt();
+
+        AttemptReceiveManifest();
+
        MakeCellGroups.Attempt();
    FindCellGroupLinks.Attempt();
        DoGlobalGroups.Attempt();
                Output.Attempt();
             Microstep.Attempt();
          FinishGroups.Attempt();
+
+        AttemptReceiveManifest();
+
+
      FetchLPTVelocity.Attempt();
                 Drift.Attempt();
                Finish.Attempt();
 			   
         CheckSendManifest();  // We look at each Send Manifest to see if there's material to free.
                         //   SendManifest->FreeAfterSend();
-	    ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
-	
-	    // If the manifest has been received, install it.
-	    if (ReceiveManifest->is_ready()) {
-            ReceiveManifest->ImportData();
-            ReceiveManifest++;
-            STDLOG(1, "Readying the next Manifest, number %d\n", ReceiveManifest-_ReceiveManifest);
-            ReceiveManifest->SetupToReceive();
-        }
+
+	    AttemptReceiveManifest();
+
 	    CheckForMultipoles.Attempt();	
 		
 #ifdef PARALLEL
