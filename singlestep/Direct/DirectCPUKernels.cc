@@ -1,9 +1,9 @@
 #ifdef DOUBLEPRECISION
 #define RSQRT 1.0/sqrt
-#define MIN fmin
+#define FMIN fmin
 #else
 #define RSQRT 1.0f/sqrt
-#define MIN fminf
+#define FMIN fminf
 #endif
 
 #ifdef DIRECTCUBICSPLINE
@@ -65,7 +65,7 @@ inline void directkernel(
     f = RSQRT(dr2);
     
     if(R <= 1){
-        f = MIN(f*f*f, (-15*f + 6)*dr2 + 10);
+        f = FMIN(f*f*f, (-15*f + 6)*dr2 + 10);
     }
     else{
        f = f*f*f;
@@ -126,4 +126,4 @@ inline void directkernel(
 #endif
 
 #undef RSQRT
-#undef MIN
+#undef FMIN

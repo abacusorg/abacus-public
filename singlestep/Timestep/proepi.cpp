@@ -325,9 +325,10 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     if(ReadState.DoBinning){
         STDLOG(1,"Outputting Binned Density\n");
-        char denfn[2048];
+        char denfn[1024];
         // TODO: Should this be going to ReadState or WriteState or Output?
-        sprintf(denfn,"%s/density%s",P.ReadStateDirectory, NodeString);
+        int ret = snprintf(denfn, 1024, "%s/density%s",P.ReadStateDirectory, NodeString);
+        assert(ret >= 0 && ret < 1024);
         FILE * densout = fopen(denfn,"wb");
         fwrite(density,sizeof(FLOAT),P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d,densout);
         fclose(densout);
@@ -516,37 +517,37 @@ void InitWriteState(int MakeIC){
     // Decrease the softening length if we are doing a 2LPT step
     // This helps ensure that we are using the true 1/r^2 force
     /*if(LPTStepNumber()>0){
-        WriteState.SofteningLength = P.SofteningLength / 1e4;  // This might not be in the growing mode for this choice of softening, though
-        STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLength);
+        WriteState.SofteningLengthNow = P.SofteningLength / 1e4;  // This might not be in the growing mode for this choice of softening, though
+        STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLengthNow);
     }
     else{
-        WriteState.SofteningLength = P.SofteningLength;
+        WriteState.SofteningLengthNow = P.SofteningLength;
     }*/
 
-    // Is the softening fixed in physical coordinates?
-    if(P.PhysicalSoftening){
+    // Is the softening fixed in proper coordinates?
+    if(P.ProperSoftening){
         // TODO: use the ReadState or WriteState ScaleFactor?  We haven't chosen the timestep yet.
-        WriteState.SofteningLength = min(P.SofteningLength/ReadState.ScaleFactor, P.SofteningMax);
-        STDLOG(1, "Adopting a comoving softening of %d, fixed in physical units\n", WriteState.SofteningLength);
+        WriteState.SofteningLengthNow = min(P.SofteningLength/ReadState.ScaleFactor, P.SofteningMax);
+        STDLOG(1, "Adopting a comoving softening of %d, fixed in proper coordinates\n", WriteState.SofteningLengthNow);
     }
     else{
-        WriteState.SofteningLength = P.SofteningLength;
-        STDLOG(1, "Adopting a comoving softening of %d, fixed in comoving units\n", WriteState.SofteningLength);
+        WriteState.SofteningLengthNow = P.SofteningLength;
+        STDLOG(1, "Adopting a comoving softening of %d, fixed in comoving coordinates\n", WriteState.SofteningLengthNow);
     }
     
     // Now scale the softening to match the minimum Plummer orbital period
 #if defined DIRECTCUBICSPLINE
     strcpy(WriteState.SofteningType, "cubic_spline");
-    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 1.10064;
+    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 1.10064;
 #elif defined DIRECTSINGLESPLINE
     strcpy(WriteState.SofteningType, "single_spline");
-    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 2.15517;
+    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 2.15517;
 #elif defined DIRECTCUBICPLUMMER
     strcpy(WriteState.SofteningType, "cubic_plummer");
-    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 1.;
+    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 1.;
 #else
     strcpy(WriteState.SofteningType, "plummer");
-    WriteState.SofteningLengthInternal = WriteState.SofteningLength;
+    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow;
 #endif
 
     if(strcmp(P.StateIOMode, "overwrite") == 0){

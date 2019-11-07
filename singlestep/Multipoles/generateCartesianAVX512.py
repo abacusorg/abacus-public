@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 This program generates AVX-512 assembly for Taylors and Multipoles
 evaluation. You shouldn't have to run this program manually; it will

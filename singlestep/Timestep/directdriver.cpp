@@ -101,8 +101,8 @@ NFD creates the GPU threads.
 // This constructor calls GPUSetup() to start the GPU threads.
 // But first, it has to set up some configurations.
 NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
-        SofteningLength{WriteState.SofteningLength/P.BoxSize},
-        SofteningLengthInternal{WriteState.SofteningLengthInternal/P.BoxSize},
+        SofteningLength{WriteState.SofteningLengthNow/P.BoxSize},
+        SofteningLengthInternal{WriteState.SofteningLengthNowInternal/P.BoxSize},
             
         #ifdef DIRECTCUBICSPLINE
         eps{(FLOAT) (1./SofteningLengthInternal)}

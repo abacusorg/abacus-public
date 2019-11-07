@@ -188,7 +188,8 @@ int main(int argc, char **argv) {
 
     // Check if WriteStateDirectory/state exists, and fail if it does
     char wstatefn[1050];
-    sprintf(wstatefn,"%s/state", P.WriteStateDirectory);
+    int ret = snprintf(wstatefn, 1050, "%s/state", P.WriteStateDirectory);
+    assert(ret >= 0 && ret < 1050);
     if(access(wstatefn,0) !=-1 && !WriteState.OverwriteState)
         QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
     
@@ -249,7 +250,8 @@ int main(int argc, char **argv) {
     if (!MakeIC && P.ProfilingMode){
         STDLOG(0,"ProfilingMode is active. Removing the write state in %s\n",P.LocalWriteStateDirectory);
         char command[1024];
-        sprintf(command, "rm -rf %s/*", P.LocalWriteStateDirectory);
+        int printret = snprintf(command, 1024, "rm -rf %s/*", P.LocalWriteStateDirectory);
+        assert(printret >= 0 && printret < 1024);
         int ret = system(command);  // hacky!
     }
 

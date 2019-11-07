@@ -33,6 +33,8 @@
 #include <stdint.h>
 #include <unistd.h>
 
+#define uint32 uint32_t
+#define int32 int32_t
 #define uint64 uint64_t
 #define int64 int64_t
 

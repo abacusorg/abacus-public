@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 Convert state positions, velocities, and cellinfos from one
 float precision to another; e.g. float to double.  This is
