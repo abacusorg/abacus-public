@@ -341,6 +341,7 @@ void State::write_to_file(const char *dir, const char *suffix) {
     WPR(MaxCellSize              , ISYM);
     WPR(MinCellSize              , ISYM);
     WPR(StdDevCellSize           , FSYM);
+    WPR(MaxGroupDiameter         , ISYM); 
 
     time_t now  = time(0);
     fprintf(statefp,"#State written:%s\n",asctime(localtime(&now)) );

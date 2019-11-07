@@ -400,6 +400,9 @@ void ParallelConvolution::RecvMultipoleSlab(int first_slab_finished) {
 		
 	    for (int xraw = first_slabs_all[r] + offset; xraw < first_slabs_all[r] + offset + total_slabs_all[r]; xraw++) {
 			int x = CP->WrapSlab(xraw);
+
+		    STDLOG(4,"MPI_Irecv set for incoming Multipoles on slab %d\n", x);
+
 			int tag = (MPI_rank+1) * 10000 + x + M_TAG; 
 			
 			// We're receiving the full range of z's in each transfer.
