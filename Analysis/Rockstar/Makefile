@@ -1,5 +1,5 @@
 # This Makefile is generally a trainwreck
-# Not work re-writing for full generality right now
+# Not worth re-writing for full generality right now
 #ROOT_DIR := ../..
 #include $(ROOT_DIR)/common.mk
 
@@ -9,7 +9,7 @@ CFLAGS=$(CXXFLAGS) -std=c99
 CPPFLAGS=-I../../ParseHeader -I../../Convolution -I../../include/ -I../../DirectIO/
 LDFLAGS=-shared
 LDLIBS=-L../../ParseHeader -lparseheader
-OFLAGS = -lm -O3 -rdynamic -g 
+OFLAGS = -lm -O3 -rdynamic -g
 DEBUGFLAGS = -lm -g -O0 -rdynamic -Dinline=
 PROFFLAGS = -lm -g -pg -O2
 CC := $(shell which icc &>/dev/null && echo "icc -x c" || echo gcc)
@@ -42,7 +42,7 @@ dist: .REMAKE
 
 versiondist:
 	$(MAKE) dist DIST_FLAGS="$(DIST_FLAGS)"
-	rm -rf dist
+	$(RM) -r dist
 	mkdir dist
 	cd dist; tar xzf ../rockstar.tar.gz ; perl -ne '/\#define.*VERSION\D*([\d\.rcRC-]+)/ && print $$1' Rockstar/version.h > NUMBER ; mv Rockstar Rockstar-`cat NUMBER`; tar czf rockstar-`cat NUMBER`.tar.gz Rockstar-`cat NUMBER`
 
@@ -68,5 +68,5 @@ substats:
 
 
 clean:
-	rm -f *~ io/*~ inet/*~ util/*~ rockstar util/redo_bgc2 util/subhalo_stats
+	$(RM) *~ io/*~ inet/*~ util/*~ rockstar util/redo_bgc2 util/subhalo_stats $(OFILES)
 
