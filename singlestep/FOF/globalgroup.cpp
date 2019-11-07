@@ -1040,15 +1040,6 @@ void GlobalGroupSlab::FindSubGroups() {
                 HaloStat *h = L1halos[j][k].ptr(n);
                 h->npstartA += HaloRVA.pstart[j];
                 h->npstartB += HaloRVB.pstart[j];
-                
-
-                STDLOG(4, "%d  %d %d %d %d %d %d\n", h->id, h->npstartA, h->npoutA, h->npstartB, h->npoutB, h->ntaggedA, h->ntaggedB);
-                STDLOG(4, "%f %f %f %f %f %f %f\n", h->x[0], h->x[1], h->x[2], h->v[0], h->v[1], h->v[2], h->sigmav3d);
-                STDLOG(4, "%d %d %d %d %d %d %d %d \n ",
-                        h->sigmav3d_to_sigmavMaj, h->sigmavMin_to_sigmav3d,  h->r10, h->r25, h->r50, h->r67, h->r75, h->r90);
-                STDLOG(4, "%f %f %d %f %f %f %f %f\n", h->r100, h->vcirc_max, h->rvcirc_max, h->SO_central_particle[0], h->SO_central_particle[1], 
-                        h->SO_central_particle[2], h->SO_central_particle[3], h->SO_central_density); 
-
             }
 
     // Coadd the stats
