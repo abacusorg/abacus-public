@@ -39,7 +39,7 @@ public:
         // write appending 
 
         FILE *fp;
-        fp = fopen(fn,"wb"); // appending
+        fp = fopen(fn,"ab"); // appending
         assertf(fp!=NULL,"Can't open DIO write file %s\n", fn);
         errno = 0;
         uint64 byteswritten = fwrite( x,  sizeof(char), sizebytes, fp );
