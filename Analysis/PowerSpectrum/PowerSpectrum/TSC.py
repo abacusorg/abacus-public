@@ -5,6 +5,7 @@ binning, using Numba for C-like efficiency.
 from glob import glob
 import warnings
 import os.path
+from os.path import join as pjoin
 import re
 import queue
 import os
@@ -17,7 +18,7 @@ from Abacus import ReadAbacus
 
 from . import _psffilib
 
-valid_file_formats = ['rvdouble', 'pack14', 'rvzel', 'rvtag', 'state', 'gadget', 'desi_hdf5']
+valid_file_formats = ['rvdouble', 'pack14', 'rvzel', 'rvtag', 'state', 'gadget', 'desi_hdf5', 'rvdoublezel']
 maxthreads = os.cpu_count()
 
 def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.float32, rotate_to=None, prep_rfft=False, nthreads=-1, inplace=False, norm=False):
@@ -169,18 +170,21 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
     # Does the directory name contain 'ic'?
     abspattern = os.path.abspath(file_pattern)
     abspattern = abspattern.split(os.sep)
-    isic = re.search(r'\bic(\b|(?=_))', os.sep.join(abspattern[-2:]))
+    isic = re.search(r'\bic(\b|(?=_))', os.sep.join(abspattern))
 
     # We assume IC data is stored with a BoxSize box, not unit box
-    #box_on_disk = boxsize if isic else 1.
+    box_on_disk = 'box' if isic else 1.
     if isic:
-        raise NotImplementedError("Add IC detection to ReadAbacus!")
+        file_pattern = pjoin(file_pattern, 'ic_*')
+        warnings.warn("Add IC detection to ReadAbacus!")
 
-    reader_kwargs = dict(return_vel=False, zspace=zspace, dtype=dtype, format=format, units='box')
+    reader_kwargs = dict(return_vel=False, zspace=zspace, dtype=dtype, format=format, units='box', box_on_disk=box_on_disk)
 
     if format == 'pack14':
         reader_kwargs.update(ramdisk=True)
     elif format == 'rvzel':
+        reader_kwargs.update(return_zel=False, add_grid=True, boxsize=boxsize)
+    elif format == 'rvdoublezel':
         reader_kwargs.update(return_zel=False, add_grid=True, boxsize=boxsize)
     elif format == 'gadget':
         reader_kwargs.update(boxsize=boxsize)

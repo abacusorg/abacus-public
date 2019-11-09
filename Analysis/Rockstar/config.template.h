@@ -121,3 +121,5 @@ integer(DOWNSAMPLE, 1);
 
 real(BGC2_R, 40e-3);
 real(SUBSAMPLE_FRAC, 0.1);
+
+integer(MAX_PID, -1);
