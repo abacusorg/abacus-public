@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <math.h>
+
 #include "meta_io.h"
 #include "../config_vars.h"
 #include "../rockstar.h"
@@ -77,7 +79,7 @@ void output_particles_internal(int64_t snap, int64_t chunk, double fraction) {
     rewind(output);
     check_fwrite(&bh, sizeof(struct binary_output_header), 1, output);
   }
-  fclose(output);
+  check_fclose(output);
 }
 
 
@@ -94,7 +96,7 @@ void load_particles_internal(char *filename, struct particle **part, int64_t *nu
   check_realloc_s(*part, sizeof(struct particle), bh.num_particles);
   check_fread(*part, sizeof(struct particle), bh.num_particles, input);
   *num_part = bh.num_particles;
-  fclose(input);
+  check_fclose(input);
 }
 
 
@@ -148,7 +150,7 @@ void output_binary(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds
   }
 
   _clear_buffer(output); 
-  fclose(output);
+  check_fclose(output);
 }
 
 void output_binary_subsample(int64_t id_offset, int64_t snap, int64_t chunk, float *bounds, int64_t output_particles) {
@@ -192,6 +194,13 @@ void output_binary_subsample(int64_t id_offset, int64_t snap, int64_t chunk, flo
     halos[i].subsamp_len = 0;
     for (j = halos[i].p_start; j < halos[i].p_start + halos[i].num_p; j++){
         if(is_subsample_particle(p[j].id, SUBSAMPLE_FRAC)){
+            // Do a sanity check on the particle data we are about to write out
+            for(int k = 0; k < 6; k++){
+                assert(isfinite(p[j].pos[k]));
+            }
+            // TODO: THIS ASSERT FAILS (2660^3 DESI box)
+            // Is p the right array to index, and is p_start/num_p the right way to do it?  Or is there memory corruption?
+            assert(p[j].id >= 0 && p[j].id < MAX_PID);
             _append_to_buffer(p + j, sizeof(p[0]), ss_output);
             halos[i].subsamp_len++;
         }
@@ -210,7 +219,7 @@ void output_binary_subsample(int64_t id_offset, int64_t snap, int64_t chunk, flo
     id++;
   }
   
-  fclose(ss_output);
+  check_fclose(ss_output);
 
   //Output header
   fill_binary_header(&bheader, snap, chunk);
@@ -221,7 +230,7 @@ void output_binary_subsample(int64_t id_offset, int64_t snap, int64_t chunk, flo
   }
   rewind(output);
   check_fwrite(&bheader, sizeof(struct binary_output_header), 1, output);
-  fclose(output);
+  check_fclose(output);
 }
 
 void load_binary_header(int64_t snap, int64_t chunk, 
@@ -232,7 +241,7 @@ void load_binary_header(int64_t snap, int64_t chunk,
   input = check_fopen(buffer, "rb");
   check_fread(bheader, sizeof(struct binary_output_header), 1, input);
   assert(bheader->magic == ROCKSTAR_MAGIC);
-  fclose(input);
+  check_fclose(input);
 }
 
 
@@ -268,7 +277,7 @@ void load_binary_halos(int64_t snap, int64_t chunk,
       }
   }
     
-  fclose(input);
+  check_fclose(input);
 
   read_binary_header_config(bheader);
 }
@@ -293,7 +302,7 @@ void load_binary_halos_subsample(int64_t snap, int64_t chunk, struct halo *halos
     exit(1);
   }
     
-  fclose(input);
+  check_fclose(input);
 
   //read_binary_header_config(bheader);
 }

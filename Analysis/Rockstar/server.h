@@ -43,6 +43,9 @@ struct projection {
 int server(void);
 void check_num_writers(void);
 
+extern int64_t time_start;
+void print_time(void);
+
 #define timed_output(...) { print_time(); fprintf(stderr, __VA_ARGS__); }
 
 #endif /* _SERVER_H_ */

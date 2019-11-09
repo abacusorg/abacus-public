@@ -23,6 +23,7 @@ void *check_mmap_memory(int64_t length);
 pid_t check_waitpid(pid_t pid);
 void check_fskip(FILE *stream, off_t offset, char *buffer, size_t buf_size);
 void check_mtrim(void);
+void check_fclose(FILE *stream);
 
 #define check_fprintf(file, ...) { if (fprintf(file, __VA_ARGS__) <= 0)	{  \
       fprintf(stderr, "[Error] Failed printf to fileno %d!\n", fileno(file)); \

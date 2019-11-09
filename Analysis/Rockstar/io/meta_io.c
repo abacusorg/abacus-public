@@ -19,6 +19,7 @@
 #include "io_generic.h"
 #include "io_internal.h"
 #include "io_tipsy.h"
+#include "io_pack14.h"
 #include "meta_io.h"
 #include "../distance.h"
 #include "../version.h"
