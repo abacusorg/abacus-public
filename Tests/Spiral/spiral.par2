@@ -2,8 +2,10 @@
 SimName = "spiral"
 #include "$ABACUS$/Tests/test.def"
 #include "$ABACUS$/Production/site_files/site.def"
-
 #include "$ABACUS$/Abacus/directory.def"
+
+Parallel = 0
+
 DerivativesDirectory= "$ABACUS_TMP$/Derivatives/"
 TimeStepAccel = 0.02
 TimeStepDlna = 0.025
@@ -11,7 +13,9 @@ Order = 8
 NearFieldRadius = 2
 NumSlabsInsertList = 0
 NumSlabsInsertListIC = 0
-OverwriteState = 0
+StateIOMode = 'normal'
+Conv_IOMode = 'normal'
 ForceOutputDebug = 0
 OutputFormat="RVdouble"
-CPD = 33
+AllowGroupFinding = 0
+CPD = 65

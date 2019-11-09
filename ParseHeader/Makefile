@@ -21,11 +21,12 @@ $(LIBRARY): $(OFILES) $(HFILES)
 %.o:%.cc;
 	$(CXX) ${CXXFLAGS} $(CPPFLAGS) -c $< $*.o
 
+# older versions of ar don't support the U flag, so try both
 (%.o):%.cc;
 	$(CXX) ${CXXFLAGS} $(CPPFLAGS) -c $< 
-	@# older versions of ar don't support the U flag, so try both
+
 	$(AR) rvU $@ $% 2>/dev/null || $(AR) rv $@ $%
-	@#- @ $(RM) -f $%
+#- @ $(RM) -f $%
 
 # the example executable
 

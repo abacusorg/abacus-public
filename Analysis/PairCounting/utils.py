@@ -46,10 +46,10 @@ def setup_bins(args):
         all_eps = np.array([h['SofteningLength'] for h in all_headers])
         eps = all_eps[0]
 
-        rmin = eval(rmin)
-
-        if (eps != all_eps).any():
+        if 'eps' in rmin and (eps != all_eps).any():
             raise ValueError("TODO: Cannot use 'eps' in rmin if all eps don't agree.", all_eps)
+
+        rmin = eval(rmin)
 
         del eps
 

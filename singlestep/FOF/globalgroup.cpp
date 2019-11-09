@@ -434,6 +434,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
     #ifdef ONE_SIDED_GROUP_FINDING
     DeferGlobalGroups();
     #endif
+    int max_group_diameter = 0;
 
     GFC->FindGlobalGroupTime.Start();
     // Then need to go cell by cell to take unclosed groups and try to close them.
@@ -445,7 +446,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
     MultiplicityStats L0stats[omp_get_max_threads()];
 
     for (int w=0; w<split; w++) {
-        #pragma omp parallel for schedule(dynamic,1) 
+        #pragma omp parallel for schedule(dynamic,1) reduction(max:max_group_diameter)
         for (int j=w; j<cpd; j+=split) {
             // Do this pencil
             int cumulative_np = 0;    // We count all particles in this pencil
@@ -480,6 +481,8 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                         // Now get these links
                         int s = GFC->WrapSlab(thiscell.x-slab+slabbias);  // Map to [0,diam)
                         LinkPencil *lp = links[s]+thiscell.y;
+                        // Keep track of the maximum slab accessed
+                        max_group_diameter = std::max(max_group_diameter, s);
                         // TODO: This variable name shadows an earlier one
                         GroupLink *g; int t;
                         for (g = lp->data + lp->cells[thiscell.z].start, t = 0;
@@ -549,6 +552,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
 
     // Cumulate the L0 statistics
     for (int j=0; j<omp_get_max_threads(); j++) GFC->L0stats.add(L0stats[j]);
+    GFC->max_group_diameter = std::max(GFC->max_group_diameter, max_group_diameter);
 
     // Free the indexing space
     free(cells);
@@ -768,18 +772,15 @@ void GlobalGroupSlab::AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, P
                                             posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, int index, posstruct offset) {
     int taggable = groupaux[index].is_taggable();
 
-    double vel_convert_units = ReadState.VelZSpace_to_kms/ReadState.VelZSpace_to_Canonical; 
-    //double pos_convert_units = NAM TODO
-
     if (taggable != 0 || P.OutputAllHaloParticles) {
         posstruct r = WrapPosition(grouppos[index]+offset);
         velstruct v = groupvel[index];
         // Velocities were full kicked; half-unkick before halostats
         if (groupacc != NULL)
             v -= TOFLOAT3(groupacc[index])*WriteState.FirstHalfEtaKick;
-        v *= vel_convert_units; 
+        v *= ReadState.VelZSpace_to_kms/ReadState.VelZSpace_to_Canonical; 
         
-        if (taggable == TAGGABLE_SUB_A){
+        if ((taggable == TAGGABLE_SUB_A) || P.OutputAllHaloParticles){ // if we request all halo particles, output them in subsample 'A' files.
             pHaloPIDs[0]->append(TaggedPID(groupaux[index]));
             pHaloRVs[0] ->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
 
@@ -1039,15 +1040,6 @@ void GlobalGroupSlab::FindSubGroups() {
                 HaloStat *h = L1halos[j][k].ptr(n);
                 h->npstartA += HaloRVA.pstart[j];
                 h->npstartB += HaloRVB.pstart[j];
-                
-
-                STDLOG(4, "%d  %d %d %d %d %d %d\n", h->id, h->npstartA, h->npoutA, h->npstartB, h->npoutB, h->ntaggedA, h->ntaggedB);
-                STDLOG(4, "%f %f %f %f %f %f %f\n", h->x[0], h->x[1], h->x[2], h->v[0], h->v[1], h->v[2], h->sigmav3d);
-                STDLOG(4, "%d %d %d %d %d %d %d %d \n ",
-                        h->sigmav3d_to_sigmavMaj, h->sigmavMin_to_sigmav3d,  h->r10, h->r25, h->r50, h->r67, h->r75, h->r90);
-                STDLOG(4, "%f %f %d %f %f %f %f %f\n", h->r100, h->vcirc_max, h->rvcirc_max, h->SO_central_particle[0], h->SO_central_particle[1], 
-                        h->SO_central_particle[2], h->SO_central_particle[3], h->SO_central_density); 
-
             }
 
     // Coadd the stats
@@ -1183,7 +1175,7 @@ be skipped if no L1 halos were found (but taggable particles will still be writt
 void GlobalGroupSlab::HaloOutput() {
     GFC->OutputLevel1.Start();
     STDLOG(0,"Beginning halo output for slab %d\n", slab);
-        
+
     // This will create the directory if it doesn't exist (and is parallel safe)
     char dir[32];
     sprintf(dir, "Step%04d_z%5.3f", ReadState.FullStepNumber, ReadState.Redshift);

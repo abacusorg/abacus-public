@@ -244,7 +244,7 @@ ArenaAllocator::ArenaAllocator(int maximum_number_ids, uint64 max_allocations, i
     numalloc = numreuse = 0;
     num_shm_alloc = 0;
     peak_alloc = 0;
-    allocation_guard = max_allocations;
+    allocation_guard = max_allocations * 1024 * 1024;
     for(int i=0;i<maxids;i++)
         ResetArena(i);
 

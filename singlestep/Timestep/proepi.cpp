@@ -327,9 +327,10 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     if(ReadState.DoBinning){
         STDLOG(1,"Outputting Binned Density\n");
-        char denfn[2048];
+        char denfn[1024];
         // TODO: Should this be going to ReadState or WriteState or Output?
-        sprintf(denfn,"%s/density%s",P.ReadStateDirectory, NodeString);
+        int ret = snprintf(denfn, 1024, "%s/density%s",P.ReadStateDirectory, NodeString);
+        assert(ret >= 0 && ret < 1024);
         FILE * densout = fopen(denfn,"wb");
         fwrite(density,sizeof(FLOAT),P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d,densout);
         fclose(densout);
@@ -386,7 +387,20 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
 std::vector<std::vector<int>> free_cores;  // list of cores on each socket that are not assigned a thread (openmp, gpu, io, etc)
 void init_openmp(){
-    // Tell singlestep to use the desired number of threads
+    // First report the CPU affinity bitmask of the master thread; might be useful in diagnosing OMP_PLACES problems
+    cpu_set_t mask;
+    std::ostringstream affinitylog;
+
+    assertf(pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask) == 0, "pthread_getaffinity_np failed\n");
+    affinitylog << "Core affinity for the master thread: ";
+    for (int i = 0; i < CPU_SETSIZE; i++) {
+        if(CPU_ISSET(i, &mask))
+            affinitylog << i << " ";
+    }
+    affinitylog << "\n";
+    STDLOG(2, affinitylog.str().c_str());
+
+    // Now tell OpenMP singlestep to use the desired number of threads
     int max_threads = omp_get_max_threads();
     int ncores = omp_get_num_procs();
     int nthreads = P.OMP_NUM_THREADS > 0 ? P.OMP_NUM_THREADS : max_threads + P.OMP_NUM_THREADS;
@@ -505,33 +519,37 @@ void InitWriteState(int MakeIC){
     // Decrease the softening length if we are doing a 2LPT step
     // This helps ensure that we are using the true 1/r^2 force
     /*if(LPTStepNumber()>0){
-        WriteState.SofteningLength = P.SofteningLength / 1e4;  // This might not be in the growing mode for this choice of softening, though
-        STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLength);
-        
-        // Only have to do this because GPU gives bad forces sometimes, causing particles to shoot off.
-        // Remove this once the GPU is reliable again
-        //P.ForceCPU = 1;
-        //STDLOG(0,"Forcing CPU because this is a 2LPT step.\n");
+        WriteState.SofteningLengthNow = P.SofteningLength / 1e4;  // This might not be in the growing mode for this choice of softening, though
+        STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLengthNow);
     }
     else{
-        WriteState.SofteningLength = P.SofteningLength;
+        WriteState.SofteningLengthNow = P.SofteningLength;
     }*/
-    
-    WriteState.SofteningLength = P.SofteningLength;
+
+    // Is the softening fixed in proper coordinates?
+    if(P.ProperSoftening){
+        // TODO: use the ReadState or WriteState ScaleFactor?  We haven't chosen the timestep yet.
+        WriteState.SofteningLengthNow = min(P.SofteningLength/ReadState.ScaleFactor, P.SofteningMax);
+        STDLOG(1, "Adopting a comoving softening of %d, fixed in proper coordinates\n", WriteState.SofteningLengthNow);
+    }
+    else{
+        WriteState.SofteningLengthNow = P.SofteningLength;
+        STDLOG(1, "Adopting a comoving softening of %d, fixed in comoving coordinates\n", WriteState.SofteningLengthNow);
+    }
     
     // Now scale the softening to match the minimum Plummer orbital period
 #if defined DIRECTCUBICSPLINE
     strcpy(WriteState.SofteningType, "cubic_spline");
-    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 1.10064;
+    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 1.10064;
 #elif defined DIRECTSINGLESPLINE
     strcpy(WriteState.SofteningType, "single_spline");
-    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 2.15517;
+    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 2.15517;
 #elif defined DIRECTCUBICPLUMMER
     strcpy(WriteState.SofteningType, "cubic_plummer");
-    WriteState.SofteningLengthInternal = WriteState.SofteningLength * 1.;
+    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 1.;
 #else
     strcpy(WriteState.SofteningType, "plummer");
-    WriteState.SofteningLengthInternal = WriteState.SofteningLength;
+    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow;
 #endif
 
     if(strcmp(P.StateIOMode, "overwrite") == 0){
@@ -723,7 +741,7 @@ void SetupLocalDirectories(const int MakeIC){
                 STDLOG(1, "Removed directory \"%s\"\n", d);
             }
             int res = CreateDirectories(d);
-            assertf(res == 0, "Directory creation failed!\n");
+            assertf(res == 0, "Creating directory \"%s\" failed for reason %s!\n", d, strerror(errno));
             STDLOG(1, "Created directory \"%s\"\n", d);
         }
     }
@@ -803,6 +821,6 @@ void FinalizeWriteState() {
     STDLOG(0,"Maximum v_j in simulation is %f.\n", WriteState.MaxVelocity);
     STDLOG(0,"Maximum a_j in simulation is %f.\n", WriteState.MaxAcceleration);
     STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f.\n", WriteState.MinVrmsOnAmax);
-
+    STDLOG(0,"Maximum group diameter in simulation is %d.\n", WriteState.MaxGroupDiameter); 
     return;
 }

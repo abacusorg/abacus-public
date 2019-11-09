@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 This is a drop-in replacement for the convolution executable.  It generates blank

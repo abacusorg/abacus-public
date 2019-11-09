@@ -14,7 +14,8 @@ FILENAME = "{fn}"  # This should contain <block>, which will be substituted with
 # Going to assume one snapshot at a time for now, since our time resolution is pretty low
 # Also, our snapshots do not have convenient names for iteration
 NUM_SNAPS = 1
-NUM_BLOCKS={cpd}
+NUM_BLOCKS = {nblock}  # usually CPD or 2*CPD.  Must match blocknames.
+BLOCK_NAMES = "{outdir}/auto-block_names.txt"  # file with block names.  Must match NUM_BLOCKS.
 NUM_READERS={ncpu_total}
 
 #This specifies how many CPUs you want to analyze the particles:

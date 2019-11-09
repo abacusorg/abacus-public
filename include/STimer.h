@@ -2,9 +2,14 @@
 #define STIMER
 
 #include <cassert>
-#include <sys/time.h>
+#include <time.h>
 
-class STimer {
+// We sometimes make arrays of STimers.  Let's avoid false sharing!
+#ifndef CACHE_LINE_SIZE
+#define CACHE_LINE_SIZE 128
+#endif
+
+class alignas(CACHE_LINE_SIZE) STimer {
 public:
     STimer();
     ~STimer();
@@ -12,11 +17,18 @@ public:
     void Stop(void);
     double Elapsed(void);
     void Clear(void);
-    void increment(struct timeval dt);
-    struct timeval get_timer(void);
+    void increment(struct timespec dt);
+    struct timespec get_timer(void);
     int timeron;
-    struct timeval tuse, tstart, timer;
+
+    struct timespec timer;
+    
+private:
+    struct timespec tstart;
 };
 
-struct timeval scale_timer(double s, struct timeval t);
+struct timespec scale_timer(double s, struct timespec t);
+void timespecclear(struct timespec *t);
+void timespecadd(struct timespec *a, struct timespec *b, struct timespec *res);
+void timespecsub(struct timespec *a, struct timespec *b, struct timespec *res);
 #endif

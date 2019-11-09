@@ -25,7 +25,8 @@ int StandaloneFOFLoadSlabPrecondition(int slab) {
 void StandaloneFOFLoadSlabAction(int slab) {
     char fname[1024];
     // TODO: Add support for L0 slabs?
-    sprintf(fname, "%s/%s.z%5.3f.slab%04d.dat", StandaloneFOF_slice_dir, P.SimName, ReadState.Redshift, slab);
+    int ret = snprintf(fname, 1024, "%s/%s.z%5.3f.slab%04d.dat", StandaloneFOF_slice_dir, P.SimName, ReadState.Redshift, slab);
+    assert(ret >= 0 && ret < 1024);
     STDLOG(1,"Load Slab %d from \"%s\"\n", slab, fname);
 
     size_t s = fsize(fname);

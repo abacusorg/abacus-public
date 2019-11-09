@@ -19,7 +19,7 @@ Todo:
 
 import os
 import os.path as ppath
-from os.path import join as pjoin
+from os.path import join as pjoin, basename, dirname
 from glob import glob
 import ctypes as ct
 import re
@@ -51,10 +51,28 @@ def read(*args, **kwargs):
         format = format.lower()
 
     try:
-        return reader_functions[format](*args, **kwargs)
+        ret = reader_functions[format](*args, **kwargs)
     except KeyError:
         # Try calling format as a function
-        return format(*args, **kwargs)
+        ret = format(*args, **kwargs)
+
+    if type(ret) is tuple:  # unambiguous way to unpack this?
+        data, header = ret
+
+    units = kwargs.get('units')
+    box_on_disk = kwargs.get('box_on_disk')
+    if units != None:
+        if box_on_disk is None:
+            box_on_disk = default_box_on_disk[format]
+        if units != box_on_disk:
+            try:
+                box = kwargs['boxsize']
+            except:
+                box = header['BoxSize']
+            data['pos'] *= eval(str(units))/eval(str(box_on_disk[format]))
+            # vel conversion?
+
+    return ret
 
 
 def from_dir(dir, pattern=None, key=None, **kwargs):
@@ -197,7 +215,7 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
         return particles
 
 
-def AsyncReader(path, readahead=1, chunksize=1, key=None, **kwargs):
+def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=False, return_fn=False, **kwargs):
     '''
     This is a generator that reads files in a separate thread in the background,
     yielding them one at a time as they become available.
@@ -226,6 +244,10 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, **kwargs):
         Default: 1.
     key: callable, optional
         A filename sorting key.  Default: None
+    verbose: bool, optional
+        Print status.  Default: False
+    return_fn: bool, optional
+        Yield the filename alongside the data.  Default: False
     **kwargs: dict, optional
         Extra arguments to be passed to `read` or `read_many`.
     '''
@@ -236,18 +258,19 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, **kwargs):
 
 
     # First, determine the file names to read
-    if ppath.isdir(path):
-        pattern = get_file_pattern(kwargs.get('format'))
-        files = []
-        for p in pattern:
-            files += glob(pjoin(path, pattern))
-        files = sorted(files, key=_key)
-        print(files)
-    elif ppath.isfile(path):
-        files = [path]
+
+    if type(path) is str:
+        if ppath.isdir(path):
+            pattern = get_file_pattern(kwargs.get('format'))
+            files = sorted(glob(pjoin(path, pattern)), key=_key)
+        elif ppath.isfile(path):
+            files = [path]
+        else:
+            # Not a dir and not a file; interpret as a glob pattern
+            files = sorted(glob(path), key=_key)
     else:
-        # Not a dir and not a file; interpret as a glob pattern
-        files = sorted(glob(path), key=_key)
+        # Already a list?
+        files = path
 
     assert files, f'No files found matching "{path}"!'
 
@@ -261,12 +284,18 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, **kwargs):
         reader_kwargs = kwargs.copy()
         format = reader_kwargs.pop('format')
 
+        Nfn = len(files)
+
         # Read and bin the particles
-        for filename in files:
+        for i,filename in enumerate(files):
+            if verbose:
+                print(f'Reading {i+1}/{Nfn} ' +'("{}")... '.format(basename(files[i])), end='', flush=True)
             data = read(filename, format=format, **reader_kwargs)
+            if verbose:
+                print('done.', flush=True)
             NP += len(data)
 
-            file_queue.put(data)  # blocks until free slot available
+            file_queue.put((data,filename))  # blocks until free slot available
         file_queue.put(None)  # signal termination
 
     io_thread = threading.Thread(target=reader_loop)
@@ -276,7 +305,11 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, **kwargs):
         data = file_queue.get()
         if data is None:
             break
-        yield data
+        data,fn = data
+        if return_fn:
+            yield data, fn
+        else:
+            yield data
 
     io_thread.join()
     assert file_queue.empty()
@@ -337,7 +370,8 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
         raise RuntimeError("pack14 C library was not found. Try building Abacus with 'make analysis'? Or use the slower `read_pack14_lite()` function.")
     readers = {np.float32: ralib.read_pack14f,
                np.float64: ralib.read_pack14 }
-    assert dtype in readers
+    dtype = np.dtype(dtype).type
+    assert dtype in readers, dtype
     
 
     with open(fn, 'rb') as fp:
@@ -362,6 +396,7 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
         if downsample is None:
             downsample = 1.1  # any number larger than 1 will take all particles
         
+
     NP = readers[dtype](fn, offset, ramdisk, return_vel, zspace, return_pid, downsample, _out.view(dtype=dtype))
 
     # shrink the buffer to the real size
@@ -534,10 +569,10 @@ def read_rvtag(*args,**kwargs):
     return read_rv(*args, tag=True, **kwargs)
 
 def read_rvdouble(*args,**kwargs):
-    return read_rv(*args, double=True, **kwargs)
+    return read_rv(*args, double=True, dtype=np.float64, **kwargs)
 
 def read_rvdoubletag(*args,**kwargs):
-    return read_rv(*args, double=True, tag=True, **kwargs)
+    return read_rv(*args, double=True, tag=True, dtype=np.float64, **kwargs)
 
 def read_rv(fn, return_vel=True, return_pid=False, zspace=False, dtype=np.float32, out=None, return_header=False, double=False, tag=False):
     """
@@ -597,8 +632,11 @@ def read_rv(fn, return_vel=True, return_pid=False, zspace=False, dtype=np.float3
         return retval[0]
     return retval
     
+
+def read_rvdoublezel(*args, **kwargs):
+    return read_rvzel(*args, double=True, **kwargs)
     
-def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=False, add_grid=False, boxsize=None, dtype=np.float32, out=None, return_header=False):
+def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=False, add_grid=False, boxsize=None, dtype=np.float32, out=None, return_header=False, double=False):
     """
     Reads RVzel format particle data.  This can be output from our
     zeldovich IC generator or Abacus.  zeldovich outputs don't have
@@ -625,6 +663,8 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
         The dtype to load the particle data into
     out: np.ndarray, optional
         Pre-allocated space to put the particles into
+    double: bool, optional
+        Whether the input file format is RVdoubleZel
         
     Returns
     -------
@@ -639,7 +679,9 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
         If `return_header` and a header is found, return parsed InputFile
     """
     
-    rvzel_dt = np.dtype([("zel", np.uint16, 3), ("r", np.float32, 3), ("v", np.float32, 3)], align=True)
+    dtype_on_disk = np.float64 if double else np.float32
+
+    rvzel_dt = np.dtype([("zel", np.uint16, 3), ("r", dtype_on_disk, 3), ("v", dtype_on_disk, 3)], align=True)
     with open(fn, 'rb') as fp:
         header = skip_header(fp)
         raw = np.fromfile(fp, dtype=rvzel_dt)
@@ -918,6 +960,20 @@ def read_gadget(fn, boxsize=1., **kwargs):
 
     return data
 
+
+def read_desi_hdf5(fn, **kwargs):
+    '''
+    HDF5 format used in the DESI CosmoSim WG.
+    '''
+    import h5py
+
+    data = {}
+    with h5py.File(fn, 'r') as fp:
+        data['pos'] = fp['/Matter/Position'][:]
+
+    return data
+
+
 ##############################
 # End list of reader functions
 ##############################
@@ -1042,13 +1098,16 @@ def get_np_from_fsize(fsize, format, downsample=None):
 
 psize_on_disk = {'pack14': 14, 'pack14_lite':14, 'pack9': 9, 'rvint': 3*4, 'rvdouble': 6*8, 'state64':3*8, 'state':3*4, 'rvzel':32, 'rvtag':32, 'rvdoubletag':7*8}
 reader_functions = {'pack14':read_pack14, 'pack9':read_pack9, 'rvint': read_rvint, 'rvdouble':read_rvdouble,
+
                     'rvzel':read_rvzel, 'state':read_state,
+                    'rvdoublezel':read_rvdoublezel,
                     'rvdoubletag':read_rvdoubletag,
                     'rvtag':read_rvtag, 'rv':read_rvtag,
                     'pack14_lite':read_pack14_lite,
                     'gadget':read_gadget}
 default_file_patterns = {'pack14':('*.dat',), 'pack9':('*L0.dat', '*field.dat'), 'rvint' : ('*rv_A*', '*rv_B*'), 'state':('position_*',)}
 fallback_file_pattern = ('*.dat',)
+
 
 def get_file_pattern(format):
     try:

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 This is a thin wrapper for running Corrfunc on sets of
 particles that can be loaded into memory all at once.

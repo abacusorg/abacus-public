@@ -154,8 +154,8 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
     double f_move = move.Elapsed()/seq;
     double f_rebin = rebin.Elapsed()/seq;
 
-    struct timeval seq_move = scale_timer(f_move, wc.get_timer() );
-    struct timeval seq_rebin = scale_timer(f_rebin, wc.get_timer() );
+    struct timespec seq_move = scale_timer(f_move, wc.get_timer() );
+    struct timespec seq_rebin = scale_timer(f_rebin, wc.get_timer() );
     
     DriftMove.increment(seq_move);
     DriftRebin.increment(seq_rebin);
