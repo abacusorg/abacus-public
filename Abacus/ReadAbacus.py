@@ -53,6 +53,9 @@ def read(*args, **kwargs):
     if type(format) == str:
         format = format.lower()
 
+    units = kwargs.pop('units', None)
+    box_on_disk = kwargs.pop('box_on_disk', None)
+
     try:
         ret = reader_functions[format](*args, **kwargs)
     except KeyError:
@@ -61,18 +64,19 @@ def read(*args, **kwargs):
 
     if type(ret) is tuple:  # unambiguous way to unpack this?
         data, header = ret
+    else:
+        data = ret
 
-    units = kwargs.get('units')
-    box_on_disk = kwargs.get('box_on_disk')
     if units != None:
         if box_on_disk is None:
             box_on_disk = default_box_on_disk[format]
+        # todo: compare str and float
         if units != box_on_disk:
             try:
                 box = kwargs['boxsize']
             except:
                 box = header['BoxSize']
-            data['pos'] *= eval(str(units))/eval(str(box_on_disk[format]))
+            data['pos'] *= eval(str(units))/eval(str(box_on_disk))
             # vel conversion?
 
     return ret

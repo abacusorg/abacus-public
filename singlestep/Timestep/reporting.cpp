@@ -36,7 +36,7 @@ FILE *reportfp;
 #define REPORT(tabs, str, a) \
      do { \
          fprintf(reportfp, "\n"); \
-         for (int i=0; i<tabs; i++) fprintf(reportfp, "    "); \
+         for (int _i=0; _i<tabs; _i++) fprintf(reportfp, "    "); \
          thistime = a; fprintf(reportfp, "%-30s: %10.2e sec (%5.2f%%) ", str, thistime, denom ? 100*thistime/denom : 0.); \
      } while(0)
 

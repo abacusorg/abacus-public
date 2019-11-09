@@ -4451,7 +4451,59 @@ else
   as_fn_error $? "unable to find gsl!" "$LINENO" 5
 fi
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing TBB_runtime_interface_version" >&5
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for move_pages in -lnuma" >&5
+$as_echo_n "checking for move_pages in -lnuma... " >&6; }
+if ${ac_cv_lib_numa_move_pages+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lnuma  $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char move_pages ();
+int
+main ()
+{
+return move_pages ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_lib_numa_move_pages=yes
+else
+  ac_cv_lib_numa_move_pages=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_numa_move_pages" >&5
+$as_echo "$ac_cv_lib_numa_move_pages" >&6; }
+if test "x$ac_cv_lib_numa_move_pages" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_LIBNUMA 1
+_ACEOF
+
+  LIBS="-lnuma $LIBS"
+
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to find numa!" >&5
+$as_echo "$as_me: WARNING: unable to find numa!" >&2;}
+fi
+
+
+
+# With the Intel compiler, the builtin TBB is accessed via the -tbb flag (set in common.mk)
+if test x$REAL_CXX != xicc; then
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing TBB_runtime_interface_version" >&5
 $as_echo_n "checking for library containing TBB_runtime_interface_version... " >&6; }
 if ${ac_cv_search_TBB_runtime_interface_version+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -4509,54 +4561,7 @@ else
   as_fn_error $? "unable to find tbb!" "$LINENO" 5
 fi
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for move_pages in -lnuma" >&5
-$as_echo_n "checking for move_pages in -lnuma... " >&6; }
-if ${ac_cv_lib_numa_move_pages+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-lnuma  $LIBS"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-/* Override any GCC internal prototype to avoid an error.
-   Use char because int might match the return type of a GCC
-   builtin and then its argument prototype would still apply.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-char move_pages ();
-int
-main ()
-{
-return move_pages ();
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"; then :
-  ac_cv_lib_numa_move_pages=yes
-else
-  ac_cv_lib_numa_move_pages=no
 fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_numa_move_pages" >&5
-$as_echo "$ac_cv_lib_numa_move_pages" >&6; }
-if test "x$ac_cv_lib_numa_move_pages" = xyes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_LIBNUMA 1
-_ACEOF
-
-  LIBS="-lnuma $LIBS"
-
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to find numa!" >&5
-$as_echo "$as_me: WARNING: unable to find numa!" >&2;}
-fi
-
 
 # Check for some utilities we use
 for ac_prog in flex
