@@ -319,7 +319,7 @@ void build_particle_tree(void) {
   }
   if (dup_particles) {
     fast3tree_rebuild(tree, num_p, p);
-    if (dup_particles > 0.0001*num_p)
+    //if (dup_particles > 0.0001*num_p)
       fprintf(stderr, "[Warning] %"PRId64" duplicate particles removed.\n",
 	      dup_particles);
   }

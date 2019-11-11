@@ -3,11 +3,13 @@
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
+#include <time.h>
 #include "../config_vars.h"
 #include "../config.h"
 #include "../rockstar.h"
 #include "../io/meta_io.h"
 #include "../check_syscalls.h"
+#include "../server.h"
 
 struct halo *ss_halos;
 
@@ -42,8 +44,9 @@ void find_parents_binary(int64_t snap){
     int64_t *first_ids = NULL;
     
     first_ids = (int64_t*) malloc(sizeof(int64_t)*NUM_WRITERS);
+    assert(first_ids != NULL);
     
-    //printf("Opening files and counting halos...\n");
+    timed_output("Opening files and counting halos...\n");
     // Open all tables to get the total number of halos
     for (i=0; i<NUM_WRITERS; i++) {
         struct binary_output_header header;
@@ -53,8 +56,12 @@ void find_parents_binary(int64_t snap){
     }
     
     ss_halos = (struct halo*) malloc(sizeof(struct halo)*total_groups);
+    if(ss_halos == NULL){
+      timed_output("malloc ss_halos of size %zu*%zu = %zu failed\n", sizeof(struct halo), total_groups, sizeof(struct halo)*total_groups);
+      exit(EXIT_FAILURE);
+    }
     
-    //printf("Loading halos...\n");
+    timed_output("Loading halos...\n");
     // Load all halos
     int64_t num_groups_read = 0;
     for (i=0; i<NUM_WRITERS; i++) {
@@ -64,14 +71,14 @@ void find_parents_binary(int64_t snap){
         num_groups_read += nhalo_per_file[i];
     }
 
-    //printf("Finding parents...\n");
+    timed_output("Finding parents...\n");
     find_parents(total_groups);
     
     // Finally, check that all halos have been processed
     for(i=0; i < total_groups; i++){
         if(ss_halos[i].parent_id == -100){
             //ss_halos[i].parent_id = -1;
-            fprintf(stderr, "[Error] Uninitialized parent_id %" PRId64 " found at halo %" PRId64 ".\n", ss_halos[i].parent_id, i);
+            timed_output("[Error] Uninitialized parent_id %" PRId64 " found at halo %" PRId64 ".\n", ss_halos[i].parent_id, i);
             exit(1);
         }
     }
@@ -80,7 +87,7 @@ void find_parents_binary(int64_t snap){
     // possibly across files!
     qsort(ss_halos, total_groups, sizeof(struct halo), sort_halos_by_id);
     
-    //printf("Writing back halos\n");
+    timed_output("Writing back halos\n");
     // Now, write back out the halos
     int64_t num_groups_written = 0;
     for (i=0; i<NUM_WRITERS; i++) {
@@ -112,6 +119,8 @@ void find_parents_binary(int64_t snap){
 
 int main(int argc, char **argv)
 {
+  time_start = time(NULL);
+
   int64_t i, snap=0, did_config = 0;
   if (argc < 3) {
     printf("Usage: %s -c config\n", argv[0]);
@@ -132,7 +141,9 @@ int main(int argc, char **argv)
   if (strlen(BLOCK_NAMES))
     read_input_names(BLOCK_NAMES, &blocknames, &NUM_BLOCKS);
 
-  printf("Identifying parent/sub halos...\n");
+  timed_output("Identifying parent/sub halos...\n");
   find_parents_binary(snap);
+
+  timed_output("Done find_parents_binary.")
   return 0;
 }

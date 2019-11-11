@@ -79,7 +79,6 @@ def get_header(dir, retfn=False):
                 header = f(dir)
                 header_fn = None  # safe to return None?
             except:
-                raise
                 continue
             break
         else:

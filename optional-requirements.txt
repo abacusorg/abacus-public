@@ -11,3 +11,5 @@ astropy
 Corrfunc
 h5py
 tabulate
+pyfftw
+

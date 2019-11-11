@@ -27,10 +27,10 @@ FORK_READERS_FROM_WRITERS = 1
 
 OUTBASE = "{outdir}" # default is current directory
 OUTPUT_FORMAT = {out_fmt} # "BOTH" or "ASCII" or "BINARY"
-SUBSAMPLE_FRAC = 0.1
+SUBSAMPLE_FRAC = 0.
 
 #BGC2_SNAPNAMES = "{bgc2_snapnames}"  # We only do one snap at a time, so we just need a file with snap "0"
-RUN_ON_SUCCESS = "{rockdir}/util/finish_abacuscosmos.sh {rockdir} {outdir}"  # This is called for every snapshot with an additional arg for the snapnum (always 0 for us)
+#RUN_ON_SUCCESS = "{rockdir}/util/finish_abacuscosmos.sh {rockdir} {outdir}"  # This is called for every snapshot with an additional arg for the snapnum (always 0 for us)
 
 MIN_HALO_OUTPUT_SIZE = {minmembers}  # Minimum number of particles in a halo
 MIN_HALO_PARTICLES = 10 #default: 10.  Minimum particles for a halo "seed"
