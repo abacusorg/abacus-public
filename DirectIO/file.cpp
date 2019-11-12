@@ -258,6 +258,20 @@ void containing_dirname(const char *filename, char dir[1024]){
     dir[len] = '/'; dir[len+1] = '\0';
 }
 
+
+// Extract the dir and name components of the path
+void split_path(const char path[1024], char dir[1024], char name[1024]){
+    char buf[1024];
+    strncpy(buf, path, 1024);
+    char *dn = dirname(buf);
+    strncpy(dir, dn, 1024);
+
+    strncpy(buf, path, 1024);
+    char *bn = basename(buf);
+    strncpy(name, bn, 1024);
+}
+
+
 int is_path_on_ramdisk(std::string path){
     const char *c_str = path.c_str();
     int res = is_path_on_ramdisk(c_str);

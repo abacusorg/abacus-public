@@ -259,6 +259,14 @@ void *check_mmap_file(char *filename, char mode, int64_t *length) {
   return res;
 }
 
+void check_fclose(FILE *stream){
+  int res = fclose(stream);
+  if(res != 0){
+    fprintf(SL, "fclose() failed!\n");
+    exit(EXIT_FAILURE);
+  }
+}
+
 #ifndef MAP_ANONYMOUS
 #define MAP_ANONYMOUS MAP_ANON
 #endif /* MAP_ANONYMOUS */

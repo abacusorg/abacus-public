@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 A Python wrapper to run Rockstar on Abacus outputs.
 
@@ -22,6 +22,7 @@ from os.path import join as pjoin
 
 import numpy as np
 
+from Abacus import abacus
 from Abacus.Tools import chdir, ArgParseFormatter
 from Abacus.InputFile import InputFile
 from Abacus.Analysis import common
@@ -95,7 +96,7 @@ def run_rockstar(slice_dirs, ncpu=1, nnode=1, minmembers=25, downsample=1, confi
                     autofile.write(config)
                 
             # Launch Rockstar server
-            retcode = subprocess.check_call(['./rockstar', '-c', outdir+'/abacus-auto-server.cfg', '-s', '0'])
+            retcode = abacus.call_subprocess(['./rockstar', '-c', outdir+'/abacus-auto-server.cfg', '-s', '0'])
             # Now the Rockstar client is ready to be started once rockstar writes the auto-rockstar.cfg file
 
         return retcode

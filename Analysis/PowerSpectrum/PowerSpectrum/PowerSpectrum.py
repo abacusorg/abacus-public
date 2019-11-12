@@ -173,8 +173,9 @@ def RebinTheoryPS(ps, gridshape, boxsize, *, bins=-1, log=False, dtype=np.float3
     
     Parameters
     ----------
-    ps: ndarray, shape (N,2)
-        The theory power spectrum to interpolate to the mesh
+    ps: ndarray, shape (N,2); or callable
+        The theory power spectrum to interpolate to the mesh.
+        Can also be a callable that yields P for k.
     boxsize: float
         The domain size
     gridshape: int or tuple of int
@@ -184,6 +185,8 @@ def RebinTheoryPS(ps, gridshape, boxsize, *, bins=-1, log=False, dtype=np.float3
         Number of k-space bins, or list of bin edges.  Default: max(gridshape)//4.
     log: bool, optional
         Whether to bin in log space.  Default: False.
+    powerlaw: bool, optional
+
         
     Returns
     -------
@@ -191,18 +194,31 @@ def RebinTheoryPS(ps, gridshape, boxsize, *, bins=-1, log=False, dtype=np.float3
         The wavenumbers of the bins
     s: ndarray, shape (nbins,)
         Power in each bin
+    var: ndarra, shape (nbins,)
+        Theoretical variance in each bin
     nmodes: ndarray, shape (nbins,)
         Number of modes in each bin
     """
-    pkref_interp = misc.loglog_interp(ps[:,0], ps[:,1])
+    if callable(ps):
+        pkref_interp = ps
+    else:
+        pkref_interp = misc.loglog_interp(ps[:,0], ps[:,1])
+
+    if type(gridshape) is int:
+        gridshape = (gridshape,)*3
+    gridshape = np.array(gridshape)
     
     dx = boxsize/np.array(gridshape)
-    kgrid = misc.fftfreq_nd(gridshape, dx)
+    kgrid = misc.fftfreq_nd(gridshape, dx, rfft=True, kmag=True)
     power = pkref_interp(kgrid)
     
     k, s, nmodes, bin_info = RadialBinGrid(boxsize, power, bins, rfft=True)
+    _, s2, _, _ = RadialBinGrid(boxsize, power**2., bins, rfft=True, bin_info=bin_info)
 
-    return k, s, nmodes
+    # Proper, unbiased variance
+    var = s2*2/nmodes
+
+    return k, s, var, nmodes
 
 
 #@processargs  # need to think about args for this function

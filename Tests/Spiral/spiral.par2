@@ -18,4 +18,4 @@ Conv_IOMode = 'normal'
 ForceOutputDebug = 0
 OutputFormat="RVdouble"
 AllowGroupFinding = 0
-CPD = 495
+CPD = 65

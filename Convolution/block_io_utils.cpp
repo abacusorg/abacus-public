@@ -597,10 +597,11 @@ public:
             if (z % CP.niothreads != thread_num)
                 continue;
             char fn[1024];
-            sprintf(fn, fnfmt,
+            int ret = snprintf(fn, 1024, fnfmt,
                     CP.runtime_DerivativesDirectory, 
                     (int) cpd, CP.runtime_order, CP.runtime_NearFieldRadius, 
                     CP.runtime_DerivativeExpansionRadius, z);
+            assert(ret >= 0 && ret < 1024);
 
             if(!ramdisk_derivs){				
 				

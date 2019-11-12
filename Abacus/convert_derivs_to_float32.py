@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 usage: convert_derivs_to_float32.py [-h]
                                     fourierspace_file [fourierspace_file ...]

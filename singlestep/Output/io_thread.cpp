@@ -1,29 +1,34 @@
-#define IOLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
-	LOG(iolog,__VA_ARGS__); iolog.flush(); } }
-
-#define ioassertf(_mytest,...) do { \
-    if (!(_mytest)) { \
-            IOLOG(0,"Failed Assertion: %s\n", #_mytest); IOLOG(0,__VA_ARGS__); \
-	    fprintf(stderr,"Failed Assertion: %s\n", #_mytest); \
-	    fpprint(std::cerr, __VA_ARGS__); \
-	    CrashIO(); \
-    }} while(0)
-
-
 #include <time.h>
+#include <pthread.h>
+#include <sched.h>
+#include <sys/resource.h>
+
 #include "io_interface.h"
 #include "io_request.h"
 #include "ring.cpp"
 #include "file.cpp"
 #include "iolib.cpp"
-#include <pthread.h>
-#include <sched.h>
-#include <sys/resource.h>
 #include "threadaffinity.h"
+#include "crc32_fast.cpp"
 
-class iothread {
+
+#define IOLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
+    LOG(iolog,__VA_ARGS__); iolog.flush(); } }
+
+#define ioassertf(_mytest,...) do { \
+    if (!(_mytest)) { \
+            IOLOG(0,"Failed Assertion: %s\n", #_mytest); IOLOG(0,__VA_ARGS__); \
+        fprintf(stderr,"Failed Assertion: %s\n", #_mytest); \
+        fpprint(std::cerr, __VA_ARGS__); \
+        CrashIO(); \
+    }} while(0)
+
+
+class alignas(CACHE_LINE_SIZE) iothread {
 public:
-    iothread(char *logfn, int threadnum, int _io_core) {
+    iothread(char *logfn, int _threadnum, int _io_core) {
+        threadnum = _threadnum;
+
         // Make the FIFO files
         // Note: we could move from ring buffers and FIFOs to a simple tbb:concurrent_bounded_queue,
         // as with the GPU module.  The current implementation is overkill since we don't need inter-process communication.
@@ -45,35 +50,6 @@ public:
         WD = new WriteDirect(ramdisk,diskbuffer);
         
         io_core = _io_core;
-
-        /* 
-        // Increase the CPU scheduling priority of the IO thread (probably has to be done with sudo)
-        // Borrowed mostly from http://www.yonch.com/tech/82-linux-thread-priority
-        // In practice, we haven't seen this speed up the IO, just make other parts of the code slower
-        int res = 0;
-        struct rlimit limit;
-        res += getrlimit(RLIMIT_RTPRIO, &limit);
-        assertf(res == 0, "Error %d getting resource limit\n", res);
-        STDLOG(1,"Soft/hard priority limit: %d/%d\n", limit.rlim_cur, limit.rlim_max);
-
-        pthread_attr_t tattr;
-        int newprio = sched_get_priority_max(SCHED_FIFO);
-        sched_param param;
-
-        // initialized with default attributes
-        res += pthread_attr_init(&tattr);
-
-        // safe to get existing scheduling param
-        res += pthread_attr_setinheritsched(&tattr, PTHREAD_EXPLICIT_SCHED);
-        res += pthread_attr_setschedpolicy(&tattr, SCHED_FIFO);
-        res += pthread_attr_getschedparam(&tattr, &param);
-
-        // set the priority; others are unchanged
-        STDLOG(1,"Changing IO thread priority from %d to %d\n", param.sched_priority, newprio);
-        param.sched_priority = newprio;
-
-        // setting the new scheduling param
-        res += pthread_attr_setschedparam(&tattr, &param);*/
 
         // Launch io_thread() as a separate thread
         int res = 0;
@@ -112,6 +88,10 @@ public:
         assert(!rc);
         STDLOG(0,"Termination of IO complete\n");
         iolog.close();
+
+        // Report performance to the global structures
+        ChecksumTime[threadnum-1] += checksum_timer.Elapsed();
+        ChecksumBytes[threadnum-1] += checksum_bytes;
     }
     
     void request(iorequest ior){
@@ -139,6 +119,11 @@ private:
     int io_core = -1;
     
     std::ofstream iolog;
+
+    STimer checksum_timer;
+    uint64 checksum_bytes = 0;
+
+    int threadnum;
     
     void CrashIO() {
         IOLOG(0,"Crashing the IO thread; sending IO_ERROR to client!\n");
@@ -173,7 +158,20 @@ private:
                 QUIT("Unknown IO method %d\n", ior->io_method);
         }
 
+        const char *dir = ior->dir;
+        STimer *timer;
+        if(ior->blocking){
+            timer = &BlockingIOReadTime[dir];
+            BlockingIOReadBytes[dir] += ior->sizebytes;
+        }
+        else{
+            timer = &NonBlockingIOReadTime[dir];
+            NonBlockingIOReadBytes[dir] += ior->sizebytes;
+        }
+
+        timer->Start();
         RD->BlockingRead(ior->filename, ior->memory, ior->sizebytes, ior->fileoffset, ramdisk);
+        timer->Stop();
 
         IOLOG(1,"Done reading file\n");
         IO_SetIOCompleted(ior->arenatype, ior->arenaslab);
@@ -205,7 +203,30 @@ private:
                 QUIT("Unknown IO method %d\n", ior->io_method);
         }
 
+        if(ior->do_checksum){
+            checksum_timer.Start();
+            // TODO: if we write partial files, use crc32_partial
+            uint32_t checksum = crc32_fast(ior->memory, ior->sizebytes);
+            checksum_timer.Stop();
+            checksum_bytes += ior->sizebytes;
+
+            FileChecksums[ior->fulldir].emplace_back(checksum,ior->sizebytes,ior->justname);
+        }
+
+        const char *dir = ior->dir;
+        STimer *timer;
+        if(ior->blocking){
+            timer = &BlockingIOWriteTime[dir];
+            BlockingIOWriteBytes[dir] += ior->sizebytes;
+        }
+        else{
+            timer = &NonBlockingIOWriteTime[dir];
+            NonBlockingIOWriteBytes[dir] += ior->sizebytes;
+        }
+
+        timer->Start();
         WD->BlockingAppend(ior->filename, ior->memory, ior->sizebytes, ramdisk);
+        timer->Stop();
 
         IOLOG(1,"Done writing file\n");
         if (ior->deleteafterwriting==IO_DELETE) IO_DeleteArena(ior->arenatype, ior->arenaslab);
@@ -229,25 +250,6 @@ private:
             STDLOG(0, "IO thread not bound to core\n");
         }
 
-        /*{ // Related to the CPU scheduling experiment above
-            // Double-check the thread priority
-            int policy = 0, ret = 0;
-            sched_param params;
-            ret = pthread_getschedparam(io_pthread, &policy, &params);
-            if (ret != 0){
-               STDLOG(0, "Couldn't retrieve IO thread real-time scheduling params\n");
-            } else {
-                // Check the correct policy was applied
-                if(policy != SCHED_FIFO) {
-                    STDLOG(0,"IO thread scheduling is NOT SCHED_FIFO!\n");
-                } else{
-                    STDLOG(0, "IO thread schedule confirmed SCHED_FIFO\n");
-                }
-                // Print thread scheduling priority
-                STDLOG(0,"IO thread scheduling priority is %d\n", params.sched_priority);
-            }
-        }*/
-
         IOLOG(0,"Opening IO pipes\n");
         fifo_cmd = open(IO_CMD_PIPE, O_RDONLY);
         fifo_ack = open(IO_ACK_PIPE, O_WRONLY);
@@ -255,6 +257,9 @@ private:
         fd_set set;
 
         // We maintain four instruction buffers, so as to sort by priority
+        // TODO: ringbuffers and IPC are total overkill unless we think we will ever
+        // be siphoning off IO to another process (e.g. implementing our own ramdisk).
+        // Otherwise, we could switch these to tbb::concurrent_queue, just like the GPU threads
         ringbuffer  read_blocking(NINSTRUCTIONS), read_nonblocking(NINSTRUCTIONS), 
                 write_blocking(NINSTRUCTIONS), write_nonblocking(NINSTRUCTIONS);
         int quitflag = 0, wait_for_cmd = 0;
@@ -311,12 +316,8 @@ private:
             if (write_blocking.isnotempty()) {
                 IOLOG(2,"Starting blocking write\n"); 
                 iorequest ior = write_blocking.pop(); 
-                const char *dir = ior.dir;
-
-                BlockingIOWriteTime[dir].Start();
+                
                 WriteIOR(&ior);
-                BlockingIOWriteTime[dir].Stop();
-                BlockingIOWriteBytes[dir] += ior.sizebytes;
 
                 // Send an acknowledgement
                 ioacknowledge ioack(IO_WRITE,ior.arenatype, ior.arenaslab);
@@ -325,12 +326,8 @@ private:
             } else if (read_blocking.isnotempty()) {
                 IOLOG(2,"Starting blocking read\n"); 
                 iorequest ior = read_blocking.pop();
-                const char *dir = ior.dir;
 
-                BlockingIOReadTime[dir].Start();
                 ReadIOR(&ior);
-                BlockingIOReadTime[dir].Stop();
-                BlockingIOReadBytes[dir] += ior.sizebytes;
 
                 // Send an acknowledgement
                 ioacknowledge ioack(IO_READ,ior.arenatype, ior.arenaslab);
@@ -339,21 +336,13 @@ private:
             } else if (write_nonblocking.isnotempty()) {
                 IOLOG(2,"Starting nonblocking write\n"); 
                 iorequest ior = write_nonblocking.pop(); 
-                const char *dir = ior.dir;
 
-                NonBlockingIOWriteTime[dir].Start();
                 WriteIOR(&ior);
-                NonBlockingIOWriteTime[dir].Stop();
-                NonBlockingIOWriteBytes[dir] += ior.sizebytes;
             } else if (read_nonblocking.isnotempty()) {
                 IOLOG(2,"Starting nonblocking read\n");
                 iorequest ior = read_nonblocking.pop();
-                const char *dir = ior.dir;
 
-                NonBlockingIOReadTime[dir].Start();
                 ReadIOR(&ior);
-                NonBlockingIOReadTime[dir].Stop();
-                NonBlockingIOReadBytes[dir] += ior.sizebytes;
             } else if (quitflag) break;
             else wait_for_cmd = 1;	
             // We have no work to do, so we should read the cmd pipe to avoid spinlocking
@@ -428,6 +417,28 @@ void IO_Terminate() {
     }
 
     delete[] iothreads;
+
+    // Write the checksum files to their respective directories
+    for(auto &iter : FileChecksums){
+        auto &dir = iter.first;
+        auto &allcrc = iter.second;
+
+        // Sort this directory's checksums by filename
+        std::sort(allcrc.begin(), allcrc.end());
+
+        // The format of this file should match that of GNU cksum so that one can do a simple diff
+        // That's not to say that users should prefer cksum; it's slow!
+        // We will instead provide a fast CRC32 utility.
+        char checksumfn[1050];
+        snprintf(checksumfn, 1050, "%s/checksums%s.crc32", dir.c_str(), NodeString);
+        FILE *fp = fopen(checksumfn, "w");
+        assertf(fp != NULL, "Failed to open file \"%s\"\n", checksumfn);
+
+        for(CRC32 &crc : allcrc){
+            fprintf(fp, "%" PRIu32 " %" PRIu64 " %s\n", crc.crc, crc.size, crc.filename.c_str());
+        }
+        fclose(fp);
+    }
 }
 
 // Return the ID of the IO thread that will handle this directory
@@ -448,16 +459,16 @@ void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
 	    const char *filename, off_t fileoffset, int blocking) {
     
     STDLOG(3,"Using IO_thread module to read file %f, blocking %d\n", filename, blocking);
-    iorequest ior(ram, sizebytes, filename, IO_READ, arenatype, arenaslab, fileoffset, 0, blocking);
+    iorequest ior(ram, sizebytes, filename, IO_READ, arenatype, arenaslab, fileoffset, 0, blocking, 0);
     
     iothreads[GetIOThread(ior.dir) - 1]->request(ior);
 }
 
 void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, 
-	    const char *filename, off_t fileoffset, int deleteafter, int blocking) {
+	    const char *filename, off_t fileoffset, int deleteafter, int blocking, int do_checksum) {
     
     STDLOG(3,"Using IO_thread module to write file %f, blocking %d\n", filename, blocking);
-    iorequest ior(ram, sizebytes, filename, IO_WRITE, arenatype, arenaslab, fileoffset, deleteafter, blocking );
+    iorequest ior(ram, sizebytes, filename, IO_WRITE, arenatype, arenaslab, fileoffset, deleteafter, blocking, do_checksum);
     
     iothreads[GetIOThread(ior.dir) - 1]->request(ior);
 }

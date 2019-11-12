@@ -17,7 +17,8 @@
 
 #include "function_precision.h" 
 
-#define PREFETCH(mem)        asm ("prefetcht0 %0"::"m"(mem))
+#define PREFETCH(mem)  __builtin_prefetch(mem)
+//asm ("prefetcht0 %0"::"m"(mem))
 
 #if defined(__GNUC__) || defined(__GNUG__)
 #define AVX512_BIT_COUNT_INT(X)                __builtin_popcount(X)
