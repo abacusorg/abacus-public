@@ -726,12 +726,12 @@ with_max_cpd
 with_max_source_length
 with_max_order
 enable_threaded_io
-enable_spherical_overdensity
 enable_one_sided_group_finding
 enable_gpu_directs
 with_cuda
 enable_gpu_convolution
 enable_fof_density
+enable_spherical_overdensity
 enable_parallel
 with_max_gpus
 with_softening
@@ -1376,14 +1376,14 @@ Optional Features:
   --enable-avx512-directs AVX-512 directs [no]
   --enable-avx-fof        AVX FOF [yes if AVX present]
   --enable-threaded-io    Threaded IO [yes]
-  --enable-spherical-overdensity
-                          Use SO finder [yes]
   --enable-one-sided-group-finding
                           Perform L0 finding one-sided [yes]
   --enable-gpu-directs    GPU directs [yes if CUDA detected]
   --enable-gpu-convolution
                           Convolution FFT on GPU [no]
   --enable-fof-density    Compute FOF-scale density [yes]
+  --enable-spherical-overdensity
+                          Use SO finder [yes if fof-density enabled]
   --enable-parallel       Generate MPI parallel code [no]
 
 Optional Packages:
@@ -6052,21 +6052,6 @@ _ACEOF
 
 fi
 
-# Check whether --enable-spherical-overdensity was given.
-if test "${enable_spherical_overdensity+set}" = set; then :
-  enableval=$enable_spherical_overdensity;
-else
-  enable_spherical_overdensity="yes"
-fi
-
-if test x$enable_spherical_overdensity == xyes; then
-
-cat >>confdefs.h <<_ACEOF
-#define SPHERICAL_OVERDENSITY /**/
-_ACEOF
-
-fi
-
 # Check whether --enable-one-sided-group-finding was given.
 if test "${enable_one_sided_group_finding+set}" = set; then :
   enableval=$enable_one_sided_group_finding;
@@ -6115,6 +6100,7 @@ done
 default_cuda_prefix=$CUDA_HOME
 default_cuda_prefix=${default_cuda_prefix:-$CUDA_DIR}
 default_cuda_prefix=${default_cuda_prefix:-$CUDAPATH}
+default_cuda_prefix=${default_cuda_prefix:-$CUDA_BASE}
 default_cuda_prefix=${default_cuda_prefix:-/usr/local/cuda}
 
 # Provide your CUDA path with this
@@ -6408,6 +6394,21 @@ if test x$enable_fof_density == xyes; then
 
 cat >>confdefs.h <<_ACEOF
 #define COMPUTE_FOF_DENSITY /**/
+_ACEOF
+
+fi
+
+# Check whether --enable-spherical-overdensity was given.
+if test "${enable_spherical_overdensity+set}" = set; then :
+  enableval=$enable_spherical_overdensity;
+else
+  enable_spherical_overdensity=$enable_fof_density
+fi
+
+if test x$enable_spherical_overdensity == xyes; then
+
+cat >>confdefs.h <<_ACEOF
+#define SPHERICAL_OVERDENSITY /**/
 _ACEOF
 
 fi

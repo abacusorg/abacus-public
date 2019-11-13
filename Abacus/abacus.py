@@ -11,21 +11,6 @@ as a module or directly invoked as a script:
 Script usage:
     See abacus/Production/Example
 
-Command line usage:
-    abacus.py [-h] [--clean] [--erase-ic] parfile
-
-    Run this sim.
-
-    positional arguments:
-      parfile     The parameter file
-
-    optional arguments:
-      -h, --help  show this help message and exit
-      --clean     Erase the working directory and start over. Otherwise, continue
-                  from the existing state. Always preserves the ICs unless
-                  --erase-ic.
-      --erase-ic  Remove the ICs if they exist.
-
 '''
 
 import os
@@ -1171,7 +1156,7 @@ def merge_checksum_files(param=None, dir_globs=None):
 
     for pat in dir_globs:
         for d in glob(pat):
-            cksum_fns = glob(pjoin(d,'checksums.node*.crc32'))
+            cksum_fns = glob(pjoin(d,'checksums.*.crc32'))
             if not cksum_fns:
                 # Nothing to do
                 continue
