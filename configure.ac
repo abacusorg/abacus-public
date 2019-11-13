@@ -72,8 +72,13 @@ make --quiet tcmalloc
 AC_SEARCH_LIBS([cos],[m])
 AC_SEARCH_LIBS(cblas_dgemm, [gslcblas], [], [AC_MSG_ERROR([unable to find gslcblas!])])
 AC_SEARCH_LIBS(gsl_rng_uniform, [gsl], [], [AC_MSG_ERROR([unable to find gsl!])])
-AC_SEARCH_LIBS(TBB_runtime_interface_version, [tbb], [], [AC_MSG_ERROR([unable to find tbb!])])
 AC_CHECK_LIB(numa, move_pages, [], [AC_MSG_WARN([unable to find numa!])])
+
+
+# With the Intel compiler, the builtin TBB is accessed via the -tbb flag (set in common.mk)
+if test x$REAL_CXX != xicc; then
+    AC_SEARCH_LIBS(TBB_runtime_interface_version, [tbb], [], [AC_MSG_ERROR([unable to find tbb!])])
+fi
 
 # Check for some utilities we use
 AC_CHECK_PROGS(LEX, flex)

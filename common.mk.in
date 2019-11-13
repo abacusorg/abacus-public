@@ -23,7 +23,7 @@ CPPFLAGS := @DEFS@ -m64 -I $(ROOT_DIR)/include $(OPT) $(LDFLAGS)
 #CPPFLAGS += -Wall  #TODO: clean up compiler warnings
 
 # We use bash syntax in some Makefiles
-SHELL = /bin/bash
+SHELL := /bin/bash
 
 CUDA_ENABLED = @CUDA_ENABLED@
 ifeq (@CUDA_ENABLED@,CUDA_ENABLED)
@@ -111,7 +111,7 @@ ifeq (@REAL_CXX@,g++)
         THREAD_CPPFLAGS += -foffload=disable
     endif
 else ifeq (@REAL_CXX@,icc)
-    CPPFLAGS += -xHost -fp-model precise -fbuiltin -ip -mkl #-ipo #-prof-use=weighted
+    CPPFLAGS += -xHost -fp-model precise -fbuiltin -ip -mkl -tbb #-ipo #-prof-use=weighted
     NVCC_CPPFLAGS += -fp-model precise -ip -mkl
 
     FFTW_LIBS := -mkl

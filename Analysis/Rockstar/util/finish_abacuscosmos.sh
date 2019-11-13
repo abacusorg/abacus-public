@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 
 # A "RUN_ON_SUCCESS" script called by Rockstar
+# Note this only runs on one rank
 # First arg: Rockstar dir
 # Second arg: Output dir
+
+#UTIL_DIR="$(dirname "$(readlink -f "$0")")"
+#OUTPUT_DIR="$(dirname "$(readlink -f "$5")")"
 
 # Do postprocessing steps:
 # Identify parent/child halos
