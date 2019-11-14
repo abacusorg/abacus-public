@@ -847,7 +847,6 @@ void NoopAction(int slab){
  */
 
 void AttemptReceiveManifest(){
-    ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
     // If the manifest has been received, install it.
     if (ReceiveManifest->is_ready()) {
         ReceiveManifest->ImportData();
@@ -981,6 +980,9 @@ void timestep(void) {
            for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
          TransposePos.Attempt();
             NearForce.Attempt();
+
+        ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
+   
           TaylorForce.Attempt();
                  Kick.Attempt();
 
@@ -989,6 +991,9 @@ void timestep(void) {
        MakeCellGroups.Attempt();
    FindCellGroupLinks.Attempt();
        DoGlobalGroups.Attempt();
+
+        ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
+
                Output.Attempt();
             Microstep.Attempt();
          FinishGroups.Attempt();
@@ -998,6 +1003,9 @@ void timestep(void) {
 
      FetchLPTVelocity.Attempt();
                 Drift.Attempt();
+
+        ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
+
                Finish.Attempt();
 			   
         CheckSendManifest();  // We look at each Send Manifest to see if there's material to free.

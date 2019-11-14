@@ -123,7 +123,7 @@ public:
 
     // Light cones need 1 byte
     inline static uint64 lightconemask(int number) {
-        assertf(number<8 && number>=0, "Lightcone number lcn = %d must satisfy 0 <= lcn < 8.", number);
+        assertf(number<3 && number>=0, "Lightcone number lcn = %d must satisfy 0 <= lcn < 3.", number);
         return (uint64)1 << (number+AUXLCZEROBIT);
     }
 
