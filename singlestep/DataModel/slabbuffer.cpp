@@ -57,6 +57,10 @@ enum SlabType { CellInfoSlab,           //0
                 LightCone1,             //32
                 LightCone2,             //33
 
+                LightCone0PID,          //34
+                LightCone1PID,          //35
+                LightCone2PID,          //36
+
                 NUMTYPES
                 };
 
