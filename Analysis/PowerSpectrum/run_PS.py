@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 A user-friendly command-line interface to PowerSpectrum.
@@ -237,13 +237,14 @@ def setup_bins(args):
     nslices = len(slices)
 
     headers = [common.get_header(p) for p in slices]
-    all_scalefactor = np.array([h['ScaleFactor'] for h in headers])
+    all_scalefactor = np.array([h['ScaleFactor'] if h else 0. for h in headers])
 
-    def setup_onetrack(headers):
-        nslices = len(headers)
+    def setup_onetrack(headers=None):
+        nslices = len(headers) if headers else 1
 
         # "box" specified on the command line overrides the header
-        if args.get('box'):
+        if args.get('box') or not headers:
+            assert args['box']
             all_boxsize = np.full(nslices, args['box'])
         else:
             all_boxsize = np.asfarray([h['BoxSize'] for h in headers])

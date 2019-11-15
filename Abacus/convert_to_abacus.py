@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Convert a files in a non-Abacus format (like Gadget) to an Abacus format.
 Output files will go in a new directory in the input file directory.

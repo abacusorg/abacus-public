@@ -110,20 +110,6 @@ double ChooseTimeStep(){
 	    da = 0.0; return da;
 	}
 	
-// Do we need to output groups sooner?
-    for(int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++){
-        double L1z = P.L1OutputRedshifts[i];
-        // A non-output is signaled with -2
-        if (L1z <= -1)
-            continue;
-
-         double L1a = 1.0/(1+L1z);
-
-         if(ReadState.Redshift > L1z + 1e-12 && ReadState.ScaleFactor + da > L1a){
-            da = L1a - ReadState.ScaleFactor;
-            STDLOG(0,"da to reach next L1 group output is %f\n", da);
-        }
-    }
 
     // Do we need to output groups sooner?
     for(int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++){

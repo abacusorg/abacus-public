@@ -339,8 +339,9 @@ class ArgParseFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentD
 
 
 import numba
+@numba.njit(parallel=True)
 def wrap_zero_centered(pos, box):
-    """
+    '''
     Wraps an array of positions in-place
     to the range [-box/2, box/2).
     
@@ -350,23 +351,35 @@ def wrap_zero_centered(pos, box):
         The positions to wrap, already in the same units as box
     box: float
         The box edge length (box is zero-centered)
-    """
-    
-    return _box_wrap(pos.ravel(), box)
+    '''
+    pos = pos.reshape(-1)
+    N = len(pos)
+    for i in numba.prange(N):
+        while pos[i] >= box/2:
+            pos[i] -= box
+        while pos[i] < -box/2:
+            pos[i] += box
 
 @numba.njit(parallel=True)
-def _box_wrap(p, box):
+def wrap_zero_origin(pos, box):
     '''
-    An in-place fast periodic wrap
-    This is a kludgy workaround for https://github.com/numba/numba/issues/2954
+    Wraps an array of positions in-place
+    to the range [0, box).
+    
+    Parameters
+    ----------
+    pos: ndarray
+        The positions to wrap, already in the same units as box
+    box: float
+        The box edge length (box has center at L/2)
     '''
-    #p = p.flat
-    N = len(p)
+    pos = pos.reshape(-1)
+    N = len(pos)
     for i in numba.prange(N):
-        while p[i] >= box/2:
-            p[i] -= box
-        while p[i] < -box/2:
-            p[i] += box
+        while pos[i] >= box:
+            pos[i] -= box
+        while pos[i] < 0:
+            pos[i] += box
     
 if __name__ == '__main__':
     fm = get_RAM_info()

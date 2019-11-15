@@ -18,6 +18,8 @@
 #include <complex>
 #include <omp.h>
 #include <sys/mman.h>
+#include <sched.h>
+#include <pthread.h>
 
 #include <sys/time.h>
 #include <errno.h>
@@ -31,6 +33,8 @@
 #include <stdint.h>
 #include <unistd.h>
 
+#define uint32 uint32_t
+#define int32 int32_t
 #define uint64 uint64_t
 #define int64 int64_t
 

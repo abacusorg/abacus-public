@@ -1378,7 +1378,7 @@ void client(int64_t type) {
 	fclose(profile_out);
 	profile_out = check_fopen(buffer, "a");
       }
-      int64_t time_start = time(NULL);
+      int64_t _time_start = time(NULL);
       rockstar(bounds, 1);
       int64_t time_middle = time(NULL);
       set_bp_chunk(chunk);
@@ -1386,7 +1386,7 @@ void client(int64_t type) {
       int64_t time_end = time(NULL);
       if (CLIENT_DEBUG) fprintf(stderr, "Found %"PRId64" fofs in chunk %"PRId64"\n", num_all_fofs, chunk);
       if (profile_out) {
-	fprintf(profile_out, "[Prof] S%"PRId64",C%"PRId64" %"PRId64"s: %"PRId64" fofs, %"PRId64" particles, %"PRId64"s for conf.\n", snap, chunk, (time_middle-time_start), num_all_fofs, num_p, (time_end-time_middle));
+	fprintf(profile_out, "[Prof] S%"PRId64",C%"PRId64" %"PRId64"s: %"PRId64" fofs, %"PRId64" particles, %"PRId64"s for conf.\n", snap, chunk, (time_middle-_time_start), num_all_fofs, num_p, (time_end-time_middle));
 	fflush(profile_out);
       }
     }

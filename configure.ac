@@ -72,8 +72,13 @@ make --quiet tcmalloc
 AC_SEARCH_LIBS([cos],[m])
 AC_SEARCH_LIBS(cblas_dgemm, [gslcblas], [], [AC_MSG_ERROR([unable to find gslcblas!])])
 AC_SEARCH_LIBS(gsl_rng_uniform, [gsl], [], [AC_MSG_ERROR([unable to find gsl!])])
-AC_SEARCH_LIBS(TBB_runtime_interface_version, [tbb], [], [AC_MSG_ERROR([unable to find tbb!])])
 AC_CHECK_LIB(numa, move_pages, [], [AC_MSG_WARN([unable to find numa!])])
+
+
+# With the Intel compiler, the builtin TBB is accessed via the -tbb flag (set in common.mk)
+if test x$REAL_CXX != xicc; then
+    AC_SEARCH_LIBS(TBB_runtime_interface_version, [tbb], [], [AC_MSG_ERROR([unable to find tbb!])])
+fi
 
 # Check for some utilities we use
 AC_CHECK_PROGS(LEX, flex)
@@ -240,13 +245,6 @@ if test x$enable_threaded_io == xyes; then
 	AC_DEFINE_UNQUOTED(IOTHREADED, [], "Use a separate thread for IO")
 fi
 
-AC_ARG_ENABLE(spherical-overdensity,
-[AS_HELP_STRING([--enable-spherical-overdensity], [Use SO finder [yes]])],
-	[], enable_spherical_overdensity="yes")
-if test x$enable_spherical_overdensity == xyes; then
-	AC_DEFINE_UNQUOTED(SPHERICAL_OVERDENSITY, [], "Use SO finder for L1/L2 halos, rather than FOF")
-fi
-
 AC_ARG_ENABLE(one-sided-group-finding,
 [AS_HELP_STRING([--enable-one-sided-group-finding], [Perform L0 finding one-sided [yes]])],
 	[], enable_one_sided_group_finding="yes")
@@ -285,6 +283,13 @@ AC_ARG_ENABLE(fof_density,
 	[], enable_fof_density="yes")
 if test x$enable_fof_density == xyes; then
 	AC_DEFINE_UNQUOTED(COMPUTE_FOF_DENSITY, [], "Compute FOF-scale density on the GPU, used to accelerate the L0 FOF computation and seed the L1/L2 halo finding.  This promotes FLOAT3 accelerations to FLOAT4.")
+fi
+
+AC_ARG_ENABLE(spherical-overdensity,
+[AS_HELP_STRING([--enable-spherical-overdensity], [Use SO finder [yes if fof-density enabled]])],
+    [], enable_spherical_overdensity=$enable_fof_density)
+if test x$enable_spherical_overdensity == xyes; then
+    AC_DEFINE_UNQUOTED(SPHERICAL_OVERDENSITY, [], "Use SO finder for L1/L2 halos, rather than FOF")
 fi
 
 AC_ARG_ENABLE(parallel,
