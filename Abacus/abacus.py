@@ -304,7 +304,7 @@ def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
                     shutil.copy(pjoin(derivs_archive_dir, dn), pjoin(param.DerivativesDirectory, dn))
                 break
         else:
-            print(f'Could not find derivatives in "{param.DerivativesDirectory}" or archive dir "{derivs_archive_dir}". Creating them...')
+            print(f'Could not find derivatives in "{param.DerivativesDirectory}" or archive dirs "{derivs_archive_dirs}". Creating them...')
             print(f"Error was on file pattern '{fnfmt}'")
 
             if floatprec:
