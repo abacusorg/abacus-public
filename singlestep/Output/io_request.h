@@ -106,7 +106,7 @@ class iorequest {
     iorequest(
         char    *_memory,
         uint64     _sizebytes,
-        FILE*   *_filepointer,
+        FILE*   _filepointer,
         int     _command,
         int     _arenatype,
         int     _arenaslab,

@@ -138,5 +138,5 @@ void WriteDirect::BlockingAppend(char *fn, char *x, size_t length, int no_dio) {
 }
 
 void WriteDirect::BlockingAppend( FILE *f, char *x, size_t length) {
-    WriteDirect::BlockingAppendPointer(f, x, length)
+    WriteDirect::BlockingAppendPointer(f, x, length);
 }

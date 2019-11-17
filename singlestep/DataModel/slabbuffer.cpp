@@ -157,6 +157,9 @@ public:
     void ReadArena(int type, int slab, int blocking, const char *fn);
     void WriteArena(int type, int slab, int deleteafter, int blocking, const char *fn);
 
+    // Function to create and open light cone files
+    void initializeLCFiles(char *dir, int step);
+
     void DeAllocate(int type, int slab, int delete_file=0);
 
     inline char* GetSlabPtr(int type, int slab) {
@@ -513,7 +516,7 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
 void SlabBuffer::initializeLCFiles(char *dir, int step) {
     // Check lightcone directory exists
     if (!FileExists(dir)) {
-        mkdir(dir, 0775)
+        mkdir(dir, 0775);
     }
 
     // Check that step directory exists
@@ -539,12 +542,12 @@ void SlabBuffer::initializeLCFiles(char *dir, int step) {
     sprintf(lc2p, "%s/LightCone1PID.lc", dir1);
     sprintf(lc3p, "%s/LightCone2PID.lc", dir1);
 
-    filenamePts[LightCone0] = fopen(lc1, 'wb');
-    filenamePts[LightCone1] = fopen(lc2, 'wb');
-    filenamePts[LightCone2] = fopen(lc3, 'wb');
-    filenamePts[LightCone0PID] = fopen(lc1p, 'wb');
-    filenamePts[LightCone1PID] = fopen(lc2p, 'wb');
-    filenamePts[LightCone2PID] = fopen(lc3p, 'wb');
+    filenamePts[LightCone0] = fopen(lc1, "wb");
+    filenamePts[LightCone1] = fopen(lc2, "wb");
+    filenamePts[LightCone2] = fopen(lc3, "wb");
+    filenamePts[LightCone0PID] = fopen(lc1p, "wb");
+    filenamePts[LightCone1PID] = fopen(lc2p, "wb");
+    filenamePts[LightCone2PID] = fopen(lc3p, "wb");
 }
 
 char *SlabBuffer::AllocateArena(int type, int slab, int ramdisk) {
@@ -712,10 +715,10 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, c
         case LightCone1PID:
         case LightCone2PID:
             // Check that file pointer is available
-            assertf(filenamePts[type] != nullptr)
+            assertf(filenamePts[type] != nullptr, "File pointer was not initialized");
 
             // Write file to pointer
-            WriteFile( GetSlabPtr(type,slab),
+            WriteFileLC( GetSlabPtr(type,slab),
                 SlabSizeBytes(type,slab),
                 type, slab,
                 filenamePts[type],
