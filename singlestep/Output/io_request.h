@@ -12,7 +12,8 @@ enum iocommand { IO_READ = 1,
 
 enum iomethod { IO_DIRECT,
                 IO_FOPEN,
-                IO_RAMDISK
+                IO_RAMDISK,
+                IO_LIGHTCONE
 };
 
 #include "file.cpp"
@@ -46,6 +47,7 @@ class iorequest {
     int     blocking = 0;		// use IO_BLOCKING, IO_NONBLOCKING
     int     io_method = 0;  // use IO_DIRECT, IO_FOPEN
     int     do_checksum = 0;  // compute the crc
+    FILE*   filePointer = nullptr; // File object for writing LightCones
 
     void dumpior() {
         printf("IOR memory = %p ", memory);
@@ -74,7 +76,7 @@ class iorequest {
         int     _deleteafterwriting,
         int     _blocking,
         int     _do_checksum) {
-        
+
         memset(this, 0, sizeof(iorequest));   // Set to zero to appease valgrind
 
         memory = _memory;
@@ -85,12 +87,45 @@ class iorequest {
             io_method = IO_FOPEN;
         else
             io_method = IO_DIRECT;
-        
+
         // Get the directory of the file for logging purposes
         // Believe it or not, dirname modifies its argument
         containing_dirname(filename, dir);
         split_path(filename, fulldir, justname);
-        
+
+        command = _command;
+        arenatype = _arenatype;
+        arenaslab = _arenaslab;
+        fileoffset = _fileoffset;
+        deleteafterwriting = _deleteafterwriting;
+        blocking = _blocking;
+        do_checksum = _do_checksum;
+    }
+
+    // IORequest for file pointer objects
+    iorequest(
+        char    *_memory,
+        uint64     _sizebytes,
+        FILE*   *_filepointer,
+        int     _command,
+        int     _arenatype,
+        int     _arenaslab,
+        off_t     _fileoffset,
+        int     _deleteafterwriting,
+        int     _blocking,
+        int     _do_checksum) {
+
+        memset(this, 0, sizeof(iorequest));   // Set to zero to appease valgrind
+
+        memory = _memory;
+        sizebytes = _sizebytes;
+        filePointer = _filepointer;
+
+        io_method = IO_LIGHTCONE;
+
+        // Get the directory of the file for logging purposes
+        // Believe it or not, dirname modifies its argument
+
         command = _command;
         arenatype = _arenatype;
         arenaslab = _arenaslab;
@@ -101,7 +136,7 @@ class iorequest {
     }
 
     ~iorequest(void) { }
-  
+
 };
 
 #endif //  IOREQUEST

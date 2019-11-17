@@ -32,7 +32,12 @@ void getLightConeFN(int i,int slab, char * fn){ //ensure the necessary directori
         if(!FileExists(dir1)){ //TODO:This assumes the location is not a file. We may want to improve this
             mkdir(dir1,0775);
         }
-        sprintf(fn,"%s/LC_raw%.2d/Step%.4d.lc",P.LightConeDirectory,i,WriteState.FullStepNumber);
+        sprintf(dir2,"%s/LC_raw%.2d/Step%.4d",P.LightConeDirectory,i,WriteState.FullStepNumber);
+        if (!FileExists(dir2)){
+            mkdir(dir2,0775);
+        }
+        CheckDirectoryExists(dir2);
+        sprintf(fn,"%s/LC_raw%.2d/Step%.4d/slab%.4d.lc",P.LightConeDirectory,i,WriteState.FullStepNumber,slab);
 
 }
 
@@ -52,15 +57,15 @@ inline int inLightCone(double3 pos, velstruct vel, int lcn, double tol1, double 
     double vronc = 0;
     if(r >1e-12) vronc = vel.dot(pos-LCOrigin[lcn])/r * ReadState.VelZSpace_to_kms /c_kms ;
     r = (r-r1) *1/(1+vronc) +r1; //apply velocity correction
-    
+
     // Expand the valid range by the upper and lower tolerances
     double rmax = r1 + tol1;
     double rmin = r2 - tol2;
     double lcwidth = rmax - rmin;
     // The lightcone has an absolute output range that is never periodically wrapped
-    // We want the lightcone to include particles 
+    // We want the lightcone to include particles
     double drbound = positive_dist(rmin, r, 1.);
-    
+
     int result = (r < rmax) && (r > rmin);
     return result;
 }
@@ -124,7 +129,7 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
     // if a particle interpolates outside its cell, store its index here
     vector<int> stray_particles;
     stray_particles.reserve(P.np * CP->invcpd3);
-    
+
     for (ijk.y=0; ijk.y<CP->cpd; ijk.y++){
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             // Check if the cell center is in the lightcone, with some wiggle room
@@ -178,7 +183,7 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
                 pos = c.pos[p] + cc;  // use the current cell center to make global
                 vel = c.vel[p] - TOFLOAT3(acc[p])*kickfactor;
                 interpolateParticle(pos,vel,acc[p],lcn);
-                
+
                 // find the new cell
                 integer3 stray_ijk = CP->LocalPosition2Cell(&pos);  // pos now local
                 int slab_distance = abs(stray_ijk.x - slab);
@@ -203,7 +208,7 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
     }
     STDLOG(1,"Slab %d had %d particles (%d stray) in lightcone %d\n",slab,slabtotal,strayslabtotal,lcn);
     if(slabtotal) {
-        // Write out this filename
+        // Find filename for consistency, but writing to pointer anyway
         char filename[1024];
         getLightConeFN(lcn,slab,filename);
         SB->ResizeSlab(lightcone, slab, AA->bytes_written());
@@ -214,4 +219,3 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
     }
     delete AA;
 }
-

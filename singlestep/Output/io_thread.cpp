@@ -38,17 +38,17 @@ public:
         sprintf(IO_ACK_PIPE, "/tmp/ioack_abacus.%d.%d", pid, threadnum);
         remove_io_pipes();
         make_io_pipes();
-        
+
         std::string _logfn = logfn;
         _logfn += "." + std::to_string(1ULL*threadnum);
-        
+
         iolog.open(_logfn); 	// TODO: Probably need an error check
 
         int ramdisk = io_ramdisk_global;
         size_t diskbuffer = ((size_t) 128) << 10;  // 4 << 20 = 4 MB
         RD = new ReadDirect(ramdisk, diskbuffer);
         WD = new WriteDirect(ramdisk,diskbuffer);
-        
+
         io_core = _io_core;
 
         // Launch io_thread() as a separate thread
@@ -62,21 +62,21 @@ public:
         io_ack = open(IO_ACK_PIPE, O_RDONLY);
         STDLOG(0,"Done initializing IO\n");
     }
-    
+
     static void *start_thread(void *iothread_obj){
         return ((iothread *) iothread_obj)->io_thread();
     }
-    
+
     ~iothread() {
         STDLOG(0,"Terminating the IO thread\n");
-        iorequest quitcmd; 
-        quitcmd.command = IO_QUIT; 
-        quitcmd.blocking = 1; 
-        ssize_t ret = write(io_cmd, &quitcmd, sizeof(iorequest) ); 
-        ioacknowledge quitcmdack; 
-        ret = read(io_ack, &quitcmdack, sizeof(ioacknowledge) );  
+        iorequest quitcmd;
+        quitcmd.command = IO_QUIT;
+        quitcmd.blocking = 1;
+        ssize_t ret = write(io_cmd, &quitcmd, sizeof(iorequest) );
+        ioacknowledge quitcmdack;
+        ret = read(io_ack, &quitcmdack, sizeof(ioacknowledge) );
         assertf(quitcmdack.command==IO_QUIT,
-            "Error in IO acknowledgment\n"); 
+            "Error in IO acknowledgment\n");
         STDLOG(0,"Termination of IO thread confirmed\n");
         close(io_cmd);
         close(io_ack);
@@ -93,7 +93,7 @@ public:
         ChecksumTime[threadnum-1] += checksum_timer.Elapsed();
         ChecksumBytes[threadnum-1] += checksum_bytes;
     }
-    
+
     void request(iorequest ior){
         ssize_t ret = write(io_cmd, &ior, sizeof(iorequest));
         if (ior.blocking) {
@@ -102,36 +102,36 @@ public:
         } else {
             STDLOG(3,"Non-blocking IO requested\n");
         }
-        
+
     }
-    
+
 private:
     // FIFO file names
     char IO_CMD_PIPE[1024], IO_ACK_PIPE[1024];
 
     int fifo_cmd, fifo_ack;
     int io_cmd, io_ack;
-    
+
     ReadDirect * RD;
     WriteDirect * WD;
-    
+
     pthread_t io_pthread;
     int io_core = -1;
-    
+
     std::ofstream iolog;
 
     STimer checksum_timer;
     uint64 checksum_bytes = 0;
 
     int threadnum;
-    
+
     void CrashIO() {
         IOLOG(0,"Crashing the IO thread; sending IO_ERROR to client!\n");
         ioacknowledge ioack(IO_ERROR,-1,-1);
         ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
         pthread_exit(NULL);
     }
-    
+
     void wait_for_ioack(int io_ack, int arenatype, int arenaslab){
         ioacknowledge ioack;
         ssize_t ret = read(io_ack, &ioack, sizeof(ioacknowledge));
@@ -181,14 +181,16 @@ private:
     void WriteIOR(iorequest *ior) {
         IOLOG(1,"Writing file %s\n", ior->filename);
         // Write the file
-        //ioassertf(FileExists(ior->filename)==0, 
+        //ioassertf(FileExists(ior->filename)==0,
         //	"File %s already exists; not the intended use of WriteFile.\n", ior->filename);
-        //ioassertf(ior->fileoffset==0, 
+        //ioassertf(ior->fileoffset==0,
         //	"WriteFile fileoffest = %d.  Non-zero values not supported.\n", ior->fileoffset);
 
-        FILE * outfile = fopen(ior->filename,"wb");
-        ioassertf(outfile != NULL,"Touching file %s failed\n", ior->filename);
-        fclose(outfile);
+        if (ior->io_method != IO_LIGHTCONE) {
+            FILE * outfile = fopen(ior->filename,"wb");
+            ioassertf(outfile != NULL,"Touching file %s failed\n", ior->filename);
+            fclose(outfile);
+        }
 
         // Determine the ramdisk flag
         int ramdisk = -1;
@@ -199,6 +201,8 @@ private:
             case IO_FOPEN:
                 ramdisk = 1;
                 break;
+            case IO_LIGHTCONE:
+                ramdisk = 3;
             default:
                 QUIT("Unknown IO method %d\n", ior->io_method);
         }
@@ -224,9 +228,19 @@ private:
             NonBlockingIOWriteBytes[dir] += ior->sizebytes;
         }
 
-        timer->Start();
-        WD->BlockingAppend(ior->filename, ior->memory, ior->sizebytes, ramdisk);
-        timer->Stop();
+        // Use BlockingAppend for LightCones or non-LightCones
+        if (ramdisk == 3)
+        {
+            timer->Start();
+            WD->BlockingAppend(ior->filePointer, ior->memory, ior->sizebytes);
+            timer->Stop();
+        }
+        else
+        {
+            timer->Start();
+            WD->BlockingAppend(ior->filename, ior->memory, ior->sizebytes, ramdisk);
+            timer->Stop();
+        }
 
         IOLOG(1,"Done writing file\n");
         if (ior->deleteafterwriting==IO_DELETE) IO_DeleteArena(ior->arenatype, ior->arenaslab);
@@ -260,7 +274,7 @@ private:
         // TODO: ringbuffers and IPC are total overkill unless we think we will ever
         // be siphoning off IO to another process (e.g. implementing our own ramdisk).
         // Otherwise, we could switch these to tbb::concurrent_queue, just like the GPU threads
-        ringbuffer  read_blocking(NINSTRUCTIONS), read_nonblocking(NINSTRUCTIONS), 
+        ringbuffer  read_blocking(NINSTRUCTIONS), read_nonblocking(NINSTRUCTIONS),
                 write_blocking(NINSTRUCTIONS), write_nonblocking(NINSTRUCTIONS);
         int quitflag = 0, wait_for_cmd = 0;
         IOLOG(0,"Starting IO loop\n");
@@ -282,7 +296,7 @@ private:
                     IOLOG(2,"Polling IO pipe: select() returned %d, wait_for_cmd %d\n", ret, wait_for_cmd);
 
                     // if wait_for_cmd==1 then we should wait for a cmd to appear.
-                    // otherwise we would spin lock.  But if wait_for_cmd = 0, then 
+                    // otherwise we would spin lock.  But if wait_for_cmd = 0, then
                     // we are just trying to empty the cmd pipe without locking up.
                     if (wait_for_cmd == 1 || (ret>0 && FD_ISSET(fifo_cmd,&set))) {
                         IOLOG(2,"Reading from IO pipe\n");
@@ -293,12 +307,12 @@ private:
                         wait_for_cmd = 0;
                         // Put it in the buffer
                         if (ior.command==IO_READ) {
-                        IOLOG(2,"Received IO read request: file = %s, arena type %d slab %d, blocking = %d\n", 
+                        IOLOG(2,"Received IO read request: file = %s, arena type %d slab %d, blocking = %d\n",
                             ior.filename, ior.arenatype, ior.arenaslab, ior.blocking);
                             if (ior.blocking==IO_BLOCKING) read_blocking.push(ior);
                             else read_nonblocking.push(ior);
                         } else if (ior.command==IO_WRITE) {
-                        IOLOG(2,"Received IO write request: file = %s, arena type %d slab %d, blocking = %d\n", 
+                        IOLOG(2,"Received IO write request: file = %s, arena type %d slab %d, blocking = %d\n",
                             ior.filename, ior.arenatype, ior.arenaslab, ior.blocking);
                             if (ior.blocking==IO_BLOCKING) write_blocking.push(ior);
                             else write_nonblocking.push(ior);
@@ -314,9 +328,9 @@ private:
 
             // Do one instruction, chosen by priority
             if (write_blocking.isnotempty()) {
-                IOLOG(2,"Starting blocking write\n"); 
-                iorequest ior = write_blocking.pop(); 
-                
+                IOLOG(2,"Starting blocking write\n");
+                iorequest ior = write_blocking.pop();
+
                 WriteIOR(&ior);
 
                 // Send an acknowledgement
@@ -324,7 +338,7 @@ private:
                 ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
                 IOLOG(2,"IO_WRITE acknowledgement sent\n");
             } else if (read_blocking.isnotempty()) {
-                IOLOG(2,"Starting blocking read\n"); 
+                IOLOG(2,"Starting blocking read\n");
                 iorequest ior = read_blocking.pop();
 
                 ReadIOR(&ior);
@@ -334,8 +348,8 @@ private:
                 ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
                 IOLOG(2,"IO_READ acknowledgement sent\n");
             } else if (write_nonblocking.isnotempty()) {
-                IOLOG(2,"Starting nonblocking write\n"); 
-                iorequest ior = write_nonblocking.pop(); 
+                IOLOG(2,"Starting nonblocking write\n");
+                iorequest ior = write_nonblocking.pop();
 
                 WriteIOR(&ior);
             } else if (read_nonblocking.isnotempty()) {
@@ -344,7 +358,7 @@ private:
 
                 ReadIOR(&ior);
             } else if (quitflag) break;
-            else wait_for_cmd = 1;	
+            else wait_for_cmd = 1;
             // We have no work to do, so we should read the cmd pipe to avoid spinlocking
         }
 
@@ -449,26 +463,36 @@ int GetIOThread(const char* dir){
             return P.IODirThreads[i];
         }
     }
-    
+
     return 1;
 }
 
 
 // Here are the actual interfaces for writing an arena
 void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
-	    const char *filename, off_t fileoffset, int blocking) { 
-    
+	    const char *filename, off_t fileoffset, int blocking) {
+
     STDLOG(3,"Using IO_thread module to read file %f, blocking %d\n", filename, blocking);
     iorequest ior(ram, sizebytes, filename, IO_READ, arenatype, arenaslab, fileoffset, 0, blocking, 0);
-    
+
     iothreads[GetIOThread(ior.dir) - 1]->request(ior);
 }
 
-void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, 
+void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
 	    const char *filename, off_t fileoffset, int deleteafter, int blocking, int do_checksum) {
-    
+
     STDLOG(3,"Using IO_thread module to write file %f, blocking %d\n", filename, blocking);
     iorequest ior(ram, sizebytes, filename, IO_WRITE, arenatype, arenaslab, fileoffset, deleteafter, blocking, do_checksum);
-    
+
+    iothreads[GetIOThread(ior.dir) - 1]->request(ior);
+}
+
+// Write LightCone file to file pointer
+void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
+        FILE* filePointer, off_t fileoffset, int deleteafter, int blocking, int do_checksum) {
+
+    STDLOG(3,"Using IO_thread module to write LightCone file, blocking %d\n", blocking);
+    iorequest ior(ram, sizebytes, filePointer, IO_WRITE, arenatype, arenaslab, fileoffset, deleteafter, blocking, do_checksum);
+
     iothreads[GetIOThread(ior.dir) - 1]->request(ior);
 }

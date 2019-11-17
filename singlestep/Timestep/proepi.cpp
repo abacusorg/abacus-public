@@ -5,22 +5,22 @@
  *  2. Declaration of most global objects that are used between modules. Global objects used
  *      only within a module are typically defined in that module. Some global declarations are
  *      also non-conforming, and are dispersed throughout the code. TODO: This should be rectified
- *      eventually. 
- *      Conventionally, objects should be declared like 
+ *      eventually.
+ *      Conventionally, objects should be declared like
  *              #include "SomeObjectDefinition.cpp"
  *              SomeObject * GlobalInstanceOfSomeObject;
  *  3. The prologue function, which initializes global objects like the Parameters class that
  *      must procede any useful work. All global objects declared in the beginning of the file
  *      should be initialized here, preferrably by a simple call to their constructor.
- *  4. The epilogue function, which handles teardown of most global objects. Conventionally, this 
- *      should be done by deleting the object, with specific teardown code in the destructor 
- *      for that module. 
+ *  4. The epilogue function, which handles teardown of most global objects. Conventionally, this
+ *      should be done by deleting the object, with specific teardown code in the destructor
+ *      for that module.
 */
 
 #include <bitset>
 
 #include <sys/time.h>
-#include <sys/resource.h> 
+#include <sys/resource.h>
 
 #include "mpi_header.cpp"
 #include "header.cpp"
@@ -40,7 +40,7 @@
 #include "PTimer.cc"
 
 
-STimer FinishPreamble; 
+STimer FinishPreamble;
 STimer FinishPartition;
 STimer FinishSort;
 STimer FinishCellIndex;
@@ -48,8 +48,8 @@ STimer FinishMerge;
 STimer ComputeMultipoles;
 STimer WriteMergeSlab;
 STimer WriteMultipoleSlab;
-STimer QueueMultipoleMPI; 
-STimer ParallelConvolveDestructor; 
+STimer QueueMultipoleMPI;
+STimer ParallelConvolveDestructor;
 
 STimer OutputTimeSlice;
 STimer OutputLightCone;
@@ -81,7 +81,7 @@ STimer IOFinish;
 
 STimer SlabAccumFree;
 
-uint64 naive_directinteractions = 0;   
+uint64 naive_directinteractions = 0;
 
 //********************************************************************************
 
@@ -109,11 +109,11 @@ SlabSize *SS;
 #include "slabbuffer.cpp"
 SlabBuffer *SB;
 
-// Two quick functions so that the I/O routines don't need to know 
+// Two quick functions so that the I/O routines don't need to know
 // about the SB object. TODO: Move these to an io specific file
-void IO_SetIOCompleted(int arenatype, int arenaslab) { 
+void IO_SetIOCompleted(int arenatype, int arenaslab) {
 	SB->SetIOCompleted(arenatype, arenaslab); }
-void IO_DeleteArena(int arenatype, int arenaslab)    { 
+void IO_DeleteArena(int arenatype, int arenaslab)    {
 	SB->DeAllocate(arenatype, arenaslab); }
 
 
@@ -228,7 +228,7 @@ void Prologue(Parameters &P, bool MakeIC) {
     STDLOG(2,"Size of accstruct is %d bytes\n", sizeof(accstruct));
     prologue.Clear();
     prologue.Start();
-    
+
     int cpd = P.cpd;
     int order = P.order;
     long long int np = P.np;
@@ -249,6 +249,9 @@ void Prologue(Parameters &P, bool MakeIC) {
     Grid = new grid(cpd);
     SB = new SlabBuffer(cpd, order, P.MAXRAMMB*1024*1024);
     CP = new CellParticles(cpd, SB);
+
+    // Initialize files for LightCones given directory and step number
+    SB.initializeLCFiles(P.LightConeDirectory, ReadState.FullStepNumber + 1);
 
     STDLOG(2,"Initializing Multipoles()\n");
     MF  = new SlabMultipoles(order, cpd);
@@ -314,7 +317,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
         SS->store_from_params(P);
    	}
 
-    
+
     if(MF != NULL){ // Some pipelines, like standalone_fof, don't use multipoles
         MF->GatherRedlack();    // For the parallel code, we have to coadd the inputs
         if (MPI_rank==0) {
@@ -344,7 +347,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
     delete IL;
     delete SS;
     delete Grid;
-	
+
 	FreeManifest();
 
 
@@ -360,7 +363,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
             }
             #endif
         }
-        
+
             delete TY;
             STDLOG(2,"Deleted TY\n");
             delete RL;
@@ -377,9 +380,9 @@ void Epilogue(Parameters &P, bool MakeIC) {
     struct rusage rusage;
     assert(getrusage(RUSAGE_SELF, &rusage) == 0);
     STDLOG(0, "Peak resident memory usage was %.3g GB\n", (double) rusage.ru_maxrss / 1024 / 1024);
-	
+
 	fftw_cleanup();
-    
+
     epilogue.Stop();
     // This timing does not get written to the timing log, so it had better be small!
     STDLOG(1,"Leaving Epilogue(). Epilogue took %.2g sec.\n", epilogue.Elapsed());
@@ -409,14 +412,14 @@ void init_openmp(){
     // I suspect this is because some of our stack-allocated arrays of size nthreads get too big
     // In practice, we will probably not use this many cores because there aren't nearly that many physical cores
     nthreads = min(128, nthreads);
-    
+
     assertf(nthreads <= max_threads, "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n",
         nthreads, max_threads);
     assertf(nthreads <= ncores, "Trying to use more threads (%d) than cores (%d).  This will probably be very slow.\n", nthreads, ncores);
-    
+
     omp_set_num_threads(nthreads);
     STDLOG(1, "Initializing OpenMP with %d threads (system max is %d; P.OMP_NUM_THREADS is %d)\n", nthreads, max_threads, P.OMP_NUM_THREADS);
-    
+
     // If threads are bound to cores via OMP_PROC_BIND,
     // then identify free cores for use by GPU and IO threads
     if(omp_get_proc_bind() == omp_proc_bind_false){
@@ -437,11 +440,11 @@ void init_openmp(){
             core_log << " " << g << "->" << core_assignments[g];
         core_log << "\n";
         STDLOG(1, core_log.str().c_str());
-        
+
         for(int g = 0; g < nthreads; g++)
             for(int h = 0; h < g; h++)
                 assertf(core_assignments[g] != core_assignments[h], "Two OpenMP threads were assigned to the same core! This will probably be very slow. Check OMP_NUM_THREADS and OMP_PLACES?\n");
-            
+
         // Assign the main CPU thread to core 0 to avoid the GPU/IO threads during serial parts of the code
         int main_thread_core = 0;
         set_core_affinity(main_thread_core);
@@ -462,7 +465,7 @@ void setup_log(){
 }
 
 void check_read_state(const int MakeIC, double &da){
-    // Check if ReadStateDirectory is accessible, or if we should 
+    // Check if ReadStateDirectory is accessible, or if we should
     // build a new state from the IC file
     char rstatefn[1050];
     sprintf(rstatefn, "%s/state", P.ReadStateDirectory);
@@ -476,13 +479,13 @@ void check_read_state(const int MakeIC, double &da){
         }
 
         // We have to fill in a few items, just to bootstrap the rest of the code.
-        
+
         // So that this number is the number of times forces have been computed.
         // The IC construction will yield a WriteState that is number 0,
         // so our first time computing forces will read from 0 and write to 1.
         ReadState.ScaleFactor = 1.0/(1+P.InitialRedshift);
-        ReadState.FullStepNumber = -1;  
-        
+        ReadState.FullStepNumber = -1;
+
         da = 0;
     } else {
         // We're doing a normal step
@@ -494,7 +497,7 @@ void check_read_state(const int MakeIC, double &da){
         STDLOG(0,"Reading ReadState from %s\n",P.ReadStateDirectory);
         ReadState.read_from_file(P.ReadStateDirectory);
         ReadState.AssertStateLegal(P);
-        
+
         // Handle some special cases
         if (P.ForceOutputDebug==1) {
             STDLOG(0,"ForceOutputDebug option invoked; setting time step to 0.\n");
@@ -509,13 +512,13 @@ void InitWriteState(int MakeIC){
     // available when we choose the time step.
     WriteState.FullStepNumber = ReadState.FullStepNumber+1;
     WriteState.LPTStepNumber = LPTStepNumber();
-    
+
     // We generally want to do re-reading on the last LPT step
     WriteState.Do2LPTVelocityRereading = 0;
     if (LPTStepNumber() > 0 && LPTStepNumber() == P.LagrangianPTOrder
         && (strcmp(P.ICFormat, "RVdoubleZel") == 0 || strcmp(P.ICFormat, "RVZel") == 0))
         WriteState.Do2LPTVelocityRereading = 1;
-    
+
     // Decrease the softening length if we are doing a 2LPT step
     // This helps ensure that we are using the true 1/r^2 force
     /*if(LPTStepNumber()>0){
@@ -536,7 +539,7 @@ void InitWriteState(int MakeIC){
         WriteState.SofteningLengthNow = P.SofteningLength;
         STDLOG(1, "Adopting a comoving softening of %d, fixed in comoving coordinates\n", WriteState.SofteningLengthNow);
     }
-    
+
     // Now scale the softening to match the minimum Plummer orbital period
 #if defined DIRECTCUBICSPLINE
     strcpy(WriteState.SofteningType, "cubic_spline");
@@ -577,12 +580,12 @@ void InitGroupFinding(bool MakeIC){
     /*
     Request output of L1 groups and halo/field subsamples if:
     - this redshift is a member of L1OutputRedshift; or
-    - this redshift is a member of TimeSliceRedshifts_Subsample 
+    - this redshift is a member of TimeSliceRedshifts_Subsample
     - this redshift is a member of TimeSliceRedshifts.
 
     If L1OutputRedshifts is not set, then we instead fall back to L1Output_dlna.
     In that case, we check if we are crossing a L1Output_dlna checkpoint by going from ReadState to WriteState.
-    
+
     We may not end up outputting groups if group finding is not enabled.  This is signaled by GFC = NULL.
 
     We need to enable group finding if:
@@ -597,7 +600,7 @@ void InitGroupFinding(bool MakeIC){
     */
 
     int do_grp_output;
-    do_grp_output = 0; 
+    do_grp_output = 0;
 
      for(int i = 0; i < P.nTimeSliceSubsample; i++){
         double subsample_z = P.TimeSliceRedshifts_Subsample[i];
@@ -607,7 +610,7 @@ void InitGroupFinding(bool MakeIC){
         }
     }
 
-    if ( ReadState.DoGroupFindingOutput ) goto have_L1z; 
+    if ( ReadState.DoGroupFindingOutput ) goto have_L1z;
 
 
     if(P.L1Output_dlna >= 0){
@@ -621,7 +624,7 @@ void InitGroupFinding(bool MakeIC){
 
     have_L1z:
     if (ReadState.DoTimeSliceOutput) ReadState.DoSubsampleOutput = 0; //if we're going to output the entire timeslice, don't bother with the subsamples.
-    if (ReadState.DoTimeSliceOutput or ReadState.DoSubsampleOutput or ReadState.DoGroupFindingOutput) do_grp_output = 1;  //if any kind of output is requested, turn on group finding. 
+    if (ReadState.DoTimeSliceOutput or ReadState.DoSubsampleOutput or ReadState.DoGroupFindingOutput) do_grp_output = 1;  //if any kind of output is requested, turn on group finding.
 
     WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities
     WriteState.L0DensityThreshold = 0.0;
@@ -639,7 +642,7 @@ void InitGroupFinding(bool MakeIC){
 
         GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
                     #ifdef SPHERICAL_OVERDENSITY
-                    P.SODensity[0], P.SODensity[1],  //by this point, the SODensity and L0DensityThresholds have been rescaled with redshift, in PlanOutput. 
+                    P.SODensity[0], P.SODensity[1],  //by this point, the SODensity and L0DensityThresholds have been rescaled with redshift, in PlanOutput.
                     #else
                     P.FoFLinkingLength[1]/pow(P.np,1./3),
                     P.FoFLinkingLength[2]/pow(P.np,1./3),
@@ -651,7 +654,7 @@ void InitGroupFinding(bool MakeIC){
         if (P.DensityKernelRad==0) {
             // Default to the L0 linking length
             WriteState.DensityKernelRad2 = GFC->linking_length;
-            WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5); 
+            WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5);
             // We use square radii.  The radius is padded just a little
             // bit so we don't risk underflow with 1 particle at r=b
             // in comparison to the self-count.
@@ -668,8 +671,8 @@ void InitGroupFinding(bool MakeIC){
         #endif
         #endif
         #ifdef SPHERICAL_OVERDENSITY
-        WriteState.SODensityL1 = P.SODensity[0]; 
-        WriteState.SODensityL2 = P.SODensity[1]; 
+        WriteState.SODensityL1 = P.SODensity[0];
+        WriteState.SODensityL2 = P.SODensity[1];
         #endif
 
         STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
@@ -768,22 +771,22 @@ void MoveLocalDirectories(){
         assertf(res == 0, "Failed to rename write to read!\n");
     }
 }
-    
+
 
 void FinalizeWriteState() {
     WriteNodeSlabs();  // We do this here because it will need a MPI Barrier
 
     #ifdef PARALLEL
-        STDLOG(1,"Node MinCellSize = %d, MaxCellSize = %d\n", 
+        STDLOG(1,"Node MinCellSize = %d, MaxCellSize = %d\n",
             WriteState.MinCellSize, WriteState.MaxCellSize);
         STDLOG(1,"Maximum v_j in node is %f.\n", WriteState.MaxVelocity);
         STDLOG(1,"Maximum a_j in node is %f.\n", WriteState.MaxAcceleration);
         STDLOG(1,"Minimum cell Vrms/Amax in node is %f.\n", WriteState.MinVrmsOnAmax);
         STDLOG(1,"Unnormalized node RMS_Velocity = %f.\n", WriteState.RMS_Velocity);
         STDLOG(1,"Unnormalized node StdDevCellSize = %f.\n", WriteState.StdDevCellSize);
-    
+
         // If we're running in parallel, then we want to gather some
-        // state statistics across the nodes.  We start by writing the 
+        // state statistics across the nodes.  We start by writing the
         // original state file to the local disk.
         // TODO: Do we really want to do this?  Maybe just echo the stats to the log?
         // WriteState.write_to_file(P.WriteStateDirectory, NodeString);
@@ -814,13 +817,13 @@ void FinalizeWriteState() {
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
         // This is the standard deviation of the fractional overdensity in cells.
         // But for the parallel code: this has been divided by CPD^3, not the number of cells on the node
-    STDLOG(0,"MinCellSize = %d, MaxCellSize = %d\n", 
+    STDLOG(0,"MinCellSize = %d, MaxCellSize = %d\n",
         WriteState.MinCellSize, WriteState.MaxCellSize);
     WriteState.RMS_Velocity = sqrt(WriteState.RMS_Velocity/P.np);
     STDLOG(0,"Rms |v| in simulation is %f.\n", WriteState.RMS_Velocity);
     STDLOG(0,"Maximum v_j in simulation is %f.\n", WriteState.MaxVelocity);
     STDLOG(0,"Maximum a_j in simulation is %f.\n", WriteState.MaxAcceleration);
     STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f.\n", WriteState.MinVrmsOnAmax);
-    STDLOG(0,"Maximum group diameter in simulation is %d.\n", WriteState.MaxGroupDiameter); 
+    STDLOG(0,"Maximum group diameter in simulation is %d.\n", WriteState.MaxGroupDiameter);
     return;
 }
