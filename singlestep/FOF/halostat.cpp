@@ -80,6 +80,8 @@ HaloStat ComputeStats(int size,
 
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     rxx = rxy = rxz = ryy = ryz = rzz = 0.0;
+    // B.H.
+    vrr = vtt = 0.0;
     for (int p=0; p<size; p++) {
 		posstruct dr = L1pos[p]-x;
 		L2.d2buffer[p] = dr.norm2();
@@ -90,8 +92,18 @@ HaloStat ComputeStats(int size,
 		vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
 		rxx += dr.x*dr.x; rxy += dr.x*dr.y; rxz += dr.x*dr.z;
 		ryy += dr.y*dr.y; ryz += dr.y*dr.z; rzz += dr.z*dr.z;
+		// B.H.
+		posstruct n = dr*(1.0/sqrt(dr.norm2()));
+		float vr = dv.x*n.x+dv.y*n.y+dv.z*n.z;
+		vrr += vr*vr; // Accumulate
+		vtt += dv.norm2()-vr*vr;  // Accumulate
     }
 
+    //B.H.
+    vtt *= 0.5;
+    //beta = 1-sigma_r^2/sigma_t^2;
+    
+    
     std::sort(L2.d2buffer, L2.d2buffer+size);
     
     h.r100 = sqrt(L2.d2buffer[size-1]); 
@@ -116,7 +128,11 @@ HaloStat ComputeStats(int size,
     h.sigmav3d_to_sigmavMaj = lround( h.sigmav3d/sqrt(sigmav[0]) * INT16SCALE );
 
     for(int i = 0; i < 3; i++) h.sigmar[i] = lround(sqrt(sigmar[i]) / h.r100 * INT16SCALE );
-	
+
+    // B.H.
+    h.sigmavtan_to_sigmav3d = lround(sqrt(vtt/3.0)/h.sigmav3d * INT16SCALE ); 
+    h.sigmavrad_to_sigmav3d = lround(sqrt(vrr/3.0)/h.sigmav3d * INT16SCALE ); 
+    
 #ifdef SPHERICAL_OVERDENSITY
     h.SO_L2cntr_central_particle[0] = L2.p[0].x;
     h.SO_L2cntr_central_particle[1] = L2.p[0].y;
@@ -139,6 +155,8 @@ HaloStat ComputeStats(int size,
     // Repeat this, finding moments and radii around the largest subhalo COM
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     rxx = rxy = rxz = ryy = ryz = rzz = 0.0;
+    // B.H.
+    vrr = vtt = 0.0;
     for (int p=0; p<size; p++) {
 		posstruct dr = L1pos[p]-L2cntr_x;
 		L2.d2buffer[p] = dr.norm2();
@@ -147,9 +165,20 @@ HaloStat ComputeStats(int size,
 		vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
 		rxx += dr.x*dr.x; rxy += dr.x*dr.y; rxz += dr.x*dr.z;
 		ryy += dr.y*dr.y; ryz += dr.y*dr.z; rzz += dr.z*dr.z;
+		// B.H.
+		posstruct n = dr*(1.0/sqrt(dr.norm2()));
+		float vr = dv.x*n.x+dv.y*n.y+dv.z*n.z;
+		vrr += vr*vr; // Accumulate
+		vtt += dv.norm2()-vr*vr;  // Accumulate
     }
     std::sort(L2.d2buffer, L2.d2buffer+size);
 
+    // B.H.
+    vtt *= 0.5;
+    // B.H.
+    h.L2cntr_sigmavtan_to_sigmav3d = lround(sqrt(vtt/3.0)/h.sigmav3d * INT16SCALE ); 
+    h.L2cntr_sigmavrad_to_sigmav3d = lround(sqrt(vrr/3.0)/h.sigmav3d * INT16SCALE ); 
+    
     h.L2cntr_r100 = sqrt(L2.d2buffer[size-1]);   
     // r10, r25, r50, r67, r75, r90 relative to largest L2 center: Expressed as ratios of r100, and scaled to 32000 to store as int16s. 
     h.L2cntr_r10  = lround(sqrt(L2.d2buffer[size/10  ]) / h.L2cntr_r100 * INT16SCALE); 
