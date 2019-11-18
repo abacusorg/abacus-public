@@ -19,12 +19,13 @@
  *
  */
 
-
+#include "slab_accum.cpp"
+#include "halostat.hh"
 #define LCTOLERANCE 0.0
 
 double3 *LCOrigin;
 
-void getLightConeFN(int i,int slab, char * fn){ //ensure the necessary directories exist and return a filename for this light cone.
+void getLightConeFN(int i,int slab, char * fn, char *headerfn){ //ensure the necessary directories exist and return a filename for this light cone.
         char dir1[1080];
         char dir2[1080];
         CheckDirectoryExists(P.LightConeDirectory);
@@ -33,7 +34,7 @@ void getLightConeFN(int i,int slab, char * fn){ //ensure the necessary directori
             mkdir(dir1,0775);
         }
         sprintf(fn,"%s/LC_raw%.2d/Step%.4d.lc",P.LightConeDirectory,i,WriteState.FullStepNumber);
-
+        sprintf(headerfn,"%s/LC_raw%.2d/header", P.LightConeDirectory,i);
 }
 
 // The positive (rightward) distance between two points (a to b) in a periodic domain
@@ -97,24 +98,34 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
     //double r1 = cosm->today.H*(cosm->today.etaK - cosm->current.etaK)*4000/P.BoxSize;
     //double r2 = cosm->today.H*(cosm->today.etaK - cosm->next.etaK)*4000/P.BoxSize;
     //printf("r1: %f r2: %f \n",r1,r2);
-    // Use the same format for the lightcones as for the timeslices
-    AppendArena *AA = get_AA_by_format(P.OutputFormat);
+    // Use the same format for the lightcones as for the particle subsamples
+    int maxthreads = omp_get_max_threads();
+    double vunits = ReadState.VelZSpace_to_kms/ReadState.VelZSpace_to_Canonical; 
 
-    SlabType lightcone = (SlabType)((int)(LightCone0 + lcn));
+    SlabAccum<RVfloat>   LightConeRV;     ///< The taggable subset in each lightcone. 
+    SlabAccum<TaggedPID> LightConePIDs;   ///< The PIDS of the taggable subset in each lightcone. 
+
+    LightConeRV.setup(  CP->cpd, P.np/P.cpd/30);   
+    LightConePIDs.setup(CP->cpd, P.np/P.cpd/30);    
+
+    //AppendArena *AA = get_AA_by_format(P.OutputFormat);
+
+    SlabType lightcone    = (SlabType)((int)(LightCone0 + lcn));
+    SlabType lightconePID = (SlabType)((int)LightCone0 + lcn + NUMLC); 
+
+    STDLOG(4, "Making light cone #%d, slab num %d, w/ pid slab num %d\n", lcn, lightcone, lightconePID);
+
     int headersize = 1024*1024;
     uint64_t slabtotal = 0;
     uint64_t strayslabtotal = 0;
 
-    SB->AllocateSpecificSize(lightcone, slab,
-            // allocate enough space for the case where every particle is "stray" and gets its own cell
-            SS->size(slab)*(AA->sizeof_particle() + AA->sizeof_cell()) + headersize);
-    AA->initialize(lightcone, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
+    //AA->initialize(lightcone, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
 
-    if (!P.OmitOutputHeader) {
-            AA->addheader((const char *) P.header());
-            AA->addheader((const char *) ReadState.header());
-            AA->finalize_header();
-    }
+    // if (!P.OmitOutputHeader) {
+    //         AA->addheader((const char *) P.header());
+    //         AA->addheader((const char *) ReadState.header());
+    //         AA->finalize_header();
+    // }
     uint64 mask = auxstruct::lightconemask(lcn);
 
     double kickfactor = WriteState.FirstHalfEtaKick;
@@ -125,7 +136,13 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
     vector<int> stray_particles;
     stray_particles.reserve(P.np * CP->invcpd3);
     
+
     for (ijk.y=0; ijk.y<CP->cpd; ijk.y++){
+        int g = omp_get_thread_num();
+
+        PencilAccum<RVfloat>   *pLightConeRV   =   LightConeRV.StartPencil(ijk.y);
+        PencilAccum<TaggedPID> *pLightConePIDs = LightConePIDs.StartPencil(ijk.y);
+
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             // Check if the cell center is in the lightcone, with some wiggle room
             if(!inLightCone(CP->CellCenter(ijk),0*pos,lcn,3.0/P.cpd, 3.0/P.cpd))
@@ -156,18 +173,28 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
                             stray_particles.push_back(p);
                             continue;
                         }
-                        // Only open the cell here, where we know for sure a particle is going to be written
-                        // might have already opened it, though
-                        if(!AA->current_cell.islegal())
-                            AA->addcell(ijk,vscale);
+                        // // Only open the cell here, where we know for sure a particle is going to be written
+                        // // might have already opened it, though
+                        // if(!AA->current_cell.islegal())
+                        //     AA->addcell(ijk,vscale);
                         // AA takes cell-centered positions, which LocalPosition2Cell gives
-                        AA->addparticle(pos, vel, c.aux[p]);
+                        
+                        if(c.aux[p].is_taggable() or P.OutputFullLightCones){
+                            pLightConePIDs->append(TaggedPID(c.aux[p]));
+                            pLightConeRV->append(RVfloat(pos.x, pos.y, pos.z, vel.x * vunits, vel.y * vunits, vel.z * vunits));
+                        }
+
+                        
+                        //AA->addparticle(pos, vel, c.aux[p]);
                         cell_np++;
                         c.aux[p].setlightconedone(mask);
                     }
                 }
             }
-            AA->endcell();  // can always end cell, even if we never opened one
+
+            pLightConePIDs->FinishCell();
+            pLightConeRV->FinishCell();
+            //AA->endcell();  // can always end cell, even if we never opened one
             slabtotal += cell_np;
 
             cell_np = 0;
@@ -191,27 +218,56 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
                 // add one particle and close
                 // for a single particle, the vscale can be its own velocity
                 float stray_vscale = vel.maxabscomponent()/ReadState.VelZSpace_to_Canonical;
-                AA->addcell(stray_ijk, stray_vscale);
-                AA->addparticle(pos, vel, c.aux[p]);
+                //AA->addcell(stray_ijk, stray_vscale);
+
+                if(c.aux[p].is_taggable() or P.OutputFullLightCones){
+                    pLightConePIDs->append(TaggedPID(c.aux[p]));
+                    pLightConeRV->append(RVfloat(pos.x, pos.y, pos.z, vel.x * vunits, vel.y * vunits, vel.z * vunits));
+                }
+
+                pLightConePIDs->FinishCell();
+                pLightConeRV->FinishCell();
+                //AA->addparticle(pos, vel, c.aux[p]);
                 c.aux[p].setlightconedone(mask);
                 cell_np++;
-                AA->endcell();
+                //AA->endcell();
             }
             strayslabtotal += cell_np;
             slabtotal += cell_np;
         }
+
+        pLightConePIDs->FinishPencil();
+        pLightConeRV->FinishPencil();
+
+        
     }
     STDLOG(1,"Slab %d had %d particles (%d stray) in lightcone %d\n",slab,slabtotal,strayslabtotal,lcn);
     if(slabtotal) {
         // Write out this filename
         char filename[1024];
-        getLightConeFN(lcn,slab,filename);
-        SB->ResizeSlab(lightcone, slab, AA->bytes_written());
-        SB->WriteArena(lightcone, slab, IO_DELETE, IO_NONBLOCKING, filename);
-    } else {
-        // No particles in this lc; don't write anything
-        SB->DeAllocate(lightcone, slab);
-    }
-    delete AA;
+        char headername[1024];
+        getLightConeFN(lcn,slab,filename, headername);
+
+        //WriteLightConeHeaderFile(headername.c_str());
+
+        SB->AllocateSpecificSize(lightcone, slab, LightConeRV.get_slab_bytes());
+        LightConeRV.copy_to_ptr((RVfloat *)SB->GetSlabPtr(lightcone, slab));
+        SB->StoreArenaNonBlocking(lightcone, slab);
+
+        SB->AllocateSpecificSize(lightconePID, slab, LightConePIDs.get_slab_bytes());
+        LightConePIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(lightconePID, slab));
+        SB->StoreArenaNonBlocking(lightconePID, slab);
+
+
+        // SB->ResizeSlab(lightcone, slab, AA->bytes_written());
+        // SB->WriteArena(lightcone, slab, IO_DELETE, IO_NONBLOCKING, filename);
+    // } else {
+    //     // No particles in this lc; don't write anything
+    //     SB->DeAllocate(lightcone, slab);
+    // }
+    //delete AA;
+
+    LightConeRV.destroy();
+    LightConePIDs.destroy();
 }
 
