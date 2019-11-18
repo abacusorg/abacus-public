@@ -5,10 +5,16 @@
 # Athena (https://trac.princeton.edu/Athena/)
 
 # Initialization
+AC_INIT([abacus], [2.0], [], [], [github.com/abacusorg/abacus])
+
+if test -f ./config.site; then
+    echo "configure: loading site script ./config.site"
+    source ./config.site
+fi
+
 # TODO: any way to use mpicxx if --enable-parallel?
 AC_LANG([C++])  # does this work?
 
-AC_INIT([abacus], [2.0], [], [], [github.com/abacusorg/abacus])
 AC_CONFIG_HEADERS([./include/config.h])  # this places DEFS in a global header file instead of Makefiles
 AC_CONFIG_AUX_DIR([./Configuration])
 #AC_PROG_CC
