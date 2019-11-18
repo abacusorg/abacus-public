@@ -73,7 +73,7 @@ void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
     // Otherwise, return immediately if the I/O module allows it.
     // If arena>=0, consider whether to delete the arena.
 
-void WriteFileLC(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
+void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
     FILE* filePointer, off_t fileoffset, int deleteafter, int blocking, int do_checksum);
     // This version is for light cones which pass file pointers
 

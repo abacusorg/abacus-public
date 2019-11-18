@@ -718,7 +718,7 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, c
             assertf(filenamePts[type] != nullptr, "File pointer was not initialized");
 
             // Write file to pointer
-            WriteFileLC( GetSlabPtr(type,slab),
+            WriteFile( GetSlabPtr(type,slab),
                 SlabSizeBytes(type,slab),
                 type, slab,
                 filenamePts[type],
@@ -789,6 +789,7 @@ void SlabBuffer::DeAllocate(int type, int slab, int delete_file) {
         if (filenamePts[i] != nullptr)
         {
             fclose(filenamePts[i]);
+            filenamePts[i] = nullptr;
         }
     }
 }

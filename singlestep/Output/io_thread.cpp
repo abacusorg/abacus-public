@@ -488,7 +488,7 @@ void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
 }
 
 // Write LightCone file to file pointer
-void WriteFileLC(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
+void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
         FILE* filePointer, off_t fileoffset, int deleteafter, int blocking, int do_checksum) {
 
     STDLOG(3,"Using IO_thread module to write LightCone file, blocking %d\n", blocking);
