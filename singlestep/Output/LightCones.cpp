@@ -19,8 +19,6 @@
  *
  */
 
-#include "slab_accum.cpp"
-#include "halostat.hh"
 #define LCTOLERANCE 0.0
 
 double3 *LCOrigin;
@@ -136,8 +134,9 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
     vector<int> stray_particles;
     stray_particles.reserve(P.np * CP->invcpd3);
     
-
-    for (ijk.y=0; ijk.y<CP->cpd; ijk.y++){
+    #pragma omp parallel for schedule(dynamic,1)
+    for (int y = 0; y < CP->cpd; y ++) {
+        ijk.y = y;
         int g = omp_get_thread_num();
 
         PencilAccum<RVfloat>   *pLightConeRV   =   LightConeRV.StartPencil(ijk.y);
@@ -145,6 +144,7 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
 
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             // Check if the cell center is in the lightcone, with some wiggle room
+            STDLOG(4, "Cell in lightcone? : %f %f %f %d\n", CP->CellCenter(ijk).x, CP->CellCenter(ijk).y, CP->CellCenter(ijk).z, inLightCone(CP->CellCenter(ijk),0*pos,lcn,3.0/P.cpd, 3.0/P.cpd) ); 
             if(!inLightCone(CP->CellCenter(ijk),0*pos,lcn,3.0/P.cpd, 3.0/P.cpd))
                 continue;
             Cell c = CP->GetCell(ijk);
@@ -156,9 +156,10 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
             uint64_t cell_np = 0;
 
             double3 cc = CP->CellCenter(ijk);
-#ifdef GLOBALPOS
+            #ifdef GLOBALPOS
             cc= 0*cc;
-#endif
+            #endif
+            STDLOG(4, "LC: Particles in current cell: %d\n", c.count()); 
             for (int p=0;p<c.count();p++) {
                 if(!c.aux[p].lightconedone(mask)){
                     vel = (c.vel[p] - TOFLOAT3(acc[p])*kickfactor);
@@ -266,6 +267,7 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
     //     SB->DeAllocate(lightcone, slab);
     // }
     //delete AA;
+    }
 
     LightConeRV.destroy();
     LightConePIDs.destroy();
