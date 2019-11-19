@@ -242,7 +242,7 @@ class OutputPID: public AppendArena {
     uint64_t pid;
 
     void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
-        struct OutputPID *p = (struct OutputPID *)c;
+        uint64_t *p = (uint64_t *)c;
         p->pid = aux.pid(); 
     }
 

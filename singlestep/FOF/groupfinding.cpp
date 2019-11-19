@@ -208,7 +208,7 @@ class GroupFindingControl {
 	 GLOG(0,"Widest L0 Diameter reached %d slabs from the first\n", max_group_diameter);
 
 #ifdef PARALLEL
-	 MPI_REDUCE_TO_ZERO(&max_group_diameter, 1, MPI_DOUBLE, MPI_MAX);
+	 MPI_REDUCE_TO_ZERO(&max_group_diameter, 1, MPI_INT, MPI_MAX);
 #endif
 	 WriteState.MaxGroupDiameter = max_group_diameter; 
 

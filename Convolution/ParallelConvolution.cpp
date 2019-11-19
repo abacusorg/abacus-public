@@ -566,7 +566,7 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
 		
 		if (not received) {
 		    // Found one that is not done
-			STDLOG(4, "Taylor slab %d not received yet...\n", slab);
+			STDLOG(4, "Taylor slab %d not been received yet...\n", slab);
 		    done=0; break;
 		}		
     }
