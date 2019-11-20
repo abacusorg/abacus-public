@@ -166,7 +166,7 @@ struct GPUBuffer {
 struct ThreadInfo {
     int thread_num;  // thread/buffer number
     int core;
-    int use_pinned;
+    int UsePinnedGPUMemory;
     pthread_barrier_t *barrier;
 };
 
@@ -315,7 +315,8 @@ limited by the fraction of CPD**2
 extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize, 
     int numberGPUs, int bufferperdevice, 
     int *ThreadCoreStart, int NThreadCores,
-    int *maxsinkblocks, int *maxsourceblocks) {
+    int *maxsinkblocks, int *maxsourceblocks,
+    int UsePinnedGPUMemory) {
 
     if (init != 0) return;
     BPD = bufferperdevice;
@@ -379,9 +380,10 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     //STDLOG(1, "Detected %d sockets/NUMA nodes\n", n_socket);
     //assertf(n_socket > 0, "n_socket %d less than 1\n", n_socket);
 
-    int use_pinned = MaxSinkBlocks >= 10000;  // Pinning is slow, so for very small problems it's faster to use unpinned memory
+    if(UsePinnedGPUMemory < 0)
+        UsePinnedGPUMemory = MaxSinkBlocks >= 10000;  // Pinning is slow, so for very small problems it's faster to use unpinned memory
 
-    if(use_pinned)
+    if(UsePinnedGPUMemory)
         STDLOG(1, "Allocating pinned memory\n");
     else
         STDLOG(1, "Allocating host-side memory, but not pinning because this is a small problem\n");
@@ -409,13 +411,13 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
         
         info->thread_num = g;
         info->core = core;
-        info->use_pinned = use_pinned;
+        info->UsePinnedGPUMemory = UsePinnedGPUMemory;
         info->barrier = thread_startup_barriers[g%NGPU];
 
         if(core >= 0)
-            STDLOG(0, "GPU buffer thread %d (GPU %d) assigned to core %d, use_pinned %d\n", g, g % NGPU, core, use_pinned);
+            STDLOG(0, "GPU buffer thread %d (GPU %d) assigned to core %d, UsePinnedGPUMemory %d\n", g, g % NGPU, core, UsePinnedGPUMemory);
         else
-            STDLOG(0, "GPU buffer thread %d (GPU %d) not bound to a core, use_pinned %d\n", g, g % NGPU, use_pinned);
+            STDLOG(0, "GPU buffer thread %d (GPU %d) not bound to a core, UsePinnedGPUMemory %d\n", g, g % NGPU, UsePinnedGPUMemory);
         
         // Start one thread per buffer
         int p_retval = pthread_create(&(DeviceThread[g]), NULL, QueueWatcher, info);
@@ -455,10 +457,10 @@ void GPUReset(){
 
 #define CudaAllocate(ptr,size) checkCudaErrors(cudaMalloc((void **)&(ptr), size))
 
-#define PinnedAllocate(ptr,size) if(use_pinned) checkCudaErrors(cudaHostAlloc((void **)&(ptr), size, cudaHostAllocDefault)); \
+#define PinnedAllocate(ptr,size) if(UsePinnedGPUMemory) checkCudaErrors(cudaHostAlloc((void **)&(ptr), size, cudaHostAllocDefault)); \
                                     else assert(posix_memalign((void **)&(ptr), CACHE_LINE_SIZE, size) == 0);
 
-#define WCAllocate(ptr,size) if(use_pinned) checkCudaErrors(cudaHostAlloc((void **)&(ptr), size, cudaHostAllocWriteCombined)); \
+#define WCAllocate(ptr,size) if(UsePinnedGPUMemory) checkCudaErrors(cudaHostAlloc((void **)&(ptr), size, cudaHostAllocWriteCombined)); \
                                     else assert(posix_memalign((void **)&(ptr), CACHE_LINE_SIZE, size) == 0);
 
 #include "cuda_profiler_api.h"
@@ -487,7 +489,7 @@ void *QueueWatcher(void *arg){
     int assigned_core = info->core;
     if (assigned_core >= 0)
         set_core_affinity(assigned_core);
-    int use_pinned = info->use_pinned;
+    int UsePinnedGPUMemory = info->UsePinnedGPUMemory;
 
     STDLOG(1,"Running GPU thread %d, core %d\n", n, assigned_core);
 
@@ -554,7 +556,7 @@ void *QueueWatcher(void *arg){
     // Free our memory
     /* Leaking these saves some time, maybe a few seconds
     checkCudaErrors(cudaFree(Buffers[n].device));
-    if (use_pinned) {
+    if (UsePinnedGPUMemory) {
         // The following cudaFreeHost lines cause this error on summitdev
         // unless jsrun is used with "--smpiargs off"
         // "CUDA Hook Library: Failed to find symbol mem_find_dreg_entries, /dev/shm/lgarrison/abacus/singlestep/singlestep: undefined symbol: __PAMI_Invalidate_region"

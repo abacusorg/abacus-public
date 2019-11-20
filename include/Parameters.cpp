@@ -173,6 +173,8 @@ public:
 
     int NoChecksum;  // Explicitly disable output checksumming
 
+    int UsePinnedGPUMemory;  // Whether to pin the CPU-side GPU staging buffers
+
     // Return the L{tier} size in MB
     float getCacheSize(int tier){
         int cache_size = 0;
@@ -411,6 +413,9 @@ public:
 
         NoChecksum = 0;
         installscalar("NoChecksum", NoChecksum, DONT_CARE);
+
+        UsePinnedGPUMemory = -1;  // auto
+        installscalar("UsePinnedGPUMemory", UsePinnedGPUMemory, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.
