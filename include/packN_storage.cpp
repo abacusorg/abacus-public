@@ -61,8 +61,8 @@ the cell.  At present, we're just storing 0.
 
 */
 
-#ifndef PACKED_CPP
-#define PACKED_CPP
+#ifndef PACKN_STORAGE_CPP
+#define PACKN_STORAGE_CPP
 
 #include <stdio.h>
 #include <stdint.h>
@@ -70,15 +70,26 @@ the cell.  At present, we're just storing 0.
 #include "threevector.hh"
 #include "cell_header.h"
 
+#include <type_traits>
 
+template <int N>
+class packN{
+    static_assert(N == 14 || N == 9, "Only implemented pack<N> types are pack14 and pack9");
 
-
-class pack14 {
   public:
-    unsigned char c[14];
 
-    pack14() { }
-    ~pack14(void) { }
+    unsigned char c[N];
+
+    packN() { }
+    ~packN(void) { }
+
+    void print_char() {
+         printf("Char binary: ");
+         for (int i = 0; i < N; i++){
+            printf("%02x ", c[i]);
+         }
+         printf("\n");
+    }
 
     // Routines to decide if this is a cell or a particle.
   protected:
@@ -94,10 +105,6 @@ class pack14 {
             if (c[0]==0xff) return 0; else return 1;
     }
 
-    void print_char() {
-         printf("Char binary:  %02x %02x %02x  %02x %02x %02x  %02x %02x %02x  %02x %02x %02x %02x %02x\n", 
-         c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], c[9], c[10], c[11], c[12], c[13]);
-    }
     void print_short(SHORT s[6]) {
          printf("Short decimal: %d %d %d %d %d %d\n",
              s[0], s[1], s[2], s[3], s[4], s[5]);
@@ -107,6 +114,39 @@ class pack14 {
                  
 
   private:
+    void pack_id(uint64_t id) {
+    // We also want to pack these carefully, so we don't have endian issues
+    // On intel CPUs, the least significant byte is first.  We'll store so
+    // that the low 4-bytes of id are a intel uint32_t in bytes 10-13.
+    // We put the top byte of the 5-byte id in byte 9.
+        if (N == 14){
+            c[9]  = (id>>32)&0xff;
+            // c[10] =      id &0xff;
+            // c[11] = (id>>8) &0xff;
+            // c[12] = (id>>16)&0xff;
+            // c[13] = (id>>24)&0xff;
+            // The above is explicit, but for intel, we can do:
+            *((uint32_t *)(c+10)) = id&0xffffffff;
+        }
+        return;
+    }
+
+    uint64_t unpack_id() {
+        uint64_t id;
+        // Explicit 
+        // id = (((((uint64_t)c[9]*256+(uint64_t)c[13])*256+
+        //         (uint64_t)c[12])*256+(uint64_t)c[11])*256+(uint64_t)c[10]);
+        // But for intel, we can do
+        if (N == 14) id = ((uint64_t)c[9]<<32) | *((uint32_t *)(c+10));
+        else id = 0; 
+        return id;
+    }
+   
+    void set_id_bytes(){    
+        if (N == 14) c[9] = c[10] = c[11] = c[12] = c[13] = 0;  
+        return; 
+    }
+
     // Expand from 12-bits to 16-bits, so that the 
     // rest of the math is transparent.  These shorts
     // are signed, so we subtract 2048 from the 12-bit
@@ -154,30 +194,6 @@ class pack14 {
         return;
     }
 
-    void pack_id(uint64_t id) {
-        // We also want to pack these carefully, so we don't have endian issues
-        // On intel CPUs, the least significant byte is first.  We'll store so
-        // that the low 4-bytes of id are a intel uint32_t in bytes 10-13.
-        // We put the top byte of the 5-byte id in byte 9.
-        c[9]  = (id>>32)&0xff;
-        // c[10] =      id &0xff;
-        // c[11] = (id>>8) &0xff;
-        // c[12] = (id>>16)&0xff;
-        // c[13] = (id>>24)&0xff;
-        // The above is explicit, but for intel, we can do:
-        *((uint32_t *)(c+10)) = id&0xffffffff;
-        return;
-    }
-    uint64_t unpack_id() {
-        uint64_t id;
-        // Explicit 
-        // id = (((((uint64_t)c[9]*256+(uint64_t)c[13])*256+
-        //         (uint64_t)c[12])*256+(uint64_t)c[11])*256+(uint64_t)c[10]);
-        // But for intel, we can do
-        id = ((uint64_t)c[9]<<32) | *((uint32_t *)(c+10));
-        return id;
-    }
-
   public:
     // ----------------------------------------------------
     // Routines to unpack and pack cells
@@ -201,7 +217,7 @@ class pack14 {
     cell_header pack_cell(cell_header cell) {
         SHORT s[6]; 
         assert(cell.cpd<=4000);
-        c[9] = c[10] = c[11] = c[12] = c[13] = 0;
+        set_id_bytes();
         s[0] = 0;                // Can't put the make_cell token in, or we'll fail check_legal()
         s[1] = cell.cpd-2000;
         s[2] = cell.vscale-2000;
@@ -210,6 +226,7 @@ class pack14 {
         s[5] = cell.k-2000;
         pack_from_short(s);
         make_cell();
+
         return cell;
     }
 
@@ -254,6 +271,7 @@ class pack14 {
         vel[0] = (double)s[3]/2000.0*cell.vscale*invcpd;
         vel[1] = (double)s[4]/2000.0*cell.vscale*invcpd;
         vel[2] = (double)s[5]/2000.0*cell.vscale*invcpd;
+
         *id = unpack_id();
         return;
     }
@@ -271,6 +289,7 @@ class pack14 {
         vel[0] = (double)s[3]/2000.0*cell.vscale*invcpd;
         vel[1] = (double)s[4]/2000.0*cell.vscale*invcpd;
         vel[2] = (double)s[5]/2000.0*cell.vscale*invcpd;
+        
         *id = unpack_id();
         return;
     }
@@ -354,9 +373,11 @@ class pack14 {
     void pack_global(float3 &pos, float3 &vel, uint64_t id, cell_header cell) {
         pack_global((float*) &pos, (float*) &vel, id, cell);
     }
-#endif
 };
 
+// Alias our common packN types
+using pack14 = packN<14>;
+using pack9 = packN<9>;
 
 #ifdef TEST
 // Here's a program to check the bit-packing
@@ -406,7 +427,7 @@ int main() {
     float tpos[3], tvel[3];
     double worst_c = 0, worst_pos = 0, worst_vel = 0, worst_id = 0;
     uint64_t id, tid;
-    pack14 cell, part;
+    pack9 cell, part;
     cell_header ch;
     srand48(1);
     endian();
@@ -472,7 +493,6 @@ int main() {
 
 #endif //  PACKED_CPP
 
-
 #ifdef DONOTCOMPILE
 // Sample code to read a file:
 
@@ -518,4 +538,7 @@ for (int p=0; p<c.count(); p++) {
     fwrite(&particle, sizeof(pack14), 1, fp);
 }
 
+
 #endif 
+
+#endif // PACKN_STORAGE_CPP
