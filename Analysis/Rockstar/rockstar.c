@@ -298,7 +298,7 @@ void do_workunit(struct workunit_info *w, struct fof *fofs) {
 }
 
 void build_particle_tree(void) {
-  int64_t i, dup_particles = 0;
+  int64_t i, dup_ids = 0, dup_pos = 0, dup_tot = 0;
   struct particle *last_p;
   tree = fast3tree_init(num_p, p);
   rockstar_res = fast3tree_results_init();
@@ -308,20 +308,26 @@ void build_particle_tree(void) {
   if (num_p<2) return;
   last_p = p+(num_p-1);
   for (i=num_p-2; i>=0; i--) {
-    if (!memcmp(p[i].pos, last_p->pos, sizeof(float)*6) || 
-	last_p->id == p[i].id) {
+    int is_pos_dup = memcmp(p[i].pos, last_p->pos, sizeof(float)*6) == 0;
+    int is_id_dup = last_p->id == p[i].id;
+    if (is_pos_dup || is_id_dup){
       num_p--;
       p[i] = p[num_p];
-      dup_particles++;
+      dup_tot++;
+
+      if(is_pos_dup)
+        dup_pos++;
+      if(is_id_dup)
+        dup_ids++;
       continue;
     }
     last_p = p+i;
   }
-  if (dup_particles) {
+  if (dup_tot) {
     fast3tree_rebuild(tree, num_p, p);
     //if (dup_particles > 0.0001*num_p)
-      fprintf(stderr, "[Warning] %"PRId64" duplicate particles removed.\n",
-	      dup_particles);
+      fprintf(stderr, "[Warning] %"PRId64" duplicate particles found (%"PRId64" dup pos and %"PRId64" dup PIDs).\n",
+	      dup_tot, dup_pos, dup_ids);
   }
 }
 

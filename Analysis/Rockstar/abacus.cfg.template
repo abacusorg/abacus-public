@@ -1,7 +1,7 @@
 #Rockstar Halo Finder
 #Abacus config file
 
-FILE_FORMAT = "PACK14"
+FILE_FORMAT = "{fileformat}"
 
 #This specifies the use of multiple processors:
 PARALLEL_IO=1
@@ -49,3 +49,5 @@ TEMPORAL_HALO_FINDING = 0 #default: 1.  We turn this off because we have poor ti
 
 #FOF_FRACTION = <FOF refinement fraction> #default 0.7 (is this the downsampling?)
 #FOF_LINKING_LENGTH = <FOF linking length> #default 0.28
+
+IGNORE_PARTICLE_IDS = {ignore_pids}

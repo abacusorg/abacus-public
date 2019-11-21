@@ -112,7 +112,7 @@ ifeq (@REAL_CXX@,g++)
     endif
 else ifeq (@REAL_CXX@,icc)
     CPPFLAGS += -xHost -fp-model precise -fbuiltin -ip -mkl -tbb #-ipo #-prof-use=weighted
-    NVCC_CPPFLAGS += -fp-model precise -ip -mkl
+    NVCC_XCOMPILERFLAGS += -fp-model precise -ip -mkl -tbb
 
     FFTW_LIBS := -mkl
     FFTW_OMP_LIBS := -mkl

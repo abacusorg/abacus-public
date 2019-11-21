@@ -241,17 +241,25 @@ def extract_slabs(dir, verbose=True, tarfn='slabs.tar.gz'):
     verbose: bool, optional
         Print the extraction time.  Default: True
     '''
+
     header = InputFile(path.join(dir, 'header'))
     cpd = int(round(header.CPD))
-    fmt_str = get_slab_fmt_str(dir, header.SimName)
-    
-    # Check that all the files we need exist
-    for slab in range(cpd):
-        fn = fmt_str.format(slab=slab)
-        if not path.isfile(fn):
-            break
-    else:
-        # All files present; do nothing
+    # TODO: too many new file formats to be certain we have all files
+    #fmt_str = get_slab_fmt_str(dir, header.SimName)
+    #
+    ## Check that all the files we need exist
+    #for slab in range(cpd):
+    #    fn = fmt_str.format(slab=slab)
+    #    if not path.isfile(fn):
+    #        break
+    #else:
+    #    # All files present; do nothing
+    #    yield
+    #    return
+
+    # If we found any *.dat files, declare there's nothing to do
+    files = glob(pjoin(dir, '*.dat'))
+    if files:
         yield
         return
     
