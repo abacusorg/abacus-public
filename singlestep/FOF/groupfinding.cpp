@@ -10,10 +10,6 @@ We include this file in the program, and it includes the rest.
 #include "fof_sublist.cpp"
 	// Code to do FOF on a set (e.g., a cell)
 
-#include "slab_accum.cpp"
-	// Code to establish templated slab-based storage of flexible size 
-	// that is cell indexed and multi-threaded by pencil
-
 #include "grouplink.cpp"
 	// Code to store the list of links between CellGroups.
 	// This is GCC->GLL

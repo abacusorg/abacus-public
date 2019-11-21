@@ -123,6 +123,7 @@ public:
     // Could have group finding or coevolution set instructions
 
     int  NLightCones;
+    int  OutputFullLightCones;
 
     double LightConeOrigins[24];  // Same units as BoxSize
 
@@ -288,6 +289,8 @@ public:
 
         installscalar("LightConeDirectory",LightConeDirectory,MUST_DEFINE); //Where the lightcones go. Generally will be the same as the Output directory
         installscalar("NLightCones",NLightCones,DONT_CARE); //if not set, we assume 0
+        OutputFullLightCones = 0;
+        installscalar("OutputFullLightCones",OutputFullLightCones,DONT_CARE); //if not set, we assume 0
         installvector("LightConeOrigins",LightConeOrigins,24,1,DONT_CARE);
 
         FinalRedshift = -2.0;        // If <-1, then we will cascade back to the minimum of the TimeSliceRedshifts list

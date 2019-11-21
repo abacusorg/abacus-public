@@ -39,7 +39,6 @@
 // #define PTIMER_DUMMY   // Uncommenting this will cause all PTimers to no-op and return Elapsed() = 1e-12 sec.
 #include "PTimer.cc"
 
-
 STimer FinishPreamble; 
 STimer FinishPartition;
 STimer FinishSort;
@@ -108,6 +107,12 @@ SlabSize *SS;
 
 #include "slabbuffer.cpp"
 SlabBuffer *SB;
+
+#include "slab_accum.cpp"
+    // Code to establish templated slab-based storage of flexible size 
+    // that is cell indexed and multi-threaded by pencil
+
+#include "halostat.hh"
 
 // Two quick functions so that the I/O routines don't need to know 
 // about the SB object. TODO: Move these to an io specific file
