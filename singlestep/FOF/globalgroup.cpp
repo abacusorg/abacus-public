@@ -976,21 +976,35 @@ void GlobalGroupSlab::FindSubGroups() {
 
                         #ifdef SPHERICAL_OVERDENSITY
                         //fetch SO stats for this L1 halo. 
+                        /*  // DJE thinks this was a bug
                         posstruct SO_particle = FOFlevel1[g].p[0].FOF_to_pos(); 
                         h.SO_central_particle[0] = SO_particle.x;
                         h.SO_central_particle[1] = SO_particle.y;
                         h.SO_central_particle[2] = SO_particle.z;
-
                         h.SO_central_density  = FOFlevel1[g].density[0] / FOFlevel1[g].FOFunitdensity; 
+                        */
+
+                        h.SO_central_particle[0] = L1pos[g][0].x;
+                        h.SO_central_particle[1] = L1pos[g][0].y;
+                        h.SO_central_particle[2] = L1pos[g][0].z;
+                        h.SO_central_density  = L1acc[g][0].w / FOFlevel1[g].FOFunitdensity; 
+
                         h.SO_radius = sqrt(FOFlevel1[g].groups[a].halo_thresh2) / FOF_RESCALE; 
 
                         //now repeat for the largest L2 halo.
+                        /*  // DJE thinks this was a bug
                         SO_particle = FOFlevel2[g].p[0].FOF_to_pos(); 
                         h.SO_L2max_central_particle[0] = SO_particle.x;
                         h.SO_L2max_central_particle[1] = SO_particle.y;
                         h.SO_L2max_central_particle[2] = SO_particle.z;
-
                         h.SO_L2max_central_density  = FOFlevel2[g].density[0] / FOFlevel2[g].FOFunitdensity; 
+                        */
+
+                        h.SO_L2max_central_particle[0] = L1pos[g][FOFlevel2[g].groups[0].start].x;
+                        h.SO_L2max_central_particle[1] = L1pos[g][FOFlevel2[g].groups[0].start].y;
+                        h.SO_L2max_central_particle[2] = L1pos[g][FOFlevel2[g].groups[0].start].z;
+                        h.SO_L2max_central_density  =    L1acc[g][FOFlevel2[g].groups[0].start].w / FOFlevel2[g].FOFunitdensity; 
+
                         h.SO_L2max_radius = sqrt(FOFlevel2[g].groups[0].halo_thresh2) / FOF_RESCALE; 
 
                         #else
@@ -1074,6 +1088,8 @@ void GlobalGroupSlab::FindSubGroups() {
     	#ifdef SPHERICAL_OVERDENSITY
     	GFC->numcg1 += FOFlevel1[g].numcg;
     	GFC->numcg2 += FOFlevel2[g].numcg;
+    	GFC->numgroups1 += FOFlevel1[g].numgroups;
+    	GFC->numgroups2 += FOFlevel2[g].numgroups;
     	if (g>0) {
     	    FOFlevel1[0].coadd_timers(FOFlevel1[g]);
     	    FOFlevel2[0].coadd_timers(FOFlevel2[g]);
