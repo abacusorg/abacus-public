@@ -1058,11 +1058,13 @@ void GlobalGroupSlab::FindSubGroups() {
     	GFC->numcenters1 += FOFlevel1[g].numcenters;
     	GFC->numcenters2 += FOFlevel2[g].numcenters;
     	#ifdef SPHERICAL_OVERDENSITY
+    	GFC->numcg1 += FOFlevel1[g].numcg;
+    	GFC->numcg2 += FOFlevel2[g].numcg;
     	if (g>0) {
     	    FOFlevel1[0].coadd_timers(FOFlevel1[g]);
     	    FOFlevel2[0].coadd_timers(FOFlevel2[g]);
-	}
-	#endif
+        }
+        #endif
     }
     previous = GFC->L1stats.ngroups-previous;
     STDLOG(1,"Found %l L1 halos\n", previous);
@@ -1074,18 +1076,20 @@ void GlobalGroupSlab::FindSubGroups() {
     if (FOFlevel1[0].Total.Elapsed()>0.0) {
       // B.H. trying to do timing
       //STDLOG(3,"L1 Timing: %f = %f %f %f %f\n",
-      STDLOG(1,"L1 Timing: %f = %f %f %f %f\n",
+      STDLOG(1,"L1 Timing: %f = %f %f %f %f %f\n",
 	    FOFlevel1[0].Total.Elapsed(),
 	    FOFlevel1[0].Copy.Elapsed(),
 	    FOFlevel1[0].Sweep.Elapsed(),
 	    FOFlevel1[0].Distance.Elapsed(),
-	    FOFlevel1[0].Search.Elapsed());
-	STDLOG(1,"L2 Timing: %f = %f %f %f %f\n",
+	    FOFlevel1[0].Search.Elapsed(),
+	    FOFlevel1[0].Sort.Elapsed());
+	STDLOG(1,"L2 Timing: %f = %f %f %f %f %f\n",
 	    FOFlevel2[0].Total.Elapsed(),
 	    FOFlevel2[0].Copy.Elapsed(),
 	    FOFlevel2[0].Sweep.Elapsed(),
 	    FOFlevel2[0].Distance.Elapsed(),
-	    FOFlevel2[0].Search.Elapsed());
+	    FOFlevel2[0].Search.Elapsed(),
+	    FOFlevel2[0].Sort.Elapsed());
 	// These show that the timing is 50% dominated by the Search step,
 	// with most of the rest split between Copy and Sweep.
     }

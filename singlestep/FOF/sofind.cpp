@@ -150,11 +150,11 @@ class SOcell {
     int ncg;            ///< The active number of cellgroups
     
     FOFTimer Total;
-    FOFTimer Copy, Sweep, Distance, Search; 
+    FOFTimer Copy, Sweep, Distance, Search, Sort; 
     long long numdists;  ///< Total number of distances we compute
     long long numsorts;  ///< Total number of sorting elements
     long long numcenters; ///< Total number of SO centers considered
-
+    long long numcg;     ///< Total number of cell groups considered
 
     char pad[CACHE_LINE_SIZE];    // Just to ensure an array of these always fall on
         // a different cache line
@@ -237,6 +237,7 @@ class SOcell {
         numdists = 0;
         numsorts = 0;
         numcenters = 0;
+        numcg = 0;
         reset(32768);
         setup_socg(2048);
 
@@ -279,6 +280,7 @@ class SOcell {
         Sweep.increment(x.Sweep.get_timer());
         Distance.increment(x.Distance.get_timer());
         Search.increment(x.Search.get_timer());
+        Sort.increment(x.Search.get_timer());
     }
 
     /// These are density thresholds in interparticle units,
@@ -361,7 +363,11 @@ void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
     // from which partition_cellgroup is called;
 
     int len = cg->start[4]-cg->start[0];
+    Search.Stop();
+    Distance.Start();
     FOFloat *d2 = compute_d2(center, p+cg->start[0], len, d2buffer, numdists);
+    Distance.Stop();
+    Search.Start();
     for (int j=0; j<len; j++) {
         d2_active[cg->start[0]+j] = d2[j];
         if (d2[j] > cg->d2_furthest) cg->d2_furthest = d2[j];
@@ -430,6 +436,8 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
       
     // Compute the distance to all of the cellgroup centers,
     // and find the furthest one.
+    Search.Stop();
+    Distance.Start();
     int furthest_firstbin = -1;
     for (int i = 0; i<ncg; i++) {
         socg[i].compute_d2(halocenter);
@@ -438,6 +446,8 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             furthest_firstbin = socg[i].firstbin;
         }
     }
+    Distance.Stop();
+    Search.Start();
 
     // If we find no density threshold crossing, we'll return furthest edge -- not ideal
     FOFloat r2found; // TODO: REMOVE
@@ -497,10 +507,8 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             // to save only the particle distances in r
             
             // Search for density threshold in list, given previous mass.
-            Distance.Start();
             d2_thresh = partial_search(size_bin, mass, size_thresh, inv_enc_den);
         
-            Distance.Stop();
             if (d2_thresh > 0.0) {
                 // If something was found, record it
                 mass += size_thresh;
@@ -720,12 +728,12 @@ int greedySO() {
 
 void partition_halos(int count) {
     
+    Sweep.Start();
     for (int j=0; j<np; j++) {
       halo_inds[j] = abs(halo_inds[j]);
     }
     
     
-    Sweep.Start();
     int size = 0;
     int start = 0;
     int next_densest;
@@ -824,6 +832,7 @@ void load_socg() {
     }
     // Always have one group left at the end
     socg[ncg++].load(laststart, np, compute_cellcenter(lastidx));
+    numcg += ncg;
     return;
 }
 
@@ -875,9 +884,11 @@ int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, FLOAT3p1 *acc, in
     // Note: I left the first particle unsorted, as it is planned to be the densest one.  This is a tiny inefficiency for L2: one extra group.
 
 
+    Sort.Start();
     for (int g=0; g<ngroups; g++) {
         std::sort(p+groups[g].start+1, p+groups[g].start+groups[g].n);
     }
+    Sort.Stop();
 
     Total.Stop();
     return ngroups;

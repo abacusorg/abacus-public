@@ -70,6 +70,8 @@ class GroupFindingControl {
     	///< The total number of sorting elements 
     long long numcenters1, numcenters2;	
     	///< The total number of centers considered
+    long long numcg1, numcg2;	
+    	///< The total number of cell groups used
     int max_group_diameter;
 
     SlabAccum<CellGroup> *cellgroups;   // Allocated [0,cpd), one for each slab
@@ -163,8 +165,8 @@ class GroupFindingControl {
         CGactive = 0;
         maxFOFdensity = 0.0;
         largest_GG = 0;
-        numdists1 = numsorts1 = numcenters1 = 0;
-        numdists2 = numsorts2 = numcenters2 = 0;
+        numdists1 = numsorts1 = numcenters1 = numcg1 = 0;
+        numdists2 = numsorts2 = numcenters2 = numcg2 = 0;
         max_group_diameter = 0;
         return;
     }
@@ -214,8 +216,8 @@ class GroupFindingControl {
 	 L0stats.report_multiplicities(grouplog);
 
 	 GLOG(0,"L1 & L2 groups min size = %d\n", minhalosize);
-	 GLOG(0,"L1 groups required %f G distances, %f G sorts, %f G centers\n", numdists1/1e9, numsorts1/1e9, numcenters1/1e9);
-	 GLOG(0,"L2 groups required %f G distances, %f G sorts, %f G centers\n", numdists2/1e9, numsorts2/1e9, numcenters2/1e9);
+	 GLOG(0,"L1 groups required %f G distances, %f G sorts, %f G centers, %f G cg\n", numdists1/1e9, numsorts1/1e9, numcenters1/1e9, numcg1/1e9);
+	 GLOG(0,"L2 groups required %f G distances, %f G sorts, %f G centers, %f G cg\n", numdists2/1e9, numsorts2/1e9, numcenters2/1e9, numcg2/1e9);
 	 GLOG(0,"L1 group multiplicity distribution:\n");
 	 L1stats.report_multiplicities(grouplog);
      // BOT
