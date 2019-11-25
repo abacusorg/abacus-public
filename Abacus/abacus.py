@@ -1044,16 +1044,14 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             
             abandon_ship = path.exists(emergency_exit_fn)
             out_of_time = (wall_timer() - start_time >= run_time_secs)
-
-            LONGJOB = 3600
             
             #if the halfway-there backup hasn't been done already, and we're more than halfway through the job, backup the state now: 
-            interim_backup = (not interim_backup_complete) and (wall_timer() - start_time >= run_time_secs / 2) and (run_time_secs > LONGJOB ) #only relevant for long jobs.
+            interim_backup = (not interim_backup_complete) and (wall_timer() - start_time >= run_time_secs / 2) and (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60 ) #only relevant for long jobs.
             
             #are we coming up on a group finding step? If yes, backup the state, just in case. 
             pre_gf_backup  = False 
             nGFoutputs = len(param.L1OutputRedshifts)
-            if (run_time_secs > LONGJOB): 
+            if (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60): 
                 for i in range(nGFoutputs):
                     L1z = param.L1OutputRedshifts[i] 
                     if L1z <= -1:

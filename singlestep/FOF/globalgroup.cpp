@@ -233,7 +233,7 @@ class GlobalGroupSlab {
     void ClearDeferrals();
     void AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, PencilAccum<TaggedPID> ** pHaloPIDs, 
                                             posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, 
-                                            int index, posstruct offset);
+                                            int index, posstruct offset, int & nA, int & nB);
     void CreateGlobalGroups();
     void GatherGlobalGroups();
     void ScatterGlobalGroupsAux();
@@ -769,8 +769,9 @@ about L1.  This can either use FOF or SO.
 */
 
 void GlobalGroupSlab::AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, PencilAccum<TaggedPID> ** pHaloPIDs, 
-                                            posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, int index, posstruct offset) {
+                                            posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, int index, posstruct offset, int & nA, int & nB) {
     int taggable = groupaux[index].is_taggable();
+    int npA = 0; int npB = 0; 
 
     if (taggable != 0 || P.OutputAllHaloParticles) {
         posstruct r = WrapPosition(grouppos[index]+offset);
@@ -783,13 +784,17 @@ void GlobalGroupSlab::AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, P
         if ((taggable == TAGGABLE_SUB_A) || P.OutputAllHaloParticles){ // if we request all halo particles, output them in subsample 'A' files.
             pHaloPIDs[0]->append(TaggedPID(groupaux[index]));
             pHaloRVs[0] ->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
+            npA ++; 
 
         }
         else if (taggable == TAGGABLE_SUB_B){
             pHaloPIDs[1]->append(TaggedPID(groupaux[index]));
             pHaloRVs[1] ->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
+            npB ++; 
         }
     }
+
+    nA += npA; nB += npB; 
 }
 
 
@@ -848,7 +853,11 @@ void GlobalGroupSlab::FindSubGroups() {
     // pencils by the work estimate (largest first)
     std::sort(pstat, pstat+GFC->cpd);
     
-    #pragma omp parallel for schedule(dynamic,1)
+
+    int np_subA = 0; 
+    int np_subB = 0; 
+
+    #pragma omp parallel for schedule(dynamic,1) reduction(+: np_subA, np_subB)
     for (int jj=0; jj<GFC->cpd; jj++) {
         int j = pstat[jj].pnum;    // Get the pencil number from the list
         GFC->L1Tot.Start();
@@ -954,7 +963,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         //      all L1 particles
                         for (int b=0; b<size; b++){
                             int index = start[b].index(); 
-                            AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset);
+                            AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset, np_subA, np_subB);
                         }
 
                         HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], offset);
@@ -1024,7 +1033,7 @@ void GlobalGroupSlab::FindSubGroups() {
                                                     //if we're outputing the particle subsample, output all of its L0 particles. 
                     for (int b=0; b<groupn; b++) {
                         if (groupaux[b].is_L1()) continue;  // Already in the L1 set
-                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset); 
+                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset, np_subA, np_subB); 
                     }
                 }
                 
@@ -1058,6 +1067,11 @@ void GlobalGroupSlab::FindSubGroups() {
             }
 
     // Coadd the stats
+    if (ReadState.DoSubsampleOutput){
+        WriteState.np_subA_state += np_subA; 
+        WriteState.np_subB_state += np_subB; 
+    }
+
     uint64 previous = GFC->L1stats.ngroups;
     // BOT
     uint64 previous_L2 = GFC->L2stats.ngroups;

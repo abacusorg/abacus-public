@@ -145,8 +145,10 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             // Check if the cell center is in the lightcone, with some wiggle room
             STDLOG(4, "Cell in lightcone? : %f %f %f %d\n", CP->CellCenter(ijk).x, CP->CellCenter(ijk).y, CP->CellCenter(ijk).z, inLightCone(CP->CellCenter(ijk),0*pos,lcn,3.0/P.cpd, 3.0/P.cpd) ); 
+           
             if(!inLightCone(CP->CellCenter(ijk),0*pos,lcn,3.0/P.cpd, 3.0/P.cpd))
-                continue;
+               continue;
+            
             Cell c = CP->GetCell(ijk);
             // vscale should be the max possible velocity
             // which could be greater than the cell stats would suggest, because we interpolate
@@ -183,11 +185,12 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
                         if(c.aux[p].is_taggable() or P.OutputFullLightCones){
                             pLightConePIDs->append(TaggedPID(c.aux[p]));
                             pLightConeRV->append(RVfloat(pos.x, pos.y, pos.z, vel.x * vunits, vel.y * vunits, vel.z * vunits));
+                            cell_np++;
+
                         }
 
                         
                         //AA->addparticle(pos, vel, c.aux[p]);
-                        cell_np++;
                         c.aux[p].setlightconedone(mask);
                     }
                 }
@@ -224,13 +227,13 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
                 if(c.aux[p].is_taggable() or P.OutputFullLightCones){
                     pLightConePIDs->append(TaggedPID(c.aux[p]));
                     pLightConeRV->append(RVfloat(pos.x, pos.y, pos.z, vel.x * vunits, vel.y * vunits, vel.z * vunits));
+                    cell_np++;
                 }
 
                 pLightConePIDs->FinishCell();
                 pLightConeRV->FinishCell();
                 //AA->addparticle(pos, vel, c.aux[p]);
                 c.aux[p].setlightconedone(mask);
-                cell_np++;
                 //AA->endcell();
             }
             strayslabtotal += cell_np;
