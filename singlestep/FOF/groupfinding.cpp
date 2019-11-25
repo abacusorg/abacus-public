@@ -167,8 +167,8 @@ class GroupFindingControl {
         CGactive = 0;
         maxFOFdensity = 0.0;
         largest_GG = 0;
-        numdists1 = numsorts1 = numcenters1 = numcg1 = 0;
-        numdists2 = numsorts2 = numcenters2 = numcg2 = 0;
+        numdists1 = numsorts1 = numcenters1 = numcg1 = numgroups = 0;
+        numdists2 = numsorts2 = numcenters2 = numcg2 = numgroups = 0;
         max_group_diameter = 0;
         return;
     }
