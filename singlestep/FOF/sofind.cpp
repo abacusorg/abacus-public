@@ -155,6 +155,7 @@ class SOcell {
     long long numsorts;  ///< Total number of sorting elements
     long long numcenters; ///< Total number of SO centers considered
     long long numcg;     ///< Total number of cell groups considered
+    long long numgroups; ///< Total number of groups defined (even if smaller than minmass)
 
     char pad[CACHE_LINE_SIZE];    // Just to ensure an array of these always fall on
         // a different cache line
@@ -238,6 +239,7 @@ class SOcell {
         numsorts = 0;
         numcenters = 0;
         numcg = 0;
+        numgroups = 0;
         reset(32768);
         setup_socg(2048);
 
@@ -623,6 +625,7 @@ int greedySO() {
         // If density is insufficient, do not form a new halo.
         // But we always try at least one central.
         if (density[start]<min_central && count>1) break;
+        numcenters++;
 
         Search.Start();
         FOFloat inv_enc_den;
@@ -728,7 +731,7 @@ int greedySO() {
 
 void partition_halos(int count) {
     
-    Sweep.Start();
+    Sort.Start();
     for (int j=0; j<np; j++) {
       halo_inds[j] = abs(halo_inds[j]);
     }
@@ -754,13 +757,11 @@ void partition_halos(int count) {
         // Mark the group.  Note that the densest particle may not be first.
         // TODO: Will write more documentation 
         if (next_densest < 0) {
-            numcenters++;
             if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[halo_ind]); // B.H.
             start += size;
             continue;
         }
         if (size > 0) {
-            numcenters++;
             if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[halo_ind]); // B.H.
             start += size;
         }
@@ -770,7 +771,7 @@ void partition_halos(int count) {
         std::swap(density[start], density[next_densest]);
         std::swap(halo_inds[start], halo_inds[next_densest]);
     }
-    Sweep.Stop();
+    Sort.Stop();
 }
 
 // ================ Routines for cell indexes and cell groups ================
@@ -884,11 +885,12 @@ int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, FLOAT3p1 *acc, in
     // Note: I left the first particle unsorted, as it is planned to be the densest one.  This is a tiny inefficiency for L2: one extra group.
 
 
-    Sort.Start();
+    Copy.Start();
     for (int g=0; g<ngroups; g++) {
         std::sort(p+groups[g].start+1, p+groups[g].start+groups[g].n);
     }
-    Sort.Stop();
+    numgroups += ngroups;
+    Copy.Stop();
 
     Total.Stop();
     return ngroups;

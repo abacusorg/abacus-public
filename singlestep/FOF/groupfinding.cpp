@@ -72,6 +72,8 @@ class GroupFindingControl {
     	///< The total number of centers considered
     long long numcg1, numcg2;	
     	///< The total number of cell groups used
+    long long numgroups1, numgroups2;	
+    	///< The total number of groups found
     int max_group_diameter;
 
     SlabAccum<CellGroup> *cellgroups;   // Allocated [0,cpd), one for each slab
@@ -219,8 +221,10 @@ class GroupFindingControl {
 	 GLOG(0,"L1 groups required %f G distances, %f G sorts, %f G centers, %f G cg\n", numdists1/1e9, numsorts1/1e9, numcenters1/1e9, numcg1/1e9);
 	 GLOG(0,"L2 groups required %f G distances, %f G sorts, %f G centers, %f G cg\n", numdists2/1e9, numsorts2/1e9, numcenters2/1e9, numcg2/1e9);
 	 GLOG(0,"L1 group multiplicity distribution:\n");
+	 GLOG(0,"Total number of L1 groups considered %f M\n", numgroups1/1e6);
 	 L1stats.report_multiplicities(grouplog);
 	 GLOG(0,"L2 group multiplicity distribution:\n");
+	 GLOG(0,"Total number of L2 groups considered %f M\n", numgroups2/1e6);
      L2stats.report_multiplicities(grouplog);
      
 	 float total_time = CellGroupTime.Elapsed()+
