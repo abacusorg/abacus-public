@@ -148,10 +148,10 @@ HaloStat ComputeStats(int size,
 
     
 #ifdef SPHERICAL_OVERDENSITY
-    h.SO_L2cntr_central_particle[0] = L2.p[0].x;
-    h.SO_L2cntr_central_particle[1] = L2.p[0].y;
-    h.SO_L2cntr_central_particle[2] = L2.p[0].z;
-    h.SO_L2cntr_central_particle[3] = L2.p[0].n;	
+    h.SO_L2max_central_particle[0] = L2.p[0].x;
+    h.SO_L2max_central_particle[1] = L2.p[0].y;
+    h.SO_L2max_central_particle[2] = L2.p[0].z;
+    h.SO_L2max_central_particle[3] = L2.p[0].n;	
     h.SO_central_density  = L2.density[0]; 
 	//!!!h.SO_radius           = sqrt(L2.halo_thresh2); 
 #endif 	
@@ -219,8 +219,8 @@ HaloStat ComputeStats(int size,
     h.L2cntr_sigmavMin_to_sigmav3d = lround( sqrt(sigmav[2])  / h.L2cntr_sigmav3d * INT16SCALE ); 
     h.L2cntr_sigmavMax_to_sigmav3d = lround( sqrt(sigmav[0])  / h.L2cntr_sigmav3d * INT16SCALE ); 
     // h.L2cntr_sigmav3d_to_sigmavMaj = lround( h.L2cntr_sigmav3d/sqrt(sigmav[0]) * INT16SCALE );
-    h.L2cntr_sigmavtan_to_sigmav3d = lround(sqrt(vtt)/h.L2_cntr_sigmav3d * INT16SCALE ); 
-    h.L2cntr_sigmavrad_to_sigmav3d = lround(sqrt(vrr)/h.L2_cntr_sigmav3d * INT16SCALE ); 
+    h.L2cntr_sigmavtan_to_sigmav3d = lround(sqrt(vtt)/h.L2cntr_sigmav3d * INT16SCALE ); 
+    h.L2cntr_sigmavrad_to_sigmav3d = lround(sqrt(vrr)/h.L2cntr_sigmav3d * INT16SCALE ); 
 	
     for(int i = 0; i < 3; i++) h.L2cntr_sigmar[i] = lround(sqrt(sigmar[i]) / h.r100 * INT16SCALE );
 
