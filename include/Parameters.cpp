@@ -123,6 +123,7 @@ public:
     // Could have group finding or coevolution set instructions
 
     int  NLightCones;
+    int  OutputFullLightCones;
 
     double LightConeOrigins[24];  // Same units as BoxSize
 
@@ -165,6 +166,9 @@ public:
     double SODensity[2];  // Overdensities for SO groupfinding level 1 and 2
     int MinL1HaloNP; // minimum L1 halo size to output
 	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
+    float SO_RocheCoeff; 
+    float SO_NPForMinDensity; 
+    int SO_EvolvingThreshold; //allow evolving (redshift-dependent) density threshold 
 
     #define MAX_L1OUTPUT_REDSHIFTS 1024
     int nTimeSliceL1; 
@@ -174,6 +178,11 @@ public:
     double MicrostepTimeStep; // Timestep parameter that controls microstep refinement
 
     long long int MaxPID;  // Maximum PID to expect.  A PID equal or larger than this indicates corruption of some sort.  0 means NP; -1 means don't check.
+
+    int ProperSoftening;  // Keep the softening length fixed in proper coordinates.  SofteningLength is specified at z=0.
+    double SofteningMax;  // The maximum comoving softening to allow when using ProperSoftening
+
+    int NoChecksum;  // Explicitly disable output checksumming
 
     // Return the L{tier} size in MB
     float getCacheSize(int tier){
@@ -280,6 +289,8 @@ public:
 
         installscalar("LightConeDirectory",LightConeDirectory,MUST_DEFINE); //Where the lightcones go. Generally will be the same as the Output directory
         installscalar("NLightCones",NLightCones,DONT_CARE); //if not set, we assume 0
+        OutputFullLightCones = 0;
+        installscalar("OutputFullLightCones",OutputFullLightCones,DONT_CARE); //if not set, we assume 0
         installvector("LightConeOrigins",LightConeOrigins,24,1,DONT_CARE);
 
         FinalRedshift = -2.0;        // If <-1, then we will cascade back to the minimum of the TimeSliceRedshifts list
@@ -386,10 +397,10 @@ public:
         DirectBPD = 3;
         installscalar("DirectBPD", DirectBPD, DONT_CARE);
 
-	    DensityKernelRad = 0.0;
+	    DensityKernelRad = 0.0; // if no value is given, this will default to L0 linking length. 
         installscalar("DensityKernelRad",DensityKernelRad, DONT_CARE);
-	    L0DensityThreshold = 0.0;
-        installscalar("L0DensityThreshold",L0DensityThreshold, DONT_CARE);
+	    L0DensityThreshold = 75.0; 
+        installscalar("L0DensityThreshold",L0DensityThreshold, DONT_CARE); 
 
         AllowGroupFinding = 1;
         installscalar("AllowGroupFinding",AllowGroupFinding, DONT_CARE);
@@ -397,13 +408,21 @@ public:
         FoFLinkingLength[1] = .186;
         FoFLinkingLength[2] = .138;
         installvector("FoFLinkingLength",FoFLinkingLength,3,1,DONT_CARE);
-        SODensity[0] = 180.0;
-        SODensity[1] = 720.0;
+        SODensity[0] = 200.0;
+        SODensity[1] = 800.0;
         installvector("SODensity",SODensity,2,1,DONT_CARE);
-        MinL1HaloNP = 10;
+        MinL1HaloNP = 40;
         installscalar("MinL1HaloNP", MinL1HaloNP, DONT_CARE);
 		L1Output_dlna = -1;
 		installscalar("L1Output_dlna", L1Output_dlna, DONT_CARE);
+
+        SO_RocheCoeff = 2.0; 
+        installscalar("SO_RocheCoeff", SO_RocheCoeff, DONT_CARE);
+        SO_NPForMinDensity = 35.0; 
+        installscalar("SO_NPForMinDensity", SO_NPForMinDensity, DONT_CARE);
+        SO_EvolvingThreshold = 1; 
+        installscalar("SO_EvolvingThreshold", SO_EvolvingThreshold, DONT_CARE); 
+
         OutputAllHaloParticles = 0;
         installscalar("OutputAllHaloParticles", OutputAllHaloParticles, DONT_CARE);
 
@@ -412,6 +431,15 @@ public:
 
         MaxPID = -1;
         installscalar("MaxPID", MaxPID, DONT_CARE);
+
+        ProperSoftening = 0;
+        installscalar("ProperSoftening", ProperSoftening, DONT_CARE);
+
+        SofteningMax = DBL_MAX;
+        installscalar("SofteningMax", SofteningMax, DONT_CARE);
+
+        NoChecksum = 0;
+        installscalar("NoChecksum", NoChecksum, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.
@@ -504,10 +532,13 @@ void Parameters::ProcessStateDirectories(){
 
     // Set read dir and write dir from working dir if they were not given
     if (strcmp(WorkingDirectory,STRUNDEF) != 0){
-        if(strcmp(ReadStateDirectory,STRUNDEF) == 0)
-            sprintf(ReadStateDirectory,"%s/read",WorkingDirectory);
+        if(strcmp(ReadStateDirectory,STRUNDEF) == 0){
+            int ret = snprintf(ReadStateDirectory, 1024, "%s/read",WorkingDirectory);
+            assert(ret >= 0 && ret < 1024);
+        }
         if(strcmp(WriteStateDirectory,STRUNDEF) == 0){
-            sprintf(WriteStateDirectory,"%s/write",WorkingDirectory);
+            int ret = snprintf(WriteStateDirectory, 1024, "%s/write",WorkingDirectory);
+            assert(ret >= 0 && ret < 1024);
             if(strcmp(StateIOMode, "overwrite") == 0) {  // later, we will set WriteState.OverwriteState
                 strcpy(WriteStateDirectory, ReadStateDirectory);
             }
@@ -516,10 +547,13 @@ void Parameters::ProcessStateDirectories(){
 
     // Set read dir and write dir from local working dir if they were not given
     if (strcmp(LocalWorkingDirectory,STRUNDEF) != 0){
-        if(strcmp(LocalReadStateDirectory,STRUNDEF) == 0)
-            sprintf(LocalReadStateDirectory,"%s/read",LocalWorkingDirectory);
+        if(strcmp(LocalReadStateDirectory,STRUNDEF) == 0){
+            int ret = snprintf(LocalReadStateDirectory, 1024, "%s/read",LocalWorkingDirectory);
+            assert(ret >= 0 && ret < 1024);
+        }
         if(strcmp(LocalWriteStateDirectory,STRUNDEF) == 0){
-            sprintf(LocalWriteStateDirectory,"%s/write",LocalWorkingDirectory);
+            int ret = snprintf(LocalWriteStateDirectory, 1024, "%s/write",LocalWorkingDirectory);
+            assert(ret >= 0 && ret < 1024);
             if(strcmp(StateIOMode, "overwrite") == 0) {  // later, we will set WriteState.OverwriteState
                 strcpy(LocalWriteStateDirectory, LocalReadStateDirectory);
             }

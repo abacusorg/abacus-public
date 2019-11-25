@@ -10,10 +10,6 @@ We include this file in the program, and it includes the rest.
 #include "fof_sublist.cpp"
 	// Code to do FOF on a set (e.g., a cell)
 
-#include "slab_accum.cpp"
-	// Code to establish templated slab-based storage of flexible size 
-	// that is cell indexed and multi-threaded by pencil
-
 #include "grouplink.cpp"
 	// Code to store the list of links between CellGroups.
 	// This is GCC->GLL
@@ -74,6 +70,9 @@ class GroupFindingControl {
     	///< The total number of sorting elements 
     long long numcenters1, numcenters2;	
     	///< The total number of centers considered
+    long long numcg1, numcg2;	
+    	///< The total number of cell groups used
+    int max_group_diameter;
 
     SlabAccum<CellGroup> *cellgroups;   // Allocated [0,cpd), one for each slab
     int *cellgroups_status;     // Allocated [0,cpd) for each slab. 
@@ -166,8 +165,9 @@ class GroupFindingControl {
         CGactive = 0;
         maxFOFdensity = 0.0;
         largest_GG = 0;
-        numdists1 = numsorts1 = numcenters1 = 0;
-        numdists2 = numsorts2 = numcenters2 = 0;
+        numdists1 = numsorts1 = numcenters1 = numcg1 = 0;
+        numdists2 = numsorts2 = numcenters2 = numcg2 = 0;
+        max_group_diameter = 0;
         return;
     }
 
@@ -187,11 +187,12 @@ class GroupFindingControl {
 	
     /// This generates the log report
     void report() {
+     float FOFunitdensity    = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
+
 	 GLOG(0,"Considered %f G particles as active\n", CGactive/1e9);
 	 // The FOFdensities are weighted by b^2-r^2.  When integrated,
 	 // that yields a mass at unit density of 
    	 // (2/15)*4*PI*b^5*np
-	 float FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
 	 GLOG(0,"Maximum reported density = %f (%e in code units)\n", maxFOFdensity/FOFunitdensity, maxFOFdensity);
 	 meanFOFdensity /= P.np;    
 	 meanFOFdensity -= WriteState.DensityKernelRad2;  // Subtract self-count
@@ -202,14 +203,21 @@ class GroupFindingControl {
 	 GLOG(0,"Found %f M links between groups.\n", Ltot/1e6);
 	 GLOG(0,"Found %f M global groups\n", GGtot/1e6);
 	 GLOG(0,"Longest GroupLink list was %f M, compared to %f M allocation (%f MB)\n", GLL->longest/1e6, GLL->maxlist/1e6, GLL->maxlist/1024/1024*sizeof(GroupLink));
+	 GLOG(0,"Widest L0 Diameter reached %d slabs from the first\n", max_group_diameter);
+
+#ifdef PARALLEL
+	 MPI_REDUCE_TO_ZERO(&max_group_diameter, 1, MPI_INT, MPI_MAX);
+#endif
+	 WriteState.MaxGroupDiameter = max_group_diameter; 
+
 	 GLOG(0,"Largest Global Group has %d particles\n", largest_GG);
 
 	 GLOG(0,"L0 group multiplicity distribution:\n");
 	 L0stats.report_multiplicities(grouplog);
 
 	 GLOG(0,"L1 & L2 groups min size = %d\n", minhalosize);
-	 GLOG(0,"L1 groups required %f G distances, %f G sorts, %f G centers\n", numdists1/1e9, numsorts1/1e9, numcenters1/1e9);
-	 GLOG(0,"L2 groups required %f G distances, %f G sorts, %f G centers\n", numdists2/1e9, numsorts2/1e9, numcenters2/1e9);
+	 GLOG(0,"L1 groups required %f G distances, %f G sorts, %f G centers, %f G cg\n", numdists1/1e9, numsorts1/1e9, numcenters1/1e9, numcg1/1e9);
+	 GLOG(0,"L2 groups required %f G distances, %f G sorts, %f G centers, %f G cg\n", numdists2/1e9, numsorts2/1e9, numcenters2/1e9, numcg2/1e9);
 	 GLOG(0,"L1 group multiplicity distribution:\n");
 	 L1stats.report_multiplicities(grouplog);
      // BOT
@@ -226,8 +234,10 @@ class GroupFindingControl {
 			ProcessLevel1.Elapsed()+
             ScatterAux.Elapsed()+
 			ScatterGroups.Elapsed();
+     float total_cycle;
 	 GLOG(0,"Timings: \n");
 	 #define RFORMAT(a) a.Elapsed(), a.Elapsed()/total_time*100.0
+	 #define CFORMAT(a) a.Elapsed(), a.Elapsed()/total_cycle*100.0
 	 GLOG(0,"Finding Cell Groups:     %8.4f sec (%5.2f%%)\n",
 			RFORMAT(CellGroupTime));
 	 GLOG(0,"Creating Faces:          %8.4f sec (%5.2f%%)\n",
@@ -239,7 +249,7 @@ class GroupFindingControl {
 	 GLOG(0,"Index Links:             %8.4f sec (%5.2f%%)\n",
 			RFORMAT(IndexLinks));
 	 // printf("     Searching:               %8.4f sec\n", IndexLinksSearch.Elapsed());
-	 GLOG(0,"Indexing (P):                %8.4f sec\n", IndexLinksIndex.Elapsed());
+	 GLOG(0,"Indexing (P):                %8.4g cyc\n", IndexLinksIndex.Elapsed());
 	 GLOG(0,"Defer Groups:            %8.4f sec (%5.2f%%)\n",
 			RFORMAT(DeferGroups));
 	 GLOG(0,"Find Global Groups:      %8.4f sec (%5.2f%%)\n",
@@ -252,12 +262,13 @@ class GroupFindingControl {
 			RFORMAT(GatherGroups));
 	 GLOG(0,"Level 1 & 2 Processing:  %8.4f sec (%5.2f%%)\n",
 			RFORMAT(ProcessLevel1));
-	 GLOG(0,"Level 1 FOF (P):               %8.4f sec (%5.2f%%)\n",
-			RFORMAT(L1FOF));
-	 GLOG(0,"Level 2 FOF (P):               %8.4f sec (%5.2f%%)\n",
-			RFORMAT(L2FOF));
-	 GLOG(0,"Level 1 Total (P):             %8.4f sec (%5.2f%%)\n",
-			RFORMAT(L1Tot));
+     total_cycle = L1Tot.Elapsed();
+	 GLOG(0,"Level 1 FOF (P):               %8.4g cyc (%5.2f%%)\n",
+			CFORMAT(L1FOF));
+	 GLOG(0,"Level 2 FOF (P):               %8.4g cyc (%5.2f%%)\n",
+			CFORMAT(L2FOF));
+	 GLOG(0,"Level 1 Total (P):             %8.4g cyc (%5.2f%%)\n",
+			CFORMAT(L1Tot));
 	 GLOG(0,"Level 1 Output:          %8.4f sec (%5.2f%%)\n",
             RFORMAT(OutputLevel1));
 	 GLOG(0,"Scatter Aux:             %8.4f sec (%5.2f%%)\n",
@@ -289,6 +300,9 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     FLOAT DensityKernelRad2 = WriteState.DensityKernelRad2;
     FLOAT L0DensityThreshold = WriteState.L0DensityThreshold;
 
+    float FOFunitdensity    = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
+    float invFOFunitdensity = 1.0/FOFunitdensity;
+
     if (L0DensityThreshold>0) {
         // We've been asked to compare the kernel density to a particular
 	// density (unit of cosmic mean) to make a particle L0 eligible.
@@ -296,7 +310,6 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	// The FOFdensities are weighted by b^2-r^2.  When integrated,
 	// that yields a mass at unit density of 
 	// (2/15)*4*PI*b^5*np
-	FLOAT FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
 	L0DensityThreshold *= FOFunitdensity;  // Now in code units
     } else {
         L0DensityThreshold = DensityKernelRad2;
@@ -320,12 +333,15 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	        // The FOF-scale density is in acc.w.  
 		// All zeros cannot be in groups, partition them to the end
 		for (int p=0; p<active_particles; p++) {
-		    _meanFOFdensity += c.acc[p].w;
+            float dens = c.acc[p].w; 
+		    _meanFOFdensity += dens;
 			// This will be the mean over all particles, not just
 			// the active ones
-		    if (c.acc[p].w>L0DensityThreshold) {
+            c.aux[p].set_density( (uint64) (pow( dens * invFOFunitdensity, 0.5)) );  //store sqrt(density) in cosmic mean units, as an int. 
+
+		    if (dens>L0DensityThreshold) {
 			// Active particle; retain and accumulate stats
-			_maxFOFdensity=std::max(_maxFOFdensity, c.acc[p].w);
+			_maxFOFdensity=std::max(_maxFOFdensity, dens);
 		    } else {
 		        // We found an inactive particle; swap to end.
 			active_particles--;

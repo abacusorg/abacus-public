@@ -46,10 +46,10 @@ def setup_bins(args):
         all_eps = np.array([h['SofteningLength'] for h in all_headers])
         eps = all_eps[0]
 
-        rmin = eval(rmin)
-
-        if (eps != all_eps).any():
+        if 'eps' in rmin and (eps != all_eps).any():
             raise ValueError("TODO: Cannot use 'eps' in rmin if all eps don't agree.", all_eps)
+
+        rmin = eval(rmin)
 
         del eps
 
@@ -133,7 +133,7 @@ def default_argparse(doc=__doc__):
     parser.add_argument('--resolution-scale', help='For scale-free binning, mask bins above this effective resolution scale (units of interparticle spacing)', type=float, default=35)
     parser.add_argument('--secondary', help='The time slice directory containing the secondary particles for cross-correlations.')
     
-    parser.add_argument('--format', help='Format of the particle data.', default='Pack14', choices=['RVdouble', 'Pack14', 'RVZel', 'RVTag', 'state', 'gadget'])
+    parser.add_argument('--format', help='Format of the particle data.', default='Pack14', choices=['RVdouble', 'Pack14', 'Pack9', 'RVint', 'RVZel', 'RVTag', 'state', 'gadget'])
     parser.add_argument('--scalefree-index', help='Automatically scales rmin and rmax according to the scale free cosmology with the given spectral index.  Uses the highest redshift for rmax, and the lowest redshift for rmin.', default=None, type=float)
     # TODO: change to amin and amax
     #parser.add_argument('--scalefree_base_a', help='Override the fiducial scale factor for automatic rmin/rmax computation in a scale-free cosmology. Only has an effect with the --scalefree_index option.', default=None, type=float)

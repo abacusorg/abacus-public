@@ -66,6 +66,7 @@ When we store into the output TaggedPID format, we apply a bit mask to zero all 
 #define AUXTAGGABLE_A_BIT 59llu //Can this particle be tagged in subsample A? 
 #define AUXTAGGABLE_B_BIT 60llu //Can this particle be tagged in subsample B? 
 
+#define NUMLC 3
 
 #define AUXLCZEROBIT 61llu		// The LC bits are 61,62,63.
 #define AUXLC  (uint64)0xe000000000000000	// The next three bits.
@@ -123,7 +124,7 @@ public:
 
     // Light cones need 1 byte
     inline static uint64 lightconemask(int number) {
-        assertf(number<8 && number>=0, "Lightcone number lcn = %d must satisfy 0 <= lcn < 8.", number);
+        assertf(number<NUMLC && number>=0, "Lightcone number lcn = %d must satisfy 0 <= lcn < %d.", number, NUMLC);
         return (uint64)1 << (number+AUXLCZEROBIT);
     }
 
@@ -168,7 +169,6 @@ public:
     inline void set_density(uint64 _density){
         assert(_density < (AUXDENSITY >> AUXDENSITYZEROBIT)); 
         aux |= ((uint64) _density << AUXDENSITYZEROBIT);
-
     }
     inline void reset_L01_bits() {
         // We need to be able to unset these bits each time we run groupfinding

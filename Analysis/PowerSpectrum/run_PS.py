@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 '''
 A user-friendly command-line interface to PowerSpectrum.
@@ -72,25 +72,17 @@ def get_output_path_ps(input):
     return os.path.dirname(input)
 
     
-def run_PS_on_dir(folder, **kwargs):
-    patterns = [pjoin(folder, '*.dat'), pjoin(folder, 'ic_*'), pjoin(folder, 'position_*'), pjoin(folder, common.gadget_pattern)]
-    # Decide which pattern to use
-    for pattern in patterns:
-        if glob(pattern):
-            break
-    else:
-        assert len(glob(pattern)) > 0, 'Could not find any matches to ' + str(patterns)
-
+def run_PS_on_dir(slicedir, **kwargs):
     # Make a descriptive filename
     this_suffix = ps_suffix(**kwargs)
     kwargs.pop('track')
     
     just_density = kwargs.pop('just_density')
     product_name = 'power' if not just_density else 'density'
-    outdir = common.get_output_dir(product_name, folder)
+    outdir = common.get_output_dir(product_name, slicedir)
     ps_fn = product_name + this_suffix
 
-    header, header_fn = common.get_header(folder, retfn=True)
+    header, header_fn = common.get_header(slicedir, retfn=True)
     
     # box kwargs overrides header
     argbox = kwargs.pop('box')
@@ -105,24 +97,23 @@ def run_PS_on_dir(folder, **kwargs):
         shutil.copy(header_fn, pjoin(outdir, 'header'))
 
     # Copy the sim-level parameter files
-    if not os.path.isdir(outdir + '/../info'):
+    if not os.path.isdir(pjoin(outdir, os.pardir, 'info')):
         try:
-            shutil.copytree(folder+'/../info', outdir + '/../info')
+            shutil.copytree(pjoin(slicedir, os.pardir, 'info'), pjoin(outdir, os.pardir, 'info'))
         except:
             pass
     
-    print('* Starting {} on {}'.format('PS' if not just_density else 'density', pattern))
+    print('* Starting {} on {}'.format('PS' if not just_density else 'density', slicedir))
     save_fn = os.path.join(outdir, ps_fn)
-    print('* and saving to {}'.format(save_fn))
+    print(f'* and saving to {save_fn}')
     
     nfft = kwargs.pop('nfft')
     if not just_density:
         bins = kwargs['bins']  # needed for kmin,kmax
-        raw_results = PS.CalculateBySlab(pattern, nfft, BoxSize, **kwargs)
+        raw_results = PS.CalculateBySlab(slicedir, nfft, BoxSize, **kwargs)
         results = to_csv(raw_results, bins, save_fn)
-
     else:
-        density = TSC.BinParticlesFromFile(pattern, BoxSize, nfft, **kwargs)
+        density = TSC.BinParticlesFromFile(slicedir, BoxSize, nfft, **kwargs)
         density.tofile(save_fn)
         results = density
 
@@ -166,6 +157,9 @@ def run_PS(inputs, **kwargs):
     binnings = kwargs.pop('binnings')
     maxnfft = np.array([max(t['nfft'] for t in b) for b in binnings])
     order = np.argsort(maxnfft, kind='stable')[::-1]
+
+    nthreads = kwargs.pop('nthreads',-1)
+    PS.nthreads = nthreads
 
     # Loop in order of difficulty; i.e. largest nfft first
     # That way we'll fail-fast if we don't fit in memory
@@ -243,13 +237,14 @@ def setup_bins(args):
     nslices = len(slices)
 
     headers = [common.get_header(p) for p in slices]
-    all_scalefactor = np.array([h['ScaleFactor'] for h in headers])
+    all_scalefactor = np.array([h['ScaleFactor'] if h else 0. for h in headers])
 
-    def setup_onetrack(headers):
-        nslices = len(headers)
+    def setup_onetrack(headers=None):
+        nslices = len(headers) if headers else 1
 
         # "box" specified on the command line overrides the header
-        if args.get('box'):
+        if args.get('box') or not headers:
+            assert args['box']
             all_boxsize = np.full(nslices, args['box'])
         else:
             all_boxsize = np.asfarray([h['BoxSize'] for h in headers])
@@ -348,7 +343,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Compute power spectra on Abacus outputs or ICs.  Can also evaluate a power spectrum on an FFT mesh.', formatter_class=Tools.ArgParseFormatter)
     parser.add_argument('input', help='The timeslice outputs (or IC directories, or power spectrum file) on which to run PS', nargs='+')
     parser.add_argument('--nfft', help='The size of the FFT (side length of the FFT cube).  Default: 1024', default=1024, type=int)
-    parser.add_argument('--format', help='Format of the data to be read.  Default: Pack14', default='Pack14', choices=['RVdouble', 'Pack14', 'RVZel', 'state', 'gadget', 'RVTag'])
+    parser.add_argument('--format', help='Format of the data to be read.  Default: Pack14', default='pack14', choices=TSC.valid_file_formats)
     parser.add_argument('--rotate-to', help='Rotate the z-axis to the given axis [e.g. (1,2,3)].  Rotations will shrink the FFT domain by sqrt(3) to avoid cutting off particles.', default=None, type=vector_arg, metavar='(X,Y,Z)')
     parser.add_argument('--projected', help='Project the simulation along the z-axis.  Projections are done after rotations.', action='store_true')
     parser.add_argument('--zspace', help='Displace the particles according to their redshift-space positions.', action='store_true')
@@ -362,6 +357,7 @@ if __name__ == '__main__':
     parser.add_argument('--scalefree_base_a', help='Override the fiducial scale factor for automatic k_min/k_max computation in a scale-free cosmology. Only has an effect with the --scalefree_index option.', default=None, type=float)
     parser.add_argument('--box', help='Override the box size from the header', type=float)
     parser.add_argument('--ntracks', help='The number of "tracks" of power spectra to measure.  Only has an effect with the --scalefree_index option.', type=int, default=1)
+    parser.add_argument('--nthreads', help='Number of threads for binning/FFT. Default is all CPUs.', type=int, default=os.cpu_count())
     # TODO: wisdom option
     
     args = parser.parse_args()

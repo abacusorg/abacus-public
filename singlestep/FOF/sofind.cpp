@@ -132,8 +132,7 @@ class SOcell {
     FOFloat threshold;  ///< The density threshold we are applying
     FOFloat xthreshold;
     FOFloat FOFunitdensity; //  cosmic mean in FOF units
-    FOFloat mag_loc = 4.;    /// Condition for creating a center
-    FOFloat inner_rad2 = 1.*1.; /// What is the inner radius of Delta prime with respect to Delta
+    FOFloat mag_roche;    /// Condition for a satellite halo to eat up particles belonging to a larger halo
     FOFloat min_central;   ///< The minimum FOF-scale density to require for a central particle.
     FOFloat *twothirds;    ///< We compare x^(3/2) to integers so much that we'll cache integers^(2/3)
 
@@ -151,11 +150,11 @@ class SOcell {
     int ncg;            ///< The active number of cellgroups
     
     FOFTimer Total;
-    FOFTimer Copy, Sweep, Distance, Search; 
+    FOFTimer Copy, Sweep, Distance, Search, Sort; 
     long long numdists;  ///< Total number of distances we compute
     long long numsorts;  ///< Total number of sorting elements
     long long numcenters; ///< Total number of SO centers considered
-
+    long long numcg;     ///< Total number of cell groups considered
 
     char pad[CACHE_LINE_SIZE];    // Just to ensure an array of these always fall on
         // a different cache line
@@ -238,8 +237,12 @@ class SOcell {
         numdists = 0;
         numsorts = 0;
         numcenters = 0;
+        numcg = 0;
         reset(32768);
         setup_socg(2048);
+
+        mag_roche = P.SO_RocheCoeff;    /// Condition for a satellite halo to eat up particles belonging to a larger halo
+
 
         int ret = posix_memalign((void **)&twothirds, 64, sizeof(FOFloat)*(SO_CACHE+2));  assert(ret == 0);
         for (int j=0; j<SO_CACHE+2; j++) twothirds[j] = pow(j,2.0/3.0);
@@ -277,6 +280,7 @@ class SOcell {
         Sweep.increment(x.Sweep.get_timer());
         Distance.increment(x.Distance.get_timer());
         Search.increment(x.Search.get_timer());
+        Sort.increment(x.Sort.get_timer());
     }
 
     /// These are density thresholds in interparticle units,
@@ -304,7 +308,7 @@ class SOcell {
         // Cosmic unit density yields a count in our FOFscale densities of this:
         // TODO: Document better
         FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5);
-        FOFloat M_D = 35.;
+        FOFloat M_D = P.SO_NPForMinDensity;
         FOFloat sigma3 = M_D*sqrt(threshold*P.np/(48*M_PI*M_PI));
         // Density for a SIS with mass M_D
         min_central = 5./WriteState.DensityKernelRad2*pow(sigma3,2./3); 
@@ -359,7 +363,11 @@ void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
     // from which partition_cellgroup is called;
 
     int len = cg->start[4]-cg->start[0];
+    Search.Stop();
+    Distance.Start();
     FOFloat *d2 = compute_d2(center, p+cg->start[0], len, d2buffer, numdists);
+    Distance.Stop();
+    Search.Start();
     for (int j=0; j<len; j++) {
         d2_active[cg->start[0]+j] = d2[j];
         if (d2[j] > cg->d2_furthest) cg->d2_furthest = d2[j];
@@ -428,6 +436,8 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
       
     // Compute the distance to all of the cellgroup centers,
     // and find the furthest one.
+    Search.Stop();
+    Distance.Start();
     int furthest_firstbin = -1;
     for (int i = 0; i<ncg; i++) {
         socg[i].compute_d2(halocenter);
@@ -436,6 +446,8 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             furthest_firstbin = socg[i].firstbin;
         }
     }
+    Distance.Stop();
+    Search.Start();
 
     // If we find no density threshold crossing, we'll return furthest edge -- not ideal
     FOFloat r2found; // TODO: REMOVE
@@ -495,10 +507,8 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             // to save only the particle distances in r
             
             // Search for density threshold in list, given previous mass.
-            Distance.Start();
             d2_thresh = partial_search(size_bin, mass, size_thresh, inv_enc_den);
         
-            Distance.Stop();
             if (d2_thresh > 0.0) {
                 // If something was found, record it
                 mass += size_thresh;
@@ -623,10 +633,9 @@ int greedySO() {
         // satisfy the overdensity condition
         FOFloat d2SO = search_socg_thresh(p+start,mass,inv_enc_den);
         halo_thresh2[count] = d2SO;
-        
-        // Primed threshold distance d2SO_pr has the property that particles
+        // Threshold distance d2SO has the property that particles
         // found in it can never be eligible centers
-        FOFloat d2SO_pr = d2SO*inner_rad2;
+        
         Search.Stop();
         
         // Inverse density used when interpolating
@@ -653,20 +662,20 @@ int greedySO() {
                 socg[i].active = 0;
 		// Loop over all particles in that cell
                 for (int j=socg[i].start[0]; j<socg[i].start[4]; j++) {
-                    // for those within prime, set their halo_inds to a negative number to
+            // for those within the threshold distance, set their halo_inds to a negative number to
 		    // make them ineligible to be halo centers
-                    if (d2_active[j]<d2SO_pr) {
+                    if (d2_active[j]<d2SO) {
 		        // If this particle has not yet been assigned to a halo, set it to -1
 		        // as a placeholder (will be changed within loop, see ***). If already assigned,
 		        // make sure the halo_index remains negative (i.e. particle ineligible
 		        // to ever be a halo center)
                         halo_inds[j] = (halo_inds[j]==0)?(-1):-abs(halo_inds[j]);
                     }
-                    // For those outside prime which are
+                    // For those outside the threshold distance which are
 		    // still active (i.e. halo_inds is non-negative) and eligible, i.e. satisfies the
 		    // local density to max enclosed density ratio criterion,
 		    // check whether any can be the next densest particle.
-                    else if (density[j]>maxdens && density[j]*min_inv_den[j]>mag_loc*FOFunitdensity && halo_inds[j]>=0) {
+                    else if (density[j]>maxdens && halo_inds[j]>=0) {
                         maxdens=density[j];
                         densest = j;
 			// If the particle is outside the density threshold, we don't need to look
@@ -683,12 +692,16 @@ int greedySO() {
                     // If j is the densest particle seen so far, i.e. its enclosed density
 		    // with respect to this halo center is the largest yet, mark this as its halo
                     if (min_inv_den[j] > inv_d) {
-                        // Update the max dens for that particle 
+                        // Update the max dens for that particle
+                      if (min_inv_den[j] > mag_roche*inv_d) {
+                            halo_inds[j] = (halo_inds[j]<0)?(-count):count;
+                      }
                         min_inv_den[j] = inv_d;
                         // If this particle has already been marked as ineligible (i.e. has negative
 			// halo_inds), preserve the sign and just change its halo assignment (*** notice
 			// that the halo_inds in this case will definitely change within this loop)
-                        halo_inds[j] = (halo_inds[j]<0)?(-count):count;
+			// The halo index gets updated only if the enclosed density of the particle
+            // with respect to the newcomer is  mag_roche times its largest enclosed density so far
                     }
                 }
             }
@@ -696,7 +709,7 @@ int greedySO() {
             // which are eligible to be halo centers to check whether any of them can be the next densest
             else {
                 for (int j=socg[i].start[0]; j<socg[i].start[4]; j++) {
-                    if (density[j]>maxdens && density[j]*min_inv_den[j]>mag_loc*FOFunitdensity && halo_inds[j]>=0) {
+                    if (density[j]>maxdens && halo_inds[j]>=0) {
                         maxdens=density[j];
                         densest = j;
                     }
@@ -715,12 +728,12 @@ int greedySO() {
 
 void partition_halos(int count) {
     
+    Sweep.Start();
     for (int j=0; j<np; j++) {
       halo_inds[j] = abs(halo_inds[j]);
     }
     
     
-    Sweep.Start();
     int size = 0;
     int start = 0;
     int next_densest;
@@ -742,13 +755,13 @@ void partition_halos(int count) {
         // TODO: Will write more documentation 
         if (next_densest < 0) {
             numcenters++;
-            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[i]); // B.H.
+            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[halo_ind]); // B.H.
             start += size;
             continue;
         }
         if (size > 0) {
             numcenters++;
-            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[i]); // B.H.
+            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[halo_ind]); // B.H.
             start += size;
         }
       
@@ -819,6 +832,7 @@ void load_socg() {
     }
     // Always have one group left at the end
     socg[ncg++].load(laststart, np, compute_cellcenter(lastidx));
+    numcg += ncg;
     return;
 }
 
@@ -870,9 +884,11 @@ int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, FLOAT3p1 *acc, in
     // Note: I left the first particle unsorted, as it is planned to be the densest one.  This is a tiny inefficiency for L2: one extra group.
 
 
+    Sort.Start();
     for (int g=0; g<ngroups; g++) {
         std::sort(p+groups[g].start+1, p+groups[g].start+groups[g].n);
     }
+    Sort.Stop();
 
     Total.Stop();
     return ngroups;

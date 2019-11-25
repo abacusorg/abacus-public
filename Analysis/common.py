@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 A collection of file organization functions
@@ -10,12 +10,14 @@ from os.path import join as pjoin
 import tarfile
 import shutil
 from glob import glob
+from warnings import warn
 
 import contextlib
 
 from Abacus import Tools
 from Abacus.Tools import ContextTimer
 from Abacus.InputFile import InputFile
+from Abacus import ReadAbacus
 
 def get_output_dir(product_name, slice_dir, out_parent=None):
     """
@@ -63,6 +65,7 @@ def get_header(dir, retfn=False):
     # Read the header to get the boxsize
     header_pats = [pjoin(dir, 'header'), pjoin(dir, os.pardir, 'info/*.par'), pjoin(dir, os.pardir, '*.par')]
     headers = sum([glob(h) for h in header_pats], [])
+
     for header_fn in headers:
         try:
             header = InputFile(header_fn)
@@ -71,18 +74,17 @@ def get_header(dir, retfn=False):
             continue
         break
     else:
-        # Maybe it's a gadget file?
-        # Extract the relevant properties from the gadget header and return them in a dict
-        try:
-            gadget_fn = sorted(glob(pjoin(dir, gadget_pattern)))[0]
-            header_fn= None
-            import pynbody
-            f = pynbody.load(gadget_fn)
-            header = {'BoxSize': float(f.properties['boxsize']),
-                      'ScaleFactor': float(f.properties['a'])}
-        except:
-            print('* Warning: Could not find a header in ' + str(header_pats) + ' or as a gadget file')
+        for f in (get_desi_hdf5_header, get_gadget_header):
+            try:
+                header = f(dir)
+                header_fn = None  # safe to return None?
+            except:
+                continue
+            break
+        else:
+            warn(f'Could not find a header in {dir}')
             header, header_fn = None, None
+            
 
     if retfn:
         return header, header_fn
@@ -97,6 +99,27 @@ def get_gadget_prefix(dir):
     gadget_prefix = glob(pjoin(dir, gadget_pattern))[0]
     gadget_prefix = gadget_prefix[:gadget_prefix.rfind('.')]
     return gadget_prefix
+
+def get_gadget_header(dir):
+    gadget_fn = sorted(glob(pjoin(dir, gadget_pattern)))[0]
+
+    # Extract the relevant properties from the gadget header and return them in a dict
+    import pynbody
+    f = pynbody.load(gadget_fn)
+    header = {'BoxSize': float(f.properties['boxsize']),
+              'ScaleFactor': float(f.properties['a'])}
+    return header
+
+
+def get_desi_hdf5_header(dir):
+    import h5py
+
+    h5pat = ReadAbacus.default_file_patterns['desi_hdf5']
+    h5fn = glob(pjoin(dir, h5pat))[0]
+
+    with h5py.File(h5fn, 'r') as fp:
+        header = dict(fp['/AbacusHeader'].attrs)
+    return header
 
 
 import multiprocessing

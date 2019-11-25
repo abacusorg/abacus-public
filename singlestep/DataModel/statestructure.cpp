@@ -40,9 +40,9 @@ public:
     int NodeSize;   // The MPI size, 1 if serial
     double ppd;		// Particles per dimension
     int DoublePrecision;  // =1 if code is using double precision positions
-    char SofteningType[128];
-    double SofteningLength;  // Effective Plummer length, used for timestepping.  Same units as BoxSize.
-    double SofteningLengthInternal;  // The equivalent length for the current softening technique.  Same units as BoxSize.
+    char SofteningType[128];  // The force law.  This is here because it's a compile-time parameter.
+    double SofteningLengthNow;  // Effective Plummer length, used for timestepping.  Same units as BoxSize.
+    double SofteningLengthNowInternal;  // The equivalent length for the current softening technique.  Same units as BoxSize.
 
     double ScaleFactor;
     int FullStepNumber; // Counting the full steps
@@ -90,6 +90,8 @@ public:
     double DensityKernelRad2;
     // The density threshold for L0 particle eligibility (units of cosmic mean)
     double L0DensityThreshold;
+    double SODensityL1; //density threshold for SO L1 groups.
+    double SODensityL2; //density threshold for SO L2 groups. 
 
     // Some statistics about the particle distribution that might be useful.
     double MaxVelocity;
@@ -99,7 +101,7 @@ public:
     int MinCellSize;
     double StdDevCellSize;
     double RMS_Velocity;
-
+    int MaxGroupDiameter; 
     // The variables below are not intended for output.  Just used in the code.
 
     // We will write a lot of state information into the header of output
@@ -146,8 +148,8 @@ public:
     	installscalar("ParameterFileName",ParameterFileName,DONT_CARE);
     	installscalar("ppd",ppd,DONT_CARE);
         installscalar("SofteningType", SofteningType,DONT_CARE);
-        installvector("SofteningLength", &SofteningLength, 2, 0, DONT_CARE);
-        installscalar("SofteningLengthInternal", SofteningLengthInternal,DONT_CARE);
+        installvector("SofteningLengthNow", &SofteningLengthNow, 2, 0, DONT_CARE);
+        installscalar("SofteningLengthNowInternal", SofteningLengthNowInternal,DONT_CARE);
 
     	sprintf(CodeVersion,"version_not_defined");
     	installscalar("CodeVersion",CodeVersion,DONT_CARE);
@@ -161,7 +163,7 @@ public:
 
         installscalar("ScaleFactor",ScaleFactor, MUST_DEFINE);
         installscalar("FullStepNumber",FullStepNumber,MUST_DEFINE);
-    installscalar("LPTStepNumber",LPTStepNumber,DONT_CARE);
+        installscalar("LPTStepNumber",LPTStepNumber,DONT_CARE);
         installscalar("BoxSizeMpc",BoxSizeMpc,DONT_CARE);
         installscalar("BoxSizeHMpc",BoxSizeHMpc,DONT_CARE);
         installscalar("HubbleTimeGyr",HubbleTimeGyr,DONT_CARE);
@@ -191,6 +193,8 @@ public:
     	installscalar("DeltaScaleFactor",DeltaScaleFactor,DONT_CARE);
     	installscalar("DeltaRedshift",DeltaRedshift,DONT_CARE);
     	installscalar("DensityKernelRad2",DensityKernelRad2,DONT_CARE);
+        installscalar("SODensityL1",SODensityL1,DONT_CARE);
+        installscalar("SODensityL2",SODensityL2,DONT_CARE);
         
         MaxVelocity = 0;
     	installscalar("MaxVelocity",MaxVelocity,DONT_CARE);
@@ -206,20 +210,21 @@ public:
     	installscalar("StdDevCellSize",StdDevCellSize,DONT_CARE);
         RMS_Velocity = 0.0;
     	installscalar("RMS_Velocity",RMS_Velocity,DONT_CARE);
-
+        MaxGroupDiameter = 0; 
+        installscalar("MaxGroupDiameter",MaxGroupDiameter,DONT_CARE);
         // Initialize helper variables
         DoTimeSliceOutput = 0;
         OutputIsAllowed = 0;
-    DoGroupFindingOutput = 0;
-    DoSubsampleOutput = 0; 
+        DoGroupFindingOutput = 0;
+        DoSubsampleOutput = 0; 
         
-    Do2LPTVelocityRereading = 0;
+        Do2LPTVelocityRereading = 0;
 
-    // These will be set in InitWriteState() based on StateIOMode and Conv_IOMode in the parameters file
-    OverwriteState = 0;
-    OverwriteConvState = 0;
-    StripeState = 0;
-    StripeConvState = 0;
+        // These will be set in InitWriteState() based on StateIOMode and Conv_IOMode in the parameters file
+        OverwriteState = 0;
+        OverwriteConvState = 0;
+        StripeState = 0;
+        StripeConvState = 0;
     }
 
 
@@ -240,8 +245,8 @@ void State::read_from_file(const char *fn) {
 
 
 #define PRQUOTEME(X) #X
-#define WPR(X,XSYM) sprintf(tmp, PRQUOTEME(%22s = %XSYM\n), PRQUOTEME(X), X); ss << tmp
-#define WPRS(X,XSYM) sprintf(tmp, "%22s = \"%s\" \n", PRQUOTEME(X), X); ss << tmp
+#define WPR(X,XSYM) {int ret = snprintf(tmp, 1024, PRQUOTEME(%22s = %XSYM\n), PRQUOTEME(X), X); assert(ret >= 0 && ret < 1024); ss << tmp;}
+#define WPRS(X,XSYM) {int ret = snprintf(tmp, 1024, "%22s = \"%s\" \n", PRQUOTEME(X), X); assert(ret >= 0 && ret < 1024); ss << tmp;}
 
 void State::make_output_header() {
     // We're going to output most, but not all of the fields, into a 
@@ -287,9 +292,9 @@ void State::make_output_header() {
     WPR(OmegaNow_K               , FSYM);
     WPR(OmegaNow_DE              , FSYM);
     
-    WPRS(SofteningType            , s);
-    WPR(SofteningLength          , ESYM);
-    WPR(SofteningLengthInternal  , ESYM);
+    WPRS(SofteningType           , s);
+    WPR(SofteningLengthNow       , ESYM);
+    WPR(SofteningLengthNowInternal, ESYM);
 
     WPR(DeltaTime                , FSYM);
     WPR(DeltaScaleFactor         , FSYM);
@@ -302,6 +307,9 @@ void State::make_output_header() {
     
     WPR(Do2LPTVelocityRereading  , ISYM);
     WPR(DensityKernelRad2        , FSYM);
+    WPR(L0DensityThreshold       , FSYM);
+    WPR(SODensityL1              , FSYM);
+    WPR(SODensityL2              , FSYM);
 
     output_header = ss.str();
 }
@@ -333,6 +341,7 @@ void State::write_to_file(const char *dir, const char *suffix) {
     WPR(MaxCellSize              , ISYM);
     WPR(MinCellSize              , ISYM);
     WPR(StdDevCellSize           , FSYM);
+    WPR(MaxGroupDiameter         , ISYM); 
 
     time_t now  = time(0);
     fprintf(statefp,"#State written:%s\n",asctime(localtime(&now)) );

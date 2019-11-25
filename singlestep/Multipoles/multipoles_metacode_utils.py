@@ -72,6 +72,10 @@ def default_metacode_argparser(doc):
 
 
 class cmapper:
+    '''
+    Precompute indices needed for some of the "triangle" loops.
+    Replicates functionality from basemultipoles.cpp.
+    '''
     def __init__(self, order):
         self.order = order
         self.cml = (order+1)*(order+2)*(order+3)//6

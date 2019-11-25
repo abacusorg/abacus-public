@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 This is an out-of-core wrapper to Corrfunc, designed to
 support pair-counting (auto-correlation or cross-correlation)
@@ -289,7 +289,7 @@ def get_fns(directory, pattern, slab_regex=r'slab(\d{4})'):
 
 
 if __name__ == '__main__':
-    parser = utils.default_argparse(doc=doc=__doc__)
+    parser = utils.default_argparse(doc=__doc__)
     parser.add_argument('--chunksize', help='The number of slabs to read at a time. CHUNKSIZE <= 0 means choose the smallest value allowed by RMAX.  This is a tuning parameter; larger values will typically run faster but use more memory.', default=-1, type=int)
     
     args = parser.parse_args()

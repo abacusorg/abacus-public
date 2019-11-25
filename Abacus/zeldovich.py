@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 Wrapper for the zeldovich binary.
 
@@ -27,7 +27,7 @@ from Abacus.Cosmology import AbacusCosmo
 zeldovich_dir = pjoin(abacus.abacuspath, 'zeldovich-PLT')
 eigmodes_path = pjoin(zeldovich_dir, 'eigmodes128')
 
-on_the_fly_formats = ['poisson']
+on_the_fly_formats = ['poisson', 'lattice']
 
 def is_on_the_fly_format(fmt):
     return fmt.lower() in on_the_fly_formats
@@ -93,7 +93,7 @@ def run(paramfn, allow_eigmodes_fn_override=False):
             ZD_cmd = shlex.split(params['ZD_mpirun_cmd']) + ZD_cmd
         except KeyError:
             ZD_cmd = shlex.split(params['mpirun_cmd']) + ZD_cmd
-    subprocess.check_call(ZD_cmd)
+    abacus.call_subprocess(ZD_cmd)
 
     
 def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):

@@ -19,6 +19,8 @@ to gather the information.  And a method to check that the MPI
 work has been completed.
 */
 
+//#define DO_NOTHING 1 
+
 #include "ParallelConvolution.h"
 
 STimer  Constructor;
@@ -228,7 +230,9 @@ ParallelConvolution::~ParallelConvolution() {
 	if (not create_MT_file){ //if this is not the 0th step, dump stats. 
 	    char timingfn[1050];
 	    sprintf(timingfn,"%s/last%s.convtime",P.LogDirectory,NodeString);
+#ifndef DO_NOTHING
 	    dumpstats(timingfn); 
+#endif
 	}
 	
 	dumpstats_timer.Stop(); 
@@ -291,7 +295,7 @@ void ParallelConvolution::AllocMT(){
     size_t bufsize = sizeof(Complex)*znode*rml*cpd2pad; 	
 	
 	MTzmxy = (Complex *) fftw_malloc(bufsize);
-	assertf(MTzmxy!=NULL, "Failed fftw_malloc for MTzmxy\n");
+	assertf(MTzmxy!=NULL, "Failed fftw_malloc for MTzmxy of size %d\n", bufsize);
 	STDLOG(2, "Successfully malloced MTzmxy at address %p\n", MTzmxy);
 	
 	AllocateMT.Stop(); 
@@ -396,6 +400,9 @@ void ParallelConvolution::RecvMultipoleSlab(int first_slab_finished) {
 		
 	    for (int xraw = first_slabs_all[r] + offset; xraw < first_slabs_all[r] + offset + total_slabs_all[r]; xraw++) {
 			int x = CP->WrapSlab(xraw);
+
+		    STDLOG(4,"MPI_Irecv set for incoming Multipoles on slab %d\n", x);
+
 			int tag = (MPI_rank+1) * 10000 + x + M_TAG; 
 			
 			// We're receiving the full range of z's in each transfer.
@@ -472,9 +479,9 @@ int ParallelConvolution::CheckSendMultipoleComplete(int slab) {
 int ParallelConvolution::CheckForMultipoleTransferComplete(int _slab) {
 	int slab = _slab % cpd;
 	int done_recv = 0; 
-	done_recv = CheckRecvMultipoleComplete(slab); //this spins until recvs are done. 
+	done_recv = CheckRecvMultipoleComplete(slab);  
 	int done_send = 0; 
-	done_send = CheckSendMultipoleComplete(slab); //this spins until sends are done. 
+	done_send = CheckSendMultipoleComplete(slab); 
 	if (done_send and done_recv) STDLOG(1,"Multipole MPI work complete for slab %d.\n", slab);
 	
 	return done_send and done_recv; 
@@ -559,7 +566,7 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
 		
 		if (not received) {
 		    // Found one that is not done
-			STDLOG(4, "Taylor slab %d not received yet...\n", slab);
+			STDLOG(4, "Taylor slab %d not been received yet...\n", slab);
 		    done=0; break;
 		}		
     }
@@ -636,6 +643,10 @@ void ParallelConvolution::Swizzle_to_zmxy() {
 /// Copy from MTzmxy buffer back to MTdisk, then free buffer
 void ParallelConvolution::Swizzle_to_xzmy() {
 	STDLOG(2,"Swizzling to xzmy\n");
+	
+#ifdef DO_NOTHING
+	STDLOG(4, "Running DO_NOTHING test post swizzles.\n");
+#endif
 
 	#pragma omp parallel for schedule(static)
 	for (int xz = 0; xz < cpd * znode; xz ++) {
@@ -647,8 +658,21 @@ void ParallelConvolution::Swizzle_to_xzmy() {
 		
 		for (int m = 0; m < rml; m ++){
 			for (int y = 0; y < cpd; y++){	 
+				
+// #ifdef DO_NOTHING //if we are running the do_nothing test, the multipoles simply get swizzled there and back again. Check that the inverse swizzle restored the original multipoles.
+// 				if (y < 10){
+// 					if (20 < m < 25){
+// 						if (xz < 10){
+// 							STDLOG(4, "%f %f %f %f\n", real( MTdisk[ (int64)((xz  * rml + m)) * cpd + y ]), real(MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ] / ((Complex) cpd )), imag( MTdisk[ (int64)((xz  * rml + m)) * cpd + y ] ), imag(MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ] / ((Complex) cpd )));
+// 						}
+// 					}
+// 				}
+//
+// #else
+				
 				MTdisk[ (int64)((xz  * rml + m)) * cpd + y ] = 
 					MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ] * invcpd3; //one factor of 1/CPD comes from the FFT below. Two more are needed for the FFTs in slab taylor -- we choose to throw them in here. 
+// #endif
 			}
 		}
 	}
@@ -674,7 +698,7 @@ fftw_plan ParallelConvolution::PlanFFT(int sign ){
 	// stride = cpd, dist = 1, nembed = NULL
 	
 	
-	int  n[] = {cpd};	
+	int  n[] = {(int) cpd};	
 	plan = fftw_plan_many_dft(1, n, cpd, //we will do znode*rml of sets of cpd FFTs.
 		(fftw_complex *) MTzmxy, NULL, cpd, 1, //each new [x][y] chunk is located at strides of cpd.
 		(fftw_complex *) MTzmxy, NULL, cpd, 1,
@@ -709,7 +733,7 @@ void ParallelConvolution::FFT(fftw_plan plan) {
 /// This executes the convolve on the MTfile info.
 void ParallelConvolution::Convolve() {
 	STDLOG(1,"Beginning Convolution.\n");
-	
+		
     InCoreConvolution *ICC = new InCoreConvolution(order, cpd, blocksize, cpd2pad);
 
 	// We're beginning in [x][znode][m][y] order on the RAMdisk
@@ -729,12 +753,15 @@ void ParallelConvolution::Convolve() {
 		Swizzle_to_zmxy();   // Probably apply the -1 x offset here
 	ArraySwizzle.Stop(); 
 	
+	
 	STDLOG(2, "Beginning forward FFT\n");
 	ForwardZFFTMultipoles.Clear(); 
 	ForwardZFFTMultipoles.Start(); 
 		FFT(forward_plan);
 	ForwardZFFTMultipoles.Stop(); 
 	CS.ForwardZFFTMultipoles = ForwardZFFTMultipoles.Elapsed();
+	
+//#ifndef DO_NOTHING
 	
 	ConvolutionArithmetic.Clear(); 
 	ReadDerivatives.Clear(); 
@@ -752,6 +779,9 @@ void ParallelConvolution::Convolve() {
 	CS.ConvolutionArithmetic = ConvolutionArithmetic.Elapsed();
 	CS.ReadDerivatives       =       ReadDerivatives.Elapsed(); 
 
+//#endif
+
+
 	STDLOG(2, "Beginning inverse FFT\n");
 	InverseZFFTTaylor.Clear(); 
 	InverseZFFTTaylor.Start(); 
@@ -759,10 +789,16 @@ void ParallelConvolution::Convolve() {
 	InverseZFFTTaylor.Stop(); 
 	CS.InverseZFFTTaylor = InverseZFFTTaylor.Elapsed();
 
+
+
 	ArraySwizzle.Start();
 		Swizzle_to_xzmy();   // Restore to the RAMdisk
 	ArraySwizzle.Stop(); 
 	CS.ArraySwizzle = ArraySwizzle.Elapsed(); 
+	
+#ifdef DO_NOTHING
+	STDLOG(4,"DO_NOTHING test passed.\n");
+#endif
 	
 	
 	CS.ops = ICC->ConvolutionArithmeticCount();

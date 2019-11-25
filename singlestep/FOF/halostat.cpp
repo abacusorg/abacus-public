@@ -1,5 +1,6 @@
 #include "halostat.hh"
 #include "sym3eigenval.cpp"
+#include "euler16.c"
 
 inline float3 WrapPosition(float3 a) {
     while (a.x> 0.5) a.x-=1.0;
@@ -121,7 +122,9 @@ HaloStat ComputeStats(int size,
 	FindEigensystem(vxx, vxy, vxz, vyy, vyz, vzz, sigmav, (double * )sigmav_vecs);
     FindEigensystem(rxx, rxy, rxz, ryy, ryz, rzz, sigmar, (double * )sigmar_vecs);
 
+
     h.sigmav3d = sqrt(sigmav[0] + sigmav[1] + sigmav[2]); 
+
     h.sigmavMin_to_sigmav3d = lround( sqrt(sigmav[2])  / h.sigmav3d * INT16SCALE ); 
     h.sigmavMax_to_sigmav3d = lround( sqrt(sigmav[0])  / h.sigmav3d * INT16SCALE ); 
     // h.sigmav3d_to_sigmavMaj = lround( h.sigmav3d/sqrt(sigmav[0]) * INT16SCALE );
@@ -129,6 +132,7 @@ HaloStat ComputeStats(int size,
     h.sigmavrad_to_sigmav3d = lround(sqrt(vrr)/h.sigmav3d * INT16SCALE ); 
 
     for(int i = 0; i < 3; i++) h.sigmar[i] = lround(sqrt(sigmar[i]) / h.r100 * INT16SCALE );
+
     
 #ifdef SPHERICAL_OVERDENSITY
     h.SO_L2cntr_central_particle[0] = L2.p[0].x;
@@ -181,10 +185,13 @@ HaloStat ComputeStats(int size,
     h.L2cntr_r75  = lround(sqrt(L2.d2buffer[size*3/4 ]) / h.L2cntr_r100 * INT16SCALE); 
     h.L2cntr_r90  = lround(sqrt(L2.d2buffer[size*9/10]) / h.L2cntr_r100 * INT16SCALE); 
 
+
     FindEigensystem(vxx, vxy, vxz, vyy, vyz, vzz, sigmav, (double * )sigmav_vecs);
     FindEigensystem(rxx, rxy, rxz, ryy, ryz, rzz, sigmar, (double * )sigmar_vecs);
 
+
     h.L2cntr_sigmav3d = sqrt(sigmav[0] + sigmav[1] + sigmav[2]);
+
     h.L2cntr_sigmavMin_to_sigmav3d = lround( sqrt(sigmav[2])  / h.L2cntr_sigmav3d * INT16SCALE ); 
     h.L2cntr_sigmavMax_to_sigmav3d = lround( sqrt(sigmav[0])  / h.L2cntr_sigmav3d * INT16SCALE ); 
     // h.L2cntr_sigmav3d_to_sigmavMaj = lround( h.L2cntr_sigmav3d/sqrt(sigmav[0]) * INT16SCALE );
@@ -192,15 +199,6 @@ HaloStat ComputeStats(int size,
     h.L2cntr_sigmavrad_to_sigmav3d = lround(sqrt(vrr)/h.L2_cntr_sigmav3d * INT16SCALE ); 
 	
     for(int i = 0; i < 3; i++) h.L2cntr_sigmar[i] = lround(sqrt(sigmar[i]) / h.r100 * INT16SCALE );
-	
-#ifdef SPHERICAL_OVERDENSITY
-	h.SO_L2cntr_central_particle[0] = L2.p[0].x;
-    h.SO_L2cntr_central_particle[1] = L2.p[0].y;
-    h.SO_L2cntr_central_particle[2] = L2.p[0].z;
-    h.SO_L2cntr_central_particle[3] = L2.p[0].n;
-	h.SO_L2cntr_central_density  = L2.density[0]; 
-	//!!!h.SO_L2cntr_radius           = sqrt(L2.d2buffer[L2.np-1]); 
-#endif 
 
     // We search for the max of vcirc, which is proportional to sqrt(G*M/R).
     // The 4th power of that is proportional to N^2/R^2.
@@ -218,12 +216,6 @@ HaloStat ComputeStats(int size,
     assign_to_vector(h.x, x);
     assign_to_vector(h.L2cntr_x, L2cntr_x);
  
-
-   // 12.12956   ComputeStats()           13440415197902607224  13400147149010038696 3635436875 4364121338691091384 4290603814 4283461880317652932
-   // 12.12961   ComputeStats()           0.0955469 0.102676 -0.494845 -0.000188205 0.00185463 0.00437046 0.00918397
-   // 12.12968   ComputeStats()           25227 15901 16767 7668 12536 18726 21673 22066 25025 0
-   //  12.12976   ComputeStats()           0.00173935 0.0164978 25025 1.83696e+09 -3.928e+09 -1.79783e+09 44 2.44955e-06 0.00173935
-
     return h;
 };
 

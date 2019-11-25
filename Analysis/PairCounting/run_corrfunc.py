@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 This is a thin wrapper for running Corrfunc on sets of
 particles that can be loaded into memory all at once.
@@ -70,6 +70,13 @@ def run(args):
                     header2 = {'NP':len(ps[0]), 'BoxSize':box}
             else:
                 p, header = ReadAbacus.from_dir(primary, format=args['format'], dtype=args['dtype'], return_vel=False, return_header=True, downsample=ds)
+                
+
+                #NAM (hack, remove) 
+                print("NAM THIS IS A HACK! ADD HEADERS TO RVINT FILES, REMOVE THIS LINE")
+                header = dict({'NP':16777216, 'BoxSize':575})
+                print(len(p))
+              
                 if ds == None:
                     assert header['NP'] == len(p)
                 p = p['pos']

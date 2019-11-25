@@ -23,7 +23,7 @@ of the pixels varies by about 1.6 peak-to-peak (and 15% rms).
 
 */
 
-#define EULER_TEST
+//#define EULER_TEST
 #ifdef EULER_TEST
 #include <math.h>
 #include <stdlib.h>
@@ -42,6 +42,7 @@ uint16_t pack_euler16(float major[3], float minor[3]) {
     float norm = 1.0/sqrt(major[0]*major[0]+major[1]*major[1]+major[2]*major[2]);
     major[0] *= norm; major[1] *= norm; major[2] *= norm;
     float xx, yy, zz;   // The cap-based coordinate system
+
     if (fabs(major[0])>fabs(major[1]) && fabs(major[0])>fabs(major[2])) {
         // x axis is biggest
         cap = 0; 
@@ -50,6 +51,7 @@ uint16_t pack_euler16(float major[3], float minor[3]) {
         }
         zz = major[0];
         if (fabs(major[1])>fabs(major[2])) {    // y is bigger than z
+
             if (major[1]>0) { yy = major[1]; xx = major[2]; }
                        else { yy = -major[1]; xx = major[2]; cap += 1; }
         } else {
@@ -64,6 +66,7 @@ uint16_t pack_euler16(float major[3], float minor[3]) {
         }
         zz = major[1];
         if (fabs(major[2])>fabs(major[0])) {    // z is bigger than x
+
             if (major[2]>0) { yy = major[2]; xx = major[0]; }
                        else { yy = -major[2]; xx = major[0]; cap += 1; }
         } else {
@@ -78,6 +81,7 @@ uint16_t pack_euler16(float major[3], float minor[3]) {
         }
         zz = major[2];
         if (fabs(major[0])>fabs(major[1])) {    // x is bigger than y
+
             if (major[0]>0) { yy = major[0]; xx = major[1]; }
                        else { yy = -major[0]; xx = major[1]; cap += 1; }
         } else {

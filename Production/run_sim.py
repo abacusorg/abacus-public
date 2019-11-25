@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 A top-level script to launch a sim.  Usage is:
  You may wish to give a sim its own `run_sim.py` script and run it that

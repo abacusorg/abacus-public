@@ -20,7 +20,6 @@ void BuildWriteState(double da){
 	string now = string(asctime(localtime(&timet)));
 	sprintf(WriteState.RunTime,"%s",now.substr(0,now.length()-1).c_str());
 	gethostname(WriteState.MachineName,1024);
-	STDLOG(0,"Host machine name is %s\n", WriteState.MachineName);
     WriteState.NodeRank = MPI_rank;
     WriteState.NodeSize = MPI_size;
 
@@ -78,6 +77,12 @@ void BuildWriteStateOutput() {
 	WriteState.make_output_header();
 }
 
+double EvolvingDelta(float z){
+    float omegaMz = P.Omega_M * pow(1.0 + z, 3.0) / (P.Omega_DE + P.Omega_M *  pow(1.0 + z, 3.0) ); 
+    float Deltaz = (18.0*M_PI*M_PI + 82.0 * (omegaMz - 1.0) - 39.0 * pow(omegaMz - 1.0, 2.0) ) / omegaMz;
+    return Deltaz / (18.0*M_PI*M_PI); //Params are given at high-z, so divide by high-z asymptote to find rescaling. 
+}
+
 void PlanOutput(bool MakeIC) {
     // Check the time slice and decide whether to do output.
     ReadState.DoTimeSliceOutput = 0;
@@ -97,6 +102,31 @@ void PlanOutput(bool MakeIC) {
     strncpy(ReadState.MachineName, WriteState.MachineName, 1024);
     strncpy(ReadState.RunTime,     WriteState.RunTime, 1024);
     ReadState.FullStepNumber = WriteState.FullStepNumber;
+
+
+    #ifdef SPHERICAL_OVERDENSITY
+    if (P.SO_EvolvingThreshold) {
+
+        float rescale = EvolvingDelta(ReadState.Redshift); 
+
+        STDLOG(2, "Rescaling SO Delta as a function of redshift.\n\t\tL0: %f --> %f\n\t\tL1: %f --> %f\n\t\tL2: %f --> %f\n",
+                      P.L0DensityThreshold, rescale * P.L0DensityThreshold, 
+                      P.SODensity[0], rescale * P.SODensity[0], 
+                      P.SODensity[1], rescale * P.SODensity[1]);
+
+
+        P.SODensity[0] *= rescale; 
+        P.SODensity[1] *= rescale; 
+        P.L0DensityThreshold *= rescale; 
+
+        ReadState.SODensityL1 = P.SODensity[0];
+        ReadState.SODensityL2 = P.SODensity[1];
+        ReadState.L0DensityThreshold = P.L0DensityThreshold; 
+    }
+    else STDLOG(2, "Using constant SO Delta (no redshift-dependent rescaling).\n"); 
+    #endif
+
+
     ReadState.make_output_header();
 
     // Just let later routines know that this is a valid epoch
@@ -154,6 +184,9 @@ int main(int argc, char **argv) {
 	
         STDLOG(0,"Initialized MPI.\n");   
         STDLOG(0,"Node rank %d of %d total\n", MPI_rank, MPI_size);
+        char hostname[1024];
+        gethostname(hostname,1024);
+        STDLOG(0,"Host machine name is %s\n", hostname);
     #endif
 
     SetupLocalDirectories(MakeIC);
@@ -179,13 +212,12 @@ int main(int argc, char **argv) {
 
     // Check if WriteStateDirectory/state exists, and fail if it does
     char wstatefn[1050];
-    sprintf(wstatefn,"%s/state", P.WriteStateDirectory);
+    int ret = snprintf(wstatefn, 1050, "%s/state", P.WriteStateDirectory);
+    assert(ret >= 0 && ret < 1050);
     if(access(wstatefn,0) !=-1 && !WriteState.OverwriteState)
         QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
     
     if (da!=0) da = ChooseTimeStep();
-
-                printf("NAM SINGLESTEP.CPP chose timestep %6.4f!\n", da);
 
     // da *= -1;  // reverse the time step TODO: make parameter
     double dlna = da/ReadState.ScaleFactor;
@@ -243,7 +275,8 @@ int main(int argc, char **argv) {
     if (!MakeIC && P.ProfilingMode){
         STDLOG(0,"ProfilingMode is active. Removing the write state in %s\n",P.LocalWriteStateDirectory);
         char command[1024];
-        sprintf(command, "rm -rf %s/*", P.LocalWriteStateDirectory);
+        int printret = snprintf(command, 1024, "rm -rf %s/*", P.LocalWriteStateDirectory);
+        assert(printret >= 0 && printret < 1024);
         int ret = system(command);  // hacky!
     }
 

@@ -5,6 +5,7 @@
 # Athena (https://trac.princeton.edu/Athena/)
 
 # Initialization
+# TODO: any way to use mpicxx if --enable-parallel?
 AC_LANG([C++])  # does this work?
 
 AC_INIT([abacus], [2.0], [], [], [github.com/abacusorg/abacus])
@@ -31,6 +32,14 @@ AC_SUBST([ARCH])
 AC_CONFIG_FILES([
  common.mk
 ])
+
+# Detect the underlying compiler when we are using a wrapper like mpicxx
+# TODO: better way to do this?
+AC_MSG_CHECKING([underlying compiler])
+AC_SUBST(REAL_CXX)
+REAL_CXX=$($CXX --version |\grep -qP '\bicc\b' && echo icc || echo g++)
+AC_MSG_RESULT([$REAL_CXX])
+REAL_CC="$REAL_CXX -x c"
 
 # git version
 GITVERSION=\"$(git rev-parse HEAD)\"
@@ -63,8 +72,13 @@ make --quiet tcmalloc
 AC_SEARCH_LIBS([cos],[m])
 AC_SEARCH_LIBS(cblas_dgemm, [gslcblas], [], [AC_MSG_ERROR([unable to find gslcblas!])])
 AC_SEARCH_LIBS(gsl_rng_uniform, [gsl], [], [AC_MSG_ERROR([unable to find gsl!])])
-AC_SEARCH_LIBS(TBB_runtime_interface_version, [tbb], [], [AC_MSG_ERROR([unable to find tbb!])])
 AC_CHECK_LIB(numa, move_pages, [], [AC_MSG_WARN([unable to find numa!])])
+
+
+# With the Intel compiler, the builtin TBB is accessed via the -tbb flag (set in common.mk)
+if test x$REAL_CXX != xicc; then
+    AC_SEARCH_LIBS(TBB_runtime_interface_version, [tbb], [], [AC_MSG_ERROR([unable to find tbb!])])
+fi
 
 # Check for some utilities we use
 AC_CHECK_PROGS(LEX, flex)
@@ -118,7 +132,7 @@ AC_ARG_ENABLE(mkl,
 [AS_HELP_STRING([--enable-mkl], [Intel Math Kernel Library FFT [yes if using icc]])],
 	[], enable_mkl="check")
 if test x$enable_mkl == xcheck; then
-    if test x$CXX == xicc; then
+    if test x$REAL_CXX == xicc; then
         enable_mkl="yes"
     else
         enable_mkl="no"
@@ -289,7 +303,7 @@ fi
 if test x$enable_gpu_directs == xyes; then
     AC_MSG_CHECKING([compute capability of GPUs])
 
-    make --quiet -C singlestep/Direct detect_gpus MAKE_CONTEXT=AUTOCONF NVCC=$NVCC
+    make --quiet -C singlestep/Direct detect_gpus MAKE_CONTEXT=AUTOCONF NVCC=$NVCC CXX=$CXX
     DETECT_GPUS_OUTPUT=$(./singlestep/Direct/detect_gpus)
 
     NGPU=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Device count: )\d+')
@@ -332,8 +346,10 @@ fi
 if test x$enable_mkl != xyes; then
     AC_SEARCH_LIBS(fftw_execute, [fftw3], [], [AC_MSG_ERROR([unable to find fftw3!])])
     AC_SEARCH_LIBS(fftw_init_threads, [fftw3_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
-    AC_SEARCH_LIBS(fftwf_execute, [fftw3f], [], [AC_MSG_ERROR([unable to find fftw3!])])
-    AC_SEARCH_LIBS(fftwf_init_threads, [fftw3f_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
+
+    # Single-precision libs are only used for analysis routines right now
+    AC_SEARCH_LIBS(fftwf_execute, [fftw3f], [], [AC_MSG_WARN([unable to find fftw3f!])])
+    AC_SEARCH_LIBS(fftwf_init_threads, [fftw3f_omp], [], [AC_MSG_WARN([unable to find fftw3f_omp!])])
 fi
 
 AC_ARG_WITH(cache-line-size,
@@ -356,8 +372,8 @@ AC_DEFINE_UNQUOTED(CACHE_LINE_SIZE, $with_cache_line, "Cache line size in bytes"
 # is using Anaconda Python.
 # You may only want the impl packages; the activation scripts will mess with configure
 PYTHON_EXEC=$(command -v python)
-PYTHON_CC=$CC
-PYTHON_CXX=$CXX
+PYTHON_CC=$REAL_CC
+PYTHON_CXX=$REAL_CXX
 PYTHON_LDFLAGS=
 PYTHON_CPPFLAGS=
 PYTHON_COMPILER_WARNING=
