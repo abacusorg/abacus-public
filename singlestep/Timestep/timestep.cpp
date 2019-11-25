@@ -24,8 +24,6 @@ executable.
 int FORCE_RADIUS = -1;
 int GROUP_RADIUS = -1;
 
-#include "STimer.cc"
-
 // I think in most cases we would prefer to read ahead until memory limited
 //#define FETCHAHEAD (2*FORCE_RADIUS)
 //#define FETCHAHEAD 1000
@@ -607,10 +605,10 @@ void OutputAction(int slab) {
             STDLOG(1,"Outputting LightCone %d (origin (%f,%f,%f)) for slab %d\n",i,LCOrigin[i].x,LCOrigin[i].y,LCOrigin[i].z,slab);
             // Start timing
             STimer* lightConeTimer = new STimer;
-            lightConeTimer.Start();
+            lightConeTimer->Start();
             makeLightCone(slab,i);
-            lightConeTimer.End();
-            STDLOG(1, "LightCone %d for slab %d creation took %f seconds", i, slab, lightConeTimer.Elapsed());
+            lightConeTimer->End();
+            STDLOG(1, "LightCone %d for slab %d creation took %f seconds", i, slab, lightConeTimer->Elapsed());
         }
     }
     OutputLightCone.Stop();
