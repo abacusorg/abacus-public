@@ -65,6 +65,7 @@ void FindNullSpace(double fvxx, double fvyy, double fvzz,
     return;
 }
         
+#endif 
     
 
 //SOURCE: http://www.mymathlib.com/c_source/matrices/eigen/jacobi_cyclic_method.c  
@@ -192,6 +193,7 @@ void FindEigensystem(double vxx, double vxy, double vxz,
     eigenvectors[8] = e22; 
 }
 
+#ifdef SYMTEST    // This code is under development
 
 void FindNullSpace(double fvxx, double fvyy, double fvzz, 
     double vxy, double vxz, double vyz, float scale, float *major, int fallback)
@@ -339,6 +341,8 @@ void FindEigenvalues(double vxx, double vxy, double vxz,
     }
     return;
 }
+
+#endif
 
 #ifdef SYMTEST 
 int main(int argc, char *argv[]) {
