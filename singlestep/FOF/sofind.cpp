@@ -280,7 +280,7 @@ class SOcell {
         Sweep.increment(x.Sweep.get_timer());
         Distance.increment(x.Distance.get_timer());
         Search.increment(x.Search.get_timer());
-        Sort.increment(x.Search.get_timer());
+        Sort.increment(x.Sort.get_timer());
     }
 
     /// These are density thresholds in interparticle units,
