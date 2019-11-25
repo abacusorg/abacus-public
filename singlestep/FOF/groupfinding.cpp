@@ -234,8 +234,10 @@ class GroupFindingControl {
 			ProcessLevel1.Elapsed()+
             ScatterAux.Elapsed()+
 			ScatterGroups.Elapsed();
+     float total_cycle;
 	 GLOG(0,"Timings: \n");
 	 #define RFORMAT(a) a.Elapsed(), a.Elapsed()/total_time*100.0
+	 #define CFORMAT(a) a.Elapsed(), a.Elapsed()/total_cycle*100.0
 	 GLOG(0,"Finding Cell Groups:     %8.4f sec (%5.2f%%)\n",
 			RFORMAT(CellGroupTime));
 	 GLOG(0,"Creating Faces:          %8.4f sec (%5.2f%%)\n",
@@ -247,7 +249,7 @@ class GroupFindingControl {
 	 GLOG(0,"Index Links:             %8.4f sec (%5.2f%%)\n",
 			RFORMAT(IndexLinks));
 	 // printf("     Searching:               %8.4f sec\n", IndexLinksSearch.Elapsed());
-	 GLOG(0,"Indexing (P):                %8.4f sec\n", IndexLinksIndex.Elapsed());
+	 GLOG(0,"Indexing (P):                %8.4g cyc\n", IndexLinksIndex.Elapsed());
 	 GLOG(0,"Defer Groups:            %8.4f sec (%5.2f%%)\n",
 			RFORMAT(DeferGroups));
 	 GLOG(0,"Find Global Groups:      %8.4f sec (%5.2f%%)\n",
@@ -260,12 +262,13 @@ class GroupFindingControl {
 			RFORMAT(GatherGroups));
 	 GLOG(0,"Level 1 & 2 Processing:  %8.4f sec (%5.2f%%)\n",
 			RFORMAT(ProcessLevel1));
-	 GLOG(0,"Level 1 FOF (P):               %8.4f sec (%5.2f%%)\n",
-			RFORMAT(L1FOF));
-	 GLOG(0,"Level 2 FOF (P):               %8.4f sec (%5.2f%%)\n",
-			RFORMAT(L2FOF));
-	 GLOG(0,"Level 1 Total (P):             %8.4f sec (%5.2f%%)\n",
-			RFORMAT(L1Tot));
+     total_cycle = L1Tot.Elapsed();
+	 GLOG(0,"Level 1 FOF (P):               %8.4g cyc (%5.2f%%)\n",
+			CFORMAT(L1FOF));
+	 GLOG(0,"Level 2 FOF (P):               %8.4g cyc (%5.2f%%)\n",
+			CFORMAT(L2FOF));
+	 GLOG(0,"Level 1 Total (P):             %8.4g cyc (%5.2f%%)\n",
+			CFORMAT(L1Tot));
 	 GLOG(0,"Level 1 Output:          %8.4f sec (%5.2f%%)\n",
             RFORMAT(OutputLevel1));
 	 GLOG(0,"Scatter Aux:             %8.4f sec (%5.2f%%)\n",
