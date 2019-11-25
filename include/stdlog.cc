@@ -45,6 +45,11 @@ void stdlog_hook(int verbosity, const char* str){
 	fpprint(std::cerr, __VA_ARGS__); \
 	assert(0==98); }
 
+#define WARNING(...) { STDLOG(0,"WARNING:\n"); STDLOG(0,__VA_ARGS__); \
+        fprintf(stderr,"Warning: "); \
+    fpprint(std::cerr, __VA_ARGS__); \
+    assert(0==98); }
+
 // This is a form of assert, but it requires a printf style message.
 // Be sure to terminate it with a \n.
 // We encourage use of assertf and a clear explanation

@@ -1091,8 +1091,8 @@ if __name__ == '__main__':
 
     #emit_VSX_Multipoles(orders)
     #emit_VSX_Multipoles_interleaved(orders)
-    #emit_VSX_Multipoles_FMA(orders)
-    emit_VSX_Multipoles_FMA_interleaved(orders)
+    emit_VSX_Multipoles_FMA(orders)
+    #emit_VSX_Multipoles_FMA_interleaved(orders)
     #emit_VSX_Taylors(orders)
     emit_VSX_Taylors_noQ(orders)  # currently fastest on Summit for all sizes
     #emit_VSX_Taylors_interleaved(orders)
