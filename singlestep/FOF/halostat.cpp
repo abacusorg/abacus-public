@@ -12,6 +12,22 @@ inline float3 WrapPosition(float3 a) {
     return a;
 }
 
+uint16_t pack_euler16_eig(double sigma[3], double sigma_vecs[3][3]) {
+    int imaj = 0, imin = 0;
+    for (int i=0; i<3; i++) {
+        if (sigma[i]<sigma[imaj]) imaj = i;
+        if (sigma[i]>sigma[imin]) imin = i;
+    }
+    float major[3], minor[3];
+    major[0] = sigma_vecs[imaj][0];
+    major[1] = sigma_vecs[imaj][1];
+    major[2] = sigma_vecs[imaj][2];
+    minor[0] = sigma_vecs[imin][0];
+    minor[1] = sigma_vecs[imin][1];
+    minor[2] = sigma_vecs[imin][2];
+    return pack_euler16(major, minor);
+}
+
 #define assign_to_vector(a,b) { a[0] = b.x; a[1] = b.y; a[2] = b.z; }
     /** Fill a HaloStat object and return it.
 
@@ -135,9 +151,11 @@ HaloStat ComputeStats(int size,
     FindEigensystem(rxx, rxy, rxz, ryy, ryz, rzz, sigmar, (double * )sigmar_vecs);
     FindEigensystem(nxx, nxy, nxz, nyy, nyz, nzz, sigman, (double * )sigman_vecs);
 
+    h.sigmar_eigenvecs = pack_euler16_eig(sigmar, sigmar_vecs);
+    h.sigmav_eigenvecs = pack_euler16_eig(sigmav, sigmav_vecs);
+    h.sigman_eigenvecs = pack_euler16_eig(sigman, sigman_vecs);
 
     h.sigmav3d = sqrt(sigmav[0] + sigmav[1] + sigmav[2]); 
-
     h.sigmavMin_to_sigmav3d = lround( sqrt(sigmav[2])  / h.sigmav3d * INT16SCALE ); 
     h.sigmavMax_to_sigmav3d = lround( sqrt(sigmav[0])  / h.sigmav3d * INT16SCALE ); 
     // h.sigmav3d_to_sigmavMaj = lround( h.sigmav3d/sqrt(sigmav[0]) * INT16SCALE );
@@ -145,6 +163,7 @@ HaloStat ComputeStats(int size,
     h.sigmavrad_to_sigmav3d = lround(sqrt(vrr)/h.sigmav3d * INT16SCALE ); 
 
     for(int i = 0; i < 3; i++) h.sigmar[i] = lround(sqrt(sigmar[i]) / h.r100 * INT16SCALE );
+    for(int i = 0; i < 3; i++) h.sigman[i] = lround(sqrt(sigman[i]) * INT16SCALE );
 
     
 #ifdef SPHERICAL_OVERDENSITY
@@ -212,10 +231,13 @@ HaloStat ComputeStats(int size,
 
     FindEigensystem(vxx, vxy, vxz, vyy, vyz, vzz, sigmav, (double * )sigmav_vecs);
     FindEigensystem(rxx, rxy, rxz, ryy, ryz, rzz, sigmar, (double * )sigmar_vecs);
+    FindEigensystem(nxx, nxy, nxz, nyy, nyz, nzz, sigman, (double * )sigman_vecs);
 
+    h.L2cntr_sigmar_eigenvecs = pack_euler16_eig(sigmar, sigmar_vecs);
+    h.L2cntr_sigmav_eigenvecs = pack_euler16_eig(sigmav, sigmav_vecs);
+    h.L2cntr_sigman_eigenvecs = pack_euler16_eig(sigman, sigman_vecs);
 
     h.L2cntr_sigmav3d = sqrt(sigmav[0] + sigmav[1] + sigmav[2]);
-
     h.L2cntr_sigmavMin_to_sigmav3d = lround( sqrt(sigmav[2])  / h.L2cntr_sigmav3d * INT16SCALE ); 
     h.L2cntr_sigmavMax_to_sigmav3d = lround( sqrt(sigmav[0])  / h.L2cntr_sigmav3d * INT16SCALE ); 
     // h.L2cntr_sigmav3d_to_sigmavMaj = lround( h.L2cntr_sigmav3d/sqrt(sigmav[0]) * INT16SCALE );
@@ -223,6 +245,7 @@ HaloStat ComputeStats(int size,
     h.L2cntr_sigmavrad_to_sigmav3d = lround(sqrt(vrr)/h.L2cntr_sigmav3d * INT16SCALE ); 
 	
     for(int i = 0; i < 3; i++) h.L2cntr_sigmar[i] = lround(sqrt(sigmar[i]) / h.r100 * INT16SCALE );
+    for(int i = 0; i < 3; i++) h.L2cntr_sigman[i] = lround(sqrt(sigman[i]) * INT16SCALE );
 
     // We search for the max of vcirc, which is proportional to sqrt(G*M/R).
     // The 4th power of that is proportional to N^2/R^2.

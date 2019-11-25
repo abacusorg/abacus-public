@@ -52,7 +52,9 @@ class HaloStat {
 
 	int16_t r10, r25, r33, r50, r67, r75, r90; ///<Expressed as ratios of r100, and scaled to 32000 to store as int16s. 
     int16_t sigmar[3]; ///<sqrt( Eigenvalues of the moment of inertia tensor ) 
+    int16_t sigman[3]; ///<sqrt( Eigenvalues of the weighted moment of inertia tensor ) 
     uint16_t sigmar_eigenvecs;  ///<Eigenvectors of the moment of inertia tensor, compressed into 16 bits. Compression format TBD. 
+    uint16_t sigman_eigenvecs;  ///<Eigenvectors of the weighted moment of inertia tensor, compressed into 16 bits. Compression format TBD. 
 	int16_t rvcirc_max; ///< radius of max velocity, stored as int16 ratio of r100 scaled by 32000.
 
 	//!!!float     SO_radius;           ///< Radius of SO halo (distance to particle furthest from central particle) 
@@ -68,7 +70,9 @@ class HaloStat {
     	///< Radii of this percentage of mass, relative to L2 center. Expressed as ratios of r100 and compressed to int16. 
 
 	int16_t L2cntr_sigmar[3]; 
+	int16_t L2cntr_sigman[3]; 
     uint16_t L2cntr_sigmar_eigenvecs;
+    uint16_t L2cntr_sigman_eigenvecs;
     int16_t L2cntr_rvcirc_max;   ///< max circular velocity and radius thereof, relative to L2 center
 
 };
