@@ -220,7 +220,7 @@ class GroupFindingControl {
 	 GLOG(0,"L2 groups required %f G distances, %f G sorts, %f G centers, %f G cg\n", numdists2/1e9, numsorts2/1e9, numcenters2/1e9, numcg2/1e9);
 	 GLOG(0,"L1 group multiplicity distribution:\n");
 	 L1stats.report_multiplicities(grouplog);
-     // BOT
+	 GLOG(0,"L2 group multiplicity distribution:\n");
      L2stats.report_multiplicities(grouplog);
      
 	 float total_time = CellGroupTime.Elapsed()+
