@@ -74,13 +74,12 @@ HaloStat ComputeStats(int size,
 
     // Now we can go through the particles to compute radii and moments
     // We can use L2.d2buffer for scratch space; it is guaranteed to be big enough
-    double vxx, vxy, vxz, vyy, vyz, vzz;
+    double vxx, vxy, vxz, vyy, vyz, vzz, vrr, vtt;
     double rxx, rxy, rxz, ryy, ryz, rzz;
     float vmax, rvmax;	
 
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     rxx = rxy = rxz = ryy = ryz = rzz = 0.0;
-    // B.H.
     vrr = vtt = 0.0;
     for (int p=0; p<size; p++) {
 		posstruct dr = L1pos[p]-x;
@@ -92,8 +91,7 @@ HaloStat ComputeStats(int size,
 		vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
 		rxx += dr.x*dr.x; rxy += dr.x*dr.y; rxz += dr.x*dr.z;
 		ryy += dr.y*dr.y; ryz += dr.y*dr.z; rzz += dr.z*dr.z;
-		// B.H.
-		posstruct n = dr*(1.0/sqrt(dr.norm2()));
+		posstruct n = dr*(1.0/sqrt(dr.norm2()+1e-20));
 		float vr = dv.x*n.x+dv.y*n.y+dv.z*n.z;
 		vrr += vr*vr; // Accumulate
 		vtt += dv.norm2()-vr*vr;  // Accumulate
@@ -123,15 +121,14 @@ HaloStat ComputeStats(int size,
 	FindEigensystem(vxx, vxy, vxz, vyy, vyz, vzz, sigmav, (double * )sigmav_vecs);
     FindEigensystem(rxx, rxy, rxz, ryy, ryz, rzz, sigmar, (double * )sigmar_vecs);
 
-    h.sigmav3d = (sigmav[0] + sigmav[1] + sigmav[2]) / 3.0; 
+    h.sigmav3d = sqrt(sigmav[0] + sigmav[1] + sigmav[2]); 
     h.sigmavMin_to_sigmav3d = lround( sqrt(sigmav[2])  / h.sigmav3d * INT16SCALE ); 
-    h.sigmav3d_to_sigmavMaj = lround( h.sigmav3d/sqrt(sigmav[0]) * INT16SCALE );
+    h.sigmavMax_to_sigmav3d = lround( sqrt(sigmav[0])  / h.sigmav3d * INT16SCALE ); 
+    // h.sigmav3d_to_sigmavMaj = lround( h.sigmav3d/sqrt(sigmav[0]) * INT16SCALE );
+    h.sigmavtan_to_sigmav3d = lround(sqrt(vtt)/h.sigmav3d * INT16SCALE ); 
+    h.sigmavrad_to_sigmav3d = lround(sqrt(vrr)/h.sigmav3d * INT16SCALE ); 
 
     for(int i = 0; i < 3; i++) h.sigmar[i] = lround(sqrt(sigmar[i]) / h.r100 * INT16SCALE );
-
-    // B.H.
-    h.sigmavtan_to_sigmav3d = lround(sqrt(vtt/3.0)/h.sigmav3d * INT16SCALE ); 
-    h.sigmavrad_to_sigmav3d = lround(sqrt(vrr/3.0)/h.sigmav3d * INT16SCALE ); 
     
 #ifdef SPHERICAL_OVERDENSITY
     h.SO_L2cntr_central_particle[0] = L2.p[0].x;
@@ -155,7 +152,6 @@ HaloStat ComputeStats(int size,
     // Repeat this, finding moments and radii around the largest subhalo COM
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     rxx = rxy = rxz = ryy = ryz = rzz = 0.0;
-    // B.H.
     vrr = vtt = 0.0;
     for (int p=0; p<size; p++) {
 		posstruct dr = L1pos[p]-L2cntr_x;
@@ -165,8 +161,7 @@ HaloStat ComputeStats(int size,
 		vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
 		rxx += dr.x*dr.x; rxy += dr.x*dr.y; rxz += dr.x*dr.z;
 		ryy += dr.y*dr.y; ryz += dr.y*dr.z; rzz += dr.z*dr.z;
-		// B.H.
-		posstruct n = dr*(1.0/sqrt(dr.norm2()));
+		posstruct n = dr*(1.0/sqrt(dr.norm2()+1e-20));
 		float vr = dv.x*n.x+dv.y*n.y+dv.z*n.z;
 		vrr += vr*vr; // Accumulate
 		vtt += dv.norm2()-vr*vr;  // Accumulate
@@ -175,9 +170,6 @@ HaloStat ComputeStats(int size,
 
     // B.H.
     vtt *= 0.5;
-    // B.H.
-    h.L2cntr_sigmavtan_to_sigmav3d = lround(sqrt(vtt/3.0)/h.sigmav3d * INT16SCALE ); 
-    h.L2cntr_sigmavrad_to_sigmav3d = lround(sqrt(vrr/3.0)/h.sigmav3d * INT16SCALE ); 
     
     h.L2cntr_r100 = sqrt(L2.d2buffer[size-1]);   
     // r10, r25, r50, r67, r75, r90 relative to largest L2 center: Expressed as ratios of r100, and scaled to 32000 to store as int16s. 
@@ -192,9 +184,12 @@ HaloStat ComputeStats(int size,
     FindEigensystem(vxx, vxy, vxz, vyy, vyz, vzz, sigmav, (double * )sigmav_vecs);
     FindEigensystem(rxx, rxy, rxz, ryy, ryz, rzz, sigmar, (double * )sigmar_vecs);
 
-    h.L2cntr_sigmav3d = (sigmav[0] + sigmav[1] + sigmav[2]) / 3.0; 
+    h.L2cntr_sigmav3d = sqrt(sigmav[0] + sigmav[1] + sigmav[2]);
     h.L2cntr_sigmavMin_to_sigmav3d = lround( sqrt(sigmav[2])  / h.L2cntr_sigmav3d * INT16SCALE ); 
-    h.L2cntr_sigmav3d_to_sigmavMaj = lround( h.L2cntr_sigmav3d/sqrt(sigmav[0]) * INT16SCALE );
+    h.L2cntr_sigmavMax_to_sigmav3d = lround( sqrt(sigmav[0])  / h.L2cntr_sigmav3d * INT16SCALE ); 
+    // h.L2cntr_sigmav3d_to_sigmavMaj = lround( h.L2cntr_sigmav3d/sqrt(sigmav[0]) * INT16SCALE );
+    h.L2cntr_sigmavtan_to_sigmav3d = lround(sqrt(vtt)/h.L2_cntr_sigmav3d * INT16SCALE ); 
+    h.L2cntr_sigmavrad_to_sigmav3d = lround(sqrt(vrr)/h.L2_cntr_sigmav3d * INT16SCALE ); 
 	
     for(int i = 0; i < 3; i++) h.L2cntr_sigmar[i] = lround(sqrt(sigmar[i]) / h.r100 * INT16SCALE );
 	

@@ -29,7 +29,8 @@ class HaloStat {
     float v[3];      ///< Center of mass velocity
     float sigmav3d;  ///< sqrt( Eigenvalues of the velocity tensor, squared, added), sqrt(sigma_1^2 + sigma_2^2 + sigma_3^2) 
     int16_t sigmavMin_to_sigmav3d; ///< sigmav_z / sigmavSum, compressed
-    int16_t sigmav3d_to_sigmavMaj; ///< sigmav_x / sigmavSum, compressed
+    int16_t sigmavMax_to_sigmav3d; ///< sigmav_z / sigmavSum, compressed
+    // int16_t sigmav3d_to_sigmavMaj; ///< sigmav_x / sigmavSum, compressed
     //!!!int16_t sigmav_eigenvecs;  ///<Eigenvectors of the velocity dispersion tensor, compressed into 16 bits. Compression format TBD.
     // B.H.
     int16_t sigmavrad_to_sigmav3d; ///< sigmav_rad / sigmavSum, compressed
@@ -53,8 +54,8 @@ class HaloStat {
     // The profile properties computed from that center point
     float L2cntr_sigmav3d;  ///< sqrt( Eigenvalues of the velocity tensor, squared, added), sqrt(sigma_1^2 + sigma_2^2 + sigma_3^2) 
     int16_t L2cntr_sigmavMin_to_sigmav3d; ///< sigmav_z / sigmavSum, compressed
-    int16_t L2cntr_sigmav3d_to_sigmavMaj; ///< sigmav_x / sigmavSum, compressed
-    // B.H.
+    int16_t L2cntr_sigmavMax_to_sigmav3d; ///< sigmav_z / sigmavSum, compressed
+    // int16_t L2cntr_sigmav3d_to_sigmavMaj; ///< sigmav_x / sigmavSum, compressed
     int16_t L2cntr_sigmavrad_to_sigmav3d; ///< sigmav_rad / sigmavSum, compressed
     int16_t L2cntr_sigmavtan_to_sigmav3d; ///< sigmav_tan / sigmavSum, compressed
     //!!!int16_t L2cntr_sigmav_eigenvecs;  ///<Eigenvectors of the velocity dispersion tensor, compressed into 16 bits. Compression format TBD. 
