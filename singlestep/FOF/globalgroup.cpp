@@ -1080,7 +1080,7 @@ void GlobalGroupSlab::FindSubGroups() {
 	    FOFlevel1[0].Sweep.Elapsed(),
 	    FOFlevel1[0].Distance.Elapsed(),
 	    FOFlevel1[0].Search.Elapsed());
-	STDLOG(3,"L2 Timing: %f = %f %f %f %f\n",
+	STDLOG(1,"L2 Timing: %f = %f %f %f %f\n",
 	    FOFlevel2[0].Total.Elapsed(),
 	    FOFlevel2[0].Copy.Elapsed(),
 	    FOFlevel2[0].Sweep.Elapsed(),
