@@ -124,7 +124,7 @@ class RVint {
     // This is amenable to vectorization
     void unpack(int32_t input, float &pos, float &vel) {
         int iv = input&0xfff;
-        const float velscale = 6000.0;   // km/s
+        const float velscale = 6000.0/2048.0;   // km/s
         vel = velscale*(iv-2048);   // km/s
         int ix = input-iv;   // Slightly more expensive, but safer if input ended up cast to int64
         // int ix = input&0xfffff000;         // Alternate
