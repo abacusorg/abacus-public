@@ -828,7 +828,7 @@ void GlobalGroupSlab::FindSubGroups() {
 	}
 	STDLOG(1,"Seeking SO halos, L1 = %f, L2 = %f, with min_central = %f and %f\n", 
 		FOFlevel1[0].threshold, FOFlevel2[0].threshold,
-		FOFlevel1[0].min_central/FOFunitdensity, FOFlevel2[0].min_central/FOFunitdensity);
+		FOFlevel1[0].min_central/FOFlevel1[0].FOFunitdensity, FOFlevel2[0].min_central/FOFlevel2[0].FOFunitdensity);
     #else
 	FOFcell FOFlevel1[maxthreads], FOFlevel2[maxthreads];
 	#pragma omp parallel for schedule(static,1)
