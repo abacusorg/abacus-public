@@ -291,8 +291,10 @@ class SOcell {
     /// threshold refers to the spherical overdensity we'll require.
     /// min_central refers to the minimum FOFscale density that we require
     /// to make a particle eligible to be the seed of a SO halo.
-    /// One probably wants min_central = threshold/3 or so.
-    void setup (FOFloat _threshold, FOFloat _min_central) {
+    /// One must keep min_central to be comfortably larger than the density 
+    /// at the edge of larger halos, which is threshold/3 for SIS.  
+    /// We input _min_central_mass, which is used to compute this.
+    void setup (FOFloat _threshold, FOFloat min_central_mass) {
         // We're comparing the threshold to overdensity density:
         // mass/(4*PI/3)/r^3.  So that means r^3*threshold*4*PI/3 < count
         // in interparticle length units, which are PPD times the code units.
@@ -308,14 +310,20 @@ class SOcell {
         xthreshold *= xthreshold;
 
         // Cosmic unit density yields a count in our FOFscale densities of this:
-        // TODO: Document better
+        // The (b^2-r^2) weighted density for the cosmic mean is (2/5)(4*PI/3) b^5.
+        // And that density for a SIS of a given Delta and M_Delta is 
+        // (2/3)(4*PI/3) Delta R_Delta^2 b^3, so that in cosmic units it's
+        // (5/3) (1/b^2) (M_Delta^2 Delta/48 pi^2)^(1/3).
+        // Keeping this larger than C*Delta requires M_Delta > Delta b^3 sqrt(48 pi^2 C^3/125)
+        // which is about 2 Delta b^3 C^1.5.  This is why we scale the min_central_mass
+        // with Delta.
+        // This is further documented at the top of the file.
         FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5);
-        FOFloat M_D = P.SO_NPForMinDensity;
+        FOFloat M_D = min_central_mass;
         FOFloat sigma3 = M_D*sqrt(threshold*P.np/(48*M_PI*M_PI));
         // Density for a SIS with mass M_D
         min_central = 5./WriteState.DensityKernelRad2*pow(sigma3,2./3); 
         min_central /= (P.np);
-        STDLOG(2, "Min_central for group finding = %f\n", min_central);
         min_central *= FOFunitdensity;
         return;
     }
