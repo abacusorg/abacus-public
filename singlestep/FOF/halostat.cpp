@@ -35,14 +35,15 @@ HaloStat ComputeStats(int size,
     HaloStat h;
     const int16_t INT16SCALE = 32000;
     h.N = size;
+    float isize = 1.0/size;
     // Compute the center of mass
     double3 com = double3(0.0, 0.0, 0.0);
     for (int p=0; p<size; p++) com += L1pos[p];
-    float3 x = com/size;
+    float3 x = com*isize;
     h.x[0] = com.x; h.x[1] = com.y; h.x[2] = com.z; 
     com = double3(0.0, 0.0, 0.0);
     for (int p=0; p<size; p++) com += L1vel[p];
-    float3 v = com/size/ReadState.VelZSpace_to_Canonical;
+    float3 v = com*isize/ReadState.VelZSpace_to_Canonical;
     assign_to_vector(h.v, v);
 
     // Find the largest L2 subhalos and the largest COM
@@ -77,10 +78,12 @@ HaloStat ComputeStats(int size,
     // We can use L2.d2buffer for scratch space; it is guaranteed to be big enough
     double vxx, vxy, vxz, vyy, vyz, vzz, vrr, vtt;
     double rxx, rxy, rxz, ryy, ryz, rzz;
+    double nxx, nxy, nxz, nyy, nyz, nzz;
     float vmax, rvmax;	
 
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     rxx = rxy = rxz = ryy = ryz = rzz = 0.0;
+    nxx = nxy = nxz = nyy = nyz = nzz = 0.0;
     vrr = vtt = 0.0;
     for (int p=0; p<size; p++) {
 		posstruct dr = L1pos[p]-x;
@@ -96,10 +99,18 @@ HaloStat ComputeStats(int size,
 		float vr = dv.x*n.x+dv.y*n.y+dv.z*n.z;
 		vrr += vr*vr; // Accumulate
 		vtt += dv.norm2()-vr*vr;  // Accumulate
+		nxx += n.x*n.x; nxy += n.x*n.y; nxz += n.x*n.z;
+		nyy += n.y*n.y; nyz += n.y*n.z; nzz += n.z*n.z;
     }
+    // Normalize by the number of particles
+    rxx *= isize; rxy *= isize; rxz *= isize;
+    ryy *= isize; ryz *= isize; rzz *= isize;
+    vxx *= isize; vxy *= isize; vxz *= isize;
+    vyy *= isize; vyz *= isize; vzz *= isize;
+    nxx *= isize; nxy *= isize; nxz *= isize;
+    nyy *= isize; nyz *= isize; nzz *= isize;
+    vrr *= isize; vtt *= isize*0.5;  // Tangential is scaled per dimension
 
-    //B.H.
-    vtt *= 0.5;
     //beta = 1-sigma_r^2/sigma_t^2;
     
     
@@ -115,12 +126,14 @@ HaloStat ComputeStats(int size,
     h.r75  = lround(sqrt(L2.d2buffer[size*3/4 ]) / h.r100 * INT16SCALE); 
     h.r90  = lround(sqrt(L2.d2buffer[size*9/10]) / h.r100 * INT16SCALE); 
 	
-	double sigmav[3], sigmar[3]; 
+	double sigmav[3], sigmar[3], sigman[3]; 
 	double sigmav_vecs[3][3]; 
 	double sigmar_vecs[3][3]; 
+	double sigman_vecs[3][3]; 
 
 	FindEigensystem(vxx, vxy, vxz, vyy, vyz, vzz, sigmav, (double * )sigmav_vecs);
     FindEigensystem(rxx, rxy, rxz, ryy, ryz, rzz, sigmar, (double * )sigmar_vecs);
+    FindEigensystem(nxx, nxy, nxz, nyy, nyz, nzz, sigman, (double * )sigman_vecs);
 
 
     h.sigmav3d = sqrt(sigmav[0] + sigmav[1] + sigmav[2]); 
@@ -156,6 +169,7 @@ HaloStat ComputeStats(int size,
     // Repeat this, finding moments and radii around the largest subhalo COM
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     rxx = rxy = rxz = ryy = ryz = rzz = 0.0;
+    nxx = nxy = nxz = nyy = nyz = nzz = 0.0;
     vrr = vtt = 0.0;
     for (int p=0; p<size; p++) {
 		posstruct dr = L1pos[p]-L2cntr_x;
@@ -169,7 +183,17 @@ HaloStat ComputeStats(int size,
 		float vr = dv.x*n.x+dv.y*n.y+dv.z*n.z;
 		vrr += vr*vr; // Accumulate
 		vtt += dv.norm2()-vr*vr;  // Accumulate
+		nxx += n.x*n.x; nxy += n.x*n.y; nxz += n.x*n.z;
+		nyy += n.y*n.y; nyz += n.y*n.z; nzz += n.z*n.z;
     }
+    // Normalize by the number of particles
+    rxx *= isize; rxy *= isize; rxz *= isize;
+    ryy *= isize; ryz *= isize; rzz *= isize;
+    vxx *= isize; vxy *= isize; vxz *= isize;
+    vyy *= isize; vyz *= isize; vzz *= isize;
+    nxx *= isize; nxy *= isize; nxz *= isize;
+    nyy *= isize; nyz *= isize; nzz *= isize;
+    vrr *= isize; vtt *= isize*0.5;  // Tangential is scaled per dimension
     std::sort(L2.d2buffer, L2.d2buffer+size);
 
     // B.H.
