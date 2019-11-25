@@ -315,6 +315,7 @@ class SOcell {
         // Density for a SIS with mass M_D
         min_central = 5./WriteState.DensityKernelRad2*pow(sigma3,2./3); 
         min_central /= (P.np);
+        STDLOG(2, "Min_central for group finding = %f\n", min_central);
         min_central *= FOFunitdensity;
         return;
     }
