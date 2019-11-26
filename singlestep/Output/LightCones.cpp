@@ -105,6 +105,7 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
     // Use the same format for the lightcones as for the timeslices
     AppendArena *AA = get_AA_by_format(P.OutputFormat);
 
+    // Multiply light cone number by 2 to not interfere with PID
     SlabType lightcone = (SlabType)((int)(LightCone0 + lcn));
     int headersize = 1024*1024;
     uint64_t slabtotal = 0;

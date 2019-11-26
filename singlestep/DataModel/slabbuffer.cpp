@@ -100,6 +100,10 @@ public:
         cpd = _cpd;
 
         AA = new ArenaAllocator((_cpd+1)*NUMTYPES, max_allocations);
+
+        // Initialize LightCone files
+        char dir[1024] = "LightCones"
+        initializeLCFiles(char *dir)
     }
 
     ~SlabBuffer(void) {
@@ -158,7 +162,7 @@ public:
     void WriteArena(int type, int slab, int deleteafter, int blocking, const char *fn);
 
     // Function to create and open light cone files
-    void initializeLCFiles(char *dir, int step);
+    void initializeLCFiles(char *dir);
 
     void DeAllocate(int type, int slab, int delete_file=0);
 
@@ -513,7 +517,7 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
     return -1; //should be unreachable
 }
 
-void SlabBuffer::initializeLCFiles(char *dir, int step) {
+void SlabBuffer::initializeLCFiles(char *dir) {
     // Check lightcone directory exists
     if (!FileExists(dir)) {
         mkdir(dir, 0775);
@@ -521,7 +525,7 @@ void SlabBuffer::initializeLCFiles(char *dir, int step) {
 
     // Check that step directory exists
     char dir1[1024];
-    sprintf(dir1, "%s/Step%i", dir, step);
+    sprintf(dir1, "%s/Step%i", dir, ReadState.FullStepNumber);
     if (!FileExists(dir1))
     {
         mkdir(dir1, 0775);
@@ -714,8 +718,11 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, c
         case LightCone0PID:
         case LightCone1PID:
         case LightCone2PID:
+
             // Check that file pointer is available
-            assertf(filenamePts[type] != nullptr, "File pointer was not initialized");
+            if (filenamePts[type] == nullptr) {
+                initializeLCFiles(char *dir, int step)
+            }
 
             // Write file to pointer
             WriteFile( GetSlabPtr(type,slab),

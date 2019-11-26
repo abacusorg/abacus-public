@@ -250,9 +250,6 @@ void Prologue(Parameters &P, bool MakeIC) {
     SB = new SlabBuffer(cpd, order, P.MAXRAMMB*1024*1024);
     CP = new CellParticles(cpd, SB);
 
-    // Initialize files for LightCones given directory and step number
-    SB->initializeLCFiles(P.LightConeDirectory, ReadState.FullStepNumber + 1);
-
     STDLOG(2,"Initializing Multipoles()\n");
     MF  = new SlabMultipoles(order, cpd);
 

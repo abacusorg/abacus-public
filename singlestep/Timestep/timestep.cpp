@@ -607,8 +607,9 @@ void OutputAction(int slab) {
             STimer* lightConeTimer = new STimer;
             lightConeTimer->Start();
             makeLightCone(slab,i);
-            lightConeTimer->End();
+            lightConeTimer->Stop();
             STDLOG(1, "LightCone %d for slab %d creation took %f seconds", i, slab, lightConeTimer->Elapsed());
+            delete lightConeTimer;
         }
     }
     OutputLightCone.Stop();
