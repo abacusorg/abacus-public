@@ -428,7 +428,8 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
     
  
     print("READ RV NAM THIS IS A HACK!!!")
-    pos = np.sort( ( ( pos * vel - np.min( pos * vel )) / np.ptp(pos * vel ) - 0.5  ), axis=0)
+    print("printing before:")
+    pos = -0.5 + ( ( pos + vel ) + 0.5) % 1
     print("NAM THIS IS A HACK, return_vel = True")
     _out = np.array(pos)
 
@@ -534,7 +535,7 @@ def read_pack9(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fals
 
 
 def rvint_unpack(data):
-    velscale = 6000.0
+    velscale = 6000.0/2048.0
     posscale = 2.0**(-32.0)
 
     iv = (data&0xfff).astype(int)
@@ -580,9 +581,10 @@ def read_rvint(fn, return_vel = True, return_pid=False, zspace=False, dtype=np.f
 
 
     print("READ RV NAM THIS IS A HACK!!! return_vel: ", return_vel, "zspace: ", zspace)
-    _out['pos'][:len(data)] = np.sort(((pos * vel - np.min(pos * vel)) / np.ptp(pos * vel) - 0.5), axis = 0)
-    
-    
+    _out['pos'][:len(data)] = -0.5 + ( ( pos + vel ) + 0.5) % 1
+
+
+
     retval = (_out,) if out is None else (len(data),)
     if return_header:
         retval += (header,)
