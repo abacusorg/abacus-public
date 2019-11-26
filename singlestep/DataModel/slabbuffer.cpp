@@ -110,6 +110,8 @@ public:
     // Determine whether a slab is used for reading or writing by default
     int GetSlabIntent(int type);
 
+    // Determine whether a slab is an output slab
+    int IsOutputSlab(int type);
     // Determine whether a slab should have its checksum recorded
     int WantChecksum(int type);
     
@@ -297,11 +299,8 @@ int SlabBuffer::GetSlabIntent(int type){
  *
  * P.NoChecksum disables all checksumming.
 */
-int SlabBuffer::WantChecksum(int type){
-    if(P.NoChecksum)
-        return 0;
-
-    switch(type){
+int SlabBuffer::IsOutputSlab(int type){
+   switch(type){
         case TimeSlice:
         case L1halosSlab:
         case TaggedPIDsSlab:
@@ -310,7 +309,7 @@ int SlabBuffer::WantChecksum(int type){
         case TaggableFieldSlab:
         case TaggableFieldPIDSlab:
         case L0TimeSlice:
-        
+
         // Do we want to checksum light cones?  They're probably being merged/repacked very soon.
         // Maybe same for the halos?  But if we move either of these to another filesystem
         // for post-processing, then we'd like to be able to verify the checksums.
@@ -323,9 +322,14 @@ int SlabBuffer::WantChecksum(int type){
         case LightCone6:
         case LightCone7:
             return 1;
-    }
+     }
+     return 0;
+}
 
-    return 0;
+int SlabBuffer::WantChecksum(int type){
+    if(P.NoChecksum)
+        return 0;
+    return IsOutputSlab(type);
 }
 
 
