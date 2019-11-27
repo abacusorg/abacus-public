@@ -75,9 +75,6 @@ private:
     int order;                // The multipole order, used to determine ArenaSizes
     int cpd;
 
-    // Array of file pointers for lightcone output
-    FILE* filenamePts[NUMTYPES] = { nullptr };
-
     // AA manages arenas using IDs, not slab types, so provide the mapping
     inline int TypeSlab2ID(int type, int s) {
         int ws = Grid->WrapSlab(s);
@@ -102,8 +99,8 @@ public:
         AA = new ArenaAllocator((_cpd+1)*NUMTYPES, max_allocations);
 
         // Initialize LightCone files
-        char dir[1024] = "LightCones"
-        initializeLCFiles(char *dir)
+        char dir[1024] = "LightCones";
+        initializeLCFiles(char *dir);
     }
 
     ~SlabBuffer(void) {
@@ -117,6 +114,9 @@ public:
 
         delete AA;
     }
+
+    // Array of file pointers for lightcone output
+    FILE* filenamePts[NUMTYPES] = { nullptr };
 
     // Determine whether a slab is used for reading or writing by default
     int GetSlabIntent(int type);
@@ -160,9 +160,6 @@ public:
     void WriteArena(int type, int slab, int deleteafter, int blocking);
     void ReadArena(int type, int slab, int blocking, const char *fn);
     void WriteArena(int type, int slab, int deleteafter, int blocking, const char *fn);
-
-    // Function to create and open light cone files
-    void initializeLCFiles(char *dir);
 
     void DeAllocate(int type, int slab, int delete_file=0);
 
@@ -517,43 +514,6 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
     return -1; //should be unreachable
 }
 
-void SlabBuffer::initializeLCFiles(char *dir) {
-    // Check lightcone directory exists
-    if (!FileExists(dir)) {
-        mkdir(dir, 0775);
-    }
-
-    // Check that step directory exists
-    char dir1[1024];
-    sprintf(dir1, "%s/Step%i", dir, ReadState.FullStepNumber);
-    if (!FileExists(dir1))
-    {
-        mkdir(dir1, 0775);
-    }
-
-    // Create directory paths for each of the six light cone types
-    char lc1[1024];
-    char lc2[1024];
-    char lc3[1024];
-    char lc1p[1024];
-    char lc2p[1024];
-    char lc3p[1024];
-
-    sprintf(lc1, "%s/LightCone0.lc", dir1);
-    sprintf(lc2, "%s/LightCone1.lc", dir1);
-    sprintf(lc3, "%s/LightCone2.lc", dir1);
-    sprintf(lc1p, "%s/LightCone0PID.lc", dir1);
-    sprintf(lc2p, "%s/LightCone1PID.lc", dir1);
-    sprintf(lc3p, "%s/LightCone2PID.lc", dir1);
-
-    filenamePts[LightCone0] = fopen(lc1, "wb");
-    filenamePts[LightCone1] = fopen(lc2, "wb");
-    filenamePts[LightCone2] = fopen(lc3, "wb");
-    filenamePts[LightCone0PID] = fopen(lc1p, "wb");
-    filenamePts[LightCone1PID] = fopen(lc2p, "wb");
-    filenamePts[LightCone2PID] = fopen(lc3p, "wb");
-}
-
 char *SlabBuffer::AllocateArena(int type, int slab, int ramdisk) {
     slab = Grid->WrapSlab(slab);
     uint64 s = ArenaSize(type, slab);
@@ -719,10 +679,8 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, c
         case LightCone1PID:
         case LightCone2PID:
 
-            // Check that file pointer is available
-            if (filenamePts[type] == nullptr) {
-                initializeLCFiles(char *dir, int step)
-            }
+            // Ensure that pointer has been initialized
+            assertf(filenamePts[type] != nullptr, "Light cone file not initialized")
 
             // Write file to pointer
             WriteFile( GetSlabPtr(type,slab),
