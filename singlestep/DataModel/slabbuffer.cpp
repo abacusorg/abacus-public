@@ -97,10 +97,6 @@ public:
         cpd = _cpd;
 
         AA = new ArenaAllocator((_cpd+1)*NUMTYPES, max_allocations);
-
-        // Initialize LightCone files
-        char dir[1024] = "LightCones";
-        initializeLCFiles(char *dir);
     }
 
     ~SlabBuffer(void) {
@@ -680,7 +676,7 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, c
         case LightCone2PID:
 
             // Ensure that pointer has been initialized
-            assertf(filenamePts[type] != nullptr, "Light cone file not initialized")
+            assertf(filenamePts[type] != nullptr, "Light cone file not initialized");
 
             // Write file to pointer
             WriteFile( GetSlabPtr(type,slab),

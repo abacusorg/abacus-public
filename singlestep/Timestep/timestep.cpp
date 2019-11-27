@@ -877,7 +877,7 @@ void timestep(void) {
     }
 
     char lcStepDir[1024];
-    sprintf(lcStepDir, "%s/Step%i", dir, ReadState.FullStepNumber);
+    sprintf(lcStepDir, "%s/Step%i", lcDir, ReadState.FullStepNumber);
     if (!FileExists(lcStepDir))
     {
         mkdir(lcStepDir, 0775);
@@ -890,12 +890,12 @@ void timestep(void) {
     char lc2p[1024];
     char lc3p[1024];
 
-    sprintf(lc1, "%s/LightCone0.lc", dir1);
-    sprintf(lc2, "%s/LightCone1.lc", dir1);
-    sprintf(lc3, "%s/LightCone2.lc", dir1);
-    sprintf(lc1p, "%s/LightCone0PID.lc", dir1);
-    sprintf(lc2p, "%s/LightCone1PID.lc", dir1);
-    sprintf(lc3p, "%s/LightCone2PID.lc", dir1);
+    sprintf(lc1, "%s/LightCone0.lc", lcStepDir);
+    sprintf(lc2, "%s/LightCone1.lc", lcStepDir);
+    sprintf(lc3, "%s/LightCone2.lc", lcStepDir);
+    sprintf(lc1p, "%s/LightCone0PID.lc", lcStepDir);
+    sprintf(lc2p, "%s/LightCone1PID.lc", lcStepDir);
+    sprintf(lc3p, "%s/LightCone2PID.lc", lcStepDir);
 
     SB->filenamePts[LightCone0] = fopen(lc1, "ab");
     SB->filenamePts[LightCone1] = fopen(lc2, "ab");
