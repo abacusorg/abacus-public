@@ -869,41 +869,6 @@ void AttemptReceiveManifest(){
 
 void timestep(void) {
 
-    // Open LightCone files
-    char lcDir[1024];
-    sprintf(lcDir, "LightCones");
-    if (!FileExists(lcDir)) {
-        mkdir(lcDir, 0775);
-    }
-
-    char lcStepDir[1024];
-    sprintf(lcStepDir, "%s/Step%i", lcDir, ReadState.FullStepNumber);
-    if (!FileExists(lcStepDir))
-    {
-        mkdir(lcStepDir, 0775);
-    }
-
-    char lc1[1024];
-    char lc2[1024];
-    char lc3[1024];
-    char lc1p[1024];
-    char lc2p[1024];
-    char lc3p[1024];
-
-    sprintf(lc1, "%s/LightCone0.lc", lcStepDir);
-    sprintf(lc2, "%s/LightCone1.lc", lcStepDir);
-    sprintf(lc3, "%s/LightCone2.lc", lcStepDir);
-    sprintf(lc1p, "%s/LightCone0PID.lc", lcStepDir);
-    sprintf(lc2p, "%s/LightCone1PID.lc", lcStepDir);
-    sprintf(lc3p, "%s/LightCone2PID.lc", lcStepDir);
-
-    SB->filenamePts[LightCone0] = fopen(lc1, "ab");
-    SB->filenamePts[LightCone1] = fopen(lc2, "ab");
-    SB->filenamePts[LightCone2] = fopen(lc3, "ab");
-    SB->filenamePts[LightCone0PID] = fopen(lc1p, "ab");
-    SB->filenamePts[LightCone1PID] = fopen(lc2p, "ab");
-    SB->filenamePts[LightCone2PID] = fopen(lc3p, "ab");
-
     FORCE_RADIUS = P.NearFieldRadius;
     GROUP_RADIUS = GFC != NULL ? P.GroupRadius : 0;
     // The 2LPT pipeline is short (no group finding). We can afford to wait an extra slab to allow for large IC displacements

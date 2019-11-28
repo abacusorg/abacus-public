@@ -97,6 +97,42 @@ public:
         cpd = _cpd;
 
         AA = new ArenaAllocator((_cpd+1)*NUMTYPES, max_allocations);
+
+        // Open LightCone files
+        char lcDir[1024];
+        sprintf(lcDir, "LightCones");
+        if (!FileExists(lcDir)) {
+            mkdir(lcDir, 0775);
+        }
+
+        char lcStepDir[1024];
+        sprintf(lcStepDir, "%s/Step%i", lcDir, ReadState.FullStepNumber);
+        if (!FileExists(lcStepDir))
+        {
+            mkdir(lcStepDir, 0775);
+        }
+
+        char lc1[1024];
+        char lc2[1024];
+        char lc3[1024];
+        char lc1p[1024];
+        char lc2p[1024];
+        char lc3p[1024];
+
+        sprintf(lc1, "%s/LightCone0.lc", lcStepDir);
+        sprintf(lc2, "%s/LightCone1.lc", lcStepDir);
+        sprintf(lc3, "%s/LightCone2.lc", lcStepDir);
+        sprintf(lc1p, "%s/LightCone0PID.lc", lcStepDir);
+        sprintf(lc2p, "%s/LightCone1PID.lc", lcStepDir);
+        sprintf(lc3p, "%s/LightCone2PID.lc", lcStepDir);
+
+        filenamePts[LightCone0] = fopen(lc1, "ab");
+        filenamePts[LightCone1] = fopen(lc2, "ab");
+        filenamePts[LightCone2] = fopen(lc3, "ab");
+        filenamePts[LightCone0PID] = fopen(lc1p, "ab");
+        filenamePts[LightCone1PID] = fopen(lc2p, "ab");
+        filenamePts[LightCone2PID] = fopen(lc3p, "ab");
+
     }
 
     ~SlabBuffer(void) {
@@ -112,7 +148,7 @@ public:
     }
 
     // Array of file pointers for lightcone output
-    FILE* filenamePts[NUMTYPES] = { nullptr };
+    FILE* filenamePts[NUMTYPES] = { NULL };
 
     // Determine whether a slab is used for reading or writing by default
     int GetSlabIntent(int type);
@@ -676,7 +712,7 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, c
         case LightCone2PID:
 
             // Ensure that pointer has been initialized
-            assertf(filenamePts[type] != nullptr, "Light cone file not initialized");
+            assertf(filenamePts[type] != NULL, "Light cone file not initialized.\n");
 
             // Write file to pointer
             WriteFile( GetSlabPtr(type,slab),
@@ -747,10 +783,10 @@ void SlabBuffer::DeAllocate(int type, int slab, int delete_file) {
     // Close all of filenamePts's files
     for (int i = 0; i < NUMTYPES; i++)
     {
-        if (filenamePts[i] != nullptr)
+        if (filenamePts[i] != NULL)
         {
             fclose(filenamePts[i]);
-            filenamePts[i] = nullptr;
+            filenamePts[i] = NULL;
         }
     }
 }
