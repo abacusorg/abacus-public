@@ -779,16 +779,6 @@ void SlabBuffer::DeAllocate(int type, int slab, int delete_file) {
             STDLOG(2, "Failed to remove path \"%s\"; does not exist. Continuing.\n", path)
         }
     }
-
-    // Close all of filenamePts's files
-    for (int i = 0; i < NUMTYPES; i++)
-    {
-        if (filenamePts[i] != NULL)
-        {
-            fclose(filenamePts[i]);
-            filenamePts[i] = NULL;
-        }
-    }
 }
 
 #endif // INCLUDE_SLABBUFFER
