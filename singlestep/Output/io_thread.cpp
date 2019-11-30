@@ -203,6 +203,7 @@ private:
                 break;
             case IO_LIGHTCONE:
                 ramdisk = 3;
+                break;
             default:
                 QUIT("Unknown IO method %d\n", ior->io_method);
         }
