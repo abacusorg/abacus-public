@@ -431,6 +431,14 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         case FieldTimeSlice            : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pack9.dat"; break; }
         case L0TimeSlicePIDs      : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".L0_pack9_pids.dat"; break; }
         case FieldTimeSlicePIDs        : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pack9_pids.dat"; break; }
+        case LightCone0:
+        case LightCone1:
+        case LightCone2:
+        case LightCone0PID:
+        case LightCone1PID:
+        case LightCone2PID:
+            ss << P.LightConeDirectory << "/slice" << redshift << "/LightCones.dat";
+            break;
 
         default:
             QUIT("Illegal type %d given to WriteSlabPath()\n", type);
@@ -723,6 +731,7 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, c
                 deleteafter,
                 blocking,
                 WantChecksum(type));
+            break;
         default:
             // Normal file writing
             WriteFile( GetSlabPtr(type,slab),
