@@ -233,7 +233,7 @@ class GlobalGroupSlab {
     void ClearDeferrals();
     void AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, PencilAccum<TaggedPID> ** pHaloPIDs, 
                                             posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, 
-                                            int index, posstruct offset);
+                                            int index, posstruct offset, int & nA, int & nB);
     void CreateGlobalGroups();
     void GatherGlobalGroups();
     void ScatterGlobalGroupsAux();
@@ -769,8 +769,9 @@ about L1.  This can either use FOF or SO.
 */
 
 void GlobalGroupSlab::AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, PencilAccum<TaggedPID> ** pHaloPIDs, 
-                                            posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, int index, posstruct offset) {
+                                            posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, int index, posstruct offset, int & nA, int & nB) {
     int taggable = groupaux[index].is_taggable();
+    int npA = 0; int npB = 0; 
 
     if (taggable != 0 || P.OutputAllHaloParticles) {
         posstruct r = WrapPosition(grouppos[index]+offset);
@@ -783,13 +784,17 @@ void GlobalGroupSlab::AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, P
         if ((taggable == TAGGABLE_SUB_A) || P.OutputAllHaloParticles){ // if we request all halo particles, output them in subsample 'A' files.
             pHaloPIDs[0]->append(TaggedPID(groupaux[index]));
             pHaloRVs[0] ->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
+            npA ++; 
 
         }
         else if (taggable == TAGGABLE_SUB_B){
             pHaloPIDs[1]->append(TaggedPID(groupaux[index]));
             pHaloRVs[1] ->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
+            npB ++; 
         }
     }
+
+    nA += npA; nB += npB; 
 }
 
 
@@ -818,11 +823,12 @@ void GlobalGroupSlab::FindSubGroups() {
 	SOcell FOFlevel1[maxthreads], FOFlevel2[maxthreads];
 	#pragma omp parallel for schedule(static,1)
 	for (int g=0; g<maxthreads; g++) {
-	    FOFlevel1[g].setup(GFC->SOdensity1, GFC->SOdensity1);
-	    FOFlevel2[g].setup(GFC->SOdensity2, GFC->SOdensity2);
+	    FOFlevel1[g].setup(GFC->SOdensity1, P.SO_NPForMinDensity);
+	    FOFlevel2[g].setup(GFC->SOdensity2, P.SO_NPForMinDensity*GFC->SOdensity2/GFC->SOdensity1);
 	}
-	STDLOG(1,"Seeking SO halos, L1 = %f, L2 = %f\n", 
-		FOFlevel1[0].threshold, FOFlevel2[0].threshold);
+	STDLOG(1,"Seeking SO halos, L1 = %f, L2 = %f, with min_central = %f and %f\n", 
+		FOFlevel1[0].threshold, FOFlevel2[0].threshold,
+		FOFlevel1[0].min_central/FOFlevel1[0].FOFunitdensity, FOFlevel2[0].min_central/FOFlevel2[0].FOFunitdensity);
     #else
 	FOFcell FOFlevel1[maxthreads], FOFlevel2[maxthreads];
 	#pragma omp parallel for schedule(static,1)
@@ -847,7 +853,11 @@ void GlobalGroupSlab::FindSubGroups() {
     // pencils by the work estimate (largest first)
     std::sort(pstat, pstat+GFC->cpd);
     
-    #pragma omp parallel for schedule(dynamic,1)
+
+    int np_subA = 0; 
+    int np_subB = 0; 
+
+    #pragma omp parallel for schedule(dynamic,1) reduction(+: np_subA, np_subB)
     for (int jj=0; jj<GFC->cpd; jj++) {
         int j = pstat[jj].pnum;    // Get the pencil number from the list
         GFC->L1Tot.Start();
@@ -953,7 +963,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         //      all L1 particles
                         for (int b=0; b<size; b++){
                             int index = start[b].index(); 
-                            AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset);
+                            AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset, np_subA, np_subB);
                         }
 
                         HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], offset);
@@ -967,21 +977,35 @@ void GlobalGroupSlab::FindSubGroups() {
 
                         #ifdef SPHERICAL_OVERDENSITY
                         //fetch SO stats for this L1 halo. 
+                        /*  // DJE thinks this was a bug
                         posstruct SO_particle = FOFlevel1[g].p[0].FOF_to_pos(); 
                         h.SO_central_particle[0] = SO_particle.x;
                         h.SO_central_particle[1] = SO_particle.y;
                         h.SO_central_particle[2] = SO_particle.z;
-
                         h.SO_central_density  = FOFlevel1[g].density[0] / FOFlevel1[g].FOFunitdensity; 
+                        */
+
+                        h.SO_central_particle[0] = L1pos[g][0].x;
+                        h.SO_central_particle[1] = L1pos[g][0].y;
+                        h.SO_central_particle[2] = L1pos[g][0].z;
+                        h.SO_central_density  = L1acc[g][0].w / FOFlevel1[g].FOFunitdensity; 
+
                         h.SO_radius = sqrt(FOFlevel1[g].groups[a].halo_thresh2) / FOF_RESCALE; 
 
                         //now repeat for the largest L2 halo.
+                        /*  // DJE thinks this was a bug
                         SO_particle = FOFlevel2[g].p[0].FOF_to_pos(); 
                         h.SO_L2max_central_particle[0] = SO_particle.x;
                         h.SO_L2max_central_particle[1] = SO_particle.y;
                         h.SO_L2max_central_particle[2] = SO_particle.z;
-
                         h.SO_L2max_central_density  = FOFlevel2[g].density[0] / FOFlevel2[g].FOFunitdensity; 
+                        */
+
+                        h.SO_L2max_central_particle[0] = L1pos[g][FOFlevel2[g].groups[0].start].x;
+                        h.SO_L2max_central_particle[1] = L1pos[g][FOFlevel2[g].groups[0].start].y;
+                        h.SO_L2max_central_particle[2] = L1pos[g][FOFlevel2[g].groups[0].start].z;
+                        h.SO_L2max_central_density  =    L1acc[g][FOFlevel2[g].groups[0].start].w / FOFlevel2[g].FOFunitdensity; 
+
                         h.SO_L2max_radius = sqrt(FOFlevel2[g].groups[0].halo_thresh2) / FOF_RESCALE; 
 
                         #else
@@ -1009,7 +1033,7 @@ void GlobalGroupSlab::FindSubGroups() {
                                                     //if we're outputing the particle subsample, output all of its L0 particles. 
                     for (int b=0; b<groupn; b++) {
                         if (groupaux[b].is_L1()) continue;  // Already in the L1 set
-                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset); 
+                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset, np_subA, np_subB); 
                     }
                 }
                 
@@ -1043,6 +1067,11 @@ void GlobalGroupSlab::FindSubGroups() {
             }
 
     // Coadd the stats
+    if (ReadState.DoSubsampleOutput){
+        WriteState.np_subA_state += np_subA; 
+        WriteState.np_subB_state += np_subB; 
+    }
+
     uint64 previous = GFC->L1stats.ngroups;
     // BOT
     uint64 previous_L2 = GFC->L2stats.ngroups;
@@ -1058,11 +1087,15 @@ void GlobalGroupSlab::FindSubGroups() {
     	GFC->numcenters1 += FOFlevel1[g].numcenters;
     	GFC->numcenters2 += FOFlevel2[g].numcenters;
     	#ifdef SPHERICAL_OVERDENSITY
+    	GFC->numcg1 += FOFlevel1[g].numcg;
+    	GFC->numcg2 += FOFlevel2[g].numcg;
+    	GFC->numgroups1 += FOFlevel1[g].numgroups;
+    	GFC->numgroups2 += FOFlevel2[g].numgroups;
     	if (g>0) {
     	    FOFlevel1[0].coadd_timers(FOFlevel1[g]);
     	    FOFlevel2[0].coadd_timers(FOFlevel2[g]);
-	}
-	#endif
+        }
+        #endif
     }
     previous = GFC->L1stats.ngroups-previous;
     STDLOG(1,"Found %l L1 halos\n", previous);
@@ -1074,18 +1107,20 @@ void GlobalGroupSlab::FindSubGroups() {
     if (FOFlevel1[0].Total.Elapsed()>0.0) {
       // B.H. trying to do timing
       //STDLOG(3,"L1 Timing: %f = %f %f %f %f\n",
-      STDLOG(1,"L1 Timing: %f = %f %f %f %f\n",
+      STDLOG(1,"L1 Timing: %f = %f %f %f %f %f\n",
 	    FOFlevel1[0].Total.Elapsed(),
 	    FOFlevel1[0].Copy.Elapsed(),
 	    FOFlevel1[0].Sweep.Elapsed(),
 	    FOFlevel1[0].Distance.Elapsed(),
-	    FOFlevel1[0].Search.Elapsed());
-	STDLOG(3,"L2 Timing: %f = %f %f %f %f\n",
+	    FOFlevel1[0].Search.Elapsed(),
+	    FOFlevel1[0].Sort.Elapsed());
+	STDLOG(1,"L2 Timing: %f = %f %f %f %f %f\n",
 	    FOFlevel2[0].Total.Elapsed(),
 	    FOFlevel2[0].Copy.Elapsed(),
 	    FOFlevel2[0].Sweep.Elapsed(),
 	    FOFlevel2[0].Distance.Elapsed(),
-	    FOFlevel2[0].Search.Elapsed());
+	    FOFlevel2[0].Search.Elapsed(),
+	    FOFlevel2[0].Sort.Elapsed());
 	// These show that the timing is 50% dominated by the Search step,
 	// with most of the rest split between Copy and Sweep.
     }

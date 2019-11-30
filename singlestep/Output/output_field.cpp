@@ -88,6 +88,11 @@ void OutputNonL0Taggable(int slab) {
     uint64 nfield[NUM_SUBSAMPLES] = {0, 0}; 
     GatherTaggableFieldParticles(slab, rvSlabs, pidSlabs, WriteState.FirstHalfEtaKick, nfield);
 
+    if (ReadState.DoSubsampleOutput){
+        WriteState.np_subA_state += nfield[0]; 
+        WriteState.np_subB_state += nfield[1]; 
+    }
+
     for (int i = 0; i < NUM_SUBSAMPLES; i++){
         if(subsample_fracs[i] > 0 and nfield[i] > 0){
             // only write the uniform subsample files if they will have non-zero size

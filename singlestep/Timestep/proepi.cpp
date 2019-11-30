@@ -39,8 +39,7 @@
 // #define PTIMER_DUMMY   // Uncommenting this will cause all PTimers to no-op and return Elapsed() = 1e-12 sec.
 #include "PTimer.cc"
 
-
-STimer FinishPreamble;
+STimer FinishPreamble; 
 STimer FinishPartition;
 STimer FinishSort;
 STimer FinishCellIndex;
@@ -109,7 +108,13 @@ SlabSize *SS;
 #include "slabbuffer.cpp"
 SlabBuffer *SB;
 
-// Two quick functions so that the I/O routines don't need to know
+#include "slab_accum.cpp"
+    // Code to establish templated slab-based storage of flexible size 
+    // that is cell indexed and multi-threaded by pencil
+
+#include "halostat.hh"
+
+// Two quick functions so that the I/O routines don't need to know 
 // about the SB object. TODO: Move these to an io specific file
 void IO_SetIOCompleted(int arenatype, int arenaslab) {
 	SB->SetIOCompleted(arenatype, arenaslab); }
@@ -831,6 +836,17 @@ void FinalizeWriteState() {
     STDLOG(0,"Maximum v_j in simulation is %f.\n", WriteState.MaxVelocity);
     STDLOG(0,"Maximum a_j in simulation is %f.\n", WriteState.MaxAcceleration);
     STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f.\n", WriteState.MinVrmsOnAmax);
-    STDLOG(0,"Maximum group diameter in simulation is %d.\n", WriteState.MaxGroupDiameter);
+    STDLOG(0,"Maximum group diameter in simulation is %d.\n", WriteState.MaxGroupDiameter); 
+
+    //NAM TODO put an intelligent assertf here. 
+    // the things we'd really like to check are: 
+    //    1. is the # of subsampled particles in A/B constant for each snapshot z? 
+    //    2. is the # of subsampled particles what we expect from the subsample fractions? 
+
+
+    // if (ReadState.DoSubsampleOutput){ 
+    //     assertf(WriteState.np_subA_state == (int) ( P.ParticleSubsampleA * P.np), "Subsample A contains %d particles, expected %d.\n", WriteState.np_subA_state, (int) (P.ParticleSubsampleA * P.np) ); 
+    //     assertf(WriteState.np_subB_state == (int) ( P.ParticleSubsampleB * P.np), "Subsample A contains %d particles, expected %d.\n", WriteState.np_subB_state, (int) (P.ParticleSubsampleB * P.np) ); 
+    // }
     return;
 }

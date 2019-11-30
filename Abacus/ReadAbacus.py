@@ -368,6 +368,13 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
     header: InputFile
         If `return_header` and a header is found, return parsed InputFile
     """
+
+    print("NAM THIS IS A HACK, return_vel = True")
+    return_vel = True
+
+
+
+
     try:
         ralib
     except NameError:
@@ -399,17 +406,32 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
     except TypeError: 
         if downsample is None:
             downsample = 1.1  # any number larger than 1 will take all particles
-        
-
+    
+    
     NP = readers[dtype](fn, offset, ramdisk, return_vel, zspace, return_pid, downsample, _out.view(dtype=dtype))
+
 
     # shrink the buffer to the real size
     if out is None:
         _out.resize(NP, refcheck=False)
-    else:
+    elif not return_vel:
         _out = _out[:NP]
-        
+    else:
+        _out = _out[:2*NP] 
+
+
+
+    if return_vel:
+        data = np.array([list(triplet) for line in _out for triplet in line])
+        pos = data[::2]
+        vel = data[1::2]
     
+ 
+    print("READ RV NAM THIS IS A HACK!!!")
+    pos = np.sort( ( ( pos * vel - np.min( pos * vel )) / np.ptp(pos * vel ) - 0.5  ), axis=0)
+    print("NAM THIS IS A HACK, return_vel = True")
+    _out = np.array(pos)
+
     retval = (NP,) if out is not None else (_out,)
     if return_header:
         retval += (header,)
@@ -510,19 +532,18 @@ def read_pack9(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fals
         return retval[0]
     return retval    
 
-def rvint_unpack( input ):
-    iv = (input&0xfff).astype(int)
-    velscale = 6000.0;   # km/s                                                                                                     
-    vel = velscale*(iv-2048)   # km/s                                                                                               
-    ix = (input-iv).astype(int)   # Slightly more expensive, but safer if input ended up cast to int64                            
-    posscale = 2.0**(-32.0) # Return to [-0.5,0.5)                                                                                  
-    pos = ix*posscale;
 
-    return pos,vel
-#def rvint_unpack (input): 
-#   
-#
-#
+def rvint_unpack(data):
+    velscale = 6000.0
+    posscale = 2.0**(-32.0)
+
+    iv = (data&0xfff).astype(int)
+    ix = (data-iv).astype(int)
+    pos = posscale*ix 
+    vel = velscale*(iv - 2048)
+  
+    return pos, vel
+
 
 def read_rvint(fn, return_vel = True, return_pid=False, zspace=False, dtype=np.float32, out=None, return_header=False, double=False, tag=False,  downsample=None):
 
@@ -534,9 +555,11 @@ def read_rvint(fn, return_vel = True, return_pid=False, zspace=False, dtype=np.f
     with open(fn, 'rb') as fp:
         header = skip_header(fp)
         if header:
-            header = InputFile(str_source=header)
+            header = InputFile(str_source=header) #NAM TODO add headers to rvint. 
         data = np.fromfile(fp, dtype=disk_dt)
     
+    data = np.array([list(triplet) for line in data for triplet in line])
+
     # Use the given buffer
     if out is not None:
         _out = out
@@ -544,20 +567,21 @@ def read_rvint(fn, return_vel = True, return_pid=False, zspace=False, dtype=np.f
     pos = np.zeros([len(data), 3]) 
     vel = np.zeros([len(data), 3])
 
-    #TODO : vectorize. nested loop below is awfully slow. 
-    #pos, vel = rvint_unpack(data) 
-
-    for r in range(len(data)): #loop over rows
-        for c in range(len(data[r][0])): #loop over columns
-            coordinate = data[r][0][c] 
-            pos[r, c], vel[r,c] = rvint_unpack(coordinate)
-    
+    pos, vel = rvint_unpack(data) 
 
     _out['pos'][:len(data)] = pos
+
     if zspace:
         _out['pos'][:len(data)] += vel
     if return_vel:
         _out['vel'][:len(data)] = vel
+
+
+
+
+    print("READ RV NAM THIS IS A HACK!!! return_vel: ", return_vel, "zspace: ", zspace)
+    _out['pos'][:len(data)] = np.sort(((pos * vel - np.min(pos * vel)) / np.ptp(pos * vel) - 0.5), axis = 0)
+    
     
     retval = (_out,) if out is None else (len(data),)
     if return_header:
@@ -620,6 +644,7 @@ def read_rv(fn, return_vel=True, return_pid=False, zspace=False, dtype=np.float3
             _out = np.empty(len(data), dtype=ndt)
     
     _out['pos'][:len(data)] = data['pos']
+
     if zspace:
         _out['pos'][:len(data)] += data['vel']
     if return_vel:

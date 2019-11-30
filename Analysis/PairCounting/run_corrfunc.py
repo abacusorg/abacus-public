@@ -72,7 +72,10 @@ def run(args):
                 p, header = ReadAbacus.from_dir(primary, format=args['format'], dtype=args['dtype'], return_vel=False, return_header=True, downsample=ds)
                 
 
-                #NAM (hack, remove) header = dict({'NP':16777216, 'BoxSize':575})
+                #NAM (hack, remove) 
+                print("NAM THIS IS A HACK! ADD HEADERS TO RVINT FILES, REMOVE THIS LINE")
+                header = dict({'NP':16777216, 'BoxSize':575})
+                print(len(p))
               
                 if ds == None:
                     assert header['NP'] == len(p)
