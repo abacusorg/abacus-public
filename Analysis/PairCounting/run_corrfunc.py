@@ -47,7 +47,6 @@ def run(args):
         output_dir, output_fn, output_fn_plot = utils.setup_output_file(primary, out_parent, args, this_rmax)
 
         print('* Starting run_corrfunc.py using {} threads with rmax {:.2g}.  Saving result to "{}"'.format(args['nthreads'], this_rmax, output_fn))
-
         print('* Starting to read particles...')
         with ContextTimer('Read particles'):
             crosscorr = args['secondary'] is not None
@@ -69,13 +68,16 @@ def run(args):
                     assert _box == box
                     header2 = {'NP':len(ps[0]), 'BoxSize':box}
             else:
-                p, header = ReadAbacus.from_dir(primary, format=args['format'], dtype=args['dtype'], return_vel=False, return_header=True, downsample=ds)
+                p, header = ReadAbacus.from_dir(primary, format=args['format'], dtype=args['dtype'], return_vel=False, return_header=True, downsample=ds, zspace=False)
                 
+                if zspace: #  Mod[(x - b), (b - a)] + a
+                    p['pos'] = ( ((p['pos'] + p['vel']) - 0.5) % 1 ) - 0.5 #wrap to -0.5 , 0.5 box
 
                 #NAM (hack, remove) 
-                print("NAM THIS IS A HACK! ADD HEADERS TO RVINT FILES, REMOVE THIS LINE")
-                header = dict({'NP':16777216, 'BoxSize':575})
-                print(len(p))
+                # print("NAM THIS IS A HACK! ADD HEADERS TO RVINT FILES, REMOVE THIS LINE")
+                # header = dict({'NP':16777216, 'BoxSize':575})
+                print("Read", len(p), "particles.")
+                print("header:", header)
               
                 if ds == None:
                     assert header['NP'] == len(p)
