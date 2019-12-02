@@ -144,7 +144,7 @@ def default_argparse(doc=__doc__):
     parser.add_argument('--nthreads', help='Number of OpenMP threads for Corrfunc.  NTHREADS <= 0 means use all cores.', default=-1, type=int)
     parser.add_argument('--box', help='Override the box size from the header', type=float)
 
-    #parser.add_argument('--zspace', help='Displace the particles according to their redshift-space positions.', action='store_true')
+    parser.add_argument('--zspace', help='Displace the particles according to their redshift-space positions.', action='store_true')
     parser.add_argument('--downsample', help='The fraction by which to downselect particles before pair counting. Useful for accelerating the computation.', type=float)
 
     return parser
@@ -169,11 +169,13 @@ def process_args(args):
 
 def setup_output_file(primary, out_parent, args, this_rmax):
     output_dir = common.get_output_dir('pair_counting', primary, out_parent=out_parent)
+    zspace = int(args['zspace'])
+
     if args['secondary']:
         simname = path.basename(path.dirname(path.normpath(args['secondary'])))
-        output_fn_base = pjoin(output_dir, 'cross_corr_rmax{:.3g}_{}'.format(this_rmax, simname))
+        output_fn_base = pjoin(output_dir, 'cross_corr_rmax{:.3g}_{}_zspace_{}'.format(this_rmax, simname, zspace))
     else:
-        output_fn_base = pjoin(output_dir, 'auto_corr_rmax{:.3g}'.format(this_rmax))
+        output_fn_base = pjoin(output_dir, 'auto_corr_rmax{:.3g}_zspace_{}'.format(this_rmax, zspace))
     output_fn = output_fn_base + '.csv'
     output_fn_plot = output_fn_base + '.png'
 

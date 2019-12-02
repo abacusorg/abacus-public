@@ -233,7 +233,7 @@ class GlobalGroupSlab {
     void ClearDeferrals();
     void AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, PencilAccum<TaggedPID> ** pHaloPIDs, 
                                             posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, 
-                                            int index, posstruct offset);
+                                            int index, posstruct offset, int & nA, int & nB);
     void CreateGlobalGroups();
     void GatherGlobalGroups();
     void ScatterGlobalGroupsAux();
@@ -769,8 +769,9 @@ about L1.  This can either use FOF or SO.
 */
 
 void GlobalGroupSlab::AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, PencilAccum<TaggedPID> ** pHaloPIDs, 
-                                            posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, int index, posstruct offset) {
+                                            posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, int index, posstruct offset, int & nA, int & nB) {
     int taggable = groupaux[index].is_taggable();
+    int npA = 0; int npB = 0; 
 
     if (taggable != 0 || P.OutputAllHaloParticles) {
         posstruct r = WrapPosition(grouppos[index]+offset);
@@ -783,13 +784,17 @@ void GlobalGroupSlab::AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, P
         if ((taggable == TAGGABLE_SUB_A) || P.OutputAllHaloParticles){ // if we request all halo particles, output them in subsample 'A' files.
             pHaloPIDs[0]->append(TaggedPID(groupaux[index]));
             pHaloRVs[0] ->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
+            npA ++; 
 
         }
         else if (taggable == TAGGABLE_SUB_B){
             pHaloPIDs[1]->append(TaggedPID(groupaux[index]));
             pHaloRVs[1] ->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
+            npB ++; 
         }
     }
+
+    nA += npA; nB += npB; 
 }
 
 
@@ -847,7 +852,11 @@ void GlobalGroupSlab::FindSubGroups() {
     // pencils by the work estimate (largest first)
     std::sort(pstat, pstat+GFC->cpd);
     
-    #pragma omp parallel for schedule(dynamic,1)
+
+    int np_subA = 0; 
+    int np_subB = 0; 
+
+    #pragma omp parallel for schedule(dynamic,1) reduction(+: np_subA, np_subB)
     for (int jj=0; jj<GFC->cpd; jj++) {
         int j = pstat[jj].pnum;    // Get the pencil number from the list
         GFC->L1Tot.Start();
@@ -953,7 +962,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         //      all L1 particles
                         for (int b=0; b<size; b++){
                             int index = start[b].index(); 
-                            AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset);
+                            AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset, np_subA, np_subB);
                         }
 
                         HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], offset);
@@ -1022,8 +1031,14 @@ void GlobalGroupSlab::FindSubGroups() {
                 if (ReadState.DoSubsampleOutput){ //Regardless of whether this L0 group is big enough to do L1 group finding, 
                                                     //if we're outputing the particle subsample, output all of its L0 particles. 
                     for (int b=0; b<groupn; b++) {
+                        
+                        //NAM DEBUG missing particles in earliest halo subsamples
+                        if (groupn < GFC->minhalosize) assert( not groupaux[b].is_L1() ); //if this is a small L0 group, it's particles shouldn't be tagged as L1.
+                        //NAM END DEBUG. 
+
+
                         if (groupaux[b].is_L1()) continue;  // Already in the L1 set
-                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset); 
+                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset, np_subA, np_subB); 
                     }
                 }
                 
@@ -1057,6 +1072,11 @@ void GlobalGroupSlab::FindSubGroups() {
             }
 
     // Coadd the stats
+    if (ReadState.DoSubsampleOutput){
+        WriteState.np_subA_state += np_subA; 
+        WriteState.np_subB_state += np_subB; 
+    }
+
     uint64 previous = GFC->L1stats.ngroups;
     // BOT
     uint64 previous_L2 = GFC->L2stats.ngroups;
@@ -1074,6 +1094,8 @@ void GlobalGroupSlab::FindSubGroups() {
     	#ifdef SPHERICAL_OVERDENSITY
     	GFC->numcg1 += FOFlevel1[g].numcg;
     	GFC->numcg2 += FOFlevel2[g].numcg;
+    	GFC->numgroups1 += FOFlevel1[g].numgroups;
+    	GFC->numgroups2 += FOFlevel2[g].numgroups;
     	if (g>0) {
     	    FOFlevel1[0].coadd_timers(FOFlevel1[g]);
     	    FOFlevel2[0].coadd_timers(FOFlevel2[g]);
@@ -1368,3 +1390,4 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
     return n_added;
 }
 #endif
+                                                                                                                                                                                      

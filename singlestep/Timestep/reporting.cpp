@@ -360,11 +360,11 @@ void GatherTimings() {
     REPORT(1, "Output", Output.Elapsed());
         REPORT_RATE(Output);
     denom = thistime;
-        REPORT(2, "Output", OutputTimeSlice.Elapsed());
+        REPORT(2, "Output Time Slice", OutputTimeSlice.Elapsed());
             REPORT_RATE(Output);
-        REPORT(2, "Output", OutputLightCone.Elapsed());
+        REPORT(2, "Output Light Cone", OutputLightCone.Elapsed());
             REPORT_RATE(Output);
-        REPORT(2, "Output", OutputBin.Elapsed());
+        REPORT(2, "Output Bin", OutputBin.Elapsed());
             REPORT_RATE(Output);
 
     if(GFC != NULL){

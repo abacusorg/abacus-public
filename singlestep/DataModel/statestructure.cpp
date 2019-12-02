@@ -29,6 +29,8 @@ class State:public ParseHeader{
 public:
 
     long long int np_state;
+    int np_subA_state;
+    int np_subB_state;
     int cpd_state;
     int order_state;
     
@@ -141,6 +143,8 @@ public:
         // But we might want to load a file header as a state for analysis!
         // So make these optional, but they will fail validation against the Parameters if missing in a simulation context
     	installscalar("np_state",np_state,DONT_CARE);
+        installscalar("np_subA_state",np_subA_state,DONT_CARE);
+        installscalar("np_subB_state",np_subB_state,DONT_CARE);
     	installscalar("cpd_state",cpd_state,DONT_CARE);
     	installscalar("order_state",order_state,DONT_CARE);
 
@@ -329,6 +333,8 @@ void State::write_to_file(const char *dir, const char *suffix) {
     assertf(statefp!=NULL, "Couldn't open file %s to write state\n", statefn);
 
     WPR(np_state                       , llu);
+    WPR(np_subA_state                  , ISYM);
+    WPR(np_subB_state                  , ISYM);
     WPR(cpd_state                      , ISYM);
     WPR(order_state                    , ISYM);
 

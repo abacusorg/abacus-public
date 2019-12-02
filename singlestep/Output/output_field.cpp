@@ -56,8 +56,6 @@ void OutputNonL0Taggable(int slab) {
     // This has to get called after all GlobalGroups in this slab
     // have been found.
 
-    //NAM not happy with this... 
-
     double subsample_fracs[NUM_SUBSAMPLES] = {P.ParticleSubsampleA, P.ParticleSubsampleB}; 
     int slab_type[2*NUM_SUBSAMPLES] = {FieldRVSlabA, FieldRVSlabB, FieldPIDSlabA, FieldPIDSlabB}; 
 
@@ -87,6 +85,9 @@ void OutputNonL0Taggable(int slab) {
 
     uint64 nfield[NUM_SUBSAMPLES] = {0, 0}; 
     GatherTaggableFieldParticles(slab, rvSlabs, pidSlabs, WriteState.FirstHalfEtaKick, nfield);
+
+    WriteState.np_subA_state += nfield[0]; 
+    WriteState.np_subB_state += nfield[1]; 
 
     for (int i = 0; i < NUM_SUBSAMPLES; i++){
         if(subsample_fracs[i] > 0 and nfield[i] > 0){
