@@ -115,7 +115,7 @@ def from_dir(dir, pattern=None, key=None, **kwargs):
     for p in pattern:
         files += glob(pjoin(dir, p))
     files = sorted(files, key=_key)
-    
+
     return read_many(files, **kwargs)
 
 
@@ -369,12 +369,6 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
         If `return_header` and a header is found, return parsed InputFile
     """
 
-    print("NAM THIS IS A HACK, return_vel = True")
-    return_vel = True
-
-
-
-
     try:
         ralib
     except NameError:
@@ -427,11 +421,11 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
         vel = data[1::2]
     
  
-    print("READ RV NAM THIS IS A HACK!!!")
-    print("printing before:")
-    pos = -0.5 + ( ( pos + vel ) + 0.5) % 1
-    print("NAM THIS IS A HACK, return_vel = True")
-    _out = np.array(pos)
+    # print("READ RV NAM THIS IS A HACK!!!")
+    # print("printing before:")
+    # pos = -0.5 + ( ( pos + vel ) + 0.5) % 1
+    # print("NAM THIS IS A HACK, return_vel = True")
+    # _out = np.array(pos)
 
     retval = (NP,) if out is not None else (_out,)
     if return_header:
@@ -580,8 +574,8 @@ def read_rvint(fn, return_vel = True, return_pid=False, zspace=False, dtype=np.f
 
 
 
-    print("READ RV NAM THIS IS A HACK!!! return_vel: ", return_vel, "zspace: ", zspace)
-    _out['pos'][:len(data)] = -0.5 + ( ( pos + vel ) + 0.5) % 1
+    # print("READ RV NAM THIS IS A HACK!!! return_vel: ", return_vel, "zspace: ", zspace)
+    # _out['pos'][:len(data)] = -0.5 + ( ( pos + vel ) + 0.5) % 1
 
 
 
@@ -1136,7 +1130,7 @@ reader_functions = {'pack14':read_pack14, 'pack9':read_pack9, 'rvint': read_rvin
                     'rvtag':read_rvtag, 'rv':read_rvtag,
                     'pack14_lite':read_pack14_lite,
                     'gadget':read_gadget}
-default_file_patterns = {'pack14':('*.dat',), 'pack9':('*L0.dat', '*field.dat'), 'rvint' : ('*rv_A*', '*rv_B*'), 'state':('position_*',)}
+default_file_patterns = {'pack14':('*.dat',), 'pack9':('*L0_pack9.dat', '*field_pack9.dat'), 'rvint' : ('*rv_A*', '*rv_B*'), 'state':('position_*',)}
 fallback_file_pattern = ('*.dat',)
 
 
