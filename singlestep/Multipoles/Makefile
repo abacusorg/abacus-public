@@ -32,7 +32,7 @@ CM_VSX%cpp ET_VSX%cpp: generateCartesianVSX.py
 %_VSX.o: %_VSX.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -fopt-info -Ofast -Wall -c $<
 
-Cartesian2Reduced_OBJ := $(shell echo Cartesian2Reduced{1..$(MAXORDER)}.o Cartesian2ReducedDispatch.o)
+Cartesian2Reduced_OBJ := $(shell echo Cartesian2Reduced{0..$(MAXORDER)}.o Cartesian2ReducedDispatch.o)
 Cartesian2Reduced_TARGETPAT := $(Cartesian2Reduced_OBJ:.o=%cpp)
 Cartesian2Reduced_SRC := $(Cartesian2Reduced_OBJ:.o=.cpp)
 
