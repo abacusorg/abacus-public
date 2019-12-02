@@ -192,8 +192,9 @@ private:
             fclose(outfile);
         }
 
-        // Determine the ramdisk flag
+        // Determine the ramdisk flag and if LightCone
         int ramdisk = -1;
+        int isLC = 0;
         switch(ior->io_method){
             case IO_DIRECT:
                 ramdisk = 0;
@@ -202,7 +203,8 @@ private:
                 ramdisk = 1;
                 break;
             case IO_LIGHTCONE:
-                ramdisk = 3;
+                isLC = 1;
+                ramdisk = 0;
                 break;
             default:
                 QUIT("Unknown IO method %d\n", ior->io_method);
@@ -230,7 +232,7 @@ private:
         }
 
         // Use BlockingAppend for LightCones or non-LightCones
-        if (ramdisk == 3)
+        if (isLC == 1)
         {
             timer->Start();
             WD->BlockingAppend(ior->filePointer, ior->memory, ior->sizebytes);
