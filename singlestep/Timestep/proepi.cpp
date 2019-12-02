@@ -38,6 +38,7 @@
 #include "STimer.cc"
 // #define PTIMER_DUMMY   // Uncommenting this will cause all PTimers to no-op and return Elapsed() = 1e-12 sec.
 #include "PTimer.cc"
+//#include "Limiter.cpp" 
 
 STimer FinishPreamble; 
 STimer FinishPartition;

@@ -187,6 +187,7 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
             read_into = particles[start:]
         
         out = read(fn, format=format, out=read_into, **kwargs)
+
         if separate_fields:
             if return_header:
                 out, header = out
@@ -206,12 +207,16 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
     # Shrink the array to the size that was actually read
     if separate_fields:
         for field in particle_arrays:
+            print('pa',  particle_arrays[field][:start])
+
             particle_arrays[field] = particle_arrays[field][:start]
 
         if return_header:
             return particle_arrays, header  # return header associated with last file
         return particle_arrays
     else:
+        print('p', particles, particles[:start])
+
         particles = particles[:start]
         if return_header:
             return particles, header  # return header associated with last file
@@ -369,6 +374,9 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
         If `return_header` and a header is found, return parsed InputFile
     """
 
+    if zspace:
+        return_vel = True
+
     try:
         ralib
     except NameError:
@@ -402,7 +410,7 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
             downsample = 1.1  # any number larger than 1 will take all particles
     
     
-    NP = readers[dtype](fn, offset, ramdisk, return_vel, zspace, return_pid, downsample, _out.view(dtype=dtype))
+    NP = readers[dtype](fn, offset, ramdisk, return_vel, False, return_pid, downsample, _out.view(dtype=dtype))
 
 
     # shrink the buffer to the real size
@@ -413,19 +421,14 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
     else:
         _out = _out[:2*NP] 
 
-
-
     if return_vel:
         data = np.array([list(triplet) for line in _out for triplet in line])
         pos = data[::2]
         vel = data[1::2]
-    
- 
-    # print("READ RV NAM THIS IS A HACK!!!")
-    # print("printing before:")
-    # pos = -0.5 + ( ( pos + vel ) + 0.5) % 1
-    # print("NAM THIS IS A HACK, return_vel = True")
-    # _out = np.array(pos)
+        if zspace:
+            vel = vel  * (header['VelZSpace_to_kms']/header['VelZSpace_to_Canonical']); 
+            pos += vel # add velocities. Don't do box wrap. 
+        _out = np.array(pos)
 
     retval = (NP,) if out is not None else (_out,)
     if return_header:
@@ -479,7 +482,8 @@ def read_pack9(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fals
     header: InputFile
         If `return_header` and a header is found, return parsed InputFile
     """
-    return_pid = False
+    if zspace: 
+        return_vel = True
     try:
         ralib
     except NameError:
@@ -511,13 +515,26 @@ def read_pack9(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fals
             downsample = 1.1  # any number larger than 1 will take all particles
 
     readers[dtype].argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_double, ctypes.c_double, ctypes.c_void_p] 
-    NP = readers[dtype](bytes(fn, encoding='utf-8'), offset, ramdisk, return_vel, zspace, return_pid, downsample, 0, _out.view(dtype=dtype).ctypes.data_as(ctypes.POINTER(ctypes.c_void_p)))
+    NP = readers[dtype](bytes(fn, encoding='utf-8'), offset, ramdisk, return_vel, False, return_pid, downsample, 0, _out.view(dtype=dtype).ctypes.data_as(ctypes.POINTER(ctypes.c_void_p)))
 
     # shrink the buffer to the real size
     if out is None:
         _out.resize(NP, refcheck=False)
-    else:
+    elif not return_vel:
         _out = _out[:NP]
+    else:
+        _out = _out[:2*NP] 
+
+    if return_vel:
+        data = np.array([list(triplet) for line in _out for triplet in line])
+        pos = data[::2]
+        vel = data[1::2]
+        if zspace:
+            vel = vel  * (header['VelZSpace_to_kms']/header['VelZSpace_to_Canonical']); 
+
+            pos += vel # add velocities. Don't do box wrap. 
+        _out = np.array(pos)
+
     
     retval = (NP,) if out is not None else (_out,)
     if return_header:
@@ -550,14 +567,16 @@ def read_rvint(fn, return_vel = True, return_pid=False, zspace=False, dtype=np.f
     with open(fn, 'rb') as fp:
         header = skip_header(fp)
         if header:
-            header = InputFile(str_source=header) #NAM TODO add headers to rvint. 
+            header = InputFile(str_source=header)
         data = np.fromfile(fp, dtype=disk_dt)
     
     data = np.array([list(triplet) for line in data for triplet in line])
 
+    state = InputFile(pjoin(ppath.dirname(fn), 'header'))
+
     # Use the given buffer
     if out is not None:
-        _out = out
+        _out = out  
 
     pos = np.zeros([len(data), 3]) 
     vel = np.zeros([len(data), 3])
@@ -566,22 +585,17 @@ def read_rvint(fn, return_vel = True, return_pid=False, zspace=False, dtype=np.f
 
     _out['pos'][:len(data)] = pos
 
+    # vel = vel  / (state['VelZSpace_to_kms']/state['VelZSpace_to_Canonical']); 
+
     if zspace:
+        print(pos, vel) 
         _out['pos'][:len(data)] += vel
     if return_vel:
         _out['vel'][:len(data)] = vel
 
-
-
-
-    # print("READ RV NAM THIS IS A HACK!!! return_vel: ", return_vel, "zspace: ", zspace)
-    # _out['pos'][:len(data)] = -0.5 + ( ( pos + vel ) + 0.5) % 1
-
-
-
     retval = (_out,) if out is None else (len(data),)
     if return_header:
-        retval += (header,)
+        retval += (state,)
 
     if len(retval) == 1:
         return retval[0]
