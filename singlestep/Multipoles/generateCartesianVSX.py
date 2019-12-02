@@ -15,7 +15,7 @@ from multipoles_metacode_utils \
     import emit_dispatch_function, Writer, default_metacode_argparser, cmapper
 
 
-def emit_VSX_Multipoles(orders, fn='CM_VSX.cpp'):
+def emit_VSX_Multipoles(orders, fn='CM_VSX.cpp', verbose=False):
     w = Writer(fn)
 
     w('''
@@ -159,7 +159,7 @@ def emit_VSX_Multipoles(orders, fn='CM_VSX.cpp'):
         #endif''')  # VSXMULTIPOLES
 
 
-def emit_VSX_Multipoles_interleaved(orders, fn='CM_VSX.cpp'):
+def emit_VSX_Multipoles_interleaved(orders, fn='CM_VSX.cpp', verbose=False):
     w = Writer(fn)
 
     w('''
@@ -321,7 +321,7 @@ def emit_VSX_Multipoles_interleaved(orders, fn='CM_VSX.cpp'):
         #endif''')  # VSXMULTIPOLES
 
 
-def emit_VSX_Multipoles_FMA(orders, fn='CM_VSX.cpp', max_zk=None):
+def emit_VSX_Multipoles_FMA(orders, fn='CM_VSX.cpp', max_zk=None, verbose=False):
     assert max_zk is None, "max_zk implementation not finished"
     if max_zk is None:
         max_zk = max(orders) + 1
@@ -414,7 +414,8 @@ def emit_VSX_Multipoles_FMA(orders, fn='CM_VSX.cpp', max_zk=None):
         w.dedent()
         w('}')  # particle loop
 
-        print(f'nflop: {nflop}; cml: {cml}')
+        if verbose:
+            print(f'nflop: {nflop}; cml: {cml}')
 
         w('if (n_left != 0){')
         w.indent()
@@ -468,7 +469,7 @@ def emit_VSX_Multipoles_FMA(orders, fn='CM_VSX.cpp', max_zk=None):
         #endif''')  # VSXMULTIPOLES
 
 
-def emit_VSX_Multipoles_FMA_interleaved(orders, fn='CM_VSX.cpp', max_zk=None):
+def emit_VSX_Multipoles_FMA_interleaved(orders, fn='CM_VSX.cpp', max_zk=None, verbose=False):
     assert max_zk is None, "max_zk implementation not finished"
     if max_zk is None:
         max_zk = max(orders) + 1
@@ -577,7 +578,8 @@ def emit_VSX_Multipoles_FMA_interleaved(orders, fn='CM_VSX.cpp', max_zk=None):
         w.dedent()
         w('}')  # particle loop
 
-        print(f'nflop: {nflop}; cml: {cml}')
+        if verbose:
+            print(f'nflop: {nflop}; cml: {cml}')
 
         w('if (n_left != 0){')
         w.indent()
@@ -633,7 +635,7 @@ def emit_VSX_Multipoles_FMA_interleaved(orders, fn='CM_VSX.cpp', max_zk=None):
         #endif''')  # VSXMULTIPOLES
 
 
-def emit_VSX_Taylors(orders, fn='ET_VSX.cpp'):
+def emit_VSX_Taylors(orders, fn='ET_VSX.cpp', verbose=False):
     w = Writer(fn)
 
     w('''
@@ -755,14 +757,15 @@ def emit_VSX_Taylors(orders, fn='ET_VSX.cpp'):
         w.dedent()
         w('}\n')  # Kernel
 
-        print(f'Order {order}: {nflop} flop per particle ({nflop_fixed} fixed flop)')
+        if verbose:
+            print(f'Order {order}: {nflop} flop per particle ({nflop_fixed} fixed flop)')
 
     emit_dispatch_function(w, 'TaylorVSXKernel(FLOAT3 *particles, int n, double3 center, double *CT, float3 *acc)', orders)
 
     w('#endif')  # VSXMULTIPOLES
 
 
-def emit_VSX_Taylors_noQ(orders, fn='ET_VSX.cpp'):
+def emit_VSX_Taylors_noQ(orders, fn='ET_VSX.cpp', verbose=False):
     w = Writer(fn)
 
     w('''
@@ -913,14 +916,15 @@ def emit_VSX_Taylors_noQ(orders, fn='ET_VSX.cpp'):
         w.dedent()
         w('}\n')  # Kernel
 
-        print(f'Order {order}: {nflop} flop per particle ({nflop_fixed} fixed flop)')
+        if verbose:
+            print(f'Order {order}: {nflop} flop per particle ({nflop_fixed} fixed flop)')
 
     emit_dispatch_function(w, 'TaylorVSXKernel(FLOAT3 *particles, int n, double3 center, double *CT, float3 *acc)', orders)
 
     w('#endif')  # VSXMULTIPOLES
 
 
-def emit_VSX_Taylors_interleaved(orders, fn='ET_VSX.cpp'):
+def emit_VSX_Taylors_interleaved(orders, fn='ET_VSX.cpp', verbose=False):
     w = Writer(fn)
 
     w('''
@@ -1069,7 +1073,8 @@ def emit_VSX_Taylors_interleaved(orders, fn='ET_VSX.cpp'):
         w.dedent()
         w('}\n')  # Kernel
 
-        print(f'Order {order}: {nflop} flop per particle ({nflop_fixed} fixed flop)')
+        if verbose:
+            print(f'Order {order}: {nflop} flop per particle ({nflop_fixed} fixed flop)')
 
     emit_dispatch_function(w, 'TaylorVSXKernel(FLOAT3 *particles, int n, double3 center, double *CT, float3 *acc)', orders)
 

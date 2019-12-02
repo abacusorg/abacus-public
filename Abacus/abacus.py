@@ -106,7 +106,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     if not output_parfile:
         output_parfile = pjoin(pardir, 'abacus.par')
 
-    # TODO: summit doesn't let us write files from the compute nodes.  Is that a problem?
+    # TODO: summit doesn't let us write files to the home directory from the compute nodes.  Is that a problem?
     params = preprocess_params(output_parfile, parfn, use_site_overrides=use_site_overrides,
                 override_directories=override_directories, **param_kwargs)
     if just_params:
@@ -309,26 +309,6 @@ def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
                     if parallel:
                         print('Dispatching CreateDerivatives with command "{}"'.format(' '.join(create_derivs_cmd)))
                     call_subprocess(create_derivs_cmd)
-    
-    
-def default_parser():
-    """
-    A default command-line interface that other scripts may want to use.
-
-    Example
-    -------
-    parser = abacus.default_parser()
-    parser.add_argument(...)  # optional
-    args = parser.parse_args()
-    retcode = abacus.run('abacus.par2', **vars(args))
-    
-    """
-    parser = argparse.ArgumentParser(description='Run this sim.', formatter_class=Tools.ArgParseFormatter)
-    parser.add_argument('--clean', action='store_true', help="Erase the working directory and start over.  Otherwise, continue from the existing state.  Always preserves the ICs unless --erase-ic.")
-    parser.add_argument('--erase-ic', action='store_true', help="Remove the ICs if they exist.")
-    parser.add_argument('--maxsteps', type=int, help="Take at most N steps", metavar='N')
-    parser.add_argument('--just-params', help="Only generate the .par file from the .par2 file", action='store_true')
-    return parser
 
 
 def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_directories=False, **param_kwargs):
@@ -641,8 +621,12 @@ fp_regex = r'(([1-9][0-9]*\.?[0-9]*)|(\.[0-9]+))([Ee][+-]?[0-9]+)?'
 
 import table_logger
 class StatusLogWriter:
-    #header = "Step  Redshift  Singlestep  Conv"
-    #line_fmt = '{step:4d}  {z:6.1f}  {ss_rate:.1g} Mp/s ({ss_time:.1g} s) {conv_time:.1g}'
+    '''
+    This class manages the status log that is written to the base directory
+    as the simulation progresses.  It is usually called "status.log" and
+    consists of one line per time step.  Its purpose is to facilitate
+    easy tracking of a simulation's health and progress.
+    '''
 
     fields = {'Step': '{:4d}',
               'Redshift': '{:.3g}',
@@ -705,7 +689,6 @@ class StatusLogWriter:
 
         self.logger(*(info[k] for k in self.fields))
 
-
     def print(self, fmtstring, end='\n', *args, **kwargs):
         '''
         Print a plain statement to the status log
@@ -767,10 +750,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     
     if parallel:
         # TODO: figure out how to signal a backup to the nodes
-        run_time_minutes = int(os.getenv("JOB_ACTION_WARNING_TIME"))
+        # TODO: maybe should use None instead of 1000000
+        run_time_minutes = int(os.getenv("JOB_ACTION_WARNING_TIME", '1000000'))
         run_time_secs = 60 * run_time_minutes
         start_time = wall_timer()
-        print("Beginning run at time", start_time, ", running for ", run_time_minutes, " minutes.\n")
+        print(f"Beginning run at time {start_time}, running for {run_time_minutes} minutes.\n")
         
         
         backups_enabled = False
@@ -1036,7 +1020,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             
             #are we coming up on a group finding step? If yes, backup the state, just in case. 
             pre_gf_backup  = False 
-            nGFoutputs = len(param.L1OutputRedshifts)
+            nGFoutputs = len(param.get('L1OutputRedshifts', []))
             for i in range(nGFoutputs):
                 L1z = param.L1OutputRedshifts[i] 
                 if L1z <= -1:
@@ -1052,15 +1036,15 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         
             if save:
                 if abandon_ship:
-                    exit_message = 'EMERGENCY EXIT REQUESTED: '
+                    exit_message = 'EMERGENCY EXIT REQUESTED'
                 if out_of_time:
-                    exit_message = 'RUNNING OUT OF JOB TIME: '                    
+                    exit_message = 'RUNNING OUT OF JOB TIME'
                 if interim_backup:
-                    exit_message = 'HALFWAY THROUGH A LONG JOB: '                    
+                    exit_message = 'HALFWAY THROUGH A LONG JOB'
                 if pre_gf_backup:
-                    exit_message = 'GROUP FINDING COMING UP: '
+                    exit_message = 'GROUP FINDING COMING UP'
                     
-                print(exit_message, 'backing up node state.')
+                print(f'{exit_message}: backing up node state.')
                 
                 restore_time = wall_timer()
         
@@ -1125,7 +1109,14 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
     return 0
 
+
 def save_log_files(logdir, newprefix, oldprefix='lastrun'):
+    '''
+    singlestep and convolution write log files with names
+    like "lastrun.log" and "lastrun.time".  At the end
+    of each time step, we want to rename replace occurrences
+    of "lastrun" with "step0001" for step 1, for example.
+    '''
     for logfn in os.listdir(logdir):
         if logfn.startswith(oldprefix):
             newname = logfn.replace(oldprefix, newprefix, 1)
@@ -1177,7 +1168,6 @@ def merge_checksum_files(param=None, dir_globs=None):
 
             for fn in cksum_fns:
                 os.remove(fn)
-
 
 
 def handle_singlestep_error(error):
@@ -1235,3 +1225,23 @@ def call_subprocess(*args, **kwargs):
     """
 
     subprocess.check_call(*args, **kwargs, preexec_fn=reset_affinity)
+
+
+def default_parser():
+    """
+    A default command-line interface that other scripts may want to use.
+
+    Example
+    -------
+    parser = abacus.default_parser()
+    parser.add_argument(...)  # optional
+    args = parser.parse_args()
+    retcode = abacus.run('abacus.par2', **vars(args))
+    
+    """
+    parser = argparse.ArgumentParser(description='Run this sim.', formatter_class=Tools.ArgParseFormatter)
+    parser.add_argument('--clean', action='store_true', help="Erase the working directory and start over.  Otherwise, continue from the existing state.  Always preserves the ICs unless --erase-ic.")
+    parser.add_argument('--erase-ic', action='store_true', help="Remove the ICs if they exist.")
+    parser.add_argument('--maxsteps', type=int, help="Take at most N steps", metavar='N')
+    parser.add_argument('--just-params', help="Only generate the .par file from the .par2 file", action='store_true')
+    return parser

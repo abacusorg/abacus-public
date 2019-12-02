@@ -20,7 +20,10 @@ class SlabSize {
         _size = new uint64[cpd];
         _newsize = new uint64[cpd];
         STDLOG(2,"SlabSize vectors %p %p\n", (void *)_size, (void *)_newsize);
-        for (int j=0;j<cpd;j++) _newsize[j] = 0;
+        for (int j=0;j<cpd;j++){
+            _size[j] = 0;
+            _newsize[j] = 0;
+        }
         max = 0;
         min = UINT64_MAX;
     }
