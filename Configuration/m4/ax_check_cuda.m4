@@ -45,6 +45,7 @@ AC_DEFUN([AX_CHECK_CUDA], [
 default_cuda_prefix=$CUDA_HOME
 default_cuda_prefix=${default_cuda_prefix:-$CUDA_DIR}
 default_cuda_prefix=${default_cuda_prefix:-$CUDAPATH}
+default_cuda_prefix=${default_cuda_prefix:-$CUDA_BASE}
 default_cuda_prefix=${default_cuda_prefix:-/usr/local/cuda}
 
 # Provide your CUDA path with this

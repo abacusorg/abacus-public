@@ -5,10 +5,16 @@
 # Athena (https://trac.princeton.edu/Athena/)
 
 # Initialization
+AC_INIT([abacus], [2.0], [], [], [github.com/abacusorg/abacus])
+
+if test -f ./config.site; then
+    echo "configure: loading site script ./config.site"
+    source ./config.site
+fi
+
 # TODO: any way to use mpicxx if --enable-parallel?
 AC_LANG([C++])  # does this work?
 
-AC_INIT([abacus], [2.0], [], [], [github.com/abacusorg/abacus])
 AC_CONFIG_HEADERS([./include/config.h])  # this places DEFS in a global header file instead of Makefiles
 AC_CONFIG_AUX_DIR([./Configuration])
 #AC_PROG_CC
@@ -245,13 +251,6 @@ if test x$enable_threaded_io == xyes; then
 	AC_DEFINE_UNQUOTED(IOTHREADED, [], "Use a separate thread for IO")
 fi
 
-AC_ARG_ENABLE(spherical-overdensity,
-[AS_HELP_STRING([--enable-spherical-overdensity], [Use SO finder [yes]])],
-	[], enable_spherical_overdensity="yes")
-if test x$enable_spherical_overdensity == xyes; then
-	AC_DEFINE_UNQUOTED(SPHERICAL_OVERDENSITY, [], "Use SO finder for L1/L2 halos, rather than FOF")
-fi
-
 AC_ARG_ENABLE(one-sided-group-finding,
 [AS_HELP_STRING([--enable-one-sided-group-finding], [Perform L0 finding one-sided [yes]])],
 	[], enable_one_sided_group_finding="yes")
@@ -290,6 +289,13 @@ AC_ARG_ENABLE(fof_density,
 	[], enable_fof_density="yes")
 if test x$enable_fof_density == xyes; then
 	AC_DEFINE_UNQUOTED(COMPUTE_FOF_DENSITY, [], "Compute FOF-scale density on the GPU, used to accelerate the L0 FOF computation and seed the L1/L2 halo finding.  This promotes FLOAT3 accelerations to FLOAT4.")
+fi
+
+AC_ARG_ENABLE(spherical-overdensity,
+[AS_HELP_STRING([--enable-spherical-overdensity], [Use SO finder [yes if fof-density enabled]])],
+    [], enable_spherical_overdensity=$enable_fof_density)
+if test x$enable_spherical_overdensity == xyes; then
+    AC_DEFINE_UNQUOTED(SPHERICAL_OVERDENSITY, [], "Use SO finder for L1/L2 halos, rather than FOF")
 fi
 
 AC_ARG_ENABLE(parallel,

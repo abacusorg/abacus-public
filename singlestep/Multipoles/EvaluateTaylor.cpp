@@ -246,15 +246,16 @@ void report(const char* prefix, int64_t npart, std::chrono::duration<double> ela
 int main(int argc, char **argv){
     Taylor TY(8);
 
-    int ncell = 1*1875*1875;
-    int ppc = 52;
+    int64_t cpd = 65;
+    int64_t ncell = 1*cpd*cpd;
+    int64_t ppc = 52;
     if (argc > 1)
         ppc = atoi(argv[1]);
     float rtol=1e-6;
     uint64_t npart = ncell*ppc;
 
     double *cartesian;  // re-use cartesians for all cells (?)
-    FLOAT3 center(0.1,0.2,0.3);
+    FLOAT3 center(1e-3,2e-3,3e-3);
     FLOAT3 *xyz;
     FLOAT3 *current_acc, *last_acc;
 
@@ -278,9 +279,9 @@ int main(int argc, char **argv){
     #pragma omp parallel for schedule(static)
     for(uint64_t i = 0; i < npart; i++){
         int t = omp_get_thread_num();
-        xyz[i].x = gsl_rng_uniform(rng[t]);
-        xyz[i].y = gsl_rng_uniform(rng[t]);
-        xyz[i].z = gsl_rng_uniform(rng[t]);
+        xyz[i].x = gsl_rng_uniform(rng[t])/cpd;
+        xyz[i].y = gsl_rng_uniform(rng[t])/cpd;
+        xyz[i].z = gsl_rng_uniform(rng[t])/cpd;
     }
 
     assert(posix_memalign((void **) &last_acc, 4096, sizeof(FLOAT3)*npart) == 0);
@@ -302,7 +303,7 @@ int main(int argc, char **argv){
 
     begin = std::chrono::steady_clock::now();
     #pragma omp parallel for schedule(static)
-    for(int k = 0; k < ncell; k++){
+    for(int64_t k = 0; k < ncell; k++){
         FLOAT3 *thisxyz = xyz + k*ppc;
         FLOAT3 *thisacc = current_acc + k*ppc;
         
@@ -326,7 +327,7 @@ int main(int argc, char **argv){
 
     begin = std::chrono::steady_clock::now();
     #pragma omp parallel for schedule(static)
-    for(int k = 0; k < ncell; k++){
+    for(int64_t k = 0; k < ncell; k++){
         FLOAT3 *thisxyz = xyz + k*ppc;
         FLOAT3 *thisacc = current_acc + k*ppc;
         
@@ -350,7 +351,7 @@ int main(int argc, char **argv){
 
     begin = std::chrono::steady_clock::now();
     #pragma omp parallel for schedule(static)
-    for(int k = 0; k < ncell; k++){
+    for(int64_t k = 0; k < ncell; k++){
         FLOAT3 *thisxyz = xyz + k*ppc;
         FLOAT3 *thisacc = current_acc + k*ppc;
 
@@ -375,7 +376,7 @@ int main(int argc, char **argv){
 
     begin = std::chrono::steady_clock::now();
     #pragma omp parallel for schedule(static)
-    for(int k = 0; k < ncell; k++){
+    for(int64_t k = 0; k < ncell; k++){
         FLOAT3 *thisxyz = xyz + k*ppc;
         FLOAT3 *thisacc = current_acc + k*ppc;
         
@@ -398,7 +399,7 @@ int main(int argc, char **argv){
     
     begin = std::chrono::steady_clock::now();
     #pragma omp parallel for schedule(static)
-    for(int k = 0; k < ncell; k++){
+    for(int64_t k = 0; k < ncell; k++){
         FLOAT3 *thisxyz = xyz + k*ppc;
         FLOAT3 *thisacc = current_acc + k*ppc;
         
