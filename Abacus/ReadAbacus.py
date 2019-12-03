@@ -15,6 +15,7 @@ Todo:
 - native ctypes float3* instead of void* (or CFFI?)
 - inline particle downsampling
 - automatic globbing patterns for a given file format
+- standardize return signatures
 """
 
 import os
@@ -34,6 +35,7 @@ import ctypes
 
 from .InputFile import InputFile
 from .Tools import ndarray_arg, asciistring_arg
+from .Tools import wrap_zero_centered, wrap_zero_origin
 
 
 def read(*args, **kwargs):
@@ -52,6 +54,10 @@ def read(*args, **kwargs):
 
     units = kwargs.pop('units', None)
     box_on_disk = kwargs.pop('box_on_disk', None)
+    
+    # Readers should return None if a header isn't found
+    original_return_header = kwargs.get('return_header')
+    kwargs['return_header'] = True
 
     try:
         ret = reader_functions[format](*args, **kwargs)
@@ -64,10 +70,11 @@ def read(*args, **kwargs):
     else:
         data = ret
 
+    # todo: compare str and float
     if units != None:
         if box_on_disk is None:
-            box_on_disk = default_box_on_disk[format]
-        # todo: compare str and float
+            fn = args[0]
+            box_on_disk = get_box_on_disk(fn, format)
         if units != box_on_disk:
             try:
                 box = kwargs['boxsize']
@@ -76,7 +83,9 @@ def read(*args, **kwargs):
             data['pos'] *= eval(str(units))/eval(str(box_on_disk))
             # vel conversion?
 
-    return ret
+    if original_return_header:
+        return data, header
+    return data
 
 
 def from_dir(dir, pattern=None, key=None, **kwargs):
@@ -107,8 +116,11 @@ def from_dir(dir, pattern=None, key=None, **kwargs):
         If `return_header` and a header is found, return parsed InputFile
     """
     if pattern is None:
-        format = kwargs.get('format')
-        pattern = get_file_pattern(format)
+        if is_ic_path(path):
+            pattern = 'ic_*'
+        else:
+            format = kwargs.get('format')
+            pattern = get_file_pattern(format)
 
     _key = (lambda k: key(ppath.basename(k))) if key else None
     files = []
@@ -270,7 +282,10 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=False, return_
 
     if type(path) is str:
         if ppath.isdir(path):
-            pattern = get_file_pattern(kwargs.get('format'))
+            if is_ic_path(path):
+                pattern = 'ic_*'
+            else:
+                pattern = get_file_pattern(kwargs.get('format'))
             files = sorted(glob(pjoin(path, pattern)), key=_key)
         elif ppath.isfile(path):
             files = [path]
@@ -986,18 +1001,18 @@ def read_pack14_lite(fn, return_vel=True, return_pid=False, return_header=False,
     return retval
 
 
-def read_gadget(fn, boxsize=1., **kwargs):
+def read_gadget(fn, **kwargs):
     '''
     Bare-bones Gadget reader using pynbody.
     '''
     dtype = kwargs['dtype']
-    boxsize = kwargs['boxsize']
 
     import pynbody
     f = pynbody.load(fn)
-    data = np.array(f['pos'] - boxsize/2., dtype=('pos',dtype,3))  # Shift to zero-centered
+    data = f['pos'].astype(dtype=dtype)
+    #data = np.array(f['pos'] - box_on_disk/2., dtype=('pos',dtype,3))  # Shift to zero-centered
 
-    return data
+    return {'pos':data}
 
 
 def read_desi_hdf5(fn, **kwargs):
@@ -1143,13 +1158,50 @@ reader_functions = {'pack14':read_pack14, 'pack9':read_pack9, 'rvint': read_rvin
                     'rvdoubletag':read_rvdoubletag,
                     'rvtag':read_rvtag, 'rv':read_rvtag,
                     'pack14_lite':read_pack14_lite,
-                    'gadget':read_gadget}
-default_file_patterns = {'pack14':('*.dat',), 'pack9':('*L0_pack9.dat', '*field_pack9.dat'), 'rvint' : ('*rv_A*', '*rv_B*'), 'state':('position_*',)}
+                    'gadget':read_gadget,
+                    'desi_hdf5':read_desi_hdf5}
+default_file_patterns = {'pack14':('*.dat',),
+                         'pack9':('*L0_pack9.dat', '*field_pack9.dat'),
+                         'rvint' : ('*rv_A*', '*rv_B*'),
+                         'state':('position_*',),
+                         'desi_hdf5':('*.hdf5',),
+                         'gadget':('*.*',)
+                         }
 fallback_file_pattern = ('*.dat',)
-
+                    
+default_box_on_disk = {'desi_hdf5':'box',
+                'pack14':1.,
+                'rvtag':'box',
+                'gadget':'box',
+}
 
 def get_file_pattern(format):
     try:
         return default_file_patterns[format]
     except KeyError:
         return fallback_file_pattern
+
+def is_ic_path(path):
+    '''
+    Our initial conditions files are stored on disk in a BoxSize box,
+    not unit box, so it's convenient to detect if this is one of our
+    standard IC paths.
+    '''
+    # Does the directory name contain 'ic'?
+    abspattern = os.path.abspath(path)
+    abspattern = abspattern.split(os.sep)
+    isic = re.search(r'\bic(\b|(?=_))', os.sep.join(abspattern))
+
+    return isic
+
+def get_box_on_disk(fn, format):
+    if format == 'gadget':
+        import pynbody
+        f = pynbody.load(fn)
+        box_on_disk = float(f.properties['boxsize'])
+        return box_on_disk
+
+    isic = is_ic_path(fn)
+
+    # We assume IC data is stored with a BoxSize box, not unit box
+    box_on_disk = 'box' if isic else default_box_on_disk[format]

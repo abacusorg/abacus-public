@@ -44,7 +44,7 @@ from Abacus import WriteAbacus
 supported_formats = ['gadget', 'desi-hdf5']
 
 
-def main(files, cpd, input_format, output_format, flip=False):
+def main(files, cpd, input_format, output_format, flip=False, input_units=None):
     if flip and 'Zel' not in output_format:
         # TODO: we're not really being careful about displacement vs global
         warn('Specified "flip" but not using a displacement-oriented output format.')
@@ -74,10 +74,21 @@ def main(files, cpd, input_format, output_format, flip=False):
     print(f'Found {NP} particles (ppd {ppd}) in {len(files)} files')
     if ppd**3 != NP:
         warn('not perfect cube!')
+
+    if input_units == 'Quijote':
+        print('Loading files assuming Quijote units on disk (pos: a kpc/h; vel: a^0.5 km/s)')
+
+        # For pynbody
+        units_system = dict(distance='h^-1 kpc a')
+    else:
+        units_system = dict(distance='h^-1 Mpc a')
     
     # Get some properties
     if input_format == 'gadget':
-        BoxSize = float(f.properties['boxsize'])
+        f.set_units_system(**units_system)
+        pynbody.snapshot.gadget.do_properties(f) # why do we have to trigger this?
+
+        BoxSize = float(f.properties['boxsize'].in_units('h^-1 Mpc a'))
         print('ppd: {:d}, cpd: {:d}, boxsize: {:f}, redshift: {:f}'.format(ppd, cpd, BoxSize, 1./f.properties['a'] - 1))
         print('All properties:', str(f.properties))
     elif input_format == 'desi-hdf5':
@@ -108,13 +119,17 @@ def main(files, cpd, input_format, output_format, flip=False):
 
         if input_format == 'gadget':
             f = pynbody.load(fn)
+
+            f.set_units_system(**units_system)
+            pynbody.snapshot.gadget.do_properties(f) # why do we have to trigger this?
+
             pos = f['pos']
             vel = f['vel']
             pid = f['iord']
 
-            # Convert units
-            f.set_units_system(distance='h^-1 Mpc a')
-            f['vel'].convert_units('km s^-1')  # Set ICVelocity2Displacement=-1 in the .par file to automatically handle km/s
+            # in-place conversions
+            pos.convert_units('h^-1 Mpc a')
+            vel.convert_units('km s^-1')  # Set ICVelocity2Displacement=-1 in the .par file to automatically handle km/s
 
         elif input_format == 'desi-hdf5':
             f = h5py.File(fn, 'r')
@@ -178,6 +193,7 @@ if __name__ == '__main__':
     parser.add_argument('cpd', help="Cells-per-dimension (number of slabs) to divide the output across", type=int)
     parser.add_argument('files', help='One or more files to convert', nargs='+')
     parser.add_argument('--flip', help='Reverse the displacements relative to their initial Lagrangian grid point', action='store_true')
+    parser.add_argument('--input-units', help='Convention for the input units', default=None, choices=['Quijote'])
     
     args = parser.parse_args()
     args = vars(args)

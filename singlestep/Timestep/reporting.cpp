@@ -117,6 +117,9 @@ void GatherTimings() {
         ACCUMULATE_THREAD_TOTALS(NonBlockingIORead, read);
         ACCUMULATE_THREAD_TOTALS(NonBlockingIOWrite, write);
 
+        // Though not a measure of disk IO performance, the checksumming does affect how fast we can write data
+        total_write_time += ChecksumTime[i];
+
         double total_time = total_read_time + total_write_time;
         double total_bytes = total_read_bytes + total_write_bytes;
 

@@ -431,28 +431,31 @@ void ArenaAllocator::DiscardArena(int id) {
     //ArenaFree->Start(id);
 	ArenaFree.Clear(); 
 	ArenaFree.Start();
-	
-    assertf( arena[id].addr != NULL , 
-        "Arena %d requested for deallocation, but it points to NULL\n", id); 
 
     if(arena[id].shared_mem){
         // This might free the underlying memory if the /dev/shm handle has been deleted
         // TODO: is there a way to check, just for logging/accounting purposes?
 
-        if(use_disposal_thread){
-            STDLOG(3, "Pushing %d to discard thread...\n", id);
-            struct disposal_item di = {arena[id].addr, arena[id].allocated_size};
-            disposal_queue.push(di);
-            STDLOG(3, "Done pushing %d.\n", id);
-        } else {
-            if(arena[id].allocated_size > 0){
+        if(arena[id].allocated_size > 0){
+            if(use_disposal_thread){
+                STDLOG(3, "Pushing %d to discard thread...\n", id);
+                struct disposal_item di = {arena[id].addr, arena[id].allocated_size};
+                disposal_queue.push(di);
+                STDLOG(3, "Done pushing %d.\n", id);
+            } else {
                 int res = munmap(arena[id].addr, arena[id].allocated_size);
                 assertf(res == 0, "munmap failed\n");
             }
+            total_shm_allocation -= arena[id].allocated_size;
+        } else {
+            assertf( arena[id].addr == NULL , 
+            "Shared-memory arena %d of zero size has a non-null pointer %p!\n", id, arena[id].addr);
         }
-        total_shm_allocation -= arena[id].allocated_size;
     }
     else {
+        assertf( arena[id].addr != NULL , 
+            "Arena %d requested for deallocation, but it points to NULL\n", id); 
+
         // DumpArena(id,1);
         free(arena[id].addr);
     }
