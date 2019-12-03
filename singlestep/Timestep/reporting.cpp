@@ -65,7 +65,10 @@ void GatherTimings() {
     double thistime, denom, total;
     denom = WallClockDirect.Elapsed();
     REPORT(0, "Total Wall Clock Time", WallClockDirect.Elapsed()); 
-    fprintf(reportfp,"---> %6.3f Mpart/sec, % " PRId64 " particles processed by this node.", thistime ? P.np/thistime/1e6 : 0., NearForce.num_particles); 
+
+    // What particle count do we use to report the overall rate?  Finish works for IC and normal steps.
+    int64 num_particles_this_node = Finish.num_particles;
+    fprintf(reportfp,"---> %6.3f Mpart/sec, % " PRId64 " particles processed by this node.", thistime ? num_particles_this_node/thistime/1e6 : 0., num_particles_this_node); 
 	//TODO : consider reporting number of particles microstepped here as well. 
     fprintf(reportfp,"\n");
 

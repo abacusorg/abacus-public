@@ -86,6 +86,8 @@ private:
 	int *Tsend_flags;
 	int **Trecv_flags;
 	int Trecv_active; 
+
+    char wisdom_file[1024];
 	
 	
 	void MultipoleFN(int slab, char * const fn);
