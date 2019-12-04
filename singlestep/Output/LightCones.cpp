@@ -98,18 +98,18 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
     //printf("r1: %f r2: %f \n",r1,r2);
     // Use the same format for the lightcones as for the particle subsamples
     int maxthreads = omp_get_max_threads();
-    double vunits = ReadState.VelZSpace_to_kms/ReadState.VelZSpace_to_Canonical; 
+    double vunits = ReadState.VelZSpace_to_kms/ReadState.VelZSpace_to_Canonical;
 
-    SlabAccum<RVfloat>   LightConeRV;     ///< The taggable subset in each lightcone. 
-    SlabAccum<TaggedPID> LightConePIDs;   ///< The PIDS of the taggable subset in each lightcone. 
+    SlabAccum<RVfloat>   LightConeRV;     ///< The taggable subset in each lightcone.
+    SlabAccum<TaggedPID> LightConePIDs;   ///< The PIDS of the taggable subset in each lightcone.
 
-    LightConeRV.setup(  CP->cpd, P.np/P.cpd/30);   
-    LightConePIDs.setup(CP->cpd, P.np/P.cpd/30);    
+    LightConeRV.setup(  CP->cpd, P.np/P.cpd/30);
+    LightConePIDs.setup(CP->cpd, P.np/P.cpd/30);
 
     //AppendArena *AA = get_AA_by_format(P.OutputFormat);
 
     SlabType lightcone    = (SlabType)((int)(LightCone0 + lcn));
-    SlabType lightconePID = (SlabType)((int)LightCone0 + lcn + NUMLC); 
+    SlabType lightconePID = (SlabType)((int)LightCone0 + lcn + NUMLC);
 
     STDLOG(4, "Making light cone #%d, slab num %d, w/ pid slab num %d\n", lcn, lightcone, lightconePID);
 
@@ -133,7 +133,7 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
     // if a particle interpolates outside its cell, store its index here
     vector<int> stray_particles;
     stray_particles.reserve(P.np * CP->invcpd3);
-    
+
     #pragma omp parallel for schedule(dynamic,1)
     for (int y = 0; y < CP->cpd; y ++) {
         ijk.y = y;
@@ -144,11 +144,11 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
 
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             // Check if the cell center is in the lightcone, with some wiggle room
-            STDLOG(4, "Cell in lightcone? : %f %f %f %d\n", CP->CellCenter(ijk).x, CP->CellCenter(ijk).y, CP->CellCenter(ijk).z, inLightCone(CP->CellCenter(ijk),0*pos,lcn,3.0/P.cpd, 3.0/P.cpd) ); 
-           
+            STDLOG(4, "Cell in lightcone? : %f %f %f %d\n", CP->CellCenter(ijk).x, CP->CellCenter(ijk).y, CP->CellCenter(ijk).z, inLightCone(CP->CellCenter(ijk),0*pos,lcn,3.0/P.cpd, 3.0/P.cpd) );
+
             if(!inLightCone(CP->CellCenter(ijk),0*pos,lcn,3.0/P.cpd, 3.0/P.cpd))
                continue;
-            
+
             Cell c = CP->GetCell(ijk);
             // vscale should be the max possible velocity
             // which could be greater than the cell stats would suggest, because we interpolate
@@ -161,7 +161,7 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
             #ifdef GLOBALPOS
             cc= 0*cc;
             #endif
-            STDLOG(4, "LC: Particles in current cell: %d\n", c.count()); 
+            STDLOG(4, "LC: Particles in current cell: %d\n", c.count());
             for (int p=0;p<c.count();p++) {
                 if(!c.aux[p].lightconedone(mask)){
                     vel = (c.vel[p] - TOFLOAT3(acc[p])*kickfactor);
@@ -181,7 +181,7 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
                         // if(!AA->current_cell.islegal())
                         //     AA->addcell(ijk,vscale);
                         // AA takes cell-centered positions, which LocalPosition2Cell gives
-                        
+
                         if(c.aux[p].is_taggable() or P.OutputFullLightCones){
                             pLightConePIDs->append(TaggedPID(c.aux[p]));
                             pLightConeRV->append(RVfloat(pos.x, pos.y, pos.z, vel.x * vunits, vel.y * vunits, vel.z * vunits));
@@ -189,7 +189,7 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
 
                         }
 
-                        
+
                         //AA->addparticle(pos, vel, c.aux[p]);
                         c.aux[p].setlightconedone(mask);
                     }
@@ -243,7 +243,7 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
         pLightConePIDs->FinishPencil();
         pLightConeRV->FinishPencil();
 
-        
+
     }
     STDLOG(1,"Slab %d had %d particles (%d stray) in lightcone %d\n",slab,slabtotal,strayslabtotal,lcn);
     if(slabtotal) {
@@ -256,10 +256,12 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
 
         SB->AllocateSpecificSize(lightcone, slab, LightConeRV.get_slab_bytes());
         LightConeRV.copy_to_ptr((RVfloat *)SB->GetSlabPtr(lightcone, slab));
+        SB->WriteArena(lightcone, slab, IO_DELETE, IO_NONBLOCKING, filename);
         SB->StoreArenaNonBlocking(lightcone, slab);
 
         SB->AllocateSpecificSize(lightconePID, slab, LightConePIDs.get_slab_bytes());
         LightConePIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(lightconePID, slab));
+        SB->WriteArena(lightconePID, slab, IO_DELETE, IO_NONBLOCKING, filename);
         SB->StoreArenaNonBlocking(lightconePID, slab);
 
 

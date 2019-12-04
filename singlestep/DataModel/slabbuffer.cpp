@@ -431,14 +431,12 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         case FieldTimeSlice            : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pack9.dat"; break; }
         case L0TimeSlicePIDs      : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".L0_pack9_pids.dat"; break; }
         case FieldTimeSlicePIDs        : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pack9_pids.dat"; break; }
-        case LightCone0:
-        case LightCone1:
-        case LightCone2:
-        case LightCone0PID:
-        case LightCone1PID:
-        case LightCone2PID:
-            ss << P.LightConeDirectory << "/slice" << redshift << "/LightCones.dat";
-            break;
+        case LightCone0: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone0.lc"; break; }
+        case LightCone1: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone1.lc"; break; }
+        case LightCone2: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone2.lc"; break; }
+        case LightCone0PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone0PID.lc"; break; }
+        case LightCone1PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone1PID.lc"; break; }
+        case LightCone2PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone2PID.lc"; break; }
 
         default:
             QUIT("Illegal type %d given to WriteSlabPath()\n", type);
