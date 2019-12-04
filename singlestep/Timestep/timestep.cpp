@@ -588,7 +588,7 @@ void OutputAction(int slab) {
     }
 
     if (ReadState.DoTimeSliceOutput) {
-        assert(ReadState.DoSubsampleOutput == 0 and ReadState.DoGroupFindingOutput == 1); //NAM DEBUG REMOVE
+        //LHG: assert(ReadState.DoSubsampleOutput == 0 and ReadState.DoGroupFindingOutput == 1); //NAM DEBUG REMOVE
 
         // We've already done a K(1) and thus need a K(-1/2)
         FLOAT unkickfactor = WriteState.FirstHalfEtaKick;

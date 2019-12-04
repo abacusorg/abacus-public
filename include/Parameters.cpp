@@ -310,10 +310,10 @@ public:
             L1OutputRedshifts[i] = -2;
         installvector("L1OutputRedshifts", L1OutputRedshifts, MAX_L1OUTPUT_REDSHIFTS, 1, DONT_CARE);
 
-        //for the Summit sims, we always output PIDs of the two subsamples, even when only full timeslices are requested. So the two subsample fractions should always be defined.
-        //for the future, however, it might make more sense to default them to 0.03 and 0.07, or 0.1 and 0.0. 
-        installscalar("ParticleSubsampleB", ParticleSubsampleB, MUST_DEFINE); 
-        installscalar("ParticleSubsampleA", ParticleSubsampleA, MUST_DEFINE);
+        ParticleSubsampleA = 0.;
+        ParticleSubsampleB = 0.;
+        installscalar("ParticleSubsampleA", ParticleSubsampleA, DONT_CARE);
+        installscalar("ParticleSubsampleB", ParticleSubsampleB, DONT_CARE); 
 		
         strcpy(OutputFormat,"RVdouble");
         // strcpy(OutputFormat,"Packed");

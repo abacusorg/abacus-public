@@ -439,7 +439,7 @@ def setup_singlestep_env(param):
     if 'OMP_PROC_BIND' in param:
         singlestep_env['OMP_PROC_BIND'] = param.OMP_PROC_BIND
     if 'OMP_NUM_THREADS' in param and 'OMP_NUM_THREADS' in singlestep_env:
-        if param['OMP_NUM_THREADS'] != singlestep_env['OMP_NUM_THREADS']:
+        if int(param['OMP_NUM_THREADS']) != int(singlestep_env['OMP_NUM_THREADS']):
             warn('OMP_NUM_THREADS in the parameter file and the environment do not match. '
                 'To avoid confusion, they should be the same (or the environment variable should be unset).')
         

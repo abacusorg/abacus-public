@@ -124,6 +124,10 @@ def from_dir(dir, pattern=None, key=None, **kwargs):
 
     _key = (lambda k: key(ppath.basename(k))) if key else None
     files = []
+
+    if type(pattern) is str:
+        pattern = (pattern,)
+        
     for p in pattern:
         files += glob(pjoin(dir, p))
     files = sorted(files, key=_key)
