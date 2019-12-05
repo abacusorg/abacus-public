@@ -256,12 +256,10 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
 
         SB->AllocateSpecificSize(lightcone, slab, LightConeRV.get_slab_bytes());
         LightConeRV.copy_to_ptr((RVfloat *)SB->GetSlabPtr(lightcone, slab));
-        SB->WriteArena(lightcone, slab, IO_DELETE, IO_NONBLOCKING, filename);
         SB->StoreArenaNonBlocking(lightcone, slab);
 
         SB->AllocateSpecificSize(lightconePID, slab, LightConePIDs.get_slab_bytes());
         LightConePIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(lightconePID, slab));
-        SB->WriteArena(lightconePID, slab, IO_DELETE, IO_NONBLOCKING, filename);
         SB->StoreArenaNonBlocking(lightconePID, slab);
 
 

@@ -582,7 +582,19 @@ char *SlabBuffer::AllocateSpecificSize(int type, int slab, uint64 sizebytes, int
                 slab, type, sizebytes, ramdisk, AA->total_allocation/1024./1024./1024.);
 
     int id = TypeSlab2ID(type,slab);
-    AA->Allocate(id, sizebytes, ReuseID(type), ramdisk, ramdisk_fn);
+    switch(type) {
+        case LightCone0:
+        case LightCone1:
+        case LightCone2:
+        case LightCone0PID:
+        case LightCone1PID:
+        case LightCone2PID:
+            AA->Allocate(id, sizebytes, ReuseID(type), ramdisk);
+            break;
+        default:
+            AA->Allocate(id, sizebytes, ReuseID(type), ramdisk, ramdisk_fn);
+
+    }
 
     return GetSlabPtr(type, slab);
 }
