@@ -80,10 +80,13 @@ uint64 LoadSlab2IL(int slab) {
     uint64 count = 0;
 
     STDLOG(3, "IC format permits %d thread(s)\n", ic->maxthreads);
+    int sumA = 0; 
+    int sumB = 0;
 
     // TODO: it's hard to OMP a while loop, so for now we have two versions to support multi-threaded in-memory IC generation
     if(ic->maxthreads > 1){
-        #pragma omp parallel for schedule(static) num_threads(ic->maxthreads)
+
+        #pragma omp parallel for schedule(static) num_threads(ic->maxthreads) reduction(+: sumA, sumB)
         for(int64 i = 0; i < ic->this_NP; i++){
             double3 global_pos;
             posstruct pos;
@@ -106,10 +109,10 @@ uint64 LoadSlab2IL(int slab) {
             
             int subsample = is_subsample_particle(aux.pid(), P.ParticleSubsampleA, P.ParticleSubsampleB);
             if (subsample == SUBSAMPLE_A) // set all particles 0-ParticleSubsampleA as taggable in set A. 
-                aux.set_taggable_subA();
+                { aux.set_taggable_subA(); sumA +=1; }
 
             else if (subsample == SUBSAMPLE_B) //set all particles A BBig as taggable in set B. 
-                aux.set_taggable_subB();
+                { aux.set_taggable_subB(); sumB +=1; }
             
             IL->Push(&pos, &vel, &aux, newcell);
         }
@@ -143,16 +146,19 @@ uint64 LoadSlab2IL(int slab) {
             // this bit will be used for group finding and merger trees
             int subsample = is_subsample_particle(aux.pid(), P.ParticleSubsampleA, P.ParticleSubsampleB);
             if (subsample == SUBSAMPLE_A) // set all particles 0-ParticleSubsampleA as taggable in set A. 
-                aux.set_taggable_subA();
+                { aux.set_taggable_subA(); sumA +=1; }
 
             else if (subsample == SUBSAMPLE_B) //set all particles A BBig as taggable in set B. 
-                aux.set_taggable_subB();
+                { aux.set_taggable_subB(); sumB +=1; }
             
             IL->Push(&pos, &vel, &aux, newcell);
             count++;
         }
     }
+
     delete ic;    // Call the destructor.
     STDLOG(0,"Read %d particles from IC file %s\n", count, filename);
+    STDLOG(1,"Slab %d has %d subsample A particles, %d subsample B particles.\n", slab, sumA, sumB); 
+
     return count; 
 }
