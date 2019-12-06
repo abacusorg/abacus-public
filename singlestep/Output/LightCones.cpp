@@ -43,10 +43,14 @@ inline double positive_dist(double a, double b, double period){
 
 #define c_kms 299792.0
 #define etaktoMpc (c_kms/100.)
-inline int inLightCone(double3 pos, velstruct vel, int lcn, double tol1, double tol2){ //check if this position is in the current lightcone.
-    double r1 = (cosm->today.etaK - cosm->current.etaK)*etaktoMpc/ReadState.BoxSizeHMpc;  // lightcone start
-    double r2 = (cosm->today.etaK - cosm->next.etaK)*etaktoMpc/ReadState.BoxSizeHMpc;  // lightcone end
-    if (r1 ==r2) return false;
+
+inline int inLightCone(double3 pos, velstruct vel, int lcn, double tol1, double tol2, double r1, double r2){ //check if this position is in the current lightcone.
+    //double r1 = (cosm->today.etaK - cosm->current.etaK)*etaktoMpc/ReadState.BoxSizeHMpc;  // lightcone start
+    //double r2 = (cosm->today.etaK - cosm->next.etaK)*etaktoMpc/ReadState.BoxSizeHMpc;  // lightcone end
+    // Ensure light cone has size
+    if (r1 == r2) return false;
+
+    // Get particle position relative to light cone
     double r = (pos-LCOrigin[lcn]).norm();
     double vronc = 0;
     if(r >1e-12) vronc = vel.dot(pos-LCOrigin[lcn])/r * ReadState.VelZSpace_to_kms /c_kms ;
@@ -56,17 +60,18 @@ inline int inLightCone(double3 pos, velstruct vel, int lcn, double tol1, double 
     double rmax = r1 + tol1;
     double rmin = r2 - tol2;
     double lcwidth = rmax - rmin;
+
     // The lightcone has an absolute output range that is never periodically wrapped
     // We want the lightcone to include particles
     double drbound = positive_dist(rmin, r, 1.);
 
-    int result = (r < rmax) && (r > rmin);
-    return result;
+    // Check that particle is in light cone
+    return (r < rmax) && (r > rmin);
 }
 
-inline void interpolateParticle(double3 &pos, velstruct &vel, const accstruct acc, const int lcn){
-    double r1 = (cosm->today.etaK - cosm->current.etaK)*etaktoMpc/ReadState.BoxSizeMpc;
-    double r2 = (cosm->today.etaK - cosm->next.etaK)*etaktoMpc/ReadState.BoxSizeMpc;
+inline void interpolateParticle(double3 &pos, velstruct &vel, const accstruct acc, const int lcn, double r1, double r2){
+    //double r1 = (cosm->today.etaK - cosm->current.etaK)*etaktoMpc/ReadState.BoxSizeMpc;
+    //ouble r2 = (cosm->today.etaK - cosm->next.etaK)*etaktoMpc/ReadState.BoxSizeMpc;
 
     double r = (pos-LCOrigin[lcn]).norm();
     double vronc = 0;
@@ -134,6 +139,10 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
     vector<int> stray_particles;
     stray_particles.reserve(P.np * CP->invcpd3);
 
+    // Bounds for light cone
+    double r1 (cosm->today.etaK - cosm->current.etaK)*etaktoMpc/ReadState.BoxSizeHMpc; // Light cone start
+    double r2 (cosm->today.etaK - cosm->next.etaK)*etaktoMpc/ReadState.BoxSizeHMpc; // Light cone end
+
     #pragma omp parallel for schedule(dynamic,1)
     for (int y = 0; y < CP->cpd; y ++) {
         ijk.y = y;
@@ -144,9 +153,9 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
 
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             // Check if the cell center is in the lightcone, with some wiggle room
-            STDLOG(4, "Cell in lightcone? : %f %f %f %d\n", CP->CellCenter(ijk).x, CP->CellCenter(ijk).y, CP->CellCenter(ijk).z, inLightCone(CP->CellCenter(ijk),0*pos,lcn,3.0/P.cpd, 3.0/P.cpd) );
+            STDLOG(4, "Cell in lightcone? : %f %f %f %d\n", CP->CellCenter(ijk).x, CP->CellCenter(ijk).y, CP->CellCenter(ijk).z, inLightCone(CP->CellCenter(ijk),0*pos,lcn,3.0/P.cpd, 3.0/P.cpd, r1, r2) );
 
-            if(!inLightCone(CP->CellCenter(ijk),0*pos,lcn,3.0/P.cpd, 3.0/P.cpd))
+            if(!inLightCone(CP->CellCenter(ijk),0*pos,lcn,3.0/P.cpd, 3.0/P.cpd, r1, r2))
                continue;
 
             Cell c = CP->GetCell(ijk);
@@ -165,9 +174,9 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
             for (int p=0;p<c.count();p++) {
                 if(!c.aux[p].lightconedone(mask)){
                     vel = (c.vel[p] - TOFLOAT3(acc[p])*kickfactor);
-                    if(inLightCone((c.pos[p]+cc),vel,lcn,1.0,0)){
+                    if(inLightCone((c.pos[p]+cc),vel,lcn,1.0,0, r1, r2)){
                         pos = c.pos[p]+cc;  // interpolateParticle takes global positions
-                        interpolateParticle(pos,vel,acc[p],lcn);
+                        interpolateParticle(pos,vel,acc[p],lcn, r1, r2);
                         // Check which cell the interpolated position falls within
                         // and make the position local to that cell
                         // If the interpolated position has left the cell, deal with it after we've closed the current cell
@@ -208,7 +217,7 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
                 stray_particles.pop_back();
                 pos = c.pos[p] + cc;  // use the current cell center to make global
                 vel = c.vel[p] - TOFLOAT3(acc[p])*kickfactor;
-                interpolateParticle(pos,vel,acc[p],lcn);
+                interpolateParticle(pos,vel,acc[p],lcn, r1, r2);
 
                 // find the new cell
                 integer3 stray_ijk = CP->LocalPosition2Cell(&pos);  // pos now local

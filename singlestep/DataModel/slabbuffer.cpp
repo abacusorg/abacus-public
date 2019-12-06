@@ -100,7 +100,7 @@ public:
 
         // Open LightCone files
         char lcDir[1024];
-        sprintf(lcDir, "LightCones");
+        sprintf(lcDir, P.LightConeDirectory);
         if (!FileExists(lcDir)) {
             mkdir(lcDir, 0775);
         }
