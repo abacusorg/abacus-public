@@ -140,8 +140,8 @@ void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
     stray_particles.reserve(P.np * CP->invcpd3);
 
     // Bounds for light cone
-    double r1 (cosm->today.etaK - cosm->current.etaK)*etaktoMpc/ReadState.BoxSizeHMpc; // Light cone start
-    double r2 (cosm->today.etaK - cosm->next.etaK)*etaktoMpc/ReadState.BoxSizeHMpc; // Light cone end
+    double r1 = (cosm->today.etaK - cosm->current.etaK)*etaktoMpc/ReadState.BoxSizeHMpc; // Light cone start
+    double r2 = (cosm->today.etaK - cosm->next.etaK)*etaktoMpc/ReadState.BoxSizeHMpc; // Light cone end
 
     #pragma omp parallel for schedule(dynamic,1)
     for (int y = 0; y < CP->cpd; y ++) {
