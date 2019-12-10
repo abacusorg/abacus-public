@@ -626,8 +626,13 @@ int greedySO() {
         }
     }
     Sweep.Stop();
+
+    // Put the densest particle at the beginning of the group
+    std::swap(p[densest], p[0]);
+    std::swap(density[densest], density[0]);
+
     // First halo center is the densest particle in the group
-    start = densest;
+    start = 0;
     
     while (start>=0) {
 
@@ -754,12 +759,12 @@ void partition_halos(int count) {
         if (i == 0) halo_ind = 1; // start with first subhalo                
         else if (i == 1) halo_ind = 0; // deal with the unassigned fluff     
         else halo_ind = i; // then rest
-      
+
         // rearrange so that you first sort to the left all particles in halo 0,
         // then all in halo 1, ... i, ... count;
         // and finding the densest particle of those to the right of i while doing so
         next_densest = partition_and_index(halo_inds, halo_ind, start, np, size);
-        
+	
         // TODO: it would be mildly more cache friendly to move the 
         // sorting by particle ID number here.
         
