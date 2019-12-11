@@ -237,7 +237,10 @@ def setup_bins(args):
     nslices = len(slices)
 
     headers = [common.get_header(p) for p in slices]
-    all_scalefactor = np.array([h['ScaleFactor'] if h else 0. for h in headers])
+    try:
+        all_scalefactor = np.array([h['ScaleFactor'] for h in headers])
+    except:
+        all_scalefactor = np.zeros(len(headers))
 
     def setup_onetrack(headers=None):
         nslices = len(headers) if headers else 1

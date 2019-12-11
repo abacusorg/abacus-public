@@ -1209,3 +1209,5 @@ def get_box_on_disk(fn, format):
 
     # We assume IC data is stored with a BoxSize box, not unit box
     box_on_disk = 'box' if isic else default_box_on_disk[format]
+
+    return box_on_disk
