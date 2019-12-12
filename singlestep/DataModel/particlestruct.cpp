@@ -28,6 +28,8 @@ LightCone (3): 61-63
 When we store into the output TaggedPID format, we apply a bit mask to zero all of the second set of bits. That's 0x07ff 7fff 7fff 7fff.
 
 */
+#include <bitset>
+
 
 #ifndef INCLUDE_PARTICLESTRUCT
 #define INCLUDE_PARTICLESTRUCT
@@ -166,10 +168,12 @@ public:
     inline bool is_tagged() {
         return aux & ((uint64)1 << AUXTAGGEDBIT);
     }
+
     inline void set_density(uint64 _density){
         assert(_density < (AUXDENSITY >> AUXDENSITYZEROBIT)); 
-        aux |= ((uint64) _density << AUXDENSITYZEROBIT);
+        aux = ( (uint64) _density << AUXDENSITYZEROBIT )  | (aux &~ AUXDENSITY); 
     }
+    
     inline void reset_L01_bits() {
         // We need to be able to unset these bits each time we run groupfinding
         uint64 mask = ((uint64)1 << AUXINL0BIT) + ((uint64)1 << AUXINL1BIT);
