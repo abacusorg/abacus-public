@@ -771,7 +771,7 @@ about L1.  This can either use FOF or SO.
 void GlobalGroupSlab::AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, PencilAccum<TaggedPID> ** pHaloPIDs, 
                                             posstruct * grouppos, velstruct * groupvel, accstruct * groupacc, auxstruct * groupaux, int index, posstruct offset, int & nA, int & nB) {
     int taggable = groupaux[index].is_taggable();
-    int npA = 0; int npB = 0; 
+    int npA = 0; int npB = 0;
 
     if (taggable != 0 || P.OutputAllHaloParticles) {
         posstruct r = WrapPosition(grouppos[index]+offset);
@@ -794,7 +794,7 @@ void GlobalGroupSlab::AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, P
         }
     }
 
-    nA += npA; nB += npB; 
+    nA += npA; nB += npB;
 }
 
 
@@ -852,7 +852,6 @@ void GlobalGroupSlab::FindSubGroups() {
     // pencils by the work estimate (largest first)
     std::sort(pstat, pstat+GFC->cpd);
     
-
     int np_subA = 0; 
     int np_subB = 0; 
 
@@ -945,14 +944,8 @@ void GlobalGroupSlab::FindSubGroups() {
                     
                             FOFparticle *L2start = FOFlevel2[g].p + FOFlevel2[g].groups[0].start;
                             for (int p=0; p<FOFlevel2[g].groups[0].n; p++) {
-                                int taggable = groupaux[start[L2start[p].index()].index()].is_taggable();
-
-
-                                if (taggable > 0){ //1 or 2 = taggable. 0 = not taggable. 
-                                    if      (taggable == TAGGABLE_SUB_A) ntaggedA++;
-                                    else if (taggable == TAGGABLE_SUB_B) ntaggedB++;
-                                    groupaux[start[L2start[p].index()].index()].set_tagged();
-                                }                           
+                                if (groupaux[start[L2start[p].index()].index()].is_taggable();) //1 or 2 = taggable. 0 = not taggable. 
+                                    groupaux[start[L2start[p].index()].index()].set_tagged();                
                             }
                         }
 
@@ -964,6 +957,14 @@ void GlobalGroupSlab::FindSubGroups() {
                         //      all L1 particles
                         for (int b=0; b<size; b++){
                             int index = start[b].index(); 
+
+                            if (groupaux[index].is_tagged()) {
+                                int taggable = groupaux[index].is_taggable();
+                                assertf(taggable != 0, "Uh oh, this particle is tagged but not taggable\n");
+                                if      (taggable == TAGGABLE_SUB_A) ntaggedA++;
+                                else if (taggable == TAGGABLE_SUB_B) ntaggedB++;
+                            }
+
                             AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset, np_subA, np_subB);
                         }
 
@@ -972,7 +973,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         h.L0_N = groupn;
                         h.npstartA = npstartA;
                         h.npstartB = npstartB;
-                        h.ntaggedA = ntaggedA; //NAM TODO there are more 48th bits set to 1 in the tagged PID auxes than ntaggedA. 
+                        h.ntaggedA = ntaggedA;  
                         h.ntaggedB = ntaggedB;
 
 
@@ -1023,11 +1024,6 @@ void GlobalGroupSlab::FindSubGroups() {
                 if (ReadState.DoSubsampleOutput){ //Regardless of whether this L0 group is big enough to do L1 group finding, 
                                                     //if we're outputing the particle subsample, output all of its L0 particles. 
                     for (int b=0; b<groupn; b++) {
-                        
-                        // if (not groupaux[b].is_taggable()){
-                        //     assertf(not groupaux[b].is_tagged(), "Uh-oh, this particle should not be tagged!\n" ); 
-                        // }
-
                         if (groupaux[b].is_L1()) continue;  // Already in the L1 set
                         AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset, np_subA, np_subB); 
                     }
@@ -1379,4 +1375,3 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
     return n_added;
 }
 #endif
-                                                                                                                                                                                      
