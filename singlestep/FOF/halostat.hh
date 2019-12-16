@@ -25,7 +25,11 @@ class HaloStat {
 
     float x_com[3];      ///< Center of mass position
     float v_com[3];      ///< Center of mass velocity
-    float sigmav3d_com;  ///< Sum of eigenvalues/3
+    float sigmav3d_com;  ///< Sum of eigenvalues
+    float meanSpeed_com;  ///< Mean speed
+    float meanSpeed_L2com;  ///< Mean speed
+    float L2_sigmav3d;  ///< Velocity dispersion of the L2 particles
+    float L2_meanSpeed;  ///< Mean speed of the L2 particles
     float r100_com; ///<Radius of 100% of mass 
     float vcirc_max_com; ///< max velocity 
     float SO_central_particle[3]; ///< Coordinates of the SO central particle (densest particle). 

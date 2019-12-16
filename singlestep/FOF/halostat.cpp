@@ -105,35 +105,47 @@ HaloStat ComputeStats(int size,
     float3 v_L2com = com/h.L2_N[0]/ReadState.VelZSpace_to_Canonical;
     assign_to_vector(h.v_L2com, v_L2com);
 
-
+    float vmean, vmeansq;
+    vmean = vmeansq = 0.0;
+    float iL2size = 1./L2_largest_np;
+    for (int p=0; p<L2_largest_np; p++) {
+        velstruct dv = L1vel[start[p].index()]/ReadState.VelZSpace_to_Canonical-v_L2com;
+	vmean += sqrt(dv.norm2());
+	vmeansq += dv.norm2();
+    }
+    vmean *= iL2size; vmeansq *= iL2size;
+    h.L2_sigmav3d = sqrt(vmeansq);
+    h.L2_meanSpeed = vmean; 
+      
     // Now we can go through the particles to compute radii and moments. We can use
-    // L2.d2sort and L2.d2buffer for scratch space; they are guaranteed to be big enough
+    // L2.d2_active and L2.d2buffer for scratch space; they are guaranteed to be big enough
     for (int p=0; p<size; p++) {
                 posstruct dr = L1pos[p]-x_com;
 		L2.d2buffer[p] = dr.norm2();
-		L2.d2sort[p] = L2.d2buffer[p];
+		L2.d2_active[p] = L2.d2buffer[p];
+		
 	    
-    std::sort(L2.d2sort, L2.d2sort+size);
+    std::sort(L2.d2_active, L2.d2_active+size);
 
-    float r90sq = L2.d2sort[size*9/10]; // radius with respect to which we compute the second moments
+    float r90sq = L2.d2_active[size*9/10]; // radius with respect to which we compute the second moments
     float isize_r90 = 1./(size*9/10); // number of elements within that radius
     
-    h.r100_com = sqrt(L2.d2sort[size-1]); 
+    h.r100_com = sqrt(L2.d2_active[size-1]); 
     // r10, r25, r50, r67, r75, r90, r95, r98: Expressed as ratios of r100, and scaled to 32000 to store as int16s.   
-    h.r10_com  = lround(sqrt(L2.d2sort[size/10  ]) / h.r100_com * INT16SCALE); 
-    h.r25_com  = lround(sqrt(L2.d2sort[size/4   ]) / h.r100_com * INT16SCALE); 
-    h.r33_com  = lround(sqrt(L2.d2sort[size/3   ]) / h.r100_com * INT16SCALE); 
-    h.r50_com  = lround(sqrt(L2.d2sort[size/2   ]) / h.r100_com * INT16SCALE); 
-    h.r67_com  = lround(sqrt(L2.d2sort[size*2/3 ]) / h.r100_com * INT16SCALE); 
-    h.r75_com  = lround(sqrt(L2.d2sort[size*3/4 ]) / h.r100_com * INT16SCALE); 
-    h.r90_com  = lround(sqrt(r90sq)) / h.r100_com * INT16SCALE);
-    h.r95_com  = lround(sqrt(L2.d2sort[size*19/20]) / h.r100_com * INT16SCALE); 	
-    h.r98_com  = lround(sqrt(L2.d2sort[size*49/50]) / h.r100_com * INT16SCALE);
+    h.r10_com  = lround(sqrt(L2.d2_active[size/10  ]) / h.r100_com * INT16SCALE); 
+    h.r25_com  = lround(sqrt(L2.d2_active[size/4   ]) / h.r100_com * INT16SCALE); 
+    h.r33_com  = lround(sqrt(L2.d2_active[size/3   ]) / h.r100_com * INT16SCALE); 
+    h.r50_com  = lround(sqrt(L2.d2_active[size/2   ]) / h.r100_com * INT16SCALE); 
+    h.r67_com  = lround(sqrt(L2.d2_active[size*2/3 ]) / h.r100_com * INT16SCALE); 
+    h.r75_com  = lround(sqrt(L2.d2_active[size*3/4 ]) / h.r100_com * INT16SCALE); 
+    h.r90_com  = lround(sqrt(r90sq) / h.r100_com * INT16SCALE);
+    h.r95_com  = lround(sqrt(L2.d2_active[size*19/20]) / h.r100_com * INT16SCALE); 	
+    h.r98_com  = lround(sqrt(L2.d2_active[size*49/50]) / h.r100_com * INT16SCALE);
     
     double vxx, vxy, vxz, vyy, vyz, vzz, vrr, vtt;
     double rxx, rxy, rxz, ryy, ryz, rzz;
     double nxx, nxy, nxz, nyy, nyz, nzz;
-    float vmax, rvmax, vmean; 
+    float vmax, rvmax; 
 
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     rxx = rxy = rxz = ryy = ryz = rzz = 0.0;
@@ -185,7 +197,7 @@ HaloStat ComputeStats(int size,
     h.sigmavMax_to_sigmav3d_com = lround( sqrt(sigmav[0])  / h.sigmav3d_com * INT16SCALE ); 
     h.sigmavtan_to_sigmav3d_com = lround(sqrt(vtt)/h.sigmav3d_com * INT16SCALE ); 
     h.sigmavrad_to_sigmav3d_com = lround(sqrt(vrr)/h.sigmav3d_com * INT16SCALE );
-    h.vmean_com = vmean;
+    h.meanSpeed_com = vmean;
 
     for(int i = 0; i < 3; i++) h.sigmar_com[i] = lround(sqrt(sigmar[i]) / h.r100_com * INT16SCALE );
     for(int i = 0; i < 3; i++) h.sigman_com[i] = lround(sqrt(sigman[i]) * INT16SCALE );
@@ -214,24 +226,24 @@ HaloStat ComputeStats(int size,
     for (int p=0; p<size; p++) {
                 posstruct dr = L1pos[p]-x_L2com;
 		L2.d2buffer[p] = dr.norm2();
-		L2.d2sort[p] = L2.d2buffer[p];
+		L2.d2_active[p] = L2.d2buffer[p];
 	    
-    std::sort(L2.d2sort, L2.d2sort+size);
+    std::sort(L2.d2_active, L2.d2_active+size);
 
-    r90sq = L2.d2sort[size*9/10]; // radius within which we compute the second moments
+    r90sq = L2.d2_active[size*9/10]; // radius within which we compute the second moments
     isize_r90 = 1./(size*9/10); // number of elements within that radius
     
-    h.r100_L2com = sqrt(L2.d2sort[size-1]); 
+    h.r100_L2com = sqrt(L2.d2_active[size-1]); 
     // r10, r25, r50, r67, r75, r90, r95, r98 wrt COM of the largest L2. Expressed as ratios of r100, and scaled to 32000 to store as int16s.   
-    h.r10_L2com  = lround(sqrt(L2.d2sort[size/10  ]) / h.r100_L2com * INT16SCALE); 
-    h.r25_L2com  = lround(sqrt(L2.d2sort[size/4   ]) / h.r100_L2com * INT16SCALE); 
-    h.r33_L2com  = lround(sqrt(L2.d2sort[size/3   ]) / h.r100_L2com * INT16SCALE); 
-    h.r50_L2com  = lround(sqrt(L2.d2sort[size/2   ]) / h.r100_L2com * INT16SCALE); 
-    h.r67_L2com  = lround(sqrt(L2.d2sort[size*2/3 ]) / h.r100_L2com * INT16SCALE); 
-    h.r75_L2com  = lround(sqrt(L2.d2sort[size*3/4 ]) / h.r100_L2com * INT16SCALE); 
-    h.r90_L2com  = lround(sqrt(r90sq)) / h.r100_L2com * INT16SCALE);
-    h.r95_L2com  = lround(sqrt(L2.d2sort[size*19/20]) / h.r100_L2com * INT16SCALE); 	
-    h.r98_L2com  = lround(sqrt(L2.d2sort[size*49/50]) / h.r100_L2com * INT16SCALE);
+    h.r10_L2com  = lround(sqrt(L2.d2_active[size/10  ]) / h.r100_L2com * INT16SCALE); 
+    h.r25_L2com  = lround(sqrt(L2.d2_active[size/4   ]) / h.r100_L2com * INT16SCALE); 
+    h.r33_L2com  = lround(sqrt(L2.d2_active[size/3   ]) / h.r100_L2com * INT16SCALE); 
+    h.r50_L2com  = lround(sqrt(L2.d2_active[size/2   ]) / h.r100_L2com * INT16SCALE); 
+    h.r67_L2com  = lround(sqrt(L2.d2_active[size*2/3 ]) / h.r100_L2com * INT16SCALE); 
+    h.r75_L2com  = lround(sqrt(L2.d2_active[size*3/4 ]) / h.r100_L2com * INT16SCALE); 
+    h.r90_L2com  = lround(sqrt(r90sq) / h.r100_L2com * INT16SCALE);
+    h.r95_L2com  = lround(sqrt(L2.d2_active[size*19/20]) / h.r100_L2com * INT16SCALE); 	
+    h.r98_L2com  = lround(sqrt(L2.d2_active[size*49/50]) / h.r100_L2com * INT16SCALE);
 
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     rxx = rxy = rxz = ryy = ryz = rzz = 0.0;
@@ -279,7 +291,7 @@ HaloStat ComputeStats(int size,
     h.sigmavMax_to_sigmav3d_L2com = lround( sqrt(sigmav[0])  / h.sigmav3d_L2com * INT16SCALE ); 
     h.sigmavtan_to_sigmav3d_L2com = lround(sqrt(vtt)/h.sigmav3d_L2com * INT16SCALE ); 
     h.sigmavrad_to_sigmav3d_L2com = lround(sqrt(vrr)/h.sigmav3d_L2com * INT16SCALE ); 
-    h.vmean_L2com = vmean;
+    h.meanSpeed_L2com = vmean;
     
     for(int i = 0; i < 3; i++) h.sigmar_L2com[i] = lround(sqrt(sigmar[i]) / h.r100_L2com * INT16SCALE );
     for(int i = 0; i < 3; i++) h.sigman_L2com[i] = lround(sqrt(sigman[i]) * INT16SCALE );
