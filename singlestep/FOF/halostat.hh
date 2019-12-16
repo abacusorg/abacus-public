@@ -20,54 +20,57 @@ class HaloStat {
     uint32_t ntaggedA;	    ///< Number of tagged particle PIDs written out in subsample A. A particle is tagged if it is taggable and is in the largest L2 halo for a given L1 halo. 
     uint32_t ntaggedB; 
     uint32_t N;	///< The number of particles in this halo
-    uint32_t L2cntr_N[N_LARGEST_SUBHALOS];   ///< The number of particles in the largest L2 subhalos
+    uint32_t L2_N[N_LARGEST_SUBHALOS];   ///< The number of particles in the largest L2 subhalos
     uint32_t L0_N;    ///< The number of particles in the L0 parent group
 
-    float x[3];      ///< Center of mass position
-    float v[3];      ///< Center of mass velocity
-    float sigmav3d;  ///< Sum of eigenvalues/3
-    float r100; ///<Radius of 100% of mass 
-    float vcirc_max; ///< max velocity 
+    float x_com[3];      ///< Center of mass position
+    float v_com[3];      ///< Center of mass velocity
+    float sigmav3d_com;  ///< Sum of eigenvalues
+    float meanSpeed_com;  ///< Mean speed
+    float L2_sigmav3d;  ///< Velocity dispersion of the L2 particles
+    float L2_meanSpeed;  ///< Mean speed of the L2 particles
+    float r100_com; ///<Radius of 100% of mass 
+    float vcirc_max_com; ///< max velocity 
     float SO_central_particle[3]; ///< Coordinates of the SO central particle (densest particle). 
     float SO_central_density;  ///< Density of the SO central particle. 
     float SO_radius;           ///< Radius of SO halo (distance to particle furthest from central particle) 
-    float L2cntr_x[3];   ///< Center of mass pos of the largest L2 subhalo
-    float L2cntr_v[3];   ///< Center of mass vel of the largest L2 subhalo
-    float L2cntr_sigmav3d;  ///< Sum of eigenvalues/3 
-    float L2cntr_r100; /// Radius of 100% of mass, relative to L2 center. 
-    float L2cntr_vcirc_max; 
+    float x_L2com[3];   ///< Center of mass pos of the largest L2 subhalo
+    float v_L2com[3];   ///< Center of mass vel of the largest L2 subhalo
+    float sigmav3d_L2com;  ///< Sum of eigenvalues
+    float meanSpeed_L2com;  ///< Mean speed
+    float r100_L2com; /// Radius of 100% of mass, relative to L2 center. 
+    float vcirc_max_L2com; 
     float SO_L2max_central_particle[3]; ///< Coordinates of the SO central particle (densest particle) for the largest L2 subhalo. 
     float SO_L2max_central_density;  ///< Density of the SO central particle of the largest L2 subhalo. 
     float SO_L2max_radius;           ///< Radius of SO halo (distance to particle furthest from central particle) for the largest L2 subhalo
 
-    int16_t sigmavMin_to_sigmav3d; ///< sigmav_z / sigmavSum, compressed
+    int16_t sigmavMin_to_sigmav3d_com; ///< sigmav_z / sigmavSum, compressed
+    int16_t sigmavMax_to_sigmav3d_com; ///< sigmav_z / sigmavSum, compressed
+    uint16_t sigmav_eigenvecs_com;  ///<Eigenvectors of the velocity dispersion tensor, compressed into 16 bits. 
+    int16_t sigmavrad_to_sigmav3d_com; ///< sigmav_rad / sigmavSum, compressed
+    int16_t sigmavtan_to_sigmav3d_com; ///< sigmav_tan / sigmavSum, compressed
 
-    int16_t sigmavMax_to_sigmav3d; ///< sigmav_z / sigmavSum, compressed
-    uint16_t sigmav_eigenvecs;  ///<Eigenvectors of the velocity dispersion tensor, compressed into 16 bits. 
-    int16_t sigmavrad_to_sigmav3d; ///< sigmav_rad / sigmavSum, compressed
-    int16_t sigmavtan_to_sigmav3d; ///< sigmav_tan / sigmavSum, compressed
-
-	int16_t r10, r25, r33, r50, r67, r75, r90; ///<Expressed as ratios of r100, and scaled to 32000 to store as int16s. 
-    int16_t sigmar[3]; ///<sqrt( Eigenvalues of the moment of inertia tensor ) 
-    int16_t sigman[3]; ///<sqrt( Eigenvalues of the weighted moment of inertia tensor ) 
-    uint16_t sigmar_eigenvecs;  ///<Eigenvectors of the moment of inertia tensor, compressed into 16 bits. Compression format TBD. 
-    uint16_t sigman_eigenvecs;  ///<Eigenvectors of the weighted moment of inertia tensor, compressed into 16 bits. Compression format TBD. 
-	int16_t rvcirc_max; ///< radius of max velocity, stored as int16 ratio of r100 scaled by 32000.
+    int16_t r10_com, r25_com, r33_com, r50_com, r67_com, r75_com, r90_com, r95_com, r98_com; ///<Expressed as ratios of r100, and scaled to 32000 to store as int16s. 
+    int16_t sigmar_com[3]; ///<sqrt( Eigenvalues of the moment of inertia tensor ) 
+    int16_t sigman_com[3]; ///<sqrt( Eigenvalues of the weighted moment of inertia tensor ) 
+    uint16_t sigmar_eigenvecs_com;  ///<Eigenvectors of the moment of inertia tensor, compressed into 16 bits. Compression format TBD. 
+    uint16_t sigman_eigenvecs_com;  ///<Eigenvectors of the weighted moment of inertia tensor, compressed into 16 bits. Compression format TBD. 
+	int16_t rvcirc_max_com; ///< radius of max velocity, stored as int16 ratio of r100 scaled by 32000.
 
     // The largest (most massive) subhalo center of mass    
-    int16_t L2cntr_sigmavMin_to_sigmav3d; ///< sigmav_z / sigmavSum, compressed
-    int16_t L2cntr_sigmavMax_to_sigmav3d; ///< sigmav_z / sigmavSum, compressed
-    uint16_t L2cntr_sigmav_eigenvecs;  ///<Eigenvectors of the velocity dispersion tensor, compressed into 16 bits. 
-    int16_t L2cntr_sigmavrad_to_sigmav3d; ///< sigmav_rad / sigmavSum, compressed
-    int16_t L2cntr_sigmavtan_to_sigmav3d; ///< sigmav_tan / sigmavSum, compressed
-    int16_t L2cntr_r10, L2cntr_r25, L2cntr_r33, L2cntr_r50, L2cntr_r67, L2cntr_r75, L2cntr_r90;
+    int16_t sigmavMin_to_sigmav3d_L2com; ///< sigmav_z / sigmavSum, compressed
+    int16_t sigmavMax_to_sigmav3d_L2com; ///< sigmav_z / sigmavSum, compressed
+    uint16_t sigmav_eigenvecs_L2com;  ///<Eigenvectors of the velocity dispersion tensor, compressed into 16 bits. 
+    int16_t sigmavrad_to_sigmav3d_L2com; ///< sigmav_rad / sigmavSum, compressed
+    int16_t sigmavtan_to_sigmav3d_L2com; ///< sigmav_tan / sigmavSum, compressed
+  int16_t r10_L2com, r25_L2com, r33_L2com, r50_L2com, r67_L2com, r75_L2com, r90_L2com, r95_L2com, r98_L2com;
     	///< Radii of this percentage of mass, relative to L2 center. Expressed as ratios of r100 and compressed to int16. 
 
-	int16_t L2cntr_sigmar[3]; 
-	int16_t L2cntr_sigman[3]; 
-    uint16_t L2cntr_sigmar_eigenvecs;
-    uint16_t L2cntr_sigman_eigenvecs;
-    int16_t L2cntr_rvcirc_max;   ///< max circular velocity and radius thereof, relative to L2 center
+	int16_t sigmar_L2com[3]; 
+	int16_t sigman_L2com[3]; 
+    uint16_t sigmar_eigenvecs_L2com;
+    uint16_t sigman_eigenvecs_L2com;
+    int16_t rvcirc_max_L2com;   ///< max circular velocity and radius thereof, relative to L2 center
 
 };
 

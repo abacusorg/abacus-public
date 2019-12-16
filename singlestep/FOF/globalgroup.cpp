@@ -823,11 +823,13 @@ void GlobalGroupSlab::FindSubGroups() {
 	SOcell FOFlevel1[maxthreads], FOFlevel2[maxthreads];
 	#pragma omp parallel for schedule(static,1)
 	for (int g=0; g<maxthreads; g++) {
-	    FOFlevel1[g].setup(GFC->SOdensity1, GFC->SOdensity1);
-	    FOFlevel2[g].setup(GFC->SOdensity2, GFC->SOdensity2);
+	    FOFlevel1[g].setup(GFC->SOdensity1, P.SO_NPForMinDensity);
+	    FOFlevel2[g].setup(GFC->SOdensity2, P.SO_NPForMinDensity*GFC->SOdensity2/GFC->SOdensity1);
 	}
-	STDLOG(1,"Seeking SO halos, L1 = %f, L2 = %f\n", 
-		FOFlevel1[0].threshold, FOFlevel2[0].threshold);
+	STDLOG(1,"Seeking SO halos, L1 = %f, L2 = %f, with min_central = %f and %f\n", 
+		FOFlevel1[0].threshold, FOFlevel2[0].threshold,
+        FOFlevel1[0].min_central/FOFlevel1[0].FOFunitdensity, 
+        FOFlevel2[0].min_central/FOFlevel2[0].FOFunitdensity);
     #else
 	FOFcell FOFlevel1[maxthreads], FOFlevel2[maxthreads];
 	#pragma omp parallel for schedule(static,1)
@@ -1161,10 +1163,10 @@ void GlobalGroupSlab::SimpleOutput() {
             for (int n=0; n<L1halos[j][k].size(); n++) {
                 HaloStat h = L1halos[j][k][n];
                 fprintf(fp, "%4d %7.4f %7.4f %7.4f %d %4d %3d %3d %7.4f %7.4f %7.4f %d %lu %u %u\n", 
-                    h.N, h.x[0], h.x[1], h.x[2], h.r50,
-                    h.L2cntr_N[0], h.L2cntr_N[1], h.L2cntr_N[2], 
-                    h.L2cntr_x[0], h.L2cntr_x[1], h.L2cntr_x[2], 
-                    h.L2cntr_r50, h.id, h.npoutA, h.npoutB);
+                    h.N, h.x_com[0], h.x_com[1], h.x_com[2], h.r50_com,
+                    h.L2_N[0], h.L2_N[1], h.L2_N[2], 
+                    h.x_L2com[0], h.x_L2com[1], h.x_L2com[2], 
+                    h.r50_L2com, h.id, h.npoutA, h.npoutB);
             }
     fclose(fp);
 
