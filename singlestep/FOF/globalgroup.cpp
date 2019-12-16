@@ -944,7 +944,7 @@ void GlobalGroupSlab::FindSubGroups() {
                     
                             FOFparticle *L2start = FOFlevel2[g].p + FOFlevel2[g].groups[0].start;
                             for (int p=0; p<FOFlevel2[g].groups[0].n; p++) {
-                                if (groupaux[start[L2start[p].index()].index()].is_taggable();) //1 or 2 = taggable. 0 = not taggable. 
+                                if (groupaux[start[L2start[p].index()].index()].is_taggable()); //1 or 2 = taggable. 0 = not taggable. 
                                     groupaux[start[L2start[p].index()].index()].set_tagged();                
                             }
                         }
