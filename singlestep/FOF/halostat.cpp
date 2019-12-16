@@ -12,19 +12,33 @@ inline float3 WrapPosition(float3 a) {
     return a;
 }
 
+/// This sorts the eigenvalues and vectors so that the largest is first.
+inline void sort_eig(double sigma[3], double sigma_vecs[3][3]) {
+    // Remember that the eigenvectors are in columns, so [0..2][j] is the jth.
+    #define SWAP_EIG(a,b) std::swap(sigma[a],sigma[b]); \
+        std::swap(sigma_vecs[0][a],sigma_vecs[0][b]); \
+        std::swap(sigma_vecs[1][a],sigma_vecs[1][b]); \
+        std::swap(sigma_vecs[2][a],sigma_vecs[2][b]); 
+
+    if (sigma[0]<sigma[1]) { SWAP_EIG(0,1) }   // Now 0>1
+    if (sigma[1]<sigma[2]) { SWAP_EIG(1,2) }   // Now 1>2
+    if (sigma[0]<sigma[1]) { SWAP_EIG(0,1) }   // Now 0>1
+    return;
+    #undef SWAP_EIG
+}
+
+/// In addition to returning the eigenvector euler16 packing,
+/// this code also sorts the inputs into descending order of eigenvalues.
 uint16_t pack_euler16_eig(double sigma[3], double sigma_vecs[3][3]) {
-    int imaj = 0, imin = 0;
-    for (int i=0; i<3; i++) {
-        if (sigma[i]<sigma[imaj]) imaj = i;
-        if (sigma[i]>sigma[imin]) imin = i;
-    }
+    sort_eig(sigma, sigma_vecs);
+    int imaj = 0, imin = 2;
     float major[3], minor[3];
-    major[0] = sigma_vecs[imaj][0];
-    major[1] = sigma_vecs[imaj][1];
-    major[2] = sigma_vecs[imaj][2];
-    minor[0] = sigma_vecs[imin][0];
-    minor[1] = sigma_vecs[imin][1];
-    minor[2] = sigma_vecs[imin][2];
+    major[0] = sigma_vecs[0][imaj];
+    major[1] = sigma_vecs[1][imaj];
+    major[2] = sigma_vecs[2][imaj];
+    minor[0] = sigma_vecs[0][imin];
+    minor[1] = sigma_vecs[1][imin];
+    minor[2] = sigma_vecs[2][imin];
     return pack_euler16(major, minor);
 }
 
@@ -164,7 +178,8 @@ HaloStat ComputeStats(int size,
     h.sigmar_eigenvecs_com = pack_euler16_eig(sigmar, sigmar_vecs);
     h.sigmav_eigenvecs_com = pack_euler16_eig(sigmav, sigmav_vecs);
     h.sigman_eigenvecs_com = pack_euler16_eig(sigman, sigman_vecs);
-
+    // The eigenvalues are now sorted in descending order
+	  
     h.sigmav3d_com = sqrt(sigmav[0] + sigmav[1] + sigmav[2]); 
     h.sigmavMin_to_sigmav3d_com = lround( sqrt(sigmav[2])  / h.sigmav3d_com * INT16SCALE ); 
     h.sigmavMax_to_sigmav3d_com = lround( sqrt(sigmav[0])  / h.sigmav3d_com * INT16SCALE ); 
@@ -256,6 +271,8 @@ HaloStat ComputeStats(int size,
     h.sigmar_eigenvecs_L2com = pack_euler16_eig(sigmar, sigmar_vecs);
     h.sigmav_eigenvecs_L2com = pack_euler16_eig(sigmav, sigmav_vecs);
     h.sigman_eigenvecs_L2com = pack_euler16_eig(sigman, sigman_vecs);
+
+    // The eigenvalues are now sorted in descending order
 
     h.sigmav3d_L2com = sqrt(sigmav[0] + sigmav[1] + sigmav[2]); 
     h.sigmavMin_to_sigmav3d_L2com = lround( sqrt(sigmav[2])  / h.sigmav3d_L2com * INT16SCALE ); 
