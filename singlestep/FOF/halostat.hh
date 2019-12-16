@@ -5,7 +5,7 @@ object.
 #ifndef __HALOSTAT_HH
 #define __HALOSTAT_HH
 
-// This contains the actual struct definition
+// The following file contains the actual struct definition
 #include "halostat_cstruct.h"
 
 #define RVfloat RVint
