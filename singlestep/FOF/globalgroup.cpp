@@ -1163,10 +1163,10 @@ void GlobalGroupSlab::SimpleOutput() {
             for (int n=0; n<L1halos[j][k].size(); n++) {
                 HaloStat h = L1halos[j][k][n];
                 fprintf(fp, "%4d %7.4f %7.4f %7.4f %d %4d %3d %3d %7.4f %7.4f %7.4f %d %lu %u %u\n", 
-                    h.N, h.x[0], h.x[1], h.x[2], h.r50,
-                    h.L2cntr_N[0], h.L2cntr_N[1], h.L2cntr_N[2], 
-                    h.L2cntr_x[0], h.L2cntr_x[1], h.L2cntr_x[2], 
-                    h.L2cntr_r50, h.id, h.npoutA, h.npoutB);
+                    h.N, h.x_com[0], h.x_com[1], h.x_com[2], h.r50_com,
+                    h.L2_N[0], h.L2_N[1], h.L2_N[2], 
+                    h.x_L2com[0], h.x_L2com[1], h.x_L2com[2], 
+                    h.r50_L2com, h.id, h.npoutA, h.npoutB);
             }
     fclose(fp);
 
