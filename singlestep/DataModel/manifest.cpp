@@ -184,6 +184,8 @@ struct ManifestCore {
 
 /// This is the class for sending information between the nodes.
 class Manifest {
+    AbacusMPILimiter mpi_limiter;
+
   public:
     ManifestCore m;   ///< The info we're sending over
 
@@ -222,7 +224,7 @@ class Manifest {
     #define MAX_REQUESTS 1024    // This is the most MPI work we can handle; hopefully very generous
     #define SIZE_MPI (1<<30)     // The maximum size of each MPI Isend.
 
-    Manifest() {
+    Manifest() : mpi_limiter(P.MPICallRateLimit_usec) {
     	m.numarenas = m.numil = m.numlinks = m.numdep = 0;
         #ifdef PARALLEL
             completed = MANIFEST_NOTREADY;
@@ -268,7 +270,8 @@ class Manifest {
         if (requests[j]!=MPI_REQUEST_NULL) {
             int err, sent=0;
             #ifdef PARALLEL
-            err = MPI_Test(requests+j,&sent,MPI_STATUS_IGNORE);   
+            if(mpi_limiter.Try())
+                err = MPI_Test(requests+j,&sent,MPI_STATUS_IGNORE);
             #endif
             if (sent) { mark_as_done(j); return 1; }
         }
@@ -365,9 +368,9 @@ void SetupManifest(int _nManifest) {
 }
 
 void FreeManifest() {
-    STDLOG(2,"Freeing SendManifest\n")
+    STDLOG(2,"Freeing SendManifest\n");
     delete[] _SendManifest;
-    STDLOG(2,"Freeing ReceiveManifest\n")
+    STDLOG(2,"Freeing ReceiveManifest\n");
     delete[] _ReceiveManifest;
 }
 

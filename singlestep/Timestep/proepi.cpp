@@ -766,13 +766,13 @@ void MoveLocalDirectories(){
     }
 
     if(IsTrueLocalDirectory(P.LocalReadStateDirectory)){
-        STDLOG(1, "Removing read directory\n")
+        STDLOG(1, "Removing read directory\n");
         int res = RemoveDirectories(P.LocalReadStateDirectory);
         assertf(res == 0, "Failed to remove read directory!\n");
     }
 
     if(IsTrueLocalDirectory(P.LocalWriteStateDirectory)){
-        STDLOG(1, "Moving write directory to read\n")
+        STDLOG(1, "Moving write directory to read\n");
         int res = rename(P.LocalWriteStateDirectory, P.LocalReadStateDirectory);
         assertf(res == 0, "Failed to rename write to read!\n");
     }

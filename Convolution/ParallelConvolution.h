@@ -6,6 +6,8 @@
 /// 2) performs array manipulation, the FFT, the convolution (via InCoreConvolution.cpp),  the inverse FFT, and more array manipulation. 
 /// 3) does the MPI work to send the Taylors back to the nodes they live on (each node needs, to run singlestep, Taylors for a set of x and for all z). 
 
+#include "mpi_limiter.h"
+
 class ParallelConvolution { 
 public:     
 	// ParallelConvolution();
@@ -88,6 +90,8 @@ private:
 	int Trecv_active; 
 
     char wisdom_file[1024];
+
+    AbacusMPILimiter mpi_limiter;
 	
 	
 	void MultipoleFN(int slab, char * const fn);

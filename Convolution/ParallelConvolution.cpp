@@ -23,6 +23,8 @@ work has been completed.
 
 #include "ParallelConvolution.h"
 
+#include "mpi_limiter.h"
+
 STimer  Constructor;
 STimer  AllocateMT;
 STimer  AllocateDerivs; 
@@ -49,7 +51,10 @@ int ParallelConvolution::Zstart(int rank) {
 // ParallelConvolution::ParallelConvolution(){}
 /// The constructor.  This should open the MTfile as read/write or allocate
 /// space if it doesn't exist.
-ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDirectory[1024], int _create_MT_file) { //TODO NAM does this always assume convolution overwrite mode? 
+ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDirectory[1024], int _create_MT_file)
+    : mpi_limiter(P.MPICallRateLimit_usec)
+
+    { //TODO NAM does this always assume convolution overwrite mode? 
 	
 	STDLOG(2, "Calling constructor for ParallelConvolution\n");
 	
@@ -440,9 +445,17 @@ void ParallelConvolution::SendMultipoleSlab(int slab) {
 
 
 int ParallelConvolution::CheckRecvMultipoleComplete(int slab) {
-	int received = 0; 
-	int err = MPI_Test(&Mrecv_requests[slab], &received, MPI_STATUS_IGNORE);	
-	if (not received) STDLOG(4, "Multipole slab %d not received yet...\n", slab);	
+    if(Mrecv_requests[slab] == NULL)
+        return 1;
+
+    int received = 0;
+    int err = 0;
+
+    if(mpi_limiter.Try())
+	   err = MPI_Test(&Mrecv_requests[slab], &received, MPI_STATUS_IGNORE);
+
+	if (not received) STDLOG(4, "Multipole slab %d not received yet...\n", slab);
+    else assert(Mrecv_requests[slab] == NULL);
 	return received;  
 }
 
@@ -460,14 +473,19 @@ int ParallelConvolution::CheckSendMultipoleComplete(int slab) {
 	
     for (int r = 0; r < MPI_size; r++) {		
 		if (Msend_requests[x][r]==MPI_REQUEST_NULL) continue;  // Already done
-		err = MPI_Test(Msend_requests[x] + r, &sent, MPI_STATUS_IGNORE);
+
+        // If we have a bunch of successes in a row, don't count it against the limiter
+        if(sent || mpi_limiter.Try())
+		  err = MPI_Test(Msend_requests[x] + r, &sent, MPI_STATUS_IGNORE);
 	
 		if (not sent) {
 		    // Found one that is not done
 			STDLOG(4, "Multipole slab %d not sent yet...\n", slab);
 			
 		    done=0; break;
-		}
+		} else {
+            assert(Msend_requests[x] == NULL);
+        }
 		
     }
     
@@ -567,14 +585,17 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
     for (int r=0; r<MPI_size; r++) {
 		if (Trecv_requests[slab][r]==MPI_REQUEST_NULL) continue;  // Already done
 		
-		received = 0 ;
-		err = MPI_Test(&Trecv_requests[slab][r], &received, MPI_STATUS_IGNORE);
+        // If we have a bunch of successes in a row, don't count it against the limiter 
+        if(received || mpi_limiter.Try())
+		  err = MPI_Test(&Trecv_requests[slab][r], &received, MPI_STATUS_IGNORE);
 		
 		if (not received) {
 		    // Found one that is not done
 			STDLOG(4, "Taylor slab %d not been received yet...\n", slab);
 		    done=0; break;
-		}		
+		} else{
+            assert(Trecv_requests[slab]==NULL);
+        }
     }
 	
 	if (done) {
@@ -587,10 +608,15 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
 }
 
 int ParallelConvolution::CheckTaylorSendComplete(int slab){
-	int sent = 0; 
-	int err = MPI_Test(&Tsend_requests[slab], &sent, MPI_STATUS_IGNORE);
+    if(Tsend_requests[slab] == NULL)
+        return 1;
+
+	int sent = 0, err = 0;
+    if(mpi_limiter.Try())
+	   err = MPI_Test(&Tsend_requests[slab], &sent, MPI_STATUS_IGNORE);
 	
 	if (not sent) STDLOG(4, "Taylor slab %d not sent yet...\n", slab);
+    else assert(Tsend_requests[slab] == NULL);
 	
 	return sent; 
 }
