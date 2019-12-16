@@ -170,12 +170,19 @@ def process_args(args):
 def setup_output_file(primary, out_parent, args, this_rmax):
     output_dir = common.get_output_dir('pair_counting', primary, out_parent=out_parent)
     zspace = int(args['zspace'])
+    try: 
+        ds = float(args['downsample'])
+    except TypeError: 
+        ds = False 
 
     if args['secondary']:
         simname = path.basename(path.dirname(path.normpath(args['secondary'])))
         output_fn_base = pjoin(output_dir, 'cross_corr_rmax{:.3g}_{}_zspace_{}'.format(this_rmax, simname, zspace))
     else:
         output_fn_base = pjoin(output_dir, 'auto_corr_rmax{:.3g}_zspace_{}'.format(this_rmax, zspace))
+
+    if ds:
+        output_fn_base      += '_ds_{:.3g}'.format(ds)
     output_fn = output_fn_base + '.csv'
     output_fn_plot = output_fn_base + '.png'
 
