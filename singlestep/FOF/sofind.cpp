@@ -515,6 +515,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             // for every SOcellgroup crossed by the radial bin
             for (int i = 0; i<ncg; i++) {
                 if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
+                    assertf(socg[i].active,"Inactive SOcellgroup!");  // TODO: REMOVE
                     // Number of particles for that radial bin in that SOcellgroup
                     size_partition = socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
                     for (int j = 0; j<size_partition; j++) {
@@ -528,6 +529,9 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             // r partitioned and should remain intact till done with the halo center
             // However, we need an array d2_bin
             // to save only the particle distances in r
+            for (int j=0; j<size_bin; j++) 
+                assertf(d2_bin[j]>=0.0, "Negative d2_bin[%d]\n", j);
+                // TODO: REMOVE
             
             // Search for density threshold in list, given previous mass.
             d2_thresh = partial_search(size_bin, mass, FOFr2, size_thresh, inv_enc_den);
@@ -557,7 +561,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
         inv_enc_den = (x*sqrt(x))/(mass*threshold);
         return d2_max;
     }
-    printf("it should never get here\n");
+    assertf(0, "search_socg_thresh should have returned by now.");
     // Record inverse density and threshold radius
 }
 
@@ -639,12 +643,8 @@ int greedySO() {
     }
     Sweep.Stop();
 
-    // Put the densest particle at the beginning of the group
-    std::swap(p[densest], p[0]);
-    std::swap(density[densest], density[0]);
-
     // First halo center is the densest particle in the group
-    start = 0;
+    start = densest;
     
     while (start>=0) {
 
