@@ -398,6 +398,8 @@ void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
   
 /// Searches for the density crossing in this shell, assuming a mass interior
 /// to it.  Returns -1 if not found; else returns square distance of threshold.
+/// This code should only be called if the outer edge of the shell, combined
+/// with the mass interior to the shell, would fall below the threshold.
 FOFloat partial_search(int len, int mass, FOFloat shell_max_rad2, int &size_thresh, FOFloat &inv_enc_den) {
     // number of particles within threshold in that partition
     size_thresh = 0;
@@ -406,7 +408,7 @@ FOFloat partial_search(int len, int mass, FOFloat shell_max_rad2, int &size_thre
     if (len==0) {
         // It is rare, but this could get called on an empty shell.
         // We'll return the answer for the outer edge of the shell.
-        // shell_max_rad2 needs to be supplied in the same units as d2_bin[]
+        // shell_max_rad2 needs to be supplied in the same units as d2_bin[].
         x = shell_max_rad2*xthreshold;
         inv_enc_den = x*sqrt(x)/((size_thresh+mass)*threshold);
         return shell_max_rad2;
@@ -429,6 +431,7 @@ FOFloat partial_search(int len, int mass, FOFloat shell_max_rad2, int &size_thre
     inv_enc_den = (x*sqrt(x))/((size_thresh+mass)*threshold);
     
     if (size_thresh==len) {
+        // Didn't find a threshold crossing, so return a signal of this.
         return -1.0;
     }
     return (d2_bin[size_thresh-1]);
