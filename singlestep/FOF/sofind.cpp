@@ -639,12 +639,8 @@ int greedySO() {
     }
     Sweep.Stop();
 
-    // Put the densest particle at the beginning of the group
-    std::swap(p[densest], p[0]);
-    std::swap(density[densest], density[0]);
-
     // First halo center is the densest particle in the group
-    start = 0;
+    start = densest;
     
     while (start>=0) {
 
