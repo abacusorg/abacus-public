@@ -8,8 +8,7 @@
 
 #define N_LARGEST_SUBHALOS 5
 
-class HaloStat {
-  public:
+struct HaloStat {
     uint64_t id;    ///< A unique halo number.
     uint64_t npstartA;  ///< Where to start counting in the particle output for subsample A
     uint64_t npstartB;  ///< Where to start counting in the particle output for subsample B
