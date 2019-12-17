@@ -398,15 +398,24 @@ void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
   
 /// Searches for the density crossing in this shell, assuming a mass interior
 /// to it.  Returns -1 if not found; else returns square distance of threshold.
-FOFloat partial_search(int len, int mass, int &size_thresh, FOFloat &inv_enc_den) {
+FOFloat partial_search(int len, int mass, FOFloat shell_max_rad2, int &size_thresh, FOFloat &inv_enc_den) {
     // number of particles within threshold in that partition
     size_thresh = 0;
+    FOFloat x;
+
+    if (len==0) {
+        // It is rare, but this could get called on an empty shell.
+        // We'll return the answer for the outer edge of the shell.
+        // shell_max_rad2 needs to be supplied in the same units as d2_bin[]
+        x = shell_max_rad2*xthreshold;
+        inv_enc_den = x*sqrt(x)/((size_thresh+mass)*threshold);
+        return shell_max_rad2;
+    }
     
     // Sort the distances in increasing order
     std::sort(d2_bin, d2_bin+len); 
     numsorts += len;
     // Now sweep in from the center to find the threshold
-    FOFloat x;
     for (int j=0; j<len; j++) {
         x = d2_bin[j]*xthreshold;
         size_thresh = j+1; // we want the rightmost on the left side of the density threshold //TODO: ASK
@@ -518,7 +527,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             // to save only the particle distances in r
             
             // Search for density threshold in list, given previous mass.
-            d2_thresh = partial_search(size_bin, mass, size_thresh, inv_enc_den);
+            d2_thresh = partial_search(size_bin, mass, FOFr2, size_thresh, inv_enc_den);
         
             if (d2_thresh > 0.0) {
                 // If something was found, record it
