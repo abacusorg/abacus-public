@@ -610,9 +610,9 @@ void partition_and_index(int *halos, int halo_i, int start, int last, int &size)
     size = last-start;
     // Put the densest particle at the starting point.
     if (size>1) {
-        std::swap(p[s],p[start]);
-        std::swap(density[s],density[start]);
-        std::swap(halos[s],halos[start]);
+        std::swap(p[densest],p[start]);
+        std::swap(density[densest],density[start]);
+        std::swap(halos[densest],halos[start]);
     }
     return;
 }
