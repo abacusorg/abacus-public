@@ -576,44 +576,45 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
 /// separation region, relative to start.  This may differ from 
 /// what was found externally if there is some conspiracy about 
 /// floating point equality comparisons of d2.  
-int partition_and_index(int *halos, int halo_i, int start, int last, int &size) {
+void partition_and_index(int *halos, int halo_i, int start, int last, int &size) {
   
-    FOFloat maxdens=-1.0;
-    int densest=-1;
     if (start==last) {
         size = 0;
-        return -1;    // Nothing to do
+        return;    
     }
 
-    int halo_ip; // next halo
-    if (halo_i == 0) halo_ip = halo_i+2; // unassigned particle is after 1st halo
-    else if (halo_i == 1) halo_ip = halo_i-1; // first halo
-    else halo_ip = halo_i+1;
+    FOFloat maxdens=-1.0;
+    int densest=-1;
     int s = start;
-    while (s<last && halos[s]==halo_i) s++;
-    // Advance start to the first high spot
+    while (s<last && halos[s]==halo_i) {
+        // Advance start to the first high spot
+        if (density[s]>maxdens) { maxdens=density[s]; densest=s; }
+        s++;
+    }
     while (s<last) {
-        // BTH Is it the wording of next element in upper list confusing? It should just mean
-        // on the other side of the array -- otherwise it does look for the last low spot
+        // s is now pointed to a high entry; we need to decrement last to find a low entry to swap.
         last--; // Consider next low element in the last part of the list
         if (halos[last]==halo_i) {
             // We've found an out of place one; flip it with start
             std::swap(p[s],p[last]);
             std::swap(density[s],density[last]);
             std::swap(halos[s],halos[last]);
-            s++;
-            while (s<last && halos[s]==halo_i) s++;
-            // Advance s to the next high spot
+            while (s<last && halos[s]==halo_i) {
+                if (density[s]>maxdens) { maxdens=density[s]; densest=s; }
+                s++;
+                // Advance s to the next high spot
+            }
         }
-        if (density[last]>maxdens && halos[last]==halo_ip) {
-          maxdens = density[last];
-          densest = last;
-        }
-        // last points at a high particle.  Check if it's the densest
     }
-    // We're done when start = last.  last is the first high particle
+    // We're done when start = last.  last is the first high particle.
     size = last-start;
-    return densest;
+    // Put the densest particle at the starting point.
+    if (size>1) {
+        std::swap(p[s],p[start]);
+        std::swap(density[s],density[start]);
+        std::swap(halos[s],halos[start]);
+    }
+    return;
 }
 
 
@@ -759,6 +760,9 @@ int greedySO() {
     return count;
 }
 
+/// Having assigned a halo ID to all particles, we now consolidate these into 
+/// contiguous sets.  This breaks the SOcellgroup sorting.  The densest particle
+/// is put as the first particle in each group.
 void partition_halos(int count) {
     
     Sort.Start();
@@ -766,40 +770,23 @@ void partition_halos(int count) {
       halo_inds[j] = abs(halo_inds[j]);
     }
     
-    
     int size = 0;
     int start = 0;
-    int next_densest;
     int halo_ind;
     for (int i=0; i<count; i++) {
         if (i == 0) halo_ind = 1; // start with first subhalo                
         else if (i == 1) halo_ind = 0; // deal with the unassigned fluff     
         else halo_ind = i; // then rest
 
-        // rearrange so that you first sort to the left all particles in halo 0,
-        // then all in halo 1, ... i, ... count;
-        // and finding the densest particle of those to the right of i while doing so
-        next_densest = partition_and_index(halo_inds, halo_ind, start, np, size);
+        // Partition so as to move left all particles in halo halo_ind.
+        // This also moves the densest particle to the start of its list.
+        partition_and_index(halo_inds, halo_ind, start, np, size);
 	
-        // TODO: it would be mildly more cache friendly to move the 
-        // sorting by particle ID number here.
-        
-        // Mark the group.  Note that the densest particle may not be first.
-        // TODO: Will write more documentation 
-        if (next_densest < 0) {
-            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[halo_ind]); // B.H.
-            start += size;
-            continue;
-        }
+        // Mark the group.  
         if (size > 0) {
-            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[halo_ind]); // B.H.
+            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[halo_ind]); 
             start += size;
         }
-      
-        // Swap so that remaining particles start with the densest.
-        std::swap(p[start], p[next_densest]);
-        std::swap(density[start], density[next_densest]);
-        std::swap(halo_inds[start], halo_inds[next_densest]);
     }
     Sort.Stop();
 }
