@@ -992,7 +992,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         h.SO_radius = sqrt(FOFlevel1[g].groups[a].halo_thresh2) / FOF_RESCALE; 
 
                         //now repeat for the largest L2 halo.
-                        posstruct L2max_central_particle = WrapPosition(L1pos[g][FOFlevel2[g][FOFlevel2[g].groups[0].start].index()] + offset);
+                        posstruct L2max_central_particle = WrapPosition(L1pos[g][FOFlevel2[g].p[FOFlevel2[g].groups[0].start].index()] + offset);
 
                         h.SO_L2max_central_particle[0] = L2max_central_particle.x;
                         h.SO_L2max_central_particle[1] = L2max_central_particle.y;
