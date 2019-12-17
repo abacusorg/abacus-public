@@ -561,7 +561,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
         inv_enc_den = (x*sqrt(x))/(mass*threshold);
         return d2_max;
     }
-    printf("it should never get here\n");
+    assertf(0, "search_socg_thresh should have returned by now.");
     // Record inverse density and threshold radius
 }
 
@@ -644,12 +644,8 @@ int greedySO() {
     }
     Sweep.Stop();
 
-    // Put the densest particle at the beginning of the group
-    std::swap(p[densest], p[0]);
-    std::swap(density[densest], density[0]);
-
     // First halo center is the densest particle in the group
-    start = 0;
+    start = densest;
     
     while (start>=0) {
 
