@@ -583,12 +583,13 @@ void OutputAction(int slab) {
 
     // Having found all groups, we should output the Non-L0 (i.e., field) Taggable subsample. 
     if(ReadState.DoSubsampleOutput) {
-        //LHG assert(ReadState.DoGroupFindingOutput == 1); //NAM DEBUG REMOVE
+        assert(ReadState.DoGroupFindingOutput == 1); // Currently Subsample Output requires GroupFinding Output.
         OutputNonL0Taggable(slab);
     }
 
     if (ReadState.DoTimeSliceOutput) {
-        //LHG: assert(ReadState.DoSubsampleOutput == 0 and ReadState.DoGroupFindingOutput == 1); //NAM DEBUG REMOVE
+        // If we are doing group finding, then we are doing group finding output and subsample output
+        assert(GFC != NULL || (ReadState.DoSubsampleOutput == 1 && ReadState.DoGroupFindingOutput == 1));
 
         // We've already done a K(1) and thus need a K(-1/2)
         FLOAT unkickfactor = WriteState.FirstHalfEtaKick;

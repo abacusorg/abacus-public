@@ -688,7 +688,7 @@ void InitGroupFinding(bool MakeIC){
     } else{
         GFC = NULL;  // be explicit
         ReadState.DoGroupFindingOutput = 0;
-        //ReadState.DoSubsampleOutput = 0;  // LHG: do we support subsample outputs without group finding?
+        ReadState.DoSubsampleOutput = 0;  // We currently do not support subsample outputs without group finding
         STDLOG(1, "Group finding not enabled for this step.\n");
     }
 
