@@ -17,7 +17,7 @@ CC := @CXX@ -x c
 LDFLAGS := -Wl\,--as-needed
 CXXFLAGS := -std=c++11
 ROOT_DIR ?= .
-OPT := -O3 -g
+OPT := -g
 # definitely not a preprocessor option, but it's the one flag we pass to gcc and g++:
 CPPFLAGS := @DEFS@ -m64 -I $(ROOT_DIR)/include $(OPT) $(LDFLAGS)
 #CPPFLAGS += -Wall  #TODO: clean up compiler warnings
@@ -97,6 +97,7 @@ FFTW_OMP_LIBS := -lfftw3_omp -lfftw3f_omp
 # But it might be easier to leave compiler customizations here for people to edit
 ifeq (@REAL_CXX@,g++)
     CXX_MAJOR_VER := $(shell $(CXX) -dumpversion | cut -f1 -d.)
+    CPPFLAGS += -O3
 
     ifeq (@ARCH@,powerpc)
         # powerpc does not accept -march=native
@@ -111,16 +112,20 @@ ifeq (@REAL_CXX@,g++)
         THREAD_CPPFLAGS += -foffload=disable
     endif
 else ifeq (@REAL_CXX@,icc)
-    CPPFLAGS += -xHost -fp-model precise -fbuiltin -ip -mkl -tbb #-ipo #-prof-use=weighted
-    NVCC_CPPFLAGS += -fp-model precise -ip -mkl
+    CPPFLAGS += -O3 -xHost -fp-model precise -fbuiltin -ip -mkl -tbb #-ipo #-prof-use=weighted
+    NVCC_XCOMPILERFLAGS += -fp-model precise -ip -mkl -tbb
 
     FFTW_LIBS := -mkl
     FFTW_OMP_LIBS := -mkl
 
+else ifeq (@REAL_CXX@,xlc++)
+    CPPFLAGS += -O5
+    CPPFLAGS += -qarch -qtune -qcache
+
 else ifeq (@REAL_CXX@,clang++)
     # for debugging clang under gdb
     # clang refuses to catch exceptions. something to do with rtti?
-    CPPFLAGS += -D_GLIBCXX_DEBUG -frtti -fexceptions -fcxx-exceptions
+    CPPFLAGS += -O3 -D_GLIBCXX_DEBUG -frtti -fexceptions -fcxx-exceptions
 endif
 
 TCMALLOC_CPPFLAGS :=

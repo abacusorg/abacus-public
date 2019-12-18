@@ -14,7 +14,7 @@ from multipoles_metacode_utils \
     import emit_dispatch_function, Writer, default_metacode_argparser, cmapper
 
 
-def emit_unrolled_Multipoles(orders, fn='CM_unrolled.cpp'):
+def emit_unrolled_Multipoles(orders, fn='CM_unrolled.cpp', unroll=1):
     w = Writer(fn)
 
     w('''
@@ -30,53 +30,68 @@ def emit_unrolled_Multipoles(orders, fn='CM_unrolled.cpp'):
         ''')
 
     for order in orders:
+        cml = (order+1)*(order+2)*(order+3)//6
+
         w(f'''
             template <>
-            void MultipoleUnrolledKernel<{order}>(FLOAT3 *particles, int n, double3 center, double *CM){{''')
+            void MultipoleUnrolledKernel<{order}>(FLOAT3 *particles, int n, double3 center, double *CM){{
+                double CMlocal[{cml}] = {{}};''')
         w.indent()
 
-        w('for(int i = 0; i < n; i++){')
+        w(f'for(int i = 0; i < n; i+={unroll}){{')
         w.indent()
 
-        w('''
-            FLOAT3 p = particles[i];
-            double fi, fij, fijk;
-            fi = 1.0;
+        w(f'''
+            FLOAT3 p[{unroll}];
+            double fi[{unroll}], fij[{unroll}], fijk[{unroll}];
             ''')
+        for m in range(unroll):
+            w(f'p[{m}] = particles[i+{m}];')
+            w(f'fi[{m}] = 1.;')
 
-        w('''
-            double deltax, deltay, deltaz;
-            deltax = p.x - center.x;
-            deltay = p.y - center.y;
-            deltaz = p.z - center.z;
-            ''')
-
-        cml = (order+1)*(order+2)*(order+3)//6
+        w(f'double deltax[{unroll}], deltay[{unroll}], deltaz[{unroll}];')
+        for m in range(unroll):
+            w(f'''
+                deltax[{m}] = p[{m}].x - center.x;
+                deltay[{m}] = p[{m}].y - center.y;
+                deltaz[{m}] = p[{m}].z - center.z;
+                ''')
 
         i = 0
         nflop = 3  # deltas
         for a in range(order+1):
-            w('fij = fi;')
+            for m in range(unroll):
+                w(f'fij[{m}] = fi[{m}];')
             for b in range(order-a+1):
-                w('fijk = fij;')
+                for m in range(unroll):
+                    w(f'fijk[{m}] = fij[{m}];')
                 for c in range(order-a-b+1):
-                    w(f'CM[{i}] += fijk;')
+                    for m in range(unroll):
+                        w(f'CMlocal[{i}] += fijk[{m}];')
                     i += 1
                     nflop += 1
                     if c < order-a-b:
-                        w('fijk *= deltaz;')
+                        for m in range(unroll):
+                            w(f'fijk[{m}] *= deltaz[{m}];')
                         nflop += 1
                 if b < order-a:
-                    w('fij *= deltay;')
+                    for m in range(unroll):
+                        w(f'fij[{m}] *= deltay[{m}];')
                     nflop += 1
             if a < order:
-                w('\nfi *= deltax;')
+                for m in range(unroll):
+                    w(f'\nfi[{m}] *= deltax[{m}];')
                 nflop += 1
 
         #print(f'nflop: {nflop}; cml: {cml}')
 
         w.dedent()
         w('}')  # particle loop
+
+        w(f'''
+            for(int i = 0; i < {cml}; i++)
+                CM[i] = CMlocal[i];
+            ''')
         w.dedent()
         w('}\n')  # Kernel
 

@@ -26,6 +26,8 @@ the data when it is received.
 
 */
 
+#include "mpi_limiter.h"
+
 // #define NO_MPI    // Just keep these routines blocked out for now
 #ifdef NO_MPI
 #include "manifest_io.cpp"
@@ -184,6 +186,8 @@ struct ManifestCore {
 
 /// This is the class for sending information between the nodes.
 class Manifest {
+    AbacusMPILimiter mpi_limiter;
+
   public:
     ManifestCore m;   ///< The info we're sending over
 
@@ -222,7 +226,7 @@ class Manifest {
     #define MAX_REQUESTS 1024    // This is the most MPI work we can handle; hopefully very generous
     #define SIZE_MPI (1<<30)     // The maximum size of each MPI Isend.
 
-    Manifest() {
+    Manifest() : mpi_limiter(P.MPICallRateLimit_ms) {
     	m.numarenas = m.numil = m.numlinks = m.numdep = 0;
         #ifdef PARALLEL
             completed = MANIFEST_NOTREADY;
@@ -266,9 +270,9 @@ class Manifest {
     /// This will only return 1 once; it's ok to call again, but will return 0
     inline int check_if_done(int j) {
         if (requests[j]!=MPI_REQUEST_NULL) {
-            int err, sent=0;
+            int err = 0, sent=0;
             #ifdef PARALLEL
-            err = MPI_Test(requests+j,&sent,MPI_STATUS_IGNORE);   
+            err = MPI_Test(requests+j,&sent,MPI_STATUS_IGNORE);
             #endif
             if (sent) { mark_as_done(j); return 1; }
         }
@@ -365,9 +369,9 @@ void SetupManifest(int _nManifest) {
 }
 
 void FreeManifest() {
-    STDLOG(2,"Freeing SendManifest\n")
+    STDLOG(2,"Freeing SendManifest\n");
     delete[] _SendManifest;
-    STDLOG(2,"Freeing ReceiveManifest\n")
+    STDLOG(2,"Freeing ReceiveManifest\n");
     delete[] _ReceiveManifest;
 }
 
@@ -522,6 +526,11 @@ void Manifest::Send() {
 inline void Manifest::FreeAfterSend() {
     #ifdef PARALLEL
     if (completed != MANIFEST_TRANSFERRING) return;   // No active Isend's yet
+
+    // Has it been long enough since our last time querying MPI?
+    if(!mpi_limiter.Try())
+        return;
+
     CheckCompletion.Start();
 
     /* OLDCODE
@@ -587,6 +596,11 @@ void Manifest::SetupToReceive() {
 inline void Manifest::Check() {
     #ifdef PARALLEL
     if (completed >= MANIFEST_READY) return;   // Nothing's active now
+
+    // Has it been long enough since our last time querying MPI?
+    if(!mpi_limiter.Try())
+        return;
+    
     CheckCompletion.Start();
     for (int n=0; n<maxpending; n++) 
 	if (check_if_done(n)) {

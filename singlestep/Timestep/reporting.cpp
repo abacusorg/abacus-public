@@ -65,7 +65,10 @@ void GatherTimings() {
     double thistime, denom, total;
     denom = WallClockDirect.Elapsed();
     REPORT(0, "Total Wall Clock Time", WallClockDirect.Elapsed()); 
-    fprintf(reportfp,"---> %6.3f Mpart/sec, % " PRId64 " particles processed by this node.", thistime ? P.np/thistime/1e6 : 0., NearForce.num_particles); 
+
+    // What particle count do we use to report the overall rate?  Finish works for IC and normal steps.
+    int64 num_particles_this_node = Finish.num_particles;
+    fprintf(reportfp,"---> %6.3f Mpart/sec, % " PRId64 " particles processed by this node.", thistime ? num_particles_this_node/thistime/1e6 : 0., num_particles_this_node); 
 	//TODO : consider reporting number of particles microstepped here as well. 
     fprintf(reportfp,"\n");
 
@@ -116,6 +119,9 @@ void GatherTimings() {
         ACCUMULATE_THREAD_TOTALS(BlockingIOWrite, write);
         ACCUMULATE_THREAD_TOTALS(NonBlockingIORead, read);
         ACCUMULATE_THREAD_TOTALS(NonBlockingIOWrite, write);
+
+        // Though not a measure of disk IO performance, the checksumming does affect how fast we can write data
+        total_write_time += ChecksumTime[i];
 
         double total_time = total_read_time + total_write_time;
         double total_bytes = total_read_bytes + total_write_bytes;

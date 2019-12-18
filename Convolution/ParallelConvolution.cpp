@@ -23,6 +23,8 @@ work has been completed.
 
 #include "ParallelConvolution.h"
 
+#include "mpi_limiter.h"
+
 STimer  Constructor;
 STimer  AllocateMT;
 STimer  AllocateDerivs; 
@@ -49,7 +51,10 @@ int ParallelConvolution::Zstart(int rank) {
 // ParallelConvolution::ParallelConvolution(){}
 /// The constructor.  This should open the MTfile as read/write or allocate
 /// space if it doesn't exist.
-ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDirectory[1024], int _create_MT_file) { //TODO NAM does this always assume convolution overwrite mode? 
+ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDirectory[1024], int _create_MT_file)
+    : mpi_limiter(P.MPICallRateLimit_ms)
+
+    { //TODO NAM does this always assume convolution overwrite mode? 
 	
 	STDLOG(2, "Calling constructor for ParallelConvolution\n");
 	
@@ -137,13 +142,19 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	Msend_active = 0;
 	Trecv_active = 0;
 
+    TaylorSlabAllMPIDone = new int[cpd];
+    MultipoleSlabAllMPIDone = new int[cpd];
 
 	for (int x = 0; x < cpd; x++) {
 		Msend_requests[x] = NULL;  // This indicates no pending req
 		Mrecv_requests[x] = MPI_REQUEST_NULL;  // This indicates no pending req
 		Trecv_requests[x] = NULL;  // This indicates no pending req
 		Tsend_requests[x] = MPI_REQUEST_NULL;  // This indicates no pending req	
+
+        TaylorSlabAllMPIDone[x] = 0;
+        MultipoleSlabAllMPIDone[x] = 0;
 	} 
+
 	
 	int DIOBufferSizeKB = 1LL<<11;
     size_t sdb = DIOBufferSizeKB;
@@ -162,6 +173,8 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	
 	CS.ops = 0;
 	CS.ComputeCores = omp_get_max_threads();
+
+    sprintf(wisdom_file, "parallel_convolve_fft.wisdom");
 }
 
 /// The destructor.  This should close the MTfile. NAM: MTfile can be closed right after mapping, I think. 
@@ -180,6 +193,9 @@ ParallelConvolution::~ParallelConvolution() {
 	delete[] Trecv_requests; 
 	delete[] Mrecv_requests; 
 	delete[] Tsend_requests; 
+
+    delete[] TaylorSlabAllMPIDone;
+    delete[] MultipoleSlabAllMPIDone;
 
 	delete[] node_start; 
 	delete[] node_size; 
@@ -238,6 +254,10 @@ ParallelConvolution::~ParallelConvolution() {
 	dumpstats_timer.Stop(); 
 	
 	STDLOG(1, "Dumpstats took %f seconds\n", dumpstats_timer.Elapsed());
+
+    STDLOG(1, "Exporting wisdom to file.\n");
+    if(MPI_rank == 0)
+       fftw_export_wisdom_to_filename(wisdom_file);
 }
 
 
@@ -434,9 +454,14 @@ void ParallelConvolution::SendMultipoleSlab(int slab) {
 
 
 int ParallelConvolution::CheckRecvMultipoleComplete(int slab) {
-	int received = 0; 
-	int err = MPI_Test(&Mrecv_requests[slab], &received, MPI_STATUS_IGNORE);	
-	if (not received) STDLOG(4, "Multipole slab %d not received yet...\n", slab);	
+    if(Mrecv_requests[slab] == NULL)
+        return 1;
+
+    int received = 0;
+    int err = MPI_Test(&Mrecv_requests[slab], &received, MPI_STATUS_IGNORE);
+
+	if (not received) STDLOG(4, "Multipole slab %d not received yet...\n", slab);
+    else assert(Mrecv_requests[slab] == NULL);
 	return received;  
 }
 
@@ -454,14 +479,17 @@ int ParallelConvolution::CheckSendMultipoleComplete(int slab) {
 	
     for (int r = 0; r < MPI_size; r++) {		
 		if (Msend_requests[x][r]==MPI_REQUEST_NULL) continue;  // Already done
-		err = MPI_Test(Msend_requests[x] + r, &sent, MPI_STATUS_IGNORE);
+
+	    err = MPI_Test(Msend_requests[x] + r, &sent, MPI_STATUS_IGNORE);
 	
 		if (not sent) {
 		    // Found one that is not done
 			STDLOG(4, "Multipole slab %d not sent yet...\n", slab);
 			
 		    done=0; break;
-		}
+		} else {
+            assert(Msend_requests[x] == NULL);
+        }
 		
     }
     
@@ -478,11 +506,22 @@ int ParallelConvolution::CheckSendMultipoleComplete(int slab) {
 
 int ParallelConvolution::CheckForMultipoleTransferComplete(int _slab) {
 	int slab = _slab % cpd;
+
+    if(MultipoleSlabAllMPIDone[slab])
+        return 1;
+
+    // Has it been long enough since the last MPI query?
+    if(!mpi_limiter.Try())
+        return 0;
+
 	int done_recv = 0; 
 	done_recv = CheckRecvMultipoleComplete(slab);  
 	int done_send = 0; 
 	done_send = CheckSendMultipoleComplete(slab); 
-	if (done_send and done_recv) STDLOG(1,"Multipole MPI work complete for slab %d.\n", slab);
+	if (done_send and done_recv){
+        STDLOG(1,"Multipole MPI work complete for slab %d.\n", slab);
+        MultipoleSlabAllMPIDone[slab] = 1;
+    }
 	
 	return done_send and done_recv; 
 }
@@ -540,6 +579,7 @@ void ParallelConvolution::SendTaylors(int offset) {
 void ParallelConvolution::RecvTaylorSlab(int slab) {	
 	//We are receiving a specified x slab. For each node, receive its z packet for this x. For each node, use Trecv_requests[x][rank] as request. 
 	slab = CP->WrapSlab(slab);
+
     MTCOMPLEX *mt = (MTCOMPLEX *) SB->GetSlabPtr(TaylorSlab, slab);
 	
 	Trecv_requests[slab] = new MPI_Request[MPI_size];
@@ -561,14 +601,15 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
     for (int r=0; r<MPI_size; r++) {
 		if (Trecv_requests[slab][r]==MPI_REQUEST_NULL) continue;  // Already done
 		
-		received = 0 ;
-		err = MPI_Test(&Trecv_requests[slab][r], &received, MPI_STATUS_IGNORE);
+	    err = MPI_Test(&Trecv_requests[slab][r], &received, MPI_STATUS_IGNORE);
 		
 		if (not received) {
 		    // Found one that is not done
 			STDLOG(4, "Taylor slab %d not been received yet...\n", slab);
 		    done=0; break;
-		}		
+		} else{
+            assert(Trecv_requests[slab]==NULL);
+        }
     }
 	
 	if (done) {
@@ -581,10 +622,14 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
 }
 
 int ParallelConvolution::CheckTaylorSendComplete(int slab){
-	int sent = 0; 
-	int err = MPI_Test(&Tsend_requests[slab], &sent, MPI_STATUS_IGNORE);
+    if(Tsend_requests[slab] == NULL)
+        return 1;
+
+	int sent = 0;
+    int err = MPI_Test(&Tsend_requests[slab], &sent, MPI_STATUS_IGNORE);
 	
 	if (not sent) STDLOG(4, "Taylor slab %d not sent yet...\n", slab);
+    else assert(Tsend_requests[slab] == NULL);
 	
 	return sent; 
 }
@@ -593,7 +638,15 @@ int ParallelConvolution::CheckTaylorSendComplete(int slab){
 /// returning 1 if yes.  To be used in the TaylorForcePrecondition.
 /// Also, have to be careful about the SendManifest.
 int ParallelConvolution::CheckTaylorSlabReady(int slab) {
-	slab = CP->WrapSlab(slab);	
+	slab = CP->WrapSlab(slab);
+
+    if(TaylorSlabAllMPIDone[slab])
+        return 1;
+
+    // Has it been long enough since the last MPI query?
+    if(!mpi_limiter.Try())
+        return 0;
+
 	int send_done = 0; int recv_done = 0; 
 	send_done = CheckTaylorSendComplete(slab); 
 	
@@ -601,7 +654,10 @@ int ParallelConvolution::CheckTaylorSlabReady(int slab) {
 		recv_done = CheckTaylorRecvReady(slab);
 	}
 	
-	if(send_done and recv_done) STDLOG(1, "Taylor MPI work complete for slab %d.\n", slab); 
+	if(send_done and recv_done){
+        STDLOG(1, "Taylor MPI work complete for slab %d.\n", slab);
+        TaylorSlabAllMPIDone[slab] = 1;
+    }
 
 	return (send_done and recv_done); 
 
@@ -683,35 +739,43 @@ void ParallelConvolution::Swizzle_to_xzmy() {
 
 
 
-fftw_plan ParallelConvolution::PlanFFT(int sign ){
-	char wisdom_file[sizeof "parallel_convolve_fft_1.wisdom"];
-	sprintf(wisdom_file, "parallel_convolve_fft_%d.wisdom", sign);
+fftw_plan ParallelConvolution::PlanFFT(int sign){
 	int wisdom_exists = fftw_import_wisdom_from_filename(wisdom_file);
 	
-	STDLOG(1, "Wisdom import returned %d. 1 indicates successful import, 0 otherwise.\n", wisdom_exists);
+	STDLOG(1, "Wisdom import returned %d (%s).\n", wisdom_exists, wisdom_exists == 1 ? "success" : "failure");
 	
-	fftw_plan plan;
+	fftw_plan plan = NULL;
 	
 	// TODO: Import wisdom
 	// We're going to plan to process each [x][y] slab separately,
 	// doing the cpd FFTs of cpd length.
 	// stride = cpd, dist = 1, nembed = NULL
+
+    STDLOG(2, "MTzmxy byte alignment is %d\n", 1 << __builtin_ctzll((unsigned long long) MTzmxy));
 	
+	int  n[] = {(int) cpd};
+    if(wisdom_exists){
+        // can we enforce better alignment between rows...?
+    	plan = fftw_plan_many_dft(1, n, cpd, //we will do znode*rml of sets of cpd FFTs.
+    		(fftw_complex *) MTzmxy, NULL, cpd, 1, //each new [x][y] chunk is located at strides of cpd.
+    		(fftw_complex *) MTzmxy, NULL, cpd, 1,
+    		sign, FFTW_PATIENT | FFTW_WISDOM_ONLY);
+        if(plan == NULL){
+            WARNING("Wisdom was imported but wisdom planning failed. Generating new plans...\n");
+        }
+        else{
+            STDLOG(1,"Wisdom planning succeeded.\n");
+        }
+    }
+
+    if(plan == NULL){
+        plan = fftw_plan_many_dft(1, n, cpd, //we will do znode*rml of sets of cpd FFTs.
+            (fftw_complex *) MTzmxy, NULL, cpd, 1, //each new [x][y] chunk is located at strides of cpd.
+            (fftw_complex *) MTzmxy, NULL, cpd, 1,
+            sign, FFTW_PATIENT);
+    }
 	
-	int  n[] = {(int) cpd};	
-	plan = fftw_plan_many_dft(1, n, cpd, //we will do znode*rml of sets of cpd FFTs.
-		(fftw_complex *) MTzmxy, NULL, cpd, 1, //each new [x][y] chunk is located at strides of cpd.
-		(fftw_complex *) MTzmxy, NULL, cpd, 1,
-		sign, FFTW_PATIENT);
-		
-	if (wisdom_exists == 0) {
-		STDLOG(1, "Exporting wisdom to file.\n");
-		fftw_export_wisdom_to_filename(wisdom_file);
-	}	
-		
-		
 	return plan;
-		
 }
 
 

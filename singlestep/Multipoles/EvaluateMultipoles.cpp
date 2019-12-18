@@ -237,6 +237,7 @@ void compare_multipoles(double *cm1, double* cm2, int64_t n, double rtol){
     }
     printf("\t>>> %zd (%.2f%%) mismatched multipoles\n", nbad, (FLOAT) nbad/n*100);
     printf("\t>>> Max frac error: %.2g \n", max_frac_diff);
+    fflush(stdout);
 }
 
 void report(const char* prefix, int64_t npart, std::chrono::duration<double> elapsed, int cml, int nthread){
@@ -253,7 +254,8 @@ void report(const char* prefix, int64_t npart, std::chrono::duration<double> ela
 int main(int argc, char **argv){
     Multipoles MP(8);
 
-    int64_t ncell = 4*1875*1875;
+    int64_t cpd = 1875;
+    int64_t ncell = 1*cpd*cpd;
     int64_t ppc = 52;   
     if (argc > 1)
         ppc = atoi(argv[1]);
@@ -261,7 +263,7 @@ int main(int argc, char **argv){
     int64_t npart = (int64_t)ncell*ppc;
 
     double *current_cartesian = NULL, *last_cartesian = NULL;
-    FLOAT3 center(0.1,0.2,0.3);
+    FLOAT3 center(1e-3,2e-3,3e-3);
     FLOAT3 *xyz;
 
     // ========================== //
@@ -276,13 +278,13 @@ int main(int argc, char **argv){
     }
 
     assert(posix_memalign((void **) &xyz, 4096, sizeof(FLOAT3)*npart) == 0);
-    #pragma omp parallel for schedule(static)
+    /*#pragma omp parallel for schedule(static)
     for(int64_t i = 0; i < npart; i++){
         int t = omp_get_thread_num();
-        xyz[i].x = gsl_rng_uniform(rng[t]);
-        xyz[i].y = gsl_rng_uniform(rng[t]);
-        xyz[i].z = gsl_rng_uniform(rng[t]);
-    }
+        xyz[i].x = gsl_rng_uniform(rng[t])/cpd;
+        xyz[i].y = gsl_rng_uniform(rng[t])/cpd;
+        xyz[i].z = gsl_rng_uniform(rng[t])/cpd;
+    }*/
 
     assert(posix_memalign((void **) &current_cartesian, 4096, sizeof(double)*MP.cml*ncell) == 0);
     assert(posix_memalign((void **) &last_cartesian, 4096, sizeof(double)*MP.cml*ncell) == 0);
@@ -361,6 +363,7 @@ int main(int argc, char **argv){
     }
     end = std::chrono::steady_clock::now();
     report("VSX Multipoles", npart, end-begin, MP.cml, nthread);
+    //return 0;
     compare_multipoles(current_cartesian, last_cartesian, MP.cml*ncell, rtol);
 #endif
 

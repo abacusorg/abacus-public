@@ -11,21 +11,6 @@ as a module or directly invoked as a script:
 Script usage:
     See abacus/Production/Example
 
-Command line usage:
-    abacus.py [-h] [--clean] [--erase-ic] parfile
-
-    Run this sim.
-
-    positional arguments:
-      parfile     The parameter file
-
-    optional arguments:
-      -h, --help  show this help message and exit
-      --clean     Erase the working directory and start over. Otherwise, continue
-                  from the existing state. Always preserves the ICs unless
-                  --erase-ic.
-      --erase-ic  Remove the ICs if they exist.
-
 '''
 
 import os
@@ -304,7 +289,7 @@ def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
                     shutil.copy(pjoin(derivs_archive_dir, dn), pjoin(param.DerivativesDirectory, dn))
                 break
         else:
-            print(f'Could not find derivatives in "{param.DerivativesDirectory}" or archive dir "{derivs_archive_dir}". Creating them...')
+            print(f'Could not find derivatives in "{param.DerivativesDirectory}" or archive dirs "{derivs_archive_dirs}". Creating them...')
             print(f"Error was on file pattern '{fnfmt}'")
 
             if floatprec:
@@ -454,7 +439,7 @@ def setup_singlestep_env(param):
     if 'OMP_PROC_BIND' in param:
         singlestep_env['OMP_PROC_BIND'] = param.OMP_PROC_BIND
     if 'OMP_NUM_THREADS' in param and 'OMP_NUM_THREADS' in singlestep_env:
-        if param['OMP_NUM_THREADS'] != singlestep_env['OMP_NUM_THREADS']:
+        if int(param['OMP_NUM_THREADS']) != int(singlestep_env['OMP_NUM_THREADS']):
             warn('OMP_NUM_THREADS in the parameter file and the environment do not match. '
                 'To avoid confusion, they should be the same (or the environment variable should be unset).')
         
@@ -781,11 +766,10 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     
     if parallel:
         # TODO: figure out how to signal a backup to the nodes
-        run_time_minutes = int(os.getenv("JOB_ACTION_WARNING_TIME"))
+        run_time_minutes = int(os.getenv("JOB_ACTION_WARNING_TIME",'10000'))
         run_time_secs = 60 * run_time_minutes
         start_time = wall_timer()
         print("Beginning run at time", start_time, ", running for ", run_time_minutes, " minutes.\n")
-        
         
         backups_enabled = False
 
@@ -1174,7 +1158,7 @@ def merge_checksum_files(param=None, dir_globs=None):
 
     for pat in dir_globs:
         for d in glob(pat):
-            cksum_fns = glob(pjoin(d,'checksums.node*.crc32'))
+            cksum_fns = glob(pjoin(d,'checksums.*.crc32'))
             if not cksum_fns:
                 # Nothing to do
                 continue

@@ -561,8 +561,11 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
         inv_enc_den = (x*sqrt(x))/(mass*threshold);
         return d2_max;
     }
-    assertf(0, "search_socg_thresh should have returned by now.");
+    
+    QUIT("search_socg_thresh should have returned by now.\n");
     // Record inverse density and threshold radius
+
+    return 0;  // just to silence the compiler
 }
 
   

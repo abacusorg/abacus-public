@@ -126,7 +126,7 @@ uint64 FillMergeSlab(int slab) {
 
     STDLOG(3,"Insert list contains a total of %d particles.\n", IL->length);
     ilstruct *ILnew = IL->PartitionAndSort(slab,&ilslablength);
-    STDLOG(2,"Insert list contains %d new particles for slab %d; %d remaining\n", ilslablength, slab, IL->length);
+    STDLOG(1,"Insert list contains %d new particles for slab %d; %d remaining\n", ilslablength, slab, IL->length);
 
     FinishCellIndex.Start();
 
