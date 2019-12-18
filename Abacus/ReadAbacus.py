@@ -116,7 +116,7 @@ def from_dir(dir, pattern=None, key=None, **kwargs):
         If `return_header` and a header is found, return parsed InputFile
     """
     if pattern is None:
-        if is_ic_path(path):
+        if is_ic_path(dir):
             pattern = 'ic_*'
         else:
             format = kwargs.get('format')
@@ -864,7 +864,10 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
     slab = int(re.search(r'\d{4}$', fn).group(0))
 
     if return_header:
-        state = InputFile(pjoin(ppath.dirname(fn), 'state'))
+        try:
+            state = InputFile(pjoin(ppath.dirname(fn), 'state'))
+        except FileNotFoundError:
+            state = None
     
     # Count the particles to read in
     fsize = ppath.getsize(pos_fn)
