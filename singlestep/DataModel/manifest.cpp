@@ -26,6 +26,8 @@ the data when it is received.
 
 */
 
+#include "mpi_limiter.h"
+
 // #define NO_MPI    // Just keep these routines blocked out for now
 #ifdef NO_MPI
 #include "manifest_io.cpp"

@@ -583,7 +583,7 @@ void OutputAction(int slab) {
 
     // Having found all groups, we should output the Non-L0 (i.e., field) Taggable subsample. 
     if(ReadState.DoSubsampleOutput) {
-        assert(ReadState.DoGroupFindingOutput == 1); //NAM DEBUG REMOVE
+        //LHG assert(ReadState.DoGroupFindingOutput == 1); //NAM DEBUG REMOVE
         OutputNonL0Taggable(slab);
     }
 
