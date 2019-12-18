@@ -92,6 +92,8 @@ private:
     char wisdom_file[1024];
 
     AbacusMPILimiter mpi_limiter;
+    int *TaylorSlabAllMPIDone;
+    int *MultipoleSlabAllMPIDone;
 	
 	
 	void MultipoleFN(int slab, char * const fn);

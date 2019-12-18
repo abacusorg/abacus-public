@@ -186,7 +186,7 @@ public:
 
     int UsePinnedGPUMemory;  // Whether to pin the CPU-side GPU staging buffers
 
-    double MPICallRateLimit_usec;  // Enforce a delay between MPI_Test calls
+    double MPICallRateLimit_ms;  // Enforce a delay between MPI_Test calls
 
     // Return the L{tier} size in MB
     float getCacheSize(int tier){
@@ -448,8 +448,8 @@ public:
         UsePinnedGPUMemory = -1;  // auto
         installscalar("UsePinnedGPUMemory", UsePinnedGPUMemory, DONT_CARE);
 
-        MPICallRateLimit_usec = 0;
-        installscalar("MPICallRateLimit_usec", MPICallRateLimit_usec, DONT_CARE);
+        MPICallRateLimit_ms = 0;
+        installscalar("MPICallRateLimit_ms", MPICallRateLimit_ms, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.
