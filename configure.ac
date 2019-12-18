@@ -43,7 +43,17 @@ AC_CONFIG_FILES([
 # TODO: better way to do this?
 AC_MSG_CHECKING([underlying compiler])
 AC_SUBST(REAL_CXX)
-REAL_CXX=$($CXX --version |\grep -qP '\bicc\b' && echo icc || echo g++)
+REAL_CXX=$($CXX --version) 
+if \grep -qP '\bicc\b' <<< "$REAL_CXX"; then
+    REAL_CXX=icc
+elif \grep -qP '\bXL\b' <<< "$REAL_CXX"; then
+    REAL_CXX=xlc++
+elif \grep -qP '\bg++\b' <<< "$REAL_CXX"; then
+    REAL_CXX=g++
+else
+    AC_MSG_WARN([Could not determine REAL_CXX from --version])
+    REAL_CXX=$CXX  # fallback
+fi
 AC_MSG_RESULT([$REAL_CXX])
 REAL_CC="$REAL_CXX -x c"
 

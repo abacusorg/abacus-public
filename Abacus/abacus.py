@@ -766,11 +766,10 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     
     if parallel:
         # TODO: figure out how to signal a backup to the nodes
-        run_time_minutes = int(os.getenv("JOB_ACTION_WARNING_TIME"))
+        run_time_minutes = int(os.getenv("JOB_ACTION_WARNING_TIME",'10000'))
         run_time_secs = 60 * run_time_minutes
         start_time = wall_timer()
         print("Beginning run at time", start_time, ", running for ", run_time_minutes, " minutes.\n")
-        
         
         backups_enabled = False
 

@@ -3433,7 +3433,18 @@ ac_config_files="$ac_config_files common.mk"
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking underlying compiler" >&5
 $as_echo_n "checking underlying compiler... " >&6; }
 
-REAL_CXX=$($CXX --version |\grep -qP '\bicc\b' && echo icc || echo g++)
+REAL_CXX=$($CXX --version)
+if \grep -qP '\bicc\b' <<< "$REAL_CXX"; then
+    REAL_CXX=icc
+elif \grep -qP '\bXL\b' <<< "$REAL_CXX"; then
+    REAL_CXX=xlc++
+elif \grep -qP '\bg++\b' <<< "$REAL_CXX"; then
+    REAL_CXX=g++
+else
+    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Could not determine REAL_CXX from --version" >&5
+$as_echo "$as_me: WARNING: Could not determine REAL_CXX from --version" >&2;}
+    REAL_CXX=g++  # fallback
+fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $REAL_CXX" >&5
 $as_echo "$REAL_CXX" >&6; }
 REAL_CC="$REAL_CXX -x c"
