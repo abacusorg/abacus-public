@@ -166,31 +166,10 @@ void FindEigensystem(double vxx, double vxy, double vxz,
             else if ( max < fabs(*(pAk + i))) max = fabs(*(pAk + i));
       }
    }
-   for (pAk = A, k = 0; k < n; pAk += n, k++) eigenvalues[n-k-1] = (float) *(pAk + k); 
+   for (pAk = A, k = 0; k < n; pAk += n, k++) eigenvalues[k] = (float) *(pAk + k); 
 
-    // canned code spits these out in a different order than we want. 
-    // someday I'll come back and do this properly, but for now
-    // bless me father for I'm about to sin. 
-
-    double e00, e01, e02, e10, e12, e20, e21, e22; 
-
-    e00 = eigenvectors[2]; 
-    e01 = eigenvectors[5];
-    e02 = eigenvectors[8];
-    e10 = eigenvectors[1];
-    e12 = eigenvectors[7]; 
-    e20 = eigenvectors[0]; 
-    e21 = eigenvectors[1];
-    e22 = eigenvectors[2]; 
-
-    eigenvectors[0] = e00; 
-    eigenvectors[1] = e01; 
-    eigenvectors[2] = e02; 
-    eigenvectors[3] = e10; 
-    eigenvectors[5] = e12;
-    eigenvectors[6] = e20; 
-    eigenvectors[7] = e21;
-    eigenvectors[8] = e22; 
+   // These eigenvalues are not in a sorted order.
+   // The eigenvectors are in [:][j] for the jth value, i.e., columns
 }
 
 #ifdef SYMTEST    // This code is under development

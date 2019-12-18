@@ -397,6 +397,7 @@ class FOFcell {
     // These lists provide some work space, consistent between 
     FOFparticle *p;	///< The copied version of the particles, to permute
     FOFloat *d2buffer;	///< A matching array of distances
+    FOFloat *d2_active;	///< Matches an array name in SO; not used
     accstruct *permutebuf;   ///< Space for doing permutations
     int *index;		///< The new indices in the original order
     int np;		///< The current size of the group
@@ -451,6 +452,8 @@ class FOFcell {
 
         if (d2buffer!=NULL) free(d2buffer);
 	ret = posix_memalign((void **)&d2buffer, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
+	if (d2_active!=NULL) free(d2_active);
+	ret = posix_memalign((void **)&d2_active, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
         if (groups!=NULL) free(groups);
 	ret = posix_memalign((void **)&groups, CACHE_LINE_SIZE, sizeof(FOFgroup)*maxsize);  assert(ret == 0);
         if (index!=NULL) free(index);
@@ -462,6 +465,7 @@ class FOFcell {
     FOFcell() { 
 	p = NULL;
 	d2buffer = NULL;
+	d2_active = NULL;
 	permutebuf = NULL;
 	groups = NULL;
 	index = NULL;
@@ -479,6 +483,7 @@ class FOFcell {
     void destroy() {
         if (p!=NULL) free(p); p = NULL;
         if (d2buffer!=NULL) free(d2buffer); d2buffer = NULL;
+	if (d2_active!=NULL) free(d2_active); d2_active = NULL;
         if (permutebuf!=NULL) free(permutebuf); permutebuf = NULL;
         if (groups!=NULL) free(groups); groups = NULL;
         if (index!=NULL) free(index); index = NULL;
