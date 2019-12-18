@@ -237,6 +237,7 @@ void compare_multipoles(double *cm1, double* cm2, int64_t n, double rtol){
     }
     printf("\t>>> %zd (%.2f%%) mismatched multipoles\n", nbad, (FLOAT) nbad/n*100);
     printf("\t>>> Max frac error: %.2g \n", max_frac_diff);
+    fflush(stdout);
 }
 
 void report(const char* prefix, int64_t npart, std::chrono::duration<double> elapsed, int cml, int nthread){
@@ -362,7 +363,7 @@ int main(int argc, char **argv){
     }
     end = std::chrono::steady_clock::now();
     report("VSX Multipoles", npart, end-begin, MP.cml, nthread);
-    return 0;
+    //return 0;
     compare_multipoles(current_cartesian, last_cartesian, MP.cml*ncell, rtol);
 #endif
 

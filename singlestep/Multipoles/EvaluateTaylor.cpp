@@ -232,9 +232,9 @@ void compare_acc(FLOAT3 *acc1, FLOAT3* acc2, int nacc, double rtol){
     fflush(stdout);
 }
 
-void report(const char* prefix, int64_t npart, std::chrono::duration<double> elapsed, int nthread){
-    //double nflop = 842*npart + 360;  // Q version
-    double nflop = 1199*npart;  // no Q version
+void report(const char* prefix, int64_t npart, int ncell, std::chrono::duration<double> elapsed, int nthread){
+    double nflop = 842*npart + 360*ncell;  // Q version
+    //double nflop = 1199*npart;  // no Q version
 
     auto t = elapsed.count();
 
@@ -246,7 +246,7 @@ void report(const char* prefix, int64_t npart, std::chrono::duration<double> ela
 int main(int argc, char **argv){
     Taylor TY(8);
 
-    int64_t cpd = 65;
+    int64_t cpd = 1875;
     int64_t ncell = 1*cpd*cpd;
     int64_t ppc = 52;
     if (argc > 1)
@@ -310,7 +310,7 @@ int main(int argc, char **argv){
         TY.AVXEvaluateTaylor(cartesian, center, ppc, thisxyz, thisacc);
     }
     end = std::chrono::steady_clock::now();
-    report("AVX Taylors", npart, end-begin, nthread);
+    report("AVX Taylors", npart, ncell, end-begin, nthread);
     compare_acc(current_acc, last_acc, npart, rtol);
 #endif
 
@@ -334,7 +334,7 @@ int main(int argc, char **argv){
         TY.AVX512EvaluateTaylor(cartesian, center, ppc, thisxyz, thisacc);
     }
     end = std::chrono::steady_clock::now();
-    report("AVX-512 Taylors", npart, end-begin, nthread);
+    report("AVX-512 Taylors", npart, ncell, end-begin, nthread);
     compare_acc(current_acc, last_acc, npart, rtol);
 #endif
 
@@ -358,7 +358,8 @@ int main(int argc, char **argv){
         TY.VSXEvaluateTaylor(cartesian, center, ppc, thisxyz, thisacc);
     }
     end = std::chrono::steady_clock::now();
-    report("VSX Taylors", npart, end-begin, nthread);
+    report("VSX Taylors", npart, ncell, end-begin, nthread);
+    //return 0;
     compare_acc(current_acc, last_acc, npart, rtol);
 #endif
 
@@ -383,7 +384,7 @@ int main(int argc, char **argv){
         TY.UnrolledEvaluateTaylor(cartesian, center, ppc, thisxyz, thisacc);
     }
     end = std::chrono::steady_clock::now();
-    report("Unrolled Taylors", npart, end-begin, nthread);
+    report("Unrolled Taylors", npart, ncell, end-begin, nthread);
     compare_acc(current_acc, last_acc, npart, rtol);
 #endif
 
@@ -406,7 +407,7 @@ int main(int argc, char **argv){
         TY.AnalyticEvaluateTaylor(cartesian, center, ppc, thisxyz, thisacc);
     }
     end = std::chrono::steady_clock::now();
-    report("Analytic Taylors", npart, end-begin, nthread);
+    report("Analytic Taylors", npart, ncell, end-begin, nthread);
     compare_acc(current_acc, last_acc, npart, rtol);
 
     return 0;
