@@ -105,20 +105,6 @@ HaloStat ComputeStats(int size,
     float3 v_L2com = com/h.L2_N[0]/ReadState.VelZSpace_to_Canonical;
     assign_to_vector(h.v_L2com, v_L2com);
 
-    /*
-    float vmean, vmeansq;
-    vmean = vmeansq = 0.0;
-    float iL2size = 1./L2_largest_np;
-    for (int p=0; p<L2_largest_np; p++) {
-        velstruct dv = L1vel[start[p].index()]/ReadState.VelZSpace_to_Canonical-v_L2com;
-	vmean += sqrt(dv.norm2());
-	vmeansq += dv.norm2();
-    }
-    vmean *= iL2size; vmeansq *= iL2size;
-    h.L2_sigmav3d = sqrt(vmeansq);
-    h.L2_meanSpeed = vmean; 
-    */
-      
     // Now we can go through the particles to compute radii and moments. We can use
     // L2.d2_active and L2.d2buffer for scratch space; they are guaranteed to be big enough
     for (int p=0; p<size; p++) {
