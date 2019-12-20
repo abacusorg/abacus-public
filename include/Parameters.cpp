@@ -448,7 +448,7 @@ public:
         UsePinnedGPUMemory = -1;  // auto
         installscalar("UsePinnedGPUMemory", UsePinnedGPUMemory, DONT_CARE);
 
-        MPICallRateLimit_ms = 10;
+        MPICallRateLimit_ms = 1;
         installscalar("MPICallRateLimit_ms", MPICallRateLimit_ms, DONT_CARE);
     }
 
