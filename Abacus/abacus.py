@@ -1034,7 +1034,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             
             #are we coming up on a group finding step? If yes, backup the state, just in case. 
             pre_gf_backup  = False 
-            nGFoutputs = len(param.L1OutputRedshifts)
+            nGFoutputs = len(param.get('L1OutputRedshifts',[]))
             if (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60): 
                 for i in range(nGFoutputs):
                     L1z = param.L1OutputRedshifts[i] 

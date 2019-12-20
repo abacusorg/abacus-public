@@ -25,6 +25,11 @@ def emit_VSX_Multipoles_FMA_interleaved(orders, fn='CM_VSX.cpp', use_zk=False, v
     w = Writer(fn)
 
     w('''
+        // GCC doesn't fully understand VSX vector initialization
+        #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+        // nor the fact that intrinsic functions use variables
+        #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+
         #include "threevector.hh"
         #include "header.cpp"
 
@@ -276,6 +281,11 @@ def emit_VSX_Taylors_interleaved(orders, fn='ET_VSX.cpp', verbose=False, unroll=
     w = Writer(fn)
 
     w('''
+        // GCC doesn't fully understand VSX vector initialization
+        #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+        // nor the fact that intrinsic functions use variables
+        #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+
         #include "threevector.hh"
         #include "header.cpp"
         

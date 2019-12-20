@@ -39,11 +39,6 @@ FILE *reportfp;
          for (int _i=0; _i<tabs; _i++) fprintf(reportfp, "    "); \
          thistime = a; fprintf(reportfp, "%-30s: %10.2e sec (%5.2f%%) ", str, thistime, denom ? 100*thistime/denom : 0.); \
      } while(0)
-
-#define REPORT_RATE_ALL() \
-     do { \
-        fprintf(reportfp,"---> %6.2f Mpart/sec", thistime ? P.np/thistime/1e6 : 0.); \
-     } while(0)
 		 
 #define REPORT_RATE(dependency) \
      do { \
@@ -164,7 +159,7 @@ void GatherTimings() {
         
         REPORT(1, "NearForce [blocking]", NearForce.Elapsed()); total += thistime;
         REPORT(1, "NearForce [non-blocking]", NFD->GPUThroughputTime); //total += thistime;
-        fprintf(reportfp,"---> %6.2f effective GDIPS, %6.2f Gdirects, %.2f Mpart/sec", thistime ? NFD->gdi_gpu/thistime : 0, NFD->gdi_gpu, thistime ? P.np/thistime/1e6 : 0.);
+        fprintf(reportfp,"---> %6.2f effective GDIPS, %6.2f Gdirects, %.2f Mpart/sec", thistime ? NFD->gdi_gpu/thistime : 0, NFD->gdi_gpu, thistime ? NearForce.num_particles/thistime/1e6 : 0.);
         double total_di = (NFD->DirectInteractions_CPU +NFD->TotalDirectInteractions_GPU)/1e9;
     }
 #else
@@ -291,7 +286,7 @@ void GatherTimings() {
         denom = TimeStepWallClock.Elapsed();
         REPORT(1, "Non-Blocking Throughput (Wall Clock)", NFD->GPUThroughputTime);
                 denom = NFD->GPUThroughputTime;
-                fprintf(reportfp,"\n\t\t\t\t---> %6.2f effective GDIPS, %6.2f Mpart/sec, %6.2f Msink/sec", thistime ? NFD->gdi_gpu/thistime : 0., thistime ? P.np/thistime/1e6 : 0., thistime ? NFD->total_sinks/thistime/1e6 : 0.);
+                fprintf(reportfp,"\n\t\t\t\t---> %6.2f effective GDIPS, %6.2f Mpart/sec, %6.2f Msink/sec", thistime ? NFD->gdi_gpu/thistime : 0., thistime ? NearForce.num_particles/thistime/1e6 : 0., thistime ? NFD->total_sinks/thistime/1e6 : 0.);
                 fprintf(reportfp,"\n\t\t\t\t---> %6.2f Gdirects, %6.2f padded Gdirects", NFD->gdi_gpu, NFD->gdi_padded_gpu);
                 fprintf(reportfp,"\n\t\t\t\t---> with %d device threads, estimate %.1f%% thread concurrency", NFD->NBuffers, (NFD->DeviceThreadTimer - NFD->GPUThroughputTime)/(NFD->DeviceThreadTimer - NFD->DeviceThreadTimer/NFD->NBuffers)*100);
                 
@@ -330,7 +325,7 @@ void GatherTimings() {
             REPORT(2, "Accumulate Pencil Stats", NFD->FinalizeTimer.Elapsed());
         }
         REPORT(2, "Add Near + Far Accel", AddAccel.Elapsed());
-            fprintf(reportfp,"---> %6.2f GB/sec", thistime ? P.np/thistime*3*sizeof(accstruct)/1e9 : 0.);
+            fprintf(reportfp,"---> %6.2f GB/sec", thistime ? Kick.num_particles/thistime*3*sizeof(accstruct)/1e9 : 0.);
         REPORT(2, "Kick Cell", KickCellTimer.Elapsed());
             REPORT_RATE(Kick);
     
