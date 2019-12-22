@@ -1050,17 +1050,31 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             
             #are we coming up on a group finding step? If yes, backup the state, just in case. 
             pre_gf_backup  = False 
-            nGFoutputs = len(param.L1OutputRedshifts)
+            nGFoutputs = [] 
+            output_arrs = [param.L1OutputRedshifts, param.TimeSliceRedshifts, param.TimeSliceSubsampleRedshifts]
+            for output_arr in output_arrs:
+                try:
+                    nGFoutputs.append( len(output_arr) )
+                except AttributeError:
+                    nGFoutputs.append(0) 
+
+            print(nGFoutputs)       
+
             if (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60): 
-                for i in range(nGFoutputs):
-                    L1z = param.L1OutputRedshifts[i] 
-                    if L1z <= -1:
-                        continue
-                    L1a = 1.0/(1.0+L1z)                
+                for i in range(len(nGFoutputs)):
+                    print("i: ", i)
+                    for z in range(nGFoutputs[i]):
+                        print("z: ", z, output_arrs[i], output_arrs[i][z])
+                        L1z = output_arrs[i][z] 
+                        if L1z <= -1:
+                            continue
+                        L1a = 1.0/(1.0+L1z)                
                     
-                    #here we assume that the next da will be similar to the previous one. 
-                    if (write_state.Redshift > L1z + 1e-12) and ( 1.0/(1.0+write_state.Redshift) + write_state.DeltaScaleFactor > L1a ):
-                        pre_gf_backup = True 
+                        #here we assume that the next da will be similar to the previous one. 
+                        if (write_state.Redshift > L1z + 1e-12) and ( 1.0/(1.0+write_state.Redshift) + write_state.DeltaScaleFactor > L1a ):
+                            pre_gf_backup = True 
+                    if pre_gf_backup == True:
+                        continue         
             
             exit = out_of_time or abandon_ship
             save = exit or interim_backup or pre_gf_backup
