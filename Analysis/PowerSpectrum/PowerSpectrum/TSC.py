@@ -167,18 +167,7 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
         rotate_to = np.array(rotate_to, dtype=np.float64)
         boxsize /= 3**.5
 
-    # Does the directory name contain 'ic'?
-    abspattern = os.path.abspath(file_pattern)
-    abspattern = abspattern.split(os.sep)
-    isic = re.search(r'\bic(\b|(?=_))', os.sep.join(abspattern))
-
-    # We assume IC data is stored with a BoxSize box, not unit box
-    box_on_disk = 'box' if isic else 1.
-    if isic:
-        file_pattern = pjoin(file_pattern, 'ic_*')
-        warnings.warn("Add IC detection to ReadAbacus!")
-
-    reader_kwargs = dict(return_vel=False, zspace=zspace, dtype=dtype, format=format, units='box', box_on_disk=box_on_disk)
+    reader_kwargs = dict(return_vel=False, zspace=zspace, dtype=dtype, format=format, units='box')
 
     if format == 'pack14':
         reader_kwargs.update(ramdisk=True)

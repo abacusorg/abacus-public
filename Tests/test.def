@@ -29,5 +29,6 @@ hMpc =1
 InitialRedshift = 99
 LagrangianPTOrder = 0
 #include "$ABACUS$/Abacus/directory.def"
-OutputDirectory = @WorkingDirectory@ + "/out"
 #include "$ABACUS$/Abacus/zel.def"
+#include "$ABACUS$/Production/site_files/site.def"
+Parallel = 0

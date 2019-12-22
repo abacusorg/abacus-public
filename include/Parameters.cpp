@@ -184,6 +184,10 @@ public:
 
     int NoChecksum;  // Explicitly disable output checksumming
 
+    int UsePinnedGPUMemory;  // Whether to pin the CPU-side GPU staging buffers
+
+    double MPICallRateLimit_ms;  // Enforce a delay between MPI_Test calls
+
     // Return the L{tier} size in MB
     float getCacheSize(int tier){
         int cache_size = 0;
@@ -308,10 +312,10 @@ public:
             L1OutputRedshifts[i] = -2;
         installvector("L1OutputRedshifts", L1OutputRedshifts, MAX_L1OUTPUT_REDSHIFTS, 1, DONT_CARE);
 
-        //for the Summit sims, we always output PIDs of the two subsamples, even when only full timeslices are requested. So the two subsample fractions should always be defined.
-        //for the future, however, it might make more sense to default them to 0.03 and 0.07, or 0.1 and 0.0. 
-        installscalar("ParticleSubsampleB", ParticleSubsampleB, MUST_DEFINE); 
-        installscalar("ParticleSubsampleA", ParticleSubsampleA, MUST_DEFINE);
+        ParticleSubsampleA = 0.;
+        ParticleSubsampleB = 0.;
+        installscalar("ParticleSubsampleA", ParticleSubsampleA, DONT_CARE);
+        installscalar("ParticleSubsampleB", ParticleSubsampleB, DONT_CARE); 
 		
         strcpy(OutputFormat,"RVdouble");
         // strcpy(OutputFormat,"Packed");
@@ -440,6 +444,12 @@ public:
 
         NoChecksum = 0;
         installscalar("NoChecksum", NoChecksum, DONT_CARE);
+
+        UsePinnedGPUMemory = -1;  // auto
+        installscalar("UsePinnedGPUMemory", UsePinnedGPUMemory, DONT_CARE);
+
+        MPICallRateLimit_ms = 0;
+        installscalar("MPICallRateLimit_ms", MPICallRateLimit_ms, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.

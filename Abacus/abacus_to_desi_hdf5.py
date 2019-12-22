@@ -78,6 +78,10 @@ def convert(p, header, fn, format, ds=None, out_parent=None):
         p['pos'] *= header.BoxSize
         p['vel'] *= header.VelZSpace_to_kms
 
+    # Wrap the particles from [0,L), without changing the origin
+    pos_wrapped = np.ascontiguousarray(p['pos'])
+    Tools.wrap_zero_origin(pos_wrapped, header.BoxSize)
+
     # Copy over header values from Abacus to the DESI cosmo sim names
     h5header = {}
     for k in ['BoxSize', 'InitialRedshift', ('NP', 'NP.Matter'), 'Omega_M', 'Omega_DE', 'H0',
@@ -111,10 +115,10 @@ def convert(p, header, fn, format, ds=None, out_parent=None):
     if name_stem.endswith('.dat'):
         name_stem = name_stem[:-4]
 
-    h5fn = pjoin(h5dir, basename(fn) + '.hdf5')
+    h5fn = pjoin(h5dir, name_stem + '.hdf5')
 
     with h5py.File(h5fn, 'w') as fp:
-        fp.create_dataset("/Matter/Position", data=p['pos'])
+        fp.create_dataset("/Matter/Position", data=pos_wrapped)
         fp.create_dataset("/Matter/Velocity", data=p['vel'])
         fp.create_dataset("/Matter/ParticleID", data=p['pid'])
 
@@ -127,7 +131,7 @@ def convert(p, header, fn, format, ds=None, out_parent=None):
         for k in h5header:
             dset.attrs[k] = h5header[k]
 
-    del p
+    del p, pos_wrapped
     gc.collect()
 
 

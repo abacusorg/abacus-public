@@ -64,6 +64,10 @@ void RecoverReadStateFiles(Parameters &P){
     SingleStepTearDown.Stop();
     WallClockDirect.Stop();
 
+    // Stop Epilogue from trying to write slabsize
+    delete SS;
+    SS = NULL;
+
     // The epilogue contains some tests of success.
     Epilogue(P, MakeIC);
 	

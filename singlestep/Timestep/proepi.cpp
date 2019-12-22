@@ -143,7 +143,7 @@ int FINISH_WAIT_RADIUS = 1;
 
 // Forward-declare GFC
 class GroupFindingControl;
-GroupFindingControl *GFC;
+GroupFindingControl *GFC = NULL;
 
 #include "multiappendlist.cpp"
 #include "insert.cpp"
@@ -686,6 +686,9 @@ void InitGroupFinding(bool MakeIC){
             STDLOG(1,"Using L0DensityThreshold = %f\n", WriteState.L0DensityThreshold);
         }
     } else{
+        GFC = NULL;  // be explicit
+        ReadState.DoGroupFindingOutput = 0;
+        ReadState.DoSubsampleOutput = 0;  // We currently do not support subsample outputs without group finding
         STDLOG(1, "Group finding not enabled for this step.\n");
     }
 
@@ -764,13 +767,13 @@ void MoveLocalDirectories(){
     }
 
     if(IsTrueLocalDirectory(P.LocalReadStateDirectory)){
-        STDLOG(1, "Removing read directory\n")
+        STDLOG(1, "Removing read directory\n");
         int res = RemoveDirectories(P.LocalReadStateDirectory);
         assertf(res == 0, "Failed to remove read directory!\n");
     }
 
     if(IsTrueLocalDirectory(P.LocalWriteStateDirectory)){
-        STDLOG(1, "Moving write directory to read\n")
+        STDLOG(1, "Moving write directory to read\n");
         int res = rename(P.LocalWriteStateDirectory, P.LocalReadStateDirectory);
         assertf(res == 0, "Failed to rename write to read!\n");
     }

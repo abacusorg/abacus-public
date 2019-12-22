@@ -90,15 +90,17 @@ void OutputNonL0Taggable(int slab) {
     WriteState.np_subB_state += nfield[1]; 
 
     for (int i = 0; i < NUM_SUBSAMPLES; i++){
-        if(subsample_fracs[i] > 0 and nfield[i] > 0){
-            // only write the uniform subsample files if they will have non-zero size
-            SB->ResizeSlab(slab_type[i],                slab, nfield[i]*sizeof(RVfloat));
-            SB->ResizeSlab(slab_type[i+NUM_SUBSAMPLES], slab, nfield[i]*sizeof(TaggedPID));
-            SB->StoreArenaNonBlocking(slab_type[i], slab);
-            SB->StoreArenaNonBlocking(slab_type[i+NUM_SUBSAMPLES], slab);
-        } else {
-            SB->DeAllocate(slab_type[i], slab);
-            SB->DeAllocate(slab_type[i+NUM_SUBSAMPLES], slab);
+        if(subsample_fracs[i] > 0){
+            if(nfield[i] > 0){
+                // only write the uniform subsample files if they will have non-zero size
+                SB->ResizeSlab(slab_type[i],                slab, nfield[i]*sizeof(RVfloat));
+                SB->ResizeSlab(slab_type[i+NUM_SUBSAMPLES], slab, nfield[i]*sizeof(TaggedPID));
+                SB->StoreArenaNonBlocking(slab_type[i], slab);
+                SB->StoreArenaNonBlocking(slab_type[i+NUM_SUBSAMPLES], slab);
+            } else {
+                SB->DeAllocate(slab_type[i], slab);
+                SB->DeAllocate(slab_type[i+NUM_SUBSAMPLES], slab);
+            }
         }
         STDLOG(1,"Writing %d non-L0 Taggable particles in slab %d in subsample %d of %d.\n", nfield[i], slab, i+1, NUM_SUBSAMPLES);
     }
