@@ -1040,12 +1040,13 @@ void timestep(void) {
 	
 	
     #ifdef PARALLEL	
+        BarrierWallClock.Clear(); BarrierWallClock.Start();
+        // These reductions force some synchronization, at least!
     	MPI_REDUCE_TO_ZERO(&total_n_output,   1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);		
         MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);		
 		
         STDLOG(2,"Ready to proceed to the remaining work\n");
-				
-		BarrierWallClock.Clear(); BarrierWallClock.Start();
+
         MPI_Barrier(MPI_COMM_WORLD);
 		BarrierWallClock.Stop(); 
 		
