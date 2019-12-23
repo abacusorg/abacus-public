@@ -24,8 +24,8 @@ struct HaloStat {
     float v_com[3];      ///< Center of mass velocity
     float sigmav3d_com;  ///< Sum of eigenvalues
     float meanSpeed_com;  ///< Mean speed
-    float L2_sigmav3d;  ///< Velocity dispersion of the L2 particles
-    float L2_meanSpeed;  ///< Mean speed of the L2 particles
+    float sigmav3d_r50_com;  ///< Velocity dispersion of the inner 50% of particles
+    float meanSpeed_r50_com;  ///< Mean speed of the inner 50% of particles
     float r100_com; ///<Radius of 100% of mass 
     float vcirc_max_com; ///< max velocity 
     float SO_central_particle[3]; ///< Coordinates of the SO central particle (densest particle). 
@@ -35,6 +35,8 @@ struct HaloStat {
     float v_L2com[3];   ///< Center of mass vel of the largest L2 subhalo
     float sigmav3d_L2com;  ///< Sum of eigenvalues
     float meanSpeed_L2com;  ///< Mean speed
+    float sigmav3d_r50_L2com;  ///< Velocity dispersion of the inner 50% of particles
+    float meanSpeed_r50_L2com;  ///< Mean speed of the inner 50% of particles
     float r100_L2com; /// Radius of 100% of mass, relative to L2 center. 
     float vcirc_max_L2com; 
     float SO_L2max_central_particle[3]; ///< Coordinates of the SO central particle (densest particle) for the largest L2 subhalo. 
