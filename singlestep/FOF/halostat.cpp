@@ -116,7 +116,7 @@ HaloStat ComputeStats(int size,
     std::sort(L2.d2_active, L2.d2_active+size);
 
     float r90sq = L2.d2_active[size*9/10]; // radius with respect to which we compute the second moments
-    float r50sq = L2.d2_active[size*0.5]; // radius with respect to which we compute the second moments
+    float r50sq = L2.d2_active[size/2]; // radius with respect to which we compute the second moments
     float isize_r90 = 1./(size*9/10); // number of elements within that radius
     float isize_r50 = 1./(size/2); // number of elements within that radius
     
@@ -141,7 +141,7 @@ HaloStat ComputeStats(int size,
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     rxx = rxy = rxz = ryy = ryz = rzz = 0.0;
     nxx = nxy = nxz = nyy = nyz = nzz = 0.0;
-    vrr = vtt = vmean = 0.0;
+    vrr = vtt = vmean = vmean_r50 = vsq_r50 = 0.0;
     for (int p=0; p<size; p++) {
         if (L2.d2buffer[p] < r90sq) {
             posstruct dr = L1pos[p]-x_com;
@@ -230,7 +230,7 @@ HaloStat ComputeStats(int size,
     std::sort(L2.d2_active, L2.d2_active+size);
 
     r90sq = L2.d2_active[size*9/10]; // radius within which we compute the second moments
-    r50sq = L2.d2_active[size*0.5]; // radius within which we compute the second moments
+    r50sq = L2.d2_active[size/2]; // radius within which we compute the second moments
     isize_r90 = 1./(size*9/10); // number of elements within that radius
     isize_r50 = 1./(size/2); // number of elements within that radius
     
@@ -249,7 +249,7 @@ HaloStat ComputeStats(int size,
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     rxx = rxy = rxz = ryy = ryz = rzz = 0.0;
     nxx = nxy = nxz = nyy = nyz = nzz = 0.0;
-    vrr = vtt = vmean = 0.0;
+    vrr = vtt = vmean = vsq_r50 = vmean_r50 = 0.0;
     for (int p=0; p<size; p++) {
         if (L2.d2buffer[p] < r90sq) {
             posstruct dr = L1pos[p]-x_L2com;
