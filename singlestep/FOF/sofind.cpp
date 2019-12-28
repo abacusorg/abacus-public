@@ -433,7 +433,7 @@ FOFloat partial_search(int len, int mass, FOFloat shell_max_rad2, int &size_thre
         }
     }
     // record result
-    assertf(size_thresh+mass>0, "Found a zero mass interior to a SO shell, len = %d", len);
+    // assertf(size_thresh+mass>0, "Found a zero mass interior to a SO shell, len = %d", len);
     inv_enc_den = (x*sqrt(x))/((size_thresh+mass)*threshold);
     
     if (size_thresh==len) {
@@ -521,7 +521,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             // for every SOcellgroup crossed by the radial bin
             for (int i = 0; i<ncg; i++) {
                 if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
-                    assertf(socg[i].active,"Inactive SOcellgroup!");  // TODO: REMOVE
+                    // assertf(socg[i].active,"Inactive SOcellgroup!");  // TODO: REMOVE
                     // Number of particles for that radial bin in that SOcellgroup
                     size_partition = socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
                     for (int j = 0; j<size_partition; j++) {
@@ -535,8 +535,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             // r partitioned and should remain intact till done with the halo center
             // However, we need an array d2_bin
             // to save only the particle distances in r
-            for (int j=0; j<size_bin; j++) 
-                assertf(d2_bin[j]>=0.0, "Negative d2_bin[%d]\n", j);
+            // for (int j=0; j<size_bin; j++) assertf(d2_bin[j]>=0.0, "Negative d2_bin[%d]\n", j);
                 // TODO: REMOVE
             
             // Search for density threshold in list, given previous mass.
@@ -814,9 +813,9 @@ inline int compute_cellindex(posstruct &p) {
     int i = floor((p.x+CP->halfinvcpd)*CP->cpd)-refcell.x;
     int j = floor((p.y+CP->halfinvcpd)*CP->cpd)-refcell.y;
     int k = floor((p.z+CP->halfinvcpd)*CP->cpd)-refcell.z;
-    assertf(i>=0&&i<256, "Bad cell index i=%d", i);
-    assertf(j>=0&&j<256, "Bad cell index j=%d", j);
-    assertf(k>=0&&k<256, "Bad cell index k=%d", k);
+    // assertf(i>=0&&i<256, "Bad cell index i=%d", i);
+    // assertf(j>=0&&j<256, "Bad cell index j=%d", j);
+    // assertf(k>=0&&k<256, "Bad cell index k=%d", k);
     return (i<<16)|(j<<8)|k;
 }
 
@@ -825,9 +824,9 @@ inline FOFparticle compute_cellcenter(int cellidx) {
     int k = (cellidx&0xff);
     int j = (cellidx&0xff00)>>8;
     int i = (cellidx&0xff0000)>>16;
-    assertf(i>=0&&i<256, "Bad cell index i=%d", i);
-    assertf(j>=0&&j<256, "Bad cell index j=%d", j);
-    assertf(k>=0&&k<256, "Bad cell index k=%d", k);
+    // assertf(i>=0&&i<256, "Bad cell index i=%d", i);
+    // assertf(j>=0&&j<256, "Bad cell index j=%d", j);
+    // assertf(k>=0&&k<256, "Bad cell index k=%d", k);
     posstruct p;
     p.z = CP->invcpd*(k+refcell.z);
     p.y = CP->invcpd*(j+refcell.y);
