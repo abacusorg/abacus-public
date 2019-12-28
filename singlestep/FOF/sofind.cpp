@@ -140,6 +140,7 @@ class SOcell {
     int ngroups;        ///< The number of groups
 
     FOFloat *halo_thresh2; ///< The distance to the threshold squared for each halo center B.H.
+    int *center_particle;  ///< The index of the particle used in each group.
 
     SOcellgroup *socg;  ///< a list of the cell groups
     int *cellindex;     ///< a list for each particle in pos of which cell it belongs to
@@ -193,8 +194,11 @@ class SOcell {
         if (min_inv_den!=NULL) free(min_inv_den);
         ret = posix_memalign((void **)&min_inv_den, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
 
-        if (halo_thresh2!=NULL) free(halo_thresh2); //B.H.
+        if (halo_thresh2!=NULL) free(halo_thresh2); 
         ret = posix_memalign((void **)&halo_thresh2, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
+
+        if (center_particle!=NULL) free(center_particle); 
+        ret = posix_memalign((void **)&center_particle, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
 
         if (cellindex!=NULL) free(cellindex);
         ret = posix_memalign((void **)&cellindex, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
@@ -228,7 +232,8 @@ class SOcell {
         groups = NULL;
         density = NULL;
         min_inv_den = NULL;
-        halo_thresh2 = NULL; // B.H.
+        halo_thresh2 = NULL; 
+        center_particle = NULL;
         halo_inds = NULL;
 
         socg = NULL;
@@ -264,7 +269,8 @@ class SOcell {
         if (groups!=NULL) free(groups); groups = NULL;
         if (density!=NULL) free(density); density = NULL;
         if (min_inv_den!=NULL) free(min_inv_den); min_inv_den = NULL;
-        if (halo_thresh2!=NULL) free(halo_thresh2); halo_thresh2 = NULL; // B.H.
+        if (halo_thresh2!=NULL) free(halo_thresh2); halo_thresh2 = NULL; 
+        if (center_particle!=NULL) free(center_particle); center_particle = NULL; 
         if (halo_inds!=NULL) free(halo_inds); halo_inds = NULL;
 
         if (socg!=NULL) free(socg); socg = NULL;
@@ -656,6 +662,7 @@ int greedySO() {
         // But we always try at least one central.
         if (density[start]<min_central && count>1) break;
         numcenters++;
+        center_particle[count] = p[start].index();
 
         Search.Start();
         FOFloat inv_enc_den;
@@ -783,7 +790,7 @@ void partition_halos(int count) {
 	
         // Mark the group.  
         if (size > 0) {
-            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[halo_ind]); 
+            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[halo_ind],center_particle[halo_ind]); 
             start += size;
         }
     }

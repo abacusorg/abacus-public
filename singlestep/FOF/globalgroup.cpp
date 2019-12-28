@@ -981,25 +981,21 @@ void GlobalGroupSlab::FindSubGroups() {
 
                         #ifdef SPHERICAL_OVERDENSITY
                         //fetch SO stats for this L1 halo.
-                        posstruct central_particle = WrapPosition(L1pos[g][0] + offset);
-
+                        int idx = FOFlevel1[g].groups[a].center_particle;  // Index of the central particle in the L0 set
+                        posstruct central_particle = WrapPosition(grouppos[idx] + offset);
                         h.SO_central_particle[0] = central_particle.x; 
                         h.SO_central_particle[1] = central_particle.y; 
                         h.SO_central_particle[2] = central_particle.z; 
-
-                        h.SO_central_density  = L1acc[g][0].w / FOFlevel1[g].FOFunitdensity; 
-
+                        h.SO_central_density  = groupacc[idx].w / FOFlevel1[g].FOFunitdensity; 
                         h.SO_radius = sqrt(FOFlevel1[g].groups[a].halo_thresh2) / FOF_RESCALE; 
 
                         //now repeat for the largest L2 halo.
-                        posstruct L2max_central_particle = WrapPosition(L1pos[g][FOFlevel2[g].p[FOFlevel2[g].groups[0].start].index()] + offset);
-
+                        idx = FOFlevel2[g].groups[0].center_particle;      // Index of the central particle in the L1 set
+                        posstruct L2max_central_particle = WrapPosition(L1pos[g][idx] + offset);
                         h.SO_L2max_central_particle[0] = L2max_central_particle.x;
                         h.SO_L2max_central_particle[1] = L2max_central_particle.y;
                         h.SO_L2max_central_particle[2] = L2max_central_particle.z;
-
-                        h.SO_L2max_central_density  =    L1acc[g][FOFlevel2[g].p[FOFlevel2[g].groups[0].start].index()].w / FOFlevel2[g].FOFunitdensity; 
-
+                        h.SO_L2max_central_density  =    L1acc[g][idx].w / FOFlevel2[g].FOFunitdensity; 
                         h.SO_L2max_radius = sqrt(FOFlevel2[g].groups[0].halo_thresh2) / FOF_RESCALE; 
 
                         #else
