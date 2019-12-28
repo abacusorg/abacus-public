@@ -370,17 +370,17 @@ elements will be 16-byte aligned for SSE.
 class alignas(16) FOFgroup {
   public:
     FOFparticle BBmin, BBmax;
-    FOFloat halo_thresh2; // The threshold distance squared for each halo center 
+    FOFloat halo_radius2; // The threshold distance squared for each halo center 
     int center_particle;  // The index of the central particle
     int start, n;   // Starting index and Number of particles
     uint8_t tmp[CACHE_LINE_SIZE-8-sizeof(FOFparticle)];     // For alignment padding
     // During calculation, these are in FOF units, but at the
 	// end we restore them to input code units
-    FOFgroup(int _start, int _n, FOFloat _halo_thresh2, int _center) { start = _start; n = _n; halo_thresh2 = _halo_thresh2; center_particle = _center;}
+    FOFgroup(int _start, int _n, FOFloat _halo_radius2, int _center) { start = _start; n = _n; halo_radius2 = _halo_radius2; center_particle = _center;}
     FOFgroup(int _start, int _n, FOFparticle _BBmin, FOFparticle _BBmax) { 
         BBmin = _BBmin; BBmax = _BBmax;
     	start = _start; n = _n; 
-        halo_thresh2=0.0; center_particle = 0;
+        halo_radius2=0.0; center_particle = 0;
     }
     // We're setting up the comparand to sort in *descending* order
     bool operator< (const FOFgroup& c) const { return (c.n<n); }
