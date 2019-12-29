@@ -154,7 +154,7 @@ HaloStat ComputeStats(int size,
             posstruct n = dr*(1.0/sqrt(dr.norm2()+1e-20));
             float vr = dv.x*n.x+dv.y*n.y+dv.z*n.z;
             vrr += vr*vr; // Accumulate
-            float vnorm2 = dv.norm2;
+            float vnorm2 = dv.norm2();
             vtt += vnorm2-vr*vr;  // Accumulate
             nxx += n.x*n.x; nxy += n.x*n.y; nxz += n.x*n.z;
             nyy += n.y*n.y; nyz += n.y*n.z; nzz += n.z*n.z;
@@ -264,8 +264,8 @@ HaloStat ComputeStats(int size,
             posstruct n = dr*(1.0/sqrt(dr.norm2()+1e-20));
             float vr = dv.x*n.x+dv.y*n.y+dv.z*n.z;
             vrr += vr*vr; // Accumulate
-            float vnorm2 = dv.norm2;
-            float vnorm = sqrt(vnorm);
+            float vnorm2 = dv.norm2();
+            float vnorm = sqrt(vnorm2);
             vtt += vnorm2-vr*vr;  // Accumulate
             nxx += n.x*n.x; nxy += n.x*n.y; nxz += n.x*n.z;
             nyy += n.y*n.y; nyz += n.y*n.z; nzz += n.z*n.z;

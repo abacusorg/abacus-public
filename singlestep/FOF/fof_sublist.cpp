@@ -910,7 +910,7 @@ class FOFcell {
 		if (unassigned!=start+1) { 
 		    // Record the multiplet
           //groups[ngroups++] = FOFgroup(start-p, unassigned-start);
-          groups[ngroups++] = FOFgroup(start-p, unassigned-start,0.); //B.H. doesn't matter-reference
+          groups[ngroups++] = FOFgroup(start-p, unassigned-start,0., 0.); //B.H. doesn't matter-reference
 		}
 		// Set up the next group
 		start = primary; unassigned=primary+1;
