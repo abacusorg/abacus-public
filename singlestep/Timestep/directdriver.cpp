@@ -296,7 +296,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     	"Sinks or Sources of the last skewer overflow the maxima.");
 
     uint64 NSink = SS->size(slabID);
-    STDLOG(2,"Using %d direct splits on slab %d, max blocks %d sink and %d source\n", 
+    STDLOG(1,"Using %d direct splits on slab %d, max blocks %d sink and %d source\n", 
     	NSplit, slabID, useMaxSink, useMaxSource);
 
     delete[] SinkBlocks;

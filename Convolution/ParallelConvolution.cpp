@@ -545,7 +545,7 @@ int ParallelConvolution::GetTaylorRecipient(int slab, int offset){
 		for (int _x = first_slabs_all[r] + offset; _x < first_slabs_all[r] + offset + total_slabs_all[r]; _x++) {
 			int x = _x % cpd;
 			if (x == slab){
-				STDLOG(2, "For slab %d, identified node %d as Taylor target\n", slab, r);
+				STDLOG(4, "For slab %d, identified node %d as Taylor target\n", slab, r);
 				return r;
 			}
 		} 
@@ -561,16 +561,16 @@ void ParallelConvolution::SendTaylors(int offset) {
 		//figure out who the receipient should be based on x slab and send to them. 
 		// Take from MTdisk. Set Tsend_requests[x] as request. 	
 		slab = CP->WrapSlab(slab);
-		STDLOG(2, "About to SendTaylor Slab %d with offset %d\n", slab, FORCE_RADIUS); 
+		STDLOG(4, "About to SendTaylor Slab %d with offset %d\n", slab, FORCE_RADIUS); 
 		
 		int r = GetTaylorRecipient(slab, offset); //x-slab slab is in node r's domain. Send to node r. 
 	
 		int tag = (MPI_rank+1) * 10000 + slab + T_TAG; 
 		
 		MPI_Issend(MTdisk + slab * this_node_size, this_node_size, MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Tsend_requests[slab]);
-		STDLOG(2,"Taylor slab %d has been queued for MPI_Issend to rank %d\n", slab, r);
+		STDLOG(3,"Taylor slab %d has been queued for MPI_Issend to rank %d, offset %d\n", slab, r, offset);
 	}
-	
+	STDLOG(2, "MPI_Issend set for outgoing Taylors.\n");
 	QueueTaylors.Stop(); CS.SendTaylors = QueueTaylors.Elapsed(); 
 }
 	
@@ -590,7 +590,7 @@ void ParallelConvolution::RecvTaylorSlab(int slab) {
 		
 		
 	}
-	STDLOG(2,"MPI_Irecv set for incoming Taylors\n");
+	STDLOG(2,"MPI_Irecv set for incoming Taylors.\n");
 	return;
 }
 
