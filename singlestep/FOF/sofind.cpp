@@ -121,9 +121,9 @@ class SOcell {
   public:
     FOFparticle *p;     ///< The particles
     FOFloat *density;   ///< The densities
-    FOFloat *min_inv_den;  ///< The min densities
+    FOFloat *min_inv_den;  ///< The minimum inverse enclosed densities (i.e., highest enclosed density)
 
-    int *halo_inds;       ///< List of halo indices for each particle
+    int *halo_index;       ///< List of halo indices for each particle
     FOFloat *d2buffer;    ///< A buffer of distances
     FOFloat *d2_bin;      ///< A buffer of sorted distances
     int np;             ///< The number of particles in this group
@@ -139,7 +139,8 @@ class SOcell {
     FOFgroup *groups;   ///< The list of found groups
     int ngroups;        ///< The number of groups
 
-    FOFloat *halo_thresh2; ///< The distance to the threshold squared for each halo center B.H.
+    FOFloat *halo_radius2; ///< The distance to the threshold squared for each halo center B.H.
+    int *center_particle;  ///< The index of the particle used in each group.
 
     SOcellgroup *socg;  ///< a list of the cell groups
     int *cellindex;     ///< a list for each particle in pos of which cell it belongs to
@@ -193,14 +194,17 @@ class SOcell {
         if (min_inv_den!=NULL) free(min_inv_den);
         ret = posix_memalign((void **)&min_inv_den, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
 
-        if (halo_thresh2!=NULL) free(halo_thresh2); //B.H.
-        ret = posix_memalign((void **)&halo_thresh2, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
+        if (halo_radius2!=NULL) free(halo_radius2); 
+        ret = posix_memalign((void **)&halo_radius2, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
+
+        if (center_particle!=NULL) free(center_particle); 
+        ret = posix_memalign((void **)&center_particle, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
 
         if (cellindex!=NULL) free(cellindex);
         ret = posix_memalign((void **)&cellindex, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
     
-        if (halo_inds!=NULL) free(halo_inds);
-        ret = posix_memalign((void **)&halo_inds, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
+        if (halo_index!=NULL) free(halo_index);
+        ret = posix_memalign((void **)&halo_index, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
     }
 
     void setup_socg(int size) {
@@ -228,8 +232,9 @@ class SOcell {
         groups = NULL;
         density = NULL;
         min_inv_den = NULL;
-        halo_thresh2 = NULL; // B.H.
-        halo_inds = NULL;
+        halo_radius2 = NULL; 
+        center_particle = NULL;
+        halo_index = NULL;
 
         socg = NULL;
         cellindex = NULL;
@@ -264,8 +269,9 @@ class SOcell {
         if (groups!=NULL) free(groups); groups = NULL;
         if (density!=NULL) free(density); density = NULL;
         if (min_inv_den!=NULL) free(min_inv_den); min_inv_den = NULL;
-        if (halo_thresh2!=NULL) free(halo_thresh2); halo_thresh2 = NULL; // B.H.
-        if (halo_inds!=NULL) free(halo_inds); halo_inds = NULL;
+        if (halo_radius2!=NULL) free(halo_radius2); halo_radius2 = NULL; 
+        if (center_particle!=NULL) free(center_particle); center_particle = NULL; 
+        if (halo_index!=NULL) free(halo_index); halo_index = NULL;
 
         if (socg!=NULL) free(socg); socg = NULL;
         if (cellindex!=NULL) free(cellindex); cellindex = NULL;
@@ -347,7 +353,7 @@ int partition_only(FOFloat r2_part, int start, int last) {
             std::swap(p[s],p[last]);
             std::swap(density[s],density[last]);
             std::swap(d2_active[s],d2_active[last]);
-            std::swap(halo_inds[s],halo_inds[last]);
+            std::swap(halo_index[s],halo_index[last]);
             std::swap(min_inv_den[s],min_inv_den[last]);
             s++;
             while (s<last && d2_active[s]<=r2_part) s++;
@@ -427,7 +433,7 @@ FOFloat partial_search(int len, int mass, FOFloat shell_max_rad2, int &size_thre
         }
     }
     // record result
-    assertf(size_thresh+mass>0, "Found a zero mass interior to a SO shell, len = %d", len);
+    // assertf(size_thresh+mass>0, "Found a zero mass interior to a SO shell, len = %d", len);
     inv_enc_den = (x*sqrt(x))/((size_thresh+mass)*threshold);
     
     if (size_thresh==len) {
@@ -515,7 +521,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             // for every SOcellgroup crossed by the radial bin
             for (int i = 0; i<ncg; i++) {
                 if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
-                    assertf(socg[i].active,"Inactive SOcellgroup!");  // TODO: REMOVE
+                    // assertf(socg[i].active,"Inactive SOcellgroup!");  // TODO: REMOVE
                     // Number of particles for that radial bin in that SOcellgroup
                     size_partition = socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
                     for (int j = 0; j<size_partition; j++) {
@@ -529,8 +535,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             // r partitioned and should remain intact till done with the halo center
             // However, we need an array d2_bin
             // to save only the particle distances in r
-            for (int j=0; j<size_bin; j++) 
-                assertf(d2_bin[j]>=0.0, "Negative d2_bin[%d]\n", j);
+            // for (int j=0; j<size_bin; j++) assertf(d2_bin[j]>=0.0, "Negative d2_bin[%d]\n", j);
                 // TODO: REMOVE
             
             // Search for density threshold in list, given previous mass.
@@ -629,7 +634,7 @@ int greedySO() {
     int densest = -1;
     FOFloat maxdens = -1.0;
 
-    halo_thresh2[0] = 0.;  /// halo[0] is the unassigned fluff, counting starts at 1 B.H.
+    halo_radius2[0] = 0.;  /// halo[0] is the unassigned fluff, counting starts at 1 B.H.
     int count = 1;        /// The number of the group
     
     Sweep.Start();
@@ -637,8 +642,8 @@ int greedySO() {
     for (int j=0; j<np; j++) {
         // Initialize the minimum inverse enclosed density and halo indices arrays
         min_inv_den[j] = 1.e30;
-        halo_inds[j] = 0;
-        // An unassigned halo has halo_inds=0; first halo has 1; second 2, third 3, etc.
+        halo_index[j] = 0;
+        // An unassigned halo has halo_index=0; first halo has 1; second 2, third 3, etc.
         // Looks for densest particle in L0
         if (density[j]>maxdens) {
             maxdens=density[j];
@@ -656,6 +661,7 @@ int greedySO() {
         // But we always try at least one central.
         if (density[start]<min_central && count>1) break;
         numcenters++;
+        center_particle[count] = p[start].index();
 
         Search.Start();
         FOFloat inv_enc_den;
@@ -665,7 +671,7 @@ int greedySO() {
         // Threshold distance d2SO has the property that all particles within it
         // satisfy the overdensity condition
         FOFloat d2SO = search_socg_thresh(p+start,mass,inv_enc_den);
-        halo_thresh2[count] = d2SO;
+        halo_radius2[count] = d2SO;
         // Threshold distance d2SO has the property that particles
         // found in it can never be eligible centers
         
@@ -695,20 +701,20 @@ int greedySO() {
                 socg[i].active = 0;
 		// Loop over all particles in that cell
                 for (int j=socg[i].start[0]; j<socg[i].start[4]; j++) {
-            // for those within the threshold distance, set their halo_inds to a negative number to
+            // for those within the threshold distance, set their halo_index to a negative number to
 		    // make them ineligible to be halo centers
                     if (d2_active[j]<d2SO) {
 		        // If this particle has not yet been assigned to a halo, set it to -1
 		        // as a placeholder (will be changed within loop, see ***). If already assigned,
 		        // make sure the halo_index remains negative (i.e. particle ineligible
 		        // to ever be a halo center)
-                        halo_inds[j] = (halo_inds[j]==0)?(-1):-abs(halo_inds[j]);
+                        halo_index[j] = (halo_index[j]==0)?(-1):-abs(halo_index[j]);
                     }
                     // For those outside the threshold distance which are
-		    // still active (i.e. halo_inds is non-negative) and eligible, i.e. satisfies the
+		    // still active (i.e. halo_index is non-negative) and eligible, i.e. satisfies the
 		    // local density to max enclosed density ratio criterion,
 		    // check whether any can be the next densest particle.
-                    else if (density[j]>maxdens && halo_inds[j]>=0) {
+                    else if (density[j]>maxdens && halo_index[j]>=0) {
                         maxdens=density[j];
                         densest = j;
 			// If the particle is outside the density threshold, we don't need to look
@@ -727,12 +733,12 @@ int greedySO() {
                     if (min_inv_den[j] > inv_d) {
                         // Update the max dens for that particle
                       if (min_inv_den[j] > mag_roche*inv_d) {
-                            halo_inds[j] = (halo_inds[j]<0)?(-count):count;
+                            halo_index[j] = (halo_index[j]<0)?(-count):count;
                       }
                         min_inv_den[j] = inv_d;
                         // If this particle has already been marked as ineligible (i.e. has negative
-			// halo_inds), preserve the sign and just change its halo assignment (*** notice
-			// that the halo_inds in this case will definitely change within this loop)
+			// halo_index), preserve the sign and just change its halo assignment (*** notice
+			// that the halo_index in this case will definitely change within this loop)
 			// The halo index gets updated only if the enclosed density of the particle
             // with respect to the newcomer is  mag_roche times its largest enclosed density so far
                     }
@@ -742,7 +748,7 @@ int greedySO() {
             // which are eligible to be halo centers to check whether any of them can be the next densest
             else {
                 for (int j=socg[i].start[0]; j<socg[i].start[4]; j++) {
-                    if (density[j]>maxdens && halo_inds[j]>=0) {
+                    if (density[j]>maxdens && halo_index[j]>=0) {
                         maxdens=density[j];
                         densest = j;
                     }
@@ -766,7 +772,7 @@ void partition_halos(int count) {
     
     Sort.Start();
     for (int j=0; j<np; j++) {
-      halo_inds[j] = abs(halo_inds[j]);
+      halo_index[j] = abs(halo_index[j]);
     }
     
     int size = 0;
@@ -779,11 +785,11 @@ void partition_halos(int count) {
 
         // Partition so as to move left all particles in halo halo_ind.
         // This also moves the densest particle to the start of its list.
-        partition_and_index(halo_inds, halo_ind, start, np, size);
+        partition_and_index(halo_index, halo_ind, start, np, size);
 	
         // Mark the group.  
         if (size > 0) {
-            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_thresh2[halo_ind]); 
+            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_radius2[halo_ind],center_particle[halo_ind]); 
             start += size;
         }
     }
@@ -807,9 +813,9 @@ inline int compute_cellindex(posstruct &p) {
     int i = floor((p.x+CP->halfinvcpd)*CP->cpd)-refcell.x;
     int j = floor((p.y+CP->halfinvcpd)*CP->cpd)-refcell.y;
     int k = floor((p.z+CP->halfinvcpd)*CP->cpd)-refcell.z;
-    assertf(i>=0&&i<256, "Bad cell index i=%d", i);
-    assertf(j>=0&&j<256, "Bad cell index j=%d", j);
-    assertf(k>=0&&k<256, "Bad cell index k=%d", k);
+    // assertf(i>=0&&i<256, "Bad cell index i=%d", i);
+    // assertf(j>=0&&j<256, "Bad cell index j=%d", j);
+    // assertf(k>=0&&k<256, "Bad cell index k=%d", k);
     return (i<<16)|(j<<8)|k;
 }
 
@@ -818,9 +824,9 @@ inline FOFparticle compute_cellcenter(int cellidx) {
     int k = (cellidx&0xff);
     int j = (cellidx&0xff00)>>8;
     int i = (cellidx&0xff0000)>>16;
-    assertf(i>=0&&i<256, "Bad cell index i=%d", i);
-    assertf(j>=0&&j<256, "Bad cell index j=%d", j);
-    assertf(k>=0&&k<256, "Bad cell index k=%d", k);
+    // assertf(i>=0&&i<256, "Bad cell index i=%d", i);
+    // assertf(j>=0&&j<256, "Bad cell index j=%d", j);
+    // assertf(k>=0&&k<256, "Bad cell index k=%d", k);
     posstruct p;
     p.z = CP->invcpd*(k+refcell.z);
     p.y = CP->invcpd*(j+refcell.y);
@@ -887,8 +893,8 @@ int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, FLOAT3p1 *acc, in
 
     // TODO question: After this point, do we ever use the particle cellindex again?
     // If not, then let's not permute it. BTH I don't think it's being permuted
-    // TODO: In fact, it seems we could have re-used halo_inds[].
-    // BTH Am in that case going to use halo_inds here instead of cellindex --> should it be indbuffer
+    // TODO: In fact, it seems we could have re-used halo_index[].
+    // BTH Am in that case going to use halo_index here instead of cellindex --> should it be indbuffer
     // I think we agreed that the particle index is in fact all that is needed
     // if we want to put the L1 particles back into cellgroup order.
 
