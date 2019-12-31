@@ -274,8 +274,16 @@ void TaylorForceAction(int slab) {
         // This must be a blocking write.
         SB->WriteArena(FarAccSlab, slab, IO_KEEP, IO_BLOCKING);
     }
+
+#ifdef PARALLEL
+    // If parallel, the Taylors came via MPI and don't have a corresponding slab file
+    int delete_taylors_file = 0;
+#else
     // Deallocate and delete the underlying file if we're overwriting
-    SB->DeAllocate(TaylorSlab, slab, WriteState.OverwriteConvState);
+    int delete_taylors_file = WriteState.OverwriteConvState;
+#endif
+
+    SB->DeAllocate(TaylorSlab, slab, delete_taylors_file);
     SlabFarForceTime[slab].Stop();
 }
 
