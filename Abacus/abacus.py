@@ -644,9 +644,18 @@ class StatusLogWriter:
     #line_fmt = '{step:4d}  {z:6.1f}  {ss_rate:.1g} Mp/s ({ss_time:.1g} s) {conv_time:.1g}'
 
     fields = {'Step': '{:4d}',
-              'Redshift': '{:.3g}',
-              'Singlestep': '{0[0]:.3g} Mp/s ({0[1]:.3g} s)',
-              'Conv': '{:.3g} s'}
+              'Redshift': '{:.4g}',
+              'Singlestep': '{0[0]:.4g} Mp/s, {0[1]:.4g  s)',
+              'Conv': '{:.4g} s',
+              'DeltaZ': '{:.3g}',
+              'Time': '{:.4g}',
+              'DeltaT': '{:.3g}',
+              'MaxGroupDiam': '{:2d}',
+              'MaxL0Size': '{:7d}',
+              'RMSVel': '{:.3g}',
+              'MaxVel': '{:.3g}',
+              'RMSCellSize': '{:.3g}'
+              }
 
     topmatter = ['Abacus Status Log',
                  'simname, timestamp',
@@ -661,6 +670,7 @@ class StatusLogWriter:
 
         self.logger = table_logger.TableLogger(file=self.log_fp,
                                                columns=list(self.fields),
+                                               default_colwidth=7,
                                                formatters=self.fields)
     def __del__(self):
         self.logger.make_horizontal_border()
@@ -700,11 +710,11 @@ class StatusLogWriter:
             except:
                 conv_time = 0.
 
-        info = dict(Step=step_num, Singlestep=(ss_rate,ss_time), Conv=conv_time, \
-            Redshift=state.Redshift, DeltaZ=state.DeltaRedshift, \
-            Time=state.Time, DeltaT=state.DeltaTime, \
-            MaxGroupDiam=state.MaxGroupDiameter, MaxL0Size=state.MaxL0GroupSize, \
-            RMSVel=state.RMS_Velocity, MaxVel=state.MaxVelocity, \
+        info = dict(Step=step_num, Singlestep=(ss_rate,ss_time), Conv=conv_time, 
+            Redshift=state.Redshift, DeltaZ=state.DeltaRedshift, 
+            Time=state.Time, DeltaT=state.DeltaTime, 
+            MaxGroupDiam=state.MaxGroupDiameter, MaxL0Size=state.MaxL0GroupSize, 
+            RMSVel=state.RMS_Velocity, MaxVel=state.MaxVelocity, 
             RMSCellSize=state.StdDevCellSize )
 
         self.logger(*(info[k] for k in self.fields))
