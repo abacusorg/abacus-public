@@ -104,6 +104,7 @@ public:
     double StdDevCellSize;
     double RMS_Velocity;
     int MaxGroupDiameter; 
+    int MaxL0GroupSize;
     // The variables below are not intended for output.  Just used in the code.
 
     // We will write a lot of state information into the header of output
@@ -216,6 +217,8 @@ public:
     	installscalar("RMS_Velocity",RMS_Velocity,DONT_CARE);
         MaxGroupDiameter = 0; 
         installscalar("MaxGroupDiameter",MaxGroupDiameter,DONT_CARE);
+        MaxL0GroupSize = 0;
+        installscalar("MaxL0GroupSize",MaxL0GroupSize,DONT_CARE);
         // Initialize helper variables
         DoTimeSliceOutput = 0;
         OutputIsAllowed = 0;
@@ -348,6 +351,7 @@ void State::write_to_file(const char *dir, const char *suffix) {
     WPR(MinCellSize              , ISYM);
     WPR(StdDevCellSize           , FSYM);
     WPR(MaxGroupDiameter         , ISYM); 
+    WPR(MaxL0GroupSize           , ISYM); 
 
     time_t now  = time(0);
     fprintf(statefp,"#State written:%s\n",asctime(localtime(&now)) );

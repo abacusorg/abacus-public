@@ -213,6 +213,7 @@ class GroupFindingControl {
 	 WriteState.MaxGroupDiameter = max_group_diameter; 
 
 	 GLOG(0,"Largest Global Group has %d particles\n", largest_GG);
+	 WriteState.MaxL0GroupSize = largest_GG; 
 
 	 GLOG(0,"L0 group multiplicity distribution:\n");
 	 L0stats.report_multiplicities(grouplog);

@@ -791,6 +791,8 @@ void FinalizeWriteState() {
         STDLOG(1,"Minimum cell Vrms/Amax in node is %f.\n", WriteState.MinVrmsOnAmax);
         STDLOG(1,"Unnormalized node RMS_Velocity = %f.\n", WriteState.RMS_Velocity);
         STDLOG(1,"Unnormalized node StdDevCellSize = %f.\n", WriteState.StdDevCellSize);
+        STDLOG(1,"Maximum group diameter in node is %d.\n", WriteState.MaxGroupDiameter); 
+        STDLOG(1,"Maximum L0 group size in node is %d.\n", WriteState.MaxL0GroupSize); 
     
         // If we're running in parallel, then we want to gather some
         // state statistics across the nodes.  We start by writing the 
@@ -815,6 +817,10 @@ void FinalizeWriteState() {
         MPI_REDUCE_TO_ZERO(&WriteState.RMS_Velocity, 1, MPI_DOUBLE, MPI_SUM);
         // sqrt(Sum(SQR of StdDevCellSize))
         MPI_REDUCE_TO_ZERO(&WriteState.StdDevCellSize, 1, MPI_DOUBLE, MPI_SUM);
+        // Maximize MaxGroupDiameter
+        MPI_REDUCE_TO_ZERO(&WriteState.MaxGroupDiameter, 1, MPI_INT, MPI_MAX);
+        // Maximize MaxL0GroupSize
+        MPI_REDUCE_TO_ZERO(&WriteState.MaxL0GroupSize, 1, MPI_INT, MPI_MAX);
 // #undef MPI_REDUCE_IN_PLACE
 
         // Note that we're not summing up any timing or group finding reporting;
@@ -834,6 +840,7 @@ void FinalizeWriteState() {
     STDLOG(0,"Maximum a_j in simulation is %f code units.\n", WriteState.MaxAcceleration);
     STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f code units.\n", WriteState.MinVrmsOnAmax);
     STDLOG(0,"Maximum group diameter in simulation is %d.\n", WriteState.MaxGroupDiameter); 
+    STDLOG(0,"Maximum L0 group size in simulation is %d.\n", WriteState.MaxL0GroupSize); 
 
     //NAM TODO put an intelligent assertf here. 
     // the things we'd really like to check are: 
