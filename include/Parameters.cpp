@@ -430,7 +430,7 @@ public:
         OutputAllHaloParticles = 0;
         installscalar("OutputAllHaloParticles", OutputAllHaloParticles, DONT_CARE);
 
-        MicrostepTimeStep = 1.;
+        MicrostepTimeStep = 0.;
         installscalar("MicrostepTimeStep", MicrostepTimeStep, DONT_CARE);
 
         MaxPID = -1;
