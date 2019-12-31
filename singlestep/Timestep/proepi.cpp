@@ -830,8 +830,8 @@ void FinalizeWriteState() {
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
         // This is the standard deviation of the fractional overdensity in cells.
         // But for the parallel code: this has been divided by CPD^3, not the number of cells on the node
-    STDLOG(0,"MinCellSize = %d, MaxCellSize = %d\n", 
-        WriteState.MinCellSize, WriteState.MaxCellSize);
+    STDLOG(0,"MinCellSize = %d, MaxCellSize = %d, RMS Fractional Overdensity = %g\n", 
+        WriteState.MinCellSize, WriteState.MaxCellSize, WriteState.StdDevCellSize);
     WriteState.RMS_Velocity = sqrt(WriteState.RMS_Velocity/P.np);
     WriteState.RMS_Velocity *= WriteState.VelZSpace_to_kms/WriteState.VelZSpace_to_Canonical;  // Change to km/s
     STDLOG(0,"Rms |v| in simulation is %f km/s.\n", WriteState.RMS_Velocity);
