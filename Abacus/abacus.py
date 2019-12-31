@@ -700,7 +700,12 @@ class StatusLogWriter:
             except:
                 conv_time = 0.
 
-        info = dict(Step=step_num, Redshift=state.Redshift, Singlestep=(ss_rate,ss_time), Conv=conv_time)
+        info = dict(Step=step_num, Singlestep=(ss_rate,ss_time), Conv=conv_time, \
+            Redshift=state.Redshift, DeltaZ=state.DeltaRedshift, \
+            Time=state.Time, DeltaT=state.DeltaTime, \
+            MaxGroupDiam=state.MaxGroupDiameter, MaxL0Size=state.MaxL0GroupSize, \
+            RMSVel=state.RMS_Velocity, MaxVel=state.MaxVelocity, \
+            RMSCellSize=state.StdDevCellSize )
 
         self.logger(*(info[k] for k in self.fields))
 
