@@ -138,7 +138,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	Mrecv_requests = new MPI_Request[cpd];
 	Trecv_requests = new MPI_Request * [cpd];
 	Tsend_requests = new MPI_Request[cpd];
-	
+
 	Msend_active = 0;
 	Trecv_active = 0;
 
@@ -154,6 +154,8 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
         TaylorSlabAllMPIDone[x] = 0;
         MultipoleSlabAllMPIDone[x] = 0;
 	} 
+    
+    MsendTimer = new STimer[cpd];
 
 	
 	int DIOBufferSizeKB = 1LL<<11;
@@ -196,6 +198,7 @@ ParallelConvolution::~ParallelConvolution() {
 
     delete[] TaylorSlabAllMPIDone;
     delete[] MultipoleSlabAllMPIDone;
+    delete[] MSendTimer;
 
 	delete[] node_start; 
 	delete[] node_size; 
@@ -449,6 +452,7 @@ void ParallelConvolution::SendMultipoleSlab(int slab) {
 		int tag = (r+1) * 10000 + slab + M_TAG; 
 		MPI_Issend(mt + node_start[r], node_size[r], MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Msend_requests[slab][r]);		
 	}
+    MsendTimer[slab].Start();
 	STDLOG(2,"Multipole slab %d has been queued for MPI_Issend, Msend_active = %d\n", slab, Msend_active);
 }
 
@@ -498,7 +502,8 @@ int ParallelConvolution::CheckSendMultipoleComplete(int slab) {
  		Msend_requests[x] = NULL;   // This will allow us to check faster
 
 		Msend_active--;
-		STDLOG(2,"MPI_Issend complete for MultipoleSlab %d, Msend_active = %d\n", x, Msend_active);
+        MsendTimer[slab].Stop();
+		STDLOG(1,"MPI_Issend complete for MultipoleSlab %d after %6.3f sec, Msend_active = %d\n", x, MsendTimer[slab].Elapsed(), Msend_active);
     }
 	
 	return done; 
