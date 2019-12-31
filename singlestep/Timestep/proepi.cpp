@@ -827,10 +827,12 @@ void FinalizeWriteState() {
     STDLOG(0,"MinCellSize = %d, MaxCellSize = %d\n", 
         WriteState.MinCellSize, WriteState.MaxCellSize);
     WriteState.RMS_Velocity = sqrt(WriteState.RMS_Velocity/P.np);
-    STDLOG(0,"Rms |v| in simulation is %f.\n", WriteState.RMS_Velocity);
-    STDLOG(0,"Maximum v_j in simulation is %f.\n", WriteState.MaxVelocity);
-    STDLOG(0,"Maximum a_j in simulation is %f.\n", WriteState.MaxAcceleration);
-    STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f.\n", WriteState.MinVrmsOnAmax);
+    WriteState.RMS_Velocity *= WriteState.VelZSpace_to_kms/WriteState.VelZSpace_to_Canonical;  // Change to km/s
+    STDLOG(0,"Rms |v| in simulation is %f km/s.\n", WriteState.RMS_Velocity);
+    WriteState.MaxVelocity *= WriteState.VelZSpace_to_kms/WriteState.VelZSpace_to_Canonical;  // Change to km/s
+    STDLOG(0,"Maximum v_j in simulation is %f km/s.\n", WriteState.MaxVelocity);
+    STDLOG(0,"Maximum a_j in simulation is %f code units.\n", WriteState.MaxAcceleration);
+    STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f code units.\n", WriteState.MinVrmsOnAmax);
     STDLOG(0,"Maximum group diameter in simulation is %d.\n", WriteState.MaxGroupDiameter); 
 
     //NAM TODO put an intelligent assertf here. 
