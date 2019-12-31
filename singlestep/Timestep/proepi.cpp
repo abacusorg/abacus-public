@@ -597,7 +597,7 @@ void InitGroupFinding(bool MakeIC){
      But we can't enable it if:
     - AllowGroupFinding is disabled
     - ForceOutputDebug is enabled
-    - This is an IC step
+    - This is an IC or 2LPT step
     ForceOutputDebug outputs accelerations as soon as we compute them
     i.e. before GroupFinding has a chance to rearrange them
     */
@@ -635,7 +635,7 @@ void InitGroupFinding(bool MakeIC){
 
     // Can we enable group finding?
     if((P.MicrostepTimeStep > 0 || do_grp_output) &&
-        !(!P.AllowGroupFinding || P.ForceOutputDebug || MakeIC)){
+        !(!P.AllowGroupFinding || P.ForceOutputDebug || MakeIC || LPTStepNumber())){
         STDLOG(1, "Setting up group finding\n");
 
         ReadState.DoGroupFindingOutput = do_grp_output; // if any kind of output is requested, turn on group finding.
