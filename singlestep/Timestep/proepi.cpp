@@ -329,6 +329,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
                 MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
         }
         delete MF;
+        MF = NULL;
     }
 
     if(ReadState.DoBinning){
@@ -345,11 +346,16 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     SB->report();
     delete SB;
+    SB = NULL;
     STDLOG(2,"Deleted SB\n");
     delete CP;
+    CP = NULL;
     delete IL;
+    IL = NULL;
     delete SS;
+    SS = NULL;
     delete Grid;
+    Grid = NULL;
 	
 	FreeManifest();
 
@@ -368,14 +374,23 @@ void Epilogue(Parameters &P, bool MakeIC) {
         }
         
             delete TY;
+            TY = NULL;
             STDLOG(2,"Deleted TY\n");
             delete RL;
+            RL = NULL;
             delete[] SlabForceLatency;
+            SlabForceLatency = NULL;
             delete[] SlabForceTime;
+            SlabForceTime = NULL;
             delete[] SlabFarForceTime;
-            if (GFC!=NULL) delete GFC;
+            SlabFarForceTime = NULL;
+            if (GFC!=NULL){
+                delete GFC;
+                GFC = NULL;
+            }
             STDLOG(2,"Done with Epilogue; about to kill the GPUs\n");
             delete NFD;
+            NFD = NULL;
     }
 
 
