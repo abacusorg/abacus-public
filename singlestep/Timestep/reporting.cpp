@@ -28,13 +28,13 @@
  *  report tend to lag the rest of the code, since changing it is a major process.
  */
 
-#define REPORT_BUFFER_SIZE (sizeof(char) * 128*1024)
+#define REPORT_BUFFER_SIZE (sizeof(char) * 256*1024)
 
 char *reportbuffer;
 FILE *reportfp;
 
 void InitializeReport() {
-    reportbuffer = (char *) malloc(REPORT_BUFFER_SIZE);  //  allocate a 128 KB string buffer for the timings file
+    reportbuffer = (char *) malloc(REPORT_BUFFER_SIZE);  //  allocate a 256 KB string buffer for the timings file
     reportfp = fmemopen(reportbuffer, REPORT_BUFFER_SIZE, "w");
     return;
 }
@@ -456,6 +456,10 @@ void GatherTimings() {
     REPORT(0, "\nAllocate Arena Memory", arena_malloc);
     REPORT(0, "Free Arena Memory", arena_free);
     REPORT(0, "Free SlabAccum Variables", SlabAccumFree.Elapsed());
+
+    REPORT(0,"\nMinCellSize = %d, MaxCellSize = %d, RMS Fractional Overdensity = %10.4e\n",
+        WriteState.MinCellSize, WriteState.MaxCellSize, WriteState.StdDevCellSize);
+    REPORT(0,"Rms |v| in simulation is %f.\n", WriteState.RMS_Velocity);
 
     if (GFC!=NULL) {
         // Now write some detailed multiplicity and timing stats to lastrun.grouplog
