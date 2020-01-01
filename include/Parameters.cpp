@@ -188,6 +188,10 @@ public:
 
     double MPICallRateLimit_ms;  // Enforce a delay between MPI_Test calls
 
+    int UseMunmapThread;  // dedicated munmap() thread in ArenaAllocator
+
+    int MunmapThreadCore;  // Core binding for disposal thread
+
     // Return the L{tier} size in MB
     float getCacheSize(int tier){
         int cache_size = 0;
