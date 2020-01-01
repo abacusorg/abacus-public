@@ -43,6 +43,9 @@ STimer  MunmapMT;
 STimer  MmapDerivs; 
 STimer  MunmapDerivs; 
 
+#define CONVTIMEBUFSIZE 65536
+char *convtimebuffer;    // This has to be allocated and freed outside of this class
+
 /// The zstart for the node of the given rank.
 int ParallelConvolution::Zstart(int rank) {
     return (cpd2p1*rank/MPI_size); 
@@ -80,6 +83,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	zstart = Zstart(MPI_rank);
 	znode = Zstart(MPI_rank+1)-zstart;
 	this_node_size = znode*rml*cpd;
+    convtimebuffer = NULL;
 	
 	STDLOG(2, "Doing zstart = %d and znode = %d\n", zstart, znode);
 	
@@ -876,11 +880,14 @@ void ParallelConvolution::Convolve() {
 
 /* ======================== REPORTING ======================== */ 
 
-void ParallelConvolution::dumpstats(char *fn) {
+void ParallelConvolution::dumpstats(FILE *fp) {
+    if (convtimebuffer==NULL) return;
 
-    FILE *fp;
-    fp = fopen(fn,"w");
-    assert(fp!=NULL);
+    FILE *fp = fmemopen(convtimebuffer, CONVTIMEBUFSIZE, "w");
+
+    //FILE *fp;
+    //fp = fopen(fn,"w");
+    //assert(fp!=NULL);
 
 
     double accountedtime  = CS.ConvolutionArithmetic;

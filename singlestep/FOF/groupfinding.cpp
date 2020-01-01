@@ -3,8 +3,10 @@ We include this file in the program, and it includes the rest.
 */
 
 // Use GLOG instead of STDLOG to write to the lastrun.groupstats file
-#define GLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
-	LOG(*grouplog,__VA_ARGS__); grouplog->flush(); } }
+// #define GLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
+// 	LOG(*grouplog,__VA_ARGS__); grouplog->flush(); } }
+
+#define GLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) fprintf(reportfp,__VA_ARGS__);
 
 
 #include "fof_sublist.cpp"
@@ -93,7 +95,7 @@ class GroupFindingControl {
     PTimer L1FOF, L2FOF, L1Tot;
     PTimer IndexLinksSearch, IndexLinksIndex;
 	
-	std::ofstream *grouplog;
+	// std::ofstream *grouplog;
 
     // number of timeslice output particles written to disk
     uint64 n_L0_output = 0;
@@ -109,6 +111,7 @@ class GroupFindingControl {
     GroupFindingControl(FOFloat _linking_length, 
     	FOFloat _level1, FOFloat _level2,
         int _cpd, int _GroupRadius, int _minhalosize, uint64 _np) {
+        /*
     #ifdef STANDALONE_FOF
         grouplog = &stdlog;
     #else
@@ -117,6 +120,8 @@ class GroupFindingControl {
         grouplog = new std::ofstream();
         grouplog->open(glogfn);
     #endif
+    */
+    
 
 
         char onoff[5];
@@ -188,7 +193,7 @@ class GroupFindingControl {
     void DestroyCellGroups(int slab);
 	
     /// This generates the log report
-    void report() {
+    void report(FILE *reportfp) {
      float FOFunitdensity    = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
 
 	 GLOG(0,"Considered %f G particles as active\n", CGactive/1e9);
@@ -215,17 +220,17 @@ class GroupFindingControl {
 	 GLOG(0,"Largest Global Group has %d particles\n", largest_GG);
 
 	 GLOG(0,"L0 group multiplicity distribution:\n");
-	 L0stats.report_multiplicities(grouplog);
+	 L0stats.report_multiplicities(reportfp);
 
 	 GLOG(0,"L1 & L2 groups min size = %d\n", minhalosize);
 	 GLOG(0,"L1 groups required %f G distances, %f G sorts, %f G centers, %f G cg\n", numdists1/1e9, numsorts1/1e9, numcenters1/1e9, numcg1/1e9);
 	 GLOG(0,"L2 groups required %f G distances, %f G sorts, %f G centers, %f G cg\n", numdists2/1e9, numsorts2/1e9, numcenters2/1e9, numcg2/1e9);
 	 GLOG(0,"L1 group multiplicity distribution:\n");
 	 GLOG(0,"Total number of L1 groups considered %f M\n", numgroups1/1e6);
-	 L1stats.report_multiplicities(grouplog);
+	 L1stats.report_multiplicities(reportfp);
 	 GLOG(0,"L2 group multiplicity distribution:\n");
 	 GLOG(0,"Total number of L2 groups considered %f M\n", numgroups2/1e6);
-     L2stats.report_multiplicities(grouplog);
+     L2stats.report_multiplicities(reportfp);
      
 	 float total_time = CellGroupTime.Elapsed()+
 			CreateFaceTime.Elapsed()+
@@ -441,10 +446,12 @@ GroupFindingControl::~GroupFindingControl() {
     for (int j=0;j<cpd;j++) assert(cellgroups_status[j] != 1);
     delete[] cellgroups_status;
     delete GLL;
+    /*
     #ifndef STANDALONE_FOF
     grouplog->close();
     delete grouplog;
     #endif
+    */
 
     delete[] globalslabs;
 }
