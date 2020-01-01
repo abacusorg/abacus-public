@@ -225,14 +225,15 @@ void GatherTimings() {
     double slabforcelatencysigma = 0;
     double slabforcemaxlatency = 0;
     double slabforceminlatency = 1e9;
-    char *slabtimesbuffer = (char *) malloc(REPORT_BUFFER_SIZE);  //  allocate a 128 KB string buffer for the timings file
-    FILE *slabtimesfp = fmemopen(slabtimesbuffer, REPORT_BUFFER_SIZE, "w");
+    char *slabtimesbuffer = NULL;
 
     if(NFD){
         //char fn[1024];
         //int ret = snprintf(fn, 1024, "%s/lastrun%s.slabtimes",P.LogDirectory, NodeString);
         //assert(ret >= 0 && ret < 1024);
         //FILE* slabtimefile = fopen(fn,"wb");
+        slabtimesbuffer = (char *) malloc(REPORT_BUFFER_SIZE);  //  allocate a 128 KB string buffer for the timings file
+        FILE *slabtimesfp = fmemopen(slabtimesbuffer, REPORT_BUFFER_SIZE, "w");
         for(int i =0; i < P.cpd;i++){
             double slabtime = SlabForceTime[i].Elapsed();
             slabforcetimemean += SlabForceTime[i].Elapsed()/P.cpd;
@@ -252,8 +253,8 @@ void GatherTimings() {
             //fwrite(&slablatency,sizeof(double),1,slabtimefile);
         }
         //fclose(slabtimefile);
+        fclose(slabtimesfp);
     }
-    fclose(slabtimesfp);
     slabforcetimesigma =  sqrt(slabforcetimesigma    - slabforcetimemean*slabforcetimemean);
     slabforcelatencysigma=sqrt(slabforcelatencysigma - slabforcelatencymean*slabforcelatencymean);
 
@@ -471,6 +472,7 @@ void GatherTimings() {
     if (convtimebuffer!=NULL) {
         fprintf(reportfp, "\n\n========================================================================\n");
         fputs(convtimebuffer, reportfp);
+        free(convtimebuffer);
     }
     #endif
 
@@ -478,6 +480,7 @@ void GatherTimings() {
         fprintf(reportfp, "\n\n========================================================================\n");
         fprintf(reportfp, "GPU Timings\nSlab   Time   Latency\n");
         fputs(slabtimesbuffer, reportfp);
+        free(slabtimesbuffer);
     }
 	
 }
