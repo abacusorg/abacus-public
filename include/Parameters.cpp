@@ -454,6 +454,12 @@ public:
 
         MPICallRateLimit_ms = 1;
         installscalar("MPICallRateLimit_ms", MPICallRateLimit_ms, DONT_CARE);
+
+        UseMunmapThread = 1;
+        installscalar("UseMunmapThread", UseMunmapThread, DONT_CARE);
+
+        MunmapThreadCore = -1;
+        installscalar("MunmapThreadCore", MunmapThreadCore, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.
