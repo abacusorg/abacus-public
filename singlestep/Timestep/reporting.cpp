@@ -58,6 +58,7 @@ void InitializeReport() {
  * which runs after the Epilogue.
  */
 void GatherTimings() {
+    InitializeReport();
     if(NFD)
         NFD->AggregateStats();
 
