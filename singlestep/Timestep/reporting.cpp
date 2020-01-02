@@ -459,7 +459,7 @@ void GatherTimings() {
     REPORT(0, "Free Arena Memory", arena_free);
     REPORT(0, "Free SlabAccum Variables", SlabAccumFree.Elapsed());
 
-    fprintf(reportfp,"\nMinCellSize = %d, MaxCellSize = %d, RMS Fractional Overdensity = %10.4e\n",
+    fprintf(reportfp,"\n\nMinCellSize = %d, MaxCellSize = %d, RMS Fractional Overdensity = %10.4e\n",
         WriteState.MinCellSize, WriteState.MaxCellSize, WriteState.StdDevCellSize);
     fprintf(reportfp,"Rms |v| in simulation is %f.\n", WriteState.RMS_Velocity);
 
@@ -471,14 +471,14 @@ void GatherTimings() {
 
     #ifdef PARALLEL
     if (convtimebuffer!=NULL) {
-        fprintf(reportfp, "\n\n========================================================================\n");
+        fprintf(reportfp, "\n\n========================================================================\n\n");
         fputs(convtimebuffer, reportfp);
         free(convtimebuffer);
     }
     #endif
 
     if (NFD) {
-        fprintf(reportfp, "\n\n========================================================================\n");
+        fprintf(reportfp, "\n\n========================================================================\n\n");
         fprintf(reportfp, "GPU Timings\nSlab   Time   Latency\n");
         fputs(slabtimesbuffer, reportfp);
         free(slabtimesbuffer);
