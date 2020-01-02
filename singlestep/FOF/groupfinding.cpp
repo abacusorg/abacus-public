@@ -6,7 +6,7 @@ We include this file in the program, and it includes the rest.
 // #define GLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
 // 	LOG(*grouplog,__VA_ARGS__); grouplog->flush(); } }
 
-#define GLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) fprintf(reportfp,__VA_ARGS__);
+#define GLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) fprintf(reportfp,__VA_ARGS__); }
 
 
 #include "fof_sublist.cpp"
