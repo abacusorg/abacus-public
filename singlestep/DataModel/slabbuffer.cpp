@@ -475,16 +475,8 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
         case NearAccSlab    : {
             return SS->size(slab)*sizeof(accstruct);
         }
-        case VelLPTSlab     : {
-            if(strcmp(P.ICFormat, "RVZel") == 0)
-                // TODO: when we re-route LoadIC through SB to be non-blocking for 2LPT velocity IO, get rid of these magic numbers
-                //return fsize(ReadSlabPath(VelLPTSlab,slab).c_str())/sizeof(ICfile_RVZel::ICparticle) * sizeof(velstruct);
-                return fsize(ReadSlabPath(VelLPTSlab,slab).c_str())/32 * sizeof(velstruct);
-            else if(strcmp(P.ICFormat, "RVdoubleZel") == 0)
-                //return fsize(ReadSlabPath(VelLPTSlab,slab).c_str())/sizeof(ICfile_RVdoubleZel::ICparticle) * sizeof(velstruct);
-                return fsize(ReadSlabPath(VelLPTSlab,slab).c_str())/56 * sizeof(velstruct);
-            else
-                QUIT("Unknown ICFormat for re-reading LPT IC velocities\n");
+        case ICSlab     : {
+            return fsize(ReadSlabPath(ICSlab,slab).c_str());
         }
         case FieldTimeSlice : {
             return fsize(ReadSlabPath(FieldTimeSlice,slab).c_str());

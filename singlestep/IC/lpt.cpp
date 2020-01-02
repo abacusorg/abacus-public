@@ -89,12 +89,13 @@ void KickCell_2LPT_2(Cell &c, FLOAT kick1, FLOAT kick2) {
 // We have an arena with the full IC 
 // Extract the velocity field and fix the units
 void unpack_ic_vel_slab(int slab){
-    // Initialize the arena
-    velstruct* velslab = (velstruct*) SB->AllocateArena(VelLPTSlab, slab);  // Automatically determines the arena size from the IC file size
-
     double convert_pos, convert_vel;
     get_IC_unit_conversions(convert_pos, convert_vel);
     ICFile *ic_file = ICFile::FromFormat(P.ICFormat, slab, convert_pos, convert_vel);
+
+    // Initialize the arena
+    velstruct* velslab = (velstruct*) SB->AllocateSpecificSize(VelLPTSlab, slab,
+        ic_file->Npart*sizeof(velstruct));
     
     uint64 count = ic_file->unpack_to_velslab(velslab);
     
