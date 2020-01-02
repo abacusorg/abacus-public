@@ -4,7 +4,7 @@ This file contains a minimal slab pipeline that just reads
 slabs from the read state and writes them to the write state.
 It is useful for performing realistic IO benchmarks (although
 it may be unrealistic in the sense that contention from other
-parts of the code will not be present, to the extend that matters).
+parts of the code will not be present, to the extent that matters).
 
 This pipeline is called from benchmark_io.cpp.  I don't think
 we have a top-level wrapper for that right now; we just invoke

@@ -101,7 +101,6 @@ int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don'
 
 // #include "ParticleCellInfoStructure.cpp"
 // #include "maxcellsize.cpp"
-#include "IC_classes.h"
 
 #include "slabsize.cpp"
 SlabSize *SS;
@@ -149,6 +148,8 @@ GroupFindingControl *GFC = NULL;
 #include "insert.cpp"
 #include "drift.cpp"
 #include "merge.cpp"
+
+#include "IC_classes.h"
 
 #include "direct.h"
 #include "direct.cpp"

@@ -61,6 +61,8 @@ enum SlabType { CellInfoSlab,           //0
                 LightCone1PID,          //35
                 LightCone2PID,          //36
 
+                ICSlab,                 //37
+
                 NUMTYPES
                 };
 
@@ -430,6 +432,8 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
         case AuxSlab       : { ss << P.LocalReadStateDirectory << "/auxillary_"  << slabnum; break; }
         case VelLPTSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
         case FieldTimeSlice     : { ss << WriteSlabPath(type, slab); }  // used for standalone FOF
+
+        case ICSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
 
         default:
             QUIT("Illegal type %d given to ReadSlabPath()\n", type);

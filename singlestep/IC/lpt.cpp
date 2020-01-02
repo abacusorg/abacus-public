@@ -97,21 +97,21 @@ void load_ic_vel_slab(int slabnum){
     velstruct* slab = (velstruct*) SB->AllocateArena(VelLPTSlab, slabnum);  // Automatically determines the arena size from the IC file size 
     
     // Use the LoadIC module to do the reading
-    ICfile* ic_file;
+    ICFile* ic_file;
     if(strcmp(P.ICFormat, "RVdoubleZel") == 0){
-        ic_file = new ICfile_RVdoubleZel((char*)SB->ReadSlabPath(VelLPTSlab, slabnum).c_str());
+        ;//ic_file = new ICFile_RVdoubleZel((char*)SB->ReadSlabPath(VelLPTSlab, slabnum).c_str());
     } else if(strcmp(P.ICFormat, "RVZel") == 0){
-        ic_file = new ICfile_RVZel((char*)SB->ReadSlabPath(VelLPTSlab, slabnum).c_str());
+        ;//ic_file = new ICFile_RVZel((char*)SB->ReadSlabPath(VelLPTSlab, slabnum).c_str());
     }
     
     uint64 count = 0;
     double3 pos;
     velstruct vel;
     auxstruct aux;
-    while (ic_file->getparticle(&pos, &vel, &aux)) {
+    /*while (ic_file->getparticle(&pos, &vel, &aux)) {
         vel *= WriteState.VelZSpace_to_Canonical;
         slab[count++] = vel;
-    }
+    }*/
     
     assertf(count * sizeof(velstruct) == SB->SlabSizeBytes(VelLPTSlab, slabnum),
         "The size of particle vel data (%d) read from slab %d did not match the arena size (%d)\n", count, slab, SB->SlabSizeBytes(VelLPTSlab, slabnum));
