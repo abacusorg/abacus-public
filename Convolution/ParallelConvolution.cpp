@@ -198,7 +198,7 @@ ParallelConvolution::~ParallelConvolution() {
 
     delete[] TaylorSlabAllMPIDone;
     delete[] MultipoleSlabAllMPIDone;
-    delete[] MSendTimer;
+    delete[] MsendTimer;
 
 	delete[] node_start; 
 	delete[] node_size; 
