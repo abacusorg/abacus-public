@@ -459,9 +459,9 @@ void GatherTimings() {
     REPORT(0, "Free Arena Memory", arena_free);
     REPORT(0, "Free SlabAccum Variables", SlabAccumFree.Elapsed());
 
-    REPORT(0,"\nMinCellSize = %d, MaxCellSize = %d, RMS Fractional Overdensity = %10.4e\n",
+    fprintf(reportfp,"\nMinCellSize = %d, MaxCellSize = %d, RMS Fractional Overdensity = %10.4e\n",
         WriteState.MinCellSize, WriteState.MaxCellSize, WriteState.StdDevCellSize);
-    REPORT(0,"Rms |v| in simulation is %f.\n", WriteState.RMS_Velocity);
+    fprintf(reportfp,"Rms |v| in simulation is %f.\n", WriteState.RMS_Velocity);
 
     if (GFC!=NULL) {
         // Now write some detailed multiplicity and timing stats to lastrun.grouplog
