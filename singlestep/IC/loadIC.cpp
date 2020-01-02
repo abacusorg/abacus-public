@@ -22,10 +22,7 @@
 #include "IC_classes.h"
 #include "particle_subsample.cpp"
 
-#define REGISTER_ICFORMAT(fmt) if(strcasecmp(P.ICFormat, #fmt) == 0){\
-    STDLOG(1,"Using format " #fmt "\n");\
-    ic = new ICFile_##fmt(slab, convert_pos, convert_vel);\
-} else
+
 
 
 // Generate the position and velocity conversion factors based on the parameter file
@@ -59,27 +56,10 @@ uint64 UnpackICtoIL(int slab) {
     double convert_pos, convert_vel;
     get_IC_unit_conversions(convert_pos, convert_vel);
 
-    ICFile *ic;
-
-    // This is actually a big if-else chain; no semicolons!
-    /*REGISTER_ICFORMAT(RVdouble)
-    REGISTER_ICFORMAT(RVdoubleZel)
-    REGISTER_ICFORMAT(RVZel)
-    REGISTER_ICFORMAT(RVTag)
-    REGISTER_ICFORMAT(RVdoubleTag)
-    REGISTER_ICFORMAT(Zeldovich)
-    REGISTER_ICFORMAT(Heitmann)
-    REGISTER_ICFORMAT(Poisson)
-    REGISTER_ICFORMAT(Lattice)*/
-
-    REGISTER_ICFORMAT(RVZel)
-    {
-        // We weren't given a legal format name.
-        QUIT("Unrecognized case: ICFormat = %s\n", P.ICFormat);
-    }
+    ICFile *ic = ICFile::FromFormat(P.ICFormat, slab, convert_pos, convert_vel);
 
     // Unpacks the whole slab directly to the insert list
-    uint64 count = ic->unpack();
+    uint64 count = ic->unpack_to_IL();
 
     STDLOG(0,"Read %d particles from IC slab %d\n", count, slab);
     STDLOG(1,"Slab %d has %d subsample A particles, %d subsample B particles.\n", slab, ic->NsubsampleA, ic->NsubsampleB);

@@ -424,7 +424,7 @@ void Manifest::QueueToSend(int finished_slab) {
     	// We just determined that Drift has executed on begin, so
 	// the rebinning might have taken particles to begin-FINISH_WAIT_RADIUS.
     m.dep[m.numdep++].Load(Finish, finished_slab, "Finish");
-    m.dep[m.numdep++].Load(FetchLPTVelocity, finished_slab, "FetchLPTVelocity");
+    m.dep[m.numdep++].Load(UnpackLPTVelocity, finished_slab, "UnpackLPTVelocity");
     m.dep[m.numdep++].LoadCG(finished_slab);
     	// LoadCG() includes moving info into the CellGroupArenas
     assertf(m.numdep<MAXDEPENDENCY, "m.numdep has overflowed its MAX value");

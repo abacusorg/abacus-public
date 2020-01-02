@@ -720,7 +720,19 @@ void Parameters::ValidateParameters(void) {
         assert(1==0);
     }
 
-    // Illegal ICFormat's will crash in loadIC.cpp; no need to crash here.
+    // Illegal ICFormat's will crash in loadIC.cpp.
+    // But don't let the IC step run if it's going to crash when we try to do LPT
+
+    // If invoking LPT, must have displacement-oriented format
+    if(LagrangianPTOrder > 0){
+        if(!(strcasecmp(ICFormat, "Zeldovich") == 0 ||
+            strcasecmp(ICFormat, "RVZel") == 0 ||
+            strcasecmp(ICFormat, "RVdoubleZel") == 0)) {
+            fprintf(stderr, "ICFormat %s is not displacement-oriented and LagrangianPTOrder = %d\n",
+                    ICFormat, LagrangianPTOrder);
+        }
+    }
+
     /*
     ExpandPathName(DerivativesDirectory);
     ExpandPathName(ReadStateDirectory);

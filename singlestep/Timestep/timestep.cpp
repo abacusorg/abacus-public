@@ -45,7 +45,7 @@ Dependency FinishGroups;
 Dependency Drift;
 Dependency Finish;
 Dependency CheckForMultipoles; //only for parallel case. otherwise NOOP. 
-Dependency FetchLPTVelocity;
+Dependency UnpackLPTVelocity;
 
 // TODO: should we consider de-coupling PARALLEL from the concept of a merged convolve/singlestep?
 #ifdef PARALLEL
@@ -116,6 +116,9 @@ void FetchSlabsAction(int slab) {
 
     SB->LoadArenaNonBlocking(VelSlab, slab);
     SB->LoadArenaNonBlocking(AuxSlab, slab);
+
+    if(WriteState.Do2LPTVelocityRereading)
+        SB->LoadArenaNonBlocking(ICSlab, slab);
 }
 
 // -----------------------------------------------------------------
@@ -642,19 +645,21 @@ void OutputAction(int slab) {
  * Checks if we are ready to load the LPT velocities during an IC step.
  * Should not happen in normal execution
  */
-int FetchLPTVelocityPrecondition(int slab){
-    // Don't read too far ahead
-    if(FetchLPTVelocity.raw_number_executed > 
-            Drift.raw_number_executed + 2*FINISH_WAIT_RADIUS + 1) {
+int UnpackLPTVelocityPrecondition(int slab){
+    if(FetchSlabs.notdone(slab))
+        return 0;
+    
+    if(!SB->IsIOCompleted(ICSlab, slab)){
+        if(SB->IsSlabPresent(ICSlab, slab))
+            Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
 
     return 1;
 }
 
-void FetchLPTVelocityAction(int slab){
-    // This is blocking because it uses the LoadIC module, not SB
-    load_ic_vel_slab(slab);
+void UnpackLPTVelocityAction(int slab){
+    unpack_ic_vel_slab(slab);
 }
 
 // -----------------------------------------------------------------
@@ -676,7 +681,7 @@ int DriftPrecondition(int slab) {
     // The finish radius is a good guess of how ordered the ICs are
     if(WriteState.Do2LPTVelocityRereading)
         for(int i=-FINISH_WAIT_RADIUS;i<=FINISH_WAIT_RADIUS;i++) 
-            if (FetchLPTVelocity.notdone(slab+i)) {
+            if (UnpackLPTVelocity.notdone(slab+i)) {
                 return 0;   
             }
         
@@ -979,9 +984,9 @@ void timestep(void) {
     }
            
     if(WriteState.Do2LPTVelocityRereading)
-        INSTANTIATE(       FetchLPTVelocity, FORCE_RADIUS + 2*GROUP_RADIUS - FINISH_WAIT_RADIUS);
+        INSTANTIATE(       UnpackLPTVelocity, FORCE_RADIUS + 2*GROUP_RADIUS - FINISH_WAIT_RADIUS);
     else
-        INSTANTIATE_NOOP(  FetchLPTVelocity, FORCE_RADIUS + 2*GROUP_RADIUS - FINISH_WAIT_RADIUS);
+        INSTANTIATE_NOOP(  UnpackLPTVelocity, FORCE_RADIUS + 2*GROUP_RADIUS - FINISH_WAIT_RADIUS);
 	
 	int timestep_loop_complete = 0; 
 	while (!timestep_loop_complete){
@@ -1010,7 +1015,7 @@ void timestep(void) {
         AttemptReceiveManifest();
 
 
-     FetchLPTVelocity.Attempt();
+     UnpackLPTVelocity.Attempt();
                 Drift.Attempt();
 
         ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
