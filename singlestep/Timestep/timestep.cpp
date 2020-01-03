@@ -660,6 +660,7 @@ int UnpackLPTVelocityPrecondition(int slab){
 
 void UnpackLPTVelocityAction(int slab){
     unpack_ic_vel_slab(slab);
+    SB->DeAllocate(ICSlab,slab);
 }
 
 // -----------------------------------------------------------------
