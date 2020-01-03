@@ -644,16 +644,17 @@ class StatusLogWriter:
     #line_fmt = '{step:4d}  {z:6.1f}  {ss_rate:.1g} Mp/s ({ss_time:.1g} s) {conv_time:.1g}'
 
     fields = {'Step': '{:4d}',
-              'Redshift': '{:.4g}',
-              'Elapsed': '{:.4g} s',  #'{0[0]:.4g} Mp/s, {0[1]:.4g}  s)',
-              'Rate': '{:.4g} Mp/s',   #'{0[0]:.4g} Mp/s, {0[1]:.4g}  s)',
-              'Conv': '{:.4g} s',
-              'DeltaZ': '{:.3g}',
-              'Time': '{:.4g}',
-              'DeltaT': '{:.3g}',
-              'RMSVel': '{:.3g}',
-              'MaxVel': '{:.3g}',
-              'RMSCell': '{:.4g}',
+              'Redshift': '{:#.4g}',
+              'Elapsed': '{:#.4g} s',  #'{0[0]:.4g} Mp/s, {0[1]:.4g}  s)',
+              'Rate': '{:#.4g} Mp/s',   #'{0[0]:.4g} Mp/s, {0[1]:.4g}  s)',
+              'Conv': '{:#.4g} s',
+              'DeltaZ': '{:#.3g}',
+              'Time': '{:#.4g}',
+              'DeltaT': '{:#.3g}',
+              'RMSVel': '{:#.3g}',
+              'MaxVel': '{:#.3g}',
+              'DirectPP': '{:6.0f}',
+              'RMSCell': '{:#.4g}',
               'MaxL0Sz': '{:7d}',
               'GrpDiam': '{:2d}'
               }
@@ -668,6 +669,7 @@ class StatusLogWriter:
               'DeltaT': 8,
               'RMSVel': 7,
               'MaxVel': 7,
+              'DirectPP':8,
               'RMSCell': 8,
               'MaxL0Sz': 7,
               'GrpDiam': 7
@@ -733,6 +735,7 @@ class StatusLogWriter:
             Time=state.Time, DeltaT=state.DeltaTime, 
             GrpDiam=state.MaxGroupDiameter, MaxL0Sz=state.MaxL0GroupSize, 
             RMSVel=state.RMS_Velocity, MaxVel=state.MaxVelocity, 
+            DirectPP=state.DirectsPerParticle,
             RMSCell=state.StdDevCellSize )
 
         self.logger(*(info[k] for k in self.fields))
