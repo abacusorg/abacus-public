@@ -645,17 +645,34 @@ class StatusLogWriter:
 
     fields = {'Step': '{:4d}',
               'Redshift': '{:.4g}',
-              'Singlestep': '{0[0]:.4g} Mp/s, {0[1]:.4g  s)',
+              'Elapsed': '{:.4g} s',  #'{0[0]:.4g} Mp/s, {0[1]:.4g}  s)',
+              'Rate': '{:.4g} Mp/s',   #'{0[0]:.4g} Mp/s, {0[1]:.4g}  s)',
               'Conv': '{:.4g} s',
               'DeltaZ': '{:.3g}',
               'Time': '{:.4g}',
               'DeltaT': '{:.3g}',
-              'MaxGroupDiam': '{:2d}',
-              'MaxL0Size': '{:7d}',
               'RMSVel': '{:.3g}',
               'MaxVel': '{:.3g}',
-              'RMSCellSize': '{:.3g}'
+              'RMSCell': '{:.4g}',
+              'MaxL0Sz': '{:7d}',
+              'GrpDiam': '{:2d}'
               }
+
+    colwidth = {'Step': 4,
+              'Redshift': 8,
+              'Elapsed': 10,
+              'Rate': 12,
+              'Conv': 10,
+              'DeltaZ': 8,
+              'Time': 8,
+              'DeltaT': 8,
+              'RMSVel': 7,
+              'MaxVel': 7,
+              'RMSCell': 8,
+              'MaxL0Sz': 7,
+              'GrpDiam': 7
+              }
+
 
     topmatter = ['Abacus Status Log',
                  'simname, timestamp',
@@ -670,8 +687,9 @@ class StatusLogWriter:
 
         self.logger = table_logger.TableLogger(file=self.log_fp,
                                                columns=list(self.fields),
-                                               default_colwidth=7,
-                                               formatters=self.fields)
+                                               colwidth=self.colwidth,
+                                               formatters=self.fields,
+                                               border=False)
     def __del__(self):
         self.logger.make_horizontal_border()
         self.log_fp.close()
@@ -698,7 +716,6 @@ class StatusLogWriter:
 
             matches = re.search(rf'Total Wall Clock Time\s*:\s*(?P<time>{fp_regex:s})', ss_log_txt)
             ss_time = float(matches.group('time'))
-        ss_rate = param['NP']/1e6/ss_time  # Mpart/s
 
         if not conv_time:
             conv_log_fn = pjoin(param['LogDirectory'], f'step{step_num:04d}.convtime')
@@ -709,13 +726,14 @@ class StatusLogWriter:
                 self.print('Warning: parsing logs to get convolution time, may miss startup time')
             except:
                 conv_time = 0.
+        ss_rate = param['NP']/1e6/(ss_time+conv_time)  # Mpart/s
 
-        info = dict(Step=step_num, Singlestep=(ss_rate,ss_time), Conv=conv_time, 
+        info = dict(Step=step_num, Rate=ss_rate, Elapsed=ss_time+conv_time, Conv=conv_time, 
             Redshift=state.Redshift, DeltaZ=state.DeltaRedshift, 
             Time=state.Time, DeltaT=state.DeltaTime, 
-            MaxGroupDiam=state.MaxGroupDiameter, MaxL0Size=state.MaxL0GroupSize, 
+            GrpDiam=state.MaxGroupDiameter, MaxL0Sz=state.MaxL0GroupSize, 
             RMSVel=state.RMS_Velocity, MaxVel=state.MaxVelocity, 
-            RMSCellSize=state.StdDevCellSize )
+            RMSCell=state.StdDevCellSize )
 
         self.logger(*(info[k] for k in self.fields))
 
