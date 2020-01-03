@@ -91,18 +91,16 @@ void KickCell_2LPT_2(Cell &c, FLOAT kick1, FLOAT kick2) {
 void unpack_ic_vel_slab(int slab){
     double convert_pos, convert_vel;
     get_IC_unit_conversions(convert_pos, convert_vel);
-    ICFile *ic_file = ICFile::FromFormat(P.ICFormat, slab, convert_pos, convert_vel);
+    unique_ptr<ICFile> ic_file = ICFile::FromFormat(P.ICFormat, slab);
 
     // Initialize the arena
-    velstruct* velslab = (velstruct*) SB->AllocateSpecificSize(VelLPTSlab, slab,
-        ic_file->Npart*sizeof(velstruct));
+    velstruct* velslab = (velstruct*) SB->AllocateArena(VelLPTSlab, slab);
     
-    uint64 count = ic_file->unpack_to_velslab(velslab);
+    uint64 count = ic_file->unpack_to_velslab(velslab, convert_pos, convert_vel);
     
     assertf(count * sizeof(velstruct) == SB->SlabSizeBytes(VelLPTSlab, slab),
         "The size of particle vel data (%d) read from slab %d did not match the arena size (%d)\n",
         count*sizeof(velstruct), slab, SB->SlabSizeBytes(VelLPTSlab, slab));
-    delete ic_file;
 }
 
 // Returns the IC velocity of the particle with the given PID
@@ -153,6 +151,7 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
 #endif
 
     // We don't want to be fetching the arena pointers for every particle, so cache them here
+    // TODO: do we really want to do this for every cell?
     velstruct **velslabs = new velstruct*[P.cpd];
     uint64 *velslab_sizes = new uint64[P.cpd];
     for(int i = 0; i < P.cpd; i++){

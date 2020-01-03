@@ -105,6 +105,7 @@ int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don'
 #include "slabsize.cpp"
 SlabSize *SS;
 
+#include "IC_base.h"
 #include "slabbuffer.cpp"
 SlabBuffer *SB;
 
@@ -149,8 +150,6 @@ GroupFindingControl *GFC = NULL;
 #include "drift.cpp"
 #include "merge.cpp"
 
-#include "IC_classes.h"
-
 #include "direct.h"
 #include "direct.cpp"
 #include "directdriver.cpp"
@@ -172,8 +171,8 @@ Redlack *RL;
 
 #include "Cosmology.cpp"
 Cosmology *cosm;
-#include "loadIC.cpp"
 #include "lpt.cpp"
+#include "loadIC.cpp"
 
 #include "output_timeslice.cpp"
 #include "LightCones.cpp"

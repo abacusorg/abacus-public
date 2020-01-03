@@ -117,8 +117,10 @@ void FetchSlabsAction(int slab) {
     SB->LoadArenaNonBlocking(VelSlab, slab);
     SB->LoadArenaNonBlocking(AuxSlab, slab);
 
-    if(WriteState.Do2LPTVelocityRereading)
-        SB->LoadArenaNonBlocking(ICSlab, slab);
+    if(WriteState.Do2LPTVelocityRereading){
+        unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
+        ic->read_vel_nonblocking();
+    }
 }
 
 // -----------------------------------------------------------------

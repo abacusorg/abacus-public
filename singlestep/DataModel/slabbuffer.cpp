@@ -478,6 +478,9 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
         case ICSlab     : {
             return fsize(ReadSlabPath(ICSlab,slab).c_str());
         }
+        case VelLPTSlab : {
+            return ICFile::FromFormat(P.ICFormat, slab)->Npart*sizeof(velstruct);
+        }
         case FieldTimeSlice : {
             return fsize(ReadSlabPath(FieldTimeSlice,slab).c_str());
         }

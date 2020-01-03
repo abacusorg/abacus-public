@@ -30,18 +30,17 @@ int ReadICPrecondition(int slab) {
 void ReadICAction(int slab) {
     // Read an IC slab file into an arena
     // It will be unpacked into particles in a later dependency
-    SB->LoadArenaNonBlocking(ICSlab, slab);
+    unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
+    ic->read_nonblocking();
 }
 
 int UnpackICPrecondition(int slab){
     if(ReadIC.notdone(slab))
         return 0;
     
-    if(!SB->IsIOCompleted(ICSlab, slab)){
-        if(SB->IsSlabPresent(ICSlab, slab))
-            Dependency::NotifySpinning(WAITING_FOR_IO);
+    unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
+    if(!ic->check_read_done())
         return 0;
-    }
 
     return 1;
 }
