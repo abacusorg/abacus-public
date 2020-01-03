@@ -48,7 +48,6 @@ int UnpackICPrecondition(int slab){
 void UnpackICAction(int slab){
     uint64 NP_thisslab = UnpackICtoIL(slab);
     NP_from_IC += NP_thisslab;
-    SB->DeAllocate(ICSlab, slab);
 
     // Record the number of particles read in SlabSize so the timing log uses the right particle count
     SS->setold(slab, NP_thisslab);

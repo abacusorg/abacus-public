@@ -6,9 +6,9 @@
  * class in loadIC.cpp that inherits ICFile and register itself in the 
  * ICFile::FromFormat() factory function at the bottom of that file.
  *
- * New IC classes must override the following two functions:
+ * New IC classes must override the following function and define a constructor:
  * - unpack(): load the particles into the insert list or (if given) velslab
- * - Nparticles(): report the number of IC particles in this slab
+ * - Constructor: must record the number of particles in Npart
  *
  * New IC classes may override the following two functions:
  * - read_nonblocking(): start a nonblocking read of IC files
@@ -24,7 +24,7 @@ class ICFile {         // This is an abstract base class.
 public:
     // Used to generate sequential PIDs if we were not given them
     static uint64 next_pid; // 0 by default
-    uint64 Npart;  // initialized by the factory
+    uint64 Npart;  // initialized by each subclass constructor
 
     int slab;
 
@@ -56,7 +56,6 @@ protected:
 
 private:
     virtual uint64 unpack(velstruct *velslab, double convert_pos, double convert_vel) = 0;
-    virtual uint64 Nparticles() = 0;
 };
 
 void get_IC_unit_conversions(double &convert_pos, double &convert_vel);

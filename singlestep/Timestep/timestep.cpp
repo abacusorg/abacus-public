@@ -118,8 +118,7 @@ void FetchSlabsAction(int slab) {
     SB->LoadArenaNonBlocking(AuxSlab, slab);
 
     if(WriteState.Do2LPTVelocityRereading){
-        unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
-        ic->read_vel_nonblocking();
+        ICFile::FromFormat(P.ICFormat, slab)->read_vel_nonblocking();
     }
 }
 
@@ -651,18 +650,14 @@ int UnpackLPTVelocityPrecondition(int slab){
     if(FetchSlabs.notdone(slab))
         return 0;
     
-    if(!SB->IsIOCompleted(ICSlab, slab)){
-        if(SB->IsSlabPresent(ICSlab, slab))
-            Dependency::NotifySpinning(WAITING_FOR_IO);
+    if(!ICFile::FromFormat(P.ICFormat, slab)->check_vel_read_done())
         return 0;
-    }
 
     return 1;
 }
 
 void UnpackLPTVelocityAction(int slab){
     unpack_ic_vel_slab(slab);
-    SB->DeAllocate(ICSlab,slab);
 }
 
 // -----------------------------------------------------------------
