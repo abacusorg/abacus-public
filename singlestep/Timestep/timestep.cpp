@@ -589,7 +589,7 @@ void OutputAction(int slab) {
 
     if (ReadState.DoTimeSliceOutput) {
         // If we are doing group finding, then we are doing group finding output and subsample output
-        assert(GFC != NULL || (ReadState.DoSubsampleOutput == 1 && ReadState.DoGroupFindingOutput == 1));
+        assert(GFC == NULL || (ReadState.DoSubsampleOutput == 1 && ReadState.DoGroupFindingOutput == 1));
 
         // We've already done a K(1) and thus need a K(-1/2)
         FLOAT unkickfactor = WriteState.FirstHalfEtaKick;
