@@ -120,11 +120,11 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     uint64 n_added = 0;
     #pragma omp parallel for schedule(static) reduction(+:n_added)
     for (int y=0; y<CP->cpd; y++) {
-        integer3 ijk = ij; ij.y = y;
+        integer3 ijk = ij; ijk.y = y;
         // We are required to provide an offset in bytes for this pencil's portion of the buffer.
     	long long int start = CP->CellInfo(ij)->startindex;   // Assumes cells are packed in order in the slab
-        AA->start_pencil(ij.y, start*AA->sizeof_particle() + AA->sizeof_cell()*(CP->cpd)*ij.y);
-        PID_AA->start_pencil(ij.y, start*AA->sizeof_particle());
+        AA->start_pencil(y, start*AA->sizeof_particle() + AA->sizeof_cell()*(CP->cpd)*y);
+        if (PID_AA!=NULL) PID_AA->start_pencil(y, start*AA->sizeof_particle());
 
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             Cell c = CP->GetCell(ijk);
@@ -135,8 +135,8 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
             FLOAT vscale = c.ci->max_component_velocity/ReadState.VelZSpace_to_Canonical;	
             // The maximum velocity of this cell, converted to ZSpace unit-box units.
             // Start the cell
-            AA->addcell(ij.y, ijk, vscale);
-            if (PID_AA != NULL) PID_AA->addcell(ij.y, ijk, vscale);
+            AA->addcell(y, ijk, vscale);
+            if (PID_AA != NULL) PID_AA->addcell(y, ijk, vscale);
             // Now pack the particles
             accstruct *acc = CP->AccCell(ijk);
             for (int p=0;p<c.count();p++) {
@@ -144,13 +144,13 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
                 // Detail: we write particles with their L0 bits intact.  So if we want to run a non-group-finding step
                 // after a group-finding step (e.g. for debugging), we need to know that we can ignore the L0 bit
                 if(GFC == NULL || !c.aux[p].is_L0()){
-                    AA->addparticle(ij.y, c.pos[p], vel, c.aux[p]);
-                    if (PID_AA != NULL) PID_AA->addparticle(ij.y, c.pos[p], vel, c.aux[p]);
+                    AA->addparticle(y, c.pos[p], vel, c.aux[p]);
+                    if (PID_AA != NULL) PID_AA->addparticle(y, c.pos[p], vel, c.aux[p]);
                     n_added++;
                 }
             }
-            AA->endcell(ij.y);
-            if (PID_AA != NULL) PID_AA->endcell(ij.y); 
+            AA->endcell(y);
+            if (PID_AA != NULL) PID_AA->endcell(y); 
         }
     }
 
