@@ -1315,13 +1315,14 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
     TimeSlicePIDs.setup(GFC->cpd, GFC->particles_per_slab);    
 
     // Now scan through cell groups
-    #pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static) reduction(+:n_added)
     for (int j=0; j<GFC->cpd; j++){
 
         PencilAccum<TaggedPID> *pTimeSlicePIDs = TimeSlicePIDs.StartPencil(j);
         AA->start_pencil(j, pstart[j]*AA->sizeof_particles() + pstart_cg[j]*AA->sizeof_cell());
 
         for (int k=0; k<GFC->cpd; k++){
+            integer3 firstcell(slab,j,k);
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 // Process globalgroups[j][k][n]
                 // Recall where the particles start
@@ -1330,7 +1331,6 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
                 LinkID *cglink = globalgrouplist.pencils[j].data
                                     +globalgroups[j][k][n].cellgroupstart;
                     // This is where we'll find the CG LinkIDs for this GG
-                integer3 firstcell(slab,j,k);
 
                 for (int c=0; c<globalgroups[j][k][n].ncellgroups; c++, cglink++) {
                     // Loop over CellGroups
