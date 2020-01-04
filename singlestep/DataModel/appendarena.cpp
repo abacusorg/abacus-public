@@ -39,7 +39,7 @@ struct ArenaPencil {
     cell_header current_cell;
     char empty[CACHE_LINE_SIZE-2*sizeof(char *)-sizeof(cell_header)];   // Avoid cache line contention
         // TODO: Is this a legal compile-time computation?
-}
+};
 
 class AppendArena {
   private:
@@ -114,9 +114,10 @@ class AppendArena {
 
         int ret;
         ret = posix_memalign((void **)&pencil, CACHE_LINE_SIZE, sizeof(ArenaPencil)*cpd); assert(ret==0);
-        for (int j=0; j<cpd; j++) pencil[j].start = pencil[j].next = NULL;
-
-        endcell();
+        for (int j=0; j<cpd; j++) {
+            pencil[j].start = pencil[j].next = NULL;
+            endcell(j);
+        }
     }
 
     // ~AppendArena(void) { }

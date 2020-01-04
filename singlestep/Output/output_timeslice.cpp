@@ -119,13 +119,13 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     integer3 ij(slab,0,0);
     uint64 n_added = 0;
     #pragma omp parallel for schedule(static) reduction(+:n_added)
-    for (ij.y=0; ij.y<CP->cpd; ij.y++) {
+    for (int y=0; y<CP->cpd; y++) {
+        integer3 ijk = ij; ij.y = y;
         // We are required to provide an offset in bytes for this pencil's portion of the buffer.
     	long long int start = CP->CellInfo(ij)->startindex;   // Assumes cells are packed in order in the slab
         AA->start_pencil(ij.y, start*AA->sizeof_particle() + AA->sizeof_cell()*(CP->cpd)*ij.y);
         PID_AA->start_pencil(ij.y, start*AA->sizeof_particle());
 
-        integer3 ijk = ij;
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             Cell c = CP->GetCell(ijk);
             // We sometimes use the maximum velocity to scale.

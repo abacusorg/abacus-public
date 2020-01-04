@@ -195,8 +195,8 @@ class GlobalGroupSlab {
         for (int j=0; j<GFC->cpd; j++) pstat[j].reset(j);
 
         // These are counters for where the pencils start in the lists
-        *pstart = new uint64[GFC->cpd];
-        *pstart_cg = new uint64[GFC->cpd];  
+        pstart = new uint64[GFC->cpd];
+        pstart_cg = new uint64[GFC->cpd];  
 
         // How many global groups do we expect?  Let's guess 10% of the particles
         // The cellgroup list is modestly bigger, but not enough to care.
@@ -590,10 +590,11 @@ void GlobalGroupSlab::GatherGlobalGroups() {
     // because the LinkIDs have already been wrapped.
     // One just can't use a small CPD
     uint64 *this_pencil = new uint64[GFC->cpd];
+    uint64 *this_pencil_cg = new uint64[GFC->cpd];
     int *largest = new int[GFC->cpd];
 
-    uint64 local_ncellgroups = 0;
-    #pragma omp parallel for schedule(static) reduction(+:ncellgroups)
+    uint64 _ncellgroups = 0;
+    #pragma omp parallel for schedule(static) reduction(+:_ncellgroups)
     for (int j=0; j<GFC->cpd; j++) {
         uint64 local_ncellgroups = 0;
         uint64 local_this_pencil = 0;
@@ -608,8 +609,9 @@ void GlobalGroupSlab::GatherGlobalGroups() {
         this_pencil[j] = local_this_pencil;
         this_pencil_cg[j] = local_ncellgroups;
         largest[j] = local_largest;
-        ncellgroups += local_ncellgroups;
+        _ncellgroups += local_ncellgroups;
     }
+    ncellgroups = _ncellgroups;
 
     // Now for the serial accumulation over the pencils
     uint64 total_particles = 0;
@@ -624,6 +626,7 @@ void GlobalGroupSlab::GatherGlobalGroups() {
     }
     delete[] largest;
     delete[] this_pencil;
+    delete[] this_pencil_cg;
 
     // Now we can allocate these buffers
     allocate(total_particles);
@@ -1319,7 +1322,7 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
     for (int j=0; j<GFC->cpd; j++){
 
         PencilAccum<TaggedPID> *pTimeSlicePIDs = TimeSlicePIDs.StartPencil(j);
-        AA->start_pencil(j, pstart[j]*AA->sizeof_particles() + pstart_cg[j]*AA->sizeof_cell());
+        AA->start_pencil(j, pstart[j]*AA->sizeof_particle() + pstart_cg[j]*AA->sizeof_cell());
 
         for (int k=0; k<GFC->cpd; k++){
             integer3 firstcell(slab,j,k);
