@@ -119,7 +119,14 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     velstruct vel;
     integer3 ijk(slab,0,0);
     uint64 n_added = 0;
-    for (ijk.y=0; ijk.y<CP->cpd; ijk.y++) 
+    #pragma omp parallel for schedule(static)
+    for (ijk.y=0; ijk.y<CP->cpd; ijk.y++) {
+        // We are required to provide an offset in bytes for this pencil's portion of the buffer.
+        ijk.z = 0;
+    	long long int start = CP->CellInfo(ijk)->startindex;   // Assumes cells are packed in order in the slab
+        AA->start_pencil(ijk.y, start*AA->sizeof_particle() + AA->sizeof_cell()*(CP->cpd)*ijk.y);
+        PID_AA->start_pencil(ijk.y, start*AA->sizeof_particle());
+
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             Cell c = CP->GetCell(ijk);
             // We sometimes use the maximum velocity to scale.
@@ -129,8 +136,8 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
             vscale = c.ci->max_component_velocity/ReadState.VelZSpace_to_Canonical;	
             // The maximum velocity of this cell, converted to ZSpace unit-box units.
             // Start the cell
-            AA->addcell(ijk, vscale);
-            if (PID_AA != NULL) PID_AA->addcell(ijk, vscale);
+            AA->addcell(ijk.y, ijk, vscale);
+            if (PID_AA != NULL) PID_AA->addcell(ijk.y, ijk, vscale);
             // Now pack the particles
             accstruct *acc = CP->AccCell(ijk);
             for (int p=0;p<c.count();p++) {
@@ -138,17 +145,18 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
                 // Detail: we write particles with their L0 bits intact.  So if we want to run a non-group-finding step
                 // after a group-finding step (e.g. for debugging), we need to know that we can ignore the L0 bit
                 if(GFC == NULL || !c.aux[p].is_L0()){
-                    AA->addparticle(c.pos[p], vel, c.aux[p]);
-                    if (PID_AA != NULL) PID_AA->addparticle(c.pos[p], vel, c.aux[p]);
+                    AA->addparticle(ijk.y, c.pos[p], vel, c.aux[p]);
+                    if (PID_AA != NULL) PID_AA->addparticle(ijk.y, c.pos[p], vel, c.aux[p]);
                     n_added++;
                 }
             }
-            AA->endcell();
-            if (PID_AA != NULL) PID_AA->endcell(); 
+            AA->endcell(ijk.y);
+            if (PID_AA != NULL) PID_AA->endcell(ijk.y); 
         }
+    }
 
     STDLOG(4,"Resizing slab\n");
-    SB->ResizeSlab(FieldTimeSlice, slab, AA->bytes_written());
+    SB->ResizeSlab(FieldTimeSlice, slab, AA->finalize_arena());
     STDLOG(4,"StoreArenaNonBlocking\n");
     // Write out this time slice
     SB->StoreArenaNonBlocking(FieldTimeSlice, slab);
@@ -156,7 +164,7 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
 
     if (PID_AA != NULL) { 
         STDLOG(4,"Resizing slab\n");
-        SB->ResizeSlab(FieldTimeSlicePIDs, slab, PID_AA->bytes_written());
+        SB->ResizeSlab(FieldTimeSlicePIDs, slab, PID_AA->finalize_arena());
         STDLOG(4,"StoreArenaNonBlocking\n");
         // Write out this time slice
         SB->StoreArenaNonBlocking(FieldTimeSlicePIDs, slab);
