@@ -67,7 +67,6 @@ void WriteHeaderFile(const char* fn){
 
 uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     AppendArena *AA, *PID_AA;
-    FLOAT vscale;
 
     AA = get_AA_by_format(P.OutputFormat);
     PID_AA = get_PID_AA_by_format(P.OutputFormat);
@@ -117,27 +116,27 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
 
     // Now scan through the cells
     velstruct vel;
-    integer3 ijk(slab,0,0);
+    integer3 ij(slab,0,0);
     uint64 n_added = 0;
-    #pragma omp parallel for schedule(static)
-    for (ijk.y=0; ijk.y<CP->cpd; ijk.y++) {
+    #pragma omp parallel for schedule(static) reduction(+:n_added)
+    for (ij.y=0; ij.y<CP->cpd; ij.y++) {
         // We are required to provide an offset in bytes for this pencil's portion of the buffer.
-        ijk.z = 0;
-    	long long int start = CP->CellInfo(ijk)->startindex;   // Assumes cells are packed in order in the slab
-        AA->start_pencil(ijk.y, start*AA->sizeof_particle() + AA->sizeof_cell()*(CP->cpd)*ijk.y);
-        PID_AA->start_pencil(ijk.y, start*AA->sizeof_particle());
+    	long long int start = CP->CellInfo(ij)->startindex;   // Assumes cells are packed in order in the slab
+        AA->start_pencil(ij.y, start*AA->sizeof_particle() + AA->sizeof_cell()*(CP->cpd)*ij.y);
+        PID_AA->start_pencil(ij.y, start*AA->sizeof_particle());
 
+        integer3 ijk = ij;
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             Cell c = CP->GetCell(ijk);
             // We sometimes use the maximum velocity to scale.
             // But we do not yet have the global velocity (slab max will be set in Finish,
             // while the global max has to wait for all slabs to be done).
             // What is available after the kick is the max_component_velocity in each cell.
-            vscale = c.ci->max_component_velocity/ReadState.VelZSpace_to_Canonical;	
+            FLOAT vscale = c.ci->max_component_velocity/ReadState.VelZSpace_to_Canonical;	
             // The maximum velocity of this cell, converted to ZSpace unit-box units.
             // Start the cell
-            AA->addcell(ijk.y, ijk, vscale);
-            if (PID_AA != NULL) PID_AA->addcell(ijk.y, ijk, vscale);
+            AA->addcell(ij.y, ijk, vscale);
+            if (PID_AA != NULL) PID_AA->addcell(ij.y, ijk, vscale);
             // Now pack the particles
             accstruct *acc = CP->AccCell(ijk);
             for (int p=0;p<c.count();p++) {
@@ -145,13 +144,13 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
                 // Detail: we write particles with their L0 bits intact.  So if we want to run a non-group-finding step
                 // after a group-finding step (e.g. for debugging), we need to know that we can ignore the L0 bit
                 if(GFC == NULL || !c.aux[p].is_L0()){
-                    AA->addparticle(ijk.y, c.pos[p], vel, c.aux[p]);
-                    if (PID_AA != NULL) PID_AA->addparticle(ijk.y, c.pos[p], vel, c.aux[p]);
+                    AA->addparticle(ij.y, c.pos[p], vel, c.aux[p]);
+                    if (PID_AA != NULL) PID_AA->addparticle(ij.y, c.pos[p], vel, c.aux[p]);
                     n_added++;
                 }
             }
-            AA->endcell(ijk.y);
-            if (PID_AA != NULL) PID_AA->endcell(ijk.y); 
+            AA->endcell(ij.y);
+            if (PID_AA != NULL) PID_AA->endcell(ij.y); 
         }
     }
 
