@@ -729,12 +729,13 @@ class StatusLogWriter:
             except:
                 conv_time = 0.
         ss_rate = param['NP']/1e6/(ss_time+conv_time)  # Mpart/s
-
+	
+        code_to_kms = state.VelZSpace_to_kms / state.VelZSpace_to_Canonical
         info = dict(Step=step_num, Rate=ss_rate, Elapsed=ss_time+conv_time, Conv=conv_time, 
             Redshift=state.Redshift, DeltaZ=state.DeltaRedshift, 
             Time=state.Time, DeltaT=state.DeltaTime, 
             GrpDiam=state.MaxGroupDiameter, MaxL0Sz=state.MaxL0GroupSize, 
-            RMSVel=state.RMS_Velocity, MaxVel=state.MaxVelocity, 
+            RMSVel=state.RMS_Velocity*code_to_kms, MaxVel=state.MaxVelocity*code_to_kms, 
             DirectPP=state.DirectsPerParticle,
             RMSCell=state.StdDevCellSize )
 
