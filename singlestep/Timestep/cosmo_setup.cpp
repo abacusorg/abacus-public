@@ -125,9 +125,6 @@ double ChooseTimeStep(){
     
 
 	// Particles should not be able to move more than one cell per timestep
-	double kms_to_code = ReadState.VelZSpace_to_Canonical/ReadState.VelZSpace_to_kms;
-	ReadState.MaxVelocity *= kms_to_code; 
-	ReadState.RMS_Velocity *= kms_to_code;
 	double maxdrift = cosm->DriftFactor(cosm->current.a, da)*ReadState.MaxVelocity;
 	maxdrift *= P.cpd;
 	STDLOG(1,"Maximum velocity would drift %f cells in this time step\n", maxdrift);
