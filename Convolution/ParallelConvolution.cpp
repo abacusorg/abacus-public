@@ -248,10 +248,8 @@ ParallelConvolution::~ParallelConvolution() {
 	dumpstats_timer.Start(); 
 	
 	if (not create_MT_file){ //if this is not the 0th step, dump stats. 
-	    char timingfn[1050];
-	    sprintf(timingfn,"%s/last%s.convtime",P.LogDirectory,NodeString);
 #ifndef DO_NOTHING
-	    dumpstats(timingfn); 
+	    dumpstats(); 
 #endif
 	}
 	
@@ -880,7 +878,7 @@ void ParallelConvolution::Convolve() {
 
 /* ======================== REPORTING ======================== */ 
 
-void ParallelConvolution::dumpstats(FILE *fp) {
+void ParallelConvolution::dumpstats() {
     if (convtimebuffer==NULL) return;
 
     FILE *fp = fmemopen(convtimebuffer, CONVTIMEBUFSIZE, "w");

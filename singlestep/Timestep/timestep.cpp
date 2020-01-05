@@ -1056,7 +1056,7 @@ void timestep(void) {
         // Run this again, just in case the dependency loop on this node finished
         // before the neighbor received the non-blocking MPI transfer.
 	    TimeStepWallClock.Stop(); ConvolutionWallClock.Start(); 
-        convtimebuffer = malloc(CONVTIMEBUFSIZE);   // Need to allocate space for the timings
+        convtimebuffer = (char*) malloc(CONVTIMEBUFSIZE);   // Need to allocate space for the timings
     	delete ParallelConvolveDriver;
 	    ConvolutionWallClock.Stop(); TimeStepWallClock.Start(); 
 	   
