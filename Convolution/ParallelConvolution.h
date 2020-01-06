@@ -39,6 +39,8 @@ public:
     uint64_t blocksize, znode; // The number of z's on this node
 	void dumpstats(char *fn);
 
+    STimer *MsendTimer;   // A timer for the sending of each Multipole Slab
+
 private:
 	
 	const char * mt_file; 
