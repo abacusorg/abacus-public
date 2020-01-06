@@ -169,12 +169,13 @@ struct ThreadInfo {
     int core;
     int queue;  // which queue are we watching?
     int UsePinnedGPUMemory;
-    pthread_barrier_t *barrier;
+    pthread_barrier_t *barrier; // this is a pointer because threads share barriers
+    pthread_t thread;  // the thread itself
 };
 
 cudaStream_t * DeviceStreams;        ///< The actual CUDA streams, one per thread
 GPUBuffer * Buffers;                 ///< The pointers to the allocated memory
-pthread_t *DeviceThread;        ///< The threads!
+ThreadInfo *DeviceThreads;        ///< The threads!
 
 
 // =============== Code to invoke execution on a SIC ============
@@ -327,8 +328,8 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     // Determine the number of queues by the max assigned queue
     for (int i = 0; i < NGPU; i++){
         NGPUQueues = max(NGPUQueues, GPUQueueAssignments[i]+1);
-        STDLOG(1, "Using %d GPU work queues\n", NGPUQueues);
     }
+    STDLOG(1, "Using %d GPU work queues\n", NGPUQueues);
 
     // The following estimates are documented above, and assume sizeof(int)=4
     float BytesPerSourceBlockWC = sizeof(FLOAT)*3*NFBlockSize+8.0;
@@ -377,7 +378,7 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
 
     DeviceStreams = new cudaStream_t[NBuf];
     Buffers = new GPUBuffer[NBuf];
-    DeviceThread = new pthread_t[NBuf];
+    DeviceThreads = new ThreadInfo[NBuf];
     work_queues = new tbb::concurrent_bounded_queue<GPUQueueTask>[NGPUQueues];
     
     // Start one thread per buffer
@@ -403,7 +404,6 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
         Buffers[g].sizeDef = Buffers[g].size*RatioDeftoAll;
         Buffers[g].ready = 0;
 
-        ThreadInfo *info = new ThreadInfo;
         int core_start = ThreadCoreStart[g % NGPU];
         int core = -1;
         // If either the core start or the core count are invalid, do not bind this thread to a core
@@ -417,6 +417,7 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
             assertf(p_ret == 0, "pthread_barrier_init failed with value %d\n", p_ret);
         }
         
+        ThreadInfo *info = DeviceThreads + g;
         info->thread_num = g;
         info->core = core;
         info->UsePinnedGPUMemory = UsePinnedGPUMemory;
@@ -429,7 +430,7 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
             STDLOG(0, "GPU buffer thread %d (GPU %d) not bound to a core, watching queue %d\n", g, g % NGPU, info->queue);
         
         // Start one thread per buffer
-        int p_retval = pthread_create(&(DeviceThread[g]), NULL, QueueWatcher, info);
+        int p_retval = pthread_create(&(DeviceThreads[g].thread), NULL, QueueWatcher, info);
         assertf(p_retval == 0, "pthread_create failed with value %d\n", p_retval);
 
         host_alloc_bytes += Buffers[g].sizeWC + Buffers[g].sizeDef;
@@ -448,17 +449,19 @@ void GPUReset(){
     GPUQueueTask t;
     t.type = TASKTYPE_KILL;
     t.task = NULL;
-    for(int g = 0; g < NGPU; g++)
-            for (int b = 0; b < BPD; b++) 
-                work_queues[g].push(t);
-    for(int g = 0; g < BPD*NGPU; g++)
-        assert(pthread_join(DeviceThread[g], NULL) == 0);
+    for(int i = 0; i < BPD*NGPU; i++)
+        work_queues[DeviceThreads[i].queue].push(t);
+    for(int i = 0; i < BPD*NGPU; i++)
+        assert(pthread_join(DeviceThreads[i].thread, NULL) == 0);
+    for(int i = 0; i < NGPUQueues; i++){
+        assert(work_queues[i].empty());
+    }
 
     cudaDeviceReset();
 
     delete[] Buffers;
     delete[] DeviceStreams;
-    delete[] DeviceThread;
+    delete[] DeviceThreads;
     delete[] work_queues;
 }
 
@@ -583,7 +586,6 @@ void *QueueWatcher(void *arg){
 
     if(assigned_device < NGPU)
         delete info->barrier;  // this was allocated in GPUSetup
-    delete info;  // release the info struct that was passed as the pthreads arg
 
     return NULL;
 }
