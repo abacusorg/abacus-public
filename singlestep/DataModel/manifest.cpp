@@ -744,7 +744,7 @@ void Manifest::ImportData() {
         // insert list.
     m.dep[n++].Set(Drift, "Drift");
     m.dep[n++].Set(Finish, "Finish");
-    m.dep[n++].Set(FetchLPTVelocity, "FetchLPTVelocity");
+    m.dep[n++].Set(UnpackLPTVelocity, "UnpackLPTVelocity");
     m.dep[n++].SetCG(m.remote_first_slab_finished);
     	// This will copy data back to GFC from CellGroupArenas
     assert(n==m.numdep);

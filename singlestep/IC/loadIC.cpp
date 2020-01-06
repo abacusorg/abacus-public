@@ -125,10 +125,10 @@ public:
         else
             b = fsize(SB->ReadSlabPath(ICSlab,slab).c_str());
 
-        Npart = b/sizeof(T::ICparticle);
+        Npart = b/sizeof(typename T::ICparticle);
         
-        assertf(Npart*sizeof(T::ICparticle) == b, "Size of IC slab %s not divisible by particle size %d!\n",
-            SB->ReadSlabPath(ICSlab, slab), sizeof(T::ICparticle));
+        assertf(Npart*sizeof(typename T::ICparticle) == b, "Size of IC slab %s not divisible by particle size %d!\n",
+            SB->ReadSlabPath(ICSlab, slab), sizeof(typename T::ICparticle));
     }
 };
 
