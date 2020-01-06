@@ -23,9 +23,10 @@ extern "C" double GetDeviceMemory();
 
 extern "C" int GetNGPU();
 extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
-	int numberGPUs, int bufferperdevice,
-        int *ThreadCoreStart, int NThreadCores,
-	int *maxsinkblocks, int *maxsourceblocks, int UsePinnedGPUMemory);
+		int numberGPUs, int bufferperdevice,
+		int *ThreadCoreStart, int NThreadCores,
+		int *GPUQueueAssignments,
+		int *maxsinkblocks, int *maxsourceblocks, int UsePinnedGPUMemory);
 extern "C" void GPUReset();
 
 extern "C" void print_gpu_mem_usage();

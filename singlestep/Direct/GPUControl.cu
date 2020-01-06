@@ -122,6 +122,7 @@ int set_core_affinity(int core_id);
 #include "SetInteractionCollection.hh"
 
 int NGPU = 0;                // Number of actual CUDA devices (not threads)
+int NGPUQueues = 0;  // Number of actual work queues
 
 // ===================  The Queue of Tasks =====================
 
@@ -139,7 +140,7 @@ enum GPUQueueTaskType { TASKTYPE_KILL,
                         TASKTYPE_SIC, };
 
 #include "tbb/concurrent_queue.h"
-tbb::concurrent_bounded_queue<GPUQueueTask> work_queues[MAX_GPUS];
+tbb::concurrent_bounded_queue<GPUQueueTask> *work_queues;
 
 
 
@@ -166,6 +167,7 @@ struct GPUBuffer {
 struct ThreadInfo {
     int thread_num;  // thread/buffer number
     int core;
+    int queue;  // which queue are we watching?
     int UsePinnedGPUMemory;
     pthread_barrier_t *barrier;
 };
@@ -187,29 +189,27 @@ void SetInteractionCollection::GPUExecute(int blocking){
     // At this point, we are directing work to individual GPUs.
 
     // Push to the NUMA-appropriate queue
-    //int g = CurrentGPU;
-    int g = ((j_low + j_high) / 2. / cpd) * NGPU;
+    int q = ((j_low + j_high) / 2. / cpd) * NGPUQueues;
     if(j_low == j_high && j_high == cpd)
-        g--;
-    assert(g < NGPU);
+        q--;
+    assert(q < NGPUQueues);
 
-    AssignedDevice = g;  // no meaning for work_queue
     Blocking = blocking;
     
     if(blocking){
         // We're running the task from the main thread;
         // make sure the GPU threads have finished the necessary CUDA setup
-        while(!Buffers[g].ready){}
+        while(!Buffers[0].ready){}
         
-        GPUPencilTask(this, AssignedDevice);
+        // Send to buffer 0. No need to load balance when blocking!
+        GPUPencilTask(this, 0);
     }
     else {
         GPUQueueTask t;
         t.type = TASKTYPE_SIC;
         t.task = (void *)this;
-        work_queues[g].push(t);
+        work_queues[q].push(t);
     }
-    //CurrentGPU = (CurrentGPU + 1) %(NGPU * BPD);
 }
 
 
@@ -315,6 +315,7 @@ limited by the fraction of CPD**2
 extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize, 
     int numberGPUs, int bufferperdevice, 
     int *ThreadCoreStart, int NThreadCores,
+    int *GPUQueueAssignments,
     int *maxsinkblocks, int *maxsourceblocks,
     int UsePinnedGPUMemory) {
 
@@ -322,6 +323,12 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     BPD = bufferperdevice;
     NGPU = numberGPUs;
     int NBuf = BPD*NGPU;
+
+    // Determine the number of queues by the max assigned queue
+    for (int i = 0; i < NGPU; i++){
+        NGPUQueues = max(NGPUQueues, GPUQueueAssignments[i]+1);
+        STDLOG(1, "Using %d GPU work queues\n", NGPUQueues);
+    }
 
     // The following estimates are documented above, and assume sizeof(int)=4
     float BytesPerSourceBlockWC = sizeof(FLOAT)*3*NFBlockSize+8.0;
@@ -371,6 +378,7 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     DeviceStreams = new cudaStream_t[NBuf];
     Buffers = new GPUBuffer[NBuf];
     DeviceThread = new pthread_t[NBuf];
+    work_queues = new tbb::concurrent_bounded_queue<GPUQueueTask>[NGPUQueues];
     
     // Start one thread per buffer
     
@@ -413,11 +421,12 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
         info->core = core;
         info->UsePinnedGPUMemory = UsePinnedGPUMemory;
         info->barrier = thread_startup_barriers[g%NGPU];
+        info->queue = GPUQueueAssignments[g%NGPU];
 
         if(core >= 0)
-            STDLOG(0, "GPU buffer thread %d (GPU %d) assigned to core %d, UsePinnedGPUMemory %d\n", g, g % NGPU, core, UsePinnedGPUMemory);
+            STDLOG(0, "GPU buffer thread %d (GPU %d) assigned to core %d, watching queue %d\n", g, g % NGPU, core, info->queue);
         else
-            STDLOG(0, "GPU buffer thread %d (GPU %d) not bound to a core, UsePinnedGPUMemory %d\n", g, g % NGPU, UsePinnedGPUMemory);
+            STDLOG(0, "GPU buffer thread %d (GPU %d) not bound to a core, watching queue %d\n", g, g % NGPU, info->queue);
         
         // Start one thread per buffer
         int p_retval = pthread_create(&(DeviceThread[g]), NULL, QueueWatcher, info);
@@ -450,6 +459,7 @@ void GPUReset(){
     delete[] Buffers;
     delete[] DeviceStreams;
     delete[] DeviceThread;
+    delete[] work_queues;
 }
 
 
@@ -486,6 +496,7 @@ void *QueueWatcher(void *arg){
     int assigned_device = info->thread_num;
     int n = assigned_device;                 // The buffer number
     int gpu = assigned_device % NGPU;        // The GPU device number
+    int queue = info->queue;
     int assigned_core = info->core;
     if (assigned_core >= 0)
         set_core_affinity(assigned_core);
@@ -538,7 +549,7 @@ void *QueueWatcher(void *arg){
     // Main work loop: watch the queue
     while(true){
         GPUQueueTask item;
-        work_queues[gpu].pop(item);
+        work_queues[queue].pop(item);
         if (item.type == TASKTYPE_KILL)
             break;
         // Each thread (not work unit) is bound to a device

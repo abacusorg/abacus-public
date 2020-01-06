@@ -156,6 +156,7 @@ public:
     // TODO: this scheme doesn't account for more complicated NUMA architectures
     int GPUThreadCoreStart[MAX_GPUS];  // The core on which to start placing GPU device threads.
     int NGPUThreadCores;  // The number of free cores on which to place GPU device threads.
+    int GPUQueueAssignments[MAX_GPUS];  // The work queue assignments
     int DirectBPD;
 
     double DensityKernelRad;  // The kernel Radius for the density computation, specified in units of the interparticle spacing.  0 will default to FoFLinkingLength[0]
@@ -396,12 +397,16 @@ public:
         installscalar("nIODirs", nIODirs, DONT_CARE);
         installvector("IODirThreads", IODirThreads, MAX_IODIRS, 1, DONT_CARE);
 
-        // If any of these are undefined, GPU threads will not be bound to cores
-        for(int i = 0; i < MAX_GPUS; i++)
+        // If GPUThreadCoreStart is undefined, GPU threads will not be bound to cores
+        for(int i = 0; i < MAX_GPUS; i++){
             GPUThreadCoreStart[i] = -1;
+            GPUQueueAssignments[i] = i;  // one per GPU
+        }
         installvector("GPUThreadCoreStart", GPUThreadCoreStart, MAX_GPUS, 1, DONT_CARE);
+        installvector("GPUQueueAssignments", GPUQueueAssignments, MAX_GPUS, 1, DONT_CARE);
         NGPUThreadCores = -1;
         installscalar("NGPUThreadCores", NGPUThreadCores, DONT_CARE);
+
         DirectBPD = 3;
         installscalar("DirectBPD", DirectBPD, DONT_CARE);
 
