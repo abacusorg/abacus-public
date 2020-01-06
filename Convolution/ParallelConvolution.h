@@ -37,7 +37,7 @@ public:
 	//timers and stats to log:
     ConvolutionStatistics CS; 
     uint64_t blocksize, znode; // The number of z's on this node
-	void dumpstats(char *fn);
+	void dumpstats();
 
     STimer *MsendTimer;   // A timer for the sending of each Multipole Slab
 
