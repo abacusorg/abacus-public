@@ -529,7 +529,6 @@ void get_IC_unit_conversions(double &convert_pos, double &convert_vel){
 
 // An alternative to this macro approach would be a C++ type registry
 #define REGISTER_ICFORMAT(fmt) if(strcasecmp(format, #fmt) == 0){\
-    STDLOG(1,"Using format " #fmt "\n");\
     ic = unique_ptr<ICFile_##fmt>(new ICFile_##fmt(_slab));\
 } else
 
@@ -566,6 +565,7 @@ uint64 UnpackICtoIL(int slab) {
     double convert_pos, convert_vel;
     get_IC_unit_conversions(convert_pos, convert_vel);
 
+    STDLOG(1,"Using IC format %s\n", P.ICFormat);
     unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
 
     // Unpacks the whole slab directly to the insert list
