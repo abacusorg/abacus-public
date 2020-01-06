@@ -979,9 +979,9 @@ void timestep(void) {
     }
            
     if(WriteState.Do2LPTVelocityRereading)
-        INSTANTIATE(       FetchLPTVelocity, FORCE_RADIUS + 2*GROUP_RADIUS - FINISH_WAIT_RADIUS);
+        INSTANTIATE(       FetchLPTVelocity, first_outputslab - FINISH_WAIT_RADIUS);
     else
-        INSTANTIATE_NOOP(  FetchLPTVelocity, FORCE_RADIUS + 2*GROUP_RADIUS - FINISH_WAIT_RADIUS);
+        INSTANTIATE_NOOP(  FetchLPTVelocity, first_outputslab - FINISH_WAIT_RADIUS);
 	
 	int timestep_loop_complete = 0; 
 	while (!timestep_loop_complete){
