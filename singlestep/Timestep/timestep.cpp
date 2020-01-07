@@ -24,10 +24,7 @@ executable.
 int FORCE_RADIUS = -1;
 int GROUP_RADIUS = -1;
 
-// I think in most cases we would prefer to read ahead until memory limited
-//#define FETCHAHEAD (2*FORCE_RADIUS)
-//#define FETCHAHEAD 1000
-#define FETCHAHEAD FORCE_RADIUS + 3
+#define FETCHAHEAD (2*GROUP_RADIUS+1 + FINISH_WAIT_RADIUS+1)
 #define FETCHPERSTEP 1
 // Recall that all of these Dependencies have a built-in STimer
 // to measure the amount of time spent on Actions.
@@ -69,9 +66,12 @@ STimer TimeStepWallClock;
  * We limit the additional slabs read to FETCHAHEAD
  */
 int FetchSlabsPrecondition(int slab) {
-    if(slab > Kick.last_slab_executed + FETCHAHEAD)
-        // This was +1, but for non-blocking reads 
-        // I think we want to work one more ahead
+    // We want to read ahead enough that we are reading while computing forces
+    // i.e. we would like to read a few slabs ahead of the Kick.
+    // But if the steps after Kick are slow enough that we aren't Finishing promptly,
+    // we can get a buildup of slabs and run out of memory. So we tie to the Drift instead.
+    if(slab > Drift.last_slab_executed + FETCHAHEAD)
+    //if(slab > Kick.last_slab_executed + FETCHAHEAD)
         return 0;
     
     #ifdef PARALLEL
@@ -734,9 +734,14 @@ int FinishPrecondition(int slab) {
     return 1;
 }
 
+
 uint64 merged_particles = 0;
 void FinishAction(int slab) {
 	FinishPreamble.Start();
+
+    SB->report_current();
+    SB->report_peak();
+
     if (WriteState.Do2LPTVelocityRereading)
         SB->DeAllocate(VelLPTSlab, slab);
 	FinishPreamble.Stop(); 

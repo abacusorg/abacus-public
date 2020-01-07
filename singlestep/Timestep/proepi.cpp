@@ -344,7 +344,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
         delete density; density = 0;
     }
 
-    SB->report();
+    SB->report_peak();
     delete SB;
     SB = NULL;
     STDLOG(2,"Deleted SB\n");

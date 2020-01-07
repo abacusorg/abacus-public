@@ -204,8 +204,12 @@ public:
         *disposal_thread_munmap = AA->DisposalThreadMunmap.Elapsed();
     }
 
-    void report(){
-        AA->report();
+    void report_peak(){
+        AA->report_peak();
+    }
+
+    void report_current(){
+        AA->report_current();
     }
 };
 
