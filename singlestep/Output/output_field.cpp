@@ -82,15 +82,11 @@ void OutputNonL0Taggable(int slab) {
     // This has to get called after all GlobalGroups in this slab
     // have been found.
 
-    double subsample_fracs[NUM_SUBSAMPLES] = {P.ParticleSubsampleA, P.ParticleSubsampleB}; 
-    int slab_type[2*NUM_SUBSAMPLES] = {FieldRVSlabA, FieldRVSlabB, FieldPIDSlabA, FieldPIDSlabB}; 
-
     SlabAccum<RVfloat>   rvA;    
     SlabAccum<RVfloat>   rvB; 
     SlabAccum<TaggedPID> pidA;  
     SlabAccum<TaggedPID> pidB; 
 
-    //TODO: what's a good guess here? 
      rvA.setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleA);   
     pidA.setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleA);   
      rvB.setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleB); 
@@ -107,31 +103,23 @@ void OutputNonL0Taggable(int slab) {
     if (P.ParticleSubsampleA > 0){
         SB->AllocateSpecificSize(FieldRVSlabA, slab, rvA.get_slab_bytes());
         rvA.copy_to_ptr((RVfloat *)SB->GetSlabPtr(FieldRVSlabA, slab));
-        SB->StoreArenaNonBlocking(FieldRVSlabA, slab);
+        SB->StoreArenaBlocking(FieldRVSlabA, slab); //NAM TODO: temporarily turned off nonblocking writes. 
 
         SB->AllocateSpecificSize(FieldPIDSlabA, slab, pidA.get_slab_bytes());
         pidA.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(FieldPIDSlabA, slab));
-        SB->StoreArenaNonBlocking(FieldPIDSlabA, slab);
+        SB->StoreArenaBlocking(FieldPIDSlabA, slab);
     }
     if (P.ParticleSubsampleB > 0) {
         SB->AllocateSpecificSize(FieldRVSlabB, slab, rvB.get_slab_bytes());
         rvB.copy_to_ptr((RVfloat *)SB->GetSlabPtr(FieldRVSlabB, slab));
-        SB->StoreArenaNonBlocking(FieldRVSlabB, slab);
+        SB->StoreArenaBlocking(FieldRVSlabB, slab);
 
         SB->AllocateSpecificSize(FieldPIDSlabB, slab, pidB.get_slab_bytes());
         pidB.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(FieldPIDSlabB, slab));
-        SB->StoreArenaNonBlocking(FieldPIDSlabB, slab);
+        SB->StoreArenaBlocking(FieldPIDSlabB, slab);
     }
 
-    STDLOG(1,"Writing %d, %d non-L0 Taggable particles in subsamples A, B for slab %d.\n", nfield[0], nfield[1], slab);
-
-     rvA.destroy();
-     rvB.destroy();
-    pidA.destroy();
-    pidB.destroy();
-
-    STDLOG(4, "Done destroying slab accums for slab %d.\n", slab);
-
+    STDLOG(1,"Wrote %d, %d non-L0 Taggable particles in subsamples A, B for slab %d.\n", nfield[0], nfield[1], slab);
 }
 
 

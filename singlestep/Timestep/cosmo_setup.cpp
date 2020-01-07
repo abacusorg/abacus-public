@@ -88,14 +88,12 @@ double ChooseTimeStep(){
 
 	// Perhaps the next output is sooner than this?
 	// TimeSlizez array might not be in order!  Look at all of them.
-    int output_next = 0; 
 	for (int i = 0; i < P.nTimeSlice; i ++){
 		double tsa = 1.0/(1+P.TimeSliceRedshifts[i]);
 		if (ReadState.Redshift > P.TimeSliceRedshifts[i]+1e-12 && ReadState.ScaleFactor + da > tsa) {
 			// Need to guard against round-off in this comparison
 			// Doing that in Redshift, to match in PlanOutput()
 			da = tsa - ReadState.ScaleFactor;
-            output_next = 1; 
 			STDLOG(0,"da to reach next output is %f\n", da);
 		}
 	}

@@ -585,6 +585,8 @@ void OutputAction(int slab) {
     if(ReadState.DoSubsampleOutput) {
         assertf(ReadState.DoGroupFindingOutput == 1, "Subsample output should turn on group finding!\n"); // Currently Subsample Output requires GroupFinding Output.
         OutputNonL0Taggable(slab);
+
+        STDLOG(4, "Exited output non l0\n");
     }
 
     if (ReadState.DoTimeSliceOutput) {
