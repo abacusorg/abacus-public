@@ -28,6 +28,7 @@ OMP_PROC_BIND = "spread"
 IOCores = [68]
 GPUThreadCoreStart = [72, 76, 80, 160, 164, 168]
 DirectBPD = 2  # 2 threads per GPU
+GPUQueueAssignments = [0, 0, 0, 1, 1, 1]
 
 # Convolution OpenMP parameters, only for non-parallel convolution
 Conv_OMP_NUM_THREADS = 42
