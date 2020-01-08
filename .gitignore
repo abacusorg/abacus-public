@@ -22,3 +22,4 @@ Tests/MultipoleSpeed/test_multipoles
 Tests/MultipoleSpeed/test_multipolesAVX
 Tests/MultipoleSpeed/test_multipolesAVX512
 Tests/MultipoleSpeed/test_multipolesVSX
+config.site

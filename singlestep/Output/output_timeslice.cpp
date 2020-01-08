@@ -77,12 +77,16 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     SB->AllocateSpecificSize(FieldTimeSlice, slab, 
     	   SS->size(slab)*(AA->sizeof_particle())
 	+ CP->cpd*(CP->cpd)*(AA->sizeof_cell()) + headersize);
+
     AA->initialize(FieldTimeSlice, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
 
-    SB->AllocateSpecificSize(FieldTimeSlicePIDs, slab, 
+    if (PID_AA != NULL) {
+        SB->AllocateSpecificSize(FieldTimeSlicePIDs, slab, 
            SS->size(slab)*(PID_AA->sizeof_particle())
     + CP->cpd*(CP->cpd)*(PID_AA->sizeof_cell()) + headersize);
-    PID_AA->initialize(FieldTimeSlicePIDs, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
+        
+        PID_AA->initialize(FieldTimeSlicePIDs, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
+    }
 
     STDLOG(4,"Writing header\n");
 
@@ -150,12 +154,14 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     SB->StoreArenaNonBlocking(FieldTimeSlice, slab);
     delete AA;
 
-    STDLOG(4,"Resizing slab\n");
-    SB->ResizeSlab(FieldTimeSlicePIDs, slab, PID_AA->bytes_written());
-    STDLOG(4,"StoreArenaNonBlocking\n");
-    // Write out this time slice
-    SB->StoreArenaNonBlocking(FieldTimeSlicePIDs, slab);
-    if (PID_AA != NULL) delete PID_AA;
+    if (PID_AA != NULL) { 
+        STDLOG(4,"Resizing slab\n");
+        SB->ResizeSlab(FieldTimeSlicePIDs, slab, PID_AA->bytes_written());
+        STDLOG(4,"StoreArenaNonBlocking\n");
+        // Write out this time slice
+        SB->StoreArenaNonBlocking(FieldTimeSlicePIDs, slab);
+        delete PID_AA;
+    }
     
     return n_added;
 }

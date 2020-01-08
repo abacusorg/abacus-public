@@ -26,6 +26,8 @@ the data when it is received.
 
 */
 
+#include "mpi_limiter.h"
+
 // #define NO_MPI    // Just keep these routines blocked out for now
 #ifdef NO_MPI
 #include "manifest_io.cpp"
@@ -184,6 +186,8 @@ struct ManifestCore {
 
 /// This is the class for sending information between the nodes.
 class Manifest {
+    AbacusMPILimiter mpi_limiter;
+
   public:
     ManifestCore m;   ///< The info we're sending over
 
@@ -203,6 +207,7 @@ class Manifest {
     STimer Load;        ///< The timing for the Queue & Import blocking routines
     STimer Transmit;	///< The timing for the Send & Receive routines, usually non-blocking
     STimer CheckCompletion;        ///< The timing to check for completion
+    STimer Communication;  ///< The timing of the main MPI communication time.
     size_t bytes;       ///< The number of bytes received
 
     MPI_Request *requests;    ///< A list of the non-blocking requests issued, each used once
@@ -222,7 +227,7 @@ class Manifest {
     #define MAX_REQUESTS 1024    // This is the most MPI work we can handle; hopefully very generous
     #define SIZE_MPI (1<<30)     // The maximum size of each MPI Isend.
 
-    Manifest() {
+    Manifest() : mpi_limiter(P.MPICallRateLimit_ms) {
     	m.numarenas = m.numil = m.numlinks = m.numdep = 0;
         #ifdef PARALLEL
             completed = MANIFEST_NOTREADY;
@@ -266,9 +271,9 @@ class Manifest {
     /// This will only return 1 once; it's ok to call again, but will return 0
     inline int check_if_done(int j) {
         if (requests[j]!=MPI_REQUEST_NULL) {
-            int err, sent=0;
+            int err = 0, sent=0;
             #ifdef PARALLEL
-            err = MPI_Test(requests+j,&sent,MPI_STATUS_IGNORE);   
+            err = MPI_Test(requests+j,&sent,MPI_STATUS_IGNORE);
             #endif
             if (sent) { mark_as_done(j); return 1; }
         }
@@ -365,9 +370,9 @@ void SetupManifest(int _nManifest) {
 }
 
 void FreeManifest() {
-    STDLOG(2,"Freeing SendManifest\n")
+    STDLOG(2,"Freeing SendManifest\n");
     delete[] _SendManifest;
-    STDLOG(2,"Freeing ReceiveManifest\n")
+    STDLOG(2,"Freeing ReceiveManifest\n");
     delete[] _ReceiveManifest;
 }
 
@@ -513,6 +518,7 @@ void Manifest::Send() {
     STDLOG(1,"Done queuing the SendManifest, %d total MPI parts, %l bytes\n", maxpending, bytes);
     completed = MANIFEST_TRANSFERRING;
     Transmit.Stop();
+    Communication.Start();
     #endif
     return;
 }
@@ -522,6 +528,11 @@ void Manifest::Send() {
 inline void Manifest::FreeAfterSend() {
     #ifdef PARALLEL
     if (completed != MANIFEST_TRANSFERRING) return;   // No active Isend's yet
+
+    // Has it been long enough since our last time querying MPI?
+    if(!mpi_limiter.Try())
+        return;
+
     CheckCompletion.Start();
 
     /* OLDCODE
@@ -547,8 +558,9 @@ inline void Manifest::FreeAfterSend() {
 	    STDLOG(2,"Sent Manifest part %d, %d left\n", n, numpending);
 	}
     if (check_all_done()) {
-	// At present, we don't know which MPI send fragment maps to which arena, 
-	// so we have to wait until all are sent to delete.
+        // At present, we don't know which MPI send fragment maps to which arena, 
+        // so we have to wait until all are sent to delete.
+        Communication.Stop();
         STDLOG(2,"Send Manifest appears to be completely sent\n");
         free(il);    // Insert List
         if (GFC!=NULL) free(links);    // GroupLink List
@@ -558,7 +570,8 @@ inline void Manifest::FreeAfterSend() {
                 m.arenas[n].slab, m.arenas[n].type);
         }
         completed=MANIFEST_READY;
-        STDLOG(1,"Marking the Send Manifest as completely sent\n");
+        STDLOG(1,"Marking the Send Manifest as completely sent: %6.3f sec for %l bytes, %6.3f GB/sec\n", Communication.Elapsed(),
+            bytes, bytes/(Communication.Elapsed()+1e-15)/(1024.0*1024.0*1024.0));
     }
     CheckCompletion.Stop();
     #endif
@@ -587,6 +600,11 @@ void Manifest::SetupToReceive() {
 inline void Manifest::Check() {
     #ifdef PARALLEL
     if (completed >= MANIFEST_READY) return;   // Nothing's active now
+
+    // Has it been long enough since our last time querying MPI?
+    if(!mpi_limiter.Try())
+        return;
+    
     CheckCompletion.Start();
     for (int n=0; n<maxpending; n++) 
 	if (check_if_done(n)) {
@@ -673,6 +691,7 @@ void Manifest::Receive() {
     // Victory!
     STDLOG(1,"Done issuing the ReceiveManifest, %d MPI parts, %l bytes\n", maxpending, bytes);
     Transmit.Stop();
+    Communication.Start();
     #endif
     return;
 }
@@ -697,7 +716,9 @@ void Manifest::ImportData() {
     #ifdef PARALLEL
     assertf(completed==MANIFEST_READY, "ImportData has been called when completed==%d\n", completed);
 
-    STDLOG(1,"Importing ReceiveManifest of %l bytes into the flow\n", bytes);
+    Communication.Stop();
+    STDLOG(1,"Importing ReceiveManifest of %l bytes into the flow; took %6.3f sec, %6.3f GB/sec\n", bytes,
+        Communication.Elapsed(), bytes/(Communication.Elapsed()+1e-15)/(1024.0*1024*1024));
     Load.Start();
     for (int n=0; n<m.numarenas; n++) {
 	    SB->SetIOCompleted(m.arenas[n].type, m.arenas[n].slab);

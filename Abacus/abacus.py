@@ -11,21 +11,6 @@ as a module or directly invoked as a script:
 Script usage:
     See abacus/Production/Example
 
-Command line usage:
-    abacus.py [-h] [--clean] [--erase-ic] parfile
-
-    Run this sim.
-
-    positional arguments:
-      parfile     The parameter file
-
-    optional arguments:
-      -h, --help  show this help message and exit
-      --clean     Erase the working directory and start over. Otherwise, continue
-                  from the existing state. Always preserves the ICs unless
-                  --erase-ic.
-      --erase-ic  Remove the ICs if they exist.
-
 '''
 
 import os
@@ -60,7 +45,7 @@ from . import GenParam
 from . import zeldovich
 from Abacus.Cosmology import AbacusCosmo
 
-NEEDS_INTERIM_BACKUP_MINS = 240 #minimum job runtime (in minutes) for which we'd like to do a backup halfway through the job. 
+NEEDS_INTERIM_BACKUP_MINS = 105 #minimum job runtime (in minutes) for which we'd like to do a backup halfway through the job. 
 EXIT_REQUEUE = 200
 RUN_TIME_MINUTES = os.getenv("JOB_ACTION_WARNING_TIME")
 
@@ -304,7 +289,7 @@ def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
                     shutil.copy(pjoin(derivs_archive_dir, dn), pjoin(param.DerivativesDirectory, dn))
                 break
         else:
-            print(f'Could not find derivatives in "{param.DerivativesDirectory}" or archive dir "{derivs_archive_dir}". Creating them...')
+            print(f'Could not find derivatives in "{param.DerivativesDirectory}" or archive dirs "{derivs_archive_dirs}". Creating them...')
             print(f"Error was on file pattern '{fnfmt}'")
 
             if floatprec:
@@ -454,7 +439,7 @@ def setup_singlestep_env(param):
     if 'OMP_PROC_BIND' in param:
         singlestep_env['OMP_PROC_BIND'] = param.OMP_PROC_BIND
     if 'OMP_NUM_THREADS' in param and 'OMP_NUM_THREADS' in singlestep_env:
-        if param['OMP_NUM_THREADS'] != singlestep_env['OMP_NUM_THREADS']:
+        if int(param['OMP_NUM_THREADS']) != int(singlestep_env['OMP_NUM_THREADS']):
             warn('OMP_NUM_THREADS in the parameter file and the environment do not match. '
                 'To avoid confusion, they should be the same (or the environment variable should be unset).')
         
@@ -659,9 +644,37 @@ class StatusLogWriter:
     #line_fmt = '{step:4d}  {z:6.1f}  {ss_rate:.1g} Mp/s ({ss_time:.1g} s) {conv_time:.1g}'
 
     fields = {'Step': '{:4d}',
-              'Redshift': '{:.3g}',
-              'Singlestep': '{0[0]:.3g} Mp/s ({0[1]:.3g} s)',
-              'Conv': '{:.3g} s'}
+              'Redshift': '{:#.4g}',
+              'Elapsed': '{:#.4g} s',  #'{0[0]:.4g} Mp/s, {0[1]:.4g}  s)',
+              'Rate': '{:#.4g} Mp/s',   #'{0[0]:.4g} Mp/s, {0[1]:.4g}  s)',
+              'Conv': '{:#.4g} s',
+              'DeltaZ': '{:#.3g}',
+              'Time': '{:#.4g}',
+              'DeltaT': '{:#.3g}',
+              'RMSVel': '{:#.3g}',
+              'MaxVel': '{:#.3g}',
+              'DirectPP': '{:6.0f}',
+              'RMSCell': '{:#.4g}',
+              'MaxL0Sz': '{:7d}',
+              'GrpDiam': '{:2d}'
+              }
+
+    colwidth = {'Step': 4,
+              'Redshift': 8,
+              'Elapsed': 10,
+              'Rate': 12,
+              'Conv': 10,
+              'DeltaZ': 8,
+              'Time': 8,
+              'DeltaT': 8,
+              'RMSVel': 7,
+              'MaxVel': 7,
+              'DirectPP':8,
+              'RMSCell': 8,
+              'MaxL0Sz': 7,
+              'GrpDiam': 7
+              }
+
 
     topmatter = ['Abacus Status Log',
                  'simname, timestamp',
@@ -676,7 +689,9 @@ class StatusLogWriter:
 
         self.logger = table_logger.TableLogger(file=self.log_fp,
                                                columns=list(self.fields),
-                                               formatters=self.fields)
+                                               colwidth=self.colwidth,
+                                               formatters=self.fields,
+                                               border=False)
     def __del__(self):
         self.logger.make_horizontal_border()
         self.log_fp.close()
@@ -703,7 +718,6 @@ class StatusLogWriter:
 
             matches = re.search(rf'Total Wall Clock Time\s*:\s*(?P<time>{fp_regex:s})', ss_log_txt)
             ss_time = float(matches.group('time'))
-        ss_rate = param['NP']/1e6/ss_time  # Mpart/s
 
         if not conv_time:
             conv_log_fn = pjoin(param['LogDirectory'], f'step{step_num:04d}.convtime')
@@ -714,8 +728,16 @@ class StatusLogWriter:
                 self.print('Warning: parsing logs to get convolution time, may miss startup time')
             except:
                 conv_time = 0.
-
-        info = dict(Step=step_num, Redshift=state.Redshift, Singlestep=(ss_rate,ss_time), Conv=conv_time)
+        ss_rate = param['NP']/1e6/(ss_time+conv_time)  # Mpart/s
+	
+        code_to_kms = state.VelZSpace_to_kms / state.VelZSpace_to_Canonical
+        info = dict(Step=step_num, Rate=ss_rate, Elapsed=ss_time+conv_time, Conv=conv_time, 
+            Redshift=state.Redshift, DeltaZ=state.DeltaRedshift, 
+            Time=state.Time, DeltaT=state.DeltaTime, 
+            GrpDiam=state.MaxGroupDiameter, MaxL0Sz=state.MaxL0GroupSize, 
+            RMSVel=state.RMS_Velocity*code_to_kms, MaxVel=state.MaxVelocity*code_to_kms, 
+            DirectPP=state.DirectsPerParticle,
+            RMSCell=state.StdDevCellSize )
 
         self.logger(*(info[k] for k in self.fields))
 
@@ -781,11 +803,10 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     
     if parallel:
         # TODO: figure out how to signal a backup to the nodes
-        run_time_minutes = int(os.getenv("JOB_ACTION_WARNING_TIME"))
+        run_time_minutes = int(os.getenv("JOB_ACTION_WARNING_TIME",'10000'))
         run_time_secs = 60 * run_time_minutes
         start_time = wall_timer()
         print("Beginning run at time", start_time, ", running for ", run_time_minutes, " minutes.\n")
-        
         
         backups_enabled = False
 
@@ -1050,17 +1071,27 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             
             #are we coming up on a group finding step? If yes, backup the state, just in case. 
             pre_gf_backup  = False 
-            nGFoutputs = len(param.L1OutputRedshifts)
+            nGFoutputs = [] 
+            output_arrs = [param.L1OutputRedshifts, param.TimeSliceRedshifts, param.TimeSliceRedshifts_Subsample]
+            for output_arr in output_arrs:
+                try:
+                    nGFoutputs.append( len(output_arr) )
+                except AttributeError:
+                    nGFoutputs.append(0) 
+
             if (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60): 
-                for i in range(nGFoutputs):
-                    L1z = param.L1OutputRedshifts[i] 
-                    if L1z <= -1:
-                        continue
-                    L1a = 1.0/(1.0+L1z)                
+                for i in range(len(nGFoutputs)):
+                    for z in range(nGFoutputs[i]):
+                        L1z = output_arrs[i][z] 
+                        if L1z <= -1:
+                            continue
+                        L1a = 1.0/(1.0+L1z)                
                     
-                    #here we assume that the next da will be similar to the previous one. 
-                    if (write_state.Redshift > L1z + 1e-12) and ( 1.0/(1.0+write_state.Redshift) + write_state.DeltaScaleFactor > L1a ):
-                        pre_gf_backup = True 
+                        #here we assume that the next da will be similar to the previous one. 
+                        if (write_state.Redshift > L1z + 1e-12) and ( 1.0/(1.0+write_state.Redshift) + write_state.DeltaScaleFactor > L1a ):
+                            pre_gf_backup = True 
+                    if pre_gf_backup == True:
+                        continue         
             
             exit = out_of_time or abandon_ship
             save = exit or interim_backup or pre_gf_backup
@@ -1174,7 +1205,7 @@ def merge_checksum_files(param=None, dir_globs=None):
 
     for pat in dir_globs:
         for d in glob(pat):
-            cksum_fns = glob(pjoin(d,'checksums.node*.crc32'))
+            cksum_fns = glob(pjoin(d,'checksums.*.crc32'))
             if not cksum_fns:
                 # Nothing to do
                 continue

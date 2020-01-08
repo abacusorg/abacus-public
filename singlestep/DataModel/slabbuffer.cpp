@@ -795,7 +795,7 @@ void SlabBuffer::DeAllocate(int type, int slab, int delete_file) {
         if(ret != 0){
             assertf(errno == ENOENT, "Failed to remove path \"%s\" for reason %d: %s\n", path, errno, strerror(errno));
             // TODO: is it really safe to fail to remove the file?
-            STDLOG(2, "Failed to remove path \"%s\"; does not exist. Continuing.\n", path)
+            STDLOG(2, "Failed to remove path \"%s\"; does not exist. Continuing.\n", path);
         }
     }
 }

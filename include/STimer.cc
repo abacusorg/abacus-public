@@ -42,6 +42,7 @@ double STimer::Elapsed(void) {
     return  timer.tv_sec + 1e-9*timer.tv_nsec;
 }
 
+
 /* Define timespec addition, subtraction, scaling, resetting.
  * We assume that timespec are well behaved, with tv_nsec values
  * between 0 and 1 billion.
@@ -50,7 +51,7 @@ double STimer::Elapsed(void) {
 #define NSEC_PER_SEC 1000000000
 
 struct timespec scale_timer(double s, struct timespec t) {
-    int64_t ns = t.tv_sec*NSEC_PER_SEC + t.tv_nsec;
+    int64_t ns = (int64_t) t.tv_sec*NSEC_PER_SEC + t.tv_nsec;
     ns *= s;
 
     struct timespec tp;

@@ -83,7 +83,7 @@ void ReadNodeSlabs(int get_all_nodes = 0, int * first_slabs_all = NULL, int * to
 			assert(first_slabs_all[MPI_rank] == first_slab_on_node) ;
 		}	
 			
-		delete last_slabs; 	
+		delete[] last_slabs; 	
     #endif
     return;
 }

@@ -583,12 +583,13 @@ void OutputAction(int slab) {
 
     // Having found all groups, we should output the Non-L0 (i.e., field) Taggable subsample.
     if(ReadState.DoSubsampleOutput) {
-        assert(ReadState.DoTimeSliceOutput == 0 and ReadState.DoGroupFindingOutput == 1); //NAM DEBUG REMOVE
+        assertf(ReadState.DoGroupFindingOutput == 1, "Subsample output should turn on group finding!\n"); // Currently Subsample Output requires GroupFinding Output.
         OutputNonL0Taggable(slab);
     }
 
     if (ReadState.DoTimeSliceOutput) {
-        assert(ReadState.DoSubsampleOutput == 0 and ReadState.DoGroupFindingOutput == 1); //NAM DEBUG REMOVE
+        // If we are doing group finding, then we are doing group finding output and subsample output
+        assertf(GFC == NULL || (ReadState.DoSubsampleOutput == 1 && ReadState.DoGroupFindingOutput == 1), "Preparing for timeslice output, expected either no group finding, or group finding and subsampling output!\n");
 
         // We've already done a K(1) and thus need a K(-1/2)
         FLOAT unkickfactor = WriteState.FirstHalfEtaKick;
@@ -976,11 +977,12 @@ void timestep(void) {
     }
 
     if(WriteState.Do2LPTVelocityRereading)
-        INSTANTIATE(       FetchLPTVelocity, FORCE_RADIUS + 2*GROUP_RADIUS - FINISH_WAIT_RADIUS);
+        INSTANTIATE(       FetchLPTVelocity, first_outputslab - FINISH_WAIT_RADIUS);
     else
-        INSTANTIATE_NOOP(  FetchLPTVelocity, FORCE_RADIUS + 2*GROUP_RADIUS - FINISH_WAIT_RADIUS);
 
-	int timestep_loop_complete = 0;
+        INSTANTIATE_NOOP(  FetchLPTVelocity, first_outputslab - FINISH_WAIT_RADIUS);
+	
+	int timestep_loop_complete = 0; 
 	while (!timestep_loop_complete){
 
            for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
@@ -1042,15 +1044,16 @@ void timestep(void) {
     uint64 total_n_output = n_output;
     if(GFC != NULL)
         total_n_output += GFC->n_L0_output;
-
-
-    #ifdef PARALLEL
-    	MPI_REDUCE_TO_ZERO(&total_n_output,   1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
-        MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
-
+	
+	
+    #ifdef PARALLEL	
+        BarrierWallClock.Clear(); BarrierWallClock.Start();
+        // These reductions force some synchronization, at least!
+    	MPI_REDUCE_TO_ZERO(&total_n_output,   1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);		
+        MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);		
+		
         STDLOG(2,"Ready to proceed to the remaining work\n");
 
-		BarrierWallClock.Clear(); BarrierWallClock.Start();
         MPI_Barrier(MPI_COMM_WORLD);
 		BarrierWallClock.Stop();
 
@@ -1059,7 +1062,9 @@ void timestep(void) {
         SendManifest->FreeAfterSend();
         // Run this again, just in case the dependency loop on this node finished
         // before the neighbor received the non-blocking MPI transfer.
-	    TimeStepWallClock.Stop(); ConvolutionWallClock.Start();
+
+	    TimeStepWallClock.Stop(); ConvolutionWallClock.Start(); 
+        convtimebuffer = (char*) malloc(CONVTIMEBUFSIZE);   // Need to allocate space for the timings
     	delete ParallelConvolveDriver;
 	    ConvolutionWallClock.Stop(); TimeStepWallClock.Start();
 

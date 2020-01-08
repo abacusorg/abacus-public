@@ -67,6 +67,7 @@ def default_metacode_argparser(doc):
     parser = argparse.ArgumentParser(description=doc, formatter_class=ArgParseFormatter)
     parser.add_argument('--maxorder', help='Maximum Multipole/Taylor series order to output', type=int, default=8)
     parser.add_argument('--onlyorder', help='Stub all but the given order (useful for fast compilation/debugging)', type=int)
+    parser.add_argument('--verbose', help='Show flop counts and the like during code generation', action='store_true')
 
     return parser
 

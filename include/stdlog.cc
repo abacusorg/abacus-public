@@ -24,8 +24,8 @@
 std::ofstream stdlog;
 int stdlog_threshold_global = 1;
 
-#define STDLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
-	LOG(stdlog,__VA_ARGS__); } }
+#define STDLOG(verbosity,...) do { if (verbosity<=stdlog_threshold_global) { \
+	LOG(stdlog,__VA_ARGS__); } } while(0)
 
 // C++-style variadic args don't work well across compilation units, so ensure a pure-string
 // entry point for modules like the GPU directs
@@ -40,10 +40,15 @@ void stdlog_hook(int verbosity, const char* str){
 	STDLOG(0,"Timestamp %s\n", time.substr(0,time.length()-1)); \
     } while (0)
 
-#define QUIT(...) { STDLOG(0,"Fatal error (QUIT)\n"); STDLOG(0,__VA_ARGS__); \
+#define QUIT(...) do { STDLOG(0,"Fatal error (QUIT)\n"); STDLOG(0,__VA_ARGS__); \
         fprintf(stderr,"Fatal error (QUIT): "); \
 	fpprint(std::cerr, __VA_ARGS__); \
-	assert(0==98); }
+	assert(0==98); } while(0)
+
+#define WARNING(...) do { STDLOG(0,"WARNING:\n"); STDLOG(0,__VA_ARGS__); \
+        fprintf(stderr,"Warning: "); \
+    fpprint(std::cerr, __VA_ARGS__); \
+    assert(0==98); } while(0)
 
 // This is a form of assert, but it requires a printf style message.
 // Be sure to terminate it with a \n.

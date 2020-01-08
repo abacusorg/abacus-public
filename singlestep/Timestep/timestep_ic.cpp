@@ -27,7 +27,11 @@ int FetchICPrecondition(int slab) {
 void FetchICAction(int slab) {
     STDLOG(1,"Fetching slab %d\n", slab);
     // Get a slab of particles and put them on the InsertList
-    NP_from_IC += LoadSlab2IL(slab);
+    uint64 NP_thisslab = LoadSlab2IL(slab);
+    NP_from_IC += NP_thisslab;
+
+    // Record the number of particles read in SlabSize so the timing log uses the right particle count
+    SS->setold(slab, NP_thisslab);
     
     // We also need to create a null slab
     // These slabs will never come off ramdisk because this is the first timestep

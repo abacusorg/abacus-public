@@ -12,6 +12,36 @@ inline float3 WrapPosition(float3 a) {
     return a;
 }
 
+/// This sorts the eigenvalues and vectors so that the largest is first.
+inline void sort_eig(double sigma[3], double sigma_vecs[3][3]) {
+    // Remember that the eigenvectors are in columns, so [0..2][j] is the jth.
+    #define SWAP_EIG(a,b) std::swap(sigma[a],sigma[b]); \
+        std::swap(sigma_vecs[0][a],sigma_vecs[0][b]); \
+        std::swap(sigma_vecs[1][a],sigma_vecs[1][b]); \
+        std::swap(sigma_vecs[2][a],sigma_vecs[2][b]); 
+
+    if (sigma[0]<sigma[1]) { SWAP_EIG(0,1) }   // Now 0>1
+    if (sigma[1]<sigma[2]) { SWAP_EIG(1,2) }   // Now 1>2
+    if (sigma[0]<sigma[1]) { SWAP_EIG(0,1) }   // Now 0>1
+    return;
+    #undef SWAP_EIG
+}
+
+/// In addition to returning the eigenvector euler16 packing,
+/// this code also sorts the inputs into descending order of eigenvalues.
+uint16_t pack_euler16_eig(double sigma[3], double sigma_vecs[3][3]) {
+    sort_eig(sigma, sigma_vecs);
+    int imaj = 0, imin = 2;
+    float major[3], minor[3];
+    major[0] = sigma_vecs[0][imaj];
+    major[1] = sigma_vecs[1][imaj];
+    major[2] = sigma_vecs[2][imaj];
+    minor[0] = sigma_vecs[0][imin];
+    minor[1] = sigma_vecs[1][imin];
+    minor[2] = sigma_vecs[2][imin];
+    return pack_euler16(major, minor);
+}
+
 #define assign_to_vector(a,b) { a[0] = b.x; a[1] = b.y; a[2] = b.z; }
     /** Fill a HaloStat object and return it.
 
@@ -35,21 +65,23 @@ HaloStat ComputeStats(int size,
     HaloStat h;
     const int16_t INT16SCALE = 32000;
     h.N = size;
+    float isize = 1.0/size;
+
+    
     // Compute the center of mass
     double3 com = double3(0.0, 0.0, 0.0);
     for (int p=0; p<size; p++) com += L1pos[p];
-    float3 x = com/size;
-    h.x[0] = com.x; h.x[1] = com.y; h.x[2] = com.z; 
+    float3 x_com = com*isize;
     com = double3(0.0, 0.0, 0.0);
     for (int p=0; p<size; p++) com += L1vel[p];
-    float3 v = com/size/ReadState.VelZSpace_to_Canonical;
-    assign_to_vector(h.v, v);
+    float3 v_com = com*isize/ReadState.VelZSpace_to_Canonical;
+    assign_to_vector(h.v_com, v_com);
 
     // Find the largest L2 subhalos and the largest COM
     // Groups are already in descending order of multiplicity
     for (int j=0; j<N_LARGEST_SUBHALOS; j++) 
-	if (j<L2.ngroups) h.L2cntr_N[j] = L2.groups[j].n; 
-	    else h.L2cntr_N[j] = 1;
+	if (j<L2.ngroups) h.L2_N[j] = L2.groups[j].n; 
+	    else h.L2_N[j] = 1;
 	    // Strictly speaking, there might not be any singlet particles,
 	    // but the far more likely case is that there are.
 	    // So this output could be in error, i.e., 0 and 1 are not distinguished
@@ -66,173 +98,230 @@ HaloStat ComputeStats(int size,
     com = double3(0.0, 0.0, 0.0);
     for (int p=0; p<L2_largest_np; p++) 
     	com += L1pos[start[p].index()];
-    float3 L2cntr_x = com/h.L2cntr_N[0];
+    float3 x_L2com = com/h.L2_N[0];
     com = double3(0.0, 0.0, 0.0);
     for (int p=0; p<L2_largest_np; p++) 
     	com += L1vel[start[p].index()];
-    float3 L2cntr_v = com/h.L2cntr_N[0]/ReadState.VelZSpace_to_Canonical;
-    assign_to_vector(h.L2cntr_v, L2cntr_v);
+    float3 v_L2com = com/h.L2_N[0]/ReadState.VelZSpace_to_Canonical;
+    assign_to_vector(h.v_L2com, v_L2com);
 
-    // Now we can go through the particles to compute radii and moments
-    // We can use L2.d2buffer for scratch space; it is guaranteed to be big enough
-    double vxx, vxy, vxz, vyy, vyz, vzz;
-    double rxx, rxy, rxz, ryy, ryz, rzz;
-    float vmax, rvmax;	
-
-    vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
-    rxx = rxy = rxz = ryy = ryz = rzz = 0.0;
+    // Now we can go through the particles to compute radii and moments. We can use
+    // L2.d2_active and L2.d2buffer for scratch space; they are guaranteed to be big enough
     for (int p=0; p<size; p++) {
-		posstruct dr = L1pos[p]-x;
+                posstruct dr = L1pos[p]-x_com;
 		L2.d2buffer[p] = dr.norm2();
+		L2.d2_active[p] = L2.d2buffer[p];
+    }	
 
-		velstruct dv = L1vel[p]/ReadState.VelZSpace_to_Canonical - v;
+    std::sort(L2.d2_active, L2.d2_active+size);
 
-		vxx += dv.x*dv.x; vxy += dv.x*dv.y; vxz += dv.x*dv.z;
-		vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
-		rxx += dr.x*dr.x; rxy += dr.x*dr.y; rxz += dr.x*dr.z;
-		ryy += dr.y*dr.y; ryz += dr.y*dr.z; rzz += dr.z*dr.z;
-    }
-
-    std::sort(L2.d2buffer, L2.d2buffer+size);
+    float r90sq = L2.d2_active[size*9/10]; // radius with respect to which we compute the second moments
+    float r50sq = L2.d2_active[size/2]; // radius with respect to which we compute the second moments
+    float isize_r90 = 1./(size*9/10); // number of elements within that radius
+    float isize_r50 = 1./(size/2); // number of elements within that radius
     
-    h.r100 = sqrt(L2.d2buffer[size-1]); 
-    // r10, r25, r50, r67, r75, r90: Expressed as ratios of r100, and scaled to 32000 to store as int16s.   
-    h.r10  = lround(sqrt(L2.d2buffer[size/10  ]) / h.r100 * INT16SCALE); 
-    h.r25  = lround(sqrt(L2.d2buffer[size/4   ]) / h.r100 * INT16SCALE); 
-    h.r33  = lround(sqrt(L2.d2buffer[size/3   ]) / h.r100 * INT16SCALE); 
-    h.r50  = lround(sqrt(L2.d2buffer[size/2   ]) / h.r100 * INT16SCALE); 
-    h.r67  = lround(sqrt(L2.d2buffer[size*2/3 ]) / h.r100 * INT16SCALE); 
-    h.r75  = lround(sqrt(L2.d2buffer[size*3/4 ]) / h.r100 * INT16SCALE); 
-    h.r90  = lround(sqrt(L2.d2buffer[size*9/10]) / h.r100 * INT16SCALE); 
-	
-	double sigmav[3], sigmar[3]; 
-	double sigmav_vecs[3][3]; 
-	double sigmar_vecs[3][3]; 
+    h.r100_com = sqrt(L2.d2_active[size-1]); 
+    // r10, r25, r50, r67, r75, r90, r95, r98: Expressed as ratios of r100, and scaled to 32000 to store as int16s.   
+    h.r10_com  = lround(sqrt(L2.d2_active[size/10  ]) / h.r100_com * INT16SCALE); 
+    h.r25_com  = lround(sqrt(L2.d2_active[size/4   ]) / h.r100_com * INT16SCALE); 
+    h.r33_com  = lround(sqrt(L2.d2_active[size/3   ]) / h.r100_com * INT16SCALE); 
+    h.r50_com  = lround(sqrt(L2.d2_active[size/2   ]) / h.r100_com * INT16SCALE); 
+    h.r67_com  = lround(sqrt(L2.d2_active[size*2/3 ]) / h.r100_com * INT16SCALE); 
+    h.r75_com  = lround(sqrt(L2.d2_active[size*3/4 ]) / h.r100_com * INT16SCALE); 
+    h.r90_com  = lround(sqrt(r90sq) / h.r100_com * INT16SCALE);
+    h.r95_com  = lround(sqrt(L2.d2_active[size*19/20]) / h.r100_com * INT16SCALE); 	
+    h.r98_com  = lround(sqrt(L2.d2_active[size*49/50]) / h.r100_com * INT16SCALE);
+    
+    double vxx, vxy, vxz, vyy, vyz, vzz, vrr, vtt;
+    double rxx, rxy, rxz, ryy, ryz, rzz;
+    double nxx, nxy, nxz, nyy, nyz, nzz;
+    float vmax, rvmax; 
+    float vmean, vmean_r50, vsq_r50;
 
-	FindEigensystem(vxx, vxy, vxz, vyy, vyz, vzz, sigmav, (double * )sigmav_vecs);
-    FindEigensystem(rxx, rxy, rxz, ryy, ryz, rzz, sigmar, (double * )sigmar_vecs);
-
-    int r_maj, r_min, v_maj, v_min = 0; 
-    for (int i = 0; i < 3; i ++) {
-        if (sigmar[i] < sigmar[r_maj]) r_maj = i; 
-        if (sigmar[i] > sigmar[r_min]) r_min = i;
-
-        if (sigmav[i] < sigmav[v_maj]) v_maj = i; 
-        if (sigmav[i] > sigmav[v_min]) v_min = i;
-    }
-
-    float major[3], minor[3]; 
-    major[0] = sigmar_vecs[r_maj][0]; 
-    major[1] = sigmar_vecs[r_maj][1];
-    major[2] = sigmar_vecs[r_maj][2]; 
-    minor[0] = sigmar_vecs[r_min][0]; 
-    minor[1] = sigmar_vecs[r_min][1];
-    minor[2] = sigmar_vecs[r_min][2]; 
-
-    h.sigmar_eigenvecs = pack_euler16(major, minor);
-
-    major[0] = sigmav_vecs[v_maj][0]; 
-    major[1] = sigmav_vecs[v_maj][1];
-    major[2] = sigmav_vecs[v_maj][2]; 
-    minor[0] = sigmav_vecs[v_min][0]; 
-    minor[1] = sigmav_vecs[v_min][1];
-    minor[2] = sigmav_vecs[v_min][2]; 
-
-    h.sigmav_eigenvecs = pack_euler16(major, minor);
-
-    h.sigmav3d = (sigmav[0] + sigmav[1] + sigmav[2]) / 3.0; 
-    h.sigmavMin_to_sigmav3d = lround( sqrt(sigmav[2])  / h.sigmav3d * INT16SCALE ); 
-    h.sigmav3d_to_sigmavMaj = lround( h.sigmav3d/sqrt(sigmav[0]) * INT16SCALE );
-
-    for(int i = 0; i < 3; i++) h.sigmar[i] = lround(sqrt(sigmar[i]) / h.r100 * INT16SCALE );
-	
-    // We search for the max of vcirc, which is proportional to sqrt(G*M/R).
-    // The 4th power of that is proportional to N^2/R^2.
-    vmax = 0.0;
-    for (int p=size/10; p<size; p++) {
-		float v4 = p*p/L2.d2buffer[p];
-		if (v4>vmax) { vmax = v4; rvmax = L2.d2buffer[p]; }
-    }
-    h.rvcirc_max = lround(sqrt(rvmax) / h.r100 * INT16SCALE );    // Get to radial units and compress into int16. 
-    float GMpart = 3*P.Omega_M*pow(100*ReadState.BoxSizeHMpc,2)/(8*M_PI*P.np*ReadState.ScaleFactor);
-    h.vcirc_max = sqrt(GMpart*sqrt(vmax))/ReadState.VelZSpace_to_kms;  // This is sqrt(G*M_particle*N/R).
-
-    // Repeat this, finding moments and radii around the largest subhalo COM
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     rxx = rxy = rxz = ryy = ryz = rzz = 0.0;
+    nxx = nxy = nxz = nyy = nyz = nzz = 0.0;
+    vrr = vtt = vmean = vmean_r50 = vsq_r50 = 0.0;
     for (int p=0; p<size; p++) {
-		posstruct dr = L1pos[p]-L2cntr_x;
-		L2.d2buffer[p] = dr.norm2();
-		velstruct dv = L1vel[p]/ReadState.VelZSpace_to_Canonical - L2cntr_v;
-		vxx += dv.x*dv.x; vxy += dv.x*dv.y; vxz += dv.x*dv.z;
-		vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
-		rxx += dr.x*dr.x; rxy += dr.x*dr.y; rxz += dr.x*dr.z;
-		ryy += dr.y*dr.y; ryz += dr.y*dr.z; rzz += dr.z*dr.z;
+        if (L2.d2buffer[p] < r90sq) {
+            posstruct dr = L1pos[p]-x_com;
+            velstruct dv = L1vel[p]/ReadState.VelZSpace_to_Canonical-v_com;
+
+            vxx += dv.x*dv.x; vxy += dv.x*dv.y; vxz += dv.x*dv.z;
+            vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
+            rxx += dr.x*dr.x; rxy += dr.x*dr.y; rxz += dr.x*dr.z;
+            ryy += dr.y*dr.y; ryz += dr.y*dr.z; rzz += dr.z*dr.z;
+            posstruct n = dr*(1.0/sqrt(dr.norm2()+1e-20));
+            float vr = dv.x*n.x+dv.y*n.y+dv.z*n.z;
+            vrr += vr*vr; // Accumulate
+            float vnorm2 = dv.norm2();
+            vtt += vnorm2-vr*vr;  // Accumulate
+            nxx += n.x*n.x; nxy += n.x*n.y; nxz += n.x*n.z;
+            nyy += n.y*n.y; nyz += n.y*n.z; nzz += n.z*n.z;
+            float vnorm = sqrt(vnorm2);
+            vmean += vnorm;
+            if (L2.d2buffer[p]<r50sq) {
+                vsq_r50 += vnorm2;
+                vmean_r50 += vnorm;
+            }
+        }
     }
-    std::sort(L2.d2buffer, L2.d2buffer+size);
-
-    h.L2cntr_r100 = sqrt(L2.d2buffer[size-1]);   
-    // r10, r25, r50, r67, r75, r90 relative to largest L2 center: Expressed as ratios of r100, and scaled to 32000 to store as int16s. 
-    h.L2cntr_r10  = lround(sqrt(L2.d2buffer[size/10  ]) / h.L2cntr_r100 * INT16SCALE); 
-    h.L2cntr_r25  = lround(sqrt(L2.d2buffer[size/4   ]) / h.L2cntr_r100 * INT16SCALE); 
-    h.L2cntr_r33  = lround(sqrt(L2.d2buffer[size/3   ]) / h.L2cntr_r100 * INT16SCALE); 
-    h.L2cntr_r50  = lround(sqrt(L2.d2buffer[size/2   ]) / h.L2cntr_r100 * INT16SCALE); 
-    h.L2cntr_r67  = lround(sqrt(L2.d2buffer[size*2/3 ]) / h.L2cntr_r100 * INT16SCALE); 
-    h.L2cntr_r75  = lround(sqrt(L2.d2buffer[size*3/4 ]) / h.L2cntr_r100 * INT16SCALE); 
-    h.L2cntr_r90  = lround(sqrt(L2.d2buffer[size*9/10]) / h.L2cntr_r100 * INT16SCALE); 
-
+    // Normalize by the number of particles
+    rxx *= isize_r90; rxy *= isize_r90; rxz *= isize_r90;
+    ryy *= isize_r90; ryz *= isize_r90; rzz *= isize_r90;
+    vxx *= isize_r90; vxy *= isize_r90; vxz *= isize_r90;
+    vyy *= isize_r90; vyz *= isize_r90; vzz *= isize_r90;
+    nxx *= isize_r90; nxy *= isize_r90; nxz *= isize_r90;
+    nyy *= isize_r90; nyz *= isize_r90; nzz *= isize_r90;
+    vrr *= isize_r90; vtt *= isize_r90*0.5; vmean *= isize_r90; // Tangential is scaled per dimension
+    vmean_r50 *= isize_r50; vsq_r50 *= isize_r50;
+     
+    double sigmav[3], sigmar[3], sigman[3]; 
+    double sigmav_vecs[3][3]; 
+    double sigmar_vecs[3][3]; 
+    double sigman_vecs[3][3]; 
 
     FindEigensystem(vxx, vxy, vxz, vyy, vyz, vzz, sigmav, (double * )sigmav_vecs);
     FindEigensystem(rxx, rxy, rxz, ryy, ryz, rzz, sigmar, (double * )sigmar_vecs);
+    FindEigensystem(nxx, nxy, nxz, nyy, nyz, nzz, sigman, (double * )sigman_vecs);
+    
+    h.sigmar_eigenvecs_com = pack_euler16_eig(sigmar, sigmar_vecs);
+    h.sigmav_eigenvecs_com = pack_euler16_eig(sigmav, sigmav_vecs);
+    h.sigman_eigenvecs_com = pack_euler16_eig(sigman, sigman_vecs);
+    // The eigenvalues are now sorted in descending order
+	  
+    h.sigmav3d_com = sqrt(sigmav[0] + sigmav[1] + sigmav[2]); 
+    h.sigmavMin_to_sigmav3d_com = lround( sqrt(sigmav[2])  / h.sigmav3d_com * INT16SCALE ); 
+    h.sigmavMax_to_sigmav3d_com = lround( sqrt(sigmav[0])  / h.sigmav3d_com * INT16SCALE ); 
+    h.sigmavtan_to_sigmav3d_com = lround(sqrt(vtt)/h.sigmav3d_com * INT16SCALE ); 
+    h.sigmavrad_to_sigmav3d_com = lround(sqrt(vrr)/h.sigmav3d_com * INT16SCALE );
+    h.meanSpeed_com = vmean;
+    h.meanSpeed_r50_com = vmean_r50;
+    h.sigmav3d_r50_com  = vsq_r50;
 
-    r_maj, r_min, v_maj, v_min = 0; 
-    for (int i = 0; i < 3; i ++) {
-        if (sigmar[i] < sigmar[r_maj]) r_maj = i; 
-        if (sigmar[i] > sigmar[r_min]) r_min = i;
-
-        if (sigmav[i] < sigmav[v_maj]) v_maj = i; 
-        if (sigmav[i] > sigmav[v_min]) v_min = i;
-    }
-
-    major[0] = sigmar_vecs[r_maj][0]; 
-    major[1] = sigmar_vecs[r_maj][1];
-    major[2] = sigmar_vecs[r_maj][2]; 
-    minor[0] = sigmar_vecs[r_min][0]; 
-    minor[1] = sigmar_vecs[r_min][1];
-    minor[2] = sigmar_vecs[r_min][2]; 
-
-    h.L2cntr_sigmar_eigenvecs = pack_euler16(major, minor);
-
-    major[0] = sigmav_vecs[v_maj][0]; 
-    major[1] = sigmav_vecs[v_maj][1];
-    major[2] = sigmav_vecs[v_maj][2]; 
-    minor[0] = sigmav_vecs[v_min][0]; 
-    minor[1] = sigmav_vecs[v_min][1];
-    minor[2] = sigmav_vecs[v_min][2]; 
-
-    h.L2cntr_sigmav_eigenvecs = pack_euler16(major, minor);
-
-    h.L2cntr_sigmav3d = (sigmav[0] + sigmav[1] + sigmav[2]) / 3.0; 
-    h.L2cntr_sigmavMin_to_sigmav3d = lround( sqrt(sigmav[2])  / h.L2cntr_sigmav3d * INT16SCALE ); 
-    h.L2cntr_sigmav3d_to_sigmavMaj = lround( h.L2cntr_sigmav3d/sqrt(sigmav[0]) * INT16SCALE );
-	
-    for(int i = 0; i < 3; i++) h.L2cntr_sigmar[i] = lround(sqrt(sigmar[i]) / h.r100 * INT16SCALE );
-
+    for(int i = 0; i < 3; i++) h.sigmar_com[i] = lround(sqrt(sigmar[i]) / h.r100_com * INT16SCALE );
+    for(int i = 0; i < 3; i++) h.sigman_com[i] = lround(sqrt(sigman[i]) * INT16SCALE );
+    
+    
+#ifdef SPHERICAL_OVERDENSITY
+    h.SO_L2max_central_particle[0] = L2.p[0].x;
+    h.SO_L2max_central_particle[1] = L2.p[0].y;
+    h.SO_L2max_central_particle[2] = L2.p[0].z;
+    h.SO_L2max_central_particle[3] = L2.p[0].n;	
+    h.SO_central_density  = L2.density[0]; 
+	//!!!h.SO_radius           = sqrt(L2.halo_thresh2); 
+#endif 	
     // We search for the max of vcirc, which is proportional to sqrt(G*M/R).
     // The 4th power of that is proportional to N^2/R^2.
     vmax = 0.0;
     for (int p=size/10; p<size; p++) {
-	float v4 = p*p/L2.d2buffer[p];
-	if (v4>vmax) { vmax = v4; rvmax = L2.d2buffer[p]; }
+		float v4 = p*p/L2.d2_active[p];
+		if (v4>vmax) { vmax = v4; rvmax = L2.d2_active[p]; }
     }
-    h.L2cntr_rvcirc_max = lround(sqrt(rvmax) / h.L2cntr_r100 * INT16SCALE );    // Get to radial units and compress into int16. 
-    h.L2cntr_vcirc_max = sqrt(GMpart*sqrt(vmax))/ReadState.VelZSpace_to_kms;  // This is sqrt(N/R).
+    h.rvcirc_max_com = lround(sqrt(rvmax) / h.r100_com * INT16SCALE );    // Get to radial units and compress into int16. 
+    float GMpart = 3*P.Omega_M*pow(100*ReadState.BoxSizeHMpc,2)/(8*M_PI*P.np*ReadState.ScaleFactor);
+    h.vcirc_max_com = sqrt(GMpart*sqrt(vmax))/ReadState.VelZSpace_to_kms;  // This is sqrt(G*M_particle*N/R).
+    
+    // Repeat this, finding moments and radii around the largest subhalo COM
+    for (int p=0; p<size; p++) {
+                posstruct dr = L1pos[p]-x_L2com;
+		L2.d2buffer[p] = dr.norm2();
+		L2.d2_active[p] = L2.d2buffer[p];
+    }
+    
+    std::sort(L2.d2_active, L2.d2_active+size);
+
+    r90sq = L2.d2_active[size*9/10]; // radius within which we compute the second moments
+    r50sq = L2.d2_active[size/2]; // radius within which we compute the second moments
+    isize_r90 = 1./(size*9/10); // number of elements within that radius
+    isize_r50 = 1./(size/2); // number of elements within that radius
+    
+    h.r100_L2com = sqrt(L2.d2_active[size-1]); 
+    // r10, r25, r50, r67, r75, r90, r95, r98 wrt COM of the largest L2. Expressed as ratios of r100, and scaled to 32000 to store as int16s.   
+    h.r10_L2com  = lround(sqrt(L2.d2_active[size/10  ]) / h.r100_L2com * INT16SCALE); 
+    h.r25_L2com  = lround(sqrt(L2.d2_active[size/4   ]) / h.r100_L2com * INT16SCALE); 
+    h.r33_L2com  = lround(sqrt(L2.d2_active[size/3   ]) / h.r100_L2com * INT16SCALE); 
+    h.r50_L2com  = lround(sqrt(L2.d2_active[size/2   ]) / h.r100_L2com * INT16SCALE); 
+    h.r67_L2com  = lround(sqrt(L2.d2_active[size*2/3 ]) / h.r100_L2com * INT16SCALE); 
+    h.r75_L2com  = lround(sqrt(L2.d2_active[size*3/4 ]) / h.r100_L2com * INT16SCALE); 
+    h.r90_L2com  = lround(sqrt(r90sq) / h.r100_L2com * INT16SCALE);
+    h.r95_L2com  = lround(sqrt(L2.d2_active[size*19/20]) / h.r100_L2com * INT16SCALE); 	
+    h.r98_L2com  = lround(sqrt(L2.d2_active[size*49/50]) / h.r100_L2com * INT16SCALE);
+
+    vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
+    rxx = rxy = rxz = ryy = ryz = rzz = 0.0;
+    nxx = nxy = nxz = nyy = nyz = nzz = 0.0;
+    vrr = vtt = vmean = vsq_r50 = vmean_r50 = 0.0;
+    for (int p=0; p<size; p++) {
+        if (L2.d2buffer[p] < r90sq) {
+            posstruct dr = L1pos[p]-x_L2com;
+            velstruct dv = L1vel[p]/ReadState.VelZSpace_to_Canonical-v_L2com;
+
+            vxx += dv.x*dv.x; vxy += dv.x*dv.y; vxz += dv.x*dv.z;
+            vyy += dv.y*dv.y; vyz += dv.y*dv.z; vzz += dv.z*dv.z;
+            rxx += dr.x*dr.x; rxy += dr.x*dr.y; rxz += dr.x*dr.z;
+            ryy += dr.y*dr.y; ryz += dr.y*dr.z; rzz += dr.z*dr.z;
+            posstruct n = dr*(1.0/sqrt(dr.norm2()+1e-20));
+            float vr = dv.x*n.x+dv.y*n.y+dv.z*n.z;
+            vrr += vr*vr; // Accumulate
+            float vnorm2 = dv.norm2();
+            float vnorm = sqrt(vnorm2);
+            vtt += vnorm2-vr*vr;  // Accumulate
+            nxx += n.x*n.x; nxy += n.x*n.y; nxz += n.x*n.z;
+            nyy += n.y*n.y; nyz += n.y*n.z; nzz += n.z*n.z;
+            vmean += vnorm;
+            if (L2.d2buffer[p]<r50sq) {
+                vsq_r50 += vnorm2;
+                vmean_r50 += vnorm;
+            }
+        }
+    }
+    // Normalize by the number of particles
+    rxx *= isize_r90; rxy *= isize_r90; rxz *= isize_r90;
+    ryy *= isize_r90; ryz *= isize_r90; rzz *= isize_r90;
+    vxx *= isize_r90; vxy *= isize_r90; vxz *= isize_r90;
+    vyy *= isize_r90; vyz *= isize_r90; vzz *= isize_r90;
+    nxx *= isize_r90; nxy *= isize_r90; nxz *= isize_r90;
+    nyy *= isize_r90; nyz *= isize_r90; nzz *= isize_r90;
+    vrr *= isize_r90; vtt *= isize_r90*0.5; vmean *= isize_r90; // Tangential is scaled per dimension
+    vmean_r50 *= isize_r50; vsq_r50 *= isize_r50;
+
+    FindEigensystem(vxx, vxy, vxz, vyy, vyz, vzz, sigmav, (double * )sigmav_vecs);
+    FindEigensystem(rxx, rxy, rxz, ryy, ryz, rzz, sigmar, (double * )sigmar_vecs);
+    FindEigensystem(nxx, nxy, nxz, nyy, nyz, nzz, sigman, (double * )sigman_vecs);
+    
+    h.sigmar_eigenvecs_L2com = pack_euler16_eig(sigmar, sigmar_vecs);
+    h.sigmav_eigenvecs_L2com = pack_euler16_eig(sigmav, sigmav_vecs);
+    h.sigman_eigenvecs_L2com = pack_euler16_eig(sigman, sigman_vecs);
+
+    // The eigenvalues are now sorted in descending order
+
+    h.sigmav3d_L2com = sqrt(sigmav[0] + sigmav[1] + sigmav[2]); 
+    h.sigmavMin_to_sigmav3d_L2com = lround( sqrt(sigmav[2])  / h.sigmav3d_L2com * INT16SCALE ); 
+    h.sigmavMax_to_sigmav3d_L2com = lround( sqrt(sigmav[0])  / h.sigmav3d_L2com * INT16SCALE ); 
+    h.sigmavtan_to_sigmav3d_L2com = lround(sqrt(vtt)/h.sigmav3d_L2com * INT16SCALE ); 
+    h.sigmavrad_to_sigmav3d_L2com = lround(sqrt(vrr)/h.sigmav3d_L2com * INT16SCALE ); 
+    h.meanSpeed_L2com = vmean;
+    h.meanSpeed_r50_L2com = vmean_r50;
+    h.sigmav3d_r50_L2com  = vsq_r50;
+    
+    for(int i = 0; i < 3; i++) h.sigmar_L2com[i] = lround(sqrt(sigmar[i]) / h.r100_L2com * INT16SCALE );
+    for(int i = 0; i < 3; i++) h.sigman_L2com[i] = lround(sqrt(sigman[i]) * INT16SCALE );
+    
+    // We search for the max of vcirc, which is proportional to sqrt(G*M/R).
+    // The 4th power of that is proportional to N^2/R^2.
+    vmax = 0.0;
+    for (int p=size/10; p<size; p++) {
+	float v4 = p*p/L2.d2_active[p];
+	if (v4>vmax) { vmax = v4; rvmax = L2.d2_active[p]; }
+    }
+    h.rvcirc_max_L2com = lround(sqrt(rvmax) / h.r100_L2com * INT16SCALE );    // Get to radial units and compress into int16. 
+    h.vcirc_max_L2com = sqrt(GMpart*sqrt(vmax))/ReadState.VelZSpace_to_kms;  // This is sqrt(N/R).
 	
-    x += offset; 
-    x = WrapPosition(x);
-    L2cntr_x += offset; L2cntr_x = WrapPosition(L2cntr_x);
-    assign_to_vector(h.x, x);
-    assign_to_vector(h.L2cntr_x, L2cntr_x);
+    x_com += offset; x_com = WrapPosition(x_com);
+    x_L2com += offset; x_L2com = WrapPosition(x_L2com);
+    assign_to_vector(h.x_com, x_com);
+    assign_to_vector(h.x_L2com, x_L2com);
  
     return h;
 };

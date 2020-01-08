@@ -241,10 +241,10 @@ class OutputPID: public AppendArena {
   private:
     uint64_t pid;
 
-    void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
+    void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct a) {
         uint64_t *p = (uint64_t *)c;
-        *p = aux.pid(); 
-        pid = aux.pid(); 
+        *p  = a.aux & AUX_PID_TAG_DENS_MASK; 
+        pid = a.aux & AUX_PID_TAG_DENS_MASK; 
     }
 
     void appendcell(char *c, integer3 ijk, float vscale) {

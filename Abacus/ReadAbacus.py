@@ -15,6 +15,7 @@ Todo:
 - native ctypes float3* instead of void* (or CFFI?)
 - inline particle downsampling
 - automatic globbing patterns for a given file format
+- standardize return signatures
 """
 
 import os
@@ -34,6 +35,7 @@ import ctypes
 
 from .InputFile import InputFile
 from .Tools import ndarray_arg, asciistring_arg
+from .Tools import wrap_zero_centered, wrap_zero_origin
 
 
 def read(*args, **kwargs):
@@ -52,6 +54,10 @@ def read(*args, **kwargs):
 
     units = kwargs.pop('units', None)
     box_on_disk = kwargs.pop('box_on_disk', None)
+    
+    # Readers should return None if a header isn't found
+    original_return_header = kwargs.get('return_header')
+    kwargs['return_header'] = True
 
     try:
         ret = reader_functions[format](*args, **kwargs)
@@ -64,10 +70,11 @@ def read(*args, **kwargs):
     else:
         data = ret
 
+    # todo: compare str and float
     if units != None:
         if box_on_disk is None:
-            box_on_disk = default_box_on_disk[format]
-        # todo: compare str and float
+            fn = args[0]
+            box_on_disk = get_box_on_disk(fn, format)
         if units != box_on_disk:
             try:
                 box = kwargs['boxsize']
@@ -76,7 +83,9 @@ def read(*args, **kwargs):
             data['pos'] *= eval(str(units))/eval(str(box_on_disk))
             # vel conversion?
 
-    return ret
+    if original_return_header:
+        return data, header
+    return data
 
 
 def from_dir(dir, pattern=None, key=None, **kwargs):
@@ -107,15 +116,22 @@ def from_dir(dir, pattern=None, key=None, **kwargs):
         If `return_header` and a header is found, return parsed InputFile
     """
     if pattern is None:
-        format = kwargs.get('format')
-        pattern = get_file_pattern(format)
+        if is_ic_path(dir):
+            pattern = 'ic_*'
+        else:
+            format = kwargs.get('format')
+            pattern = get_file_pattern(format)
 
     _key = (lambda k: key(ppath.basename(k))) if key else None
     files = []
+
+    if type(pattern) is str:
+        pattern = (pattern,)
+        
     for p in pattern:
         files += glob(pjoin(dir, p))
     files = sorted(files, key=_key)
-    
+
     return read_many(files, **kwargs)
 
 
@@ -185,8 +201,8 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
             read_into = None
         else:
             read_into = particles[start:]
-        
         out = read(fn, format=format, out=read_into, **kwargs)
+
         if separate_fields:
             if return_header:
                 out, header = out
@@ -265,7 +281,10 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=False, return_
 
     if type(path) is str:
         if ppath.isdir(path):
-            pattern = get_file_pattern(kwargs.get('format'))
+            if is_ic_path(path):
+                pattern = 'ic_*'
+            else:
+                pattern = get_file_pattern(kwargs.get('format'))
             files = sorted(glob(pjoin(path, pattern)), key=_key)
         elif ppath.isfile(path):
             files = [path]
@@ -369,12 +388,6 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
         If `return_header` and a header is found, return parsed InputFile
     """
 
-    print("NAM THIS IS A HACK, return_vel = True")
-    return_vel = True
-
-
-
-
     try:
         ralib
     except NameError:
@@ -406,32 +419,17 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
     except TypeError: 
         if downsample is None:
             downsample = 1.1  # any number larger than 1 will take all particles
-    
-    
-    NP = readers[dtype](fn, offset, ramdisk, return_vel, zspace, return_pid, downsample, _out.view(dtype=dtype))
 
+    readers[dtype].argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_double, ctypes.c_double, ctypes.c_void_p] 
+    NP = readers[dtype](bytes(fn, encoding='utf-8'), offset, ramdisk, return_vel, zspace, return_pid, downsample,  0, _out.view(dtype=dtype).ctypes.data_as(ctypes.POINTER(ctypes.c_void_p)))
 
     # shrink the buffer to the real size
     if out is None:
         _out.resize(NP, refcheck=False)
-    elif not return_vel:
-        _out = _out[:NP]
     else:
-        _out = _out[:2*NP] 
-
-
-
-    if return_vel:
-        data = np.array([list(triplet) for line in _out for triplet in line])
-        pos = data[::2]
-        vel = data[1::2]
+        _out = _out[:NP]
+        
     
- 
-    print("READ RV NAM THIS IS A HACK!!!")
-    pos = np.sort( ( ( pos * vel - np.min( pos * vel )) / np.ptp(pos * vel ) - 0.5  ), axis=0)
-    print("NAM THIS IS A HACK, return_vel = True")
-    _out = np.array(pos)
-
     retval = (NP,) if out is not None else (_out,)
     if return_header:
         retval += (header,)
@@ -484,7 +482,7 @@ def read_pack9(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fals
     header: InputFile
         If `return_header` and a header is found, return parsed InputFile
     """
-    return_pid = False
+
     try:
         ralib
     except NameError:
@@ -518,11 +516,12 @@ def read_pack9(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fals
     readers[dtype].argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_double, ctypes.c_double, ctypes.c_void_p] 
     NP = readers[dtype](bytes(fn, encoding='utf-8'), offset, ramdisk, return_vel, zspace, return_pid, downsample, 0, _out.view(dtype=dtype).ctypes.data_as(ctypes.POINTER(ctypes.c_void_p)))
 
-    # shrink the buffer to the real size
+   # shrink the buffer to the real size
     if out is None:
         _out.resize(NP, refcheck=False)
     else:
         _out = _out[:NP]
+        
     
     retval = (NP,) if out is not None else (_out,)
     if return_header:
@@ -530,11 +529,11 @@ def read_pack9(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fals
     
     if len(retval) == 1:
         return retval[0]
-    return retval    
+    return retval
 
 
 def rvint_unpack(data):
-    velscale = 6000.0
+    velscale = 6000.0/2048.0
     posscale = 2.0**(-32.0)
 
     iv = (data&0xfff).astype(int)
@@ -555,14 +554,16 @@ def read_rvint(fn, return_vel = True, return_pid=False, zspace=False, dtype=np.f
     with open(fn, 'rb') as fp:
         header = skip_header(fp)
         if header:
-            header = InputFile(str_source=header) #NAM TODO add headers to rvint. 
+            header = InputFile(str_source=header)
         data = np.fromfile(fp, dtype=disk_dt)
     
     data = np.array([list(triplet) for line in data for triplet in line])
 
+    state = InputFile(pjoin(ppath.dirname(fn), 'header'))
+
     # Use the given buffer
     if out is not None:
-        _out = out
+        _out = out  
 
     pos = np.zeros([len(data), 3]) 
     vel = np.zeros([len(data), 3])
@@ -572,20 +573,15 @@ def read_rvint(fn, return_vel = True, return_pid=False, zspace=False, dtype=np.f
     _out['pos'][:len(data)] = pos
 
     if zspace:
-        _out['pos'][:len(data)] += vel
+        pos[:,0] += vel[:,0] / state['VelZSpace_to_kms'] # km/s * s Mpc/km /Mpc --> dimensionless box units. 
+        _out['pos'][:len(data)] = pos
+
     if return_vel:
         _out['vel'][:len(data)] = vel
 
-
-
-
-    print("READ RV NAM THIS IS A HACK!!! return_vel: ", return_vel, "zspace: ", zspace)
-    _out['pos'][:len(data)] = np.sort(((pos * vel - np.min(pos * vel)) / np.ptp(pos * vel) - 0.5), axis = 0)
-    
-    
     retval = (_out,) if out is None else (len(data),)
     if return_header:
-        retval += (header,)
+        retval += (state,)
 
     if len(retval) == 1:
         return retval[0]
@@ -835,7 +831,10 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
     slab = int(re.search(r'\d{4}$', fn).group(0))
 
     if return_header:
-        state = InputFile(pjoin(ppath.dirname(fn), 'state'))
+        try:
+            state = InputFile(pjoin(ppath.dirname(fn), 'state'))
+        except FileNotFoundError:
+            state = None
     
     # Count the particles to read in
     fsize = ppath.getsize(pos_fn)
@@ -976,18 +975,18 @@ def read_pack14_lite(fn, return_vel=True, return_pid=False, return_header=False,
     return retval
 
 
-def read_gadget(fn, boxsize=1., **kwargs):
+def read_gadget(fn, **kwargs):
     '''
     Bare-bones Gadget reader using pynbody.
     '''
     dtype = kwargs['dtype']
-    boxsize = kwargs['boxsize']
 
     import pynbody
     f = pynbody.load(fn)
-    data = np.array(f['pos'] - boxsize/2., dtype=('pos',dtype,3))  # Shift to zero-centered
+    data = f['pos'].astype(dtype=dtype)
+    #data = np.array(f['pos'] - box_on_disk/2., dtype=('pos',dtype,3))  # Shift to zero-centered
 
-    return data
+    return {'pos':data}
 
 
 def read_desi_hdf5(fn, **kwargs):
@@ -1133,13 +1132,52 @@ reader_functions = {'pack14':read_pack14, 'pack9':read_pack9, 'rvint': read_rvin
                     'rvdoubletag':read_rvdoubletag,
                     'rvtag':read_rvtag, 'rv':read_rvtag,
                     'pack14_lite':read_pack14_lite,
-                    'gadget':read_gadget}
-default_file_patterns = {'pack14':('*.dat',), 'pack9':('*L0.dat', '*field.dat'), 'rvint' : ('*rv_A*', '*rv_B*'), 'state':('position_*',)}
+                    'gadget':read_gadget,
+                    'desi_hdf5':read_desi_hdf5}
+default_file_patterns = {'pack14':('*.dat',),
+                         'pack9':('*L0_pack9.dat', '*field_pack9.dat'),
+                         'rvint' : ('*rv_A*', '*rv_B*'),
+                         'state':('position_*',),
+                         'desi_hdf5':('*.hdf5',),
+                         'gadget':('*.*',)
+                         }
 fallback_file_pattern = ('*.dat',)
-
+                    
+default_box_on_disk = {'desi_hdf5':'box',
+                'pack14':1.,
+                'rvtag':'box',
+                'gadget':'box',
+}
 
 def get_file_pattern(format):
     try:
         return default_file_patterns[format]
     except KeyError:
         return fallback_file_pattern
+
+def is_ic_path(path):
+    '''
+    Our initial conditions files are stored on disk in a BoxSize box,
+    not unit box, so it's convenient to detect if this is one of our
+    standard IC paths.
+    '''
+    # Does the directory name contain 'ic'?
+    abspattern = os.path.abspath(path)
+    abspattern = abspattern.split(os.sep)
+    isic = re.search(r'\bic(\b|(?=_))', os.sep.join(abspattern))
+
+    return isic
+
+def get_box_on_disk(fn, format):
+    if format == 'gadget':
+        import pynbody
+        f = pynbody.load(fn)
+        box_on_disk = float(f.properties['boxsize'])
+        return box_on_disk
+
+    isic = is_ic_path(fn)
+
+    # We assume IC data is stored with a BoxSize box, not unit box
+    box_on_disk = 'box' if isic else default_box_on_disk[format]
+
+    return box_on_disk

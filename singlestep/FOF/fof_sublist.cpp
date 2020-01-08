@@ -370,17 +370,17 @@ elements will be 16-byte aligned for SSE.
 class alignas(16) FOFgroup {
   public:
     FOFparticle BBmin, BBmax;
-    FOFloat halo_thresh2 = 0.; // The threshold distance squared for each halo center B.H.
+    FOFloat halo_radius2; // The threshold distance squared for each halo center 
+    int center_particle;  // The index of the central particle
     int start, n;   // Starting index and Number of particles
     uint8_t tmp[CACHE_LINE_SIZE-8-sizeof(FOFparticle)];     // For alignment padding
-    	// During calculation, these are in FOF units, but at the
+    // During calculation, these are in FOF units, but at the
 	// end we restore them to input code units
-    // B.H. Including the threshold radius
-    //FOFgroup(int _start, int _n) { start = _start; n = _n; }
-    FOFgroup(int _start, int _n, FOFloat _halo_thresh2) { start = _start; n = _n; halo_thresh2 = _halo_thresh2;}
+    FOFgroup(int _start, int _n, FOFloat _halo_radius2, int _center) { start = _start; n = _n; halo_radius2 = _halo_radius2; center_particle = _center;}
     FOFgroup(int _start, int _n, FOFparticle _BBmin, FOFparticle _BBmax) { 
-	BBmin = _BBmin; BBmax = _BBmax;
+        BBmin = _BBmin; BBmax = _BBmax;
     	start = _start; n = _n; 
+        halo_radius2=0.0; center_particle = 0;
     }
     // We're setting up the comparand to sort in *descending* order
     bool operator< (const FOFgroup& c) const { return (c.n<n); }
@@ -397,6 +397,7 @@ class FOFcell {
     // These lists provide some work space, consistent between 
     FOFparticle *p;	///< The copied version of the particles, to permute
     FOFloat *d2buffer;	///< A matching array of distances
+    FOFloat *d2_active;	///< Matches an array name in SO; not used
     accstruct *permutebuf;   ///< Space for doing permutations
     int *index;		///< The new indices in the original order
     int np;		///< The current size of the group
@@ -451,6 +452,8 @@ class FOFcell {
 
         if (d2buffer!=NULL) free(d2buffer);
 	ret = posix_memalign((void **)&d2buffer, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
+	if (d2_active!=NULL) free(d2_active);
+	ret = posix_memalign((void **)&d2_active, CACHE_LINE_SIZE, sizeof(FOFloat)*maxsize);  assert(ret == 0);
         if (groups!=NULL) free(groups);
 	ret = posix_memalign((void **)&groups, CACHE_LINE_SIZE, sizeof(FOFgroup)*maxsize);  assert(ret == 0);
         if (index!=NULL) free(index);
@@ -462,6 +465,7 @@ class FOFcell {
     FOFcell() { 
 	p = NULL;
 	d2buffer = NULL;
+	d2_active = NULL;
 	permutebuf = NULL;
 	groups = NULL;
 	index = NULL;
@@ -479,6 +483,7 @@ class FOFcell {
     void destroy() {
         if (p!=NULL) free(p); p = NULL;
         if (d2buffer!=NULL) free(d2buffer); d2buffer = NULL;
+	if (d2_active!=NULL) free(d2_active); d2_active = NULL;
         if (permutebuf!=NULL) free(permutebuf); permutebuf = NULL;
         if (groups!=NULL) free(groups); groups = NULL;
         if (index!=NULL) free(index); index = NULL;
@@ -905,7 +910,7 @@ class FOFcell {
 		if (unassigned!=start+1) { 
 		    // Record the multiplet
           //groups[ngroups++] = FOFgroup(start-p, unassigned-start);
-          groups[ngroups++] = FOFgroup(start-p, unassigned-start,0.); //B.H. doesn't matter-reference
+          groups[ngroups++] = FOFgroup(start-p, unassigned-start,0., 0.); //B.H. doesn't matter-reference
 		}
 		// Set up the next group
 		start = primary; unassigned=primary+1;

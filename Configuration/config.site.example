@@ -1,0 +1,28 @@
+# This is a site file for the ./configure script, where one can
+# set default values of compilers and other flags using sh syntax.
+# An example file resides in abacus/Configuration/config.site.example and will 
+# be copied to abacus/config.site upon Abacus installation.  Users should edit
+# the latter.
+
+# One should generally check if a variable is already set before writing to it,
+# because we want command-line options to take precedence.
+# See: https://www.gnu.org/savannah-checkouts/gnu/autoconf/manual/autoconf-2.69/autoconf.html#Site-Defaults
+
+# Uncomment any of the blocks below that you want, or add your own.
+
+# Set the default compiler
+# (one could also achieve this by setting the CXX environment variable in their shell)
+# But first, check if CXX is zero-length
+#if test -z "$CXX"; then
+#    CXX=icc
+#fi
+
+# No FOF density (make accstruct float3)
+#if test -z "$enable_fof_density"; then
+#    enable_fof_density=no
+#fi
+
+# Compile the parallel code by default
+#if test -z "$enable_parallel"; then
+#    enable_parallel=yes
+#fi

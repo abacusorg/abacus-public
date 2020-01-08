@@ -167,7 +167,8 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
     // Put a floor to insist on using all GPUs
     STDLOG(2,"MinSplits = %d\n", MinSplits);
 
-    GPUSetup(P.cpd, 1.0e9*GPUMemoryGB, NGPU, DirectBPD, P.GPUThreadCoreStart, P.NGPUThreadCores, &MaxSinkBlocks, &MaxSourceBlocks);
+    GPUSetup(P.cpd, 1.0e9*GPUMemoryGB, NGPU, DirectBPD, P.GPUThreadCoreStart, P.NGPUThreadCores,
+        &MaxSinkBlocks, &MaxSourceBlocks, P.UsePinnedGPUMemory);
     STDLOG(1,"Initializing GPU with %7.3f x10^3 sink blocks and %7.3f x10^3 source blocks\n",
             MaxSinkBlocks/1e3,MaxSourceBlocks/1e3);
     // This returns the number of SinkBlocks and number of SourceBlocks
@@ -295,7 +296,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     	"Sinks or Sources of the last skewer overflow the maxima.");
 
     uint64 NSink = SS->size(slabID);
-    STDLOG(2,"Using %d direct splits on slab %d, max blocks %d sink and %d source\n", 
+    STDLOG(1,"Using %d direct splits on slab %d, max blocks %d sink and %d source\n", 
     	NSplit, slabID, useMaxSink, useMaxSource);
 
     delete[] SinkBlocks;
@@ -359,7 +360,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     SICConstruction.Stop();
     SICExecute.Start();
 	
-	STDLOG(2,"Executing directs for slab %d, y: %d - %d\n",slabID,jl,jh);
+	STDLOG(3,"Executing directs for slab %d, y: %d - %d\n",slabID,jl,jh);
 	// This SIC is ready; send it to be executed
 	SlabInteractionCollections[slabID][n]->GPUExecute(blocking);
 	//SlabInteractionCollections[slabID][n]->CPUExecute();
