@@ -82,41 +82,38 @@ void OutputNonL0Taggable(int slab) {
     // This has to get called after all GlobalGroups in this slab
     // have been found.
 
-    SlabAccum<RVfloat>   rvA;    
-    SlabAccum<RVfloat>   rvB; 
-    SlabAccum<TaggedPID> pidA;  
-    SlabAccum<TaggedPID> pidB; 
+    SlabAccum<RVfloat>    rv[NUM_SUBSAMPLES];   
+    SlabAccum<TaggedPID> pid[NUM_SUBSAMPLES];
 
-     rvA.setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleA);   
-    pidA.setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleA);   
-     rvB.setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleB); 
-    pidB.setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleB); 
+     rv[0].setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleA);   
+    pid[0].setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleA);   
+     rv[1].setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleB); 
+    pid[1].setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleB); 
 
     uint64 nfield[NUM_SUBSAMPLES] = {0, 0}; 
-    SlabAccum<RVfloat>    rv[NUM_SUBSAMPLES] = { rvA,  rvB};    
-    SlabAccum<TaggedPID> pid[NUM_SUBSAMPLES] = {pidA, pidB}; 
+    
     GatherTaggableFieldParticles(slab, rv, pid, WriteState.FirstHalfEtaKick, nfield);
 
     WriteState.np_subA_state += nfield[0]; 
     WriteState.np_subB_state += nfield[1]; 
 
     if (P.ParticleSubsampleA > 0){
-        SB->AllocateSpecificSize(FieldRVSlabA, slab, rvA.get_slab_bytes());
-        rvA.copy_to_ptr((RVfloat *)SB->GetSlabPtr(FieldRVSlabA, slab));
-        SB->StoreArenaBlocking(FieldRVSlabA, slab); //NAM TODO: temporarily turned off nonblocking writes. 
+        SB->AllocateSpecificSize(FieldRVSlabA, slab, rv[0].get_slab_bytes());
+        rv[0].copy_to_ptr((RVfloat *)SB->GetSlabPtr(FieldRVSlabA, slab));
+        SB->StoreArenaNonBlocking(FieldRVSlabA, slab); //NAM TODO: temporarily turned off nonblocking writes. 
 
-        SB->AllocateSpecificSize(FieldPIDSlabA, slab, pidA.get_slab_bytes());
-        pidA.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(FieldPIDSlabA, slab));
-        SB->StoreArenaBlocking(FieldPIDSlabA, slab);
+        SB->AllocateSpecificSize(FieldPIDSlabA, slab, pid[0].get_slab_bytes());
+        pid[0].copy_to_ptr((TaggedPID *)SB->GetSlabPtr(FieldPIDSlabA, slab));
+        SB->StoreArenaNonBlocking(FieldPIDSlabA, slab);
     }
     if (P.ParticleSubsampleB > 0) {
-        SB->AllocateSpecificSize(FieldRVSlabB, slab, rvB.get_slab_bytes());
-        rvB.copy_to_ptr((RVfloat *)SB->GetSlabPtr(FieldRVSlabB, slab));
-        SB->StoreArenaBlocking(FieldRVSlabB, slab);
+        SB->AllocateSpecificSize(FieldRVSlabB, slab, rv[1].get_slab_bytes());
+        rv[1].copy_to_ptr((RVfloat *)SB->GetSlabPtr(FieldRVSlabB, slab));
+        SB->StoreArenaNonBlocking(FieldRVSlabB, slab);
 
-        SB->AllocateSpecificSize(FieldPIDSlabB, slab, pidB.get_slab_bytes());
-        pidB.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(FieldPIDSlabB, slab));
-        SB->StoreArenaBlocking(FieldPIDSlabB, slab);
+        SB->AllocateSpecificSize(FieldPIDSlabB, slab, pid[1].get_slab_bytes());
+        pid[1].copy_to_ptr((TaggedPID *)SB->GetSlabPtr(FieldPIDSlabB, slab));
+        SB->StoreArenaNonBlocking(FieldPIDSlabB, slab);
     }
 
     STDLOG(1,"Wrote %d, %d non-L0 Taggable particles in subsamples A, B for slab %d.\n", nfield[0], nfield[1], slab);
