@@ -49,7 +49,7 @@ class MultiplicityStats {
     }
 	
     /// This generates a report for the log
-    void report_multiplicities(std::ofstream *grouplog) {
+    void report_multiplicities(FILE *reportfp) {
         GLOG(0,"Total number of groups %f M\n", ngroups/1e6);
 	int j, m, nbin;
         GLOG(0,"Groups contain %f M particles\n", tot/1e6);

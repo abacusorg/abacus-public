@@ -279,13 +279,13 @@ private:
                     FD_SET(fifo_cmd,&set);
                     int ret = select(highfd+1,&set,NULL, NULL, &timeout);
                     assert(ret!=-1);
-                    IOLOG(2,"Polling IO pipe: select() returned %d, wait_for_cmd %d\n", ret, wait_for_cmd);
+                    IOLOG(3,"Polling IO pipe: select() returned %d, wait_for_cmd %d\n", ret, wait_for_cmd);
 
                     // if wait_for_cmd==1 then we should wait for a cmd to appear.
                     // otherwise we would spin lock.  But if wait_for_cmd = 0, then 
                     // we are just trying to empty the cmd pipe without locking up.
                     if (wait_for_cmd == 1 || (ret>0 && FD_ISSET(fifo_cmd,&set))) {
-                        IOLOG(2,"Reading from IO pipe\n");
+                        IOLOG(3,"Reading from IO pipe\n");
                         // Read a command and place it in the buffers.
                         iorequest ior;
                         int nr = read(fifo_cmd, &ior, sizeof(iorequest));
@@ -310,11 +310,11 @@ private:
                 } while(fifo_not_empty);
             }
 
-            IOLOG(2,"Attempting to execute an IO command\n");
+            IOLOG(3,"Attempting to execute an IO command\n");
 
             // Do one instruction, chosen by priority
             if (write_blocking.isnotempty()) {
-                IOLOG(2,"Starting blocking write\n"); 
+                IOLOG(3,"Starting blocking write\n"); 
                 iorequest ior = write_blocking.pop(); 
                 
                 WriteIOR(&ior);
@@ -322,9 +322,9 @@ private:
                 // Send an acknowledgement
                 ioacknowledge ioack(IO_WRITE,ior.arenatype, ior.arenaslab);
                 ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
-                IOLOG(2,"IO_WRITE acknowledgement sent\n");
+                IOLOG(3,"IO_WRITE acknowledgement sent\n");
             } else if (read_blocking.isnotempty()) {
-                IOLOG(2,"Starting blocking read\n"); 
+                IOLOG(3,"Starting blocking read\n"); 
                 iorequest ior = read_blocking.pop();
 
                 ReadIOR(&ior);
@@ -332,14 +332,14 @@ private:
                 // Send an acknowledgement
                 ioacknowledge ioack(IO_READ,ior.arenatype, ior.arenaslab);
                 ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
-                IOLOG(2,"IO_READ acknowledgement sent\n");
+                IOLOG(3,"IO_READ acknowledgement sent\n");
             } else if (write_nonblocking.isnotempty()) {
-                IOLOG(2,"Starting nonblocking write\n"); 
+                IOLOG(3,"Starting nonblocking write\n"); 
                 iorequest ior = write_nonblocking.pop(); 
 
                 WriteIOR(&ior);
             } else if (read_nonblocking.isnotempty()) {
-                IOLOG(2,"Starting nonblocking read\n");
+                IOLOG(3,"Starting nonblocking read\n");
                 iorequest ior = read_nonblocking.pop();
 
                 ReadIOR(&ior);
