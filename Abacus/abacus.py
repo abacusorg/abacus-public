@@ -824,8 +824,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
     #wall_timer = time.perf_counter
     #start_time = wall_timer()
-    starting_time = time.localtime()
-    starting_time_str = time.strftime('%x %X',starting_time)
+    starting_time = time.time()
+    starting_time_str = time.asctime(time.localtime())
 
     status_log.print(f"# Starting {param.SimName:s} at {starting_time_str:s}")
 
@@ -1160,11 +1160,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         # This logic is deliberately consistent with singlestep.cpp
         # If this is an IC step then we won't have read_state
         if (not make_ic and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0):
-            ending_time = time.localtime()
-            ending_time_str = time.strftime('%x %X',ending_time)
+            ending_time = time.time()
+            ending_time_str = time.asctime(time.localtime())
             ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
             print(f"Final redshift of {finalz:g} reached; terminating normally after {ending_time:f} hours.")
-            status_log.print(f"# Final redshift of {finalz:g} reached; terminating normally.")
+            status_log.print(f"# Final redshift of {finalz:g} reached at {ending_time_str:s}; terminating normally after {ending_time:f} hours.")
             finished = True
             break 
             
@@ -1177,8 +1177,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         
     # If there is more work to be done, signal that we are ready for requeue
     if not finished and not ProfilingMode:
-        ending_time = time.localtime()
-        ending_time_str = time.strftime('%x %X',ending_time)
+        ending_time = time.time()
+        ending_time_str = time.asctime(time.localtime())
         ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
         status_log.print(f"# Terminating normally.  {ending_time_str:s} after {ending_time:f} hours.")
         print(f"About to return EXIT_REQUEUE code {EXIT_REQUEUE}")
