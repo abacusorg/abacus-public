@@ -509,6 +509,7 @@ void *QueueWatcher(void *arg){
     STDLOG(1,"GPU stream %d initiated\n", n);
 
     // Allocate CUDA memory
+    STDLOG(1,"About to CudaAllocate %d bytes on GPU %d\n", Buffers[n].size,gpu);
     CudaAllocate(Buffers[n].device,     Buffers[n].size);
     WCAllocate(Buffers[n].hostWC,       Buffers[n].sizeWC);
     PinnedAllocate(Buffers[n].host,     Buffers[n].sizeDef);

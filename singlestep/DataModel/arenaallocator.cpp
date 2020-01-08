@@ -54,7 +54,8 @@ public:
     ArenaAllocator(int maximum_number_ids, uint64 max_allocations, int use_disposal_thread, int disposal_thread_core);
     ~ArenaAllocator(void);
 
-    void report();
+    void report_peak();
+    void report_current();
     
     int64 total_allocation;
     int64 total_shm_allocation;
@@ -121,6 +122,7 @@ private:
     arenainfo *arena;
     uint64 allocation_guard;
     uint64 peak_alloc;
+    uint64 peak_shm_alloc;
     std::mutex lb_mutex;
 	std::mutex lb_freemutex;
 	
@@ -246,7 +248,9 @@ ArenaAllocator::ArenaAllocator(int maximum_number_ids, uint64 max_allocations, i
     total_shm_allocation = 0;
     numalloc = numreuse = 0;
     num_shm_alloc = 0;
+    ArenaFree_elapsed = 0.;
     peak_alloc = 0;
+    peak_shm_alloc = 0;
     allocation_guard = max_allocations * 1024 * 1024;
     for(int i=0;i<maxids;i++)
         ResetArena(i);
@@ -281,9 +285,15 @@ ArenaAllocator::~ArenaAllocator(void) {
     }
 }
 
-void ArenaAllocator::report(){
-    STDLOG(0,"Peak arena allocations was %.3g GB\n", peak_alloc/1024./1024/1024);
+void ArenaAllocator::report_peak(){
+    STDLOG(0,"Peak arena allocations (regular + shared) was %.3g GB\n", peak_alloc/1024./1024/1024);
+    STDLOG(0,"Peak arena allocations (shared only) was %.3g GB\n", peak_shm_alloc/1024./1024/1024);
     STDLOG(0,"Executed %d arena fresh allocations, %d arena reuses\n", numalloc, numreuse);
+}
+
+void ArenaAllocator::report_current(){
+    STDLOG(1, "Current arena allocations (normal + shared) total %.3g GB\n", total_allocation/1024/1024/1024);
+    STDLOG(1, "Current arena allocations (shared only) total %.3g GB\n", total_shm_allocation/1024/1024/1024);
 }
 
 #define LB_OVERSIZE 1.01
@@ -331,7 +341,6 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
                 assert(arena[id].addr!=NULL);        // Crash if the malloc failed
                 numalloc++;
                 total_allocation += arena[id].allocated_size;
-                if (total_allocation > peak_alloc) peak_alloc = total_allocation;
                 if (total_allocation>allocation_guard) {
                     STDLOG(0,"Warning: Allocations of %4.2f GiB have exceeded guard level of %4.2f GiB\n", total_allocation/1024./1024/1024, allocation_guard/1024./1024/1024);
                 }
@@ -426,6 +435,9 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
         default:
             QUIT("Illegal value %d for ramdisk\n", ramdisk);
     }
+
+    if (total_allocation > peak_alloc) peak_alloc = total_allocation;
+    if (total_shm_allocation > peak_shm_alloc) peak_shm_alloc = total_shm_allocation;
 
     lb_mutex.unlock();
 }

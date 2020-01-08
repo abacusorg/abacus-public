@@ -606,10 +606,10 @@ def read_rv(fn, return_vel=True, return_pid=False, zspace=False, dtype=np.float3
     Parameters
     ----------
     double: bool, optional
-        Whether the format on disk is RVdoubleTag or just RVTag.
+        Whether the format on disk is RVdoublePID or just RVPID.
         Default: False
     tag: bool, optional
-        Whether the format on disk is RVTag or just RV.
+        Whether the format on disk is RVPID or just RV.
         Default: False
     """
     if return_pid:

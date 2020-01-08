@@ -61,6 +61,8 @@ enum SlabType { CellInfoSlab,           //0
                 LightCone1PID,          //35
                 LightCone2PID,          //36
 
+                ICSlab,                 //37
+
                 NUMTYPES
                 };
 
@@ -202,8 +204,12 @@ public:
         *disposal_thread_munmap = AA->DisposalThreadMunmap.Elapsed();
     }
 
-    void report(){
-        AA->report();
+    void report_peak(){
+        AA->report_peak();
+    }
+
+    void report_current(){
+        AA->report_current();
     }
 };
 
@@ -431,6 +437,8 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
         case VelLPTSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
         case FieldTimeSlice     : { ss << WriteSlabPath(type, slab); }  // used for standalone FOF
 
+        case ICSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
+
         default:
             QUIT("Illegal type %d given to ReadSlabPath()\n", type);
     }
@@ -471,16 +479,11 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
         case NearAccSlab    : {
             return SS->size(slab)*sizeof(accstruct);
         }
-        case VelLPTSlab     : {
-            if(strcmp(P.ICFormat, "RVZel") == 0)
-                // TODO: when we re-route LoadIC through SB to be non-blocking for 2LPT velocity IO, get rid of these magic numbers
-                //return fsize(ReadSlabPath(VelLPTSlab,slab).c_str())/sizeof(ICfile_RVZel::ICparticle) * sizeof(velstruct);
-                return fsize(ReadSlabPath(VelLPTSlab,slab).c_str())/32 * sizeof(velstruct);
-            else if(strcmp(P.ICFormat, "RVdoubleZel") == 0)
-                //return fsize(ReadSlabPath(VelLPTSlab,slab).c_str())/sizeof(ICfile_RVdoubleZel::ICparticle) * sizeof(velstruct);
-                return fsize(ReadSlabPath(VelLPTSlab,slab).c_str())/56 * sizeof(velstruct);
-            else
-                QUIT("Unknown ICFormat for re-reading LPT IC velocities\n");
+        case ICSlab     : {
+            return fsize(ReadSlabPath(ICSlab,slab).c_str());
+        }
+        case VelLPTSlab : {
+            return ICFile::FromFormat(P.ICFormat, slab)->Npart*sizeof(velstruct);
         }
         case FieldTimeSlice : {
             return fsize(ReadSlabPath(FieldTimeSlice,slab).c_str());

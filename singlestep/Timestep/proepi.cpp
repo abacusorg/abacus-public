@@ -101,11 +101,11 @@ int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don'
 
 // #include "ParticleCellInfoStructure.cpp"
 // #include "maxcellsize.cpp"
-#include "IC_classes.h"
 
 #include "slabsize.cpp"
 SlabSize *SS;
 
+#include "IC_base.h"
 #include "slabbuffer.cpp"
 SlabBuffer *SB;
 
@@ -172,10 +172,10 @@ Redlack *RL;
 #include "Cosmology.cpp"
 Cosmology *cosm;
 #include "lpt.cpp"
+#include "loadIC.cpp"
 
 #include "output_timeslice.cpp"
 #include "LightCones.cpp"
-#include "loadIC.cpp"
 
 #include "binning.cpp"
 FLOAT * density; //!< Array to accumulate gridded densities in for low resolution inline power-spectra.
@@ -344,7 +344,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
         delete density; density = 0;
     }
 
-    SB->report();
+    SB->report_peak();
     delete SB;
     SB = NULL;
     STDLOG(2,"Deleted SB\n");
