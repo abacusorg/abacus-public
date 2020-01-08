@@ -179,7 +179,7 @@ double ChooseTimeStep(){
         double L1z = P.L1OutputRedshifts[i];
         double L1a = 1.0/(1+L1z);
 
-        if(ReadState.Redshift > L1z + 1e-12 && ReadState.ScaleFactor + da > L1a){
+        if(ReadState.Redshift > L1z + 1e-12 && ReadState.ScaleFactor + da > L1a + 1e-6){
             STDLOG(0,"Group finding at this redshift requested by L1OutputRedshifts[%d]\n", i);
             ReadState.DoGroupFindingOutput = 1; 
         }
