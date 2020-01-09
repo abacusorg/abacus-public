@@ -198,6 +198,11 @@ int * total_slabs_all = NULL;
 
 #include <fenv.h>
 
+// FFTW Wisdom
+char wisdom_file[1024];
+int wisdom_exists;
+void init_fftw();
+void finish_fftw();
 
 void InitializeParallel(int &size, int &rank) {
     #ifdef PARALLEL
@@ -240,6 +245,7 @@ void Prologue(Parameters &P, bool MakeIC) {
     long long int np = P.np;
     assert(np>0);
 
+    init_fftw();  // wisdom import, etc, before SlabMultipoles or anything that uses FFTW
 
     // Look in ReadState to see what PosSlab files are available
     // TODO: Haven't implemented this yet
@@ -353,7 +359,6 @@ void Epilogue(Parameters &P, bool MakeIC) {
 	
 	FreeManifest();
 
-
     if(!MakeIC) {
         if(0 and P.ForceOutputDebug){
             #ifdef CUDADIRECT
@@ -379,17 +384,31 @@ void Epilogue(Parameters &P, bool MakeIC) {
             delete NFD;
     }
 
+    finish_fftw();
 
     // Report peak memory usage
     struct rusage rusage;
     assert(getrusage(RUSAGE_SELF, &rusage) == 0);
     STDLOG(0, "Peak resident memory usage was %.3g GB\n", (double) rusage.ru_maxrss / 1024 / 1024);
-	
-	fftw_cleanup();
     
     epilogue.Stop();
     // This timing does not get written to the timing log, so it had better be small!
     STDLOG(1,"Leaving Epilogue(). Epilogue took %.2g sec.\n", epilogue.Elapsed());
+}
+
+void init_fftw(){
+    // Import FFTW wisdom, before SlabMultipoles or anything that does FFT planning
+    sprintf(wisdom_file, "%s/fftw_%d.wisdom", P.WorkingDirectory, P.cpd);
+    wisdom_exists = fftw_import_wisdom_from_filename(wisdom_file);
+    STDLOG(1, "Wisdom import returned %d (%s).\n", wisdom_exists, wisdom_exists == 1 ? "success" : "failure");
+}
+
+void finish_fftw(){
+    if(MPI_rank == 0){
+        int ret = fftw_export_wisdom_to_filename(wisdom_file);
+        STDLOG(1, "Wisdom export to file %s returned %d.\n", wisdom_file, ret);
+    }
+   fftw_cleanup();  // better not call this before exporting wisdom!
 }
 
 std::vector<std::vector<int>> free_cores;  // list of cores on each socket that are not assigned a thread (openmp, gpu, io, etc)

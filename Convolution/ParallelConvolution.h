@@ -91,8 +91,6 @@ private:
 	int **Trecv_flags;
 	int Trecv_active; 
 
-    char wisdom_file[1024];
-
     AbacusMPILimiter mpi_limiter;
     int *TaylorSlabAllMPIDone;
     int *MultipoleSlabAllMPIDone;
