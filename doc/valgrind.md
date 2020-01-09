@@ -7,8 +7,9 @@ prevent the main thread from hogging the (single) valgrind
 execution stream.
 
 `tcmalloc` may also confuse valgrind (see https://github.com/gperftools/gperftools/issues/792).
-One may turn this off by removing the `-ltcmalloc_minimal` option from
-the build options in `common.mk`, or link against `-ltcmalloc_minimal_debug`
+One may turn this off by configuring with `./configure --disable-tcmalloc`, or
+removing the `-ltcmalloc_minimal` option from
+the build options in `common.mk`, or linking against `-ltcmalloc_minimal_debug`
 instead.  Be warned that this debug library is very slow, even outside
 of valgrind!
 
@@ -28,8 +29,16 @@ that the Python wrapper spawns.  Python will likely generate additional
 warnings for which one will want a suppressions file; such files
 are available online for different versions of Python
 (e.g. https://svn.python.org/projects/python/trunk/Misc/valgrind-python.supp).
+Similarly, CUDA generates a lot of warnings and may need a suppressions file.
+
+Valgrind currently does not support AVX-512, so one may need to remove `-march=native`
+from the `gcc` compilation invocation in `common.mk` (or `-xHost` for `icc`).
+Issue tracker for AVX-512 support here: https://bugs.kde.org/show_bug.cgi?id=383010
+
+
+
 
 A sample valgrind invocation for `singlestep` might be:
 ```
-valgrind --leak-check=yes --fair-sched=yes --suppressions=abacus/valgrind.supp abacus/singlestep/singlestep /path/to/abacus.par 0
+valgrind --leak-check=yes --fair-sched=yes --suppressions=$ABACUS/valgrind.supp $ABACUS/singlestep/singlestep /path/to/abacus.par 0
 ```
