@@ -319,6 +319,11 @@ class SlabAccum {
 	pencils = NULL; cells = NULL; pstart = NULL; cpd = 0;
 	buffers = NULL; maxthreads = 0;
     }
+
+    // Prevent accidential duplicate ownership of buffers by deleting the copy operators
+    SlabAccum(const SlabAccum&) = delete;
+    SlabAccum& operator=(const SlabAccum&) = delete;
+
     void destroy() {
 	SlabAccumFree.Start();
 	if (cells!=NULL) free(cells); cells = NULL;
