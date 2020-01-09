@@ -389,8 +389,11 @@ void ParallelConvolution::LoadDerivatives(int z) {
 		
 		
     } else {
-	    if(Ddisk[z] != NULL){ 
+	    if(Ddisk[z] != NULL){
+	    	MunmapDerivs.Clear(); MunmapDerivs.Start();
 	        int res = munmap(Ddisk[z], size);
+	        MunmapDerivs.Stop();
+	        CS.MunmapDerivs += MunmapDerivs.Elapsed();
 	        assertf(res == 0, "Failed to munmap derivs\n"); 
 	    }
 
