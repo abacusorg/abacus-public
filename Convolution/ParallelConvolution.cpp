@@ -43,6 +43,9 @@ STimer  MunmapMT;
 STimer  MmapDerivs; 
 STimer  MunmapDerivs; 
 
+#define CONVTIMEBUFSIZE 65536
+char *convtimebuffer;    // This has to be allocated and freed outside of this class
+
 /// The zstart for the node of the given rank.
 int ParallelConvolution::Zstart(int rank) {
     return (cpd2p1*rank/MPI_size); 
@@ -80,6 +83,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	zstart = Zstart(MPI_rank);
 	znode = Zstart(MPI_rank+1)-zstart;
 	this_node_size = znode*rml*cpd;
+    convtimebuffer = NULL;
 	
 	STDLOG(2, "Doing zstart = %d and znode = %d\n", zstart, znode);
 	
@@ -138,7 +142,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	Mrecv_requests = new MPI_Request[cpd];
 	Trecv_requests = new MPI_Request * [cpd];
 	Tsend_requests = new MPI_Request[cpd];
-	
+
 	Msend_active = 0;
 	Trecv_active = 0;
 
@@ -154,6 +158,8 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
         TaylorSlabAllMPIDone[x] = 0;
         MultipoleSlabAllMPIDone[x] = 0;
 	} 
+    
+    MsendTimer = new STimer[cpd];
 
 	
 	int DIOBufferSizeKB = 1LL<<11;
@@ -196,6 +202,7 @@ ParallelConvolution::~ParallelConvolution() {
 
     delete[] TaylorSlabAllMPIDone;
     delete[] MultipoleSlabAllMPIDone;
+    delete[] MsendTimer;
 
 	delete[] node_start; 
 	delete[] node_size; 
@@ -244,10 +251,8 @@ ParallelConvolution::~ParallelConvolution() {
 	dumpstats_timer.Start(); 
 	
 	if (not create_MT_file){ //if this is not the 0th step, dump stats. 
-	    char timingfn[1050];
-	    sprintf(timingfn,"%s/last%s.convtime",P.LogDirectory,NodeString);
 #ifndef DO_NOTHING
-	    dumpstats(timingfn); 
+	    dumpstats(); 
 #endif
 	}
 	
@@ -384,8 +389,11 @@ void ParallelConvolution::LoadDerivatives(int z) {
 		
 		
     } else {
-	    if(Ddisk[z] != NULL){ 
+	    if(Ddisk[z] != NULL){
+	    	MunmapDerivs.Clear(); MunmapDerivs.Start();
 	        int res = munmap(Ddisk[z], size);
+	        MunmapDerivs.Stop();
+	        CS.MunmapDerivs += MunmapDerivs.Elapsed();
 	        assertf(res == 0, "Failed to munmap derivs\n"); 
 	    }
 
@@ -449,6 +457,7 @@ void ParallelConvolution::SendMultipoleSlab(int slab) {
 		int tag = (r+1) * 10000 + slab + M_TAG; 
 		MPI_Issend(mt + node_start[r], node_size[r], MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Msend_requests[slab][r]);		
 	}
+    MsendTimer[slab].Start();
 	STDLOG(2,"Multipole slab %d has been queued for MPI_Issend, Msend_active = %d\n", slab, Msend_active);
 }
 
@@ -498,7 +507,8 @@ int ParallelConvolution::CheckSendMultipoleComplete(int slab) {
  		Msend_requests[x] = NULL;   // This will allow us to check faster
 
 		Msend_active--;
-		STDLOG(2,"MPI_Issend complete for MultipoleSlab %d, Msend_active = %d\n", x, Msend_active);
+        MsendTimer[slab].Stop();
+		STDLOG(1,"MPI_Issend complete for MultipoleSlab %d after %6.3f sec, Msend_active = %d\n", x, MsendTimer[slab].Elapsed(), Msend_active);
     }
 	
 	return done; 
@@ -876,11 +886,14 @@ void ParallelConvolution::Convolve() {
 
 /* ======================== REPORTING ======================== */ 
 
-void ParallelConvolution::dumpstats(char *fn) {
+void ParallelConvolution::dumpstats() {
+    if (convtimebuffer==NULL) return;
 
-    FILE *fp;
-    fp = fopen(fn,"w");
-    assert(fp!=NULL);
+    FILE *fp = fmemopen(convtimebuffer, CONVTIMEBUFSIZE, "w");
+
+    //FILE *fp;
+    //fp = fopen(fn,"w");
+    //assert(fp!=NULL);
 
 
     double accountedtime  = CS.ConvolutionArithmetic;

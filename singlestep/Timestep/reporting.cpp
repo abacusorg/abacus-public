@@ -28,10 +28,16 @@
  *  report tend to lag the rest of the code, since changing it is a major process.
  */
 
-#define REPORT_BUFFER_SIZE (sizeof(char) * 128*1024)
+#define REPORT_BUFFER_SIZE (sizeof(char) * 256*1024)
 
 char *reportbuffer;
 FILE *reportfp;
+
+void InitializeReport() {
+    reportbuffer = (char *) malloc(REPORT_BUFFER_SIZE);  //  allocate a 256 KB string buffer for the timings file
+    reportfp = fmemopen(reportbuffer, REPORT_BUFFER_SIZE, "w");
+    return;
+}
 
 #define REPORT(tabs, str, a) \
      do { \
@@ -45,17 +51,16 @@ FILE *reportfp;
         fprintf(reportfp,"---> %6.2f Mpart/sec", thistime ? dependency.num_particles/thistime/1e6 : 0.); \
      } while(0)		 
 
+
 /* This function gathers timings from major global classes before they're destroyed in the Epilogue.
  * They're printed to a string buffer (via a file-like interface); this string buffer saves a few spots
  * for teardown timings that happen after this function runs.  Those spots get filled in in ReportTimings(),
  * which runs after the Epilogue.
  */
 void GatherTimings() {
+    InitializeReport();
     if(NFD)
         NFD->AggregateStats();
-
-    reportbuffer = (char *) malloc(REPORT_BUFFER_SIZE);  //  allocate a 128 KB string buffer for the timings file
-    reportfp = fmemopen(reportbuffer, REPORT_BUFFER_SIZE, "w");
 
     double thistime, denom, total;
     denom = WallClockDirect.Elapsed();
@@ -221,12 +226,15 @@ void GatherTimings() {
     double slabforcelatencysigma = 0;
     double slabforcemaxlatency = 0;
     double slabforceminlatency = 1e9;
+    char *slabtimesbuffer = NULL;
 
     if(NFD){
-        char fn[1024];
-        int ret = snprintf(fn, 1024, "%s/lastrun%s.slabtimes",P.LogDirectory, NodeString);
-        assert(ret >= 0 && ret < 1024);
-        FILE* slabtimefile = fopen(fn,"wb");
+        //char fn[1024];
+        //int ret = snprintf(fn, 1024, "%s/lastrun%s.slabtimes",P.LogDirectory, NodeString);
+        //assert(ret >= 0 && ret < 1024);
+        //FILE* slabtimefile = fopen(fn,"wb");
+        slabtimesbuffer = (char *) malloc(REPORT_BUFFER_SIZE);  //  allocate a 128 KB string buffer for the timings file
+        FILE *slabtimesfp = fmemopen(slabtimesbuffer, REPORT_BUFFER_SIZE, "w");
         for(int i =0; i < P.cpd;i++){
             double slabtime = SlabForceTime[i].Elapsed();
             slabforcetimemean += SlabForceTime[i].Elapsed()/P.cpd;
@@ -239,11 +247,14 @@ void GatherTimings() {
             slabforcelatencysigma+= slablatency*slablatency/P.cpd;
             if(slablatency > slabforcemaxlatency) slabforcemaxlatency = slablatency;
             if(slablatency < slabforceminlatency) slabforceminlatency = slablatency;
+            if (slabtime>0.0) 
+                fprintf(slabtimesfp, "%d %10.4e %10.4e\n", i, slabtime, slablatency);
 
-            fwrite(&slabtime,sizeof(double),1,slabtimefile);
-            fwrite(&slablatency,sizeof(double),1,slabtimefile);
+            //fwrite(&slabtime,sizeof(double),1,slabtimefile);
+            //fwrite(&slablatency,sizeof(double),1,slabtimefile);
         }
-        fclose(slabtimefile);
+        //fclose(slabtimefile);
+        fclose(slabtimesfp);
     }
     slabforcetimesigma =  sqrt(slabforcetimesigma    - slabforcetimemean*slabforcetimemean);
     slabforcelatencysigma=sqrt(slabforcelatencysigma - slabforcelatencymean*slabforcelatencymean);
@@ -351,9 +362,6 @@ void GatherTimings() {
             denom = thistime;
             REPORT(3, "Scatter Groups", GFC->ScatterGroups.Elapsed());
                 fprintf(reportfp,"---> %6.2f M_group_part/sec",thistime ? GFC->L0stats.tot/thistime/1e6 : 0.);
-
-        // Now write some detailed multiplicity and timing stats to lastrun.grouplog
-        GFC->report();
     }
     
     fprintf(reportfp, "\n\nBreakdown of Output:");
@@ -444,12 +452,38 @@ void GatherTimings() {
 	
 
     denom = TimeStepWallClock.Elapsed();
-    double arena_malloc, arena_free;
-    SB->GetMallocFreeTimes(&arena_malloc, &arena_free);
+    double arena_malloc, arena_free, munmap_thread;
+    SB->GetMallocFreeTimes(&arena_malloc, &arena_free, &munmap_thread);
 
     REPORT(0, "\nAllocate Arena Memory", arena_malloc);
     REPORT(0, "Free Arena Memory", arena_free);
+    REPORT(0, "Munmap Thread", munmap_thread);
     REPORT(0, "Free SlabAccum Variables", SlabAccumFree.Elapsed());
+
+    fprintf(reportfp,"\n\nMinCellSize = %d, MaxCellSize = %d, RMS Fractional Overdensity = %10.4e\n",
+        WriteState.MinCellSize, WriteState.MaxCellSize, WriteState.StdDevCellSize);
+    fprintf(reportfp,"Rms |v| in simulation is %f.\n", WriteState.RMS_Velocity);
+
+    if (GFC!=NULL) {
+        // Now write some detailed multiplicity and timing stats to lastrun.grouplog
+        fprintf(reportfp, "\n\n========================================================================\n\n");
+        GFC->report(reportfp);
+    }
+
+    #ifdef PARALLEL
+    if (convtimebuffer!=NULL) {
+        fprintf(reportfp, "\n\n========================================================================\n\n");
+        fputs(convtimebuffer, reportfp);
+        free(convtimebuffer);
+    }
+    #endif
+
+    if (NFD) {
+        fprintf(reportfp, "\n\n========================================================================\n\n");
+        fprintf(reportfp, "GPU Timings\nSlab   Time   Latency\n");
+        fputs(slabtimesbuffer, reportfp);
+        free(slabtimesbuffer);
+    }
 	
 }
 
@@ -462,6 +496,7 @@ void ReportTimings(){
     double denom, thistime;
     denom = TimeStepWallClock.Elapsed();
 
+    fprintf(reportfp, "\n");
     REPORT(0, "SingleStep TearDown", SingleStepTearDown.Elapsed());
     fprintf(reportfp, " [not included in Total Wall Clock Time]\n");
 

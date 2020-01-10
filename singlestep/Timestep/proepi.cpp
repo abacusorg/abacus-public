@@ -367,6 +367,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
             #endif
         }
         
+            WriteState.DirectsPerParticle = (double)1.0e9*NFD->gdi_gpu/P.np;
             delete TY;
             STDLOG(2,"Deleted TY\n");
             delete RL;
@@ -791,6 +792,8 @@ void FinalizeWriteState() {
         STDLOG(1,"Minimum cell Vrms/Amax in node is %f.\n", WriteState.MinVrmsOnAmax);
         STDLOG(1,"Unnormalized node RMS_Velocity = %f.\n", WriteState.RMS_Velocity);
         STDLOG(1,"Unnormalized node StdDevCellSize = %f.\n", WriteState.StdDevCellSize);
+        STDLOG(1,"Maximum group diameter in node is %d.\n", WriteState.MaxGroupDiameter); 
+        STDLOG(1,"Maximum L0 group size in node is %d.\n", WriteState.MaxL0GroupSize); 
     
         // If we're running in parallel, then we want to gather some
         // state statistics across the nodes.  We start by writing the 
@@ -815,6 +818,12 @@ void FinalizeWriteState() {
         MPI_REDUCE_TO_ZERO(&WriteState.RMS_Velocity, 1, MPI_DOUBLE, MPI_SUM);
         // sqrt(Sum(SQR of StdDevCellSize))
         MPI_REDUCE_TO_ZERO(&WriteState.StdDevCellSize, 1, MPI_DOUBLE, MPI_SUM);
+        // Maximize MaxGroupDiameter
+        MPI_REDUCE_TO_ZERO(&WriteState.MaxGroupDiameter, 1, MPI_INT, MPI_MAX);
+        // Maximize MaxL0GroupSize
+        MPI_REDUCE_TO_ZERO(&WriteState.MaxL0GroupSize, 1, MPI_INT, MPI_MAX);
+        // Sum WriteState.DirectsPerParticle
+        MPI_REDUCE_TO_ZERO(&WriteState.DirectsPerParticle, 1, MPI_DOUBLE, MPI_SUM);
 // #undef MPI_REDUCE_IN_PLACE
 
         // Note that we're not summing up any timing or group finding reporting;
@@ -824,14 +833,19 @@ void FinalizeWriteState() {
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
         // This is the standard deviation of the fractional overdensity in cells.
         // But for the parallel code: this has been divided by CPD^3, not the number of cells on the node
-    STDLOG(0,"MinCellSize = %d, MaxCellSize = %d\n", 
-        WriteState.MinCellSize, WriteState.MaxCellSize);
+    STDLOG(0,"MinCellSize = %d, MaxCellSize = %d, RMS Fractional Overdensity = %g\n", 
+        WriteState.MinCellSize, WriteState.MaxCellSize, WriteState.StdDevCellSize);
+
+    double code_to_kms = WriteState.VelZSpace_to_kms/WriteState.VelZSpace_to_Canonical;
     WriteState.RMS_Velocity = sqrt(WriteState.RMS_Velocity/P.np);
-    STDLOG(0,"Rms |v| in simulation is %f.\n", WriteState.RMS_Velocity);
-    STDLOG(0,"Maximum v_j in simulation is %f.\n", WriteState.MaxVelocity);
-    STDLOG(0,"Maximum a_j in simulation is %f.\n", WriteState.MaxAcceleration);
-    STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f.\n", WriteState.MinVrmsOnAmax);
+
+    STDLOG(0,"Rms |v| in simulation is %f km/s.\n", WriteState.RMS_Velocity * code_to_kms);
+    STDLOG(0,"Maximum v_j in simulation is %f km/s.\n", WriteState.MaxVelocity * code_to_kms);
+    STDLOG(0,"Maximum a_j in simulation is %f code units.\n", WriteState.MaxAcceleration);
+    STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f code units.\n", WriteState.MinVrmsOnAmax);
     STDLOG(0,"Maximum group diameter in simulation is %d.\n", WriteState.MaxGroupDiameter); 
+    STDLOG(0,"Maximum L0 group size in simulation is %d.\n", WriteState.MaxL0GroupSize); 
+    STDLOG(0,"Mean Directs per particle in simulation is %d.\n", WriteState.DirectsPerParticle); 
 
     //NAM TODO put an intelligent assertf here. 
     // the things we'd really like to check are: 
