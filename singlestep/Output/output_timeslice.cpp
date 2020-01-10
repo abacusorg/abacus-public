@@ -123,7 +123,7 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
         // We are required to provide an offset in bytes for this pencil's portion of the buffer.
     	long long int start = CP->CellInfo(ijk)->startindex;   // Assumes cells are packed in order in the slab
         AA->start_pencil(y, start*AA->sizeof_particle() + AA->sizeof_cell()*(CP->cpd)*y);
-        if (PID_AA!=NULL) PID_AA->start_pencil(y, start*AA->sizeof_particle());
+        if (PID_AA!=NULL) PID_AA->start_pencil(y, start*PID_AA->sizeof_particle());
 
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             Cell c = CP->GetCell(ijk);
