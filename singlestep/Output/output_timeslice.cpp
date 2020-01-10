@@ -113,7 +113,7 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
         // For sanity, be careful that the previous lines end with a \n!
         AA->finalize_header();
     }
-    STDLOG(4,"Scanning through cells\n");
+    STDLOG(2,"Scanning through cells\n");
 
     // Now scan through the cells
     velstruct vel;
@@ -147,7 +147,7 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
             if (PID_AA != NULL) PID_AA->endcell(); 
         }
 
-    STDLOG(4,"Resizing slab\n");
+    STDLOG(2,"Resizing slab\n");
     SB->ResizeSlab(FieldTimeSlice, slab, AA->bytes_written());
     STDLOG(4,"StoreArenaNonBlocking\n");
     // Write out this time slice
@@ -155,7 +155,7 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     delete AA;
 
     if (PID_AA != NULL) { 
-        STDLOG(4,"Resizing slab\n");
+        STDLOG(2,"Resizing slab\n");
         SB->ResizeSlab(FieldTimeSlicePIDs, slab, PID_AA->bytes_written());
         STDLOG(4,"StoreArenaNonBlocking\n");
         // Write out this time slice
