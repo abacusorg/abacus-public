@@ -149,7 +149,7 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     SlabType lightcone    = (SlabType)((int)(LightCone0 + lcn));
     SlabType lightconePID = (SlabType)((int)LightCone0 + lcn + NUMLC);
 
-    STDLOG(4, "Making light cone #%d, slab num %d, w/ pid slab num %d\n", lcn, lightcone, lightconePID);
+    STDLOG(4, "Making light cone %d, slab num %d, w/ pid slab num %d\n", lcn, lightcone, lightconePID);
 
     // int headersize = 1024*1024;
 
@@ -174,7 +174,8 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
     integer3 ij(slab,0,0);
     uint64_t slabtotal = 0;
-    #pragma omp parallel for schedule(dynamic,1) reduction(+:slabtotal)
+    uint64_t slabtotalcell = 0;
+    #pragma omp parallel for schedule(dynamic,1) reduction(+:slabtotal) reduction(+:slabtotalcell)
     for (int y = 0; y < CP->cpd; y ++) {
         integer3 ijk = ij; ijk.y = y;
 
@@ -188,6 +189,7 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
             if(!isCellInLightCone(cc, lcn, rmin_tol2, rmax_tol2))
                continue;
 
+            slabtotalcell++;
             double3 lineofsight = cc-LCOrigin[lcn];
             lineofsight /= (lineofsight.norm()+1e-15);
 
@@ -228,7 +230,7 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
         pLightConeRV->FinishPencil();
     }  // Done with this pencil
 
-    STDLOG(1,"Slab %d had %d particles in lightcone %d\n",slab,slabtotal,lcn);
+    STDLOG(1,"Lightcone %d opened %d cells and found %d particles in slab %d\n",lcn,slabtotalcell,slabtotal,slab);
     if(slabtotal) {
         #ifdef OLDCODE
         // Find filename for consistency, but writing to pointer anyway
