@@ -452,11 +452,12 @@ void GatherTimings() {
 	
 
     denom = TimeStepWallClock.Elapsed();
-    double arena_malloc, arena_free;
-    SB->GetMallocFreeTimes(&arena_malloc, &arena_free);
+    double arena_malloc, arena_free, munmap_thread;
+    SB->GetMallocFreeTimes(&arena_malloc, &arena_free, &munmap_thread);
 
     REPORT(0, "\nAllocate Arena Memory", arena_malloc);
     REPORT(0, "Free Arena Memory", arena_free);
+    REPORT(0, "Munmap Thread", munmap_thread);
     REPORT(0, "Free SlabAccum Variables", SlabAccumFree.Elapsed());
 
     fprintf(reportfp,"\n\nMinCellSize = %d, MaxCellSize = %d, RMS Fractional Overdensity = %10.4e\n",
