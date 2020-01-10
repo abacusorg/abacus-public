@@ -112,7 +112,7 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
         // For sanity, be careful that the previous lines end with a \n!
         AA->finalize_header();
     }
-    STDLOG(4,"Scanning through cells\n");
+    STDLOG(2,"Scanning through cells\n");
 
     // Now scan through the cells
     integer3 ij(slab,0,0);
@@ -153,7 +153,7 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
         }
     }
 
-    STDLOG(4,"Resizing slab\n");
+    STDLOG(2,"Resizing slab\n");
     SB->ResizeSlab(FieldTimeSlice, slab, AA->finalize_arena());
     STDLOG(4,"StoreArenaNonBlocking\n");
     // Write out this time slice
@@ -161,7 +161,7 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     delete AA;
 
     if (PID_AA != NULL) { 
-        STDLOG(4,"Resizing slab\n");
+        STDLOG(2,"Resizing slab\n");
         SB->ResizeSlab(FieldTimeSlicePIDs, slab, PID_AA->finalize_arena());
         STDLOG(4,"StoreArenaNonBlocking\n");
         // Write out this time slice
