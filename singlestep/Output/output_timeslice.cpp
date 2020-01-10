@@ -115,14 +115,13 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     STDLOG(4,"Scanning through cells\n");
 
     // Now scan through the cells
-    velstruct vel;
     integer3 ij(slab,0,0);
     uint64 n_added = 0;
     #pragma omp parallel for schedule(static) reduction(+:n_added)
     for (int y=0; y<CP->cpd; y++) {
         integer3 ijk = ij; ijk.y = y;
         // We are required to provide an offset in bytes for this pencil's portion of the buffer.
-    	long long int start = CP->CellInfo(ij)->startindex;   // Assumes cells are packed in order in the slab
+    	long long int start = CP->CellInfo(ijk)->startindex;   // Assumes cells are packed in order in the slab
         AA->start_pencil(y, start*AA->sizeof_particle() + AA->sizeof_cell()*(CP->cpd)*y);
         if (PID_AA!=NULL) PID_AA->start_pencil(y, start*AA->sizeof_particle());
 
@@ -140,7 +139,7 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
             // Now pack the particles
             accstruct *acc = CP->AccCell(ijk);
             for (int p=0;p<c.count();p++) {
-                vel = (c.vel[p] - TOFLOAT3(acc[p])*unkickfactor);    // We supply in code units
+                velstruct vel = (c.vel[p] - TOFLOAT3(acc[p])*unkickfactor);    // We supply in code units
                 // Detail: we write particles with their L0 bits intact.  So if we want to run a non-group-finding step
                 // after a group-finding step (e.g. for debugging), we need to know that we can ignore the L0 bit
                 if(GFC == NULL || !c.aux[p].is_L0()){
