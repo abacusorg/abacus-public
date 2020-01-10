@@ -299,12 +299,12 @@ class OutputRVdouble: public AppendArena {
 
 class OutputPID: public AppendArena {
   private:
-    uint64_t pid;
+    //uint64_t pid;
 
     void appendparticle(char *c, cell_header current_cell, posstruct pos, velstruct vel, auxstruct a) {
         uint64_t *p = (uint64_t *)c;
         *p  = a.aux & AUX_PID_TAG_DENS_MASK; 
-        pid = a.aux & AUX_PID_TAG_DENS_MASK; 
+        //pid = a.aux & AUX_PID_TAG_DENS_MASK; 
     }
 
     void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {
@@ -313,7 +313,8 @@ class OutputPID: public AppendArena {
 
   public:
     int sizeof_cell()     { return 0; }
-    int sizeof_particle() { return sizeof(pid); }
+   // int sizeof_particle() { return sizeof(pid); }
+    int sizeof_particle() { return sizeof(uint64_t); }
 
     OutputPID() { }
     ~OutputPID(void) { }
