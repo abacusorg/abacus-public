@@ -145,6 +145,11 @@ public:
         setlightconedone(lightconemask(number));
     }
 
+    inline void clearLC() {
+        uint64 mask = AUXLC;
+        aux &= ~mask;
+    }
+
     inline void set_taggable_subA() {
         // The TAGGABLE SUBA bit should be set at the beginning of the sim and not changed.
         aux |= ((uint64)1 << AUXTAGGABLE_A_BIT);
