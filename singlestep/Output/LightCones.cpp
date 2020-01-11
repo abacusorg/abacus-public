@@ -92,13 +92,51 @@ inline void interpolateParticle(double3 &pos, velstruct &vel, const accstruct ac
 }
 #endif
 
-inline int isCellInLightCone(double3 pos, const int lcn, double rmin_tol2, double rmax_tol2) {
+
+class LightCone {
+  private:
+    double rmin2;
+    double rmin_tol2;
+    double rmax_tol2;
+
+  public:
+    int lcn;
+    double3 origin[3];
+    double rmin, rmax, tol;
+
+    LightCone(int _lcn) {
+        lcn = _lcn;
+        origin[0] = LCOrigin[lcn][0];
+        origin[1] = LCOrigin[lcn][1];
+        origin[2] = LCOrigin[lcn][2];
+
+        // Bounds for light cone, in unit-box units
+        rmax = (cosm->today.etaK - cosm->current.etaK)*etaktoHMpc/ReadState.BoxSizeHMpc; // Light cone start
+        rmin = (cosm->today.etaK - cosm->next.etaK)*etaktoHMpc/ReadState.BoxSizeHMpc; // Light cone end
+    
+        // And we need to set some tolerances.
+        // A particle have been in front of the light cone in the previous step, but then
+        // move so that it is behind the light cone in this step.  Particles can move up to FINISH_RADIUS.
+        // And we want to catch this particle even if it is in the corner of the cell, 
+        // which means that we have to catch its cell center too.
+        // So this is FINISH_WAIT_RADIUS + sqrt(3)/2 cells
+        tol = (FINISH_WAIT_RADIUS+sqrt(3.0)/2.0)/P.cpd;   
+        rmin_tol2 = rmin-tol; rmin_tol2 *= rmin_tol2;
+        rmax_tol2 = rmax+tol; rmax_tol2 *= rmax_tol2;
+        rmin2 = rmin*rmin;
+    }
+    ~LightCone() { }
+
+    inline int isCellInLightCone(double3 pos);
+    inline int isParticleInLightCone(double3 &pos, velstruct &vel, const accstruct acc, double3 lineofsight);
+};
+
+
+// Return whether a CellCenter is in the light cone, including some tolerance
+inline int LightCone::isCellInLightCone(double3 pos);
     double r2 = (pos-LCOrigin[lcn]).norm2();
     return (r2<rmax_tol2) && (r2>rmin_tol2);
 }
-
-
-// TODO: Put the constants in a struct!
 
 // pos must be a global position in unit-box coords; vel is in code units
 // rmax is the maximum radius, which is the earlier time
@@ -107,9 +145,7 @@ inline int isCellInLightCone(double3 pos, const int lcn, double rmin_tol2, doubl
 //
 // Returns 0 if not in LightCone, 1 if it is.
 // Further, the position and velocity inputs will be adjusted.
-inline int isParticleInLightCone(double3 &pos, velstruct &vel, const accstruct acc, double3 lineofsight,
-    const int lcn, const double rmin, const double rmax, const double rmin2, const double rmax_tol2) {
-
+inline int LightCone::isParticleInLightCone(double3 &pos, velstruct &vel, const accstruct acc, double3 lineofsight) {
     double r = (pos-LCOrigin[lcn]).norm();
     double vr_on_c = vel.dot(lineofsight) * ReadState.VelZSpace_to_kms/c_kms;
     double frac_step = (rmax-r)/(rmax-rmin)*(1.0+vr_on_c);    
@@ -134,11 +170,7 @@ inline int isParticleInLightCone(double3 &pos, velstruct &vel, const accstruct a
 
 
 void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
-    //double r1 = cosm->today.H*(cosm->today.etaK - cosm->current.etaK)*4000/P.BoxSize;
-    //double r2 = cosm->today.H*(cosm->today.etaK - cosm->next.etaK)*4000/P.BoxSize;
-    //printf("r1: %f r2: %f \n",r1,r2);
     // Use the same format for the lightcones as for the particle subsamples
-
     SlabAccum<RVfloat>   LightConeRV;     ///< The taggable subset in each lightcone.
     SlabAccum<TaggedPID> LightConePIDs;   ///< The PIDS of the taggable subset in each lightcone.
 
@@ -151,26 +183,9 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
     STDLOG(4, "Making light cone %d, slab num %d, w/ pid slab num %d\n", lcn, lightcone, lightconePID);
 
-    // int headersize = 1024*1024;
-
+    LightCone LC(lcn);
     uint64 mask = auxstruct::lightconemask(lcn);
-
     double vunits = ReadState.VelZSpace_to_kms/ReadState.VelZSpace_to_Canonical;  // Code to km/s
-
-    // Bounds for light cone, in unit-box units
-    double rmax = (cosm->today.etaK - cosm->current.etaK)*etaktoHMpc/ReadState.BoxSizeHMpc; // Light cone start
-    double rmin = (cosm->today.etaK - cosm->next.etaK)*etaktoHMpc/ReadState.BoxSizeHMpc; // Light cone end
-    
-    // And we need to set some tolerances.
-    // A particle have been in front of the light cone in the previous step, but then
-    // move so that it is behind the light cone in this step.  Particles can move up to FINISH_RADIUS.
-    // And we want to catch this particle even if it is in the corner of the cell, 
-    // which means that we have to catch its cell center too.
-    // So this is FINISH_WAIT_RADIUS + sqrt(3)/2 cells
-    double tol = (FINISH_WAIT_RADIUS+sqrt(3.0)/2.0)/P.cpd;   
-    double rmin_tol2 = rmin-tol; rmin_tol2 *= rmin_tol2;
-    double rmax_tol2 = rmax+tol; rmax_tol2 *= rmax_tol2;
-    double rmin2 = rmin*rmin;
 
     integer3 ij(slab,0,0);
     uint64_t slabtotal = 0;
@@ -184,11 +199,10 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             // Check if the cell center is in the lightcone, with some wiggle room
-            // STDLOG(4, "Cell in lightcone? : %f %f %f %d\n", CP->CellCenter(ijk).x, CP->CellCenter(ijk).y, CP->CellCenter(ijk).z, inLightCone(CP->CellCenter(ijk),zero3,lcn,3.0/P.cpd, 3.0/P.cpd, r1, r2) );
             double3 cc = CP->CellCenter(ijk);
-            if(!isCellInLightCone(cc, lcn, rmin_tol2, rmax_tol2))
-               continue;
+            if(!LC.isCellInLightCone(cc)) continue;  // Skip the rest if too far from the region
 
+            // So you say there's a chance?
             slabtotalcell++;
             double3 lineofsight = cc-LCOrigin[lcn];
             lineofsight /= (lineofsight.norm()+1e-15);
@@ -205,8 +219,7 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
                     // Need to unkick by half
                     velstruct vel = c.vel[p] - TOFLOAT3(acc[p])*WriteState.FirstHalfEtaKick;
                     double3 pos = c.pos[p]+cc;  // interpolateParticle takes global positions
-                    if (isParticleInLightCone(pos, vel, acc[p], lineofsight, 
-                            lcn, rmin, rmax, rmin2, rmax_tol2)) {
+                    if (LC.isParticleInLightCone(pos, vel, acc[p], lineofsight) { 
                         // Yes, it's in the light cone.  pos and vel were updated.
 
                         if(c.aux[p].is_taggable() or P.OutputFullLightCones){
