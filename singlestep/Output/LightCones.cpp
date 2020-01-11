@@ -73,7 +73,7 @@ class LightCone {
     }
 
     inline int isCellInLightCone(double3 pos);
-    inline int isParticleInLightCone(double3 &pos, velstruct &vel, const accstruct acc, double3 lineofsight);
+    inline int isParticleInLightCone(double3 cellcenter, posstruct &pos, velstruct &vel, const accstruct acc);
 };
 
 
@@ -95,19 +95,19 @@ inline int LightCone::isParticleInLightCone(double3 cellcenter, posstruct &pos, 
     posstruct pos1 = pos+vel*driftfactor;   // Take care to match the precision of Drift()
     // Now rebin pos1, matching the precision of Insert()
     double3 cc1 = cellcenter;
-    if (pos1.x>CP->halfinvcpd) { pos1.x-=CP->halfinvcpd; cc1.x+=CP->halfinvcpd);
-    if (pos1.y>CP->halfinvcpd) { pos1.y-=CP->halfinvcpd; cc1.y+=CP->halfinvcpd);
-    if (pos1.z>CP->halfinvcpd) { pos1.z-=CP->halfinvcpd; cc1.z+=CP->halfinvcpd);
-    if (pos1.x<-CP->halfinvcpd) { pos1.x+=CP->halfinvcpd; cc1.x-=CP->halfinvcpd);
-    if (pos1.y<-CP->halfinvcpd) { pos1.y+=CP->halfinvcpd; cc1.y-=CP->halfinvcpd);
-    if (pos1.z<-CP->halfinvcpd) { pos1.z+=CP->halfinvcpd; cc1.z-=CP->halfinvcpd);
+    if (pos1.x>CP->halfinvcpd) { pos1.x-=CP->halfinvcpd; cc1.x+=CP->halfinvcpd; }
+    if (pos1.y>CP->halfinvcpd) { pos1.y-=CP->halfinvcpd; cc1.y+=CP->halfinvcpd; }
+    if (pos1.z>CP->halfinvcpd) { pos1.z-=CP->halfinvcpd; cc1.z+=CP->halfinvcpd; }
+    if (pos1.x<-CP->halfinvcpd) { pos1.x+=CP->halfinvcpd; cc1.x-=CP->halfinvcpd; }
+    if (pos1.y<-CP->halfinvcpd) { pos1.y+=CP->halfinvcpd; cc1.y-=CP->halfinvcpd; }
+    if (pos1.z<-CP->halfinvcpd) { pos1.z+=CP->halfinvcpd; cc1.z-=CP->halfinvcpd; }
     double r1 = (cc1-origin+pos1).norm();
 
     double frac_step = (rmax-r0)/(rmax-rmin-r0+r1);
         // This is the fraction of the upcoming step when the particle meets the light cone
         // frac_step = 0 means r=rmax, =1 means r-rmin
 
-    if (frac_step<-1.0e-13||frac_step>=1) continue;
+    if (frac_step<-1.0e-13||frac_step>=1) return 0;
         // We accept the particle into the lightcone only if the two lines cross in
         // the domain of the step.
         // We are accepting a tiny fraction of cases outside the cone, 
