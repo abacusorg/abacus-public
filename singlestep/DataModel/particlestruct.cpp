@@ -145,7 +145,7 @@ public:
         setlightconedone(lightconemask(number));
     }
 
-    inline void clearLC() {
+    inline void clearLightCone() {
         uint64 mask = AUXLC;
         aux &= ~mask;
     }

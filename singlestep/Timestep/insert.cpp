@@ -114,12 +114,12 @@ public:
         integer3 newcell = Position2Cell(*pos);
         // Important: this mapping does not apply a wrap.
         // Now we wrap, coordinating cell index and position
-        while (newcell.x<0)    { newcell.x+=cpd; pos->x+=1.0; aux->clearLC(); }
-        while (newcell.x>=cpd) { newcell.x-=cpd; pos->x-=1.0; aux->clearLC(); }
-        while (newcell.y<0)    { newcell.y+=cpd; pos->y+=1.0; aux->clearLC(); }
-        while (newcell.y>=cpd) { newcell.y-=cpd; pos->y-=1.0; aux->clearLC(); }
-        while (newcell.z<0)    { newcell.z+=cpd; pos->z+=1.0; aux->clearLC(); }
-        while (newcell.z>=cpd) { newcell.z-=cpd; pos->z-=1.0; aux->clearLC(); }
+        while (newcell.x<0)    { newcell.x+=cpd; pos->x+=1.0; aux->clearLightCone(); }
+        while (newcell.x>=cpd) { newcell.x-=cpd; pos->x-=1.0; aux->clearLightCone(); }
+        while (newcell.y<0)    { newcell.y+=cpd; pos->y+=1.0; aux->clearLightCone(); }
+        while (newcell.y>=cpd) { newcell.y-=cpd; pos->y-=1.0; aux->clearLightCone(); }
+        while (newcell.z<0)    { newcell.z+=cpd; pos->z+=1.0; aux->clearLightCone(); }
+        while (newcell.z>=cpd) { newcell.z-=cpd; pos->z-=1.0; aux->clearLightCone(); }
         return newcell;
     }
 
@@ -133,26 +133,26 @@ public:
             pos->x, pos->y, pos->z);
         while (pos->x>halfinvcpd) {
             oldx+=1; pos->x-=invcpd;
-            if (oldx==cpd) aux->clearLC();
+            if (oldx==cpd) aux->clearLightCone();
         }
         while (pos->x<-halfinvcpd) {
-            if (oldx==0) aux->clearLC();
+            if (oldx==0) aux->clearLightCone();
             oldx-=1; pos->x+=invcpd;
         }
         while (pos->y>halfinvcpd) {
             oldy+=1; pos->y-=invcpd;
-            if (oldy==cpd) aux->clearLC();
+            if (oldy==cpd) aux->clearLightCone();
         }
         while (pos->y<-halfinvcpd) {
-            if (oldy==0) aux->clearLC();
+            if (oldy==0) aux->clearLightCone();
             oldy-=1; pos->y+=invcpd;
         }
         while (pos->z>halfinvcpd) {
             oldz+=1; pos->z-=invcpd;
-            if (oldz==cpd) aux->clearLC();
+            if (oldz==cpd) aux->clearLightCone();
         }
         while (pos->z<-halfinvcpd) {
-            if (oldz==0) aux->clearLC();
+            if (oldz==0) aux->clearLightCone();
             oldz-=1; pos->z+=invcpd;
         }
         return WrapCell(oldx, oldy, oldz);
