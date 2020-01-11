@@ -95,20 +95,21 @@ inline void interpolateParticle(double3 &pos, velstruct &vel, const accstruct ac
 
 class LightCone {
   private:
-    double rmin2;
-    double rmin_tol2;
-    double rmax_tol2;
+    double rmin2;       // Square of rmin
+    double rmin_tol2;       // Square of rmin-tol
+    double rmax_tol2;       // Square of rmax+tol
 
   public:
-    int lcn;
-    double3 origin[3];
-    double rmin, rmax, tol;
+    int lcn;        // Light cone number
+    double3 origin;  // The observer location, in unit-cell units
+    double rmin;     // The minimum distance to the light cone region (i.e., lower redshift)
+    double rmax;     // The maximum distance to the light cone region (i.e., higher redshift)
+    double tol;      // The tolerance for our searching
+    double DeltaEtaKick;   // The total Delta(eta_Kick) for this step
 
     LightCone(int _lcn) {
         lcn = _lcn;
-        origin[0] = LCOrigin[lcn][0];
-        origin[1] = LCOrigin[lcn][1];
-        origin[2] = LCOrigin[lcn][2];
+        origin = LCOrigin[lcn];
 
         // Bounds for light cone, in unit-box units
         rmax = (cosm->today.etaK - cosm->current.etaK)*etaktoHMpc/ReadState.BoxSizeHMpc; // Light cone start
@@ -124,6 +125,7 @@ class LightCone {
         rmin_tol2 = rmin-tol; rmin_tol2 *= rmin_tol2;
         rmax_tol2 = rmax+tol; rmax_tol2 *= rmax_tol2;
         rmin2 = rmin*rmin;
+        DeltaEtaKick = WriteState.FirstHalfEtaKick+WriteState.LastHalfEtaKick;
     }
     ~LightCone() { }
 
@@ -133,8 +135,8 @@ class LightCone {
 
 
 // Return whether a CellCenter is in the light cone, including some tolerance
-inline int LightCone::isCellInLightCone(double3 pos);
-    double r2 = (pos-LCOrigin[lcn]).norm2();
+inline int LightCone::isCellInLightCone(double3 pos) {
+    double r2 = (pos-origin).norm2();
     return (r2<rmax_tol2) && (r2>rmin_tol2);
 }
 
@@ -146,7 +148,7 @@ inline int LightCone::isCellInLightCone(double3 pos);
 // Returns 0 if not in LightCone, 1 if it is.
 // Further, the position and velocity inputs will be adjusted.
 inline int LightCone::isParticleInLightCone(double3 &pos, velstruct &vel, const accstruct acc, double3 lineofsight) {
-    double r = (pos-LCOrigin[lcn]).norm();
+    double r = (pos-origin).norm();
     double vr_on_c = vel.dot(lineofsight) * ReadState.VelZSpace_to_kms/c_kms;
     double frac_step = (rmax-r)/(rmax-rmin)*(1.0+vr_on_c);    
         // This is the fraction of the upcoming step when the particle meets the light cone
@@ -158,13 +160,14 @@ inline int LightCone::isParticleInLightCone(double3 &pos, velstruct &vel, const 
     if (frac_step> 1.1) frac_step =  1.1;
 
     pos += vel*frac_step*WriteState.DeltaEtaDrift;
-    double r2 = (pos-LCOrigin[lcn]).norm2();
+    // TODO: There should be a way to update r without the full recomputation....
+    double r2 = (pos-origin).norm2();
     if (r2>rmax_tol2 || r2<rmin2) return 0;
         // The particle is allowed to be behind the light cone; we want to get it now.
         // But it should be rigorous about the forward edge of the cone.
 
     // The particle is in the light cone!
-    vel += TOFLOAT3(acc)*frac_step*(WriteState.FirstHalfEtaKick+WriteState.LastHalfEtaKick);
+    vel += TOFLOAT3(acc)*frac_step*DeltaEtaKick;
     return 1;
 }
 
@@ -204,6 +207,10 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
             // So you say there's a chance?
             slabtotalcell++;
+            // We compute the line of sight direction on a per-cell rather than a per-particle basis.
+            // Remember, this is only for a first-order velocity correction to the epoch of the output,
+            // and v/c ~ 1e-3.  Plus cells typically subtend 1e-3 radian on the sky, so the radial
+            // velocity direction is only changing a tiny bit.
             double3 lineofsight = cc-LCOrigin[lcn];
             lineofsight /= (lineofsight.norm()+1e-15);
 
@@ -219,7 +226,7 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
                     // Need to unkick by half
                     velstruct vel = c.vel[p] - TOFLOAT3(acc[p])*WriteState.FirstHalfEtaKick;
                     double3 pos = c.pos[p]+cc;  // interpolateParticle takes global positions
-                    if (LC.isParticleInLightCone(pos, vel, acc[p], lineofsight) { 
+                    if (LC.isParticleInLightCone(pos, vel, acc[p], lineofsight)) { 
                         // Yes, it's in the light cone.  pos and vel were updated.
 
                         if(c.aux[p].is_taggable() or P.OutputFullLightCones){
