@@ -57,6 +57,7 @@ class LightCone {
         // which means that we have to catch its cell center too.
         // So this is FINISH_WAIT_RADIUS + sqrt(3)/2 cells
         tol = (FINISH_WAIT_RADIUS+sqrt(3.0)/2.0)/P.cpd;   
+        // TODO: Could consider stricter bounds, e.g., using MaxVelocity from the previous state.
         rmin_tol2 = rmin-tol; rmin_tol2 *= rmin_tol2;
         rmax_tol2 = rmax+tol; rmax_tol2 *= rmax_tol2;
         driftfactor = WriteState.DeltaEtaDrift;
@@ -162,12 +163,6 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
             // So you say there's a chance?
             slabtotalcell++;
-            // We compute the line of sight direction on a per-cell rather than a per-particle basis.
-            // Remember, this is only for a first-order velocity correction to the epoch of the output,
-            // and v/c ~ 1e-3.  Plus cells typically subtend 1e-3 radian on the sky, so the radial
-            // velocity direction is only changing a tiny bit.
-            double3 lineofsight = cc-LCOrigin[lcn];
-            lineofsight /= (lineofsight.norm()+1e-15);
 
             Cell c = CP->GetCell(ijk);
             accstruct *acc = CP->AccCell(ijk);
@@ -183,7 +178,7 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
                     posstruct poscopy = c.pos[p];  // Need a copy, since it will be changed
                     if (LC.isParticleInLightCone(cc, poscopy, vel, acc[p])) { 
                         // Yes, it's in the light cone.  pos and vel were updated.
-                        double3 pos = cc+poscopy;
+                        double3 pos = cc+poscopy;    // This is now a global position in double precision
 
                         pLightConeHealPix->append(LC.healpixel(pos));  // We're outputting all particles for this
                         slabtotal++;
