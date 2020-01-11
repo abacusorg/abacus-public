@@ -93,6 +93,9 @@ inline void interpolateParticle(double3 &pos, velstruct &vel, const accstruct ac
 #endif
 
 
+
+#include "healpix_shortened.c"
+
 class LightCone {
   private:
     double rmin2;       // Square of rmin
@@ -128,6 +131,14 @@ class LightCone {
         DeltaEtaKick = WriteState.FirstHalfEtaKick+WriteState.LastHalfEtaKick;
     }
     ~LightCone() { }
+
+    // This is a simple wrapper for our healpix calls
+    inline unsigned int healpixel(double3 pos) {
+        int64_t pixel;
+        pos -= origin;
+        vec2pix_nest64((int64_t)16384, (double *)&pos, &pixel);
+        return (unsigned int) pixel;
+    }
 
     inline int isCellInLightCone(double3 pos);
     inline int isParticleInLightCone(double3 &pos, velstruct &vel, const accstruct acc, double3 lineofsight);
@@ -176,13 +187,16 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     // Use the same format for the lightcones as for the particle subsamples
     SlabAccum<RVfloat>   LightConeRV;     ///< The taggable subset in each lightcone.
     SlabAccum<TaggedPID> LightConePIDs;   ///< The PIDS of the taggable subset in each lightcone.
+    SlabAccum<unsigned int> LightConeHealPix;   ///< The Healpix of the particles in each lightcone.
 
     LightConeRV.setup(  CP->cpd, P.np/P.cpd/30);
     LightConePIDs.setup(CP->cpd, P.np/P.cpd/30);
+    LightConeHealPix.setup(CP->cpd, P.np/P.cpd);
 
     // Here are the Slab numbers
     SlabType lightcone    = (SlabType)((int)(LightCone0 + lcn));
     SlabType lightconePID = (SlabType)((int)LightCone0 + lcn + NUMLC);
+    SlabType lightconeHealPix = (SlabType)((int)LightCone0 + lcn + NUMLC*2);
 
     STDLOG(4, "Making light cone %d, slab num %d, w/ pid slab num %d\n", lcn, lightcone, lightconePID);
 
@@ -199,6 +213,7 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
         PencilAccum<RVfloat>   *pLightConeRV   =   LightConeRV.StartPencil(ijk.y);
         PencilAccum<TaggedPID> *pLightConePIDs = LightConePIDs.StartPencil(ijk.y);
+        PencilAccum<unsigned int> *pLightConeHealPix = LightConeHealPix.StartPencil(ijk.y);
 
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             // Check if the cell center is in the lightcone, with some wiggle room
@@ -229,6 +244,7 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
                     if (LC.isParticleInLightCone(pos, vel, acc[p], lineofsight)) { 
                         // Yes, it's in the light cone.  pos and vel were updated.
 
+                        pLightConeHealPix->append(LC.healpixel(pos));  // We're outputting all particles for this
                         if(c.aux[p].is_taggable() or P.OutputFullLightCones){
                             // These output routines take global positions and velocities in km/s
                             pLightConePIDs->append(TaggedPID(c.aux[p]));
@@ -236,7 +252,6 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
                             slabtotal++;
 
                         }
-                        // TODO: Could output the Healpix here
 
                         c.aux[p].setlightconedone(mask);
                     }
@@ -245,9 +260,11 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
             pLightConePIDs->FinishCell();
             pLightConeRV->FinishCell();
+            pLightConeHealPix->FinishCell();
         }   // Done with this cell
         pLightConePIDs->FinishPencil();
         pLightConeRV->FinishPencil();
+        pLightConeHealPix->FinishPencil();
     }  // Done with this pencil
 
     STDLOG(1,"Lightcone %d opened %d cells and found %d particles in slab %d\n",lcn,slabtotalcell,slabtotal,slab);
@@ -269,8 +286,12 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
         SB->AllocateSpecificSize(lightconePID, slab, LightConePIDs.get_slab_bytes());
         LightConePIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(lightconePID, slab));
         SB->StoreArenaNonBlocking(lightconePID, slab);
+
+        // TODO: Need to add the HealPix files
+        // And in a perfect world, we would *sort* the pixel numbers in the healpix slab before outputing
     }
 
     LightConeRV.destroy();
     LightConePIDs.destroy();
+    LightConeHealPix.destroy();
 }
