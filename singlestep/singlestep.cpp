@@ -227,7 +227,9 @@ int main(int argc, char **argv) {
     }
 
     BuildWriteState(da);
+    assertf(P.NLightCones<=NUMLIGHTCONES, "Parameter file requests %d light cones, but AUX data model supports only %d\n", P.NLightCones, NUMLIGHTCONES);
     LCOrigin = (double3 *) malloc(NUMLIGHTCONES*sizeof(double3));  // max NUMLIGHTCONES light cones
+    // TODO: Why is this NUMLIGHTCONES instead of P.NLightCones?
     for(int i = 0; i < NUMLIGHTCONES; i++)
         LCOrigin[i] = ((double3*) P.LightConeOrigins)[i]/P.BoxSize;  // convert to unit-box units
 
