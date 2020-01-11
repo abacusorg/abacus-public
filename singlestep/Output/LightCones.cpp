@@ -206,8 +206,9 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
     integer3 ij(slab,0,0);
     uint64_t slabtotal = 0;
+    uint64_t slabtotalsub = 0;
     uint64_t slabtotalcell = 0;
-    #pragma omp parallel for schedule(dynamic,1) reduction(+:slabtotal) reduction(+:slabtotalcell)
+    #pragma omp parallel for schedule(dynamic,1) reduction(+:slabtotal) reduction (+:slabtotalsub) reduction(+:slabtotalcell)
     for (int y = 0; y < CP->cpd; y ++) {
         integer3 ijk = ij; ijk.y = y;
 
@@ -245,11 +246,13 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
                         // Yes, it's in the light cone.  pos and vel were updated.
 
                         pLightConeHealPix->append(LC.healpixel(pos));  // We're outputting all particles for this
+                        slabtotal++;
+
                         if(c.aux[p].is_taggable() or P.OutputFullLightCones){
                             // These output routines take global positions and velocities in km/s
                             pLightConePIDs->append(TaggedPID(c.aux[p]));
                             pLightConeRV->append(RVfloat(pos.x, pos.y, pos.z, vel.x * vunits, vel.y * vunits, vel.z * vunits));
-                            slabtotal++;
+                            slabtotalsub++;
 
                         }
 
@@ -267,7 +270,8 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
         pLightConeHealPix->FinishPencil();
     }  // Done with this pencil
 
-    STDLOG(1,"Lightcone %d opened %d cells and found %d particles in slab %d\n",lcn,slabtotalcell,slabtotal,slab);
+    STDLOG(1,"Lightcone %d opened %d cells and found %d particles (%d subsampled) in slab %d\n",
+            lcn,slabtotalcell,slabtotal,slabtotalsub,slab);
     if(slabtotal) {
         #ifdef OLDCODE
         // Find filename for consistency, but writing to pointer anyway
