@@ -23,82 +23,13 @@
 
 double3 *LCOrigin;
 
-#ifdef OLD_CODE
-void getLightConeFN(int i,int slab, char * fn, char *headerfn){ //ensure the necessary directories exist and return a filename for this light cone.
-        char dir1[1080];
-        char dir2[1080];
-        CheckDirectoryExists(P.LightConeDirectory);
-        sprintf(dir1,"%s/LC_raw%.2d",P.LightConeDirectory,i);
-        if(!FileExists(dir1)){ //TODO:This assumes the location is not a file. We may want to improve this
-            mkdir(dir1,0775);
-        }
-        sprintf(fn,"%s/LC_raw%.2d/Step%.4d.lc",P.LightConeDirectory,i,WriteState.FullStepNumber);
-        sprintf(headerfn,"%s/LC_raw%.2d/header", P.LightConeDirectory,i);
-}
-#endif
-
 #define c_kms 299792.0
 #define etaktoHMpc (c_kms/100.)
-
-#ifdef OLD_CODE
-// The positive (rightward) distance between two points (a to b) in a periodic domain
-// Essentially implements Python's modulo behavior
-inline double positive_dist(double a, double b, double period){
-   return fmod(fmod(b - a, period) + period, period);
-}
-
-inline int inLightCone(double3 pos, velstruct vel, int lcn, double r1, double r2, double r1tol, double r2tol){ //check if this position is in the current lightcone.
-    // Ensure light cone has size
-    if (r1 == r2) return false;
-
-    // Get particle position relative to light cone
-    double r = (pos-LCOrigin[lcn]).norm();
-    double vronc = 0;
-    if(r >1e-12) vronc = vel.dot(pos-LCOrigin[lcn])/r * ReadState.VelZSpace_to_kms /c_kms ;
-    r = (r-r1) *1/(1+vronc) +r1; //apply velocity correction
-
-    // The lightcone has an absolute output range that is never periodically wrapped
-    // We want the lightcone to include particles
-    // double drbound = positive_dist(rmin, r, 1.);
-
-    // Check that particle is in light cone
-    return (r < r1tol) && (r > r2tol);
-}
-
-inline void interpolateParticle(double3 &pos, velstruct &vel, const accstruct acc, const int lcn, double r1, double r2){
-
-    double r = (pos-LCOrigin[lcn]).norm();
-    double vronc = 0;
-    if(r > 1e-12) vronc = vel.dot(pos-LCOrigin[lcn])/r * ReadState.VelZSpace_to_kms /c_kms;
-    double deltar= (r-r1)/(r2-r1) *1/(1+vronc); //apply velocity correction
-    if(deltar >=0 or ReadState.DeltaScaleFactor ==0){ //check that we are doing valid interpolation
-        double delta_etaK = (WriteState.FirstHalfEtaKick+WriteState.LastHalfEtaKick)*deltar; //how much we need to kick the particle
-        double delta_etaD = WriteState.DeltaEtaDrift*deltar; //how much to drift the particle
-
-        pos = pos + delta_etaD * vel;
-        vel = vel + delta_etaK * TOFLOAT3(acc);
-    }
-    else{ //interpolate using the previous timestep information
-        double r0 = (cosm->today.etaK -cosm->current.etaK +cosm->KickFactor(ReadState.ScaleFactor -ReadState.DeltaScaleFactor,ReadState.DeltaScaleFactor))*etaktoHMpc/ReadState.BoxSizeMpc;
-        double deltar2= (r-r1)/(r0-r1) *1/(1-vronc);
-
-        //assert(deltar2 <=2); //we should not be going back more than one timestep}
-        double delta_etaK = (ReadState.FirstHalfEtaKick+ReadState.LastHalfEtaKick)*deltar2; //how much we need to kick the particle
-        double delta_etaD = ReadState.DeltaEtaDrift*deltar2; //how much to drift the particle
-
-        pos = pos - delta_etaD * vel;
-        vel = vel - delta_etaK * TOFLOAT3(acc);
-    }
-}
-#endif
-
-
 
 #include "healpix_shortened.c"
 
 class LightCone {
   private:
-    double rmin2;       // Square of rmin
     double rmin_tol2;       // Square of rmin-tol
     double rmax_tol2;       // Square of rmax+tol
 
@@ -108,7 +39,8 @@ class LightCone {
     double rmin;     // The minimum distance to the light cone region (i.e., lower redshift)
     double rmax;     // The maximum distance to the light cone region (i.e., higher redshift)
     double tol;      // The tolerance for our searching
-    double DeltaEtaKick;   // The total Delta(eta_Kick) for this step
+    FLOAT DeltaEtaKick;   // The total Delta(eta_Kick) for this step
+    FLOAT driftfactor;
 
     LightCone(int _lcn) {
         lcn = _lcn;
@@ -127,7 +59,7 @@ class LightCone {
         tol = (FINISH_WAIT_RADIUS+sqrt(3.0)/2.0)/P.cpd;   
         rmin_tol2 = rmin-tol; rmin_tol2 *= rmin_tol2;
         rmax_tol2 = rmax+tol; rmax_tol2 *= rmax_tol2;
-        rmin2 = rmin*rmin;
+        driftfactor = WriteState.DeltaEtaDrift;
         DeltaEtaKick = WriteState.FirstHalfEtaKick+WriteState.LastHalfEtaKick;
     }
     ~LightCone() { }
@@ -158,27 +90,33 @@ inline int LightCone::isCellInLightCone(double3 pos) {
 //
 // Returns 0 if not in LightCone, 1 if it is.
 // Further, the position and velocity inputs will be adjusted.
-inline int LightCone::isParticleInLightCone(double3 &pos, velstruct &vel, const accstruct acc, double3 lineofsight) {
-    double r = (pos-origin).norm();
-    double vr_on_c = vel.dot(lineofsight) * ReadState.VelZSpace_to_kms/c_kms;
-    double frac_step = (rmax-r)/(rmax-rmin)*(1.0+vr_on_c);    
+inline int LightCone::isParticleInLightCone(double3 cellcenter, posstruct &pos, velstruct &vel, const accstruct acc) {
+    double r0 = (cellcenter-origin+pos).norm();
+    posstruct pos1 = pos+vel*driftfactor;   // Take care to match the precision of Drift()
+    // Now rebin pos1, matching the precision of Insert()
+    double3 cc1 = cellcenter;
+    if (pos1.x>CP->halfinvcpd) { pos1.x-=CP->halfinvcpd; cc1.x+=CP->halfinvcpd);
+    if (pos1.y>CP->halfinvcpd) { pos1.y-=CP->halfinvcpd; cc1.y+=CP->halfinvcpd);
+    if (pos1.z>CP->halfinvcpd) { pos1.z-=CP->halfinvcpd; cc1.z+=CP->halfinvcpd);
+    if (pos1.x<-CP->halfinvcpd) { pos1.x+=CP->halfinvcpd; cc1.x-=CP->halfinvcpd);
+    if (pos1.y<-CP->halfinvcpd) { pos1.y+=CP->halfinvcpd; cc1.y-=CP->halfinvcpd);
+    if (pos1.z<-CP->halfinvcpd) { pos1.z+=CP->halfinvcpd; cc1.z-=CP->halfinvcpd);
+    double r1 = (cc1-origin+pos1).norm();
+
+    double frac_step = (rmax-r0)/(rmax-rmin-r0+r1);
         // This is the fraction of the upcoming step when the particle meets the light cone
         // frac_step = 0 means r=rmax, =1 means r-rmin
-        // If vr>0, then the particle meets the lightcone earlier
 
-    // Don't let crazy extrapolation happen
-    if (frac_step<-0.1) frac_step = -0.1;
-    if (frac_step> 1.1) frac_step =  1.1;
-
-    pos += vel*frac_step*WriteState.DeltaEtaDrift;
-    // TODO: There should be a way to update r without the full recomputation....
-    double r2 = (pos-origin).norm2();
-    if (r2>rmax_tol2 || r2<rmin2) return 0;
-        // The particle is allowed to be behind the light cone; we want to get it now.
-        // But it should be rigorous about the forward edge of the cone.
+    if (frac_step<-1.0e-13||frac_step>=1) continue;
+        // We accept the particle into the lightcone only if the two lines cross in
+        // the domain of the step.
+        // We are accepting a tiny fraction of cases outside the cone, 
+        // just in case of floating point math errors
 
     // The particle is in the light cone!
-    vel += TOFLOAT3(acc)*frac_step*DeltaEtaKick;
+    // Update the pos and vel to the fractional step (for output).
+    pos += vel*driftfactor*frac_step;
+    vel += TOFLOAT3(acc)*DeltaEtaKick*frac_step;
     return 1;
 }
 
@@ -208,7 +146,8 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     uint64_t slabtotal = 0;
     uint64_t slabtotalsub = 0;
     uint64_t slabtotalcell = 0;
-    #pragma omp parallel for schedule(dynamic,1) reduction(+:slabtotal) reduction (+:slabtotalsub) reduction(+:slabtotalcell)
+    uint64_t doubletagged = 0;
+    #pragma omp parallel for schedule(dynamic,1) reduction(+:slabtotal) reduction (+:slabtotalsub) reduction(+:slabtotalcell) reduction(+:doubletagged)
     for (int y = 0; y < CP->cpd; y ++) {
         integer3 ijk = ij; ijk.y = y;
 
@@ -238,12 +177,13 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
             // STDLOG(4, "LC: Particles in current cell: %d\n", c.count());
             for (int p=0;p<c.count();p++) {
-                if(!c.aux[p].lightconedone(mask)){   // This particle isn't already in the light cone
+                // if(!c.aux[p].lightconedone(mask)){   // This particle isn't already in the light cone
                     // Need to unkick by half
                     velstruct vel = c.vel[p] - TOFLOAT3(acc[p])*WriteState.FirstHalfEtaKick;
-                    double3 pos = c.pos[p]+cc;  // interpolateParticle takes global positions
-                    if (LC.isParticleInLightCone(pos, vel, acc[p], lineofsight)) { 
+                    posstruct poscopy = c.pos[p];  // Need a copy, since it will be changed
+                    if (LC.isParticleInLightCone(cc, poscopy, vel, acc[p])) { 
                         // Yes, it's in the light cone.  pos and vel were updated.
+                        double3 pos = cc+poscopy;
 
                         pLightConeHealPix->append(LC.healpixel(pos));  // We're outputting all particles for this
                         slabtotal++;
@@ -256,9 +196,12 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
                         }
 
+                        // TODO: For now, we're going to look for particles that get tagged twice.
+                        // But maybe we'll find that they are very few, in which case we might stop tagging.
+                        if (c.aux[p].lightconedone(mask)) doubletagged++;
                         c.aux[p].setlightconedone(mask);
                     }
-                }
+                // }
             }  // Done with this particle
 
             pLightConePIDs->FinishCell();
@@ -270,8 +213,8 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
         pLightConeHealPix->FinishPencil();
     }  // Done with this pencil
 
-    STDLOG(1,"Lightcone %d opened %d cells and found %d particles (%d subsampled) in slab %d\n",
-            lcn,slabtotalcell,slabtotal,slabtotalsub,slab);
+    STDLOG(1,"Lightcone %d opened %d cells and found %d particles (%d subsampled) in slab %d.  %d double tagged\n",
+            lcn,slabtotalcell,slabtotal,slabtotalsub,slab, doubletagged);
     if(slabtotal) {
         #ifdef OLDCODE
         // Find filename for consistency, but writing to pointer anyway
