@@ -227,8 +227,8 @@ int main(int argc, char **argv) {
     }
 
     BuildWriteState(da);
-    LCOrigin = (double3 *) malloc(NUMLC*sizeof(double3));  // max NUMLC light cones
-    for(int i = 0; i < NUMLC; i++)
+    LCOrigin = (double3 *) malloc(NUMLIGHTCONES*sizeof(double3));  // max NUMLIGHTCONES light cones
+    for(int i = 0; i < NUMLIGHTCONES; i++)
         LCOrigin[i] = ((double3*) P.LightConeOrigins)[i]/P.BoxSize;  // convert to unit-box units
 
     // Make a plan for output

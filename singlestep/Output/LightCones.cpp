@@ -195,8 +195,8 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
     // Here are the Slab numbers
     SlabType lightcone    = (SlabType)((int)(LightCone0 + lcn));
-    SlabType lightconePID = (SlabType)((int)LightCone0 + lcn + NUMLC);
-    SlabType lightconeHealPix = (SlabType)((int)LightCone0 + lcn + NUMLC*2);
+    SlabType lightconePID = (SlabType)((int)LightCone0 + lcn + NUMLIGHTCONES);
+    SlabType lightconeHealPix = (SlabType)((int)LightCone0 + lcn + NUMLIGHTCONES*2);
 
     STDLOG(4, "Making light cone %d, slab num %d, w/ pid slab num %d\n", lcn, lightcone, lightconePID);
 
