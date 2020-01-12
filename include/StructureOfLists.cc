@@ -23,9 +23,9 @@ template<typename T> class List3
             N = count;
             size_t size = sizeof(T)*N;
             
-            assert(posix_memalign((void **) &X, 4096, size) == 0);
-            assert(posix_memalign((void **) &Y, 4096, size) == 0);
-            assert(posix_memalign((void **) &Z, 4096, size) == 0);
+            assert(posix_memalign((void **) &X, PAGE_SIZE, size) == 0);
+            assert(posix_memalign((void **) &Y, PAGE_SIZE, size) == 0);
+            assert(posix_memalign((void **) &Z, PAGE_SIZE, size) == 0);
             owndata = true;
         }
         ~List3(){

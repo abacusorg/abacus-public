@@ -271,11 +271,11 @@ int main(int argc, char **argv){
     }
 
 
-    assert(posix_memalign((void **) &cartesian, 4096, sizeof(double)*TY.cml) == 0);
+    assert(posix_memalign((void **) &cartesian, PAGE_SIZE, sizeof(double)*TY.cml) == 0);
     for (int i = 0; i < TY.cml; i++)
         cartesian[i] = (double)rand()/RAND_MAX;
 
-    assert(posix_memalign((void **) &xyz, 4096, sizeof(FLOAT3)*npart) == 0);
+    assert(posix_memalign((void **) &xyz, PAGE_SIZE, sizeof(FLOAT3)*npart) == 0);
     #pragma omp parallel for schedule(static)
     for(uint64_t i = 0; i < npart; i++){
         int t = omp_get_thread_num();
@@ -284,8 +284,8 @@ int main(int argc, char **argv){
         xyz[i].z = gsl_rng_uniform(rng[t])/cpd;
     }
 
-    assert(posix_memalign((void **) &last_acc, 4096, sizeof(FLOAT3)*npart) == 0);
-    assert(posix_memalign((void **) &current_acc, 4096, sizeof(FLOAT3)*npart) == 0);
+    assert(posix_memalign((void **) &last_acc, PAGE_SIZE, sizeof(FLOAT3)*npart) == 0);
+    assert(posix_memalign((void **) &current_acc, PAGE_SIZE, sizeof(FLOAT3)*npart) == 0);
 
     auto begin = std::chrono::steady_clock::now();
     auto end = std::chrono::steady_clock::now();

@@ -349,8 +349,8 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     assert(RatioDeftoAll<=1.0);  // Guard against screwup
 
     // This is how many blocks we'll allocate
-    MaxSinkBlocks = (MaxBufferSize-1e5)/TotalBytesPerSinkBlock;
-            // Remove 100KB for alignment factors
+    MaxSinkBlocks = (MaxBufferSize-1e5*PAGE_SIZE/4096)/TotalBytesPerSinkBlock;
+            // Remove a few MB for alignment factors
     MaxSourceBlocks = WIDTH*MaxSinkBlocks;
     *maxsinkblocks = MaxSinkBlocks;
     *maxsourceblocks = MaxSourceBlocks;

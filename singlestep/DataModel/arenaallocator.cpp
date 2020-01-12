@@ -334,7 +334,7 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
                 arena[id].max_usable_size = ss*LB_OVERSIZE;
                 arena[id].allocated_size = arena[id].max_usable_size + 2*GUARDSIZE;
                 ArenaMalloc.Start();
-                assertf(posix_memalign((void **) &(arena[id].addr), 4096, arena[id].allocated_size) == 0,
+                assertf(posix_memalign((void **) &(arena[id].addr), PAGE_SIZE, arena[id].allocated_size) == 0,
                         "posix_memalign failed trying to allocate %d bytes\n", arena[id].allocated_size);
                 arena[id].present = 1;  
                 ArenaMalloc.Stop();
