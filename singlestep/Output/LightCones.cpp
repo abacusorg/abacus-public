@@ -84,13 +84,12 @@ inline int LightCone::isCellInLightCone(double3 pos) {
     return (r2<rmax_tol2) && (r2>rmin_tol2);
 }
 
-// pos must be a global position in unit-box coords; vel is in code units
+// pos is in cell-centered coords; cellcenter is the position in the box; vel is in code units
 // rmax is the maximum radius, which is the earlier time
 // rmin is the minimum radius, which is the later time
-// lineofsight should be a unit vector from the LCOrigin to the cell center
 //
 // Returns 0 if not in LightCone, 1 if it is.
-// Further, the position and velocity inputs will be adjusted.
+// Further, the position and velocity inputs will be adjusted to the epoch where the light cone is crossed.
 inline int LightCone::isParticleInLightCone(double3 cellcenter, posstruct &pos, velstruct &vel, const accstruct acc) {
     double r0 = (cellcenter-origin+pos).norm();
     posstruct pos1 = pos+vel*driftfactor;   // Take care to match the precision of Drift()
