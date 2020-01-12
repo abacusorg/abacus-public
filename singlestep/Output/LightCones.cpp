@@ -185,6 +185,9 @@ inline int LightCone::isParticleInLightCone(double3 &pos, velstruct &vel, const 
 
 void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     // Use the same format for the lightcones as for the particle subsamples
+    if (fabs(cosm->next.etaK-cosm->current.etaK)<1e-12) return;  
+            // Nothing to be done, so don't risk divide by zero.
+
     SlabAccum<RVfloat>   LightConeRV;     ///< The taggable subset in each lightcone.
     SlabAccum<TaggedPID> LightConePIDs;   ///< The PIDS of the taggable subset in each lightcone.
     SlabAccum<unsigned int> LightConeHealPix;   ///< The Healpix of the particles in each lightcone.
