@@ -51,6 +51,7 @@ STimer WriteMultipoleSlab;
 STimer QueueMultipoleMPI;
 STimer ParallelConvolveDestructor;
 
+STimer OutputLightConeSearch;
 STimer OutputTimeSlice;
 STimer OutputLightCone;
 STimer OutputBin;
