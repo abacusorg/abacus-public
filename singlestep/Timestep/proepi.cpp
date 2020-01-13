@@ -53,6 +53,7 @@ STimer ParallelConvolveDestructor;
 
 STimer OutputTimeSlice;
 STimer OutputLightCone;
+STimer OutputLightConeSearch;
 STimer OutputBin;
 
 STimer NearForceDirects;
