@@ -53,13 +53,18 @@ enum SlabType { CellInfoSlab,           //0
                 L0TimeSlice,            //29
                 L0TimeSlicePIDs,        //30
 
-                LightCone0,             //31
-                LightCone1,             //32
-                LightCone2,             //33
+                // Note: NUMLC better not be bigger than the number of Slabs defined
+                LightCone0RV,             //31
+                LightCone1RV,             //32
+                LightCone2RV,             //33
 
                 LightCone0PID,          //34
                 LightCone1PID,          //35
                 LightCone2PID,          //36
+
+                LightCone0Heal,          //37
+                LightCone1Heal,          //38
+                LightCone2Heal,          //39
 
                 NUMTYPES
                 };
@@ -92,47 +97,54 @@ private:
 
 public:
 
+    // Array of file pointers for lightcone output
+    FILE* filenamePts[NUMTYPES] = { NULL };
+
     SlabBuffer(int _cpd, int _order, uint64 max_allocations) {
         order = _order;
         cpd = _cpd;
 
         AA = new ArenaAllocator((_cpd+1)*NUMTYPES, max_allocations);
 
-        // Open LightCone files
-        char lcDir[1024];
-        sprintf(lcDir, P.LightConeDirectory);
-        if (!FileExists(lcDir)) {
-            mkdir(lcDir, 0775);
+        if (P.NLightCones>0) {
+            // Open LightCone files
+
+            // TODO: I think that the python should be in charge of making directories.
+            // Otherwise, how is the parallel code supposed to do this on a global disk?
+            char lcDir[1024];
+            strcpy(lcDir, P.LightConeDirectory);
+            if (!FileExists(lcDir)) {
+                mkdir(lcDir, 0775);
+            }
+
+            char lcStepDir[1024];
+            sprintf(lcStepDir, "%s/Step%04d", lcDir, ReadState.FullStepNumber);
+            if (!FileExists(lcStepDir))
+            {
+                mkdir(lcStepDir, 0775);
+            }
+
+            char lcrv[1024];
+            char lcpid[1024];
+            char lcheal[1024];
+            
+            assertf(P.NLightCones<=NUMLIGHTCONES, "Parameter NLightCones is bigger than allocated NUMLIGHTCONES");
+            for (int n=0; n<P.NLightCones; n++) {
+
+                sprintf(lcrv,     "%s/LightCone%02d_rv_%s",  lcStepDir, n, NodeString);
+                sprintf(lcpid,  "%s/LightCone%02d_pid_%s",   lcStepDir, n, NodeString);
+                sprintf(lcheal, "%s/LightCone%02d_heal_%s",  lcStepDir, n, NodeString);
+
+                // TODO: Do we still want these to be appends?
+                filenamePts[LightCone0RV+n]   = fopen(lcrv, "ab");
+                filenamePts[LightCone0PID+n]  = fopen(lcpid, "ab");
+                filenamePts[LightCone0Heal+n] = fopen(lcheal, "ab");
+            }
+
+        } else {
+            // TODO: What has to happen if no light cones?
+            // Nothing?
         }
-
-        char lcStepDir[1024];
-        sprintf(lcStepDir, "%s/Step%i", lcDir, ReadState.FullStepNumber);
-        if (!FileExists(lcStepDir))
-        {
-            mkdir(lcStepDir, 0775);
-        }
-
-        char lc1[1024];
-        char lc2[1024];
-        char lc3[1024];
-        char lc1p[1024];
-        char lc2p[1024];
-        char lc3p[1024];
-
-        sprintf(lc1, "%s/LightCone0.lc", lcStepDir);
-        sprintf(lc2, "%s/LightCone1.lc", lcStepDir);
-        sprintf(lc3, "%s/LightCone2.lc", lcStepDir);
-        sprintf(lc1p, "%s/LightCone0PID.lc", lcStepDir);
-        sprintf(lc2p, "%s/LightCone1PID.lc", lcStepDir);
-        sprintf(lc3p, "%s/LightCone2PID.lc", lcStepDir);
-
-        filenamePts[LightCone0] = fopen(lc1, "ab");
-        filenamePts[LightCone1] = fopen(lc2, "ab");
-        filenamePts[LightCone2] = fopen(lc3, "ab");
-        filenamePts[LightCone0PID] = fopen(lc1p, "ab");
-        filenamePts[LightCone1PID] = fopen(lc2p, "ab");
-        filenamePts[LightCone2PID] = fopen(lc3p, "ab");
-
     }
 
     ~SlabBuffer(void) {
@@ -146,9 +158,6 @@ public:
 
         delete AA;
     }
-
-    // Array of file pointers for lightcone output
-    FILE* filenamePts[NUMTYPES] = { NULL };
 
     // Determine whether a slab is used for reading or writing by default
     int GetSlabIntent(int type);
@@ -361,9 +370,16 @@ int SlabBuffer::IsOutputSlab(int type){
         // Do we want to checksum light cones?  They're probably being merged/repacked very soon.
         // Maybe same for the halos?  But if we move either of these to another filesystem
         // for post-processing, then we'd like to be able to verify the checksums.
-        case LightCone0:
-        case LightCone1:
-        case LightCone2:
+        // TODO: Turning this off for now, because we don't have cumulating checksums
+        // case LightCone0RV:
+        // case LightCone1RV:
+        // case LightCone2RV:
+        // case LightCone0PID:
+        // case LightCone1PID:
+        // case LightCone2PID:
+        // case LightCone0Heal:
+        // case LightCone1Heal:
+        // case LightCone2Heal:
             return 1;
      }
      return 0;
@@ -431,12 +447,23 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         case FieldTimeSlice            : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pack9.dat"; break; }
         case L0TimeSlicePIDs      : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".L0_pack9_pids.dat"; break; }
         case FieldTimeSlicePIDs        : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pack9_pids.dat"; break; }
-        case LightCone0: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone0.lc"; break; }
-        case LightCone1: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone1.lc"; break; }
-        case LightCone2: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone2.lc"; break; }
-        case LightCone0PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone0PID.lc"; break; }
-        case LightCone1PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone1PID.lc"; break; }
-        case LightCone2PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone2PID.lc"; break; }
+        // TODO: Are these still in use?  If so, need to edit to match the above
+        // case LightCone0RV: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone0.lc"; break; }
+        // case LightCone1RV: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone1.lc"; break; }
+        // case LightCone2RV: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone2.lc"; break; }
+        // case LightCone0PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone0PID.lc"; break; }
+        // case LightCone1PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone1PID.lc"; break; }
+        // case LightCone2PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone2PID.lc"; break; }
+        case LightCone0RV:
+        case LightCone1RV:
+        case LightCone2RV:
+        case LightCone0PID:
+        case LightCone1PID:
+        case LightCone2PID:
+        case LightCone0Heal:
+        case LightCone1Heal:
+        case LightCone2Heal:
+            { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/dummyfile.lc"; break; }   // TODO: I think this is vestigial and shouldn't be used.  But we need a dummy file name.
 
         default:
             QUIT("Illegal type %d given to WriteSlabPath()\n", type);
@@ -473,7 +500,7 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
         case VelSlab       : { ss << P.LocalReadStateDirectory << "/velocity_"   << slabnum; break; }
         case AuxSlab       : { ss << P.LocalReadStateDirectory << "/auxillary_"  << slabnum; break; }
         case VelLPTSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
-        case FieldTimeSlice     : { ss << WriteSlabPath(type, slab); }  // used for standalone FOF
+        case FieldTimeSlice     : { ss << WriteSlabPath(type, slab); break; }  // used for standalone FOF
 
         default:
             QUIT("Illegal type %d given to ReadSlabPath()\n", type);
@@ -583,12 +610,15 @@ char *SlabBuffer::AllocateSpecificSize(int type, int slab, uint64 sizebytes, int
 
     int id = TypeSlab2ID(type,slab);
     switch(type) {
-        case LightCone0:
-        case LightCone1:
-        case LightCone2:
+        case LightCone0RV:
+        case LightCone1RV:
+        case LightCone2RV:
         case LightCone0PID:
         case LightCone1PID:
         case LightCone2PID:
+        case LightCone0Heal:
+        case LightCone1Heal:
+        case LightCone2Heal:
             AA->Allocate(id, sizebytes, ReuseID(type), ramdisk);
             break;
         default:
@@ -722,15 +752,18 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, c
         "Type %d and Slab %d doesn't exist\n", type, slab);
 
     switch(type) {
-        case LightCone0:
-        case LightCone1:
-        case LightCone2:
+        case LightCone0RV:
+        case LightCone1RV:
+        case LightCone2RV:
         case LightCone0PID:
         case LightCone1PID:
         case LightCone2PID:
+        case LightCone0Heal:
+        case LightCone1Heal:
+        case LightCone2Heal:
 
             // Ensure that pointer has been initialized
-            assertf(filenamePts[type] != NULL, "Light cone file not initialized.\n");
+            assertf(filenamePts[type] != NULL, "Light cone file not initialized for type %d and slab %d.\n", type, slab);
 
             // Write file to pointer
             WriteFile( GetSlabPtr(type,slab),
