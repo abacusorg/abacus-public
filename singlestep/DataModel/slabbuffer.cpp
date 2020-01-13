@@ -135,15 +135,15 @@ public:
                 sprintf(lcpid,  "%s/LightCone%02d_pid_%s",   lcStepDir, n, NodeString);
                 sprintf(lcheal, "%s/LightCone%02d_heal_%s",  lcStepDir, n, NodeString);
 
-                // TODO: Do we still want these to be appends?
-                filenamePts[LightCone0RV+n]   = fopen(lcrv, "ab");
-                filenamePts[LightCone0PID+n]  = fopen(lcpid, "ab");
-                filenamePts[LightCone0Heal+n] = fopen(lcheal, "ab");
+                // TODO: Changed this from appends to writes.  Isn't that what we're now doing?
+                filenamePts[LightCone0RV+n]   = fopen(lcrv, "wb");
+                filenamePts[LightCone0PID+n]  = fopen(lcpid, "wb");
+                filenamePts[LightCone0Heal+n] = fopen(lcheal, "wb");
             }
 
         } else {
             // TODO: What has to happen if no light cones?
-            // Nothing?
+            // Nothing to be done
         }
     }
 
