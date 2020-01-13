@@ -1174,9 +1174,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             break       
         
         make_ic = False
-        
+    
+    if maxsteps != 10000: #we asked to do only a limited number of steps, and we've successfully completed them. We're done. 
+        finished = True
+
     # If there is more work to be done, signal that we are ready for requeue
-    if not finished and not ProfilingMode:
+    if not finished and not ProfilingMode: 
         ending_time = time.time()
         ending_time_str = time.asctime(time.localtime())
         ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
