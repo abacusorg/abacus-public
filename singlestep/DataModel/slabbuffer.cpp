@@ -100,6 +100,13 @@ public:
     // Array of file pointers for lightcone output
     FILE* filenamePts[NUMTYPES] = { NULL };
 
+    // The write and read names for the files of this SlabType.
+    // The slab number will be wrapped.
+    // Program will abort if one specifies a type not in this function;
+    // this is a feature to block incorrect I/O.
+    std::string WriteSlabPath(int type, int slab);
+    std::string ReadSlabPath(int type, int slab);
+
     SlabBuffer(int _cpd, int _order, uint64 max_allocations) {
         order = _order;
         cpd = _cpd;
@@ -124,21 +131,13 @@ public:
                 mkdir(lcStepDir, 0775);
             }
 
-            char lcrv[1024];
-            char lcpid[1024];
-            char lcheal[1024];
-            
             assertf(P.NLightCones<=NUMLIGHTCONES, "Parameter NLightCones is bigger than allocated NUMLIGHTCONES");
             for (int n=0; n<P.NLightCones; n++) {
-
-                sprintf(lcrv,     "%s/LightCone%02d_rv_%s",  lcStepDir, n, NodeString);
-                sprintf(lcpid,  "%s/LightCone%02d_pid_%s",   lcStepDir, n, NodeString);
-                sprintf(lcheal, "%s/LightCone%02d_heal_%s",  lcStepDir, n, NodeString);
-
                 // TODO: Changed this from appends to writes.  Isn't that what we're now doing?
-                filenamePts[LightCone0RV+n]   = fopen(lcrv, "wb");
-                filenamePts[LightCone0PID+n]  = fopen(lcpid, "wb");
-                filenamePts[LightCone0Heal+n] = fopen(lcheal, "wb");
+                // Can call for the path for slab 0; we're not including the slab number in these file names
+                filenamePts[LightCone0RV+n]   = fopen(WriteSlabPath(LightCone0RV  +n,0), "wb");
+                filenamePts[LightCone0PID+n]  = fopen(WriteSlabPath(LightCone0PID +n,0), "wb");
+                filenamePts[LightCone0Heal+n] = fopen(WriteSlabPath(LightCone0Heal+n,0), "wb");
             }
 
         } else {
@@ -156,6 +155,15 @@ public:
             }
         }
 
+        // Close all of the LightCone files
+        for (int i = 0; i < NUMTYPES; i++)
+        {
+            if (SB->filenamePts[i] != NULL) {
+                fclose(SB->filenamePts[i]);
+                SB->filenamePts[i] = NULL;
+            }
+        }
+
         delete AA;
     }
 
@@ -166,13 +174,6 @@ public:
     int IsOutputSlab(int type);
     // Determine whether a slab should have its checksum recorded
     int WantChecksum(int type);
-
-    // The write and read names for the files of this SlabType.
-    // The slab number will be wrapped.
-    // Program will abort if one specifies a type not in this function;
-    // this is a feature to block incorrect I/O.
-    std::string WriteSlabPath(int type, int slab);
-    std::string ReadSlabPath(int type, int slab);
 
     // The amount of memory to be allocated for the specified arena.
     uint64 ArenaSize(int type, int slab);
@@ -447,23 +448,16 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         case FieldTimeSlice            : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pack9.dat"; break; }
         case L0TimeSlicePIDs      : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".L0_pack9_pids.dat"; break; }
         case FieldTimeSlicePIDs        : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pack9_pids.dat"; break; }
-        // TODO: Are these still in use?  If so, need to edit to match the above
-        // case LightCone0RV: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone0.lc"; break; }
-        // case LightCone1RV: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone1.lc"; break; }
-        // case LightCone2RV: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone2.lc"; break; }
-        // case LightCone0PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone0PID.lc"; break; }
-        // case LightCone1PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone1PID.lc"; break; }
-        // case LightCone2PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/LightCone2PID.lc"; break; }
-        case LightCone0RV:
-        case LightCone1RV:
-        case LightCone2RV:
-        case LightCone0PID:
-        case LightCone1PID:
-        case LightCone2PID:
-        case LightCone0Heal:
-        case LightCone1Heal:
-        case LightCone2Heal:
-            { ss << P.LightConeDirectory << "/Step" << stepnum << "/Slab" << slabnum << "/dummyfile.lc"; break; }   // TODO: I think this is vestigial and shouldn't be used.  But we need a dummy file name.
+
+        case LightCone0RV: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone0_rv" << NodeString; break; }
+        case LightCone1RV: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone1_rv" << NodeString; break; }
+        case LightCone2RV: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone2_rv" << NodeString; break; }
+        case LightCone0PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone0_pid" << NodeString; break; }
+        case LightCone1PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone1_pid" << NodeString; break; }
+        case LightCone2PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone2_pid" << NodeString; break; }
+        case LightCone0Heal: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone0_heal" << NodeString; break; }
+        case LightCone1Heal: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone1_heal" << NodeString; break; }
+        case LightCone2Heal: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone2_heal" << NodeString; break; }
 
         default:
             QUIT("Illegal type %d given to WriteSlabPath()\n", type);
