@@ -125,6 +125,7 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     // Use the same format for the lightcones as for the particle subsamples
     if (fabs(cosm->next.etaK-cosm->current.etaK)<1e-12) return;  
             // Nothing to be done, so don't risk divide by zero.
+    STDLOG(4, "Making light cone %d for slab %d\n", lcn, slab);
 
     SlabAccum<RVfloat>   LightConeRV;     ///< The taggable subset in each lightcone.
     SlabAccum<TaggedPID> LightConePIDs;   ///< The PIDS of the taggable subset in each lightcone.
@@ -134,13 +135,6 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     LightConePIDs.setup(CP->cpd, P.np/P.cpd/30);
     LightConeHealPix.setup(CP->cpd, P.np/P.cpd);
 
-    // Here are the Slab numbers
-    // TODO: These probably should be defined at the bottom, where used.
-    SlabType lightcone    = (SlabType)((int)(LightCone0RV + lcn));
-    SlabType lightconePID = (SlabType)((int)LightCone0PID + lcn );
-    SlabType lightconeHeal = (SlabType)((int)LightCone0Heal + lcn);
-
-    STDLOG(4, "Making light cone %d, slab num %d, w/ pid slab num %d\n", lcn, lightcone, lightconePID);
 
     LightCone LC(lcn);
     uint64 mask = auxstruct::lightconemask(lcn);
@@ -214,27 +208,22 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     STDLOG(1,"Lightcone %d opened %d cells and found %d particles (%d subsampled) in slab %d.  %d double tagged\n",
             lcn,slabtotalcell,slabtotal,slabtotalsub,slab, doubletagged);
     if(slabtotal) {
-        #ifdef OLDCODE
-        // Find filename for consistency, but writing to pointer anyway
-        char filename[1024];
-        char headername[1024];
-        getLightConeFN(lcn,slab,filename, headername);
-        //WriteLightConeHeaderFile(headername.c_str());
-        #endif
+        // TODO: Someone might write a header for the light cone.
+        SlabType lightconeslab;
+        lightconeslab = (SlabType)((int)(LightCone0RV + lcn));
+        SB->AllocateSpecificSize(lightconeslab, slab, LightConeRV.get_slab_bytes());
+        LightConeRV.copy_to_ptr((RVfloat *)SB->GetSlabPtr(lightconeslab, slab));
+        SB->StoreArenaNonBlocking(lightconeslab, slab);
 
-        // TODO: Someone should write a header for the light cone.
+        lightconeslab = (SlabType)((int)LightCone0PID + lcn );
+        SB->AllocateSpecificSize(lightconeslab, slab, LightConePIDs.get_slab_bytes());
+        LightConePIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(lightconeslab, slab));
+        SB->StoreArenaNonBlocking(lightconeslab, slab);
 
-        SB->AllocateSpecificSize(lightcone, slab, LightConeRV.get_slab_bytes());
-        LightConeRV.copy_to_ptr((RVfloat *)SB->GetSlabPtr(lightcone, slab));
-        SB->StoreArenaNonBlocking(lightcone, slab);
-
-        SB->AllocateSpecificSize(lightconePID, slab, LightConePIDs.get_slab_bytes());
-        LightConePIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(lightconePID, slab));
-        SB->StoreArenaNonBlocking(lightconePID, slab);
-
-        SB->AllocateSpecificSize(lightconeHeal, slab, LightConeHealPix.get_slab_bytes());
-        LightConeHealPix.copy_to_ptr((unsigned int *)SB->GetSlabPtr(lightconeHeal, slab));
-        SB->StoreArenaNonBlocking(lightconeHeal, slab);
+        lightconeslab = (SlabType)((int)LightCone0Heal + lcn);
+        SB->AllocateSpecificSize(lightconeslab, slab, LightConeHealPix.get_slab_bytes());
+        LightConeHealPix.copy_to_ptr((unsigned int *)SB->GetSlabPtr(lightconeslab, slab));
+        SB->StoreArenaNonBlocking(lightconeslab, slab);
 
         // TODO: in a perfect world, we would *sort* the pixel numbers in the healpix slab before outputing
     }
