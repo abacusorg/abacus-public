@@ -676,9 +676,7 @@ class StatusLogWriter:
               }
 
 
-    topmatter = ['Abacus Status Log',
-                 'simname, timestamp',
-                 '==================\n\n',]
+    topmatter = ['# Abacus Status Log\n']
 
     def __init__(self, log_fn):
         self.fields = {k:v.format for k,v in self.fields.items()}
@@ -746,7 +744,8 @@ class StatusLogWriter:
         '''
         Print a plain statement to the status log
         '''
-        self.log_fp.write(('\n * ' + fmtstring.format(*args, **kwargs) + end).encode('utf-8'))
+        #self.log_fp.write(('\n' + fmtstring.format(*args, **kwargs) + end).encode('utf-8'))
+        self.log_fp.write((fmtstring.format(*args, **kwargs) + end).encode('utf-8'))
         self.log_fp.flush()
     
  
@@ -822,6 +821,13 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
     status_log = StatusLogWriter(pjoin(param.OutputDirectory, 'status.log'))
     conv_time = None
+
+    #wall_timer = time.perf_counter
+    #start_time = wall_timer()
+    starting_time = time.time()
+    starting_time_str = time.asctime(time.localtime())
+
+    status_log.print(f"# Starting {param.SimName:s} at {starting_time_str:s}")
 
     print(f"Using parameter file {paramfn:s} and working directory {param.WorkingDirectory:s}.")
 
@@ -1125,8 +1131,13 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                     interim_backup_complete = True 
                     
                 if exit:
-                    print('Exiting and requeueing.')
-                    return EXIT_REQUEUE  
+                    print('Exiting.')
+                    if maxsteps == 10000:
+                        print('Requeueing!')
+                        return EXIT_REQUEUE  
+                    else:
+                        print('Requeue disabled because maxsteps was set by the user.')
+                        return 0 
                 else:
                     print('Continuing run.')
         
@@ -1154,8 +1165,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         # This logic is deliberately consistent with singlestep.cpp
         # If this is an IC step then we won't have read_state
         if (not make_ic and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0):
-            print(f"Final redshift of {finalz:g} reached; terminating normally.")
-            status_log.print(f"Final redshift of {finalz:g} reached; terminating normally.")
+            ending_time = time.time()
+            ending_time_str = time.asctime(time.localtime())
+            ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
+            print(f"Final redshift of {finalz:g} reached; terminating normally after {ending_time:f} hours.")
+            status_log.print(f"# Final redshift of {finalz:g} reached at {ending_time_str:s}; terminating normally after {ending_time:f} hours.")
             finished = True
             break 
             
@@ -1165,9 +1179,16 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             break       
         
         make_ic = False
-        
+    
+    if maxsteps != 10000: #we asked to do only a limited number of steps, and we've successfully completed them. We're done. 
+        finished = True
+
     # If there is more work to be done, signal that we are ready for requeue
-    if not finished and not ProfilingMode:
+    if not finished and not ProfilingMode: 
+        ending_time = time.time()
+        ending_time_str = time.asctime(time.localtime())
+        ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
+        status_log.print(f"# Terminating normally.  {ending_time_str:s} after {ending_time:f} hours.")
         print(f"About to return EXIT_REQUEUE code {EXIT_REQUEUE}")
         return EXIT_REQUEUE
 
