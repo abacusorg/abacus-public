@@ -388,16 +388,6 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
 	fftw_cleanup();
 
-    // Close all of the LightCone files
-    for (int i = 0; i < NUMTYPES; i++)
-    {
-        if (SB->filenamePts[i] != NULL)
-        {
-            fclose(SB->filenamePts[i]);
-            SB->filenamePts[i] = NULL;
-        }
-    }
-
     epilogue.Stop();
     // This timing does not get written to the timing log, so it had better be small!
     STDLOG(1,"Leaving Epilogue(). Epilogue took %.2g sec.\n", epilogue.Elapsed());

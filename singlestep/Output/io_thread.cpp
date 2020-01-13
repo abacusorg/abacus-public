@@ -230,7 +230,7 @@ private:
         }
 
         // Use BlockingAppend for LightCones or non-LightCones
-        if (ramdisk == 3)
+        if (ior->io_method==IO_LIGHTCONE)
         {
             timer->Start();
             WD->BlockingAppend(ior->filePointer, ior->memory, ior->sizebytes);

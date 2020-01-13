@@ -135,9 +135,10 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     LightConeHealPix.setup(CP->cpd, P.np/P.cpd);
 
     // Here are the Slab numbers
-    SlabType lightcone    = (SlabType)((int)(LightCone0 + lcn));
-    SlabType lightconePID = (SlabType)((int)LightCone0 + lcn + NUMLIGHTCONES);
-    SlabType lightconeHealPix = (SlabType)((int)LightCone0 + lcn + NUMLIGHTCONES*2);
+    // TODO: These probably should be defined at the bottom, where used.
+    SlabType lightcone    = (SlabType)((int)(LightCone0RV + lcn));
+    SlabType lightconePID = (SlabType)((int)LightCone0PID + lcn );
+    SlabType lightconeHeal = (SlabType)((int)LightCone0Heal + lcn);
 
     STDLOG(4, "Making light cone %d, slab num %d, w/ pid slab num %d\n", lcn, lightcone, lightconePID);
 
@@ -231,8 +232,11 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
         LightConePIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(lightconePID, slab));
         SB->StoreArenaNonBlocking(lightconePID, slab);
 
-        // TODO: Need to add the HealPix files
-        // And in a perfect world, we would *sort* the pixel numbers in the healpix slab before outputing
+        SB->AllocateSpecificSize(lightconeHeal, slab, LightConeHealPix.get_slab_bytes());
+        LightConeHealPix.copy_to_ptr((unsigned int *)SB->GetSlabPtr(lightconeHeal, slab));
+        SB->StoreArenaNonBlocking(lightconeHeal, slab);
+
+        // TODO: in a perfect world, we would *sort* the pixel numbers in the healpix slab before outputing
     }
 
     LightConeRV.destroy();
