@@ -26,6 +26,7 @@ double3 *LCOrigin;
 #define c_kms 299792.0
 #define etaktoHMpc (c_kms/100.)
 
+#include "tbb/parallel_sort.h"
 #include "healpix_shortened.c"
 
 class LightCone {
@@ -222,7 +223,9 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
         lightconeslab = (SlabType)((int)LightCone0Heal + lcn);
         SB->AllocateSpecificSize(lightconeslab, slab, LightConeHealPix.get_slab_bytes());
-        LightConeHealPix.copy_to_ptr((unsigned int *)SB->GetSlabPtr(lightconeslab, slab));
+        unsigned int *arenaptr = (unsigned int *) SB->GetSlabPtr(lightconeslab, slab);
+        LightConeHealPix.copy_to_ptr(arenaptr);
+        tbb::parallel_sort(arenaptr, arenaptr+slabtotal);
         SB->StoreArenaNonBlocking(lightconeslab, slab);
 
         // TODO: in a perfect world, we would *sort* the pixel numbers in the healpix slab before outputing
