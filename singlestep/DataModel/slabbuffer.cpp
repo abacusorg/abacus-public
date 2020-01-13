@@ -435,7 +435,7 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
         case VelSlab       : { ss << P.LocalReadStateDirectory << "/velocity_"   << slabnum; break; }
         case AuxSlab       : { ss << P.LocalReadStateDirectory << "/auxillary_"  << slabnum; break; }
         case VelLPTSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
-        case FieldTimeSlice     : { ss << WriteSlabPath(type, slab); }  // used for standalone FOF
+        case FieldTimeSlice     : { ss << WriteSlabPath(type, slab); break; }  // used for standalone FOF
 
         case ICSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
 
