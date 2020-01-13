@@ -464,6 +464,8 @@ void ArenaAllocator::DiscardArena(int id) {
                 int res = munmap(arena[id].addr, arena[id].allocated_size);
                 assertf(res == 0, "munmap failed\n");
             }
+
+            // TODO: move to munmap thread, needs atomic update though
             total_shm_allocation -= arena[id].allocated_size;
         } else {
             assertf( arena[id].addr == NULL , 

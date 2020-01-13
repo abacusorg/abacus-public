@@ -24,7 +24,7 @@ executable.
 int FORCE_RADIUS = -1;
 int GROUP_RADIUS = -1;
 
-#define FETCHAHEAD (2*GROUP_RADIUS+1 + FINISH_WAIT_RADIUS+1)
+#define FETCHAHEAD (2*GROUP_RADIUS + FORCE_RADIUS + FINISH_WAIT_RADIUS + 2)
 #define FETCHPERSTEP 1
 // Recall that all of these Dependencies have a built-in STimer
 // to measure the amount of time spent on Actions.

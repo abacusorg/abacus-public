@@ -82,7 +82,7 @@ public:
 
         number_of_slabs_executed = 0; 
         raw_number_executed = 0; 
-        last_slab_executed = _initialslab-1;
+        last_slab_executed = wrap(_initialslab-1);
 		
 		num_particles = 0; 
 
