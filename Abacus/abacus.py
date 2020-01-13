@@ -1232,7 +1232,7 @@ def merge_checksum_files(param=None, dir_globs=None):
             lines = [line.split() for line in lines]
             assert(all(len(line) == 3 for line in lines))
             lines = sorted(lines, key=lambda l:l[2])
-            lines = [' '.join(line) for line in lines]            
+            lines = [' '.join(line) + '\n' for line in lines]            
 
             with open(pjoin(d,'checksums.crc32'), 'a') as fp:
                 fp.writelines(lines)
