@@ -146,6 +146,8 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     uint64_t slabtotalsub = 0;
     uint64_t slabtotalcell = 0;
     uint64_t doubletagged = 0;
+    OutputLightConeSearch.Start();
+
     #pragma omp parallel for schedule(dynamic,1) reduction(+:slabtotal) reduction (+:slabtotalsub) reduction(+:slabtotalcell) reduction(+:doubletagged)
     for (int y = 0; y < CP->cpd; y ++) {
         integer3 ijk = ij; ijk.y = y;
@@ -205,6 +207,8 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
         pLightConeRV->FinishPencil();
         pLightConeHealPix->FinishPencil();
     }  // Done with this pencil
+
+    OutputLightConeSearch.Stop();
 
     STDLOG(1,"Lightcone %d opened %d cells and found %d particles (%d subsampled) in slab %d.  %d double tagged\n",
             lcn,slabtotalcell,slabtotal,slabtotalsub,slab, doubletagged);
