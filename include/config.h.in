@@ -39,6 +39,9 @@
 /* "Do all computations in double precision instead of single" */
 #undef DOUBLEPRECISION
 
+/* "Enable custom NUMA_FOR OpenMP scheduler" */
+#undef ENABLE_NUMA_FOR
+
 /* "The current git revision" */
 #undef GITVERSION
 
@@ -223,6 +226,9 @@
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
+
+/* "Page size in bytes" */
+#undef PAGE_SIZE
 
 /* "Generate MPI-parallel code." */
 #undef PARALLEL

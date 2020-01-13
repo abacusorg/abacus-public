@@ -142,8 +142,7 @@ void TransposePosAction(int slab){
     int cpd = P.cpd;
     
     // Could do this over skewers; should make a skewersize(slab, y) function somewhere
-    #pragma omp parallel for schedule(static)
-    for(int y = 0; y < cpd; y++){
+    NUMA_FOR(y,0,cpd)
         for(int z = 0; z < cpd; z++){
             posstruct *pos = CP->PosCell(slab, y, z);
             List3<FLOAT> posxyz = CP->PosXYZCell(slab, y, z);
