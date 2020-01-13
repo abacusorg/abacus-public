@@ -135,9 +135,9 @@ public:
             for (int n=0; n<P.NLightCones; n++) {
                 // TODO: Changed this from appends to writes.  Isn't that what we're now doing?
                 // Can call for the path for slab 0; we're not including the slab number in these file names
-                filenamePts[LightCone0RV+n]   = fopen(WriteSlabPath(LightCone0RV  +n,0), "wb");
-                filenamePts[LightCone0PID+n]  = fopen(WriteSlabPath(LightCone0PID +n,0), "wb");
-                filenamePts[LightCone0Heal+n] = fopen(WriteSlabPath(LightCone0Heal+n,0), "wb");
+                filenamePts[LightCone0RV+n]   = fopen(WriteSlabPath(LightCone0RV  +n,0).c_str(), "wb");
+                filenamePts[LightCone0PID+n]  = fopen(WriteSlabPath(LightCone0PID +n,0).c_str(), "wb");
+                filenamePts[LightCone0Heal+n] = fopen(WriteSlabPath(LightCone0Heal+n,0).c_str(), "wb");
             }
 
         } else {
@@ -158,9 +158,9 @@ public:
         // Close all of the LightCone files
         for (int i = 0; i < NUMTYPES; i++)
         {
-            if (SB->filenamePts[i] != NULL) {
-                fclose(SB->filenamePts[i]);
-                SB->filenamePts[i] = NULL;
+            if (filenamePts[i] != NULL) {
+                fclose(filenamePts[i]);
+                filenamePts[i] = NULL;
             }
         }
 
