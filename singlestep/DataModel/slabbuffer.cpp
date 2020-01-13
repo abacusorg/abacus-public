@@ -95,10 +95,10 @@ private:
     // Check if this slab type is supposed to be directly allocated in shared memory
     int IsRamdiskSlab(int type, int hint=RAMDISK_AUTO);
 
-public:
-
     // Array of file pointers for lightcone output
     FILE* filenamePts[NUMTYPES] = { NULL };
+
+public:
 
     // The write and read names for the files of this SlabType.
     // The slab number will be wrapped.
