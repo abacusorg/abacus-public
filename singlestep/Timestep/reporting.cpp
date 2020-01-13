@@ -248,7 +248,7 @@ void GatherTimings() {
             if(slablatency > slabforcemaxlatency) slabforcemaxlatency = slablatency;
             if(slablatency < slabforceminlatency) slabforceminlatency = slablatency;
             if (slabtime>0.0) 
-                fprintf(slabtimesfp, "%d %10.4e %10.4e\n", i, slabtime, slablatency);
+                fprintf(slabtimesfp, "%4d %#10.4f %#10.4f\n", i, slabtime, slablatency);
 
             //fwrite(&slabtime,sizeof(double),1,slabtimefile);
             //fwrite(&slablatency,sizeof(double),1,slabtimefile);
