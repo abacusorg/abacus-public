@@ -70,8 +70,8 @@ int FetchSlabsPrecondition(int slab) {
     // i.e. we would like to read a few slabs ahead of the Kick.
     // But if the steps after Kick are slow enough that we aren't Finishing promptly,
     // we can get a buildup of slabs and run out of memory. So we tie to the Drift instead.
-    if(slab > Drift.last_slab_executed + FETCHAHEAD)
     //if(slab > Kick.last_slab_executed + FETCHAHEAD)
+    if(FetchSlabs.wrap(slab - Drift.last_slab_executed) > FETCHAHEAD)
         return 0;
     
     #ifdef PARALLEL
