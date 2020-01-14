@@ -136,7 +136,7 @@ HaloStat ComputeStats(int size,
     double rxx, rxy, rxz, ryy, ryz, rzz;
     double nxx, nxy, nxz, nyy, nyz, nzz;
     float vmax, rvmax; 
-    float vmean, vmean_r50, vsq_r50;
+    double vmean, vmean_r50, vsq_r50;
 
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     rxx = rxy = rxz = ryy = ryz = rzz = 0.0;

@@ -248,7 +248,7 @@ void GatherTimings() {
             if(slablatency > slabforcemaxlatency) slabforcemaxlatency = slablatency;
             if(slablatency < slabforceminlatency) slabforceminlatency = slablatency;
             if (slabtime>0.0) 
-                fprintf(slabtimesfp, "%d %10.4e %10.4e\n", i, slabtime, slablatency);
+                fprintf(slabtimesfp, "%4d %#10.4f %#10.4f\n", i, slabtime, slablatency);
 
             //fwrite(&slabtime,sizeof(double),1,slabtimefile);
             //fwrite(&slablatency,sizeof(double),1,slabtimefile);
@@ -454,11 +454,12 @@ void GatherTimings() {
 	
 
     denom = TimeStepWallClock.Elapsed();
-    double arena_malloc, arena_free;
-    SB->GetMallocFreeTimes(&arena_malloc, &arena_free);
+    double arena_malloc, arena_free, munmap_thread;
+    SB->GetMallocFreeTimes(&arena_malloc, &arena_free, &munmap_thread);
 
     REPORT(0, "\nAllocate Arena Memory", arena_malloc);
     REPORT(0, "Free Arena Memory", arena_free);
+    REPORT(0, "Munmap Thread", munmap_thread);
     REPORT(0, "Free SlabAccum Variables", SlabAccumFree.Elapsed());
 
     fprintf(reportfp,"\n\nMinCellSize = %d, MaxCellSize = %d, RMS Fractional Overdensity = %10.4e\n",

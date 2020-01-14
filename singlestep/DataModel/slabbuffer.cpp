@@ -111,8 +111,6 @@ public:
         order = _order;
         cpd = _cpd;
 
-        AA = new ArenaAllocator((_cpd+1)*NUMTYPES, max_allocations);
-
         if (P.NLightCones>0) {
             // Open LightCone files
 
@@ -144,6 +142,8 @@ public:
             // TODO: What has to happen if no light cones?
             // Nothing to be done
         }
+
+        AA = new ArenaAllocator((_cpd+1)*NUMTYPES, max_allocations, P.UseMunmapThread, P.MunmapThreadCore);
     }
 
     ~SlabBuffer(void) {
@@ -244,10 +244,11 @@ public:
         AA->SetIOCompletedArena(id);
     }
 
-    void GetMallocFreeTimes(double *malloc_time, double *free_time){
+    void GetMallocFreeTimes(double *malloc_time, double *free_time, double *disposal_thread_munmap){
         *malloc_time = AA->ArenaMalloc.Elapsed();
         //*free_time = AA->ArenaFree->Elapsed();
-		*free_time = AA->ArenaFree_elapsed;
+		*free_time = AA->ArenaFree_elapsed; 
+        *disposal_thread_munmap = AA->DisposalThreadMunmap.Elapsed();
     }
 
     void report(){

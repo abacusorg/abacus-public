@@ -9,6 +9,10 @@ object.
 #include "halostat_cstruct.h"
 
 #define RVfloat RVint
+// For posterity, we note that GlobalGroups::FindSubGroups() is computing global positions
+// in FLOAT precision (typically single).  So if one ever wanted to replace RVfloat by double
+// precision (e.g., trying to use the idea that single precision in cell-centered coords is
+// actually about 1e-10 of precision in the box), then one would need to make changes there.
 
 // We could provide C bindings to the following code if we wanted
 // (the RVint unpacking in particular)

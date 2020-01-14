@@ -20,6 +20,8 @@
 #ifndef INCLUDE_LB
 #define INCLUDE_LB
 
+#include "threadaffinity.h"
+
 //#include "tbb/concurrent_queue.h"
 #include "simple_concurrent_queue.cpp"
 
@@ -49,7 +51,7 @@ enum RamdiskArenaType { RAMDISK_NO,
 
 class ArenaAllocator {
 public:
-    ArenaAllocator(int maximum_number_ids, uint64 max_allocations, int use_disposal_thread=1);
+    ArenaAllocator(int maximum_number_ids, uint64 max_allocations, int use_disposal_thread, int disposal_thread_core);
     ~ArenaAllocator(void);
 
     void report();
@@ -61,7 +63,8 @@ public:
     int num_shm_alloc;
 	
 	
-	float ArenaFree_elapsed; 
+	float ArenaFree_elapsed;
+    STimer DisposalThreadMunmap;
 
    // PTimer *ArenaFree;
 
@@ -216,14 +219,15 @@ private:
 
 
     // Fields related to the disposal thread
-    int use_disposal_thread;
+    int use_disposal_thread, disposal_thread_core;
 
     static void *start_thread(void *AA_obj){
-        ((ArenaAllocator *) AA_obj)->DisposalThreadLoop();
+        ArenaAllocator *_AA = (ArenaAllocator *) AA_obj;
+        _AA->DisposalThreadLoop(_AA->disposal_thread_core);
         return NULL;
     }
 
-    void DisposalThreadLoop();
+    void DisposalThreadLoop(int core);
 
     struct disposal_item {
         void *addr;
@@ -234,8 +238,7 @@ private:
 };
 
 
-ArenaAllocator::ArenaAllocator(int maximum_number_ids, uint64 max_allocations, int use_disposal_thread)
-        : use_disposal_thread(use_disposal_thread) {
+ArenaAllocator::ArenaAllocator(int maximum_number_ids, uint64 max_allocations, int _use_disposal_thread, int _disposal_thread_core) {
     maxids = maximum_number_ids;
    // ArenaFree = new PTimer(maxids);
     arena = new arenainfo[maxids];
@@ -247,6 +250,9 @@ ArenaAllocator::ArenaAllocator(int maximum_number_ids, uint64 max_allocations, i
     allocation_guard = max_allocations * 1024 * 1024;
     for(int i=0;i<maxids;i++)
         ResetArena(i);
+
+    use_disposal_thread = _use_disposal_thread;
+    disposal_thread_core = _disposal_thread_core;
 
     if(use_disposal_thread){
         assert(pthread_create(&disposal_thread, NULL, start_thread, this) == 0);
@@ -609,10 +615,13 @@ void ReportMemoryAllocatorStats(){
 #endif
 }
 
-void ArenaAllocator::DisposalThreadLoop(){
+void ArenaAllocator::DisposalThreadLoop(int core){
     struct disposal_item di;
 
-    STDLOG(2, "Starting arena allocator disposal thread\n");
+    STDLOG(1, "Starting arena allocator disposal thread on core %d\n", core);
+
+    if(core >= 0)
+        set_core_affinity(core);
 
     int n = 0;
     while(true){
@@ -623,13 +632,15 @@ void ArenaAllocator::DisposalThreadLoop(){
             break;
 
         if(di.size > 0){
+            DisposalThreadMunmap.Start();
             int res = munmap(di.addr, di.size);
+            DisposalThreadMunmap.Stop();
             assertf(res == 0, "munmap failed\n");
             n++;
         }
     }
 
-    STDLOG(2, "Terminating arena allocator disposal thread.  Executed %d munmap()s.\n", n);
+    STDLOG(1, "Terminating arena allocator disposal thread.  Executed %d munmap()s.\n", n);
 }
 
 #endif // INCLUDE_LB
