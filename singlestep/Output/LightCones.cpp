@@ -106,7 +106,7 @@ inline int LightCone::isParticleInLightCone(double3 cellcenter, posstruct &pos, 
     // This attempt to improve the precision handling of particles changing cells 
     // didn't actually result in perfectly reproducible answers, so we will rely on the LC bits.
     */
-    double r1 = (cc1-origin+pos1).norm();
+    double r1 = (cellcenter-origin+pos1).norm();
 
     double frac_step = (rmax-r0)/(rmax-rmin-r0+r1);
         // This is the fraction of the upcoming step when the particle meets the light cone
