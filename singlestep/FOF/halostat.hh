@@ -27,8 +27,8 @@ class RVint {
     int32_t pv[3];
     inline int32_t pack_pos(float x) {
         int32_t ix = round(x*1000000);  // Round off to human-readable 1 million
-        if (ix<-524288) ix = -524286;
-        if (ix>=524288) ix = +524286;   // Special saturated values
+        if (ix<-524286) ix = -524286;
+        if (ix> 524286) ix = +524286;   // Special saturated values
         return (ix*4096);
     }
     inline int32_t pack_vel(float v) {
