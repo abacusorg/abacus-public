@@ -136,7 +136,6 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     LightConePIDs.setup(CP->cpd, P.np/P.cpd/30);
     LightConeHealPix.setup(CP->cpd, P.np/P.cpd);
 
-
     LightCone LC(lcn);
     uint64 mask = auxstruct::lightconemask(lcn);
     double vunits = ReadState.VelZSpace_to_kms/ReadState.VelZSpace_to_Canonical;  // Code to km/s
@@ -196,7 +195,7 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
                         if (c.aux[p].lightconedone(mask)) {
                             doubletagged++;
                             STDLOG(1,"Double tag: (%6.4f %6.4f %6.4f) = %10.7f vs %10.7f %10.7f\n",
-                                pos.x, pos.y, pos.z, (pos-LCOrigin[lcn]).norm, LC.rmin, LC.rmax);
+                                pos.x, pos.y, pos.z, (pos-LC.origin).norm(), LC.rmin, LC.rmax);
                         }
                         c.aux[p].setlightconedone(mask);
                     }
