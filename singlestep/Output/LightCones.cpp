@@ -26,6 +26,7 @@ double3 *LCOrigin;
 #define c_kms 299792.0
 #define etaktoHMpc (c_kms/100.)
 
+#include "tbb/parallel_sort.h"
 #include "healpix_shortened.c"
 
 class LightCone {
@@ -125,6 +126,7 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     // Use the same format for the lightcones as for the particle subsamples
     if (fabs(cosm->next.etaK-cosm->current.etaK)<1e-12) return;  
             // Nothing to be done, so don't risk divide by zero.
+    STDLOG(4, "Making light cone %d for slab %d\n", lcn, slab);
 
     SlabAccum<RVfloat>   LightConeRV;     ///< The taggable subset in each lightcone.
     SlabAccum<TaggedPID> LightConePIDs;   ///< The PIDS of the taggable subset in each lightcone.
@@ -134,12 +136,6 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     LightConePIDs.setup(CP->cpd, P.np/P.cpd/30);
     LightConeHealPix.setup(CP->cpd, P.np/P.cpd);
 
-    // Here are the Slab numbers
-    SlabType lightcone    = (SlabType)((int)(LightCone0 + lcn));
-    SlabType lightconePID = (SlabType)((int)LightCone0 + lcn + NUMLIGHTCONES);
-    SlabType lightconeHealPix = (SlabType)((int)LightCone0 + lcn + NUMLIGHTCONES*2);
-
-    STDLOG(4, "Making light cone %d, slab num %d, w/ pid slab num %d\n", lcn, lightcone, lightconePID);
 
     LightCone LC(lcn);
     uint64 mask = auxstruct::lightconemask(lcn);
@@ -150,6 +146,8 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     uint64_t slabtotalsub = 0;
     uint64_t slabtotalcell = 0;
     uint64_t doubletagged = 0;
+    OutputLightConeSearch.Start();
+
     #pragma omp parallel for schedule(dynamic,1) reduction(+:slabtotal) reduction (+:slabtotalsub) reduction(+:slabtotalcell) reduction(+:doubletagged)
     for (int y = 0; y < CP->cpd; y ++) {
         integer3 ijk = ij; ijk.y = y;
@@ -210,29 +208,31 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
         pLightConeHealPix->FinishPencil();
     }  // Done with this pencil
 
+    OutputLightConeSearch.Stop();
+
     STDLOG(1,"Lightcone %d opened %d cells and found %d particles (%d subsampled) in slab %d.  %d double tagged\n",
             lcn,slabtotalcell,slabtotal,slabtotalsub,slab, doubletagged);
     if(slabtotal) {
-        #ifdef OLDCODE
-        // Find filename for consistency, but writing to pointer anyway
-        char filename[1024];
-        char headername[1024];
-        getLightConeFN(lcn,slab,filename, headername);
-        //WriteLightConeHeaderFile(headername.c_str());
-        #endif
+        // TODO: Someone might write a header for the light cone.
+        SlabType lightconeslab;
+        lightconeslab = (SlabType)((int)(LightCone0RV + lcn));
+        SB->AllocateSpecificSize(lightconeslab, slab, LightConeRV.get_slab_bytes());
+        LightConeRV.copy_to_ptr((RVfloat *)SB->GetSlabPtr(lightconeslab, slab));
+        SB->StoreArenaNonBlocking(lightconeslab, slab);
 
-        // TODO: Someone should write a header for the light cone.
+        lightconeslab = (SlabType)((int)LightCone0PID + lcn );
+        SB->AllocateSpecificSize(lightconeslab, slab, LightConePIDs.get_slab_bytes());
+        LightConePIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(lightconeslab, slab));
+        SB->StoreArenaNonBlocking(lightconeslab, slab);
 
-        SB->AllocateSpecificSize(lightcone, slab, LightConeRV.get_slab_bytes());
-        LightConeRV.copy_to_ptr((RVfloat *)SB->GetSlabPtr(lightcone, slab));
-        SB->StoreArenaNonBlocking(lightcone, slab);
+        lightconeslab = (SlabType)((int)LightCone0Heal + lcn);
+        SB->AllocateSpecificSize(lightconeslab, slab, LightConeHealPix.get_slab_bytes());
+        unsigned int *arenaptr = (unsigned int *) SB->GetSlabPtr(lightconeslab, slab);
+        LightConeHealPix.copy_to_ptr(arenaptr);
+        tbb::parallel_sort(arenaptr, arenaptr+slabtotal);
+        SB->StoreArenaNonBlocking(lightconeslab, slab);
 
-        SB->AllocateSpecificSize(lightconePID, slab, LightConePIDs.get_slab_bytes());
-        LightConePIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(lightconePID, slab));
-        SB->StoreArenaNonBlocking(lightconePID, slab);
-
-        // TODO: Need to add the HealPix files
-        // And in a perfect world, we would *sort* the pixel numbers in the healpix slab before outputing
+        // TODO: in a perfect world, we would *sort* the pixel numbers in the healpix slab before outputing
     }
 
     LightConeRV.destroy();

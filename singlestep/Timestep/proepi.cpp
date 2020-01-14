@@ -51,6 +51,7 @@ STimer WriteMultipoleSlab;
 STimer QueueMultipoleMPI;
 STimer ParallelConvolveDestructor;
 
+STimer OutputLightConeSearch;
 STimer OutputTimeSlice;
 STimer OutputLightCone;
 STimer OutputBin;
@@ -387,16 +388,6 @@ void Epilogue(Parameters &P, bool MakeIC) {
     STDLOG(0, "Peak resident memory usage was %.3g GB\n", (double) rusage.ru_maxrss / 1024 / 1024);
 
 	fftw_cleanup();
-
-    // Close all of the LightCone files
-    for (int i = 0; i < NUMTYPES; i++)
-    {
-        if (SB->filenamePts[i] != NULL)
-        {
-            fclose(SB->filenamePts[i]);
-            SB->filenamePts[i] = NULL;
-        }
-    }
 
     epilogue.Stop();
     // This timing does not get written to the timing log, so it had better be small!
