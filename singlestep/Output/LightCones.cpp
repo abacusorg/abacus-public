@@ -94,6 +94,7 @@ inline int LightCone::isCellInLightCone(double3 pos) {
 inline int LightCone::isParticleInLightCone(double3 cellcenter, posstruct &pos, velstruct &vel, const accstruct acc) {
     double r0 = (cellcenter-origin+pos).norm();
     posstruct pos1 = pos+vel*driftfactor;   // Take care to match the precision of Drift()
+    /*
     // Now rebin pos1, matching the precision of Insert()
     double3 cc1 = cellcenter;
     if (pos1.x>CP->halfinvcpd) { pos1.x-=CP->halfinvcpd; cc1.x+=CP->halfinvcpd; }
@@ -102,6 +103,9 @@ inline int LightCone::isParticleInLightCone(double3 cellcenter, posstruct &pos, 
     if (pos1.x<-CP->halfinvcpd) { pos1.x+=CP->halfinvcpd; cc1.x-=CP->halfinvcpd; }
     if (pos1.y<-CP->halfinvcpd) { pos1.y+=CP->halfinvcpd; cc1.y-=CP->halfinvcpd; }
     if (pos1.z<-CP->halfinvcpd) { pos1.z+=CP->halfinvcpd; cc1.z-=CP->halfinvcpd; }
+    // This attempt to improve the precision handling of particles changing cells 
+    // didn't actually result in perfectly reproducible answers, so we will rely on the LC bits.
+    */
     double r1 = (cc1-origin+pos1).norm();
 
     double frac_step = (rmax-r0)/(rmax-rmin-r0+r1);
@@ -171,7 +175,7 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
             // STDLOG(4, "LC: Particles in current cell: %d\n", c.count());
             for (int p=0;p<c.count();p++) {
-                // if(!c.aux[p].lightconedone(mask)){   // This particle isn't already in the light cone
+                if(!c.aux[p].lightconedone(mask)){   // This particle isn't already in the light cone
                     // Need to unkick by half
                     velstruct vel = c.vel[p] - TOFLOAT3(acc[p])*WriteState.FirstHalfEtaKick;
                     posstruct poscopy = c.pos[p];  // Need a copy, since it will be changed
@@ -192,14 +196,16 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
                         // TODO: For now, we're going to look for particles that get tagged twice.
                         // But maybe we'll find that they are very few, in which case we might stop tagging.
+                        /*
                         if (c.aux[p].lightconedone(mask)) {
                             doubletagged++;
                             STDLOG(1,"Double tag: (%6.4f %6.4f %6.4f) = %10.7f vs %10.7f %10.7f\n",
                                 pos.x, pos.y, pos.z, (pos-LC.origin).norm(), LC.rmin, LC.rmax);
                         }
+                        */
                         c.aux[p].setlightconedone(mask);
                     }
-                // }
+                 }
             }  // Done with this particle
 
             pLightConePIDs->FinishCell();
