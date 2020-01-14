@@ -16,9 +16,10 @@ void BuildWriteState(double da){
 	STDLOG(0,"Git Hash = %s\n", GITVERSION);
 	strncpy(WriteState.CodeVersion, GITVERSION, 1024);
 #endif
-	strncpy(WriteState.OutputFormatVersion, "v2.0", 1024);
+	strncpy(WriteState.OutputFormatVersion, "v2.2", 1024);
         // v2.0 is the first versioned format (so named because this was the Abacus release version at the time)
         // v2.0 uses RVint with the full 2**20 range; halo_info at 296 bytes.
+        // v2.2 uses RVint with a 1,000,000 range; halo_info at 296 bytes.
 	time_t timet = time(0);
 	string now = string(asctime(localtime(&timet)));
 	sprintf(WriteState.RunTime,"%s",now.substr(0,now.length()-1).c_str());
