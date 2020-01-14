@@ -193,7 +193,11 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
                         // TODO: For now, we're going to look for particles that get tagged twice.
                         // But maybe we'll find that they are very few, in which case we might stop tagging.
-                        if (c.aux[p].lightconedone(mask)) doubletagged++;
+                        if (c.aux[p].lightconedone(mask)) {
+                            doubletagged++;
+                            STDLOG(1,"Double tag: (%6.4f %6.4f %6.4f) = %10.7f vs %10.7f %10.7f\n",
+                                pos.x, pos.y, pos.z, (pos-LCOrigin[lcn]).norm, LC.rmin, LC.rmax);
+                        }
                         c.aux[p].setlightconedone(mask);
                     }
                 // }
