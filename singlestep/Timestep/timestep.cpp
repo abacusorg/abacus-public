@@ -609,7 +609,7 @@ void OutputAction(int slab) {
             lightConeTimer->Start();
             makeLightCone(slab,i);
             lightConeTimer->Stop();
-            STDLOG(1, "LightCone %d for slab %d creation took %f seconds", i, slab, lightConeTimer->Elapsed());
+            STDLOG(1, "LightCone %d for slab %d creation took %f seconds\n", i, slab, lightConeTimer->Elapsed());
             delete lightConeTimer;
         }
     }
