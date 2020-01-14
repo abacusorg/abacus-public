@@ -1,6 +1,8 @@
 #ifndef INCLUDE_IO_INTERFACE
 #define INCLUDE_IO_INTERFACE
 
+#include "checksums.h"
+
 enum io_blocking_mode { IO_NONBLOCKING,
                         IO_BLOCKING };
 
@@ -15,27 +17,9 @@ enum io_deletion_mode { IO_KEEP,
 typedef tbb::concurrent_unordered_map<std::string, STimer> TimerMap;
 typedef tbb::concurrent_unordered_map<std::string, uint64> SizeMap;
 
-class CRC32 {
-public:
-    uint32 crc;
-    uint64 size;
-    std::string filename;
 
-    CRC32(uint32 _crc,
-        uint64 _size,
-        std::string _filename){
-        crc = _crc;
-        size = _size;
-        filename = _filename;
-    }
-
-    bool operator<(const CRC32 &rhs) const {
-        return filename < rhs.filename;
-    }
-};
-
-// ChecksumMap[dir] = [CRC32(checksum, file size, file name), ...]
-typedef tbb::concurrent_unordered_map<std::string, std::vector<CRC32>> ChecksumMap;
+// ChecksumMap = {dirname: {filename:CRC32, ...}, ...}
+typedef tbb::concurrent_unordered_map<std::string, tbb::concurrent_unordered_map<std::string, CRC32>> ChecksumMap;
 
 TimerMap BlockingIOReadTime, BlockingIOWriteTime;
 TimerMap NonBlockingIOReadTime, NonBlockingIOWriteTime;

@@ -9,7 +9,6 @@
 #include "file.cpp"
 #include "iolib.cpp"
 #include "threadaffinity.h"
-#include "crc32_fast.cpp"
 
 
 #define IOLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
@@ -210,12 +209,9 @@ private:
 
         if(ior->do_checksum){
             checksum_timer.Start();
-            // TODO: if we write partial files, use crc32_partial
-            uint32_t checksum = crc32_fast(ior->memory, ior->sizebytes);
+            FileChecksums[ior->fulldir][ior->justname].ingest(ior->memory, ior->sizebytes);
             checksum_timer.Stop();
             checksum_bytes += ior->sizebytes;
-
-            FileChecksums[ior->fulldir].emplace_back(checksum,ior->sizebytes,ior->justname);
         }
 
         const char *dir = ior->dir;
@@ -411,6 +407,7 @@ private:
 
 iothread **iothreads;
 int niothreads;
+#include <map>
 
 void IO_Initialize(char *logfn) {
     // Count how many IO threads we need
@@ -436,12 +433,12 @@ void IO_Terminate() {
     delete[] iothreads;
 
     // Write the checksum files to their respective directories
-    for(auto &iter : FileChecksums){
-        auto &dir = iter.first;
-        auto &allcrc = iter.second;
+    for(auto &diriter : FileChecksums){
+        const std::string &dir = diriter.first;
+        auto &_allcrc = diriter.second;
 
         // Sort this directory's checksums by filename
-        std::sort(allcrc.begin(), allcrc.end());
+        std::map<std::string,CRC32> orderedcrc(_allcrc.begin(), _allcrc.end());
 
         // The format of this file should match that of GNU cksum so that one can do a simple diff
         // That's not to say that users should prefer cksum; it's slow!
@@ -451,8 +448,10 @@ void IO_Terminate() {
         FILE *fp = fopen(checksumfn, "w");
         assertf(fp != NULL, "Failed to open file \"%s\"\n", checksumfn);
 
-        for(CRC32 &crc : allcrc){
-            fprintf(fp, "%" PRIu32 " %" PRIu64 " %s\n", crc.crc, crc.size, crc.filename.c_str());
+        for(auto &fileiter : orderedcrc){
+            const std::string filename = fileiter.first;
+            CRC32 crc = fileiter.second;
+            fprintf(fp, "%" PRIu32 " %" PRIu64 " %s\n", crc.finalize(), crc.size, filename.c_str());
         }
         fclose(fp);
     }

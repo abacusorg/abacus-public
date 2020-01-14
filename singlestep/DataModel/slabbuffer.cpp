@@ -348,10 +348,8 @@ int SlabBuffer::GetSlabIntent(int type){
     return -1;
 }
 
-/* Determine whether a given slab type (e.g. TimeSliceSlab) is an output type
- * that we want to record the checksum of when we write it to disk.
- *
- * P.NoChecksum disables all checksumming.
+/* Determine whether a given slab type (e.g. TimeSliceSlab) is an
+ * output type that we do not want to send in the manifest.
 */
 int SlabBuffer::IsOutputSlab(int type){
    switch(type){
@@ -369,24 +367,26 @@ int SlabBuffer::IsOutputSlab(int type){
         case L0TimeSlicePIDs:
         case FieldTimeSlicePIDs:
 
-        // Do we want to checksum light cones?  They're probably being merged/repacked very soon.
-        // Maybe same for the halos?  But if we move either of these to another filesystem
-        // for post-processing, then we'd like to be able to verify the checksums.
-        // TODO: Turning this off for now, because we don't have cumulating checksums
-        // case LightCone0RV:
-        // case LightCone1RV:
-        // case LightCone2RV:
-        // case LightCone0PID:
-        // case LightCone1PID:
-        // case LightCone2PID:
-        // case LightCone0Heal:
-        // case LightCone1Heal:
-        // case LightCone2Heal:
+        case LightCone0RV:
+        case LightCone1RV:
+        case LightCone2RV:
+        case LightCone0PID:
+        case LightCone1PID:
+        case LightCone2PID:
+        case LightCone0Heal:
+        case LightCone1Heal:
+        case LightCone2Heal:
             return 1;
      }
      return 0;
 }
 
+
+/* Determine whether a given slab type (e.g. TimeSliceSlab) is an type
+ * that we want to record the checksum of when we write it to disk.
+ *
+ * P.NoChecksum disables all checksumming.
+*/
 int SlabBuffer::WantChecksum(int type){
     if(P.NoChecksum)
         return 0;
