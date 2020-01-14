@@ -126,6 +126,21 @@ inline int LightCone::isParticleInLightCone(double3 cellcenter, posstruct &pos, 
 }
 
 
+/* Geometry recommendation:
+If the light cone sphere becomes tangent to the y-z slab, then one will get
+more particles selected.  That is probably disfavorable to the pipeline workflow.
+This effect is only severe if the observer is far away, so that the radius
+of curvature of the sphere is large.  But this disfavors have abutting light
+cones where the observers are periodically extended in the x direction.
+
+We are parallelizing over y pencils, so it might be better if more y pencils
+have some work.  That would favor observers that are extended in the z direction,
+so that the light cone sphere approaches x-y planes.  Such planes will have 
+more equal work in x slabs and y pencils, but only for a narrow range of z.
+
+*/
+
+
 void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     // Use the same format for the lightcones as for the particle subsamples
     if (fabs(cosm->next.etaK-cosm->current.etaK)<1e-12) return;  
@@ -136,9 +151,15 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     SlabAccum<TaggedPID> LightConePIDs;   ///< The PIDS of the taggable subset in each lightcone.
     SlabAccum<unsigned int> LightConeHealPix;   ///< The Healpix of the particles in each lightcone.
 
-    LightConeRV.setup(  CP->cpd, P.np/P.cpd/30);
-    LightConePIDs.setup(CP->cpd, P.np/P.cpd/30);
-    LightConeHealPix.setup(CP->cpd, P.np/P.cpd);
+    // The size estimates are objects per slab.
+    // The light cones output only taggables particles for RV and PID, 
+    // but all particles for HealPix.
+    // What fraction of a slab is the light cone?  It depends on geometry and the time step.
+    // But for 1-2 Gpc boxes, it takes a few hundred time steps to cross the box.  We'll guess 1%.
+    // That said, if the slab is tangent to the annulus, one can include >1% of the slab.
+    LightConeRV.setup(  CP->cpd, P.np/P.cpd*(P.ParticleSubsampleA+P.ParticleSubsampleB)/100);
+    LightConePIDs.setup(CP->cpd, P.np/P.cpd*(P.ParticleSubsampleA+P.ParticleSubsampleB)/100);
+    LightConeHealPix.setup(CP->cpd, P.np/P.cpd/100);
 
     LightCone LC(lcn);
     uint64 mask = auxstruct::lightconemask(lcn);
