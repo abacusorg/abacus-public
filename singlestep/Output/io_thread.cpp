@@ -201,7 +201,7 @@ private:
                 ramdisk = 1;
                 break;
             case IO_LIGHTCONE:
-                ramdisk = 3;
+                ramdisk = 1;  // no-op, since we use the file pointer mechanism
                 break;
             default:
                 QUIT("Unknown IO method %d\n", ior->io_method);
@@ -229,7 +229,7 @@ private:
         if (ior->io_method==IO_LIGHTCONE)
         {
             timer->Start();
-            WD->BlockingAppend(ior->filePointer, ior->memory, ior->sizebytes);
+            WD->BlockingAppend(ior->fp, ior->memory, ior->sizebytes);
             timer->Stop();
         }
         else
@@ -405,9 +405,14 @@ private:
 
 // ================================================================ //
 
+#include <map>
+
 iothread **iothreads;
 int niothreads;
-#include <map>
+
+// Slab types, like light cones, may opt to append to a single file
+// We keep an array of open file pointers for those types.
+FILE *filepointers[NUMTYPES] = {NULL};
 
 void IO_Initialize(char *logfn) {
     // Count how many IO threads we need
@@ -431,6 +436,14 @@ void IO_Terminate() {
     }
 
     delete[] iothreads;
+
+    for(int i = 0; i < NUMTYPES; i++){
+        if(filepointers[i] != NULL){
+            int ret = fclose(filepointers[i]);
+            assertf(ret == 0, "Error closing file pointer for type %d\n", i);
+            filepointers[i] = NULL;
+        }
+    }
 
     // Write the checksum files to their respective directories
     for(auto &diriter : FileChecksums){
@@ -471,8 +484,8 @@ int GetIOThread(const char* dir){
 
 
 // Here are the actual interfaces for writing an arena
-void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
-	    const char *filename, off_t fileoffset, int blocking) {
+void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const char *filename,
+    off_t fileoffset, int blocking) {
 
     STDLOG(3,"Using IO_thread module to read file %f, blocking %d\n", filename, blocking);
     iorequest ior(ram, sizebytes, filename, IO_READ, arenatype, arenaslab, fileoffset, 0, blocking, 0);
@@ -480,21 +493,22 @@ void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
     iothreads[GetIOThread(ior.dir) - 1]->request(ior);
 }
 
-void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
-	    const char *filename, off_t fileoffset, int deleteafter, int blocking, int do_checksum) {
+void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const char *filename,
+        off_t fileoffset, int deleteafter, int blocking, int do_checksum, int use_fp) {
 
     STDLOG(3,"Using IO_thread module to write file %f, blocking %d\n", filename, blocking);
-    iorequest ior(ram, sizebytes, filename, IO_WRITE, arenatype, arenaslab, fileoffset, deleteafter, blocking, do_checksum);
 
-    iothreads[GetIOThread(ior.dir) - 1]->request(ior);
-}
+    FILE *fp = NULL;
+    if(use_fp){
+        if(filepointers[arenatype] == NULL){
+            filepointers[arenatype] = fopen(filename, "wb");
+            assertf(filepointers[arenatype] != NULL, "Failed to open file pointer for %s\n", filename);
+        }
 
-// Write LightCone file to file pointer
-void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
-        FILE* filePointer, off_t fileoffset, int deleteafter, int blocking, int do_checksum) {
+        fp = filepointers[arenatype];
+    }
 
-    STDLOG(3,"Using IO_thread module to write LightCone file, blocking %d\n", blocking);
-    iorequest ior(ram, sizebytes, filePointer, IO_WRITE, arenatype, arenaslab, fileoffset, deleteafter, blocking, do_checksum);
+    iorequest ior(ram, sizebytes, filename, IO_WRITE, arenatype, arenaslab, fileoffset, deleteafter, blocking, do_checksum, fp);
 
     iothreads[GetIOThread(ior.dir) - 1]->request(ior);
 }

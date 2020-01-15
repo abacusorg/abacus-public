@@ -49,16 +49,12 @@ void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
     // Otherwise, return immediately if the I/O module allows it.
     // If arena>=0, call SetIOCompleted
 
-void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
-    const char *fn, off_t fileoffset, int deleteafter, int blocking, int do_checksum);
+void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const char *fn,
+    off_t fileoffset, int deleteafter, int blocking, int do_checksum, int use_fp);
     // This prototype writes sizebytes from the location *ram, to file *fn
     // starting from an offset fileoffset.
     // If blocking is set, then don't return until it's done!
     // Otherwise, return immediately if the I/O module allows it.
     // If arena>=0, consider whether to delete the arena.
-
-void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
-    FILE* filePointer, off_t fileoffset, int deleteafter, int blocking, int do_checksum);
-    // This version is for light cones which pass file pointers
 
 #endif // INCLUDE_IO_INTERFACE

@@ -95,9 +95,6 @@ private:
     // Check if this slab type is supposed to be directly allocated in shared memory
     int IsRamdiskSlab(int type, int hint=RAMDISK_AUTO);
 
-    // Array of file pointers for lightcone output
-    FILE* filenamePts[NUMTYPES] = { NULL };
-
 public:
 
     // The write and read names for the files of this SlabType.
@@ -111,38 +108,6 @@ public:
         order = _order;
         cpd = _cpd;
 
-        if (P.NLightCones>0) {
-            // Open LightCone files
-
-            // TODO: I think that the python should be in charge of making directories.
-            // Otherwise, how is the parallel code supposed to do this on a global disk?
-            char lcDir[1024];
-            strcpy(lcDir, P.LightConeDirectory);
-            if (!FileExists(lcDir)) {
-                mkdir(lcDir, 0775);
-            }
-
-            char lcStepDir[1024];
-            sprintf(lcStepDir, "%s/Step%04d", lcDir, ReadState.FullStepNumber);
-            if (!FileExists(lcStepDir))
-            {
-                mkdir(lcStepDir, 0775);
-            }
-
-            assertf(P.NLightCones<=NUMLIGHTCONES, "Parameter NLightCones is bigger than allocated NUMLIGHTCONES");
-            for (int n=0; n<P.NLightCones; n++) {
-                // TODO: Changed this from appends to writes.  Isn't that what we're now doing?
-                // Can call for the path for slab 0; we're not including the slab number in these file names
-                filenamePts[LightCone0RV+n]   = fopen(WriteSlabPath(LightCone0RV  +n,0).c_str(), "wb");
-                filenamePts[LightCone0PID+n]  = fopen(WriteSlabPath(LightCone0PID +n,0).c_str(), "wb");
-                filenamePts[LightCone0Heal+n] = fopen(WriteSlabPath(LightCone0Heal+n,0).c_str(), "wb");
-            }
-
-        } else {
-            // TODO: What has to happen if no light cones?
-            // Nothing to be done
-        }
-
         AA = new ArenaAllocator((_cpd+1)*NUMTYPES, max_allocations, P.UseMunmapThread, P.MunmapThreadCore);
     }
 
@@ -152,15 +117,6 @@ public:
             int id = ReuseID(t);
             if (AA->IsArenaPresent(id)) {
                 AA->DeAllocateArena(id, id);
-            }
-        }
-
-        // Close all of the LightCone files
-        for (int i = 0; i < NUMTYPES; i++)
-        {
-            if (filenamePts[i] != NULL) {
-                fclose(filenamePts[i]);
-                filenamePts[i] = NULL;
             }
         }
 
@@ -604,22 +560,7 @@ char *SlabBuffer::AllocateSpecificSize(int type, int slab, uint64 sizebytes, int
                 slab, type, sizebytes, ramdisk, AA->total_allocation/1024./1024./1024.);
 
     int id = TypeSlab2ID(type,slab);
-    switch(type) {
-        case LightCone0RV:
-        case LightCone1RV:
-        case LightCone2RV:
-        case LightCone0PID:
-        case LightCone1PID:
-        case LightCone2PID:
-        case LightCone0Heal:
-        case LightCone1Heal:
-        case LightCone2Heal:
-            AA->Allocate(id, sizebytes, ReuseID(type), ramdisk);
-            break;
-        default:
-            AA->Allocate(id, sizebytes, ReuseID(type), ramdisk, ramdisk_fn);
-
-    }
+    AA->Allocate(id, sizebytes, ReuseID(type), ramdisk, ramdisk_fn);
 
     return GetSlabPtr(type, slab);
 }
@@ -746,6 +687,8 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, c
     assertf(IsSlabPresent(type, slab),
         "Type %d and Slab %d doesn't exist\n", type, slab);
 
+    int use_fp = 0;
+
     switch(type) {
         case LightCone0RV:
         case LightCone1RV:
@@ -756,32 +699,22 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, c
         case LightCone0Heal:
         case LightCone1Heal:
         case LightCone2Heal:
-
-            // Ensure that pointer has been initialized
-            assertf(filenamePts[type] != NULL, "Light cone file not initialized for type %d and slab %d.\n", type, slab);
-
-            // Write file to pointer
-            WriteFile( GetSlabPtr(type,slab),
-                SlabSizeBytes(type,slab),
-                type, slab,
-                filenamePts[type],
-                0,      // No file offset
-                deleteafter,
-                blocking,
-                WantChecksum(type));
+            use_fp = 1;
             break;
         default:
-            // Normal file writing
-            WriteFile( GetSlabPtr(type,slab),
-                SlabSizeBytes(type,slab),
-                type, slab,
-                fn,
-                0,      // No file offset
-                deleteafter,
-                blocking,
-                WantChecksum(type));
+            use_fp = 0;
+            break;
     }
-
+    
+    WriteFile( GetSlabPtr(type,slab),
+        SlabSizeBytes(type,slab),
+        type, slab,
+        fn,
+        0,      // No file offset
+        deleteafter,
+        blocking,
+        WantChecksum(type),
+        use_fp);
 }
 
 // Free the memory associated with this slab.  Might stash the arena as a reuse slab!
