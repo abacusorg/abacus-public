@@ -178,7 +178,7 @@ private:
     }
 
     void WriteIOR(iorequest *ior) {
-        IOLOG(1,"Writing file %s\n", ior->filename);
+        IOLOG(1,"Writing file %s using io_method %d\n", ior->filename, ior->io_method);
         // Write the file
         //ioassertf(FileExists(ior->filename)==0,
         //	"File %s already exists; not the intended use of WriteFile.\n", ior->filename);
@@ -496,7 +496,7 @@ void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const c
 void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const char *filename,
         off_t fileoffset, int deleteafter, int blocking, int do_checksum, int use_fp) {
 
-    STDLOG(3,"Using IO_thread module to write file %f, blocking %d\n", filename, blocking);
+    STDLOG(3,"Using IO_thread module to write file %f, blocking %d, use_fp %d\n", filename, blocking, use_fp);
 
     FILE *fp = NULL;
     if(use_fp){

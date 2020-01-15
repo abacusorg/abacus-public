@@ -88,7 +88,7 @@ class iorequest {
         sizebytes = _sizebytes;
         strncpy(filename, _filename, 1024);
 
-        if(fp != NULL){
+        if(_fp != NULL){
             io_method = IO_LIGHTCONE;
         } else {
             if(is_path_on_ramdisk(filename) || io_ramdisk_global)
