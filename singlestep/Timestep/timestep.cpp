@@ -595,13 +595,13 @@ void OutputAction(int slab) {
 
     // Having found all groups, we should output the Non-L0 (i.e., field) Taggable subsample. 
     if(ReadState.DoSubsampleOutput) {
-        assert(ReadState.DoGroupFindingOutput == 1); // Currently Subsample Output requires GroupFinding Output.
+        assertf(ReadState.DoGroupFindingOutput == 1, "Subsample output should turn on group finding!\n"); // Currently Subsample Output requires GroupFinding Output.
         OutputNonL0Taggable(slab);
     }
 
     if (ReadState.DoTimeSliceOutput) {
         // If we are doing group finding, then we are doing group finding output and subsample output
-        assert(GFC == NULL || (ReadState.DoSubsampleOutput == 1 && ReadState.DoGroupFindingOutput == 1));
+        assertf(GFC == NULL || (ReadState.DoSubsampleOutput == 1 && ReadState.DoGroupFindingOutput == 1), "Preparing for timeslice output, expected either no group finding, or group finding and subsampling output!\n");
 
         // We've already done a K(1) and thus need a K(-1/2)
         FLOAT unkickfactor = WriteState.FirstHalfEtaKick;
@@ -1072,6 +1072,7 @@ void timestep(void) {
         // Run this again, just in case the dependency loop on this node finished
         // before the neighbor received the non-blocking MPI transfer.
 	    TimeStepWallClock.Stop(); ConvolutionWallClock.Start(); 
+        convtimebuffer = (char*) malloc(CONVTIMEBUFSIZE);   // Need to allocate space for the timings
     	delete ParallelConvolveDriver;
 	    ConvolutionWallClock.Stop(); TimeStepWallClock.Start(); 
 	   

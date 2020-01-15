@@ -362,7 +362,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     SICConstruction.Stop();
     SICExecute.Start();
 	
-	STDLOG(2,"Executing directs for slab %d, y: %d - %d\n",slabID,jl,jh);
+	STDLOG(3,"Executing directs for slab %d, y: %d - %d\n",slabID,jl,jh);
 	// This SIC is ready; send it to be executed
 	SlabInteractionCollections[slabID][n]->GPUExecute(blocking);
 	//SlabInteractionCollections[slabID][n]->CPUExecute();

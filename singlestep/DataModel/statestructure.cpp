@@ -36,6 +36,7 @@ public:
     
     char ParameterFileName[1024];   // State must contain a pointer to the Parameter file
     char CodeVersion[1024];
+    char OutputFormatVersion[1024];
     char RunTime[1024];
     char MachineName[1024];
     int NodeRank;   // The MPI rank, 0 if serial
@@ -105,6 +106,8 @@ public:
     double StdDevCellSize;
     double RMS_Velocity;
     int MaxGroupDiameter; 
+    int MaxL0GroupSize;
+    double DirectsPerParticle;
     // The variables below are not intended for output.  Just used in the code.
 
     // We will write a lot of state information into the header of output
@@ -158,6 +161,8 @@ public:
 
     	sprintf(CodeVersion,"version_not_defined");
     	installscalar("CodeVersion",CodeVersion,DONT_CARE);
+    	sprintf(OutputFormatVersion,"version_not_defined");
+    	installscalar("OutputFormatVersion",OutputFormatVersion,DONT_CARE);
         // These will now be set in BuildWriteState();
         // Don't bother loading these in ReadState
     	// time_t timet = time(0);
@@ -217,6 +222,10 @@ public:
     	installscalar("RMS_Velocity",RMS_Velocity,DONT_CARE);
         MaxGroupDiameter = 0; 
         installscalar("MaxGroupDiameter",MaxGroupDiameter,DONT_CARE);
+        MaxL0GroupSize = 0;
+        installscalar("MaxL0GroupSize",MaxL0GroupSize,DONT_CARE);
+        DirectsPerParticle = 0.0;
+    	installscalar("DirectsPerParticle",DirectsPerParticle,DONT_CARE);
         // Initialize helper variables
         DoTimeSliceOutput = 0;
         OutputIsAllowed = 0;
@@ -264,6 +273,7 @@ void State::make_output_header() {
     WPRS(Pipeline                 , s);
     WPRS(ParameterFileName        , s);
     WPRS(CodeVersion              , s);
+    WPRS(OutputFormatVersion      , s);
     WPRS(RunTime                  , s);
     WPRS(MachineName              , s);
     WPR(NodeRank                 , ISYM);
@@ -349,6 +359,8 @@ void State::write_to_file(const char *dir, const char *suffix) {
     WPR(MinCellSize              , ISYM);
     WPR(StdDevCellSize           , FSYM);
     WPR(MaxGroupDiameter         , ISYM); 
+    WPR(MaxL0GroupSize           , ISYM); 
+    WPR(DirectsPerParticle       , FSYM);
 
     time_t now  = time(0);
     fprintf(statefp,"#State written:%s\n",asctime(localtime(&now)) );

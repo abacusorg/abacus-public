@@ -644,13 +644,39 @@ class StatusLogWriter:
     #line_fmt = '{step:4d}  {z:6.1f}  {ss_rate:.1g} Mp/s ({ss_time:.1g} s) {conv_time:.1g}'
 
     fields = {'Step': '{:4d}',
-              'Redshift': '{:.3g}',
-              'Singlestep': '{0[0]:.3g} Mp/s ({0[1]:.3g} s)',
-              'Conv': '{:.3g} s'}
+              'Redshift': '{:#.4g}',
+              'Rate': '{:#.4g} Mp/s',   #'{0[0]:.4g} Mp/s, {0[1]:.4g}  s)',
+              'Elapsed': '{:#.4g} s',  #'{0[0]:.4g} Mp/s, {0[1]:.4g}  s)',
+              'Conv': '{:#.4g} s',
+              'DeltaZ': '{:#.3g}',
+              'Time': '{:#.4g}',
+              'DeltaT': '{:#.3g}',
+              'RMSVel': '{:#.3g}',
+              'MaxVel': '{:#7.2f}',
+              'DirectPP': '{:6.0f}',
+              'RMSCell': '{:#.4g}',
+              'MaxL0Sz': '{:7d}',
+              'GrpDiam': '{:2d}'
+              }
 
-    topmatter = ['Abacus Status Log',
-                 'simname, timestamp',
-                 '==================\n\n',]
+    colwidth = {'Step': 4,
+              'Redshift': 8,
+              'Rate': 12,
+              'Elapsed': 10,
+              'Conv': 10,
+              'DeltaZ': 8,
+              'Time': 8,
+              'DeltaT': 8,
+              'RMSVel': 7,
+              'MaxVel': 7,
+              'DirectPP':8,
+              'RMSCell': 8,
+              'MaxL0Sz': 7,
+              'GrpDiam': 7
+              }
+
+
+    topmatter = ['# Abacus Status Log\n']
 
     def __init__(self, log_fn):
         self.fields = {k:v.format for k,v in self.fields.items()}
@@ -661,7 +687,9 @@ class StatusLogWriter:
 
         self.logger = table_logger.TableLogger(file=self.log_fp,
                                                columns=list(self.fields),
-                                               formatters=self.fields)
+                                               colwidth=self.colwidth,
+                                               formatters=self.fields,
+                                               border=False)
     def __del__(self):
         self.logger.make_horizontal_border()
         self.log_fp.close()
@@ -688,7 +716,6 @@ class StatusLogWriter:
 
             matches = re.search(rf'Total Wall Clock Time\s*:\s*(?P<time>{fp_regex:s})', ss_log_txt)
             ss_time = float(matches.group('time'))
-        ss_rate = param['NP']/1e6/ss_time  # Mpart/s
 
         if not conv_time:
             conv_log_fn = pjoin(param['LogDirectory'], f'step{step_num:04d}.convtime')
@@ -699,8 +726,16 @@ class StatusLogWriter:
                 self.print('Warning: parsing logs to get convolution time, may miss startup time')
             except:
                 conv_time = 0.
-
-        info = dict(Step=step_num, Redshift=state.Redshift, Singlestep=(ss_rate,ss_time), Conv=conv_time)
+        ss_rate = param['NP']/1e6/(ss_time+conv_time)  # Mpart/s
+	
+        code_to_kms = state.VelZSpace_to_kms / state.VelZSpace_to_Canonical
+        info = dict(Step=step_num, Rate=ss_rate, Elapsed=ss_time+conv_time, Conv=conv_time, 
+            Redshift=state.Redshift, DeltaZ=state.DeltaRedshift, 
+            Time=state.Time, DeltaT=state.DeltaTime, 
+            GrpDiam=state.MaxGroupDiameter, MaxL0Sz=state.MaxL0GroupSize, 
+            RMSVel=state.RMS_Velocity*code_to_kms, MaxVel=state.MaxVelocity*code_to_kms, 
+            DirectPP=state.DirectsPerParticle,
+            RMSCell=state.StdDevCellSize )
 
         self.logger(*(info[k] for k in self.fields))
 
@@ -709,7 +744,8 @@ class StatusLogWriter:
         '''
         Print a plain statement to the status log
         '''
-        self.log_fp.write(('\n * ' + fmtstring.format(*args, **kwargs) + end).encode('utf-8'))
+        #self.log_fp.write(('\n' + fmtstring.format(*args, **kwargs) + end).encode('utf-8'))
+        self.log_fp.write((fmtstring.format(*args, **kwargs) + end).encode('utf-8'))
         self.log_fp.flush()
     
  
@@ -785,6 +821,13 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
     status_log = StatusLogWriter(pjoin(param.OutputDirectory, 'status.log'))
     conv_time = None
+
+    #wall_timer = time.perf_counter
+    #start_time = wall_timer()
+    starting_time = time.time()
+    starting_time_str = time.asctime(time.localtime())
+
+    status_log.print(f"# Starting {param.SimName:s} at {starting_time_str:s}")
 
     print(f"Using parameter file {paramfn:s} and working directory {param.WorkingDirectory:s}.")
 
@@ -1088,8 +1131,13 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                     interim_backup_complete = True 
                     
                 if exit:
-                    print('Exiting and requeueing.')
-                    return EXIT_REQUEUE  
+                    print('Exiting.')
+                    if maxsteps == 10000:
+                        print('Requeueing!')
+                        return EXIT_REQUEUE  
+                    else:
+                        print('Requeue disabled because maxsteps was set by the user.')
+                        return 0 
                 else:
                     print('Continuing run.')
         
@@ -1117,8 +1165,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         # This logic is deliberately consistent with singlestep.cpp
         # If this is an IC step then we won't have read_state
         if (not make_ic and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0):
-            print(f"Final redshift of {finalz:g} reached; terminating normally.")
-            status_log.print(f"Final redshift of {finalz:g} reached; terminating normally.")
+            ending_time = time.time()
+            ending_time_str = time.asctime(time.localtime())
+            ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
+            print(f"Final redshift of {finalz:g} reached; terminating normally after {ending_time:f} hours.")
+            status_log.print(f"# Final redshift of {finalz:g} reached at {ending_time_str:s}; terminating normally after {ending_time:f} hours.")
             finished = True
             break 
             
@@ -1128,9 +1179,16 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             break       
         
         make_ic = False
-        
+    
+    if maxsteps != 10000: #we asked to do only a limited number of steps, and we've successfully completed them. We're done. 
+        finished = True
+
     # If there is more work to be done, signal that we are ready for requeue
-    if not finished and not ProfilingMode:
+    if not finished and not ProfilingMode: 
+        ending_time = time.time()
+        ending_time_str = time.asctime(time.localtime())
+        ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
+        status_log.print(f"# Terminating normally.  {ending_time_str:s} after {ending_time:f} hours.")
         print(f"About to return EXIT_REQUEUE code {EXIT_REQUEUE}")
         return EXIT_REQUEUE
 
@@ -1182,7 +1240,7 @@ def merge_checksum_files(param=None, dir_globs=None):
             lines = [line.split() for line in lines]
             assert(all(len(line) == 3 for line in lines))
             lines = sorted(lines, key=lambda l:l[2])
-            lines = [' '.join(line) for line in lines]            
+            lines = [' '.join(line) + '\n' for line in lines]            
 
             with open(pjoin(d,'checksums.crc32'), 'a') as fp:
                 fp.writelines(lines)
