@@ -101,11 +101,11 @@ int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don'
 
 // #include "ParticleCellInfoStructure.cpp"
 // #include "maxcellsize.cpp"
-#include "IC_classes.h"
 
 #include "slabsize.cpp"
 SlabSize *SS;
 
+#include "IC_base.h"
 #include "slabbuffer.cpp"
 SlabBuffer *SB;
 
@@ -172,10 +172,10 @@ Redlack *RL;
 #include "Cosmology.cpp"
 Cosmology *cosm;
 #include "lpt.cpp"
+#include "loadIC.cpp"
 
 #include "output_timeslice.cpp"
 #include "LightCones.cpp"
-#include "loadIC.cpp"
 
 #include "binning.cpp"
 FLOAT * density; //!< Array to accumulate gridded densities in for low resolution inline power-spectra.
@@ -329,6 +329,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
                 MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
         }
         delete MF;
+        MF = NULL;
     }
 
     if(ReadState.DoBinning){
@@ -343,13 +344,18 @@ void Epilogue(Parameters &P, bool MakeIC) {
         delete density; density = 0;
     }
 
-    SB->report();
+    SB->report_peak();
     delete SB;
+    SB = NULL;
     STDLOG(2,"Deleted SB\n");
     delete CP;
+    CP = NULL;
     delete IL;
+    IL = NULL;
     delete SS;
+    SS = NULL;
     delete Grid;
+    Grid = NULL;
 	
 	FreeManifest();
 
@@ -369,14 +375,23 @@ void Epilogue(Parameters &P, bool MakeIC) {
         
             WriteState.DirectsPerParticle = (double)1.0e9*NFD->gdi_gpu/P.np;
             delete TY;
+            TY = NULL;
             STDLOG(2,"Deleted TY\n");
             delete RL;
+            RL = NULL;
             delete[] SlabForceLatency;
+            SlabForceLatency = NULL;
             delete[] SlabForceTime;
+            SlabForceTime = NULL;
             delete[] SlabFarForceTime;
-            if (GFC!=NULL) delete GFC;
+            SlabFarForceTime = NULL;
+            if (GFC!=NULL){
+                delete GFC;
+                GFC = NULL;
+            }
             STDLOG(2,"Done with Epilogue; about to kill the GPUs\n");
             delete NFD;
+            NFD = NULL;
     }
 
 
@@ -598,7 +613,7 @@ void InitGroupFinding(bool MakeIC){
      But we can't enable it if:
     - AllowGroupFinding is disabled
     - ForceOutputDebug is enabled
-    - This is an IC step
+    - This is an IC or 2LPT step
     ForceOutputDebug outputs accelerations as soon as we compute them
     i.e. before GroupFinding has a chance to rearrange them
     */
@@ -636,7 +651,7 @@ void InitGroupFinding(bool MakeIC){
 
     // Can we enable group finding?
     if((P.MicrostepTimeStep > 0 || do_grp_output) &&
-        !(!P.AllowGroupFinding || P.ForceOutputDebug || MakeIC)){
+        !(!P.AllowGroupFinding || P.ForceOutputDebug || MakeIC || LPTStepNumber())){
         STDLOG(1, "Setting up group finding\n");
 
         ReadState.DoGroupFindingOutput = do_grp_output; // if any kind of output is requested, turn on group finding.

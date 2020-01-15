@@ -1078,11 +1078,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             #are we coming up on a group finding step? If yes, backup the state, just in case. 
             pre_gf_backup  = False 
             nGFoutputs = [] 
-            output_arrs = [param.L1OutputRedshifts, param.TimeSliceRedshifts, param.TimeSliceRedshifts_Subsample]
+            output_arrs = [param.get('L1OutputRedshifts'), param.get('TimeSliceRedshifts'), param.get('TimeSliceRedshifts_Subsample')]
             for output_arr in output_arrs:
                 try:
                     nGFoutputs.append( len(output_arr) )
-                except AttributeError:
+                except (AttributeError,TypeError):
                     nGFoutputs.append(0) 
 
             if (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60): 
@@ -1240,7 +1240,7 @@ def merge_checksum_files(param=None, dir_globs=None):
             lines = [line.split() for line in lines]
             assert(all(len(line) == 3 for line in lines))
             lines = sorted(lines, key=lambda l:l[2])
-            lines = [' '.join(line) for line in lines]            
+            lines = [' '.join(line) + '\n' for line in lines]            
 
             with open(pjoin(d,'checksums.crc32'), 'a') as fp:
                 fp.writelines(lines)

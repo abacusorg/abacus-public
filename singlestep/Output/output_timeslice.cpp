@@ -28,9 +28,9 @@ AppendArena *get_AA_by_format(const char* format){
         STDLOG(1,"Using Output Format Heitmann\n");
         AA = new OutputHeitmann();
 
-    } else if (strcmp(format,"RVdoubleTag")==0) {
-        STDLOG(1,"Using Output Format RVdoubleTag\n");
-        AA = new OutputRVdoubleTag();
+    } else if (strcmp(format,"RVdoublePID")==0) {
+        STDLOG(1,"Using Output Format RVdoublePID\n");
+        AA = new OutputRVdoublePID();
 
     } else if (strcmp(format,"RVZel")==0) {
         STDLOG(1,"Using Output Format RVZel\n");

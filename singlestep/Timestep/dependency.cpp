@@ -82,11 +82,12 @@ public:
 
         number_of_slabs_executed = 0; 
         raw_number_executed = 0; 
-        last_slab_executed = _initialslab-1;
 		
 		num_particles = 0; 
 
+        // TODO: this is not very RAII
         instantiated = 1;
+        last_slab_executed = wrap(_initialslab-1);
     }
                     
     int done(int s) {

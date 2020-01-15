@@ -673,6 +673,8 @@ void GlobalGroupSlab::GatherGlobalGroups() {
                     if (cellijk.z> diam) cellijk.z-=GFC->cpd;
                     if (cellijk.z<-diam) cellijk.z+=GFC->cpd;
                     posstruct offset = GFC->invcpd*(cellijk);
+                        // Ok to use single precision because this is only a few cells 
+                        // (and L1 group finding is in limited precision too)
                     // printf("Using offset %f %f %f\n", offset.x, offset.y, offset.z);
                     for (int p=0; p<cg->size(); p++) pos[start+p] = offset+cell.pos[cg->start+p]; 
                     start += cg->size();
@@ -765,6 +767,7 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
                     if (cellijk.z> diam) cellijk.z-=GFC->cpd;
                     if (cellijk.z<-diam) cellijk.z+=GFC->cpd;
                     posstruct offset = GFC->invcpd*(cellijk);
+                        // Ok to use single precision, because this is only a few cells
                     // printf("Using offset %f %f %f\n", offset.x, offset.y, offset.z);
                     for (int p=0; p<cg->size(); p++) 
                          cell.pos[cg->start+p] = pos[start+p] - offset;
