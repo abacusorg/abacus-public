@@ -57,7 +57,7 @@ $$ABACUS/util/fast_cksum *.dat > cksum.out
 ```
 Or with the slower GNU utility:
 ```bash
-$ cksum /path/to/files/\*.dat > cksum.out
+$ cksum /path/to/files/*.dat > cksum.out
 ```
 
 Then compare the checksum files:
