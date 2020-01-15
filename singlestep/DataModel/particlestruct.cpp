@@ -230,16 +230,16 @@ public:
     int legalvalue(uint64 slabsize) {
         // Do a sanity check on the cellinfo values; return 1 if ok, 0 if not.
         // slabsize is the number of particles in the slab.
-        if (!isfinite(startindex)){
-        STDLOG(0, "Bad 'startindex' in cellinfo: %u\n", startindex);
-        return 0;
-    }
     if(count<0){
         STDLOG(0, "Bad 'count' in cellinfo: %d\n", count);
         return 0;
     }
     if(active<0){
         STDLOG(0, "Bad 'active' in cellinfo: %u\n", active);
+        return 0;
+    }
+    if(mean_square_velocity<0){
+        STDLOG(0, "Bad 'mean_square_velocity' in cellinfo: %u\n", mean_square_velocity);
         return 0;
     }
         if (startindex+count > slabsize){
