@@ -76,6 +76,15 @@ class LightCone {
 
     inline int isCellInLightCone(double3 pos);
     inline int isParticleInLightCone(double3 cellcenter, posstruct &pos, velstruct &vel, const accstruct acc);
+
+    void WriteHeaderFile(const char* fn){
+        std::ofstream headerfile;
+        headerfile.open(fn);
+        headerfile << P.header();
+        headerfile << ReadState.header();
+        headerfile << "\nOutputType = \"LightCone\"\n";
+        headerfile.close();
+    }
 };
 
 
@@ -243,7 +252,15 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     STDLOG(1,"Lightcone %d opened %d cells and found %d particles (%d subsampled) in slab %d.  %d double tagged\n",
             lcn,slabtotalcell,slabtotal,slabtotalsub,slab, doubletagged);
     if(slabtotal) {
-        // TODO: Someone might write a header for the light cone.
+        // This will create the directory if it doesn't exist (and is parallel safe)
+        char dir[32];
+        sprintf(dir, "Step%04d", ReadState.FullStepNumber);
+        CreateSubDirectory(P.LightConeDirectory, dir);
+
+        std::string headerfn = "";
+        headerfn = headerfn + P.LightConeDirectory + "/" + dir + "/header";
+        LC.WriteHeaderFile(headerfn.c_str());
+
         SlabType lightconeslab;
         lightconeslab = (SlabType)((int)(LightCone0RV + lcn));
         SB->AllocateSpecificSize(lightconeslab, slab, LightConeRV.get_slab_bytes());
