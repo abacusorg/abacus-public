@@ -137,7 +137,7 @@ class SlabAccumBuffer {
 	maxsize = bytes/sizeof(T);
 	if (maxsize>MAXSlabAccumBuffer) maxsize = MAXSlabAccumBuffer;
 		// Save user from themselves
-	int ret = posix_memalign((void **)&data, 4096, bytes); assert(ret==0);
+	int ret = posix_memalign((void **)&data, PAGE_SIZE, bytes); assert(ret==0);
 	#ifdef TEST
 	printf("Allocated %d at position %p\n", maxsize, data);
 	#endif
@@ -319,6 +319,11 @@ class SlabAccum {
 	pencils = NULL; cells = NULL; pstart = NULL; cpd = 0;
 	buffers = NULL; maxthreads = 0;
     }
+
+    // Prevent accidential duplicate ownership of buffers by deleting the copy operators
+    SlabAccum(const SlabAccum&) = delete;
+    SlabAccum& operator=(const SlabAccum&) = delete;
+
     void destroy() {
 	SlabAccumFree.Start();
 	if (cells!=NULL) free(cells); cells = NULL;
@@ -358,9 +363,9 @@ class SlabAccum {
 	if (pencils==NULL) {
 	    cpd = _cpd;
 	    int ret;
-	    ret = posix_memalign((void **)&pencils, 4096, sizeof(PencilAccum<T>)*cpd); assert(ret==0);
-	    ret = posix_memalign((void **)&cells, 4096, sizeof(CellAccum)*cpd*cpd); assert(ret==0);
-	    ret = posix_memalign((void **)&pstart, 4096, sizeof(uint64)*(cpd+1)); assert(ret==0);
+	    ret = posix_memalign((void **)&pencils, PAGE_SIZE, sizeof(PencilAccum<T>)*cpd); assert(ret==0);
+	    ret = posix_memalign((void **)&cells, PAGE_SIZE, sizeof(CellAccum)*cpd*cpd); assert(ret==0);
+	    ret = posix_memalign((void **)&pstart, PAGE_SIZE, sizeof(uint64)*(cpd+1)); assert(ret==0);
 	    for (int j=0; j<cpd; j++) pencils[j].cells = cells+j*cpd;
 	}
 	if (buffers==NULL) {

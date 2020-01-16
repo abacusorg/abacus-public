@@ -104,7 +104,7 @@ public:
         Ngaps = omp_get_max_threads();
         // we may try to grow the list by an extra block per thread
         maxlist = maxlistsize + MALGAP_SIZE*Ngaps;
-        int ret = posix_memalign((void **) &list, 4096, sizeof(T) * maxlist);
+        int ret = posix_memalign((void **) &list, PAGE_SIZE, sizeof(T) * maxlist);
         assertf(ret==0,"Failed to allocate MultiAppendList\n");
         MALgaps = new MALgap<T>[Ngaps];
         return;

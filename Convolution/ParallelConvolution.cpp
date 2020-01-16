@@ -343,7 +343,7 @@ void ParallelConvolution::AllocDerivs(){
 	
     size_t s = sizeof(DFLOAT)*(rml*CompressedMultipoleLengthXY);
     for (int z = 0; z < znode; z++){
-        int memalign_ret = posix_memalign((void **) (Ddisk + z), 4096, s);
+        int memalign_ret = posix_memalign((void **) (Ddisk + z), PAGE_SIZE, s);
         assert(memalign_ret == 0);
         //alloc_bytes += s;
     }

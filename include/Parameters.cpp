@@ -729,7 +729,7 @@ void Parameters::ValidateParameters(void) {
     // But don't let the IC step run if it's going to crash when we try to do LPT
 
     // If invoking LPT, must have displacement-oriented format
-    if(LagrangianPTOrder > 0){
+    if(LagrangianPTOrder > 1){
         if(!(strcasecmp(ICFormat, "Zeldovich") == 0 ||
             strcasecmp(ICFormat, "RVZel") == 0 ||
             strcasecmp(ICFormat, "RVdoubleZel") == 0)) {

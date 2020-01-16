@@ -123,7 +123,7 @@ uint64 ComputeSICSize(int cpd, int np, int WIDTH, int NSplit) {
     STDLOG(2,"Nsink = %d, NSource = %d, Nblocks = %d, size = %d\n",
     	NSinkSet, NSourceSet, NSinkBlocks, size);
 
-    size += 1024*1024; 	
+    size += (uint64) 1024*1024*PAGE_SIZE/4096; 	
     	// Just adding in some for alignment and small-problem worst case
     return size;
 }
@@ -194,10 +194,10 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     NSinkSets = j_width * Nk;
     assertf(NSinkSets <= MaxNSink, "NSinkSets (%d) larger than allocated space (MaxNSink = %d)\n", NSinkSets, MaxNSink);
     
-    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetStart, 4096, sizeof(int) * NSinkSets) == 0);
-    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetCount, 4096, sizeof(int) * NSinkSets) == 0);
-    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkPlan, 4096, sizeof(SinkPencilPlan) * NSinkSets) == 0);
-    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetIdMax, 4096, sizeof(int) * NSinkSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetStart, PAGE_SIZE, sizeof(int) * NSinkSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetCount, PAGE_SIZE, sizeof(int) * NSinkSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkPlan, PAGE_SIZE, sizeof(SinkPencilPlan) * NSinkSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetIdMax, PAGE_SIZE, sizeof(int) * NSinkSets) == 0);
     
     int localSinkTotal = 0;
 
@@ -208,9 +208,9 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     assertf(NSourceSets <= MaxNSource, "NSourceSets (%d) larger than allocated space (MaxNSource = %d)\n", NSourceSets, MaxNSource);
     assertf(NSourceSets <= P.cpd*(P.cpd+nfwidth), "NSourceSets (%d) exceeds SourceSet array allocation (%d)\n", NSourceSets, P.cpd*(P.cpd+nfwidth));
     
-    assert(posix_memalign_wrap(buffer, bsize, (void **) &SourceSetStart, 4096, sizeof(int) * NSourceSets) == 0);  
-    assert(posix_memalign_wrap(buffer, bsize, (void **) &SourceSetCount, 4096, sizeof(int) * NSourceSets) == 0);
-    assert(posix_memalign_wrap(buffer, bsize, (void **) &SourcePlan, 4096, sizeof(SourcePencilPlan) * NSourceSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SourceSetStart, PAGE_SIZE, sizeof(int) * NSourceSets) == 0);  
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SourceSetCount, PAGE_SIZE, sizeof(int) * NSourceSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SourcePlan, PAGE_SIZE, sizeof(SourcePencilPlan) * NSourceSets) == 0);
     
     int localSourceTotal = 0;
 
@@ -253,7 +253,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
             "The number of padded sink particles will overflow a 32-bit signed int");
 
     assertf(NSinkBlocks <= MaxSinkBlocks, "NSinkBlocks (%d) larger than allocated space (MaxSinkBlocks = %d)\n", NSinkBlocks, MaxSinkBlocks);
-    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkBlockParentPencil, 4096, sizeof(int) * NSinkBlocks) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkBlockParentPencil, PAGE_SIZE, sizeof(int) * NSinkBlocks) == 0);
 
     // Loop over the pencils to set these:
     //   SinkSetStart[set] points to where the padded particles starts
@@ -288,7 +288,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     assertf(NPaddedSinks <= MaxSinkSize, "NPaddedSinks (%d) larger than allocated space (MaxSinkSize = %d)\n", NPaddedSinks, MaxSinkSize);
     
     // We only do this in CPU mode
-    // assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetAccelerations, 4096, sizeof(accstruct) * NPaddedSinks) == 0);
+    // assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetAccelerations, PAGE_SIZE, sizeof(accstruct) * NPaddedSinks) == 0);
     SinkSetAccelerations = NULL;   // Just to give a value
 
     // All done with the Sinks.  Now for the Sources.
@@ -354,8 +354,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     assertf(InteractionCount <= MaxNSink*nfwidth, "InteractionCount (%d) larger than allocated space (MaxNSink * nfwidth = %d)\n", InteractionCount, MaxNSink * nfwidth);
     assertf((uint64)nfwidth*j_width*Nk < INT32_MAX, 
             "Interaction Count exceeds 32-bit signed int");
-    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSourceInteractionList, 4096, sizeof(int) * InteractionCount) == 0);
-    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSourceYOffset, 4096, sizeof(FLOAT) * InteractionCount) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSourceInteractionList, PAGE_SIZE, sizeof(int) * InteractionCount) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSourceYOffset, PAGE_SIZE, sizeof(FLOAT) * InteractionCount) == 0);
     FLOAT cellsize = CP->invcpd;
     
     uint64 localDirectTotal = 0, localPaddedDirectTotal = 0;

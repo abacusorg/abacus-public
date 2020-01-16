@@ -218,11 +218,11 @@ class GlobalGroupSlab {
         np = _np;
         // LONG-TERM: May eventually prefer these to be arenas.
         int ret;
-        ret = posix_memalign((void **)&pos, 4096, sizeof(posstruct)*np); assert(ret==0);
-        ret = posix_memalign((void **)&vel, 4096, sizeof(velstruct)*np); assert(ret==0);
-        ret = posix_memalign((void **)&aux, 4096, sizeof(auxstruct)*np); assert(ret==0);
+        ret = posix_memalign((void **)&pos, PAGE_SIZE, sizeof(posstruct)*np); assert(ret==0);
+        ret = posix_memalign((void **)&vel, PAGE_SIZE, sizeof(velstruct)*np); assert(ret==0);
+        ret = posix_memalign((void **)&aux, PAGE_SIZE, sizeof(auxstruct)*np); assert(ret==0);
         if(SB->IsSlabPresent(AccSlab,slab))  // leave NULL if no acc
-            ret = posix_memalign((void **)&acc, 4096, sizeof(accstruct)*np); assert(ret==0);
+            ret = posix_memalign((void **)&acc, PAGE_SIZE, sizeof(accstruct)*np); assert(ret==0);
     }
 
     GlobalGroupSlab() { pstat = NULL; }    // We have a null constructor
