@@ -1089,8 +1089,6 @@ void timestep(void) {
 
     STDLOG(1,"Completing timestep()\n");
     TimeStepWallClock.Stop();
-	
-	
 }
 
 
