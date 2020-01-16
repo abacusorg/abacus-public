@@ -7,7 +7,7 @@
 
 #define uint64 uint64_t
 
-void print_data(FILE *fp) {
+void print_data(FILE *fp, const char *fn) {
     uint64 rv;
     int count = 0;
     while (fread(&rv, sizeof(uint64), 1, fp)==1) {

@@ -19,6 +19,8 @@ object.
 
 /// This class stores the position and velocity in a 20+12 bit format.
 /// The positions are supplied relative to the first cell of the group, and converted to box units in the range [-0.5,0.5)
+/// The range [-0.5,0.5) is mapped to [-500,000,+500,000) so that there is a few % overflow capacity.
+/// Periodic wrapping is not supplied; instead, we saturate at +-(2**19-2)
 /// For a 2 Gpc/h box, this implies resolution of about 2 kpc/h.
 /// The velocities are supplied in km/s and will saturate above +-6000 km/s.
 /// This means that velocities have a resolution of 3 km/s, injecting 1 km/s of rms rounding error.
@@ -28,9 +30,9 @@ class RVint {
   public:
     int32_t pv[3];
     inline int32_t pack_pos(float x) {
-        int32_t ix = round(x*1048576);
-        if (ix<-524288) ix+=1048576;
-        if (ix>=524288) ix-=1048576;
+        int32_t ix = round(x*1000000);  // Round off to human-readable 1 million
+        if (ix<-524286) ix = -524286;
+        if (ix> 524286) ix = +524286;   // Special saturated values
         return (ix*4096);
     }
     inline int32_t pack_vel(float v) {
@@ -59,9 +61,9 @@ class RVint {
         vel = velscale*(iv-2048);   // km/s
         int ix = input-iv;   // Slightly more expensive, but safer if input ended up cast to int64
         // int ix = input&0xfffff000;         // Alternate
-        const float posscale= pow(2.0,-32.0); // Return to [-0.5,0.5)
+        const float posscale= pow(2.0,-12.0)/1.0e6; // Return to [-0.5,0.5)
         // Alternatively, one might prefer include the boxsize
-        // const float posscale= boxsize*pow(2.0,-32.0); // Return to [-L/2,L/2)
+        // const float posscale= boxsize*pow(2.0,-12.0)/1.0e6; // Return to [-L/2,L/2)
         pos = ix*posscale;   
     }
 
