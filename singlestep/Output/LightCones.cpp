@@ -121,7 +121,7 @@ inline int LightCone::isParticleInLightCone(double3 cellcenter, posstruct &pos, 
         // This is the fraction of the upcoming step when the particle meets the light cone
         // frac_step = 0 means r=rmax, =1 means r-rmin
 
-    if (frac_step<-1.0e-13||frac_step>=1) return 0;
+    if (frac_step<-1.0e-6||frac_step>=1) return 0;
         // We accept the particle into the lightcone only if the two lines cross in
         // the domain of the step.
         // We are accepting a tiny fraction of cases outside the cone, 
