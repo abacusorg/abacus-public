@@ -167,7 +167,9 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
     // Put a floor to insist on using all GPUs
     STDLOG(2,"MinSplits = %d\n", MinSplits);
 
-    GPUSetup(P.cpd, 1.0e9*GPUMemoryGB, NGPU, DirectBPD, P.GPUThreadCoreStart, P.NGPUThreadCores,
+    GPUSetup(P.cpd, 1.0e9*GPUMemoryGB, NGPU, DirectBPD,
+        P.GPUThreadCoreStart, P.NGPUThreadCores,
+        P.GPUQueueAssignments,
         &MaxSinkBlocks, &MaxSourceBlocks, P.UsePinnedGPUMemory);
     STDLOG(1,"Initializing GPU with %7.3f x10^3 sink blocks and %7.3f x10^3 source blocks\n",
             MaxSinkBlocks/1e3,MaxSourceBlocks/1e3);

@@ -363,7 +363,7 @@ class OutputHeitmann: public AppendArena {
 };
 
 
-class OutputRVdoubleTag: public AppendArena {
+class OutputRVdoublePID: public AppendArena {
   private:
     struct ICparticle {
         double pos[3];		// Global position, unit box
@@ -397,10 +397,10 @@ class OutputRVdoubleTag: public AppendArena {
     int sizeof_cell()     { return 0; }
     int sizeof_particle() { return sizeof(struct ICparticle); }
 
-    OutputRVdoubleTag() {
+    OutputRVdoublePID() {
             STDLOG(1,"Particle size: %d\n",sizeof_particle());
     }
-    ~OutputRVdoubleTag(void) { }
+    ~OutputRVdoublePID(void) { }
 };
 
 

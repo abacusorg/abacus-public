@@ -1080,11 +1080,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             #are we coming up on a group finding step? If yes, backup the state, just in case. 
             pre_gf_backup  = False 
             nGFoutputs = [] 
-            output_arrs = [param.L1OutputRedshifts, param.TimeSliceRedshifts, param.TimeSliceRedshifts_Subsample]
+            output_arrs = [param.get('L1OutputRedshifts'), param.get('TimeSliceRedshifts'), param.get('TimeSliceRedshifts_Subsample')]
             for output_arr in output_arrs:
                 try:
                     nGFoutputs.append( len(output_arr) )
-                except AttributeError:
+                except (AttributeError,TypeError):
                     nGFoutputs.append(0) 
 
             if (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60): 
@@ -1133,8 +1133,13 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                     interim_backup_complete = True 
                     
                 if exit:
-                    print('Exiting and requeueing.')
-                    return EXIT_REQUEUE  
+                    print('Exiting.')
+                    if maxsteps == 10000:
+                        print('Requeueing!')
+                        return EXIT_REQUEUE  
+                    else:
+                        print('Requeue disabled because maxsteps was set by the user.')
+                        return 0 
                 else:
                     print('Continuing run.')
         
@@ -1176,9 +1181,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             break       
         
         make_ic = False
-        
+    
+    if maxsteps != 10000: #we asked to do only a limited number of steps, and we've successfully completed them. We're done. 
+        finished = True
+
     # If there is more work to be done, signal that we are ready for requeue
-    if not finished and not ProfilingMode:
+    if not finished and not ProfilingMode: 
         ending_time = time.time()
         ending_time_str = time.asctime(time.localtime())
         ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours

@@ -42,6 +42,7 @@ public:
     int NodeRank;   // The MPI rank, 0 if serial
     int NodeSize;   // The MPI size, 1 if serial
     double ppd;		// Particles per dimension
+    int64 ippd;     // The closest integer value to NP^(1/3)
     int DoublePrecision;  // =1 if code is using double precision positions
     char SofteningType[128];  // The force law.  This is here because it's a compile-time parameter.
     double SofteningLengthNow;  // Effective Plummer length, used for timestepping.  Same units as BoxSize.

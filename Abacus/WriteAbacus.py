@@ -108,8 +108,8 @@ class SlabWriter:
     writers = {'RVdouble': lambda *args,**kwargs: write(*args,Vel=True, dtype=np.float64,**kwargs),
                'RVdoubleZel': lambda *args,**kwargs: write(*args,Vel=True, dtype=np.float64, Zel=True,**kwargs),
                'RVZel': lambda *args,**kwargs: write(*args,Vel=True,Zel=True,**kwargs),
-               'RVTag': lambda *args,**kwargs: write(*args, write_pid=True, **kwargs),
-               'RVdoubleTag': lambda *args,**kwargs: write(*args, write_pid=True, dtype=np.float64, **kwargs),
+               'RVPID': lambda *args,**kwargs: write(*args, write_pid=True, **kwargs),
+               'RVdoublePID': lambda *args,**kwargs: write(*args, write_pid=True, dtype=np.float64, **kwargs),
                'Zeldovich': lambda *args,**kwargs: write(*args,Zel=True, dtype=np.float64,**kwargs),
                'same':lambda *args,**kwargs: write(*args,**kwargs)
                }

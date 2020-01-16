@@ -420,7 +420,9 @@ if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
     # we count words here instead of lines; fixes a problem with empty strings and newlines but will break if there are spaces in the filenames
     NGCC_FILES=$(echo -n "$GCC_FILES" | wc -w)
     if test $NGCC_FILES -ge 1; then
-        PYTHON_CC=$(echo $GCC_FILES | awk '{print $1}')
+        :
+        # TODO: breaks systems with different binutils version (https://github.com/ContinuumIO/anaconda-issues/issues/11152)
+        #PYTHON_CC=$(echo $GCC_FILES | awk '{print $1}')
     fi
     if test $NGCC_FILES -ne 1; then
         AC_MSG_WARN(Could not find a unique *gcc file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gcc_impl_linux-64 package (or the equivalent for your platform) to get rid of this message.)
@@ -430,7 +432,9 @@ if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
     GXX_FILES=$(ls -1q $CONDA_BINDIR/*g++ 2> /dev/null)
     NGXX_FILES=$(echo -n "$GXX_FILES" | wc -w)
     if test $NGXX_FILES -ge 1; then
-        PYTHON_CXX=$(echo $GXX_FILES | awk '{print $1}')
+        :
+        # TODO: breaks systems with different binutils version (https://github.com/ContinuumIO/anaconda-issues/issues/11152)
+        #PYTHON_CXX=$(echo $GXX_FILES | awk '{print $1}')
     fi
     if test $NGXX_FILES -ne 1; then
         AC_MSG_WARN(Could not find a unique *g++ file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gxx_impl_linux-64 package (or the equivalent for your platform) to get rid of this message.)

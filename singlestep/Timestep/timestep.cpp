@@ -24,10 +24,7 @@ executable.
 int FORCE_RADIUS = -1;
 int GROUP_RADIUS = -1;
 
-// I think in most cases we would prefer to read ahead until memory limited
-//#define FETCHAHEAD (2*FORCE_RADIUS)
-//#define FETCHAHEAD 1000
-#define FETCHAHEAD FORCE_RADIUS + 3
+#define FETCHAHEAD (2*GROUP_RADIUS + FORCE_RADIUS + FINISH_WAIT_RADIUS + 2)
 #define FETCHPERSTEP 1
 // Recall that all of these Dependencies have a built-in STimer
 // to measure the amount of time spent on Actions.
@@ -44,8 +41,8 @@ Dependency Microstep;
 Dependency FinishGroups;
 Dependency Drift;
 Dependency Finish;
-Dependency CheckForMultipoles; //only for parallel case. otherwise NOOP.
-Dependency FetchLPTVelocity;
+Dependency CheckForMultipoles; //only for parallel case. otherwise NOOP. 
+Dependency UnpackLPTVelocity;
 
 // TODO: should we consider de-coupling PARALLEL from the concept of a merged convolve/singlestep?
 #ifdef PARALLEL
@@ -69,9 +66,12 @@ STimer TimeStepWallClock;
  * We limit the additional slabs read to FETCHAHEAD
  */
 int FetchSlabsPrecondition(int slab) {
-    if(slab > Kick.last_slab_executed + FETCHAHEAD)
-        // This was +1, but for non-blocking reads
-        // I think we want to work one more ahead
+    // We want to read ahead enough that we are reading while computing forces
+    // i.e. we would like to read a few slabs ahead of the Kick.
+    // But if the steps after Kick are slow enough that we aren't Finishing promptly,
+    // we can get a buildup of slabs and run out of memory. So we tie to the Drift instead.
+    if(FetchSlabs.wrap(slab - Drift.last_slab_executed) > FETCHAHEAD
+        && FetchSlabs.done(Drift.last_slab_executed))
         return 0;
 
     #ifdef PARALLEL
@@ -116,6 +116,10 @@ void FetchSlabsAction(int slab) {
 
     SB->LoadArenaNonBlocking(VelSlab, slab);
     SB->LoadArenaNonBlocking(AuxSlab, slab);
+
+    if(WriteState.Do2LPTVelocityRereading){
+        ICFile::FromFormat(P.ICFormat, slab)->read_vel_nonblocking();
+    }
 }
 
 // -----------------------------------------------------------------
@@ -274,8 +278,16 @@ void TaylorForceAction(int slab) {
         // This must be a blocking write.
         SB->WriteArena(FarAccSlab, slab, IO_KEEP, IO_BLOCKING);
     }
+
+#ifdef PARALLEL
+    // If parallel, the Taylors came via MPI and don't have a corresponding slab file
+    int delete_taylors_file = 0;
+#else
     // Deallocate and delete the underlying file if we're overwriting
-    SB->DeAllocate(TaylorSlab, slab, WriteState.OverwriteConvState);
+    int delete_taylors_file = WriteState.OverwriteConvState;
+#endif
+
+    SB->DeAllocate(TaylorSlab, slab, delete_taylors_file);
     SlabFarForceTime[slab].Stop();
 }
 
@@ -639,19 +651,18 @@ void OutputAction(int slab) {
  * Checks if we are ready to load the LPT velocities during an IC step.
  * Should not happen in normal execution
  */
-int FetchLPTVelocityPrecondition(int slab){
-    // Don't read too far ahead
-    if(FetchLPTVelocity.raw_number_executed >
-            Drift.raw_number_executed + 2*FINISH_WAIT_RADIUS + 1) {
+int UnpackLPTVelocityPrecondition(int slab){
+    if(FetchSlabs.notdone(slab))
         return 0;
-    }
+    
+    if(!ICFile::FromFormat(P.ICFormat, slab)->check_vel_read_done())
+        return 0;
 
     return 1;
 }
 
-void FetchLPTVelocityAction(int slab){
-    // This is blocking because it uses the LoadIC module, not SB
-    load_ic_vel_slab(slab);
+void UnpackLPTVelocityAction(int slab){
+    unpack_ic_vel_slab(slab);
 }
 
 // -----------------------------------------------------------------
@@ -672,8 +683,8 @@ int DriftPrecondition(int slab) {
     // We also must have the 2LPT velocities
     // The finish radius is a good guess of how ordered the ICs are
     if(WriteState.Do2LPTVelocityRereading)
-        for(int i=-FINISH_WAIT_RADIUS;i<=FINISH_WAIT_RADIUS;i++)
-            if (FetchLPTVelocity.notdone(slab+i)) {
+        for(int i=-FINISH_WAIT_RADIUS;i<=FINISH_WAIT_RADIUS;i++) 
+            if (UnpackLPTVelocity.notdone(slab+i)) {
                 return 0;
             }
 
@@ -728,9 +739,14 @@ int FinishPrecondition(int slab) {
     return 1;
 }
 
+
 uint64 merged_particles = 0;
 void FinishAction(int slab) {
 	FinishPreamble.Start();
+
+    SB->report_current();
+    SB->report_peak();
+
     if (WriteState.Do2LPTVelocityRereading)
         SB->DeAllocate(VelLPTSlab, slab);
 	FinishPreamble.Stop();
@@ -976,10 +992,9 @@ void timestep(void) {
     }
 
     if(WriteState.Do2LPTVelocityRereading)
-        INSTANTIATE(       FetchLPTVelocity, first_outputslab - FINISH_WAIT_RADIUS);
+        INSTANTIATE(       UnpackLPTVelocity, first_outputslab - FINISH_WAIT_RADIUS);
     else
-
-        INSTANTIATE_NOOP(  FetchLPTVelocity, first_outputslab - FINISH_WAIT_RADIUS);
+        INSTANTIATE_NOOP(  UnpackLPTVelocity, first_outputslab - FINISH_WAIT_RADIUS);
 	
 	int timestep_loop_complete = 0; 
 	while (!timestep_loop_complete){
@@ -1008,7 +1023,7 @@ void timestep(void) {
         AttemptReceiveManifest();
 
 
-     FetchLPTVelocity.Attempt();
+     UnpackLPTVelocity.Attempt();
                 Drift.Attempt();
 
         ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
@@ -1080,8 +1095,6 @@ void timestep(void) {
 
     STDLOG(1,"Completing timestep()\n");
     TimeStepWallClock.Stop();
-
-
 }
 
 
