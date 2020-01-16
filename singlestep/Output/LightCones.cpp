@@ -91,7 +91,7 @@ class LightCone {
 // Return whether a CellCenter is in the light cone, including some tolerance
 inline int LightCone::isCellInLightCone(double3 pos) {
     double r2 = (pos-origin).norm2();
-    return (r2<rmax_tol2) && (r2>rmin_tol2);
+    return (r2<=rmax_tol2) && (r2>=rmin_tol2);
 }
 
 // pos is in cell-centered coords; cellcenter is the position in the box; vel is in code units
