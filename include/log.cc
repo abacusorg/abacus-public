@@ -64,7 +64,7 @@ Then call with LOG(out,...) where the ... is printf-like string and list of
 arguments.  The arguments can be C++ savvy; anything that C++ knows how to print
 should echo in.
 
-The time stamp and function name are automatically pre-pended.  
+The time stamp and function name are automatically pre-pended.
 If a string starts with +, then this is treated as a continuation of the
 previous line.
 

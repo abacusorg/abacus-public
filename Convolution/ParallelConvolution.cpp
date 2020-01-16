@@ -179,8 +179,6 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	
 	CS.ops = 0;
 	CS.ComputeCores = omp_get_max_threads();
-
-    sprintf(wisdom_file, "parallel_convolve_fft.wisdom");
 }
 
 /// The destructor.  This should close the MTfile. NAM: MTfile can be closed right after mapping, I think. 
@@ -259,10 +257,6 @@ ParallelConvolution::~ParallelConvolution() {
 	dumpstats_timer.Stop(); 
 	
 	STDLOG(1, "Dumpstats took %f seconds\n", dumpstats_timer.Elapsed());
-
-    STDLOG(1, "Exporting wisdom to file.\n");
-    if(MPI_rank == 0)
-       fftw_export_wisdom_to_filename(wisdom_file);
 }
 
 
@@ -750,16 +744,12 @@ void ParallelConvolution::Swizzle_to_xzmy() {
 
 
 fftw_plan ParallelConvolution::PlanFFT(int sign){
-	int wisdom_exists = fftw_import_wisdom_from_filename(wisdom_file);
-	
-	STDLOG(1, "Wisdom import returned %d (%s).\n", wisdom_exists, wisdom_exists == 1 ? "success" : "failure");
-	
 	fftw_plan plan = NULL;
 	
-	// TODO: Import wisdom
 	// We're going to plan to process each [x][y] slab separately,
 	// doing the cpd FFTs of cpd length.
 	// stride = cpd, dist = 1, nembed = NULL
+	// We imported any wisdom in Prologue
 
     STDLOG(2, "MTzmxy byte alignment is %d\n", 1 << __builtin_ctzll((unsigned long long) MTzmxy));
 	

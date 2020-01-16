@@ -36,6 +36,7 @@ public:
     
     char ParameterFileName[1024];   // State must contain a pointer to the Parameter file
     char CodeVersion[1024];
+    char OutputFormatVersion[1024];
     char RunTime[1024];
     char MachineName[1024];
     int NodeRank;   // The MPI rank, 0 if serial
@@ -160,6 +161,8 @@ public:
 
     	sprintf(CodeVersion,"version_not_defined");
     	installscalar("CodeVersion",CodeVersion,DONT_CARE);
+    	sprintf(OutputFormatVersion,"version_not_defined");
+    	installscalar("OutputFormatVersion",OutputFormatVersion,DONT_CARE);
         // These will now be set in BuildWriteState();
         // Don't bother loading these in ReadState
     	// time_t timet = time(0);
@@ -270,6 +273,7 @@ void State::make_output_header() {
     WPRS(Pipeline                 , s);
     WPRS(ParameterFileName        , s);
     WPRS(CodeVersion              , s);
+    WPRS(OutputFormatVersion      , s);
     WPRS(RunTime                  , s);
     WPRS(MachineName              , s);
     WPR(NodeRank                 , ISYM);

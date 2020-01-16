@@ -1,4 +1,4 @@
-class WriteDirect { 
+class WriteDirect {
 public:
     WriteDirect(int isramdisk, size_t buffersize) {
         alignedbytes = 0;
@@ -16,6 +16,7 @@ public:
 
     void BlockingAppend( char *fn, char *x, size_t length );
     void BlockingAppend( char *fn, char *x, size_t length, int no_dio);
+    void BlockingAppend( FILE *f, char *x, size_t length);
 
 private:
 
@@ -30,6 +31,7 @@ private:
 
     void BlockingAppendDirect( char *fn, char *x, size_t length);
     void BlockingAppendfwrite( char *fn, char *x, size_t length);
+    void BlockingAppendPointer( FILE *f, char *x, size_t length);
 
     int ramdiskflag;
 };
