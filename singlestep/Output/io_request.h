@@ -47,7 +47,7 @@ class iorequest {
     int     blocking = 0;		// use IO_BLOCKING, IO_NONBLOCKING
     int     io_method = 0;  // use IO_DIRECT, IO_FOPEN
     int     do_checksum = 0;  // compute the crc
-    FILE*   filePointer = nullptr; // File object for writing LightCones
+    FILE*   fp = nullptr; // File object for writing LightCones
 
     void dumpior() {
         printf("IOR memory = %p ", memory);
@@ -65,6 +65,10 @@ class iorequest {
         memset(this, 0, sizeof(iorequest));   // Set to zero to appease valgrind
     }
 
+    /* Construct an IO request
+     * If fp is given, then that handle is used for IO with IO_LIGHTCONE
+     * The filename should still be passed but will only be used for logging
+     */
     iorequest(
         char    *_memory,
         uint64     _sizebytes,
@@ -75,7 +79,8 @@ class iorequest {
         off_t     _fileoffset,
         int     _deleteafterwriting,
         int     _blocking,
-        int     _do_checksum) {
+        int     _do_checksum,
+        FILE    *_fp = NULL) {
 
         memset(this, 0, sizeof(iorequest));   // Set to zero to appease valgrind
 
@@ -83,10 +88,14 @@ class iorequest {
         sizebytes = _sizebytes;
         strncpy(filename, _filename, 1024);
 
-        if(is_path_on_ramdisk(filename) || io_ramdisk_global)
-            io_method = IO_FOPEN;
-        else
-            io_method = IO_DIRECT;
+        if(_fp != NULL){
+            io_method = IO_LIGHTCONE;
+        } else {
+            if(is_path_on_ramdisk(filename) || io_ramdisk_global)
+                io_method = IO_FOPEN;
+            else
+                io_method = IO_DIRECT;
+        }
 
         // Get the directory of the file for logging purposes
         // Believe it or not, dirname modifies its argument
@@ -100,39 +109,7 @@ class iorequest {
         deleteafterwriting = _deleteafterwriting;
         blocking = _blocking;
         do_checksum = _do_checksum;
-    }
-
-    // IORequest for file pointer objects
-    iorequest(
-        char    *_memory,
-        uint64     _sizebytes,
-        FILE*   _filepointer,
-        int     _command,
-        int     _arenatype,
-        int     _arenaslab,
-        off_t     _fileoffset,
-        int     _deleteafterwriting,
-        int     _blocking,
-        int     _do_checksum) {
-
-        memset(this, 0, sizeof(iorequest));   // Set to zero to appease valgrind
-
-        memory = _memory;
-        sizebytes = _sizebytes;
-        filePointer = _filepointer;
-
-        io_method = IO_LIGHTCONE;
-
-        // Get the directory of the file for logging purposes
-        // Believe it or not, dirname modifies its argument
-
-        command = _command;
-        arenatype = _arenatype;
-        arenaslab = _arenaslab;
-        fileoffset = _fileoffset;
-        deleteafterwriting = _deleteafterwriting;
-        blocking = _blocking;
-        do_checksum = _do_checksum;
+        fp = _fp;
     }
 
     ~iorequest(void) { }

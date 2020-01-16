@@ -1,6 +1,8 @@
 #ifndef INCLUDE_IO_INTERFACE
 #define INCLUDE_IO_INTERFACE
 
+#include "checksums.h"
+
 enum io_blocking_mode { IO_NONBLOCKING,
                         IO_BLOCKING };
 
@@ -15,27 +17,9 @@ enum io_deletion_mode { IO_KEEP,
 typedef tbb::concurrent_unordered_map<std::string, STimer> TimerMap;
 typedef tbb::concurrent_unordered_map<std::string, uint64> SizeMap;
 
-class CRC32 {
-public:
-    uint32 crc;
-    uint64 size;
-    std::string filename;
 
-    CRC32(uint32 _crc,
-        uint64 _size,
-        std::string _filename){
-        crc = _crc;
-        size = _size;
-        filename = _filename;
-    }
-
-    bool operator<(const CRC32 &rhs) const {
-        return filename < rhs.filename;
-    }
-};
-
-// ChecksumMap[dir] = [CRC32(checksum, file size, file name), ...]
-typedef tbb::concurrent_unordered_map<std::string, std::vector<CRC32>> ChecksumMap;
+// ChecksumMap = {dirname: {filename:CRC32, ...}, ...}
+typedef tbb::concurrent_unordered_map<std::string, tbb::concurrent_unordered_map<std::string, CRC32>> ChecksumMap;
 
 TimerMap BlockingIOReadTime, BlockingIOWriteTime;
 TimerMap NonBlockingIOReadTime, NonBlockingIOWriteTime;
@@ -65,16 +49,12 @@ void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
     // Otherwise, return immediately if the I/O module allows it.
     // If arena>=0, call SetIOCompleted
 
-void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
-    const char *fn, off_t fileoffset, int deleteafter, int blocking, int do_checksum);
+void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const char *fn,
+    off_t fileoffset, int deleteafter, int blocking, int do_checksum, int use_fp);
     // This prototype writes sizebytes from the location *ram, to file *fn
     // starting from an offset fileoffset.
     // If blocking is set, then don't return until it's done!
     // Otherwise, return immediately if the I/O module allows it.
     // If arena>=0, consider whether to delete the arena.
-
-void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
-    FILE* filePointer, off_t fileoffset, int deleteafter, int blocking, int do_checksum);
-    // This version is for light cones which pass file pointers
 
 #endif // INCLUDE_IO_INTERFACE

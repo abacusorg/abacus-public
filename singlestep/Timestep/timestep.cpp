@@ -605,12 +605,11 @@ void OutputAction(int slab) {
         for(int i = 0; i < P.NLightCones; i++){
             STDLOG(1,"Outputting LightCone %d (origin (%f,%f,%f)) for slab %d\n",i,LCOrigin[i].x,LCOrigin[i].y,LCOrigin[i].z,slab);
             // Start timing
-            STimer* lightConeTimer = new STimer;
-            lightConeTimer->Start();
+            STimer lightConeTimer;
+            lightConeTimer.Start();
             makeLightCone(slab,i);
-            lightConeTimer->Stop();
-            STDLOG(1, "LightCone %d for slab %d creation took %f seconds\n", i, slab, lightConeTimer->Elapsed());
-            delete lightConeTimer;
+            lightConeTimer.Stop();
+            STDLOG(1, "LightCone %d for slab %d creation took %f seconds\n", i, slab, lightConeTimer.Elapsed());
         }
     }
     OutputLightCone.Stop();

@@ -9,7 +9,6 @@
 #include "file.cpp"
 #include "iolib.cpp"
 #include "threadaffinity.h"
-#include "crc32_fast.cpp"
 
 
 #define IOLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
@@ -179,7 +178,7 @@ private:
     }
 
     void WriteIOR(iorequest *ior) {
-        IOLOG(1,"Writing file %s\n", ior->filename);
+        IOLOG(1,"Writing file %s using io_method %d\n", ior->filename, ior->io_method);
         // Write the file
         //ioassertf(FileExists(ior->filename)==0,
         //	"File %s already exists; not the intended use of WriteFile.\n", ior->filename);
@@ -202,7 +201,7 @@ private:
                 ramdisk = 1;
                 break;
             case IO_LIGHTCONE:
-                ramdisk = 3;
+                ramdisk = 1;  // no-op, since we use the file pointer mechanism
                 break;
             default:
                 QUIT("Unknown IO method %d\n", ior->io_method);
@@ -210,12 +209,9 @@ private:
 
         if(ior->do_checksum){
             checksum_timer.Start();
-            // TODO: if we write partial files, use crc32_partial
-            uint32_t checksum = crc32_fast(ior->memory, ior->sizebytes);
+            FileChecksums[ior->fulldir][ior->justname].ingest(ior->memory, ior->sizebytes);
             checksum_timer.Stop();
             checksum_bytes += ior->sizebytes;
-
-            FileChecksums[ior->fulldir].emplace_back(checksum,ior->sizebytes,ior->justname);
         }
 
         const char *dir = ior->dir;
@@ -233,7 +229,7 @@ private:
         if (ior->io_method==IO_LIGHTCONE)
         {
             timer->Start();
-            WD->BlockingAppend(ior->filePointer, ior->memory, ior->sizebytes);
+            WD->BlockingAppend(ior->fp, ior->memory, ior->sizebytes);
             timer->Stop();
         }
         else
@@ -409,8 +405,14 @@ private:
 
 // ================================================================ //
 
+#include <map>
+
 iothread **iothreads;
 int niothreads;
+
+// Slab types, like light cones, may opt to append to a single file
+// We keep an array of open file pointers for those types.
+FILE *filepointers[NUMTYPES] = {NULL};
 
 void IO_Initialize(char *logfn) {
     // Count how many IO threads we need
@@ -435,13 +437,21 @@ void IO_Terminate() {
 
     delete[] iothreads;
 
+    for(int i = 0; i < NUMTYPES; i++){
+        if(filepointers[i] != NULL){
+            int ret = fclose(filepointers[i]);
+            assertf(ret == 0, "Error closing file pointer for type %d\n", i);
+            filepointers[i] = NULL;
+        }
+    }
+
     // Write the checksum files to their respective directories
-    for(auto &iter : FileChecksums){
-        auto &dir = iter.first;
-        auto &allcrc = iter.second;
+    for(auto &diriter : FileChecksums){
+        const std::string &dir = diriter.first;
+        auto &_allcrc = diriter.second;
 
         // Sort this directory's checksums by filename
-        std::sort(allcrc.begin(), allcrc.end());
+        std::map<std::string,CRC32> orderedcrc(_allcrc.begin(), _allcrc.end());
 
         // The format of this file should match that of GNU cksum so that one can do a simple diff
         // That's not to say that users should prefer cksum; it's slow!
@@ -451,8 +461,10 @@ void IO_Terminate() {
         FILE *fp = fopen(checksumfn, "w");
         assertf(fp != NULL, "Failed to open file \"%s\"\n", checksumfn);
 
-        for(CRC32 &crc : allcrc){
-            fprintf(fp, "%" PRIu32 " %" PRIu64 " %s\n", crc.crc, crc.size, crc.filename.c_str());
+        for(auto &fileiter : orderedcrc){
+            const std::string filename = fileiter.first;
+            CRC32 crc = fileiter.second;
+            fprintf(fp, "%" PRIu32 " %" PRIu64 " %s\n", crc.finalize(), crc.size, filename.c_str());
         }
         fclose(fp);
     }
@@ -472,8 +484,8 @@ int GetIOThread(const char* dir){
 
 
 // Here are the actual interfaces for writing an arena
-void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
-	    const char *filename, off_t fileoffset, int blocking) {
+void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const char *filename,
+    off_t fileoffset, int blocking) {
 
     STDLOG(3,"Using IO_thread module to read file %f, blocking %d\n", filename, blocking);
     iorequest ior(ram, sizebytes, filename, IO_READ, arenatype, arenaslab, fileoffset, 0, blocking, 0);
@@ -481,21 +493,22 @@ void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
     iothreads[GetIOThread(ior.dir) - 1]->request(ior);
 }
 
-void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
-	    const char *filename, off_t fileoffset, int deleteafter, int blocking, int do_checksum) {
+void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const char *filename,
+        off_t fileoffset, int deleteafter, int blocking, int do_checksum, int use_fp) {
 
-    STDLOG(3,"Using IO_thread module to write file %f, blocking %d\n", filename, blocking);
-    iorequest ior(ram, sizebytes, filename, IO_WRITE, arenatype, arenaslab, fileoffset, deleteafter, blocking, do_checksum);
+    STDLOG(3,"Using IO_thread module to write file %f, blocking %d, use_fp %d\n", filename, blocking, use_fp);
 
-    iothreads[GetIOThread(ior.dir) - 1]->request(ior);
-}
+    FILE *fp = NULL;
+    if(use_fp){
+        if(filepointers[arenatype] == NULL){
+            filepointers[arenatype] = fopen(filename, "wb");
+            assertf(filepointers[arenatype] != NULL, "Failed to open file pointer for %s\n", filename);
+        }
 
-// Write LightCone file to file pointer
-void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
-        FILE* filePointer, off_t fileoffset, int deleteafter, int blocking, int do_checksum) {
+        fp = filepointers[arenatype];
+    }
 
-    STDLOG(3,"Using IO_thread module to write LightCone file, blocking %d\n", blocking);
-    iorequest ior(ram, sizebytes, filePointer, IO_WRITE, arenatype, arenaslab, fileoffset, deleteafter, blocking, do_checksum);
+    iorequest ior(ram, sizebytes, filename, IO_WRITE, arenatype, arenaslab, fileoffset, deleteafter, blocking, do_checksum, fp);
 
     iothreads[GetIOThread(ior.dir) - 1]->request(ior);
 }

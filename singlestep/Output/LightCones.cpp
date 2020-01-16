@@ -76,13 +76,22 @@ class LightCone {
 
     inline int isCellInLightCone(double3 pos);
     inline int isParticleInLightCone(double3 cellcenter, posstruct &pos, velstruct &vel, const accstruct acc);
+
+    void WriteHeaderFile(const char* fn){
+        std::ofstream headerfile;
+        headerfile.open(fn);
+        headerfile << P.header();
+        headerfile << ReadState.header();
+        headerfile << "\nOutputType = \"LightCone\"\n";
+        headerfile.close();
+    }
 };
 
 
 // Return whether a CellCenter is in the light cone, including some tolerance
 inline int LightCone::isCellInLightCone(double3 pos) {
     double r2 = (pos-origin).norm2();
-    return (r2<rmax_tol2) && (r2>rmin_tol2);
+    return (r2<=rmax_tol2) && (r2>=rmin_tol2);
 }
 
 // pos is in cell-centered coords; cellcenter is the position in the box; vel is in code units
@@ -112,7 +121,7 @@ inline int LightCone::isParticleInLightCone(double3 cellcenter, posstruct &pos, 
         // This is the fraction of the upcoming step when the particle meets the light cone
         // frac_step = 0 means r=rmax, =1 means r-rmin
 
-    if (frac_step<-1.0e-13||frac_step>=1) return 0;
+    if (frac_step<-1.0e-6||frac_step>=1) return 0;
         // We accept the particle into the lightcone only if the two lines cross in
         // the domain of the step.
         // We are accepting a tiny fraction of cases outside the cone, 
@@ -243,7 +252,15 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     STDLOG(1,"Lightcone %d opened %d cells and found %d particles (%d subsampled) in slab %d.  %d double tagged\n",
             lcn,slabtotalcell,slabtotal,slabtotalsub,slab, doubletagged);
     if(slabtotal) {
-        // TODO: Someone might write a header for the light cone.
+        // This will create the directory if it doesn't exist (and is parallel safe)
+        char dir[32];
+        sprintf(dir, "Step%04d", ReadState.FullStepNumber);
+        CreateSubDirectory(P.LightConeDirectory, dir);
+
+        std::string headerfn = "";
+        headerfn = headerfn + P.LightConeDirectory + "/" + dir + "/header";
+        LC.WriteHeaderFile(headerfn.c_str());
+
         SlabType lightconeslab;
         lightconeslab = (SlabType)((int)(LightCone0RV + lcn));
         SB->AllocateSpecificSize(lightconeslab, slab, LightConeRV.get_slab_bytes());
