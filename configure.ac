@@ -377,6 +377,14 @@ if test "x$with_cache_line" == xauto; then
 fi
 AC_DEFINE_UNQUOTED(CACHE_LINE_SIZE, $with_cache_line, "Cache line size in bytes")
 
+AC_ARG_WITH(page-size,
+[AS_HELP_STRING([--with-page-size=N], [Page size in bytes [auto]])],
+    [], with_page_size="auto")
+if test "x$with_page_size" == xauto; then
+    with_page_size=$(getconf PAGESIZE)
+fi
+AC_DEFINE_UNQUOTED(PAGE_SIZE, $with_page_size, "Page size in bytes")
+
 # If the user is using Anaconda Python, we have to be careful
 # about how we build C/C++ libraries that will be loaded by Python.
 # Anaconda Python has the Python executable rpath set to find
@@ -489,6 +497,7 @@ echo "MPI parallel code:               $enable_parallel"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Cache line size:                 $with_cache_line"
+echo "Page size:                       $with_page_size"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
 echo "Maximum order:                   $with_max_order"

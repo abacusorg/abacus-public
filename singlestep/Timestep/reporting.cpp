@@ -373,6 +373,8 @@ void GatherTimings() {
             REPORT_RATE(Output);
         REPORT(2, "Output Light Cone", OutputLightCone.Elapsed());
             REPORT_RATE(Output);
+        REPORT(3, "Output Light Cone Search", OutputLightConeSearch.Elapsed());
+            REPORT_RATE(Output);
         REPORT(2, "Output Bin", OutputBin.Elapsed());
             REPORT_RATE(Output);
 

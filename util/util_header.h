@@ -5,4 +5,4 @@
 #include <math.h>
 #include <string.h>
 
-void print_data(FILE *fp);
+void print_data(FILE *fp, const char *fn);

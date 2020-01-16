@@ -737,6 +737,7 @@ enable_parallel
 with_max_gpus
 with_softening
 with_cache_line_size
+with_page_size
 with_ramdisk
 '
       ac_precious_vars='build_alias
@@ -1406,6 +1407,7 @@ Optional Packages:
   --with-softening={plummer | single_spline | cubic_spline | cubic_plummer}
                           Near-force softening technique [single_spline]
   --with-cache-line=N     Cache line size in bytes [auto]
+  --with-page-size=N      Page size in bytes [auto]
   --with-ramdisk=PATH     Path to ramdisk [/dev/shm/]
 
 Some influential environment variables:
@@ -6913,6 +6915,23 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
 
 
+
+# Check whether --with-page-size was given.
+if test "${with_page_size+set}" = set; then :
+  withval=$with_page_size;
+else
+  with_page_size="auto"
+fi
+
+if test "x$with_page_size" == xauto; then
+    with_page_size=$(getconf PAGESIZE)
+fi
+
+cat >>confdefs.h <<_ACEOF
+#define PAGE_SIZE $with_page_size
+_ACEOF
+
+
 # If the user is using Anaconda Python, we have to be careful
 # about how we build C/C++ libraries that will be loaded by Python.
 # Anaconda Python has the Python executable rpath set to find
@@ -7065,6 +7084,7 @@ echo "MPI parallel code:               $enable_parallel"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Cache line size:                 $with_cache_line"
+echo "Page size:                       $with_page_size"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
 echo "Maximum order:                   $with_max_order"

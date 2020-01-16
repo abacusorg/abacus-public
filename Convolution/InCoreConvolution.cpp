@@ -44,11 +44,11 @@ public:
 
         int cs = omp_get_max_threads() * bufsize;
         int ret;
-        ret = posix_memalign((void **)&_mcache, 4096, cs*sizeof(Complex));
+        ret = posix_memalign((void **)&_mcache, PAGE_SIZE, cs*sizeof(Complex));
         assert(ret==0);
-        ret = posix_memalign((void **)&_tcache, 4096, cs*sizeof(Complex));
+        ret = posix_memalign((void **)&_tcache, PAGE_SIZE, cs*sizeof(Complex));
         assert(ret==0);
-        ret = posix_memalign((void **)&_dcache, 4096, cs*sizeof(double));
+        ret = posix_memalign((void **)&_dcache, PAGE_SIZE, cs*sizeof(double));
         assert(ret==0);
 
         mfactor = new double[completemultipolelength];

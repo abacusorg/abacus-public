@@ -11,7 +11,7 @@
  */
 
 // TODO: Ideally we'd turn this into some kind of run-time choice
-// between formats, with the PACKED class supplying the pack() 
+// between formats, with the PACKED class supplying the pack()
 // and pack_cell() methods.
 
 #include "threevector.hh"
@@ -19,7 +19,7 @@
 
 #ifdef COMPILE
 // The following lines are just to check the compiling
-// g++ -c -I../include -DCOMPILE appendarena.cpp 
+// g++ -c -I../include -DCOMPILE appendarena.cpp
 #define posstruct double3
 #define velstruct double3
 #define auxstruct double3
@@ -46,8 +46,8 @@ class AppendArena {
     // This is an Abstract Base Class.
     // The following 4 routines must be provided in the derived class.
     // Of course, the derived class must also provide a constructor and destructor.
-    
-    //FIXME: Since appending particles is a quick function we are calling many times, 
+
+    //FIXME: Since appending particles is a quick function we are calling many times,
     //  we may want to make the polymorphism compile-time (using templates) rather than
     //  looking up virtual functions at runtime
 
@@ -58,7 +58,7 @@ class AppendArena {
     // This must also set the cell header current_cell.
 
     // Note that it is legal for these routines to write no data for cells,
-    // but we still need to set the current_cell, since that might be needed 
+    // but we still need to set the current_cell, since that might be needed
     // to interpret the cell-centered positions.
     // Also note that it is legal to ignore vscale in writing the velocities.
     // But vscale must be >0 to be allowed to add particles.
@@ -75,17 +75,17 @@ class AppendArena {
     // The following routines are provided as general services of the ABC.
     // Note that when we write into the Arena, we do not append \0 -- these are not strings!
 
-    // The AppendArena class does know about the Arenas, but we opt to 
-    // leave the arena Allocation and Write commands 
+    // The AppendArena class does know about the Arenas, but we opt to
+    // leave the arena Allocation and Write commands
     // in the domain of the calling program.
 
     // We want to injest velocities and positions in the code units.
     // The base AppendArena addparticle() method then converts the velocities
     // to redshift-space displacements, in the code position units (i.e., unit box).
-    // The derived classes are responsible for conversions to global positions and velocities 
+    // The derived classes are responsible for conversions to global positions and velocities
     // because they might differ between output formats.
 
-    // The derived class constructor might want to use ReadState to 
+    // The derived class constructor might want to use ReadState to
     // figure out the conversion factor from code units to output units.
 
     // We need to be able to handle multiple threads writing into this.
@@ -176,7 +176,7 @@ class AppendArena {
     }
 
     void finalize_header() {
-        // terminate the ParseHeader header.  
+        // terminate the ParseHeader header.
         // Pad out the header to a multiple of 4096 bytes just to keep the data DIO aligned.
         long long int size = bytes_written()+2;  // including the header
         int pad = 4096-size%4096; 
@@ -223,7 +223,7 @@ class AppendArena {
 //
 // FIXME: The different output formats should probably be in their own files
 
-template <int N> 
+template <int N>
 class OutputPacked: public AppendArena {
   private:
     inline void appendparticle(char *c, cell_header current_cell, posstruct pos, velstruct vel, auxstruct aux) {
@@ -235,7 +235,7 @@ class OutputPacked: public AppendArena {
         // We're given vscale in Zspace unit-box units, same as velocities.
         // But we need to hand it to the pack14 method in unit-cell units
         packN<N> *p = (packN<N> *) c;
-        int vs = ceil(vscale*cpd); 
+        int vs = ceil(vscale*cpd);
         if (vs<=0) vs = 10;    // Probably just not initialized correctly
         current_cell = p->pack_cell(ijk, cpd, vs);
     }
@@ -245,9 +245,9 @@ class OutputPacked: public AppendArena {
     int sizeof_cell()     { return sizeof(packN<N>); }
     int sizeof_particle() { return sizeof(packN<N>); }
 
-    OutputPacked() { 
+    OutputPacked() {
         // Use ReadState to figure out the correct conversion of the
-        // velocity!  The pack14 class assumes velocites are in 
+        // velocity!  The pack14 class assumes velocites are in
         // redshift-space units; it *then* applies the given vscale.
         velocity_conversion = 1.0;
     }
@@ -265,7 +265,6 @@ class OutputRVdouble: public AppendArena {
     };
 
     float velocity_conversion;
-    
     void appendparticle(char *c, cell_header current_cell, posstruct pos, velstruct vel, auxstruct aux) {
         struct ICparticle *p = (struct ICparticle *)c;
 #ifdef GLOBALPOS
@@ -406,7 +405,7 @@ class OutputHeitmann: public AppendArena {
         p->xv[3] = vel[1]*velocity_conversion;
         p->xv[5] = vel[2]*velocity_conversion;
         p->mass = 1.0;
-        p->tag = (unsigned int) aux.pid();	
+        p->tag = (unsigned int) aux.pid();
         	// This could overflow, as we allow 40-bit ids
     }
     void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {
@@ -448,7 +447,7 @@ class OutputRVdoublePID: public AppendArena {
         p->vel[1] = vel.y;
         p->vel[2] = vel.z;
         p->tag = aux.pid();
-        
+
     }
     void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {
         current_cell = cell_header(ijk, cpd, 1);
@@ -496,7 +495,7 @@ class OutputRVZel: public AppendArena {
     p->i = ijk.x;
     p->j = ijk.y;
     p->k = ijk.z;
-    
+
     }
     void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {
     current_cell = cell_header(ijk, cpd, 1);
@@ -524,7 +523,7 @@ Sample use:
     FLOAT vel_to_zspace = 1.0;   // Factor to convert from canonical to zspace
     FLOAT kickfactor = 1.0;	   // Amount to unkick.
 
-    for (integer3 ijk(slab,0,0); ijk.y<CP->cpd; ijk.y++) 
+    for (integer3 ijk(slab,0,0); ijk.y<CP->cpd; ijk.y++)
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             Cell c = CP->GetCell(ijk);
             accstruct *acc = CP->AccCell(ijk);
@@ -538,7 +537,7 @@ Sample use:
             if (max.z>max.x) max.x = max.z;
             max.x*=vel_to_zspace;
             int vscale = ceiling(max.x);
-                
+
             // Now pack the particles
             AA.addcell(ijk, vscale);
             for (p=0;p<c.count();p++) {

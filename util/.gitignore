@@ -10,3 +10,4 @@ dump_float3
 phkey
 dump_pack14
 cellcount_pack14
+fast_cksum
