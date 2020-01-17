@@ -161,6 +161,9 @@ class GlobalGroupSlab {
 
     int largest_group;
 
+    uint64 *pstart;
+    uint64 *pstart_cg;
+
 
     /// We have a boring constructor; call setup() to actually get started.
     void setup(int _slab) {
@@ -191,6 +194,10 @@ class GlobalGroupSlab {
         assert(ret==0);
         for (int j=0; j<GFC->cpd; j++) pstat[j].reset(j);
 
+        // These are counters for where the pencils start in the lists
+        pstart = new uint64[GFC->cpd];
+        pstart_cg = new uint64[GFC->cpd];  
+
         // How many global groups do we expect?  Let's guess 10% of the particles
         // The cellgroup list is modestly bigger, but not enough to care.
         int maxsize = GFC->particles_per_slab/10;
@@ -204,6 +211,8 @@ class GlobalGroupSlab {
         if (acc!=NULL) free(acc); acc = NULL;
         if (pstat!=NULL) free(pstat); pstat = NULL;
         np = 0;
+        delete[] pstart;
+        delete[] pstart_cg;
         
         globalgroups.destroy();
         globalgrouplist.destroy();
@@ -581,11 +590,13 @@ void GlobalGroupSlab::GatherGlobalGroups() {
     // because the LinkIDs have already been wrapped.
     // One just can't use a small CPD
     uint64 *this_pencil = new uint64[GFC->cpd];
+    uint64 *this_pencil_cg = new uint64[GFC->cpd];
     int *largest = new int[GFC->cpd];
 
-    uint64 local_ncellgroups = 0;
-    #pragma omp parallel for schedule(static) reduction(+:local_ncellgroups)
+    uint64 _ncellgroups = 0;
+    #pragma omp parallel for schedule(static) reduction(+:_ncellgroups)
     for (int j=0; j<GFC->cpd; j++) {
+        uint64 local_ncellgroups = 0;
         uint64 local_this_pencil = 0;
         int local_largest = 0;
         for (int k=0; k<GFC->cpd; k++)
@@ -596,21 +607,26 @@ void GlobalGroupSlab::GatherGlobalGroups() {
                 local_largest = std::max(local_largest, size);
             }
         this_pencil[j] = local_this_pencil;
+        this_pencil_cg[j] = local_ncellgroups;
         largest[j] = local_largest;
+        _ncellgroups += local_ncellgroups;
     }
-    ncellgroups = local_ncellgroups;
+    ncellgroups = _ncellgroups;
 
     // Now for the serial accumulation over the pencils
-    uint64 *pstart = new uint64[GFC->cpd];
     uint64 total_particles = 0;
+    uint64 total_cg = 0;
     largest_group = 0;
     for (int j=0; j<GFC->cpd; j++) {
         pstart[j] = total_particles;    // So we have the starting indices
+        pstart_cg[j] = total_cg;        // So we have the starting indices
         total_particles += this_pencil[j];
+        total_cg += this_pencil_cg[j];
         largest_group = std::max(largest[j], largest_group);
     }
     delete[] largest;
     delete[] this_pencil;
+    delete[] this_pencil_cg;
 
     // Now we can allocate these buffers
     allocate(total_particles);
@@ -667,7 +683,6 @@ void GlobalGroupSlab::GatherGlobalGroups() {
                 // TODO: Might need to compute the COM for light cone output
             } // End loop over globalgroups in a cell
     // End loop over cells
-    delete[] pstart;
     GFC->GatherGroups.Stop();
     return;
 }
@@ -1306,12 +1321,14 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
     TimeSlicePIDs.setup(GFC->cpd, GFC->particles_per_slab);    
 
     // Now scan through cell groups
+    #pragma omp parallel for schedule(static) reduction(+:n_added)
     for (int j=0; j<GFC->cpd; j++){
 
         PencilAccum<TaggedPID> *pTimeSlicePIDs = TimeSlicePIDs.StartPencil(j);
-
+        AA->start_pencil(j, pstart[j]*AA->sizeof_particle() + pstart_cg[j]*AA->sizeof_cell());
 
         for (int k=0; k<GFC->cpd; k++){
+            integer3 firstcell(slab,j,k);
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 // Process globalgroups[j][k][n]
                 // Recall where the particles start
@@ -1320,7 +1337,6 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
                 LinkID *cglink = globalgrouplist.pencils[j].data
                                     +globalgroups[j][k][n].cellgroupstart;
                     // This is where we'll find the CG LinkIDs for this GG
-                integer3 firstcell(slab,j,k);
 
                 for (int c=0; c<globalgroups[j][k][n].ncellgroups; c++, cglink++) {
                     // Loop over CellGroups
@@ -1341,16 +1357,16 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
                     // The max vel tracking happens in the kick, which operates on all particles, so it should be valid for L0 groups
                     FLOAT vscale = _cell.ci->max_component_velocity/ReadState.VelZSpace_to_Canonical; 
                     // Start the cell group
-                    AA->addcell(_cell.ijk, vscale);
+                    AA->addcell(j, _cell.ijk, vscale);
 
                     for(int pi = start; pi < start + cg->size(); pi++){
                         posstruct _p = pos[pi] - offset;
                         velstruct _v = vel[pi] - TOFLOAT3(acc[pi])*unkick_factor;
-                        AA->addparticle(_p, _v, aux[pi]);
+                        AA->addparticle(j, _p, _v, aux[pi]);
                         if (strcmp(P.OutputFormat,"Pack9")==0) pTimeSlicePIDs->append(TaggedPID(aux[pi]));
                         n_added++;
                     }
-                    AA->endcell();
+                    AA->endcell(j);
                     start += cg->size();
                 }
             }
@@ -1368,7 +1384,7 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
         SB->StoreArenaNonBlocking(L0TimeSlicePIDs, slab);
     }
 
-    SB->ResizeSlab(L0TimeSlice, slab, AA->bytes_written());
+    SB->ResizeSlab(L0TimeSlice, slab, AA->finalize_arena());
     // Write out this time slice
     SB->StoreArenaNonBlocking(L0TimeSlice, slab);
     delete AA;
