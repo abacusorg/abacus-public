@@ -696,16 +696,23 @@ class StatusLogWriter:
         self.logger.make_horizontal_border()
         self.log_fp.close()
 
-    def update(self, param, state, ss_time=None, conv_time=None):
+    def update(self, param, read_state, write_state, ss_time=None, conv_time=None):
         '''
         Update the log with some info about the singlestep and conv
         that just finished.
 
         The logs have already been moved to their new names, indicated
         by step_num.
+
+        We gather info from both read_state and write_state.
+        At Step N, we are drifting from z_read to z_write. 
+        Timeslice outputs and groups are coming from z_read, so we output that in the redshift column.
+        Lightcones are coming from the annulus between z_read and z_write.
+        Velocity stats are from the midway point between the two.
+        The timing info is regarding this step, so delta(times) are from write_state.
         '''
 
-        step_num = state.FullStepNumber
+        step_num = write_state.FullStepNumber
 
         if not ss_time:
             self.print('Warning: parsing logs to get singlestep time, may miss startup time')
@@ -730,14 +737,14 @@ class StatusLogWriter:
                 conv_time = 0.
         ss_rate = param['NP']/1e6/(ss_time+conv_time)  # Mpart/s
 	
-        code_to_kms = state.VelZSpace_to_kms / state.VelZSpace_to_Canonical
+        code_to_kms = write_state.VelZSpace_to_kms / write_state.VelZSpace_to_Canonical
         info = dict(Step=step_num, Rate=ss_rate, Elapsed=ss_time+conv_time, Conv=conv_time, 
-            Redshift=state.Redshift, DeltaZ=state.DeltaRedshift, 
-            Time=state.Time, DeltaT=state.DeltaTime, 
-            GrpDiam=state.MaxGroupDiameter, MaxL0Sz=state.MaxL0GroupSize, 
-            RMSVel=state.RMS_Velocity*code_to_kms, MaxVel=state.MaxVelocity*code_to_kms, 
-            DirectPP=state.DirectsPerParticle,
-            RMSCell=state.StdDevCellSize )
+            Redshift=read_state.Redshift, DeltaZ=write_state.DeltaRedshift, 
+            Time=read_state.Time, DeltaT=write_state.DeltaTime, 
+            GrpDiam=write_state.MaxGroupDiameter, MaxL0Sz=write_state.MaxL0GroupSize, 
+            RMSVel=write_state.RMS_Velocity*code_to_kms, MaxVel=write_state.MaxVelocity*code_to_kms, 
+            DirectPP=write_state.DirectsPerParticle,
+            RMSCell=write_state.StdDevCellSize )
 
         self.logger(*(info[k] for k in self.fields))
 
@@ -1016,7 +1023,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         save_log_files(param.LogDirectory, f'step{write_state.FullStepNumber:04d}')
 
         # Update the status log
-        status_log.update(param, write_state, ss_timer.elapsed, conv_time)
+        if (stepnum==0):
+            # read_state doesnt exist yet, so pass in the write state instead
+            status_log.update(param, write_state, write_state, ss_timer.elapsed, conv_time)
+        else:
+            status_log.update(param, read_state, write_state, ss_timer.elapsed, conv_time)
 
         
         shutil.copy(pjoin(write, "state"), pjoin(param.LogDirectory, f"step{write_state.FullStepNumber:04d}.state"))
