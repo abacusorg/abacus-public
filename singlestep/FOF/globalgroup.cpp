@@ -599,16 +599,18 @@ void GlobalGroupSlab::GatherGlobalGroups() {
     NUMA_FOR(j,0,GFC->cpd)
         int g = omp_get_thread_num();
         uint64 local_this_pencil = 0;
+        uint64 _local_ncellgroups = 0;
         int local_largest = 0;
         for (int k=0; k<GFC->cpd; k++)
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 int size = globalgroups[j][k][n].np;
-                local_ncellgroups[g] += globalgroups[j][k][n].ncellgroups;
+                _local_ncellgroups += globalgroups[j][k][n].ncellgroups;
                 local_this_pencil += size;
                 local_largest = std::max(local_largest, size);
             }
         this_pencil[j] = local_this_pencil;
-        this_pencil_cg[j] = local_ncellgroups;
+        this_pencil_cg[j] = _local_ncellgroups;
+        local_ncellgroups[g] += _local_ncellgroups;
         largest[j] = local_largest;
     }
 
