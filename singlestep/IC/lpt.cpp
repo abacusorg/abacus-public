@@ -73,7 +73,7 @@ void DriftCell_2LPT_1(Cell &c, FLOAT driftfactor) {
         // Flip the displacement: q = pos-grid; new = grid-q = grid*2-pos
         // Need to be careful in cell-centered case.  Now pos is cell-centered,
         // and grid is global.  We should subtract the cell-center from ZelPos.
-        c.pos[b] = 2.0*(ZelPos(c.aux[b].xyz())-cellcenter) - c.pos[b]; // Does abacus automatically box wrap this?
+        c.pos[b] = 2.0*(ZelPos(c.aux[b].xyz())-cellcenter) - c.pos[b];
         c.pos[b] -= c.pos[b].round();
     }
 }
@@ -86,57 +86,48 @@ void KickCell_2LPT_2(Cell &c, FLOAT kick1, FLOAT kick2) {
     }
 }
 
-// Load an IC velocity slab into an arena through the LoadIC module
-void load_ic_vel_slab(int slabnum){
-    slabnum = CP->WrapSlab(slabnum);
-    assertf(!SB->IsSlabPresent(VelLPTSlab, slabnum), "Trying to re-load velocity IC slab %d, which is already loaded.\n", slabnum);
-    
-    STDLOG(1, "Re-reading velocity IC slab %d\n", slabnum);
-    
+// We have an arena with the full IC 
+// Extract the velocity field and fix the units
+void unpack_ic_vel_slab(int slab){
+    double convert_pos, convert_vel;
+    get_IC_unit_conversions(convert_pos, convert_vel);
+    unique_ptr<ICFile> ic_file = ICFile::FromFormat(P.ICFormat, slab);
+
     // Initialize the arena
-    velstruct* slab = (velstruct*) SB->AllocateArena(VelLPTSlab, slabnum);  // Automatically determines the arena size from the IC file size 
+    velstruct* velslab = (velstruct*) SB->AllocateArena(VelLPTSlab, slab);
     
-    // Use the LoadIC module to do the reading
-    ICfile* ic_file;
-    if(strcmp(P.ICFormat, "RVdoubleZel") == 0){
-        ic_file = new ICfile_RVdoubleZel((char*)SB->ReadSlabPath(VelLPTSlab, slabnum).c_str());
-    } else if(strcmp(P.ICFormat, "RVZel") == 0){
-        ic_file = new ICfile_RVZel((char*)SB->ReadSlabPath(VelLPTSlab, slabnum).c_str());
-    }
+    uint64 count = ic_file->unpack_to_velslab(velslab, convert_pos, convert_vel);
     
-    uint64 count = 0;
-    double3 pos;
-    velstruct vel;
-    auxstruct aux;
-    while (ic_file->getparticle(&pos, &vel, &aux)) {
-        vel *= WriteState.VelZSpace_to_Canonical;
-        slab[count++] = vel;
-    }
-    
-    assertf(count * sizeof(velstruct) == SB->SlabSizeBytes(VelLPTSlab, slabnum),
-        "The size of particle vel data (%d) read from slab %d did not match the arena size (%d)\n", count, slab, SB->SlabSizeBytes(VelLPTSlab, slabnum));
-    delete ic_file;
+    assertf(count * sizeof(velstruct) == SB->SlabSizeBytes(VelLPTSlab, slab),
+        "The size of particle vel data (%d) read from slab %d did not match the arena size (%d)\n",
+        count*sizeof(velstruct), slab, SB->SlabSizeBytes(VelLPTSlab, slab));
 }
 
 // Returns the IC velocity of the particle with the given PID
-// TODO: this "random access" lookup is really slow.  Consider whether there's another way to phrase this.
-inline velstruct* get_ic_vel(integer3 ijk){
-    int slabnum = ijk.x*P.cpd / WriteState.ppd;  // slab number
+// This "random access" lookup can be slow, probably not much we can do though
+inline velstruct get_ic_vel(integer3 ijk, velstruct **velslabs, uint64 *velslab_sizes){
+    // TODO: can probably simplify math
+    int slab = ijk.x*P.cpd / WriteState.ippd;  // slab number
+    uint64 slab_offset = ijk.x - ceil(((double)slab)*WriteState.ippd/P.cpd);  // number of planes into slab
+    uint64 offset = ijk.z + WriteState.ippd*(ijk.y + WriteState.ippd*slab_offset);  // number of particles into slab
+    
+    if(velslabs[slab] == NULL){
+        assertf(SB->IsSlabPresent(VelLPTSlab, slab),
+            "IC vel slab %d not loaded.  Possibly an IC particle crossed more than FINISH_WAIT_RADIUS=%d slab boundaries?\n",
+            slab, FINISH_WAIT_RADIUS);
+        velslabs[slab] = (velstruct*) SB->GetSlabPtr(VelLPTSlab, slab);
+        velslab_sizes[slab] = SB->SlabSizeBytes(VelLPTSlab, slab)/sizeof(velstruct);
+    }
 
-    uint64 slab_offset = ijk.x - ceil(((double)slabnum)*WriteState.ppd/P.cpd);  // number of planes into slab
-    // We know the exact slab number and position of the velocity we want.
-    uint64 offset = ijk.z + WriteState.ppd*(ijk.y + WriteState.ppd*slab_offset);
-    
-    assertf(SB->IsSlabPresent(VelLPTSlab, slabnum), "IC vel slab %d not loaded.  Possibly an IC particle crossed more than FINISH_WAIT_RADIUS=%d slab boundaries?\n", slabnum, FINISH_WAIT_RADIUS);
-    
-    velstruct* slab = (velstruct*) SB->GetSlabPtr(VelLPTSlab, slabnum);
+    velstruct* velslab = velslabs[slab];
     
     // Ensure that we're not reading past the end of the slab
-    assertf(offset < SB->SlabSizeBytes(VelLPTSlab, slabnum)/sizeof(velstruct),
-        "Tried to read particle %d from IC slab %d, which only has %d particles\n", offset, slabnum, SB->SlabSizeBytes(VelLPTSlab, slabnum)/sizeof(velstruct));
-    velstruct* vel = slab + offset;
+    assertf(offset < velslab_sizes[slab],
+        "Tried to read particle %d from IC slab %d, which only has %d particles\n",
+        offset, slab, velslab_sizes[slab]);
+    velstruct vel = velslab[offset];
     
-    assertf(vel->is_finite(), "vel bad value: (%f,%f,%f)\n", vel->x, vel->y, vel->z);
+    assertf(vel.is_finite(), "vel bad value: (%f,%f,%f)\n", vel.x, vel.y, vel.z);
 
     return vel;
 }
@@ -158,6 +149,15 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
 #else
     double3 cellcenter = CP->WrapCellCenter(c.ijk);
 #endif
+
+    // We don't want to be fetching the arena pointers for every particle, so cache them here
+    // TODO: do we really want to do this for every cell?
+    velstruct **velslabs = new velstruct*[P.cpd];
+    uint64 *velslab_sizes = new uint64[P.cpd];
+    for(int i = 0; i < P.cpd; i++){
+        velslabs[i] = NULL;
+        velslab_sizes[i] = 0;
+    }
     
     double H = 1;
     for (int b = 0; b<e; b++) {
@@ -173,16 +173,16 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
         c.pos[b] = ZelPos(c.aux[b].xyz())-cellcenter + displ1+displ2;
         c.pos[b] -= c.pos[b].round();
     
-        // If we were only supplied with Zel'dovich displacements, then construct the linear theory velocity
-        // Or, if we're doing 3LPT, then we also want the ZA velocity for the next step
-        velstruct vel1;
-        if(strcmp(P.ICFormat, "Zeldovich") == 0 || P.LagrangianPTOrder > 2){
-            vel1 = WriteState.f_growth*displ1*convert_velocity;
-        }
         // If we were supplied with Zel'dovich velocities and displacements,
         // we want to re-read the IC files to restore the velocities, which were overwritten in the 1st 2LPT step
-        else if(WriteState.Do2LPTVelocityRereading){
-            vel1 = *get_ic_vel(c.aux[b].xyz());
+        velstruct vel1;
+        if(WriteState.Do2LPTVelocityRereading){
+            vel1 = get_ic_vel(c.aux[b].xyz(), velslabs, velslab_sizes);
+        }
+        // If we were only supplied with Zel'dovich displacements, then construct the linear theory velocity
+        // Or, if we're doing 3LPT, then we also want the ZA velocity for the next step
+        else if(strcmp(P.ICFormat, "Zeldovich") == 0 || P.LagrangianPTOrder > 2){
+            vel1 = WriteState.f_growth*displ1*convert_velocity;
         }
         // Unexpected IC format; fail.
         else {
@@ -191,6 +191,9 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
         
         c.vel[b] = vel1 + WriteState.f_growth*2*displ2*convert_velocity;
     }
+
+    delete[] velslabs;
+    delete[] velslab_sizes;
 }
 
 // 3LPT kick and drift
@@ -242,7 +245,8 @@ void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
         // we want to re-read the 1st order velocity
         if(WriteState.Do2LPTVelocityRereading){
             velstruct vel1, vel1_ic, vel2;
-            vel1_ic = *get_ic_vel(c.aux[b].xyz());
+            //vel1_ic = get_ic_vel(c.aux[b].xyz(), NULL, NULL);
+            QUIT("3LPT needs update for new vel unpacking\n");
             vel2 = c.vel[b] - displ12*WriteState.f_growth*convert_velocity;  // Isolate the 2nd order vel from the linear 1st order
             c.vel[b] = vel1_ic + vel2;
             

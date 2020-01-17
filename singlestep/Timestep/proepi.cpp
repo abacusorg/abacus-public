@@ -5,22 +5,22 @@
  *  2. Declaration of most global objects that are used between modules. Global objects used
  *      only within a module are typically defined in that module. Some global declarations are
  *      also non-conforming, and are dispersed throughout the code. TODO: This should be rectified
- *      eventually. 
- *      Conventionally, objects should be declared like 
+ *      eventually.
+ *      Conventionally, objects should be declared like
  *              #include "SomeObjectDefinition.cpp"
  *              SomeObject * GlobalInstanceOfSomeObject;
  *  3. The prologue function, which initializes global objects like the Parameters class that
  *      must procede any useful work. All global objects declared in the beginning of the file
  *      should be initialized here, preferrably by a simple call to their constructor.
- *  4. The epilogue function, which handles teardown of most global objects. Conventionally, this 
- *      should be done by deleting the object, with specific teardown code in the destructor 
- *      for that module. 
+ *  4. The epilogue function, which handles teardown of most global objects. Conventionally, this
+ *      should be done by deleting the object, with specific teardown code in the destructor
+ *      for that module.
 */
 
 #include <bitset>
 
 #include <sys/time.h>
-#include <sys/resource.h> 
+#include <sys/resource.h>
 
 #include "mpi_header.cpp"
 #include "header.cpp"
@@ -50,9 +50,10 @@ STimer FinishMerge;
 STimer ComputeMultipoles;
 STimer WriteMergeSlab;
 STimer WriteMultipoleSlab;
-STimer QueueMultipoleMPI; 
-STimer ParallelConvolveDestructor; 
+STimer QueueMultipoleMPI;
+STimer ParallelConvolveDestructor;
 
+STimer OutputLightConeSearch;
 STimer OutputTimeSlice;
 STimer OutputLightCone;
 STimer OutputBin;
@@ -83,7 +84,7 @@ STimer IOFinish;
 
 STimer SlabAccumFree;
 
-uint64 naive_directinteractions = 0;   
+uint64 naive_directinteractions = 0;
 
 //********************************************************************************
 
@@ -103,11 +104,11 @@ int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don'
 
 // #include "ParticleCellInfoStructure.cpp"
 // #include "maxcellsize.cpp"
-#include "IC_classes.h"
 
 #include "slabsize.cpp"
 SlabSize *SS;
 
+#include "IC_base.h"
 #include "slabbuffer.cpp"
 SlabBuffer *SB;
 
@@ -119,9 +120,9 @@ SlabBuffer *SB;
 
 // Two quick functions so that the I/O routines don't need to know 
 // about the SB object. TODO: Move these to an io specific file
-void IO_SetIOCompleted(int arenatype, int arenaslab) { 
+void IO_SetIOCompleted(int arenatype, int arenaslab) {
 	SB->SetIOCompleted(arenatype, arenaslab); }
-void IO_DeleteArena(int arenatype, int arenaslab)    { 
+void IO_DeleteArena(int arenatype, int arenaslab)    {
 	SB->DeAllocate(arenatype, arenaslab); }
 
 
@@ -174,10 +175,10 @@ Redlack *RL;
 #include "Cosmology.cpp"
 Cosmology *cosm;
 #include "lpt.cpp"
+#include "loadIC.cpp"
 
 #include "output_timeslice.cpp"
 #include "LightCones.cpp"
-#include "loadIC.cpp"
 
 #include "binning.cpp"
 FLOAT * density; //!< Array to accumulate gridded densities in for low resolution inline power-spectra.
@@ -200,6 +201,11 @@ int * total_slabs_all = NULL;
 
 #include <fenv.h>
 
+// FFTW Wisdom
+char wisdom_file[1024];
+int wisdom_exists;
+void init_fftw();
+void finish_fftw();
 
 void InitializeParallel(int &size, int &rank) {
     #ifdef PARALLEL
@@ -236,12 +242,13 @@ void Prologue(Parameters &P, bool MakeIC) {
     STDLOG(2,"Size of accstruct is %d bytes\n", sizeof(accstruct));
     prologue.Clear();
     prologue.Start();
-    
+
     int cpd = P.cpd;
     int order = P.order;
     long long int np = P.np;
     assert(np>0);
 
+    init_fftw();  // wisdom import, etc, before SlabMultipoles or anything that uses FFTW
 
     // Look in ReadState to see what PosSlab files are available
     // TODO: Haven't implemented this yet
@@ -270,7 +277,7 @@ void Prologue(Parameters &P, bool MakeIC) {
         if (P.NumSlabsInsertList>0) maxILsize   =(maxILsize* P.NumSlabsInsertList)/P.cpd+1;
     }
     IL = new InsertList(cpd, maxILsize);
-    STDLOG(2,"Maximum insert list size = %ld, size %l MB\n", maxILsize, maxILsize*sizeof(ilstruct)/1024/1024);
+    STDLOG(2,"Maximum insert list size = %l, size %l MB\n", maxILsize, maxILsize*sizeof(ilstruct)/1024/1024);
 
     STDLOG(2,"Setting up IO\n");
 
@@ -322,7 +329,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
         SS->store_from_params(P);
    	}
 
-    
+
     if(MF != NULL){ // Some pipelines, like standalone_fof, don't use multipoles
         MF->GatherRedlack();    // For the parallel code, we have to coadd the inputs
         if (MPI_rank==0) {
@@ -331,6 +338,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
                 MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
         }
         delete MF;
+        MF = NULL;
     }
 
     if(ReadState.DoBinning){
@@ -345,16 +353,20 @@ void Epilogue(Parameters &P, bool MakeIC) {
         delete density; density = 0;
     }
 
-    SB->report();
+    SB->report_peak();
     delete SB;
+    SB = NULL;
     STDLOG(2,"Deleted SB\n");
     delete CP;
+    CP = NULL;
     delete IL;
+    IL = NULL;
     delete SS;
+    SS = NULL;
     delete Grid;
+    Grid = NULL;
 	
 	FreeManifest();
-
 
     if(!MakeIC) {
         if(0 and P.ForceOutputDebug){
@@ -368,32 +380,56 @@ void Epilogue(Parameters &P, bool MakeIC) {
             }
             #endif
         }
+
         
             WriteState.DirectsPerParticle = (double)1.0e9*NFD->gdi_gpu/P.np;
             delete TY;
+            TY = NULL;
             STDLOG(2,"Deleted TY\n");
             delete RL;
+            RL = NULL;
             delete[] SlabForceLatency;
+            SlabForceLatency = NULL;
             delete[] SlabForceTime;
+            SlabForceTime = NULL;
             delete[] SlabFarForceTime;
-            if (GFC!=NULL) delete GFC;
+            SlabFarForceTime = NULL;
+            if (GFC!=NULL){
+                delete GFC;
+                GFC = NULL;
+            }
             STDLOG(2,"Done with Epilogue; about to kill the GPUs\n");
             delete NFD;
+            NFD = NULL;
     }
 
+    finish_fftw();
+
+    finish_numa_for();  // can't use NUMA_FOR after this
 
     // Report peak memory usage
     struct rusage rusage;
     assert(getrusage(RUSAGE_SELF, &rusage) == 0);
     STDLOG(0, "Peak resident memory usage was %.3g GB\n", (double) rusage.ru_maxrss / 1024 / 1024);
-	
-	fftw_cleanup();
-
-    finish_numa_for();  // can't use NUMA_FOR after this
     
     epilogue.Stop();
     // This timing does not get written to the timing log, so it had better be small!
     STDLOG(1,"Leaving Epilogue(). Epilogue took %.2g sec.\n", epilogue.Elapsed());
+}
+
+void init_fftw(){
+    // Import FFTW wisdom, before SlabMultipoles or anything that does FFT planning
+    sprintf(wisdom_file, "%s/fftw_%d.wisdom", P.WorkingDirectory, P.cpd);
+    wisdom_exists = fftw_import_wisdom_from_filename(wisdom_file);
+    STDLOG(1, "Wisdom import returned %d (%s).\n", wisdom_exists, wisdom_exists == 1 ? "success" : "failure");
+}
+
+void finish_fftw(){
+    if(MPI_rank == 0){
+        int ret = fftw_export_wisdom_to_filename(wisdom_file);
+        STDLOG(1, "Wisdom export to file %s returned %d.\n", wisdom_file, ret);
+    }
+   fftw_cleanup();  // better not call this before exporting wisdom!
 }
 
 std::vector<std::vector<int>> free_cores;  // list of cores on each socket that are not assigned a thread (openmp, gpu, io, etc)
@@ -420,14 +456,14 @@ void init_openmp(){
     // I suspect this is because some of our stack-allocated arrays of size nthreads get too big
     // In practice, we will probably not use this many cores because there aren't nearly that many physical cores
     nthreads = min(128, nthreads);
-    
+
     assertf(nthreads <= max_threads, "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n",
         nthreads, max_threads);
     assertf(nthreads <= ncores, "Trying to use more threads (%d) than cores (%d).  This will probably be very slow.\n", nthreads, ncores);
-    
+
     omp_set_num_threads(nthreads);
     STDLOG(1, "Initializing OpenMP with %d threads (system max is %d; P.OMP_NUM_THREADS is %d)\n", nthreads, max_threads, P.OMP_NUM_THREADS);
-    
+
     // If threads are bound to cores via OMP_PROC_BIND,
     // then identify free cores for use by GPU and IO threads
     int core_assignments[nthreads];
@@ -451,11 +487,11 @@ void init_openmp(){
             core_log << " " << g << "->" << core_assignments[g];
         core_log << "\n";
         STDLOG(1, core_log.str().c_str());
-        
+
         for(int g = 0; g < nthreads; g++)
             for(int h = 0; h < g; h++)
                 assertf(core_assignments[g] != core_assignments[h], "Two OpenMP threads were assigned to the same core! This will probably be very slow. Check OMP_NUM_THREADS and OMP_PLACES?\n");
-            
+
         // Assign the main CPU thread to core 0 to avoid the GPU/IO threads during serial parts of the code
         int main_thread_core = 0;
         set_core_affinity(main_thread_core);
@@ -479,7 +515,7 @@ void setup_log(){
 }
 
 void check_read_state(const int MakeIC, double &da){
-    // Check if ReadStateDirectory is accessible, or if we should 
+    // Check if ReadStateDirectory is accessible, or if we should
     // build a new state from the IC file
     char rstatefn[1050];
     sprintf(rstatefn, "%s/state", P.ReadStateDirectory);
@@ -493,13 +529,13 @@ void check_read_state(const int MakeIC, double &da){
         }
 
         // We have to fill in a few items, just to bootstrap the rest of the code.
-        
+
         // So that this number is the number of times forces have been computed.
         // The IC construction will yield a WriteState that is number 0,
         // so our first time computing forces will read from 0 and write to 1.
         ReadState.ScaleFactor = 1.0/(1+P.InitialRedshift);
-        ReadState.FullStepNumber = -1;  
-        
+        ReadState.FullStepNumber = -1;
+
         da = 0;
     } else {
         // We're doing a normal step
@@ -511,7 +547,7 @@ void check_read_state(const int MakeIC, double &da){
         STDLOG(0,"Reading ReadState from %s\n",P.ReadStateDirectory);
         ReadState.read_from_file(P.ReadStateDirectory);
         ReadState.AssertStateLegal(P);
-        
+
         // Handle some special cases
         if (P.ForceOutputDebug==1) {
             STDLOG(0,"ForceOutputDebug option invoked; setting time step to 0.\n");
@@ -526,13 +562,13 @@ void InitWriteState(int MakeIC){
     // available when we choose the time step.
     WriteState.FullStepNumber = ReadState.FullStepNumber+1;
     WriteState.LPTStepNumber = LPTStepNumber();
-    
+
     // We generally want to do re-reading on the last LPT step
     WriteState.Do2LPTVelocityRereading = 0;
     if (LPTStepNumber() > 0 && LPTStepNumber() == P.LagrangianPTOrder
         && (strcmp(P.ICFormat, "RVdoubleZel") == 0 || strcmp(P.ICFormat, "RVZel") == 0))
         WriteState.Do2LPTVelocityRereading = 1;
-    
+
     // Decrease the softening length if we are doing a 2LPT step
     // This helps ensure that we are using the true 1/r^2 force
     /*if(LPTStepNumber()>0){
@@ -553,7 +589,7 @@ void InitWriteState(int MakeIC){
         WriteState.SofteningLengthNow = P.SofteningLength;
         STDLOG(1, "Adopting a comoving softening of %d, fixed in comoving coordinates\n", WriteState.SofteningLengthNow);
     }
-    
+
     // Now scale the softening to match the minimum Plummer orbital period
 #if defined DIRECTCUBICSPLINE
     strcpy(WriteState.SofteningType, "cubic_spline");
@@ -594,12 +630,12 @@ void InitGroupFinding(bool MakeIC){
     /*
     Request output of L1 groups and halo/field subsamples if:
     - this redshift is a member of L1OutputRedshift; or
-    - this redshift is a member of TimeSliceRedshifts_Subsample 
+    - this redshift is a member of TimeSliceRedshifts_Subsample
     - this redshift is a member of TimeSliceRedshifts.
 
     If L1OutputRedshifts is not set, then we instead fall back to L1Output_dlna.
     In that case, we check if we are crossing a L1Output_dlna checkpoint by going from ReadState to WriteState.
-    
+
     We may not end up outputting groups if group finding is not enabled.  This is signaled by GFC = NULL.
 
     We need to enable group finding if:
@@ -608,13 +644,13 @@ void InitGroupFinding(bool MakeIC){
      But we can't enable it if:
     - AllowGroupFinding is disabled
     - ForceOutputDebug is enabled
-    - This is an IC step
+    - This is an IC or 2LPT step
     ForceOutputDebug outputs accelerations as soon as we compute them
     i.e. before GroupFinding has a chance to rearrange them
     */
 
     int do_grp_output;
-    do_grp_output = 0; 
+    do_grp_output = 0;
 
     for(int i = 0; i < P.nTimeSliceSubsample; i++){
         double subsample_z = P.TimeSliceRedshifts_Subsample[i];
@@ -623,6 +659,7 @@ void InitGroupFinding(bool MakeIC){
             ReadState.DoSubsampleOutput = 1;
         }
     }
+
 
     if ( ReadState.DoTimeSliceOutput ) ReadState.DoSubsampleOutput = 1;
 
@@ -639,6 +676,7 @@ void InitGroupFinding(bool MakeIC){
     }
 
     have_L1z:
+
     if (ReadState.DoTimeSliceOutput or ReadState.DoSubsampleOutput or ReadState.DoGroupFindingOutput) do_grp_output = 1;  //if any kind of output is requested, turn on group finding. 
 
     WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities
@@ -646,7 +684,7 @@ void InitGroupFinding(bool MakeIC){
 
     // Can we enable group finding?
     if((P.MicrostepTimeStep > 0 || do_grp_output) &&
-        !(!P.AllowGroupFinding || P.ForceOutputDebug || MakeIC)){
+        !(!P.AllowGroupFinding || P.ForceOutputDebug || MakeIC || LPTStepNumber())){
         STDLOG(1, "Setting up group finding\n");
 
         ReadState.DoGroupFindingOutput = do_grp_output; // if any kind of output is requested, turn on group finding.
@@ -657,7 +695,7 @@ void InitGroupFinding(bool MakeIC){
 
         GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
                     #ifdef SPHERICAL_OVERDENSITY
-                    P.SODensity[0], P.SODensity[1],  //by this point, the SODensity and L0DensityThresholds have been rescaled with redshift, in PlanOutput. 
+                    P.SODensity[0], P.SODensity[1],  //by this point, the SODensity and L0DensityThresholds have been rescaled with redshift, in PlanOutput.
                     #else
                     P.FoFLinkingLength[1]/pow(P.np,1./3),
                     P.FoFLinkingLength[2]/pow(P.np,1./3),
@@ -669,7 +707,7 @@ void InitGroupFinding(bool MakeIC){
         if (P.DensityKernelRad==0) {
             // Default to the L0 linking length
             WriteState.DensityKernelRad2 = GFC->linking_length;
-            WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5); 
+            WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5);
             // We use square radii.  The radius is padded just a little
             // bit so we don't risk underflow with 1 particle at r=b
             // in comparison to the self-count.
@@ -686,8 +724,8 @@ void InitGroupFinding(bool MakeIC){
         #endif
         #endif
         #ifdef SPHERICAL_OVERDENSITY
-        WriteState.SODensityL1 = P.SODensity[0]; 
-        WriteState.SODensityL2 = P.SODensity[1]; 
+        WriteState.SODensityL1 = P.SODensity[0];
+        WriteState.SODensityL2 = P.SODensity[1];
         #endif
 
         STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
@@ -789,13 +827,13 @@ void MoveLocalDirectories(){
         assertf(res == 0, "Failed to rename write to read!\n");
     }
 }
-    
+
 
 void FinalizeWriteState() {
     WriteNodeSlabs();  // We do this here because it will need a MPI Barrier
 
     #ifdef PARALLEL
-        STDLOG(1,"Node MinCellSize = %d, MaxCellSize = %d\n", 
+        STDLOG(1,"Node MinCellSize = %d, MaxCellSize = %d\n",
             WriteState.MinCellSize, WriteState.MaxCellSize);
         STDLOG(1,"Maximum v_j in node is %f.\n", WriteState.MaxVelocity);
         STDLOG(1,"Maximum a_j in node is %f.\n", WriteState.MaxAcceleration);
@@ -806,7 +844,7 @@ void FinalizeWriteState() {
         STDLOG(1,"Maximum L0 group size in node is %d.\n", WriteState.MaxL0GroupSize); 
     
         // If we're running in parallel, then we want to gather some
-        // state statistics across the nodes.  We start by writing the 
+        // state statistics across the nodes.  We start by writing the
         // original state file to the local disk.
         // TODO: Do we really want to do this?  Maybe just echo the stats to the log?
         // WriteState.write_to_file(P.WriteStateDirectory, NodeString);
@@ -843,6 +881,7 @@ void FinalizeWriteState() {
     WriteState.StdDevCellSize = sqrt(WriteState.StdDevCellSize);
         // This is the standard deviation of the fractional overdensity in cells.
         // But for the parallel code: this has been divided by CPD^3, not the number of cells on the node
+
     STDLOG(0,"MinCellSize = %d, MaxCellSize = %d, RMS Fractional Overdensity = %g\n", 
         WriteState.MinCellSize, WriteState.MaxCellSize, WriteState.StdDevCellSize);
 

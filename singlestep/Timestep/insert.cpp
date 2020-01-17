@@ -105,62 +105,69 @@ public:
         il.aux = *aux;
         il.xyz = xyz;
         il.k = xyz.y*cpd + xyz.z;
+        // TODO: emplace semantics
         MultiAppendList::Push(il);
     }
 
-    inline integer3 WrapToNewCell(posstruct *pos, int oldx, int oldy, int oldz) {
+    inline integer3 WrapToNewCell(posstruct *pos, auxstruct *aux, int oldx, int oldy, int oldz) {
         // We have been given a particle that has drifted out of its cell.
         // Find the new cell, changing the position as appropriate.
         integer3 newcell = Position2Cell(*pos);
         // Important: this mapping does not apply a wrap.
         // Now we wrap, coordinating cell index and position
-        while (newcell.x<0)    { newcell.x+=cpd; pos->x+=1.0; }
-        while (newcell.x>=cpd) { newcell.x-=cpd; pos->x-=1.0; }
-        while (newcell.y<0)    { newcell.y+=cpd; pos->y+=1.0; }
-        while (newcell.y>=cpd) { newcell.y-=cpd; pos->y-=1.0; }
-        while (newcell.z<0)    { newcell.z+=cpd; pos->z+=1.0; }
-        while (newcell.z>=cpd) { newcell.z-=cpd; pos->z-=1.0; }
+        while (newcell.x<0)    { newcell.x+=cpd; pos->x+=1.0; aux->clearLightCone(); }
+        while (newcell.x>=cpd) { newcell.x-=cpd; pos->x-=1.0; aux->clearLightCone(); }
+        while (newcell.y<0)    { newcell.y+=cpd; pos->y+=1.0; aux->clearLightCone(); }
+        while (newcell.y>=cpd) { newcell.y-=cpd; pos->y-=1.0; aux->clearLightCone(); }
+        while (newcell.z<0)    { newcell.z+=cpd; pos->z+=1.0; aux->clearLightCone(); }
+        while (newcell.z>=cpd) { newcell.z-=cpd; pos->z-=1.0; aux->clearLightCone(); }
         return newcell;
     }
 
-    inline integer3 LocalWrapToNewCell(posstruct *pos,
-    int oldx, int oldy, int oldz) {
+    inline integer3 LocalWrapToNewCell(posstruct *pos, auxstruct *aux,
+        int oldx, int oldy, int oldz) {
         // We have been given a particle that has drifted out of its cell.
         // Find the new cell, changing the position as appropriate.
         // This is for cell-referenced positions
-	assertf(fabs(pos->x)<0.5&&fabs(pos->y)<0.5&&fabs(pos->z)<0.5,
-		"Particle has moved way too much: %f %f %f\n",
-		pos->x, pos->y, pos->z);
+        assertf(fabs(pos->x)<0.5&&fabs(pos->y)<0.5&&fabs(pos->z)<0.5,
+            "Particle has moved way too much: %f %f %f\n",
+            pos->x, pos->y, pos->z);
         while (pos->x>halfinvcpd) {
             oldx+=1; pos->x-=invcpd;
+            if (oldx==cpd) aux->clearLightCone();
         }
         while (pos->x<-halfinvcpd) {
+            if (oldx==0) aux->clearLightCone();
             oldx-=1; pos->x+=invcpd;
         }
         while (pos->y>halfinvcpd) {
             oldy+=1; pos->y-=invcpd;
+            if (oldy==cpd) aux->clearLightCone();
         }
         while (pos->y<-halfinvcpd) {
+            if (oldy==0) aux->clearLightCone();
             oldy-=1; pos->y+=invcpd;
         }
         while (pos->z>halfinvcpd) {
             oldz+=1; pos->z-=invcpd;
+            if (oldz==cpd) aux->clearLightCone();
         }
         while (pos->z<-halfinvcpd) {
+            if (oldz==0) aux->clearLightCone();
             oldz-=1; pos->z+=invcpd;
         }
         return WrapCell(oldx, oldy, oldz);
     }
 
     inline void WrapAndPush(posstruct *pos, velstruct *vel, auxstruct *aux,
-    int x, int y, int z) {
+        int x, int y, int z) {
         integer3 newcell;
         
 #ifdef GLOBALPOS
         newcell = WrapToNewCell(pos,x,y,z);
 #else
         // Use LocalWrapToNewCell for cell-referenced positions
-        newcell = LocalWrapToNewCell(pos,x,y,z);
+        newcell = LocalWrapToNewCell(pos,aux,x,y,z);
 #endif
 
         /* REMOVING THIS CHECK, as it would be detected in another way,

@@ -68,7 +68,7 @@ When we store into the output TaggedPID format, we apply a bit mask to zero all 
 #define AUXTAGGABLE_A_BIT 59llu //Can this particle be tagged in subsample A? 
 #define AUXTAGGABLE_B_BIT 60llu //Can this particle be tagged in subsample B? 
 
-#define NUMLC 3
+#define NUMLIGHTCONES 3
 
 #define AUXLCZEROBIT 61llu		// The LC bits are 61,62,63.
 #define AUXLC  (uint64)0xe000000000000000	// The next three bits.
@@ -126,7 +126,7 @@ public:
 
     // Light cones need 1 byte
     inline static uint64 lightconemask(int number) {
-        assertf(number<NUMLC && number>=0, "Lightcone number lcn = %d must satisfy 0 <= lcn < %d.", number, NUMLC);
+        assertf(number<NUMLIGHTCONES && number>=0, "Lightcone number lcn = %d must satisfy 0 <= lcn < %d.", number, NUMLIGHTCONES);
         return (uint64)1 << (number+AUXLCZEROBIT);
     }
 
@@ -143,6 +143,11 @@ public:
     }
     inline void setlightconedone(int number) {
         setlightconedone(lightconemask(number));
+    }
+
+    inline void clearLightCone() {
+        uint64 mask = AUXLC;
+        aux &= ~mask;
     }
 
     inline void set_taggable_subA() {
@@ -230,16 +235,16 @@ public:
     int legalvalue(uint64 slabsize) {
         // Do a sanity check on the cellinfo values; return 1 if ok, 0 if not.
         // slabsize is the number of particles in the slab.
-        if (!isfinite(startindex)){
-        STDLOG(0, "Bad 'startindex' in cellinfo: %u\n", startindex);
-        return 0;
-    }
     if(count<0){
         STDLOG(0, "Bad 'count' in cellinfo: %d\n", count);
         return 0;
     }
     if(active<0){
         STDLOG(0, "Bad 'active' in cellinfo: %u\n", active);
+        return 0;
+    }
+    if(mean_square_velocity<0){
+        STDLOG(0, "Bad 'mean_square_velocity' in cellinfo: %u\n", mean_square_velocity);
         return 0;
     }
         if (startindex+count > slabsize){

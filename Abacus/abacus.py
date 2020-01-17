@@ -116,6 +116,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     # These directories are global; i.e. treated the same in the parallel and serial versions
     icdir = params['InitialConditionsDirectory']
     outdir = params['OutputDirectory']
+    lcdir = params['LightConeDirectory']
     logdir = params['LogDirectory']
     groupdir  = params.get('GroupDirectory', '')
     basedir = params['WorkingDirectory']
@@ -144,13 +145,14 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
         clean_dir(outdir, preserve=icdir if not erase_ic else None)
         clean_dir(logdir, preserve=icdir if not erase_ic else None)
         clean_dir(groupdir, preserve=icdir if not erase_ic else None)
+        clean_dir(lcdir, preserve=icdir if not erase_ic else None)
         #NAM make prettier. 
         if parallel and path.exists(resumedir):
-            clean_dir(resumedir)
+            clean_dir(resumedir, preserve=icdir if not erase_ic else None)
             
     os.makedirs(basedir, exist_ok=True)
 
-    for d in ['LogDirectory', 'OutputDirectory', 'GroupDirectory']:
+    for d in ['LogDirectory', 'OutputDirectory', 'GroupDirectory', 'LightConeDirectory']:
         if d in params and params[d]:
             os.makedirs(params[d], exist_ok=True)
     
@@ -1078,11 +1080,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             #are we coming up on a group finding step? If yes, backup the state, just in case. 
             pre_gf_backup  = False 
             nGFoutputs = [] 
-            output_arrs = [param.L1OutputRedshifts, param.TimeSliceRedshifts, param.TimeSliceRedshifts_Subsample]
+            output_arrs = [param.get('L1OutputRedshifts'), param.get('TimeSliceRedshifts'), param.get('TimeSliceRedshifts_Subsample')]
             for output_arr in output_arrs:
                 try:
                     nGFoutputs.append( len(output_arr) )
-                except AttributeError:
+                except (AttributeError,TypeError):
                     nGFoutputs.append(0) 
 
             if (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60): 
@@ -1131,8 +1133,13 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                     interim_backup_complete = True 
                     
                 if exit:
-                    print('Exiting and requeueing.')
-                    return EXIT_REQUEUE  
+                    print('Exiting.')
+                    if maxsteps == 10000:
+                        print('Requeueing!')
+                        return EXIT_REQUEUE  
+                    else:
+                        print('Requeue disabled because maxsteps was set by the user.')
+                        return 0 
                 else:
                     print('Continuing run.')
         
@@ -1174,9 +1181,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             break       
         
         make_ic = False
-        
+    
+    if maxsteps != 10000: #we asked to do only a limited number of steps, and we've successfully completed them. We're done. 
+        finished = True
+
     # If there is more work to be done, signal that we are ready for requeue
-    if not finished and not ProfilingMode:
+    if not finished and not ProfilingMode: 
         ending_time = time.time()
         ending_time_str = time.asctime(time.localtime())
         ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
@@ -1213,7 +1223,7 @@ def merge_checksum_files(param=None, dir_globs=None):
     if not dir_globs:
         dir_globs = [pjoin(param.OutputDirectory, 'slice*'),
                     pjoin(param.GroupDirectory, 'Step*'),
-                    pjoin(param.LightConeDirectory, 'LC_raw*'),
+                    pjoin(param.LightConeDirectory, 'Step*'),
             ]
 
     for pat in dir_globs:
@@ -1232,7 +1242,7 @@ def merge_checksum_files(param=None, dir_globs=None):
             lines = [line.split() for line in lines]
             assert(all(len(line) == 3 for line in lines))
             lines = sorted(lines, key=lambda l:l[2])
-            lines = [' '.join(line) for line in lines]            
+            lines = [' '.join(line) + '\n' for line in lines]            
 
             with open(pjoin(d,'checksums.crc32'), 'a') as fp:
                 fp.writelines(lines)

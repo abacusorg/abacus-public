@@ -1,6 +1,8 @@
 #ifndef INCLUDE_IO_INTERFACE
 #define INCLUDE_IO_INTERFACE
 
+#include "checksums.h"
+
 enum io_blocking_mode { IO_NONBLOCKING,
                         IO_BLOCKING };
 
@@ -15,27 +17,9 @@ enum io_deletion_mode { IO_KEEP,
 typedef tbb::concurrent_unordered_map<std::string, STimer> TimerMap;
 typedef tbb::concurrent_unordered_map<std::string, uint64> SizeMap;
 
-class CRC32 {
-public:
-    uint32 crc;
-    uint64 size;
-    std::string filename;
 
-    CRC32(uint32 _crc,
-        uint64 _size,
-        std::string _filename){
-        crc = _crc;
-        size = _size;
-        filename = _filename;
-    }
-
-    bool operator<(const CRC32 &rhs) const {
-        return filename < rhs.filename;
-    }
-};
-
-// ChecksumMap[dir] = [CRC32(checksum, file size, file name), ...]
-typedef tbb::concurrent_unordered_map<std::string, std::vector<CRC32>> ChecksumMap;
+// ChecksumMap = {dirname: {filename:CRC32, ...}, ...}
+typedef tbb::concurrent_unordered_map<std::string, tbb::concurrent_unordered_map<std::string, CRC32>> ChecksumMap;
 
 TimerMap BlockingIOReadTime, BlockingIOWriteTime;
 TimerMap NonBlockingIOReadTime, NonBlockingIOWriteTime;
@@ -48,7 +32,7 @@ uint64 ChecksumBytes[MAX_IO_THREADS];
 
 int io_ramdisk_global = 0;    // Set to 1 if we're using a ramdisk
 
-// Two quick functions so that the I/O routines don't need to know 
+// Two quick functions so that the I/O routines don't need to know
 // about the SB object.
 
 void IO_SetIOCompleted(int arenatype, int arenaslab);
@@ -58,15 +42,15 @@ void IO_Initialize(char *logfn);
 void IO_Terminate();
 
 void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
-    const char *fn, off_t fileoffset, int blocking); 
+    const char *fn, off_t fileoffset, int blocking);
     // This prototype reads sizebytes into the location *ram, from file *fn
     // starting from an offset fileoffset.
     // If blocking is set, then don't return until it's done!
     // Otherwise, return immediately if the I/O module allows it.
     // If arena>=0, call SetIOCompleted
 
-void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, 
-    const char *fn, off_t fileoffset, int deleteafter, int blocking, int do_checksum); 
+void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const char *fn,
+    off_t fileoffset, int deleteafter, int blocking, int do_checksum, int use_fp);
     // This prototype writes sizebytes from the location *ram, to file *fn
     // starting from an offset fileoffset.
     // If blocking is set, then don't return until it's done!

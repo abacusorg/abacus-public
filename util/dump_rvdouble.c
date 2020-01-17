@@ -15,7 +15,7 @@ int RVrange(RVdouble *rv) {
     	+range(rv->vel[0]) +range(rv->vel[1]) +range(rv->vel[2]);
 }
 
-void print_data(FILE *fp) {
+void print_data(FILE *fp, const char *fn) {
     RVdouble rv;
     int count = 0;
     while (fread(&rv, sizeof(RVdouble), 1, fp)==1) {

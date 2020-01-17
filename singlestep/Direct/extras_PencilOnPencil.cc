@@ -13,7 +13,7 @@ void SetInteractionCollection::CPUExecute(){
     FLOAT cpu_eps = NFD->SofteningLengthInternal*NFD->SofteningLengthInternal;
     
     // This hasn't been allocated yet, so do it here.
-    assert(posix_memalign((void **) &SinkSetAccelerations, 4096, sizeof(accstruct) * PaddedSinkTotal) == 0);
+    assert(posix_memalign((void **) &SinkSetAccelerations, PAGE_SIZE, sizeof(accstruct) * PaddedSinkTotal) == 0);
 
     // Copy the sources and sinks into position
     FillSinks.Start();
