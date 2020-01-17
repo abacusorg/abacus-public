@@ -196,16 +196,16 @@ int * total_slabs_all = NULL;
 	// In the single node code, this is simply 0 and CPD.
 #include "node_slabs.cpp"
 
-#include "timestep.cpp"
-#include "reporting.cpp"
-
-#include <fenv.h>
-
 // FFTW Wisdom
 char wisdom_file[1024];
 int wisdom_exists;
 void init_fftw();
 void finish_fftw();
+
+#include "timestep.cpp"
+#include "reporting.cpp"
+
+#include <fenv.h>
 
 void InitializeParallel(int &size, int &rank) {
     #ifdef PARALLEL
