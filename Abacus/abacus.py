@@ -650,6 +650,7 @@ class StatusLogWriter:
               'Rate': '{:#.4g} Mp/s',   #'{0[0]:.4g} Mp/s, {0[1]:.4g}  s)',
               'Elapsed': '{:#.4g} s',  #'{0[0]:.4g} Mp/s, {0[1]:.4g}  s)',
               'Conv': '{:#.4g} s',
+              'TauHMpc': '{:#6.1f}',
               'DeltaZ': '{:#.3g}',
               'Time': '{:#.4g}',
               'DeltaT': '{:#.3g}',
@@ -666,6 +667,7 @@ class StatusLogWriter:
               'Rate': 12,
               'Elapsed': 10,
               'Conv': 10,
+              'TauHMpc': 7
               'DeltaZ': 8,
               'Time': 8,
               'DeltaT': 8,
@@ -740,6 +742,7 @@ class StatusLogWriter:
         code_to_kms = write_state.VelZSpace_to_kms / write_state.VelZSpace_to_Canonical
         info = dict(Step=step_num, Rate=ss_rate, Elapsed=ss_time+conv_time, Conv=conv_time, 
             Redshift=read_state.Redshift, DeltaZ=write_state.DeltaRedshift, 
+            TauHMpc=read_state.CoordinateDistanceHMpc,
             Time=read_state.Time, DeltaT=write_state.DeltaTime, 
             GrpDiam=write_state.MaxGroupDiameter, MaxL0Sz=write_state.MaxL0GroupSize, 
             RMSVel=write_state.RMS_Velocity*code_to_kms, MaxVel=write_state.MaxVelocity*code_to_kms, 
