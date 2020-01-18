@@ -963,7 +963,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             
             convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
             for cl in convlogs:
-                shutil.move(cl, cl.replace('last', f'step{read_state.FullStepNumber+1:04d}'))
+                os.rename(cl, cl.replace('last', f'step{read_state.FullStepNumber+1:04d}'))
 
             # Warning: Convolution won't work if MultipoleDirectory is the write (or read) state
             # because the states get moved after multipole generation but before convolution.
@@ -990,7 +990,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             print(f'Running parallel convolution + singlestep for step {stepnum:d}.')
             convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
             for cl in convlogs:
-                shutil.move(cl, cl.replace('last', f'step{read_state.FullStepNumber+1:04d}'))
+                os.rename(cl, cl.replace('last', f'step{read_state.FullStepNumber+1:04d}'))
         else:
             print(f"Running singlestep for step {stepnum:d}")
 
@@ -1201,7 +1201,7 @@ def save_log_files(logdir, newprefix, oldprefix='lastrun'):
     for logfn in os.listdir(logdir):
         if logfn.startswith(oldprefix):
             newname = logfn.replace(oldprefix, newprefix, 1)
-            shutil.move(pjoin(logdir, logfn), pjoin(logdir, newname))
+            os.rename(pjoin(logdir, logfn), pjoin(logdir, newname))
 
 
 def merge_checksum_files(param=None, dir_globs=None):
