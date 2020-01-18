@@ -418,13 +418,13 @@ void init_fftw(){
     // Import FFTW wisdom, before SlabMultipoles or anything that does FFT planning
     sprintf(wisdom_file, "%s/fftw_%d.wisdom", P.WorkingDirectory, P.cpd);
     wisdom_exists = fftw_import_wisdom_from_filename(wisdom_file);
-    STDLOG(1, "Wisdom import returned %d (%s).\n", wisdom_exists, wisdom_exists == 1 ? "success" : "failure");
+    STDLOG(1, "Wisdom import from file \"%s\" returned %d (%s).\n", wisdom_file, wisdom_exists, wisdom_exists == 1 ? "success" : "failure");
 }
 
 void finish_fftw(){
     if(MPI_rank == 0){
         int ret = fftw_export_wisdom_to_filename(wisdom_file);
-        STDLOG(1, "Wisdom export to file %s returned %d.\n", wisdom_file, ret);
+        STDLOG(1, "Wisdom export to file \"%s\" returned %d.\n", wisdom_file, ret);
     }
    fftw_cleanup();  // better not call this before exporting wisdom!
 }

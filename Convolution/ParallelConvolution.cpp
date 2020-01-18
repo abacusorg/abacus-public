@@ -238,7 +238,6 @@ ParallelConvolution::~ParallelConvolution() {
 	Destructor.Stop(); CS.Destructor = Destructor.Elapsed();
 	
 	ThreadCleanUp.Clear(); ThreadCleanUp.Start();
-	//fftw_cleanup_threads(); //NAM check usage. 	
 	ThreadCleanUp.Stop(); CS.ThreadCleanUp = ThreadCleanUp.Elapsed();
 	
 	CS.ConvolveWallClock += Destructor.Elapsed() + ThreadCleanUp.Elapsed(); 
@@ -761,7 +760,10 @@ fftw_plan ParallelConvolution::PlanFFT(int sign){
     		(fftw_complex *) MTzmxy, NULL, cpd, 1,
     		sign, FFTW_PATIENT | FFTW_WISDOM_ONLY);
         if(plan == NULL){
-            WARNING("Wisdom was imported but wisdom planning failed. Generating new plans...\n");
+            if(ReadState.FullStepNumber > 1)  // Haven't done any convolutions yet, don't expect wisdom!
+                WARNING("Wisdom was imported but wisdom planning failed. Generating new plans...\n");
+            else
+                STDLOG(1,"Wisdom was imported but wisdom planning failed (probably okay because this is first convolution). Generating new plans...\n");
         }
         else{
             STDLOG(1,"Wisdom planning succeeded.\n");
@@ -803,10 +805,6 @@ void ParallelConvolution::Convolve() {
 	// We're beginning in [x][znode][m][y] order on the RAMdisk
 	// Copy to the desired order in a new buffer
 	FFTPlanning.Clear(); FFTPlanning.Start();
-		int err = fftw_init_threads(); 
-		assertf(err != 0, "Failed to fftw_init_threads\n");
-		fftw_plan_with_nthreads(omp_get_max_threads()); //NAM TODO how many threads in here? 
-	
 		fftw_plan forward_plan  = PlanFFT(FFTW_FORWARD);
 		fftw_plan backward_plan = PlanFFT(FFTW_BACKWARD);
 	FFTPlanning.Stop();

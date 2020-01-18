@@ -361,11 +361,11 @@ fi
 # If not using MKL, look for FFTW
 if test x$enable_mkl != xyes; then
     AC_SEARCH_LIBS(fftw_execute, [fftw3], [], [AC_MSG_ERROR([unable to find fftw3!])])
-    AC_SEARCH_LIBS(fftw_init_threads, [fftw3_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
+    #AC_SEARCH_LIBS(fftw_init_threads, [fftw3_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
 
     # Single-precision libs are only used for analysis routines right now
     AC_SEARCH_LIBS(fftwf_execute, [fftw3f], [], [AC_MSG_WARN([unable to find fftw3f!])])
-    AC_SEARCH_LIBS(fftwf_init_threads, [fftw3f_omp], [], [AC_MSG_WARN([unable to find fftw3f_omp!])])
+    #AC_SEARCH_LIBS(fftwf_init_threads, [fftw3f_omp], [], [AC_MSG_WARN([unable to find fftw3f_omp!])])
 fi
 
 AC_ARG_WITH(cache-line-size,
