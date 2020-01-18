@@ -667,7 +667,7 @@ class StatusLogWriter:
               'Rate': 12,
               'Elapsed': 10,
               'Conv': 10,
-              'TauHMpc': 7
+              'TauHMpc': 7,
               'DeltaZ': 8,
               'Time': 8,
               'DeltaT': 8,
