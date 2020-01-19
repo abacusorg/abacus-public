@@ -231,8 +231,7 @@ we only load the particles into cache once.
 void CreateFaces( CellFaceSlab &xm, CellFaceSlab &xp,
 	CellFaceSlab &ym, CellFaceSlab &yp, CellFaceSlab &zm, CellFaceSlab &zp) {
 
-    #pragma omp parallel for schedule(static)
-    for (int j=0; j<GFC->cpd; j++) {
+    NUMA_FOR(j,0,GFC->cpd)
 	// The FaceSet holds the PencilAccum for this face.
 	FaceSet fxm(&xm);
 	FaceSet fxp(&xp);
@@ -464,8 +463,7 @@ void FindGroupLinks(int slab) {
     GFC->FindLinkTime.Start();
     
     // Search each cell, putting the GroupLinks onto that insertlist.
-    #pragma omp parallel for schedule(dynamic,1)
-    for (int j=0; j<GFC->cpd; j++) {
+    NUMA_FOR(j,0,GFC->cpd)
         for (int k=0; k<GFC->cpd; k++) {
 	    SearchPair(xp, j  , k-1, xm, j, k);
 	    SearchPair(xp, j  , k  , xm, j, k);

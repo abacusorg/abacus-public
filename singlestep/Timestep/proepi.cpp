@@ -40,6 +40,8 @@
 #include "PTimer.cc"
 //#include "Limiter.cpp" 
 
+#include "numa_for.h"
+
 STimer FinishPreamble; 
 STimer FinishPartition;
 STimer FinishSort;
@@ -193,7 +195,6 @@ int * total_slabs_all = NULL;
 	// as well as the total number and the first finished
 	// In the single node code, this is simply 0 and CPD.
 #include "node_slabs.cpp"
-
 
 // FFTW Wisdom
 char wisdom_file[1024];
@@ -404,11 +405,13 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     finish_fftw();
 
+    finish_numa_for();  // can't use NUMA_FOR after this
+
     // Report peak memory usage
     struct rusage rusage;
     assert(getrusage(RUSAGE_SELF, &rusage) == 0);
     STDLOG(0, "Peak resident memory usage was %.3g GB\n", (double) rusage.ru_maxrss / 1024 / 1024);
-
+    
     epilogue.Stop();
     // This timing does not get written to the timing log, so it had better be small!
     STDLOG(1,"Leaving Epilogue(). Epilogue took %.2g sec.\n", epilogue.Elapsed());
@@ -463,12 +466,15 @@ void init_openmp(){
 
     // If threads are bound to cores via OMP_PROC_BIND,
     // then identify free cores for use by GPU and IO threads
+    int core_assignments[nthreads];
+
     if(omp_get_proc_bind() == omp_proc_bind_false){
         //free_cores = NULL;  // signal that cores are not bound to threads
         STDLOG(1, "OMP_PROC_BIND = false; threads will not be bound to cores\n");
+
+        // no need to init core_assignments here; init_numa_for will ignore it if omp_proc_bind_false
     }
     else{
-        int core_assignments[nthreads];
         //bool is_core_free[ncores] = {true};
         #pragma omp parallel for schedule(static)
         for(int g = 0; g < nthreads; g++){
@@ -491,6 +497,9 @@ void init_openmp(){
         set_core_affinity(main_thread_core);
         STDLOG(1, "Assigning main singlestep thread to core %d\n", main_thread_core);
     }
+
+    // Initialize the helper variables needed for "NUMA For"
+    init_numa_for(nthreads, core_assignments);
 }
 
 void setup_log(){
