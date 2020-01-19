@@ -48,6 +48,7 @@ from Abacus.Cosmology import AbacusCosmo
 NEEDS_INTERIM_BACKUP_MINS = 105 #minimum job runtime (in minutes) for which we'd like to do a backup halfway through the job. 
 EXIT_REQUEUE = 200
 RUN_TIME_MINUTES = os.getenv("JOB_ACTION_WARNING_TIME")
+GF_BACKUP_INTERVAL = 2 * 60 * 60 #only backup b/w group finding steps if it's been more than two hours since the last backup. 
 
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
 directory_param_fn = pjoin(abacuspath, 'Abacus', 'directory.def')
@@ -900,6 +901,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         #if this job is longer than a set time (NEEDS_INTERIM_BACKUP_MINS), we'll need to do a backup halfway through the run. 
         interim_backup_complete = run_time_minutes <= NEEDS_INTERIM_BACKUP_MINS
 
+    lack_backup = None # time of last backup.     
     for i in range(maxsteps):
         
         if make_ic:
@@ -1109,9 +1111,16 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                             continue
                         L1a = 1.0/(1.0+L1z)                
                     
-                        #here we assume that the next da will be similar to the previous one. 
+                        # here we assume that the next da will be similar to the previous one. 
+                        # we don't want to backup before every GF step -- that's too expensive.
+                        # so let's check if it's been more than two hours since the previous backup. 
                         if (write_state.Redshift > L1z + 1e-12) and ( 1.0/(1.0+write_state.Redshift) + write_state.DeltaScaleFactor > L1a ):
-                            pre_gf_backup = True 
+                            last_z = ( L1z == 0.1 or L1z == 0.0 )
+                            time_for_gf_backup = (last_backup == None or (wall_timer()-last_backup) > GF_BACKUP_INTERVAL)
+
+                            if last_z or time_for_gf_backup:
+                                pre_gf_backup = True 
+                                
                     if pre_gf_backup == True:
                         continue         
             
@@ -1131,13 +1140,15 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 print(exit_message, 'backing up node state.')
                 
                 restore_time = wall_timer()
-        
+
                 retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, resume_dir, '--retrieve']
                 call_subprocess(Conv_mpirun_cmd + retrieve_state_cmd)
             
                 restore_time = wall_timer() - restore_time
             
                 print(f'Retrieving and storing state took {restore_time} seconds. ', end = '')
+                lack_backup  = wall_timer()  #log the time of the last backup. 
+
             
                 #checking if path exists explicitly just in case user requested emergency exit while we were retrieveing the state. 
                 if path.exists(emergency_exit_fn): 
