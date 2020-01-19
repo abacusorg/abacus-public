@@ -347,7 +347,6 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 		    _meanFOFdensity += dens;
 			// This will be the mean over all particles, not just
 			// the active ones
-            c.aux[p].set_density( (uint64) (pow( dens * invFOFunitdensity, 0.5)) );  //store sqrt(density) in cosmic mean units, as an int. 
 
 		    if (dens>L0DensityThreshold) {
 			// Active particle; retain and accumulate stats
