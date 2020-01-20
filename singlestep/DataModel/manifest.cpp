@@ -425,7 +425,7 @@ void Manifest::QueueToSend(int finished_slab) {
     	// We just determined that Drift has executed on begin, so
 	// the rebinning might have taken particles to begin-FINISH_WAIT_RADIUS.
     m.dep[m.numdep++].Load(Finish, finished_slab, "Finish");
-    m.dep[m.numdep++].Load(FetchLPTVelocity, finished_slab, "FetchLPTVelocity");
+    m.dep[m.numdep++].Load(UnpackLPTVelocity, finished_slab, "UnpackLPTVelocity");
     m.dep[m.numdep++].LoadCG(finished_slab);
     	// LoadCG() includes moving info into the CellGroupArenas
     assertf(m.numdep<MAXDEPENDENCY, "m.numdep has overflowed its MAX value");
@@ -461,7 +461,7 @@ void Manifest::QueueToSend(int finished_slab) {
     uint64 mid = ParallelPartition(IL->list, IL->length, finished_slab, is_below_slab);
 
     m.numil = IL->length-mid;
-    int ret = posix_memalign((void **)&il, 4096, sizeof(ilstruct)*m.numil);
+    int ret = posix_memalign((void **)&il, PAGE_SIZE, sizeof(ilstruct)*m.numil);
     memcpy(il, IL->list+mid, sizeof(ilstruct)*m.numil);
 	// Possible TODO: Consider whether this copy should be multi-threaded
     STDLOG(2, "Insert list had size %l, now size %l; sending %l\n", IL->length, mid, m.numil);
@@ -473,7 +473,7 @@ void Manifest::QueueToSend(int finished_slab) {
         STDLOG(2,"Queuing GroupLink List into the SendManifest, extracting [%d,%d)\n", min_links_slab, finished_slab);
         global_minslab_search = CP->WrapSlab(min_links_slab-finished_slab);
         mid = ParallelPartition(GFC->GLL->list, GFC->GLL->length, finished_slab, link_below_slab);
-        ret = posix_memalign((void **)&links, 4096, sizeof(GroupLink)*(GFC->GLL->length-mid));
+        ret = posix_memalign((void **)&links, PAGE_SIZE, sizeof(GroupLink)*(GFC->GLL->length-mid));
         m.numlinks = GFC->GLL->length-mid;
         memcpy(links, GFC->GLL->list+mid, sizeof(GroupLink)*m.numlinks);
             // Possible TODO: Consider whether this copy should be multi-threaded
@@ -751,7 +751,7 @@ void Manifest::ImportData() {
         // insert list.
     m.dep[n++].Set(Drift, "Drift");
     m.dep[n++].Set(Finish, "Finish");
-    m.dep[n++].Set(FetchLPTVelocity, "FetchLPTVelocity");
+    m.dep[n++].Set(UnpackLPTVelocity, "UnpackLPTVelocity");
     m.dep[n++].SetCG(m.remote_first_slab_finished);
     	// This will copy data back to GFC from CellGroupArenas
     assert(n==m.numdep);

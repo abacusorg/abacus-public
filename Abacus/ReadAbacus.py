@@ -120,7 +120,7 @@ def from_dir(dir, pattern=None, key=None, **kwargs):
             pattern = 'ic_*'
         else:
             format = kwargs.get('format')
-            pattern = get_file_pattern(format)
+            pattern = get_file_patterns(format)
 
     _key = (lambda k: key(ppath.basename(k))) if key else None
     files = []
@@ -284,8 +284,13 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=False, return_
             if is_ic_path(path):
                 pattern = 'ic_*'
             else:
-                pattern = get_file_pattern(kwargs.get('format'))
-            files = sorted(glob(pjoin(path, pattern)), key=_key)
+                pattern = get_file_patterns(kwargs.get('format'))
+            if type(pattern) is str:
+                pattern = (pattern,)
+
+            files = []
+            for p in pattern:
+                files = sorted(glob(pjoin(path, p)), key=_key)
         elif ppath.isfile(path):
             files = [path]
         else:
@@ -606,10 +611,10 @@ def read_rv(fn, return_vel=True, return_pid=False, zspace=False, dtype=np.float3
     Parameters
     ----------
     double: bool, optional
-        Whether the format on disk is RVdoubleTag or just RVTag.
+        Whether the format on disk is RVdoublePID or just RVPID.
         Default: False
     tag: bool, optional
-        Whether the format on disk is RVTag or just RV.
+        Whether the format on disk is RVPID or just RV.
         Default: False
     """
     if return_pid:
@@ -1149,7 +1154,7 @@ default_box_on_disk = {'desi_hdf5':'box',
                 'gadget':'box',
 }
 
-def get_file_pattern(format):
+def get_file_patterns(format):
     try:
         return default_file_patterns[format]
     except KeyError:

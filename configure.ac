@@ -361,11 +361,11 @@ fi
 # If not using MKL, look for FFTW
 if test x$enable_mkl != xyes; then
     AC_SEARCH_LIBS(fftw_execute, [fftw3], [], [AC_MSG_ERROR([unable to find fftw3!])])
-    AC_SEARCH_LIBS(fftw_init_threads, [fftw3_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
+    #AC_SEARCH_LIBS(fftw_init_threads, [fftw3_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
 
     # Single-precision libs are only used for analysis routines right now
     AC_SEARCH_LIBS(fftwf_execute, [fftw3f], [], [AC_MSG_WARN([unable to find fftw3f!])])
-    AC_SEARCH_LIBS(fftwf_init_threads, [fftw3f_omp], [], [AC_MSG_WARN([unable to find fftw3f_omp!])])
+    #AC_SEARCH_LIBS(fftwf_init_threads, [fftw3f_omp], [], [AC_MSG_WARN([unable to find fftw3f_omp!])])
 fi
 
 AC_ARG_WITH(cache-line-size,
@@ -376,6 +376,14 @@ if test "x$with_cache_line" == xauto; then
     with_cache_line=$(cat /sys/devices/system/cpu/cpu0/cache/index0/coherency_line_size)
 fi
 AC_DEFINE_UNQUOTED(CACHE_LINE_SIZE, $with_cache_line, "Cache line size in bytes")
+
+AC_ARG_WITH(page-size,
+[AS_HELP_STRING([--with-page-size=N], [Page size in bytes [auto]])],
+    [], with_page_size="auto")
+if test "x$with_page_size" == xauto; then
+    with_page_size=$(getconf PAGESIZE)
+fi
+AC_DEFINE_UNQUOTED(PAGE_SIZE, $with_page_size, "Page size in bytes")
 
 # If the user is using Anaconda Python, we have to be careful
 # about how we build C/C++ libraries that will be loaded by Python.
@@ -420,7 +428,9 @@ if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
     # we count words here instead of lines; fixes a problem with empty strings and newlines but will break if there are spaces in the filenames
     NGCC_FILES=$(echo -n "$GCC_FILES" | wc -w)
     if test $NGCC_FILES -ge 1; then
-        PYTHON_CC=$(echo $GCC_FILES | awk '{print $1}')
+        :
+        # TODO: breaks systems with different binutils version (https://github.com/ContinuumIO/anaconda-issues/issues/11152)
+        #PYTHON_CC=$(echo $GCC_FILES | awk '{print $1}')
     fi
     if test $NGCC_FILES -ne 1; then
         AC_MSG_WARN(Could not find a unique *gcc file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gcc_impl_linux-64 package (or the equivalent for your platform) to get rid of this message.)
@@ -430,7 +440,9 @@ if test "${PYTHON_EXEC#*conda}" != "$PYTHON_EXEC"; then
     GXX_FILES=$(ls -1q $CONDA_BINDIR/*g++ 2> /dev/null)
     NGXX_FILES=$(echo -n "$GXX_FILES" | wc -w)
     if test $NGXX_FILES -ge 1; then
-        PYTHON_CXX=$(echo $GXX_FILES | awk '{print $1}')
+        :
+        # TODO: breaks systems with different binutils version (https://github.com/ContinuumIO/anaconda-issues/issues/11152)
+        #PYTHON_CXX=$(echo $GXX_FILES | awk '{print $1}')
     fi
     if test $NGXX_FILES -ne 1; then
         AC_MSG_WARN(Could not find a unique *g++ file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gxx_impl_linux-64 package (or the equivalent for your platform) to get rid of this message.)
@@ -485,6 +497,7 @@ echo "MPI parallel code:               $enable_parallel"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Cache line size:                 $with_cache_line"
+echo "Page size:                       $with_page_size"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
 echo "Maximum order:                   $with_max_order"

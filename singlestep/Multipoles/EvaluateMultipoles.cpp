@@ -277,7 +277,7 @@ int main(int argc, char **argv){
         gsl_rng_set(rng[i], 999 + i);  // Seed the RNG
     }
 
-    assert(posix_memalign((void **) &xyz, 4096, sizeof(FLOAT3)*npart) == 0);
+    assert(posix_memalign((void **) &xyz, PAGE_SIZE, sizeof(FLOAT3)*npart) == 0);
     /*#pragma omp parallel for schedule(static)
     for(int64_t i = 0; i < npart; i++){
         int t = omp_get_thread_num();
@@ -286,8 +286,8 @@ int main(int argc, char **argv){
         xyz[i].z = gsl_rng_uniform(rng[t])/cpd;
     }*/
 
-    assert(posix_memalign((void **) &current_cartesian, 4096, sizeof(double)*MP.cml*ncell) == 0);
-    assert(posix_memalign((void **) &last_cartesian, 4096, sizeof(double)*MP.cml*ncell) == 0);
+    assert(posix_memalign((void **) &current_cartesian, PAGE_SIZE, sizeof(double)*MP.cml*ncell) == 0);
+    assert(posix_memalign((void **) &last_cartesian, PAGE_SIZE, sizeof(double)*MP.cml*ncell) == 0);
 
     /****************************************/
 

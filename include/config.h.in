@@ -224,6 +224,9 @@
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
 
+/* "Page size in bytes" */
+#undef PAGE_SIZE
+
 /* "Generate MPI-parallel code." */
 #undef PARALLEL
 

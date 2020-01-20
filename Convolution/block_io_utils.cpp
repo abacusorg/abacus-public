@@ -14,7 +14,7 @@ class Block {
     
 private:
     // this is what we alloc and free.
-    // "mtblock" will be offset from this by up to 4096 to ensure DIO
+    // "mtblock" will be offset from this by up to PAGE_SIZE to ensure DIO
     MTCOMPLEX **raw_mtblock = NULL;
     ConvolutionParameters CP;
     uint64_t cpd = 0, rml = 0, alloc_zwidth = 0;
@@ -100,7 +100,7 @@ public:
         size_t file_offset = zstart*cpd*rml*sizeof(MTCOMPLEX);
         // The IO module can only do DIO if the file and memory buffer have the same alignment
         // We give the offset in units of MTCOMPLEXes
-        int buffer_start_offset = (int)((file_offset%4096)/sizeof(MTCOMPLEX));
+        int buffer_start_offset = (int)((file_offset%PAGE_SIZE)/sizeof(MTCOMPLEX));
 				
 
 		for (int _x = first_slab_on_node; _x < first_slab_on_node + total_slabs_on_node; _x++) //each node must mmap full size of mtblock for all x. if _x in this loop is one of the nodes files, it will load it, otherwise it will initialize mmap to a bunch of zeros. 
@@ -656,9 +656,9 @@ private:
         }
 
         raw_mtblock = new MTCOMPLEX*[cpd];
-        size_t s = sizeof(MTCOMPLEX) * alloc_zwidth * rml * cpd + 4096;  // wiggle room to adjust start to align with file
+        size_t s = sizeof(MTCOMPLEX) * alloc_zwidth * rml * cpd + PAGE_SIZE;  // wiggle room to adjust start to align with file
         for (int x = first_slab_on_node; x < first_slab_on_node + total_slabs_on_node; x++){
-            int memalign_ret = posix_memalign((void **) (raw_mtblock + (x%cpd)), 4096, s);
+            int memalign_ret = posix_memalign((void **) (raw_mtblock + (x%cpd)), PAGE_SIZE, s);
             assert(memalign_ret == 0);
             alloc_bytes += s;
         }
@@ -674,7 +674,7 @@ private:
 
         size_t s = sizeof(DFLOAT)*(rml*CP.CompressedMultipoleLengthXY);
         for (int z = 0; z < alloc_zwidth; z++){
-            int memalign_ret = posix_memalign((void **) (dblock + z), 4096, s);
+            int memalign_ret = posix_memalign((void **) (dblock + z), PAGE_SIZE, s);
             assert(memalign_ret == 0);
             alloc_bytes += s;
         }

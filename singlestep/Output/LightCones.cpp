@@ -23,256 +23,269 @@
 
 double3 *LCOrigin;
 
-void getLightConeFN(int i,int slab, char * fn, char *headerfn){ //ensure the necessary directories exist and return a filename for this light cone.
-        char dir1[1080];
-        char dir2[1080];
-        CheckDirectoryExists(P.LightConeDirectory);
-        sprintf(dir1,"%s/LC_raw%.2d",P.LightConeDirectory,i);
-        if(!FileExists(dir1)){ //TODO:This assumes the location is not a file. We may want to improve this
-            mkdir(dir1,0775);
-        }
-        sprintf(fn,"%s/LC_raw%.2d/Step%.4d.lc",P.LightConeDirectory,i,WriteState.FullStepNumber);
-        sprintf(headerfn,"%s/LC_raw%.2d/header", P.LightConeDirectory,i);
-}
-
-// The positive (rightward) distance between two points (a to b) in a periodic domain
-// Essentially implements Python's modulo behavior
-inline double positive_dist(double a, double b, double period){
-   return fmod(fmod(b - a, period) + period, period);
-}
-
 #define c_kms 299792.0
-#define etaktoMpc (c_kms/100.)
-inline int inLightCone(double3 pos, velstruct vel, int lcn, double tol1, double tol2){ //check if this position is in the current lightcone.
-    double r1 = (cosm->today.etaK - cosm->current.etaK)*etaktoMpc/ReadState.BoxSizeHMpc;  // lightcone start
-    double r2 = (cosm->today.etaK - cosm->next.etaK)*etaktoMpc/ReadState.BoxSizeHMpc;  // lightcone end
-    if (r1 ==r2) return false;
-    double r = (pos-LCOrigin[lcn]).norm();
-    double vronc = 0;
-    if(r >1e-12) vronc = vel.dot(pos-LCOrigin[lcn])/r * ReadState.VelZSpace_to_kms /c_kms ;
-    r = (r-r1) *1/(1+vronc) +r1; //apply velocity correction
+#define etaktoHMpc (c_kms/100.)
+
+#include "tbb/parallel_sort.h"
+#include "healpix_shortened.c"
+
+class LightCone {
+  private:
+    double rmin_tol2;       // Square of rmin-tol
+    double rmax_tol2;       // Square of rmax+tol
+
+  public:
+    int lcn;        // Light cone number
+    double3 origin;  // The observer location, in unit-cell units
+    double rmin;     // The minimum distance to the light cone region (i.e., lower redshift)
+    double rmax;     // The maximum distance to the light cone region (i.e., higher redshift)
+    double tol;      // The tolerance for our searching
+    FLOAT DeltaEtaKick;   // The total Delta(eta_Kick) for this step
+    FLOAT driftfactor;
+
+    LightCone(int _lcn) {
+        lcn = _lcn;
+        origin = LCOrigin[lcn];
+
+        // Bounds for light cone, in unit-box units
+        rmax = (cosm->today.etaK - cosm->current.etaK)*etaktoHMpc/ReadState.BoxSizeHMpc; // Light cone start
+        rmin = (cosm->today.etaK - cosm->next.etaK)*etaktoHMpc/ReadState.BoxSizeHMpc; // Light cone end
     
-    // Expand the valid range by the upper and lower tolerances
-    double rmax = r1 + tol1;
-    double rmin = r2 - tol2;
-    double lcwidth = rmax - rmin;
-    // The lightcone has an absolute output range that is never periodically wrapped
-    // We want the lightcone to include particles 
-    double drbound = positive_dist(rmin, r, 1.);
-    
-    int result = (r < rmax) && (r > rmin);
-    return result;
+        // And we need to set some tolerances.
+        // A particle have been in front of the light cone in the previous step, but then
+        // move so that it is behind the light cone in this step.  Particles can move up to FINISH_RADIUS.
+        // And we want to catch this particle even if it is in the corner of the cell, 
+        // which means that we have to catch its cell center too.
+        // So this is FINISH_WAIT_RADIUS + sqrt(3)/2 cells
+        tol = (FINISH_WAIT_RADIUS+sqrt(3.0)/2.0)/P.cpd;   
+        // TODO: Could consider stricter bounds, e.g., using MaxVelocity from the previous state.
+        rmin_tol2 = rmin-tol; rmin_tol2 *= rmin_tol2;
+        rmax_tol2 = rmax+tol; rmax_tol2 *= rmax_tol2;
+        driftfactor = WriteState.DeltaEtaDrift;
+        DeltaEtaKick = WriteState.FirstHalfEtaKick+WriteState.LastHalfEtaKick;
+    }
+    ~LightCone() { }
+
+    // This is a simple wrapper for our healpix calls
+    inline unsigned int healpixel(double3 pos) {
+        int64_t pixel;
+        pos -= origin;
+        vec2pix_nest64((int64_t)16384, (double *)&pos, &pixel);
+        return (unsigned int) pixel;
+    }
+
+    inline int isCellInLightCone(double3 pos);
+    inline int isParticleInLightCone(double3 cellcenter, posstruct &pos, velstruct &vel, const accstruct acc);
+
+    void WriteHeaderFile(const char* fn){
+        std::ofstream headerfile;
+        headerfile.open(fn);
+        headerfile << P.header();
+        headerfile << ReadState.header();
+        headerfile << "\nOutputType = \"LightCone\"\n";
+        headerfile.close();
+    }
+};
+
+
+// Return whether a CellCenter is in the light cone, including some tolerance
+inline int LightCone::isCellInLightCone(double3 pos) {
+    double r2 = (pos-origin).norm2();
+    return (r2<=rmax_tol2) && (r2>=rmin_tol2);
 }
 
-inline void interpolateParticle(double3 &pos, velstruct &vel, const accstruct acc, const int lcn){
-    double r1 = (cosm->today.etaK - cosm->current.etaK)*etaktoMpc/ReadState.BoxSizeMpc;
-    double r2 = (cosm->today.etaK - cosm->next.etaK)*etaktoMpc/ReadState.BoxSizeMpc;
+// pos is in cell-centered coords; cellcenter is the position in the box; vel is in code units
+// rmax is the maximum radius, which is the earlier time
+// rmin is the minimum radius, which is the later time
+//
+// Returns 0 if not in LightCone, 1 if it is.
+// Further, the position and velocity inputs will be adjusted to the epoch where the light cone is crossed.
+inline int LightCone::isParticleInLightCone(double3 cellcenter, posstruct &pos, velstruct &vel, const accstruct acc) {
+    double r0 = (cellcenter-origin+pos).norm();
+    posstruct pos1 = pos+vel*driftfactor;   // Take care to match the precision of Drift()
+    /*
+    // Now rebin pos1, matching the precision of Insert()
+    double3 cc1 = cellcenter;
+    if (pos1.x>CP->halfinvcpd) { pos1.x-=CP->halfinvcpd; cc1.x+=CP->halfinvcpd; }
+    if (pos1.y>CP->halfinvcpd) { pos1.y-=CP->halfinvcpd; cc1.y+=CP->halfinvcpd; }
+    if (pos1.z>CP->halfinvcpd) { pos1.z-=CP->halfinvcpd; cc1.z+=CP->halfinvcpd; }
+    if (pos1.x<-CP->halfinvcpd) { pos1.x+=CP->halfinvcpd; cc1.x-=CP->halfinvcpd; }
+    if (pos1.y<-CP->halfinvcpd) { pos1.y+=CP->halfinvcpd; cc1.y-=CP->halfinvcpd; }
+    if (pos1.z<-CP->halfinvcpd) { pos1.z+=CP->halfinvcpd; cc1.z-=CP->halfinvcpd; }
+    // This attempt to improve the precision handling of particles changing cells 
+    // didn't actually result in perfectly reproducible answers, so we will rely on the LC bits.
+    */
+    double r1 = (cellcenter-origin+pos1).norm();
 
-    double r = (pos-LCOrigin[lcn]).norm();
-    double vronc = 0;
-    if(r > 1e-12) vronc = vel.dot(pos-LCOrigin[lcn])/r * ReadState.VelZSpace_to_kms /c_kms;
-    double deltar= (r-r1)/(r2-r1) *1/(1+vronc); //apply velocity correction
-    if(deltar >=0 or ReadState.DeltaScaleFactor ==0){ //check that we are doing valid interpolation
-        double delta_etaK = (WriteState.FirstHalfEtaKick+WriteState.LastHalfEtaKick)*deltar; //how much we need to kick the particle
-        double delta_etaD = WriteState.DeltaEtaDrift*deltar; //how much to drift the particle
+    double frac_step = (rmax-r0)/(rmax-rmin-r0+r1);
+        // This is the fraction of the upcoming step when the particle meets the light cone
+        // frac_step = 0 means r=rmax, =1 means r-rmin
 
-        pos = pos + delta_etaD * vel;
-        vel = vel + delta_etaK * TOFLOAT3(acc);
-    }
-    else{ //interpolate using the previous timestep information
-        double r0 = (cosm->today.etaK -cosm->current.etaK +cosm->KickFactor(ReadState.ScaleFactor -ReadState.DeltaScaleFactor,ReadState.DeltaScaleFactor))*etaktoMpc/ReadState.BoxSizeMpc;
-        double deltar2= (r-r1)/(r0-r1) *1/(1-vronc);
+    if (frac_step<-1.0e-6||frac_step>=1) return 0;
+        // We accept the particle into the lightcone only if the two lines cross in
+        // the domain of the step.
+        // We are accepting a tiny fraction of cases outside the cone, 
+        // just in case of floating point math errors
 
-        //assert(deltar2 <=2); //we should not be going back more than one timestep}
-        double delta_etaK = (ReadState.FirstHalfEtaKick+ReadState.LastHalfEtaKick)*deltar2; //how much we need to kick the particle
-        double delta_etaD = ReadState.DeltaEtaDrift*deltar2; //how much to drift the particle
-
-        pos = pos - delta_etaD * vel;
-        vel = vel - delta_etaK * TOFLOAT3(acc);
-    }
+    // The particle is in the light cone!
+    // Update the pos and vel to the fractional step (for output).
+    pos += vel*driftfactor*frac_step;
+    vel += TOFLOAT3(acc)*DeltaEtaKick*frac_step;
+    return 1;
 }
 
-void makeLightCone(int slab,int lcn){ //lcn = Light Cone Number
-    //double r1 = cosm->today.H*(cosm->today.etaK - cosm->current.etaK)*4000/P.BoxSize;
-    //double r2 = cosm->today.H*(cosm->today.etaK - cosm->next.etaK)*4000/P.BoxSize;
-    //printf("r1: %f r2: %f \n",r1,r2);
+
+/* Geometry recommendation:
+If the light cone sphere becomes tangent to the y-z slab, then one will get
+more particles selected.  That is probably disfavorable to the pipeline workflow.
+This effect is only severe if the observer is far away, so that the radius
+of curvature of the sphere is large.  But this disfavors have abutting light
+cones where the observers are periodically extended in the x direction.
+
+We are parallelizing over y pencils, so it might be better if more y pencils
+have some work.  That would favor observers that are extended in the z direction,
+so that the light cone sphere approaches x-y planes.  Such planes will have 
+more equal work in x slabs and y pencils, but only for a narrow range of z.
+
+*/
+
+
+void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     // Use the same format for the lightcones as for the particle subsamples
-    int maxthreads = omp_get_max_threads();
-    double vunits = ReadState.VelZSpace_to_kms/ReadState.VelZSpace_to_Canonical; 
+    if (fabs(cosm->next.etaK-cosm->current.etaK)<1e-12) return;  
+            // Nothing to be done, so don't risk divide by zero.
+    STDLOG(4, "Making light cone %d for slab %d\n", lcn, slab);
 
-    SlabAccum<RVfloat>   LightConeRV;     ///< The taggable subset in each lightcone. 
-    SlabAccum<TaggedPID> LightConePIDs;   ///< The PIDS of the taggable subset in each lightcone. 
+    SlabAccum<RVfloat>   LightConeRV;     ///< The taggable subset in each lightcone.
+    SlabAccum<TaggedPID> LightConePIDs;   ///< The PIDS of the taggable subset in each lightcone.
+    SlabAccum<unsigned int> LightConeHealPix;   ///< The Healpix of the particles in each lightcone.
 
-    LightConeRV.setup(  CP->cpd, P.np/P.cpd/30);   
-    LightConePIDs.setup(CP->cpd, P.np/P.cpd/30);    
+    // The size estimates are objects per slab.
+    // The light cones output only taggables particles for RV and PID, 
+    // but all particles for HealPix.
+    // What fraction of a slab is the light cone?  It depends on geometry and the time step.
+    // But for 1-2 Gpc boxes, it takes a few hundred time steps to cross the box.  We'll guess 1%.
+    // That said, if the slab is tangent to the annulus, one can include >1% of the slab.
+    LightConeRV.setup(  CP->cpd, P.np/P.cpd*(P.ParticleSubsampleA+P.ParticleSubsampleB)/100);
+    LightConePIDs.setup(CP->cpd, P.np/P.cpd*(P.ParticleSubsampleA+P.ParticleSubsampleB)/100);
+    LightConeHealPix.setup(CP->cpd, P.np/P.cpd/100);
 
-    //AppendArena *AA = get_AA_by_format(P.OutputFormat);
-
-    SlabType lightcone    = (SlabType)((int)(LightCone0 + lcn));
-    SlabType lightconePID = (SlabType)((int)LightCone0 + lcn + NUMLC); 
-
-    STDLOG(4, "Making light cone #%d, slab num %d, w/ pid slab num %d\n", lcn, lightcone, lightconePID);
-
-    int headersize = 1024*1024;
-    uint64_t slabtotal = 0;
-    uint64_t strayslabtotal = 0;
-
-    //AA->initialize(lightcone, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
-
-    // if (!P.OmitOutputHeader) {
-    //         AA->addheader((const char *) P.header());
-    //         AA->addheader((const char *) ReadState.header());
-    //         AA->finalize_header();
-    // }
+    LightCone LC(lcn);
     uint64 mask = auxstruct::lightconemask(lcn);
+    double vunits = ReadState.VelZSpace_to_kms/ReadState.VelZSpace_to_Canonical;  // Code to km/s
 
-    double kickfactor = WriteState.FirstHalfEtaKick;
-    velstruct vel;
-    double3 pos;  // some positions will be global; ensure double
-    integer3 ijk(slab,0,0);
-    // if a particle interpolates outside its cell, store its index here
-    vector<int> stray_particles;
-    stray_particles.reserve(P.np * CP->invcpd3);
-    
-    #pragma omp parallel for schedule(dynamic,1)
+    integer3 ij(slab,0,0);
+    uint64_t slabtotal = 0;
+    uint64_t slabtotalsub = 0;
+    uint64_t slabtotalcell = 0;
+    uint64_t doubletagged = 0;
+    OutputLightConeSearch.Start();
+
+    #pragma omp parallel for schedule(dynamic,1) reduction(+:slabtotal) reduction (+:slabtotalsub) reduction(+:slabtotalcell) reduction(+:doubletagged)
     for (int y = 0; y < CP->cpd; y ++) {
-        ijk.y = y;
-        int g = omp_get_thread_num();
+        integer3 ijk = ij; ijk.y = y;
 
         PencilAccum<RVfloat>   *pLightConeRV   =   LightConeRV.StartPencil(ijk.y);
         PencilAccum<TaggedPID> *pLightConePIDs = LightConePIDs.StartPencil(ijk.y);
+        PencilAccum<unsigned int> *pLightConeHealPix = LightConeHealPix.StartPencil(ijk.y);
 
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             // Check if the cell center is in the lightcone, with some wiggle room
-            STDLOG(4, "Cell in lightcone? : %f %f %f %d\n", CP->CellCenter(ijk).x, CP->CellCenter(ijk).y, CP->CellCenter(ijk).z, inLightCone(CP->CellCenter(ijk),0*pos,lcn,3.0/P.cpd, 3.0/P.cpd) ); 
-           
-            if(!inLightCone(CP->CellCenter(ijk),0*pos,lcn,3.0/P.cpd, 3.0/P.cpd))
-               continue;
-            
-            Cell c = CP->GetCell(ijk);
-            // vscale should be the max possible velocity
-            // which could be greater than the cell stats would suggest, because we interpolate
-            // we could compute the maximum possible interpolated velocity, or just fudge a bit
-            float vscale = c.ci->max_component_velocity/ReadState.VelZSpace_to_Canonical;
-            accstruct *acc = CP->AccCell(ijk);
-            uint64_t cell_np = 0;
-
             double3 cc = CP->CellCenter(ijk);
+            if(!LC.isCellInLightCone(cc)) continue;  // Skip the rest if too far from the region
+
+            // So you say there's a chance?
+            slabtotalcell++;
+
+            Cell c = CP->GetCell(ijk);
+            accstruct *acc = CP->AccCell(ijk);
             #ifdef GLOBALPOS
-            cc= 0*cc;
+                cc= 0*cc;
             #endif
-            STDLOG(4, "LC: Particles in current cell: %d\n", c.count()); 
+
+            // STDLOG(4, "LC: Particles in current cell: %d\n", c.count());
             for (int p=0;p<c.count();p++) {
-                if(!c.aux[p].lightconedone(mask)){
-                    vel = (c.vel[p] - TOFLOAT3(acc[p])*kickfactor);
-                    if(inLightCone((c.pos[p]+cc),vel,lcn,1.0,0)){
-                        pos = c.pos[p]+cc;  // interpolateParticle takes global positions
-                        interpolateParticle(pos,vel,acc[p],lcn);
-                        // Check which cell the interpolated position falls within
-                        // and make the position local to that cell
-                        // If the interpolated position has left the cell, deal with it after we've closed the current cell
-                        // Same with exceeding the max velocity
-                        if(CP->LocalPosition2Cell(&pos) != ijk || vel.maxabscomponent() > c.ci->max_component_velocity){
-                            stray_particles.push_back(p);
-                            continue;
-                        }
-                        // // Only open the cell here, where we know for sure a particle is going to be written
-                        // // might have already opened it, though
-                        // if(!AA->current_cell.islegal())
-                        //     AA->addcell(ijk,vscale);
-                        // AA takes cell-centered positions, which LocalPosition2Cell gives
-                        
+                if(!c.aux[p].lightconedone(mask)){   // This particle isn't already in the light cone
+                    // Need to unkick by half
+                    velstruct vel = c.vel[p] - TOFLOAT3(acc[p])*WriteState.FirstHalfEtaKick;
+                    posstruct poscopy = c.pos[p];  // Need a copy, since it will be changed
+                    if (LC.isParticleInLightCone(cc, poscopy, vel, acc[p])) { 
+                        // Yes, it's in the light cone.  pos and vel were updated.
+                        double3 pos = cc+poscopy;    // This is now a global position in double precision
+
+                        pLightConeHealPix->append(LC.healpixel(pos));  // We're outputting all particles for this
+                        slabtotal++;
+
                         if(c.aux[p].is_taggable() or P.OutputFullLightCones){
+                            // Going to output; pack the density in the aux
+                            c.aux[p].set_density(acc[p].w);
+                            
+                            // These output routines take global positions and velocities in km/s
                             pLightConePIDs->append(TaggedPID(c.aux[p]));
                             pLightConeRV->append(RVfloat(pos.x, pos.y, pos.z, vel.x * vunits, vel.y * vunits, vel.z * vunits));
-                            cell_np++;
+                            slabtotalsub++;
 
                         }
 
-                        
-                        //AA->addparticle(pos, vel, c.aux[p]);
+                        // TODO: For now, we're going to look for particles that get tagged twice.
+                        // But maybe we'll find that they are very few, in which case we might stop tagging.
+                        /*
+                        if (c.aux[p].lightconedone(mask)) {
+                            doubletagged++;
+                            STDLOG(1,"Double tag: (%6.4f %6.4f %6.4f) = %10.7f vs %10.7f %10.7f\n",
+                                pos.x, pos.y, pos.z, (pos-LC.origin).norm(), LC.rmin, LC.rmax);
+                        }
+                        */
                         c.aux[p].setlightconedone(mask);
                     }
-                }
-            }
+                 }
+            }  // Done with this particle
 
             pLightConePIDs->FinishCell();
             pLightConeRV->FinishCell();
-            //AA->endcell();  // can always end cell, even if we never opened one
-            slabtotal += cell_np;
-
-            cell_np = 0;
-            // Now make a singlet cell for each stray particle
-            while(!stray_particles.empty()){
-                int p = stray_particles.back();
-                stray_particles.pop_back();
-                pos = c.pos[p] + cc;  // use the current cell center to make global
-                vel = c.vel[p] - TOFLOAT3(acc[p])*kickfactor;
-                interpolateParticle(pos,vel,acc[p],lcn);
-                
-                // find the new cell
-                integer3 stray_ijk = CP->LocalPosition2Cell(&pos);  // pos now local
-                int slab_distance = abs(stray_ijk.x - slab);
-                slab_distance -= P.cpd*round(slab_distance/P.cpd);
-                // one of our guarantees should be that particles in a slab file are never actually more than 1 slab away
-                // but how can we ensure that without a hard assert?
-                //assertf(slab_distance <= 1, "Lightcone particle in slab %d interpolated too many slabs away (to slab %d).\n", slab, stray_ijk.x);
-                Cell stray_cell = CP->GetCell(stray_ijk);
-
-                // add one particle and close
-                // for a single particle, the vscale can be its own velocity
-                float stray_vscale = vel.maxabscomponent()/ReadState.VelZSpace_to_Canonical;
-                //AA->addcell(stray_ijk, stray_vscale);
-
-                if(c.aux[p].is_taggable() or P.OutputFullLightCones){
-                    pLightConePIDs->append(TaggedPID(c.aux[p]));
-                    pLightConeRV->append(RVfloat(pos.x, pos.y, pos.z, vel.x * vunits, vel.y * vunits, vel.z * vunits));
-                    cell_np++;
-                }
-
-                pLightConePIDs->FinishCell();
-                pLightConeRV->FinishCell();
-                //AA->addparticle(pos, vel, c.aux[p]);
-                c.aux[p].setlightconedone(mask);
-                //AA->endcell();
-            }
-            strayslabtotal += cell_np;
-            slabtotal += cell_np;
-        }
-
+            pLightConeHealPix->FinishCell();
+        }   // Done with this cell
         pLightConePIDs->FinishPencil();
         pLightConeRV->FinishPencil();
+        pLightConeHealPix->FinishPencil();
+    }  // Done with this pencil
 
-        
-    }
-    STDLOG(1,"Slab %d had %d particles (%d stray) in lightcone %d\n",slab,slabtotal,strayslabtotal,lcn);
+    OutputLightConeSearch.Stop();
+
+    STDLOG(1,"Lightcone %d opened %d cells and found %d particles (%d subsampled) in slab %d.  %d double tagged\n",
+            lcn,slabtotalcell,slabtotal,slabtotalsub,slab, doubletagged);
     if(slabtotal) {
-        // Write out this filename
-        char filename[1024];
-        char headername[1024];
-        getLightConeFN(lcn,slab,filename, headername);
+        // This will create the directory if it doesn't exist (and is parallel safe)
+        char dir[32];
+        sprintf(dir, "Step%04d", ReadState.FullStepNumber);
+        CreateSubDirectory(P.LightConeDirectory, dir);
 
-        //WriteLightConeHeaderFile(headername.c_str());
+        std::string headerfn = "";
+        headerfn = headerfn + P.LightConeDirectory + "/" + dir + "/header";
+        LC.WriteHeaderFile(headerfn.c_str());
 
-        SB->AllocateSpecificSize(lightcone, slab, LightConeRV.get_slab_bytes());
-        LightConeRV.copy_to_ptr((RVfloat *)SB->GetSlabPtr(lightcone, slab));
-        SB->StoreArenaNonBlocking(lightcone, slab);
+        SlabType lightconeslab;
+        lightconeslab = (SlabType)((int)(LightCone0RV + lcn));
+        SB->AllocateSpecificSize(lightconeslab, slab, LightConeRV.get_slab_bytes());
+        LightConeRV.copy_to_ptr((RVfloat *)SB->GetSlabPtr(lightconeslab, slab));
+        SB->StoreArenaNonBlocking(lightconeslab, slab);
 
-        SB->AllocateSpecificSize(lightconePID, slab, LightConePIDs.get_slab_bytes());
-        LightConePIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(lightconePID, slab));
-        SB->StoreArenaNonBlocking(lightconePID, slab);
+        lightconeslab = (SlabType)((int)LightCone0PID + lcn );
+        SB->AllocateSpecificSize(lightconeslab, slab, LightConePIDs.get_slab_bytes());
+        LightConePIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(lightconeslab, slab));
+        SB->StoreArenaNonBlocking(lightconeslab, slab);
 
+        lightconeslab = (SlabType)((int)LightCone0Heal + lcn);
+        SB->AllocateSpecificSize(lightconeslab, slab, LightConeHealPix.get_slab_bytes());
+        unsigned int *arenaptr = (unsigned int *) SB->GetSlabPtr(lightconeslab, slab);
+        LightConeHealPix.copy_to_ptr(arenaptr);
+        tbb::parallel_sort(arenaptr, arenaptr+slabtotal);
+        SB->StoreArenaNonBlocking(lightconeslab, slab);
 
-        // SB->ResizeSlab(lightcone, slab, AA->bytes_written());
-        // SB->WriteArena(lightcone, slab, IO_DELETE, IO_NONBLOCKING, filename);
-    // } else {
-    //     // No particles in this lc; don't write anything
-    //     SB->DeAllocate(lightcone, slab);
-    // }
-    //delete AA;
+        // TODO: in a perfect world, we would *sort* the pixel numbers in the healpix slab before outputing
     }
 
     LightConeRV.destroy();
     LightConePIDs.destroy();
+    LightConeHealPix.destroy();
 }
-
