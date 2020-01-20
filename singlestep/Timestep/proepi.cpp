@@ -90,7 +90,6 @@ uint64 naive_directinteractions = 0;
 #include "grid.cpp"
 grid *Grid;
 
-#include "particlestruct.cpp"
 
 #include "Parameters.cpp"
 #include "statestructure.cpp"
@@ -98,7 +97,7 @@ State ReadState, WriteState;
 char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
 int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
 
-
+#include "particlestruct.cpp"
 
 // #include "ParticleCellInfoStructure.cpp"
 // #include "maxcellsize.cpp"
@@ -624,6 +623,7 @@ void InitKernelDensity(){
         // Default to the L0 linking length
         WriteState.DensityKernelRad2 = GFC->linking_length;
         WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5);
+
         // We use square radii.  The radius is padded just a little
         // bit so we don't risk underflow with 1 particle at r=b
         // in comparison to the self-count.
@@ -637,6 +637,9 @@ void InitKernelDensity(){
         WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2;
         WriteState.L0DensityThreshold = P.L0DensityThreshold;
     }
+
+    WriteState.FOFunitdensity    = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
+    WriteState.invFOFunitdensity = 1.0/WriteState.FOFunitdensity;
     #endif
     #endif
 }
@@ -739,10 +742,8 @@ void InitGroupFinding(bool MakeIC){
         ReadState.DoSubsampleOutput = 0;  // We currently do not support subsample outputs without group finding
         STDLOG(1, "Group finding not enabled for this step.\n");
 
-        // We aren't doing group finding, but have we requested any other type of output? Better compute the kernel density!
-        if(ReadState.DoTimeSliceOutput || ReadState.DoSubsampleOutput || P.NLightCones > 0){
-            InitKernelDensity();
-        }
+        // We aren't doing group finding, but we may be doing output, so init the kernel density anyway
+        InitKernelDensity();
     }
 
     STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));

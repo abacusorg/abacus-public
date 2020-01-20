@@ -174,7 +174,12 @@ public:
         return aux & ((uint64)1 << AUXTAGGEDBIT);
     }
 
-    inline void set_density(uint64 _density){
+    // Set the density from the raw float density value as returned in the 4th acc field from the GPU
+    inline void set_density(FLOAT rawdensity){
+        _pack_density((uint64) std::sqrt(rawdensity * WriteState.invFOFunitdensity));
+    }
+
+    inline void _pack_density(uint64 _density){
         assert(_density < (AUXDENSITY >> AUXDENSITYZEROBIT)); 
         aux = ( (uint64) _density << AUXDENSITYZEROBIT )  | (aux &~ AUXDENSITY); 
     }
