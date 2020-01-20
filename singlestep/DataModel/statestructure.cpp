@@ -93,6 +93,9 @@ public:
     // The FOF density scale being used (in code units)
     // This matters because 0 indicates that it was not computed.
     double DensityKernelRad2;
+    // Unit density values for our kernel. Used in group finding and density aux packing
+    FLOAT FOFunitdensity;
+    FLOAT invFOFunitdensity;
     // The density threshold for L0 particle eligibility (units of cosmic mean)
     double L0DensityThreshold;
     double SODensityL1; //density threshold for SO L1 groups.
