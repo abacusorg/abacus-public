@@ -99,7 +99,7 @@ void FetchSlabsAction(int slab) {
     SB->LoadArenaNonBlocking(CellInfoSlab,slab);
     SB->LoadArenaNonBlocking(PosSlab,slab);
 
-    if(WriteState.Do2LPTVelocityRereading){
+    if(WriteState.Do2LPTVelocityRereading && UnpackLPTVelocity.notdone(slab)){
         ICFile::FromFormat(P.ICFormat, slab)->read_vel_nonblocking();
     }
 
