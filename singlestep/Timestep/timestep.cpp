@@ -99,6 +99,10 @@ void FetchSlabsAction(int slab) {
     SB->LoadArenaNonBlocking(CellInfoSlab,slab);
     SB->LoadArenaNonBlocking(PosSlab,slab);
 
+    if(WriteState.Do2LPTVelocityRereading){
+        ICFile::FromFormat(P.ICFormat, slab)->read_vel_nonblocking();
+    }
+
     // Don't bother to load the vel/aux/taylors for slabs that won't be kicked until the wrap
     #ifndef PARALLEL
     if(FetchSlabs.number_of_slabs_executed < FORCE_RADIUS)
@@ -116,10 +120,6 @@ void FetchSlabsAction(int slab) {
 
     SB->LoadArenaNonBlocking(VelSlab, slab);
     SB->LoadArenaNonBlocking(AuxSlab, slab);
-
-    if(WriteState.Do2LPTVelocityRereading){
-        ICFile::FromFormat(P.ICFormat, slab)->read_vel_nonblocking();
-    }
 }
 
 // -----------------------------------------------------------------
@@ -959,7 +959,7 @@ void timestep(void) {
     INSTANTIATE(                 TaylorForce, FORCE_RADIUS);
     INSTANTIATE(                        Kick, FORCE_RADIUS);
     #ifdef ONE_SIDED_GROUP_FINDING
-        int first_outputslab = FORCE_RADIUS + 1 + 2*GROUP_RADIUS;
+        int first_outputslab = FORCE_RADIUS + 2*GROUP_RADIUS + (int)(GROUP_RADIUS > 0);
     #else
         int first_outputslab = FORCE_RADIUS + 2*GROUP_RADIUS;
     #endif
