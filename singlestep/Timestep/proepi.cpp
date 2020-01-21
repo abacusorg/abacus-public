@@ -621,7 +621,8 @@ void InitKernelDensity(){
     #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
     if (P.DensityKernelRad==0) {
         // Default to the L0 linking length
-        WriteState.DensityKernelRad2 = GFC->linking_length;
+        if (GFC != NULL) WriteState.DensityKernelRad2 = GFC->linking_length;
+        else WriteState.DensityKernelRad2 = P.FoFLinkingLength[0]/pow(P.np,1./3); 
         WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5);
 
         // We use square radii.  The radius is padded just a little
