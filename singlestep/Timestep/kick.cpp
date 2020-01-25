@@ -91,6 +91,10 @@ void RescaleAndCoAddAcceleration(int slab) {
         #else
         nacc[j] = (nacc[j]+facc[j] )*rescale;
         #endif
+
+        #ifdef COMPUTE_FOF_DENSITY
+        nacc[j].w -= WriteState.DensityKernelRad2;
+        #endif
     }
 }
 

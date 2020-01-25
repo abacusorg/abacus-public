@@ -199,8 +199,7 @@ class GroupFindingControl {
 	 // that yields a mass at unit density of 
    	 // (2/15)*4*PI*b^5*np
 	 GLOG(0,"Maximum reported density = %f (%e in code units)\n", maxFOFdensity/WriteState.FOFunitdensity, maxFOFdensity);
-	 meanFOFdensity /= P.np;    
-	 meanFOFdensity -= WriteState.DensityKernelRad2;  // Subtract self-count
+	 meanFOFdensity /= P.np;
 	 GLOG(0,"Mean reported non-self density = %f (%e in code units)\n", meanFOFdensity/WriteState.FOFunitdensity, meanFOFdensity);
 	 GLOG(0,"Found %f G cell groups (including boundary singlets)\n", CGtot/1e9);
 	 GLOG(0,"Used %f G pseudoParticles, %f G faceParticles, %f G faceGroups\n",
@@ -324,8 +323,8 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	// (2/15)*4*PI*b^5*np
 	L0DensityThreshold *= WriteState.FOFunitdensity;  // Now in code units
     } else {
-        L0DensityThreshold = DensityKernelRad2;
-	// We want to be sensitive to a single particle beyond the self-count.
+        L0DensityThreshold = 0.0;  
+        // Was DensityKernelRad2 but now the self-count has been subtracted.
     }
 
     NUMA_FOR(j,0,cpd)
