@@ -345,7 +345,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 		for (int p=0; p<active_particles; p++) {
             float dens = c.acc[p].w; 
             c.aux[p].set_density(dens);
-		    _meanFOFdensity += dens;
+		    _local_meanFOFdensity[g] += dens;
 			// This will be the mean over all particles, not just
 			// the active ones
 
