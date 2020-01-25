@@ -316,8 +316,8 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	// (2/15)*4*PI*b^5*np
 	L0DensityThreshold *= WriteState.FOFunitdensity;  // Now in code units
     } else {
-        L0DensityThreshold = DensityKernelRad2;
-	// We want to be sensitive to a single particle beyond the self-count.
+        L0DensityThreshold = 0.0;  
+        // Was DensityKernelRad2 but now the self-count has been subtracted.
     }
 
     #pragma omp parallel for schedule(dynamic,1) reduction(+:_CGactive) reduction(max:_maxFOFdensity) reduction(+:_meanFOFdensity)
