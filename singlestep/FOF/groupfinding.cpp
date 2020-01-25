@@ -194,16 +194,14 @@ class GroupFindingControl {
 	
     /// This generates the log report
     void report(FILE *reportfp) {
-     float FOFunitdensity    = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
-
 	 GLOG(0,"Considered %f G particles as active\n", CGactive/1e9);
 	 // The FOFdensities are weighted by b^2-r^2.  When integrated,
 	 // that yields a mass at unit density of 
    	 // (2/15)*4*PI*b^5*np
-	 GLOG(0,"Maximum reported density = %f (%e in code units)\n", maxFOFdensity/FOFunitdensity, maxFOFdensity);
+	 GLOG(0,"Maximum reported density = %f (%e in code units)\n", maxFOFdensity/WriteState.FOFunitdensity, maxFOFdensity);
 	 meanFOFdensity /= P.np;    
 	 meanFOFdensity -= WriteState.DensityKernelRad2;  // Subtract self-count
-	 GLOG(0,"Mean reported non-self density = %f (%e in code units)\n", meanFOFdensity/FOFunitdensity, meanFOFdensity);
+	 GLOG(0,"Mean reported non-self density = %f (%e in code units)\n", meanFOFdensity/WriteState.FOFunitdensity, meanFOFdensity);
 	 GLOG(0,"Found %f G cell groups (including boundary singlets)\n", CGtot/1e9);
 	 GLOG(0,"Used %f G pseudoParticles, %f G faceParticles, %f G faceGroups\n",
 	     pPtot/1e9, fPtot/1e9, fGtot/1e9);
@@ -317,9 +315,6 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     FLOAT DensityKernelRad2 = WriteState.DensityKernelRad2;
     FLOAT L0DensityThreshold = WriteState.L0DensityThreshold;
 
-    float FOFunitdensity    = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
-    float invFOFunitdensity = 1.0/FOFunitdensity;
-
     if (L0DensityThreshold>0) {
         // We've been asked to compare the kernel density to a particular
 	// density (unit of cosmic mean) to make a particle L0 eligible.
@@ -327,7 +322,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	// The FOFdensities are weighted by b^2-r^2.  When integrated,
 	// that yields a mass at unit density of 
 	// (2/15)*4*PI*b^5*np
-	L0DensityThreshold *= FOFunitdensity;  // Now in code units
+	L0DensityThreshold *= WriteState.FOFunitdensity;  // Now in code units
     } else {
         L0DensityThreshold = DensityKernelRad2;
 	// We want to be sensitive to a single particle beyond the self-count.
@@ -350,10 +345,10 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 		// All zeros cannot be in groups, partition them to the end
 		for (int p=0; p<active_particles; p++) {
             float dens = c.acc[p].w; 
-		    _local_meanFOFdensity[g] += dens;
+            c.aux[p].set_density(dens);
+		    _meanFOFdensity += dens;
 			// This will be the mean over all particles, not just
 			// the active ones
-            c.aux[p].set_density( (uint64) (pow( dens * invFOFunitdensity, 0.5)) );  //store sqrt(density) in cosmic mean units, as an int. 
 
 		    if (dens>L0DensityThreshold) {
 			// Active particle; retain and accumulate stats

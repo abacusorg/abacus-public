@@ -92,7 +92,6 @@ uint64 naive_directinteractions = 0;
 #include "grid.cpp"
 grid *Grid;
 
-#include "particlestruct.cpp"
 
 #include "Parameters.cpp"
 #include "statestructure.cpp"
@@ -100,7 +99,7 @@ State ReadState, WriteState;
 char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
 int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
 
-
+#include "particlestruct.cpp"
 
 // #include "ParticleCellInfoStructure.cpp"
 // #include "maxcellsize.cpp"
@@ -626,6 +625,36 @@ void InitWriteState(int MakeIC){
 }
 
 
+void InitKernelDensity(){
+    #ifdef COMPUTE_FOF_DENSITY
+    #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
+    if (P.DensityKernelRad==0) {
+        // Default to the L0 linking length
+        if (GFC != NULL) WriteState.DensityKernelRad2 = GFC->linking_length;
+        else WriteState.DensityKernelRad2 = P.FoFLinkingLength[0]/pow(P.np,1./3); 
+        WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5);
+
+        // We use square radii.  The radius is padded just a little
+        // bit so we don't risk underflow with 1 particle at r=b
+        // in comparison to the self-count.
+        WriteState.L0DensityThreshold = 0.0;
+        // Use this as a signal to use DensityKernalRad2 (in code units,
+        // not cosmic units) as the threshold,
+        // which means that a particle is L0 eligible if there is any
+        // non-self particle within the L0 linking length
+    } else {
+        WriteState.DensityKernelRad2 = P.DensityKernelRad/pow(P.np,1./3);
+        WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2;
+        WriteState.L0DensityThreshold = P.L0DensityThreshold;
+    }
+
+    WriteState.FOFunitdensity    = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
+    WriteState.invFOFunitdensity = 1.0/WriteState.FOFunitdensity;
+    #endif
+    #endif
+}
+
+
 void InitGroupFinding(bool MakeIC){
     /*
     Request output of L1 groups and halo/field subsamples if:
@@ -679,8 +708,11 @@ void InitGroupFinding(bool MakeIC){
 
     if (ReadState.DoTimeSliceOutput or ReadState.DoSubsampleOutput or ReadState.DoGroupFindingOutput) do_grp_output = 1;  //if any kind of output is requested, turn on group finding. 
 
-    WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities
-    WriteState.L0DensityThreshold = 0.0;
+    // Set up the density kernel
+    // This used to inform the group finding, but also might be output as part of lightcones even on non-group-finding steps
+
+    WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities.  This is set in InitKernelDensity if we decide to compute densities
+    WriteState.L0DensityThreshold = 0.0;  // Only has any effect if doing group finding
 
     // Can we enable group finding?
     if((P.MicrostepTimeStep > 0 || do_grp_output) &&
@@ -702,33 +734,13 @@ void InitGroupFinding(bool MakeIC){
                     #endif
                     P.cpd, P.GroupRadius, P.MinL1HaloNP, P.np);
 
-        #ifdef COMPUTE_FOF_DENSITY
-        #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
-        if (P.DensityKernelRad==0) {
-            // Default to the L0 linking length
-            WriteState.DensityKernelRad2 = GFC->linking_length;
-            WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5);
-            // We use square radii.  The radius is padded just a little
-            // bit so we don't risk underflow with 1 particle at r=b
-            // in comparison to the self-count.
-            WriteState.L0DensityThreshold = 0.0;
-            // Use this as a signal to use DensityKernalRad2 (in code units,
-            // not cosmic units) as the threshold,
-            // which means that a particle is L0 eligible if there is any
-            // non-self particle within the L0 linking length
-        } else {
-            WriteState.DensityKernelRad2 = P.DensityKernelRad/pow(P.np,1./3);
-            WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2;
-            WriteState.L0DensityThreshold = P.L0DensityThreshold;
-        }
-        #endif
-        #endif
         #ifdef SPHERICAL_OVERDENSITY
         WriteState.SODensityL1 = P.SODensity[0];
         WriteState.SODensityL2 = P.SODensity[1];
         #endif
 
-        STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
+        InitKernelDensity();
+
         if (WriteState.L0DensityThreshold==0) {
             STDLOG(1,"Passing L0DensityThreshold = 0 to signal to use anything with a neighbor\n");
         } else {
@@ -739,7 +751,12 @@ void InitGroupFinding(bool MakeIC){
         ReadState.DoGroupFindingOutput = 0;
         ReadState.DoSubsampleOutput = 0;  // We currently do not support subsample outputs without group finding
         STDLOG(1, "Group finding not enabled for this step.\n");
+
+        // We aren't doing group finding, but we may be doing output, so init the kernel density anyway
+        InitKernelDensity();
     }
+
+    STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
 
 }
 

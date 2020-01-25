@@ -83,11 +83,8 @@ void RescaleAndCoAddAcceleration(int slab) {
     #ifdef DIRECTSINGLESPLINE
     FLOAT inv_eps3 = 1./(NFD->SofteningLengthInternal*NFD->SofteningLengthInternal*NFD->SofteningLengthInternal);
     #endif
-    
+
     #pragma omp parallel for schedule(static)
-    // TODO: Because nacc and facc can differ in type, we can't use SIMD.  
-    //       Ok?  Perhaps bandwidth limited anyways?
-    //#pragma simd assert
     for (uint64 j=0; j<N;j++) {
         #ifdef DIRECTSINGLESPLINE
         nacc[j] = (nacc[j]*inv_eps3+facc[j])*rescale;
@@ -96,7 +93,6 @@ void RescaleAndCoAddAcceleration(int slab) {
         #endif
     }
 }
-
 
 
 void ZeroAcceleration(int slab,int Slabtype) {

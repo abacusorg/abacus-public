@@ -83,6 +83,7 @@ public:
     double OmegaNow_m;
     double OmegaNow_K;
     double OmegaNow_DE;
+    double CoordinateDistanceHMpc;   // In Mpc/h
 
     // More description of the last time step
     double DeltaTime;
@@ -92,6 +93,9 @@ public:
     // The FOF density scale being used (in code units)
     // This matters because 0 indicates that it was not computed.
     double DensityKernelRad2;
+    // Unit density values for our kernel. Used in group finding and density aux packing
+    FLOAT FOFunitdensity;
+    FLOAT invFOFunitdensity;
     // The density threshold for L0 particle eligibility (units of cosmic mean)
     double L0DensityThreshold;
     double SODensityL1; //density threshold for SO L1 groups.
@@ -199,6 +203,7 @@ public:
     	installscalar("OmegaNow_m",OmegaNow_m,DONT_CARE);
     	installscalar("OmegaNow_K", OmegaNow_K,DONT_CARE);
     	installscalar("OmegaNow_DE",OmegaNow_DE,DONT_CARE);
+    	installscalar("CoordinateDistanceHMpc",CoordinateDistanceHMpc,DONT_CARE);
     	installscalar("DeltaTime",DeltaTime,DONT_CARE);
     	installscalar("DeltaScaleFactor",DeltaScaleFactor,DONT_CARE);
     	installscalar("DeltaRedshift",DeltaRedshift,DONT_CARE);
@@ -306,6 +311,7 @@ void State::make_output_header() {
     WPR(OmegaNow_m               , FSYM);
     WPR(OmegaNow_K               , FSYM);
     WPR(OmegaNow_DE              , FSYM);
+    WPR(CoordinateDistanceHMpc   , FSYM);
     
     WPRS(SofteningType           , s);
     WPR(SofteningLengthNow       , ESYM);

@@ -48,6 +48,7 @@ from Abacus.Cosmology import AbacusCosmo
 NEEDS_INTERIM_BACKUP_MINS = 105 #minimum job runtime (in minutes) for which we'd like to do a backup halfway through the job. 
 EXIT_REQUEUE = 200
 RUN_TIME_MINUTES = os.getenv("JOB_ACTION_WARNING_TIME")
+GF_BACKUP_INTERVAL = 2 * 60 * 60 #only backup b/w group finding steps if it's been more than two hours since the last backup. 
 
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
 directory_param_fn = pjoin(abacuspath, 'Abacus', 'directory.def')
@@ -650,6 +651,7 @@ class StatusLogWriter:
               'Rate': '{:#.4g} Mp/s',   #'{0[0]:.4g} Mp/s, {0[1]:.4g}  s)',
               'Elapsed': '{:#.4g} s',  #'{0[0]:.4g} Mp/s, {0[1]:.4g}  s)',
               'Conv': '{:#.4g} s',
+              'TauHMpc': '{:#6.1f}',
               'DeltaZ': '{:#.3g}',
               'Time': '{:#.4g}',
               'DeltaT': '{:#.3g}',
@@ -666,6 +668,7 @@ class StatusLogWriter:
               'Rate': 12,
               'Elapsed': 10,
               'Conv': 10,
+              'TauHMpc': 7,
               'DeltaZ': 8,
               'Time': 8,
               'DeltaT': 8,
@@ -696,16 +699,23 @@ class StatusLogWriter:
         self.logger.make_horizontal_border()
         self.log_fp.close()
 
-    def update(self, param, state, ss_time=None, conv_time=None):
+    def update(self, param, read_state, write_state, ss_time=None, conv_time=None):
         '''
         Update the log with some info about the singlestep and conv
         that just finished.
 
         The logs have already been moved to their new names, indicated
         by step_num.
+
+        We gather info from both read_state and write_state.
+        At Step N, we are drifting from z_read to z_write. 
+        Timeslice outputs and groups are coming from z_read, so we output that in the redshift column.
+        Lightcones are coming from the annulus between z_read and z_write.
+        Velocity stats are from the midway point between the two.
+        The timing info is regarding this step, so delta(times) are from write_state.
         '''
 
-        step_num = state.FullStepNumber
+        step_num = write_state.FullStepNumber
 
         if not ss_time:
             self.print('Warning: parsing logs to get singlestep time, may miss startup time')
@@ -730,14 +740,15 @@ class StatusLogWriter:
                 conv_time = 0.
         ss_rate = param['NP']/1e6/(ss_time+conv_time)  # Mpart/s
 	
-        code_to_kms = state.VelZSpace_to_kms / state.VelZSpace_to_Canonical
+        code_to_kms = write_state.VelZSpace_to_kms / write_state.VelZSpace_to_Canonical
         info = dict(Step=step_num, Rate=ss_rate, Elapsed=ss_time+conv_time, Conv=conv_time, 
-            Redshift=state.Redshift, DeltaZ=state.DeltaRedshift, 
-            Time=state.Time, DeltaT=state.DeltaTime, 
-            GrpDiam=state.MaxGroupDiameter, MaxL0Sz=state.MaxL0GroupSize, 
-            RMSVel=state.RMS_Velocity*code_to_kms, MaxVel=state.MaxVelocity*code_to_kms, 
-            DirectPP=state.DirectsPerParticle,
-            RMSCell=state.StdDevCellSize )
+            Redshift=read_state.Redshift, DeltaZ=write_state.DeltaRedshift, 
+            TauHMpc=read_state.CoordinateDistanceHMpc,
+            Time=read_state.Time, DeltaT=write_state.DeltaTime, 
+            GrpDiam=write_state.MaxGroupDiameter, MaxL0Sz=write_state.MaxL0GroupSize, 
+            RMSVel=write_state.RMS_Velocity*code_to_kms, MaxVel=write_state.MaxVelocity*code_to_kms, 
+            DirectPP=write_state.DirectsPerParticle,
+            RMSCell=write_state.StdDevCellSize )
 
         self.logger(*(info[k] for k in self.fields))
 
@@ -890,6 +901,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         #if this job is longer than a set time (NEEDS_INTERIM_BACKUP_MINS), we'll need to do a backup halfway through the run. 
         interim_backup_complete = run_time_minutes <= NEEDS_INTERIM_BACKUP_MINS
 
+    lack_backup = None # time of last backup.     
     for i in range(maxsteps):
         
         if make_ic:
@@ -963,7 +975,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             
             convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
             for cl in convlogs:
-                shutil.move(cl, cl.replace('last', f'step{read_state.FullStepNumber+1:04d}'))
+                os.rename(cl, cl.replace('last', f'step{read_state.FullStepNumber+1:04d}'))
 
             # Warning: Convolution won't work if MultipoleDirectory is the write (or read) state
             # because the states get moved after multipole generation but before convolution.
@@ -990,7 +1002,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             print(f'Running parallel convolution + singlestep for step {stepnum:d}.')
             convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
             for cl in convlogs:
-                shutil.move(cl, cl.replace('last', f'step{read_state.FullStepNumber+1:04d}'))
+                os.rename(cl, cl.replace('last', f'step{read_state.FullStepNumber+1:04d}'))
         else:
             print(f"Running singlestep for step {stepnum:d}")
 
@@ -1016,7 +1028,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         save_log_files(param.LogDirectory, f'step{write_state.FullStepNumber:04d}')
 
         # Update the status log
-        status_log.update(param, write_state, ss_timer.elapsed, conv_time)
+        if (stepnum==0):
+            # read_state doesnt exist yet, so pass in the write state instead
+            status_log.update(param, write_state, write_state, ss_timer.elapsed, conv_time)
+        else:
+            status_log.update(param, read_state, write_state, ss_timer.elapsed, conv_time)
 
         
         shutil.copy(pjoin(write, "state"), pjoin(param.LogDirectory, f"step{write_state.FullStepNumber:04d}.state"))
@@ -1095,9 +1111,16 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                             continue
                         L1a = 1.0/(1.0+L1z)                
                     
-                        #here we assume that the next da will be similar to the previous one. 
+                        # here we assume that the next da will be similar to the previous one. 
+                        # we don't want to backup before every GF step -- that's too expensive.
+                        # so let's check if it's been more than two hours since the previous backup. 
                         if (write_state.Redshift > L1z + 1e-12) and ( 1.0/(1.0+write_state.Redshift) + write_state.DeltaScaleFactor > L1a ):
-                            pre_gf_backup = True 
+                            last_z = ( L1z == 0.1 or L1z == 0.0 )
+                            time_for_gf_backup = (last_backup == None or (wall_timer()-last_backup) > GF_BACKUP_INTERVAL)
+
+                            if last_z or time_for_gf_backup:
+                                pre_gf_backup = True 
+                                
                     if pre_gf_backup == True:
                         continue         
             
@@ -1117,13 +1140,15 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 print(exit_message, 'backing up node state.')
                 
                 restore_time = wall_timer()
-        
+
                 retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, resume_dir, '--retrieve']
                 call_subprocess(Conv_mpirun_cmd + retrieve_state_cmd)
             
                 restore_time = wall_timer() - restore_time
             
                 print(f'Retrieving and storing state took {restore_time} seconds. ', end = '')
+                lack_backup  = wall_timer()  #log the time of the last backup. 
+
             
                 #checking if path exists explicitly just in case user requested emergency exit while we were retrieveing the state. 
                 if path.exists(emergency_exit_fn): 
@@ -1201,7 +1226,7 @@ def save_log_files(logdir, newprefix, oldprefix='lastrun'):
     for logfn in os.listdir(logdir):
         if logfn.startswith(oldprefix):
             newname = logfn.replace(oldprefix, newprefix, 1)
-            shutil.move(pjoin(logdir, logfn), pjoin(logdir, newname))
+            os.rename(pjoin(logdir, logfn), pjoin(logdir, newname))
 
 
 def merge_checksum_files(param=None, dir_globs=None):

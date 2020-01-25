@@ -143,6 +143,7 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
                 // Detail: we write particles with their L0 bits intact.  So if we want to run a non-group-finding step
                 // after a group-finding step (e.g. for debugging), we need to know that we can ignore the L0 bit
                 if(GFC == NULL || !c.aux[p].is_L0()){
+                    c.aux[p].set_density(acc[p].w);
                     AA->addparticle(y, c.pos[p], vel, c.aux[p]);
                     if (PID_AA != NULL) PID_AA->addparticle(y, c.pos[p], vel, c.aux[p]);
                     n_added++;
