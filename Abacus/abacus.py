@@ -901,7 +901,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         #if this job is longer than a set time (NEEDS_INTERIM_BACKUP_MINS), we'll need to do a backup halfway through the run. 
         interim_backup_complete = run_time_minutes <= NEEDS_INTERIM_BACKUP_MINS
 
-    lack_backup = None # time of last backup.     
+   last_backup = None # time of last backup.     
     for i in range(maxsteps):
         
         if make_ic:
