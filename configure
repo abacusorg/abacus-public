@@ -738,6 +738,7 @@ with_max_gpus
 with_softening
 with_cache_line_size
 with_page_size
+enable_numa_for
 with_ramdisk
 '
       ac_precious_vars='build_alias
@@ -1388,6 +1389,7 @@ Optional Features:
   --enable-spherical-overdensity
                           Use SO finder [yes if fof-density enabled]
   --enable-parallel       Generate MPI parallel code [no]
+  --enable-numa-for       Enable custom NUMA_FOR OpenMP scheduler [yes]
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -6817,6 +6819,21 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
 
 
+# Check whether --enable-numa-for was given.
+if test "${enable_numa_for+set}" = set; then :
+  enableval=$enable_numa_for;
+else
+  enable_numa_for="yes"
+fi
+
+if test x$enable_numa_for == xyes; then
+
+cat >>confdefs.h <<_ACEOF
+#define ENABLE_NUMA_FOR /**/
+_ACEOF
+
+fi
+
 # If the user is using Anaconda Python, we have to be careful
 # about how we build C/C++ libraries that will be loaded by Python.
 # Anaconda Python has the Python executable rpath set to find
@@ -6973,6 +6990,7 @@ echo "Page size:                       $with_page_size"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
 echo "Maximum order:                   $with_max_order"
+echo "NUMA For OpenMP Scheduler:       $enable_numa_for"
 echo "------------------------------------------------------"
 echo
 

@@ -36,7 +36,6 @@ public:
     	// has been run, which may differ 
 
     int instantiated;  // Have we called instantiate on this dependency?
-	int process_all_particles;
 	int64_t num_particles; 
 
     const char *name;  // dependency name, like Drift

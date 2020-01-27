@@ -199,8 +199,7 @@ class GroupFindingControl {
 	 // that yields a mass at unit density of 
    	 // (2/15)*4*PI*b^5*np
 	 GLOG(0,"Maximum reported density = %f (%e in code units)\n", maxFOFdensity/WriteState.FOFunitdensity, maxFOFdensity);
-	 meanFOFdensity /= P.np;    
-	 meanFOFdensity -= WriteState.DensityKernelRad2;  // Subtract self-count
+	 meanFOFdensity /= P.np;
 	 GLOG(0,"Mean reported non-self density = %f (%e in code units)\n", meanFOFdensity/WriteState.FOFunitdensity, meanFOFdensity);
 	 GLOG(0,"Found %f G cell groups (including boundary singlets)\n", CGtot/1e9);
 	 GLOG(0,"Used %f G pseudoParticles, %f G faceParticles, %f G faceGroups\n",
@@ -297,14 +296,21 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     slab = WrapSlab(slab);
     cellgroups[slab].setup(cpd, particles_per_slab/20);     
     	// Guessing that the number of groups is 20-fold less than particles
-    FOFcell doFOF[omp_get_max_threads()];
+    int nthread = omp_get_max_threads();
+    FOFcell doFOF[nthread];
     #pragma omp parallel for schedule(static,1)
-    for (int g=0; g<omp_get_max_threads(); g++) 
+    for (int g=0; g<nthread; g++) 
     	doFOF[g].setup(linking_length, boundary);
 
-    uint64 _CGactive = 0; 
-    FLOAT _maxFOFdensity = 0.0;
-    double _meanFOFdensity = 0.0;
+    padded<uint64> _local_CGactive[nthread];
+    padded<FLOAT> _local_maxFOFdensity[nthread];
+    padded<double> _local_meanFOFdensity[nthread];
+    for(int i = 0; i < nthread; i++){
+        _local_CGactive[i] = 0;
+        _local_maxFOFdensity[i] = 0;
+        _local_meanFOFdensity[i] = 0;
+    }
+
     FLOAT DensityKernelRad2 = WriteState.DensityKernelRad2;
     FLOAT L0DensityThreshold = WriteState.L0DensityThreshold;
 
@@ -317,12 +323,11 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	// (2/15)*4*PI*b^5*np
 	L0DensityThreshold *= WriteState.FOFunitdensity;  // Now in code units
     } else {
-        L0DensityThreshold = DensityKernelRad2;
-	// We want to be sensitive to a single particle beyond the self-count.
+        L0DensityThreshold = 0.0;  
+        // Was DensityKernelRad2 but now the self-count has been subtracted.
     }
 
-    #pragma omp parallel for schedule(dynamic,1) reduction(+:_CGactive) reduction(max:_maxFOFdensity) reduction(+:_meanFOFdensity)
-    for (int j=0; j<cpd; j++) {
+    NUMA_FOR(j,0,cpd)
 	int g = omp_get_thread_num();
         PencilAccum<CellGroup> *cg = cellgroups[slab].StartPencil(j);
         for (int k=0; k<cpd; k++) {
@@ -340,13 +345,13 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 		for (int p=0; p<active_particles; p++) {
             float dens = c.acc[p].w; 
             c.aux[p].set_density(dens);
-		    _meanFOFdensity += dens;
+		    _local_meanFOFdensity[g] += dens;
 			// This will be the mean over all particles, not just
 			// the active ones
 
 		    if (dens>L0DensityThreshold) {
 			// Active particle; retain and accumulate stats
-			_maxFOFdensity=std::max(_maxFOFdensity, dens);
+			_local_maxFOFdensity[g]=std::max(_local_maxFOFdensity[g].i, dens);
 		    } else {
 		        // We found an inactive particle; swap to end.
 			active_particles--;
@@ -363,7 +368,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	    // singlet set.  So they will not be in the CellGroups and 
 	    // hence never considered further.
 	    #endif
-	    _CGactive += active_particles;
+	    _local_CGactive[g] += active_particles;
 
 	    doFOF[g].findgroups(c.pos, c.vel, c.aux, c.acc, active_particles);
 
@@ -384,6 +389,17 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 	}
 	cg->FinishPencil();
     }
+
+    uint64 _CGactive = 0;
+    FLOAT _maxFOFdensity = 0;
+    double _meanFOFdensity = 0;
+
+    for(int i = 0; i < nthread; i++){
+        _CGactive += _local_CGactive[i];
+        _maxFOFdensity = std::max(_maxFOFdensity, _local_maxFOFdensity[i].i);
+        _meanFOFdensity += _local_meanFOFdensity[i];
+    }
+
     // Best if we destroy on the same thread, for tcmalloc
     #pragma omp parallel for schedule(static,1)
     for (int g=0; g<omp_get_max_threads(); g++) 

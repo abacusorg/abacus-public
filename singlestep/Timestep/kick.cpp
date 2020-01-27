@@ -57,8 +57,9 @@ inline void KickCell(Cell &c, FLOAT kick1, FLOAT kick2) {
 void KickSlab(int slab, FLOAT kick1, FLOAT kick2,
 void (*KickCell)(Cell &c, FLOAT kick1, FLOAT kick2)) {
     int cpd = CP->cpd;
-    #pragma omp parallel for schedule(static)
-    for (int y=0;y<cpd;y++) {
+    //#pragma omp parallel for schedule(static)
+    //for (int y=0;y<cpd;y++) {
+    NUMA_FOR(y,0,cpd)
         for (int z=0;z<cpd;z++) {
             Cell c = CP->GetCell(slab, y, z);
             (*KickCell)(c,kick1,kick2);
@@ -89,6 +90,10 @@ void RescaleAndCoAddAcceleration(int slab) {
         nacc[j] = (nacc[j]*inv_eps3+facc[j])*rescale;
         #else
         nacc[j] = (nacc[j]+facc[j] )*rescale;
+        #endif
+
+        #ifdef COMPUTE_FOF_DENSITY
+        nacc[j].w -= WriteState.DensityKernelRad2;
         #endif
     }
 }
