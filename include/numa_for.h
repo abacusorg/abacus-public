@@ -77,6 +77,7 @@ The original idea for implementing a custom scheduler came from: https://stackov
 #define PP_CAT_II(p, res) res
 #define UNIQUE_NAME(base) PP_CAT(base, __LINE__)
 
+// This is the primary macro definition
 #define NUMA_FOR(I,START,END)\
 pint64 UNIQUE_NAME(_next_iter)[_N_numa_nodes];\
 int64_t UNIQUE_NAME(_last_iter)[_N_numa_nodes];\
@@ -101,7 +102,12 @@ int *_thread_numa_nodes;
 int *_numa_cumulative_nthread;
 int _N_numa_nodes;
 
+#endif  // ENABLE_NUMA_FOR
+
 void init_numa_for(int nthreads, int const *core_assignments){
+
+#ifdef ENABLE_NUMA_FOR
+
     if(omp_get_proc_bind() == omp_proc_bind_false){
         STDLOG(1, "OMP_PROC_BIND = false; NUMA_FOR loops will use dynamic scheduling\n");
 
@@ -160,16 +166,30 @@ void init_numa_for(int nthreads, int const *core_assignments){
         _numa_cumulative_nthread[i] = _numa_cumulative_nthread[i-1] + _nthread_per_numa_node[i-1];
     }
     assert(_numa_cumulative_nthread[_N_numa_nodes] == nthreads);
+
+#endif // ENABLE_NUMA_FOR
 }
 
 
 // Free any global variables
 // Can't use NUMA_FOR after this
 void finish_numa_for(){
+#ifdef ENABLE_NUMA_FOR
     delete[] _thread_numa_nodes;
     delete[] _numa_cumulative_nthread;
+#endif
 }
 
+
+#ifndef ENABLE_NUMA_FOR
+
+// If disabled, fall back to dynamic scheduling
+
+#define NUMA_FOR(I,START,END)\
+_Pragma("omp parallel for schedule(dynamic)")\
+for(int64_t I = START; I < END; I++){
+
+#endif // ENABLE_NUMA_FOR
 
 // Cache-line aligned variable template class
 // Some typedefs for ints and doubles are below
@@ -241,15 +261,5 @@ public:
 
 using pint64 = padded<int64_t>;
 using pdouble = padded<double>;
-
-#else  // ENABLE_NUMA_FOR
-
-// If disabled, fall back to dynamic scheduling
-
-#define NUMA_FOR(I,START,END)\
-_Pragma("omp parallel for schedule(dynamic)")\
-for(int64_t I = START; I < END; I++){
-
-#endif // ENABLE_NUMA_FOR
 
 #endif

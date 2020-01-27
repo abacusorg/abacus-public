@@ -508,7 +508,7 @@ echo "Page size:                       $with_page_size"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
 echo "Maximum order:                   $with_max_order"
-echo "NUMA For OpenMP Scheduler:       $enable_numa_for"
+echo "NUMA-For OpenMP Scheduler:       $enable_numa_for"
 echo "------------------------------------------------------"
 echo
 
