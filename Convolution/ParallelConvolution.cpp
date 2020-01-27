@@ -776,6 +776,7 @@ fftw_plan ParallelConvolution::PlanFFT(int sign){
             (fftw_complex *) MTzmxy, NULL, cpd, 1,
             sign, FFTW_PATIENT);
     }
+    assertf(plan != NULL, "Failed to generate ParallelConvolve FFTW plan for sign %d\n", sign);
 	
 	return plan;
 }
