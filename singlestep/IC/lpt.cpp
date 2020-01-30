@@ -161,7 +161,7 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
     
     double H = 1;
     double fsmooth = P.Omega_Smooth/P.Omega_M;
-    double vel_to_displacement = 2.0/(19.0-18.0*fsmooth+sqrt(25.0-24.0*fsmooth)/H/H/P.Omega.M;
+    double vel_to_displacement = 2.0/(19.0-18.0*fsmooth-sqrt(25.0-24.0*fsmooth))/H/H/P.Omega_M;
         // The second order displacement is vel/7H^2Omega_m
         // With a smooth component, the Omega_m remains the same, but the factor of 7
         // becomes 1+18 f_cluster - sqrt(1+24*f_cluster)

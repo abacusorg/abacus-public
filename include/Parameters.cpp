@@ -723,7 +723,7 @@ void Parameters::ValidateParameters(void) {
         assert(1==0);
     }
     
-    if(Omega_Smmoth<0.0 || Omega_Smooth>Omega_M){
+    if(Omega_Smooth<0.0 || Omega_Smooth>Omega_M){
         fprintf(stderr,"Must have 0<=Omega_Smooth<Omega_M, but told Omega_Smooth = %g\n", Omega_Smooth);
         assert(1==0);
     }
