@@ -36,6 +36,7 @@ void FillStateWithCosmology(State &S) {
     S.OmegaNow_m = cosm->next.OmegaHat_m/total;
     S.OmegaNow_K = cosm->next.OmegaHat_K/total;
     S.OmegaNow_DE = cosm->next.OmegaHat_X/total;
+    S.fsmooth = cosm->C.Omega_smooth/cosm->C.Omega_m;
 
     S.HubbleTimeHGyr = 9.7782;
         // The Hubble Time is 9.7782 h^-1 Gyr

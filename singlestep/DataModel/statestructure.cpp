@@ -83,6 +83,7 @@ public:
     double OmegaNow_m;
     double OmegaNow_K;
     double OmegaNow_DE;
+    double fsmooth;     // This is time-independent: Omega_Smooth/Omega_M
     double CoordinateDistanceHMpc;   // In Mpc/h
 
     // More description of the last time step
@@ -203,6 +204,7 @@ public:
     	installscalar("OmegaNow_m",OmegaNow_m,DONT_CARE);
     	installscalar("OmegaNow_K", OmegaNow_K,DONT_CARE);
     	installscalar("OmegaNow_DE",OmegaNow_DE,DONT_CARE);
+    	installscalar("fsmooth",fsmooth,DONT_CARE);
     	installscalar("CoordinateDistanceHMpc",CoordinateDistanceHMpc,DONT_CARE);
     	installscalar("DeltaTime",DeltaTime,DONT_CARE);
     	installscalar("DeltaScaleFactor",DeltaScaleFactor,DONT_CARE);
@@ -311,6 +313,7 @@ void State::make_output_header() {
     WPR(OmegaNow_m               , FSYM);
     WPR(OmegaNow_K               , FSYM);
     WPR(OmegaNow_DE              , FSYM);
+    WPR(fsmooth                  , FSYM);
     WPR(CoordinateDistanceHMpc   , FSYM);
     
     WPRS(SofteningType           , s);
