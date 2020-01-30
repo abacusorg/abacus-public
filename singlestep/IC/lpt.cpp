@@ -164,6 +164,9 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
         // The first order displacement
         displ1 = ZelPos(c.aux[b].xyz())-cellcenter-c.pos[b];
         // The second order displacement is vel/7H^2Omega_m
+        // With a smooth component, the Omega_m remains the same, but the factor of 7
+        // becomes 1+18 f_cluster - sqrt(1+24*f_cluster)
+        // TODO: Implement this.  But need to understand the velocities too!
         displ2 = c.vel[b]/7/H/H/P.Omega_M;
         
         // Internally, everything is in a unit box, so we actually don't need to normalize by BoxSize before rounding
@@ -207,6 +210,8 @@ void KickCell_2LPT_3(Cell &c, FLOAT kick1, FLOAT kick2) {
 void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
     // Now we have to adjust the positions and velocities    
     // Usually, Drift doesn't need accelerations, but 3LPT does
+    // TODO: Haven't considered Smooth components at 3rd order
+    assertf(P.Omega_Smooth==0, "3rd order not implemented with Omega_Smooth!=0\n");
     int slab = c.ijk.x;
     
     int e = c.count();
