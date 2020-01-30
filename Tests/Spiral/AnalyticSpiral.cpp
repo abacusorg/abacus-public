@@ -67,6 +67,7 @@ AnalyticSpiral::AnalyticSpiral( float _Ainitial, float _Across, float _Astop, fl
 
     da = Ainitial - 0.5*Astep;
     da32 = pow(da,1.5);
+    double f_growth = (sqrt(1.0+24.0*fclustered)-1.0)/4.0;
 
     int i;
     for(i=0;i<blitzNX;i++)   {
@@ -75,7 +76,7 @@ AnalyticSpiral::AnalyticSpiral( float _Ainitial, float _Across, float _Astop, fl
         x[i]=i+Ainitial*ampx*sin(kxq);
         if(x[i]<0.0) x[i]+=blitzNX;
         if(x[i]>=blitzNX) x[i]-=blitzNX;
-        px[i]=da32*ampx*sin(kxq);
+        px[i]=da32*ampx*sin(kxq)*f_growth;
     }
 
     double Aexpn;
