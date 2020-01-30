@@ -105,6 +105,7 @@ public:
 	
     double H0;          // The Hubble constant in km/s/Mpc
     double Omega_M;
+    double Omega_Smooth;
     double Omega_DE;
     double Omega_K;
     double w0;          // w(z) = w_0 + (1-a)*w_a
@@ -330,6 +331,8 @@ public:
 
         installscalar("H0", H0, MUST_DEFINE);
         installscalar("Omega_M", Omega_M, MUST_DEFINE);
+        Omega_Smooth = 0.0;
+        installscalar("Omega_Smooth", Omega_Smooth, DONT_CARE);
         installscalar("Omega_DE", Omega_DE, MUST_DEFINE);
         installscalar("Omega_K", Omega_K, MUST_DEFINE);
         installscalar("w0", w0, MUST_DEFINE);
@@ -717,6 +720,11 @@ void Parameters::ValidateParameters(void) {
 
     if (nTimeSlice<0) {
         fprintf(stderr,"nTimeSlice must be >=0\n");
+        assert(1==0);
+    }
+    
+    if(Omega_Smmoth<0.0 || Omega_Smooth>Omega_M){
+        fprintf(stderr,"Must have 0<=Omega_Smooth<Omega_M, but told Omega_Smooth = %g\n", Omega_Smooth);
         assert(1==0);
     }
     
