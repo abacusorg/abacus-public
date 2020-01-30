@@ -126,8 +126,6 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
 
     uint64 ILbefore = IL->length;
 
-    //#pragma omp parallel for schedule(static)
-    //for(int y=0;y<cpd;y++){
     NUMA_FOR(y,0,cpd)
         for(int z=0;z<cpd;z++) {
             // We'll do the drifting and rebinning separately because
