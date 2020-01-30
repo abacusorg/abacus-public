@@ -42,6 +42,7 @@ def run():
     subprocess.run([pjoin(os.path.curdir,'makespiralics') ,str(n1d), str(ainitial), str(across),
                      str(kvec[0]),str(kvec[1]),str(kvec[2]),
                      str(phase[0]),str(phase[1]),str(phase[2]),
+                     str(params["Omega_Smooth"]),
                      params["InitialConditionsDirectory"] + "/ic_0"],
                      check=True)
     for i in range(1,params["CPD"]):
@@ -62,7 +63,7 @@ def run():
     data = np.fromfile(timeslice,dtype = np.float64)
 
 
-    subprocess.call([abacuspath+"/Tests/Spiral/makeanalytic",str(ainitial),str(across),str(astop)])
+    subprocess.call([abacuspath+"/Tests/Spiral/makeanalytic",str(ainitial),str(across),str(astop),str(params["Omega_Smooth"])])
     analytic = np.fromfile("./analytic",sep = " ")
     analytic = np.reshape(analytic,(-1,2))
     # The makeanalytic program returns canonical velocities, whereas abacus returns ZSpace velocities.

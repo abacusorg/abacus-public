@@ -5,9 +5,9 @@
 #include <stdlib.h>
 class AnalyticSpiral {
 public:
-    AnalyticSpiral(float Ainitial, float Across, float Astop, float Astep, int grid1d);
+    AnalyticSpiral(float Ainitial, float Across, float Astop, float Astep, int grid1d, float fsmooth);
     ~AnalyticSpiral(void);
-    void PMintegrate( float Aexpn, float Astep );
+    void PMintegrate( float Aexpn, float Astep);
 
     int blitzNX;
     int blitzNG1X;
@@ -19,6 +19,7 @@ public:
     float Across;
     float Astep;
     float Astop; 
+    float fclustered;
 
     double *g;
     double *Green;
@@ -33,11 +34,12 @@ public:
 
 }; 
 
-AnalyticSpiral::AnalyticSpiral( float _Ainitial, float _Across, float _Astop, float _Astep, int _grid1d ) {
+AnalyticSpiral::AnalyticSpiral( float _Ainitial, float _Across, float _Astop, float _Astep, int _grid1d, float _fsmooth ) {
     Ainitial = _Ainitial;
     Across   = _Across;
     Astop    = _Astop;
     Astep    = _Astep;
+    fclustered  = 1.0-_fsmooth;
 
     blitzNX = _grid1d;
     blitzNG1X = blitzNX - 1;
@@ -157,7 +159,7 @@ void AnalyticSpiral::PMintegrate( float Aexpn, float Astep ) {
     // in the 'cc' normalization of the accelerations!
     // The resulting px is the canonical momentum, not the comoving velocity!
 
-    cc = -(3.0*1.0/8.0/Aexpn)/(float)(blitzNX);
+    cc = -(3.0*1.0/8.0/Aexpn)/(float)(blitzNX)*fclustered;
 
     ahalf=Aexpn+0.5*Astep;
     faexpn=sqrt(Aexpn)*Astep;
@@ -183,16 +185,18 @@ void AnalyticSpiral::PMintegrate( float Aexpn, float Astep ) {
 
 int main(int argc, char **argv) {
 
-    if(argc!=4) {
-        printf("usage: AnalyticSpiral <ainitial> <across> <afinal> \n");
+    if(argc!=5) {
+        printf("usage: AnalyticSpiral <ainitial> <across> <afinal> <fsmooth>\n");
         exit(1);
     }
 
     double ainitial   = atof(argv[1]);
     double across   = atof(argv[2]);
     double afinal    = atof(argv[3]);
+    double fsmooth    = atof(argv[4]);
+    assert(fsmooth>=0 && fsmooth<1.0);
 
-    AnalyticSpiral AS(ainitial, across, afinal, 0.0001, 8192);
+    AnalyticSpiral AS(ainitial, across, afinal, 0.0001, 8192, fsmooth);
 
     FILE *fp;
     fp = fopen("analytic","w");

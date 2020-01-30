@@ -14,7 +14,7 @@ public:
     Spiral(long long int N1D, double3 kvec, double3 phase); 
     ~Spiral();
 
-    void Create(double3 *pp, double3 *vv, int *id, long long int np, double Ainitial, double Across);
+    void Create(double3 *pp, double3 *vv, int *id, long long int np, double Ainitial, double Across, double fsmooth);
     void Project(double3 *pp, double3 *vv, int *id, long long int np);
 
     void WrapPosition(double3 &p);
@@ -35,7 +35,7 @@ Spiral::~Spiral() {
 // Create a one-d wave of perturbations with a given wave vector and phase.
 // Positions are in dimensionless units and "velocity" is in specific congugate momentum
 // (dx/dt) / a^2, in dimensionless units.
-void Spiral::Create(double3 *pp, double3 *vv, int *id, long long int _n, double Ainitial, double Across) {
+void Spiral::Create(double3 *pp, double3 *vv, int *id, long long int _n, double Ainitial, double Across, double fsmooth) {
 
     assert(N==_n);
 
@@ -45,6 +45,7 @@ void Spiral::Create(double3 *pp, double3 *vv, int *id, long long int _n, double 
     printf(" phase: % e  % e  % e\n", phase.x, phase.y, phase.z);
     printf(" Ainit: % e\n", Ainitial);
     printf("Across: % e\n", Across);
+    printf("fsmooth: % e\n", fsmooth);
     
     kvec *= 2*M_PI; // we specify k-vector w/o the 2 pi for ease of writing...
 
@@ -55,6 +56,11 @@ void Spiral::Create(double3 *pp, double3 *vv, int *id, long long int _n, double 
     double       knrm = kvec.norm();
     double3 direction = kvec/knrm;
     double Amplitude = 1.0/(DofAcross*knrm);
+
+    // This is the growth rate for Omega=1 universe where some fraction fsmooth of the 
+    // mass is spatially homogeneous (i.e., only affects the expansion rate).
+    // We need to scale the initial velocities by this.
+    double f_growth = (sqrt(25.0-24.0*fsmooth)-1.0)/4.0;
 
     double      dx = 1.0/((double) N1D);  // spacing of unperturbed positions q
     int p = 0;
@@ -70,7 +76,7 @@ void Spiral::Create(double3 *pp, double3 *vv, int *id, long long int _n, double 
                 perturbation.z = direction.z*Amplitude*sin(kdotq+phase.z);
                 
                 double3 pos = q + DofA*perturbation; WrapPosition(pos);
-                double3 vel = DofA*perturbation;
+                double3 vel = DofA*perturbation*f_growth;
                 pp[p] = pos;
                 vv[p] = vel;
                 id[p] = p;
@@ -150,7 +156,7 @@ void Spiral::Project(double3 *pp, double3 *vv, int *id, long long int np) {
     }
 }
 
-void GenSpiral( long long int n1d, double ainitial, double across, double3 *pp, double3 *vv, int *id,double3 kvec,double3 phase) {
+void GenSpiral( long long int n1d, double ainitial, double across, double3 *pp, double3 *vv, int *id,double3 kvec,double3 phase, double fsmooth) {
 
     long long int np = n1d*n1d*n1d;
     assert(np>0);
@@ -158,7 +164,7 @@ void GenSpiral( long long int n1d, double ainitial, double across, double3 *pp, 
 
 
     Spiral SP(n1d, kvec, phase);
-    SP.Create(pp, vv, id, np, ainitial, across);
+    SP.Create(pp, vv, id, np, ainitial, across, fsmooth);
 }
 
 void writespiral(char *fn, double3 * pos, double3 * vel, long long int np){
@@ -172,8 +178,8 @@ void writespiral(char *fn, double3 * pos, double3 * vel, long long int np){
 
 int main(int argc, char **argv){
 
-	if (argc != 11) {
-		printf("Usage: makespiralic <n1d> <a initial> <across> <kvec x y z> <phase x y z> <output filename> ");
+	if (argc != 12) {
+		printf("Usage: makespiralic <n1d> <a initial> <across> <kvec x y z> <phase x y z> <f_smooth> <output filename> ");
 		return 1;
 	}
 	long long int n1d = atoi(argv[1]);
@@ -190,9 +196,10 @@ int main(int argc, char **argv){
 	double3 * pos = new double3[np];
 	double3 * vel = new double3[np];
 	int *id = new int[np];
+    double fsmooth = atof(argv[10]);
 
-	GenSpiral(n1d, ainitial, across,pos,vel,id,kvec,phase);
-	writespiral(argv[10],pos,vel,np);
+	GenSpiral(n1d, ainitial, across,pos,vel,id,kvec,phase,fsmooth);
+	writespiral(argv[11],pos,vel,np);
 
 	return 0;
 }

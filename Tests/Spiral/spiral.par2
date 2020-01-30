@@ -19,3 +19,5 @@ ForceOutputDebug = 0
 OutputFormat="RVdouble"
 AllowGroupFinding = 0
 CPD = 65
+
+Omega_Smooth = 0.3
