@@ -65,6 +65,14 @@ void FillStateWithCosmology(State &S) {
     // If hMpc is set, then we should use 100 km/s/Mpc instead of H_0.
     S.VelZSpace_to_kms = P.BoxSize*S.ScaleFactor*(S.HubbleNow/cosm->C.H0)*
     	(P.hMpc?100:P.H0);
+
+    if(S.LPTStepNumber && P._ZD_f_growth > 0){
+        // If this is a 2LPT step and we happen to have the f_growth parameter the zeldovich code used,
+        // go ahead and check for consistency
+        assertf(std::abs(P._ZD_f_growth/S.f_growth - 1.) < 1e-5,
+            "ZD_f_growth = %f in param file and f_growth = %f computed from state do not agree\n", P._ZD_f_growth, S.f_growth);
+    }
+
 }
 
 
