@@ -104,6 +104,7 @@ public:
     double StdDevCellSize;
     double RMS_Velocity;
     int MaxGroupDiameter; 
+    double DirectsPerParticle;
     // The variables below are not intended for output.  Just used in the code.
 
     // We will write a lot of state information into the header of output
@@ -216,6 +217,9 @@ public:
     	installscalar("RMS_Velocity",RMS_Velocity,DONT_CARE);
         MaxGroupDiameter = 0; 
         installscalar("MaxGroupDiameter",MaxGroupDiameter,DONT_CARE);
+
+        DirectsPerParticle = 0.0;
+        installscalar("DirectsPerParticle",DirectsPerParticle,DONT_CARE);
         // Initialize helper variables
         DoTimeSliceOutput = 0;
         OutputIsAllowed = 0;

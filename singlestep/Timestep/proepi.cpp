@@ -366,7 +366,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
             }
             #endif
         }
-        
+            WriteState.DirectsPerParticle = (double)1.0e9*NFD->gdi_gpu/P.np;
             delete TY;
             STDLOG(2,"Deleted TY\n");
             delete RL;
@@ -815,6 +815,7 @@ void FinalizeWriteState() {
         MPI_REDUCE_TO_ZERO(&WriteState.RMS_Velocity, 1, MPI_DOUBLE, MPI_SUM);
         // sqrt(Sum(SQR of StdDevCellSize))
         MPI_REDUCE_TO_ZERO(&WriteState.StdDevCellSize, 1, MPI_DOUBLE, MPI_SUM);
+        MPI_REDUCE_TO_ZERO(&WriteState.DirectsPerParticle, 1, MPI_DOUBLE, MPI_SUM);
 // #undef MPI_REDUCE_IN_PLACE
 
         // Note that we're not summing up any timing or group finding reporting;
@@ -832,6 +833,7 @@ void FinalizeWriteState() {
     STDLOG(0,"Maximum a_j in simulation is %f.\n", WriteState.MaxAcceleration);
     STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f.\n", WriteState.MinVrmsOnAmax);
     STDLOG(0,"Maximum group diameter in simulation is %d.\n", WriteState.MaxGroupDiameter); 
+    STDLOG(0,"Mean Directs per particle in simulation is %d.\n", WriteState.DirectsPerParticle); 
 
     //NAM TODO put an intelligent assertf here. 
     // the things we'd really like to check are: 
