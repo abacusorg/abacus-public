@@ -20,9 +20,9 @@ the growth ratio:
 
 That's all fine when one has a z=0 power spectrum file; then one
 doesn't even need to know the file's units of power.  But when your
-power spectrum file is at another redshift like z=1, what sigma_8
+power spectrum file is at another redshift like z=1, what `sigma_8`
 do you specify?  It's not the z=0 value; the shape of the power
-spectrum is allowed to change.
+spectrum is allowed to change, even aside from the amplitude.
 
 So one would like to know the sigma_8 of the z=1 file, but CAMB
 or CLASS may not output that.  So we could extract our sigma_8
@@ -36,10 +36,10 @@ The other new parameter is `ZD_Pk_file_redshift`, which tells us
 the redshift of the input power spectrum file.
 
 From the Abacus Python perspective, one may either specify
-ZD_Pk_file_redshift or sigma_8, not both.
+`ZD_Pk_file_redshift` or `sigma_8`, not both.
 
-From the zeldovich perspective, one may specify ZD_Pk_sigma or
-ZD_Pk_sigma_ratio, not both.
+From the zeldovich perspective, one may specify `ZD_Pk_sigma` or
+`ZD_Pk_sigma_ratio`, not both.
 
 Usage
 =====
