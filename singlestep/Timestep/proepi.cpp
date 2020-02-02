@@ -867,7 +867,7 @@ void FinalizeWriteState() {
         // Minimize MinCellSize
         MPI_REDUCE_TO_ZERO(&WriteState.MinCellSize, 1, MPI_INT, MPI_MIN);
         // Maximize MaxCellSize
-        MPI_REDUCE_TO_ZERO(&WriteState.MaxCellSize, 1, MPI_INT, MPI_MIN);
+        MPI_REDUCE_TO_ZERO(&WriteState.MaxCellSize, 1, MPI_INT, MPI_MAX);
         // sqrt(Sum(SQR of RMS_Velocity))
         MPI_REDUCE_TO_ZERO(&WriteState.RMS_Velocity, 1, MPI_DOUBLE, MPI_SUM);
         // sqrt(Sum(SQR of StdDevCellSize))
