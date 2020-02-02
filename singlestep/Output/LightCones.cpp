@@ -217,6 +217,9 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
                         slabtotal++;
 
                         if(c.aux[p].is_taggable() or P.OutputFullLightCones){
+                            // Going to output; pack the density in the aux
+                            c.aux[p].set_density(acc[p].w);
+                            
                             // These output routines take global positions and velocities in km/s
                             pLightConePIDs->append(TaggedPID(c.aux[p]));
                             pLightConeRV->append(RVfloat(pos.x, pos.y, pos.z, vel.x * vunits, vel.y * vunits, vel.z * vunits));

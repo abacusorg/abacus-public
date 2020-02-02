@@ -40,6 +40,8 @@
 #include "PTimer.cc"
 //#include "Limiter.cpp" 
 
+#include "numa_for.h"
+
 STimer FinishPreamble; 
 STimer FinishPartition;
 STimer FinishSort;
@@ -90,7 +92,6 @@ uint64 naive_directinteractions = 0;
 #include "grid.cpp"
 grid *Grid;
 
-#include "particlestruct.cpp"
 
 #include "Parameters.cpp"
 #include "statestructure.cpp"
@@ -98,7 +99,7 @@ State ReadState, WriteState;
 char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
 int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
 
-
+#include "particlestruct.cpp"
 
 // #include "ParticleCellInfoStructure.cpp"
 // #include "maxcellsize.cpp"
@@ -193,7 +194,6 @@ int * total_slabs_all = NULL;
 	// as well as the total number and the first finished
 	// In the single node code, this is simply 0 and CPD.
 #include "node_slabs.cpp"
-
 
 // FFTW Wisdom
 char wisdom_file[1024];
@@ -404,11 +404,13 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     finish_fftw();
 
+    finish_numa_for();  // can't use NUMA_FOR after this
+
     // Report peak memory usage
     struct rusage rusage;
     assert(getrusage(RUSAGE_SELF, &rusage) == 0);
     STDLOG(0, "Peak resident memory usage was %.3g GB\n", (double) rusage.ru_maxrss / 1024 / 1024);
-
+    
     epilogue.Stop();
     // This timing does not get written to the timing log, so it had better be small!
     STDLOG(1,"Leaving Epilogue(). Epilogue took %.2g sec.\n", epilogue.Elapsed());
@@ -463,12 +465,15 @@ void init_openmp(){
 
     // If threads are bound to cores via OMP_PROC_BIND,
     // then identify free cores for use by GPU and IO threads
+    int core_assignments[nthreads];
+
     if(omp_get_proc_bind() == omp_proc_bind_false){
         //free_cores = NULL;  // signal that cores are not bound to threads
         STDLOG(1, "OMP_PROC_BIND = false; threads will not be bound to cores\n");
+
+        // no need to init core_assignments here; init_numa_for will ignore it if omp_proc_bind_false
     }
     else{
-        int core_assignments[nthreads];
         //bool is_core_free[ncores] = {true};
         #pragma omp parallel for schedule(static)
         for(int g = 0; g < nthreads; g++){
@@ -491,6 +496,9 @@ void init_openmp(){
         set_core_affinity(main_thread_core);
         STDLOG(1, "Assigning main singlestep thread to core %d\n", main_thread_core);
     }
+
+    // Initialize the helper variables needed for "NUMA For"
+    init_numa_for(nthreads, core_assignments);
 }
 
 void setup_log(){
@@ -622,8 +630,10 @@ void InitKernelDensity(){
     #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
     if (P.DensityKernelRad==0) {
         // Default to the L0 linking length
-        WriteState.DensityKernelRad2 = GFC->linking_length;
+        if (GFC != NULL) WriteState.DensityKernelRad2 = GFC->linking_length;
+        else WriteState.DensityKernelRad2 = P.FoFLinkingLength[0]/pow(P.np,1./3); 
         WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2*(1.0+1.0e-5);
+
         // We use square radii.  The radius is padded just a little
         // bit so we don't risk underflow with 1 particle at r=b
         // in comparison to the self-count.
@@ -637,6 +647,9 @@ void InitKernelDensity(){
         WriteState.DensityKernelRad2 *= WriteState.DensityKernelRad2;
         WriteState.L0DensityThreshold = P.L0DensityThreshold;
     }
+
+    WriteState.FOFunitdensity    = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
+    WriteState.invFOFunitdensity = 1.0/WriteState.FOFunitdensity;
     #endif
     #endif
 }
@@ -739,10 +752,8 @@ void InitGroupFinding(bool MakeIC){
         ReadState.DoSubsampleOutput = 0;  // We currently do not support subsample outputs without group finding
         STDLOG(1, "Group finding not enabled for this step.\n");
 
-        // We aren't doing group finding, but have we requested any other type of output? Better compute the kernel density!
-        if(ReadState.DoTimeSliceOutput || ReadState.DoSubsampleOutput || P.NLightCones > 0){
-            InitKernelDensity();
-        }
+        // We aren't doing group finding, but we may be doing output, so init the kernel density anyway
+        InitKernelDensity();
     }
 
     STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));

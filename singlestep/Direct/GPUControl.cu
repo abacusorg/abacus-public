@@ -524,6 +524,8 @@ void *QueueWatcher(void *arg){
 
     // Allocate CUDA memory
     STDLOG(1,"About to CudaAllocate %llu bytes on GPU %d\n", Buffers[n].size,gpu);
+    //assertf((Buffers[n].size > (int64) 1e9) && (Buffers[n].size < (int64) 3e9), "Unexpected CudaAllocate size %d bytes for AbacusSummit\n", Buffers[n].size);
+
     CudaAllocate(Buffers[n].device,     Buffers[n].size);
     WCAllocate(Buffers[n].hostWC,       Buffers[n].sizeWC);
     PinnedAllocate(Buffers[n].host,     Buffers[n].sizeDef);

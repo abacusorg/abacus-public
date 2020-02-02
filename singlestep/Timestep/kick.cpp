@@ -57,8 +57,9 @@ inline void KickCell(Cell &c, FLOAT kick1, FLOAT kick2) {
 void KickSlab(int slab, FLOAT kick1, FLOAT kick2,
 void (*KickCell)(Cell &c, FLOAT kick1, FLOAT kick2)) {
     int cpd = CP->cpd;
-    #pragma omp parallel for schedule(static)
-    for (int y=0;y<cpd;y++) {
+    //#pragma omp parallel for schedule(static)
+    //for (int y=0;y<cpd;y++) {
+    NUMA_FOR(y,0,cpd)
         for (int z=0;z<cpd;z++) {
             Cell c = CP->GetCell(slab, y, z);
             (*KickCell)(c,kick1,kick2);
@@ -82,37 +83,20 @@ void RescaleAndCoAddAcceleration(int slab) {
     #ifdef DIRECTSINGLESPLINE
     FLOAT inv_eps3 = 1./(NFD->SofteningLengthInternal*NFD->SofteningLengthInternal*NFD->SofteningLengthInternal);
     #endif
-    
-    if(WriteState.DensityKernelRad2){
-        // Have to touch the aux in this version
-        auxstruct *auxslab = (auxstruct *) SB->GetSlabPtr(AuxSlab,slab);
-        float FOFunitdensity    = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5)+1e-30;
-        float invFOFunitdensity = 1.0/FOFunitdensity;
 
+    #pragma omp parallel for schedule(static)
+    for (uint64 j=0; j<N;j++) {
+        #ifdef DIRECTSINGLESPLINE
+        nacc[j] = (nacc[j]*inv_eps3+facc[j])*rescale;
+        #else
+        nacc[j] = (nacc[j]+facc[j] )*rescale;
+        #endif
 
-        #pragma omp parallel for schedule(static)
-        for (uint64 j=0; j<N;j++) {
-            auxslab[j].set_density( (uint64) sqrtf(nacc[j].w * invFOFunitdensity) );  //store sqrt(density) in cosmic mean units, as an int. 
-
-            #ifdef DIRECTSINGLESPLINE
-            nacc[j] = (nacc[j]*inv_eps3+facc[j])*rescale;
-            #else
-            nacc[j] = (nacc[j]+facc[j] )*rescale;
-            #endif
-        }
-    } else {
-        // No densities were computed; don't touch the aux
-        #pragma omp parallel for schedule(static)
-        for (uint64 j=0; j<N;j++) {
-            #ifdef DIRECTSINGLESPLINE
-            nacc[j] = (nacc[j]*inv_eps3+facc[j])*rescale;
-            #else
-            nacc[j] = (nacc[j]+facc[j] )*rescale;
-            #endif
-        }
+        #ifdef COMPUTE_FOF_DENSITY
+        nacc[j].w -= WriteState.DensityKernelRad2;
+        #endif
     }
 }
-
 
 
 void ZeroAcceleration(int slab,int Slabtype) {

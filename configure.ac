@@ -385,6 +385,13 @@ if test "x$with_page_size" == xauto; then
 fi
 AC_DEFINE_UNQUOTED(PAGE_SIZE, $with_page_size, "Page size in bytes")
 
+AC_ARG_ENABLE(numa-for,
+[AS_HELP_STRING([--enable-numa-for], [Enable custom NUMA_FOR OpenMP scheduler [yes]])],
+    [], enable_numa_for="yes")
+if test x$enable_numa_for == xyes; then
+    AC_DEFINE_UNQUOTED(ENABLE_NUMA_FOR, [], "Enable custom NUMA_FOR OpenMP scheduler")
+fi
+
 # If the user is using Anaconda Python, we have to be careful
 # about how we build C/C++ libraries that will be loaded by Python.
 # Anaconda Python has the Python executable rpath set to find
@@ -501,6 +508,7 @@ echo "Page size:                       $with_page_size"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
 echo "Maximum order:                   $with_max_order"
+echo "NUMA-For OpenMP Scheduler:       $enable_numa_for"
 echo "------------------------------------------------------"
 echo
 

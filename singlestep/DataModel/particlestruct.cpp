@@ -174,7 +174,15 @@ public:
         return aux & ((uint64)1 << AUXTAGGEDBIT);
     }
 
-    inline void set_density(uint64 _density){
+    // Set the density from the density value (in code units)
+    // There is a chance that a mismatch in precision between the GPU and CPU codes 
+    // could lead to a negative value of the density when the only particle is the self-particle.
+    // Hence, we take the absolute value.
+    inline void set_density(FLOAT rawdensity){
+        _pack_density((uint64) round(std::sqrt(fabs(rawdensity) * WriteState.invFOFunitdensity)));
+    }
+
+    inline void _pack_density(uint64 _density){
         assert(_density < (AUXDENSITY >> AUXDENSITYZEROBIT)); 
         aux = ( (uint64) _density << AUXDENSITYZEROBIT )  | (aux &~ AUXDENSITY); 
     }
