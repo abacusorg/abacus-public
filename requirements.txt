@@ -14,4 +14,3 @@ scipy
 matplotlib
 contexttimer
 table_logger
-
