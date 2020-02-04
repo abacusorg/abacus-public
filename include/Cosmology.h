@@ -6,10 +6,13 @@
 
 class MyCosmology {
 // The cosmology:
-// Must include Omega_m, Omega_K, Omega_DE, H0
+// Must include Omega_m, Omega_smooth, Omega_K, Omega_DE, H0
 // and the functions OmegaX(a) and dOmegaXdlna(a)
+// Omega_smooth is the portion of Omega_m that is being forced to be homogeneous.
+// That is, Omega_m determines H(z), but the linear perturbations are carried by 
+// a component of density Omega_m-Omega_smooth 
 public:
-    double Omega_m, Omega_K, Omega_DE, H0;
+    double Omega_m, Omega_smooth, Omega_K, Omega_DE, H0;
 
     double w0, wa;
     double w(double a) {
@@ -57,6 +60,7 @@ public:
     MyCosmology C;
 
 private:
+    double n;   // This is the EdS growth function exponent in the presence of smooth components.
     void Pack(Epoch& epoch, double *lna, double *vars);
     void Unpack(Epoch& epoch, double lna, double *vars);
     void Deriv(double lna, double *vars, double *dvars);

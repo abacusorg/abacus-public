@@ -6,6 +6,7 @@ Cosmology *InitializeCosmology(double ScaleFactor) {
     // This routine should only be called once.
     MyCosmology cosmo;
     cosmo.Omega_m = P.Omega_M;
+    cosmo.Omega_smooth = P.Omega_Smooth;
     cosmo.Omega_K = P.Omega_K;
     cosmo.Omega_DE = P.Omega_DE;
     cosmo.H0 = 1.0;	
@@ -35,6 +36,7 @@ void FillStateWithCosmology(State &S) {
     S.OmegaNow_m = cosm->next.OmegaHat_m/total;
     S.OmegaNow_K = cosm->next.OmegaHat_K/total;
     S.OmegaNow_DE = cosm->next.OmegaHat_X/total;
+    S.fsmooth = cosm->C.Omega_smooth/cosm->C.Omega_m;
 
     S.HubbleTimeHGyr = 9.7782;
         // The Hubble Time is 9.7782 h^-1 Gyr
@@ -43,7 +45,7 @@ void FillStateWithCosmology(State &S) {
     S.BoxSizeMpc = P.BoxSize*(P.hMpc?(100.0/P.H0):1.0);
     S.BoxSizeHMpc = S.BoxSizeMpc*(P.H0/100.0);
     	// Redundant, but we might as well be explicit.
-    S.ParticleMassMsun = 2.7746e11*P.Omega_M*pow(P.H0/100,2.0)*pow(S.BoxSizeMpc,3.0)/P.np;
+    S.ParticleMassMsun = 2.7746e11*(P.Omega_M-P.Omega_Smooth)*pow(P.H0/100,2.0)*pow(S.BoxSizeMpc,3.0)/P.np;
     	// This is in Msun.  
         // The critical density is 2.7746e11 h^2 Msun/Mpc^3
     S.ParticleMassHMsun = S.ParticleMassMsun*(P.H0/100);
