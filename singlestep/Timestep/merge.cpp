@@ -177,8 +177,8 @@ uint64 FillMergeSlab(int slab) {
     }
 
     // Build the InsertCellInfo and MergeCellInfo indexing
-    #pragma omp parallel for schedule(static)
-    for(int y=0;y<cpd;y++) {
+    // Use NUMA_FOR, not because we expect load imbalancing, but to get the merge slabs on the right NUMA nodes
+    NUMA_FOR(y,0,cpd)
         // For this skewer, set up pointers and counters
         ilstruct *ilread = ilhead + skewer[y].ilskewerstart;
             // This pointer will walk along the insert list
@@ -258,8 +258,7 @@ uint64 FillMergeSlab(int slab) {
     SB->AllocateSpecificSize(MergeAuxSlab, slab, inslab*sizeof(auxstruct));
     STDLOG(2,"Allocating Merge Slabs to contain %d particles\n", inslab);
 
-    #pragma omp parallel for schedule(static)
-    for(int y=0;y<cpd;y++){
+    NUMA_FOR(y,0,cpd)
         for(int z=0;z<cpd;z++) {
             Cell c;
             c = CP->GetCell(slab, y, z);

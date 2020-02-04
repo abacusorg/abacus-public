@@ -303,8 +303,7 @@ void GlobalGroupSlab::IndexLinks() {
         int thisslab = GFC->WrapSlab(slab+s-slabbias);
         assertf(GFC->cellgroups_status[thisslab]>0, "Cellgroup slab %d not present (value %d).  Something is wrong in dependencies!\n", thisslab, GFC->cellgroups_status[thisslab]);
             // Just to check that the CellGroups are present or already closed.
-        #pragma omp parallel for schedule(dynamic,1)
-        for (int j=0; j<cpd; j++) {
+        NUMA_FOR(j,0,cpd)
             // Now find the starting point for this Pencil
             GroupLink *start = GFC->GLL->Search(thisslab, j);
             // printf("Pencil %d %d starts at %d\n", thisslab, j, (int)(start-GFC->GLL->list));
@@ -418,8 +417,7 @@ void GlobalGroupSlab::ClearDeferrals() {
     STDLOG(1,"Clearing Deferrals for slab %d\n", slab);
     for (int s=0; s<diam; s++) {
         int thisslab = GFC->WrapSlab(slab+s-slabbias);
-        #pragma omp parallel for schedule(static)
-        for (int j=0; j<cpd; j++) {  // Parallelize over pencils
+        NUMA_FOR(j,0,cpd)
             PencilAccum<CellGroup> pencil = GFC->cellgroups[thisslab][j];
             for (int g=0; g<pencil._size; g++) pencil.data[g].clear_deferral();
 
@@ -593,25 +591,32 @@ void GlobalGroupSlab::GatherGlobalGroups() {
     uint64 *this_pencil_cg = new uint64[GFC->cpd];
     int *largest = new int[GFC->cpd];
 
-    uint64 _ncellgroups = 0;
-    #pragma omp parallel for schedule(static) reduction(+:_ncellgroups)
-    for (int j=0; j<GFC->cpd; j++) {
-        uint64 local_ncellgroups = 0;
+    int nthread = omp_get_max_threads();
+    pint64 local_ncellgroups[nthread];
+    for(int i = 0; i < nthread; i++)
+        local_ncellgroups[i] = 0;
+
+    NUMA_FOR(j,0,GFC->cpd)
+        int g = omp_get_thread_num();
         uint64 local_this_pencil = 0;
+        uint64 _local_ncellgroups = 0;
         int local_largest = 0;
         for (int k=0; k<GFC->cpd; k++)
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 int size = globalgroups[j][k][n].np;
-                local_ncellgroups += globalgroups[j][k][n].ncellgroups;
+                _local_ncellgroups += globalgroups[j][k][n].ncellgroups;
                 local_this_pencil += size;
                 local_largest = std::max(local_largest, size);
             }
         this_pencil[j] = local_this_pencil;
-        this_pencil_cg[j] = local_ncellgroups;
+        this_pencil_cg[j] = _local_ncellgroups;
+        local_ncellgroups[g] += _local_ncellgroups;
         largest[j] = local_largest;
-        _ncellgroups += local_ncellgroups;
     }
-    ncellgroups = _ncellgroups;
+
+    ncellgroups = 0;
+    for(int i = 0; i < nthread; i++)
+        ncellgroups += local_ncellgroups[i];
 
     // Now for the serial accumulation over the pencils
     uint64 total_particles = 0;
@@ -634,9 +639,8 @@ void GlobalGroupSlab::GatherGlobalGroups() {
 
     GFC->GatherGroups.Start();
     // Now copy the particles into these structures
-    #pragma omp parallel for schedule(static)
-    for (int j=0; j<GFC->cpd; j++)
-        for (int k=0; k<GFC->cpd; k++)
+    NUMA_FOR(j,0,GFC->cpd)
+        for (int k=0; k<GFC->cpd; k++){
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 // Process globalgroups[j][k][n]
                 // Compute where we'll put the particles, and update this starting point
@@ -682,6 +686,8 @@ void GlobalGroupSlab::GatherGlobalGroups() {
 
                 // TODO: Might need to compute the COM for light cone output
             } // End loop over globalgroups in a cell
+        }
+    }
     // End loop over cells
     GFC->GatherGroups.Stop();
     return;
@@ -698,9 +704,8 @@ back only the AuxSlab information.
 void GlobalGroupSlab::ScatterGlobalGroupsAux() {
     GFC->ScatterAux.Start();
 
-    #pragma omp parallel for schedule(static)
-    for (int j=0; j<GFC->cpd; j++)
-        for (int k=0; k<GFC->cpd; k++)
+    NUMA_FOR(j,0,GFC->cpd)
+        for (int k=0; k<GFC->cpd; k++){
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 // Process globalgroups[j][k][n]
                 // Recall where the particles start
@@ -719,6 +724,8 @@ void GlobalGroupSlab::ScatterGlobalGroupsAux() {
                     start += cg->size();
                 } // End loop over cellgroups in this global group
             } // End loop over globalgroups in a cell
+        }
+    }
     // End loop over cells
     GFC->ScatterAux.Stop();
     return;
@@ -737,9 +744,8 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
     GFC->ScatterGroups.Start();
 
     STDLOG(1,"Scattering global group pos/vel from slab %d\n", slab);
-    #pragma omp parallel for schedule(static)
-    for (int j=0; j<GFC->cpd; j++)
-        for (int k=0; k<GFC->cpd; k++)
+    NUMA_FOR(j,0,GFC->cpd)
+        for (int k=0; k<GFC->cpd; k++){
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 // Process globalgroups[j][k][n]
                 // Recall where the particles start
@@ -774,6 +780,8 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
                     start += cg->size();
                 } // End loop over cellgroups in this global group
             } // End loop over globalgroups in a cell
+        }
+    }
     // End loop over cells
     GFC->ScatterGroups.Stop();
     STDLOG(1,"Done scattering global group pos/vel from slab %d\n", slab);
@@ -872,11 +880,17 @@ void GlobalGroupSlab::FindSubGroups() {
     // pencils by the work estimate (largest first)
     std::sort(pstat, pstat+GFC->cpd);
     
-    int np_subA = 0; 
-    int np_subB = 0; 
+    int nthread = omp_get_max_threads();
+    padded<int> local_np_subA[nthread];
+    padded<int> local_np_subB[nthread];
+    for(int i = 0; i < nthread; i++){
+        local_np_subA[i] = 0;
+        local_np_subB[i] = 0;
+    }
 
-    #pragma omp parallel for schedule(dynamic,1) reduction(+: np_subA, np_subB)
-    for (int jj=0; jj<GFC->cpd; jj++) {
+
+    NUMA_FOR(jj,0,GFC->cpd)
+        int threadnum = omp_get_thread_num();
         int j = pstat[jj].pnum;    // Get the pencil number from the list
         GFC->L1Tot.Start();
         int g = omp_get_thread_num();
@@ -985,7 +999,7 @@ void GlobalGroupSlab::FindSubGroups() {
                                 else if (taggable == TAGGABLE_SUB_B) ntaggedB++;
                             }
 
-                            AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset, np_subA, np_subB);
+                            AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset, local_np_subA[threadnum].i, local_np_subB[threadnum].i);
                         }
 
                         HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], offset);
@@ -1041,7 +1055,7 @@ void GlobalGroupSlab::FindSubGroups() {
                                                     //if we're outputing the particle subsample, output all of its L0 particles. 
                     for (int b=0; b<groupn; b++) {
                         if (groupaux[b].is_L1()) continue;  // Already in the L1 set
-                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset, np_subA, np_subB); 
+                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset, local_np_subA[threadnum].i, local_np_subB[threadnum].i); 
                     }
                 }
                 
@@ -1061,6 +1075,12 @@ void GlobalGroupSlab::FindSubGroups() {
         pHaloPIDsA->FinishPencil();
         pHaloPIDsB->FinishPencil();
         GFC->L1Tot.Stop();
+    }
+
+    int np_subA = 0, np_subB = 0;
+    for(int i = 0; i < nthread; i++){
+        np_subA += local_np_subA[i];
+        np_subB += local_np_subB[i];
     }
 
     // Need to update the pL1halos.npstart values for their pencil starts!
