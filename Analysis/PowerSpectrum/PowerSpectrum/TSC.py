@@ -171,6 +171,8 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
 
     if format.startswith('pack'):
         reader_kwargs.update(ramdisk=True)
+    elif format == 'pack9':
+        reader_kwargs.update(ramdisk=True)
     elif format == 'rvzel':
         reader_kwargs.update(return_zel=False, add_grid=True, boxsize=boxsize)
     elif format == 'rvdoublezel':
