@@ -41,6 +41,7 @@ Parallel = 1
 
 #if running with smt2, need -b rs. 
 mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -gALL_GPUS -b rs"
+##mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -gALL_GPUS -b rs --smpiargs='-disable_gpu_hooks'"
 ##Conv_mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -b rs"
 ZD_mpirun_cmd = "jsrun -n1 -cALL_CPUS -a1 -r1 -b rs"
 WorkingDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@
