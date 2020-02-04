@@ -60,7 +60,7 @@ import shlex
 from .InputFile import InputFile
 from . import GenParam
 from . import abacus
-from Abacus.Cosmology import AbacusCosmo
+import Abacus.Cosmology
 
 zeldovich_dir = pjoin(abacus.abacuspath, 'zeldovich-PLT')
 eigmodes_path = pjoin(zeldovich_dir, 'eigmodes128')
@@ -87,8 +87,8 @@ def calc_growth_ratio(params, z1, z2):
     if z2 == 'init':
         z2 = params['InitialRedshift']
 
-    cosm1 = AbacusCosmo.from_params(params, z1)
-    cosm2 = AbacusCosmo.from_params(params, z2)
+    cosm1 = Abacus.Cosmology.from_params(params, z1)
+    cosm2 = Abacus.Cosmology.from_params(params, z2)
 
     return cosm1.current.growth/cosm2.current.growth
 
@@ -105,7 +105,7 @@ def setup_zeldovich_params(params):
         if params.get('ZD_Pk_file_redshift'):
             raise ValueError("Must specify one of sigma_8 and ZD_Pk_file_redshift in parameter file")
 
-        sigma8_at_zinit = zeldovich.calc_sigma8(params)
+        sigma8_at_zinit = calc_sigma8(params)
 
         # If ZD_Pk_sigma was already given, check that it is consistent with what we just computed
         if 'ZD_Pk_sigma' in params:
@@ -131,14 +131,14 @@ def setup_zeldovich_params(params):
             raise ValueError("Must specify one of ZD_Pk_file_redshift, sigma_8, ZD_Pk_sigma, or ZD_Pk_sigma_ratio in parameter file")
 
     # Regardless of the growth amplitude method, calculate f_growth
-    cosm_zinit = AbacusCosmo.from_params(params, params['InitialRedshift'])
+    cosm_zinit = Abacus.Cosmology.from_params(params, params['InitialRedshift'])
     f_growth = cosm_zinit.current.f_growth;
     if 'ZD_f_growth' in params:
         # If f_growth was already given, check that it is consistent with what we just computed
         if not np.isclose(f_growth, params['ZD_f_growth'], rtol=1e-5):
             raise ValueError(f'ZD_f_growth = {params["ZD_f_growth"]} in parameter file does not match f_growth = {f_growth} computed from cosmology')
     else:
-        zd_params['f_growth'] = f_growth
+        zd_params['ZD_f_growth'] = f_growth
 
     return zd_params
     

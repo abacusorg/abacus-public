@@ -26,7 +26,7 @@ void FillStateWithCosmology(State &S) {
     S.etaK = cosm->next.etaK;
     S.etaD = cosm->next.etaD;
     S.Growth = cosm->next.growth;
-    S.Growth_on_a = cosm->next.growth/cosm->next.a;
+    S.Growth_on_a_n = cosm->next.growth/pow(cosm->next.a, cosm->n);  // D/a^n
     S.f_growth = cosm->next.f_growth;
     S.w = cosm->next.w;
     S.HubbleNow = cosm->next.H;           // In same units as H_0 was given
