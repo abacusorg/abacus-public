@@ -1150,6 +1150,7 @@ fallback_file_pattern = ('*.dat',)
                     
 default_box_on_disk = {'desi_hdf5':'box',
                 'pack14':1.,
+                'pack9':1.,
                 'rvtag':'box',
                 'gadget':'box',
 }

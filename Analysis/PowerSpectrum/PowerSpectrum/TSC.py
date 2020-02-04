@@ -18,7 +18,7 @@ from Abacus import ReadAbacus
 
 from . import _psffilib
 
-valid_file_formats = ['rvdouble', 'pack14', 'rvzel', 'rvtag', 'state', 'gadget', 'desi_hdf5', 'rvdoublezel']
+valid_file_formats = ['rvdouble', 'pack14', 'pack9', 'rvzel', 'rvtag', 'state', 'gadget', 'desi_hdf5', 'rvdoublezel']
 maxthreads = os.cpu_count()
 
 def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.float32, rotate_to=None, prep_rfft=False, nthreads=-1, inplace=False, norm=False):
@@ -170,6 +170,8 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
     reader_kwargs = dict(return_vel=False, zspace=zspace, dtype=dtype, format=format, units='box')
 
     if format == 'pack14':
+        reader_kwargs.update(ramdisk=True)
+    elif format == 'pack9':
         reader_kwargs.update(ramdisk=True)
     elif format == 'rvzel':
         reader_kwargs.update(return_zel=False, add_grid=True, boxsize=boxsize)
