@@ -1147,7 +1147,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 restore_time = wall_timer() - restore_time
             
                 print(f'Retrieving and storing state took {restore_time} seconds. ', end = '')
-                lack_backup  = wall_timer()  #log the time of the last backup. 
+                last_backup  = wall_timer()  #log the time of the last backup. 
 
             
                 #checking if path exists explicitly just in case user requested emergency exit while we were retrieveing the state. 
