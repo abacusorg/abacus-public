@@ -57,6 +57,8 @@ import parser
 import argparse
 import shlex
 
+import numpy as np
+
 from .InputFile import InputFile
 from . import GenParam
 from . import abacus
@@ -130,15 +132,21 @@ def setup_zeldovich_params(params):
         if not params.get('ZD_Pk_sigma') and not params.get('ZD_Pk_sigma_ratio'):
             raise ValueError("Must specify one of ZD_Pk_file_redshift, sigma_8, ZD_Pk_sigma, or ZD_Pk_sigma_ratio in parameter file")
 
-    # Regardless of the growth amplitude method, calculate f_growth
-    cosm_zinit = Abacus.Cosmology.from_params(params, params['InitialRedshift'])
-    f_growth = cosm_zinit.current.f_growth;
-    if 'ZD_f_growth' in params:
-        # If f_growth was already given, check that it is consistent with what we just computed
-        if not np.isclose(f_growth, params['ZD_f_growth'], rtol=1e-5):
-            raise ValueError(f'ZD_f_growth = {params["ZD_f_growth"]} in parameter file does not match f_growth = {f_growth} computed from cosmology')
+    # Regardless of the growth amplitude method, calculate f_cluster
+    cosm_zinit = Abacus.Cosmology.from_params(params, z='init')
+    f_cluster_from_smooth = 1 - params.get('Omega_Smooth',0.)/params['Omega_M']
+    if 'ZD_f_cluster' in params:
+        # If ZD_f_cluster was already given, check that it matches Omega_Smooth
+        if not np.isclose(f_cluster_from_smooth, params['ZD_f_cluster'], rtol=1e-5):
+            raise ValueError(f'ZD_f_cluster = {params["ZD_f_cluster"]} does not match 1 - Omega_Smooth/Omega_M = {f_cluster_from_smooth}')
     else:
-        zd_params['ZD_f_growth'] = f_growth
+        zd_params['ZD_f_cluster'] = f_cluster_from_smooth
+
+    # Check that f_growth computed in the EdS approximation with f_cluster is consistent with the value from the cosmology module
+    f_growth = cosm_zinit.current.f_growth
+    fgrowth_from_fcluster = ((1 + 24*f_cluster_from_smooth)**0.5 - 1)/4
+    if not np.isclose(f_growth, fgrowth_from_fcluster, rtol=1e-4):
+        raise ValueError(f'fgrowth_from_fcluster = {fgrowth_from_fcluster} from parameter file does not match f_growth = {f_growth} computed from cosmology')
 
     return zd_params
     

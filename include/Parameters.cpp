@@ -115,10 +115,6 @@ public:
     int hMpc;           // =1 if we're using Mpc/h units.  =0 if Mpc units
     double InitialRedshift;
     int LagrangianPTOrder;  // =1 for Zel'dovich, =2 for 2LPT, =3 for 3LPT
-    double _ZD_f_growth;
-        // The f_growth factor used when setting up the initial conditions, if they came from the zeldovich code!
-        // The underscore prefix indicates that one should not use this value in the code, but if it is present,
-        // then we may use the opportunity to do a consistency check with the f_growth factor we use in 2LPT
 
     int GroupRadius;        // Maximum size of a group, in units of cell sizes
     double TimeStepAccel;         // Time-step parameter based on accelerations
@@ -346,8 +342,6 @@ public:
         installscalar("hMpc",hMpc,MUST_DEFINE);           // =1 if we're using Mpc/h units.  =0 if Mpc units
         installscalar("InitialRedshift",InitialRedshift,MUST_DEFINE);
         installscalar("LagrangianPTOrder",LagrangianPTOrder,MUST_DEFINE);  // =1 for Zel'dovich, =2 for 2LPT, =3 for 3LPT
-        _ZD_f_growth = -1.;
-        installscalar("ZD_f_growth",_ZD_f_growth,DONT_CARE);
 
         installscalar("GroupRadius",GroupRadius,MUST_DEFINE);        // Maximum size of a group, in units of cell sizes
         installscalar("TimeStepAccel",TimeStepAccel,MUST_DEFINE);         // Time-step parameter based on accelerations
