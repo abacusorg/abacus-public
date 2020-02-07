@@ -780,7 +780,9 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
     return retval
     
     
-def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32, return_pid='auto', return_aux=False, return_vel='auto', return_pos='auto', return_header=False, out=None):
+def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
+                return_pid='auto', return_aux=False, return_vel='auto', return_pos='auto', return_header=False,
+                pid_bitmask=0x7fff7fff7fff, out=None):
     """
     Read an Abacus position or velocity state file (like 'read/position_0000').
     
@@ -804,6 +806,9 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
         Return the PID as loaded from the `auxillary_*` slabs
     return_header, bool, optional
         Return the `state` file
+    pid_bitmask: int, optional
+        Bitmask to apply to the aux field to get the PID.
+        Pre-AbacusSummit sims used 0xffffffffff.
         
     Returns
     -------
@@ -878,7 +883,7 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
         particles['vel'][:NP] = np.fromfile(vel_fn, dtype=(dtype_on_disk, 3))
     if return_pid:
         particles['pid'][:NP] = np.fromfile(aux_fn, dtype=np.uint64)
-        particles['pid'][:NP] &= 0xffffffffff  # PID aux bitmask (lower 40 bits)
+        particles['pid'][:NP] &= pid_bitmask
     if return_aux:
         particles['aux'][:NP] = np.fromfile(aux_fn, dtype=np.uint64)
             
