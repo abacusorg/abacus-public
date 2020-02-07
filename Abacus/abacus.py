@@ -365,12 +365,9 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
             if k not in param_kwargs:
                 param_kwargs[k] = dirs[k]
     
-    if 'sigma_8' in params:
-        sigma8_at_zinit = zeldovich.calc_sigma8(params)
-        if 'ZD_Pk_sigma' in params:
-            assert np.isclose(params['ZD_Pk_sigma'], sigma8_at_zinit, rtol=1e-4),\
-                f"ZD_Pk_sigma ({sigma8_at_zinit:f}) calculated from sigma_8 ({params['sigma_8']:f}) conflicts with the provided value of ZD_Pk_sigma ({params['ZD_Pk_sigma']:f})!"
-        param_kwargs['ZD_Pk_sigma'] = sigma8_at_zinit
+    zd_params = zeldovich.setup_zeldovich_params(params)
+    if zd_params:
+        param_kwargs.update(zd_params)
         params = GenParam.makeInput(output_parfile, parfn, **param_kwargs)
 
     if params.get('StateIOMode','normal').lower() in ('slosh','stripe'):
