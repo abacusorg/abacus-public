@@ -1161,6 +1161,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                     print('Exiting.')
                     if maxsteps == 10000:
                         print('Requeueing!')
+                        status_log.print(f"# Terminating normally w/ requeue code.  {ending_time_str:s} after {ending_time:f} hours.")
                         return EXIT_REQUEUE  
                     else:
                         print('Requeue disabled because maxsteps was set by the user.')
