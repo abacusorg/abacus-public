@@ -565,8 +565,9 @@ void InitWriteState(int MakeIC){
     // We generally want to do re-reading on the last LPT step
     WriteState.Do2LPTVelocityRereading = 0;
     if (LPTStepNumber() > 0 && LPTStepNumber() == P.LagrangianPTOrder
-        && (strcmp(P.ICFormat, "RVdoubleZel") == 0 || strcmp(P.ICFormat, "RVZel") == 0))
+        && (strcmp(P.ICFormat, "RVdoubleZel") == 0 || strcmp(P.ICFormat, "RVZel") == 0)){
         WriteState.Do2LPTVelocityRereading = 1;
+    }
 
     // Decrease the softening length if we are doing a 2LPT step
     // This helps ensure that we are using the true 1/r^2 force
