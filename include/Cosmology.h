@@ -59,8 +59,8 @@ public:
     ///    search holds the result of bisection searches for a(t)
     MyCosmology C;
 
-private:
     double n;   // This is the EdS growth function exponent in the presence of smooth components.
+private:
     void Pack(Epoch& epoch, double *lna, double *vars);
     void Unpack(Epoch& epoch, double lna, double *vars);
     void Deriv(double lna, double *vars, double *dvars);

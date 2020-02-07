@@ -75,7 +75,7 @@ public:
     double etaK;
     double etaD;
     double Growth;
-    double Growth_on_a;
+    double Growth_on_a_n;  // D/a^n
     double f_growth;
     double w;
     double HubbleNow;   // In H_0=1 units
@@ -196,7 +196,7 @@ public:
         installscalar("etaK",etaK,MUST_DEFINE);
     	installscalar("etaD",etaD,DONT_CARE);
     	installscalar("Growth",Growth,DONT_CARE);
-    	installscalar("Growth_on_a",Growth_on_a,DONT_CARE);
+    	installscalar("Growth_on_a_n",Growth_on_a_n,DONT_CARE);  // D/a^n
     	installscalar("f_growth",f_growth,DONT_CARE);
     	installscalar("w",w,DONT_CARE);
     	installscalar("HubbleNow",HubbleNow,DONT_CARE);   // In km/s/Mpc
@@ -305,7 +305,7 @@ void State::make_output_header() {
     WPR(etaK                     , FSYM);
     WPR(etaD                     , FSYM);
     WPR(Growth                   , FSYM);
-    WPR(Growth_on_a              , FSYM);
+    WPR(Growth_on_a_n            , FSYM);
     WPR(f_growth                 , FSYM);
     WPR(w                        , FSYM);
     WPR(HubbleNow                , FSYM);
