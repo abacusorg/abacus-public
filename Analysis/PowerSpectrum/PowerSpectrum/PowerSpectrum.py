@@ -210,7 +210,9 @@ def RebinTheoryPS(ps, gridshape, boxsize, *, bins=-1, log=False, dtype=np.float3
     
     dx = boxsize/np.array(gridshape)
     kgrid = misc.fftfreq_nd(gridshape, dx, rfft=True, kmag=True)
+    kgrid[0,0,0] = kgrid[0,0,1]  # todo: 2D
     power = pkref_interp(kgrid)
+    power[0,0,0] = 0.  # enforce zero power at origin, like zeldovich code
     
     k, s, nmodes, bin_info = RadialBinGrid(boxsize, power, bins, rfft=True)
     _, s2, _, _ = RadialBinGrid(boxsize, power**2., bins, rfft=True, bin_info=bin_info)

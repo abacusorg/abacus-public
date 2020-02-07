@@ -104,7 +104,9 @@ void FetchSlabsAction(int slab) {
     }
 
     // Don't bother to load the vel/aux/taylors for slabs that won't be kicked until the wrap
-    #ifndef PARALLEL
+    //#ifndef PARALLEL
+    // LHG: only need this when we're memory starved
+    #if 0
     if(FetchSlabs.number_of_slabs_executed < FORCE_RADIUS)
         return;
     #endif
@@ -161,7 +163,8 @@ void TransposePosAction(int slab){
         }
     }
 
-    #ifndef PARALLEL
+    //#ifndef PARALLEL
+    #if 0
     // If this is a "ghost" slab, we only need its transpose
     if(TransposePos.number_of_slabs_executed < FORCE_RADIUS)
         SB->DeAllocate(PosSlab, slab);
@@ -241,6 +244,7 @@ int TaylorForcePrecondition(int slab) {
     }
     if( !SB->IsIOCompleted( PosSlab, slab ) ){
         if(SB->IsSlabPresent(PosSlab, slab))
+            Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
 
@@ -339,7 +343,8 @@ void KickAction(int slab) {
         for(int j = slab - FORCE_RADIUS+1; j <= slab + FORCE_RADIUS; j++)
             SB->DeAllocate(PosXYZSlab, j);
 
-    #ifndef PARALLEL
+    //#ifndef PARALLEL
+    #if 0
     // Queue up slabs near the wrap to be loaded again later
     // This way, we don't have idle slabs taking up memory while waiting for the pipeline to wrap around
     if(Kick.number_of_slabs_executed < FORCE_RADIUS){

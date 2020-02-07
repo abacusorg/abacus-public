@@ -219,7 +219,7 @@ HaloStat ComputeStats(int size,
 		if (v4>vmax) { vmax = v4; rvmax = L2.d2_active[p]; }
     }
     h.rvcirc_max_com = lround(sqrt(rvmax) / h.r100_com * INT16SCALE );    // Get to radial units and compress into int16. 
-    float GMpart = 3*P.Omega_M*pow(100*ReadState.BoxSizeHMpc,2)/(8*M_PI*P.np*ReadState.ScaleFactor);
+    float GMpart = 3*(P.Omega_M-P.Omega_Smooth)*pow(100*ReadState.BoxSizeHMpc,2)/(8*M_PI*P.np*ReadState.ScaleFactor);
     h.vcirc_max_com = sqrt(GMpart*sqrt(vmax))/ReadState.VelZSpace_to_kms;  // This is sqrt(G*M_particle*N/R).
     
     // Repeat this, finding moments and radii around the largest subhalo COM

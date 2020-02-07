@@ -258,11 +258,13 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
         // This will create the directory if it doesn't exist (and is parallel safe)
         char dir[32];
         sprintf(dir, "Step%04d", ReadState.FullStepNumber);
-        CreateSubDirectory(P.LightConeDirectory, dir);
+        CreateSubDirectory(P.LightConeDirectory, dir); //this is parallel-safe. 
 
-        std::string headerfn = "";
-        headerfn = headerfn + P.LightConeDirectory + "/" + dir + "/header";
-        LC.WriteHeaderFile(headerfn.c_str());
+        if(slab == 0){ //but we only want one node writing the header. 
+            std::string headerfn = "";
+            headerfn = headerfn + P.LightConeDirectory + "/" + dir + "/header";
+            LC.WriteHeaderFile(headerfn.c_str());
+        }
 
         SlabType lightconeslab;
         lightconeslab = (SlabType)((int)(LightCone0RV + lcn));

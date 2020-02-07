@@ -160,11 +160,17 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
     }
     
     double H = 1;
+    double fsmooth = P.Omega_Smooth/P.Omega_M;
+    double vel_to_displacement = 2.0/(19.0-18.0*fsmooth-sqrt(25.0-24.0*fsmooth))/H/H/P.Omega_M;
+        // The second order displacement is vel/7H^2Omega_m
+        // With a smooth component, the Omega_m remains the same, but the factor of 7
+        // becomes 1+18 f_cluster - sqrt(1+24*f_cluster)
+
     for (int b = 0; b<e; b++) {
         // The first order displacement
         displ1 = ZelPos(c.aux[b].xyz())-cellcenter-c.pos[b];
-        // The second order displacement is vel/7H^2Omega_m
-        displ2 = c.vel[b]/7/H/H/P.Omega_M;
+        // displ2 = c.vel[b]/7/H/H/P.Omega_M;
+        displ2 = c.vel[b]*vel_to_displacement;
         
         // Internally, everything is in a unit box, so we actually don't need to normalize by BoxSize before rounding
         displ1 -= displ1.round();
@@ -189,6 +195,9 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
             QUIT("Unexpected ICformat \"%s\" in 2LPT code.  Must be one of: Zeldovich, RVdoubleZel, RVZel\n", P.ICFormat);
         }
         
+        // Here's where we add on the second-order velocity.
+        // This factor of 2*f_growth is correct even for Smooth components
+        // (where f_growth < 1) because the time dependence is still the square of first order.
         c.vel[b] = vel1 + WriteState.f_growth*2*displ2*convert_velocity;
     }
 
@@ -207,6 +216,8 @@ void KickCell_2LPT_3(Cell &c, FLOAT kick1, FLOAT kick2) {
 void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
     // Now we have to adjust the positions and velocities    
     // Usually, Drift doesn't need accelerations, but 3LPT does
+    // TODO: Haven't considered Smooth components at 3rd order
+    assertf(P.Omega_Smooth==0, "3rd order not implemented with Omega_Smooth!=0\n");
     int slab = c.ijk.x;
     
     int e = c.count();
