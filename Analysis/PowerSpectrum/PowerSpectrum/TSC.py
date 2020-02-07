@@ -169,7 +169,7 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
 
     reader_kwargs = dict(return_vel=False, zspace=zspace, dtype=dtype, format=format, units='box')
 
-    if format == 'pack14':
+    if format.startswith('pack'):
         reader_kwargs.update(ramdisk=True)
     elif format == 'pack9':
         reader_kwargs.update(ramdisk=True)

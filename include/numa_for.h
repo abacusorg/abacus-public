@@ -125,10 +125,11 @@ void init_numa_for(int nthreads, int const *core_assignments){
 
     // First, determine which NUMA nodes have active CPUs and index them contiguously
     int max_node = numa_max_node();
+    STDLOG(3, "Max NUMA node: %d\n", max_node);
     struct bitmask *bm = numa_allocate_cpumask();
-    int numa_node_squashed_index[max_node];  // index of node, skipping empties
+    int numa_node_squashed_index[max_node+1];  // index of node, skipping empties
     _N_numa_nodes = 0;  // number of non-empty numa nodes
-    for(int i = 0; i < max_node; i++){
+    for(int i = 0; i <= max_node; i++){
         if(!numa_bitmask_isbitset(numa_all_nodes_ptr,i)){
             numa_node_squashed_index[i] = -1;
             continue;
