@@ -179,8 +179,6 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	
 	CS.ops = 0;
 	CS.ComputeCores = omp_get_max_threads();
-
-    sprintf(wisdom_file, "parallel_convolve_fft.wisdom");
 }
 
 /// The destructor.  This should close the MTfile. NAM: MTfile can be closed right after mapping, I think. 
@@ -240,7 +238,6 @@ ParallelConvolution::~ParallelConvolution() {
 	Destructor.Stop(); CS.Destructor = Destructor.Elapsed();
 	
 	ThreadCleanUp.Clear(); ThreadCleanUp.Start();
-	//fftw_cleanup_threads(); //NAM check usage. 	
 	ThreadCleanUp.Stop(); CS.ThreadCleanUp = ThreadCleanUp.Elapsed();
 	
 	CS.ConvolveWallClock += Destructor.Elapsed() + ThreadCleanUp.Elapsed(); 
@@ -259,10 +256,6 @@ ParallelConvolution::~ParallelConvolution() {
 	dumpstats_timer.Stop(); 
 	
 	STDLOG(1, "Dumpstats took %f seconds\n", dumpstats_timer.Elapsed());
-
-    STDLOG(1, "Exporting wisdom to file.\n");
-    if(MPI_rank == 0)
-       fftw_export_wisdom_to_filename(wisdom_file);
 }
 
 
@@ -571,7 +564,7 @@ void ParallelConvolution::SendTaylors(int offset) {
 		//figure out who the receipient should be based on x slab and send to them. 
 		// Take from MTdisk. Set Tsend_requests[x] as request. 	
 		slab = CP->WrapSlab(slab);
-		STDLOG(4, "About to SendTaylor Slab %d with offset %d\n", slab, FORCE_RADIUS); 
+		STDLOG(4, "About to SendTaylor Slab %d with offset %d\n", slab, offset); 
 		
 		int r = GetTaylorRecipient(slab, offset); //x-slab slab is in node r's domain. Send to node r. 
 	
@@ -608,7 +601,7 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
     if (Trecv_requests[slab]==NULL) return 1;  // Nothing to do for this slab
 	
     int err, received=0, done=1;
-    for (int r=0; r<MPI_size; r++) {
+    /*for (int r=0; r<MPI_size; r++) {
 		if (Trecv_requests[slab][r]==MPI_REQUEST_NULL) continue;  // Already done
 		
 	    err = MPI_Test(&Trecv_requests[slab][r], &received, MPI_STATUS_IGNORE);
@@ -620,7 +613,9 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
 		} else{
             assert(Trecv_requests[slab][r]==MPI_REQUEST_NULL);
         }
-    }
+    }*/
+
+    err = MPI_Testall(Trecv_requests[slab], &received, MPI_STATUSES_IGNORE);
 	
 	if (done) {
 		delete[] Trecv_requests[slab];
@@ -750,16 +745,12 @@ void ParallelConvolution::Swizzle_to_xzmy() {
 
 
 fftw_plan ParallelConvolution::PlanFFT(int sign){
-	int wisdom_exists = fftw_import_wisdom_from_filename(wisdom_file);
-	
-	STDLOG(1, "Wisdom import returned %d (%s).\n", wisdom_exists, wisdom_exists == 1 ? "success" : "failure");
-	
 	fftw_plan plan = NULL;
 	
-	// TODO: Import wisdom
 	// We're going to plan to process each [x][y] slab separately,
 	// doing the cpd FFTs of cpd length.
 	// stride = cpd, dist = 1, nembed = NULL
+	// We imported any wisdom in Prologue
 
     STDLOG(2, "MTzmxy byte alignment is %d\n", 1 << __builtin_ctzll((unsigned long long) MTzmxy));
 	
@@ -771,7 +762,10 @@ fftw_plan ParallelConvolution::PlanFFT(int sign){
     		(fftw_complex *) MTzmxy, NULL, cpd, 1,
     		sign, FFTW_PATIENT | FFTW_WISDOM_ONLY);
         if(plan == NULL){
-            WARNING("Wisdom was imported but wisdom planning failed. Generating new plans...\n");
+            if(ReadState.FullStepNumber > 1)  // Haven't done any convolutions yet, don't expect wisdom!
+                WARNING("Wisdom was imported but wisdom planning failed. Generating new plans...\n");
+            else
+                STDLOG(1,"Wisdom was imported but wisdom planning failed (probably okay because this is first convolution). Generating new plans...\n");
         }
         else{
             STDLOG(1,"Wisdom planning succeeded.\n");
@@ -784,6 +778,7 @@ fftw_plan ParallelConvolution::PlanFFT(int sign){
             (fftw_complex *) MTzmxy, NULL, cpd, 1,
             sign, FFTW_PATIENT);
     }
+    assertf(plan != NULL, "Failed to generate ParallelConvolve FFTW plan for sign %d\n", sign);
 	
 	return plan;
 }
@@ -813,10 +808,6 @@ void ParallelConvolution::Convolve() {
 	// We're beginning in [x][znode][m][y] order on the RAMdisk
 	// Copy to the desired order in a new buffer
 	FFTPlanning.Clear(); FFTPlanning.Start();
-		int err = fftw_init_threads(); 
-		assertf(err != 0, "Failed to fftw_init_threads\n");
-		fftw_plan_with_nthreads(omp_get_max_threads()); //NAM TODO how many threads in here? 
-	
 		fftw_plan forward_plan  = PlanFFT(FFTW_FORWARD);
 		fftw_plan backward_plan = PlanFFT(FFTW_BACKWARD);
 	FFTPlanning.Stop();

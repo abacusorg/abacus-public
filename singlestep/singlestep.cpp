@@ -13,10 +13,14 @@ void BuildWriteState(double da){
     WriteState.ippd = (int64) round(WriteState.ppd);
         
 	// Fill in the logistical reporting fields
-#ifdef GITVERSION	
+#ifdef GITVERSION
 	STDLOG(0,"Git Hash = %s\n", GITVERSION);
 	strncpy(WriteState.CodeVersion, GITVERSION, 1024);
 #endif
+	strncpy(WriteState.OutputFormatVersion, "v2.2", 1024);
+        // v2.0 is the first versioned format (so named because this was the Abacus release version at the time)
+        // v2.0 uses RVint with the full 2**20 range; halo_info at 296 bytes.
+        // v2.2 uses RVint with a 1,000,000 range; halo_info at 296 bytes.
 	time_t timet = time(0);
 	string now = string(asctime(localtime(&timet)));
 	sprintf(WriteState.RunTime,"%s",now.substr(0,now.length()-1).c_str());
@@ -46,19 +50,19 @@ void BuildWriteState(double da){
 	STDLOG(0,"Scale factor halfway in between is %f\n", cosm->search.a);
 	// cosm->search now has the midpoint epoch.
 	WriteState.ScaleFactorHalf = cosm->search.a;
-	WriteState.LastHalfEtaKick = 
+	WriteState.LastHalfEtaKick =
 		cosm->KickFactor(cosm->search.a,WriteState.ScaleFactor-cosm->search.a);
-	WriteState.FirstHalfEtaKick = 
+	WriteState.FirstHalfEtaKick =
 		cosm->KickFactor(cosm->current.a,cosm->search.a-cosm->current.a);
-	WriteState.DeltaEtaDrift = 
+	WriteState.DeltaEtaDrift =
 		cosm->DriftFactor(cosm->current.a, cosm->next.a-cosm->current.a);
 
 	// Just truncate some underflow cases
-	if (fabs(WriteState.DeltaEtaDrift)   <1e-14*fabs(cosm->current.etaD)) 
+	if (fabs(WriteState.DeltaEtaDrift)   <1e-14*fabs(cosm->current.etaD))
 		WriteState.DeltaEtaDrift = 0.;
-	if (fabs(WriteState.FirstHalfEtaKick)<1e-14*fabs(cosm->current.etaK)) 
+	if (fabs(WriteState.FirstHalfEtaKick)<1e-14*fabs(cosm->current.etaK))
 		WriteState.FirstHalfEtaKick = 0.;
-	if (fabs(WriteState.LastHalfEtaKick) <1e-14*fabs(cosm->current.etaK)) 
+	if (fabs(WriteState.LastHalfEtaKick) <1e-14*fabs(cosm->current.etaK))
 		WriteState.LastHalfEtaKick = 0.;
 
 	// Initialize some statistics to accumulate
@@ -79,9 +83,9 @@ void BuildWriteStateOutput() {
 }
 
 double EvolvingDelta(float z){
-    float omegaMz = P.Omega_M * pow(1.0 + z, 3.0) / (P.Omega_DE + P.Omega_M *  pow(1.0 + z, 3.0) ); 
+    float omegaMz = P.Omega_M * pow(1.0 + z, 3.0) / (P.Omega_DE + P.Omega_M *  pow(1.0 + z, 3.0) );
     float Deltaz = (18.0*M_PI*M_PI + 82.0 * (omegaMz - 1.0) - 39.0 * pow(omegaMz - 1.0, 2.0) ) / omegaMz;
-    return Deltaz / (18.0*M_PI*M_PI); //Params are given at high-z, so divide by high-z asymptote to find rescaling. 
+    return Deltaz / (18.0*M_PI*M_PI); //Params are given at high-z, so divide by high-z asymptote to find rescaling.
 }
 
 void PlanOutput(bool MakeIC) {
@@ -94,10 +98,10 @@ void PlanOutput(bool MakeIC) {
     if (LPTStepNumber()>0) return;  // We're doing IC work; no output
 
     // Build the output header.  The cosmology is from ReadState,
-    // but we'd like to use some elements from WriteState.  So we 
+    // but we'd like to use some elements from WriteState.  So we
     // overwrite some ReadState elements.
     // We will call this output by the WriteState FullStepNumber, as that
-    // is what is required for the velocities (and is the run writing the output). 
+    // is what is required for the velocities (and is the run writing the output).
     strncpy(ReadState.ParameterFileName, WriteState.ParameterFileName, 1024);
     strncpy(ReadState.CodeVersion, WriteState.CodeVersion, 1024);
     strncpy(ReadState.MachineName, WriteState.MachineName, 1024);
@@ -108,23 +112,23 @@ void PlanOutput(bool MakeIC) {
     #ifdef SPHERICAL_OVERDENSITY
     if (P.SO_EvolvingThreshold) {
 
-        float rescale = EvolvingDelta(ReadState.Redshift); 
+        float rescale = EvolvingDelta(ReadState.Redshift);
 
         STDLOG(2, "Rescaling SO Delta as a function of redshift.\n\t\tL0: %f --> %f\n\t\tL1: %f --> %f\n\t\tL2: %f --> %f\n",
-                      P.L0DensityThreshold, rescale * P.L0DensityThreshold, 
-                      P.SODensity[0], rescale * P.SODensity[0], 
+                      P.L0DensityThreshold, rescale * P.L0DensityThreshold,
+                      P.SODensity[0], rescale * P.SODensity[0],
                       P.SODensity[1], rescale * P.SODensity[1]);
 
 
-        P.SODensity[0] *= rescale; 
-        P.SODensity[1] *= rescale; 
-        P.L0DensityThreshold *= rescale; 
+        P.SODensity[0] *= rescale;
+        P.SODensity[1] *= rescale;
+        P.L0DensityThreshold *= rescale;
 
         ReadState.SODensityL1 = P.SODensity[0];
         ReadState.SODensityL2 = P.SODensity[1];
-        ReadState.L0DensityThreshold = P.L0DensityThreshold; 
+        ReadState.L0DensityThreshold = P.L0DensityThreshold;
     }
-    else STDLOG(2, "Using constant SO Delta (no redshift-dependent rescaling).\n"); 
+    else STDLOG(2, "Using constant SO Delta (no redshift-dependent rescaling).\n");
     #endif
 
 
@@ -158,7 +162,7 @@ void PlanOutput(bool MakeIC) {
 int main(int argc, char **argv) {
     //Enable floating point exceptions
     feenableexcept(FE_INVALID | FE_DIVBYZERO);
-    
+
     WallClockDirect.Start();
     SingleStepSetup.Start();
 
@@ -167,11 +171,11 @@ int main(int argc, char **argv) {
        fprintf(stderr, "singlestep(): command line must have 3 parameters given, not %d.\nLegal usage: singlestep PARAMETER_FILE MAKE_IC\n\tPARAMETER_FILE: path to parameter file (usually called abacus.par)\n\tMAKE_IC: 0 or 1, whether this is an IC step.\n", argc);
        return 1;
     }
-    
+
     // Set up MPI
-    
+
     InitializeParallel(MPI_size, MPI_rank);
-    
+
     int MakeIC = atoi(argv[2]);
     P.ReadParameters(argv[1],0);
     strcpy(WriteState.Pipeline, "singlestep");
@@ -181,9 +185,9 @@ int main(int argc, char **argv) {
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
     STDLOG(0,"MakeIC = %d\n", MakeIC);
     #ifdef PARALLEL
-		//signal(SIGUSR1, graceful_exit_signal_handler); 
-	
-        STDLOG(0,"Initialized MPI.\n");   
+		//signal(SIGUSR1, graceful_exit_signal_handler);
+
+        STDLOG(0,"Initialized MPI.\n");
         STDLOG(0,"Node rank %d of %d total\n", MPI_rank, MPI_size);
         char hostname[1024];
         gethostname(hostname,1024);
@@ -191,10 +195,10 @@ int main(int argc, char **argv) {
     #endif
 
     SetupLocalDirectories(MakeIC);
-    
+
     // Set up OpenMP
     init_openmp();
-	 
+
     // Decide what kind of step to do
     double da = -1.0;   // If we set this to zero, it will skip the timestep choice
 
@@ -217,7 +221,7 @@ int main(int argc, char **argv) {
     assert(ret >= 0 && ret < 1050);
     if(access(wstatefn,0) !=-1 && !WriteState.OverwriteState)
         QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
-    
+
     if (da!=0) da = ChooseTimeStep();
 
     // da *= -1;  // reverse the time step TODO: make parameter
@@ -226,12 +230,14 @@ int main(int argc, char **argv) {
     if(dlna > 0){
         STDLOG(0, "\t\tAt the current rate, this implies %d more steps to z_final=%f\n", (int64)ceil(log(1./ReadState.ScaleFactor/(1. + P.FinishingRedshift()))/dlna), P.FinishingRedshift());
     }
-    
+
     BuildWriteState(da);
-    LCOrigin = (double3 *) malloc(NUMLC*sizeof(double3));  // max NUMLC light cones
-    for(int i = 0; i < NUMLC; i++)
+    assertf(P.NLightCones<=NUMLIGHTCONES, "Parameter file requests %d light cones, but AUX data model supports only %d\n", P.NLightCones, NUMLIGHTCONES);
+    LCOrigin = (double3 *) malloc(NUMLIGHTCONES*sizeof(double3));  // max NUMLIGHTCONES light cones
+    // TODO: Why is this NUMLIGHTCONES instead of P.NLightCones?
+    for(int i = 0; i < NUMLIGHTCONES; i++)
         LCOrigin[i] = ((double3*) P.LightConeOrigins)[i]/P.BoxSize;  // convert to unit-box units
-    
+
     // Make a plan for output
     PlanOutput(MakeIC);
 
@@ -254,13 +260,13 @@ int main(int argc, char **argv) {
     WallClockDirect.Stop();
 
     SingleStepTearDown.Start();
-    
+
     // While we still have global objects, log their timings
     GatherTimings();
 
     // The epilogue contains some tests of success.
     Epilogue(P,MakeIC);
-    
+
     delete cosm;
     free(LCOrigin);
 
@@ -272,7 +278,7 @@ int main(int argc, char **argv) {
         WriteState.write_to_file(P.WriteStateDirectory);
         STDLOG(0,"Wrote WriteState to %s\n",P.WriteStateDirectory);
     }
-    
+
     if (!MakeIC && P.ProfilingMode){
         STDLOG(0,"ProfilingMode is active. Removing the write state in %s\n",P.LocalWriteStateDirectory);
         char command[1024];
@@ -287,7 +293,7 @@ int main(int argc, char **argv) {
 
     FinalizeParallel();  // This may be the last synchronization point?
     SingleStepTearDown.Stop();
-    
+
     // Finished cleanup.  Now we can log that time too.
     ReportTimings();
 

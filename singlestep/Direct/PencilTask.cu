@@ -88,7 +88,7 @@ void ConfigureBufferAsDeviceData(GPUBuffer &buf,
     WCConfig(pinned.SourceSetPositions.Y,      sizeof(FLOAT) * MaxSourceSize);
     WCConfig(pinned.SourceSetPositions.Z,      sizeof(FLOAT) * MaxSourceSize);
     assertf(used_host<buf.sizeDef, "Configuration of Buffer requesting %ld bytes on host Def, but only %ld available\n", used_host, buf.sizeDef);   // Check that we didn't overflow
-    assertf(used_hostWC<buf.sizeWC, "Configuration of Buffer requesting %ld bytes on host WC, but only %ld available\n", used_host, buf.sizeWC);   // Check that we didn't overflow
+    assertf(used_hostWC<buf.sizeWC, "Configuration of Buffer requesting %ld bytes on host WC, but only %ld available\n", used_hostWC, buf.sizeWC);   // Check that we didn't overflow
     return;
 }
 

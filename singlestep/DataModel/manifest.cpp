@@ -744,7 +744,13 @@ void Manifest::ImportData() {
     m.dep[n++].Set(Output, "Output");
     m.dep[n++].Set(Microstep, "Microstep");
     m.dep[n++].Set(FinishGroups, "FinishGroups");
-    m.dep[n].end++;
+    
+    // We only want to lie about an extra Drift being completed on this node
+    // if this is a Finish manifest and not a Group Finding manifest.
+    // We don't distinguish explicitly between these two,
+    // but the latter won't have any Drifts done, so we can check that
+    if(m.dep[n].begin < m.dep[n].end)
+        m.dep[n].end++;
         // We need to also mark the first_finished_slab on the other node
         // as having been completed.  This is because Finish requires this
         // as a precondition, and the particles incoming to Finish are on the

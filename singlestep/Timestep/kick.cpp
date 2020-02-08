@@ -57,8 +57,9 @@ inline void KickCell(Cell &c, FLOAT kick1, FLOAT kick2) {
 void KickSlab(int slab, FLOAT kick1, FLOAT kick2,
 void (*KickCell)(Cell &c, FLOAT kick1, FLOAT kick2)) {
     int cpd = CP->cpd;
-    #pragma omp parallel for schedule(static)
-    for (int y=0;y<cpd;y++) {
+    //#pragma omp parallel for schedule(static)
+    //for (int y=0;y<cpd;y++) {
+    NUMA_FOR(y,0,cpd)
         for (int z=0;z<cpd;z++) {
             Cell c = CP->GetCell(slab, y, z);
             (*KickCell)(c,kick1,kick2);
@@ -69,7 +70,7 @@ void (*KickCell)(Cell &c, FLOAT kick1, FLOAT kick2)) {
 void RescaleAndCoAddAcceleration(int slab) {
     // The accelerations are computed with unit particle mass.
     // We need to rescale them to the correct cosmology.
-    FLOAT rescale = -3.0*P.Omega_M/(8.0*M_PI*P.np);
+    FLOAT rescale = -3.0*(P.Omega_M-P.Omega_Smooth)/(8.0*M_PI*P.np);
     accstruct *nacc = (accstruct *) SB->GetSlabPtr(AccSlab,slab);
     acc3struct *facc = (acc3struct *) SB->GetSlabPtr(FarAccSlab,slab);
     
@@ -82,20 +83,20 @@ void RescaleAndCoAddAcceleration(int slab) {
     #ifdef DIRECTSINGLESPLINE
     FLOAT inv_eps3 = 1./(NFD->SofteningLengthInternal*NFD->SofteningLengthInternal*NFD->SofteningLengthInternal);
     #endif
-    
+
     #pragma omp parallel for schedule(static)
-    // TODO: Because nacc and facc can differ in type, we can't use SIMD.  
-    //       Ok?  Perhaps bandwidth limited anyways?
-    //#pragma simd assert
     for (uint64 j=0; j<N;j++) {
         #ifdef DIRECTSINGLESPLINE
         nacc[j] = (nacc[j]*inv_eps3+facc[j])*rescale;
         #else
         nacc[j] = (nacc[j]+facc[j] )*rescale;
         #endif
+
+        #ifdef COMPUTE_FOF_DENSITY
+        nacc[j].w -= WriteState.DensityKernelRad2;
+        #endif
     }
 }
-
 
 
 void ZeroAcceleration(int slab,int Slabtype) {

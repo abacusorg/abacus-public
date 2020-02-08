@@ -324,7 +324,7 @@ class SOcell {
         // which is about 2 Delta b^3 C^1.5.  This is why we scale the min_central_mass
         // with Delta.
         // This is further documented at the top of the file.
-        FOFunitdensity = P.np*4.0*M_PI*2.0/15.0*pow(WriteState.DensityKernelRad2,2.5);
+        FOFunitdensity = WriteState.FOFunitdensity;
         FOFloat M_D = min_central_mass;
         FOFloat sigma3 = M_D*sqrt(threshold*P.np/(48*M_PI*M_PI));
         // Density for a SIS with mass M_D

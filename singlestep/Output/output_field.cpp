@@ -41,7 +41,12 @@ void GatherTaggableFieldParticles(int slab, SlabAccum<RVfloat> * rv, SlabAccum<T
                     // We found a taggable field particle
                     posstruct r = c.pos[p] + offset;
                     velstruct v = c.vel[p];
-                    if(c.acc != NULL){ v -= unkickfactor*TOFLOAT3(c.acc[p]);}
+                    if(c.acc != NULL){
+                        v -= unkickfactor*TOFLOAT3(c.acc[p]);
+                        
+                        // Going to output; pack the density in the aux
+                        c.aux[p].set_density(c.acc[p].w);
+                    }
 
                     v *= vel_convert_units;  
                       

@@ -6,7 +6,7 @@ inline int is_aligned(const void* pointer, unsigned int byte_count){
 }
 
 int WriteDirect::wropenflags(void) {
-    if(ramdiskflag) 
+    if(ramdiskflag)
         return O_CREAT|O_APPEND|O_WRONLY;
     else
         return O_CREAT|O_WRONLY|O_DIRECT|O_ASYNC|O_LARGEFILE;
@@ -22,7 +22,7 @@ int WriteDirect::wropenfd(char *fn, int writeflags) {
     return fd;
 }
 
-void WriteDirect::BlockingWrite_Append_Aligned(char *fn, char *x, size_t length) { 
+void WriteDirect::BlockingWrite_Append_Aligned(char *fn, char *x, size_t length) {
     size_t lengthblocks = length/4096;
     assert( lengthblocks * 4096 == length );
 
@@ -61,7 +61,7 @@ void WriteDirect::BlockingWrite_Append_Aligned(char *fn, char *x, size_t length)
         */
     }
     assert(byteswritten==length);
-    
+
     //fdatasync(fd);
     //posix_fadvise(fd, filesize, length, POSIX_FADV_DONTNEED);
 
@@ -76,12 +76,24 @@ void WriteDirect::BlockingAppendfwrite( char *fn, char *x, size_t length ) {
     size_t byteswritten = fwrite( x,  sizeof(char), length, fp );
     FAILERRNO;
     assert(byteswritten == length);
-    
+
     //int fd = fileno(fp);
     //fdatasync(fd);
     //posix_fadvise(fd, filesize, length, POSIX_FADV_DONTNEED);
-    
+
     fclose(fp);
+}
+
+void WriteDirect::BlockingAppendPointer( FILE *f, char *x, size_t length) {
+    // Check that file is not null
+    assert(f != nullptr);
+
+    // Write to file keeping track of bytes
+    size_t byteswritten = fwrite(x, sizeof(char), length, f);
+
+    // Ensure that the correct number of bytes were written
+    FAILERRNO;
+    assert(byteswritten == length);
 }
 
 void WriteDirect::BlockingAppendDirect(char *fn, char *x, size_t length) {
@@ -102,7 +114,7 @@ void WriteDirect::BlockingAppendDirect(char *fn, char *x, size_t length) {
     if(bytesleft) {
         // if there's more to write, the disk file should already have been aligned
         assert( fsize(fn)%4096 == 0 );
-        
+
         size_t remainingblocks = bytesleft/4096;
         size_t alignedbytes = 4096*remainingblocks;
 
@@ -110,17 +122,21 @@ void WriteDirect::BlockingAppendDirect(char *fn, char *x, size_t length) {
         bytesleft -= alignedbytes;
         offset += alignedbytes;
 
-        if(bytesleft) BlockingAppendfwrite(fn, &(x[offset]) , bytesleft ); 
+        if(bytesleft) BlockingAppendfwrite(fn, &(x[offset]) , bytesleft );
     }
 }
 
-void WriteDirect::BlockingAppend(char *fn, char *x, size_t length) { 
+void WriteDirect::BlockingAppend(char *fn, char *x, size_t length) {
     WriteDirect::BlockingAppend(fn, x, length, ramdiskflag);
 }
 
-void WriteDirect::BlockingAppend(char *fn, char *x, size_t length, int no_dio) { 
-    if(no_dio || ramdiskflag) 
+void WriteDirect::BlockingAppend(char *fn, char *x, size_t length, int no_dio) {
+    if(no_dio || ramdiskflag)
         BlockingAppendfwrite(fn,x,length);
     else
         BlockingAppendDirect(fn,x,length);
+}
+
+void WriteDirect::BlockingAppend( FILE *f, char *x, size_t length) {
+    WriteDirect::BlockingAppendPointer(f, x, length);
 }

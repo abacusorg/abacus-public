@@ -1,3 +1,4 @@
 [submodule "zeldovich-PLT"]
 	path = zeldovich-PLT
 	url = git@github.com:abacusorg/zeldovich-PLT.git
+	branch = master

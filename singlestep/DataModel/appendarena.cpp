@@ -11,7 +11,7 @@
  */
 
 // TODO: Ideally we'd turn this into some kind of run-time choice
-// between formats, with the PACKED class supplying the pack() 
+// between formats, with the PACKED class supplying the pack()
 // and pack_cell() methods.
 
 #include "threevector.hh"
@@ -19,7 +19,7 @@
 
 #ifdef COMPILE
 // The following lines are just to check the compiling
-// g++ -c -I../include -DCOMPILE appendarena.cpp 
+// g++ -c -I../include -DCOMPILE appendarena.cpp
 #define posstruct double3
 #define velstruct double3
 #define auxstruct double3
@@ -33,24 +33,32 @@
 #include "pack_storage.cpp"
 //#include "pack9_storage.cpp"
 
+struct ArenaPencil {
+    char *start;   // Pointer to the first byte of data for this pencil
+    char *next;    // Pointer to where we'd write next
+    cell_header current_cell;
+    char empty[CACHE_LINE_SIZE-2*sizeof(char *)-sizeof(cell_header)];   // Avoid cache line contention
+        // TODO: Is this a legal compile-time computation?
+};
+
 class AppendArena {
   private:
     // This is an Abstract Base Class.
     // The following 4 routines must be provided in the derived class.
     // Of course, the derived class must also provide a constructor and destructor.
-    
-    //FIXME: Since appending particles is a quick function we are calling many times, 
+
+    //FIXME: Since appending particles is a quick function we are calling many times,
     //  we may want to make the polymorphism compile-time (using templates) rather than
     //  looking up virtual functions at runtime
 
-    virtual void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) =0;
+    virtual void appendparticle(char *c, cell_header current_cell, posstruct pos, velstruct vel, auxstruct aux) =0;
     // Place one particle at the location c
-    virtual void appendcell(char *c, integer3 ijk, float vscale) =0;
+    virtual void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) =0;
     // Place one cell at the location c.  
     // This must also set the cell header current_cell.
 
     // Note that it is legal for these routines to write no data for cells,
-    // but we still need to set the current_cell, since that might be needed 
+    // but we still need to set the current_cell, since that might be needed
     // to interpret the cell-centered positions.
     // Also note that it is legal to ignore vscale in writing the velocities.
     // But vscale must be >0 to be allowed to add particles.
@@ -67,94 +75,146 @@ class AppendArena {
     // The following routines are provided as general services of the ABC.
     // Note that when we write into the Arena, we do not append \0 -- these are not strings!
 
-    // The AppendArena class does know about the Arenas, but we opt to 
-    // leave the arena Allocation and Write commands 
+    // The AppendArena class does know about the Arenas, but we opt to
+    // leave the arena Allocation and Write commands
     // in the domain of the calling program.
 
     // We want to injest velocities and positions in the code units.
     // The base AppendArena addparticle() method then converts the velocities
     // to redshift-space displacements, in the code position units (i.e., unit box).
-    // The derived classes are responsible for conversions to global positions and velocities 
+    // The derived classes are responsible for conversions to global positions and velocities
     // because they might differ between output formats.
 
-    // The derived class constructor might want to use ReadState to 
+    // The derived class constructor might want to use ReadState to
     // figure out the conversion factor from code units to output units.
 
-    char *arena;	// Where we will write next
-    long long int size_available, bytes;
+    // We need to be able to handle multiple threads writing into this.
+    // We organize this by pencil; a pencil must be writen consecutively by a single thread.
+
+    char *startarena;  // The first byte of data, including the header
+    char *startdata;  // The first byte of data, after the header
+    char *endarena;  // The first byte beyond the allowed arena
+
+    ArenaPencil *pencil;  // Pointers for the start and end of each pencil's data
+    // The size needed for the pencil is just the difference of these two pointers
+
+    long long int bytes;  // The total number of bytes used
     int cpd;		// CPD to be used in mapping particle positions
     FLOAT VelCanonical_to_ZSpace; 	// Typically 1/ReadState.VelZSpace_to_Canonical
 
-    cell_header current_cell;
-
     void initialize(SlabType type, int slab, int _cpd, double VelZSpace_to_Canonical) {
         STDLOG(4, "Initializing...\n");
-        arena = SB->GetSlabPtr(type,slab);
-        size_available = SB->SlabSizeBytes(type,slab);
+        startarena = startdata = SB->GetSlabPtr(type,slab);
+        long long int size_available = SB->SlabSizeBytes(type,slab);
+        endarena = startarena+size_available;
         bytes = 0;
         cpd = _cpd;
         VelCanonical_to_ZSpace = 1.0/VelZSpace_to_Canonical;
         STDLOG(4, "Done Initializing...\n");
 
-        endcell();
+        int ret;
+        ret = posix_memalign((void **)&pencil, CACHE_LINE_SIZE, sizeof(ArenaPencil)*cpd); assert(ret==0);
+        for (int j=0; j<cpd; j++) {
+            pencil[j].start = pencil[j].next = NULL;
+            endcell(j);
+        }
     }
 
     // ~AppendArena(void) { }
 
-    char *ptr_to_end() {
-        // In case you need to know where you are!
-        return arena;
-    }
     long long int bytes_written() {
         return bytes;
     }
 
-    void addcell(integer3 ijk, float vscale) {
-        // Append this cell and make this cell active.
-        int size = sizeof_cell();
-        assertf(bytes+size<=size_available, "AppendArena() has run out of space!\n");
-        appendcell(arena, ijk, vscale);
-        arena+=size; bytes+=size;
-    }
-    void endcell() { 
-        // This makes it illegal to add more particles
-    	current_cell.vscale = 0; 
+    void start_pencil(int j, long long int offset) {
+        // We're ready to start a pencil with this thread, at an offset location given in bytes.
+        // Note: we cannot check that this doesn't overlap another pencils portion of the buffer!
+        // So this passes a substantial responsibility to the calling function.
+        ArenaPencil *p = pencil+j;
+        p->next = p->start = startdata+offset;
+    	p->current_cell.vscale = 0; 
     }
 
-    void addparticle(posstruct pos, velstruct vel, auxstruct aux) {
+    inline void addcell(int j, integer3 ijk, float vscale) {
+        // Append this cell and make this cell active.
+        int size = sizeof_cell();
+        ArenaPencil *p = pencil+j;
+        assertf(p->next>=startdata && p->next<endarena, "AppendArena() has run out of space!\n");
+        appendcell(p->next, p->current_cell, ijk, vscale);
+        p->next+=size; 
+    }
+    inline void endcell(int j) { 
+        // This makes it illegal to add more particles
+        ArenaPencil *p = pencil+j;
+    	p->current_cell.vscale = 0; 
+    }
+
+    inline void addparticle(int j, posstruct pos, velstruct vel, auxstruct aux) {
         // Append this particle
-        assertf(current_cell.islegal(), "addparticle() called without an active cell\n");
+        ArenaPencil *p = pencil+j;
+        assertf(p->current_cell.islegal(), "addparticle() called without an active cell\n");
         int size = sizeof_particle();
-        assertf(bytes+size<=size_available, "AppendArena() has run out of space!\n");
+        assertf(p->next>=startdata && p->next<endarena, "AppendArena() has run out of space!\n");
         // We were given the particle in code units, need to convert to Zspace.
         vel *= VelCanonical_to_ZSpace;
         // The appendparticle() function is responsible for any further conversions,
         // e.g., from local to global positions or to km/s or from unit box to unit cell..
-        appendparticle(arena, pos, vel, aux);
-        arena+=size; bytes+=size;
+        appendparticle(p->next, p->current_cell, pos, vel, aux);
+        p->next+=size; 
     }
 
-    void addheader(const char *c) {
+    inline void addheader(const char *c) {
         // Write the given string to the arena, without the final \0.
         int size = 0;
         while (*c!='\0') {
-            *arena = *c;
-            arena++; c++; bytes++;
+            *startdata = *c;
+            startdata++; c++; bytes++;
         }
     }
-    void addheader(char *c) {
+    inline void addheader(char *c) {
         addheader((const char *)c);
     }
 
     void finalize_header() {
-        // terminate the ParseHeader header.  
+        // terminate the ParseHeader header.
         // Pad out the header to a multiple of 4096 bytes just to keep the data DIO aligned.
         long long int size = bytes_written()+2;  // including the header
         int pad = 4096-size%4096; 
-        if (pad>0) { arena[0] = '\n'; }
-        for (int n=1; n<pad; n++) { arena[n] = ' '; }
-        arena += pad; bytes += pad;
-        arena[0] = ''; arena[1] = '\n'; arena+=2; bytes+=2;
+        if (pad>0) { startdata[0] = '\n'; }
+        for (int n=1; n<pad; n++) { startdata[n] = ' '; }
+        startdata += pad; bytes += pad;
+        startdata[0] = ''; startdata[1] = '\n'; startdata+=2; bytes+=2;
+    }
+
+    long long int finalize_arena() {
+        // Copy the pencils inside the buffer so that they are contiguous.
+        // This must be called, as it cleans up the allocations internal to the class.
+        // Return the number of bytes in the arena (including header), since that is often needed.
+        char *next = startdata;
+        for (int j=0; j<cpd; j++) {
+            if (next==pencil[j].start) {
+                // Buffer is already where it should be
+                next = pencil[j].next;
+                continue;   
+            }
+            if (pencil[j].next == pencil[j].start) continue;  // Pencil was empty
+            // Otherwise, we need to copy down 
+            long long int size = pencil[j].next-pencil[j].start;
+            assertf(size>0, "ArenaPencils appear to be in non-increasing order!  Pencil %d\n", j);
+            if (pencil[j].start<next+size) {
+                // The two regions overlap, so we need to be careful
+                memmove(next, pencil[j].start, size);
+                // This doesn't happen much, so we just eat the single-threaded case
+            } else {
+                // The two regions don't overlap, so let's multithread
+                #pragma omp parallel for schedule(static)
+                for (int i=0; i<size; i++) next[i] = pencil[j].start[i];
+            }
+            next += size;  // Ready for the next pencil
+        }
+        bytes += next-startdata;  // This is now the total size of the arena
+        free(pencil);
+        return bytes_written();
     }
 };
 
@@ -163,19 +223,19 @@ class AppendArena {
 //
 // FIXME: The different output formats should probably be in their own files
 
-template <int N> 
+template <int N>
 class OutputPacked: public AppendArena {
   private:
-    void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
+    inline void appendparticle(char *c, cell_header current_cell, posstruct pos, velstruct vel, auxstruct aux) {
         packN<N> *p = (packN<N> *) c;
         // p->pack_global(pos, vel, aux.pid(), current_cell);
         p->pack(pos, vel, aux.pid(), current_cell);
     }
-    void appendcell(char *c, integer3 ijk, float vscale) {
+    inline void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {
         // We're given vscale in Zspace unit-box units, same as velocities.
         // But we need to hand it to the pack14 method in unit-cell units
         packN<N> *p = (packN<N> *) c;
-        int vs = ceil(vscale*cpd); 
+        int vs = ceil(vscale*cpd);
         if (vs<=0) vs = 10;    // Probably just not initialized correctly
         current_cell = p->pack_cell(ijk, cpd, vs);
     }
@@ -185,9 +245,9 @@ class OutputPacked: public AppendArena {
     int sizeof_cell()     { return sizeof(packN<N>); }
     int sizeof_particle() { return sizeof(packN<N>); }
 
-    OutputPacked() { 
+    OutputPacked() {
         // Use ReadState to figure out the correct conversion of the
-        // velocity!  The pack14 class assumes velocites are in 
+        // velocity!  The pack14 class assumes velocites are in
         // redshift-space units; it *then* applies the given vscale.
         velocity_conversion = 1.0;
     }
@@ -205,8 +265,7 @@ class OutputRVdouble: public AppendArena {
     };
 
     float velocity_conversion;
-    
-    void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
+    void appendparticle(char *c, cell_header current_cell, posstruct pos, velstruct vel, auxstruct aux) {
         struct ICparticle *p = (struct ICparticle *)c;
 #ifdef GLOBALPOS
         // This is for global box-referenced positions
@@ -222,7 +281,7 @@ class OutputRVdouble: public AppendArena {
         p->vel[1] = vel.y*velocity_conversion;
         p->vel[2] = vel.z*velocity_conversion;
     }
-    void appendcell(char *c, integer3 ijk, float vscale) {
+    void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {
         current_cell = cell_header(ijk, cpd, 1);
     }
 
@@ -239,21 +298,22 @@ class OutputRVdouble: public AppendArena {
 
 class OutputPID: public AppendArena {
   private:
-    uint64_t pid;
+    //uint64_t pid;
 
-    void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct a) {
+    void appendparticle(char *c, cell_header current_cell, posstruct pos, velstruct vel, auxstruct a) {
         uint64_t *p = (uint64_t *)c;
         *p  = a.aux & AUX_PID_TAG_DENS_MASK; 
-        pid = a.aux & AUX_PID_TAG_DENS_MASK; 
+        //pid = a.aux & AUX_PID_TAG_DENS_MASK; 
     }
 
-    void appendcell(char *c, integer3 ijk, float vscale) {
+    void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {
         current_cell = cell_header(ijk, cpd, 1);
     }
 
   public:
     int sizeof_cell()     { return 0; }
-    int sizeof_particle() { return sizeof(pid); }
+   // int sizeof_particle() { return sizeof(pid); }
+    int sizeof_particle() { return sizeof(uint64_t); }
 
     OutputPID() { }
     ~OutputPID(void) { }
@@ -278,7 +338,7 @@ class OutputLightcone: public AppendArena {
 
     float velocity_conversion;
   public:
-    void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
+    void appendparticle(char *c, cell_header current_cell, posstruct pos, velstruct vel, auxstruct aux) {
         struct ICparticle *p = (struct ICparticle *)c;
         p->pos[0] = (float) pos.x;
         p->pos[1] = (float) pos.y;
@@ -292,7 +352,7 @@ class OutputLightcone: public AppendArena {
     }
 
 
-    void appendcell(char *c, integer3 ijk, float vscale) {
+    void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {
 
     	current_cell = cell_header(ijk, cpd, 1);
     	CellHeader *cc = (CellHeader *) c;
@@ -329,7 +389,7 @@ class OutputHeitmann: public AppendArena {
     };
     float velocity_conversion;
     
-    void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
+    void appendparticle(char *c, cell_header current_cell, posstruct pos, velstruct vel, auxstruct aux) {
         ICparticle *p = (ICparticle *)c;
 #ifdef GLOBALPOS
         // This is for global box-referenced positions
@@ -345,10 +405,10 @@ class OutputHeitmann: public AppendArena {
         p->xv[3] = vel[1]*velocity_conversion;
         p->xv[5] = vel[2]*velocity_conversion;
         p->mass = 1.0;
-        p->tag = (unsigned int) aux.pid();	
+        p->tag = (unsigned int) aux.pid();
         	// This could overflow, as we allow 40-bit ids
     }
-    void appendcell(char *c, integer3 ijk, float vscale) {
+    void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {
         current_cell = cell_header(ijk, cpd, 1);
     }
 
@@ -371,7 +431,7 @@ class OutputRVdoublePID: public AppendArena {
             uint64 tag;
     };
 
-    void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
+    void appendparticle(char *c, cell_header current_cell, posstruct pos, velstruct vel, auxstruct aux) {
         struct ICparticle *p = (struct ICparticle *)c;
 #ifdef GLOBALPOS
         // This is for global box-referenced positions
@@ -387,9 +447,9 @@ class OutputRVdoublePID: public AppendArena {
         p->vel[1] = vel.y;
         p->vel[2] = vel.z;
         p->tag = aux.pid();
-        
+
     }
-    void appendcell(char *c, integer3 ijk, float vscale) {
+    void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {
         current_cell = cell_header(ijk, cpd, 1);
     }
 
@@ -412,7 +472,7 @@ class OutputRVZel: public AppendArena {
         float vel[3];      // Zspace velocity, unit box
     };
 
-    void appendparticle(char *c, posstruct pos, velstruct vel, auxstruct aux) {
+    void appendparticle(char *c, cell_header current_cell, posstruct pos, velstruct vel, auxstruct aux) {
     struct ICparticle *p = (struct ICparticle *)c;
 #ifdef GLOBALPOS
     // This is for global box-referenced positions
@@ -435,9 +495,9 @@ class OutputRVZel: public AppendArena {
     p->i = ijk.x;
     p->j = ijk.y;
     p->k = ijk.z;
-    
+
     }
-    void appendcell(char *c, integer3 ijk, float vscale) {
+    void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {
     current_cell = cell_header(ijk, cpd, 1);
     }
 
@@ -463,7 +523,7 @@ Sample use:
     FLOAT vel_to_zspace = 1.0;   // Factor to convert from canonical to zspace
     FLOAT kickfactor = 1.0;	   // Amount to unkick.
 
-    for (integer3 ijk(slab,0,0); ijk.y<CP->cpd; ijk.y++) 
+    for (integer3 ijk(slab,0,0); ijk.y<CP->cpd; ijk.y++)
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             Cell c = CP->GetCell(ijk);
             accstruct *acc = CP->AccCell(ijk);
@@ -477,7 +537,7 @@ Sample use:
             if (max.z>max.x) max.x = max.z;
             max.x*=vel_to_zspace;
             int vscale = ceiling(max.x);
-                
+
             // Now pack the particles
             AA.addcell(ijk, vscale);
             for (p=0;p<c.count();p++) {

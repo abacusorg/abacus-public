@@ -8,7 +8,7 @@ int main(int argc, char *argv[]) {
 	fprintf(stderr,"No input given to %s.  Use - for stdin.\n", PROGNAME);
         return 1;
     }
-    if (argc==2&&strcmp(argv[1],"-")==0) print_data(stdin);
+    if (argc==2&&strcmp(argv[1],"-")==0) print_data(stdin, argv[1]);
     else {
 	int f;
         for (f=1; f<argc; f++) {
@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
 	    } else {
 	        // fprintf(stderr, "Opened file %s.\n", argv[f]);
 	    }
-	    print_data(fp);
+	    print_data(fp, argv[f]);
 	    fclose(fp);
 	}
     }

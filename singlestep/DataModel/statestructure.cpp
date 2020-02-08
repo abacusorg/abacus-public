@@ -36,6 +36,7 @@ public:
     
     char ParameterFileName[1024];   // State must contain a pointer to the Parameter file
     char CodeVersion[1024];
+    char OutputFormatVersion[1024];
     char RunTime[1024];
     char MachineName[1024];
     int NodeRank;   // The MPI rank, 0 if serial
@@ -74,7 +75,7 @@ public:
     double etaK;
     double etaD;
     double Growth;
-    double Growth_on_a;
+    double Growth_on_a_n;  // D/a^n
     double f_growth;
     double w;
     double HubbleNow;   // In H_0=1 units
@@ -82,6 +83,8 @@ public:
     double OmegaNow_m;
     double OmegaNow_K;
     double OmegaNow_DE;
+    double fsmooth;     // This is time-independent: Omega_Smooth/Omega_M
+    double CoordinateDistanceHMpc;   // In Mpc/h
 
     // More description of the last time step
     double DeltaTime;
@@ -91,6 +94,9 @@ public:
     // The FOF density scale being used (in code units)
     // This matters because 0 indicates that it was not computed.
     double DensityKernelRad2;
+    // Unit density values for our kernel. Used in group finding and density aux packing
+    FLOAT FOFunitdensity;
+    FLOAT invFOFunitdensity;
     // The density threshold for L0 particle eligibility (units of cosmic mean)
     double L0DensityThreshold;
     double SODensityL1; //density threshold for SO L1 groups.
@@ -160,6 +166,8 @@ public:
 
     	sprintf(CodeVersion,"version_not_defined");
     	installscalar("CodeVersion",CodeVersion,DONT_CARE);
+    	sprintf(OutputFormatVersion,"version_not_defined");
+    	installscalar("OutputFormatVersion",OutputFormatVersion,DONT_CARE);
         // These will now be set in BuildWriteState();
         // Don't bother loading these in ReadState
     	// time_t timet = time(0);
@@ -188,7 +196,7 @@ public:
         installscalar("etaK",etaK,MUST_DEFINE);
     	installscalar("etaD",etaD,DONT_CARE);
     	installscalar("Growth",Growth,DONT_CARE);
-    	installscalar("Growth_on_a",Growth_on_a,DONT_CARE);
+    	installscalar("Growth_on_a_n",Growth_on_a_n,DONT_CARE);  // D/a^n
     	installscalar("f_growth",f_growth,DONT_CARE);
     	installscalar("w",w,DONT_CARE);
     	installscalar("HubbleNow",HubbleNow,DONT_CARE);   // In km/s/Mpc
@@ -196,6 +204,8 @@ public:
     	installscalar("OmegaNow_m",OmegaNow_m,DONT_CARE);
     	installscalar("OmegaNow_K", OmegaNow_K,DONT_CARE);
     	installscalar("OmegaNow_DE",OmegaNow_DE,DONT_CARE);
+    	installscalar("fsmooth",fsmooth,DONT_CARE);
+    	installscalar("CoordinateDistanceHMpc",CoordinateDistanceHMpc,DONT_CARE);
     	installscalar("DeltaTime",DeltaTime,DONT_CARE);
     	installscalar("DeltaScaleFactor",DeltaScaleFactor,DONT_CARE);
     	installscalar("DeltaRedshift",DeltaRedshift,DONT_CARE);
@@ -270,6 +280,7 @@ void State::make_output_header() {
     WPRS(Pipeline                 , s);
     WPRS(ParameterFileName        , s);
     WPRS(CodeVersion              , s);
+    WPRS(OutputFormatVersion      , s);
     WPRS(RunTime                  , s);
     WPRS(MachineName              , s);
     WPR(NodeRank                 , ISYM);
@@ -294,7 +305,7 @@ void State::make_output_header() {
     WPR(etaK                     , FSYM);
     WPR(etaD                     , FSYM);
     WPR(Growth                   , FSYM);
-    WPR(Growth_on_a              , FSYM);
+    WPR(Growth_on_a_n            , FSYM);
     WPR(f_growth                 , FSYM);
     WPR(w                        , FSYM);
     WPR(HubbleNow                , FSYM);
@@ -302,6 +313,8 @@ void State::make_output_header() {
     WPR(OmegaNow_m               , FSYM);
     WPR(OmegaNow_K               , FSYM);
     WPR(OmegaNow_DE              , FSYM);
+    WPR(fsmooth                  , FSYM);
+    WPR(CoordinateDistanceHMpc   , FSYM);
     
     WPRS(SofteningType           , s);
     WPR(SofteningLengthNow       , ESYM);

@@ -149,7 +149,8 @@ void timestepIC(void) {
     STDLOG(1, "Particles remaining on insert list: %d\n", IL->length);
     if (MPI_rank==0) {
         STDLOG(1, "Merged %d particles\n", merged_particles);
-        assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
+        assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!  Read %d IC particles.\n",
+            merged_particles, P.np, NP_from_IC);
     }
 
     if(IL->length!=0)

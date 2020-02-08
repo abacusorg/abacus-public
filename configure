@@ -738,6 +738,7 @@ with_max_gpus
 with_softening
 with_cache_line_size
 with_page_size
+enable_numa_for
 with_ramdisk
 '
       ac_precious_vars='build_alias
@@ -1388,6 +1389,7 @@ Optional Features:
   --enable-spherical-overdensity
                           Use SO finder [yes if fof-density enabled]
   --enable-parallel       Generate MPI parallel code [no]
+  --enable-numa-for       Enable custom NUMA_FOR OpenMP scheduler [yes]
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -6717,64 +6719,7 @@ else
   as_fn_error $? "unable to find fftw3!" "$LINENO" 5
 fi
 
-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing fftw_init_threads" >&5
-$as_echo_n "checking for library containing fftw_init_threads... " >&6; }
-if ${ac_cv_search_fftw_init_threads+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  ac_func_search_save_LIBS=$LIBS
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-/* Override any GCC internal prototype to avoid an error.
-   Use char because int might match the return type of a GCC
-   builtin and then its argument prototype would still apply.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-char fftw_init_threads ();
-int
-main ()
-{
-return fftw_init_threads ();
-  ;
-  return 0;
-}
-_ACEOF
-for ac_lib in '' fftw3_omp; do
-  if test -z "$ac_lib"; then
-    ac_res="none required"
-  else
-    ac_res=-l$ac_lib
-    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
-  fi
-  if ac_fn_cxx_try_link "$LINENO"; then :
-  ac_cv_search_fftw_init_threads=$ac_res
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext
-  if ${ac_cv_search_fftw_init_threads+:} false; then :
-  break
-fi
-done
-if ${ac_cv_search_fftw_init_threads+:} false; then :
-
-else
-  ac_cv_search_fftw_init_threads=no
-fi
-rm conftest.$ac_ext
-LIBS=$ac_func_search_save_LIBS
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_fftw_init_threads" >&5
-$as_echo "$ac_cv_search_fftw_init_threads" >&6; }
-ac_res=$ac_cv_search_fftw_init_threads
-if test "$ac_res" != no; then :
-  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
-
-else
-  as_fn_error $? "unable to find fftw3_omp!" "$LINENO" 5
-fi
-
+    #AC_SEARCH_LIBS(fftw_init_threads, [fftw3_omp], [], [AC_MSG_ERROR([unable to find fftw3_omp!])])
 
     # Single-precision libs are only used for analysis routines right now
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing fftwf_execute" >&5
@@ -6836,65 +6781,7 @@ else
 $as_echo "$as_me: WARNING: unable to find fftw3f!" >&2;}
 fi
 
-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing fftwf_init_threads" >&5
-$as_echo_n "checking for library containing fftwf_init_threads... " >&6; }
-if ${ac_cv_search_fftwf_init_threads+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  ac_func_search_save_LIBS=$LIBS
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-/* Override any GCC internal prototype to avoid an error.
-   Use char because int might match the return type of a GCC
-   builtin and then its argument prototype would still apply.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-char fftwf_init_threads ();
-int
-main ()
-{
-return fftwf_init_threads ();
-  ;
-  return 0;
-}
-_ACEOF
-for ac_lib in '' fftw3f_omp; do
-  if test -z "$ac_lib"; then
-    ac_res="none required"
-  else
-    ac_res=-l$ac_lib
-    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
-  fi
-  if ac_fn_cxx_try_link "$LINENO"; then :
-  ac_cv_search_fftwf_init_threads=$ac_res
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext
-  if ${ac_cv_search_fftwf_init_threads+:} false; then :
-  break
-fi
-done
-if ${ac_cv_search_fftwf_init_threads+:} false; then :
-
-else
-  ac_cv_search_fftwf_init_threads=no
-fi
-rm conftest.$ac_ext
-LIBS=$ac_func_search_save_LIBS
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_fftwf_init_threads" >&5
-$as_echo "$ac_cv_search_fftwf_init_threads" >&6; }
-ac_res=$ac_cv_search_fftwf_init_threads
-if test "$ac_res" != no; then :
-  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
-
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to find fftw3f_omp!" >&5
-$as_echo "$as_me: WARNING: unable to find fftw3f_omp!" >&2;}
-fi
-
+    #AC_SEARCH_LIBS(fftwf_init_threads, [fftw3f_omp], [], [AC_MSG_WARN([unable to find fftw3f_omp!])])
 fi
 
 
@@ -6931,6 +6818,21 @@ cat >>confdefs.h <<_ACEOF
 #define PAGE_SIZE $with_page_size
 _ACEOF
 
+
+# Check whether --enable-numa-for was given.
+if test "${enable_numa_for+set}" = set; then :
+  enableval=$enable_numa_for;
+else
+  enable_numa_for="yes"
+fi
+
+if test x$enable_numa_for == xyes; then
+
+cat >>confdefs.h <<_ACEOF
+#define ENABLE_NUMA_FOR /**/
+_ACEOF
+
+fi
 
 # If the user is using Anaconda Python, we have to be careful
 # about how we build C/C++ libraries that will be loaded by Python.
@@ -7088,6 +6990,7 @@ echo "Page size:                       $with_page_size"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
 echo "Maximum order:                   $with_max_order"
+echo "NUMA For OpenMP Scheduler:       $enable_numa_for"
 echo "------------------------------------------------------"
 echo
 

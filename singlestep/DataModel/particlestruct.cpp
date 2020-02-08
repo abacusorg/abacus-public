@@ -68,7 +68,7 @@ When we store into the output TaggedPID format, we apply a bit mask to zero all 
 #define AUXTAGGABLE_A_BIT 59llu //Can this particle be tagged in subsample A? 
 #define AUXTAGGABLE_B_BIT 60llu //Can this particle be tagged in subsample B? 
 
-#define NUMLC 3
+#define NUMLIGHTCONES 3
 
 #define AUXLCZEROBIT 61llu		// The LC bits are 61,62,63.
 #define AUXLC  (uint64)0xe000000000000000	// The next three bits.
@@ -126,7 +126,7 @@ public:
 
     // Light cones need 1 byte
     inline static uint64 lightconemask(int number) {
-        assertf(number<NUMLC && number>=0, "Lightcone number lcn = %d must satisfy 0 <= lcn < %d.", number, NUMLC);
+        assertf(number<NUMLIGHTCONES && number>=0, "Lightcone number lcn = %d must satisfy 0 <= lcn < %d.", number, NUMLIGHTCONES);
         return (uint64)1 << (number+AUXLCZEROBIT);
     }
 
@@ -143,6 +143,11 @@ public:
     }
     inline void setlightconedone(int number) {
         setlightconedone(lightconemask(number));
+    }
+
+    inline void clearLightCone() {
+        uint64 mask = AUXLC;
+        aux &= ~mask;
     }
 
     inline void set_taggable_subA() {
@@ -169,7 +174,15 @@ public:
         return aux & ((uint64)1 << AUXTAGGEDBIT);
     }
 
-    inline void set_density(uint64 _density){
+    // Set the density from the density value (in code units)
+    // There is a chance that a mismatch in precision between the GPU and CPU codes 
+    // could lead to a negative value of the density when the only particle is the self-particle.
+    // Hence, we take the absolute value.
+    inline void set_density(FLOAT rawdensity){
+        _pack_density((uint64) round(std::sqrt(fabs(rawdensity) * WriteState.invFOFunitdensity)));
+    }
+
+    inline void _pack_density(uint64 _density){
         assert(_density < (AUXDENSITY >> AUXDENSITYZEROBIT)); 
         aux = ( (uint64) _density << AUXDENSITYZEROBIT )  | (aux &~ AUXDENSITY); 
     }

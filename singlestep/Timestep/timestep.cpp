@@ -1,9 +1,9 @@
 /* timestep.cpp
 
 This is the main routine to evolve the particles.  This defines the
-slab-based pipeline that we will use by setting up a set of 
+slab-based pipeline that we will use by setting up a set of
 preconditions and actions.  It also handles most of the allocation
-and deallocation of arenas.  
+and deallocation of arenas.
 
 We should endeavor to make the basic outline of the pipeline very
 clear in this source file.
@@ -24,7 +24,7 @@ executable.
 int FORCE_RADIUS = -1;
 int GROUP_RADIUS = -1;
 
-#define FETCHAHEAD (2*GROUP_RADIUS+1 + FINISH_WAIT_RADIUS+1)
+#define FETCHAHEAD (2*GROUP_RADIUS + FORCE_RADIUS + FINISH_WAIT_RADIUS + 2)
 #define FETCHPERSTEP 1
 // Recall that all of these Dependencies have a built-in STimer
 // to measure the amount of time spent on Actions.
@@ -50,13 +50,13 @@ Dependency UnpackLPTVelocity;
 #include "InCoreConvolution.cpp"
 #include "ParallelConvolution.cpp"
 STimer ConvolutionWallClock;
-STimer BarrierWallClock; 
+STimer BarrierWallClock;
 #endif
 
 // The wall-clock time minus all of the above Timers might be a measure
 // of the spin-locked time in the timestep() loop.
 STimer TimeStepWallClock;
- 
+
 
 #include "manifest.cpp"
 
@@ -70,13 +70,13 @@ int FetchSlabsPrecondition(int slab) {
     // i.e. we would like to read a few slabs ahead of the Kick.
     // But if the steps after Kick are slow enough that we aren't Finishing promptly,
     // we can get a buildup of slabs and run out of memory. So we tie to the Drift instead.
-    if(slab > Drift.last_slab_executed + FETCHAHEAD)
-    //if(slab > Kick.last_slab_executed + FETCHAHEAD)
+    if(FetchSlabs.wrap(slab - Drift.last_slab_executed) > FETCHAHEAD
+        && FetchSlabs.done(Drift.last_slab_executed))
         return 0;
-    
+
     #ifdef PARALLEL
     if (FetchSlabs.raw_number_executed>=total_slabs_on_node) return 0;
-    	// This prevents FetchSlabAction from reading beyond the 
+    	// This prevents FetchSlabAction from reading beyond the
 	// range of slabs on the node.  In the PARALLEL code, these
 	// data will arrive from the Manifest.  We have to implement
 	// this on the raw_number because the reported number is adjusted
@@ -94,32 +94,34 @@ int FetchSlabsPrecondition(int slab) {
  */
 void FetchSlabsAction(int slab) {
     STDLOG(1,"Fetching slab %d with %d particles\n", slab, SS->size(slab));
-	
+
     // Load all of the particle files together
     SB->LoadArenaNonBlocking(CellInfoSlab,slab);
     SB->LoadArenaNonBlocking(PosSlab,slab);
 
+    if(WriteState.Do2LPTVelocityRereading && UnpackLPTVelocity.notdone(slab)){
+        ICFile::FromFormat(P.ICFormat, slab)->read_vel_nonblocking();
+    }
+
     // Don't bother to load the vel/aux/taylors for slabs that won't be kicked until the wrap
-    #ifndef PARALLEL
+    //#ifndef PARALLEL
+    // LHG: only need this when we're memory starved
+    #if 0
     if(FetchSlabs.number_of_slabs_executed < FORCE_RADIUS)
         return;
     #endif
-	
+
 #ifdef PARALLEL
     // SB->AllocateArena(TaylorSlab, slab + FORCE_RADIUS, RAMDISK_NO);
 // 	ParallelConvolveDriver->RecvTaylorSlab(slab + FORCE_RADIUS);
 // 	STDLOG(2, "Received Taylor slab via MPI%d\n", slab + FORCE_RADIUS);
-		
+
 #else
-    SB->LoadArenaNonBlocking(TaylorSlab,slab); 
+    SB->LoadArenaNonBlocking(TaylorSlab,slab);
 #endif
 
     SB->LoadArenaNonBlocking(VelSlab, slab);
     SB->LoadArenaNonBlocking(AuxSlab, slab);
-
-    if(WriteState.Do2LPTVelocityRereading){
-        ICFile::FromFormat(P.ICFormat, slab)->read_vel_nonblocking();
-    }
 }
 
 // -----------------------------------------------------------------
@@ -144,15 +146,14 @@ int TransposePosPrecondition(int slab){
 void TransposePosAction(int slab){
     SB->AllocateArena(PosXYZSlab, slab);
     int cpd = P.cpd;
-    
+
     // Could do this over skewers; should make a skewersize(slab, y) function somewhere
-    #pragma omp parallel for schedule(static)
-    for(int y = 0; y < cpd; y++){
+    NUMA_FOR(y,0,cpd)
         for(int z = 0; z < cpd; z++){
             posstruct *pos = CP->PosCell(slab, y, z);
             List3<FLOAT> posxyz = CP->PosXYZCell(slab, y, z);
             int count = CP->NumberParticle(slab,y,z);
-			            
+
             #pragma ivdep
             for(int i = 0; i < count; i++){
                 posxyz.X[i] = pos[i].x;
@@ -161,13 +162,14 @@ void TransposePosAction(int slab){
             }
         }
     }
-    
-    #ifndef PARALLEL
+
+    //#ifndef PARALLEL
+    #if 0
     // If this is a "ghost" slab, we only need its transpose
     if(TransposePos.number_of_slabs_executed < FORCE_RADIUS)
         SB->DeAllocate(PosSlab, slab);
     #endif
-	
+
 }
 
 
@@ -185,7 +187,7 @@ int NearForcePrecondition(int slab) {
             return 0;
         }
     }
-    
+
     return 1;
 }
 
@@ -196,7 +198,7 @@ void NearForceAction(int slab) {
     // Could also check that the sum of the cell counts add up to SS->size(slab);
 
     SlabForceTime[slab].Start();
-        
+
     NFD->ExecuteSlab(slab, P.ForceOutputDebug);
     // NFD->ExecuteSlab(slab, 1);  // Use this line instead to force blocking GPU work
 
@@ -216,7 +218,7 @@ void NearForceAction(int slab) {
         memcpy(nearacctmp, nearacc, npslab*sizeof(accstruct));
         FLOAT inv_eps3 = 1./(NFD->SofteningLengthInternal*NFD->SofteningLengthInternal*NFD->SofteningLengthInternal);
         for(uint64 i = 0; i < npslab; i++)
-            nearacc[i] *= inv_eps3; 
+            nearacc[i] *= inv_eps3;
 #endif
         SB->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
             SB->WriteSlabPath(NearAccSlab,slab).c_str());
@@ -242,16 +244,17 @@ int TaylorForcePrecondition(int slab) {
     }
     if( !SB->IsIOCompleted( PosSlab, slab ) ){
         if(SB->IsSlabPresent(PosSlab, slab))
+            Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
-	
-#ifdef PARALLEL //TODO do the above still apply in the parallel case? 
+
+#ifdef PARALLEL //TODO do the above still apply in the parallel case?
 	if( !ParallelConvolveDriver->CheckTaylorSlabReady(slab)) {
         if(SB->IsSlabPresent(TaylorSlab, slab))
-			Dependency::NotifySpinning(WAITING_FOR_MPI);	
-		return 0; 
+			Dependency::NotifySpinning(WAITING_FOR_MPI);
+		return 0;
 	}
-		
+
 #else
     if( !SB->IsIOCompleted( TaylorSlab, slab ) ){
         if(SB->IsSlabPresent(TaylorSlab, slab))
@@ -263,12 +266,12 @@ int TaylorForcePrecondition(int slab) {
     return 1;
 }
 
-void TaylorForceAction(int slab) {	
+void TaylorForceAction(int slab) {
 	MTCOMPLEX *t = (MTCOMPLEX *) SB->GetSlabPtr(TaylorSlab, slab);
-	
+
     SlabFarForceTime[slab].Start();
     SB->AllocateArena(FarAccSlab, slab);
-    
+
     TaylorCompute.Start();
     ComputeTaylorForce(slab);
     TaylorCompute.Stop();
@@ -300,14 +303,14 @@ int KickPrecondition(int slab) {
             Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
-    
+
     // must have far forces
     if(TaylorForce.notdone(slab)){
         return 0;
     }
-    
+
     //must have near forces
-    if (NearForce.notdone(slab)) 
+    if (NearForce.notdone(slab))
         return 0;
     else {
         // If pencil construction (NearForce) is finished, but not NFD, then we're waiting for the GPU result
@@ -325,7 +328,7 @@ int KickPrecondition(int slab) {
 void KickAction(int slab) {
     SlabForceTime[slab].Stop();
     SlabForceLatency[slab].Stop();
-	
+
     // Release the trailing slab if it won't be needed at the wrap
     // Technically we could release it anyway and re-do the transpose from PosSlab,
     // but if we're not doing group finding we may have already written and released PosSlab
@@ -340,7 +343,8 @@ void KickAction(int slab) {
         for(int j = slab - FORCE_RADIUS+1; j <= slab + FORCE_RADIUS; j++)
             SB->DeAllocate(PosXYZSlab, j);
 
-    #ifndef PARALLEL
+    //#ifndef PARALLEL
+    #if 0
     // Queue up slabs near the wrap to be loaded again later
     // This way, we don't have idle slabs taking up memory while waiting for the pipeline to wrap around
     if(Kick.number_of_slabs_executed < FORCE_RADIUS){
@@ -392,10 +396,10 @@ int MakeCellGroupsPrecondition(int slab) {
     // Only PosXYZ is used for sources, so we're free to rearrange PosSlab
     // in group finding after the transpose
     if( TransposePos.notdone(slab) ) return 0;
-    
+
     // Need the new velocities because we're going to rearrange particles
     if( Kick.notdone(slab) ) return 0;
-    
+
     // Also need the auxs, because we're going to re-order
     if( !SB->IsIOCompleted( AuxSlab, slab ) ){
         if(SB->IsSlabPresent(AuxSlab, slab))
@@ -413,7 +417,7 @@ void MakeCellGroupsAction(int slab) {
 
 int FindCellGroupLinksPrecondition(int slab) {
     // We want to find all links between this slab and the one just behind
-    for (int j=-1; j<=0; j++) 
+    for (int j=-1; j<=0; j++)
         if (MakeCellGroups.notdone(slab+j)) return 0;
     return 1;
 }
@@ -476,7 +480,7 @@ void DoGlobalGroupsAction(int slab) {
         }
     #endif
     STDLOG(0,"Exiting Find Global Groups action in slab %d\n", slab);
-	
+
 }
 
 // -----------------------------------------------------------------
@@ -509,8 +513,8 @@ void MicrostepAction(int slab){
     }
 
 	//Dependency do_action() assumes that each dependency processes all particles in a given slab.
-	//Microstepping is an exception; it only does the group particles! Correct the bookkeeping here. 
-	Microstep.num_particles += GFC->globalslabs[slab]->np - SS->size(slab); 
+	//Microstepping is an exception; it only does the group particles! Correct the bookkeeping here.
+	Microstep.num_particles += GFC->globalslabs[slab]->np - SS->size(slab);
 
     MicrostepCPU.Stop();
 }
@@ -525,7 +529,7 @@ int FinishGroupsPrecondition(int slab){
     // TODO: If Microstep changes, this may change.  At present, we really need Output to be done
     // because this step triggers the writeback of the new Pos/Vel.
     if (Microstep.notdone(slab)) return 0;
-    
+
     return 1;
 }
 
@@ -550,21 +554,21 @@ void FinishGroupsAction(int slab){
 int OutputPrecondition(int slab) {
 
     #ifdef ONE_SIDED_GROUP_FINDING
-    /* This must wait until all groups including the slab have been found.  
+    /* This must wait until all groups including the slab have been found.
     It used to be that closing groups on the current slab S would do this,
     but now groups are only found looking upwards from S, so we need to have
     closed groups on all slabs from S to S-2*GroupRadius, inclusive.
     */
     for (int s=0; s<=2*GROUP_RADIUS; s++)
-        if (FinishGroups.notdone(slab-s)) return 0;  
+        if (FinishGroups.notdone(slab-s)) return 0;
     // Must have found groups to be able to output light cones
     // note that group outputs were already done
     #else
-        if (FinishGroups.notdone(slab)) return 0;  
+        if (FinishGroups.notdone(slab)) return 0;
     #endif
 
     // Note the following conditions only have any effect if group finding is turned off
-    
+
     if (Kick.notdone(slab)) return 0;  // Must have accelerations
 
     // Also obviously need the aux!  This was checked in CellGroups,
@@ -574,7 +578,7 @@ int OutputPrecondition(int slab) {
             Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
-    
+
     return 1;
 }
 
@@ -593,7 +597,7 @@ void OutputAction(int slab) {
     OutputTimeSlice.Start();
 
 
-    // Having found all groups, we should output the Non-L0 (i.e., field) Taggable subsample. 
+    // Having found all groups, we should output the Non-L0 (i.e., field) Taggable subsample.
     if(ReadState.DoSubsampleOutput) {
         assertf(ReadState.DoGroupFindingOutput == 1, "Subsample output should turn on group finding!\n"); // Currently Subsample Output requires GroupFinding Output.
         OutputNonL0Taggable(slab);
@@ -617,7 +621,12 @@ void OutputAction(int slab) {
         // but we can probably handle that in the interpolation
         for(int i = 0; i < P.NLightCones; i++){
             STDLOG(1,"Outputting LightCone %d (origin (%f,%f,%f)) for slab %d\n",i,LCOrigin[i].x,LCOrigin[i].y,LCOrigin[i].z,slab);
+            // Start timing
+            STimer lightConeTimer;
+            lightConeTimer.Start();
             makeLightCone(slab,i);
+            lightConeTimer.Stop();
+            STDLOG(1, "LightCone %d for slab %d creation took %f seconds\n", i, slab, lightConeTimer.Elapsed());
         }
     }
     OutputLightCone.Stop();
@@ -669,21 +678,21 @@ void UnpackLPTVelocityAction(int slab){
 int DriftPrecondition(int slab) {
     // We must have finished scattering into this slab
     // if (FinishGroups.notdone(slab)) return 0;
-    
+
     // We will move the particles, so we must have done outputs
     if (Output.notdone(slab)) return 0;
-    
+
     // We can't move particles until they've been used as gravity sources
     // However, we only use PosXYZSlab as sources, so we're free to move PosSlab
-    
+
     // We also must have the 2LPT velocities
     // The finish radius is a good guess of how ordered the ICs are
     if(WriteState.Do2LPTVelocityRereading)
         for(int i=-FINISH_WAIT_RADIUS;i<=FINISH_WAIT_RADIUS;i++) 
             if (UnpackLPTVelocity.notdone(slab+i)) {
-                return 0;   
+                return 0;
             }
-        
+
     return 1;
 }
 
@@ -704,12 +713,12 @@ void DriftAction(int slab) {
     } else {
         //         This is just a normal drift
         FLOAT driftfactor = WriteState.DeltaEtaDrift;
-        // WriteState.etaD-ReadState.etaD; 
+        // WriteState.etaD-ReadState.etaD;
         STDLOG(1,"Drifting slab %d by %f\n", slab, driftfactor);
         //DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
         DriftSlabAndCopy2InsertList(slab, driftfactor, DriftSlab);
     }
-    
+
     // We freed AccSlab in Microstep to save space
     // if (GFC == NULL){
     // TODO: Remove that condition; we always can do this here.
@@ -728,10 +737,10 @@ void DriftAction(int slab) {
 
 int FinishPrecondition(int slab) {
     for(int j=-FINISH_WAIT_RADIUS;j<=FINISH_WAIT_RADIUS;j++) {
-        if( Drift.notdone(slab+j) )  return 0; 
+        if( Drift.notdone(slab+j) )  return 0;
     }
-	
-	if (Finish.alldone(total_slabs_on_node)) return 0; 
+
+	if (Finish.alldone(total_slabs_on_node)) return 0;
     return 1;
 }
 
@@ -745,14 +754,14 @@ void FinishAction(int slab) {
 
     if (WriteState.Do2LPTVelocityRereading)
         SB->DeAllocate(VelLPTSlab, slab);
-	FinishPreamble.Stop(); 
+	FinishPreamble.Stop();
 
     // Gather particles from the insert list and make the merge slabs
     uint64 n_merge = FillMergeSlab(slab);
     merged_particles += n_merge;
-	
-	FinishPreamble.Start(); 
-    
+
+	FinishPreamble.Start();
+
     // This may be the last time be need any of the CellInfo slabs that we just used
     // We can't immediately free CellInfo before NearForce might need it until we're FORCE_RADIUS away
     // An alternative to this would be to just wait for FORCE_RADIUS before finishing
@@ -764,27 +773,27 @@ void FinishAction(int slab) {
         if (consec >= 2*FORCE_RADIUS + 1)
             SB->DeAllocate(CellInfoSlab, slab + j - FORCE_RADIUS);
     }
-    
+
     // Now delete the original particles
     SB->DeAllocate(PosSlab,slab);
     SB->DeAllocate(VelSlab,slab);
     SB->DeAllocate(AuxSlab,slab);
-	
+
 	STDLOG(2,"Done deallocing pos, vel, aux for slab %d\n", slab);
-	
+
     // Make the multipoles
-	int ramdisk_multipole_flag; 
+	int ramdisk_multipole_flag;
 #ifdef PARALLEL
 	ramdisk_multipole_flag = RAMDISK_NO;
 #else
 	ramdisk_multipole_flag = RAMDISK_AUTO;
 #endif
     SB->AllocateArena(MultipoleSlab,slab, ramdisk_multipole_flag);
-	FinishPreamble.Stop(); 
+	FinishPreamble.Stop();
 
 	STDLOG(2,"About to compute multipoles for slab %d, %p\n", slab, (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab));
     ComputeMultipoleSlab(slab);
-	
+
     // Write out the particles and multipoles and delete
     WriteMergeSlab.Start();
     SB->StoreArenaNonBlocking(MergePosSlab,slab);
@@ -792,7 +801,7 @@ void FinishAction(int slab) {
     SB->StoreArenaNonBlocking(MergeAuxSlab,slab);
     SB->StoreArenaNonBlocking(MergeCellInfoSlab,slab);
     WriteMergeSlab.Stop();
-	
+
 #ifndef PARALLEL
     WriteMultipoleSlab.Start();
     SB->StoreArenaNonBlocking(MultipoleSlab,slab);
@@ -801,18 +810,18 @@ void FinishAction(int slab) {
 
 #ifdef PARALLEL
     if (Finish.raw_number_executed==0) SendManifest->QueueToSend(slab);
-	
-	QueueMultipoleMPI.Start(); 
+
+	QueueMultipoleMPI.Start();
  STDLOG(2, "Attempting to SendMultipoleSlab %d\n", slab);
  	ParallelConvolveDriver->SendMultipoleSlab(slab); //distribute z's to appropriate nodes for this node's x domain.
 	if (Finish.raw_number_executed==0){ //if we are finishing the first slab, set up receive MPI calls for incoming multipoles.
 		STDLOG(2, "Attempting to RecvMultipoleSlab %d\n", slab);
 		ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's.
 	}
-	
-	QueueMultipoleMPI.Stop(); 
+
+	QueueMultipoleMPI.Stop();
 #endif
-	
+
     int pwidth = FetchSlabs.raw_number_executed - Finish.raw_number_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
     STDLOG(2, "About to ReportMemoryAllocatorStats\n");
@@ -822,29 +831,29 @@ void FinishAction(int slab) {
 
 #ifdef PARALLEL
 int CheckForMultipolesPrecondition(int slab) {
-	
+
     if( Finish.notdone(slab) ) return 0;
-	
+
 	// if (Finish.raw_number_executed==0){ //if we are finishing the first slab, set up receive MPI calls for incoming multipoles.
 	// 	STDLOG(2, "Attempting to RecvMultipoleSlab %d\n", slab);
 	// 	ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's.
 	// }
-	
+
 	int multipole_transfer_complete = ParallelConvolveDriver->CheckForMultipoleTransferComplete(slab);
-	if (multipole_transfer_complete) return 1; 
+	if (multipole_transfer_complete) return 1;
     else {
 		if(SB->IsSlabPresent(MultipoleSlab, slab))
-				Dependency::NotifySpinning(WAITING_FOR_MPI);	
+				Dependency::NotifySpinning(WAITING_FOR_MPI);
 		return 0;
 	}
 }
 
 void CheckForMultipolesAction(int slab) {
 	STDLOG(1, "Entering Check for Multipoles action and deallocating multipole slab %d\n",  slab);
-	SB->DeAllocate(MultipoleSlab, slab);  
+	SB->DeAllocate(MultipoleSlab, slab);
 	STDLOG(1, "Exiting Check for Multipoles action for slab %d\n",  slab);
-	
-}	
+
+}
 #endif
 // -----------------------------------------------------------------
 // A no-op precondition that always passes
@@ -872,43 +881,43 @@ void AttemptReceiveManifest(){
         STDLOG(1, "Readying the next Manifest, number %d\n", ReceiveManifest-_ReceiveManifest);
         ReceiveManifest->SetupToReceive();
     }
-    return; 
+    return;
 }
 
 #define INSTANTIATE(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &dependency##Precondition, &dependency##Action, #dependency); } while(0)
 #define INSTANTIATE_NOOP(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &NoopPrecondition, &NoopAction, ""); } while(0)
 
 
-void timestep(void) { 
-	
+void timestep(void) {
+
     FORCE_RADIUS = P.NearFieldRadius;
     GROUP_RADIUS = GFC != NULL ? P.GroupRadius : 0;
     // The 2LPT pipeline is short (no group finding). We can afford to wait an extra slab to allow for large IC displacements
     FINISH_WAIT_RADIUS = LPTStepNumber() > 0 ? 2 : 1;
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
-    assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS); 	
-	
+    assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS);
+
  #ifdef PARALLEL
 	ConvolutionWallClock.Clear(); ConvolutionWallClock.Start();
 
 	ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory);
 
-	ParallelConvolveDriver->Convolve(); 
+	ParallelConvolveDriver->Convolve();
 	ParallelConvolveDriver->SendTaylors(FORCE_RADIUS);
 
-	ConvolutionWallClock.Stop(); 
-	ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed(); 
-#endif	
-		
+	ConvolutionWallClock.Stop();
+	ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
+#endif
+
     TimeStepWallClock.Clear();  TimeStepWallClock.Start();
-    STDLOG(1,"Initiating timestep()\n");	
-	
+    STDLOG(1,"Initiating timestep()\n");
+
 #ifdef PARALLEL
     /* In the parallel code, we're about to send all of the info up to
     slab-1 to the neighbor.  This can cause a problem if the pipeline
     is thin (e.g., no group finding), because the PosXYZSlabs are needed
     over a domain of +-FORCE_RADIUS.
-    
+
     For the first slab to finish, we have to assure that PosXYZSlab[slab]
     is not needed to Kick any slabs on the neighbor.  That means we must
     have done Kick[slab-FORCE_RADIUS] on this node.
@@ -916,8 +925,8 @@ void timestep(void) {
     Further, we have to assure that PosXYZSlab[slab-1] is not still needed
     as a source to any slabs on this node.  Need Kick[slab-1+FORCE_RADIUS]
     to be done to avoid this.
-    
-    
+
+
 
     We fix this by forcing FINISH_WAIT_RADIUS to be big enough.  */
     if (FINISH_WAIT_RADIUS+2*GROUP_RADIUS<FORCE_RADIUS)
@@ -926,11 +935,11 @@ void timestep(void) {
     // TODO: I'm not sure inflating FINISH_WAIT_RADIUS is the best way to deal with this
     // TODO: Also not sure this is the minimum number of slabs, even in that case
     // assertf(total_slabs_on_node >= 2*FINISH_WAIT_RADIUS + 1 + 2*FORCE_RADIUS + 4*GROUP_RADIUS, "Not enough slabs on node to finish any slabs!\n");
-    int PAD = 3; 
+    int PAD = 3;
     assertf(total_slabs_on_node >= (2*GROUP_RADIUS + 1) + 2*FORCE_RADIUS + 1 + PAD, "Not enough slabs on node to close first group!\n");
-    assertf(total_slabs_on_node >= 2*GROUP_RADIUS + FORCE_RADIUS + 2 * FINISH_WAIT_RADIUS + 1 + PAD, "Not enough slabs on node to finish any slabs!\n"); 	
+    assertf(total_slabs_on_node >= 2*GROUP_RADIUS + FORCE_RADIUS + 2 * FINISH_WAIT_RADIUS + 1 + PAD, "Not enough slabs on node to finish any slabs!\n");
 #endif
-		
+
     STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
     STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
     STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
@@ -938,12 +947,12 @@ void timestep(void) {
     int nslabs = P.cpd;
     int first = first_slab_on_node;  // First slab to load
     STDLOG(1,"First slab to load will be %d\n", first);
-	
+
 #ifdef PARALLEL
 	for (int slab = first + FORCE_RADIUS; slab < first + FORCE_RADIUS + total_slabs_on_node; slab ++ ){
-    	SB->AllocateArena(TaylorSlab, slab, RAMDISK_NO); 
-		ParallelConvolveDriver->RecvTaylorSlab(slab); 
-		STDLOG(2, "Set up to receive Taylor slab %d via MPI\n", slab); 
+    	SB->AllocateArena(TaylorSlab, slab, RAMDISK_NO);
+		ParallelConvolveDriver->RecvTaylorSlab(slab);
+		STDLOG(2, "Set up to receive Taylor slab %d via MPI\n", slab);
 	}
 #endif
 
@@ -954,7 +963,7 @@ void timestep(void) {
     INSTANTIATE(                 TaylorForce, FORCE_RADIUS);
     INSTANTIATE(                        Kick, FORCE_RADIUS);
     #ifdef ONE_SIDED_GROUP_FINDING
-        int first_outputslab = FORCE_RADIUS + 1 + 2*GROUP_RADIUS;
+        int first_outputslab = FORCE_RADIUS + 2*GROUP_RADIUS + (int)(GROUP_RADIUS > 0);
     #else
         int first_outputslab = FORCE_RADIUS + 2*GROUP_RADIUS;
     #endif
@@ -966,7 +975,7 @@ void timestep(void) {
 #else
     INSTANTIATE_NOOP(     CheckForMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #endif
-            
+
     // If group finding is disabled, we can make the dependencies no-ops so they don't hold up the pipeline
     #ifdef ONE_SIDED_GROUP_FINDING
         int first_groupslab = FORCE_RADIUS+1;
@@ -986,7 +995,7 @@ void timestep(void) {
         INSTANTIATE_NOOP(          Microstep, first_groupslab);
         INSTANTIATE_NOOP(       FinishGroups, first_groupslab);
     }
-           
+
     if(WriteState.Do2LPTVelocityRereading)
         INSTANTIATE(       UnpackLPTVelocity, first_outputslab - FINISH_WAIT_RADIUS);
     else
@@ -1000,7 +1009,7 @@ void timestep(void) {
             NearForce.Attempt();
 
         ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
-   
+
           TaylorForce.Attempt();
                  Kick.Attempt();
 
@@ -1025,27 +1034,27 @@ void timestep(void) {
         ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
 
                Finish.Attempt();
-			   
+
         CheckSendManifest();  // We look at each Send Manifest to see if there's material to free.
                         //   SendManifest->FreeAfterSend();
 
 	    AttemptReceiveManifest();
 
-	    CheckForMultipoles.Attempt();	
-		
+	    CheckForMultipoles.Attempt();
+
 #ifdef PARALLEL
 		timestep_loop_complete = CheckForMultipoles.alldone(total_slabs_on_node);
 #else
 		timestep_loop_complete = Finish.alldone(total_slabs_on_node);
 #endif
     }
-	
+
     if(IL->length!=0)
         IL->DumpParticles();
-    
-    assertf(IL->length==0, 
+
+    assertf(IL->length==0,
         "Insert List not empty (%d) at the end of timestep().  Time step too big?\n", IL->length);
-    
+
     STDLOG(1,"Finished timestep dependency loop!\n");
 
     if (GFC != NULL) assertf(GFC->GLL->length==0,
@@ -1065,23 +1074,24 @@ void timestep(void) {
         STDLOG(2,"Ready to proceed to the remaining work\n");
 
         MPI_Barrier(MPI_COMM_WORLD);
-		BarrierWallClock.Stop(); 
-		
-        // This MPI call also forces a synchronization over the MPI processes, 
+		BarrierWallClock.Stop();
+
+        // This MPI call also forces a synchronization over the MPI processes,
         // so things like Reseting GPUs could fire multiple times on one node.
         SendManifest->FreeAfterSend();
         // Run this again, just in case the dependency loop on this node finished
         // before the neighbor received the non-blocking MPI transfer.
+
 	    TimeStepWallClock.Stop(); ConvolutionWallClock.Start(); 
         convtimebuffer = (char*) malloc(CONVTIMEBUFSIZE);   // Need to allocate space for the timings
     	delete ParallelConvolveDriver;
-	    ConvolutionWallClock.Stop(); TimeStepWallClock.Start(); 
-	   
-    #endif 
+	    ConvolutionWallClock.Stop(); TimeStepWallClock.Start();
+
+    #endif
     if (MPI_rank==0)
         assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
 
-    
+
     if(ReadState.DoTimeSliceOutput && MPI_rank==0){
         assertf(total_n_output == P.np, "TimeSlice output contains %d particles instead of %d!\n", total_n_output, P.np);
 	}
@@ -1090,8 +1100,6 @@ void timestep(void) {
 
     STDLOG(1,"Completing timestep()\n");
     TimeStepWallClock.Stop();
-	
-	
 }
 
 

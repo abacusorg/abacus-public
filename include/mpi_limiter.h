@@ -23,7 +23,7 @@ class AbacusMPILimiter {
 
 public:
 
-    // Constructor, with given number of microseconds between calls
+    // Constructor, with given number of milliseconds between calls
     AbacusMPILimiter(double delta_ms){
         delta_ns = (int64_t) (delta_ms*1e6);
 
