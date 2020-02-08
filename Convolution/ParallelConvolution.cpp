@@ -559,7 +559,8 @@ int ParallelConvolution::GetTaylorRecipient(int slab, int offset){
 
 void ParallelConvolution::SendTaylors(int offset) {
 	QueueTaylors.Clear(); QueueTaylors.Start();
-	for (int slab = 0; slab < cpd; slab ++){ 
+	//for (int slab = 0; slab < cpd; slab ++){ 
+	for (int slab = -cpd/2; slab < cpd/2+1; slab ++){ 
 		//Each node has Taylors for a limited range of z but for every x slab. 
 		//figure out who the receipient should be based on x slab and send to them. 
 		// Take from MTdisk. Set Tsend_requests[x] as request. 	
@@ -615,12 +616,13 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
         }
     }*/
 
-    err = MPI_Testall(Trecv_requests[slab], &received, MPI_STATUSES_IGNORE);
+    err = MPI_Testall(MPI_size, Trecv_requests[slab], &done, MPI_STATUSES_IGNORE);
 	
 	if (done) {
 		delete[] Trecv_requests[slab];
 		Trecv_requests[slab] = NULL; 
-		Trecv_active--; 
+		Trecv_active--;
+		STDLOG(2, "Taylor slab %d receives completed\n", slab);
 	}
 	
 	return done;
@@ -633,8 +635,13 @@ int ParallelConvolution::CheckTaylorSendComplete(int slab){
 	int sent = 0;
     int err = MPI_Test(&Tsend_requests[slab], &sent, MPI_STATUS_IGNORE);
 	
-	if (not sent) STDLOG(4, "Taylor slab %d not sent yet...\n", slab);
-    else assert(Tsend_requests[slab] == MPI_REQUEST_NULL);
+	if (not sent) {
+		STDLOG(4, "Taylor slab %d not sent yet...\n", slab);
+	}
+    else {
+    	assert(Tsend_requests[slab] == MPI_REQUEST_NULL);
+    	STDLOG(1, "Taylor slab %d send completed\n", slab);
+    }
 	
 	return sent; 
 }
