@@ -84,7 +84,7 @@ private:
 	int **Msend_flags;
     int Msend_active;
 
-    #define T_TAG (200000)     // An offset for the taylor tags
+    #define T_TAG (105000)     // An offset for the taylor tags; we step by 10000 per rank, so this is good to CPD=5000
     MPI_Request *Tsend_requests;    // We'll set up a [CPD] array to send one packet per x
     MPI_Request **Trecv_requests;    // We'll set up a [CPD][MPI_size] array even though each node will only use the x's in its NodeSlabs range
 	int *Tsend_flags;
