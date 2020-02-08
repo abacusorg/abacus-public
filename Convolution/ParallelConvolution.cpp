@@ -560,11 +560,11 @@ int ParallelConvolution::GetTaylorRecipient(int slab, int offset){
 void ParallelConvolution::SendTaylors(int offset) {
 	QueueTaylors.Clear(); QueueTaylors.Start();
 	//for (int slab = 0; slab < cpd; slab ++){ 
-	for (int slab = -cpd/2; slab < cpd/2+1; slab ++){ 
+	for (int _slab = -cpd/2; _slab < cpd/2+1; _slab ++){ 
 		//Each node has Taylors for a limited range of z but for every x slab. 
 		//figure out who the receipient should be based on x slab and send to them. 
 		// Take from MTdisk. Set Tsend_requests[x] as request. 	
-		slab = CP->WrapSlab(slab);
+		slab = CP->WrapSlab(_slab);
 		STDLOG(4, "About to SendTaylor Slab %d with offset %d\n", slab, offset); 
 		
 		int r = GetTaylorRecipient(slab, offset); //x-slab slab is in node r's domain. Send to node r. 
