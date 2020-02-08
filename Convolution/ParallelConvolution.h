@@ -36,7 +36,7 @@ public:
 	
 	//timers and stats to log:
     ConvolutionStatistics CS; 
-    uint64_t blocksize, znode; // The number of z's on this node
+    int64_t blocksize, znode; // The number of z's on this node
 	void dumpstats();
 
     STimer *MsendTimer;   // A timer for the sending of each Multipole Slab
@@ -49,13 +49,13 @@ private:
 	//int OverwriteConvState;
 	//int StripeConvState;
 	
-    uint64_t cpd;
-    uint64_t cpd2p1;   // (CPD+1)/2 is the length of the z array
-    uint64_t cpd2pad;  // We might want to pad CPD**2 to obtain better FFTW behavior
+    int64_t cpd;
+    int64_t cpd2p1;   // (CPD+1)/2 is the length of the z array
+    int64_t cpd2pad;  // We might want to pad CPD**2 to obtain better FFTW behavior
     int order;    // multipole order
-    uint64_t rml;      // (order+1)**2
-	uint64_t this_node_size; 
-	uint64_t CompressedMultipoleLengthXY; 
+    int64_t rml;      // (order+1)**2
+	int64_t this_node_size; 
+	int64_t CompressedMultipoleLengthXY; 
 	
 	Complex invcpd3; 
 
