@@ -564,7 +564,7 @@ void ParallelConvolution::SendTaylors(int offset) {
 		//Each node has Taylors for a limited range of z but for every x slab. 
 		//figure out who the receipient should be based on x slab and send to them. 
 		// Take from MTdisk. Set Tsend_requests[x] as request. 	
-		slab = CP->WrapSlab(_slab);
+		int slab = CP->WrapSlab(_slab);
 		STDLOG(4, "About to SendTaylor Slab %d with offset %d\n", slab, offset); 
 		
 		int r = GetTaylorRecipient(slab, offset); //x-slab slab is in node r's domain. Send to node r. 
