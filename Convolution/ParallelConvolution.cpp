@@ -564,7 +564,7 @@ void ParallelConvolution::SendTaylors(int offset) {
 		//figure out who the receipient should be based on x slab and send to them. 
 		// Take from MTdisk. Set Tsend_requests[x] as request. 	
 		slab = CP->WrapSlab(slab);
-		STDLOG(4, "About to SendTaylor Slab %d with offset %d\n", slab, FORCE_RADIUS); 
+		STDLOG(4, "About to SendTaylor Slab %d with offset %d\n", slab, offset); 
 		
 		int r = GetTaylorRecipient(slab, offset); //x-slab slab is in node r's domain. Send to node r. 
 	
@@ -601,7 +601,7 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
     if (Trecv_requests[slab]==NULL) return 1;  // Nothing to do for this slab
 	
     int err, received=0, done=1;
-    for (int r=0; r<MPI_size; r++) {
+    /*for (int r=0; r<MPI_size; r++) {
 		if (Trecv_requests[slab][r]==MPI_REQUEST_NULL) continue;  // Already done
 		
 	    err = MPI_Test(&Trecv_requests[slab][r], &received, MPI_STATUS_IGNORE);
@@ -613,7 +613,9 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
 		} else{
             assert(Trecv_requests[slab][r]==MPI_REQUEST_NULL);
         }
-    }
+    }*/
+
+    err = MPI_Testall(Trecv_requests[slab], &received, MPI_STATUSES_IGNORE);
 	
 	if (done) {
 		delete[] Trecv_requests[slab];
