@@ -8,7 +8,7 @@
 void system_error(char *errmsg);
 FILE *check_fopen(char *filename, char *mode);
 FILE *check_popen(char *command, char *mode);
-void *check_realloc(void *ptr, size_t size, char *reason);
+void *check_realloc(void *ptr, size_t size, const char *reason);
 void* check_posix_memalign(size_t alignment, size_t size);
 size_t check_fread(void *ptr, size_t size, size_t nitems, FILE *stream);
 void check_limited_funread(void *ptr, size_t size, size_t nitems);

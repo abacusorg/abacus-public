@@ -49,7 +49,7 @@ void packN_parse_header_info(packNheader *header){
     FORCE_RES = header->SofteningLength / (header->hMpc ? 1. : h0);  // Convert to h^-1 units if necessary
     TOTAL_PARTICLES = header->NP / (DOWNSAMPLE*DOWNSAMPLE*DOWNSAMPLE);
     if(TOTAL_PARTICLES * (DOWNSAMPLE*DOWNSAMPLE*DOWNSAMPLE) != header->NP){
-        fprintf(stderr, "[Error] Downsample-per-dim = %" PRId64 " does not divide NP = %" PRId64 " evenly.\n", DOWNSAMPLE, header->NP);
+        fprintf(stderr, "[Error] Downsample-per-dim = %" PRId64 " does not divide NP = %lld evenly.\n", DOWNSAMPLE, header->NP);
         exit(1);
     }
     if(IGNORE_PARTICLE_IDS && DOWNSAMPLE != 1){

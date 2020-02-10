@@ -193,7 +193,7 @@ extern "C" void load_particles_packN(int packN, char *filename, struct particle 
     char *buffer = packN_load_data(packN, filename, header_size, data_size, &pid_buffer, &pid_buffer_len);
     //printf("Loaded data.\n");
     FILE *buffer_file = fmemopen(buffer,data_size,"rb");
-    FILE *pid_buffer_file;
+    FILE *pid_buffer_file = NULL;
     
     uint64_t new_particles;
     if(packN == 14)
