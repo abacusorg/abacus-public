@@ -1073,7 +1073,7 @@ void timestep(void) {
 		
         STDLOG(2,"Ready to proceed to the remaining work\n");
 
-        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(comm_global);
 		BarrierWallClock.Stop();
 
         // This MPI call also forces a synchronization over the MPI processes,

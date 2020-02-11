@@ -207,25 +207,65 @@ void finish_fftw();
 #include <fenv.h>
 
 void InitializeParallel(int &size, int &rank) {
-    #ifdef PARALLEL
-         // Start up MPI
-         int init = 1;
-         MPI_Initialized(&init);
-         assertf(!init, "MPI was already initialized!\n");
+    // no STDLOG yet!
 
-         int ret = -1;
-         MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
-         assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
-         MPI_Comm_size(MPI_COMM_WORLD, &size);
-         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-         sprintf(NodeString,".%04d",rank);
-    #else
+    #ifdef PARALLEL
+        // Start up MPI
+        int init = 1;
+        MPI_Initialized(&init);
+        assertf(!init, "MPI was already initialized!\n");
+
+        int ret = -1;
+        MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
+        assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
+        MPI_Comm_size(MPI_COMM_WORLD, &size);
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        sprintf(NodeString,".%04d",rank);
+
+        #ifdef MULTIPLE_MPI_COMM
+
+            // By using color = 0, we indicate that all ranks belong to all comms
+            int color = 0;
+            MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_taylors);
+            MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_multipoles);
+            MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_manifest);
+            MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_global);
+
+            // The following are just sanity checks that the global rank is the same as the new-comm rank
+            int comm_rank = -1;
+            MPI_Comm_rank(comm_taylors, &comm_rank);
+            assertf(comm_rank == rank, "Taylors comm_rank = %d, rank = %d, should match!\n", comm_rank, rank);
+            MPI_Comm_rank(comm_multipoles, &comm_rank);
+            assertf(comm_rank == rank, "Multipoles comm_rank = %d, rank = %d, should match!\n", comm_rank, rank);
+            MPI_Comm_rank(comm_manifest, &comm_rank);
+            assertf(comm_rank == rank, "Manifest comm_rank = %d, rank = %d, should match!\n", comm_rank, rank);
+            MPI_Comm_rank(comm_global, &comm_rank);
+            assertf(comm_rank == rank, "Global comm_rank = %d, rank = %d, should match!\n", comm_rank, rank);
+
+        #else
+
+            comm_taylors = MPI_COMM_WORLD;
+            comm_multipoles = MPI_COMM_WORLD;
+            comm_manifest = MPI_COMM_WORLD;
+            comm_global = MPI_COMM_WORLD;
+
+        #endif
     #endif
-    return;
 }
 
 void FinalizeParallel() {
     #ifdef PARALLEL
+
+        #ifdef MULTIPLE_MPI_COMM
+
+        STDLOG(1, "MULTIPLE_MPI_COMM was used, tearing down communicators\n");
+
+        MPI_Comm_free(&comm_taylors);
+        MPI_Comm_free(&comm_multipoles);
+        MPI_Comm_free(&comm_manifest);
+        MPI_Comm_free(&comm_global);
+
+        #endif
 
         // Finalize MPI
         STDLOG(0,"Calling MPI_Finalize()\n");
@@ -867,7 +907,7 @@ void FinalizeWriteState() {
         // TODO: Do we really want to do this?  Maybe just echo the stats to the log?
         // WriteState.write_to_file(P.WriteStateDirectory, NodeString);
 
-// #define MPI_REDUCE_IN_PLACE(vec,len,type,op) MPI_Reduce(MPI_rank!=0?(vec):MPI_IN_PLACE, vec, len, type, op, 0, MPI_COMM_WORLD)
+// #define MPI_REDUCE_IN_PLACE(vec,len,type,op) MPI_Reduce(MPI_rank!=0?(vec):MPI_IN_PLACE, vec, len, type, op, 0, comm_global)
         // Now we need to do MPI reductions for stats
         // These stats are all in double precision (or int)
         // Maximize MaxAcceleration
