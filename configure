@@ -1391,7 +1391,7 @@ Optional Features:
                           Use SO finder [yes if fof-density enabled]
   --enable-parallel       Generate MPI parallel code [no]
   --enable-numa-for       Enable custom NUMA_FOR OpenMP scheduler [yes]
-  --enable-multiple-comm  Enable multiple MPI communicators [no]
+  --enable-multiple-comm  Enable multiple MPI communicators [yes]
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -6840,7 +6840,7 @@ fi
 if test "${enable_multiple_comm+set}" = set; then :
   enableval=$enable_multiple_comm;
 else
-  enable_multiple_comm="no"
+  enable_multiple_comm="yes"
 fi
 
 if test x$enable_multiple_comm == xyes; then

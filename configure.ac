@@ -393,8 +393,8 @@ if test x$enable_numa_for == xyes; then
 fi
 
 AC_ARG_ENABLE(multiple-comm,
-[AS_HELP_STRING([--enable-multiple-comm], [Enable multiple MPI communicators [no]])],
-    [], enable_multiple_comm="no")
+[AS_HELP_STRING([--enable-multiple-comm], [Enable multiple MPI communicators [yes]])],
+    [], enable_multiple_comm="yes")
 if test x$enable_multiple_comm == xyes; then
     AC_DEFINE_UNQUOTED(MULTIPLE_MPI_COMM, [], "Enable multiple MPI communicators")
 fi
