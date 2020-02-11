@@ -244,17 +244,17 @@ class ContextTimer(contexttimer.Timer):
         last_time = super(ContextTimer, self).elapsed
         return self.cumulative_time*self.factor + last_time
 
-    def start(self):
+    def Start(self):
         self.__enter__()
 
-    def stop(self, report=True):
+    def Stop(self, report=True):
         _output = self.output
         self.output=report
         self.__exit__(None,None,None)
         self.output=_output
 
-    def report(self):
-        print(" ".join([self.prefix, self.fmt.format(self.elapsed)]))
+    def report(self, **kwargs):
+        print(" ".join([self.prefix, self.fmt.format(self.elapsed)]), **kwargs)
 
 def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03, adaptive=False, **scatter_kwargs):
     '''
