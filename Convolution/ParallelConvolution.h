@@ -36,7 +36,7 @@ public:
 	
 	//timers and stats to log:
     ConvolutionStatistics CS; 
-    uint64_t blocksize, znode; // The number of z's on this node
+    int64_t blocksize, znode; // The number of z's on this node
 	void dumpstats();
 
     STimer *MsendTimer;   // A timer for the sending of each Multipole Slab
@@ -49,13 +49,13 @@ private:
 	//int OverwriteConvState;
 	//int StripeConvState;
 	
-    uint64_t cpd;
-    uint64_t cpd2p1;   // (CPD+1)/2 is the length of the z array
-    uint64_t cpd2pad;  // We might want to pad CPD**2 to obtain better FFTW behavior
+    int64_t cpd;
+    int64_t cpd2p1;   // (CPD+1)/2 is the length of the z array
+    int64_t cpd2pad;  // We might want to pad CPD**2 to obtain better FFTW behavior
     int order;    // multipole order
-    uint64_t rml;      // (order+1)**2
-	uint64_t this_node_size; 
-	uint64_t CompressedMultipoleLengthXY; 
+    int64_t rml;      // (order+1)**2
+	int64_t this_node_size; 
+	int64_t CompressedMultipoleLengthXY; 
 	
 	Complex invcpd3; 
 
@@ -84,7 +84,7 @@ private:
 	int **Msend_flags;
     int Msend_active;
 
-    #define T_TAG (200000)     // An offset for the taylor tags
+    #define T_TAG (105000)     // An offset for the taylor tags; we step by 10000 per rank, so this is good to CPD=5000
     MPI_Request *Tsend_requests;    // We'll set up a [CPD] array to send one packet per x
     MPI_Request **Trecv_requests;    // We'll set up a [CPD][MPI_size] array even though each node will only use the x's in its NodeSlabs range
 	int *Tsend_flags;

@@ -392,6 +392,13 @@ if test x$enable_numa_for == xyes; then
     AC_DEFINE_UNQUOTED(ENABLE_NUMA_FOR, [], "Enable custom NUMA_FOR OpenMP scheduler")
 fi
 
+AC_ARG_ENABLE(multiple-comm,
+[AS_HELP_STRING([--enable-multiple-comm], [Enable multiple MPI communicators [yes]])],
+    [], enable_multiple_comm="yes")
+if test x$enable_multiple_comm == xyes; then
+    AC_DEFINE_UNQUOTED(MULTIPLE_MPI_COMM, [], "Enable multiple MPI communicators")
+fi
+
 # If the user is using Anaconda Python, we have to be careful
 # about how we build C/C++ libraries that will be loaded by Python.
 # Anaconda Python has the Python executable rpath set to find
@@ -501,6 +508,7 @@ echo "Threaded IO:                     $enable_threaded_io"
 echo "GPU directs:                     $enable_gpu_directs"
 echo "Compute FOF-scale density:       $enable_fof_density"
 echo "MPI parallel code:               $enable_parallel"
+echo "Multiple MPI communicators:      $enable_multiple_comm"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Cache line size:                 $with_cache_line"

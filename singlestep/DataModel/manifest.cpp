@@ -294,7 +294,7 @@ class Manifest {
         while (size>0) {
             assertf(maxpending<MAX_REQUESTS, "Too many MPI requests %d\n", maxpending);
             int thissize = std::min(size, (uint64) SIZE_MPI);
-            MPI_Isend(ptr, thissize, MPI_BYTE, rank, tag_offset+maxpending, MPI_COMM_WORLD,requests+maxpending);
+            MPI_Isend(ptr, thissize, MPI_BYTE, rank, tag_offset+maxpending, comm_manifest,requests+maxpending);
             numpending++; maxpending++; size -= thissize; ptr = (char *)ptr+thissize;
         }
         #endif
@@ -308,7 +308,7 @@ class Manifest {
         while (size>0) {
             assertf(maxpending<MAX_REQUESTS, "Too many MPI requests %d\n", maxpending);
             int thissize = std::min(size, (uint64) SIZE_MPI);
-            MPI_Irecv(ptr, thissize, MPI_BYTE, rank, tag_offset+maxpending, MPI_COMM_WORLD,requests+maxpending);
+            MPI_Irecv(ptr, thissize, MPI_BYTE, rank, tag_offset+maxpending, comm_manifest,requests+maxpending);
             numpending++; maxpending++; size -= thissize; ptr = (char *)ptr+thissize;
         }
         #endif

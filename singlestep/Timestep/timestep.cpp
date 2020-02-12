@@ -1047,6 +1047,9 @@ void timestep(void) {
 #else
 		timestep_loop_complete = Finish.alldone(total_slabs_on_node);
 #endif
+
+        // hack to prevent spinning from interfering with daemons that happen to be bound to the same core
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     if(IL->length!=0)
@@ -1073,7 +1076,7 @@ void timestep(void) {
 		
         STDLOG(2,"Ready to proceed to the remaining work\n");
 
-        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(comm_global);
 		BarrierWallClock.Stop();
 
         // This MPI call also forces a synchronization over the MPI processes,
