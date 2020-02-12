@@ -365,12 +365,9 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
             if k not in param_kwargs:
                 param_kwargs[k] = dirs[k]
     
-    if 'sigma_8' in params:
-        sigma8_at_zinit = zeldovich.calc_sigma8(params)
-        if 'ZD_Pk_sigma' in params:
-            assert np.isclose(params['ZD_Pk_sigma'], sigma8_at_zinit, rtol=1e-4),\
-                f"ZD_Pk_sigma ({sigma8_at_zinit:f}) calculated from sigma_8 ({params['sigma_8']:f}) conflicts with the provided value of ZD_Pk_sigma ({params['ZD_Pk_sigma']:f})!"
-        param_kwargs['ZD_Pk_sigma'] = sigma8_at_zinit
+    zd_params = zeldovich.setup_zeldovich_params(params)
+    if zd_params:
+        param_kwargs.update(zd_params)
         params = GenParam.makeInput(output_parfile, parfn, **param_kwargs)
 
     if params.get('StateIOMode','normal').lower() in ('slosh','stripe'):
@@ -882,9 +879,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         
         if not make_ic: #if this is not a clean run, redistribute the state out to the nodes. 
             print('Distributing in order to resume...')
+            dist_start = wall_timer()          
             distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', resume_dir]            
             distribute_fns_present = call_subprocess(Conv_mpirun_cmd + distribute_state_cmd)
-   
+            dist_time = wall_timer() - dist_start
+            status_log.print(f"# Distributing state to resume took {dist_time:f} seconds.")
     print("Beginning abacus steps:")
     if parallel:
         # TODO: this would be useful in the serial code too, especially with ramdisk runs
@@ -1138,15 +1137,16 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                     exit_message = 'GROUP FINDING COMING UP: '
                     
                 print(exit_message, 'backing up node state.')
+                status_log.print(f'# {exit_message:s} backing up node state.')
                 
                 restore_time = wall_timer()
-
                 retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, resume_dir, '--retrieve']
                 call_subprocess(Conv_mpirun_cmd + retrieve_state_cmd)
             
                 restore_time = wall_timer() - restore_time
             
                 print(f'Retrieving and storing state took {restore_time} seconds. ', end = '')
+                status_log.print(f'# Retrieving and storing state took {restore_time:f} seconds.')
                 last_backup  = wall_timer()  #log the time of the last backup. 
 
             
@@ -1161,6 +1161,10 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                     print('Exiting.')
                     if maxsteps == 10000:
                         print('Requeueing!')
+                        ending_time = time.time()
+                        ending_time_str = time.asctime(time.localtime())
+                        ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
+                        status_log.print(f"# Terminating normally w/ requeue code.  {ending_time_str:s} after {ending_time:f} hours.")
                         return EXIT_REQUEUE  
                     else:
                         print('Requeue disabled because maxsteps was set by the user.')
@@ -1177,15 +1181,32 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         try:
             finalz = param.FinalRedshift
         except AttributeError:
-            print("TODO! SEARCH FOR MIN ACROSS ALL OUTPUT REDSHIFT TYPES. (NAM)")
             # param.FinalRedshift wasn't set, so we'll look for the minimum in the output redshifts arrays. 
             try:
                 if (len(param.TimeSliceRedshifts)>0):
-                    finalz = min(param.TimeSliceRedshifts[:])
+                    finalz_full = min(param.TimeSliceRedshifts[:])
             except TypeError:  # param.TimeSliceRedshifts is probably just a single number
-                finalz = float(param.TimeSliceRedshifts)
+                finalz_full = float(param.TimeSliceRedshifts)
             except AttributeError:
-                finalz = 0.0
+                finalz_full = 0.0
+
+            try:
+                if (len(param.TimeSliceRedshifts_Subsample)>0):
+                    finalz_subsample = min(param.TimeSliceRedshifts_Subsample[:])
+            except TypeError:  # param.TimeSliceRedshifts is probably just a single number
+                finalz_subsample = float(param.TimeSliceRedshifts_Subsample)
+            except AttributeError:
+                finalz_subsample = 0.0
+
+            try:
+                if (len(param.L1OutputRedshifts)>0):
+                    finalz_group_finding = min(param.L1OutputRedshifts[:])
+            except TypeError:  # param.TimeSliceRedshifts is probably just a single number
+                finalz_group_finding = float(param.L1OutputRedshifts)
+            except AttributeError:
+                finalz_group_finding = 0.0       
+
+            finalz = min(finalz_full, finalz_subsample, finalz_group_finding)                             
 
 
 
@@ -1201,13 +1222,22 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             break 
             
         if parallel and abandon_ship:
-            print(f"Abandon ship triggered! Terminating job.")
+            ending_time = time.time()
+            ending_time_str = time.asctime(time.localtime())
+            ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
+            print(f"Emergency exit triggered at {ending_time_str:s}; abandoning ship after {ending_time:f} hours.")
+            status_log.print(f"# Emergency exit triggered at {ending_time_str:s}; abandoning ship after {ending_time:f} hours.")
             os.remove(emergency_exit_fn)
             break       
         
         make_ic = False
     
     if maxsteps != 10000: #we asked to do only a limited number of steps, and we've successfully completed them. We're done. 
+        ending_time = time.time()
+        ending_time_str = time.asctime(time.localtime())
+        ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
+        print(f"Reached maxsteps limit at {ending_time_str:s}; exiting job w/o requeue after {ending_time:f} hours.")
+        status_log.print(f"# Reached maxsteps limit at {ending_time_str:s}; exiting job w/o requeue after {ending_time:f} hours.")    
         finished = True
 
     # If there is more work to be done, signal that we are ready for requeue

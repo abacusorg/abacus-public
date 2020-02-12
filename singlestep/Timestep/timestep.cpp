@@ -104,7 +104,9 @@ void FetchSlabsAction(int slab) {
     }
 
     // Don't bother to load the vel/aux/taylors for slabs that won't be kicked until the wrap
-    #ifndef PARALLEL
+    //#ifndef PARALLEL
+    // LHG: only need this when we're memory starved
+    #if 0
     if(FetchSlabs.number_of_slabs_executed < FORCE_RADIUS)
         return;
     #endif
@@ -161,7 +163,8 @@ void TransposePosAction(int slab){
         }
     }
 
-    #ifndef PARALLEL
+    //#ifndef PARALLEL
+    #if 0
     // If this is a "ghost" slab, we only need its transpose
     if(TransposePos.number_of_slabs_executed < FORCE_RADIUS)
         SB->DeAllocate(PosSlab, slab);
@@ -241,6 +244,7 @@ int TaylorForcePrecondition(int slab) {
     }
     if( !SB->IsIOCompleted( PosSlab, slab ) ){
         if(SB->IsSlabPresent(PosSlab, slab))
+            Dependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
 
@@ -339,7 +343,8 @@ void KickAction(int slab) {
         for(int j = slab - FORCE_RADIUS+1; j <= slab + FORCE_RADIUS; j++)
             SB->DeAllocate(PosXYZSlab, j);
 
-    #ifndef PARALLEL
+    //#ifndef PARALLEL
+    #if 0
     // Queue up slabs near the wrap to be loaded again later
     // This way, we don't have idle slabs taking up memory while waiting for the pipeline to wrap around
     if(Kick.number_of_slabs_executed < FORCE_RADIUS){
@@ -1042,6 +1047,9 @@ void timestep(void) {
 #else
 		timestep_loop_complete = Finish.alldone(total_slabs_on_node);
 #endif
+
+        // hack to prevent spinning from interfering with daemons that happen to be bound to the same core
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     if(IL->length!=0)
@@ -1068,7 +1076,7 @@ void timestep(void) {
 		
         STDLOG(2,"Ready to proceed to the remaining work\n");
 
-        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(comm_global);
 		BarrierWallClock.Stop();
 
         // This MPI call also forces a synchronization over the MPI processes,

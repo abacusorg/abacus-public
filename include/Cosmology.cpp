@@ -4,6 +4,7 @@ Cosmology::Cosmology(double a_initial, MyCosmology& _C) {
     /// This sets epoch current and next to a_initial, 
     /// as well as initializing the 'early' epoch.
     C = _C;
+    n = (sqrt(25.0-24.0*C.Omega_smooth/C.Omega_m)-1.0)/4.0;
 
     InitializeEarly(0.000001);
     BuildEpoch(early, today, 1.0);
@@ -44,7 +45,8 @@ void Cosmology::printepoch(Epoch& E) {
     fprintf(fp, "           Omega_X(a) = %15.12lf\n", E.OmegaHat_X/total);
     fprintf(fp, "           Omega_K(a) = %15.12lf\n", E.OmegaHat_K/total);
     fprintf(fp, "               growth = %15.13lf\n", E.growth);
-    fprintf(fp, "             growth/a = %15.13lf\n", E.growth/E.a);
+    fprintf(fp, "           growth/a^n = %15.13lf\n", E.growth/pow(E.a,n));
+    fprintf(fp, "                    n = %15.13lf\n", n);
     fprintf(fp, "             f_growth = %15.13lf\n", E.f_growth);
     fprintf(fp, "f_growth/Omega_m^0.55 = %15.13lf\n", E.f_growth/pow(E.OmegaHat_m/total,0.55));
 }
@@ -58,8 +60,8 @@ void Cosmology::InitializeEarly(double a_early) {
     vars[0] = 2.0/3.0;       // = Ht
     vars[1] = 2.0;           // = a*H*etaK
     vars[2] = -2.0;          // = a*a*H*etaD
-    vars[3] = 1.0;           // = D/a
-    vars[4] = 0.0;           // = d(D/a)/dlna
+    vars[3] = 1.0;           // = D/a^n, where n = (sqrt(25-24*Omega_smooth/Omega_m)-1)/4
+    vars[4] = 0.0;           // = d(D/a^n)/dlna
 
     Unpack(early,log(a_early),vars);
     return;
@@ -121,8 +123,8 @@ void Cosmology::Pack(Epoch& epoch, double *lna, double *vars) {
     vars[0] = (epoch.H)*(epoch.t);
     vars[1] = (epoch.a)*(epoch.H)*(epoch.etaK);
     vars[2] = (epoch.a)*(epoch.a)*(epoch.H)*(epoch.etaD);
-    vars[3] = (epoch.growth)/(epoch.a);
-    vars[4] = vars[3]*(epoch.f_growth-1);
+    vars[3] = (epoch.growth)/pow(epoch.a,n);
+    vars[4] = vars[3]*(epoch.f_growth-n);
 
     return;
 }
@@ -144,8 +146,8 @@ void Cosmology::Unpack(Epoch& epoch, double lna, double *vars) {
     epoch.t        = vars[0]/epoch.H;
     epoch.etaK     = vars[1]/epoch.H/epoch.a;
     epoch.etaD     = vars[2]/epoch.H/a2;
-    epoch.growth   = vars[3]*(epoch.a);
-    epoch.f_growth = vars[4]/vars[3] + 1;
+    epoch.growth   = vars[3]*pow(epoch.a,n);
+    epoch.f_growth = vars[4]/vars[3] + n;
 
     return;
 }
@@ -155,6 +157,8 @@ void Cosmology::Deriv(double lna, double *vars, double *dvars) {
     /// TODO: this is recomputing things that are done in Unpack()
     /// and taking Omega values from Cosmology rather than Epoch.
     /// For now, this is fine, but it is a bug risk in the future.
+    /// Omega_m is used for the H(z) expansion history, but we decrease it 
+    /// by Omega_smooth when sourcing the growth function.
     double a, a2, a3, OmX, E2, dlnH2dx;
     a = exp(lna);
     a2 = a*a;
@@ -167,7 +171,7 @@ void Cosmology::Deriv(double lna, double *vars, double *dvars) {
     dvars[1] = 1 + 0.5*vars[1]*dlnH2dx + vars[1];
     dvars[2] = 1 + 0.5*vars[2]*dlnH2dx + vars[2]*2;
     dvars[3] = vars[4];
-    dvars[4] = -vars[4]*(4 + 0.5*dlnH2dx) + vars[3]*(-3 - 0.5*dlnH2dx + 1.5*C.Omega_m/a3/E2);
+    dvars[4] = -vars[4]*(2.0+2.0*n + 0.5*dlnH2dx) - vars[3]*(n*n + 2.0*n + n*0.5*dlnH2dx - 1.5*(C.Omega_m-C.Omega_smooth)/a3/E2);
 
     return;
 }

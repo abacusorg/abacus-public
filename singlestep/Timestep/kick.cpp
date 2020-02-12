@@ -70,7 +70,7 @@ void (*KickCell)(Cell &c, FLOAT kick1, FLOAT kick2)) {
 void RescaleAndCoAddAcceleration(int slab) {
     // The accelerations are computed with unit particle mass.
     // We need to rescale them to the correct cosmology.
-    FLOAT rescale = -3.0*P.Omega_M/(8.0*M_PI*P.np);
+    FLOAT rescale = -3.0*(P.Omega_M-P.Omega_Smooth)/(8.0*M_PI*P.np);
     accstruct *nacc = (accstruct *) SB->GetSlabPtr(AccSlab,slab);
     acc3struct *facc = (acc3struct *) SB->GetSlabPtr(FarAccSlab,slab);
     
