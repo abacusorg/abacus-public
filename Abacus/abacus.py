@@ -879,9 +879,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         
         if not make_ic: #if this is not a clean run, redistribute the state out to the nodes. 
             print('Distributing in order to resume...')
+            dist_start = wall_timer()          
             distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', resume_dir]            
             distribute_fns_present = call_subprocess(Conv_mpirun_cmd + distribute_state_cmd)
-   
+            dist_time = wall_timer() - dist_start
+            status_log.print(f"# Distributing state to resume took {dist_time:f} seconds.")
     print("Beginning abacus steps:")
     if parallel:
         # TODO: this would be useful in the serial code too, especially with ramdisk runs
@@ -1143,8 +1145,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             
                 restore_time = wall_timer() - restore_time
             
-                status_log.print(f'Retrieving and storing state took {restore_time} seconds. ', end = '')
-                lack_backup  = wall_timer()  #log the time of the last backup. 
+                status_log.print(f'#Retrieving and storing state took {restore_time:f} seconds.')
+                last_backup  = wall_timer()  #log the time of the last backup. 
 
             
                 #checking if path exists explicitly just in case user requested emergency exit while we were retrieveing the state. 
@@ -1158,7 +1160,10 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                     print('Exiting.')
                     if maxsteps == 10000:
                         print('Requeueing!')
-                        status_log.print(f"# Terminating normally w/ requeue code.  {ending_time_str:s} after {ending_time:f} hours.")
+                        ending_time = time.time()
+                        ending_time_str = time.asctime(time.localtime())
+                        ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
+                        status_log.print(f"#Terminating normally w/ requeue code.  {ending_time_str:s} after {ending_time:f} hours.")
                         return EXIT_REQUEUE  
                     else:
                         print('Requeue disabled because maxsteps was set by the user.')
@@ -1199,7 +1204,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             break 
             
         if parallel and abandon_ship:
-            print(f"Abandon ship triggered! Terminating job.")
+            ending_time = time.time()
+            ending_time_str = time.asctime(time.localtime())
+            ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
+            print(f"Emergency exit triggered at {ending_time_str:s}; abandoning ship after {ending_time:f} hours.")
+            status_log.print(f"# Emergency exit triggered at {ending_time_str:s}; abandoning ship after {ending_time:f} hours.")
             os.remove(emergency_exit_fn)
             break       
         
