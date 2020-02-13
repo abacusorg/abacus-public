@@ -40,9 +40,9 @@ void stdlog_hook(int verbosity, const char* str){
 	STDLOG(0,"Timestamp %s\n", time.substr(0,time.length()-1)); \
     } while (0)
 
-#define QUIT(...) do { STDLOG(0,"Fatal error (QUIT)\n"); STDLOG(0,__VA_ARGS__); \
-        fprintf(stderr,"Fatal error (QUIT): "); \
-	fpprint(std::cerr, __VA_ARGS__); \
+#define QUIT(...) do { fprintf(stderr,"Fatal error (QUIT): "); \
+    fpprint(std::cerr, __VA_ARGS__); \
+    STDLOG(0,"Fatal error (QUIT)\n"); STDLOG(0,__VA_ARGS__); \
 	assert(0==98); } while(0)
 
 #define WARNING(...) do { STDLOG(0,"WARNING:\n"); STDLOG(0,__VA_ARGS__); \

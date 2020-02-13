@@ -32,7 +32,7 @@ void BuildWriteState(double da){
 	STDLOG(0,"Bytes per float is %d\n", sizeof(FLOAT));
 	STDLOG(0,"Bytes per auxstruct is %d\n", sizeof(auxstruct));
 	STDLOG(0,"Bytes per cellinfo is %d\n", sizeof(cellinfo));
-	WriteState.FullStepNumber = ReadState.FullStepNumber+1;
+	assert(WriteState.FullStepNumber == ReadState.FullStepNumber+1);  // already set this in load_read_state()
 	STDLOG(0,"This is step number %d\n", WriteState.FullStepNumber);
 
 	//get the next timestep and build the cosmology for it
@@ -178,8 +178,8 @@ int main(int argc, char **argv) {
 
     int MakeIC = atoi(argv[2]);
     P.ReadParameters(argv[1],0);
-    strcpy(WriteState.Pipeline, "singlestep");
-    strcpy(WriteState.ParameterFileName, argv[1]);
+
+    load_read_state(MakeIC);  // Load the bare minimum (step num, etc) to get the log up and running
 
     setup_log(); // STDLOG and assertf now available
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
@@ -210,7 +210,7 @@ int main(int argc, char **argv) {
 
     // Set some WriteState values before ChooseTimeStep()
     // This also sets the SofteningLength, needed by the NFD constructor
-    InitWriteState(MakeIC);
+    InitWriteState(MakeIC, "singlestep", argv[1]);
 
     // Set up the major classes (including NFD)
     Prologue(P,MakeIC);

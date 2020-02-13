@@ -137,6 +137,8 @@ public:
 
     char Pipeline[64];
 
+    char LogDirectory[1024];  // step-numbered log directory
+
     void read_from_file(const char *fn);
     void write_to_file(const char *dir, const char *fname);
     void write_to_file(const char *dir) { write_to_file(dir,""); }

@@ -321,7 +321,8 @@ void Prologue(Parameters &P, bool MakeIC) {
     STDLOG(2,"Setting up IO\n");
 
     char logfn[1050];
-    sprintf(logfn,"%s/lastrun%s.iolog", P.LogDirectory, NodeString);
+    sprintf(logfn,"%s/step%04d%s.iolog",
+        WriteState.LogDirectory, WriteState.FullStepNumber, NodeString);
     io_ramdisk_global = P.RamDisk;
     STDLOG(0,"Setting RamDisk == %d\n", P.RamDisk);
     IO_Initialize(logfn);
@@ -547,35 +548,38 @@ void setup_log(){
 
     stdlog_threshold_global = P.LogVerbosity;
     char logfn[1050];
-    sprintf(logfn,"%s/lastrun%s.log", P.LogDirectory, NodeString);
+    sprintf(logfn,"%s/step%04d%s.log",
+        WriteState.LogDirectory, WriteState.FullStepNumber, NodeString);
     stdlog.open(logfn);
     STDLOG_TIMESTAMP;
     STDLOG(0, "Log established with verbosity %d.\n", stdlog_threshold_global);
 }
 
-void check_read_state(const int MakeIC, double &da){
-    // Check if ReadStateDirectory is accessible, or if we should
-    // build a new state from the IC file
+
+void load_read_state(int MakeIC){
+    // Do an initial load of the read state,
+    // basically just so we can get the step number and open the log with the right filename.
+    // We are also going to cheat and set the WriteState step number here, but we'll verify
+    // it below in InitWriteState.
+
+    // Note we don't have STDLOG yet here; any reporting about ReadState should go in check_read_state()
+
     char rstatefn[1050];
     sprintf(rstatefn, "%s/state", P.ReadStateDirectory);
 
     if(MakeIC){
-        STDLOG(0,"Generating initial State from initial conditions\n");
-
         // By this point, we should have cleaned up any old state directories
         if(access(rstatefn,0) != -1){
             QUIT("Read state file \"%s\" was found, but this is supposed to be an IC step. Terminating.\n", rstatefn);
         }
 
-        // We have to fill in a few items, just to bootstrap the rest of the code.
-
         // So that this number is the number of times forces have been computed.
         // The IC construction will yield a WriteState that is number 0,
         // so our first time computing forces will read from 0 and write to 1.
-        ReadState.ScaleFactor = 1.0/(1+P.InitialRedshift);
         ReadState.FullStepNumber = -1;
 
-        da = 0;
+        // We have to fill in a few items, just to bootstrap the rest of the code.
+        ReadState.ScaleFactor = 1.0/(1+P.InitialRedshift);
     } else {
         // We're doing a normal step
         // Check that the read state file exists
@@ -583,8 +587,24 @@ void check_read_state(const int MakeIC, double &da){
             QUIT("Read state file \"%s\" is inaccessible and this is not an IC step. Terminating.\n", rstatefn);
         }
 
-        STDLOG(0,"Reading ReadState from %s\n",P.ReadStateDirectory);
         ReadState.read_from_file(P.ReadStateDirectory);
+    }
+
+    // InitWriteState wants to use STDLOG, but we need WriteState.FullStepNumber to set up the log filename
+    // So bootstrap that here.
+    WriteState.FullStepNumber = ReadState.FullStepNumber + 1;
+    snprintf(WriteState.LogDirectory, 1024, "%s/step%04d", P.LogDirectory, WriteState.FullStepNumber);
+}
+
+void check_read_state(const int MakeIC, double &da){
+    // Check if ReadStateDirectory is accessible, or if we should
+    // build a new state from the IC file
+
+    if(MakeIC){
+        STDLOG(0,"Generating initial State from initial conditions\n");
+        da = 0;
+    } else {
+        STDLOG(0,"Read ReadState from %s\n",P.ReadStateDirectory);
         ReadState.AssertStateLegal(P);
 
         // Handle some special cases
@@ -596,10 +616,10 @@ void check_read_state(const int MakeIC, double &da){
 }
 
 // A few actions that we need to do before choosing the timestep
-void InitWriteState(int MakeIC){
+void InitWriteState(int MakeIC, const char *pipeline, const char *parfn){
     // Even though we do this in BuildWriteState, we want to have the step number
     // available when we choose the time step.
-    WriteState.FullStepNumber = ReadState.FullStepNumber+1;
+    assert(WriteState.FullStepNumber == ReadState.FullStepNumber+1);  // already did this in load_read_state()
     WriteState.LPTStepNumber = LPTStepNumber();
 
     // We generally want to do re-reading on the last LPT step
@@ -663,6 +683,8 @@ void InitWriteState(int MakeIC){
         STDLOG(1,"Overwriting multipoles and taylors\n");
     }
 
+    strcpy(WriteState.Pipeline, pipeline);
+    strcpy(WriteState.ParameterFileName, parfn);
 }
 
 
