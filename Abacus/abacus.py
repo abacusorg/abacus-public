@@ -716,7 +716,7 @@ class StatusLogWriter:
 
         if not ss_time:
             self.print('Warning: parsing logs to get singlestep time, may miss startup time')
-            ss_log_fn = pjoin(param['LogDirectory'], f'step{step_num:04d}.time')
+            ss_log_fn = pjoin(param['LogDirectory'], f'step{step_num:04d}', f'step{step_num:04d}.time')
             try:
                 ss_log_txt = pathlib.Path(ss_log_fn).read_text()
             except FileNotFoundError:
@@ -727,7 +727,7 @@ class StatusLogWriter:
             ss_time = float(matches.group('time'))
 
         if not conv_time:
-            conv_log_fn = pjoin(param['LogDirectory'], f'step{step_num:04d}.convtime')
+            conv_log_fn = pjoin(param['LogDirectory'], f'step{step_num:04d}', f'step{step_num:04d}.convtime')
             try:
                 conv_log_txt = pathlib.Path(conv_log_fn).read_text()
                 matches = re.search(rf'ConvolutionWallClock\s*:\s*(?P<time>{fp_regex:s})', conv_log_txt)
@@ -879,9 +879,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         
         if not make_ic: #if this is not a clean run, redistribute the state out to the nodes. 
             print('Distributing in order to resume...')
+            dist_start = wall_timer()          
             distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', resume_dir]            
             distribute_fns_present = call_subprocess(Conv_mpirun_cmd + distribute_state_cmd)
-   
+            dist_time = wall_timer() - dist_start
+            status_log.print(f"# Distributing state to resume took {dist_time:f} seconds.")
     print("Beginning abacus steps:")
     if parallel:
         # TODO: this would be useful in the serial code too, especially with ramdisk runs
@@ -919,6 +921,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
         ss_timer, conv_time = None, None
 
+        make_log_dir_for_step(param['LogDirectory'], stepnum)
+
         # Do the convolution
         # TODO: do we want to continue to support tick-tock parallel convolve/singlestep?
         if not ConvDone and not parallel:
@@ -941,7 +945,6 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                         handle_singlestep_error(cpe)
                         raise
 
-                    save_log_files(param.LogDirectory, f'step{read_state.FullStepNumber:04d}.recover_multipoles')
                     print(f'\tFinished multipole recovery for read state {read_state.FullStepNumber}.')
 
                 # Swap the Taylors link.  In effect, this will place the Taylors on the same disk as the multipoles.
@@ -970,6 +973,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 # have to take it on faith in the parallel version!
                 raise ValueError("Convolution did not complete")
             
+            # TODO: pass step num to convolution so it can name the logs appropriately
             convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
             for cl in convlogs:
                 os.rename(cl, cl.replace('last', f'step{read_state.FullStepNumber+1:04d}'))
@@ -994,12 +998,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         
         singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic))]
         if parallel:
-            
             singlestep_cmd = mpirun_cmd + singlestep_cmd
             print(f'Running parallel convolution + singlestep for step {stepnum:d}.')
-            convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
-            for cl in convlogs:
-                os.rename(cl, cl.replace('last', f'step{read_state.FullStepNumber+1:04d}'))
         else:
             print(f"Running singlestep for step {stepnum:d}")
 
@@ -1021,18 +1021,16 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             raise ValueError(f'No write state file at "{write_state_path}"; singlestep did not complete!')
         write_state = InputFile(write_state_path)
 
-        # save the log and timing files under this step number
-        save_log_files(param.LogDirectory, f'step{write_state.FullStepNumber:04d}')
-
         # Update the status log
-        if (stepnum==0):
+        if stepnum == 0:
             # read_state doesnt exist yet, so pass in the write state instead
             status_log.update(param, write_state, write_state, ss_timer.elapsed, conv_time)
         else:
             status_log.update(param, read_state, write_state, ss_timer.elapsed, conv_time)
 
         
-        shutil.copy(pjoin(write, "state"), pjoin(param.LogDirectory, f"step{write_state.FullStepNumber:04d}.state"))
+        shutil.copy(pjoin(write, "state"),
+            pjoin(param.LogDirectory, "step{0:04d}", "step{0:04d}.state").format(write_state.FullStepNumber))
         print(( "\t Finished state {:d}. a = {:.4f}, dlna = {:.3g}, rms velocity = {:.3g}".format(
             write_state.FullStepNumber, write_state.ScaleFactor,
             write_state.DeltaScaleFactor/(write_state.ScaleFactor-write_state.DeltaScaleFactor),
@@ -1069,13 +1067,13 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 k,P,nb = PS.FFTAndBin(density, param.BoxSize, inplace=True)
                 # we use the write state step number here, even though the particles are positioned at the read state positions
                 # this is consistent with the time slice behavior
-                shutil.copy(dfn, pjoin(param.LogDirectory, f"step{write_state.FullStepNumber:04d}.density".format()))
-                np.savez(pjoin(param.LogDirectory, f"step{write_state.FullStepNumber:04d}.pow"), k=k,P=P,nb=nb)
+                shutil.copy(dfn, pjoin(param.LogDirectory, "step{0:04d}", "step{0:04d}.density").format(write_state.FullStepNumber))
+                np.savez(pjoin(param.LogDirectory, "step{0:04d}", "step{0:04d}.pow".format(write_state.FullStepNumber)), k=k,P=P,nb=nb)
                 os.remove(dfn)
         
         if parallel:
             # Merge all nodes' checksum files into one
-            merge_checksum_files(param)
+            merge_checksum_files(write_state.NodeSize, param)
 
             # check if we need to gracefully exit and/or backup:
             #    is a group finding step next?          ---> backup to NVME and continue.   (group finding steps are more likely to crash!)
@@ -1135,16 +1133,17 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                     exit_message = 'GROUP FINDING COMING UP: '
                     
                 print(exit_message, 'backing up node state.')
+                status_log.print(f'# {exit_message:s} backing up node state.')
                 
                 restore_time = wall_timer()
-
                 retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, resume_dir, '--retrieve']
                 call_subprocess(Conv_mpirun_cmd + retrieve_state_cmd)
             
                 restore_time = wall_timer() - restore_time
             
-                status_log.print(f'Retrieving and storing state took {restore_time} seconds. ', end = '')
-                lack_backup  = wall_timer()  #log the time of the last backup. 
+                print(f'Retrieving and storing state took {restore_time} seconds. ', end = '')
+                status_log.print(f'# Retrieving and storing state took {restore_time:f} seconds.')
+                last_backup  = wall_timer()  #log the time of the last backup. 
 
             
                 #checking if path exists explicitly just in case user requested emergency exit while we were retrieveing the state. 
@@ -1158,6 +1157,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                     print('Exiting.')
                     if maxsteps == 10000:
                         print('Requeueing!')
+                        ending_time = time.time()
+                        ending_time_str = time.asctime(time.localtime())
+                        ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
                         status_log.print(f"# Terminating normally w/ requeue code.  {ending_time_str:s} after {ending_time:f} hours.")
                         return EXIT_REQUEUE  
                     else:
@@ -1175,15 +1177,32 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         try:
             finalz = param.FinalRedshift
         except AttributeError:
-            print("TODO! SEARCH FOR MIN ACROSS ALL OUTPUT REDSHIFT TYPES. (NAM)")
             # param.FinalRedshift wasn't set, so we'll look for the minimum in the output redshifts arrays. 
             try:
                 if (len(param.TimeSliceRedshifts)>0):
-                    finalz = min(param.TimeSliceRedshifts[:])
+                    finalz_full = min(param.TimeSliceRedshifts[:])
             except TypeError:  # param.TimeSliceRedshifts is probably just a single number
-                finalz = float(param.TimeSliceRedshifts)
+                finalz_full = float(param.TimeSliceRedshifts)
             except AttributeError:
-                finalz = 0.0
+                finalz_full = 0.0
+
+            try:
+                if (len(param.TimeSliceRedshifts_Subsample)>0):
+                    finalz_subsample = min(param.TimeSliceRedshifts_Subsample[:])
+            except TypeError:  # param.TimeSliceRedshifts is probably just a single number
+                finalz_subsample = float(param.TimeSliceRedshifts_Subsample)
+            except AttributeError:
+                finalz_subsample = 0.0
+
+            try:
+                if (len(param.L1OutputRedshifts)>0):
+                    finalz_group_finding = min(param.L1OutputRedshifts[:])
+            except TypeError:  # param.TimeSliceRedshifts is probably just a single number
+                finalz_group_finding = float(param.L1OutputRedshifts)
+            except AttributeError:
+                finalz_group_finding = 0.0       
+
+            finalz = min(finalz_full, finalz_subsample, finalz_group_finding)                             
 
 
 
@@ -1199,13 +1218,22 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             break 
             
         if parallel and abandon_ship:
-            print(f"Abandon ship triggered! Terminating job.")
+            ending_time = time.time()
+            ending_time_str = time.asctime(time.localtime())
+            ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
+            print(f"Emergency exit triggered at {ending_time_str:s}; abandoning ship after {ending_time:f} hours.")
+            status_log.print(f"# Emergency exit triggered at {ending_time_str:s}; abandoning ship after {ending_time:f} hours.")
             os.remove(emergency_exit_fn)
             break       
         
         make_ic = False
     
     if maxsteps != 10000: #we asked to do only a limited number of steps, and we've successfully completed them. We're done. 
+        ending_time = time.time()
+        ending_time_str = time.asctime(time.localtime())
+        ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
+        print(f"Reached maxsteps limit at {ending_time_str:s}; exiting job w/o requeue after {ending_time:f} hours.")
+        status_log.print(f"# Reached maxsteps limit at {ending_time_str:s}; exiting job w/o requeue after {ending_time:f} hours.")    
         finished = True
 
     # If there is more work to be done, signal that we are ready for requeue
@@ -1220,14 +1248,36 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
     return 0
 
-def save_log_files(logdir, newprefix, oldprefix='lastrun'):
-    for logfn in os.listdir(logdir):
-        if logfn.startswith(oldprefix):
-            newname = logfn.replace(oldprefix, newprefix, 1)
-            os.rename(pjoin(logdir, logfn), pjoin(logdir, newname))
+
+def make_log_dir_for_step(params_logdir, step, symlink_name="last"):
+    '''
+    We store the log files for each step in their own
+    directory.  We also supply a directory symlink that
+    points to the most recent log directory.  This function
+    creates the new step-numbered log directory and updates
+    the symlink to point to it.  Should be called before each
+    step.
+    '''
+
+    logdir_name = f'step{step:04d}'
+    logdir = pjoin(params_logdir, logdir_name)
+    # the logdir might exist already
+    # if we're profiling and running the same step over and over,
+    # for example
+    os.makedirs(logdir, exist_ok=True)
+
+    symlink = pjoin(params_logdir, symlink_name)
+    if path.exists(symlink):
+        assert path.islink(symlink)
+    try:
+        os.unlink(symlink)
+    except FileNotFoundError:
+        pass
+
+    os.symlink(logdir_name, symlink)
 
 
-def merge_checksum_files(param=None, dir_globs=None):
+def merge_checksum_files(nnodes, param=None, dir_globs=None, checksum_fn='checksums.crc32'):
     '''
     Each node computes the CRC32 checksum of its output files.
     Rather than doing a messy MPI merge of the checksums so
@@ -1241,6 +1291,12 @@ def merge_checksum_files(param=None, dir_globs=None):
 
     The checksums.crc32 file written by this function
     should match the format of the GNU cksum util.
+
+    We use `nnodes` to construct the filenames of the
+    files to check, rather than do a potentially expensive glob.
+
+    Also, if `checksum_fn` already exists, we will assume
+    that we have already merged all checksum files in this directory.
     '''
 
     if not dir_globs:
@@ -1251,10 +1307,18 @@ def merge_checksum_files(param=None, dir_globs=None):
 
     for pat in dir_globs:
         for d in glob(pat):
-            cksum_fns = glob(pjoin(d,'checksums.*.crc32'))
-            if not cksum_fns:
-                # Nothing to do
+            if path.isfile(checksum_fn):
+                # Already merged!
                 continue
+
+            cksum_fns = []
+            for i in range(nnodes):
+                nodefn = pjoin(d,f'checksums.{i:04d}.crc32')
+                if path.isfile(nodefn):
+                    cksum_fns += [nodefn]
+
+            # Even if empty, process anyway so we write the checksum_fn
+            # as a signal of completion
 
             lines = []
             for fn in cksum_fns:
@@ -1267,7 +1331,7 @@ def merge_checksum_files(param=None, dir_globs=None):
             lines = sorted(lines, key=lambda l:l[2])
             lines = [' '.join(line) + '\n' for line in lines]            
 
-            with open(pjoin(d,'checksums.crc32'), 'a') as fp:
+            with open(pjoin(d,checksum_fn), 'a') as fp:
                 fp.writelines(lines)
 
             for fn in cksum_fns:

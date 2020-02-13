@@ -507,7 +507,8 @@ void ReportTimings(){
 
     // and write the whole buffer to disk
     char timingfn[1050];
-    sprintf(timingfn,"%s/lastrun%s.time", P.LogDirectory, NodeString);
+    sprintf(timingfn,"%s/step%04d%s.time",
+        WriteState.LogDirectory, WriteState.FullStepNumber, NodeString);
     FILE *timingfp = fopen(timingfn,"w");
     assertf(timingfp != NULL, "Couldn't open timing file \"%s\"\n", timingfn);
     fputs(reportbuffer, timingfp);
