@@ -7,7 +7,7 @@ ifeq (,$(findstring clean,$(MAKECMDGOALS))$(findstring tcmalloc,$(MAKECMDGOALS))
 	include common.mk
 endif
 
-all: clibs singlestep CreateDerivatives convolution zeldovich util tests analysis AbacusCosmo
+all: clibs singlestep CreateDerivatives convolution zeldovich util tests analysis AbacusPython
 
 common.mk:
 ifeq (,$(HAVE_COMMON_MK))
@@ -57,14 +57,14 @@ util:
 tests:
 	$(MAKE) -C Tests all	
 
-analysis: clibs ParseHeader util AbacusCosmo
+analysis: clibs ParseHeader util AbacusPython
 	$(MAKE) -C Analysis
 
 zeldovich:
 	$(MAKE) -C zeldovich-PLT all
 
-AbacusCosmo:
-	$(MAKE) -C Abacus/Cosmology all
+AbacusPython:
+	$(MAKE) -C Abacus all
 
 # Make an abacus.tar.gz file for distribution/archival purposes
 dist:
@@ -83,4 +83,4 @@ gperftools/lib/libtcmalloc_minimal.so:
 	./configure --enable-minimal --prefix=$(shell pwd)/gperftools > /dev/null && \
 	make > /dev/null && make install > /dev/null
 	
-.PHONY:all clean distclean zeldovich util tests analysis singlestep dist AbacusCosmo clibs convolution tcmalloc ParseHeader
+.PHONY:all clean distclean zeldovich util tests analysis singlestep dist AbacusPython clibs convolution tcmalloc ParseHeader
