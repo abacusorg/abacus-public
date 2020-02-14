@@ -96,7 +96,9 @@ inline CellGroup *LinkToCellGroup(LinkID link) {
     // For this LinkID, return a pointer to the matching CellGroup
     integer3 c = link.cell();
     assertf(GFC->cellgroups_status[c.x] == 1, "Failed to find cellgroup in slab %d with status %d\n", c.x, GFC->cellgroups_status[c.x]);
-    return GFC->cellgroups[c.x][c.y][c.z].ptr(link.cellgroup());
+    CellGroup *ret = GFC->cellgroups[c.x][c.y][c.z].ptr(link.cellgroup());
+    assertf(ret != NULL, "Bad LinkToCellGroup?\n");
+    return ret;
 }
 
 
@@ -287,7 +289,7 @@ void GlobalGroupSlab::IndexLinks() {
 
     GFC->IndexLinks.Start();
     // GFC->GLL->AsciiPrint();
-    links = (LinkPencil **)malloc(sizeof(LinkPencil *)*diam);
+    links = new LinkPencil*[diam];
 
     // int cpdpad = (cpd/8+1)*8;   // A LinkIndex is 8 bytes, so let's get each pencil onto a different cacheline
     int cpdpad = cpd;
@@ -564,7 +566,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
     // Free the indexing space
     free(cells);
     free(links[0]);
-    free(links);
+    delete[] links;
     GFC->FindGlobalGroupTime.Stop();
 
     #ifdef ONE_SIDED_GROUP_FINDING
@@ -869,10 +871,10 @@ void GlobalGroupSlab::FindSubGroups() {
 
     #pragma omp parallel for schedule(static,1)
     for (int g=0; g<maxthreads; g++) {
-        L1pos[g] = (posstruct *)malloc(sizeof(posstruct)*largest_group);
-        L1vel[g] = (velstruct *)malloc(sizeof(velstruct)*largest_group);
-        L1aux[g] = (auxstruct *)malloc(sizeof(auxstruct)*largest_group);
-        L1acc[g] = (accstruct *)malloc(sizeof(accstruct)*largest_group);
+        L1pos[g] = new posstruct[largest_group];
+        L1vel[g] = new velstruct[largest_group];
+        L1aux[g] = new auxstruct[largest_group];
+        L1acc[g] = new accstruct[largest_group];
     }
 
     // It seems that the work between pencils is so heterogeneous that even the
@@ -1160,10 +1162,10 @@ void GlobalGroupSlab::FindSubGroups() {
     for (int g=0; g<omp_get_max_threads(); g++) {
         FOFlevel1[g].destroy();
         FOFlevel2[g].destroy();
-        free(L1pos[g]);
-        free(L1vel[g]);
-        free(L1aux[g]);
-        free(L1acc[g]);
+        delete[] L1pos[g];
+        delete[] L1vel[g];
+        delete[] L1aux[g];
+        delete[] L1acc[g];
     }
     delete[] L1pos;
     delete[] L1vel;
