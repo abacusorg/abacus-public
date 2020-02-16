@@ -83,6 +83,7 @@ STimer SingleStepTearDown;
 STimer IOFinish;
 
 STimer SlabAccumFree;
+STimer ReleaseFreeMemoryTime;
 
 uint64 naive_directinteractions = 0;
 

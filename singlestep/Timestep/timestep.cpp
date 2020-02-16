@@ -824,9 +824,9 @@ void FinishAction(int slab) {
 
     int pwidth = FetchSlabs.raw_number_executed - Finish.raw_number_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
-    STDLOG(2, "About to ReportMemoryAllocatorStats\n");
+    if (Finish.raw_number_executed % 3 == 0)  // release is cheap but not totally free, so run every few Finishes
+        ReleaseFreeMemoryToKernel();
     ReportMemoryAllocatorStats();
-    STDLOG(2, "Done ReportMemoryAllocatorStats\n");
 }
 
 #ifdef PARALLEL
@@ -935,7 +935,7 @@ void timestep(void) {
     // TODO: I'm not sure inflating FINISH_WAIT_RADIUS is the best way to deal with this
     // TODO: Also not sure this is the minimum number of slabs, even in that case
     // assertf(total_slabs_on_node >= 2*FINISH_WAIT_RADIUS + 1 + 2*FORCE_RADIUS + 4*GROUP_RADIUS, "Not enough slabs on node to finish any slabs!\n");
-    int PAD = 3;
+    int PAD = 2;
     assertf(total_slabs_on_node >= (2*GROUP_RADIUS + 1) + 2*FORCE_RADIUS + 1 + PAD, "Not enough slabs on node to close first group!\n");
     assertf(total_slabs_on_node >= 2*GROUP_RADIUS + FORCE_RADIUS + 2 * FINISH_WAIT_RADIUS + 1 + PAD, "Not enough slabs on node to finish any slabs!\n");
 #endif
