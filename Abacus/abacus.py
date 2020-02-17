@@ -870,7 +870,6 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         distribute_state_from = param.get('DistributeStateFrom', None)
         if distribute_state_from:
             print('Distributing state to nodes...')
-            # TODO: these subprocess invocations could probably be regular Python function calls
             distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, distribute_state_from, '--distribute-from-serial']
             call_subprocess(Conv_mpirun_cmd + distribute_state_cmd)
         
@@ -878,12 +877,19 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         #TODO do this by checking if we have a backed-up state available in global directory (instead of looking at param file). 
         
         if not make_ic: #if this is not a clean run, redistribute the state out to the nodes. 
+            allow_new_nnode = param.get('AllowResumeToNewNNode',False)
             print('Distributing in order to resume...')
             dist_start = wall_timer()          
-            distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', resume_dir]            
+            distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', resume_dir]
+            if allow_new_nnode:
+                distribute_state_cmd += ['--allow-new-nnode']
             distribute_fns_present = call_subprocess(Conv_mpirun_cmd + distribute_state_cmd)
             dist_time = wall_timer() - dist_start
-            status_log.print(f"# Distributing state to resume took {dist_time:f} seconds.")
+            status_log.print(f"# Distributing state to resume took {dist_time:.1f} seconds.")
+
+            if allow_new_nnode:
+                recover_multipoles(paramfn, -1, singlestep_env, mpirun_cmd=Conv_mpirun_cmd)
+
     print("Beginning abacus steps:")
     if parallel:
         # TODO: this would be useful in the serial code too, especially with ramdisk runs
@@ -910,7 +916,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             try:
                 read_state = InputFile(pjoin(read,"state"))
                 if parallel:
-                    ConvDone = False  # Have to take it on faith that the nodes have multipoles and are ready to convolve!
+                    # The current merged singlestep + convolution code doesn't need a convolve in between steps
+                    ConvDone = True
                 else:
                     ConvDone = check_multipole_taylor_done(param, read_state, kind='Taylor')
                 stepnum = read_state.FullStepNumber + 1
@@ -925,27 +932,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
         # Do the convolution
         # TODO: do we want to continue to support tick-tock parallel convolve/singlestep?
-        if not ConvDone and not parallel:
+        if not ConvDone:
             if not do_fake_convolve:
                 # Now check if we have all the multipoles the convolution will need
                 if not check_multipole_taylor_done(param, read_state, kind='Multipole'):
-                    # Invoke multipole recovery mode
-                    print(f"Warning: missing multipoles! Performing multipole recovery for step {stepnum:d}")
-                    
-                    # Build the recover_multipoles executable
-                    with Tools.chdir(pjoin(abacuspath, "singlestep")):
-                        call_subprocess(['make', 'recover_multipoles'])
-
-                    # Execute it
-                    print(f"Running recover_multipoles for step {stepnum:d}")
-
-                    try:
-                        call_subprocess([pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn], env=singlestep_env)
-                    except subprocess.CalledProcessError as cpe:
-                        handle_singlestep_error(cpe)
-                        raise
-
-                    print(f'\tFinished multipole recovery for read state {read_state.FullStepNumber}.')
+                    recover_multipoles(paramfn, stepnum, singlestep_env)
 
                 # Swap the Taylors link.  In effect, this will place the Taylors on the same disk as the multipoles.
                 # But that's what we want for sloshing: this was the write disk, so now it will be the upcoming read disk
@@ -1247,6 +1238,40 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
 
     return 0
+
+
+def recover_multipoles(paramfn, stepnum, env, mpirun_cmd=None):
+    '''
+    If multipoles are missing for any reason, we can invoke a redacted
+    singlestep pipeline that just reads in positions and outputs multipoles.
+    Then Abacus can proceed as normal.
+
+    First, we have to call `make` on the `recover_multipoles` executable,
+    because that's not built as part of normal compilation because we don't
+    use it often.
+    '''
+    # Invoke multipole recovery mode
+    print(f"Warning: missing multipoles! Performing multipole recovery for step {stepnum:d}")
+    
+    # Build the recover_multipoles executable
+    with Tools.chdir(pjoin(abacuspath, "singlestep")):
+        call_subprocess(['make', 'recover_multipoles'])
+
+    # Execute it
+    print(f"Running recover_multipoles for step {stepnum:d}")
+
+    recov_cmd = [pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn]
+
+    if mpirun_cmd:
+        recov_cmd = mpirun_cmd + [pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn]
+
+    try:
+        call_subprocess(recov_cmd, env=env)
+    except subprocess.CalledProcessError as cpe:
+        handle_singlestep_error(cpe)
+        raise
+
+    print(f'\tFinished multipole recovery for step {stepnum}.')
 
 
 def make_log_dir_for_step(params_logdir, step, symlink_name="last"):
