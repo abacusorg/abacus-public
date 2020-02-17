@@ -1133,7 +1133,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 restore_time = wall_timer() - restore_time
             
                 print(f'Retrieving and storing state took {restore_time} seconds. ', end = '')
-                status_log.print(f'# Retrieving and storing state took {restore_time:f} seconds.')
+                status_log.print(f'# Retrieving and storing state took {restore_time:.1f} seconds.')
                 last_backup  = wall_timer()  #log the time of the last backup. 
 
             
@@ -1151,7 +1151,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                         ending_time = time.time()
                         ending_time_str = time.asctime(time.localtime())
                         ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
-                        status_log.print(f"# Terminating normally w/ requeue code.  {ending_time_str:s} after {ending_time:f} hours.")
+                        status_log.print(f"# Terminating normally w/ requeue code.  {ending_time_str:s} after {ending_time:.2f} hours.")
                         return EXIT_REQUEUE  
                     else:
                         print('Requeue disabled because maxsteps was set by the user.')
@@ -1203,8 +1203,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             ending_time = time.time()
             ending_time_str = time.asctime(time.localtime())
             ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
-            print(f"Final redshift of {finalz:g} reached; terminating normally after {ending_time:f} hours.")
-            status_log.print(f"# Final redshift of {finalz:g} reached at {ending_time_str:s}; terminating normally after {ending_time:f} hours.")
+            print(f"Final redshift of {finalz:g} reached; terminating normally after {ending_time:.2f} hours.")
+            status_log.print(f"# Final redshift of {finalz:g} reached at {ending_time_str:s}; terminating normally after {ending_time:.2f} hours.")
             finished = True
             break 
             
@@ -1212,8 +1212,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             ending_time = time.time()
             ending_time_str = time.asctime(time.localtime())
             ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
-            print(f"Emergency exit triggered at {ending_time_str:s}; abandoning ship after {ending_time:f} hours.")
-            status_log.print(f"# Emergency exit triggered at {ending_time_str:s}; abandoning ship after {ending_time:f} hours.")
+            print(f"Emergency exit triggered at {ending_time_str:s}; abandoning ship after {ending_time:.2f} hours.")
+            status_log.print(f"# Emergency exit triggered at {ending_time_str:s}; abandoning ship after {ending_time:.2f} hours.")
             os.remove(emergency_exit_fn)
             break       
         
@@ -1223,8 +1223,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         ending_time = time.time()
         ending_time_str = time.asctime(time.localtime())
         ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
-        print(f"Reached maxsteps limit at {ending_time_str:s}; exiting job w/o requeue after {ending_time:f} hours.")
-        status_log.print(f"# Reached maxsteps limit at {ending_time_str:s}; exiting job w/o requeue after {ending_time:f} hours.")    
+        print(f"Reached maxsteps limit at {ending_time_str:s}; exiting job w/o requeue after {ending_time:.2f} hours.")
+        status_log.print(f"# Reached maxsteps limit at {ending_time_str:s}; exiting job w/o requeue after {ending_time:.2f} hours.")    
         finished = True
 
     # If there is more work to be done, signal that we are ready for requeue
@@ -1232,7 +1232,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         ending_time = time.time()
         ending_time_str = time.asctime(time.localtime())
         ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
-        status_log.print(f"# Terminating normally.  {ending_time_str:s} after {ending_time:f} hours.")
+        status_log.print(f"# Terminating normally.  {ending_time_str:s} after {ending_time:.2f} hours.")
         print(f"About to return EXIT_REQUEUE code {EXIT_REQUEUE}")
         return EXIT_REQUEUE
 
