@@ -55,6 +55,11 @@ class SimpleConcurrentQueue {
     return res;
   }
 
+  int64_t size(){
+    std::unique_lock<std::mutex> mlock(mutex_);
+    return queue_.size();
+  }
+
   SimpleConcurrentQueue()=default;
   SimpleConcurrentQueue(const SimpleConcurrentQueue&) = delete;            // disable copying
   SimpleConcurrentQueue& operator=(const SimpleConcurrentQueue&) = delete; // disable assignment

@@ -298,5 +298,6 @@ int main(int argc, char **argv) {
     ReportTimings();
 
     stdlog.close();
-    exit(0);
+    
+    return 0;
 }

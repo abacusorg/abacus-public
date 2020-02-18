@@ -427,6 +427,7 @@ void GatherTimings() {
         	REPORT_RATE(Finish);
         REPORT(2, "Write Particles", WriteMergeSlab.Elapsed());
         REPORT(2, "Write Multipoles", WriteMultipoleSlab.Elapsed());
+        REPORT(2, "Release Free Memory To Kernel", ReleaseFreeMemoryTime.Elapsed());
 
 #ifdef PARALLEL
         REPORT(2, "Queuing Send Manifest", SendManifest->Load.Elapsed()+SendManifest->Transmit.Elapsed());

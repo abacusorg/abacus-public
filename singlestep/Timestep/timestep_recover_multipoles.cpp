@@ -17,8 +17,7 @@ lot of infrastructure from there.
 */
 
 int FetchPosSlabPrecondition(int slab) {
-    // read 10 slabs ahead
-    if(slab > Finish.last_slab_executed + 10){
+    if(FetchSlabs.raw_number_executed >= total_slabs_on_node){
         return 0;
     }
     return 1;
@@ -53,7 +52,7 @@ void FinishMultipolesAction(int slab) {
 		ramdisk_multipole_flag = RAMDISK_AUTO;
 	#endif
 		
-    SB->AllocateArena(MultipoleSlab,slab);
+    SB->AllocateArena(MultipoleSlab,slab, ramdisk_multipole_flag);
     ComputeMultipoleSlab(slab);
     
     WriteMultipoleSlab.Start();
@@ -87,6 +86,8 @@ void timestepMultipoles(void) {
     FORCE_RADIUS = 0;  // so we know when we can free CellInfo in Finish
     GROUP_RADIUS = 0;
 
+    int create_MT_file = 1;  // that's... why we're here
+    ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory, create_MT_file);
 
     int nslabs = P.cpd;
     int first = first_slab_on_node;
