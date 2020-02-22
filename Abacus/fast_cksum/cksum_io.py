@@ -39,7 +39,7 @@ class CksumWriter:
         
         if self.do_checksum:
             with open(self.checksum_fn, self.checksum_file_mode) as cfp, self.checksum_timer:
-                cfp.write(f'{self.checksum} {self.bytes_written} {self.fn}\n')
+                cfp.write(f'{self.checksum} {self.bytes_written} {basename(self.fn)}\n')
     
     def write(self, data):  # asdf only seems to need one arg version
         data = memoryview(data)  # so we can use data.nbytes
