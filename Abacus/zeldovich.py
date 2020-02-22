@@ -64,7 +64,7 @@ from . import GenParam
 from . import abacus
 import Abacus.Cosmology
 
-zeldovich_dir = pjoin(abacus.abacuspath, 'zeldovich-PLT')
+zeldovich_dir = pjoin(abacus.abacuspath, 'external', 'zeldovich-PLT')
 eigmodes_path = pjoin(zeldovich_dir, 'eigmodes128')
 
 on_the_fly_formats = ['poisson', 'lattice']

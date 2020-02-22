@@ -6,6 +6,7 @@
  */
  
 #include "proepi.cpp"
+#include "timestep_recover_multipoles.cpp"
 
 #ifdef PARALLEL
 void RecoverReadStateFiles(Parameters &P){

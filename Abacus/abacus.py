@@ -51,7 +51,7 @@ RUN_TIME_MINUTES = os.getenv("JOB_ACTION_WARNING_TIME")
 GF_BACKUP_INTERVAL = 2 * 60 * 60 #only backup b/w group finding steps if it's been more than two hours since the last backup. 
 
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
-directory_param_fn = pjoin(abacuspath, 'Abacus', 'directory.def')
+directory_param_fn = pjoin(abacuspath, 'Production', 'directory.def')
 wall_timer = time.perf_counter  # monotonic wall clock time
 
 
@@ -365,10 +365,11 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
             if k not in param_kwargs:
                 param_kwargs[k] = dirs[k]
     
-    zd_params = zeldovich.setup_zeldovich_params(params)
-    if zd_params:
-        param_kwargs.update(zd_params)
-        params = GenParam.makeInput(output_parfile, parfn, **param_kwargs)
+    if not params.get('ExternalICs', False):
+        zd_params = zeldovich.setup_zeldovich_params(params)
+        if zd_params:
+            param_kwargs.update(zd_params)
+            params = GenParam.makeInput(output_parfile, parfn, **param_kwargs)
 
     if params.get('StateIOMode','normal').lower() in ('slosh','stripe'):
         # TODO: state striping not implemented
@@ -893,7 +894,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     print("Beginning abacus steps:")
     if parallel:
         # TODO: this would be useful in the serial code too, especially with ramdisk runs
-        emergency_exit_fn = pjoin(param['WorkingDirectory'], 'abandon_ship')
+        emergency_exit_fn = pjoin(param['WorkingDirectory'], 'ABANDON_SHIP')
         print("\n------------------")
         print("To trigger emergency quit safely, create file", emergency_exit_fn)
         print("------------------")
@@ -1169,37 +1170,19 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             finalz = param.FinalRedshift
         except AttributeError:
             # param.FinalRedshift wasn't set, so we'll look for the minimum in the output redshifts arrays. 
-            try:
-                if (len(param.TimeSliceRedshifts)>0):
-                    finalz_full = min(param.TimeSliceRedshifts[:])
-            except TypeError:  # param.TimeSliceRedshifts is probably just a single number
-                finalz_full = float(param.TimeSliceRedshifts)
-            except AttributeError:
-                finalz_full = 0.0
-
-            try:
-                if (len(param.TimeSliceRedshifts_Subsample)>0):
-                    finalz_subsample = min(param.TimeSliceRedshifts_Subsample[:])
-            except TypeError:  # param.TimeSliceRedshifts is probably just a single number
-                finalz_subsample = float(param.TimeSliceRedshifts_Subsample)
-            except AttributeError:
-                finalz_subsample = 0.0
-
-            try:
-                if (len(param.L1OutputRedshifts)>0):
-                    finalz_group_finding = min(param.L1OutputRedshifts[:])
-            except TypeError:  # param.TimeSliceRedshifts is probably just a single number
-                finalz_group_finding = float(param.L1OutputRedshifts)
-            except AttributeError:
-                finalz_group_finding = 0.0       
-
-            finalz = min(finalz_full, finalz_subsample, finalz_group_finding)                             
-
+            redshift_arrs = ['TimeSliceRedshifts', 'TimeSliceRedshifts_Subsample', 'L1OutputRedshifts']
+            finalz = None
+            for name in redshift_arrs:
+                if name in param:
+                    _zmin = np.min(param[name])
+                    finalz = min(finalz, _zmin) if finalz is not None else _zmin
+            if finalz is None:
+                finalz = 0.
 
 
         # This logic is deliberately consistent with singlestep.cpp
         # If this is an IC step then we won't have read_state
-        if (not make_ic and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0):
+        if not make_ic and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0:
             ending_time = time.time()
             ending_time_str = time.asctime(time.localtime())
             ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
