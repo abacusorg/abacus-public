@@ -1,4 +1,4 @@
-subdirs := Cosmology fast_cksum
+subdirs := Cosmology
 
 all: $(subdirs)
 
