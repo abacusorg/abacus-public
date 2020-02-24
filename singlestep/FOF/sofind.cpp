@@ -58,6 +58,7 @@ We are not implementing any unbinding here.
 
 #define SO_CACHE 1024
 
+#define PRINTIF if (np==111343) printf
 
 class alignas(16) SOcellgroup {
   public:
@@ -674,6 +675,7 @@ int greedySO() {
         halo_radius2[count] = d2SO;
         // Threshold distance d2SO has the property that particles
         // found in it can never be eligible centers
+        PRINTIF("count = %d, start = %d, mass = %d, d2SO = %f\n", count, start, mass, d2SO);
         
         Search.Stop();
         
@@ -848,14 +850,17 @@ void load_socg() {
             lastidx = cellindex[j]; laststart = j; continue;
         }
         // else record the old group and start anew
+        PRINTIF("CG = %d, idx = %d, size = %d\n", ncg, lastidx, j-laststart);
         socg[ncg++].load(laststart, j, compute_cellcenter(lastidx));
         if (ncg>=maxcg) resize_socg();   
                 // This guards against overrunning the socg memory
         lastidx = cellindex[j]; laststart = j; 
     }
     // Always have one group left at the end
+    PRINTIF("CG = %d, idx = %d, size = %d\n", ncg, lastidx, np-laststart);
     socg[ncg++].load(laststart, np, compute_cellcenter(lastidx));
     numcg += ncg;
+    PRINTIF("ncg = %d\n", ncg);
     return;
 }
 

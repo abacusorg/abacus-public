@@ -87,7 +87,9 @@ void timestepMultipoles(void) {
     GROUP_RADIUS = 0;
 
     int create_MT_file = 1;  // that's... why we're here
+#ifdef PARALLEL
     ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory, create_MT_file);
+#endif PARALLEL
 
     int nslabs = P.cpd;
     int first = first_slab_on_node;
