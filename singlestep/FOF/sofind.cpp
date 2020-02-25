@@ -86,7 +86,7 @@ class alignas(16) SOcellgroup {
 
     /// Return the number of particles in a given bin; input must be [0,4)
     inline int binsize(int bin) {
-        assert(bin>=0 && bin<4);   // TODO: Can hope to remove this
+        // assert(bin>=0 && bin<4);   // TODO: Can hope to remove this
         return start[bin+1]-start[bin];
     }
     
@@ -401,8 +401,7 @@ void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
 
     // Partition into 4 radial parts
     FOFloat r2[5];
-    // TODO: This was j=1, but not even clear why 4 is included
-    for (int j=0; j<=4; j++) {
+    for (int j=1; j<4; j++) {
         r2[j] = GFC->SOpartition*(cg->firstbin+j); r2[j] *= r2[j];
     }
     // These now contain the boundaries (r2[0] is irrelevant)
@@ -488,15 +487,9 @@ FOFloat search_socg_thresh(FOFparticle halocenter, int &mass, FOFloat &inv_enc_d
     Search.Start();
 
     // If we find no density threshold crossing, we'll return furthest edge -- not ideal
-    FOFloat r2found; // TODO: REMOVE
-    //r2found = (furthest_firstbin)*GFC->SOpartition;
-    //r2found *= r2found;
-    //inv_enc_den = 1./threshold;//1.e30; //TESTING no defined inv
-    
     // Proceed outward through the shells
     for (int r = 0; r<furthest_firstbin+4; r++) {
-        // TODO: Should this read "outer boundary"?
-        // Compute the inner boundary of this shell
+        // Compute the outer boundary of this shell
         FOFr2 = GFC->SOpartition*(r+1);
         FOFr2 *= FOFr2;
         x = xthreshold*FOFr2; 
@@ -709,7 +702,6 @@ int greedySO() {
                 }
             } else {
                 // This cell was used.
-                assert(socg[i].active==1);  // TODO: Diagnostic
                 // Make it inactive to reset the array for the next forming halo
                 socg[i].active = 0;
                 // Loop over all particles in that cell

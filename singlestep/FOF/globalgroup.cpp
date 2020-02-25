@@ -935,7 +935,6 @@ void GlobalGroupSlab::FindSubGroups() {
                     #endif
                     FOFlevel1[g].findgroups(grouppos, NULL, NULL, groupacc, groupn);
                     GFC->L1FOF.Stop();
-                    STDLOG(2,"ABCD L1 %d %d %d %d %d %d %d %d\n", slab, j, k, n, groupn, FOFlevel1[g].ngroups, FOFlevel1[g].groups[0].n, globalgroups[j][k][n].ncellgroups);
                     // Now we've found the L1 groups
                     for (int a=0; a<FOFlevel1[g].ngroups; a++) {
                         int size = FOFlevel1[g].groups[a].n;
