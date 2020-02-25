@@ -145,6 +145,9 @@ class SOcell {
     FOFloat min_radius2;    ///< We require that R_Delta be at least 0.5*KernelRadius
     FOFloat Rdensmax2;    ///< The scale over which a particle must have the highest kernal density of all neighbors in order to be called a maximum.
 
+    FOFloat alpha_eligible2;  ///< How to scale R_Delta when assigning eligibility.
+        // TODO: Note that we must have Rdensmax2 be smaller than this radius. 
+
     FOFgroup *groups;   ///< The list of found groups
     int ngroups;        ///< The number of groups
 
@@ -264,6 +267,8 @@ class SOcell {
 
         // We adopt the DensityKernelRadius as the local density maximum criteria
         Rdensmax2 = WriteState.DensityKernelRad2*FOF_RESCALE*FOF_RESCALE;
+
+        alpha_eligible2 = 0.7;
 
         int ret = posix_memalign((void **)&twothirds, 64, sizeof(FOFloat)*(SO_CACHE+2));  assert(ret == 0);
         for (int j=0; j<SO_CACHE+2; j++) twothirds[j] = pow(j,2.0/3.0);
@@ -724,6 +729,8 @@ int greedySO() {
         // Inverse product of the enclosed density and threshold distance squared
         FOFloat inv_d2del = inv_enc_den/(d2SO);
 
+        FOFloat Religible2 = alpha_eligible2*d2SO;
+
         Sweep.Start();
 
         // Here we record the particles which preliminarily are attributed to the current
@@ -765,7 +772,8 @@ int greedySO() {
                     // this is signalled by a negative halo_index.
                     // halo_index[j] = (halo_index[j]==0)?(-1):-abs(halo_index[j]);
                         // The -1 here will get overwritten just below
-                    halo_index[j] = -abs(halo_index[j]);
+                    if (d2_active[j]<=Religible2)
+                        halo_index[j] = -abs(halo_index[j]);
 
                     // Interpolate to get the density of the given particle 
                     // Dens(r)=Dens_SO d2SO/r^2
