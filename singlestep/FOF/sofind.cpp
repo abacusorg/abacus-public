@@ -58,6 +58,8 @@ We are not implementing any unbinding here.
 
 #define SO_CACHE 1024
 
+#define SO_UNASSIGNED 999999    // A huge number, more than we have groups
+
 class alignas(16) SOcellgroup {
   public:
     FOFparticle cellcenter; // The center of the cell in GlobalGroup coords 
@@ -580,9 +582,7 @@ FOFloat search_socg_thresh(FOFparticle halocenter, int &mass, FOFloat &inv_enc_d
 /// separation region, relative to start.  This may differ from 
 /// what was found externally if there is some conspiracy about 
 /// floating point equality comparisons of d2.  
-void partition_and_index(int *halos, int halo_i, int start, int last, int &size) {
-// TODO: Confusing to pass some arrays and not others.
-  
+void partition_on_index(int halo_i, int start, int last, int &size) {
     if (start==last) {
         size = 0;
         return;    
@@ -591,7 +591,7 @@ void partition_and_index(int *halos, int halo_i, int start, int last, int &size)
     FOFloat maxdens=-1.0;
     int densest=-1;
     int s = start;
-    while (s<last && halos[s]==halo_i) {
+    while (s<last && halo_index[s]==halo_i) {
         // Advance start to the first high spot
         if (density[s]>maxdens) { maxdens=density[s]; densest=s; }
         s++;
@@ -599,12 +599,12 @@ void partition_and_index(int *halos, int halo_i, int start, int last, int &size)
     while (s<last) {
         // s is now pointed to a high entry; we need to decrement last to find a low entry to swap.
         last--; // Consider next low element in the last part of the list
-        if (halos[last]==halo_i) {
+        if (halo_index[last]==halo_i) {
             // We've found an out of place one; flip it with start
             std::swap(p[s],p[last]);
             std::swap(density[s],density[last]);
-            std::swap(halos[s],halos[last]);
-            while (s<last && halos[s]==halo_i) {
+            std::swap(halo_index[s],halo_index[last]);
+            while (s<last && halo_index[s]==halo_i) {
                 if (density[s]>maxdens) { maxdens=density[s]; densest=s; }
                 s++;
                 // Advance s to the next high spot
@@ -617,7 +617,7 @@ void partition_and_index(int *halos, int halo_i, int start, int last, int &size)
     if (size>1) {
         std::swap(p[densest],p[start]);
         std::swap(density[densest],density[start]);
-        std::swap(halos[densest],halos[start]);
+        std::swap(halo_index[densest],halo_index[start]);
     }
     return;
 }
@@ -639,8 +639,10 @@ int greedySO() {
     for (int j=0; j<np; j++) {
         // Initialize the minimum inverse enclosed density and halo indices arrays
         min_inv_den[j] = 1.e30;
-        halo_index[j] = 0;
-        // An unassigned halo has halo_index=0; first halo has 1; second 2, third 3, etc.
+        halo_index[j] = SO_UNASSIGNED;
+        // An unassigned halo has halo_index=SO_UNASSIGNED; 
+        // first halo has 1; second 2, third 3, etc.
+        // Negative values indicate that a particle is ineligible to be a center
         // Looks for densest particle in L0
         if (density[j]>maxdens) {
             maxdens=density[j];
@@ -731,7 +733,7 @@ int greedySO() {
                     // for this particle by a sufficient factor mag_roche, 
                     // adopt this halo as its current choice and update max density.
                     if (min_inv_den[j] > mag_roche*inv_d) {
-                        halo_index[j] = (halo_index[j]<=0)?(-count):count;
+                        halo_index[j] = (halo_index[j]<0)?(-count):count;
                         // Preserve the sign as the indicator of eligibility.
                         min_inv_den[j] = inv_d;
                     }
@@ -762,17 +764,18 @@ void partition_halos(int count) {
     int start = 0;
     int halo_ind;
     for (int i=0; i<count; i++) {
+        // TODO: Document why we're putting the unassigned particles in the second slot
         if (i == 0) halo_ind = 1; // start with first subhalo                
-        else if (i == 1) halo_ind = 0; // deal with the unassigned fluff     
+        else if (i == 1) halo_ind = SO_UNASSIGNED; // deal with the unassigned fluff  
         else halo_ind = i; // then rest
 
         // Partition so as to move left all particles in halo halo_ind.
         // This also moves the densest particle to the start of its list.
-        partition_and_index(halo_index, halo_ind, start, np, size);
+        partition_on_index(halo_ind, start, np, size);
 	
         // Mark the group.  
         if (size > 0) {
-            if (halo_ind > 0) groups[ngroups++] = FOFgroup(start,size,halo_radius2[halo_ind],center_particle[halo_ind]); 
+            if (halo_ind < SO_UNASSIGNED) groups[ngroups++] = FOFgroup(start,size,halo_radius2[halo_ind],center_particle[halo_ind]); 
             start += size;
         }
     }
