@@ -68,6 +68,7 @@ class alignas(16) SOcellgroup {
     int start[5];       // The starting point of particles in the L0 list
     int active;         // Has a cell been touched for this halo center
     FOFloat d2_furthest;  // furthest distance of particle in cell from current nucleus
+    FOFloat d2;
     
     // We will allow 4 partitions of this list: 
     // [ start[j], start[j+1] ) for j=0,1,2,3.
@@ -84,6 +85,7 @@ class alignas(16) SOcellgroup {
         start[4] = start_next;
         active = 0;
         d2_furthest = 0.;
+        d2 = 0.;
     }
 
     /// Return the number of particles in a given bin; input must be [0,4)
@@ -107,7 +109,8 @@ class alignas(16) SOcellgroup {
             distz = 0.;
         }
         // The minimum distance to the current halo nucleus position
-        FOFloat d2 = distx*distx+disty*disty+distz*distz;
+        // FOFloat d2 = distx*distx+disty*disty+distz*distz;
+        d2 = distx*distx+disty*disty+distz*distz;
         firstbin = floor(sqrt(d2)/GFC->SOpartition);
 
         return;
@@ -394,6 +397,13 @@ void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
     Search.Stop();
     Distance.Start();
     FOFloat *d2 = compute_d2(center, p+cg->start[0], len, d2buffer, numdists);
+    PRINTIF("center= %f %f %f  start= %d len= %d numdists= %d\n",
+        center->x/FOF_RESCALE,
+        center->y/FOF_RESCALE,
+        center->z/FOF_RESCALE,
+        cg->start[0],
+        len,
+        numdists);
     Distance.Stop();
     Search.Start();
     for (int j=0; j<len; j++) {
@@ -406,6 +416,7 @@ void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
     // TODO: This was j=1, but not even clear why 4 is included
     for (int j=0; j<=4; j++) {
         r2[j] = GFC->SOpartition*(cg->firstbin+j); r2[j] *= r2[j];
+        PRINTIF("r2[%d]= %f\n", j, sqrt(r2[j])/FOF_RESCALE);
     }
     // These now contain the boundaries (r2[0] is irrelevant)
     cg->start[2] = partition_only(r2[2],cg->start[0],cg->start[4]);
@@ -475,7 +486,7 @@ FOFloat partial_search(int len, int mass, FOFloat shell_max_rad2, int &size_thre
 /// very close to the inverse of the density threshold, but it might differ
 /// if we ran out of particles before getting down to that density.
 
-FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_den) {
+FOFloat search_socg_thresh(FOFparticle halocenter, int &mass, FOFloat &inv_enc_den) {
     mass = 0;
     FOFloat FOFr2 = 0;
     FOFloat x = 0;
@@ -491,11 +502,22 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
     Distance.Start();
     int furthest_firstbin = -1;
     for (int i = 0; i<ncg; i++) {
-        socg[i].compute_d2(halocenter);
+        socg[i].compute_d2(&halocenter);
         // uses minimum distance to halo center and gives us firstbin
         if (socg[i].firstbin > furthest_firstbin) {
             furthest_firstbin = socg[i].firstbin;
         }
+        PRINTIF("i= %d firstbin= %d d2= %f cellcenter= %f %f %f halocenter= %f %f %f\n", 
+            i, 
+            socg[i].firstbin,
+            sqrt(socg[i].d2)/FOF_RESCALE,
+            socg[i].cellcenter.x/FOF_RESCALE,
+            socg[i].cellcenter.y/FOF_RESCALE,
+            socg[i].cellcenter.z/FOF_RESCALE,
+            halocenter.x/FOF_RESCALE,
+            halocenter.y/FOF_RESCALE,
+            halocenter.z/FOF_RESCALE
+        );
     }
     Distance.Stop();
     Search.Start();
@@ -523,7 +545,14 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
                 // Get start[1] thru start[3] for every new SOgroupcell
                 // Compute the d2 in particle order and then use this
                 // for partition -- stored in d2_active when fn is called
-                partition_cellgroup(socg+i, halocenter);
+                partition_cellgroup(socg+i, &halocenter);
+                PRINTIF("r= %d  i= %d  firstbin= %d  bins= %d %d %d %d d2_furthest= %f\n", r, i, socg[i].firstbin, 
+                    socg[i].binsize(0),
+                    socg[i].binsize(1),
+                    socg[i].binsize(2),
+                    socg[i].binsize(3),
+                    sqrt(socg[i].d2_furthest)/FOF_RESCALE
+                    );
             }
         }
 
@@ -542,6 +571,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
                 }
                 */
             }
+            PRINTIF("r= %d  mass= %d\n", r, mass);
         }
         else { 
             // Not enough mass, so there could be a density crossing.
@@ -557,6 +587,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
                         d2_bin[size_bin+j] = d2_active[socg[i].start[bin]+j];
                     }
                     size_bin += size_partition;
+                    PRINTIF("r= %d  i= %d  bin= %d  size_partition= %d\n", r, i, bin, size_partition);
                 }
             }
             // d2_bin is used in partial_search and modified through
@@ -565,6 +596,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             
             // Search for density threshold in list, given previous mass.
             d2_thresh = partial_search(size_bin, mass, FOFr2, size_thresh, inv_enc_den);
+            PRINTIF("r= %d  size_bin= %d  size_thresh= %d  d2_thresh= %e\n", r, size_bin, size_thresh, d2_thresh);
         
             if (d2_thresh > 0.0) {
                 // If something was found, record it
@@ -687,6 +719,8 @@ int greedySO() {
         numcenters++;
         center_particle[count] = p[start].index();
 
+        PRINTIF("Center count= %d\n", count);
+
         Search.Start();
         FOFloat inv_enc_den;
         int mass;
@@ -694,11 +728,11 @@ int greedySO() {
         // but also mass within the threshold.
         // Threshold distance d2SO has the property that all particles within it
         // satisfy the overdensity condition
-        FOFloat d2SO = search_socg_thresh(p+start,mass,inv_enc_den);
+        FOFloat d2SO = search_socg_thresh(p[start],mass,inv_enc_den);
         halo_radius2[count] = d2SO;
         // Threshold distance d2SO has the property that particles
         // found in it can never be eligible centers
-        PRINTIF("count = %d, start = %d, mass = %d, d2SO = %f\n", count, start, mass, d2SO);
+        PRINTIF("count = %d, start = %d, mass = %d, d2SO = %3\n", count, start, mass, d2SO/FOF_RESCALE/FOF_RESCALE);
         
         Search.Stop();
         
@@ -719,6 +753,7 @@ int greedySO() {
         // within the threshold has the same array index.
         // Loop over all cells, ncg, and split them in two -- active and inactive cells,
         // where the active ones have their minimum distance to halo center within d2SO.
+        int thisgroup = 0;
         for (int i = 0; i<ncg; i++) {
             if (socg[i].active == 0) {
                 // This cell wasn't used, but it might contain the next halo center.
@@ -730,6 +765,7 @@ int greedySO() {
                     }
                 }
             } else {
+                int thiscell = 0;
                 // This cell was used.
                 assert(socg[i].active==1);  // TODO: Diagnostic
                 // Make it inactive to reset the array for the next forming halo
@@ -764,15 +800,19 @@ int greedySO() {
                         halo_index[j] = (halo_index[j]<=0)?(-count):count;
                         // Preserve the sign as the indicator of eligibility.
                         min_inv_den[j] = inv_d;
+                        thiscell++;
                     }
                     // N.B., in the current code, I think we can only make
                     // negative halo_index[] values.
                 }  
+                PRINTIF("count= %d  i= %d  [%d,%d) thiscell= %d\n", count, i, socg[i].start[0], socg[i].start[4], thiscell);
+                thisgroup += thiscell;
             }
         }
 
         Sweep.Stop();
         count++;
+        PRINTIF("count= %d  thisgroup= %d\n", count, thisgroup);
 
         start = densest;
 
@@ -857,8 +897,8 @@ void load_socg() {
 
     for (int j=0; j<np; j++) {
         // TODO: Added this mod to break up the groups artificially
-        // if ((j%1000!=0) && cellindex[j] == lastidx) continue;
-        if (cellindex[j] == lastidx) continue;
+        if ((j%10000!=0) && cellindex[j] == lastidx) continue;
+        // if (cellindex[j] == lastidx) continue;
             // else we've found the start of a new group
         if (laststart==-1) {
             // It's the first group, so just start it.
