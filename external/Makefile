@@ -1,6 +1,6 @@
-# A simple Makefile that passes all targets to all subdirectories
+# A simple Makefile that passes all targets to subdirectories
 
-SUBDIRS := */
+SUBDIRS := trz fast-cksum zeldovich-PLT
 
 $(MAKECMDGOALS): $(SUBDIRS)
 
