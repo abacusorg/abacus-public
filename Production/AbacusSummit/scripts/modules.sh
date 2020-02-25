@@ -2,18 +2,29 @@
 
 # Sets up modules for running Abacus on summit or rhea
 
-module purge
-
-module use $ABACUS/modulefiles
-module load abacus
-
 # PROJWORK: large, fast, no backup. For simulation data.
-export _PROJWORK=$PROJWORK
+export _PROJWORK=${_PROJWORK:-$PROJWORK}
 export PROJWORK=$_PROJWORK/ast145  # tack on ast145 so we don't have to type it every time
-export ABACUSSUMMIT_PRODUCTION=$PROJWORK/MiniAbacusSummit
 
 # PROJHOME: small, slow, backed up.  For code and scripts.
 export PROJHOME=${PROJHOME:-"/ccs/proj/ast145"}
+
+module purge
+
+#Abacus enviroment variables
+export ABACUS_SSD=/dev/shm/$USER
+export ABACUS_TMP=/dev/shm/$USER
+export ABACUS=$HOME/abacus
+export ABACUS_PERSIST=$PROJWORK/$USER
+
+# Load the abacus module to set the include and python paths
+module use $ABACUS/modulefiles
+module load abacus
+
+# Contains the directories with the .par2 files
+export ABACUSSUMMIT_SPEC=$ABACUS/external/AbacusSummit/Simulations
+# Contains the AbacusSummit directory with simulation data
+export ABACUSSUMMIT_PERSIST=$PROJWORK
 
 # Common modules
 module load git

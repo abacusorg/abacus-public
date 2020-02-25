@@ -43,7 +43,6 @@ from .InputFile import InputFile
 from . import Tools
 from . import GenParam
 from . import zeldovich
-from Abacus.Cosmology import AbacusCosmo
 
 NEEDS_INTERIM_BACKUP_MINS = 105 #minimum job runtime (in minutes) for which we'd like to do a backup halfway through the job. 
 EXIT_REQUEUE = 200
