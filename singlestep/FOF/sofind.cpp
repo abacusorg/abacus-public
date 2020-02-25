@@ -545,37 +545,23 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
         }
         else { 
             // Not enough mass, so there could be a density crossing.
-            // Number of all particles that are within this radial bin
-            size_bin = 0;
-            // for every SOcellgroup crossed by the radial bin
+            // We need to gather the distances to all the particles in this radial bin
+            size_bin = 0;   // Number of particles within this radial bin
             for (int i = 0; i<ncg; i++) {
+                // Is this SOcellgroup crossed by the radial bin?
                 int bin = r-socg[i].firstbin;
                 if (bin>=0 && bin<4) {
                     size_partition = socg[i].binsize(bin);
+                    // Number of particles for that radial bin in that SOcellgroup
                     for (int j=0; j<size_partition; j++) {
                         d2_bin[size_bin+j] = d2_active[socg[i].start[bin]+j];
                     }
                     size_bin += size_partition;
                 }
-                /*
-                if (socg[i].firstbin >= r-3 && socg[i].firstbin <= r) {
-                    // assertf(socg[i].active,"Inactive SOcellgroup!");  // TODO: REMOVE
-                    // Number of particles for that radial bin in that SOcellgroup
-                    size_partition = socg[i].start[r-socg[i].firstbin+1]-socg[i].start[r-socg[i].firstbin];
-                    for (int j = 0; j<size_partition; j++) {
-                        d2_bin[size_bin+j] = d2_active[socg[i].start[r-socg[i].firstbin]+j];
-                    }
-                    size_bin+=size_partition;
-                }
-                */
             }
             // d2_bin is used in partial_search and modified through
             // swapping and sorting; d2_active has all FOF particles in bins 0 through
-            // r partitioned and should remain intact till done with the halo center
-            // However, we need an array d2_bin
-            // to save only the particle distances in r
-            // for (int j=0; j<size_bin; j++) assertf(d2_bin[j]>=0.0, "Negative d2_bin[%d]\n", j);
-                // TODO: REMOVE
+            // r partitioned and should remain intact till done with the halo center.
             
             // Search for density threshold in list, given previous mass.
             d2_thresh = partial_search(size_bin, mass, FOFr2, size_thresh, inv_enc_den);
@@ -583,15 +569,11 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
             if (d2_thresh > 0.0) {
                 // If something was found, record it
                 mass += size_thresh;
-
-                //r2found = d2_thresh;
                 return d2_thresh;
             }
             else {
                 // False alarm: add all mass in that radial bin
                 mass += size_bin;
-
-                //continue;
             }
         }
     }
@@ -626,6 +608,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
 /// what was found externally if there is some conspiracy about 
 /// floating point equality comparisons of d2.  
 void partition_and_index(int *halos, int halo_i, int start, int last, int &size) {
+// TODO: Confusing to pass some arrays and not others.
   
     if (start==last) {
         size = 0;
@@ -737,65 +720,54 @@ int greedySO() {
         // Loop over all cells, ncg, and split them in two -- active and inactive cells,
         // where the active ones have their minimum distance to halo center within d2SO.
         for (int i = 0; i<ncg; i++) {
-            if (socg[i].active == 1) {
-                // If a cell is active, make it inactive so that you reset the array
-                // for the next forming halo
-                socg[i].active = 0;
-                // Loop over all particles in that cell
-                for (int j=socg[i].start[0]; j<socg[i].start[4]; j++) {
-                    // for those within the threshold distance, set their halo_index to a negative number to
-                    // make them ineligible to be halo centers
-                    if (d2_active[j]<d2SO) {
-                        // If this particle has not yet been assigned to a halo, set it to -1
-                        // as a placeholder (will be changed within loop, see ***). If already assigned,
-                        // make sure the halo_index remains negative (i.e. particle ineligible
-                        // to ever be a halo center)
-                        halo_index[j] = (halo_index[j]==0)?(-1):-abs(halo_index[j]);
-                    }
-                    // For those outside the threshold distance which are
-                    // still active (i.e. halo_index is non-negative) and eligible, i.e. satisfies the
-                    // local density to max enclosed density ratio criterion,
-                    // check whether any can be the next densest particle.
-                    else if (density[j]>maxdens && halo_index[j]>=0) {
-                        maxdens=density[j];
-                        densest = j;
-                        // If the particle is outside the density threshold, we don't need to look
-                        // further into it as it cannot be assigned to this halo
-                        continue;
-                        // TODO: if (d2_active[j]>d2SO) continue;
-                    }
-                    // These are the particles in this cell which are not eligible to be halo center
-                    // and also outside the threshold distance. They cannot be assigned to this halo.
-                    else continue;  // TODO: if (d2_active[j]>d2SO)  continue;
-
-                    // This snippet is for ALL the particles within the density threshold.
-                    // Interpolate to get the density of the given particle Dens(r)=Dens_SO d2SO/r^2
-                    inv_d = d2_active[j]*(inv_d2del);
-                    // If j is the densest particle seen so far, i.e. its enclosed density
-                    // with respect to this halo center is the largest yet, mark this as its halo
-                    if (min_inv_den[j] > inv_d) {
-                        // Update the max dens for that particle
-                        if (min_inv_den[j] > mag_roche*inv_d) {
-                            halo_index[j] = (halo_index[j]<0)?(-count):count;
-                        }
-                        min_inv_den[j] = inv_d;
-                        // If this particle has already been marked as ineligible (i.e. has negative
-                        // halo_index), preserve the sign and just change its halo assignment (*** notice
-                        // that the halo_index in this case will definitely change within this loop)
-                        // The halo index gets updated only if the enclosed density of the particle
-                        // with respect to the newcomer is  mag_roche times its largest enclosed density so far
-                    }
-                }  
-            }
-            // Loop over the remaining particles in that cell outside the threshold distance 
-            // which are eligible to be halo centers to check whether any of them can be the next densest
-            else {
+            if (socg[i].active == 0) {
+                // This cell wasn't used, but it might contain the next halo center.
+                // Check all the particles to see if they are eligible and densest.
                 for (int j=socg[i].start[0]; j<socg[i].start[4]; j++) {
                     if (density[j]>maxdens && halo_index[j]>=0) {
                         maxdens=density[j];
                         densest = j;
                     }
                 }
+            } else {
+                // This cell was used.
+                assert(socg[i].active==1);  // TODO: Diagnostic
+                // Make it inactive to reset the array for the next forming halo
+                socg[i].active = 0;
+                // Loop over all particles in that cell
+                for (int j=socg[i].start[0]; j<socg[i].start[4]; j++) {
+                    if (d2_active[j]>d2SO) {
+                        // This particle is outside of the halo.
+                        // Just check if it's the next center
+                        if (density[j]>maxdens && halo_index[j]>=0) {
+                            maxdens=density[j];
+                            densest = j;
+                        }
+                        continue;  // Go on to the next particle
+                    }
+                    // This particle is within the density threshold and might
+                    // be part of this halo.
+
+                    // Further, it is ineligible to be a halo center;
+                    // this is signalled by a negative halo_index.
+                    // halo_index[j] = (halo_index[j]==0)?(-1):-abs(halo_index[j]);
+                        // The -1 here will get overwritten just below
+                    halo_index[j] = -abs(halo_index[j]);
+
+                    // Interpolate to get the density of the given particle 
+                    // Dens(r)=Dens_SO d2SO/r^2
+                    inv_d = d2_active[j]*(inv_d2del);
+                    // If this is the highest enclosed density yet encountered
+                    // for this particle by a sufficient factor mag_roche, 
+                    // adopt this halo as its current choice and update max density.
+                    if (min_inv_den[j] > mag_roche*inv_d) {
+                        halo_index[j] = (halo_index[j]<=0)?(-count):count;
+                        // Preserve the sign as the indicator of eligibility.
+                        min_inv_den[j] = inv_d;
+                    }
+                    // N.B., in the current code, I think we can only make
+                    // negative halo_index[] values.
+                }  
             }
         }
 
@@ -885,7 +857,8 @@ void load_socg() {
 
     for (int j=0; j<np; j++) {
         // TODO: Added this mod to break up the groups artificially
-        if ((j%1000!=0) && cellindex[j] == lastidx) continue;
+        // if ((j%1000!=0) && cellindex[j] == lastidx) continue;
+        if (cellindex[j] == lastidx) continue;
             // else we've found the start of a new group
         if (laststart==-1) {
             // It's the first group, so just start it.
