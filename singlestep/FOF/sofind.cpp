@@ -452,7 +452,7 @@ FOFloat partial_search(int len, int mass, FOFloat shell_max_rad2, int &size_thre
 /// very close to the inverse of the density threshold, but it might differ
 /// if we ran out of particles before getting down to that density.
 
-FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_den) {
+FOFloat search_socg_thresh(FOFparticle halocenter, int &mass, FOFloat &inv_enc_den) {
     mass = 0;
     FOFloat FOFr2 = 0;
     FOFloat x = 0;
@@ -469,7 +469,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
     Distance.Start();
     int furthest_firstbin = -1;
     for (int i = 0; i<ncg; i++) {
-        socg[i].compute_d2(halocenter);
+        socg[i].compute_d2(&halocenter);
         // uses minimum distance to halo center and gives us firstbin
         if (socg[i].firstbin > furthest_firstbin) {
             furthest_firstbin = socg[i].firstbin;
@@ -500,7 +500,7 @@ FOFloat search_socg_thresh(FOFparticle *halocenter, int &mass, FOFloat &inv_enc_
                 // Get start[1] thru start[3] for every new SOgroupcell
                 // Compute the d2 in particle order and then use this
                 // for partition -- stored in d2_active when fn is called
-                partition_cellgroup(socg+i, halocenter);
+                partition_cellgroup(socg+i, &halocenter);
             }
         }
 
@@ -670,7 +670,7 @@ int greedySO() {
         // but also mass within the threshold.
         // Threshold distance d2SO has the property that all particles within it
         // satisfy the overdensity condition
-        FOFloat d2SO = search_socg_thresh(p+start,mass,inv_enc_den);
+        FOFloat d2SO = search_socg_thresh(p[start],mass,inv_enc_den);
         halo_radius2[count] = d2SO;
         // Threshold distance d2SO has the property that particles
         // found in it can never be eligible centers
