@@ -269,6 +269,7 @@ class SOcell {
         Rdensmax2 = WriteState.DensityKernelRad2*FOF_RESCALE*FOF_RESCALE;
 
         alpha_eligible2 = 0.7;
+        alpha_eligible2 *= alpha_eligible2;
 
         int ret = posix_memalign((void **)&twothirds, 64, sizeof(FOFloat)*(SO_CACHE+2));  assert(ret == 0);
         for (int j=0; j<SO_CACHE+2; j++) twothirds[j] = pow(j,2.0/3.0);
