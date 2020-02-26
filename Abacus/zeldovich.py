@@ -151,7 +151,7 @@ def setup_zeldovich_params(params):
     return zd_params
     
 
-def run(paramfn, allow_eigmodes_fn_override=False):
+def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=False):
     '''
     Invokes the zeldovich executable with the given parameter file,
     cleaning up any exisitng output directories first and also
@@ -186,7 +186,7 @@ def run(paramfn, allow_eigmodes_fn_override=False):
 
     ZD_cmd = [pjoin(zeldovich_dir, "zeldovich"), paramfn]
 
-    parallel = params.get('Parallel', False)
+    parallel = params.get('Parallel', False) and not no_parallel
 
     if parallel:
         try:
@@ -256,6 +256,7 @@ if __name__ == '__main__':
     parser.add_argument('--out-parent', help="Overrides the parfile InitialConditionsDirectory (i.e. the zeldovich output directory) with PARENT/SimName/ic."
                                              "  Create a new abacus_ic.par with the modified parameters: IC dir; and if don't exist: eigmodes, camb_matterpower", metavar='PARENT')
     parser.add_argument('--show-growth', help='Just compute the growth factor from z=0 to z_init from the cosmology in the given parameter file. Does not generate ICs.', action='store_true')
+    parser.add_argument('--no-parallel', help='Do not invoke the ZD_mpirun_cmd to run zeldovich, despite Parallel = 1 in the parameter file')
     
     args = parser.parse_args()
     args = vars(args)
