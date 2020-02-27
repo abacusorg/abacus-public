@@ -43,12 +43,11 @@ from .InputFile import InputFile
 from . import Tools
 from . import GenParam
 from . import zeldovich
-from Abacus.Cosmology import AbacusCosmo
 
-NEEDS_INTERIM_BACKUP_MINS = 105 #minimum job runtime (in minutes) for which we'd like to do a backup halfway through the job. 
+NEEDS_INTERIM_BACKUP_MINS = 105  #minimum job runtime (in minutes) for which we'd like to do a backup halfway through the job. 
 EXIT_REQUEUE = 200
 RUN_TIME_MINUTES = os.getenv("JOB_ACTION_WARNING_TIME")
-GF_BACKUP_INTERVAL = 2 * 60 * 60 #only backup b/w group finding steps if it's been more than two hours since the last backup. 
+GF_BACKUP_INTERVAL = 2 * 60 * 60  #only backup b/w group finding steps if it's been more than two hours since the last backup. 
 
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
 directory_param_fn = pjoin(abacuspath, 'Abacus', 'directory.def')
@@ -1226,6 +1225,14 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         print(f"Reached maxsteps limit at {ending_time_str:s}; exiting job w/o requeue after {ending_time:.2f} hours.")
         status_log.print(f"# Reached maxsteps limit at {ending_time_str:s}; exiting job w/o requeue after {ending_time:.2f} hours.")    
         finished = True
+
+    if finished and parallel and param.get('SaveFinalState',False):
+        retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, resume_dir, '--retrieve']
+        restore_time = wall_timer()
+        call_subprocess(Conv_mpirun_cmd + retrieve_state_cmd)
+        restore_time = wall_timer() - restore_time
+        print(f'Retrieving and storing final state took {restore_time:.1f} seconds. ', end = '')
+        status_log.print(f'# Retrieving and storing final state took {restore_time:.1f} seconds.')
 
     # If there is more work to be done, signal that we are ready for requeue
     if not finished and not ProfilingMode: 
