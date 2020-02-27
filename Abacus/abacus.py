@@ -346,6 +346,7 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
     5) If `override_directories` is set, overwrite directories with defaults from the environment
     '''
     # We will build this dict in order of precedence
+    # LHG TODO: not using _param_kwargs, probably a bug?
     _param_kwargs = param_kwargs.copy()
 
     if use_site_overrides:

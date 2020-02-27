@@ -15,4 +15,3 @@ matplotlib
 contexttimer
 table_logger
 cffi
-
