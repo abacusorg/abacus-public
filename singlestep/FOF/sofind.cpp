@@ -488,6 +488,7 @@ FOFloat search_socg_thresh(FOFparticle halocenter, FOFloat halocentraldensity, i
     Distance.Start();
     int furthest_firstbin = -1;
     for (int i = 0; i<ncg; i++) {
+        socg[i].active = 0;   // Reset this flag
         socg[i].compute_d2(&halocenter);
         // uses minimum distance to halo center and gives us firstbin
         if (socg[i].firstbin > furthest_firstbin) {
@@ -567,7 +568,7 @@ FOFloat search_socg_thresh(FOFparticle halocenter, FOFloat halocentraldensity, i
             // d2_bin is used in partial_search and modified through
             // swapping and sorting; d2_active has all FOF particles in bins 0 through
             // r partitioned and should remain intact till done with the halo center.
-            
+
             // Search for density threshold in list, given previous mass.
             d2_thresh = partial_search(size_bin, mass, FOFr2, size_thresh, inv_enc_den);
             if (d2_thresh > 0.0) {
@@ -754,7 +755,7 @@ int greedySO() {
             } else {
                 // This cell was used.
                 // Make it inactive to reset the array for the next forming halo
-                socg[i].active = 0;
+                // socg[i].active = 0; // We're now doing this elsewhere.
                 // Loop over all particles in that cell
                 for (int j=socg[i].start[0]; j<socg[i].start[4]; j++) {
                     if (d2_active[j]>d2SO) {
