@@ -24,3 +24,4 @@ Tests/MultipoleSpeed/test_multipolesAVX512
 Tests/MultipoleSpeed/test_multipolesVSX
 config.site
 globus_status.toml
+FREEZE

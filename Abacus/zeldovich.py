@@ -59,9 +59,9 @@ import shlex
 
 import numpy as np
 
-from .InputFile import InputFile
-from . import GenParam
-from . import abacus
+from Abacus.InputFile import InputFile
+from Abacus import GenParam
+from Abacus import abacus
 import Abacus.Cosmology
 
 zeldovich_dir = pjoin(abacus.abacuspath, 'external', 'zeldovich-PLT')
@@ -252,11 +252,14 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run the zeldovich code (located in {})'.format(zeldovich_dir))
-    parser.add_argument('parfile', help='The parameter file.  This is usually the same as the .par file for singlestep.', nargs='+')
+    parser.add_argument('parfile', nargs='+',
+        help='The parameter file.  This is usually the same as the .par file for singlestep.')
     parser.add_argument('--out-parent', help="Overrides the parfile InitialConditionsDirectory (i.e. the zeldovich output directory) with PARENT/SimName/ic."
                                              "  Create a new abacus_ic.par with the modified parameters: IC dir; and if don't exist: eigmodes, camb_matterpower", metavar='PARENT')
-    parser.add_argument('--show-growth', help='Just compute the growth factor from z=0 to z_init from the cosmology in the given parameter file. Does not generate ICs.', action='store_true')
-    parser.add_argument('--no-parallel', help='Do not invoke the ZD_mpirun_cmd to run zeldovich, despite Parallel = 1 in the parameter file')
+    parser.add_argument('--show-growth', action='store_true',
+        help='Just compute the growth factor from z=0 to z_init from the cosmology in the given parameter file. Does not generate ICs.')
+    parser.add_argument('--no-parallel', action='store_true',
+        help='Do not invoke the ZD_mpirun_cmd to run zeldovich, despite Parallel = 1 in the parameter file')
     
     args = parser.parse_args()
     args = vars(args)
