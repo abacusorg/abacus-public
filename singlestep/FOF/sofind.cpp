@@ -260,6 +260,7 @@ class SOcell {
         reset(32768);
         setup_socg(2048);
 
+
         mag_roche = P.SO_RocheCoeff;    /// Condition for a satellite halo to eat up particles belonging to a larger halo
 
         // We need to convert the R_Delta^2
@@ -267,9 +268,13 @@ class SOcell {
 
         // We adopt the DensityKernelRadius as the local density maximum criteria
         Rdensmax2 = WriteState.DensityKernelRad2*FOF_RESCALE*FOF_RESCALE;
+        assertf(Rdensmax2<GFC->SOpartition*GFC->SOpartition, "SO Local Density is bigger than SOpartition\n");   // This violates the algorithm below, which assumes that the first bin contains the local density criteria.
 
-        alpha_eligible2 = 0.7;
+        alpha_eligible2 = P.SO_alpha_eligible;
         alpha_eligible2 *= alpha_eligible2;
+
+        STDLOG(1,"Setting up SO with mag_roche= %f min_radius= %f Rdensmax2= %f alpha_eligible= %f\n", 
+            mag_roche, sqrt(min_radius2)/FOF_RESCALE, sqrt(Rdensmax2)/FOF_RESCALE, sqrt(alpha_eligible2));
 
         int ret = posix_memalign((void **)&twothirds, 64, sizeof(FOFloat)*(SO_CACHE+2));  assert(ret == 0);
         for (int j=0; j<SO_CACHE+2; j++) twothirds[j] = pow(j,2.0/3.0);
