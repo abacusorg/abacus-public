@@ -273,9 +273,11 @@ class SOcell {
         alpha_eligible2 = P.SO_alpha_eligible;
         alpha_eligible2 *= alpha_eligible2;
 
+        /*
         if (omp_get_thread_num()==0) 
             STDLOG(1,"Setting up SO with mag_roche= %f min_radius= %f Rdensmax2= %f alpha_eligible= %f\n", 
                 mag_roche, sqrt(min_radius2)/FOF_RESCALE, sqrt(Rdensmax2)/FOF_RESCALE, sqrt(alpha_eligible2));
+        */
 
         int ret = posix_memalign((void **)&twothirds, 64, sizeof(FOFloat)*(SO_CACHE+2));  assert(ret == 0);
         for (int j=0; j<SO_CACHE+2; j++) twothirds[j] = pow(j,2.0/3.0);
