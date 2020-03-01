@@ -1,4 +1,4 @@
-[submodule "zeldovich-PLT"]
+[submodule "external/zeldovich-PLT"]
 	path = external/zeldovich-PLT
 	url = git@github.com:abacusorg/zeldovich-PLT.git
 	branch = master
