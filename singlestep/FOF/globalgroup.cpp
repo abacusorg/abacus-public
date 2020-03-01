@@ -524,16 +524,16 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                         // We're going to sort the cellgroup list, so that
                         // multiple groups within one cell are contiguous
                         // But there's no point in doing this unless there are 3+ CG.
-                        /*
                         if (cglist.size()>2) {
                             std::sort(cglist.data(), cglist.data()+cglist.size());
+                            /*
                             for (uint64 t = 1; t<cglist.size(); t++) 
                                 assertf(cglist[t-1].id <= cglist[t].id,
                                     "Failed to sort propertly: %lld > %lld\n", 
                                         cglist[t-1].id,
                                         cglist[t].id);
+                            */
                         }
-                        */
 
                         for (uint64 t = 0; t<cglist.size(); t++) {
                             //integer3 tmp = cglist[t].cell();

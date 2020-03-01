@@ -251,7 +251,7 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):
     run(new_parfn)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Run the zeldovich code (located in {})'.format(zeldovich_dir))
+    parser = argparse.ArgumentParser(description=f'Run the zeldovich code (located in {zeldovich_dir})')
     parser.add_argument('parfile', nargs='+',
         help='The parameter file.  This is usually the same as the .par file for singlestep.')
     parser.add_argument('--out-parent', help="Overrides the parfile InitialConditionsDirectory (i.e. the zeldovich output directory) with PARENT/SimName/ic."
