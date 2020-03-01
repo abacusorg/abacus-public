@@ -8,6 +8,15 @@ While we could trivially move the text descriptions
 of the stages from assembly_line.py to each class
 below, retaining the text as part of that dictionary
 makes it more readable
+
+In general, we probably want to try to catch errors
+rather than raise them.  If we raise errors anywhere,
+the entire script comes to a halt and we don't write
+out the CSV with updated stages or send any emails.
+In some cases, it may be appropriate to place the
+box in an error stage so the user has to check on it;
+in others, it may be appropriate to just not advance
+the stage so the script can try again later.
 '''
 
 __all__ = ['Stage', 'ErrorStage', 'Frozen',
@@ -26,6 +35,9 @@ import re
 from Abacus import globus
 
 globus_status_log = 'globus_status.log'
+
+# Common directory to dump all job script output
+logdir = pjoin(os.path.dirname(__file__), 'logs')
 
 class Stage:
     # stages are supposed to be immutable, but let's not go overboard enforcing that
@@ -122,7 +134,11 @@ class ReadyForIC(Stage):
         cmd = 'sbatch --job-name=' + box.jobname('ICs')  + ' rhea_ic_creation.slurm ' + box.parfn
         if self.disable_automation:
             breakpoint()
-        subprocess.run(shlex.split(cmd), check=True)
+        try:
+            subprocess.run(shlex.split(cmd), check=True)
+        except:
+            print(f'Error submitting box {box.name} for ICs.  Continuing...')
+            return False
         return True
 
 ################################### QUEUED FOR IC ###################################
@@ -138,11 +154,11 @@ class QueuedIC(Stage):
 
 class ReadyForSummit(Stage):
     def indicator(self, box):
-        '''are the ICs finished? do they have a sane size?'''
+        '''are the ICs finished?'''
         if self.disable_automation:
             breakpoint()
         try:
-            with open(box.jobname('ICs') + '.out') as f:
+            with open(pjoin(logdir, box.jobname('ICs') + '.out')) as f:
                 return 'IC creation complete.' in f.read()
                 #TODO could check ic files sizes, are they what we expect?
         except FileNotFoundError:
@@ -184,7 +200,14 @@ class ReadyForPostProcess(Stage):
         cmd = 'sbatch --job-name=' + box.jobname('PostProcess') + ' rhea_post_process.slurm' + box.parfn
         if self.disable_automation:
             breakpoint()
-        subprocess.run(shlex.split(cmd), check=True) #TODO slurm python bindings?
+
+        try:
+            subprocess.run(shlex.split(cmd), check=True)  #TODO slurm python bindings?
+        except:
+            # TODO: do we want to crash here? place box in error stage?
+            # Don't really want to raise exception, because then the whole script halts and we don't record anything or send any emails
+            print(f'Error submitting box {box.name} for post-procesing.  Continuing...')
+            return False
 
         #also, delete this box's ics! we don't need them anymore.
         return True
@@ -206,7 +229,7 @@ class ReadyForDataTransfer(Stage):
         if self.disable_automation:
             breakpoint()
         try:
-            with open(box.jobname('PostProcess') + '.out') as f:
+            with open(pjoin(logdir, box.jobname('PostProcess') + '.out')) as f:
                 return 'Post processing complete.' in f.read()
         except FileNotFoundError:
             return False
@@ -275,7 +298,11 @@ def QueuedJobs(computer_name):
 
     if computer_name == 'rhea':
         queued_cmd  = 'squeue -A AST145 --format=%j -h'  # -h: no header
-        queued_jobs = subprocess.run(shlex.split(queued_cmd), check=True, capture_output=True, text=True).stdout
+        try:
+            queued_jobs = subprocess.run(shlex.split(queued_cmd), check=True, capture_output=True, text=True).stdout
+        except:
+            print(f'Error getting queued jobs on rhea.  Continuing...')
+            return []
         return [x.strip() for x in queued_jobs.split()]
 
     elif computer_name == 'summit':
@@ -300,6 +327,12 @@ def SignalSummitSleeper(task, box=None, time_limit=300):
     if task == 'submit':  # TODO: could aggregate submissions
         taskstr += ':' + box.name
 
+    # Clear any stale responses
+    try:
+        os.remove(respfn)
+    except FileNotFoundError:
+        pass
+
     # Write, flush, sync, close, then rename in hopes of achieving more atomicity
     with open(tmpfn, "w") as f:
         #send a request to the summit sleeper script.
@@ -307,9 +340,6 @@ def SignalSummitSleeper(task, box=None, time_limit=300):
         f.flush()
         os.fsync(f.fileno())
     os.rename(tmpfn,reqfn)
-
-    # Clear any stale responses
-    os.remove(respfn)
 
     print('Sent request to Summit sleeper, waiting for response...', flush=True)
 

@@ -19,7 +19,6 @@ import os
 from os.path import join as pjoin, abspath
 import smtplib
 from email.message import EmailMessage
-import subprocess
 import shlex
 import time
 
@@ -40,7 +39,7 @@ stages = {
         0:            NotStarted('Not Started'),
         1:            ReadyForIC('Ready for IC'),
         2:              QueuedIC('Queued IC'),
-        3:        ReadyForSummit('Ready for Summit', noop='action'),
+        3:        ReadyForSummit('Ready for Summit',           noop='action'),
         4:        QueuedOnSummit('Queued on Summit',           noop=True),
         5:   ReadyForPostProcess('Ready for post-processing',  noop=True),
         6:  QueuedForPostProcess('Queued for post-processing', noop=True),
