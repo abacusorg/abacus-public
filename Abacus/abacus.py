@@ -1084,7 +1084,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             #are we coming up on a group finding step? If yes, backup the state, just in case.
             pre_gf_backup  = False
             output_arrs = [param.get('L1OutputRedshifts'), param.get('TimeSliceRedshifts'), param.get('TimeSliceRedshifts_Subsample')]
-            output_arrs = [list(o) for i in output_arrs if o is not None]
+            output_arrs = [list(o) for o in output_arrs if o is not None]
 
             if run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60:
                 for oa in output_arrs:
