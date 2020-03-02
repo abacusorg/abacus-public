@@ -39,11 +39,11 @@ stages = {
         0:            NotStarted('Not Started'),
         1:            ReadyForIC('Ready for IC'),
         2:              QueuedIC('Queued IC'),
-        3:        ReadyForSummit('Ready for Summit',           noop='action'),
-        4:        QueuedOnSummit('Queued on Summit',           noop=True),
-        5:   ReadyForPostProcess('Ready for post-processing',  noop=True),
-        6:  QueuedForPostProcess('Queued for post-processing', noop=True),
-        7:  ReadyForDataTransfer('Ready for data transfer',    noop=True),
+        3:        ReadyForSummit('Ready for Summit'),
+        4:        QueuedOnSummit('Queued on Summit'),
+        5:   ReadyForPostProcess('Ready for post-processing'),
+        6:  QueuedForPostProcess('Queued for post-processing'),
+        7:  ReadyForDataTransfer('Ready for data transfer'),
         8:      ReadyForDeletion('Ready for deletion',         noop=True),
         9:             Completed('Completed',                  noop=True),
     }
@@ -133,10 +133,10 @@ class Suite:
         self.refresh = refresh
         self.no_summit = no_summit
 
-        self.summit_queue_status = QueuedJobs('summit') if not no_summit else []
-
         self.csv_fn = csv
         prev = self.load_previous_status()
+
+        self.summit_queue_status = QueuedJobs('summit') if not no_summit else []
 
         # By default, only process boxes that are present in the CSV
         self.boxes = []
@@ -148,8 +148,8 @@ class Suite:
         if add_boxes is not None:
             assert len(set(add_boxes)) == len(add_boxes)  # no duplicates in new
             assert all(ab not in [box.name for box in self.boxes] for ab in add_boxes)  # no duplicates with existing
-            for box in add_boxes:
-                box = Box(pjoin(suite_spec_dir, box), self, self.disable_automation, boxname in self.summit_queue_status)
+            for boxname in add_boxes:
+                box = Box(pjoin(suite_spec_dir, boxname), self, self.disable_automation, boxname in self.summit_queue_status)
                 self.boxes += [box]
 
 
@@ -165,6 +165,11 @@ class Suite:
         try:
             with open(self.csv_fn, 'r', newline='') as file:
                 reader = csv.reader(file)
+                firstline = next(reader)[0]
+                # Just to prevent later overwriting the wrong file
+                if firstline != '# AbacusSummit CSV File':
+                    raise RuntimeError(f"File {self.csv_fn} does not look like an AbacusSummit CSV file")
+
                 #TODO this is dangerous if we ever change record_summary_csv()
                 self.previous_suite_status = {row[0]   : int(row[1])   for row in reader if not row[0].startswith('#')}
         except FileNotFoundError:
@@ -256,8 +261,9 @@ class Suite:
 
 
     def record_summary_csv(self):
-        header = f'# Suite specification directory: {self.suite_spec_dir}\n' + \
-                f'# Suite working directory: ' + os.environ['ABACUS_PERSIST'] + f'/{self.suite_name}\n'
+        header = f'# AbacusSummit CSV File\n' + \
+                 f'# Suite specification directory: {self.suite_spec_dir}\n' + \
+                 f'# Suite working directory: ' + os.environ['ABACUS_PERSIST'] + f'/{self.suite_name}\n'
         subject = 'SUITE STATUS SUMMARY'
         message = header
         with open(self.csv_fn, 'w', newline='') as fp:

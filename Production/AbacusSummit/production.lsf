@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
 #BSUB -P ast145
-#BSUB -o logs/lsf-%J_%I.out
-#BSUB -nnodes 4
+#BSUB -nnodes 3
 #BSUB -J "Abacus"
 #BSUB -W 120  # run for X minutes
 #BSUB -Q 200  # Requeue this job if this script exits with code 200
@@ -27,10 +26,15 @@ export JOB_ACTION_WARNING_TIME=115
 # Specify the directory holding the simulation config inside the abacus/Production dir
 ######################
 SET_NAME="AbacusSummit"
-if [ -z "$SIM_NAME"]; then
-    SIM_NAME="MiniAbacusSummit_base_c010_ph000"
+if [[ -z "$SIM_NAME" ]]; then
+    #SIM_NAME="MiniAbacusSummit_base_c010_ph000"
+    echo "Need $SIM_NAME!"; exit 1
 fi
 ######################
+
+echo -e "* Loading modules\n"
+source modules.sh
+echo -e "\n\n\n\n"
 
 # Merge into one path
 SIM_DIR="$SET_NAME/$SIM_NAME"
@@ -42,9 +46,12 @@ export ABACUS_TMP=$RAMDISK
 export ABACUS_SSD=$RAMDISK
 #ABACUS_LOCALSCRATCH="/localscratch/$USER/"
 
-export ABACUS_PERSIST=$PROJWORK
+export ABACUS_PERSIST=$ABACUSSUMMIT_PERSIST
 
-DEBUG_FN=lsf-$LSB_JOBID\_$LSB_JOBINDEX.debug
+ABACUS_SOURCE=$ABACUS
+#export ABACUS="$ABACUS_SSD/$(basename $ABACUS_SOURCE)/"
+
+DEBUG_FN=logs/${LSB_JOBNAME}_production.debug
 function jsrun_all()
 {
     # There's lots of information we want to store for debugging but makes the logs hard to read,
@@ -55,13 +62,6 @@ function jsrun_all()
 echo -e "* Clearing ramdisk\n"
 jsrun_all rm -rf $RAMDISK
 echo -e "\n\n\n\n"
-
-echo -e "* Loading modules\n"
-source modules.sh
-echo -e "\n\n\n\n"
-
-ABACUS_SOURCE=$ABACUS
-#export ABACUS="$ABACUS_SSD/$(basename $ABACUS_SOURCE)/"
 
 #export PAMI_IBV_ENABLE_DCT=0
 #export PAMI_IBV_ENABLE_OOO_AR=0
@@ -110,8 +110,8 @@ fi
 ######################################################################## 
 ######################################################################## 
 ########################################################################
-echo -e "* Running abacus: $ABACUS/Production/$SIM_DIR\n"
-$ABACUS/Production/run_sim.py "$ABACUS/Production/$SIM_DIR" 
+echo -e "* Running abacus: $ABACUSSUMMIT_SPEC/$SIM_NAME\n"
+$ABACUS/Production/run_sim.py "$ABACUSSUMMIT_SPEC/$SIM_NAME"
 
 ######################################################################## 
 ######################################################################## 
@@ -126,7 +126,7 @@ ABACUS_EXIT=$?
 echo -e "Abacus exit code: $ABACUS_EXIT \n"
 echo -e "\n\n\n\n"
 
-if [ "$ABACUS_EXIT" == 200 ]; then
+if [[ "$ABACUS_EXIT" == 200 ]]; then
     echo "Requeuing this job."
     brequeue $LSB_JOBID
     export REQUEUED='Y' 

@@ -58,7 +58,7 @@ class Stage:
             self.action = lambda s,b: False  # returns False; stages will not advance
             self.indicator = lambda b: False  # later stages that are no-op'd should not grab boxes
         elif noop == 'action':
-            self.action = lambda s,b: False
+            self.action = lambda b: False
 
     # Default indicator is no-op
     # Indicators return True if this stage has already been executed, else False
@@ -341,7 +341,7 @@ def SignalSummitSleeper(task, box=None, time_limit=300):
         os.fsync(f.fileno())
     os.rename(tmpfn,reqfn)
 
-    print('Sent request to Summit sleeper, waiting for response...', flush=True)
+    print(f'Sent "{task}" request to Summit sleeper, waiting for response...', flush=True)
 
     starttime = time.time()
 
