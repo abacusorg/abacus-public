@@ -215,7 +215,7 @@ HaloStat ComputeStats(int size,
     // The 4th power of that is proportional to N^2/R^2.
     vmax = 0.0;
     for (int p=size/10; p<size; p++) {
-		float v4 = p*p/L2.d2_active[p];
+		float v4 = (float)p*p/L2.d2_active[p];
 		if (v4>vmax) { vmax = v4; rvmax = L2.d2_active[p]; }
     }
     h.rvcirc_max_com = lround(sqrt(rvmax) / h.r100_com * INT16SCALE );    // Get to radial units and compress into int16. 
@@ -312,7 +312,7 @@ HaloStat ComputeStats(int size,
     // The 4th power of that is proportional to N^2/R^2.
     vmax = 0.0;
     for (int p=size/10; p<size; p++) {
-	float v4 = p*p/L2.d2_active[p];
+	float v4 = (float)p*p/L2.d2_active[p];
 	if (v4>vmax) { vmax = v4; rvmax = L2.d2_active[p]; }
     }
     h.rvcirc_max_L2com = lround(sqrt(rvmax) / h.r100_L2com * INT16SCALE );    // Get to radial units and compress into int16. 
