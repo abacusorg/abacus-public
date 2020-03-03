@@ -1,3 +1,16 @@
-[submodule "zeldovich-PLT"]
-	path = zeldovich-PLT
+[submodule "external/zeldovich-PLT"]
+	path = external/zeldovich-PLT
 	url = git@github.com:abacusorg/zeldovich-PLT.git
+	branch = master
+[submodule "external/fast-cksum"]
+	path = external/fast-cksum
+	url = git@github.com:abacusorg/fast-cksum.git
+	branch = master
+[submodule "external/trz"]
+	path = external/trz
+	url = git@github.com:abacusorg/trz.git
+	branch = use-zstd
+[submodule "external/AbacusSummit"]
+	path = external/AbacusSummit
+	url = git@github.com:abacusorg/AbacusSummit.git
+	branch = master

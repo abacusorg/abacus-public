@@ -122,6 +122,7 @@ int set_core_affinity(int core_id);
 #include "SetInteractionCollection.hh"
 
 int NGPU = 0;                // Number of actual CUDA devices (not threads)
+int NGPUQueues = 0;  // Number of actual work queues
 
 // ===================  The Queue of Tasks =====================
 
@@ -139,7 +140,7 @@ enum GPUQueueTaskType { TASKTYPE_KILL,
                         TASKTYPE_SIC, };
 
 #include "tbb/concurrent_queue.h"
-tbb::concurrent_bounded_queue<GPUQueueTask> work_queues[MAX_GPUS];
+tbb::concurrent_bounded_queue<GPUQueueTask> *work_queues;
 
 
 
@@ -166,13 +167,15 @@ struct GPUBuffer {
 struct ThreadInfo {
     int thread_num;  // thread/buffer number
     int core;
+    int queue;  // which queue are we watching?
     int UsePinnedGPUMemory;
-    pthread_barrier_t *barrier;
+    pthread_barrier_t *barrier; // this is a pointer because threads share barriers
+    pthread_t thread;  // the thread itself
 };
 
 cudaStream_t * DeviceStreams;        ///< The actual CUDA streams, one per thread
 GPUBuffer * Buffers;                 ///< The pointers to the allocated memory
-pthread_t *DeviceThread;        ///< The threads!
+ThreadInfo *DeviceThreads;        ///< The threads!
 
 
 // =============== Code to invoke execution on a SIC ============
@@ -187,29 +190,27 @@ void SetInteractionCollection::GPUExecute(int blocking){
     // At this point, we are directing work to individual GPUs.
 
     // Push to the NUMA-appropriate queue
-    //int g = CurrentGPU;
-    int g = ((j_low + j_high) / 2. / cpd) * NGPU;
+    int q = ((j_low + j_high) / 2. / cpd) * NGPUQueues;
     if(j_low == j_high && j_high == cpd)
-        g--;
-    assert(g < NGPU);
+        q--;
+    assert(q < NGPUQueues);
 
-    AssignedDevice = g;  // no meaning for work_queue
     Blocking = blocking;
     
     if(blocking){
         // We're running the task from the main thread;
         // make sure the GPU threads have finished the necessary CUDA setup
-        while(!Buffers[g].ready){}
+        while(!Buffers[0].ready){}
         
-        GPUPencilTask(this, AssignedDevice);
+        // Send to buffer 0. No need to load balance when blocking!
+        GPUPencilTask(this, 0);
     }
     else {
         GPUQueueTask t;
         t.type = TASKTYPE_SIC;
         t.task = (void *)this;
-        work_queues[g].push(t);
+        work_queues[q].push(t);
     }
-    //CurrentGPU = (CurrentGPU + 1) %(NGPU * BPD);
 }
 
 
@@ -315,6 +316,7 @@ limited by the fraction of CPD**2
 extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize, 
     int numberGPUs, int bufferperdevice, 
     int *ThreadCoreStart, int NThreadCores,
+    int *GPUQueueAssignments,
     int *maxsinkblocks, int *maxsourceblocks,
     int UsePinnedGPUMemory) {
 
@@ -322,6 +324,12 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     BPD = bufferperdevice;
     NGPU = numberGPUs;
     int NBuf = BPD*NGPU;
+
+    // Determine the number of queues by the max assigned queue
+    for (int i = 0; i < NGPU; i++){
+        NGPUQueues = max(NGPUQueues, GPUQueueAssignments[i]+1);
+    }
+    STDLOG(1, "Using %d GPU work queues\n", NGPUQueues);
 
     // The following estimates are documented above, and assume sizeof(int)=4
     float BytesPerSourceBlockWC = sizeof(FLOAT)*3*NFBlockSize+8.0;
@@ -341,8 +349,8 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     assert(RatioDeftoAll<=1.0);  // Guard against screwup
 
     // This is how many blocks we'll allocate
-    MaxSinkBlocks = (MaxBufferSize-1e5)/TotalBytesPerSinkBlock;
-            // Remove 100KB for alignment factors
+    MaxSinkBlocks = (MaxBufferSize-1e5*PAGE_SIZE/4096)/TotalBytesPerSinkBlock;
+            // Remove a few MB for alignment factors
     MaxSourceBlocks = WIDTH*MaxSinkBlocks;
     *maxsinkblocks = MaxSinkBlocks;
     *maxsourceblocks = MaxSourceBlocks;
@@ -370,7 +378,8 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
 
     DeviceStreams = new cudaStream_t[NBuf];
     Buffers = new GPUBuffer[NBuf];
-    DeviceThread = new pthread_t[NBuf];
+    DeviceThreads = new ThreadInfo[NBuf];
+    work_queues = new tbb::concurrent_bounded_queue<GPUQueueTask>[NGPUQueues];
     
     // Start one thread per buffer
     
@@ -395,7 +404,6 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
         Buffers[g].sizeDef = Buffers[g].size*RatioDeftoAll;
         Buffers[g].ready = 0;
 
-        ThreadInfo *info = new ThreadInfo;
         int core_start = ThreadCoreStart[g % NGPU];
         int core = -1;
         // If either the core start or the core count are invalid, do not bind this thread to a core
@@ -409,18 +417,20 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
             assertf(p_ret == 0, "pthread_barrier_init failed with value %d\n", p_ret);
         }
         
+        ThreadInfo *info = DeviceThreads + g;
         info->thread_num = g;
         info->core = core;
         info->UsePinnedGPUMemory = UsePinnedGPUMemory;
         info->barrier = thread_startup_barriers[g%NGPU];
+        info->queue = GPUQueueAssignments[g%NGPU];
 
         if(core >= 0)
-            STDLOG(0, "GPU buffer thread %d (GPU %d) assigned to core %d, UsePinnedGPUMemory %d\n", g, g % NGPU, core, UsePinnedGPUMemory);
+            STDLOG(0, "GPU buffer thread %d (GPU %d) assigned to core %d, watching queue %d\n", g, g % NGPU, core, info->queue);
         else
-            STDLOG(0, "GPU buffer thread %d (GPU %d) not bound to a core, UsePinnedGPUMemory %d\n", g, g % NGPU, UsePinnedGPUMemory);
+            STDLOG(0, "GPU buffer thread %d (GPU %d) not bound to a core, watching queue %d\n", g, g % NGPU, info->queue);
         
         // Start one thread per buffer
-        int p_retval = pthread_create(&(DeviceThread[g]), NULL, QueueWatcher, info);
+        int p_retval = pthread_create(&(DeviceThreads[g].thread), NULL, QueueWatcher, info);
         assertf(p_retval == 0, "pthread_create failed with value %d\n", p_retval);
 
         host_alloc_bytes += Buffers[g].sizeWC + Buffers[g].sizeDef;
@@ -439,17 +449,20 @@ void GPUReset(){
     GPUQueueTask t;
     t.type = TASKTYPE_KILL;
     t.task = NULL;
-    for(int g = 0; g < NGPU; g++)
-            for (int b = 0; b < BPD; b++) 
-                work_queues[g].push(t);
-    for(int g = 0; g < BPD*NGPU; g++)
-        assert(pthread_join(DeviceThread[g], NULL) == 0);
+    for(int i = 0; i < BPD*NGPU; i++)
+        work_queues[DeviceThreads[i].queue].push(t);
+    for(int i = 0; i < BPD*NGPU; i++)
+        assert(pthread_join(DeviceThreads[i].thread, NULL) == 0);
+    for(int i = 0; i < NGPUQueues; i++){
+        assert(work_queues[i].empty());
+    }
 
     cudaDeviceReset();
 
     delete[] Buffers;
     delete[] DeviceStreams;
-    delete[] DeviceThread;
+    delete[] DeviceThreads;
+    delete[] work_queues;
 }
 
 
@@ -486,6 +499,7 @@ void *QueueWatcher(void *arg){
     int assigned_device = info->thread_num;
     int n = assigned_device;                 // The buffer number
     int gpu = assigned_device % NGPU;        // The GPU device number
+    int queue = info->queue;
     int assigned_core = info->core;
     if (assigned_core >= 0)
         set_core_affinity(assigned_core);
@@ -509,6 +523,9 @@ void *QueueWatcher(void *arg){
     STDLOG(1,"GPU stream %d initiated\n", n);
 
     // Allocate CUDA memory
+    STDLOG(1,"About to CudaAllocate %llu bytes on GPU %d\n", Buffers[n].size,gpu);
+    //assertf((Buffers[n].size > (int64) 1e9) && (Buffers[n].size < (int64) 3e9), "Unexpected CudaAllocate size %d bytes for AbacusSummit\n", Buffers[n].size);
+
     CudaAllocate(Buffers[n].device,     Buffers[n].size);
     WCAllocate(Buffers[n].hostWC,       Buffers[n].sizeWC);
     PinnedAllocate(Buffers[n].host,     Buffers[n].sizeDef);
@@ -538,7 +555,7 @@ void *QueueWatcher(void *arg){
     // Main work loop: watch the queue
     while(true){
         GPUQueueTask item;
-        work_queues[gpu].pop(item);
+        work_queues[queue].pop(item);
         if (item.type == TASKTYPE_KILL)
             break;
         // Each thread (not work unit) is bound to a device
@@ -572,7 +589,6 @@ void *QueueWatcher(void *arg){
 
     if(assigned_device < NGPU)
         delete info->barrier;  // this was allocated in GPUSetup
-    delete info;  // release the info struct that was passed as the pthreads arg
 
     return NULL;
 }

@@ -13,7 +13,7 @@ int RVrange(float3 *rv) {
     return range(rv->pos[0]) +range(rv->pos[1]) +range(rv->pos[2]);
 }
 
-void print_data(FILE *fp) {
+void print_data(FILE *fp, const char *fn) {
     float3 rv;
     int count = 0;
     while (fread(&rv, sizeof(float3), 1, fp)==1) {

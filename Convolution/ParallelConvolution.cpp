@@ -43,6 +43,9 @@ STimer  MunmapMT;
 STimer  MmapDerivs; 
 STimer  MunmapDerivs; 
 
+#define CONVTIMEBUFSIZE 65536
+char *convtimebuffer;    // This has to be allocated and freed outside of this class
+
 /// The zstart for the node of the given rank.
 int ParallelConvolution::Zstart(int rank) {
     return (cpd2p1*rank/MPI_size); 
@@ -80,6 +83,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	zstart = Zstart(MPI_rank);
 	znode = Zstart(MPI_rank+1)-zstart;
 	this_node_size = znode*rml*cpd;
+    convtimebuffer = NULL;
 	
 	STDLOG(2, "Doing zstart = %d and znode = %d\n", zstart, znode);
 	
@@ -138,7 +142,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	Mrecv_requests = new MPI_Request[cpd];
 	Trecv_requests = new MPI_Request * [cpd];
 	Tsend_requests = new MPI_Request[cpd];
-	
+
 	Msend_active = 0;
 	Trecv_active = 0;
 
@@ -154,6 +158,8 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
         TaylorSlabAllMPIDone[x] = 0;
         MultipoleSlabAllMPIDone[x] = 0;
 	} 
+    
+    MsendTimer = new STimer[cpd];
 
 	
 	int DIOBufferSizeKB = 1LL<<11;
@@ -173,8 +179,6 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	
 	CS.ops = 0;
 	CS.ComputeCores = omp_get_max_threads();
-
-    sprintf(wisdom_file, "parallel_convolve_fft.wisdom");
 }
 
 /// The destructor.  This should close the MTfile. NAM: MTfile can be closed right after mapping, I think. 
@@ -196,6 +200,7 @@ ParallelConvolution::~ParallelConvolution() {
 
     delete[] TaylorSlabAllMPIDone;
     delete[] MultipoleSlabAllMPIDone;
+    delete[] MsendTimer;
 
 	delete[] node_start; 
 	delete[] node_size; 
@@ -233,7 +238,6 @@ ParallelConvolution::~ParallelConvolution() {
 	Destructor.Stop(); CS.Destructor = Destructor.Elapsed();
 	
 	ThreadCleanUp.Clear(); ThreadCleanUp.Start();
-	//fftw_cleanup_threads(); //NAM check usage. 	
 	ThreadCleanUp.Stop(); CS.ThreadCleanUp = ThreadCleanUp.Elapsed();
 	
 	CS.ConvolveWallClock += Destructor.Elapsed() + ThreadCleanUp.Elapsed(); 
@@ -244,20 +248,14 @@ ParallelConvolution::~ParallelConvolution() {
 	dumpstats_timer.Start(); 
 	
 	if (not create_MT_file){ //if this is not the 0th step, dump stats. 
-	    char timingfn[1050];
-	    sprintf(timingfn,"%s/last%s.convtime",P.LogDirectory,NodeString);
 #ifndef DO_NOTHING
-	    dumpstats(timingfn); 
+	    dumpstats(); 
 #endif
 	}
 	
 	dumpstats_timer.Stop(); 
 	
 	STDLOG(1, "Dumpstats took %f seconds\n", dumpstats_timer.Elapsed());
-
-    STDLOG(1, "Exporting wisdom to file.\n");
-    if(MPI_rank == 0)
-       fftw_export_wisdom_to_filename(wisdom_file);
 }
 
 
@@ -344,7 +342,7 @@ void ParallelConvolution::AllocDerivs(){
 	
     size_t s = sizeof(DFLOAT)*(rml*CompressedMultipoleLengthXY);
     for (int z = 0; z < znode; z++){
-        int memalign_ret = posix_memalign((void **) (Ddisk + z), 4096, s);
+        int memalign_ret = posix_memalign((void **) (Ddisk + z), PAGE_SIZE, s);
         assert(memalign_ret == 0);
         //alloc_bytes += s;
     }
@@ -384,8 +382,11 @@ void ParallelConvolution::LoadDerivatives(int z) {
 		
 		
     } else {
-	    if(Ddisk[z] != NULL){ 
+	    if(Ddisk[z] != NULL){
+	    	MunmapDerivs.Clear(); MunmapDerivs.Start();
 	        int res = munmap(Ddisk[z], size);
+	        MunmapDerivs.Stop();
+	        CS.MunmapDerivs += MunmapDerivs.Elapsed();
 	        assertf(res == 0, "Failed to munmap derivs\n"); 
 	    }
 
@@ -410,7 +411,6 @@ void ParallelConvolution::LoadDerivatives(int z) {
 
 /* =========================  MPI Multipoles ================== */
 
-
 /// Launch the CPD MPI_Irecv jobs.
 /// Call this when the first slab is being finished.
 /// We need to know the slabs that will be computed on each node.
@@ -428,7 +428,7 @@ void ParallelConvolution::RecvMultipoleSlab(int first_slab_finished) {
 			// We're receiving the full range of z's in each transfer.
 			// Key thing is to route this to the correct x location
 			MPI_Irecv(MTdisk + x * this_node_size, this_node_size,
-			    MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Mrecv_requests[x]);
+			    MPI_COMPLEX, r, tag, comm_multipoles, &Mrecv_requests[x]);
 	    }
 	}
 	STDLOG(2,"MPI_Irecv set for incoming Multipoles\n");
@@ -447,8 +447,9 @@ void ParallelConvolution::SendMultipoleSlab(int slab) {
 	Msend_active++;
 	for (int r = 0; r < MPI_size; r++) {
 		int tag = (r+1) * 10000 + slab + M_TAG; 
-		MPI_Issend(mt + node_start[r], node_size[r], MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Msend_requests[slab][r]);		
+		MPI_Issend(mt + node_start[r], node_size[r], MPI_COMPLEX, r, tag, comm_multipoles, &Msend_requests[slab][r]);		
 	}
+    MsendTimer[slab].Start();
 	STDLOG(2,"Multipole slab %d has been queued for MPI_Issend, Msend_active = %d\n", slab, Msend_active);
 }
 
@@ -498,7 +499,8 @@ int ParallelConvolution::CheckSendMultipoleComplete(int slab) {
  		Msend_requests[x] = NULL;   // This will allow us to check faster
 
 		Msend_active--;
-		STDLOG(2,"MPI_Issend complete for MultipoleSlab %d, Msend_active = %d\n", x, Msend_active);
+        MsendTimer[slab].Stop();
+		STDLOG(1,"MPI_Issend complete for MultipoleSlab %d after %6.3f sec, Msend_active = %d\n", x, MsendTimer[slab].Elapsed(), Msend_active);
     }
 	
 	return done; 
@@ -556,18 +558,19 @@ int ParallelConvolution::GetTaylorRecipient(int slab, int offset){
 
 void ParallelConvolution::SendTaylors(int offset) {
 	QueueTaylors.Clear(); QueueTaylors.Start();
-	for (int slab = 0; slab < cpd; slab ++){ 
+	//for (int slab = 0; slab < cpd; slab ++){ 
+	for (int _slab = -cpd/2; _slab < cpd/2+1; _slab ++){ 
 		//Each node has Taylors for a limited range of z but for every x slab. 
 		//figure out who the receipient should be based on x slab and send to them. 
 		// Take from MTdisk. Set Tsend_requests[x] as request. 	
-		slab = CP->WrapSlab(slab);
-		STDLOG(4, "About to SendTaylor Slab %d with offset %d\n", slab, FORCE_RADIUS); 
+		int slab = CP->WrapSlab(_slab);
+		STDLOG(4, "About to SendTaylor Slab %d with offset %d\n", slab, offset); 
 		
 		int r = GetTaylorRecipient(slab, offset); //x-slab slab is in node r's domain. Send to node r. 
 	
 		int tag = (MPI_rank+1) * 10000 + slab + T_TAG; 
 		
-		MPI_Issend(MTdisk + slab * this_node_size, this_node_size, MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Tsend_requests[slab]);
+		MPI_Issend(MTdisk + slab * this_node_size, this_node_size, MPI_COMPLEX, r, tag, comm_taylors, &Tsend_requests[slab]);
 		STDLOG(3,"Taylor slab %d has been queued for MPI_Issend to rank %d, offset %d\n", slab, r, offset);
 	}
 	STDLOG(2, "MPI_Issend set for outgoing Taylors.\n");
@@ -586,7 +589,7 @@ void ParallelConvolution::RecvTaylorSlab(int slab) {
 	Trecv_active++; 
 	for (int r = 0; r < MPI_size; r++) {
 		int tag = (r+1) * 10000 + slab + T_TAG; 
-		MPI_Irecv(mt + node_start[r], node_size[r], MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Trecv_requests[slab][r]);
+		MPI_Irecv(mt + node_start[r], node_size[r], MPI_COMPLEX, r, tag, comm_taylors, &Trecv_requests[slab][r]);
 		
 		
 	}
@@ -598,7 +601,7 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
     if (Trecv_requests[slab]==NULL) return 1;  // Nothing to do for this slab
 	
     int err, received=0, done=1;
-    for (int r=0; r<MPI_size; r++) {
+    /*for (int r=0; r<MPI_size; r++) {
 		if (Trecv_requests[slab][r]==MPI_REQUEST_NULL) continue;  // Already done
 		
 	    err = MPI_Test(&Trecv_requests[slab][r], &received, MPI_STATUS_IGNORE);
@@ -610,12 +613,15 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
 		} else{
             assert(Trecv_requests[slab][r]==MPI_REQUEST_NULL);
         }
-    }
+    }*/
+
+    err = MPI_Testall(MPI_size, Trecv_requests[slab], &done, MPI_STATUSES_IGNORE);
 	
 	if (done) {
 		delete[] Trecv_requests[slab];
 		Trecv_requests[slab] = NULL; 
-		Trecv_active--; 
+		Trecv_active--;
+		STDLOG(2, "Taylor slab %d receives completed\n", slab);
 	}
 	
 	return done;
@@ -628,8 +634,13 @@ int ParallelConvolution::CheckTaylorSendComplete(int slab){
 	int sent = 0;
     int err = MPI_Test(&Tsend_requests[slab], &sent, MPI_STATUS_IGNORE);
 	
-	if (not sent) STDLOG(4, "Taylor slab %d not sent yet...\n", slab);
-    else assert(Tsend_requests[slab] == MPI_REQUEST_NULL);
+	if (not sent) {
+		STDLOG(4, "Taylor slab %d not sent yet...\n", slab);
+	}
+    else {
+    	assert(Tsend_requests[slab] == MPI_REQUEST_NULL);
+    	STDLOG(1, "Taylor slab %d send completed\n", slab);
+    }
 	
 	return sent; 
 }
@@ -740,16 +751,12 @@ void ParallelConvolution::Swizzle_to_xzmy() {
 
 
 fftw_plan ParallelConvolution::PlanFFT(int sign){
-	int wisdom_exists = fftw_import_wisdom_from_filename(wisdom_file);
-	
-	STDLOG(1, "Wisdom import returned %d (%s).\n", wisdom_exists, wisdom_exists == 1 ? "success" : "failure");
-	
 	fftw_plan plan = NULL;
 	
-	// TODO: Import wisdom
 	// We're going to plan to process each [x][y] slab separately,
 	// doing the cpd FFTs of cpd length.
 	// stride = cpd, dist = 1, nembed = NULL
+	// We imported any wisdom in Prologue
 
     STDLOG(2, "MTzmxy byte alignment is %d\n", 1 << __builtin_ctzll((unsigned long long) MTzmxy));
 	
@@ -761,7 +768,10 @@ fftw_plan ParallelConvolution::PlanFFT(int sign){
     		(fftw_complex *) MTzmxy, NULL, cpd, 1,
     		sign, FFTW_PATIENT | FFTW_WISDOM_ONLY);
         if(plan == NULL){
-            WARNING("Wisdom was imported but wisdom planning failed. Generating new plans...\n");
+            if(ReadState.FullStepNumber > 1)  // Haven't done any convolutions yet, don't expect wisdom!
+                WARNING("Wisdom was imported but wisdom planning failed. Generating new plans...\n");
+            else
+                STDLOG(1,"Wisdom was imported but wisdom planning failed (probably okay because this is first convolution). Generating new plans...\n");
         }
         else{
             STDLOG(1,"Wisdom planning succeeded.\n");
@@ -774,6 +784,7 @@ fftw_plan ParallelConvolution::PlanFFT(int sign){
             (fftw_complex *) MTzmxy, NULL, cpd, 1,
             sign, FFTW_PATIENT);
     }
+    assertf(plan != NULL, "Failed to generate ParallelConvolve FFTW plan for sign %d\n", sign);
 	
 	return plan;
 }
@@ -803,10 +814,6 @@ void ParallelConvolution::Convolve() {
 	// We're beginning in [x][znode][m][y] order on the RAMdisk
 	// Copy to the desired order in a new buffer
 	FFTPlanning.Clear(); FFTPlanning.Start();
-		int err = fftw_init_threads(); 
-		assertf(err != 0, "Failed to fftw_init_threads\n");
-		fftw_plan_with_nthreads(omp_get_max_threads()); //NAM TODO how many threads in here? 
-	
 		fftw_plan forward_plan  = PlanFFT(FFTW_FORWARD);
 		fftw_plan backward_plan = PlanFFT(FFTW_BACKWARD);
 	FFTPlanning.Stop();
@@ -876,11 +883,14 @@ void ParallelConvolution::Convolve() {
 
 /* ======================== REPORTING ======================== */ 
 
-void ParallelConvolution::dumpstats(char *fn) {
+void ParallelConvolution::dumpstats() {
+    if (convtimebuffer==NULL) return;
 
-    FILE *fp;
-    fp = fopen(fn,"w");
-    assert(fp!=NULL);
+    FILE *fp = fmemopen(convtimebuffer, CONVTIMEBUFSIZE, "w");
+
+    //FILE *fp;
+    //fp = fopen(fn,"w");
+    //assert(fp!=NULL);
 
 
     double accountedtime  = CS.ConvolutionArithmetic;

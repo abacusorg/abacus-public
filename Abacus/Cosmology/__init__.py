@@ -5,6 +5,7 @@ def from_params(params, z='init'):
         z = params['InitialRedshift']
     my_cosmology = AbacusCosmo.MyCosmology()
     my_cosmology.Omega_m = params['Omega_M']
+    my_cosmology.Omega_smooth = params.get('Omega_Smooth',0.)
     my_cosmology.Omega_K = params['Omega_K']
     my_cosmology.Omega_DE = params['Omega_DE']
     my_cosmology.H0 = params['H0']

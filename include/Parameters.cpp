@@ -105,6 +105,7 @@ public:
 	
     double H0;          // The Hubble constant in km/s/Mpc
     double Omega_M;
+    double Omega_Smooth;
     double Omega_DE;
     double Omega_K;
     double w0;          // w(z) = w_0 + (1-a)*w_a
@@ -156,6 +157,7 @@ public:
     // TODO: this scheme doesn't account for more complicated NUMA architectures
     int GPUThreadCoreStart[MAX_GPUS];  // The core on which to start placing GPU device threads.
     int NGPUThreadCores;  // The number of free cores on which to place GPU device threads.
+    int GPUQueueAssignments[MAX_GPUS];  // The work queue assignments
     int DirectBPD;
 
     double DensityKernelRad;  // The kernel Radius for the density computation, specified in units of the interparticle spacing.  0 will default to FoFLinkingLength[0]
@@ -167,6 +169,7 @@ public:
     int MinL1HaloNP; // minimum L1 halo size to output
 	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
     float SO_RocheCoeff; 
+    float SO_alpha_eligible;   // New centers must be outside alpha*R_Delta
     float SO_NPForMinDensity; 
     int SO_EvolvingThreshold; //allow evolving (redshift-dependent) density threshold 
 
@@ -187,6 +190,10 @@ public:
     int UsePinnedGPUMemory;  // Whether to pin the CPU-side GPU staging buffers
 
     double MPICallRateLimit_ms;  // Enforce a delay between MPI_Test calls
+
+    int UseMunmapThread;  // dedicated munmap() thread in ArenaAllocator
+
+    int MunmapThreadCore;  // Core binding for disposal thread
 
     // Return the L{tier} size in MB
     float getCacheSize(int tier){
@@ -325,6 +332,8 @@ public:
 
         installscalar("H0", H0, MUST_DEFINE);
         installscalar("Omega_M", Omega_M, MUST_DEFINE);
+        Omega_Smooth = 0.0;
+        installscalar("Omega_Smooth", Omega_Smooth, DONT_CARE);
         installscalar("Omega_DE", Omega_DE, MUST_DEFINE);
         installscalar("Omega_K", Omega_K, MUST_DEFINE);
         installscalar("w0", w0, MUST_DEFINE);
@@ -392,12 +401,16 @@ public:
         installscalar("nIODirs", nIODirs, DONT_CARE);
         installvector("IODirThreads", IODirThreads, MAX_IODIRS, 1, DONT_CARE);
 
-        // If any of these are undefined, GPU threads will not be bound to cores
-        for(int i = 0; i < MAX_GPUS; i++)
+        // If GPUThreadCoreStart is undefined, GPU threads will not be bound to cores
+        for(int i = 0; i < MAX_GPUS; i++){
             GPUThreadCoreStart[i] = -1;
+            GPUQueueAssignments[i] = i;  // one per GPU
+        }
         installvector("GPUThreadCoreStart", GPUThreadCoreStart, MAX_GPUS, 1, DONT_CARE);
+        installvector("GPUQueueAssignments", GPUQueueAssignments, MAX_GPUS, 1, DONT_CARE);
         NGPUThreadCores = -1;
         installscalar("NGPUThreadCores", NGPUThreadCores, DONT_CARE);
+
         DirectBPD = 3;
         installscalar("DirectBPD", DirectBPD, DONT_CARE);
 
@@ -422,6 +435,8 @@ public:
 
         SO_RocheCoeff = 2.0; 
         installscalar("SO_RocheCoeff", SO_RocheCoeff, DONT_CARE);
+        SO_alpha_eligible = 0.8; 
+        installscalar("SO_alpha_eligible", SO_alpha_eligible, DONT_CARE);
         SO_NPForMinDensity = 35.0; 
         installscalar("SO_NPForMinDensity", SO_NPForMinDensity, DONT_CARE);
         SO_EvolvingThreshold = 1; 
@@ -430,7 +445,7 @@ public:
         OutputAllHaloParticles = 0;
         installscalar("OutputAllHaloParticles", OutputAllHaloParticles, DONT_CARE);
 
-        MicrostepTimeStep = 0.;
+        MicrostepTimeStep = 0.;  // no microstepping
         installscalar("MicrostepTimeStep", MicrostepTimeStep, DONT_CARE);
 
         MaxPID = -1;
@@ -450,6 +465,12 @@ public:
 
         MPICallRateLimit_ms = 1;
         installscalar("MPICallRateLimit_ms", MPICallRateLimit_ms, DONT_CARE);
+
+        UseMunmapThread = 1;
+        installscalar("UseMunmapThread", UseMunmapThread, DONT_CARE);
+
+        MunmapThreadCore = -1;
+        installscalar("MunmapThreadCore", MunmapThreadCore, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.
@@ -705,12 +726,29 @@ void Parameters::ValidateParameters(void) {
         assert(1==0);
     }
     
+    if(Omega_Smooth<0.0 || Omega_Smooth>Omega_M){
+        fprintf(stderr,"Must have 0<=Omega_Smooth<Omega_M, but told Omega_Smooth = %g\n", Omega_Smooth);
+        assert(1==0);
+    }
+    
     if(abs(Omega_M + Omega_DE + Omega_K - 1.) > 1e-6){
         fprintf(stderr,"Omega_M + Omega_DE + Omega_K must equal 1, but is %g\n", Omega_M + Omega_DE + Omega_K);
         assert(1==0);
     }
 
-    // Illegal ICFormat's will crash in loadIC.cpp; no need to crash here.
+    // Illegal ICFormat's will crash in loadIC.cpp.
+    // But don't let the IC step run if it's going to crash when we try to do LPT
+
+    // If invoking LPT, must have displacement-oriented format
+    if(LagrangianPTOrder > 1){
+        if(!(strcasecmp(ICFormat, "Zeldovich") == 0 ||
+            strcasecmp(ICFormat, "RVZel") == 0 ||
+            strcasecmp(ICFormat, "RVdoubleZel") == 0)) {
+            fprintf(stderr, "ICFormat %s is not displacement-oriented and LagrangianPTOrder = %d\n",
+                    ICFormat, LagrangianPTOrder);
+        }
+    }
+
     /*
     ExpandPathName(DerivativesDirectory);
     ExpandPathName(ReadStateDirectory);

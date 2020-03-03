@@ -9,13 +9,15 @@ lot of infrastructure from there.
 
 */
 
+Dependency ReadIC;
+
 uint64 NP_from_IC = 0;
 
-int FetchICPrecondition(int slab) {
+int ReadICPrecondition(int slab) {
     // We always do this.
     #ifdef PARALLEL
-    if (Drift.raw_number_executed>=total_slabs_on_node) return 0;
-    // This prevents FetchSlabAction from reading beyond the 
+    if (ReadIC.raw_number_executed>=total_slabs_on_node) return 0;
+    // This prevents ReadICAction from reading beyond the 
     // range of slabs on the node.  In the PARALLEL code, these
     // data will arrive from the Manifest.  We have to implement
     // this on the raw_number because the reported number is adjusted
@@ -24,28 +26,47 @@ int FetchICPrecondition(int slab) {
     #endif
     return 1;
 }
-void FetchICAction(int slab) {
-    STDLOG(1,"Fetching slab %d\n", slab);
-    // Get a slab of particles and put them on the InsertList
-    uint64 NP_thisslab = LoadSlab2IL(slab);
+
+void ReadICAction(int slab) {
+    // Read an IC slab file into an arena
+    // It will be unpacked into particles in a later dependency
+    unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
+    ic->read_nonblocking();
+}
+
+int UnpackICPrecondition(int slab){
+    if(ReadIC.notdone(slab))
+        return 0;
+    
+    unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
+    if(!ic->check_read_done())
+        return 0;
+
+    return 1;
+}
+
+void UnpackICAction(int slab){
+    uint64 NP_thisslab = UnpackICtoIL(slab);
     NP_from_IC += NP_thisslab;
 
     // Record the number of particles read in SlabSize so the timing log uses the right particle count
     SS->setold(slab, NP_thisslab);
-    
+
     // We also need to create a null slab
     // These slabs will never come off ramdisk because this is the first timestep
     SB->AllocateSpecificSize(PosSlab,slab, 0, RAMDISK_NO);
     SB->AllocateSpecificSize(VelSlab,slab, 0, RAMDISK_NO);
     SB->AllocateSpecificSize(AuxSlab,slab, 0, RAMDISK_NO);
     SB->AllocateArena(CellInfoSlab,slab, RAMDISK_NO);
+    
     int cpd = CP->cpd;
+
+    #pragma omp parallel for schedule(static)
     for (int y=0; y<cpd; y++)
-        for (int z=0; z<cpd; z++) {
+        for (int z=0; z<cpd; z++)
             CP->CellInfo(slab,y,z)->makenull();
-        }
-    return;
 }
+
 /*
  * Registers the preconditions and actions for an IC step
  * When doing IC loading, we require that the neighboring slabs be loaded
@@ -75,7 +96,8 @@ void timestepIC(void) {
     int nslabs = P.cpd;
     int first = first_slab_on_node;
 
-    Drift.instantiate(nslabs, first, &FetchICPrecondition, &FetchICAction, "Drift");
+    INSTANTIATE(ReadIC, 0);
+    Drift.instantiate(nslabs, first, &UnpackICPrecondition, &UnpackICAction, "UnpackIC");
     INSTANTIATE(Finish, FINISH_WAIT_RADIUS);
 
 #ifdef PARALLEL
@@ -87,6 +109,7 @@ void timestepIC(void) {
 	
 	int timestep_loop_complete = 0; 
 	while (!timestep_loop_complete){
+        ReadIC.Attempt();
         Drift.Attempt();
        	Finish.Attempt();	   
        	SendManifest->FreeAfterSend();
@@ -105,12 +128,15 @@ void timestepIC(void) {
 
     STDLOG(1, "Read %d particles from IC files\n", NP_from_IC);
     #ifdef PARALLEL
+        BarrierWallClock.Start();
         MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
         MPI_REDUCE_TO_ZERO(&NP_from_IC, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
         STDLOG(1,"Ready to proceed to the remaining work\n");
         
-        MPI_Barrier(MPI_COMM_WORLD);
-        // This MPI call also forces a syncrhonization over the MPI processes, 
+        MPI_Barrier(comm_global);
+        BarrierWallClock.Stop(); 
+        
+        // This MPI call also forces a synchronization over the MPI processes, 
         // so things like Reseting GPUs could fire multiple times on one node.
         SendManifest->FreeAfterSend();
         // Run this again, just in case the dependency loop on this node finished
@@ -123,7 +149,8 @@ void timestepIC(void) {
     STDLOG(1, "Particles remaining on insert list: %d\n", IL->length);
     if (MPI_rank==0) {
         STDLOG(1, "Merged %d particles\n", merged_particles);
-        assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
+        assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!  Read %d IC particles.\n",
+            merged_particles, P.np, NP_from_IC);
     }
 
     if(IL->length!=0)

@@ -171,8 +171,9 @@ def run_PS(inputs, **kwargs):
             # If the input is an output or IC directory
             if os.path.isdir(input):
                 with ExitStack() as stack:
-                    if kwargs.get('format').lower() == 'pack14':
-                        stack.enter_context(common.extract_slabs(input))
+                    # TODO: deprecated pattern
+                    #if kwargs.get('format').lower() == 'pack14':
+                    #    stack.enter_context(common.extract_slabs(input))
                     _res = run_PS_on_dir(input, **binning, **kwargs)
             # If the input is a PS file
             elif os.path.isfile(input):

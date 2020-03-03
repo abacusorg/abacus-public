@@ -5,7 +5,45 @@ Wrapper for the zeldovich binary.
 Also provides an convenience function to compute sigma8
 for a given redshift and cosmology.
 
-usage: ./zeldovich.py <parameter file name>
+Valid ways to specify P(k) normalization
+========================================
+The default zeldovich code behavior is to discard the normalization
+of the input power spectrum file and use the value of `ZD_Pk_sigma`
+in the parameter file.  From Abacus, one may trigger this behavior
+by setting `sigma_8` in the parameter file instead of `ZD_Pk_sigma`
+directly.  The `sigma_8` parameter is interpreted as the z=0 value,
+and the Python parsing step of the `abacus.par2` file will see this
+and call the Abacus cosmology module to compute `ZD_Pk_sigma` via
+the growth ratio:
+
+    ZD_Pk_sigma = sigma_8*D(z=InitialRedshift)/D(z=0)
+
+That's all fine when one has a z=0 power spectrum file; then one
+doesn't even need to know the file's units of power.  But when your
+power spectrum file is at another redshift like z=1, what `sigma_8`
+do you specify?  It's not the z=0 value; the shape of the power
+spectrum is allowed to change, even aside from the amplitude.
+
+So one would like to know the sigma_8 of the z=1 file, but CAMB
+or CLASS may not output that.  So we could extract our sigma_8
+integrator from the zeldovich code... or we could just trust the
+input file normalization and pass a growth *ratio* instead of
+target amplitude.  This parameter is called `ZD_Pk_sigma_ratio`:
+
+    ZD_Pk_sigma_ratio = D(z=InitialRedshift)/D(z=ZD_Pk_file_redshift)
+
+The other new parameter is `ZD_Pk_file_redshift`, which tells us
+the redshift of the input power spectrum file.
+
+From the Abacus Python perspective, one may either specify
+`ZD_Pk_file_redshift` or `sigma_8`, not both.
+
+From the zeldovich perspective, one may specify `ZD_Pk_sigma` or
+`ZD_Pk_sigma_ratio`, not both.
+
+Usage
+=====
+$ ./zeldovich.py --help
 
 '''
 
@@ -19,39 +57,101 @@ import parser
 import argparse
 import shlex
 
-from .InputFile import InputFile
-from . import GenParam
-from . import abacus
-from Abacus.Cosmology import AbacusCosmo
+import numpy as np
 
-zeldovich_dir = pjoin(abacus.abacuspath, 'zeldovich-PLT')
+from Abacus.InputFile import InputFile
+from Abacus import GenParam
+from Abacus import abacus
+import Abacus.Cosmology
+
+zeldovich_dir = pjoin(abacus.abacuspath, 'external', 'zeldovich-PLT')
 eigmodes_path = pjoin(zeldovich_dir, 'eigmodes128')
 
 on_the_fly_formats = ['poisson', 'lattice']
 
+
 def is_on_the_fly_format(fmt):
     return fmt.lower() in on_the_fly_formats
 
+
 # Calculate sigma8 by scaling back params['sigma_8'] from z=0 to the given redshift
 def calc_sigma8(params, z='init'):
-    if z == 'init':
-        z = params['InitialRedshift']
-    my_cosmology = AbacusCosmo.MyCosmology()
-    my_cosmology.Omega_m = params['Omega_M']
-    my_cosmology.Omega_K = params['Omega_K']
-    my_cosmology.Omega_DE = params['Omega_DE']
-    my_cosmology.H0 = params['H0']
-    my_cosmology.w0 = params['w0']
-    my_cosmology.wa = params['wa']
-
-    cosmology = AbacusCosmo.Cosmology(1./(1+z), my_cosmology)
     sig8_today = params['sigma_8']
-    sig8_at_zinit = sig8_today * cosmology.current.growth / cosmology.today.growth
+    sig8_at_zinit = sig8_today * calc_growth_ratio(params, z, 0.)
     
     return sig8_at_zinit
 
 
-def run(paramfn, allow_eigmodes_fn_override=False):
+# Calculate the growth ratio D(z1)/D(z2)
+def calc_growth_ratio(params, z1, z2):
+    if z1 == 'init':
+        z1 = params['InitialRedshift']
+    if z2 == 'init':
+        z2 = params['InitialRedshift']
+
+    cosm1 = Abacus.Cosmology.from_params(params, z1)
+    cosm2 = Abacus.Cosmology.from_params(params, z2)
+
+    return cosm1.current.growth/cosm2.current.growth
+
+
+def setup_zeldovich_params(params):
+    '''
+    Given a parameters dict with a cosmology, set up the power spectrum
+    amplitude and growth rate.
+    '''
+    zd_params = {}
+
+    # If given sigma_8, set ZD_Pk_sigma
+    if params.get('sigma_8'):
+        if params.get('ZD_Pk_file_redshift'):
+            raise ValueError("Must specify one of sigma_8 and ZD_Pk_file_redshift in parameter file")
+
+        sigma8_at_zinit = calc_sigma8(params)
+
+        # If ZD_Pk_sigma was already given, check that it is consistent with what we just computed
+        if 'ZD_Pk_sigma' in params:
+            if not np.isclose(params['ZD_Pk_sigma'], sigma8_at_zinit, rtol=1e-5):
+                raise ValueError(f"ZD_Pk_sigma ({sigma8_at_zinit:f}) calculated from sigma_8 ({params['sigma_8']:f}) conflicts with the provided value of ZD_Pk_sigma ({params['ZD_Pk_sigma']:f})!")
+        zd_params['ZD_Pk_sigma'] = sigma8_at_zinit
+
+    elif params.get('ZD_Pk_file_redshift'):
+        # If given ZD_Pk_file_redshift, set ZD_Pk_sigma_ratio
+        if params.get('sigma_8'):
+            raise ValueError("Must specify one of sigma_8 and ZD_Pk_file_redshift in parameter file")
+
+        growth_ratio = calc_growth_ratio(params, 'init', params['ZD_Pk_file_redshift'])
+
+        #If ZD_Pk_sigma_ratio was already given, check that it is consistent with what we just computed
+        if 'ZD_Pk_sigma_ratio' in params:
+            if not np.isclose(growth_ratio, params['ZD_Pk_sigma_ratio'], rtol=1e-5):
+                raise ValueError(f'ZD_Pk_sigma_ratio = {params["ZD_Pk_sigma_ratio"]} in parameter file does not match value {growth_ratio} computed from ZD_Pk_file_redshift = {ZD_Pk_file_redshift}')
+        zd_params['ZD_Pk_sigma_ratio'] = growth_ratio
+
+    else:
+        if not params.get('ZD_Pk_sigma') and not params.get('ZD_Pk_sigma_ratio'):
+            raise ValueError("Must specify one of ZD_Pk_file_redshift, sigma_8, ZD_Pk_sigma, or ZD_Pk_sigma_ratio in parameter file")
+
+    # Regardless of the growth amplitude method, calculate f_cluster
+    cosm_zinit = Abacus.Cosmology.from_params(params, z='init')
+    f_cluster_from_smooth = 1 - params.get('Omega_Smooth',0.)/params['Omega_M']
+    if 'ZD_f_cluster' in params:
+        # If ZD_f_cluster was already given, check that it matches Omega_Smooth
+        if not np.isclose(f_cluster_from_smooth, params['ZD_f_cluster'], rtol=1e-5):
+            raise ValueError(f'ZD_f_cluster = {params["ZD_f_cluster"]} does not match 1 - Omega_Smooth/Omega_M = {f_cluster_from_smooth}')
+    else:
+        zd_params['ZD_f_cluster'] = f_cluster_from_smooth
+
+    # Check that f_growth computed in the EdS approximation with f_cluster is consistent with the value from the cosmology module
+    f_growth = cosm_zinit.current.f_growth
+    fgrowth_from_fcluster = ((1 + 24*f_cluster_from_smooth)**0.5 - 1)/4
+    if not np.isclose(f_growth, fgrowth_from_fcluster, rtol=1e-4):
+        raise ValueError(f'fgrowth_from_fcluster = {fgrowth_from_fcluster} from parameter file does not match f_growth = {f_growth} computed from cosmology')
+
+    return zd_params
+    
+
+def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=False):
     '''
     Invokes the zeldovich executable with the given parameter file,
     cleaning up any exisitng output directories first and also
@@ -86,7 +186,7 @@ def run(paramfn, allow_eigmodes_fn_override=False):
 
     ZD_cmd = [pjoin(zeldovich_dir, "zeldovich"), paramfn]
 
-    parallel = params.get('Parallel', False)
+    parallel = params.get('Parallel', False) and not no_parallel
 
     if parallel:
         try:
@@ -151,11 +251,15 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):
     run(new_parfn)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Run the zeldovich code (located in {})'.format(zeldovich_dir))
-    parser.add_argument('parfile', help='The parameter file.  This is usually the same as the .par file for singlestep.', nargs='+')
+    parser = argparse.ArgumentParser(description=f'Run the zeldovich code (located in {zeldovich_dir})')
+    parser.add_argument('parfile', nargs='+',
+        help='The parameter file.  This is usually the same as the .par file for singlestep.')
     parser.add_argument('--out-parent', help="Overrides the parfile InitialConditionsDirectory (i.e. the zeldovich output directory) with PARENT/SimName/ic."
                                              "  Create a new abacus_ic.par with the modified parameters: IC dir; and if don't exist: eigmodes, camb_matterpower", metavar='PARENT')
-    parser.add_argument('--show-growth', help='Just compute the growth factor from z=0 to z_init from the cosmology in the given parameter file. Does not generate ICs.', action='store_true')
+    parser.add_argument('--show-growth', action='store_true',
+        help='Just compute the growth factor from z=0 to z_init from the cosmology in the given parameter file. Does not generate ICs.')
+    parser.add_argument('--no-parallel', action='store_true',
+        help='Do not invoke the ZD_mpirun_cmd to run zeldovich, despite Parallel = 1 in the parameter file')
     
     args = parser.parse_args()
     args = vars(args)

@@ -20,10 +20,13 @@
 #ifndef INCLUDE_LB
 #define INCLUDE_LB
 
+#include "threadaffinity.h"
+
 //#include "tbb/concurrent_queue.h"
 #include "simple_concurrent_queue.cpp"
 
 #include <mutex>
+#include <atomic>
 
 #define GUARDSIZE 4096
 // Allocate this many bytes of guard space around the buffer
@@ -49,19 +52,21 @@ enum RamdiskArenaType { RAMDISK_NO,
 
 class ArenaAllocator {
 public:
-    ArenaAllocator(int maximum_number_ids, uint64 max_allocations, int use_disposal_thread=1);
+    ArenaAllocator(int maximum_number_ids, uint64 max_allocations, int use_disposal_thread, int disposal_thread_core);
     ~ArenaAllocator(void);
 
-    void report();
+    void report_peak();
+    void report_current();
     
     int64 total_allocation;
-    int64 total_shm_allocation;
+    std::atomic<int64> total_shm_allocation;  // atomic because the disposal thread may modify
     STimer ArenaMalloc;
     int numalloc, numreuse;
     int num_shm_alloc;
 	
 	
-	float ArenaFree_elapsed; 
+	float ArenaFree_elapsed;
+    STimer DisposalThreadMunmap;
 
    // PTimer *ArenaFree;
 
@@ -118,6 +123,7 @@ private:
     arenainfo *arena;
     uint64 allocation_guard;
     uint64 peak_alloc;
+    uint64 peak_shm_alloc;
     std::mutex lb_mutex;
 	std::mutex lb_freemutex;
 	
@@ -216,14 +222,15 @@ private:
 
 
     // Fields related to the disposal thread
-    int use_disposal_thread;
+    int use_disposal_thread, disposal_thread_core;
 
     static void *start_thread(void *AA_obj){
-        ((ArenaAllocator *) AA_obj)->DisposalThreadLoop();
+        ArenaAllocator *_AA = (ArenaAllocator *) AA_obj;
+        _AA->DisposalThreadLoop(_AA->disposal_thread_core);
         return NULL;
     }
 
-    void DisposalThreadLoop();
+    void DisposalThreadLoop(int core);
 
     struct disposal_item {
         void *addr;
@@ -234,8 +241,7 @@ private:
 };
 
 
-ArenaAllocator::ArenaAllocator(int maximum_number_ids, uint64 max_allocations, int use_disposal_thread)
-        : use_disposal_thread(use_disposal_thread) {
+ArenaAllocator::ArenaAllocator(int maximum_number_ids, uint64 max_allocations, int _use_disposal_thread, int _disposal_thread_core) {
     maxids = maximum_number_ids;
    // ArenaFree = new PTimer(maxids);
     arena = new arenainfo[maxids];
@@ -243,10 +249,15 @@ ArenaAllocator::ArenaAllocator(int maximum_number_ids, uint64 max_allocations, i
     total_shm_allocation = 0;
     numalloc = numreuse = 0;
     num_shm_alloc = 0;
+    ArenaFree_elapsed = 0.;
     peak_alloc = 0;
+    peak_shm_alloc = 0;
     allocation_guard = max_allocations * 1024 * 1024;
     for(int i=0;i<maxids;i++)
         ResetArena(i);
+
+    use_disposal_thread = _use_disposal_thread;
+    disposal_thread_core = _disposal_thread_core;
 
     if(use_disposal_thread){
         assert(pthread_create(&disposal_thread, NULL, start_thread, this) == 0);
@@ -275,9 +286,15 @@ ArenaAllocator::~ArenaAllocator(void) {
     }
 }
 
-void ArenaAllocator::report(){
-    STDLOG(0,"Peak arena allocations was %.3g GB\n", peak_alloc/1024./1024/1024);
+void ArenaAllocator::report_peak(){
+    STDLOG(0,"Peak arena allocations (regular + shared) was %.3g GB\n", peak_alloc/1024./1024/1024);
+    STDLOG(0,"Peak arena allocations (shared only) was %.3g GB\n", peak_shm_alloc/1024./1024/1024);
     STDLOG(0,"Executed %d arena fresh allocations, %d arena reuses\n", numalloc, numreuse);
+}
+
+void ArenaAllocator::report_current(){
+    STDLOG(1, "Current arena allocations (normal + shared) total %.3g GB\n", total_allocation/1024/1024/1024);
+    STDLOG(1, "Current arena allocations (shared only) total %.3g GB\n", total_shm_allocation/1024/1024/1024);
 }
 
 #define LB_OVERSIZE 1.01
@@ -318,14 +335,13 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
                 arena[id].max_usable_size = ss*LB_OVERSIZE;
                 arena[id].allocated_size = arena[id].max_usable_size + 2*GUARDSIZE;
                 ArenaMalloc.Start();
-                assertf(posix_memalign((void **) &(arena[id].addr), 4096, arena[id].allocated_size) == 0,
+                assertf(posix_memalign((void **) &(arena[id].addr), PAGE_SIZE, arena[id].allocated_size) == 0,
                         "posix_memalign failed trying to allocate %d bytes\n", arena[id].allocated_size);
                 arena[id].present = 1;  
                 ArenaMalloc.Stop();
                 assert(arena[id].addr!=NULL);        // Crash if the malloc failed
                 numalloc++;
                 total_allocation += arena[id].allocated_size;
-                if (total_allocation > peak_alloc) peak_alloc = total_allocation;
                 if (total_allocation>allocation_guard) {
                     STDLOG(0,"Warning: Allocations of %4.2f GiB have exceeded guard level of %4.2f GiB\n", total_allocation/1024./1024/1024, allocation_guard/1024./1024/1024);
                 }
@@ -421,6 +437,9 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
             QUIT("Illegal value %d for ramdisk\n", ramdisk);
     }
 
+    if (total_allocation > peak_alloc) peak_alloc = total_allocation;
+    if (total_shm_allocation > peak_shm_alloc) peak_shm_alloc = total_shm_allocation;
+
     lb_mutex.unlock();
 }
 
@@ -442,11 +461,14 @@ void ArenaAllocator::DiscardArena(int id) {
                 struct disposal_item di = {arena[id].addr, arena[id].allocated_size};
                 disposal_queue.push(di);
                 STDLOG(3, "Done pushing %d.\n", id);
+
+                // If using munmap thread, it is responsible for decrementing total_shm_allocation
             } else {
                 int res = munmap(arena[id].addr, arena[id].allocated_size);
                 assertf(res == 0, "munmap failed\n");
+                total_shm_allocation -= arena[id].allocated_size;  // only if not using thread
             }
-            total_shm_allocation -= arena[id].allocated_size;
+            
         } else {
             assertf( arena[id].addr == NULL , 
             "Shared-memory arena %d of zero size has a non-null pointer %p!\n", id, arena[id].addr);
@@ -537,6 +559,37 @@ void ArenaAllocator::ResizeArena(int id, uint64 s) {
     return;
 }
 
+
+void ArenaAllocator::DisposalThreadLoop(int core){
+    struct disposal_item di;
+
+    STDLOG(1, "Starting arena allocator disposal thread on core %d\n", core);
+
+    if(core >= 0)
+        set_core_affinity(core);
+
+    int n = 0;
+    while(true){
+        disposal_queue.pop(di);  // blocking
+
+        // NULL is a safe termination flag because munmap(NULL) is not safe!
+        if(di.addr == NULL)
+            break;
+
+        if(di.size > 0){
+            DisposalThreadMunmap.Start();
+            int res = munmap(di.addr, di.size);
+            DisposalThreadMunmap.Stop();
+            total_shm_allocation -= di.size;
+            STDLOG(2, "Just munmap()'d %d bytes. %d items left on queue\n", di.size, disposal_queue.size());
+            assertf(res == 0, "munmap failed\n");
+            n++;
+        }
+    }
+
+    STDLOG(1, "Terminating arena allocator disposal thread.  Executed %d munmap()s.\n", n);
+}
+
 /**
  * This utility writes to the log the number of bytes allocated by malloc, and the heap size in use
  * by the program.  The difference is an estimate of the fragmentation.  Or it could simply
@@ -557,8 +610,8 @@ void ReportMemoryAllocatorStats(){
     size_t bytes_total = 0;
     MallocExtension::instance()->GetNumericProperty("generic.heap_size", &bytes_total);
 
-    STDLOG(3, "%.3g GiB held by mallocs; %.3g GiB held from system by allocator\n", bytes_allocated/1024./1024/1024, bytes_total/1024./1024/1024);
-    STDLOG(3, "\t%.3g GiB (%.1f%%) held by allocator but not in use\n", (bytes_total - bytes_allocated)/1024./1024/1024, 100.*(bytes_total - bytes_allocated)/bytes_total);
+    STDLOG(2, "%.3g GiB held by mallocs; %.3g GiB held from system by allocator\n", bytes_allocated/1024./1024/1024, bytes_total/1024./1024/1024);
+    STDLOG(2, "\t%.3g GiB (%.1f%%) held by allocator but not in use\n", (bytes_total - bytes_allocated)/1024./1024/1024, 100.*(bytes_total - bytes_allocated)/bytes_total);
 
     // This dumps a human-readable summary of the current allocator state to the log
     char logstr[2048];
@@ -609,27 +662,12 @@ void ReportMemoryAllocatorStats(){
 #endif
 }
 
-void ArenaAllocator::DisposalThreadLoop(){
-    struct disposal_item di;
-
-    STDLOG(2, "Starting arena allocator disposal thread\n");
-
-    int n = 0;
-    while(true){
-        disposal_queue.pop(di);  // blocking
-
-        // NULL is a safe termination flag because munmap(NULL) is not safe!
-        if(di.addr == NULL)
-            break;
-
-        if(di.size > 0){
-            int res = munmap(di.addr, di.size);
-            assertf(res == 0, "munmap failed\n");
-            n++;
-        }
-    }
-
-    STDLOG(2, "Terminating arena allocator disposal thread.  Executed %d munmap()s.\n", n);
+void ReleaseFreeMemoryToKernel(){
+#if defined(HAVE_LIBTCMALLOC_MINIMAL) || defined(HAVE_LIBTCMALLOC)
+    ReleaseFreeMemoryTime.Start();
+    MallocExtension::instance()->ReleaseFreeMemory();
+    ReleaseFreeMemoryTime.Stop();
+#endif
 }
 
 #endif // INCLUDE_LB

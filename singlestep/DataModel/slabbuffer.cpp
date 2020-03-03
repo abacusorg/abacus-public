@@ -11,7 +11,7 @@ The class SlabBuffer is defined here.  The global SB object
 is an instance of this class and is the primary interface
 for slab memory allocation and IO.
 
-*/ 
+*/
 
 #ifndef INCLUDE_SLABBUFFER
 #define INCLUDE_SLABBUFFER
@@ -40,7 +40,7 @@ enum SlabType { CellInfoSlab,           //0
                 VelLPTSlab,             //17
                 CellGroupArena,         //18
                 NearField_SIC_Slab,     //19
-                
+
                 L1halosSlab,            //20
                 HaloRVSlabA,            //21
                 HaloRVSlabB,            //22
@@ -52,14 +52,21 @@ enum SlabType { CellInfoSlab,           //0
                 FieldPIDSlabB,          //28
                 L0TimeSlice,            //29
                 L0TimeSlicePIDs,        //30
-                
-                LightCone0,             //31
-                LightCone1,             //32
-                LightCone2,             //33
+
+                // Note: NUMLC better not be bigger than the number of Slabs defined
+                LightCone0RV,             //31
+                LightCone1RV,             //32
+                LightCone2RV,             //33
 
                 LightCone0PID,          //34
                 LightCone1PID,          //35
                 LightCone2PID,          //36
+
+                LightCone0Heal,          //37
+                LightCone1Heal,          //38
+                LightCone2Heal,          //39
+
+                ICSlab,                 //40
 
                 NUMTYPES
                 };
@@ -81,7 +88,7 @@ private:
         // +1 for Reuse slab
         return type*(cpd+1) + ws;
     }
-    
+
     // Every slab type has at most one "reuse slab"
     inline int ReuseID(int type) {
         return type*(cpd+1)+cpd;
@@ -92,11 +99,18 @@ private:
 
 public:
 
+    // The write and read names for the files of this SlabType.
+    // The slab number will be wrapped.
+    // Program will abort if one specifies a type not in this function;
+    // this is a feature to block incorrect I/O.
+    std::string WriteSlabPath(int type, int slab);
+    std::string ReadSlabPath(int type, int slab);
+
     SlabBuffer(int _cpd, int _order, uint64 max_allocations) {
         order = _order;
         cpd = _cpd;
 
-        AA = new ArenaAllocator((_cpd+1)*NUMTYPES, max_allocations);
+        AA = new ArenaAllocator((_cpd+1)*NUMTYPES, max_allocations, P.UseMunmapThread, P.MunmapThreadCore);
     }
 
     ~SlabBuffer(void) {
@@ -118,24 +132,17 @@ public:
     int IsOutputSlab(int type);
     // Determine whether a slab should have its checksum recorded
     int WantChecksum(int type);
-    
-    // The write and read names for the files of this SlabType.
-    // The slab number will be wrapped.
-    // Program will abort if one specifies a type not in this function;
-    // this is a feature to block incorrect I/O.
-    std::string WriteSlabPath(int type, int slab);
-    std::string ReadSlabPath(int type, int slab);
 
     // The amount of memory to be allocated for the specified arena.
     uint64 ArenaSize(int type, int slab);
-    
+
     char *AllocateArena(int type, int slab, int ramdisk = RAMDISK_AUTO);
     char *AllocateSpecificSize(int type, int slab, uint64 sizebytes, int ramdisk = RAMDISK_AUTO);
 
     // "Write" commands write the arena but do not delete it
     void WriteArenaBlockingWithoutDeletion(int type, int slab);
     void WriteArenaNonBlockingWithoutDeletion(int type, int slab);
-    
+
     // "Store" commands will write the arena and then delete it.
     void StoreArenaBlocking(int type, int slab);
     void StoreArenaNonBlocking(int type, int slab);
@@ -143,7 +150,7 @@ public:
     // "Read" commands read into an already-allocated arena
     void ReadArenaBlocking(int type, int slab);
     void ReadArenaNonBlocking(int type, int slab);
-    
+
     // "Load" commands allocate the arena and then read it.
     void LoadArenaBlocking(int type, int slab);
     void LoadArenaNonBlocking(int type, int slab);
@@ -195,14 +202,19 @@ public:
         AA->SetIOCompletedArena(id);
     }
 
-    void GetMallocFreeTimes(double *malloc_time, double *free_time){
+    void GetMallocFreeTimes(double *malloc_time, double *free_time, double *disposal_thread_munmap){
         *malloc_time = AA->ArenaMalloc.Elapsed();
         //*free_time = AA->ArenaFree->Elapsed();
 		*free_time = AA->ArenaFree_elapsed; 
+        *disposal_thread_munmap = AA->DisposalThreadMunmap.Elapsed();
     }
 
-    void report(){
-        AA->report();
+    void report_peak(){
+        AA->report_peak();
+    }
+
+    void report_current(){
+        AA->report_current();
     }
 };
 
@@ -281,7 +293,7 @@ int SlabBuffer::GetSlabIntent(int type){
         case PosSlab:
         case VelSlab:
         case AuxSlab:
-        case TaylorSlab: 
+        case TaylorSlab:
             return READSLAB;
 
         case MultipoleSlab:
@@ -298,10 +310,8 @@ int SlabBuffer::GetSlabIntent(int type){
     return -1;
 }
 
-/* Determine whether a given slab type (e.g. TimeSliceSlab) is an output type
- * that we want to record the checksum of when we write it to disk.
- *
- * P.NoChecksum disables all checksumming.
+/* Determine whether a given slab type (e.g. TimeSliceSlab) is an
+ * output type that we do not want to send in the manifest.
 */
 int SlabBuffer::IsOutputSlab(int type){
    switch(type){
@@ -319,17 +329,26 @@ int SlabBuffer::IsOutputSlab(int type){
         case L0TimeSlicePIDs:
         case FieldTimeSlicePIDs:
 
-        // Do we want to checksum light cones?  They're probably being merged/repacked very soon.
-        // Maybe same for the halos?  But if we move either of these to another filesystem
-        // for post-processing, then we'd like to be able to verify the checksums.
-        case LightCone0:
-        case LightCone1:
-        case LightCone2:
+        case LightCone0RV:
+        case LightCone1RV:
+        case LightCone2RV:
+        case LightCone0PID:
+        case LightCone1PID:
+        case LightCone2PID:
+        case LightCone0Heal:
+        case LightCone1Heal:
+        case LightCone2Heal:
             return 1;
      }
      return 0;
 }
 
+
+/* Determine whether a given slab type (e.g. TimeSliceSlab) is an type
+ * that we want to record the checksum of when we write it to disk.
+ *
+ * P.NoChecksum disables all checksumming.
+*/
 int SlabBuffer::WantChecksum(int type){
     if(P.NoChecksum)
         return 0;
@@ -358,15 +377,15 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         }
 #endif
         case MultipoleSlab       : {
-						
-			
+
+
             // Send odd multipoles to MultipoleDirectory2, if it's defined
             if (WriteState.StripeConvState && slab % 2 == 1) {
                 ss << P.MultipoleDirectory2 << "/Multipoles_" << slabnum;
                 break;
             }
             ss << P.MultipoleDirectory << "/Multipoles_" << slabnum; break;
-						
+
         }
         case MergeCellInfoSlab   : { ss << P.LocalWriteStateDirectory << "/cellinfo_"   << slabnum; break; }
         case MergePosSlab        : { ss << P.LocalWriteStateDirectory << "/position_"   << slabnum; break; }
@@ -375,14 +394,14 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         case AccSlab             : { ss << P.OutputDirectory << "/acc_"            << slabnum; break; }
         case NearAccSlab         : { ss << P.OutputDirectory << "/nearacc_"        << slabnum; break; }
         case FarAccSlab          : { ss << P.OutputDirectory << "/faracc_"         << slabnum; break; }
-       
+
         case L1halosSlab           : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_info_"           << slabnum; break;}
-		
+
         case HaloPIDsSlabA    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_pids_A_"    << slabnum; break;}
         case HaloPIDsSlabB    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_pids_B_"    << slabnum; break;}
         case FieldPIDSlabA    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_pids_A_"   << slabnum; break;}
         case FieldPIDSlabB    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_pids_B_"   << slabnum; break;}
-		
+
         case HaloRVSlabA : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_rv_A_"      << slabnum; break;}
         case HaloRVSlabB : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_rv_B_"      << slabnum; break;}
         case FieldRVSlabA       : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_rv_A_"     << slabnum; break;}
@@ -392,7 +411,17 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         case FieldTimeSlice            : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pack9.dat"; break; }
         case L0TimeSlicePIDs      : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".L0_pack9_pids.dat"; break; }
         case FieldTimeSlicePIDs        : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pack9_pids.dat"; break; }
-		
+
+        case LightCone0RV: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone0_rv" << NodeString; break; }
+        case LightCone1RV: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone1_rv" << NodeString; break; }
+        case LightCone2RV: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone2_rv" << NodeString; break; }
+        case LightCone0PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone0_pid" << NodeString; break; }
+        case LightCone1PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone1_pid" << NodeString; break; }
+        case LightCone2PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone2_pid" << NodeString; break; }
+        case LightCone0Heal: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone0_heal" << NodeString; break; }
+        case LightCone1Heal: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone1_heal" << NodeString; break; }
+        case LightCone2Heal: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone2_heal" << NodeString; break; }
+
         default:
             QUIT("Illegal type %d given to WriteSlabPath()\n", type);
     }
@@ -428,7 +457,9 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
         case VelSlab       : { ss << P.LocalReadStateDirectory << "/velocity_"   << slabnum; break; }
         case AuxSlab       : { ss << P.LocalReadStateDirectory << "/auxillary_"  << slabnum; break; }
         case VelLPTSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
-        case FieldTimeSlice     : { ss << WriteSlabPath(type, slab); }  // used for standalone FOF
+        case FieldTimeSlice     : { ss << WriteSlabPath(type, slab); break; }  // used for standalone FOF
+        
+        case ICSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
 
         default:
             QUIT("Illegal type %d given to ReadSlabPath()\n", type);
@@ -449,16 +480,16 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
         case MultipoleSlab  : { return lcpd*(lcpd+1)/2*rml*sizeof(MTCOMPLEX); }
         case TaylorSlab     : { return lcpd*(lcpd+1)/2*rml*sizeof(MTCOMPLEX); }
         case PosXYZSlab     :  // let these fall through to PosSlab
-        case PosSlab        : { 
+        case PosSlab        : {
             return SS->size(slab)*sizeof(posstruct);
         }
-        case MergePosSlab   : { 
+        case MergePosSlab   : {
             return SS->size(slab)*sizeof(posstruct);
         }
-        case VelSlab        : { 
+        case VelSlab        : {
             return SS->size(slab)*sizeof(velstruct);
         }
-        case AuxSlab        : { 
+        case AuxSlab        : {
             return SS->size(slab)*sizeof(auxstruct);
         }
         case AccSlab        : {
@@ -470,21 +501,16 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
         case NearAccSlab    : {
             return SS->size(slab)*sizeof(accstruct);
         }
-        case VelLPTSlab     : {
-            if(strcmp(P.ICFormat, "RVZel") == 0)
-                // TODO: when we re-route LoadIC through SB to be non-blocking for 2LPT velocity IO, get rid of these magic numbers
-                //return fsize(ReadSlabPath(VelLPTSlab,slab).c_str())/sizeof(ICfile_RVZel::ICparticle) * sizeof(velstruct);
-                return fsize(ReadSlabPath(VelLPTSlab,slab).c_str())/32 * sizeof(velstruct);
-            else if(strcmp(P.ICFormat, "RVdoubleZel") == 0)
-                //return fsize(ReadSlabPath(VelLPTSlab,slab).c_str())/sizeof(ICfile_RVdoubleZel::ICparticle) * sizeof(velstruct);
-                return fsize(ReadSlabPath(VelLPTSlab,slab).c_str())/56 * sizeof(velstruct);
-            else
-                QUIT("Unknown ICFormat for re-reading LPT IC velocities\n");
+        case ICSlab     : {
+            return fsize(ReadSlabPath(ICSlab,slab).c_str());
+        }
+        case VelLPTSlab : {
+            return ICFile::FromFormat(P.ICFormat, slab)->Npart*sizeof(velstruct);
         }
         case FieldTimeSlice : {
             return fsize(ReadSlabPath(FieldTimeSlice,slab).c_str());
         }
-        
+
         /* // Ideally this is how we would allocate group finding arenas
                 // but there's an annoying circular depdendency: we don't know about GFC yet, but GFC has fields that require slabbuffer.
                 // Not easily solved with a forward declaration.
@@ -493,7 +519,7 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
         case TaggedPIDsSlab        : { return GFC->globalslabs[slab]->TaggedPIDs.get_slab_bytes(); }
         case L1ParticlesSlab       : { return GFC->globalslabs[slab]->L1Particles.get_slab_bytes(); }
         case HaloPIDsSlab            : { return GFC->globalslabs[slab]->L1PIDs.get_slab_bytes(); }
-        case TaggableFieldSlab     : { 
+        case TaggableFieldSlab     : {
             uint64 maxsize = P.np*P.HaloTaggableFraction*1.05;  // TODO: better heuristic? what will happen in very small sims?  Also technically HaloTaggableFraction is only used in the IC step
             return maxsize*sizeof(RVfloat);
         }
@@ -507,7 +533,7 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
     return -1; //should be unreachable
 }
 
-char *SlabBuffer::AllocateArena(int type, int slab, int ramdisk) {	
+char *SlabBuffer::AllocateArena(int type, int slab, int ramdisk) {
     slab = Grid->WrapSlab(slab);
     uint64 s = ArenaSize(type, slab);
     return AllocateSpecificSize(type, slab, s, ramdisk);
@@ -516,7 +542,7 @@ char *SlabBuffer::AllocateArena(int type, int slab, int ramdisk) {
 char *SlabBuffer::AllocateSpecificSize(int type, int slab, uint64 sizebytes, int ramdisk) {
     // Most slabs are happy with RAMDISK_AUTO
     ramdisk = IsRamdiskSlab(type, ramdisk);
-		
+
     std::string spath;
     switch(ramdisk){
         case RAMDISK_READSLAB:
@@ -578,9 +604,9 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking){
 #endif
             DeAllocate(type, slab);
 		}
-				
+
         return;
-    }	
+    }
 
     WriteArena(type, slab, deleteafter, blocking, path);
 }
@@ -636,18 +662,18 @@ void SlabBuffer::ReadArena(int type, int slab, int blocking, const char *fn) {
         blocking = IO_BLOCKING;
 
     STDLOG(1,"Reading slab %d of type %d from file %s with blocking %d.\n", slab, type, fn, blocking);
-    assertf(IsSlabPresent(type, slab), 
+    assertf(IsSlabPresent(type, slab),
         "Type %d and Slab %d doesn't exist\n", type, slab);
     assertf(FileExists(fn),
         "File %s does not exist\n", fn);
     assertf(fsize(fn) >= 0 && (uint64) fsize(fn) >= SlabSizeBytes(type,slab),
         "File %s appears to be too small (%d bytes) compared to the arena (%d)\n",
             fn, fsize(fn), SlabSizeBytes(type,slab));
-    
-    ReadFile( GetSlabPtr(type,slab), 
+
+    ReadFile( GetSlabPtr(type,slab),
         SlabSizeBytes(type,slab),
         type, slab,
-        fn, 
+        fn,
         0,      // No file offset
         blocking);
 }
@@ -661,17 +687,37 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, c
 
     STDLOG(1,"Writing slab %d of type %d to file %s with blocking %d and delete status %d.\n",
         slab, type, fn, blocking, deleteafter);
-    assertf(IsSlabPresent(type, slab), 
+    assertf(IsSlabPresent(type, slab),
         "Type %d and Slab %d doesn't exist\n", type, slab);
 
-    WriteFile( GetSlabPtr(type,slab), 
+    int use_fp = 0;
+
+    switch(type) {
+        case LightCone0RV:
+        case LightCone1RV:
+        case LightCone2RV:
+        case LightCone0PID:
+        case LightCone1PID:
+        case LightCone2PID:
+        case LightCone0Heal:
+        case LightCone1Heal:
+        case LightCone2Heal:
+            use_fp = 1;
+            break;
+        default:
+            use_fp = 0;
+            break;
+    }
+    
+    WriteFile( GetSlabPtr(type,slab),
         SlabSizeBytes(type,slab),
         type, slab,
-        fn, 
+        fn,
         0,      // No file offset
-        deleteafter, 
+        deleteafter,
         blocking,
-        WantChecksum(type));
+        WantChecksum(type),
+        use_fp);
 }
 
 // Free the memory associated with this slab.  Might stash the arena as a reuse slab!
@@ -699,9 +745,9 @@ void SlabBuffer::DeAllocate(int type, int slab, int delete_file) {
         char buffer[1024];
         strcpy(buffer, path.c_str());
         char *tmp = dirname(buffer);
-					
+
         ExpandPathName(tmp);
-				
+
 
         if(!IsTrueLocalDirectory(tmp)){
             STDLOG(2,"Not deleting slab file \"%s\" because it is in a global directory\n", path);

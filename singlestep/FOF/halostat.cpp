@@ -136,7 +136,7 @@ HaloStat ComputeStats(int size,
     double rxx, rxy, rxz, ryy, ryz, rzz;
     double nxx, nxy, nxz, nyy, nyz, nzz;
     float vmax, rvmax; 
-    float vmean, vmean_r50, vsq_r50;
+    double vmean, vmean_r50, vsq_r50;
 
     vxx = vxy = vxz = vyy = vyz = vzz = 0.0;
     rxx = rxy = rxz = ryy = ryz = rzz = 0.0;
@@ -214,12 +214,12 @@ HaloStat ComputeStats(int size,
     // We search for the max of vcirc, which is proportional to sqrt(G*M/R).
     // The 4th power of that is proportional to N^2/R^2.
     vmax = 0.0;
-    for (int p=size/10; p<size; p++) {
-		float v4 = p*p/L2.d2_active[p];
+    for (int p=(size<1000?size/10:100); p<size; p++) {
+		float v4 = (float)p*p/L2.d2_active[p];
 		if (v4>vmax) { vmax = v4; rvmax = L2.d2_active[p]; }
     }
     h.rvcirc_max_com = lround(sqrt(rvmax) / h.r100_com * INT16SCALE );    // Get to radial units and compress into int16. 
-    float GMpart = 3*P.Omega_M*pow(100*ReadState.BoxSizeHMpc,2)/(8*M_PI*P.np*ReadState.ScaleFactor);
+    float GMpart = 3*(P.Omega_M-P.Omega_Smooth)*pow(100*ReadState.BoxSizeHMpc,2)/(8*M_PI*P.np*ReadState.ScaleFactor);
     h.vcirc_max_com = sqrt(GMpart*sqrt(vmax))/ReadState.VelZSpace_to_kms;  // This is sqrt(G*M_particle*N/R).
     
     // Repeat this, finding moments and radii around the largest subhalo COM
@@ -311,8 +311,12 @@ HaloStat ComputeStats(int size,
     // We search for the max of vcirc, which is proportional to sqrt(G*M/R).
     // The 4th power of that is proportional to N^2/R^2.
     vmax = 0.0;
+<<<<<<< HEAD
     for (int p=size/10; p<size; p++) {
-	float v4 = p*p/L2.d2_active[p];
+=======
+    for (int p=(size<1000?size/10:100); p<size; p++) {
+>>>>>>> origin/dje-so-max
+	float v4 = (float)p*p/L2.d2_active[p];
 	if (v4>vmax) { vmax = v4; rvmax = L2.d2_active[p]; }
     }
     h.rvcirc_max_L2com = lround(sqrt(rvmax) / h.r100_L2com * INT16SCALE );    // Get to radial units and compress into int16. 

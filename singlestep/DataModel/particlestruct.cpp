@@ -68,13 +68,16 @@ When we store into the output TaggedPID format, we apply a bit mask to zero all 
 #define AUXTAGGABLE_A_BIT 59llu //Can this particle be tagged in subsample A? 
 #define AUXTAGGABLE_B_BIT 60llu //Can this particle be tagged in subsample B? 
 
-#define NUMLC 3
+#define NUMLIGHTCONES 3
 
 #define AUXLCZEROBIT 61llu		// The LC bits are 61,62,63.
 #define AUXLC  (uint64)0xe000000000000000	// The next three bits.
 
 #define AUX_PID_TAG_DENS_MASK 0x07ff7fff7fff7fff //this masks out everything except for bits 0-14 (x pid), 16-30 (y pid), 32-46 (z pid), 48 (tagged), 49-58 (density).
 #define AUXPIDMASK 0x7fff7fff7fff
+
+#define NAUXPIDBITS 45  // total of 45 bits used for PIDs
+#define PIDBITGAP 2  // two bits in between each PID segment
 
 class auxstruct {
 public:
@@ -96,11 +99,6 @@ public:
         return xyz; 
     }
 
-    void setpid(uint16 _pid) { 
-        uint16 pid[3] = {_pid, _pid, _pid};
-        setpid(pid); 
-    }
-
     void setpid(integer3 _pid) { 
         uint16 max = (uint16) AUXXPID; 
             assert(_pid.x <= max and _pid.y <= max and _pid.z <= max);
@@ -108,7 +106,7 @@ public:
         setpid(pid); 
     }
 
-    void setpid(uint16 * _pid) { 
+    void setpid(uint16 _pid[3]) { 
         uint16 max = (uint16) AUXXPID; 
            assert(_pid[0] <= max and _pid[1] <= max and _pid[2] <= max);
         setpid((uint64) _pid[0] | (uint64) _pid[1]<<16| (uint64) _pid[2] <<32);
@@ -117,6 +115,15 @@ public:
     void setpid(uint64 _pid) {
         aux = _pid | (aux &~ AUXPIDMASK); 
     }
+
+    // Take a "linear" pid and distribute its values to the three segements used for PIDs
+    void packpid(uint64 _pid){
+        assert(_pid <= ((uint64) 1 << NAUXPIDBITS));
+        uint64 pid = (_pid & AUXXPID) | (_pid << PIDBITGAP & AUXYPID) | (_pid << 2*PIDBITGAP & AUXZPID);
+        setpid(pid);
+    }
+
+
     // We will provide a group ID too; this may overwrite the PID.
     uint64 gid() { return pid(); }
     void setgid(uint64 gid) { setpid(gid); }
@@ -126,7 +133,7 @@ public:
 
     // Light cones need 1 byte
     inline static uint64 lightconemask(int number) {
-        assertf(number<NUMLC && number>=0, "Lightcone number lcn = %d must satisfy 0 <= lcn < %d.", number, NUMLC);
+        assertf(number<NUMLIGHTCONES && number>=0, "Lightcone number lcn = %d must satisfy 0 <= lcn < %d.", number, NUMLIGHTCONES);
         return (uint64)1 << (number+AUXLCZEROBIT);
     }
 
@@ -143,6 +150,11 @@ public:
     }
     inline void setlightconedone(int number) {
         setlightconedone(lightconemask(number));
+    }
+
+    inline void clearLightCone() {
+        uint64 mask = AUXLC;
+        aux &= ~mask;
     }
 
     inline void set_taggable_subA() {
@@ -169,7 +181,15 @@ public:
         return aux & ((uint64)1 << AUXTAGGEDBIT);
     }
 
-    inline void set_density(uint64 _density){
+    // Set the density from the density value (in code units)
+    // There is a chance that a mismatch in precision between the GPU and CPU codes 
+    // could lead to a negative value of the density when the only particle is the self-particle.
+    // Hence, we take the absolute value.
+    inline void set_density(FLOAT rawdensity){
+        _pack_density((uint64) round(std::sqrt(fabs(rawdensity) * WriteState.invFOFunitdensity)));
+    }
+
+    inline void _pack_density(uint64 _density){
         assert(_density < (AUXDENSITY >> AUXDENSITYZEROBIT)); 
         aux = ( (uint64) _density << AUXDENSITYZEROBIT )  | (aux &~ AUXDENSITY); 
     }
@@ -230,16 +250,16 @@ public:
     int legalvalue(uint64 slabsize) {
         // Do a sanity check on the cellinfo values; return 1 if ok, 0 if not.
         // slabsize is the number of particles in the slab.
-        if (!isfinite(startindex)){
-        STDLOG(0, "Bad 'startindex' in cellinfo: %u\n", startindex);
-        return 0;
-    }
     if(count<0){
         STDLOG(0, "Bad 'count' in cellinfo: %d\n", count);
         return 0;
     }
     if(active<0){
         STDLOG(0, "Bad 'active' in cellinfo: %u\n", active);
+        return 0;
+    }
+    if(mean_square_velocity<0){
+        STDLOG(0, "Bad 'mean_square_velocity' in cellinfo: %u\n", mean_square_velocity);
         return 0;
     }
         if (startindex+count > slabsize){

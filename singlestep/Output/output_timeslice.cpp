@@ -28,9 +28,9 @@ AppendArena *get_AA_by_format(const char* format){
         STDLOG(1,"Using Output Format Heitmann\n");
         AA = new OutputHeitmann();
 
-    } else if (strcmp(format,"RVdoubleTag")==0) {
-        STDLOG(1,"Using Output Format RVdoubleTag\n");
-        AA = new OutputRVdoubleTag();
+    } else if (strcmp(format,"RVdoublePID")==0) {
+        STDLOG(1,"Using Output Format RVdoublePID\n");
+        AA = new OutputRVdoublePID();
 
     } else if (strcmp(format,"RVZel")==0) {
         STDLOG(1,"Using Output Format RVZel\n");
@@ -67,7 +67,6 @@ void WriteHeaderFile(const char* fn){
 
 uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     AppendArena *AA, *PID_AA;
-    FLOAT vscale;
 
     AA = get_AA_by_format(P.OutputFormat);
     PID_AA = get_PID_AA_by_format(P.OutputFormat);
@@ -113,50 +112,58 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
         // For sanity, be careful that the previous lines end with a \n!
         AA->finalize_header();
     }
-    STDLOG(4,"Scanning through cells\n");
+    STDLOG(2,"Scanning through cells\n");
 
     // Now scan through the cells
-    velstruct vel;
-    integer3 ijk(slab,0,0);
+    integer3 ij(slab,0,0);
     uint64 n_added = 0;
-    for (ijk.y=0; ijk.y<CP->cpd; ijk.y++) 
+    #pragma omp parallel for schedule(static) reduction(+:n_added)
+    for (int y=0; y<CP->cpd; y++) {
+        integer3 ijk = ij; ijk.y = y;
+        // We are required to provide an offset in bytes for this pencil's portion of the buffer.
+    	long long int start = CP->CellInfo(ijk)->startindex;   // Assumes cells are packed in order in the slab
+        AA->start_pencil(y, start*AA->sizeof_particle() + AA->sizeof_cell()*(CP->cpd)*y);
+        if (PID_AA!=NULL) PID_AA->start_pencil(y, start*PID_AA->sizeof_particle());
+
         for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
             Cell c = CP->GetCell(ijk);
             // We sometimes use the maximum velocity to scale.
             // But we do not yet have the global velocity (slab max will be set in Finish,
             // while the global max has to wait for all slabs to be done).
             // What is available after the kick is the max_component_velocity in each cell.
-            vscale = c.ci->max_component_velocity/ReadState.VelZSpace_to_Canonical;	
+            FLOAT vscale = c.ci->max_component_velocity/ReadState.VelZSpace_to_Canonical;	
             // The maximum velocity of this cell, converted to ZSpace unit-box units.
             // Start the cell
-            AA->addcell(ijk, vscale);
-            if (PID_AA != NULL) PID_AA->addcell(ijk, vscale);
+            AA->addcell(y, ijk, vscale);
+            if (PID_AA != NULL) PID_AA->addcell(y, ijk, vscale);
             // Now pack the particles
             accstruct *acc = CP->AccCell(ijk);
             for (int p=0;p<c.count();p++) {
-                vel = (c.vel[p] - TOFLOAT3(acc[p])*unkickfactor);    // We supply in code units
+                velstruct vel = (c.vel[p] - TOFLOAT3(acc[p])*unkickfactor);    // We supply in code units
                 // Detail: we write particles with their L0 bits intact.  So if we want to run a non-group-finding step
                 // after a group-finding step (e.g. for debugging), we need to know that we can ignore the L0 bit
                 if(GFC == NULL || !c.aux[p].is_L0()){
-                    AA->addparticle(c.pos[p], vel, c.aux[p]);
-                    if (PID_AA != NULL) PID_AA->addparticle(c.pos[p], vel, c.aux[p]);
+                    c.aux[p].set_density(acc[p].w);
+                    AA->addparticle(y, c.pos[p], vel, c.aux[p]);
+                    if (PID_AA != NULL) PID_AA->addparticle(y, c.pos[p], vel, c.aux[p]);
                     n_added++;
                 }
             }
-            AA->endcell();
-            if (PID_AA != NULL) PID_AA->endcell(); 
+            AA->endcell(y);
+            if (PID_AA != NULL) PID_AA->endcell(y); 
         }
+    }
 
-    STDLOG(4,"Resizing slab\n");
-    SB->ResizeSlab(FieldTimeSlice, slab, AA->bytes_written());
+    STDLOG(2,"Resizing slab\n");
+    SB->ResizeSlab(FieldTimeSlice, slab, AA->finalize_arena());
     STDLOG(4,"StoreArenaNonBlocking\n");
     // Write out this time slice
     SB->StoreArenaNonBlocking(FieldTimeSlice, slab);
     delete AA;
 
     if (PID_AA != NULL) { 
-        STDLOG(4,"Resizing slab\n");
-        SB->ResizeSlab(FieldTimeSlicePIDs, slab, PID_AA->bytes_written());
+        STDLOG(2,"Resizing slab\n");
+        SB->ResizeSlab(FieldTimeSlicePIDs, slab, PID_AA->finalize_arena());
         STDLOG(4,"StoreArenaNonBlocking\n");
         // Write out this time slice
         SB->StoreArenaNonBlocking(FieldTimeSlicePIDs, slab);

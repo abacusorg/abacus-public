@@ -13,3 +13,7 @@ h5py
 tabulate
 pyfftw
 pynbody
+asdf
+toml
+globus_sdk
+fair_research_login

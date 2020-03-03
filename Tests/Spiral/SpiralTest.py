@@ -42,6 +42,7 @@ def run():
     subprocess.run([pjoin(os.path.curdir,'makespiralics') ,str(n1d), str(ainitial), str(across),
                      str(kvec[0]),str(kvec[1]),str(kvec[2]),
                      str(phase[0]),str(phase[1]),str(phase[2]),
+                     str(params["Omega_Smooth"]),
                      params["InitialConditionsDirectory"] + "/ic_0"],
                      check=True)
     for i in range(1,params["CPD"]):
@@ -62,7 +63,7 @@ def run():
     data = np.fromfile(timeslice,dtype = np.float64)
 
 
-    subprocess.call([abacuspath+"/Tests/Spiral/makeanalytic",str(ainitial),str(across),str(astop)])
+    subprocess.call([abacuspath+"/Tests/Spiral/makeanalytic",str(ainitial),str(across),str(astop),str(params["Omega_Smooth"])])
     analytic = np.fromfile("./analytic",sep = " ")
     analytic = np.reshape(analytic,(-1,2))
     # The makeanalytic program returns canonical velocities, whereas abacus returns ZSpace velocities.
@@ -125,8 +126,7 @@ def check_pids(params, n1d):
     particles = ReadAbacus.from_dir(pjoin(params['WorkingDirectory'], 'read'), pattern='position_*', return_pid=True, format='state')
     pids = particles['pid']
     pids.sort()
-    assert pids[0] == 0
-    assert (np.diff(pids) == 1).all()
+    assert (np.diff(pids) > 0).all()
     assert len(pids) == n1d**3
     print('All particles present with no duplicates.')
 

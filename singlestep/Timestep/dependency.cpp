@@ -36,7 +36,6 @@ public:
     	// has been run, which may differ 
 
     int instantiated;  // Have we called instantiate on this dependency?
-	int process_all_particles;
 	int64_t num_particles; 
 
     const char *name;  // dependency name, like Drift
@@ -82,11 +81,12 @@ public:
 
         number_of_slabs_executed = 0; 
         raw_number_executed = 0; 
-        last_slab_executed = _initialslab-1;
 		
 		num_particles = 0; 
 
+        // TODO: this is not very RAII
         instantiated = 1;
+        last_slab_executed = wrap(_initialslab-1);
     }
                     
     int done(int s) {

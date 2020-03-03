@@ -12,10 +12,12 @@ import time
 import sys
 import os
 import os.path
+from os.path import dirname, abspath
 import copy
 import shlex
+import re
 
-import Abacus.Tools
+from Abacus.Tools import chdir
 
 def getDefaults(filename):
     infile = csv.reader(open(filename,'r'),delimiter = ',',quoting = csv.QUOTE_NONE)
@@ -49,7 +51,7 @@ def shellreplace(line):
     return line[:pos1] + value + line[pos2 +1:]
     
 # Replace tokens like @VAR@ with their previously defined value
-# Replace tokens like @_VAR@ indicates an optional parameter
+# Tokens like @_VAR@ indicates an optional parameter
 def varreplace(line, values):
     pos1 = line.find("@")
     if pos1 == -1:
@@ -70,9 +72,40 @@ def varreplace(line, values):
         else:
             print(("Variable %s is not defined!"%(varname)))
             raise SyntaxError
-    return line[:pos1] + 'varreplace_values["{:s}"]'.format(varname) + line[pos2 +1:]
+    return line[:pos1] + f'varreplace_values["{varname:s}"]' + line[pos2 +1:]
 
-def parseInput(filename, values=None, fixvalues=None, varreplace_values=None):
+
+def _parse_assignment(line, fixvalues={}, varreplace_values=None):
+    equals = line.find('=')
+        
+    x = "I HAVE NO VALUE"
+    key = line[:equals].strip()
+    if key in fixvalues.keys():
+        return None
+
+    value = 0
+    value =line[equals+1:]
+    # try to parse value
+    try:
+        #items = value.split()
+        items = shlex.split(value)
+        vec  = ','.join(items)
+        x = eval(f"({vec})")
+    except (SyntaxError, NameError):
+        #perhaps value is a vector
+        try:
+            x = eval(value)
+        except SyntaxError:
+            #fall back and try to parse as string
+            try:
+                x = eval(f'"{value}"')
+            except SyntaxError:
+                print("Error: Could not parse line:"+line)
+                raise
+
+    return key,x
+
+def parseInput(filename, values=None, fixvalues=None, varreplace_values=None, ret_deferrals=False):
     if not values:
         values = {}
     if not fixvalues:
@@ -80,73 +113,66 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None):
     if not varreplace_values:
         varreplace_values = values
 
-    with open(filename, 'r') as param:
-        for line in param:
-            if '\n' in line:
-                # The end of header token is '^B\n'.
-                break
-            if not line.strip():
-                continue
-            #process shell variables
-            while "$" in line:
-                line = shellreplace(line)
-            
-            #process previously defined variables
-            while "@" in line:
-                line = varreplace(line,varreplace_values)
-                            
-            if line.startswith("#include"):
-                #We are including the values from another parameter file. This will overwrite any already specified values
-                qt1loc = line.find('"')
-                qt2loc = line[qt1loc+1:].find('"')
-                if qt1loc == -1 or qt2loc ==-1:
-                    print("Bad syntax on include: %s"%(line))
-                    raise SyntaxError
-                
-                fn = line[qt1loc+1:qt2loc+qt1loc+1]
-                with Abacus.Tools.chdir(os.path.dirname(os.path.abspath(filename))):  # includes are specified relative to the containing file
-                    parseInput(fn, values,fixvalues)
-                continue
-                           
-            equals = line.find('=')
-            comment = line.find('#')
-            if equals ==-1:
-                if line[:comment].strip(): 
-                    print("Could not parse line: %s"%(line))
-                    raise SyntaxError
-                continue
-            
-            
-            x = "I HAVE NO VALUE"
-            key = line[:equals].strip()
-            if key in fixvalues.keys():
-                continue
-            value = 0
-            if comment != -1:
-                value = line[equals+1:comment]
-            else:
-                value =line[equals+1:]
-            # try to parse value
-            try:
-                #items = value.split()
-                items = shlex.split(value)
-                vec  = ','.join(items)
-                x = eval(f"({vec})")
-            except (SyntaxError, NameError):
-                #perhaps value is a vector
-                try:
-                    x = eval(value)
-                except SyntaxError:
-                    #fall back and try to parse as string
-                    try:
-                        x = eval('"{}"'.format(value))
-                    except SyntaxError:
-                        print("Error: Could not parse line:"+line)
-                        raise
+    with open(filename, 'r') as fp:
+        lines = fp.readlines()
+    olen = len(lines)
 
+    comment_regex = re.compile(r'#(?!include)')
+
+    deferrals = []
+    for line in lines:
+        if '\n' in line:
+            # The end of header token is '^B\n'.
+            break
+
+        comment = comment_regex.search(line)
+        if comment != None:
+            line = line[:comment.start()]
+
+        line = line.strip()
+        if not line:
+            continue
+        #process shell variables
+        while "$" in line:
+            line = shellreplace(line)
+        
+        #process previously defined variables
+        if '@' in line:
+            deferrals += [line]
+            continue
+                        
+        if line.startswith("#include"):
+            #We are including the values from another parameter file. This will overwrite any already specified values
+            qt1loc = line.find('"')
+            qt2loc = line[qt1loc+1:].find('"')
+            if qt1loc == -1 or qt2loc ==-1:
+                print("Bad syntax on include: %s"%(line))
+                raise SyntaxError
+            
+            fn = line[qt1loc+1:qt2loc+qt1loc+1]
+            with chdir(dirname(abspath(filename))):  # includes are specified relative to the containing file
+                deferrals += parseInput(fn, values,fixvalues, ret_deferrals=True)
+            continue
+
+        pa = _parse_assignment(line, fixvalues, varreplace_values)
+        if pa is None:
+            continue
+        key, x = pa
+
+        values[key] = x
+        #print("'%s': %s"%(str(key), str(x)))
+            
+    if ret_deferrals:
+        return deferrals
+    else:
+        # resolve deferrals
+        for line in deferrals:
+            while '@' in line:
+                line = varreplace(line,{**varreplace_values,**values})
+            key, x = _parse_assignment(line, fixvalues, varreplace_values)
             values[key] = x
-            #print("'%s': %s"%(str(key), str(x)))
-        return values
+
+    return values
 
 '''Create a parameters file with name filename. Optionally, DefFilename as a list of parameters and default values to output.
  Following this is a list of specific keywords and values to set. If the keyword strict is True, then only keywords that appear exactly in the default

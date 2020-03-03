@@ -189,7 +189,7 @@ def longest_common_suffix(strings):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=Tools.ArgParseFormatter)
     parser.add_argument('input_format', help='The input file format', choices=supported_formats)
-    parser.add_argument('output_format', help='The output file format', choices=['Zeldovich', 'RVdouble', 'RVdoubleZel', 'RVZel', 'RVdoubleTag', 'RVTag'])
+    parser.add_argument('output_format', help='The output file format', choices=['Zeldovich', 'RVdouble', 'RVdoubleZel', 'RVZel', 'RVdoublePID', 'RVPID'])
     parser.add_argument('cpd', help="Cells-per-dimension (number of slabs) to divide the output across", type=int)
     parser.add_argument('files', help='One or more files to convert', nargs='+')
     parser.add_argument('--flip', help='Reverse the displacements relative to their initial Lagrangian grid point', action='store_true')

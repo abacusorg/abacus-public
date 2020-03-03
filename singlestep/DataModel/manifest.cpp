@@ -61,7 +61,8 @@ class DependencyRecord {
     void Load(Dependency &d, int finished_slab, const char label[]) {
         end = finished_slab;
 		
-        for (begin=end-1; begin>end-d.cpd; begin--) {
+        // Don't look past the slabs this node owns
+        for (begin=end-1; CP->WrapSlab(begin - first_slab_on_node) < total_slabs_on_node; begin--) {
             if (d.notdone(begin)) break;
             //// d.mark_to_repeat(begin);   // We're not going to unmark
         }
@@ -70,7 +71,8 @@ class DependencyRecord {
         begin++;   // Want to pass the first done one
 		
         // Now look for the last done slab
-        for (;end<finished_slab+d.cpd;end++) {
+        // Don't look past the slabs this node owns
+        for (; CP->WrapSlab(end - first_slab_on_node) < total_slabs_on_node; end++) {
             if (d.notdone(end)) break;
         } end--;
         /* The manifest code is called in two different use cases:
@@ -207,6 +209,7 @@ class Manifest {
     STimer Load;        ///< The timing for the Queue & Import blocking routines
     STimer Transmit;	///< The timing for the Send & Receive routines, usually non-blocking
     STimer CheckCompletion;        ///< The timing to check for completion
+    STimer Communication;  ///< The timing of the main MPI communication time.
     size_t bytes;       ///< The number of bytes received
 
     MPI_Request *requests;    ///< A list of the non-blocking requests issued, each used once
@@ -293,7 +296,7 @@ class Manifest {
         while (size>0) {
             assertf(maxpending<MAX_REQUESTS, "Too many MPI requests %d\n", maxpending);
             int thissize = std::min(size, (uint64) SIZE_MPI);
-            MPI_Isend(ptr, thissize, MPI_BYTE, rank, tag_offset+maxpending, MPI_COMM_WORLD,requests+maxpending);
+            MPI_Isend(ptr, thissize, MPI_BYTE, rank, tag_offset+maxpending, comm_manifest,requests+maxpending);
             numpending++; maxpending++; size -= thissize; ptr = (char *)ptr+thissize;
         }
         #endif
@@ -307,7 +310,7 @@ class Manifest {
         while (size>0) {
             assertf(maxpending<MAX_REQUESTS, "Too many MPI requests %d\n", maxpending);
             int thissize = std::min(size, (uint64) SIZE_MPI);
-            MPI_Irecv(ptr, thissize, MPI_BYTE, rank, tag_offset+maxpending, MPI_COMM_WORLD,requests+maxpending);
+            MPI_Irecv(ptr, thissize, MPI_BYTE, rank, tag_offset+maxpending, comm_manifest,requests+maxpending);
             numpending++; maxpending++; size -= thissize; ptr = (char *)ptr+thissize;
         }
         #endif
@@ -424,7 +427,7 @@ void Manifest::QueueToSend(int finished_slab) {
     	// We just determined that Drift has executed on begin, so
 	// the rebinning might have taken particles to begin-FINISH_WAIT_RADIUS.
     m.dep[m.numdep++].Load(Finish, finished_slab, "Finish");
-    m.dep[m.numdep++].Load(FetchLPTVelocity, finished_slab, "FetchLPTVelocity");
+    m.dep[m.numdep++].Load(UnpackLPTVelocity, finished_slab, "UnpackLPTVelocity");
     m.dep[m.numdep++].LoadCG(finished_slab);
     	// LoadCG() includes moving info into the CellGroupArenas
     assertf(m.numdep<MAXDEPENDENCY, "m.numdep has overflowed its MAX value");
@@ -460,7 +463,7 @@ void Manifest::QueueToSend(int finished_slab) {
     uint64 mid = ParallelPartition(IL->list, IL->length, finished_slab, is_below_slab);
 
     m.numil = IL->length-mid;
-    int ret = posix_memalign((void **)&il, 4096, sizeof(ilstruct)*m.numil);
+    int ret = posix_memalign((void **)&il, PAGE_SIZE, sizeof(ilstruct)*m.numil);
     memcpy(il, IL->list+mid, sizeof(ilstruct)*m.numil);
 	// Possible TODO: Consider whether this copy should be multi-threaded
     STDLOG(2, "Insert list had size %l, now size %l; sending %l\n", IL->length, mid, m.numil);
@@ -472,7 +475,7 @@ void Manifest::QueueToSend(int finished_slab) {
         STDLOG(2,"Queuing GroupLink List into the SendManifest, extracting [%d,%d)\n", min_links_slab, finished_slab);
         global_minslab_search = CP->WrapSlab(min_links_slab-finished_slab);
         mid = ParallelPartition(GFC->GLL->list, GFC->GLL->length, finished_slab, link_below_slab);
-        ret = posix_memalign((void **)&links, 4096, sizeof(GroupLink)*(GFC->GLL->length-mid));
+        ret = posix_memalign((void **)&links, PAGE_SIZE, sizeof(GroupLink)*(GFC->GLL->length-mid));
         m.numlinks = GFC->GLL->length-mid;
         memcpy(links, GFC->GLL->list+mid, sizeof(GroupLink)*m.numlinks);
             // Possible TODO: Consider whether this copy should be multi-threaded
@@ -517,6 +520,7 @@ void Manifest::Send() {
     STDLOG(1,"Done queuing the SendManifest, %d total MPI parts, %l bytes\n", maxpending, bytes);
     completed = MANIFEST_TRANSFERRING;
     Transmit.Stop();
+    Communication.Start();
     #endif
     return;
 }
@@ -556,8 +560,9 @@ inline void Manifest::FreeAfterSend() {
 	    STDLOG(2,"Sent Manifest part %d, %d left\n", n, numpending);
 	}
     if (check_all_done()) {
-	// At present, we don't know which MPI send fragment maps to which arena, 
-	// so we have to wait until all are sent to delete.
+        // At present, we don't know which MPI send fragment maps to which arena, 
+        // so we have to wait until all are sent to delete.
+        Communication.Stop();
         STDLOG(2,"Send Manifest appears to be completely sent\n");
         free(il);    // Insert List
         if (GFC!=NULL) free(links);    // GroupLink List
@@ -567,7 +572,8 @@ inline void Manifest::FreeAfterSend() {
                 m.arenas[n].slab, m.arenas[n].type);
         }
         completed=MANIFEST_READY;
-        STDLOG(1,"Marking the Send Manifest as completely sent\n");
+        STDLOG(1,"Marking the Send Manifest as completely sent: %6.3f sec for %l bytes, %6.3f GB/sec\n", Communication.Elapsed(),
+            bytes, bytes/(Communication.Elapsed()+1e-15)/(1024.0*1024.0*1024.0));
     }
     CheckCompletion.Stop();
     #endif
@@ -687,6 +693,7 @@ void Manifest::Receive() {
     // Victory!
     STDLOG(1,"Done issuing the ReceiveManifest, %d MPI parts, %l bytes\n", maxpending, bytes);
     Transmit.Stop();
+    Communication.Start();
     #endif
     return;
 }
@@ -711,7 +718,9 @@ void Manifest::ImportData() {
     #ifdef PARALLEL
     assertf(completed==MANIFEST_READY, "ImportData has been called when completed==%d\n", completed);
 
-    STDLOG(1,"Importing ReceiveManifest of %l bytes into the flow\n", bytes);
+    Communication.Stop();
+    STDLOG(1,"Importing ReceiveManifest of %l bytes into the flow; took %6.3f sec, %6.3f GB/sec\n", bytes,
+        Communication.Elapsed(), bytes/(Communication.Elapsed()+1e-15)/(1024.0*1024*1024));
     Load.Start();
     for (int n=0; n<m.numarenas; n++) {
 	    SB->SetIOCompleted(m.arenas[n].type, m.arenas[n].slab);
@@ -737,14 +746,20 @@ void Manifest::ImportData() {
     m.dep[n++].Set(Output, "Output");
     m.dep[n++].Set(Microstep, "Microstep");
     m.dep[n++].Set(FinishGroups, "FinishGroups");
-    m.dep[n].end++;
+    
+    // We only want to lie about an extra Drift being completed on this node
+    // if this is a Finish manifest and not a Group Finding manifest.
+    // We don't distinguish explicitly between these two,
+    // but the latter won't have any Drifts done, so we can check that
+    if(m.dep[n].begin < m.dep[n].end)
+        m.dep[n].end++;
         // We need to also mark the first_finished_slab on the other node
         // as having been completed.  This is because Finish requires this
         // as a precondition, and the particles incoming to Finish are on the
         // insert list.
     m.dep[n++].Set(Drift, "Drift");
     m.dep[n++].Set(Finish, "Finish");
-    m.dep[n++].Set(FetchLPTVelocity, "FetchLPTVelocity");
+    m.dep[n++].Set(UnpackLPTVelocity, "UnpackLPTVelocity");
     m.dep[n++].SetCG(m.remote_first_slab_finished);
     	// This will copy data back to GFC from CellGroupArenas
     assert(n==m.numdep);
@@ -765,7 +780,7 @@ void Manifest::ImportData() {
         memcpy(GFC->GLL->list+len, links, m.numlinks*sizeof(GroupLink));
         // Possible TODO: Should this copy be multi-threaded?
         free(links);
-        STDLOG(2, "Growing GroupLink list from %d by %d = %l\n", len, m.numil, GFC->GLL->length);
+        STDLOG(2, "Growing GroupLink list from %d by %d = %l\n", len, m.numlinks, GFC->GLL->length);
     }
     
     // We're done with this Manifest!

@@ -7,25 +7,30 @@ RamDisk = 1
 #nIODirs = 4
 #IODirThreads = [2, 2, 3, 3]
 #MAXRAMMB = 200000  # This will be automatically detected
-ConvolutionCacheSizeMB = 200  # Two procs, 21 user-facing SMCs per proc; pairs of SMCs share a 10 MB L3 cache.
+ConvolutionCacheSizeMB = 200  # Two sockets, 21 user-facing SMCs per socket; pairs of SMCs share a 10 MB L3 cache.
 ConvolutionL1CacheSizeMB = 0.015625
 
 # OpenMP and thread parameters
 # for SMT1: specify alloc_flags smt1 in lsf submission script. 
-#OMP_NUM_THREADS = 36
-#OMP_PLACES = "{0}:18:4,{88}:18:4"
+#OMP_NUM_THREADS = 35
+#OMP_PLACES = "{0}:17:4,{88}:18:4"
+#NGPUThreadCores = 1
+#MunmapThreadCore = 68
 
 # for SMT2: specify alloc_flags smt2 in lsf submission script. 
-OMP_NUM_THREADS = 72 
-OMP_PLACES = "{0}:18:4,{1}:18:4,{88}:18:4,{89}:18:4"
+OMP_NUM_THREADS = 70 
+OMP_PLACES = "{0}:17:4,{1}:17:4,{88}:18:4,{89}:18:4"
+NGPUThreadCores = 2
+MunmapThreadCore = 69
 
+# These are common to SMT1 and 2
 OMP_PROC_BIND = "spread"
-IOCores = [0]
+IOCores = [68]
 GPUThreadCoreStart = [72, 76, 80, 160, 164, 168]
-NGPUThreadCores = 1  # will this work when we're supposed to use cores 0,8,16, etc?
 DirectBPD = 2  # 2 threads per GPU
+GPUQueueAssignments = [0, 0, 0, 1, 1, 1]
 
-# Convolution OpenMP parameters
+# Convolution OpenMP parameters, only for non-parallel convolution
 Conv_OMP_NUM_THREADS = 42
 Conv_OMP_PLACES = "{0}:21:4,{88}:21:4"
 Conv_OMP_PROC_BIND = "spread"
@@ -35,7 +40,8 @@ Conv_zwidth = 0
 Parallel = 1
 
 #if running with smt2, need -b rs. 
-mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -gALL_GPUS -b rs"
+mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -gALL_GPUS -b none"
+##mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -gALL_GPUS -b rs --smpiargs='-disable_gpu_hooks'"
 ##Conv_mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -b rs"
 ZD_mpirun_cmd = "jsrun -n1 -cALL_CPUS -a1 -r1 -b rs"
 WorkingDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@
