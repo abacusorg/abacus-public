@@ -290,7 +290,7 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=False, return_
 
             files = []
             for p in pattern:
-                files = sorted(glob(pjoin(path, p)), key=_key)
+                files += sorted(glob(pjoin(path, p)), key=_key)
         elif ppath.isfile(path):
             files = [path]
         else:
@@ -782,7 +782,7 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
     
 def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
                 return_pid='auto', return_aux=False, return_vel='auto', return_pos='auto', return_header=False,
-                pid_bitmask=0x7fff7fff7fff, out=None):
+                pid_bitmask=0x7fff7fff7fff, out=None, zspace=False, boxsize=None):
     """
     Read an Abacus position or velocity state file (like 'read/position_0000').
     
@@ -828,6 +828,9 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
         return_pid = 'auxillary' in basename 
     if make_global == 'auto':
         make_global = 'position' in basename
+
+    if zspace:
+        raise NotImplementedError
         
     # cellinfo dtype
     ci_dtype = np.dtype([('startindex',np.uint64),
@@ -856,7 +859,7 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
         particles = out
     else:  # or allocate one
         ndt = output_dtype(return_vel=return_vel, return_pid=return_pid, dtype=dtype)
-        particles = np.empty(alloc_NP, dtype=ndt)
+        particles = np.empty(NP, dtype=ndt)
     del fn
     
     if return_pos:
@@ -1158,6 +1161,7 @@ default_box_on_disk = {'desi_hdf5':'box',
                 'pack9':1.,
                 'rvtag':'box',
                 'gadget':'box',
+                'state':1.
 }
 
 def get_file_patterns(format):
