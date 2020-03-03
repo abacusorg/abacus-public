@@ -61,7 +61,7 @@ class DependencyRecord {
     void Load(Dependency &d, int finished_slab, const char label[]) {
         end = finished_slab;
 		
-        // Don't look past slabs this node doesn't own
+        // Don't look past the slabs this node owns
         for (begin=end-1; CP->WrapSlab(begin - first_slab_on_node) < total_slabs_on_node; begin--) {
             if (d.notdone(begin)) break;
             //// d.mark_to_repeat(begin);   // We're not going to unmark
@@ -71,7 +71,7 @@ class DependencyRecord {
         begin++;   // Want to pass the first done one
 		
         // Now look for the last done slab
-        // Don't look past slabs that this node doesn't own
+        // Don't look past the slabs this node owns
         for (; CP->WrapSlab(end - first_slab_on_node) < total_slabs_on_node; end++) {
             if (d.notdone(end)) break;
         } end--;
