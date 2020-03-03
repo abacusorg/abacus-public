@@ -231,16 +231,12 @@ public:
     	installscalar("RMS_Velocity",RMS_Velocity,DONT_CARE);
         MaxGroupDiameter = 0; 
         installscalar("MaxGroupDiameter",MaxGroupDiameter,DONT_CARE);
-<<<<<<< HEAD
 
-        DirectsPerParticle = 0.0;
-        installscalar("DirectsPerParticle",DirectsPerParticle,DONT_CARE);
-=======
         MaxL0GroupSize = 0;
         installscalar("MaxL0GroupSize",MaxL0GroupSize,DONT_CARE);
         DirectsPerParticle = 0.0;
-    	installscalar("DirectsPerParticle",DirectsPerParticle,DONT_CARE);
->>>>>>> development
+        installscalar("DirectsPerParticle",DirectsPerParticle,DONT_CARE);
+
         // Initialize helper variables
         DoTimeSliceOutput = 0;
         OutputIsAllowed = 0;

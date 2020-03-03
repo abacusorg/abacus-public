@@ -946,9 +946,6 @@ void FinalizeWriteState() {
         MPI_REDUCE_TO_ZERO(&WriteState.RMS_Velocity, 1, MPI_DOUBLE, MPI_SUM);
         // sqrt(Sum(SQR of StdDevCellSize))
         MPI_REDUCE_TO_ZERO(&WriteState.StdDevCellSize, 1, MPI_DOUBLE, MPI_SUM);
-<<<<<<< HEAD
-        MPI_REDUCE_TO_ZERO(&WriteState.DirectsPerParticle, 1, MPI_DOUBLE, MPI_SUM);
-=======
         // Maximize MaxGroupDiameter
         MPI_REDUCE_TO_ZERO(&WriteState.MaxGroupDiameter, 1, MPI_INT, MPI_MAX);
         // Maximize MaxL0GroupSize
@@ -958,7 +955,6 @@ void FinalizeWriteState() {
         // sum subsample counts
         MPI_REDUCE_TO_ZERO(&WriteState.np_subA_state, 1, MPI_INT, MPI_SUM);
         MPI_REDUCE_TO_ZERO(&WriteState.np_subB_state, 1, MPI_INT, MPI_SUM);
->>>>>>> development
 // #undef MPI_REDUCE_IN_PLACE
 
         // Note that we're not summing up any timing or group finding reporting;
@@ -980,10 +976,7 @@ void FinalizeWriteState() {
     STDLOG(0,"Maximum a_j in simulation is %f code units.\n", WriteState.MaxAcceleration);
     STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f code units.\n", WriteState.MinVrmsOnAmax);
     STDLOG(0,"Maximum group diameter in simulation is %d.\n", WriteState.MaxGroupDiameter); 
-<<<<<<< HEAD
-=======
     STDLOG(0,"Maximum L0 group size in simulation is %d.\n", WriteState.MaxL0GroupSize); 
->>>>>>> development
     STDLOG(0,"Mean Directs per particle in simulation is %d.\n", WriteState.DirectsPerParticle); 
 
     //NAM TODO put an intelligent assertf here. 
