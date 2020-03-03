@@ -58,7 +58,7 @@ class Stage:
             self.action = lambda s,b: False  # returns False; stages will not advance
             self.indicator = lambda b: False  # later stages that are no-op'd should not grab boxes
         elif noop == 'action':
-            self.action = lambda b: False
+            self.action = None
 
     # Default indicator is no-op
     # Indicators return True if this stage has already been executed, else False
@@ -197,15 +197,16 @@ class ReadyForPostProcess(Stage):
 
     def action(self, box):
         '''submit rhea post processing script'''
-        cmd = 'sbatch --job-name=' + box.jobname('PostProcess') + ' rhea_post_process.slurm' + box.parfn
+        cmd = './rhea_post_process.sh ' + box.name
         if self.disable_automation:
             breakpoint()
 
         try:
             subprocess.run(shlex.split(cmd), check=True)  #TODO slurm python bindings?
-        except:
+        except Exception as e:
             # TODO: do we want to crash here? place box in error stage?
             # Don't really want to raise exception, because then the whole script halts and we don't record anything or send any emails
+            print(e)
             print(f'Error submitting box {box.name} for post-procesing.  Continuing...')
             return False
 

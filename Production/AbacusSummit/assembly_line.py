@@ -43,7 +43,7 @@ stages = {
         4:        QueuedOnSummit('Queued on Summit'),
         5:   ReadyForPostProcess('Ready for post-processing'),
         6:  QueuedForPostProcess('Queued for post-processing'),
-        7:  ReadyForDataTransfer('Ready for data transfer'),
+        7:  ReadyForDataTransfer('Ready for data transfer',    noop='action'),
         8:      ReadyForDeletion('Ready for deletion',         noop=True),
         9:             Completed('Completed',                  noop=True),
     }
