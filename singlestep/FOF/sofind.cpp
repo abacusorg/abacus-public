@@ -470,7 +470,8 @@ FOFloat search_socg_thresh(FOFparticle halocenter, int &mass, FOFloat &inv_enc_d
     
     int size_bin;
     int size_thresh;
-    FOFloat d2_thresh;
+    FOFloat d2_thresh = 0.;
+    FOFloat d2_max = 0.;
     int size_partition;
       
     // Compute the distance to all of the cellgroup centers,

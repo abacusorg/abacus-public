@@ -256,6 +256,7 @@ def retrieve_state(parfile, resumedir, verbose=True):
     if verbose:
         print('Will copy node {}s state from {} to {}'.format(rank, source, dest), file=sys.stderr)
     
+    # TODO: make read-only after copy, then read-write after distribution to nodes
     shutil.copytree(source, dest)
     
     #rank 0 will also back up the read directory misc. files, which are about to modified when we requeue during every consecutive timestep. 

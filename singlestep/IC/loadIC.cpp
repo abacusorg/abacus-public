@@ -178,7 +178,7 @@ private:
             posstruct _pos(pos);
 
             aux.clear();
-            aux.setpid(next_pid+i); // Set aux too.
+            aux.packpid(next_pid+i); // use packpid to pack our "linear" pid into the distributed aux format
             set_taggable_bits(aux, sumA, sumB);
 
             IL->Push(&_pos, &vel, &aux, newcell);
@@ -487,7 +487,7 @@ public:
 
             auxstruct aux;
             aux.clear();
-            aux.setpid(next_pid+i); // Set aux too.
+            aux.setpid(ijk); // Set aux too.
             set_taggable_bits(aux, sumA, sumB);
 
             IL->Push(&_pos, &vel, &aux, newcell);

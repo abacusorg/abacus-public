@@ -10,8 +10,7 @@ LIBS ?= -lm
 
 TARGET = phheader phdata \
 dump_double3 dump_float3 dump_uint64 \
-dump_rvdouble dump_pack14 pack14_to_rvdouble pack14_to_rvfloat \
-fast_cksum
+dump_rvdouble dump_pack14 pack14_to_rvdouble pack14_to_rvfloat
 
 all: ${TARGET}
 

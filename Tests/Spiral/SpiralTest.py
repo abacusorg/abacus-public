@@ -126,8 +126,7 @@ def check_pids(params, n1d):
     particles = ReadAbacus.from_dir(pjoin(params['WorkingDirectory'], 'read'), pattern='position_*', return_pid=True, format='state')
     pids = particles['pid']
     pids.sort()
-    assert pids[0] == 0
-    assert (np.diff(pids) == 1).all()
+    assert (np.diff(pids) > 0).all()
     assert len(pids) == n1d**3
     print('All particles present with no duplicates.')
 

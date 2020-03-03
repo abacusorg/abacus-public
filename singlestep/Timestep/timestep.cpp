@@ -1104,15 +1104,3 @@ void timestep(void) {
     STDLOG(1,"Completing timestep()\n");
     TimeStepWallClock.Stop();
 }
-
-
-// ===================================================================
-// Other timesteps that re-use dependencies above
-
-#include "timestep_ic.cpp"
-
-#include "timestep_recover_multipoles.cpp"
-
-#include "timestep_benchmark_io.cpp"
-
-#include "timestep_standalone_fof.cpp"

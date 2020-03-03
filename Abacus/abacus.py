@@ -19,7 +19,7 @@ abacuspath = os.getenv("ABACUS")
 if not abacuspath:
     print("Error: Please define $ABACUS to be the absolute path to your abacus distribution", file=sys.stderr)
     sys.exit(1)
-    
+
 import os.path as path
 from os.path import join as pjoin, normpath, basename, dirname
 import subprocess
@@ -44,13 +44,15 @@ from . import Tools
 from . import GenParam
 from . import zeldovich
 
+
 NEEDS_INTERIM_BACKUP_MINS = 105  #minimum job runtime (in minutes) for which we'd like to do a backup halfway through the job. 
 EXIT_REQUEUE = 200
 RUN_TIME_MINUTES = os.getenv("JOB_ACTION_WARNING_TIME")
 GF_BACKUP_INTERVAL = 2 * 60 * 60  #only backup b/w group finding steps if it's been more than two hours since the last backup. 
 
+
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
-directory_param_fn = pjoin(abacuspath, 'Abacus', 'directory.def')
+directory_param_fn = pjoin(abacuspath, 'Production', 'directory.def')
 wall_timer = time.perf_counter  # monotonic wall clock time
 
 
@@ -62,7 +64,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
 
     Files in the `config_dir` directory will be carried around in the `info`
     directory alongside time slices, data products, etc.
-    
+
     Parameters
     ----------
     parfn: str, optional
@@ -93,13 +95,13 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     param_kwargs: dict, optional
         Extra parameters to pass to the InputFile parser.  Useful for changing
         parameters on-the-fly for e.g. testing different parameters.
-        
+
     Returns
     -------
     retcode: int
         The singlestep return value
     """
-    
+
     parfn = pjoin(config_dir, parfn)
     pardir = dirname(parfn)
     if not output_parfile:
@@ -130,10 +132,10 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     # If we requested a resume, but there is no state, assume we are starting fresh
     if not clean:
         if (parallel and path.exists(resumedir)) or (not parallel and path.exists(basedir)):
-            print('Resuming from existing state.')    
+            print('Resuming from existing state.')
         else:
             print('Resume requested but no state exists.  Creating one.')
-            clean = True            
+            clean = True
 
     if erase_ic and path.exists(icdir):
         print('Erasing IC dir')
@@ -146,16 +148,16 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
         clean_dir(logdir, preserve=icdir if not erase_ic else None)
         clean_dir(groupdir, preserve=icdir if not erase_ic else None)
         clean_dir(lcdir, preserve=icdir if not erase_ic else None)
-        #NAM make prettier. 
+        #NAM make prettier.
         if parallel and path.exists(resumedir):
             clean_dir(resumedir, preserve=icdir if not erase_ic else None)
-            
+
     os.makedirs(basedir, exist_ok=True)
 
     for d in ['LogDirectory', 'OutputDirectory', 'GroupDirectory', 'LightConeDirectory']:
         if d in params and params[d]:
             os.makedirs(params[d], exist_ok=True)
-    
+
     try:
         shutil.copy(output_parfile, basedir)
     except shutil.Error:
@@ -170,10 +172,10 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
         shutil.copy(output_parfile, outdir)
     except shutil.Error:
         pass  # same file?
-    
+
     info_out_path = pjoin(outdir, 'info')
     copy_contents(config_dir, info_out_path, clean=True)
-  
+
     # Note: we are cd-ing into the global working directory if this is a parallel run
     with Tools.chdir(basedir):
         # The parfile is directly stored in the basedir
@@ -184,7 +186,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
             print('Reusing existing ICs')
 
         retval = singlestep(output_parfile, maxsteps, make_ic=clean, resume_dir = resumedir)
-        
+
     #if parallel:
     #    handle_requeue(retval, parfn)
 
@@ -214,8 +216,8 @@ def clean_dir(bd, preserve=None, rmdir_ifempty=True):
     the directory itself if it's empty.
     '''
     if bd == None:
-        return 0 
-        
+        return 0
+
     if path.exists(bd):
         # Erase everything in basedir except the ICs
         for d in os.listdir(bd):
@@ -247,20 +249,20 @@ def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
 
     if type(derivs_archive_dirs) is str:
         derivs_archive_dirs = [derivs_archive_dirs]
-    
+
     os.makedirs(param.DerivativesDirectory, exist_ok=True)
 
-    #note! added this in to run Ewald test for far_radius 1-8,16 
+    #note! added this in to run Ewald test for far_radius 1-8,16
     for ADnum in list(range(1,9)) + [16]:
         ADfn = f'AD32_{ADnum:03d}.dat'
         source_ADfn = pjoin(abacuspath, "Derivatives", ADfn)
         if not path.isfile(pjoin(param.DerivativesDirectory, ADfn)):
             shutil.copy(source_ADfn,param.DerivativesDirectory)
-    
+
     suffix = f"{param.CPD:d}_{param.Order:d}_{param.NearFieldRadius:d}_{param.DerivativeExpansionRadius:d}" + "_{slab:d}"
     fnfmt32 = "fourierspace_float32_" + suffix
     fnfmt64 = "fourierspace_" + suffix
-            
+
     derivativenames32, derivativenames64 = [], []
     for i in range(0,param.CPD//2+1):
         derivativenames32 += [fnfmt32.format(slab=i)]
@@ -282,7 +284,7 @@ def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
 
     # First check if the derivatives are in the DerivativesDirectory
     if not all(path.isfile(pjoin(param.DerivativesDirectory, dn)) for dn in derivativenames):
-        
+
         # If not, check if they are in the canonical $ABACUS_PERSIST/Derivatives directory
         for derivs_archive_dir in derivs_archive_dirs:
             if all(path.isfile(pjoin(derivs_archive_dir, dn)) for dn in derivativenames):
@@ -310,8 +312,8 @@ def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
                     if parallel:
                         print('Dispatching CreateDerivatives with command "{}"'.format(' '.join(create_derivs_cmd)))
                     call_subprocess(create_derivs_cmd)
-    
-    
+
+
 def default_parser():
     """
     A default command-line interface that other scripts may want to use.
@@ -322,7 +324,7 @@ def default_parser():
     parser.add_argument(...)  # optional
     args = parser.parse_args()
     retcode = abacus.run('abacus.par2', **vars(args))
-    
+
     """
     parser = argparse.ArgumentParser(description='Run this sim.', formatter_class=Tools.ArgParseFormatter)
     parser.add_argument('--clean', action='store_true', help="Erase the working directory and start over.  Otherwise, continue from the existing state.  Always preserves the ICs unless --erase-ic.")
@@ -346,6 +348,7 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
     5) If `override_directories` is set, overwrite directories with defaults from the environment
     '''
     # We will build this dict in order of precedence
+    # LHG TODO: not using _param_kwargs, probably a bug?
     _param_kwargs = param_kwargs.copy()
 
     if use_site_overrides:
@@ -363,11 +366,12 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
             # explicit param_kwargs take precedence over directory overrides
             if k not in param_kwargs:
                 param_kwargs[k] = dirs[k]
-    
-    zd_params = zeldovich.setup_zeldovich_params(params)
-    if zd_params:
-        param_kwargs.update(zd_params)
-        params = GenParam.makeInput(output_parfile, parfn, **param_kwargs)
+
+    if not params.get('ExternalICs', False):
+        zd_params = zeldovich.setup_zeldovich_params(params)
+        if zd_params:
+            param_kwargs.update(zd_params)
+            params = GenParam.makeInput(output_parfile, parfn, **param_kwargs)
 
     if params.get('StateIOMode','normal').lower() in ('slosh','stripe'):
         # TODO: state striping not implemented
@@ -427,11 +431,11 @@ def setup_singlestep_env(param):
     and OMP_PROC_BIND environment variables.  This has
     to be done in Python instead of singlestep because
     OpenMP offers no C/C++ interfaces to do this.
-    
+
     TODO: Setting intelligent defaults for these would
     require detecting the NUMA architecture of the machine
     """
-    
+
     singlestep_env = os.environ.copy()
     if 'OMP_PLACES' in param:
         singlestep_env['OMP_PLACES'] = param.OMP_PLACES
@@ -441,24 +445,24 @@ def setup_singlestep_env(param):
         if int(param['OMP_NUM_THREADS']) != int(singlestep_env['OMP_NUM_THREADS']):
             warn('OMP_NUM_THREADS in the parameter file and the environment do not match. '
                 'To avoid confusion, they should be the same (or the environment variable should be unset).')
-        
+
     return singlestep_env
-    
-    
+
+
 def setup_convolution_env(param):
     """
     Same as singlestep_env, but for the convolution
     """
-    
+
     convolution_env = os.environ.copy()
     if 'Conv_OMP_PLACES' in param:
         convolution_env['OMP_PLACES'] = param.Conv_OMP_PLACES
     if 'Conv_OMP_PROC_BIND' in param:
         convolution_env['OMP_PROC_BIND'] = param.Conv_OMP_PROC_BIND
-        
+
     return convolution_env
 
-    
+
 def setup_state_dirs(paramfn):
     '''
     This function is called once before the singlestep loop begins.
@@ -485,7 +489,7 @@ def setup_state_dirs(paramfn):
     if parallel:
         assert StateIOMode in ('normal', 'overwrite')
         assert Conv_IOMode in ('normal', 'overwrite')
-    
+
     # Normal operation: everything is under the WorkingDirectory or specified individually
     try:
         read = params['ReadStateDirectory']
@@ -535,7 +539,7 @@ def setup_state_dirs(paramfn):
         else:
             os.makedirs(target, exist_ok=True)
             os.symlink(target, link)
-    
+
     # Set up symlinks to slosh the state
     # This approach ensures that Abacus proper doesn't need to know anything about sloshing
     if StateIOMode == 'slosh':
@@ -704,7 +708,7 @@ class StatusLogWriter:
         by step_num.
 
         We gather info from both read_state and write_state.
-        At Step N, we are drifting from z_read to z_write. 
+        At Step N, we are drifting from z_read to z_write.
         Timeslice outputs and groups are coming from z_read, so we output that in the redshift column.
         Lightcones are coming from the annulus between z_read and z_write.
         Velocity stats are from the midway point between the two.
@@ -737,16 +741,17 @@ class StatusLogWriter:
         ss_rate = param['NP']/1e6/(ss_time+conv_time)  # Mpart/s
 	
         code_to_kms = write_state.VelZSpace_to_kms / write_state.VelZSpace_to_Canonical
-        info = dict(Step=step_num, Rate=ss_rate, Elapsed=ss_time+conv_time, Conv=conv_time, 
-            Redshift=read_state.Redshift, DeltaZ=write_state.DeltaRedshift, 
+        info = dict(Step=step_num, Rate=ss_rate, Elapsed=ss_time+conv_time, Conv=conv_time,
+            Redshift=read_state.Redshift, DeltaZ=write_state.DeltaRedshift,
             TauHMpc=read_state.CoordinateDistanceHMpc,
-            Time=read_state.Time, DeltaT=write_state.DeltaTime, 
-            GrpDiam=write_state.MaxGroupDiameter, MaxL0Sz=write_state.MaxL0GroupSize, 
-            RMSVel=write_state.RMS_Velocity*code_to_kms, MaxVel=write_state.MaxVelocity*code_to_kms, 
+            Time=read_state.Time, DeltaT=write_state.DeltaTime,
+            GrpDiam=write_state.MaxGroupDiameter, MaxL0Sz=write_state.MaxL0GroupSize,
+            RMSVel=write_state.RMS_Velocity*code_to_kms, MaxVel=write_state.MaxVelocity*code_to_kms,
             DirectPP=write_state.DirectsPerParticle,
             RMSCell=write_state.StdDevCellSize )
 
         self.logger(*(info[k] for k in self.fields))
+        self.log_fp.flush()
 
 
     def print(self, fmtstring, end='\n', *args, **kwargs):
@@ -756,8 +761,8 @@ class StatusLogWriter:
         #self.log_fp.write(('\n' + fmtstring.format(*args, **kwargs) + end).encode('utf-8'))
         self.log_fp.write((fmtstring.format(*args, **kwargs) + end).encode('utf-8'))
         self.log_fp.flush()
-    
- 
+
+
 def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=None):
     """
     Run a number of Abacus timesteps by invoking the `singlestep` and
@@ -786,7 +791,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         Returns 0 or 1 for general success or failure;
         or EXIT_REQUEUE if we finish cleanly but have not reached the final z
     """
-    
+
     finished = False
 
     if maxsteps is None:
@@ -796,7 +801,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
     if not path.exists(paramfn):
         raise ValueError(f'Parameter file "{paramfn:s}" is not accessible')
-        
+
     param = InputFile(paramfn)
 
     parallel = param.get('Parallel', False)
@@ -808,21 +813,21 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         backups_enabled = param['BackupStepInterval'] > 0
     except:
         backups_enabled = False  # No BackupIntervalSteps parameter
-    
+
     if parallel:
         # TODO: figure out how to signal a backup to the nodes
         run_time_minutes = int(os.getenv("JOB_ACTION_WARNING_TIME",'10000'))
         run_time_secs = 60 * run_time_minutes
         start_time = wall_timer()
         print("Beginning run at time", start_time, ", running for ", run_time_minutes, " minutes.\n")
-        
+
         backups_enabled = False
 
     #if not backups_enabled:
     #    print 'Warning: automatic state backup not enabled.  Set "BackupStepInterval" and "BackupDirectory" in the parameters file.'
 
     ProfilingMode = param.get('ProfilingMode',False)
-        
+
     # Set up OpenMP singlestep environment
     # TODO: check that calling mpirun with this environment is equivalent to calling singlestep with the environment
     singlestep_env = setup_singlestep_env(param)
@@ -855,7 +860,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     read,write,past,multipoles,taylors = setup_state_dirs(paramfn)
 
     if parallel:
-        
+
         try:
             mpirun_cmd = shlex.split(param['mpirun_cmd'])
             if 'Conv_mpirun_cmd' in param:
@@ -871,14 +876,14 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             print('Distributing state to nodes...')
             distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, distribute_state_from, '--distribute-from-serial']
             call_subprocess(Conv_mpirun_cmd + distribute_state_cmd)
-        
-        #check if our previous run was interrupted and saved in the global directory. If yes, redistribute state to nodes. 
-        #TODO do this by checking if we have a backed-up state available in global directory (instead of looking at param file). 
-        
-        if not make_ic: #if this is not a clean run, redistribute the state out to the nodes. 
+
+        #check if our previous run was interrupted and saved in the global directory. If yes, redistribute state to nodes.
+        #TODO do this by checking if we have a backed-up state available in global directory (instead of looking at param file).
+
+        if not make_ic: #if this is not a clean run, redistribute the state out to the nodes.
             allow_new_nnode = param.get('AllowResumeToNewNNode',False)
             print('Distributing in order to resume...')
-            dist_start = wall_timer()          
+            dist_start = wall_timer()
             distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', resume_dir]
             if allow_new_nnode:
                 distribute_state_cmd += ['--allow-new-nnode']
@@ -892,22 +897,22 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     print("Beginning abacus steps:")
     if parallel:
         # TODO: this would be useful in the serial code too, especially with ramdisk runs
-        emergency_exit_fn = pjoin(param['WorkingDirectory'], 'abandon_ship')
+        emergency_exit_fn = pjoin(param['WorkingDirectory'], 'ABANDON_SHIP')
         print("\n------------------")
         print("To trigger emergency quit safely, create file", emergency_exit_fn)
         print("------------------")
-    
+
     singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic))]
     if parallel:
         singlestep_cmd = mpirun_cmd + singlestep_cmd
-        print("Using singlestep_cmd ", singlestep_cmd) 
-    
-        #if this job is longer than a set time (NEEDS_INTERIM_BACKUP_MINS), we'll need to do a backup halfway through the run. 
+        print("Using singlestep_cmd ", singlestep_cmd)
+
+        #if this job is longer than a set time (NEEDS_INTERIM_BACKUP_MINS), we'll need to do a backup halfway through the run.
         interim_backup_complete = run_time_minutes <= NEEDS_INTERIM_BACKUP_MINS
 
-    last_backup = None # time of last backup.     
+    last_backup = wall_timer()  # time of last backup. Count the very beginning as a "backup"
     for i in range(maxsteps):
-        
+
         if make_ic:
             ConvDone = True  # No need to convolve for an IC step
             stepnum = 0
@@ -944,12 +949,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                     taylors_convstate = os.readlink(taylors)
                     os.unlink(taylors)
                     os.symlink(os.readlink(multipoles), taylors)
-            
+
             if do_fake_convolve:
                 convolution_cmd = [pjoin(abacuspath, "Convolution", "FakeConvolution.py"), paramfn]
             else:
                 convolution_cmd = [pjoin(abacuspath, "Convolution", "convolution"), paramfn]
-            
+
             print(f"Performing convolution for step {stepnum:d}")
             with Tools.ContextTimer() as conv_timer:
                 call_subprocess(convolution_cmd, env=convolution_env)
@@ -962,7 +967,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             if not check_multipole_taylor_done(param, read_state, kind='Taylor'):
                 # have to take it on faith in the parallel version!
                 raise ValueError("Convolution did not complete")
-            
+
             # TODO: pass step num to convolution so it can name the logs appropriately
             convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
             for cl in convlogs:
@@ -985,7 +990,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         if i == stopbefore:
             print('stopbefore = %d was specified; stopping before calling singlestep'%i)
             return 0
-        
+
         singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic))]
         if parallel:
             singlestep_cmd = mpirun_cmd + singlestep_cmd
@@ -999,12 +1004,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             except subprocess.CalledProcessError as cpe:
                 handle_singlestep_error(cpe)
                 raise
-        
+
         # In profiling mode, we don't move the states so we can immediately run the same step again
         if ProfilingMode and ProfilingMode != 2:
             print(f'\tStep {stepnum} finished. ProfilingMode is active; Abacus will now quit and states will not be moved.')
             break
-            
+
         # Check that write/state was written as a test of success
         write_state_path = pjoin(write, "state")
         if not path.isfile(write_state_path):
@@ -1018,14 +1023,14 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         else:
             status_log.update(param, read_state, write_state, ss_timer.elapsed, conv_time)
 
-        
+
         shutil.copy(pjoin(write, "state"),
             pjoin(param.LogDirectory, "step{0:04d}", "step{0:04d}.state").format(write_state.FullStepNumber))
         print(( "\t Finished state {:d}. a = {:.4f}, dlna = {:.3g}, rms velocity = {:.3g}".format(
             write_state.FullStepNumber, write_state.ScaleFactor,
             write_state.DeltaScaleFactor/(write_state.ScaleFactor-write_state.DeltaScaleFactor),
             write_state.RMS_Velocity)))
-                    
+
         if not parallel:
             # Delete the Taylors right away; want to avoid accidentally
             # running with inconsistent positions and Taylors
@@ -1042,7 +1047,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             if path.isdir(backup_dir):
                 shutil.rmtree(backup_dir)
             shutil.move(tmp_backup, backup_dir)
-        
+
         if not parallel:
             # Make a power spectrum
             dfn = pjoin(read, "density")
@@ -1060,7 +1065,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 shutil.copy(dfn, pjoin(param.LogDirectory, "step{0:04d}", "step{0:04d}.density").format(write_state.FullStepNumber))
                 np.savez(pjoin(param.LogDirectory, "step{0:04d}", "step{0:04d}.pow".format(write_state.FullStepNumber)), k=k,P=P,nb=nb)
                 os.remove(dfn)
-        
+
         if parallel:
             # Merge all nodes' checksum files into one
             merge_checksum_files(write_state.NodeSize, param)
@@ -1068,82 +1073,77 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             # check if we need to gracefully exit and/or backup:
             #    is a group finding step next?          ---> backup to NVME and continue.   (group finding steps are more likely to crash!)
             #    are we ~halfway through our long run?  ---> backup to NVME and continue.   (just in case.)
-            #    are we running out of time in the job? ---> backup to global dir and exit. 
-            #    did the user ask to abandon ship?      ---> backup to global dir and exit. 
-             
-            
+            #    are we running out of time in the job? ---> backup to global dir and exit.
+            #    did the user ask to abandon ship?      ---> backup to global dir and exit.
+
+
             abandon_ship = path.exists(emergency_exit_fn)
             out_of_time = (wall_timer() - start_time >= run_time_secs)
-            
-            #if the halfway-there backup hasn't been done already, and we're more than halfway through the job, backup the state now: 
-            interim_backup = (not interim_backup_complete) and (wall_timer() - start_time >= run_time_secs / 2) and (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60 ) #only relevant for long jobs.
-            
-            #are we coming up on a group finding step? If yes, backup the state, just in case. 
-            pre_gf_backup  = False 
-            nGFoutputs = [] 
-            output_arrs = [param.get('L1OutputRedshifts'), param.get('TimeSliceRedshifts'), param.get('TimeSliceRedshifts_Subsample')]
-            for output_arr in output_arrs:
-                try:
-                    nGFoutputs.append( len(output_arr) )
-                except (AttributeError,TypeError):
-                    nGFoutputs.append(0) 
 
-            if (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60): 
-                for i in range(len(nGFoutputs)):
-                    for z in range(nGFoutputs[i]):
-                        L1z = output_arrs[i][z] 
+            #if the halfway-there backup hasn't been done already, and we're more than halfway through the job, backup the state now:
+            interim_backup = (not interim_backup_complete) and (wall_timer() - start_time >= run_time_secs / 2) and (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60 ) #only relevant for long jobs.
+
+            #are we coming up on a group finding step? If yes, backup the state, just in case.
+            pre_gf_backup  = False
+            output_arrs = [param.get('L1OutputRedshifts'), param.get('TimeSliceRedshifts'), param.get('TimeSliceRedshifts_Subsample')]
+            output_arrs = [list(o) for o in output_arrs if o is not None]
+
+            if run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60:
+                for oa in output_arrs:
+                    for L1z in oa:
                         if L1z <= -1:
                             continue
-                        L1a = 1.0/(1.0+L1z)                
-                    
-                        # here we assume that the next da will be similar to the previous one. 
+                        L1a = 1/(1 + L1z)
+
+                        # here we assume that the next da will be similar to the previous one.
                         # we don't want to backup before every GF step -- that's too expensive.
-                        # so let's check if it's been more than two hours since the previous backup. 
-                        if (write_state.Redshift > L1z + 1e-12) and ( 1.0/(1.0+write_state.Redshift) + write_state.DeltaScaleFactor > L1a ):
-                            last_z = ( L1z == 0.1 or L1z == 0.0 )
-                            time_for_gf_backup = (last_backup == None or (wall_timer()-last_backup) > GF_BACKUP_INTERVAL)
+                        # so let's check if it's been more than two hours since the previous backup.
+                        if (write_state.Redshift > L1z + 1e-12) and (1/(1 + write_state.Redshift) + write_state.DeltaScaleFactor > L1a):
+                            last_z = L1z == 0.1 or L1z == 0.0  # TODO: magic numbers
+                            time_for_gf_backup = (wall_timer() - last_backup) > GF_BACKUP_INTERVAL
 
                             if last_z or time_for_gf_backup:
-                                pre_gf_backup = True 
-                                
-                    if pre_gf_backup == True:
-                        continue         
-            
-            exit = out_of_time or abandon_ship
-            save = exit or interim_backup or pre_gf_backup
-        
+                                pre_gf_backup = True
+                                break
+
+                    if pre_gf_backup:
+                        break
+
+            exiting = out_of_time or abandon_ship
+            save = exiting or interim_backup or pre_gf_backup
+
             if save:
                 if abandon_ship:
                     exit_message = 'EMERGENCY EXIT REQUESTED: '
                 if out_of_time:
-                    exit_message = 'RUNNING OUT OF JOB TIME: '                    
+                    exit_message = 'RUNNING OUT OF JOB TIME: '
                 if interim_backup:
-                    exit_message = 'HALFWAY THROUGH A LONG JOB: '                    
+                    exit_message = 'HALFWAY THROUGH A LONG JOB: '
                 if pre_gf_backup:
                     exit_message = 'GROUP FINDING COMING UP: '
-                    
+
                 print(exit_message, 'backing up node state.')
                 status_log.print(f'# {exit_message:s} backing up node state.')
-                
+
                 restore_time = wall_timer()
                 retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, resume_dir, '--retrieve']
                 call_subprocess(Conv_mpirun_cmd + retrieve_state_cmd)
-            
+
                 restore_time = wall_timer() - restore_time
-            
+
                 print(f'Retrieving and storing state took {restore_time} seconds. ', end = '')
                 status_log.print(f'# Retrieving and storing state took {restore_time:.1f} seconds.')
-                last_backup  = wall_timer()  #log the time of the last backup. 
+                last_backup  = wall_timer()  #log the time of the last backup.
 
-            
-                #checking if path exists explicitly just in case user requested emergency exit while we were retrieveing the state. 
-                if path.exists(emergency_exit_fn): 
+
+                #checking if path exists explicitly just in case user requested emergency exit while we were retrieveing the state.
+                if path.exists(emergency_exit_fn):
                     os.remove(emergency_exit_fn)
-                
+
                 if interim_backup:
-                    interim_backup_complete = True 
-                    
-                if exit:
+                    interim_backup_complete = True
+
+                if exiting:
                     print('Exiting.')
                     if maxsteps == 10000:
                         print('Requeueing!')
@@ -1151,62 +1151,44 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                         ending_time_str = time.asctime(time.localtime())
                         ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
                         status_log.print(f"# Terminating normally w/ requeue code.  {ending_time_str:s} after {ending_time:.2f} hours.")
-                        return EXIT_REQUEUE  
+                        return EXIT_REQUEUE
                     else:
                         print('Requeue disabled because maxsteps was set by the user.')
-                        return 0 
+                        return 0
                 else:
                     print('Continuing run.')
-        
+
         # Now shift the states down by one
         move_state_dirs(read, write, past)
-        
+
         # check if we've reached the stopping redshift
         # Note that FinalRedshift always trumps,
         # whether it is before or after the TimeSliceZ array
         try:
             finalz = param.FinalRedshift
         except AttributeError:
-            # param.FinalRedshift wasn't set, so we'll look for the minimum in the output redshifts arrays. 
-            try:
-                if (len(param.TimeSliceRedshifts)>0):
-                    finalz_full = min(param.TimeSliceRedshifts[:])
-            except TypeError:  # param.TimeSliceRedshifts is probably just a single number
-                finalz_full = float(param.TimeSliceRedshifts)
-            except AttributeError:
-                finalz_full = 0.0
-
-            try:
-                if (len(param.TimeSliceRedshifts_Subsample)>0):
-                    finalz_subsample = min(param.TimeSliceRedshifts_Subsample[:])
-            except TypeError:  # param.TimeSliceRedshifts is probably just a single number
-                finalz_subsample = float(param.TimeSliceRedshifts_Subsample)
-            except AttributeError:
-                finalz_subsample = 0.0
-
-            try:
-                if (len(param.L1OutputRedshifts)>0):
-                    finalz_group_finding = min(param.L1OutputRedshifts[:])
-            except TypeError:  # param.TimeSliceRedshifts is probably just a single number
-                finalz_group_finding = float(param.L1OutputRedshifts)
-            except AttributeError:
-                finalz_group_finding = 0.0       
-
-            finalz = min(finalz_full, finalz_subsample, finalz_group_finding)                             
-
+            # param.FinalRedshift wasn't set, so we'll look for the minimum in the output redshifts arrays.
+            redshift_arrs = ['TimeSliceRedshifts', 'TimeSliceRedshifts_Subsample', 'L1OutputRedshifts']
+            finalz = None
+            for name in redshift_arrs:
+                if name in param:
+                    _zmin = np.min(param[name])
+                    finalz = min(finalz, _zmin) if finalz is not None else _zmin
+            if finalz is None:
+                finalz = 0.
 
 
         # This logic is deliberately consistent with singlestep.cpp
         # If this is an IC step then we won't have read_state
-        if (not make_ic and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0):
+        if not make_ic and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0:
             ending_time = time.time()
             ending_time_str = time.asctime(time.localtime())
             ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
             print(f"Final redshift of {finalz:g} reached; terminating normally after {ending_time:.2f} hours.")
             status_log.print(f"# Final redshift of {finalz:g} reached at {ending_time_str:s}; terminating normally after {ending_time:.2f} hours.")
             finished = True
-            break 
-            
+            break
+
         if parallel and abandon_ship:
             ending_time = time.time()
             ending_time_str = time.asctime(time.localtime())
@@ -1214,16 +1196,16 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             print(f"Emergency exit triggered at {ending_time_str:s}; abandoning ship after {ending_time:.2f} hours.")
             status_log.print(f"# Emergency exit triggered at {ending_time_str:s}; abandoning ship after {ending_time:.2f} hours.")
             os.remove(emergency_exit_fn)
-            break       
-        
+            break
+
         make_ic = False
-    
-    if maxsteps != 10000: #we asked to do only a limited number of steps, and we've successfully completed them. We're done. 
+
+    if maxsteps != 10000: #we asked to do only a limited number of steps, and we've successfully completed them. We're done.
         ending_time = time.time()
         ending_time_str = time.asctime(time.localtime())
         ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
         print(f"Reached maxsteps limit at {ending_time_str:s}; exiting job w/o requeue after {ending_time:.2f} hours.")
-        status_log.print(f"# Reached maxsteps limit at {ending_time_str:s}; exiting job w/o requeue after {ending_time:.2f} hours.")    
+        status_log.print(f"# Reached maxsteps limit at {ending_time_str:s}; exiting job w/o requeue after {ending_time:.2f} hours.")
         finished = True
 
     if finished and parallel and param.get('SaveFinalState',False):
@@ -1235,7 +1217,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         status_log.print(f'# Retrieving and storing final state took {restore_time:.1f} seconds.')
 
     # If there is more work to be done, signal that we are ready for requeue
-    if not finished and not ProfilingMode: 
+    if not finished and not ProfilingMode:
         ending_time = time.time()
         ending_time_str = time.asctime(time.localtime())
         ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
@@ -1259,7 +1241,7 @@ def recover_multipoles(paramfn, stepnum, env, mpirun_cmd=None):
     '''
     # Invoke multipole recovery mode
     print(f"Warning: missing multipoles! Performing multipole recovery for step {stepnum:d}")
-    
+
     # Build the recover_multipoles executable
     with Tools.chdir(pjoin(abacuspath, "singlestep")):
         call_subprocess(['make', 'recover_multipoles'])
@@ -1356,12 +1338,12 @@ def merge_checksum_files(nnodes, param=None, dir_globs=None, checksum_fn='checks
             for fn in cksum_fns:
                 with open(fn, 'r') as fp:
                     lines += fp.readlines()
-            
+
             # Sort on the file name
             lines = [line.split() for line in lines]
             assert(all(len(line) == 3 for line in lines))
             lines = sorted(lines, key=lambda l:l[2])
-            lines = [' '.join(line) + '\n' for line in lines]            
+            lines = [' '.join(line) + '\n' for line in lines]
 
             with open(pjoin(d,checksum_fn), 'a') as fp:
                 fp.writelines(lines)
@@ -1425,4 +1407,4 @@ def call_subprocess(*args, **kwargs):
     thread team!
     """
 
-    subprocess.check_call(*args, **kwargs, preexec_fn=reset_affinity)
+    subprocess.run(*args, **kwargs, preexec_fn=reset_affinity, check=True)

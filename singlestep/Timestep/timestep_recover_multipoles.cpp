@@ -86,10 +86,10 @@ void timestepMultipoles(void) {
     FORCE_RADIUS = 0;  // so we know when we can free CellInfo in Finish
     GROUP_RADIUS = 0;
 
+#ifdef PARALLEL
     int create_MT_file = 1;  // that's... why we're here
-#ifdef PARALLEL 
     ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory, create_MT_file);
-#endif 
+#endif
 
     int nslabs = P.cpd;
     int first = first_slab_on_node;
