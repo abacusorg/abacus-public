@@ -143,6 +143,10 @@ class SOcell {
     FOFloat min_central;   ///< The minimum FOF-scale density to require for a central particle.
     FOFloat *twothirds;    ///< We compare x^(3/2) to integers so much that we'll cache integers^(2/3)
     FOFloat min_radius2;    ///< We require that R_Delta be at least 0.5*KernelRadius
+    FOFloat Rdensmax2;    ///< The scale over which a particle must have the highest kernal density of all neighbors in order to be called a maximum.
+
+    FOFloat alpha_eligible2;  ///< How to scale R_Delta when assigning eligibility.
+        // TODO: Note that we must have Rdensmax2 be smaller than this radius. 
 
     FOFgroup *groups;   ///< The list of found groups
     int ngroups;        ///< The number of groups
@@ -256,11 +260,24 @@ class SOcell {
         reset(32768);
         setup_socg(2048);
 
+
         mag_roche = P.SO_RocheCoeff;    /// Condition for a satellite halo to eat up particles belonging to a larger halo
 
         // We need to convert the R_Delta^2
         min_radius2 = 0.25*WriteState.DensityKernelRad2*FOF_RESCALE*FOF_RESCALE;
 
+        // We adopt the DensityKernelRadius as the local density maximum criteria
+        Rdensmax2 = WriteState.DensityKernelRad2*FOF_RESCALE*FOF_RESCALE;
+        assertf(Rdensmax2<GFC->SOpartition*GFC->SOpartition, "SO Local Density is bigger than SOpartition\n");   // This violates the algorithm below, which assumes that the first bin contains the local density criteria.
+
+        alpha_eligible2 = P.SO_alpha_eligible;
+        alpha_eligible2 *= alpha_eligible2;
+
+        /*
+        if (omp_get_thread_num()==0) 
+            STDLOG(1,"Setting up SO with mag_roche= %f min_radius= %f Rdensmax2= %f alpha_eligible= %f\n", 
+                mag_roche, sqrt(min_radius2)/FOF_RESCALE, sqrt(Rdensmax2)/FOF_RESCALE, sqrt(alpha_eligible2));
+        */
 
         int ret = posix_memalign((void **)&twothirds, 64, sizeof(FOFloat)*(SO_CACHE+2));  assert(ret == 0);
         for (int j=0; j<SO_CACHE+2; j++) twothirds[j] = pow(j,2.0/3.0);
@@ -463,7 +480,7 @@ FOFloat partial_search(int len, int mass, FOFloat shell_max_rad2, int &size_thre
 /// very close to the inverse of the density threshold, but it might differ
 /// if we ran out of particles before getting down to that density.
 
-FOFloat search_socg_thresh(FOFparticle halocenter, int &mass, FOFloat &inv_enc_den) {
+FOFloat search_socg_thresh(FOFparticle halocenter, FOFloat halocentraldensity, int &mass, FOFloat &inv_enc_den, int &is_not_density_maximum) {
     mass = 0;
     FOFloat FOFr2 = 0;
     FOFloat x = 0;
@@ -480,6 +497,7 @@ FOFloat search_socg_thresh(FOFparticle halocenter, int &mass, FOFloat &inv_enc_d
     Distance.Start();
     int furthest_firstbin = -1;
     for (int i = 0; i<ncg; i++) {
+        socg[i].active = 0;   // Reset this flag
         socg[i].compute_d2(&halocenter);
         // uses minimum distance to halo center and gives us firstbin
         if (socg[i].firstbin > furthest_firstbin) {
@@ -497,7 +515,6 @@ FOFloat search_socg_thresh(FOFparticle halocenter, int &mass, FOFloat &inv_enc_d
         FOFr2 *= FOFr2;
         x = xthreshold*FOFr2; 
 
-
         // Partition the newly touched cells 
         for (int i = 0; i<ncg; i++) {
     
@@ -507,7 +524,27 @@ FOFloat search_socg_thresh(FOFparticle halocenter, int &mass, FOFloat &inv_enc_d
                 // Compute the d2 in particle order and then use this
                 // for partition -- stored in d2_active when fn is called
                 partition_cellgroup(socg+i, &halocenter);
+                if (r==0) {
+                    // We want to check if this particle is a density maximum.
+                    // This means that it must be denser than all other particles
+                    // within Rdensmax.
+                    // We know that all particles higher in density must already
+                    // be ineligible, else they would have been the center!
+                    for (int j=socg[i].start[0]; j<socg[i].start[1]; j++) {
+                        if (d2_active[j]<Rdensmax2) {
+                            // It's close enough to test
+                            if (density[j]>halocentraldensity)
+                                is_not_density_maximum = 1;  
+                            else halo_index[j] = -abs(halo_index[j]);  // Make ineligible
+                        }
+                    }
+                }
             }
+        }
+
+        if (is_not_density_maximum) {
+            // We have found that this center is not acceptable.  Sound the alarm.
+            return 0.0;
         }
 
         // Is there enough mass within to skip or not enough to look
@@ -540,7 +577,7 @@ FOFloat search_socg_thresh(FOFparticle halocenter, int &mass, FOFloat &inv_enc_d
             // d2_bin is used in partial_search and modified through
             // swapping and sorting; d2_active has all FOF particles in bins 0 through
             // r partitioned and should remain intact till done with the halo center.
-            
+
             // Search for density threshold in list, given previous mass.
             d2_thresh = partial_search(size_bin, mass, FOFr2, size_thresh, inv_enc_den);
             if (d2_thresh > 0.0) {
@@ -670,19 +707,40 @@ int greedySO() {
         // but also mass within the threshold.
         // Threshold distance d2SO has the property that all particles within it
         // satisfy the overdensity condition
-        FOFloat d2SO = search_socg_thresh(p[start],mass,inv_enc_den);
+        int is_not_density_maximum=0;
+        FOFloat d2SO = search_socg_thresh(p[start],density[start],mass,inv_enc_den,is_not_density_maximum);
         halo_radius2[count] = d2SO;
         // Threshold distance d2SO has the property that particles
         // found in it can never be eligible centers
         Search.Stop();
+
+        int densest = -1; // index of the next densest eligible particle
+        FOFloat maxdens = -1.0; // density of the next densest eligible particle
+
+        if (is_not_density_maximum) {
+            // We've discovered that this center was a bad choice -- 
+            // not a local maximum in the density field.
+            // Need to search again.
+            Sweep.Start();
+            for (int j=0; j<np; j++) {
+                if (halo_index[j]>=0 && density[j]>maxdens) {
+                    maxdens=density[j];
+                    densest = j;
+                }
+            }
+            start = densest;
+            Sweep.Stop();
+            continue;
+        }
+        // Otherwise, we have a good center, and we need to process all the
+        // particles inside of d2SO (and find the next candidate center).
         
         // Inverse density used when interpolating
         FOFloat inv_d;
         // Inverse product of the enclosed density and threshold distance squared
         FOFloat inv_d2del = inv_enc_den/(d2SO);
 
-        int densest = -1; // index of the next densest eligible particle
-        FOFloat maxdens = -1.0; // density of the next densest eligible particle
+        FOFloat Religible2 = alpha_eligible2*d2SO;
 
         Sweep.Start();
 
@@ -706,7 +764,7 @@ int greedySO() {
             } else {
                 // This cell was used.
                 // Make it inactive to reset the array for the next forming halo
-                socg[i].active = 0;
+                // socg[i].active = 0; // We're now doing this elsewhere.
                 // Loop over all particles in that cell
                 for (int j=socg[i].start[0]; j<socg[i].start[4]; j++) {
                     if (d2_active[j]>d2SO) {
@@ -725,7 +783,8 @@ int greedySO() {
                     // this is signalled by a negative halo_index.
                     // halo_index[j] = (halo_index[j]==0)?(-1):-abs(halo_index[j]);
                         // The -1 here will get overwritten just below
-                    halo_index[j] = -abs(halo_index[j]);
+                    if (d2_active[j]<=Religible2)
+                        halo_index[j] = -abs(halo_index[j]);
 
                     // Interpolate to get the density of the given particle 
                     // Dens(r)=Dens_SO d2SO/r^2

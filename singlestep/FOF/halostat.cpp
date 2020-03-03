@@ -214,7 +214,7 @@ HaloStat ComputeStats(int size,
     // We search for the max of vcirc, which is proportional to sqrt(G*M/R).
     // The 4th power of that is proportional to N^2/R^2.
     vmax = 0.0;
-    for (int p=size/10; p<size; p++) {
+    for (int p=(size<1000?size/10:100); p<size; p++) {
 		float v4 = (float)p*p/L2.d2_active[p];
 		if (v4>vmax) { vmax = v4; rvmax = L2.d2_active[p]; }
     }
@@ -311,7 +311,11 @@ HaloStat ComputeStats(int size,
     // We search for the max of vcirc, which is proportional to sqrt(G*M/R).
     // The 4th power of that is proportional to N^2/R^2.
     vmax = 0.0;
+<<<<<<< HEAD
     for (int p=size/10; p<size; p++) {
+=======
+    for (int p=(size<1000?size/10:100); p<size; p++) {
+>>>>>>> origin/dje-so-max
 	float v4 = (float)p*p/L2.d2_active[p];
 	if (v4>vmax) { vmax = v4; rvmax = L2.d2_active[p]; }
     }

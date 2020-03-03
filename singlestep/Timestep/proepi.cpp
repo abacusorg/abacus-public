@@ -953,6 +953,9 @@ void FinalizeWriteState() {
         MPI_REDUCE_TO_ZERO(&WriteState.MaxL0GroupSize, 1, MPI_INT, MPI_MAX);
         // Sum WriteState.DirectsPerParticle
         MPI_REDUCE_TO_ZERO(&WriteState.DirectsPerParticle, 1, MPI_DOUBLE, MPI_SUM);
+        // sum subsample counts
+        MPI_REDUCE_TO_ZERO(&WriteState.np_subA_state, 1, MPI_INT, MPI_SUM);
+        MPI_REDUCE_TO_ZERO(&WriteState.np_subB_state, 1, MPI_INT, MPI_SUM);
 // #undef MPI_REDUCE_IN_PLACE
 
         // Note that we're not summing up any timing or group finding reporting;
