@@ -63,7 +63,7 @@ class DependencyRecord {
 		
         // Don't look past the slabs this node owns
         for (begin=end-1; CP->WrapSlab(begin - first_slab_on_node) < total_slabs_on_node; begin--) {
-            if (d.notdone(begin)) break;
+            if (!d.instantiated || d.notdone(begin)) break;
             //// d.mark_to_repeat(begin);   // We're not going to unmark
         }
 		
@@ -73,7 +73,7 @@ class DependencyRecord {
         // Now look for the last done slab
         // Don't look past the slabs this node owns
         for (; CP->WrapSlab(end - first_slab_on_node) < total_slabs_on_node; end++) {
-            if (d.notdone(end)) break;
+            if (!d.instantiated || d.notdone(end)) break;
         } end--;
         /* The manifest code is called in two different use cases:
            1) when the GlobalGroups have happened and we want to pass 
