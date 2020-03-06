@@ -9,7 +9,7 @@
 [submodule "external/trz"]
 	path = external/trz
 	url = git@github.com:abacusorg/trz.git
-	branch = use-zstd
+	branch = master
 [submodule "external/AbacusSummit"]
 	path = external/AbacusSummit
 	url = git@github.com:abacusorg/AbacusSummit.git
