@@ -139,6 +139,8 @@ public:
 
     char LogDirectory[1024];  // step-numbered log directory
 
+    int64 np_lightcone;
+
     void read_from_file(const char *fn);
     void write_to_file(const char *dir, const char *fname);
     void write_to_file(const char *dir) { write_to_file(dir,""); }
@@ -250,6 +252,8 @@ public:
         OverwriteConvState = 0;
         StripeState = 0;
         StripeConvState = 0;
+
+        np_lightcone = 0;
     }
 
 

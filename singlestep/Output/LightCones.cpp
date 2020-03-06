@@ -77,7 +77,7 @@ class LightCone {
     inline int isCellInLightCone(double3 pos);
     inline int isParticleInLightCone(double3 cellcenter, posstruct &pos, velstruct &vel, const accstruct acc);
 
-    void WriteHeaderFile(const char* fn){
+    static void WriteHeaderFile(const char* fn){
         std::ofstream headerfile;
         headerfile.open(fn);
         headerfile << P.header();
@@ -254,17 +254,12 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
     STDLOG(1,"Lightcone %d opened %d cells and found %d particles (%d subsampled) in slab %d.  %d double tagged\n",
             lcn,slabtotalcell,slabtotal,slabtotalsub,slab, doubletagged);
+    WriteState.np_lightcone += slabtotal;
     if(slabtotal) {
         // This will create the directory if it doesn't exist (and is parallel safe)
         char dir[32];
         sprintf(dir, "Step%04d", ReadState.FullStepNumber);
-        CreateSubDirectory(P.LightConeDirectory, dir); //this is parallel-safe. 
-
-        if(slab == 0){ //but we only want one node writing the header. 
-            std::string headerfn = "";
-            headerfn = headerfn + P.LightConeDirectory + "/" + dir + "/header";
-            LC.WriteHeaderFile(headerfn.c_str());
-        }
+        CreateSubDirectory(P.LightConeDirectory, dir);
 
         SlabType lightconeslab;
         lightconeslab = (SlabType)((int)(LightCone0RV + lcn));
