@@ -24,6 +24,7 @@ import time
 
 from Abacus import abacus, GenParam, Tools
 from Abacus.InputFile import InputFile
+from Abacus import globus
 
 # import * often not a good idea, but we defined __all__ in stages.py for this purpose
 from stages import *
@@ -43,9 +44,10 @@ stages = {
         4:        QueuedOnSummit('Queued on Summit'),
         5:   ReadyForPostProcess('Ready for post-processing'),
         6:  QueuedForPostProcess('Queued for post-processing'),
-        7:  ReadyForDataTransfer('Ready for data transfer',    noop='action'),
-        8:      ReadyForDeletion('Ready for deletion',         noop=True),
-        9:             Completed('Completed',                  noop=True),
+        7:  ReadyForDataTransfer('Ready for data transfer'),
+        8: QueuedForDataTransfer('Queued for data transfer'),
+        9:      ReadyForDeletion('Ready for deletion',         noop='action'),
+        10:             Completed('Completed'),
     }
 
 # Inform stages of their numbers
@@ -125,18 +127,24 @@ class Box:
 
 class Suite:
     #detect stages of all boxes in suite. generate csv file summarizing them.
-    def __init__(self, csv, suite_spec_dir, suite_name='AbacusSummit', add_boxes=None, disable_automation=True, refresh=False, no_summit=False, verbose=True):
+    def __init__(self, csv, suite_spec_dir, suite_name='AbacusSummit', add_boxes=None, disable_automation=True,
+                    refresh=False, no_summit=False, verbose=True, email=False, no_globus=False):
         self.suite_spec_dir = suite_spec_dir
         self.disable_automation = disable_automation
         self.verbose = verbose
         self.suite_name = suite_name
         self.refresh = refresh
         self.no_summit = no_summit
+        self.no_globus = no_globus
+        self.email = email
 
         self.csv_fn = csv
         prev = self.load_previous_status()
 
         self.summit_queue_status = QueuedJobs('summit') if not no_summit else []
+
+        if not no_globus:
+            globus.update_all_status_from_globus(status_log_fn=globus_status_log)
 
         # By default, only process boxes that are present in the CSV
         self.boxes = []
@@ -214,6 +222,10 @@ class Suite:
                 box.known_error = True
                 continue
 
+            if this_stage_num == -2:
+                if self.disable_automation: breakpoint()
+                continue
+
             if this_stage_num < last_stage_num:
                 if self.refresh:
                     # TODO: append all(?) print statements to emails and log it
@@ -239,7 +251,7 @@ class Suite:
             if this_stage_num == last_stage_num + 2: # the only boxes that could have incremented their stage by 2 are the ones that were
                 if self.disable_automation: breakpoint()
                 last_stage = stages[last_stage_num] # previously at a stage where the action was a NoOp.
-                if not last_stage.noop:
+                if last_stage.action is not None:
                     if self.refresh:
                         print(f'Refresh is allowing box {box.name} to increment from {last_stage_num} to {this_stage_num}')
                         continue
@@ -264,26 +276,29 @@ class Suite:
         header = f'# AbacusSummit CSV File\n' + \
                  f'# Suite specification directory: {self.suite_spec_dir}\n' + \
                  f'# Suite working directory: ' + os.environ['ABACUS_PERSIST'] + f'/{self.suite_name}\n'
-        subject = 'SUITE STATUS SUMMARY'
+        subject = '[AbacusSummit] Status'
         message = header
         with open(self.csv_fn, 'w', newline='') as fp:
             fp.write(header)
             writer = csv.writer(fp)
             for box in self.boxes:
                 ret = writer.writerow([box.name, box.stage.num])
-                message += f'{box.name} {box.stage.num} ({box.stage.name})\n'
+                message += f'{box.name}: {box.stage.num} ({box.stage.name})\n'
 
             # If we only updated a subset of the boxes, pass through any untouched boxes
             if self.previous_suite_status:
                 for boxname in self.previous_suite_status:
                     if boxname not in self.boxes:
                         ret = writer.writerow([boxname, self.previous_suite_status[boxname]])
-                        message += str(boxname) + ' ' + str(self.previous_suite_status[boxname]) + '\n'
+                        message += f'{boxname}: {self.previous_suite_status[boxname]} ({stages[self.previous_suite_status[boxname]].name})\n'
 
         self.send_email(subject, message)
 
 
     def send_email(self, subject, message, dryrun=True):
+        if dryrun is None:
+            dryrun = not self.email
+
         message += '\nNew actions taken:\n'
         if self.actions_taken:
             for b,anum in self.actions_taken.items():
@@ -294,13 +309,13 @@ class Suite:
         message += f'\n----------\nThis is an automated email sent by the AbacusSummit assembly line script, ' + \
                     f'running at {abspath(__file__)}.  Message generated at {time.asctime()}.'
 
+        print(f'Email\n\nSubject: {subject}\nMessage\n========\n{message}\n========\n')
         if dryrun:
-            print(f'Email dryrun\n\nSubject: {subject}\nMessage\n========\n{message}\n========\n')
             return
 
         msg = EmailMessage()
         msg.set_content(message)
-        people = 'lgarrison@flatironinstitute.org',  # 'nina.maksimova@cfa.harvard.edu'
+        people = 'lgarrison@flatironinstitute.org', 'nina.maksimova@cfa.harvard.edu', 'deisenstein@cfa.harvard.edu'
         msg['Subject'] = subject
         msg['From'] = 'noreply'
         msg['To'] = people
@@ -323,7 +338,9 @@ if __name__ == '__main__':
     parser.add_argument('--spec-dir', help="The suite specification directory containing the directories with .par2 files for each sim, like 'AbacusSummit/Simulations'",
         default=os.environ.get('ABACUSSUMMIT_SPEC'))
     parser.add_argument('--no-action', help="Just update the status of the CSV, don't take any actions", action='store_true')
-    parser.add_argument('--no-summit', help="Assume we can't communicate with summit", action='store_true')
+    parser.add_argument('--no-summit', help="Assume no jobs are queued on summit", action='store_true')
+    parser.add_argument('--no-globus', help="Assume no jobs are running on Globus", action='store_true')
+    #parser.add_argument('--email', help="Send status and error emails", action='store_true')
     parser.add_argument('--add-boxes', help="Add these box names to the current CSV (or make a new CSV with these boxes)", nargs='+')
     parser.add_argument('--refresh', help="Allow boxes to escape the Error stage", action='store_true')
 
@@ -336,7 +353,7 @@ if __name__ == '__main__':
     args['disable_automation'] = args.pop('manual')
 
     #detect stages and do sanity check.
-    suite = Suite(**args, suite_name='AbacusSummit')
+    suite = Suite(**args, suite_name='AbacusSummit', email=not no_action)
 
     #attempt actions for all boxes, then do another sanity check.
     if not no_action:

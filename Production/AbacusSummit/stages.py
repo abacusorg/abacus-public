@@ -20,12 +20,15 @@ the stage so the script can try again later.
 '''
 
 __all__ = ['Stage', 'ErrorStage', 'Frozen',
-            'NotStarted', 'ReadyForIC', 'QueuedIC', 'ReadyForSummit', 'QueuedOnSummit', 'ReadyForPostProcess', 'QueuedForPostProcess', 'ReadyForDataTransfer', 'ReadyForDeletion', 'Completed',
-            'QueuedJobs']
+            'NotStarted', 'ReadyForIC', 'QueuedIC',
+            'ReadyForSummit', 'QueuedOnSummit', 'ReadyForPostProcess',
+            'QueuedForPostProcess', 'ReadyForDataTransfer', 'QueuedForDataTransfer',
+            'ReadyForDeletion','Completed',
+            'QueuedJobs', 'globus_status_log']
 
 import os
 import os.path
-from os.path import join as pjoin
+from os.path import join as pjoin, dirname, abspath
 import shlex
 import subprocess
 import socket
@@ -34,10 +37,11 @@ import re
 
 from Abacus import globus
 
-globus_status_log = 'globus_status.log'
+globus_status_log = 'globus_status.toml'
+globus_status_log = pjoin(dirname(abspath(__file__)), globus_status_log)
 
 # Common directory to dump all job script output
-logdir = pjoin(os.path.dirname(__file__), 'logs')
+logdir = pjoin(dirname(__file__), 'logs')
 
 class Stage:
     # stages are supposed to be immutable, but let's not go overboard enforcing that
@@ -220,7 +224,7 @@ class QueuedForPostProcess(Stage):
         '''is this box queued for post processing on rhea?'''
         if self.disable_automation:
             breakpoint()
-        return box.jobname('PostProcess') in QueuedJobs('rhea')
+        return box.jobname('PostProcessEpilogue') in QueuedJobs('rhea')
 
 ################################### READY FOR DATA TRANSFER ###################################
 
@@ -230,7 +234,7 @@ class ReadyForDataTransfer(Stage):
         if self.disable_automation:
             breakpoint()
         try:
-            with open(pjoin(logdir, box.jobname('PostProcess') + '.out')) as f:
+            with open(pjoin(logdir, box.jobname('PostProcessEpilogue') + '.out')) as f:
                 return 'Post processing complete.' in f.read()
         except FileNotFoundError:
             return False
@@ -241,24 +245,56 @@ class ReadyForDataTransfer(Stage):
             breakpoint()
 
         # the endpoints are actually the defaults, but let's be explicit
-        globus.start_globus_transfer(box.params['OutputDirectory'],  # ???
+        try:
+            globus.start_globus_transfer(box.params['OutputDirectory'],
                       dest_path=globus.DEFAULT_NERSC_DEST,
                       source_endpoint=globus.OLCF_DTN_ENDPOINT,
                       dest_endpoint=globus.NERSC_DTN_ENDPOINT,
                       status_log_fn=globus_status_log)
+        except:
+            print(f'Error starting Globus transfer for {box.name}.  Continuing...')
+            return False
 
-        # I guess we run htar here too?
+        # Start an htar job on rhea
+        cmd = 'sbatch --job-name=' + box.jobname('htar') + ' rhea_htar.slurm ' + box.name
+        try:
+            subprocess.run(shlex.split(cmd), check=True)
+        except:
+            print(f'Error submitting box {box.name} for htar.  Continuing...')
+            return False
 
         return True
+
+################################### QUEUED FOR DATA TRANSFER ###################################
+
+class QueuedForDataTransfer(Stage):
+    def indicator(self, box):
+        '''Is Globus or htar queued or running?'''
+        gstat = globus.status(box.name, status_log_fn=globus_status_log)
+        if gstat is not None and gstat != 'FAILED':
+            return True
+
+        if box.jobname('htar') in QueuedJobs('rhea'):
+            return True
+
+        return False
 
 ################################### READY FOR DELETION ###################################
 
 class ReadyForDeletion(Stage):
     def indicator(self, box):
-        '''Check that Globus transfers completed successfully'''
+        '''Check that Globus and htar transfers completed successfully'''
         if self.disable_automation:
             breakpoint()
-        return False
+
+        if globus.status(box.name, status_log_fn=globus_status_log) != 'SUCCEEDED':
+            return False
+
+        with open(pjoin(logdir, box.jobname('htar') + '.out')) as f:
+            if 'Abacus htar complete.' not in f.read():
+                return False
+
+        return True
 
 
     FNS_TO_KEEP = ['status.log', 'abacus.par', 'logs.zip'] #TODO finalize choices to keep. logs.zip -- file name?
@@ -281,7 +317,7 @@ class Completed(Stage):
         if self.disable_automation:
             breakpoint()
         try:
-            return set(os.listdir(box.params['OutputDirectory'])) == set(FNS_TO_KEEP)
+            return set(os.listdir(box.params['OutputDirectory'])) == set(ReadyForDeletion.FNS_TO_KEEP)
         except FileNotFoundError:
             return False
 

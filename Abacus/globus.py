@@ -42,8 +42,7 @@ OLCF_DTN_ENDPOINT = 'ef1a9560-7ca1-11e5-992c-22000b96db58'
 NERSC_DTN_ENDPOINT = '9d6d994a-6d04-11e5-ba46-22000b92c6ec'
 
 # Destination Path -- The directory will be created if it doesn't exist
-#DEFAULT_NERSC_DEST = '/project/projectdirs/desi/cosmosim/AbacusSummit'  # TODO: right path?
-DEFAULT_NERSC_DEST = '/global/cfs/cdirs/desi/users/lgarriso/'
+DEFAULT_NERSC_DEST = '/global/cfs/cdirs/desi/cosmosim/Abacus'
 
 # You will need to register a *Native App* at https://developers.globus.org/
 # Your app should include the following:
@@ -132,7 +131,7 @@ def status(boxname, status_log_fn=DEFAULT_STATUS_FILE):
 
     if boxname in status_log:
         return status_log[boxname]['status']
-    return 'Not found in log'
+    return None
 
 
 def get_client_tokens():
@@ -313,7 +312,8 @@ def subcommand_status(simulation, status_log_fn=DEFAULT_STATUS_FILE, **kwargs):
     # In case we were passed a path, get absolute basename
     boxname = os.path.basename(os.path.abspath(simulation))
 
-    print(status(boxname, status_log_fn))
+    gstat = status(boxname, status_log_fn)
+    print('Not found in log' if gstat is None else gstat)
 
 
 if __name__ == '__main__':
