@@ -292,10 +292,15 @@ def retrieve_state(parfile, resumedir, verbose=True):
         print('Backup complete. Removing previous backup.')
 
     if rank == 0:
-    try:
-        shutil.rmtree(past)
-    except FileNotFoundError:
-        pass
+        try:
+            shutil.rmtree(past)
+        except FileNotFoundError:
+            pass
+
+        try: 
+            shutil.rmtree(par['InitialConditionsDirectory'])
+        except FileNotFoundError:
+            pass    
 
     comm.Barrier() 
     
