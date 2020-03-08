@@ -287,6 +287,17 @@ def retrieve_state(parfile, resumedir, verbose=True):
                 shutil.copy(fn, dest)
     
     comm.Barrier() 
+
+    if verbose:
+        print('Backup complete. Removing previous backup.')
+
+    if rank == 0:
+    try:
+        shutil.rmtree(past)
+    except FileNotFoundError:
+        pass
+
+    comm.Barrier() 
     
     if verbose:
         print('Success retrieving state off node ', rank, '!')
