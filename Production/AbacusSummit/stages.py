@@ -34,6 +34,7 @@ import subprocess
 import socket
 import time
 import re
+import shutil
 
 from Abacus import globus
 
@@ -234,7 +235,7 @@ class ReadyForDataTransfer(Stage):
         if self.disable_automation:
             breakpoint()
         try:
-            with open(pjoin(logdir, box.jobname('PostProcessEpilogue') + '.out')) as f:
+            with open(pjoin(logdir, box.name, box.jobname('PostProcessEpilogue') + '.out')) as f:
                 return 'Post processing complete.' in f.read()
         except FileNotFoundError:
             return False
@@ -251,12 +252,13 @@ class ReadyForDataTransfer(Stage):
                       source_endpoint=globus.OLCF_DTN_ENDPOINT,
                       dest_endpoint=globus.NERSC_DTN_ENDPOINT,
                       status_log_fn=globus_status_log)
-        except:
+        except Exception as e:
+            print(e)
             print(f'Error starting Globus transfer for {box.name}.  Continuing...')
             return False
 
         # Start an htar job on rhea
-        cmd = 'sbatch --job-name=' + box.jobname('htar') + ' rhea_htar.slurm ' + box.name
+        cmd = f'sbatch -o logs/{box.name}/' + box.jobname('htar') + '.out --job-name=' + box.jobname('htar') + ' rhea_htar.slurm ' + box.name
         try:
             subprocess.run(shlex.split(cmd), check=True)
         except:
@@ -271,7 +273,7 @@ class QueuedForDataTransfer(Stage):
     def indicator(self, box):
         '''Is Globus or htar queued or running?'''
         gstat = globus.status(box.name, status_log_fn=globus_status_log)
-        if gstat is not None and gstat != 'FAILED':
+        if gstat is not None and gstat not in globus.GLOBUS_COMPLETION_STATUSES:
             return True
 
         if box.jobname('htar') in QueuedJobs('rhea'):
@@ -290,22 +292,32 @@ class ReadyForDeletion(Stage):
         if globus.status(box.name, status_log_fn=globus_status_log) != 'SUCCEEDED':
             return False
 
-        with open(pjoin(logdir, box.jobname('htar') + '.out')) as f:
-            if 'Abacus htar complete.' not in f.read():
-                return False
+        try:
+            with open(pjoin(logdir, box.name, box.jobname('htar') + '.out')) as f:
+                if 'Abacus htar complete.' not in f.read():
+                    return False
+        except FileNotFoundError:
+            return False
 
         return True
 
 
-    FNS_TO_KEEP = ['status.log', 'abacus.par', 'logs.zip'] #TODO finalize choices to keep. logs.zip -- file name?
+    DELETE = ['halos/', 'lightcone/']
     def action(self, box):
-        '''cross your fingers and delete some stuff! But keep status.log, abacus.par, maybe the compressed logs, and the OutputDirectory.'''
-        for subdir, dirs, files in os.walk(box.params['OutputDirectory']):
+        '''cross your fingers and delete some stuff!'''
+        for path in self.DELETE:
+            path = pjoin(box.params['OutputDirectory'], path)
             if self.disable_automation:
                 breakpoint()
-            for file in files:
-                if file not in self.FNS_TO_KEEP: #maybe need to remove subdirs too.
-                    os.remove(file)
+            try:
+                shutil.rmtree(path)
+            except FileNotFoundError:
+                pass  # Not all sims have time slices, e.g.
+
+        # Now touch a file to let us know the lack of files is because we're done this sim
+        with open(pjoin(box.params['OutputDirectory'], 'COMPLETED'), 'w') as fp:
+            fp.write(time.ctime())
+
         return True
 
 
@@ -313,13 +325,12 @@ class ReadyForDeletion(Stage):
 
 class Completed(Stage):
     def indicator(self, box):
-        '''check if output directory contains only "after-deletion" set of files (e.g. status.log and abacus.par), and nothing else. '''
+        '''check if output directory contains the COMPLETED file'''
         if self.disable_automation:
             breakpoint()
-        try:
-            return set(os.listdir(box.params['OutputDirectory'])) == set(ReadyForDeletion.FNS_TO_KEEP)
-        except FileNotFoundError:
-            return False
+
+        return os.path.isfile(pjoin(box.params['OutputDirectory'], 'COMPLETED'))
+
 
 #########################################################################################################
 ######################################## EXTRA TIDBITS FOR TIDINESS #####################################

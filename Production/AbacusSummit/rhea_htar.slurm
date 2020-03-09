@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #SBATCH -A AST145
 #SBATCH -N 1
+#SBATCH --ntasks-per-node=1
 #SBATCH -p batch
 #SBATCH --mem 0  # all memory
-#SBATCH -o logs/%x.out
-#SBATCH -t 48:00:00  # 48 hours is max rhea wall clock
+#SBATCH -t 24:00:00  # 48 hours is max rhea wall clock
 
 set -e  # quit on error
 
@@ -25,7 +25,7 @@ NTHREAD=${SLURM_CPUS_PER_TASK:-16}
 
 echo "Executing htar on $WORKINGDIR using $NTHREAD threads"
 
-time htar -T $NTHREAD -cvf "/hpss/prod/ast145/proj-shared/$SIM_SET/${SIM_NAME}.tar" $WORKINGDIR
+htar -T $NTHREAD -cPvf "/hpss/prod/ast145/proj-shared/$SIM_SET/${SIM_NAME}.tar" $WORKINGDIR
 
 # This is a magic string that the assembly line looks for
 echo "Abacus htar complete."
