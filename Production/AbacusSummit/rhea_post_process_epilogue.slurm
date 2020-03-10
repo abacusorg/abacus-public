@@ -33,10 +33,14 @@ while : ; do
     zip --move -qr ${name}.zip ${LOGSTEPDIRS[@]} &
     i=$((i + 1))
 done
-popd > /dev/null
 
 wait  # wait for all zip to finish
 echo "Done zip at $(date)"
+
+# Checksum the logs
+$ABACUS/external/fast-cksum/bin/fast_cksum log*.zip > checksums.crc32
+
+popd > /dev/null  # back to WORKINGDIR
 
 # Now delete:
 # - Log/last symlink
