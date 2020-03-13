@@ -8,7 +8,7 @@
 #SBATCH -p batch
 #SBATCH --mem 0  # all memory
 #SBATCH -o logs/%x.out
-#SBATCH -t 36:00:00  #run for X hours.
+#SBATCH -t 18:00:00  #run for X hours.
 
 # Exit if any command fails
 set -e

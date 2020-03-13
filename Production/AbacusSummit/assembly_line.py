@@ -46,8 +46,8 @@ stages = {
         6:  QueuedForPostProcess('Queued for post-processing'),
         7:  ReadyForDataTransfer('Ready for data transfer'),
         8: QueuedForDataTransfer('Queued for data transfer'),
-        9:      ReadyForDeletion('Ready for deletion',         noop='action'),
-        10:             Completed('Completed'),
+        9:      ReadyForDeletion('Ready for deletion'),
+        10:            Completed('Completed'),
     }
 
 # Inform stages of their numbers
@@ -295,7 +295,7 @@ class Suite:
         self.send_email(subject, message)
 
 
-    def send_email(self, subject, message, dryrun=True):
+    def send_email(self, subject, message, dryrun=None):
         if dryrun is None:
             dryrun = not self.email
 
@@ -340,7 +340,7 @@ if __name__ == '__main__':
     parser.add_argument('--no-action', help="Just update the status of the CSV, don't take any actions", action='store_true')
     parser.add_argument('--no-summit', help="Assume no jobs are queued on summit", action='store_true')
     parser.add_argument('--no-globus', help="Assume no jobs are running on Globus", action='store_true')
-    #parser.add_argument('--email', help="Send status and error emails", action='store_true')
+    parser.add_argument('--email', help="Send status and error emails", action='store_true')
     parser.add_argument('--add-boxes', help="Add these box names to the current CSV (or make a new CSV with these boxes)", nargs='+')
     parser.add_argument('--refresh', help="Allow boxes to escape the Error stage", action='store_true')
 
@@ -353,7 +353,7 @@ if __name__ == '__main__':
     args['disable_automation'] = args.pop('manual')
 
     #detect stages and do sanity check.
-    suite = Suite(**args, suite_name='AbacusSummit', email=not no_action)
+    suite = Suite(**args, suite_name='AbacusSummit')  #email=not no_action
 
     #attempt actions for all boxes, then do another sanity check.
     if not no_action:

@@ -62,6 +62,7 @@ import numpy as np
 from Abacus.InputFile import InputFile
 from Abacus import GenParam
 from Abacus import abacus
+from Abacus.Tools import chdir
 import Abacus.Cosmology
 
 zeldovich_dir = pjoin(abacus.abacuspath, 'external', 'zeldovich-PLT')
@@ -193,7 +194,8 @@ def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=False):
             ZD_cmd = shlex.split(params['ZD_mpirun_cmd']) + ZD_cmd
         except KeyError:
             ZD_cmd = shlex.split(params['mpirun_cmd']) + ZD_cmd
-    abacus.call_subprocess(ZD_cmd)
+    with chdir(zeldovich_dir):
+        abacus.call_subprocess(ZD_cmd)
 
     
 def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):

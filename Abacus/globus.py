@@ -115,10 +115,11 @@ def update_all_status_from_globus(transfer_client=None, status_log=None,
         task = transfer_client.get_task(submission['task_id'])
         
         task = task.data  # get dict
-        del task['event_link']
+        if 'event_link' in task:
+            del task['event_link']
 
         if task['status'] != oldstatus:
-            print(f'Task status for {boxname} changed from {oldstatus} to {task["status"]}')
+            print(f'Globus task status for {boxname} changed from {oldstatus} to {task["status"]}')
         status_log[boxname] = task
 
     if own_status_log:
@@ -176,7 +177,8 @@ def setup_transfer_client(source_endpoint, dest_endpoint):
     except GlobusAPIError as ex:
         if ex.http_status == 401:
             # TODO: when does this happen? Does the user need to delete a local file or just login again?
-            sys.exit('Refresh token has expired.')
+            print('Globus refresh token has expired.', file=sys.stderr)
+            raise ex
         else:
             raise ex
     return transfer_client
@@ -187,7 +189,8 @@ def check_endpoint_path(transfer_client, endpoint, path):
     try:
         transfer_client.operation_ls(endpoint, path=path)
     except TransferAPIError as tapie:
-        sys.exit(f'Failed to query endpoint "{endpoint}": {tapie.message}')
+        print(f'Globus: Failed to query endpoint "{endpoint}": {tapie.message}', file=sys.stderr)
+        raise tapie
 
 
 def create_destination_directory(transfer_client, dest_ep, dest_path):
@@ -197,9 +200,10 @@ def create_destination_directory(transfer_client, dest_ep, dest_path):
     except TransferAPIError:
         try:
             transfer_client.operation_mkdir(dest_ep, dest_path)
-            print('Created directory on destination endpoint: {}'.format(dest_path))
+            print('Globus: Created directory on destination endpoint: {}'.format(dest_path))
         except TransferAPIError as tapie:
-            sys.exit(f'Failed to create directory on destination endpoint: {tapie.message}')
+            print(f'Globus: Failed to create directory on destination endpoint: {tapie.message}', file=sys.stderr)
+            raise tapie
 
 
 def _submit_transfer(tdata, transfer_client, status_log, status_log_fn, boxname):
@@ -279,7 +283,7 @@ def start_globus_transfer(source_path, dest_path=DEFAULT_NERSC_DEST,
     # also writes status log
     _submit_transfer(tdata, transfer_client, status_log, status_log_fn, boxname)
 
-    print('Transfer has been started from\n  {}:{}\nto\n  {}:{}'.format(
+    print('Globus transfer has been started from\n  {}:{}\nto\n  {}:{}'.format(
         source_endpoint,
         source_path,
         dest_endpoint,
