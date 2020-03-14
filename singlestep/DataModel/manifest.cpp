@@ -61,8 +61,9 @@ class DependencyRecord {
     void Load(Dependency &d, int finished_slab, const char label[]) {
         end = finished_slab;
 		
-        for (begin=end-1; begin>end-d.cpd; begin--) {
-            if (d.notdone(begin)) break;
+        // Don't look past the slabs this node owns
+        for (begin=end-1; CP->WrapSlab(begin - first_slab_on_node) < total_slabs_on_node; begin--) {
+            if (!d.instantiated || d.notdone(begin)) break;
             //// d.mark_to_repeat(begin);   // We're not going to unmark
         }
 		
@@ -70,8 +71,9 @@ class DependencyRecord {
         begin++;   // Want to pass the first done one
 		
         // Now look for the last done slab
-        for (;end<finished_slab+d.cpd;end++) {
-            if (d.notdone(end)) break;
+        // Don't look past the slabs this node owns
+        for (; CP->WrapSlab(end - first_slab_on_node) < total_slabs_on_node; end++) {
+            if (!d.instantiated || d.notdone(end)) break;
         } end--;
         /* The manifest code is called in two different use cases:
            1) when the GlobalGroups have happened and we want to pass 
@@ -778,7 +780,7 @@ void Manifest::ImportData() {
         memcpy(GFC->GLL->list+len, links, m.numlinks*sizeof(GroupLink));
         // Possible TODO: Should this copy be multi-threaded?
         free(links);
-        STDLOG(2, "Growing GroupLink list from %d by %d = %l\n", len, m.numil, GFC->GLL->length);
+        STDLOG(2, "Growing GroupLink list from %d by %d = %l\n", len, m.numlinks, GFC->GLL->length);
     }
     
     // We're done with this Manifest!

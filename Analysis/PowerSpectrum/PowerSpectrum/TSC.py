@@ -179,6 +179,8 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
         reader_kwargs.update(return_zel=False, add_grid=True, boxsize=boxsize)
     elif format == 'gadget':
         reader_kwargs.update(boxsize=boxsize)
+    elif format == 'state':
+        reader_kwargs.update(boxsize=boxsize, return_pos=True)
 
     for data in ReadAbacus.AsyncReader(file_pattern, **reader_kwargs):
         TSC(data['pos'], density, boxsize, rotate_to=rotate_to, prep_rfft=prep_rfft, nthreads=nthreads, inplace=True)

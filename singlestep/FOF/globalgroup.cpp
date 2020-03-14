@@ -373,6 +373,8 @@ void GlobalGroupSlab::DeferGlobalGroups() {
                         if (!(thiscg->is_open())) { searching++; continue; }
 
                         int s = GFC->WrapSlab(thiscell.x-slab+slabbias);  // Map to [0,diam)
+                        assertf(s < diam, "GroupLink points to slab offset %d which violates GroupDiameter %d.  Likely need to increase GroupRadius! (slab,j,k,t = %d,%d,%d,%d)\n",
+                            s, diam, slab, j, k, t);
                         LinkPencil *lp = links[s]+thiscell.y;
 
                         // Loop over the links that leave from this cell
@@ -489,25 +491,26 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                         // }
                         // Now get these links
                         int s = GFC->WrapSlab(thiscell.x-slab+slabbias);  // Map to [0,diam)
+                        assertf(s < diam, "GroupLink points to slab offset %d which violates GroupDiameter %d.  Likely need to increase GroupRadius! (slab,j,k,g = %d,%d,%d,%d)\n",
+                            s, diam, slab, j, k, g);
                         LinkPencil *lp = links[s]+thiscell.y;
                         // Keep track of the maximum slab accessed
                         max_group_diameter = std::max(max_group_diameter, s);
-                        // TODO: This variable name shadows an earlier one
-                        GroupLink *g; int t;
-                        for (g = lp->data + lp->cells[thiscell.z].start, t = 0;
-                                t<lp->cells[thiscell.z].n; t++, g++) {
+                        GroupLink *gl; int t;
+                        for (gl = lp->data + lp->cells[thiscell.z].start, t = 0;
+                                t<lp->cells[thiscell.z].n; t++, gl++) {
                             // Consider all the links from this cell
-                            if (g->a.id == cglist[searching].id) {
+                            if (gl->a.id == cglist[searching].id) {
                                 // This link originates from the group we're using
                                 // But now we need to check if its destination
                                 // is already on the list.
                                 uint64 seek = 0;
                                 while (seek<cglist.size()) 
-                                    if (g->b.id == cglist[seek++].id) goto FoundIt;
-                                cglist.push_back(g->b);  // Didn't find it; add to queue
+                                    if (gl->b.id == cglist[seek++].id) goto FoundIt;
+                                cglist.push_back(gl->b);  // Didn't find it; add to queue
                                 FoundIt:
                                 // Either way, this link has been used its one time.
-                                g->mark_for_deletion();
+                                gl->mark_for_deletion();
                             }
                         } // Done with the links from this cell
                         searching++;  // Ready for the next unresolved cellgroup
@@ -521,16 +524,16 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                         // We're going to sort the cellgroup list, so that
                         // multiple groups within one cell are contiguous
                         // But there's no point in doing this unless there are 3+ CG.
-                        /*
                         if (cglist.size()>2) {
                             std::sort(cglist.data(), cglist.data()+cglist.size());
+                            /*
                             for (uint64 t = 1; t<cglist.size(); t++) 
                                 assertf(cglist[t-1].id <= cglist[t].id,
                                     "Failed to sort propertly: %lld > %lld\n", 
                                         cglist[t-1].id,
                                         cglist[t].id);
+                            */
                         }
-                        */
 
                         for (uint64 t = 0; t<cglist.size(); t++) {
                             //integer3 tmp = cglist[t].cell();

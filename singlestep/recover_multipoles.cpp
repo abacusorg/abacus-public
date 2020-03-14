@@ -6,6 +6,7 @@
  */
  
 #include "proepi.cpp"
+#include "timestep_recover_multipoles.cpp"
 
 #ifdef PARALLEL
 void RecoverReadStateFiles(Parameters &P){
@@ -29,25 +30,28 @@ void RecoverReadStateFiles(Parameters &P){
     InitializeParallel(MPI_size, MPI_rank);
 	
     P.ReadParameters(argv[1],0);
-    strcpy(WriteState.ParameterFileName, argv[1]);
-    strcpy(WriteState.Pipeline, "recover_multipoles");
+
+    bool MakeIC;
+    MakeIC = true;  // For most purposes, pretend we're making ICs
+
+    load_read_state(0);  // Load the bare minimum (step num, etc) to get the log up and running
 
     setup_log(); // STDLOG and assertf now available
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
 
+    SetupLocalDirectories(0);
+
     init_openmp();
 
-    bool MakeIC;
     double da;
     check_read_state(MakeIC, da);
-    MakeIC = true;  // For most purposes, pretend we're making ICs
     da = 0.; // never used, but let's be clear
     
     SingleStepSetup.Stop();
 
     // Informs some of our directory structure
     // Also sets up SlabSize
-    InitWriteState(MakeIC);
+    InitWriteState(MakeIC, "recover_multipoles", argv[1]);
 	Prologue(P, MakeIC);
     SS->load_from_params(P);  // normally done during Prologue, but we pretended this was an IC step
 	

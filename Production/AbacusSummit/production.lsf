@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+
+#BSUB -P ast145
+#BSUB -nnodes 60
+#BSUB -J "Abacus"
+#BSUB -W 360  # run for X minutes
+#BSUB -Q 200  # Requeue this job if this script exits with code 200
+#BSUB -alloc_flags smt2  # one or two hyper-threads per core. default is four. 
+
+export JOB_ACTION_WARNING_TIME=353
+
+## wt hh:mm before the job is scheduled to run out of wallclock time, send a signal (10 = SIGUSR1).
+## this should be caught by abacus.py to trigger graceful exit and state retrieval to global directory.
+## Hopefully. We shall see. 
+
+# This is the primary LSF script used to run AbacusSummit simulations
+# It is primarily invoked from the summit_assembly_line_sleeper.sh script,
+# although it may be invoked manually with
+# $ bsub production.lsf
+# Check this directory for a file named lsf-<jobid>.out, which should
+# contain stderr and stdout
+
+# This script runs on the batch-launch node
+# jsrun invocations from here will launch executables on the compute nodes
+
+# Specify the directory holding the simulation config inside the abacus/Production dir
+######################
+SET_NAME="AbacusSummit"
+if [[ -z "$SIM_NAME" ]]; then
+    #SIM_NAME="MiniAbacusSummit_base_c010_ph000"
+    echo "Need $SIM_NAME!"; exit 1
+fi
+######################
+
+echo -e "* Loading modules\n"
+source modules.sh
+echo -e "\n\n\n\n"
+
+# Merge into one path
+SIM_DIR="$SET_NAME/$SIM_NAME"
+
+# Here we assume there are no other sims running on this node!
+RAMDISK="/dev/shm/$USER/"
+
+export ABACUS_TMP=$RAMDISK
+export ABACUS_SSD=$RAMDISK
+#ABACUS_LOCALSCRATCH="/localscratch/$USER/"
+
+export ABACUS_PERSIST=$ABACUSSUMMIT_PERSIST
+
+ABACUS_SOURCE=$ABACUS
+#export ABACUS="$ABACUS_SSD/$(basename $ABACUS_SOURCE)/"
+
+DEBUG_FN=logs/${LSB_JOBNAME}_production.debug
+function jsrun_all()
+{
+    # There's lots of information we want to store for debugging but makes the logs hard to read,
+    # so this command stores the output in a file called lsf-*.debug
+    jsrun -o $DEBUG_FN -e prepended -nALL_HOSTS -a1 -r1 -cALL_CPUS $@
+}
+
+echo -e "* Clearing ramdisk\n"
+jsrun_all rm -rf $RAMDISK
+echo -e "\n\n\n\n"
+
+#export PAMI_IBV_ENABLE_DCT=0
+#export PAMI_IBV_ENABLE_OOO_AR=0
+
+# These actions will be taken upon exit
+function cleanup()
+{
+    echo -e "* Environment:\n"
+    printenv &> $DEBUG_FN
+    echo -e "\n\n\n\n"
+
+    echo -e "* dmesg:\n"
+    jsrun_all bash -c "dmesg -T |tail -n15"
+    echo -e "\n\n\n\n"
+
+    echo -e "* /dev/shm usage:\n"
+    jsrun_all df -h /dev/shm
+    echo -e "\n\n\n\n"
+
+    echo -e "* Clearing ramdisk\n"
+    jsrun_all rm -rf $RAMDISK
+    echo -e "\n\n\n\n"
+}
+trap cleanup EXIT
+
+#CXX=g++
+
+# If the Abacus directory is different from the source, make a local copy
+if [[ ! $ABACUS -ef $ABACUS_SOURCE ]]; then 
+    echo -e "* Copying files locally and running make:\n"
+    mkdir -p $(dirname $ABACUS)
+    cp -R $ABACUS_SOURCE/ $ABACUS
+    #make -C $ABACUS distclean
+
+    #cd $ABACUS
+    #./configure CXX=$CXX
+    #cd -
+
+    #XX=$CXX make -C $ABACUS clean all
+    echo -e "\n\n\n\n"
+fi
+
+#CXX=$CXX make -C $ABACUS clean all
+
+
+######################################################################## 
+######################################################################## 
+########################################################################
+echo -e "* Running abacus: $ABACUSSUMMIT_SPEC/$SIM_NAME\n"
+$ABACUS/Production/run_sim.py "$ABACUSSUMMIT_SPEC/$SIM_NAME"
+
+######################################################################## 
+######################################################################## 
+######################################################################## 
+
+ABACUS_EXIT=$?
+
+#cd $ABACUS/Tests/Spiral
+#./SpiralTest.py; ABACUS_EXIT=$?
+#cd -
+
+echo -e "Abacus exit code: $ABACUS_EXIT \n"
+echo -e "\n\n\n\n"
+
+if [[ "$ABACUS_EXIT" == 200 ]]; then
+    echo "Requeuing this job."
+    brequeue $LSB_JOBID
+    export REQUEUED='Y' 
+fi
+
+#echo "Killing job id " $LSB_JOBID
+#bkill $LSB_JOBID

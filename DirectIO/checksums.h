@@ -5,7 +5,7 @@ functions defined in crc32_fast.
 
 */
 
-#include "crc32_fast.cpp"
+#include "fast_cksum/fast_cksum.cpp"
 
 class CRC32 {
 private:

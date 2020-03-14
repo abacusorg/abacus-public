@@ -83,6 +83,7 @@ STimer SingleStepTearDown;
 STimer IOFinish;
 
 STimer SlabAccumFree;
+STimer ReleaseFreeMemoryTime;
 
 uint64 naive_directinteractions = 0;
 
@@ -420,27 +421,26 @@ void Epilogue(Parameters &P, bool MakeIC) {
             }
             #endif
         }
-
         
-            WriteState.DirectsPerParticle = (double)1.0e9*NFD->gdi_gpu/P.np;
-            delete TY;
-            TY = NULL;
-            STDLOG(2,"Deleted TY\n");
-            delete RL;
-            RL = NULL;
-            delete[] SlabForceLatency;
-            SlabForceLatency = NULL;
-            delete[] SlabForceTime;
-            SlabForceTime = NULL;
-            delete[] SlabFarForceTime;
-            SlabFarForceTime = NULL;
-            if (GFC!=NULL){
-                delete GFC;
-                GFC = NULL;
-            }
-            STDLOG(2,"Done with Epilogue; about to kill the GPUs\n");
-            delete NFD;
-            NFD = NULL;
+        WriteState.DirectsPerParticle = (double)1.0e9*NFD->gdi_gpu/P.np;
+        delete TY;
+        TY = NULL;
+        STDLOG(2,"Deleted TY\n");
+        delete RL;
+        RL = NULL;
+        delete[] SlabForceLatency;
+        SlabForceLatency = NULL;
+        delete[] SlabForceTime;
+        SlabForceTime = NULL;
+        delete[] SlabFarForceTime;
+        SlabFarForceTime = NULL;
+        if (GFC!=NULL){
+            delete GFC;
+            GFC = NULL;
+        }
+        STDLOG(2,"Done with Epilogue; about to kill the GPUs\n");
+        delete NFD;
+        NFD = NULL;
     }
 
     finish_fftw();
@@ -952,6 +952,10 @@ void FinalizeWriteState() {
         MPI_REDUCE_TO_ZERO(&WriteState.MaxL0GroupSize, 1, MPI_INT, MPI_MAX);
         // Sum WriteState.DirectsPerParticle
         MPI_REDUCE_TO_ZERO(&WriteState.DirectsPerParticle, 1, MPI_DOUBLE, MPI_SUM);
+        // sum subsample counts
+        MPI_REDUCE_TO_ZERO(&WriteState.np_subA_state, 1, MPI_INT, MPI_SUM);
+        MPI_REDUCE_TO_ZERO(&WriteState.np_subB_state, 1, MPI_INT, MPI_SUM);
+        MPI_REDUCE_TO_ZERO(&WriteState.np_lightcone, 1, MPI_LONG_LONG, MPI_SUM);
 // #undef MPI_REDUCE_IN_PLACE
 
         // Note that we're not summing up any timing or group finding reporting;
@@ -986,5 +990,19 @@ void FinalizeWriteState() {
     //     assertf(WriteState.np_subA_state == (int) ( P.ParticleSubsampleA * P.np), "Subsample A contains %d particles, expected %d.\n", WriteState.np_subA_state, (int) (P.ParticleSubsampleA * P.np) ); 
     //     assertf(WriteState.np_subB_state == (int) ( P.ParticleSubsampleB * P.np), "Subsample A contains %d particles, expected %d.\n", WriteState.np_subB_state, (int) (P.ParticleSubsampleB * P.np) ); 
     // }
+
+
+    // If we're writing lightcones, we only want the header to be written once
+    // But a-priori there's no good way to know which nodes/slabs will have LC particles,
+    // Now that we've done the reduction, we know if any LC particles were written, thus rank 0 can write the header
+    if(WriteState.np_lightcone && MPI_rank == 0){
+        char dir[32];
+        sprintf(dir, "Step%04d", ReadState.FullStepNumber);
+        
+        std::string headerfn = "";
+        headerfn = headerfn + P.LightConeDirectory + "/" + dir + "/header";
+        LightCone::WriteHeaderFile(headerfn.c_str());
+    }
+
     return;
 }

@@ -1,4 +1,5 @@
 #include "proepi.cpp"
+#include "timestep_ic.cpp"
 
 #include "cosmo_setup.cpp"
 
@@ -298,5 +299,6 @@ int main(int argc, char **argv) {
     ReportTimings();
 
     stdlog.close();
-    exit(0);
+    
+    return 0;
 }
