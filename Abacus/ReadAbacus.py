@@ -290,7 +290,7 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=False, return_
 
             files = []
             for p in pattern:
-                files = sorted(glob(pjoin(path, p)), key=_key)
+                files += sorted(glob(pjoin(path, p)), key=_key)
         elif ppath.isfile(path):
             files = [path]
         else:
