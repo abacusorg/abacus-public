@@ -186,8 +186,30 @@ double ChooseTimeStep(){
 
         // Need a bit of wiggle room to avoid duplicate outputs, but not so much that we miss outputs
         if(ReadState.Redshift > L1z + 1e-12 && ReadState.ScaleFactor + da > L1a + 1e-10){
+            // We don't shorten our timestep to land exactly on a merger tree redshift.
+            // Sometimes, this can lead to two consecutive group finding steps, if the L1OutputRedshift
+            // we're about to say is "close enough" to the current redshift also appears in either
+            // TimeSliceRedshifts or TimeSliceRedshifts_Subsample. To prevent this, check
+            // if that's the case; if it is, wait to do GF and output until next step. If not, 
+            // sally forth.
             STDLOG(0,"Group finding at this redshift requested by L1OutputRedshifts[%d]\n", i);
             ReadState.DoGroupFindingOutput = 1; 
+
+            for(int i = 0; i < P.nTimeSliceSubsample; i++){
+                if (L1z == P.TimeSliceRedshifts_Subsample[i]){
+                    STDLOG(0,"...but will hold off, as this redshift %f appears in TimeSliceRedshifts_Subsample[%d].\n", L1z, i);
+                    ReadState.DoGroupFindingOutput = 0; 
+                    break;
+                }
+            }
+
+            for(int i = 0; i < P.nTimeSlice; i++){
+                if (L1z == P.TimeSliceRedshifts[i]){
+                    STDLOG(0,"...but will hold off, as this redshift %f appears in TimeSliceRedshifts[%d].\n", L1z, i);
+                    ReadState.DoGroupFindingOutput = 0;
+                    break; 
+                }
+            }
         }
     }
 	return da;
