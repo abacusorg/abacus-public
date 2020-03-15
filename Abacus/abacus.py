@@ -907,8 +907,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         singlestep_cmd = mpirun_cmd + singlestep_cmd
         print("Using singlestep_cmd ", singlestep_cmd)
 
-        #if this job is longer than a set time (NEEDS_INTERIM_BACKUP_MINS), we'll need to do a backup halfway through the run.
-        interim_backup_complete = run_time_minutes <= NEEDS_INTERIM_BACKUP_MINS
+        # #if this job is longer than a set time (NEEDS_INTERIM_BACKUP_MINS), we'll need to do a backup halfway through the run.
+        # interim_backup_complete = run_time_minutes <= NEEDS_INTERIM_BACKUP_MINS
 
     last_backup = wall_timer()  # time of last backup. Count the very beginning as a "backup"
     for i in range(maxsteps):
@@ -1080,8 +1080,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             abandon_ship = path.exists(emergency_exit_fn)
             out_of_time = (wall_timer() - start_time >= run_time_secs)
 
-            #if the halfway-there backup hasn't been done already, and we're more than halfway through the job, backup the state now:
-            interim_backup = (not interim_backup_complete) and (wall_timer() - start_time >= run_time_secs / 2) and (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60 ) #only relevant for long jobs.
+            # #if the halfway-there backup hasn't been done already, and we're more than halfway through the job, backup the state now:
+            # interim_backup = (not interim_backup_complete) and (wall_timer() - start_time >= run_time_secs / 2) and (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60 ) #only relevant for long jobs.
 
             #are we coming up on a group finding step? If yes, backup the state, just in case.
             pre_gf_backup  = False
@@ -1116,15 +1116,16 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                         break
 
             exiting = out_of_time or abandon_ship
-            save = exiting or interim_backup or pre_gf_backup
+            #save = exiting or interim_backup or pre_gf_backup
+            save = exiting or pre_gf_backup
 
             if save:
                 if abandon_ship:
                     exit_message = 'EMERGENCY EXIT REQUESTED: '
                 if out_of_time:
                     exit_message = 'RUNNING OUT OF JOB TIME: '
-                if interim_backup:
-                    exit_message = 'HALFWAY THROUGH A LONG JOB: '
+                # if interim_backup:
+                #     exit_message = 'HALFWAY THROUGH A LONG JOB: '
                 if pre_gf_backup:
                     exit_message = 'GROUP FINDING COMING UP: '
 
@@ -1148,8 +1149,8 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 if path.exists(emergency_exit_fn):
                     os.remove(emergency_exit_fn)
 
-                if interim_backup:
-                    interim_backup_complete = True
+                # if interim_backup:
+                #     interim_backup_complete = True
 
                 if exiting:
                     print('Exiting.')
