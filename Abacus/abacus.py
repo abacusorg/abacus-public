@@ -367,7 +367,7 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
             if k not in param_kwargs:
                 param_kwargs[k] = dirs[k]
 
-    if not params.get('ExternalICs', False):
+    if not params.get('ExternalICs', False) and not zeldovich.is_on_the_fly_format(params['ICFormat']):
         zd_params = zeldovich.setup_zeldovich_params(params)
         if zd_params:
             param_kwargs.update(zd_params)
@@ -875,19 +875,19 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         if distribute_state_from:
             print('Distributing state to nodes...')
             distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, distribute_state_from, '--distribute-from-serial']
-            call_subprocess(Conv_mpirun_cmd + distribute_state_cmd)
+            call_subprocess(Conv_mpirun_cmd + distribute_state_cmd, timeout=param.get('subprocess_timeout'))
 
         #check if our previous run was interrupted and saved in the global directory. If yes, redistribute state to nodes.
         #TODO do this by checking if we have a backed-up state available in global directory (instead of looking at param file).
 
-        if not make_ic: #if this is not a clean run, redistribute the state out to the nodes.
+        if not make_ic:  #if this is not a clean run, redistribute the state out to the nodes.
             allow_new_nnode = param.get('AllowResumeToNewNNode',False)
             print('Distributing in order to resume...')
             dist_start = wall_timer()
             distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', resume_dir]
             if allow_new_nnode:
                 distribute_state_cmd += ['--allow-new-nnode']
-            distribute_fns_present = call_subprocess(Conv_mpirun_cmd + distribute_state_cmd)
+            call_subprocess(Conv_mpirun_cmd + distribute_state_cmd, timeout=param.get('subprocess_timeout'))
             dist_time = wall_timer() - dist_start
             status_log.print(f"# Distributing state to resume took {dist_time:.1f} seconds.")
 
@@ -940,7 +940,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             if not do_fake_convolve:
                 # Now check if we have all the multipoles the convolution will need
                 if not check_multipole_taylor_done(param, read_state, kind='Multipole'):
-                    recover_multipoles(paramfn, stepnum, singlestep_env)
+                    recover_multipoles(paramfn, stepnum, singlestep_env, timeout=param.get('subprocess_timeout'))
 
                 # Swap the Taylors link.  In effect, this will place the Taylors on the same disk as the multipoles.
                 # But that's what we want for sloshing: this was the write disk, so now it will be the upcoming read disk
@@ -957,7 +957,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
             print(f"Performing convolution for step {stepnum:d}")
             with Tools.ContextTimer() as conv_timer:
-                call_subprocess(convolution_cmd, env=convolution_env)
+                call_subprocess(convolution_cmd, env=convolution_env, timeout=param.get('subprocess_timeout'))
             conv_time = conv_timer.elapsed
 
             if ProfilingMode == 2:
@@ -1000,7 +1000,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
         with Tools.ContextTimer() as ss_timer:
             try:
-                call_subprocess(singlestep_cmd, env=singlestep_env)
+                call_subprocess(singlestep_cmd, env=singlestep_env, timeout=param.get('subprocess_timeout'))
             except subprocess.CalledProcessError as cpe:
                 handle_singlestep_error(cpe)
                 raise
@@ -1085,8 +1085,14 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
             #are we coming up on a group finding step? If yes, backup the state, just in case.
             pre_gf_backup  = False
-            output_arrs = [param.get('L1OutputRedshifts'), param.get('TimeSliceRedshifts'), param.get('TimeSliceRedshifts_Subsample')]
-            output_arrs = [list(o) for o in output_arrs if o is not None]
+            output_arrs = []
+            for n in ('L1OutputRedshifts', 'TimeSliceRedshifts', 'TimeSliceRedshifts_Subsample'):
+                oa = param.get(n)
+                if oa is not None:
+                    try:
+                        output_arrs += [list(oa)]
+                    except TypeError:
+                        output_arrs += [[oa]]
 
             if run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60:
                 for oa in output_arrs:
@@ -1127,7 +1133,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
                 restore_time = wall_timer()
                 retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, resume_dir, '--retrieve']
-                call_subprocess(Conv_mpirun_cmd + retrieve_state_cmd)
+                if param.get('DeleteICsAfterFirstBackup'):
+                    retrieve_state_cmd += ['--delete-ics']
+                call_subprocess(Conv_mpirun_cmd + retrieve_state_cmd, timeout=param.get('subprocess_timeout'))
 
                 restore_time = wall_timer() - restore_time
 
@@ -1210,8 +1218,10 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
     if finished and parallel and param.get('SaveFinalState',False):
         retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, resume_dir, '--retrieve']
+        if param.get('DeleteICsAfterFirstBackup'):
+            retrieve_state_cmd += ['--delete-ics']
         restore_time = wall_timer()
-        call_subprocess(Conv_mpirun_cmd + retrieve_state_cmd)
+        call_subprocess(Conv_mpirun_cmd + retrieve_state_cmd, timeout=param.get('subprocess_timeout'))
         restore_time = wall_timer() - restore_time
         print(f'Retrieving and storing final state took {restore_time:.1f} seconds. ', end = '')
         status_log.print(f'# Retrieving and storing final state took {restore_time:.1f} seconds.')
@@ -1229,7 +1239,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     return 0
 
 
-def recover_multipoles(paramfn, stepnum, env, mpirun_cmd=None):
+def recover_multipoles(paramfn, stepnum, env, mpirun_cmd=None, timeout=None):
     '''
     If multipoles are missing for any reason, we can invoke a redacted
     singlestep pipeline that just reads in positions and outputs multipoles.
@@ -1255,7 +1265,7 @@ def recover_multipoles(paramfn, stepnum, env, mpirun_cmd=None):
         recov_cmd = mpirun_cmd + [pjoin(abacuspath, "singlestep", "recover_multipoles"), paramfn]
 
     try:
-        call_subprocess(recov_cmd, env=env)
+        call_subprocess(recov_cmd, env=env, timeout=timeout)
     except subprocess.CalledProcessError as cpe:
         handle_singlestep_error(cpe)
         raise
@@ -1405,6 +1415,14 @@ def call_subprocess(*args, **kwargs):
     Why does OMP_PLACES affect the affinity mask of the master thread?
     Because the master thread is actually the first member of the OpenMP
     thread team!
+
+    Also, timeout arguments are interpreted as being in minutes, rather than
+    seconds.
     """
 
-    subprocess.run(*args, **kwargs, preexec_fn=reset_affinity, check=True)
+    timeout = kwargs.pop('timeout',None)
+    if timeout is not None:
+        timeout *= 60
+
+    # A TimeoutExpired error will be raised if we time out. Could catch it, but probably fine to crash
+    subprocess.run(*args, **kwargs, timeout=timeout, preexec_fn=reset_affinity, check=True)
