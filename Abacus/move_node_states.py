@@ -216,7 +216,7 @@ def distribute_to_resume(parfile, resumedir, verbose=True, allow_new_nnode=False
     
           
 
-def retrieve_state(parfile, resumedir, verbose=True):
+def retrieve_state(parfile, resumedir, verbose=True, delete_ics=False):
     
     par = InputFile(parfile)
     
@@ -297,10 +297,11 @@ def retrieve_state(parfile, resumedir, verbose=True):
         except FileNotFoundError:
             pass
 
-        try: 
-            shutil.rmtree(par['InitialConditionsDirectory'])
-        except FileNotFoundError:
-            pass    
+        if delete_ics:
+            try: 
+                shutil.rmtree(par['InitialConditionsDirectory'])
+            except FileNotFoundError:
+                pass    
 
     comm.Barrier() 
     
@@ -319,6 +320,7 @@ if __name__ == '__main__':
     parser.add_argument('--retrieve', help="Save all nodes' states to the global disk", action='store_true')
     parser.add_argument('--distribute', help="Distribute nodes' states from the global disk to the nodes", action='store_true')
     parser.add_argument('--allow-new-nnode', help="Allow distribution to a different number of nodes than was saved on disk", action='store_true')
+    parser.add_argument('--delete-ics', help="Allow deletion of ICs once the first backup has completed", action='store_true')
     
     parser.add_argument('resumedir', help="Global disk directory to redistribute from")
 
@@ -328,6 +330,6 @@ if __name__ == '__main__':
     if args['distribute_from_serial']:
         distribute_from_serial(args['parfile'], args['sourcedir'], args['verbose'])
     elif args['retrieve']:
-        retrieve_state(args['parfile'], args['resumedir'], args['verbose'])
+        retrieve_state(args['parfile'], args['resumedir'], args['verbose'], args['delete_ics'])
     elif args['distribute']:
         distribute_to_resume(args['parfile'], args['resumedir'], args['verbose'], args['allow_new_nnode'])
