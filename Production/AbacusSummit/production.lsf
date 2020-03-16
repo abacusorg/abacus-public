@@ -51,7 +51,7 @@ export ABACUS_PERSIST=$ABACUSSUMMIT_PERSIST
 ABACUS_SOURCE=$ABACUS
 #export ABACUS="$ABACUS_SSD/$(basename $ABACUS_SOURCE)/"
 
-DEBUG_FN=logs/${LSB_JOBNAME}_production.debug
+DEBUG_FN=logs/${LSB_JOBNAME}/${LSB_JOBNAME}_production.debug
 function jsrun_all()
 {
     # There's lots of information we want to store for debugging but makes the logs hard to read,

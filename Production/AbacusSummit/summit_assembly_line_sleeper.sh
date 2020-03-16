@@ -29,7 +29,7 @@ while :; do  # loop forever
 
             echo "Submitting box $BOX to Summit queue."
             # Unlike slurm, lsf doesn't accept command-line script arguments
-            RESPONSE=$(SIM_NAME=$BOX bsub -J $BOX -o logs/${BOX}_production.out production.lsf 2>&1)
+            RESPONSE=$(SIM_NAME=$BOX bsub -J $BOX -o logs/${BOX}/${BOX}_production.out production.lsf 2>&1)
         
         elif [[ $COMMAND == $check_queue_str* ]]; then
             echo "Checking Summit queue"

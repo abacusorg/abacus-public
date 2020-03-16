@@ -136,7 +136,8 @@ class ReadyForIC(Stage):
 
     def action(self, box):
         '''queue IC creation script on rhea'''
-        cmd = 'sbatch --job-name=' + box.jobname('ICs')  + ' rhea_ic_creation.slurm ' + box.parfn
+        os.makedirs(f'logs/{box.name}', exist_ok=True)
+        cmd = 'sbatch --job-name=' + box.jobname('ICs') + f' -o logs/{box.name}/%x.out rhea_ic_creation.slurm ' + box.parfn
         if self.disable_automation:
             breakpoint()
         try:
@@ -163,7 +164,7 @@ class ReadyForSummit(Stage):
         if self.disable_automation:
             breakpoint()
         try:
-            with open(pjoin(logdir, box.jobname('ICs') + '.out')) as f:
+            with open(pjoin(logdir, box.name, box.jobname('ICs') + '.out')) as f:
                 return 'IC creation complete.' in f.read()
                 #TODO could check ic files sizes, are they what we expect?
         except FileNotFoundError:
