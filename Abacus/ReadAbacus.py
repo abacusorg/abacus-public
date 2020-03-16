@@ -537,52 +537,59 @@ def read_pack9(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fals
     return retval
 
 
-def rvint_unpack(data):
-    velscale = 6000.0/2048.0
-    posscale = 2.0**(-32.0)
+def _unpack_rvint(intdata, float_dtype=np.float32, posout=None, velout=None):
+    assert intdata.dtype == np.int32
+    velscale = float_dtype(6000./2048)
+    posscale = float_dtype((2.**-12.)/1e6)
 
-    iv = (data&0xfff).astype(int)
-    ix = (data-iv).astype(int)
-    pos = posscale*ix 
-    vel = velscale*(iv - 2048)
+    # TODO: this uses two passes; check speed. Easy to write one-pass version in Numba.
+    iv = intdata&0xfff
+    intdata &= 0xfffff000  # in-place for efficiency
+    ix = intdata;  del intdata  # name swap
+    assert(ix.dtype == np.int32 and iv.dtype == np.int32)  # just for sanity
+
+    if posout is None:
+        posout = posscale*ix
+    else:
+        posout[:] = posscale*ix
+    
+    if velout is None:
+        velout = velscale*(iv - 2048)
+    else:
+        velout[:] = velscale*(iv - 2048)
   
-    return pos, vel
+    return posout, velout
 
 
 def read_rvint(fn, return_vel = True, return_pid=False, zspace=False, dtype=np.float32, out=None, return_header=False, double=False, tag=False,  downsample=None):
+    if return_pid:
+        raise NotImplementedError  # comes from different file
 
-    disk_base_dt = np.int32 
-    disk_dt = [('pv',disk_base_dt,3)]
-
-    print("Reading rvint from ", fn)
+    disk_dt = np.int32
 
     with open(fn, 'rb') as fp:
         header = skip_header(fp)
         if header:
             header = InputFile(str_source=header)
-        data = np.fromfile(fp, dtype=disk_dt)
-    
-    data = np.array([list(triplet) for line in data for triplet in line])
+        data = np.fromfile(fp, dtype=disk_dt).reshape(-1,3)
 
     state = InputFile(pjoin(ppath.dirname(fn), 'header'))
 
     # Use the given buffer
     if out is not None:
-        _out = out  
+        _out = out
+    else:
+        fsize = ppath.getsize(fn)
+        alloc_NP = get_np_from_fsize(fsize, format='rvint', downsample=downsample)
+        ndt = output_dtype(return_vel=return_vel, return_pid=return_pid, dtype=dtype)
+        _out = np.empty(alloc_NP, dtype=ndt)
+    # Know the final size right away
+    _out = _out[:len(data)]
 
-    pos = np.zeros([len(data), 3]) 
-    vel = np.zeros([len(data), 3])
-
-    pos, vel = rvint_unpack(data) 
-
-    _out['pos'][:len(data)] = pos
+    _unpack_rvint(data, dtype=dtype, posout=_out['pos'], velout=_out['vel'] if return_vel else None)
 
     if zspace:
-        pos[:,0] += vel[:,0] / state['VelZSpace_to_kms'] # km/s * s Mpc/km /Mpc --> dimensionless box units. 
-        _out['pos'][:len(data)] = pos
-
-    if return_vel:
-        _out['vel'][:len(data)] = vel
+        _out['pos'][:,0] += _out['vel'][:,0] / state['VelZSpace_to_kms']  # km/s * s Mpc/km /Mpc --> dimensionless box units. 
 
     retval = (_out,) if out is None else (len(data),)
     if return_header:
