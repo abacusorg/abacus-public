@@ -184,8 +184,7 @@ double ChooseTimeStep(){
         double L1z = P.L1OutputRedshifts[i];
         double L1a = 1.0/(1+L1z);
 
-        // Need a bit of wiggle room to avoid duplicate outputs, but not so much that we miss outputs
-        if(ReadState.Redshift > L1z && ReadState.ScaleFactor + da >= L1a){
+        if(ReadState.Redshift >= L1z && ReadState.ScaleFactor + da >= L1a){
             // We don't shorten our timestep to land exactly on a merger tree redshift.
             // Sometimes, this can lead to two consecutive group finding steps, if the L1OutputRedshift
             // we're about to say is "close enough" to the current redshift also appears in either
