@@ -194,17 +194,17 @@ double ChooseTimeStep(){
             STDLOG(0,"Group finding at this redshift requested by L1OutputRedshifts[%d]\n", i);
             ReadState.DoGroupFindingOutput = 1; 
 
-            for(int i = 0; i < P.nTimeSliceSubsample; i++){
-                if (L1z == P.TimeSliceRedshifts_Subsample[i]){
-                    STDLOG(0,"...but will hold off, as this redshift %f appears in TimeSliceRedshifts_Subsample[%d].\n", L1z, i);
+            for(int j = 0; j < P.nTimeSliceSubsample; j++){
+                if (L1z == P.TimeSliceRedshifts_Subsample[j]){
+                    STDLOG(0,"...but will hold off, as this redshift %f appears in TimeSliceRedshifts_Subsample[%d].\n", L1z, j);
                     ReadState.DoGroupFindingOutput = 0; 
                     break;
                 }
             }
 
-            for(int i = 0; i < P.nTimeSlice; i++){
-                if (L1z == P.TimeSliceRedshifts[i]){
-                    STDLOG(0,"...but will hold off, as this redshift %f appears in TimeSliceRedshifts[%d].\n", L1z, i);
+            for(int j = 0; j < P.nTimeSlice; j++){
+                if (L1z == P.TimeSliceRedshifts[j]){
+                    STDLOG(0,"...but will hold off, as this redshift %f appears in TimeSliceRedshifts[%d].\n", L1z, j);
                     ReadState.DoGroupFindingOutput = 0;
                     break; 
                 }
