@@ -55,7 +55,7 @@ echo "Deleting extra files"
 rm -f fftw_*.wisdom
 rm -f log/last  # symlink
 popd > /dev/null  # back to submission dir
-#rm tmp/${SIM_NAME}.*
+rm tmp/${SIM_NAME}.*
 
 # This is a special string the assembly line looks for to know that it's safe to start Globus and htar
 echo "Post processing complete."
