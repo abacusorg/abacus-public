@@ -192,10 +192,9 @@ double ChooseTimeStep(){
             // if that's the case; if it is, wait to do GF and output until next step. If not, 
             // sally forth.
             STDLOG(0,"Group finding at this redshift requested by L1OutputRedshifts[%d]\n", i);
-            ReadState.DoGroupFindingOutput = 1; 
 
             for(int j = 0; j < P.nTimeSliceSubsample; j++){
-                if (L1z == P.TimeSliceRedshifts_Subsample[j]){
+                if (fabs(L1z - P.TimeSliceRedshifts_Subsample[j]) < 1e-6){
                     STDLOG(0,"...but will hold off, as this redshift %f appears in TimeSliceRedshifts_Subsample[%d].\n", L1z, j);
                     ReadState.DoGroupFindingOutput = 0; 
                     break;
@@ -203,7 +202,7 @@ double ChooseTimeStep(){
             }
 
             for(int j = 0; j < P.nTimeSlice; j++){
-                if (L1z == P.TimeSliceRedshifts[j]){
+                if (fabs(L1z - P.TimeSliceRedshifts[j]) < 1e-6){
                     STDLOG(0,"...but will hold off, as this redshift %f appears in TimeSliceRedshifts[%d].\n", L1z, j);
                     ReadState.DoGroupFindingOutput = 0;
                     break; 
