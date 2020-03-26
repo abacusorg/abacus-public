@@ -1056,7 +1056,6 @@ def skip_header(fp, max_tries=10, encoding='utf-8'):
     header: str
         The skipped header, if one is found.
     """
-    fsize = ppath.getsize(fp.name)
     fpstart = fp.tell()
     
     # Specify that the header must end on a 4096 byte boundary
@@ -1122,7 +1121,7 @@ try:
         f.restype = ct.c_uint64
         f.argtypes = (asciistring_arg, ct.c_size_t, ct.c_int, ct.c_int, ct.c_int, ct.c_int, ct.c_double, ndarray_arg)
 except (OSError, ImportError):
-    raise
+    #raise
     pass  # no pack14 library found
 
 

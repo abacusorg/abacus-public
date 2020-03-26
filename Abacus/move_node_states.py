@@ -33,7 +33,6 @@ import numpy as np
 from Abacus import Tools
 from Abacus import Reglob
 from Abacus.InputFile import InputFile
-
       
 
 def distribute_from_serial(parfile, source_dir, verbose=True):

@@ -244,10 +244,10 @@ class ContextTimer(contexttimer.Timer):
         last_time = super(ContextTimer, self).elapsed
         return self.cumulative_time*self.factor + last_time
 
-    def Start(self):
+    def start(self):
         self.__enter__()
 
-    def Stop(self, report=True):
+    def stop(self, report=True):
         _output = self.output
         self.output=report
         self.__exit__(None,None,None)
