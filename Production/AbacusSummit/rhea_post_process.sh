@@ -9,6 +9,8 @@ SIM_NAME=$1
 LOGDIR=$(pwd)/logs/$SIM_NAME
 mkdir -p $LOGDIR
 
+DISBATCH_PY=$ABACUS/external/disBatch/disBatch.py
+
 ##### queue up group processing #####
 
 mkdir -p tmp
@@ -32,7 +34,7 @@ WALLTIME=3:00:00
 # 1 task per node. Each task uses 8 workers, each running 2 blosc threads
 JOBID1=$(sbatch -t $WALLTIME -N $NNODES --ntasks-per-node=1 \
         --mem=0 -p batch -A AST145 --parsable --job-name=${SIM_NAME}_PostProcessGroups -o logs/$SIM_NAME/%x.out \
-        --wrap "./disBatch/disBatch.py -e -p ./logs/$SIM_NAME/disbatchGroups/$SIM_NAME $DISBATCH_TASKFILE && echo Groups completed successfully.")
+        --wrap "$DISBATCH_PY -e -p ./logs/$SIM_NAME/disbatchGroups/$SIM_NAME $DISBATCH_TASKFILE && echo Groups completed successfully.")
 EPILOG_DEPEND+=":$JOBID1"
 
 ##### queue up lightcone processing #####
@@ -83,7 +85,7 @@ EOM
     # 4 cores per task: only two blosc threads per task, but cores have two hyperthreads.  So 8 tasks per node.
     JOBID2=$(sbatch -t $WALLTIME -N $NNODES -c 4 \
             -o logs/$SIM_NAME/%x.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessLC \
-            --wrap "./disBatch/disBatch.py -e -p ./logs/$SIM_NAME/disbatchLC/$SIM_NAME $DISBATCH_TASKFILE && echo Lightcones completed successfully.")
+            --wrap "$DISBATCH_PY -e -p ./logs/$SIM_NAME/disbatchLC/$SIM_NAME $DISBATCH_TASKFILE && echo Lightcones completed successfully.")
     EPILOG_DEPEND+=":$JOBID2"
 fi
 
@@ -142,7 +144,7 @@ EOM
 
     JOBID3=$(sbatch -t $WALLTIME -N $NNODES -c 4 \
             -o logs/$SIM_NAME/%x.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessTS \
-            --wrap "./disBatch/disBatch.py -e -p ./logs/$SIM_NAME/disbatchTS/$SIM_NAME $DISBATCH_TASKFILE && echo Time slices completed successfully.")
+            --wrap "$DISBATCH_PY -e -p ./logs/$SIM_NAME/disbatchTS/$SIM_NAME $DISBATCH_TASKFILE && echo Time slices completed successfully.")
     EPILOG_DEPEND+=":$JOBID3"
 fi
 
