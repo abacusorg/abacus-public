@@ -196,7 +196,7 @@ double ChooseTimeStep(){
 	    ReadState.DoGroupFindingOutput = 1; 
 
             for(int j = 0; j < P.nTimeSliceSubsample; j++){
-                if (fabs(L1z - P.TimeSliceRedshifts_Subsample[j]) < 1e-12){
+                if (fabs(L1z - P.TimeSliceRedshifts_Subsample[j]) < 1e-6){
                     STDLOG(0,"...but will hold off, as this redshift %f appears in TimeSliceRedshifts_Subsample[%d].\n", L1z, j);
                     ReadState.DoGroupFindingOutput = 0; 
                     break;
@@ -204,7 +204,7 @@ double ChooseTimeStep(){
             }
 
             for(int j = 0; j < P.nTimeSlice; j++){
-                if (fabs(L1z - P.TimeSliceRedshifts[j]) < 1e-12){
+                if (fabs(L1z - P.TimeSliceRedshifts[j]) < 1e-6){
                     STDLOG(0,"...but will hold off, as this redshift %f appears in TimeSliceRedshifts[%d].\n", L1z, j);
                     ReadState.DoGroupFindingOutput = 0;
                     break; 
