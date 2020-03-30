@@ -493,8 +493,8 @@ def read_pack9(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fals
     except NameError:
         raise RuntimeError("pack9 C library was not found. Try building Abacus with 'make analysis'?")
     readers = {np.float32: ralib.read_pack9f,
-               np.float64: ralib.read_pack9 }
-    assert dtype in readers
+               np.float64: ralib.read_pack9  }
+    assert any(dtype == k for k in readers)
     
     with open(fn, 'rb') as fp:
         header = skip_header(fp)

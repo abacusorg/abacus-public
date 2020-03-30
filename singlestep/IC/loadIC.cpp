@@ -245,7 +245,10 @@ private:
             posstruct _pos(pos);
 
             aux.clear();
-            aux.setpid(p.pid); // Set aux too.
+            // In this format, we're given a PID that we must then pack into a set of non-contiguous bits
+            // in the aux field.  The original PID can still be reconstructed, but beware that naively it
+            // will not look the same.
+            aux.packpid(p.pid);
             this->set_taggable_bits(aux, sumA, sumB);
 
             IL->Push(&_pos, &vel, &aux, newcell);
