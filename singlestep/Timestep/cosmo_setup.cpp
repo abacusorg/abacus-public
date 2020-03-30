@@ -72,6 +72,7 @@ void FillStateWithCosmology(State &S) {
 
 
 double ChooseTimeStep(){
+
 	// Choose the maximum allowable timestep
 	// We start with the absolute maximum timestep allowed by the parameter file,
 	// then see if it needs to be shorter.
