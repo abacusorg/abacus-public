@@ -875,7 +875,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         if distribute_state_from:
             print('Distributing state to nodes...')
             distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, distribute_state_from, '--distribute-from-serial']
-            call_subprocess(Conv_mpirun_cmd + distribute_state_cmd, timeout=param.get('subprocess_timeout'))
+            call_subprocess(Conv_mpirun_cmd + distribute_state_cmd, timeout=param.get('checkpoint_timeout'))
 
         #check if our previous run was interrupted and saved in the global directory. If yes, redistribute state to nodes.
         #TODO do this by checking if we have a backed-up state available in global directory (instead of looking at param file).
@@ -887,7 +887,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', resume_dir]
             if allow_new_nnode:
                 distribute_state_cmd += ['--allow-new-nnode']
-            call_subprocess(Conv_mpirun_cmd + distribute_state_cmd, timeout=param.get('subprocess_timeout'))
+            call_subprocess(Conv_mpirun_cmd + distribute_state_cmd, timeout=param.get('checkpoint_timeout'))
             dist_time = wall_timer() - dist_start
             status_log.print(f"# Distributing state to resume took {dist_time:.1f} seconds.")
 
@@ -940,7 +940,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             if not do_fake_convolve:
                 # Now check if we have all the multipoles the convolution will need
                 if not check_multipole_taylor_done(param, read_state, kind='Multipole'):
-                    recover_multipoles(paramfn, stepnum, singlestep_env, timeout=param.get('subprocess_timeout'))
+                    recover_multipoles(paramfn, stepnum, singlestep_env, timeout=param.get('step_timeout'))
 
                 # Swap the Taylors link.  In effect, this will place the Taylors on the same disk as the multipoles.
                 # But that's what we want for sloshing: this was the write disk, so now it will be the upcoming read disk
@@ -957,7 +957,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
             print(f"Performing convolution for step {stepnum:d}")
             with Tools.ContextTimer() as conv_timer:
-                call_subprocess(convolution_cmd, env=convolution_env, timeout=param.get('subprocess_timeout'))
+                call_subprocess(convolution_cmd, env=convolution_env, timeout=param.get('step_timeout'))
             conv_time = conv_timer.elapsed
 
             if ProfilingMode == 2:
@@ -1000,7 +1000,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
         with Tools.ContextTimer() as ss_timer:
             try:
-                call_subprocess(singlestep_cmd, env=singlestep_env, timeout=param.get('subprocess_timeout'))
+                call_subprocess(singlestep_cmd, env=singlestep_env, timeout=param.get('step_timeout'))
             except subprocess.CalledProcessError as cpe:
                 handle_singlestep_error(cpe)
                 raise
@@ -1136,7 +1136,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, resume_dir, '--retrieve']
                 if param.get('DeleteICsAfterFirstBackup'):
                     retrieve_state_cmd += ['--delete-ics']
-                call_subprocess(Conv_mpirun_cmd + retrieve_state_cmd, timeout=param.get('subprocess_timeout'))
+                call_subprocess(Conv_mpirun_cmd + retrieve_state_cmd, timeout=param.get('checkpoint_timeout'))
 
                 restore_time = wall_timer() - restore_time
 
@@ -1222,7 +1222,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         if param.get('DeleteICsAfterFirstBackup'):
             retrieve_state_cmd += ['--delete-ics']
         restore_time = wall_timer()
-        call_subprocess(Conv_mpirun_cmd + retrieve_state_cmd, timeout=param.get('subprocess_timeout'))
+        call_subprocess(Conv_mpirun_cmd + retrieve_state_cmd, timeout=param.get('checkpoint_timeout'))
         restore_time = wall_timer() - restore_time
         print(f'Retrieving and storing final state took {restore_time:.1f} seconds. ', end = '')
         status_log.print(f'# Retrieving and storing final state took {restore_time:.1f} seconds.')

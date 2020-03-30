@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 
 #BSUB -P ast145
-#BSUB -nnodes 60
+##BSUB -nnodes 60
 #BSUB -J "Abacus"
 #BSUB -W 360  # run for X minutes
 #BSUB -Q 200  # Requeue this job if this script exits with code 200
-#BSUB -alloc_flags smt2  # one or two hyper-threads per core. default is four. 
+#BSUB -alloc_flags smt2  # one or two hyper-threads per core. default is four.
+#BSUB -csm y
+#BSUB -R '1*{select[LN]span[hosts=1]} + 2520*{select[CN &&hname!=g25n01&&hname!=g25n02&&hname!=g25n03&&hname!=g25n04&&hname!=g25n05&&hname!=g25n06&&hname!=g25n07&&hname!=g25n08&&hname!=g25n09&&hname!=g25n10&&hname!=g25n11&&hname!=g25n12&&hname!=g25n13&&hname!=g25n14&&hname!=g25n15&&hname!=g25n16&&hname!=g25n17&&hname!=g25n18&&hname!=g26n01&&hname!=g26n02&&hname!=g26n03&&hname!=g26n04&&hname!=g26n05&&hname!=g26n06&&hname!=g26n07&&hname!=g26n08&&hname!=g26n09&&hname!=g26n10&&hname!=g26n11&&hname!=g26n12&&hname!=g26n13&&hname!=g26n14&&hname!=g26n15&&hname!=g26n16&&hname!=g26n17&&hname!=g26n18&&hname!=g27n01&&hname!=g27n02&&hname!=g27n03&&hname!=g27n04&&hname!=g27n05&&hname!=g27n06&&hname!=g27n07&&hname!=g27n08&&hname!=g27n09&&hname!=g27n10&&hname!=g27n11&&hname!=g27n12&&hname!=g27n13&&hname!=g27n14&&hname!=g27n15&&hname!=g27n16&&hname!=g27n17&&hname!=g27n18&&hname!=g28n01&&hname!=g28n02&&hname!=g28n03&&hname!=g28n04&&hname!=g28n05&&hname!=g28n06&&hname!=g28n07&&hname!=g28n08&&hname!=g28n09&&hname!=g28n10&&hname!=g28n11&&hname!=g28n12&&hname!=g28n13&&hname!=g28n14&&hname!=g28n15&&hname!=g28n16&&hname!=g28n17&&hname!=g28n18&&hname!=g29n01&&hname!=g29n02&&hname!=g29n03&&hname!=g29n04&&hname!=g29n05&&hname!=g29n06&&hname!=g29n07&&hname!=g29n08&&hname!=g29n09&&hname!=g29n10&&hname!=g29n11&&hname!=g29n12&&hname!=g29n13&&hname!=g29n14&&hname!=g29n15&&hname!=g29n16&&hname!=g29n17&&hname!=g29n18&&hname!=g30n01&&hname!=g30n02&&hname!=g30n03&&hname!=g30n04&&hname!=g30n05&&hname!=g30n06&&hname!=g30n07&&hname!=g30n08&&hname!=g30n09&&hname!=g30n10&&hname!=g30n11&&hname!=g30n12&&hname!=g30n13&&hname!=g30n14&&hname!=g30n15&&hname!=g30n16&&hname!=g30n17&&hname!=g30n18&&hname!=g31n01&&hname!=g31n02&&hname!=g31n03&&hname!=g31n04&&hname!=g31n05&&hname!=g31n06&&hname!=g31n07&&hname!=g31n08&&hname!=g31n09&&hname!=g31n10&&hname!=g31n11&&hname!=g31n12&&hname!=g31n13&&hname!=g31n14&&hname!=g31n15&&hname!=g31n16&&hname!=g31n17&&hname!=g31n18&&hname!=g32n01&&hname!=g32n02&&hname!=g32n03&&hname!=g32n04&&hname!=g32n05&&hname!=g32n06&&hname!=g32n07&&hname!=g32n08&&hname!=g32n09&&hname!=g32n10&&hname!=g32n11&&hname!=g32n12&&hname!=g32n13&&hname!=g32n14&&hname!=g32n15&&hname!=g32n16&&hname!=g32n17&&hname!=g32n18&&hname!=g33n01&&hname!=g33n02&&hname!=g33n03&&hname!=g33n04&&hname!=g33n05&&hname!=g33n06&&hname!=g33n07&&hname!=g33n08&&hname!=g33n09&&hname!=g33n10&&hname!=g33n11&&hname!=g33n12&&hname!=g33n13&&hname!=g33n14&&hname!=g33n15&&hname!=g33n16&&hname!=g33n17&&hname!=g33n18&&hname!=g34n01&&hname!=g34n02&&hname!=g34n03&&hname!=g34n04&&hname!=g34n05&&hname!=g34n06&&hname!=g34n07&&hname!=g34n08&&hname!=g34n09&&hname!=g34n10&&hname!=g34n11&&hname!=g34n12&&hname!=g34n13&&hname!=g34n14&&hname!=g34n15&&hname!=g34n16&&hname!=g34n17&&hname!=g34n18&&hname!=g35n01&&hname!=g35n02&&hname!=g35n03&&hname!=g35n04&&hname!=g35n05&&hname!=g35n06&&hname!=g35n07&&hname!=g35n08&&hname!=g35n09&&hname!=g35n10&&hname!=g35n11&&hname!=g35n12&&hname!=g35n13&&hname!=g35n14&&hname!=g35n15&&hname!=g35n16&&hname!=g35n17&&hname!=g35n18&&hname!=g36n01&&hname!=g36n02&&hname!=g36n03&&hname!=g36n04&&hname!=g36n05&&hname!=g36n06&&hname!=g36n07&&hname!=g36n08&&hname!=g36n09&&hname!=g36n10&&hname!=g36n11&&hname!=g36n12&&hname!=g36n13&&hname!=g36n14&&hname!=g36n15&&hname!=g36n16&&hname!=g36n17&&hname!=g36n18&&hname!=h09n01&&hname!=h09n02&&hname!=h09n03&&hname!=h09n04&&hname!=h09n05&&hname!=h09n06&&hname!=h09n07&&hname!=h09n08&&hname!=h09n09&&hname!=h09n10&&hname!=h09n11&&hname!=h09n12&&hname!=h09n13&&hname!=h09n14&&hname!=h09n15&&hname!=h09n16&&hname!=h09n17&&hname!=h09n18&&hname!=h10n01&&hname!=h10n02&&hname!=h10n03&&hname!=h10n04&&hname!=h10n05&&hname!=h10n06&&hname!=h10n07&&hname!=h10n08&&hname!=h10n09&&hname!=h10n10&&hname!=h10n11&&hname!=h10n12&&hname!=h10n13&&hname!=h10n14&&hname!=h10n15&&hname!=h10n16&&hname!=h10n17&&hname!=h10n18&&hname!=h11n01&&hname!=h11n02&&hname!=h11n03&&hname!=h11n04&&hname!=h11n05&&hname!=h11n06&&hname!=h11n07&&hname!=h11n08&&hname!=h11n09&&hname!=h11n10&&hname!=h11n11&&hname!=h11n12&&hname!=h11n13&&hname!=h11n14&&hname!=h11n15&&hname!=h11n16&&hname!=h11n17&&hname!=h11n18&&hname!=h12n01&&hname!=h12n02&&hname!=h12n03&&hname!=h12n04&&hname!=h12n05&&hname!=h12n06&&hname!=h12n07&&hname!=h12n08&&hname!=h12n09&&hname!=h12n10&&hname!=h12n11&&hname!=h12n12&&hname!=h12n13&&hname!=h12n14&&hname!=h12n15&&hname!=h12n16&&hname!=h12n17&&hname!=h12n18&&hname!=h13n01&&hname!=h13n02&&hname!=h13n03&&hname!=h13n04&&hname!=h13n05&&hname!=h13n06&&hname!=h13n07&&hname!=h13n08&&hname!=h13n09&&hname!=h13n10&&hname!=h13n11&&hname!=h13n12&&hname!=h13n13&&hname!=h13n14&&hname!=h13n15&&hname!=h13n16&&hname!=h13n17&&hname!=h13n18&&hname!=h14n01&&hname!=h14n02&&hname!=h14n03&&hname!=h14n04&&hname!=h14n05&&hname!=h14n06&&hname!=h14n07&&hname!=h14n08&&hname!=h14n09&&hname!=h14n10&&hname!=h14n11&&hname!=h14n12&&hname!=h14n13&&hname!=h14n14&&hname!=h14n15&&hname!=h14n16&&hname!=h14n17&&hname!=h14n18&&hname!=h15n01&&hname!=h15n02&&hname!=h15n03&&hname!=h15n04&&hname!=h15n05&&hname!=h15n06&&hname!=h15n07&&hname!=h15n08&&hname!=h15n09&&hname!=h15n10&&hname!=h15n11&&hname!=h15n12&&hname!=h15n13&&hname!=h15n14&&hname!=h15n15&&hname!=h15n16&&hname!=h15n17&&hname!=h15n18&&hname!=h16n01&&hname!=h16n02&&hname!=h16n03&&hname!=h16n04&&hname!=h16n05&&hname!=h16n06&&hname!=h16n07&&hname!=h16n08&&hname!=h16n09&&hname!=h16n10&&hname!=h16n11&&hname!=h16n12&&hname!=h16n13&&hname!=h16n14&&hname!=h16n15&&hname!=h16n16&&hname!=h16n17&&hname!=h16n18]span[ptile=42]}'
+
+# current exclusion pattern: for n in g{25..36}n{01..18} h{09..16}n{01..18}; do echo -n "&&hname!=$n"; done
 
 export JOB_ACTION_WARNING_TIME=353
 
@@ -17,8 +21,6 @@ export JOB_ACTION_WARNING_TIME=353
 # It is primarily invoked from the summit_assembly_line_sleeper.sh script,
 # although it may be invoked manually with
 # $ bsub production.lsf
-# Check this directory for a file named lsf-<jobid>.out, which should
-# contain stderr and stdout
 
 # This script runs on the batch-launch node
 # jsrun invocations from here will launch executables on the compute nodes
@@ -59,6 +61,16 @@ function jsrun_all()
     jsrun -o $DEBUG_FN -e prepended -nALL_HOSTS -a1 -r1 -cALL_CPUS $@
 }
 
+function for_all_nodes()
+{
+    NODES=$(tr ' ' "\n" <<< "$LSB_HOSTS" | sort -u | \grep -v batch)
+    for N in $NODES; do
+        echo $N >> $DEBUG_FN
+        ssh $N $@ >> $DEBUG_FN 2>&1
+        echo >> $DEBUG_FN
+    done
+}
+
 echo -e "* Clearing ramdisk\n"
 jsrun_all rm -rf $RAMDISK
 echo -e "\n\n\n\n"
@@ -73,12 +85,13 @@ function cleanup()
     printenv &> $DEBUG_FN
     echo -e "\n\n\n\n"
 
-    echo -e "* dmesg:\n"
-    jsrun_all bash -c "dmesg -T |tail -n15"
-    echo -e "\n\n\n\n"
+    #echo -e "* dmesg:\n"
+    #jsrun_all bash -c 'dmesg -T |tail -n15'
+    #echo -e "\n\n\n\n"
 
     echo -e "* /dev/shm usage:\n"
-    jsrun_all df -h /dev/shm
+    #jsrun_all df -h /dev/shm
+    for_all_nodes df -h /dev/shm
     echo -e "\n\n\n\n"
 
     echo -e "* Clearing ramdisk\n"

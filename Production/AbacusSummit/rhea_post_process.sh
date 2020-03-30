@@ -26,8 +26,8 @@ echo "#DISBATCH SUFFIX > $(pwd)/\${DISBATCH_NAMETASKS}_\${DISBATCH_JOBID}_\${DIS
 
 mkdir -p ./logs/$SIM_NAME/disbatchGroups
 
-# We can fill up to ~36 nodes
-NNODES=3
+# We can fill as many nodes as there are group outputs, so ~33
+NNODES=33
 WALLTIME=3:00:00
 # 1 task per node. Each task uses 8 workers, each running 2 blosc threads
 JOBID1=$(sbatch -t $WALLTIME -N $NNODES --ntasks-per-node=1 \
@@ -74,8 +74,8 @@ EOM
 mv $NEWLCDIR $(dirname $LCDIR)/lightcones
 EOM
 
-    # We can fill up to ~2000 nodes
-    NNODES=3
+    # Many small jobs, can fill thousands of nodes
+    NNODES=36
     WALLTIME=1:00:00
 
     mkdir -p ./logs/$SIM_NAME/disbatchLC
@@ -129,13 +129,13 @@ if [[ -n "$SLICEDIRS" ]]; then
 $TSEPI_SCRIPT $SIMDIR/slices/z*
 EOM
 
-#    cat >> $DISBATCH_TASKFILE << EOM
-##DISBATCH BARRIER CHECK
-#rm -rf $SIMDIR/slice*.*
-#EOM
+    cat >> $DISBATCH_TASKFILE << EOM
+#DISBATCH BARRIER CHECK
+rm -rf $SIMDIR/slice*.*
+EOM
 
-    # We can fill up to ??? nodes
-    NNODES=3
+    # Many small jobs, can fill ~1000 nodes
+    NNODES=36
     WALLTIME=1:00:00
 
     mkdir -p ./logs/$SIM_NAME/disbatchTS
