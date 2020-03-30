@@ -181,7 +181,7 @@ double ChooseTimeStep(){
         MicrostepEpochs = new MicrostepEpochTable(cosm, cosm->current.a, cosm->current.a + da, P.np);
 
     // Do we need to output a merger tree redshift during this step?
-    for(int i = 0; i < P.nTimeSliceL1; i++){
+    for(int i = 0; i < P.nTimeSliceL1 && !ReadState.DoGroupFindingOutput; i++){
         double L1z = P.L1OutputRedshifts[i];
         double L1a = 1.0/(1+L1z);
 
@@ -193,7 +193,7 @@ double ChooseTimeStep(){
             // if that's the case; if it is, wait to do GF and output until next step. If not, 
             // sally forth.
             STDLOG(0,"Group finding at this redshift requested by L1OutputRedshifts[%d]\n", i);
-	    ReadState.DoGroupFindingOutput = 1; 
+            ReadState.DoGroupFindingOutput = 1;
 
             for(int j = 0; j < P.nTimeSliceSubsample; j++){
                 if (fabs(L1z - P.TimeSliceRedshifts_Subsample[j]) < 1e-6){
@@ -207,7 +207,7 @@ double ChooseTimeStep(){
                 if (fabs(L1z - P.TimeSliceRedshifts[j]) < 1e-6){
                     STDLOG(0,"...but will hold off, as this redshift %f appears in TimeSliceRedshifts[%d].\n", L1z, j);
                     ReadState.DoGroupFindingOutput = 0;
-                    break; 
+                    break;
                 }
             }
         }

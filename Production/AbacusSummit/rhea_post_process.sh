@@ -9,6 +9,8 @@ SIM_NAME=$1
 LOGDIR=$(pwd)/logs/$SIM_NAME
 mkdir -p $LOGDIR
 
+DISBATCH_PY=$ABACUS/external/disBatch/disBatch.py
+
 ##### queue up group processing #####
 
 mkdir -p tmp
@@ -26,13 +28,13 @@ echo "#DISBATCH SUFFIX > $(pwd)/\${DISBATCH_NAMETASKS}_\${DISBATCH_JOBID}_\${DIS
 
 mkdir -p ./logs/$SIM_NAME/disbatchGroups
 
-# We can fill up to ~36 nodes
-NNODES=3
+# We can fill as many nodes as there are group outputs, so ~33
+NNODES=33
 WALLTIME=3:00:00
 # 1 task per node. Each task uses 8 workers, each running 2 blosc threads
 JOBID1=$(sbatch -t $WALLTIME -N $NNODES --ntasks-per-node=1 \
         --mem=0 -p batch -A AST145 --parsable --job-name=${SIM_NAME}_PostProcessGroups -o logs/$SIM_NAME/%x.out \
-        --wrap "./disBatch/disBatch.py -e -p ./logs/$SIM_NAME/disbatchGroups/$SIM_NAME $DISBATCH_TASKFILE && echo Groups completed successfully.")
+        --wrap "$DISBATCH_PY -e -p ./logs/$SIM_NAME/disbatchGroups/$SIM_NAME $DISBATCH_TASKFILE && echo Groups completed successfully.")
 EPILOG_DEPEND+=":$JOBID1"
 
 ##### queue up lightcone processing #####
@@ -74,8 +76,8 @@ EOM
 mv $NEWLCDIR $(dirname $LCDIR)/lightcones
 EOM
 
-    # We can fill up to ~2000 nodes
-    NNODES=3
+    # Many small jobs, can fill thousands of nodes
+    NNODES=36
     WALLTIME=1:00:00
 
     mkdir -p ./logs/$SIM_NAME/disbatchLC
@@ -83,7 +85,7 @@ EOM
     # 4 cores per task: only two blosc threads per task, but cores have two hyperthreads.  So 8 tasks per node.
     JOBID2=$(sbatch -t $WALLTIME -N $NNODES -c 4 \
             -o logs/$SIM_NAME/%x.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessLC \
-            --wrap "./disBatch/disBatch.py -e -p ./logs/$SIM_NAME/disbatchLC/$SIM_NAME $DISBATCH_TASKFILE && echo Lightcones completed successfully.")
+            --wrap "$DISBATCH_PY -e -p ./logs/$SIM_NAME/disbatchLC/$SIM_NAME $DISBATCH_TASKFILE && echo Lightcones completed successfully.")
     EPILOG_DEPEND+=":$JOBID2"
 fi
 
@@ -129,20 +131,20 @@ if [[ -n "$SLICEDIRS" ]]; then
 $TSEPI_SCRIPT $SIMDIR/slices/z*
 EOM
 
-#    cat >> $DISBATCH_TASKFILE << EOM
-##DISBATCH BARRIER CHECK
-#rm -rf $SIMDIR/slice*.*
-#EOM
+    cat >> $DISBATCH_TASKFILE << EOM
+#DISBATCH BARRIER CHECK
+rm -rf $SIMDIR/slice*.*
+EOM
 
-    # We can fill up to ??? nodes
-    NNODES=3
+    # Many small jobs, can fill ~1000 nodes
+    NNODES=36
     WALLTIME=1:00:00
 
     mkdir -p ./logs/$SIM_NAME/disbatchTS
 
     JOBID3=$(sbatch -t $WALLTIME -N $NNODES -c 4 \
             -o logs/$SIM_NAME/%x.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessTS \
-            --wrap "./disBatch/disBatch.py -e -p ./logs/$SIM_NAME/disbatchTS/$SIM_NAME $DISBATCH_TASKFILE && echo Time slices completed successfully.")
+            --wrap "$DISBATCH_PY -e -p ./logs/$SIM_NAME/disbatchTS/$SIM_NAME $DISBATCH_TASKFILE && echo Time slices completed successfully.")
     EPILOG_DEPEND+=":$JOBID3"
 fi
 

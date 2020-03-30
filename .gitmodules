@@ -14,3 +14,6 @@
 	path = external/AbacusSummit
 	url = git@github.com:abacusorg/AbacusSummit.git
 	branch = master
+[submodule "external/disBatch"]
+	path = external/disBatch
+	url = git@github.com:flatironinstitute/disBatch.git
