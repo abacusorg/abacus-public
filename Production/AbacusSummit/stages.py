@@ -278,7 +278,7 @@ class QueuedForDataTransfer(Stage):
         if gstat is not None and gstat not in globus.GLOBUS_COMPLETION_STATUSES:
             return True
 
-        if box.jobname('htar') in QueuedJobs('rhea'):
+        if box.jobname('htar') in QueuedJobs('dtn'):
             return True
 
         return False
@@ -304,7 +304,7 @@ class ReadyForDeletion(Stage):
         return True
 
 
-    DELETE = ['halos/', 'lightcone/']
+    DELETE = ['halos/', 'lightcones/']  # log/
     def action(self, box):
         '''cross your fingers and delete some stuff!'''
         for path in self.DELETE:
@@ -340,20 +340,20 @@ class Completed(Stage):
 #IMPORTANT! WE RELY ON ALL JOB NAMES BEING UNIQUE. ADD STRINGENT CHECKS FOR THIS.
 #TODO: is a queued box ever momentarily not in the queue, e.g. right after submission? or between requeues?
 def QueuedJobs(computer_name):
-    assert computer_name in ('rhea','summit')  #sanity check
+    assert computer_name in ('rhea','summit','dtn')  #sanity check
 
     # On both summit and rhea, for now we probably only need to know if a job is in queue,
     # don't care about state otherwise.
     # So we'll just return a list of jobs, not a dict
 
-    if computer_name == 'rhea':
-        queued_cmd  = 'squeue -A AST145 --format=%j -h'  # -h: no header
+    if computer_name in ('rhea', 'dtn'):
+        queued_cmd  = f'squeue -M {computer_name} -A AST145 --format=%j -h'  # -h: no header
         try:
             queued_jobs = subprocess.run(shlex.split(queued_cmd), check=True, capture_output=True, text=True).stdout
         except:
-            print(f'Error getting queued jobs on rhea.  Continuing...')
+            print(f'Error getting queued jobs on {computer_name}.  Continuing...')
             return []
-        return [x.strip() for x in queued_jobs.split()]
+        return [x.strip() for x in queued_jobs.split('\n')[1:]]  # skip first line, has cluster name
 
     elif computer_name == 'summit':
         response = SignalSummitSleeper('check')
