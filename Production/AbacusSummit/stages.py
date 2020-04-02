@@ -242,7 +242,7 @@ class ReadyForDataTransfer(Stage):
             return False
 
     def action(self, box):
-        '''Start Globus transfer'''
+        '''Start Globus and htar transfer'''
         if self.disable_automation:
             breakpoint()
 
@@ -259,6 +259,7 @@ class ReadyForDataTransfer(Stage):
             return False
 
         # Start an htar job on rhea
+        # TODO: for maximum robustness, this should be a separate stage that runs in parallel with the globus stage
         cmd = f'sbatch -o logs/{box.name}/' + box.jobname('htar') + '.out --job-name=' + box.jobname('htar') + ' rhea_htar.slurm ' + box.name
         try:
             subprocess.run(shlex.split(cmd), check=True)

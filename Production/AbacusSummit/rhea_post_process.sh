@@ -18,7 +18,7 @@ DISBATCH_TASKFILE=$(pwd)/tmp/${SIM_NAME}.group.disbatch
 
 CHUNK=50
 NWORKER=8
-GROUPSCRIPT="$ABACUS/Abacus/convert_raw_groups_to_asdf.py --chunk=$CHUNK --nworkers=$NWORKER"
+GROUPSCRIPT="$ABACUS/Abacus/convert_raw_groups_to_asdf.py --chunk=$CHUNK --nworkers=$NWORKER --delete"
 GROUPDIR=$ABACUSSUMMIT_PERSIST/$SIM_SET/$SIM_NAME/group
 
 echo "#DISBATCH PREFIX cd $GROUPDIR; $GROUPSCRIPT " > $DISBATCH_TASKFILE  # write
@@ -30,7 +30,7 @@ mkdir -p ./logs/$SIM_NAME/disbatchGroups
 
 # We can fill as many nodes as there are group outputs, so ~33
 NNODES=33
-WALLTIME=3:00:00
+WALLTIME=1:30:00
 # 1 task per node. Each task uses 8 workers, each running 2 blosc threads
 JOBID1=$(sbatch -t $WALLTIME -N $NNODES --ntasks-per-node=1 \
         --mem=0 -p batch -A AST145 --parsable --job-name=${SIM_NAME}_PostProcessGroups -o logs/$SIM_NAME/%x.out \
@@ -71,14 +71,12 @@ EOM
 #DISBATCH BARRIER CHECK
 #DISBATCH PREFIX 
 #DISBATCH SUFFIX 
-#rm -rf $LCDIR
-##DISBATCH BARRIER CHECK
 mv $NEWLCDIR $(dirname $LCDIR)/lightcones
 EOM
 
     # Many small jobs, can fill thousands of nodes
-    NNODES=36
-    WALLTIME=1:00:00
+    NNODES=33
+    WALLTIME=0:30:00
 
     mkdir -p ./logs/$SIM_NAME/disbatchLC
 
@@ -131,13 +129,8 @@ if [[ -n "$SLICEDIRS" ]]; then
 $TSEPI_SCRIPT $SIMDIR/slices/z*
 EOM
 
-    cat >> $DISBATCH_TASKFILE << EOM
-#DISBATCH BARRIER CHECK
-rm -rf $SIMDIR/slice*.*
-EOM
-
     # Many small jobs, can fill ~1000 nodes
-    NNODES=36
+    NNODES=33
     WALLTIME=1:00:00
 
     mkdir -p ./logs/$SIM_NAME/disbatchTS

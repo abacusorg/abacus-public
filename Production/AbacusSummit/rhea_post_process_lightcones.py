@@ -14,14 +14,13 @@ import numpy as np
 import asdf
 import asdf.compression
 
-from Abacus.Tools import ArgParseFormatter
 from Abacus.fast_cksum.cksum_io import CksumWriter, CksumReader
 from Abacus.InputFile import InputFile
 
-def process(lcprefix):
-    stepdir = dirname(lcprefix)
-    lcprefix = basename(lcprefix)
-    lcnum, ftype = lcprefix.split('_')
+def process(lcprefix):  # Step0800/LightCone0_heal
+    stepdir = dirname(lcprefix)  # Step0800
+    lcprefix = basename(lcprefix)  # LightCone0_heal
+    lcnum, ftype = lcprefix.split('_')  #LightCone0, heal
 
     outdir = abspath(pjoin(pardir, 'lightcones.concat', ftype))
     os.makedirs(outdir, exist_ok=True)
@@ -70,6 +69,9 @@ def process(lcprefix):
     with asdf.AsdfFile(tree) as af, CksumWriter(asdf_fn) as fp:
         af.write_to(fp, all_array_compression='blsc')
 
+
+class ArgParseFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
+    pass
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=ArgParseFormatter)
