@@ -196,7 +196,6 @@ double ChooseTimeStep(){
             ReadState.DoGroupFindingOutput = 1;
 
             for(int j = 0; j < P.nTimeSliceSubsample; j++){
-                // TODO: these two values come from the same string source, should have the same binary value. So why don't they?
                 if (fabs(L1z - P.TimeSliceRedshifts_Subsample[j]) < 1e-6){
                     STDLOG(0,"...but will hold off, as this redshift %f appears in TimeSliceRedshifts_Subsample[%d].\n", L1z, j);
                     ReadState.DoGroupFindingOutput = 0; 
