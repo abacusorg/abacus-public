@@ -260,7 +260,7 @@ class ReadyForDataTransfer(Stage):
 
         # Start an htar job on rhea
         # TODO: for maximum robustness, this should be a separate stage that runs in parallel with the globus stage
-        cmd = f'sbatch -o logs/{box.name}/' + box.jobname('htar') + '.out --job-name=' + box.jobname('htar') + ' rhea_htar.slurm ' + box.name
+        cmd = f'sbatch -M dtn -o logs/{box.name}/' + box.jobname('htar') + '.out --job-name=' + box.jobname('htar') + ' rhea_htar.slurm ' + box.name
         try:
             subprocess.run(shlex.split(cmd), check=True)
         except:

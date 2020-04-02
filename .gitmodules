@@ -6,10 +6,6 @@
 	path = external/fast-cksum
 	url = git@github.com:abacusorg/fast-cksum.git
 	branch = master
-[submodule "external/trz"]
-	path = external/trz
-	url = git@github.com:abacusorg/trz.git
-	branch = master
 [submodule "external/AbacusSummit"]
 	path = external/AbacusSummit
 	url = git@github.com:abacusorg/AbacusSummit.git
