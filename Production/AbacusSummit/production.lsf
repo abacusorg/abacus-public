@@ -72,7 +72,7 @@ function for_all_nodes()
 }
 
 echo -e "* Clearing ramdisk\n"
-jsrun_all rm -rf $RAMDISK
+jsrun_all rm -rf $RAMDISK /dev/shm/lgarrison/ /dev/shm/nmaksimova/ /dev/shm/ast145*
 echo -e "\n\n\n\n"
 
 #export PAMI_IBV_ENABLE_DCT=0
