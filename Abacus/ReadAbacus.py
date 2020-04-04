@@ -521,6 +521,15 @@ def read_pack9(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fals
     readers[dtype].argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_double, ctypes.c_double, ctypes.c_void_p] 
     NP = readers[dtype](bytes(fn, encoding='utf-8'), offset, ramdisk, return_vel, zspace, return_pid, downsample, 0, _out.view(dtype=dtype).ctypes.data_as(ctypes.POINTER(ctypes.c_void_p)))
 
+    # The pack9 C reader doesn't load PIDs, but we can do that directly
+    if return_pid:
+        i = fn.rfind('pack9')
+        if i != -1:
+            pidfn = fn[:i+5] + '_pids' + fn[i+5:]
+        else:
+            pidfn = fn + '_pids'
+        _out['pid'][:NP] = np.fromfile(pidfn, dtype=np.int64)
+
    # shrink the buffer to the real size
     if out is None:
         _out.resize(NP, refcheck=False)

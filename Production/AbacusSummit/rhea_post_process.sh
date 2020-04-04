@@ -21,21 +21,23 @@ NWORKER=8
 GROUPSCRIPT="$ABACUS/Abacus/convert_raw_groups_to_asdf.py --chunk=$CHUNK --nworkers=$NWORKER --delete"
 GROUPDIR=$ABACUSSUMMIT_PERSIST/$SIM_SET/$SIM_NAME/group
 
-echo "#DISBATCH PREFIX cd $GROUPDIR; $GROUPSCRIPT " > $DISBATCH_TASKFILE  # write
-echo "#DISBATCH SUFFIX > $(pwd)/\${DISBATCH_NAMETASKS}_\${DISBATCH_JOBID}_\${DISBATCH_TASKID}.log 2>&1" >> $DISBATCH_TASKFILE  # append
+if [ -d $GROUPDIR ]; then
+    echo "#DISBATCH PREFIX cd $GROUPDIR; $GROUPSCRIPT " > $DISBATCH_TASKFILE  # write
+    echo "#DISBATCH SUFFIX > $(pwd)/\${DISBATCH_NAMETASKS}_\${DISBATCH_JOBID}_\${DISBATCH_TASKID}.log 2>&1" >> $DISBATCH_TASKFILE  # append
 
-(cd $GROUPDIR; echo Step*/) | tr " " "\n" >> $DISBATCH_TASKFILE
+    (cd $GROUPDIR; echo Step*/) | tr " " "\n" >> $DISBATCH_TASKFILE
 
-mkdir -p ./logs/$SIM_NAME/disbatchGroups
+    mkdir -p ./logs/$SIM_NAME/disbatchGroups
 
-# We can fill as many nodes as there are group outputs, so ~33
-NNODES=33
-WALLTIME=1:30:00
-# 1 task per node. Each task uses 8 workers, each running 2 blosc threads
-JOBID1=$(sbatch -t $WALLTIME -N $NNODES --ntasks-per-node=1 \
-        --mem=0 -p batch -A AST145 --parsable --job-name=${SIM_NAME}_PostProcessGroups -o logs/$SIM_NAME/%x.out \
-        --wrap "$DISBATCH_PY -e -p ./logs/$SIM_NAME/disbatchGroups/$SIM_NAME $DISBATCH_TASKFILE && echo Groups completed successfully.")
-EPILOG_DEPEND+=":$JOBID1"
+    # We can fill as many nodes as there are group outputs, so ~33
+    NNODES=33
+    WALLTIME=1:30:00
+    # 1 task per node. Each task uses 8 workers, each running 2 blosc threads
+    JOBID1=$(sbatch -t $WALLTIME -N $NNODES --ntasks-per-node=1 \
+            --mem=0 -p batch -A AST145 --parsable --job-name=${SIM_NAME}_PostProcessGroups -o logs/$SIM_NAME/%x.out \
+            --wrap "$DISBATCH_PY -e -p ./logs/$SIM_NAME/disbatchGroups/$SIM_NAME $DISBATCH_TASKFILE && echo Groups completed successfully.")
+    EPILOG_DEPEND+=":$JOBID1"
+fi
 
 ##### queue up lightcone processing #####
 

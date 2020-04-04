@@ -275,8 +275,8 @@ def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
 
     parallel = param.get('Parallel', False)
 
-    if parallel:
-        # TODO: parallel CreateDerivs?
+    # TODO: parallel CreateDerivs?
+    if False and parallel:
         if 'Conv_mpirun_cmd' in param:
             create_derivs_cmd = shlex.split(param['Conv_mpirun_cmd']) + create_derivs_cmd
         else:

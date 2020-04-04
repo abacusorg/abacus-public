@@ -7,7 +7,6 @@
 #SBATCH -t 06:00:00  # 48 hours is max rhea wall clock
 
 set -e  # quit on error
-shopt -s nullglob
 
 # This script echos success to the log file
 
@@ -22,6 +21,11 @@ echo "Executing epilogue on $WORKINGDIR"
 # Zip and delete the logs in groups of 100 steps
 echo "Starting zip of logs at $(date)"
 pushd log/ > /dev/null
+shopt -s nullglob
+
+# Delete symlink
+rm -f last
+
 i=0
 while : ; do
     start=$(printf 'step%02d??' $i)
@@ -35,6 +39,7 @@ while : ; do
 done
 
 wait  # wait for all zip to finish
+shopt -u nullglob
 echo "Done zip at $(date)"
 
 FAST_CKSUM=$ABACUS/external/fast-cksum/bin/fast_cksum
@@ -45,7 +50,6 @@ $FAST_CKSUM * > checksums.crc32
 popd > /dev/null  # back to WORKINGDIR
 
 # Now delete:
-# - Log/last symlink
 # - Wisdom file: no sense in carting around
 # - Read directory (?): the final header is in the halos anyway, and the full state is in the logs
 # - Any disbatch files, or maybe we'll want to be able to check on them later
@@ -67,7 +71,6 @@ popd > /dev/null
 
 echo "Deleting extra files"
 rm -f fftw_*.wisdom
-rm -f log/last  # symlink
 
 $FAST_CKSUM abacus.par status.log > checksums.crc32
 
