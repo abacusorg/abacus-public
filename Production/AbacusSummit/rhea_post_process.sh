@@ -43,7 +43,7 @@ fi
 
 LCDIR=$ABACUSSUMMIT_PERSIST/$SIM_SET/$SIM_NAME/lightcone/
 
-if [ -d $LCDIR ]; then
+if [[ -n "$(ls -A $LCDIR)" ]]; then
 
     # Write a disBatch file with one line per light cone per file type per step
     DISBATCH_TASKFILE=$(pwd)/tmp/${SIM_NAME}.LC.disbatch

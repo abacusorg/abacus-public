@@ -53,6 +53,7 @@ popd > /dev/null  # back to WORKINGDIR
 # - Wisdom file: no sense in carting around
 # - Read directory (?): the final header is in the halos anyway, and the full state is in the logs
 # - Any disbatch files, or maybe we'll want to be able to check on them later
+# - Retrieved state
 echo "Beginning deletions at $(date)"
 
 echo "Deleting lightcone/"
@@ -63,6 +64,9 @@ time rm -rf slice*.*/
 
 echo "Deleting read"
 rm -rf read/
+
+echo "Deleting retrieved state"
+rm -rf ../${SIM_NAME}_retrieved_state
 
 echo "Checksum info"
 pushd info/ > /dev/null
