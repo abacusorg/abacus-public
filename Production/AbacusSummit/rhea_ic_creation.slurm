@@ -7,7 +7,7 @@
 #SBATCH -c 16
 #SBATCH -p batch
 #SBATCH --mem 0  # all memory
-#SBATCH -t 18:00:00  #run for X hours.
+#SBATCH -t 24:00:00  #run for X hours.
 
 # Exit if any command fails
 set -e
