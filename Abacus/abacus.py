@@ -1154,7 +1154,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
                 if exiting:
                     print('Exiting.')
-                    if maxsteps == 10000:
+                    if not abandon_ship and maxsteps == 10000:
                         print('Requeueing!')
                         ending_time = time.time()
                         ending_time_str = time.asctime(time.localtime())
@@ -1162,7 +1162,10 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                         status_log.print(f"# Terminating normally w/ requeue code.  {ending_time_str:s} after {ending_time:.2f} hours.")
                         return EXIT_REQUEUE
                     else:
-                        print('Requeue disabled because maxsteps was set by the user.')
+                        if abandon_ship:
+                            print('Requeue disabled because ABANDON_SHIP was requested.')
+                        else:
+                            print(f'Requeue disabled because maxsteps={maxsteps} was specified.')
                         return 0
                 else:
                     print('Continuing run.')
