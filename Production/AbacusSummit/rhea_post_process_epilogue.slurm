@@ -54,6 +54,7 @@ popd > /dev/null  # back to WORKINGDIR
 # - Read directory (?): the final header is in the halos anyway, and the full state is in the logs
 # - Any disbatch files, or maybe we'll want to be able to check on them later
 # - Retrieved state
+# - Core files
 echo "Beginning deletions at $(date)"
 
 echo "Deleting lightcone/"
@@ -64,6 +65,9 @@ time rm -rf slice*.*/
 
 echo "Deleting read"
 rm -rf read/
+
+echo "Deleting core files"
+rm -f core.*
 
 echo "Deleting retrieved state"
 rm -rf ../${SIM_NAME}_retrieved_state

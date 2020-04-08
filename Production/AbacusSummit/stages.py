@@ -172,7 +172,11 @@ class ReadyForSummit(Stage):
 
     def action(self, box):
         '''send a signal to summit sleeper script to queue abacus on summit!'''
-        success = SignalSummitSleeper('submit', box)
+        try:
+            success = SignalSummitSleeper('submit', box)
+        except:
+            success = False
+            
         if not success:
             # box.place_in_error_stage()  # do we need to error out here? maybe not
             return False
@@ -253,21 +257,23 @@ class ReadyForDataTransfer(Stage):
                       source_endpoint=globus.OLCF_DTN_ENDPOINT,
                       dest_endpoint=globus.NERSC_DTN_ENDPOINT,
                       status_log_fn=globus_status_log)
+            globus_ret = True
         except Exception as e:
             print(e)
             print(f'Error starting Globus transfer for {box.name}.  Continuing...')
-            return False
+            globus_ret = False
 
         # Start an htar job on rhea
         # TODO: for maximum robustness, this should be a separate stage that runs in parallel with the globus stage
         cmd = f'sbatch -M dtn -o logs/{box.name}/' + box.jobname('htar') + '.out --job-name=' + box.jobname('htar') + ' rhea_htar.slurm ' + box.name
         try:
             subprocess.run(shlex.split(cmd), check=True)
+            htar_ret = True
         except:
             print(f'Error submitting box {box.name} for htar.  Continuing...')
-            return False
+            htar_ret = False
 
-        return True
+        return globus_ret and htar_ret
 
 ################################### QUEUED FOR DATA TRANSFER ###################################
 
@@ -353,7 +359,7 @@ def QueuedJobs(computer_name):
         except:
             print(f'Error getting queued jobs on {computer_name}.  Continuing...')
             return []
-        return [x.strip() for x in queued_jobs.split('\n')[1:]]  # skip first line, has cluster name
+        queued_jobs = [x.strip() for x in queued_jobs.split('\n')[1:]]  # skip first line, has cluster name
 
     elif computer_name == 'summit':
         response = SignalSummitSleeper('check')
@@ -361,7 +367,11 @@ def QueuedJobs(computer_name):
             return []
 
         queued_jobs = [l.split()[0] for l in response]
-        return queued_jobs
+
+    # check for dups; critical error!
+    if len(queued_jobs) != len(set(queued_jobs)):
+        raise RuntimeError(f'Duplicate queued jobs detected on {computer_name}!  Queued jobs are: {queued_jobs}')
+    return queued_jobs
 
 
 SUMMIT_SLEEPER_MAGIC_VARS = {'reqfn': 'SUMMIT_SLEEPER_REQUEST',
@@ -413,4 +423,4 @@ def SignalSummitSleeper(task, box=None, time_limit=300):
             return bool(re.match(r'Job <\d+> is submitted', response[0]))
 
     # Timed out waiting for a response
-    return False
+    raise RuntimeError('timeout waiting for response from summit sleeper')

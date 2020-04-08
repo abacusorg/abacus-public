@@ -54,12 +54,13 @@ function jsrun_all()
 {
     # There's lots of information we want to store for debugging but makes the logs hard to read,
     # so this command stores the output in a file called lsf-*.debug
-    jsrun -o $DEBUG_FN -e prepended -nALL_HOSTS -a1 -r1 -cALL_CPUS $@
+    jsrun -o $DEBUG_FN -e prepended -nALL_HOSTS -a1 -r1 -cALL_CPUS "$@"
 }
 
 function for_all_nodes()
 {
-    NODES=$(tr ' ' "\n" <<< "$LSB_HOSTS" | sort -u | \grep -v batch)
+    #NODES=$(tr ' ' "\n" <<< "$LSB_HOSTS" | sort -u | \grep -v batch)
+    NODES=$(jsrun -r1 hostname)
     for N in $NODES; do
         echo $N >> $DEBUG_FN
         ssh $N $@ >> $DEBUG_FN 2>&1

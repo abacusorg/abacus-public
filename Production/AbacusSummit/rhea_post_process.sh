@@ -25,12 +25,14 @@ if [ -d $GROUPDIR ]; then
     echo "#DISBATCH PREFIX cd $GROUPDIR; $GROUPSCRIPT " > $DISBATCH_TASKFILE  # write
     echo "#DISBATCH SUFFIX > $(pwd)/\${DISBATCH_NAMETASKS}_\${DISBATCH_JOBID}_\${DISBATCH_TASKID}.log 2>&1" >> $DISBATCH_TASKFILE  # append
 
-    (cd $GROUPDIR; echo Step*/) | tr " " "\n" >> $DISBATCH_TASKFILE
+    GROUPLIST=$(cd $GROUPDIR; echo Step*/ | tr " " "\n")
+    NGROUPLIST=$(wc -l <<< "$GROUPLIST")
+    echo "$GROUPLIST" >> $DISBATCH_TASKFILE
 
     mkdir -p ./logs/$SIM_NAME/disbatchGroups
 
-    # We can fill as many nodes as there are group outputs, so ~33
-    NNODES=33
+    # We can fill as many nodes as there are group outputs, but cap at the expected value of ~33
+    NNODES=$(( NGROUPLIST < 33 ? NGROUPLIST : 33 ))
     WALLTIME=1:30:00
     # 1 task per node. Each task uses 8 workers, each running 2 blosc threads
     JOBID1=$(sbatch -t $WALLTIME -N $NNODES --ntasks-per-node=1 \
@@ -146,4 +148,4 @@ fi
 ##### Queue up the epilogue #####
 # This job will clean up and mark completion after all previous jobs have completed
 # It carries the special job name that the assembly line will look for to determine if post-processing is queued
-sbatch --job-name=${SIM_NAME}_PostProcessEpilogue -o logs/$SIM_NAME/%x.out --depend=afterok${EPILOG_DEPEND} --kill-on-invalid-dep=yes rhea_post_process_epilogue.slurm $SIM_NAME
+sbatch --job-name=${SIM_NAME}_PostProcessEpilogue -o logs/$SIM_NAME/%x.out ${EPILOG_DEPEND:+--depend=afterok${EPILOG_DEPEND}} --kill-on-invalid-dep=yes rhea_post_process_epilogue.slurm $SIM_NAME
