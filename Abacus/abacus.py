@@ -1026,10 +1026,10 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
         shutil.copy(pjoin(write, "state"),
             pjoin(param.LogDirectory, "step{0:04d}", "step{0:04d}.state").format(write_state.FullStepNumber))
-        print(( "\t Finished state {:d}. a = {:.4f}, dlna = {:.3g}, rms velocity = {:.3g}".format(
+        print("\tFinished state {:d}. a = {:.4f}, dlna = {:.3g}, rms velocity = {:.3g}".format(
             write_state.FullStepNumber, write_state.ScaleFactor,
             write_state.DeltaScaleFactor/(write_state.ScaleFactor-write_state.DeltaScaleFactor),
-            write_state.RMS_Velocity)))
+            write_state.RMS_Velocity))
 
         if not parallel:
             # Delete the Taylors right away; want to avoid accidentally

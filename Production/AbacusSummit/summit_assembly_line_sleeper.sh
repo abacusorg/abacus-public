@@ -28,8 +28,12 @@ while :; do  # loop forever
             IFS=: read TASK BOX <<< $COMMAND
 
             echo "Submitting box $BOX to Summit queue."
-            # Unlike slurm, lsf doesn't accept command-line script arguments
-            RESPONSE=$(SIM_NAME=$BOX bsub -J $BOX -o logs/${BOX}/${BOX}_production.out production.lsf 2>&1)
+            if bjobs -o "NAME" | grep -q "$BOX"; then
+                RESPONSE="Error: already found $BOX in queue!"
+            else
+                # Unlike slurm, lsf doesn't accept command-line script arguments
+                RESPONSE=$(SIM_NAME=$BOX bsub -J $BOX -o logs/${BOX}/${BOX}_production.out production.lsf 2>&1)
+            fi
         
         elif [[ $COMMAND == $check_queue_str* ]]; then
             echo "Checking Summit queue"

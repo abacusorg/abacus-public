@@ -420,7 +420,10 @@ def SignalSummitSleeper(task, box=None, time_limit=300):
             return response
         elif task == 'submit':
             # Return True or False so the upstream action knows whether to proceed to the next stage
-            return bool(re.match(r'Job <\d+> is submitted', response[0]))
+            success = bool(re.match(r'Job <\d+> is submitted', response[0]))
+            if not success:
+                print(f'Warning: summit submission of {box} failed with response from sleeper: "{response[0]}"')
+            return success
 
     # Timed out waiting for a response
     raise RuntimeError('timeout waiting for response from summit sleeper')
