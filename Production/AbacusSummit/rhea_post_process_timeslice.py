@@ -11,6 +11,7 @@ from glob import glob
 import sys
 import re
 import io
+import gc
 
 import numpy as np
 import asdf
@@ -68,10 +69,12 @@ def process(slabpat):
                 newbytesfp = io.BytesIO(newbytes)
                 skip_header(newbytesfp)  # rvs have header
                 newbytes = newbytes[newbytesfp.tell():]
+                del newbytesfp
             new = np.frombuffer(newbytes, dtype=pdtype)
         particles[i:i+len(new)] = new
         i += len(new)
-        del new
+        del new, newbytes
+        gc.collect()
 
     if 'pid' in ftype:
         assert i == nptot
@@ -81,7 +84,7 @@ def process(slabpat):
 
     particles = particles.reshape(*pshape)
 
-    asdf.compression.set_compression_options(typesize=Mway, asdf_block_size=asdf_block_size, blocksize=blocksize, shuffle='bitshuffle', nthreads=2)
+    asdf.compression.set_compression_options(typesize=Mway, asdf_block_size=asdf_block_size, blocksize=blocksize, shuffle='bitshuffle', nthreads=4)
     tree = {'data': {colname:particles},
             'header': dict(InputFile(pjoin(slicedir,'header')))}
     asdf_fn = pjoin(outdir, aggname+'.asdf')

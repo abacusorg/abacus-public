@@ -133,13 +133,15 @@ if [[ -n "$SLICEDIRS" ]]; then
 $TSEPI_SCRIPT $SIMDIR/slices/z*
 EOM
 
+    NSLICES=$(wc -l <<< "$SLICEDIRS")
+    NHOURS=$(( NSLICES * 2 ))  # 2 hours per slice
     # Many small jobs, can fill ~1000 nodes
     NNODES=33
-    WALLTIME=1:00:00
+    WALLTIME=${NHOURS}:00:00
 
     mkdir -p ./logs/$SIM_NAME/disbatchTS
 
-    JOBID3=$(sbatch -t $WALLTIME -N $NNODES -c 4 \
+    JOBID3=$(sbatch -t $WALLTIME -N $NNODES -c 8 \
             -o logs/$SIM_NAME/%x.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessTS \
             --wrap "$DISBATCH_PY -e -p ./logs/$SIM_NAME/disbatchTS/$SIM_NAME $DISBATCH_TASKFILE && echo Time slices completed successfully.")
     EPILOG_DEPEND+=":$JOBID3"
