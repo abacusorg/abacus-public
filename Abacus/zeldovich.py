@@ -198,7 +198,7 @@ def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=False):
         abacus.call_subprocess(ZD_cmd)
 
     
-def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):
+def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par', **kwargs):
     """
     Sometimes we want to regenerate the ICs from a sim run on
     another machine.  Thus, the directories are probably wrong.
@@ -238,19 +238,19 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):
         print("Warning: no info dir found to copy")
         
     # If the Pk file doesn't exist, look for it in the info dir
-    kwargs = {}
+    par_kwargs = {}
     if 'ZD_Pk_filename' in old_params:
         pk_fn = old_params.ZD_Pk_filename
         if not path.isfile(pk_fn):
             pk_fn = pjoin(sim_dir, 'info', path.basename(pk_fn))
             assert path.isfile(pk_fn)
-            kwargs['ZD_Pk_filename'] = pk_fn
+            par_kwargs['ZD_Pk_filename'] = pk_fn
     else:
         assert 'ZD_Pk_powerlaw_index' in old_params
         
-    GenParam.makeInput(new_parfn, parfn, InitialConditionsDirectory=ic_dir, ZD_PLT_filename=eigmodes_fn, **kwargs)
+    GenParam.makeInput(new_parfn, parfn, InitialConditionsDirectory=ic_dir, ZD_PLT_filename=eigmodes_fn, **par_kwargs)
     
-    run(new_parfn)
+    run(new_parfn, **kwargs)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=f'Run the zeldovich code (located in {zeldovich_dir})')

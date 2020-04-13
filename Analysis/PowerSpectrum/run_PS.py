@@ -347,7 +347,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Compute power spectra on Abacus outputs or ICs.  Can also evaluate a power spectrum on an FFT mesh.', formatter_class=Tools.ArgParseFormatter)
     parser.add_argument('input', help='The timeslice outputs (or IC directories, or power spectrum file) on which to run PS', nargs='+')
     parser.add_argument('--nfft', help='The size of the FFT (side length of the FFT cube).  Default: 1024', default=1024, type=int)
-    parser.add_argument('--format', help='Format of the data to be read.  Default: Pack14', default='pack14', choices=TSC.valid_file_formats)
+    parser.add_argument('--format', help='Format of the data to be read.  Default: Pack14', default='pack14', choices=TSC.valid_file_formats, type=str.lower)
     parser.add_argument('--rotate-to', help='Rotate the z-axis to the given axis [e.g. (1,2,3)].  Rotations will shrink the FFT domain by sqrt(3) to avoid cutting off particles.', default=None, type=vector_arg, metavar='(X,Y,Z)')
     parser.add_argument('--projected', help='Project the simulation along the z-axis.  Projections are done after rotations.', action='store_true')
     parser.add_argument('--zspace', help='Displace the particles according to their redshift-space positions.', action='store_true')

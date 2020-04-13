@@ -18,7 +18,7 @@ from Abacus import ReadAbacus
 
 from . import _psffilib
 
-valid_file_formats = ['rvdouble', 'pack14', 'pack9', 'rvzel', 'rvtag', 'state', 'gadget', 'desi_hdf5', 'rvdoublezel', 'rvint']
+valid_file_formats = list(ReadAbacus.reader_functions.keys())
 maxthreads = os.cpu_count()
 
 def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.float32, rotate_to=None, prep_rfft=False, nthreads=-1, inplace=False, norm=False):
