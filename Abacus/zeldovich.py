@@ -152,7 +152,7 @@ def setup_zeldovich_params(params):
     return zd_params
     
 
-def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=False):
+def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=True):
     '''
     Invokes the zeldovich executable with the given parameter file,
     cleaning up any exisitng output directories first and also
@@ -162,6 +162,7 @@ def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=False):
     the `ZD_PLT_filename` parameter is valid and sets
     it to the current eigmodes file if not.
     '''
+    paramfn = os.path.abspath(paramfn)
     params = InputFile(paramfn)
 
     if path.exists(params.InitialConditionsDirectory):
@@ -190,10 +191,7 @@ def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=False):
     parallel = params.get('Parallel', False) and not no_parallel
 
     if parallel:
-        try:
-            ZD_cmd = shlex.split(params['ZD_mpirun_cmd']) + ZD_cmd
-        except KeyError:
-            ZD_cmd = shlex.split(params['mpirun_cmd']) + ZD_cmd
+        ZD_cmd = shlex.split(params['ZD_mpirun_cmd']) + ZD_cmd
     with chdir(zeldovich_dir):
         abacus.call_subprocess(ZD_cmd)
 
@@ -261,7 +259,7 @@ if __name__ == '__main__':
     parser.add_argument('--show-growth', action='store_true',
         help='Just compute the growth factor from z=0 to z_init from the cosmology in the given parameter file. Does not generate ICs.')
     parser.add_argument('--no-parallel', action='store_true',
-        help='Do not invoke the ZD_mpirun_cmd to run zeldovich, despite Parallel = 1 in the parameter file')
+        help='Do not invoke the ZD_mpirun_cmd to run zeldovich, despite Parallel = 1 in the parameter file', default=True)  # TODO
     
     args = parser.parse_args()
     args = vars(args)
