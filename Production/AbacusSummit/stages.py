@@ -272,7 +272,6 @@ class ReadyForDataTransfer(Stage):
         except:
             print(f'Error submitting box {box.name} for htar.  Continuing...')
             htar_ret = False
-
         return globus_ret and htar_ret
 
 ################################### QUEUED FOR DATA TRANSFER ###################################
@@ -360,6 +359,7 @@ def QueuedJobs(computer_name):
             print(f'Error getting queued jobs on {computer_name}.  Continuing...')
             return []
         queued_jobs = [x.strip() for x in queued_jobs.split('\n')[1:]]  # skip first line, has cluster name
+        queued_jobs = [job for job in queued_jobs if job != 'sh'] #exclude sh jobs, sometimes causes crash when checking for duplicates below
 
     elif computer_name == 'summit':
         response = SignalSummitSleeper('check')
