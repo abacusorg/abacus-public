@@ -227,7 +227,7 @@ class Suite:
                 continue
 
             if this_stage_num < last_stage_num:
-                if self.refresh:
+                if self.refresh and last_stage_num < 0: # only allow boxes in error states to be refreshed. 
                     # TODO: append all(?) print statements to emails and log it
                     print(f'Refresh is allowing box {box.name} to regress from stage {last_stage_num} to {this_stage_num}')
                     continue
@@ -239,7 +239,7 @@ class Suite:
                 continue
 
             if this_stage_num > last_stage_num + 2:
-                if self.refresh:
+                if self.refresh and last_stage_num < 0:
                     print(f'Refresh is allowing box {box.name} to increment from {last_stage_num} to {this_stage_num} by more than two actions')
                     continue
                 if self.disable_automation: breakpoint()
@@ -252,7 +252,7 @@ class Suite:
                 if self.disable_automation: breakpoint()
                 last_stage = stages[last_stage_num] # previously at a stage where the action was a NoOp.
                 if last_stage.action is not None:
-                    if self.refresh:
+                    if self.refresh and last_stage_num < 0:
                         print(f'Refresh is allowing box {box.name} to increment from {last_stage_num} to {this_stage_num}')
                         continue
                     self.send_email(subject, f'Error: box {box.name} went from stage {last_stage_num} to {this_stage_num}, even though its action is not a NoOp!')
