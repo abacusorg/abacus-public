@@ -1066,6 +1066,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 np.savez(pjoin(param.LogDirectory, "step{0:04d}", "step{0:04d}.pow".format(write_state.FullStepNumber)), k=k,P=P,nb=nb)
                 os.remove(dfn)
 
+        exiting = 0 
         if parallel:
             # Merge all nodes' checksum files into one
             merge_checksum_files(write_state.NodeSize, param)
@@ -1149,27 +1150,6 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 if path.exists(emergency_exit_fn):
                     os.remove(emergency_exit_fn)
 
-                # if interim_backup:
-                #     interim_backup_complete = True
-
-                if exiting:
-                    print('Exiting.')
-                    if not abandon_ship and maxsteps == 10000:
-                        print('Requeueing!')
-                        ending_time = time.time()
-                        ending_time_str = time.asctime(time.localtime())
-                        ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
-                        status_log.print(f"# Terminating normally w/ requeue code.  {ending_time_str:s} after {ending_time:.2f} hours.")
-                        return EXIT_REQUEUE
-                    else:
-                        if abandon_ship:
-                            print('Requeue disabled because ABANDON_SHIP was requested.')
-                        else:
-                            print(f'Requeue disabled because maxsteps={maxsteps} was specified.')
-                        return 0
-                else:
-                    print('Continuing run.')
-
         # Now shift the states down by one
         move_state_dirs(read, write, past)
 
@@ -1200,6 +1180,26 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             status_log.print(f"# Final redshift of {finalz:g} reached at {ending_time_str:s}; terminating normally after {ending_time:.2f} hours.")
             finished = True
             break
+
+        if parallel:
+            if exiting:
+                print('Exiting.')
+                if not abandon_ship and maxsteps == 10000:
+                    print('Requeueing!')
+                    ending_time = time.time()
+                    ending_time_str = time.asctime(time.localtime())
+                    ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
+                    status_log.print(f"# Terminating normally w/ requeue code.  {ending_time_str:s} after {ending_time:.2f} hours.")
+                    return EXIT_REQUEUE
+                else:
+                    if abandon_ship:
+                        print('Requeue disabled because ABANDON_SHIP was requested.')
+                    else:
+                        print(f'Requeue disabled because maxsteps={maxsteps} was specified.')
+                    return 0
+            else:
+                print('Continuing run.')
+
 
         if parallel and abandon_ship:
             ending_time = time.time()
