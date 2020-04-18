@@ -57,17 +57,6 @@ popd > /dev/null  # back to WORKINGDIR
 # - Core files
 echo "Beginning deletions at $(date)"
 
-echo "Deleting lightcone/"
-time rm -rf lightcone/
-
-if [ -d lightcones.concat ]; then
-    echo "Renaming lightcones.concat/"
-    mv lightcones.concat lightcones
-fi
-
-echo "Deleting slice*.*/"
-time rm -rf slice*.*/
-
 echo "Deleting read"
 rm -rf read/
 

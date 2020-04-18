@@ -59,18 +59,6 @@ if [[ -n "$(ls -A $LCDIR)" ]]; then
     # Args could get dangerously long, use relative paths
     (cd $LCDIR; find Step*/ -name 'LightCone*' | cut -d. -f1 | sort -u) >> $DISBATCH_TASKFILE  # Step0500/LightCone0_heal, etc
 
-    # Now generate the checksum concatenation tasks
-
-    LCEPI_SCRIPT=$(pwd)/rhea_post_process_lightcones_epilogue.sh
-    cat >> $DISBATCH_TASKFILE << EOM
-#DISBATCH BARRIER CHECK
-#DISBATCH PREFIX cd $NEWLCDIR/
-#DISBATCH SUFFIX ; $LCEPI_SCRIPT > $(pwd)/\${DISBATCH_NAMETASKS}_\${DISBATCH_JOBID}_\${DISBATCH_TASKID}.log 2>&1 
-heal/
-pid/
-rv/
-EOM
-
     # Many small jobs, can fill thousands of nodes
     NNODES=33
     WALLTIME=0:30:00
@@ -78,9 +66,19 @@ EOM
     mkdir -p ./logs/$SIM_NAME/disbatchLC
 
     # 4 cores per task: only two blosc threads per task, but cores have two hyperthreads.  So 8 tasks per node.
-    JOBID2=$(sbatch -t $WALLTIME -N $NNODES -c 4 \
+    # This is the primary LC job, it uses multiple nodes
+    LCJOBID=$(sbatch -t $WALLTIME -N $NNODES -c 4 \
             -o logs/$SIM_NAME/%x.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessLC \
-            --wrap "$DISBATCH_PY -e -p ./logs/$SIM_NAME/disbatchLC/$SIM_NAME $DISBATCH_TASKFILE && echo Lightcones completed successfully.")
+            --wrap "$DISBATCH_PY -e -p ./logs/$SIM_NAME/disbatchLC/$SIM_NAME $DISBATCH_TASKFILE")
+
+    # This is the LC epilogue job, it uses one node. It has 10000s of file deletions to do.
+    # Job output will go to same file as main job
+    LCEPI_SCRIPT=$(pwd)/rhea_post_process_lightcones_epilogue.sh
+    JOBID2=$(sbatch -t 3:00:00 -N 1 -c 32 \
+            -o logs/$SIM_NAME/%x.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessLC \
+            --depend=afterok:${LCJOBID} --kill-on-invalid-dep=yes \
+            --wrap "$LCEPI_SCRIPT $NEWLCDIR && echo Lightcones completed successfully.")
+
     EPILOG_DEPEND+=":$JOBID2"
 fi
 
@@ -117,15 +115,6 @@ if [[ -n "$SLICEDIRS" ]]; then
         done
     done
 
-    # Now generate the checksum concatenation tasks
-    TSEPI_SCRIPT=$(pwd)/rhea_post_process_timeslice_epilogue.sh
-    cat >> $DISBATCH_TASKFILE << EOM
-#DISBATCH BARRIER CHECK
-#DISBATCH PREFIX 
-#DISBATCH SUFFIX 
-$TSEPI_SCRIPT $SIMDIR/slices/z*
-EOM
-
     NSLICES=$(wc -l <<< "$SLICEDIRS")
     NHOURS=$(( NSLICES * 2 ))  # 2 hours per slice
     # Many small jobs, can fill ~1000 nodes
@@ -134,9 +123,15 @@ EOM
 
     mkdir -p ./logs/$SIM_NAME/disbatchTS
 
-    JOBID3=$(sbatch -t $WALLTIME -N $NNODES -c 8 \
+    TSEPI_SCRIPT=$(pwd)/rhea_post_process_timeslice_epilogue.sh
+
+    TSJOBID=$(sbatch -t $WALLTIME -N $NNODES -c 8 \
             -o logs/$SIM_NAME/%x.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessTS \
-            --wrap "$DISBATCH_PY -e -p ./logs/$SIM_NAME/disbatchTS/$SIM_NAME $DISBATCH_TASKFILE && echo Time slices completed successfully.")
+            --wrap "$DISBATCH_PY -e -p ./logs/$SIM_NAME/disbatchTS/$SIM_NAME $DISBATCH_TASKFILE")
+    JOBID3=$(sbatch -t 3:00:00 -N 1 -c 32 \
+            -o logs/$SIM_NAME/%x.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessTS \
+            --depend=afterok:${TSJOBID} --kill-on-invalid-dep=yes \
+            --wrap "$TSEPI_SCRIPT $SIMDIR/slices && echo Time slices completed successfully.")
     EPILOG_DEPEND+=":$JOBID3"
 fi
 
