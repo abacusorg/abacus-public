@@ -95,7 +95,7 @@ if [[ -n "$SLICEDIRS" ]]; then
 
     TSSCRIPT=$(pwd)/rhea_post_process_timeslice.py
     echo "#DISBATCH PREFIX cd ${SIMDIR}; ${TSSCRIPT} \"" > $DISBATCH_TASKFILE  # write
-    echo "#DISBATCH SUFFIX \"" >> $DISBATCH_TASKFILE  # append
+    echo "#DISBATCH SUFFIX \" > $(pwd)/\${DISBATCH_NAMETASKS}_\${DISBATCH_JOBID}_\${DISBATCH_TASKID}.log 2>&1" >> $DISBATCH_TASKFILE  # append
 
     for SLICE in $SLICEDIRS; do
         # Write one line for every chunk of 10 for every file type
