@@ -71,13 +71,6 @@ pid/
 rv/
 EOM
 
-    cat >> $DISBATCH_TASKFILE << EOM
-#DISBATCH BARRIER CHECK
-#DISBATCH PREFIX 
-#DISBATCH SUFFIX 
-mv $NEWLCDIR $(dirname $LCDIR)/lightcones
-EOM
-
     # Many small jobs, can fill thousands of nodes
     NNODES=33
     WALLTIME=0:30:00
@@ -112,8 +105,8 @@ if [[ -n "$SLICEDIRS" ]]; then
 
         i=0
         while : ; do
-            FNPREFIX="${SLICE}/$(printf '*slab%03d?*.dat' $i)"
-            MATCHES=$(cd $SIMDIR; find -wholename "$FNPREFIX" -print -quit)
+            FNPAT="$(printf '*slab%03d?*.dat' $i)"
+            MATCHES=$(cd $SIMDIR; find $SLICE -name "$FNPAT" -print -quit)
             if [[ -z "$MATCHES" ]]; then
                 break
             fi

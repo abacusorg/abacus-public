@@ -60,6 +60,11 @@ echo "Beginning deletions at $(date)"
 echo "Deleting lightcone/"
 time rm -rf lightcone/
 
+if [ -d lightcones.concat ]; then
+    echo "Renaming lightcones.concat/"
+    mv lightcones.concat lightcones
+fi
+
 echo "Deleting slice*.*/"
 time rm -rf slice*.*/
 
