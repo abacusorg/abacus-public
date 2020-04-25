@@ -51,6 +51,7 @@ Dependency UnpackLPTVelocity;
 #include "ParallelConvolution.cpp"
 STimer ConvolutionWallClock;
 STimer BarrierWallClock;
+STimer MultipoleTransferCheck; 
 #endif
 
 // The wall-clock time minus all of the above Timers might be a measure
@@ -838,8 +839,10 @@ int CheckForMultipolesPrecondition(int slab) {
 	// 	STDLOG(2, "Attempting to RecvMultipoleSlab %d\n", slab);
 	// 	ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's.
 	// }
-
+	
+	MultipoleTransferCheck.Clear(); MultipoleTransferCheck.Start();
 	int multipole_transfer_complete = ParallelConvolveDriver->CheckForMultipoleTransferComplete(slab);
+	MultipoleTransferCheck.Stop();
 	if (multipole_transfer_complete) return 1;
     else {
 		if(SB->IsSlabPresent(MultipoleSlab, slab))
