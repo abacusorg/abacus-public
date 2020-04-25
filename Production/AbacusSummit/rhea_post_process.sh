@@ -33,7 +33,7 @@ if [ -d $GROUPDIR ]; then
 
     # We can fill as many nodes as there are group outputs, but cap at the expected value of ~33
     NNODES=$(( NGROUPLIST < 33 ? NGROUPLIST : 33 ))
-    WALLTIME=3:00:00
+    WALLTIME=5:00:00
     # 1 task per node. Each task uses 8 workers, each running 2 blosc threads
     JOBID1=$(sbatch -t $WALLTIME -N $NNODES --ntasks-per-node=1 \
             --mem=0 -p batch -A AST145 --parsable --job-name=${SIM_NAME}_PostProcessGroups -o logs/$SIM_NAME/%x.out \
