@@ -197,6 +197,7 @@ void GatherTimings() {
         REPORT_RATE(Finish);		
 
 #ifdef PARALLEL
+    REPORT(1, "Check Multipoles Precondition", MultipoleTransferCheck.Elapsed()); total+=thistime;
     REPORT(1, "Check Multipoles", CheckForMultipoles.Elapsed()); total += thistime;
         REPORT_RATE(CheckForMultipoles);	
 
