@@ -146,7 +146,7 @@ def setup_zeldovich_params(params):
     # Check that f_growth computed in the EdS approximation with f_cluster is consistent with the value from the cosmology module
     f_growth = cosm_zinit.current.f_growth
     fgrowth_from_fcluster = ((1 + 24*f_cluster_from_smooth)**0.5 - 1)/4
-    if not np.isclose(f_growth, fgrowth_from_fcluster, rtol=1e-4):
+    if not np.isclose(f_growth, fgrowth_from_fcluster, rtol=2e-4):
         raise ValueError(f'fgrowth_from_fcluster = {fgrowth_from_fcluster} from parameter file does not match f_growth = {f_growth} computed from cosmology')
 
     return zd_params
