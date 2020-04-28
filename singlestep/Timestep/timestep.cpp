@@ -1050,9 +1050,6 @@ void timestep(void) {
 #else
 		timestep_loop_complete = Finish.alldone(total_slabs_on_node);
 #endif
-
-        // hack to prevent spinning from interfering with daemons that happen to be bound to the same core
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     if(IL->length!=0)

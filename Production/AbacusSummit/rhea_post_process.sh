@@ -75,7 +75,7 @@ if [[ -n "$(ls -A $LCDIR)" ]]; then
     # Job output will go to same file as main job
     LCEPI_SCRIPT=$(pwd)/rhea_post_process_lightcones_epilogue.sh
     JOBID2=$(sbatch -t 3:00:00 -N 1 -c 32 \
-            -o logs/$SIM_NAME/%x.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessLC \
+            -o logs/$SIM_NAME/${SIM_NAME}_PostProcessLC.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessLCEpi \
             --depend=afterok:${LCJOBID} --kill-on-invalid-dep=yes \
             --wrap "$LCEPI_SCRIPT $NEWLCDIR && echo Lightcones completed successfully.")
 
@@ -129,7 +129,7 @@ if [[ -n "$SLICEDIRS" ]]; then
             -o logs/$SIM_NAME/%x.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessTS \
             --wrap "$DISBATCH_PY -e -p ./logs/$SIM_NAME/disbatchTS/$SIM_NAME $DISBATCH_TASKFILE")
     JOBID3=$(sbatch -t 3:00:00 -N 1 -c 32 \
-            -o logs/$SIM_NAME/%x.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessTS \
+            -o logs/$SIM_NAME/${SIM_NAME}_PostProcessTS.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessTSEpi \
             --depend=afterok:${TSJOBID} --kill-on-invalid-dep=yes \
             --wrap "$TSEPI_SCRIPT $SIMDIR/slices && echo Time slices completed successfully.")
     EPILOG_DEPEND+=":$JOBID3"
