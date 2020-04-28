@@ -840,7 +840,7 @@ int CheckForMultipolesPrecondition(int slab) {
 	// 	ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's.
 	// }
 	
-	MultipoleTransferCheck.Clear(); MultipoleTransferCheck.Start();
+	MultipoleTransferCheck.Start();
 	int multipole_transfer_complete = ParallelConvolveDriver->CheckForMultipoleTransferComplete(slab);
 	MultipoleTransferCheck.Stop();
 	if (multipole_transfer_complete) return 1;
