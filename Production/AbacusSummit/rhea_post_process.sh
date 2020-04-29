@@ -116,7 +116,7 @@ if [[ -n "$SLICEDIRS" ]]; then
     done
 
     NSLICES=$(wc -l <<< "$SLICEDIRS")
-    NHOURS=$(( NSLICES * 2 ))  # 2 hours per slice
+    NHOURS=$(( NSLICES * 4 ))  # X hours per slice
     # Many small jobs, can fill ~1000 nodes
     NNODES=33
     WALLTIME=${NHOURS}:00:00
@@ -125,7 +125,7 @@ if [[ -n "$SLICEDIRS" ]]; then
 
     TSEPI_SCRIPT=$(pwd)/rhea_post_process_timeslice_epilogue.sh
 
-    TSJOBID=$(sbatch -t $WALLTIME -N $NNODES -c 8 \
+    TSJOBID=$(sbatch -t $WALLTIME -N $NNODES -c 16 \
             -o logs/$SIM_NAME/%x.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessTS \
             --wrap "$DISBATCH_PY -e -p ./logs/$SIM_NAME/disbatchTS/$SIM_NAME $DISBATCH_TASKFILE")
     JOBID3=$(sbatch -t 3:00:00 -N 1 -c 32 \
