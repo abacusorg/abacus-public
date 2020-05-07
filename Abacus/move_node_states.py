@@ -223,8 +223,8 @@ def retrieve_state(parfile, resumedir, verbose=True, delete_ics=False):
     size = comm.Get_size()
     rank = comm.Get_rank()
 
-    if verbose:
-        print('Retrieve state invoked on rank {} of {}'.format(rank, size), file=sys.stderr)
+    if rank == 0:
+        print(f'Retrieve state invoked on {size} ranks', file=sys.stderr)
     
     dest = pjoin(resumedir, 'rank_' + str(rank))
     
@@ -238,15 +238,16 @@ def retrieve_state(parfile, resumedir, verbose=True, delete_ics=False):
     if rank == 0:
         try:
             shutil.rmtree(past)
+            print('Removed a past backup', file=sys.stderr)
         except FileNotFoundError:
             pass
             
     comm.Barrier() 
     
-    if rank == 0: 
+    if rank == 0:
         try: 
-            print('Renaming previous runs retrieved states to backup files')
             os.rename(resumedir, past)
+            print("Renamed previous run's retrieved states to backup files", file=sys.stderr)
         except FileNotFoundError:
             pass
     
@@ -287,10 +288,9 @@ def retrieve_state(parfile, resumedir, verbose=True, delete_ics=False):
     
     comm.Barrier() 
 
-    if verbose:
-        print('Backup complete. Removing previous backup.')
-
     if rank == 0:
+        print('Backup complete. Removing any previous backup.', file=sys.stderr)
+
         try:
             shutil.rmtree(past)
         except FileNotFoundError:
@@ -304,8 +304,8 @@ def retrieve_state(parfile, resumedir, verbose=True, delete_ics=False):
 
     comm.Barrier() 
     
-    if verbose:
-        print('Success retrieving state off node ', rank, '!')
+    if rank == 0:
+        print('Success retrieving state!', file=sys.stderr)
 
 
 if __name__ == '__main__':
