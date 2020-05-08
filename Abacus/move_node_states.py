@@ -23,7 +23,7 @@ import sys
 import argparse
 import os
 import shutil
-from os.path import join as pjoin, basename, dirname
+from os.path import join as pjoin, basename, dirname, normpath
 from glob import glob
 import re
 
@@ -226,9 +226,11 @@ def retrieve_state(parfile, resumedir, verbose=True, delete_ics=False):
     if rank == 0:
         print(f'Retrieve state invoked on {size} ranks', file=sys.stderr)
     
+    resumedir = normpath(resumedir)
     dest = pjoin(resumedir, 'rank_' + str(rank))
     
     past =  pjoin(dirname(par['WorkingDirectory']), par['SimName'] + '_retrieved_state_past')
+    past_deleting = past + '_DELETING'
     past_node = pjoin(past, 'rank_' + str(rank))
     
     source = par['LocalWorkingDirectory']
@@ -236,11 +238,13 @@ def retrieve_state(parfile, resumedir, verbose=True, delete_ics=False):
     comm.Barrier() 
     
     if rank == 0:
-        try:
-            shutil.rmtree(past)
-            print('Removed a past backup', file=sys.stderr)
-        except FileNotFoundError:
-            pass
+
+        for p in (past,past_deleting):
+            try:
+                shutil.rmtree(p)
+                print(f'Removed past backup {basename(p)}', file=sys.stderr)
+            except FileNotFoundError:
+                pass
             
     comm.Barrier() 
     
@@ -292,7 +296,8 @@ def retrieve_state(parfile, resumedir, verbose=True, delete_ics=False):
         print('Backup complete. Removing any previous backup.', file=sys.stderr)
 
         try:
-            shutil.rmtree(past)
+            os.rename(past, past_deleting)
+            shutil.rmtree(past_deleting)
         except FileNotFoundError:
             pass
 
