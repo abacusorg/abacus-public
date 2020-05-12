@@ -376,11 +376,12 @@ def QueuedJobs(computer_name):
 
 SUMMIT_SLEEPER_MAGIC_VARS = {'reqfn': 'SUMMIT_SLEEPER_REQUEST',
                              'respfn': 'SUMMIT_SLEEPER_RESPONSE',
+                             'comm_dir': pjoin(os.getenv('PROJWORK'), os.getenv('USER')),
                              'submit': 'SubmitToQueue',
                              'check': 'CheckQueue'}
 def SignalSummitSleeper(task, box=None, time_limit=300):
-    reqfn = SUMMIT_SLEEPER_MAGIC_VARS['reqfn']
-    respfn = SUMMIT_SLEEPER_MAGIC_VARS['respfn']
+    reqfn = pjoin(SUMMIT_SLEEPER_MAGIC_VARS['comm_dir'], SUMMIT_SLEEPER_MAGIC_VARS['reqfn'])
+    respfn = pjoin(SUMMIT_SLEEPER_MAGIC_VARS['comm_dir'], SUMMIT_SLEEPER_MAGIC_VARS['respfn'])
     tmpfn = reqfn + '.tmp'
 
     taskstr = SUMMIT_SLEEPER_MAGIC_VARS[task]
