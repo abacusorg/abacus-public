@@ -17,7 +17,7 @@ mkdir -p tmp
 DISBATCH_TASKFILE=$(pwd)/tmp/${SIM_NAME}.group.disbatch
 
 CHUNK=50
-NWORKER=8
+NWORKER=5
 GROUPSCRIPT="$ABACUS/Abacus/convert_raw_groups_to_asdf.py --chunk=$CHUNK --nworkers=$NWORKER --delete"
 GROUPDIR=$ABACUSSUMMIT_PERSIST/$SIM_SET/$SIM_NAME/group
 
