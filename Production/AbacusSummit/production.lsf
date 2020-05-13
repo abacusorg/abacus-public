@@ -84,7 +84,7 @@ function cleanup()
     echo -e "\n\n\n\n" >> $DEBUG_FN
 
     echo -e "* dmesg:\n" >> $DEBUG_FN
-    for_all_nodes bash -c 'dmesg -T |tail -n15'
+    for_all_nodes 'dmesg -T |tail -n15'
     echo -e "\n\n\n\n" >> $DEBUG_FN
 
     echo -e "* /dev/shm usage:\n" >> $DEBUG_FN
