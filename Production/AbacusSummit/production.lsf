@@ -60,7 +60,8 @@ function jsrun_all()
 function for_all_nodes()
 {
     #NODES=$(tr ' ' "\n" <<< "$LSB_HOSTS" | sort -u | \grep -v batch)
-    NODES=$(jsrun -r1 hostname)
+    #NODES=$(jsrun -r1 hostname)
+    NODES=$(\grep -oP '\w\d{2}n\d{2}' <<< "$LSB_MCPU_HOSTS")
     for N in $NODES; do
         echo $N >> $DEBUG_FN
         ssh $N $@ >> $DEBUG_FN 2>&1
@@ -78,22 +79,22 @@ echo -e "\n\n\n\n"
 # These actions will be taken upon exit
 function cleanup()
 {
-    echo -e "* Environment:\n"
+    echo -e "* Environment:\n" >> $DEBUG_FN
     printenv &> $DEBUG_FN
-    echo -e "\n\n\n\n"
+    echo -e "\n\n\n\n" >> $DEBUG_FN
 
-    #echo -e "* dmesg:\n"
-    #jsrun_all bash -c 'dmesg -T |tail -n15'
-    #echo -e "\n\n\n\n"
+    echo -e "* dmesg:\n" >> $DEBUG_FN
+    for_all_nodes 'dmesg -T |tail -n15'
+    echo -e "\n\n\n\n" >> $DEBUG_FN
 
-    echo -e "* /dev/shm usage:\n"
+    echo -e "* /dev/shm usage:\n" >> $DEBUG_FN
     #jsrun_all df -h /dev/shm
     for_all_nodes df -h /dev/shm
-    echo -e "\n\n\n\n"
+    echo -e "\n\n\n\n" >> $DEBUG_FN
 
-    echo -e "* Clearing ramdisk\n"
+    echo -e "* Clearing ramdisk\n" >> $DEBUG_FN
     jsrun_all rm -rf $RAMDISK
-    echo -e "\n\n\n\n"
+    echo -e "\n\n\n\n" >> $DEBUG_FN
 }
 trap cleanup EXIT
 
