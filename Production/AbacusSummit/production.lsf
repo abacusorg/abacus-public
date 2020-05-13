@@ -7,7 +7,7 @@
 #BSUB -Q 200  # Requeue this job if this script exits with code 200
 #BSUB -alloc_flags smt2  # one or two hyper-threads per core. default is four.
 
-export JOB_ACTION_WARNING_TIME=353
+export JOB_ACTION_WARNING_TIME=343
 
 ## wt hh:mm before the job is scheduled to run out of wallclock time, send a signal (10 = SIGUSR1).
 ## this should be caught by abacus.py to trigger graceful exit and state retrieval to global directory.
