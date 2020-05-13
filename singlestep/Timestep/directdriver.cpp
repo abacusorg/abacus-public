@@ -297,7 +297,6 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     assertf(thisSink<=MaxSinkBlocks && thisSource<=MaxSourceBlocks,
             "Sinks or Sources of the last skewer overflow the maxima.");
 
-    uint64 NSink = SS->size(slabID);
     STDLOG(1,"Using %d direct splits on slab %d, max blocks %d sink and %d source\n", 
             NSplit, slabID, useMaxSink, useMaxSource);
 
@@ -309,7 +308,12 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     SlabInteractionCollections[slabID] = new SetInteractionCollection *[NSplit];
 
     // Now we need to make the NearField_SIC_Slab
-    uint64 bsize = ComputeSICSize(P.cpd, NSink, WIDTH, NSplit);
+    uint64 NSinkAlloc = 0;
+    for (int s = -RADIUS; s <= RADIUS; s++){
+        NSinkAlloc = std::max(NSinkAlloc, SS->size(slabID+s));
+    }
+
+    uint64 bsize = ComputeSICSize(P.cpd, NSinkAlloc, WIDTH, NSplit);
     SB->AllocateSpecificSize(NearField_SIC_Slab, slabID, bsize);
     char *buffer = SB->GetSlabPtr(NearField_SIC_Slab, slabID);
 
