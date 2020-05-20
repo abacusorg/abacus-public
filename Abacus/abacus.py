@@ -305,6 +305,10 @@ def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
                     convert_derivs_to_float32.convert(pjoin(param.DerivativesDirectory, dpath))
             else:
                 with Tools.chdir(param.DerivativesDirectory):
+                    try:
+                        os.remove("./farderivatives")
+                    except OSError:
+                        pass
                     if parallel:
                         print('Dispatching CreateDerivatives with command "{}"'.format(' '.join(create_derivs_cmd)))
                     call_subprocess(create_derivs_cmd)
