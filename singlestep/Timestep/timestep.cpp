@@ -52,6 +52,7 @@ Dependency UnpackLPTVelocity;
 STimer ConvolutionWallClock;
 STimer BarrierWallClock;
 STimer MultipoleTransferCheck; 
+STimer TaylorTransferCheck;
 #endif
 
 // The wall-clock time minus all of the above Timers might be a measure
@@ -250,8 +251,11 @@ int TaylorForcePrecondition(int slab) {
     }
 
 #ifdef PARALLEL //TODO do the above still apply in the parallel case?
-	if( !ParallelConvolveDriver->CheckTaylorSlabReady(slab)) {
-        if(SB->IsSlabPresent(TaylorSlab, slab))
+	TaylorTransferCheck.Start(); 
+        int taylorSlabReady = ParallelConvolveDriver->CheckTaylorSlabReady(slab);
+        TaylorTransferCheck.Stop();
+        if( !taylorSlabReady) {
+             if(SB->IsSlabPresent(TaylorSlab, slab))
 			Dependency::NotifySpinning(WAITING_FOR_MPI);
 		return 0;
 	}
@@ -912,6 +916,7 @@ void timestep(void) {
 	ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
 #endif
 
+    MultipoleTransferCheck.Clear(); TaylorTransferCheck.Clear();
     TimeStepWallClock.Clear();  TimeStepWallClock.Start();
     STDLOG(1,"Initiating timestep()\n");
 
