@@ -21,14 +21,15 @@ ulimit -c 0
 set -e
 
 SLURM_ARRAY_TASK_ID=${SLURM_ARRAY_TASK_ID:-1}
+SLURM_NTASKS=${SLURM_NTASKS:-8}
 
 module list
 
 # Set the location of the time slices
-SIM_NAME="DESI_L760_N2660_prototype"
-BASEDIR=$HOME/ceph/
+SIM_NAME="FSLHalos_L200_N700"
+BASEDIR=$HOME/ceph/rockstar_test
 
-SLICEPAT="slice0.100"
+SLICEPAT="slice2.000"
 
 # Find all slices; figure out which one this slurm array task will do
 SLICES=$BASEDIR/$SIM_NAME/$SLICEPAT
@@ -52,6 +53,7 @@ while [ ! -f $CLI_CFG ]; do
 done
 
 echo "Starting client in $ZSLICE"
-stdbuf -o0 -e0 srun -u $ABACUS/Analysis/Rockstar/rockstar -c $CLI_CFG
+#stdbuf -o0 -e0 srun -u $ABACUS/Analysis/Rockstar/rockstar -c $CLI_CFG
+mpirun -n $SLURM_NTASKS $ABACUS/Analysis/Rockstar/rockstar -c $CLI_CFG
 
 #done  # slice loop
