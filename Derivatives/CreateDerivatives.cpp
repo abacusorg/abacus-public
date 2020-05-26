@@ -558,7 +558,7 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
         char fpfar_fn[1024];
 
                 //Open and unpack farderivatives file.
-        sprintf(fpfar_fn,"farderivatives");
+        sprintf(fpfar_fn,"farderivatives_%llu_%d_%d_%d",CPD,order,inner_radius,far_radius);
 
         fpfar = fopen(fpfar_fn,"rb");
         assert(fpfar!=NULL);
@@ -923,7 +923,7 @@ int main(int argc, char **argv) {
     
     FILE *fpfar;
     char fpfar_fn[1024];
-    sprintf(fpfar_fn,"farderivatives");
+    sprintf(fpfar_fn,"farderivatives_%llu_%d_%d_%d",CPD,order,inner_radius,far_radius);
     fpfar = fopen(fpfar_fn,"rb");
         
     if (fpfar == NULL){    

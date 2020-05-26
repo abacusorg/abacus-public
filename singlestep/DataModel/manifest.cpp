@@ -671,22 +671,22 @@ void Manifest::Receive() {
         // TODO: is it true that none of the manifest slabs should land on ramdisk?
         SB->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size, RAMDISK_NO);
         m.arenas[n].ptr = SB->GetSlabPtr(m.arenas[n].type, m.arenas[n].slab);
-        memset(m.arenas[n].ptr, 0, m.arenas[n].size);   // TODO remove
+        //memset(m.arenas[n].ptr, 0, m.arenas[n].size);   // TODO remove
         STDLOG(2,"Ireceive Manifest Arena %d (slab %d of type %d) of size %d\n", 
             n, m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size);
         do_MPI_Irecv(m.arenas[n].ptr, m.arenas[n].size, rank);
     }
     // Receive all the Insert List fragment
     int ret = posix_memalign((void **)&il, 64, m.numil*sizeof(ilstruct));
-    assert(il!=NULL);
-    memset(il, 0, sizeof(ilstruct)*m.numil);   // TODO remove
+    assertf(ret == 0, "Failed to allocate %d bytes for receive manifest insert list\n", m.numil*sizeof(ilstruct));
+    //memset(il, 0, sizeof(ilstruct)*m.numil);   // TODO remove
     STDLOG(2,"Ireceive Manifest Insert List of length %d\n", m.numil);
     do_MPI_Irecv(il, sizeof(ilstruct)*m.numil, rank);
     // Receive all the GroupLink List fragment
     if (GFC!=NULL) {
         ret = posix_memalign((void **)&links, 64, m.numlinks*sizeof(GroupLink));
-        assert(links!=NULL);
-        memset(links, 0, sizeof(GroupLink)*m.numlinks);   // TODO remove
+        assertf(ret == 0, "Failed to allocate %d bytes for receive manifest group link list\n", m.numlinks*sizeof(GroupLink));
+        //memset(links, 0, sizeof(GroupLink)*m.numlinks);   // TODO remove
         STDLOG(2,"Ireceive Manifest GroupLink List of length %d\n", m.numlinks);
         do_MPI_Irecv(links, sizeof(GroupLink)*m.numlinks, rank);
     } 

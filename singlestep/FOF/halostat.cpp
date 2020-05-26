@@ -207,7 +207,7 @@ HaloStat ComputeStats(int size,
     h.SO_L2max_central_particle[0] = L2.p[0].x;
     h.SO_L2max_central_particle[1] = L2.p[0].y;
     h.SO_L2max_central_particle[2] = L2.p[0].z;
-    h.SO_L2max_central_particle[3] = L2.p[0].n;	
+    h.SO_L2max_central_particle[3] = L2.p[0].fi.w;	
     h.SO_central_density  = L2.density[0]; 
 	//!!!h.SO_radius           = sqrt(L2.halo_thresh2); 
 #endif 	

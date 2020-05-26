@@ -8,8 +8,8 @@ echo "Sleeper started, logging to $LOGFILE"
 exec > $LOGFILE 2>&1
 echo "[$(date)] Sleeper started in $(pwd) on host $(hostname)"
 
-REQFN='SUMMIT_SLEEPER_REQUEST'
-RESPFN='SUMMIT_SLEEPER_RESPONSE'
+REQFN="$PROJWORK/$USER/SUMMIT_SLEEPER_REQUEST"
+RESPFN="$PROJWORK/$USER/SUMMIT_SLEEPER_RESPONSE"
 
 submit_job_str='SubmitToQueue'
 check_queue_str='CheckQueue'
