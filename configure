@@ -739,6 +739,7 @@ with_softening
 with_cache_line_size
 with_page_size
 enable_numa_for
+enable_multiple_comm
 with_ramdisk
 '
       ac_precious_vars='build_alias
@@ -1390,6 +1391,7 @@ Optional Features:
                           Use SO finder [yes if fof-density enabled]
   --enable-parallel       Generate MPI parallel code [no]
   --enable-numa-for       Enable custom NUMA_FOR OpenMP scheduler [yes]
+  --enable-multiple-comm  Enable multiple MPI communicators [yes]
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -6834,6 +6836,21 @@ _ACEOF
 
 fi
 
+# Check whether --enable-multiple-comm was given.
+if test "${enable_multiple_comm+set}" = set; then :
+  enableval=$enable_multiple_comm;
+else
+  enable_multiple_comm="yes"
+fi
+
+if test x$enable_multiple_comm == xyes; then
+
+cat >>confdefs.h <<_ACEOF
+#define MULTIPLE_MPI_COMM /**/
+_ACEOF
+
+fi
+
 # If the user is using Anaconda Python, we have to be careful
 # about how we build C/C++ libraries that will be loaded by Python.
 # Anaconda Python has the Python executable rpath set to find
@@ -6983,6 +7000,7 @@ echo "Threaded IO:                     $enable_threaded_io"
 echo "GPU directs:                     $enable_gpu_directs"
 echo "Compute FOF-scale density:       $enable_fof_density"
 echo "MPI parallel code:               $enable_parallel"
+echo "Multiple MPI communicators:      $enable_multiple_comm"
 echo "Near-force softening technique:  $with_softening"
 echo "GPU Convolution FFT:             $enable_gpu_convolution"
 echo "Cache line size:                 $with_cache_line"
@@ -6990,7 +7008,7 @@ echo "Page size:                       $with_page_size"
 echo "CXX:                             $CXX"
 echo "MKL FFT:                         $enable_mkl"
 echo "Maximum order:                   $with_max_order"
-echo "NUMA For OpenMP Scheduler:       $enable_numa_for"
+echo "NUMA-For OpenMP Scheduler:       $enable_numa_for"
 echo "------------------------------------------------------"
 echo
 

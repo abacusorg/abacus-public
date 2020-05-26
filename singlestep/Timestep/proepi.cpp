@@ -83,6 +83,7 @@ STimer SingleStepTearDown;
 STimer IOFinish;
 
 STimer SlabAccumFree;
+STimer ReleaseFreeMemoryTime;
 
 uint64 naive_directinteractions = 0;
 
@@ -207,25 +208,65 @@ void finish_fftw();
 #include <fenv.h>
 
 void InitializeParallel(int &size, int &rank) {
-    #ifdef PARALLEL
-         // Start up MPI
-         int init = 1;
-         MPI_Initialized(&init);
-         assertf(!init, "MPI was already initialized!\n");
+    // no STDLOG yet!
 
-         int ret = -1;
-         MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
-         assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
-         MPI_Comm_size(MPI_COMM_WORLD, &size);
-         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-         sprintf(NodeString,".%04d",rank);
-    #else
+    #ifdef PARALLEL
+        // Start up MPI
+        int init = 1;
+        MPI_Initialized(&init);
+        assertf(!init, "MPI was already initialized!\n");
+
+        int ret = -1;
+        MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
+        assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
+        MPI_Comm_size(MPI_COMM_WORLD, &size);
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        sprintf(NodeString,".%04d",rank);
+
+        #ifdef MULTIPLE_MPI_COMM
+
+            // By using color = 0, we indicate that all ranks belong to all comms
+            int color = 0;
+            MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_taylors);
+            MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_multipoles);
+            MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_manifest);
+            MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_global);
+
+            // The following are just sanity checks that the global rank is the same as the new-comm rank
+            int comm_rank = -1;
+            MPI_Comm_rank(comm_taylors, &comm_rank);
+            assertf(comm_rank == rank, "Taylors comm_rank = %d, rank = %d, should match!\n", comm_rank, rank);
+            MPI_Comm_rank(comm_multipoles, &comm_rank);
+            assertf(comm_rank == rank, "Multipoles comm_rank = %d, rank = %d, should match!\n", comm_rank, rank);
+            MPI_Comm_rank(comm_manifest, &comm_rank);
+            assertf(comm_rank == rank, "Manifest comm_rank = %d, rank = %d, should match!\n", comm_rank, rank);
+            MPI_Comm_rank(comm_global, &comm_rank);
+            assertf(comm_rank == rank, "Global comm_rank = %d, rank = %d, should match!\n", comm_rank, rank);
+
+        #else
+
+            comm_taylors = MPI_COMM_WORLD;
+            comm_multipoles = MPI_COMM_WORLD;
+            comm_manifest = MPI_COMM_WORLD;
+            comm_global = MPI_COMM_WORLD;
+
+        #endif
     #endif
-    return;
 }
 
 void FinalizeParallel() {
     #ifdef PARALLEL
+
+        #ifdef MULTIPLE_MPI_COMM
+
+        STDLOG(1, "MULTIPLE_MPI_COMM was used, tearing down communicators\n");
+
+        MPI_Comm_free(&comm_taylors);
+        MPI_Comm_free(&comm_multipoles);
+        MPI_Comm_free(&comm_manifest);
+        MPI_Comm_free(&comm_global);
+
+        #endif
 
         // Finalize MPI
         STDLOG(0,"Calling MPI_Finalize()\n");
@@ -281,7 +322,8 @@ void Prologue(Parameters &P, bool MakeIC) {
     STDLOG(2,"Setting up IO\n");
 
     char logfn[1050];
-    sprintf(logfn,"%s/lastrun%s.iolog", P.LogDirectory, NodeString);
+    sprintf(logfn,"%s/step%04d%s.iolog",
+        WriteState.LogDirectory, WriteState.FullStepNumber, NodeString);
     io_ramdisk_global = P.RamDisk;
     STDLOG(0,"Setting RamDisk == %d\n", P.RamDisk);
     IO_Initialize(logfn);
@@ -379,27 +421,26 @@ void Epilogue(Parameters &P, bool MakeIC) {
             }
             #endif
         }
-
         
-            WriteState.DirectsPerParticle = (double)1.0e9*NFD->gdi_gpu/P.np;
-            delete TY;
-            TY = NULL;
-            STDLOG(2,"Deleted TY\n");
-            delete RL;
-            RL = NULL;
-            delete[] SlabForceLatency;
-            SlabForceLatency = NULL;
-            delete[] SlabForceTime;
-            SlabForceTime = NULL;
-            delete[] SlabFarForceTime;
-            SlabFarForceTime = NULL;
-            if (GFC!=NULL){
-                delete GFC;
-                GFC = NULL;
-            }
-            STDLOG(2,"Done with Epilogue; about to kill the GPUs\n");
-            delete NFD;
-            NFD = NULL;
+        WriteState.DirectsPerParticle = (double)1.0e9*NFD->gdi_gpu/P.np;
+        delete TY;
+        TY = NULL;
+        STDLOG(2,"Deleted TY\n");
+        delete RL;
+        RL = NULL;
+        delete[] SlabForceLatency;
+        SlabForceLatency = NULL;
+        delete[] SlabForceTime;
+        SlabForceTime = NULL;
+        delete[] SlabFarForceTime;
+        SlabFarForceTime = NULL;
+        if (GFC!=NULL){
+            delete GFC;
+            GFC = NULL;
+        }
+        STDLOG(2,"Done with Epilogue; about to kill the GPUs\n");
+        delete NFD;
+        NFD = NULL;
     }
 
     finish_fftw();
@@ -507,35 +548,38 @@ void setup_log(){
 
     stdlog_threshold_global = P.LogVerbosity;
     char logfn[1050];
-    sprintf(logfn,"%s/lastrun%s.log", P.LogDirectory, NodeString);
+    sprintf(logfn,"%s/step%04d%s.log",
+        WriteState.LogDirectory, WriteState.FullStepNumber, NodeString);
     stdlog.open(logfn);
     STDLOG_TIMESTAMP;
     STDLOG(0, "Log established with verbosity %d.\n", stdlog_threshold_global);
 }
 
-void check_read_state(const int MakeIC, double &da){
-    // Check if ReadStateDirectory is accessible, or if we should
-    // build a new state from the IC file
+
+void load_read_state(int MakeIC){
+    // Do an initial load of the read state,
+    // basically just so we can get the step number and open the log with the right filename.
+    // We are also going to cheat and set the WriteState step number here, but we'll verify
+    // it below in InitWriteState.
+
+    // Note we don't have STDLOG yet here; any reporting about ReadState should go in check_read_state()
+
     char rstatefn[1050];
     sprintf(rstatefn, "%s/state", P.ReadStateDirectory);
 
     if(MakeIC){
-        STDLOG(0,"Generating initial State from initial conditions\n");
-
         // By this point, we should have cleaned up any old state directories
         if(access(rstatefn,0) != -1){
             QUIT("Read state file \"%s\" was found, but this is supposed to be an IC step. Terminating.\n", rstatefn);
         }
 
-        // We have to fill in a few items, just to bootstrap the rest of the code.
-
         // So that this number is the number of times forces have been computed.
         // The IC construction will yield a WriteState that is number 0,
         // so our first time computing forces will read from 0 and write to 1.
-        ReadState.ScaleFactor = 1.0/(1+P.InitialRedshift);
         ReadState.FullStepNumber = -1;
 
-        da = 0;
+        // We have to fill in a few items, just to bootstrap the rest of the code.
+        ReadState.ScaleFactor = 1.0/(1+P.InitialRedshift);
     } else {
         // We're doing a normal step
         // Check that the read state file exists
@@ -543,8 +587,24 @@ void check_read_state(const int MakeIC, double &da){
             QUIT("Read state file \"%s\" is inaccessible and this is not an IC step. Terminating.\n", rstatefn);
         }
 
-        STDLOG(0,"Reading ReadState from %s\n",P.ReadStateDirectory);
         ReadState.read_from_file(P.ReadStateDirectory);
+    }
+
+    // InitWriteState wants to use STDLOG, but we need WriteState.FullStepNumber to set up the log filename
+    // So bootstrap that here.
+    WriteState.FullStepNumber = ReadState.FullStepNumber + 1;
+    snprintf(WriteState.LogDirectory, 1024, "%s/step%04d", P.LogDirectory, WriteState.FullStepNumber);
+}
+
+void check_read_state(const int MakeIC, double &da){
+    // Check if ReadStateDirectory is accessible, or if we should
+    // build a new state from the IC file
+
+    if(MakeIC){
+        STDLOG(0,"Generating initial State from initial conditions\n");
+        da = 0;
+    } else {
+        STDLOG(0,"Read ReadState from %s\n",P.ReadStateDirectory);
         ReadState.AssertStateLegal(P);
 
         // Handle some special cases
@@ -556,10 +616,10 @@ void check_read_state(const int MakeIC, double &da){
 }
 
 // A few actions that we need to do before choosing the timestep
-void InitWriteState(int MakeIC){
+void InitWriteState(int MakeIC, const char *pipeline, const char *parfn){
     // Even though we do this in BuildWriteState, we want to have the step number
     // available when we choose the time step.
-    WriteState.FullStepNumber = ReadState.FullStepNumber+1;
+    assert(WriteState.FullStepNumber == ReadState.FullStepNumber+1);  // already did this in load_read_state()
     WriteState.LPTStepNumber = LPTStepNumber();
 
     // We generally want to do re-reading on the last LPT step
@@ -623,6 +683,8 @@ void InitWriteState(int MakeIC){
         STDLOG(1,"Overwriting multipoles and taylors\n");
     }
 
+    strcpy(WriteState.Pipeline, pipeline);
+    strcpy(WriteState.ParameterFileName, parfn);
 }
 
 
@@ -867,7 +929,7 @@ void FinalizeWriteState() {
         // TODO: Do we really want to do this?  Maybe just echo the stats to the log?
         // WriteState.write_to_file(P.WriteStateDirectory, NodeString);
 
-// #define MPI_REDUCE_IN_PLACE(vec,len,type,op) MPI_Reduce(MPI_rank!=0?(vec):MPI_IN_PLACE, vec, len, type, op, 0, MPI_COMM_WORLD)
+// #define MPI_REDUCE_IN_PLACE(vec,len,type,op) MPI_Reduce(MPI_rank!=0?(vec):MPI_IN_PLACE, vec, len, type, op, 0, comm_global)
         // Now we need to do MPI reductions for stats
         // These stats are all in double precision (or int)
         // Maximize MaxAcceleration
@@ -890,6 +952,10 @@ void FinalizeWriteState() {
         MPI_REDUCE_TO_ZERO(&WriteState.MaxL0GroupSize, 1, MPI_INT, MPI_MAX);
         // Sum WriteState.DirectsPerParticle
         MPI_REDUCE_TO_ZERO(&WriteState.DirectsPerParticle, 1, MPI_DOUBLE, MPI_SUM);
+        // sum subsample counts
+        MPI_REDUCE_TO_ZERO(&WriteState.np_subA_state, 1, MPI_INT, MPI_SUM);
+        MPI_REDUCE_TO_ZERO(&WriteState.np_subB_state, 1, MPI_INT, MPI_SUM);
+        MPI_REDUCE_TO_ZERO(&WriteState.np_lightcone, 1, MPI_LONG_LONG, MPI_SUM);
 // #undef MPI_REDUCE_IN_PLACE
 
         // Note that we're not summing up any timing or group finding reporting;
@@ -924,5 +990,19 @@ void FinalizeWriteState() {
     //     assertf(WriteState.np_subA_state == (int) ( P.ParticleSubsampleA * P.np), "Subsample A contains %d particles, expected %d.\n", WriteState.np_subA_state, (int) (P.ParticleSubsampleA * P.np) ); 
     //     assertf(WriteState.np_subB_state == (int) ( P.ParticleSubsampleB * P.np), "Subsample A contains %d particles, expected %d.\n", WriteState.np_subB_state, (int) (P.ParticleSubsampleB * P.np) ); 
     // }
+
+
+    // If we're writing lightcones, we only want the header to be written once
+    // But a-priori there's no good way to know which nodes/slabs will have LC particles,
+    // Now that we've done the reduction, we know if any LC particles were written, thus rank 0 can write the header
+    if(WriteState.np_lightcone && MPI_rank == 0){
+        char dir[32];
+        sprintf(dir, "Step%04d", ReadState.FullStepNumber);
+        
+        std::string headerfn = "";
+        headerfn = headerfn + P.LightConeDirectory + "/" + dir + "/header";
+        LightCone::WriteHeaderFile(headerfn.c_str());
+    }
+
     return;
 }

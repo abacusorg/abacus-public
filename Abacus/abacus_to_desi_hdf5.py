@@ -33,6 +33,14 @@ class Converter:
         ds = kwargs['ds']
         dtype = kwargs.pop('dtype')
 
+        # Hacky workaround to pack9 quirk
+        if np.dtype(dtype) == np.float32:
+            dtype = np.float32
+        elif np.dtype(dtype) == np.float64:
+            dtype = np.float64
+        else:
+            raise ValueError(dtype)
+
         read_args = dict(format=format, dtype=dtype, return_vel=True, return_pid=True, return_header=True, return_fn=True, verbose=True)
         if ds and ds > 1:
             read_args['return_zel'] = True

@@ -218,6 +218,8 @@ class ContextTimer(contexttimer.Timer):
     '''
     A simple extension to the contexttimer lib that adds
     the `cumulative` keyword arg.
+
+    TODO: rewrite
     '''
     
     def __init__(self, *args, cumulative=False, **kwargs):
@@ -236,11 +238,23 @@ class ContextTimer(contexttimer.Timer):
             # The time from the most recent loop gets added to the cumulative time
             self.cumulative_time += self.end - self.start
         return super(ContextTimer, self).__enter__()
-        
+
     @property
     def elapsed(self):
         last_time = super(ContextTimer, self).elapsed
         return self.cumulative_time*self.factor + last_time
+
+    def Start(self):
+        self.__enter__()
+
+    def stop(self, report=True):
+        _output = self.output
+        self.output=report
+        self.__exit__(None,None,None)
+        self.output=_output
+
+    def report(self, **kwargs):
+        print(" ".join([self.prefix, self.fmt.format(self.elapsed)]), **kwargs)
 
 def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03, adaptive=False, **scatter_kwargs):
     '''

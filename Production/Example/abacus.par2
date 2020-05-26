@@ -1,6 +1,6 @@
 # Set up the simulation name and directory structure
 SimName = "example"
-#include "$ABACUS$/Abacus/directory.def"
+#include "$ABACUS$/Production/directory.def"
 #include "$ABACUS$/Production/site_files/site.def"
 
 # Cosmology and basic code parameters
@@ -60,7 +60,7 @@ sigma_8 = .817
 #ZD_Pk_sigma = @sigma_8@/(1+@InitialRedshift@)  # This will be calculated from sigma_8
 ZD_Seed = 12345
 ZD_qPLT = 1
-ZD_PLT_filename = "$ABACUS$/zeldovich-PLT/eigmodes128"
+ZD_PLT_filename = @ZeldovichDirectory@+"/eigmodes128"
 ZD_qPLT_rescale = 1
 ZD_PLT_target_z = 5
 ZD_k_cutoff = 1.

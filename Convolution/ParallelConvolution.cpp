@@ -411,7 +411,6 @@ void ParallelConvolution::LoadDerivatives(int z) {
 
 /* =========================  MPI Multipoles ================== */
 
-
 /// Launch the CPD MPI_Irecv jobs.
 /// Call this when the first slab is being finished.
 /// We need to know the slabs that will be computed on each node.
@@ -429,7 +428,7 @@ void ParallelConvolution::RecvMultipoleSlab(int first_slab_finished) {
 			// We're receiving the full range of z's in each transfer.
 			// Key thing is to route this to the correct x location
 			MPI_Irecv(MTdisk + x * this_node_size, this_node_size,
-			    MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Mrecv_requests[x]);
+			    MPI_COMPLEX, r, tag, comm_multipoles, &Mrecv_requests[x]);
 	    }
 	}
 	STDLOG(2,"MPI_Irecv set for incoming Multipoles\n");
@@ -448,7 +447,7 @@ void ParallelConvolution::SendMultipoleSlab(int slab) {
 	Msend_active++;
 	for (int r = 0; r < MPI_size; r++) {
 		int tag = (r+1) * 10000 + slab + M_TAG; 
-		MPI_Issend(mt + node_start[r], node_size[r], MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Msend_requests[slab][r]);		
+		MPI_Issend(mt + node_start[r], node_size[r], MPI_COMPLEX, r, tag, comm_multipoles, &Msend_requests[slab][r]);		
 	}
     MsendTimer[slab].Start();
 	STDLOG(2,"Multipole slab %d has been queued for MPI_Issend, Msend_active = %d\n", slab, Msend_active);
@@ -571,7 +570,7 @@ void ParallelConvolution::SendTaylors(int offset) {
 	
 		int tag = (MPI_rank+1) * 10000 + slab + T_TAG; 
 		
-		MPI_Issend(MTdisk + slab * this_node_size, this_node_size, MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Tsend_requests[slab]);
+		MPI_Issend(MTdisk + slab * this_node_size, this_node_size, MPI_COMPLEX, r, tag, comm_taylors, &Tsend_requests[slab]);
 		STDLOG(3,"Taylor slab %d has been queued for MPI_Issend to rank %d, offset %d\n", slab, r, offset);
 	}
 	STDLOG(2, "MPI_Issend set for outgoing Taylors.\n");
@@ -590,7 +589,7 @@ void ParallelConvolution::RecvTaylorSlab(int slab) {
 	Trecv_active++; 
 	for (int r = 0; r < MPI_size; r++) {
 		int tag = (r+1) * 10000 + slab + T_TAG; 
-		MPI_Irecv(mt + node_start[r], node_size[r], MPI_COMPLEX, r, tag, MPI_COMM_WORLD, &Trecv_requests[slab][r]);
+		MPI_Irecv(mt + node_start[r], node_size[r], MPI_COMPLEX, r, tag, comm_taylors, &Trecv_requests[slab][r]);
 		
 		
 	}

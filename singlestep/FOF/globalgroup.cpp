@@ -96,7 +96,9 @@ inline CellGroup *LinkToCellGroup(LinkID link) {
     // For this LinkID, return a pointer to the matching CellGroup
     integer3 c = link.cell();
     assertf(GFC->cellgroups_status[c.x] == 1, "Failed to find cellgroup in slab %d with status %d\n", c.x, GFC->cellgroups_status[c.x]);
-    return GFC->cellgroups[c.x][c.y][c.z].ptr(link.cellgroup());
+    CellGroup *ret = GFC->cellgroups[c.x][c.y][c.z].ptr(link.cellgroup());
+    assertf(ret != NULL, "Bad LinkToCellGroup?\n");
+    return ret;
 }
 
 
@@ -287,7 +289,7 @@ void GlobalGroupSlab::IndexLinks() {
 
     GFC->IndexLinks.Start();
     // GFC->GLL->AsciiPrint();
-    links = (LinkPencil **)malloc(sizeof(LinkPencil *)*diam);
+    links = new LinkPencil*[diam];
 
     // int cpdpad = (cpd/8+1)*8;   // A LinkIndex is 8 bytes, so let's get each pencil onto a different cacheline
     int cpdpad = cpd;
@@ -371,6 +373,8 @@ void GlobalGroupSlab::DeferGlobalGroups() {
                         if (!(thiscg->is_open())) { searching++; continue; }
 
                         int s = GFC->WrapSlab(thiscell.x-slab+slabbias);  // Map to [0,diam)
+                        assertf(s < diam, "GroupLink points to slab offset %d which violates GroupDiameter %d.  Likely need to increase GroupRadius! (slab,j,k,t = %d,%d,%d,%d)\n",
+                            s, diam, slab, j, k, t);
                         LinkPencil *lp = links[s]+thiscell.y;
 
                         // Loop over the links that leave from this cell
@@ -487,25 +491,26 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                         // }
                         // Now get these links
                         int s = GFC->WrapSlab(thiscell.x-slab+slabbias);  // Map to [0,diam)
+                        assertf(s < diam, "GroupLink points to slab offset %d which violates GroupDiameter %d.  Likely need to increase GroupRadius! (slab,j,k,g = %d,%d,%d,%d)\n",
+                            s, diam, slab, j, k, g);
                         LinkPencil *lp = links[s]+thiscell.y;
                         // Keep track of the maximum slab accessed
                         max_group_diameter = std::max(max_group_diameter, s);
-                        // TODO: This variable name shadows an earlier one
-                        GroupLink *g; int t;
-                        for (g = lp->data + lp->cells[thiscell.z].start, t = 0;
-                                t<lp->cells[thiscell.z].n; t++, g++) {
+                        GroupLink *gl; int t;
+                        for (gl = lp->data + lp->cells[thiscell.z].start, t = 0;
+                                t<lp->cells[thiscell.z].n; t++, gl++) {
                             // Consider all the links from this cell
-                            if (g->a.id == cglist[searching].id) {
+                            if (gl->a.id == cglist[searching].id) {
                                 // This link originates from the group we're using
                                 // But now we need to check if its destination
                                 // is already on the list.
                                 uint64 seek = 0;
                                 while (seek<cglist.size()) 
-                                    if (g->b.id == cglist[seek++].id) goto FoundIt;
-                                cglist.push_back(g->b);  // Didn't find it; add to queue
+                                    if (gl->b.id == cglist[seek++].id) goto FoundIt;
+                                cglist.push_back(gl->b);  // Didn't find it; add to queue
                                 FoundIt:
                                 // Either way, this link has been used its one time.
-                                g->mark_for_deletion();
+                                gl->mark_for_deletion();
                             }
                         } // Done with the links from this cell
                         searching++;  // Ready for the next unresolved cellgroup
@@ -519,16 +524,16 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                         // We're going to sort the cellgroup list, so that
                         // multiple groups within one cell are contiguous
                         // But there's no point in doing this unless there are 3+ CG.
-                        /*
                         if (cglist.size()>2) {
                             std::sort(cglist.data(), cglist.data()+cglist.size());
+                            /*
                             for (uint64 t = 1; t<cglist.size(); t++) 
                                 assertf(cglist[t-1].id <= cglist[t].id,
                                     "Failed to sort propertly: %lld > %lld\n", 
                                         cglist[t-1].id,
                                         cglist[t].id);
+                            */
                         }
-                        */
 
                         for (uint64 t = 0; t<cglist.size(); t++) {
                             //integer3 tmp = cglist[t].cell();
@@ -564,7 +569,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
     // Free the indexing space
     free(cells);
     free(links[0]);
-    free(links);
+    delete[] links;
     GFC->FindGlobalGroupTime.Stop();
 
     #ifdef ONE_SIDED_GROUP_FINDING
@@ -869,10 +874,10 @@ void GlobalGroupSlab::FindSubGroups() {
 
     #pragma omp parallel for schedule(static,1)
     for (int g=0; g<maxthreads; g++) {
-        L1pos[g] = (posstruct *)malloc(sizeof(posstruct)*largest_group);
-        L1vel[g] = (velstruct *)malloc(sizeof(velstruct)*largest_group);
-        L1aux[g] = (auxstruct *)malloc(sizeof(auxstruct)*largest_group);
-        L1acc[g] = (accstruct *)malloc(sizeof(accstruct)*largest_group);
+        L1pos[g] = new posstruct[largest_group];
+        L1vel[g] = new velstruct[largest_group];
+        L1aux[g] = new auxstruct[largest_group];
+        L1acc[g] = new accstruct[largest_group];
     }
 
     // It seems that the work between pencils is so heterogeneous that even the
@@ -1160,10 +1165,10 @@ void GlobalGroupSlab::FindSubGroups() {
     for (int g=0; g<omp_get_max_threads(); g++) {
         FOFlevel1[g].destroy();
         FOFlevel2[g].destroy();
-        free(L1pos[g]);
-        free(L1vel[g]);
-        free(L1aux[g]);
-        free(L1acc[g]);
+        delete[] L1pos[g];
+        delete[] L1vel[g];
+        delete[] L1aux[g];
+        delete[] L1acc[g];
     }
     delete[] L1pos;
     delete[] L1vel;

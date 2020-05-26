@@ -2,7 +2,8 @@
  *  and writes them back out.
  */
  
- #include "proepi.cpp"
+#include "proepi.cpp"
+#include "timestep_benchmark_io.cpp"
  
  int main(int argc, char **argv) {
     WallClockDirect.Start();

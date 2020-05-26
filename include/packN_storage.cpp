@@ -379,6 +379,7 @@ class packN{
 using pack14 = packN<14>;
 using pack9 = packN<9>;
 
+
 #ifdef TEST
 // Here's a program to check the bit-packing
 #include <stdlib.h>

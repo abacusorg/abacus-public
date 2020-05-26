@@ -2,7 +2,7 @@
 SimName = "spiral"
 #include "$ABACUS$/Tests/test.def"
 #include "$ABACUS$/Production/site_files/site.def"
-#include "$ABACUS$/Abacus/directory.def"
+#include "$ABACUS$/Production/directory.def"
 
 Parallel = 0
 
@@ -21,3 +21,5 @@ AllowGroupFinding = 0
 CPD = 65
 
 Omega_Smooth = 0.3
+
+ExternalICs = 1

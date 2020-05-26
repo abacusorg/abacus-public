@@ -169,6 +169,7 @@ public:
     int MinL1HaloNP; // minimum L1 halo size to output
 	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
     float SO_RocheCoeff; 
+    float SO_alpha_eligible;   // New centers must be outside alpha*R_Delta
     float SO_NPForMinDensity; 
     int SO_EvolvingThreshold; //allow evolving (redshift-dependent) density threshold 
 
@@ -434,6 +435,8 @@ public:
 
         SO_RocheCoeff = 2.0; 
         installscalar("SO_RocheCoeff", SO_RocheCoeff, DONT_CARE);
+        SO_alpha_eligible = 0.8; 
+        installscalar("SO_alpha_eligible", SO_alpha_eligible, DONT_CARE);
         SO_NPForMinDensity = 35.0; 
         installscalar("SO_NPForMinDensity", SO_NPForMinDensity, DONT_CARE);
         SO_EvolvingThreshold = 1; 

@@ -9,19 +9,18 @@ To use the fast pack14 reader, you'll need to build the underlying
 library with
 `$ make analysis`
 from the top level Abacus directory.  Or just build all of Abacus.
-The alternative is to use the slow `read_pack14_lite()` function.
+The alternative is to use the slower `read_pack14_lite()` function.
 Todo:
 - Unit conversion options
 - native ctypes float3* instead of void* (or CFFI?)
 - inline particle downsampling
-- automatic globbing patterns for a given file format
 - standardize return signatures
 """
 
 import os
-import os.path as ppath
-from os.path import join as pjoin, basename, dirname
+from os.path import join as pjoin, basename, dirname, isdir, isfile, getsize
 from glob import glob
+import ctypes
 import ctypes as ct
 import re
 import threading
@@ -30,8 +29,8 @@ from warnings import warn
 
 import numpy as np
 import numba
-
-import ctypes
+import asdf
+from astropy.table import Table
 
 from .InputFile import InputFile
 from .Tools import ndarray_arg, asciistring_arg
@@ -40,9 +39,10 @@ from .Tools import wrap_zero_centered, wrap_zero_origin
 
 def read(*args, **kwargs):
     """
-    A convenience function to read particle data from
-    file type `format`.  Simply calls
+    A convenience function to read one file's particle data
+    from file type `format`.  Simply calls
     the appropriate `read_[format]()` function.
+
     `format` may also be a function that accepts a filename
     and returns the particle data.
     For usage, see the docstring of the reader
@@ -59,11 +59,15 @@ def read(*args, **kwargs):
     original_return_header = kwargs.get('return_header')
     kwargs['return_header'] = True
 
-    try:
-        ret = reader_functions[format](*args, **kwargs)
-    except KeyError:
-        # Try calling format as a function
-        ret = format(*args, **kwargs)
+    if callable(format):
+        reader_func = format
+    else:
+        try:
+            reader_func = reader_functions[format]
+        except KeyError:
+            raise ValueError(f'Unknown format "{format}"')
+
+    ret = reader_func(*args, **kwargs)
 
     if type(ret) is tuple:  # unambiguous way to unpack this?
         data, header = ret
@@ -90,7 +94,8 @@ def read(*args, **kwargs):
 
 def from_dir(dir, pattern=None, key=None, **kwargs):
     """
-    Read all files from `dir` that match `pattern`.
+    Read all files from `dir` that match `pattern`.  If a pattern
+    is not given, one will be inferred from `format`.
     
     Parameters
     ----------
@@ -115,37 +120,19 @@ def from_dir(dir, pattern=None, key=None, **kwargs):
     header: InputFile, optional
         If `return_header` and a header is found, return parsed InputFile
     """
-    if pattern is None:
-        if is_ic_path(dir):
-            pattern = 'ic_*'
-        else:
-            format = kwargs.get('format')
-            pattern = get_file_patterns(format)
 
-    _key = (lambda k: key(ppath.basename(k))) if key else None
-    files = []
+    if not isdir(dir):
+        raise ValueError(f'Path "{dir}" was passed to from_dir() but it is not a directory')
 
-    if type(pattern) is str:
-        pattern = (pattern,)
-        
-    for p in pattern:
-        files += glob(pjoin(dir, p))
-    files = sorted(files, key=_key)
+    files = get_files_from_path(dir, pattern=pattern, key=key, **kwargs)
 
     return read_many(files, **kwargs)
 
 
-def read_many(files, format='pack14', separate_fields=False, **kwargs):
+def read_many(files, format='pack14', **kwargs):
     """
     Read a list of files into a contiguous array.
-    Our files are usually written as something like float6, where
-    pos and vel are interwoven.  If one wants to de-interlave them
-    into separate arrays, one can use the `separate_fields` arg.
-    The reader functions don't know about this, so they'll still
-    return one big array.  But then this function can split the
-    fields.  This results in some small extra memory usage and
-    time spent copying.  But it's granular at the level of the
-    individual file sizes.
+
     Parameters
     ----------
     files: list of str
@@ -153,23 +140,18 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
     format: str
         The file format. Specifies the reader function.
         TODO: if format is a function, need to guess alloc_NP
-    separate_fields: bool, optional
-        Split the (e.g.) pos and vel fields of the contiguous array returned
-        by the reader function into two separate, contiguous arrays.
-        Default: False.
     kwargs: dict, optional
         Additional args to pass to the reader function.
+
     Returns
     -------
-    particles: ndarray or dict of ndarray
-        The concatenated particle array, or a dict of arrays if `separate_fields`.
-    header: InputFile, optional
-        If `return_header` and a header is found, return parsed InputFile
+    particles: Astropy table
+        The concatenated particle table
     """
 
     # Allocate enough space to hold the concatenated particle array
-    assert files
-    total_fsize = sum(ppath.getsize(fn) for fn in files)
+    if not files:
+        raise ValueError("No files passed to read_many()!")
     
     # State has multiple 'psize_on_disk' values
     format = format.lower()
@@ -182,75 +164,57 @@ def read_many(files, format='pack14', separate_fields=False, **kwargs):
     _format = format
     if _format == 'state' and kwargs.pop('dtype_on_disk', np.float32) == np.float64:
         _format = 'state64'
-    alloc_NP = get_np_from_fsize(total_fsize, format=_format, downsample=kwargs.get('downsample'))
+    alloc_NP = get_alloc_np(files, format=_format, downsample=kwargs.get('downsample'))
     outdt = output_dtype(**kwargs)
     
-    if separate_fields:
-        # One array per dtype field
-        particle_arrays = {}
-        for field in outdt.descr:
-            particle_arrays[field[0]] = np.empty(alloc_NP, dtype=field[1:])
-    else:
-        particles = np.empty(alloc_NP, dtype=outdt)
+    particles = Table()
+    for field in outdt.descr:
+        particles.add_column(np.empty(alloc_NP, dtype=field[1:]), copy=False, name=field[0])
     
     return_header = kwargs.get('return_header', False)
-    
+    header = None
+
     start = 0
     for fn in files:
-        if separate_fields:
-            read_into = None
-        else:
-            read_into = particles[start:]
-        out = read(fn, format=format, out=read_into, **kwargs)
+        out = read(fn, format=format, out=particles[start:], **kwargs)
 
-        if separate_fields:
-            if return_header:
-                out, header = out
-            NP = len(out)
-            # Now split the array
-            for field in outdt.descr:
-                particle_arrays[field[0]][start:start+NP] = out[field[0]]
-            del out
+        if hasattr(particles,'meta'):
+            header = particles.meta
+            NP = out
+        elif return_header:
+            NP, header = out
         else:
-            if return_header:
-                NP, header = out
-            else:
-                NP = out
-
+            NP = out
         start += NP
 
     # Shrink the array to the size that was actually read
-    if separate_fields:
-        for field in particle_arrays:
-            particle_arrays[field] = particle_arrays[field][:start]
+    particles = particles[:start]
+    if header:
+        particles.meta.update(header)
 
-        if return_header:
-            return particle_arrays, header  # return header associated with last file
-        return particle_arrays
-    else:
-        particles = particles[:start]
-        if return_header:
-            return particles, header  # return header associated with last file
-    
-        return particles
+    return particles
 
 
 def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=False, return_fn=False, **kwargs):
     '''
     This is a generator that reads files in a separate thread in the background,
     yielding them one at a time as they become available.
+
     The intended usage is:
     ```
     for chunk_of_particles in AsyncReader('/slice/directory'):
         process(chunk_of_particles)
     ```
+
     The next file will be read in the background while `process` is running.  For code
     that only needs a small chunk of the simulation in memory at a time, this will run
     faster and use less memory.
+
     The amount of readahead is configurable to ensure one doesn't run out of memory.
     In order to overlap compute and IO, the IO code must release the GIL.  Since np.fromfile()
     does that, most of our readers do that as well.  pack14 doesn't use fromfile, but ctypes
     also releases the GIL.
+
     Parameters
     ----------
     path: str or list of str
@@ -272,35 +236,11 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=False, return_
         Extra arguments to be passed to `read` or `read_many`.
     '''
 
-    assert chunksize == 1, "chunksize > 1 not yet implemented"
+    if chunksize != 1:
+        raise NotImplementedError("chunksize > 1 not yet implemented")
 
-    _key = (lambda k: key(ppath.basename(k))) if key else None
-
-
-    # First, determine the file names to read
-
-    if type(path) is str:
-        if ppath.isdir(path):
-            if is_ic_path(path):
-                pattern = 'ic_*'
-            else:
-                pattern = get_file_patterns(kwargs.get('format'))
-            if type(pattern) is str:
-                pattern = (pattern,)
-
-            files = []
-            for p in pattern:
-                files = sorted(glob(pjoin(path, p)), key=_key)
-        elif ppath.isfile(path):
-            files = [path]
-        else:
-            # Not a dir and not a file; interpret as a glob pattern
-            files = sorted(glob(path), key=_key)
-    else:
-        # Already a list?
-        files = path
-
-    assert files, f'No files found matching "{path}"!'
+    format = kwargs.pop('format')
+    files = get_files_from_path(path, format=format)
 
     NP = 0
     if readahead < 0:
@@ -310,7 +250,6 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=False, return_
     def reader_loop():
         nonlocal NP
         reader_kwargs = kwargs.copy()
-        format = reader_kwargs.pop('format')
 
         Nfn = len(files)
 
@@ -413,8 +352,7 @@ def read_pack14(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fal
     if out is not None:
         _out = out
     else:  # or allocate one
-        fsize = ppath.getsize(fn)
-        alloc_NP = get_np_from_fsize(fsize, format='pack14', downsample=downsample)
+        alloc_NP = get_alloc_np(fn, format='pack14', downsample=downsample)
         ndt = output_dtype(return_vel=return_vel, return_pid=return_pid, dtype=dtype)
         _out = np.empty(alloc_NP, dtype=ndt)
 
@@ -493,8 +431,8 @@ def read_pack9(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fals
     except NameError:
         raise RuntimeError("pack9 C library was not found. Try building Abacus with 'make analysis'?")
     readers = {np.float32: ralib.read_pack9f,
-               np.float64: ralib.read_pack9 }
-    assert dtype in readers
+               np.float64: ralib.read_pack9  }
+    assert any(dtype == k for k in readers)
     
     with open(fn, 'rb') as fp:
         header = skip_header(fp)
@@ -506,8 +444,7 @@ def read_pack9(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fals
     if out is not None:
         _out = out
     else:  # or allocate one
-        fsize = ppath.getsize(fn)
-        alloc_NP = get_np_from_fsize(fsize, format='pack9', downsample=downsample)
+        alloc_NP = get_alloc_np(fn, format='pack9', downsample=downsample)
         ndt = output_dtype(return_vel=return_vel, return_pid=return_pid, dtype=dtype)
         _out = np.empty(alloc_NP, dtype=ndt)
 
@@ -520,6 +457,15 @@ def read_pack9(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fals
 
     readers[dtype].argtypes = [ctypes.c_char_p, ctypes.c_size_t, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_double, ctypes.c_double, ctypes.c_void_p] 
     NP = readers[dtype](bytes(fn, encoding='utf-8'), offset, ramdisk, return_vel, zspace, return_pid, downsample, 0, _out.view(dtype=dtype).ctypes.data_as(ctypes.POINTER(ctypes.c_void_p)))
+
+    # The pack9 C reader doesn't load PIDs, but we can do that directly
+    if return_pid:
+        i = fn.rfind('pack9')
+        if i != -1:
+            pidfn = fn[:i+5] + '_pids' + fn[i+5:]
+        else:
+            pidfn = fn + '_pids'
+        _out['pid'][:NP] = np.fromfile(pidfn, dtype=np.int64)
 
    # shrink the buffer to the real size
     if out is None:
@@ -537,52 +483,58 @@ def read_pack9(fn, ramdisk=False, return_vel=True, zspace=False, return_pid=Fals
     return retval
 
 
-def rvint_unpack(data):
-    velscale = 6000.0/2048.0
-    posscale = 2.0**(-32.0)
+def _unpack_rvint(intdata, float_dtype=np.float32, posout=None, velout=None):
+    assert intdata.dtype == np.int32
+    velscale = float_dtype(6000./2048)
+    posscale = float_dtype((2.**-12.)/1e6)
 
-    iv = (data&0xfff).astype(int)
-    ix = (data-iv).astype(int)
-    pos = posscale*ix 
-    vel = velscale*(iv - 2048)
+    # TODO: this uses two passes; check speed. Easy to write one-pass version in Numba.
+    iv = intdata&0xfff
+    intdata &= 0xfffff000  # in-place for efficiency
+    ix = intdata;  del intdata  # name swap
+    assert(ix.dtype == np.int32 and iv.dtype == np.int32)  # just for sanity
+
+    if posout is None:
+        posout = posscale*ix
+    else:
+        posout[:] = posscale*ix
+    
+    if velout is None:
+        velout = velscale*(iv - 2048)
+    else:
+        velout[:] = velscale*(iv - 2048)
   
-    return pos, vel
+    return posout, velout
 
 
 def read_rvint(fn, return_vel = True, return_pid=False, zspace=False, dtype=np.float32, out=None, return_header=False, double=False, tag=False,  downsample=None):
+    if return_pid:
+        raise NotImplementedError  # comes from different file
 
-    disk_base_dt = np.int32 
-    disk_dt = [('pv',disk_base_dt,3)]
-
-    print("Reading rvint from ", fn)
+    disk_dt = np.int32
 
     with open(fn, 'rb') as fp:
         header = skip_header(fp)
         if header:
             header = InputFile(str_source=header)
-        data = np.fromfile(fp, dtype=disk_dt)
-    
-    data = np.array([list(triplet) for line in data for triplet in line])
+        data = np.fromfile(fp, dtype=disk_dt).reshape(-1,3)
 
-    state = InputFile(pjoin(ppath.dirname(fn), 'header'))
+    state = InputFile(pjoin(dirname(fn), 'header'))
 
     # Use the given buffer
     if out is not None:
-        _out = out  
+        _out = out
+    else:
+        alloc_NP = get_alloc_np(fn, format='rvint', downsample=downsample)
+        ndt = output_dtype(return_vel=return_vel, return_pid=return_pid, dtype=dtype)
+        _out = np.empty(alloc_NP, dtype=ndt)
+    # Know the final size right away
+    _out = _out[:len(data)]
 
-    pos = np.zeros([len(data), 3]) 
-    vel = np.zeros([len(data), 3])
-
-    pos, vel = rvint_unpack(data) 
-
-    _out['pos'][:len(data)] = pos
+    _unpack_rvint(data, dtype=dtype, posout=_out['pos'], velout=_out['vel'] if return_vel else None)
 
     if zspace:
-        pos[:,0] += vel[:,0] / state['VelZSpace_to_kms'] # km/s * s Mpc/km /Mpc --> dimensionless box units. 
-        _out['pos'][:len(data)] = pos
-
-    if return_vel:
-        _out['vel'][:len(data)] = vel
+        _out['pos'][:,0] += _out['vel'][:,0] / state['VelZSpace_to_kms']  # km/s * s Mpc/km /Mpc --> dimensionless box units. 
 
     retval = (_out,) if out is None else (len(data),)
     if return_header:
@@ -721,7 +673,7 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
     else:
         # Look for a file named 'header'
         try:
-            header = InputFile(fn=pjoin(ppath.dirname(fn), 'header'))
+            header = InputFile(fn=pjoin(dirname(fn), 'header'))
         except:
             header = None
 
@@ -782,7 +734,7 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
     
 def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
                 return_pid='auto', return_aux=False, return_vel='auto', return_pos='auto', return_header=False,
-                pid_bitmask=0x7fff7fff7fff, out=None):
+                pid_bitmask=0x7fff7fff7fff, out=None, zspace=False, boxsize=None):
     """
     Read an Abacus position or velocity state file (like 'read/position_0000').
     
@@ -819,15 +771,18 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
     NP: int
         If `out` is given, returns the number of rows read into `out`.
     """
-    basename = ppath.basename(fn)
+    base = basename(fn)
     if return_pos == 'auto':
-        return_pos = 'position' in basename
+        return_pos = 'position' in base
     if return_vel == 'auto':
-        return_vel = 'velocity' in basename
+        return_vel = 'velocity' in base
     if return_pid == 'auto':
-        return_pid = 'auxillary' in basename 
+        return_pid = 'auxillary' in base 
     if make_global == 'auto':
-        make_global = 'position' in basename
+        make_global = 'position' in base
+
+    if zspace:
+        raise NotImplementedError
         
     # cellinfo dtype
     ci_dtype = np.dtype([('startindex',np.uint64),
@@ -842,21 +797,20 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
 
     if return_header:
         try:
-            state = InputFile(pjoin(ppath.dirname(fn), 'state'))
+            state = InputFile(pjoin(dirname(fn), 'state'))
         except FileNotFoundError:
             state = None
     
     # Count the particles to read in
-    fsize = ppath.getsize(pos_fn)
     _format = {np.float32:'state', np.float64:'state64'}[dtype_on_disk]
-    NP = get_np_from_fsize(fsize, format=_format)
+    NP = get_alloc_np(pos_fn, format=_format)
     
     # Use the given buffer
     if out is not None:
         particles = out
     else:  # or allocate one
-        ndt = output_dtype(return_vel=return_vel, return_pid=return_pid, dtype=dtype)
-        particles = np.empty(alloc_NP, dtype=ndt)
+        ndt = output_dtype(return_vel=return_vel, return_pid=return_pid, return_aux=return_aux, dtype=dtype)
+        particles = np.empty(NP, dtype=ndt)
     del fn
     
     if return_pos:
@@ -881,11 +835,13 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
                 
     if return_vel:
         particles['vel'][:NP] = np.fromfile(vel_fn, dtype=(dtype_on_disk, 3))
-    if return_pid:
-        particles['pid'][:NP] = np.fromfile(aux_fn, dtype=np.uint64)
-        particles['pid'][:NP] &= pid_bitmask
     if return_aux:
         particles['aux'][:NP] = np.fromfile(aux_fn, dtype=np.uint64)
+    if return_pid:
+        if return_aux:
+            particles['pid'][:NP] = particles['aux'][:NP] & pid_bitmask
+        else:
+            particles['pid'][:NP] = np.fromfile(aux_fn, dtype=np.uint64) & pid_bitmask
             
     if out is not None:
         particles = NP
@@ -949,8 +905,7 @@ def read_pack14_lite(fn, return_vel=True, return_pid=False, return_header=False,
         outdt = out.dtype
     # or allocate one
     else:
-        fsize = ppath.getsize(fn)
-        alloc_NP = get_np_from_fsize(fsize, format='pack14')
+        alloc_NP = get_alloc_np(fn, format='pack14')
         outdt = output_dtype(return_vel=return_vel, return_pid=return_pid, dtype=dtype)
         _out = np.empty(alloc_NP, dtype=outdt)
     
@@ -1012,6 +967,83 @@ def read_desi_hdf5(fn, **kwargs):
     return data
 
 
+def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', return_pid='auto', dtype=np.float32,
+                load_header=True, **kwargs):
+    '''
+    ASDF format used with AbacusCosmos.  This interface is designed for the scenario where
+    the distinction between halo and field is unimportant.  For halo-ortiented access, use
+    abacus_halo_catalog.
+
+    TODO: maybe this can be our "backdoor pilot" to converting ReadAbacus to astropy tables
+    '''
+
+    base = basename(fn)
+    if return_pos == 'auto':
+        return_pos = 'rv' in base
+    if return_vel == 'auto':
+        return_vel = 'rv' in base
+    if return_pid == 'auto':
+        return_pid = 'pid' in base
+
+    if return_pid:
+        raise NotImplementedError('pid reading not finished')
+
+    asdf_data_key = kwargs.get('asdf_data_key','data')
+    asdf_header_key = kwargs.get('asdf_data_key','header')
+
+    import asdf.compression
+    try:
+        asdf.compression.validate('blsc')
+    except:
+        # Note: this is a temporary solution until blosc is integrated into ASDF, or until we package a pluggable decompressor
+        raise RuntimeError('Error: your ASDF installation does not support Blosc compression.  Please clone https://github.com/lgarrison/asdf and install with "cd asdf; pip install ."')
+
+    from . import abacus_halo_catalog
+    import astropy.table
+
+    with asdf.open(fn, lazy_load=True, copy_arrays=True) as af:
+        if colname is None:
+            _colnames = ['rvint', 'pack9', 'packedpid']
+            for cn in _colnames:
+                if cn in af.tree[asdf_data_key]:
+                    if colname is not None:
+                        raise ValueError(f"More than one key of {_colnames} found in asdf file {fn}. Need to specify colname!")
+                    colname = cn
+            if colname is None:
+                raise ValueError(f"Could not find any of {_colnames} in asdf file {fn}. Need to specify colname!")
+
+        header = af.tree[asdf_header_key]
+
+        data = af.tree['data'][colname]
+
+        maxN = len(data)
+        if out is not None:
+            _out = out
+            if load_header:
+                out.meta.update(header)
+        else:
+            _out = astropy.table.Table(meta=header)
+            if return_pos:
+                _out.add_column(np.empty((maxN,3), dtype=dtype), copy=False, name='pos')
+            if return_vel:
+                _out.add_column(np.empty((maxN,3), dtype=dtype), copy=False, name='vel')
+
+        if colname == 'rvint':
+            _posout = _out['pos'] if return_pos else False
+            _velout = _out['vel'] if return_vel else False
+            npos,nvel = abacus_halo_catalog.unpack_rvint(data, header['BoxSize'], float_dtype=dtype, posout=_posout, velout=_velout)
+            nread = max(npos,nvel)
+        elif colname == 'pack9':
+            raise NotImplementedError('pack9 via asdf not yet implemented')
+        elif colname == 'packedpid':
+            justpid, lagr_pos, tagged, density = abacus_halo_catalog.unpack_pids(data, header['BoxSize'], header['ppd'])
+
+        if out is not None:
+            return nread
+        else:
+            return _out
+
+
 ##############################
 # End list of reader functions
 ##############################
@@ -1046,7 +1078,6 @@ def skip_header(fp, max_tries=10, encoding='utf-8'):
     header: str
         The skipped header, if one is found.
     """
-    fsize = ppath.getsize(fp.name)
     fpstart = fp.tell()
     
     # Specify that the header must end on a 4096 byte boundary
@@ -1112,18 +1143,51 @@ try:
         f.restype = ct.c_uint64
         f.argtypes = (asciistring_arg, ct.c_size_t, ct.c_int, ct.c_int, ct.c_int, ct.c_int, ct.c_double, ndarray_arg)
 except (OSError, ImportError):
-    raise
+    #raise
     pass  # no pack14 library found
 
 
-# An UPPER LIMIT on the number of particles in a file, based on its size on disk and downsampling rate
-def get_np_from_fsize(fsize, format, downsample=None):
 
+
+def get_alloc_np(fns, format, downsample=None):
+    '''An upper limit on the number of particles in a file,
+        based on its header information or size on disk,
+        accounting for downsampling'''
+    format = format.lower()
+
+    if type(fns) is str:
+        fns = (fns,)
+
+    # If reading ASDF files, can use the YAML info
+    if 'asdf' in format:
+        if downsample:
+            raise NotImplementedError("ASDF downsampling not yet implemented")
+        asdf_data_key = 'data'
+        Ntot = 0
+        for fn in fns:
+            with asdf.open(fn, lazy_load=True) as af:
+                N = None
+                for col in af.tree[asdf_data_key]:
+                    _N = len(af.tree[asdf_data_key][col])
+                    if N is None:
+                        N = _N
+                    else:
+                        if _N != N:
+                            # Could allow colname specification, but this should suffice for now
+                            raise ValueError(f'Columns of different length found in ASDF data tree: {_N} and {N}')
+            Ntot += N
+        return Ntot
+
+    # For ordinary files, need to guess based on filesize
+    if format not in psize_on_disk:
+        raise ValueError(f'Particle size on disk not known for {format}')
+
+    fsize = sum(getsize(fn) for fn in fns)
     ds = 1. if downsample is None else downsample
 
     ds = max(min(1.,ds),0.)  # clip to [0,1]
 
-    N = float(fsize)/psize_on_disk[format]*ds
+    N = fsize/psize_on_disk[format]*ds
 
     # No downsampling uncertainty
     if downsample is None:
@@ -1134,37 +1198,123 @@ def get_np_from_fsize(fsize, format, downsample=None):
 
     return int(np.ceil(N))
 
-psize_on_disk = {'pack14': 14, 'pack14_lite':14, 'pack9': 9, 'rvint': 3*4, 'rvdouble': 6*8, 'state64':3*8, 'state':3*4, 'rvzel':32, 'rvtag':32, 'rvdoubletag':7*8}
-reader_functions = {'pack14':read_pack14, 'pack9':read_pack9, 'rvint': read_rvint, 'rvdouble':read_rvdouble,
 
-                    'rvzel':read_rvzel, 'state':read_state,
-                    'rvdoublezel':read_rvdoublezel,
-                    'rvdoubletag':read_rvdoubletag,
-                    'rvtag':read_rvtag, 'rv':read_rvtag,
-                    'pack14_lite':read_pack14_lite,
+
+psize_on_disk = {'pack14': 14, 'pack14_lite':14, 'pack9': 9, 'rvint': 3*4, 'rvdouble': 6*8, 'state64':3*8, 'state':3*4, 'rvzel':32, 'rvtag':32, 'rvdoubletag':7*8}
+reader_functions = {'pack14':read_pack14, 'pack9':read_pack9, 'pack14_lite':read_pack14_lite,
+                    'rvdouble':read_rvdouble, 'rvzel':read_rvzel, 'rvdoublezel':read_rvdoublezel, 'rvdoubletag':read_rvdoubletag, 'rvtag':read_rvtag, 'rv':read_rvtag,
                     'gadget':read_gadget,
-                    'desi_hdf5':read_desi_hdf5}
-default_file_patterns = {'pack14':('*.dat',),
+                    'desi_hdf5':read_desi_hdf5,
+                    'state':read_state,
+                    'rvint':read_rvint,
+                    'asdf':read_asdf, 'asdf_b':read_asdf, 'asdf_a':read_asdf,}
+default_file_patterns = {'pack14':'*.dat',
                          'pack9':('*L0_pack9.dat', '*field_pack9.dat'),
                          'rvint' : ('*rv_A*', '*rv_B*'),
-                         'state':('position_*',),
-                         'desi_hdf5':('*.hdf5',),
-                         'gadget':('*.*',)
+                         'state':'position_*',
+                         'desi_hdf5':'*.hdf5',
+                         'gadget':'*.*',
+                         'asdf':('*.asdf','field_*/*.asdf','halo_*/*.asdf'),
+                         'asdf_a':('*_A_*.asdf','*_A/*.asdf',),
+                         'asdf_b':('*_B_*.asdf','*_B/*.asdf',),
                          }
-fallback_file_pattern = ('*.dat',)
+fallback_file_pattern = '*.dat'
                     
 default_box_on_disk = {'desi_hdf5':'box',
                 'pack14':1.,
                 'pack9':1.,
                 'rvtag':'box',
                 'gadget':'box',
+                'state':1.,
+                'asdf_a':'box',
+                'asdf_b':'box',
+                'asdf':'box',
 }
 
-def get_file_patterns(format):
+
+def get_file_patterns(format, return_pos=True, return_vel=True, return_pid=False, **kwargs):
+    # TODO
+    format = format.lower()
+
+    # For ASDF, we want to select the subdirectories based on the fields requested
+    if 'asdf' in format:
+        pats = []
+        AB = format.split('_')[-1].upper()
+        if not AB:
+            AB = '*'
+        if return_pos or return_vel:
+            pats += [f'field_rv_{AB}_*.asdf', f'field_rv_{AB}/field_rv_{AB}_*.asdf',
+                     f'halo_rv_{AB}_*.asdf', f'halo_rv_{AB}/halo_rv_{AB}_*.asdf']
+        if return_pid:
+            # TODO: read_asdf is designed to do this for us. But what if only one of rv/pid exist?
+            pats += [f'field_pid_{AB}_*.asdf', f'field_pid_{AB}/field_pid_{AB}_*.asdf',
+                     f'halo_pid_{AB}_*.asdf', f'halo_pid_{AB}/halo_pid_{AB}_*.asdf']
+        return pats
+
     try:
-        return default_file_patterns[format]
+        pats = default_file_patterns[format]
     except KeyError:
-        return fallback_file_pattern
+        pats = fallback_file_pattern
+
+    if type(pats) is str:
+        pats = (pats,)
+    return pats
+
+
+def get_files_from_path(path, format=None, pattern=None, key=None, **kwargs):
+    '''
+    Given a path (which can be a single file, globbing patern, dir,
+    or list of these), return the corresponding list of files.  If passing
+    directories, must provide a format or pattern.
+
+    key is an optional sorting key.
+    '''
+
+    _key = (lambda k: key(basename(k))) if key else None
+
+    if type(path) is str:
+        paths = (path,)
+    else:
+        # If not a string, must already be a list
+        try:
+            len(path)
+        except:
+            raise ValueError(f'path must be a string or iterable, not {type(path)}!')
+        paths = path
+
+    if type(pattern) is str:
+        patterns = (pattern,)
+
+    files = []
+    for path in paths:
+        # Determine the file names to read
+        if type(path) is not str:
+            raise ValueError(f'All path values must be str. Found {type(path)}')
+
+        if isdir(path):
+            if pattern is None:
+                if is_ic_path(path):
+                    patterns = ('ic_*',)
+                else:
+                    if format is None:
+                        raise ValueError("Must give file format if not giving pattern!")
+                    patterns = get_file_patterns(format, **kwargs)
+
+            for p in patterns:
+                files += sorted(glob(pjoin(path, p)), key=_key)
+        elif isfile(path):
+            files += [path]
+        else:
+            # Not a dir and not a file; interpret as a glob pattern
+            files += glob(path)
+
+    files = sorted(files, key=_key)
+
+    if not files:
+        raise ValueError(f'No files found matching "{path}" for format "{format}"!')
+
+    return files
+
 
 def is_ic_path(path):
     '''
