@@ -42,7 +42,7 @@ Taylor::~Taylor(void) {
 }
 
 Taylor::Taylor(int order) : basemultipoles(order) {
-    assert(omp_get_max_threads() < MAXTHREADS);
+    assert(omp_get_max_threads() <= MAXTHREADS);
     
 #ifdef AVXMULTIPOLES
     for(int g=0;g<omp_get_max_threads();g++) {
