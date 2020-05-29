@@ -914,9 +914,9 @@ void timestep(void) {
 
 	ConvolutionWallClock.Stop();
 	ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
+    MultipoleTransferCheck.Clear(); TaylorTransferCheck.Clear();
 #endif
 
-    MultipoleTransferCheck.Clear(); TaylorTransferCheck.Clear();
     TimeStepWallClock.Clear();  TimeStepWallClock.Start();
     STDLOG(1,"Initiating timestep()\n");
 
