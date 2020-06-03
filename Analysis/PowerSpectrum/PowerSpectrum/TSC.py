@@ -10,11 +10,15 @@ import re
 import queue
 import os
 import threading
+import gc
 
 import numpy as np
 import numba
 
+from .misc import process_gridshape
+
 from Abacus import ReadAbacus
+from Abacus.Tools import ContextTimer
 
 from . import _psffilib
 
@@ -75,9 +79,7 @@ def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.fl
     NPs = [len(p) for p in positions]
         
     # make int gridshape a cube
-    if type(gridshape) is int:
-        gridshape = (gridshape,)*3
-    gridshape = np.array(gridshape)
+    gridshape = process_gridshape(gridshape)
     gridshape_real = gridshape.copy()
         
     # add padding beyond what was passed in
@@ -98,7 +100,7 @@ def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.fl
     return density
     
 
-def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zspace=False, format='pack14', rotate_to=None, prep_rfft=False, nthreads=-1, readahead=1):
+def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zspace=False, format='pack14', rotate_to=None, prep_rfft=False, nthreads=-1, readahead=1, verbose=False, return_NP=False):
     '''
     Main entry point for density field computation from files on disk of various formats.
     
@@ -135,6 +137,8 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
     readahead: int, optional
         How many files to read ahead of what's been binned. -1 allows unbounded readahead.
         Default: 1.
+    return_NP: bool, optional
+        Return the number of particles read
 
     Returns
     -------
@@ -149,11 +153,7 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
         raise ValueError(format, 'Use one of: {}, or callable'.format(valid_file_formats))
     
     # make int gridshape a cube
-    gridshape = np.atleast_1d(gridshape)
-    assert np.issubdtype(gridshape.dtype, np.integer)
-    if len(gridshape) == 1:
-        gridshape = np.repeat(gridshape, 3)
-    gridshape = np.array(gridshape)
+    gridshape = process_gridshape(gridshape)
         
     # add padding beyond what was passed in
     if prep_rfft:
@@ -167,13 +167,17 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
         rotate_to = np.array(rotate_to, dtype=np.float64)
         boxsize /= 3**.5
 
-    reader_kwargs = dict(return_vel=False, zspace=zspace, dtype=dtype, format=format, units='box')
+    if nthreads < 1:
+        nthreads = maxthreads
+    ReadAbacus_threads = ReadAbacus.get_nthreads_by_format(format)
+    nthreads = max(1,nthreads-ReadAbacus_threads)
+    if verbose:
+        print(f'TSC with {nthreads} threads, {ReadAbacus_threads} ReadAbacus threads')
 
-    if format.startswith('pack'):
-        reader_kwargs.update(ramdisk=True)
-    elif format == 'pack9':
-        reader_kwargs.update(ramdisk=True)
-    elif format == 'rvzel':
+
+    reader_kwargs = dict(return_vel=False, zspace=zspace, dtype=dtype, format=format, units='box', readahead=readahead, verbose=verbose)
+
+    if format == 'rvzel':
         reader_kwargs.update(return_zel=False, add_grid=True, boxsize=boxsize)
     elif format == 'rvdoublezel':
         reader_kwargs.update(return_zel=False, add_grid=True, boxsize=boxsize)
@@ -184,9 +188,19 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
     elif format == 'rvint':
         reader_kwargs.update(boxsize=boxsize)
 
+    np_read = 0
+    tsc_timer = ContextTimer('Cumulative TSC binning', cumulative=True, output=True)
     for data in ReadAbacus.AsyncReader(file_pattern, **reader_kwargs):
-        TSC(data['pos'], density, boxsize, rotate_to=rotate_to, prep_rfft=prep_rfft, nthreads=nthreads, inplace=True)
+        np_read += len(data['pos'])
+        with tsc_timer:
+            TSC(data['pos'], density, boxsize, rotate_to=rotate_to, prep_rfft=prep_rfft, nthreads=nthreads, inplace=True)
+        del data; gc.collect()
+    if verbose:
+        print(f'TSC read {np_read} particles = ppd {np_read**(1/3)}')
+        print(f'Total TSC binning took {tsc_timer.elapsed:.4g} sec')
     
+    if return_NP:
+        return density, np_read
     return density
 
 
@@ -240,7 +254,6 @@ def TSC(positions, density, boxsize, weights=None, prep_rfft=False, rotate_to=No
     
     # We may eventually want to provide two wrapping modes
     # 'wrap' and 'clip' (mostly for mocks)
-    # Also, this only handles one periodic wrap
     # Warning: we do this regardless of inplace or not! Probably okay.
     box_wrap(positions, boxsize)
         
