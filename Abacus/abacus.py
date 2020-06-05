@@ -48,7 +48,8 @@ from . import zeldovich
 NEEDS_INTERIM_BACKUP_MINS = 105  #minimum job runtime (in minutes) for which we'd like to do a backup halfway through the job. 
 EXIT_REQUEUE = 200
 RUN_TIME_MINUTES = os.getenv("JOB_ACTION_WARNING_TIME")
-GF_BACKUP_INTERVAL = 2 * 60 * 60  #only backup b/w group finding steps if it's been more than two hours since the last backup. 
+GF_BACKUP_INTERVAL = 2 * 60 * 60  #only backup b/w group finding steps if it's been more than two hours since the last backup.
+#BACKUP_EVERY_N_MINUTES = 90
 
 
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
@@ -1116,22 +1117,29 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                     if pre_gf_backup:
                         break
 
+            try:
+                intermittent_backup = wall_timer() - last_backup >= BACKUP_EVERY_N_MINUTES*60
+            except:
+                intermittent_backup = False
+
             exiting = out_of_time or abandon_ship
             #save = exiting or interim_backup or pre_gf_backup
-            save = exiting or pre_gf_backup
+            save = exiting or pre_gf_backup or intermittent_backup
 
             if save:
                 if abandon_ship:
-                    exit_message = 'EMERGENCY EXIT REQUESTED: '
+                    exit_message = 'EMERGENCY EXIT REQUESTED'
                 if out_of_time:
-                    exit_message = 'RUNNING OUT OF JOB TIME: '
+                    exit_message = 'RUNNING OUT OF JOB TIME'
                 # if interim_backup:
-                #     exit_message = 'HALFWAY THROUGH A LONG JOB: '
+                #     exit_message = 'HALFWAY THROUGH A LONG JOB'
+                if intermittent_backup:
+                    exit_message = f'{BACKUP_EVERY_N_MINUTES} MIN BACKUP'
                 if pre_gf_backup:
-                    exit_message = 'GROUP FINDING COMING UP: '
+                    exit_message = 'GROUP FINDING COMING UP'
 
                 print(exit_message, 'backing up node state.')
-                status_log.print(f'# {exit_message:s} backing up node state.')
+                status_log.print(f'# {exit_message:s}: backing up node state.')
 
                 restore_time = wall_timer()
                 retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, resume_dir, '--retrieve']
