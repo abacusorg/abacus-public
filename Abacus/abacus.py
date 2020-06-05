@@ -1064,7 +1064,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 # we use the write state step number here, even though the particles are positioned at the read state positions
                 # this is consistent with the time slice behavior
                 shutil.copy(dfn, pjoin(param.LogDirectory, "step{0:04d}", "step{0:04d}.density").format(write_state.FullStepNumber))
-                np.savez(pjoin(param.LogDirectory, "step{0:04d}", "step{0:04d}.pow".format(write_state.FullStepNumber)), k=k,P=P,nb=nb)
+                np.savez(pjoin(param.LogDirectory, "step{0:04d}", "step{0:04d}.pow").format(write_state.FullStepNumber), k=k,P=P,nb=nb)
                 os.remove(dfn)
 
         exiting = 0 
