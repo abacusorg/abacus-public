@@ -79,14 +79,6 @@ echo -e "\n\n\n\n"
 # These actions will be taken upon exit
 function cleanup()
 {
-    echo -e "* Environment:\n" >> $DEBUG_FN
-    printenv &> $DEBUG_FN
-    echo -e "\n\n\n\n" >> $DEBUG_FN
-
-    echo -e "* dmesg:\n" >> $DEBUG_FN
-    for_all_nodes 'dmesg -T |tail -n15'
-    echo -e "\n\n\n\n" >> $DEBUG_FN
-
     echo -e "* /dev/shm usage:\n" >> $DEBUG_FN
     #jsrun_all df -h /dev/shm
     for_all_nodes df -h /dev/shm
@@ -94,6 +86,14 @@ function cleanup()
 
     echo -e "* Clearing ramdisk\n" >> $DEBUG_FN
     jsrun_all rm -rf $RAMDISK
+    echo -e "\n\n\n\n" >> $DEBUG_FN
+    
+    echo -e "* Environment:\n" >> $DEBUG_FN
+    printenv &> $DEBUG_FN
+    echo -e "\n\n\n\n" >> $DEBUG_FN
+
+    echo -e "* dmesg:\n" >> $DEBUG_FN
+    for_all_nodes 'dmesg -T |tail -n15'
     echo -e "\n\n\n\n" >> $DEBUG_FN
 }
 trap cleanup EXIT
