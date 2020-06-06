@@ -1,0 +1,112 @@
+#!/bin/bash
+#BSUB -P ast145
+#BSUB -o lsf-%J_%I.out
+#BSUB -J "Abacus"
+#BSUB -q debug
+#BSUB -nnodes 2
+#BSUB -W 5  # run for 5 minutes. 
+#BSUB -alloc_flags nvme smt2  # one or two hyper-threads per core. default is four.
+
+export BBPATH=/mnt/bb/$USER
+
+# This script runs on the batch-launch node
+# jsrun invocations from here will launch executables on the compute nodes
+
+# Don't run this script directly; submit it to the queue with
+# bsub summit_lsf_script.lsf
+# Check this directory for a file named lsf-jobid.out, which should
+# contain stderr and stdout
+
+MINISUITE="MiniTestSuite"
+
+#DEBUG_FN=logs/${LSB_JOBNAME}/${LSB_JOBNAME}_production.debug
+DEBUG_FN=${LSB_JOBNAME}_production.debug
+
+function jsrun_all()
+{
+    # There's lots of information we want to store for debugging but makes the logs hard to read,
+    # so this command stores the output in a file called lsf-*.debug
+    jsrun -o $DEBUG_FN -e prepended -nALL_HOSTS -a1 -r1 -cALL_CPUS "$@"
+}
+
+function for_all_nodes()
+{
+    #NODES=$(tr ' ' "\n" <<< "$LSB_HOSTS" | sort -u | \grep -v batch)
+    #NODES=$(jsrun -r1 hostname)
+    NODES=$(\grep -oP '\w\d{2}n\d{2}' <<< "$LSB_MCPU_HOSTS")
+    for N in $NODES; do
+        echo $N >> $DEBUG_FN
+        ssh $N $@ >> $DEBUG_FN 2>&1
+        echo >> $DEBUG_FN
+    done
+}
+
+echo -e "* Clearing ramdisk\n"
+jsrun_all bash -c "rm -rf $RAMDISK /dev/shm/lgarrison/ /dev/shm/nmaksimova/ /dev/shm/ast145*"
+echo -e "\n\n\n\n"
+
+#export PAMI_IBV_ENABLE_DCT=0
+#export PAMI_IBV_ENABLE_OOO_AR=0
+
+# These actions will be taken upon exit
+function cleanup()
+{
+    echo -e "* Environment:\n" >> $DEBUG_FN
+    printenv &> $DEBUG_FN
+    echo -e "\n\n\n\n" >> $DEBUG_FN
+
+    echo -e "* dmesg:\n" >> $DEBUG_FN
+    for_all_nodes 'dmesg -T |tail -n15'
+    echo -e "\n\n\n\n" >> $DEBUG_FN
+
+    echo -e "* /dev/shm usage:\n" >> $DEBUG_FN
+    #jsrun_all df -h /dev/shm
+    for_all_nodes df -h /dev/shm
+    echo -e "\n\n\n\n" >> $DEBUG_FN
+
+    echo -e "* Clearing ramdisk\n" >> $DEBUG_FN
+    jsrun_all rm -rf $RAMDISK
+    echo -e "\n\n\n\n" >> $DEBUG_FN
+}
+trap cleanup EXIT
+
+echo -e "If Abacus dir is different from source, making local copy."
+
+#CXX=g++
+ABACUS_SOURCE=$ABACUS
+# If the Abacus directory is different from the source, make a local copy
+if [[ ! $ABACUS -ef $ABACUS_SOURCE ]]; then 
+    echo -e "* Copying files locally and running make:\n"
+    mkdir -p $(dirname $ABACUS)
+    cp -R $ABACUS_SOURCE/ $ABACUS
+    #make -C $ABACUS distclean
+
+    #cd $ABACUS
+    #./configure CXX=$CXX
+    #cd -
+
+    #XX=$CXX make -C $ABACUS clean all
+    echo -e "\n\n\n\n"
+fi
+
+echo -e "* Loading modules\n"
+source modules.sh
+echo -e "\n\n\n\n"
+
+export ABACUS_PERSIST=$BBPATH
+
+echo -e "Preprocessing parameters:"
+for direc in $(find ${ABACUSSUMMIT_SPEC}/${MINISUITE}/ -maxdepth 1 -mindepth 1 -type d); do
+	echo $direc
+        $ABACUS/Production/run_sim.py ${direc} --just-params
+done
+
+echo -e "Copying parameter files from ${ABACUSSUMMIT_SPEC}/${MINISUITE} to ${ABACUSSUMMIT_PERSIST}/AbacusSummit"
+rsync -r --exclude="*.par2" ${ABACUSSUMMIT_SPEC}/${MINISUITE} ${ABACUSSUMMIT_PERSIST}/AbacusSummit
+
+
+echo -e "Launching jsrun"
+jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -gALL_GPUS -b none --smpiargs off -o miniSuite_${LSB_JOBID}.out ./serial_summit.sh $MINISUITE
+echo -e "Done."
+
+
