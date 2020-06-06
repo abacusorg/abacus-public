@@ -246,7 +246,7 @@ def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
     # We will attempt to copy derivatives from the archive dir if they aren't found
     if derivs_archive_dirs == True:
         derivs_archive_dirs = [pjoin(os.getenv('ABACUS_PERSIST',None), 'Derivatives'),
-                              pjoin(os.getenv('ABACUS_SSD',None), 'Derivatives')]
+                              pjoin(os.getenv('ABACUS_SSD',None), 'Derivatives'), pjoin(os.getenv('ABACUS_DERIVS',None), 'Derivatives')]
 
     if type(derivs_archive_dirs) is str:
         derivs_archive_dirs = [derivs_archive_dirs]
