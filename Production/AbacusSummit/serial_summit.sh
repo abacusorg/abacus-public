@@ -53,6 +53,9 @@ echo -e "ABACUS_PERSIST set to ${ABACUS_PERSIST}"
 export ABACUS_DERIVS=${PROJWORK} # extra env. var. to search for Derivatives on GPFS and copy to BB.
 echo -e "ABACUS_DERIVS set to ${ABACUS_DERIVS}"  
 
+echo $PYTHONPATH
+echo $PATH
+
 ######################################################################## 
 ######################################################################## 
 ########################################################################
@@ -72,26 +75,33 @@ echo -e "\n\n\n\n"
 #######################################################################
 DISBATCH_PY=$ABACUS/external/disBatch/disBatch.py
 
+LOGDIR=$PROJWORK/$USER/logs/$SIM_NAME
+mkdir -p $LOGDIR
+
+export DISBATCH_SSH_NODELIST=$(hostname):4
 
 ##### Queue up the time slice processing #####
 echo -e "About to queue TS processing:"
-echo $ABACUS_PERSIST/$SET_NAME/$SIM_NAME
 
 SIMDIR=$ABACUS_PERSIST/$SET_NAME/$SIM_NAME
 SLICEDIRS=$(cd $SIMDIR; find -maxdepth 1 -name 'slice*.*')
-
-echo "Found ${SLICEDIRS} in ${SIMDIR}. (should be on bb)"
 
 if [[ -n "$SLICEDIRS" ]]; then
 
     # Write a disBatch file with one line per chunk per file type per time slice
     # Chunks should be specified with a literal pattern like slice1.000/*slab001?.L0_pack9.dat
     #DISBATCH_TASKFILE=${SIMDIR}/tmp/${SIM_NAME}.timeslice.disbatch
-    DISBATCH_TASKFILE=${SIMDIR}/${SIM_NAME}.timeslice.disbatch
+    
+    mkdir $LOGDIR/tmp/
+    DISBATCH_TASKFILE=$LOGDIR/tmp/${SIM_NAME}.timeslice.disbatch
 
     TSSCRIPT=$ABACUS/Production/AbacusSummit/rhea_post_process_timeslice.py
-    #echo "#DISBATCH PREFIX cd ${SIMDIR}; ${TSSCRIPT} \"" > $DISBATCH_TASKFILE  # write
-    #echo "#DISBATCH SUFFIX \" > $(pwd)/\${DISBATCH_NAMETASKS}_\${DISBATCH_JOBID}_\${DISBATCH_TASKID}.log 2>&1" >> $DISBATCH_TASKFILE  # append
+    echo "#DISBATCH PREFIX cd ${SIMDIR}; ${TSSCRIPT} \"" > $DISBATCH_TASKFILE  # write 
+
+    echo "#DISBATCH SUFFIX \" > ${SIMDIR}/\${DISBATCH_NAMETASKS}_\${DISBATCH_JOBID}_\${DISBATCH_TASKID}.log 2>&1" >> $DISBATCH_TASKFILE  # append
+    
+   #echo "#DISBATCH SUFFIX \" > $LOGDIR/tmp/test.log 2>&1" >> $DISBATCH_TASKFILE  # append
+
 
     for SLICE in $SLICEDIRS; do
         # Write one line for every chunk of 10 for every file type
@@ -111,33 +121,16 @@ if [[ -n "$SLICEDIRS" ]]; then
         done
     done
 
-    cat $DISBATCH_TASKFILE
-    echo "\n\n\n\n\n"
-    echo $DISBATCH_PY    
-    echo $PYTHONPATH
-
-    NSLICES=$(wc -l <<< "$SLICEDIRS")
-    NHOURS=$(( NSLICES * 4 ))  # X hours per slice
-    # Many small jobs, can fill ~1000 nodes
-
-    mkdir -p $ABACUS_PERSIST/logs/
+    mkdir -p $LOGDIR/disbatchTS
 
     TSEPI_SCRIPT=$ABACUS/Production/AbacusSummit/rhea_post_process_timeslice_epilogue.sh
-    $DISBATCH_PY -e -p $ABACUS_PERSIST/logs/${SIM_NAME}_TS $DISBATCH_TASKFILE
-
-    $TSEPI_SCRIPT $SIMDIR/slices && echo Time slices completed successfully.    
+    
+    $DISBATCH_PY -e -p $LOGDIR/disbatchTS/$SIM_NAME $DISBATCH_TASKFILE
+    $TSEPI_SCRIPT $SIMDIR/slices && echo "Time slices completed successfully."    
 fi
 ####
 
 echo "Done with timeslices." 
-
-
-
-
-
-
-
-
 
 
 ##### queue up group processing #####
@@ -174,4 +167,3 @@ echo -e "Copying from NVME to ${GPFS_PERSIST}"
 cp -R ${BBPATH}/${SET_NAME}/${SIM_NAME} ${GPFS_PERSIST}/${SIM_NAME}
 
 echo -e "Run and copy to GPFS complete for box ${SIM_NAME} on rank ${JSM_NAMESPACE_RANK}!"  
-
