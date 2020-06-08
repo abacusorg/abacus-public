@@ -3,6 +3,9 @@
 
 set -e
 
+DEBUG_FLAG=$1
+
+
 # This script runs on the summit compute node
 # Fail if any command returns a non-zero exit status
 
@@ -59,7 +62,7 @@ function cleanup()
 {
     export GPFS_PERSIST=$PROJWORK/$USER/nvme/
     echo -e "Copying from NVME to ${GPFS_PERSIST}"  
-    cp -R ${BBPATH}/${SET_NAME}/${SIM_NAME} ${GPFS_PERSIST}/${SIM_NAME}
+    cp -R ${BBPATH}/${SET_NAME}/${SIM_NAME}/ ${GPFS_PERSIST}/${SIM_NAME}
     cp -R ${LOGDIR} $GPFS_PERSIST/logs/
     echo -e "Cleanup copy to GPFS complete for box ${SIM_NAME} on rank ${JSM_NAMESPACE_RANK}!"  
 
@@ -99,10 +102,15 @@ trap cleanup EXIT
 ######################################################################## 
 ########################################################################
 export PAR_DIR=${ABACUS}/external/AbacusSummit/Simulations/${MINISUITE}/${SIM_NAME} 
-
-echo -e "* Running abacus: ${PAR_DIR}\n"  
-$ABACUS/Production/run_sim.py "${PAR_DIR}" abacus.par --clean --maxsteps 4
-
+if [ "$DEBUG_FLAG" = false ] ; then
+      echo -e "* Running abacus: ${PAR_DIR}\n"
+      $ABACUS/Production/run_sim.py "${PAR_DIR}" abacus.par --clean --maxsteps 4
+else
+    export GPFS_PERSIST=$PROJWORK/$USER/nvme/
+    echo -e "Copying from ${GPFS_PERSIST} to ${BBPATH}/${SET_NAME}/${SIM_NAME}"
+    mkdir -p ${BBPATH}/${SET_NAME}/${SIM_NAME}
+    cp -R ${GPFS_PERSIST}/${SIM_NAME}/ ${BBPATH}/${SET_NAME}
+fi
 ######################################################################## 
 ######################################################################## 
 ######################################################################## 
@@ -133,8 +141,8 @@ if [[ -n "$SLICEDIRS" ]]; then
     TSSCRIPT=$ABACUS/Production/AbacusSummit/rhea_post_process_timeslice.py
     echo "#DISBATCH PREFIX cd ${SIMDIR}; ${TSSCRIPT} \"" > $DISBATCH_TASKFILE  # write 
 
-    echo "#DISBATCH SUFFIX \" > ${SIMDIR}/\${DISBATCH_NAMETASKS}_\${DISBATCH_JOBID}_\${DISBATCH_TASKID}.log 2>&1" >> $DISBATCH_TASKFILE  # append
-
+#    echo "#DISBATCH SUFFIX \" > ${SIMDIR}/\${DISBATCH_NAMETASKS}_\${DISBATCH_JOBID}_\${DISBATCH_TASKID}.log 2>&1" >> $DISBATCH_TASKFILE  # append
+    echo "#DISBATCH SUFFIX \" > $LOGDIR/tmp/blah.log 2>&1" >> $DISBATCH_TASKFILE  # append
 
     for SLICE in $SLICEDIRS; do
         # Write one line for every chunk of 10 for every file type
