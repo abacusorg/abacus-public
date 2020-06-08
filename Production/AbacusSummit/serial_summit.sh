@@ -61,10 +61,10 @@ echo -e "\n\n\n\n"
 function cleanup()
 {
     export GPFS_PERSIST=$PROJWORK/$USER/nvme/
-    echo -e "Copying from NVME to ${GPFS_PERSIST}"  
+    echo -e "CLEANUP: Copying from NVME to ${GPFS_PERSIST}"  
     cp -R ${BBPATH}/${SET_NAME}/${SIM_NAME}/ ${GPFS_PERSIST}/${SIM_NAME}
     cp -R ${LOGDIR} $GPFS_PERSIST/logs/
-    echo -e "Cleanup copy to GPFS complete for box ${SIM_NAME} on rank ${JSM_NAMESPACE_RANK}!"  
+    echo -e "CLEANUP: Cleanup copy to GPFS complete for box ${SIM_NAME} on rank ${JSM_NAMESPACE_RANK}!"  
 
     echo -e "* Environment:\n" >> $DEBUG_FN
     printenv &> $DEBUG_FN
@@ -203,8 +203,8 @@ echo "Done with timeslices."
 #######################################################################
 
 export GPFS_PERSIST=$PROJWORK/$USER/nvme/
-echo -e "Copying from NVME to ${GPFS_PERSIST}"  
+echo -e "SUCCESS: Copying from NVME to ${GPFS_PERSIST}"  
 
 cp -R ${BBPATH}/${SET_NAME}/${SIM_NAME} ${GPFS_PERSIST}/${SIM_NAME}
 
-echo -e "Run and copy to GPFS complete for box ${SIM_NAME} on rank ${JSM_NAMESPACE_RANK}!"  
+echo -e "SUCCESS: Run and copy to GPFS complete for box ${SIM_NAME} on rank ${JSM_NAMESPACE_RANK}!"  
