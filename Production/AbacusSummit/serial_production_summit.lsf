@@ -16,7 +16,7 @@
 # contain stderr and stdout
 
 echo -e "Launching jsrun"
-jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -gALL_GPUS -b none --smpiargs off -o miniSuite_${LSB_JOBID}.out ./serial_summit.sh "true"
+jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -gALL_GPUS -b none -X 0 --smpiargs off -o miniSuite_${LSB_JOBID}.out ./serial_summit.sh 
 echo -e "Done."
 
 
