@@ -10,7 +10,7 @@ echo "Logs output to :" $LSB_HOSTS
 
 #Specify simulation to run on this node.
 ######################
-export MINISUITE="MiniTestSuite"
+export MINISUITE="SmallBox"
 PHASE=$((${JSM_NAMESPACE_RANK} + 3000))
 export SIM_NAME="AbacusSummit_small_c000_ph${PHASE}"
 
@@ -39,7 +39,8 @@ export ABACUS=$BBPATH/abacus
 if [[ ! $ABACUS -ef $ABACUS_SOURCE ]]; then 
     echo -e "* Copying files locally and running make in $(dirname $ABACUS):\n"
     mkdir -p $(dirname $ABACUS)
-    rsync -R --exclude $ABACUS_SOURCE/Production/AbacusSummit/logs/* $ABACUS_SOURCE/ $ABACUS 
+    rsync -a --exclude /Production/AbacusSummit/logs $ABACUS_SOURCE/ $ABACUS 
+    #cp -R  $ABACUS_SOURCE/ $ABACUS
     #make -C $ABACUS distclean
     #cd $ABACUS
     #./configure CXX=$CXX
