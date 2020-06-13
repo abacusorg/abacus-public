@@ -11,7 +11,8 @@ echo "Logs output to :" $LSB_HOSTS
 #Specify simulation to run on this node.
 ######################
 export MINISUITE="MiniTestSuite"
-export SIM_NAME="AbacusSummit_small_test_${JSM_NAMESPACE_RANK}"
+PHASE=$((${JSM_NAMESPACE_RANK} + 3000))
+export SIM_NAME="AbacusSummit_small_c000_ph${PHASE}"
 
 SET_NAME="AbacusSummit"
 if [[ -z "$SIM_NAME" ]]; then
@@ -38,7 +39,7 @@ export ABACUS=$BBPATH/abacus
 if [[ ! $ABACUS -ef $ABACUS_SOURCE ]]; then 
     echo -e "* Copying files locally and running make in $(dirname $ABACUS):\n"
     mkdir -p $(dirname $ABACUS)
-    cp -R $ABACUS_SOURCE/ $ABACUS
+    rsync -R --exclude $ABACUS_SOURCE/Production/AbacusSummit/logs/* $ABACUS_SOURCE/ $ABACUS 
     #make -C $ABACUS distclean
     #cd $ABACUS
     #./configure CXX=$CXX
@@ -101,8 +102,7 @@ echo -e "\n\n\n\n"
 #######################################################################
 #######################################################################
 
-ABACUS_EXIT=$1
-if [[ $ABACUS_EXIT = 0 || $ABACUS_EXIT = 200 ]] ; then
+if [[ !($ABACUS_EXIT -eq 0 || $ABACUS_EXIT -eq 200) ]] ; then
      echo -e "Abacus exit code indicates crash. No post-processing. Saving off fns and exiting."   
      exit 
 fi
@@ -121,7 +121,7 @@ export DISBATCH_SSH_NODELIST=$(hostname):4
 echo ${DISBATCH_SSH_NODELIST}
 
 CHUNK=405 #only one super slab.
-NWORKER=5
+NWORKER=1
 GROUPSCRIPT="$ABACUS/Abacus/convert_raw_groups_to_asdf.py --chunk=$CHUNK --nworkers=$NWORKER --delete"
 GROUPDIR=$ABACUS_PERSIST/$SET_NAME/$SIM_NAME/group
 
