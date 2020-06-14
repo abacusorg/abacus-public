@@ -3,7 +3,7 @@ SimSet = "ScaleFreeSims"
 #SimName = "ScaleFree_v3_N4096_m225_eps0.03"
 SimName = "ScaleFree_N1500_eps0.03_LPT1"
 #SimName = "Lattice"
-#include "$ABACUS$/Abacus/directory.def"
+#include "$ABACUS$/Production/directory.def"
 #include "$ABACUS$/Production/site_files/cannon.def"
 
 #LogDirectory = "/mnt/hardraid_ssd/lgarrison/" + @_SimSet@ + "/" + @SimName@ + "/log"
@@ -68,7 +68,7 @@ ZD_Pk_sigma = 0.03
 ZD_Pk_norm = 1  # unit particle spacing
 ZD_Seed = 23456
 ZD_qPLT = 1
-ZD_PLT_filename = "$ABACUS$/zeldovich-PLT/eigmodes128"
+ZD_PLT_filename = @ZeldovichDirectory@+"/eigmodes128"
 ZD_qPLT_rescale = 1
 ZD_PLT_target_z = 106.14285714285715
 ZD_k_cutoff = 1.

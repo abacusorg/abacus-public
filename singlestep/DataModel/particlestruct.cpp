@@ -76,6 +76,9 @@ When we store into the output TaggedPID format, we apply a bit mask to zero all 
 #define AUX_PID_TAG_DENS_MASK 0x07ff7fff7fff7fff //this masks out everything except for bits 0-14 (x pid), 16-30 (y pid), 32-46 (z pid), 48 (tagged), 49-58 (density).
 #define AUXPIDMASK 0x7fff7fff7fff
 
+#define NAUXPIDBITS 45  // total of 45 bits used for PIDs
+#define PIDBITGAP 2  // two bits in between each PID segment
+
 class auxstruct {
 public:
     uint64 aux;
@@ -96,11 +99,6 @@ public:
         return xyz; 
     }
 
-    void setpid(uint16 _pid) { 
-        uint16 pid[3] = {_pid, _pid, _pid};
-        setpid(pid); 
-    }
-
     void setpid(integer3 _pid) { 
         uint16 max = (uint16) AUXXPID; 
             assert(_pid.x <= max and _pid.y <= max and _pid.z <= max);
@@ -108,7 +106,7 @@ public:
         setpid(pid); 
     }
 
-    void setpid(uint16 * _pid) { 
+    void setpid(uint16 _pid[3]) { 
         uint16 max = (uint16) AUXXPID; 
            assert(_pid[0] <= max and _pid[1] <= max and _pid[2] <= max);
         setpid((uint64) _pid[0] | (uint64) _pid[1]<<16| (uint64) _pid[2] <<32);
@@ -117,6 +115,15 @@ public:
     void setpid(uint64 _pid) {
         aux = _pid | (aux &~ AUXPIDMASK); 
     }
+
+    // Take a pid and distribute its values to the three segements used for PIDs
+    void packpid(uint64 _pid){
+        assert(_pid <= ((uint64) 1 << NAUXPIDBITS));
+        uint64 pid = (_pid & AUXXPID) | (_pid << PIDBITGAP & AUXYPID) | (_pid << 2*PIDBITGAP & AUXZPID);
+        setpid(pid);
+    }
+
+
     // We will provide a group ID too; this may overwrite the PID.
     uint64 gid() { return pid(); }
     void setgid(uint64 gid) { setpid(gid); }

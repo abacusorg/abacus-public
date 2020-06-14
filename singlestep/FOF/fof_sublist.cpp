@@ -77,10 +77,14 @@ Permutation of the original array is done only optionally.
   up by a huge number, so that we can do positional differences
   as a float4 norm with SSE, trusting to underflow the indices. 
 
-  As written, this limits the number of particles in a cell to not
+  OLD: As written, this limits the number of particles in a cell to not
   overflow a 23-bit int.  However, this could be adjusted by setting
   the floating exponent sign bit to be negative and then using bits
   in the exponent.  Not implemented at present!
+
+  NEW: We're now just shoving the bits of the int32 into the 4th float;
+  for numbers 0 to 600M, this is <1e-16 because of the way the float exponents are handled.
+  Keeping the scaling up by FOF_RESCALE, even though this could have been skipped.
 
   We usually do this in single precision!
   Particularly if we want to consider some AVX calls for diff2.
@@ -88,23 +92,32 @@ Permutation of the original array is done only optionally.
   computation of bounding boxes.
 */
 
+union floatint {
+    FOFloat w;
+    int n;
+};
+
+
 class alignas(16) FOFparticle {
 
   public:
-    FOFloat x,y,z,n;
+    FOFloat x,y,z; 
+    floatint fi;
     FOFparticle(posstruct p, int _n) {
 	x = p.x*FOF_RESCALE;
 	y = p.y*FOF_RESCALE;
 	z = p.z*FOF_RESCALE;
-	n = (FOFloat)(_n);
+    fi.n = _n;
+	// n = (FOFloat)(_n);
     }
     FOFparticle() { }
-    inline int index() { return (int)(n); }
+    // inline int index() { return (int)(n); }
+    inline int index() { return fi.n; }
     inline FOFloat diff2v(FOFparticle *q) {
         FOFloat dx = q->x-x;
         FOFloat dy = q->y-y;
         FOFloat dz = q->z-z;
-        FOFloat dn = q->n-n;
+        FOFloat dn = q->fi.w-fi.w;
 	return dx*dx+dy*dy+dz*dz+dn*dn;
     }
     inline FOFloat diff2(FOFparticle *q) {
@@ -132,18 +145,19 @@ class alignas(16) FOFparticle {
     // If not, we could include the SSE primatives...
     inline void min(FOFparticle &q) {
 	x = std::min(x,q.x); y = std::min(y,q.y);
-	z = std::min(z,q.z); n = std::min(n,q.n);
+	z = std::min(z,q.z); fi.w = std::min(fi.w,q.fi.w);
     }
     inline void max(FOFparticle &q) {
 	x = std::max(x,q.x); y = std::max(y,q.y);
-	z = std::max(z,q.z); n = std::max(n,q.n);
+	z = std::max(z,q.z); fi.w = std::max(fi.w,q.fi.w);
     }
     inline void mult(FOFloat f) {
-        x *= f; y *= f; z *= f; n *= f;
+        x *= f; y *= f; z *= f; fi.w *= f;
     }
     
     // Provide a sort operand based on the index
-    bool operator< (const FOFparticle& b) const { return (n<b.n); }
+    // bool operator< (const FOFparticle& b) const { return (n<b.n); }
+    bool operator< (const FOFparticle& b) const { return (fi.n<b.fi.n); }
 };
 
 #ifdef AVX512DIRECT  // change this to AVX512FOF if we ever decide it's faster

@@ -61,8 +61,9 @@ class DependencyRecord {
     void Load(Dependency &d, int finished_slab, const char label[]) {
         end = finished_slab;
 		
-        for (begin=end-1; begin>end-d.cpd; begin--) {
-            if (d.notdone(begin)) break;
+        // Don't look past the slabs this node owns
+        for (begin=end-1; CP->WrapSlab(begin - first_slab_on_node) < total_slabs_on_node; begin--) {
+            if (!d.instantiated || d.notdone(begin)) break;
             //// d.mark_to_repeat(begin);   // We're not going to unmark
         }
 		
@@ -70,8 +71,9 @@ class DependencyRecord {
         begin++;   // Want to pass the first done one
 		
         // Now look for the last done slab
-        for (;end<finished_slab+d.cpd;end++) {
-            if (d.notdone(end)) break;
+        // Don't look past the slabs this node owns
+        for (; CP->WrapSlab(end - first_slab_on_node) < total_slabs_on_node; end++) {
+            if (!d.instantiated || d.notdone(end)) break;
         } end--;
         /* The manifest code is called in two different use cases:
            1) when the GlobalGroups have happened and we want to pass 
@@ -294,7 +296,7 @@ class Manifest {
         while (size>0) {
             assertf(maxpending<MAX_REQUESTS, "Too many MPI requests %d\n", maxpending);
             int thissize = std::min(size, (uint64) SIZE_MPI);
-            MPI_Isend(ptr, thissize, MPI_BYTE, rank, tag_offset+maxpending, MPI_COMM_WORLD,requests+maxpending);
+            MPI_Isend(ptr, thissize, MPI_BYTE, rank, tag_offset+maxpending, comm_manifest,requests+maxpending);
             numpending++; maxpending++; size -= thissize; ptr = (char *)ptr+thissize;
         }
         #endif
@@ -308,7 +310,7 @@ class Manifest {
         while (size>0) {
             assertf(maxpending<MAX_REQUESTS, "Too many MPI requests %d\n", maxpending);
             int thissize = std::min(size, (uint64) SIZE_MPI);
-            MPI_Irecv(ptr, thissize, MPI_BYTE, rank, tag_offset+maxpending, MPI_COMM_WORLD,requests+maxpending);
+            MPI_Irecv(ptr, thissize, MPI_BYTE, rank, tag_offset+maxpending, comm_manifest,requests+maxpending);
             numpending++; maxpending++; size -= thissize; ptr = (char *)ptr+thissize;
         }
         #endif
@@ -669,22 +671,22 @@ void Manifest::Receive() {
         // TODO: is it true that none of the manifest slabs should land on ramdisk?
         SB->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size, RAMDISK_NO);
         m.arenas[n].ptr = SB->GetSlabPtr(m.arenas[n].type, m.arenas[n].slab);
-        memset(m.arenas[n].ptr, 0, m.arenas[n].size);   // TODO remove
+        //memset(m.arenas[n].ptr, 0, m.arenas[n].size);   // TODO remove
         STDLOG(2,"Ireceive Manifest Arena %d (slab %d of type %d) of size %d\n", 
             n, m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size);
         do_MPI_Irecv(m.arenas[n].ptr, m.arenas[n].size, rank);
     }
     // Receive all the Insert List fragment
     int ret = posix_memalign((void **)&il, 64, m.numil*sizeof(ilstruct));
-    assert(il!=NULL);
-    memset(il, 0, sizeof(ilstruct)*m.numil);   // TODO remove
+    assertf(ret == 0, "Failed to allocate %d bytes for receive manifest insert list\n", m.numil*sizeof(ilstruct));
+    //memset(il, 0, sizeof(ilstruct)*m.numil);   // TODO remove
     STDLOG(2,"Ireceive Manifest Insert List of length %d\n", m.numil);
     do_MPI_Irecv(il, sizeof(ilstruct)*m.numil, rank);
     // Receive all the GroupLink List fragment
     if (GFC!=NULL) {
         ret = posix_memalign((void **)&links, 64, m.numlinks*sizeof(GroupLink));
-        assert(links!=NULL);
-        memset(links, 0, sizeof(GroupLink)*m.numlinks);   // TODO remove
+        assertf(ret == 0, "Failed to allocate %d bytes for receive manifest group link list\n", m.numlinks*sizeof(GroupLink));
+        //memset(links, 0, sizeof(GroupLink)*m.numlinks);   // TODO remove
         STDLOG(2,"Ireceive Manifest GroupLink List of length %d\n", m.numlinks);
         do_MPI_Irecv(links, sizeof(GroupLink)*m.numlinks, rank);
     } 
@@ -778,7 +780,7 @@ void Manifest::ImportData() {
         memcpy(GFC->GLL->list+len, links, m.numlinks*sizeof(GroupLink));
         // Possible TODO: Should this copy be multi-threaded?
         free(links);
-        STDLOG(2, "Growing GroupLink list from %d by %d = %l\n", len, m.numil, GFC->GLL->length);
+        STDLOG(2, "Growing GroupLink list from %d by %d = %l\n", len, m.numlinks, GFC->GLL->length);
     }
     
     // We're done with this Manifest!

@@ -3,7 +3,8 @@
  *  TODO: add functionality to run on states.
  */
  
- #include "proepi.cpp"
+#include "proepi.cpp"
+#include "timestep_standalone_fof.cpp"
  
  int main(int argc, char **argv) {
     WallClockDirect.Start();

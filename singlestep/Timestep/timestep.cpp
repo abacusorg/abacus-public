@@ -51,6 +51,8 @@ Dependency UnpackLPTVelocity;
 #include "ParallelConvolution.cpp"
 STimer ConvolutionWallClock;
 STimer BarrierWallClock;
+STimer MultipoleTransferCheck; 
+STimer TaylorTransferCheck;
 #endif
 
 // The wall-clock time minus all of the above Timers might be a measure
@@ -249,8 +251,11 @@ int TaylorForcePrecondition(int slab) {
     }
 
 #ifdef PARALLEL //TODO do the above still apply in the parallel case?
-	if( !ParallelConvolveDriver->CheckTaylorSlabReady(slab)) {
-        if(SB->IsSlabPresent(TaylorSlab, slab))
+	TaylorTransferCheck.Start(); 
+        int taylorSlabReady = ParallelConvolveDriver->CheckTaylorSlabReady(slab);
+        TaylorTransferCheck.Stop();
+        if( !taylorSlabReady) {
+             if(SB->IsSlabPresent(TaylorSlab, slab))
 			Dependency::NotifySpinning(WAITING_FOR_MPI);
 		return 0;
 	}
@@ -824,9 +829,9 @@ void FinishAction(int slab) {
 
     int pwidth = FetchSlabs.raw_number_executed - Finish.raw_number_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
-    STDLOG(2, "About to ReportMemoryAllocatorStats\n");
+    if (Finish.raw_number_executed % 3 == 0)  // release is cheap but not totally free, so run every few Finishes
+        ReleaseFreeMemoryToKernel();
     ReportMemoryAllocatorStats();
-    STDLOG(2, "Done ReportMemoryAllocatorStats\n");
 }
 
 #ifdef PARALLEL
@@ -838,8 +843,10 @@ int CheckForMultipolesPrecondition(int slab) {
 	// 	STDLOG(2, "Attempting to RecvMultipoleSlab %d\n", slab);
 	// 	ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's.
 	// }
-
+	
+	MultipoleTransferCheck.Start();
 	int multipole_transfer_complete = ParallelConvolveDriver->CheckForMultipoleTransferComplete(slab);
+	MultipoleTransferCheck.Stop();
 	if (multipole_transfer_complete) return 1;
     else {
 		if(SB->IsSlabPresent(MultipoleSlab, slab))
@@ -907,6 +914,7 @@ void timestep(void) {
 
 	ConvolutionWallClock.Stop();
 	ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
+    MultipoleTransferCheck.Clear(); TaylorTransferCheck.Clear();
 #endif
 
     TimeStepWallClock.Clear();  TimeStepWallClock.Start();
@@ -935,7 +943,7 @@ void timestep(void) {
     // TODO: I'm not sure inflating FINISH_WAIT_RADIUS is the best way to deal with this
     // TODO: Also not sure this is the minimum number of slabs, even in that case
     // assertf(total_slabs_on_node >= 2*FINISH_WAIT_RADIUS + 1 + 2*FORCE_RADIUS + 4*GROUP_RADIUS, "Not enough slabs on node to finish any slabs!\n");
-    int PAD = 3;
+    int PAD = 0;
     assertf(total_slabs_on_node >= (2*GROUP_RADIUS + 1) + 2*FORCE_RADIUS + 1 + PAD, "Not enough slabs on node to close first group!\n");
     assertf(total_slabs_on_node >= 2*GROUP_RADIUS + FORCE_RADIUS + 2 * FINISH_WAIT_RADIUS + 1 + PAD, "Not enough slabs on node to finish any slabs!\n");
 #endif
@@ -1073,7 +1081,7 @@ void timestep(void) {
 		
         STDLOG(2,"Ready to proceed to the remaining work\n");
 
-        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(comm_global);
 		BarrierWallClock.Stop();
 
         // This MPI call also forces a synchronization over the MPI processes,
@@ -1101,15 +1109,3 @@ void timestep(void) {
     STDLOG(1,"Completing timestep()\n");
     TimeStepWallClock.Stop();
 }
-
-
-// ===================================================================
-// Other timesteps that re-use dependencies above
-
-#include "timestep_ic.cpp"
-
-#include "timestep_recover_multipoles.cpp"
-
-#include "timestep_benchmark_io.cpp"
-
-#include "timestep_standalone_fof.cpp"

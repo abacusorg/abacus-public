@@ -207,15 +207,15 @@ HaloStat ComputeStats(int size,
     h.SO_L2max_central_particle[0] = L2.p[0].x;
     h.SO_L2max_central_particle[1] = L2.p[0].y;
     h.SO_L2max_central_particle[2] = L2.p[0].z;
-    h.SO_L2max_central_particle[3] = L2.p[0].n;	
+    h.SO_L2max_central_particle[3] = L2.p[0].fi.w;	
     h.SO_central_density  = L2.density[0]; 
 	//!!!h.SO_radius           = sqrt(L2.halo_thresh2); 
 #endif 	
     // We search for the max of vcirc, which is proportional to sqrt(G*M/R).
     // The 4th power of that is proportional to N^2/R^2.
     vmax = 0.0;
-    for (int p=size/10; p<size; p++) {
-		float v4 = p*p/L2.d2_active[p];
+    for (int p=(size<1000?size/10:100); p<size; p++) {
+		float v4 = (float)p*p/L2.d2_active[p];
 		if (v4>vmax) { vmax = v4; rvmax = L2.d2_active[p]; }
     }
     h.rvcirc_max_com = lround(sqrt(rvmax) / h.r100_com * INT16SCALE );    // Get to radial units and compress into int16. 
@@ -311,8 +311,8 @@ HaloStat ComputeStats(int size,
     // We search for the max of vcirc, which is proportional to sqrt(G*M/R).
     // The 4th power of that is proportional to N^2/R^2.
     vmax = 0.0;
-    for (int p=size/10; p<size; p++) {
-	float v4 = p*p/L2.d2_active[p];
+    for (int p=(size<1000?size/10:100); p<size; p++) {
+	float v4 = (float)p*p/L2.d2_active[p];
 	if (v4>vmax) { vmax = v4; rvmax = L2.d2_active[p]; }
     }
     h.rvcirc_max_L2com = lround(sqrt(rvmax) / h.r100_L2com * INT16SCALE );    // Get to radial units and compress into int16. 

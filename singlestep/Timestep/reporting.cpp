@@ -197,6 +197,7 @@ void GatherTimings() {
         REPORT_RATE(Finish);		
 
 #ifdef PARALLEL
+    REPORT(1, "Check Multipoles Precondition", MultipoleTransferCheck.Elapsed()); total+=thistime;
     REPORT(1, "Check Multipoles", CheckForMultipoles.Elapsed()); total += thistime;
         REPORT_RATE(CheckForMultipoles);	
 
@@ -427,6 +428,7 @@ void GatherTimings() {
         	REPORT_RATE(Finish);
         REPORT(2, "Write Particles", WriteMergeSlab.Elapsed());
         REPORT(2, "Write Multipoles", WriteMultipoleSlab.Elapsed());
+        REPORT(2, "Release Free Memory To Kernel", ReleaseFreeMemoryTime.Elapsed());
 
 #ifdef PARALLEL
         REPORT(2, "Queuing Send Manifest", SendManifest->Load.Elapsed()+SendManifest->Transmit.Elapsed());
@@ -507,7 +509,8 @@ void ReportTimings(){
 
     // and write the whole buffer to disk
     char timingfn[1050];
-    sprintf(timingfn,"%s/lastrun%s.time", P.LogDirectory, NodeString);
+    sprintf(timingfn,"%s/step%04d%s.time",
+        WriteState.LogDirectory, WriteState.FullStepNumber, NodeString);
     FILE *timingfp = fopen(timingfn,"w");
     assertf(timingfp != NULL, "Couldn't open timing file \"%s\"\n", timingfn);
     fputs(reportbuffer, timingfp);

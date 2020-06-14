@@ -13,10 +13,10 @@ inline int is_subsample_particle(const int64_t pid, const double subsample_fracA
     MurmurHash3_x86_32(&pid, sizeof(pid), SUBSAMPLE_SEED, &hash);
     double prob = (double) hash / UINT32_MAX;
 
-    if ((prob < ( subsample_fracA)  ) || subsample_fracA == 1)
+    if (prob < subsample_fracA || subsample_fracA == 1)
     	return SUBSAMPLE_A; 
 
-    else if  (( (prob >= subsample_fracA) and (prob < (subsample_fracA + subsample_fracB) ) ) || subsample_fracB == 1)
+    else if ( (prob >= subsample_fracA && prob < (subsample_fracA + subsample_fracB)) || subsample_fracB == 1)
     	return SUBSAMPLE_B;
 
     else return 0; 

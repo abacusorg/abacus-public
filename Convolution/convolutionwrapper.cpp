@@ -337,6 +337,8 @@ int main(int argc, char ** argv){
 
 	    // Setup the log
 	    stdlog_threshold_global = P.LogVerbosity;
+        // TODO: put log in step-numbered dir
+        // Conv needs to learn the step number first
 	    char logfn[1050];
 	    sprintf(logfn,"%s/last%s.convlog", P.LogDirectory, NodeString);
 	    stdlog.open(logfn);

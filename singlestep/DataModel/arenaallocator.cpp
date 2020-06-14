@@ -26,6 +26,7 @@
 #include "simple_concurrent_queue.cpp"
 
 #include <mutex>
+#include <atomic>
 
 #define GUARDSIZE 4096
 // Allocate this many bytes of guard space around the buffer
@@ -58,7 +59,7 @@ public:
     void report_current();
     
     int64 total_allocation;
-    int64 total_shm_allocation;
+    std::atomic<int64> total_shm_allocation;  // atomic because the disposal thread may modify
     STimer ArenaMalloc;
     int numalloc, numreuse;
     int num_shm_alloc;
@@ -460,13 +461,14 @@ void ArenaAllocator::DiscardArena(int id) {
                 struct disposal_item di = {arena[id].addr, arena[id].allocated_size};
                 disposal_queue.push(di);
                 STDLOG(3, "Done pushing %d.\n", id);
+
+                // If using munmap thread, it is responsible for decrementing total_shm_allocation
             } else {
                 int res = munmap(arena[id].addr, arena[id].allocated_size);
                 assertf(res == 0, "munmap failed\n");
+                total_shm_allocation -= arena[id].allocated_size;  // only if not using thread
             }
-
-            // TODO: move to munmap thread, needs atomic update though
-            total_shm_allocation -= arena[id].allocated_size;
+            
         } else {
             assertf( arena[id].addr == NULL , 
             "Shared-memory arena %d of zero size has a non-null pointer %p!\n", id, arena[id].addr);
@@ -557,6 +559,37 @@ void ArenaAllocator::ResizeArena(int id, uint64 s) {
     return;
 }
 
+
+void ArenaAllocator::DisposalThreadLoop(int core){
+    struct disposal_item di;
+
+    STDLOG(1, "Starting arena allocator disposal thread on core %d\n", core);
+
+    if(core >= 0)
+        set_core_affinity(core);
+
+    int n = 0;
+    while(true){
+        disposal_queue.pop(di);  // blocking
+
+        // NULL is a safe termination flag because munmap(NULL) is not safe!
+        if(di.addr == NULL)
+            break;
+
+        if(di.size > 0){
+            DisposalThreadMunmap.Start();
+            int res = munmap(di.addr, di.size);
+            DisposalThreadMunmap.Stop();
+            total_shm_allocation -= di.size;
+            STDLOG(2, "Just munmap()'d %d bytes. %d items left on queue\n", di.size, disposal_queue.size());
+            assertf(res == 0, "munmap failed\n");
+            n++;
+        }
+    }
+
+    STDLOG(1, "Terminating arena allocator disposal thread.  Executed %d munmap()s.\n", n);
+}
+
 /**
  * This utility writes to the log the number of bytes allocated by malloc, and the heap size in use
  * by the program.  The difference is an estimate of the fragmentation.  Or it could simply
@@ -577,8 +610,8 @@ void ReportMemoryAllocatorStats(){
     size_t bytes_total = 0;
     MallocExtension::instance()->GetNumericProperty("generic.heap_size", &bytes_total);
 
-    STDLOG(3, "%.3g GiB held by mallocs; %.3g GiB held from system by allocator\n", bytes_allocated/1024./1024/1024, bytes_total/1024./1024/1024);
-    STDLOG(3, "\t%.3g GiB (%.1f%%) held by allocator but not in use\n", (bytes_total - bytes_allocated)/1024./1024/1024, 100.*(bytes_total - bytes_allocated)/bytes_total);
+    STDLOG(2, "%.3g GiB held by mallocs; %.3g GiB held from system by allocator\n", bytes_allocated/1024./1024/1024, bytes_total/1024./1024/1024);
+    STDLOG(2, "\t%.3g GiB (%.1f%%) held by allocator but not in use\n", (bytes_total - bytes_allocated)/1024./1024/1024, 100.*(bytes_total - bytes_allocated)/bytes_total);
 
     // This dumps a human-readable summary of the current allocator state to the log
     char logstr[2048];
@@ -629,32 +662,12 @@ void ReportMemoryAllocatorStats(){
 #endif
 }
 
-void ArenaAllocator::DisposalThreadLoop(int core){
-    struct disposal_item di;
-
-    STDLOG(1, "Starting arena allocator disposal thread on core %d\n", core);
-
-    if(core >= 0)
-        set_core_affinity(core);
-
-    int n = 0;
-    while(true){
-        disposal_queue.pop(di);  // blocking
-
-        // NULL is a safe termination flag because munmap(NULL) is not safe!
-        if(di.addr == NULL)
-            break;
-
-        if(di.size > 0){
-            DisposalThreadMunmap.Start();
-            int res = munmap(di.addr, di.size);
-            DisposalThreadMunmap.Stop();
-            assertf(res == 0, "munmap failed\n");
-            n++;
-        }
-    }
-
-    STDLOG(1, "Terminating arena allocator disposal thread.  Executed %d munmap()s.\n", n);
+void ReleaseFreeMemoryToKernel(){
+#if defined(HAVE_LIBTCMALLOC_MINIMAL) || defined(HAVE_LIBTCMALLOC)
+    ReleaseFreeMemoryTime.Start();
+    MallocExtension::instance()->ReleaseFreeMemory();
+    ReleaseFreeMemoryTime.Stop();
+#endif
 }
 
 #endif // INCLUDE_LB

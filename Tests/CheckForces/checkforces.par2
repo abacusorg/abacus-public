@@ -1,8 +1,6 @@
 SimName = "CheckForces"
 #include "$ABACUS$/Tests/test.def"
 
-NP = 1024**3
-CPD = 245
 
 SofteningLength = 1e-10  #50./1000
 BoxSize = 1.0

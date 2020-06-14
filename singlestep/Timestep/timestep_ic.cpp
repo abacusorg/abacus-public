@@ -133,7 +133,7 @@ void timestepIC(void) {
         MPI_REDUCE_TO_ZERO(&NP_from_IC, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
         STDLOG(1,"Ready to proceed to the remaining work\n");
         
-        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(comm_global);
         BarrierWallClock.Stop(); 
         
         // This MPI call also forces a synchronization over the MPI processes, 
