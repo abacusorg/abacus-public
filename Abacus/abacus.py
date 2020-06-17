@@ -817,14 +817,15 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         backups_enabled = param['BackupStepInterval'] > 0
     except:
         backups_enabled = False  # No BackupIntervalSteps parameter
+    
+    run_time_minutes = int(os.getenv("JOB_ACTION_WARNING_TIME",'10000'))
+    run_time_secs = 60 * run_time_minutes
+
+    start_time = wall_timer()
+    print("Beginning run at time", start_time, ", running for ", run_time_minutes, " minutes.\n")
+        
 
     if parallel:
-        # TODO: figure out how to signal a backup to the nodes
-        run_time_minutes = int(os.getenv("JOB_ACTION_WARNING_TIME",'10000'))
-        run_time_secs = 60 * run_time_minutes
-        start_time = wall_timer()
-        print("Beginning run at time", start_time, ", running for ", run_time_minutes, " minutes.\n")
-
         backups_enabled = False
 
     #if not backups_enabled:
@@ -1069,8 +1070,13 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 shutil.copy(dfn, pjoin(param.LogDirectory, "step{0:04d}", "step{0:04d}.density").format(write_state.FullStepNumber))
                 np.savez(pjoin(param.LogDirectory, "step{0:04d}", "step{0:04d}.pow").format(write_state.FullStepNumber), k=k,P=P,nb=nb)
                 os.remove(dfn)
+        
+        out_of_time = (wall_timer() - start_time >= run_time_secs)
+        if not parallel and out_of_time:
+            print('Running out of time in serial job! Exiting.')
+            status_log.print(f"# Serial job terminating prematurely w/ code 0 due to running out of time in job.  {ending_time_str:s} after {ending_time:f} hours.")
+            return 0 
 
-        exiting = 0 
         if parallel:
             # Merge all nodes' checksum files into one
             merge_checksum_files(write_state.NodeSize, param)
@@ -1083,7 +1089,24 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
 
             abandon_ship = path.exists(emergency_exit_fn)
-            out_of_time = (wall_timer() - start_time >= run_time_secs)
+            
+            #if the halfway-there backup hasn't been done already, and we're more than halfway through the job, backup the state now: 
+            interim_backup = (not interim_backup_complete) and (wall_timer() - start_time >= run_time_secs / 2) and (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60 ) #only relevant for long jobs.
+            
+            #are we coming up on a group finding step? If yes, backup the state, just in case. 
+            pre_gf_backup  = False 
+            nGFoutputs = [] 
+            output_arrs = [param.get('L1OutputRedshifts'), param.get('TimeSliceRedshifts'), param.get('TimeSliceRedshifts_Subsample')]
+            for output_arr in output_arrs:
+                try:
+                    nGFoutputs.append( len(output_arr) )
+                except (AttributeError,TypeError):
+                    nGFoutputs.append(0) 
+
+            if (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60): 
+                for i in range(len(nGFoutputs)):
+                    for z in range(nGFoutputs[i]):
+                        L1z = output_arrs[i][z] 
 
             # #if the halfway-there backup hasn't been done already, and we're more than halfway through the job, backup the state now:
             # interim_backup = (not interim_backup_complete) and (wall_timer() - start_time >= run_time_secs / 2) and (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60 ) #only relevant for long jobs.

@@ -3,16 +3,16 @@
 
 set -e
 
-DEBUG_FLAG=$1
-
+echo "Logs output to :" $LSB_HOSTS
 
 # This script runs on the summit compute node
 # Fail if any command returns a non-zero exit status
 
 #Specify simulation to run on this node.
 ######################
-export MINISUITE="MiniTestSuite"
-export SIM_NAME="AbacusSummit_small_test_${JSM_NAMESPACE_RANK}"
+export MINISUITE="SmallBox"
+PHASE=$((${JSM_NAMESPACE_RANK} + 3000))
+export SIM_NAME="AbacusSummit_small_c000_ph${PHASE}"
 
 SET_NAME="AbacusSummit"
 if [[ -z "$SIM_NAME" ]]; then
@@ -39,7 +39,8 @@ export ABACUS=$BBPATH/abacus
 if [[ ! $ABACUS -ef $ABACUS_SOURCE ]]; then 
     echo -e "* Copying files locally and running make in $(dirname $ABACUS):\n"
     mkdir -p $(dirname $ABACUS)
-    cp -R $ABACUS_SOURCE/ $ABACUS
+    rsync -a --exclude /Production/AbacusSummit/logs $ABACUS_SOURCE/ $ABACUS 
+    #cp -R  $ABACUS_SOURCE/ $ABACUS
     #make -C $ABACUS distclean
     #cd $ABACUS
     #./configure CXX=$CXX
@@ -50,8 +51,11 @@ fi
 
 LOGDIR=$ABACUS/Production/AbacusSummit/logs/$SIM_NAME
 mkdir -p $LOGDIR
-
 DEBUG_FN=$LOGDIR/${SIM_NAME}_production.debug
+LOG_FN=$LOGDIR/${SIM_NAME}_production.out
+echo "Redirecting output to :" ${LOG_FN}
+exec >${LOG_FN} 2>&1
+
 
 echo -e "* Clearing ramdisk\n"
 rm -rf $RAMDISK /dev/shm/lgarrison/ /dev/shm/nmaksimova/ /dev/shm/ast145* > $DEBUG_FN
@@ -61,10 +65,10 @@ echo -e "\n\n\n\n"
 function cleanup()
 {
     export GPFS_PERSIST=$PROJWORK/$USER/nvme/
-    echo -e "Copying from NVME to ${GPFS_PERSIST}"  
-    cp -R ${BBPATH}/${SET_NAME}/${SIM_NAME}/ ${GPFS_PERSIST}/${SIM_NAME}
-    cp -R ${LOGDIR} $GPFS_PERSIST/logs/
-    echo -e "Cleanup copy to GPFS complete for box ${SIM_NAME} on rank ${JSM_NAMESPACE_RANK}!"  
+    echo -e "CLEANUP: Copying from NVME to ${GPFS_PERSIST}"  
+    cp -R ${BBPATH}/${SET_NAME}/${SIM_NAME}/ ${GPFS_PERSIST}
+    cp -R ${LOGDIR}/ $GPFS_PERSIST/logs/
+    echo -e "CLEANUP: Cleanup copy to GPFS complete for box ${SIM_NAME} on rank ${JSM_NAMESPACE_RANK}!"  
 
     echo -e "* Environment:\n" >> $DEBUG_FN
     printenv &> $DEBUG_FN
@@ -85,126 +89,134 @@ function cleanup()
 trap cleanup EXIT
 
 
-
-# echo -e "Preprocessing parameters:"
-# for direc in $(find ${ABACUSSUMMIT_SPEC}/${MINISUITE}/ -maxdepth 1 -mindepth 1 -type d); do
-#     echo $direc
-#         $ABACUS/Production/run_sim.py ${direc} --just-params
-# done
-
-# echo -e "Copying parameter files from ${ABACUSSUMMIT_SPEC}/${MINISUITE} to ${ABACUSSUMMIT_PERSIST}/AbacusSummit"
-# rsync -r --exclude="*.par2" ${ABACUSSUMMIT_SPEC}/${MINISUITE} ${ABACUSSUMMIT_PERSIST}/AbacusSummit
-
-
-
-
 ######################################################################## 
 ######################################################################## 
 ########################################################################
 export PAR_DIR=${ABACUS}/external/AbacusSummit/Simulations/${MINISUITE}/${SIM_NAME} 
-if [ "$DEBUG_FLAG" = false ] ; then
-      echo -e "* Running abacus: ${PAR_DIR}\n"
-      $ABACUS/Production/run_sim.py "${PAR_DIR}" abacus.par --clean --maxsteps 4
-else
-    export GPFS_PERSIST=$PROJWORK/$USER/nvme/
-    echo -e "Copying from ${GPFS_PERSIST} to ${BBPATH}/${SET_NAME}/${SIM_NAME}"
-    mkdir -p ${BBPATH}/${SET_NAME}/${SIM_NAME}
-    cp -R ${GPFS_PERSIST}/${SIM_NAME}/ ${BBPATH}/${SET_NAME}
-fi
-######################################################################## 
-######################################################################## 
-######################################################################## 
+echo -e "* Running abacus: ${PAR_DIR}\n"
+
+$ABACUS/Production/run_sim.py "${PAR_DIR}" --clean --maxsteps 4
 
 ABACUS_EXIT=$?
 echo -e "Abacus exit code: $ABACUS_EXIT \n"  
 echo -e "\n\n\n\n"  
-
 #######################################################################
-DISBATCH_PY=$ABACUS/external/disBatch/disBatch.py
+#######################################################################
 
-export DISBATCH_SSH_NODELIST=$(hostname):4
-
-##### Queue up the time slice processing #####
-echo -e "About to queue TS processing:"
-
-SIMDIR=$ABACUS_PERSIST/$SET_NAME/$SIM_NAME
-SLICEDIRS=$(cd $SIMDIR; find -maxdepth 1 -name 'slice*.*')
-
-if [[ -n "$SLICEDIRS" ]]; then
-
-    # Write a disBatch file with one line per chunk per file type per time slice
-    # Chunks should be specified with a literal pattern like slice1.000/*slab001?.L0_pack9.dat
-    
-    mkdir $LOGDIR/tmp/
-    DISBATCH_TASKFILE=$LOGDIR/tmp/${SIM_NAME}.timeslice.disbatch
-
-    TSSCRIPT=$ABACUS/Production/AbacusSummit/rhea_post_process_timeslice.py
-    echo "#DISBATCH PREFIX cd ${SIMDIR}; ${TSSCRIPT} \"" > $DISBATCH_TASKFILE  # write 
-
-#    echo "#DISBATCH SUFFIX \" > ${SIMDIR}/\${DISBATCH_NAMETASKS}_\${DISBATCH_JOBID}_\${DISBATCH_TASKID}.log 2>&1" >> $DISBATCH_TASKFILE  # append
-    echo "#DISBATCH SUFFIX \" > $LOGDIR/tmp/blah.log 2>&1" >> $DISBATCH_TASKFILE  # append
-
-    for SLICE in $SLICEDIRS; do
-        # Write one line for every chunk of 10 for every file type
-        # slice1.000/*slab001?.L0_pack9.dat
-
-        i=0
-        while : ; do
-            FNPAT="$(printf '*slab%03d?*.dat' $i)"
-            MATCHES=$(cd $SIMDIR; find $SLICE -name "$FNPAT" -print -quit)
-            if [[ -z "$MATCHES" ]]; then
-                break
-            fi
-            for FTYPE in L0_pack9 L0_pack9_pids field_pack9 field_pack9_pids; do
-                echo "${SLICE}"/$(printf "*slab%03d?.${FTYPE}.dat" $i) >> $DISBATCH_TASKFILE
-            done
-            i=$((i + 1))
-        done
-    done
-
-    mkdir -p $LOGDIR/disbatchTS
-
-    TSEPI_SCRIPT=$ABACUS/Production/AbacusSummit/rhea_post_process_timeslice_epilogue.sh
-    
-    $DISBATCH_PY -e -p $LOGDIR/disbatchTS/$SIM_NAME $DISBATCH_TASKFILE
-    $TSEPI_SCRIPT $SIMDIR/slices && echo "Time slices completed successfully."    
+if [[ !($ABACUS_EXIT -eq 0 || $ABACUS_EXIT -eq 200) ]] ; then
+     echo -e "Abacus exit code indicates crash. No post-processing. Saving off fns and exiting."   
+     exit 
 fi
-####
 
-echo "Done with timeslices." 
-
+DISBATCH_PY=$ABACUS/external/disBatch/disBatch.py
 
 ##### queue up group processing #####
 
-# mkdir -p tmp
-# DISBATCH_TASKFILE=$(pwd)/tmp/${SIM_NAME}.group.disbatch
-# DISBATCH_SSH_NODELIST=$(hostname):4
+echo "Starting group processing." 
 
-# CHUNK=50
-# NWORKER=5
-# GROUPSCRIPT="$ABACUS/Abacus/convert_raw_groups_to_asdf.py --chunk=$CHUNK --nworkers=$NWORKER --delete"
-# GROUPDIR=$ABACUSSUMMIT_PERSIST/$SET_NAME/$SIM_NAME/group
+mkdir -p $LOGDIR/tmp/
+DISBATCH_TASKFILE=$LOGDIR/tmp/${SIM_NAME}.group.disbatch
 
+export DISBATCH_SSH_NODELIST=$(hostname):4
 
-# if [ -d $GROUPDIR ]; then
-#     echo "#DISBATCH PREFIX cd $GROUPDIR; $GROUPSCRIPT " > $DISBATCH_TASKFILE  # write
-#     echo "#DISBATCH SUFFIX > $(pwd)/\${DISBATCH_NAMETASKS}_\${DISBATCH_JOBID}_\${DISBATCH_TASKID}.log 2>&1" >> $DISBATCH_TASKFILE  # append
+echo ${DISBATCH_SSH_NODELIST}
 
-#     GROUPLIST=$(cd $GROUPDIR; echo Step*/ | tr " " "\n")
-#     NGROUPLIST=$(wc -l <<< "$GROUPLIST")
-#     echo "$GROUPLIST" >> $DISBATCH_TASKFILE
+CHUNK=405 #only one super slab.
+NWORKER=1
+GROUPSCRIPT="$ABACUS/Abacus/convert_raw_groups_to_asdf.py --chunk=$CHUNK --nworkers=$NWORKER --delete"
+GROUPDIR=$ABACUS_PERSIST/$SET_NAME/$SIM_NAME/group
 
-#     mkdir -p ./logs/$SIM_NAME/disbatchGroups
+if [ -d $GROUPDIR ]; then
+     echo "#DISBATCH PREFIX cd $GROUPDIR; $GROUPSCRIPT " > $DISBATCH_TASKFILE  # write
+     echo "#DISBATCH SUFFIX > $LOGDIR/tmp/${SIM_NAME}.log 2>&1" >> $DISBATCH_TASKFILE  # append
+     ####echo "#DISBATCH SUFFIX > $LOGDIR/tmp/\${DISBATCH_NAMETASKS}_\${DISBATCH_JOBID}_\${DISBATCH_TASKID}.log 2>&1" >> $DISBATCH_TASKFILE  # append #NAM this consistently fails in disBatch b/c log fn not found
+
+     GROUPLIST=$(cd $GROUPDIR; echo Step*/ | tr " " "\n")
+     NGROUPLIST=$(wc -l <<< "$GROUPLIST")
+     echo "$GROUPLIST" >> $DISBATCH_TASKFILE
+
+     mkdir -p $LOGDIR/disbatchGroups
     
-#     $DISBATCH_PY -e -p ./logs/$SIM_NAME/disbatchGroups/$SIM_NAME $DISBATCH_TASKFILE && echo Groups completed successfully.
-# fi
+     $DISBATCH_PY -e -p $LOGDIR/disbatchGroups/ $DISBATCH_TASKFILE && GROUPS_COMPLETED="True"
+fi
 
-# echo -e "Completed groups disbatch." 
-#######################################################################
+if [ "$GROUPS_COMPLETED" = True ] ; then
+	echo -e "Completed groups disbatch." 
 
-export GPFS_PERSIST=$PROJWORK/$USER/nvme/
-echo -e "Copying from NVME to ${GPFS_PERSIST}"  
+	WORKINGDIR=$ABACUS_PERSIST/$SET_NAME/$SIM_NAME
+	pushd $WORKINGDIR > /dev/null  # work inside sim dir
 
-cp -R ${BBPATH}/${SET_NAME}/${SIM_NAME} ${GPFS_PERSIST}/${SIM_NAME}
+	echo "Executing epilogue on $WORKINGDIR"
 
-echo -e "Run and copy to GPFS complete for box ${SIM_NAME} on rank ${JSM_NAMESPACE_RANK}!"  
+	# Zip and delete the logs in groups of 100 steps
+	echo "Starting zip of logs at $(date)"
+	pushd log/ > /dev/null
+	shopt -s nullglob
+
+	# Delete symlink
+	rm -f last
+
+	i=0
+	while : ; do
+	    start=$(printf 'step%02d??' $i)
+	    LOGSTEPDIRS=($start/)
+	    if [ "${#LOGSTEPDIRS[@]}" -eq 0 ]; then
+	        break
+	    fi
+	    name=$(printf 'log%02d00' $i)
+	    zip --move -qr ${name}.zip ${LOGSTEPDIRS[@]} &
+	    i=$((i + 1))
+	done
+
+	wait  # wait for all zip to finish
+	shopt -u nullglob
+	echo "Done zip at $(date)"
+
+	FAST_CKSUM=$ABACUS/external/fast-cksum/bin/fast_cksum
+
+	# Checksum the logs
+	$FAST_CKSUM * > checksums.crc32
+
+	popd > /dev/null  # back to WORKINGDIR
+
+	# Now delete:
+	# - Wisdom file: no sense in carting around
+	# - Read directory (?): the final header is in the halos anyway, and the full state is in the logs
+	# - Any disbatch files, or maybe we'll want to be able to check on them later
+	# - Retrieved state
+	# - Core files
+	echo "Beginning deletions at $(date)"
+
+	echo "Deleting read"
+	rm -rf read/
+
+	echo "Deleting core files"
+	rm -f core.*
+
+	echo "Deleting retrieved state"
+	rm -rf ../${SIM_NAME}_retrieved_state
+
+	echo "Checksum info"
+	pushd info/ > /dev/null
+	$FAST_CKSUM * > checksums.crc32
+	popd > /dev/null
+
+	echo "Deleting extra files"
+	rm -f fftw_*.wisdom
+
+	$FAST_CKSUM abacus.par status.log > checksums.crc32
+
+	popd > /dev/null  # back to submission dir
+	rm -f tmp/${SIM_NAME}.*
+	rm -f slurm_job_*_resize.{sh,csh}
+
+	echo "Done deletions at $(date)"
+
+	# This is a special string the assembly line looks for to know that it's safe to start Globus and htar
+	echo "Post processing complete."
+        echo -e "SUCCESS: Run complete for box ${SIM_NAME} on rank ${JSM_NAMESPACE_RANK}!"
+
+else
+	echo "Groups post processing failed. Cleaning up and exiting."
+
+fi
