@@ -482,7 +482,7 @@ def setup_state_dirs(paramfn):
     When doing a parallel run, we can set up global directories here,
     but not node-local ones.
     '''
-    params = GenParam.makeInput(paramfn, paramfn)
+    params = InputFile(paramfn)
     StateIOMode = params.get('StateIOMode','normal').lower()
     Conv_IOMode = params.get('Conv_IOMode','normal').lower()
 
@@ -539,6 +539,7 @@ def setup_state_dirs(paramfn):
         if path.exists(link):
             # link already existing as a file/directory instead of a link is an error!
             assert path.islink(link)
+            assert os.samefile(os.readlink(link), target)
         else:
             os.makedirs(target, exist_ok=True)
             os.symlink(target, link)
