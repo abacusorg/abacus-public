@@ -148,7 +148,8 @@ public:
     #define MAX_IODIRS 100
     char **IODirs; //[MAX_IODIRS][1024];
     int nIODirs;
-    int IODirThreads[MAX_IODIRS];
+    int nIOQueues;
+    int IODirQueues[MAX_IODIRS];
     
     int Conv_OMP_NUM_THREADS;
     int Conv_IOCores[MAX_IO_THREADS];
@@ -388,18 +389,16 @@ public:
         Conv_zwidth = -1;
         installscalar("Conv_zwidth", Conv_zwidth, DONT_CARE);
 
-        // Using staticly allocated memory didn't seem to work with installvector
-        IODirs = (char**) malloc(MAX_IODIRS*sizeof(char*));
-        char *block = (char *) malloc(MAX_IODIRS*1024*sizeof(char));
+        nIODirs = 0;
+        nIOQueues = 0;
+        IODirs = new char*[MAX_IODIRS];
         for(int i = 0; i < MAX_IODIRS; i++){
-            IODirs[i] = block + 1024*i;
+            IODirs[i] = new char[1024];
             strcpy(IODirs[i], STRUNDEF);
-            IODirThreads[i] = -1;
+            IODirQueues[i] = -1
         }
         installvector("IODirs", IODirs, MAX_IODIRS, 1024, DONT_CARE);
-        nIODirs = 0;
-        installscalar("nIODirs", nIODirs, DONT_CARE);
-        installvector("IODirThreads", IODirThreads, MAX_IODIRS, 1, DONT_CARE);
+        installvector("IODirQueues", IODirQueues, MAX_IODIRS, 1, DONT_CARE);
 
         // If GPUThreadCoreStart is undefined, GPU threads will not be bound to cores
         for(int i = 0; i < MAX_GPUS; i++){
@@ -477,8 +476,9 @@ public:
     HeaderStream *hs;
     ~Parameters(void) {
         delete hs;
-        free(IODirs[0]);
-        free(IODirs);
+        for(int i = 0; i < MAX_IODIRS; i++)
+            delete[] IODirs[i];
+        delete[] IODirs;
     }
     char *header() { 
         assert(hs!=NULL); assert(hs->buffer!=NULL);
@@ -521,12 +521,25 @@ public:
 private:
     void ProcessStateDirectories();
     void CountTimeSlices();
+    void CountIOThreads();
 };
 
 // Convert a whole string to lower case, in place.
 void strlower(char* str){
     for ( ; *str; ++str)
         *str = tolower(*str);
+}
+
+
+void Parameters::CountIOThreads(){
+    nIOQueues = 1;  // queue 0 always exists
+    nIODirs = 0;
+    // queue numbers must be sequential
+    for(int i = 0; i < MAX_IODIRS; i++){
+        nIOQueues = max(nIOQueues,IODirQueues[i]+1);
+        if(strcmp(IODirs[i], STRUNDEF) != 0)
+            nIODirs++;
+    }
 }
 
 void Parameters::CountTimeSlices(){
@@ -606,6 +619,7 @@ void Parameters::ReadParameters(char *parameterfile, int icflag) {
     ReadHeader(*hs);
     hs->Close();
     CountTimeSlices();
+    CountIOThreads();
     ProcessStateDirectories();
     if(!icflag) ValidateParameters();
 }
