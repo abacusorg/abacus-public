@@ -1007,6 +1007,13 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 handle_singlestep_error(cpe)
                 raise
 
+
+
+        if param.SimName == "AbacusSummit_small_c000_ph3001":
+            print(f'THIS IS A HACK. CRASHING ph3001.')
+            return 13
+
+
         # In profiling mode, we don't move the states so we can immediately run the same step again
         if ProfilingMode and ProfilingMode != 2:
             print(f'\tStep {stepnum} finished. ProfilingMode is active; Abacus will now quit and states will not be moved.')
@@ -1071,6 +1078,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         out_of_time = (wall_timer() - start_time >= run_time_secs)
         if not parallel and out_of_time:
             print('Running out of time in serial job! Exiting.')
+            ending_time = time.time()
+            ending_time_str = time.asctime(time.localtime())
+            ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
             status_log.print(f"# Serial job terminating prematurely w/ code 0 due to running out of time in job.  {ending_time_str:s} after {ending_time:f} hours.")
             return 0 
 
