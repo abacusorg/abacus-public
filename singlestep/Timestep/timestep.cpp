@@ -393,6 +393,8 @@ void KickAction(int slab) {
         KickSlab(slab, kickfactor1, kickfactor2, KickCell);
     }
     KickCellTimer.Stop();
+
+    //ReleaseFreeMemoryToKernel();
 }
 
 // -----------------------------------------------------------------
@@ -734,6 +736,7 @@ void DriftAction(int slab) {
 	    }
 	    else{
 	        SB->DeAllocate(AccSlab,slab);
+            //ReleaseFreeMemoryToKernel();
 	    }
 	// }
 }
@@ -829,8 +832,8 @@ void FinishAction(int slab) {
 
     int pwidth = FetchSlabs.raw_number_executed - Finish.raw_number_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
-    if (Finish.raw_number_executed % 3 == 0)  // release is cheap but not totally free, so run every few Finishes
-        ReleaseFreeMemoryToKernel();
+    //if (Finish.raw_number_executed % 3 == 0)  // release is cheap but not totally free, so run every few Finishes
+        //ReleaseFreeMemoryToKernel();
     ReportMemoryAllocatorStats();
 }
 
