@@ -245,8 +245,10 @@ def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
 
     # We will attempt to copy derivatives from the archive dir if they aren't found
     if derivs_archive_dirs == True:
-        derivs_archive_dirs = [pjoin(os.getenv('ABACUS_PERSIST',None), 'Derivatives'),
-                              pjoin(os.getenv('ABACUS_SSD',None), 'Derivatives'), pjoin(os.getenv('ABACUS_DERIVS',None), 'Derivatives')]
+        derivs_archive_dirs = []
+        for var in ['ABACUS_PERSIST', 'ABACUS_SSD', 'ABACUS_DERIVS']:
+            if var in os.environ:
+                derivs_archive_dirs += [pjoin(os.environ[var], 'Derivatives')]
 
     if type(derivs_archive_dirs) is str:
         derivs_archive_dirs = [derivs_archive_dirs]
@@ -464,6 +466,18 @@ def setup_convolution_env(param):
     return convolution_env
 
 
+# If the links don't exist, create them and the underlying dirs
+# If they do exist, don't touch them
+def make_link(link, target):
+    if path.exists(link):
+        # link already existing as a file/directory instead of a link is an error!
+        assert path.islink(link)
+        assert path.samefile(os.readlink(link), target)
+    else:
+        os.makedirs(target, exist_ok=True)
+        os.symlink(target, link)
+
+
 def setup_state_dirs(paramfn):
     '''
     This function is called once before the singlestep loop begins.
@@ -480,7 +494,7 @@ def setup_state_dirs(paramfn):
     When doing a parallel run, we can set up global directories here,
     but not node-local ones.
     '''
-    params = GenParam.makeInput(paramfn, paramfn)
+    params = InputFile(paramfn)
     StateIOMode = params.get('StateIOMode','normal').lower()
     Conv_IOMode = params.get('Conv_IOMode','normal').lower()
 
@@ -520,7 +534,8 @@ def setup_state_dirs(paramfn):
         multipoles = None
 
     if StateIOMode == 'overwrite':
-        write = read
+        #write = read
+        make_link(write, read)
         past = None
 
     # Check if the write state already exists
@@ -530,16 +545,6 @@ def setup_state_dirs(paramfn):
             shutil.rmtree(write)
         else:
             raise ValueError("Cannot proceed if write state exists!")
-
-    # If the links don't exist, create them and the underlying dirs
-    # If they do exist, don't touch them
-    def make_link(link, target):
-        if path.exists(link):
-            # link already existing as a file/directory instead of a link is an error!
-            assert path.islink(link)
-        else:
-            os.makedirs(target, exist_ok=True)
-            os.symlink(target, link)
 
     # Set up symlinks to slosh the state
     # This approach ensures that Abacus proper doesn't need to know anything about sloshing
@@ -596,8 +601,6 @@ def move_state_dirs(read, write, past):
     symlinks for `read` and `write`.  We also want to swap
     the symlink for the Taylors (but not the multipoles because
     the convolve hasn't happened yet).
-
-    TODO: double check this still works when overwriting the state
     '''
 
     # move read to past, write to read
@@ -618,6 +621,9 @@ def move_state_dirs(read, write, past):
             os.rename(read, past)
         except OSError:
             pass  # read doesn't exist, must be IC state
+
+    if path.samefile(read,write):
+        return  # overwriting; nothing to do
 
     readtmp = read + '_tmp'
     os.rename(write, readtmp)
