@@ -978,8 +978,10 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
             # TODO: pass step num to convolution so it can name the logs appropriately
             convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
-            for cl in convlogs:
-                os.rename(cl, cl.replace('last', f'step{read_state.FullStepNumber+1:04d}'))
+            for _cl in convlogs:
+                cl = _cl.replace('last', f'step{read_state.FullStepNumber+1:04d}') 
+                os.rename(_cl, cl)
+                shutil.move(cl, f'step{read_state.FullStepNumber+1:04d}') 
 
             # Warning: Convolution won't work if MultipoleDirectory is the write (or read) state
             # because the states get moved after multipole generation but before convolution.
