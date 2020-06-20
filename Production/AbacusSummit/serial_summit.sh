@@ -127,7 +127,7 @@ export DISBATCH_SSH_NODELIST=$(hostname):4
 
 echo ${DISBATCH_SSH_NODELIST}
 
-CHUNK=405 #only one super slab.
+CHUNK=441 #only one super slab.
 NWORKER=1
 GROUPSCRIPT="$ABACUS/Abacus/convert_raw_groups_to_asdf.py --chunk=$CHUNK --nworkers=$NWORKER --delete"
 GROUPDIR=$ABACUS_PERSIST/$SET_NAME/$SIM_NAME/group
