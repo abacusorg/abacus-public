@@ -1017,13 +1017,6 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 handle_singlestep_error(cpe)
                 raise
 
-
-
-        if param.SimName == "AbacusSummit_small_c000_ph3001":
-            print(f'THIS IS A HACK. CRASHING ph3001.')
-            return 13
-
-
         # In profiling mode, we don't move the states so we can immediately run the same step again
         if ProfilingMode and ProfilingMode != 2:
             print(f'\tStep {stepnum} finished. ProfilingMode is active; Abacus will now quit and states will not be moved.')
