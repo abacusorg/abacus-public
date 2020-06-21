@@ -620,6 +620,7 @@ inline void Manifest::Check() {
         }
         if (completed == MANIFEST_NOTREADY) {
             STDLOG(2,"Received the Manifest Core\n");
+            ReleaseFreeMemoryToKernel();
             Receive();
             completed = MANIFEST_TRANSFERRING;
         } 
