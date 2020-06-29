@@ -2,9 +2,9 @@
 #BSUB -P ast145
 #BSUB -o lsf-%J_%I.out
 #BSUB -J "Abacus"
-#BSUB -q debug
-#BSUB -nnodes 2
-#BSUB -W 5  # run for 5 minutes. 
+#BSUB -q batch
+#BSUB -nnodes 2000
+#BSUB -W 1440  # run for 24 hours. 
 #BSUB -alloc_flags nvme smt2  # one or two hyper-threads per core. default is four.
 
 # This script runs on the batch-launch node
@@ -16,7 +16,7 @@
 # contain stderr and stdout
 
 echo -e "Launching jsrun"
-jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -gALL_GPUS -b none -X 0 --smpiargs off -o miniSuite_${LSB_JOBID}.out ./serial_summit.sh 
+jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -gALL_GPUS -b none -X 0 --smpiargs off -o smallSuite_production_${LSB_JOBID}.out ./serial_summit.sh 
 echo -e "Done."
 
 

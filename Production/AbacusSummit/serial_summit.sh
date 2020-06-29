@@ -3,6 +3,8 @@
 
 set -e
 
+export JOB_ACTION_WARNING_TIME=1380
+
 echo "Logs output to :" $LSB_HOSTS
 
 # This script runs on the summit compute node
@@ -95,7 +97,7 @@ trap cleanup EXIT
 export PAR_DIR=${ABACUS}/external/AbacusSummit/Simulations/${MINISUITE}/${SIM_NAME} 
 echo -e "* Running abacus: ${PAR_DIR}\n"
 
-$ABACUS/Production/run_sim.py "${PAR_DIR}" --clean --maxsteps 4
+$ABACUS/Production/run_sim.py "${PAR_DIR}" --clean
 
 ABACUS_EXIT=$?
 echo -e "Abacus exit code: $ABACUS_EXIT \n"  
@@ -107,6 +109,10 @@ if [[ !($ABACUS_EXIT -eq 0 || $ABACUS_EXIT -eq 200) ]] ; then
      echo -e "Abacus exit code indicates crash. No post-processing. Saving off fns and exiting."   
      exit 
 fi
+
+now=$(date +"%T")
+echo "Current time, after abacus exit : $now"
+
 
 DISBATCH_PY=$ABACUS/external/disBatch/disBatch.py
 
@@ -121,7 +127,7 @@ export DISBATCH_SSH_NODELIST=$(hostname):4
 
 echo ${DISBATCH_SSH_NODELIST}
 
-CHUNK=405 #only one super slab.
+CHUNK=441 #only one super slab.
 NWORKER=1
 GROUPSCRIPT="$ABACUS/Abacus/convert_raw_groups_to_asdf.py --chunk=$CHUNK --nworkers=$NWORKER --delete"
 GROUPDIR=$ABACUS_PERSIST/$SET_NAME/$SIM_NAME/group
@@ -139,6 +145,9 @@ if [ -d $GROUPDIR ]; then
     
      $DISBATCH_PY -e -p $LOGDIR/disbatchGroups/ $DISBATCH_TASKFILE && GROUPS_COMPLETED="True"
 fi
+
+now=$(date +"%T")
+echo "Current time, after groups pp : $now"
 
 if [ "$GROUPS_COMPLETED" = True ] ; then
 	echo -e "Completed groups disbatch." 
@@ -176,6 +185,10 @@ if [ "$GROUPS_COMPLETED" = True ] ; then
 
 	# Checksum the logs
 	$FAST_CKSUM * > checksums.crc32
+
+
+	now=$(date +"%T")
+echo "Current time, after log zip : $now"
 
 	popd > /dev/null  # back to WORKINGDIR
 
@@ -215,6 +228,9 @@ if [ "$GROUPS_COMPLETED" = True ] ; then
 	# This is a special string the assembly line looks for to know that it's safe to start Globus and htar
 	echo "Post processing complete."
         echo -e "SUCCESS: Run complete for box ${SIM_NAME} on rank ${JSM_NAMESPACE_RANK}!"
+
+now=$(date +"%T")
+echo "Current time,end : $now"
 
 else
 	echo "Groups post processing failed. Cleaning up and exiting."

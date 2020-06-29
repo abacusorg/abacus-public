@@ -978,8 +978,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
             # TODO: pass step num to convolution so it can name the logs appropriately
             convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
-            for cl in convlogs:
-                os.rename(cl, cl.replace('last', f'step{read_state.FullStepNumber+1:04d}'))
+            for _cl in convlogs:
+                cl = _cl.replace('last', f'step{read_state.FullStepNumber+1:04d}') 
+                os.rename(_cl, cl)
+                logdir_name = f'step{read_state.FullStepNumber+1:04d}'
+                logdir = pjoin(param.LogDirectory, logdir_name)
+                shutil.move(cl, logdir) 
 
             # Warning: Convolution won't work if MultipoleDirectory is the write (or read) state
             # because the states get moved after multipole generation but before convolution.
@@ -1077,6 +1081,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         out_of_time = (wall_timer() - start_time >= run_time_secs)
         if not parallel and out_of_time:
             print('Running out of time in serial job! Exiting.')
+            ending_time = time.time()
+            ending_time_str = time.asctime(time.localtime())
+            ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
             status_log.print(f"# Serial job terminating prematurely w/ code 0 due to running out of time in job.  {ending_time_str:s} after {ending_time:f} hours.")
             return 0 
 
