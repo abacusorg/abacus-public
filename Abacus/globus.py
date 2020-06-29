@@ -43,7 +43,7 @@ from Abacus.Tools import ArgParseFormatter
 # source and destination endpoints
 OLCF_DTN_ENDPOINT = 'ef1a9560-7ca1-11e5-992c-22000b96db58'
 NERSC_DTN_ENDPOINT = '9d6d994a-6d04-11e5-ba46-22000b92c6ec'
-MARVIN_ENDPOINT = 'c037adb4-21ac-11ea-9707-021304b0cca7'
+MARVIN_ENDPOINT = '221dc002-b723-11ea-9a3c-0255d23c44ef'
 
 # Destination Path -- The directory will be created if it doesn't exist
 DEFAULT_NERSC_DEST = '/global/cfs/cdirs/desi/cosmosim/Abacus'
@@ -292,13 +292,18 @@ def start_globus_transfer(source_path, exclude=None, include=None, dest_path=DEF
 
     else:
         tdata.add_item(source_path, dest_path, recursive=False) #grab top level directory structure. 
-        for pattern in include:
-            for p in braceexpand(pattern):
-                files = glob.glob(source_path + p)
-                tdata.add_item(files, dest_path, recursive=False) #grab top level directory structure. 
-
-    print("Exiting!")
-    exit(1) 
+        if include:
+            for pattern in include:
+                for p in braceexpand(pattern):
+                    files = glob.glob(source_path + p)
+                    tdata.add_item(files, dest_path, recursive=False) 
+        elif exclude:
+             print('Exclude not yet implemented!')
+             exit(1)
+#            files = set(glob("*"))
+#            for pattern in exclude:
+#                for p in braceexpand(pattern):
+#                    files -= set(glob.glob(source_path + p))
 
     # also writes status log
     _submit_transfer(tdata, transfer_client, status_log, status_log_fn, boxname)
