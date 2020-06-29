@@ -1085,7 +1085,7 @@ try:
         f.restype = ct.c_uint64
         f.argtypes = (asciistring_arg, ct.c_size_t, ct.c_int, ct.c_double, ndarray_arg, ndarray_arg, ndarray_arg)
 except (OSError, ImportError):
-    raise
+    #raise
     pass  # no pack14 library found
 
 

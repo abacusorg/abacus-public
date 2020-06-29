@@ -24,7 +24,9 @@ executable.
 int FORCE_RADIUS = -1;
 int GROUP_RADIUS = -1;
 
-#define FETCHAHEAD (2*GROUP_RADIUS + FORCE_RADIUS + FINISH_WAIT_RADIUS + 2)
+//#define FETCHAHEAD (2*GROUP_RADIUS + FORCE_RADIUS + FINISH_WAIT_RADIUS + 2)
+//#define FETCHAHEAD (2*GROUP_RADIUS + FORCE_RADIUS + 2)
+#define FETCHAHEAD (max(2*GROUP_RADIUS + FORCE_RADIUS, FINISH_WAIT_RADIUS) + 2)
 #define FETCHPERSTEP 1
 // Recall that all of these Dependencies have a built-in STimer
 // to measure the amount of time spent on Actions.
@@ -394,7 +396,7 @@ void KickAction(int slab) {
     }
     KickCellTimer.Stop();
 
-    //ReleaseFreeMemoryToKernel();
+    ReleaseFreeMemoryToKernel();
 }
 
 // -----------------------------------------------------------------
@@ -736,7 +738,7 @@ void DriftAction(int slab) {
 	    }
 	    else{
 	        SB->DeAllocate(AccSlab,slab);
-            //ReleaseFreeMemoryToKernel();
+            ReleaseFreeMemoryToKernel();
 	    }
 	// }
 }
@@ -833,7 +835,7 @@ void FinishAction(int slab) {
     int pwidth = FetchSlabs.raw_number_executed - Finish.raw_number_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
     //if (Finish.raw_number_executed % 3 == 0)  // release is cheap but not totally free, so run every few Finishes
-        //ReleaseFreeMemoryToKernel();
+        ReleaseFreeMemoryToKernel();
     ReportMemoryAllocatorStats();
 }
 
@@ -907,18 +909,7 @@ void timestep(void) {
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
     assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS);
 
- #ifdef PARALLEL
-	ConvolutionWallClock.Clear(); ConvolutionWallClock.Start();
-
-	ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory);
-
-	ParallelConvolveDriver->Convolve();
-	ParallelConvolveDriver->SendTaylors(FORCE_RADIUS);
-
-	ConvolutionWallClock.Stop();
-	ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
-    MultipoleTransferCheck.Clear(); TaylorTransferCheck.Clear();
-#endif
+    ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory);
 
     TimeStepWallClock.Clear();  TimeStepWallClock.Start();
     STDLOG(1,"Initiating timestep()\n");
@@ -959,13 +950,14 @@ void timestep(void) {
     int first = first_slab_on_node;  // First slab to load
     STDLOG(1,"First slab to load will be %d\n", first);
 
-#ifdef PARALLEL
-	for (int slab = first + FORCE_RADIUS; slab < first + FORCE_RADIUS + total_slabs_on_node; slab ++ ){
-    	SB->AllocateArena(TaylorSlab, slab, RAMDISK_NO);
-		ParallelConvolveDriver->RecvTaylorSlab(slab);
-		STDLOG(2, "Set up to receive Taylor slab %d via MPI\n", slab);
-	}
-#endif
+    #ifdef ONE_SIDED_GROUP_FINDING
+        int first_outputslab = FORCE_RADIUS + 2*GROUP_RADIUS + (int)(GROUP_RADIUS > 0);
+    #else
+        int first_outputslab = FORCE_RADIUS + 2*GROUP_RADIUS;
+    #endif
+    if(LPTStepNumber() == 2){
+        first_outputslab = max(FINISH_WAIT_RADIUS,first_outputslab);
+    }
 
 
     INSTANTIATE(                  FetchSlabs, 0);
@@ -973,11 +965,6 @@ void timestep(void) {
     INSTANTIATE(                   NearForce, FORCE_RADIUS);
     INSTANTIATE(                 TaylorForce, FORCE_RADIUS);
     INSTANTIATE(                        Kick, FORCE_RADIUS);
-    #ifdef ONE_SIDED_GROUP_FINDING
-        int first_outputslab = FORCE_RADIUS + 2*GROUP_RADIUS + (int)(GROUP_RADIUS > 0);
-    #else
-        int first_outputslab = FORCE_RADIUS + 2*GROUP_RADIUS;
-    #endif
     INSTANTIATE(                      Output, first_outputslab);
     INSTANTIATE(                       Drift, first_outputslab);
     INSTANTIATE(                      Finish, first_outputslab + FINISH_WAIT_RADIUS);
@@ -1008,9 +995,36 @@ void timestep(void) {
     }
 
     if(WriteState.Do2LPTVelocityRereading)
-        INSTANTIATE(       UnpackLPTVelocity, first_outputslab - FINISH_WAIT_RADIUS);
+        INSTANTIATE(       UnpackLPTVelocity, 0);
     else
-        INSTANTIATE_NOOP(  UnpackLPTVelocity, first_outputslab - FINISH_WAIT_RADIUS);
+        INSTANTIATE_NOOP(  UnpackLPTVelocity, 0);
+
+
+    // Let FetchSlabs start early, in case we want to overlap convolve and IO
+    //while(FetchSlabs.Attempt()){}
+
+    #ifdef PARALLEL
+    TimeStepWallClock.Stop();
+    ConvolutionWallClock.Clear(); ConvolutionWallClock.Start();
+
+    //ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory);
+
+    ParallelConvolveDriver->Convolve();
+    ParallelConvolveDriver->SendTaylors(FORCE_RADIUS);
+
+    ConvolutionWallClock.Stop();
+    ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
+    MultipoleTransferCheck.Clear(); TaylorTransferCheck.Clear();
+
+    TimeStepWallClock.Start();
+
+    for (int slab = first + FORCE_RADIUS; slab < first + FORCE_RADIUS + total_slabs_on_node; slab ++ ){
+        SB->AllocateArena(TaylorSlab, slab, RAMDISK_NO);
+        ParallelConvolveDriver->RecvTaylorSlab(slab);
+        STDLOG(2, "Set up to receive Taylor slab %d via MPI\n", slab);
+    }
+    #endif
+
 	
 	int timestep_loop_complete = 0; 
 	while (!timestep_loop_complete){

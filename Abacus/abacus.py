@@ -535,7 +535,7 @@ def setup_state_dirs(paramfn):
 
     if StateIOMode == 'overwrite':
         #write = read
-        make_link(write, read)
+        make_link(write, basename(read))
         past = None
 
     # Check if the write state already exists

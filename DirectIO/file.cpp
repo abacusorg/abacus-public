@@ -205,6 +205,14 @@ int CreateSubDirectory(const char *path, const char *subdir) {
     return 0;
 }
 
+int CreateSymlink(const char* target, const char* link){
+    int ret = symlink(target, link);
+    int reason = errno;
+    assertf(ret == 0 || errno == EEXIST, "symlink(\"%s\", \"%s\") failed for reason %s", target, link, strerror(reason));
+
+    return 0;
+}
+
 int FileExists(const char *fn) {
     return (access(fn,0) == 0);
 }

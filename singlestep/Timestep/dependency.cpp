@@ -147,12 +147,16 @@ public:
         return s;
     }
 
-    void Attempt(void) {
+    int Attempt(void) {
         assert(instantiated);
 
         // Take at most one action.
         int ws = wrap(last_slab_executed+1);
-        if( notdone(ws) && precondition(ws) ) do_action(ws);
+        if( notdone(ws) && precondition(ws) ){
+            do_action(ws);
+            return 1;
+        }
+        return 0;
     }
     
     static void NotifySpinning(enum SpinFlag s){

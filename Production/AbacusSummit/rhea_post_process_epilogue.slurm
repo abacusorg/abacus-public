@@ -59,6 +59,7 @@ echo "Beginning deletions at $(date)"
 
 echo "Deleting read"
 rm -rf read/
+rm -f write  # might have symlink
 
 echo "Deleting core files"
 rm -f core.*

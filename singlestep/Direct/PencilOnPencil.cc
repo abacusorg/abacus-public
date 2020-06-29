@@ -127,7 +127,7 @@ uint64 ComputeSICSize(int cpd, int np, int WIDTH, int NSplit) {
     	// Just adding in some for alignment and small-problem worst case
 
     // TODO: adding 10% extra padding in an attempt to get the 1e12 particle sim to run
-    return 1.1*size;
+    return 1.2*size;
 }
 
 /// Given a pointer to an existing 'buffer' of size 'bsize', return 
