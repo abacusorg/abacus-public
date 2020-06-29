@@ -22,12 +22,15 @@ $ ./globus.py --help
 Based on Globus automation-examples/globus_folder_sync.py.
 '''
 
+import pdb
+
 import sys
 import os
 import urllib
 import argparse
-
+import glob
 import toml
+from braceexpand import braceexpand
 
 from globus_sdk import (NativeAppAuthClient, TransferClient,
                         RefreshTokenAuthorizer, TransferData)
@@ -40,9 +43,11 @@ from Abacus.Tools import ArgParseFormatter
 # source and destination endpoints
 OLCF_DTN_ENDPOINT = 'ef1a9560-7ca1-11e5-992c-22000b96db58'
 NERSC_DTN_ENDPOINT = '9d6d994a-6d04-11e5-ba46-22000b92c6ec'
+MARVIN_ENDPOINT = '221dc002-b723-11ea-9a3c-0255d23c44ef'
 
 # Destination Path -- The directory will be created if it doesn't exist
 DEFAULT_NERSC_DEST = '/global/cfs/cdirs/desi/cosmosim/Abacus'
+DEFAULT_MARVIN_DEST = '/mnt/store/AbacusSummit'
 
 # You will need to register a *Native App* at https://developers.globus.org/
 # Your app should include the following:
@@ -229,7 +234,7 @@ def _submit_transfer(tdata, transfer_client, status_log, status_log_fn, boxname)
     assert task['status'] == 'Accepted'
 
 
-def start_globus_transfer(source_path, dest_path=DEFAULT_NERSC_DEST,
+def start_globus_transfer(source_path, exclude=None, include=None, dest_path=DEFAULT_NERSC_DEST,
                           source_endpoint=OLCF_DTN_ENDPOINT, dest_endpoint=NERSC_DTN_ENDPOINT,
                           globus_verify_checksum=True, status_log_fn=DEFAULT_STATUS_FILE):
     '''
@@ -247,7 +252,9 @@ def start_globus_transfer(source_path, dest_path=DEFAULT_NERSC_DEST,
 
     # Globus transfers a directory's contents, not the directory itself
     # so need to make the containing directory on the destination
-    dest_path = os.path.join(dest_path, boxname)
+    if dest_endpoint == MARVIN_ENDPOINT:
+        dest_path = DEFAULT_MARVIN_DEST
+    dest_path = os.path.join(dest_path, boxname + '_TEST')
 
     # Check that this box is not already in the status file
     status_log = load_status_log(status_log_fn)
@@ -257,6 +264,7 @@ def start_globus_transfer(source_path, dest_path=DEFAULT_NERSC_DEST,
 
     # Authenticate with Globus
     transfer_client = setup_transfer_client(source_endpoint, dest_endpoint)
+
 
     # Set up the destination directory
     check_endpoint_path(transfer_client, source_endpoint, source_path)
@@ -278,7 +286,24 @@ def start_globus_transfer(source_path, dest_path=DEFAULT_NERSC_DEST,
         recursive_symlinks='ignore'  # not supported
     )
     # TODO: copy dir instead of contents?
-    tdata.add_item(source_path, dest_path, recursive=True)
+    #if we are copying the entire directory (neither --exclude nor --include specified)
+    if not exclude and not include: 
+        tdata.add_item(source_path, dest_path, recursive=True)
+
+    else:
+        tdata.add_item(source_path, dest_path, recursive=False) #grab top level directory structure. 
+        if include:
+            for pattern in include:
+                for p in braceexpand(pattern):
+                    files = glob.glob(source_path + p)
+                    tdata.add_item(files, dest_path, recursive=False) 
+        elif exclude:
+             print('Exclude not yet implemented!')
+             exit(1)
+#            files = set(glob("*"))
+#            for pattern in exclude:
+#                for p in braceexpand(pattern):
+#                    files -= set(glob.glob(source_path + p))
 
     # also writes status log
     _submit_transfer(tdata, transfer_client, status_log, status_log_fn, boxname)
@@ -333,6 +358,11 @@ if __name__ == '__main__':
         description='Transfer one or more boxes via Globus')
     tparser.add_argument('simulation-dir', help='The simulation OutputDirectory containing the time slices and halo catalogs to transfer.', nargs='+')
     tparser.add_argument('--no-globus-checksum', help='Turn off Globus checksum verification', action='store_true')
+
+    group = tparser.add_mutually_exclusive_group()
+    group.add_argument('--exclude', help='Exclude files matching glob pattern from transfer', nargs='+')
+    group.add_argument('--include', help='Only transfer files matching glob pattern', nargs='+')
+
     tparser.set_defaults(func=subcommand_transfer)
 
     uparser = subparsers.add_parser('update', help='Update the status log from Globus',
