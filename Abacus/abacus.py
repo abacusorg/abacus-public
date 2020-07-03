@@ -622,7 +622,7 @@ def move_state_dirs(read, write, past):
         except OSError:
             pass  # read doesn't exist, must be IC state
 
-    if path.samefile(read,write):
+    if path.exists(read) and path.samefile(read,write):
         return  # overwriting; nothing to do
 
     readtmp = read + '_tmp'
