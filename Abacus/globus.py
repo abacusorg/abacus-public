@@ -22,8 +22,6 @@ $ ./globus.py --help
 Based on Globus automation-examples/globus_folder_sync.py.
 '''
 
-import pdb
-
 import sys
 import os
 import urllib
@@ -40,10 +38,12 @@ from fair_research_login import NativeClient
 
 from Abacus.Tools import ArgParseFormatter
 
+from os.path import join as pjoin
+
 # source and destination endpoints
 OLCF_DTN_ENDPOINT = 'ef1a9560-7ca1-11e5-992c-22000b96db58'
 NERSC_DTN_ENDPOINT = '9d6d994a-6d04-11e5-ba46-22000b92c6ec'
-MARVIN_ENDPOINT = '221dc002-b723-11ea-9a3c-0255d23c44ef'
+MARVIN_ENDPOINT = '45d63946-5906-11ea-9682-0e56c063f437'
 
 # Destination Path -- The directory will be created if it doesn't exist
 DEFAULT_NERSC_DEST = '/global/cfs/cdirs/desi/cosmosim/Abacus'
@@ -70,7 +70,7 @@ GLOBUS_COMPLETION_STATUSES = ['SUCCEEDED', 'FAILED']  # other possibilities are 
 CREATE_DESTINATION_FOLDER = True
 
 DEFAULT_STATUS_FILE = 'globus_status.toml'
-DEFAULT_STATUS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), DEFAULT_STATUS_FILE)  # make absolute
+DEFAULT_STATUS_FILE = pjoin(os.path.dirname(os.path.abspath(__file__)), DEFAULT_STATUS_FILE)  # make absolute
 
 
 def load_status_log(status_log_fn):
@@ -236,7 +236,8 @@ def _submit_transfer(tdata, transfer_client, status_log, status_log_fn, boxname)
 
 def start_globus_transfer(source_path, exclude=None, include=None, dest_path=DEFAULT_NERSC_DEST,
                           source_endpoint=OLCF_DTN_ENDPOINT, dest_endpoint=NERSC_DTN_ENDPOINT,
-                          globus_verify_checksum=True, status_log_fn=DEFAULT_STATUS_FILE):
+                          globus_verify_checksum=True, status_log_fn=DEFAULT_STATUS_FILE,
+                          always=['info/','abacus.par','status.log']):
     '''
     Start a Globus transfer from the `source_path` on the `source_endpoint` to `dest_path`
     on the `dest_endpoint`.
@@ -254,7 +255,7 @@ def start_globus_transfer(source_path, exclude=None, include=None, dest_path=DEF
     # so need to make the containing directory on the destination
     if dest_endpoint == MARVIN_ENDPOINT:
         dest_path = DEFAULT_MARVIN_DEST
-    dest_path = os.path.join(dest_path, boxname + '_TEST')
+    dest_path = pjoin(dest_path, boxname)
 
     # Check that this box is not already in the status file
     status_log = load_status_log(status_log_fn)
@@ -285,25 +286,34 @@ def start_globus_transfer(source_path, exclude=None, include=None, dest_path=DEF
         preserve_timestamp=True,
         recursive_symlinks='ignore'  # not supported
     )
-    # TODO: copy dir instead of contents?
     #if we are copying the entire directory (neither --exclude nor --include specified)
     if not exclude and not include: 
         tdata.add_item(source_path, dest_path, recursive=True)
 
+    elif include:
+        for a in always:
+            sourcea = pjoin(source_path,a)
+            if os.path.exists(sourcea):
+                tdata.add_item(sourcea, pjoin(dest_path,a), recursive=os.path.isdir(sourcea))
+        for pattern in include:
+            for p in braceexpand(pattern):
+                prevdir = os.getcwd()
+                os.chdir(source_path)
+                files = glob.glob(p)
+                os.chdir(prevdir)
+
+                for f in files:
+                    sourcef = pjoin(source_path, f)
+                    tdata.add_item(sourcef, pjoin(dest_path, f), recursive=os.path.isdir(sourcef))
+    elif exclude:
+         print('Exclude not yet implemented!')
+         exit(1)
+#        files = set(glob("*"))
+#        for pattern in exclude:
+#            for p in braceexpand(pattern):
+#                files -= set(glob.glob(source_path + p))
     else:
-        tdata.add_item(source_path, dest_path, recursive=False) #grab top level directory structure. 
-        if include:
-            for pattern in include:
-                for p in braceexpand(pattern):
-                    files = glob.glob(source_path + p)
-                    tdata.add_item(files, dest_path, recursive=False) 
-        elif exclude:
-             print('Exclude not yet implemented!')
-             exit(1)
-#            files = set(glob("*"))
-#            for pattern in exclude:
-#                for p in braceexpand(pattern):
-#                    files -= set(glob.glob(source_path + p))
+        raise RuntimeError
 
     # also writes status log
     _submit_transfer(tdata, transfer_client, status_log, status_log_fn, boxname)
@@ -360,8 +370,8 @@ if __name__ == '__main__':
     tparser.add_argument('--no-globus-checksum', help='Turn off Globus checksum verification', action='store_true')
 
     group = tparser.add_mutually_exclusive_group()
-    group.add_argument('--exclude', help='Exclude files matching glob pattern from transfer', nargs='+')
-    group.add_argument('--include', help='Only transfer files matching glob pattern', nargs='+')
+    group.add_argument('--exclude', help='Exclude files matching glob pattern from transfer', nargs='?')
+    group.add_argument('--include', help='Only transfer files matching glob pattern.  Understands literal globs and brace expansion.', nargs='?', action='append')
 
     tparser.set_defaults(func=subcommand_transfer)
 
