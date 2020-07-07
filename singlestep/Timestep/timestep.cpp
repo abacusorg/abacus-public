@@ -909,7 +909,9 @@ void timestep(void) {
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
     assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS);
 
+#ifdef PARALLEL
     ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory);
+#endif
 
     TimeStepWallClock.Clear();  TimeStepWallClock.Start();
     STDLOG(1,"Initiating timestep()\n");
