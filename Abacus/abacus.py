@@ -534,7 +534,7 @@ def setup_state_dirs(paramfn):
         multipoles = None
 
     if StateIOMode == 'overwrite':
-        #write = read
+        # make write a symlink to read, using relative paths
         make_link(write, basename(read))
         past = None
 
