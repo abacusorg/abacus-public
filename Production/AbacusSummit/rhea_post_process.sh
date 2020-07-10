@@ -6,10 +6,14 @@ set -o pipefail
 export SIM_SET=${SIM_SET:-AbacusSummit}
 SIM_NAME=$1
 
+export ABACUS_PERSIST=${ABACUSSUMMIT_PERSIST}
+
 LOGDIR=$(pwd)/logs/$SIM_NAME
 mkdir -p $LOGDIR
 
 DISBATCH_PY=$ABACUS/external/disBatch/disBatch.py
+
+SCRIPT_DIR=$(dirname $(readlink -f $0))
 
 ##### queue up group processing #####
 
@@ -17,9 +21,9 @@ mkdir -p tmp
 DISBATCH_TASKFILE=$(pwd)/tmp/${SIM_NAME}.group.disbatch
 
 CHUNK=50
-NWORKER=5
+NWORKER=3
 GROUPSCRIPT="$ABACUS/Abacus/convert_raw_groups_to_asdf.py --chunk=$CHUNK --nworkers=$NWORKER --delete"
-GROUPDIR=$ABACUSSUMMIT_PERSIST/$SIM_SET/$SIM_NAME/group
+GROUPDIR=$ABACUS_PERSIST/$SIM_SET/$SIM_NAME/group
 
 if [ -d $GROUPDIR ]; then
     echo "#DISBATCH PREFIX cd $GROUPDIR; $GROUPSCRIPT " > $DISBATCH_TASKFILE  # write
@@ -43,16 +47,16 @@ fi
 
 ##### queue up lightcone processing #####
 
-LCDIR=$ABACUSSUMMIT_PERSIST/$SIM_SET/$SIM_NAME/lightcone/
+LCDIR=$ABACUS_PERSIST/$SIM_SET/$SIM_NAME/lightcone/
 
 if [[ -n "$(ls -A $LCDIR)" ]]; then
 
     # Write a disBatch file with one line per light cone per file type per step
     DISBATCH_TASKFILE=$(pwd)/tmp/${SIM_NAME}.LC.disbatch
 
-    NEWLCDIR=$ABACUSSUMMIT_PERSIST/$SIM_SET/$SIM_NAME/lightcones.concat/
+    NEWLCDIR=$ABACUS_PERSIST/$SIM_SET/$SIM_NAME/lightcones.concat/
 
-    LCSCRIPT=$(pwd)/rhea_post_process_lightcones.py
+    LCSCRIPT=${SCRIPT_DIR}/rhea_post_process_lightcones.py
     echo "#DISBATCH PREFIX cd $LCDIR; $LCSCRIPT " > $DISBATCH_TASKFILE  # write
     echo "#DISBATCH SUFFIX > $(pwd)/\${DISBATCH_NAMETASKS}_\${DISBATCH_JOBID}_\${DISBATCH_TASKID}.log 2>&1 " >> $DISBATCH_TASKFILE  # append
 
@@ -61,19 +65,19 @@ if [[ -n "$(ls -A $LCDIR)" ]]; then
 
     # Many small jobs, can fill thousands of nodes
     NNODES=33
-    WALLTIME=1:00:00
+    WALLTIME=2:00:00
 
     mkdir -p ./logs/$SIM_NAME/disbatchLC
 
     # 4 cores per task: only two blosc threads per task, but cores have two hyperthreads.  So 8 tasks per node.
     # This is the primary LC job, it uses multiple nodes
-    LCJOBID=$(sbatch -t $WALLTIME -N $NNODES -c 4 \
+    LCJOBID=$(sbatch -t $WALLTIME -N $NNODES -c 16 \
             -o logs/$SIM_NAME/%x.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessLC \
             --wrap "$DISBATCH_PY -e -p ./logs/$SIM_NAME/disbatchLC/$SIM_NAME $DISBATCH_TASKFILE")
 
     # This is the LC epilogue job, it uses one node. It has 10000s of file deletions to do.
     # Job output will go to same file as main job
-    LCEPI_SCRIPT=$(pwd)/rhea_post_process_lightcones_epilogue.sh
+    LCEPI_SCRIPT=${SCRIPT_DIR}/rhea_post_process_lightcones_epilogue.sh
     JOBID2=$(sbatch -t 3:00:00 -N 1 -c 32 \
             -o logs/$SIM_NAME/${SIM_NAME}_PostProcessLC.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessLCEpi \
             --depend=afterok:${LCJOBID} --kill-on-invalid-dep=yes \
@@ -84,7 +88,7 @@ fi
 
 ##### Queue up the time slice processing #####
 
-SIMDIR=$ABACUSSUMMIT_PERSIST/$SIM_SET/$SIM_NAME
+SIMDIR=$ABACUS_PERSIST/$SIM_SET/$SIM_NAME
 SLICEDIRS=$(cd $SIMDIR; find -maxdepth 1 -name 'slice*.*')
 
 if [[ -n "$SLICEDIRS" ]]; then
@@ -93,7 +97,7 @@ if [[ -n "$SLICEDIRS" ]]; then
     # Chunks should be specified with a literal pattern like slice1.000/*slab001?.L0_pack9.dat
     DISBATCH_TASKFILE=$(pwd)/tmp/${SIM_NAME}.timeslice.disbatch
 
-    TSSCRIPT=$(pwd)/rhea_post_process_timeslice.py
+    TSSCRIPT=${SCRIPT_DIR}/rhea_post_process_timeslice.py
     echo "#DISBATCH PREFIX cd ${SIMDIR}; ${TSSCRIPT} \"" > $DISBATCH_TASKFILE  # write
     echo "#DISBATCH SUFFIX \" > $(pwd)/\${DISBATCH_NAMETASKS}_\${DISBATCH_JOBID}_\${DISBATCH_TASKID}.log 2>&1" >> $DISBATCH_TASKFILE  # append
 
@@ -123,7 +127,7 @@ if [[ -n "$SLICEDIRS" ]]; then
 
     mkdir -p ./logs/$SIM_NAME/disbatchTS
 
-    TSEPI_SCRIPT=$(pwd)/rhea_post_process_timeslice_epilogue.sh
+    TSEPI_SCRIPT=${SCRIPT_DIR}/rhea_post_process_timeslice_epilogue.sh
 
     TSJOBID=$(sbatch -t $WALLTIME -N $NNODES -c 16 \
             -o logs/$SIM_NAME/%x.out --mem=0 -A AST145 -p batch --parsable --job-name=${SIM_NAME}_PostProcessTS \
@@ -138,4 +142,4 @@ fi
 ##### Queue up the epilogue #####
 # This job will clean up and mark completion after all previous jobs have completed
 # It carries the special job name that the assembly line will look for to determine if post-processing is queued
-sbatch --job-name=${SIM_NAME}_PostProcessEpilogue -o logs/$SIM_NAME/%x.out ${EPILOG_DEPEND:+--depend=afterok${EPILOG_DEPEND}} --kill-on-invalid-dep=yes rhea_post_process_epilogue.slurm $SIM_NAME
+sbatch --job-name=${SIM_NAME}_PostProcessEpilogue -o logs/$SIM_NAME/%x.out ${EPILOG_DEPEND:+--depend=afterok${EPILOG_DEPEND}} --kill-on-invalid-dep=yes ${SCRIPT_DIR}/rhea_post_process_epilogue.slurm $SIM_NAME

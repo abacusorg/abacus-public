@@ -19,17 +19,29 @@ from Abacus.Tools import ContextTimer
 from Abacus.InputFile import InputFile
 from Abacus import ReadAbacus
 
-def get_output_dir(product_name, slice_dir, out_parent=None):
+def get_output_dir(product_name, slice_dir, out_parent=None, **kwargs):
     """
     The directory in which to store outputs for this product.
     """
     # Rename 'slice' to 'z'
     dirname, slicename = path.split(path.abspath(slice_dir))
     slicename = slicename.replace('slice', 'z')
+
+    if os.path.basename(dirname) == 'halos':
+        dirname = os.path.dirname(dirname)
+
+    format = kwargs.get('format')
+    if format:
+        if 'asdf' in format:
+            AB = format.split('_')
+            AB = AB[-1].upper() if len(AB) > 1 else 'AB'
+            slicename += f'_{AB}'
+        else:
+            slicename += f'_{format}'
     
-    # Turn 'sim' into 'sim_products/sim_[product]'
+    # Turn 'sim' into 'sim_products/[product]'
     dirname, simname = path.split(path.abspath(dirname))
-    simname = path.join(simname + '_products', simname + '_' + product_name)
+    simname = path.join(simname + '_products', product_name)
     
     # Replace the parent directory with the given one
     if out_parent:

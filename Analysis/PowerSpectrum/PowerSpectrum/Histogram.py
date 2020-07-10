@@ -265,7 +265,6 @@ def k_bin_edges(gridshape, boxsize, nbins=-1, log=False, bin_like_nfft=0):
     else:
         ngrid = min(gridshape)  # use min so the k-spheres always fit
     
-    kmin = 2*np.pi/boxsize  # fundamental mode
     kmax = np.pi/(boxsize/ngrid)  # nyquist
     
     if nbins == -1:
@@ -274,8 +273,10 @@ def k_bin_edges(gridshape, boxsize, nbins=-1, log=False, bin_like_nfft=0):
     if log:
         # Set up uniform bins in log space
         # Histogram.py and logspace are both inclusive on the upper bound of the last bin
+        kmin = 2*np.pi/boxsize  # fundamental mode
         bin_edges = np.logspace(np.log10(kmin), np.log10(kmax), num=nbins+1)
     else:
+        kmin = 0.  # ensures equal spacing for different ngrid
         bin_edges = np.linspace(kmin, kmax, num=nbins+1)
 
     # Now clip bins to the real ngrid

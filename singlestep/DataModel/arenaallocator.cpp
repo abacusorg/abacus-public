@@ -621,7 +621,7 @@ void ReportMemoryAllocatorStats(){
     std::istringstream logstream(logstr);
     // Split up the string on newlines so parsers don't break
     while(std::getline(logstream, line))
-        STDLOG(3, "%s\n", line.c_str());
+        STDLOG(2, "%s\n", line.c_str());
 
     // Malloc histogram
     // if you link against tcmalloc_minimal_debug (warning: slow!)

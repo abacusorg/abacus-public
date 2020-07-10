@@ -150,7 +150,7 @@ int global_minslab_search;    // Used to pass an extra variable into partition
 // Need some new Partition functions, to get ranges of slabs
 // Will select things between [x,slab), where x=slab-CPD/2, handling the wrap
 inline bool is_below_slab(ilstruct *particle, int slab) {
-    int x = particle->xyz.x-slab;  // We want x<0, but not too much.
+    int x = particle->newslab-slab;  // We want x<0, but not too much.
     x = CP->WrapSlab(x);
     return x>=global_minslab_search;
 }
@@ -620,6 +620,7 @@ inline void Manifest::Check() {
         }
         if (completed == MANIFEST_NOTREADY) {
             STDLOG(2,"Received the Manifest Core\n");
+            ReleaseFreeMemoryToKernel();
             Receive();
             completed = MANIFEST_TRANSFERRING;
         } 

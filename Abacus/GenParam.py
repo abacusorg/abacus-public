@@ -96,15 +96,15 @@ def _parse_assignment(line, fixvalues={}, varreplace_values=None):
         items = shlex.split(value)
         vec  = ','.join(items)
         x = eval(f"({vec})")
-    except (SyntaxError, NameError):
+    except:
         #perhaps value is a vector
         try:
             x = eval(value)
-        except SyntaxError:
+        except:
             #fall back and try to parse as string
             try:
                 x = eval(f'"{value}"')
-            except SyntaxError:
+            except:
                 print("Error: Could not parse line:"+line)
                 raise
 

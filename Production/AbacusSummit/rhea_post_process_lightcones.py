@@ -9,6 +9,7 @@ import os
 from os.path import dirname, basename, join as pjoin, pardir, getsize, abspath
 from glob import glob
 import sys
+import gc
 
 import numpy as np
 import asdf
@@ -59,10 +60,11 @@ def process(lcprefix):  # Step0800/LightCone0_heal
         i += len(new)
         del new
     assert i == nptot
+    gc.collect()
 
     particles = particles.reshape(*pshape)
 
-    asdf.compression.set_compression_options(typesize=Mway, asdf_block_size=12*1024**2, blocksize=3*1024**2, shuffle='bitshuffle', nthreads=2)
+    asdf.compression.set_compression_options(typesize=Mway, asdf_block_size=12*1024**2, blocksize=3*1024**2, shuffle='bitshuffle', nthreads=4)
     tree = {'data': {colname:particles},
             'header': dict(InputFile('header'))}
     asdf_fn = pjoin(outdir, f'{lcprefix}_{stepdir}.asdf')

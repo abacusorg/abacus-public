@@ -162,7 +162,8 @@ def distribute_to_resume(parfile, resumedir, verbose=True, allow_new_nnode=False
         if verbose:
             print('Will copy node {}s state from {} to {}'.format(rank, source, dest), file=sys.stderr)
         
-        shutil.copytree(source, dest)
+        # write state can be a symlink, must use symlinks=True
+        shutil.copytree(source, dest, symlinks=True)
     
     # The first rank will also copy the state file, etc, 
     if rank == 0:
@@ -261,7 +262,8 @@ def retrieve_state(parfile, resumedir, verbose=True, delete_ics=False):
         print('Will copy node {}s state from {} to {}'.format(rank, source, dest), file=sys.stderr)
     
     # TODO: make read-only after copy, then read-write after distribution to nodes
-    shutil.copytree(source, dest)
+    # write state can be a symlink, must use symlinks=True
+    shutil.copytree(source, dest, symlinks=True)
     
     #rank 0 will also back up the read directory misc. files, which are about to modified when we requeue during every consecutive timestep. 
     #We want to keep a copy of the set that corresponds to the backed up state we're retrieving. 

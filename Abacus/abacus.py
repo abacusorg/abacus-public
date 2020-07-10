@@ -48,7 +48,8 @@ from . import zeldovich
 NEEDS_INTERIM_BACKUP_MINS = 105  #minimum job runtime (in minutes) for which we'd like to do a backup halfway through the job. 
 EXIT_REQUEUE = 200
 RUN_TIME_MINUTES = os.getenv("JOB_ACTION_WARNING_TIME")
-GF_BACKUP_INTERVAL = 2 * 60 * 60  #only backup b/w group finding steps if it's been more than two hours since the last backup. 
+GF_BACKUP_INTERVAL = 2 * 60 * 60  #only backup b/w group finding steps if it's been more than two hours since the last backup.
+#BACKUP_EVERY_N_MINUTES = 90
 
 
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
@@ -244,8 +245,10 @@ def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
 
     # We will attempt to copy derivatives from the archive dir if they aren't found
     if derivs_archive_dirs == True:
-        derivs_archive_dirs = [pjoin(os.getenv('ABACUS_PERSIST',None), 'Derivatives'),
-                              pjoin(os.getenv('ABACUS_SSD',None), 'Derivatives')]
+        derivs_archive_dirs = []
+        for var in ['ABACUS_PERSIST', 'ABACUS_SSD', 'ABACUS_DERIVS']:
+            if var in os.environ:
+                derivs_archive_dirs += [pjoin(os.environ[var], 'Derivatives')]
 
     if type(derivs_archive_dirs) is str:
         derivs_archive_dirs = [derivs_archive_dirs]
@@ -463,6 +466,18 @@ def setup_convolution_env(param):
     return convolution_env
 
 
+# If the links don't exist, create them and the underlying dirs
+# If they do exist, don't touch them
+def make_link(link, target):
+    if path.exists(link):
+        # link already existing as a file/directory instead of a link is an error!
+        assert path.islink(link)
+        assert path.samefile(os.readlink(link), target)
+    else:
+        os.makedirs(target, exist_ok=True)
+        os.symlink(target, link)
+
+
 def setup_state_dirs(paramfn):
     '''
     This function is called once before the singlestep loop begins.
@@ -479,7 +494,7 @@ def setup_state_dirs(paramfn):
     When doing a parallel run, we can set up global directories here,
     but not node-local ones.
     '''
-    params = GenParam.makeInput(paramfn, paramfn)
+    params = InputFile(paramfn)
     StateIOMode = params.get('StateIOMode','normal').lower()
     Conv_IOMode = params.get('Conv_IOMode','normal').lower()
 
@@ -519,7 +534,8 @@ def setup_state_dirs(paramfn):
         multipoles = None
 
     if StateIOMode == 'overwrite':
-        write = read
+        # make write a symlink to read, using relative paths
+        make_link(write, basename(read))
         past = None
 
     # Check if the write state already exists
@@ -529,16 +545,6 @@ def setup_state_dirs(paramfn):
             shutil.rmtree(write)
         else:
             raise ValueError("Cannot proceed if write state exists!")
-
-    # If the links don't exist, create them and the underlying dirs
-    # If they do exist, don't touch them
-    def make_link(link, target):
-        if path.exists(link):
-            # link already existing as a file/directory instead of a link is an error!
-            assert path.islink(link)
-        else:
-            os.makedirs(target, exist_ok=True)
-            os.symlink(target, link)
 
     # Set up symlinks to slosh the state
     # This approach ensures that Abacus proper doesn't need to know anything about sloshing
@@ -595,8 +601,6 @@ def move_state_dirs(read, write, past):
     symlinks for `read` and `write`.  We also want to swap
     the symlink for the Taylors (but not the multipoles because
     the convolve hasn't happened yet).
-
-    TODO: double check this still works when overwriting the state
     '''
 
     # move read to past, write to read
@@ -617,6 +621,9 @@ def move_state_dirs(read, write, past):
             os.rename(read, past)
         except OSError:
             pass  # read doesn't exist, must be IC state
+
+    if path.exists(read) and path.samefile(read,write):
+        return  # overwriting; nothing to do
 
     readtmp = read + '_tmp'
     os.rename(write, readtmp)
@@ -813,14 +820,15 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         backups_enabled = param['BackupStepInterval'] > 0
     except:
         backups_enabled = False  # No BackupIntervalSteps parameter
+    
+    run_time_minutes = int(os.getenv("JOB_ACTION_WARNING_TIME",'10000'))
+    run_time_secs = 60 * run_time_minutes
+
+    start_time = wall_timer()
+    print("Beginning run at time", start_time, ", running for ", run_time_minutes, " minutes.\n")
+        
 
     if parallel:
-        # TODO: figure out how to signal a backup to the nodes
-        run_time_minutes = int(os.getenv("JOB_ACTION_WARNING_TIME",'10000'))
-        run_time_secs = 60 * run_time_minutes
-        start_time = wall_timer()
-        print("Beginning run at time", start_time, ", running for ", run_time_minutes, " minutes.\n")
-
         backups_enabled = False
 
     #if not backups_enabled:
@@ -970,8 +978,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
             # TODO: pass step num to convolution so it can name the logs appropriately
             convlogs = glob(pjoin(param.LogDirectory, 'last.*conv*'))
-            for cl in convlogs:
-                os.rename(cl, cl.replace('last', f'step{read_state.FullStepNumber+1:04d}'))
+            for _cl in convlogs:
+                cl = _cl.replace('last', f'step{read_state.FullStepNumber+1:04d}') 
+                os.rename(_cl, cl)
+                logdir_name = f'step{read_state.FullStepNumber+1:04d}'
+                logdir = pjoin(param.LogDirectory, logdir_name)
+                shutil.move(cl, logdir) 
 
             # Warning: Convolution won't work if MultipoleDirectory is the write (or read) state
             # because the states get moved after multipole generation but before convolution.
@@ -1065,8 +1077,16 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 shutil.copy(dfn, pjoin(param.LogDirectory, "step{0:04d}", "step{0:04d}.density").format(write_state.FullStepNumber))
                 np.savez(pjoin(param.LogDirectory, "step{0:04d}", "step{0:04d}.pow").format(write_state.FullStepNumber), k=k,P=P,nb=nb)
                 os.remove(dfn)
+        
+        out_of_time = (wall_timer() - start_time >= run_time_secs)
+        if not parallel and out_of_time:
+            print('Running out of time in serial job! Exiting.')
+            ending_time = time.time()
+            ending_time_str = time.asctime(time.localtime())
+            ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
+            status_log.print(f"# Serial job terminating prematurely w/ code 0 due to running out of time in job.  {ending_time_str:s} after {ending_time:f} hours.")
+            return 0 
 
-        exiting = 0 
         if parallel:
             # Merge all nodes' checksum files into one
             merge_checksum_files(write_state.NodeSize, param)
@@ -1079,7 +1099,24 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
 
             abandon_ship = path.exists(emergency_exit_fn)
-            out_of_time = (wall_timer() - start_time >= run_time_secs)
+            
+            #if the halfway-there backup hasn't been done already, and we're more than halfway through the job, backup the state now: 
+            interim_backup = (not interim_backup_complete) and (wall_timer() - start_time >= run_time_secs / 2) and (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60 ) #only relevant for long jobs.
+            
+            #are we coming up on a group finding step? If yes, backup the state, just in case. 
+            pre_gf_backup  = False 
+            nGFoutputs = [] 
+            output_arrs = [param.get('L1OutputRedshifts'), param.get('TimeSliceRedshifts'), param.get('TimeSliceRedshifts_Subsample')]
+            for output_arr in output_arrs:
+                try:
+                    nGFoutputs.append( len(output_arr) )
+                except (AttributeError,TypeError):
+                    nGFoutputs.append(0) 
+
+            if (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60): 
+                for i in range(len(nGFoutputs)):
+                    for z in range(nGFoutputs[i]):
+                        L1z = output_arrs[i][z] 
 
             # #if the halfway-there backup hasn't been done already, and we're more than halfway through the job, backup the state now:
             # interim_backup = (not interim_backup_complete) and (wall_timer() - start_time >= run_time_secs / 2) and (run_time_secs > NEEDS_INTERIM_BACKUP_MINS * 60 ) #only relevant for long jobs.
@@ -1116,22 +1153,29 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                     if pre_gf_backup:
                         break
 
+            try:
+                intermittent_backup = wall_timer() - last_backup >= BACKUP_EVERY_N_MINUTES*60
+            except:
+                intermittent_backup = False
+
             exiting = out_of_time or abandon_ship
             #save = exiting or interim_backup or pre_gf_backup
-            save = exiting or pre_gf_backup
+            save = exiting or pre_gf_backup or intermittent_backup
 
             if save:
                 if abandon_ship:
-                    exit_message = 'EMERGENCY EXIT REQUESTED: '
+                    exit_message = 'EMERGENCY EXIT REQUESTED'
                 if out_of_time:
-                    exit_message = 'RUNNING OUT OF JOB TIME: '
+                    exit_message = 'RUNNING OUT OF JOB TIME'
                 # if interim_backup:
-                #     exit_message = 'HALFWAY THROUGH A LONG JOB: '
+                #     exit_message = 'HALFWAY THROUGH A LONG JOB'
+                if intermittent_backup:
+                    exit_message = f'{BACKUP_EVERY_N_MINUTES} MIN BACKUP'
                 if pre_gf_backup:
-                    exit_message = 'GROUP FINDING COMING UP: '
+                    exit_message = 'GROUP FINDING COMING UP'
 
                 print(exit_message, 'backing up node state.')
-                status_log.print(f'# {exit_message:s} backing up node state.')
+                status_log.print(f'# {exit_message:s}: backing up node state.')
 
                 restore_time = wall_timer()
                 retrieve_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, resume_dir, '--retrieve']

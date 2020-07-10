@@ -2,14 +2,15 @@
 
 
 #include "cell_header.h"
-#include "packN_storage.cpp"
 #include <sys/stat.h>
 
-#include "particle_subsample.cpp"
+//#include "pack_storage.cpp"
+//#include "particle_subsample.cpp"
 
 // Unpack a FieldTimeSlice pack14 slab into pos,vel,aux,cellinfo slabs
 // This is used by our standalone_fof pipeline
-int64_t unpack_slab_pack14(int slab, double taggable_frac) {
+int64_t unpack_slab_pack14(int slab, double taggable_fracA, double taggable_fracB) {
+    // TODO: unpack L0TimeSlice too
     void *rawslab = SB->GetSlabPtr(FieldTimeSlice, slab);
     uint64 rawsize = SB->SlabSizeBytes(FieldTimeSlice, slab);
     FILE *buffer_file = fmemopen(rawslab, rawsize, "rb");
@@ -70,8 +71,16 @@ int64_t unpack_slab_pack14(int slab, double taggable_frac) {
             vel[nump] = veld*ReadState.VelZSpace_to_Canonical;
             aux[nump].aux = id;
             // Note: pack14 gives us the PID, but not the full aux field. So we have to restore any other aux fields.
-            if (is_subsample_particle((int64_t) id, taggable_frac))
-                aux[nump].set_taggable();
+            switch(is_subsample_particle((int64_t) id, taggable_fracA, taggable_fracB)){
+                case SUBSAMPLE_A:
+                    aux[nump].set_taggable_subA();
+                    break;
+                case SUBSAMPLE_B:
+                    aux[nump].set_taggable_subB();
+                    break;
+                default:
+                    break;
+            }
             nump++;
         }
     }

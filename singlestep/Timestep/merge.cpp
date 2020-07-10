@@ -95,18 +95,18 @@ public:
         // element with y >= ygoal.
         // This is done with bisection.
         uint64 low = 0, high = len-1, mid;
-        if (list[low].xyz.y>=ygoal) return low;
-        if (list[high].xyz.y<ygoal) return high+1;
+        if (list[low].celly()>=ygoal) return low;
+        if (list[high].celly()<ygoal) return high+1;
         // Otherwise, we search.
         // list[low] always has y<ygoal.
         // list[high] always has y>=ygoal.
         while (high-low>1) {
             mid = (low+high)/2;
-            if (list[mid].xyz.y>=ygoal) high=mid; else low=mid;
+            if (list[mid].celly()>=ygoal) high=mid; else low=mid;
         }
         // We end when the two are only 1 apart.
-        assertf(list[low].xyz.y<list[high].xyz.y
-                && list[low].xyz.y<ygoal && list[high].xyz.y>=ygoal, 
+        assertf(list[low].celly()<list[high].celly()
+                && list[low].celly()<ygoal && list[high].celly()>=ygoal, 
              "Error in IL index search; insert list was not sorted!");
         return high;
     }
@@ -198,9 +198,9 @@ uint64 FillMergeSlab(int slab) {
             ici->count=0;
             // TODO: The x test is unneeded, since we 
             // partitioned the slab to the end of the insert list.
-            while( ilread<ilend && ((ilread->xyz.x == slab) && 
-                    (ilread->xyz.y == y   ) && 
-                    (ilread->xyz.z == z   )) ) {
+            while( ilread<ilend && ((ilread->newslab == slab) && 
+                    (ilread->celly() == y   ) && 
+                    (ilread->cellz() == z   )) ) {
                 ici->count++;
                 il_index++; ilread++;    // Move along the insert list
             }

@@ -241,8 +241,15 @@ class ContextTimer(contexttimer.Timer):
 
     @property
     def elapsed(self):
-        last_time = super(ContextTimer, self).elapsed
+        if hasattr(self, 'start'):
+            last_time = super(ContextTimer, self).elapsed
+        else:
+            last_time = 0
         return self.cumulative_time*self.factor + last_time
+
+    @property
+    def last_lap(self):
+        raise NotImplementedError
 
     def Start(self):
         self.__enter__()
