@@ -247,7 +247,7 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par', **kwa
     ppd = kwargs.pop('ppd')
     if ppd:
         new_params['NP'] = ppd**3
-        new_params['ZD_NumBlock'] = ppd//8
+        new_params['ZD_NumBlock'] = ppd//4
         print(f'Using ppd {ppd} override')
 
     new_params['InitialConditionsDirectory'] = ic_dir
@@ -255,13 +255,22 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par', **kwa
     density = kwargs.pop('density')
     if density:
         new_params['ZD_qdensity'] = 1
-        
-    new_params = GenParam.makeInput(new_parfn, parfn, **new_params)
 
-    if 'ZD_Pk_filename' in new_params:
-        assert path.isfile(new_params['ZD_Pk_filename'])
+    del_keys = []
+    if kwargs.pop('white'):
+        print('Forcing white spectrum with ZD_Pk_powerlaw_index = 0')
+        new_params['ZD_Pk_powerlaw_index'] = 0
+        new_params['ZD_Pk_norm'] = 0
+        new_params['ZD_density_filename'] = "whitenoise%d"
+        new_params.pop('ZD_Pk_filename')
+        del_keys += ['ZD_Pk_filename']
     else:
-        assert 'ZD_Pk_powerlaw_index' in new_params
+        if 'ZD_Pk_filename' in new_params:
+            assert path.isfile(new_params['ZD_Pk_filename'])
+        else:
+            assert 'ZD_Pk_powerlaw_index' in new_params
+        
+    new_params = GenParam.makeInput(new_parfn, parfn, del_keywords=del_keys, **new_params)
     
     run(new_parfn, **kwargs)
 
@@ -277,6 +286,7 @@ if __name__ == '__main__':
         help='Do not invoke the ZD_mpirun_cmd to run zeldovich, despite Parallel = 1 in the parameter file', default=True)
     parser.add_argument('--ppd', help='Override ppd with this value', type=int)
     parser.add_argument('--density', help='Enable density output', action='store_true')
+    parser.add_argument('--white', help='Ignore power spectrum file and use ZD_Pk_powerlaw_index=0', action='store_true')
 
     
     args = parser.parse_args()
