@@ -2,14 +2,15 @@
 
 
 #include "cell_header.h"
-#include "pack_storage.cpp"
 #include <sys/stat.h>
 
-#include "particle_subsample.cpp"
+//#include "pack_storage.cpp"
+//#include "particle_subsample.cpp"
 
 // Unpack a FieldTimeSlice pack14 slab into pos,vel,aux,cellinfo slabs
 // This is used by our standalone_fof pipeline
-int64_t unpack_slab_pack14(int slab, double taggable_frac) {
+int64_t unpack_slab_pack14(int slab, double taggable_fracA, double taggable_fracB) {
+    // TODO: unpack L0TimeSlice too
     void *rawslab = SB->GetSlabPtr(FieldTimeSlice, slab);
     uint64 rawsize = SB->SlabSizeBytes(FieldTimeSlice, slab);
     FILE *buffer_file = fmemopen(rawslab, rawsize, "rb");
@@ -44,7 +45,7 @@ int64_t unpack_slab_pack14(int slab, double taggable_frac) {
     double3 posd, veld;
     uint64_t id;
     cell_header cellhead;
-    packN<14> particle;
+    pack14 particle;
     while (fread(&particle, sizeof(pack14), 1, buffer_file)==1) {
         if (particle.iscell()) {
             // Starting a new cell, so finish the old one.
@@ -57,7 +58,7 @@ int64_t unpack_slab_pack14(int slab, double taggable_frac) {
             assert(thiscell < cpd*cpd);
 
             // Make sure we haven't seen this cell before.
-            // This is a valid packN<14> pattern, but in Abacus we expect all particles in be gathered in cell-order
+            // This is a valid pack14 pattern, but in Abacus we expect all particles in be gathered in cell-order
             // TODO: to support L0 outputs, we need to push everything to the insert list (or index the L0 cells for fast lookup and merging)
             assert(ci[thiscell].startindex == 0);
 
@@ -70,8 +71,16 @@ int64_t unpack_slab_pack14(int slab, double taggable_frac) {
             vel[nump] = veld*ReadState.VelZSpace_to_Canonical;
             aux[nump].aux = id;
             // Note: pack14 gives us the PID, but not the full aux field. So we have to restore any other aux fields.
-            if (is_subsample_particle((int64_t) id, taggable_frac))
-                aux[nump].set_taggable();
+            switch(is_subsample_particle((int64_t) id, taggable_fracA, taggable_fracB)){
+                case SUBSAMPLE_A:
+                    aux[nump].set_taggable_subA();
+                    break;
+                case SUBSAMPLE_B:
+                    aux[nump].set_taggable_subB();
+                    break;
+                default:
+                    break;
+            }
             nump++;
         }
     }
@@ -159,7 +168,7 @@ public:
         double3 posd, veld;
         uint64_t id;
         cell_header cellhead;
-        packN<14> particle;
+        pack14 particle;
 
         FILE *fp = fopen(fname,"rb");
         assert(fp!=NULL);

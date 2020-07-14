@@ -118,7 +118,7 @@ void rw_socket_close(FILE *res, pid_t pid) {
   check_waitpid(pid);
 }
 
-void *check_realloc(void *ptr, size_t size, char *reason) {
+void *check_realloc(void *ptr, size_t size, const char *reason) {
   if (size > 0) {
     void *res = realloc(ptr, size);
     if (res == NULL) {
