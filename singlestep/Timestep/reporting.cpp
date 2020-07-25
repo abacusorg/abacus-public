@@ -201,6 +201,8 @@ void GatherTimings() {
     REPORT(1, "Check Multipoles", CheckForMultipoles.Elapsed()); total += thistime;
         REPORT_RATE(CheckForMultipoles);	
 
+    REPORT(1, "TaylorForce Precondition", TaylorTransferCheck.Elapsed()); total+=thistime;
+
     double ManifestTotal = 
         ReceiveManifest->Load.Elapsed()
         +ReceiveManifest->Transmit.Elapsed();
