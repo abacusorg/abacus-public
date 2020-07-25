@@ -19,7 +19,7 @@
 #include "io_generic.h"
 #include "io_internal.h"
 #include "io_tipsy.h"
-#include "io_pack14.h"
+#include "io_packN.h"
 #include "meta_io.h"
 #include "../distance.h"
 #include "../version.h"
@@ -143,8 +143,9 @@ void read_particles(char *filename) {
     exit(1);
 #endif
   }
-  else if (!strncasecmp(FILE_FORMAT, "PACK14", 6)) {
-    load_particles_pack14(filename, &p, &num_p);
+  else if (!strncasecmp(FILE_FORMAT, "PACK", 4)) {
+    int packN = atoi(FILE_FORMAT+4);
+    load_particles_packN(packN, filename, &p, &num_p);
   }
   else {
     fprintf(stderr, "[Error] Unknown filetype %s!\n", FILE_FORMAT);

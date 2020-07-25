@@ -29,9 +29,7 @@
 
 // We need the cell_header class
 #include "cell_header.h"
-//#include "pack_storage.cpp"
-#include "pack_storage.cpp"
-//#include "pack9_storage.cpp"
+#include "packN_storage.cpp"
 
 struct ArenaPencil {
     char *start;   // Pointer to the first byte of data for this pencil
