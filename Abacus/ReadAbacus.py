@@ -188,13 +188,14 @@ def read_many(files, format='pack14', **kwargs):
     tot_unpack_time = 0
     start = 0
     for fn in files:
-        out = read(fn, format=format, out=particles[start:], **kwargs)
+        offsetparticles = particles[start:]
+        out = read(fn, format=format, out=offsetparticles, **kwargs)
 
-        if hasattr(particles,'meta'):
-            header = particles.meta
+        if hasattr(offsetparticles,'meta'):
+            header = offsetparticles.meta
             NP = out
-            #tot_read_time += particles.meta['read_time']
-            #tot_unpack_time += particles.meta['unpack_time']
+            #tot_read_time += offsetparticles.meta['read_time']
+            #tot_unpack_time += offsetparticles.meta['unpack_time']
         elif return_header:
             NP, header = out
         else:
