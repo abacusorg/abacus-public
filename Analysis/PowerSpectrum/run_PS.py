@@ -29,8 +29,8 @@ from Abacus.Analysis import common
 from Abacus.InputFile import InputFile
 from Abacus import Tools
 
-from PowerSpectrum import TSC, Histogram
-from PowerSpectrum import PowerSpectrum as PS
+from .PowerSpectrum import TSC, Histogram
+from .PowerSpectrum import PowerSpectrum as PS
 
 # A label for the power spectrum based on the properties
 def ps_suffix(**kwargs):
@@ -198,7 +198,7 @@ def run_PS_on_density(input_density_fn, window=None, normalize_dens=False, **kwa
     print(f'* and saving to {save_fn}')
     
     bins = kwargs['bins']  # needed for kmin,kmax
-    bins = Histogram.k_bin_edges(nfft, BoxSize, nbins=-1, log=args['log'])
+    #bins = Histogram.k_bin_edges(nfft, BoxSize, nbins=-1, dk=dk, log=args['log'])
 
     density = np.fromfile(input_density_fn, dtype=kwargs['dtype'])
     density = density.reshape(nfft,nfft,nfft)
@@ -290,12 +290,19 @@ def setup_bins(args):
     ns = args.pop('scalefree_index')
     basea = args.pop('scalefree_base_a')
     nbins = args.pop('nbins')
+    dk = args.pop('dk')
     slices = args['input']
     nfft = args.pop('nfft')
     bin_like_nfft = args.pop('bin_like_nfft')
     ntracks = args.pop('ntracks')
 
     ### end popping args
+
+    if dk is None and nbins is None:
+        nbins = -1
+
+    if bool(dk) == bool(nbins):
+        raise ValueError((dk,nbins))
 
     if ns is None:
         ntracks = 1  # tracks only make sense for scale-free
@@ -354,7 +361,7 @@ def setup_bins(args):
             print('\tComputed NFFTs: ' + str(all_nfft))
         else:
             # Set up normal bins
-            all_bins = np.array([Histogram.k_bin_edges(nfft, all_boxsize[i], nbins=nbins, log=args['log'], bin_like_nfft=bin_like_nfft) \
+            all_bins = np.array([Histogram.k_bin_edges(nfft, all_boxsize[i], nbins=nbins, dk=dk, log=args['log'], bin_like_nfft=bin_like_nfft) \
                                     for i in range(nslices)])
             all_nfft = np.full(nslices, nfft)
 
@@ -419,7 +426,6 @@ if __name__ == '__main__':
     parser.add_argument('--rotate-to', help='Rotate the z-axis to the given axis [e.g. (1,2,3)].  Rotations will shrink the FFT domain by sqrt(3) to avoid cutting off particles.', type=vector_arg, metavar='(X,Y,Z)')
     parser.add_argument('--projected', help='Project the simulation along the z-axis.  Projections are done after rotations.', action='store_true')
     parser.add_argument('--zspace', help='Displace the particles according to their redshift-space positions.', action='store_true')
-    parser.add_argument('--nbins', help='Number of k bins.  Default: nfft//4.', default=-1, type=int)
     parser.add_argument('--bin-like-nfft', help='Choose bins to be commensurate with this NFFT', default=0, type=int)
     parser.add_argument('--dtype', help='Data type for the binning and FFT.', choices=['float', 'double'], default='float')
     parser.add_argument('--log', help='Do the k-binning in log space.', action='store_true')
@@ -432,6 +438,10 @@ if __name__ == '__main__':
     parser.add_argument('--nthreads', help='Number of threads for binning/FFT. Default is all CPUs less ReadAbacus threads.', type=int, default=os.cpu_count())
     parser.add_argument('--verbose', help='Verbose status messages', action='store_true', default=True)
     parser.add_argument('--out-parent', help='Parent directory for output')
+
+    bingroup = parser.add_mutually_exclusive_group()
+    bingroup.add_argument('--nbins', help='Number of k bins.  Default: nfft//4.', type=int)
+    bingroup.add_argument('--dk', help='k bin width', type=float)
     # TODO: wisdom option
     
     args = parser.parse_args()

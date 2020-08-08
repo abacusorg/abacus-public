@@ -239,7 +239,7 @@ def distance_array(gridshape, box, cell_centered=False, periodic=True, dtype=np.
     return dist
 
 
-def k_bin_edges(gridshape, boxsize, nbins=-1, log=False, bin_like_nfft=0):
+def k_bin_edges(gridshape, boxsize, nbins=-1, dk=None, log=False, bin_like_nfft=0):
     '''
     Produce radial bins in k-space for a given mesh shape.
     Produces spherical bins using the largest bin dimension.
@@ -256,6 +256,11 @@ def k_bin_edges(gridshape, boxsize, nbins=-1, log=False, bin_like_nfft=0):
         Number of bins.  Default of -1 uses max(gridshape)/4.
     log: bool, optional
         Bin in log-space.  Default: False.
+    dk: float, optional
+        The linear bin spacing to use, starting at 0.
+        Mutually exclusive with nbins.
+        This option makes the last bin inexact.
+        Default: None.
     '''
     if type(gridshape) is int:
         gridshape = (gridshape,)*3
@@ -266,18 +271,30 @@ def k_bin_edges(gridshape, boxsize, nbins=-1, log=False, bin_like_nfft=0):
         ngrid = min(gridshape)  # use min so the k-spheres always fit
     
     kmax = np.pi/(boxsize/ngrid)  # nyquist
+
+    if bool(dk) == bool(nbins):
+        raise ValueError((dk,nbins))
     
     if nbins == -1:
         nbins = ngrid//4
+
+    if nbins:
         
-    if log:
-        # Set up uniform bins in log space
-        # Histogram.py and logspace are both inclusive on the upper bound of the last bin
-        kmin = 2*np.pi/boxsize  # fundamental mode
-        bin_edges = np.logspace(np.log10(kmin), np.log10(kmax), num=nbins+1)
+        if log:
+            # Set up uniform bins in log space
+            # Histogram.py and logspace are both inclusive on the upper bound of the last bin
+            kmin = 2*np.pi/boxsize  # fundamental mode
+            bin_edges = np.logspace(np.log10(kmin), np.log10(kmax), num=nbins+1)
+        else:
+            kmin = 0.  # ensures equal spacing for different ngrid
+            bin_edges = np.linspace(kmin, kmax, num=nbins+1)
     else:
-        kmin = 0.  # ensures equal spacing for different ngrid
-        bin_edges = np.linspace(kmin, kmax, num=nbins+1)
+        assert bool(dk)
+        if log:
+            raise NotImplementedError('dk + log')
+        kmin = 0.
+        kmax += dk/2  # nbodykit convention
+        bin_edges = np.arange(kmin, kmax, dk)
 
     # Now clip bins to the real ngrid
     if bin_like_nfft:
