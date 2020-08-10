@@ -178,7 +178,10 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None, re
         for line in deferrals.values():
             while '@' in line:
                 line = varreplace(line,{**varreplace_values,**values})
-            key, x = _parse_assignment(line, fixvalues, varreplace_values)
+            pa = _parse_assignment(line, fixvalues, varreplace_values)
+            if pa is None:
+                continue
+            key, x = pa
             values[key] = x
 
     return values
