@@ -93,7 +93,7 @@ def CalculateFromMem(positions, gridshape, boxsize, *, weights=None, dtype=np.fl
     fielddensity = TSC.BinParticlesFromMem(positions, gridshape, boxsize, weights=weights, dtype=dtype, rotate_to=rotate_to, prep_rfft=True, nthreads=nthreads)
     
     # Do the FFT
-    res = FFTAndBin(fielddensity, boxsize, bins=bins, log=log, inplace=True, window=window, bin_info=bin_info, multipoles=multipoles)
+    res = FFTAndBin(fielddensity, boxsize, bins=bins, log=log, inplace=True, window=window, bin_info=bin_info, multipoles=multipoles, expected_NP=len(positions))
     
     return res
 
@@ -425,7 +425,7 @@ def FFTAndBin(density, boxsize, *, inplace=False, bins=-1, log=False, window='wi
     if inplace:
         gridshape[-1] -= 2 if gridshape[-1] % 2 == 0 else 1
     density_real = density[...,:gridshape[-1]]  # The density without the (optional) fft padding
-    rho_av = density_real.mean(dtype=np.float64).astype(np.float32)
+    rho_av = density_real.mean(dtype=np.float64).astype(dtype)
     
     # Convert to fractional overdensity
     if normalize_dens:
@@ -502,9 +502,9 @@ def _FFT(delta, boxsize, *, window='window_aliased', inplace=False, power=True, 
     '''
     dtype = delta.dtype.type
 
-    if axes is 'max3':
+    if axes == 'max3':
         axes = list(range(min(3, delta.ndim)))
-    if axes is 'max2':  # for 2D displacement fields
+    if axes == 'max2':  # for 2D displacement fields
         axes = list(range(min(2, delta.ndim)))
 
     try:
@@ -638,9 +638,9 @@ def _IFFT(input, boxsize, *, inplace=False, axes='max3'):
         dtype = input.dtype.type
         cdtype = {np.float32:np.complex64, np.float64:np.complex128}[dtype]
         
-    if axes is 'max3':
+    if axes == 'max3':
         axes = list(range(min(3, input.ndim)))
-    if axes is 'max2':  # for 2D displacement fields
+    if axes == 'max2':  # for 2D displacement fields
         axes = list(range(min(2, input.ndim)))
 
     try:

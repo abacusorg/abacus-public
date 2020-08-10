@@ -278,7 +278,7 @@ def TSC(positions, density, boxsize, weights=None, prep_rfft=False, rotate_to=No
 
         ybins = np.linspace(-boxsize/2, boxsize/2, num=nchunks+1, endpoint=True, dtype=positions.dtype)
         positions, weights = sort_pos_and_weight(positions, weights, inplace=inplace)
-        splits = np.searchsorted(positions[:,0], ybins[1:-1])
+        splits = np.searchsorted(positions[:,1], ybins[1:-1])
         pchunks = np.array_split(positions, splits)
 
         if weights is None or len(weights) == 0:
@@ -327,19 +327,15 @@ def TSC(positions, density, boxsize, weights=None, prep_rfft=False, rotate_to=No
         thread.join()
 
 # an in-place fast periodic wrap
-# this is a kludgy workaround for https://github.com/numba/numba/issues/2954
-def box_wrap(p, box):
-    return _box_wrap(p.ravel(), box)
-
 import numba as nb
 @nb.njit(parallel=True)
-def _box_wrap(p, box):
-    #p = p.flat
+def box_wrap(p, box):
+    p = p.reshape(-1)
     N = len(p)
     for i in nb.prange(N):
-        while p[i] >= box/2:
+        if p[i] >= box/2:
             p[i] -= box
-        while p[i] < -box/2:
+        if p[i] < -box/2:
             p[i] += box
 
 
