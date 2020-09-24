@@ -85,6 +85,8 @@ void BuildWriteStateOutput() {
 
 double EvolvingDelta(float z){
     float omegaMz = P.Omega_M * pow(1.0 + z, 3.0) / (P.Omega_DE + P.Omega_M *  pow(1.0 + z, 3.0) );
+	// The Bryan & Norman (1998) threshold is in units of (redshift-dependent) critical density;
+	// the 1/omegaMz factor makes it relative to the mean density at that redshift
     float Deltaz = (18.0*M_PI*M_PI + 82.0 * (omegaMz - 1.0) - 39.0 * pow(omegaMz - 1.0, 2.0) ) / omegaMz;
     return Deltaz / (18.0*M_PI*M_PI); //Params are given at high-z, so divide by high-z asymptote to find rescaling.
 }
