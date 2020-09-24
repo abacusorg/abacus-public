@@ -237,7 +237,7 @@ def _submit_transfer(tdata, transfer_client, status_log, status_log_fn, boxname)
 def start_globus_transfer(source_path, exclude=None, include=None, dest_path=DEFAULT_NERSC_DEST,
                           source_endpoint=OLCF_DTN_ENDPOINT, dest_endpoint=NERSC_DTN_ENDPOINT,
                           globus_verify_checksum=True, status_log_fn=DEFAULT_STATUS_FILE,
-                          always=['info/','abacus.par','status.log']):
+                          always=['info/','abacus.par','status.log', 'checksums.crc32']):
     '''
     Start a Globus transfer from the `source_path` on the `source_endpoint` to `dest_path`
     on the `dest_endpoint`.
