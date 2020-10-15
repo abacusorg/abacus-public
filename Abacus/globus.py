@@ -44,6 +44,7 @@ from os.path import join as pjoin
 OLCF_DTN_ENDPOINT = 'ef1a9560-7ca1-11e5-992c-22000b96db58'
 NERSC_DTN_ENDPOINT = '9d6d994a-6d04-11e5-ba46-22000b92c6ec'
 MARVIN_ENDPOINT = '45d63946-5906-11ea-9682-0e56c063f437'
+FLATIRON_ENDPOINT = 'c3dc2ae2-74c6-11e8-93bb-0a6d4e044368'
 
 # Destination Path -- The directory will be created if it doesn't exist
 DEFAULT_NERSC_DEST = '/global/cfs/cdirs/desi/cosmosim/Abacus'
