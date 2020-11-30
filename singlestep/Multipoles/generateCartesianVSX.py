@@ -162,15 +162,18 @@ def emit_VSX_Multipoles_FMA_interleaved(orders, fn='CM_VSX.cpp', use_zk=False, v
                                         w(f'CMvec[{i}][{m%nCMvec}] = vec_madd(fij[{m}], {zkterm}, CMvec[{i}][{m%nCMvec}]);')
                                     else:
                                         w(f'CMvec[{i}][{m%nCMvec}] += fij[{m}]*{zkterm};')
-                                nflop += 2
-                                nflop_fma += 2
                             else:
                                 w(f'CMvec[{i}][{m%nCMvec}] += fijk[{m}];')
-
-                        if not use_zk:
+                        
+                        if use_zk:
+                            nflop += 2
+                            nflop_fma += 2
+                        else:
+                            nflop += 1
                             if c < order-a-b:
                                 for m in range(unroll):
                                     w(f'fijk[{m}] = vec_mul(deltaz[{m}], fijk[{m}]);')
+                                nflop += 1
                         i += 1
                             
                     if b < order-a:
@@ -182,8 +185,9 @@ def emit_VSX_Multipoles_FMA_interleaved(orders, fn='CM_VSX.cpp', use_zk=False, v
                         w(f'fi[{m}] = vec_mul(deltax[{m}], fi[{m}]);')
                     nflop += 1
                     w('\n')
+            return nflop, nflop_fma
 
-        _emit_unrolled('i', unroll)
+        nflop, nflop_fma = _emit_unrolled('i', unroll)
 
         w.dedent()
         w('}')  # particle loop

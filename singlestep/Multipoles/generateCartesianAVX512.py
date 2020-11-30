@@ -144,7 +144,7 @@ def emit_AVX512_Multipoles(orders, fn='CMAVX512.cpp'):
 
 # this is only marginally faster than the non-FMA version
 # TODO: finish bringing particle loop inside
-def emit_AVX512_Multipoles_FMA(orders, fn='CMAVX512.cpp', max_zk=None):
+def emit_AVX512_Multipoles_FMA(orders, fn='CMAVX512.cpp', max_zk=None, unroll=4, naccum=1):
     assert max_zk is None, "max_zk probably not faster; implementation not finished"
 
     if max_zk is None:
@@ -155,6 +155,10 @@ def emit_AVX512_Multipoles_FMA(orders, fn='CMAVX512.cpp', max_zk=None):
     w('''
         #include "config.h"
         #ifdef AVX512MULTIPOLES
+
+        #include "header.cpp"
+        #include "threevector.hh"
+
         #include "avx512_calls.h"
         #include "assert.h"
         
@@ -166,7 +170,7 @@ def emit_AVX512_Multipoles_FMA(orders, fn='CMAVX512.cpp', max_zk=None):
         this_max_zk = min(order+1, max_zk)
 
         cml = (order+1)*(order+2)*(order+3)//6
-
+        
         w(f'''
             template <>
             void Multipole512Kernel<{order}>(FLOAT3 *xyz, int n, FLOAT3 center, double *_CM){{
@@ -174,51 +178,113 @@ def emit_AVX512_Multipoles_FMA(orders, fn='CMAVX512.cpp', max_zk=None):
                 AVX512_DOUBLES cx = AVX512_SET_DOUBLE(center.x);
                 AVX512_DOUBLES cy = AVX512_SET_DOUBLE(center.y);
                 AVX512_DOUBLES cz = AVX512_SET_DOUBLE(center.z);
-
-                AVX512_DOUBLES CM[{cml}];
+                
+                AVX512_DOUBLES CM[{cml}][{naccum}];
                 for(int i = 0; i < {cml}; i++)
-                    CM[i] = AVX512_SETZERO_DOUBLE();
-
-                int n_aligned = n - (n % AVX512_NVEC_DOUBLE);
-                int nleft = n - n_aligned;
-
-                for(int k=0; k <= n_aligned-AVX512_NVEC_DOUBLE; k += AVX512_NVEC_DOUBLE) {{
-                    // Load 8 DOUBLE3s as List3s
-                    AVX512_DOUBLES px, py, pz;
-                    for(int j = 0; j < AVX512_NVEC_DOUBLE; j++){{
-                        px[j] = xyz[k+j].x;
-                        py[j] = xyz[k+j].y;
-                        pz[j] = xyz[k+j].z;
-                    }}
-
-                    AVX512_DOUBLES fi = AVX512_SET_DOUBLE(1.);
-                    AVX512_DOUBLES fij;
-                    AVX512_DOUBLES deltax = AVX512_SUBTRACT_DOUBLES(px, cx);
-                    AVX512_DOUBLES deltay = AVX512_SUBTRACT_DOUBLES(py, cy);
-                    AVX512_DOUBLES deltaz = AVX512_SUBTRACT_DOUBLES(pz, cz);
+                    for(int ii = 0; ii < {naccum}; ii++)
+                        CM[i][ii] = AVX512_SETZERO_DOUBLE();
+                
+                int n_partial = n % ({unroll}*AVX512_NVEC_DOUBLE);
+                int n_full = n - n_partial;
+                int n_left = n_partial % AVX512_NVEC_DOUBLE;
+                n_partial -= n_left;
+                
+                for(int k=0; k < n_full; k += {unroll}*AVX512_NVEC_DOUBLE) {{
             ''')
         w.indent(2)
 
-        for c in range(this_max_zk):
-            w(f'AVX512_DOUBLES zk{c};')
-        w('zk0 = AVX512_SET_DOUBLE(1.0);')
-        for c in range(1,this_max_zk):
-            w(f'zk{c} = AVX512_MULTIPLY_DOUBLES(zk{c-1}, deltaz);')
+        def _emit_unrolled(start, unroll, mask=False):
+            w(f'''
+                // Load 8 DOUBLE3s as List3s
+                AVX512_DOUBLES px[{unroll}], py[{unroll}], pz[{unroll}];
 
-        i = 0
-        for a in range(order+1):
-            w('fij = fi;')
-            for b in range(order-a+1):
-                for c in range(order-a-b+1):
-                    if c % this_max_zk == 0 and c > 0:
-                        w(f'fij = AVX512_MULTIPLY_DOUBLES(fij, zk{this_max_zk-1});')
-                    w(f'CM[{i}] = AVX512_FMA_ADD_DOUBLES(fij, zk{c % this_max_zk}, CM[{i}]);')
-                    i += 1
-                if(b < order-a):
-                    w('\nfij = AVX512_MULTIPLY_DOUBLES(fij, deltay);')
-            if(a < order):
-                w('\nfi = AVX512_MULTIPLY_DOUBLES(fi, deltax);')
+                AVX512_DOUBLES fi[{unroll}];
+                AVX512_DOUBLES fij[{unroll}];
+                AVX512_DOUBLES deltax[{unroll}];
+                AVX512_DOUBLES deltay[{unroll}];
+                AVX512_DOUBLES deltaz[{unroll}];
+                ''')
+            for c in range(this_max_zk):
+                w(f'AVX512_DOUBLES zk{c}[{unroll}];')
+            
+            nload = mask or 'AVX512_NVEC_DOUBLE'
+            for u in range(unroll):
+                w(f'''
+                    fi[{u}] = AVX512_SET_DOUBLE(1.);
+                    for(int j = 0; j < {nload}; j++){{
+                        px[{u}][j] = xyz[{start}+j].x;
+                        py[{u}][j] = xyz[{start}+j].y;
+                        pz[{u}][j] = xyz[{start}+j].z;
+                    }}
+                    zk0[{u}] = AVX512_SET_DOUBLE(1.0);
+                    for(int j = {nload}; j < AVX512_NVEC_DOUBLE; j++){{
+                        px[{u}][j] = center.x;
+                        py[{u}][j] = center.y;
+                        pz[{u}][j] = center.z;
+                        zk0[{u}][j] = 0.;
+                    }}
+                    deltax[{u}] = AVX512_SUBTRACT_DOUBLES(px[{u}], cx);
+                    deltay[{u}] = AVX512_SUBTRACT_DOUBLES(py[{u}], cy);
+                    deltaz[{u}] = AVX512_SUBTRACT_DOUBLES(pz[{u}], cz);
+                ''')
+            for c in range(1,this_max_zk):
+                for u in range(unroll):
+                    w(f'zk{c}[{u}] = AVX512_MULTIPLY_DOUBLES(zk{c-1}[{u}], deltaz[{u}]);')
 
+            i = 0
+            for a in range(order+1):
+                for u in range(unroll):
+                    w(f'fij[{u}] = fi[{u}];')
+                for b in range(order-a+1):
+                    for c in range(order-a-b+1):
+                        if c % this_max_zk == 0 and c > 0:
+                            for u in range(unroll):
+                                w(f'fij[{u}] = AVX512_MULTIPLY_DOUBLES(fij[{u}], zk{this_max_zk-1}[{u}]);')
+                        for u in range(unroll):
+                            w(f'CM[{i}][{u%naccum}] = AVX512_FMA_ADD_DOUBLES(fij[{u}], zk{c % this_max_zk}[{u}], CM[{i}][{u%naccum}]);')
+                        i += 1
+                    if b < order-a:
+                        for u in range(unroll):
+                            w(f'\nfij[{u}] = AVX512_MULTIPLY_DOUBLES(fij[{u}], deltay[{u}]);')
+                if a < order:
+                    for u in range(unroll):
+                        w(f'\nfi[{u}] = AVX512_MULTIPLY_DOUBLES(fi[{u}], deltax[{u}]);')
+            
+        _emit_unrolled('k', unroll)
+        w.dedent()
+        w('}')  # Particle loop
+        
+        w('''
+        switch(n_partial){
+        ''')
+        w.indent()
+        for u in range(1,unroll):
+            w(f'case {u}*AVX512_NVEC_DOUBLE: {{')
+            w.indent()
+            _emit_unrolled('n_full', u)
+            w('break;\n}')
+            w.dedent()
+        w.dedent()
+        w('}\n')  # switch
+        
+        w('if(n_left){')
+        w.indent()
+        _emit_unrolled('n_full+n_partial', 1, mask='n_left')
+        w.dedent()
+        w('}')  # mask iteration
+        
+        # All done! Sum the vectors.
+        w(f'''
+            for(int i = 0; i < {cml}; i++){{
+        ''')
+        w.indent(1)
+        for u in range(1,naccum):
+            w(f'CM[i][0] = AVX512_ADD_DOUBLES(CM[i][0], CM[i][{u}]);')
+            
+        w('_CM[i] = AVX512_HORIZONTAL_SUM_DOUBLES(CM[i][0]);')
+        w.dedent()
+        w('}')  # cml
+        
         w.dedent()
         w('}')  # Kernel
 
@@ -409,5 +475,5 @@ if __name__ == '__main__':
         orders = list(range(1,args.maxorder+1))
 
     emit_AVX512_Taylors(orders)
-    emit_AVX512_Multipoles(orders)
-    #emit_AVX512_Multipoles_FMA(orders)
+    #emit_AVX512_Multipoles(orders)
+    emit_AVX512_Multipoles_FMA(orders)
