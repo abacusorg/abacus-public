@@ -116,7 +116,7 @@ def setup_zeldovich_params(params):
                 raise ValueError(f"ZD_Pk_sigma ({sigma8_at_zinit:f}) calculated from sigma_8 ({params['sigma_8']:f}) conflicts with the provided value of ZD_Pk_sigma ({params['ZD_Pk_sigma']:f})!")
         zd_params['ZD_Pk_sigma'] = sigma8_at_zinit
 
-    elif params.get('ZD_Pk_file_redshift'):
+    elif params.get('ZD_Pk_file_redshift') is not None:
         # If given ZD_Pk_file_redshift, set ZD_Pk_sigma_ratio
         if params.get('sigma_8'):
             raise ValueError("Must specify one of sigma_8 and ZD_Pk_file_redshift in parameter file")
@@ -239,15 +239,16 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par', **kwa
             new_params[k] = pjoin(os.getenv('ABACUS'), p[p.find('abacus/')+len('abacus/'):])
 
     # If the eigmodes file doesn't exist, look for it in the zeldovich dir
-    eigmodes_fn = new_params['ZD_PLT_filename']
-    if not path.isfile(eigmodes_fn):
-        eigmodes_fn = pjoin(zeldovich_dir, path.basename(eigmodes_fn))
+    if new_params['ZD_qPLT']:
+        eigmodes_fn = new_params['ZD_PLT_filename']
         if not path.isfile(eigmodes_fn):
-            print('Warning: original eigenmodes filename "{}" not found.  Falling back to most current eigenmodes.'.format(eigmodes_fn))
-            eigmodes_fn = eigmodes_path
-        new_params['ZD_PLT_filename'] = eigmodes_fn
+            eigmodes_fn = pjoin(zeldovich_dir, path.basename(eigmodes_fn))
+            if not path.isfile(eigmodes_fn):
+                print('Warning: original eigenmodes filename "{}" not found.  Falling back to most current eigenmodes.'.format(eigmodes_fn))
+                eigmodes_fn = eigmodes_path
+            new_params['ZD_PLT_filename'] = eigmodes_fn
 
-    ppd = kwargs.pop('ppd')
+    ppd = kwargs.pop('ppd', None)
     if ppd:
         new_params['NP'] = ppd**3
         new_params['ZD_NumBlock'] = ppd//4
@@ -255,12 +256,12 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par', **kwa
 
     new_params['InitialConditionsDirectory'] = ic_dir
 
-    density = kwargs.pop('density')
+    density = kwargs.pop('density', None)
     if density:
         new_params['ZD_qdensity'] = 1
 
     del_keys = []
-    if kwargs.pop('white'):
+    if kwargs.pop('white', None):
         print('Forcing white spectrum with ZD_Pk_powerlaw_index = 0')
         new_params['ZD_Pk_powerlaw_index'] = 0
         new_params['ZD_Pk_norm'] = 0
@@ -274,7 +275,10 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par', **kwa
             assert 'ZD_Pk_powerlaw_index' in new_params
 
     for k in kwargs:
-        kwargs[k] = eval(kwargs[k])
+        try:
+            kwargs[k] = eval(kwargs[k])
+        except:
+            kwargs[k] = kwargs[k]
     new_params.update(kwargs)
 
     zd_params = setup_zeldovich_params(new_params)
@@ -315,9 +319,13 @@ if __name__ == '__main__':
     for parfn in args.pop('parfile'):
         if show_growth:
             par = GenParam.parseInput(parfn)
+            
+            print(Abacus.Cosmology.from_params(par, 'init').current.growth)
+            
             sigma8_zinit = calc_sigma8(par, z='init')
 
-            print("sigma_8(z={}) = {}\nsigma_8(z=0) = {}\nGrowth ratio D(z=200)/D(z=0) = {}\n".format(par['InitialRedshift'], sigma8_zinit, par['sigma_8'], sigma8_zinit/par['sigma_8']))
+            # TODO: technically sigma_8 probably doesn't have to be at z=0
+            print("sigma_8(z={zinit:g}) = {}\nsigma_8(z=0) = {}\nGrowth ratio D(z={zinit:g})/D(z=0) = {}\n".format(sigma8_zinit, par['sigma_8'], sigma8_zinit/par['sigma_8'], zinit=par['InitialRedshift'],))
         else:
             if out_parent or ppd or density:  # TODO
                 run_override_dirs(parfn, out_parent, ppd=ppd, density=density, **args)

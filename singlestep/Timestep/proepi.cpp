@@ -608,7 +608,7 @@ void check_read_state(const int MakeIC, double &da){
         ReadState.AssertStateLegal(P);
 
         // Handle some special cases
-        if (P.ForceOutputDebug==1) {
+        if (P.ForceOutputDebug) {
             STDLOG(0,"ForceOutputDebug option invoked; setting time step to 0.\n");
             da = 0;
         }

@@ -25,3 +25,8 @@ Tests/MultipoleSpeed/test_multipolesVSX
 config.site
 globus_status.toml
 FREEZE
+.ipynb_checkpoints/
+/Tests/**/*.pdf
+/Tests/**/*.png
+*.asdf
+abacus.par

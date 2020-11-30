@@ -12,7 +12,7 @@ and moreover we have routines that refer to the components individually.
 So we actually are limited to about 680 million particles in a cell.
 
 
-z PID: bits 0-14
+x PID: bits 0-14
 y PID: 16-30
 z PID: 32-46
 Tagged: 48
