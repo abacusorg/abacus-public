@@ -57,10 +57,6 @@ fi
 AC_MSG_RESULT([$REAL_CXX])
 REAL_CC="$REAL_CXX -x c"
 
-# git version
-GITVERSION=\"$(git rev-parse HEAD)\"
-AC_DEFINE_UNQUOTED(GITVERSION, $GITVERSION, "The current git revision")
-
 # Imports
 m4_include(Configuration/m4/ax_check_cuda.m4)
 m4_include(Configuration/m4/ax_check_compile_flag.m4)

@@ -3455,14 +3455,6 @@ fi
 $as_echo "$REAL_CXX" >&6; }
 REAL_CC="$REAL_CXX -x c"
 
-# git version
-GITVERSION=\"$(git rev-parse HEAD)\"
-
-cat >>confdefs.h <<_ACEOF
-#define GITVERSION $GITVERSION
-_ACEOF
-
-
 # Imports
 #####
 #

@@ -35,6 +35,10 @@ ifeq (@CUDA_ENABLED@,CUDA_ENABLED)
     CUDA_ARCH := @CUDA_ARCH@
 endif
 
+# git version, like "v2.2.3-27-gc08fe8b1-dirty"
+GITVERSION := $(shell git describe --tags --dirty)
+CPPFLAGS += -DGITVERSION=\"$(GITVERSION)\"
+
 # It's not okay to link everything against tcmalloc.
 # With dynamically loaded Python extensions, that will switch the malloc implementation midstream and cause errors.
 # We should endeavor to keep CPPFLAGS globally useable/useful even if SINGLESTEP_LIBS is not.
