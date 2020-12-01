@@ -212,9 +212,9 @@ def emit_AVX512_Multipoles_FMA(orders, fn='CMAVX512.cpp', max_zk=None, unroll=4,
                 w(f'''
                     fi[{u}] = AVX512_SET_DOUBLE(1.);
                     for(int j = 0; j < {nload}; j++){{
-                        px[{u}][j] = xyz[{start}+j].x;
-                        py[{u}][j] = xyz[{start}+j].y;
-                        pz[{u}][j] = xyz[{start}+j].z;
+                        px[{u}][j] = xyz[{start}+j+{u}*AVX512_NVEC_DOUBLE].x;
+                        py[{u}][j] = xyz[{start}+j+{u}*AVX512_NVEC_DOUBLE].y;
+                        pz[{u}][j] = xyz[{start}+j+{u}*AVX512_NVEC_DOUBLE].z;
                     }}
                     zk0[{u}] = AVX512_SET_DOUBLE(1.0);
                     for(int j = {nload}; j < AVX512_NVEC_DOUBLE; j++){{
@@ -223,6 +223,7 @@ def emit_AVX512_Multipoles_FMA(orders, fn='CMAVX512.cpp', max_zk=None, unroll=4,
                         pz[{u}][j] = center.z;
                         zk0[{u}][j] = 0.;
                     }}
+
                     deltax[{u}] = AVX512_SUBTRACT_DOUBLES(px[{u}], cx);
                     deltay[{u}] = AVX512_SUBTRACT_DOUBLES(py[{u}], cy);
                     deltaz[{u}] = AVX512_SUBTRACT_DOUBLES(pz[{u}], cz);
