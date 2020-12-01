@@ -1,6 +1,6 @@
 // This file contains parts of directdriver.cpp that are relevant
 // to CPU computation and comparison of the GPU & CPU code.
-// These routine are not normally executed.
+// These routines are not normally executed.
 
 void NearFieldDriver::CheckGPUCPU(int slabID){
 // Computes the CPU result to compare to the GPU result
@@ -38,7 +38,7 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
             continue;
         FLOAT delta =2* (ai_g-ai_c).norm()/(ai_g.norm() + ai_c.norm());
         if(!(delta < target)){
-            printf("Error in slab %d:\n\ta_gpu[%d]: (%5.4f,%5.4f,%5.4f)\n\ta_cpu[%d]: (%5.4f,%5.4f,%5.4f)\n\tdelta:%f\n",
+            printf("Error in slab %d:\n\ta_gpu[%d]: (%5.4g,%5.4g,%5.4g)\n\ta_cpu[%d]: (%5.4g,%5.4g,%5.4g)\n\tdelta:%f\n",
                     slabID,i,ai_g.x,ai_g.y,ai_g.z,i,ai_c.x,ai_c.y,ai_c.z,delta);
             //assert(delta < target);
         }

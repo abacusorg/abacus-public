@@ -116,7 +116,7 @@ def setup_zeldovich_params(params):
                 raise ValueError(f"ZD_Pk_sigma ({sigma8_at_zinit:f}) calculated from sigma_8 ({params['sigma_8']:f}) conflicts with the provided value of ZD_Pk_sigma ({params['ZD_Pk_sigma']:f})!")
         zd_params['ZD_Pk_sigma'] = sigma8_at_zinit
 
-    elif params.get('ZD_Pk_file_redshift'):
+    elif params.get('ZD_Pk_file_redshift') is not None:
         # If given ZD_Pk_file_redshift, set ZD_Pk_sigma_ratio
         if params.get('sigma_8'):
             raise ValueError("Must specify one of sigma_8 and ZD_Pk_file_redshift in parameter file")
@@ -126,7 +126,7 @@ def setup_zeldovich_params(params):
         #If ZD_Pk_sigma_ratio was already given, check that it is consistent with what we just computed
         if 'ZD_Pk_sigma_ratio' in params:
             if not np.isclose(growth_ratio, params['ZD_Pk_sigma_ratio'], rtol=1e-5):
-                raise ValueError(f'ZD_Pk_sigma_ratio = {params["ZD_Pk_sigma_ratio"]} in parameter file does not match value {growth_ratio} computed from ZD_Pk_file_redshift = {ZD_Pk_file_redshift}')
+                raise ValueError(f'ZD_Pk_sigma_ratio = {params["ZD_Pk_sigma_ratio"]} in parameter file does not match value {growth_ratio} computed from ZD_Pk_file_redshift = {params["ZD_Pk_file_redshift"]}')
         zd_params['ZD_Pk_sigma_ratio'] = growth_ratio
 
     else:
@@ -146,13 +146,13 @@ def setup_zeldovich_params(params):
     # Check that f_growth computed in the EdS approximation with f_cluster is consistent with the value from the cosmology module
     f_growth = cosm_zinit.current.f_growth
     fgrowth_from_fcluster = ((1 + 24*f_cluster_from_smooth)**0.5 - 1)/4
-    if not np.isclose(f_growth, fgrowth_from_fcluster, rtol=1e-4):
+    if not np.isclose(f_growth, fgrowth_from_fcluster, rtol=2e-4):
         raise ValueError(f'fgrowth_from_fcluster = {fgrowth_from_fcluster} from parameter file does not match f_growth = {f_growth} computed from cosmology')
 
     return zd_params
     
 
-def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=False):
+def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=True):
     '''
     Invokes the zeldovich executable with the given parameter file,
     cleaning up any exisitng output directories first and also
@@ -162,18 +162,19 @@ def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=False):
     the `ZD_PLT_filename` parameter is valid and sets
     it to the current eigmodes file if not.
     '''
-    params = InputFile(paramfn)
+    paramfn = os.path.abspath(paramfn)
+    params = GenParam.parseInput(paramfn)
 
-    if path.exists(params.InitialConditionsDirectory):
+    if path.exists(params['InitialConditionsDirectory']):
         print("Warning: old ICs already exist; removing.")
-        shutil.rmtree(params.InitialConditionsDirectory)
+        shutil.rmtree(params['InitialConditionsDirectory'])
 
-    os.makedirs(params.InitialConditionsDirectory, exist_ok=True)
+    os.makedirs(params['InitialConditionsDirectory'], exist_ok=True)
 
-    if 'ZD_PLT_filename' in params and not path.isfile(params.ZD_PLT_filename):
+    if 'ZD_PLT_filename' in params and not path.isfile(params['ZD_PLT_filename']):
         # If the filename is the same, then the files should be identical and we can silently override
-        if path.basename(params.ZD_PLT_filename) != path.basename(eigmodes_path):
-            print('Eigenmodes file "{}" did not exist!'.format(params.ZD_PLT_filename))
+        if path.basename(params['ZD_PLT_filename']) != path.basename(eigmodes_path):
+            print('Eigenmodes file "{}" did not exist!'.format(params['ZD_PLT_filename']))
             if allow_eigmodes_fn_override:
                 print('Overriding to most recent file: "{}".'.format(eigmodes_path))
             else:
@@ -190,15 +191,12 @@ def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=False):
     parallel = params.get('Parallel', False) and not no_parallel
 
     if parallel:
-        try:
-            ZD_cmd = shlex.split(params['ZD_mpirun_cmd']) + ZD_cmd
-        except KeyError:
-            ZD_cmd = shlex.split(params['mpirun_cmd']) + ZD_cmd
+        ZD_cmd = shlex.split(params['ZD_mpirun_cmd']) + ZD_cmd
     with chdir(zeldovich_dir):
         abacus.call_subprocess(ZD_cmd)
 
     
-def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):
+def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par', **kwargs):
     """
     Sometimes we want to regenerate the ICs from a sim run on
     another machine.  Thus, the directories are probably wrong.
@@ -210,21 +208,17 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):
     which may not be a good assumption.
     """
     
-    old_params = InputFile(parfn)
+    old_params = GenParam.parseInput(parfn)
     out_parent = path.abspath(out_parent)
+
+    run_kwargs = {}
+    if 'no_parallel' in kwargs:
+        run_kwargs['no_parallel'] = kwargs.pop('no_parallel')
     
-    sim_dir = pjoin(out_parent, old_params.SimName)
-    new_parfn = pjoin(sim_dir, 'info', new_parfn)
+    sim_dir = pjoin(out_parent, old_params['SimName'])
+    new_parfn = pjoin(sim_dir, new_parfn)
     ic_dir = pjoin(sim_dir, 'ic')
     os.makedirs(sim_dir, exist_ok=True)
-        
-    # If the eigmodes file doesn't exist, look for it in the zeldovich dir
-    eigmodes_fn = old_params.ZD_PLT_filename
-    if not path.isfile(eigmodes_fn):
-        eigmodes_fn = pjoin(zeldovich_dir, path.basename(eigmodes_fn))
-        if not path.isfile(eigmodes_fn):
-            print('Warning: original eigenmodes filename "{}" not found.  Falling back to most current eigenmodes.'.format(eigmodes_fn))
-            eigmodes_fn = eigmodes_path
     
     # Copy over info dir and other important files
     # is parfn in the info dir?
@@ -236,21 +230,63 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par'):
     
     if not path.isdir(pjoin(sim_dir, 'info')):
         print("Warning: no info dir found to copy")
-        
-    # If the Pk file doesn't exist, look for it in the info dir
-    kwargs = {}
-    if 'ZD_Pk_filename' in old_params:
-        pk_fn = old_params.ZD_Pk_filename
-        if not path.isfile(pk_fn):
-            pk_fn = pjoin(sim_dir, 'info', path.basename(pk_fn))
-            assert path.isfile(pk_fn)
-            kwargs['ZD_Pk_filename'] = pk_fn
+
+    # heuristic replacement of abacus directory, somewhat dangerous
+    new_params = dict(old_params).copy()
+    for k in new_params:
+        p = new_params[k]
+        if type(p) is str and 'abacus/' in p:
+            new_params[k] = pjoin(os.getenv('ABACUS'), p[p.find('abacus/')+len('abacus/'):])
+
+    # If the eigmodes file doesn't exist, look for it in the zeldovich dir
+    if new_params['ZD_qPLT']:
+        eigmodes_fn = new_params['ZD_PLT_filename']
+        if not path.isfile(eigmodes_fn):
+            eigmodes_fn = pjoin(zeldovich_dir, path.basename(eigmodes_fn))
+            if not path.isfile(eigmodes_fn):
+                print('Warning: original eigenmodes filename "{}" not found.  Falling back to most current eigenmodes.'.format(eigmodes_fn))
+                eigmodes_fn = eigmodes_path
+            new_params['ZD_PLT_filename'] = eigmodes_fn
+
+    ppd = kwargs.pop('ppd', None)
+    if ppd:
+        new_params['NP'] = ppd**3
+        new_params['ZD_NumBlock'] = ppd//4
+        print(f'Using ppd {ppd} override')
+
+    new_params['InitialConditionsDirectory'] = ic_dir
+
+    density = kwargs.pop('density', None)
+    if density:
+        new_params['ZD_qdensity'] = 1
+
+    del_keys = []
+    if kwargs.pop('white', None):
+        print('Forcing white spectrum with ZD_Pk_powerlaw_index = 0')
+        new_params['ZD_Pk_powerlaw_index'] = 0
+        new_params['ZD_Pk_norm'] = 0
+        new_params['ZD_density_filename'] = "whitenoise%d"
+        new_params.pop('ZD_Pk_filename')
+        del_keys += ['ZD_Pk_filename']
     else:
-        assert 'ZD_Pk_powerlaw_index' in old_params
+        if 'ZD_Pk_filename' in new_params:
+            assert path.isfile(new_params['ZD_Pk_filename'])
+        else:
+            assert 'ZD_Pk_powerlaw_index' in new_params
+
+    for k in kwargs:
+        try:
+            kwargs[k] = eval(kwargs[k])
+        except:
+            kwargs[k] = kwargs[k]
+    new_params.update(kwargs)
+
+    zd_params = setup_zeldovich_params(new_params)
+    new_params.update(zd_params)
         
-    GenParam.makeInput(new_parfn, parfn, InitialConditionsDirectory=ic_dir, ZD_PLT_filename=eigmodes_fn, **kwargs)
+    new_params = GenParam.makeInput(new_parfn, parfn, del_keywords=del_keys, **new_params)
     
-    run(new_parfn)
+    run(new_parfn, **run_kwargs)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=f'Run the zeldovich code (located in {zeldovich_dir})')
@@ -261,21 +297,37 @@ if __name__ == '__main__':
     parser.add_argument('--show-growth', action='store_true',
         help='Just compute the growth factor from z=0 to z_init from the cosmology in the given parameter file. Does not generate ICs.')
     parser.add_argument('--no-parallel', action='store_true',
-        help='Do not invoke the ZD_mpirun_cmd to run zeldovich, despite Parallel = 1 in the parameter file')
-    
+        help='Do not invoke the ZD_mpirun_cmd to run zeldovich, despite Parallel = 1 in the parameter file', default=True)
+    parser.add_argument('--ppd', help='Override ppd with this value', type=int)
+    parser.add_argument('--density', help='Enable density output', action='store_true')
+    parser.add_argument('--white', help='Ignore power spectrum file and use ZD_Pk_powerlaw_index=0', action='store_true')
+
+    # this solution for arbitrary args borrowed from https://stackoverflow.com/questions/37367331/is-it-possible-to-use-argparse-to-capture-an-arbitrary-set-of-optional-arguments
+    parsed, unknown = parser.parse_known_args()
+    for arg in unknown:
+        if arg.startswith(("-", "--")):
+            arg = arg.split('=')[0]
+            parser.add_argument(arg, type=str)
+
     args = parser.parse_args()
     args = vars(args)
     out_parent = args.pop('out_parent')
+    ppd = args.pop('ppd')
+    density = args.pop('density')
     show_growth = args.pop('show_growth')
     
     for parfn in args.pop('parfile'):
         if show_growth:
-            par = InputFile(parfn)
+            par = GenParam.parseInput(parfn)
+            
+            print(Abacus.Cosmology.from_params(par, 'init').current.growth)
+            
             sigma8_zinit = calc_sigma8(par, z='init')
 
-            print("sigma_8(z={}) = {}\nsigma_8(z=0) = {}\nGrowth ratio D(z=200)/D(z=0) = {}\n".format(par['InitialRedshift'], sigma8_zinit, par['sigma_8'], sigma8_zinit/par['sigma_8']))
+            # TODO: technically sigma_8 probably doesn't have to be at z=0
+            print("sigma_8(z={zinit:g}) = {}\nsigma_8(z=0) = {}\nGrowth ratio D(z={zinit:g})/D(z=0) = {}\n".format(sigma8_zinit, par['sigma_8'], sigma8_zinit/par['sigma_8'], zinit=par['InitialRedshift'],))
         else:
-            if out_parent:
-                run_override_dirs(parfn, out_parent, **args)
+            if out_parent or ppd or density:  # TODO
+                run_override_dirs(parfn, out_parent, ppd=ppd, density=density, **args)
             else:
                 run(parfn, **args)

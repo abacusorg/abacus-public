@@ -71,6 +71,7 @@ def hist_helper_3D(boxsize, gridshape, bin_edges, rfft):
                     _hist[i,b-1] += 2  # double-count values that would be reflected in the full space
                 else:
                     _hist[i,b-1] += 1
+                assert b-1 < nbp1-1
 
     # combine thread results
     histogram = np.sum(_hist, axis=0)
@@ -125,6 +126,7 @@ def rhist_helper_3D(boxsize, gridshape, bin_edges, rfft):
                     _hist[i,b-1] += np.sqrt(dist2)
                 else:
                     _hist[i,b-1] += 0.5*np.sqrt(dist2)
+                assert b-1 < nbp1-1
 
     # combine thread results
     histogram = np.sum(_hist, axis=0)
@@ -158,7 +160,7 @@ def whist_helper_3D(boxsize, values, bin_edges, rfft, multipoles=np.array([0])):
 
     # Do binning with squared distances
     bin_edges2 = bin_edges**2
-    bmax2, bmin2 = bin_edges2[-1], bin_edges2[0]
+    bmin2,bmax2 = bin_edges2.min(), bin_edges2.max()
     nbp1 = len(bin_edges2)
 
     # We will compute all multipoles in one pass
@@ -192,7 +194,7 @@ def whist_helper_3D(boxsize, values, bin_edges, rfft, multipoles=np.array([0])):
                 if dist2 > bmax2:
                     break
 
-                while dist2 > bin_edges2[b] and b < nbp1:
+                while b < nbp1-1 and dist2 >= bin_edges2[b]:
                     b += 1
 
                 # first pole, probably monopole
@@ -203,6 +205,7 @@ def whist_helper_3D(boxsize, values, bin_edges, rfft, multipoles=np.array([0])):
                         _hist[i,b-1,0] += 0.5*values[i,j,k]
                     else:
                         _hist[i,b-1,0] += values[i,j,k]
+                    assert b-1 < nbp1-1
 
                 # higher moments
                 # this if statement introduces a performance penalty on the monopole...
@@ -239,7 +242,7 @@ def whist_helper_3D(boxsize, values, bin_edges, rfft, multipoles=np.array([0])):
     histogram *= 2
 
     # apply multipoles prefactor
-    histogram *= 2*multipoles + 1
+    histogram *= 2*multipoles.reshape(-1) + 1
 
     # Put multipoles first
     histogram = histogram.T

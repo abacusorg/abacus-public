@@ -24,6 +24,7 @@ class NearFieldDriver{
         void ExecuteSlab(int slabID, int blocking);
         int SlabDone(int slabID);
         void Finalize(int slabID);
+        void CheckGPUCPU(int slabID);
     
         double SofteningLength;  // Effective Plummer length, used for timestepping.  Unit-box units.
         double SofteningLengthInternal;  // The equivalent length for the current softening technique.  Unit-box units.
@@ -88,7 +89,6 @@ class NearFieldDriver{
         void ExecuteSlabGPU(int slabID, int blocking);
         void ExecuteSlabCPU(int slabID,int * predicate);
         void ExecuteSlabCPU(int slabID);
-        void CheckGPUCPU(int slabID);
         void CheckInteractionList(int slabID);
 };
 
@@ -297,7 +297,6 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     assertf(thisSink<=MaxSinkBlocks && thisSource<=MaxSourceBlocks,
             "Sinks or Sources of the last skewer overflow the maxima.");
 
-    uint64 NSink = SS->size(slabID);
     STDLOG(1,"Using %d direct splits on slab %d, max blocks %d sink and %d source\n", 
             NSplit, slabID, useMaxSink, useMaxSource);
 
@@ -309,7 +308,12 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     SlabInteractionCollections[slabID] = new SetInteractionCollection *[NSplit];
 
     // Now we need to make the NearField_SIC_Slab
-    uint64 bsize = ComputeSICSize(P.cpd, NSink, WIDTH, NSplit);
+    uint64 NSinkAlloc = 0;
+    for (int s = -RADIUS; s <= RADIUS; s++){
+        NSinkAlloc = std::max(NSinkAlloc, SS->size(slabID+s));
+    }
+
+    uint64 bsize = ComputeSICSize(P.cpd, NSinkAlloc, WIDTH, NSplit);
     SB->AllocateSpecificSize(NearField_SIC_Slab, slabID, bsize);
     char *buffer = SB->GetSlabPtr(NearField_SIC_Slab, slabID);
 
@@ -479,7 +483,6 @@ void NearFieldDriver::Finalize(int slab){
     SB->DeAllocate(NearField_SIC_Slab, slab);
     delete[] Slices;
     
-    if(P.ForceOutputDebug) CheckGPUCPU(slab);
     FinalizeTimer.Stop();
 }
 

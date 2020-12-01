@@ -21,10 +21,10 @@ import pyfftw
 import numexpr as ne
 
 
-from Abacus.Tools import ndarray_arg
+from Abacus.Tools import ndarray_arg, ContextTimer
 import Abacus.ReadAbacus
 from . import misc
-from .misc import processargs
+from .misc import processargs, process_gridshape
 from .Histogram import RadialBin, RadialBinGrid, k_bin_edges
 from . import TSC
 
@@ -93,7 +93,7 @@ def CalculateFromMem(positions, gridshape, boxsize, *, weights=None, dtype=np.fl
     fielddensity = TSC.BinParticlesFromMem(positions, gridshape, boxsize, weights=weights, dtype=dtype, rotate_to=rotate_to, prep_rfft=True, nthreads=nthreads)
     
     # Do the FFT
-    res = FFTAndBin(fielddensity, boxsize, bins=bins, log=log, inplace=True, window=window, bin_info=bin_info, multipoles=multipoles)
+    res = FFTAndBin(fielddensity, boxsize, bins=bins, log=log, inplace=True, window=window, bin_info=bin_info, multipoles=multipoles, expected_NP=len(positions))
     
     return res
 
@@ -153,10 +153,10 @@ def CalculateBySlab(file_pattern, gridshape, boxsize, *, dtype=np.float32, zspac
     '''
     
     # Do the binning
-    density = TSC.BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=dtype, zspace=zspace, format=format, rotate_to=rotate_to, prep_rfft=True, nthreads=nthreads)
+    density, nread = TSC.BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=dtype, zspace=zspace, format=format, rotate_to=rotate_to, prep_rfft=True, nthreads=nthreads, verbose=verbose, return_NP=True)
     
     # Do the FFT
-    return FFTAndBin(density, boxsize, bins=bins, log=log, inplace=True, window=window)
+    return FFTAndBin(density, boxsize, bins=bins, log=log, inplace=True, window=window, expected_NP=nread)
     
 
 @processargs
@@ -204,15 +204,16 @@ def RebinTheoryPS(ps, gridshape, boxsize, *, bins=-1, log=False, dtype=np.float3
     else:
         pkref_interp = misc.loglog_interp(ps[:,0], ps[:,1])
 
-    if type(gridshape) is int:
-        gridshape = (gridshape,)*3
-    gridshape = np.array(gridshape)
+    gridshape = process_gridshape(gridshape)
     
     dx = boxsize/np.array(gridshape)
     kgrid = misc.fftfreq_nd(gridshape, dx, rfft=True, kmag=True)
     kgrid[0,0,0] = kgrid[0,0,1]  # todo: 2D
-    power = pkref_interp(kgrid)
+    power = pkref_interp(kgrid)  # TODO: single prec?
     power[0,0,0] = 0.  # enforce zero power at origin, like zeldovich code
+
+    if bins is None:
+        return power
     
     k, s, nmodes, bin_info = RadialBinGrid(boxsize, power, bins, rfft=True)
     _, s2, _, _ = RadialBinGrid(boxsize, power**2., bins, rfft=True, bin_info=bin_info)
@@ -324,9 +325,7 @@ def CrossPower(gridshape, boxsize, *, pos1=None, pos2=None, delta1=None, delta2=
         Number of modes in each bin
     """
     
-    if type(gridshape) is int:
-        gridshape = (gridshape,)*3
-    gridshape = np.array(gridshape)
+    gridshape = process_gridshape(gridshape)
     
     def get_delta_fft_from_pos(pos, w):
         delta = TSC.BinParticlesFromMem(pos, gridshape, boxsize, prep_rfft=True, weights=w, norm=True)
@@ -366,7 +365,7 @@ def CrossPower(gridshape, boxsize, *, pos1=None, pos2=None, delta1=None, delta2=
 
 # TODO: move from processargs to object-oriented to hold state
 @processargs(infershape=True)
-def FFTAndBin(density, boxsize, *, inplace=False, bins=-1, log=False, window='window_aliased', normalize_dens=True, bin_info=False, multipoles=0):
+def FFTAndBin(density, boxsize, *, inplace=False, bins=-1, log=False, window='window_aliased', normalize_dens=True, bin_info=False, multipoles=0, expected_NP=None):
     """
     Given a 2D/3D density field, convert to density contrast, FFT, square, normalize, de-window,
     and bin to produce a 1D power spectrum.
@@ -417,6 +416,8 @@ def FFTAndBin(density, boxsize, *, inplace=False, bins=-1, log=False, window='wi
         The full 2D/3D power spectrum (Fourier transform of the deltas,
         squared and normalized)
     """
+    timer = ContextTimer('FTT and radial bin')
+    timer.Start()
 
     dtype = density.dtype.type
     gridshape = np.array(density.shape)  # shape of the signal region
@@ -424,7 +425,7 @@ def FFTAndBin(density, boxsize, *, inplace=False, bins=-1, log=False, window='wi
     if inplace:
         gridshape[-1] -= 2 if gridshape[-1] % 2 == 0 else 1
     density_real = density[...,:gridshape[-1]]  # The density without the (optional) fft padding
-    rho_av = density_real.mean(dtype=np.float64).astype(np.float32)
+    rho_av = density_real.mean(dtype=np.float64).astype(dtype)
     
     # Convert to fractional overdensity
     if normalize_dens:
@@ -432,7 +433,9 @@ def FFTAndBin(density, boxsize, *, inplace=False, bins=-1, log=False, window='wi
         ne.evaluate('density_real/rho_av - 1', out=density_real)
     
     if verbose:
-        print("Mean Density (ppc): " + str(rho_av))
+        print(f"Mean Density (ppc): {rho_av}")
+        if expected_NP:
+            print('Normalization off by {:f}%'.format((rho_av/(expected_NP/density_real.size) - 1)*100))
         # numexpr has a bug where it won't parallelize sum reductions, but at least it saves memory
         # https://github.com/pydata/numexpr/issues/73
         sigma2 = ne.evaluate('sum((1.*density_real)**2)')/density_real.size
@@ -448,6 +451,8 @@ def FFTAndBin(density, boxsize, *, inplace=False, bins=-1, log=False, window='wi
         bin_info = None
 
     k, all_P, nmodes, bin_info = RadialBinGrid(boxsize, power, bins, rfft=True, bin_info=bin_info, multipoles=multipoles)
+
+    timer.stop()
     
     if ret_bi:
         return k, all_P, nmodes, bin_info
@@ -497,9 +502,9 @@ def _FFT(delta, boxsize, *, window='window_aliased', inplace=False, power=True, 
     '''
     dtype = delta.dtype.type
 
-    if axes is 'max3':
+    if axes == 'max3':
         axes = list(range(min(3, delta.ndim)))
-    if axes is 'max2':  # for 2D displacement fields
+    if axes == 'max2':  # for 2D displacement fields
         axes = list(range(min(2, delta.ndim)))
 
     try:
@@ -633,9 +638,9 @@ def _IFFT(input, boxsize, *, inplace=False, axes='max3'):
         dtype = input.dtype.type
         cdtype = {np.float32:np.complex64, np.float64:np.complex128}[dtype]
         
-    if axes is 'max3':
+    if axes == 'max3':
         axes = list(range(min(3, input.ndim)))
-    if axes is 'max2':  # for 2D displacement fields
+    if axes == 'max2':  # for 2D displacement fields
         axes = list(range(min(2, input.ndim)))
 
     try:

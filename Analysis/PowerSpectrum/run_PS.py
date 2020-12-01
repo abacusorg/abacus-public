@@ -10,25 +10,27 @@ Author: Lehman Garrison
 
 import sys
 import os
-from os.path import join as pjoin, abspath, basename, dirname
+from os.path import join as pjoin, abspath, basename, dirname, getsize
 import pdb
 import shutil
 import argparse
 from glob import glob
-from contextlib import ExitStack
 
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
+
+from astropy.utils import iers
+iers.conf.auto_download = False
+import astropy.table
 
 from Abacus.Analysis import common
 from Abacus.InputFile import InputFile
 from Abacus import Tools
 
-from PowerSpectrum import TSC, Histogram
-from PowerSpectrum import PowerSpectrum as PS
+from .PowerSpectrum import TSC, Histogram
+from .PowerSpectrum import PowerSpectrum as PS
 
 # A label for the power spectrum based on the properties
 def ps_suffix(**kwargs):
@@ -79,7 +81,8 @@ def run_PS_on_dir(slicedir, **kwargs):
     
     just_density = kwargs.pop('just_density')
     product_name = 'power' if not just_density else 'density'
-    outdir = common.get_output_dir(product_name, slicedir)
+    out_parent = kwargs.pop('out_parent')
+    outdir = common.get_output_dir(product_name, slicedir, out_parent=out_parent, **kwargs)
     ps_fn = product_name + this_suffix
 
     header, header_fn = common.get_header(slicedir, retfn=True)
@@ -111,7 +114,7 @@ def run_PS_on_dir(slicedir, **kwargs):
     if not just_density:
         bins = kwargs['bins']  # needed for kmin,kmax
         raw_results = PS.CalculateBySlab(slicedir, nfft, BoxSize, **kwargs)
-        results = to_csv(raw_results, bins, save_fn)
+        results = to_csv(raw_results, bins, save_fn, header)
     else:
         density = TSC.BinParticlesFromFile(slicedir, BoxSize, nfft, **kwargs)
         density.tofile(save_fn)
@@ -120,7 +123,7 @@ def run_PS_on_dir(slicedir, **kwargs):
     pardirname = basename(dirname(abspath(save_fn)))
     print(f'* Finished PS ({pardirname}, nfft {nfft})')
 
-    return results, header, save_fn
+    return results, save_fn
             
 
 def run_PS_on_PS(input_ps_fn, **kwargs):    
@@ -130,21 +133,86 @@ def run_PS_on_PS(input_ps_fn, **kwargs):
     # Make a descriptive filename
     output_ps_fn += ps_suffix(**kwargs)
 
-    # Read the header
-    try:
-        header_fn = glob(os.path.dirname(input_ps_fn)+'/*.par')[0]
-        header = InputFile(header_fn)
-    except IOError:
-        print('Could not find "*.par"')
+    header, header_fn = common.get_header(dirname(input_ps_fn), retfn=True)
+
+    # box kwargs overrides header
+    argbox = kwargs.pop('box')
+    if argbox:
+        BoxSize = argbox
+    else:
+        BoxSize = header['BoxSize']
         
     # Load the input PS
     input_ps = np.loadtxt(input_ps_fn)
     
-    raw_results = PS.RebinTheoryPS(input_ps, kwargs['nfft'], header.BoxSize, nbins=kwargs['nbins'], log=kwargs['log'], dtype=kwargs['dtype'])
+    nfft = kwargs.pop('nfft')
+    raw_results = PS.RebinTheoryPS(input_ps, nfft, BoxSize, bins=kwargs['bins'], log=kwargs['log'], dtype=kwargs['dtype'])
     outfn = pjoin(outdir, output_ps_fn)
-    results = to_csv(raw_results, bins, outfn)
+    results = to_csv(raw_results, bins, outfn, header)
 
-    return results, header, outfn
+    return results, outfn
+
+
+def run_PS_on_density(input_density_fn, window=None, normalize_dens=False, **kwargs):
+    # Make a descriptive filename
+    # First have to figure out nfft on disk
+    nelem = getsize(input_density_fn)//(np.dtype(kwargs['dtype']).itemsize)
+    kwargs.pop('nfft')
+    nfft = int(round(nelem**(1/3)))
+    if nfft**3 != nelem:
+        raise ValueError(f'density file not a cube (nelem {nelem})')
+    print(f'Adopting nfft {nfft} corresponding to density cube')
+
+    this_suffix = ps_suffix(nfft=nfft, **kwargs)
+    kwargs.pop('track')
+    
+    inputdir = dirname(input_density_fn)
+
+    out_parent = kwargs.pop('out_parent')
+    outdir = common.get_output_dir('power', inputdir, out_parent=out_parent, **kwargs)
+    ps_fn = 'power' + this_suffix
+
+    header, header_fn = common.get_header(inputdir, retfn=True)
+    
+    # box kwargs overrides header
+    argbox = kwargs.pop('box')
+    if argbox:
+        BoxSize = argbox
+    else:
+        BoxSize = header['BoxSize']
+            
+    # Make the output dir and store the header
+    os.makedirs(outdir, exist_ok=True)
+    if header_fn:
+        shutil.copy(header_fn, pjoin(outdir, 'header'))
+
+    # Copy the sim-level parameter files
+    if not os.path.isdir(pjoin(outdir, os.pardir, 'info')):
+        try:
+            shutil.copytree(pjoin(inputdir, os.pardir, 'info'), pjoin(outdir, os.pardir, 'info'))
+        except:
+            pass
+    
+    print('* Starting PS on {}'.format(input_density_fn))
+    save_fn = os.path.join(outdir, ps_fn)
+    print(f'* and saving to {save_fn}')
+    
+    bins = kwargs['bins']  # needed for kmin,kmax
+    #bins = Histogram.k_bin_edges(nfft, BoxSize, nbins=-1, dk=dk, log=args['log'])
+
+    density = np.fromfile(input_density_fn, dtype=kwargs['dtype'])
+    density = density.reshape(nfft,nfft,nfft)
+
+    # TODO: want window for TSC density fields written to disk, but not straight out of zeldovich
+    # TODO: always uses default binning
+    raw_results = PS.FFTAndBin(density, BoxSize, bins=bins, log=kwargs['log'],
+                                    window=window, normalize_dens=normalize_dens)
+    results = to_csv(raw_results, bins, save_fn, header)
+
+    pardirname = basename(dirname(abspath(save_fn)))
+    print(f'* Finished PS ({pardirname}, nfft {nfft})')
+
+    return results, save_fn
 
     
 # inputs is a list of slice directories
@@ -160,6 +228,8 @@ def run_PS(inputs, **kwargs):
 
     nthreads = kwargs.pop('nthreads',-1)
     PS.nthreads = nthreads
+    verbose = kwargs.pop('verbose',False)
+    PS.verbose = verbose
 
     # Loop in order of difficulty; i.e. largest nfft first
     # That way we'll fail-fast if we don't fit in memory
@@ -168,34 +238,32 @@ def run_PS(inputs, **kwargs):
         input = inputs[i]
 
         for binning in binnings[i]:  # binning: dict of bins, nfft, track
+            if kwargs['format'] == 'density':
+                _res = run_PS_on_density(input, **binning, **kwargs)
             # If the input is an output or IC directory
-            if os.path.isdir(input):
-                with ExitStack() as stack:
-                    # TODO: deprecated pattern
-                    #if kwargs.get('format').lower() == 'pack14':
-                    #    stack.enter_context(common.extract_slabs(input))
-                    _res = run_PS_on_dir(input, **binning, **kwargs)
+            elif os.path.isdir(input):
+                _res = run_PS_on_dir(input, **binning, **kwargs)
             # If the input is a PS file
             elif os.path.isfile(input):
-                _res = run_PS_on_PS(input, **kwargs)
+                _res = run_PS_on_PS(input, **binning, **kwargs)
             else:
                 raise ValueError(input, "does not exist!")
 
             make_plot(*_res)
 
 
-def to_csv(raw_results, bins, fn):
+def to_csv(raw_results, bins, fn, header):
     k, Pk, nmodes = raw_results
-    results = np.empty(len(k), dtype=[('kmin',float), ('kmax',float), ('kavg',float), ('power',float), ('N_modes',int)])
-    results['kmin'] = bins[:-1]
-    results['kmax'] = bins[1:]
-    results['kavg'] = k
-    results['power'] = Pk
-    results['N_modes'] = nmodes
-    pdresults = pd.DataFrame(results)
-    pdresults.to_csv(fn, index=False)
-
-    return results
+    t = astropy.table.Table(data=dict(kmin=bins[:-1],
+                                      kmax=bins[1:],
+                                      kavg=k,
+                                      power=Pk,
+                                      N_modes=nmodes
+                                      ),
+                            meta=dict(header)
+                            )
+    t.write(fn, format='ascii.ecsv')
+    return t
 
 
 def setup_bins(args):
@@ -222,12 +290,19 @@ def setup_bins(args):
     ns = args.pop('scalefree_index')
     basea = args.pop('scalefree_base_a')
     nbins = args.pop('nbins')
+    dk = args.pop('dk')
     slices = args['input']
     nfft = args.pop('nfft')
     bin_like_nfft = args.pop('bin_like_nfft')
     ntracks = args.pop('ntracks')
 
     ### end popping args
+
+    if dk is None and nbins is None:
+        nbins = -1
+
+    if bool(dk) == bool(nbins):
+        raise ValueError((dk,nbins))
 
     if ns is None:
         ntracks = 1  # tracks only make sense for scale-free
@@ -286,7 +361,7 @@ def setup_bins(args):
             print('\tComputed NFFTs: ' + str(all_nfft))
         else:
             # Set up normal bins
-            all_bins = np.array([Histogram.k_bin_edges(nfft, all_boxsize[i], nbins=nbins, log=args['log'], bin_like_nfft=bin_like_nfft) \
+            all_bins = np.array([Histogram.k_bin_edges(nfft, all_boxsize[i], nbins=nbins, dk=dk, log=args['log'], bin_like_nfft=bin_like_nfft) \
                                     for i in range(nslices)])
             all_nfft = np.full(nslices, nfft)
 
@@ -313,7 +388,7 @@ def setup_bins(args):
     return binnings
 
 
-def make_plot(results, header, csvfn):
+def make_plot(results, csvfn):
     '''
     Make a preview plot of the results.
     '''
@@ -347,11 +422,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Compute power spectra on Abacus outputs or ICs.  Can also evaluate a power spectrum on an FFT mesh.', formatter_class=Tools.ArgParseFormatter)
     parser.add_argument('input', help='The timeslice outputs (or IC directories, or power spectrum file) on which to run PS', nargs='+')
     parser.add_argument('--nfft', help='The size of the FFT (side length of the FFT cube).  Default: 1024', default=1024, type=int)
-    parser.add_argument('--format', help='Format of the data to be read.  Default: Pack14', default='pack14', choices=TSC.valid_file_formats)
-    parser.add_argument('--rotate-to', help='Rotate the z-axis to the given axis [e.g. (1,2,3)].  Rotations will shrink the FFT domain by sqrt(3) to avoid cutting off particles.', default=None, type=vector_arg, metavar='(X,Y,Z)')
+    parser.add_argument('--format', help='Format of the data to be read', choices=TSC.valid_file_formats + ['density'], type=str.lower)
+    parser.add_argument('--rotate-to', help='Rotate the z-axis to the given axis [e.g. (1,2,3)].  Rotations will shrink the FFT domain by sqrt(3) to avoid cutting off particles.', type=vector_arg, metavar='(X,Y,Z)')
     parser.add_argument('--projected', help='Project the simulation along the z-axis.  Projections are done after rotations.', action='store_true')
     parser.add_argument('--zspace', help='Displace the particles according to their redshift-space positions.', action='store_true')
-    parser.add_argument('--nbins', help='Number of k bins.  Default: nfft//4.', default=-1, type=int)
     parser.add_argument('--bin-like-nfft', help='Choose bins to be commensurate with this NFFT', default=0, type=int)
     parser.add_argument('--dtype', help='Data type for the binning and FFT.', choices=['float', 'double'], default='float')
     parser.add_argument('--log', help='Do the k-binning in log space.', action='store_true')
@@ -361,7 +435,13 @@ if __name__ == '__main__':
     parser.add_argument('--scalefree_base_a', help='Override the fiducial scale factor for automatic k_min/k_max computation in a scale-free cosmology. Only has an effect with the --scalefree_index option.', default=None, type=float)
     parser.add_argument('--box', help='Override the box size from the header', type=float)
     parser.add_argument('--ntracks', help='The number of "tracks" of power spectra to measure.  Only has an effect with the --scalefree_index option.', type=int, default=1)
-    parser.add_argument('--nthreads', help='Number of threads for binning/FFT. Default is all CPUs.', type=int, default=os.cpu_count())
+    parser.add_argument('--nthreads', help='Number of threads for binning/FFT. Default is all CPUs less ReadAbacus threads.', type=int, default=os.cpu_count())
+    parser.add_argument('--verbose', help='Verbose status messages', action='store_true', default=True)
+    parser.add_argument('--out-parent', help='Parent directory for output')
+
+    bingroup = parser.add_mutually_exclusive_group()
+    bingroup.add_argument('--nbins', help='Number of k bins.  Default: nfft//4.', type=int)
+    bingroup.add_argument('--dk', help='k bin width', type=float)
     # TODO: wisdom option
     
     args = parser.parse_args()

@@ -3455,14 +3455,6 @@ fi
 $as_echo "$REAL_CXX" >&6; }
 REAL_CC="$REAL_CXX -x c"
 
-# git version
-GITVERSION=\"$(git rev-parse HEAD)\"
-
-cat >>confdefs.h <<_ACEOF
-#define GITVERSION $GITVERSION
-_ACEOF
-
-
 # Imports
 #####
 #
@@ -3742,6 +3734,11 @@ _ACEOF
 #serial 17
 
 
+
+
+# The user might have specified LDFLAGS at configure time to help find a library.
+# We want to record that value in common.mk for use at compile time.
+# Why can't this just be done with LIBRARY_PATH? Because the linker looks in the system paths first!
 
 
 # The following uses gsl-config to find GSL.  That sounds like
@@ -6897,9 +6894,9 @@ $as_echo "$as_me: WARNING: 'bin' not found in directory containing 'python': \"$
     # we count words here instead of lines; fixes a problem with empty strings and newlines but will break if there are spaces in the filenames
     NGCC_FILES=$(echo -n "$GCC_FILES" | wc -w)
     if test $NGCC_FILES -ge 1; then
-        :
+        #:
         # TODO: breaks systems with different binutils version (https://github.com/ContinuumIO/anaconda-issues/issues/11152)
-        #PYTHON_CC=$(echo $GCC_FILES | awk '{print $1}')
+        PYTHON_CC=$(echo $GCC_FILES | awk '{print $1}')
     fi
     if test $NGCC_FILES -ne 1; then
         { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Could not find a unique *gcc file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gcc_impl_linux-64 package (or the equivalent for your platform) to get rid of this message." >&5
@@ -6911,9 +6908,9 @@ $as_echo "$as_me: WARNING: Using: \"$PYTHON_CC\"" >&2;}
     GXX_FILES=$(ls -1q $CONDA_BINDIR/*g++ 2> /dev/null)
     NGXX_FILES=$(echo -n "$GXX_FILES" | wc -w)
     if test $NGXX_FILES -ge 1; then
-        :
+        #:
         # TODO: breaks systems with different binutils version (https://github.com/ContinuumIO/anaconda-issues/issues/11152)
-        #PYTHON_CXX=$(echo $GXX_FILES | awk '{print $1}')
+        PYTHON_CXX=$(echo $GXX_FILES | awk '{print $1}')
     fi
     if test $NGXX_FILES -ne 1; then
         { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Could not find a unique *g++ file in $CONDA_BINDIR. Python extensions may not use the correct compiler for this platform!  Install the Anaconda gxx_impl_linux-64 package (or the equivalent for your platform) to get rid of this message." >&5

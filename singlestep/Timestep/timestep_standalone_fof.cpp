@@ -9,10 +9,6 @@ lot of infrastructure from there.
 
 */
 
-#define BROKEN
-
-#ifndef BROKEN
-
 #include "read_pack14.cpp"
 
 const char* StandaloneFOF_slice_dir;
@@ -23,34 +19,41 @@ int StandaloneFOFLoadSlabPrecondition(int slab) {
 }
 
 void StandaloneFOFLoadSlabAction(int slab) {
-    char fname[1024];
+    char fnameL0[1024], fnamefield[1024];;
     // TODO: Add support for L0 slabs?
-    int ret = snprintf(fname, 1024, "%s/%s.z%5.3f.slab%04d.dat", StandaloneFOF_slice_dir, P.SimName, ReadState.Redshift, slab);
+    int ret = snprintf(fnamefield, 1024, "%s/%s.z%5.3f.slab%04d.field.dat", StandaloneFOF_slice_dir, P.SimName, ReadState.Redshift, slab);
     assert(ret >= 0 && ret < 1024);
-    STDLOG(1,"Load Slab %d from \"%s\"\n", slab, fname);
+    ret = snprintf(fnameL0, 1024, "%s/%s.z%5.3f.slab%04d.L0.dat", StandaloneFOF_slice_dir, P.SimName, ReadState.Redshift, slab);
+    assert(ret >= 0 && ret < 1024);
+    STDLOG(1,"Load Slab %d from \"%s\", \"%s\"\n", slab, fnameL0, fnamefield);
 
-    size_t s = fsize(fname);
-    SB->AllocateSpecificSize(TimeSlice, slab, s);
+    size_t s = fsize(fnamefield);
+    SB->AllocateSpecificSize(FieldTimeSlice, slab, s);
+    s = fsize(fnameL0);
+    SB->AllocateSpecificSize(L0TimeSlice, slab, s);
     // We will read the raw pack14 asynchronously with SB
     // then unpack it in a separate dependency
     // TODO: support states as well as time slices
-    SB->ReadArena(TimeSlice, slab, IO_NONBLOCKING, fname);
+    SB->ReadArena(FieldTimeSlice, slab, IO_NONBLOCKING, fnamefield);
+    SB->ReadArena(L0TimeSlice, slab, IO_NONBLOCKING, fnameL0);
 }
 
 int StandaloneFOFUnpackSlabPrecondition(int slab) {
-    if (! SB->IsIOCompleted(TimeSlice, slab)) return 0;
+    if (! SB->IsIOCompleted(FieldTimeSlice, slab)) return 0;
+    if (! SB->IsIOCompleted(L0TimeSlice, slab)) return 0;
     return 1;
 }
 
 void StandaloneFOFUnpackSlabAction(int slab) {
     printf("Unpacking slab %d\n", slab);
     STDLOG(1, "Unpacking slab %d\n", slab);
-    int64_t nump = unpack_slab_pack14(slab, P.HaloTaggableFraction);
+    int64_t nump = unpack_slab_pack14(slab, P.ParticleSubsampleA, P.ParticleSubsampleB);
     STDLOG(1,"Found %d particles in slab %d\n", nump, slab);
 
     SS->setold(slab, nump);
 
-    SB->DeAllocate(TimeSlice, slab);
+    SB->DeAllocate(FieldTimeSlice, slab);
+    SB->DeAllocate(L0TimeSlice, slab);
 }
 
 int StandaloneFOFMakeCellGroupsPrecondition(int slab) {
@@ -123,5 +126,3 @@ void timestepStandaloneFOF(const char* slice_dir) {
 
     TimeStepWallClock.Stop();
 }
-
-#endif

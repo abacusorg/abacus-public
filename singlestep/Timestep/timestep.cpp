@@ -24,7 +24,9 @@ executable.
 int FORCE_RADIUS = -1;
 int GROUP_RADIUS = -1;
 
-#define FETCHAHEAD (2*GROUP_RADIUS + FORCE_RADIUS + FINISH_WAIT_RADIUS + 2)
+//#define FETCHAHEAD (2*GROUP_RADIUS + FORCE_RADIUS + FINISH_WAIT_RADIUS + 2)
+//#define FETCHAHEAD (2*GROUP_RADIUS + FORCE_RADIUS + 2)
+#define FETCHAHEAD (max(2*GROUP_RADIUS + FORCE_RADIUS, FINISH_WAIT_RADIUS) + 2)
 #define FETCHPERSTEP 1
 // Recall that all of these Dependencies have a built-in STimer
 // to measure the amount of time spent on Actions.
@@ -51,6 +53,8 @@ Dependency UnpackLPTVelocity;
 #include "ParallelConvolution.cpp"
 STimer ConvolutionWallClock;
 STimer BarrierWallClock;
+STimer MultipoleTransferCheck; 
+STimer TaylorTransferCheck;
 #endif
 
 // The wall-clock time minus all of the above Timers might be a measure
@@ -199,37 +203,11 @@ void NearForceAction(int slab) {
 
     SlabForceTime[slab].Start();
 
-    NFD->ExecuteSlab(slab, P.ForceOutputDebug);
-    // NFD->ExecuteSlab(slab, 1);  // Use this line instead to force blocking GPU work
+    int blocking = 0;
+    NFD->ExecuteSlab(slab, blocking);
 
     SlabForceLatency[slab].Start();
-    if (P.ForceOutputDebug) {
-        // We want to output the AccSlab to the NearAcc file.
-        // This must be a blocking write.
-        NFD->Finalize(slab);
-
-#ifdef DIRECTSINGLESPLINE
-        // Single spline requires a prefactor multiplication, which we defer to the kick for efficiency
-        // But analysis routines that use ForceOutputDebug, like Ewald, expect this prefactor to already be applied
-        // So apply it here, storing the original in a temporary copy
-        uint64 npslab = SS->size(slab);
-        accstruct *nearacctmp = new accstruct[npslab];
-        accstruct *nearacc = (accstruct *) SB->GetSlabPtr(AccSlab, slab);
-        memcpy(nearacctmp, nearacc, npslab*sizeof(accstruct));
-        FLOAT inv_eps3 = 1./(NFD->SofteningLengthInternal*NFD->SofteningLengthInternal*NFD->SofteningLengthInternal);
-        for(uint64 i = 0; i < npslab; i++)
-            nearacc[i] *= inv_eps3;
-#endif
-        SB->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
-            SB->WriteSlabPath(NearAccSlab,slab).c_str());
-
-#ifdef DIRECTSINGLESPLINE
-        // restore the original
-        memcpy(nearacc, nearacctmp, npslab*sizeof(accstruct));
-        delete[] nearacctmp;
-#endif
-    }
-
+    
     // Busy-wait for all GPU work for this slab to finish
     // while(!NFD->SlabDone(slab)) ;
 }
@@ -249,8 +227,11 @@ int TaylorForcePrecondition(int slab) {
     }
 
 #ifdef PARALLEL //TODO do the above still apply in the parallel case?
-	if( !ParallelConvolveDriver->CheckTaylorSlabReady(slab)) {
-        if(SB->IsSlabPresent(TaylorSlab, slab))
+	TaylorTransferCheck.Start(); 
+        int taylorSlabReady = ParallelConvolveDriver->CheckTaylorSlabReady(slab);
+        TaylorTransferCheck.Stop();
+        if( !taylorSlabReady) {
+             if(SB->IsSlabPresent(TaylorSlab, slab))
 			Dependency::NotifySpinning(WAITING_FOR_MPI);
 		return 0;
 	}
@@ -276,7 +257,7 @@ void TaylorForceAction(int slab) {
     ComputeTaylorForce(slab);
     TaylorCompute.Stop();
 
-    if(P.ForceOutputDebug){
+    if(P.StoreForces == 2){
         // We want to output the FarAccSlab to the FarAcc file.
         // This must be a blocking write.
         SB->WriteArena(FarAccSlab, slab, IO_KEEP, IO_BLOCKING);
@@ -328,6 +309,10 @@ int KickPrecondition(int slab) {
 void KickAction(int slab) {
     SlabForceTime[slab].Stop();
     SlabForceLatency[slab].Stop();
+    
+    // computing CPU forces must be done before the pos releases below
+    if(!P.ForceCPU && P.ForceOutputDebug)
+        NFD->CheckGPUCPU(slab);
 
     // Release the trailing slab if it won't be needed at the wrap
     // Technically we could release it anyway and re-do the transpose from PosSlab,
@@ -358,10 +343,37 @@ void KickAction(int slab) {
         FetchSlabs.mark_to_repeat(slab - FORCE_RADIUS);
     }
     #endif
+    
+    // Accumulate stats from the SICs and release them
+    NFD->Finalize(slab);
+    
+    if (P.StoreForces == 2) {
+        // We want to output the AccSlab to the NearAcc file.
+        // This must be a blocking write.
 
-    //If we are doing blocking forces, the finalization happens in NearForceAction
-    if(!P.ForceOutputDebug && !P.ForceCPU)
-        NFD->Finalize(slab);
+#ifdef DIRECTSINGLESPLINE
+        // Single spline requires a prefactor multiplication, which we defer to the kick for efficiency
+        // But analysis routines that use ForceOutputDebug, like Ewald, expect this prefactor to already be applied
+        // So apply it here, storing the original in a temporary copy
+        uint64 npslab = SS->size(slab);
+        accstruct *nearacctmp = new accstruct[npslab];
+        accstruct *nearacc = (accstruct *) SB->GetSlabPtr(AccSlab, slab);
+        memcpy(nearacctmp, nearacc, npslab*sizeof(accstruct));
+        FLOAT inv_eps3 = 1./(NFD->SofteningLengthInternal*NFD->SofteningLengthInternal*NFD->SofteningLengthInternal);
+        #pragma omp parallel for schedule(static)
+        for(uint64 i = 0; i < npslab; i++)
+            nearacc[i] *= inv_eps3;
+#endif
+        SB->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
+            SB->WriteSlabPath(NearAccSlab,slab).c_str());
+
+#ifdef DIRECTSINGLESPLINE
+        // restore the original
+        memcpy(nearacc, nearacctmp, npslab*sizeof(accstruct));
+        delete[] nearacctmp;
+#endif
+    }
+
     AddAccel.Start();
     RescaleAndCoAddAcceleration(slab);
     SB->DeAllocate(FarAccSlab,slab);
@@ -388,6 +400,8 @@ void KickAction(int slab) {
         KickSlab(slab, kickfactor1, kickfactor2, KickCell);
     }
     KickCellTimer.Stop();
+
+    ReleaseFreeMemoryToKernel();
 }
 
 // -----------------------------------------------------------------
@@ -723,12 +737,13 @@ void DriftAction(int slab) {
     // if (GFC == NULL){
     // TODO: Remove that condition; we always can do this here.
 	    // We kept the accelerations until here because of third-order LPT
-	    if (P.StoreForces && !P.ForceOutputDebug) {
+	    if (P.StoreForces == 1) {
 	        STDLOG(1,"Storing Forces in slab %d\n", slab);
 	        SB->StoreArenaBlocking(AccSlab,slab);
 	    }
 	    else{
 	        SB->DeAllocate(AccSlab,slab);
+            ReleaseFreeMemoryToKernel();
 	    }
 	// }
 }
@@ -824,7 +839,7 @@ void FinishAction(int slab) {
 
     int pwidth = FetchSlabs.raw_number_executed - Finish.raw_number_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
-    if (Finish.raw_number_executed % 3 == 0)  // release is cheap but not totally free, so run every few Finishes
+    //if (Finish.raw_number_executed % 3 == 0)  // release is cheap but not totally free, so run every few Finishes
         ReleaseFreeMemoryToKernel();
     ReportMemoryAllocatorStats();
 }
@@ -838,8 +853,10 @@ int CheckForMultipolesPrecondition(int slab) {
 	// 	STDLOG(2, "Attempting to RecvMultipoleSlab %d\n", slab);
 	// 	ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's.
 	// }
-
+	
+	MultipoleTransferCheck.Start();
 	int multipole_transfer_complete = ParallelConvolveDriver->CheckForMultipoleTransferComplete(slab);
+	MultipoleTransferCheck.Stop();
 	if (multipole_transfer_complete) return 1;
     else {
 		if(SB->IsSlabPresent(MultipoleSlab, slab))
@@ -897,16 +914,8 @@ void timestep(void) {
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
     assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS);
 
- #ifdef PARALLEL
-	ConvolutionWallClock.Clear(); ConvolutionWallClock.Start();
-
-	ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory);
-
-	ParallelConvolveDriver->Convolve();
-	ParallelConvolveDriver->SendTaylors(FORCE_RADIUS);
-
-	ConvolutionWallClock.Stop();
-	ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
+#ifdef PARALLEL
+    ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory);
 #endif
 
     TimeStepWallClock.Clear();  TimeStepWallClock.Start();
@@ -948,13 +957,14 @@ void timestep(void) {
     int first = first_slab_on_node;  // First slab to load
     STDLOG(1,"First slab to load will be %d\n", first);
 
-#ifdef PARALLEL
-	for (int slab = first + FORCE_RADIUS; slab < first + FORCE_RADIUS + total_slabs_on_node; slab ++ ){
-    	SB->AllocateArena(TaylorSlab, slab, RAMDISK_NO);
-		ParallelConvolveDriver->RecvTaylorSlab(slab);
-		STDLOG(2, "Set up to receive Taylor slab %d via MPI\n", slab);
-	}
-#endif
+    #ifdef ONE_SIDED_GROUP_FINDING
+        int first_outputslab = FORCE_RADIUS + 2*GROUP_RADIUS + (int)(GROUP_RADIUS > 0);
+    #else
+        int first_outputslab = FORCE_RADIUS + 2*GROUP_RADIUS;
+    #endif
+    if(LPTStepNumber() == 2){
+        first_outputslab = max(FINISH_WAIT_RADIUS,first_outputslab);
+    }
 
 
     INSTANTIATE(                  FetchSlabs, 0);
@@ -962,11 +972,6 @@ void timestep(void) {
     INSTANTIATE(                   NearForce, FORCE_RADIUS);
     INSTANTIATE(                 TaylorForce, FORCE_RADIUS);
     INSTANTIATE(                        Kick, FORCE_RADIUS);
-    #ifdef ONE_SIDED_GROUP_FINDING
-        int first_outputslab = FORCE_RADIUS + 2*GROUP_RADIUS + (int)(GROUP_RADIUS > 0);
-    #else
-        int first_outputslab = FORCE_RADIUS + 2*GROUP_RADIUS;
-    #endif
     INSTANTIATE(                      Output, first_outputslab);
     INSTANTIATE(                       Drift, first_outputslab);
     INSTANTIATE(                      Finish, first_outputslab + FINISH_WAIT_RADIUS);
@@ -997,9 +1002,36 @@ void timestep(void) {
     }
 
     if(WriteState.Do2LPTVelocityRereading)
-        INSTANTIATE(       UnpackLPTVelocity, first_outputslab - FINISH_WAIT_RADIUS);
+        INSTANTIATE(       UnpackLPTVelocity, 0);
     else
-        INSTANTIATE_NOOP(  UnpackLPTVelocity, first_outputslab - FINISH_WAIT_RADIUS);
+        INSTANTIATE_NOOP(  UnpackLPTVelocity, 0);
+
+
+    // Let FetchSlabs start early, in case we want to overlap convolve and IO
+    //while(FetchSlabs.Attempt()){}
+
+    #ifdef PARALLEL
+    TimeStepWallClock.Stop();
+    ConvolutionWallClock.Clear(); ConvolutionWallClock.Start();
+
+    //ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory);
+
+    ParallelConvolveDriver->Convolve();
+    ParallelConvolveDriver->SendTaylors(FORCE_RADIUS);
+
+    ConvolutionWallClock.Stop();
+    ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
+    MultipoleTransferCheck.Clear(); TaylorTransferCheck.Clear();
+
+    TimeStepWallClock.Start();
+
+    for (int slab = first + FORCE_RADIUS; slab < first + FORCE_RADIUS + total_slabs_on_node; slab ++ ){
+        SB->AllocateArena(TaylorSlab, slab, RAMDISK_NO);
+        ParallelConvolveDriver->RecvTaylorSlab(slab);
+        STDLOG(2, "Set up to receive Taylor slab %d via MPI\n", slab);
+    }
+    #endif
+
 	
 	int timestep_loop_complete = 0; 
 	while (!timestep_loop_complete){
@@ -1047,9 +1079,6 @@ void timestep(void) {
 #else
 		timestep_loop_complete = Finish.alldone(total_slabs_on_node);
 #endif
-
-        // hack to prevent spinning from interfering with daemons that happen to be bound to the same core
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     if(IL->length!=0)

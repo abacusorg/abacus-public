@@ -35,7 +35,7 @@
 class ilstruct {
   public:
     unsigned int k;   // The key based on y*cpd+z
-    integer3 xyz;        // The new cell, wrapped
+    int newslab;        // The new cell, wrapped
     posstruct pos;
     velstruct vel;
     auxstruct aux;
@@ -47,16 +47,25 @@ class ilstruct {
 
     // A method for dumping ASCII
     inline void print () {
-        printf("pos: %e %e %e; vel: %e %e %e; aux: %lu; cell: %d %d %d\n", 
+        printf("pos: %e %e %e; vel: %e %e %e; aux: %lu; newslab: %d; key: %d\n", 
                 pos.x, pos.y, pos.z, vel.x, vel.y, vel.z, 
-                aux.aux, xyz.x, xyz.y, xyz.z);
-        return  ;
+                aux.aux, newslab, k);
+        return;
+    }
+
+    // TOOD: not great to use P
+    int celly(){
+        return k/P.cpd;
+    }
+
+    int cellz(){
+        return k%P.cpd;
     }
 };   // end ilstruct
 
 // Partition function; returns true if `particle` belongs in `slab`
 inline bool is_in_slab(ilstruct *particle, int slab){
-    return particle->xyz.x == slab;
+    return particle->newslab == slab;
 }
 void ConfirmSorting(ilstruct *il, uint64 len) {
     // Just an extra check that sorting is working
@@ -73,11 +82,11 @@ void ConfirmPartition(ilstruct *il, uint64 len, int slab) {
     // Just an extra check that partitioning is working
     int n_partitioned = 0;
     for (uint64 j=0; j<len; j++){
-        if(il[j].xyz.x == slab)
+        if(il[j].newslab == slab)
             n_partitioned++;
-        assertf((il[j].xyz.x == slab) == (n_partitioned > 0),
+        assertf((il[j].newslab == slab) == (n_partitioned > 0),
                 "Insert list partitioning failed: il[%d].slab = %d; partition slab = %d; n_partitioned = %d\n",
-                j, il[j].xyz.x, slab, n_partitioned);
+                j, il[j].newslab, slab, n_partitioned);
     }
 
     STDLOG(2, "Partitioning confirmed on insert list of length %d for slab %d (found %d partitioned particles)\n", len, slab, n_partitioned);
@@ -103,7 +112,7 @@ public:
         il.pos = *pos;
         il.vel = *vel;
         il.aux = *aux;
-        il.xyz = xyz;
+        il.newslab = xyz.x;
         il.k = xyz.y*cpd + xyz.z;
         // TODO: emplace semantics
         MultiAppendList::Push(il);

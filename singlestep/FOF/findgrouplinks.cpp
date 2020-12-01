@@ -184,7 +184,7 @@ class FaceSet {
 		    // We only found one particle, so it just goes on 
 		    // the PseudoParticle list with its cellgroup number.
 		    // No need to create a FaceGroup
-		    BBmin.n = g;
+		    BBmin.fi.n = g;
 		    // printf("PsPart: %f %f %f, n=%f r=%f\n",
 				// midpos->x/FOF_RESCALE, midpos->y/FOF_RESCALE, midpos->z/FOF_RESCALE, midpos->n, 0.0);
 		    pP->append(BBmin);
@@ -201,12 +201,11 @@ class FaceSet {
 		    assert(fP->get_pencil_size()==fPcellstart+fPstart+fGsize);
 
 		    // Use the Min/Max to create the pseudo particle
-		    FOFloat radius = BBmax.diff2(&BBmin)*0.25;;
+		    FOFloat radius = BBmax.diff2(&BBmin)*0.25;
 		    BBmin.x = 0.5*(BBmin.x+BBmax.x);
 		    BBmin.y = 0.5*(BBmin.y+BBmax.y);
 		    BBmin.z = 0.5*(BBmin.z+BBmax.z);
-		    BBmin.n = 0.5*(BBmin.n+BBmax.n);
-		    BBmin.n = -1-facegroupnum;  // Overwrite the index
+		    BBmin.fi.n = -1-facegroupnum;  // Overwrite the index
 		    // printf("PsPart: %f %f %f, n=%d r=%f\n",
 				// midpos->x/FOF_RESCALE, midpos->y/FOF_RESCALE, midpos->z/FOF_RESCALE, midpos->index(), sqrt(radius[0])/FOF_RESCALE);
 		    pP->append(BBmin);
@@ -295,7 +294,7 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
     offset.x = GFC->invcpd*FOF_RESCALE*(del_i);
     offset.y = GFC->invcpd*FOF_RESCALE*(j2-j1);
     offset.z = GFC->invcpd*FOF_RESCALE*(k2-k1);
-    offset.n = 0.0;
+    offset.fi.w = 0.0;
     // This is what we should add to the 2nd positions
 
     // Now wrap them

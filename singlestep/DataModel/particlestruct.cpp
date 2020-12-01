@@ -12,7 +12,7 @@ and moreover we have routines that refer to the components individually.
 So we actually are limited to about 680 million particles in a cell.
 
 
-z PID: bits 0-14
+x PID: bits 0-14
 y PID: 16-30
 z PID: 32-46
 Tagged: 48
@@ -116,7 +116,7 @@ public:
         aux = _pid | (aux &~ AUXPIDMASK); 
     }
 
-    // Take a "linear" pid and distribute its values to the three segements used for PIDs
+    // Take a pid and distribute its values to the three segements used for PIDs
     void packpid(uint64 _pid){
         assert(_pid <= ((uint64) 1 << NAUXPIDBITS));
         uint64 pid = (_pid & AUXXPID) | (_pid << PIDBITGAP & AUXYPID) | (_pid << 2*PIDBITGAP & AUXZPID);

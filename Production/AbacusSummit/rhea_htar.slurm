@@ -2,9 +2,10 @@
 #SBATCH -A AST145
 #SBATCH -N 1
 #SBATCH --ntasks-per-node=1
+#SBATCH -c 16
 #SBATCH -p batch
 #SBATCH --mem 0  # all memory
-#SBATCH -t 24:00:00  # 48 hours is max rhea wall clock
+#SBATCH -t 24:00:00  # dtn wall clock unlimited
 
 set -e  # quit on error
 
@@ -20,12 +21,26 @@ SIM_SET=${SIM_SET:-AbacusSummit}
 SIM_NAME=$1
 
 WORKINGDIR=$ABACUSSUMMIT_PERSIST/$SIM_SET/$SIM_NAME
+HPSSDIR=/hpss/prod/ast145/proj-shared/$SIM_SET/$SIM_NAME
+cd $WORKINGDIR
 
 NTHREAD=${SLURM_CPUS_PER_TASK:-16}
 
-echo "Executing htar on $WORKINGDIR using $NTHREAD threads"
+echo "Executing $NTHREAD parallel htar jobs on $WORKINGDIR"
 
-htar -T $NTHREAD -cPvf "/hpss/prod/ast145/proj-shared/$SIM_SET/${SIM_NAME}.tar" $WORKINGDIR
+#htar -T $NTHREAD -cPvf "/hpss/prod/ast145/proj-shared/$SIM_SET/${SIM_NAME}.tar" $WORKINGDIR
+
+TARJOBS="$(find -maxdepth 1 -type d -name halos -o -name lightcones) $(find -maxdepth 2 -type d -path './slices/z*')"
+echo $TARJOBS
+hsi "mkdir $HPSSDIR; cd $HPSSDIR; mkdir -p $(dirname ${TARJOBS} | sort -u)"
+
+for JOB in $TARJOBS; do
+    htar -T $NTHREAD -cvf $HPSSDIR/${JOB}.tar $JOB
+done
+
+# One more quick job
+TOPLEVEL="$(find -maxdepth 1 -type f) log/ info/"
+htar -T $NTHREAD -cvf "$HPSSDIR/log_and_info.tar" $TOPLEVEL
 
 # This is a magic string that the assembly line looks for
 echo "Abacus htar complete."

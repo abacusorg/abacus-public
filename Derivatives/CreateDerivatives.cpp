@@ -1,7 +1,11 @@
 #include <stdlib.h>
 #include <fstream>
 
-#define QUAD_DOUBLE (0) //set precision of calculation. If QUAD_DOUBLE = 1, we will use quad double precision (quad_double.cpp). If QUAD_DOUBLE = 1, we will use double precision. 
+//set precision of calculation. If QUAD_DOUBLE = 1, we will use quad double precision (quad_double.cpp). If QUAD_DOUBLE = 1, we will use double precision. 
+#ifndef QUAD_DOUBLE
+#define QUAD_DOUBLE 0
+#endif
+
 #if QUAD_DOUBLE
         #include "quad_double.cpp"
 #else  
@@ -558,7 +562,7 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
         char fpfar_fn[1024];
 
                 //Open and unpack farderivatives file.
-        sprintf(fpfar_fn,"farderivatives");
+        sprintf(fpfar_fn,"farderivatives_%llu_%d_%d_%d",CPD,order,inner_radius,far_radius);
 
         fpfar = fopen(fpfar_fn,"rb");
         assert(fpfar!=NULL);
@@ -923,7 +927,7 @@ int main(int argc, char **argv) {
     
     FILE *fpfar;
     char fpfar_fn[1024];
-    sprintf(fpfar_fn,"farderivatives");
+    sprintf(fpfar_fn,"farderivatives_%llu_%d_%d_%d",CPD,order,inner_radius,far_radius);
     fpfar = fopen(fpfar_fn,"rb");
         
     if (fpfar == NULL){    

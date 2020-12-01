@@ -1,3 +1,11 @@
+# touch a FREEZE file to prevent the Makefile from doing anything
+# Useful for mixed architecture platforms like Summit and Rhea
+FREEZE := $(wildcard FREEZE)
+
+ifneq (,$(FREEZE))
+all:
+else
+
 ROOT_DIR := ..
 -include $(ROOT_DIR)/common.mk
 
@@ -24,3 +32,5 @@ distclean: clean
 	$(RM) ${TARGET}
 	
 .PHONY: clean distclean all
+
+endif  #freeze

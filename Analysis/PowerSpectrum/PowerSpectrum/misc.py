@@ -168,11 +168,11 @@ def parallel_bcast(ftylist, signature, **kwargs):
     return decorator
 
 # Load all the functions defined in the cffi library
-import numba.cffi_support
+from numba.core.typing import cffi_utils
 from . import _psffilib
 for var in vars(_psffilib.lib):
     vars()[var] = getattr(_psffilib.lib, var)
-numba.cffi_support.register_module(_psffilib)
+cffi_utils.register_module(_psffilib)
 #from _psffilib import ffi as psffi, lib as psffilib
 
 @parallel_bcast([(nb.float32[:,:,:], nb.float32[:], nb.float32[:], nb.float32[:])], '(nx,ny,nz),(),(),()')
@@ -328,6 +328,8 @@ def processargs(original_func=None, infershape=False):
                 isint = isinstance(bins, (np.integer,int))
                 if isint:
                     pass_via_globals['nbins'] = bins
+                elif bins is None:
+                    kwargs['bins'] = bins
                 else:
                     # wrap lists in arrays
                     bins = np.asanyarray(bins)
@@ -351,3 +353,13 @@ def processargs(original_func=None, infershape=False):
         return _processargs(original_func)
     else:
         return _processargs
+
+
+def process_gridshape(gridshape):
+    gridshape = np.atleast_1d(gridshape)
+    assert np.issubdtype(gridshape.dtype, np.integer)
+    if len(gridshape) == 1:
+        gridshape = np.repeat(gridshape, 3)
+    gridshape = np.array(gridshape)
+
+    return gridshape

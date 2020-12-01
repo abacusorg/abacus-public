@@ -178,11 +178,8 @@ class SOcell {
         np = ngroups = 0;
         if (_size+16<maxsize) return;    // Do nothing if we have enough space
         maxsize = _size+16;   // Oversize to limit the number of re-allocations
-        assertf(maxsize<8e6, "Maxsize %d is too large\n", maxsize);
-            // This is required because FOFparticle is storing the
-            // indices in a float.  We could in principle work around
-            // this, by using additional bits in a negative exponent.
-            // But current Abacus plans do not produce cells this big.
+        assertf(maxsize<800e6, "Maxsize %d is too large\n", maxsize);
+            // Very large sizes would overflow the way we store ints inside floats in FOFparticles
         
         if (p!=NULL) free(p);
         ret = posix_memalign((void **)&p, CACHE_LINE_SIZE, sizeof(FOFparticle)*maxsize);  assert(ret == 0);

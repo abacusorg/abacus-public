@@ -136,7 +136,8 @@ class ReadyForIC(Stage):
 
     def action(self, box):
         '''queue IC creation script on rhea'''
-        cmd = 'sbatch --job-name=' + box.jobname('ICs')  + ' rhea_ic_creation.slurm ' + box.parfn
+        os.makedirs(f'logs/{box.name}', exist_ok=True)
+        cmd = 'sbatch --job-name=' + box.jobname('ICs') + f' -o logs/{box.name}/%x.out rhea_ic_creation.slurm ' + box.parfn
         if self.disable_automation:
             breakpoint()
         try:
@@ -163,7 +164,7 @@ class ReadyForSummit(Stage):
         if self.disable_automation:
             breakpoint()
         try:
-            with open(pjoin(logdir, box.jobname('ICs') + '.out')) as f:
+            with open(pjoin(logdir, box.name, box.jobname('ICs') + '.out')) as f:
                 return 'IC creation complete.' in f.read()
                 #TODO could check ic files sizes, are they what we expect?
         except FileNotFoundError:
@@ -171,7 +172,11 @@ class ReadyForSummit(Stage):
 
     def action(self, box):
         '''send a signal to summit sleeper script to queue abacus on summit!'''
-        success = SignalSummitSleeper('submit', box)
+        try:
+            success = SignalSummitSleeper('submit', box)
+        except:
+            success = False
+            
         if not success:
             # box.place_in_error_stage()  # do we need to error out here? maybe not
             return False
@@ -241,7 +246,7 @@ class ReadyForDataTransfer(Stage):
             return False
 
     def action(self, box):
-        '''Start Globus transfer'''
+        '''Start Globus and htar transfer'''
         if self.disable_automation:
             breakpoint()
 
@@ -252,20 +257,22 @@ class ReadyForDataTransfer(Stage):
                       source_endpoint=globus.OLCF_DTN_ENDPOINT,
                       dest_endpoint=globus.NERSC_DTN_ENDPOINT,
                       status_log_fn=globus_status_log)
+            globus_ret = True
         except Exception as e:
             print(e)
             print(f'Error starting Globus transfer for {box.name}.  Continuing...')
-            return False
+            globus_ret = False
 
         # Start an htar job on rhea
-        cmd = f'sbatch -o logs/{box.name}/' + box.jobname('htar') + '.out --job-name=' + box.jobname('htar') + ' rhea_htar.slurm ' + box.name
+        # TODO: for maximum robustness, this should be a separate stage that runs in parallel with the globus stage
+        cmd = f'sbatch -M dtn -o logs/{box.name}/' + box.jobname('htar') + '.out --job-name=' + box.jobname('htar') + ' rhea_htar.slurm ' + box.name
         try:
             subprocess.run(shlex.split(cmd), check=True)
+            htar_ret = True
         except:
             print(f'Error submitting box {box.name} for htar.  Continuing...')
-            return False
-
-        return True
+            htar_ret = False
+        return globus_ret and htar_ret
 
 ################################### QUEUED FOR DATA TRANSFER ###################################
 
@@ -276,7 +283,7 @@ class QueuedForDataTransfer(Stage):
         if gstat is not None and gstat not in globus.GLOBUS_COMPLETION_STATUSES:
             return True
 
-        if box.jobname('htar') in QueuedJobs('rhea'):
+        if box.jobname('htar') in QueuedJobs('dtn'):
             return True
 
         return False
@@ -302,7 +309,7 @@ class ReadyForDeletion(Stage):
         return True
 
 
-    DELETE = ['halos/', 'lightcone/']
+    DELETE = ['halos/', 'lightcones/']  # log/
     def action(self, box):
         '''cross your fingers and delete some stuff!'''
         for path in self.DELETE:
@@ -338,20 +345,21 @@ class Completed(Stage):
 #IMPORTANT! WE RELY ON ALL JOB NAMES BEING UNIQUE. ADD STRINGENT CHECKS FOR THIS.
 #TODO: is a queued box ever momentarily not in the queue, e.g. right after submission? or between requeues?
 def QueuedJobs(computer_name):
-    assert computer_name in ('rhea','summit')  #sanity check
+    assert computer_name in ('rhea','summit','dtn')  #sanity check
 
     # On both summit and rhea, for now we probably only need to know if a job is in queue,
     # don't care about state otherwise.
     # So we'll just return a list of jobs, not a dict
 
-    if computer_name == 'rhea':
-        queued_cmd  = 'squeue -A AST145 --format=%j -h'  # -h: no header
+    if computer_name in ('rhea', 'dtn'):
+        queued_cmd  = f'squeue -M {computer_name} -A AST145 --format=%j -h'  # -h: no header
         try:
             queued_jobs = subprocess.run(shlex.split(queued_cmd), check=True, capture_output=True, text=True).stdout
         except:
-            print(f'Error getting queued jobs on rhea.  Continuing...')
+            print(f'Error getting queued jobs on {computer_name}.  Continuing...')
             return []
-        return [x.strip() for x in queued_jobs.split()]
+        queued_jobs = [x.strip() for x in queued_jobs.split('\n')[1:]]  # skip first line, has cluster name
+        queued_jobs = [job for job in queued_jobs if job not in ('sh','wrap')] #exclude sh jobs, sometimes causes crash when checking for duplicates below
 
     elif computer_name == 'summit':
         response = SignalSummitSleeper('check')
@@ -359,16 +367,21 @@ def QueuedJobs(computer_name):
             return []
 
         queued_jobs = [l.split()[0] for l in response]
-        return queued_jobs
+
+    # check for dups; critical error!
+    if len(queued_jobs) != len(set(queued_jobs)):
+        raise RuntimeError(f'Duplicate queued jobs detected on {computer_name}!  Queued jobs are: {queued_jobs}')
+    return queued_jobs
 
 
 SUMMIT_SLEEPER_MAGIC_VARS = {'reqfn': 'SUMMIT_SLEEPER_REQUEST',
                              'respfn': 'SUMMIT_SLEEPER_RESPONSE',
+                             'comm_dir': pjoin(os.getenv('PROJWORK'), os.getenv('USER')),
                              'submit': 'SubmitToQueue',
                              'check': 'CheckQueue'}
 def SignalSummitSleeper(task, box=None, time_limit=300):
-    reqfn = SUMMIT_SLEEPER_MAGIC_VARS['reqfn']
-    respfn = SUMMIT_SLEEPER_MAGIC_VARS['respfn']
+    reqfn = pjoin(SUMMIT_SLEEPER_MAGIC_VARS['comm_dir'], SUMMIT_SLEEPER_MAGIC_VARS['reqfn'])
+    respfn = pjoin(SUMMIT_SLEEPER_MAGIC_VARS['comm_dir'], SUMMIT_SLEEPER_MAGIC_VARS['respfn'])
     tmpfn = reqfn + '.tmp'
 
     taskstr = SUMMIT_SLEEPER_MAGIC_VARS[task]
@@ -408,7 +421,10 @@ def SignalSummitSleeper(task, box=None, time_limit=300):
             return response
         elif task == 'submit':
             # Return True or False so the upstream action knows whether to proceed to the next stage
-            return bool(re.match(r'Job <\d+> is submitted', response[0]))
+            success = bool(re.match(r'Job <\d+> is submitted', response[0]))
+            if not success:
+                print(f'Warning: summit submission of {box} failed with response from sleeper: "{response[0]}"')
+            return success
 
     # Timed out waiting for a response
-    return False
+    raise RuntimeError('timeout waiting for response from summit sleeper')

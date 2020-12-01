@@ -72,6 +72,7 @@ void FillStateWithCosmology(State &S) {
 
 
 double ChooseTimeStep(){
+
 	// Choose the maximum allowable timestep
 	// We start with the absolute maximum timestep allowed by the parameter file,
 	// then see if it needs to be shorter.
@@ -180,14 +181,36 @@ double ChooseTimeStep(){
         MicrostepEpochs = new MicrostepEpochTable(cosm, cosm->current.a, cosm->current.a + da, P.np);
 
     // Do we need to output a merger tree redshift during this step?
-    for(int i = 0; i < P.nTimeSliceL1; i++){
+    for(int i = 0; i < P.nTimeSliceL1 && !ReadState.DoGroupFindingOutput; i++){
         double L1z = P.L1OutputRedshifts[i];
         double L1a = 1.0/(1+L1z);
 
-        // Need a bit of wiggle room to avoid duplicate outputs, but not so much that we miss outputs
-        if(ReadState.Redshift > L1z + 1e-12 && ReadState.ScaleFactor + da > L1a + 1e-10){
+        if(ReadState.Redshift >= L1z && ReadState.ScaleFactor + da >= L1a){
+            // We don't shorten our timestep to land exactly on a merger tree redshift.
+            // Sometimes, this can lead to two consecutive group finding steps, if the L1OutputRedshift
+            // we're about to say is "close enough" to the current redshift also appears in either
+            // TimeSliceRedshifts or TimeSliceRedshifts_Subsample. To prevent this, check
+            // if that's the case; if it is, wait to do GF and output until next step. If not, 
+            // sally forth.
             STDLOG(0,"Group finding at this redshift requested by L1OutputRedshifts[%d]\n", i);
-            ReadState.DoGroupFindingOutput = 1; 
+            ReadState.DoGroupFindingOutput = 1;
+
+            for(int j = 0; j < P.nTimeSliceSubsample; j++){
+                // TODO: these two values come from the same string source, should have the same binary value. So why don't they?
+                if (fabs(L1z - P.TimeSliceRedshifts_Subsample[j]) < 1e-6){
+                    STDLOG(0,"...but will hold off, as this redshift %f appears in TimeSliceRedshifts_Subsample[%d].\n", L1z, j);
+                    ReadState.DoGroupFindingOutput = 0; 
+                    break;
+                }
+            }
+
+            for(int j = 0; j < P.nTimeSlice; j++){
+                if (fabs(L1z - P.TimeSliceRedshifts[j]) < 1e-6){
+                    STDLOG(0,"...but will hold off, as this redshift %f appears in TimeSliceRedshifts[%d].\n", L1z, j);
+                    ReadState.DoGroupFindingOutput = 0;
+                    break;
+                }
+            }
         }
     }
 	return da;

@@ -9,7 +9,7 @@ To work around this, we implement a custom OpenMP scheduler that schedules threa
 dynamically within a NUMA node; we'll implement it as macro called NUMA_FOR that
 replaces an ordinary "for" statement.
 
-The file contains the macro defintion, a few global helper variables, and init
+This file contains the macro defintion, a few global helper variables, and init
 and destructor routines for the globals.
 
 Usage

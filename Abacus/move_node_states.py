@@ -23,7 +23,7 @@ import sys
 import argparse
 import os
 import shutil
-from os.path import join as pjoin, basename, dirname
+from os.path import join as pjoin, basename, dirname, normpath
 from glob import glob
 import re
 
@@ -33,7 +33,6 @@ import numpy as np
 from Abacus import Tools
 from Abacus import Reglob
 from Abacus.InputFile import InputFile
-
       
 
 def distribute_from_serial(parfile, source_dir, verbose=True):
@@ -163,7 +162,8 @@ def distribute_to_resume(parfile, resumedir, verbose=True, allow_new_nnode=False
         if verbose:
             print('Will copy node {}s state from {} to {}'.format(rank, source, dest), file=sys.stderr)
         
-        shutil.copytree(source, dest)
+        # write state can be a symlink, must use symlinks=True
+        shutil.copytree(source, dest, symlinks=True)
     
     # The first rank will also copy the state file, etc, 
     if rank == 0:
@@ -216,7 +216,7 @@ def distribute_to_resume(parfile, resumedir, verbose=True, allow_new_nnode=False
     
           
 
-def retrieve_state(parfile, resumedir, verbose=True):
+def retrieve_state(parfile, resumedir, verbose=True, delete_ics=False):
     
     par = InputFile(parfile)
     
@@ -224,12 +224,14 @@ def retrieve_state(parfile, resumedir, verbose=True):
     size = comm.Get_size()
     rank = comm.Get_rank()
 
-    if verbose:
-        print('Retrieve state invoked on rank {} of {}'.format(rank, size), file=sys.stderr)
+    if rank == 0:
+        print(f'Retrieve state invoked on {size} ranks', file=sys.stderr)
     
+    resumedir = normpath(resumedir)
     dest = pjoin(resumedir, 'rank_' + str(rank))
     
     past =  pjoin(dirname(par['WorkingDirectory']), par['SimName'] + '_retrieved_state_past')
+    past_deleting = past + '_DELETING'
     past_node = pjoin(past, 'rank_' + str(rank))
     
     source = par['LocalWorkingDirectory']
@@ -237,17 +239,20 @@ def retrieve_state(parfile, resumedir, verbose=True):
     comm.Barrier() 
     
     if rank == 0:
-        try:
-            shutil.rmtree(past)
-        except FileNotFoundError:
-            pass
+
+        for p in (past,past_deleting):
+            try:
+                shutil.rmtree(p)
+                print(f'Removed past backup {basename(p)}', file=sys.stderr)
+            except FileNotFoundError:
+                pass
             
     comm.Barrier() 
     
-    if rank == 0: 
+    if rank == 0:
         try: 
-            print('Renaming previous runs retrieved states to backup files')
             os.rename(resumedir, past)
+            print("Renamed previous run's retrieved states to backup files", file=sys.stderr)
         except FileNotFoundError:
             pass
     
@@ -257,7 +262,8 @@ def retrieve_state(parfile, resumedir, verbose=True):
         print('Will copy node {}s state from {} to {}'.format(rank, source, dest), file=sys.stderr)
     
     # TODO: make read-only after copy, then read-write after distribution to nodes
-    shutil.copytree(source, dest)
+    # write state can be a symlink, must use symlinks=True
+    shutil.copytree(source, dest, symlinks=True)
     
     #rank 0 will also back up the read directory misc. files, which are about to modified when we requeue during every consecutive timestep. 
     #We want to keep a copy of the set that corresponds to the backed up state we're retrieving. 
@@ -288,24 +294,25 @@ def retrieve_state(parfile, resumedir, verbose=True):
     
     comm.Barrier() 
 
-    if verbose:
-        print('Backup complete. Removing previous backup.')
-
     if rank == 0:
+        print('Backup complete. Removing any previous backup.', file=sys.stderr)
+
         try:
-            shutil.rmtree(past)
+            os.rename(past, past_deleting)
+            shutil.rmtree(past_deleting)
         except FileNotFoundError:
             pass
 
-        try: 
-            shutil.rmtree(par['InitialConditionsDirectory'])
-        except FileNotFoundError:
-            pass    
+        if delete_ics:
+            try: 
+                shutil.rmtree(par['InitialConditionsDirectory'])
+            except FileNotFoundError:
+                pass    
 
     comm.Barrier() 
     
-    if verbose:
-        print('Success retrieving state off node ', rank, '!')
+    if rank == 0:
+        print('Success retrieving state!', file=sys.stderr)
 
 
 if __name__ == '__main__':
@@ -319,6 +326,7 @@ if __name__ == '__main__':
     parser.add_argument('--retrieve', help="Save all nodes' states to the global disk", action='store_true')
     parser.add_argument('--distribute', help="Distribute nodes' states from the global disk to the nodes", action='store_true')
     parser.add_argument('--allow-new-nnode', help="Allow distribution to a different number of nodes than was saved on disk", action='store_true')
+    parser.add_argument('--delete-ics', help="Allow deletion of ICs once the first backup has completed", action='store_true')
     
     parser.add_argument('resumedir', help="Global disk directory to redistribute from")
 
@@ -328,6 +336,6 @@ if __name__ == '__main__':
     if args['distribute_from_serial']:
         distribute_from_serial(args['parfile'], args['sourcedir'], args['verbose'])
     elif args['retrieve']:
-        retrieve_state(args['parfile'], args['resumedir'], args['verbose'])
+        retrieve_state(args['parfile'], args['resumedir'], args['verbose'], args['delete_ics'])
     elif args['distribute']:
         distribute_to_resume(args['parfile'], args['resumedir'], args['verbose'], args['allow_new_nnode'])

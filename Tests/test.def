@@ -30,4 +30,3 @@ InitialRedshift = 99
 LagrangianPTOrder = 0
 #include "$ABACUS$/Production/directory.def"
 #include "$ABACUS$/Production/site_files/site.def"
-Parallel = 0

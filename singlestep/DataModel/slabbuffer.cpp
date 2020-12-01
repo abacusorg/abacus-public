@@ -227,6 +227,8 @@ public:
   */
 int SlabBuffer::IsRamdiskSlab(int type, int hint){
 
+    //return 0;
+
     // It's still possible to write a slab to ramdisk even if it's not listed below
     // The IO module should detect that it's a ramdisk path and use fopen instead of DIO
 

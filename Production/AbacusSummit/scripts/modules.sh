@@ -53,3 +53,6 @@ fi
 
 # Needs to happen after compiler is loaded
 module load fftw
+
+# get core dumps
+ulimit -c unlimited

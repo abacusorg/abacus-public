@@ -311,7 +311,7 @@ void Prologue(Parameters &P, bool MakeIC) {
     STDLOG(2,"Setting up insert list\n");
     uint64 maxILsize = P.np+1;
     // IC steps and LPT steps may need more IL slabs.  Their pipelines are not as long as full (i.e. group finding) steps
-    if (MakeIC || LPTStepNumber() > 0) {
+    if (MakeIC || LPTStepNumber() > 0){
         if (P.NumSlabsInsertListIC>0) maxILsize =(maxILsize* P.NumSlabsInsertListIC)/P.cpd+1;
     } else {
         if (P.NumSlabsInsertList>0) maxILsize   =(maxILsize* P.NumSlabsInsertList)/P.cpd+1;
@@ -608,7 +608,7 @@ void check_read_state(const int MakeIC, double &da){
         ReadState.AssertStateLegal(P);
 
         // Handle some special cases
-        if (P.ForceOutputDebug==1) {
+        if (P.ForceOutputDebug) {
             STDLOG(0,"ForceOutputDebug option invoked; setting time step to 0.\n");
             da = 0;
         }
@@ -879,9 +879,14 @@ void SetupLocalDirectories(const int MakeIC){
                 RemoveDirectories(d);
                 STDLOG(1, "Removed directory \"%s\"\n", d);
             }
-            int res = CreateDirectories(d);
-            assertf(res == 0, "Creating directory \"%s\" failed for reason %s!\n", d, strerror(errno));
-            STDLOG(1, "Created directory \"%s\"\n", d);
+
+            if(d == P.LocalWriteStateDirectory && strcmp(P.StateIOMode, "overwrite") == 0) {
+                CreateSymlink(P.LocalReadStateDirectory, P.LocalWriteStateDirectory);
+            } else {
+                int res = CreateDirectories(d);
+                assertf(res == 0, "Creating directory \"%s\" failed for reason %s!\n", d, strerror(errno));
+                STDLOG(1, "Created directory \"%s\"\n", d);
+            }
         }
     }
 }

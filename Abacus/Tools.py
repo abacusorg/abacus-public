@@ -96,22 +96,30 @@ def chdir(dirname=None):
     os.chdir(curdir)
 
 # Adds a tick to the given axis with the given value and name
-def add_tick(ax, loc, label, ha=None):
+def add_tick(ax, loc, label, ha=None, which='x'):
     # Generate ticks and lims
     ax.figure.canvas.draw()
-    lims = ax.get_xlim()
-
+    
+    get_lim = eval(f'ax.get_{which}lim')
+    get_ticks = eval(f'ax.get_{which}ticks')
+    get_ticklabels = eval(f'ax.get_{which}ticklabels')
+    set_ticks = eval(f'ax.set_{which}ticks')
+    set_ticklabels = eval(f'ax.set_{which}ticklabels')
+    set_lim = eval(f'ax.set_{which}lim')
+    
+    lims = get_lim()
+    
     # Modify ticks (this messes up lims... ugh)
-    locs = ax.get_xticks()
-    labels = ax.get_xticklabels()
+    locs = get_ticks()
+    labels = get_ticklabels()
     locs = list(locs) + [loc]
     labels = [l.get_text() for l in list(labels)] + [label]
-    ax.set_xticks(locs)
-    ax.set_xticklabels(labels)
-    ax.set_xlim(lims)
+    set_ticks(locs)
+    set_ticklabels(labels)
+    set_lim(lims)
 
     if ha:
-        labels = ax.get_xticklabels()
+        labels = get_ticklabels()
         labels[-1].set_ha(ha)
     
 import matplotlib.pyplot as plt
@@ -241,10 +249,17 @@ class ContextTimer(contexttimer.Timer):
 
     @property
     def elapsed(self):
-        last_time = super(ContextTimer, self).elapsed
+        if hasattr(self, 'start'):
+            last_time = super(ContextTimer, self).elapsed
+        else:
+            last_time = 0
         return self.cumulative_time*self.factor + last_time
 
-    def start(self):
+    @property
+    def last_lap(self):
+        raise NotImplementedError
+
+    def Start(self):
         self.__enter__()
 
     def stop(self, report=True):
@@ -253,8 +268,8 @@ class ContextTimer(contexttimer.Timer):
         self.__exit__(None,None,None)
         self.output=_output
 
-    def report(self):
-        print(" ".join([self.prefix, self.fmt.format(self.elapsed)]))
+    def report(self, **kwargs):
+        print(" ".join([self.prefix, self.fmt.format(self.elapsed)]), **kwargs)
 
 def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03, adaptive=False, **scatter_kwargs):
     '''
@@ -290,7 +305,7 @@ def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03, adaptive=Fals
     '''
 
     #from matplotlib.mlab import griddata
-    from sklearn.neighbors.kde import KernelDensity
+    from sklearn.neighbors import KernelDensity
     #from scipy.stats import gaussian_kde
     #from KDEpy.TreeKDE import TreeKDE
 
@@ -342,7 +357,7 @@ def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03, adaptive=Fals
     else:
         sc = ax.scatter(x, y, s=size, c=color, **scatter_kwargs)
         
-    return x, y, color, kde, sc
+    return x, y, color, idx, kde, sc
 
 import argparse
 # Combine argparse mixins to format both the description and defaults
@@ -369,9 +384,9 @@ def wrap_zero_centered(pos, box):
     pos = pos.reshape(-1)
     N = len(pos)
     for i in numba.prange(N):
-        while pos[i] >= box/2:
+        if pos[i] >= box/2:
             pos[i] -= box
-        while pos[i] < -box/2:
+        if pos[i] < -box/2:
             pos[i] += box
 
 @numba.njit(parallel=True)

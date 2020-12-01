@@ -110,14 +110,14 @@ int ComputeSourceBlocks(int slab, int j, int NearFieldRadius) {
 /// for all SIC in a slab.
 uint64 ComputeSICSize(int cpd, int np, int WIDTH, int NSplit) {
     uint64 size = 0;
-    int NSinkSet = cpd*cpd;
-    int NSourceSet = cpd*(cpd+4*NSplit);
-    int NPaddedSinks = WIDTH*np+NSinkSet*NFBlockSize;
-    int NSinkBlocks = NPaddedSinks/NFBlockSize;
+    int64 NSinkSet = cpd*cpd;
+    int64 NSourceSet = cpd*(cpd + 4*NSplit);
+    int64 NPaddedSinks = (int64)WIDTH*np + NSinkSet*NFBlockSize;
+    int64 NSinkBlocks = NPaddedSinks/NFBlockSize;
 
-    size += (3*sizeof(int)+sizeof(SinkPencilPlan)) * NSinkSet;
-    size += (2*sizeof(int)+sizeof(SourcePencilPlan)) * NSourceSet;
-    size += (sizeof(int)+sizeof(FLOAT)) * WIDTH*NSinkSet;
+    size += (3*sizeof(int) + sizeof(SinkPencilPlan)) * NSinkSet;
+    size += (2*sizeof(int) + sizeof(SourcePencilPlan)) * NSourceSet;
+    size += (sizeof(int) + sizeof(FLOAT)) * WIDTH*NSinkSet;
     size += (sizeof(int)) * NSinkBlocks;
 
     STDLOG(2,"Nsink = %d, NSource = %d, Nblocks = %d, size = %d\n",
@@ -125,7 +125,9 @@ uint64 ComputeSICSize(int cpd, int np, int WIDTH, int NSplit) {
 
     size += (uint64) 1024*1024*PAGE_SIZE/4096; 	
     	// Just adding in some for alignment and small-problem worst case
-    return size;
+
+    // TODO: adding 10% extra padding in an attempt to get the 1e12 particle sim to run
+    return 1.2*size;
 }
 
 /// Given a pointer to an existing 'buffer' of size 'bsize', return 

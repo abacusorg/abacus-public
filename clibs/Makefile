@@ -3,7 +3,7 @@ include $(ROOT_DIR)/common.mk
 
 LDFLAGS := $(CXXFLAGS) -shared $(PYTHON_LDFLAGS)
 CXXFLAGS += -fPIC
-PYTHON_CPPFLAGS += -I $(ROOT_DIR)/DirectIO $(THREAD_CPPFLAGS)
+PYTHON_CPPFLAGS += -I $(ROOT_DIR)/DirectIO $(THREAD_CPPFLAGS) -O3
 
 SO_TARGETS = libpermute.so liblightcones.so libreadabacus.so
 

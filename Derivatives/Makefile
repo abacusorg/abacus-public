@@ -1,8 +1,11 @@
 ROOT_DIR := ..
-include $(ROOT_DIR)/common.mk
+-include $(ROOT_DIR)/common.mk
 
-CPPFLAGS += $(THREAD_CPPFLAGS) -I $(ROOT_DIR)/singlestep/Multipoles
-CXXFLAGS += $(THREAD_LIBS) $(SINGLESTEP_LIBS) $(FFTW_OMP_LIBS)
+# allow one to type `make QUAD=1` for convenience
+QUAD ?= 0
+
+CPPFLAGS += $(THREAD_CPPFLAGS) -I $(ROOT_DIR)/singlestep/Multipoles -I $(ROOT_DIR)/include -DQUAD_DOUBLE=$(QUAD)
+CXXFLAGS += $(THREAD_LIBS) $(SINGLESTEP_LIBS) $(FFTW_OMP_LIBS) -std=gnu++11
 
 CreateDerivatives: CreateDerivatives.cpp
 	$(CXX) $(CPPFLAGS) -MMD $< -o $@ $(CXXFLAGS)

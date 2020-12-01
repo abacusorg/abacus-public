@@ -74,6 +74,11 @@ def varreplace(line, values):
             raise SyntaxError
     return line[:pos1] + f'varreplace_values["{varname:s}"]' + line[pos2 +1:]
 
+def _get_key_from_line(line):
+    equals = line.find('=')
+    key = line[:equals].strip()
+    return key
+
 
 def _parse_assignment(line, fixvalues={}, varreplace_values=None):
     equals = line.find('=')
@@ -91,15 +96,15 @@ def _parse_assignment(line, fixvalues={}, varreplace_values=None):
         items = shlex.split(value)
         vec  = ','.join(items)
         x = eval(f"({vec})")
-    except (SyntaxError, NameError):
+    except:
         #perhaps value is a vector
         try:
             x = eval(value)
-        except SyntaxError:
+        except:
             #fall back and try to parse as string
             try:
                 x = eval(f'"{value}"')
-            except SyntaxError:
+            except:
                 print("Error: Could not parse line:"+line)
                 raise
 
@@ -119,7 +124,7 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None, re
 
     comment_regex = re.compile(r'#(?!include)')
 
-    deferrals = []
+    deferrals = {}
     for line in lines:
         if '\n' in line:
             # The end of header token is '^B\n'.
@@ -138,7 +143,8 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None, re
         
         #process previously defined variables
         if '@' in line:
-            deferrals += [line]
+            _key = _get_key_from_line(line)
+            deferrals[_key] = line
             continue
                         
         if line.startswith("#include"):
@@ -151,13 +157,16 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None, re
             
             fn = line[qt1loc+1:qt2loc+qt1loc+1]
             with chdir(dirname(abspath(filename))):  # includes are specified relative to the containing file
-                deferrals += parseInput(fn, values,fixvalues, ret_deferrals=True)
+                deferrals.update(parseInput(fn, values,fixvalues, ret_deferrals=True))
             continue
 
         pa = _parse_assignment(line, fixvalues, varreplace_values)
         if pa is None:
             continue
         key, x = pa
+
+        # If we found an assignment, let it override any previous deferrals
+        deferrals.pop(key,None)
 
         values[key] = x
         #print("'%s': %s"%(str(key), str(x)))
@@ -166,10 +175,13 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None, re
         return deferrals
     else:
         # resolve deferrals
-        for line in deferrals:
+        for line in deferrals.values():
             while '@' in line:
                 line = varreplace(line,{**varreplace_values,**values})
-            key, x = _parse_assignment(line, fixvalues, varreplace_values)
+            pa = _parse_assignment(line, fixvalues, varreplace_values)
+            if pa is None:
+                continue
+            key, x = pa
             values[key] = x
 
     return values
@@ -199,10 +211,12 @@ def tostr(item): #recursively decompose the argument into a string we can print 
         
 
 def makeInput(outfn, inputfile, strict=False, del_keywords=[], **keywords):
-    defaults = parseInput(inputfile)
-    for keyword in keywords.keys():
-        if strict and (keyword not in defaults.keys()):
-            raise ValueError(keyword, "Keyword not in default parameter set, and `strict=True` was set.")
+    if strict:
+        raise NotImplementedError('strict=True currently not supported (due to deferrals)')
+    #defaults = parseInput(inputfile)
+    #for keyword in keywords.keys():
+    #    if strict and (keyword not in defaults.keys()):
+    #        raise ValueError(keyword, "Keyword not in default parameter set, and `strict=True` was set.")
 
     res = parseInput(inputfile, keywords, copy.deepcopy(keywords))
 
@@ -228,7 +242,7 @@ def makeInput(outfn, inputfile, strict=False, del_keywords=[], **keywords):
                 value = '"' +value +'"'
             outfile.write(tostr(value))
             outfile.write('\n')
-        outfile.write('#created by GenParam from L2 file: {:s}    :: {:s}\n'.format(inputfile, time.asctime()))
+        outfile.write('#created by GenParam from L2 file: {}    :: {:s}\n'.format(inputfile, time.asctime()))
         outfile.write('\n') #finalize the header
     return res
         

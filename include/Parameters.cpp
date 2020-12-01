@@ -570,9 +570,6 @@ void Parameters::ProcessStateDirectories(){
         if(strcmp(WriteStateDirectory,STRUNDEF) == 0){
             int ret = snprintf(WriteStateDirectory, 1024, "%s/write",WorkingDirectory);
             assert(ret >= 0 && ret < 1024);
-            if(strcmp(StateIOMode, "overwrite") == 0) {  // later, we will set WriteState.OverwriteState
-                strcpy(WriteStateDirectory, ReadStateDirectory);
-            }
         }
     }
 
@@ -585,9 +582,6 @@ void Parameters::ProcessStateDirectories(){
         if(strcmp(LocalWriteStateDirectory,STRUNDEF) == 0){
             int ret = snprintf(LocalWriteStateDirectory, 1024, "%s/write",LocalWorkingDirectory);
             assert(ret >= 0 && ret < 1024);
-            if(strcmp(StateIOMode, "overwrite") == 0) {  // later, we will set WriteState.OverwriteState
-                strcpy(LocalWriteStateDirectory, LocalReadStateDirectory);
-            }
         }
     } else {
         // LocalWorkingDirectory not given; copy the global values (unless the local values were explicitly given)
@@ -767,9 +761,8 @@ void Parameters::ValidateParameters(void) {
     CheckDirectoryExists(InitialConditionsDirectory);
     */
 
-    if (ForceOutputDebug && StoreForces) {
-            fprintf(stderr,"ForcesOutputDebug and StoreForces both set. This is not supported.\n");
-        assert(1==0);
+    if (ForceOutputDebug) {
+            StoreForces = 2;  // Output near and far separately
     }
 
     if (LogVerbosity<0) {
