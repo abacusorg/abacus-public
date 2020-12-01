@@ -28,7 +28,9 @@ from Abacus import InputFile
 from Abacus import Tools
     
 DEFAULT_ORDER = 8
-    
+DEFAULT_PPD = 64
+DEFAULT_CPD = 15
+
 def plt_log_hist(ax, a, label=r'$|a-b|/\sqrt{|a|^2 + |b|^2}$'):
     assert (a >= 0).all()
     a_nonz = a[a > 0]
@@ -508,8 +510,8 @@ def load_results(load):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=Tools.ArgParseFormatter)
-    parser.add_argument('ppd', help='Particles per dimension', nargs='?')
-    parser.add_argument('cpd', help='Cells per dimension', nargs='?')
+    parser.add_argument('ppd', help='Particles per dimension', nargs='?', default=DEFAULT_PPD)
+    parser.add_argument('cpd', help='Cells per dimension', nargs='?', default=DEFAULT_CPD)
     parser.add_argument('--force-output-debug', help='Use ForceOutputDebug. Slow, but you get the near and far field separately',
                         action='store_true', default=False)
     parser.add_argument('--no-analyze', help='Run singlestep so the forces are stored on disk but do not analyze them',

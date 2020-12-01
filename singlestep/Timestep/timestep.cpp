@@ -309,6 +309,10 @@ int KickPrecondition(int slab) {
 void KickAction(int slab) {
     SlabForceTime[slab].Stop();
     SlabForceLatency[slab].Stop();
+    
+    // computing CPU forces must be done before the pos releases below
+    if(!P.ForceCPU && P.ForceOutputDebug)
+        NFD->CheckGPUCPU(slab);
 
     // Release the trailing slab if it won't be needed at the wrap
     // Technically we could release it anyway and re-do the transpose from PosSlab,
@@ -339,9 +343,9 @@ void KickAction(int slab) {
         FetchSlabs.mark_to_repeat(slab - FORCE_RADIUS);
     }
     #endif
-
-    if(!P.ForceCPU)
-        NFD->Finalize(slab);
+    
+    // Accumulate stats from the SICs and release them
+    NFD->Finalize(slab);
     
     if (P.StoreForces == 2) {
         // We want to output the AccSlab to the NearAcc file.

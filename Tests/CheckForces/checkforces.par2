@@ -1,7 +1,6 @@
 SimName = "CheckForces"
 #include "$ABACUS$/Tests/test.def"
 
-
 SofteningLength = 1e-10  #50./1000
 ICPositionRange = -1
 NearFieldRadius=2
