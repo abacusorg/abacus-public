@@ -345,7 +345,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
                 // The FOF-scale density is in acc.w.  
                 // All zeros cannot be in groups, partition them to the end
                 for (int p=0; p<active_particles; p++) {
-                    float dens = c.acc[p].w; 
+                    FLOAT dens = c.acc[p].w; 
                     c.aux[p].set_density(dens);
                     _local_meanFOFdensity[g] += dens;
                         // This will be the mean over all particles, not just

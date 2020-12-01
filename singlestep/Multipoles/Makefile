@@ -16,7 +16,7 @@ CMAVX.o: generateCartesianMultipolesAVX.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c CMAVX.c
 
 CMAVX512%cpp ETAVX512%cpp: generateCartesianAVX512.py
-	./generateCartesianAVX512.py
+	./generateCartesianAVX512.py --maxorder=$(MAXORDER)
 
 %AVX512.o: %AVX512.cpp
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $<

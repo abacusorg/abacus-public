@@ -57,7 +57,7 @@ directory_param_fn = pjoin(abacuspath, 'Production', 'directory.def')
 wall_timer = time.perf_counter  # monotonic wall clock time
 
 
-def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False, erase_ic=False, output_parfile=None, use_site_overrides=False, override_directories=False, just_params=False, **param_kwargs):
+def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False, erase_ic=False, output_parfile=None, use_site_overrides=False, override_directories=False, just_params=False, param_kwargs=None):
     """
     The main entry point for running a simulation.  Initializes directories,
     copies parameter files, and parses parameter files as appropriate, then
@@ -110,7 +110,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
 
     # TODO: summit doesn't let us write files from the compute nodes.  Is that a problem?
     params = preprocess_params(output_parfile, parfn, use_site_overrides=use_site_overrides,
-                override_directories=override_directories, **param_kwargs)
+                override_directories=override_directories, param_kwargs=param_kwargs)
     if just_params:
         return 0
 
@@ -337,7 +337,7 @@ def default_parser():
     return parser
 
 
-def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_directories=False, **param_kwargs):
+def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_directories=False, param_kwargs=None):
     '''
     There are a number of runtime modifications we want to make
     to the Abacus .par2 file as we parse it.  These typically
@@ -352,6 +352,8 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
     '''
     # We will build this dict in order of precedence
     # LHG TODO: not using _param_kwargs, probably a bug?
+    if param_kwargs is None:
+        param_kwargs = {}
     _param_kwargs = param_kwargs.copy()
 
     if use_site_overrides:
@@ -983,7 +985,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
                 os.rename(_cl, cl)
                 logdir_name = f'step{read_state.FullStepNumber+1:04d}'
                 logdir = pjoin(param.LogDirectory, logdir_name)
-                shutil.move(cl, logdir) 
+                shutil.move(cl, pjoin(logdir, basename(cl)))
 
             # Warning: Convolution won't work if MultipoleDirectory is the write (or read) state
             # because the states get moved after multipole generation but before convolution.

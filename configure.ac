@@ -57,16 +57,17 @@ fi
 AC_MSG_RESULT([$REAL_CXX])
 REAL_CC="$REAL_CXX -x c"
 
-# git version
-GITVERSION=\"$(git rev-parse HEAD)\"
-AC_DEFINE_UNQUOTED(GITVERSION, $GITVERSION, "The current git revision")
-
 # Imports
 m4_include(Configuration/m4/ax_check_cuda.m4)
 m4_include(Configuration/m4/ax_check_compile_flag.m4)
 m4_include(Configuration/m4/ax_gcc_x86_avx_xgetbv.m4)
 m4_include(Configuration/m4/ax_gcc_x86_cpuid.m4)
 m4_include(Configuration/m4/ax_ext.m4)
+
+# The user might have specified LDFLAGS at configure time to help find a library.
+# We want to record that value in common.mk for use at compile time.
+# Why can't this just be done with LIBRARY_PATH? Because the linker looks in the system paths first!
+AC_SUBST(LDFLAGS)
 
 # The following uses gsl-config to find GSL.  That sounds like
 # a good thing, but Anaconda puts gsl-config on the PATH, but not

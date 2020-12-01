@@ -3455,14 +3455,6 @@ fi
 $as_echo "$REAL_CXX" >&6; }
 REAL_CC="$REAL_CXX -x c"
 
-# git version
-GITVERSION=\"$(git rev-parse HEAD)\"
-
-cat >>confdefs.h <<_ACEOF
-#define GITVERSION $GITVERSION
-_ACEOF
-
-
 # Imports
 #####
 #
@@ -3742,6 +3734,11 @@ _ACEOF
 #serial 17
 
 
+
+
+# The user might have specified LDFLAGS at configure time to help find a library.
+# We want to record that value in common.mk for use at compile time.
+# Why can't this just be done with LIBRARY_PATH? Because the linker looks in the system paths first!
 
 
 # The following uses gsl-config to find GSL.  That sounds like

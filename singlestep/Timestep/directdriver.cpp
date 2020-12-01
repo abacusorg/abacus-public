@@ -24,6 +24,7 @@ class NearFieldDriver{
         void ExecuteSlab(int slabID, int blocking);
         int SlabDone(int slabID);
         void Finalize(int slabID);
+        void CheckGPUCPU(int slabID);
     
         double SofteningLength;  // Effective Plummer length, used for timestepping.  Unit-box units.
         double SofteningLengthInternal;  // The equivalent length for the current softening technique.  Unit-box units.
@@ -88,7 +89,6 @@ class NearFieldDriver{
         void ExecuteSlabGPU(int slabID, int blocking);
         void ExecuteSlabCPU(int slabID,int * predicate);
         void ExecuteSlabCPU(int slabID);
-        void CheckGPUCPU(int slabID);
         void CheckInteractionList(int slabID);
 };
 
@@ -483,7 +483,6 @@ void NearFieldDriver::Finalize(int slab){
     SB->DeAllocate(NearField_SIC_Slab, slab);
     delete[] Slices;
     
-    if(P.ForceOutputDebug) CheckGPUCPU(slab);
     FinalizeTimer.Stop();
 }
 

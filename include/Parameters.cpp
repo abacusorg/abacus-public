@@ -761,9 +761,8 @@ void Parameters::ValidateParameters(void) {
     CheckDirectoryExists(InitialConditionsDirectory);
     */
 
-    if (ForceOutputDebug && StoreForces) {
-            fprintf(stderr,"ForcesOutputDebug and StoreForces both set. This is not supported.\n");
-        assert(1==0);
+    if (ForceOutputDebug) {
+            StoreForces = 2;  // Output near and far separately
     }
 
     if (LogVerbosity<0) {

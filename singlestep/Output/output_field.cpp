@@ -59,7 +59,7 @@ void GatherTaggableFieldParticles(int slab, SlabAccum<RVfloat> * rv, SlabAccum<T
                     }
                     else if (tag == TAGGABLE_SUB_B){
                         assertf(P.ParticleSubsampleB != 0, 
-                            "This particle is taggable in subset B, but P.ParticleSubsampleA is zero.\n");
+                            "This particle is taggable in subset B, but P.ParticleSubsampleB is zero.\n");
                         pRVB->append(RVfloat(r.x, r.y, r.z, v.x, v.y, v.z));
                         pPIDsB->append(TaggedPID(c.aux[p]));
                         nfield_B++;

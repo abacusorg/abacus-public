@@ -203,37 +203,11 @@ void NearForceAction(int slab) {
 
     SlabForceTime[slab].Start();
 
-    NFD->ExecuteSlab(slab, P.ForceOutputDebug);
-    // NFD->ExecuteSlab(slab, 1);  // Use this line instead to force blocking GPU work
+    int blocking = 0;
+    NFD->ExecuteSlab(slab, blocking);
 
     SlabForceLatency[slab].Start();
-    if (P.ForceOutputDebug) {
-        // We want to output the AccSlab to the NearAcc file.
-        // This must be a blocking write.
-        NFD->Finalize(slab);
-
-#ifdef DIRECTSINGLESPLINE
-        // Single spline requires a prefactor multiplication, which we defer to the kick for efficiency
-        // But analysis routines that use ForceOutputDebug, like Ewald, expect this prefactor to already be applied
-        // So apply it here, storing the original in a temporary copy
-        uint64 npslab = SS->size(slab);
-        accstruct *nearacctmp = new accstruct[npslab];
-        accstruct *nearacc = (accstruct *) SB->GetSlabPtr(AccSlab, slab);
-        memcpy(nearacctmp, nearacc, npslab*sizeof(accstruct));
-        FLOAT inv_eps3 = 1./(NFD->SofteningLengthInternal*NFD->SofteningLengthInternal*NFD->SofteningLengthInternal);
-        for(uint64 i = 0; i < npslab; i++)
-            nearacc[i] *= inv_eps3;
-#endif
-        SB->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
-            SB->WriteSlabPath(NearAccSlab,slab).c_str());
-
-#ifdef DIRECTSINGLESPLINE
-        // restore the original
-        memcpy(nearacc, nearacctmp, npslab*sizeof(accstruct));
-        delete[] nearacctmp;
-#endif
-    }
-
+    
     // Busy-wait for all GPU work for this slab to finish
     // while(!NFD->SlabDone(slab)) ;
 }
@@ -283,7 +257,7 @@ void TaylorForceAction(int slab) {
     ComputeTaylorForce(slab);
     TaylorCompute.Stop();
 
-    if(P.ForceOutputDebug){
+    if(P.StoreForces == 2){
         // We want to output the FarAccSlab to the FarAcc file.
         // This must be a blocking write.
         SB->WriteArena(FarAccSlab, slab, IO_KEEP, IO_BLOCKING);
@@ -335,6 +309,10 @@ int KickPrecondition(int slab) {
 void KickAction(int slab) {
     SlabForceTime[slab].Stop();
     SlabForceLatency[slab].Stop();
+    
+    // computing CPU forces must be done before the pos releases below
+    if(!P.ForceCPU && P.ForceOutputDebug)
+        NFD->CheckGPUCPU(slab);
 
     // Release the trailing slab if it won't be needed at the wrap
     // Technically we could release it anyway and re-do the transpose from PosSlab,
@@ -365,10 +343,37 @@ void KickAction(int slab) {
         FetchSlabs.mark_to_repeat(slab - FORCE_RADIUS);
     }
     #endif
+    
+    // Accumulate stats from the SICs and release them
+    NFD->Finalize(slab);
+    
+    if (P.StoreForces == 2) {
+        // We want to output the AccSlab to the NearAcc file.
+        // This must be a blocking write.
 
-    //If we are doing blocking forces, the finalization happens in NearForceAction
-    if(!P.ForceOutputDebug && !P.ForceCPU)
-        NFD->Finalize(slab);
+#ifdef DIRECTSINGLESPLINE
+        // Single spline requires a prefactor multiplication, which we defer to the kick for efficiency
+        // But analysis routines that use ForceOutputDebug, like Ewald, expect this prefactor to already be applied
+        // So apply it here, storing the original in a temporary copy
+        uint64 npslab = SS->size(slab);
+        accstruct *nearacctmp = new accstruct[npslab];
+        accstruct *nearacc = (accstruct *) SB->GetSlabPtr(AccSlab, slab);
+        memcpy(nearacctmp, nearacc, npslab*sizeof(accstruct));
+        FLOAT inv_eps3 = 1./(NFD->SofteningLengthInternal*NFD->SofteningLengthInternal*NFD->SofteningLengthInternal);
+        #pragma omp parallel for schedule(static)
+        for(uint64 i = 0; i < npslab; i++)
+            nearacc[i] *= inv_eps3;
+#endif
+        SB->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
+            SB->WriteSlabPath(NearAccSlab,slab).c_str());
+
+#ifdef DIRECTSINGLESPLINE
+        // restore the original
+        memcpy(nearacc, nearacctmp, npslab*sizeof(accstruct));
+        delete[] nearacctmp;
+#endif
+    }
+
     AddAccel.Start();
     RescaleAndCoAddAcceleration(slab);
     SB->DeAllocate(FarAccSlab,slab);
@@ -732,7 +737,7 @@ void DriftAction(int slab) {
     // if (GFC == NULL){
     // TODO: Remove that condition; we always can do this here.
 	    // We kept the accelerations until here because of third-order LPT
-	    if (P.StoreForces && !P.ForceOutputDebug) {
+	    if (P.StoreForces == 1) {
 	        STDLOG(1,"Storing Forces in slab %d\n", slab);
 	        SB->StoreArenaBlocking(AccSlab,slab);
 	    }

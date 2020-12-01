@@ -1,15 +1,28 @@
 SimName = "CheckForces"
 #include "$ABACUS$/Tests/test.def"
 
-
 SofteningLength = 1e-10  #50./1000
-BoxSize = 1.0
-ICPositionRange = 1.0
-InitialRedshift = 49
+ICPositionRange = -1
 NearFieldRadius=2
-Order = 8
 ICFormat = "Lattice"
 TimeSliceRedshifts = @InitialRedshift@
 NumSlabsInsertListIC = 8
 StoreForces = 0
 AllowGroupFinding = 0
+OverwriteState = 0
+
+# These only relate to the comparison of lattice forces to an IC realization
+H0 = 67.26
+Omega_M = 0.314153189159
+Omega_DE = 1-@Omega_M@
+ZD_Pk_filename = "$ABACUS$/Production/camb_planck15.dat"
+ZD_Version = 2
+InitialRedshift = 99
+ZD_Seed = 12321
+ZD_NumBlock = 8
+#ICFormat = "RVZel"
+ZD_qPLT = 0
+ZD_Pk_file_redshift = 0.
+ZD_Pk_scale = 1.0
+ZD_Pk_norm = 8.0
+ZD_Pk_smooth = 0.0
