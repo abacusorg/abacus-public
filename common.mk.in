@@ -14,7 +14,7 @@ CXX := @CXX@
 REAL_CXX := @REAL_CXX@
 CC := @CXX@ -x c
 # seems to help us avoid a lot of mischief:
-LDFLAGS := -Wl\,--as-needed
+LDFLAGS := -Wl\,--as-needed @LDFLAGS@
 CXXFLAGS := -std=c++11
 ROOT_DIR ?= .
 OPT := -g

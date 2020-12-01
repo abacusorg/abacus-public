@@ -64,6 +64,11 @@ m4_include(Configuration/m4/ax_gcc_x86_avx_xgetbv.m4)
 m4_include(Configuration/m4/ax_gcc_x86_cpuid.m4)
 m4_include(Configuration/m4/ax_ext.m4)
 
+# The user might have specified LDFLAGS at configure time to help find a library.
+# We want to record that value in common.mk for use at compile time.
+# Why can't this just be done with LIBRARY_PATH? Because the linker looks in the system paths first!
+AC_SUBST(LDFLAGS)
+
 # The following uses gsl-config to find GSL.  That sounds like
 # a good thing, but Anaconda puts gsl-config on the PATH, but not
 # the library paths.
