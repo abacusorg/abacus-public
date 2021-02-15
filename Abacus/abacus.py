@@ -1442,13 +1442,13 @@ def showwarning(message, category, filename, lineno, file=None, line=None):
 warnings.showwarning = showwarning
 
 
-def reset_affinity(max_core_id=1024):
+def reset_affinity(max_core_id=256):
     '''
     Resets the core affinity of the current process/thread.
     Mainly used by `call_subprocess()`.
     '''
     # TODO: how to detect the maximum core id?
-    # For now, we can assume CPU_SETSIZE=1024 according to the man pages
+    # The lowest allowable value we have seen is 256
     os.sched_setaffinity(0, range(max_core_id))
 
 

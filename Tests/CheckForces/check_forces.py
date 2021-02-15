@@ -37,7 +37,7 @@ def plt_log_hist(ax, a, label=r'$|a-b|/\sqrt{|a|^2 + |b|^2}$'):
     bins = np.geomspace(a_nonz.min(),a_nonz.max(),100)
     bins = [0.,] + list(bins)  # make the first bin include 0
     ax.hist(a, bins=bins, log=True)
-    ax.set_xscale('symlog', linthreshx=a_nonz.min(), linscalex=0.01)
+    ax.set_xscale('symlog', linthresh=a_nonz.min(), linscale=0.01)
     ax.set_xlim(xmin=0.)
     #plt.xscale('log')
     if label:
@@ -402,10 +402,14 @@ def plot_cell(param, dtype):
     ax.text(.03, .6, text, transform=ax.transAxes, ha='left', va='top',
              bbox=dict(fc='w', alpha=0.9, ec='k'))
     
-    ax.xaxis.set_major_locator(ticker.MultipleLocator(ppd//8))
-    ax.yaxis.set_major_locator(ticker.MultipleLocator(ppd//8))
+    #ax.xaxis.set_major_locator(ticker.MultipleLocator(ppd//8))
+    #ax.yaxis.set_major_locator(ticker.MultipleLocator(ppd//8))
+    
+    ax.set_xticks(list(range(0,ppd,8)) + [ppd-1,])
+    ax.set_yticks(list(range(0,ppd,8)) + [ppd-1,])
     
     fig.tight_layout()
+    
     fig.savefig(f'cell_residuals_{ppd}.pdf', bbox_inches='tight')
     
     
@@ -502,11 +506,20 @@ def plot_forceoutputdebug(diff, fmag):
     fig.savefig(figfn)
     
     
-def load_results(load):
+def load_results(load, order=None, dtype=None):
     with asdf.open(load, lazy_load=False, copy_arrays=True) as af:
         results = af.tree['results']
-    
-    plot_orders(results)
+        
+    if order != None:
+        for res in results:
+            if res['param']['Order'] == order:
+                break
+        else:
+            raise ValueError(order)
+        raise NotImplementedError("cell results aren't stored in asdf, can't load")
+        plot_cell(res, dtype)
+    else:
+        plot_orders(results)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=Tools.ArgParseFormatter)
@@ -528,11 +541,12 @@ if __name__ == '__main__':
 
     with Tools.chdir(Path(__file__).parent):
         load = args.pop('load')
+        order = args.pop('order')
+        dtype = args.get('dtype')
         if load:
-            load_results(load)
+            load_results(load, order, dtype=dtype)
         else:
             if args.pop('sweep'):
-                order = args.pop('order')
                 save = args.pop('save')
                 run_orders(orders=range(2,order+1), run_kwargs=args, save=save)
             else:
