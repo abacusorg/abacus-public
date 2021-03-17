@@ -95,7 +95,8 @@ def read(*args, **kwargs):
                 box = kwargs['boxsize']
             except:
                 box = header['BoxSize']
-            data['pos'] *= eval(str(units))/eval(str(box_on_disk))
+            with ContextTimer('read() box scale'):
+                data['pos'] *= eval(str(units))/eval(str(box_on_disk))
             # vel conversion?
 
     if original_return_header:
@@ -218,7 +219,8 @@ def read_many(files, format='pack14', **kwargs):
     return particles
 
 
-def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=False, return_fn=False, **kwargs):
+def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=False, return_fn=False,
+                nreaders=1, **kwargs):
     '''
     This is a generator that reads files in a separate thread in the background,
     yielding them one at a time as they become available.
@@ -237,13 +239,18 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=False, return_
     In order to overlap compute and IO, the IO code must release the GIL.  Since np.fromfile()
     does that, most of our readers do that as well.  pack14 doesn't use fromfile, but ctypes
     also releases the GIL.
+    
+    Multiple IO threads may be used, in which case they'll all push to the same
+    results queue.  So this is a multiple-producer, single consumer model.  Be
+    aware that multiple threads will increase memory usage, because nreaders*(readahead+1)
+    results may be sitting in the queue.
 
     Parameters
     ----------
     path: str or list of str
         A directory or file pattern, or a list of files.
     readahead: int, optional
-        The number of files to read ahead of the last-yielded file.
+        The number of files that each thread is allowed to read ahead.
         Default of 1 is fine when compute is slower than IO; a value
         too big might run out of memory.
     chunksize: int, optional
@@ -255,6 +262,8 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=False, return_
         Print status.  Default: False
     return_fn: bool, optional
         Yield the filename alongside the data.  Default: False
+    nreaders: int, optional
+        Number of IO threads. Default: 1
     **kwargs: dict, optional
         Extra arguments to be passed to `read` or `read_many`.
     '''
@@ -264,41 +273,46 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=False, return_
 
     format = kwargs.pop('format')
     files = get_files_from_path(path, format=format)
+    Nfn = len(files)
 
     NP = 0
     if readahead < 0:
         readahead = len(files)
-    file_queue = queue.Queue(maxsize=readahead+1)
+        
+    fn_queue = queue.Queue()
+    data_queue = queue.Queue(maxsize=nreaders*(readahead+1))
+    
+    for i,fn in enumerate(files):
+        fn_queue.put((i,fn))
 
     def reader_loop():
-        nonlocal NP
         reader_kwargs = kwargs.copy()
 
-        Nfn = len(files)
-
-        # Read and bin the particles
-        for i,filename in enumerate(files):
+        # Read a file and push to queue
+        while True:
+            try:
+                i,filename = fn_queue.get_nowait()
+            except queue.Empty:
+                break
+            
             if verbose:
                 print(f'Reading {i+1}/{Nfn}... ', end='', flush=True)
             data = read(filename, format=format, **reader_kwargs)
             if verbose:
                 print('done.', flush=True)
-            NP += len(data)
 
-            file_queue.put((data,filename))  # blocks until free slot available
+            data_queue.put((data,filename))  # blocks until free slot available
             del data
-        file_queue.put(None)  # signal termination
 
-    io_thread = threading.Thread(target=reader_loop)
-    io_thread.start()
+    io_threads = [threading.Thread(target=reader_loop) for _ in range(nreaders)]
+    for it in io_threads:
+        it.start()
     
-
     tot_read_time, tot_unpack_time = 0, 0
-    while True:
-        data = file_queue.get()
-        if data is None:
-            break
+    for _ in range(Nfn):
+        data = data_queue.get()
         data,fn = data
+        NP += len(data)
 
         if hasattr(data, 'meta'):
             tot_read_time += data.meta['read_time']
@@ -309,11 +323,14 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=False, return_
             yield data
         del data
         gc.collect()
-
-    io_thread.join()
-    assert file_queue.empty()
+    
+    for it in io_threads:
+        it.join()
+    assert data_queue.empty()
+    assert fn_queue.empty()
 
     if verbose:
+        print(f'AsyncReader read {NP} particles')
         print(f'Total ReadAbacus read time: {tot_read_time:.4g} sec')
         print(f'Total ReadAbacus unpack time: {tot_unpack_time:.4g} sec')
 
@@ -368,18 +385,21 @@ def read_packN(N, fn, return_pos=True, return_vel=True, zspace=False, return_pid
         ralib
     except NameError:
         raise RuntimeError("packN C library was not found. Try building Abacus with 'make analysis'? Or use the slower `read_pack14_lite()` function.")
-    readers = {9: {np.float32:ralib.read_pack9f,
-                   np.float64: ralib.read_pack9 },
-              14: {np.float32:ralib.read_pack14f,
-                   np.float64: ralib.read_pack14}}
     dtype = np.dtype(dtype).type
-    reader = readers[N][dtype]
+    reader = packN_readers[N][dtype]
+    
+    try:
+        if downsample > 1:
+            warn(f'Downsample factor {downsample} is greater than 1!  A fraction less than 1 is expected.')
+    except TypeError: 
+        if downsample is None:
+            downsample = 1.1  # any number larger than 1 will take all particles
 
-    with open(fn, 'rb') as fp:
+    with open(fn, 'rb') as fp, ContextTimer('Read', output=False) as timer:
         header = skip_header(fp)
         if header:
             header = InputFile(str_source=header)
-        offset = fp.tell()
+        data = np.fromfile(fp, dtype=np.byte).reshape(-1,N)
     
     # Use the given buffer
     if out is not None:
@@ -389,21 +409,16 @@ def read_packN(N, fn, return_pos=True, return_vel=True, zspace=False, return_pid
         _out = allocate_table(alloc_NP, return_vel=return_vel, return_pid=return_pid, dtype=dtype)
     _out.meta.update(header)
 
-    try:
-        if downsample > 1:
-            warn(f'Downsample factor {downsample} is greater than 1!  A fraction less than 1 is expected.')
-    except TypeError: 
-        if downsample is None:
-            downsample = 1.1  # any number larger than 1 will take all particles
-
     posout = _out['pos'] if return_pos else None
     velout = _out['vel'] if return_vel else None
     pidout = _out['pid'] if return_pid else None
-    with ContextTimer('Read', output=False) as timer:
-        NP = reader(fn, offset, zspace, downsample, posout, velout, pidout)
+    
+    nthread = 1
+    with ContextTimer('Unpack',output-False) as unpack_timer:
+        NP = reader(data, data.nbytes, nthread, zspace, downsample, posout, velout, pidout)
 
     _out.meta['read_time'] = timer.elapsed + _out.meta.get('read_time',0.)
-    _out.meta['unpack_time'] = 0.
+    _out.meta['unpack_time'] = unpack_timer.elapsed + _out.meta.get('unpack_time',0.)
 
     # shrink the buffer to the real size
     if out is None:
@@ -532,7 +547,7 @@ def read_rv(fn, return_vel=True, return_pid=False, zspace=False, dtype=np.float3
 def read_rvdoublezel(*args, **kwargs):
     return read_rvzel(*args, double=True, **kwargs)
     
-def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=False, add_grid=False, boxsize=None, dtype=np.float32, out=None, return_header=False, double=False):
+def read_rvzel(fn, return_pos=True, return_vel=True, return_zel=False, return_pid=False, zspace=False, add_grid=False, boxsize=None, dtype=np.float32, out=None, return_header=False, double=False):
     """
     Reads RVzel format particle data.  This can be output from our
     zeldovich IC generator or Abacus.  zeldovich outputs don't have
@@ -578,7 +593,7 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
     dtype_on_disk = np.float64 if double else np.float32
 
     rvzel_dt = np.dtype([("zel", np.uint16, 3), ("r", dtype_on_disk, 3), ("v", dtype_on_disk, 3)], align=True)
-    with open(fn, 'rb') as fp:
+    with open(fn, 'rb') as fp, ContextTimer('Read', output=False) as read_timer:
         header = skip_header(fp)
         raw = np.fromfile(fp, dtype=rvzel_dt)
 
@@ -601,11 +616,20 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
             raise ValueError(output_type)
     
     if out is None:
-        particles = allocate_table(len(raw), return_vel=return_vel, return_zel=return_zel, return_pid=return_pid, dtype=dtype)
+        particles = allocate_table(len(raw), return_pos=return_pos, return_vel=return_vel, return_zel=return_zel, return_pid=return_pid, dtype=dtype)
     else:
         particles = out
+    
+    if header:
+        particles.meta.update(header)
         
-    particles.meta.update(header)
+    unpack_timer = ContextTimer('unpack')
+    unpack_timer.Start()
+    
+    from . import zeldovich
+    D = zeldovich.calc_growth_ratio(header, 1.4, 'init')
+    D = 1.
+    print(f'Scaling displacements by D={D:.3g}')
 
     if len(raw) > 0:
         if add_grid or return_pid:
@@ -621,20 +645,26 @@ def read_rvzel(fn, return_vel=True, return_zel=False, return_pid=False, zspace=F
         #    planes = len(raw) / ppd**2
         #    assert planes*ppd**2 == len(raw), "ppd {} detected from zel field, but this implies {} particle planes which does not match {} particles".format(ppd, planes, len(raw))
         
-        particles['pos'][:len(raw)] = raw['r']
-        if add_grid:
-            if not boxsize:
-                raise ValueError("Need to specify boxsize if using add_grid (or a header must be present from which the box size can be read)")
-            grid = (1.*raw['zel'] / ppd - 0.5)*boxsize
-            particles['pos'][:len(raw)] += grid
-        if zspace:
-            particles['pos'][:len(raw)] += raw['v']
+        if return_pos:
+            particles['pos'][:len(raw)] = raw['r']*D
+            if add_grid:
+                if not boxsize:
+                    raise ValueError("Need to specify boxsize if using add_grid (or a header must be present from which the box size can be read)")
+                grid = (1.*raw['zel'] / ppd - 0.5)*boxsize
+                particles['pos'][:len(raw)] += grid
+            if zspace:
+                particles['pos'][:len(raw)] += raw['v']
         if return_vel:
             particles['vel'][:len(raw)] = raw['v']
         if return_zel:
             particles['zel'][:len(raw)] = raw['zel']
         if return_pid:
             particles['pid'][:len(raw)] = raw['zel'][:,2] + ppd*raw['zel'][:,1] + ppd**2*raw['zel'][:,0]
+            
+    unpack_timer.stop(report=False)
+    
+    particles.meta['read_time'] = particles.meta.get('read_time',0.) + read_timer.elapsed
+    particles.meta['unpack_time'] = particles.meta.get('unpack_time',0.) + unpack_timer.elapsed
 
     retval = (particles,) if out is None else (len(raw),)
     
@@ -896,7 +926,7 @@ def read_desi_hdf5(fn, **kwargs):
 
 
 def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', return_pid='auto', dtype=np.float32,
-                load_header=True, verbose=True, blosc_threads=None, **kwargs):
+                load_header=True, verbose=True, blosc_threads=None, zspace=False, **kwargs):
     '''
     ASDF format used with AbacusSummit.  This interface is designed for the scenario where
     the distinction between halo and field is unimportant.  For halo-ortiented access, use
@@ -916,8 +946,10 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
     if return_pid:
         raise NotImplementedError('pid reading not finished')
 
-    asdf_data_key = kwargs.get('asdf_data_key','data')
-    asdf_header_key = kwargs.get('asdf_data_key','header')
+    asdf_data_key = kwargs.pop('asdf_data_key','data')
+    asdf_header_key = kwargs.pop('asdf_data_key','header')
+    #if len(kwargs) != 0:
+    #    raise ValueError(f'Unknown args! {kwargs}')
 
     if blosc_threads is None:
         blosc_threads = get_nthreads_by_format('asdf')
@@ -927,7 +959,7 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
         asdf.compression.validate('blsc')
     except:
         # Note: this is a temporary solution until blosc is integrated into ASDF, or until we package a pluggable decompressor
-        raise RuntimeError('Error: your ASDF installation does not support Blosc compression.  Please clone https://github.com/lgarrison/asdf and install with "cd asdf; pip install ."')
+        raise RuntimeError('Error: your ASDF installation does not support Blosc compression.  Please run "pip install git+https://github.com/lgarrison/asdf.git"')
     asdf.compression.set_decompression_options(nthreads=blosc_threads)
 
     from . import abacus_halo_catalog
@@ -951,7 +983,6 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
         if verbose:
             print(f'Read {data.nbytes/1e6:.4g} MB from {basename(fn)} in {timer.elapsed:.4g} sec at {data.nbytes/1e6/timer.elapsed:.4g} MB/s')
 
-
         maxN = len(data)
         if out is not None:
             _out = out
@@ -965,13 +996,20 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
 
         timer = ContextTimer('Unpack bits')
         timer.Start()
+        _posout = _out['pos'] if return_pos else False
+        _velout = _out['vel'] if return_vel else False
         if colname == 'rvint':
-            _posout = _out['pos'] if return_pos else False
-            _velout = _out['vel'] if return_vel else False
-            npos,nvel = abacus_halo_catalog.unpack_rvint(data, header['BoxSize'], float_dtype=dtype, posout=_posout, velout=_velout)
+            npos,nvel = abacus_halo_catalog.unpack_rvint(data, header['BoxSize'], float_dtype=dtype, posout=_posout, velout=_velout,
+                                                         zspace=zspace, VelZSpace_to_kms=header['VelZSpace_to_kms'])
             nread = max(npos,nvel)
         elif colname == 'pack9':
-            raise NotImplementedError('pack9 via asdf not yet implemented')
+            p9_unpacker = packN_readers[9][dtype]
+            if _posout is False:
+                _posout = None  # ctypes takes None as the null pointer
+            if _velout is False:
+                _velout = None
+            # unpack using the same number of threads as blosc
+            nread = p9_unpacker(data, data.nbytes, blosc_threads, zspace, 1.1, _posout, _velout, None)
         elif colname == 'packedpid':
             justpid, lagr_pos, tagged, density = abacus_halo_catalog.unpack_pids(data, header['BoxSize'], header['ppd'])
         timer.stop(report=False)
@@ -984,7 +1022,7 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
         if out is not None:
             return nread
         else:
-            return _out
+            return _out[:nread]
 
 
 ##############################
@@ -1087,11 +1125,18 @@ try:
 
     # Set up the arguments and return type for the library functions
     # TODO: switch our C library to use CFFI
-    for f in (ralib.read_pack14, ralib.read_pack9, ralib.read_pack14f, ralib.read_pack9f):
+    for f in (ralib.unpack_pack14, ralib.unpack_pack9, ralib.unpack_pack14f, ralib.unpack_pack9f):
         f.restype = ct.c_uint64
-        f.argtypes = (asciistring_arg, ct.c_size_t, ct.c_int, ct.c_double, ndarray_arg, ndarray_arg, ndarray_arg)
+        f.argtypes = (ndarray_arg, ct.c_size_t, ct.c_int, ct.c_int, ct.c_double, ndarray_arg, ndarray_arg, ndarray_arg)
+        
+    packN_readers = {9: {np.float32:ralib.unpack_pack9f,
+                         np.float64: ralib.unpack_pack9 },
+                    14: {np.float32:ralib.unpack_pack14f,
+                         np.float64: ralib.unpack_pack14}
+                    }
 except (OSError, ImportError):
     #raise
+    packN_readers = None
     pass  # no pack14 library found
 
 
@@ -1155,7 +1200,7 @@ reader_functions = {'pack14':read_pack14, 'pack9':read_pack9, 'pack14_lite':read
                     'desi_hdf5':read_desi_hdf5,
                     'state':read_state,
                     'rvint':read_rvint,
-                    'asdf':read_asdf, 'asdf_b':read_asdf, 'asdf_a':read_asdf,}
+                    'asdf':read_asdf, 'asdf_b':read_asdf, 'asdf_a':read_asdf, 'asdf_pack9':read_asdf}
 default_file_patterns = {'pack14':'*.dat',
                          'pack9':('*L0_pack9.dat', '*field_pack9.dat'),
                          'rvint' : ('*rv_A*', '*rv_B*'),
@@ -1165,6 +1210,7 @@ default_file_patterns = {'pack14':'*.dat',
                          'asdf':('*.asdf','field_*/*.asdf','halo_*/*.asdf'),
                          'asdf_a':('*_A_*.asdf','*_A/*.asdf',),
                          'asdf_b':('*_B_*.asdf','*_B/*.asdf',),
+                         'asdf_pack9':('field_pack9/*.asdf','L0_pack9/*.asdf'),
                          }
 fallback_file_pattern = '*.dat'
                     
@@ -1177,6 +1223,7 @@ default_box_on_disk = {'desi_hdf5':'box',
                 'asdf_a':'box',
                 'asdf_b':'box',
                 'asdf':'box',
+                'asdf_pack9':1.,
 }
 
 _nthreads_by_format = dict(asdf=BLOSC_THREADS)
@@ -1195,7 +1242,7 @@ def get_file_patterns(format, return_pos=True, return_vel=True, return_pid=False
     format = format.lower()
 
     # For ASDF, we want to select the subdirectories based on the fields requested
-    if 'asdf' in format:
+    if format in ('asdf','asdf_a','asdf_b'):
         pats = []
         AB = re.match(r'asdf(?:_(?P<AB>\w))?', format).group('AB')
         if AB:
@@ -1268,7 +1315,7 @@ def get_files_from_path(path, format=None, pattern=None, key=None, **kwargs):
             # Not a dir and not a file; interpret as a glob pattern
             files += glob(path)
 
-    files = sorted(files, key=_key)
+    files = sorted(files, key=_key, reverse=True)
 
     if not files:
         raise ValueError(f'No files found matching "{path}" for format "{format}"!')

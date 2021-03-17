@@ -27,14 +27,17 @@ def get_output_dir(product_name, slice_dir, out_parent=None, **kwargs):
     dirname, slicename = path.split(path.abspath(slice_dir))
     slicename = slicename.replace('slice', 'z')
 
-    if os.path.basename(dirname) == 'halos':
+    if os.path.basename(dirname) in ('halos','slices'):
         dirname = os.path.dirname(dirname)
 
     format = kwargs.get('format')
     if format:
         if 'asdf' in format:
             AB = format.split('_')
-            AB = AB[-1].upper() if len(AB) > 1 else 'AB'
+            if len(AB) > 1:
+                AB = AB[-1].upper() if AB[-1] in 'ab' else AB[-1]
+            else:
+                AB = 'AB'
             slicename += f'_{AB}'
         else:
             slicename += f'_{format}'

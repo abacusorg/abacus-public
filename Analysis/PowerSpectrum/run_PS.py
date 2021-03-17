@@ -254,10 +254,14 @@ def run_PS(inputs, **kwargs):
 
 def to_csv(raw_results, bins, fn, header):
     k, Pk, nmodes = raw_results
+    if type(Pk) == dict:
+        power_cols = {(f'P{ell}' if ell != 0 else 'power'):Pk[ell] for ell in Pk}
+    else:
+        power_cols = dict(power=Pk)
     t = astropy.table.Table(data=dict(kmin=bins[:-1],
                                       kmax=bins[1:],
                                       kavg=k,
-                                      power=Pk,
+                                      **power_cols,
                                       N_modes=nmodes
                                       ),
                             meta=dict(header)
@@ -398,18 +402,33 @@ def make_plot(results, csvfn):
     else:
         pltfn = csvfn
     projected = 'projected' in csvfn
+    
+    zspace = 'P2' in results.colnames or 'P4' in results.colnames
 
-    fig, ax = plt.subplots()
+    nrow=2 if zspace else 1
+    fig, axes = plt.subplots(nrow,1, figsize=(6,4*nrow), sharex=True, squeeze=False)
+    axes = axes.reshape(-1)
 
     valid = results['N_modes'] > 0
+    results = results[valid]
+    
+    if results['power'][0]/results['power'][1] < 0.01:
+        results = results[1:]  # trim first bin if small
 
     label = 'Auto power spectrum'
-    ax.loglog(results[valid]['kavg'], results[valid]['power'], label=label)
-    ax.legend()
-    ax.set_xlabel(r'$k$ [$h$/Mpc]')
-    ax.set_ylabel(r'$P(k)$ $[(\mathrm{{Mpc}}/h)^{ndim:d}]$'.format(ndim=(2 if projected else 3)))
+    axes[0].loglog(results['kavg'], results['power'], label=label)
+    if 'P2' in results.colnames:
+        axes[1].semilogx(results['kavg'], results['kavg']*results['P2'], label='Quadrupole')
+    if 'P4' in results.colnames:
+        axes[1].semilogx(results['kavg'], results['kavg']*results['P4'], label='Hexadecapole')
+    if zspace:
+        axes[1].legend()
+        axes[1].set_ylabel(r'$kP(k)$ $[(\mathrm{{Mpc}}/h){exp}]$'.format(exp=('' if projected else '^2')))
+    axes[0].legend()
+    axes[-1].set_xlabel(r'$k$ [$h$/Mpc]')
+    axes[0].set_ylabel(r'$P(k)$ $[(\mathrm{{Mpc}}/h)^{ndim:d}]$'.format(ndim=(2 if projected else 3)))
 
-    fig.savefig(pltfn)
+    fig.savefig(pltfn, bbox_inches='tight')
         
 def vector_arg(s):
     try:
@@ -424,6 +443,7 @@ if __name__ == '__main__':
     parser.add_argument('--nfft', help='The size of the FFT (side length of the FFT cube).  Default: 1024', default=1024, type=int)
     parser.add_argument('--format', help='Format of the data to be read', choices=TSC.valid_file_formats + ['density'], type=str.lower)
     parser.add_argument('--rotate-to', help='Rotate the z-axis to the given axis [e.g. (1,2,3)].  Rotations will shrink the FFT domain by sqrt(3) to avoid cutting off particles.', type=vector_arg, metavar='(X,Y,Z)')
+    #parser.add_argument('--multipoles', help='Compute these multipoles (e.g. (0,2,4))', type=list)
     parser.add_argument('--projected', help='Project the simulation along the z-axis.  Projections are done after rotations.', action='store_true')
     parser.add_argument('--zspace', help='Displace the particles according to their redshift-space positions.', action='store_true')
     parser.add_argument('--bin-like-nfft', help='Choose bins to be commensurate with this NFFT', default=0, type=int)
@@ -436,6 +456,7 @@ if __name__ == '__main__':
     parser.add_argument('--box', help='Override the box size from the header', type=float)
     parser.add_argument('--ntracks', help='The number of "tracks" of power spectra to measure.  Only has an effect with the --scalefree_index option.', type=int, default=1)
     parser.add_argument('--nthreads', help='Number of threads for binning/FFT. Default is all CPUs less ReadAbacus threads.', type=int, default=os.cpu_count())
+    parser.add_argument('--nreaders', help='Number of IO threads.', type=int, default=1)
     parser.add_argument('--verbose', help='Verbose status messages', action='store_true', default=True)
     parser.add_argument('--out-parent', help='Parent directory for output')
 
