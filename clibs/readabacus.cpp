@@ -2,6 +2,7 @@
 #include "packN_storage.cpp"
 #include "threevector.hh"
 #include "particle_subsample.cpp"
+#include <omp.h>
 
 #include <stdlib.h>
 #include <sys/types.h>
@@ -15,108 +16,154 @@
 #include <errno.h>
 #include "iolib.cpp"
 
-
-// Reads from byte `read_start` to the end of the file.
-// Allocates a buffer and loads the data into it.  Returns the buffer.
-// Also sets 'datasize' to the size of the buffer.
-// 'ramdisk' is a flag that indicates whether 'fp' is on a ramdisk or not.
-void* loadData(char *fn, size_t read_start, int ramdisk, size_t* datasize){
-    struct stat filestatus;
-    stat(fn,&filestatus);
-    size_t filesize = filestatus.st_size;
-    *datasize = filesize - read_start;
-    
-    void *data = NULL;
-    int ret = posix_memalign(&data, 4096, *datasize);
-    assert(ret == 0 && data != NULL && "Malloc failed");
-    
-    ReadDirect rd(ramdisk, 1024*1024);
-
-    rd.BlockingRead(fn, (char *) data, *datasize, read_start);
-    
-    return data;
-}
-
-// Read from `fn`, starting at `offset`
+// Unpack a buffer of packN data
 // The particles are written into `out`
 // number of read particles is returned
 template <int N, typename T>
-uint64_t read_packN(char *fn, size_t offset, int zspace, double subsample_frac, ThreeVector<T> *posout, ThreeVector<T> *velout, uint64 *pidout){
+uint64_t unpack_packN(packN<N> *data, size_t datasize, int nthread, int zspace, double subsample_frac, ThreeVector<T> *posout, ThreeVector<T> *velout, uint64 *pidout){
     if(subsample_frac <= 0)
         return 0;
 
-    size_t datasize;
     // Is reading the whole file then parsing it more efficient than doing fread from disk?
     // This way certainly uses more memory.
-    packN<N> *data = (packN<N> *) loadData(fn, offset, 1, &datasize);
     if(datasize%N != 0){ //ensure the file is sensible
-        fprintf(stderr, "Datasize %zd of file \"%s\" not divisible by %d.  Is this a pack%d file?\n", datasize, fn, N, N);
-        free(data);
+        fprintf(stderr, "[Error] Datasize %zd of file not divisible by %d.  Is this a pack%d file?\n", datasize, N, N);
         exit(1);
     }
     uint64_t max_NP = datasize/N;  // upper limit on the number of particles
     
     if (datasize == 0){
-        printf("Empty file encountered: %s\n", fn);
-        free(data);
+        printf("[Warning] empty pack%d buffer encountered\n", N);
         return 0;
     }
 
     int do_subsample = subsample_frac > 0 && subsample_frac < 1;  // do we need to bother hashing?
-        
-    cell_header current_cell;
-    current_cell.vscale = 0;   // Make this illegal
+    if(do_subsample){
+        fprintf(stderr, "subsampling not implemented with parallel rewrite\n");
+        exit(1);
+    }
 
     int return_pos = posout != NULL;
     int return_vel = velout != NULL;
     int return_pid = pidout != NULL;
+    
+    /* For parallel processing, we do one pass over the data to count particles and distribute work
+    */
+    
+    uint64 readstart[nthread+1];  // where to start reading
+    readstart[0] = 0;
+    readstart[nthread] = max_NP;
+    uint64 n_per_thread = max_NP/nthread;  // last thread will have fewer real particles
+    uint64 writestart[nthread];  // where to start writing
+    writestart[0] = 0;
+    uint64 np_real = 0;
+    
+    if (nthread > 1){
+        uint64 n_thisthread = 0;
+        int tid = 1;
+        for(uint64 j = 0; j < max_NP; j++){
+            packN<N> p = data[j];
 
-    uint64_t i = 0;
-    for(uint64 j = 0; j < max_NP; j++){
-        packN<N> p = data[j];
-
-        if (p.iscell()) {
-            current_cell = p.unpack_cell();
-            if(!current_cell.islegal()){
-                fprintf(stderr, "Illegal pack14 cell encountered.\n");
-                free(data);
-                exit(1);
+            if (p.iscell()){
+                // Can only start on a cell
+                // Keep counting if we're on the last thread so we can get np_real as a sanity check
+                if(n_thisthread >= n_per_thread && tid != nthread){
+                    writestart[tid] = n_thisthread + writestart[tid-1];
+                    readstart[tid] = j;
+                    np_real += n_thisthread;
+                    n_thisthread=0;
+                    tid++;
+                }
+            } else {
+                n_thisthread++;
             }
-        } else {
-            ThreeVector<T> pos;
-            ThreeVector<T> vel;
-            uint64_t id;
-            p.unpack(pos, vel, id, current_cell);
+        }
+        if (tid != nthread){
+            fprintf(stderr, "Didn't find divisions for all threads! tid=%d, nthread=%d\n", tid, nthread);
+            exit(1);  // technically not an error, but probably indicates a bug
+        }
+        np_real += n_thisthread;  // get the last thread's count
+        readstart[nthread] = max_NP;  // force the last thread to do all the rest
+    }
+    
+    #pragma omp parallel num_threads(nthread)
+    {   
+        int tid = omp_get_thread_num();
+        uint64 jstart = readstart[tid];  // where to start reading
+        uint64 jstop = readstart[tid+1];
+        uint64_t i = writestart[tid];  // where to start writing
+        
+        if(!data[jstart].iscell()){
+            fprintf(stderr, "Thread not starting on a cell!\n");
+            exit(1);
+        }
+        
+        cell_header current_cell;
+        current_cell.vscale = 0;   // Make this illegal
+        
+        for(uint64 j = jstart; j < jstop; j++){
+            packN<N> p = data[j];
 
-            if(do_subsample && is_subsample_particle(id, subsample_frac, 0.) != 0)
-                continue;
+            if (p.iscell()) {
+                current_cell = p.unpack_cell();
+                if(!current_cell.islegal()){
+                    fprintf(stderr, "Illegal pack14 cell encountered.\n");
+                    exit(1);
+                }
+            } else {
+                ThreeVector<T> pos;
+                ThreeVector<T> vel;
+                uint64_t id;
+                p.unpack(pos, vel, id, current_cell);
 
-            if(return_pos){
-                posout[i] = pos;
-                if(zspace)
-                    posout[i][0] += vel[0];
+                if(do_subsample && is_subsample_particle(id, subsample_frac, 0.) != 0)
+                    continue;
+
+                if(return_pos){
+                    posout[i] = pos;
+                    if(zspace)
+                        posout[i][0] += vel[0];
+                }
+
+                if(return_vel){
+                    velout[i] = vel;
+                }
+
+                if(return_pid){
+                    pidout[i] = id;
+                }
+                i++;
             }
-
-            if(return_vel){
-                velout[i] = vel;
+        }
+        
+        if (nthread > 1){
+            // All threads except last should have written up to writestart[tid+1]
+            if(tid < nthread-1){
+                if (i != writestart[tid+1]){
+                    fprintf(stderr, "Wrong thread count! i=%zu != writestart[tid+1]=%zu for tid=%d\n", i, writestart[tid+1], tid);
+                    exit(1);
+                }
             }
-
-            if(return_pid){
-                pidout[i] = id;
+            else{
+                if(i != np_real){
+                    fprintf(stderr, "Last thread wrong thread count! i=%zu vs np_real=%zu\n", i, np_real);
+                    exit(1);
+                }
             }
-            i++;
+        }
+        else {
+            // Didn't do a counting pass
+            np_real = i;
         }
     }
     
-    free(data);
-    
-    return i;
+    return np_real;
 }
 
 // Traditional C++ "using" aliases didn't seem to work in the extern "C" block
 #define ALIAS(NAME,N,T) \
-uint64_t read_##NAME(char *fn, size_t offset, int zspace, double subsample_frac, ThreeVector<T> *posout, ThreeVector<T> *velout, uint64 *pidout){ \
-    return read_packN<N,T>(fn, offset, zspace, subsample_frac, posout, velout, pidout); \
+uint64_t unpack_##NAME(packN<N> *data, size_t datasize, int nthread, int zspace, double subsample_frac, ThreeVector<T> *posout, ThreeVector<T> *velout, uint64 *pidout){ \
+    return unpack_packN<N,T>(data, datasize, nthread, zspace, subsample_frac, posout, velout, pidout); \
 }
 
 extern "C" {

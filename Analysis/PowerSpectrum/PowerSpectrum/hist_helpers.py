@@ -71,7 +71,7 @@ def hist_helper_3D(boxsize, gridshape, bin_edges, rfft):
                     _hist[i,b-1] += 2  # double-count values that would be reflected in the full space
                 else:
                     _hist[i,b-1] += 1
-                assert b-1 < nbp1-1
+                #assert b-1 < nbp1-1
 
     # combine thread results
     histogram = np.sum(_hist, axis=0)
@@ -126,7 +126,7 @@ def rhist_helper_3D(boxsize, gridshape, bin_edges, rfft):
                     _hist[i,b-1] += np.sqrt(dist2)
                 else:
                     _hist[i,b-1] += 0.5*np.sqrt(dist2)
-                assert b-1 < nbp1-1
+                #assert b-1 < nbp1-1
 
     # combine thread results
     histogram = np.sum(_hist, axis=0)
@@ -205,7 +205,7 @@ def whist_helper_3D(boxsize, values, bin_edges, rfft, multipoles=np.array([0])):
                         _hist[i,b-1,0] += 0.5*values[i,j,k]
                     else:
                         _hist[i,b-1,0] += values[i,j,k]
-                    assert b-1 < nbp1-1
+                    #assert b-1 < nbp1-1
 
                 # higher moments
                 # this if statement introduces a performance penalty on the monopole...

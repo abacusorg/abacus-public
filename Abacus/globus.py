@@ -49,6 +49,7 @@ FLATIRON_ENDPOINT = 'c3dc2ae2-74c6-11e8-93bb-0a6d4e044368'
 # Destination Path -- The directory will be created if it doesn't exist
 DEFAULT_NERSC_DEST = '/global/cfs/cdirs/desi/cosmosim/Abacus'
 DEFAULT_MARVIN_DEST = '/mnt/store/AbacusSummit'
+DEFAULT_FLATIRON_DEST = '/mnt/home/lgarrison/ceph/AbacusSummit'
 
 # You will need to register a *Native App* at https://developers.globus.org/
 # Your app should include the following:
@@ -256,6 +257,8 @@ def start_globus_transfer(source_path, exclude=None, include=None, dest_path=DEF
     # so need to make the containing directory on the destination
     if dest_endpoint == MARVIN_ENDPOINT:
         dest_path = DEFAULT_MARVIN_DEST
+    if dest_endpoint == FLATIRON_ENDPOINT:
+        dest_path = DEFAULT_FLATIRON_DEST
     dest_path = pjoin(dest_path, boxname)
 
     # Check that this box is not already in the status file

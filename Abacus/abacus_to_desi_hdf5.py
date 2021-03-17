@@ -48,14 +48,15 @@ class Converter:
             read_args['add_grid'] = True
 
         for (p,header),fn in ReadAbacus.AsyncReader(fns, **read_args):
+            #print(list(header.keys()))
             convert(p, header, fn, **kwargs)
         
         print('All done.')
 
 
 def convert(p, header, fn, format, ds=None, out_parent=None):
-    ppd = np.int64(np.round(header.NP**(1./3)))
-    assert ppd**3 == header.NP
+    ppd = np.int64(np.round(header['NP']**(1./3)))
+    assert ppd**3 == header['NP']
 
     if ds and ds > 1:
         assert int(ds) == ds
@@ -81,14 +82,14 @@ def convert(p, header, fn, format, ds=None, out_parent=None):
 
     # better way to know the box on disk?
     if format == 'rvzel':
-        p['vel'] *= header.VelZSpace_to_kms/header.BoxSize
+        p['vel'] *= header['VelZSpace_to_kms']/header['BoxSize']
     else:
-        p['pos'] *= header.BoxSize
-        p['vel'] *= header.VelZSpace_to_kms
+        p['pos'] *= header['BoxSize']
+        p['vel'] *= header['VelZSpace_to_kms']
 
     # Wrap the particles from [0,L), without changing the origin
     pos_wrapped = np.ascontiguousarray(p['pos'])
-    Tools.wrap_zero_origin(pos_wrapped, header.BoxSize)
+    Tools.wrap_zero_origin(pos_wrapped, header['BoxSize'])
 
     # Copy over header values from Abacus to the DESI cosmo sim names
     h5header = {}

@@ -63,6 +63,8 @@ def cpointer(a):
         return a.ctypes.data_as(ct.POINTER(ct.c_int))
     elif a.dtype == np.uint32:
         return a.ctypes.data_as(ct.POINTER(ct.c_uint))
+    elif a.dtype == np.int8:
+        return a.ctypes.data_as(ct.POINTER(ct.c_byte))
     # Complex types will be passed as float/double arrays
     elif a.dtype == np.complex64:
         return a.ctypes.data_as(ct.POINTER(ct.c_float))
