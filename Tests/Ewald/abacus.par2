@@ -1,0 +1,27 @@
+SimName = "Ewald"
+#include "$ABACUS$/Production/directory.def"
+#include "$ABACUS$/Production/site_files/site.def"
+
+NP = 65536
+BoxSize = 1.
+H0 = 100.
+Omega_M = 1.
+Omega_DE = 0.
+Omega_K = 0.
+w0 = -1.
+wa = 0.
+hMpc = 1
+InitialRedshift = 0.
+LagrangianPTOrder = 0
+GroupRadius = 1
+TimeStepAccel = 0
+TimeStepDlna = 0
+
+SofteningLength = 1e-12
+ICFormat = "RVdoublePID"
+NumSlabsInsertList = 0.1
+NumSlabsInsertListIC = @CPD@
+ICPositionRange = 1.
+ExternalICs = 1
+NearFieldRadius = 2
+DerivativeExpansionRadius = 8

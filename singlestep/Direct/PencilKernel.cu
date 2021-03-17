@@ -14,6 +14,12 @@ __device__ inline void FullDirectTile(
 	FLOAT *aw,
 	#endif
         FLOAT *eps, FLOAT *b2){
+    
+// For increased precision, one may use these temporary accumulators to avoid loss of precision
+// This is probably not the best scheme to mitigate loss of precision, but is left for future reference
+#ifdef BLOCK_ACCUM
+    FLOAT _ax = 0., _ay = 0., _az = 0.;
+#endif
 
     #pragma unroll 16
     for(int n = 0; n <NFBlockSize;n++){
@@ -23,13 +29,28 @@ __device__ inline void FullDirectTile(
 	#ifdef COMPUTE_FOF_DENSITY
         direct_density<0>(*sinkx,*sinky,*sinkz,
                 sourcex,sourcey,sourcez,
+    #ifdef BLOCK_ACCUM
+                _ax,_ay,_az,*aw,*eps,*b2);
+    #else
                 *ax,*ay,*az,*aw,*eps,*b2);
+    #endif
 	#else
         direct<0>(*sinkx,*sinky,*sinkz,
                 sourcex,sourcey,sourcez,
+    #ifdef BLOCK_ACCUM
+                _ax,_ay,_az,*eps,*b2);
+    #else
                 *ax,*ay,*az,*eps,*b2);
+    #endif
 	#endif
     }
+    
+#ifdef BLOCK_ACCUM
+    *ax += _ax;
+    *ay += _ay;
+    *az += _az;
+#endif
+    
 }
 #else
 #include "ASMDirectTile.cu"

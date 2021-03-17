@@ -211,10 +211,12 @@ def tostr(item): #recursively decompose the argument into a string we can print 
         
 
 def makeInput(outfn, inputfile, strict=False, del_keywords=[], **keywords):
-    defaults = parseInput(inputfile)
-    for keyword in keywords.keys():
-        if strict and (keyword not in defaults.keys()):
-            raise ValueError(keyword, "Keyword not in default parameter set, and `strict=True` was set.")
+    if strict:
+        raise NotImplementedError('strict=True currently not supported (due to deferrals)')
+    #defaults = parseInput(inputfile)
+    #for keyword in keywords.keys():
+    #    if strict and (keyword not in defaults.keys()):
+    #        raise ValueError(keyword, "Keyword not in default parameter set, and `strict=True` was set.")
 
     res = parseInput(inputfile, keywords, copy.deepcopy(keywords))
 
@@ -240,7 +242,7 @@ def makeInput(outfn, inputfile, strict=False, del_keywords=[], **keywords):
                 value = '"' +value +'"'
             outfile.write(tostr(value))
             outfile.write('\n')
-        outfile.write('#created by GenParam from L2 file: {:s}    :: {:s}\n'.format(inputfile, time.asctime()))
+        outfile.write('#created by GenParam from L2 file: {}    :: {:s}\n'.format(inputfile, time.asctime()))
         outfile.write('\n') #finalize the header
     return res
         

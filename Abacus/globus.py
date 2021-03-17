@@ -375,7 +375,7 @@ if __name__ == '__main__':
 
     group = tparser.add_mutually_exclusive_group()
     group.add_argument('--exclude', help='Exclude files matching glob pattern from transfer', nargs='?')
-    group.add_argument('--include', help='Only transfer files matching glob pattern.  Understands literal globs and brace expansion.', nargs='?', action='append')
+    group.add_argument('--include', help='Only transfer files matching glob pattern.  Understands literal globs and brace expansion.  Must initiate transfer from the source endpoint so the globs can be evaluated locally.', nargs='?', action='append')
 
     tparser.set_defaults(func=subcommand_transfer)
 

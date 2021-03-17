@@ -36,7 +36,6 @@ struct ArenaPencil {
     char *next;    // Pointer to where we'd write next
     cell_header current_cell;
     char empty[CACHE_LINE_SIZE-2*sizeof(char *)-sizeof(cell_header)];   // Avoid cache line contention
-        // TODO: Is this a legal compile-time computation?
 };
 
 class AppendArena {

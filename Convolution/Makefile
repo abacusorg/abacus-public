@@ -1,7 +1,6 @@
 ROOT_DIR := ..
 include $(ROOT_DIR)/common.mk
 
-# Some of these may be empty; that's fine
 ifeq ($(GPU_CONVOLUTION_ENABLED),GPU_CONVOLUTION_ENABLED)
 	CXXFLAGS += $(CUDA_LIBS)
 endif

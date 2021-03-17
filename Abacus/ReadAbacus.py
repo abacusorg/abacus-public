@@ -133,6 +133,7 @@ def from_dir(dir, pattern=None, key=None, **kwargs):
         If `return_header` and a header is found, return parsed InputFile
     """
 
+    dir = str(dir)
     if not isdir(dir):
         raise ValueError(f'Path "{dir}" was passed to from_dir() but it is not a directory')
 
@@ -180,7 +181,9 @@ def read_many(files, format='pack14', **kwargs):
         _format = 'state64'
     alloc_NP = get_alloc_np(files, format=_format, downsample=kwargs.get('downsample'))
 
-    particles = allocate_table(alloc_NP, **kwargs)
+    # TODO: better way to do this?
+    alloc_kwargs = {k:kwargs[k] for k in ['return_pos', 'return_vel', 'return_pid', 'return_zel', 'return_aux', 'dtype'] if k in kwargs}
+    particles = allocate_table(alloc_NP, **alloc_kwargs)
     
     return_header = kwargs.get('return_header', False)
     header = None
@@ -605,7 +608,7 @@ def read_rvzel(fn, return_pos=True, return_vel=True, return_zel=False, return_pi
 
     if header and not boxsize:
         output_type = header.get('OutputType', 'ic')
-        if output_type == 'TimeSlice':
+        if 'TimeSlice' in output_type:
             boxsize = 1.
         elif output_type == 'ic':
             boxsize = header['BoxSize']
@@ -616,7 +619,7 @@ def read_rvzel(fn, return_pos=True, return_vel=True, return_zel=False, return_pi
         particles = allocate_table(len(raw), return_pos=return_pos, return_vel=return_vel, return_zel=return_zel, return_pid=return_pid, dtype=dtype)
     else:
         particles = out
-        
+    
     if header:
         particles.meta.update(header)
         

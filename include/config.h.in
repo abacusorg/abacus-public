@@ -42,9 +42,6 @@
 /* "Enable custom NUMA_FOR OpenMP scheduler" */
 #undef ENABLE_NUMA_FOR
 
-/* "The current git revision" */
-#undef GITVERSION
-
 /* "Do the convolution FFT on the GPU" */
 #undef GPUFFT
 
