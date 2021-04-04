@@ -349,6 +349,10 @@ def box_wrap(p, box):
             p[i] -= box
         if p[i] < -box/2:
             p[i] += box
+        if p[i] >= box/2:
+            p[i] -= box
+        if p[i] < -box/2:
+            p[i] += box
 
 
 def sort_pos_and_weight(p, w, inplace):

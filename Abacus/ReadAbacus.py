@@ -959,8 +959,9 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
         asdf.compression.validate('blsc')
     except:
         # Note: this is a temporary solution until blosc is integrated into ASDF, or until we package a pluggable decompressor
-        raise RuntimeError('Error: your ASDF installation does not support Blosc compression.  Please run "pip install git+https://github.com/lgarrison/asdf.git"')
-    asdf.compression.set_decompression_options(nthreads=blosc_threads)
+        raise RuntimeError('Error: Blosc compression not found. Abacus ASDF extension not loaded?"')
+    import blosc
+    blosc.set_nthreads(blosc_threads)
 
     from . import abacus_halo_catalog
     import astropy.table
