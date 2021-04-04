@@ -146,8 +146,9 @@ def setup_zeldovich_params(params):
     # Check that f_growth computed in the EdS approximation with f_cluster is consistent with the value from the cosmology module
     f_growth = cosm_zinit.current.f_growth
     fgrowth_from_fcluster = ((1 + 24*f_cluster_from_smooth)**0.5 - 1)/4
-    if not np.isclose(f_growth, fgrowth_from_fcluster, rtol=2e-4):
-        raise ValueError(f'fgrowth_from_fcluster = {fgrowth_from_fcluster} from parameter file does not match f_growth = {f_growth} computed from cosmology')
+    # TODO: when we add a "just density" mode, skip this check
+    #if not np.isclose(f_growth, fgrowth_from_fcluster, rtol=2e-4):
+    #    raise ValueError(f'fgrowth_from_fcluster = {fgrowth_from_fcluster} from EdS approximation does not match f_growth = {f_growth} computed from cosmology')
 
     return zd_params
     
@@ -181,10 +182,10 @@ def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=True):
                 raise ValueError(allow_eigmodes_fn_override)
         params = GenParam.makeInput(paramfn, paramfn, ZD_PLT_filename=eigmodes_path)
 
-    if 'ZD_Pk_filename' in params:
-        shutil.copy(params['ZD_Pk_filename'], pjoin(params['InitialConditionsDirectory'], "input.pow"))
-    else:
-        assert 'ZD_Pk_powerlaw_index' in params
+    #if 'ZD_Pk_filename' in params:
+    #    shutil.copy(params['ZD_Pk_filename'], pjoin(params['InitialConditionsDirectory'], "input.pow"))
+    #else:
+    #    assert 'ZD_Pk_powerlaw_index' in params
 
     ZD_cmd = [pjoin(zeldovich_dir, "zeldovich"), paramfn]
 
@@ -222,14 +223,14 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par', **kwa
     
     # Copy over info dir and other important files
     # is parfn in the info dir?
-    try: shutil.copytree(pjoin(path.dirname(parfn), path.pardir, 'info'), pjoin(sim_dir, 'info'))
-    except: pass
+    #try: shutil.copytree(pjoin(path.dirname(parfn), path.pardir, 'info'), pjoin(sim_dir, 'info'))
+    #except: pass
     # is parfn next to the info dir?
-    try: shutil.copytree(pjoin(path.dirname(parfn), 'info'), pjoin(sim_dir, 'info'))
-    except: pass
+    #try: shutil.copytree(pjoin(path.dirname(parfn), 'info'), pjoin(sim_dir, 'info'))
+    #except: pass
     
-    if not path.isdir(pjoin(sim_dir, 'info')):
-        print("Warning: no info dir found to copy")
+    #if not path.isdir(pjoin(sim_dir, 'info')):
+    #    print("Warning: no info dir found to copy")
 
     # heuristic replacement of abacus directory, somewhat dangerous
     new_params = dict(old_params).copy()
@@ -273,6 +274,10 @@ def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par', **kwa
             assert path.isfile(new_params['ZD_Pk_filename'])
         else:
             assert 'ZD_Pk_powerlaw_index' in new_params
+            
+    # if 
+    if ('ZD_Pk_file_redshift' in kwargs or 'InitialRedshift' in kwargs) and 'ZD_Pk_sigma_ratio' in new_params:
+        del new_params['ZD_Pk_sigma_ratio']
 
     for k in kwargs:
         try:

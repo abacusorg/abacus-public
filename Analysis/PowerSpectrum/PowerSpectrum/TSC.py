@@ -100,7 +100,8 @@ def BinParticlesFromMem(positions, gridshape, boxsize, weights=None, dtype=np.fl
     return density
     
 
-def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zspace=False, format='pack14', rotate_to=None, prep_rfft=False, nthreads=-1, readahead=1, verbose=False, return_NP=False):
+def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zspace=False, format='pack14', rotate_to=None,
+                         prep_rfft=False, nthreads=-1, nreaders=1, readahead=1, verbose=False, return_NP=False):
     '''
     Main entry point for density field computation from files on disk of various formats.
     
@@ -134,6 +135,8 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
         Default: False.
     nthreads: int, optional
         Number of threads.  Default of -1 uses all available cores.
+    nreaders: int, optional
+        Number of IO threads. Default: 1
     readahead: int, optional
         How many files to read ahead of what's been binned. -1 allows unbounded readahead.
         Default: 1.
@@ -169,13 +172,14 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
 
     if nthreads < 1:
         nthreads = maxthreads
-    ReadAbacus_threads = ReadAbacus.get_nthreads_by_format(format)
+    ReadAbacus_threads = nreaders*ReadAbacus.get_nthreads_by_format(format)
     nthreads = max(1,nthreads-ReadAbacus_threads)
     if verbose:
-        print(f'TSC with {nthreads} threads, {ReadAbacus_threads} ReadAbacus threads')
+        print(f'TSC with {nthreads} threads, {ReadAbacus_threads} ReadAbacus threads ({nreaders} IO threads)')
 
 
-    reader_kwargs = dict(return_vel=False, zspace=zspace, dtype=dtype, format=format, units='box', readahead=readahead, verbose=verbose)
+    reader_kwargs = dict(return_pos=True, return_vel=False, zspace=zspace, dtype=dtype, format=format,
+                         units=None, readahead=readahead, verbose=verbose, nreaders=nreaders)
 
     if format == 'rvzel':
         reader_kwargs.update(return_zel=False, add_grid=True, boxsize=boxsize)
@@ -184,16 +188,21 @@ def BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=np.float32, zsp
     elif format == 'gadget':
         reader_kwargs.update(boxsize=boxsize)
     elif format == 'state':
-        reader_kwargs.update(boxsize=boxsize, return_pos=True)
+        reader_kwargs.update(boxsize=boxsize)
     elif format == 'rvint':
         reader_kwargs.update(boxsize=boxsize)
+        
+    # Rather than convert units, do the TSC in the native units
+    tsc_box = ReadAbacus.get_box_on_disk(file_pattern, format=format)
+    if tsc_box == 'box':
+        tsc_box = boxsize
 
     np_read = 0
     tsc_timer = ContextTimer('Cumulative TSC binning', cumulative=True, output=True)
     for data in ReadAbacus.AsyncReader(file_pattern, **reader_kwargs):
         np_read += len(data['pos'])
         with tsc_timer:
-            TSC(data['pos'], density, boxsize, rotate_to=rotate_to, prep_rfft=prep_rfft, nthreads=nthreads, inplace=True)
+            TSC(data['pos'], density, tsc_box, rotate_to=rotate_to, prep_rfft=prep_rfft, nthreads=nthreads, inplace=True)
         del data; gc.collect()
     if verbose:
         print(f'TSC read {np_read} particles = ppd {np_read**(1/3)}')
@@ -295,11 +304,14 @@ def TSC(positions, density, boxsize, weights=None, prep_rfft=False, rotate_to=No
         wchunks = [weights if weights is not None else np.empty(0)]
 
     assert len(pchunks) == nchunks
+    
+    simple = weights is None and density.ndim == 3
+    numba_func = numba_tsc_3D_simple if simple else numba_tsc_3D
 
     if density.ndim == 3:
-        spawn_thread = lambda i: threading.Thread(target=numba_tsc_3D, args=(pchunks[i], density, boxsize), kwargs={'weights':wchunks[i]})
+        spawn_thread = lambda i: threading.Thread(target=numba_func, args=(pchunks[i], density, boxsize), kwargs={'weights':wchunks[i]} if not simple else None)
     elif density.ndim == 2:
-        spawn_thread = lambda i: threading.Thread(target=numba_tsc_3D, args=(pchunks[i], density[...,None], boxsize), kwargs={'weights':wchunks[i]})
+        spawn_thread = lambda i: threading.Thread(target=numba_func, args=(pchunks[i], density[...,None], boxsize), kwargs={'weights':wchunks[i]} if not simple else None)
     else:
         raise ValueError(density.ndim)
 
@@ -381,67 +393,75 @@ def rightwrap(x, L):
 # The 2D density field must have 3 axes, with the last axis flat
 # Only the x,y positions will be used in the 2D case
 # TODO: rewrite using Numba stencils? They currently don't support periodicity.
-@numba.jit(nopython=True, nogil=True)
+@numba.jit(nopython=True, nogil=True, fastmath=False)
 def numba_tsc_3D(positions, density, boxsize, weights=np.empty(0)):
-    gx = np.uint32(density.shape[0])
-    gy = np.uint32(density.shape[1])
-    gz = np.uint32(density.shape[2])
+    ftype = positions.dtype.type
+    itype = np.int16
+    gx = itype(density.shape[0])
+    gy = itype(density.shape[1])
+    gz = itype(density.shape[2])
+    
+    # because float32 * int32 = float64 in numba...
+    fgx = ftype(gx)
+    fgy = ftype(gy)
+    fgz = ftype(gz)
+    
     threeD = gz != 1
-    W = 1.
+    W = ftype(1.)
     Nw = len(weights)
     for n in range(len(positions)):
         # broadcast scalar weights
         if Nw == 1:
-            W = weights[0]
+            W = ftype(weights[0])  # todo, possibly unsafe
         elif Nw > 1:
-            W = weights[n]
+            W = ftype(weights[n])
         
         # convert to a position in the grid
-        px = (positions[n,0]/boxsize + .5)*gx
-        py = (positions[n,1]/boxsize + .5)*gy
+        px = (positions[n,0]/boxsize + ftype(.5))*fgx
+        py = (positions[n,1]/boxsize + ftype(.5))*fgy
         if threeD:
-            pz = (positions[n,2]/boxsize + .5)*gz
+            pz = (positions[n,2]/boxsize + ftype(.5))*fgz
         
         # round to nearest cell center
-        ix = np.int32(round(px))
-        iy = np.int32(round(py))
+        ix = itype(round(px))
+        iy = itype(round(py))
         if threeD:
-            iz = np.int32(round(pz))
+            iz = itype(round(pz))
         
         # calculate distance to cell center
-        dx = ix - px
-        dy = iy - py
+        dx = ftype(ix) - px
+        dy = ftype(iy) - py
         if threeD:
-            dz = iz - pz
+            dz = ftype(iz) - pz
         
         # find the tsc weights for each dimension
-        wx = .75 - dx**2
-        wxm1 = .5*(.5 + dx)**2
-        wxp1 = .5*(.5 - dx)**2
-        wy = .75 - dy**2
-        wym1 = .5*(.5 + dy)**2
-        wyp1 = .5*(.5 - dy)**2
+        wx = ftype(.75) - dx**2
+        wxm1 = ftype(.5)*(ftype(.5) + dx)**2
+        wxp1 = ftype(.5)*(ftype(.5) - dx)**2
+        wy = ftype(.75) - dy**2
+        wym1 = ftype(.5)*(ftype(.5) + dy)**2
+        wyp1 = ftype(.5)*(ftype(.5) - dy)**2
         if threeD:
-            wz = .75 - dz**2
-            wzm1 = .5*(.5 + dz)**2
-            wzp1 = .5*(.5 - dz)**2
+            wz = ftype(.75) - dz**2
+            wzm1 = ftype(.5)*(ftype(.5) + dz)**2
+            wzp1 = ftype(.5)*(ftype(.5) - dz)**2
         else:
-            wz = 1.
+            wz = ftype(1.)
         
         # find the wrapped x,y,z grid locations of the points we need to change
         # negative indices will be automatically wrapped
-        ixm1 = (ix - 1)
+        ixm1 = (ix - itype(1))
         ixw  = rightwrap(ix    , gx)
-        ixp1 = rightwrap(ix + 1, gx)
-        iym1 = (iy - 1)
+        ixp1 = rightwrap(ix + itype(1), gx)
+        iym1 = (iy - itype(1))
         iyw  = rightwrap(iy    , gy)
-        iyp1 = rightwrap(iy + 1, gy)
+        iyp1 = rightwrap(iy + itype(1), gy)
         if threeD:
-            izm1 = (iz - 1)
+            izm1 = (iz - itype(1))
             izw  = rightwrap(iz    , gz)
-            izp1 = rightwrap(iz + 1, gz)
+            izp1 = rightwrap(iz + itype(1), gz)
         else:
-            izw = np.uint32(0)
+            izw = itype(0)
         
         # change the 9 or 27 cells that the cloud touches
         density[ixm1, iym1, izw ] += wxm1*wym1*wz  *W
@@ -481,6 +501,98 @@ def numba_tsc_3D(positions, density, boxsize, weights=np.empty(0)):
 
             density[ixp1, iyp1, izm1] += wxp1*wyp1*wzm1*W
             density[ixp1, iyp1, izp1] += wxp1*wyp1*wzp1*W
+            
+
+@numba.jit(nopython=True, nogil=True, fastmath=False)
+def numba_tsc_3D_simple(positions, density, boxsize):
+    ftype = positions.dtype.type
+    itype = np.int16
+    gx = itype(density.shape[0])
+    gy = itype(density.shape[1])
+    gz = itype(density.shape[2])
+    
+    # because float32 * int32 = float64 in numba...
+    fgx = ftype(gx)
+    fgy = ftype(gy)
+    fgz = ftype(gz)
+    
+    for n in range(len(positions)):
+        # convert to a position in the grid
+        px = (positions[n,0]/boxsize + ftype(.5))*fgx
+        py = (positions[n,1]/boxsize + ftype(.5))*fgy
+        pz = (positions[n,2]/boxsize + ftype(.5))*fgz
+        
+        # round to nearest cell center
+        ix = itype(round(px))
+        iy = itype(round(py))
+        iz = itype(round(pz))
+        
+        # calculate distance to cell center
+        dx = ftype(ix) - px
+        dy = ftype(iy) - py
+        dz = ftype(iz) - pz
+        
+        # find the tsc weights for each dimension
+        wx = ftype(.75) - dx**2
+        wxm1 = ftype(.5)*(ftype(.5) + dx)**2
+        wxp1 = ftype(.5)*(ftype(.5) - dx)**2
+        wy = ftype(.75) - dy**2
+        wym1 = ftype(.5)*(ftype(.5) + dy)**2
+        wyp1 = ftype(.5)*(ftype(.5) - dy)**2
+        
+        wz = ftype(.75) - dz**2
+        wzm1 = ftype(.5)*(ftype(.5) + dz)**2
+        wzp1 = ftype(.5)*(ftype(.5) - dz)**2
+        
+        # find the wrapped x,y,z grid locations of the points we need to change
+        # negative indices will be automatically wrapped
+        ixm1 = (ix - itype(1))
+        ixw  = rightwrap(ix    , gx)
+        ixp1 = rightwrap(ix + itype(1), gx)
+        iym1 = (iy - itype(1))
+        iyw  = rightwrap(iy    , gy)
+        iyp1 = rightwrap(iy + itype(1), gy)
+        
+        izm1 = (iz - itype(1))
+        izw  = rightwrap(iz    , gz)
+        izp1 = rightwrap(iz + itype(1), gz)
+        
+        # change the 9 or 27 cells that the cloud touches
+        density[ixm1, iym1, izm1] += wxm1*wym1*wzm1
+        density[ixm1, iym1, izw ] += wxm1*wym1*wz
+        density[ixm1, iym1, izp1] += wxm1*wym1*wzp1
+        
+        density[ixm1, iyw , izm1] += wxm1*wy  *wzm1
+        density[ixm1, iyw , izw ] += wxm1*wy  *wz  
+        density[ixm1, iyw , izp1] += wxm1*wy  *wzp1
+        
+        density[ixm1, iyp1, izm1] += wxm1*wyp1*wzm1
+        density[ixm1, iyp1, izw ] += wxm1*wyp1*wz  
+        density[ixm1, iyp1, izp1] += wxm1*wyp1*wzp1
+        
+        density[ixw , iym1, izm1] += wx  *wym1*wzm1
+        density[ixw , iym1, izw ] += wx  *wym1*wz  
+        density[ixw , iym1, izp1] += wx  *wym1*wzp1
+        
+        density[ixw , iyw , izm1] += wx  *wy  *wzm1
+        density[ixw , iyw , izw ] += wx  *wy  *wz  
+        density[ixw , iyw , izp1] += wx  *wy  *wzp1
+        
+        density[ixw , iyp1, izm1] += wx  *wyp1*wzm1
+        density[ixw , iyp1, izw ] += wx  *wyp1*wz  
+        density[ixw , iyp1, izp1] += wx  *wyp1*wzp1
+        
+        density[ixp1, iym1, izm1] += wxp1*wym1*wzm1
+        density[ixp1, iym1, izw ] += wxp1*wym1*wz  
+        density[ixp1, iym1, izp1] += wxp1*wym1*wzp1
+        
+        density[ixp1, iyw , izm1] += wxp1*wy  *wzm1
+        density[ixp1, iyw , izw ] += wxp1*wy  *wz  
+        density[ixp1, iyw , izp1] += wxp1*wy  *wzp1
+        
+        density[ixp1, iyp1, izm1] += wxp1*wyp1*wzm1
+        density[ixp1, iyp1, izw ] += wxp1*wyp1*wz          
+        density[ixp1, iyp1, izp1] += wxp1*wyp1*wzp1
 
 # The following are window functions for TSC-derived power spectra
 # TODO: re-write these with nb.prange

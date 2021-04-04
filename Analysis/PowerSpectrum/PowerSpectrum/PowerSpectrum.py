@@ -99,7 +99,9 @@ def CalculateFromMem(positions, gridshape, boxsize, *, weights=None, dtype=np.fl
 
 
 @processargs
-def CalculateBySlab(file_pattern, gridshape, boxsize, *, dtype=np.float32, zspace=False, format='pack14', rotate_to=None, bins=-1, log=False, window='window_aliased'):
+def CalculateBySlab(file_pattern, gridshape, boxsize, *, dtype=np.float32, zspace=False,
+                    format='pack14', rotate_to=None, bins=-1, log=False,
+                    window='window_aliased', nreaders=1):
     '''
     Main entry point for PS computation from files on disk of various formats.
     
@@ -136,7 +138,8 @@ def CalculateBySlab(file_pattern, gridshape, boxsize, *, dtype=np.float32, zspac
         'window' only divides out the TSC window function.
         'window_aliased' also compensates for aliasing across
         Nyquist, but assumes constant P(k) past Nyquist.
-
+    nreaders: int, optional
+        Number of IO threads. Default: 1
 
     Returns:
     --------
@@ -153,10 +156,16 @@ def CalculateBySlab(file_pattern, gridshape, boxsize, *, dtype=np.float32, zspac
     '''
     
     # Do the binning
-    density, nread = TSC.BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=dtype, zspace=zspace, format=format, rotate_to=rotate_to, prep_rfft=True, nthreads=nthreads, verbose=verbose, return_NP=True)
+    density, nread = TSC.BinParticlesFromFile(file_pattern, boxsize, gridshape, dtype=dtype, zspace=zspace,
+                                              format=format, rotate_to=rotate_to, prep_rfft=True,
+                                              nthreads=nthreads, nreaders=nreaders, verbose=verbose, return_NP=True)
+    
+    multipoles=0
+    if zspace:
+        multipoles = (0,2,4)
     
     # Do the FFT
-    return FFTAndBin(density, boxsize, bins=bins, log=log, inplace=True, window=window, expected_NP=nread)
+    return FFTAndBin(density, boxsize, bins=bins, log=log, inplace=True, window=window, expected_NP=nread, multipoles=multipoles)
     
 
 @processargs
@@ -416,7 +425,7 @@ def FFTAndBin(density, boxsize, *, inplace=False, bins=-1, log=False, window='wi
         The full 2D/3D power spectrum (Fourier transform of the deltas,
         squared and normalized)
     """
-    timer = ContextTimer('FTT and radial bin')
+    timer = ContextTimer('FFTAndBin')
     timer.Start()
 
     dtype = density.dtype.type
@@ -441,16 +450,21 @@ def FFTAndBin(density, boxsize, *, inplace=False, bins=-1, log=False, window='wi
         sigma2 = ne.evaluate('sum((1.*density_real)**2)')/density_real.size
         print("RMS density fluctuation: {:.6g}".format(np.sqrt(sigma2)))
 
-    power = _FFT(density, boxsize, window=window, inplace=inplace, power=True)
+    with ContextTimer('FFT'):
+        power = _FFT(density, boxsize, window=window, inplace=inplace, power=True)
     if bins is None:
         return power
+    
+    if verbose:
+        print('Done FFT, starting binning', flush=True)
     
     ret_bi = True
     if bin_info is False:
         ret_bi = False
         bin_info = None
 
-    k, all_P, nmodes, bin_info = RadialBinGrid(boxsize, power, bins, rfft=True, bin_info=bin_info, multipoles=multipoles)
+    with ContextTimer('Radial bin'):
+        k, all_P, nmodes, bin_info = RadialBinGrid(boxsize, power, bins, rfft=True, bin_info=bin_info, multipoles=multipoles)
 
     timer.stop()
     
@@ -717,3 +731,22 @@ def GenerateWisdom(shape, axes='max3', dtype=np.float32, forward=True, planner_e
 
     # Tell _FFT and _IFFT to only use existing wisdom
     flags = [planner_effort, 'FFTW_WISDOM_ONLY']
+    
+    
+DEFAULT_WISDOM_FN = os.path.join(os.path.dirname(__file__), 'wisdom.pyfftw')
+    
+import json
+def SaveWisdomToDisk(fn=DEFAULT_WISDOM_FN):
+    with open(fn,'w') as fp:
+        json.dump(pyfftw.export_wisdom(), fp)
+    
+
+def LoadWisdomFromDisk(fn=DEFAULT_WISDOM_FN, onlywisdom=True):
+    with open(fn,'r') as fp:
+        pyfftw.import_wisdom(json.load(fp))
+        
+    global flags
+    if onlywisdom:
+        # Tell _FFT and _IFFT to only use existing wisdom
+        flags = [planner_effort, 'FFTW_WISDOM_ONLY']
+    
