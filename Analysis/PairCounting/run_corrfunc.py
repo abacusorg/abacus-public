@@ -17,6 +17,7 @@ from os import path
 from os.path import join as pjoin
 from glob import glob
 import timeit
+import gc
 
 import numpy as np
 import Corrfunc
@@ -71,17 +72,16 @@ def run(args):
                     header2 = {'NP':len(ps[0]), 'BoxSize':box}
             else:
                 p = ReadAbacus.from_dir(primary, format=args['format'], dtype=args['dtype'], return_vel=False, downsample=ds, zspace=zspace)
-                header = p.meta
-                print(p['pos'])
+                header = p.meta.copy()
+                p = p['pos'].data
+                
                 if zspace: # ReadAbacus returned pos+vel in p['pos'], not wrapped. 
-                    p['pos'] = ( (p['pos'] + 0.5) % 1 ) - 0.5 #wrap to -0.5 , 0.5 box
-                print(p['pos'])
+                    p = ( (p + 0.5) % 1 ) - 0.5 #wrap to -0.5 , 0.5 box
 
                 print("Read", len(p), "particles.")
               
                 #if ds == None:
                 #    assert header['NP'] == len(p)
-                p = p['pos']
                 
                 _box = header.get('BoxSize')
                 if not box:
@@ -91,6 +91,7 @@ def run(args):
 
                 #ne.evaluate('p*b', out=p, local_dict={'p':p,'b':p.dtype.type(box)})
                 p = p.T
+                p = np.ascontiguousarray(p)
 
                 if crosscorr:
                     ps, header2 = ReadAbacus.from_dir(args['secondary'], format=args['format'], dtype=args['dtype'], return_vel=False, return_header=True, downsample=ds)
@@ -114,6 +115,7 @@ def run(args):
                 X2, Y2, Z2 = None, None, None
 
         print('* Starting pair counting on {} primary particles...'.format(header['NP']))
+        gc.collect()
         with ContextTimer('Pair counting'):
             results = Corrfunc.theory.DD(autocorr=not crosscorr, nthreads=args['nthreads'], binfile=bin_edges_valid,
                                 X1=p[0], Y1=p[1], Z1=p[2],
@@ -123,6 +125,7 @@ def run(args):
                                 max_cells_per_dim=300,
                                 copy_particles=True)
         del p, X2, Y2, Z2
+        gc.collect()
         print('* Done.')
 
         # Save the header and results
