@@ -189,13 +189,12 @@ int main(int argc, char **argv) {
     STDLOG(0,"MakeIC = %d\n", MakeIC);
     #ifdef PARALLEL
 		//signal(SIGUSR1, graceful_exit_signal_handler);
-
         STDLOG(0,"Initialized MPI.\n");
         STDLOG(0,"Node rank %d of %d total\n", MPI_rank, MPI_size);
-        char hostname[1024];
-        gethostname(hostname,1024);
-        STDLOG(0,"Host machine name is %s\n", hostname);
     #endif
+    char hostname[1024];
+    gethostname(hostname,1024);
+    STDLOG(0,"Host machine name is %s\n", hostname);
 
     SetupLocalDirectories(MakeIC);
 

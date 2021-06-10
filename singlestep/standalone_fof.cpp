@@ -23,7 +23,7 @@
     strcpy(ReadState.Pipeline, "standalone_fof");
     strcpy(ReadState.ParameterFileName, argv[1]);
 
-    // Override any parameters that it don't make sense in this context
+    // Override any parameters that don't make sense in this context
     P.AllowGroupFinding = 1;
     P.L1Output_dlna = 0.;  // force group finding output
     WriteState.ScaleFactor = ReadState.ScaleFactor;

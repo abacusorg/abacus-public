@@ -1442,7 +1442,7 @@ def showwarning(message, category, filename, lineno, file=None, line=None):
 warnings.showwarning = showwarning
 
 
-def reset_affinity(max_core_id=1024):
+def reset_affinity(max_core_id=256):
     '''
     Resets the core affinity of the current process/thread.
     Mainly used by `call_subprocess()`.
