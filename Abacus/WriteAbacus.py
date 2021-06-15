@@ -7,6 +7,8 @@ TODO: add a pack14 writer
 See ReadAbacus.py for equivalent interfaces to read these formats.
 '''
 
+from pathlib import Path
+
 import numpy as np
 import numba
 
@@ -114,14 +116,14 @@ class SlabWriter:
                'same':lambda *args,**kwargs: write(*args,**kwargs)
                }
 
-    def x2s(self, x):
+    def _x2s(self, x):
         return x2s(x, self.boxsize, self.cpd)
 
     def __call__(self, *args, **kwargs):
         return self.ingest(*args, **kwargs)
 
     # Assigns particles to slabs
-    def ingest(self, particles=None, pos=None, vel=None, pid=None, slabinfo=None):
+    def ingest(self, particles=None, pos=None, vel=None, pid=None, _slabinfo=None):
         if particles is not None:
             assert pos is None and vel is None and pid is None
             pos = particles['pos']
@@ -130,10 +132,10 @@ class SlabWriter:
             # maybe we should forcibly pack together arrays passed separately?
 
         # Do we already know the pos->slab assignments?
-        if slabinfo:
-            slabs,s1,s2 = slabinfo
+        if _slabinfo:
+            slabs,s1,s2 = _slabinfo
         else:
-            slabs = self.x2s(pos[:,0])
+            slabs = self._x2s(pos[:,0])
             s1 = slabs.min()
             s2 = slabs.max()
             if self.verbose:
@@ -157,12 +159,12 @@ class SlabWriter:
                 for lo,hi in zip(splits[:-1],splits[1:]):
                     if particles is not None:
                         self.ingest(particles=particles[lo:hi],
-                                    slabinfo=(slabs[lo:hi], slabs[lo], slabs[lo]))
+                                    _slabinfo=(slabs[lo:hi], slabs[lo], slabs[lo]))
                     else:
                         self.ingest(pos=pos[lo:hi],
                                     vel=vel[lo:hi],
                                     pid=pid[lo:hi],
-                                    slabinfo=(slabs[lo:hi], slabs[lo], slabs[lo]))
+                                    _slabinfo=(slabs[lo:hi], slabs[lo], slabs[lo]))
 
             # Not sorted; sort and recurse
             else:
@@ -171,12 +173,12 @@ class SlabWriter:
 
                 if particles is not None:
                     particles = particles[inds]  # this is the performance bottleneck, could make parallel
-                    self.ingest(particles=particles, slabinfo=(slabs,s1,s2))
+                    self.ingest(particles=particles, _slabinfo=(slabs,s1,s2))
                 else:
                     pos = pos[inds]
                     vel = vel[inds]
                     pid = pid[inds]
-                    self.ingest(pos=pos, vel=vel, pid=pid, slabinfo=(slabs,s1,s2))
+                    self.ingest(pos=pos, vel=vel, pid=pid, _slabinfo=(slabs,s1,s2))
                 
     def __del__(self):
         if self.num_written.sum() != self.NP:
@@ -194,5 +196,7 @@ class SlabWriter:
         self.num_written = np.zeros(cpd, dtype=np.int)
         self.verbose = verbose
                 
-        self.output_fn_fmt = outdir+"/ic_{}"
+        self.output_fn_fmt = str(Path(outdir) / "ic_{}")
         self.writer = SlabWriter.writers[format]
+
+formats = list(SlabWriter.writers)

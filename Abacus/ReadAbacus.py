@@ -27,6 +27,7 @@ import threading
 import queue
 from warnings import warn
 import gc
+from pathlib import Path
 
 from astropy.utils import iers
 iers.conf.auto_download = False
@@ -340,7 +341,8 @@ def AsyncReader(path, readahead=1, chunksize=1, key=None, verbose=False, return_
 # Begin list of reader functions
 ################################
 
-def read_packN(N, fn, return_pos=True, return_vel=True, zspace=False, return_pid=False, return_header=False, dtype=np.float32, boxsize=None, downsample=None, out=None):
+def read_packN(N, fn, return_pos=True, return_vel=True, zspace=False, return_pid=False, return_header=False,
+               dtype=np.float32, boxsize=None, downsample=None, out=None):
     """
     Read particle data from a file in pack9 or pack14 format.
     
@@ -414,8 +416,13 @@ def read_packN(N, fn, return_pos=True, return_vel=True, zspace=False, return_pid
     pidout = _out['pid'] if return_pid else None
     
     nthread = 1
-    with ContextTimer('Unpack',output-False) as unpack_timer:
+    with ContextTimer('Unpack',output=False) as unpack_timer:
         NP = reader(data, data.nbytes, nthread, zspace, downsample, posout, velout, pidout)
+        
+    if N == 9 and return_pid:
+        pidfn = fn.replace('pack9.dat', 'pack9_pids.dat')
+        npid = Path(pidfn).stat().st_size // pidout.dtype.itemsize  # no header
+        pidout[:npid] = np.fromfile(pidfn, dtype=pidout.dtype)
 
     _out.meta['read_time'] = timer.elapsed + _out.meta.get('read_time',0.)
     _out.meta['unpack_time'] = unpack_timer.elapsed + _out.meta.get('unpack_time',0.)
@@ -1093,6 +1100,16 @@ def skip_header(fp, max_tries=10, encoding='utf-8'):
     header = header[:-2]  # trim the last two bytes
     return header.decode(encoding)
 
+def get_any_header(dir, format):
+    # TODO: asdf, etc
+    fns = get_files_from_path(dir, format=format)
+    
+    with open(fns[0], 'rb') as fp:
+        header = skip_header(fp)
+    if header:
+        header = InputFile(str_source=header)
+    return header
+
 
 # These defaults have to be consistent with the reader function defaults
 def allocate_table(N, return_pos=True, return_vel=True, return_pid=False, return_zel=False, return_aux=False, dtype=np.float32):
@@ -1201,6 +1218,7 @@ reader_functions = {'pack14':read_pack14, 'pack9':read_pack9, 'pack14_lite':read
                     'state':read_state,
                     'rvint':read_rvint,
                     'asdf':read_asdf, 'asdf_b':read_asdf, 'asdf_a':read_asdf, 'asdf_pack9':read_asdf}
+formats = list(reader_functions)
 default_file_patterns = {'pack14':'*.dat',
                          'pack9':('*L0_pack9.dat', '*field_pack9.dat'),
                          'rvint' : ('*rv_A*', '*rv_B*'),
@@ -1279,15 +1297,14 @@ def get_files_from_path(path, format=None, pattern=None, key=None, **kwargs):
 
     _key = (lambda k: key(basename(k))) if key else None
 
-    if type(path) is str:
-        paths = (path,)
-    else:
-        # If not a string, must already be a list
+    try:
+        paths = [Path(path)]
+    except:
         try:
-            len(path)
+            paths = [Path(p) for p in path]
         except:
-            raise ValueError(f'path must be a string or iterable, not {type(path)}!')
-        paths = path
+            raise ValueError(f'path must be (iterable of) path-like!')
+    del path
 
     if type(pattern) is str:
         patterns = (pattern,)
@@ -1295,9 +1312,6 @@ def get_files_from_path(path, format=None, pattern=None, key=None, **kwargs):
     files = []
     for path in paths:
         # Determine the file names to read
-        if type(path) is not str:
-            raise ValueError(f'All path values must be str. Found {type(path)}')
-
         if isdir(path):
             if pattern is None:
                 if is_ic_path(path):

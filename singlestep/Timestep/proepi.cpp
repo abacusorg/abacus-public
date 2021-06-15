@@ -751,6 +751,11 @@ void InitGroupFinding(bool MakeIC){
             ReadState.DoSubsampleOutput = 1;
         }
     }
+    
+    if(P.OutputAllHaloParticles){
+        ReadState.DoSubsampleOutput = 1;
+        STDLOG(0,"OutputAllHaloParticles = 1; forcing subsample A = 100%% and B = 0%%\n");
+    }
 
 
     if ( ReadState.DoTimeSliceOutput ) ReadState.DoSubsampleOutput = 1;
