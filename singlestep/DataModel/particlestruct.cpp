@@ -77,7 +77,7 @@ When we store into the output TaggedPID format, we apply a bit mask to zero all 
 #define AUXPIDMASK 0x7fff7fff7fff
 
 #define NAUXPIDBITS 45  // total of 45 bits used for PIDs
-#define PIDBITGAP 2  // two bits in between each PID segment
+#define PIDBITGAP 1  // one bit in between each PID segment
 
 class auxstruct {
 public:
