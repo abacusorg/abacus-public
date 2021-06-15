@@ -19,12 +19,21 @@ int StandaloneFOFLoadSlabPrecondition(int slab) {
 }
 
 void StandaloneFOFLoadSlabAction(int slab) {
-    char fnameL0[1024], fnamefield[1024];;
-    // TODO: Add support for L0 slabs?
+    char fnameL0[1024], fnamefield[1024];
+    char fnameL0pid[1024], fnamefieldpid[1024];
+    
     int ret = snprintf(fnamefield, 1024, "%s/%s.z%5.3f.slab%04d.field.dat", StandaloneFOF_slice_dir, P.SimName, ReadState.Redshift, slab);
     assert(ret >= 0 && ret < 1024);
+    
     ret = snprintf(fnameL0, 1024, "%s/%s.z%5.3f.slab%04d.L0.dat", StandaloneFOF_slice_dir, P.SimName, ReadState.Redshift, slab);
     assert(ret >= 0 && ret < 1024);
+    
+    ret = snprintf(fnamefieldpid, 1024, "%s/%s.z%5.3f.slab%04d.field_.dat", StandaloneFOF_slice_dir, P.SimName, ReadState.Redshift, slab);
+    assert(ret >= 0 && ret < 1024);
+    
+    ret = snprintf(fnameL0pid, 1024, "%s/%s.z%5.3f.slab%04d.L0.dat", StandaloneFOF_slice_dir, P.SimName, ReadState.Redshift, slab);
+    assert(ret >= 0 && ret < 1024);
+    
     STDLOG(1,"Load Slab %d from \"%s\", \"%s\"\n", slab, fnameL0, fnamefield);
 
     size_t s = fsize(fnamefield);
@@ -117,11 +126,6 @@ void timestepStandaloneFOF(const char* slice_dir) {
         FindCellGroupLinks.Attempt();
         DoGlobalGroups.Attempt();
         Finish.Attempt();
-       SendManifest->FreeAfterSend();
-
-    ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
-    // If the manifest has been received, install it.
-    if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
     }
 
     TimeStepWallClock.Stop();

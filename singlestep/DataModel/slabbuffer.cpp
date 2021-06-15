@@ -459,7 +459,12 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
         case VelSlab       : { ss << P.LocalReadStateDirectory << "/velocity_"   << slabnum; break; }
         case AuxSlab       : { ss << P.LocalReadStateDirectory << "/auxillary_"  << slabnum; break; }
         case VelLPTSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
-        case FieldTimeSlice     : { ss << WriteSlabPath(type, slab); break; }  // used for standalone FOF
+        
+        // used for standalone FOF
+        case FieldTimeSlice     : { ss << WriteSlabPath(type, slab); break; }
+        case L0TimeSlice     : { ss << WriteSlabPath(type, slab); break; }
+        case FieldTimeSlicePIDs     : { ss << WriteSlabPath(type, slab); break; }
+        case L0TimeSlicePIDs     : { ss << WriteSlabPath(type, slab); break; }
         
         case ICSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
 
@@ -511,6 +516,15 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
         }
         case FieldTimeSlice : {
             return fsize(ReadSlabPath(FieldTimeSlice,slab).c_str());
+        }
+        case L0TimeSlice : {
+            return fsize(ReadSlabPath(L0TimeSlice,slab).c_str());
+        }
+        case L0TimeSlicePIDs : {
+            return fsize(ReadSlabPath(L0TimeSlicePIDs,slab).c_str());
+        }
+        case FieldTimeSlicePIDs : {
+            return fsize(ReadSlabPath(FieldTimeSlicePIDs,slab).c_str());
         }
 
         /* // Ideally this is how we would allocate group finding arenas
