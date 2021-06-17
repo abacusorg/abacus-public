@@ -41,12 +41,13 @@ from Abacus.Tools import ArgParseFormatter
 from os.path import join as pjoin
 
 # source and destination endpoints
-OLCF_DTN_ENDPOINT = 'ef1a9560-7ca1-11e5-992c-22000b96db58'
-NERSC_DTN_ENDPOINT = '9d6d994a-6d04-11e5-ba46-22000b92c6ec'
-MARVIN_ENDPOINT = '45d63946-5906-11ea-9682-0e56c063f437'
-FLATIRON_ENDPOINT = 'c3dc2ae2-74c6-11e8-93bb-0a6d4e044368'
+OLCF = 'ef1a9560-7ca1-11e5-992c-22000b96db58'
+NERSC = '9d6d994a-6d04-11e5-ba46-22000b92c6ec'
+MARVIN = '45d63946-5906-11ea-9682-0e56c063f437'
+FLATIRON = 'c3dc2ae2-74c6-11e8-93bb-0a6d4e044368'
 
 # Destination Path -- The directory will be created if it doesn't exist
+# TODO: make arg; associate with endpoint 
 DEFAULT_NERSC_DEST = '/global/cfs/cdirs/desi/cosmosim/Abacus'
 DEFAULT_MARVIN_DEST = '/mnt/store/AbacusSummit'
 DEFAULT_FLATIRON_DEST = '/mnt/home/lgarrison/ceph/AbacusSummit'
@@ -90,7 +91,7 @@ def write_status_log(status_log, status_log_fn):
 
 def update_all_status_from_globus(transfer_client=None, status_log=None,
                                     status_log_fn=DEFAULT_STATUS_FILE,
-                                    source_endpoint=OLCF_DTN_ENDPOINT, dest_endpoint=NERSC_DTN_ENDPOINT):
+                                    source_endpoint=OLCF, dest_endpoint=NERSC):
     '''
     For each unfinished box in the status_log dict,
     query globus to get its status_log and update
@@ -119,7 +120,11 @@ def update_all_status_from_globus(transfer_client=None, status_log=None,
             continue
 
         submission = boxstatus
-        task = transfer_client.get_task(submission['task_id'])
+        try:
+            task = transfer_client.get_task(submission['task_id'])
+        except:
+            print(f'Task ID not found for {boxname}. Skipping...')
+            continue
         
         task = task.data  # get dict
         if 'event_link' in task:
@@ -237,7 +242,7 @@ def _submit_transfer(tdata, transfer_client, status_log, status_log_fn, boxname)
 
 
 def start_globus_transfer(source_path, exclude=None, include=None, dest_path=DEFAULT_NERSC_DEST,
-                          source_endpoint=OLCF_DTN_ENDPOINT, dest_endpoint=NERSC_DTN_ENDPOINT,
+                          source_endpoint=OLCF, dest_endpoint=NERSC,
                           globus_verify_checksum=True, status_log_fn=DEFAULT_STATUS_FILE,
                           always=['info/','abacus.par','status.log', 'checksums.crc32']):
     '''
@@ -250,14 +255,15 @@ def start_globus_transfer(source_path, exclude=None, include=None, dest_path=DEF
     '''
 
     # Determine the box name from the file path
-    boxname = os.path.basename(os.path.abspath(source_path))
+    source_path = os.path.abspath(source_path)
+    boxname = os.path.basename(source_path)
     assert(os.path.isdir(source_path))
 
     # Globus transfers a directory's contents, not the directory itself
     # so need to make the containing directory on the destination
-    if dest_endpoint == MARVIN_ENDPOINT:
+    if dest_endpoint == MARVIN:
         dest_path = DEFAULT_MARVIN_DEST
-    if dest_endpoint == FLATIRON_ENDPOINT:
+    if dest_endpoint == FLATIRON:
         dest_path = DEFAULT_FLATIRON_DEST
     dest_path = pjoin(dest_path, boxname)
 
@@ -365,8 +371,8 @@ if __name__ == '__main__':
     subparsers = parser.add_subparsers(help='Sub-commands, git-style', required=True, dest='subcommand')
 
     parser.add_argument('--status-log', help='Globus status log filename', default=DEFAULT_STATUS_FILE)
-    parser.add_argument('--source-endpoint', help='The Globus source endpoint', default='OLCF_DTN_ENDPOINT')
-    parser.add_argument('--dest-endpoint', help='The Globus destination endpoint', default='NERSC_DTN_ENDPOINT')
+    parser.add_argument('--from', help='The Globus source endpoint', default='OLCF', dest='source_endpoint')
+    parser.add_argument('--to', help='The Globus destination endpoint', default='NERSC', dest='dest_endpoint')
 
     tparser = subparsers.add_parser('transfer', help='Transfer one or more boxes via Globus',
         description='Transfer one or more boxes via Globus')
@@ -393,10 +399,13 @@ if __name__ == '__main__':
     args = vars(args)
 
     args['status_log_fn'] = args.pop('status_log')
-    # Allow user to pass *_ENDPOINT variable names
+    # Allow user to pass endpoint nicknames
     for k in ('source_endpoint','dest_endpoint'):
-        if args[k].endswith('_ENDPOINT'):
+        try:
             args[k] = eval(args[k])
+        except:
+            pass
+            
 
     del args['subcommand'], args['func']
 

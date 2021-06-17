@@ -242,12 +242,12 @@ def whist_helper_3D(boxsize, values, bin_edges, rfft, multipoles=np.array([0])):
     histogram *= 2
 
     # apply multipoles prefactor
-    histogram *= 2*multipoles.reshape(-1) + 1
+    histogram2 = histogram * (2*multipoles.reshape(-1) + 1)
 
     # Put multipoles first
-    histogram = histogram.T
+    histogram3 = histogram2.T
 
-    return histogram
+    return histogram3
 
 @nb.njit
 def legendre(n, x):
