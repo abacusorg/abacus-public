@@ -332,7 +332,7 @@ def make_ic_files(param, erase_ic=True):
     
     ic_dir = Path(param['InitialConditionsDirectory'])
     
-    if erase_ic:
+    if erase_ic and ic_dir.exists():
         shutil.rmtree(ic_dir)
     ic_dir.mkdir(parents=True, exist_ok=True)
     

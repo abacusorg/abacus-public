@@ -17,3 +17,4 @@ asdf
 toml
 globus_sdk
 fair_research_login
+braceexpand

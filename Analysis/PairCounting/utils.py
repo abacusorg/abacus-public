@@ -18,6 +18,7 @@ import numpy as np
 from Abacus import Tools
 from Abacus.InputFile import InputFile
 from Abacus.Analysis import common
+from Abacus import ReadAbacus
 
 def setup_bins(args):
     '''
@@ -133,7 +134,7 @@ def default_argparse(doc=__doc__):
     parser.add_argument('--resolution-scale', help='For scale-free binning, mask bins above this effective resolution scale (units of interparticle spacing)', type=float, default=35)
     parser.add_argument('--secondary', help='The time slice directory containing the secondary particles for cross-correlations.')
     
-    parser.add_argument('--format', help='Format of the particle data.', default='Pack14', choices=['RVdouble', 'Pack14', 'Pack9', 'RVint', 'RVZel', 'RVPID', 'state', 'gadget'])
+    parser.add_argument('--format', help='Format of the particle data.', default='Pack14', choices=list(ReadAbacus.reader_functions))
     parser.add_argument('--scalefree-index', help='Automatically scales rmin and rmax according to the scale free cosmology with the given spectral index.  Uses the highest redshift for rmax, and the lowest redshift for rmin.', default=None, type=float)
     # TODO: change to amin and amax
     #parser.add_argument('--scalefree_base_a', help='Override the fiducial scale factor for automatic rmin/rmax computation in a scale-free cosmology. Only has an effect with the --scalefree_index option.', default=None, type=float)

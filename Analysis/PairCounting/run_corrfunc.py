@@ -70,8 +70,8 @@ def run(args):
                     assert _box == box
                     header2 = {'NP':len(ps[0]), 'BoxSize':box}
             else:
-                p, header = ReadAbacus.from_dir(primary, format=args['format'], dtype=args['dtype'], return_vel=False, return_header=True, downsample=ds, zspace=zspace)
-                
+                p = ReadAbacus.from_dir(primary, format=args['format'], dtype=args['dtype'], return_vel=False, downsample=ds, zspace=zspace)
+                header = p.meta
                 print(p['pos'])
                 if zspace: # ReadAbacus returned pos+vel in p['pos'], not wrapped. 
                     p['pos'] = ( (p['pos'] + 0.5) % 1 ) - 0.5 #wrap to -0.5 , 0.5 box
@@ -79,8 +79,8 @@ def run(args):
 
                 print("Read", len(p), "particles.")
               
-                if ds == None:
-                    assert header['NP'] == len(p)
+                #if ds == None:
+                #    assert header['NP'] == len(p)
                 p = p['pos']
                 
                 _box = header.get('BoxSize')
@@ -89,7 +89,7 @@ def run(args):
                 header = dict(header)
                 header.update({'NP':len(p), 'BoxSize':box})
 
-                ne.evaluate('p*b', out=p, local_dict={'p':p,'b':p.dtype.type(box)})
+                #ne.evaluate('p*b', out=p, local_dict={'p':p,'b':p.dtype.type(box)})
                 p = p.T
 
                 if crosscorr:
@@ -100,7 +100,7 @@ def run(args):
                     ps = ps['pos']
                     header2 = dict(header2)
                     header2.update({'NP':len(ps), 'BoxSize':box})
-                    ne.evaluate('ps*b', out=ps, local_dict={'ps':ps,'b':ps.dtype.type(box)})
+                    #ne.evaluate('ps*b', out=ps, local_dict={'ps':ps,'b':ps.dtype.type(box)})
                     ps = ps.T
 
             headers = [header]
