@@ -83,14 +83,22 @@ def setup_bins(args):
         del box
 
     # set up base bins (at the earliest time)
-    # TODO: should use fixed bin widths, this means bin widths may change with rmax
-    nbins = int(np.log10(rmax/rmin)*nbin_per_decade)
 
     if args.pop('linear'):
+        # TODO: should use fixed bin widths, this means bin widths may change with rmax
+        nbins = int(np.log10(rmax/rmin)*nbin_per_decade)
         bins = np.linspace(rmin, rmax, nbins+1)
         print('Bin spacing:',bins[1] - bins[0])
     else:
-        bins = np.geomspace(rmin, rmax, nbins+1)
+        # Align to log10 grid
+        _rmin = np.floor(np.log10(rmin)).astype(int)
+        _rmax = np.ceil(np.log10(rmax)).astype(int)
+        bins = 10**np.linspace(_rmin,_rmax,num=(_rmax-_rmin)*nbin_per_decade, dtype=float)
+
+        i = np.sum(bins < rmin)
+        j = np.sum(bins < rmax)
+        bins = bins[max(i-1,0):j+1]
+
         print('Bin log10 spacing:',np.log10(bins[1]/bins[0]))
     all_bins = np.tile(bins, (len(args['primary']),1))
 
@@ -206,7 +214,7 @@ def save_header(output_dir, primary, args):
         except FileNotFoundError as e:
             pass
     else:
-        if args['format'] != 'gadget':
+        if args['format'] != 'gadget' and 'asdf' not in args['format']:
             raise e
             
 

@@ -85,6 +85,10 @@ def read(*args, **kwargs):
 
     if hasattr(data, 'meta'):
         header = data.meta
+        
+    if 'out' in kwargs:
+        if hasattr(kwargs['out'], 'meta'):
+            header = kwargs['out'].meta
 
     # todo: compare str and float
     if units != None:
@@ -183,7 +187,7 @@ def read_many(files, format='pack14', **kwargs):
     alloc_NP = get_alloc_np(files, format=_format, downsample=kwargs.get('downsample'))
 
     # TODO: better way to do this?
-    alloc_kwargs = {k:kwargs[k] for k in ['return_pos', 'return_vel', 'return_pid', 'return_zel', 'return_aux', 'dtype'] if k in kwargs}
+    alloc_kwargs = {k:kwargs[k] for k in ['return_pos', 'return_vel', 'return_pid', 'return_zel', 'return_aux', 'dtype', 'pid_kwargs'] if k in kwargs}
     particles = allocate_table(alloc_NP, **alloc_kwargs)
     
     return_header = kwargs.get('return_header', False)
@@ -933,7 +937,7 @@ def read_desi_hdf5(fn, **kwargs):
 
 
 def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', return_pid='auto', dtype=np.float32,
-                load_header=True, verbose=True, blosc_threads=None, zspace=False, **kwargs):
+                load_header=True, verbose=True, blosc_threads=None, zspace=False, pid_kwargs=None, **kwargs):
     '''
     ASDF format used with AbacusSummit.  This interface is designed for the scenario where
     the distinction between halo and field is unimportant.  For halo-ortiented access, use
@@ -941,7 +945,7 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
 
     TODO: maybe this can be our "backdoor pilot" to converting ReadAbacus to astropy tables
     '''
-
+    
     base = basename(fn)
     if return_pos == 'auto':
         return_pos = 'rv' in base
@@ -950,11 +954,10 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
     if return_pid == 'auto':
         return_pid = 'pid' in base
 
-    if return_pid:
-        raise NotImplementedError('pid reading not finished')
-
     asdf_data_key = kwargs.pop('asdf_data_key','data')
     asdf_header_key = kwargs.pop('asdf_data_key','header')
+    
+    downsample = kwargs.pop('downsample',None)
     #if len(kwargs) != 0:
     #    raise ValueError(f'Unknown args! {kwargs}')
 
@@ -970,12 +973,12 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
     import blosc
     blosc.set_nthreads(blosc_threads)
 
-    from . import abacus_halo_catalog
+    from abacusnbody.data import bitpacked
     import astropy.table
 
     with asdf.open(fn, lazy_load=True, copy_arrays=True) as af:
         if colname is None:
-            _colnames = ['rvint', 'pack9', 'packedpid']
+            _colnames = ['rvint', 'pack9', 'packedpid', 'pid']
             for cn in _colnames:
                 if cn in af.tree[asdf_data_key]:
                     if colname is not None:
@@ -991,6 +994,10 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
         if verbose:
             print(f'Read {data.nbytes/1e6:.4g} MB from {basename(fn)} in {timer.elapsed:.4g} sec at {data.nbytes/1e6/timer.elapsed:.4g} MB/s')
 
+        if downsample != None:
+            rng = np.random.default_rng()
+            data = rng.choice(data, int(len(data)*downsample), replace=False)
+        
         maxN = len(data)
         if out is not None:
             _out = out
@@ -1007,7 +1014,7 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
         _posout = _out['pos'] if return_pos else False
         _velout = _out['vel'] if return_vel else False
         if colname == 'rvint':
-            npos,nvel = abacus_halo_catalog.unpack_rvint(data, header['BoxSize'], float_dtype=dtype, posout=_posout, velout=_velout,
+            npos,nvel = bitpacked.unpack_rvint(data, header['BoxSize'], float_dtype=dtype, posout=_posout, velout=_velout,
                                                          zspace=zspace, VelZSpace_to_kms=header['VelZSpace_to_kms'])
             nread = max(npos,nvel)
         elif colname == 'pack9':
@@ -1018,11 +1025,16 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
                 _velout = None
             # unpack using the same number of threads as blosc
             nread = p9_unpacker(data, data.nbytes, blosc_threads, zspace, 1.1, _posout, _velout, None)
-        elif colname == 'packedpid':
-            justpid, lagr_pos, tagged, density = abacus_halo_catalog.unpack_pids(data, header['BoxSize'], header['ppd'])
+        elif colname in ('packedpid','pid'):
+            if pid_kwargs is None:
+                pid_kwargs = {'pid':True}
+            cols = bitpacked.unpack_pids(data, header['BoxSize'], header['ppd'], **pid_kwargs)
+            for c in cols:
+                nread = len(cols[c])
+                _out[c][:nread] = cols[c]
         timer.stop(report=False)
         if verbose:
-            totalbytes = sum(_out[n].nbytes for n in _out.colnames)
+            totalbytes = sum(_out[n][:nread].nbytes for n in _out.colnames)
             print(f'Unpacked {totalbytes/1e6:.4g} MB from {basename(fn)} in {timer.elapsed:.4g} sec at {totalbytes/1e6/timer.elapsed:.4g} MB/s')
 
         _out.meta['unpack_time'] = timer.elapsed + _out.meta.get('unpack_time',0.)
@@ -1113,7 +1125,8 @@ def get_any_header(dir, format):
 
 
 # These defaults have to be consistent with the reader function defaults
-def allocate_table(N, return_pos=True, return_vel=True, return_pid=False, return_zel=False, return_aux=False, dtype=np.float32):
+def allocate_table(N, return_pos=True, return_vel=True, return_pid=False, return_zel=False, return_aux=False,
+                   pid_kwargs=None, dtype=np.float32):
     """
     Construct an empty Astropy table of length N to hold particle information
     """
@@ -1128,6 +1141,10 @@ def allocate_table(N, return_pos=True, return_vel=True, return_pid=False, return
         ndt_list += [('vel', (dtype, 3))]
     if return_zel:
         ndt_list += [("zel", (np.uint16, 3))]
+    if pid_kwargs:
+        if pid_kwargs.get('lagr_idx'):
+            ndt_list += [('lagr_idx', (np.uint16, 3))]
+        
     ndt = np.dtype(ndt_list, align=True)
 
     particles = Table()
@@ -1171,8 +1188,6 @@ def get_alloc_np(fns, format, downsample=None):
 
     # If reading ASDF files, can use the YAML info
     if 'asdf' in format:
-        if downsample:
-            raise NotImplementedError("ASDF downsampling not yet implemented")
         asdf_data_key = 'data'
         Ntot = 0
         for fn in fns:
@@ -1187,6 +1202,11 @@ def get_alloc_np(fns, format, downsample=None):
                             # Could allow colname specification, but this should suffice for now
                             raise ValueError(f'Columns of different length found in ASDF data tree: {_N} and {N}')
             Ntot += N
+            
+        if downsample != None:
+            Ntot *= downsample
+            Ntot += 6*Ntot**0.5
+            Ntot = int(Ntot)
         return Ntot
 
     # For ordinary files, need to guess based on filesize
@@ -1229,7 +1249,7 @@ default_file_patterns = {'pack14':'*.dat',
                          'asdf':('*.asdf','field_*/*.asdf','halo_*/*.asdf'),
                          'asdf_a':('*_A_*.asdf','*_A/*.asdf',),
                          'asdf_b':('*_B_*.asdf','*_B/*.asdf',),
-                         'asdf_pack9':('field_pack9/*.asdf','L0_pack9/*.asdf'),
+                         'asdf_pack9':('field_pack9*/*.asdf','L0_pack9*/*.asdf'),
                          }
 fallback_file_pattern = '*.dat'
                     

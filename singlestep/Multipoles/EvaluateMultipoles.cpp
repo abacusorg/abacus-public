@@ -254,9 +254,9 @@ void report(const char* prefix, int64_t npart, std::chrono::duration<double> ela
 int main(int argc, char **argv){
     Multipoles MP(8);
 
-    int64_t cpd = 1875;
-    int64_t ncell = 1*cpd*cpd;
-    int64_t ppc = 52;   
+    int64_t cpd = 1701;
+    int64_t ncell = 40*cpd*cpd;
+    int64_t ppc = 67;   
     if (argc > 1)
         ppc = atoi(argv[1]);
     float rtol=1e-6;

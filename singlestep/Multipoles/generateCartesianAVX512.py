@@ -112,20 +112,25 @@ def emit_AVX512_Multipoles(orders, fn='CMAVX512.cpp'):
         w.indent()
 
         i = 0
+        ops = 0
         for a in range(order+1):
             w('fij = fi;')
             for b in range(order-a+1):
                 w('fijk = fij;')
                 for c in range(order-a-b+1):
                     w(f'CM[{i}] = AVX512_MASK_ADD_DOUBLES(CM[{i}], left_mask, CM[{i}], fijk);')
+                    ops += 1
                     i += 1
                     if(c < order-a-b):
                         w('fijk = AVX512_MULTIPLY_DOUBLES(fijk, deltaz);')
+                        ops += 1
                         
                 if(b < order-a):
                     w('\nfij = AVX512_MULTIPLY_DOUBLES(fij, deltay);')
+                    ops += 1
             if(a < order):
                 w('\nfi = AVX512_MULTIPLY_DOUBLES(fi, deltax);')
+                ops += 1
         w.dedent()
         w('}')
 
@@ -137,6 +142,8 @@ def emit_AVX512_Multipoles(orders, fn='CMAVX512.cpp'):
 
         w.dedent()
         w('}')  # Kernel
+        
+        print(f'Order {order}: {ops} FLOP')
 
     emit_dispatch_function(w, '''Multipole512Kernel(FLOAT3 *xyz, int n, FLOAT3 center, double *CM)''', orders)
 
@@ -207,6 +214,7 @@ def emit_AVX512_Multipoles_FMA(orders, fn='CMAVX512.cpp', max_zk=None, unroll=4,
             for c in range(this_max_zk):
                 w(f'AVX512_DOUBLES zk{c}[{unroll}];')
             
+            ops = 0
             nload = mask or 'AVX512_NVEC_DOUBLE'
             for u in range(unroll):
                 w(f'''
@@ -228,9 +236,13 @@ def emit_AVX512_Multipoles_FMA(orders, fn='CMAVX512.cpp', max_zk=None, unroll=4,
                     deltay[{u}] = AVX512_SUBTRACT_DOUBLES(py[{u}], cy);
                     deltaz[{u}] = AVX512_SUBTRACT_DOUBLES(pz[{u}], cz);
                 ''')
+            
+            ops += 3
+            
             for c in range(1,this_max_zk):
                 for u in range(unroll):
                     w(f'zk{c}[{u}] = AVX512_MULTIPLY_DOUBLES(zk{c-1}[{u}], deltaz[{u}]);')
+                ops += 1
 
             i = 0
             for a in range(order+1):
@@ -241,16 +253,21 @@ def emit_AVX512_Multipoles_FMA(orders, fn='CMAVX512.cpp', max_zk=None, unroll=4,
                         if c % this_max_zk == 0 and c > 0:
                             for u in range(unroll):
                                 w(f'fij[{u}] = AVX512_MULTIPLY_DOUBLES(fij[{u}], zk{this_max_zk-1}[{u}]);')
+                            ops += 1
                         for u in range(unroll):
                             w(f'CM[{i}][{u%naccum}] = AVX512_FMA_ADD_DOUBLES(fij[{u}], zk{c % this_max_zk}[{u}], CM[{i}][{u%naccum}]);')
+                        ops += 2
                         i += 1
                     if b < order-a:
                         for u in range(unroll):
                             w(f'\nfij[{u}] = AVX512_MULTIPLY_DOUBLES(fij[{u}], deltay[{u}]);')
+                        ops += 1
                 if a < order:
                     for u in range(unroll):
                         w(f'\nfi[{u}] = AVX512_MULTIPLY_DOUBLES(fi[{u}], deltax[{u}]);')
+                    ops += 1
             
+            print(f'Order {order}: {ops} FLOP')
         _emit_unrolled('k', unroll)
         w.dedent()
         w('}')  # Particle loop
