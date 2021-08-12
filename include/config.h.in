@@ -15,6 +15,9 @@
 /* "AVX multipoles/Taylors" */
 #undef AVXMULTIPOLES
 
+/* "Enable GPU block-level intermediate acceleration accumulators" */
+#undef BLOCK_ACCUM
+
 /* "Cache line size in bytes" */
 #undef CACHE_LINE_SIZE
 

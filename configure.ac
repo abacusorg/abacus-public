@@ -400,6 +400,13 @@ if test x$enable_multiple_comm == xyes; then
     AC_DEFINE_UNQUOTED(MULTIPLE_MPI_COMM, [], "Enable multiple MPI communicators")
 fi
 
+AC_ARG_ENABLE(block-accum,
+[AS_HELP_STRING([--enable-block-accum], [Enable GPU block-level intermediate acceleration accumulators [yes]])],
+    [], enable_block_accum="yes")
+if test x$enable_block_accum == xyes; then
+    AC_DEFINE_UNQUOTED(BLOCK_ACCUM, [], "Enable GPU block-level intermediate acceleration accumulators")
+fi
+
 # If the user is using Anaconda Python, we have to be careful
 # about how we build C/C++ libraries that will be loaded by Python.
 # Anaconda Python has the Python executable rpath set to find
