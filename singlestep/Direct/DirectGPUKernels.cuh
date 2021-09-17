@@ -78,20 +78,27 @@ __device__ __inline__ void DirectKernelName(
     dy = sourcey - sinky;
     dz = sourcez - sinkz;
     
-    dr2 = (dx*dx + dy*dy + dz*dz);
+    dr2 = dx*dx + dy*dy + dz*dz;
     #ifdef COMPUTE_FOF_DENSITY_SET
-    if (dr2<b2) { aw = aw+ b2-dr2; }
+    // seems faster than a max(x,0) based version
+    if (dr2<b2) { aw = aw + b2-dr2; }
     #endif
-    dr2 = dr2*inv_eps2+(FLOAT)1e-32;
+    dr2 = dr2*inv_eps2 + (FLOAT)1e-32;
     f = RSQRT(dr2);
     
     if(R <= 1){
-        f = MIN(f*f*f, (-15*f + 6)*dr2 + 10);
+        // This used to be a MIN, but this version seems about 1% faster
+        if (dr2 > 1){
+            f = f*f*f;
+        } else {
+            f = (-15*f + 6)*dr2 + 10;
+        }
     }
     else{
        f = f*f*f;
     }
 
+    // Weirdly doesn't trigger FMA, but even weirder is faster than FMA
     ax -= f*dx;
     ay -= f*dy;
     az -= f*dz;
