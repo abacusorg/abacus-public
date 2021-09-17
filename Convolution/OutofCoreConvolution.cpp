@@ -37,19 +37,21 @@ void OutofCoreConvolution::SwizzleMultipoles(int z){
     // Array swizzle selects the plane belonging to a single slab/file from a block
     // Swizzle does actually benefit from multithreading, so we don't want to do that in the IO thread
 
+    int cpdp1half = (cpd+1)/2;
 	ArraySwizzle.Start();
     #pragma omp parallel for schedule(static)
     for(int m=0;m<rml;m++)
         for(int x=0;x<cpd;x++)
 			for(int y=0;y<cpd;y++)
                 PlaneBuffer[m*cpd*cpd + x*cpd + y] = 
-                    DiskBuffer[x][z*cpd*rml + m*cpd + y ];
+                    DiskBuffer[x][m*cpdp1half*cpd + y*cpdp1half + z ];
 	ArraySwizzle.Stop();
 }
 
 
 // Pack a single z-plane into the x-plane-ordered Taylors block
 void OutofCoreConvolution::SwizzleTaylors(int z){
+    int cpdp1half = (cpd+1)/2;
     ArraySwizzle.Start();
     // These loops go from outer to inner for the destination array
     #pragma omp parallel for schedule(static)
@@ -57,7 +59,7 @@ void OutofCoreConvolution::SwizzleTaylors(int z){
         for(int m=0;m<rml;m++)
 		for(int y=0;y<cpd;y++) {
 #ifndef DO_NOTHING
-                DiskBuffer[x][z*cpd*rml + m*cpd + y ] = 
+                DiskBuffer[x][m*cpdp1half*cpd + y*cpdp1half + z] = 
                     PlaneBuffer[ m*cpd*cpd + x*cpd + y]*invcpd3;
 #else
                 DiskBuffer[x][z*cpd*rml + m*cpd + y ] = 
