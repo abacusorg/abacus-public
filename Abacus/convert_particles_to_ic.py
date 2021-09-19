@@ -7,6 +7,10 @@ IC files that Abacus can read.
 While we could teach Abacus to read its own packN files, the L0 output
 scheme means the slab domain could be pretty wide. This way, we can
 at least provide a proper slab segmentation.
+
+Note that if the particle files use the Abacus "spread out" PID
+convention, you will need to use the `--repack_pid` flag to repack
+these as contiguous for Abacus IC ingestion.
 '''
 
 import argparse
@@ -26,7 +30,7 @@ AUXYPID = 0x7fff0000
 AUXZPID = 0x7fff00000000
 NUMPIDBITS = 45
 
-def convert_to_ic(input, input_format, output=None, output_format='RVPID', cpd=None, box=None, repack_pids=True):
+def convert_to_ic(input, input_format, output=None, output_format='RVPID', cpd=None, box=None, repack_pid=False):
     '''
     Parameters
     ----------
@@ -62,7 +66,7 @@ def convert_to_ic(input, input_format, output=None, output_format='RVPID', cpd=N
     
     for data in ReadAbacus.AsyncReader(input, format=input_format,
                                 verbose=True, return_pos=True, return_vel=True, return_pid=True):
-        if repack_pids:
+        if repack_pid:
             data['pid'] = make_pids_contiguous(data['pid'])
         writer(**data)
     del writer
@@ -84,9 +88,9 @@ def make_pids_contiguous(pid):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=ArgParseFormatter)
     parser.add_argument('input', help='The input dir, like slice1.000', nargs='+')
-    parser.add_argument('--input-format','-i', help='Format of the particles being input to this script', choices=ReadAbacus.formats)
-    parser.add_argument('--output-format','-o', help='The format of the particles being output from this script', choices=WriteAbacus.formats)
-    #parser.add_argument('--repack-pids', help='Repack the our "spread out" PID bit convention into bit-contiguous PIDs', action='store_true')
+    parser.add_argument('-i', help='Format of the particles being input to this script', choices=ReadAbacus.formats, required=True)
+    parser.add_argument('-o', help='The format of the particles being output from this script', choices=WriteAbacus.formats)
+    parser.add_argument('--repack-pid', help='Repack the our "spread out" PID bit convention into bit-contiguous PIDs', action='store_true')
     
     args = vars(parser.parse_args())
     
