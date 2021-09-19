@@ -2,7 +2,7 @@ SimSet = "IllustrisTNG"
 SimName = "TNG300-2"
 
 #include "$ABACUS$/Production/directory.def"
-#include "$ABACUS$/Production/site_files/rusty-a100-64core.def"
+#include "$ABACUS$/Production/site_files/site.def"
 
 ICFormat = "RVPID"
 InitialConditionsDirectory = "$HOME$/ceph/illustris/ic/TNG300-2/"
@@ -12,8 +12,8 @@ ICPositionRange = @BoxSize@
 # Cosmology and basic code parameters
 BoxSize = 205
 NP = 1250**3
-CPD = 405
-GroupRadius = 25
+CPD = 297
+GroupRadius = 20
 w0 = -1.0
 wa = 0.0
 H0 = 67.74
@@ -58,7 +58,7 @@ MicrostepTimeStep = 0
 # Advanced code parameters
 LagrangianPTOrder = 0
 TimeStepAccel = 0.25
-TimeStepDlna = .02
+TimeStepDlna = .03
 NumSlabsInsertList = 2
 NumSlabsInsertListIC = 8
 NearFieldRadius = 2
