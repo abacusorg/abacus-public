@@ -48,7 +48,7 @@ if \grep -qP '\bicc\b' <<< "$REAL_CXX"; then
     REAL_CXX=icc
 elif \grep -qP '\bXL\b' <<< "$REAL_CXX"; then
     REAL_CXX=xlc++
-elif \grep -qP '\bg++\b' <<< "$REAL_CXX"; then
+elif \grep -qP '\b(g\+\+|GCC)\b' <<< "$REAL_CXX"; then
     REAL_CXX=g++
 else
     AC_MSG_WARN([Could not determine REAL_CXX from --version])
