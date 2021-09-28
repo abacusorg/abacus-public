@@ -36,7 +36,7 @@ ifeq (@CUDA_ENABLED@,CUDA_ENABLED)
 endif
 
 # git version, like "v2.2.3-27-gc08fe8b1-dirty"
-GITVERSION := $(shell git describe --tags --dirty)
+GITVERSION := $(shell git describe --tags --dirty --always)
 CPPFLAGS += -DGITVERSION=\"$(GITVERSION)\"
 
 # It's not okay to link everything against tcmalloc.
