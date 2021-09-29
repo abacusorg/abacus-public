@@ -5,46 +5,57 @@ SimName = "example"
 
 # Cosmology and basic code parameters
 BoxSize = 256.
+NP = 512**3
+CPD = 135
 InitialRedshift = 49.
 H0 = 67.77
 Omega_M = 0.3071
 Omega_DE = 1-@Omega_M@
 Omega_K = 0.
+Omega_Smooth = 0
 w0 = -1.
 wa = 0.
-NP = 512**3
-SofteningLength = .0625  # 62.5 kpc/h, Plummer-equivalent
-CPD = 135
+SofteningLength = @BoxSize@/@NP@**(1/3)/40  # ell/40, Plummer-equivalent
+SofteningMax = 0.3*@BoxSize@/@NP@**(1/3.)
+ProperSoftening = 1
 
 # Output parameters
-TimeSliceRedshifts = [1.5, 1.0, 0.7, 0.5, 0.3, 0.1]
-nTimeSlice = 6
+TimeSliceRedshifts = [0.1]
+TimeSliceRedshifts_Subsample = [1.1, 0.5, 0.1]
+L1OutputRedshifts = [1.7, 1.1, 0.8, 0.5, 0.3, 0.1]
 LightConeOrigins = (0.,0.,0.)
 NLightCones = 0
 # FinalRedshift = 0.  # Only needed if finishing light cones
 PowerSpectrumN1d = 256
-PowerSpectrumStepInterval = 30
-OutputFormat = "Packed"
-BackupStepInterval = 300
+PowerSpectrumStepInterval = -1
+OutputFormat = "Pack9"
+BackupStepInterval = -1
 
 # Group finding parameters
 AllowGroupFinding = 1
-FoFLinkingLength = [.25, .168, .138]
-MinL1HaloNP = 50
-HaloTaggableFraction = 0.1
-L1Output_dlna = 0.1
-MicrostepTimeStep = 0.15
+FoFLinkingLength = [0.25, 0.25, 0.25]
+MinL1HaloNP = 35
+SODensity = [200, 800]
+L1Output_dlna = -1
+OutputAllHaloParticles = 0
+ParticleSubsampleA = 0.03
+ParticleSubsampleB = 0.07
+L0DensityThreshold = 60
+DensityKernelRad = 0.4
+SO_EvolvingThreshold = 1  # SO_RocheCoeff and SO_NPForMinDensity default to 2.0 and 35, respectively. 
+SO_alpha_eligible = 0.8
+MicrostepTimeStep = 0
+GroupRadius = 10
 
 # Advanced code parameters
 LagrangianPTOrder = 2
-TimeStepAccel = .15
+TimeStepAccel = .25
 TimeStepDlna = .03
 NumSlabsInsertList = 2
 NumSlabsInsertListIC = 8
 NearFieldRadius = 2
 Order = 8
 hMpc = 1
-GroupRadius = 4
 DerivativeExpansionRadius = 8
 
 # For additional performance tuning,
@@ -55,7 +66,7 @@ ICVelocity2Displacement = 1.0
 ICPositionRange = @BoxSize@
 ICFormat = "RVZel"
 ZD_NumBlock = 4
-ZD_Pk_filename = "$ABACUS$/Production/camb_smallbox_new_pk_out.txt"
+ZD_Pk_filename = "$ABACUS$/Production/camb_planck15.dat"
 sigma_8 = .817
 #ZD_Pk_sigma = @sigma_8@/(1+@InitialRedshift@)  # This will be calculated from sigma_8
 ZD_Seed = 12345
