@@ -78,3 +78,4 @@ ZD_k_cutoff = 1.
 ZD_Pk_scale = 1.0
 ZD_Pk_norm = 8.0
 ZD_Pk_smooth = 0.0
+ZD_Version = 2
