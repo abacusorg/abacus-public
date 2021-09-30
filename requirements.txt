@@ -15,3 +15,5 @@ matplotlib
 contexttimer
 table_logger
 cffi
+abacusutils
+scikit-learn
