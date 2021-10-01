@@ -533,9 +533,10 @@ void init_openmp(){
                 assertf(core_assignments[g] != core_assignments[h], "Two OpenMP threads were assigned to the same core! This will probably be very slow. Check OMP_NUM_THREADS and OMP_PLACES?\n");
 
         // Assign the main CPU thread to core 0 to avoid the GPU/IO threads during serial parts of the code
-        int main_thread_core = 0;
-        set_core_affinity(main_thread_core);
-        STDLOG(1, "Assigning main singlestep thread to core %d\n", main_thread_core);
+        // Actually, this is unnecessary because the first OpenMP thread *is* the main CPU thread
+        //int main_thread_core = 0;
+        //set_core_affinity(main_thread_core);
+        //STDLOG(1, "Assigning main singlestep thread to core %d\n", main_thread_core);
     }
 
     // Initialize the helper variables needed for "NUMA For"
