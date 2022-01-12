@@ -59,7 +59,7 @@ if test -x "$cuda_prefix/bin/nvcc"; then
 	AC_DEFINE_UNQUOTED([NVCC_PATH], ["$cuda_prefix/bin/nvcc"], [Path to nvcc binary])
 	# We need to add the CUDA search directories for header and lib searches
 
-	AC_SUBST([CUDA_MAJOR_VER],[$(cat $cuda_prefix/version.txt |cut -d' ' -f3 | cut -d. -f1)])
+	#AC_SUBST([CUDA_MAJOR_VER],[$(cat $cuda_prefix/version.txt |cut -d' ' -f3 | cut -d. -f1)])
 
 	CUDA_CFLAGS=""
 

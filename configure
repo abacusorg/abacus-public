@@ -632,7 +632,6 @@ CUDA_LIBDIR
 NVCC
 CUDA_LDFLAGS
 CUDA_CFLAGS
-CUDA_MAJOR_VER
 MAXORDER
 MULTIPOLES_SIMD
 TCMALLOC
@@ -6285,8 +6284,7 @@ _ACEOF
 
 	# We need to add the CUDA search directories for header and lib searches
 
-	CUDA_MAJOR_VER=$(cat $cuda_prefix/version.txt |cut -d' ' -f3 | cut -d. -f1)
-
+	#AC_SUBST([CUDA_MAJOR_VER],[$(cat $cuda_prefix/version.txt |cut -d' ' -f3 | cut -d. -f1)])
 
 	CUDA_CFLAGS=""
 

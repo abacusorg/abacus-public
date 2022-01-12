@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 '''
+Abacus writes out pack9 time slices, one file per slab. In post-processing,
+we want to concatenate N slabs and pack them together in a single ASDF file,
+with blosc compression, etc.
+
 This script is launched by disBatch, once per chunk per file type per time slice
 The argument is a glob pattern to use to find the files for this chunk
 '''
@@ -84,12 +88,13 @@ def process(slabpat):
 
     particles = particles.reshape(*pshape)
 
-    asdf.compression.set_compression_options(typesize=Mway, asdf_block_size=asdf_block_size, blocksize=blocksize, shuffle='bitshuffle', nthreads=4)
+    compression_kwargs = dict(typesize=Mway, compression_block_size=asdf_block_size, blosc_block_size=blocksize, shuffle='bitshuffle', nthreads=4)
     tree = {'data': {colname:particles},
             'header': dict(InputFile(pjoin(slicedir,'header')))}
     asdf_fn = pjoin(outdir, aggname+'.asdf')
     with asdf.AsdfFile(tree) as af, CksumWriter(asdf_fn) as fp:
-        af.write_to(fp, all_array_compression='blsc')
+        af.write_to(fp, all_array_compression='blsc', compression_kwargs=compression_kwargs)
+    print(f'Wrote to {asdf_fn}')
 
 
 if __name__ == '__main__':

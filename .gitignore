@@ -1,4 +1,3 @@
-/teststate
 *.o
 *.pyc
 *~
@@ -30,3 +29,7 @@ FREEZE
 /Tests/**/*.png
 *.asdf
 abacus.par
+venv/
+.venv/
+.vscode/
+environment.sh

@@ -637,10 +637,10 @@ def read_rvzel(fn, return_pos=True, return_vel=True, return_zel=False, return_pi
     unpack_timer = ContextTimer('unpack')
     unpack_timer.Start()
     
-    from . import zeldovich
-    D = zeldovich.calc_growth_ratio(header, 1.4, 'init')
+    #from . import zeldovich
+    #D = zeldovich.calc_growth_ratio(header, 1.4, 'init')
     D = 1.
-    print(f'Scaling displacements by D={D:.3g}')
+    #print(f'Scaling displacements by D={D:.3g}')
 
     if len(raw) > 0:
         if add_grid or return_pid:
@@ -955,7 +955,7 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
         return_pid = 'pid' in base
 
     asdf_data_key = kwargs.pop('asdf_data_key','data')
-    asdf_header_key = kwargs.pop('asdf_data_key','header')
+    asdf_header_key = kwargs.pop('asdf_header_key','header')
     
     downsample = kwargs.pop('downsample',None)
     #if len(kwargs) != 0:
@@ -1004,7 +1004,7 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
             if load_header:
                 out.meta.update(header)
         else:
-            _out = allocate_table(maxN, return_pos=return_pos, return_vel=return_vel)
+            _out = allocate_table(maxN, return_pos=return_pos, return_vel=return_vel, return_pid=return_pid)
             _out.meta.update(header)
 
         _out.meta['read_time'] = timer.elapsed + _out.meta.get('read_time',0.)

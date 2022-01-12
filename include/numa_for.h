@@ -168,6 +168,8 @@ void init_numa_for(int nthreads, int const *core_assignments){
     }
     assert(_numa_cumulative_nthread[_N_numa_nodes] == nthreads);
 
+    delete[] _nthread_per_numa_node;
+
 #endif // ENABLE_NUMA_FOR
 }
 

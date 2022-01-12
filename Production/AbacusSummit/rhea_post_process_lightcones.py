@@ -10,6 +10,7 @@ from os.path import dirname, basename, join as pjoin, pardir, getsize, abspath
 from glob import glob
 import sys
 import gc
+import re
 
 import numpy as np
 import asdf
@@ -28,7 +29,10 @@ def process(lcprefix):  # Step0800/LightCone0_heal
 
     os.chdir(stepdir)
 
-    fns = sorted(glob(lcprefix + '.*'))
+    fnsglob = sorted(glob(lcprefix + '*'))
+    fns = [fn for fn in fnsglob if re.fullmatch(lcprefix + r'(\.\d+)?', basename(fn))]
+    if len(fnsglob) != len(fns):
+        raise ValueError(f'Found extra files in {lcprefix}: {set(fnsglob) ^ set(fns)}')
 
     cksum_reader = CksumReader('checksums.crc32', verbose=True)
 
@@ -64,12 +68,12 @@ def process(lcprefix):  # Step0800/LightCone0_heal
 
     particles = particles.reshape(*pshape)
 
-    asdf.compression.set_compression_options(typesize=Mway, asdf_block_size=12*1024**2, blocksize=3*1024**2, shuffle='bitshuffle', nthreads=4)
+    compression_kwargs = dict(typesize=Mway, compression_block_size=12*1024**2, blosc_block_size=3*1024**2, shuffle='bitshuffle', nthreads=4)
     tree = {'data': {colname:particles},
             'header': dict(InputFile('header'))}
     asdf_fn = pjoin(outdir, f'{lcprefix}_{stepdir}.asdf')
     with asdf.AsdfFile(tree) as af, CksumWriter(asdf_fn) as fp:
-        af.write_to(fp, all_array_compression='blsc')
+        af.write_to(fp, all_array_compression='blsc', compression_kwargs=compression_kwargs)
 
 
 class ArgParseFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):

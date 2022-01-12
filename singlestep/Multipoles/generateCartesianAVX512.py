@@ -143,7 +143,7 @@ def emit_AVX512_Multipoles(orders, fn='CMAVX512.cpp'):
         w.dedent()
         w('}')  # Kernel
         
-        print(f'Order {order}: {ops} FLOP')
+        #print(f'Order {order}: {ops} FLOP')
 
     emit_dispatch_function(w, '''Multipole512Kernel(FLOAT3 *xyz, int n, FLOAT3 center, double *CM)''', orders)
 
@@ -267,7 +267,7 @@ def emit_AVX512_Multipoles_FMA(orders, fn='CMAVX512.cpp', max_zk=None, unroll=4,
                         w(f'\nfi[{u}] = AVX512_MULTIPLY_DOUBLES(fi[{u}], deltax[{u}]);')
                     ops += 1
             
-            print(f'Order {order}: {ops} FLOP')
+            #print(f'Order {order}: {ops} FLOP')
         _emit_unrolled('k', unroll)
         w.dedent()
         w('}')  # Particle loop
