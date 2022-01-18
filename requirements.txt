@@ -6,7 +6,7 @@
 # both sets of requirements at the same time, use:
 # $ pip install -r requirements.txt -r optional-requirements.txt
 
-
+wheel
 numpy
 numexpr
 numba
@@ -17,3 +17,4 @@ table_logger
 cffi
 abacusutils
 scikit-learn
+asdf
