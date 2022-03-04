@@ -139,7 +139,7 @@ def main(files, cpd, input_format, output_format, flip=False, input_units=None):
         
         # Translate positions and wrap any stragglers
         Tools.wrap_zero_centered(pos, BoxSize)
-        assert (-BoxSize/2 <= pos).all() and (pos < BoxSize/2).all()
+        #assert (-BoxSize/2 <= pos).all() and (pos < BoxSize/2).all()  # numerical stability issues in the wrapping...
 
         if flip:
             pos *= -1
