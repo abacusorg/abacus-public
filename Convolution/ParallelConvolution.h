@@ -8,6 +8,12 @@
 
 #include "mpi_limiter.h"
 
+#ifdef DOUBLEPRECISION
+#define MPI_MTCOMPLEX MPI_C_DOUBLE_COMPLEX
+#else
+#define MPI_MTCOMPLEX MPI_C_COMPLEX
+#endif
+
 class ParallelConvolution { 
 public:     
 	// ParallelConvolution();
@@ -54,7 +60,7 @@ private:
     int64_t cpd2pad;  // We might want to pad CPD**2 to obtain better FFTW behavior
     int order;    // multipole order
     int64_t rml;      // (order+1)**2
-	int64_t this_node_size; 
+	int64_t node_slab_elem;  // number of elements in each slab this node handles
 	int64_t CompressedMultipoleLengthXY; 
 	
 	Complex invcpd3; 
@@ -76,6 +82,9 @@ private:
     MTCOMPLEX * MTdisk;   // This is the pointer to the [x][znode][m][y] buffer on disk //NAM TODO * or ** ?
 	DFLOAT ** Ddisk; //This is the pointer to the derivatives buffer. 
     Complex * MTzmxy;   // This is the pointer to the [znode][m][x][y] work buffer 
+
+	size_t Ddisk_bytes;  // bytes per derivatives slab
+	size_t MTdisk_bytes;  // MTdisk bytes
 
     #define M_TAG (100000)     // An offset for the multipole tags
     MPI_Request *Mrecv_requests;    // We'll set up a [CPD] array to receive one packet per x
