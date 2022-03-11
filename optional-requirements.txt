@@ -15,7 +15,7 @@ pyfftw
 pynbody
 asdf
 toml
-globus_sdk
+globus_sdk>=3
 fair_research_login
 braceexpand
 pytest

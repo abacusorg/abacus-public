@@ -918,7 +918,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         print("Using singlestep_cmd ", singlestep_cmd)
 
         # #if this job is longer than a set time (NEEDS_INTERIM_BACKUP_MINS), we'll need to do a backup halfway through the run.
-        # interim_backup_complete = run_time_minutes <= NEEDS_INTERIM_BACKUP_MINS
+        interim_backup_complete = run_time_minutes <= NEEDS_INTERIM_BACKUP_MINS
 
     last_backup = wall_timer()  # time of last backup. Count the very beginning as a "backup"
     for i in range(maxsteps):

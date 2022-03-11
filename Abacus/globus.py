@@ -32,7 +32,7 @@ from braceexpand import braceexpand
 
 from globus_sdk import (NativeAppAuthClient, TransferClient,
                         RefreshTokenAuthorizer, TransferData)
-from globus_sdk.exc import GlobusAPIError, TransferAPIError
+from globus_sdk import GlobusAPIError, TransferAPIError
 
 from fair_research_login import NativeClient
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 '''
-For extremely large CheckForces problems, we sometimes want to run CheckForces,
+For extremely large check_forces problems, we sometimes want to run check_forces,
 store the results, and analyze them later/on a different system.  This script
 facilitates analysis with MPI, mainly to accelerate reading the TB of acc
 data from network file systems.
@@ -16,7 +16,7 @@ import numpy as np
 from Abacus.Tools import ArgParseFormatter
 from Abacus.InputFile import InputFile
 
-import CheckForces
+import check_forces
 
 DEFAULT_DTYPE = 'f4'
 
@@ -38,7 +38,7 @@ def main(accdir, dtype=DEFAULT_DTYPE):
 
     myaccfns = [pjoin(accdir, f'acc_{i:04d}') for i in range(start,end)]
 
-    acc_mag, results = CheckForces.analyze_storeforces(params, dtype, slabfns=myaccfns, silent=True, raw=True)
+    acc_mag, results = check_forces.analyze_storeforces(params, dtype, slabfns=myaccfns, silent=True, raw=True)
 
     # Make a dict of nans, will be overwritten with reductions
     all_results = {k:np.full_like(results[k], np.nan) for k in results}
@@ -49,15 +49,20 @@ def main(accdir, dtype=DEFAULT_DTYPE):
     		   'Sum of squares':MPI.SUM}
 
     for k in results:
-	    comm.Reduce(results[k], all_results[k], op=mpi_ops[k], root=root)
+        if k == 'param':
+            all_results[k] = results[k]
+            continue
+        comm.Reduce(results[k], all_results[k], op=mpi_ops[k], root=root)
     del results
 
     # Convert 'Sum' into 'Mean' etc
-    CheckForces.finalize_results(all_results, params.NP)
+    check_forces.finalize_results(all_results, params.NP)
 
     if rank == root:
         print('Global force statistics (equivalent ZA displacement in units of interparticle spacing):')
         for k in all_results:
+            if k == 'param':
+                continue
             print('{k}: {v}'.format(k=k, v=all_results[k]))
 
 if __name__ == '__main__':
