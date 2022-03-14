@@ -271,6 +271,8 @@ public:
         sprintf(ReadStateDirectory,STRUNDEF);
         sprintf(WriteStateDirectory,STRUNDEF);
         sprintf(WorkingDirectory,STRUNDEF);
+        sprintf(MultipoleDirectory,STRUNDEF);
+        sprintf(TaylorDirectory,STRUNDEF);
         sprintf(MultipoleDirectory2,STRUNDEF);
         sprintf(TaylorDirectory2,STRUNDEF);
         sprintf(BackupDirectory,STRUNDEF);
@@ -282,8 +284,8 @@ public:
         installscalar("ReadStateDirectory",ReadStateDirectory,DONT_CARE);  // Where the input State lives
         installscalar("WriteStateDirectory",WriteStateDirectory,DONT_CARE); // Where the output State lives
         installscalar("WorkingDirectory",WorkingDirectory,DONT_CARE);
-        installscalar("MultipoleDirectory",MultipoleDirectory,MUST_DEFINE);
-        installscalar("TaylorDirectory",TaylorDirectory,MUST_DEFINE);
+        installscalar("MultipoleDirectory",MultipoleDirectory,DONT_CARE);
+        installscalar("TaylorDirectory",TaylorDirectory,DONT_CARE);
         installscalar("MultipoleDirectory2",MultipoleDirectory2,DONT_CARE);
         installscalar("TaylorDirectory2",TaylorDirectory2,DONT_CARE);
     	installscalar("LogDirectory",LogDirectory,MUST_DEFINE);
@@ -299,6 +301,7 @@ public:
     	installscalar("OutputEveryStep",OutputEveryStep,DONT_CARE);
 
         installscalar("LightConeDirectory",LightConeDirectory,MUST_DEFINE); //Where the lightcones go. Generally will be the same as the Output directory
+        NLightCones = 0;
         installscalar("NLightCones",NLightCones,DONT_CARE); //if not set, we assume 0
         OutputFullLightCones = 0;
         installscalar("OutputFullLightCones",OutputFullLightCones,DONT_CARE); //if not set, we assume 0
@@ -575,22 +578,35 @@ void Parameters::ProcessStateDirectories(){
 
     // Set read dir and write dir from local working dir if they were not given
     if (strcmp(LocalWorkingDirectory,STRUNDEF) != 0){
-        if(strcmp(LocalReadStateDirectory,STRUNDEF) == 0){
-            int ret = snprintf(LocalReadStateDirectory, 1024, "%s/read",LocalWorkingDirectory);
-            assert(ret >= 0 && ret < 1024);
-        }
-        if(strcmp(LocalWriteStateDirectory,STRUNDEF) == 0){
-            int ret = snprintf(LocalWriteStateDirectory, 1024, "%s/write",LocalWorkingDirectory);
-            assert(ret >= 0 && ret < 1024);
-        }
+        // append the rank to the LocalWorkingDirectory
+        // LocalWorkingDirectory should not have a trailing slash
+        int ret = snprintf(LocalWorkingDirectory + strnlen(LocalWorkingDirectory, 1024), 1024, "%s", NodeString);
+        assert(ret >= 0 && ret < 1024);
     } else {
-        // LocalWorkingDirectory not given; copy the global values (unless the local values were explicitly given)
-        if(strcmp(LocalReadStateDirectory,STRUNDEF) == 0){
-            strcpy(LocalReadStateDirectory, ReadStateDirectory);
-        }
-        if(strcmp(LocalWriteStateDirectory,STRUNDEF) == 0){
-            strcpy(LocalWriteStateDirectory, WriteStateDirectory);
-        }
+        int ret = snprintf(LocalWorkingDirectory, 1024, "%s%s",WorkingDirectory, NodeString);
+        assert(ret >= 0 && ret < 1024);
+    }
+    
+
+    if(strcmp(LocalReadStateDirectory,STRUNDEF) == 0){
+        int ret = snprintf(LocalReadStateDirectory, 1024, "%s/read",LocalWorkingDirectory);
+        assert(ret >= 0 && ret < 1024);
+    }
+    if(strcmp(LocalWriteStateDirectory,STRUNDEF) == 0){
+        int ret = snprintf(LocalWriteStateDirectory, 1024, "%s/write",LocalWorkingDirectory);
+        assert(ret >= 0 && ret < 1024);
+    }
+
+    if (strcmp(MultipoleDirectory,STRUNDEF) == 0){
+        // not given
+        int ret = snprintf(MultipoleDirectory, 1024, "%s/multipole", LocalWorkingDirectory);
+        assert(ret >= 0 && ret < 1024);
+    }
+
+    if (strcmp(TaylorDirectory,STRUNDEF) == 0){
+        // not given
+        int ret = snprintf(TaylorDirectory, 1024, "%s/taylor", LocalWorkingDirectory);
+        assert(ret >= 0 && ret < 1024);
     }
 }
 

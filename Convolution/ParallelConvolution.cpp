@@ -82,7 +82,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	rml = (order+1)*(order+1);
 	zstart = Zstart(MPI_rank);
 	znode = Zstart(MPI_rank+1)-zstart;
-	this_node_size = znode*rml*cpd;
+	node_slab_elem = znode*rml*cpd;  // number of elements in each slab this node handles
     convtimebuffer = NULL;
 	
 	STDLOG(2, "Doing zstart = %d and znode = %d\n", zstart, znode);
@@ -184,6 +184,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 /// The destructor.  This should close the MTfile. NAM: MTfile can be closed right after mapping, I think. 
 /// Also can do any checks to make sure that all work was completed.
 ParallelConvolution::~ParallelConvolution() {
+
 	//NAM how to check work was completed, ideas:
 	// assert all values of the four arrays below have been set to MPI_REQUEST_NULL? 
 	// add class variable that keeps track of the number of FFTS, their success? check this? 
@@ -206,12 +207,10 @@ ParallelConvolution::~ParallelConvolution() {
 	delete[] node_size; 
 
 	delete[] first_slabs_all;
-	delete[] total_slabs_all; 
-
-    size_t size = sizeof(MTCOMPLEX)*this_node_size;
+	delete[] total_slabs_all;
 	
 	MunmapMT.Clear(); MunmapMT.Start(); 
-    int res = munmap(MTdisk, size);
+    int res = munmap(MTdisk, MTdisk_bytes);
     assertf(res == 0, "munmap failed\n");
 	MunmapMT.Stop(); 
 	CS.MunmapMT += MunmapMT.Elapsed(); 
@@ -222,7 +221,7 @@ ParallelConvolution::~ParallelConvolution() {
 	    if(ramdisk_derivs){
 		    if(Ddisk[z] != NULL){
 				MunmapDerivs.Clear(); MunmapDerivs.Start(); 
-		        int res = munmap(Ddisk[z], size);
+		        int res = munmap(Ddisk[z], Ddisk_bytes);
 		        assertf(res == 0, "Failed to munmap derivs %d\n", z); 
 				MunmapDerivs.Stop(); 
 				CS.MunmapDerivs += MunmapDerivs.Elapsed(); 
@@ -282,31 +281,31 @@ void ParallelConvolution::AllocMT(){
     int fd = open(mt_file, shm_fd_flags, S_IRUSR | S_IWUSR);
     assertf(fd != -1, "Failed to open shared memory file at \"%s\"\n", mt_file);
     
-	size_t size = sizeof(MTCOMPLEX)*this_node_size*cpd; //size of MTdisk.
+	MTdisk_bytes = sizeof(MTCOMPLEX)*node_slab_elem*cpd;
 	
     if(create_MT_file){
 	    // set the size
-	    int res = ftruncate(fd, size);
-	    assertf(res == 0, "ftruncate on shared memory mt_file = %s to size = %d failed\n", mt_file, size);
+	    int res = ftruncate(fd, MTdisk_bytes);
+	    assertf(res == 0, "ftruncate on shared memory mt_file = %s to size = %d failed\n", mt_file, MTdisk_bytes);
     } else {
         // check that the size is as expected
         struct stat shmstat;
         int res = fstat(fd, &shmstat);
         assertf(res == 0, "fstat on shared memory ramdisk_fn = %s\n", mt_file);
-        assertf(shmstat.st_size == size, "Found shared memory size %d; expected %d (ramdisk_fn = %s)\n", shmstat.st_size, size, mt_file);
+        assertf(shmstat.st_size == MTdisk_bytes, "Found shared memory size %d; expected %d (ramdisk_fn = %s)\n", shmstat.st_size, MTdisk_bytes, mt_file);
     }
     // map the shared memory fd to an address
     int mmap_flags = create_MT_file ? (PROT_READ | PROT_WRITE) : (PROT_READ | PROT_WRITE);  // the same
 	
 	MmapMT.Clear(); MmapMT.Start(); 
 	
-	MTdisk = (MTCOMPLEX *) mmap(NULL, size, mmap_flags, MAP_SHARED, fd, 0);
+	MTdisk = (MTCOMPLEX *) mmap(NULL, MTdisk_bytes, mmap_flags, MAP_SHARED, fd, 0);
     int res = close(fd);
-    assertf((void *) MTdisk != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
-    assertf(MTdisk != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
+    assertf((void *) MTdisk != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, MTdisk_bytes);
+    assertf(MTdisk != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, MTdisk_bytes);
     assertf(res == 0, "Failed to close fd %d\n", fd);
 	
-	STDLOG(2, "Successfully mapped MTdisk of size %d bytes at address %p.\n", size, MTdisk);
+	STDLOG(2, "Successfully mapped MTdisk of size %d bytes at address %p.\n", MTdisk_bytes, MTdisk);
 	
 	MmapMT.Stop(); 
 		
@@ -325,6 +324,8 @@ void ParallelConvolution::AllocMT(){
 
 void ParallelConvolution::AllocDerivs(){
 	AllocateDerivs.Clear(); AllocateDerivs.Start();
+
+	Ddisk_bytes = sizeof(DFLOAT)*(rml*CompressedMultipoleLengthXY);
 	
     if(is_path_on_ramdisk(P.DerivativesDirectory)) ramdisk_derivs = 1;
 	else ramdisk_derivs = 0; 
@@ -340,9 +341,8 @@ void ParallelConvolution::AllocDerivs(){
         return;
 	}
 	
-    size_t s = sizeof(DFLOAT)*(rml*CompressedMultipoleLengthXY);
     for (int z = 0; z < znode; z++){
-        int memalign_ret = posix_memalign((void **) (Ddisk + z), PAGE_SIZE, s);
+        int memalign_ret = posix_memalign((void **) (Ddisk + z), PAGE_SIZE, Ddisk_bytes);
         assert(memalign_ret == 0);
         //alloc_bytes += s;
     }
@@ -356,8 +356,6 @@ void ParallelConvolution::AllocDerivs(){
 
 void ParallelConvolution::LoadDerivatives(int z) {
 	int z_file = z + zstart;	
-		
-	size_t size = sizeof(DFLOAT)*rml*CompressedMultipoleLengthXY;
 
     const char *fnfmt;
     if(sizeof(DFLOAT) == sizeof(float))
@@ -376,15 +374,15 @@ void ParallelConvolution::LoadDerivatives(int z) {
 	
     if(!ramdisk_derivs){						
 		assert(Ddisk[z] != NULL); 
-        RD_RDD->BlockingRead( fn, (char *) Ddisk[z], size, 0, 1); //NAM TODO the last arg (1) should be ReadDirect's ramdisk flag set during constructor, but that seg faults right now. Fix! 
-        CS.ReadDerivativesBytes += size;
+        RD_RDD->BlockingRead( fn, (char *) Ddisk[z], Ddisk_bytes, 0, 1); //NAM TODO the last arg (1) should be ReadDirect's ramdisk flag set during constructor, but that seg faults right now. Fix! 
+        CS.ReadDerivativesBytes += Ddisk_bytes;
 		STDLOG(2, "BlockingRead derivatives for z = %d from file %c\n", z_file, fn);
 		
 		
     } else {
 	    if(Ddisk[z] != NULL){
 	    	MunmapDerivs.Clear(); MunmapDerivs.Start();
-	        int res = munmap(Ddisk[z], size);
+	        int res = munmap(Ddisk[z], Ddisk_bytes);
 	        MunmapDerivs.Stop();
 	        CS.MunmapDerivs += MunmapDerivs.Elapsed();
 	        assertf(res == 0, "Failed to munmap derivs\n"); 
@@ -396,10 +394,10 @@ void ParallelConvolution::LoadDerivatives(int z) {
 		MmapDerivs.Clear(); MmapDerivs.Start(); 
 		
 	    // map the shared memory fd to an address
-	    Ddisk[z] = (DFLOAT *) mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	    Ddisk[z] = (DFLOAT *) mmap(NULL, Ddisk_bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	    int res = close(fd);
-	    assertf((void *) Ddisk[z] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
-	    assertf(Ddisk[z] != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
+	    assertf((void *) Ddisk[z] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, Ddisk_bytes);
+	    assertf(Ddisk[z] != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, Ddisk_bytes);
 	    assertf(res == 0, "Failed to close fd %d\n", fd);
 		STDLOG(2, "Mapped derivatives for z = %d from file %c\n", z_file, fn);
 		
@@ -427,8 +425,8 @@ void ParallelConvolution::RecvMultipoleSlab(int first_slab_finished) {
 			
 			// We're receiving the full range of z's in each transfer.
 			// Key thing is to route this to the correct x location
-			MPI_Irecv(MTdisk + x * this_node_size, this_node_size,
-			    MPI_COMPLEX, r, tag, comm_multipoles, &Mrecv_requests[x]);
+			MPI_Irecv(MTdisk + x * node_slab_elem, node_slab_elem,
+			    MPI_MTCOMPLEX, r, tag, comm_multipoles, &Mrecv_requests[x]);
 	    }
 	}
 	STDLOG(2,"MPI_Irecv set for incoming Multipoles\n");
@@ -447,7 +445,7 @@ void ParallelConvolution::SendMultipoleSlab(int slab) {
 	Msend_active++;
 	for (int r = 0; r < MPI_size; r++) {
 		int tag = (r+1) * 10000 + slab + M_TAG; 
-		MPI_Issend(mt + node_start[r], node_size[r], MPI_COMPLEX, r, tag, comm_multipoles, &Msend_requests[slab][r]);		
+		MPI_Issend(mt + node_start[r], node_size[r], MPI_MTCOMPLEX, r, tag, comm_multipoles, &Msend_requests[slab][r]);		
 	}
     MsendTimer[slab].Start();
 	STDLOG(2,"Multipole slab %d has been queued for MPI_Issend, Msend_active = %d\n", slab, Msend_active);
@@ -570,7 +568,7 @@ void ParallelConvolution::SendTaylors(int offset) {
 	
 		int tag = (MPI_rank+1) * 10000 + slab + T_TAG; 
 		
-		MPI_Issend(MTdisk + slab * this_node_size, this_node_size, MPI_COMPLEX, r, tag, comm_taylors, &Tsend_requests[slab]);
+		MPI_Issend(MTdisk + slab * node_slab_elem, node_slab_elem, MPI_MTCOMPLEX, r, tag, comm_taylors, &Tsend_requests[slab]);
 		STDLOG(3,"Taylor slab %d has been queued for MPI_Issend to rank %d, offset %d\n", slab, r, offset);
 	}
 	STDLOG(2, "MPI_Issend set for outgoing Taylors.\n");
@@ -589,7 +587,7 @@ void ParallelConvolution::RecvTaylorSlab(int slab) {
 	Trecv_active++; 
 	for (int r = 0; r < MPI_size; r++) {
 		int tag = (r+1) * 10000 + slab + T_TAG; 
-		MPI_Irecv(mt + node_start[r], node_size[r], MPI_COMPLEX, r, tag, comm_taylors, &Trecv_requests[slab][r]);
+		MPI_Irecv(mt + node_start[r], node_size[r], MPI_MTCOMPLEX, r, tag, comm_taylors, &Trecv_requests[slab][r]);
 		
 		
 	}

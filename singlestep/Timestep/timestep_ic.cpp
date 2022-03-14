@@ -129,8 +129,8 @@ void timestepIC(void) {
     STDLOG(1, "Read %d particles from IC files\n", NP_from_IC);
     #ifdef PARALLEL
         BarrierWallClock.Start();
-        MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
-        MPI_REDUCE_TO_ZERO(&NP_from_IC, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
+        MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UINT64_T, MPI_SUM);
+        MPI_REDUCE_TO_ZERO(&NP_from_IC, 1, MPI_UINT64_T, MPI_SUM);
         STDLOG(1,"Ready to proceed to the remaining work\n");
         
         MPI_Barrier(comm_global);

@@ -40,7 +40,7 @@ BINARIES=avx512direct detect_gpus
 # NVCC may not exist outside the CUDA_ENABLED region!
 # But ./configure won't invoke this unless we do have CUDA
 detect_gpus: detect_gpus.cu
-	$(NVCC) -Wno-deprecated-gpu-targets -o $@ $< -ccbin $(CXX) -std=c++11
+	$(NVCC) -Wno-deprecated-gpu-targets -o $@ $< -ccbin $(CXX) -std=c++17
 
 avx512direct: avx512direct.cc
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -DTEST -o $@ $<
