@@ -49,7 +49,7 @@ class SlabSize {
             // Send all non-zero values of _newsize to node 0
             // Since _newsize is set only when a slab is finished,
             // we can economize our code and just add the vectors.
-            MPI_REDUCE_TO_ZERO(_newsize, _cpd, MPI_UNSIGNED_LONG_LONG, MPI_SUM);
+            MPI_REDUCE_TO_ZERO(_newsize, _cpd, MPI_UINT64_T, MPI_SUM);
         #endif
         return;
     }
