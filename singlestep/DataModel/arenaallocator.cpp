@@ -52,7 +52,7 @@ enum RamdiskArenaType { RAMDISK_NO,
 
 class ArenaAllocator {
 public:
-    ArenaAllocator(int maximum_number_ids, uint64 max_allocations, int use_disposal_thread, int disposal_thread_core);
+    ArenaAllocator(int maximum_number_ids, int use_disposal_thread, int disposal_thread_core);
     ~ArenaAllocator(void);
 
     void report_peak();
@@ -121,7 +121,6 @@ private:
 
     int maxids;
     arenainfo *arena;
-    uint64 allocation_guard;
     uint64 peak_alloc;
     uint64 peak_shm_alloc;
     std::mutex lb_mutex;
@@ -241,7 +240,7 @@ private:
 };
 
 
-ArenaAllocator::ArenaAllocator(int maximum_number_ids, uint64 max_allocations, int _use_disposal_thread, int _disposal_thread_core) {
+ArenaAllocator::ArenaAllocator(int maximum_number_ids, int _use_disposal_thread, int _disposal_thread_core) {
     maxids = maximum_number_ids;
    // ArenaFree = new PTimer(maxids);
     arena = new arenainfo[maxids];
@@ -252,7 +251,6 @@ ArenaAllocator::ArenaAllocator(int maximum_number_ids, uint64 max_allocations, i
     ArenaFree_elapsed = 0.;
     peak_alloc = 0;
     peak_shm_alloc = 0;
-    allocation_guard = max_allocations * 1024 * 1024;
     for(int i=0;i<maxids;i++)
         ResetArena(i);
 
@@ -342,9 +340,6 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
                 assert(arena[id].addr!=NULL);        // Crash if the malloc failed
                 numalloc++;
                 total_allocation += arena[id].allocated_size;
-                if (total_allocation>allocation_guard) {
-                    STDLOG(0,"Warning: Allocations of %4.2f GiB have exceeded guard level of %4.2f GiB\n", total_allocation/1024./1024/1024, allocation_guard/1024./1024/1024);
-                }
                 arena[id].IsIOCompleted = 0;  
                 arena[id].start_offset = GUARDSIZE;
                 SetGuardStart(id);

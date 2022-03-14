@@ -302,7 +302,7 @@ void Prologue(Parameters &P, bool MakeIC) {
     SetupManifest(2*P.GroupRadius+1);
 
     Grid = new grid(cpd);
-    SB = new SlabBuffer(cpd, order, P.MAXRAMMB*1024*1024);
+    SB = new SlabBuffer(cpd, order);
     CP = new CellParticles(cpd, SB);
 
     STDLOG(2,"Initializing Multipoles()\n");
