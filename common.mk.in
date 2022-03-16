@@ -15,12 +15,13 @@ REAL_CXX := @REAL_CXX@
 CC := @CXX@ -x c
 # seems to help us avoid a lot of mischief:
 LDFLAGS := -Wl\,--as-needed @LDFLAGS@
-CXXFLAGS := -std=c++11
+CXXFLAGS := -std=c++17
 ROOT_DIR ?= .
 OPT := -g
 # definitely not a preprocessor option, but it's the one flag we pass to gcc and g++:
 CPPFLAGS := @DEFS@ -m64 -I $(ROOT_DIR)/include $(OPT) $(LDFLAGS)
 #CPPFLAGS += -Wall  #TODO: clean up compiler warnings
+#CPPFLAGS += -fsanitize=address,undefined
 
 # We use bash syntax in some Makefiles
 SHELL := /bin/bash

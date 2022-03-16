@@ -93,12 +93,12 @@ uint64 naive_directinteractions = 0;
 #include "grid.cpp"
 grid *Grid;
 
+char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
+int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
 
 #include "Parameters.cpp"
 #include "statestructure.cpp"
 State ReadState, WriteState;
-char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
-int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
 
 #include "particlestruct.cpp"
 
@@ -302,7 +302,7 @@ void Prologue(Parameters &P, bool MakeIC) {
     SetupManifest(2*P.GroupRadius+1);
 
     Grid = new grid(cpd);
-    SB = new SlabBuffer(cpd, order, P.MAXRAMMB*1024*1024);
+    SB = new SlabBuffer(cpd, order);
     CP = new CellParticles(cpd, SB);
 
     STDLOG(2,"Initializing Multipoles()\n");
@@ -966,7 +966,7 @@ void FinalizeWriteState() {
         // sum subsample counts
         MPI_REDUCE_TO_ZERO(&WriteState.np_subA_state, 1, MPI_INT, MPI_SUM);
         MPI_REDUCE_TO_ZERO(&WriteState.np_subB_state, 1, MPI_INT, MPI_SUM);
-        MPI_REDUCE_TO_ZERO(&WriteState.np_lightcone, 1, MPI_LONG_LONG, MPI_SUM);
+        MPI_REDUCE_TO_ZERO(&WriteState.np_lightcone, 1, MPI_INT64_T, MPI_SUM);
 // #undef MPI_REDUCE_IN_PLACE
 
         // Note that we're not summing up any timing or group finding reporting;

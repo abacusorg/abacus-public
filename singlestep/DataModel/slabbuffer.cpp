@@ -106,11 +106,11 @@ public:
     std::string WriteSlabPath(int type, int slab);
     std::string ReadSlabPath(int type, int slab);
 
-    SlabBuffer(int _cpd, int _order, uint64 max_allocations) {
+    SlabBuffer(int _cpd, int _order) {
         order = _order;
         cpd = _cpd;
 
-        AA = new ArenaAllocator((_cpd+1)*NUMTYPES, max_allocations, P.UseMunmapThread, P.MunmapThreadCore);
+        AA = new ArenaAllocator((_cpd+1)*NUMTYPES, P.UseMunmapThread, P.MunmapThreadCore);
     }
 
     ~SlabBuffer(void) {
