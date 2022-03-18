@@ -163,6 +163,9 @@ void PlanOutput(bool MakeIC) {
 
 
 int main(int argc, char **argv) {
+    SETUP_LOG_REFERENCE_TIME;  // Establish the base timestamp
+        // but logging still not available until setup_log() below!
+
     //Enable floating point exceptions
     feenableexcept(FE_INVALID | FE_DIVBYZERO);
 
