@@ -3442,7 +3442,7 @@ ac_config_files="$ac_config_files common.mk"
 $as_echo_n "checking underlying compiler... " >&6; }
 
 REAL_CXX=$($CXX --version)
-if \grep -qP '\bicc\b' <<< "$REAL_CXX"; then
+if \grep -qP '\b(icc|ICC)\b' <<< "$REAL_CXX"; then
     REAL_CXX=icc
 elif \grep -qP '\bXL\b' <<< "$REAL_CXX"; then
     REAL_CXX=xlc++

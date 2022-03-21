@@ -44,7 +44,7 @@ AC_CONFIG_FILES([
 AC_MSG_CHECKING([underlying compiler])
 AC_SUBST(REAL_CXX)
 REAL_CXX=$($CXX --version) 
-if \grep -qP '\bicc\b' <<< "$REAL_CXX"; then
+if \grep -qP '\b(icc|ICC)\b' <<< "$REAL_CXX"; then
     REAL_CXX=icc
 elif \grep -qP '\bXL\b' <<< "$REAL_CXX"; then
     REAL_CXX=xlc++
