@@ -116,11 +116,11 @@ ifeq (@REAL_CXX@,g++)
         THREAD_CPPFLAGS += -foffload=disable
     endif
 else ifeq (@REAL_CXX@,icc)
-    CPPFLAGS += -O3 -xHost -fp-model precise -fbuiltin -ip -mkl -tbb #-ipo #-prof-use=weighted
-    NVCC_XCOMPILERFLAGS += -fp-model precise -ip -mkl -tbb
+    CPPFLAGS += -O3 -xHost -fp-model precise -fbuiltin -ip -qmkl -qtbb #-ipo #-prof-use=weighted
+    NVCC_XCOMPILERFLAGS += -fp-model precise -ip -qmkl -qtbb
 
-    FFTW_LIBS := -mkl
-    FFTW_OMP_LIBS := -mkl
+    FFTW_LIBS := -qmkl
+    FFTW_OMP_LIBS := -qmkl
 
 else ifeq (@REAL_CXX@,xlc++)
     CPPFLAGS += -O5
