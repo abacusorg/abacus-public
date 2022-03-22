@@ -195,6 +195,8 @@ public:
 
     int MunmapThreadCore;  // Core binding for disposal thread
 
+    int NumZRanks;  // Number of ranks in the Z-dimension in the 2D domain decomposition
+
     // Return the L{tier} size in MB
     float getCacheSize(int tier){
         int cache_size = 0;
@@ -474,6 +476,9 @@ public:
 
         MunmapThreadCore = -1;
         installscalar("MunmapThreadCore", MunmapThreadCore, DONT_CARE);
+
+        NumZRanks = 1;
+        installscalar("NumZRanks", NumZRanks, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.
@@ -807,7 +812,13 @@ void Parameters::ValidateParameters(void) {
         "Conv_IOMode = \"%s\" must be one of normal, overwrite, slosh, stripe.",
         Conv_IOMode
         );
+
+    if(NumZRanks < 1){
+        fprintf(stderr,"NumZRanks=%d must be >= 1!\n", NumZRanks);
+        assert(1==0);
+    }
 }
+
 Parameters P;
 
 #endif

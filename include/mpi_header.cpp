@@ -9,6 +9,8 @@
 	MPI_Comm comm_multipoles;
 	MPI_Comm comm_manifest;
 	MPI_Comm comm_global; // e.g. for state reductions
+    
+    MPI_Comm comm_2d;  // a communicator for the nodes splitting a slab
 
     // This does an in-place reduction to rank 0
     #define MPI_REDUCE_TO_ZERO(vec,len,type,op) MPI_Reduce(MPI_rank!=0?(vec):MPI_IN_PLACE, vec, len, type, op, 0, comm_global)

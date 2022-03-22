@@ -93,9 +93,6 @@ uint64 naive_directinteractions = 0;
 #include "grid.cpp"
 grid *Grid;
 
-char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
-int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
-
 #include "Parameters.cpp"
 #include "statestructure.cpp"
 State ReadState, WriteState;
@@ -207,73 +204,8 @@ void finish_fftw();
 
 #include <fenv.h>
 
-void InitializeParallel(int &size, int &rank) {
-    // no STDLOG yet!
+#include "parallel.cpp"
 
-    #ifdef PARALLEL
-        // Start up MPI
-        int init = 1;
-        MPI_Initialized(&init);
-        assertf(!init, "MPI was already initialized!\n");
-
-        int ret = -1;
-        MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
-        assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
-        MPI_Comm_size(MPI_COMM_WORLD, &size);
-        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-        sprintf(NodeString,".%04d",rank);
-
-        #ifdef MULTIPLE_MPI_COMM
-
-            // By using color = 0, we indicate that all ranks belong to all comms
-            int color = 0;
-            MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_taylors);
-            MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_multipoles);
-            MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_manifest);
-            MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_global);
-
-            // The following are just sanity checks that the global rank is the same as the new-comm rank
-            int comm_rank = -1;
-            MPI_Comm_rank(comm_taylors, &comm_rank);
-            assertf(comm_rank == rank, "Taylors comm_rank = %d, rank = %d, should match!\n", comm_rank, rank);
-            MPI_Comm_rank(comm_multipoles, &comm_rank);
-            assertf(comm_rank == rank, "Multipoles comm_rank = %d, rank = %d, should match!\n", comm_rank, rank);
-            MPI_Comm_rank(comm_manifest, &comm_rank);
-            assertf(comm_rank == rank, "Manifest comm_rank = %d, rank = %d, should match!\n", comm_rank, rank);
-            MPI_Comm_rank(comm_global, &comm_rank);
-            assertf(comm_rank == rank, "Global comm_rank = %d, rank = %d, should match!\n", comm_rank, rank);
-
-        #else
-
-            comm_taylors = MPI_COMM_WORLD;
-            comm_multipoles = MPI_COMM_WORLD;
-            comm_manifest = MPI_COMM_WORLD;
-            comm_global = MPI_COMM_WORLD;
-
-        #endif
-    #endif
-}
-
-void FinalizeParallel() {
-    #ifdef PARALLEL
-
-        #ifdef MULTIPLE_MPI_COMM
-
-        STDLOG(1, "MULTIPLE_MPI_COMM was used, tearing down communicators\n");
-
-        MPI_Comm_free(&comm_taylors);
-        MPI_Comm_free(&comm_multipoles);
-        MPI_Comm_free(&comm_manifest);
-        MPI_Comm_free(&comm_global);
-
-        #endif
-
-        // Finalize MPI
-        STDLOG(0,"Calling MPI_Finalize()\n");
-        MPI_Finalize();
-    #else
-    #endif
-}
 /*! \brief Initializes global objects
  *
  */

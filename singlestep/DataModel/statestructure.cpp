@@ -141,6 +141,8 @@ public:
 
     int64 np_lightcone;
 
+    int GhostRadius;
+
     void read_from_file(const char *fn);
     void write_to_file(const char *dir, const char *fname);
     void write_to_file(const char *dir) { write_to_file(dir,""); }
@@ -238,6 +240,9 @@ public:
         installscalar("MaxL0GroupSize",MaxL0GroupSize,DONT_CARE);
         DirectsPerParticle = 0.0;
         installscalar("DirectsPerParticle",DirectsPerParticle,DONT_CARE);
+
+        GhostRadius = 0;
+        installscalar("GhostRadius",GhostRadius,DONT_CARE);
 
         // Initialize helper variables
         DoTimeSliceOutput = 0;
@@ -342,6 +347,8 @@ void State::make_output_header() {
     WPR(L0DensityThreshold       , FSYM);
     WPR(SODensityL1              , FSYM);
     WPR(SODensityL2              , FSYM);
+
+    WPR(GhostRadius              , ISYM);
 
     output_header = ss.str();
 }

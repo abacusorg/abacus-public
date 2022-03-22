@@ -74,6 +74,8 @@ void BuildWriteState(double da){
 	WriteState.MaxAcceleration = 0.0;
 	WriteState.RMS_Velocity = 0.0;
 	WriteState.MinVrmsOnAmax = 1e10;
+
+    WriteState.GhostRadius = MERGE_GHOST_RADIUS;
 }
 
 void BuildWriteStateOutput() {
@@ -163,7 +165,9 @@ void PlanOutput(bool MakeIC) {
 
 
 int main(int argc, char **argv) {
-    SETUP_LOG_REFERENCE_TIME;  // Establish the base timestamp
+    //signal(SIGUSR1, graceful_exit_signal_handler);
+
+    SET_LOG_REFERENCE_TIME;  // Establish the base timestamp
         // but logging still not available until setup_log() below!
 
     //Enable floating point exceptions
@@ -179,25 +183,18 @@ int main(int argc, char **argv) {
     }
 
     // Set up MPI
-
-    InitializeParallel(MPI_size, MPI_rank);
-
-    int MakeIC = atoi(argv[2]);
+    StartMPI();  // call MPI_Init as early as possible
     P.ReadParameters(argv[1],0);
 
+    int MakeIC = atoi(argv[2]);
     load_read_state(MakeIC);  // Load the bare minimum (step num, etc) to get the log up and running
 
     setup_log(); // STDLOG and assertf now available
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
     STDLOG(0,"MakeIC = %d\n", MakeIC);
-    #ifdef PARALLEL
-		//signal(SIGUSR1, graceful_exit_signal_handler);
-        STDLOG(0,"Initialized MPI.\n");
-        STDLOG(0,"Node rank %d of %d total\n", MPI_rank, MPI_size);
-    #endif
-    char hostname[1024];
-    gethostname(hostname,1024);
-    STDLOG(0,"Host machine name is %s\n", hostname);
+
+    InitializePipelineWidths();
+    InitializeParallel();  // MPI_rank now available
 
     SetupLocalDirectories(MakeIC);
 

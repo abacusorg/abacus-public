@@ -905,14 +905,16 @@ void AttemptReceiveManifest(){
 #define INSTANTIATE_NOOP(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &NoopPrecondition, &NoopAction, ""); } while(0)
 
 
-void timestep(void) {
-
+void InitializePipelineWidths(){
     FORCE_RADIUS = P.NearFieldRadius;
     GROUP_RADIUS = GFC != NULL ? P.GroupRadius : 0;
     // The 2LPT pipeline is short (no group finding). We can afford to wait an extra slab to allow for large IC displacements
     FINISH_WAIT_RADIUS = LPTStepNumber() > 0 ? 2 : 1;
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
     assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS);
+}
+
+void timestep(void) {
 
 #ifdef PARALLEL
     ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory);
