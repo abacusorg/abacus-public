@@ -526,8 +526,9 @@ public:
         return 0.0;
     }
 
-private:
     void ProcessStateDirectories();
+
+private:
     void CountTimeSlices();
 };
 
@@ -562,7 +563,7 @@ void Parameters::CountTimeSlices(){
         }
     } 
 
-    if (not (nTimeSlice > 0 || nTimeSliceSubsample > 0 || nTimeSliceL1 > 0 || OutputEveryStep))
+    if (! (nTimeSlice > 0 || nTimeSliceSubsample > 0 || nTimeSliceL1 > 0 || OutputEveryStep || StoreForces))
         printf("Warning! No output requested. Are you sure you want this?\n");  //must request at least one kind of output. 
 }
 void Parameters::ProcessStateDirectories(){
@@ -621,7 +622,7 @@ void Parameters::ReadParameters(char *parameterfile, int icflag) {
     ReadHeader(*hs);
     hs->Close();
     CountTimeSlices();
-    ProcessStateDirectories();
+    // ProcessStateDirectories();  // this is now done in singlestep.cpp (after MPI)
     if(!icflag) ValidateParameters();
 }
 

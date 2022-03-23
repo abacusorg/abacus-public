@@ -907,10 +907,14 @@ void AttemptReceiveManifest(){
 
 void InitializePipelineWidths(){
     FORCE_RADIUS = P.NearFieldRadius;
-    GROUP_RADIUS = GFC != NULL ? P.GroupRadius : 0;
     // The 2LPT pipeline is short (no group finding). We can afford to wait an extra slab to allow for large IC displacements
     FINISH_WAIT_RADIUS = LPTStepNumber() > 0 ? 2 : 1;
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
+}
+
+// This happens much later, after outputs and group finding are planned
+void InitializeGroupRadius(){
+    GROUP_RADIUS = GFC != NULL ? P.GroupRadius : 0;
     assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS);
 }
 

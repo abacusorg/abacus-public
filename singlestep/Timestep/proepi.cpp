@@ -513,6 +513,9 @@ void load_read_state(int MakeIC){
 
         // We have to fill in a few items, just to bootstrap the rest of the code.
         ReadState.ScaleFactor = 1.0/(1+P.InitialRedshift);
+
+        // Probably not used, but this declares that the ReadState slabs have no ghosts
+        ReadState.GhostRadius = 0;
     } else {
         // We're doing a normal step
         // Check that the read state file exists
@@ -666,7 +669,7 @@ void InitGroupFinding(bool MakeIC){
     We need to enable group finding if:
     - We are doing microstepping
     - We are outputting groups
-     But we can't enable it if:
+    But we can't enable it if:
     - AllowGroupFinding is disabled
     - ForceOutputDebug is enabled
     - This is an IC or 2LPT step
@@ -674,8 +677,7 @@ void InitGroupFinding(bool MakeIC){
     i.e. before GroupFinding has a chance to rearrange them
     */
 
-    int do_grp_output;
-    do_grp_output = 0;
+    int do_grp_output = 0;
 
     for(int i = 0; i < P.nTimeSliceSubsample; i++){
         double subsample_z = P.TimeSliceRedshifts_Subsample[i];
@@ -747,6 +749,10 @@ void InitGroupFinding(bool MakeIC){
         } else {
             STDLOG(1,"Using L0DensityThreshold = %f\n", WriteState.L0DensityThreshold);
         }
+
+        assertf(GHOST_RADIUS >= GROUP_RADIUS,
+                "GHOST_RADIUS=%d not big enough for GROUP_RADIUS=%d\n",
+                GHOST_RADIUS, GROUP_RADIUS);
     } else{
         GFC = NULL;  // be explicit
         ReadState.DoGroupFindingOutput = 0;

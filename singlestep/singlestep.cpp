@@ -74,8 +74,6 @@ void BuildWriteState(double da){
 	WriteState.MaxAcceleration = 0.0;
 	WriteState.RMS_Velocity = 0.0;
 	WriteState.MinVrmsOnAmax = 1e10;
-
-    WriteState.GhostRadius = MERGE_GHOST_RADIUS;
 }
 
 void BuildWriteStateOutput() {
@@ -186,6 +184,9 @@ int main(int argc, char **argv) {
     StartMPI();  // call MPI_Init as early as possible
     P.ReadParameters(argv[1],0);
 
+    InitializeParallelTopology();  // MPI_rank now available
+    P.ProcessStateDirectories();  // needs MPI_rank
+
     int MakeIC = atoi(argv[2]);
     load_read_state(MakeIC);  // Load the bare minimum (step num, etc) to get the log up and running
 
@@ -194,8 +195,8 @@ int main(int argc, char **argv) {
     STDLOG(0,"MakeIC = %d\n", MakeIC);
 
     InitializePipelineWidths();
-    InitializeParallel();  // MPI_rank now available
-
+    InitializeParallelDomain(MakeIC);  // needs ReadState
+    
     SetupLocalDirectories(MakeIC);
 
     // Set up OpenMP
@@ -245,7 +246,12 @@ int main(int argc, char **argv) {
 
     // Set up the Group Finding concepts and decide if Group Finding output is requested.
     InitGroupFinding(MakeIC);
-    BuildWriteStateOutput();    // Have to delay this until after GFC is made
+    
+    InitializeGroupRadius();  // needs to know if this step will do group finding
+    InitializeParallelMergeDomain();  // needs to know if the *next* step will do group finding
+    LogParallelTopology();
+
+    BuildWriteStateOutput();    // needs group finding and merge domain
 
     SingleStepSetup.Stop();
 

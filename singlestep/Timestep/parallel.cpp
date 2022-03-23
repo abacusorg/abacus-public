@@ -1,25 +1,8 @@
 // file: parallel.cpp
 // This file is #included in proepi.cpp
+// and is responsible for initializing the vars in mpi_header.cpp
 
-// These are the logical (i.e. global) indices that track the z-range belonging to this node
-
-// TODO: vars might go to parallel.h
-int node_z_start;
-int node_z_size;
-int node_z_start_ghost;
-int node_z_size_with_ghost;
-
-char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
-int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
-
-// The 2D rank and size
-int MPI_rank_x = 0, MPI_size_x = 1;
-int MPI_rank_z = 0, MPI_size_z = 1;
-
-int GHOST_RADIUS = 0;        // in the read state
-int MERGE_GHOST_RADIUS = 0;  // in the write state
-
-// A thin function to call MPI_Init as early as possible,
+// A thin function to call MPI_Init() as early as possible,
 // as recommended by the standard.
 // MPI_rank, etc, will *not* be available until InitializeParallel()
 void StartMPI() {
@@ -33,17 +16,17 @@ void StartMPI() {
         int ret = -1;
         MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
         assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() reports it supports level %d, not MPI_THREAD_FUNNELED.\n", ret);
+
+        STDLOG(0,"Initialized MPI.\n");
     #endif
 }
 
 
-// Initialize the parallel state: topology, communicators, ranks, etc.
-// This is separated from StartMPI() because it requires that we have read
-// the parameter file and done some other work best done after MPI_Init()
-void InitializeParallel() {
+// Initialize the parallel topology: communicators, ranks, etc; but not the z domain.
+// Requires the Parameters, but not the state.
+void InitializeParallelTopology() {
     #ifdef PARALLEL
-        int _world_rank;
-        MPI_Comm_rank(MPI_COMM_WORLD, &_world_rank);  // purely informational
+        MPI_Comm_rank(MPI_COMM_WORLD, &_world_rank);  // purely informational, we will not use _world_rank
         MPI_Comm_size(MPI_COMM_WORLD, &MPI_size);
 
         MPI_size_z = P.NumZRanks;
@@ -66,7 +49,7 @@ void InitializeParallel() {
 
         // Now establish this node's 2D rank
         int coords[ndims];
-        MPI_Cart_coords(comm_2d, MPI_rank, ndims, &coords);
+        MPI_Cart_coords(comm_2d, MPI_rank, ndims, coords);
         MPI_rank_x = coords[0];
         MPI_rank_z = coords[1];
 
@@ -81,19 +64,22 @@ void InitializeParallel() {
             comm_manifest = comm_2d;
             comm_global = comm_2d;
         #endif
+    
+    #endif
+}
 
-        if(MPI_size_z > 1){
-            GHOST_RADIUS = ReadState.GhostRadius;
+// Initialize `node_z_start` and friends, as well as ghost info
+// Needs ReadState
+void InitializeParallelDomain(int MakeIC){
+    #ifdef PARALLEL
+        // will always reflect the memory layout of the input slabs
+        GHOST_RADIUS = ReadState.GhostRadius;
+
+        if (!MakeIC){
             assertf(GHOST_RADIUS >= FORCE_RADIUS,
                 "GHOST_RADIUS=%d not big enough for FORCE_RADIUS=%d\n",
                 GHOST_RADIUS, FORCE_RADIUS);
-            assertf(GHOST_RADIUS >= GROUP_RADIUS,
-                "GHOST_RADIUS=%d not big enough for GROUP_RADIUS=%d\n",
-                GHOST_RADIUS, GROUP_RADIUS);
-            MERGE_GHOST_RADIUS = FORCE_RADIUS;  // TODO: this will be std::max(FORCE_RADIUS, GROUP_RADIUS_NEXT_STEP)
-        } else {
-            GHOST_RADIUS = 0;
-            MERGE_GHOST_RADIUS = 0;
+                // InitGroupFinding() will check GHOST_RADIUS against GROUP_RADIUS
         }
 
         // The primary, "corporeal" domain boundaries will be registered to y=0
@@ -107,31 +93,66 @@ void InitializeParallel() {
 
         assertf(node_z_start + node_z_size <= P.cpd, "Bad z split calculation?");  // A node can't span the wrap
 
-        STDLOG(0,"Initialized MPI.\n");
-        STDLOG(0,"1D node rank %d of %d total\n", MPI_rank, MPI_size);
-        STDLOG(0,"2D (x,z) node rank is (%d,%d) of (%d,%d) total\n", MPI_rank_x, MPI_rank_z, MPI_size_x, MPI_size_z);
-        STDLOG(2,"Original 1D rank was %d, remapped to %d\n", _world_rank, MPI_rank);
-
     #else
     
-        int node_z_start = 0;
-        int node_z_size = P.cpd;
-        int node_z_start_ghost = 0;
-        int node_z_size_with_ghost = P.cpd;
+        node_z_start = 0;
+        node_z_size = P.cpd;
+        node_z_start_ghost = 0;
+        node_z_size_with_ghost = P.cpd;
     
     #endif
-    
+}
+
+// Initialize the ghost radius for the merge slabs
+// Has to be done after deciding that the next step will do group finding
+void InitializeParallelMergeDomain(){
+    #ifdef PARALLEL
+        if(MPI_size_z > 1){
+            MERGE_GHOST_RADIUS = FORCE_RADIUS;  // TODO: this will be std::max(FORCE_RADIUS, GROUP_RADIUS_NEXT_STEP)
+        } else {
+            MERGE_GHOST_RADIUS = 0;
+        }
+
+        // we could track a set of indices like "node_z_merge_start",
+        // but if those are *only* used by the merge, we can keep them
+        // local to the merge
+    #endif
+
+    WriteState.GhostRadius = MERGE_GHOST_RADIUS;
+}
+
+
+void LogParallelTopology(){
+    // once we have STDLOG
+
+    #ifdef PARALLEL
+        STDLOG(0,"Initialized parallel topology.\n");
+        STDLOG(0,"1D node rank %d of %d total\n", MPI_rank, MPI_size);
+        STDLOG(0,"2D (x,z) node rank is (%d,%d) of (%d,%d) total\n",
+            MPI_rank_x, MPI_rank_z, MPI_size_x, MPI_size_z);
+        STDLOG(2,"Original 1D rank was %d, remapped to %d\n", _world_rank, MPI_rank);
+
+        STDLOG(0,"This node will do %d columns in z=[%d,%d)\n",
+            node_z_size, node_z_start, node_z_start + node_z_size);
+        STDLOG(0,"z domain including ghost is %d columns in z=[%d,%d)\n",
+            node_z_size_with_ghost, node_z_start_ghost, node_z_start_ghost + node_z_size_with_ghost);
+
+        STDLOG(0,"The ReadState has GHOST_RADIUS=%d\n ghost columns\n", GHOST_RADIUS);
+        STDLOG(0,"The WriteState will have MERGE_GHOST_RADIUS=%d\n", MERGE_GHOST_RADIUS);
+    #endif
+
     char hostname[1024];
     gethostname(hostname,1024);
     STDLOG(0,"Host machine name is %s\n", hostname);
 }
 
+
 void FinalizeParallel() {
     #ifdef PARALLEL
 
-        #ifdef MULTIPLE_MPI_COMM
+        STDLOG(1, "Tearing down MPI communicators\n");
 
-        STDLOG(1, "MULTIPLE_MPI_COMM was used, tearing down communicators\n");
+        #ifdef MULTIPLE_MPI_COMM
 
         MPI_Comm_free(&comm_taylors);
         MPI_Comm_free(&comm_multipoles);
@@ -139,6 +160,8 @@ void FinalizeParallel() {
         MPI_Comm_free(&comm_global);
 
         #endif
+
+        MPI_Comm_free(&comm_2d);
 
         // Finalize MPI
         STDLOG(0,"Calling MPI_Finalize()\n");

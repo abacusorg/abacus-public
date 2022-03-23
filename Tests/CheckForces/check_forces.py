@@ -29,7 +29,7 @@ from Abacus import Tools
     
 DEFAULT_ORDER = 8
 DEFAULT_PPD = 64
-DEFAULT_CPD = 15
+DEFAULT_CPD = 17
 
 def plt_log_hist(ax, a, label=r'$|a-b|/\sqrt{|a|^2 + |b|^2}$'):
     assert (a >= 0).all()

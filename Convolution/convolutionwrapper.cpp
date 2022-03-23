@@ -22,8 +22,6 @@ STimer ConvolutionWallClock;
 #include "iolib.cpp"
 #endif
 
-char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
-int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
 int node_zstart = -1, node_zwidth = 1;
 int first_slab_on_node = 0, first_slab_finished = -1, total_slabs_on_node = -1;
 
