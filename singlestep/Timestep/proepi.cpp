@@ -260,7 +260,7 @@ void Prologue(Parameters &P, bool MakeIC) {
     STDLOG(0,"Setting RamDisk == %d\n", P.RamDisk);
     IO_Initialize(logfn);
 
-    SS = new SlabSize(P.cpd);
+    SS = new SlabSize(P.cpd, MPI_size_z, MPI_rank_z);
     ReadNodeSlabs();
 
     if(!MakeIC) {
@@ -750,9 +750,11 @@ void InitGroupFinding(bool MakeIC){
             STDLOG(1,"Using L0DensityThreshold = %f\n", WriteState.L0DensityThreshold);
         }
 
-        assertf(GHOST_RADIUS >= GROUP_RADIUS,
-                "GHOST_RADIUS=%d not big enough for GROUP_RADIUS=%d\n",
-                GHOST_RADIUS, GROUP_RADIUS);
+        if(MPI_size_z > 1){
+            assertf(GHOST_RADIUS >= GROUP_RADIUS,
+                    "GHOST_RADIUS=%d not big enough for GROUP_RADIUS=%d\n",
+                    GHOST_RADIUS, GROUP_RADIUS);
+        }
     } else{
         GFC = NULL;  // be explicit
         ReadState.DoGroupFindingOutput = 0;

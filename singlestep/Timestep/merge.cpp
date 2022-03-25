@@ -252,7 +252,7 @@ uint64 FillMergeSlab(int slab) {
             // This should be the total number of merged particles
 
     // Allocate the Merging Slabs to hold 'inslab' number of particles
-    SS->set(slab, inslab);
+    SS->set(slab, inslab, inslab);  // TODO: ghost
     SB->AllocateSpecificSize(MergePosSlab, slab, inslab*sizeof(posstruct));
     SB->AllocateSpecificSize(MergeVelSlab, slab, inslab*sizeof(velstruct));
     SB->AllocateSpecificSize(MergeAuxSlab, slab, inslab*sizeof(auxstruct));
@@ -304,18 +304,8 @@ uint64 FillMergeSlab(int slab) {
     				assertf(mc.aux[j].pid() < P.MaxPID, "PID %d bigger than MaxPID %d\n", mc.aux[j].pid(), P.MaxPID);
     			}
             }
-            
-            //DoCellMultipoles(slab, y, z);
         }
-        //DoZRowMultipoles(slab, y);
     }
-
-    /*#pragma omp parallel for schedule(static)
-    for(int z=0;z<cpd;z++)
-        DoYRowMultipoles(slab, z);
-
-    // Do the final thread reductions
-    FinishSlabMultipoles(slab);*/
 
     // Delete the particles from the insert list.
     free(ILnew);   // Need to free this space!

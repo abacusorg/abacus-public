@@ -77,7 +77,8 @@ void RescaleAndCoAddAcceleration(int slab) {
     // Reverse the sign of the acceleration if we are making glass
     if(P.MakeGlass)
         rescale *= -1;
-    
+
+    // no ghost kick    
     uint64 N = SS->size(slab);
 
     #ifdef DIRECTSINGLESPLINE

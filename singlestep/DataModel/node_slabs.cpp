@@ -16,7 +16,7 @@ void ReadNodeSlabs(int get_all_nodes = 0, int * first_slabs_all = NULL, int * to
         return;
     #else
         // In the 2D decomposition, NodeSlabs only relates to the x-decomposition.
-        // So one should use MPI_rank_x and MPI_size_x in most places
+        // So one should use MPI_rank_x and MPI_size_x in this function
 
         int neighbor = (MPI_rank_x+1)%MPI_size_x;
         char fname[1024];
@@ -106,10 +106,9 @@ void WriteNodeSlabs() {
         first[MPI_rank_x] = first_slab_finished;
         // MPI: Send first_slab_finished to fill in this element in the vector
         // We just do this as a boring summation.
-        MPI_REDUCE_TO_ZERO(first, MPI_size_x, MPI_INT, MPI_SUM);
+        MPI_Reduce(MPI_rank_x != 0 ? first : MPI_IN_PLACE, first, MPI_size_x, MPI_INT, MPI_SUM, 0, comm_row_x);
 
-        // N.B.: we reduced to MPI_rank=0, not MPI_rank_x=0!
-        if (MPI_rank==0) {
+        if (MPI_rank_x==0) {
             char fname[1024];
 			char mname[1024];
 			

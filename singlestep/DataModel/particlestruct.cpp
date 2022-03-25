@@ -229,9 +229,18 @@ public:
     
 };
 
-class cellinfo { 
+class cellinfo {
+    /* With regard to ghost cells, our CellInfo slabs will always hold the
+    amount *with ghosts*. But some of our slabs, like AccSlab, won't have ghosts.
+    So each cellinfo struct has two counts: one for the starting offset in slabs
+    with ghosts, and one for the slabs without.
+
+    The alternatives would be to make a new CellInfoWithGhosts slab type, or
+    simply require all slabs to have ghosts, even if they are null.
+    */
 public:
     uint64 startindex;     // The particle-count offset in the slab list of particles
+    uint64 startindex_with_ghost;     // The offset in slabs that also hold ghost cells
     int count;          // The total number of particles in the cell
     int active;         // The number of active particles
     FLOAT mean_square_velocity;     // The mean of |vel|^2 (no adjustment for mean v)
@@ -241,35 +250,41 @@ public:
     void makenull() {
         memset(this,0,sizeof(cellinfo));
         startindex = 0;
+        startindex_with_ghost = 0;
         count = 0;
         active = 0;
         mean_square_velocity = 0;
         max_component_velocity  = 0;
         max_component_acceleration = 0;
     }
-    int legalvalue(uint64 slabsize) {
+    int legalvalue(uint64 slabsize, uint64 slabsize_with_ghost) {
         // Do a sanity check on the cellinfo values; return 1 if ok, 0 if not.
         // slabsize is the number of particles in the slab.
-    if(count<0){
-        STDLOG(0, "Bad 'count' in cellinfo: %d\n", count);
-        return 0;
-    }
-    if(active<0){
-        STDLOG(0, "Bad 'active' in cellinfo: %u\n", active);
-        return 0;
-    }
-    if(mean_square_velocity<0){
-        STDLOG(0, "Bad 'mean_square_velocity' in cellinfo: %u\n", mean_square_velocity);
-        return 0;
-    }
+        if(count<0){
+            STDLOG(0, "Bad 'count' in cellinfo: %d\n", count);
+            return 0;
+        }
+        if(active<0){
+            STDLOG(0, "Bad 'active' in cellinfo: %u\n", active);
+            return 0;
+        }
+        if(mean_square_velocity<0){
+            STDLOG(0, "Bad 'mean_square_velocity' in cellinfo: %u\n", mean_square_velocity);
+            return 0;
+        }
         if (startindex+count > slabsize){
-        STDLOG(0, "'startindex+count' (%u + %d = %d) > 'slabsize' (%u) in cellinfo\n", startindex, count, startindex+count, slabsize);
-        return 0;
-    }
+            STDLOG(0, "'startindex+count' (%u + %d = %d) > 'slabsize' (%u) in cellinfo\n", startindex, count, startindex+count, slabsize);
+            return 0;
+        }
+        if (startindex_with_ghost + count > slabsize_with_ghost){
+            STDLOG(0, "'startindex_with_ghost+count' (%u + %d = %d) > 'slabsize_with_ghost' (%u) in cellinfo\n",
+                startindex_with_ghost, count, startindex_with_ghost+count, slabsize_with_ghost);
+            return 0;
+        }
         if (active>count){
-        STDLOG(0, "'active' (%d) > 'count' (%d) in cellinfo\n", active, count);
-        return 0;
-    }
+            STDLOG(0, "'active' (%d) > 'count' (%d) in cellinfo\n", active, count);
+            return 0;
+        }
         return 1;
     }
 };

@@ -31,7 +31,8 @@ int _world_rank;  // purely informational, do not use
 	MPI_Comm comm_global; // e.g. for state reductions
     
     MPI_Comm comm_2d;  // a communicator for the nodes splitting a slab
-    // TODO: create row comms using MPI_Cart_sub?
+    MPI_Comm comm_row_x;  // the nodes for all x, of the same z split
+    //MPI_Comm comm_col_z;  // the nodes for all z, of the same x
 
     // This does an in-place reduction to rank 0
     #define MPI_REDUCE_TO_ZERO(vec,len,type,op) MPI_Reduce(MPI_rank!=0?(vec):MPI_IN_PLACE, vec, len, type, op, 0, comm_global)

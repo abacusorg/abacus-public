@@ -97,7 +97,8 @@ int FetchSlabsPrecondition(int slab) {
  * All "normal" slabtypes should be loaded here. Note that loads may be async.
  */
 void FetchSlabsAction(int slab) {
-    STDLOG(1,"Fetching slab %d with %d particles\n", slab, SS->size(slab));
+    STDLOG(1,"Fetching slab %d with %d particles (%d ghost)\n",
+        slab, SS->size(slab), SS->size_with_ghost(slab));
 
     // Load all of the particle files together
     SB->LoadArenaNonBlocking(CellInfoSlab,slab);
@@ -197,7 +198,7 @@ int NearForcePrecondition(int slab) {
 
 void NearForceAction(int slab) {
     // Do some data checks
-    assertf(are_cellinfo_legal(slab, SS->size(slab)),
+    assertf(are_cellinfo_legal(slab, SS->size(slab), SS->size_with_ghost(slab)),
             "Cell info of slab %d contain out of bounds data\n", slab);
     // Could also check that the sum of the cell counts add up to SS->size(slab);
 
@@ -905,8 +906,8 @@ void AttemptReceiveManifest(){
 #define INSTANTIATE_NOOP(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &NoopPrecondition, &NoopAction, ""); } while(0)
 
 
-void InitializePipelineWidths(){
-    FORCE_RADIUS = P.NearFieldRadius;
+void InitializePipelineWidths(int MakeIC){
+    FORCE_RADIUS = MakeIC ? 0 : P.NearFieldRadius;
     // The 2LPT pipeline is short (no group finding). We can afford to wait an extra slab to allow for large IC displacements
     FINISH_WAIT_RADIUS = LPTStepNumber() > 0 ? 2 : 1;
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);

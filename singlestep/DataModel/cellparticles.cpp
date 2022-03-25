@@ -176,9 +176,10 @@ public:
     }
 
     inline List3<FLOAT> PosXYZCell(int x, int y, int z) {
-        // This version arranges all slab Xs before slab Ys, etc
+        // This is a copy of PosCell that arranges all slab Xs before slab Ys, etc
+        // We use this for directs sources and sinks. We might Drift PosCell, but never PosXYZCell.
         List3<FLOAT> posxyz;
-        uint64 Nslab = SS->size(x);
+        uint64 Nslab = SS->size_with_ghost(x);
         posxyz.X = (FLOAT *) _CellPtr(PosXYZSlab, sizeof(FLOAT), WrapCell(x,y,z));
         posxyz.Y = posxyz.X + Nslab;  // all Xs are followed by all Ys in a given slab
         posxyz.Z = posxyz.Y + Nslab;

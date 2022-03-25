@@ -36,7 +36,8 @@ public:
     	// has been run, which may differ 
 
     int instantiated;  // Have we called instantiate on this dependency?
-	int64_t num_particles; 
+	int64_t num_particles;
+    int64_t num_particles_with_ghost;
 
     const char *name;  // dependency name, like Drift
 
@@ -136,7 +137,8 @@ public:
 	    raw_number_executed++;
 		
 		
-		num_particles += SS->size(slab); 		
+		num_particles += SS->size(slab);
+        num_particles_with_ghost += SS->size_with_ghost(slab);
 		
     }
 

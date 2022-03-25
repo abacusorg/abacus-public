@@ -53,6 +53,18 @@ void InitializeParallelTopology() {
         MPI_rank_x = coords[0];
         MPI_rank_z = coords[1];
 
+        // Make a communicator of just this row of nodes
+        int remain_dims[] = {1, 0};
+        MPI_Cart_sub(comm_2d, remain_dims, &comm_row_x);
+        
+        // Check that the row comm rank is the same as the x rank in the 2D topology
+        int _row_comm_rank = -1;
+        MPI_Comm_rank(comm_row_x, &_row_comm_rank);
+        assertf(_row_comm_rank == MPI_rank_x,
+            "Rank in row comm = %d, 2D x rank is %d\n", _row_comm_rank, MPI_rank_x);
+
+        // TODO: do we ever need a column communicator?
+
         #ifdef MULTIPLE_MPI_COMM
             MPI_Comm_dup(comm_2d, &comm_taylors);
             MPI_Comm_dup(comm_2d, &comm_multipoles);
@@ -70,12 +82,12 @@ void InitializeParallelTopology() {
 
 // Initialize `node_z_start` and friends, as well as ghost info
 // Needs ReadState
-void InitializeParallelDomain(int MakeIC){
+void InitializeParallelDomain(){
     #ifdef PARALLEL
         // will always reflect the memory layout of the input slabs
         GHOST_RADIUS = ReadState.GhostRadius;
 
-        if (!MakeIC){
+        if(MPI_size_z > 1){
             assertf(GHOST_RADIUS >= FORCE_RADIUS,
                 "GHOST_RADIUS=%d not big enough for FORCE_RADIUS=%d\n",
                 GHOST_RADIUS, FORCE_RADIUS);
@@ -91,7 +103,7 @@ void InitializeParallelDomain(int MakeIC){
         if (node_z_start_ghost < 0) node_z_start_ghost += P.cpd;
         node_z_size_with_ghost = node_z_size + 2*GHOST_RADIUS;
 
-        assertf(node_z_start + node_z_size <= P.cpd, "Bad z split calculation?");  // A node can't span the wrap
+        assertf(node_z_start + node_z_size <= P.cpd, "Bad z split calculation?");  // A node won't span the wrap
 
     #else
     
@@ -108,7 +120,7 @@ void InitializeParallelDomain(int MakeIC){
 void InitializeParallelMergeDomain(){
     #ifdef PARALLEL
         if(MPI_size_z > 1){
-            MERGE_GHOST_RADIUS = FORCE_RADIUS;  // TODO: this will be std::max(FORCE_RADIUS, GROUP_RADIUS_NEXT_STEP)
+            MERGE_GHOST_RADIUS = P.NearFieldRadius;  // TODO: this will be std::max(P.NearFieldRadius, GROUP_RADIUS_NEXT_STEP)
         } else {
             MERGE_GHOST_RADIUS = 0;
         }
@@ -162,6 +174,7 @@ void FinalizeParallel() {
         #endif
 
         MPI_Comm_free(&comm_2d);
+        MPI_Comm_free(&comm_row_x);
 
         // Finalize MPI
         STDLOG(0,"Calling MPI_Finalize()\n");

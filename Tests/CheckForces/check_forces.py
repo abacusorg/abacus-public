@@ -147,7 +147,8 @@ def run(ppd=None, cpd=None, order=DEFAULT_ORDER, dtype=np.float32, force_output_
             os.chdir(cwd)
             if plot:
                 plot_storeforces(fmag)
-                plot_cell(params, dtype)
+                if not params['Parallel']:
+                    plot_cell(params, dtype)
                 if power:
                     plot_force_error_pk(params, dtype)
         return results
@@ -517,7 +518,8 @@ def load_results(load, order=None, dtype=None):
         else:
             raise ValueError(order)
         raise NotImplementedError("cell results aren't stored in asdf, can't load")
-        plot_cell(res, dtype)
+        if not res['param']['Parallel']:
+            plot_cell(res, dtype)
     else:
         plot_orders(results)
 

@@ -310,6 +310,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     // Now we need to make the NearField_SIC_Slab
     uint64 NSinkAlloc = 0;
     for (int s = -RADIUS; s <= RADIUS; s++){
+        // no ghost sinks
         NSinkAlloc = std::max(NSinkAlloc, SS->size(slabID+s));
     }
 

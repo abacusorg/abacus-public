@@ -814,9 +814,14 @@ void Parameters::ValidateParameters(void) {
         Conv_IOMode
         );
 
+#ifdef PARALLEL
     if(NumZRanks < 1){
         fprintf(stderr,"NumZRanks=%d must be >= 1!\n", NumZRanks);
         assert(1==0);
+    }
+#else
+    if(NumZRanks > 1){
+        fprintf(stderr,"Warning: NumZRanks=%d will have no effect because code is not compiled for parallel\n", NumZRanks);
     }
 }
 

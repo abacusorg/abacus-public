@@ -481,25 +481,26 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
     uint64 lcpd = cpd;  // Just to assure that we don't spill 32-bits
 
     switch(type) {
-        case CellInfoSlab        : { return sizeof(cellinfo)*lcpd*lcpd; }
-        case MergeCellInfoSlab   : { return sizeof(cellinfo)*lcpd*lcpd; }
-        case InsertCellInfoSlab  : { return sizeof(cellinfo)*lcpd*lcpd; }
+        case CellInfoSlab        : { return sizeof(cellinfo)*lcpd*node_z_size_with_ghost; }
+        case MergeCellInfoSlab   : { return sizeof(cellinfo)*lcpd*(node_z_size + 2*MERGE_GHOST_RADIUS); }
+        case InsertCellInfoSlab  : { return sizeof(cellinfo)*lcpd*(node_z_size + 2*MERGE_GHOST_RADIUS); }
         case MultipoleSlab  : { return lcpd*(lcpd+1)/2*rml*sizeof(MTCOMPLEX); }
         case TaylorSlab     : { return lcpd*(lcpd+1)/2*rml*sizeof(MTCOMPLEX); }
         case PosXYZSlab     :  // let these fall through to PosSlab
         case PosSlab        : {
-            return SS->size(slab)*sizeof(posstruct);
+            return SS->size_with_ghost(slab)*sizeof(posstruct);
         }
         case MergePosSlab   : {
-            return SS->size(slab)*sizeof(posstruct);
+            return SS->size_with_ghost(slab)*sizeof(posstruct);
         }
         case VelSlab        : {
-            return SS->size(slab)*sizeof(velstruct);
+            return SS->size_with_ghost(slab)*sizeof(velstruct);
         }
         case AuxSlab        : {
-            return SS->size(slab)*sizeof(auxstruct);
+            return SS->size_with_ghost(slab)*sizeof(auxstruct);
         }
         case AccSlab        : {
+            // no ghost for acc
             return SS->size(slab)*sizeof(accstruct);
         }
         case FarAccSlab     : {

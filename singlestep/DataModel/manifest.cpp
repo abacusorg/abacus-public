@@ -40,11 +40,12 @@ the data when it is received.
 /// The information we're passing for a single arena
 class ManifestArena {
   public:
-    uint64 size;    ///< Arena size in bytes of usable space, not including guards
+    uint64 size_with_ghost;    ///< Arena size in bytes of usable space, not including guards
+    uint64 num_primary;    ///< number of primary particles, used to set SlabSize
     char *ptr;	///< The pointer to the space
     int type;    ///< The SlabType
     int slab; 	///< slab number
-    ManifestArena() { size = 0; type = slab = 0; ptr = NULL; }
+    ManifestArena() { size_with_ghost = 0; type = slab = 0; ptr = NULL; }
 };
 
 /// The information we're passing for a single dependency
@@ -322,13 +323,17 @@ class Manifest {
     void done() { completed = MANIFEST_ALREADYIMPORTED; }
 
     void LoadArena(int type, int s) {
+        // SB->SlabSizeBytes() gives us the allocated size (minus guards), i.e. the size with ghost.
+        // But we also need to send the size of primary particles, hence we look at SS->size() too
+        
         ManifestArena *a = m.arenas+m.numarenas;
         a->type = type;
         a->slab = s;
-        a->size = SB->SlabSizeBytes(type, s);
+        a->size_with_ghost = SB->SlabSizeBytes(type, s);
+        a->num_primary = SS->size(s);
         a->ptr =  SB->GetSlabPtr(type, s);
         SB->MarkSlabUnavailable(type,s);   // Place this arena off limits
-        STDLOG(3, "Queuing slab %d of type %d, size %l\n", s, type, a->size);
+        STDLOG(3, "Queuing slab %d of type %d, size_with_ghost %llu\n", s, type, a->size_with_ghost);
         m.numarenas++;
         assertf(m.numarenas<MAXMANIFEST, "numarenas has overflowed; increase MAXMANIFEST.");
         return;
@@ -435,24 +440,37 @@ void Manifest::QueueToSend(int finished_slab) {
     STDLOG(2,"Queuing Arenas into the SendManifest\n");
     // Now load all of the arenas into the Manifest
     int min_slab = finished_slab;
+    int *clear_slabsize = new int[cpd];
+    for(int i = 0; i < cpd; i++) clear_slabsize[i] = 0;
+
     for (int type=0; type<NUMTYPES; type++) {
 	    // Loop over all SlabTypes
 	    for (int s=finished_slab-1; s>finished_slab-cpd; s--) {
 	        // Check each trailing slab; if present, load it up
 	        if (SB->IsSlabPresent(type,s) and not SB->IsOutputSlab(type) ) {
-	    	    LoadArena(type,s);
+	    	    LoadArena(type,s);  // needs SlabSize
 		        min_slab = std::min(min_slab, s);
                 if (type==PosSlab) {
                     // Zero out the SlabSize for all particles being sent
-                    SS->setold(s,0);
+                    clear_slabsize[Grid->WrapSlab(s)] = 1;
                 }
 	        }
 	        else if (s<min_slab) break;
-	        // Some slabs have been already been deallocated by the finish slab,            // but we need the ones that were waiting for the periodic wrap.
+	        // Some slabs have been already been deallocated by the finish slab,
+            // but we need the ones that were waiting for the periodic wrap.
 	        // This relies on the fact that the first SlabType, PosSlab, 
 	        // stretches back to the beginning.
 	    }
     }
+
+    // LoadArena needs to know the size with and without ghost,
+    // so it needs SlabSize. So we can't clear SS before all types have completed.
+    for(int s = 0; s < cpd; s++){
+        if(clear_slabsize[s])
+            SS->setold(s,0,0);
+    }
+    delete[] clear_slabsize;
+
     STDLOG(2,"Done Queuing Arenas, spanning [%d,%d)\n", min_slab, finished_slab);
 
     STDLOG(2,"Queuing Insert List into the SendManifest, extracting [%d,%d)\n",
@@ -504,9 +522,9 @@ void Manifest::Send() {
     do_MPI_Isend(&m, sizeof(ManifestCore), rank);
     // Send all the Arenas
     for (int n=0; n<m.numarenas; n++) {
-        STDLOG(2,"Isend Manifest Arena %d (slab %d of type %d) of size %d\n", 
-            n, m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size);
-        do_MPI_Isend(m.arenas[n].ptr, m.arenas[n].size, rank);
+        STDLOG(2,"Isend Manifest Arena %d (slab %d of type %d) of size_with_ghost %d\n", 
+            n, m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size_with_ghost);
+        do_MPI_Isend(m.arenas[n].ptr, m.arenas[n].size_with_ghost, rank);
     }
     // Send all the Insert List fragment
     STDLOG(2,"Isend Manifest Insert List of length %d\n", m.numil);
@@ -670,12 +688,12 @@ void Manifest::Receive() {
     // Receive all the Arenas
     for (int n=0; n<m.numarenas; n++) {
         // TODO: is it true that none of the manifest slabs should land on ramdisk?
-        SB->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size, RAMDISK_NO);
+        SB->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size_with_ghost, RAMDISK_NO);
         m.arenas[n].ptr = SB->GetSlabPtr(m.arenas[n].type, m.arenas[n].slab);
         //memset(m.arenas[n].ptr, 0, m.arenas[n].size);   // TODO remove
-        STDLOG(2,"Ireceive Manifest Arena %d (slab %d of type %d) of size %d\n", 
-            n, m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size);
-        do_MPI_Irecv(m.arenas[n].ptr, m.arenas[n].size, rank);
+        STDLOG(2,"Ireceive Manifest Arena %d (slab %d of type %d) of size %d\n",
+            n, m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size_with_ghost);
+        do_MPI_Irecv(m.arenas[n].ptr, m.arenas[n].size_with_ghost, rank);
     }
     // Receive all the Insert List fragment
     int ret = posix_memalign((void **)&il, 64, m.numil*sizeof(ilstruct));
@@ -726,10 +744,10 @@ void Manifest::ImportData() {
     for (int n=0; n<m.numarenas; n++) {
 	    SB->SetIOCompleted(m.arenas[n].type, m.arenas[n].slab);
 	    STDLOG(3,"Completing Import of arena slab %d of type %d and size %l\n", 
-	    	m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size);
+	    	m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size_with_ghost);
         if (m.arenas[n].type==PosSlab) {
             // Set the SlabSize based on the newly arrived PosSlab
-            SS->setold(m.arenas[n].slab, m.arenas[n].size/sizeof(posstruct));
+            SS->setold(m.arenas[n].slab, m.arenas[n].num_primary, m.arenas[n].size_with_ghost/sizeof(posstruct));
         }
     }
 

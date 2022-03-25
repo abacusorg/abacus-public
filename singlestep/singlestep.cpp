@@ -194,8 +194,8 @@ int main(int argc, char **argv) {
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
     STDLOG(0,"MakeIC = %d\n", MakeIC);
 
-    InitializePipelineWidths();
-    InitializeParallelDomain(MakeIC);  // needs ReadState
+    InitializePipelineWidths(MakeIC);
+    InitializeParallelDomain();  // needs ReadState
     
     SetupLocalDirectories(MakeIC);
 

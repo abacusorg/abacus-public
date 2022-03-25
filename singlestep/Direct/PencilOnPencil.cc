@@ -82,25 +82,40 @@ practice.
 **/
 
 /// Return the number of particles in this (i,j) skewer, summing over k.
-uint64 NumParticlesInSkewer(int slab, int j) {
-    uint64 np = CP->CellInfo(slab, j, 0)->startindex;
-    uint64 end = SS->size(slab);
-    if (j<P.cpd-1) end = CP->CellInfo(slab,j+1,0)->startindex;
-    return end-np;	// This is the number of particles in this skewer
+uint64 NumParticlesInSkewer(int slab, int j, int ghost) {
+    uint64 start, end;
+    if(ghost){
+        start = CP->CellInfo(slab, j, 0)->startindex_with_ghost;
+        if (j<P.cpd-1)
+            end = CP->CellInfo(slab,j+1,0)->startindex_with_ghost;
+        else
+            end = SS->size_with_ghost(slab);
+    }
+    else {
+        start = CP->CellInfo(slab, j, 0)->startindex;
+        if (j<P.cpd-1)
+            end = CP->CellInfo(slab,j+1,0)->startindex;
+        else
+            end = SS->size(slab);
+    }
+
+    return end-start;	// This is the number of particles in this skewer
 }
 
 /// For one skewer, compute how many sink blocks will be incurred
 /// for this one Skewer in the worst case for all of the SIC.
 int ComputeSinkBlocks(int slab, int j, int NearFieldRadius) {
-    int np = NumParticlesInSkewer(slab, j);
+    int ghost = 0;
+    int np = NumParticlesInSkewer(slab, j, ghost);
     return (2*NearFieldRadius+1)*(np/NFBlockSize)+P.cpd;
 }
 /// For one skewer, compute how many source blocks will be incurred
 /// for this one Skewer in the worst case for all of the SIC.
 int ComputeSourceBlocks(int slab, int j, int NearFieldRadius) {
     int np = 0;
-    for (int c=-NearFieldRadius; c<=NearFieldRadius; c++) 
-	np += NumParticlesInSkewer(slab+c, j);
+    int ghost = 1;
+    for (int c=-NearFieldRadius; c<=NearFieldRadius; c++)
+        np += NumParticlesInSkewer(slab+c, j, ghost);
     return (np/NFBlockSize+P.cpd);
 }
 
@@ -182,7 +197,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     for (int c=0; c<2*nfradius+1; c++) {
 	SourcePosSlab[c] = (void *)SB->GetSlabPtr(PosXYZSlab,slab+c-nfradius);
 
-        Nslab[c] = SS->size(slab - nfradius + c);
+        // Nslab[] is used to compute the offset of X,Y,Z in PosXYZSlab, which always includes ghosts
+        Nslab[c] = SS->size_with_ghost(slab - nfradius + c);
     }
 
     // There is a slab that has the WIDTH Partial Acceleration fields.

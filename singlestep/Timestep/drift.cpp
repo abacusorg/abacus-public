@@ -22,6 +22,7 @@ void DriftSlab(int slab, FLOAT driftfactor){
     FLOAT* pos = (FLOAT *) SB->GetSlabPtr(PosSlab, slab);
     FLOAT* vel = (FLOAT *) SB->GetSlabPtr(VelSlab, slab);
 
+    // no ghost drift
     uint64 N = 3*SS->size(slab);
 
     #pragma omp parallel for schedule(static)
