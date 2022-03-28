@@ -42,6 +42,7 @@ Dependency Output;
 Dependency Microstep;
 Dependency FinishGroups;
 Dependency Drift;
+Dependency NeighborExchange;  // 2D
 Dependency Finish;
 Dependency CheckForMultipoles; //only for parallel case. otherwise NOOP. 
 Dependency UnpackLPTVelocity;
@@ -152,29 +153,18 @@ void TransposePosAction(int slab){
     SB->AllocateArena(PosXYZSlab, slab);
     int cpd = P.cpd;
 
-    // Could do this over skewers; should make a skewersize(slab, y) function somewhere
     NUMA_FOR(y,0,cpd)
-        for(int z = 0; z < cpd; z++){
-            posstruct *pos = CP->PosCell(slab, y, z);
-            List3<FLOAT> posxyz = CP->PosXYZCell(slab, y, z);
-            int count = CP->NumberParticle(slab,y,z);
+        // Execute the transpose in pencils
+        posstruct *pos = CP->PosCell(slab, y, node_z_start_ghost);
+        List3<FLOAT> posxyz = CP->PosXYZCell(slab, y, node_z_start_ghost);
+        uint64 Npencil = CP->PencilLenWithGhost(slab,y);
 
-            #pragma ivdep
-            for(int i = 0; i < count; i++){
-                posxyz.X[i] = pos[i].x;
-                posxyz.Y[i] = pos[i].y;
-                posxyz.Z[i] = pos[i].z;
-            }
+        for(uint64 i = 0; i < Npencil; i++){
+            posxyz.X[i] = pos[i].x;
+            posxyz.Y[i] = pos[i].y;
+            posxyz.Z[i] = pos[i].z;
         }
     }
-
-    //#ifndef PARALLEL
-    #if 0
-    // If this is a "ghost" slab, we only need its transpose
-    if(TransposePos.number_of_slabs_executed < FORCE_RADIUS)
-        SB->DeAllocate(PosSlab, slab);
-    #endif
-
 }
 
 
@@ -227,7 +217,7 @@ int TaylorForcePrecondition(int slab) {
         return 0;
     }
 
-#ifdef PARALLEL //TODO do the above still apply in the parallel case?
+#ifdef PARALLEL
 	TaylorTransferCheck.Start(); 
         int taylorSlabReady = ParallelConvolveDriver->CheckTaylorSlabReady(slab);
         TaylorTransferCheck.Stop();
@@ -324,7 +314,6 @@ void KickAction(int slab) {
     // Special case: if this is the last slab, free all +/- FORCE_RADIUS
     // Not worrying about this in the PARALLEL case; we have other non-destructions
     STDLOG(1,"%d slabs have been Kicked so far\n", Kick.raw_number_executed);
-    // REMOVE: if(Kick.number_of_slabs_executed == CP->cpd-1)
     if(Kick.raw_number_executed == total_slabs_on_node-1)
         for(int j = slab - FORCE_RADIUS+1; j <= slab + FORCE_RADIUS; j++)
             SB->DeAllocate(PosXYZSlab, j);
@@ -336,7 +325,6 @@ void KickAction(int slab) {
     if(Kick.number_of_slabs_executed < FORCE_RADIUS){
         STDLOG(3,"Marking slab %d for repeat\n", slab - FORCE_RADIUS);
         TransposePos.mark_to_repeat(slab - FORCE_RADIUS);
-	// BUG FIXED: This DeAllocation was missing
         SB->DeAllocate(PosXYZSlab, slab - FORCE_RADIUS);
         // The first two won't need PosSlab until the second time around
         //SB->DeAllocate(PosSlab, slab - FORCE_RADIUS);
@@ -648,16 +636,14 @@ void OutputAction(int slab) {
 
     OutputBin.Start();
     if(ReadState.DoBinning){
-        int zstride = CP->cpd /omp_get_max_threads();
         int ystride = CP->cpd /omp_get_max_threads();
         int minstride = 12;
         if (ystride < minstride) ystride = minstride;
-        if (zstride < minstride) zstride = minstride;
         int cpd = CP->cpd;
         STDLOG(1,"Binning particles for slab %d\n",slab);
         #pragma omp parallel for schedule(dynamic,ystride)
         for (int y=0;y<cpd;y++) {
-            for (int z=0;z<cpd;z++) {
+            for (int z = node_z_start; z < node_z_start + node_z_size; z++) {
                 Cell c = CP->GetCell(slab, y, z);
                 tsc(c.pos,CP->CellCenter(slab,y,z),density,c.count(),P.PowerSpectrumN1d,1.0);
             }
@@ -682,6 +668,9 @@ int UnpackLPTVelocityPrecondition(int slab){
 }
 
 void UnpackLPTVelocityAction(int slab){
+    // TODO: decide how to handle 2LPT velocity re-reading in the 2D code.
+    // Do we need a neighbor exchange step, or is each node going to read +/- z?
+    // SlabBuffer nominally only allows for one z, so we'd have to extend that
     unpack_ic_vel_slab(slab);
 }
 
@@ -731,7 +720,7 @@ void DriftAction(int slab) {
         // WriteState.etaD-ReadState.etaD;
         STDLOG(1,"Drifting slab %d by %f\n", slab, driftfactor);
         //DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
-        DriftSlabAndCopy2InsertList(slab, driftfactor, DriftSlab);
+        DriftPencilsAndCopy2InsertList(slab, driftfactor, DriftSlab);
     }
 
     // We freed AccSlab in Microstep to save space
@@ -751,9 +740,20 @@ void DriftAction(int slab) {
 
 // -----------------------------------------------------------------
 
+int NeighborExchangePrecondition(int slab){
+    return Drift.done(slab);
+}
+
+
+
+// -----------------------------------------------------------------
+
 int FinishPrecondition(int slab) {
     for(int j=-FINISH_WAIT_RADIUS;j<=FINISH_WAIT_RADIUS;j++) {
-        if( Drift.notdone(slab+j) )  return 0;
+        if( Drift.notdone(slab+j) ||
+            NeighborExchange.notdone(slab+j)
+            )
+            return 0;
     }
 
 	if (Finish.alldone(total_slabs_on_node)) return 0;
@@ -983,8 +983,10 @@ void timestep(void) {
     INSTANTIATE(                       Drift, first_outputslab);
     INSTANTIATE(                      Finish, first_outputslab + FINISH_WAIT_RADIUS);
 #ifdef PARALLEL
+    INSTANTIATE(            NeighborExchange, first_outputslab);
     INSTANTIATE(          CheckForMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #else
+    INSTANTIATE_NOOP(       NeighborExchange, first_outputslab);
     INSTANTIATE_NOOP(     CheckForMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #endif
 
@@ -1043,43 +1045,45 @@ void timestep(void) {
 	int timestep_loop_complete = 0; 
 	while (!timestep_loop_complete){
 
-           for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
+        for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
          TransposePos.Attempt();
             NearForce.Attempt();
 
-        ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
+       ReceiveManifest->Check();  // This checks if Send is ready; no-op in non-blocking mode
 
           TaylorForce.Attempt();
                  Kick.Attempt();
 
-        AttemptReceiveManifest();
+       AttemptReceiveManifest();
 
        MakeCellGroups.Attempt();
    FindCellGroupLinks.Attempt();
        DoGlobalGroups.Attempt();
 
-        ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
+       ReceiveManifest->Check();  // This checks if Send is ready; no-op in non-blocking mode
 
                Output.Attempt();
             Microstep.Attempt();
          FinishGroups.Attempt();
 
-        AttemptReceiveManifest();
+       AttemptReceiveManifest();
 
 
-     UnpackLPTVelocity.Attempt();
+    UnpackLPTVelocity.Attempt();
                 Drift.Attempt();
+    
+     NeighborExchange.Attempt();  // 2D
 
-        ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
+       ReceiveManifest->Check();  // This checks if Send is ready; no-op in non-blocking mode
 
                Finish.Attempt();
 
-        CheckSendManifest();  // We look at each Send Manifest to see if there's material to free.
+            CheckSendManifest();  // We look at each Send Manifest to see if there's material to free.
                         //   SendManifest->FreeAfterSend();
 
-	    AttemptReceiveManifest();
+       AttemptReceiveManifest();
 
-	    CheckForMultipoles.Attempt();
+   CheckForMultipoles.Attempt();
 
 #ifdef PARALLEL
 		timestep_loop_complete = CheckForMultipoles.alldone(total_slabs_on_node);

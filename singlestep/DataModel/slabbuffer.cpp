@@ -361,7 +361,11 @@ int SlabBuffer::WantChecksum(int type){
 std::string SlabBuffer::WriteSlabPath(int type, int slab) {
     slab = Grid->WrapSlab(slab);
 
-    char slabnum[8]; sprintf(slabnum,"%04d",slab);
+    char slabnum[8];
+    if(P.NumZRanks > 1)
+        sprintf(slabnum,"%04d.%03d",slab,MPI_rank_z);
+    else
+        sprintf(slabnum,"%04d",slab);
     char stepnum[8]; sprintf(stepnum,"%04d",ReadState.FullStepNumber);
     char redshift[16]; sprintf(redshift, "%5.3f", ReadState.Redshift);
     std::stringstream ss;
@@ -435,7 +439,11 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
 std::string SlabBuffer::ReadSlabPath(int type, int slab) {
     slab = Grid->WrapSlab(slab);
 
-    char slabnum[8]; sprintf(slabnum,"%04d",slab);
+    char slabnum[8];
+    if(P.NumZRanks > 1)
+        sprintf(slabnum,"%04d.%03d",slab,MPI_rank_z);
+    else
+        sprintf(slabnum,"%04d",slab);
     std::stringstream ss;
     std::string s;
 
@@ -458,7 +466,6 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
 
         case VelSlab       : { ss << P.LocalReadStateDirectory << "/velocity_"   << slabnum; break; }
         case AuxSlab       : { ss << P.LocalReadStateDirectory << "/auxillary_"  << slabnum; break; }
-        case VelLPTSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
         
         // used for standalone FOF
         case FieldTimeSlice     : { ss << WriteSlabPath(type, slab); break; }
@@ -466,7 +473,15 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
         case FieldTimeSlicePIDs     : { ss << WriteSlabPath(type, slab); break; }
         case L0TimeSlicePIDs     : { ss << WriteSlabPath(type, slab); break; }
         
-        case ICSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
+        case VelLPTSlab :
+        case ICSlab    : {
+            if (P.NumZRanks > 1){
+                ss << P.InitialConditionsDirectory << "/ic_" << slab << "." << MPI_rank_z;
+            } else {
+                ss << P.InitialConditionsDirectory << "/ic_" << slab;
+            }
+            break;
+        }
 
         default:
             QUIT("Illegal type %d given to ReadSlabPath()\n", type);

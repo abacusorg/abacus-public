@@ -83,6 +83,7 @@ practice.
 
 /// Return the number of particles in this (i,j) skewer, summing over k.
 uint64 NumParticlesInSkewer(int slab, int j, int ghost) {
+    // Source skewers use ghost particles; sink skewers don't
     uint64 start, end;
     if(ghost){
         start = CP->CellInfo(slab, j, 0)->startindex_with_ghost;
@@ -125,8 +126,8 @@ int ComputeSourceBlocks(int slab, int j, int NearFieldRadius) {
 /// for all SIC in a slab.
 uint64 ComputeSICSize(int cpd, int np, int WIDTH, int NSplit) {
     uint64 size = 0;
-    int64 NSinkSet = cpd*cpd;
-    int64 NSourceSet = cpd*(cpd + 4*NSplit);
+    int64 NSinkSet = cpd*node_z_size;
+    int64 NSourceSet = (cpd + (WIDTH-1)*NSplit)*node_z_size_with_ghost;
     int64 NPaddedSinks = (int64)WIDTH*np + NSinkSet*NFBlockSize;
     int64 NSinkBlocks = NPaddedSinks/NFBlockSize;
 
@@ -185,12 +186,16 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     b2 = _b2;
     bytes_to_device = 0, bytes_from_device = 0;
     AssignedDevice = 0;
+
+    // k_low, k_high refer to the sink cells (just like j_low/j_high)
+    k_low = node_z_start;
+    k_high = node_z_start + node_z_size;
     
     //useful construction constants
     nfradius = NearFieldRadius;
     nfwidth = 2*NearFieldRadius+1;
     j_width = j_high-j_low;
-    Nk = cpd;
+    Nk = k_high-k_low;
 
     // Load the Pointers to the PosXYZ Slabs
     SinkPosSlab = (void *)SB->GetSlabPtr(PosXYZSlab,slab);
@@ -216,8 +221,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetCount, PAGE_SIZE, sizeof(int) * NSinkSets) == 0);
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkPlan, PAGE_SIZE, sizeof(SinkPencilPlan) * NSinkSets) == 0);
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetIdMax, PAGE_SIZE, sizeof(int) * NSinkSets) == 0);
-    
-    int localSinkTotal = 0;
 
     assertf( (uint64)Nk * (j_width + nfwidth) < INT32_MAX,
         "The number of source sets will overflow a 32-bit signed int");
@@ -229,8 +232,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SourceSetStart, PAGE_SIZE, sizeof(int) * NSourceSets) == 0);  
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SourceSetCount, PAGE_SIZE, sizeof(int) * NSourceSets) == 0);
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SourcePlan, PAGE_SIZE, sizeof(SourcePencilPlan) * NSourceSets) == 0);
-    
-    int localSourceTotal = 0;
 
     DirectTotal = 0;
 
@@ -240,6 +241,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     uint64 skewer_blocks[j_width+nfwidth];   // Number of blocks in this k-skewer
             // This is oversized because we'll re-use for Sources
 
+    int localSinkTotal = 0;
     #pragma omp parallel for schedule(static) reduction(+:localSinkTotal)
     for(int j = 0; j < j_width; j++){
         int this_skewer_blocks = 0;   // Just to have a local variable
@@ -316,6 +318,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     // We once again need to precompute the enumeration of the padded
     // blocks, totaled by skewer.  
 
+    int localSourceTotal = 0;
     #pragma omp parallel for schedule(static) reduction(+:localSourceTotal)
     for(int j = 0; j<j_width+nfwidth-1; j++) {
         int this_skewer_blocks = 0;   // Just to have a local variable

@@ -17,17 +17,16 @@ inline void DriftCell(Cell &c, FLOAT driftfactor) {
     }
 }
 
-// Unlike DriftCell, this operator drifts the whole slab
-void DriftSlab(int slab, FLOAT driftfactor){
-    FLOAT* pos = (FLOAT *) SB->GetSlabPtr(PosSlab, slab);
-    FLOAT* vel = (FLOAT *) SB->GetSlabPtr(VelSlab, slab);
+// Unlike DriftCell, this operator drifts a whole pencil at a time
+void DriftPencil(int slab, int j, FLOAT driftfactor){
+    FLOAT* pos = (FLOAT *) CP->PosCell(slab, j, node_z_start);
+    FLOAT* vel = (FLOAT *) CP->VelCell(slab, j, node_z_start);
 
-    // no ghost drift
-    uint64 N = 3*SS->size(slab);
+    // no ghost drift (ghost would use PencilLenWithGhost)
+    uint64 Npen = CP->PencilLen(slab, j);
 
-    #pragma omp parallel for schedule(static)
-    //#pragma simd assert
-    for(uint64 i = 0; i < N; i++){
+    #pragma simd assert
+    for(uint64 i = 0; i < Npen; i++){
         pos[i] += vel[i]*driftfactor;
     }
 }
@@ -128,11 +127,10 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
     uint64 ILbefore = IL->length;
 
     NUMA_FOR(y,0,cpd)
-        for(int z=0;z<cpd;z++) {
+        for(int z = node_z_start; z < node_z_start + node_z_size; z++) {
             // We'll do the drifting and rebinning separately because
             // sometimes we'll want special rules for drifting.
-            Cell c;
-            c = CP->GetCell(slab ,y,z);
+            Cell c = CP->GetCell(slab,y,z);
             move.Start();
             (*DriftCell)(c,driftfactor);
             move.Stop();
@@ -165,7 +163,7 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
 // The efficiency gain from doing a slab sweep appears to outweigh the
 // cache efficiency loss from not immediately rebinning a drifted cell
 // But this may not always be the case, so let's leave both versions for now
-void DriftSlabAndCopy2InsertList(int slab, FLOAT driftfactor, void (*DriftSlab)(int slab, FLOAT driftfactor)) {
+void DriftPencilsAndCopy2InsertList(int slab, FLOAT driftfactor, void (*DriftPencil)(int slab, FLOAT driftfactor)) {
     STimer move;
     STimer rebin;
     
@@ -174,17 +172,19 @@ void DriftSlabAndCopy2InsertList(int slab, FLOAT driftfactor, void (*DriftSlab)(
     uint64 ILbefore = IL->length;
     
     move.Start();
-    (*DriftSlab)(slab, driftfactor);
+    NUMA_FOR(y,0,cpd)
+        (*DriftPencil)(slab, y, driftfactor);
+    }
     move.Stop();
 
     rebin.Start();
     //#pragma omp parallel for schedule(static)
     //for(int y=0;y<cpd;y++){
     NUMA_FOR(y,0,cpd)
-        for(int z=0;z<cpd;z++) {
+        for(int z = node_z_start; z < node_z_start + node_z_size; z++) {
             // We'll do the drifting and rebinning separately because
             // sometimes we'll want special rules for drifting.
-            Cell c = CP->GetCell(slab ,y,z);
+            Cell c = CP->GetCell(slab,y,z);
             RebinCell(c, slab, y, z);
         }
     }

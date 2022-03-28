@@ -1,6 +1,9 @@
-// file: parallel.cpp
-// This file is #included in proepi.cpp
-// and is responsible for initializing the vars in mpi_header.cpp
+/* file: parallel.cpp
+ * This file is #included in proepi.cpp
+ * and is responsible for initializing the vars in mpi_header.cpp.
+ *
+ * It also defines the NeighborExchange routines.
+ */
 
 // A thin function to call MPI_Init() as early as possible,
 // as recommended by the standard.

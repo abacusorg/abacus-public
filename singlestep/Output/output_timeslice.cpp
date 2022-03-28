@@ -74,15 +74,15 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     // Setup the Arena
     int headersize = 1024*1024;
     SB->AllocateSpecificSize(FieldTimeSlice, slab, 
-    	   SS->size(slab)*(AA->sizeof_particle())
-	+ CP->cpd*(CP->cpd)*(AA->sizeof_cell()) + headersize);
+    	   SS->size(slab) * AA->sizeof_particle()
+	+ CP->cpd * node_z_size * AA->sizeof_cell() + headersize);
 
     AA->initialize(FieldTimeSlice, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
 
     if (PID_AA != NULL) {
         SB->AllocateSpecificSize(FieldTimeSlicePIDs, slab, 
-           SS->size(slab)*(PID_AA->sizeof_particle())
-    + CP->cpd*(CP->cpd)*(PID_AA->sizeof_cell()) + headersize);
+           SS->size(slab) * PID_AA->sizeof_particle()
+    + CP->cpd * node_z_size * PID_AA->sizeof_cell() + headersize);
         
         PID_AA->initialize(FieldTimeSlicePIDs, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
     }
@@ -121,11 +121,13 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     for (int y=0; y<CP->cpd; y++) {
         integer3 ijk = ij; ijk.y = y;
         // We are required to provide an offset in bytes for this pencil's portion of the buffer.
+        // We can use CellInfo(ijk)->startindex, even though the position slabs have ghosts
+        // because we specifically want the cumulative counts without ghosts
     	long long int start = CP->CellInfo(ijk)->startindex;   // Assumes cells are packed in order in the slab
-        AA->start_pencil(y, start*AA->sizeof_particle() + AA->sizeof_cell()*(CP->cpd)*y);
+        AA->start_pencil(y, start*AA->sizeof_particle() + AA->sizeof_cell()*node_z_size*y);
         if (PID_AA!=NULL) PID_AA->start_pencil(y, start*PID_AA->sizeof_particle());
 
-        for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
+        for (ijk.z = node_z_start; ijk.z < node_z_start + node_z_size; ijk.z++) {
             Cell c = CP->GetCell(ijk);
             // We sometimes use the maximum velocity to scale.
             // But we do not yet have the global velocity (slab max will be set in Finish,

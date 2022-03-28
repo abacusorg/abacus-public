@@ -821,8 +821,10 @@ void Parameters::ValidateParameters(void) {
     }
 #else
     if(NumZRanks > 1){
-        fprintf(stderr,"Warning: NumZRanks=%d will have no effect because code is not compiled for parallel\n", NumZRanks);
+        fprintf(stderr,"Warning: NumZRanks=%d will have no effect because code is not compiled for parallel. Forcing NumZRanks=1.\n", NumZRanks);
+        NumZRanks = 1;
     }
+#endif
 }
 
 Parameters P;

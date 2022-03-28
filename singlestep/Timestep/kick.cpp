@@ -60,7 +60,7 @@ void (*KickCell)(Cell &c, FLOAT kick1, FLOAT kick2)) {
     //#pragma omp parallel for schedule(static)
     //for (int y=0;y<cpd;y++) {
     NUMA_FOR(y,0,cpd)
-        for (int z=0;z<cpd;z++) {
+        for (int z = node_z_start; z < node_z_start + node_z_size_with_ghost; z++) {
             Cell c = CP->GetCell(slab, y, z);
             (*KickCell)(c,kick1,kick2);
         }

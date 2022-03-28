@@ -13,7 +13,7 @@ This is all templated.
 
 USAGE: 
 Initialize SlabAccum<T> s 
-Call s.setup(cpd, maxsize);
+Call s.setup(cpd, zwidth, maxsize);
 maxsize should be some estimate of the size requirements per slab, 
 but don't sweat it.
 
@@ -29,6 +29,10 @@ You shouldn't access values until FinishPencil is called.
 Then s[j] will return the PencilAccum<T>, 
 s[j][k] will return the CellPtr<T>,
 and s[j][k][n] will return an individual element
+
+In the 2D code, one will typically pass `node_z_size` as the `zwidth`
+of the pencils. But the SlabAccum doesn't know about `node_z_start`,
+so be sure to index global cell index `[k]` as `[k-node_z_start]`.
 
 s.get_slab_size() will return the total elements in the slab.
 s.get_slab_bytes() will return the total bytes in the slab.
@@ -220,7 +224,7 @@ class PencilAccum {
 
   public:
     SlabAccumBuffer<T> *buffer;    // Pointer to the buffer we're using
-    CellAccum *cells;    // Points to an external allocation [0,cpd)
+    CellAccum *cells;    // Points to an external allocation [0,zwidth)
     T *data;		// Eventually we point to the data, location of start index 0
     int _size;		// The number of elements in this pencil
     			// Important: this isn't set until the end!
@@ -297,7 +301,8 @@ class PencilAccum {
 template <class T>
 class SlabAccum {
     int cpd;
-    CellAccum *cells;		// Will be allocated to [0,cpd**2)
+	int zwidth;             // number of z cells on this node
+    CellAccum *cells;		// Will be allocated to [0,cpd*zwidth)
 
     // We have an accumulation buffer for each thread.
     int maxthreads;
@@ -359,12 +364,13 @@ class SlabAccum {
     /// rather it is the user direction on the space to initially reserve.
     /// The arrays can grow.
 
-    void setup(int _cpd, int maxsize) {
+    void setup(int _cpd, int _zwidth, int maxsize) {
 	if (pencils==NULL) {
 	    cpd = _cpd;
+		zwidth = _zwidth;
 	    int ret;
 	    ret = posix_memalign((void **)&pencils, PAGE_SIZE, sizeof(PencilAccum<T>)*cpd); assert(ret==0);
-	    ret = posix_memalign((void **)&cells, PAGE_SIZE, sizeof(CellAccum)*cpd*cpd); assert(ret==0);
+	    ret = posix_memalign((void **)&cells, PAGE_SIZE, sizeof(CellAccum)*cpd*zwidth); assert(ret==0);
 	    ret = posix_memalign((void **)&pstart, PAGE_SIZE, sizeof(uint64)*(cpd+1)); assert(ret==0);
 	    for (int j=0; j<cpd; j++) pencils[j].cells = cells+j*cpd;
 	}
@@ -490,14 +496,14 @@ class SlabAccum {
 	build_pstart();
 	// Precompute the size needed and then allocate it
 	uint64 size = 0;
-	size+= sizeof(CellAccum)*cpd*cpd;
+	size+= sizeof(CellAccum)*cpd*zwidth;
 	size+= sizeof(uint64)*(cpd+1);
 	size+= sizeof(T)*pstart[cpd];
 	SB->AllocateSpecificSize(type,slab,size);
 	p = SB->GetSlabPtr(type,slab);
 
-	memcpy(p, cells, sizeof(CellAccum)*cpd*cpd);
-	p+= sizeof(CellAccum)*cpd*cpd;
+	memcpy(p, cells, sizeof(CellAccum)*cpd*zwidth);
+	p+= sizeof(CellAccum)*cpd*zwidth;
 
 	memcpy(p, pstart, sizeof(uint64)*(cpd+1));
 	p+= sizeof(uint64)*(cpd+1);
@@ -518,13 +524,13 @@ class SlabAccum {
 	// By creating buffers first, we avoid creating one per thread.
 	maxthreads = 1;
 	buffers = new SlabAccumBuffer<T>[maxthreads];
-	setup(P.cpd, 0);
+	setup(P.cpd, zwidth, 0);
 	    // Now cells[], pencils[], and pstart[] exist and pencils[].cells is filled.
 
 	char *p = (char *) SB->GetSlabPtr(type,slab);  // Here's where our data is
 	// Load the cells[] array
-	memcpy(cells, p, sizeof(CellAccum)*cpd*cpd);
-	p+= sizeof(CellAccum)*cpd*cpd;
+	memcpy(cells, p, sizeof(CellAccum)*cpd*zwidth);
+	p+= sizeof(CellAccum)*cpd*zwidth;
 
 	// Load the pstart[] array and the total size
 	memcpy(pstart, p, sizeof(uint64)*(cpd+1));

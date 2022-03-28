@@ -334,7 +334,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
         // Make the accelerations invalid so we can detect improper co-adding
         #pragma omp parallel for schedule(static)
         for(int y = 0; y < P.cpd; y++){
-            for(int z = 0; z < P.cpd; z++){
+            for(int z = node_z_start; z < node_z_start + node_z_size; z++){
                 accstruct *acc = CP->NearAccCell(slabID, y, z);
                 int count = CP->NumberParticle(slabID,y,z);
                 

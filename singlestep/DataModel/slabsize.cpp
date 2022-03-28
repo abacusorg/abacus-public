@@ -1,6 +1,15 @@
 /* slabsize.cpp
 *
 * \brief Provides a class to load and store the number of particles per slab from disk.
+*
+* The format of the file on disk is:
+* ```
+* cpd,num_zsplit
+* primary_(x=0,z=0),with_ghost_(x=0,z=0)
+* primary_(x=0,z=1),with_ghost_(x=0,z=1)
+* ...
+* primary_(x=cpd-1,z=num_zsplit-1),with_ghost_(x=cpd-1,z=num_zsplit-1)
+* ```
 */
 
 #include <stdio.h> 

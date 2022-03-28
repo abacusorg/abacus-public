@@ -23,7 +23,14 @@ public:
 // ==================================================================
 // We have to wrap the 2-d cell index into a linear index.
 
-    inline int _CellID(int y, int z) { return y*cpd+z; }
+    inline int _CellID(int y, int z) {
+        // TODO: remove sanity checks
+        assert(Grid->WrapSlab(z) < Grid->WrapSlab(node_z_start_ghost + node_z_size_with_ghost));
+        assert(Grid->WrapSlab(z) >= Grid->WrapSlab(node_z_start_ghost));
+        
+        // cellinfo always has ghost cells
+        return y*node_z_size_with_ghost + (z - node_z_start_ghost);
+    }
             // This function does not wrap
     inline int CellID(integer3 xyz) {
         xyz = WrapCell(xyz);
@@ -35,6 +42,15 @@ public:
     }
     // These return a linearized ID number for the cell order in these slabs
     // These will wrap; however the _CellID function does not.
+
+    inline int _MergeCellID(int y, int z) {
+        // The MergeCellInfo may have a different number of ghost cells
+        return y*(node_z_size + 2*MERGE_GHOST_RADIUS) + (z - (node_z_start - MERGE_GHOST_RADIUS));
+    }
+    inline int MergeCellID(integer3 xyz) {
+        xyz = WrapCell(xyz);
+        return _MergeCellID(xyz.y,xyz.z);
+    }
 
 // ==================================================================
 // Here are routines to be given a pointer to the cellinfo for a given cell,
@@ -63,10 +79,24 @@ public:
     // Wrap the ID, look up the cellinfo, return the number of particles
 
 
+    // The number of primary (non-ghost) particles in a pencil on this node
+    inline uint64 PencilLen(int x, int y) {
+        uint64 start = CellInfo(x,y,node_z_start)->startindex;
+        cellinfo *lastci = CellInfo(x,y,node_z_start + node_z_size - 1);
+        uint64 end = lastci->startindex + lastci->count;
+        return end - start;
+    }
+
+    inline uint64 PencilLenWithGhost(int x, int y) {
+        uint64 start = CellInfo(x,y,node_z_start_ghost)->startindex_with_ghost;
+        cellinfo *lastci = CellInfo(x,y,node_z_start_ghost + node_z_size_with_ghost - 1);
+        uint64 end = lastci->startindex + lastci->count;
+        return end - start;
+    }
 
     inline cellinfo *_MergeCellInfo(integer3 xyz) {
         // Assumes a wrapped cell
-        return ((cellinfo *)SB->GetSlabPtr(MergeCellInfoSlab,xyz.x)) + CellID(xyz);
+        return ((cellinfo *)SB->GetSlabPtr(MergeCellInfoSlab,xyz.x)) + MergeCellID(xyz);
     }
     inline cellinfo *MergeCellInfo(integer3 xyz) {
         return _MergeCellInfo(WrapCell(xyz)); 
@@ -89,7 +119,8 @@ public:
 
     inline cellinfo *_InsertCellInfo(integer3 xyz) {
         // Assumes a wrapped cell
-        return ((cellinfo *)SB->GetSlabPtr(InsertCellInfoSlab,xyz.x)) + CellID(xyz);
+        // InsertCellInfoSlab has same ghost padding as MergeSlab
+        return ((cellinfo *)SB->GetSlabPtr(InsertCellInfoSlab,xyz.x)) + MergeCellID(xyz);
     }
     inline cellinfo *InsertCellInfo(integer3 xyz) {
         return _InsertCellInfo(WrapCell(xyz)); 
@@ -110,11 +141,13 @@ public:
         Cell c;
         c.ijk = xyz;
         c.ci = ((cellinfo *)SB->GetSlabPtr(CellInfoSlab,xyz.x))+CellID(xyz);
-        c.pos = (posstruct *)SB->GetSlabPtr(PosSlab,xyz.x)+c.ci->startindex;
-        c.vel = (velstruct *)SB->GetSlabPtr(VelSlab,xyz.x)+c.ci->startindex;
-        c.aux = (auxstruct *)SB->GetSlabPtr(AuxSlab,xyz.x)+c.ci->startindex;
-        if(SB->IsSlabPresent(AccSlab,xyz.x))
+        c.pos = (posstruct *)SB->GetSlabPtr(PosSlab,xyz.x)+c.ci->startindex_with_ghost;
+        c.vel = (velstruct *)SB->GetSlabPtr(VelSlab,xyz.x)+c.ci->startindex_with_ghost;
+        c.aux = (auxstruct *)SB->GetSlabPtr(AuxSlab,xyz.x)+c.ci->startindex_with_ghost;
+        if(SB->IsSlabPresent(AccSlab,xyz.x)){
+            // NOT startindex_with_ghost
             c.acc = (accstruct *) SB->GetSlabPtr(AccSlab,xyz.x)+c.ci->startindex;
+        }
         return c;
     }
     inline Cell GetCell(integer3 xyz) {
@@ -132,10 +165,10 @@ public:
         // Assumes a wrapped cell
         Cell c;
         c.ijk = xyz;
-        c.ci = ((cellinfo *)SB->GetSlabPtr(MergeCellInfoSlab,xyz.x))+CellID(xyz);
-        c.pos = (posstruct *)SB->GetSlabPtr(MergePosSlab,xyz.x)+c.ci->startindex;
-        c.vel = (velstruct *)SB->GetSlabPtr(MergeVelSlab,xyz.x)+c.ci->startindex;
-        c.aux = (auxstruct *)SB->GetSlabPtr(MergeAuxSlab,xyz.x)+c.ci->startindex;
+        c.ci = ((cellinfo *)SB->GetSlabPtr(MergeCellInfoSlab,xyz.x))+MergeCellID(xyz);
+        c.pos = (posstruct *)SB->GetSlabPtr(MergePosSlab,xyz.x)+c.ci->startindex_with_ghost;
+        c.vel = (velstruct *)SB->GetSlabPtr(MergeVelSlab,xyz.x)+c.ci->startindex_with_ghost;
+        c.aux = (auxstruct *)SB->GetSlabPtr(MergeAuxSlab,xyz.x)+c.ci->startindex_with_ghost;
         c.acc = NULL;
         return c;
     }
@@ -153,21 +186,25 @@ public:
 // and acceleration lists separately.
 
 
-    inline char *_CellPtr(int type, size_t size, integer3 xyz) {
+    inline char *_CellPtr(int type, size_t size, integer3 xyz, int ghost) {
         // Assumes a wrapped cell
+        if (ghost)
+            return SB->GetSlabPtr(type,xyz.x) + size*_CellInfo(xyz)->startindex_with_ghost;
         return SB->GetSlabPtr(type,xyz.x) + size*_CellInfo(xyz)->startindex;
     }
-    inline char *_MergeCellPtr(int type, size_t size, integer3 xyz) {
+    inline char *_MergeCellPtr(int type, size_t size, integer3 xyz, int ghost) {
+        assert(ghost == 1);
+        
         // Assumes a wrapped cell
-        return SB->GetSlabPtr(type,xyz.x) + size*_MergeCellInfo(xyz)->startindex;
+        return SB->GetSlabPtr(type,xyz.x) + size*_MergeCellInfo(xyz)->startindex_with_ghost;
     }
 
 
     inline posstruct *PosCell(integer3 xyz) {
-        return (posstruct *)_CellPtr(PosSlab,sizeof(posstruct),WrapCell(xyz));
+        return (posstruct *)_CellPtr(PosSlab,sizeof(posstruct),WrapCell(xyz),1);
     }
     inline posstruct *PosCell(int x, int y, int z) {
-        return (posstruct *)_CellPtr(PosSlab,sizeof(posstruct),WrapCell(x,y,z));
+        return (posstruct *)_CellPtr(PosSlab,sizeof(posstruct),WrapCell(x,y,z),1);
     }
     
     // These return three separate pointers because x,y,z for a PosXYZ cell is not contiguous
@@ -180,7 +217,7 @@ public:
         // We use this for directs sources and sinks. We might Drift PosCell, but never PosXYZCell.
         List3<FLOAT> posxyz;
         uint64 Nslab = SS->size_with_ghost(x);
-        posxyz.X = (FLOAT *) _CellPtr(PosXYZSlab, sizeof(FLOAT), WrapCell(x,y,z));
+        posxyz.X = (FLOAT *) _CellPtr(PosXYZSlab, sizeof(FLOAT), WrapCell(x,y,z),1);
         posxyz.Y = posxyz.X + Nslab;  // all Xs are followed by all Ys in a given slab
         posxyz.Z = posxyz.Y + Nslab;
         posxyz.N = (uint64) NumberParticle(x,y,z);
@@ -191,37 +228,36 @@ public:
     // I.e., wrap the id, look up the cellinfo, and offset from PosSlab
 
     inline velstruct *VelCell(integer3 xyz) {
-        return (velstruct *)_CellPtr(VelSlab,sizeof(velstruct),WrapCell(xyz));
+        return (velstruct *)_CellPtr(VelSlab,sizeof(velstruct),WrapCell(xyz),1);
     }
     inline velstruct *VelCell(int x, int y, int z) {
-        return (velstruct *)_CellPtr(VelSlab,sizeof(velstruct),WrapCell(x,y,z));
+        return (velstruct *)_CellPtr(VelSlab,sizeof(velstruct),WrapCell(x,y,z),1);
     }
     // Return the pointer to the start of the velocity list for this cell.
     // I.e., wrap the id, look up the cellinfo, and offset from VelSlab
 
     inline auxstruct *AuxCell(integer3 xyz) {
-        return (auxstruct *)_CellPtr(AuxSlab,sizeof(auxstruct),WrapCell(xyz));
+        return (auxstruct *)_CellPtr(AuxSlab,sizeof(auxstruct),WrapCell(xyz),1);
     }
     inline auxstruct *AuxCell(int x, int y, int z) {
-        return (auxstruct *)_CellPtr(AuxSlab,sizeof(auxstruct),WrapCell(x,y,z));
+        return (auxstruct *)_CellPtr(AuxSlab,sizeof(auxstruct),WrapCell(x,y,z),1);
     }
     // Return the pointer to the start of the auxillary list for this cell.
     // I.e., wrap the id, look up the cellinfo, and offset from AuxSlab
 
 
-
-    // TODO: Perhaps we no longer use AccCell?
     inline accstruct *AccCell(integer3 xyz) {
-        return (accstruct *)_CellPtr(AccSlab,sizeof(accstruct),WrapCell(xyz));
+        // AccCell is probably the only type that doesn't have ghost
+        return (accstruct *)_CellPtr(AccSlab,sizeof(accstruct),WrapCell(xyz),0);
     }
     inline accstruct *NearAccCell(integer3 xyz) {
-        return (accstruct *)_CellPtr(AccSlab,sizeof(accstruct),WrapCell(xyz));
+        return (accstruct *)_CellPtr(AccSlab,sizeof(accstruct),WrapCell(xyz),0);
     }
     inline accstruct *AccCell(int x, int y, int z) {
-        return (accstruct *)_CellPtr(AccSlab,sizeof(accstruct),WrapCell(x,y,z));
+        return (accstruct *)_CellPtr(AccSlab,sizeof(accstruct),WrapCell(x,y,z),0);
     }
     inline accstruct *NearAccCell(int x, int y, int z) {
-        return (accstruct *)_CellPtr(AccSlab,sizeof(accstruct),WrapCell(x,y,z));
+        return (accstruct *)_CellPtr(AccSlab,sizeof(accstruct),WrapCell(x,y,z),0);
     }
 
     // Return the pointer to the start of the acceleration list for this cell.
@@ -230,28 +266,28 @@ public:
 
 
     inline posstruct *MergePosCell(integer3 xyz) {
-        return (posstruct *)_MergeCellPtr(MergePosSlab,sizeof(posstruct),WrapCell(xyz));
+        return (posstruct *)_MergeCellPtr(MergePosSlab,sizeof(posstruct),WrapCell(xyz),1);
     }
     inline posstruct *MergePosCell(int x, int y, int z) {
-        return (posstruct *)_MergeCellPtr(MergePosSlab,sizeof(posstruct),WrapCell(x,y,z));
+        return (posstruct *)_MergeCellPtr(MergePosSlab,sizeof(posstruct),WrapCell(x,y,z),1);
     }
     // Return the pointer to the start of the position list for this cell.
     // I.e., wrap the id, look up the cellinfo, and offset from PosSlab
 
     inline velstruct *MergeVelCell(integer3 xyz) {
-        return (velstruct *)_MergeCellPtr(MergeVelSlab,sizeof(velstruct),WrapCell(xyz));
+        return (velstruct *)_MergeCellPtr(MergeVelSlab,sizeof(velstruct),WrapCell(xyz),1);
     }
     inline velstruct *MergeVelCell(int x, int y, int z) {
-        return (velstruct *)_MergeCellPtr(MergeVelSlab,sizeof(velstruct),WrapCell(x,y,z));
+        return (velstruct *)_MergeCellPtr(MergeVelSlab,sizeof(velstruct),WrapCell(x,y,z),1);
     }
     // Return the pointer to the start of the velocity list for this cell.
     // I.e., wrap the id, look up the cellinfo, and offset from VelSlab
 
     inline auxstruct *MergeAuxCell(integer3 xyz) {
-        return (auxstruct *)_MergeCellPtr(MergeAuxSlab,sizeof(auxstruct),WrapCell(xyz));
+        return (auxstruct *)_MergeCellPtr(MergeAuxSlab,sizeof(auxstruct),WrapCell(xyz),1);
     }
     inline auxstruct *MergeAuxCell(int x, int y, int z) {
-        return (auxstruct *)_MergeCellPtr(MergeAuxSlab,sizeof(auxstruct),WrapCell(x,y,z));
+        return (auxstruct *)_MergeCellPtr(MergeAuxSlab,sizeof(auxstruct),WrapCell(x,y,z),1);
     }
     // Return the pointer to the start of the auxillary list for this cell.
     // I.e., wrap the id, look up the cellinfo, and offset from AuxSlab
