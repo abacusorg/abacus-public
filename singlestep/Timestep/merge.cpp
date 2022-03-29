@@ -207,6 +207,7 @@ uint64 FillMergeSlab(int slab) {
 
             // Setup the MergeCellInfo index
             mci->startindex = mci_index;
+            mci->startindex_with_ghost = mci->startindex;  // TODO 2D
             mci->count = ci->active + ici->count;
             mci->active = mci->count;
             mci_index += mci->count;

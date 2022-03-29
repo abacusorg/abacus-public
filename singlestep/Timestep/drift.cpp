@@ -113,6 +113,26 @@ inline int RebinCell2(Cell &c, int x, int y, int z) {
     return c.count() - b;
 }
 
+/* Push an entire cell to the IL, marking all its particles as inactive.
+ * This is used in the 2D code to copy boundary cells to the IL
+ * so they can be sent to the neighbor.
+ * Particles forced onto the IL this way might come back during the merge.
+ */
+void PushCellToIL(Cell &c, int x, int y, int z){
+    uint64 count = c.ci->count;
+
+    posstruct *p = c.pos;
+    velstruct *v = c.vel;
+    auxstruct *a = c.aux;
+    for(uint64 i = 0; i < count; i++){
+        IL->WrapAndPush(p+i, v+i, a+i, x, y, z);
+    }
+
+    // Mark all particles gone
+    c.ci->active = 0;
+}
+
+
 void DriftAndCopy2InsertList(int slab, FLOAT driftfactor, 
             void (*DriftCell)(Cell &c, FLOAT driftfactor)) {
     // Drift an entire slab
@@ -135,7 +155,13 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
             (*DriftCell)(c,driftfactor);
             move.Stop();
             rebin.Start();
-            RebinCell(c, slab, y, z);
+            if( (z - node_z_start < MERGE_GHOST_RADIUS) || 
+                ((node_z_start + node_z_size - z) < MERGE_GHOST_RADIUS)
+                ){
+                PushCellToIL(c, slab, y, z);  // near the ghost boundary; move whole cell to IL
+            } else {
+                RebinCell(c, slab, y, z);
+            }
             rebin.Stop();
         }
     }
@@ -159,11 +185,15 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
     DriftRebin.increment(seq_rebin);
 }
 
-// Do the drift step on the whole slab at once, instead of cell-by-cell
-// The efficiency gain from doing a slab sweep appears to outweigh the
-// cache efficiency loss from not immediately rebinning a drifted cell
-// But this may not always be the case, so let's leave both versions for now
-void DriftPencilsAndCopy2InsertList(int slab, FLOAT driftfactor, void (*DriftPencil)(int slab, FLOAT driftfactor)) {
+/* Do the drift step pencil-by-pencil, instead of cell-by-cell.
+ * The efficiency gain of not stopping at each cell boundary
+ * appears to outweigh the cache efficiency loss from not immediately
+ * rebinning a drifted cell.
+ * But this may not always be the case, so let's leave both versions for now
+ */
+void DriftPencilsAndCopy2InsertList(int slab, FLOAT driftfactor,
+    void (*DriftPencil)(int slab, int y, FLOAT driftfactor)
+    ) {
     STimer move;
     STimer rebin;
     
@@ -178,14 +208,26 @@ void DriftPencilsAndCopy2InsertList(int slab, FLOAT driftfactor, void (*DriftPen
     move.Stop();
 
     rebin.Start();
-    //#pragma omp parallel for schedule(static)
-    //for(int y=0;y<cpd;y++){
+    
     NUMA_FOR(y,0,cpd)
-        for(int z = node_z_start; z < node_z_start + node_z_size; z++) {
+        // primary cells within MERGE_GHOST_RADIUS of the edge get pushed entirely to the IL
+        for(int z = node_z_start; z < node_z_start + MERGE_GHOST_RADIUS; z++) {
+            Cell c = CP->GetCell(slab,y,z);
+            PushCellToIL(c, slab, y, z);
+        }
+
+        // then the middle
+        for(int z = node_z_start + MERGE_GHOST_RADIUS; z < node_z_start + node_z_size - MERGE_GHOST_RADIUS; z++) {
             // We'll do the drifting and rebinning separately because
             // sometimes we'll want special rules for drifting.
             Cell c = CP->GetCell(slab,y,z);
             RebinCell(c, slab, y, z);
+        }
+
+        // then the primary cells at far edge
+        for(int z = node_z_start + node_z_size - MERGE_GHOST_RADIUS; z < node_z_start + node_z_size; z++) {
+            Cell c = CP->GetCell(slab,y,z);
+            PushCellToIL(c, slab, y, z);
         }
     }
     rebin.Stop();

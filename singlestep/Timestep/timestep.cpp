@@ -720,7 +720,7 @@ void DriftAction(int slab) {
         // WriteState.etaD-ReadState.etaD;
         STDLOG(1,"Drifting slab %d by %f\n", slab, driftfactor);
         //DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
-        DriftPencilsAndCopy2InsertList(slab, driftfactor, DriftSlab);
+        DriftPencilsAndCopy2InsertList(slab, driftfactor, DriftPencil);
     }
 
     // We freed AccSlab in Microstep to save space
