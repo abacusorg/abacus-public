@@ -90,10 +90,10 @@ void OutputNonL0Taggable(int slab) {
     SlabAccum<RVfloat>    rv[NUM_SUBSAMPLES];   
     SlabAccum<TaggedPID> pid[NUM_SUBSAMPLES];
 
-     rv[0].setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleA);   
-    pid[0].setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleA);   
-     rv[1].setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleB); 
-    pid[1].setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleB); 
+     rv[0].setup(CP->cpd, node_z_size, P.np/P.cpd*P.ParticleSubsampleA);   
+    pid[0].setup(CP->cpd, node_z_size, P.np/P.cpd*P.ParticleSubsampleA);   
+     rv[1].setup(CP->cpd, node_z_size, P.np/P.cpd*P.ParticleSubsampleB); 
+    pid[1].setup(CP->cpd, node_z_size, P.np/P.cpd*P.ParticleSubsampleB); 
 
     uint64 nfield[NUM_SUBSAMPLES] = {0, 0}; 
     

@@ -25,8 +25,8 @@ public:
 
     inline int _CellID(int y, int z) {
         // TODO: remove sanity checks
-        assert(Grid->WrapSlab(z) < Grid->WrapSlab(node_z_start_ghost + node_z_size_with_ghost));
-        assert(Grid->WrapSlab(z) >= Grid->WrapSlab(node_z_start_ghost));
+        assertf(Grid->WrapSlab(z) <= Grid->WrapSlab(node_z_start_ghost + node_z_size_with_ghost - 1), "z %d OOB\n", z);
+        assertf(Grid->WrapSlab(z) >= Grid->WrapSlab(node_z_start_ghost), "z %d OOB\n", z);
         
         // cellinfo always has ghost cells
         return y*node_z_size_with_ghost + (z - node_z_start_ghost);

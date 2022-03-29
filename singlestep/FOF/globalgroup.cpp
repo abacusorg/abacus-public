@@ -203,8 +203,8 @@ class GlobalGroupSlab {
         // How many global groups do we expect?  Let's guess 10% of the particles
         // The cellgroup list is modestly bigger, but not enough to care.
         int maxsize = GFC->particles_per_slab/10;
-        globalgroups.setup(GFC->cpd, maxsize);
-        globalgrouplist.setup(GFC->cpd, maxsize);
+        globalgroups.setup(GFC->cpd, node_z_size_with_ghost, maxsize);
+        globalgrouplist.setup(GFC->cpd, node_z_size_with_ghost, maxsize);
     }
     void destroy() {
         if (pos!=NULL) free(pos); pos = NULL;
@@ -834,13 +834,13 @@ void GlobalGroupSlab::FindSubGroups() {
     int maxthreads = omp_get_max_threads();
 
     // Guessing L1 halo count is 3% of particles, given minsize
-    L1halos.setup(GFC->cpd, GFC->particles_per_slab/30);    
+    L1halos.setup(GFC->cpd, node_z_size_with_ghost, GFC->particles_per_slab/30);    
     // Guessing L1 Particles are 3% of total (taggable)
-    HaloRVA.setup(GFC->cpd, GFC->particles_per_slab/30);   
-    HaloRVB.setup(GFC->cpd, GFC->particles_per_slab/30);  
+    HaloRVA.setup(GFC->cpd, node_z_size_with_ghost, GFC->particles_per_slab/30);   
+    HaloRVB.setup(GFC->cpd, node_z_size_with_ghost, GFC->particles_per_slab/30);  
      
-    HaloPIDsA.setup(GFC->cpd, GFC->particles_per_slab/30);    
-    HaloPIDsB.setup(GFC->cpd, GFC->particles_per_slab/30);    
+    HaloPIDsA.setup(GFC->cpd, node_z_size_with_ghost, GFC->particles_per_slab/30);    
+    HaloPIDsB.setup(GFC->cpd, node_z_size_with_ghost, GFC->particles_per_slab/30);    
     posstruct **L1pos = new posstruct *[maxthreads];
     velstruct **L1vel = new velstruct *[maxthreads];
     auxstruct **L1aux = new auxstruct *[maxthreads];
@@ -1343,7 +1343,7 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
 
 
     SlabAccum<TaggedPID> TimeSlicePIDs;
-    TimeSlicePIDs.setup(GFC->cpd, GFC->particles_per_slab);    
+    TimeSlicePIDs.setup(GFC->cpd, node_z_size_with_ghost, GFC->particles_per_slab);    
 
     // Now scan through cell groups
     #pragma omp parallel for schedule(static) reduction(+:n_added)

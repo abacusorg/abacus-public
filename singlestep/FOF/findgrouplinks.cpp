@@ -66,10 +66,10 @@ class CellFaceSlab {
 	// Most particles are not in groups.  
 	// Estimating 10% for pseudoParticles, 5% for faceGroups,
 	// and 30% for faceParticles.
-	pseudoParticles.setup(cpd, maxsize/10); 
-	pseudoRadii.setup(cpd, maxsize/10);
-	faceParticles.setup(cpd, maxsize/3);
-	faceGroups.setup(cpd, maxsize/20);
+	pseudoParticles.setup(cpd, node_z_size_with_ghost, maxsize/10); 
+	pseudoRadii.setup(cpd, node_z_size_with_ghost, maxsize/10);
+	faceParticles.setup(cpd, node_z_size_with_ghost, maxsize/3);
+	faceGroups.setup(cpd, node_z_size_with_ghost, maxsize/20);
 	edgebit = _edgebit;
 	slab_prewrap = _slab;
 	slab = GFC->WrapSlab(_slab);

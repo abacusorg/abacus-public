@@ -30,8 +30,8 @@ Then s[j] will return the PencilAccum<T>,
 s[j][k] will return the CellPtr<T>,
 and s[j][k][n] will return an individual element
 
-In the 2D code, one will typically pass `node_z_size` as the `zwidth`
-of the pencils. But the SlabAccum doesn't know about `node_z_start`,
+In the 2D code, one will typically pass `node_z_size` or `node_z_size_with_ghost`
+as the `zwidth` of the pencils. But the SlabAccum doesn't know about `node_z_start`,
 so be sure to index global cell index `[k]` as `[k-node_z_start]`.
 
 s.get_slab_size() will return the total elements in the slab.

@@ -295,7 +295,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     // Construct the Cell Groups for this slab
     CellGroupTime.Start();
     slab = WrapSlab(slab);
-    cellgroups[slab].setup(cpd, particles_per_slab/20);     
+    cellgroups[slab].setup(cpd, node_z_size_with_ghost, particles_per_slab/20);     
             // Guessing that the number of groups is 20-fold less than particles
     int nthread = omp_get_max_threads();
     FOFcell doFOF[nthread];
