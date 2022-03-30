@@ -106,7 +106,7 @@ void WriteNodeSlabs() {
         first[MPI_rank_x] = first_slab_finished;
         // MPI: Send first_slab_finished to fill in this element in the vector
         // We just do this as a boring summation.
-        MPI_Reduce(MPI_rank_x != 0 ? first : MPI_IN_PLACE, first, MPI_size_x, MPI_INT, MPI_SUM, 0, comm_row_x);
+        MPI_Reduce(MPI_rank_x != 0 ? first : MPI_IN_PLACE, first, MPI_size_x, MPI_INT, MPI_SUM, 0, comm_1d_x);
 
         if (MPI_rank_x==0) {
             char fname[1024];

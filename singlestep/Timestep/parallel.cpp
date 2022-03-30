@@ -56,30 +56,42 @@ void InitializeParallelTopology() {
         MPI_rank_x = coords[0];
         MPI_rank_z = coords[1];
 
-        // Make a communicator of just this row of nodes
-        int remain_dims[] = {1, 0};
-        MPI_Cart_sub(comm_2d, remain_dims, &comm_row_x);
+        // Make a communicator across x
+        int remain_dims_x[] = {1, 0};
+        MPI_Cart_sub(comm_2d, remain_dims_x, &comm_1d_x);
         
-        // Check that the row comm rank is the same as the x rank in the 2D topology
-        int _row_comm_rank = -1;
-        MPI_Comm_rank(comm_row_x, &_row_comm_rank);
-        assertf(_row_comm_rank == MPI_rank_x,
-            "Rank in row comm = %d, 2D x rank is %d\n", _row_comm_rank, MPI_rank_x);
+        // Check that the x comm rank is the same as the x rank in the 2D topology
+        int _comm_1d_x_rank = -1;
+        MPI_Comm_rank(comm_1d_x, &_comm_1d_x_rank);
+        assertf(_comm_1d_x_rank == MPI_rank_x,
+            "Rank in comm_1d_x = %d, 2D x rank is %d\n", _comm_1d_x_rank, MPI_rank_x);
 
-        // TODO: do we ever need a column communicator?
+        // Make a communicator across z
+        // TODO: unclear if one 2D communicator or multiple 1D communicators better
+        int remain_dims_z[] = {0, 1};
+        MPI_Cart_sub(comm_2d, remain_dims_z, &comm_1d_z);
+        
+        // Check that z comm rank is the same as the z rank in the 2D topology
+        int _comm_1d_z_rank = -1;
+        MPI_Comm_rank(comm_1d_z, &_comm_1d_z_rank);
+        assertf(_comm_1d_z_rank == MPI_rank_z,
+            "Rank in comm_1d_z = %d, 2D z rank is %d\n", _comm_1d_z_rank, MPI_rank_z);
 
         #ifdef MULTIPLE_MPI_COMM
             MPI_Comm_dup(comm_2d, &comm_taylors);
             MPI_Comm_dup(comm_2d, &comm_multipoles);
-            MPI_Comm_dup(comm_2d, &comm_manifest);  // TODO: does this really need to be an all-to-all comm?
+            MPI_Comm_dup(comm_1d_x, &comm_manifest);
             MPI_Comm_dup(comm_2d, &comm_global);
         #else
             comm_taylors = comm_2d;
             comm_multipoles = comm_2d;
-            comm_manifest = comm_2d;
+            comm_manifest = comm_1d_x;
             comm_global = comm_2d;
         #endif
-    
+
+        // Any custom MPI types
+        MPI_Type_contiguous(sizeof(ilstruct), MPI_BYTE, &MPI_ilstruct);  // for 2D transfers off the IL
+        MPI_Type_commit(&MPI_ilstruct);
     #endif
 }
 
@@ -177,7 +189,8 @@ void FinalizeParallel() {
         #endif
 
         MPI_Comm_free(&comm_2d);
-        MPI_Comm_free(&comm_row_x);
+        MPI_Comm_free(&comm_1d_x);
+        MPI_Comm_free(&comm_1d_z);
 
         // Finalize MPI
         STDLOG(0,"Calling MPI_Finalize()\n");

@@ -514,8 +514,8 @@ void Manifest::Send() {
     #ifdef PARALLEL
     Transmit.Start();
     /// set_pending(m.numarenas+3);
-    int rank = MPI_rank;
-    rank--; if (rank<0) rank+=MPI_size;   // Now rank is the destination node
+    int rank = MPI_rank_x;
+    rank--; if (rank<0) rank+=MPI_size_x;   // Now rank is the destination node
     STDLOG(1,"Will send the SendManifest to node rank %d\n", rank);
     // Send the ManifestCore
     STDLOG(2,"Isend Manifest Core\n");
@@ -606,8 +606,8 @@ void Manifest::SetupToReceive() {
     #ifdef PARALLEL
     Transmit.Start();
     /// set_pending(1);
-    int rank = MPI_rank;
-    rank++; if (rank>=MPI_size) rank-=MPI_size;   // Now rank is the source node
+    int rank = MPI_rank_x;
+    rank++; if (rank>=MPI_size_x) rank-=MPI_size_x;   // Now rank is the source node
     STDLOG(2,"Ireceive the Manifest Core from node rank %d\n", rank);
     do_MPI_Irecv(&m, sizeof(ManifestCore), rank);
     Transmit.Stop();
@@ -681,9 +681,9 @@ void Manifest::Receive() {
     #ifdef PARALLEL
     Transmit.Start();
     /// set_pending(m.numarenas+2);
-    int rank = MPI_rank;
+    int rank = MPI_rank_x;
     MPI_Status retval;
-    rank++; if (rank>=MPI_size) rank-=MPI_size;   // Now rank is the source node
+    rank++; if (rank>=MPI_size_x) rank-=MPI_size_x;   // Now rank is the source node
     STDLOG(2,"Will receive the ReceiveManifest from node rank %d\n", rank);
     // Receive all the Arenas
     for (int n=0; n<m.numarenas; n++) {
