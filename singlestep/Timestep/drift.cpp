@@ -124,6 +124,8 @@ void PushCellToIL(Cell &c, int x, int y, int z){
     posstruct *p = c.pos;
     velstruct *v = c.vel;
     auxstruct *a = c.aux;
+    // Note we're wrapping many particles that don't need wrapping
+    // But we skipped the cell partition, so we don't know which is which
     for(uint64 i = 0; i < count; i++){
         IL->WrapAndPush(p+i, v+i, a+i, x, y, z);
     }

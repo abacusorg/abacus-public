@@ -86,6 +86,8 @@ void timestepIC(void) {
 #endif
 	
     STDLOG(0,"Initiating timestepIC()\n");
+    STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
+
     TimeStepWallClock.Clear();
     TimeStepWallClock.Start();
     
@@ -101,8 +103,10 @@ void timestepIC(void) {
     INSTANTIATE(Finish, FINISH_WAIT_RADIUS);
 
 #ifdef PARALLEL
+    INSTANTIATE(            NeighborExchange, 0);
 	INSTANTIATE(CheckForMultipoles, FINISH_WAIT_RADIUS);
 #else
+    INSTANTIATE_NOOP(       NeighborExchange, 0);
 	INSTANTIATE_NOOP(CheckForMultipoles, FINISH_WAIT_RADIUS);
 #endif
 	
@@ -111,6 +115,7 @@ void timestepIC(void) {
 	while (!timestep_loop_complete){
         ReadIC.Attempt();
         Drift.Attempt();
+        NeighborExchange.Attempt();
        	Finish.Attempt();	   
        	SendManifest->FreeAfterSend();
     	ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode

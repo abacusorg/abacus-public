@@ -340,6 +340,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
     Grid = NULL;
 	
 	FreeManifest();
+    TeardownNeighborExchange();
 
     if(!MakeIC) {
         if(0 and P.ForceOutputDebug){

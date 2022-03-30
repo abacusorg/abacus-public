@@ -744,6 +744,11 @@ int NeighborExchangePrecondition(int slab){
     return Drift.done(slab);
 }
 
+void StartNeighborExchange(int);
+
+void NeighborExchangeAction(int slab){
+    StartNeighborExchange(slab);  // in parallel.cpp
+}
 
 
 // -----------------------------------------------------------------
