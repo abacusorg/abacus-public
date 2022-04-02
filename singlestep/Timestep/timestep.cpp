@@ -736,20 +736,26 @@ void DriftAction(int slab) {
             ReleaseFreeMemoryToKernel();
 	    }
 	// }
+
+#ifdef PARALLEL
+    if(P.NumZRanks > 1)
+        StartNeighborExchange(slab);  // in parallel.cpp
+#endif
 }
 
 // -----------------------------------------------------------------
+
+#ifdef PARALLEL
 
 int NeighborExchangePrecondition(int slab){
     return Drift.done(slab);
 }
 
-void StartNeighborExchange(int);
-
 void NeighborExchangeAction(int slab){
-    StartNeighborExchange(slab);  // in parallel.cpp
+    AttemptNeighborReceive(slab);
 }
 
+#endif // PARALLEL
 
 // -----------------------------------------------------------------
 
@@ -1043,6 +1049,11 @@ void timestep(void) {
         SB->AllocateArena(TaylorSlab, slab, RAMDISK_NO);
         ParallelConvolveDriver->RecvTaylorSlab(slab);
         STDLOG(2, "Set up to receive Taylor slab %d via MPI\n", slab);
+    }
+
+    if(MPI_size_z > 1){
+        // Lightweight setup of z-dimension exchanges
+        SetupNeighborExchange(first_outputslab, total_slabs_on_node);
     }
     #endif
 

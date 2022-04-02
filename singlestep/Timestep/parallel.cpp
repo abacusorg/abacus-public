@@ -82,7 +82,7 @@ void InitializeParallelTopology() {
             MPI_Comm_dup(comm_2d, &comm_taylors);
             MPI_Comm_dup(comm_2d, &comm_multipoles);
             MPI_Comm_dup(comm_1d_x, &comm_manifest);
-            MPI_Comm_dup(comm_2d, &comm_global);
+            comm_global = comm_2d;
         #else
             comm_taylors = comm_2d;
             comm_multipoles = comm_2d;
@@ -144,9 +144,9 @@ void InitializeParallelMergeDomain(){
         // we could track a set of indices like "node_z_merge_start",
         // but if those are *only* used by the merge, we can keep them
         // local to the merge
-    #endif
 
     WriteState.GhostRadius = MERGE_GHOST_RADIUS;
+    #endif
 }
 
 
@@ -202,6 +202,7 @@ void FinalizeParallel() {
 
 /* Begin Neighbor Exchange routines */
 
+#ifdef PARALLEL
 // Partition functions
 inline bool is_right_ghost(ilstruct *particle, int first_ghost){
     // TODO: this modulus could be slow. First let's check if it is;
@@ -232,6 +233,10 @@ inline bool is_left_ghost(ilstruct *particle, int first_ghost){
  * 9. Check if the receive is done
  * 10. Push the buffer onto the insert list
  * 11. Free the receive buffer and release the MPI handle
+ *
+ * And sometime after the send...
+ * 12. Check if the send is complete
+ * 13. Free the send buffer and release the MPI handle
  */
 
 /* Represents a z exchange with one neighbor.
@@ -242,27 +247,23 @@ private:
     int zneigh;  // neighbor z rank
     int right;   // sending the left or right side of our domain
 
-    ilstruct *sendbuf;  // staging the MPI_Isend
-    size_t sendelem;    // number of ilstructs
+    int send_status = 0;  // 0 = not sent; 1 = sending; 2 = done
+    ilstruct *sendbuf = NULL;  // staging the MPI_Isend
+    size_t sendelem = 0;    // number of ilstructs
 
-    int recv_status;    // 0 = waiting; 1 = receiving; 2 = done
-    ilstruct *recvbuf;  // staging the MPI_Irecv
-    size_t recvelem;
+    int recv_status = 0;    // 0 = waiting; 1 = receiving; 2 = done
+    ilstruct *recvbuf = NULL;  // staging the MPI_Irecv
+    size_t recvelem = 0;
 
-    MPI_Request send_handle;
-    MPI_Request recv_handle;
+    MPI_Request send_handle = MPI_REQUEST_NULL;
+    MPI_Request recv_handle = MPI_REQUEST_NULL;
 
 public:
-    NeighborExchanger(int slab, int zneigh, int right){
-        this->slab = slab;
-        this->zneigh = zneigh;
-        this->right = right;
+    NeighborExchanger(int slab, int zneigh, int right) :
+        slab(slab), zneigh(zneigh), right(right) { }
 
-        this->recv_status = 0;
-        this->recvbuf = NULL;
-        this->recvelem = 0;
-        this->recv_handle = MPI_REQUEST_NULL;
-
+    
+    void send(){
         // 1. partition
         ilstruct *start = partition(&sendelem);
 
@@ -277,6 +278,25 @@ public:
 
         // 5. delete
         IL->ShrinkMAL(IL->length - removed);
+    }
+
+    void check_send_done(){
+        if(send_status == 1){
+            int done = 0;
+            // 12. done send?
+            MPI_Test(&send_handle, &done, MPI_STATUS_IGNORE);
+            if (done) {
+                STDLOG(1, "Done ilstruct send to rank %d for slab %d\n", zneigh, slab);
+
+                // 13. free
+                free(sendbuf);
+                sendbuf = NULL;
+                send_status = 2;
+            }
+        }
+        if (send_status == 2)
+            return 1;  // all done!
+        return 0;
     }
 
 private:
@@ -320,6 +340,10 @@ private:
     }
 
     void copy_to_sendbuf(ilstruct *start, size_t nelem){
+        size_t sz = sizeof(ilstruct)*nelem;
+        posix_memalign((void **) &(this->sendbuf), PAGE_SIZE, sz);
+        assertf(this->sendbuf != NULL, "Failed neighbor exchange sendbuf alloc of %d bytes\n", sz);
+
         #pragma omp parallel for schedule(static)
         for(size_t i = 0; i < nelem; i++){
             this->sendbuf[i] = start[i];
@@ -327,6 +351,9 @@ private:
     }
 
     void launch_mpi_send(){
+        assertf(send_status == 0,
+            "send() called but exchange already sent to rank %d, slab %d?\n", zneigh, slab);
+
         assertf(sendelem < INT32_MAX,
             "2D neighbor exchanger trying to send %d particles, which overflows 32-bit int\n",
             sendelem);
@@ -334,6 +361,8 @@ private:
         STDLOG(1, "Sending %d ilstructs (%.3g GB) to rank %d for slab %d\n", sendelem, sendelem*sizeof(ilstruct), zneigh, slab);
         int tag = slab;  // each pair of ranks has only one send and one recv per slab
         MPI_Isend((const void *) sendbuf, (int) sendelem, MPI_ilstruct, zneigh, tag, comm_1d_z, &send_handle);
+
+        send_status = 1;  // sending
     }
 
     void push_buffer_to_IL(){
@@ -350,13 +379,13 @@ private:
     }
 
 public:
-    int try_mpi_recv(){
-        if (recv_status == 1){
+    int try_receive(){
+        if (recv_status == 1){  // receiving
             int done = 0;
             // 9. done receive?
             MPI_Test(&recv_handle, &done, MPI_STATUS_IGNORE);
             if (done) {
-                STDLOG(1, "Done ilstruct receive from rank %d for slab %d\n", recvelem, recvelem*sizeof(ilstruct), zneigh, slab);
+                STDLOG(1, "Done ilstruct receive from rank %d for slab %d\n", zneigh, slab);
                 // 10. push to IL
                 push_buffer_to_IL();
 
@@ -386,42 +415,105 @@ public:
             assertf(recvbuf != NULL, "Failed neighbor exchange recvbuf alloc of %d bytes\n", sz);
             
             // 8. start recv
-            STDLOG(1, "Receiving %d ilstructs (%.3g GB) from rank %d for slab %d\n", recvelem, recvelem*sizeof(ilstruct), zneigh, slab);
+            STDLOG(1, "Receiving %d ilstructs (%.3g GB) from rank %d for slab %d\n",
+                recvelem, recvelem*sizeof(ilstruct), zneigh, slab);
             MPI_Irecv(recvbuf, (int) recvelem, MPI_ilstruct, zneigh, tag, comm_1d_z, &recv_handle);
             recv_status = 1;
         }
+        return 0;
+    }
+
+    int done_receive(){
+        return recv_status == 2;
     }
 };
+
 
 NeighborExchanger **left_exchanger;
 NeighborExchanger **right_exchanger;
 
+// monday
+// TODO: install neighbor exchangers in the manifest?
+// TODO: call exchangers from the timestep loop
 
-void StartNeighborExchange(int slab){
-    if(left_exchanger == NULL){
-        left_exchanger = new NeighborExchanger*[P.cpd]();
-    }
-    if(right_exchanger == NULL){
-        right_exchanger = new NeighborExchanger*[P.cpd]();
-    }
+// Lightweight setup of data structures
+void SetupNeighborExchange(int first, int nslab){
+    assertf(MPI_size_z > 1, "Need MPI_size_z > 1 to do neighbor exchange!\n")
 
-    // The construction of these objects starts the MPI work
+    left_exchanger = new NeighborExchanger*[P.cpd]();
+    right_exchanger = new NeighborExchanger*[P.cpd]();
 
     int leftz = MPI_rank_z - 1;
     if(leftz < 0) leftz += MPI_size_z;
-    left_exchanger[slab] = new NeighborExchanger(slab, leftz, 0);
-
+    
     int rightz = MPI_rank_z + 1;
     if(rightz >= MPI_size_z) rightz -= MPI_size_z;
-    right_exchanger[slab] = new NeighborExchanger(slab, rightz, 1);
+
+    for(int i = first; i < nslab; i++){
+        int iw = CP->WrapSlab(i);
+        left_exchanger[iw] = new NeighborExchanger(iw, leftz, 0);
+        right_exchanger[iw] = new NeighborExchanger(iw, rightz, 1);
+    }
+    // slabs not on this node have NULL exchangers
+}
+
+
+void DoNeighborSend(int slab){
+    left_exchanger[slab].send();
+    right_exchanger[slab].send();
+}
+
+
+void AttemptNeighborReceive(int first, int receive_ahead){
+    // This will typically be called with
+    // first = (Finish.last_slab_executed - FINISH_WAIT_RADIUS), receive_ahead ~ 3
+    // It's also safe to call with (0,cpd) if one always wants to receive everything
+
+    // Try to receive data from one or more slabs
+    for(int i = first; i < first + receive_ahead; i++){
+        int iw = CP->WrapSlab(i);
+        // try_receive() will run twice for every exchange: once to launch the receive,
+        // and again to install the data
+        if(left_exchanger[iw] != NULL) left_exchanger[iw].try_receive();
+        if(right_exchanger[iw] != NULL) right_exchanger[iw].try_receive();
+    }
+
+    // Do a lightweight release of the send buffer and MPI handle
+    for(int i = 0; i < P.cpd; i++){
+        if(left_exchanger[i] != NULL){
+            left_exchanger[i].check_send_done();
+        }
+        if(right_exchanger[i] != NULL){
+            right_exchanger[i].check_send_done();
+        }
+    }
+}
+
+void IsNeighborReceiveDone(int slab){
+    assertf(left_exchanger[slab] != NULL,
+        "Checking neighbor receive status on slab %d not set up to receive?\n", slab);
+    assertf(right_exchanger[slab] != NULL,
+        "Checking neighbor receive status on slab %d not set up to receive?\n", slab);
+
+    return left_exchanger[slab].done_receive() && right_exchanger[slab].done_receive();
 }
 
 
 void TeardownNeighborExchange(){
     for(int i = 0; i < P.cpd; i++){
-        assertf(left_exchanger[i] == NULL, "Left exchanger %d still present?\n", i);
-        assertf(right_exchanger[i] == NULL, "Right exchanger %d still present?\n", i);
+        if(left_exchanger[i] != NULL){
+            assertf(left_exchanger[i].done_send(), "left exchanger for slab %d not done send?\n", i);
+            assertf(left_exchanger[i].done_receive(), "left exchanger for slab %d not done receive?\n", i);
+            delete left_exchanger[i];
+        }
+        if(right_exchanger[i] != NULL){
+            assertf(right_exchanger[i].done_send(), "right exchanger for slab %d not done send?\n", i);
+            assertf(right_exchanger[i].done_receive(), "right exchanger for slab %d not done receive?\n", i);
+            delete right_exchanger[i];
+        }
     }
     delete[] left_exchanger;
     delete[] right_exchanger;
 }
+
+#endif // PARALLEL

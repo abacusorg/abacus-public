@@ -46,4 +46,5 @@ int _world_rank;  // purely informational, do not use
     #define MPI_REQUEST_NULL NULL
 #endif
 
-// For some unresolved issue, this has to be loaded before header.cpp
+void StartNeighborExchange(int);
+void AttemptNeighborReceive(int);
