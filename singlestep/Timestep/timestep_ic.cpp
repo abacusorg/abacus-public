@@ -63,8 +63,10 @@ void UnpackICAction(int slab){
 
     #pragma omp parallel for schedule(static)
     for (int y=0; y<cpd; y++)
-        for (int z=0; z<cpd; z++)
+        for (int z=node_z_start_ghost; z<node_z_start_ghost + node_z_size_with_ghost; z++)
             CP->CellInfo(slab,y,z)->makenull();
+
+    DoNeighborSend(slab);
 }
 
 /*
@@ -98,15 +100,16 @@ void timestepIC(void) {
     int nslabs = P.cpd;
     int first = first_slab_on_node;
 
+    // Lightweight setup of z-dimension exchanges
+    SetupNeighborExchange(first, total_slabs_on_node);
+
     INSTANTIATE(ReadIC, 0);
     Drift.instantiate(nslabs, first, &UnpackICPrecondition, &UnpackICAction, "UnpackIC");
     INSTANTIATE(Finish, FINISH_WAIT_RADIUS);
 
 #ifdef PARALLEL
-    INSTANTIATE(            NeighborExchange, 0);
 	INSTANTIATE(CheckForMultipoles, FINISH_WAIT_RADIUS);
 #else
-    INSTANTIATE_NOOP(       NeighborExchange, 0);
 	INSTANTIATE_NOOP(CheckForMultipoles, FINISH_WAIT_RADIUS);
 #endif
 	
@@ -115,12 +118,12 @@ void timestepIC(void) {
 	while (!timestep_loop_complete){
         ReadIC.Attempt();
         Drift.Attempt();
-        NeighborExchange.Attempt();
        	Finish.Attempt();	   
        	SendManifest->FreeAfterSend();
     	ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
     // If the manifest has been received, install it.
     	if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
+        AttemptNeighborReceive(0,P.cpd);  // 2D
    		CheckForMultipoles.Attempt();
 		
 #ifdef PARALLEL

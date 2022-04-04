@@ -42,7 +42,6 @@ Dependency Output;
 Dependency Microstep;
 Dependency FinishGroups;
 Dependency Drift;
-Dependency NeighborExchange;  // 2D
 Dependency Finish;
 Dependency CheckForMultipoles; //only for parallel case. otherwise NOOP. 
 Dependency UnpackLPTVelocity;
@@ -737,32 +736,15 @@ void DriftAction(int slab) {
 	    }
 	// }
 
-#ifdef PARALLEL
-    if(P.NumZRanks > 1)
-        StartNeighborExchange(slab);  // in parallel.cpp
-#endif
+    DoNeighborSend(slab);  // in parallel.cpp
 }
-
-// -----------------------------------------------------------------
-
-#ifdef PARALLEL
-
-int NeighborExchangePrecondition(int slab){
-    return Drift.done(slab);
-}
-
-void NeighborExchangeAction(int slab){
-    AttemptNeighborReceive(slab);
-}
-
-#endif // PARALLEL
 
 // -----------------------------------------------------------------
 
 int FinishPrecondition(int slab) {
     for(int j=-FINISH_WAIT_RADIUS;j<=FINISH_WAIT_RADIUS;j++) {
         if( Drift.notdone(slab+j) ||
-            NeighborExchange.notdone(slab+j)
+            !IsNeighborReceiveDone(slab+j)
             )
             return 0;
     }
@@ -994,10 +976,8 @@ void timestep(void) {
     INSTANTIATE(                       Drift, first_outputslab);
     INSTANTIATE(                      Finish, first_outputslab + FINISH_WAIT_RADIUS);
 #ifdef PARALLEL
-    INSTANTIATE(            NeighborExchange, first_outputslab);
     INSTANTIATE(          CheckForMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #else
-    INSTANTIATE_NOOP(       NeighborExchange, first_outputslab);
     INSTANTIATE_NOOP(     CheckForMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #endif
 
@@ -1051,10 +1031,8 @@ void timestep(void) {
         STDLOG(2, "Set up to receive Taylor slab %d via MPI\n", slab);
     }
 
-    if(MPI_size_z > 1){
-        // Lightweight setup of z-dimension exchanges
-        SetupNeighborExchange(first_outputslab, total_slabs_on_node);
-    }
+    // Lightweight setup of z-dimension exchanges
+    SetupNeighborExchange(first_outputslab, total_slabs_on_node);
     #endif
 
 	
@@ -1071,6 +1049,7 @@ void timestep(void) {
                  Kick.Attempt();
 
        AttemptReceiveManifest();
+       AttemptNeighborReceive(0,P.cpd);  // 2D
 
        MakeCellGroups.Attempt();
    FindCellGroupLinks.Attempt();
@@ -1083,12 +1062,10 @@ void timestep(void) {
          FinishGroups.Attempt();
 
        AttemptReceiveManifest();
-
+       AttemptNeighborReceive(0,P.cpd);  // 2D
 
     UnpackLPTVelocity.Attempt();
                 Drift.Attempt();
-    
-     NeighborExchange.Attempt();  // 2D
 
        ReceiveManifest->Check();  // This checks if Send is ready; no-op in non-blocking mode
 
@@ -1098,6 +1075,7 @@ void timestep(void) {
                         //   SendManifest->FreeAfterSend();
 
        AttemptReceiveManifest();
+       AttemptNeighborReceive(0,P.cpd);  // 2D
 
    CheckForMultipoles.Attempt();
 

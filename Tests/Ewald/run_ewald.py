@@ -185,10 +185,17 @@ def check_storeforces(param, dtype=DEFAULT_DTYPE):
         acc[i:i+len(thisacc)] = thisacc[:,:3]
         i += len(thisacc)
     assert i == NP
+
+    if param.get('Parallel',False):
+        # aux might be on another node and thus inaccessible, but maybe we did it all on this node
+        auxfns = Path(param.get('LocalWorkingDirectory')).parent.glob(param['SimName'] + '*/read/aux*')
+        auxfns = sorted(auxfns, key=lambda p:p.name)
+    else:
+        auxfns = sorted(read.glob('aux*_*'))
         
     pid = np.empty(NP, dtype=np.int64)
     i = 0
-    for auxfn in sorted(read.glob('aux*_*')):
+    for auxfn in auxfns:
         thisaux = np.fromfile(auxfn, dtype=np.uint64)
         # we spread out the PID bits into three chunks in the aux field
         # but since we only care about the order, we can ignore that and just sort

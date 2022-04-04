@@ -27,6 +27,7 @@ public:
     uint64 Npart;  // initialized by each subclass constructor
 
     int slab;
+    int zsplit;
 
     uint64 NsubsampleA, NsubsampleB;  // subsample A and B counts
 
@@ -47,7 +48,7 @@ public:
     virtual int check_read_done(int vel=0);
     int check_vel_read_done();
 
-    ICFile(int _slab);
+    ICFile(int _slab, int _zsplit);
 
     ~ICFile(void);
 

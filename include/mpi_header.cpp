@@ -46,5 +46,8 @@ int _world_rank;  // purely informational, do not use
     #define MPI_REQUEST_NULL NULL
 #endif
 
-void StartNeighborExchange(int);
-void AttemptNeighborReceive(int);
+void SetupNeighborExchange(int first, int nslab);
+void DoNeighborSend(int slab);
+void AttemptNeighborReceive(int first, int receive_ahead);
+int IsNeighborReceiveDone(int slab);
+void TeardownNeighborExchange();

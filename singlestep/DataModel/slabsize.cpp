@@ -36,7 +36,7 @@ class SlabSize {
         _num_zsplit = num_zsplit;
         _zsplit = zsplit;
 
-        _size = new uint64[cpd];
+        _size = new uint64[cpd*num_zsplit];
         _newsize = new uint64[cpd*num_zsplit];
         _size_with_ghost = new uint64[cpd*num_zsplit];
         _newsize_with_ghost = new uint64[cpd*num_zsplit];

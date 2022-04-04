@@ -85,8 +85,9 @@ int ICFile::check_read_done(int vel){
     return 1;
 }
 
-ICFile::ICFile(int _slab){
+ICFile::ICFile(int _slab, int _zsplit){
     slab = _slab;
+    zsplit = _zsplit;
 
     // Subclasses should init this in the constructor
     Npart = 0;
@@ -116,7 +117,7 @@ uint64 ICFile::next_pid;  // static next_pid counter
 template<class T>
 class ICFile_OnDisk : public ICFile {
 public:
-    ICFile_OnDisk<T>(int _slab) : ICFile(_slab){
+    ICFile_OnDisk<T>(int _slab, int _zsplit) : ICFile(_slab, _zsplit){
         // SlabSizeBytes only works if ICSlab is already in memory
         // This avoids an extra file stat
         uint64 b;
@@ -430,23 +431,30 @@ private:
 
 class ICFile_Lattice: public ICFile {
 private:
-    int64_t ppd;  // particles per dimension
-    int64_t ppd2;  // particles per dimension squared
+    int64_t ppdy,ppdz;  // particles per Y & Z dim
+    int64_t Npp;  // N per plane, ppdy*ppdz
 
-    int first_plane;  // first plane index in this slab
+    int firstx, firstz;  // first plane indices in this slab
     
 public:
-    ICFile_Lattice(int _slab) : ICFile(_slab) {
+    ICFile_Lattice(int _slab, int _zsplit) : ICFile(_slab, _zsplit) {
 
-        ppd = WriteState.ippd;
-        ppd2 = ppd*ppd;
-        double ppd_per_slab = (double) ppd / P.cpd;
+        ppdy = WriteState.ippd;
+        
+        double ppdx_per_slab = (double) WriteState.ippd / P.cpd;
+        double ppdz_per_split = (double) WriteState.ippd / MPI_size_z;
 
         // planes [first,last) are in this slab
-        first_plane = (int) ceil(ppd_per_slab*slab);
-        int last_plane = (int) ceil(ppd_per_slab*(slab+1));
+        firstx = (int) ceil(ppdx_per_slab*slab);
+        int lastx = (int) ceil(ppdx_per_slab*(slab+1));
 
-        Npart = ppd2*(last_plane - first_plane);
+        // We'll assume the z splits are registered to the periodic wrap for simplicity
+        firstz = (int) ceil(ppdz_per_split*zsplit);
+        int lastz = (int) ceil(ppdz_per_split*(zsplit+1));
+        ppdz = lastz - firstz;
+
+        Npp = ppdy*ppdz;
+        Npart = Npp*(lastx - firstx);
     }
 
     void read_nonblocking(int vel){
@@ -467,10 +475,10 @@ public:
         for(uint64 i = 0; i < Npart; i++){
             // Map the particle offset to an i,j,k tuple and add the plane offset
             integer3 ijk;
-            ijk.x = i / ppd2;
-            ijk.y = (i - ppd2*ijk.x)/ppd;
-            ijk.z = (i - ppd2*ijk.x) - ppd*ijk.y;
-            ijk.x += first_plane;
+            ijk.x = i / Npp;
+            ijk.y = (i - Npp*ijk.x)/ppdz;
+            ijk.z = (i - Npp*ijk.x) - ppdz*ijk.y + firstz;
+            ijk.x += firstx;
 
             assert(ijk.x >= 0 && ijk.y >= 0 && ijk.z >= 0);
             assert(ijk.x < WriteState.ppd && ijk.y < WriteState.ppd && ijk.z < WriteState.ppd);
@@ -532,7 +540,7 @@ void get_IC_unit_conversions(double &convert_pos, double &convert_vel){
 
 // An alternative to this macro approach would be a C++ type registry
 #define REGISTER_ICFORMAT(fmt) if(strcasecmp(format, #fmt) == 0){\
-    ic = unique_ptr<ICFile_##fmt>(new ICFile_##fmt(_slab));\
+    ic = unique_ptr<ICFile_##fmt>(new ICFile_##fmt(_slab, MPI_rank_z));\
 } else
 
 // This is a factory function to instantiate ICFile objects of a given format and slab number
