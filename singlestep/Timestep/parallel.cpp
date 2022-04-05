@@ -317,7 +317,7 @@ public:
             // 12. done send?
             MPI_Test(&send_handle, &done, MPI_STATUS_IGNORE);
             if (done) {
-                STDLOG(1, "Done ilstruct send to rank %d for slab %d\n", zneigh, slab);
+                STDLOG(1, "Done ilstruct send to zrank %d for slab %d\n", zneigh, slab);
 
                 // 13. free
                 free(sendbuf);
@@ -389,13 +389,13 @@ private:
 
     void launch_mpi_send(){
         assertf(send_status == 0,
-            "send() called but exchange already sent to rank %d, slab %d?\n", zneigh, slab);
+            "send() called but exchange already sent to zrank %d, slab %d?\n", zneigh, slab);
 
         assertf(sendelem < INT32_MAX,
             "2D neighbor exchanger trying to send %d particles, which overflows 32-bit int\n",
             sendelem);
 
-        STDLOG(1, "Sending %d ilstructs (%.3g GB) to rank %d for slab %d\n", sendelem, sendelem*sizeof(ilstruct)/1e9, zneigh, slab);
+        STDLOG(1, "Sending %d ilstructs (%.3g GB) to zrank %d for slab %d\n", sendelem, sendelem*sizeof(ilstruct)/1e9, zneigh, slab);
         // each pair of ranks has only one send and one recv per slab
         int tag = right ? (slab + RIGHT_TAG_OFFSET) : (slab + LEFT_TAG_OFFSET);
         MPI_Isend((const void *) sendbuf, (int) sendelem, MPI_ilstruct, zneigh, tag, comm_1d_z, &send_handle);
@@ -423,7 +423,7 @@ public:
             // 9. done receive?
             MPI_Test(&recv_handle, &done, MPI_STATUS_IGNORE);
             if (done) {
-                STDLOG(1, "Done ilstruct receive from rank %d for slab %d\n", zneigh, slab);
+                STDLOG(1, "Done ilstruct receive from zrank %d for slab %d\n", zneigh, slab);
                 // 10. push to IL
                 push_buffer_to_IL();
 
@@ -454,7 +454,7 @@ public:
             assertf(recvbuf != NULL, "Failed neighbor exchange recvbuf alloc of %d bytes\n", sz);
             
             // 8. start recv
-            STDLOG(1, "Receiving %d ilstructs (%.3g GB) from rank %d for slab %d\n",
+            STDLOG(1, "Receiving %d ilstructs (%.3g GB) from zrank %d for slab %d\n",
                 recvelem, recvelem*sizeof(ilstruct)/1e9, zneigh, slab);
             MPI_Irecv(recvbuf, (int) recvelem, MPI_ilstruct, zneigh, tag, comm_1d_z, &recv_handle);
             recv_status = 1;
@@ -479,7 +479,7 @@ void SetupNeighborExchange(int first, int nslab){
     }
 
     STDLOG(1,"Setting up Neighbor Exchange to do exchanges on slabs [%d,%d)\n",
-        first, first+nslab);
+        first, CP->WrapSlab(first+nslab));
 
     left_exchanger = new NeighborExchanger*[P.cpd]();
     right_exchanger = new NeighborExchanger*[P.cpd]();
@@ -490,7 +490,7 @@ void SetupNeighborExchange(int first, int nslab){
     int rightz = MPI_rank_z + 1;
     if(rightz >= MPI_size_z) rightz -= MPI_size_z;
 
-    for(int i = first; i < nslab; i++){
+    for(int i = first; i < first+nslab; i++){
         int iw = CP->WrapSlab(i);
         left_exchanger[iw] = new NeighborExchanger(iw, leftz, 0);
         right_exchanger[iw] = new NeighborExchanger(iw, rightz, 1);
@@ -499,11 +499,11 @@ void SetupNeighborExchange(int first, int nslab){
 }
 
 
+// Called immediately after drift
 void DoNeighborSend(int slab){
     if(MPI_size_z <= 1)
         return;
 
-    // Called immediately after drift
     STDLOG(1,"Triggering Neighbor Exchange sends on slab %d\n", slab);
 
     left_exchanger[slab]->send();
@@ -511,6 +511,7 @@ void DoNeighborSend(int slab){
 }
 
 
+// Called repeatedly in the timestep loop
 void AttemptNeighborReceive(int first, int receive_ahead){
     // This will typically be called with
     // first = (Finish.last_slab_executed - FINISH_WAIT_RADIUS), receive_ahead ~ 3
@@ -540,6 +541,7 @@ void AttemptNeighborReceive(int first, int receive_ahead){
     }
 }
 
+// Checked in the Finish precondition
 int IsNeighborReceiveDone(int slab){
     if(MPI_size_z <= 1){
         return 1;  // safely no-op
@@ -556,6 +558,7 @@ int IsNeighborReceiveDone(int slab){
 }
 
 
+// Called in the Epilogue
 void TeardownNeighborExchange(){
     if(MPI_size_z <= 1){
         return;  // safely no-op

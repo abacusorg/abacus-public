@@ -119,6 +119,14 @@ public:
 uint64 FillMergeSlab(int slab) {
     // This routine allocates the MergePos, MergeVel, MergeAux, 
     // and MergeCellInfo slabs.  They will be destroyed when written.
+
+    /* With regard to ghosts, all of the slabs built by this routine
+     * will hold MERGE_GHOST_RADIUS ghost columns.  This does not require
+     * special treatment, except that the cellinfos hold an extra count,
+     * so we know the particle offsets with and without ghosts
+     * (probably just for AccSlab).
+     */
+
     int cpd = P.cpd;
 
     // Sort the insert list

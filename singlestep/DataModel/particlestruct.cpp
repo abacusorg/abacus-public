@@ -230,10 +230,10 @@ public:
 };
 
 class cellinfo {
-    /* With regard to ghost cells, our CellInfo slabs will always hold the
-    amount *with ghosts*. But some of our slabs, like AccSlab, won't have ghosts.
-    So each cellinfo struct has two counts: one for the starting offset in slabs
-    with ghosts, and one for the slabs without.
+    /* With regard to ghost cells, our CellInfo slabs will always be sized to hold
+    ghosts.  But some of our slabs, like AccSlab, won't. So each cellinfo struct
+    has two counts: one for the starting offset in slabs with ghosts, and one
+    for the slabs without.
 
     The alternatives would be to make a new CellInfoWithGhosts slab type, or
     simply require all slabs to have ghosts, even if they are null.
