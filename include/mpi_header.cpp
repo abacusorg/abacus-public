@@ -7,6 +7,11 @@ int node_z_size;
 int node_z_start_ghost;
 int node_z_size_with_ghost;
 
+// The above names are pretty verbose, which is unfortunate. And we often end up writing
+// "node_z_start_ghost + node_z_size_with_ghost" to mark the end of iteration, which is long.
+// But a new var like "node_z_end_ghost" seems ambiguous to LHG: is it the last cell, or one past that?
+// LHG is open to new names, but for now we opt for descriptive ones.
+
 int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
 
 // The 2D rank and size
