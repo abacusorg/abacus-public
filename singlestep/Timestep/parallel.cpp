@@ -203,28 +203,44 @@ void FinalizeParallel() {
 
 #ifdef PARALLEL
 // Partition functions
-inline bool is_right_ghost(ilstruct *particle, int first_ghost){
+inline bool is_right_ghost(ilstruct *particle, int slab, int first_ghost){
     // TODO: this modulus could be slow. First let's check if it is;
     // if so, we could store z in the ilstruct.
     // Or fix CPD at compile time and use libdivide!
+    
+    if(particle->newslab != slab)
+        return 0;
+
+    int cpdm1half = (P.cpd - 1)/2;
 
     // k = y*cpd + z, so k % cpd gives z
     int z = particle->k % P.cpd;
-    int dist = k - first_ghost;
-    if (dist < -P.cpd/2){
+    int dist = z - first_ghost;
+    if (dist > cpdm1half){
+        dist -= P.cpd;
+    } else if (dist < -cpdm1half){
         dist += P.cpd;
     }
-    else if (dist >= P.cpd/2){
-        dist -= P.cpd;
-    }
 
-    return dist < P.cpd/2;
-
-    // TODO tuesday: doesn't work if z has wrapped!
+    return dist >= 0;
 }
 
-inline bool is_left_ghost(ilstruct *particle, int first_ghost){
-    return (particle->k % P.cpd) <= first_ghost;
+inline bool is_left_ghost(ilstruct *particle, int slab, int first_ghost){
+    if(particle->newslab != slab)
+        return 0;
+
+    int cpdm1half = (P.cpd - 1)/2;
+
+    // k = y*cpd + z, so k % cpd gives z
+    int z = particle->k % P.cpd;
+    int dist = z - first_ghost;
+    if (dist > cpdm1half){
+        dist -= P.cpd;
+    } else if (dist < -cpdm1half){
+        dist += P.cpd;
+    }
+
+    return dist <= 0;
 }
 
 /* NeighborExchange happens immediately after the Drift, and does the following for each neighbor:
@@ -322,13 +338,15 @@ private:
         if(right){
             // [0..mid) are not in slab, [mid..length) are in slab
             mid = ParallelPartition(IL->list, IL->length,
-                node_z_start + node_z_size - MERGE_GHOST_RADIUS,
-                is_right_ghost);
+                is_right_ghost,
+                slab,
+                node_z_start + node_z_size - MERGE_GHOST_RADIUS);
         }
         else {
             mid = ParallelPartition(IL->list, IL->length,
-                node_z_start + MERGE_GHOST_RADIUS - 1,
-                is_left_ghost);
+                is_left_ghost,
+                slab,
+                node_z_start + MERGE_GHOST_RADIUS - 1);
         }
         
         *nhigh = (size_t) (IL->length - mid);
@@ -341,13 +359,15 @@ private:
         uint64 mid;
         if(right){
             mid = ParallelPartition(start, nelem,
-                node_z_start + node_z_size,
-                is_right_ghost);
+                is_right_ghost,
+                slab,
+                node_z_start + node_z_size);
         }
         else {
             mid = ParallelPartition(start, nelem,
-                node_z_start - 1,
-                is_left_ghost);
+                is_left_ghost,
+                slab,
+                node_z_start - 1);
         }
         
         size_t nhigh = (size_t) nelem - mid;

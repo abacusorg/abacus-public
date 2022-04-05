@@ -85,16 +85,16 @@ class PartitionBlock {
     uint64 numhigh() { return end-mid; }
     uint64 numlow() { return mid-begin; }
 
-    template <typename ListType, typename ValType>
-    void Partition(uint64 _begin, uint64 _end, ListType *list, ValType slab, 
-            bool (is_high)(ListType *obj, ValType val)) {
+    template <typename ListType, typename... Args>
+    void Partition(uint64 _begin, uint64 _end, ListType *list, 
+            bool (is_high)(ListType *obj, Args... args), Args... args) {
         assert(_begin < _end);
         begin=_begin; end=_end;
         // Then do the partitioning, loading up mid
         uint64 a = begin, b = end-1;
         while (1) {
-            while (!is_high(list+a,slab)&&a<b) a++;    // So list[a] is high
-            while (is_high(list+b,slab)&&a<b) b--;    // So list[b] is low
+            while (!is_high(list+a,args...)&&a<b) a++;    // So list[a] is high
+            while (is_high(list+b,args...)&&a<b) b--;    // So list[b] is low
             // TODO: If the boolean function call is slow and we want to code equality in-line
             // while (list[a]!=slab&&a<b) a++;    // So list[a]==slab
             // while (list[b]==slab&&a<b) b--;    // So list[b]!=slab
@@ -102,7 +102,7 @@ class PartitionBlock {
             std::swap(list[a], list[b]);
         }
         // We have a==b when we exit, but we don't yet know if this value is low or high
-        if (is_high(list+a,slab)) mid = a; else mid=a+1;
+        if (is_high(list+a,args...)) mid = a; else mid=a+1;
         return;
     }
 
@@ -114,11 +114,12 @@ class PartitionBlock {
 };
 
 
-template <typename ListType, typename ValType>
-uint64 ParallelPartition(ListType *list, uint64 N, ValType slab, bool (is_high)(ListType *obj, ValType val)) {
+template <typename ListType, typename... Args>
+uint64 ParallelPartition(ListType *list, uint64 N, bool (is_high)(ListType *obj, Args... args), Args... args) {
 // Given a list of N objects and a slab
 // partition the list, placing objects with value==slab at the end of the list.
 // Return the starting index of the transition point.
+// An arbitrary number of arguments may be passed to the is_high() partition function.
     
     if (N == 0)
         return 0;
@@ -136,7 +137,7 @@ uint64 ParallelPartition(ListType *list, uint64 N, ValType slab, bool (is_high)(
     // Split the list and partition the sub-lists
     #pragma omp parallel for schedule(static)
     for (int t=0; t<nthread; t++) 
-        sublist[t].Partition(t*width, std::min((t+1)*width, N), list, slab, is_high);
+        sublist[t].Partition(t*width, std::min((t+1)*width, N), list, is_high, args...);
 
     #ifdef PPTEST
     for (int t=0; t<nthread; t++) 

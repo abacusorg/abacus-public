@@ -223,7 +223,7 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     // We've been pushing particles to spread-out locations in the MAL; now make them contiguous
     CollectGaps();
 
-    uint64 mid = ParallelPartition(list, length, slab, is_in_slab);  // [0..mid-1] are not in slab, [mid..length-1] are in slab
+    uint64 mid = ParallelPartition(list, length, is_in_slab, slab);  // [0..mid-1] are not in slab, [mid..length-1] are in slab
 
     //ConfirmPartition(list, length, slab);
     

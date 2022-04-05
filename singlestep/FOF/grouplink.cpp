@@ -124,7 +124,7 @@ public:
     /// to the end of the list, and then shrinks the list to discard them. 
     void PartitionAndDiscard() {
 	GroupPartition.Start();
-	uint64 mid = ParallelPartition(list, length, (int)0, is_marked_for_deletion);
+	uint64 mid = ParallelPartition(list, length, is_marked_for_deletion, (int)0);
 		// [0..mid) are to be retained.
 		// [mid..length) are to be deleted.
 	GroupPartition.Stop();

@@ -146,11 +146,9 @@ class DependencyRecord {
     }
 };
 
-int global_minslab_search;    // Used to pass an extra variable into partition
-
 // Need some new Partition functions, to get ranges of slabs
 // Will select things between [x,slab), where x=slab-CPD/2, handling the wrap
-inline bool is_below_slab(ilstruct *particle, int slab) {
+inline bool is_below_slab(ilstruct *particle, int slab, int global_minslab_search) {
     int x = particle->newslab-slab;  // We want x<0, but not too much.
     x = CP->WrapSlab(x);
     return x>=global_minslab_search;
@@ -160,7 +158,7 @@ inline bool is_below_slab(ilstruct *particle, int slab) {
 /// been closed in slab, so there are no GroupLinks that involve the 
 /// slab.  By definition, the two ends of the link can differ by at 
 /// most one slab.  So it is enough to test one end.
-inline bool link_below_slab(GroupLink *link, int slab) {
+inline bool link_below_slab(GroupLink *link, int slab, int global_minslab_search) {
     int sa = link->a.slab();
     sa = CP->WrapSlab(sa-slab);
     return sa>=global_minslab_search;
@@ -477,8 +475,8 @@ void Manifest::QueueToSend(int finished_slab) {
     	min_il_slab, finished_slab);
     // Partition the Insert List, malloc *il, and save it off
     IL->CollectGaps();   // Want to assure no MALgaps
-    global_minslab_search = CP->WrapSlab(min_il_slab-finished_slab);
-    uint64 mid = ParallelPartition(IL->list, IL->length, finished_slab, is_below_slab);
+    int global_minslab_search = CP->WrapSlab(min_il_slab-finished_slab);
+    uint64 mid = ParallelPartition(IL->list, IL->length, is_below_slab, finished_slab, global_minslab_search);
 
     m.numil = IL->length-mid;
     int ret = posix_memalign((void **)&il, PAGE_SIZE, sizeof(ilstruct)*m.numil);
@@ -492,7 +490,7 @@ void Manifest::QueueToSend(int finished_slab) {
     if (GFC!=NULL) {
         STDLOG(2,"Queuing GroupLink List into the SendManifest, extracting [%d,%d)\n", min_links_slab, finished_slab);
         global_minslab_search = CP->WrapSlab(min_links_slab-finished_slab);
-        mid = ParallelPartition(GFC->GLL->list, GFC->GLL->length, finished_slab, link_below_slab);
+        mid = ParallelPartition(GFC->GLL->list, GFC->GLL->length, link_below_slab, finished_slab, global_minslab_search);
         ret = posix_memalign((void **)&links, PAGE_SIZE, sizeof(GroupLink)*(GFC->GLL->length-mid));
         m.numlinks = GFC->GLL->length-mid;
         memcpy(links, GFC->GLL->list+mid, sizeof(GroupLink)*m.numlinks);
