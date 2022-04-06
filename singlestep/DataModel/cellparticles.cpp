@@ -22,34 +22,34 @@ public:
 
 // ==================================================================
 // We have to wrap the 2-d cell index into a linear index.
+// The linear index is relative to the memory layout of the sub-slab on this node.
 
-    inline int _CellID(int y, int z) {
-        // TODO: remove sanity checks
-        assertf(Grid->WrapSlab(z) <= Grid->WrapSlab(node_z_start_ghost + node_z_size_with_ghost - 1), "z %d OOB\n", z);
-        assertf(Grid->WrapSlab(z) >= Grid->WrapSlab(node_z_start_ghost), "z %d OOB\n", z);
+    inline int _NodeCellID(int y, int zoff) {
+        // zoff is the offset in this node's sub-slab
+        assertf(zoff < node_z_size_with_ghost, "zoff %d OOB\n", zoff);
         
         // cellinfo always has ghost cells
-        return y*node_z_size_with_ghost + (z - node_z_start_ghost);
+        return y*node_z_size_with_ghost + zoff;
     }
-            // This function does not wrap
-    inline int CellID(integer3 xyz) {
+
+    inline int NodeCellID(integer3 xyz) {
+        xyz.z -= node_z_start_ghost;
         xyz = WrapCell(xyz);
-        return _CellID(xyz.y,xyz.z);
-    }
-    inline int CellID(int y, int z) {
-        integer3 xyz = WrapCell(0,y,z);
-        return _CellID(xyz.y,xyz.z);
+        return _NodeCellID(xyz.y,xyz.z);
     }
     // These return a linearized ID number for the cell order in these slabs
-    // These will wrap; however the _CellID function does not.
+    // These will wrap; however the _NodeCellID function does not.
 
-    inline int _MergeCellID(int y, int z) {
+    inline int _MergeNodeCellID(int y, int zoff) {
         // The MergeCellInfo may have a different number of ghost cells
-        return y*(node_z_size + 2*MERGE_GHOST_RADIUS) + (z - (node_z_start - MERGE_GHOST_RADIUS));
+        assertf(zoff < node_z_size + 2*MERGE_GHOST_RADIUS, "merge zoff %d OOB\n", zoff);
+
+        return y*(node_z_size + 2*MERGE_GHOST_RADIUS) + zoff;
     }
-    inline int MergeCellID(integer3 xyz) {
+    inline int MergeNodeCellID(integer3 xyz) {
+        xyz.z -= node_z_start - MERGE_GHOST_RADIUS;
         xyz = WrapCell(xyz);
-        return _MergeCellID(xyz.y,xyz.z);
+        return _MergeNodeCellID(xyz.y,xyz.z);
     }
 
 // ==================================================================
@@ -58,7 +58,7 @@ public:
 
     inline cellinfo *_CellInfo(integer3 xyz) {
         // Assumes a wrapped cell
-        return ((cellinfo *)SB->GetSlabPtr(CellInfoSlab,xyz.x)) + CellID(xyz);
+        return ((cellinfo *)SB->GetSlabPtr(CellInfoSlab,xyz.x)) + NodeCellID(xyz);
     }
     inline cellinfo *CellInfo(integer3 xyz) {
         return _CellInfo(WrapCell(xyz)); 
@@ -96,7 +96,7 @@ public:
 
     inline cellinfo *_MergeCellInfo(integer3 xyz) {
         // Assumes a wrapped cell
-        return ((cellinfo *)SB->GetSlabPtr(MergeCellInfoSlab,xyz.x)) + MergeCellID(xyz);
+        return ((cellinfo *)SB->GetSlabPtr(MergeCellInfoSlab,xyz.x)) + MergeNodeCellID(xyz);
     }
     inline cellinfo *MergeCellInfo(integer3 xyz) {
         return _MergeCellInfo(WrapCell(xyz)); 
@@ -120,7 +120,7 @@ public:
     inline cellinfo *_InsertCellInfo(integer3 xyz) {
         // Assumes a wrapped cell
         // InsertCellInfoSlab has same ghost padding as MergeSlab
-        return ((cellinfo *)SB->GetSlabPtr(InsertCellInfoSlab,xyz.x)) + MergeCellID(xyz);
+        return ((cellinfo *)SB->GetSlabPtr(InsertCellInfoSlab,xyz.x)) + MergeNodeCellID(xyz);
     }
     inline cellinfo *InsertCellInfo(integer3 xyz) {
         return _InsertCellInfo(WrapCell(xyz)); 
@@ -140,7 +140,7 @@ public:
         // Assumes a wrapped cell
         Cell c;
         c.ijk = xyz;
-        c.ci = ((cellinfo *)SB->GetSlabPtr(CellInfoSlab,xyz.x))+CellID(xyz);
+        c.ci = ((cellinfo *)SB->GetSlabPtr(CellInfoSlab,xyz.x))+NodeCellID(xyz);
         c.pos = (posstruct *)SB->GetSlabPtr(PosSlab,xyz.x)+c.ci->startindex_with_ghost;
         c.vel = (velstruct *)SB->GetSlabPtr(VelSlab,xyz.x)+c.ci->startindex_with_ghost;
         c.aux = (auxstruct *)SB->GetSlabPtr(AuxSlab,xyz.x)+c.ci->startindex_with_ghost;
@@ -165,7 +165,7 @@ public:
         // Assumes a wrapped cell
         Cell c;
         c.ijk = xyz;
-        c.ci = ((cellinfo *)SB->GetSlabPtr(MergeCellInfoSlab,xyz.x))+MergeCellID(xyz);
+        c.ci = ((cellinfo *)SB->GetSlabPtr(MergeCellInfoSlab,xyz.x))+MergeNodeCellID(xyz);
         c.pos = (posstruct *)SB->GetSlabPtr(MergePosSlab,xyz.x)+c.ci->startindex_with_ghost;
         c.vel = (velstruct *)SB->GetSlabPtr(MergeVelSlab,xyz.x)+c.ci->startindex_with_ghost;
         c.aux = (auxstruct *)SB->GetSlabPtr(MergeAuxSlab,xyz.x)+c.ci->startindex_with_ghost;

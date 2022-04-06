@@ -10,7 +10,7 @@ inline void DriftCell(Cell &c, FLOAT driftfactor) {
     FLOAT3 *pos = (FLOAT3*) c.pos;
     FLOAT3 *vel = (FLOAT3*) c.vel;
     
-    #pragma simd assert
+    #pragma omp simd
     for (int b = 0; b<N; b++) {
         // Drift the position
         pos[b] += vel[b] * driftfactor;
@@ -23,9 +23,9 @@ void DriftPencil(int slab, int j, FLOAT driftfactor){
     FLOAT* vel = (FLOAT *) CP->VelCell(slab, j, node_z_start);
 
     // no ghost drift (ghost would use PencilLenWithGhost)
-    uint64 Npen = CP->PencilLen(slab, j);
+    uint64 Npen = 3*CP->PencilLen(slab, j);
 
-    #pragma simd assert
+    #pragma omp simd
     for(uint64 i = 0; i < Npen; i++){
         pos[i] += vel[i]*driftfactor;
     }

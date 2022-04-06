@@ -175,8 +175,6 @@ def check_storeforces(param, dtype=DEFAULT_DTYPE):
     NP = param['NP']
     rescale = 3.0*(param['Omega_M']-param.get('Omega_Smooth',0.))/(8.0*np.pi)
     
-    read = Path(param.get('ReadStateDirectory', Path(param['WorkingDirectory']) / 'read' ))
-    
     acc = np.empty((NP,3), dtype=dtype)
     i = 0
     for accfn in sorted(Path(param.get('OutputDirectory')).glob('acc_*')):
@@ -186,13 +184,13 @@ def check_storeforces(param, dtype=DEFAULT_DTYPE):
         i += len(thisacc)
     assert i == NP
 
-    if param.get('Parallel',False):
+    read = Path(param.get('ReadStateDirectory', Path(param['WorkingDirectory']) / 'read' ))
+    auxfns = sorted(read.glob('aux*_*'))
+    if not auxfns:
         # aux might be on another node and thus inaccessible, but maybe we did it all on this node
         auxfns = Path(param.get('LocalWorkingDirectory')).parent.glob(param['SimName'] + '*/read/aux*')
         auxfns = sorted(auxfns, key=lambda p:p.name)
-    else:
-        auxfns = sorted(read.glob('aux*_*'))
-        
+    
     pid = np.empty(NP, dtype=np.int64)
     i = 0
     for auxfn in auxfns:
@@ -201,7 +199,7 @@ def check_storeforces(param, dtype=DEFAULT_DTYPE):
         # but since we only care about the order, we can ignore that and just sort
         pid[i:i+len(thisaux)] = thisaux & np.uint64(0x7fff7fff7fff)
         i += len(thisaux)
-    assert i == NP
+    assert i == NP, (i,NP)
         
     # put the acc back in the original order
     acc = acc[pid.argsort()]

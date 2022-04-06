@@ -34,7 +34,7 @@ void SinkPencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, in
         FLOAT *d = pinpos.Z+start+cumulative_number;
         if (dz!=0) 
             // TODO: maybe there'd be a small gain in precomputing offsets and merging some of these loops
-            #pragma simd assert
+            #pragma omp simd
             for (int i=0; i<N; i++)
                 d[i] = p[i]+dz;
         else
@@ -181,7 +181,7 @@ void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, 
 
         FLOAT *d = pinpos.X+start+cumulative_number;
         if (dx!=0) 
-            #pragma simd assert
+            #pragma omp simd
             for (int i=0; i<N; i++) d[i] = p[i]+dx;
         else memcpy(d, p, sizeof(FLOAT)*N);
         p+=Nslab[c]; memcpy(pinpos.Y+start+cumulative_number, p, sizeof(FLOAT)*N);

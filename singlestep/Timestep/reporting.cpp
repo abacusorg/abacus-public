@@ -69,10 +69,13 @@ void GatherTimings() {
     // What particle count do we use to report the overall rate?  Finish works for IC and normal steps.
     int64 np_node = Finish.num_particles;
     int64 np_node_with_ghost = Finish.num_particles_with_ghost;
-    fprintf(reportfp,"---> %6.3f Mpart/sec, % " PRId64 " particles (%" PRId64 " w/ ghost) finished by this node.",
-        thistime ? np_node/thistime/1e6 : 0., np_node, np_node_with_ghost); 
+    fprintf(reportfp,"---> %6.3f Mpart/sec, % " PRId64 " particles ",
+        thistime ? np_node/thistime/1e6 : 0., np_node);
+#ifdef PARALLEL
+    fprintf(reportfp,"(%" PRId64 " w/ ghost) ", np_node_with_ghost);
+#endif
 	//TODO : consider reporting number of particles microstepped here as well. 
-    fprintf(reportfp,"\n");
+    fprintf(reportfp,"finished by this node.\n");
 
     total = 0.0;
     REPORT(0, "SingleStep Setup", SingleStepSetup.Elapsed()); total += thistime;

@@ -741,7 +741,7 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
         raise NotImplementedError
         
     # cellinfo dtype
-    ci_dtype = np.dtype([('startindex',np.uint64),
+    ci_dtype = np.dtype([('startindex',np.uint64),('startindex_with_ghost',np.uint64),
                          ('count',np.int32), ('active',np.int32),
                          ('mean_square_velocity', dtype_on_disk), ('max_component_velocity', dtype_on_disk), ('max_component_acceleration', dtype_on_disk)],
                          align=True)
