@@ -20,8 +20,6 @@ void StartMPI() {
         int ret = -1;
         MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
         assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() reports it supports level %d, not MPI_THREAD_FUNNELED.\n", ret);
-
-        STDLOG(0,"Initialized MPI.\n");
     #endif
 }
 
@@ -112,9 +110,14 @@ void InitializeParallelDomain(){
 
         // The primary, "corporeal" domain boundaries will be registered to y=0
         // This is arbitrary, but it makes it so the multipoles never span the wrap
-        node_z_start = P.cpd * MPI_rank_z / MPI_size_z;
-        node_z_size = P.cpd * (MPI_rank_z + 1) / MPI_size_z - node_z_start;
+        for(int i = 0; i < MPI_size_z; i++){
+            all_node_z_start[i] = P.cpd * i / MPI_size_z;
+            all_node_z_size[i] = P.cpd * (i + 1) / MPI_size_z - all_node_z_start[i];
+        }
+        node_z_start = all_node_z_start[MPI_rank_z];
+        node_z_size = all_node_z_size[MPI_rank_z];
         
+        // and compute the domain with ghosts
         node_z_start_ghost = node_z_start - GHOST_RADIUS;
         if (node_z_start_ghost < 0) node_z_start_ghost += P.cpd;
         node_z_size_with_ghost = node_z_size + 2*GHOST_RADIUS;

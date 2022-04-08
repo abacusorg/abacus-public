@@ -165,6 +165,10 @@ SlabTaylor *TY;
 SlabMultipoles *MF;
 Redlack *RL;
 
+#ifdef PARALLEL
+#include "slabmultipoles_mpi.cpp"
+#endif
+
 #include "multipole_taylor.cpp"
 
 #include "check.cpp"
@@ -237,8 +241,14 @@ void Prologue(Parameters &P, bool MakeIC) {
     SB = new SlabBuffer(cpd, order);
     CP = new CellParticles(cpd, SB);
 
-    STDLOG(2,"Initializing Multipoles()\n");
-    MF  = new SlabMultipoles(order, cpd);
+    STDLOG(2,"Initializing Multipoles\n");
+    if(MPI_size_z > 1){
+        #ifdef PARALLEL
+        MF = new SlabMultipolesMPI(order, cpd);
+        #endif
+    } else {
+        MF  = new SlabMultipolesLocal(order, cpd);
+    }
 
     STDLOG(2,"Setting up insert list\n");
     uint64 maxILsize = P.np+1;

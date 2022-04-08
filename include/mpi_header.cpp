@@ -25,6 +25,9 @@ char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
 
 int _world_rank;  // purely informational, do not use
 
+int *all_node_z_start;  // z domains of all nodes
+int *all_node_z_size;
+
 #ifdef PARALLEL
     #include "mpi.h"
 

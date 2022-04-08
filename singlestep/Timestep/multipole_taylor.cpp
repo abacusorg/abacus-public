@@ -12,7 +12,7 @@ void ComputeTaylorForce(int slab) {
 
     #pragma omp parallel for schedule(static)
     for(int y=0;y<cpd;y++)
-        for(int z=0;z<cpd;z++) {
+        for(int z = node_z_start; z < node_z_start + node_z_size; z++) {
             cellinfo *ciptr = CP->CellInfo(slab,y,z);
             int i = y*cpd + z;
             TY->offset[i] = ciptr->startindex;
@@ -44,7 +44,7 @@ void ComputeMultipoleSlab(int slab) {
 
     #pragma omp parallel for schedule(static)
     for(int y=0;y<cpd;y++)
-        for(int z=0;z<cpd;z++) {
+        for(int z = node_z_start; z < node_z_start + node_z_size; z++) {
 	        cellinfo *ciptr = CP->MergeCellInfo(slab,y,z);
             int i = y*cpd + z;
             MF->offset[i] = ciptr->startindex;
@@ -60,13 +60,15 @@ void ComputeMultipoleSlab(int slab) {
     uint64 slabsize;
     STDLOG(3,"Calling multipole module.\n");
     MTCOMPLEX *slabmultipoles = (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab,slab);
-    MF->ComputeMultipoleFFTYZ( slab, pos, MF->count, MF->offset, MF->cc, slabmultipoles);
+
+    if(MPI_size_z > 1){
+        // only Y is local; do the 1D version
+        //MF->ComputeMultipoleFFTY( slab, pos, MF->count, MF->offset, MF->cc, slabmultipoles);
+    } else {
+        // YZ is local; do the 2D version
+        MF->ComputeMultipoleFFTYZ( slab, pos, MF->count, MF->offset, MF->cc, slabmultipoles);
+    }
 
     ComputeMultipoles.Stop();
     STDLOG(1,"Done with multipoles.\n");
 }
-
-// Thin wrappers to convert from arenas to pointers
-void DoCellMultipoles(int slab, int y, int z){ return;};
-void DoZRowMultipoles(int slab, int y){ return;};
-void DoYRowMultipoles(int slab){ return;};
