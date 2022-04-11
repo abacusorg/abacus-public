@@ -5,10 +5,14 @@ public:
     SlabMultipolesMPI(int order, int cpd); 
     ~SlabMultipolesMPI(void);
 
-    void ComputeMultipoleFFTYZ( int x,  FLOAT3 *spos, int *count, int *offset,  FLOAT3 *cc, MTCOMPLEX *tmp);
+    void ComputeMultipoleFFT( int x,  FLOAT3 *spos, int *count, int *offset,  FLOAT3 *cc, MTCOMPLEX *tmp);
+    void ComputeFFTZ(int x, MTCOMPLEX *outslab);
+    void CheckAnyMPIDone();
+    int IsMPIDone(int slab);
 
 private:
     double *reducedtmp;
+    Complex *ztmp;
     
     Complex **sendbuf;
     Complex **recvbuf;
@@ -16,7 +20,6 @@ private:
     MPI_Request *handle;
     int *mpi_status;  // 0 = waiting; 1 = send/recv; 2 = done
 
-    int *ky_start;
     int *sendcounts;  // num elements to send to rank i
     int *senddispls;  // offset of chunk to send to rank i
 
@@ -24,12 +27,10 @@ private:
     int *recvdispls;  // offset of chunk to send to rank i
 
     void FFTY(Complex *out, const double *in);
-    void FFTZ(Complex *out, const double *in);
+    void FFTZ(MTCOMPLEX *out, const Complex *in);
     
     void MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const Complex *in);
-    void DoMPIAllToAll(MPI_Request *handle, const Complex *buf);
-    void CheckAnyMPIDone();
-    int IsMPIDone(int slab);
+    void DoMPIAllToAll(int slab, MPI_Request *handle, const Complex *buf);
 
     const MPI_Datatype MPI_DTYPE = MPI_C_DOUBLE_COMPLEX;
 };
@@ -37,11 +38,15 @@ private:
 SlabMultipolesMPI::~SlabMultipolesMPI(void) {
     free(reducedtmp);
     free(transposetmp);
+    free(ztmp);
 
     delete[] sendbuf;
-    delete[] ky_start;
+    delete[] recvbuf;
+    delete[] handle;
     delete[] sendcounts;
     delete[] senddispls;
+    delete[] recvcounts;
+    delete[] recvdispls;
 }
 
 SlabMultipolesMPI::SlabMultipolesMPI(int order, int cpd)
@@ -57,29 +62,26 @@ SlabMultipolesMPI::SlabMultipolesMPI(int order, int cpd)
         mpi_status[i] = 0;
     }
 
-    // After the y-FFT, each node gets a sub-domain of ky for all z
-    ky_start = new int[MPI_size_z+1];
-    for(int i = 0; i < MPI_size_z + 1; i++){
-        ky_start[i] = i*cpdp1half/MPI_size_z;
-    }
-
     sendcounts = new int[MPI_size_z];
     senddispls = new int[MPI_size_z];
     for(int i = 0; i < MPI_size_z; i++){
-        sendcounts[i] = (ky_start[i+1] - ky_start[i])*node_z_size*rml;
+        sendcounts[i] = (all_node_ky_start[i+1] - all_node_ky_start[i])*node_z_size*rml;
         senddispls[i] = (i>0) ? (senddispls[i-1] + sendcounts[i-1]) : 0;
     }
 
     recvcounts = new int[MPI_size_z];
     recvdispls = new int[MPI_size_z];
     for(int i = 0; i < MPI_size_z; i++){
-        recvcounts[i] = (ky_start[MPI_rank_z+1] - ky_start[MPI_rank_z])*all_node_z_size[i]*rml;
+        recvcounts[i] = node_ky_size*all_node_z_size[i]*rml;
         recvdispls[i] = (i>0) ? (recvdispls[i-1] + recvcounts[i-1]) : 0;
     }
 
     assert(posix_memalign((void **) &reducedtmp, PAGE_SIZE, sizeof(double) * cpd * node_z_size * rml) == 0);
     // TODO: could halve MPI data if we use MTCOMPLEX
     assert(posix_memalign((void **) &transposetmp, PAGE_SIZE, sizeof(Complex) * cpdp1half * rml * node_z_size) == 0);
+    
+    assert(posix_memalign((void **) &ztmp, PAGE_SIZE,
+        sizeof(Complex) * node_ky_size * cpd * rml) == 0);  // all z, some ky
 }
 
 void SlabMultipolesMPI::FFTY(Complex *out, const double *in) {
@@ -109,34 +111,38 @@ void SlabMultipolesMPI::MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const C
     assert(posix_memalign((void **) sbuf, PAGE_SIZE,
         sizeof(Complex) * cpdp1half * node_z_size * rml) == 0);  // all ky, some z
     assert(posix_memalign((void **) rbuf, PAGE_SIZE,
-        sizeof(Complex) * (ky_start[MPI_rank_z+1] - ky_start[MPI_rank_z]) * cpd * rml) == 0);  // all z, some ky
+        sizeof(Complex) * node_ky_size * cpd * rml) == 0);  // all z, some ky
 
     // fill sendbuf
     #pragma omp parallel for schedule(static)
     for(int64_t y = 0; y < cpdp1half; y++){
-        for(int64_t z = 0; z < node_z_size; z++){
-            for(int64_t m = 0; m < rml; m++){
-                *sbuf[y*node_z_size*rml + z*rml + m] = in[z*rml*cpdp1half + m*cpdp1half + y];
+        for(int64_t m = 0; m < rml; m++){
+            for(int64_t z = 0; z < node_z_size; z++){
+                // TODO: the [m,z] dimension ordering is arbitrary
+                *sbuf[y*node_z_size*rml + m*node_z_size + z] = in[z*rml*cpdp1half + m*cpdp1half + y];
             }
         }
     }
 }
 
-void SlabMultipolesMPI::DoMPIAllToAll(MPI_Request *handle, const Complex *buf){
+void SlabMultipolesMPI::DoMPIAllToAll(int slab, MPI_Request *handle, const Complex *buf){
     MPI_Ialltoallv((void *) buf, sendcounts,
         senddispls, MPI_DTYPE,
         (void *) recvbuf, recvcounts,
         recvdispls, MPI_DTYPE, comm_1d_z,
         handle);
+    
+    mpi_status[slab] = 1;
 }
 
 void SlabMultipolesMPI::CheckAnyMPIDone(){
     for(int i = 0; i < cpd; i++){
         if(mpi_status[i] == 1){
-            int done = -1;
+            int done = 0;
             MPI_Test(&handle[i], &done, MPI_STATUS_IGNORE);
             if(done){
                 mpi_status[i] = 2;
+                free(sendbuf[i]);
             }
         }
     }
@@ -146,7 +152,7 @@ int SlabMultipolesMPI::IsMPIDone(int slab){
     return mpi_status[CP->WrapSlab(slab)] == 2;
 }
 
-void SlabMultipolesMPI::ComputeMultipoleFFTYZ( int x, FLOAT3 *spos, 
+void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos, 
                      int *count, int *offset, FLOAT3 *cc, MTCOMPLEX *out) {
     STimer wc;
     PTimer _kernel, _c2r, _fftz;
@@ -205,8 +211,7 @@ void SlabMultipolesMPI::ComputeMultipoleFFTYZ( int x, FLOAT3 *spos,
     FFTY(transposetmp, reducedtmp);
     
     MakeSendRecvBufs(&sendbuf[x], &recvbuf[x], transposetmp);
-    DoMPIAllToAll(&handle[x], sendbuf[x]);
-    mpi_status[x] = 1;
+    DoMPIAllToAll(x, &handle[x], sendbuf[x]);
 
     // TODO monday: new function to ingest from recvbuf, do FFTZ, and install in MultipoleSlab for convolution.
     // Call CheckAnyMPIDone() in timestep loop, and split Finish into FinishY and FinishZ (?).
@@ -220,4 +225,54 @@ void SlabMultipolesMPI::ComputeMultipoleFFTYZ( int x, FLOAT3 *spos,
     MultipoleKernel.increment(seq_kernel);
     MultipoleC2R.increment(seq_c2r);
     FFTMultipole.increment(seq_fftz);
+}
+
+
+void SlabMultipolesMPI::ComputeFFTZ(int x, MTCOMPLEX *outslab){
+    assertf(mpi_status[x] == 2, "ComputeFFTZ() called before MPI receive done on slab %d?\n", x);
+
+    // unpack recvbuf into ztmp
+    // recvbuf holds each node's chunk, one after the other
+
+    // recvbuf: [MPI_size_z, node_ky_size, rml, all_node_z_size[node]]
+    // ztmp: [node_ky_size, rml, cpd]
+    #pragma omp parallel for schedule(static)
+    for(int64_t y = 0; y < node_ky_size; y++){
+        for(int64_t m = 0; m < rml; m++){
+            for(int64_t node = 0; node < MPI_size_z; node++){
+                int64_t zstart = all_node_z_start[node];
+                int64_t zsize = all_node_z_size[node];
+                for(int64_t zoff = 0; zoff < zsize; zoff++){
+                    ztmp[y*rml*cpd + m*cpd + (zstart + zoff)] =
+                        recvbuf[x][node*node_ky_size*rml*zsize + y*rml*zsize + m*zsize + zoff];
+                }
+            }
+        }
+    }
+
+    FFTZ(outslab, ztmp);
+}
+
+
+void SlabMultipolesMPI::FFTZ(MTCOMPLEX *out, const Complex *in) {
+    // out: shape [node_ky_size, rml, (cpd+1)/2]
+    // in: shape [node_ky_size, rml, cpd]
+
+    // collapse(2): thread over the combined y*m dimension
+    #pragma omp parallel for schedule(static) collapse(2)
+    for(int64_t y = 0; y < node_ky_size; y++){
+        for(int64_t m = 0; m < rml; m++) {
+            int g = omp_get_thread_num();
+            // TODO: is this the right way to do the barrel wrap?
+            for(int64_t z = 0; z < cpdhalf+1; z++)
+                in_1d[g][z] = in[y*rml*cpd + m*cpd + (z+cpdhalf)];
+            for(int64_t z=cpdhalf+1; z<cpd; z++)
+                in_1d[g][z] = in[y*rml*cpd + m*cpd + (z-cpdhalf-1)];
+            
+            fftw_execute( plan_forward_c2c_1d[g] );
+
+            for(int64_t kz = 0; kz < cpdp1half; kz++)
+                out[y*rml*cpdp1half + m*cpdp1half + kz] = out_1d[g][kz];
+        }
+    }
 }

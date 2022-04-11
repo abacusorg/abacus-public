@@ -144,7 +144,7 @@ void SlabMultipolesLocal::FFTZ(Complex *out, const double *in) {
     }
 }
 
-void SlabMultipolesLocal::ComputeMultipoleFFTYZ( int x, FLOAT3 *spos, 
+void SlabMultipolesLocal::ComputeMultipoleFFT( int x, FLOAT3 *spos, 
                      int *count, int *offset, FLOAT3 *cc, MTCOMPLEX *out) {
     STimer wc;
     PTimer _kernel, _c2r, _fftz;

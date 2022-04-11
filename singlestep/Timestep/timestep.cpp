@@ -43,6 +43,7 @@ Dependency Microstep;
 Dependency FinishGroups;
 Dependency Drift;
 Dependency Finish;
+Dependency FinishMultipoles;
 Dependency CheckForMultipoles; //only for parallel case. otherwise NOOP. 
 Dependency UnpackLPTVelocity;
 
@@ -811,6 +812,25 @@ void FinishAction(int slab) {
     SB->StoreArenaNonBlocking(MergeCellInfoSlab,slab);
     WriteMergeSlab.Stop();
 
+    #ifdef PARALLEL
+    if (Finish.raw_number_executed==0) SendManifest->QueueToSend(slab);
+    #endif
+
+}
+
+// -----------------------------------------------------------------
+
+int FinishMultipolesPrecondition(int slab){
+    return Finish.done(slab) && MF->IsMPIDone(slab);
+}
+
+void FinishMultipolesAction(int slab){
+    // In the 2D code, the MPI transpose is now complete.
+    // In the 1D code, this is just a continuation of Finish.
+
+    MTCOMPLEX *slabptr = (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab);
+    MF->ComputeFFTZ(slab, slabptr);  // no-op if 1D
+
 #ifndef PARALLEL
     WriteMultipoleSlab.Start();
     SB->StoreArenaNonBlocking(MultipoleSlab,slab);
@@ -818,7 +838,6 @@ void FinishAction(int slab) {
 #endif
 
 #ifdef PARALLEL
-    if (Finish.raw_number_executed==0) SendManifest->QueueToSend(slab);
 
 	QueueMultipoleMPI.Start();
  STDLOG(2, "Attempting to SendMultipoleSlab %d\n", slab);
@@ -838,15 +857,13 @@ void FinishAction(int slab) {
     ReportMemoryAllocatorStats();
 }
 
+// -----------------------------------------------------------------
+
+
 #ifdef PARALLEL
 int CheckForMultipolesPrecondition(int slab) {
 
     if( Finish.notdone(slab) ) return 0;
-
-	// if (Finish.raw_number_executed==0){ //if we are finishing the first slab, set up receive MPI calls for incoming multipoles.
-	// 	STDLOG(2, "Attempting to RecvMultipoleSlab %d\n", slab);
-	// 	ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's.
-	// }
 	
 	MultipoleTransferCheck.Start();
 	int multipole_transfer_complete = ParallelConvolveDriver->CheckForMultipoleTransferComplete(slab);
@@ -860,11 +877,9 @@ int CheckForMultipolesPrecondition(int slab) {
 }
 
 void CheckForMultipolesAction(int slab) {
-	STDLOG(1, "Entering Check for Multipoles action and deallocating multipole slab %d\n",  slab);
 	SB->DeAllocate(MultipoleSlab, slab);
-	STDLOG(1, "Exiting Check for Multipoles action for slab %d\n",  slab);
-
 }
+
 #endif
 // -----------------------------------------------------------------
 // A no-op precondition that always passes
@@ -975,6 +990,7 @@ void timestep(void) {
     INSTANTIATE(                      Output, first_outputslab);
     INSTANTIATE(                       Drift, first_outputslab);
     INSTANTIATE(                      Finish, first_outputslab + FINISH_WAIT_RADIUS);
+    INSTANTIATE(            FinishMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #ifdef PARALLEL
     INSTANTIATE(          CheckForMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #else
@@ -1050,6 +1066,7 @@ void timestep(void) {
 
        AttemptReceiveManifest();
        AttemptNeighborReceive(0,P.cpd);  // 2D
+          MF->CheckAnyMPIDone();
 
        MakeCellGroups.Attempt();
    FindCellGroupLinks.Attempt();
@@ -1063,6 +1080,7 @@ void timestep(void) {
 
        AttemptReceiveManifest();
        AttemptNeighborReceive(0,P.cpd);  // 2D
+          MF->CheckAnyMPIDone();
 
     UnpackLPTVelocity.Attempt();
                 Drift.Attempt();
@@ -1070,19 +1088,21 @@ void timestep(void) {
        ReceiveManifest->Check();  // This checks if Send is ready; no-op in non-blocking mode
 
                Finish.Attempt();
+     FinishMultipoles.Attempt();
 
             CheckSendManifest();  // We look at each Send Manifest to see if there's material to free.
                         //   SendManifest->FreeAfterSend();
 
        AttemptReceiveManifest();
        AttemptNeighborReceive(0,P.cpd);  // 2D
+          MF->CheckAnyMPIDone();
 
    CheckForMultipoles.Attempt();
 
 #ifdef PARALLEL
 		timestep_loop_complete = CheckForMultipoles.alldone(total_slabs_on_node);
 #else
-		timestep_loop_complete = Finish.alldone(total_slabs_on_node);
+		timestep_loop_complete = FinishMultipoles.alldone(total_slabs_on_node);
 #endif
     }
 

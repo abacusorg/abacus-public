@@ -61,13 +61,8 @@ void ComputeMultipoleSlab(int slab) {
     STDLOG(3,"Calling multipole module.\n");
     MTCOMPLEX *slabmultipoles = (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab,slab);
 
-    if(MPI_size_z > 1){
-        // only Y is local; do the 1D version
-        //MF->ComputeMultipoleFFTY( slab, pos, MF->count, MF->offset, MF->cc, slabmultipoles);
-    } else {
-        // YZ is local; do the 2D version
-        MF->ComputeMultipoleFFTYZ( slab, pos, MF->count, MF->offset, MF->cc, slabmultipoles);
-    }
+    // This will do 1D or 2D FFT, depending on whether we've split z
+    MF->ComputeMultipoleFFT( slab, pos, MF->count, MF->offset, MF->cc, slabmultipoles);
 
     ComputeMultipoles.Stop();
     STDLOG(1,"Done with multipoles.\n");

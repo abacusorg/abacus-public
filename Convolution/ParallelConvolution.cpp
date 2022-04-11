@@ -75,19 +75,19 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	cpd = _cpd;
 	cpd2p1 = (cpd+1)/2; 
 	
-	int pad = CPD2PAD/sizeof(Complex);
-	cpd2pad = floor((cpd*cpd+pad)/pad)*pad;
+	int pad = CPD2PADDING/sizeof(Complex);
+	cpd2pad = floor((cpd*node_ky_size+pad)/pad)*pad;
 	
 	order = _order;
 	rml = (order+1)*(order+1);
 	zstart = Zstart(MPI_rank);
 	znode = Zstart(MPI_rank+1)-zstart;
-	node_slab_elem = znode*rml*cpd;  // number of elements in each slab this node handles
+	node_slab_elem = znode*rml*node_ky_size;  // number of elements in each slab this node handles
     convtimebuffer = NULL;
 	
 	STDLOG(2, "Doing zstart = %d and znode = %d\n", zstart, znode);
 	
-	CompressedMultipoleLengthXY = ((1+P.cpd)*(3+P.cpd))/8;
+	CompressedMultipoleLengthXY = ((1+cpd)*(3+cpd))/8;  // todo 2D?
 	invcpd3 = (Complex) (pow(cpd * cpd * cpd, -1.0)); //NAM TODO get rid of Complex typecasting. 
 		 
     int cml = ((order+1)*(order+2)*(order+3))/6;
@@ -104,12 +104,12 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 */
 	
     blocksize = 1;
-    for (int b=2; b<P.cpd*P.cpd; b++) {
+    for (int b=2; b<cpd*node_ky_size; b++) {
         if (2.5*b*sizeof(Complex)>=L1cacherambytes) break;
             // Too much L1 memory: can't hold one example of D,M,T
         if (nprocs*2.5*cml*b*sizeof(Complex)>=cacherambytes) break;
             // Too much L3 memory, can't hold all D,M,T, so stop looking
-        if ((P.cpd*P.cpd)%b == 0) blocksize = b;  // Could use this value
+        if ((cpd*node_ky_size)%b == 0) blocksize = b;  // Could use this value
     }
         // 1.5 = 1 Complex (mcache) 1 double dcache
         // 2.5 = 2 Complex (mcache,tcache) 1 double dcache
@@ -130,8 +130,8 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	node_size  = new int[MPI_size];
 
 	for (int j=0; j<MPI_size; j++) {
-	    node_start[j] = Zstart(j)*rml*cpd;
-	    node_size[j]  = (Zstart(j+1)-Zstart(j))*rml*cpd;
+	    node_start[j] = Zstart(j)*rml*node_ky_size;
+	    node_size[j]  = (Zstart(j+1)-Zstart(j))*rml*node_ky_size;
 	    assertf(node_size[j]*sizeof(MTCOMPLEX)<(((int64)1)<<31),
 	    	"Amount of M/T data in a z range of one slab exceeds MPI 2 GB limit");
 	}		
@@ -693,9 +693,9 @@ void ParallelConvolution::Swizzle_to_zmxy() {
 			int xuse = x + 1;
 			if (xuse>=cpd) xuse=0;
 			
-			for (int y=0; y<cpd; y++) {
-			    MTzmxy[(int64)zm*cpd2pad + xuse*cpd + y] =  
-				       MTdisk[(int64)x*znode*rml*cpd + (int64)zoffset*rml*cpd + m*cpd + y] ;
+			for (int y=0; y<node_ky_size; y++) {
+			    MTzmxy[(int64)zm*cpd2pad + xuse*node_ky_size + y] =  
+				       MTdisk[(int64)x*znode*rml*node_ky_size + (int64)zoffset*rml*node_ky_size + m*node_ky_size + y] ;
 				   }
 	    }
 	}
@@ -722,7 +722,7 @@ void ParallelConvolution::Swizzle_to_xzmy() {
 		if (x>=cpd) x = 0;
 		
 		for (int m = 0; m < rml; m ++){
-			for (int y = 0; y < cpd; y++){	 
+			for (int y = 0; y < node_ky_size; y++){	 
 				
 // #ifdef DO_NOTHING //if we are running the do_nothing test, the multipoles simply get swizzled there and back again. Check that the inverse swizzle restored the original multipoles.
 // 				if (y < 10){
@@ -735,8 +735,8 @@ void ParallelConvolution::Swizzle_to_xzmy() {
 //
 // #else
 				
-				MTdisk[ (int64)((xz  * rml + m)) * cpd + y ] = 
-					MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ] * invcpd3; //one factor of 1/CPD comes from the FFT below. Two more are needed for the FFTs in slab taylor -- we choose to throw them in here. 
+				MTdisk[ (int64)((xz  * rml + m)) * node_ky_size + y ] = 
+					MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * node_ky_size + y ] * invcpd3; //one factor of 1/CPD comes from the FFT below. Two more are needed for the FFTs in slab taylor -- we choose to throw them in here. 
 // #endif
 			}
 		}
@@ -761,9 +761,9 @@ fftw_plan ParallelConvolution::PlanFFT(int sign){
 	int  n[] = {(int) cpd};
     if(wisdom_exists){
         // can we enforce better alignment between rows...?
-    	plan = fftw_plan_many_dft(1, n, cpd, //we will do znode*rml of sets of cpd FFTs.
-    		(fftw_complex *) MTzmxy, NULL, cpd, 1, //each new [x][y] chunk is located at strides of cpd.
-    		(fftw_complex *) MTzmxy, NULL, cpd, 1,
+    	plan = fftw_plan_many_dft(1, n, node_ky_size, //we will do znode*rml of sets of node_ky_size FFTs.
+    		(fftw_complex *) MTzmxy, NULL, node_ky_size, 1, //each new [x][y] chunk is located at strides of node_ky_size.
+    		(fftw_complex *) MTzmxy, NULL, node_ky_size, 1,
     		sign, FFTW_PATIENT | FFTW_WISDOM_ONLY);
         if(plan == NULL){
             if(ReadState.FullStepNumber > 1)  // Haven't done any convolutions yet, don't expect wisdom!
@@ -777,9 +777,9 @@ fftw_plan ParallelConvolution::PlanFFT(int sign){
     }
 
     if(plan == NULL){
-        plan = fftw_plan_many_dft(1, n, cpd, //we will do znode*rml of sets of cpd FFTs.
-            (fftw_complex *) MTzmxy, NULL, cpd, 1, //each new [x][y] chunk is located at strides of cpd.
-            (fftw_complex *) MTzmxy, NULL, cpd, 1,
+        plan = fftw_plan_many_dft(1, n, node_ky_size, //we will do znode*rml of sets of node_ky_size FFTs.
+            (fftw_complex *) MTzmxy, NULL, node_ky_size, 1, //each new [x][y] chunk is located at strides of node_ky_size.
+            (fftw_complex *) MTzmxy, NULL, node_ky_size, 1,
             sign, FFTW_PATIENT);
     }
     assertf(plan != NULL, "Failed to generate ParallelConvolve FFTW plan for sign %d\n", sign);

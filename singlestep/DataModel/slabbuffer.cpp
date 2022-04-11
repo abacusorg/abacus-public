@@ -499,8 +499,8 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
         case CellInfoSlab        : { return sizeof(cellinfo)*lcpd*node_z_size_with_ghost; }
         case MergeCellInfoSlab   : { return sizeof(cellinfo)*lcpd*(node_z_size + 2*MERGE_GHOST_RADIUS); }
         case InsertCellInfoSlab  : { return sizeof(cellinfo)*lcpd*(node_z_size + 2*MERGE_GHOST_RADIUS); }
-        case MultipoleSlab  : { return lcpd*(lcpd+1)/2*rml*sizeof(MTCOMPLEX); }
-        case TaylorSlab     : { return lcpd*(lcpd+1)/2*rml*sizeof(MTCOMPLEX); }
+        case MultipoleSlab  : { return lcpd*node_ky_size*rml*sizeof(MTCOMPLEX); }
+        case TaylorSlab     : { return lcpd*node_ky_size*rml*sizeof(MTCOMPLEX); }
         case PosXYZSlab     :  // let these fall through to PosSlab
         case PosSlab        : {
             return SS->size_with_ghost(slab)*sizeof(posstruct);

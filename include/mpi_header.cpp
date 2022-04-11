@@ -28,6 +28,9 @@ int _world_rank;  // purely informational, do not use
 int *all_node_z_start;  // z domains of all nodes
 int *all_node_z_size;
 
+int node_ky_size;
+int *all_node_ky_start;
+
 #ifdef PARALLEL
     #include "mpi.h"
 

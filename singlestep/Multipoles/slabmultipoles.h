@@ -11,8 +11,13 @@ public:
     SlabMultipoles(int order, int cpd); 
     ~SlabMultipoles(void);
 
-    virtual void ComputeMultipoleFFTYZ( int x,  FLOAT3 *spos, int *count, int *offset,  FLOAT3 *cc, MTCOMPLEX *tmp)
-        = 0;  // pure virtual
+    virtual void ComputeMultipoleFFT( int x,  FLOAT3 *spos, int *count, int *offset,  FLOAT3 *cc, MTCOMPLEX *tmp)
+        = 0;
+    
+    // no-ops in 1D
+    virtual void ComputeFFTZ(int x, MTCOMPLEX *outslab) { };
+    virtual void CheckAnyMPIDone() { };
+    virtual int IsMPIDone(int slab) { return 1; };
 
     STimer FFTMultipole;
     STimer MultipoleC2R;
@@ -46,7 +51,7 @@ public:
     SlabMultipolesLocal(int order, int cpd); 
     ~SlabMultipolesLocal(void);
 
-    void ComputeMultipoleFFTYZ( int x,  FLOAT3 *spos, int *count, int *offset,  FLOAT3 *cc, MTCOMPLEX *tmp);
+    void ComputeMultipoleFFT( int x,  FLOAT3 *spos, int *count, int *offset,  FLOAT3 *cc, MTCOMPLEX *tmp);
 
 private:
     double **rowmultipoles;

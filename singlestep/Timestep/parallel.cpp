@@ -97,6 +97,10 @@ void InitializeParallelTopology() {
 // Initialize `node_z_start` and friends, as well as ghost info
 // Needs ReadState
 void InitializeParallelDomain(){
+    all_node_z_start = new int[MPI_size_z+1];
+    all_node_z_size = new int[MPI_size_z];
+    all_node_ky_start = new int[MPI_size_z+1];
+
     #ifdef PARALLEL
         // will always reflect the memory layout of the input slabs
         GHOST_RADIUS = ReadState.GhostRadius;
@@ -114,6 +118,7 @@ void InitializeParallelDomain(){
             all_node_z_start[i] = P.cpd * i / MPI_size_z;
             all_node_z_size[i] = P.cpd * (i + 1) / MPI_size_z - all_node_z_start[i];
         }
+        all_node_z_start[MPI_size_z] = P.cpd;
         node_z_start = all_node_z_start[MPI_rank_z];
         node_z_size = all_node_z_size[MPI_rank_z];
         
@@ -123,6 +128,12 @@ void InitializeParallelDomain(){
         node_z_size_with_ghost = node_z_size + 2*GHOST_RADIUS;
 
         assertf(node_z_start + node_z_size <= P.cpd, "Bad z split calculation?");  // A node won't span the wrap
+
+        // After the multipoles y-FFT, each node gets a sub-domain of ky for all z
+        for(int i = 0; i < MPI_size_z + 1; i++){
+            all_node_ky_start[i] = i*(P.cpd+1)/2/MPI_size_z;
+        }
+        node_ky_size = all_node_ky_start[MPI_rank_z+1] - all_node_ky_start[MPI_rank_z];
 
     #else
     
@@ -200,6 +211,10 @@ void FinalizeParallel() {
         MPI_Finalize();
     #else
     #endif
+
+    delete[] all_node_z_start;
+    delete[] all_node_z_size;
+    delete[] all_node_ky_start;
 }
 
 /* Begin Neighbor Exchange routines */
