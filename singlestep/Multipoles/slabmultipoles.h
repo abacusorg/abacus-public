@@ -9,7 +9,7 @@ class SlabMultipoles : public Multipoles, public Redlack {
 public:
     
     SlabMultipoles(int order, int cpd); 
-    ~SlabMultipoles(void);
+    virtual ~SlabMultipoles(void) = 0;
 
     virtual void ComputeMultipoleFFT( int x,  FLOAT3 *spos, int *count, int *offset,  FLOAT3 *cc, MTCOMPLEX *tmp)
         = 0;

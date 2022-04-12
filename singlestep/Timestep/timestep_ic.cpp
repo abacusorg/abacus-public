@@ -105,7 +105,8 @@ void timestepIC(void) {
 
     INSTANTIATE(ReadIC, 0);
     Drift.instantiate(nslabs, first, &UnpackICPrecondition, &UnpackICAction, "UnpackIC");
-    INSTANTIATE(Finish, FINISH_WAIT_RADIUS);
+    INSTANTIATE(FinishParticles, FINISH_WAIT_RADIUS);
+    INSTANTIATE(FinishMultipoles, FINISH_WAIT_RADIUS);
 
 #ifdef PARALLEL
 	INSTANTIATE(CheckForMultipoles, FINISH_WAIT_RADIUS);
@@ -118,7 +119,8 @@ void timestepIC(void) {
 	while (!timestep_loop_complete){
         ReadIC.Attempt();
         Drift.Attempt();
-       	Finish.Attempt();	   
+       	FinishParticles.Attempt();
+        FinishMultipoles.Attempt();
        	SendManifest->FreeAfterSend();
     	ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
     // If the manifest has been received, install it.
@@ -129,7 +131,7 @@ void timestepIC(void) {
 #ifdef PARALLEL
 		timestep_loop_complete = CheckForMultipoles.alldone(total_slabs_on_node);
 #else
-		timestep_loop_complete = Finish.alldone(total_slabs_on_node);
+		timestep_loop_complete = FinishMultipoles.alldone(total_slabs_on_node);
 #endif
     }
 

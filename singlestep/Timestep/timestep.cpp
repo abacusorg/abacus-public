@@ -42,7 +42,7 @@ Dependency Output;
 Dependency Microstep;
 Dependency FinishGroups;
 Dependency Drift;
-Dependency Finish;
+Dependency FinishParticles;
 Dependency FinishMultipoles;
 Dependency CheckForMultipoles; //only for parallel case. otherwise NOOP. 
 Dependency UnpackLPTVelocity;
@@ -742,7 +742,7 @@ void DriftAction(int slab) {
 
 // -----------------------------------------------------------------
 
-int FinishPrecondition(int slab) {
+int FinishParticlesPrecondition(int slab) {
     for(int j=-FINISH_WAIT_RADIUS;j<=FINISH_WAIT_RADIUS;j++) {
         if( Drift.notdone(slab+j) ||
             !IsNeighborReceiveDone(slab+j)
@@ -750,13 +750,13 @@ int FinishPrecondition(int slab) {
             return 0;
     }
 
-	if (Finish.alldone(total_slabs_on_node)) return 0;
+	if (FinishParticles.alldone(total_slabs_on_node)) return 0;
     return 1;
 }
 
 
 uint64 merged_particles = 0;
-void FinishAction(int slab) {
+void FinishParticlesAction(int slab) {
 	FinishPreamble.Start();
 
     SB->report_current();
@@ -776,7 +776,7 @@ void FinishAction(int slab) {
     // We can't immediately free CellInfo before NearForce might need it until we're FORCE_RADIUS away
     // An alternative to this would be to just wait for FORCE_RADIUS before finishing
     for(int j = -2*FORCE_RADIUS, consec = 0; j <= 2*FORCE_RADIUS; j++){
-        if(Finish.done(slab + j) || j == 0)
+        if(FinishParticles.done(slab + j) || j == 0)
             consec++;
         else
             consec = 0;
@@ -813,7 +813,7 @@ void FinishAction(int slab) {
     WriteMergeSlab.Stop();
 
     #ifdef PARALLEL
-    if (Finish.raw_number_executed==0) SendManifest->QueueToSend(slab);
+    if (FinishParticles.raw_number_executed==0) SendManifest->QueueToSend(slab);
     #endif
 
 }
@@ -821,38 +821,34 @@ void FinishAction(int slab) {
 // -----------------------------------------------------------------
 
 int FinishMultipolesPrecondition(int slab){
-    return Finish.done(slab) && MF->IsMPIDone(slab);
+    return FinishParticles.done(slab) && MF->IsMPIDone(slab);
 }
 
 void FinishMultipolesAction(int slab){
     // In the 2D code, the MPI transpose is now complete.
-    // In the 1D code, this is just a continuation of Finish.
+    // In the 1D code, this is just a continuation of FinishParticles.
 
     MTCOMPLEX *slabptr = (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab);
     MF->ComputeFFTZ(slab, slabptr);  // no-op if 1D
 
-#ifndef PARALLEL
+#ifdef PARALLEL
+	QueueMultipoleMPI.Start();
+    STDLOG(2, "Attempting to SendMultipoleSlab %d\n", slab);
+ 	ParallelConvolveDriver->SendMultipoleSlab(slab); //distribute z's to appropriate nodes for this node's x domain.
+	if (FinishMultipoles.raw_number_executed==0){ //if we are finishing the first slab, set up receive MPI calls for incoming multipoles.
+		STDLOG(2, "Attempting to RecvMultipoleSlab %d\n", slab);
+		ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's.
+	}
+	QueueMultipoleMPI.Stop();
+#else
     WriteMultipoleSlab.Start();
     SB->StoreArenaNonBlocking(MultipoleSlab,slab);
     WriteMultipoleSlab.Stop();
 #endif
 
-#ifdef PARALLEL
-
-	QueueMultipoleMPI.Start();
- STDLOG(2, "Attempting to SendMultipoleSlab %d\n", slab);
- 	ParallelConvolveDriver->SendMultipoleSlab(slab); //distribute z's to appropriate nodes for this node's x domain.
-	if (Finish.raw_number_executed==0){ //if we are finishing the first slab, set up receive MPI calls for incoming multipoles.
-		STDLOG(2, "Attempting to RecvMultipoleSlab %d\n", slab);
-		ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's.
-	}
-
-	QueueMultipoleMPI.Stop();
-#endif
-
-    int pwidth = FetchSlabs.raw_number_executed - Finish.raw_number_executed;
+    int pwidth = FetchSlabs.raw_number_executed - FinishMultipoles.raw_number_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
-    //if (Finish.raw_number_executed % 3 == 0)  // release is cheap but not totally free, so run every few Finishes
+    //if (FinishMultipoles.raw_number_executed % 3 == 0)  // release is cheap but not totally free, so run every few Finishes
         ReleaseFreeMemoryToKernel();
     ReportMemoryAllocatorStats();
 }
@@ -863,7 +859,7 @@ void FinishMultipolesAction(int slab){
 #ifdef PARALLEL
 int CheckForMultipolesPrecondition(int slab) {
 
-    if( Finish.notdone(slab) ) return 0;
+    if( FinishMultipoles.notdone(slab) ) return 0;
 	
 	MultipoleTransferCheck.Start();
 	int multipole_transfer_complete = ParallelConvolveDriver->CheckForMultipoleTransferComplete(slab);
@@ -989,7 +985,7 @@ void timestep(void) {
     INSTANTIATE(                        Kick, FORCE_RADIUS);
     INSTANTIATE(                      Output, first_outputslab);
     INSTANTIATE(                       Drift, first_outputslab);
-    INSTANTIATE(                      Finish, first_outputslab + FINISH_WAIT_RADIUS);
+    INSTANTIATE(             FinishParticles, first_outputslab + FINISH_WAIT_RADIUS);
     INSTANTIATE(            FinishMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #ifdef PARALLEL
     INSTANTIATE(          CheckForMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
@@ -1087,7 +1083,7 @@ void timestep(void) {
 
        ReceiveManifest->Check();  // This checks if Send is ready; no-op in non-blocking mode
 
-               Finish.Attempt();
+      FinishParticles.Attempt();
      FinishMultipoles.Attempt();
 
             CheckSendManifest();  // We look at each Send Manifest to see if there's material to free.

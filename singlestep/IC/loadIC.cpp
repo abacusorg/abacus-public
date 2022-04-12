@@ -93,10 +93,6 @@ ICFile::ICFile(int _slab, int _zsplit){
     Npart = 0;
 }
 
-ICFile::~ICFile(void) {
-}
-
-
 inline void ICFile::set_taggable_bits(auxstruct &aux, uint64 &sumA, uint64 &sumB){
     // Set the 'taggable' bit for particles as a function of their PID
     // this bit will be used for group finding and merger trees

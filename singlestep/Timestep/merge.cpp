@@ -134,7 +134,7 @@ public:
 
     uint64 search_backward(ilstruct *list, int zgoal) {
         int64_t i;  // using a signed i
-        for(i = ilskewerstart + ilskewerlength - 1; i >= ilskewerstart; i--){
+        for(i = (int64_t) ilskewerstart + (int64_t) ilskewerlength - 1; i >= (int64_t) ilskewerstart; i--){
             if (list[i].cellz() < zgoal){
                 break;
             }

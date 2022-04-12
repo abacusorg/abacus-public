@@ -50,7 +50,7 @@ public:
 
     ICFile(int _slab, int _zsplit);
 
-    ~ICFile(void);
+    virtual ~ICFile(void) = default;
 
 protected:
     inline void set_taggable_bits(auxstruct &aux, uint64 &sumA, uint64 &sumB);

@@ -9,13 +9,16 @@
 
 SlabMultipolesLocal::~SlabMultipolesLocal(void){
     free(transposetmp);
-    free(rowmultipoles);
+
+    for(int g = 0; g < nprocs; g++)
+        free(rowmultipoles[g]);
+    delete[] rowmultipoles;
 }
 
 SlabMultipolesLocal::SlabMultipolesLocal(int order, int cpd)
     : SlabMultipoles(order, cpd) {
     
-    rowmultipoles   = (double **)  malloc(sizeof(double*)*nprocs);
+    rowmultipoles   = new double*[nprocs];
     assert(posix_memalign((void **) &transposetmp, PAGE_SIZE, sizeof(Complex) * rml_cpdp1half_pad*cpd) == 0);
 
     #pragma omp parallel for schedule(static)
@@ -107,7 +110,7 @@ SlabMultipoles::SlabMultipoles(int order, int cpd) : Multipoles(order),
 void SlabMultipolesLocal::FFTY(MTCOMPLEX *out, const Complex *in) {
     FFTMultipole.Start();
     #pragma omp parallel for schedule(static)
-    for(int z=0;z<(cpd+1)/2;z++){
+    for(int z=0;z<cpdp1half;z++){
         int g = omp_get_thread_num();
         for(int m=0;m<rml;m++) {
             for(int y=0;y<cpd;y++) 
@@ -116,7 +119,7 @@ void SlabMultipolesLocal::FFTY(MTCOMPLEX *out, const Complex *in) {
 
             // Here we demote complex<double> to complex<float>
             for(int y=0;y<cpd;y++) 
-                out[ z*cpd*rml + m*cpd + y]  = out_1d[g][y];
+                out[ z*cpd*rml + m*cpd + y] = (MTCOMPLEX) out_1d[g][y];
         }
     }
     FFTMultipole.Stop();

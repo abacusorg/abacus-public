@@ -141,6 +141,7 @@ void InitializeParallelDomain(){
         node_z_size = P.cpd;
         node_z_start_ghost = 0;
         node_z_size_with_ghost = P.cpd;
+        node_ky_size = (P.cpd+1)/2;
     
     #endif
 }

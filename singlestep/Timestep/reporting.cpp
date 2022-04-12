@@ -66,9 +66,9 @@ void GatherTimings() {
     denom = WallClockDirect.Elapsed();
     REPORT(0, "Total Wall Clock Time", WallClockDirect.Elapsed()); 
 
-    // What particle count do we use to report the overall rate?  Finish works for IC and normal steps.
-    int64 np_node = Finish.num_particles;
-    int64 np_node_with_ghost = Finish.num_particles_with_ghost;
+    // What particle count do we use to report the overall rate?  FinishMultipoles works for IC and normal steps.
+    int64 np_node = FinishMultipoles.num_particles;
+    int64 np_node_with_ghost = FinishMultipoles.num_particles_with_ghost;
     fprintf(reportfp,"---> %6.3f Mpart/sec, % " PRId64 " particles ",
         thistime ? np_node/thistime/1e6 : 0., np_node);
 #ifdef PARALLEL
@@ -198,8 +198,10 @@ void GatherTimings() {
     }
     REPORT(1, "Drift", Drift.Elapsed()); total += thistime;
         REPORT_RATE(Drift);
-    REPORT(1, "Finish", Finish.Elapsed()); total += thistime;
-        REPORT_RATE(Finish);		
+    REPORT(1, "Finish Particles", FinishParticles.Elapsed()); total += thistime;
+        REPORT_RATE(FinishParticles);
+    REPORT(1, "Finish Multipoles", FinishMultipoles.Elapsed()); total += thistime;
+        REPORT_RATE(FinishMultipoles);
 
 #ifdef PARALLEL
     REPORT(1, "Check Multipoles Precondition", MultipoleTransferCheck.Elapsed()); total+=thistime;
@@ -409,9 +411,9 @@ void GatherTimings() {
 
     if(MF != NULL){
         fprintf(reportfp, "\n\nBreakdown of Compute Multipole:");
-        denom = Finish.Elapsed();
+        denom = FinishParticles.Elapsed();
         REPORT(1, "Compute Multipoles", ComputeMultipoles.Elapsed());
-            REPORT_RATE(Finish);
+            REPORT_RATE(FinishParticles);
         denom = thistime;
             REPORT(2, "Compute Cell Offsets", MF->ConstructOffsets.Elapsed());
             REPORT(2, "Multipole Kernel", MF->MultipoleKernel.Elapsed());
@@ -419,20 +421,20 @@ void GatherTimings() {
             REPORT(2, "Multipole FFT", MF->FFTMultipole.Elapsed());
     }
     
-    fprintf(reportfp, "\n\nBreakdown of Finish:");
+    fprintf(reportfp, "\n\nBreakdown of Finish Particles:");
     denom = TimeStepWallClock.Elapsed();
-    REPORT(1, "Finish", Finish.Elapsed());
-        REPORT_RATE(Finish);
-    denom = Finish.Elapsed();
+    REPORT(1, "Finish Particles", FinishParticles.Elapsed());
+        REPORT_RATE(FinishParticles);
+    denom = FinishParticles.Elapsed();
 		REPORT(2, "Finish Preamble", FinishPreamble.Elapsed());
         REPORT(2, "Partition Insert List", IL->FinishPartition.Elapsed());
         REPORT(2, "Sort Insert List", IL->FinishSort.Elapsed());
             fprintf(reportfp,"---> %6.2f Mitems/sec (%.2g items)", thistime ? IL->n_sorted/thistime/1e6 : 0., (double) IL->n_sorted);
         REPORT(2, "Index Cells", FinishCellIndex.Elapsed());
         REPORT(2, "Merge", FinishMerge.Elapsed());
-        	REPORT_RATE(Finish);
+        	REPORT_RATE(FinishParticles);
         REPORT(2, "Compute Multipoles", ComputeMultipoles.Elapsed());
-        	REPORT_RATE(Finish);
+        	REPORT_RATE(FinishParticles);
         REPORT(2, "Write Particles", WriteMergeSlab.Elapsed());
         REPORT(2, "Write Multipoles", WriteMultipoleSlab.Elapsed());
         REPORT(2, "Release Free Memory To Kernel", ReleaseFreeMemoryTime.Elapsed());
@@ -440,7 +442,15 @@ void GatherTimings() {
 #ifdef PARALLEL
         REPORT(2, "Queuing Send Manifest", SendManifest->Load.Elapsed()+SendManifest->Transmit.Elapsed());
 		REPORT(2, "Queuing Multipole MPI", QueueMultipoleMPI.Elapsed());
+#endif
 
+    fprintf(reportfp, "\n\nBreakdown of Finish Multipoles:");
+    denom = TimeStepWallClock.Elapsed();
+    REPORT(1, "Finish Multipoles", FinishMultipoles.Elapsed());
+        if (MPI_size_z > 1) REPORT_RATE(FinishMultipoles);
+    denom = FinishMultipoles.Elapsed();
+
+#ifdef PARALLEL
     fprintf(reportfp, "\n\nBreakdown of Manifest:");
     REPORT(1, "Manifest", ManifestTotal);
     denom = ManifestTotal;

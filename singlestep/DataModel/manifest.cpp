@@ -429,7 +429,7 @@ void Manifest::QueueToSend(int finished_slab) {
     int min_il_slab = m.dep[m.numdep-1].begin-FINISH_WAIT_RADIUS;
     	// We just determined that Drift has executed on begin, so
 	// the rebinning might have taken particles to begin-FINISH_WAIT_RADIUS.
-    m.dep[m.numdep++].Load(Finish, finished_slab, "Finish");
+    m.dep[m.numdep++].Load(FinishParticles, finished_slab, "FinishParticles");
     m.dep[m.numdep++].Load(FinishMultipoles, finished_slab, "FinishMultipoles");
     m.dep[m.numdep++].Load(UnpackLPTVelocity, finished_slab, "UnpackLPTVelocity");
     m.dep[m.numdep++].LoadCG(finished_slab);
@@ -776,7 +776,7 @@ void Manifest::ImportData() {
         // as a precondition, and the particles incoming to Finish are on the
         // insert list.
     m.dep[n++].Set(Drift, "Drift");
-    m.dep[n++].Set(Finish, "Finish");
+    m.dep[n++].Set(FinishParticles, "FinishParticles");
     m.dep[n++].Set(FinishMultipoles, "FinishMultipoles");
     m.dep[n++].Set(UnpackLPTVelocity, "UnpackLPTVelocity");
     m.dep[n++].SetCG(m.remote_first_slab_finished);
