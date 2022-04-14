@@ -790,21 +790,12 @@ void FinishParticlesAction(int slab) {
     SB->DeAllocate(AuxSlab,slab);
 
 	STDLOG(2,"Done deallocing pos, vel, aux for slab %d\n", slab);
-
-    // Make the multipoles
-	int ramdisk_multipole_flag;
-#ifdef PARALLEL
-	ramdisk_multipole_flag = RAMDISK_NO;
-#else
-	ramdisk_multipole_flag = RAMDISK_AUTO;
-#endif
-    SB->AllocateArena(MultipoleSlab,slab, ramdisk_multipole_flag);
 	FinishPreamble.Stop();
 
-	STDLOG(2,"About to compute multipoles for slab %d, %p\n", slab, (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab));
+    // Make the multipoles
     ComputeMultipoleSlab(slab);
 
-    // Write out the particles and multipoles and delete
+    // Write and free the merge particles
     WriteMergeSlab.Start();
     SB->StoreArenaNonBlocking(MergePosSlab,slab);
     SB->StoreArenaNonBlocking(MergeVelSlab,slab);
@@ -828,19 +819,27 @@ void FinishMultipolesAction(int slab){
     // In the 2D code, the MPI transpose is now complete.
     // In the 1D code, this is just a continuation of FinishParticles.
 
-    MTCOMPLEX *slabptr = (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab);
-    MF->ComputeFFTZ(slab, slabptr);  // no-op if 1D
+    MTCOMPLEX *slabptr = NULL;
+    if(MPI_size_z > 1){
+        STDLOG(1, "Executing multipoles z-FFT for slab %d\n", slab);
+        slabptr = (MTCOMPLEX *) SB->AllocateArena(MultipoleSlab, slab, ramdisk_multipole_flag);
+        MF->ComputeFFTZ(slab, slabptr);
+    }
 
 #ifdef PARALLEL
 	QueueMultipoleMPI.Start();
     STDLOG(2, "Attempting to SendMultipoleSlab %d\n", slab);
- 	ParallelConvolveDriver->SendMultipoleSlab(slab); //distribute z's to appropriate nodes for this node's x domain.
-	if (FinishMultipoles.raw_number_executed==0){ //if we are finishing the first slab, set up receive MPI calls for incoming multipoles.
+    // distribute z's to appropriate nodes for this node's x domain.
+ 	ParallelConvolveDriver->SendMultipoleSlab(slab);
+    // if we are finishing the first slab, set up receive MPI calls for incoming multipoles.
+	if (FinishMultipoles.raw_number_executed==0){
 		STDLOG(2, "Attempting to RecvMultipoleSlab %d\n", slab);
-		ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's.
+        // receive z's from other nodes for all x's.
+		ParallelConvolveDriver->RecvMultipoleSlab(slab);
 	}
 	QueueMultipoleMPI.Stop();
 #else
+    // Write and free the multipoles
     WriteMultipoleSlab.Start();
     SB->StoreArenaNonBlocking(MultipoleSlab,slab);
     WriteMultipoleSlab.Stop();
@@ -848,7 +847,8 @@ void FinishMultipolesAction(int slab){
 
     int pwidth = FetchSlabs.raw_number_executed - FinishMultipoles.raw_number_executed;
     STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
-    //if (FinishMultipoles.raw_number_executed % 3 == 0)  // release is cheap but not totally free, so run every few Finishes
+    // release is cheap but not totally free, so might run every few Finishes
+    //if (FinishMultipoles.raw_number_executed % 3 == 0)
         ReleaseFreeMemoryToKernel();
     ReportMemoryAllocatorStats();
 }
@@ -1025,8 +1025,6 @@ void timestep(void) {
     #ifdef PARALLEL
     TimeStepWallClock.Stop();
     ConvolutionWallClock.Clear(); ConvolutionWallClock.Start();
-
-    //ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory);
 
     ParallelConvolveDriver->Convolve();
     ParallelConvolveDriver->SendTaylors(FORCE_RADIUS);

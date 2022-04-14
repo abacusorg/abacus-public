@@ -56,8 +56,9 @@ private:
 	//int StripeConvState;
 	
     int64_t cpd;
-    int64_t cpd2p1;   // (CPD+1)/2 is the length of the z array
-    int64_t cpd2pad;  // We might want to pad CPD**2 to obtain better FFTW behavior
+	int64_t node_ky_size;  // length of ky, which is split over nodes in 2D
+	int64_t kz_size;  // length of kz, different in 1D and 2D
+    int64_t cpdky_pad;  // We might want to pad CPD*node_ky_size to obtain better FFTW behavior
     int order;    // multipole order
     int64_t rml;      // (order+1)**2
 	int64_t node_slab_elem;  // number of elements in each slab this node handles

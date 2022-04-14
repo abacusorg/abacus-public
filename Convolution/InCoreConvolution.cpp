@@ -2,19 +2,20 @@ class InCoreConvolution : public basemultipoles {
 private:
     Complex *_mcache,*_tcache;
     double *_dcache,*mfactor;
-    int cpd,cpd2pad,blocksize,nblocks,cpdhalf,CompressedMultipoleLengthXY;
+    int cpd,cpdky_pad,blocksize,nblocks,cpdhalf,CompressedMultipoleLengthXY;
     const int thread_padding = 1024;
     int bufsize, padblocksize, blocksize_even;
 
 public:
-    InCoreConvolution(int order, int cpd, int blocksize, int _cpd2pad = 0) : 
+    InCoreConvolution(int order, int cpd, int blocksize, int _cpdky_pad = 0) : 
             basemultipoles(order), cpd(cpd), blocksize(blocksize) {
 				
 		STDLOG(3," Entering ICC constructor\n");
-		//in normal case, a set of x-y multipoles has cpd*cpd cells. in the parallel case, though, we pad out y to cpd2pad -- some number slightly bigger than cpd. 
+		// In the serial case, a set of x-y multipoles has cpd*cpd cells.
+        // In the parallel case, we pad out y to _cpdky_pad -- some number slightly bigger than cpd*node_ky_size.
 		
-		if (_cpd2pad == 0) cpd2pad = cpd * cpd; 
-		else cpd2pad = _cpd2pad; 
+		if (_cpdky_pad == 0) cpdky_pad = cpd * cpd; 
+		else cpdky_pad = _cpdky_pad; 
 		
         CompressedMultipoleLengthXY  = ((1+cpd)*(3+cpd))/8;
         nblocks = (cpd*cpd)/blocksize;
@@ -248,7 +249,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
         xyzbegin = block*blocksize;
         // Load the reduced multipoles into the cache
         FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
-            FM = &(FFTM[rmap(a,b,c) * cpd2pad + xyzbegin]);
+            FM = &(FFTM[rmap(a,b,c) * cpdky_pad + xyzbegin]);
             int m = cmap(a,b,c)*padblocksize;
             FOR(xyz,0,blocksize-1) mcache[m + xyz] = FM[xyz];
         }
@@ -357,7 +358,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
                     FMAvector(tcache,FM, FD, blocksize_even); 
                 }
             }
-            Complex *FT = &(FFTM[rmap(a,b,c) * cpd2pad + xyzbegin]);
+            Complex *FT = &(FFTM[rmap(a,b,c) * cpdky_pad + xyzbegin]);
             // FOR(xyz,0,blocksize-1) FT[xyz] = tcache[xyz];
             memcpy(FT, tcache, blocksize*sizeof(Complex));
         }

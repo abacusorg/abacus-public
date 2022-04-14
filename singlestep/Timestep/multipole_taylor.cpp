@@ -5,6 +5,12 @@
 // Taylors has long long, Multipoles has ints.  Need to beware of spilling 32-bit
 // integers on the particle lists.
 
+#ifdef PARALLEL
+int ramdisk_multipole_flag = RAMDISK_NO;
+#else
+int ramdisk_multipole_flag = RAMDISK_AUTO;
+#endif
+
 /// The driver routine to compute the Taylors on one slab
 void ComputeTaylorForce(int slab) {
     TY->ConstructOffsets.Start();
@@ -26,7 +32,6 @@ void ComputeTaylorForce(int slab) {
     // Recall that our accelerations/positions may be in single-precision.
     posstruct *pos = (posstruct *) SB->GetSlabPtr(PosSlab,slab);
     acc3struct *acc = (acc3struct *) SB->GetSlabPtr(FarAccSlab,slab);
-    uint64 slabsize;
 
     MTCOMPLEX *TaylorCoefficients = (MTCOMPLEX *) SB->GetSlabPtr(TaylorSlab,slab);
     TY->EvaluateSlabTaylor( slab, acc, pos, TY->count, TY->offset, TY->cc, TaylorCoefficients);

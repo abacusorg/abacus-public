@@ -79,12 +79,13 @@ void UnpackICAction(int slab){
 void timestepIC(void) {
 #ifdef PARALLEL
 	
-	//in previous timestep's finish action, multipoles were distributed to nodes such that each node now stores multipole moments for all x and its given range of z that it will convolve. Fetch these from shared memory.	
+    // The IC step doesn't convolve, but it does need to distribute multipoles
 	int create_MT_file = 1; 
-	ConvolutionWallClock.Clear(); ConvolutionWallClock.Start(); 
+	ConvolutionWallClock.Clear(); ConvolutionWallClock.Start();
 	ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory, create_MT_file);
 	ConvolutionWallClock.Stop(); 
 	ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed(); 
+
 #endif
 	
     STDLOG(0,"Initiating timestepIC()\n");

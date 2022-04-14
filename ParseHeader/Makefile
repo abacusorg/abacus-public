@@ -60,7 +60,8 @@ clean:
               phParser.tab.cc phParser.tab.hh stack.hh location.hh position.hh \
               ParseHeader.o \
               tryit.o \
-              phexe testit
+              phexe testit \
+              libparseheader.a
 	$(RM) $(wildcard *.o) $(wildcard *~) $(wildcard *.d)
 
 distclean: 

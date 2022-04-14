@@ -17,6 +17,19 @@ During timestep, we provide a method by which the TaylorSlab can
 be requested, which allocates space and triggers the MPI call
 to gather the information.  And a method to check that the MPI
 work has been completed.
+
+2D:
+
+With regards to the 2D code, ParallelConvolution is mostly agnostic.
+Each node has already done the Y-Z FFT, with its multipole (sub)slabs
+ordered as [kz][m][local_ky].  ky is split over nodes, but ParallelConvolution
+doesn't care; it just needs to know this node is doing fewer transforms.
+
+One bookkeepping difference is that the kz dimension in the 1D code
+has length (CPD+1)/2, while in the 2D code it has length CPD. This is
+because the z-FFT is done second in the 2D code.  We'll use the variables
+`kz_size` and `node_ky_size` to track the relevant lengths.
+
 */
 
 //#define DO_NOTHING 1 
@@ -48,7 +61,7 @@ char *convtimebuffer;    // This has to be allocated and freed outside of this c
 
 /// The zstart for the node of the given rank.
 int ParallelConvolution::Zstart(int rank) {
-    return (cpd2p1*rank/MPI_size); 
+    return kz_size*rank/MPI_size_x;
 }
 
 // ParallelConvolution::ParallelConvolution(){}
@@ -73,15 +86,17 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	//in previous timestep's finish action, multipoles were distributed to nodes such that each node now stores multipole moments for all x and its given range of z that it will convolve. Fetch these from shared memory.
 	create_MT_file = _create_MT_file; 
 	cpd = _cpd;
-	cpd2p1 = (cpd+1)/2; 
+	
+	node_ky_size = all_node_ky_start[MPI_rank_z+1] - all_node_ky_start[MPI_rank_z];  // 1D: CPD; 2D: (CPD+1)/2/MPI_size_z
+	kz_size = (MPI_rank_z > 1) ? cpd : (cpd+1)/2;
 	
 	int pad = CPD2PADDING/sizeof(Complex);
-	cpd2pad = floor((cpd*node_ky_size+pad)/pad)*pad;
+	cpdky_pad = floor((cpd*node_ky_size+pad)/pad)*pad;
 	
 	order = _order;
 	rml = (order+1)*(order+1);
-	zstart = Zstart(MPI_rank);
-	znode = Zstart(MPI_rank+1)-zstart;
+	zstart = Zstart(MPI_rank_x);
+	znode = Zstart(MPI_rank_x+1)-zstart;
 	node_slab_elem = znode*rml*node_ky_size;  // number of elements in each slab this node handles
     convtimebuffer = NULL;
 	
@@ -114,22 +129,22 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
         // 1.5 = 1 Complex (mcache) 1 double dcache
         // 2.5 = 2 Complex (mcache,tcache) 1 double dcache
 	
-	first_slabs_all = new int[MPI_size];
-    total_slabs_all = new int[MPI_size]; 
+	first_slabs_all = new int[MPI_size_x];
+    total_slabs_all = new int[MPI_size_x]; 
 	
 	ReadNodeSlabs(1, first_slabs_all, total_slabs_all);
 	
-	first_slab_on_node  = first_slabs_all[MPI_rank];
-	total_slabs_on_node = total_slabs_all[MPI_rank];
+	first_slab_on_node  = first_slabs_all[MPI_rank_x];
+	total_slabs_on_node = total_slabs_all[MPI_rank_x];
 	
 	
 	assertf(sizeof(fftw_complex)==sizeof(Complex), "Mismatch of complex type sizing between FFTW and Complex\n");
 	
 	// Here we compute the start and number of z's in each node
-	node_start = new int[MPI_size];
-	node_size  = new int[MPI_size];
+	node_start = new int[MPI_size_x];
+	node_size  = new int[MPI_size_x];
 
-	for (int j=0; j<MPI_size; j++) {
+	for (int j=0; j<MPI_size_x; j++) {
 	    node_start[j] = Zstart(j)*rml*node_ky_size;
 	    node_size[j]  = (Zstart(j+1)-Zstart(j))*rml*node_ky_size;
 	    assertf(node_size[j]*sizeof(MTCOMPLEX)<(((int64)1)<<31),
@@ -309,7 +324,7 @@ void ParallelConvolution::AllocMT(){
 	
 	MmapMT.Stop(); 
 		
-    size_t bufsize = sizeof(Complex)*znode*rml*cpd2pad; 	
+    size_t bufsize = sizeof(Complex)*znode*rml*cpdky_pad;
 	
 	MTzmxy = (Complex *) fftw_malloc(bufsize);
 	assertf(MTzmxy!=NULL, "Failed fftw_malloc for MTzmxy of size %d\n", bufsize);
@@ -414,14 +429,14 @@ void ParallelConvolution::LoadDerivatives(int z) {
 /// We need to know the slabs that will be computed on each node.
 void ParallelConvolution::RecvMultipoleSlab(int first_slab_finished) {
 	int offset = first_slab_finished - first_slab_on_node;
-	for (int r = 0; r < MPI_size; r++) {
+	for (int r = 0; r < MPI_size_x; r++) {
 		
 	    for (int xraw = first_slabs_all[r] + offset; xraw < first_slabs_all[r] + offset + total_slabs_all[r]; xraw++) {
 			int x = CP->WrapSlab(xraw);
 
 		    STDLOG(4,"MPI_Irecv set for incoming Multipoles on slab %d\n", x);
 
-			int tag = (MPI_rank+1) * 10000 + x + M_TAG; 
+			int tag = (MPI_rank_x+1) * 10000 + x + M_TAG; 
 			
 			// We're receiving the full range of z's in each transfer.
 			// Key thing is to route this to the correct x location
@@ -441,9 +456,9 @@ void ParallelConvolution::SendMultipoleSlab(int slab) {
 	
 	MTCOMPLEX * mt = (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab, slab);
 
-	Msend_requests[slab] = new MPI_Request[MPI_size];
+	Msend_requests[slab] = new MPI_Request[MPI_size_x];
 	Msend_active++;
-	for (int r = 0; r < MPI_size; r++) {
+	for (int r = 0; r < MPI_size_x; r++) {
 		int tag = (r+1) * 10000 + slab + M_TAG; 
 		MPI_Issend(mt + node_start[r], node_size[r], MPI_MTCOMPLEX, r, tag, comm_multipoles, &Msend_requests[slab][r]);		
 	}
@@ -476,7 +491,7 @@ int ParallelConvolution::CheckSendMultipoleComplete(int slab) {
     // This slab has pending MPI calls
     int err = 0, sent = 0, done = 1;
 	
-    for (int r = 0; r < MPI_size; r++) {		
+    for (int r = 0; r < MPI_size_x; r++) {		
 		if (Msend_requests[x][r]==MPI_REQUEST_NULL) continue;  // Already done
 
 	    err = MPI_Test(Msend_requests[x] + r, &sent, MPI_STATUS_IGNORE);
@@ -541,7 +556,7 @@ int ParallelConvolution::CheckForMultipoleTransferComplete(int _slab) {
 
 ///for a given x slab = slab, figure out which node rank is responsible for it and should receive its Taylors. 
 int ParallelConvolution::GetTaylorRecipient(int slab, int offset){	
-	for (int r = 0; r < MPI_size; r++) {
+	for (int r = 0; r < MPI_size_x; r++) {
 		for (int _x = first_slabs_all[r] + offset; _x < first_slabs_all[r] + offset + total_slabs_all[r]; _x++) {
 			int x = _x % cpd;
 			if (x == slab){
@@ -566,7 +581,7 @@ void ParallelConvolution::SendTaylors(int offset) {
 		
 		int r = GetTaylorRecipient(slab, offset); //x-slab slab is in node r's domain. Send to node r. 
 	
-		int tag = (MPI_rank+1) * 10000 + slab + T_TAG; 
+		int tag = (MPI_rank_x+1) * 10000 + slab + T_TAG; 
 		
 		MPI_Issend(MTdisk + slab * node_slab_elem, node_slab_elem, MPI_MTCOMPLEX, r, tag, comm_taylors, &Tsend_requests[slab]);
 		STDLOG(3,"Taylor slab %d has been queued for MPI_Issend to rank %d, offset %d\n", slab, r, offset);
@@ -583,9 +598,9 @@ void ParallelConvolution::RecvTaylorSlab(int slab) {
 
     MTCOMPLEX *mt = (MTCOMPLEX *) SB->GetSlabPtr(TaylorSlab, slab);
 	
-	Trecv_requests[slab] = new MPI_Request[MPI_size];
+	Trecv_requests[slab] = new MPI_Request[MPI_size_x];
 	Trecv_active++; 
-	for (int r = 0; r < MPI_size; r++) {
+	for (int r = 0; r < MPI_size_x; r++) {
 		int tag = (r+1) * 10000 + slab + T_TAG; 
 		MPI_Irecv(mt + node_start[r], node_size[r], MPI_MTCOMPLEX, r, tag, comm_taylors, &Trecv_requests[slab][r]);
 		
@@ -599,7 +614,7 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
     if (Trecv_requests[slab]==NULL) return 1;  // Nothing to do for this slab
 	
     int err, received=0, done=1;
-    /*for (int r=0; r<MPI_size; r++) {
+    /*for (int r=0; r<MPI_size_x; r++) {
 		if (Trecv_requests[slab][r]==MPI_REQUEST_NULL) continue;  // Already done
 		
 	    err = MPI_Test(&Trecv_requests[slab][r], &received, MPI_STATUS_IGNORE);
@@ -613,7 +628,7 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
         }
     }*/
 
-    err = MPI_Testall(MPI_size, Trecv_requests[slab], &done, MPI_STATUSES_IGNORE);
+    err = MPI_Testall(MPI_size_x, Trecv_requests[slab], &done, MPI_STATUSES_IGNORE);
 	
 	if (done) {
 		delete[] Trecv_requests[slab];
@@ -694,7 +709,7 @@ void ParallelConvolution::Swizzle_to_zmxy() {
 			if (xuse>=cpd) xuse=0;
 			
 			for (int y=0; y<node_ky_size; y++) {
-			    MTzmxy[(int64)zm*cpd2pad + xuse*node_ky_size + y] =  
+			    MTzmxy[(int64)zm*cpdky_pad + xuse*node_ky_size + y] =  
 				       MTdisk[(int64)x*znode*rml*node_ky_size + (int64)zoffset*rml*node_ky_size + m*node_ky_size + y] ;
 				   }
 	    }
@@ -728,7 +743,7 @@ void ParallelConvolution::Swizzle_to_xzmy() {
 // 				if (y < 10){
 // 					if (20 < m < 25){
 // 						if (xz < 10){
-// 							STDLOG(4, "%f %f %f %f\n", real( MTdisk[ (int64)((xz  * rml + m)) * cpd + y ]), real(MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ] / ((Complex) cpd )), imag( MTdisk[ (int64)((xz  * rml + m)) * cpd + y ] ), imag(MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * cpd + y ] / ((Complex) cpd )));
+// 							STDLOG(4, "%f %f %f %f\n", real( MTdisk[ (int64)((xz  * rml + m)) * cpd + y ]), real(MTzmxy[ z * cpdky_pad * rml + m * cpdky_pad + x * cpd + y ] / ((Complex) cpd )), imag( MTdisk[ (int64)((xz  * rml + m)) * cpd + y ] ), imag(MTzmxy[ z * cpdky_pad * rml + m * cpdky_pad + x * cpd + y ] / ((Complex) cpd )));
 // 						}
 // 					}
 // 				}
@@ -736,7 +751,7 @@ void ParallelConvolution::Swizzle_to_xzmy() {
 // #else
 				
 				MTdisk[ (int64)((xz  * rml + m)) * node_ky_size + y ] = 
-					MTzmxy[ z * cpd2pad * rml + m * cpd2pad + x * node_ky_size + y ] * invcpd3; //one factor of 1/CPD comes from the FFT below. Two more are needed for the FFTs in slab taylor -- we choose to throw them in here. 
+					MTzmxy[ z * cpdky_pad * rml + m * cpdky_pad + x * node_ky_size + y ] * invcpd3; //one factor of 1/CPD comes from the FFT below. Two more are needed for the FFTs in slab taylor -- we choose to throw them in here. 
 // #endif
 			}
 		}
@@ -793,8 +808,8 @@ void ParallelConvolution::FFT(fftw_plan plan) {
 	// Now we loop over the combination of [znode][m]
 	#pragma omp parallel for schedule(static) //pragma appears okay
 	for (int zm = 0; zm < znode*rml; zm++) {
-		fftw_execute_dft(plan, (fftw_complex *)(MTzmxy+zm*cpd2pad),
-				       (fftw_complex *)(MTzmxy+zm*cpd2pad));
+		fftw_execute_dft(plan, (fftw_complex *)(MTzmxy+zm*cpdky_pad),
+				       (fftw_complex *)(MTzmxy+zm*cpdky_pad));
 	}
 	
 	fftw_destroy_plan(plan);
@@ -807,7 +822,7 @@ void ParallelConvolution::FFT(fftw_plan plan) {
 void ParallelConvolution::Convolve() {
 	STDLOG(1,"Beginning Convolution.\n");
 		
-    InCoreConvolution *ICC = new InCoreConvolution(order, cpd, blocksize, cpd2pad);
+    InCoreConvolution *ICC = new InCoreConvolution(order, cpd, blocksize, cpdky_pad);
 
 	// We're beginning in [x][znode][m][y] order on the RAMdisk
 	// Copy to the desired order in a new buffer
@@ -841,7 +856,7 @@ void ParallelConvolution::Convolve() {
 		ReadDerivatives.Stop(); 
 		
 		ConvolutionArithmetic.Start(); 
-			ICC->InCoreConvolve(MTzmxy+z*rml*cpd2pad, Ddisk[z]); 
+			ICC->InCoreConvolve(MTzmxy+z*rml*cpdky_pad, Ddisk[z]); 
 		ConvolutionArithmetic.Stop();
 	}
 	
@@ -924,7 +939,7 @@ void ParallelConvolution::dumpstats() {
 
 
      double Gops = ((double) CS.ops)/(1.0e+9);
-     fprintf(fp,"\t \t %50s : %1.2e seconds for %5.3f billion double precision operations per node\n", "Convolution Arithmetic", CS.ConvolutionArithmetic, Gops/MPI_size );
+     fprintf(fp,"\t \t %50s : %1.2e seconds for %5.3f billion double precision operations per node\n", "Convolution Arithmetic", CS.ConvolutionArithmetic, Gops/MPI_size_x );
 	 
      fprintf(fp,"\t \t %50s : %1.2e seconds\n", "FFT Planning", CS.FFTPlanning );
      fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Forward FFT Z Multipoles", CS.ForwardZFFTMultipoles );
@@ -954,7 +969,7 @@ void ParallelConvolution::dumpstats() {
      fprintf(fp,"\n \t Summary: Fourier Transforms = %2.0f%%     Convolution Arithmetic = %2.0f%%     Array Swizzle = %2.0f%%    Disk IO = %2.0f%%     ", ffftp, farithp, swzp, fiop );
 
      fprintf(fp,"\n \t Set up (con/destructor + allocs/mmaps) = %2.0f%%     FFT planning = %2.0f%%     FFT threan clean up = %2.0f%%   Queuing Taylor Issends = %2.0f%%    \n", setupp, planp, fclean, sendp);
-     fprintf(fp,"\t          Arithmetic rate = %2.0f DGOPS --> rate per core = %1.1f DGOPS\n", Gops/cae, Gops/cae/computecores/MPI_size );
+     fprintf(fp,"\t          Arithmetic rate = %2.0f DGOPS --> rate per core = %1.1f DGOPS\n", Gops/cae, Gops/cae/computecores/MPI_size_x );
      fprintf(fp,"\t          [DGOPS == Double Precision Billion operations per second]\n");
      fprintf(fp,"\n");
      

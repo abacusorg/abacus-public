@@ -77,13 +77,13 @@ void InitializeParallelTopology() {
             "Rank in comm_1d_z = %d, 2D z rank is %d\n", _comm_1d_z_rank, MPI_rank_z);
 
         #ifdef MULTIPLE_MPI_COMM
-            MPI_Comm_dup(comm_2d, &comm_taylors);
-            MPI_Comm_dup(comm_2d, &comm_multipoles);
+            MPI_Comm_dup(comm_1d_x, &comm_taylors);
+            MPI_Comm_dup(comm_1d_x, &comm_multipoles);
             MPI_Comm_dup(comm_1d_x, &comm_manifest);
             comm_global = comm_2d;
         #else
-            comm_taylors = comm_2d;
-            comm_multipoles = comm_2d;
+            comm_taylors = comm_1d_x;
+            comm_multipoles = comm_1d_x;
             comm_manifest = comm_1d_x;
             comm_global = comm_2d;
         #endif
@@ -128,22 +128,31 @@ void InitializeParallelDomain(){
         node_z_size_with_ghost = node_z_size + 2*GHOST_RADIUS;
 
         assertf(node_z_start + node_z_size <= P.cpd, "Bad z split calculation?");  // A node won't span the wrap
-
-        // After the multipoles y-FFT, each node gets a sub-domain of ky for all z
-        for(int i = 0; i < MPI_size_z + 1; i++){
-            all_node_ky_start[i] = i*(P.cpd+1)/2/MPI_size_z;
-        }
-        node_ky_size = all_node_ky_start[MPI_rank_z+1] - all_node_ky_start[MPI_rank_z];
-
+    
     #else
     
         node_z_start = 0;
         node_z_size = P.cpd;
         node_z_start_ghost = 0;
         node_z_size_with_ghost = P.cpd;
-        node_ky_size = (P.cpd+1)/2;
-    
+
+        all_node_z_start[0] = 0;
+        all_node_z_start[1] = P.cpd;
+        all_node_z_size[0] = P.cpd;
+
     #endif
+
+    if (MPI_size_z > 1){
+        // After the multipoles y-FFT, each node gets a sub-domain of ky for all z
+        for(int i = 0; i < MPI_size_z + 1; i++){
+            all_node_ky_start[i] = i*(P.cpd+1)/2/MPI_size_z;
+        }
+        node_cpdp1half = all_node_ky_start[MPI_rank_z+1] - all_node_ky_start[MPI_rank_z];
+    } else {
+        all_node_ky_start[0] = 0;
+        all_node_ky_start[1] = P.cpd;
+        node_cpdp1half = (P.cpd+1)/2;
+    }
 }
 
 // Initialize the ghost radius for the merge slabs

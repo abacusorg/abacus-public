@@ -11,6 +11,8 @@ public:
     int IsMPIDone(int slab);
 
 private:
+    int node_ky_size;  // size of ky on this node, after transpose with z
+
     double *reducedtmp;
     Complex *ztmp;
     
@@ -30,9 +32,9 @@ private:
     void FFTZ(MTCOMPLEX *out, const Complex *in);
     
     void MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const Complex *in);
-    void DoMPIAllToAll(int slab, MPI_Request *handle, const Complex *buf);
+    void DoMPIAllToAll(int slab, MPI_Request *handle, const Complex *sbuf, Complex *rbuf);
 
-    const MPI_Datatype MPI_DTYPE = MPI_C_DOUBLE_COMPLEX;
+    const MPI_Datatype mpi_dtype = MPI_C_DOUBLE_COMPLEX;
 };
 
 SlabMultipolesMPI::~SlabMultipolesMPI(void) {
@@ -51,6 +53,8 @@ SlabMultipolesMPI::~SlabMultipolesMPI(void) {
 
 SlabMultipolesMPI::SlabMultipolesMPI(int order, int cpd)
     : SlabMultipoles(order, cpd)  {
+
+    node_ky_size = node_cpdp1half;
 
     sendbuf = new Complex*[cpd]();  // sendbuf[x] will be allocated on-demand
     recvbuf = new Complex*[cpd]();
@@ -108,6 +112,7 @@ void SlabMultipolesMPI::MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const C
     // in: [node_z_size, rml, (cpd+1)/2]
     // out: [(cpd+1)/2, node_z_size, rml]
 
+    // TODO: could make these arenas, would get good reuse
     assert(posix_memalign((void **) sbuf, PAGE_SIZE,
         sizeof(Complex) * cpdp1half * node_z_size * rml) == 0);  // all ky, some z
     assert(posix_memalign((void **) rbuf, PAGE_SIZE,
@@ -118,18 +123,17 @@ void SlabMultipolesMPI::MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const C
     for(int64_t y = 0; y < cpdp1half; y++){
         for(int64_t m = 0; m < rml; m++){
             for(int64_t z = 0; z < node_z_size; z++){
-                // TODO: the [m,z] dimension ordering is arbitrary
-                *sbuf[y*node_z_size*rml + m*node_z_size + z] = in[z*rml*cpdp1half + m*cpdp1half + y];
+                (*sbuf)[y*node_z_size*rml + m*node_z_size + z] = in[z*rml*cpdp1half + m*cpdp1half + y];
             }
         }
     }
 }
 
-void SlabMultipolesMPI::DoMPIAllToAll(int slab, MPI_Request *handle, const Complex *buf){
-    MPI_Ialltoallv((void *) buf, sendcounts,
-        senddispls, MPI_DTYPE,
-        (void *) recvbuf, recvcounts,
-        recvdispls, MPI_DTYPE, comm_1d_z,
+void SlabMultipolesMPI::DoMPIAllToAll(int slab, MPI_Request *handle, const Complex *sbuf, Complex *rbuf){
+    MPI_Ialltoallv((const void *) sbuf, sendcounts,
+        senddispls, mpi_dtype,
+        (void *) rbuf, recvcounts,
+        recvdispls, mpi_dtype, comm_1d_z,
         handle);
     
     mpi_status[slab] = 1;
@@ -211,10 +215,7 @@ void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos,
     FFTY(transposetmp, reducedtmp);
     
     MakeSendRecvBufs(&sendbuf[x], &recvbuf[x], transposetmp);
-    DoMPIAllToAll(x, &handle[x], sendbuf[x]);
-
-    // TODO monday: new function to ingest from recvbuf, do FFTZ, and install in MultipoleSlab for convolution.
-    // Call CheckAnyMPIDone() in timestep loop, and split Finish into FinishY and FinishZ (?).
+    DoMPIAllToAll(x, &handle[x], sendbuf[x], recvbuf[x]);
 
     double seq = _kernel.Elapsed() + _c2r.Elapsed() + _fftz.Elapsed();
     
@@ -229,10 +230,14 @@ void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos,
 
 
 void SlabMultipolesMPI::ComputeFFTZ(int x, MTCOMPLEX *outslab){
+    // out: [cpd, rml, node_ky_size]
+
     assertf(mpi_status[x] == 2, "ComputeFFTZ() called before MPI receive done on slab %d?\n", x);
 
     // unpack recvbuf into ztmp
     // recvbuf holds each node's chunk, one after the other
+
+    Complex *rbuf = recvbuf[x];
 
     // recvbuf: [MPI_size_z, node_ky_size, rml, all_node_z_size[node]]
     // ztmp: [node_ky_size, rml, cpd]
@@ -244,18 +249,38 @@ void SlabMultipolesMPI::ComputeFFTZ(int x, MTCOMPLEX *outslab){
                 int64_t zsize = all_node_z_size[node];
                 for(int64_t zoff = 0; zoff < zsize; zoff++){
                     ztmp[y*rml*cpd + m*cpd + (zstart + zoff)] =
-                        recvbuf[x][node*node_ky_size*rml*zsize + y*rml*zsize + m*zsize + zoff];
+                        rbuf[zstart*node_ky_size*rml + y*rml*zsize + m*zsize + zoff];
                 }
             }
         }
     }
 
-    FFTZ(outslab, ztmp);
+    // TODO: decide if we're going to do MPI in complex<double> or not
+    MTCOMPLEX *rbuf32 = (MTCOMPLEX *) recvbuf[x];
+
+    // Now FFT from ztmp back into recvbuf[x]
+    FFTZ(rbuf32, ztmp);
+
+    // and finally transpose from recvbuf[x] into outslab
+    // recvbuf: [node_ky_size, rml, cpd]
+    // outslab: [cpd, rml, node_ky_size]
+
+    #pragma omp parallel for schedule(static)
+    for(int64_t kz = 0; kz < cpd; kz++){
+        for(int64_t m = 0; m < rml; m++){
+            for(int64_t ky = 0; ky < node_ky_size; ky++){
+                outslab[kz*rml*node_ky_size + m*node_ky_size + ky] =
+                    rbuf32[ky*rml*cpd + m*cpd + kz];
+            }
+        }
+    }
+
+    free(rbuf);
 }
 
 
 void SlabMultipolesMPI::FFTZ(MTCOMPLEX *out, const Complex *in) {
-    // out: shape [node_ky_size, rml, (cpd+1)/2]
+    // out: shape [node_ky_size, rml, cpd]
     // in: shape [node_ky_size, rml, cpd]
 
     // collapse(2): thread over the combined y*m dimension
@@ -263,15 +288,15 @@ void SlabMultipolesMPI::FFTZ(MTCOMPLEX *out, const Complex *in) {
     for(int64_t y = 0; y < node_ky_size; y++){
         for(int64_t m = 0; m < rml; m++) {
             int g = omp_get_thread_num();
-            // TODO: is this the right way to do the barrel wrap?
+            // TODO: is this the right place to barrel wrap in the 2D code?
             for(int64_t z = 0; z < cpdhalf+1; z++)
                 in_1d[g][z] = in[y*rml*cpd + m*cpd + (z+cpdhalf)];
-            for(int64_t z=cpdhalf+1; z<cpd; z++)
+            for(int64_t z = cpdhalf+1; z < cpd; z++)
                 in_1d[g][z] = in[y*rml*cpd + m*cpd + (z-cpdhalf-1)];
             
             fftw_execute( plan_forward_c2c_1d[g] );
 
-            for(int64_t kz = 0; kz < cpdp1half; kz++)
+            for(int64_t kz = 0; kz < cpd; kz++)
                 out[y*rml*cpdp1half + m*cpdp1half + kz] = out_1d[g][kz];
         }
     }
