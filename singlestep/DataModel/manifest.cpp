@@ -775,6 +775,10 @@ void Manifest::ImportData() {
         // as having been completed.  This is because Finish requires this
         // as a precondition, and the particles incoming to Finish are on the
         // insert list.
+    
+    // Mark exchanges done if drift is done
+    SetupFakeNeighborExchange(m.dep[n].begin, m.dep[n].end - m.dep[n].begin);
+    
     m.dep[n++].Set(Drift, "Drift");
     m.dep[n++].Set(FinishParticles, "FinishParticles");
     m.dep[n++].Set(FinishMultipoles, "FinishMultipoles");

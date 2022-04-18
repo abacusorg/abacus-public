@@ -34,7 +34,7 @@
 
 class ilstruct {
   public:
-    unsigned int k;   // The key based on y*cpd+z
+    unsigned int k;   // The key based on y*cpd + zlocal
     int newslab;        // The new cell, wrapped
     posstruct pos;
     velstruct vel;
@@ -53,14 +53,18 @@ class ilstruct {
         return;
     }
 
-    // TOOD: not great to use P
     int celly(){
         return k/P.cpd;
     }
 
-    int cellz(){
-        return k%P.cpd;
+    int global_cellz(){
+        return CP->WrapSlab( (k % P.cpd) + (node_z_start - MERGE_GHOST_RADIUS) );
     }
+
+    int local_cellz(){
+        return k % P.cpd;
+    }
+
 };   // end ilstruct
 
 // Partition function; returns true if `particle` belongs in `slab`
@@ -113,7 +117,11 @@ public:
         il.vel = *vel;
         il.aux = *aux;
         il.newslab = xyz.x;
-        il.k = xyz.y*cpd + xyz.z;
+
+        // Sort based on the lowest local z, not the global z! This aids the Merge.
+        // This local adjustment is also applied in the Neighbor receive
+        il.k = xyz.y*cpd + WrapSlab(xyz.z - (node_z_start - MERGE_GHOST_RADIUS));
+        
         // TODO: emplace semantics
         MultiAppendList::Push(il);
     }

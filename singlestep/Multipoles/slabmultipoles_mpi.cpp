@@ -110,7 +110,7 @@ void SlabMultipolesMPI::FFTY(Complex *out, const double *in) {
 
 void SlabMultipolesMPI::MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const Complex *in){
     // in: [node_z_size, rml, (cpd+1)/2]
-    // out: [(cpd+1)/2, node_z_size, rml]
+    // out: [(cpd+1)/2, rml, node_z_size]
 
     // TODO: could make these arenas, would get good reuse
     assert(posix_memalign((void **) sbuf, PAGE_SIZE,
@@ -145,6 +145,7 @@ void SlabMultipolesMPI::CheckAnyMPIDone(){
             int done = 0;
             MPI_Test(&handle[i], &done, MPI_STATUS_IGNORE);
             if(done){
+                STDLOG(2, "Multipoles y-z MPI transpose done on slab %d\n", i);
                 mpi_status[i] = 2;
                 free(sendbuf[i]);
             }
@@ -170,7 +171,7 @@ void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos,
         localMassSlabX[g] = 0.;
         localdipole[g] = double3(0.);
         for(int64_t z = 0; z < node_z_size; z++)
-            localMassSlabZ[g*cpd + z] = 0.;
+            localMassSlabZ[g*node_z_size + z] = 0.;
     }
     
     wc.Start();
@@ -185,12 +186,12 @@ void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos,
             _kernel.Stop();
             
             _c2r.Start();
-            double *reducedcell = &(reducedtmp[y*cpd*rml + z*rml]);
+            double *reducedcell = &reducedtmp[y*node_z_size*rml + z*rml];
             DispatchCartesian2Reduced(order, cartesian[g], reducedcell);
             
             double Mxyz = reducedcell[0];
             localMassSlabX[g] += Mxyz;
-            localMassSlabZ[g*cpd + z] += Mxyz;
+            localMassSlabZ[g*node_z_size + z] += Mxyz;
             MassSlabY[y] += Mxyz;  // thread dimension, no race TODO: still false sharing
             
             localdipole[g] += double3(reducedcell[rmap(1,0,0) ],
@@ -206,7 +207,7 @@ void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos,
         globaldipole += localdipole[g];
         for(int64_t z = 0; z < node_z_size; z++){
             // MassSlabZ uses "global" z indices
-            MassSlabZ[CP->WrapSlab(z + node_z_start)] += localMassSlabZ[g*cpd + z];
+            MassSlabZ[CP->WrapSlab(z + node_z_start)] += localMassSlabZ[g*node_z_size + z];
         }
     }
     delete[] localMassSlabZ;
@@ -297,7 +298,7 @@ void SlabMultipolesMPI::FFTZ(MTCOMPLEX *out, const Complex *in) {
             fftw_execute( plan_forward_c2c_1d[g] );
 
             for(int64_t kz = 0; kz < cpd; kz++)
-                out[y*rml*cpdp1half + m*cpdp1half + kz] = out_1d[g][kz];
+                out[y*rml*cpd + m*cpd + kz] = out_1d[g][kz];
         }
     }
 }

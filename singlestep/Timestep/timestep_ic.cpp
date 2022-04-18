@@ -127,6 +127,7 @@ void timestepIC(void) {
     // If the manifest has been received, install it.
     	if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
         AttemptNeighborReceive(0,P.cpd);  // 2D
+        MF->CheckAnyMPIDone();
    		CheckForMultipoles.Attempt();
 		
 #ifdef PARALLEL

@@ -49,25 +49,33 @@ void ComputeMultipoleSlab(int slab) {
 
     #pragma omp parallel for schedule(static)
     for(int y=0;y<cpd;y++)
-        for(int z = node_z_start; z < node_z_start + node_z_size; z++) {
-	        cellinfo *ciptr = CP->MergeCellInfo(slab,y,z);
-            int i = y*cpd + z;
+        for(int z = 0; z < node_z_size; z++) {
+	        cellinfo *ciptr = CP->MergeCellInfo(slab, y, node_z_start + z);
+            int i = y*node_z_size + z;
             MF->offset[i] = ciptr->startindex;
             MF->count[i] =  ciptr->count;
             // For box-centered, this will be the cell center.
             // For local cell-centered positions, this will return 0!
-            MF->cc[i] = CP->LocalCellCenter(slab,y,z);
+            MF->cc[i] = CP->LocalCellCenter(slab, y, node_z_start + z);
         }
     MF->ConstructOffsets.Stop();
-
+    
+    MTCOMPLEX *slabmultipoles = NULL;
+    if(MPI_size_z == 1){
+        // Only allocate if it's going to be used
+        slabmultipoles = (MTCOMPLEX *) SB->AllocateArena(MultipoleSlab, slab, ramdisk_multipole_flag);
+    }
+    
     // Recall that our accelerations/positions may be in single-precision.
     posstruct *pos = (posstruct *) SB->GetSlabPtr(MergePosSlab,slab);
-    uint64 slabsize;
     STDLOG(3,"Calling multipole module.\n");
-    MTCOMPLEX *slabmultipoles = (MTCOMPLEX *) SB->GetSlabPtr(MultipoleSlab,slab);
 
     // This will do 1D or 2D FFT, depending on whether we've split z
     MF->ComputeMultipoleFFT( slab, pos, MF->count, MF->offset, MF->cc, slabmultipoles);
+
+    /*for(int64_t i = 0; i < cpd*(cpd+1)/2*(P.order+1)*(P.order+1); i++){
+        assertf(isfinite(slabmultipoles[i].real()) && isfinite(slabmultipoles[i].imag()), "Not finite\n");
+    }*/
 
     ComputeMultipoles.Stop();
     STDLOG(1,"Done with multipoles.\n");

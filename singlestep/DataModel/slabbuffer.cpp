@@ -361,7 +361,7 @@ int SlabBuffer::WantChecksum(int type){
 std::string SlabBuffer::WriteSlabPath(int type, int slab) {
     slab = Grid->WrapSlab(slab);
 
-    char slabnum[8];
+    char slabnum[16];
     if(P.NumZRanks > 1)
         sprintf(slabnum,"%04d.%03d",slab,MPI_rank_z);
     else
@@ -439,7 +439,7 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
 std::string SlabBuffer::ReadSlabPath(int type, int slab) {
     slab = Grid->WrapSlab(slab);
 
-    char slabnum[8];
+    char slabnum[16];
     if(P.NumZRanks > 1)
         sprintf(slabnum,"%04d.%03d",slab,MPI_rank_z);
     else

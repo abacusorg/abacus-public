@@ -63,15 +63,15 @@ class SlabSize {
 
     // Provide access with a wrapped index.
     void set(int slab, uint64 size, uint64 size_with_ghost) {
-        _newsize[Grid->WrapSlab(slab) + _zsplit] = size;
-        _newsize_with_ghost[Grid->WrapSlab(slab) + _zsplit] = size_with_ghost;
+        _newsize[Grid->WrapSlab(slab)*_num_zsplit + _zsplit] = size;
+        _newsize_with_ghost[Grid->WrapSlab(slab)*_num_zsplit + _zsplit] = size_with_ghost;
     }
     void setold(int slab, uint64 size, uint64 size_with_ghost) {
-        _size[Grid->WrapSlab(slab) + _zsplit] = size;
-        _size_with_ghost[Grid->WrapSlab(slab) + _zsplit] = size_with_ghost;
+        _size[Grid->WrapSlab(slab)*_num_zsplit + _zsplit] = size;
+        _size_with_ghost[Grid->WrapSlab(slab)*_num_zsplit + _zsplit] = size_with_ghost;
     }
-    uint64 size(int slab) { return _size[Grid->WrapSlab(slab) + _zsplit]; }
-    uint64 size_with_ghost(int slab) { return _size_with_ghost[Grid->WrapSlab(slab) + _zsplit]; }
+    uint64 size(int slab) { return _size[Grid->WrapSlab(slab)*_num_zsplit + _zsplit]; }
+    uint64 size_with_ghost(int slab) { return _size_with_ghost[Grid->WrapSlab(slab)*_num_zsplit + _zsplit]; }
 
     // For parallel codes, we want to gather the newsize information
     void parallel_gather() {

@@ -186,8 +186,10 @@ void LogParallelTopology(){
 
         STDLOG(0,"This node's primary domain is z=[%d,%d) (%d columns)\n",
             node_z_start, node_z_start + node_z_size, node_z_size);
+        int ghostend = node_z_start_ghost + node_z_size_with_ghost;
+        if (ghostend >= P.cpd) ghostend -= P.cpd;
         STDLOG(0,"Including ghost: z=[%d,%d) (%d columns)\n",
-            node_z_start_ghost, node_z_start_ghost + node_z_size_with_ghost, node_z_size_with_ghost);
+            node_z_start_ghost, ghostend, node_z_size_with_ghost);
 
         STDLOG(0,"The ReadState has GHOST_RADIUS=%d ghost columns\n", GHOST_RADIUS);
         STDLOG(0,"The WriteState will have MERGE_GHOST_RADIUS=%d\n", MERGE_GHOST_RADIUS);
@@ -232,7 +234,7 @@ void FinalizeParallel() {
 #ifdef PARALLEL
 // Partition functions
 inline bool is_right_ghost(ilstruct *particle, int slab, int first_ghost){
-    // TODO: this modulus could be slow. First let's check if it is;
+    // TODO: the cellz modulus could be slow. First let's check if it is;
     // if so, we could store z in the ilstruct.
     // Or fix CPD at compile time and use libdivide!
     
@@ -241,9 +243,13 @@ inline bool is_right_ghost(ilstruct *particle, int slab, int first_ghost){
 
     int cpdm1half = (P.cpd - 1)/2;
 
-    // k = y*cpd + z, so k % cpd gives z
-    int z = particle->k % P.cpd;
-    int dist = z - first_ghost;
+    int cellz = particle->global_cellz();  // TODO: local probably faster
+
+    // With just two splits, one node will be bigger than half the domain!
+    if(MPI_size_z == 2 && cellz == node_z_start)
+        return 0;
+
+    int dist = cellz - first_ghost;
     if (dist > cpdm1half){
         dist -= P.cpd;
     } else if (dist < -cpdm1half){
@@ -259,9 +265,13 @@ inline bool is_left_ghost(ilstruct *particle, int slab, int first_ghost){
 
     int cpdm1half = (P.cpd - 1)/2;
 
-    // k = y*cpd + z, so k % cpd gives z
-    int z = particle->k % P.cpd;
-    int dist = z - first_ghost;
+    int cellz = particle->global_cellz();
+
+    // With just two splits, one node will be bigger than half the domain!
+    if(MPI_size_z == 2 && cellz == (node_z_start + node_z_size - 1))
+        return 0;
+
+    int dist = cellz - first_ghost;
     if (dist > cpdm1half){
         dist -= P.cpd;
     } else if (dist < -cpdm1half){
@@ -440,12 +450,20 @@ private:
 
         #pragma omp parallel for schedule(static)
         for(uint64 i = 0; i < recvelem; i++){
+            // Shift the sorting key to our local z-frame
+            int _y = recvbuf[i].k / P.cpd;
+            recvbuf[i].k = _y*P.cpd + CP->WrapSlab( (recvbuf[i].k % P.cpd) - (node_z_start - all_node_z_start[zneigh]));
             IL->list[oldlen + i] = recvbuf[i];
         }
     }
 
 public:
-    int try_receive(){
+    void try_receive(){
+        if (send_status == 0){
+            // Not allowed to receive until we send! Otherwise we will send things we received
+            return;
+        }
+
         if (recv_status == 1){  // receiving
             int done = 0;
             // 9. done receive?
@@ -459,10 +477,12 @@ public:
                 free(recvbuf);
                 recvbuf = NULL;
                 recv_status = 2;
+            } else {
+                return;
             }
         }
         if (recv_status == 2)
-            return 1;  // all done!
+            return;  // all done!
 
         assertf(recv_status == 0, "Unknown recv_status %d\n", recv_status);
 
@@ -487,11 +507,19 @@ public:
             MPI_Irecv(recvbuf, (int) recvelem, MPI_ilstruct, zneigh, tag, comm_1d_z, &recv_handle);
             recv_status = 1;
         }
-        return 0;
+        return;
     }
 
     int done_receive(){
         return recv_status == 2;
+    }
+
+    void force_done(){
+        assertf(recv_status == 0, "Tried to force done an active Neighbor Exchange?");
+        assertf(send_status == 0, "Tried to force done an active Neighbor Exchange?");
+
+        recv_status = 2;
+        send_status = 2;
     }
 };
 
@@ -527,12 +555,43 @@ void SetupNeighborExchange(int first, int nslab){
 }
 
 
+// Used by manifest
+void SetupFakeNeighborExchange(int first, int nslab){
+    // When installing the manifest, we forcibly mark local Drifts
+    // done if they were done remotely. Accordingly, we must mark
+    // any neighbor exchanges they would trigger as done as well.
+
+    if(MPI_size_z <= 1){
+        return;
+    }
+
+    STDLOG(1,"Forcing Neighbor Exchange done on slabs [%d,%d)\n",
+        first, CP->WrapSlab(first+nslab));
+
+    for(int i = first; i < first+nslab; i++){
+        int iw = CP->WrapSlab(i);
+        assertf(left_exchanger[iw] == NULL, "Forcing a real Neighbor Exchange done?\n");
+        assertf(right_exchanger[iw] == NULL, "Forcing a real Neighbor Exchange done?\n");
+        int fakerank = -1;
+        left_exchanger[iw] = new NeighborExchanger(iw, fakerank, 0);
+        right_exchanger[iw] = new NeighborExchanger(iw, fakerank, 1);
+        left_exchanger[iw]->force_done();
+        right_exchanger[iw]->force_done();
+    }
+}
+
+
 // Called immediately after drift
 void DoNeighborSend(int slab){
     if(MPI_size_z <= 1)
         return;
 
     STDLOG(1,"Triggering Neighbor Exchange sends on slab %d\n", slab);
+
+    assertf(left_exchanger[slab] != NULL,
+        "Slab %d not set up to do neighbor send?\n", slab);
+    assertf(right_exchanger[slab] != NULL,
+        "Slab %d not set up to do neighbor send?\n", slab);
 
     left_exchanger[slab]->send();
     right_exchanger[slab]->send();
@@ -613,6 +672,7 @@ void TeardownNeighborExchange(){
 #else // PARALLEL
 
 void SetupNeighborExchange(int first, int nslab) { }
+void SetupFakeNeighborExchange(int first, int nslab) { }
 void AttemptNeighborReceive(int first, int receive_ahead){ }
 void DoNeighborSend(int slab){ }
 int IsNeighborReceiveDone(int slab){ return 1; }

@@ -257,7 +257,7 @@ public:
         max_component_velocity  = 0;
         max_component_acceleration = 0;
     }
-    int legalvalue(uint64 slabsize, uint64 slabsize_with_ghost) {
+    int legalvalue(uint64 slabsize, uint64 slabsize_with_ghost, int isghost) {
         // Do a sanity check on the cellinfo values; return 1 if ok, 0 if not.
         // slabsize is the number of particles in the slab.
         if(count<0){
@@ -272,10 +272,13 @@ public:
             STDLOG(0, "Bad 'mean_square_velocity' in cellinfo: %u\n", mean_square_velocity);
             return 0;
         }
-        if (startindex+count > slabsize){
+
+        // startindex is meaningless in ghost cells
+        if (!isghost && startindex+count > slabsize){
             STDLOG(0, "'startindex+count' (%u + %d = %d) > 'slabsize' (%u) in cellinfo\n", startindex, count, startindex+count, slabsize);
             return 0;
         }
+        
         if (startindex_with_ghost + count > slabsize_with_ghost){
             STDLOG(0, "'startindex_with_ghost+count' (%u + %d = %d) > 'slabsize_with_ghost' (%u) in cellinfo\n",
                 startindex_with_ghost, count, startindex_with_ghost+count, slabsize_with_ghost);

@@ -58,6 +58,7 @@ int *all_node_ky_start;  // 2D: start of the ky multipole splits
 #endif
 
 void SetupNeighborExchange(int first, int nslab);
+void SetupFakeNeighborExchange(int first, int nslab);
 void DoNeighborSend(int slab);
 void AttemptNeighborReceive(int first, int receive_ahead);
 int IsNeighborReceiveDone(int slab);

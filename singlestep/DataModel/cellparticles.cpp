@@ -90,7 +90,7 @@ public:
     inline uint64 PencilLenWithGhost(int x, int y) {
         uint64 start = CellInfo(x,y,node_z_start_ghost)->startindex_with_ghost;
         cellinfo *lastci = CellInfo(x,y,node_z_start_ghost + node_z_size_with_ghost - 1);
-        uint64 end = lastci->startindex + lastci->count;
+        uint64 end = lastci->startindex_with_ghost + lastci->count;
         return end - start;
     }
 
