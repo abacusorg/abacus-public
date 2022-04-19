@@ -450,7 +450,7 @@ private:
 
         #pragma omp parallel for schedule(static)
         for(uint64 i = 0; i < recvelem; i++){
-            // Shift the sorting key to our local z-frame
+            // Sorting key is relative to the node-local ghost-z-start.
             int _y = recvbuf[i].k / P.cpd;
             recvbuf[i].k = _y*P.cpd + CP->WrapSlab( (recvbuf[i].k % P.cpd) - (node_z_start - all_node_z_start[zneigh]));
             IL->list[oldlen + i] = recvbuf[i];
@@ -459,12 +459,11 @@ private:
 
 public:
     void try_receive(){
-        if (send_status == 0){
-            // Not allowed to receive until we send! Otherwise we will send things we received
-            return;
-        }
+        if (send_status > 0      // started send
+            && recv_status == 1  // receiving
+            ){
+            // Not allowed to import recvbuf until we send! Otherwise we will send things we received
 
-        if (recv_status == 1){  // receiving
             int done = 0;
             // 9. done receive?
             MPI_Test(&recv_handle, &done, MPI_STATUS_IGNORE);
@@ -477,37 +476,39 @@ public:
                 free(recvbuf);
                 recvbuf = NULL;
                 recv_status = 2;
-            } else {
-                return;
             }
+            return;
         }
+
         if (recv_status == 2)
             return;  // all done!
 
-        assertf(recv_status == 0, "Unknown recv_status %d\n", recv_status);
-
-        // 6. check for incoming
-        MPI_Status status;
-        // if we sent to the right, receive from the left
-        int tag = right ? (slab + LEFT_TAG_OFFSET) : (slab + RIGHT_TAG_OFFSET);
-        int ready = 0;
-        MPI_Iprobe(zneigh, tag, comm_1d_z, &ready, &status);
-        if(ready){
-            // 7. alloc recvbuf
-            int _recvelem32;
-            MPI_Get_count(&status, MPI_ilstruct, &_recvelem32);
-            recvelem = (size_t) _recvelem32;
-            size_t sz = sizeof(ilstruct)*recvelem;
-            posix_memalign((void **) &recvbuf, PAGE_SIZE, sz);
-            assertf(recvbuf != NULL, "Failed neighbor exchange recvbuf alloc of %d bytes\n", sz);
-            
-            // 8. start recv
-            STDLOG(1, "Receiving %d ilstructs (%.3g GB) from zrank %d for slab %d\n",
-                recvelem, recvelem*sizeof(ilstruct)/1e9, zneigh, slab);
-            MPI_Irecv(recvbuf, (int) recvelem, MPI_ilstruct, zneigh, tag, comm_1d_z, &recv_handle);
-            recv_status = 1;
+        if (recv_status == 0){
+            // 6. check for incoming
+            MPI_Status status;
+            // if we sent to the right, receive from the left
+            int tag = right ? (slab + LEFT_TAG_OFFSET) : (slab + RIGHT_TAG_OFFSET);
+            int ready = 0;
+            MPI_Iprobe(zneigh, tag, comm_1d_z, &ready, &status);
+            if(ready){
+                // 7. alloc recvbuf
+                int _recvelem32;
+                MPI_Get_count(&status, MPI_ilstruct, &_recvelem32);
+                recvelem = (size_t) _recvelem32;
+                size_t sz = sizeof(ilstruct)*recvelem;
+                posix_memalign((void **) &recvbuf, PAGE_SIZE, sz);
+                assertf(recvbuf != NULL, "Failed neighbor exchange recvbuf alloc of %d bytes\n", sz);
+                
+                // 8. start recv
+                STDLOG(1, "Receiving %d ilstructs (%.3g GB) from zrank %d for slab %d\n",
+                    recvelem, recvelem*sizeof(ilstruct)/1e9, zneigh, slab);
+                MPI_Irecv(recvbuf, (int) recvelem, MPI_ilstruct, zneigh, tag, comm_1d_z, &recv_handle);
+                recv_status = 1;
+            }
+            return;
         }
-        return;
+
+        assertf(recv_status == 1, "Unknown recv_status %d\n", recv_status);
     }
 
     int done_receive(){
@@ -552,32 +553,6 @@ void SetupNeighborExchange(int first, int nslab){
         right_exchanger[iw] = new NeighborExchanger(iw, rightz, 1);
     }
     // slabs not on this node have NULL exchangers
-}
-
-
-// Used by manifest
-void SetupFakeNeighborExchange(int first, int nslab){
-    // When installing the manifest, we forcibly mark local Drifts
-    // done if they were done remotely. Accordingly, we must mark
-    // any neighbor exchanges they would trigger as done as well.
-
-    if(MPI_size_z <= 1){
-        return;
-    }
-
-    STDLOG(1,"Forcing Neighbor Exchange done on slabs [%d,%d)\n",
-        first, CP->WrapSlab(first+nslab));
-
-    for(int i = first; i < first+nslab; i++){
-        int iw = CP->WrapSlab(i);
-        assertf(left_exchanger[iw] == NULL, "Forcing a real Neighbor Exchange done?\n");
-        assertf(right_exchanger[iw] == NULL, "Forcing a real Neighbor Exchange done?\n");
-        int fakerank = -1;
-        left_exchanger[iw] = new NeighborExchanger(iw, fakerank, 0);
-        right_exchanger[iw] = new NeighborExchanger(iw, fakerank, 1);
-        left_exchanger[iw]->force_done();
-        right_exchanger[iw]->force_done();
-    }
 }
 
 
@@ -672,7 +647,6 @@ void TeardownNeighborExchange(){
 #else // PARALLEL
 
 void SetupNeighborExchange(int first, int nslab) { }
-void SetupFakeNeighborExchange(int first, int nslab) { }
 void AttemptNeighborReceive(int first, int receive_ahead){ }
 void DoNeighborSend(int slab){ }
 int IsNeighborReceiveDone(int slab){ return 1; }

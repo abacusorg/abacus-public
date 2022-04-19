@@ -429,6 +429,7 @@ void Manifest::QueueToSend(int finished_slab) {
     int min_il_slab = m.dep[m.numdep-1].begin-FINISH_WAIT_RADIUS;
     	// We just determined that Drift has executed on begin, so
 	// the rebinning might have taken particles to begin-FINISH_WAIT_RADIUS.
+    m.dep[m.numdep++].Load(NeighborSend, finished_slab, "NeighborSend");
     m.dep[m.numdep++].Load(FinishParticles, finished_slab, "FinishParticles");
     m.dep[m.numdep++].Load(FinishMultipoles, finished_slab, "FinishMultipoles");
     m.dep[m.numdep++].Load(UnpackLPTVelocity, finished_slab, "UnpackLPTVelocity");
@@ -481,8 +482,12 @@ void Manifest::QueueToSend(int finished_slab) {
 
     m.numil = IL->length-mid;
     int ret = posix_memalign((void **)&il, PAGE_SIZE, sizeof(ilstruct)*m.numil);
-    memcpy(il, IL->list+mid, sizeof(ilstruct)*m.numil);
-	// Possible TODO: Consider whether this copy should be multi-threaded
+    
+    #pragma omp parallel for schedule(static)
+    for(uint64 i = 0; i < m.numil; i++){
+        il[i] = IL->list[mid + i];
+    }
+    
     STDLOG(2, "Insert list had size %l, now size %l; sending %l\n", IL->length, mid, m.numil);
     IL->ShrinkMAL(mid);
 
@@ -494,15 +499,19 @@ void Manifest::QueueToSend(int finished_slab) {
         mid = ParallelPartition(GFC->GLL->list, GFC->GLL->length, link_below_slab, finished_slab, global_minslab_search);
         ret = posix_memalign((void **)&links, PAGE_SIZE, sizeof(GroupLink)*(GFC->GLL->length-mid));
         m.numlinks = GFC->GLL->length-mid;
-        memcpy(links, GFC->GLL->list+mid, sizeof(GroupLink)*m.numlinks);
-            // Possible TODO: Consider whether this copy should be multi-threaded
+        
+        #pragma omp parallel for schedule(static)
+        for(uint64 i = 0; i < m.numlinks; i++){
+            links[i] = GFC->GLL->list[mid + i];
+        }
+        
         STDLOG(2, "Grouplink list had size %l, now size %l; sending %l\n", GFC->GLL->length, mid, m.numlinks);
         GFC->GLL->ShrinkMAL(mid);
     }
     Load.Stop();
 
     this->Send(); 
-    // usleep(2e6);   // TODO: Don't forget to remove this
+    
     #endif
     return;
 }
@@ -686,10 +695,10 @@ void Manifest::Receive() {
     STDLOG(2,"Will receive the ReceiveManifest from node rank %d\n", rank);
     // Receive all the Arenas
     for (int n=0; n<m.numarenas; n++) {
-        // TODO: is it true that none of the manifest slabs should land on ramdisk?
+        // None of the manifest slabs land on ramdisk
         SB->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size_with_ghost, RAMDISK_NO);
         m.arenas[n].ptr = SB->GetSlabPtr(m.arenas[n].type, m.arenas[n].slab);
-        //memset(m.arenas[n].ptr, 0, m.arenas[n].size);   // TODO remove
+        //memset(m.arenas[n].ptr, 0, m.arenas[n].size);   // for testing
         STDLOG(2,"Ireceive Manifest Arena %d (slab %d of type %d) of size %d\n",
             n, m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size_with_ghost);
         do_MPI_Irecv(m.arenas[n].ptr, m.arenas[n].size_with_ghost, rank);
@@ -697,14 +706,14 @@ void Manifest::Receive() {
     // Receive all the Insert List fragment
     int ret = posix_memalign((void **)&il, 64, m.numil*sizeof(ilstruct));
     assertf(ret == 0, "Failed to allocate %d bytes for receive manifest insert list\n", m.numil*sizeof(ilstruct));
-    //memset(il, 0, sizeof(ilstruct)*m.numil);   // TODO remove
+    //memset(il, 0, sizeof(ilstruct)*m.numil);   // for testing
     STDLOG(2,"Ireceive Manifest Insert List of length %d\n", m.numil);
     do_MPI_Irecv(il, sizeof(ilstruct)*m.numil, rank);
     // Receive all the GroupLink List fragment
     if (GFC!=NULL) {
         ret = posix_memalign((void **)&links, 64, m.numlinks*sizeof(GroupLink));
         assertf(ret == 0, "Failed to allocate %d bytes for receive manifest group link list\n", m.numlinks*sizeof(GroupLink));
-        //memset(links, 0, sizeof(GroupLink)*m.numlinks);   // TODO remove
+        //memset(links, 0, sizeof(GroupLink)*m.numlinks);   // for testing
         STDLOG(2,"Ireceive Manifest GroupLink List of length %d\n", m.numlinks);
         do_MPI_Irecv(links, sizeof(GroupLink)*m.numlinks, rank);
     } 
@@ -775,11 +784,8 @@ void Manifest::ImportData() {
         // as having been completed.  This is because Finish requires this
         // as a precondition, and the particles incoming to Finish are on the
         // insert list.
-    
-    // Mark exchanges done if drift is done
-    SetupFakeNeighborExchange(m.dep[n].begin, m.dep[n].end - m.dep[n].begin);
-    
     m.dep[n++].Set(Drift, "Drift");
+    m.dep[n++].Set(NeighborSend, "NeighborSend");
     m.dep[n++].Set(FinishParticles, "FinishParticles");
     m.dep[n++].Set(FinishMultipoles, "FinishMultipoles");
     m.dep[n++].Set(UnpackLPTVelocity, "UnpackLPTVelocity");
@@ -792,16 +798,24 @@ void Manifest::ImportData() {
     uint64 len = IL->length;
     IL->GrowMAL(len+m.numil);
     STDLOG(2, "Growing IL list from %d by %d = %l\n", len, m.numil, IL->length);
-    memcpy(IL->list+len, il, m.numil*sizeof(ilstruct));
-	// Possible TODO: Should this copy be multi-threaded?
+    
+    #pragma omp parallel for schedule(static)
+    for(uint64 i = 0; i < m.numil; i++){
+        IL->list[len + i] = il[i];
+    }
+	
     free(il);
 
     // Add *links to the GroupLink list
     if (GFC!=NULL) {
         len = GFC->GLL->length;
         GFC->GLL->GrowMAL(len+m.numlinks);
-        memcpy(GFC->GLL->list+len, links, m.numlinks*sizeof(GroupLink));
-        // Possible TODO: Should this copy be multi-threaded?
+
+        #pragma omp parallel for schedule(static)
+        for(uint64 i = 0; i < m.numlinks; i++){
+            GFC->GLL->list[len + i] = links[i];
+        }
+        
         free(links);
         STDLOG(2, "Growing GroupLink list from %d by %d = %l\n", len, m.numlinks, GFC->GLL->length);
     }

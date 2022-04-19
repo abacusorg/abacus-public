@@ -65,8 +65,6 @@ void UnpackICAction(int slab){
     for (int y=0; y<cpd; y++)
         for (int z=node_z_start_ghost; z<node_z_start_ghost + node_z_size_with_ghost; z++)
             CP->CellInfo(slab,y,z)->makenull();
-
-    DoNeighborSend(slab);
 }
 
 /*
@@ -93,16 +91,12 @@ void timestepIC(void) {
 
     TimeStepWallClock.Clear();
     TimeStepWallClock.Start();
-    
-    FORCE_RADIUS = 0;  // so we know when we can free CellInfo in Finish
-    GROUP_RADIUS = 0;
-    FINISH_WAIT_RADIUS = 2;  // The IC pipeline is very short; we have plenty of RAM to allow for large IC displacements
 
     int nslabs = P.cpd;
     int first = first_slab_on_node;
 
     // Lightweight setup of z-dimension exchanges
-    SetupNeighborExchange(first, total_slabs_on_node);
+    SetupNeighborExchange(first + FINISH_WAIT_RADIUS, total_slabs_on_node);
 
     INSTANTIATE(ReadIC, 0);
     Drift.instantiate(nslabs, first, &UnpackICPrecondition, &UnpackICAction, "UnpackIC");
@@ -110,16 +104,18 @@ void timestepIC(void) {
     INSTANTIATE(FinishMultipoles, FINISH_WAIT_RADIUS);
 
 #ifdef PARALLEL
+    INSTANTIATE(      NeighborSend, FINISH_WAIT_RADIUS);
 	INSTANTIATE(CheckForMultipoles, FINISH_WAIT_RADIUS);
 #else
+    INSTANTIATE_NOOP(      NeighborSend, FINISH_WAIT_RADIUS);
 	INSTANTIATE_NOOP(CheckForMultipoles, FINISH_WAIT_RADIUS);
 #endif
-	
-	
+
 	int timestep_loop_complete = 0; 
 	while (!timestep_loop_complete){
         ReadIC.Attempt();
         Drift.Attempt();
+        NeighborSend.Attempt();
        	FinishParticles.Attempt();
         FinishMultipoles.Attempt();
        	SendManifest->FreeAfterSend();

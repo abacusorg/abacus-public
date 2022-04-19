@@ -280,8 +280,6 @@ uint64 FillMergeSlab(int slab) {
                 il_index++; ilread++;    // Move along the insert list
             }
 
-            assertf(ici->count != 0, "Empty ici->count? cell (%d,%d,%d)\n", slab, y, z);
-
             // Setup the MergeCellInfo index
             mci->startindex = mci_index_noghost;
             mci->startindex_with_ghost = mci_index;
@@ -372,8 +370,6 @@ uint64 FillMergeSlab(int slab) {
                     mc.aux[written+j] = ilpart[j].aux;
             }
             written += insert_count;
-
-            assertf(written != 0, "wrote 0 in cell (%d,%d,%d)\n", slab, y, z);
 
             assertf(written == mc.count(),
                 "Predicted merge cell size doesn't match insert list plus old particles\n");

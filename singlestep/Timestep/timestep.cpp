@@ -42,6 +42,7 @@ Dependency Output;
 Dependency Microstep;
 Dependency FinishGroups;
 Dependency Drift;
+Dependency NeighborSend;
 Dependency FinishParticles;
 Dependency FinishMultipoles;
 Dependency CheckForMultipoles; //only for parallel case. otherwise NOOP. 
@@ -736,7 +737,21 @@ void DriftAction(int slab) {
             ReleaseFreeMemoryToKernel();
 	    }
 	// }
+}
 
+// -----------------------------------------------------------------
+
+int NeighborSendPrecondition(int slab){
+    // Must have all particles drifted into this slab
+    for(int j=-FINISH_WAIT_RADIUS;j<=FINISH_WAIT_RADIUS;j++) {
+        if( Drift.notdone(slab+j) )
+            return 0;
+    }
+    return 1;
+}
+
+void NeighborSendAction(int slab){
+    // Send the full list of neighbor particles for this slab
     DoNeighborSend(slab);  // in parallel.cpp
 }
 
@@ -744,13 +759,20 @@ void DriftAction(int slab) {
 
 int FinishParticlesPrecondition(int slab) {
     for(int j=-FINISH_WAIT_RADIUS;j<=FINISH_WAIT_RADIUS;j++) {
-        if( Drift.notdone(slab+j) ||
-            !IsNeighborReceiveDone(slab+j)
-            )
+        if( Drift.notdone(slab+j) )
             return 0;
     }
 
 	if (FinishParticles.alldone(total_slabs_on_node)) return 0;
+
+    if( !IsNeighborReceiveDone(slab) ){
+        // This is an effective dependency on NeighborSend, because we won't
+        // receive before sending.
+        // We only need to receive 1 slab, not FWR, because the remote node
+        // waits for FWR before sending.
+        return 0;
+    }
+
     return 1;
 }
 
@@ -913,14 +935,18 @@ void AttemptReceiveManifest(){
 void InitializePipelineWidths(int MakeIC){
     FORCE_RADIUS = MakeIC ? 0 : P.NearFieldRadius;
     // The 2LPT pipeline is short (no group finding). We can afford to wait an extra slab to allow for large IC displacements
-    FINISH_WAIT_RADIUS = LPTStepNumber() > 0 ? 2 : 1;
+    FINISH_WAIT_RADIUS = (MakeIC || LPTStepNumber()) > 0 ? 2 : 1;
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
+
+    STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
+    STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
 }
 
 // This happens much later, after outputs and group finding are planned
 void InitializeGroupRadius(){
     GROUP_RADIUS = GFC != NULL ? P.GroupRadius : 0;
     assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS);
+    STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
 }
 
 void timestep(void) {
@@ -960,10 +986,6 @@ void timestep(void) {
     assertf(total_slabs_on_node >= 2*GROUP_RADIUS + FORCE_RADIUS + 2 * FINISH_WAIT_RADIUS + 1 + PAD, "Not enough slabs on node to finish any slabs!\n");
 #endif
 
-    STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
-    STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
-    STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
-
     int nslabs = P.cpd;
     int first = first_slab_on_node;  // First slab to load
     STDLOG(1,"First slab to load will be %d\n", first);
@@ -988,8 +1010,10 @@ void timestep(void) {
     INSTANTIATE(             FinishParticles, first_outputslab + FINISH_WAIT_RADIUS);
     INSTANTIATE(            FinishMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #ifdef PARALLEL
+    INSTANTIATE(                NeighborSend, first_outputslab + FINISH_WAIT_RADIUS);
     INSTANTIATE(          CheckForMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #else
+    INSTANTIATE_NOOP(           NeighborSend, first_outputslab + FINISH_WAIT_RADIUS);
     INSTANTIATE_NOOP(     CheckForMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #endif
 
@@ -1042,7 +1066,7 @@ void timestep(void) {
     }
 
     // Lightweight setup of z-dimension exchanges
-    SetupNeighborExchange(first_outputslab, total_slabs_on_node);
+    SetupNeighborExchange(first + first_outputslab + FINISH_WAIT_RADIUS, total_slabs_on_node);
     #endif
 
 	
@@ -1078,6 +1102,7 @@ void timestep(void) {
 
     UnpackLPTVelocity.Attempt();
                 Drift.Attempt();
+         NeighborSend.Attempt();
 
        ReceiveManifest->Check();  // This checks if Send is ready; no-op in non-blocking mode
 
