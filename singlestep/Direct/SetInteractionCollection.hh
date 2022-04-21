@@ -81,13 +81,12 @@ class SinkPencilPlan {
     // we need access to Nslab to compute PosXYZ offsets
     // but we make a lot of these objects; let's let the SIC hold on to that instead
     // and pass it as an arg
-    int wrapcell;  //< The first cell that crosses the periodic wrap, or -1 if none
-    int contig;  //< The number of particles before the wrap
+    int wrapcell;  //< The first cell that crosses the periodic wrap, or 0 if none
     // The cells are not assumed to be contiguous (e.g., periodic wraps)
     // These arrays are sized to the max size in config.h
 
     void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total,
-    	void *SinkPosSlab, int NearFieldRadius, uint64 Nslab);
+    	FLOAT *SinkPosSlab, int NearFieldRadius, uint64 Nslab);
     void copy_from_pinned_memory(void *pinacc, int start, int total, 
     	void *SinkAccSlab, int sinkindex, int NearFieldRadius, uint64 Nslab);
     int load(int x, int y, int z, int NearFieldRadius);
@@ -105,7 +104,7 @@ class SourcePencilPlan {
     // These arrays are sized to the max size in config.h
 
     void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total,
-    	void **SourcePosSlab, int NearFieldRadius, uint64 *Nslab);
+    	FLOAT **SourcePosSlab, int NearFieldRadius, uint64 *Nslab);
     int load(int x, int y, int z, int NearFieldRadius);
 };
 
@@ -164,9 +163,9 @@ class SetInteractionCollection{
         static pthread_mutex_t GPUTimerMutex;
         static STimer GPUThroughputTimer;
 
-	void  *SinkPosSlab;    ///< Ptr to the start of the PosXYZ slab
-	void  *SourcePosSlab[2*NFRADIUS+1];    ///< Ptr to the start of the PosXYZ slabs for Sources
-	void *SinkAccSlab;  ///< Ptr to the start of the slab of accelerations for this sink slab
+	FLOAT  *SinkPosSlab;    ///< Ptr to the start of the PosXYZ slab
+	FLOAT  *SourcePosSlab[2*NFRADIUS+1];    ///< Ptr to the start of the PosXYZ slabs for Sources
+	accstruct *SinkAccSlab;  ///< Ptr to the start of the slab of accelerations for this sink slab
 
         int *           SinkSetStart; ///< The index in the Sink Pos/Acc lists where this set begins
         int *           SinkSetCount; ///< The number of particles in the SinkSet
@@ -183,6 +182,8 @@ class SetInteractionCollection{
         volatile int CompletionFlag;   ///< This gets set when the force calculation is done
 
         int         SlabId;	///< The X slab number
+        int         k_low;      ///< The minimum sink Z
+        int         k_high;     ///< The maximum sink Z
 	int	    Nk;		///< The number of Z cells
         int         j_low;	///< The minimum sink Y
         int         j_high;	///< The maximum sink Y+1 [j_low,j_high)

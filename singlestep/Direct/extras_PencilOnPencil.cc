@@ -136,7 +136,7 @@ void SetInteractionCollection::CPUExecute(){
 	// We need each Y skewer to be done by one thread
 	for (int k=0; k<cpd; k++) {
 	    int idx = j*Nk+k;
-	    SinkPlan[idx].copy_from_pinned_memory((void *)SinkSetAccelerations, SinkSetStart[idx], SinkSetCount[idx], (void *)SinkAccSlab, idx, nfradius, Nslab[nfradius]);
+	    SinkPlan[idx].copy_from_pinned_memory(SinkSetAccelerations, SinkSetStart[idx], SinkSetCount[idx], SinkAccSlab, idx, nfradius, Nslab[nfradius]);
 	}
 
     }

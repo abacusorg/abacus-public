@@ -286,6 +286,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             for (int c=-RADIUS; c<=RADIUS; c++) 
                 thisSource += SourceBlocks[CP->WrapSlab(j-c)];
             NSplit++;
+            assertf(NSplit < 1024, "Too many splits! %d\n", NSplit);
         }
     }
     // And always end the last one
@@ -322,12 +323,6 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     SB->AllocateArena(AccSlab,slabID);
 
     CalcSplitDirects.Stop();
-
-    // Initialize the space -- This should no longer be needed
-    /*
-    FLOAT *p = (FLOAT *)SB->GetSlabPtr(AccSlab, slabID);
-    for (int j=0; j<SB->SlabSizeBytes(AccSlab,slabID)/sizeof(accstruct)*4; j++) p[j] = 0.0;
-    */
 
 
     if(P.ForceOutputDebug){

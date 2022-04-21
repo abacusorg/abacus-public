@@ -19,7 +19,7 @@ struct DeviceData{
     List3<FLOAT>    SourceSetPositions;
     
     int *           SinkSetIdMax;
-    accstruct *        SinkSetAccelerations;
+    accstruct *     SinkSetAccelerations;
     int *           SinkBlockParentPencil;
 
     int *           SourceSetStart;
@@ -222,7 +222,7 @@ void GPUPencilTask(void *item, int g){
     // Now copy the data from Pinned back to the SIC buffer
     task->CopyAccelFromPinned.Start();
     for (int j=0; j<task->NSinkSets; j++) {
-        task->SinkPlan[j].copy_from_pinned_memory((void *)PinnedBuffer.SinkSetAccelerations, task->SinkSetStart[j], task->SinkSetCount[j], (void *)task->SinkAccSlab, j, task->nfradius, task->Nslab[task->nfradius]);
+        task->SinkPlan[j].copy_from_pinned_memory((void *)PinnedBuffer.SinkSetAccelerations, task->SinkSetStart[j], task->SinkSetCount[j], (void *) task->SinkAccSlab, j, task->nfradius, task->Nslab[task->nfradius]);
     }
 
     // Stop the timing

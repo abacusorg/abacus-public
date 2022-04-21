@@ -32,7 +32,7 @@ inline int SetInteractionCollection::PaddedSourceCount(int sourceindex) {
 /// Given a (k) of the internal sink indexing, return
 /// the z of the central cell
 inline int SetInteractionCollection::index_to_zcen(int k) {
-    int kk = k+nfradius;    // The central cell
+    int kk = k + node_z_start + nfradius;    // The central cell
     if (kk<0) kk+=cpd; if (kk>=cpd) kk-=cpd;  // Wrapped
     return kk;
 }
@@ -86,16 +86,16 @@ uint64 NumParticlesInSkewer(int slab, int j, int ghost) {
     // Source skewers use ghost particles; sink skewers don't
     uint64 start, end;
     if(ghost){
-        start = CP->CellInfo(slab, j, 0)->startindex_with_ghost;
+        start = CP->CellInfo(slab, j, node_z_start_ghost)->startindex_with_ghost;
         if (j<P.cpd-1)
-            end = CP->CellInfo(slab,j+1,0)->startindex_with_ghost;
+            end = CP->CellInfo(slab, j+1, node_z_start_ghost)->startindex_with_ghost;
         else
             end = SS->size_with_ghost(slab);
     }
     else {
-        start = CP->CellInfo(slab, j, 0)->startindex;
+        start = CP->CellInfo(slab, j, node_z_start)->startindex;
         if (j<P.cpd-1)
-            end = CP->CellInfo(slab,j+1,0)->startindex;
+            end = CP->CellInfo(slab, j+1, node_z_start)->startindex;
         else
             end = SS->size(slab);
     }
@@ -119,8 +119,6 @@ int ComputeSourceBlocks(int slab, int j, int NearFieldRadius) {
         np += NumParticlesInSkewer(slab+c, j, ghost);
     return (np/NFBlockSize+P.cpd);
 }
-
-
 
 /// Compute a mildly conservative estimate of the space required
 /// for all SIC in a slab.
@@ -198,9 +196,9 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     Nk = k_high-k_low;
 
     // Load the Pointers to the PosXYZ Slabs
-    SinkPosSlab = (void *)SB->GetSlabPtr(PosXYZSlab,slab);
-    for (int c=0; c<2*nfradius+1; c++) {
-	SourcePosSlab[c] = (void *)SB->GetSlabPtr(PosXYZSlab,slab+c-nfradius);
+    SinkPosSlab = (FLOAT *)SB->GetSlabPtr(PosXYZSlab,slab);
+    for (int c=0; c<nfwidth; c++) {
+	SourcePosSlab[c] = (FLOAT *)SB->GetSlabPtr(PosXYZSlab,slab+c-nfradius);
 
         // Nslab[] is used to compute the offset of X,Y,Z in PosXYZSlab, which always includes ghosts
         Nslab[c] = SS->size_with_ghost(slab - nfradius + c);
@@ -208,7 +206,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
 
     // There is a slab that has the WIDTH Partial Acceleration fields.
     // Get a pointer to the appropriate segment of that.
-    SinkAccSlab = (void *)((accstruct *)SB->GetSlabPtr(AccSlab,slab));
+    SinkAccSlab = (accstruct *) SB->GetSlabPtr(AccSlab,slab);
 
     // Make a bunch of the SinkSet and SourceSet containers
     
@@ -246,7 +244,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     for(int j = 0; j < j_width; j++){
         int this_skewer_blocks = 0;   // Just to have a local variable
         for(int k = 0; k < Nk; k ++) {
-	    int zmid = index_to_zcen(k);
+	        int zmid = index_to_zcen(k);
             int sinkindex = j * Nk + k;
             // This loads all of the position pointers into the Plan,
             // but also returns the total size.
