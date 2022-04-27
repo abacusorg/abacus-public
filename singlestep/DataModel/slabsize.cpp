@@ -85,6 +85,13 @@ class SlabSize {
         return;
     }
 
+    // For echoing the ghost size to the WriteState. Should be called after parallel_gather().
+    uint64 total_new_size_with_ghost(){
+        uint64 sum = 0;
+        for(uint64 i = 0; i < _cpd*_num_zsplit; i++) sum += _newsize_with_ghost[i];
+        return sum;
+    }
+
     void load_from_params(Parameters &P){
         char filename[1024];
         int ret = snprintf(filename, 1024, "%s/slabsize", P.ReadStateDirectory);

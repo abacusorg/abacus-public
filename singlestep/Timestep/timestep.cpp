@@ -747,6 +747,9 @@ int NeighborSendPrecondition(int slab){
         if( Drift.notdone(slab+j) )
             return 0;
     }
+
+    if (NeighborSend.raw_number_executed == total_slabs_on_node) return 0;
+
     return 1;
 }
 

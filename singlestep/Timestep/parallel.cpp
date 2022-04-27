@@ -433,7 +433,7 @@ private:
             "2D neighbor exchanger trying to send %d particles, which overflows 32-bit int\n",
             sendelem);
 
-        STDLOG(1, "Sending %d ilstructs (%.3g GB) to zrank %d for slab %d\n", sendelem, sendelem*sizeof(ilstruct)/1e9, zneigh, slab);
+        STDLOG(1, "Sending %d ilstructs (%.4g MB) to zrank %d for slab %d\n", sendelem, sendelem*sizeof(ilstruct)/1e6, zneigh, slab);
         // each pair of ranks has only one send and one recv per slab
         int tag = right ? (slab + RIGHT_TAG_OFFSET) : (slab + LEFT_TAG_OFFSET);
         MPI_Isend((const void *) sendbuf, (int) sendelem, MPI_ilstruct, zneigh, tag, comm_1d_z, &send_handle);
@@ -500,8 +500,8 @@ public:
                 assertf(recvbuf != NULL, "Failed neighbor exchange recvbuf alloc of %d bytes\n", sz);
                 
                 // 8. start recv
-                STDLOG(1, "Receiving %d ilstructs (%.3g GB) from zrank %d for slab %d\n",
-                    recvelem, recvelem*sizeof(ilstruct)/1e9, zneigh, slab);
+                STDLOG(1, "Receiving %d ilstructs (%.4g MB) from zrank %d for slab %d\n",
+                    recvelem, recvelem*sizeof(ilstruct)/1e6, zneigh, slab);
                 MPI_Irecv(recvbuf, (int) recvelem, MPI_ilstruct, zneigh, tag, comm_1d_z, &recv_handle);
                 recv_status = 1;
             }

@@ -254,9 +254,9 @@ void Prologue(Parameters &P, bool MakeIC) {
     uint64 maxILsize = P.np+1;
     // IC steps and LPT steps may need more IL slabs.  Their pipelines are not as long as full (i.e. group finding) steps
     if (MakeIC || LPTStepNumber() > 0){
-        if (P.NumSlabsInsertListIC>0) maxILsize =(maxILsize* P.NumSlabsInsertListIC)/P.cpd+1;
+        if (P.NumSlabsInsertListIC>0) maxILsize =(maxILsize* P.NumSlabsInsertListIC)*node_z_size/P.cpd/P.cpd+1;
     } else {
-        if (P.NumSlabsInsertList>0) maxILsize   =(maxILsize* P.NumSlabsInsertList)/P.cpd+1;
+        if (P.NumSlabsInsertList>0) maxILsize   =(maxILsize* P.NumSlabsInsertList)*node_z_size/P.cpd/P.cpd+1;
     }
     IL = new InsertList(cpd, maxILsize);
     STDLOG(2,"Maximum insert list size = %l, size %l MB\n", maxILsize, maxILsize*sizeof(ilstruct)/1024/1024);
@@ -310,6 +310,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     if(SS != NULL){
         SS->store_from_params(P);
+        WriteState.np_with_ghost_state = SS->total_new_size_with_ghost();
    	}
 
 

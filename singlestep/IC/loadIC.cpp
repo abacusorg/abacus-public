@@ -480,7 +480,7 @@ public:
             assert(ijk.x < WriteState.ppd && ijk.y < WriteState.ppd && ijk.z < WriteState.ppd);
 
             double3 pos = ZelPos(ijk);  // probably safe to ignore convert_pos
-            velstruct vel(0.);
+            velstruct vel(convert_vel);  // inherit the vel from P.ICVelocity2Displacement
 
             #ifdef GLOBALPOS
             integer3 newcell = CP->WrapPosition2Cell(&pos);

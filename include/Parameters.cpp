@@ -349,7 +349,8 @@ public:
         installscalar("InitialRedshift",InitialRedshift,MUST_DEFINE);
         installscalar("LagrangianPTOrder",LagrangianPTOrder,MUST_DEFINE);  // =1 for Zel'dovich, =2 for 2LPT, =3 for 3LPT
 
-        installscalar("GroupRadius",GroupRadius,MUST_DEFINE);        // Maximum size of a group, in units of cell sizes
+        GroupRadius = 0;
+        installscalar("GroupRadius",GroupRadius,DONT_CARE);        // Maximum size of a group, in units of cell sizes
         installscalar("TimeStepAccel",TimeStepAccel,MUST_DEFINE);         // Time-step parameter based on accelerations
         installscalar("TimeStepDlna",TimeStepDlna,MUST_DEFINE);        // Maximum time step in d(ln a)
 
@@ -671,8 +672,8 @@ void Parameters::ValidateParameters(void) {
         assert(1==0);
     }
 
-    if(GroupRadius<=0) {
-        fprintf(stderr, "[ERROR] GroupRadius = %d  must be greater than 0\n",
+    if(AllowGroupFinding && GroupRadius<0) {
+        fprintf(stderr, "[ERROR] GroupRadius = %d  must be >= 0\n",
             GroupRadius );
         assert(1==0);
     }
