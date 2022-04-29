@@ -109,7 +109,7 @@ SlabMultipoles::SlabMultipoles(int order, int cpd) : Multipoles(order),
 
 void SlabMultipolesLocal::FFTY(MTCOMPLEX *out, const Complex *in) {
     // out: [(cpd+1)/2, rml, cpd]
-    // in: [cpd, rml, (cpd+1)/2]
+    // in: [cpd, rml*(cpd+1)/2 + pad]
     
     FFTMultipole.Start();
     #pragma omp parallel for schedule(static)

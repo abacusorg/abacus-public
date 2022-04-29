@@ -44,6 +44,9 @@ int *all_node_ky_start;  // 2D: start of the ky multipole splits
     MPI_Comm comm_2d;  // a communicator for the nodes splitting a slab
     MPI_Comm comm_1d_x;  // the nodes for all x, of the same z split
     MPI_Comm comm_1d_z;  // the nodes for all z, of the same x
+    
+    MPI_Comm comm_multipoles_z;  // 2D
+    MPI_Comm comm_taylors_z;  // 2D
 
     MPI_Datatype MPI_ilstruct;  // for the 2D code
 

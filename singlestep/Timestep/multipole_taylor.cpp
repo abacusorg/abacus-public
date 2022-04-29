@@ -18,14 +18,14 @@ void ComputeTaylorForce(int slab) {
 
     #pragma omp parallel for schedule(static)
     for(int y=0;y<cpd;y++)
-        for(int z = node_z_start; z < node_z_start + node_z_size; z++) {
-            cellinfo *ciptr = CP->CellInfo(slab,y,z);
-            int i = y*cpd + z;
+        for(int z = 0; z < node_z_size; z++) {
+            cellinfo *ciptr = CP->CellInfo(slab,y,node_z_start + z);
+            int i = y*node_z_size + z;
             TY->offset[i] = ciptr->startindex;
             TY->count[i] =  ciptr->count;
             // For box-centered, this will be the cell center.
             // For local cell-centered positions, this will return 0!
-            TY->cc[i] = CP->LocalCellCenter(slab,y,z);
+            TY->cc[i] = CP->LocalCellCenter(slab,y,node_z_start + z);
         }
     TY->ConstructOffsets.Stop();
     
@@ -36,7 +36,6 @@ void ComputeTaylorForce(int slab) {
     MTCOMPLEX *TaylorCoefficients = (MTCOMPLEX *) SB->GetSlabPtr(TaylorSlab,slab);
     TY->EvaluateSlabTaylor( slab, acc, pos, TY->count, TY->offset, TY->cc, TaylorCoefficients);
     RL->ApplyRedlack(slab, acc, pos, TY->count, TY->offset, TY->cc,P.np);
-
 }
 
 /// The driver routine to compute the Multipoles on one slab

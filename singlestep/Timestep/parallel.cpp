@@ -88,6 +88,9 @@ void InitializeParallelTopology() {
             comm_global = comm_2d;
         #endif
 
+        MPI_Comm_dup(comm_1d_z, &comm_multipoles_z);
+        MPI_Comm_dup(comm_1d_z, &comm_taylors_z);
+
         // Any custom MPI types
         MPI_Type_contiguous(sizeof(ilstruct), MPI_BYTE, &MPI_ilstruct);  // for 2D transfers off the IL
         MPI_Type_commit(&MPI_ilstruct);

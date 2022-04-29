@@ -133,7 +133,7 @@ void SlabMultipolesMPI::DoMPIAllToAll(int slab, MPI_Request *handle, const Compl
     MPI_Ialltoallv((const void *) sbuf, sendcounts,
         senddispls, mpi_dtype,
         (void *) rbuf, recvcounts,
-        recvdispls, mpi_dtype, comm_1d_z,
+        recvdispls, mpi_dtype, comm_multipoles_z,
         handle);
     
     mpi_status[slab] = 1;
@@ -158,7 +158,7 @@ int SlabMultipolesMPI::IsMPIDone(int slab){
 }
 
 void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos, 
-                     int *count, int *offset, FLOAT3 *cc, MTCOMPLEX *out) {
+                     int *count, int *offset, FLOAT3 *cc, MTCOMPLEX *_out_unused) {
     STimer wc;
     PTimer _kernel, _c2r, _fftz;
     pdouble localMassSlabX[nprocs];

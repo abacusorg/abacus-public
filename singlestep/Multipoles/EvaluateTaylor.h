@@ -21,7 +21,7 @@ public:
     void UnrolledEvaluateTaylor(double *CT, FLOAT3 expansioncenter, int np, FLOAT3 *ps, FLOAT3 *a);
     void      VSXEvaluateTaylor(double *CT, FLOAT3 expansioncenter, int np, FLOAT3 *ps, FLOAT3 *a);
 
-#define MAXTHREADS 128
+#define MAXTHREADS 256
 #ifdef AVXMULTIPOLES
     d4 *cx[MAXTHREADS];
     d4 *cy[MAXTHREADS];

@@ -7,10 +7,24 @@
 #include "EvaluateTaylor.cpp"
 #include "factorial.h"
 
+SlabTaylorLocal::~SlabTaylorLocal(void){
+    free(transposetmp);
+
+}
+
+SlabTaylorLocal::SlabTaylorLocal(int order, int _cpd)
+    : SlabTaylor(order, _cpd) {
+
+    assert(posix_memalign((void **) &transposetmp, PAGE_SIZE, sizeof(Complex)*rml_cpd_pad*cpdp1half) == 0);
+
+}
+
 SlabTaylor::SlabTaylor(int order, int _cpd) : Taylor(order) {
     cpd = _cpd;
     invcpd3 = 1.0/cpd/cpd/cpd;
     nprocs = omp_get_max_threads();
+    cpdp1half = (cpd+1)/2;
+    rml_cpd_pad = ((cpd*rml + PAGE_SIZE-1)/PAGE_SIZE)*PAGE_SIZE;
 
     assert(posix_memalign((void **) &tfactor, PAGE_SIZE, sizeof(double)*completemultipolelength) == 0);
     
@@ -91,61 +105,69 @@ SlabTaylor::~SlabTaylor(void) {
     free(cc);
 }
 
-void SlabTaylor::InverseFFTY_Taylor(MTCOMPLEX *STT) {
+void SlabTaylorLocal::InverseFFTY(Complex *out, const MTCOMPLEX *in) {
+    // in: [cpdp1half, rml, cpd]
+    // out: [cpdp1half, rml, cpd]
+
     FFTTaylor.Start();
     #pragma omp parallel for schedule(static)
-    for(int z=0;z<(cpd+1)/2;z++) {
+    for(int z=0;z<cpdp1half;z++) {
         int g = omp_get_thread_num();
         for(int m=0;m<rml;m++) {
-            for(int y=0;y<cpd;y++) in_1d[g][y] = STT[z*cpd*rml + m*cpd + y];
+            for(int y=0;y<cpd;y++) in_1d[g][y] = (Complex) in[z*cpd*rml + m*cpd + y];
             fftw_execute( plan_backward_c2c_1d[g] );
-            for(int y=0;y<cpd;y++) STT[z*cpd*rml + m*cpd + y] = out_1d[g][y];
+            for(int y=0;y<cpd;y++) out[z*rml_cpd_pad + m*cpd + y] = out_1d[g][y];
         }
     }
     FFTTaylor.Stop();
 }
 
-void SlabTaylor::InverseFFTZ_Taylor(int y, MTCOMPLEX *STT) {
+void SlabTaylorLocal::InverseFFTZ(int y, double *out, const Complex *in) {
+    // in: [cpdp1half, rml, cpd]
+    // out: [rml, cpd]
+
+    int g = omp_get_thread_num();
     for(int m=0;m<rml;m++) {
-        int g = omp_get_thread_num();
-        for(int z=0;z<(cpd+1)/2;z++) 
-            in_c2r[g][z] = STT[z*cpd*rml + m*cpd + y];
+        for(int z=0;z<cpdp1half;z++) 
+            in_c2r[g][z] = in[z*rml_cpd_pad + m*cpd + y];
         fftw_execute( plan_backward_c2r_1d[g] );
         for(int z=0;z<cpd;z++) 
-            TaylorPencil[g][m*cpd + z] = out_c2r[g][z];
+            out[m*cpd + z] = out_c2r[g][z];
     }
 }
 
-void SlabTaylor::CellTaylorFromPencilTaylor(int z,  double *T) {
+void SlabTaylor::CellTaylorFromPencil(int z,  double *T, const double *pencil) {
     int a,b,c;
-    int g = omp_get_thread_num();
     FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) 
-        T[cmap(a,b,c)] = TaylorPencil[g][ rmap(a,b,c)*cpd + ((z+(cpd+1)/2)%cpd) ];
+        T[cmap(a,b,c)] = pencil[ rmap(a,b,c)*cpd + ((z+(cpd+1)/2)%cpd) ];
     TRACEFREERECURSION(a,b,c,order) 
         T[cmap(a,b,c)] = -T[cmap(a+2,b,c-2)] - T[cmap(a,b+2,c-2)];
     for(int m=0;m<completemultipolelength;m++) T[m] *= tfactor[m];
 }
 
 
-void SlabTaylor::EvaluateSlabTaylor(int x, FLOAT3 *FA, FLOAT3 *spos,
-                                    int *count, int *offset, FLOAT3 *cc,
-                                    MTCOMPLEX *TaylorCoefficients){
+void SlabTaylorLocal::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
+                                        const int *count, const int *offset, const FLOAT3 *cc,
+                                        const MTCOMPLEX *TaylorCoefficients){
+    // TaylorCoefficients: [(cpd+1)/2,m,cpd]
+    // FA: particle accelerations
+
     STimer wc;
     PTimer _r2c, _tkernel, _zfft;
 
-    InverseFFTY_Taylor(TaylorCoefficients);
+    InverseFFTY(transposetmp, TaylorCoefficients);
     wc.Start();
 
     NUMA_FOR(y,0,cpd)
         int g = omp_get_thread_num();
         _zfft.Start();
-        InverseFFTZ_Taylor( (y+(cpd+1)/2)%cpd , TaylorCoefficients );
+        InverseFFTZ( (y+cpdp1half)%cpd, TaylorPencil[g], transposetmp);
         _zfft.Stop();
         
         for(int z=0;z<cpd;z++) {
             int i = y*cpd + z;
             _r2c.Start();
-            CellTaylorFromPencilTaylor(z, cartesian[g] );
+            CellTaylorFromPencil(z, cartesian[g], TaylorPencil[g]);
             _r2c.Stop();
             
             _tkernel.Start();
@@ -153,9 +175,8 @@ void SlabTaylor::EvaluateSlabTaylor(int x, FLOAT3 *FA, FLOAT3 *spos,
             memset(aa, 0, sizeof(FLOAT3)*count[i]);
 
             EvaluateTaylor( cartesian[g], 
-                               cc[i], count[i], &(spos[offset[i]]), aa);
+                               cc[i], count[i], (float3*) &spos[offset[i]], aa);
             _tkernel.Stop();
-
         }
     }
     wc.Stop();

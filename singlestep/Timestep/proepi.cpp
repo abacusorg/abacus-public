@@ -167,6 +167,7 @@ Redlack *RL;
 
 #ifdef PARALLEL
 #include "slabmultipoles_mpi.cpp"
+#include "slabtaylor_mpi.cpp"
 #endif
 
 #include "multipole_taylor.cpp"
@@ -247,7 +248,7 @@ void Prologue(Parameters &P, bool MakeIC) {
         MF = new SlabMultipolesMPI(order, cpd);
         #endif
     } else {
-        MF  = new SlabMultipolesLocal(order, cpd);
+        MF = new SlabMultipolesLocal(order, cpd);
     }
 
     STDLOG(2,"Setting up insert list\n");
@@ -276,7 +277,15 @@ void Prologue(Parameters &P, bool MakeIC) {
     if(!MakeIC) {
             // ReadMaxCellSize(P);
         SS->load_from_params(P);
-        TY  = new SlabTaylor(order,cpd);
+        
+        if(MPI_size_z > 1){
+            #ifdef PARALLEL
+            //TY = new SlabTaylorMPI(order,cpd);
+            #endif
+        } else {
+            TY = new SlabTaylorLocal(order,cpd);
+        }
+        
         RL = new Redlack(cpd);
 
         SlabForceTime = new STimer[cpd];

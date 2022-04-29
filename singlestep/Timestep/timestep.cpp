@@ -8,13 +8,8 @@ and deallocation of arenas.
 We should endeavor to make the basic outline of the pipeline very
 clear in this source file.
 
-The bottom of this file contains a redacted version of the pipeline
-for the creation of the initial state.  This just loads particles
-to the insert list and then calls finish.
-
-We also provide another simplified pipeline to recover multipoles
-from position slabs.  This is invoked via the `recover_multipoles`
-executable.
+`timestep_ic.cpp` contains a similar pipeline, suitable for creating
+the initial state.
 
 */
 
@@ -33,6 +28,7 @@ int GROUP_RADIUS = -1;
 Dependency FetchSlabs;
 Dependency TransposePos;
 Dependency NearForce;
+Dependency TaylorTranspose;  // 2D
 Dependency TaylorForce;
 Dependency Kick;
 Dependency MakeCellGroups;
@@ -42,7 +38,7 @@ Dependency Output;
 Dependency Microstep;
 Dependency FinishGroups;
 Dependency Drift;
-Dependency NeighborSend;
+Dependency NeighborSend;  // 2D
 Dependency FinishParticles;
 Dependency FinishMultipoles;
 Dependency CheckForMultipoles; //only for parallel case. otherwise NOOP. 
@@ -206,7 +202,38 @@ void NearForceAction(int slab) {
 
 // -----------------------------------------------------------------
 
+int TaylorTransposePrecondition(int slab){
+    // TODO: install in manifest
+#ifdef PARALLEL
+    TaylorTransferCheck.Start(); 
+    int ready = ParallelConvolveDriver->CheckTaylorSlabReady(slab);
+    TaylorTransferCheck.Stop();
+    if(!ready) {
+        if(SB->IsSlabPresent(TaylorSlab, slab)) Dependency::NotifySpinning(WAITING_FOR_MPI);
+        return 0;
+    }
+#endif
+
+    return 1;
+}
+
+void TaylorTranposeAction(int slab){
+    if(MPI_size_z > 1){
+        // FFT and launch MPI All-to-all
+        TY->ComputeIFFTZAndMPI(slab);
+    }
+
+    // for the 1D parallel code, this is a no-op
+}
+
+// -----------------------------------------------------------------
+
 int TaylorForcePrecondition(int slab) {
+    if(TaylorTranspose.notdone(slab) ||  // 1D & 2D
+        !TY->IsMPIDone(slab)){  // 2D
+        return 0;
+    }
+
     if( !SB->IsIOCompleted( CellInfoSlab, slab ) ){
         if(SB->IsSlabPresent(CellInfoSlab, slab))
             Dependency::NotifySpinning(WAITING_FOR_IO);
@@ -218,17 +245,7 @@ int TaylorForcePrecondition(int slab) {
         return 0;
     }
 
-#ifdef PARALLEL
-	TaylorTransferCheck.Start(); 
-        int taylorSlabReady = ParallelConvolveDriver->CheckTaylorSlabReady(slab);
-        TaylorTransferCheck.Stop();
-        if( !taylorSlabReady) {
-             if(SB->IsSlabPresent(TaylorSlab, slab))
-			Dependency::NotifySpinning(WAITING_FOR_MPI);
-		return 0;
-	}
-
-#else
+#ifndef PARALLEL
     if( !SB->IsIOCompleted( TaylorSlab, slab ) ){
         if(SB->IsSlabPresent(TaylorSlab, slab))
             Dependency::NotifySpinning(WAITING_FOR_IO);
@@ -844,10 +861,9 @@ void FinishMultipolesAction(int slab){
     // In the 2D code, the MPI transpose is now complete.
     // In the 1D code, this is just a continuation of FinishParticles.
 
-    MTCOMPLEX *slabptr = NULL;
     if(MPI_size_z > 1){
         STDLOG(1, "Executing multipoles z-FFT for slab %d\n", slab);
-        slabptr = (MTCOMPLEX *) SB->AllocateArena(MultipoleSlab, slab, ramdisk_multipole_flag);
+        MTCOMPLEX *slabptr = (MTCOMPLEX *) SB->AllocateArena(MultipoleSlab, slab, ramdisk_multipole_flag);
         MF->ComputeFFTZ(slab, slabptr);
     }
 
@@ -1013,9 +1029,11 @@ void timestep(void) {
     INSTANTIATE(             FinishParticles, first_outputslab + FINISH_WAIT_RADIUS);
     INSTANTIATE(            FinishMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #ifdef PARALLEL
-    INSTANTIATE(                NeighborSend, first_outputslab + FINISH_WAIT_RADIUS);
+    INSTANTIATE(             TaylorTranspose, FORCE_RADIUS);  // 2D
+    INSTANTIATE(                NeighborSend, first_outputslab + FINISH_WAIT_RADIUS);  // 2D
     INSTANTIATE(          CheckForMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #else
+    INSTANTIATE_NOOP(        TaylorTranspose, FORCE_RADIUS);
     INSTANTIATE_NOOP(           NeighborSend, first_outputslab + FINISH_WAIT_RADIUS);
     INSTANTIATE_NOOP(     CheckForMultipoles, first_outputslab + FINISH_WAIT_RADIUS);
 #endif
@@ -1087,7 +1105,7 @@ void timestep(void) {
 
        AttemptReceiveManifest();
        AttemptNeighborReceive(0,P.cpd);  // 2D
-          MF->CheckAnyMPIDone();
+          MF->CheckAnyMPIDone();  // 2D
 
        MakeCellGroups.Attempt();
    FindCellGroupLinks.Attempt();
@@ -1101,7 +1119,7 @@ void timestep(void) {
 
        AttemptReceiveManifest();
        AttemptNeighborReceive(0,P.cpd);  // 2D
-          MF->CheckAnyMPIDone();
+          MF->CheckAnyMPIDone();  // 2D
 
     UnpackLPTVelocity.Attempt();
                 Drift.Attempt();
@@ -1117,7 +1135,7 @@ void timestep(void) {
 
        AttemptReceiveManifest();
        AttemptNeighborReceive(0,P.cpd);  // 2D
-          MF->CheckAnyMPIDone();
+          MF->CheckAnyMPIDone();  // 2D
 
    CheckForMultipoles.Attempt();
 
