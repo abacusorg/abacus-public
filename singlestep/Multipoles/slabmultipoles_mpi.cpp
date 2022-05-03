@@ -69,7 +69,7 @@ SlabMultipolesMPI::SlabMultipolesMPI(int order, int cpd)
     sendcounts = new int[MPI_size_z];
     senddispls = new int[MPI_size_z];
     for(int i = 0; i < MPI_size_z; i++){
-        sendcounts[i] = (all_node_ky_start[i+1] - all_node_ky_start[i])*node_z_size*rml;
+        sendcounts[i] = all_node_ky_size[i]*node_z_size*rml;
         senddispls[i] = (i>0) ? (senddispls[i-1] + sendcounts[i-1]) : 0;
     }
 
@@ -130,6 +130,8 @@ void SlabMultipolesMPI::MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const C
 }
 
 void SlabMultipolesMPI::DoMPIAllToAll(int slab, MPI_Request *handle, const Complex *sbuf, Complex *rbuf){
+    // FUTURE: MPI-4 supports MPI_Ialltoallv_c, with 64-bit counts.
+    // But all HPC MPI-3 implementations seem to support > 2 GB data, as long as the counts are 32-bit.
     MPI_Ialltoallv((const void *) sbuf, sendcounts,
         senddispls, mpi_dtype,
         (void *) rbuf, recvcounts,
@@ -213,6 +215,7 @@ void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos,
     delete[] localMassSlabZ;
     
     wc.Stop();
+
     FFTY(transposetmp, reducedtmp);
     
     MakeSendRecvBufs(&sendbuf[x], &recvbuf[x], transposetmp);
@@ -261,11 +264,11 @@ void SlabMultipolesMPI::ComputeFFTZ(int x, MTCOMPLEX *outslab){
 
     // Now FFT from ztmp back into recvbuf[x]
     FFTZ(rbuf32, ztmp);
-
+    
     // and finally transpose from recvbuf[x] into outslab
     // recvbuf: [node_ky_size, rml, cpd]
     // outslab: [cpd, rml, node_ky_size]
-
+    
     #pragma omp parallel for schedule(static)
     for(int64_t kz = 0; kz < cpd; kz++){
         for(int64_t m = 0; m < rml; m++){
@@ -289,11 +292,8 @@ void SlabMultipolesMPI::FFTZ(MTCOMPLEX *out, const Complex *in) {
     for(int64_t y = 0; y < node_ky_size; y++){
         for(int64_t m = 0; m < rml; m++) {
             int g = omp_get_thread_num();
-            // TODO: is this the right place to barrel wrap in the 2D code?
-            for(int64_t z = 0; z < cpdhalf+1; z++)
-                in_1d[g][z] = in[y*rml*cpd + m*cpd + (z+cpdhalf)];
-            for(int64_t z = cpdhalf+1; z < cpd; z++)
-                in_1d[g][z] = in[y*rml*cpd + m*cpd + (z-cpdhalf-1)];
+            for(int64_t z = 0; z < cpd; z++)
+                in_1d[g][z] = in[y*rml*cpd + m*cpd + z];
             
             fftw_execute( plan_forward_c2c_1d[g] );
 

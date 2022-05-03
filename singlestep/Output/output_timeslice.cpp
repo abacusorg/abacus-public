@@ -115,7 +115,7 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     STDLOG(2,"Scanning through cells\n");
 
     // Now scan through the cells
-    integer3 ij(slab,0,0);
+    integer3 ij(slab,0,node_z_start);
     uint64 n_added = 0;
     #pragma omp parallel for schedule(static) reduction(+:n_added)
     for (int y=0; y<CP->cpd; y++) {

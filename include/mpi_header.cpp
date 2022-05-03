@@ -30,6 +30,7 @@ int *all_node_z_size;
 
 int node_cpdp1half;  // (CPD+1)/2/MPI_size_z
 int *all_node_ky_start;  // 2D: start of the ky multipole splits
+int *all_node_ky_size;  // 2D: sizes of the multipole splits
 
 #ifdef PARALLEL
     #include "mpi.h"

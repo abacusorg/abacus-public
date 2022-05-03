@@ -203,13 +203,15 @@ void NearForceAction(int slab) {
 // -----------------------------------------------------------------
 
 int TaylorTransposePrecondition(int slab){
-    // TODO: install in manifest
 #ifdef PARALLEL
+    if(!SB->IsSlabPresent(TaylorSlab, slab))
+        return 0;
+
     TaylorTransferCheck.Start(); 
     int ready = ParallelConvolveDriver->CheckTaylorSlabReady(slab);
     TaylorTransferCheck.Stop();
     if(!ready) {
-        if(SB->IsSlabPresent(TaylorSlab, slab)) Dependency::NotifySpinning(WAITING_FOR_MPI);
+        Dependency::NotifySpinning(WAITING_FOR_MPI);
         return 0;
     }
 #endif
@@ -217,10 +219,11 @@ int TaylorTransposePrecondition(int slab){
     return 1;
 }
 
-void TaylorTranposeAction(int slab){
+void TaylorTransposeAction(int slab){
     if(MPI_size_z > 1){
         // FFT and launch MPI All-to-all
-        TY->ComputeIFFTZAndMPI(slab);
+        MTCOMPLEX *t = (MTCOMPLEX *) SB->GetSlabPtr(TaylorSlab, slab);
+        TY->ComputeIFFTZAndMPI(slab, t);
     }
 
     // for the 1D parallel code, this is a no-op
@@ -257,8 +260,6 @@ int TaylorForcePrecondition(int slab) {
 }
 
 void TaylorForceAction(int slab) {
-	MTCOMPLEX *t = (MTCOMPLEX *) SB->GetSlabPtr(TaylorSlab, slab);
-
     SlabFarForceTime[slab].Start();
     SB->AllocateArena(FarAccSlab, slab);
 
@@ -1100,12 +1101,14 @@ void timestep(void) {
 
        ReceiveManifest->Check();  // This checks if Send is ready; no-op in non-blocking mode
 
+      TaylorTranspose.Attempt();
           TaylorForce.Attempt();
                  Kick.Attempt();
 
        AttemptReceiveManifest();
        AttemptNeighborReceive(0,P.cpd);  // 2D
           MF->CheckAnyMPIDone();  // 2D
+          TY->CheckAnyMPIDone();  // 2D
 
        MakeCellGroups.Attempt();
    FindCellGroupLinks.Attempt();
@@ -1120,6 +1123,7 @@ void timestep(void) {
        AttemptReceiveManifest();
        AttemptNeighborReceive(0,P.cpd);  // 2D
           MF->CheckAnyMPIDone();  // 2D
+          TY->CheckAnyMPIDone();  // 2D
 
     UnpackLPTVelocity.Attempt();
                 Drift.Attempt();
@@ -1136,6 +1140,7 @@ void timestep(void) {
        AttemptReceiveManifest();
        AttemptNeighborReceive(0,P.cpd);  // 2D
           MF->CheckAnyMPIDone();  // 2D
+          TY->CheckAnyMPIDone();  // 2D
 
    CheckForMultipoles.Attempt();
 

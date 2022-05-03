@@ -103,6 +103,7 @@ void InitializeParallelDomain(){
     all_node_z_start = new int[MPI_size_z+1];
     all_node_z_size = new int[MPI_size_z];
     all_node_ky_start = new int[MPI_size_z+1];
+    all_node_ky_size = new int[MPI_size_z];
 
     #ifdef PARALLEL
         // will always reflect the memory layout of the input slabs
@@ -147,13 +148,16 @@ void InitializeParallelDomain(){
 
     if (MPI_size_z > 1){
         // After the multipoles y-FFT, each node gets a sub-domain of ky for all z
-        for(int i = 0; i < MPI_size_z + 1; i++){
+        all_node_ky_start[0] = 0;
+        for(int i = 1; i < MPI_size_z + 1; i++){
             all_node_ky_start[i] = i*(P.cpd+1)/2/MPI_size_z;
+            all_node_ky_size[i-1] = all_node_ky_start[i] - all_node_ky_start[i-1];
         }
-        node_cpdp1half = all_node_ky_start[MPI_rank_z+1] - all_node_ky_start[MPI_rank_z];
+        node_cpdp1half = all_node_ky_size[MPI_rank_z];
     } else {
         all_node_ky_start[0] = 0;
         all_node_ky_start[1] = P.cpd;
+        all_node_ky_size[0] = P.cpd;
         node_cpdp1half = (P.cpd+1)/2;
     }
 }
@@ -230,6 +234,7 @@ void FinalizeParallel() {
     delete[] all_node_z_start;
     delete[] all_node_z_size;
     delete[] all_node_ky_start;
+    delete[] all_node_ky_size;
 }
 
 /* Begin Neighbor Exchange routines */

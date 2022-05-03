@@ -280,7 +280,7 @@ void Prologue(Parameters &P, bool MakeIC) {
         
         if(MPI_size_z > 1){
             #ifdef PARALLEL
-            //TY = new SlabTaylorMPI(order,cpd);
+            TY = new SlabTaylorMPI(order,cpd);
             #endif
         } else {
             TY = new SlabTaylorLocal(order,cpd);

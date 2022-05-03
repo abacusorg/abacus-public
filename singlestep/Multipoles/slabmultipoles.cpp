@@ -136,16 +136,14 @@ void SlabMultipolesLocal::FFTZ(Complex *out, const double *in) {
 
     int g = omp_get_thread_num();
     for(int m=0;m<rml;m++) {
-        for(int z=0; z<cpdhalf+1; z++)
-            in_r2c[g][z] = in[ (z+cpdhalf)*rml + m ];
-        for(int z=cpdhalf+1; z<cpd; z++)
-            in_r2c[g][z] = in[ (z-cpdhalf-1)*rml + m ];
+        for(int z=0; z<cpd; z++)
+            in_r2c[g][z] = in[ z*rml + m ];
         
         fftw_execute( plan_forward_r2c_1d[g] );
 
         // We store the data non-transposed in this out-of-place buffer,
         // and then execute the transpose in FFTY
-        for(int z=0;z<(cpd+1)/2;z++) 
+        for(int z=0;z<cpdp1half;z++) 
             out[m*cpdp1half + z] = out_r2c[g][z];
     }
 }
@@ -190,9 +188,7 @@ void SlabMultipolesLocal::ComputeMultipoleFFT( int x, FLOAT3 *spos,
             _c2r.Stop();
         }
         _fftz.Start();
-        int ym = y - cpdhalf;
-        if(ym < 0) ym += cpd;
-        FFTZ( &(transposetmp[ym*rml_cpdp1half_pad]), rowmultipoles[g]);
+        FFTZ( &(transposetmp[y*rml_cpdp1half_pad]), rowmultipoles[g]);
         _fftz.Stop();
     }
     

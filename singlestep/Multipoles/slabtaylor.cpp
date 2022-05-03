@@ -139,7 +139,7 @@ void SlabTaylorLocal::InverseFFTZ(int y, double *out, const Complex *in) {
 void SlabTaylor::CellTaylorFromPencil(int z,  double *T, const double *pencil) {
     int a,b,c;
     FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) 
-        T[cmap(a,b,c)] = pencil[ rmap(a,b,c)*cpd + ((z+(cpd+1)/2)%cpd) ];
+        T[cmap(a,b,c)] = pencil[ rmap(a,b,c)*cpd + z ];
     TRACEFREERECURSION(a,b,c,order) 
         T[cmap(a,b,c)] = -T[cmap(a+2,b,c-2)] - T[cmap(a,b+2,c-2)];
     for(int m=0;m<completemultipolelength;m++) T[m] *= tfactor[m];
@@ -161,7 +161,7 @@ void SlabTaylorLocal::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
     NUMA_FOR(y,0,cpd)
         int g = omp_get_thread_num();
         _zfft.Start();
-        InverseFFTZ( (y+cpdp1half)%cpd, TaylorPencil[g], transposetmp);
+        InverseFFTZ( y, TaylorPencil[g], transposetmp);
         _zfft.Stop();
         
         for(int z=0;z<cpd;z++) {

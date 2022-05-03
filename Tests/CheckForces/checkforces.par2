@@ -3,10 +3,12 @@ SimName = "CheckForces"
 
 SofteningLength = 1e-10  #50./1000
 ICPositionRange = -1
+ICVelocity2Displacement = 0
 NearFieldRadius=2
 ICFormat = "Lattice"
 TimeSliceRedshifts = @InitialRedshift@
-NumSlabsInsertListIC = 7
+NumSlabsInsertListIC = 0
+NumSlabsInsertList = 0
 StoreForces = 0
 AllowGroupFinding = 0
 OverwriteState = 0

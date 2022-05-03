@@ -414,6 +414,7 @@ void Manifest::QueueToSend(int finished_slab) {
     m.dep[m.numdep++].Load(FetchSlabs, finished_slab, "FetchSlabs");
     m.dep[m.numdep++].Load(TransposePos, finished_slab, "TransposePos");
     m.dep[m.numdep++].Load(NearForce, finished_slab, "NearForce");
+    m.dep[m.numdep++].Load(TaylorTranspose, finished_slab, "TaylorTranspose");
     m.dep[m.numdep++].Load(TaylorForce, finished_slab, "TaylorForce");
     m.dep[m.numdep++].Load(Kick, finished_slab, "Kick");
     m.dep[m.numdep++].Load(MakeCellGroups, finished_slab, "MakeCellGroups");
@@ -765,6 +766,7 @@ void Manifest::ImportData() {
     m.dep[n++].Set(FetchSlabs, "FetchSlabs");
     m.dep[n++].Set(TransposePos, "TransposePos");
     m.dep[n++].Set(NearForce, "NearForce");
+    m.dep[n++].Set(TaylorTranspose, "TaylorTranspose");
     m.dep[n++].Set(TaylorForce, "TaylorForce");
     m.dep[n++].Set(Kick, "Kick");
     m.dep[n++].Set(MakeCellGroups, "MakeCellGroups");
