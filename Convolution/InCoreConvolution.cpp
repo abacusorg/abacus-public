@@ -228,11 +228,11 @@ inline void Set_Vector_to_Zero(Complex *t, int n) {
 // And now here's the main routine
 
 void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
-    // why is this 50% faster with dynamic?
 	
 	STDLOG(3, "Entering InCoreConvolve\n");
 
-	#pragma omp parallel for schedule(dynamic)
+    // why is this 50% faster with dynamic?
+	//#pragma omp parallel for schedule(dynamic)
     for(int block=0;block<nblocks;block++) {
             
         Complex *FM, *FMabc, *FMap2bcm2, *FMabp2cm2;

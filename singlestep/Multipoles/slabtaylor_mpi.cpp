@@ -66,6 +66,8 @@ SlabTaylorMPI::~SlabTaylorMPI(){
 
 SlabTaylorMPI::SlabTaylorMPI(int order, int cpd)
     : SlabTaylor(order, cpd) {
+
+    assert(MPI_size_z > 1);
     
     node_ky_size = node_cpdp1half;
 

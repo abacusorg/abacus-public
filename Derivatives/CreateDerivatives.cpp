@@ -1,7 +1,9 @@
 #include <stdlib.h>
 #include <fstream>
 
-//set precision of calculation. If QUAD_DOUBLE = 1, we will use quad double precision (quad_double.cpp). If QUAD_DOUBLE = 1, we will use double precision. 
+// Set precision of calculation. If QUAD_DOUBLE = 1, we will use
+// quad double precision (quad_double.cpp). If QUAD_DOUBLE = 0,
+// we will use double precision. 
 #ifndef QUAD_DOUBLE
 #define QUAD_DOUBLE 0
 #endif

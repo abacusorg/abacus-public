@@ -87,8 +87,13 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	create_MT_file = _create_MT_file; 
 	cpd = _cpd;
 	
-	node_ky_size = node_cpdp1half;  // 1D: CPD; 2D: (CPD+1)/2/MPI_size_z
-	kz_size = (MPI_size_z > 1) ? cpd : (cpd+1)/2;
+	if(MPI_size_z > 1){
+		node_ky_size = node_cpdp1half;
+		kz_size = cpd;
+	} else {
+		node_ky_size = cpd;
+		kz_size = (cpd+1)/2;
+	}
 	
 	int pad = CPD2PADDING/sizeof(Complex);
 	cpdky_pad = ((cpd*node_ky_size+pad)/pad)*pad;

@@ -54,6 +54,8 @@ SlabMultipolesMPI::~SlabMultipolesMPI(void) {
 SlabMultipolesMPI::SlabMultipolesMPI(int order, int cpd)
     : SlabMultipoles(order, cpd)  {
 
+    assert(MPI_size_z > 1);
+
     node_ky_size = node_cpdp1half;
 
     sendbuf = new Complex*[cpd]();  // sendbuf[x] will be allocated on-demand
