@@ -98,7 +98,7 @@ void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber
         FILE *fp;
         fp = fopen(fn,"rb");
         if(fp!=NULL) {
-            // Yes, the file already exists!  Don't repeat the work, so skip thsi iteration of the loop..
+            // Yes, the file already exists!  Don't repeat the work, so skip this iteration of the loop..
             fclose(fp);
             continue;  
         }
@@ -834,16 +834,18 @@ END OLD CODE */
 }
 
 
-
 int main(int argc, char **argv) {
         
-        printf("QUAD_DOUBLE defined = %d. If QUAD_DOUBLE == 1, running with quad double precision. Else, running with double precision.\n \n", QUAD_DOUBLE);
-        //printf("Timer starting\n");
-        //myTimer.Start();
-        
-        //unpack user inputs.
+#if QUAD_DOUBLE
+    printf("QUAD_DOUBLE = 1. Using 256-bit precision.");
+#else
+    printf("QUAD_DOUBLE = 0. Using 64-bit precision.");
+#endif
+    //myTimer.Start();
+    
+    //unpack user inputs.
     if( argc!=5 && argc!=6 ) {
-        printf("Usage: CreateDerivatives CPD ORDER INNERRADIUS FARRADIUS <slab>\n");
+        printf("Usage: %s CPD ORDER INNERRADIUS FARRADIUS [slab]\n", argv[0]);
         printf("Slab number is optional\n");
         exit(1);
     }
@@ -867,7 +869,7 @@ int main(int argc, char **argv) {
     printf("inner_radius = %d \n", inner_radius );
 
     int far_radius = atoi(argv[4]);
-    assert( (far_radius==1) ||(far_radius==2) || (far_radius==3) || (far_radius==4) || (far_radius==5) || (far_radius==6) || (far_radius==7) ||(far_radius==8) || (far_radius==16));
+    assert( (far_radius >= 1 && far_radius <= 8) || (far_radius == 16));
     printf("far_radius = %d \n", far_radius );
 
     int slabnumber = -1;
@@ -876,19 +878,16 @@ int main(int argc, char **argv) {
         assert( slabnumber>=0 && slabnumber<=CPDHALF);
         printf("Doing slab %d only.", slabnumber);
     }
-        //
-        
 
     int rml = (order+1)*(order+1);
 
-        //check if the derivatives tensor we're about to calculate already stored on disk? If so, don't repeat the work! 
+    //check if the derivatives tensor we're about to calculate already stored on disk? If so, don't repeat the work! 
     char fn[1024];
     sprintf(fn,"fourierspace_%d_%d_%d_%d_%d",cpd,order,inner_radius,far_radius, (cpd+1)/2-1);
     // This is the last file
 
     int MultipoleStart;
-    FILE *fp;
-    fp = fopen(fn,"rb");
+    FILE *fp = fopen(fn,"rb");
     fprintf(stderr, "Trying to find derivativesfile=%s on disk\n", fn);
     if(fp==NULL) {
         // Derivatives don't exist
@@ -899,7 +898,7 @@ int main(int argc, char **argv) {
         int ret = stat(fn, &st);
         assert(ret==0);
         MultipoleStart = floor(st.st_size/(CompressedMultipoleLengthXY)/sizeof(double));
-            // This uses the file size to determine how many multipoles were completed in the last z file
+        // This uses the file size to determine how many multipoles were completed in the last z file
         if (MultipoleStart==rml) {
             printf("Derivatives already present \n");
             exit(0);
@@ -909,21 +908,21 @@ int main(int argc, char **argv) {
         // If the fourier files are corrupted, delete them to start over
     }
         
-        //myTimer.Stop();
-        //printf("Time spent in set up = %f \n", myTimer.Elapsed());
-        //myTimer.Clear();
-        //myTimer.Start();
-        
-        //For more detailed comments, see individual functions, above. 
-        //calculate the derivatives tensor for every cell vector, \mathcal{D}^{ABC}_{jkl}. (Eqn. 4.1). 
+    //myTimer.Stop();
+    //printf("Time spent in set up = %f \n", myTimer.Elapsed());
+    //myTimer.Clear();
+    //myTimer.Start();
+    
+    //For more detailed comments, see individual functions, above. 
+    //calculate the derivatives tensor for every cell vector, \mathcal{D}^{ABC}_{jkl}. (Eqn. 4.1). 
     FormDerivatives(inner_radius, order, far_radius, slabnumber);
     if (slabnumber>=0) exit(0);
-        //myTimer.Stop();
-        //double FormDerivsRuntime = myTimer.Elapsed();
-        //printf("Time spent in FormDerivatives = %f \n", FormDerivsRuntime);
-        //myTimer.Clear();
-        //myTimer.Start();
-        //double mergeDerivsRuntime;
+    //myTimer.Stop();
+    //double FormDerivsRuntime = myTimer.Elapsed();
+    //printf("Time spent in FormDerivatives = %f \n", FormDerivsRuntime);
+    //myTimer.Clear();
+    //myTimer.Start();
+    //double mergeDerivsRuntime;
         
         
     
@@ -933,56 +932,56 @@ int main(int argc, char **argv) {
     fpfar = fopen(fpfar_fn,"rb");
         
     if (fpfar == NULL){    
-    // Next we merge the individual files, effectively doing a big transpose
-    ULLI fdsize = sizeof(double) * rml*CompressedMultipoleLengthXYZ;
+        // Next we merge the individual files, effectively doing a big transpose
+        ULLI fdsize = sizeof(double) * rml*CompressedMultipoleLengthXYZ;
                 
         //calculate total far derivatives tensor for entire simulation box by merging components for every cell. {\mathcal{D}^{ABC}_{jkl}} = \mathcal{D}^{ABC}.
-    printf("Allocating %d GB before MergeDerivatives\n", (int) (fdsize/(1<<30)) );
-    double *FarDerivatives = (double *) malloc(fdsize);
-    assert(FarDerivatives != NULL);
-    MergeDerivatives(inner_radius, order, far_radius, FarDerivatives);
+        printf("Allocating %d GB before MergeDerivatives\n", (int) (fdsize/(1<<30)) );
+        double *FarDerivatives = (double *) malloc(fdsize);
+        assert(FarDerivatives != NULL);
+        MergeDerivatives(inner_radius, order, far_radius, FarDerivatives);
         //myTimer.Stop();
         //mergeDerivsRuntime = myTimer.Elapsed();
         //printf("Time spent in Merge Derivatives = %f \n", mergeDerivsRuntime);
         //myTimer.Clear();
         //myTimer.Start();
         
-    // write out FarDerivatives file
-    fpfar = fopen(fpfar_fn,"wb");
-    assert(fpfar!=NULL);
-    fwrite(&(FarDerivatives[0]), sizeof(double), rml*CompressedMultipoleLengthXYZ, fpfar); 
-    free(FarDerivatives);
+        // write out FarDerivatives file
+        fpfar = fopen(fpfar_fn,"wb");
+        assert(fpfar!=NULL);
+        fwrite(&(FarDerivatives[0]), sizeof(double), rml*CompressedMultipoleLengthXYZ, fpfar); 
+        free(FarDerivatives);
     }
     fclose(fpfar);
 
 
-        //create empty fourier files to store the fourier transforms of the far derivatives in, to be calculated in Part2. 
+    //create empty fourier files to store the fourier transforms of the far derivatives in, to be calculated in Part2. 
     if (MultipoleStart==0) CreateFourierFiles(order,inner_radius, far_radius);
-        //myTimer.Stop();
-        //double CFFRuntime = myTimer.Elapsed();
-        //printf("Time spent in CreateFourierFiles = %f \n", CFFRuntime);
-        //myTimer.Clear();
-        //myTimer.Start();
-        
-        //calculate Fast Fourier transforms of far derivatives tensor and store. 
+    //myTimer.Stop();
+    //double CFFRuntime = myTimer.Elapsed();
+    //printf("Time spent in CreateFourierFiles = %f \n", CFFRuntime);
+    //myTimer.Clear();
+    //myTimer.Start();
+    
+    //calculate Fast Fourier transforms of far derivatives tensor and store. 
     Part2(order, inner_radius, far_radius, MultipoleStart);
-        //myTimer.Stop();
-        //double Part2Runtime = myTimer.Elapsed();
-        //printf("Time spent in Part2 (not including fftw plan)= %f \n", Part2Runtime);
-        //myTimer.Clear();
-        //myTimer.Start();
-        
-        
-        
-        //myTimer.Stop();
-        //double totalRuntime = myTimer.Elapsed();
-        //cout << "total time elapsed: " << totalRuntime << endl;
-        
-        //FILE * outFile;
-        //outFile = fopen("/home/nam/AbacusProject/timing/alan_CreateDerivatives_LoopOptimization_MultipoleOrder_vs_FR_timing.txt", "a");
-        //fprintf(outFile, "%d %d %d %d %d %f %f %f %f\n", 24, CPD, order, inner_radius, far_radius, FormDerivsRuntime, mergeDerivsRuntime, CFFRuntime, Part2Runtime);
-        //fclose (outFile); 
-        
-        printf("\nRUN COMPLETE: double precision = %d, InfDerivSum maxLoopOrder = %d, CPD = %d, order = %d, innerRadius = %d, farRadius = %d.\n", 1-QUAD_DOUBLE, MAXLOOPORDER, cpd,order,inner_radius,far_radius);
-        
+    //myTimer.Stop();
+    //double Part2Runtime = myTimer.Elapsed();
+    //printf("Time spent in Part2 (not including fftw plan)= %f \n", Part2Runtime);
+    //myTimer.Clear();
+    //myTimer.Start();
+    
+    
+    
+    //myTimer.Stop();
+    //double totalRuntime = myTimer.Elapsed();
+    //cout << "total time elapsed: " << totalRuntime << endl;
+    
+    //FILE * outFile;
+    //outFile = fopen("/home/nam/AbacusProject/timing/alan_CreateDerivatives_LoopOptimization_MultipoleOrder_vs_FR_timing.txt", "a");
+    //fprintf(outFile, "%d %d %d %d %d %f %f %f %f\n", 24, CPD, order, inner_radius, far_radius, FormDerivsRuntime, mergeDerivsRuntime, CFFRuntime, Part2Runtime);
+    //fclose (outFile); 
+    
+    printf("\nRUN COMPLETE: double precision = %d, InfDerivSum maxLoopOrder = %d, CPD = %d, order = %d, innerRadius = %d, farRadius = %d.\n",
+        1-QUAD_DOUBLE, MAXLOOPORDER, cpd,order,inner_radius,far_radius);
 }

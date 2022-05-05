@@ -116,7 +116,7 @@ void OutofCoreConvolution::BlockConvolve(void) {
 
     #endif
 
-    InCoreConvolution *ICC = new InCoreConvolution(order,cpd,blocksize);
+    InCoreConvolution *ICC = new InCoreConvolution(order,cpd,cpd,blocksize,0);
 
     CS.ops = ICC->ConvolutionArithmeticCount();
 

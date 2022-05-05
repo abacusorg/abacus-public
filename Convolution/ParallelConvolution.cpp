@@ -174,13 +174,12 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
     
     MsendTimer = new STimer[cpd];
 
-	
+
 	int DIOBufferSizeKB = 1LL<<11;
     size_t sdb = DIOBufferSizeKB;
     sdb *= 1024LLU;
 
-    int direct = P.RamDisk; 
-	assert( (direct == 1) || (direct==0) );
+    int direct = P.RamDisk;
 	STDLOG(2, "Making RD object with %d %f\n", direct, sdb);
 	ReadDirect * RD_RDD = new ReadDirect(direct,sdb);
 	
@@ -228,8 +227,6 @@ ParallelConvolution::~ParallelConvolution() {
 	MunmapMT.Stop(); 
 	CS.MunmapMT += MunmapMT.Elapsed(); 
 
-	assertf(ramdisk_derivs == 0 || ramdisk_derivs == 1, "Ramdisk_derivs detected bad value: %d.\n", ramdisk_derivs);
-	
     for (int z = 0; z < znode; z++){
 	    if(ramdisk_derivs){
 		    if(Ddisk[z] != NULL){
@@ -338,11 +335,18 @@ void ParallelConvolution::AllocMT(){
 void ParallelConvolution::AllocDerivs(){
 	AllocateDerivs.Clear(); AllocateDerivs.Start();
 
-	Ddisk_bytes = sizeof(DFLOAT)*(rml*CompressedMultipoleLengthXY);
+	//if(MPI_size_z > 1){
+	if(1){  // testing
+		//Ddisk_bytes = sizeof(DFLOAT)*rml*(cpd+1)/2*node_ky_size;
+		Ddisk_bytes = sizeof(DFLOAT)*rml*(cpd+1)/2* ( MPI_size_z > 1 ? node_ky_size : (cpd+1)/2);
+	} else {
+		Ddisk_bytes = sizeof(DFLOAT)*rml*CompressedMultipoleLengthXY;
+	}
+
+	// 2D: deriv files are [ky][m][kx], read a subset of ky (kx has length cpdp1half)
+	dfile_offset = MPI_size_z > 1 ? sizeof(DFLOAT)*rml*(cpd+1)/2*all_node_ky_start[MPI_rank_z] : 0;
 	
-    if(is_path_on_ramdisk(P.DerivativesDirectory)) ramdisk_derivs = 1;
-	else ramdisk_derivs = 0; 
-	assertf(ramdisk_derivs == 0 || ramdisk_derivs == 1, "Ramdisk_derivs detected bad value: %d.\n", ramdisk_derivs);
+    ramdisk_derivs = is_path_on_ramdisk(P.DerivativesDirectory);
 	
 	Ddisk = new DFLOAT*[znode];
 	for(int z = 0; z < znode; z++)
@@ -355,9 +359,7 @@ void ParallelConvolution::AllocDerivs(){
 	}
 	
     for (int z = 0; z < znode; z++){
-        int memalign_ret = posix_memalign((void **) (Ddisk + z), PAGE_SIZE, Ddisk_bytes);
-        assert(memalign_ret == 0);
-        //alloc_bytes += s;
+        assert(posix_memalign((void **) (Ddisk + z), PAGE_SIZE, Ddisk_bytes) == 0);
     }
 	
 	CS.ReadDerivativesBytes = 0.0; 
@@ -370,35 +372,34 @@ void ParallelConvolution::AllocDerivs(){
 void ParallelConvolution::LoadDerivatives(int z) {
 	int z_file = z + zstart;	
 
-    const char *fnfmt;
-    if(sizeof(DFLOAT) == sizeof(float))
-        fnfmt = "%s/fourierspace_float32_%d_%d_%d_%d_%d";
-    else
-        fnfmt = "%s/fourierspace_%d_%d_%d_%d_%d";
+    const char *f32str = sizeof(DFLOAT) == 4 ? "_float32" : "";
+	//const char *twoDstr = MPI_size_z > 1 ? "_2D" : "";
+	const char *twoDstr = "_2D";  // testing 1D with 2D
+	const char *fnfmt = "%s/fourierspace%s%s_%d_%d_%d_%d_%d";
 	
     // note the derivatives are stored in z-slabs, not x-slabs
-    char fn[1024]; //abacus.py has code to copy Derivs to DerivativesDirectory, and this looks for them there. Change DerivsDirec = RAMDISK?
+    char fn[1024];
     sprintf(fn, fnfmt,
-            P.DerivativesDirectory, 
+            P.DerivativesDirectory,
+			f32str, twoDstr,
             (int) cpd, order, P.NearFieldRadius,
             P.DerivativeExpansionRadius, z_file);
 	
 	assertf(ramdisk_derivs == 0 || ramdisk_derivs == 1, "Ramdisk_derivs detected bad value: %d.\n", ramdisk_derivs);
 	
-    if(!ramdisk_derivs){						
+    if(!ramdisk_derivs){
 		assert(Ddisk[z] != NULL); 
-        RD_RDD->BlockingRead( fn, (char *) Ddisk[z], Ddisk_bytes, 0, 1); //NAM TODO the last arg (1) should be ReadDirect's ramdisk flag set during constructor, but that seg faults right now. Fix! 
+		// NAM TODO the last arg (1) should be ReadDirect's ramdisk flag set during constructor, but that seg faults right now. Fix! 
+        RD_RDD->BlockingRead( fn, (char *) Ddisk[z], Ddisk_bytes, dfile_offset, 1);
         CS.ReadDerivativesBytes += Ddisk_bytes;
-		STDLOG(2, "BlockingRead derivatives for z = %d from file %c\n", z_file, fn);
-		
-		
+		STDLOG(2, "BlockingRead derivatives for z = %d from file %s\n", z_file, fn);
     } else {
 	    if(Ddisk[z] != NULL){
 	    	MunmapDerivs.Clear(); MunmapDerivs.Start();
 	        int res = munmap(Ddisk[z], Ddisk_bytes);
 	        MunmapDerivs.Stop();
 	        CS.MunmapDerivs += MunmapDerivs.Elapsed();
-	        assertf(res == 0, "Failed to munmap derivs\n"); 
+	        assertf(res == 0, "Failed to munmap derivs\n");
 	    }
 
 	    int fd = open(fn, O_RDWR, S_IRUSR | S_IWUSR);
@@ -407,12 +408,13 @@ void ParallelConvolution::LoadDerivatives(int z) {
 		MmapDerivs.Clear(); MmapDerivs.Start(); 
 		
 	    // map the shared memory fd to an address
-	    Ddisk[z] = (DFLOAT *) mmap(NULL, Ddisk_bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+		// TODO 2D: deriv files may need padding such that dfile_offset is page-aligned
+	    Ddisk[z] = (DFLOAT *) mmap(NULL, Ddisk_bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, dfile_offset);
 	    int res = close(fd);
 	    assertf((void *) Ddisk[z] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, Ddisk_bytes);
 	    assertf(Ddisk[z] != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, Ddisk_bytes);
 	    assertf(res == 0, "Failed to close fd %d\n", fd);
-		STDLOG(2, "Mapped derivatives for z = %d from file %c\n", z_file, fn);
+		STDLOG(2, "Mapped derivatives for z = %d from file %s\n", z_file, fn);
 		
 		MmapDerivs.Stop(); 
 		CS.MmapDerivs += MmapDerivs.Elapsed(); 
@@ -773,7 +775,8 @@ void ParallelConvolution::FFT(fftw_plan plan) {
 void ParallelConvolution::Convolve() {
 	STDLOG(1,"Beginning Convolution.\n");
 		
-    InCoreConvolution *ICC = new InCoreConvolution(order, cpd, blocksize, cpdky_pad);
+    //InCoreConvolution *ICC = new InCoreConvolution(order, cpd, node_ky_size, blocksize, MPI_size_z > 1, cpdky_pad);
+	InCoreConvolution *ICC = new InCoreConvolution(order, cpd, node_ky_size, blocksize, 1, cpdky_pad);  //testing
 
 	// We're beginning in [x][znode][m][y] order on the RAMdisk
 	// Copy to the desired order in a new buffer
@@ -805,7 +808,7 @@ void ParallelConvolution::Convolve() {
 		ReadDerivatives.Stop(); 
 		
 		ConvolutionArithmetic.Start(); 
-			ICC->InCoreConvolve(MTzmxy+z*rml*cpdky_pad, Ddisk[z]); 
+			ICC->InCoreConvolve(MTzmxy+z*rml*cpdky_pad, Ddisk[z]);
 		ConvolutionArithmetic.Stop();
 	}
 	

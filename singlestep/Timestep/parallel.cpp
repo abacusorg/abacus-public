@@ -35,6 +35,8 @@ void InitializeParallelTopology() {
         MPI_size_x = MPI_size/MPI_size_z;
         assertf(MPI_size_x * MPI_size_z == MPI_size,
             "NumZRanks=%d does not divide MPI_size=%d evenly!", MPI_size_z, MPI_size);
+        assertf(MPI_size_x > 1,
+            "Must have at least two X ranks to run the parallel code!");
 
         // Establish the 2D topology
         int ndims = 2;

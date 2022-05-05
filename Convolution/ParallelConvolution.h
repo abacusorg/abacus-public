@@ -86,6 +86,7 @@ private:
 
 	size_t Ddisk_bytes;  // bytes per derivatives slab
 	size_t MTdisk_bytes;  // MTdisk bytes
+	off_t dfile_offset;  // where to start reading the derivatives file (2D)
 
     #define M_TAG (100000)     // An offset for the multipole tags
     MPI_Request *Mrecv_requests;    // We'll set up a [CPD] array to receive one packet per x
