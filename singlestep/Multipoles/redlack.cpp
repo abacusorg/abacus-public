@@ -67,9 +67,9 @@ void Redlack::ApplyRedlack( int slab,
 
     #pragma omp parallel for schedule(static)
     for(int y=0;y<cpd;y++){
-        for(int z=0;z<cpd;z++) {
-            int i = y*cpd + z;
-            double3 dip2( redlack[slab], redlack[cpd+y], redlack[2*cpd+z] );
+        for(int z=0;z<node_z_size;z++) {
+            int i = y*node_z_size + z;
+            double3 dip2( redlack[slab], redlack[cpd+y], redlack[2*cpd + (z + node_z_start)] );
             double3 dc = globaldipole + dip2; //- (redlackconstant+cc[i])*np;
             
             #pragma omp simd

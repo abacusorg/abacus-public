@@ -20,7 +20,7 @@ public:
 		else cpdky_pad = _cpdky_pad;
 		
         CompressedMultipoleLengthXY  = ((1+cpd)*(3+cpd))/8;  // only 1D
-        nblocks = (cpd*kysize)/blocksize;  // TODO friday: check blocksize division
+        nblocks = (cpd*kysize)/blocksize;
         cpdhalf = (cpd-1)/2;
 
         /* We're going to allocate a bunch of work arrays, three per thread.
@@ -295,7 +295,6 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
                     if( (yp!=y) && ((b&0x1)==1) ) xR *= -1;  // not triggered in 2D
                     if( (xp!=x) && ((a&0x1)==1) ) xR *= -1;
                     dcache[m + xyz] = xR;
-                    //assert(!std::isnan(xR));
                     y++;
                     if (y==kysize) { y = 0; x++; }  // Accomplish the mod wrap
                 }

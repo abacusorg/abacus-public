@@ -665,25 +665,25 @@ int ParallelConvolution::CheckTaylorSlabReady(int slab) {
 void ParallelConvolution::Swizzle_to_zmxy() {
 	STDLOG(2,"Entering Swizzle_to_zmxy\n");
 	  
-	// The convolve code expects the data from file x (MTdisk[x]) to be in MTzmxy[x+1]
-	// Converting from [x][znode][m][y] to [znode][m][x][y]
-	// Loop over the combination of [znode][m]
-	#pragma omp parallel for schedule(static) 
-	for (int zm = 0; zm < znode*rml; zm++) {
-	    int zoffset = zm/rml;   // This is not actually z, but z-zstart
-	    int m = zm-zoffset*rml; 
-		for (int x=0; x<cpd; x++) {
-			int xuse = x + 1;
-			if (xuse>=cpd) xuse=0;
-			
-			for (int y=0; y<node_ky_size; y++) {
-			    MTzmxy[(int64)zm*cpdky_pad + xuse*node_ky_size + y] =  
-				       MTdisk[(int64)x*znode*rml*node_ky_size + (int64)zoffset*rml*node_ky_size + m*node_ky_size + y] ;
-				   }
-	    }
-	}
+	// In the 2D code, the *ky* dimension is actually the one with length (CPD+1)/2.
+	// OPTION: We will transpose ky and kz here and lie to the rest of the code.
+	// TODO: change needed in ICC?
 
-	STDLOG(2,"Exiting Swizzle_to_zmxy\n");
+	// in: [cpd][znode][rml][node_ky_size]
+	// out: [znode][rml][cpd][node_ky_size]
+	for(int64_t zoff = 0; zoff < znode; zoff++){
+		for(int64_t m = 0; m < rml; m++){
+			for(int64_t x = 0; x < cpd; x++){
+				// The convolve code expects the data from file x (MTdisk[x]) to be in MTzmxy[x+1]
+				int xout = x + 1;
+				if (xout>=cpd) xout=0;
+				for(int64_t ky = 0; ky < node_ky_size; ky++){
+					MTzmxy[ zoff*rml*cpdky_pad + m*cpdky_pad + xout*node_ky_size + ky] =
+						MTdisk[ x*znode*rml*node_ky_size + zoff*rml*node_ky_size + m*node_ky_size + ky ];
+				}
+			}
+		}
+	}
 	
 	return;
 }
@@ -815,15 +815,12 @@ void ParallelConvolution::Convolve() {
 	CS.ConvolutionArithmetic = ConvolutionArithmetic.Elapsed();
 	CS.ReadDerivatives       =       ReadDerivatives.Elapsed(); 
 
-
 	STDLOG(2, "Beginning inverse FFT\n");
 	InverseZFFTTaylor.Clear(); 
 	InverseZFFTTaylor.Start(); 
 		FFT(backward_plan);
 	InverseZFFTTaylor.Stop(); 
 	CS.InverseZFFTTaylor = InverseZFFTTaylor.Elapsed();
-
-
 
 	ArraySwizzle.Start();
 		Swizzle_to_xzmy();   // Restore to the RAMdisk

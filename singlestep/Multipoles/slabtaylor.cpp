@@ -40,9 +40,9 @@ SlabTaylor::SlabTaylor(int order, int _cpd) : Taylor(order) {
     TaylorPencil    = (double **) malloc(sizeof(double*) * nprocs);
     cartesian       = (double **) malloc(sizeof(double*) * nprocs);
 
-    assert(posix_memalign((void **) &cc, PAGE_SIZE, cpd*cpd*sizeof(FLOAT3)) == 0);
-    assert(posix_memalign((void **) &count, PAGE_SIZE, cpd*cpd*sizeof(int)) == 0);
-    assert(posix_memalign((void **) &offset, PAGE_SIZE, cpd*cpd*sizeof(int)) == 0);
+    assert(posix_memalign((void **) &cc, PAGE_SIZE, cpd*node_z_size*sizeof(FLOAT3)) == 0);
+    assert(posix_memalign((void **) &count, PAGE_SIZE, cpd*node_z_size*sizeof(int)) == 0);
+    assert(posix_memalign((void **) &offset, PAGE_SIZE, cpd*node_z_size*sizeof(int)) == 0);
 
     #pragma omp parallel for schedule(static)
     for(int g = 0; g < nprocs; g++){
@@ -137,6 +137,9 @@ void SlabTaylorLocal::InverseFFTZ(int y, double *out, const Complex *in) {
 }
 
 void SlabTaylor::CellTaylorFromPencil(int z,  double *T, const double *pencil) {
+    // pencil: [rml, cpd]
+    // T: [cml]
+    
     int a,b,c;
     FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) 
         T[cmap(a,b,c)] = pencil[ rmap(a,b,c)*cpd + z ];

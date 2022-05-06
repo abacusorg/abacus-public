@@ -238,7 +238,7 @@ void SlabTaylorMPI::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
         for(int64_t z = 0; z < node_z_size; z++) {
             int64_t i = y*node_z_size + z;
             _r2c.Start();
-            CellTaylorFromPencil(z, cartesian[g], TaylorPencil[g]);
+            CellTaylorFromPencil(y, cartesian[g], &tbuf[z*rml*cpd]);
             _r2c.Stop();
             
             _tkernel.Start();
