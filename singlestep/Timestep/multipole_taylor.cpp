@@ -16,17 +16,27 @@ void ComputeTaylorForce(int slab) {
     TY->ConstructOffsets.Start();
     int cpd = CP->cpd;
 
+    // TODO: the concept of a per-pencil ghost offset is fairly general. Where to store?
+    int *ghost_offsets = new int[cpd];
+
     #pragma omp parallel for schedule(static)
-    for(int y=0;y<cpd;y++)
+    for(int y=0;y<cpd;y++){
+        
+        cellinfo *startci = CP->CellInfo(slab,y,node_z_start);
+        ghost_offsets[y] = startci->startindex_with_ghost - startci->startindex;
+        
         for(int z = 0; z < node_z_size; z++) {
             cellinfo *ciptr = CP->CellInfo(slab,y,node_z_start + z);
             int i = y*node_z_size + z;
+            // startindex indexes accs;
+            // startindex + ghost_offsets[y] indexes pos
             TY->offset[i] = ciptr->startindex;
             TY->count[i] =  ciptr->count;
             // For box-centered, this will be the cell center.
             // For local cell-centered positions, this will return 0!
             TY->cc[i] = CP->LocalCellCenter(slab,y,node_z_start + z);
         }
+    }
     TY->ConstructOffsets.Stop();
     
     // Recall that our accelerations/positions may be in single-precision.
@@ -34,8 +44,12 @@ void ComputeTaylorForce(int slab) {
     acc3struct *acc = (acc3struct *) SB->GetSlabPtr(FarAccSlab,slab);
 
     MTCOMPLEX *TaylorCoefficients = (MTCOMPLEX *) SB->GetSlabPtr(TaylorSlab,slab);
-    TY->EvaluateSlabTaylor( slab, acc, pos, TY->count, TY->offset, TY->cc, TaylorCoefficients);
-    RL->ApplyRedlack(slab, acc, pos, TY->count, TY->offset, TY->cc,P.np);
+    TY->EvaluateSlabTaylor( slab, acc, pos, TY->count, TY->offset, ghost_offsets,
+                            TY->cc, TaylorCoefficients);
+    RL->ApplyRedlack(slab, acc, pos, TY->count, TY->offset, ghost_offsets,
+                            TY->cc,P.np);
+
+    delete[] ghost_offsets;
 }
 
 /// The driver routine to compute the Multipoles on one slab
@@ -51,7 +65,7 @@ void ComputeMultipoleSlab(int slab) {
         for(int z = 0; z < node_z_size; z++) {
 	        cellinfo *ciptr = CP->MergeCellInfo(slab, y, node_z_start + z);
             int i = y*node_z_size + z;
-            MF->offset[i] = ciptr->startindex;
+            MF->offset[i] = ciptr->startindex_with_ghost;
             MF->count[i] =  ciptr->count;
             // For box-centered, this will be the cell center.
             // For local cell-centered positions, this will return 0!

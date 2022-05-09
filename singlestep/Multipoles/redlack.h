@@ -13,7 +13,9 @@ public:
     double redlack[3*MAXCPD];
     double3 globaldipole;
 
-    void ApplyRedlack(int slab, FLOAT3 *slabacceleration, FLOAT3 *slabpos, int *count, int *offset, FLOAT3 *cc, int np);
+    void ApplyRedlack(int slab, FLOAT3 *slabacceleration, FLOAT3 *slabpos,
+                        int *count, int *offset, int *ghost_offsets,
+                        FLOAT3 *cc, int np);
     void ClearVariables(void);
 
     void GatherRedlack(void);

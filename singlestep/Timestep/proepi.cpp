@@ -324,7 +324,9 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
 
     if(MF != NULL){ // Some pipelines, like standalone_fof, don't use multipoles
+        STDLOG(1, "globaldipole = (%g,%g,%g)\n", MF->globaldipole.x, MF->globaldipole.y, MF->globaldipole.z);
         MF->GatherRedlack();    // For the parallel code, we have to coadd the inputs
+        STDLOG(1, "globaldipole = (%g,%g,%g)\n", MF->globaldipole.x, MF->globaldipole.y, MF->globaldipole.z);
         int sum = 0;
         for(int i = 0; i < P.cpd; i++){
             STDLOG(1, "MassSlabX[%d] = %g\n", i, MF->MassSlabX[i]);

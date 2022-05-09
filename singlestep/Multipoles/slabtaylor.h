@@ -10,8 +10,8 @@ public:
     virtual ~SlabTaylor(void);
 
     virtual void EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
-                                    const int *count, const int *offset, const FLOAT3 *cc,
-                                    const MTCOMPLEX *TaylorCoefficients) = 0;
+                            const int *count, const int *offset, const int *ghost_offsets,
+                           const FLOAT3 *cc, const MTCOMPLEX *TaylorCoefficients) = 0;
     
     // no-ops in 1D
     virtual void ComputeIFFTZAndMPI(int x, MTCOMPLEX *outslab) { };
@@ -58,8 +58,8 @@ public:
     ~SlabTaylorLocal(void);
 
     void EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
-                            const int *count, const int *offset, const FLOAT3 *cc,
-                            const MTCOMPLEX *TaylorCoefficients);
+                            const int *count, const int *offset, const int *ghost_offsets,
+                            const FLOAT3 *cc, const MTCOMPLEX *TaylorCoefficients);
 
 private:
     void InverseFFTY(Complex *out, const MTCOMPLEX *in);

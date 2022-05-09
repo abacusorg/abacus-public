@@ -62,11 +62,13 @@ void Redlack::ComputeRedlack(void) {
 
 void Redlack::ApplyRedlack( int slab, 
                             FLOAT3 *slabacceleration, FLOAT3 *slabpos, 
-                            int *count, int *offset, FLOAT3 *cc, int np){
+                            int *count, int *offset, int *ghost_offsets,
+                            FLOAT3 *cc, int np){
 	TaylorRedlack.Start();
 
     #pragma omp parallel for schedule(static)
     for(int y=0;y<cpd;y++){
+        int gh_off = ghost_offsets[y];
         for(int z=0;z<node_z_size;z++) {
             int i = y*node_z_size + z;
             double3 dip2( redlack[slab], redlack[cpd+y], redlack[2*cpd + (z + node_z_start)] );
@@ -74,7 +76,7 @@ void Redlack::ApplyRedlack( int slab,
             
             #pragma omp simd
             for(int q = offset[i]; q < offset[i] + count[i]; q++) {
-                double3 red = fourthirdspi * ( dc - (slabpos[q]-cc[i])*MassTotal );
+                double3 red = fourthirdspi * ( dc - (slabpos[q + gh_off]-cc[i])*MassTotal );
                 slabacceleration[q] += red;
             }
         }

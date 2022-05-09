@@ -14,8 +14,8 @@ public:
     ~SlabTaylorMPI(void);
 
     void EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
-                        const int *count, const int *offset, const FLOAT3 *cc,
-                        const MTCOMPLEX *TaylorCoefficients);
+                        const int *count, const int *offset, const int *ghost_offsets,
+                        const FLOAT3 *cc, const MTCOMPLEX *TaylorCoefficients);
     
     void ComputeIFFTZAndMPI(int x, MTCOMPLEX *outslab);
     
@@ -203,8 +203,8 @@ void SlabTaylorMPI::InverseFFTY(double *out, const Complex *in){
 
 
 void SlabTaylorMPI::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
-                                        const int *count, const int *offset, const FLOAT3 *cc,
-                                        const MTCOMPLEX *_taylors_unused){
+                                        const int *count, const int *offset, const int *ghost_offset,
+                                        const FLOAT3 *cc, const MTCOMPLEX *_taylors_unused){
     // FA: particle accelerations
 
     Complex *rbuf = recvbuf[x];
@@ -234,6 +234,7 @@ void SlabTaylorMPI::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
     wc.Start();
 
     NUMA_FOR(y,0,cpd)
+        int gh_off = ghost_offset[y];
         int g = omp_get_thread_num();
         for(int64_t z = 0; z < node_z_size; z++) {
             int64_t i = y*node_z_size + z;
@@ -246,7 +247,7 @@ void SlabTaylorMPI::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
             memset(aa, 0, sizeof(FLOAT3)*count[i]);
 
             EvaluateTaylor( cartesian[g], 
-                               cc[i], count[i], (float3*) &spos[offset[i]], aa);
+                               cc[i], count[i], (float3*) &spos[offset[i] + gh_off], aa);
             _tkernel.Stop();
 
         }

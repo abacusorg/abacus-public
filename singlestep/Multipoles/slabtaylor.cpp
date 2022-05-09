@@ -150,8 +150,8 @@ void SlabTaylor::CellTaylorFromPencil(int z,  double *T, const double *pencil) {
 
 
 void SlabTaylorLocal::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
-                                        const int *count, const int *offset, const FLOAT3 *cc,
-                                        const MTCOMPLEX *TaylorCoefficients){
+                                        const int *count, const int *offset, const int *_ghost_offset_unused,
+                                        const FLOAT3 *cc, const MTCOMPLEX *TaylorCoefficients){
     // TaylorCoefficients: [(cpd+1)/2,m,cpd]
     // FA: particle accelerations
 
