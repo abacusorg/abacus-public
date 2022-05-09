@@ -4,15 +4,15 @@ SimName = "Galilean"
 #include "$ABACUS$/Production/site_files/site.def"
 
 ICFormat = "Lattice"
-ICVelocity2Displacement = 0.1  # velocity of the lattice, will saturate at 0.8 cells
+ICVelocity2Displacement = -0.1  # velocity of the lattice
 TimeStepAccel = 1e10
 TimeStepDlna = .03
 NumSlabsInsertList = 0  # big; lots of movement!
 NumSlabsInsertListIC = 0
-#NP = 1024**3
-#CPD = 243
-NP = 128**3
-CPD = 65
+NP = 1024**3
+CPD = 243
+#NP = 128**3
+#CPD = 65
 
 # Cosmology and basic code parameters
 BoxSize = 1

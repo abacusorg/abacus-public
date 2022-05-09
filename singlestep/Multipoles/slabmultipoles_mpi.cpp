@@ -211,7 +211,7 @@ void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos,
         globaldipole += localdipole[g];
         for(int64_t z = 0; z < node_z_size; z++){
             // MassSlabZ uses "global" z indices
-            MassSlabZ[CP->WrapSlab(z + node_z_start)] += localMassSlabZ[g*node_z_size + z];
+            MassSlabZ[z + node_z_start] += localMassSlabZ[g*node_z_size + z];
         }
     }
     delete[] localMassSlabZ;

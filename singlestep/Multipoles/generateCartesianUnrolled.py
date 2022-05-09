@@ -356,7 +356,7 @@ if __name__ == '__main__':
     if args.onlyorder:
         orders = [args.onlyorder]
     else:
-        orders = list(range(1,args.maxorder+1))
+        orders = list(range(0,args.maxorder+1))
 
     emit_unrolled_Multipoles(orders)
     #emit_unrolled_Multipoles_FMA(orders)

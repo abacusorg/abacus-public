@@ -346,7 +346,7 @@ void CreateDispatchFunction(){
         "   switch(order){\n"
     );
 
-    for(int i = 1; i <= MAXORDER; i++){
+    for(int i = 0; i <= MAXORDER; i++){
         fprintf(fp, "        case %d: Cartesian2Reduced<%d>(cartesian, reduced); break;\n", i, i);
     }
 

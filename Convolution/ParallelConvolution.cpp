@@ -774,9 +774,9 @@ void ParallelConvolution::FFT(fftw_plan plan) {
 /// This executes the convolve on the MTfile info.
 void ParallelConvolution::Convolve() {
 	STDLOG(1,"Beginning Convolution.\n");
-		
+	
     //InCoreConvolution *ICC = new InCoreConvolution(order, cpd, node_ky_size, blocksize, MPI_size_z > 1, cpdky_pad);
-	InCoreConvolution *ICC = new InCoreConvolution(order, cpd, node_ky_size, blocksize, 1, cpdky_pad);  //testing
+	InCoreConvolution *ICC = new InCoreConvolution(order, cpd, node_ky_size, 1, 1, cpdky_pad);  //testing
 
 	// We're beginning in [x][znode][m][y] order on the RAMdisk
 	// Copy to the desired order in a new buffer

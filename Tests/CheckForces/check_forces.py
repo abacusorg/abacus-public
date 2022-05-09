@@ -315,7 +315,7 @@ def plot_storeforces(fmag, figfn='checkforces_storeforces_absolute.png'):
 def _get_all_acc(param, dtype):
     
     accfns = sorted(Path(param['OutputDirectory']).glob('acc_*'))
-    auxfns = sorted(Path(param.get('ReadStateDirectory', Path(param['WorkingDirectory']) / 'read')).glob('aux*_*'))
+    auxfns = sorted(Path(param.get('ReadStateDirectory', Path(param['LocalWorkingDirectory']) / 'read')).glob('aux*_*'))
     pid_bitmask=0x7fff7fff7fff
     
     NP = param['NP']
@@ -552,4 +552,4 @@ if __name__ == '__main__':
                 save = args.pop('save')
                 run_orders(orders=range(2,order+1), run_kwargs=args, save=save)
             else:
-                run(**args)
+                run(order=order, **args)

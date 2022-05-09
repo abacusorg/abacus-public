@@ -325,10 +325,30 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     if(MF != NULL){ // Some pipelines, like standalone_fof, don't use multipoles
         MF->GatherRedlack();    // For the parallel code, we have to coadd the inputs
+        int sum = 0;
+        for(int i = 0; i < P.cpd; i++){
+            STDLOG(1, "MassSlabX[%d] = %g\n", i, MF->MassSlabX[i]);
+            sum += MF->MassSlabX[i];
+        }
+        STDLOG(1, "Sum: %d\n", sum);
+        STDLOG(1,"***************\n");
+        sum = 0;
+        for(int i = 0; i < P.cpd; i++){
+            STDLOG(1, "MassSlabY[%d] = %g\n", i, MF->MassSlabY[i]);
+            sum += MF->MassSlabY[i];
+        }
+        STDLOG(1, "Sum: %d\n", sum);
+        STDLOG(1,"***************\n");
+        sum = 0;
+        for(int i = 0; i < P.cpd; i++){
+            STDLOG(1, "MassSlabZ[%d] = %g\n", i, MF->MassSlabZ[i]);
+            sum += MF->MassSlabZ[i];
+        }
+
+        STDLOG(1, "Sum: %d\n", sum);
         if (MPI_rank==0) {
-            MF->ComputeRedlack();  // NB when we terminate SlabMultipoles we write out these
-            if (WriteState.NodeRank==0)
-                MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
+            MF->ComputeRedlack();
+            MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
         }
         delete MF;
         MF = NULL;

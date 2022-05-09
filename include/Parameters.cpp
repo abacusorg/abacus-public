@@ -678,7 +678,7 @@ void Parameters::ValidateParameters(void) {
         assert(1==0);
     }
 
-    if(order>16 || order < 2 ) {
+    if(! (order <= 16 && order >= 0) ) {
         fprintf(stderr,
             "[ERROR] order = %d must be less than or equal to 16 and greater than 1\n",
             order);
