@@ -78,7 +78,7 @@ void RescaleAndCoAddAcceleration(int slab) {
     if(P.MakeGlass)
         rescale *= -1;
 
-    // no ghost kick    
+    // no ghost kick
     uint64 N = SS->size(slab);
 
     #ifdef DIRECTSINGLESPLINE

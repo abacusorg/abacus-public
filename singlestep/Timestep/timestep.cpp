@@ -949,34 +949,24 @@ void AttemptReceiveManifest(){
 }
 
 #define INSTANTIATE(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &dependency##Precondition, &dependency##Action, #dependency); } while(0)
-#define INSTANTIATE_NOOP(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &NoopPrecondition, &NoopAction, ""); } while(0)
+#define INSTANTIATE_NOOP(dependency, first_relative) do { dependency.instantiate(nslabs, first + first_relative, &NoopPrecondition, &NoopAction, ""); for(int i = 0; i < P.cpd; i++) dependency.force_done(i);} while(0)
 
 
-void InitializePipelineWidths(int MakeIC){
+void InitializeForceRadius(int MakeIC){
     FORCE_RADIUS = MakeIC ? 0 : P.NearFieldRadius;
-    // The 2LPT pipeline is short (no group finding). We can afford to wait an extra slab to allow for large IC displacements
-    FINISH_WAIT_RADIUS = (MakeIC || LPTStepNumber()) > 0 ? 2 : 1;
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
-
     STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
-    STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
 }
 
+
 // This happens much later, after outputs and group finding are planned
-void InitializeGroupRadius(){
+void InitializePipelineWidths(int MakeIC){
     GROUP_RADIUS = GFC != NULL ? P.GroupRadius : 0;
     assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS);
     STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
-}
 
-void timestep(void) {
-
-#ifdef PARALLEL
-    ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory);
-#endif
-
-    TimeStepWallClock.Clear();  TimeStepWallClock.Start();
-    STDLOG(1,"Initiating timestep()\n");
+    // The 2LPT pipeline is short (no group finding). We can afford to wait an extra slab to allow for large IC displacements
+    FINISH_WAIT_RADIUS = (MakeIC || LPTStepNumber()) > 0 ? 2 : 1;
 
 #ifdef PARALLEL
     /* In the parallel code, we're about to send all of the info up to
@@ -992,19 +982,29 @@ void timestep(void) {
     as a source to any slabs on this node.  Need Kick[slab-1+FORCE_RADIUS]
     to be done to avoid this.
 
-
-
     We fix this by forcing FINISH_WAIT_RADIUS to be big enough.  */
     if (FINISH_WAIT_RADIUS+2*GROUP_RADIUS<FORCE_RADIUS)
         FINISH_WAIT_RADIUS = FORCE_RADIUS-2*GROUP_RADIUS;
 
     // TODO: I'm not sure inflating FINISH_WAIT_RADIUS is the best way to deal with this
     // TODO: Also not sure this is the minimum number of slabs, even in that case
-    // assertf(total_slabs_on_node >= 2*FINISH_WAIT_RADIUS + 1 + 2*FORCE_RADIUS + 4*GROUP_RADIUS, "Not enough slabs on node to finish any slabs!\n");
     int PAD = 0;
     assertf(total_slabs_on_node >= (2*GROUP_RADIUS + 1) + 2*FORCE_RADIUS + 1 + PAD, "Not enough slabs on node to close first group!\n");
     assertf(total_slabs_on_node >= 2*GROUP_RADIUS + FORCE_RADIUS + 2 * FINISH_WAIT_RADIUS + 1 + PAD, "Not enough slabs on node to finish any slabs!\n");
 #endif
+
+    STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
+}
+
+
+void timestep(void) {
+
+#ifdef PARALLEL
+    ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory);
+#endif
+
+    TimeStepWallClock.Clear();  TimeStepWallClock.Start();
+    STDLOG(1,"Initiating timestep()\n");
 
     int nslabs = P.cpd;
     int first = first_slab_on_node;  // First slab to load
@@ -1018,6 +1018,8 @@ void timestep(void) {
     if(LPTStepNumber() == 2){
         first_outputslab = max(FINISH_WAIT_RADIUS,first_outputslab);
     }
+
+    STDLOG(1, "first_outputslab = %d, first_outputslab + FINISH_WAIT_RADIUS = %d\n", first_outputslab, first_outputslab + FINISH_WAIT_RADIUS);
 
 
     INSTANTIATE(                  FetchSlabs, 0);

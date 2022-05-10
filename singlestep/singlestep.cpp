@@ -194,7 +194,7 @@ int main(int argc, char **argv) {
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
     STDLOG(0,"MakeIC = %d\n", MakeIC);
 
-    InitializePipelineWidths(MakeIC);
+    InitializeForceRadius(MakeIC);
     InitializeParallelDomain();  // needs ReadState
     
     SetupLocalDirectories(MakeIC);
@@ -247,7 +247,7 @@ int main(int argc, char **argv) {
     // Set up the Group Finding concepts and decide if Group Finding output is requested.
     InitGroupFinding(MakeIC);
     
-    InitializeGroupRadius();  // needs to know if this step will do group finding
+    InitializePipelineWidths(MakeIC);  // needs to know if this step will do group finding
     InitializeParallelMergeDomain();  // needs to know if the *next* step will do group finding
     LogParallelTopology();
 
