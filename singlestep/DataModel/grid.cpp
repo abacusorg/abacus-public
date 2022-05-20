@@ -40,6 +40,9 @@ public:
     double invcpd3;	// Volume of a cell in sim units
     double halfinvcpd;	// Half the size of a cell in sim units
 
+    FLOAT pinvcpd;  // invcpd, in same precision as posstruct
+    FLOAT phalfinvcpd;
+
     grid(int _cpd) {
         assert(_cpd%2==1);  	// check it is odd 
         cpd     = _cpd;
@@ -47,6 +50,9 @@ public:
         invcpd  = BOXSIZE/((double) cpd);   
         invcpd3 = invcpd*invcpd*invcpd;
         halfinvcpd = 0.5*invcpd;
+
+        pinvcpd = (FLOAT) invcpd;
+        phalfinvcpd = 0.5f * pinvcpd;
     }
 
     // These wrap the given cell index to the primary zone.

@@ -178,7 +178,7 @@ private:
             aux.packpid(next_pid+i); // use packpid to pack our "linear" pid into the distributed aux format
             set_taggable_bits(aux, sumA, sumB);
 
-            IL->Push(&_pos, &vel, &aux, newcell);
+            IL->WrapAndPush(&_pos, &vel, &aux, newcell);
         }
 
         // Store the local reductions in the class variables
@@ -248,7 +248,7 @@ private:
             aux.packpid(p.pid);
             this->set_taggable_bits(aux, sumA, sumB);
 
-            IL->Push(&_pos, &vel, &aux, newcell);
+            IL->WrapAndPush(&_pos, &vel, &aux, newcell);
         }
 
         // Store the local reductions in the class variables
@@ -325,7 +325,7 @@ private:
             aux.setpid(ijk); // Set aux too.
             this->set_taggable_bits(aux, sumA, sumB);
 
-            IL->Push(&_pos, &vel, &aux, newcell);
+            IL->WrapAndPush(&_pos, &vel, &aux, newcell);
         }
 
         // Store the local reductions in the class variables
@@ -411,7 +411,7 @@ private:
             aux.setpid(ijk); // Set aux too.
             set_taggable_bits(aux, sumA, sumB);
 
-            IL->Push(&_pos, &_vel, &aux, newcell);
+            IL->WrapAndPush(&_pos, &_vel, &aux, newcell);
         }
 
         // Store the local reductions in the class variables
@@ -497,7 +497,10 @@ public:
             aux.setpid(ijk); // Set aux too.
             set_taggable_bits(aux, sumA, sumB);
 
-            IL->Push(&_pos, &vel, &aux, newcell);
+            // One might expect to use Push() instead of WrapAndPush() here.
+            // But LocalPosition2Cell() uses doubles, which may spill a cell
+            // once converted to float.
+            IL->WrapAndPush(&_pos, &vel, &aux, newcell);
         }
 
         // Store the local reductions in the class variables

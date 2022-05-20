@@ -32,7 +32,7 @@ inline int SetInteractionCollection::PaddedSourceCount(int sourceindex) {
 /// Given a (k) of the internal sink indexing, return
 /// the z of the central cell
 inline int SetInteractionCollection::index_to_zcen(int k, int twoD) {
-    // The first sink pencil is the first one with all valid cells in the primary region
+    // The first sink pencil is the first one with all cells in the primary region
     int kk = k + k_low + nfradius;    // The central cell
     int pad = twoD ? nfradius : 0;
     if(kk >= node_z_start + node_z_size + pad) kk -= node_z_size + 2*pad;

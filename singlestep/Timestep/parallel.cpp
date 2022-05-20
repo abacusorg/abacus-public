@@ -295,22 +295,20 @@ inline bool is_left_ghost(ilstruct *particle, int slab, int first_ghost){
  * 1. Partition the IL to find particles the neighbor needs (for its primary or ghost)
  * 2. Copy them to a buffer
  * 3. Initiate an MPI_Isend
- * 4. Partition the tail of the IL, this time for particles that are *only* in the neighbor's primary
- * 5. "Delete" them
  * 
  * And then later...
- * 6. Check if we have an incoming MPI message
- * 7. Allocate space to receive the message
- * 8. Start the MPI_Irecv
+ * 4. Check if we have an incoming MPI message
+ * 5. Allocate space to receive the message
+ * 6. Start the MPI_Irecv
  * 
  * And then later...
- * 9. Check if the receive is done
- * 10. Push the buffer onto the insert list
- * 11. Free the receive buffer and release the MPI handle
+ * 7. Check if the receive is done
+ * 8. Push the buffer onto the insert list
+ * 9. Free the receive buffer and release the MPI handle
  *
  * And sometime after the send...
- * 12. Check if the send is complete
- * 13. Free the send buffer and release the MPI handle
+ * 10. Check if the send is complete
+ * 11. Free the send buffer and release the MPI handle
  */
 
 /* Represents a z exchange with one neighbor.
@@ -351,23 +349,17 @@ public:
 
         // 3. MPI_Isend
         launch_mpi_send();
-
-        // 4. tail partition
-        size_t removed = tail_partition(start, sendelem);
-
-        // 5. delete
-        IL->ShrinkMAL(IL->length - removed);
     }
 
     int check_send_done(){
         if(send_status == 1){
             int done = 0;
-            // 12. done send?
+            // 10. done send?
             MPI_Test(&send_handle, &done, MPI_STATUS_IGNORE);
             if (done) {
                 STDLOG(1, "Done ilstruct send to zrank %d for slab %d\n", zneigh, slab);
 
-                // 13. free
+                // 11. free
                 free(sendbuf);
                 sendbuf = NULL;
                 send_status = 2;
@@ -399,28 +391,6 @@ private:
         
         *nhigh = (size_t) (IL->length - mid);
         return IL->list + mid;
-    }
-
-    size_t tail_partition(ilstruct *start, size_t nelem){
-        // No need to collect gaps; still contiguous from partition()
-        
-        uint64 mid;
-        if(right){
-            mid = ParallelPartition(start, nelem,
-                is_right_ghost,
-                slab,
-                node_z_start + node_z_size);
-        }
-        else {
-            mid = ParallelPartition(start, nelem,
-                is_left_ghost,
-                slab,
-                node_z_start - 1);
-        }
-        
-        size_t nhigh = (size_t) nelem - mid;
-        STDLOG(2,"Removing %d particles that are in neighbor's primary\n", nhigh);
-        return nhigh;
     }
 
     void copy_to_sendbuf(ilstruct *start, size_t nelem){
@@ -460,7 +430,7 @@ private:
 
         #pragma omp parallel for schedule(static)
         for(uint64 i = 0; i < recvelem; i++){
-            // Sorting key is relative to the node-local ghost-z-start.
+            // Adjust sorting key to be relative to the node-local ghost_z_start.
             int _y = recvbuf[i].k / P.cpd;
             recvbuf[i].k = _y*P.cpd + CP->WrapSlab( (recvbuf[i].k % P.cpd) - (node_z_start - all_node_z_start[zneigh]));
             IL->list[oldlen + i] = recvbuf[i];
@@ -475,14 +445,14 @@ public:
             // Not allowed to import recvbuf until we send! Otherwise we will send things we received
 
             int done = 0;
-            // 9. done receive?
+            // 7. done receive?
             MPI_Test(&recv_handle, &done, MPI_STATUS_IGNORE);
             if (done) {
                 STDLOG(1, "Done ilstruct receive from zrank %d for slab %d\n", zneigh, slab);
-                // 10. push to IL
+                // 8. push to IL
                 push_buffer_to_IL();
 
-                // 11. free
+                // 9. free
                 free(recvbuf);
                 recvbuf = NULL;
                 recv_status = 2;
@@ -494,14 +464,14 @@ public:
             return;  // all done!
 
         if (recv_status == 0){
-            // 6. check for incoming
+            // 4. check for incoming
             MPI_Status status;
             // if we sent to the right, receive from the left
             int tag = right ? (slab + LEFT_TAG_OFFSET) : (slab + RIGHT_TAG_OFFSET);
             int ready = 0;
             MPI_Iprobe(zneigh, tag, comm_1d_z, &ready, &status);
             if(ready){
-                // 7. alloc recvbuf
+                // 5. alloc recvbuf
                 int _recvelem32;
                 MPI_Get_count(&status, MPI_ilstruct, &_recvelem32);
                 recvelem = (size_t) _recvelem32;
@@ -509,7 +479,7 @@ public:
                 posix_memalign((void **) &recvbuf, PAGE_SIZE, sz);
                 assertf(recvbuf != NULL, "Failed neighbor exchange recvbuf alloc of %d bytes\n", sz);
                 
-                // 8. start recv
+                // 6. start recv
                 STDLOG(1, "Receiving %d ilstructs (%.4g MB) from zrank %d for slab %d\n",
                     recvelem, recvelem*sizeof(ilstruct)/1e6, zneigh, slab);
                 MPI_Irecv(recvbuf, (int) recvelem, MPI_ilstruct, zneigh, tag, comm_1d_z, &recv_handle);

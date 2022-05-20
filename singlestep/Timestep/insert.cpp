@@ -143,38 +143,45 @@ public:
 
     inline integer3 LocalWrapToNewCell(posstruct *pos, auxstruct *aux,
         int oldx, int oldy, int oldz) {
+
         // We have been given a particle that has drifted out of its cell.
         // Find the new cell, changing the position as appropriate.
         // This is for cell-referenced positions
         assertf(fabs(pos->x)<0.5&&fabs(pos->y)<0.5&&fabs(pos->z)<0.5,
             "Particle has moved way too much: %f %f %f\n",
             pos->x, pos->y, pos->z);
-        while (pos->x>halfinvcpd) {
-            oldx+=1; pos->x-=invcpd;
+        while (pos->x>=phalfinvcpd) {
+            oldx+=1; pos->x-=pinvcpd;
             if (oldx==cpd) aux->clearLightCone();
         }
-        while (pos->x<-halfinvcpd) {
+        while (pos->x<-phalfinvcpd) {
             if (oldx==0) aux->clearLightCone();
-            oldx-=1; pos->x+=invcpd;
+            oldx-=1; pos->x+=pinvcpd;
         }
-        while (pos->y>halfinvcpd) {
-            oldy+=1; pos->y-=invcpd;
+        while (pos->y>=phalfinvcpd) {
+            oldy+=1; pos->y-=pinvcpd;
             if (oldy==cpd) aux->clearLightCone();
         }
-        while (pos->y<-halfinvcpd) {
+        while (pos->y<-phalfinvcpd) {
             if (oldy==0) aux->clearLightCone();
-            oldy-=1; pos->y+=invcpd;
+            oldy-=1; pos->y+=pinvcpd;
         }
-        while (pos->z>halfinvcpd) {
-            oldz+=1; pos->z-=invcpd;
+        while (pos->z>=phalfinvcpd) {
+            oldz+=1; pos->z-=pinvcpd;
             if (oldz==cpd) aux->clearLightCone();
         }
-        while (pos->z<-halfinvcpd) {
+        while (pos->z<-phalfinvcpd) {
             if (oldz==0) aux->clearLightCone();
-            oldz-=1; pos->z+=invcpd;
+            oldz-=1; pos->z+=pinvcpd;
         }
         return WrapCell(oldx, oldy, oldz);
     }
+
+
+    inline void WrapAndPush(posstruct *pos, velstruct *vel, auxstruct *aux, integer3 cell) {
+        WrapAndPush(pos, vel, aux, cell.x, cell.y, cell.z);
+    }
+
 
     inline void WrapAndPush(posstruct *pos, velstruct *vel, auxstruct *aux,
         int x, int y, int z) {
