@@ -139,16 +139,20 @@ void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start,
     accstruct *p = (accstruct *)SinkAccSlab+cell[0].start;
     accstruct *pin = pinacc;
     // At the beginning of the row, we get to set the whole thing
-    if(k == 0)
+    int nwritten = 0;
+    if(k == 0){
         memcpy(p, pin, sizeof(accstruct)*total);
+        nwritten += total;
+    }
     else {
-        int last_N = cell[2*NearFieldRadius].N;
+        int last_N;
 
         // count how many particles before the wrap or the last cell
         int coadd_contig;
         if(wrapcell > 0){
             coadd_contig = cell[wrapcell-1].start + cell[wrapcell-1].N - cell[0].start;
         } else {
+            last_N = cell[2*NearFieldRadius].N;
             coadd_contig = total - last_N;
         }
         assert(coadd_contig >= 0);
@@ -157,6 +161,7 @@ void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start,
         for (int t=0; t<coadd_contig; t++)
             p[t] += pin[t];
         pin += coadd_contig;
+        nwritten += coadd_contig;
 
         if (wrapcell > 0){
             // past the wrap: co-add
@@ -165,12 +170,16 @@ void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start,
             assert(coadd_contig >= 0);
             for(int t=0; t < coadd_contig; t++)
                 p[t] += pin[t];
+            nwritten += coadd_contig;
         } else {
             // last cell, not past the wrap: set
             p = (accstruct *) SinkAccSlab + cell[2*NearFieldRadius].start;
             memcpy(p, pin, sizeof(accstruct)*last_N);
+            nwritten += last_N;
         }
     }
+
+    assert(nwritten == total);
 
     // Check that all particles have finite accel
     /*for(int c = 0; c < 2*NearFieldRadius+1; c++){

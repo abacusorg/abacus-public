@@ -283,7 +283,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     //   SinkBlockParentPencil[block] points back to the (j,k) sinkset enumeration
     //
     
-    #pragma omp parallel for schedule(static) 
+    #pragma omp parallel for schedule(static)
     for(int j = 0; j < j_width; j++){
         // Figure out where to start the enumeration in this skewer
         int block_start = skewer_blocks_start[j];
