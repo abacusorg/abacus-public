@@ -4,15 +4,12 @@ import ctypes as ct
 import os
 import csv
 import contextlib
-import re
-from glob import glob
 import string
 from collections import OrderedDict
+import subprocess
 
 import numpy as np
 import numexpr as ne
-
-from .Reglob import reglob
 
 # all values returned in GB
 # try to return 'available' RAM, but some systems only have 'total' and 'free', so fallback to those
@@ -346,8 +343,8 @@ def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03, adaptive=Fals
         newbw = bw*(1 - alpha*color)
 
         print('Starting new KDE...')
-        kde = TreeKDE(bw=newbw).fit(xy)
-        color = kde.evaluate(xy)
+        kde = KernelDensity(kernel='gaussian', bandwidth=newbw, rtol=1e-2).fit(xy)
+        color = kde.score_samples(xy)
         color = np.log(color)
 
     
@@ -416,3 +413,38 @@ if __name__ == '__main__':
     fm = get_RAM_info()
     print(fm) 
     
+
+def reset_affinity(max_core_id=256):
+    '''
+    Resets the core affinity of the current process/thread.
+    Mainly used by `call_subprocess()`.
+    '''
+    # TODO: how to detect the maximum core id?
+    # The lowest allowable value we have seen is 256
+    os.sched_setaffinity(0, range(max_core_id))
+
+
+def call_subprocess(*args, **kwargs):
+    """
+    This is a wrapper to subprocess.check_call() that first resets CPU affinity.
+
+    Why do we need to do this?  The number of cores that OpenMP allows itself
+    to use is limited by the affinity mask of the process *at initialization*.
+    And the OMP_PLACES mechanism may have already limited Python's affinity
+    mask if we happened to load a shared object that uses OpenMP (say, an
+    analysis routine).
+
+    Why does OMP_PLACES affect the affinity mask of the master thread?
+    Because the master thread is actually the first member of the OpenMP
+    thread team!
+
+    Also, timeout arguments are interpreted as being in minutes, rather than
+    seconds.
+    """
+
+    timeout = kwargs.pop('timeout',None)
+    if timeout is not None:
+        timeout *= 60
+
+    # A TimeoutExpired error will be raised if we time out. Could catch it, but probably fine to crash
+    subprocess.run(*args, **kwargs, timeout=timeout, preexec_fn=reset_affinity, check=True)

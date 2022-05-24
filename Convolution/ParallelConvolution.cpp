@@ -335,10 +335,8 @@ void ParallelConvolution::AllocMT(){
 void ParallelConvolution::AllocDerivs(){
 	AllocateDerivs.Clear(); AllocateDerivs.Start();
 
-	//if(MPI_size_z > 1){
-	if(1){  // testing
-		//Ddisk_bytes = sizeof(DFLOAT)*rml*(cpd+1)/2*node_ky_size;
-		Ddisk_bytes = sizeof(DFLOAT)*rml*(cpd+1)/2* ( MPI_size_z > 1 ? node_ky_size : (cpd+1)/2);
+	if(MPI_size_z > 1){
+		Ddisk_bytes = sizeof(DFLOAT)*rml*(cpd+1)/2*node_ky_size;
 	} else {
 		Ddisk_bytes = sizeof(DFLOAT)*rml*CompressedMultipoleLengthXY;
 	}
@@ -373,8 +371,7 @@ void ParallelConvolution::LoadDerivatives(int z) {
 	int z_file = z + zstart;	
 
     const char *f32str = sizeof(DFLOAT) == 4 ? "_float32" : "";
-	//const char *twoDstr = MPI_size_z > 1 ? "_2D" : "";
-	const char *twoDstr = "_2D";  // testing 1D with 2D
+	const char *twoDstr = MPI_size_z > 1 ? "_2D" : "";
 	const char *fnfmt = "%s/fourierspace%s%s_%d_%d_%d_%d_%d";
 	
     // note the derivatives are stored in z-slabs, not x-slabs
@@ -661,16 +658,12 @@ int ParallelConvolution::CheckTaylorSlabReady(int slab) {
 
 /// Create the MTzmxy buffer and copy into it from MTdisk.
 // Note that this is also a type-casting from float to double.
-// I wonder if this is why this step has been slow?
 void ParallelConvolution::Swizzle_to_zmxy() {
 	STDLOG(2,"Entering Swizzle_to_zmxy\n");
-	  
-	// In the 2D code, the *ky* dimension is actually the one with length (CPD+1)/2.
-	// OPTION: We will transpose ky and kz here and lie to the rest of the code.
-	// TODO: change needed in ICC?
 
 	// in: [cpd][znode][rml][node_ky_size]
 	// out: [znode][rml][cpd][node_ky_size]
+	#pragma omp parallel for schedule(static) collapse(2)
 	for(int64_t zoff = 0; zoff < znode; zoff++){
 		for(int64_t m = 0; m < rml; m++){
 			for(int64_t x = 0; x < cpd; x++){
@@ -775,8 +768,7 @@ void ParallelConvolution::FFT(fftw_plan plan) {
 void ParallelConvolution::Convolve() {
 	STDLOG(1,"Beginning Convolution.\n");
 	
-    //InCoreConvolution *ICC = new InCoreConvolution(order, cpd, node_ky_size, blocksize, MPI_size_z > 1, cpdky_pad);
-	InCoreConvolution *ICC = new InCoreConvolution(order, cpd, node_ky_size, 1, 1, cpdky_pad);  //testing
+    InCoreConvolution *ICC = new InCoreConvolution(order, cpd, node_ky_size, blocksize, MPI_size_z > 1, cpdky_pad);
 
 	// We're beginning in [x][znode][m][y] order on the RAMdisk
 	// Copy to the desired order in a new buffer

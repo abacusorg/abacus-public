@@ -160,12 +160,12 @@ def run(ppd=None, cpd=None, order=DEFAULT_ORDER, dtype=np.float32, force_output_
 # We only return a single acc slab for plotting; all the accelerations might be too big!
 def analyze_storeforces(params, dtype, slabfns=None, silent=False, raw=False):
     if slabfns is None:
-        slabfns = sorted(Path(params.OutputDirectory).glob("acc_*"))
+        slabfns = sorted(Path(params['OutputDirectory']).glob("acc_*"))
 
-    n1d = int(round(params.NP**(1./3)))
+    n1d = int(round(params['NP']**(1./3)))
     
     # Apply the Zel'dovich approximation scaling of forces to displacements, in units of the interparticle spacing
-    rescale = 1/(1.5*params.Omega_M)*n1d
+    rescale = 1/(1.5*params['Omega_M'])*n1d
     
     running_sum = 0.
     running_sum_of_square = 0.
@@ -225,7 +225,7 @@ def analyze_storeforces(params, dtype, slabfns=None, silent=False, raw=False):
                }
 
     if not raw:
-        finalize_results(results, params.NP)
+        finalize_results(results, params['NP'])
     
     if not silent:
         print('Force statistics (equivalent ZA displacement in units of interparticle spacing):')
@@ -243,21 +243,21 @@ def finalize_results(results, NP):
 
     
 def analyze_forceoutputdebug(params, dtype):
-    n1d = int(round(params.NP**(1./3)))
+    n1d = int(round(params['NP']**(1./3)))
     
     # Need to do the Kick rescaling to put these forces in the same units as StoreForces
-    rescale = 3.0*params.Omega_M/(8.0*np.pi*params.NP)
+    rescale = 3.0*params['Omega_M']/(8.0*np.pi*params['NP'])
 
     # Additionally apply the Zel'dovich approximation scaling of forces to displacements, in units of the interparticle spacing
-    rescale *= 1/(1.5*params.Omega_M)*n1d
+    rescale *= 1/(1.5*params['Omega_M'])*n1d
     
     running_sum = 0.
     running_sum_of_square = 0.
     running_max = 0.
     running_min = np.inf
     running_min_nz = np.inf
-    for nearfn, farfn in zip(sorted(Path(params.OutputDirectory).glob("nearacc_*")),
-                             sorted(Path(params.OutputDirectory).glob("faracc_*"))):
+    for nearfn, farfn in zip(sorted(Path(params['OutputDirectory']).glob("nearacc_*")),
+                             sorted(Path(params['OutputDirectory']).glob("faracc_*"))):
         nacc = np.fromfile(nearfn, dtype=dtype)
         facc = np.fromfile(farfn, dtype=dtype)
         nacc *= rescale
@@ -287,10 +287,10 @@ def analyze_forceoutputdebug(params, dtype):
     
     results = {'Max':running_max,
                #'99%':np.sort(mag(tabs))[int(.99*len(tabs))],
-               'Mean':running_sum/params.NP,
+               'Mean':running_sum/params['NP'],
                'Min':running_min,
                'Min (nonzero)':running_min_nz,
-               'RMS':np.sqrt(running_sum_of_square/params.NP)
+               'RMS':np.sqrt(running_sum_of_square/params['NP'])
                }
     
     print('Force statistics (equivalent ZA displacement in units of interparticle spacing):')

@@ -826,6 +826,10 @@ void Parameters::ValidateParameters(void) {
         NumZRanks = 1;
     }
 #endif
+
+    if(NumZRanks > 1){
+        strncat(DerivativesDirectory, "/2D", 1024);
+    }
 }
 
 Parameters P;

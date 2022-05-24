@@ -6,6 +6,7 @@ facilitates analysis with MPI, mainly to accelerate reading the TB of acc
 data from network file systems.
 '''
 
+from pathlib import Path
 import argparse
 from glob import glob
 from os.path import join as pjoin
@@ -27,16 +28,17 @@ def main(accdir, dtype=DEFAULT_DTYPE):
     root = 0
 
     accfns = sorted(glob(pjoin(accdir, 'acc_*')))
-    cpd = len(accfns)
+    nfn = len(accfns)
 
     # check that we have all acc slabs
     params = InputFile(pjoin(accdir, 'abacus.par'))
-    assert cpd == params['CPD']
+    params = dict(params)
+    assert nfn == params['CPD']*params.get('NumZRanks',1)
 
-    start, end = rank*cpd//size, (rank+1)*cpd//size
+    start, end = rank*nfn//size, (rank+1)*nfn//size
     print(f'Rank {rank} processing slabs [{start},{end})')
 
-    myaccfns = [pjoin(accdir, f'acc_{i:04d}') for i in range(start,end)]
+    myaccfns = accfns[start:end]
 
     acc_mag, results = check_forces.analyze_storeforces(params, dtype, slabfns=myaccfns, silent=True, raw=True)
 
@@ -56,7 +58,7 @@ def main(accdir, dtype=DEFAULT_DTYPE):
     del results
 
     # Convert 'Sum' into 'Mean' etc
-    check_forces.finalize_results(all_results, params.NP)
+    check_forces.finalize_results(all_results, params['NP'])
 
     if rank == root:
         print('Global force statistics (equivalent ZA displacement in units of interparticle spacing):')

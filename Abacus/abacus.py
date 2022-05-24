@@ -43,6 +43,8 @@ from .InputFile import InputFile
 from . import Tools
 from . import GenParam
 from . import zeldovich
+from . import derivatives
+from .Tools import call_subprocess
 
 
 NEEDS_INTERIM_BACKUP_MINS = 105  #minimum job runtime (in minutes) for which we'd like to do a backup halfway through the job. 
@@ -237,84 +239,6 @@ def clean_dir(bd, preserve=None, rmdir_ifempty=True):
                 os.rmdir(bd)
             except OSError:
                 pass
-
-def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
-    '''
-    Look for the derivatives required for param and make them if they don't exist.
-    '''
-
-    # We will attempt to copy derivatives from the archive dir if they aren't found
-    if derivs_archive_dirs == True:
-        derivs_archive_dirs = []
-        for var in ['ABACUS_PERSIST', 'ABACUS_SSD', 'ABACUS_DERIVS']:
-            if var in os.environ:
-                derivs_archive_dirs += [pjoin(os.environ[var], 'Derivatives')]
-
-    if type(derivs_archive_dirs) is str:
-        derivs_archive_dirs = [derivs_archive_dirs]
-
-    os.makedirs(param.DerivativesDirectory, exist_ok=True)
-
-    #note! added this in to run Ewald test for far_radius 1-8,16
-    for ADnum in list(range(1,9)) + [16]:
-        ADfn = f'AD32_{ADnum:03d}.dat'
-        source_ADfn = pjoin(abacuspath, "Derivatives", ADfn)
-        if not path.isfile(pjoin(param.DerivativesDirectory, ADfn)):
-            shutil.copy(source_ADfn,param.DerivativesDirectory)
-
-    suffix = f"{param.CPD:d}_{param.Order:d}_{param.NearFieldRadius:d}_{param.DerivativeExpansionRadius:d}" + "_{slab:d}"
-    fnfmt32 = "fourierspace_float32_" + suffix
-    fnfmt64 = "fourierspace_" + suffix
-
-    derivativenames32, derivativenames64 = [], []
-    for i in range(0,param.CPD//2+1):
-        derivativenames32 += [fnfmt32.format(slab=i)]
-        derivativenames64 += [fnfmt64.format(slab=i)]
-    derivativenames = derivativenames32 if floatprec else derivativenames64
-    fnfmt = fnfmt32 if floatprec else fnfmt64
-
-    create_derivs_cmd = [pjoin(abacuspath, "Derivatives", "CreateDerivatives"),
-                        str(param.CPD),str(param.Order),str(param.NearFieldRadius),str(param.DerivativeExpansionRadius)]
-
-    parallel = param.get('Parallel', False)
-
-    # TODO: parallel CreateDerivs?
-    if False and parallel:
-        if 'Conv_mpirun_cmd' in param:
-            create_derivs_cmd = shlex.split(param['Conv_mpirun_cmd']) + create_derivs_cmd
-        else:
-            create_derivs_cmd = shlex.split(param['mpirun_cmd']) + create_derivs_cmd
-
-    # First check if the derivatives are in the DerivativesDirectory
-    if not all(path.isfile(pjoin(param.DerivativesDirectory, dn)) for dn in derivativenames):
-
-        # If not, check if they are in the canonical $ABACUS_PERSIST/Derivatives directory
-        for derivs_archive_dir in derivs_archive_dirs:
-            if all(path.isfile(pjoin(derivs_archive_dir, dn)) for dn in derivativenames):
-                print(f'Found derivatives in archive dir "{derivs_archive_dir}". Copying to DerivativesDirectory "{param.DerivativesDirectory}".')
-                for dn in derivativenames:
-                    shutil.copy(pjoin(derivs_archive_dir, dn), pjoin(param.DerivativesDirectory, dn))
-                break
-        else:
-            print(f'Could not find derivatives in "{param.DerivativesDirectory}" or archive dirs "{derivs_archive_dirs}". Creating them...')
-            print(f"Error was on file pattern '{fnfmt}'")
-
-            if floatprec:
-                # first make sure the derivatives exist in double format
-                MakeDerivatives(param, floatprec=False)
-                # now make a 32-bit copy
-                from . import convert_derivs_to_float32
-                for dpath in derivativenames64:
-                    convert_derivs_to_float32.convert(pjoin(param.DerivativesDirectory, dpath))
-            else:
-                with Tools.chdir(param.DerivativesDirectory):
-                    try:
-                        os.remove("./farderivatives")
-                    except OSError:
-                        pass
-                    if parallel:
-                        print('Dispatching CreateDerivatives with command "{}"'.format(' '.join(create_derivs_cmd)))
-                    call_subprocess(create_derivs_cmd)
 
 
 def default_parser():
@@ -814,6 +738,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     param = InputFile(paramfn)
 
     parallel = param.get('Parallel', False)
+    twoD = param.get('NumZRanks', 0) > 1 and parallel
 
     do_fake_convolve = param.get('FakeConvolve', False)
 
@@ -858,7 +783,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     # floatprec=True effectively guarantees both precisions are available
     # TODO: how to tell if Abacus was compiled in double precision?
     if not do_fake_convolve:
-        MakeDerivatives(param, floatprec=True)
+        derivatives.make_derivatives(param, floatprec=True, twoD=twoD)
 
     if make_ic and not zeldovich.is_on_the_fly_format(param.ICFormat):
         print("Ingesting IC from "+param.InitialConditionsDirectory+" ... Skipping convolution")
@@ -1440,39 +1365,3 @@ def showwarning(message, category, filename, lineno, file=None, line=None):
     print(f'{filename}:{lineno}: {category.__name__}: {message}', file=file)
 
 warnings.showwarning = showwarning
-
-
-def reset_affinity(max_core_id=256):
-    '''
-    Resets the core affinity of the current process/thread.
-    Mainly used by `call_subprocess()`.
-    '''
-    # TODO: how to detect the maximum core id?
-    # The lowest allowable value we have seen is 256
-    os.sched_setaffinity(0, range(max_core_id))
-
-
-def call_subprocess(*args, **kwargs):
-    """
-    This is a wrapper to subprocess.check_call() that first resets CPU affinity.
-
-    Why do we need to do this?  The number of cores that OpenMP allows itself
-    to use is limited by the affinity mask of the process *at initialization*.
-    And the OMP_PLACES mechanism may have already limited Python's affinity
-    mask if we happened to load a shared object that uses OpenMP (say, an
-    analysis routine).
-
-    Why does OMP_PLACES affect the affinity mask of the master thread?
-    Because the master thread is actually the first member of the OpenMP
-    thread team!
-
-    Also, timeout arguments are interpreted as being in minutes, rather than
-    seconds.
-    """
-
-    timeout = kwargs.pop('timeout',None)
-    if timeout is not None:
-        timeout *= 60
-
-    # A TimeoutExpired error will be raised if we time out. Could catch it, but probably fine to crash
-    subprocess.run(*args, **kwargs, timeout=timeout, preexec_fn=reset_affinity, check=True)
