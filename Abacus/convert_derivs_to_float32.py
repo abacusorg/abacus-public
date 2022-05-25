@@ -24,23 +24,22 @@ import sys
 import numpy as np
 
 
-def convert_all(dpaths, from_dtype=np.float64, to_dtype=np.float32, tag="float32"):
-    for dpath in dpaths:
-        ddir = path.dirname(dpath)
-        dfn = path.basename(dpath)
+def convert(dpath, from_dtype=np.float64, to_dtype=np.float32, tag="float32"):
+    ddir = path.dirname(dpath)
+    dfn = path.basename(dpath)
+    
+    if not dfn.startswith("fourierspace"):
+        print("Error: file '{}' does not begin with fourierspace!  Wrong file?".format(dpath))
+        sys.exit(1)
         
-        if not dfn.startswith("fourierspace"):
-            print("Error: file '{}' does not begin with fourierspace!  Wrong file?".format(dpath))
-            sys.exit(1)
-            
-        derivs = np.fromfile(dpath, dtype=from_dtype)
-        
-        new_fn = path.join(ddir, dfn.replace('fourierspace', 'fourierspace_' + tag))
-        
-        new_derivs = derivs.astype(to_dtype)
-        assert np.isfinite(new_derivs).all(), "Derivatives not finite after conversion.  Did an exponent overfloat float32?"
-        
-        new_derivs.tofile(new_fn)
+    derivs = np.fromfile(dpath, dtype=from_dtype)
+    
+    new_fn = path.join(ddir, dfn.replace('fourierspace', 'fourierspace_' + tag))
+    
+    new_derivs = derivs.astype(to_dtype)
+    assert np.isfinite(new_derivs).all(), "Derivatives not finite after conversion.  Did an exponent overfloat float32?"
+    
+    new_derivs.tofile(new_fn)
     
 
 if __name__ == '__main__':
@@ -49,4 +48,5 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     
-    convert_all(args.fourierspace_file)
+    for dfile in args.fourierspace_file:
+       convert(dfile)
