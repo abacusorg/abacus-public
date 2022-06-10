@@ -599,7 +599,7 @@ inline void Manifest::FreeAfterSend() {
                 m.arenas[n].slab, m.arenas[n].type);
         }
         completed=MANIFEST_READY;
-        STDLOG(1,"Marking the Send Manifest as completely sent: %6.3f sec for %l bytes, %6.3f GB/sec\n", Communication.Elapsed(),
+        STDLOG(1,"Marking the Send Manifest as completely sent: %6.3f sec for %l bytes, %6.3f GiB/sec\n", Communication.Elapsed(),
             bytes, bytes/(Communication.Elapsed()+1e-15)/(1024.0*1024.0*1024.0));
     }
     CheckCompletion.Stop();
@@ -747,7 +747,7 @@ void Manifest::ImportData() {
     assertf(completed==MANIFEST_READY, "ImportData has been called when completed==%d\n", completed);
 
     Communication.Stop();
-    STDLOG(1,"Importing ReceiveManifest of %l bytes into the flow; took %6.3f sec, %6.3f GB/sec\n", bytes,
+    STDLOG(1,"Importing ReceiveManifest of %l bytes into the flow; took %6.3f sec, %6.3f GiB/sec\n", bytes,
         Communication.Elapsed(), bytes/(Communication.Elapsed()+1e-15)/(1024.0*1024*1024));
     Load.Start();
     for (int n=0; n<m.numarenas; n++) {

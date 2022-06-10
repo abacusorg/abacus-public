@@ -26,6 +26,13 @@ public:
     STimer TaylorKernel;
     STimer ConstructOffsets;
 
+    // 2D
+    STimer UnpackRecvBuf;
+    STimer FFTZTaylor;
+    STimer FillMPIBufs;
+    STimer AllToAll;
+    STimer CheckMPI;
+
     int *count; 	// Will be allocated to [cpd*cpd].  Number of particles
     int *offset; 	// Will be allocated to [cpd*cpd].  Start of particles
     FLOAT3 *cc; 	// [cpd*cpd] to hold the cell centers

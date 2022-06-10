@@ -24,7 +24,7 @@
 
 enum SpinFlag { NOT_ENOUGH_RAM, WAITING_FOR_IO, WAITING_FOR_GPU, WAITING_FOR_MPI, NUM_SPIN_FLAGS };
 
-class Dependency : public STimer {
+class Dependency {
 public:
     int cpd;
     int *_executed_status;	// An array to keep track of what we've done
@@ -40,6 +40,9 @@ public:
     int64_t num_particles_with_ghost;
 
     const char *name;  // dependency name, like Drift
+    
+    STimer action_timer;
+    STimer precondition_timer;
 
     int (*precondition)(int slab);
     void (*action)(int slab);
@@ -47,6 +50,7 @@ public:
     static int *spin_flags;
     static STimer *spin_timers;
     static STimer global_spin_timer;
+    static STimer global_precon_timer;
 
     Dependency(){
         instantiated = 0;
@@ -125,9 +129,9 @@ public:
         if(name)
             _log(stdlog, name, "Entering %s action for slab %d\n", name, slab);
 
-        Start();
+        action_timer.Start();
         (*action)(slab);
-        Stop();
+        action_timer.Stop();
 
         if(name)
             _log(stdlog, name, "Exited %s action for slab %d\n", name, slab);
@@ -154,8 +158,14 @@ public:
 
         // Take at most one action.
         int ws = wrap(last_slab_executed+1);
-        if( notdone(ws) && precondition(ws) ){
-            do_action(ws);
+        if( notdone(ws) ){
+            STimer wc;
+            wc.Start();
+            int precon = precondition(ws);
+            wc.Stop();
+            global_precon_timer.increment(wc.get_timer());
+            precondition_timer.increment(wc.get_timer());
+            if(precon) do_action(ws);
             return 1;
         }
         return 0;
@@ -175,6 +185,14 @@ public:
         } else {
             spin_flags[s] = 1;
         }
+    }
+
+    double Elapsed(){
+        return action_timer.Elapsed();
+    }
+
+    double ElapsedPrecon(){
+        return precondition_timer.Elapsed();
     }
 
     void mark_to_repeat(int slab) {
@@ -214,5 +232,6 @@ public:
 int *Dependency::spin_flags = new int[NUM_SPIN_FLAGS];
 STimer *Dependency::spin_timers = new STimer[NUM_SPIN_FLAGS];
 STimer Dependency::global_spin_timer;
+STimer Dependency::global_precon_timer;
 
 #endif  // INCLUDE_DEPENDENCY
