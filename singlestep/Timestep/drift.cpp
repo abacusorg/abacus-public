@@ -167,8 +167,6 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
         }
     }
     wc.Stop();
-    
-    STDLOG(3, "Before collecting gaps, IL has length %d\n", IL->length);
 
     STDLOG(2,"Drifting slab %d has rebinned %d particles (%d - %d).\n",
         slab, IL->length-ILbefore, IL->length, ILbefore);
@@ -201,6 +199,9 @@ void DriftPencilsAndCopy2InsertList(int slab, FLOAT driftfactor,
     int cpd = CP->cpd;
 
     uint64 ILbefore = IL->length;
+
+    // We'll do the drifting and rebinning separately because
+    // sometimes we'll want special rules for drifting.
     
     move.Start();
     NUMA_FOR(y,0,cpd)
@@ -219,8 +220,6 @@ void DriftPencilsAndCopy2InsertList(int slab, FLOAT driftfactor,
 
         // then the middle
         for(int z = node_z_start + MERGE_GHOST_RADIUS; z < node_z_start + node_z_size - MERGE_GHOST_RADIUS; z++) {
-            // We'll do the drifting and rebinning separately because
-            // sometimes we'll want special rules for drifting.
             Cell c = CP->GetCell(slab,y,z);
             RebinCell(c, slab, y, z);
         }

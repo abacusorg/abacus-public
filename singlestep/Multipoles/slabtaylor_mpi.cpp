@@ -113,6 +113,7 @@ void SlabTaylorMPI::ComputeIFFTZAndMPI(int x, MTCOMPLEX *tslab){
 
 
 void SlabTaylorMPI::DoMPIAllToAll(int slab, MPI_Request *handle, const Complex *sbuf, Complex *rbuf){
+    AllToAll.Start();
     MPI_Ialltoallv((const void *) sbuf, sendcounts,
         senddispls, mpi_dtype,
         (void *) rbuf, recvcounts,
@@ -120,10 +121,12 @@ void SlabTaylorMPI::DoMPIAllToAll(int slab, MPI_Request *handle, const Complex *
         handle);
     
     mpi_status[slab] = 1;
+    AllToAll.Stop();
 }
 
 
 void SlabTaylorMPI::CheckAnyMPIDone(){
+    CheckMPI.Start();
     for(int i = 0; i < cpd; i++){
         if(mpi_status[i] == 1){
             int done = 0;
@@ -135,6 +138,7 @@ void SlabTaylorMPI::CheckAnyMPIDone(){
             }
         }
     }
+    CheckMPI.Stop();
 }
 
 
@@ -147,6 +151,7 @@ void SlabTaylorMPI::MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const Compl
     // in: [node_ky_size, rml, cpd]
     // sbuf: [cpd, rml, node_ky_size]
 
+    FillMPIBufs.Start();
     assert(posix_memalign((void **) sbuf, PAGE_SIZE,
         sizeof(Complex) * node_ky_size * cpd * rml) == 0);  // all z, some ky
     assert(posix_memalign((void **) rbuf, PAGE_SIZE,
@@ -161,13 +166,15 @@ void SlabTaylorMPI::MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const Compl
             }
         }
     }
+    FillMPIBufs.Stop();
 }
 
 
 void SlabTaylorMPI::InverseFFTZ(Complex *out, const MTCOMPLEX *in){
     // in: [cpd, rml, node_ky_size]
     // out: [node_ky_size, rml, cpd]
-
+    
+    FFTZTaylor.Start();
     #pragma omp parallel for schedule(static)
     for(int64_t y = 0; y < node_ky_size; y++){
         for(int64_t m = 0; m < rml; m++){
@@ -182,6 +189,7 @@ void SlabTaylorMPI::InverseFFTZ(Complex *out, const MTCOMPLEX *in){
                 out[y*rml*cpd + m*cpd + z] = out_1d[g][z];
         }
     }
+    FFTZTaylor.Stop();
 }
 
 void SlabTaylorMPI::InverseFFTY(double *out, const Complex *in){
@@ -207,6 +215,7 @@ void SlabTaylorMPI::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
                                         const FLOAT3 *cc, const MTCOMPLEX *_taylors_unused){
     // FA: particle accelerations
 
+    UnpackRecvBuf.Start();
     Complex *rbuf = recvbuf[x];
 
     // unpack the MPI rbuf into ytmp
@@ -225,12 +234,15 @@ void SlabTaylorMPI::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
             }
         }
     }
+    UnpackRecvBuf.Stop();
 
+    FFTTaylor.Start();
     double *tbuf = (double *) rbuf;  // reuse recvbuf
     InverseFFTY(tbuf, ytmp);
+    FFTTaylor.Stop();
 
     STimer wc;
-    PTimer _r2c, _tkernel, _zfft;
+    PTimer _r2c, _tkernel;
     wc.Start();
 
     NUMA_FOR(y,0,cpd)
@@ -257,16 +269,13 @@ void SlabTaylorMPI::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
     
     wc.Stop();
     
-    double seq = _r2c.Elapsed() + _tkernel.Elapsed() + _zfft.Elapsed();
+    double seq = _r2c.Elapsed() + _tkernel.Elapsed();
     double f_r2c = _r2c.Elapsed()/seq;
     double f_kernel = _tkernel.Elapsed()/seq;
-    double f_zfft = _zfft.Elapsed()/seq;
 
     struct timespec  seq_r2c = scale_timer(f_r2c, wc.get_timer() );
     struct timespec  seq_tkernel = scale_timer(f_kernel, wc.get_timer() );
-    struct timespec  seq_zfft = scale_timer(f_zfft, wc.get_timer() );
 
     TaylorR2C.increment( seq_r2c  );
     TaylorKernel.increment( seq_tkernel );
-    FFTTaylor.increment( seq_zfft );
 }

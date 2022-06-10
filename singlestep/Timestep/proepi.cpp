@@ -73,7 +73,7 @@ STimer TaylorCompute;
 STimer AddAccel;
 STimer KickCellTimer;
 
-STimer DriftMove, DriftRebin, DriftInsert;
+STimer DriftMove, DriftRebin;
 
 STimer prologue;
 STimer epilogue;
@@ -205,11 +205,10 @@ void init_fftw();
 void finish_fftw();
 
 #include "timestep.cpp"
+#include "parallel.cpp"
 #include "reporting.cpp"
 
 #include <fenv.h>
-
-#include "parallel.cpp"
 
 /*! \brief Initializes global objects
  *

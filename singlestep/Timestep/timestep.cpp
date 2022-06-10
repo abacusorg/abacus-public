@@ -51,8 +51,6 @@ Dependency UnpackLPTVelocity;
 #include "ParallelConvolution.cpp"
 STimer ConvolutionWallClock;
 STimer BarrierWallClock;
-STimer MultipoleTransferCheck; 
-STimer TaylorTransferCheck;
 #endif
 
 // The wall-clock time minus all of the above Timers might be a measure
@@ -207,9 +205,7 @@ int TaylorTransposePrecondition(int slab){
     if(!SB->IsSlabPresent(TaylorSlab, slab))
         return 0;
 
-    TaylorTransferCheck.Start(); 
     int ready = ParallelConvolveDriver->CheckTaylorSlabReady(slab);
-    TaylorTransferCheck.Stop();
     if(!ready) {
         Dependency::NotifySpinning(WAITING_FOR_MPI);
         return 0;
@@ -736,7 +732,6 @@ void DriftAction(int slab) {
     } else {
         //         This is just a normal drift
         FLOAT driftfactor = WriteState.DeltaEtaDrift;
-        // WriteState.etaD-ReadState.etaD;
         STDLOG(1,"Drifting slab %d by %f\n", slab, driftfactor);
         //DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
         DriftPencilsAndCopy2InsertList(slab, driftfactor, DriftPencil);
@@ -903,9 +898,7 @@ int CheckForMultipolesPrecondition(int slab) {
 
     if( FinishMultipoles.notdone(slab) ) return 0;
 	
-	MultipoleTransferCheck.Start();
 	int multipole_transfer_complete = ParallelConvolveDriver->CheckForMultipoleTransferComplete(slab);
-	MultipoleTransferCheck.Stop();
 	if (multipole_transfer_complete) return 1;
     else {
 		if(SB->IsSlabPresent(MultipoleSlab, slab))
@@ -1003,7 +996,7 @@ void timestep(void) {
     ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory);
 #endif
 
-    TimeStepWallClock.Clear();  TimeStepWallClock.Start();
+    TimeStepWallClock.Start();
     STDLOG(1,"Initiating timestep()\n");
 
     int nslabs = P.cpd;
@@ -1072,14 +1065,13 @@ void timestep(void) {
 
     #ifdef PARALLEL
     TimeStepWallClock.Stop();
-    ConvolutionWallClock.Clear(); ConvolutionWallClock.Start();
+    ConvolutionWallClock.Start();
 
     ParallelConvolveDriver->Convolve();
     ParallelConvolveDriver->SendTaylors(FORCE_RADIUS);
 
     ConvolutionWallClock.Stop();
     ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
-    MultipoleTransferCheck.Clear(); TaylorTransferCheck.Clear();
 
     TimeStepWallClock.Start();
 
@@ -1170,7 +1162,7 @@ void timestep(void) {
 	
 	
     #ifdef PARALLEL	
-        BarrierWallClock.Clear(); BarrierWallClock.Start();
+        BarrierWallClock.Start();
         // These reductions force some synchronization, at least!
     	MPI_REDUCE_TO_ZERO(&total_n_output,   1, MPI_UINT64_T, MPI_SUM);		
         MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UINT64_T, MPI_SUM);		

@@ -241,6 +241,8 @@ void FinalizeParallel() {
 
 /* Begin Neighbor Exchange routines */
 
+STimer NeighborReceive;
+
 #ifdef PARALLEL
 // Partition functions
 inline bool is_right_ghost(ilstruct *particle, int slab, int first_ghost){
@@ -291,7 +293,8 @@ inline bool is_left_ghost(ilstruct *particle, int slab, int first_ghost){
     return dist <= 0;
 }
 
-/* NeighborExchange happens immediately after the Drift, and does the following for each neighbor:
+/* NeighborExchange happens when a slab and both adjacent slabs have Drifted,
+   and does the following for each neighbor rank:
  * 1. Partition the IL to find particles the neighbor needs (for its primary or ghost)
  * 2. Copy them to a buffer
  * 3. Initiate an MPI_Isend
@@ -552,7 +555,6 @@ void DoNeighborSend(int slab){
     right_exchanger[slab]->send();
 }
 
-
 // Called repeatedly in the timestep loop
 void AttemptNeighborReceive(int first, int receive_ahead){
     // This will typically be called with
@@ -563,6 +565,7 @@ void AttemptNeighborReceive(int first, int receive_ahead){
         return;  // safely no-op
     }
 
+    NeighborReceive.Start();
     // Try to receive data from one or more slabs
     for(int i = first; i < first + receive_ahead; i++){
         int iw = CP->WrapSlab(i);
@@ -581,6 +584,7 @@ void AttemptNeighborReceive(int first, int receive_ahead){
             right_exchanger[i]->check_send_done();
         }
     }
+    NeighborReceive.Stop();
 }
 
 // Checked in the Finish precondition

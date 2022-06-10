@@ -25,6 +25,14 @@ public:
     STimer ConstructOffsets;
     PTimer _kernel, _c2r, _ffty, _cellmultipoles;
 
+    // 2D
+    STimer FFTZMultipole;
+    STimer FFTZTranspose;
+    STimer UnpackRecvBuf;
+    STimer FillMPIBufs;
+    STimer AllToAll;
+    STimer CheckMPI;
+
     int *count;         // Will be allocated to [cpd*cpd].  Number of particles
     int *offset;        // Will be allocated to [cpd*cpd].  Start of particles
     FLOAT3 *cc;         // [cpd*cpd] to hold the cell centers

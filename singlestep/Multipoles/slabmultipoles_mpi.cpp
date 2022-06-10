@@ -114,6 +114,8 @@ void SlabMultipolesMPI::MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const C
     // in: [node_z_size, rml, (cpd+1)/2]
     // out: [(cpd+1)/2, rml, node_z_size]
 
+    FillMPIBufs.Start();
+
     // TODO: could make these arenas, would get good reuse
     assert(posix_memalign((void **) sbuf, PAGE_SIZE,
         sizeof(Complex) * cpdp1half * node_z_size * rml) == 0);  // all ky, some z
@@ -129,11 +131,15 @@ void SlabMultipolesMPI::MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const C
             }
         }
     }
+
+    FillMPIBufs.Stop();
 }
 
 void SlabMultipolesMPI::DoMPIAllToAll(int slab, MPI_Request *handle, const Complex *sbuf, Complex *rbuf){
     // FUTURE: MPI-4 supports MPI_Ialltoallv_c, with 64-bit counts.
     // But all HPC MPI-3 implementations seem to support > 2 GB data, as long as the counts are 32-bit.
+    AllToAll.Start();
+
     MPI_Ialltoallv((const void *) sbuf, sendcounts,
         senddispls, mpi_dtype,
         (void *) rbuf, recvcounts,
@@ -141,9 +147,12 @@ void SlabMultipolesMPI::DoMPIAllToAll(int slab, MPI_Request *handle, const Compl
         handle);
     
     mpi_status[slab] = 1;
+
+    AllToAll.Stop();
 }
 
 void SlabMultipolesMPI::CheckAnyMPIDone(){
+    CheckMPI.Start();
     for(int i = 0; i < cpd; i++){
         if(mpi_status[i] == 1){
             int done = 0;
@@ -155,6 +164,7 @@ void SlabMultipolesMPI::CheckAnyMPIDone(){
             }
         }
     }
+    CheckMPI.Stop();
 }
 
 int SlabMultipolesMPI::IsMPIDone(int slab){
@@ -164,7 +174,7 @@ int SlabMultipolesMPI::IsMPIDone(int slab){
 void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos, 
                      int *count, int *offset, FLOAT3 *cc, MTCOMPLEX *_out_unused) {
     STimer wc;
-    PTimer _kernel, _c2r, _fftz;
+    PTimer _kernel, _c2r;
     pdouble localMassSlabX[nprocs];
     padded<double3> localdipole[nprocs];
     double *localMassSlabZ = new double[nprocs*node_z_size];
@@ -204,6 +214,7 @@ void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos,
             _c2r.Stop();
         }
     }
+    wc.Stop();
     
     // do thread reductions
     for(int64_t g = 0; g < nprocs; g++){
@@ -215,23 +226,20 @@ void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos,
         }
     }
     delete[] localMassSlabZ;
-    
-    wc.Stop();
+
 
     FFTY(transposetmp, reducedtmp);
     
     MakeSendRecvBufs(&sendbuf[x], &recvbuf[x], transposetmp);
     DoMPIAllToAll(x, &handle[x], sendbuf[x], recvbuf[x]);
 
-    double seq = _kernel.Elapsed() + _c2r.Elapsed() + _fftz.Elapsed();
+    double seq = _kernel.Elapsed() + _c2r.Elapsed();
     
     struct timespec seq_kernel = scale_timer(_kernel.Elapsed()/seq, wc.get_timer() );
     struct timespec seq_c2r = scale_timer(_c2r.Elapsed()/seq, wc.get_timer() );
-    struct timespec seq_fftz = scale_timer(_fftz.Elapsed()/seq, wc.get_timer() );
 
     MultipoleKernel.increment(seq_kernel);
     MultipoleC2R.increment(seq_c2r);
-    FFTMultipole.increment(seq_fftz);
 }
 
 
@@ -242,6 +250,8 @@ void SlabMultipolesMPI::ComputeFFTZ(int x, MTCOMPLEX *outslab){
 
     // unpack recvbuf into ztmp
     // recvbuf holds each node's chunk, one after the other
+
+    UnpackRecvBuf.Start();
 
     Complex *rbuf = recvbuf[x];
 
@@ -261,11 +271,15 @@ void SlabMultipolesMPI::ComputeFFTZ(int x, MTCOMPLEX *outslab){
         }
     }
 
+    UnpackRecvBuf.Stop();
+
     // TODO: decide if we're going to do MPI in complex<double> or not
     MTCOMPLEX *rbuf32 = (MTCOMPLEX *) recvbuf[x];
 
     // Now FFT from ztmp back into recvbuf[x]
     FFTZ(rbuf32, ztmp);
+
+    FFTZTranspose.Start();
     
     // and finally transpose from recvbuf[x] into outslab
     // recvbuf: [node_ky_size, rml, cpd]
@@ -282,12 +296,16 @@ void SlabMultipolesMPI::ComputeFFTZ(int x, MTCOMPLEX *outslab){
     }
 
     free(rbuf);
+
+    FFTZTranspose.Stop();
 }
 
 
 void SlabMultipolesMPI::FFTZ(MTCOMPLEX *out, const Complex *in) {
     // out: shape [node_ky_size, rml, cpd]
     // in: shape [node_ky_size, rml, cpd]
+
+    FFTZMultipole.Start();
 
     // collapse(2): thread over the combined y*m dimension
     #pragma omp parallel for schedule(static) collapse(2)
@@ -303,4 +321,6 @@ void SlabMultipolesMPI::FFTZ(MTCOMPLEX *out, const Complex *in) {
                 out[y*rml*cpd + m*cpd + kz] = out_1d[g][kz];
         }
     }
+
+    FFTZMultipole.Stop();
 }

@@ -86,10 +86,6 @@ void ComputeMultipoleSlab(int slab) {
     // This will do 1D or 2D FFT, depending on whether we've split z
     MF->ComputeMultipoleFFT( slab, pos, MF->count, MF->offset, MF->cc, slabmultipoles);
 
-    /*for(int64_t i = 0; i < cpd*(cpd+1)/2*(P.order+1)*(P.order+1); i++){
-        assertf(isfinite(slabmultipoles[i].real()) && isfinite(slabmultipoles[i].imag()), "Not finite\n");
-    }*/
-
     ComputeMultipoles.Stop();
     STDLOG(1,"Done with multipoles.\n");
 }
