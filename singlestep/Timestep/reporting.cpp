@@ -153,11 +153,14 @@ void GatherTimings() {
 
     // Add up the time spent spinning
     // Should include any non-action items in the main timestep loop
-    double total_precon_time = Dependency::global_precon_timer.Elapsed() +
-                                SendManifest->CheckCompletion.Elapsed() +
-                                ReceiveManifest->CheckCompletion.Elapsed() +
-                                TY->CheckMPI.Elapsed() +
-                                MF->CheckMPI.Elapsed();
+    double total_precon_time = Dependency::global_precon_timer.Elapsed();
+
+#ifdef PARALLEL
+    total_precon_time += SendManifest->CheckCompletion.Elapsed() +
+                        ReceiveManifest->CheckCompletion.Elapsed() +
+                        MF->CheckMPI.Elapsed();
+    if(TY != NULL) total_precon_time += TY->CheckMPI.Elapsed();
+#endif
 
     fprintf(reportfp, "\n\nBreakdown of TimeStep: ");
     total = 0.0;
@@ -174,7 +177,7 @@ void GatherTimings() {
         
         REPORT(1, "NearForce [blocking]", NearForce.Elapsed()); total += thistime;
         REPORT(1, "NearForce [non-blocking]", NFD->GPUThroughputTime); //total += thistime;
-        fprintf(reportfp,"---> %6.2f effective GDIPS, %6.2f Gdirects, %.2f Mpart/sec", thistime ? NFD->gdi_gpu/thistime : 0, NFD->gdi_gpu, thistime ? NearForce.num_particles/thistime/1e6 : 0.);
+        fprintf(reportfp,"---> %6.2f effective GDIPS, %.2f Mpart/sec", thistime ? NFD->gdi_gpu/thistime : 0, thistime ? NearForce.num_particles/thistime/1e6 : 0.);
         double total_di = (NFD->DirectInteractions_CPU +NFD->TotalDirectInteractions_GPU)/1e9;
     }
 #else
@@ -208,7 +211,7 @@ void GatherTimings() {
         REPORT_RATE(Drift);
 
     double neighbor_tot = NeighborSend.Elapsed() + NeighborReceive.Elapsed();
-    REPORT(1, "Neighbor Exchange", neighbor_tot); total += thistime;
+    if(MPI_size_z > 1) REPORT(1, "Neighbor Exchange", neighbor_tot); total += thistime;
 
     double finish_total = FinishParticles.Elapsed() + FinishMultipoles.Elapsed();
     REPORT(1, "Finish", finish_total); total += thistime;
@@ -276,20 +279,20 @@ void GatherTimings() {
     slabforcetimesigma =  sqrt(slabforcetimesigma    - slabforcetimemean*slabforcetimemean);
     slabforcelatencysigma=sqrt(slabforcelatencysigma - slabforcelatencymean*slabforcelatencymean);
 
-    denom = TimeStepWallClock.Elapsed()/P.cpd;
+    /*denom = TimeStepWallClock.Elapsed()/P.cpd;
     REPORT(1,"Mean Force Computation",slabforcetimemean);
     fprintf(reportfp,"\n\t\tSigma(STD): %.2g s\t Min: %.2e s\t Max: %.2e s ",slabforcetimesigma,slabforcemintime,slabforcemaxtime);
     REPORT(1,"Mean Force Latency",slabforcelatencymean);
-    fprintf(reportfp,"\n\t\tSigma(STD): %.2e s\t Min: %.2e s\t Max: %.2e s ",slabforcelatencysigma,slabforceminlatency,slabforcemaxlatency);
+    fprintf(reportfp,"\n\t\tSigma(STD): %.2e s\t Min: %.2e s\t Max: %.2e s ",slabforcelatencysigma,slabforceminlatency,slabforcemaxlatency);*/
     
     if(NFD){
         denom = TimeStepWallClock.Elapsed();
         fprintf(reportfp, "\n\nBreakdown of Near Force:");
         double gdi_cpu = NFD->DirectInteractions_CPU/1e9;  // Measure per-core load balancing?
 #ifdef CUDADIRECT
-        fprintf(reportfp, "\n\tNotes about non-blocking timing:\n");
+        /*fprintf(reportfp, "\n\tNotes about non-blocking timing:\n");
         fprintf(reportfp, "\t- \"Directs Throughput\" is the wall clock time while at least one GPU thread is running (copy or compute).\n");
-        fprintf(reportfp, "\t- \"Effective\" GDIPS is based on this throughput.\n");
+        fprintf(reportfp, "\t- \"Effective\" GDIPS is based on this throughput.\n");*/
         REPORT(1, "Blocking", NearForce.Elapsed());
             denom = NearForce.Elapsed();
             REPORT(2, "Precondition", NearForce.ElapsedPrecon());
@@ -464,7 +467,7 @@ void GatherTimings() {
 		REPORT(2, "Finish Preamble", FinishPreamble.Elapsed());
         REPORT(2, "Partition Insert List", IL->FinishPartition.Elapsed());
         REPORT(2, "Sort Insert List", IL->FinishSort.Elapsed());
-            fprintf(reportfp,"---> %6.2f Mitems/sec (%.2g Mitems)", thistime ? IL->n_sorted/thistime/1e6 : 0., (double) IL->n_sorted/1e6);
+            fprintf(reportfp,"---> %6.2f Mitems/sec (%.2g items)", thistime ? IL->n_sorted/thistime/1e6 : 0., (double) IL->n_sorted);
         REPORT(2, "Index Cells", FinishCellIndex.Elapsed());
         REPORT(2, "Merge", FinishMerge.Elapsed());
         	REPORT_RATE(FinishParticles);

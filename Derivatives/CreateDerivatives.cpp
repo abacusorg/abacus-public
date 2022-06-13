@@ -837,9 +837,9 @@ END OLD CODE */
 int main(int argc, char **argv) {
         
 #if QUAD_DOUBLE
-    printf("QUAD_DOUBLE = 1. Using 256-bit precision.");
+    printf("QUAD_DOUBLE = 1. Using 256-bit precision.\n");
 #else
-    printf("QUAD_DOUBLE = 0. Using 64-bit precision.");
+    printf("QUAD_DOUBLE = 0. Using 64-bit precision.\n");
 #endif
     //myTimer.Start();
     

@@ -147,7 +147,7 @@ def run(ppd=None, cpd=None, order=DEFAULT_ORDER, dtype=np.float32, force_output_
             os.chdir(cwd)
             if plot:
                 plot_storeforces(fmag)
-                if not params['Parallel']:
+                if not params.get('Parallel',False):
                     plot_cell(params, dtype)
                 if power:
                     plot_force_error_pk(params, dtype)

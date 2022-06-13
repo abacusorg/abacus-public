@@ -110,11 +110,13 @@ void dumpstats(OutofCoreConvolution *OCC, char *fn) {
     e = OCC->CS.ReadMultipolesBytes/OCC->CS.ReadMultipoles/(1.0e+6);
     fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles [per thread]", OCC->CS.ReadMultipoles, e );
 	
+#ifdef PARALLEL
     e = OCC->CS.TransposeBufferingBytes/OCC->CS.TransposeBuffering/(1.0e+6);
     fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "Transpose Buffering", OCC->CS.TransposeBuffering, e );
 	
     e = OCC->CS.TransposeAlltoAllvBytes/OCC->CS.TransposeAlltoAllv/(1.0e+6);
     fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "Transpose MPI AlltoAllv", OCC->CS.TransposeAlltoAllv, e );
+#endif
     
     e = OCC->CS.WriteTaylorBytes/OCC->CS.WriteTaylor/(1.0e+6);
     fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor [per thread]", OCC->CS.WriteTaylor, e );
