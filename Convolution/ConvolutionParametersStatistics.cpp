@@ -22,7 +22,7 @@ typedef struct {
 	double Constructor = 0.0;
 	double AllocMT = 0.0;
 	double AllocDerivs = 0.0;
-	double SendTaylors = 0.0; 
+	double QueueTaylors = 0.0; 
 	double FFTPlanning = 0.0; 
 	double Destructor = 0.0; 
 	double ThreadCleanUp = 0.0; 

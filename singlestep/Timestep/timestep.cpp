@@ -1070,16 +1070,15 @@ void timestep(void) {
     ParallelConvolveDriver->Convolve();
     ParallelConvolveDriver->SendTaylors(FORCE_RADIUS);
 
+    for (int slab = first + FORCE_RADIUS; slab < first + FORCE_RADIUS + total_slabs_on_node; slab ++ ){
+        SB->AllocateArena(TaylorSlab, slab, RAMDISK_NO);
+        ParallelConvolveDriver->RecvTaylorSlab(slab);
+    }
+
     ConvolutionWallClock.Stop();
     ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
 
     TimeStepWallClock.Start();
-
-    for (int slab = first + FORCE_RADIUS; slab < first + FORCE_RADIUS + total_slabs_on_node; slab ++ ){
-        SB->AllocateArena(TaylorSlab, slab, RAMDISK_NO);
-        ParallelConvolveDriver->RecvTaylorSlab(slab);
-        STDLOG(2, "Set up to receive Taylor slab %d via MPI\n", slab);
-    }
 
     // Lightweight setup of z-dimension exchanges
     SetupNeighborExchange(first + first_outputslab + FINISH_WAIT_RADIUS, total_slabs_on_node);

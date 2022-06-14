@@ -553,7 +553,7 @@ int ParallelConvolution::GetTaylorRecipient(int slab, int offset){
 }
 
 void ParallelConvolution::SendTaylors(int offset) {
-	QueueTaylors.Clear(); QueueTaylors.Start();
+	QueueTaylors.Start();
 
 	//for (int slab = 0; slab < cpd; slab ++){ 
 	for (int _slab = -cpd/2; _slab < cpd/2+1; _slab ++){ 
@@ -571,12 +571,13 @@ void ParallelConvolution::SendTaylors(int offset) {
 		STDLOG(3,"Taylor slab %d has been queued for MPI_Issend to rank %d, offset %d\n", slab, r, offset);
 	}
 	STDLOG(2, "MPI_Issend set for outgoing Taylors.\n");
-	QueueTaylors.Stop(); CS.SendTaylors = QueueTaylors.Elapsed(); 
+	QueueTaylors.Stop(); CS.QueueTaylors = QueueTaylors.Elapsed(); 
 }
 	
 /// Allocate space for this TaylorSlab, and trigger the MPI calls
 /// to gather the information from other nodes.  To be used in FetchSlab.
-void ParallelConvolution::RecvTaylorSlab(int slab) {	
+void ParallelConvolution::RecvTaylorSlab(int slab) {
+	QueueTaylors.Start();
 	// We are receiving a specified x slab. For each node, receive its z packet for
 	// this x. For each node, use Trecv_requests[x][rank] as request. 
 	slab = CP->WrapSlab(slab);
@@ -589,8 +590,9 @@ void ParallelConvolution::RecvTaylorSlab(int slab) {
 		int tag = (r+1) * 10000 + slab + T_TAG;
 		MPI_Irecv(mt + node_start[r], node_size[r], MPI_MTCOMPLEX, r, tag, comm_taylors, &Trecv_requests[slab][r]);
 	}
-	STDLOG(2,"MPI_Irecv set for incoming Taylors.\n");
-	return;
+	STDLOG(2,"MPI_Irecv setup for incoming Taylors on slab %d.\n", slab);
+	
+	QueueTaylors.Stop(); CS.QueueTaylors = QueueTaylors.Elapsed(); 
 }
 
 int ParallelConvolution::CheckTaylorRecvReady(int slab){
@@ -848,7 +850,7 @@ void ParallelConvolution::dumpstats() {
     double accountedtime  = CS.ConvolutionArithmetic;
            accountedtime += CS.ForwardZFFTMultipoles + CS.InverseZFFTTaylor;
            accountedtime += CS.ReadDerivatives;
-		   accountedtime += CS.Constructor + CS.AllocMT + CS.AllocDerivs + CS.SendTaylors + CS.FFTPlanning + CS.Destructor + CS.ThreadCleanUp; 
+		   accountedtime += CS.Constructor + CS.AllocMT + CS.AllocDerivs + CS.QueueTaylors + CS.FFTPlanning + CS.Destructor + CS.ThreadCleanUp; 
            accountedtime += CS.ArraySwizzle;
     double discrepancy = CS.ConvolveWallClock - accountedtime;
 	
@@ -884,7 +886,7 @@ void ParallelConvolution::dumpstats() {
      fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Forward FFT Z Multipoles", CS.ForwardZFFTMultipoles );
      fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Inverse FFT Z Taylor",         CS.InverseZFFTTaylor );
 	 
-     fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Queuing MPI Issends for Taylors", CS.SendTaylors );
+     fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Queuing MPI send/recv for Taylors", CS.QueueTaylors );
 	 
      fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Destructor", CS.Destructor );
      fprintf(fp,"\t \t %50s : %1.2e seconds\n", "fftw thread clean up (part of destructor)", CS.ThreadCleanUp );
@@ -898,7 +900,7 @@ void ParallelConvolution::dumpstats() {
      double farithp   = cae/CS.ConvolveWallClock*100;
 	 double setupp    = (CS.Constructor + CS.Destructor + CS.AllocMT + CS.AllocDerivs)/CS.ConvolveWallClock*100;
 	 double planp     = (CS.FFTPlanning)/CS.ConvolveWallClock*100;
-	 double sendp     = (CS.SendTaylors)/CS.ConvolveWallClock*100;
+	 double sendp     = (CS.QueueTaylors)/CS.ConvolveWallClock*100;
 	 double ffftp     = (CS.ForwardZFFTMultipoles + CS.InverseZFFTTaylor)/CS.ConvolveWallClock*100;
      double fiop      = (CS.ReadDerivatives)/CS.ConvolveWallClock*100;
 	 double fclean    = (CS.ThreadCleanUp)/CS.ConvolveWallClock*100;
@@ -907,7 +909,7 @@ void ParallelConvolution::dumpstats() {
 
      fprintf(fp,"\n \t Summary: Fourier Transforms = %2.0f%%     Convolution Arithmetic = %2.0f%%     Array Swizzle = %2.0f%%    Disk IO = %2.0f%%     ", ffftp, farithp, swzp, fiop );
 
-     fprintf(fp,"\n \t Set up (con/destructor + allocs/mmaps) = %2.0f%%     FFT planning = %2.0f%%     FFT threan clean up = %2.0f%%   Queuing Taylor Issends = %2.0f%%    \n", setupp, planp, fclean, sendp);
+     fprintf(fp,"\n \t Set up (con/destructor + allocs/mmaps) = %2.0f%%     FFT planning = %2.0f%%     FFT threan clean up = %2.0f%%   Queuing Taylor MPI send/recv = %2.0f%%    \n", setupp, planp, fclean, sendp);
      fprintf(fp,"\t          Arithmetic rate = %2.0f DGOPS --> rate per core = %1.1f DGOPS\n", Gops/cae, Gops/cae/computecores/MPI_size_x );
      fprintf(fp,"\t          [DGOPS == Double Precision Billion operations per second]\n");
      fprintf(fp,"\n");
