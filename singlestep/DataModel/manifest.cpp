@@ -331,7 +331,7 @@ class Manifest {
         a->num_primary = SS->size(s);
         a->ptr =  SB->GetSlabPtr(type, s);
         SB->MarkSlabUnavailable(type,s);   // Place this arena off limits
-        STDLOG(3, "Queuing slab %d of type %d, size_with_ghost %llu\n", s, type, a->size_with_ghost);
+        STDLOG(3, "Queuing slab %d of type %d, size_with_ghost %d\n", s, type, a->size_with_ghost);
         m.numarenas++;
         assertf(m.numarenas<MAXMANIFEST, "numarenas has overflowed; increase MAXMANIFEST.");
         return;
@@ -368,7 +368,7 @@ void SetupManifest(int _nManifest) {
         ReceiveManifest[j].set_tag(j);
     }
     #ifdef PARALLEL
-        assertf(MPI_size>1, "Can't run MPI-based manifest code with only 1 process.\n"); 
+        assertf(MPI_size_x>1, "Can't run MPI-based manifest code with only 1 process.\n"); 
         // TODO: I don't see a way around this.  One ends up with the destination and source arenas being the same.
     #endif
     ReceiveManifest->SetupToReceive();

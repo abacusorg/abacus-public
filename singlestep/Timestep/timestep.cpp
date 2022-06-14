@@ -805,8 +805,13 @@ void FinishParticlesAction(int slab) {
 	FinishPreamble.Stop();
 
     // Gather particles from the insert list and make the merge slabs
-    uint64 n_merge = FillMergeSlab(slab);
+    uint64 n_merge, n_merge_with_ghost;
+    FillMergeSlab(slab, &n_merge, &n_merge_with_ghost);
     merged_particles += n_merge;
+
+    // manually adjust Mpart/s rates to reflect new size
+    FinishParticles.num_particles += n_merge - SS->size(slab);
+    FinishParticles.num_particles_with_ghost += n_merge_with_ghost - SS->size_with_ghost(slab);
 
 	FinishPreamble.Start();
 
@@ -898,8 +903,7 @@ int CheckForMultipolesPrecondition(int slab) {
 
     if( FinishMultipoles.notdone(slab) ) return 0;
 	
-	int multipole_transfer_complete = ParallelConvolveDriver->CheckForMultipoleTransferComplete(slab);
-	if (multipole_transfer_complete) return 1;
+	if ( ParallelConvolveDriver->CheckForMultipoleTransferComplete(slab) ) return 1;
     else {
 		if(SB->IsSlabPresent(MultipoleSlab, slab))
 				Dependency::NotifySpinning(WAITING_FOR_MPI);

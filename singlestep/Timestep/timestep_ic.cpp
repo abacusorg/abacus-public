@@ -49,8 +49,10 @@ void UnpackICAction(int slab){
     uint64 NP_thisslab = UnpackICtoIL(slab);
     NP_from_IC += NP_thisslab;
 
-    // Record the number of particles read in SlabSize so the timing log uses the right particle count
-    SS->setold(slab, NP_thisslab, NP_thisslab);
+    // manually record the number of particles processed for the timing log,
+    // since SlabSize is all 0 at this point
+    Drift.num_particles += NP_thisslab;
+    Drift.num_particles_with_ghost += NP_thisslab;
 
     // We also need to create a null slab
     // These slabs will never come off ramdisk because this is the first timestep
