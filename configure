@@ -735,7 +735,7 @@ enable_spherical_overdensity
 enable_parallel
 with_max_gpus
 with_softening
-with_cache_line_size
+with_cache_line
 with_page_size
 enable_numa_for
 enable_multiple_comm
@@ -6785,9 +6785,9 @@ fi
 fi
 
 
-# Check whether --with-cache-line-size was given.
-if test "${with_cache_line_size+set}" = set; then :
-  withval=$with_cache_line_size;
+# Check whether --with-cache-line was given.
+if test "${with_cache_line+set}" = set; then :
+  withval=$with_cache_line;
 else
   with_cache_line="auto"
 fi
@@ -6811,7 +6811,8 @@ else
 fi
 
 if test "x$with_page_size" == xauto; then
-    with_page_size=$(getconf PAGESIZE)
+    #with_page_size=$(getconf PAGESIZE)
+    with_page_size=$(( $(\grep -Po 'Hugepagesize:\s+\K\d+' /proc/meminfo) * 1024 ))
 fi
 
 cat >>confdefs.h <<_ACEOF

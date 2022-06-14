@@ -369,7 +369,7 @@ if test x$enable_mkl != xyes; then
     #AC_SEARCH_LIBS(fftwf_init_threads, [fftw3f_omp], [], [AC_MSG_WARN([unable to find fftw3f_omp!])])
 fi
 
-AC_ARG_WITH(cache-line-size,
+AC_ARG_WITH(cache-line,
 [AS_HELP_STRING([--with-cache-line=N], [Cache line size in bytes [auto]])],
     [], with_cache_line="auto")
 if test "x$with_cache_line" == xauto; then
@@ -379,10 +379,11 @@ fi
 AC_DEFINE_UNQUOTED(CACHE_LINE_SIZE, $with_cache_line, "Cache line size in bytes")
 
 AC_ARG_WITH(page-size,
-[AS_HELP_STRING([--with-page-size=N], [Page size in bytes [auto]])],
+[AS_HELP_STRING([--with-page-size=N], [Page size in bytes [hugepage size]])],
     [], with_page_size="auto")
 if test "x$with_page_size" == xauto; then
-    with_page_size=$(getconf PAGESIZE)
+    #with_page_size=$(getconf PAGESIZE)
+    with_page_size=$(( $(\grep -Po 'Hugepagesize:\s+\K\d+' /proc/meminfo) * 1024 ))
 fi
 AC_DEFINE_UNQUOTED(PAGE_SIZE, $with_page_size, "Page size in bytes")
 
