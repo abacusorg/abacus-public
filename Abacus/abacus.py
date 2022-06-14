@@ -36,6 +36,7 @@ import signal
 from tempfile import mkstemp
 import warnings
 from warnings import warn
+import datetime
 
 import numpy as np
 
@@ -57,6 +58,9 @@ GF_BACKUP_INTERVAL = 2 * 60 * 60  #only backup b/w group finding steps if it's b
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
 directory_param_fn = pjoin(abacuspath, 'Production', 'directory.def')
 wall_timer = time.perf_counter  # monotonic wall clock time
+
+def timestamp():
+    return str(datetime.datetime.now().replace(microsecond=0))
 
 
 def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False, erase_ic=False, output_parfile=None, use_site_overrides=False, override_directories=False, just_params=False, param_kwargs=None):
@@ -752,8 +756,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     run_time_secs = 60 * run_time_minutes
 
     start_time = wall_timer()
-    print("Beginning run at time", start_time, ", running for ", run_time_minutes, " minutes.\n")
-        
+    print(f"Beginning run at {timestamp()}, running for at most {run_time_minutes} minutes.\n")
 
     if parallel:
         backups_enabled = False
@@ -764,15 +767,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     ProfilingMode = param.get('ProfilingMode',False)
 
     # Set up OpenMP singlestep environment
-    # TODO: check that calling mpirun with this environment is equivalent to calling singlestep with the environment
     singlestep_env = setup_singlestep_env(param)
     convolution_env = setup_convolution_env(param)
 
     status_log = StatusLogWriter(pjoin(param.OutputDirectory, 'status.log'))
     conv_time = None
 
-    #wall_timer = time.perf_counter
-    #start_time = wall_timer()
     starting_time = time.time()
     starting_time_str = time.asctime(time.localtime())
 

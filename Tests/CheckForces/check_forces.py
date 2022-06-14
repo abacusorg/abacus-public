@@ -529,7 +529,7 @@ if __name__ == '__main__':
     parser.add_argument('cpd', help='Cells per dimension', nargs='?', default=DEFAULT_CPD)
     parser.add_argument('--force-output-debug', help='Use ForceOutputDebug. Slow, but you get the near and far field separately',
                         action='store_true', default=False)
-    parser.add_argument('--no-analyze', help='Run singlestep so the forces are stored on disk but do not analyze them',
+    parser.add_argument('-n', '--no-analyze', help='Run singlestep so the forces are stored on disk but do not analyze them',
                         action='store_true', default=False)
     parser.add_argument('--dtype', help='The precision Abacus was compiled with (i.e. the precision of the forces)',
                         default='f4', choices=['f4','f8'])
