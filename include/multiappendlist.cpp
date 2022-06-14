@@ -35,8 +35,6 @@ int omp_get_num_threads() { return 1;}
 int omp_get_thread_num() { return 0;}
 #endif
 
-#include <mutex>
-
 template <class T>
 class MultiAppendList;
 
@@ -96,7 +94,6 @@ public:
     uint64 length;
     uint64 longest;
     uint64 maxlist;
-    std::mutex MALgap_mutex;
 
     MultiAppendList(uint64 maxlistsize) { 
         length = 0; 
@@ -205,10 +202,12 @@ public:
 template <class T>
 void MALgap<T>::make_next_gap(MultiAppendList<T> *MAL) {
     // Adjustments to the MAL list length can only happen one at a time
-    // TODO: for better performance, this can be made lockless with atomic addition
-    MAL->MALgap_mutex.lock();
-    next = start = MAL->length;
-    MAL->GrowMALGap(start+MALGAP_SIZE);
-    end = MAL->length;
-    MAL->MALgap_mutex.unlock();
+
+    #pragma omp atomic capture
+    end = MAL->length += MALGAP_SIZE;
+
+    next = start = end - MALGAP_SIZE;
+
+    assertf(end <= MAL->maxlist,
+        "Illegal resizing of MultiAppendList (maxlist = %d, newlength = %d\n", MAL->maxlist, end);
 }

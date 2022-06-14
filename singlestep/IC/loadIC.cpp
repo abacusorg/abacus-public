@@ -431,6 +431,7 @@ private:
     int64_t Npp;  // N per plane, ppdy*ppdz
 
     int firstx, firstz;  // first plane indices in this slab
+    int lastx, lastz;
     
 public:
     ICFile_Lattice(int _slab, int _zsplit) : ICFile(_slab, _zsplit) {
@@ -442,11 +443,11 @@ public:
 
         // planes [first,last) are in this slab
         firstx = (int) ceil(ppdx_per_slab*slab);
-        int lastx = (int) ceil(ppdx_per_slab*(slab+1));
+        lastx = (int) ceil(ppdx_per_slab*(slab+1));
 
         // We'll assume the z splits are registered to the periodic wrap for simplicity
         firstz = (int) ceil(ppdz_per_split*zsplit);
-        int lastz = (int) ceil(ppdz_per_split*(zsplit+1));
+        lastz = (int) ceil(ppdz_per_split*(zsplit+1));
         ppdz = lastz - firstz;
 
         Npp = ppdy*ppdz;
@@ -467,40 +468,41 @@ public:
         assertf(velslab == NULL, "Velocity unpacking should never be used with format Lattice!\n");
 
         uint64 sumA = 0, sumB = 0;
+        double ppd = WriteState.ppd;
+        velstruct vel(convert_vel);  // inherit the vel from P.ICVelocity2Displacement
+        
         #pragma omp parallel for schedule(static) reduction(+:sumA,sumB)
-        for(uint64 i = 0; i < Npart; i++){
-            // Map the particle offset to an i,j,k tuple and add the plane offset
-            integer3 ijk;
-            ijk.x = i / Npp;
-            ijk.y = (i - Npp*ijk.x)/ppdz;
-            ijk.z = (i - Npp*ijk.x) - ppdz*ijk.y + firstz;
-            ijk.x += firstx;
+        for(int64 iy = 0; iy < ppdy; iy++){
+            double3 gpos;
+            gpos.y = (double)iy/ppd - 0.5;
+            for(int64 ix = firstx; ix < lastx; ix++){
+                gpos.x = (double)ix/ppd - 0.5;
+                for(int64 iz = firstz; iz < lastz; iz++){
+                    gpos.z = (double)iz/ppd - 0.5;
 
-            assert(ijk.x >= 0 && ijk.y >= 0 && ijk.z >= 0);
-            assert(ijk.x < WriteState.ppd && ijk.y < WriteState.ppd && ijk.z < WriteState.ppd);
+                    double3 pos(gpos);
+                    
+                    #ifdef GLOBALPOS
+                    integer3 newcell = CP->WrapPosition2Cell(&pos);
+                    #else
+                    // make pos cell-centered:
+                    integer3 newcell = CP->LocalPosition2Cell(&pos);
+                    #endif
 
-            double3 pos = ZelPos(ijk);  // probably safe to ignore convert_pos
-            velstruct vel(convert_vel);  // inherit the vel from P.ICVelocity2Displacement
+                    // make pos float3
+                    posstruct _pos(pos);
 
-            #ifdef GLOBALPOS
-            integer3 newcell = CP->WrapPosition2Cell(&pos);
-            #else
-            // make pos cell-centered:
-            integer3 newcell = CP->LocalPosition2Cell(&pos);
-            #endif
+                    auxstruct aux;
+                    aux.clear();
+                    aux._setpid(ix, iy, iz); // Set aux too.
+                    set_taggable_bits(aux, sumA, sumB);
 
-            // make pos float3
-            posstruct _pos(pos);
-
-            auxstruct aux;
-            aux.clear();
-            aux.setpid(ijk); // Set aux too.
-            set_taggable_bits(aux, sumA, sumB);
-
-            // One might expect to use Push() instead of WrapAndPush() here.
-            // But LocalPosition2Cell() uses doubles, which may spill a cell
-            // once converted to float.
-            IL->WrapAndPush(&_pos, &vel, &aux, newcell);
+                    // One might expect to use Push() instead of WrapAndPush() here.
+                    // But LocalPosition2Cell() uses doubles, which may spill a cell
+                    // once converted to float.
+                    IL->WrapAndPush(&_pos, &vel, &aux, newcell);
+                }
+            }
         }
 
         // Store the local reductions in the class variables

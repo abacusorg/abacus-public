@@ -100,33 +100,29 @@ public:
     }
 
     void setpid(integer3 _pid) { 
-        uint16 max = (uint16) AUXXPID; 
-            assert(_pid.x <= max and _pid.y <= max and _pid.z <= max);
-        uint16 pid[3] = {(uint16) _pid.x, (uint16) _pid.y, (uint16) _pid.z}; 
-        setpid(pid); 
+        assert(_pid.x <= AUXXPID && _pid.y <= AUXXPID && _pid.z <= AUXXPID);
+        _setpid(_pid.x, _pid.y, _pid.z);
     }
 
-    void setpid(uint16 _pid[3]) { 
-        uint16 max = (uint16) AUXXPID; 
-           assert(_pid[0] <= max and _pid[1] <= max and _pid[2] <= max);
-        setpid((uint64) _pid[0] | (uint64) _pid[1]<<16| (uint64) _pid[2] <<32);
+    void _setpid(uint64 px, uint64 py, uint64 pz) { 
+        _setpidbits(px | py<<16 | pz<<32);
     }
 
-    void setpid(uint64 _pid) {
-        aux = _pid | (aux &~ AUXPIDMASK); 
+    void _setpidbits(uint64 _pid) {
+        aux = _pid | (aux & ~AUXPIDMASK);
     }
 
     // Take a pid and distribute its values to the three segements used for PIDs
     void packpid(uint64 _pid){
         assert(_pid <= ((uint64) 1 << NAUXPIDBITS));
         uint64 pid = (_pid & AUXXPID) | (_pid << PIDBITGAP & AUXYPID) | (_pid << 2*PIDBITGAP & AUXZPID);
-        setpid(pid);
+        _setpidbits(pid);
     }
 
 
     // We will provide a group ID too; this may overwrite the PID.
     uint64 gid() { return pid(); }
-    void setgid(uint64 gid) { setpid(gid); }
+    void setgid(uint64 gid) { _setpidbits(gid); }
 
     // We expose lightconemask() publicly because one might 
     // not want to construct for every particle.

@@ -36,14 +36,17 @@ int LPTStepNumber() {
     else return 0;
 }
 
-double3 ZelPos(integer3 ijk) {
+inline double3 ZelPos(int64 ix, int64 iy, int64 iz) {
     // This will be the position, in code units, of the initial grid.
     double3 p;
-    //ijk = CP->WrapCell(ijk);
-    p.x = (double)(ijk.x)/WriteState.ppd -.5;
-    p.y = (double)(ijk.y)/WriteState.ppd -.5;
-    p.z = (double)(ijk.z)/WriteState.ppd -.5;
+    p.x = (double)ix/WriteState.ppd -.5;
+    p.y = (double)iy/WriteState.ppd -.5;
+    p.z = (double)iz/WriteState.ppd -.5;
     return p;
+}
+
+inline double3 ZelPos(integer3 ijk) {
+    return ZelPos(ijk.x, ijk.y, ijk.z);
 }
 
 // If we're doing Zel'dovich only, then no problems: the original
