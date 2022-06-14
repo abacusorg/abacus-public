@@ -788,11 +788,6 @@ void Parameters::ValidateParameters(void) {
             StoreForces = 2;  // Output near and far separately
     }
 
-    if (LogVerbosity<0) {
-        fprintf(stderr,"LogVerbosity must be >=0\n");
-        assert(1==0);
-    }
-
     assert(nIODirs < MAX_IODIRS);
     for (int i = 0; i < nIODirs; i++)
         assert(IODirThreads[i] >= 1);

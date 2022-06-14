@@ -55,7 +55,7 @@ void stdlog_hook(int verbosity, const char* str){
 // whenever user error could cause the assert fail.
 
 #define assertf(_mytest,...) do { \
-    if (!(_mytest)) { \
+    if (UNLIKELY(!(_mytest))) { \
         STDLOG(0,"Failed Assertion: %s\n", #_mytest); STDLOG(1,__VA_ARGS__); \
         fprintf(stderr,"Failed Assertion: %s\n", #_mytest); \
 	fpprint(std::cerr, __VA_ARGS__); \

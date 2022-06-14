@@ -323,30 +323,9 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
 
     if(MF != NULL){ // Some pipelines, like standalone_fof, don't use multipoles
-        STDLOG(1, "globaldipole = (%g,%g,%g)\n", MF->globaldipole.x, MF->globaldipole.y, MF->globaldipole.z);
         MF->GatherRedlack();    // For the parallel code, we have to coadd the inputs
-        STDLOG(1, "globaldipole = (%g,%g,%g)\n", MF->globaldipole.x, MF->globaldipole.y, MF->globaldipole.z);
-        int sum = 0;
-        for(int i = 0; i < P.cpd; i++){
-            STDLOG(1, "MassSlabX[%d] = %g\n", i, MF->MassSlabX[i]);
-            sum += MF->MassSlabX[i];
-        }
-        STDLOG(1, "Sum: %d\n", sum);
-        STDLOG(1,"***************\n");
-        sum = 0;
-        for(int i = 0; i < P.cpd; i++){
-            STDLOG(1, "MassSlabY[%d] = %g\n", i, MF->MassSlabY[i]);
-            sum += MF->MassSlabY[i];
-        }
-        STDLOG(1, "Sum: %d\n", sum);
-        STDLOG(1,"***************\n");
-        sum = 0;
-        for(int i = 0; i < P.cpd; i++){
-            STDLOG(1, "MassSlabZ[%d] = %g\n", i, MF->MassSlabZ[i]);
-            sum += MF->MassSlabZ[i];
-        }
+        STDLOG(3, "globaldipole = (%g,%g,%g)\n", MF->globaldipole.x, MF->globaldipole.y, MF->globaldipole.z);
 
-        STDLOG(1, "Sum: %d\n", sum);
         if (MPI_rank==0) {
             MF->ComputeRedlack();
             MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
