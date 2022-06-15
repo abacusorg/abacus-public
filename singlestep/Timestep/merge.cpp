@@ -143,7 +143,7 @@ public:
 };
 
 
-uint64 FillMergeSlab(int slab) {
+void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
     // This routine allocates the MergePos, MergeVel, MergeAux, 
     // and MergeCellInfo slabs.  They will be destroyed when written.
 
@@ -399,5 +399,6 @@ uint64 FillMergeSlab(int slab) {
     SB->DeAllocate(InsertCellInfoSlab, slab);
     FinishMerge.Stop();
     
-    return inslab_no_ghost;
+    *nmerge = inslab_no_ghost;
+    *nmerge_with_ghost = inslab;
 }
