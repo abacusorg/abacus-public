@@ -16,36 +16,36 @@
 
 // The global instantiation of this object is called `SS`.
 class SlabSize {
-    uint64 *_size;  // the slab sizes in the read state
-    uint64 *_newsize;  // the slab sizes in the write state
+    uint64 *sizes;  // the slab sizess in the read state
+    uint64 *newsizes;  // the slab sizess in the write state
 
-    uint64 *_size_with_ghost;  // in the read state
-    uint64 *_newsize_with_ghost;  // in the write state
+    uint64 *sizes_with_ghost;  // in the read state
+    uint64 *newsizes_with_ghost;  // in the write state
 
-    int _cpd;
-    int _num_zsplit;
-    int _zsplit;
+    int cpd;
+    int num_zsplit;
+    int zsplit;
     
     public:
     
-    SlabSize(int cpd, int num_zsplit, int zsplit) {
+    SlabSize(int _cpd, int _num_zsplit, int _zsplit) {
         // Each node will hold the full [cpd*num_zsplit] SlabSize arrays.
         // But all the setters and getters will just touch the [slab,this_zrank] row.
 
-        _cpd = cpd;
-        _num_zsplit = num_zsplit;
-        _zsplit = zsplit;
+        cpd = _cpd;
+        num_zsplit = _num_zsplit;
+        zsplit = _zsplit;
 
-        _size = new uint64[cpd*num_zsplit];
-        _newsize = new uint64[cpd*num_zsplit];
-        _size_with_ghost = new uint64[cpd*num_zsplit];
-        _newsize_with_ghost = new uint64[cpd*num_zsplit];
+        sizes = new uint64[cpd*num_zsplit];
+        newsizes = new uint64[cpd*num_zsplit];
+        sizes_with_ghost = new uint64[cpd*num_zsplit];
+        newsizes_with_ghost = new uint64[cpd*num_zsplit];
         
         for (int j=0;j<cpd*num_zsplit;j++){
-            _size[j] = 0;
-            _newsize[j] = 0;
-            _size_with_ghost[j] = 0;
-            _newsize_with_ghost[j] = 0;
+            sizes[j] = 0;
+            newsizes[j] = 0;
+            sizes_with_ghost[j] = 0;
+            newsizes_with_ghost[j] = 0;
         }
     }
 
@@ -55,40 +55,44 @@ class SlabSize {
     }
 
     ~SlabSize(void) { 
-        delete[] _size; 
-        delete[] _newsize;
-        delete[] _size_with_ghost;
-        delete[] _newsize_with_ghost;
+        delete[] sizes; 
+        delete[] newsizes;
+        delete[] sizes_with_ghost;
+        delete[] newsizes_with_ghost;
     }
 
     // Provide access with a wrapped index.
-    void set(int slab, uint64 size, uint64 size_with_ghost) {
-        _newsize[Grid->WrapSlab(slab)*_num_zsplit + _zsplit] = size;
-        _newsize_with_ghost[Grid->WrapSlab(slab)*_num_zsplit + _zsplit] = size_with_ghost;
+    void set(int slab, uint64 _size, uint64 _size_with_ghost) {
+        int ws = Grid->WrapSlab(slab);
+        newsizes[ws*num_zsplit + zsplit] = _size;
+        newsizes_with_ghost[ws*num_zsplit + zsplit] = _size_with_ghost;
     }
-    void setold(int slab, uint64 size, uint64 size_with_ghost) {
-        _size[Grid->WrapSlab(slab)*_num_zsplit + _zsplit] = size;
-        _size_with_ghost[Grid->WrapSlab(slab)*_num_zsplit + _zsplit] = size_with_ghost;
+    void setold(int slab, uint64 _size, uint64 _size_with_ghost) {
+        assert(_size == _size_with_ghost);
+        int ws = Grid->WrapSlab(slab);
+        sizes[ws*num_zsplit + zsplit] = _size;
+        sizes_with_ghost[ws*num_zsplit + zsplit] = _size_with_ghost;
     }
-    uint64 size(int slab) { return _size[Grid->WrapSlab(slab)*_num_zsplit + _zsplit]; }
-    uint64 size_with_ghost(int slab) { return _size_with_ghost[Grid->WrapSlab(slab)*_num_zsplit + _zsplit]; }
-
-    // For parallel codes, we want to gather the newsize information
+    
+    uint64 size(int slab) { return sizes[Grid->WrapSlab(slab)*num_zsplit + zsplit]; }
+    uint64 size_with_ghost(int slab) { return sizes_with_ghost[Grid->WrapSlab(slab)*num_zsplit + zsplit]; }
+    
+    // For parallel codes, we want to gather the newsizes information
     void parallel_gather() {
         #ifdef PARALLEL
-            // Send all non-zero values of _newsize to node 0
-            // Since _newsize is set only when a slab is finished,
+            // Send all non-zero values of newsizes to node 0
+            // Since newsizes is set only when a slab is finished,
             // we can economize our code and just add the vectors.
-            MPI_REDUCE_TO_ZERO(_newsize, _cpd*_num_zsplit, MPI_UINT64_T, MPI_SUM);
-            MPI_REDUCE_TO_ZERO(_newsize_with_ghost, _cpd*_num_zsplit, MPI_UINT64_T, MPI_SUM);
+            MPI_REDUCE_TO_ZERO(newsizes, cpd*num_zsplit, MPI_UINT64_T, MPI_SUM);
+            MPI_REDUCE_TO_ZERO(newsizes_with_ghost, cpd*num_zsplit, MPI_UINT64_T, MPI_SUM);
         #endif
         return;
     }
 
-    // For echoing the ghost size to the WriteState. Should be called after parallel_gather().
+    // For echoing the ghost sizes to the WriteState. Should be called after parallel_gather().
     uint64 total_new_size_with_ghost(){
-        uint64 sum = 0;
-        for(uint64 i = 0; i < _cpd*_num_zsplit; i++) sum += _newsize_with_ghost[i];
+        uint64 sum =0;
+        for(uint64 i = 0; i < cpd*num_zsplit; i++) sum += newsizes_with_ghost[i];
         return sum;
     }
 
@@ -121,13 +125,13 @@ class SlabSize {
         nread = fscanf(fp, "%ld,%ld", &cpdval, &zval);
         assertf(nread==2,
                 "Couldn't read first entry from SlabSize file %s\n", fname);
-        assertf(cpdval==_cpd, 
+        assertf(cpdval==cpd, 
                 "SlabSize file opens with incorrect CPD: %d\n", cpdval);
-        assertf(zval==_num_zsplit, 
+        assertf(zval==num_zsplit, 
                 "SlabSize file opens with incorrect num_zsplit: %d\n", zval);
-        for (int j = 0; j<_cpd*_num_zsplit; j++) {
-            nread = fscanf(fp, "%ld,%ld", _size+j, _size_with_ghost+j);
-            assertf(nread==2, "SlabSize file ended prematurely\n");
+        for (int j = 0; j<cpd*num_zsplit; j++) {
+            nread = fscanf(fp, "%ld,%ld", sizes+j, sizes_with_ghost+j);
+            assertf(nread==2, "SlabSize fie ended prematurely\n");
         }
         fclose(fp);
         return 0;
@@ -137,9 +141,9 @@ class SlabSize {
         FILE *fp;
         fp = fopen(fname, "w");
         assertf(fp!=NULL, "Couldn't open SlabSize write file %s\n", fname);
-        fprintf(fp, "%ld,%ld\n", _cpd, _num_zsplit);
-        for (int j = 0; j < _cpd*_num_zsplit; j++) {
-            fprintf(fp, "%ld,%ld\n", _newsize[j], _newsize_with_ghost[j]);
+        fprintf(fp, "%ld,%ld\n", cpd, num_zsplit);
+        for (int j = 0; j < cpd*num_zsplit; j++) {
+            fprintf(fp, "%ld,%ld\n", newsizes[j], newsizes_with_ghost[j]);
         }
         fclose(fp);
         return 0;
