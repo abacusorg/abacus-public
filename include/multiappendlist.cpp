@@ -7,7 +7,7 @@ would be ill-defined in a multi-threaded context, but is not even
 guaranteed within a thread).
 
 One allocates a big chunk of memory at the beginning.  Then the code
-gives each thread a small segment, currently MALGAP_SIZE = 512, of that 
+gives each thread a small segment (gap_size) of that 
 list in which to append.  New segments are created invisibly when the
 thread runs out of space.  One calls CollectGaps() when done; this 
 copies the filled fragments of segments into the empty parts of segments
@@ -22,6 +22,19 @@ GrowMAL() would be an external way to add extra particles in bulk.
 
 There is no provision to grow the originally allocated buffer!  But the
 code will detect an overflow and throw an assertf().
+
+The gap_size is a performance tuning parameter. Different MALs may prefer
+different sizes. The Insert List is a particularly important MAL, and
+its gap size can be set as P.InsertListGapElems.
+
+We want a gap size big enough that we don't have threads
+waiting for the mutex to clear.  But small enough that 
+the gap collection at the end doesn't have big copies.
+Gap sizes that are a multiple of the NUMA page size will
+encourage locality, although our 40-byte ilstruct doesn't
+divide power-of-two pages sizes evenly. One might try
+the rather-heavy 5*PAGE_SIZE, though.
+
 */
 
 #ifdef MALTEST
@@ -53,10 +66,6 @@ class MALgap {
     uint64 end;
     uint64 next;
     uint8_t pad[CACHE_LINE_SIZE-24];   // We want fill a cache line to avoid contention
-    #define MALGAP_SIZE ((PAGE_SIZE + sizeof(T) - 1)/sizeof(T))
-    // We want something big enough that we don't have threads
-    // waiting for the mutex to clear.  But small enough that 
-    // the gap collection at the end doesn't have big copies.
 
     // When sorting, we sort by end, which is unique across gaps.
     // In principle, two gaps could have the same start
@@ -94,13 +103,15 @@ public:
     uint64 length;
     uint64 longest;
     uint64 maxlist;
+    const uint64 gap_size;
 
-    MultiAppendList(uint64 maxlistsize) { 
+    MultiAppendList(uint64 maxlistsize, uint64 _gap_size)
+            : gap_size(_gap_size) { 
         length = 0; 
         longest = 0;
         Ngaps = omp_get_max_threads();
         // we may try to grow the list by an extra block per thread
-        maxlist = maxlistsize + MALGAP_SIZE*Ngaps;
+        maxlist = maxlistsize + gap_size*Ngaps;
         int ret = posix_memalign((void **) &list, PAGE_SIZE, sizeof(T) * maxlist);
         assertf(ret==0,"Failed to allocate MultiAppendList\n");
         MALgaps = new MALgap<T>[Ngaps];
@@ -156,7 +167,7 @@ public:
         // across threads, then executing.  See parallel partitioning 
         // for an example.
         // However, the expected amount of work here seems modest,
-        // of order NThreads * MALGAP_SIZE / 4 objects to copy.
+        // of order NThreads * gap_size / 4 objects to copy.
 
         std::sort( MALgaps, MALgaps+Ngaps );
             // Order the gaps by their end index
@@ -204,9 +215,9 @@ void MALgap<T>::make_next_gap(MultiAppendList<T> *MAL) {
     // Adjustments to the MAL list length can only happen one at a time
 
     #pragma omp atomic capture
-    end = MAL->length += MALGAP_SIZE;
+    end = MAL->length += MAL->gap_size;
 
-    next = start = end - MALGAP_SIZE;
+    next = start = end - MAL->gap_size;
 
     assertf(end <= MAL->maxlist,
         "Illegal resizing of MultiAppendList (maxlist = %d, newlength = %d\n", MAL->maxlist, end);

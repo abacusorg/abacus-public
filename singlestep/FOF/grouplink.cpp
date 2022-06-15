@@ -105,7 +105,7 @@ class GroupLinkList : public grid, public MultiAppendList<GroupLink> {
 public:
     STimer GroupPartition, GroupSort;
     GroupLinkList(int cpd, uint64 maxsize) : 
-    		grid(cpd), MultiAppendList<GroupLink>(maxsize)  { 
+    		grid(cpd), MultiAppendList<GroupLink>(maxsize, PAGE_SIZE/sizeof(GroupLink))  { 
     }
     ~GroupLinkList(void) { 
     }

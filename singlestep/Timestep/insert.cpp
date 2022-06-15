@@ -103,7 +103,8 @@ public:
 
     STimer FinishPartition, FinishSort;
 
-    InsertList(int cpd, uint64 maxilsize) : grid(cpd), MultiAppendList<ilstruct>(maxilsize)  { 
+    InsertList(int cpd, uint64 maxilsize)
+            : grid(cpd), MultiAppendList<ilstruct>(maxilsize, P.InsertListGapElems)  { 
         n_sorted = 0;
         return;
     }

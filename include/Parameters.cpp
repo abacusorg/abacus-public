@@ -197,6 +197,8 @@ public:
 
     int NumZRanks;  // Number of ranks in the Z-dimension in the 2D domain decomposition
 
+    int InsertListGapElems;  // Size of the MAL gaps in the Insert List, in number of ilstruct elems
+
     // Return the L{tier} size in MB
     float getCacheSize(int tier){
         int cache_size = 0;
@@ -480,6 +482,9 @@ public:
 
         NumZRanks = 1;
         installscalar("NumZRanks", NumZRanks, DONT_CARE);
+
+        InsertListGapElems = PAGE_SIZE/40;
+        installscalar("InsertListGapElems", InsertListGapElems, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.
