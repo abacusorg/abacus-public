@@ -705,14 +705,14 @@ void Manifest::Receive() {
         do_MPI_Irecv(m.arenas[n].ptr, m.arenas[n].size_with_ghost, rank);
     }
     // Receive all the Insert List fragment
-    int ret = posix_memalign((void **)&il, 64, m.numil*sizeof(ilstruct));
+    int ret = posix_memalign((void **)&il, CACHE_LINE_SIZE, m.numil*sizeof(ilstruct));
     assertf(ret == 0, "Failed to allocate %d bytes for receive manifest insert list\n", m.numil*sizeof(ilstruct));
     //memset(il, 0, sizeof(ilstruct)*m.numil);   // for testing
     STDLOG(2,"Ireceive Manifest Insert List of length %d\n", m.numil);
     do_MPI_Irecv(il, sizeof(ilstruct)*m.numil, rank);
     // Receive all the GroupLink List fragment
     if (GFC!=NULL) {
-        ret = posix_memalign((void **)&links, 64, m.numlinks*sizeof(GroupLink));
+        ret = posix_memalign((void **)&links, CACHE_LINE_SIZE, m.numlinks*sizeof(GroupLink));
         assertf(ret == 0, "Failed to allocate %d bytes for receive manifest group link list\n", m.numlinks*sizeof(GroupLink));
         //memset(links, 0, sizeof(GroupLink)*m.numlinks);   // for testing
         STDLOG(2,"Ireceive Manifest GroupLink List of length %d\n", m.numlinks);

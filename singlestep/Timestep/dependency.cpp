@@ -50,6 +50,7 @@ public:
     static int *spin_flags;
     static STimer *spin_timers;
     static STimer global_spin_timer;
+    static STimer global_spin_timer2;
     static STimer global_precon_timer;
 
     Dependency(){
@@ -121,29 +122,31 @@ public:
             if(spin_timers[i].timeron)
                 spin_timers[i].Stop();
         }
-        if(global_spin_timer.timeron)
-            global_spin_timer.Stop();
+        if(global_spin_timer2.timeron)
+            global_spin_timer2.Stop();
         
-        // It's bad form to use _log instead of STDLOG,
-        // but we want to lie about the function name for readability
         if(name)
-            _log(stdlog, name, "Entering %s action for slab %d\n", name, slab);
+            STDLOG_WITH_NAME(1, name, "Entering %s action for slab %d\n", name, slab);
 
+        StopSpinTimer();
         action_timer.Start();
+        
         (*action)(slab);
+        
         action_timer.Stop();
+        StartSpinTimer();
 
         if(name)
-            _log(stdlog, name, "Exited %s action for slab %d\n", name, slab);
+            STDLOG_WITH_NAME(1, name, "Exited %s action for slab %d\n", name, slab);
+        
 	    _executed_status[slab] = 1;
 	    last_slab_executed = slab;
 	    number_of_slabs_executed++;
 	    raw_number_executed++;
 		
-		
 		num_particles += SS->size(slab);
         num_particles_with_ghost += SS->size_with_ghost(slab);
-		
+
     }
 
     int wrap(int s) {
@@ -179,8 +182,8 @@ public:
             // If it's the second time, start the timer.
             if(!spin_timers[s].timeron){
                 spin_timers[s].Start();
-                if(!global_spin_timer.timeron)
-                    global_spin_timer.Start();
+                if(!global_spin_timer2.timeron)
+                    global_spin_timer2.Start();
             }
         } else {
             spin_flags[s] = 1;
@@ -227,11 +230,20 @@ public:
 	number_of_slabs_executed++;
     }
 
+    static void StartSpinTimer(){
+        if(!global_spin_timer.timeron) global_spin_timer.Start();
+    }
+
+    static void StopSpinTimer(){
+        if(global_spin_timer.timeron) global_spin_timer.Stop();
+    }
+
 };
 
 int *Dependency::spin_flags = new int[NUM_SPIN_FLAGS];
 STimer *Dependency::spin_timers = new STimer[NUM_SPIN_FLAGS];
 STimer Dependency::global_spin_timer;
+STimer Dependency::global_spin_timer2;
 STimer Dependency::global_precon_timer;
 
 #endif  // INCLUDE_DEPENDENCY

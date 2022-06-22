@@ -234,7 +234,7 @@ void GatherTimings() {
     REPORT(1, "Check MPI Completion", total_mpi_check); total += thistime;
 #endif 
     
-    REPORT(1, "Spinning (Preconditions)", Dependency::global_precon_timer.Elapsed()); total += thistime;
+    REPORT(1, "Spinning", Dependency::global_spin_timer.Elapsed()); total += thistime;
     
 	
 #ifdef PARALLEL
@@ -528,12 +528,13 @@ void GatherTimings() {
 #endif
     
     // Misc global timings
-    double spinning = Dependency::global_spin_timer.Elapsed();  // `spinning` may overlap non-action work; avoid
+    double spinning = Dependency::global_spin_timer.Elapsed();  // `global_spin_timer2` may overlap non-action work; avoid
     fprintf(reportfp, "\n\nBreakdown of Spinning:");
     fprintf(reportfp, "\n\t Note: may add up to >100%% if there are multiple simultaneous reasons for spinning");
     denom = TimeStepWallClock.Elapsed();
     REPORT(1, "Spinning", spinning);
     denom = spinning;
+    REPORT(2, "Checking preconditions", Dependency::global_precon_timer.Elapsed());
     REPORT(2, "Not enough RAM to load slabs", Dependency::spin_timers[NOT_ENOUGH_RAM].Elapsed());
     REPORT(2, "Waiting for slab IO", Dependency::spin_timers[WAITING_FOR_IO].Elapsed());
     REPORT(2, "Waiting for GPU", Dependency::spin_timers[WAITING_FOR_GPU].Elapsed());

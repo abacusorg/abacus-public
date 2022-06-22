@@ -27,6 +27,9 @@ int stdlog_threshold_global = 1;
 #define STDLOG(verbosity,...) do { if (verbosity<=stdlog_threshold_global) { \
 	LOG(stdlog,__VA_ARGS__); } } while(0)
 
+#define STDLOG_WITH_NAME(verbosity,name,...) do { if (verbosity<=stdlog_threshold_global) { \
+	LOG_WITH_NAME(stdlog,name,__VA_ARGS__); } } while(0)
+
 // C++-style variadic args don't work well across compilation units, so ensure a pure-string
 // entry point for modules like the GPU directs
 void stdlog_hook(int verbosity, const char* str){

@@ -22,7 +22,6 @@ int GROUP_RADIUS = -1;
 //#define FETCHAHEAD (2*GROUP_RADIUS + FORCE_RADIUS + FINISH_WAIT_RADIUS + 2)
 //#define FETCHAHEAD (2*GROUP_RADIUS + FORCE_RADIUS + 2)
 #define FETCHAHEAD (max(2*GROUP_RADIUS + FORCE_RADIUS, FINISH_WAIT_RADIUS) + 2)
-#define FETCHPERSTEP 1
 // Recall that all of these Dependencies have a built-in STimer
 // to measure the amount of time spent on Actions.
 Dependency FetchSlabs;
@@ -1088,58 +1087,45 @@ void timestep(void) {
     SetupNeighborExchange(first + first_outputslab + FINISH_WAIT_RADIUS, total_slabs_on_node);
     #endif
 
-	
+	Dependency::StartSpinTimer();
 	int timestep_loop_complete = 0; 
 	while (!timestep_loop_complete){
 
-        for(int i =0; i < FETCHPERSTEP; i++) FetchSlabs.Attempt();
+           FetchSlabs.Attempt();
          TransposePos.Attempt();
             NearForce.Attempt();
-
-       ReceiveManifest->Check();  // This checks if Send is ready; no-op in non-blocking mode
 
       TaylorTranspose.Attempt();
           TaylorForce.Attempt();
                  Kick.Attempt();
 
-       AttemptReceiveManifest();
-       AttemptNeighborReceive(0,P.cpd);  // 2D
-          MF->CheckAnyMPIDone();  // 2D
-          TY->CheckAnyMPIDone();  // 2D
-
        MakeCellGroups.Attempt();
    FindCellGroupLinks.Attempt();
        DoGlobalGroups.Attempt();
-
-       ReceiveManifest->Check();  // This checks if Send is ready; no-op in non-blocking mode
 
                Output.Attempt();
             Microstep.Attempt();
          FinishGroups.Attempt();
 
-       AttemptReceiveManifest();
-       AttemptNeighborReceive(0,P.cpd);  // 2D
-          MF->CheckAnyMPIDone();  // 2D
-          TY->CheckAnyMPIDone();  // 2D
-
     UnpackLPTVelocity.Attempt();
                 Drift.Attempt();
          NeighborSend.Attempt();
 
-       ReceiveManifest->Check();  // This checks if Send is ready; no-op in non-blocking mode
-
       FinishParticles.Attempt();
      FinishMultipoles.Attempt();
+   CheckForMultipoles.Attempt();
 
+    Dependency::StopSpinTimer();  // might be taking non-dependency actions
+       
+       ReceiveManifest->Check();  // This checks if Send is ready; no-op in non-blocking mode
             CheckSendManifest();  // We look at each Send Manifest to see if there's material to free.
-                        //   SendManifest->FreeAfterSend();
 
        AttemptReceiveManifest();
        AttemptNeighborReceive(0,P.cpd);  // 2D
           MF->CheckAnyMPIDone();  // 2D
           TY->CheckAnyMPIDone();  // 2D
 
-   CheckForMultipoles.Attempt();
+   Dependency::StartSpinTimer();
 
 #ifdef PARALLEL
 		timestep_loop_complete = CheckForMultipoles.alldone(total_slabs_on_node);
@@ -1147,6 +1133,8 @@ void timestep(void) {
 		timestep_loop_complete = FinishMultipoles.alldone(total_slabs_on_node);
 #endif
     }
+
+    Dependency::StopSpinTimer();
 
     if(IL->length!=0)
         IL->DumpParticles();
