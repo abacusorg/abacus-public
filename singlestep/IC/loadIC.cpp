@@ -79,7 +79,7 @@ int ICFile::check_vel_read_done(){
 int ICFile::check_read_done(int vel){
     if(!SB->IsIOCompleted(ICSlab, slab)){
         if(SB->IsSlabPresent(ICSlab, slab))
-            Dependency::NotifySpinning(WAITING_FOR_IO);
+            SlabDependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
     return 1;

@@ -231,10 +231,9 @@ void GatherTimings() {
 
     double neighbor_tot;
     if(NeighborSend && MPI_size_z > 1){
-            neighbor_tot = NeighborSend->Elapsed() + DoNeighborRecv->Elapsed();
-            REPORT(1, "Neighbor Exchange", neighbor_tot);
-            total += neighbor_tot;
-        }
+        neighbor_tot = NeighborSend->Elapsed() + DoNeighborRecv->Elapsed();
+        REPORT(1, "Neighbor Exchange", neighbor_tot);
+        total += neighbor_tot;
     }
 
     double finish_total = FinishParticles->Elapsed() + FinishMultipoles->Elapsed();
@@ -509,7 +508,6 @@ void GatherTimings() {
 #endif
     denom = TimeStepWallClock.Elapsed();
     REPORT(1, "Finish Multipoles", FinishMultipoles->Elapsed());
-        if (MPI_size_z > 1) REPORT_RATE(FinishMultipoles);
     denom = thistime;
         REPORT(2, "Precondition", FinishMultipoles->ElapsedPrecon());
     #ifdef PARALLEL

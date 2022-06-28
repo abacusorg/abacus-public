@@ -840,7 +840,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic))]
     if parallel:
         singlestep_cmd = mpirun_cmd + singlestep_cmd
-        print("Using singlestep_cmd ", singlestep_cmd)
+        print(f"Using invocation '{' '.join(singlestep_cmd)}'")
 
         # #if this job is longer than a set time (NEEDS_INTERIM_BACKUP_MINS), we'll need to do a backup halfway through the run.
         interim_backup_complete = run_time_minutes <= NEEDS_INTERIM_BACKUP_MINS

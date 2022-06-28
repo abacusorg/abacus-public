@@ -256,7 +256,7 @@ ParallelConvolution::~ParallelConvolution() {
 	
 	dumpstats_timer.Start(); 
 	
-	if (not create_MT_file){ //if this is not the 0th step, dump stats. 
+	if (!create_MT_file){ //if this is not the 0th step, dump stats. 
 #ifndef DO_NOTHING
 	    dumpstats(); 
 #endif
@@ -471,7 +471,7 @@ int ParallelConvolution::CheckRecvMultipoleComplete(int slab) {
     int received = 0;
     int err = MPI_Test(&Mrecv_requests[slab], &received, MPI_STATUS_IGNORE);
 
-	if (not received) STDLOG(4, "Multipole slab %d not received yet...\n", slab);
+	if (!received) STDLOG(4, "Multipole slab %d not received yet...\n", slab);
     else assert(Mrecv_requests[slab] == MPI_REQUEST_NULL);
 	return received;  
 }
@@ -488,7 +488,7 @@ int ParallelConvolution::CheckSendMultipoleComplete(int slab) {
     // This slab has pending MPI calls
     int err = 0, sent = 0, done = 1;
 	
-    for (int r = 0; r < MPI_size_x; r++) {		
+    for (int r = 0; r < MPI_size_x; r++) {
 		if (Msend_requests[x][r]==MPI_REQUEST_NULL) continue;  // Already done
 
 	    err = MPI_Test(Msend_requests[x] + r, &sent, MPI_STATUS_IGNORE);
