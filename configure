@@ -1413,7 +1413,7 @@ Optional Packages:
   --with-softening={plummer | single_spline | cubic_spline | cubic_plummer}
                           Near-force softening technique [single_spline]
   --with-cache-line=N     Cache line size in bytes [auto]
-  --with-page-size=N      Page size in bytes [auto]
+  --with-page-size=N      Page size in bytes [hugepage size]
   --with-ramdisk=PATH     Path to ramdisk [/dev/shm/]
 
 Some influential environment variables:

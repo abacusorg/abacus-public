@@ -80,7 +80,7 @@ tcmalloc: gperftools/lib/libtcmalloc_minimal.so
 gperftools/lib/libtcmalloc_minimal.so:
 	@echo "Building tcmalloc... this may take a minute but will only be done once"
 	@cd gperftools && \
-	./configure --enable-minimal --prefix=$(shell pwd)/gperftools > /dev/null && \
+	./configure --enable-minimal --prefix=$(shell pwd)/gperftools --with-tcmalloc-pagesize=256 > /dev/null && \
 	make > /dev/null && make install > /dev/null
 
 .PHONY:all clean distclean external util tests analysis singlestep dist AbacusPython clibs convolution tcmalloc ParseHeader
