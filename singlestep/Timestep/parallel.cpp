@@ -241,8 +241,6 @@ void FinalizeParallel() {
 
 /* Begin Neighbor Exchange routines */
 
-STimer NeighborReceive;
-
 #ifdef PARALLEL
 // Partition functions
 inline bool is_right_ghost(ilstruct *particle, int slab, int first_ghost){
@@ -354,7 +352,8 @@ public:
         launch_mpi_send();
     }
 
-    int check_send_done(){
+    int try_free_sendbuf(){
+        int ret = 0;
         if(send_status == 1){
             int done = 0;
             // 10. done send?
@@ -366,11 +365,14 @@ public:
                 free(sendbuf);
                 sendbuf = NULL;
                 send_status = 2;
+                ret = 1;
             }
         }
-        if (send_status == 2)
-            return 1;  // all done!
-        return 0;
+        return ret;
+    }
+
+    int done_send(){
+        return send_status == 2;
     }
 
 private:
@@ -441,7 +443,8 @@ private:
     }
 
 public:
-    void try_receive(){
+    int try_receive(){
+        int ret = 0;
         if (send_status > 0      // started send
             && recv_status == 1  // receiving
             ){
@@ -459,12 +462,13 @@ public:
                 free(recvbuf);
                 recvbuf = NULL;
                 recv_status = 2;
+                ret = 1;
             }
-            return;
+            return ret;
         }
 
         if (recv_status == 2)
-            return;  // all done!
+            return ret;  // all done!
 
         if (recv_status == 0){
             // 4. check for incoming
@@ -487,11 +491,13 @@ public:
                     recvelem, recvelem*sizeof(ilstruct)/1e6, zneigh, slab);
                 MPI_Irecv(recvbuf, (int) recvelem, MPI_ilstruct, zneigh, tag, comm_1d_z, &recv_handle);
                 recv_status = 1;
+                ret = 1;
             }
-            return;
+            return ret;
         }
 
         assertf(recv_status == 1, "Unknown recv_status %d\n", recv_status);
+        return ret;
     }
 
     int done_receive(){
@@ -556,35 +562,36 @@ void DoNeighborSend(int slab){
 }
 
 // Called repeatedly in the timestep loop
-void AttemptNeighborReceive(int first, int receive_ahead){
+int AttemptNeighborReceive(int first, int receive_ahead){
     // This will typically be called with
     // first = (Finish.last_slab_executed - FINISH_WAIT_RADIUS), receive_ahead ~ 3
     // It's also safe to call with (0,cpd) if one always wants to receive everything
+    int ret = 0;
 
     if(MPI_size_z <= 1){
-        return;  // safely no-op
+        return ret;  // safely no-op
     }
 
-    NeighborReceive.Start();
     // Try to receive data from one or more slabs
     for(int i = first; i < first + receive_ahead; i++){
         int iw = CP->WrapSlab(i);
         // try_receive() will run twice for every exchange: once to launch the receive,
         // and again to install the data
-        if(left_exchanger[iw] != NULL) left_exchanger[iw]->try_receive();
-        if(right_exchanger[iw] != NULL) right_exchanger[iw]->try_receive();
+        if(left_exchanger[iw] != NULL) ret |= left_exchanger[iw]->try_receive();
+        if(right_exchanger[iw] != NULL) ret |= right_exchanger[iw]->try_receive();
     }
 
     // Do a lightweight release of the send buffer and MPI handle
     for(int i = 0; i < P.cpd; i++){
         if(left_exchanger[i] != NULL){
-            left_exchanger[i]->check_send_done();
+            ret |= left_exchanger[i]->try_free_sendbuf();
         }
         if(right_exchanger[i] != NULL){
-            right_exchanger[i]->check_send_done();
+            ret |= right_exchanger[i]->try_free_sendbuf();
         }
     }
-    NeighborReceive.Stop();
+
+    return ret;
 }
 
 // Checked in the Finish precondition
@@ -614,12 +621,12 @@ void TeardownNeighborExchange(){
     
     for(int i = 0; i < P.cpd; i++){
         if(left_exchanger[i] != NULL){
-            assertf(left_exchanger[i]->check_send_done(), "left exchanger for slab %d not done send?\n", i);
+            assertf(left_exchanger[i]->done_send(), "left exchanger for slab %d not done send?\n", i);
             assertf(left_exchanger[i]->done_receive(), "left exchanger for slab %d not done receive?\n", i);
             delete left_exchanger[i];
         }
         if(right_exchanger[i] != NULL){
-            assertf(right_exchanger[i]->check_send_done(), "right exchanger for slab %d not done send?\n", i);
+            assertf(right_exchanger[i]->done_send(), "right exchanger for slab %d not done send?\n", i);
             assertf(right_exchanger[i]->done_receive(), "right exchanger for slab %d not done receive?\n", i);
             delete right_exchanger[i];
         }
@@ -631,7 +638,7 @@ void TeardownNeighborExchange(){
 #else // PARALLEL
 
 void SetupNeighborExchange(int first, int nslab) { }
-void AttemptNeighborReceive(int first, int receive_ahead){ }
+int AttemptNeighborReceive(int first, int receive_ahead){ return 0; }
 void DoNeighborSend(int slab){ }
 int IsNeighborReceiveDone(int slab){ return 1; }
 void TeardownNeighborExchange(){ }

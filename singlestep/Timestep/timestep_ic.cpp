@@ -9,65 +9,75 @@ lot of infrastructure from there.
 
 */
 
-Dependency ReadIC;
-
 uint64 NP_from_IC = 0;
 
-int ReadICPrecondition(int slab) {
-    // We always do this.
-    #ifdef PARALLEL
-    if (ReadIC.raw_number_executed>=total_slabs_on_node) return 0;
-    // This prevents ReadICAction from reading beyond the 
-    // range of slabs on the node.  In the PARALLEL code, these
-    // data will arrive from the Manifest.  We have to implement
-    // this on the raw_number because the reported number is adjusted
-    // by the Manifest, which leads to a race condition when running
-    // the PARALLEL code on a single node test.
-    #endif
-    return 1;
-}
+class ReadICDep : public SlabDependency {
+public:
+    ReadICDep(int cpd, int initialslab)
+        : SlabDependency("ReadIC", cpd, initialslab){ }
 
-void ReadICAction(int slab) {
-    // Read an IC slab file into an arena
-    // It will be unpacked into particles in a later dependency
-    unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
-    ic->read_nonblocking();
-}
+    int precondition(int slab) {
+        // We always do this.
+        #ifdef PARALLEL
+        if (raw_number_executed>=total_slabs_on_node) return 0;
+        // This prevents ReadICAction from reading beyond the 
+        // range of slabs on the node.  In the PARALLEL code, these
+        // data will arrive from the Manifest.  We have to implement
+        // this on the raw_number because the reported number is adjusted
+        // by the Manifest, which leads to a race condition when running
+        // the PARALLEL code on a single node test.
+        #endif
+        return 1;
+    }
 
-int UnpackICPrecondition(int slab){
-    if(ReadIC.notdone(slab))
-        return 0;
-    
-    unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
-    if(!ic->check_read_done())
-        return 0;
+    void action(int slab) {
+        // Read an IC slab file into an arena
+        // It will be unpacked into particles in a later dependency
+        unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
+        ic->read_nonblocking();
+    }
+};
 
-    return 1;
-}
+class UnpackICDep : public SlabDependency {
+public:
+    UnpackICDep(int cpd, int initialslab)
+        : SlabDependency("UnpackIC", cpd, initialslab){ }
 
-void UnpackICAction(int slab){
-    uint64 NP_thisslab = UnpackICtoIL(slab);
-    NP_from_IC += NP_thisslab;
+    int precondition(int slab){
+        if(FetchSlabs->notdone(slab))
+            return 0;
+        
+        unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
+        if(!ic->check_read_done())
+            return 0;
 
-    // manually record the number of particles processed for the timing log,
-    // since SlabSize is all 0 at this point
-    Drift.num_particles += NP_thisslab;
-    Drift.num_particles_with_ghost += NP_thisslab;
+        return 1;
+    }
 
-    // We also need to create a null slab
-    // These slabs will never come off ramdisk because this is the first timestep
-    SB->AllocateSpecificSize(PosSlab,slab, 0, RAMDISK_NO);
-    SB->AllocateSpecificSize(VelSlab,slab, 0, RAMDISK_NO);
-    SB->AllocateSpecificSize(AuxSlab,slab, 0, RAMDISK_NO);
-    SB->AllocateArena(CellInfoSlab,slab, RAMDISK_NO);
-    
-    int cpd = CP->cpd;
+    void action(int slab){
+        uint64 NP_thisslab = UnpackICtoIL(slab);
+        NP_from_IC += NP_thisslab;
 
-    #pragma omp parallel for schedule(static)
-    for (int y=0; y<cpd; y++)
-        for (int z=node_z_start_ghost; z<node_z_start_ghost + node_z_size_with_ghost; z++)
-            CP->CellInfo(slab,y,z)->makenull();
-}
+        // manually record the number of particles processed for the timing log,
+        // since SlabSize is all 0 at this point
+        Drift->num_particles += NP_thisslab;
+        Drift->num_particles_with_ghost += NP_thisslab;
+
+        // We also need to create a null slab
+        // These slabs will never come off ramdisk because this is the first timestep
+        SB->AllocateSpecificSize(PosSlab,slab, 0, RAMDISK_NO);
+        SB->AllocateSpecificSize(VelSlab,slab, 0, RAMDISK_NO);
+        SB->AllocateSpecificSize(AuxSlab,slab, 0, RAMDISK_NO);
+        SB->AllocateArena(CellInfoSlab,slab, RAMDISK_NO);
+        
+        int cpd = CP->cpd;
+
+        #pragma omp parallel for schedule(static)
+        for (int y=0; y<cpd; y++)
+            for (int z=node_z_start_ghost; z<node_z_start_ghost + node_z_size_with_ghost; z++)
+                CP->CellInfo(slab,y,z)->makenull();
+    }
+};
 
 /*
  * Registers the preconditions and actions for an IC step
@@ -100,43 +110,58 @@ void timestepIC(void) {
     // Lightweight setup of z-dimension exchanges
     SetupNeighborExchange(first + FINISH_WAIT_RADIUS, total_slabs_on_node);
 
-    INSTANTIATE(ReadIC, 0);
-    Drift.instantiate(nslabs, first, &UnpackICPrecondition, &UnpackICAction, "UnpackIC");
-    INSTANTIATE(FinishParticles, FINISH_WAIT_RADIUS);
-    INSTANTIATE(FinishMultipoles, FINISH_WAIT_RADIUS);
+    FetchSlabs = new ReadICDep(nslabs, first);
+    Drift = new UnpackICDep(nslabs, first);
+
+    FinishParticles  = new FinishParticlesDep(nslabs, first + FINISH_WAIT_RADIUS);
+    FinishMultipoles = new FinishMultipolesDep(nslabs, first + FINISH_WAIT_RADIUS);
 
 #ifdef PARALLEL
-    INSTANTIATE(      NeighborSend, FINISH_WAIT_RADIUS);
-	INSTANTIATE(CheckForMultipoles, FINISH_WAIT_RADIUS);
+    NeighborSend       = new NeighborSendDep(nslabs, first + FINISH_WAIT_RADIUS);
+    CheckForMultipoles = new CheckForMultipolesDep(nslabs, first + FINISH_WAIT_RADIUS);
+
+    DoReceiveManifest   = new ReceiveManifestEvent();
+    DoSendManifest      = new SendManifestEvent();
+    DoNeighborRecv      = new NeighborRecvEvent();
+    Check2DMultipoleMPI = new Multipole2DMPIEvent();
 #else
-    INSTANTIATE_NOOP(      NeighborSend, FINISH_WAIT_RADIUS);
-	INSTANTIATE_NOOP(CheckForMultipoles, FINISH_WAIT_RADIUS);
+    NeighborSend       = new NoopDep(nslabs);
+    CheckForMultipoles = new NoopDep(nslabs);
+
+    DoReceiveManifest   = new NoopEvent();
+    DoSendManifest      = new NoopEvent();
+    DoNeighborRecv      = new NoopEvent();
+    Check2DMultipoleMPI = new NoopEvent();
 #endif
 
+    Dependency::SpinTimer.Start();
 	int timestep_loop_complete = 0; 
 	while (!timestep_loop_complete){
-        ReadIC.Attempt();
-        Drift.Attempt();
-        NeighborSend.Attempt();
-       	FinishParticles.Attempt();
-        FinishMultipoles.Attempt();
-       	SendManifest->FreeAfterSend();
-    	ReceiveManifest->Check();   // This checks if Send is ready; no-op in non-blocking mode
-    // If the manifest has been received, install it.
-    	if (ReceiveManifest->is_ready()) ReceiveManifest->ImportData();
-        AttemptNeighborReceive(0,P.cpd);  // 2D
-        MF->CheckAnyMPIDone();
-   		CheckForMultipoles.Attempt();
+                FetchSlabs->Attempt();
+                     Drift->Attempt();
+              NeighborSend->Attempt();  // 2D
+       	   FinishParticles->Attempt();
+          FinishMultipoles->Attempt();
+        CheckForMultipoles->Attempt();  // 1D
+       	
+         DoReceiveManifest->Attempt();  // 1D
+            DoSendManifest->Attempt();  // 1D
+
+            DoNeighborRecv->Attempt(); // 2D
+       Check2DMultipoleMPI->Attempt(); // 2D
 		
 #ifdef PARALLEL
-		timestep_loop_complete = CheckForMultipoles.alldone(total_slabs_on_node);
+		timestep_loop_complete = CheckForMultipoles->alldone(total_slabs_on_node);
 #else
-		timestep_loop_complete = FinishMultipoles.alldone(total_slabs_on_node);
+		timestep_loop_complete = FinishMultipoles->alldone(total_slabs_on_node);
 #endif
     }
+    Dependency::SpinTimer.Stop();
 
 
     STDLOG(1, "Read %d particles from IC files\n", NP_from_IC);
+
+    uint64 merged_particles = ((FinishParticlesDep *) FinishParticles)->merged_particles;
     #ifdef PARALLEL
         BarrierWallClock.Start();
         MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UINT64_T, MPI_SUM);

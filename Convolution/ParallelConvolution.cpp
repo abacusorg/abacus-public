@@ -523,16 +523,14 @@ int ParallelConvolution::CheckForMultipoleTransferComplete(int _slab) {
     if(!mpi_limiter.Try())
         return 0;
 
-	int done_recv = 0; 
-	done_recv = CheckRecvMultipoleComplete(slab);  
-	int done_send = 0; 
-	done_send = CheckSendMultipoleComplete(slab); 
-	if (done_send and done_recv){
+	int done = CheckRecvMultipoleComplete(slab) &&
+			   CheckSendMultipoleComplete(slab); 
+	if (done){
         STDLOG(1,"Multipole MPI work complete for slab %d.\n", slab);
         MultipoleSlabAllMPIDone[slab] = 1;
     }
 	
-	return done_send and done_recv; 
+	return done;
 }
 
 /* ================== MPI Taylors ================== */

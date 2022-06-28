@@ -19,7 +19,7 @@ public:
     
     void ComputeIFFTZAndMPI(int x, MTCOMPLEX *outslab);
     
-    void CheckAnyMPIDone();
+    int CheckAnyMPIDone();
     int IsMPIDone(int slab);
 
 private:
@@ -125,8 +125,9 @@ void SlabTaylorMPI::DoMPIAllToAll(int slab, MPI_Request *handle, const Complex *
 }
 
 
-void SlabTaylorMPI::CheckAnyMPIDone(){
+int SlabTaylorMPI::CheckAnyMPIDone(){
     CheckMPI.Start();
+    int ret = 0;
     for(int i = 0; i < cpd; i++){
         if(mpi_status[i] == 1){
             int done = 0;
@@ -135,10 +136,12 @@ void SlabTaylorMPI::CheckAnyMPIDone(){
                 STDLOG(2, "Taylors y-z MPI transpose done on slab %d\n", i);
                 mpi_status[i] = 2;
                 free(sendbuf[i]);
+                ret = 1;
             }
         }
     }
     CheckMPI.Stop();
+    return ret;
 }
 
 

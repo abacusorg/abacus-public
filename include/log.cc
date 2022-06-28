@@ -51,6 +51,7 @@ void _log(IO &out, const char *name, const char *s, Args... args) {
 }
 
 #define LOG(stream, ...) _log(stream, __func__, __VA_ARGS__)
+#define LOG_WITH_NAME(stream, name, ...) _log(stream, name, __VA_ARGS__)
 
 #endif	// INCLUDE_LOG
 

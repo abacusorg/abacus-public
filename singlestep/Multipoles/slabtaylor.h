@@ -17,7 +17,7 @@ public:
     virtual void ComputeIFFTZAndMPI(int x, MTCOMPLEX *outslab) { };
     virtual void LaunchAllToAll() { };
     
-    virtual void CheckAnyMPIDone() { };
+    virtual int CheckAnyMPIDone() { };
     virtual int IsMPIDone(int slab) { return 1; };
 
 
