@@ -24,13 +24,21 @@ void STimer::Start() {
     timeron = 1;
 }
 
-void STimer::Stop(void) {
+void STimer::StartFrom(struct timespec _tstart) {
+    assert(!timeron); 
+    tstart = _tstart;
+    timeron = 1;
+}
+
+struct timespec STimer::Stop(void) {
     assert( timeron );
     struct timespec dt, tend;
     assert( clock_gettime( CLOCK_MONOTONIC, &tend) == 0 );
     timespecsub(&tend, &tstart, &dt);
     timespecadd(&dt, &timer, &timer);
     timeron = 0;
+    
+    return tend;
 }
 
 void STimer::Clear(void) {

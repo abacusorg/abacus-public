@@ -16,7 +16,7 @@ public:
     
     // no-ops in 1D
     virtual void ComputeFFTZ(int x, MTCOMPLEX *outslab) { };
-    virtual void CheckAnyMPIDone() { };
+    virtual int CheckAnyMPIDone() { };
     virtual int IsMPIDone(int slab) { return 1; };
 
     STimer FFTMultipole;

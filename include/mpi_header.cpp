@@ -63,6 +63,6 @@ int *all_node_ky_size;  // 2D: sizes of the multipole splits
 
 void SetupNeighborExchange(int first, int nslab);
 void DoNeighborSend(int slab);
-void AttemptNeighborReceive(int first, int receive_ahead);
+int AttemptNeighborReceive(int first, int receive_ahead);
 int IsNeighborReceiveDone(int slab);
 void TeardownNeighborExchange();

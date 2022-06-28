@@ -68,7 +68,6 @@ class SlabSize {
         newsizes_with_ghost[ws*num_zsplit + zsplit] = _size_with_ghost;
     }
     void setold(int slab, uint64 _size, uint64 _size_with_ghost) {
-        assert(_size == _size_with_ghost);
         int ws = Grid->WrapSlab(slab);
         sizes[ws*num_zsplit + zsplit] = _size;
         sizes_with_ghost[ws*num_zsplit + zsplit] = _size_with_ghost;

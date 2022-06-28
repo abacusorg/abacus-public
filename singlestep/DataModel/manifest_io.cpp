@@ -215,8 +215,8 @@ class Manifest {
     // Here's the prototypes for the main routines
     void QueueToSend(int finished_slab);
     void Send();
-    void FreeAfterSend();
-    void Check();
+    int FreeAfterSend();
+    int Check();
     void SetupToReceive();
     void Receive();
     void ImportData();
@@ -450,7 +450,8 @@ void Manifest::Send() {
 
 /// This is the routine to call frequently to try to clean up 
 /// space after Send's have happened.
-inline void Manifest::FreeAfterSend() {
+inline int Manifest::FreeAfterSend() {
+    return 0;
 }
 
 
@@ -463,7 +464,7 @@ void Manifest::SetupToReceive() {
 /// This can be called in timestep.cpp to manually check (blocking)
 /// whether Receive is ready to run.
 // TODO: This may have a rather different meaning in MPI
-inline void Manifest::Check() {
+inline int Manifest::Check() {
     #ifndef PARALLEL
     return;	// If we're not doing PARALLEL, let this optimize to a no-op
     #endif

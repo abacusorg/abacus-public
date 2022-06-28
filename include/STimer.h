@@ -12,7 +12,8 @@ public:
     STimer();
     ~STimer();
     void Start(void);
-    void Stop(void);
+    void StartFrom(struct timespec);
+    struct timespec Stop(void);
     double Elapsed(void);
     void Clear(void);
     void increment(struct timespec dt);

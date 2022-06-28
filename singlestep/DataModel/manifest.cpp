@@ -59,13 +59,13 @@ class DependencyRecord {
     DependencyRecord() { begin = end = 0; }
 
     /// Load the status of this dependency 
-    void Load(Dependency &d, int finished_slab, const char label[]) {
+    void Load(SlabDependency *d, int finished_slab, const char label[]) {
         end = finished_slab;
 		
         // Don't look past the slabs this node owns
         for (begin=end-1; CP->WrapSlab(begin - first_slab_on_node) < total_slabs_on_node; begin--) {
-            if (!d.instantiated || d.notdone(begin)) break;
-            //// d.mark_to_repeat(begin);   // We're not going to unmark
+            if (d == NULL || d->notdone(begin)) break;
+            //// d->mark_to_repeat(begin);   // We're not going to unmark
         }
 		
         // We've found the first notdone slab
@@ -74,7 +74,7 @@ class DependencyRecord {
         // Now look for the last done slab
         // Don't look past the slabs this node owns
         for (; CP->WrapSlab(end - first_slab_on_node) < total_slabs_on_node; end++) {
-            if (!d.instantiated || d.notdone(end)) break;
+            if (d == NULL || d->notdone(end)) break;
         } end--;
         /* The manifest code is called in two different use cases:
            1) when the GlobalGroups have happened and we want to pass 
@@ -84,7 +84,7 @@ class DependencyRecord {
            The issue is that case (1) needs to indicate the existence of 
            data that hasn't yet been shipped.  In particular, that FindLinks has happened on forward slabs.
         */
-        if (Drift.notdone(finished_slab)) {
+        if (Drift->notdone(finished_slab)) {
             // We're in the first case; don't pass along anything ahead.
             STDLOG(3, "Changing end from %d to %d\n", end, finished_slab);
             end = finished_slab;
@@ -92,8 +92,8 @@ class DependencyRecord {
         STDLOG(2, "Load Dependency %s [%d,%d)\n", label, begin, end);
         return;
     }
-    void Set(Dependency &d, const char label[]) {
-        for (int s=begin; s<end; s++) d.force_done(s);
+    void Set(SlabDependency *d, const char label[]) {
+        for (int s=begin; s<end; s++) d->force_done(s);
         STDLOG(2, "Set Dependency %s [%d,%d)\n", label, begin, end);
         return;
     }
@@ -340,8 +340,8 @@ class Manifest {
     // Here's the prototypes for the main routines
     void QueueToSend(int finished_slab);
     void Send();
-    void FreeAfterSend();
-    void Check();
+    int FreeAfterSend();
+    int Check();
     void SetupToReceive();
     void Receive();
     void ImportData();
@@ -379,11 +379,6 @@ void FreeManifest() {
     delete[] _SendManifest;
     STDLOG(2,"Freeing ReceiveManifest\n");
     delete[] _ReceiveManifest;
-}
-
-void CheckSendManifest() {
-    for (int j=0; j<nManifest; j++) _SendManifest[j].FreeAfterSend();
-    return;
 }
 
 
@@ -554,39 +549,24 @@ void Manifest::Send() {
 
 /// This is the routine to call frequently to try to clean up 
 /// space after Send's have happened.
-inline void Manifest::FreeAfterSend() {
+inline int Manifest::FreeAfterSend() {
+    int ret = 0;  // did something?
+    
     #ifdef PARALLEL
-    if (completed != MANIFEST_TRANSFERRING) return;   // No active Isend's yet
+    if (completed != MANIFEST_TRANSFERRING) return ret;   // No active Isend's yet
 
     // Has it been long enough since our last time querying MPI?
     if(!mpi_limiter.Try())
-        return;
+        return ret;
 
     CheckCompletion.Start();
-
-    /* OLDCODE
-    check_if_done(0);    // Manifest Core
-    if (check_if_done(1)) {
-        free(il);    // Insert List
-        STDLOG(1,"Freeing the Send Manifest Insert List, %d left\n", numpending);
-    }
-    if (check_if_done(2)) {
-        free(links);    // GroupLink List; won't get called if already marked_as_done
-        STDLOG(1,"Freeing the Send Manifest GroupLink List, %d left\n", numpending);
-    }
-    for (int n=0; n<m.numarenas; n++) 
-        if (check_if_done(n+3)) {  // Arenas
-            SB->DeAllocate(m.arenas[n].type, m.arenas[n].slab, 1);  // Deallocate, deleting any underlying file
-            STDLOG(1,"Freeing the Send Manifest Arena, slab %d of type %d, %d left\n",
-                m.arenas[n].slab, m.arenas[n].type, numpending);
-        }
-    END OLDCODE */
-
     for (int n=0; n<maxpending; n++) 
 	if (check_if_done(n)) {
 	    STDLOG(2,"Sent Manifest part %d, %d left\n", n, numpending);
 	}
     if (check_all_done()) {
+        ret = 1;
+        
         // At present, we don't know which MPI send fragment maps to which arena, 
         // so we have to wait until all are sent to delete.
         Communication.Stop();
@@ -604,7 +584,7 @@ inline void Manifest::FreeAfterSend() {
     }
     CheckCompletion.Stop();
     #endif
-    return;
+    return ret;
 }
 
 
@@ -626,13 +606,14 @@ void Manifest::SetupToReceive() {
 
 /// This can be called in timestep.cpp to manually check 
 /// whether Receive is ready to run.
-inline void Manifest::Check() {
+inline int Manifest::Check() {
+    int ret = 0;  // did something?
     #ifdef PARALLEL
-    if (completed >= MANIFEST_READY) return;   // Nothing's active now
+    if (completed >= MANIFEST_READY) return ret;   // Nothing's active now
 
     // Has it been long enough since our last time querying MPI?
     if(!mpi_limiter.Try())
-        return;
+        return ret;
     
     CheckCompletion.Start();
     for (int n=0; n<maxpending; n++) 
@@ -650,10 +631,11 @@ inline void Manifest::Check() {
             ReleaseFreeMemoryToKernel();
             Receive();
             completed = MANIFEST_TRANSFERRING;
+            ret = 1;
         } 
     }
     #endif
-    return;
+    return ret;
 }
 
 /* OLDCODE
