@@ -33,6 +33,7 @@ class NearFieldDriver{
         int NGPU;
         int DirectBPD;
         int NBuffers;
+        std::string GPUName;
         
         uint64 DirectInteractions_CPU;
         uint64 *DirectInteractions_GPU;
@@ -140,7 +141,7 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
 
 
     STDLOG(2, "Fetching device memory...\n");
-    GPUMemoryGB = GetDeviceMemory();
+    GetDeviceInfo(&GPUMemoryGB, GPUName);
     GPUMemoryGB /= DirectBPD;        // Nominal GB per buffer
     NBuffers = NGPU*DirectBPD;
     STDLOG(1, "Running with %d GPUs, each with %d Buffers of max size %f GB\n", NGPU, DirectBPD, GPUMemoryGB);

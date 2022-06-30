@@ -228,17 +228,18 @@ int GetNGPU(){
 }
 
 /// Function to get the amount of memory on the GPUs
-extern "C" double GetDeviceMemory(){
+extern "C" void GetDeviceInfo(double *memGB, std::string &name){
     int ngpu;
     checkCudaErrors(cudaGetDeviceCount(&ngpu));
-    double mem = 1e99;
+    *memGB = 1e99;
+    cudaDeviceProp p;
     for(int g = 0; g < ngpu; g++){
-        cudaDeviceProp p;
         checkCudaErrors(cudaGetDeviceProperties(&p,g));
         double m = p.totalGlobalMem/1e9;
-        mem = min(.8*m,mem);
+        *memGB = min(.8*m,*memGB);
     }
-    return mem;
+
+    name = p.name;
 }
 
 

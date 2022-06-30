@@ -52,6 +52,26 @@ void InitializeReport() {
      } while(0)		 
 
 
+std::string cpu_model_str(){
+    // https://stackoverflow.com/a/24957090
+    int cpuInfo[4] = {-1};
+    char CPUBrandString[0x40];
+
+    memset(CPUBrandString, 0, sizeof(CPUBrandString));
+
+    __cpuid(cpuInfo, 0x80000002);
+    memcpy(CPUBrandString, cpuInfo, sizeof(cpuInfo));
+
+    __cpuid(cpuInfo, 0x80000003);
+    memcpy(CPUBrandString + 16, cpuInfo, sizeof(cpuInfo));
+
+    __cpuid(cpuInfo, 0x80000004);
+    memcpy(CPUBrandString + 32, cpuInfo, sizeof(cpuInfo));
+
+    return std::string(CPUBrandString);
+}
+
+
 /* This function gathers timings from major global classes before they're destroyed in the Epilogue.
  * They're printed to a string buffer (via a file-like interface); this string buffer saves a few spots
  * for teardown timings that happen after this function runs.  Those spots get filled in in ReportTimings(),
@@ -75,7 +95,18 @@ void GatherTimings() {
     if(MPI_size_z > 1) fprintf(reportfp,"(%" PRId64 " incl. ghost) ", np_node_with_ghost);
 	
     //TODO : consider reporting number of particles microstepped here as well. 
-    fprintf(reportfp,"finished by this node.\n");
+    fprintf(reportfp,"finished by this node.\n\n");
+
+    int NGPU = NFD ? NFD->NGPU : 0;
+
+    fprintf(reportfp, "| %s (%d^3, CPD=%d); ", P.SimName, (int) roundf(P.ppd()), P.cpd);
+#ifdef PARALLEL
+    fprintf(reportfp, "%dx%d MPI ranks\n", MPI_size_x, MPI_size_z);
+#else
+    fprintf(reportfp, "no MPI\n");
+#endif
+    fprintf(reportfp, "| %d x %s\n", omp_get_num_procs(), cpu_model_str().c_str());
+    if(NFD) fprintf(reportfp, "| %d x %s\n", NGPU, NFD->GPUName.c_str());
 
     total = 0.0;
     REPORT(0, "SingleStep Setup", SingleStepSetup.Elapsed()); total += thistime;
@@ -177,15 +208,11 @@ void GatherTimings() {
     total = 0.0;
     denom = TimeStepWallClock.Elapsed();
     REPORT(1, "FetchSlabs", FetchSlabs->Elapsed()); total += thistime;
-    
-    int NGPU = 0;
 
     if(NFD){
         REPORT(1, "Transpose Positions", TransposePos->Elapsed()); total += thistime;
 
     #ifdef CUDADIRECT
-        NGPU = NFD->NGPU;
-        
         REPORT(1, "NearForce [blocking]", NearForce->Elapsed()); total += thistime;
         REPORT(1, "NearForce [non-blocking]", NFD->GPUThroughputTime);
         fprintf(reportfp,"---> %6.2f effective GDIPS, %.2f Mpart/sec", thistime ? NFD->gdi_gpu/thistime : 0, thistime ? NearForce->num_particles/thistime/1e6 : 0.);
@@ -527,7 +554,7 @@ void GatherTimings() {
 
 
 #ifdef PARALLEL
-    fprintf(reportfp, "\n\nBreakdown of Check MPI Completion:");
+    fprintf(reportfp, "\n\nBreakdown of various MPI work:");
     denom = TimeStepWallClock.Elapsed();
     REPORT(1, "Check Manifest MPI", manifest_check_time);
     REPORT(1, "Queueing Receive Manifest", RManifestTime);
