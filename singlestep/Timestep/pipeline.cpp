@@ -841,14 +841,14 @@ public:
     }
 
     void action(int slab) {
-        FinishPreamble.Start();
+        FinishFreeSlabs.Start();
 
         SB->report_current();
         SB->report_peak();
 
         if (WriteState.Do2LPTVelocityRereading)
             SB->DeAllocate(VelLPTSlab, slab);
-        FinishPreamble.Stop();
+        FinishFreeSlabs.Stop();
 
         // Gather particles from the insert list and make the merge slabs
         uint64 n_merge, n_merge_with_ghost;
@@ -859,7 +859,7 @@ public:
         FinishParticles->num_particles += n_merge - SS->size(slab);
         FinishParticles->num_particles_with_ghost += n_merge_with_ghost - SS->size_with_ghost(slab);
 
-        FinishPreamble.Start();
+        FinishFreeSlabs.Start();
 
         // This may be the last time be need any of the CellInfo slabs that we just used
         // We can't immediately free CellInfo before NearForce might need it until we're FORCE_RADIUS away
@@ -879,7 +879,7 @@ public:
         SB->DeAllocate(AuxSlab,slab);
 
         STDLOG(2,"Done deallocing pos, vel, aux for slab %d\n", slab);
-        FinishPreamble.Stop();
+        FinishFreeSlabs.Stop();
 
         // Make the multipoles
         ComputeMultipoleSlab(slab);

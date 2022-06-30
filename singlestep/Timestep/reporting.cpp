@@ -92,7 +92,8 @@ void GatherTimings() {
     int64 np_node_with_ghost = FinishParticles->num_particles_with_ghost;
     fprintf(reportfp, "---> %6.3f Mpart/sec\n", thistime ? np_node/thistime/1e6 : 0.);
     fprintf(reportfp, "                                       % " PRId64 " particles ", np_node);
-    if(MPI_size_z > 1) fprintf(reportfp,"(%" PRId64 " incl. ghost) ", np_node_with_ghost);
+    double ghostfrac = (double)(np_node_with_ghost - np_node) / np_node;
+    if(MPI_size_z > 1) fprintf(reportfp,"(+%.3g%% ghost) ", ghostfrac*100);
 	
     //TODO : consider reporting number of particles microstepped here as well. 
     fprintf(reportfp,"finished by this node.\n\n");
@@ -186,7 +187,6 @@ void GatherTimings() {
     double manifest_check_time = 0.;
     double RManifestTime = 0.;
     double SManifestTime = 0.;
-    double transpose_2d_check = 0.;
     double total_mpi_check = 0.;  // things not timed in other actions
 
 #ifdef PARALLEL
@@ -198,10 +198,6 @@ void GatherTimings() {
         SManifestTime += _SendManifest[i].Load.Elapsed() +
                          _SendManifest[i].Transmit.Elapsed();  // in Finish
     }
-    transpose_2d_check += MF->CheckMPI.Elapsed();
-    if(TY != NULL) transpose_2d_check += TY->CheckMPI.Elapsed();
-
-    total_mpi_check = manifest_check_time + RManifestTime + transpose_2d_check + CheckForMultipoles->Elapsed();
 #endif
 
     fprintf(reportfp, "\n\nBreakdown of TimeStep: ");
@@ -276,7 +272,6 @@ void GatherTimings() {
 
 
 #ifdef PARALLEL
-    //REPORT(1, "Check MPI Completion", total_mpi_check); total += thistime;
     double manifest_total = DoReceiveManifest->Elapsed() + DoSendManifest->Elapsed();
     REPORT(1, "Manifest", manifest_total); total += thistime;
     REPORT(1, "MPI Barrier", BarrierWallClock.Elapsed()); total += thistime;
@@ -372,11 +367,17 @@ void GatherTimings() {
                 fprintf(reportfp,"\n\t\t\t\t---> %6.2f Gdirects, %6.2f padded Gdirects", NFD->gdi_gpu, NFD->gdi_padded_gpu);
                 fprintf(reportfp,"\n\t\t\t\t---> with %d device threads, estimate %.1f%% thread concurrency", NFD->NBuffers, (NFD->DeviceThreadTimer - NFD->GPUThroughputTime)/(NFD->DeviceThreadTimer - NFD->DeviceThreadTimer/NFD->NBuffers)*100);
                 
+            
+            /*// Such detailed stats are not very useful
             fprintf(reportfp, "\n    Device stats:\n");
             for(int g = 0; g < NFD->NBuffers; g++){
                 fprintf(reportfp, "        Device thread %d (GPU %d):", g, g % NGPU);
                 fprintf(reportfp, " %.2f GB to device, %.2f GB from device, %.2f Msink, %.2f Gdirects\n", NFD->GB_to_device[g], NFD->GB_from_device[g], NFD->DeviceSinks[g]/1e6, NFD->DirectInteractions_GPU[g]/1e9);
-            }
+            }*/
+
+            // max(directs) - mean(directs) is an estimate of the load balancing
+            double maxdirects = *std::max_element(NFD->DirectInteractions_GPU, NFD->DirectInteractions_GPU + NFD->NBuffers);
+            fprintf(reportfp,"\n\t\t\t\t---> directs load imbalance is %.3g%%\n", (maxdirects*NFD->NBuffers - 1e9*NFD->gdi_gpu)/(1e9*NFD->gdi_gpu)*100);
 #else
         REPORT(1, "CPU directs", NearForce->Elapsed());
             fprintf(reportfp,"---> %6.2f GDIPS, %6.2f Gdirects, %6.2f Mpart/sec", thistime ? gdi_cpu/thistime : 0., gdi_cpu, thistime ? NFD->NSink_CPU/thistime/1e6 : 0.);
@@ -520,7 +521,7 @@ void GatherTimings() {
         REPORT_RATE(FinishParticles);
     denom = thistime;
         REPORT(2, "Precondition", FinishParticles->ElapsedPrecon());
-		REPORT(2, "Finish Preamble", FinishPreamble.Elapsed());
+		REPORT(2, "Free ReadState Slabs", FinishFreeSlabs.Elapsed());
         REPORT(2, "Partition Insert List", IL->FinishPartition.Elapsed());
         REPORT(2, "Sort Insert List", IL->FinishSort.Elapsed());
             fprintf(reportfp,"---> %6.2f Mitems/sec (%.2g items)", thistime ? IL->n_sorted/thistime/1e6 : 0., (double) IL->n_sorted);
@@ -557,11 +558,13 @@ void GatherTimings() {
     fprintf(reportfp, "\n\nBreakdown of various MPI work:");
     denom = TimeStepWallClock.Elapsed();
     REPORT(1, "Check Manifest MPI", manifest_check_time);
-    REPORT(1, "Queueing Receive Manifest", RManifestTime);
-    REPORT(1, "Queueing Send Manifest [Finish]", SManifestTime);
-    if(MPI_size_z > 1) REPORT(1, "Check 2D Transpose MPI", transpose_2d_check);
+    REPORT(1, "Queuing Receive Manifest", RManifestTime);
+    REPORT(1, "Queuing Send Manifest [Finish]", SManifestTime);
+    REPORT(1, "Queuing Multipole MPI [Finish]", QueueMultipoleMPI.Elapsed());
     REPORT(1, "Check MPI Multipoles [precon]", CheckForMultipoles->ElapsedPrecon());
     REPORT(1, "Free MPI Multipoles", CheckForMultipoles->Elapsed());
+    if(MPI_size_z > 1 && Check2DMultipoleMPI) REPORT(1, "Check 2D Multiple MPI", Check2DMultipoleMPI->Elapsed());
+    if(MPI_size_z > 1 && Check2DTaylorMPI) REPORT(1, "Check 2D Taylor MPI", Check2DTaylorMPI->Elapsed());
 
     /*
     // TOOD: can't use *Manifest->, need to sum up _*Manifest

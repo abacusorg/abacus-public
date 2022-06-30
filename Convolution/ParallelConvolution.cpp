@@ -186,6 +186,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	Constructor.Stop(); 
 	CS.Constructor = Constructor.Elapsed();
 	
+	CS.totalMemoryAllocated = 0;
 	AllocMT();
 	AllocDerivs();
 	
@@ -328,6 +329,8 @@ void ParallelConvolution::AllocMT(){
 	AllocateMT.Stop(); 
 	CS.AllocMT = AllocateMT.Elapsed();
 	CS.MmapMT  = MmapMT.Elapsed();
+
+	CS.totalMemoryAllocated += MTdisk_bytes + bufsize;
 	
 	return;
 }
@@ -363,6 +366,7 @@ void ParallelConvolution::AllocDerivs(){
 	CS.ReadDerivativesBytes = 0.0; 
 	AllocateDerivs.Stop();
 	CS.AllocDerivs = AllocateDerivs.Elapsed(); 
+	CS.totalMemoryAllocated += Ddisk_bytes;
 }
 
 /* ==================   DERIVATIVES   ================== */ 
@@ -853,7 +857,7 @@ void ParallelConvolution::dumpstats() {
     double discrepancy = CS.ConvolveWallClock - accountedtime;
 	
     int computecores = CS.ComputeCores;
-    fprintf(fp,"Convolution parameters:  RamAllocated = %4.1fMiB CacheSizeMiB = %4.1fMB nreal_cores=%d blocksize=%d zwidth=%d cpd=%d order=%d",
+    fprintf(fp,"Convolution parameters:  RamAllocated = %4.1fMiB CacheSize = %4.1fMiB nreal_cores=%d blocksize=%d zwidth=%d cpd=%d order=%d",
 	         (double) CS.totalMemoryAllocated/(1<<20), P.ConvolutionCacheSizeMB, computecores, (int) blocksize, (int) znode, (int) cpd, (int) order);
 			 
 

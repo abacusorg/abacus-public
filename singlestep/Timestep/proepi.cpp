@@ -42,7 +42,7 @@
 
 #include "numa_for.h"
 
-STimer FinishPreamble; 
+STimer FinishFreeSlabs; 
 STimer FinishPartition;
 STimer FinishSort;
 STimer FinishCellIndex;
