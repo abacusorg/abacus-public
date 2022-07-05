@@ -59,7 +59,7 @@ public:
     int runtime_NearFieldRadius;
     int runtime_DerivativeExpansionRadius;
 
-    int runtime_IsRamDisk;
+    int runtime_AllowDIO;
     int runtime_DIOBufferSizeKB;
     float runtime_ConvolutionCacheSizeMB;
     float runtime_ConvolutionL1CacheSizeMB;

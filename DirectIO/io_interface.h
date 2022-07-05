@@ -30,7 +30,7 @@ ChecksumMap FileChecksums;
 double ChecksumTime[MAX_IO_THREADS];
 uint64 ChecksumBytes[MAX_IO_THREADS];
 
-int io_ramdisk_global = 0;    // Set to 1 if we're using a ramdisk
+int allow_directio_global = 1;    // Set to 0 if we're using a ramdisk, or a network file system
 
 // Two quick functions so that the I/O routines don't need to know
 // about the SB object.

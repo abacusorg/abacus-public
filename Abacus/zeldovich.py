@@ -156,7 +156,7 @@ def setup_zeldovich_params(params):
 def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=True):
     '''
     Invokes the zeldovich executable with the given parameter file,
-    cleaning up any exisitng output directories first and also
+    cleaning up any existing output directories first and also
     copying the input power spectrum to the destination.
 
     If `allow_eigmodes_fn_override` is set, checks if

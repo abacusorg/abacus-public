@@ -68,8 +68,8 @@ void packN_load_header(char* filename, packNheader *header){
 // Use direct IO to read the data portion of the file into a buffer
 char *packN_load_data(int packN, char* filename, uint64_t header_size, uint64_t data_size, char **pid_buffer, size_t *pid_data_size){
     char *buffer = (char *) check_posix_memalign(4096, data_size);
-    int ramdisk = 1;  // filesystems like El Gato /rsgrps seem to strongly prefer fread
-	ReadDirect rd(ramdisk,1024*1024);
+    int no_dio = 1;  // filesystems like El Gato /rsgrps seem to strongly prefer fread
+	ReadDirect rd(no_dio,1024*1024);
 	rd.BlockingRead(filename, (char*)buffer, data_size, header_size);
 
     if(packN == 9 && !IGNORE_PARTICLE_IDS){

@@ -38,7 +38,7 @@ public:
     int  MAXRAMMB;
     float  ConvolutionCacheSizeMB; // Set to manually override the detected cache size; this is for L3
     float  ConvolutionL1CacheSizeMB; // Set to manually override the detected cache size
-    int RamDisk;        // ==0 for a normal disk, ==1 for a ramdisk (which don't have DIO support)  // TODO: automatically detect this, or at least provide per-directory options
+    int AllowDirectIO;        // ==1 for a normal disk, ==0 for a ramdisk or sometimes network file system
     int ForceBlockingIO;   // ==1 if you want to force all IO to be blocking.
     char StateIOMode[64];  //  "normal", "slosh", "overwrite", "stripe"
     char Conv_IOMode[64];  //  "normal", "slosh", "overwrite", "stripe"
@@ -240,8 +240,8 @@ public:
         installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB, DONT_CARE);
         ConvolutionL1CacheSizeMB = getCacheSize(1);
         installscalar("ConvolutionL1CacheSizeMB", ConvolutionL1CacheSizeMB, DONT_CARE);
-        RamDisk = 0;
-        installscalar("RamDisk",RamDisk,DONT_CARE);
+        AllowDirectIO = 1;
+        installscalar("AllowDirectIO",AllowDirectIO,DONT_CARE);
         ForceBlockingIO = 0;
         installscalar("ForceBlockingIO",ForceBlockingIO,DONT_CARE);
 

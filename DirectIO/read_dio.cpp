@@ -3,7 +3,7 @@
 #define is_aligned(POINTER, BYTE_COUNT) \
     (((uintptr_t)(const void *)(POINTER)) % (BYTE_COUNT) == 0)
 int ReadDirect::rdopenflags(void) {
-    if(ramdiskflag) 
+    if(!allow_directio) 
         return O_RDONLY;
     else
         return O_RDONLY|O_DIRECT|O_LARGEFILE;
@@ -113,11 +113,11 @@ void ReadDirect::BlockingReadDirect(char *fn, char *x, size_t length, off_t file
 }
 
 void ReadDirect::BlockingRead(char *fn, char *x, size_t length, off_t fileoffsetbytes) {
-    ReadDirect::BlockingRead(fn, x, length, fileoffsetbytes, ramdiskflag);
+    ReadDirect::BlockingRead(fn, x, length, fileoffsetbytes, !allow_directio);
 }
 
 void ReadDirect::BlockingRead(char *fn, char *x, size_t length, off_t fileoffsetbytes, int no_dio) {
-    if(no_dio || ramdiskflag) 
+    if(no_dio || !allow_directio) 
         Blockingfread(fn,x,length,fileoffsetbytes);
     else
         BlockingReadDirect(fn,x,length,fileoffsetbytes);

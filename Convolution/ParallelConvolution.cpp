@@ -179,9 +179,9 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
     size_t sdb = DIOBufferSizeKB;
     sdb *= 1024LLU;
 
-    int direct = P.RamDisk;
-	STDLOG(2, "Making RD object with %d %f\n", direct, sdb);
-	ReadDirect * RD_RDD = new ReadDirect(direct,sdb);
+    int no_dio = !P.AllowDirectIO;
+	STDLOG(2, "Making RD object with no_dio=%d bufsize=%d\n", no_dio, sdb);
+	ReadDirect * RD_RDD = new ReadDirect(no_dio, sdb);
 	
 	Constructor.Stop(); 
 	CS.Constructor = Constructor.Elapsed();

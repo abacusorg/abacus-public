@@ -266,8 +266,8 @@ void Prologue(Parameters &P, bool MakeIC) {
     char logfn[1050];
     sprintf(logfn,"%s/step%04d%s.iolog",
         WriteState.LogDirectory, WriteState.FullStepNumber, NodeString);
-    io_ramdisk_global = P.RamDisk;
-    STDLOG(0,"Setting RamDisk == %d\n", P.RamDisk);
+    allow_directio_global = P.AllowDirectIO;
+    STDLOG(1,"Setting global AllowDirectIO = %d\n", P.AllowDirectIO);
     IO_Initialize(logfn);
 
     SS = new SlabSize(P.cpd, MPI_size_z, MPI_rank_z);

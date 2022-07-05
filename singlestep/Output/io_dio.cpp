@@ -18,9 +18,9 @@ void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
     STDLOG(1,"Using IO_dio module to read file %f\n", filename);
     // Read the file, wait to complete.
     char fn[1024]; strcpy(fn, filename);
-    int ramdisk = io_ramdisk_global;
+    int no_dio = !allow_directio_global;
     size_t diskbuffer = ((size_t) 4) << 20;  // 4 MB
-    ReadDirect RD(ramdisk, diskbuffer);
+    ReadDirect RD(no_dio, diskbuffer);
     
     char dir[1024];
     containing_dirname(filename, dir);
@@ -51,9 +51,9 @@ void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
     FILE * outfile = fopen(fn,"wb");
     assertf(outfile != NULL,"Touching file %s failed\n", fn);
     fclose(outfile);
-    int ramdisk = io_ramdisk_global;
+    int no_dio = !allow_directio_global;
     size_t diskbuffer = ((size_t) 4) << 20;  // 4 MB
-    WriteDirect WD(ramdisk, diskbuffer);
+    WriteDirect WD(no_dio, diskbuffer);
     
     char dir[1024];
     containing_dirname(filename, dir);

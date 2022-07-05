@@ -356,7 +356,7 @@ int main(int argc, char ** argv){
 	    CP.runtime_DerivativeExpansionRadius = P.DerivativeExpansionRadius;
 	    strcpy(CP.runtime_DerivativesDirectory,P.DerivativesDirectory);
 	    CP.runtime_DIOBufferSizeKB = 1LL<<11;
-	    CP.runtime_IsRamDisk = P.RamDisk;
+	    CP.runtime_AllowDIO = P.AllowDirectIO;
 	    CP.runtime_MaxConvolutionRAMMB = P.MAXRAMMB;
 	    strcpy(CP.runtime_MultipoleDirectory, P.MultipoleDirectory);
 
