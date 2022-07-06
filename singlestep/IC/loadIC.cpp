@@ -91,6 +91,8 @@ ICFile::ICFile(int _slab, int _zsplit){
 
     // Subclasses should init this in the constructor
     Npart = 0;
+    foffset = 0;
+    fbytes = 0;
 }
 
 inline void ICFile::set_taggable_bits(auxstruct &aux, uint64 &sumA, uint64 &sumB){
@@ -116,15 +118,16 @@ public:
     ICFile_OnDisk<T>(int _slab, int _zsplit) : ICFile(_slab, _zsplit){
         // SlabSizeBytes only works if ICSlab is already in memory
         // This avoids an extra file stat
-        uint64 b;
-        if(SB->IsSlabPresent(ICSlab,slab))
-            b = SB->SlabSizeBytes(ICSlab, slab);
-        else
-            b = fsize(SB->ReadSlabPath(ICSlab,slab).c_str());
+        /*if(SB->IsSlabPresent(ICSlab,slab))
+            fbytes = SB->SlabSizeBytes(ICSlab, slab);
+        else*/
+        fbytes = fsize(SB->ReadSlabPath(ICSlab,slab).c_str());
 
-        Npart = b/sizeof(typename T::ICparticle);
+        Npart = fbytes/sizeof(typename T::ICparticle);
+        foffset = 0;
         
-        assertf(Npart*sizeof(typename T::ICparticle) == b, "Size of IC slab %s not divisible by particle size %d!\n",
+        assertf(Npart*sizeof(typename T::ICparticle) == fbytes,
+            "Size of IC slab %s not divisible by particle size %d!\n",
             SB->ReadSlabPath(ICSlab, slab), sizeof(typename T::ICparticle));
     }
 };
@@ -278,7 +281,27 @@ public:
         T vel[3];
     };
 
-    using ICFile_OnDisk<ICFile_RVZelTemplate<T>>::ICFile_OnDisk;  // inherit the constructor
+    ICFile_RVZelTemplate(int _slab, int _zsplit)
+        : ICFile_OnDisk<ICFile_RVZelTemplate<T>>(_slab, _zsplit) {
+        
+        // Npart in the parent constructor is the total in the file
+        // but this constructor will set it to the per-zrank value.
+
+        uint64 ppd = WriteState.ippd;
+        uint64 xplanes = this->Npart / (ppd*ppd);
+        assertf(xplanes*ppd*ppd == this->Npart,
+            "IC file does not contain a whole number of ppd^2 particle planes?\n");
+        
+        if(MPI_size_z > 1){
+            uint64 zstart = MPI_rank_z*ppd/MPI_size_z;
+            uint64 znext = (MPI_rank_z + 1)*ppd/MPI_size_z;
+            this->Npart = xplanes*ppd*(znext - zstart);
+            this->fbytes = this->Npart*sizeof(ICparticle);
+            this->foffset = zstart*ppd*xplanes*sizeof(ICparticle);
+        } else {
+            this->foffset = 0;
+        }
+    }
 
 private:
     // If velslab != NULL, unpack the velocities into there and do nothing else

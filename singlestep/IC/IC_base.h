@@ -25,6 +25,8 @@ public:
     // Used to generate sequential PIDs if we were not given them
     static uint64 next_pid; // 0 by default
     uint64 Npart;  // initialized by each subclass constructor
+    uint64 foffset;  // where to start reading the file
+    uint64 fbytes;  // size of the data to read
 
     int slab;
     int zsplit;

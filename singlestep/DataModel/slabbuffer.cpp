@@ -97,6 +97,8 @@ private:
     // Check if this slab type is supposed to be directly allocated in shared memory
     int IsRamdiskSlab(int type, int hint=RAMDISK_AUTO);
 
+    uint64 ReadOffset(int type, int slab);
+
 public:
 
     // The write and read names for the files of this SlabType.
@@ -476,7 +478,7 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
         case VelLPTSlab :
         case ICSlab    : {
             if (P.NumZRanks > 1){
-                ss << P.InitialConditionsDirectory << "/ic_" << slab << "." << MPI_rank_z;
+                ss << P.InitialConditionsDirectory << "/2D/ic2D_" << slab;
             } else {
                 ss << P.InitialConditionsDirectory << "/ic_" << slab;
             }
@@ -525,7 +527,7 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
             return SS->size(slab)*sizeof(accstruct);
         }
         case ICSlab     : {
-            return fsize(ReadSlabPath(ICSlab,slab).c_str());
+            return ICFile::FromFormat(P.ICFormat, slab)->fbytes;
         }
         case VelLPTSlab : {
             return ICFile::FromFormat(P.ICFormat, slab)->Npart*sizeof(velstruct);
@@ -542,27 +544,25 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
         case FieldTimeSlicePIDs : {
             return fsize(ReadSlabPath(FieldTimeSlicePIDs,slab).c_str());
         }
-
-        /* // Ideally this is how we would allocate group finding arenas
-                // but there's an annoying circular depdendency: we don't know about GFC yet, but GFC has fields that require slabbuffer.
-                // Not easily solved with a forward declaration.
-                // TODO: better way to do this?
-                case L1halosSlab           : { return GFC->globalslabs[slab]->L1halos.get_slab_bytes(); }
-        case TaggedPIDsSlab        : { return GFC->globalslabs[slab]->TaggedPIDs.get_slab_bytes(); }
-        case L1ParticlesSlab       : { return GFC->globalslabs[slab]->L1Particles.get_slab_bytes(); }
-        case HaloPIDsSlab            : { return GFC->globalslabs[slab]->L1PIDs.get_slab_bytes(); }
-        case TaggableFieldSlab     : {
-            uint64 maxsize = P.np*P.HaloTaggableFraction*1.05;  // TODO: better heuristic? what will happen in very small sims?  Also technically HaloTaggableFraction is only used in the IC step
-            return maxsize*sizeof(RVfloat);
-        }
-        case TaggableFieldPIDSlab  : {
-            uint64 maxsize = P.np*P.HaloTaggableFraction*1.05;
-            return maxsize*sizeof(TaggedPID);
-        }*/
-
         default            : QUIT("Illegal type %d given to ArenaSize()\n", type);
     }
     return -1; //should be unreachable
+}
+
+uint64 SlabBuffer::ReadOffset(int type, int slab) {
+    // Byte offset for file IO.
+    // Only used for the ICs in the 2D code.
+
+    switch(type) {
+        case ICSlab: {
+            if(MPI_size_z > 1){
+                return ICFile::FromFormat(P.ICFormat, slab)->foffset;
+            }
+            break;
+        }
+        default: break;
+    }
+    return 0;
 }
 
 char *SlabBuffer::AllocateArena(int type, int slab, int ramdisk) {
@@ -672,7 +672,8 @@ void SlabBuffer::LoadArenaBlocking(int type, int slab) {
     AllocateArena(type, slab, RAMDISK_AUTO_READSLAB);
     ReadArenaBlocking(type, slab);
 
-    assertf(SlabSizeBytes(type, slab) == fsize(ReadSlabPath(type,slab).c_str()),
+    if (type != ICSlab)
+        assertf(SlabSizeBytes(type, slab) == fsize(ReadSlabPath(type,slab).c_str()),
             "Unexpected file size for slab %d of type %d\n", slab, type);
 }
 
@@ -680,7 +681,8 @@ void SlabBuffer::LoadArenaNonBlocking(int type, int slab) {
     AllocateArena(type, slab, RAMDISK_AUTO_READSLAB);
     ReadArenaNonBlocking(type, slab);
 
-    assertf(SlabSizeBytes(type, slab) == fsize(ReadSlabPath(type,slab).c_str()),
+    if (type != ICSlab)
+        assertf(SlabSizeBytes(type, slab) == fsize(ReadSlabPath(type,slab).c_str()),
             "Unexpected file size for slab %d of type %d\n", slab, type);
 }
 
@@ -702,11 +704,13 @@ void SlabBuffer::ReadArena(int type, int slab, int blocking, const char *fn) {
         "File %s appears to be too small (%d bytes) compared to the arena (%d)\n",
             fn, fsize(fn), SlabSizeBytes(type,slab));
 
+    uint64 offset = ReadOffset(type, slab);
+
     ReadFile( GetSlabPtr(type,slab),
         SlabSizeBytes(type,slab),
         type, slab,
         fn,
-        0,      // No file offset
+        offset,
         blocking);
 }
 
