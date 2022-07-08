@@ -187,8 +187,11 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     with Tools.chdir(basedir):
         # The parfile is directly stored in the basedir
         output_parfile = basename(output_parfile)
-        if clean and not path.exists(icdir) and not zeldovich.is_on_the_fly_format(params['ICFormat']):
-            zeldovich.run(output_parfile, allow_eigmodes_fn_override=override_directories)
+        if not zeldovich.is_on_the_fly_format(params['ICFormat']):
+            if clean and not path.exists(icdir):
+                zeldovich.run(output_parfile, allow_eigmodes_fn_override=override_directories)
+            if params.get('Parallel') and params.get('NumZRanks',1) > 1:
+                zeldovich.ensure_2d(params)  # might have switched from 1D to 2D
         elif clean:
             print('Reusing existing ICs')
 

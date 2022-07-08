@@ -18,3 +18,4 @@ cffi
 abacusutils
 scikit-learn
 asdf
+click

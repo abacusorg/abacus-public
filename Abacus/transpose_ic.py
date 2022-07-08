@@ -9,6 +9,9 @@ abacus.py.
 We could split the files on z-rank, but then that makes it
 harder to change NumZRanks later.  Instead, each z-rank
 can just read the contiguous subset of the file it needs.
+
+Note that the 2D ICs are also perfectly valid inputs
+to the 1D code.
 '''
 
 from pathlib import Path
@@ -18,26 +21,37 @@ import numpy as np
 import tqdm
 import click
 
+
 pbytes = dict(rvzel=32)
+
 
 @click.command()
 @click.argument('icdir')
 @click.argument('ppd', type=int)
 @click.argument('format')
-@click.option('--nthread')
-def transpose(icdir, ppd, format, nthread=2):
+@click.option('--nthread', type=int)
+def command(icdir, ppd, format, nthread=2):
     '''
     Transpose a set of [slab][x,y,z] files from the zeldovich
     code into [slab][z,x,y].  Outputs will be written into
-    ``icdir/2D/ic2D_*``.\f
+    ``icdir/2D/ic2D_*``.
+    '''
+    transpose(icdir, ppd**3, format, nthread=nthread)
+
+
+def transpose(icdir, NP, format, nthread=2):
+    '''
+    Transpose a set of [slab][x,y,z] files from the zeldovich
+    code into [slab][z,x,y].  Outputs will be written into
+    ``icdir/2D/ic2D_*``.
 
     Parameters
     ----------
     icdir : path-like
         Directory containing the IC files
 
-    ppd : int
-        Particles per dimension
+    NP : int
+        Number of particles (must be perfect cube)
 
     format : str
         Format of the IC particles, like 'RVZel'
@@ -48,6 +62,11 @@ def transpose(icdir, ppd, format, nthread=2):
     '''
     icdir = Path(icdir)
     format = format.lower()
+
+    ppd = int(round(NP**(1/3)))
+    if ppd**3 != NP:
+        raise ValueError(f"{NP=} expected to be perfect cube "
+        "(i.e. an output of the zeldovich IC code) for 2D transpose to work")
 
     fns = list(sorted(icdir.glob('ic_*')))
 
@@ -67,5 +86,6 @@ def transpose_one(fn, ppd, format):
     ic = np.ascontiguousarray(np.moveaxis(ic, 2, 0))
     ic.tofile(outdir / name)
 
+
 if __name__ == '__main__':
-    transpose()
+    command()
