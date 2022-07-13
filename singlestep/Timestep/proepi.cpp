@@ -553,22 +553,15 @@ void load_read_state(int MakeIC){
     snprintf(WriteState.LogDirectory, 1024, "%s/step%04d", P.LogDirectory, WriteState.FullStepNumber);
 }
 
-void check_read_state(const int MakeIC, double &da){
+void check_read_state(const int MakeIC){
     // Check if ReadStateDirectory is accessible, or if we should
     // build a new state from the IC file
 
     if(MakeIC){
         STDLOG(0,"Generating initial State from initial conditions\n");
-        da = 0;
     } else {
         STDLOG(0,"Read ReadState from %s\n",P.ReadStateDirectory);
         ReadState.AssertStateLegal(P);
-
-        // Handle some special cases
-        if (P.ForceOutputDebug) {
-            STDLOG(0,"ForceOutputDebug option invoked; setting time step to 0.\n");
-            da = 0;
-        }
     }
 }
 
@@ -581,7 +574,7 @@ void InitWriteState(int MakeIC, const char *pipeline, const char *parfn){
 
     // We generally want to do re-reading on the last LPT step
     WriteState.Do2LPTVelocityRereading = 0;
-    if (LPTStepNumber() > 0 && LPTStepNumber() == P.LagrangianPTOrder
+    if (WriteState.FullStepNumber == P.LagrangianPTOrder-1
         && (strcmp(P.ICFormat, "RVdoubleZel") == 0 || strcmp(P.ICFormat, "RVZel") == 0)){
         WriteState.Do2LPTVelocityRereading = 1;
     }
@@ -646,6 +639,13 @@ void InitWriteState(int MakeIC, const char *pipeline, const char *parfn){
 
 
 void InitKernelDensity(){
+    /* N.B. we are opting to store these concepts in the WriteState,
+    even though they relate to the ReadState positions and cosmology.
+    We may revisit this choice, but at least it allows us to easily
+    log these values as part of the write state file, and avoids the
+    unseemly practice of modifying the ReadState.
+    */
+
     #ifdef COMPUTE_FOF_DENSITY
     #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
     if (P.DensityKernelRad==0) {
@@ -674,8 +674,11 @@ void InitKernelDensity(){
     #endif
 }
 
+template<class C, typename T>
+bool contains(C *a, C *b, T e) { return std::find(a, b, e) != b; };
 
-void InitGroupFinding(bool MakeIC){
+
+void InitGroupFinding(int MakeIC){
     /*
     Request output of L1 groups and halo/field subsamples if:
     - this redshift is a member of L1OutputRedshift; or
@@ -698,39 +701,57 @@ void InitGroupFinding(bool MakeIC){
     i.e. before GroupFinding has a chance to rearrange them
     */
 
-    int do_grp_output = 0;
+    // TODO: add integer flags to state to coordinate intention across timestep
+    // 1) shorten timestep
+    // 2) do a da=0 timestep, with forces, to half-kick velocities to synchronicity (also send ghosts for group finding)
+    // 3) do a da=0, no-force group-finding timestep
+    // 4) resume timestepping with forces
 
-    for(int i = 0; i < P.nTimeSliceSubsample; i++){
-        double subsample_z = P.TimeSliceRedshifts_Subsample[i];
-        if(abs(ReadState.Redshift - subsample_z) < 1e-12){
-            STDLOG(0,"Subsample output (and group finding) at this redshift requested by TimeSliceRedshifts_Subsample[%d]\n", i);
-            ReadState.DoSubsampleOutput = 1;
+    // Decide if the next step will do group finding
+    WriteState.DoGroupFindingOutput = 0;
+
+    for(int i = 0; i < P.nTimeSliceL1; i++){
+        double L1z = P.L1OutputRedshifts[i];
+        double L1a = 1.0/(1+L1z);
+
+        if(contains(P.TimeSliceRedshifts, P.TimeSliceRedshifts + P.nTimeSlice, L1z) || 
+            contains(P.TimeSliceRedshifts_Subsample, P.TimeSliceRedshifts_Subsample + P.nTimeSliceSubsample, L1z)
+         ) continue;
+
+
+        if(ReadState.DoGroupFindingOutput != (i+2) &&
+            ReadState.ScaleFactor < L1a && WriteState.ScaleFactor >= L1a){
+
+            // We don't shorten our timestep to land exactly on a merger tree redshift.
+            // Is the next time step going to take us further from the target z?
+            if(fabs(ReadState.ScaleFactor - L1a) > fabs(WriteState.ScaleFactor - L1a)){
+                WriteState.DoGroupFindingOutput = i+2;
+                STDLOG(0,"Group finding on the write state requested by L1OutputRedshifts[%d]\n", i);
+            } else {
+                ReadState.DoGroupFindingOutput = i+2;
+                STDLOG(0,"Group finding on the read state requested by L1OutputRedshifts[%d]\n", i);
+            }
+            
+            break;
         }
     }
-    
-    if(P.OutputAllHaloParticles){
-        ReadState.DoSubsampleOutput = 1;
-        STDLOG(0,"OutputAllHaloParticles = 1; forcing subsample A = 100%% and B = 0%%\n");
-    }
 
+    if(WriteState.DoTimeSliceOutput && !WriteState.DoSubsampleOutput) WriteState.DoSubsampleOutput = 1;
 
-    if ( ReadState.DoTimeSliceOutput ) ReadState.DoSubsampleOutput = 1;
-
-    if ( ReadState.DoGroupFindingOutput ) goto have_L1z; 
-
+    if(WriteState.DoTimeSliceOutput || WriteState.DoSubsampleOutput) WriteState.DoGroupFindingOutput = 1;
 
     if(P.L1Output_dlna >= 0){
-        do_grp_output = log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ||
+        WriteState.DoGroupFindingOutput = log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ||
                     fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna);
         STDLOG(0,"Group finding at this redshift requested by L1Output_dlna\n");
     }
-    else{
-        do_grp_output = 0;
+    
+    if(P.OutputAllHaloParticles && !WriteState.DoSubsampleOutput){
+        WriteState.DoSubsampleOutput = 1;
+        STDLOG(0,"OutputAllHaloParticles = 1; forcing subsample A = 100%% and B = 0%%\n");
     }
 
-    have_L1z:
-
-    if (ReadState.DoTimeSliceOutput or ReadState.DoSubsampleOutput or ReadState.DoGroupFindingOutput) do_grp_output = 1;  //if any kind of output is requested, turn on group finding. 
+    // done WriteState. Does ReadState tell us to find groups?
 
     // Set up the density kernel
     // This used to inform the group finding, but also might be output as part of lightcones even on non-group-finding steps
@@ -739,15 +760,12 @@ void InitGroupFinding(bool MakeIC){
     WriteState.L0DensityThreshold = 0.0;  // Only has any effect if doing group finding
 
     // Can we enable group finding?
-    if((P.MicrostepTimeStep > 0 || do_grp_output) &&
+    if((P.MicrostepTimeStep > 0 || ReadState.DoGroupFindingOutput) &&
         !(!P.AllowGroupFinding || P.ForceOutputDebug || MakeIC || LPTStepNumber())){
         STDLOG(1, "Setting up group finding\n");
 
-        ReadState.DoGroupFindingOutput = do_grp_output; // if any kind of output is requested, turn on group finding.
-
         STDLOG(2, "Group finding: %d, subsample output: %d, timeslice output: %d.\n",
             ReadState.DoGroupFindingOutput, ReadState.DoSubsampleOutput, ReadState.DoTimeSliceOutput);
-
 
         GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
                     #ifdef SPHERICAL_OVERDENSITY

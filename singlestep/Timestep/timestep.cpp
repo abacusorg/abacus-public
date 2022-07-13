@@ -302,7 +302,12 @@ void timestep(void) {
         assertf(total_n_output == P.np, "TimeSlice output contains %d particles instead of %d!\n", total_n_output, P.np);
 	}
 
-    // free dependencies (not really important; just for completeness)
+    STDLOG(1,"Completing timestep()\n");
+    TimeStepWallClock.Stop();
+}
+
+
+void free_dependencies(){
     delete FetchSlabs;
     delete TransposePos;
     delete NearForce;
@@ -327,7 +332,4 @@ void timestep(void) {
     delete DoNeighborRecv;
     delete Check2DMultipoleMPI;
     delete Check2DTaylorMPI;
-
-    STDLOG(1,"Completing timestep()\n");
-    TimeStepWallClock.Stop();
 }

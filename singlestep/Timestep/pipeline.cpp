@@ -52,7 +52,7 @@ public:
         SB->LoadArenaNonBlocking(CellInfoSlab,slab);
         SB->LoadArenaNonBlocking(PosSlab,slab);
 
-        if(WriteState.Do2LPTVelocityRereading && UnpackLPTVelocity->notdone(slab)){
+        if(ReadState.Do2LPTVelocityRereading && UnpackLPTVelocity->notdone(slab)){
             ICFile::FromFormat(P.ICFormat, slab)->read_vel_nonblocking();
         }
 
@@ -629,7 +629,6 @@ public:
         // Delete the Cell Groups.
         if (GFC!=NULL) GFC->DestroyCellGroups(slab);
 
-        int step = WriteState.FullStepNumber;
         if (LPTStepNumber()>0) return;
         // Some output might want to be skipped during an IC step,
         // e.g., no light cones
@@ -639,13 +638,13 @@ public:
 
         // Having found all groups, we should output the Non-L0 (i.e., field) Taggable subsample.
         if(ReadState.DoSubsampleOutput) {
-            assertf(ReadState.DoGroupFindingOutput == 1, "Subsample output should turn on group finding!\n"); // Currently Subsample Output requires GroupFinding Output
+            assertf(ReadState.DoGroupFindingOutput, "Subsample output should turn on group finding!\n"); // Currently Subsample Output requires GroupFinding Output
             OutputNonL0Taggable(slab);
         }
 
         if (ReadState.DoTimeSliceOutput) {
             // If we are doing group finding, then we are doing group finding output and subsample output
-            assertf(GFC == NULL || (ReadState.DoSubsampleOutput == 1 && ReadState.DoGroupFindingOutput == 1),
+            assertf(GFC == NULL || (ReadState.DoSubsampleOutput && ReadState.DoGroupFindingOutput),
                 "Preparing for timeslice output, expected either no group finding, or group finding and subsampling output!\n");
 
             // We've already done a K(1) and thus need a K(-1/2)
@@ -740,7 +739,7 @@ public:
 
         // We also must have the 2LPT velocities
         // The finish radius is a good guess of how ordered the ICs are
-        if(WriteState.Do2LPTVelocityRereading)
+        if(ReadState.Do2LPTVelocityRereading)
             for(int i=-FINISH_WAIT_RADIUS;i<=FINISH_WAIT_RADIUS;i++) 
                 if (UnpackLPTVelocity->notdone(slab+i)) {
                     return 0;
@@ -846,7 +845,7 @@ public:
         SB->report_current();
         SB->report_peak();
 
-        if (WriteState.Do2LPTVelocityRereading)
+        if (ReadState.Do2LPTVelocityRereading)
             SB->DeAllocate(VelLPTSlab, slab);
         FinishFreeSlabs.Stop();
 

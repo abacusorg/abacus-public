@@ -52,20 +52,37 @@ void InitializeReport() {
      } while(0)		 
 
 
+#ifndef __INTEL_COMPILER
+#include "cpuid.h"
+#endif
 std::string cpu_model_str(){
     // https://stackoverflow.com/a/24957090
-    int cpuInfo[4] = {-1};
+    int cpuInfo[4] = {0};
     char CPUBrandString[0x40];
 
     memset(CPUBrandString, 0, sizeof(CPUBrandString));
 
+    
+#ifndef __INTEL_COMPILER
+    __get_cpuid(0x80000002, cpuInfo, cpuInfo+4, cpuInfo+8, cpuInfo+12);
+#else
     __cpuid(cpuInfo, 0x80000002);
+#endif
     memcpy(CPUBrandString, cpuInfo, sizeof(cpuInfo));
 
+    
+#ifndef __INTEL_COMPILER
+    __get_cpuid(0x80000003, cpuInfo, cpuInfo+4, cpuInfo+8, cpuInfo+12);
+#else
     __cpuid(cpuInfo, 0x80000003);
+#endif
     memcpy(CPUBrandString + 16, cpuInfo, sizeof(cpuInfo));
 
+#ifndef __INTEL_COMPILER
+    __get_cpuid(0x80000004, cpuInfo, cpuInfo+4, cpuInfo+8, cpuInfo+12);
+#else
     __cpuid(cpuInfo, 0x80000004);
+#endif
     memcpy(CPUBrandString + 32, cpuInfo, sizeof(cpuInfo));
 
     return std::string(CPUBrandString);

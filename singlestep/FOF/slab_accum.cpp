@@ -524,7 +524,7 @@ class SlabAccum {
 	// By creating buffers first, we avoid creating one per thread.
 	maxthreads = 1;
 	buffers = new SlabAccumBuffer<T>[maxthreads];
-	setup(P.cpd, zwidth, 0);
+	setup(P.cpd, node_z_size_with_ghost, 0);
 	    // Now cells[], pencils[], and pstart[] exist and pencils[].cells is filled.
 
 	char *p = (char *) SB->GetSlabPtr(type,slab);  // Here's where our data is

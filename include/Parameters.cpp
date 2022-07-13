@@ -36,8 +36,8 @@ public:
 
     int  DerivativeExpansionRadius;
     int  MAXRAMMB;
-    float  ConvolutionCacheSizeMB; // Set to manually override the detected cache size; this is for L3
-    float  ConvolutionL1CacheSizeMB; // Set to manually override the detected cache size
+    double  ConvolutionCacheSizeMB; // Set to manually override the detected cache size; this is for L3
+    double  ConvolutionL1CacheSizeMB; // Set to manually override the detected cache size
     int AllowDirectIO;        // ==1 for a normal disk, ==0 for a ramdisk or sometimes network file system
     int ForceBlockingIO;   // ==1 if you want to force all IO to be blocking.
     char StateIOMode[64];  //  "normal", "slosh", "overwrite", "stripe"
@@ -167,15 +167,15 @@ public:
     double FoFLinkingLength[3]; //Linking lengths for level 0,1,2 groupfinding in fractional interparticle spacing 
     double SODensity[2];  // Overdensities for SO groupfinding level 1 and 2
     int MinL1HaloNP; // minimum L1 halo size to output
-	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
-    float SO_RocheCoeff; 
-    float SO_alpha_eligible;   // New centers must be outside alpha*R_Delta
-    float SO_NPForMinDensity; 
+	double L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
+    double SO_RocheCoeff; 
+    double SO_alpha_eligible;   // New centers must be outside alpha*R_Delta
+    double SO_NPForMinDensity; 
     int SO_EvolvingThreshold; //allow evolving (redshift-dependent) density threshold 
 
     #define MAX_L1OUTPUT_REDSHIFTS 1024
     int nTimeSliceL1; 
-    float L1OutputRedshifts[MAX_L1OUTPUT_REDSHIFTS];
+    double L1OutputRedshifts[MAX_L1OUTPUT_REDSHIFTS];
     int OutputAllHaloParticles;  // ==0 normally, to output only taggable L1 particles.  If non-zero, output all particles
 
     double MicrostepTimeStep; // Timestep parameter that controls microstep refinement
@@ -200,7 +200,7 @@ public:
     int InsertListGapElems;  // Size of the MAL gaps in the Insert List, in number of ilstruct elems
 
     // Return the L{tier} size in MB
-    float getCacheSize(int tier){
+    double getCacheSize(int tier){
         int cache_size = 0;
         FILE *fp = NULL;
         char fn[1024];
@@ -215,7 +215,7 @@ public:
             fclose(fp);
             assertf(nscan == 1, "Unexpected cache size file format (\"%s\")\n", fn);
         }
-        return (float)cache_size/1024.0;    // to MB
+        return cache_size/1024.0;    // to MB
     }
     
     // in MB
@@ -545,32 +545,35 @@ void strlower(char* str){
 }
 
 void Parameters::CountTimeSlices(){
-    nTimeSlice = -1; 
+    nTimeSlice = -1;
     for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++){
         if (TimeSliceRedshifts[i] <= -1) {
-            nTimeSlice = i; 
-            break; 
+            nTimeSlice = i;
+            break;
         }
-    }   
+    }
+    std::sort(TimeSliceRedshifts, TimeSliceRedshifts + nTimeSlice, greater<double>());
 
-    nTimeSliceSubsample = -1; 
+    nTimeSliceSubsample = -1;
     for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++){
         if (TimeSliceRedshifts_Subsample[i] <= -1) {
-            nTimeSliceSubsample = i; 
-            break; 
+            nTimeSliceSubsample = i;
+            break;
         }
-    } 
+    }
+    std::sort(TimeSliceRedshifts_Subsample, TimeSliceRedshifts_Subsample + nTimeSliceSubsample, greater<double>());
 
-    nTimeSliceL1 = -1; 
+    nTimeSliceL1 = -1;
     for (int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++){
         if (L1OutputRedshifts[i] <= -1) {
-            nTimeSliceL1 = i; 
-            break; 
+            nTimeSliceL1 = i;
+            break;
         }
-    } 
+    }
+    std::sort(L1OutputRedshifts, L1OutputRedshifts + nTimeSliceL1, greater<double>());
 
     if (! (nTimeSlice > 0 || nTimeSliceSubsample > 0 || nTimeSliceL1 > 0 || OutputEveryStep || StoreForces))
-        printf("Warning! No output requested. Are you sure you want this?\n");  //must request at least one kind of output. 
+        printf("Warning! No output requested. Are you sure you want this?\n");
 }
 void Parameters::ProcessStateDirectories(){
     strlower(StateIOMode);

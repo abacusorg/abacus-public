@@ -27,6 +27,7 @@ public:
     virtual int Attempt() = 0;
 
     Dependency(const char* _name) : name(_name) { }
+    virtual ~Dependency() { }
     
     double Elapsed(){
         return action_timer.Elapsed();

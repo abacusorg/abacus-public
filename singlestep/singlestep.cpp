@@ -12,6 +12,8 @@ void BuildWriteState(double da){
 	WriteState.order_state = P.order;
 	WriteState.ppd = P.ppd();
     WriteState.ippd = (int64) round(WriteState.ppd);
+    // DoTimeSliceOutput, DoSubsampleOutput set in ChooseTimeStep()
+    WriteState.VelIsSynchronous = da == 0;
         
 	// Fill in the logistical reporting fields
 #ifdef GITVERSION
@@ -93,7 +95,6 @@ double EvolvingDelta(float z){
 
 void PlanOutput(bool MakeIC) {
     // Check the time slice and decide whether to do output.
-    ReadState.DoTimeSliceOutput = 0;
     ReadState.OutputIsAllowed = 0;
     ReadState.DoBinning = 0;
     density = 0;
@@ -142,23 +143,18 @@ void PlanOutput(bool MakeIC) {
     ReadState.OutputIsAllowed = 1;
 
     // Now check whether we're asked to do a TimeSlice.
-    for (int nn = 0; nn < P.nTimeSlice || P.OutputEveryStep == 1; nn++) {
-	if ((abs(ReadState.Redshift-P.TimeSliceRedshifts[nn])<1e-12) || P.OutputEveryStep == 1) {
-	    STDLOG(0,"Planning to output a TimeSlice, element %d\n", nn);
-	    ReadState.DoTimeSliceOutput = 1;
+	if (ReadState.DoTimeSliceOutput || P.OutputEveryStep == 1) {
+	    STDLOG(0,"Planning to output a TimeSlice\n");
 	    char slicedir[128];
 	    sprintf(slicedir,"slice%5.3f", ReadState.Redshift);
 	    CreateSubDirectory(P.OutputDirectory,slicedir);
-	    break;
 	}
-    }
 
     //check if we should bin
     if (P.PowerSpectrumStepInterval >0 && ReadState.FullStepNumber %P.PowerSpectrumStepInterval == 0){
     	density = new FLOAT[P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d];
     	ReadState.DoBinning = 1;
     }
-
 }
 
 
@@ -202,10 +198,7 @@ int main(int argc, char **argv) {
     // Set up OpenMP
     init_openmp();
 
-    // Decide what kind of step to do
-    double da = -1.0;   // If we set this to zero, it will skip the timestep choice
-
-    check_read_state(MakeIC, da);
+    check_read_state(MakeIC);
 
     // Initialize the Cosmology and set up the State epochs and the time step
     cosm = InitializeCosmology(ReadState.ScaleFactor);
@@ -225,7 +218,7 @@ int main(int argc, char **argv) {
     if(access(wstatefn,0) !=-1 && !WriteState.OverwriteState)
         QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
 
-    if (da!=0) da = ChooseTimeStep();
+    double da = ChooseTimeStep(MakeIC);
 
     // da *= -1;  // reverse the time step TODO: make parameter
     double dlna = da/ReadState.ScaleFactor;
@@ -277,6 +270,7 @@ int main(int argc, char **argv) {
 
     delete cosm;
     free(LCOrigin);
+    free_dependencies();
 
     // Print out some final stats
     FinalizeWriteState();

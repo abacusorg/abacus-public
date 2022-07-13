@@ -128,6 +128,7 @@ public:
     int DoBinning;
     int DoGroupFindingOutput;
     int DoSubsampleOutput; 
+    int VelIsSynchronous;
     
     int Do2LPTVelocityRereading;
 
@@ -251,9 +252,18 @@ public:
 
         // Initialize helper variables
         DoTimeSliceOutput = 0;
+        installscalar("DoTimeSliceOutput",DoTimeSliceOutput,DONT_CARE);
+
         OutputIsAllowed = 0;
+        
         DoGroupFindingOutput = 0;
-        DoSubsampleOutput = 0; 
+        installscalar("DoGroupFindingOutput",DoGroupFindingOutput,DONT_CARE);
+        
+        DoSubsampleOutput = 0;
+        installscalar("DoSubsampleOutput",DoSubsampleOutput,DONT_CARE);
+
+        VelIsSynchronous = 0;
+        installscalar("VelIsSynchronous",VelIsSynchronous,DONT_CARE);
         
         Do2LPTVelocityRereading = 0;
 
@@ -284,8 +294,8 @@ void State::read_from_file(const char *fn) {
 
 
 #define PRQUOTEME(X) #X
-#define WPR(X,XSYM) {int ret = snprintf(tmp, 1024, PRQUOTEME(%22s = %XSYM\n), PRQUOTEME(X), X); assert(ret >= 0 && ret < 1024); ss << tmp;}
-#define WPRS(X,XSYM) {int ret = snprintf(tmp, 1024, "%22s = \"%s\" \n", PRQUOTEME(X), X); assert(ret >= 0 && ret < 1024); ss << tmp;}
+#define WPR(X,XSYM) {int ret = snprintf(tmp, 1024, PRQUOTEME(%26s = %XSYM\n), PRQUOTEME(X), X); assert(ret >= 0 && ret < 1024); ss << tmp;}
+#define WPRS(X,XSYM) {int ret = snprintf(tmp, 1024, "%26s = \"%s\" \n", PRQUOTEME(X), X); assert(ret >= 0 && ret < 1024); ss << tmp;}
 
 void State::make_output_header() {
     // We're going to output most, but not all of the fields, into a 
@@ -354,14 +364,19 @@ void State::make_output_header() {
     WPR(SODensityL2              , FSYM);
 
     WPR(GhostRadius              , ISYM);
+    
+    WPR(DoTimeSliceOutput        , ISYM);
+    WPR(DoSubsampleOutput        , ISYM);
+    WPR(VelIsSynchronous         , ISYM);
+    WPR(DoGroupFindingOutput     , ISYM);
 
     output_header = ss.str();
 }
 
 #undef WPR
 #undef WPRS
-#define WPR(X,XSYM) fprintf(statefp, PRQUOTEME(%22s = %XSYM\n), PRQUOTEME(X), X); 
-#define WPRS(X,XSYM) fprintf(statefp, "%22s = \"%s\" \n", PRQUOTEME(X), X); 
+#define WPR(X,XSYM) fprintf(statefp, PRQUOTEME(%26s = %XSYM\n), PRQUOTEME(X), X); 
+#define WPRS(X,XSYM) fprintf(statefp, "%26s = \"%s\" \n", PRQUOTEME(X), X); 
 // #define WPR(X,XSYM) fprintf(statefp, PRQUOTEME(X = %XSYM\n), X)
 // #define WPRS(X,XSYM) fprintf(statefp, PRQUOTEME(X) " = \"%s\" \n", X)
 
