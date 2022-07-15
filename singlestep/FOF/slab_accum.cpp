@@ -30,9 +30,9 @@ Then s[j] will return the PencilAccum<T>,
 s[j][k] will return the CellPtr<T>,
 and s[j][k][n] will return an individual element
 
-In the 2D code, one will typically pass `node_z_size` or `node_z_size_with_ghost`
-as the `zwidth` of the pencils. But the SlabAccum doesn't know about `node_z_start`,
-so be sure to index global cell index `[k]` as `[k-node_z_start]`.
+2D: SlabAccum knows nothing about subslabs except that the z-dimension
+has length `zwidth`. So one must use k indices relative to the lowest z cell,
+which will usually be `node_z_start_ghost`.
 
 s.get_slab_size() will return the total elements in the slab.
 s.get_slab_bytes() will return the total bytes in the slab.
@@ -372,7 +372,7 @@ class SlabAccum {
 	    ret = posix_memalign((void **)&pencils, PAGE_SIZE, sizeof(PencilAccum<T>)*cpd); assert(ret==0);
 	    ret = posix_memalign((void **)&cells, PAGE_SIZE, sizeof(CellAccum)*cpd*zwidth); assert(ret==0);
 	    ret = posix_memalign((void **)&pstart, PAGE_SIZE, sizeof(uint64)*(cpd+1)); assert(ret==0);
-	    for (int j=0; j<cpd; j++) pencils[j].cells = cells+j*cpd;
+	    for (int j=0; j<cpd; j++) pencils[j].cells = cells+j*zwidth;
 	}
 	if (buffers==NULL) {
 	    // printf("%lu\n",(sizeof(SlabAccumBuffer<T>)));
@@ -478,9 +478,9 @@ class SlabAccum {
     void dump_cells_to_file(char fname[]) {
 	FILE *fp = fopen(fname, "w");
 	for (int j=0; j<cpd; j++) {
-	    for (int k=0; k<cpd; k++) {
+	    for (int k=0; k<zwidth; k++) {
 		fprintf(fp, "%d %d:  %d %d\n",
-			j,k, cells[j*cpd+k].start, cells[j*cpd+k].size());
+			j,k, cells[j*zwidth+k].start, cells[j*zwidth+k].size());
 	    }
 	}
 	fclose(fp);

@@ -60,16 +60,16 @@ class CellFaceSlab {
     int slab;                 ///< The slab we're computing (wrapped)
     int slab_prewrap;         ///< The slab we're told to compute (unwrapped)
 
-    CellFaceSlab(int _slab, int _edgebit, int cpd, int maxsize) {
+    CellFaceSlab(int _slab, int _edgebit, int cpd, int zwidth, int maxsize) {
         // maxsize should be the number of particles in a cell
         // times the boundary width.  Then we reduce from there.
         // Most particles are not in groups.  
         // Estimating 10% for pseudoParticles, 5% for faceGroups,
         // and 30% for faceParticles.
-        pseudoParticles.setup(cpd, node_z_size_with_ghost, maxsize/10); 
-        pseudoRadii.setup(cpd, node_z_size_with_ghost, maxsize/10);
-        faceParticles.setup(cpd, node_z_size_with_ghost, maxsize/3);
-        faceGroups.setup(cpd, node_z_size_with_ghost, maxsize/20);
+        pseudoParticles.setup(cpd, zwidth, maxsize/10); 
+        pseudoRadii.setup(cpd, zwidth, maxsize/10);
+        faceParticles.setup(cpd, zwidth, maxsize/3);
+        faceGroups.setup(cpd, zwidth, maxsize/20);
         edgebit = _edgebit;
         slab_prewrap = _slab;
         slab = GFC->WrapSlab(_slab);
@@ -132,8 +132,8 @@ class FaceSet {
     as needed.
     */
     void ProcessCell(int j, int k) {
-        Cell c = CP->GetCell(face->slab, j, k);
-        integer3 wc = GFC->WrapCell(face->slab, j, k);
+        Cell c = CP->GetCell(face->slab, j, GFC->zstart + k);  // global
+        integer3 wc = GFC->WrapCell(face->slab, j, k);  // local
         CellPtr<CellGroup> cg = GFC->cellgroups[wc.x][wc.y][wc.z];
         const FOFloat boundary = GFC->boundary;   // The boundaries, cell-centered
 
@@ -249,12 +249,12 @@ void CreateFaces( CellFaceSlab &xm, CellFaceSlab &xp,
         // xp is the one oddball, because it is in the neighboring slab.
         // So we do all of that pencil first, so that it benefits from 
         // whatever memory look-ahead might be there.
-        for (int k=0; k<GFC->cpd; k++) {
+        for (int k=0; k<GFC->zwidth; k++) {  // local k
             fxp.ProcessCell(j,k);
         }
         // The other 5 proceed together, so that we re-use the particles
         // that have been loaded into cache.
-        for (int k=0; k<GFC->cpd; k++) {
+        for (int k=0; k<GFC->zwidth; k++) {  // local k
             fxm.ProcessCell(j,k);
             fym.ProcessCell(j,k);
             fyp.ProcessCell(j,k);
@@ -283,6 +283,8 @@ Whenever one finds a link, mark the pair and move on to the next one.
 */
 void SearchPair(CellFaceSlab &c1, int j1, int k1, 
             CellFaceSlab &c2, int j2, int k2) {
+	
+	// k1, k2 are local
 
     int i1 = c1.slab;
     int i2 = c2.slab;
@@ -419,12 +421,12 @@ void FindGroupLinks(int slab) {
 
     // The typical number of particles
     int maxsize = GFC->particles_per_slab*GFC->linking_length*GFC->cpd;
-    CellFaceSlab xp(slab-1, XP_BIT, GFC->cpd, maxsize);
-    CellFaceSlab xm(slab,   XM_BIT, GFC->cpd, maxsize);
-    CellFaceSlab yp(slab,   YP_BIT, GFC->cpd, maxsize);
-    CellFaceSlab ym(slab,   YM_BIT, GFC->cpd, maxsize);
-    CellFaceSlab zp(slab,   ZP_BIT, GFC->cpd, maxsize);
-    CellFaceSlab zm(slab,   ZM_BIT, GFC->cpd, maxsize);
+    CellFaceSlab xp(slab-1, XP_BIT, GFC->cpd, GFC->zwidth, maxsize);
+    CellFaceSlab xm(slab,   XM_BIT, GFC->cpd, GFC->zwidth, maxsize);
+    CellFaceSlab yp(slab,   YP_BIT, GFC->cpd, GFC->zwidth, maxsize);
+    CellFaceSlab ym(slab,   YM_BIT, GFC->cpd, GFC->zwidth, maxsize);
+    CellFaceSlab zp(slab,   ZP_BIT, GFC->cpd, GFC->zwidth, maxsize);
+    CellFaceSlab zm(slab,   ZM_BIT, GFC->cpd, GFC->zwidth, maxsize);
 
     // Now load up these slabs
     // We do all at once, in order to get repeated access to individual cells.
@@ -463,20 +465,28 @@ void FindGroupLinks(int slab) {
     
     // Search each cell, putting the GroupLinks onto that insertlist.
     NUMA_FOR(j,0,GFC->cpd)
-        for (int k=0; k<GFC->cpd; k++) {
-            SearchPair(xp, j  , k-1, xm, j, k);
+        for (int k=0; k<GFC->zwidth; k++) {  // local k
+			if(MPI_size_z == 1 || k > 0){
+				// The z dimension doesn't wrap in 2D
+				// TODO: double-check with DJE that this is the right approach
+	            SearchPair(xp, j  , k-1, xm, j, k);
+				SearchPair(xp, j+1, k-1, xm, j, k);
+				SearchPair(xp, j-1, k-1, xm, j, k);
+				SearchPair(ym, j+1, k-1, yp, j, k);
+			}
+
             SearchPair(xp, j  , k  , xm, j, k);
-            SearchPair(xp, j  , k+1, xm, j, k);
-            SearchPair(xp, j+1, k-1, xm, j, k);
             SearchPair(xp, j+1, k  , xm, j, k);
-            SearchPair(xp, j+1, k+1, xm, j, k);
-            SearchPair(xp, j-1, k-1, xm, j, k);
             SearchPair(xp, j-1, k  , xm, j, k);
-            SearchPair(xp, j-1, k+1, xm, j, k);
-            SearchPair(ym, j+1, k-1, yp, j, k);
             SearchPair(ym, j+1, k  , yp, j, k);
-            SearchPair(ym, j+1, k+1, yp, j, k);
-            SearchPair(zm, j, k+1  , zp, j, k);
+
+			if(MPI_size_z == 1 || k < GFC->zwidth-1){
+				SearchPair(xp, j+1, k+1, xm, j, k);
+				SearchPair(xp, j  , k+1, xm, j, k);
+				SearchPair(xp, j-1, k+1, xm, j, k);
+				SearchPair(ym, j+1, k+1, yp, j, k);
+				SearchPair(zm, j,   k+1, zp, j, k);
+			}
         }
     }
     GFC->GLL->CollectGaps();   // We've now found all of the links from this slab

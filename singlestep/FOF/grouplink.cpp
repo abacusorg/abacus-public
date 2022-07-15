@@ -22,6 +22,9 @@ and then 20 bits of group number, to make a sortable object.
 Use the sign bit to mark items for deletion
 
 If the id is -1, then this link is unusable and marked for deletion.
+
+2D: k is intended to be a relative value, rather than global.
+This allows one use fewer bits for k.
 */
 
 class LinkID {
@@ -32,7 +35,7 @@ class LinkID {
     inline LinkID(int i, int j, int k, int n) {
         id = (((long long int)i*4096+(long long int)j)*4096+(long long int)k)*1048576+n;
     }
-    inline integer3 cell() {
+    inline integer3 localcell() {
         integer3 c;
         c.x = (id&(uint64)0xfff00000000000)>>44;
         c.y = (id&(uint64)0xfff00000000)>>32;
@@ -67,14 +70,6 @@ class GroupLink {
     inline void mark_for_deletion() { a.mark_for_deletion(); return; }
     inline bool is_marked_for_deletion() { return (a.id==-1);}
 };
-
-/* Not sure what's going on with this construction; vestigial from a parallel sort
-struct GroupLinkSortOperator {
-    inline bool operator() (const  GroupLink &pi, const GroupLink &pj ) const {
-	return pi<pj;
-    }
-};
-*/
 
 inline bool is_marked_for_deletion(GroupLink *gl, int val) {
     // This is the binary decision for whether a link will be swept
@@ -153,8 +148,8 @@ public:
 
     void AsciiPrint() {
         for (uint64 j=0; j<length; j++) {
-	    integer3 c1 = list[j].a.cell();
-	    integer3 c2 = list[j].b.cell();
+	    integer3 c1 = list[j].a.localcell();
+	    integer3 c2 = list[j].b.localcell();
 	    printf("%d %d %d %d to %d %d %d %d\n",
 	        c1.x, c1.y, c1.z, list[j].a.cellgroup(),
 	        c2.x, c2.y, c2.z, list[j].b.cellgroup());

@@ -738,17 +738,32 @@ void InitGroupFinding(int MakeIC){
 
     if(WriteState.DoTimeSliceOutput && !WriteState.DoSubsampleOutput) WriteState.DoSubsampleOutput = 1;
 
-    if(WriteState.DoTimeSliceOutput || WriteState.DoSubsampleOutput) WriteState.DoGroupFindingOutput = 1;
+    if(WriteState.DoSubsampleOutput && !WriteState.DoGroupFindingOutput) WriteState.DoGroupFindingOutput = 1;
 
-    if(P.L1Output_dlna >= 0){
-        WriteState.DoGroupFindingOutput = log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ||
-                    fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna);
+    if(P.L1Output_dlna >= 0 && !WriteState.DoGroupFindingOutput){
+        WriteState.DoGroupFindingOutput = P.L1Output_dlna == 0 ||
+                    ( log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ) ||
+                    ( fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna) );
         STDLOG(0,"Group finding at this redshift requested by L1Output_dlna\n");
     }
     
     if(P.OutputAllHaloParticles && !WriteState.DoSubsampleOutput){
         WriteState.DoSubsampleOutput = 1;
         STDLOG(0,"OutputAllHaloParticles = 1; forcing subsample A = 100%% and B = 0%%\n");
+    }
+
+    if(MPI_size_z > 1 && ReadState.DoGroupFindingOutput && !ReadState.VelIsSynchronous){
+        WriteState.DoGroupFindingOutput = ReadState.DoGroupFindingOutput;
+        WriteState.DoSubsampleOutput = ReadState.DoSubsampleOutput;
+        ReadState.DoGroupFindingOutput = 0;
+        ReadState.DoSubsampleOutput = 0;
+        STDLOG(0, "Deferring 2D group finding to next step when vel is synchronous\n");
+    }
+
+    if(!P.AllowGroupFinding){
+        ReadState.DoGroupFindingOutput = 0;
+        WriteState.DoGroupFindingOutput = 0;
+        STDLOG(0, "P.AllowGroupFinding does not allow group finding.\n");
     }
 
     // done WriteState. Does ReadState tell us to find groups?
@@ -774,7 +789,8 @@ void InitGroupFinding(int MakeIC){
                     P.FoFLinkingLength[1]/pow(P.np,1./3),
                     P.FoFLinkingLength[2]/pow(P.np,1./3),
                     #endif
-                    P.cpd, P.GroupRadius, P.MinL1HaloNP, P.np);
+                    P.cpd, node_z_start_ghost, node_z_size_with_ghost,
+                    P.GroupRadius, P.MinL1HaloNP, P.np);
 
         #ifdef SPHERICAL_OVERDENSITY
         WriteState.SODensityL1 = P.SODensity[0];

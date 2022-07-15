@@ -70,6 +70,7 @@ def transpose(icdir, NP, format, nthread=2):
 
     fns = list(sorted(icdir.glob('ic_*')))
 
+    print(f'Transposing {len(fns)} IC files for 2D code...')
     with multiprocessing.pool.ThreadPool(nthread) as pool:
         list(tqdm.tqdm(pool.imap(lambda f: transpose_one(f, ppd, format), fns), total=len(fns)))
 

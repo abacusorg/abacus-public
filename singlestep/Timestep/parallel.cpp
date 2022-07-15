@@ -133,7 +133,7 @@ void InitializeParallelDomain(){
         if (node_z_start_ghost < 0) node_z_start_ghost += P.cpd;
         node_z_size_with_ghost = node_z_size + 2*GHOST_RADIUS;
 
-        assertf(node_z_start + node_z_size <= P.cpd, "Bad z split calculation?");  // A node won't span the wrap
+        assertf(node_z_start + node_z_size <= P.cpd, "Bad z split calculation?\n");  // A node won't span the wrap
     
     #else
     
@@ -169,7 +169,10 @@ void InitializeParallelDomain(){
 void InitializeParallelMergeDomain(){
     #ifdef PARALLEL
         if(MPI_size_z > 1){
-            MERGE_GHOST_RADIUS = P.NearFieldRadius;  // TODO: this will be std::max(P.NearFieldRadius, GROUP_RADIUS_NEXT_STEP)
+            MERGE_GHOST_RADIUS = P.NearFieldRadius;
+            if(WriteState.DoGroupFindingOutput && WriteState.VelIsSynchronous){
+                MERGE_GHOST_RADIUS = std::max(MERGE_GHOST_RADIUS, 2*P.GroupRadius+1);
+            }
         } else {
             MERGE_GHOST_RADIUS = 0;
         }

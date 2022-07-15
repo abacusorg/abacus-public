@@ -36,7 +36,11 @@ and generates a detailed log report.
 
 class GroupFindingControl {
   public:
-    int cpd;                
+    int cpd;
+    int zstart;  ///< z domain includes ghosts
+    int zend;
+    int zwidth;
+
     FOFloat linking_length;    ///< In code units
     FOFloat boundary;        ///< The distance from the origin that indicates that something
                     ///< is within linking_length of the edge
@@ -110,7 +114,8 @@ class GroupFindingControl {
     /// FOF lengths should be comoving lengths in code units (unit box)
     GroupFindingControl(FOFloat _linking_length, 
             FOFloat _level1, FOFloat _level2,
-        int _cpd, int _GroupRadius, int _minhalosize, uint64 _np) {
+        int _cpd, int _zstart, int _zwidth,
+        int _GroupRadius, int _minhalosize, uint64 _np) {
         /*
     #ifdef STANDALONE_FOF
         grouplog = &stdlog;
@@ -133,6 +138,10 @@ class GroupFindingControl {
         STDLOG(0,"Group finding sizeof(FOFloat)=%d, sizeof(FLOAT)=%d, AVXFOF is %s\n", sizeof(FOFloat), sizeof(FLOAT), onoff);
 
         cpd = _cpd; 
+        zstart = _zstart;
+        zwidth = _zwidth;
+        zend = zstart + zwidth;
+        
         linking_length = _linking_length;
         #ifdef SPHERICAL_OVERDENSITY
             SOdensity1 = _level1;
@@ -153,13 +162,13 @@ class GroupFindingControl {
         invcpd = 1. / (double) _cpd;
         boundary = (invcpd/2.0-linking_length);
         np = _np;
-        particles_per_pencil = np/cpd/cpd;
-        particles_per_slab = np/cpd;
+        particles_per_pencil = np*zwidth/cpd/cpd/cpd;
+        particles_per_slab = np*zwidth/cpd/cpd;
         GroupRadius = _GroupRadius;
         cellgroups = new SlabAccum<CellGroup>[cpd];
         cellgroups_status = new int[cpd];
         for (int j=0;j<cpd;j++) cellgroups_status[j] = 0;
-        GLL = new GroupLinkList(cpd, np/cpd*linking_length/invcpd*3*15);    
+        GLL = new GroupLinkList(cpd, np/cpd*linking_length/invcpd*3*15);  // TODO: 2D?
         STDLOG(1,"Allocated %.2f GB for GroupLinkList\n", sizeof(GroupLink)*GLL->maxlist/1024./1024./1024.);
         
         setupGGS();
@@ -295,7 +304,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     // Construct the Cell Groups for this slab
     CellGroupTime.Start();
     slab = WrapSlab(slab);
-    cellgroups[slab].setup(cpd, node_z_size_with_ghost, particles_per_slab/20);     
+    cellgroups[slab].setup(cpd, zwidth, particles_per_slab/20);
             // Guessing that the number of groups is 20-fold less than particles
     int nthread = omp_get_max_threads();
     FOFcell doFOF[nthread];
@@ -332,20 +341,20 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     NUMA_FOR(j,0,cpd)
         int g = omp_get_thread_num();
         PencilAccum<CellGroup> *cg = cellgroups[slab].StartPencil(j);
-        for (int k=0; k<cpd; k++) {
+        for (int k=zstart; k<zend; k++) {
             // Find CellGroups in (slab,j,k).  Append results to cg.
             Cell c = CP->GetCell(slab, j, k);
 
             int active_particles = c.count();
             #ifdef COMPUTE_FOF_DENSITY
             if (DensityKernelRad2>0 && c.acc != NULL) {
-            // We may be calling this from a context like standalone_fof where we haven't computed accelerations
+            // acc is NULL in 2D group finding steps
             // TOOD: maybe we want to turn off COMPUTE_FOF_DENSITY instead?
 
-                // The FOF-scale density is in acc.w.  
+                // The FOF-scale density is in acc.w.
                 // All zeros cannot be in groups, partition them to the end
                 for (int p=0; p<active_particles; p++) {
-                    FLOAT dens = c.acc[p].w; 
+                    FLOAT dens = c.acc[p].w;
                     c.aux[p].set_density(dens);
                     _local_meanFOFdensity[g] += dens;
                         // This will be the mean over all particles, not just

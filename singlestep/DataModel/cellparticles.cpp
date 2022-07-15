@@ -144,7 +144,7 @@ public:
         c.pos = (posstruct *)SB->GetSlabPtr(PosSlab,xyz.x)+c.ci->startindex_with_ghost;
         c.vel = (velstruct *)SB->GetSlabPtr(VelSlab,xyz.x)+c.ci->startindex_with_ghost;
         c.aux = (auxstruct *)SB->GetSlabPtr(AuxSlab,xyz.x)+c.ci->startindex_with_ghost;
-        if(SB->IsSlabPresent(AccSlab,xyz.x)){
+        if(SB->IsSlabPresent(AccSlab,xyz.x) && xyz.z >= node_z_start && xyz.z < (node_z_start + node_z_size)){
             // NOT startindex_with_ghost
             c.acc = (accstruct *) SB->GetSlabPtr(AccSlab,xyz.x)+c.ci->startindex;
         }
