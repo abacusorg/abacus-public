@@ -877,7 +877,7 @@ void ParallelConvolution::dumpstats() {
 	 
      fprintf(fp,"\t %50s : %1.2e seconds\n", "Array Swizzling", CS.ArraySwizzle );
 
-     double e = CS.ReadDerivativesBytes/CS.ReadDerivatives/(1.0e+6);
+     double e = CS.ReadDerivatives ? CS.ReadDerivativesBytes/CS.ReadDerivatives/(1.0e+6) : 0.;
      fprintf(fp,"\t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskDerivatives", CS.ReadDerivatives, e );
 
 
@@ -911,7 +911,7 @@ void ParallelConvolution::dumpstats() {
      fprintf(fp,"\nSummary: Fourier Transforms = %2.0f%%     Convolution Arithmetic = %2.0f%%     Array Swizzle = %2.0f%%    Disk IO = %2.0f%%     ", ffftp, farithp, swzp, fiop );
 
      fprintf(fp,"\nSet up (con/destructor + allocs/mmaps) = %2.0f%%     FFT planning = %2.0f%%     FFT thread clean up = %2.0f%%   Queuing Taylor MPI send/recv = %2.0f%%    \n", setupp, planp, fclean, sendp);
-     fprintf(fp,"          Arithmetic rate = %2.0f DGOPS --> rate per core = %1.1f DGOPS\n", Gops/cae, Gops/cae/computecores/MPI_size );
+     fprintf(fp,"          Arithmetic rate = %2.0f DGOPS --> rate per core = %1.1f DGOPS\n", cae ? Gops/cae : 0, cae ? Gops/cae/computecores/MPI_size : 0);
      fprintf(fp,"          [DGOPS == Double Precision Billion operations per second]\n");
      fprintf(fp,"\n");
      

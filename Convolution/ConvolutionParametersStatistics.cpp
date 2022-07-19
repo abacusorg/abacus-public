@@ -7,15 +7,15 @@ ReadDirect *RD_RDM;
 WriteDirect *WD_WDT;
 
 typedef struct { 
-    double ReadDerivatives;
-    double ReadMultipoles;
-	double TransposeBuffering;
-	double TransposeAlltoAllv;
-    double WriteTaylor;
-    double ForwardZFFTMultipoles;
-    double InverseZFFTTaylor;
-    double ConvolutionArithmetic;
-    double ArraySwizzle;
+    double ReadDerivatives = 0.;
+    double ReadMultipoles = 0.;
+	double TransposeBuffering = 0.;
+	double TransposeAlltoAllv = 0.;
+    double WriteTaylor = 0.;
+    double ForwardZFFTMultipoles = 0.;
+    double InverseZFFTTaylor = 0.;
+    double ConvolutionArithmetic = 0.;
+    double ArraySwizzle = 0.;
 	
 		
 #ifdef PARALLEL
@@ -37,19 +37,19 @@ typedef struct {
 #endif	
 	
 #ifdef CONVIOTHREADED
-    double WaitForIO;
+    double WaitForIO = 0;
 #endif
     
     double ConvolveWallClock = 0.0;
-    double Discrepency;
+    double Discrepency = 0.;
 
-    uint64_t ReadDerivativesBytes, ReadMultipolesBytes, TransposeBufferingBytes, TransposeAlltoAllvBytes, WriteTaylorBytes;
-    uint64_t ops;
-    uint64_t totalMemoryAllocated;
+    uint64_t ReadDerivativesBytes = 0, ReadMultipolesBytes = 0, TransposeBufferingBytes = 0, TransposeAlltoAllvBytes = 0, WriteTaylorBytes = 0;
+    uint64_t ops = 0;
+    uint64_t totalMemoryAllocated = 0;
 
-    float runtime_ConvolutionCacheSizeMB;
-    float runtime_ConvolutionL1CacheSizeMB;
-    int ComputeCores;
+    float runtime_ConvolutionCacheSizeMB = 0.;
+    float runtime_ConvolutionL1CacheSizeMB = 0.;
+    int ComputeCores = 0;
 } ConvolutionStatistics;
 
 class ConvolutionParameters{
