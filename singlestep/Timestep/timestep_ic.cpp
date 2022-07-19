@@ -108,7 +108,7 @@ void timestepIC(void) {
     int first = first_slab_on_node;
 
     // Lightweight setup of z-dimension exchanges
-    SetupNeighborExchange(first + FINISH_WAIT_RADIUS, total_slabs_on_node);
+    SetupNeighborExchange(first + FINISH_WAIT_RADIUS, total_slabs_on_node, 0);
 
     FetchSlabs = new ReadICDep(nslabs, first);
     Drift = new UnpackICDep(nslabs, first);

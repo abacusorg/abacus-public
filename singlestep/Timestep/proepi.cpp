@@ -213,7 +213,7 @@ void finish_fftw();
 /*! \brief Initializes global objects
  *
  */
-void Prologue(Parameters &P, bool MakeIC) {
+void Prologue(Parameters &P, int MakeIC, int NoForces) {
     STDLOG(1,"Entering Prologue()\n");
     STDLOG(2,"Size of accstruct is %d bytes\n", sizeof(accstruct));
     prologue.Clear();
@@ -277,12 +277,16 @@ void Prologue(Parameters &P, bool MakeIC) {
             // ReadMaxCellSize(P);
         SS->load_from_params(P);
         
-        if(MPI_size_z > 1){
-            #ifdef PARALLEL
-            TY = new SlabTaylorMPI(order,cpd);
-            #endif
+        if(!NoForces){
+            if(MPI_size_z > 1){
+                #ifdef PARALLEL
+                TY = new SlabTaylorMPI(order,cpd);
+                #endif
+            } else {
+                TY = new SlabTaylorLocal(order,cpd);
+            }
         } else {
-            TY = new SlabTaylorLocal(order,cpd);
+            TY = NULL;
         }
         
         RL = new Redlack(cpd);
@@ -293,11 +297,15 @@ void Prologue(Parameters &P, bool MakeIC) {
 
 		RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
 
-        NFD = new NearFieldDriver(P.NearFieldRadius);
+        NFD = NoForces ? NULL : new NearFieldDriver(P.NearFieldRadius);
     } else {
         TY = NULL;
         RL = NULL;
         NFD = NULL;
+
+        SlabForceTime = NULL;
+        SlabForceLatency = NULL;
+        SlabFarForceTime = NULL;
     }
 
     prologue.Stop();
@@ -362,38 +370,38 @@ void Epilogue(Parameters &P, bool MakeIC) {
 	FreeManifest();
     TeardownNeighborExchange();
 
-    if(!MakeIC) {
-        if(0 and P.ForceOutputDebug){
-            #ifdef CUDADIRECT
-            STDLOG(1,"Direct Interactions: CPU (%lu) and GPU (%lu)\n",
-                        NFD->DirectInteractions_CPU,NFD->TotalDirectInteractions_GPU);
-            if(!(NFD->DirectInteractions_CPU == NFD->TotalDirectInteractions_GPU)){
-                printf("Error:\n\tDirect Interactions differ between CPU (%lu) and GPU (%lu)\n",
-                        NFD->DirectInteractions_CPU,NFD->TotalDirectInteractions_GPU);
-                //assert(NFD->DirectInteractions_CPU == NFD->TotalDirectInteractions_GPU);
-            }
-            #endif
+    if(0 and P.ForceOutputDebug){
+        #ifdef CUDADIRECT
+        STDLOG(1,"Direct Interactions: CPU (%lu) and GPU (%lu)\n",
+                    NFD->DirectInteractions_CPU,NFD->TotalDirectInteractions_GPU);
+        if(!(NFD->DirectInteractions_CPU == NFD->TotalDirectInteractions_GPU)){
+            printf("Error:\n\tDirect Interactions differ between CPU (%lu) and GPU (%lu)\n",
+                    NFD->DirectInteractions_CPU,NFD->TotalDirectInteractions_GPU);
+            //assert(NFD->DirectInteractions_CPU == NFD->TotalDirectInteractions_GPU);
         }
-        
+        #endif
+    }
+    
+    delete TY;
+    TY = NULL;
+    STDLOG(2,"Deleted TY\n");
+    delete RL;
+    RL = NULL;
+    delete[] SlabForceLatency;
+    SlabForceLatency = NULL;
+    delete[] SlabForceTime;
+    SlabForceTime = NULL;
+    delete[] SlabFarForceTime;
+    SlabFarForceTime = NULL;
+    delete GFC;
+    GFC = NULL;
+    if(NFD) {
         WriteState.DirectsPerParticle = (double)1.0e9*NFD->gdi_gpu/P.np;
-        delete TY;
-        TY = NULL;
-        STDLOG(2,"Deleted TY\n");
-        delete RL;
-        RL = NULL;
-        delete[] SlabForceLatency;
-        SlabForceLatency = NULL;
-        delete[] SlabForceTime;
-        SlabForceTime = NULL;
-        delete[] SlabFarForceTime;
-        SlabFarForceTime = NULL;
-        if (GFC!=NULL){
-            delete GFC;
-            GFC = NULL;
-        }
-        STDLOG(2,"Done with Epilogue; about to kill the GPUs\n");
+        STDLOG(2,"About to delete NFD/kill the GPUs\n");
         delete NFD;
         NFD = NULL;
+    } else {
+        WriteState.DirectsPerParticle = 0;
     }
 
     finish_fftw();
@@ -635,6 +643,13 @@ void InitWriteState(int MakeIC, const char *pipeline, const char *parfn){
 
     strcpy(WriteState.Pipeline, pipeline);
     strcpy(WriteState.ParameterFileName, parfn);
+
+    // Check if WriteStateDirectory/state exists, and fail if it does
+    char wstatefn[1050];
+    int ret = snprintf(wstatefn, 1050, "%s/state", P.WriteStateDirectory);
+    assert(ret >= 0 && ret < 1050);
+    if(access(wstatefn,0) !=-1 && !WriteState.OverwriteState)
+        QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
 }
 
 
@@ -699,13 +714,16 @@ void InitGroupFinding(int MakeIC){
     - This is an IC or 2LPT step
     ForceOutputDebug outputs accelerations as soon as we compute them
     i.e. before GroupFinding has a chance to rearrange them
-    */
 
-    // TODO: add integer flags to state to coordinate intention across timestep
-    // 1) shorten timestep
-    // 2) do a da=0 timestep, with forces, to half-kick velocities to synchronicity (also send ghosts for group finding)
-    // 3) do a da=0, no-force group-finding timestep
-    // 4) resume timestepping with forces
+    2D:
+    timestep (1): shorten timestep
+    timestep (2): do a da=0 timestep, with forces, to half-kick velocities to synchronicity (also send ghosts for group finding)
+    timestep (3): do a da=0, no-force, group-finding timestep (send ghosts)
+    timestep (4): resume timestepping with forces
+
+    // TODO: is there anyway to recycle ghosts? the only bits that need updating are groupfinding tags
+    // TODO: is it okay to locally tag particles whose groups we de-dup to another node?
+    */
 
     // Decide if the next step will do group finding
     WriteState.DoGroupFindingOutput = 0;

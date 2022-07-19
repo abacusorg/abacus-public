@@ -519,11 +519,13 @@ public:
 
 NeighborExchanger **left_exchanger;
 NeighborExchanger **right_exchanger;
+int neighbor_exchange_is_noop;
 
 // Lightweight setup of data structures
-void SetupNeighborExchange(int first, int nslab){
-    if(MPI_size_z <= 1){
-        STDLOG(1,"Skipping Neighbor Exchange setup; no Z splits.\n");
+void SetupNeighborExchange(int first, int nslab, int make_noop){
+    if(make_noop){
+        neighbor_exchange_is_noop = 1;
+        STDLOG(1,"Skipping Neighbor Exchange setup\n");
         return;
     }
 
@@ -550,7 +552,7 @@ void SetupNeighborExchange(int first, int nslab){
 
 // Called immediately after drift
 void DoNeighborSend(int slab){
-    if(MPI_size_z <= 1)
+    if(neighbor_exchange_is_noop)
         return;
 
     STDLOG(1,"Triggering Neighbor Exchange sends on slab %d\n", slab);
@@ -571,7 +573,7 @@ int AttemptNeighborReceive(int first, int receive_ahead){
     // It's also safe to call with (0,cpd) if one always wants to receive everything
     int ret = 0;
 
-    if(MPI_size_z <= 1){
+    if(neighbor_exchange_is_noop){
         return ret;  // safely no-op
     }
 
@@ -599,7 +601,7 @@ int AttemptNeighborReceive(int first, int receive_ahead){
 
 // Checked in the Finish precondition
 int IsNeighborReceiveDone(int slab){
-    if(MPI_size_z <= 1){
+    if(neighbor_exchange_is_noop){
         return 1;  // safely no-op
     }
 
@@ -616,7 +618,7 @@ int IsNeighborReceiveDone(int slab){
 
 // Called in the Epilogue
 void TeardownNeighborExchange(){
-    if(MPI_size_z <= 1){
+    if(neighbor_exchange_is_noop){
         return;  // safely no-op
     }
 
@@ -640,7 +642,7 @@ void TeardownNeighborExchange(){
 
 #else // PARALLEL
 
-void SetupNeighborExchange(int first, int nslab) { }
+void SetupNeighborExchange(int first, int nslab, int make_noop) { }
 int AttemptNeighborReceive(int first, int receive_ahead){ return 0; }
 void DoNeighborSend(int slab){ }
 int IsNeighborReceiveDone(int slab){ return 1; }

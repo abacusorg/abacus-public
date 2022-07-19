@@ -63,8 +63,8 @@ STimer TimeStepWallClock;
 
 #include "pipeline.cpp"
 
-void InitializeForceRadius(int MakeIC){
-    FORCE_RADIUS = MakeIC ? 0 : P.NearFieldRadius;
+void InitializeForceRadius(int NoForces){
+    FORCE_RADIUS = NoForces ? 0 : P.NearFieldRadius;
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
     STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
 }
@@ -107,7 +107,7 @@ void InitializePipelineWidths(int MakeIC){
     STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
 }
 
-void timestep(void) {
+void timestep(int NoForces) {
 
 #ifdef PARALLEL
     ParallelConvolveDriver = new ParallelConvolution(P.cpd, P.order, P.MultipoleDirectory);
@@ -131,26 +131,41 @@ void timestep(void) {
 
     STDLOG(1, "first_outputslab = %d, first_outputslab + FINISH_WAIT_RADIUS = %d\n", first_outputslab, first_outputslab + FINISH_WAIT_RADIUS);
 
+
     FetchSlabs          = new         FetchSlabsDep(nslabs, first);
-    TransposePos        = new       TransposePosDep(nslabs, first + 0);
-    NearForce           = new          NearForceDep(nslabs, first + FORCE_RADIUS);
-    TaylorForce         = new        TaylorForceDep(nslabs, first + FORCE_RADIUS);
-    Kick                = new               KickDep(nslabs, first + FORCE_RADIUS);
     Output              = new             OutputDep(nslabs, first + first_outputslab);
     Drift               = new              DriftDep(nslabs, first + first_outputslab);
     FinishParticles     = new    FinishParticlesDep(nslabs, first + first_outputslab + FINISH_WAIT_RADIUS);
     FinishMultipoles    = new   FinishMultipolesDep(nslabs, first + first_outputslab + FINISH_WAIT_RADIUS);
 
+    if(!NoForces){
+        TransposePos        = new       TransposePosDep(nslabs, first + 0);
+        NearForce           = new          NearForceDep(nslabs, first + FORCE_RADIUS);
+        TaylorForce         = new        TaylorForceDep(nslabs, first + FORCE_RADIUS);
+        Kick                = new               KickDep(nslabs, first + FORCE_RADIUS);
+    } else {
+        TransposePos = new NoopDep(nslabs);
+        NearForce    = new NoopDep(nslabs);
+        TaylorForce  = new NoopDep(nslabs);
+        Kick         = new NoopDep(nslabs);
+    }
+
 #ifdef PARALLEL
-    TaylorTranspose     = new    TaylorTransposeDep(nslabs, first + FORCE_RADIUS);  // 2D
-    NeighborSend        = new       NeighborSendDep(nslabs, first + first_outputslab + FINISH_WAIT_RADIUS);  // 2D
+    if(!NoForces){
+        TaylorTranspose     = new    TaylorTransposeDep(nslabs, first + FORCE_RADIUS);  // 2D
+        Check2DTaylorMPI    = new Taylor2DMPIEvent();
+    } else {
+        TaylorTranspose     = new NoopDep(nslabs);
+        Check2DTaylorMPI    = new NoopEvent();
+    }
+    
     CheckForMultipoles  = new CheckForMultipolesDep(nslabs, first + first_outputslab + FINISH_WAIT_RADIUS);
     
     DoReceiveManifest   = new ReceiveManifestEvent();
     DoSendManifest      = new SendManifestEvent();
+    NeighborSend        = new NeighborSendDep(nslabs, first + first_outputslab + FINISH_WAIT_RADIUS);  // 2D
     DoNeighborRecv      = new NeighborRecvEvent();
     Check2DMultipoleMPI = new Multipole2DMPIEvent();
-    Check2DTaylorMPI    = new Taylor2DMPIEvent();
 #else
     TaylorTranspose    = new NoopDep(nslabs);
     NeighborSend       = new NoopDep(nslabs);
@@ -192,23 +207,27 @@ void timestep(void) {
 
     #ifdef PARALLEL
     TimeStepWallClock.Stop();
-    ConvolutionWallClock.Start();
 
-    ParallelConvolveDriver->Convolve();
-    ParallelConvolveDriver->SendTaylors(FORCE_RADIUS);
+    if(!NoForces){
+        ConvolutionWallClock.Start();
 
-    for (int slab = first + FORCE_RADIUS; slab < first + FORCE_RADIUS + total_slabs_on_node; slab++){
-        SB->AllocateArena(TaylorSlab, slab, RAMDISK_NO);
-        ParallelConvolveDriver->RecvTaylorSlab(slab);
+        ParallelConvolveDriver->Convolve();
+        ParallelConvolveDriver->SendTaylors(FORCE_RADIUS);
+
+        for (int slab = first + FORCE_RADIUS; slab < first + FORCE_RADIUS + total_slabs_on_node; slab++){
+            SB->AllocateArena(TaylorSlab, slab, RAMDISK_NO);
+            ParallelConvolveDriver->RecvTaylorSlab(slab);
+        }
+
+        ConvolutionWallClock.Stop();
+        ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
     }
-
-    ConvolutionWallClock.Stop();
-    ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
 
     TimeStepWallClock.Start();
 
     // Lightweight setup of z-dimension exchanges
-    SetupNeighborExchange(first + first_outputslab + FINISH_WAIT_RADIUS, total_slabs_on_node);
+    int noop_neigh = MPI_size_z == 1;
+    SetupNeighborExchange(first + first_outputslab + FINISH_WAIT_RADIUS, total_slabs_on_node, noop_neigh);
     #endif
 
 	Dependency::SpinTimer.Start();

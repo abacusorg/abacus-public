@@ -770,9 +770,7 @@ public:
             DriftPencilsAndCopy2InsertList(slab, driftfactor, DriftPencil);
         }
 
-        // We freed AccSlab in Microstep to save space
-        // if (GFC == NULL){
-        // TODO: Remove that condition; we always can do this here.
+        if(NFD){
             // We kept the accelerations until here because of third-order LPT
             if (P.StoreForces == 1) {
                 STDLOG(1,"Storing Forces in slab %d\n", slab);
@@ -782,7 +780,7 @@ public:
                 SB->DeAllocate(AccSlab,slab);
                 ReleaseFreeMemoryToKernel();
             }
-        // }
+        }
     }
 };
 
@@ -1041,12 +1039,16 @@ public:
 // -----------------------------------------------------------------
 
 class NeighborRecvEvent : public EventDependency {
+    int receive_ahead;
 public:
     NeighborRecvEvent()
-        : EventDependency("NeighborReceive") { }
+        : EventDependency("NeighborReceive") {
+            receive_ahead = 5;
+            //receive_ahead = P.cpd;
+        }
 
     int action(){
-        return AttemptNeighborReceive(0,P.cpd);
+        return AttemptNeighborReceive(FinishParticles->last_slab_executed - FINISH_WAIT_RADIUS,receive_ahead);
     }
 };
 

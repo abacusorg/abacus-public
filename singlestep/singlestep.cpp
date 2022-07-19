@@ -185,12 +185,15 @@ int main(int argc, char **argv) {
 
     int MakeIC = atoi(argv[2]);
     load_read_state(MakeIC);  // Load the bare minimum (step num, etc) to get the log up and running
+    int Do2DGroupFinding = MPI_size_z > 1 && ReadState.DoGroupFindingOutput && ReadState.HaveAuxDensity && ReadState.VelIsSynchronous;
+    int NoForces = MakeIC || Do2DGroupFinding;
 
     setup_log(); // STDLOG and assertf now available
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
     STDLOG(0,"MakeIC = %d\n", MakeIC);
+    STDLOG(0,"NoForces = %d\n", NoForces);
 
-    InitializeForceRadius(MakeIC);
+    InitializeForceRadius(NoForces);
     InitializeParallelDomain();  // needs ReadState
     
     SetupLocalDirectories(MakeIC);
@@ -209,16 +212,9 @@ int main(int argc, char **argv) {
     InitWriteState(MakeIC, "singlestep", argv[1]);
 
     // Set up the major classes (including NFD)
-    Prologue(P,MakeIC);
+    Prologue(P,MakeIC,NoForces);
 
-    // Check if WriteStateDirectory/state exists, and fail if it does
-    char wstatefn[1050];
-    int ret = snprintf(wstatefn, 1050, "%s/state", P.WriteStateDirectory);
-    assert(ret >= 0 && ret < 1050);
-    if(access(wstatefn,0) !=-1 && !WriteState.OverwriteState)
-        QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
-
-    double da = ChooseTimeStep(MakeIC);
+    double da = ChooseTimeStep(NoForces);
 
     // da *= -1;  // reverse the time step TODO: make parameter
     double dlna = da/ReadState.ScaleFactor;
@@ -250,7 +246,7 @@ int main(int argc, char **argv) {
 
     // Now execute the timestep
     if (MakeIC)  timestepIC();
-	    else timestep();
+	    else timestep(NoForces);
 
     fedisableexcept(FE_INVALID | FE_DIVBYZERO);
 

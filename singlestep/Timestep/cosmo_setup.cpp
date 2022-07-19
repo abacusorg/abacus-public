@@ -71,7 +71,7 @@ void FillStateWithCosmology(State &S) {
 
 
 
-double ChooseTimeStep(int MakeIC){
+double ChooseTimeStep(int NoForces){
 
     // Choose the maximum allowable timestep
     // We start with the absolute maximum timestep allowed by the parameter file,
@@ -82,16 +82,16 @@ double ChooseTimeStep(int MakeIC){
     WriteState.DoSubsampleOutput = 0;
 
     // cosm has already been loaded with the ReadState.ScaleFactor.
-        // Don't advance time if we are still doing LPT
-        STDLOG(0,"LPTStepNumber = %d, FullStepNumber = %d, PTO = %d\n",LPTStepNumber(), WriteState.FullStepNumber, P.LagrangianPTOrder);
-        if(LPTStepNumber()>0) return 0.;
+    // Don't advance time if we are still doing LPT
+    STDLOG(0,"LPTStepNumber = %d, FullStepNumber = %d, PTO = %d\n",LPTStepNumber(), WriteState.FullStepNumber, P.LagrangianPTOrder);
+    if(LPTStepNumber()>0) return 0.;
 
     double da = ReadState.ScaleFactor*P.TimeStepDlna;
     STDLOG(0,"da from Hubble Dlna limit is %f\n", da);
 
-    if(MakeIC){
+    if(NoForces){
         da = 0.;
-        STDLOG(0,"da = 0 for IC step\n");
+        STDLOG(0,"da = 0 for NoForces step\n");
     }
 
     if(MPI_size_z > 1 && ReadState.DoGroupFindingOutput && !ReadState.VelIsSynchronous){
