@@ -758,7 +758,8 @@ void InitGroupFinding(int MakeIC){
 
     if(WriteState.DoSubsampleOutput && !WriteState.DoGroupFindingOutput) WriteState.DoGroupFindingOutput = 1;
 
-    if(P.L1Output_dlna >= 0 && !WriteState.DoGroupFindingOutput){
+    if(P.L1Output_dlna >= 0 && !WriteState.DoGroupFindingOutput &&
+        !(ReadState.DoGroupFindingOutput && WriteState.DeltaScaleFactor == 0)){
         WriteState.DoGroupFindingOutput = P.L1Output_dlna == 0 ||
                     ( log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ) ||
                     ( fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna) );
