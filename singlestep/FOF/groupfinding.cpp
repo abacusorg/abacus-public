@@ -104,6 +104,8 @@ class GroupFindingControl {
     // number of timeslice output particles written to disk
     uint64 n_L0_output = 0;
 
+    int use_acc_dens; ///< Whether acc has the density, or it's already in the aux
+
     void setupGGS();
 
     /// The constructor, where we load the key parameters
@@ -185,6 +187,9 @@ class GroupFindingControl {
         numdists1 = numsorts1 = numcenters1 = numcg1 = numgroups1 = 0;
         numdists2 = numsorts2 = numcenters2 = numcg2 = numgroups2 = 0;
         max_group_diameter = 0;
+
+        use_acc_dens = !ReadState.HaveAuxDensity;
+
         return;
     }
 
@@ -347,15 +352,19 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
 
             int active_particles = c.count();
             #ifdef COMPUTE_FOF_DENSITY
-            if (DensityKernelRad2>0 && c.acc != NULL) {
-            // acc is NULL in 2D group finding steps
-            // TOOD: maybe we want to turn off COMPUTE_FOF_DENSITY instead?
-
+            if (DensityKernelRad2>0) {
                 // The FOF-scale density is in acc.w.
+                // acc is NULL in 2D group finding steps
                 // All zeros cannot be in groups, partition them to the end
                 for (int p=0; p<active_particles; p++) {
-                    FLOAT dens = c.acc[p].w;
-                    c.aux[p].set_density(dens);
+                    FLOAT dens;
+                    if(use_acc_dens){
+                        dens = c.acc[p].w;
+                        c.aux[p].set_density(dens);
+                    } else {
+                        // Do we carry aux/dens instead of float3p1? Can we carry it as a float?
+                        dens = c.aux[p].get_density();
+                    }
                     _local_meanFOFdensity[g] += dens;
                         // This will be the mean over all particles, not just
                         // the active ones
@@ -369,7 +378,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
                         std::swap(c.pos[p], c.pos[active_particles]);
                         std::swap(c.vel[p], c.vel[active_particles]);
                         std::swap(c.aux[p], c.aux[active_particles]);
-                        std::swap(c.acc[p], c.acc[active_particles]);
+                        if(c.acc) std::swap(c.acc[p], c.acc[active_particles]);
                         p--; // Need to try this location again
                    }
                 }

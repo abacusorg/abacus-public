@@ -265,9 +265,18 @@ public:
 // -----------------------------------------------------------------
 
 class KickDep : public SlabDependency {
+    int set_aux_dens;
+
 public:
     KickDep(int cpd, int initialslab)
-        : SlabDependency("Kick", cpd, initialslab){ }
+        : SlabDependency("Kick", cpd, initialslab){
+
+        set_aux_dens = WriteState.HaveAuxDensity && !ReadState.HaveAuxDensity;
+
+        if(set_aux_dens){
+            STDLOG(0, "Will store densities in aux\n");
+        }
+    }
 
     int precondition(int slab) {
         if( !SB->IsIOCompleted( VelSlab, slab ) ){
@@ -290,6 +299,15 @@ public:
     #ifdef CUDADIRECT
                 SlabDependency::NotifySpinning(WAITING_FOR_GPU);
     #endif
+                return 0;
+            }
+        }
+
+        if(set_aux_dens){
+            // Will write aux density for 2D group finding
+            if( !SB->IsIOCompleted( AuxSlab, slab ) ){
+                if(SB->IsSlabPresent(AuxSlab, slab))
+                    SlabDependency::NotifySpinning(WAITING_FOR_IO);
                 return 0;
             }
         }
@@ -373,20 +391,20 @@ public:
             // We have LPT IC work to do
             if (step==1) {
                 STDLOG(1,"Kicking slab %d as LPT step 1\n", slab);
-                KickSlab(slab, 0, 0, KickCell_2LPT_1);
+                KickSlab(slab, 0, 0, 0, KickCell_2LPT_1);
             } else if (step==2) {
                 STDLOG(1,"Kicking slab %d as LPT step 2\n", slab);
-                KickSlab(slab, 0, 0, KickCell_2LPT_2);
+                KickSlab(slab, 0, 0, 0, KickCell_2LPT_2);
             } else if (step==3) {
                 STDLOG(1,"Kicking slab %d as LPT step 3\n", slab);
-                KickSlab(slab, 0, 0, KickCell_2LPT_3);
+                KickSlab(slab, 0, 0, 0, KickCell_2LPT_3);
             } else QUIT("LPT Kick %d not implemented\n", step);
         } else {
             // This is just a standard step
             FLOAT kickfactor1 =  ReadState.LastHalfEtaKick;
             FLOAT kickfactor2 =  WriteState.FirstHalfEtaKick;
             STDLOG(1,"Kicking slab %d by %f + %f\n", slab, kickfactor1, kickfactor2);
-            KickSlab(slab, kickfactor1, kickfactor2, KickCell);
+            KickSlab(slab, kickfactor1, kickfactor2, set_aux_dens, KickCell);
         }
         KickCellTimer.Stop();
 

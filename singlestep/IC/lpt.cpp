@@ -54,7 +54,7 @@ inline double3 ZelPos(integer3 ijk) {
 
 // If we're doing 2LPT, then we will overwrite those initial velocities.
 
-void KickCell_2LPT_1(Cell &c, FLOAT kick1, FLOAT kick2) {
+void KickCell_2LPT_1(Cell &c, FLOAT kick1, FLOAT kick2, int _set_aux_dens) {
     // Just store the acceleration
     int N = c.count();
     for (int i = 0; i < N; i++) {
@@ -81,7 +81,7 @@ void DriftCell_2LPT_1(Cell &c, FLOAT driftfactor) {
     }
 }
 
-void KickCell_2LPT_2(Cell &c, FLOAT kick1, FLOAT kick2) {
+void KickCell_2LPT_2(Cell &c, FLOAT kick1, FLOAT kick2, int _set_aux_dens) {
     // Now we can co-add the first two kicks to isolate the second-order
     // part.  This will be stored in the velocity.
     for (int i=0;i<c.count();i++) {
@@ -210,7 +210,7 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
 
 // 3LPT kick and drift
 
-void KickCell_2LPT_3(Cell &c, FLOAT kick1, FLOAT kick2) {
+void KickCell_2LPT_3(Cell &c, FLOAT kick1, FLOAT kick2, int _set_aux_dens) {
     // We could update the 3LPT velocity from the acceleration here,
     // but then we'd be repeating the same calculations for the position update in the Drift
     return;

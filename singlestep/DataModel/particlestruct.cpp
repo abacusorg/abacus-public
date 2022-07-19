@@ -189,6 +189,15 @@ public:
         assert(_density < (AUXDENSITY >> AUXDENSITYZEROBIT)); 
         aux = ( (uint64) _density << AUXDENSITYZEROBIT )  | (aux &~ AUXDENSITY); 
     }
+
+    inline FLOAT get_density(){
+        uint64 d = _unpack_density();
+        return d*d * WriteState.FOFunitdensity;
+    }
+
+    inline uint64 _unpack_density(){
+        return (aux | AUXDENSITY) >> AUXDENSITYZEROBIT;
+    }
     
     inline void reset_L01_bits() {
         // We need to be able to unset these bits each time we run groupfinding

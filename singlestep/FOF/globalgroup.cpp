@@ -905,10 +905,9 @@ void GlobalGroupSlab::FindSubGroups() {
 
 
     NUMA_FOR(jj,0,cpd)
-        int threadnum = omp_get_thread_num();
         int j = pstat[jj].pnum;    // Get the pencil number from the list
         GFC->L1Tot.Start();
-        int g = omp_get_thread_num();
+        const int g = omp_get_thread_num();
         PencilAccum<HaloStat>  *pL1halos   =   L1halos.StartPencil(j);
         PencilAccum<RVfloat>   *pHaloRVA   =   HaloRVA.StartPencil(j);
         PencilAccum<RVfloat>   *pHaloRVB   =   HaloRVB.StartPencil(j);
@@ -931,8 +930,7 @@ void GlobalGroupSlab::FindSubGroups() {
                 velstruct *groupvel = vel+globalgroups[j][k][n].start;
                 auxstruct *groupaux = aux+globalgroups[j][k][n].start;
                 accstruct *groupacc = NULL;
-                if(acc != NULL)
-                    groupacc = acc+globalgroups[j][k][n].start;
+                if(acc != NULL) groupacc = acc+globalgroups[j][k][n].start;
                 int groupn = globalgroups[j][k][n].np;
 
                 if (groupn >= GFC->minhalosize){ //This L0 group is too small. Need to output its particles if we're doing subsampling, though. 
@@ -943,7 +941,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         FOFlevel1[g].assign_to_one_group(grouppos, NULL, NULL, groupacc, groupn);
                     else    // This grabs the findgroups statement!
                     #endif
-                    FOFlevel1[g].findgroups(grouppos, NULL, NULL, groupacc, groupn);
+                    FOFlevel1[g].findgroups(grouppos, NULL, groupaux, groupacc, groupn);
                     GFC->L1FOF.Stop();
                     // Now we've found the L1 groups
                     for (int a=0; a<FOFlevel1[g].ngroups; a++) {
@@ -970,7 +968,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         }
 
                         GFC->L2FOF.Start();
-                        FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, L1acc[g], size);
+                        FOFlevel2[g].findgroups(L1pos[g], NULL, L1aux[g], L1acc[g], size);
                         GFC->L2FOF.Stop();
 
                         // BOT
@@ -1014,7 +1012,7 @@ void GlobalGroupSlab::FindSubGroups() {
                                 else if (taggable == TAGGABLE_SUB_B) ntaggedB++;
                             }
 
-                            AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset, local_np_subA[threadnum].i, local_np_subB[threadnum].i);
+                            AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset, local_np_subA[g].i, local_np_subB[g].i);
                         }
 
                         HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], offset);
@@ -1070,7 +1068,7 @@ void GlobalGroupSlab::FindSubGroups() {
                                                     //if we're outputing the particle subsample, output all of its L0 particles. 
                     for (int b=0; b<groupn; b++) {
                         if (groupaux[b].is_L1()) continue;  // Already in the L1 set
-                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset, local_np_subA[threadnum].i, local_np_subB[threadnum].i); 
+                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset, local_np_subA[g].i, local_np_subB[g].i); 
                     }
                 }
                 

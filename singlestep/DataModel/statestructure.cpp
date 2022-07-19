@@ -129,6 +129,7 @@ public:
     int DoGroupFindingOutput;
     int DoSubsampleOutput; 
     int VelIsSynchronous;
+    int HaveAuxDensity;
     
     int Do2LPTVelocityRereading;
 
@@ -264,6 +265,9 @@ public:
 
         VelIsSynchronous = 0;
         installscalar("VelIsSynchronous",VelIsSynchronous,DONT_CARE);
+
+        HaveAuxDensity = 0;
+        installscalar("HaveAuxDensity",HaveAuxDensity,DONT_CARE);
         
         Do2LPTVelocityRereading = 0;
 
@@ -369,6 +373,7 @@ void State::make_output_header() {
     WPR(DoSubsampleOutput        , ISYM);
     WPR(VelIsSynchronous         , ISYM);
     WPR(DoGroupFindingOutput     , ISYM);
+    WPR(HaveAuxDensity           , ISYM);
 
     output_header = ss.str();
 }

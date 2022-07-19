@@ -778,19 +778,34 @@ void InitGroupFinding(int MakeIC){
         STDLOG(0, "Deferring 2D group finding to next step when vel is synchronous\n");
     }
 
+    if(MPI_size_z > 1 && ReadState.DoGroupFindingOutput && !ReadState.HaveAuxDensity){
+        WriteState.DoGroupFindingOutput = ReadState.DoGroupFindingOutput;
+        WriteState.DoSubsampleOutput = ReadState.DoSubsampleOutput;
+        ReadState.DoGroupFindingOutput = 0;
+        ReadState.DoSubsampleOutput = 0;
+        STDLOG(0, "Deferring 2D group finding to next step when we have aux densities\n");
+    }
+
     if(!P.AllowGroupFinding){
         ReadState.DoGroupFindingOutput = 0;
         WriteState.DoGroupFindingOutput = 0;
         STDLOG(0, "P.AllowGroupFinding does not allow group finding.\n");
     }
 
-    // done WriteState. Does ReadState tell us to find groups?
+    // Are we planning to store densities in aux?
+    WriteState.HaveAuxDensity = MPI_size_z > 1 &&
+        WriteState.DoGroupFindingOutput && WriteState.VelIsSynchronous && !ReadState.HaveAuxDensity && !MakeIC;
+
+    // Or we might be eligible to reuse the densities if nothing is going to move
+    if (ReadState.HaveAuxDensity && std::abs(WriteState.DeltaEtaDrift) < 1e-12) WriteState.HaveAuxDensity = 1;
 
     // Set up the density kernel
     // This used to inform the group finding, but also might be output as part of lightcones even on non-group-finding steps
 
     WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities.  This is set in InitKernelDensity if we decide to compute densities
     WriteState.L0DensityThreshold = 0.0;  // Only has any effect if doing group finding
+
+    // done planning for WriteState. Does ReadState tell us to find groups?
 
     // Can we enable group finding?
     if((P.MicrostepTimeStep > 0 || ReadState.DoGroupFindingOutput) &&
