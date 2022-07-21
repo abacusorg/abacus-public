@@ -199,6 +199,8 @@ public:
 
     int InsertListGapElems;  // Size of the MAL gaps in the Insert List, in number of ilstruct elems
 
+    int ForceAuxDensity;  // Use densities from the aux in group finding, even if we have acc densities
+
     // Return the L{tier} size in MB
     double getCacheSize(int tier){
         int cache_size = 0;
@@ -485,6 +487,9 @@ public:
 
         InsertListGapElems = PAGE_SIZE/40;
         installscalar("InsertListGapElems", InsertListGapElems, DONT_CARE);
+
+        ForceAuxDensity = 0;
+        installscalar("ForceAuxDensity", ForceAuxDensity, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.

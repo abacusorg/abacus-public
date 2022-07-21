@@ -108,7 +108,7 @@ void timestepIC(void) {
     int first = first_slab_on_node;
 
     // Lightweight setup of z-dimension exchanges
-    SetupNeighborExchange(first + FINISH_WAIT_RADIUS, total_slabs_on_node, 0);
+    SetupNeighborExchange(first + FINISH_WAIT_RADIUS, total_slabs_on_node);
 
     FetchSlabs = new ReadICDep(nslabs, first);
     Drift = new UnpackICDep(nslabs, first);
@@ -161,10 +161,10 @@ void timestepIC(void) {
 
     STDLOG(1, "Read %d particles from IC files\n", NP_from_IC);
 
-    uint64 merged_particles = ((FinishParticlesDep *) FinishParticles)->merged_particles;
+    uint64 merged_primaries = ((FinishParticlesDep *) FinishParticles)->merged_primaries;
     #ifdef PARALLEL
         BarrierWallClock.Start();
-        MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UINT64_T, MPI_SUM);
+        MPI_REDUCE_TO_ZERO(&merged_primaries, 1, MPI_UINT64_T, MPI_SUM);
         MPI_REDUCE_TO_ZERO(&NP_from_IC, 1, MPI_UINT64_T, MPI_SUM);
         STDLOG(1,"Ready to proceed to the remaining work\n");
         
@@ -183,9 +183,9 @@ void timestepIC(void) {
     #endif
     STDLOG(1, "Particles remaining on insert list: %d\n", IL->length);
     if (MPI_rank==0) {
-        STDLOG(1, "Merged %d particles\n", merged_particles);
-        assertf(merged_particles == P.np, "Merged slabs contain %d particles instead of %d!  Read %d IC particles.\n",
-            merged_particles, P.np, NP_from_IC);
+        STDLOG(1, "Merged %d primary particles\n", merged_primaries);
+        assertf(merged_primaries == P.np, "Merged slabs contain %d particles instead of %d!  Read %d IC particles.\n",
+            merged_primaries, P.np, NP_from_IC);
     }
 
     if(IL->length!=0)

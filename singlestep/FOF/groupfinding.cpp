@@ -104,7 +104,7 @@ class GroupFindingControl {
     // number of timeslice output particles written to disk
     uint64 n_L0_output = 0;
 
-    int use_acc_dens; ///< Whether acc has the density, or it's already in the aux
+    int use_aux_dens; ///< Whether acc has the density, or it's already in the aux
 
     void setupGGS();
 
@@ -117,7 +117,7 @@ class GroupFindingControl {
     GroupFindingControl(FOFloat _linking_length, 
             FOFloat _level1, FOFloat _level2,
         int _cpd, int _zstart, int _zwidth,
-        int _GroupRadius, int _minhalosize, uint64 _np) {
+        int _GroupRadius, int _minhalosize, uint64 _np, int _use_aux_dens) {
         /*
     #ifdef STANDALONE_FOF
         grouplog = &stdlog;
@@ -188,7 +188,8 @@ class GroupFindingControl {
         numdists2 = numsorts2 = numcenters2 = numcg2 = numgroups2 = 0;
         max_group_diameter = 0;
 
-        use_acc_dens = !ReadState.HaveAuxDensity;
+        use_aux_dens = _use_aux_dens;
+        STDLOG(1,"Using %s densities in group finding\n", use_aux_dens ? "aux" : "acc");
 
         return;
     }
@@ -358,12 +359,11 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
                 // All zeros cannot be in groups, partition them to the end
                 for (int p=0; p<active_particles; p++) {
                     FLOAT dens;
-                    if(use_acc_dens){
+                    if(use_aux_dens){
+                        dens = c.aux[p].get_density();
+                    } else {
                         dens = c.acc[p].w;
                         c.aux[p].set_density(dens);
-                    } else {
-                        // Do we carry aux/dens instead of float3p1? Can we carry it as a float?
-                        dens = c.aux[p].get_density();
                     }
                     _local_meanFOFdensity[g] += dens;
                         // This will be the mean over all particles, not just

@@ -78,10 +78,10 @@ void BuildWriteState(double da){
 	WriteState.MinVrmsOnAmax = 1e10;
 }
 
-void BuildWriteStateOutput() {
-	// Build the output header.
-	// Note we actually will output from ReadState,
-	// but we build this to write the write/state file from the same code.
+void BuildOutputHeaders() {
+	// Build the output headers.
+	// Note that outputs at this epoch use the ReadState header
+    ReadState.make_output_header();
 	WriteState.make_output_header();
 }
 
@@ -134,9 +134,6 @@ void PlanOutput(bool MakeIC) {
     }
     else STDLOG(2, "Using constant SO Delta (no redshift-dependent rescaling).\n");
     #endif
-
-
-    ReadState.make_output_header();
 
     // Just let later routines know that this is a valid epoch
     // for output, e.g., not a LPT IC epoch.
@@ -240,7 +237,7 @@ int main(int argc, char **argv) {
     InitializeParallelMergeDomain();  // needs to know if the *next* step will do group finding
     LogParallelTopology();
 
-    BuildWriteStateOutput();    // needs group finding and merge domain
+    BuildOutputHeaders();    // needs group finding and merge domain
 
     SingleStepSetup.Stop();
 

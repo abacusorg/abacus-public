@@ -1031,7 +1031,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         h.SO_central_particle[0] = central_particle.x; 
                         h.SO_central_particle[1] = central_particle.y; 
                         h.SO_central_particle[2] = central_particle.z; 
-                        h.SO_central_density  = groupacc[idx].w / FOFlevel1[g].FOFunitdensity; 
+                        h.SO_central_density  = (GFC->use_aux_dens ? groupaux[idx].get_density() : groupacc[idx].w) / FOFlevel1[g].FOFunitdensity; 
                         h.SO_radius = sqrt(FOFlevel1[g].groups[a].halo_radius2) / FOF_RESCALE; 
 
                         //now repeat for the largest L2 halo.
@@ -1040,7 +1040,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         h.SO_L2max_central_particle[0] = L2max_central_particle.x;
                         h.SO_L2max_central_particle[1] = L2max_central_particle.y;
                         h.SO_L2max_central_particle[2] = L2max_central_particle.z;
-                        h.SO_L2max_central_density  =    L1acc[g][idx].w / FOFlevel2[g].FOFunitdensity; 
+                        h.SO_L2max_central_density  =    (GFC->use_aux_dens ? L1aux[g][idx].get_density() : L1acc[g][idx].w) / FOFlevel2[g].FOFunitdensity; 
                         h.SO_L2max_radius = sqrt(FOFlevel2[g].groups[0].halo_radius2) / FOF_RESCALE; 
 
                         #else

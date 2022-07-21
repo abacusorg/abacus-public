@@ -226,8 +226,7 @@ void timestep(int NoForces) {
     TimeStepWallClock.Start();
 
     // Lightweight setup of z-dimension exchanges
-    int noop_neigh = MPI_size_z == 1;
-    SetupNeighborExchange(first + first_outputslab + FINISH_WAIT_RADIUS, total_slabs_on_node, noop_neigh);
+    SetupNeighborExchange(first + first_outputslab + FINISH_WAIT_RADIUS, total_slabs_on_node);
     #endif
 
 	Dependency::SpinTimer.Start();
@@ -289,12 +288,12 @@ void timestep(int NoForces) {
     if(GFC != NULL)
         total_n_output += GFC->n_L0_output;
 	
-	uint64 merged_particles = ((FinishParticlesDep *)FinishParticles)->merged_particles;
+	uint64 merged_primaries = ((FinishParticlesDep *)FinishParticles)->merged_primaries;
     #ifdef PARALLEL	
         BarrierWallClock.Start();
         // These reductions force some synchronization, at least!
     	MPI_REDUCE_TO_ZERO(&total_n_output,   1, MPI_UINT64_T, MPI_SUM);
-        MPI_REDUCE_TO_ZERO(&merged_particles, 1, MPI_UINT64_T, MPI_SUM);
+        MPI_REDUCE_TO_ZERO(&merged_primaries, 1, MPI_UINT64_T, MPI_SUM);
 
         MPI_Barrier(comm_global);
 		BarrierWallClock.Stop();
@@ -314,7 +313,7 @@ void timestep(int NoForces) {
 
     #endif
     if (MPI_rank==0)
-        assertf( merged_particles == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_particles, P.np);
+        assertf( merged_primaries == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_primaries, P.np);
 
 
     if(ReadState.DoTimeSliceOutput && MPI_rank==0){

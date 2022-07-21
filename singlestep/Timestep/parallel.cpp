@@ -522,8 +522,8 @@ NeighborExchanger **right_exchanger;
 int neighbor_exchange_is_noop;
 
 // Lightweight setup of data structures
-void SetupNeighborExchange(int first, int nslab, int make_noop){
-    if(make_noop){
+void SetupNeighborExchange(int first, int nslab){
+    if(MPI_size_z == 1){
         neighbor_exchange_is_noop = 1;
         STDLOG(1,"Skipping Neighbor Exchange setup\n");
         return;
@@ -642,7 +642,7 @@ void TeardownNeighborExchange(){
 
 #else // PARALLEL
 
-void SetupNeighborExchange(int first, int nslab, int make_noop) { }
+void SetupNeighborExchange(int first, int nslab) { }
 int AttemptNeighborReceive(int first, int receive_ahead){ return 0; }
 void DoNeighborSend(int slab){ }
 int IsNeighborReceiveDone(int slab){ return 1; }

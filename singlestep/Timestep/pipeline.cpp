@@ -271,7 +271,7 @@ public:
     KickDep(int cpd, int initialslab)
         : SlabDependency("Kick", cpd, initialslab){
 
-        set_aux_dens = WriteState.HaveAuxDensity && !ReadState.HaveAuxDensity;
+        set_aux_dens = ReadState.SetAuxDensity;
 
         if(set_aux_dens){
             STDLOG(0, "Will store densities in aux\n");
@@ -831,7 +831,7 @@ public:
 
 class FinishParticlesDep : public SlabDependency {
 public:
-    uint64 merged_particles = 0;
+    uint64 merged_primaries = 0;
 
     FinishParticlesDep(int cpd, int initialslab)
         : SlabDependency("FinishParticles", cpd, initialslab){ }
@@ -868,7 +868,7 @@ public:
         // Gather particles from the insert list and make the merge slabs
         uint64 n_merge, n_merge_with_ghost;
         FillMergeSlab(slab, &n_merge, &n_merge_with_ghost);
-        merged_particles += n_merge;
+        merged_primaries += n_merge;
 
         // manually adjust Mpart/s rates to reflect new size
         FinishParticles->num_particles += n_merge - SS->size(slab);

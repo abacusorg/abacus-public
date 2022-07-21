@@ -61,7 +61,7 @@ int *all_node_ky_size;  // 2D: sizes of the multipole splits
     #define MPI_REQUEST_NULL NULL
 #endif
 
-void SetupNeighborExchange(int first, int nslab, int make_noop);
+void SetupNeighborExchange(int first, int nslab);
 void DoNeighborSend(int slab);
 int AttemptNeighborReceive(int first, int receive_ahead);
 int IsNeighborReceiveDone(int slab);

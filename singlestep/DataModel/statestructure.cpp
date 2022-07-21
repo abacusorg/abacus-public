@@ -130,6 +130,9 @@ public:
     int DoSubsampleOutput; 
     int VelIsSynchronous;
     int HaveAuxDensity;
+    int SetAuxDensity;          // Should the Kick store the density in the aux?
+    int DidGroupFindingOutput;  // did we already do group output on the positions in this state?
+    char GroupFindingDensitySource[128];
     
     int Do2LPTVelocityRereading;
 
@@ -268,6 +271,15 @@ public:
 
         HaveAuxDensity = 0;
         installscalar("HaveAuxDensity",HaveAuxDensity,DONT_CARE);
+
+        SetAuxDensity = 0;
+        installscalar("SetAuxDensity",SetAuxDensity,DONT_CARE);
+
+        DidGroupFindingOutput = 0;
+        installscalar("DidGroupFindingOutput",DidGroupFindingOutput,DONT_CARE);
+
+        GroupFindingDensitySource[0] = '\0';
+        installscalar("GroupFindingDensitySource",GroupFindingDensitySource,DONT_CARE);
         
         Do2LPTVelocityRereading = 0;
 
@@ -374,6 +386,10 @@ void State::make_output_header() {
     WPR(VelIsSynchronous         , ISYM);
     WPR(DoGroupFindingOutput     , ISYM);
     WPR(HaveAuxDensity           , ISYM);
+    WPR(SetAuxDensity            , ISYM);
+    WPR(DidGroupFindingOutput    , ISYM);
+
+    WPRS(GroupFindingDensitySource, s);
 
     output_header = ss.str();
 }

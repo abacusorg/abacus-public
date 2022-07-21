@@ -758,12 +758,21 @@ void InitGroupFinding(int MakeIC){
 
     if(WriteState.DoSubsampleOutput && !WriteState.DoGroupFindingOutput) WriteState.DoGroupFindingOutput = 1;
 
-    if(P.L1Output_dlna >= 0 && !WriteState.DoGroupFindingOutput &&
-        !(ReadState.DoGroupFindingOutput && WriteState.DeltaScaleFactor == 0)){
+    if(P.L1Output_dlna >= 0 && !WriteState.DoGroupFindingOutput){
         WriteState.DoGroupFindingOutput = P.L1Output_dlna == 0 ||
                     ( log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ) ||
                     ( fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna) );
         STDLOG(0,"Group finding at this redshift requested by L1Output_dlna\n");
+    }
+
+    if(ReadState.DoGroupFindingOutput && WriteState.DoGroupFindingOutput && WriteState.DeltaScaleFactor == 0){
+        WriteState.DoGroupFindingOutput = 0;
+        STDLOG(0,"Won't do group finding at the same redshift next step\n");
+    }
+
+    if(ReadState.DidGroupFindingOutput){
+        ReadState.DoGroupFindingOutput = 0;
+        STDLOG(0,"Won't do group finding at same redshift this step\n");
     }
     
     if(P.OutputAllHaloParticles && !WriteState.DoSubsampleOutput){
@@ -793,12 +802,18 @@ void InitGroupFinding(int MakeIC){
         STDLOG(0, "P.AllowGroupFinding does not allow group finding.\n");
     }
 
-    // Are we planning to store densities in aux?
-    WriteState.HaveAuxDensity = MPI_size_z > 1 &&
-        WriteState.DoGroupFindingOutput && WriteState.VelIsSynchronous && !ReadState.HaveAuxDensity && !MakeIC;
+    // done modifying DoGroupFindingOutput. Now we can plan for densities and output.
 
-    // Or we might be eligible to reuse the densities if nothing is going to move
-    if (ReadState.HaveAuxDensity && std::abs(WriteState.DeltaEtaDrift) < 1e-12) WriteState.HaveAuxDensity = 1;
+    // Will group finding use aux densities?
+    int use_aux_dens = !NFD || P.ForceAuxDensity;
+
+    ReadState.SetAuxDensity = NFD && !ReadState.HaveAuxDensity &&
+        ( (ReadState.DoGroupFindingOutput && use_aux_dens) || (WriteState.DoGroupFindingOutput && WriteState.DeltaEtaDrift == 0.) );
+
+    ReadState.HaveAuxDensity |= ReadState.SetAuxDensity;
+
+    // We might be eligible to reuse the densities if nothing is going to move
+    if (ReadState.HaveAuxDensity && WriteState.DeltaEtaDrift == 0.) WriteState.HaveAuxDensity = 1;
 
     // Set up the density kernel
     // This used to inform the group finding, but also might be output as part of lightcones even on non-group-finding steps
@@ -813,6 +828,8 @@ void InitGroupFinding(int MakeIC){
         !(!P.AllowGroupFinding || P.ForceOutputDebug || MakeIC || LPTStepNumber())){
         STDLOG(1, "Setting up group finding\n");
 
+        if(ReadState.DoGroupFindingOutput && WriteState.DeltaScaleFactor == 0.) WriteState.DidGroupFindingOutput = 1;
+
         STDLOG(2, "Group finding: %d, subsample output: %d, timeslice output: %d.\n",
             ReadState.DoGroupFindingOutput, ReadState.DoSubsampleOutput, ReadState.DoTimeSliceOutput);
 
@@ -824,7 +841,14 @@ void InitGroupFinding(int MakeIC){
                     P.FoFLinkingLength[2]/pow(P.np,1./3),
                     #endif
                     P.cpd, node_z_start_ghost, node_z_size_with_ghost,
-                    P.GroupRadius, P.MinL1HaloNP, P.np);
+                    P.GroupRadius, P.MinL1HaloNP, P.np, use_aux_dens);
+
+        if(use_aux_dens){
+            assertf(NFD, "Must have acc dens if not using aux dens!\n");
+            sprintf(ReadState.GroupFindingDensitySource, "aux-%dbit", __builtin_popcountll(AUXDENSITY));
+        } else {
+            sprintf(ReadState.GroupFindingDensitySource, "acc");
+        }
 
         #ifdef SPHERICAL_OVERDENSITY
         WriteState.SODensityL1 = P.SODensity[0];
