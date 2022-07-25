@@ -154,8 +154,6 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
      * (probably just for AccSlab).
      */
 
-     // TODO: add checks that we aren't merging invalid ghosts
-
     int cpd = P.cpd;
 
     // Sort the insert list
@@ -255,6 +253,15 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
         uint64 mci_index = skewer[y].mergestart;
         uint64 mci_index_noghost = skewer[y].mergestart_no_ghost;
 
+        if(ilread < ilend){
+            assertf(ilread->local_cellz() < node_z_size + 2*MERGE_GHOST_RADIUS,
+                "First particle in insert list skewer falls outside z domain. Invalid ghost?\n"
+                );
+            assertf((ilend-1)->local_cellz() < node_z_size + 2*MERGE_GHOST_RADIUS,
+                "Last particle in insert list skewer falls outside z domain. Invalid ghost?\n"
+                );
+        }
+
         for(int z = node_z_start - MERGE_GHOST_RADIUS; z < node_z_start + node_z_size + MERGE_GHOST_RADIUS; z++) {
             cellinfo *ici = CP->InsertCellInfo(slab,y,z);
             cellinfo *mci = CP->MergeCellInfo(slab,y,z);
@@ -342,7 +349,15 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
     SB->AllocateSpecificSize(MergeAuxSlab, slab, inslab*sizeof(auxstruct));
     STDLOG(2,"Allocating Merge Slabs to contain %d particles\n", inslab);
 
+    int nthread = omp_get_max_threads();
+    pint64 nwritten[nthread];
+    #pragma omp parallel for schedule(static)
+    for(int g = 0; g < nthread; g++){
+        nwritten[g] = 0;
+    }
+
     NUMA_FOR(y,0,cpd)
+        int g = omp_get_thread_num();
         for(int z = node_z_start - MERGE_GHOST_RADIUS; z < node_z_start + node_z_size + MERGE_GHOST_RADIUS; z++) {
             Cell mc = CP->GetMergeCell(slab, y, z);
             cellinfo *ici = CP->InsertCellInfo(slab,y,z);
@@ -373,6 +388,7 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
 
             assertf(written == mc.count(),
                 "Predicted merge cell size doesn't match insert list plus old particles\n");
+            nwritten[g] += written;
 
             // We should reset the L0/L1 bits, so they don't affect
             // future outputs on steps that don't involve group finding.
@@ -391,6 +407,13 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
             }
         }
     }
+
+    uint64 totwritten = 0;
+    for(int g = 0; g < nthread; g++){
+        totwritten += nwritten[g];
+    }
+    assertf(totwritten == inslab, "Wrote %d merge particles, expected %d. Indexing failure/invalid ghosts?\n",
+        totwritten, inslab);
 
     // Delete the particles from the insert list.
     free(ILnew);   // Need to free this space!
