@@ -845,9 +845,9 @@ void InitGroupFinding(int MakeIC){
                     P.GroupRadius, P.MinL1HaloNP, P.np, use_aux_dens);
 
         if(use_aux_dens){
-            assertf(NFD, "Must have acc dens if not using aux dens!\n");
             sprintf(ReadState.GroupFindingDensitySource, "aux-%dbit", __builtin_popcountll(AUXDENSITY));
         } else {
+            assertf(NFD, "Must have acc dens if not using aux dens!\n");
             sprintf(ReadState.GroupFindingDensitySource, "acc");
         }
 

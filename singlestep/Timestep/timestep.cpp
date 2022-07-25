@@ -97,11 +97,12 @@ void InitializePipelineWidths(int MakeIC){
     if (FINISH_WAIT_RADIUS+2*GROUP_RADIUS<FORCE_RADIUS)
         FINISH_WAIT_RADIUS = FORCE_RADIUS-2*GROUP_RADIUS;
 
-    // TODO: I'm not sure inflating FINISH_WAIT_RADIUS is the best way to deal with this
-    // TODO: Also not sure this is the minimum number of slabs, even in that case
+    // TODO: Not sure inflating FINISH_WAIT_RADIUS is the best way to deal with this
     int PAD = 0;
-    assertf(total_slabs_on_node >= (2*GROUP_RADIUS + 1) + 2*FORCE_RADIUS + 1 + PAD, "Not enough slabs on node to close first group!\n");
-    assertf(total_slabs_on_node >= 2*GROUP_RADIUS + FORCE_RADIUS + 2 * FINISH_WAIT_RADIUS + 1 + PAD, "Not enough slabs on node to finish any slabs!\n");
+    assertf(total_slabs_on_node >= (2*GROUP_RADIUS + 1) + 2*FORCE_RADIUS + 1 + PAD,
+        "Not enough slabs on node to close first group!\n");
+    assertf(total_slabs_on_node >= 2*GROUP_RADIUS + 2*FORCE_RADIUS + 1 + 2 * FINISH_WAIT_RADIUS + PAD,
+        "Not enough slabs on node to finish any slabs!\n");
 #endif
 
     STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
