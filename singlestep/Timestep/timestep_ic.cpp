@@ -39,9 +39,12 @@ public:
 };
 
 class UnpackICDep : public SlabDependency {
+    int ahead;
 public:
     UnpackICDep(int cpd, int initialslab)
-        : SlabDependency("UnpackIC", cpd, initialslab){ }
+        : SlabDependency("UnpackIC", cpd, initialslab){
+            ahead = 2*FINISH_WAIT_RADIUS + 2;  // don't flood the insert list
+        }
 
     int precondition(int slab){
         if(FetchSlabs->notdone(slab))
@@ -49,6 +52,9 @@ public:
         
         unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
         if(!ic->check_read_done())
+            return 0;
+
+        if(raw_number_executed > FinishParticles->raw_number_executed + ahead)
             return 0;
 
         return 1;

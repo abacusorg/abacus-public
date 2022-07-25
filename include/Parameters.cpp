@@ -269,9 +269,9 @@ public:
         FlipZelDisp = 0;
         installscalar("FlipZelDisp",FlipZelDisp,DONT_CARE);   // Flip Zeldovich ICs
 
-        NumSlabsInsertList = 2.0;
+        NumSlabsInsertList = 0.;  // auto
         installscalar("NumSlabsInsertList",NumSlabsInsertList,DONT_CARE);   
-        NumSlabsInsertListIC = 4.0;
+        NumSlabsInsertListIC = 0.;
         installscalar("NumSlabsInsertListIC",NumSlabsInsertListIC,DONT_CARE);   
 
         sprintf(ReadStateDirectory,STRUNDEF);
@@ -737,16 +737,16 @@ void Parameters::ValidateParameters(void) {
         assert(1==0);
     }
 
-    if (NumSlabsInsertList<0.0 || NumSlabsInsertList>cpd) {
+    if (NumSlabsInsertList<0.0) {
         fprintf(stderr,
-            "[ERROR] NumslabsInsertList = %e must be in range [0..CPD]\n",
+            "[ERROR] NumslabsInsertList = %e must be >= 0\n",
                 NumSlabsInsertList);
         assert(1==0);
     }
 
-    if (NumSlabsInsertListIC<0.0 || NumSlabsInsertListIC>cpd) {
+    if (NumSlabsInsertListIC<0.0) {
         fprintf(stderr,
-            "[ERROR] NumslabsInsertListIC = %e must be in range [0..CPD]\n",
+            "[ERROR] NumslabsInsertListIC = %e must be >= 0\n",
                 NumSlabsInsertListIC);
         assert(1==0);
     }
