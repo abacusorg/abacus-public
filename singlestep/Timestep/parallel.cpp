@@ -247,16 +247,13 @@ void FinalizeParallel() {
 #ifdef PARALLEL
 // Partition functions
 inline bool is_right_ghost(ilstruct *particle, int slab, int first_ghost){
-    // TODO: the cellz modulus could be slow. First let's check if it is;
-    // if so, we could store z in the ilstruct.
-    // Or fix CPD at compile time and use libdivide!
     
     if(particle->newslab != slab)
         return 0;
 
     int cpdm1half = (P.cpd - 1)/2;
 
-    int cellz = particle->global_cellz();  // TODO: local probably faster
+    int cellz = particle->global_cellz();
 
     // With just two splits, one node will be bigger than half the domain!
     if(MPI_size_z == 2 && cellz == node_z_start)
@@ -439,9 +436,10 @@ private:
         #pragma omp parallel for schedule(static)
         for(uint64 i = 0; i < recvelem; i++){
             // Adjust sorting key to be relative to the node-local ghost_z_start.
-            int _y = recvbuf[i].k / P.cpd;
-            recvbuf[i].k = _y*P.cpd + CP->WrapSlab( (recvbuf[i].k % P.cpd) - (node_z_start - all_node_z_start[zneigh]));
-            IL->list[oldlen + i] = recvbuf[i];
+            // TODO: could probably emplace, copying all fields except zlocal
+            ilstruct p = recvbuf[i];
+            p.setzlocal( CP->WrapSlab(p.local_cellz() - (node_z_start - all_node_z_start[zneigh])) );
+            IL->list[oldlen + i] = p;
         }
     }
 

@@ -33,17 +33,27 @@
 // So be careful not to re-size to 32bit when using the indices you receive from it! 
 
 class ilstruct {
-  public:
-    unsigned int k;   // The key based on y*cpd + zlocal
+  private:
+    uint32_t k;   // The key, with y in the high bits and zlocal in the low
+  
+  public:  
     int newslab;        // The new cell, wrapped
     posstruct pos;
     velstruct vel;
     auxstruct aux;
 
     // Some methods required for sorting
-    inline unsigned int key() { return k; }
+    inline uint32_t key() { return k; }
     inline void set_max_key() { k = MM_MAX_UINT; }
     bool operator< (const ilstruct& b) const { return (k<b.k); }
+
+    inline void setkey(int y, int zlocal){
+        k = (((uint32_t) y) << 16) | ((uint32_t) zlocal);
+    }
+
+    inline void setzlocal(int zlocal){
+        k = (k & 0xFFFF0000) | (uint32_t) zlocal;
+    }
 
     // A method for dumping ASCII
     inline void print () {
@@ -54,15 +64,15 @@ class ilstruct {
     }
 
     int celly(){
-        return k/P.cpd;
+        return k >> 16;
     }
 
     int global_cellz(){
-        return CP->WrapSlab( (k % P.cpd) + (node_z_start - MERGE_GHOST_RADIUS) );
+        return CP->WrapSlab( (k & 0xFFFF) + (node_z_start - MERGE_GHOST_RADIUS) );
     }
 
     int local_cellz(){
-        return k % P.cpd;
+        return k & 0xFFFF;
     }
 
 };   // end ilstruct
@@ -106,6 +116,8 @@ public:
     InsertList(int cpd, uint64 maxilsize)
             : grid(cpd), MultiAppendList<ilstruct>(maxilsize, P.InsertListGapElems)  { 
         n_sorted = 0;
+
+        assertf(cpd <= 0xFFFF, "CPD too large for ilstruct 16-bit indices\n");
         return;
     }
     ~InsertList(void) {
@@ -122,7 +134,7 @@ public:
 
         // Sort based on the lowest local z, not the global z! This aids the Merge.
         // This local adjustment is also applied in the Neighbor receive
-        il.k = xyz.y*cpd + WrapSlab(xyz.z - (node_z_start - MERGE_GHOST_RADIUS));
+        il.setkey(xyz.y, WrapSlab(xyz.z - (node_z_start - MERGE_GHOST_RADIUS)));
         
         // TODO: emplace semantics
         MultiAppendList::Push(il);
@@ -272,7 +284,8 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     assert(posix_memalign((void **)&ilnew, CACHE_LINE_SIZE, sizeof(ilstruct)*(slablength)) == 0);
 
     MultiMergeSort<ilstruct> mm;
-    mm.mmsort(&(list[mid]), ilnew, slablength, cpd*cpd, 2e6, 16);
+    //mm.mmsort(&(list[mid]), ilnew, slablength, cpd*cpd, 2e6, 16);
+    mm.mmsort(&(list[mid]), ilnew, slablength, cpd*0xFFFF, 2e6, 16);  // TODO: does the new ilstruct data model slow down the merge sort?
     /* VESTIGIAL
     // The following appears to be a superfluous check as well
     for(uint64 i = 1 ; i < slablength; i++)
