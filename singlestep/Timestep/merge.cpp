@@ -258,7 +258,8 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
                 "First particle in insert list skewer falls outside z domain. Invalid ghost?\n"
                 );
             assertf((ilend-1)->local_cellz() < node_z_size + 2*MERGE_GHOST_RADIUS,
-                "Last particle in insert list skewer falls outside z domain. Invalid ghost?\n"
+                "Last particle in insert list skewer falls outside z domain (global z %d). Invalid ghost?\n",
+                (ilend-1)->global_cellz()
                 );
         }
 

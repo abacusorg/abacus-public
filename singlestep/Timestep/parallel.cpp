@@ -181,11 +181,26 @@ void InitializeParallelMergeDomain(){
         // but if those are *only* used by the merge, we can keep them
         // local to the merge
 
+    // A stress test: go up, then down
+    /*MERGE_GHOST_RADIUS = WriteState.FullStepNumber + 2;
+    if(2*MERGE_GHOST_RADIUS > P.cpd/MPI_size_z){
+        MERGE_GHOST_RADIUS = P.cpd/MPI_size_z - MERGE_GHOST_RADIUS;
+    }*/
+
+    // We will make the simplifying assumption of non-overlapping ghosts.
+    // One could likely make this work as long as one thought about the MPI_size_z = 2 case
+    // and avoided sending/deleting duplicates
+    assertf(2*MERGE_GHOST_RADIUS <= node_z_size,
+        "MERGE_GHOST_RADIUS (%d) big enough to overlap on node with primary size %d!",
+        MERGE_GHOST_RADIUS, node_z_size
+    );
+
     int zleft = MPI_rank_z - 1; if (zleft < 0) zleft += MPI_size_z;
     int zright = MPI_rank_z + 1; if (zright >= MPI_size_z) zright -= MPI_size_z;
     assertf(MERGE_GHOST_RADIUS <= all_node_z_size[zleft] && 
             MERGE_GHOST_RADIUS <= all_node_z_size[zright],
-            "MERGE_GHOST_RADIUS (%d) bigger than neighbor primary regions!\n"
+            "MERGE_GHOST_RADIUS (%d) bigger than neighbor primary regions!\n",
+            MERGE_GHOST_RADIUS
             );
 
     WriteState.GhostRadius = MERGE_GHOST_RADIUS;
@@ -252,50 +267,18 @@ void FinalizeParallel() {
 /* Begin Neighbor Exchange routines */
 
 #ifdef PARALLEL
-// Partition functions
-inline bool is_right_ghost(ilstruct *particle, int slab, int first_ghost){
-    
-    if(particle->newslab != slab)
-        return 0;
-
-    int cpdm1half = (P.cpd - 1)/2;
+// Partition function
+inline bool is_in_range(ilstruct *particle, int slab, int left, int len){
+    // returns true if particle is in [left,left+len)
+    // assumes left is in [0,CPD]
+    if(particle->newslab != slab) return 0;
 
     int cellz = particle->global_cellz();
 
-    // With just two splits, one node will be bigger than half the domain!
-    if(MPI_size_z == 2 && cellz == node_z_start)
-        return 0;
+    int dist = cellz - left;
+    if (dist < 0) dist += P.cpd;
 
-    int dist = cellz - first_ghost;
-    if (dist > cpdm1half){
-        dist -= P.cpd;
-    } else if (dist < -cpdm1half){
-        dist += P.cpd;
-    }
-
-    return dist >= 0;
-}
-
-inline bool is_left_ghost(ilstruct *particle, int slab, int first_ghost){
-    if(particle->newslab != slab)
-        return 0;
-
-    int cpdm1half = (P.cpd - 1)/2;
-
-    int cellz = particle->global_cellz();
-
-    // With just two splits, one node will be bigger than half the domain!
-    if(MPI_size_z == 2 && cellz == (node_z_start + node_z_size - 1))
-        return 0;
-
-    int dist = cellz - first_ghost;
-    if (dist > cpdm1half){
-        dist -= P.cpd;
-    } else if (dist < -cpdm1half){
-        dist += P.cpd;
-    }
-
-    return dist <= 0;
+    return dist < len;
 }
 
 /* NeighborExchange happens when a slab and both adjacent slabs have Drifted,
@@ -395,17 +378,27 @@ private:
         
         uint64 mid;
         if(right){
+            // A "right" ghost must be closer to our right primary domain edge than the left edge.
+            // In the case of ties, the right ghost wins.
+            int len = (P.cpd - node_z_size + 1)/2;
+
             // [0..mid) are not in slab, [mid..length) are in slab
             mid = ParallelPartition(IL->list, IL->length,
-                is_right_ghost,
+                is_in_range,
                 slab,
-                node_z_start + node_z_size - MERGE_GHOST_RADIUS);
+                node_z_start + node_z_size - MERGE_GHOST_RADIUS,
+                len + MERGE_GHOST_RADIUS
+                );
         }
         else {
+            int len = (P.cpd - node_z_size)/2;
+
             mid = ParallelPartition(IL->list, IL->length,
-                is_left_ghost,
+                is_in_range,
                 slab,
-                node_z_start + MERGE_GHOST_RADIUS - 1);
+                CP->WrapSlab(node_z_start - len),
+                len + MERGE_GHOST_RADIUS
+                );
         }
         
         *nhigh = (size_t) (IL->length - mid);
@@ -414,8 +407,6 @@ private:
 
 
     size_t tail_partition(ilstruct *start, size_t nelem){
-        // No need to collect gaps; still contiguous from partition()
-        
         /* Normal steps will not need to execute this.
            This only does anything when the IL has particles that are so
            far away from our domain that we will not need them as ghosts.
@@ -430,20 +421,29 @@ private:
             MERGE_GHOST_RADIUS > 0)
                 return 0;
 
+        // No need to collect gaps; still contiguous from partition()
+
         uint64 mid;
         if(right){
+            int len = (P.cpd - node_z_size + 1)/2;
+
+            // [0..mid) are not in slab, [mid..length) are in slab
             mid = ParallelPartition(start, nelem,
-                is_right_ghost,
+                is_in_range,
                 slab,
-                node_z_start + node_z_size + MERGE_GHOST_RADIUS);
-                // only delete particles that are neighbor's primary
-                // and we do not need as ghosts
+                node_z_start + node_z_size + MERGE_GHOST_RADIUS,
+                len - MERGE_GHOST_RADIUS
+                );
         }
         else {
+            int len = (P.cpd - node_z_size)/2;
+
             mid = ParallelPartition(start, nelem,
-                is_left_ghost,
+                is_in_range,
                 slab,
-                node_z_start - MERGE_GHOST_RADIUS - 1);
+                CP->WrapSlab(node_z_start - len),
+                len - MERGE_GHOST_RADIUS
+                );
         }
 
         size_t nhigh = (size_t) nelem - mid;
