@@ -1146,7 +1146,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
         # This logic is deliberately consistent with singlestep.cpp
         # If this is an IC step then we won't have read_state
-        if not make_ic and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0:
+        if (not make_ic and
+            np.abs(read_state.Redshift - finalz) < 1e-12 and
+            read_state.LPTStepNumber == 0 and
+            not (write_state.DoGroupFindingOutput == 1 and write_state.DidGroupFindingOutput == 0)
+            ):
             ending_time = time.time()
             ending_time_str = time.asctime(time.localtime())
             ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
