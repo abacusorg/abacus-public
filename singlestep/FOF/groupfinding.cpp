@@ -347,7 +347,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     NUMA_FOR(j,0,cpd)
         int g = omp_get_thread_num();
         PencilAccum<CellGroup> *cg = cellgroups[slab].StartPencil(j);
-        for (int k=zstart; k<zend; k++) {
+        for (int k=zstart; k<zend; k++) {  // global z
             // Find CellGroups in (slab,j,k).  Append results to cg.
             Cell c = CP->GetCell(slab, j, k);
 
@@ -499,7 +499,8 @@ void FindAndProcessGlobalGroups(int slab) {
     GFC->globalslabs[slab] = GGS;
     GGS->setup(slab);
     GGS->CreateGlobalGroups();
-    STDLOG(2,"Closed global groups in slab %d, finding %d groups involving %d cell groups\n", slab, GGS->globalgroups.get_slab_size(), GGS->globalgrouplist.get_slab_size());
+    STDLOG(2,"Closed global groups in slab %d, finding %d groups involving %d cell groups\n",
+        slab, GGS->globalgroups.get_slab_size(), GGS->globalgrouplist.get_slab_size());
     GFC->GGtot += GGS->globalgroups.get_slab_size();
 
     // Now process and output each one....
@@ -510,9 +511,9 @@ void FindAndProcessGlobalGroups(int slab) {
     // TODO: This largest_GG work is now superceded by MultiplicityHalos
     // The GGS->globalgroups[j][k][n] now reference these as [start,start+np)
         
-        // ReadState.DoGroupFindingOutput is decided in InitGroupFinding()
-        if(ReadState.DoGroupFindingOutput)
-                GGS->FindSubGroups();
+    // ReadState.DoGroupFindingOutput is decided in InitGroupFinding()
+    if(ReadState.DoGroupFindingOutput)
+            GGS->FindSubGroups();
     GGS->ScatterGlobalGroupsAux();
 
     // Output the information about the Global Groups
@@ -520,7 +521,7 @@ void FindAndProcessGlobalGroups(int slab) {
         GGS->SimpleOutput();
     #endif
         if(ReadState.DoGroupFindingOutput)
-                GGS->HaloOutput();
+            GGS->HaloOutput();
 
 #ifndef STANDALONE_FOF
     // We have a split time slice output model where non-L0 particles and L0 particles go in separate files
@@ -533,10 +534,10 @@ void FindAndProcessGlobalGroups(int slab) {
 }
 
 void FinishGlobalGroups(int slab){
-        slab = GFC->WrapSlab(slab);
+    slab = GFC->WrapSlab(slab);
     GlobalGroupSlab *GGS = GFC->globalslabs[slab];
 
-        // pos,vel have been updated in the group-local particle copies by microstepping
+    // pos,vel have been updated in the group-local particle copies by microstepping
     // now push these updates to the original slabs
     if(GFC->microstepcontrol[slab]!=NULL) {
         GGS->ScatterGlobalGroups();

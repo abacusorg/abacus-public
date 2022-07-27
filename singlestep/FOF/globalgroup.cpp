@@ -148,9 +148,12 @@ class GlobalGroupSlab {
     int diam, slabbias;
     int split;    ///< The pencil splitting
     int cpd;
-    int zstart;
+    int zstart;  ///< includes ghosts
     int zwidth;
-    int zend;
+    
+    int ghost_radius;  ///< for determining 2D ownership
+    int dedup;  ///< whether to de-duplicate 2D groups
+
     posstruct *pos;  ///< Big vectors of all of the pos/vel/aux for these global groups
     velstruct *vel;
     auxstruct *aux;
@@ -179,7 +182,8 @@ class GlobalGroupSlab {
         cpd = GFC->cpd;
         zstart = GFC->zstart;
         zwidth = GFC->zwidth;
-        zend = GFC->zend;
+        ghost_radius = GHOST_RADIUS;
+        dedup = MPI_size_z > 1;
         rad = GFC->GroupRadius;
         // We will split the work by pencils, and this means that
         // we have to reserve 2*r+1 in either direction.
@@ -475,7 +479,9 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                 CellPtr<CellGroup> c = GFC->cellgroups[slab][j][k];
                 for (int g=0; g<c.size(); g++) if (c[g].is_open()) {
                     // Loop over groups, skipping closed and deferred ones
-                    int ggsize = 0; 
+                    int ggsize = 0;
+                    int minzslab = k;  // to determine 2D ownership
+
                     cglist.resize(0);   // Reset to null list
                     cglist.push_back(LinkID(slab, j, k, g));   // Prime the queue
                     uint64 searching = 0;
@@ -485,6 +491,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                         integer3 thiscell = cglist[searching].localcell();  
                         CellGroup *thiscg = LinkToCellGroup(cglist[searching]);
                         ggsize += thiscg->size();
+                        minzslab = std::min(minzslab, thiscell.z);
                         assertf(thiscg->is_open(), "Cellgroup in slab %d found to be closed while making groups in slab %d.  Likely need to increase GroupRadius!\n", thiscell.x, slab);
                                 // If this fails, probably a group has spanned
                                 // beyond 2*R+1 cells and something got closed
@@ -522,9 +529,12 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                     } // End search over graph of cell groups
                     // printf("Closed with size %d\n", ggsize);
 
+                    // recall that we are using local z
+                    int minz_in_primary = minzslab >= ghost_radius && minzslab < zwidth - ghost_radius;
+
                     // Time to build the GlobalGroup
                     // We only track the group if it has more than one particle
-                    if (ggsize>1) {
+                    if (ggsize>1 && !(dedup && !minz_in_primary)) {
                         int start = gg_list->buffer->get_pencil_size();
                         // We're going to sort the cellgroup list, so that
                         // multiple groups within one cell are contiguous
