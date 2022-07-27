@@ -525,15 +525,28 @@ public:
     double FinishingRedshift() {
         // Return the redshift where the code should halt.
         // FinalRedshift is the controlling item, but if that's
-        // not set (value<=-1), then we will run to the minimum of the TimeSliceRedshifts list.
+        // not set (value<=-1), then we will the redshifts of
+        // the requested outputs.
         // If no TimeSlices are requested, then z=0.
         if (FinalRedshift>-1) return FinalRedshift;
-        double minz = 1e10;
-        for (int i=0; i<MAX_TIMESLICE_REDSHIFTS; i++)
-            if (TimeSliceRedshifts[i] <= -1) break; 
-            else if (TimeSliceRedshifts[i]<minz) minz = TimeSliceRedshifts[i];
-        return minz;
+        double minz = 1e100;
+        int have_minz = 0;
+        for (int i=0; i<nTimeSlice; i++){
+            minz = std::min(minz, TimeSliceRedshifts[i]);
+            have_minz = 1;
+        }
+
+        for (int i=0; i<nTimeSliceSubsample; i++){
+            minz = std::min(minz, TimeSliceRedshifts_Subsample[i]);
+            have_minz = 1;
+        }
+
+        for (int i=0; i<nTimeSliceL1; i++){
+            minz = std::min(minz, L1OutputRedshifts[i]);
+            have_minz = 1;
+        }
     
+        if(have_minz) return minz;
         return 0.0;
     }
 
