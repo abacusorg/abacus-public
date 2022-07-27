@@ -741,9 +741,13 @@ public:
  * should be checked for completion this year.
  */
 class DriftDep : public SlabDependency {
+    int drift_ahead;  // how far ahead of Finish to work
+    
 public:
     DriftDep(int cpd, int initialslab)
-        : SlabDependency("Drift", cpd, initialslab){ }
+        : SlabDependency("Drift", cpd, initialslab){
+            drift_ahead = 2*FINISH_WAIT_RADIUS + 1 + 3;
+        }
 
     int precondition(int slab) {
         // We must have finished scattering into this slab
@@ -757,11 +761,18 @@ public:
 
         // We also must have the 2LPT velocities
         // The finish radius is a good guess of how ordered the ICs are
-        if(ReadState.Do2LPTVelocityRereading)
-            for(int i=-FINISH_WAIT_RADIUS;i<=FINISH_WAIT_RADIUS;i++) 
+        if(ReadState.Do2LPTVelocityRereading){
+            for(int i=-FINISH_WAIT_RADIUS;i<=FINISH_WAIT_RADIUS;i++) {
                 if (UnpackLPTVelocity->notdone(slab+i)) {
                     return 0;
                 }
+            }
+        }
+
+        if(Drift->raw_number_executed > FinishParticles->raw_number_executed + drift_ahead){
+            // Don't flood the IL
+            return 0;
+        }
 
         return 1;
     }
