@@ -468,7 +468,6 @@ void FindGroupLinks(int slab) {
         for (int k=0; k<GFC->zwidth; k++) {  // local k
 			if(MPI_size_z == 1 || k > 0){
 				// The z dimension doesn't wrap in 2D
-				// TODO: double-check with DJE that this is the right approach
 	            SearchPair(xp, j  , k-1, xm, j, k);
 				SearchPair(xp, j+1, k-1, xm, j, k);
 				SearchPair(xp, j-1, k-1, xm, j, k);

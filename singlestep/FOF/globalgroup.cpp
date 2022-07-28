@@ -481,6 +481,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                     // Loop over groups, skipping closed and deferred ones
                     int ggsize = 0;
                     int minzslab = k;  // to determine 2D ownership
+                    int touches_zedge = 0;  // to ensure no links past the ghosts
 
                     cglist.resize(0);   // Reset to null list
                     cglist.push_back(LinkID(slab, j, k, g));   // Prime the queue
@@ -501,6 +502,13 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                             // printf("Link to %d %d %d %d\n",
                                     // thiscell.x, thiscell.y, thiscell.z, cglist[searching].cellgroup());
                         // }
+
+                        if(dedup){
+                            // actually nothing to do with de-dup, this is a generic 2D task
+                            if( (thiscell.z == 0 && thiscg->test(ZM_BIT)) ||  // local z
+                                (thiscell.z == zwidth - 1 && thiscg->test(ZP_BIT)) ) touches_zedge = 1;
+                        }
+
                         // Now get these links
                         int s = GFC->WrapSlab(thiscell.x-slab+slabbias);  // Map to [0,diam)
                         assertf(s < diam, "GroupLink points to slab offset %d which violates GroupDiameter %d.  Likely need to increase GroupRadius! (slab,j,k,g = %d,%d,%d,%d)\n",
@@ -535,6 +543,8 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                     // Time to build the GlobalGroup
                     // We only track the group if it has more than one particle
                     if (ggsize>1 && !(dedup && !minz_in_primary)) {
+                        assertf(!touches_zedge, "Found global group that touches the far edge of the ghosts! Likely need to increase GroupRadius.\n");
+
                         int start = gg_list->buffer->get_pencil_size();
                         // We're going to sort the cellgroup list, so that
                         // multiple groups within one cell are contiguous
