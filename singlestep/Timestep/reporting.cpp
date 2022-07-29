@@ -262,7 +262,7 @@ void GatherTimings() {
         }
     }
    
-    if(WriteState.Do2LPTVelocityRereading){
+    if(ReadState.Do2LPTVelocityRereading){
         REPORT(1, "Unpack IC Velocities for LPT", UnpackLPTVelocity->Elapsed()); total += thistime;
         REPORT_RATE(UnpackLPTVelocity);
     }

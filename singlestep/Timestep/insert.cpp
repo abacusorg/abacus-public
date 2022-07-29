@@ -57,9 +57,9 @@ class ilstruct {
 
     // A method for dumping ASCII
     inline void print () {
-        printf("pos: %e %e %e; vel: %e %e %e; aux: %lu; newslab: %d; key: %d\n", 
+        printf("pos: %e %e %e; vel: %e %e %e; aux: %s; newslab: %d; key: %d\n", 
                 pos.x, pos.y, pos.z, vel.x, vel.y, vel.z, 
-                aux.aux, newslab, k);
+                aux.tostring().c_str(), newslab, k);
         return;
     }
 
@@ -110,12 +110,14 @@ void ConfirmPartition(ilstruct *il, uint64 len, int slab) {
 class InsertList : public grid, public MultiAppendList<ilstruct> {
 public: 
     uint64 n_sorted;
+    int clearLC;
 
     STimer FinishPartition, FinishSort;
 
-    InsertList(int cpd, uint64 maxilsize)
+    InsertList(int cpd, uint64 maxilsize, int _clearLC)
             : grid(cpd), MultiAppendList<ilstruct>(maxilsize, P.InsertListGapElems)  { 
         n_sorted = 0;
+        clearLC = _clearLC;  // LC bits used as vel bits in 2LPT
 
         assertf(cpd <= 0xFFFF, "CPD too large for ilstruct 16-bit indices\n");
         return;
@@ -140,23 +142,23 @@ public:
         MultiAppendList::Push(il);
     }
 
-    inline integer3 WrapToNewCell(posstruct *pos, auxstruct *aux, int oldx, int oldy, int oldz) {
+    inline integer3 WrapToNewCell(posstruct *pos, auxstruct *aux, int oldx, int oldy, int oldz, int clearLC) {
         // We have been given a particle that has drifted out of its cell.
         // Find the new cell, changing the position as appropriate.
         integer3 newcell = Position2Cell(*pos);
         // Important: this mapping does not apply a wrap.
         // Now we wrap, coordinating cell index and position
-        while (newcell.x<0)    { newcell.x+=cpd; pos->x+=1.0; aux->clearLightCone(); }
-        while (newcell.x>=cpd) { newcell.x-=cpd; pos->x-=1.0; aux->clearLightCone(); }
-        while (newcell.y<0)    { newcell.y+=cpd; pos->y+=1.0; aux->clearLightCone(); }
-        while (newcell.y>=cpd) { newcell.y-=cpd; pos->y-=1.0; aux->clearLightCone(); }
-        while (newcell.z<0)    { newcell.z+=cpd; pos->z+=1.0; aux->clearLightCone(); }
-        while (newcell.z>=cpd) { newcell.z-=cpd; pos->z-=1.0; aux->clearLightCone(); }
+        while (newcell.x<0)    { newcell.x+=cpd; pos->x+=1.0; if(clearLC) aux->clearLightCone(); }
+        while (newcell.x>=cpd) { newcell.x-=cpd; pos->x-=1.0; if(clearLC) aux->clearLightCone(); }
+        while (newcell.y<0)    { newcell.y+=cpd; pos->y+=1.0; if(clearLC) aux->clearLightCone(); }
+        while (newcell.y>=cpd) { newcell.y-=cpd; pos->y-=1.0; if(clearLC) aux->clearLightCone(); }
+        while (newcell.z<0)    { newcell.z+=cpd; pos->z+=1.0; if(clearLC) aux->clearLightCone(); }
+        while (newcell.z>=cpd) { newcell.z-=cpd; pos->z-=1.0; if(clearLC) aux->clearLightCone(); }
         return newcell;
     }
 
     inline integer3 LocalWrapToNewCell(posstruct *pos, auxstruct *aux,
-        int oldx, int oldy, int oldz) {
+        int oldx, int oldy, int oldz, int clearLC) {
 
         // We have been given a particle that has drifted out of its cell.
         // Find the new cell, changing the position as appropriate.
@@ -166,26 +168,26 @@ public:
             pos->x, pos->y, pos->z);
         while (pos->x>=phalfinvcpd) {
             oldx+=1; pos->x-=pinvcpd;
-            if (oldx==cpd) aux->clearLightCone();
+            if (oldx==cpd && clearLC) aux->clearLightCone();
         }
         while (pos->x<-phalfinvcpd) {
-            if (oldx==0) aux->clearLightCone();
+            if (oldx==0 && clearLC) aux->clearLightCone();
             oldx-=1; pos->x+=pinvcpd;
         }
         while (pos->y>=phalfinvcpd) {
             oldy+=1; pos->y-=pinvcpd;
-            if (oldy==cpd) aux->clearLightCone();
+            if (oldy==cpd && clearLC) aux->clearLightCone();
         }
         while (pos->y<-phalfinvcpd) {
-            if (oldy==0) aux->clearLightCone();
+            if (oldy==0 && clearLC) aux->clearLightCone();
             oldy-=1; pos->y+=pinvcpd;
         }
         while (pos->z>=phalfinvcpd) {
             oldz+=1; pos->z-=pinvcpd;
-            if (oldz==cpd) aux->clearLightCone();
+            if (oldz==cpd && clearLC) aux->clearLightCone();
         }
         while (pos->z<-phalfinvcpd) {
-            if (oldz==0) aux->clearLightCone();
+            if (oldz==0 && clearLC) aux->clearLightCone();
             oldz-=1; pos->z+=pinvcpd;
         }
         return WrapCell(oldx, oldy, oldz);
@@ -202,10 +204,10 @@ public:
         integer3 newcell;
         
 #ifdef GLOBALPOS
-        newcell = WrapToNewCell(pos,x,y,z);
+        newcell = WrapToNewCell(pos,x,y,z,clearLC);
 #else
         // Use LocalWrapToNewCell for cell-referenced positions
-        newcell = LocalWrapToNewCell(pos,aux,x,y,z);
+        newcell = LocalWrapToNewCell(pos,aux,x,y,z,clearLC);
 #endif
 
         /* REMOVING THIS CHECK, as it would be detected in another way,
@@ -222,7 +224,7 @@ public:
             integer3 c = newcell;
             printf("Trying to push a particle to slab %d from slab %d.  This is larger than FINISH_WAIT_RADIUS = %d.\n",
                 newcell.x, x, FINISH_WAIT_RADIUS);
-            printf("pos: %e %e %e; vel: %e %e %e; aux: %lu; cell: %d %d %d\n", p.x, p.y, p.z, v.x, v.y, v.z, a.aux, c.x, c.y, c.z);
+            printf("pos: %e %e %e; vel: %e %e %e; aux: %s; cell: %d %d %d\n", p.x, p.y, p.z, v.x, v.y, v.z, a.tostring().c_str(), c.x, c.y, c.z);
             assertf(slab_distance <= FINISH_WAIT_RADIUS,
                 "Trying to push a particle to slab %d from slab %d.  This is larger than FINISH_WAIT_RADIUS = %d.",
                 x, newcell.x, FINISH_WAIT_RADIUS);

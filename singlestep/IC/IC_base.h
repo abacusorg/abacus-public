@@ -31,6 +31,8 @@ public:
     int slab;
     int zsplit;
 
+    FLOAT lpt_vel_scale;
+
     uint64 NsubsampleA, NsubsampleB;  // subsample A and B counts
 
     // This factory function is the primary entry point to construct an ICFile object
@@ -54,8 +56,7 @@ public:
 
     virtual ~ICFile(void) = default;
 
-protected:
-    inline void set_taggable_bits(auxstruct &aux, uint64 &sumA, uint64 &sumB);
+    inline static void set_taggable_bits(auxstruct &aux, uint64 &sumA, uint64 &sumB);
 
 private:
     virtual uint64 unpack(velstruct *velslab, double convert_pos, double convert_vel) = 0;

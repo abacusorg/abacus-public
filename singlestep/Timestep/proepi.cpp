@@ -259,7 +259,8 @@ void Prologue(Parameters &P, int MakeIC, int NoForces) {
     int num_slab_il = 0;
     num_slab_il = (MakeIC || LPTStepNumber() > 0) ? P.NumSlabsInsertListIC : P.NumSlabsInsertList;
     maxILsize = maxILsize*num_slab_il*(node_z_size + 2*MERGE_GHOST_RADIUS)/P.cpd/P.cpd + 1;
-    IL = new InsertList(cpd, maxILsize);
+    int clearLC = LPTStepNumber() == 0;  // LC bits used as vel bits during 2LPT
+    IL = new InsertList(cpd, maxILsize, clearLC);
     STDLOG(2,"Maximum insert list size = %l, size %l MB\n", maxILsize, maxILsize*sizeof(ilstruct)/1024/1024);
 
     STDLOG(2,"Setting up IO\n");
@@ -1021,6 +1022,8 @@ void FinalizeWriteState() {
         MPI_REDUCE_TO_ZERO(&WriteState.np_subA_state, 1, MPI_INT, MPI_SUM);
         MPI_REDUCE_TO_ZERO(&WriteState.np_subB_state, 1, MPI_INT, MPI_SUM);
         MPI_REDUCE_TO_ZERO(&WriteState.np_lightcone, 1, MPI_INT64_T, MPI_SUM);
+
+        MPI_REDUCE_TO_ZERO(&WriteState.LPTVelScale, 1, MPI_DOUBLE, MPI_MAX);
 // #undef MPI_REDUCE_IN_PLACE
 
         // Note that we're not summing up any timing or group finding reporting;

@@ -93,6 +93,8 @@ ICFile::ICFile(int _slab, int _zsplit){
     Npart = 0;
     foffset = 0;
     fbytes = 0;
+
+    lpt_vel_scale = 0.;
 }
 
 inline void ICFile::set_taggable_bits(auxstruct &aux, uint64 &sumA, uint64 &sumB){
@@ -273,6 +275,10 @@ A template class for RVZel and RVdoubleZel, which are typedef'd with the "using"
 */
 template<typename T>
 class ICFile_RVZelTemplate : public ICFile_OnDisk<ICFile_RVZelTemplate<T>> {
+private:
+    double Canonical_to_VelZSpace;
+    int prep_2lpt;
+
 public:
     class ICparticle {
     public:
@@ -301,6 +307,9 @@ public:
         } else {
             this->foffset = 0;
         }
+
+        Canonical_to_VelZSpace = 1./WriteState.VelZSpace_to_Canonical;
+        prep_2lpt = P.LagrangianPTOrder > 1;
     }
 
 private:
@@ -310,7 +319,8 @@ private:
         ICparticle *particles = (ICparticle *) SB->GetSlabPtr(ICSlab, this->slab);
 
         uint64 sumA = 0, sumB = 0;
-        #pragma omp parallel for schedule(static) reduction(+:sumA,sumB)
+        FLOAT max_vel_delta = 0.;
+        #pragma omp parallel for schedule(static) reduction(+:sumA,sumB) reduction(max:max_vel_delta)
         for(uint64 i = 0; i < this->Npart; i++){
             ICparticle p = particles[i];
 
@@ -327,6 +337,14 @@ private:
             auxstruct aux;
 
             pos *= convert_pos;
+
+            if(prep_2lpt){
+                // Track max(vel-linearvel)
+                // TODO: have we been neglecting f_growth in the zeldovich code?
+                velstruct delta = vel*Canonical_to_VelZSpace - pos;
+                //assertf(delta.norm2() < pos.norm2(), "vel - linearvel calculation produed abnormally large result\n");
+                max_vel_delta = std::max(delta.maxabscomponent(), max_vel_delta);
+            }
 
             integer3 ijk(p.i, p.j, p.k);
             assert(ijk.x >= 0 && ijk.y >= 0 && ijk.z >= 0);
@@ -354,6 +372,8 @@ private:
         // Store the local reductions in the class variables
         this->NsubsampleA = sumA;
         this->NsubsampleB = sumB;
+
+        this->lpt_vel_scale = max_vel_delta;
 
         // All done with these particles
         SB->DeAllocate(ICSlab, this->slab);
@@ -608,6 +628,8 @@ uint64 UnpackICtoIL(int slab) {
 
     STDLOG(0,"Read %d particles from IC slab %d\n", count, slab);
     STDLOG(1,"Slab %d has %d subsample A particles, %d subsample B particles.\n", slab, ic->NsubsampleA, ic->NsubsampleB);
+
+    WriteState.LPTVelScale = std::max((double)std::abs(ic->lpt_vel_scale), WriteState.LPTVelScale);
 
     return count; 
 }

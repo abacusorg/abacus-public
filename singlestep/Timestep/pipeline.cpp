@@ -303,10 +303,20 @@ public:
             }
         }
 
-        if(set_aux_dens){
+        if(set_aux_dens || LPTStepNumber() == 1){
             // Will write aux density for 2D group finding
+            // or packing vel in aux for 2LPT
             if( !SB->IsIOCompleted( AuxSlab, slab ) ){
                 if(SB->IsSlabPresent(AuxSlab, slab))
+                    SlabDependency::NotifySpinning(WAITING_FOR_IO);
+                return 0;
+            }
+        }
+
+        if(LPTStepNumber() == 1){
+            // Need linear velocities for 2LPT
+            if( !SB->IsIOCompleted( PosSlab, slab ) ){
+                if(SB->IsSlabPresent(PosSlab, slab))
                     SlabDependency::NotifySpinning(WAITING_FOR_IO);
                 return 0;
             }

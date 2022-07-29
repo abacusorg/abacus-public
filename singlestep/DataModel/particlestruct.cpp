@@ -25,7 +25,16 @@ SubA: 59
 SubB: 60
 LightCone (3): 61-63
 
-When we store into the output TaggedPID format, we apply a bit mask to zero all of the second set of bits. That's 0x07ff 7fff 7fff 7fff.
+density: 64-95 (full-precision dens for group finding)
+
+For the LPT steps, we repurpose the following bits:
+vx: 48-63
+vy: 64-79
+vz: 80-95
+
+When we store into the output TaggedPID format, we only output
+from the first 64 bits, and apply a bit mask to zero all of the
+second set of bits. That's 0x07ff 7fff 7fff 7fff.
 
 */
 #include <bitset>
@@ -79,13 +88,26 @@ When we store into the output TaggedPID format, we apply a bit mask to zero all 
 #define NAUXPIDBITS 45  // total of 45 bits used for PIDs
 #define PIDBITGAP 1  // one bit in between each PID segment
 
-class auxstruct {
-public:
-    uint64 aux;
-    // unsigned char lightcones; //1 bit for each of 8 lightcones
 
-    // Methods to extact items, e.g.,
-   void clear() { aux = 0; }   // lightcones =0;}
+#define AUX_LPTVXZEROBIT 48
+#define AUX2_LPTVYZEROBIT 0
+#define AUX2_LPTVZZEROBIT 16
+#define AUX_LPTVX ((uint64) 0xFFFF << AUX_LPTVXZEROBIT)
+#define AUX2_LPTVY ((uint64) 0xFFFF << AUX2_LPTVYZEROBIT)
+#define AUX2_LPTVZ ((uint64) 0xFFFF << AUX2_LPTVZZEROBIT)
+
+class __attribute__((packed)) auxstruct {
+private:
+    uint64 aux;
+
+    union {
+        uint32 aux2;
+        float dens;
+    };
+
+public:
+
+   void clear() { aux = 0; aux2 = 0; }
 
     // We will provide at least one ID, suitable for the particles.
     // This is required for the LPT implementation.
@@ -177,12 +199,12 @@ public:
         return aux & ((uint64)1 << AUXTAGGEDBIT);
     }
 
-    // Set the density from the density value (in code units)
+    // Store a lossy compression of the density from the raw value (in code units)
     // There is a chance that a mismatch in precision between the GPU and CPU codes 
     // could lead to a negative value of the density when the only particle is the self-particle.
     // Hence, we take the absolute value.
-    inline void set_density(FLOAT rawdensity){
-        _pack_density((uint64) round(std::sqrt(fabs(rawdensity) * WriteState.invFOFunitdensity)));
+    inline void set_compressed_density(FLOAT rawdensity){
+        _pack_density((uint64) round(std::sqrt(std::abs(rawdensity) * WriteState.invFOFunitdensity)));
     }
 
     inline void _pack_density(uint64 _density){
@@ -190,13 +212,22 @@ public:
         aux = ( (uint64) _density << AUXDENSITYZEROBIT )  | (aux &~ AUXDENSITY); 
     }
 
-    inline FLOAT get_density(){
+    inline FLOAT get_compressed_density(){
         uint64 d = _unpack_density();
         return d*d * WriteState.FOFunitdensity;
     }
 
     inline uint64 _unpack_density(){
         return (aux | AUXDENSITY) >> AUXDENSITYZEROBIT;
+    }
+
+    // Routines to set/get the full-precision density for group finding
+    inline void set_density(FLOAT rawdensity){
+        dens = (float) rawdensity;
+    }
+
+    inline float get_density(){
+        return dens;
     }
     
     inline void reset_L01_bits() {
@@ -218,21 +249,68 @@ public:
         return aux & ((uint64)1 << AUXINL1BIT);
     }
 
-
-/* OLD CODE
-    bool lightconedone(int number) {
-    	assert (number < 8 && number >=0);
-    	unsigned char mask = 1<<number;
-    	return ((mask & lightcones) & mask);
+    inline uint64 get_aux_pid_dens_tagged(){
+        return aux & AUX_PID_TAG_DENS_MASK;
     }
-    void setlightconedone(int number){
-    	unsigned char mask = 1<<number;
-    	lightcones |= mask;
-    }
-*/
 
-    
+    // Routines to support 2LPT, where we save the velocity in the aux
+
+    inline void set_velocity(velstruct delta, FLOAT invscale){
+        // vel is the velocity to store, usually as an offset
+        uint16 vx = _pack_float(delta.x, invscale);
+        uint16 vy = _pack_float(delta.y, invscale);
+        uint16 vz = _pack_float(delta.z, invscale);
+        
+        aux = (aux & ~AUX_LPTVX) | ((uint64) vx << AUX_LPTVXZEROBIT);
+        aux2 = (aux2 & ~(AUX2_LPTVY | AUX2_LPTVZ)) |
+                ((uint64) vy << AUX2_LPTVYZEROBIT) |
+                ((uint64) vz << AUX2_LPTVZZEROBIT);
+    }
+
+    uint16 _pack_float(FLOAT f, FLOAT invfscale){
+        // packs f as a 16 bit int, stored as a ratio relative to scale
+        // f must be in [-scale,scale]
+        FLOAT ratio = f*invfscale; // [-1,1]
+        int iscale = (1<<15)-1;
+        int enc = (int) (ratio*iscale) + iscale;  // [0,1<<16-2]
+        
+        // clamp modest overflow
+        if(enc == -1) enc = 0;
+        if(enc == 2*iscale + 1) enc = 2*iscale;  // we could represent this overflow, but let's be symmetric
+        
+        assertf(enc >= 0 && enc < 1<<16, "Cannot pack float %g with invscale %g\n", f, invfscale);
+        return (uint16) enc;
+    }
+
+    inline void zero_velocity(){
+        aux &= ~AUX_LPTVX;
+        aux2 &= ~(AUX2_LPTVY | AUX2_LPTVZ);
+    }
+
+    inline velstruct get_velocity(FLOAT scale){
+        FLOAT vx = _unpack_float((aux & AUX_LPTVX) >> AUX_LPTVXZEROBIT, scale);
+        FLOAT vy = _unpack_float((aux2 & AUX2_LPTVY) >> AUX2_LPTVYZEROBIT, scale);
+        FLOAT vz = _unpack_float((aux2 & AUX2_LPTVZ) >> AUX2_LPTVZZEROBIT, scale);
+
+        return velstruct(vx, vy, vz);
+                         // TODO: put scale in state
+    }
+
+    FLOAT _unpack_float(uint16 enc, FLOAT fscale){
+        int iscale = (1<<15)-1;
+        FLOAT inviscale = 1.0/iscale;
+        FLOAT f = ((int) enc - iscale) * inviscale;
+        return f*fscale;
+    }
+
+    std::string tostring(){
+        std::stringstream stream;
+        stream << "0x" << std::hex << aux << std::hex << aux2;
+        return stream.str();
+    }    
 };
+
+static_assert(sizeof(auxstruct) == 12, "unexpected auxstruct size");
 
 class cellinfo {
     /* With regard to ghost cells, our CellInfo slabs will always be sized to hold

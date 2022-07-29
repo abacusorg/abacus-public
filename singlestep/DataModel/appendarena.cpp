@@ -299,8 +299,7 @@ class OutputPID: public AppendArena {
 
     void appendparticle(char *c, cell_header current_cell, posstruct pos, velstruct vel, auxstruct a) {
         uint64_t *p = (uint64_t *)c;
-        *p  = a.aux & AUX_PID_TAG_DENS_MASK; 
-        //pid = a.aux & AUX_PID_TAG_DENS_MASK; 
+        *p  = a.get_aux_pid_dens_tagged(); 
     }
 
     void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {

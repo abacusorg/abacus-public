@@ -55,10 +55,33 @@ inline double3 ZelPos(integer3 ijk) {
 // If we're doing 2LPT, then we will overwrite those initial velocities.
 
 void KickCell_2LPT_1(Cell &c, FLOAT kick1, FLOAT kick2, int _set_aux_dens) {
-    // Just store the acceleration
     int N = c.count();
+    FLOAT Canonical_to_VelZSpace = 1.0/WriteState.VelZSpace_to_Canonical;
+    FLOAT invvscale = 1./ReadState.LPTVelScale;
+
+#ifdef GLOBALPOS
+    // Set cellcenter to zero to return to box-centered positions
+    double3 cellcenter = double3(0.0);
+#else
+    double3 cellcenter = CP->WrapCellCenter(c.ijk);
+#endif
+    
     for (int i = 0; i < N; i++) {
+        double3 displ = double3(c.pos[i]) - (ZelPos(c.aux[i].xyz()) - cellcenter);
+        displ -= displ.round();
+        velstruct linearvel = displ;
+        velstruct v = c.vel[i]*Canonical_to_VelZSpace;
+
+        // save the vel to the aux
+        c.aux[i].set_velocity(v - linearvel, invvscale);
+
+        // overwrite the vel with the acc
         c.vel[i] = TOFLOAT3(c.acc[i]);
+
+        // why move vel to aux instead of writing acc in aux?
+        // mostly because we were able to compute a strict upper
+        // bound on (vel - linearvel) during the IC step, which
+        // enables good use of the limited aux bits
     }
 }
 
@@ -76,8 +99,8 @@ void DriftCell_2LPT_1(Cell &c, FLOAT driftfactor) {
         // Flip the displacement: q = pos-grid; new = grid-q = grid*2-pos
         // Need to be careful in cell-centered case.  Now pos is cell-centered,
         // and grid is global.  We should subtract the cell-center from ZelPos.
-        c.pos[b] = 2.0*(ZelPos(c.aux[b].xyz())-cellcenter) - c.pos[b];
-        c.pos[b] -= c.pos[b].round();
+        double3 pos_g = 2.0*(ZelPos(c.aux[b].xyz())-cellcenter) - c.pos[b];
+        c.pos[b] = pos_g - pos_g.round();
     }
 }
 
@@ -168,26 +191,38 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
         // The second order displacement is vel/7H^2Omega_m
         // With a smooth component, the Omega_m remains the same, but the factor of 7
         // becomes 1+18 f_cluster - sqrt(1+24*f_cluster)
+    double vscale = ReadState.LPTVelScale;
 
     for (int b = 0; b<e; b++) {
         // The first order displacement
-        displ1 = ZelPos(c.aux[b].xyz())-cellcenter-c.pos[b];
-        // displ2 = c.vel[b]/7/H/H/P.Omega_M;
-        displ2 = c.vel[b]*vel_to_displacement;
+        // double3 until we ensure positions are wrapped
+        double3 displ1_g = ZelPos(c.aux[b].xyz())-cellcenter-c.pos[b];
+        double3 displ2_g = c.vel[b]*vel_to_displacement;
+            // displ2 = c.vel[b]/7/H/H/P.Omega_M;
         
         // Internally, everything is in a unit box, so we actually don't need to normalize by BoxSize before rounding
-        displ1 -= displ1.round();
-        displ2 -= displ2.round();
+        displ1 = displ1_g - displ1_g.round();
+        displ2 = displ2_g - displ2_g.round();
 
-        c.pos[b] = ZelPos(c.aux[b].xyz())-cellcenter + displ1+displ2;
-        c.pos[b] -= c.pos[b].round();
+        double3 pos_g = ZelPos(c.aux[b].xyz())-cellcenter + displ1+displ2;
+        c.pos[b] = pos_g - pos_g.round();
     
         // If we were supplied with Zel'dovich velocities and displacements,
         // we want to re-read the IC files to restore the velocities, which were overwritten in the 1st 2LPT step
         velstruct vel1;
-        if(WriteState.Do2LPTVelocityRereading){
+        if(ReadState.Do2LPTVelocityRereading){
             vel1 = get_ic_vel(c.aux[b].xyz(), velslabs, velslab_sizes);
         }
+        else {
+            vel1 = (c.aux[b].get_velocity(vscale) + displ1)*convert_velocity;
+
+            // restore aux
+            c.aux[b].zero_velocity();
+            
+            uint64 _sumA = 0, _sumB = 0;
+            ICFile::set_taggable_bits(c.aux[b], _sumA, _sumB);
+        }
+        /*
         // If we were only supplied with Zel'dovich displacements, then construct the linear theory velocity
         // Or, if we're doing 3LPT, then we also want the ZA velocity for the next step
         else if(strcmp(P.ICFormat, "Zeldovich") == 0 || P.LagrangianPTOrder > 2){
@@ -196,7 +231,7 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
         // Unexpected IC format; fail.
         else {
             QUIT("Unexpected ICformat \"%s\" in 2LPT code.  Must be one of: Zeldovich, RVdoubleZel, RVZel\n", P.ICFormat);
-        }
+        }*/
         
         // Here's where we add on the second-order velocity.
         // This factor of 2*f_growth is correct even for Smooth components
@@ -257,7 +292,7 @@ void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
         
         // If we were supplied with Zel'dovich velocities and displacements,
         // we want to re-read the 1st order velocity
-        if(WriteState.Do2LPTVelocityRereading){
+        if(ReadState.Do2LPTVelocityRereading){
             velstruct vel1, vel1_ic, vel2;
             //vel1_ic = get_ic_vel(c.aux[b].xyz(), NULL, NULL);
             QUIT("3LPT needs update for new vel unpacking\n");

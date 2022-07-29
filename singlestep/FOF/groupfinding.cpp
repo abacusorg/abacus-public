@@ -363,7 +363,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
                         dens = c.aux[p].get_density();
                     } else {
                         dens = c.acc[p].w;
-                        c.aux[p].set_density(dens);
+                        c.aux[p].set_compressed_density(dens);
                     }
                     _local_meanFOFdensity[g] += dens;
                         // This will be the mean over all particles, not just

@@ -199,7 +199,7 @@ void timestep(int NoForces) {
         FinishGroups        = new NoopDep(nslabs);
     }
 
-    if(WriteState.Do2LPTVelocityRereading) UnpackLPTVelocity = new UnpackLPTVelocityDep(nslabs, first);
+    if(ReadState.Do2LPTVelocityRereading) UnpackLPTVelocity = new UnpackLPTVelocityDep(nslabs, first);
     else UnpackLPTVelocity = new NoopDep(nslabs);
 
 

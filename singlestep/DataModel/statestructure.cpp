@@ -135,6 +135,7 @@ public:
     char GroupFindingDensitySource[128];
     
     int Do2LPTVelocityRereading;
+    double LPTVelScale;  // normalization for the aux compression of the LPT vel
 
     int OverwriteState;
     int OverwriteConvState;
@@ -282,6 +283,10 @@ public:
         installscalar("GroupFindingDensitySource",GroupFindingDensitySource,DONT_CARE);
         
         Do2LPTVelocityRereading = 0;
+        installscalar("Do2LPTVelocityRereading", Do2LPTVelocityRereading, DONT_CARE);
+
+        LPTVelScale = 0.;
+        installscalar("LPTVelScale",LPTVelScale,DONT_CARE);
 
         // These will be set in InitWriteState() based on StateIOMode and Conv_IOMode in the parameters file
         OverwriteState = 0;
@@ -427,6 +432,7 @@ void State::write_to_file(const char *dir, const char *suffix) {
     WPR(MaxGroupDiameter         , ISYM); 
     WPR(MaxL0GroupSize           , ISYM); 
     WPR(DirectsPerParticle       , FSYM);
+    WPR(LPTVelScale              , ESYM);
 
     time_t now  = time(0);
     fprintf(statefp,"#State written:%s\n",asctime(localtime(&now)) );

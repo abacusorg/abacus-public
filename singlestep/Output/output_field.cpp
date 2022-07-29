@@ -45,7 +45,7 @@ void GatherTaggableFieldParticles(int slab, SlabAccum<RVfloat> * rv, SlabAccum<T
                         v -= unkickfactor*TOFLOAT3(c.acc[p]);
                         
                         // Going to output; pack the density in the aux
-                        c.aux[p].set_density(c.acc[p].w);
+                        c.aux[p].set_compressed_density(c.acc[p].w);
                     }
 
                     v *= vel_convert_units;  

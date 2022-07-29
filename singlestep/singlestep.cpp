@@ -76,6 +76,9 @@ void BuildWriteState(double da){
 	WriteState.MaxAcceleration = 0.0;
 	WriteState.RMS_Velocity = 0.0;
 	WriteState.MinVrmsOnAmax = 1e10;
+
+    // carry forward
+    WriteState.LPTVelScale = ReadState.LPTVelScale;
 }
 
 void BuildOutputHeaders() {
