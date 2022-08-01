@@ -95,10 +95,10 @@ void SlabMultipolesMPI::FFTY(Complex *out, const double *in) {
     // out: [node_z_size, rml, (cpd+1)/2]
 
     FFTMultipole.Start();
-    #pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static) collapse(2)
     for(int64_t z = 0; z < node_z_size; z++){
-        int64_t g = omp_get_thread_num();
         for(int64_t m=0;m<rml;m++) {
+            int64_t g = omp_get_thread_num();
             for(int64_t y=0;y<cpd;y++)
                 in_r2c[g][y] = in[y*node_z_size*rml + z*rml + m];
             fftw_execute(plan_forward_r2c_1d[g]);
@@ -260,7 +260,7 @@ void SlabMultipolesMPI::ComputeFFTZ(int x, MTCOMPLEX *outslab){
 
     // recvbuf: [MPI_size_z, node_ky_size, rml, all_node_z_size[node]]
     // ztmp: [node_ky_size, rml, cpd]
-    #pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static) collapse(2)
     for(int64_t y = 0; y < node_ky_size; y++){
         for(int64_t m = 0; m < rml; m++){
             for(int64_t node = 0; node < MPI_size_z; node++){
