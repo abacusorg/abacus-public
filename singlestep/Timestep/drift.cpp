@@ -158,7 +158,7 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
             move.Stop();
             rebin.Start();
             if( (z - node_z_start < MERGE_GHOST_RADIUS) || 
-                ((node_z_start + node_z_size - z) < MERGE_GHOST_RADIUS)){
+                ((node_z_start + node_z_size - z - 1) < MERGE_GHOST_RADIUS)){
                 PushCellToIL(c, slab, y, z);  // near the ghost boundary; move whole cell to IL
             } else {
                 RebinCell(c, slab, y, z);

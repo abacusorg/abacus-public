@@ -293,7 +293,6 @@ public:
         FLOAT vz = _unpack_float((aux2 & AUX2_LPTVZ) >> AUX2_LPTVZZEROBIT, scale);
 
         return velstruct(vx, vy, vz);
-                         // TODO: put scale in state
     }
 
     FLOAT _unpack_float(uint16 enc, FLOAT fscale){
