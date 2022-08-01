@@ -51,32 +51,16 @@ Several parameters control IC processing. They are:
 
 // Unpack the particles in the arena and push them to the Insert List
 uint64 ICFile::unpack_to_IL(double convert_pos, double convert_vel){
-    return unpack(NULL, convert_pos, convert_vel);
-}
-
-// Unpack the particle velocities in the arena and store them in velslab
-uint64 ICFile::unpack_to_velslab(velstruct *velslab, double convert_pos, double convert_vel){
-    assertf(velslab != NULL, "Passed NULL velslab in unpack_to_velslab?\n");
-    return unpack(velslab, convert_pos, convert_vel);
-}
-
-void ICFile::read_vel_nonblocking(){
-    read_nonblocking(1);
+    return unpack(convert_pos, convert_vel);
 }
 
 // Start a read via SB
-void ICFile::read_nonblocking(int vel){
-    // Base implementation doesn't distinguish
-    // between regular reads and vel-only reads
+void ICFile::read_nonblocking(){
     SB->LoadArenaNonBlocking(ICSlab, slab);
 }
 
-int ICFile::check_vel_read_done(){
-    return check_read_done(1);
-}
-
 // If a read is in progress, return 0
-int ICFile::check_read_done(int vel){
+int ICFile::check_read_done(){
     if(!SB->IsIOCompleted(ICSlab, slab)){
         if(SB->IsSlabPresent(ICSlab, slab))
             SlabDependency::NotifySpinning(WAITING_FOR_IO);
@@ -151,9 +135,7 @@ public:
 
 private:
     // If velslab != NULL, unpack the velocities into there and do nothing else
-    uint64 unpack(velstruct *velslab, double convert_pos, double convert_vel) {
-        assertf(velslab == NULL, "Velocity unpacking should never be used with format RVdouble!\n");
-
+    uint64 unpack(double convert_pos, double convert_vel) {
         ICparticle *particles = (ICparticle *) SB->GetSlabPtr(ICSlab, slab);
 
         uint64 sumA = 0, sumB = 0;
@@ -218,9 +200,7 @@ public:
 
 private:
     // If velslab != NULL, unpack the velocities into there and do nothing else
-    uint64 unpack(velstruct *velslab, double convert_pos, double convert_vel) {
-        assertf(velslab == NULL, "Velocity unpacking should never be used with format RVPID!\n");
-
+    uint64 unpack(double convert_pos, double convert_vel) {
         ICparticle *particles = (ICparticle *) SB->GetSlabPtr(ICSlab, this->slab);
 
         uint64 sumA = 0, sumB = 0;
@@ -314,7 +294,7 @@ public:
 
 private:
     // If velslab != NULL, unpack the velocities into there and do nothing else
-    uint64 unpack(velstruct *velslab, double convert_pos, double convert_vel) {
+    uint64 unpack(double convert_pos, double convert_vel) {
 
         ICparticle *particles = (ICparticle *) SB->GetSlabPtr(ICSlab, this->slab);
 
@@ -327,12 +307,6 @@ private:
             velstruct vel(p.vel[0], p.vel[1], p.vel[2]);
             vel *= convert_vel;
 
-            if(velslab != NULL){
-                // Fill the velslab; don't touch the pos,aux
-                velslab[i] = vel;
-                continue;
-            }
-
             double3 pos(p.pos[0], p.pos[1], p.pos[2]);
             auxstruct aux;
 
@@ -342,7 +316,6 @@ private:
                 // Track max(vel-linearvel)
                 // TODO: have we been neglecting f_growth in the zeldovich code?
                 velstruct delta = vel*Canonical_to_VelZSpace - pos;
-                //assertf(delta.norm2() < pos.norm2(), "vel - linearvel calculation produed abnormally large result\n");
                 max_vel_delta = std::max(delta.maxabscomponent(), max_vel_delta);
             }
 
@@ -414,10 +387,7 @@ public:
     using ICFile_OnDisk<ICFile_Zeldovich>::ICFile_OnDisk;  // inherit the constructor
 
 private:
-    // If velslab != NULL, unpack the velocities into there and do nothing else
-    uint64 unpack(velstruct *velslab, double convert_pos, double convert_vel) {
-        assertf(velslab == NULL, "Velocity unpacking should never be used with format Zel!\n");
-
+    uint64 unpack(double convert_pos, double convert_vel) {
         ICparticle *particles = (ICparticle *) SB->GetSlabPtr(ICSlab, slab);
 
         uint64 sumA = 0, sumB = 0;
@@ -497,19 +467,16 @@ public:
         Npart = Npp*(lastx - firstx);
     }
 
-    void read_nonblocking(int vel){
+    void read_nonblocking(){
         // Lattice is in-memory; nothing to read!
         return;
     }
 
-    int check_read_done(int vel){
+    int check_read_done(){
         return 1;  // nothing to read!
     }
 
-    // If velslab != NULL, unpack the velocities into there and do nothing else
-    uint64 unpack(velstruct *velslab, double convert_pos, double convert_vel) {
-        assertf(velslab == NULL, "Velocity unpacking should never be used with format Lattice!\n");
-
+    uint64 unpack(double convert_pos, double convert_vel) {
         uint64 sumA = 0, sumB = 0;
         double ppd = WriteState.ppd;
         velstruct vel(convert_vel);  // inherit the vel from P.ICVelocity2Displacement

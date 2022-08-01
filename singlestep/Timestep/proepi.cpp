@@ -582,13 +582,6 @@ void InitWriteState(int MakeIC, const char *pipeline, const char *parfn){
     assert(WriteState.FullStepNumber == ReadState.FullStepNumber+1);  // already did this in load_read_state()
     WriteState.LPTStepNumber = LPTStepNumber();
 
-    // We generally want to do re-reading on the last LPT step
-    WriteState.Do2LPTVelocityRereading = 0;
-    if (WriteState.FullStepNumber == P.LagrangianPTOrder-1
-        && (strcmp(P.ICFormat, "RVdoubleZel") == 0 || strcmp(P.ICFormat, "RVZel") == 0)){
-        WriteState.Do2LPTVelocityRereading = 1;
-    }
-
     // Decrease the softening length if we are doing a 2LPT step
     // This helps ensure that we are using the true 1/r^2 force
     /*if(LPTStepNumber()>0){

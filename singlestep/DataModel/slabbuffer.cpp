@@ -37,36 +37,35 @@ enum SlabType { CellInfoSlab,           //0
                 FarAccSlab,             //14
                 FieldTimeSlice,         //15
                 FieldTimeSlicePIDs,     //16
-                VelLPTSlab,             //17
-                CellGroupArena,         //18
-                NearField_SIC_Slab,     //19
+                CellGroupArena,         //17
+                NearField_SIC_Slab,     //18
 
-                L1halosSlab,            //20
-                HaloRVSlabA,            //21
-                HaloRVSlabB,            //22
-                HaloPIDsSlabA,          //23
-                HaloPIDsSlabB,          //24
-                FieldRVSlabA,           //25
-				FieldRVSlabB,           //26
-                FieldPIDSlabA,          //27
-                FieldPIDSlabB,          //28
-                L0TimeSlice,            //29
-                L0TimeSlicePIDs,        //30
+                L1halosSlab,            //19
+                HaloRVSlabA,            //20
+                HaloRVSlabB,            //21
+                HaloPIDsSlabA,          //22
+                HaloPIDsSlabB,          //23
+                FieldRVSlabA,           //24
+				FieldRVSlabB,           //25
+                FieldPIDSlabA,          //26
+                FieldPIDSlabB,          //27
+                L0TimeSlice,            //28
+                L0TimeSlicePIDs,        //29
 
                 // Note: NUMLC better not be bigger than the number of Slabs defined
-                LightCone0RV,             //31
-                LightCone1RV,             //32
-                LightCone2RV,             //33
+                LightCone0RV,           //30
+                LightCone1RV,           //31
+                LightCone2RV,           //32
 
-                LightCone0PID,          //34
-                LightCone1PID,          //35
-                LightCone2PID,          //36
+                LightCone0PID,          //33
+                LightCone1PID,          //34
+                LightCone2PID,          //35
 
-                LightCone0Heal,          //37
-                LightCone1Heal,          //38
-                LightCone2Heal,          //39
+                LightCone0Heal,         //36
+                LightCone1Heal,         //37
+                LightCone2Heal,         //38
 
-                ICSlab,                 //40
+                ICSlab,                 //39
 
                 NUMTYPES
                 };
@@ -475,7 +474,6 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
         case FieldTimeSlicePIDs     : { ss << WriteSlabPath(type, slab); break; }
         case L0TimeSlicePIDs     : { ss << WriteSlabPath(type, slab); break; }
         
-        case VelLPTSlab :
         case ICSlab    : {
             if (P.NumZRanks > 1){
                 ss << P.InitialConditionsDirectory << "/2D/ic2D_" << slab;
@@ -528,9 +526,6 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
         }
         case ICSlab     : {
             return ICFile::FromFormat(P.ICFormat, slab)->fbytes;
-        }
-        case VelLPTSlab : {
-            return ICFile::FromFormat(P.ICFormat, slab)->Npart*sizeof(velstruct);
         }
         case FieldTimeSlice : {
             return fsize(ReadSlabPath(FieldTimeSlice,slab).c_str());

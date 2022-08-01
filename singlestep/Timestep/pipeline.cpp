@@ -52,10 +52,6 @@ public:
         SB->LoadArenaNonBlocking(CellInfoSlab,slab);
         SB->LoadArenaNonBlocking(PosSlab,slab);
 
-        if(ReadState.Do2LPTVelocityRereading && UnpackLPTVelocity->notdone(slab)){
-            ICFile::FromFormat(P.ICFormat, slab)->read_vel_nonblocking();
-        }
-
         // Don't bother to load the vel/aux/taylors for slabs that won't be kicked until the wrap
         //#ifndef PARALLEL
         // LHG: only need this when we're memory starved
@@ -718,34 +714,6 @@ public:
 };
 
 // -----------------------------------------------------------------
-/*
- * Checks if we are ready to load the LPT velocities during an IC step.
- * Should not happen in normal execution
- */
-class UnpackLPTVelocityDep : public SlabDependency {
-public:
-    UnpackLPTVelocityDep(int cpd, int initialslab)
-        : SlabDependency("UnpackLPTVelocity", cpd, initialslab){ }
-
-    int precondition(int slab){
-        if(FetchSlabs->notdone(slab))
-            return 0;
-        
-        if(!ICFile::FromFormat(P.ICFormat, slab)->check_vel_read_done())
-            return 0;
-
-        return 1;
-    }
-
-    void action(int slab){
-        // TODO: decide how to handle 2LPT velocity re-reading in the 2D code.
-        // Do we need a neighbor exchange step, or is each node going to read +/- z?
-        // SlabBuffer nominally only allows for one z, so we'd have to extend that
-        unpack_ic_vel_slab(slab);
-    }
-};
-
-// -----------------------------------------------------------------
 /* Checks if we are ready to apply a full-timestep drift to the particles
  * Any operation that relies on the positions and velocities being synced
  * should be checked for completion this year.
@@ -768,16 +736,6 @@ public:
 
         // We can't move particles until they've been used as gravity sources
         // However, we only use PosXYZSlab as sources, so we're free to move PosSlab
-
-        // We also must have the 2LPT velocities
-        // The finish radius is a good guess of how ordered the ICs are
-        if(ReadState.Do2LPTVelocityRereading){
-            for(int i=-FINISH_WAIT_RADIUS;i<=FINISH_WAIT_RADIUS;i++) {
-                if (UnpackLPTVelocity->notdone(slab+i)) {
-                    return 0;
-                }
-            }
-        }
 
         if(Drift->raw_number_executed > FinishParticles->raw_number_executed + drift_ahead){
             // Don't flood the IL
@@ -882,8 +840,6 @@ public:
         SB->report_current();
         SB->report_peak();
 
-        if (ReadState.Do2LPTVelocityRereading)
-            SB->DeAllocate(VelLPTSlab, slab);
         FinishFreeSlabs.Stop();
 
         // Gather particles from the insert list and make the merge slabs

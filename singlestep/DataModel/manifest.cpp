@@ -428,7 +428,6 @@ void Manifest::QueueToSend(int finished_slab) {
     m.dep[m.numdep++].Load(NeighborSend, finished_slab, "NeighborSend");
     m.dep[m.numdep++].Load(FinishParticles, finished_slab, "FinishParticles");
     m.dep[m.numdep++].Load(FinishMultipoles, finished_slab, "FinishMultipoles");
-    m.dep[m.numdep++].Load(UnpackLPTVelocity, finished_slab, "UnpackLPTVelocity");
     m.dep[m.numdep++].LoadCG(finished_slab);
     	// LoadCG() includes moving info into the CellGroupArenas
     assertf(m.numdep<MAXDEPENDENCY, "m.numdep has overflowed its MAX value");
@@ -772,7 +771,6 @@ void Manifest::ImportData() {
     m.dep[n++].Set(NeighborSend, "NeighborSend");
     m.dep[n++].Set(FinishParticles, "FinishParticles");
     m.dep[n++].Set(FinishMultipoles, "FinishMultipoles");
-    m.dep[n++].Set(UnpackLPTVelocity, "UnpackLPTVelocity");
     m.dep[n++].SetCG(m.remote_first_slab_finished);
     	// This will copy data back to GFC from CellGroupArenas
     assert(n==m.numdep);

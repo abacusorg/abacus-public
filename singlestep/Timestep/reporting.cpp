@@ -261,11 +261,7 @@ void GatherTimings() {
             REPORT_RATE(Microstep);
         }
     }
-   
-    if(ReadState.Do2LPTVelocityRereading){
-        REPORT(1, "Unpack IC Velocities for LPT", UnpackLPTVelocity->Elapsed()); total += thistime;
-        REPORT_RATE(UnpackLPTVelocity);
-    }
+
     REPORT(1, "Drift", Drift->Elapsed()); total += thistime;
         REPORT_RATE(Drift);
 

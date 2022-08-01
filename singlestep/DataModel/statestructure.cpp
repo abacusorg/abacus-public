@@ -134,7 +134,6 @@ public:
     int DidGroupFindingOutput;  // did we already do group output on the positions in this state?
     char GroupFindingDensitySource[128];
     
-    int Do2LPTVelocityRereading;
     double LPTVelScale;  // normalization for the aux compression of the LPT vel
 
     int OverwriteState;
@@ -281,9 +280,6 @@ public:
 
         GroupFindingDensitySource[0] = '\0';
         installscalar("GroupFindingDensitySource",GroupFindingDensitySource,DONT_CARE);
-        
-        Do2LPTVelocityRereading = 0;
-        installscalar("Do2LPTVelocityRereading", Do2LPTVelocityRereading, DONT_CARE);
 
         LPTVelScale = 0.;
         installscalar("LPTVelScale",LPTVelScale,DONT_CARE);
@@ -378,7 +374,6 @@ void State::make_output_header() {
     WPR(LastHalfEtaKick          , ESYM);
     WPR(ScaleFactorHalf          , ESYM);
     
-    WPR(Do2LPTVelocityRereading  , ISYM);
     WPR(DensityKernelRad2        , FSYM);
     WPR(L0DensityThreshold       , FSYM);
     WPR(SODensityL1              , FSYM);

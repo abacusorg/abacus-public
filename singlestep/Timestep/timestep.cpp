@@ -37,7 +37,6 @@ SlabDependency *NeighborSend;  // 2D
 SlabDependency *FinishParticles;
 SlabDependency *FinishMultipoles;
 SlabDependency *CheckForMultipoles; // 1D
-SlabDependency *UnpackLPTVelocity;
 
 EventDependency *DoReceiveManifest;
 EventDependency *DoSendManifest;
@@ -199,10 +198,6 @@ void timestep(int NoForces) {
         FinishGroups        = new NoopDep(nslabs);
     }
 
-    if(ReadState.Do2LPTVelocityRereading) UnpackLPTVelocity = new UnpackLPTVelocityDep(nslabs, first);
-    else UnpackLPTVelocity = new NoopDep(nslabs);
-
-
     // Let FetchSlabs start early, in case we want to overlap convolve and IO
     //while(FetchSlabs->Attempt()){}
 
@@ -250,7 +245,6 @@ void timestep(int NoForces) {
                 Microstep->Attempt();
              FinishGroups->Attempt();
     
-        UnpackLPTVelocity->Attempt();
                     Drift->Attempt();
              NeighborSend->Attempt();  // 2D
     
@@ -344,7 +338,6 @@ void free_dependencies(){
     delete FinishParticles;
     delete FinishMultipoles;
     delete CheckForMultipoles;
-    delete UnpackLPTVelocity;
 
     delete DoReceiveManifest;
     delete DoSendManifest;
