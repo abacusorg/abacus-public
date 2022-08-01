@@ -800,7 +800,7 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
             particles['vel'][:NP] = np.fromfile(vel_fn, dtype=(dtype_on_disk, 3))
     if return_aux:
         with read_timer:
-            particles['aux'][:NP] = np.fromfile(aux_fn, dtype=np.uint64)
+            particles['aux'][:NP] = np.fromfile(aux_fn, dtype=aux12_dtype)
     if return_pid:
         if return_aux:
             with unpack_timer:
@@ -1134,7 +1134,7 @@ def allocate_table(N, return_pos=True, return_vel=True, return_pid=False, return
     if return_pid:
         ndt_list += [('pid', np.int64)]
     if return_aux:
-        ndt_list += [('aux', np.uint64)]
+        ndt_list += [('aux', aux12_dtype)]
     if return_pos:
         ndt_list += [('pos', (dtype, 3))]
     if return_vel:
@@ -1144,8 +1144,6 @@ def allocate_table(N, return_pos=True, return_vel=True, return_pid=False, return
     if pid_kwargs:
         if pid_kwargs.get('lagr_idx'):
             ndt_list += [('lagr_idx', (np.uint16, 3))]
-        
-    ndt = np.dtype(ndt_list, align=True)
 
     particles = Table()
     for field in ndt_list:
@@ -1264,6 +1262,8 @@ default_box_on_disk = {'desi_hdf5':'box',
                 'asdf':'box',
                 'asdf_pack9':1.,
 }
+
+aux12_dtype = np.dtype([('aux',np.uint64), ('aux2',np.uint32)], align=False)
 
 _nthreads_by_format = dict(asdf=BLOSC_THREADS)
 
