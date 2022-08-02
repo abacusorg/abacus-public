@@ -804,10 +804,10 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
     if return_pid:
         if return_aux:
             with unpack_timer:
-                particles['pid'][:NP] = particles['aux'][:NP] & pid_bitmask
+                particles['pid'][:NP] = particles['aux']['aux'][:NP] & pid_bitmask
         else:
             with read_timer:  # TODO: technically unpacking as well
-                particles['pid'][:NP] = np.fromfile(aux_fn, dtype=np.uint64) & pid_bitmask
+                particles['pid'][:NP] = np.fromfile(aux_fn, dtype=aux12_dtype)['aux'] & pid_bitmask
 
     # TODO: particles could be out, which is probably a new table object, so meta won't get propagated...
     particles.meta['read_time'] = read_timer.elapsed + particles.meta.get('read_time',0.)

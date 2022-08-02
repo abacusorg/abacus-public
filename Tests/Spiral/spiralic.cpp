@@ -201,5 +201,9 @@ int main(int argc, char **argv){
 	GenSpiral(n1d, ainitial, across,pos,vel,id,kvec,phase,fsmooth);
 	writespiral(argv[11],pos,vel,np);
 
+    delete[] pos;
+    delete[] vel;
+    delete[] id;
+
 	return 0;
 }

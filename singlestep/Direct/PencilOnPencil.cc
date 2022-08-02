@@ -406,8 +406,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
                     int tmpy = j_low+j+y-nfradius;
                     SinkSourceYOffset[l+y] = (tmpy-CP->WrapSlab(tmpy))*cellsize;
                 #endif
-                localDirectTotal += SinkSetCount[sinkindex] * SourceSetCount[sourceindex];
-                localPaddedDirectTotal += PaddedSinkCount(sinkindex) * SourceSetCount[sourceindex];
+                localDirectTotal += (uint64) SinkSetCount[sinkindex] * (uint64) SourceSetCount[sourceindex];
+                localPaddedDirectTotal += (uint64) PaddedSinkCount(sinkindex) * (uint64) SourceSetCount[sourceindex];
             }
         }
     }

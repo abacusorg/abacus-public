@@ -102,6 +102,7 @@ FFTW_OMP_LIBS := -lfftw3_omp -lfftw3f_omp
 ifeq (@REAL_CXX@,g++)
     CXX_MAJOR_VER := $(shell $(CXX) -dumpversion | cut -f1 -d.)
     CPPFLAGS += -O3
+    #CPPFLAGS += -fsanitize=address,undefined
 
     ifeq (@ARCH@,powerpc)
         # powerpc does not accept -march=native

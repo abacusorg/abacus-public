@@ -571,7 +571,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                         gg_pencil->append(GlobalGroup(cglist.size(), start, ggsize, cumulative_np));
                         cumulative_np += ggsize;
                         L0stats[omp_get_thread_num()].push(ggsize);
-                        pstat[j].add(ggsize*ggsize);
+                        pstat[j].add((uint64)ggsize*(uint64)ggsize);
                             // Track the later work, assuming scaling as N^2
                     }
                 } // End this group

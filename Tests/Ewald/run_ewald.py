@@ -26,6 +26,7 @@ import asdf
 
 from Abacus import abacus
 from Abacus.Tools import scatter_density, add_tick
+from Abacus.ReadAbacus import aux12_dtype
 
 DEFAULT_CPD = 11
 DEFAULT_ORDER = 8
@@ -194,10 +195,10 @@ def check_storeforces(param, dtype=DEFAULT_DTYPE):
     pid = np.empty(NP, dtype=np.int64)
     i = 0
     for auxfn in auxfns:
-        thisaux = np.fromfile(auxfn, dtype=np.uint64)
+        thisaux = np.fromfile(auxfn, dtype=aux12_dtype)
         # we spread out the PID bits into three chunks in the aux field
         # but since we only care about the order, we can ignore that and just sort
-        pid[i:i+len(thisaux)] = thisaux & np.uint64(0x7fff7fff7fff)
+        pid[i:i+len(thisaux)] = thisaux['aux'] & np.uint64(0x7fff7fff7fff)
         i += len(thisaux)
     assert i == NP, (i,NP)
         

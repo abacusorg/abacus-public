@@ -100,6 +100,14 @@ AnalyticSpiral::AnalyticSpiral( float _Ainitial, float _Across, float _Astop, fl
 AnalyticSpiral::~AnalyticSpiral(void) {
     fftw_destroy_plan(plan_forward );
     fftw_destroy_plan(plan_backward);
+
+    delete[] rho;
+    delete[] fftrho;
+    delete[] phi;
+    delete[] x;
+    delete[] px;
+    delete[] g;
+    delete[] Green;
 }
 
 

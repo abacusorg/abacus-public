@@ -124,15 +124,17 @@ double ChooseTimeStep(int NoForces){
     // much more than a softening length!
 
     
-    maxdrift = cosm->KickFactor(cosm->current.a, da);
-    maxdrift *= cosm->DriftFactor(cosm->current.a, da);
-    maxdrift *= ReadState.MaxAcceleration;
-    maxdrift /= P.TimeStepAccel*P.TimeStepAccel;
-    double da_eona = da;
-    if (NFD && maxdrift>NFD->SofteningLength) {  // Plummer-equivalent softening length
-        if(maxdrift >1e-12) da_eona *= sqrt(NFD->SofteningLength/maxdrift);
-        STDLOG(0,"da based on sqrt(epsilon/amax) is %f.\n", da_eona);
-        // We deliberately do not limit the timestep based on this criterion
+    if(P.TimeStepAccel > 0){
+        maxdrift = cosm->KickFactor(cosm->current.a, da);
+        maxdrift *= cosm->DriftFactor(cosm->current.a, da);
+        maxdrift *= ReadState.MaxAcceleration;
+        maxdrift /= P.TimeStepAccel*P.TimeStepAccel;
+        double da_eona = da;
+        if (NFD && maxdrift>NFD->SofteningLength) {  // Plummer-equivalent softening length
+            if(maxdrift >1e-12) da_eona *= sqrt(NFD->SofteningLength/maxdrift);
+            STDLOG(0,"da based on sqrt(epsilon/amax) is %f.\n", da_eona);
+            // We deliberately do not limit the timestep based on this criterion
+        }
     }
     
 

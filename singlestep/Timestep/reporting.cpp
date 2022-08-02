@@ -57,7 +57,11 @@ void InitializeReport() {
 #endif
 std::string cpu_model_str(){
     // https://stackoverflow.com/a/24957090
+#ifndef __INTEL_COMPILER
+    unsigned int cpuInfo[4] = {0};
+#else
     int cpuInfo[4] = {0};
+#endif
     char CPUBrandString[0x40];
 
     memset(CPUBrandString, 0, sizeof(CPUBrandString));
