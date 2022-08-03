@@ -208,12 +208,13 @@ void timestep(int NoForces) {
         ConvolutionWallClock.Start();
 
         ParallelConvolveDriver->Convolve();
-        ParallelConvolveDriver->SendTaylors(FORCE_RADIUS);
 
         for (int slab = first + FORCE_RADIUS; slab < first + FORCE_RADIUS + total_slabs_on_node; slab++){
             SB->AllocateArena(TaylorSlab, slab, RAMDISK_NO);
             ParallelConvolveDriver->RecvTaylorSlab(slab);
         }
+
+        ParallelConvolveDriver->SendTaylors(FORCE_RADIUS);
 
         ConvolutionWallClock.Stop();
         ParallelConvolveDriver->CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
