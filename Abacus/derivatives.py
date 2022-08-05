@@ -161,7 +161,7 @@ class rmapper:
         return 2*(self.order+1)*a + 2*b + c
 
 
-@numba.njit
+@numba.njit(nogil=True)
 def reflect_halfquad(d, rmap):
     '''reflect the half-quadrant to the full quadrant'''
     rml = d.shape[0]
@@ -186,7 +186,7 @@ def reflect_halfquad(d, rmap):
     return f
 
 
-@numba.njit
+@numba.njit(nogil=True)
 def reflect_z(fq):
     '''make a new array with the Hermitian reflection of z'''
     rml, cpdp1half, _ = fq.shape
@@ -210,7 +210,8 @@ def reflect_z(fq):
 def make_2d(param, floatprec=True, nworker=1, nthread=1):
     assert nthread >= nworker
     
-    nthread_per_worker = np.diff(nthread*np.arange(nworker+1)//nworker)
+    #nthread_per_worker = np.diff(nthread*np.arange(nworker+1)//nworker)
+    nthread_per_worker = nthread//nworker
 
     cpd = param['CPD']
     order = param['Order']
@@ -236,23 +237,26 @@ def make_2d(param, floatprec=True, nworker=1, nthread=1):
                  cpdp1half=cpdp1half,
                  rmap=rmap,
                  cpd=cpd,
+                 nthread=nthread_per_worker,
                  )
 
+    print(f'Launching {nworker} workers with {nthread_per_worker} threads each')
     with multiprocessing.pool.ThreadPool(nworker) as pool:
-        tqdm.tqdm(
-            pool.imap(lambda args: _make_2d_worker(state, *args), zip(range(cpdp1half), nthread_per_worker)),
-            desc='derivs 1D to 2D', unit='file', total=cpdp1half,
-            )
+        list(tqdm.tqdm(
+                pool.imap(lambda z: _make_2d_worker(state, z), range(cpdp1half)),
+                desc='derivs 1D to 2D', unit='file', total=cpdp1half,
+            ))
 
-def _make_2d_worker(state, z, nthread):
-    inprefix = state['fnprefix']
+def _make_2d_worker(state, z):
+    inprefix = state['inprefix']
     outprefix = state['outprefix']
     rml = state['rml']
     halfquadxy = state['halfquadxy']
     cpd = state['cpd']
     rmap = state['rmap']
+    nthread = state['nthread']
 
-    fn = inprefix + f'_{z}'
+    fn = inprefix.parent / (inprefix.name + f'_{z}')
 
     numba.set_num_threads(nthread)
 
@@ -267,9 +271,9 @@ def _make_2d_worker(state, z, nthread):
 
     newz = cpd - z
     
-    fullquad.tofile(outprefix + f'_{z}')
+    fullquad.tofile(outprefix.parent / (outprefix.name + f'_{z}'))
     if z > 0:
-        zrefl.tofile(outprefix + f'_{newz}')
+        zrefl.tofile(outprefix.parent / (outprefix.name + f'_{newz}'))
 
 
 if __name__ == '__main__':
@@ -282,17 +286,19 @@ if __name__ == '__main__':
     parser.add_argument('-cpd', help='override CPD', type=int)
     parser.add_argument('-2d', help='2D derivs', action='store_true')
     parser.add_argument('-out', help='DerivativesDirectory')
+    parser.add_argument('-nworker', help='Number of IO workers', type=int)
+    parser.add_argument('-nthread', help='Number of CPU threads, to be divided among workers', type=int)
     args = vars(parser.parse_args())
 
-    param = dict(InputFile(args['param']))
+    param = dict(InputFile(args.pop('param')))
 
     if 'cpd' in args:
-        param['CPD'] = args['cpd']
+        param['CPD'] = args.pop('cpd')
     if '2d' in args:
-        twoD = args['2d']
+        twoD = args.pop('2d')
     else:
         twoD = param.get('NumZRanks',1) > 1
     if 'out' in args:
-        param['DerivativesDirectory'] = args['out']
+        param['DerivativesDirectory'] = args.pop('out')
 
-    make_derivatives(param, floatprec=True, twoD=twoD)
+    make_derivatives(param, **args, floatprec=True, twoD=twoD)
