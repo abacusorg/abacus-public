@@ -31,6 +31,9 @@ def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False):
 
     Parameters
     ----------
+    param : dict
+        The parameters dictionary
+
     search_dirs : bool, path-like, or iterable of path-like (optional)
         The directories to search. `True` (default) searches canonical dirs
         based on environment variables.
@@ -38,6 +41,9 @@ def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False):
     floatprec : bool (optional)
         Make the derivatives available in float32 precision.
         Default: False
+
+    twoD : bool (optional)
+        Make the derivs available in the format for the 2D code.
     '''
 
     # We will attempt to copy derivatives from the archive dir if they aren't found
@@ -50,11 +56,14 @@ def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False):
 
     if type(search_dirs) is str:
         search_dirs = [search_dirs]
+    search_dirs = [Path(d) for d in search_dirs]
 
     derivsdir = Path(param['DerivativesDirectory'])
     if twoD:
         derivsdir /= '2D'
     derivsdir.mkdir(parents=True, exist_ok=True)
+
+    search_dirs = list(filter(lambda d: not (d.exists() and derivsdir.samefile(d)), search_dirs))
 
     CPD = param['CPD']
     order = param['Order']
@@ -230,11 +239,19 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Create derivatives')
     parser.add_argument('param', help='abacus.par parameter file')
     parser.add_argument('-cpd', help='override CPD', type=int)
+    parser.add_argument('-2d', help='2D derivs', action='store_true')
+    parser.add_argument('-out', help='DerivativesDirectory')
     args = vars(parser.parse_args())
 
     param = dict(InputFile(args['param']))
 
     if 'cpd' in args:
         param['CPD'] = args['cpd']
+    if '2d' in args:
+        twoD = args['2d']
+    else:
+        twoD = param.get('NumZRanks',1) > 1
+    if 'out' in args:
+        param['DerivativesDirectory'] = args['out']
 
-    make_derivatives(param, floatprec=True, twoD=param.get('NumZRanks',1) > 1)
+    make_derivatives(param, floatprec=True, twoD=twoD)
