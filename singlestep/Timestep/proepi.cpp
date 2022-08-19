@@ -430,11 +430,44 @@ void init_fftw(){
 }
 
 void finish_fftw(){
-    if(MPI_rank == 0){
-        int ret = fftw_export_wisdom_to_filename(wisdom_file);
-        STDLOG(1, "Wisdom export to file \"%s\" returned %d.\n", wisdom_file, ret);
+    if(MPI_rank_x == 0 && MPI_size_z > 1){
+        // TODO: only need to do this when we think we have new wisdom
+
+#ifdef PARALLEL
+        // Save wisdom for both possible values of node_ky_size
+        // Gather at rank 0, and write as a single file
+        
+        if(MPI_rank_z == MPI_size_z-1){
+            STDLOG(1, "Sending wisdom over MPI\n");
+            char *wis = fftw_export_wisdom_to_string();
+            size_t wislen = strlen(wis);
+            MPI_Send(wis, (int) wislen, MPI_CHAR, 0, 0, comm_1d_z);
+            free(wis);
+        } else if(MPI_rank_z == 0){
+            STDLOG(1, "Receiving wisdom over MPI\n");
+            MPI_Status stat;
+            MPI_Probe(MPI_size_z-1, 0, comm_1d_z, &stat);
+            int wislen;
+            MPI_Get_count(&stat, MPI_CHAR, &wislen);
+
+            char *wis = (char *) malloc(sizeof(char) * (wislen+1));
+            assert(wis != NULL);
+
+            MPI_Recv(wis, wislen, MPI_CHAR, MPI_size_z-1, 0,
+                    comm_1d_z, MPI_STATUS_IGNORE);
+            wis[wislen] = '\0';
+            fftw_import_wisdom_from_string(wis);
+            free(wis);
+        }
+#endif
+    
+        if(MPI_rank == 0){
+            int ret = fftw_export_wisdom_to_filename(wisdom_file);
+            STDLOG(1, "Wisdom export to file \"%s\" returned %d.\n", wisdom_file, ret);
+        }
     }
-   fftw_cleanup();  // better not call this before exporting wisdom!
+
+    fftw_cleanup();  // all plans and wisdom invalidated after this
 }
 
 std::vector<std::vector<int>> free_cores;  // list of cores on each socket that are not assigned a thread (openmp, gpu, io, etc)
