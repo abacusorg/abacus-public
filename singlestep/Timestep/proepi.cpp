@@ -72,6 +72,7 @@ STimer TaylorCompute;
 
 STimer AddAccel;
 STimer KickCellTimer;
+STimer KickDealloc;
 
 STimer DriftMove, DriftRebin;
 

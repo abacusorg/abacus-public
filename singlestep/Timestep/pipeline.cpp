@@ -332,6 +332,7 @@ public:
         // Release the trailing slab if it won't be needed at the wrap
         // Technically we could release it anyway and re-do the transpose from PosSlab,
         // but if we're not doing group finding we may have already written and released PosSlab
+        KickDealloc.Start();
         if(Kick->raw_number_executed >= 2*FORCE_RADIUS)
             SB->DeAllocate(PosXYZSlab, slab - FORCE_RADIUS);
 
@@ -356,6 +357,8 @@ public:
             FetchSlabs->mark_to_repeat(slab - FORCE_RADIUS);
         }
         #endif
+
+        KickDealloc.Stop();
         
         // Accumulate stats from the SICs and release them
         NFD->Finalize(slab);
@@ -389,8 +392,12 @@ public:
 
         AddAccel.Start();
         RescaleAndCoAddAcceleration(slab);
-        SB->DeAllocate(FarAccSlab,slab);
         AddAccel.Stop();
+        
+        KickDealloc.Start();
+        SB->DeAllocate(FarAccSlab,slab);
+        KickDealloc.Stop();
+
         int step = LPTStepNumber();
         KickCellTimer.Start();
         if (step) {
