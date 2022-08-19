@@ -10,6 +10,7 @@ $ python -m Abacus.derivatives --help
 from pathlib import Path
 import shutil
 import os
+import multiprocessing
 
 import numpy as np
 import numba
@@ -20,8 +21,11 @@ from .abacus import abacuspath
 from . import convert_derivs_to_float32
 abacuspath = Path(abacuspath)
 
+maxthreads = len(os.sched_getaffinity(0))
 
-def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False):
+
+def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False,
+                        nworker=None, nthread=None):
     '''
     Main entry point to create derivatives (1D or 2D).
 
@@ -31,6 +35,9 @@ def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False):
 
     Parameters
     ----------
+    param : dict
+        The parameters dictionary
+
     search_dirs : bool, path-like, or iterable of path-like (optional)
         The directories to search. `True` (default) searches canonical dirs
         based on environment variables.
@@ -38,6 +45,15 @@ def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False):
     floatprec : bool (optional)
         Make the derivatives available in float32 precision.
         Default: False
+
+    twoD : bool (optional)
+        Make the derivs available in the format for the 2D code.
+    
+    nworker : int or None (optional)
+        The number of processes/threads to use for IO
+
+    nthread : int or None (optional)
+        The number of threads to use for CPU work
     '''
 
     # We will attempt to copy derivatives from the archive dir if they aren't found
@@ -50,11 +66,14 @@ def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False):
 
     if type(search_dirs) is str:
         search_dirs = [search_dirs]
+    search_dirs = [Path(d) for d in search_dirs]
 
     derivsdir = Path(param['DerivativesDirectory'])
     if twoD:
         derivsdir /= '2D'
     derivsdir.mkdir(parents=True, exist_ok=True)
+
+    search_dirs = list(filter(lambda d: not (d.exists() and derivsdir.samefile(d)), search_dirs))
 
     CPD = param['CPD']
     order = param['Order']
@@ -67,6 +86,9 @@ def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False):
     dnames = [ f"fourierspace{stem32}{stem2D}_{CPD}_{order}_{NFR}_{DER}_{i}"
                 for i in range(zmax) ]
     dpaths = [ derivsdir / dn for dn in dnames ]
+
+    nworker = nworker or param.get('PyIOConcurrency',1)
+    nthread = nthread or maxthreads
 
     # First check if the derivatives are in the DerivativesDirectory
     if not all( dpath.is_file() for dpath in dpaths ):
@@ -83,13 +105,13 @@ def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False):
             if twoD:
                 # Need to make 2D. First ensure 1D exists.
                 make_derivatives(param, twoD=False, floatprec=floatprec)
-                make_2d(param, floatprec=floatprec)
+                make_2d(param, floatprec=floatprec, nworker=nworker, nthread=nthread)
 
             elif floatprec:
                 # first make sure the derivatives exist in double format
                 dpaths64 = make_derivatives(param, twoD=False, floatprec=False)
                 # now make a 32-bit copy
-                for dpath64 in tqdm.tqdm(dpaths64, desc='float64 to float32', unit='file'):
+                for dpath64 in tqdm.tqdm(dpaths64, desc='derivs 64-bit to 32-bit', unit='file'):
                     convert_derivs_to_float32.convert(dpath64)
 
             else:
@@ -139,7 +161,7 @@ class rmapper:
         return 2*(self.order+1)*a + 2*b + c
 
 
-@numba.njit
+@numba.njit(nogil=True)
 def reflect_halfquad(d, rmap):
     '''reflect the half-quadrant to the full quadrant'''
     rml = d.shape[0]
@@ -164,7 +186,7 @@ def reflect_halfquad(d, rmap):
     return f
 
 
-@numba.njit
+@numba.njit(nogil=True)
 def reflect_z(fq):
     '''make a new array with the Hermitian reflection of z'''
     rml, cpdp1half, _ = fq.shape
@@ -185,7 +207,12 @@ def reflect_z(fq):
     return newz
 
 
-def make_2d(param, floatprec=True):
+def make_2d(param, floatprec=True, nworker=1, nthread=1):
+    assert nthread >= nworker
+    
+    #nthread_per_worker = np.diff(nthread*np.arange(nworker+1)//nworker)
+    nthread_per_worker = nthread//nworker
+
     cpd = param['CPD']
     order = param['Order']
 
@@ -203,23 +230,50 @@ def make_2d(param, floatprec=True):
     nfr = param['NearFieldRadius']
     der = param['DerivativeExpansionRadius']
 
-    for z in tqdm.tqdm(range(cpdp1half), desc='1D to 2D', unit='file'):
-        fn = derivsdir / f'fourierspace{f32}_{cpd}_{order}_{nfr}_{der}_{z}'
+    state = dict(inprefix = derivsdir / f'fourierspace{f32}_{cpd}_{order}_{nfr}_{der}',
+                 outprefix = twoDdir / f'fourierspace{f32}_2D_{cpd}_{order}_{nfr}_{der}',
+                 rml=rml,
+                 halfquadxy=halfquadxy,
+                 cpdp1half=cpdp1half,
+                 rmap=rmap,
+                 cpd=cpd,
+                 nthread=nthread_per_worker,
+                 )
 
-        d = np.fromfile(fn, dtype=np.float32)
-        d = d.reshape(rml,halfquadxy)
+    print(f'Launching {nworker} workers with {nthread_per_worker} threads each')
+    with multiprocessing.pool.ThreadPool(nworker) as pool:
+        list(tqdm.tqdm(
+                pool.imap(lambda z: _make_2d_worker(state, z), range(cpdp1half)),
+                desc='derivs 1D to 2D', unit='file', total=cpdp1half,
+            ))
 
-        fullquad = reflect_halfquad(d, rmap)  # [m, kx, ky]
-        zrefl = reflect_z(fullquad)
+def _make_2d_worker(state, z):
+    inprefix = state['inprefix']
+    outprefix = state['outprefix']
+    rml = state['rml']
+    halfquadxy = state['halfquadxy']
+    cpd = state['cpd']
+    rmap = state['rmap']
+    nthread = state['nthread']
 
-        fullquad = np.moveaxis(fullquad, (0,1,2),(1,2,0))  # [ky, m, kx]
-        zrefl = np.moveaxis(zrefl, (0,1,2),(1,2,0))
+    fn = inprefix.parent / (inprefix.name + f'_{z}')
 
-        newz = cpd - z
-        
-        fullquad.tofile(twoDdir / f'fourierspace{f32}_2D_{cpd}_{order}_{nfr}_{der}_{z}')
-        if z > 0:
-            zrefl.tofile(twoDdir / f'fourierspace{f32}_2D_{cpd}_{order}_{nfr}_{der}_{newz}')
+    numba.set_num_threads(nthread)
+
+    d = np.fromfile(fn, dtype=np.float32)
+    d = d.reshape(rml,halfquadxy)
+
+    fullquad = reflect_halfquad(d, rmap)  # [m, kx, ky]
+    zrefl = reflect_z(fullquad)
+
+    fullquad = np.moveaxis(fullquad, (0,1,2),(1,2,0))  # [ky, m, kx]
+    zrefl = np.moveaxis(zrefl, (0,1,2),(1,2,0))
+
+    newz = cpd - z
+    
+    fullquad.tofile(outprefix.parent / (outprefix.name + f'_{z}'))
+    if z > 0:
+        zrefl.tofile(outprefix.parent / (outprefix.name + f'_{newz}'))
 
 
 if __name__ == '__main__':
@@ -230,11 +284,21 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Create derivatives')
     parser.add_argument('param', help='abacus.par parameter file')
     parser.add_argument('-cpd', help='override CPD', type=int)
+    parser.add_argument('-2d', help='2D derivs', action='store_true')
+    parser.add_argument('-out', help='DerivativesDirectory')
+    parser.add_argument('-nworker', help='Number of IO workers', type=int)
+    parser.add_argument('-nthread', help='Number of CPU threads, to be divided among workers', type=int)
     args = vars(parser.parse_args())
 
-    param = dict(InputFile(args['param']))
+    param = dict(InputFile(args.pop('param')))
 
     if 'cpd' in args:
-        param['CPD'] = args['cpd']
+        param['CPD'] = args.pop('cpd')
+    if '2d' in args:
+        twoD = args.pop('2d')
+    else:
+        twoD = param.get('NumZRanks',1) > 1
+    if 'out' in args:
+        param['DerivativesDirectory'] = args.pop('out')
 
-    make_derivatives(param, floatprec=True, twoD=param.get('NumZRanks',1) > 1)
+    make_derivatives(param, **args, floatprec=True, twoD=twoD)
