@@ -206,6 +206,7 @@ void finish_fftw();
 
 #include "timestep.cpp"
 #include "parallel.cpp"
+#include "neighbor_exchange.cpp"
 #include "reporting.cpp"
 
 #include <fenv.h>
