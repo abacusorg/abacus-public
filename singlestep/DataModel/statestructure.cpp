@@ -40,8 +40,10 @@ public:
     char OutputFormatVersion[1024];
     char RunTime[1024];
     char MachineName[1024];
-    int NodeRank;   // The MPI rank, 0 if serial
-    int NodeSize;   // The MPI size, 1 if serial
+    int NodeRankX;   // The MPI X rank, 0 if serial
+    int NodeRankZ;   // The MPI Z rank, 0 if serial or 1D
+    int NodeSizeX;   // The MPI X size, 1 if serial
+    int NodeSizeZ;   // The MPI Z size, 1 if serial or 1D
     double ppd;		// Particles per dimension
     int64 ippd;     // The closest integer value to NP^(1/3)
     int DoublePrecision;  // =1 if code is using double precision positions
@@ -328,8 +330,10 @@ void State::make_output_header() {
     WPRS(OutputFormatVersion      , s);
     WPRS(RunTime                  , s);
     WPRS(MachineName              , s);
-    WPR(NodeRank                 , ISYM);
-    WPR(NodeSize                 , ISYM);
+    WPR(NodeRankX                , ISYM);
+    WPR(NodeRankZ                , ISYM);
+    WPR(NodeSizeX                , ISYM);
+    WPR(NodeSizeZ                , ISYM);
     WPR(DoublePrecision          , ISYM);
     WPR(ppd                      , FSYM);
 
