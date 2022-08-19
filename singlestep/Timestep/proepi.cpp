@@ -254,8 +254,8 @@ void Prologue(Parameters &P, int MakeIC, int NoForces) {
 
     STDLOG(2,"Setting up insert list\n");
     // IC steps and LPT steps may need more IL slabs.  Their pipelines are not as long as full (i.e. group finding) steps
-    if(P.NumSlabsInsertListIC == 0) P.NumSlabsInsertListIC = 2*FINISH_WAIT_RADIUS + 10;
-    if(P.NumSlabsInsertList == 0) P.NumSlabsInsertList = 2*FINISH_WAIT_RADIUS + 10;
+    if(P.NumSlabsInsertListIC == 0) P.NumSlabsInsertListIC = 2*FINISH_WAIT_RADIUS + 12;
+    if(P.NumSlabsInsertList == 0) P.NumSlabsInsertList = 2*FINISH_WAIT_RADIUS;
 
     uint64 maxILsize = P.np+1;
     int num_slab_il = 0;
