@@ -164,7 +164,7 @@ def ensure_2d(param, nthread=2):
         nthread=nthread)
 
 
-def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=True):
+def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=True, white=False):
     '''
     Invokes the zeldovich executable with the given parameter file,
     cleaning up any existing output directories first and also
@@ -174,6 +174,9 @@ def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=True):
     the `ZD_PLT_filename` parameter is valid and sets
     it to the current eigmodes file if not.
     '''
+
+    if white:
+        raise NotImplementedError(white)
     paramfn = os.path.abspath(paramfn)
     params = GenParam.parseInput(paramfn)
 

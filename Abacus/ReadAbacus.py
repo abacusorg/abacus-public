@@ -1014,8 +1014,11 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
         _posout = _out['pos'] if return_pos else False
         _velout = _out['vel'] if return_vel else False
         if colname == 'rvint':
-            npos,nvel = bitpacked.unpack_rvint(data, header['BoxSize'], float_dtype=dtype, posout=_posout, velout=_velout,
-                                                         zspace=zspace, VelZSpace_to_kms=header['VelZSpace_to_kms'])
+            # TODO: on-the-fly zspace
+            npos,nvel = bitpacked.unpack_rvint(data, header['BoxSize'], float_dtype=dtype, posout=_posout, velout=_velout)
+            if zspace:
+                _posout += _velout*1./header['VelZSpace_to_kms']
+
             nread = max(npos,nvel)
         elif colname == 'pack9':
             p9_unpacker = packN_readers[9][dtype]
@@ -1250,7 +1253,7 @@ default_file_patterns = {'pack14':'*.dat',
                          'asdf_pack9':('field_pack9*/*.asdf','L0_pack9*/*.asdf'),
                          }
 fallback_file_pattern = '*.dat'
-                    
+
 default_box_on_disk = {'desi_hdf5':'box',
                 'pack14':1.,
                 'pack9':1.,
