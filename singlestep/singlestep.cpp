@@ -28,8 +28,10 @@ void BuildWriteState(double da){
 	string now = string(asctime(localtime(&timet)));
 	sprintf(WriteState.RunTime,"%s",now.substr(0,now.length()-1).c_str());
 	gethostname(WriteState.MachineName,1024);
-    WriteState.NodeRank = MPI_rank;
-    WriteState.NodeSize = MPI_size;
+    WriteState.NodeRankX = MPI_rank_x;
+    WriteState.NodeRankZ = MPI_rank_z;
+    WriteState.NodeSizeX = MPI_size_x;
+    WriteState.NodeSizeZ = MPI_size_z;
 
 	WriteState.DoublePrecision = (sizeof(FLOAT)==8)?1:0;
 	STDLOG(0,"Bytes per float is %d\n", sizeof(FLOAT));
@@ -114,6 +116,11 @@ void PlanOutput(bool MakeIC) {
     strncpy(ReadState.MachineName, WriteState.MachineName, 1024);
     strncpy(ReadState.RunTime,     WriteState.RunTime, 1024);
     ReadState.FullStepNumber = WriteState.FullStepNumber;
+    
+    ReadState.NodeRankX = WriteState.NodeRankX;
+    ReadState.NodeRankZ = WriteState.NodeRankZ;
+    ReadState.NodeSizeX = WriteState.NodeSizeX;
+    ReadState.NodeSizeZ = WriteState.NodeSizeZ;
 
 
     #ifdef SPHERICAL_OVERDENSITY
@@ -272,7 +279,7 @@ int main(int argc, char **argv) {
     FinalizeWriteState();
 
     // The state should be written last, since that officially signals success.
-    if (WriteState.NodeRank==0) {
+    if (MPI_rank==0) {
         WriteState.write_to_file(P.WriteStateDirectory);
         STDLOG(0,"Wrote WriteState to %s\n",P.WriteStateDirectory);
     }

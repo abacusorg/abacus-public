@@ -101,7 +101,6 @@ fi
 AC_CHECK_PROGS(LEX, flex)
 AC_CHECK_PROGS(YACC, bison)
 AC_CHECK_PROGS(AR, ar)
-AC_CHECK_PROGS(SWIG, swig)
 
 # Check for AVX
 AX_EXT

@@ -20,7 +20,7 @@ from .misc import process_gridshape
 from Abacus import ReadAbacus
 from Abacus.Tools import ContextTimer
 
-from . import _psffilib
+from . import pslib
 
 valid_file_formats = list(ReadAbacus.reader_functions.keys())
 maxthreads = os.cpu_count()
@@ -374,7 +374,7 @@ def sort_pos_and_weight(p, w, inplace):
         pw = np.empty((len(p), p.shape[-1] + 1), dtype=p.dtype)
         pw[:,:3] = p
         pw[:,3] = w
-        _psffilib.lib.y_sorter_weighted(_psffilib.ffi.cast("float *", _psffilib.ffi.from_buffer(pw)), len(pw))
+        pslib.y_sorter_weighted(pw)
         # unpack
         # this returns views, but will it make TSC slow?
         p = pw[:,:3]
@@ -382,7 +382,7 @@ def sort_pos_and_weight(p, w, inplace):
     else:
         if not inplace:
             p = p.copy()
-        _psffilib.lib.y_sorter(_psffilib.ffi.cast("float *", _psffilib.ffi.from_buffer(p)), len(p))
+        pslib.y_sorter(p)
 
     return p, w
 

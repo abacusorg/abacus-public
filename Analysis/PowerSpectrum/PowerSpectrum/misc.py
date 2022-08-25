@@ -168,50 +168,51 @@ def parallel_bcast(ftylist, signature, **kwargs):
     return decorator
 
 # Load all the functions defined in the cffi library
-from numba.core.typing import cffi_utils
-from . import _psffilib
-for var in vars(_psffilib.lib):
-    vars()[var] = getattr(_psffilib.lib, var)
-cffi_utils.register_module(_psffilib)
+# TODO: hook numba up to pybind11 functions
+#from numba.core.typing import cffi_utils
+#from . import _psffilib
+#for var in vars(_psffilib.lib):
+#    vars()[var] = getattr(_psffilib.lib, var)
+#cffi_utils.register_module(_psffilib)
 #from _psffilib import ffi as psffi, lib as psffilib
 
-@parallel_bcast([(nb.float32[:,:,:], nb.float32[:], nb.float32[:], nb.float32[:])], '(nx,ny,nz),(),(),()')
-def shell_fft(out, boxsize, rmax, rmin, loop_idx):
-    '''
-    Analytically evaluate the FFT of the 3D shell-averaging function:
-    4*pi/k*(rmax^2*j_1(rmax*k) - rmin^2*j_1(rmin*k))/(4*pi/3*(rmax^3 - rmin^3))
-    '''
-    nx,ny,nz = out.shape
-    boxsize = boxsize[0]
-    rmax, rmin = rmax[0], rmin[0]
-    i = loop_idx[0]
-    kx2 = (2*np.pi*i/boxsize)**2
-    for j in range(ny):
-        ky2 = (2*np.pi*j/boxsize)**2
-        for k in range(nz):
-            kz2 = (2*np.pi*k/boxsize)**2
-            kmag = np.sqrt(kx2 + ky2 + kz2)
-            out[i,j,k] = 4*np.pi/kmag * (rmax**2*gsl_sf_bessel_j1(rmax*kmag) - rmin**2*gsl_sf_bessel_j1(rmin*kmag)) \
-                         / (4*np.pi/3*(rmax**3 - rmin**3))
-    out[0,0,0] = 1.  # fix the divide by k=0
+# @parallel_bcast([(nb.float32[:,:,:], nb.float32[:], nb.float32[:], nb.float32[:])], '(nx,ny,nz),(),(),()')
+# def shell_fft(out, boxsize, rmax, rmin, loop_idx):
+#     '''
+#     Analytically evaluate the FFT of the 3D shell-averaging function:
+#     4*pi/k*(rmax^2*j_1(rmax*k) - rmin^2*j_1(rmin*k))/(4*pi/3*(rmax^3 - rmin^3))
+#     '''
+#     nx,ny,nz = out.shape
+#     boxsize = boxsize[0]
+#     rmax, rmin = rmax[0], rmin[0]
+#     i = loop_idx[0]
+#     kx2 = (2*np.pi*i/boxsize)**2
+#     for j in range(ny):
+#         ky2 = (2*np.pi*j/boxsize)**2
+#         for k in range(nz):
+#             kz2 = (2*np.pi*k/boxsize)**2
+#             kmag = np.sqrt(kx2 + ky2 + kz2)
+#             out[i,j,k] = 4*np.pi/kmag * (rmax**2*gsl_sf_bessel_j1(rmax*kmag) - rmin**2*gsl_sf_bessel_j1(rmin*kmag)) \
+#                          / (4*np.pi/3*(rmax**3 - rmin**3))
+#     out[0,0,0] = 1.  # fix the divide by k=0
 
-@parallel_bcast([(nb.float32[:,:], nb.float32[:], nb.float32[:], nb.float32[:])], '(nx,ny),(),(),()')
-def annulus_fft(out, boxsize, smax, smin, loop_idx):
-    '''
-    Analytically evaluate the FFT of the 2D annulus-averaging function:
-    2*pi/k_perp*(smax*J_1(smax*k) - smin*J_1(smin*k))/(pi*(smax^2 - smin^2))
-    '''
-    nx,ny = out.shape
-    boxsize = boxsize[0]
-    smax, smin = smax[0], smin[0]
-    i = loop_idx[0]
-    kx2 = (2*np.pi*i/boxsize)**2
-    for j in range(ny):
-        ky2 = (2*np.pi*j/boxsize)**2
-        k_perp = np.sqrt(kx2 + ky2)
-        out[i,j] = 2*np.pi/k_perp*(smax*gsl_sf_bessel_J1(smax*k_perp) - smin*gsl_sf_bessel_J1(smin*k_perp)) \
-                   / (pi*(smax**2 - smin**2))
-    out[0,0] = 1.  # fix the divide by k=0
+# @parallel_bcast([(nb.float32[:,:], nb.float32[:], nb.float32[:], nb.float32[:])], '(nx,ny),(),(),()')
+# def annulus_fft(out, boxsize, smax, smin, loop_idx):
+#     '''
+#     Analytically evaluate the FFT of the 2D annulus-averaging function:
+#     2*pi/k_perp*(smax*J_1(smax*k) - smin*J_1(smin*k))/(pi*(smax^2 - smin^2))
+#     '''
+#     nx,ny = out.shape
+#     boxsize = boxsize[0]
+#     smax, smin = smax[0], smin[0]
+#     i = loop_idx[0]
+#     kx2 = (2*np.pi*i/boxsize)**2
+#     for j in range(ny):
+#         ky2 = (2*np.pi*j/boxsize)**2
+#         k_perp = np.sqrt(kx2 + ky2)
+#         out[i,j] = 2*np.pi/k_perp*(smax*gsl_sf_bessel_J1(smax*k_perp) - smin*gsl_sf_bessel_J1(smin*k_perp)) \
+#                    / (pi*(smax**2 - smin**2))
+#     out[0,0] = 1.  # fix the divide by k=0
 
 
 def plot_Pks(ks, Pks=None, cross_Pks=None, deltas=None, deltaks=None, labels=None):

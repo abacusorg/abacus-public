@@ -1,5 +1,3 @@
-# Build the AbacusCosmo extension using pybind11
-
 import os
 from setuptools import setup
 from pathlib import Path
@@ -10,9 +8,10 @@ ABACUS = Path(os.getenv('ABACUS'))
 
 ext_modules = [
     Pybind11Extension(
-        "AbacusCosmo",
-        ['bind.cpp'],
-        include_dirs=[ABACUS/'include'],
+        "PowerSpectrum.pslib",
+        ['PowerSpectrum/bind.cpp'],
+        include_dirs=[],
+        libraries = ['gsl', 'gslcblas', 'tbb'],
     ),
 ]
 

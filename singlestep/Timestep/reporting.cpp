@@ -442,6 +442,7 @@ void GatherTimings() {
                 fprintf(reportfp,"---> %6.2f GB/sec", thistime ? Kick->num_particles/thistime*3*sizeof(accstruct)/1e9 : 0.);
             REPORT(2, "Kick Cell", KickCellTimer.Elapsed());
                 REPORT_RATE(Kick);
+            REPORT(2, "Free slabs", KickDealloc.Elapsed());
         
         if(GFC != NULL){
             fprintf(reportfp, "\n\nBreakdown of Group Finding:");

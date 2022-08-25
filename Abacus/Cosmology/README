@@ -1,6 +1,6 @@
-This is a SWIG wrapper for Abacus' cosmology module.
+This is a pybind11 wrapper for Abacus' cosmology module.
 That means this is a python interface to the same C++ code that Abacus uses.
-You will need swig to compile this.
+You will need pybind11 to compile this (can be installed via pip).
 
 Build this module with
 $ make

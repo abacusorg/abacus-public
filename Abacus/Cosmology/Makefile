@@ -1,28 +1,24 @@
 ROOT_DIR := ../..
 include $(ROOT_DIR)/common.mk
 
-all: AbacusCosmo.py
+all: AbacusCosmoExt
 
 COSMO_INCLUDES = $(addprefix $(ROOT_DIR)/include/, Cosmology.cpp Cosmology.h)
 
-# Export the C++ compiler to swig, which uses the CC variable
-# May need to monkey around with other flags if swig flags are wrong for non-GNU compilers
-# Somehow swig knows to use anaconda compiler_compat when linking...? distutils monkey patching...?
-export CC := $(PYTHON_CXX)
+export CC := $(PYTHON_CXX)  # Seems to assume CC can compile C++
+export CXX := $(PYTHON_CXX)
 export LDFLAGS := $(PYTHON_LDFLAGS)
 unexport CPPFLAGS
 
-# Try, but don't hard fail because some systems don't have swig
-# and this isn't a mandatory module
-AbacusCosmo.py: $(COSMO_INCLUDES) AbacusCosmo.i setup.py
+AbacusCosmoExt: $(COSMO_INCLUDES) setup.py
 	python setup.py build_ext --inplace
 
 clean:
-	$(RM) -r build/ AbacusCosmo_wrap.cpp *.so *.pyc AbacusCosmo.py
+	$(RM) -r build/ *.so *.pyc AbacusCosmo.py
 
 distclean: clean
 	
 test:
 	pytest
 
-.PHONY: all clean distclean test
+.PHONY: all clean distclean test AbacusCosmoExt

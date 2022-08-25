@@ -10,19 +10,13 @@ For a user-friendly command-line interface, see `run_PS.py`.
      based on dferrer's original 2013 C implementation
 """
 
-import sys
-import ctypes as ct
 import numpy as np
-import scipy
-import scipy.interpolate
 import os
-import glob
 import pyfftw
 import numexpr as ne
 
 
-from Abacus.Tools import ndarray_arg, ContextTimer
-import Abacus.ReadAbacus
+from Abacus.Tools import ContextTimer
 from . import misc
 from .misc import processargs, process_gridshape
 from .Histogram import RadialBin, RadialBinGrid, k_bin_edges

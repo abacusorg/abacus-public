@@ -31,7 +31,8 @@ void GatherTaggableFieldParticles(int slab, SlabAccum<RVfloat> * rv, SlabAccum<T
         pPIDsA = pid[0].StartPencil(j);
         pPIDsB = pid[1].StartPencil(j);
 
-        for (int k=GFC->zstart; k<GFC->zend; k++){
+        // The field output should not include ghosts
+        for (int k=node_z_start; k<node_z_start + node_z_size; k++){
             // Loop over cells
             posstruct offset = CP->CellCenter(slab, j, k);
             Cell c = CP->GetCell(slab, j, k);

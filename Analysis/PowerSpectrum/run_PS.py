@@ -116,6 +116,8 @@ def run_PS_on_dir(slicedir, **kwargs):
         raw_results = PS.CalculateBySlab(slicedir, nfft, BoxSize, **kwargs)
         results = to_csv(raw_results, bins, save_fn, header)
     else:
+        kwargs.pop('bins', None)
+        kwargs.pop('log', None)
         density = TSC.BinParticlesFromFile(slicedir, BoxSize, nfft, **kwargs)
         density.tofile(save_fn)
         results = density
@@ -471,11 +473,10 @@ if __name__ == '__main__':
     if args.pop('projected'):
         args['nfft'] = [args['nfft'],]*2
     
+    args['binnings'] = setup_bins(args)
     if args['just_density']:
         # No meaning for density cube
-        del args['nbins'], args['log']
-    else:
-        args['binnings'] = setup_bins(args)
+        del args['log']
     
     if args['dtype'] == 'float':
         args['dtype'] = np.float32

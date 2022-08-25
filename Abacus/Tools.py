@@ -10,6 +10,11 @@ import subprocess
 
 import numpy as np
 import numexpr as ne
+import matplotlib.pyplot as plt
+import matplotlib.colors as colors
+import contexttimer
+import argparse
+import numba
 
 # all values returned in GB
 # try to return 'available' RAM, but some systems only have 'total' and 'free', so fallback to those
@@ -121,7 +126,6 @@ def add_tick(ax, loc, label, ha=None, which='x'):
         labels = get_ticklabels()
         labels[-1].set_ha(ha)
     
-import matplotlib.pyplot as plt
 def matrix_plot(m, fig=None, ax=None, contour=False, subplots_kwargs={}, contour_kwargs={}, imshow_kwargs={}, **kwargs):
     if not fig or not ax:
         fig, ax = plt.subplots(**subplots_kwargs)
@@ -146,8 +150,7 @@ def matrix_plot(m, fig=None, ax=None, contour=False, subplots_kwargs={}, contour
         ax.clabel(cs, fmt='%.2g')
         
     return fig, ax
-    
-import matplotlib.colors as colors
+
 class MidpointNormalize(colors.Normalize):
     def __init__(self, vmin=None, vmax=None, midpoint=None, clip=False):
         self.midpoint = midpoint
@@ -220,7 +223,6 @@ def set_global_nthreads(n):
     PowerSpectrum.nthreads = n
     #pslib.set_nthreads(n)
     
-import contexttimer
 class ContextTimer(contexttimer.Timer):
     '''
     A simple extension to the contexttimer lib that adds
@@ -358,15 +360,12 @@ def scatter_density(x, y, ax, z=None, size=10., log=False, bw=.03, adaptive=Fals
         
     return x, y, color, idx, kde, sc
 
-import argparse
 # Combine argparse mixins to format both the description and defaults
 # Use as:
 # >>> parser = argparse.ArgumentParser(description='...', formatter_class=Tools.ArgParseFormatter)
 class ArgParseFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
     pass
 
-
-import numba
 @numba.njit(parallel=True)
 def wrap_zero_centered(pos, box):
     '''
