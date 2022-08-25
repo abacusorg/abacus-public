@@ -138,6 +138,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
 
     # If we requested a resume, but there is no state, assume we are starting fresh
     if not clean:
+        # TODO: in an interactive parallel session, the state may already exist on the remote nodes. How to check?
         if (parallel and path.exists(resumedir)) or (not parallel and path.exists(basedir)):
             print('Resuming from existing state.')
         else:

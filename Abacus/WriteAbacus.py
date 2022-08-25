@@ -28,9 +28,15 @@ def write(outfn, particles=None, pos=None, vel=None, pid=None, ppd=None, write_z
         Default: None
 
     '''
-    if particles is not None:
+    if False and particles is not None:
+        # TODO: AsyncReader no longer passes back a packed ndarray
         a = particles
     else:
+        if particles:
+            pos = particles['pos']
+            vel = particles['pos']
+            pid = particles['pid']
+            
         # Input validation
         assert not (write_zel and write_pid)  # none of our formats use both
         if write_zel or write_pid:
