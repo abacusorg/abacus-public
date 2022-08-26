@@ -1020,7 +1020,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
         if parallel:
             # Merge all nodes' checksum files into one
-            merge_checksum_files(write_state.NodeSize, param)
+            merge_checksum_files(write_state.NodeSizeX * write_state.NodeSizeZ, param)
 
             # check if we need to gracefully exit and/or backup:
             #    is a group finding step next?          ---> backup to NVME and continue.   (group finding steps are more likely to crash!)
