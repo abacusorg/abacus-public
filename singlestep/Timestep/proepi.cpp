@@ -440,9 +440,15 @@ void finish_fftw(){
         if(MPI_rank_z == MPI_size_z-1){
             STDLOG(1, "Sending wisdom over MPI\n");
             char *wis = fftw_export_wisdom_to_string();
-            size_t wislen = strlen(wis);
-            MPI_Send(wis, (int) wislen, MPI_CHAR, 0, 0, comm_1d_z);
-            free(wis);
+            if(wis != NULL){
+                size_t wislen = strlen(wis);
+                MPI_Send(wis, (int) wislen, MPI_CHAR, 0, 0, comm_1d_z);
+                free(wis);
+            } else {
+                // Some fftw implementations do not use wisdom
+                char dummywis = '\0';
+                MPI_Send(&dummywis, 0, MPI_CHAR, 0, 0, comm_1d_z);
+            }
         } else if(MPI_rank_z == 0){
             STDLOG(1, "Receiving wisdom over MPI\n");
             MPI_Status stat;
