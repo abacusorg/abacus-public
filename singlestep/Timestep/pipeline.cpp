@@ -45,7 +45,7 @@ public:
     * All "normal" slabtypes should be loaded here. Note that loads may be async.
     */
     void action(int slab) {
-        STDLOG(1,"Fetching slab %d with %d particles (%d ghost)\n",
+        STDLOG(1,"Fetching slab %d with %d particles (%d w/ ghost)\n",
             slab, SS->size(slab), SS->size_with_ghost(slab));
 
         // Load all of the particle files together

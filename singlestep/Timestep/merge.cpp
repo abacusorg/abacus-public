@@ -372,9 +372,11 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
                 Cell c = CP->GetCell(slab, y, z);
 
                 // Copy the active particles from the old cell
-                memcpy(mc.pos, c.pos, c.active()*sizeof(posstruct));
-                memcpy(mc.vel, c.vel, c.active()*sizeof(velstruct));
-                memcpy(mc.aux, c.aux, c.active()*sizeof(auxstruct));
+                if(c.active() > 0){  // memcpy NULL is undefined, even with count 0
+                    memcpy(mc.pos, c.pos, c.active()*sizeof(posstruct));
+                    memcpy(mc.vel, c.vel, c.active()*sizeof(velstruct));
+                    memcpy(mc.aux, c.aux, c.active()*sizeof(auxstruct));
+                }
                 written += c.active();
             }
 
