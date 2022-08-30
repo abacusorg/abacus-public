@@ -726,13 +726,11 @@ public:
  * should be checked for completion this year.
  */
 class DriftDep : public SlabDependency {
-    int drift_ahead;  // how far ahead of Finish to work
-    
 public:
+    static int drift_ahead;  // how far ahead of Finish to work
+
     DriftDep(int cpd, int initialslab)
-        : SlabDependency("Drift", cpd, initialslab){
-            drift_ahead = 2*FINISH_WAIT_RADIUS + 1 + 3;
-        }
+        : SlabDependency("Drift", cpd, initialslab){ }
 
     int precondition(int slab) {
         // We must have finished scattering into this slab
@@ -788,6 +786,8 @@ public:
     }
 };
 
+int DriftDep::drift_ahead = 2*FINISH_WAIT_RADIUS + 1 + 3;  // +3 for slosh
+
 // -----------------------------------------------------------------
 
 class NeighborSendDep : public SlabDependency {
@@ -815,6 +815,21 @@ public:
 
 // -----------------------------------------------------------------
 
+class NeighborRecvEvent : public EventDependency {
+public:
+    static int receive_ahead;
+    NeighborRecvEvent()
+        : EventDependency("NeighborReceive") { }
+
+    int action(){
+        return AttemptNeighborReceive(FinishParticles->last_slab_executed + 1, receive_ahead);
+    }
+};
+
+int NeighborRecvEvent::receive_ahead = 3;  // slosh
+
+// -----------------------------------------------------------------
+
 class FinishParticlesDep : public SlabDependency {
 public:
     uint64 merged_primaries = 0;
@@ -831,7 +846,7 @@ public:
         if (FinishParticles->alldone(total_slabs_on_node)) return 0;
 
         if( !IsNeighborReceiveDone(slab) ){
-            // This is an effective SlabDependency on NeighborSend, because we won't
+            // This is an effective dependency on NeighborSend, because we won't
             // receive before sending.
             // We only need to receive 1 slab, not FWR, because the remote node
             // waits for FWR before sending.
@@ -1035,22 +1050,6 @@ public:
         int ret = 0;
         for (int j=0; j<nManifest; j++) ret |= _SendManifest[j].FreeAfterSend();
         return ret;
-    }
-};
-
-// -----------------------------------------------------------------
-
-class NeighborRecvEvent : public EventDependency {
-    int receive_ahead;
-public:
-    NeighborRecvEvent()
-        : EventDependency("NeighborReceive") {
-            receive_ahead = 5;
-            //receive_ahead = P.cpd;
-        }
-
-    int action(){
-        return AttemptNeighborReceive(FinishParticles->last_slab_executed - FINISH_WAIT_RADIUS,receive_ahead);
     }
 };
 

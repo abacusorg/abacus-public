@@ -613,8 +613,8 @@ void Parameters::ProcessStateDirectories(){
     if (strcmp(LocalWorkingDirectory,STRUNDEF) != 0){
         // append the rank to the LocalWorkingDirectory
         // LocalWorkingDirectory should not have a trailing slash
-        int ret = snprintf(LocalWorkingDirectory + strnlen(LocalWorkingDirectory, 1024), 1024, "%s", NodeString);
-        assert(ret >= 0 && ret < 1024);
+        assert(strnlen(LocalWorkingDirectory, 1024) + strnlen(NodeString,1024) < 1024);
+        strncat(LocalWorkingDirectory, NodeString, strlen(NodeString));
     } else {
         int ret = snprintf(LocalWorkingDirectory, 1024, "%s%s",WorkingDirectory, NodeString);
         assert(ret >= 0 && ret < 1024);

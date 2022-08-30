@@ -99,7 +99,7 @@ double EvolvingDelta(float z){
 }
 
 void PlanOutput(bool MakeIC) {
-    // Check the time slice and decide whether to do output.
+    // Set up some metadata for time slice output. The decision is made in ChooseTimeStep().
     ReadState.OutputIsAllowed = 0;
     ReadState.DoBinning = 0;
     density = 0;
@@ -237,11 +237,11 @@ int main(int argc, char **argv) {
     for(int i = 0; i < NUMLIGHTCONES; i++)
         LCOrigin[i] = ((double3*) P.LightConeOrigins)[i]/P.BoxSize;  // convert to unit-box units
 
-    // Make a plan for output
-    PlanOutput(MakeIC);
-
     // Set up the Group Finding concepts and decide if Group Finding output is requested.
     InitGroupFinding(MakeIC);
+
+    // Set up output metadata
+    PlanOutput(MakeIC);
     
     InitializePipelineWidths(MakeIC);  // needs to know if this step will do group finding
     InitializeParallelMergeDomain();  // needs to know if the *next* step will do group finding

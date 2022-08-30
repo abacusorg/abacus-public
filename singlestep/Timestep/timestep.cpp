@@ -280,7 +280,7 @@ void timestep(int NoForces) {
     if (GFC != NULL) assertf(GFC->GLL->length==0,
 	"GroupLinkList not empty (%d) at the end of timestep.  Global group finding didn't run properly.\n", GFC->GLL->length);
 
-    uint64 total_n_output = ((OutputDep *) Output)->n_output;  // TODO: could make Output's class OutputDep if we forward-declare
+    uint64 total_n_output = ((OutputDep *) Output)->n_output;  // TODO: how should we do field access while preserving the ability to NoOp?
     if(GFC != NULL)
         total_n_output += GFC->n_L0_output;
 	

@@ -255,15 +255,17 @@ void Prologue(Parameters &P, int MakeIC, int NoForces) {
     STDLOG(2,"Setting up insert list\n");
     // IC steps and LPT steps may need more IL slabs.  Their pipelines are not as long as full (i.e. group finding) steps
     if(P.NumSlabsInsertListIC == 0) P.NumSlabsInsertListIC = 2*FINISH_WAIT_RADIUS + 12;
-    if(P.NumSlabsInsertList == 0) P.NumSlabsInsertList = 2*FINISH_WAIT_RADIUS;
+    // IL can be filled from drift or neighbor recv. Multiply by 2x for manifest.
+    if(P.NumSlabsInsertList == 0) P.NumSlabsInsertList = 2*(DriftDep::drift_ahead + NeighborRecvEvent::receive_ahead);
+    double drift_efficiency = 0.5;  // conservative upper bound on rebinned frac, 0.8**3
 
     uint64 maxILsize = P.np+1;
     int num_slab_il = 0;
     num_slab_il = (MakeIC || LPTStepNumber() > 0) ? P.NumSlabsInsertListIC : P.NumSlabsInsertList;
-    maxILsize = maxILsize*num_slab_il*(node_z_size + 2*MERGE_GHOST_RADIUS)/P.cpd/P.cpd + 1;
+    maxILsize = maxILsize*num_slab_il*(node_z_size*drift_efficiency + 2*MERGE_GHOST_RADIUS)/P.cpd/P.cpd + 1;
     int clearLC = LPTStepNumber() == 0;  // LC bits used as vel bits during 2LPT
     IL = new InsertList(cpd, maxILsize, clearLC);
-    STDLOG(2,"Maximum insert list size = %l, size %l MB\n", maxILsize, maxILsize*sizeof(ilstruct)/1024/1024);
+    STDLOG(2,"Maximum insert list size = %l, allocated %.3g GB\n", maxILsize, maxILsize*sizeof(ilstruct)/1e9);
 
     STDLOG(2,"Setting up IO\n");
 
@@ -909,6 +911,16 @@ void InitGroupFinding(int MakeIC){
         ReadState.DoGroupFindingOutput = 0;
         ReadState.DoSubsampleOutput = 0;  // We currently do not support subsample outputs without group finding
         STDLOG(1, "Group finding not enabled for this step.\n");
+
+        /*
+        // The 2D code presently outputs all slice particles as field, rather than field & L0.
+        // It seems there's no harm in this, but one could uncomment the following
+        // if the 1D behavior were desired. This is untested, however.
+        if(WriteState.DoGroupFindingOutput && ReadState.DoTimeSliceOutput){
+            WriteState.DoTimeSliceOutput = ReadState.DoTimeSliceOutput;
+            ReadState.DoTimeSliceOutput = 0;
+            STDLOG(1, "Deferring time slice output until we have L0 group finding bits\n");
+        }*/
 
         // We aren't doing group finding, but we may be doing output, so init the kernel density anyway
         InitKernelDensity();
