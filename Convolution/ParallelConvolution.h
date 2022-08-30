@@ -105,6 +105,8 @@ private:
     AbacusMPILimiter mpi_limiter;
     int *TaylorSlabAllMPIDone;
     int *MultipoleSlabAllMPIDone;
+
+	ReadDirect *RD;
 	
 	
 	void MultipoleFN(int slab, char * const fn);

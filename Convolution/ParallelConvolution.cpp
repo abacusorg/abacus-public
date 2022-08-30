@@ -181,7 +181,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 
     int no_dio = !P.AllowDirectIO;
 	STDLOG(2, "Making RD object with no_dio=%d bufsize=%d\n", no_dio, sdb);
-	ReadDirect * RD_RDD = new ReadDirect(no_dio, sdb);
+	RD = new ReadDirect(no_dio, sdb);
 	
 	Constructor.Stop(); 
 	CS.Constructor = Constructor.Elapsed();
@@ -243,7 +243,7 @@ ParallelConvolution::~ParallelConvolution() {
 	}
 	
 	delete[] Ddisk; 
-	delete RD_RDD;
+	delete RD;
 	
 	Destructor.Stop(); CS.Destructor = Destructor.Elapsed();
 	
@@ -390,8 +390,7 @@ void ParallelConvolution::LoadDerivatives(int z) {
 	
     if(!ramdisk_derivs){
 		assert(Ddisk[z] != NULL); 
-		// NAM TODO the last arg (1) should be ReadDirect's ramdisk flag set during constructor, but that seg faults right now. Fix! 
-        RD_RDD->BlockingRead( fn, (char *) Ddisk[z], Ddisk_bytes, dfile_offset, 1);
+        RD->BlockingRead( fn, (char *) Ddisk[z], Ddisk_bytes, dfile_offset, ramdisk_derivs);
         CS.ReadDerivativesBytes += Ddisk_bytes;
 		STDLOG(2, "BlockingRead derivatives for z = %d from file %s\n", z_file, fn);
     } else {
