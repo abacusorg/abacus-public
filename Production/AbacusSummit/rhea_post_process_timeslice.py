@@ -20,7 +20,6 @@ import gc
 import numpy as np
 import asdf
 import asdf.compression
-import blosc
 
 from Abacus.Tools import ArgParseFormatter
 from Abacus.fast_cksum.cksum_io import CksumWriter, CksumReader

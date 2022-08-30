@@ -57,7 +57,7 @@ util:
 tests:
 	$(MAKE) -C Tests all	
 
-analysis: clibs ParseHeader util AbacusPython
+analysis: clibs ParseHeader util AbacusPython external
 	$(MAKE) -C Analysis
 
 external:
