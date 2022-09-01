@@ -809,7 +809,7 @@ public:
 
     void action(int slab){
         // Send the full list of neighbor particles for this slab
-        DoNeighborSend(slab);  // in parallel.cpp
+        DoNeighborSend(slab);  // in neighbor_exchange.cpp
     }
 };
 

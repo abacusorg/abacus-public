@@ -129,15 +129,6 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
 #else
     double3 cellcenter = CP->WrapCellCenter(c.ijk);
 #endif
-
-    // We don't want to be fetching the arena pointers for every particle, so cache them here
-    // TODO: do we really want to do this for every cell?
-    velstruct **velslabs = new velstruct*[P.cpd];
-    uint64 *velslab_sizes = new uint64[P.cpd];
-    for(int i = 0; i < P.cpd; i++){
-        velslabs[i] = NULL;
-        velslab_sizes[i] = 0;
-    }
     
     double H = 1;
     double fsmooth = P.Omega_Smooth/P.Omega_M;
@@ -183,9 +174,6 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
         // (where f_growth < 1) because the time dependence is still the square of first order.
         c.vel[b] = vel1 + WriteState.f_growth*2*displ2*convert_velocity;
     }
-
-    delete[] velslabs;
-    delete[] velslab_sizes;
 }
 
 // 3LPT kick and drift

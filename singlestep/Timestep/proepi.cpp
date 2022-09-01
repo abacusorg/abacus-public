@@ -468,11 +468,11 @@ void finish_fftw(){
             free(wis);
         }
 #endif
+    }
     
-        if(MPI_rank == 0){
-            int ret = fftw_export_wisdom_to_filename(wisdom_file);
-            STDLOG(1, "Wisdom export to file \"%s\" returned %d.\n", wisdom_file, ret);
-        }
+    if(MPI_rank == 0){
+        int ret = fftw_export_wisdom_to_filename(wisdom_file);
+        STDLOG(1, "Wisdom export to file \"%s\" returned %d.\n", wisdom_file, ret);
     }
 
     fftw_cleanup();  // all plans and wisdom invalidated after this
