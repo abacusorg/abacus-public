@@ -169,7 +169,7 @@ private:
             mid = ParallelPartition(start, nelem,
                 is_in_range,
                 slab,
-                node_z_start + node_z_size + MERGE_GHOST_RADIUS,
+                CP->WrapSlab(node_z_start + node_z_size + MERGE_GHOST_RADIUS),
                 len - MERGE_GHOST_RADIUS
                 );
         }
@@ -185,7 +185,7 @@ private:
         }
 
         size_t nhigh = (size_t) nelem - mid;
-        STDLOG(2,"Removing %d particles that are strictly neighbor's primary\n", nhigh);
+        STDLOG(1,"Removing %d particles that are strictly neighbor's primary\n", nhigh);
         return nhigh;
     }
 
