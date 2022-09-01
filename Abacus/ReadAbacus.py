@@ -705,7 +705,7 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
         Filename to read
     make_global: bool or 'auto', optional
         Whether to convert cell-offset positions into global positions by reading cellinfo
-        Default: True`
+        Default: True
     dtype_on_disk: np.dtype, optional
         The data type of the positions and cellinfo floats
     dtype: np.dtype, optional
@@ -745,11 +745,11 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
                          ('count',np.int32), ('active',np.int32),
                          ('mean_square_velocity', dtype_on_disk), ('max_component_velocity', dtype_on_disk), ('max_component_acceleration', dtype_on_disk)],
                          align=True)
-    pos_fn = re.sub(r'\w+(?=_\d{4}$)', r'position', fn)
-    vel_fn = re.sub(r'\w+(?=_\d{4}$)', r'velocity', fn)
-    ci_fn = re.sub(r'\w+(?=_\d{4}$)', r'cellinfo', fn)
-    aux_fn = re.sub(r'\w+(?=_\d{4}$)', r'auxillary', fn)
-    slab = int(re.search(r'\d{4}$', fn).group(0))
+    pos_fn = re.sub(r'\w+(?=_\d{4})', r'position', fn)
+    vel_fn = re.sub(r'\w+(?=_\d{4})', r'velocity', fn)
+    ci_fn = re.sub(r'\w+(?=_\d{4})', r'cellinfo', fn)
+    aux_fn = re.sub(r'\w+(?=_\d{4})', r'auxillary', fn)
+    slab = int(re.search(r'_\d{4}', fn).group(0)[1:])
 
     if return_header:
         try:
@@ -1298,6 +1298,16 @@ def get_file_patterns(format, return_pos=True, return_vel=True, return_pid=False
             # TODO: read_asdf is designed to do this for us. But what if only one of rv/pid exist?
             pats += [f'field_pid_{AB}_*.asdf', f'field_pid_{AB}/field_pid_{AB}_*.asdf',
                      f'halo_pid_{AB}_*.asdf', f'halo_pid_{AB}/halo_pid_{AB}_*.asdf']
+        return pats
+
+    if format == 'asdf_pack9':
+        pats = []
+        if return_pos or return_vel:
+            pats += ['field_pack9/*.field.pack9.asdf']
+            pats += ['L0_pack9/*.L0.pack9.asdf']
+        if return_pid:
+            pats += ['field_pack9_pid/*.field.pack9.pid.asdf']
+            pats += ['L0_pack9_pid/*.L0.pack9.pid.asdf']
         return pats
 
     try:

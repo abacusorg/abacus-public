@@ -10,16 +10,10 @@ $ ./check_forces.py --help
 '''
 
 import os
-import shutil
-import sys
-from glob import glob
 import argparse
 from pathlib import Path
 
 import numpy as np
-import matplotlib as mpl
-from matplotlib import ticker
-#mpl.use('Agg')  # no interactive plotting
 import matplotlib.pyplot as plt
 import asdf
 
