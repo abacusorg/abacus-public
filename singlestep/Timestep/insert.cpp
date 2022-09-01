@@ -33,46 +33,44 @@
 // So be careful not to re-size to 32bit when using the indices you receive from it! 
 
 class ilstruct {
-  private:
-    uint32_t k;   // The key, with y in the high bits and zlocal in the low
-  
-  public:  
+  public:
+    uint32_t _k;   // The key, with y in the high bits and zlocal in the low
     int newslab;        // The new cell, wrapped
     posstruct pos;
     velstruct vel;
     auxstruct aux;
 
     // Some methods required for sorting
-    inline uint32_t key() { return k; }
-    inline void set_max_key() { k = MM_MAX_UINT; }
-    bool operator< (const ilstruct& b) const { return (k<b.k); }
+    inline uint32_t key() { return _k; }
+    inline void set_max_key() { _k = MM_MAX_UINT; }
+    bool operator< (const ilstruct& b) const { return (_k<b._k); }
 
     inline void setkey(int y, int zlocal){
-        k = (((uint32_t) y) << 16) | ((uint32_t) zlocal);
+        _k = (((uint32_t) y) << 16) | ((uint32_t) zlocal);
     }
 
     inline void setzlocal(int zlocal){
-        k = (k & 0xFFFF0000) | (uint32_t) zlocal;
+        _k = (_k & 0xFFFF0000) | (uint32_t) zlocal;
     }
 
     // A method for dumping ASCII
     inline void print () {
         printf("pos: %e %e %e; vel: %e %e %e; aux: %s; newslab: %d; key: %d\n", 
                 pos.x, pos.y, pos.z, vel.x, vel.y, vel.z, 
-                aux.tostring().c_str(), newslab, k);
+                aux.tostring().c_str(), newslab, _k);
         return;
     }
 
     int celly(){
-        return k >> 16;
+        return _k >> 16;
     }
 
     int global_cellz(){
-        return CP->WrapSlab( (k & 0xFFFF) + (node_z_start - MERGE_GHOST_RADIUS) );
+        return CP->WrapSlab( (_k & 0xFFFF) + (node_z_start - MERGE_GHOST_RADIUS) );
     }
 
     int local_cellz(){
-        return k & 0xFFFF;
+        return _k & 0xFFFF;
     }
 
 };   // end ilstruct
