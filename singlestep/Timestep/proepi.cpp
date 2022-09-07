@@ -731,6 +731,15 @@ template<class C, typename T>
 bool contains(C *a, C *b, T e) { return std::find(a, b, e) != b; };
 
 
+double EvolvingDelta(float z){
+    float omegaMz = P.Omega_M * pow(1.0 + z, 3.0) / (P.Omega_DE + P.Omega_M *  pow(1.0 + z, 3.0) );
+	// The Bryan & Norman (1998) threshold is in units of (redshift-dependent) critical density;
+	// the 1/omegaMz factor makes it relative to the mean density at that redshift
+    float Deltaz = (18.0*M_PI*M_PI + 82.0 * (omegaMz - 1.0) - 39.0 * pow(omegaMz - 1.0, 2.0) ) / omegaMz;
+    return Deltaz / (18.0*M_PI*M_PI); //Params are given at high-z, so divide by high-z asymptote to find rescaling.
+}
+
+
 void InitGroupFinding(int MakeIC){
     /*
     Request output of L1 groups and halo/field subsamples if:
@@ -841,6 +850,28 @@ void InitGroupFinding(int MakeIC){
     }
 
     // done modifying DoGroupFindingOutput. Now we can plan for densities and output.
+
+    #ifdef SPHERICAL_OVERDENSITY
+    if (P.SO_EvolvingThreshold) {
+
+        float rescale = EvolvingDelta(ReadState.Redshift);
+
+        STDLOG(2, "Rescaling SO Delta as a function of redshift.\n\t\tL0: %f --> %f\n\t\tL1: %f --> %f\n\t\tL2: %f --> %f\n",
+                      P.L0DensityThreshold, rescale * P.L0DensityThreshold,
+                      P.SODensity[0], rescale * P.SODensity[0],
+                      P.SODensity[1], rescale * P.SODensity[1]);
+
+
+        P.SODensity[0] *= rescale;
+        P.SODensity[1] *= rescale;
+        P.L0DensityThreshold *= rescale;
+
+        ReadState.SODensityL1 = P.SODensity[0];
+        ReadState.SODensityL2 = P.SODensity[1];
+        ReadState.L0DensityThreshold = P.L0DensityThreshold;
+    }
+    else STDLOG(2, "Using constant SO Delta (no redshift-dependent rescaling).\n");
+    #endif
 
     // Will group finding use aux densities?
     int use_aux_dens = !NFD || P.ForceAuxDensity;
