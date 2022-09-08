@@ -39,8 +39,9 @@ def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False,
         The parameters dictionary
 
     search_dirs : bool, path-like, or iterable of path-like (optional)
-        The directories to search. `True` (default) searches canonical dirs
-        based on environment variables.
+        The directories to search. `True` (default) searches
+        param['DerivativesSourceDirectory'] if given, and
+        canonical dirs based on environment variables
 
     floatprec : bool (optional)
         Make the derivatives available in float32 precision.
@@ -48,12 +49,15 @@ def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False,
 
     twoD : bool (optional)
         Make the derivs available in the format for the 2D code.
+        Default: False
     
     nworker : int or None (optional)
-        The number of processes/threads to use for IO
+        The number of processes/threads to use for IO.
+        Default: param['PyIOConcurrency'] or 1
 
     nthread : int or None (optional)
-        The number of threads to use for CPU work
+        The number of threads to use for CPU work.
+        Default: based on affinity mask
     '''
 
     # We will attempt to copy derivatives from the archive dir if they aren't found
@@ -63,6 +67,8 @@ def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False,
             if var in os.environ:
                 sdir_name = 'Derivatives/2D' if twoD else 'Derivatives'
                 search_dirs += [Path(os.environ[var]) / sdir_name]
+        if 'DerivativesSourceDirectory' in param:
+            search_dirs += [param['DerivativesSourceDirectory']]
 
     if type(search_dirs) is str:
         search_dirs = [search_dirs]
