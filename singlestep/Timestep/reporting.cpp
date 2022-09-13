@@ -68,7 +68,7 @@ std::string cpu_model_str(){
 
     
 #ifndef __INTEL_COMPILER
-    __get_cpuid(0x80000002, cpuInfo, cpuInfo+4, cpuInfo+8, cpuInfo+12);
+    __get_cpuid(0x80000002, cpuInfo, cpuInfo+1, cpuInfo+2, cpuInfo+3);
 #else
     __cpuid(cpuInfo, 0x80000002);
 #endif
@@ -76,14 +76,14 @@ std::string cpu_model_str(){
 
     
 #ifndef __INTEL_COMPILER
-    __get_cpuid(0x80000003, cpuInfo, cpuInfo+4, cpuInfo+8, cpuInfo+12);
+    __get_cpuid(0x80000003, cpuInfo, cpuInfo+1, cpuInfo+2, cpuInfo+3);
 #else
     __cpuid(cpuInfo, 0x80000003);
 #endif
     memcpy(CPUBrandString + 16, cpuInfo, sizeof(cpuInfo));
 
 #ifndef __INTEL_COMPILER
-    __get_cpuid(0x80000004, cpuInfo, cpuInfo+4, cpuInfo+8, cpuInfo+12);
+    __get_cpuid(0x80000004, cpuInfo, cpuInfo+1, cpuInfo+2, cpuInfo+3);
 #else
     __cpuid(cpuInfo, 0x80000004);
 #endif
@@ -413,8 +413,8 @@ void GatherTimings() {
             REPORT(2, "Compute Cell Offsets", TY->ConstructOffsets.Elapsed());
             if(MPI_size_z > 1) REPORT(2, "Unpack MPI Buffer", TY->UnpackRecvBuf.Elapsed());
             REPORT(2, "Taylor FFT", TY->FFTTaylor.Elapsed());
-            REPORT(2, "Taylor R to C", TY->TaylorR2C.Elapsed());
-            REPORT(2, "Taylor Kernel", TY->TaylorKernel.Elapsed());
+            //REPORT(2, "Taylor R to C", TY->TaylorR2C.Elapsed());
+            REPORT(2, "Taylor Kernel + R2C", TY->TaylorKernel.Elapsed());
             REPORT(2, "Taylor Redlack", RL->TaylorRedlack.Elapsed());
 
         if(MPI_size_z > 1){
@@ -523,8 +523,8 @@ void GatherTimings() {
             REPORT_RATE(FinishParticles);
         denom = thistime;
             REPORT(2, "Compute Cell Offsets", MF->ConstructOffsets.Elapsed());
-            REPORT(2, "Multipole Kernel", MF->MultipoleKernel.Elapsed());
-            REPORT(2, "Multipole C to R", MF->MultipoleC2R.Elapsed());
+            REPORT(2, "Multipole Kernel + C2R", MF->MultipoleKernel.Elapsed());
+            //REPORT(2, "Multipole C to R", MF->MultipoleC2R.Elapsed());
             REPORT(2, "Multipole FFT", MF->FFTMultipole.Elapsed());
 
             if(MPI_size_z > 1){
@@ -540,6 +540,7 @@ void GatherTimings() {
     denom = thistime;
         REPORT(2, "Precondition", FinishParticles->ElapsedPrecon());
 		REPORT(2, "Free ReadState Slabs", FinishFreeSlabs.Elapsed());
+        REPORT(2, "Collect IL Gaps", IL->FinishCollectGaps.Elapsed());
         REPORT(2, "Partition Insert List", IL->FinishPartition.Elapsed());
         REPORT(2, "Sort Insert List", IL->FinishSort.Elapsed());
             fprintf(reportfp,"---> %6.2f Mitems/sec (%.2g items)", thistime ? IL->n_sorted/thistime/1e6 : 0., (double) IL->n_sorted);

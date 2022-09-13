@@ -253,17 +253,17 @@ void SlabTaylorMPI::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
         int g = omp_get_thread_num();
         for(int64_t z = 0; z < node_z_size; z++) {
             int64_t i = y*node_z_size + z;
-            _r2c.Start();
+            //_r2c.Start();
             CellTaylorFromPencil(y, cartesian[g], &tbuf[z*rml*cpd]);
-            _r2c.Stop();
+            //_r2c.Stop();
             
-            _tkernel.Start();
+            //_tkernel.Start();
             FLOAT3 *aa = &(FA[offset[i]]);
             memset(aa, 0, sizeof(FLOAT3)*count[i]);
 
             EvaluateTaylor( cartesian[g], 
                                cc[i], count[i], (float3*) &spos[offset[i] + gh_off], aa);
-            _tkernel.Stop();
+            //_tkernel.Stop();
 
         }
     }
@@ -272,7 +272,7 @@ void SlabTaylorMPI::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
     
     wc.Stop();
     
-    double seq = _r2c.Elapsed() + _tkernel.Elapsed();
+    /*double seq = _r2c.Elapsed() + _tkernel.Elapsed();
     double f_r2c = _r2c.Elapsed()/seq;
     double f_kernel = _tkernel.Elapsed()/seq;
 
@@ -280,5 +280,6 @@ void SlabTaylorMPI::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
     struct timespec  seq_tkernel = scale_timer(f_kernel, wc.get_timer() );
 
     TaylorR2C.increment( seq_r2c  );
-    TaylorKernel.increment( seq_tkernel );
+    TaylorKernel.increment( seq_tkernel );*/
+    TaylorKernel.increment( wc.get_timer() );
 }

@@ -7,8 +7,14 @@
 inline void DriftCell(Cell &c, FLOAT driftfactor) {
     int N = c.count();
 
-    FLOAT3 *pos = (FLOAT3*) c.pos;
-    FLOAT3 *vel = (FLOAT3*) c.vel;
+    // __restrict__: tell C++ that despite these pointers
+    // having the same type, they will never overlap.
+    // #pragma omp simd appears to accomplish the same
+    // thing in this case (probably more important
+    // for function parameters).
+
+    FLOAT3 * __restrict__ pos = (FLOAT3*) c.pos;
+    FLOAT3 * __restrict__ vel = (FLOAT3*) c.vel;
     
     #pragma omp simd
     for (int b = 0; b<N; b++) {
@@ -19,8 +25,8 @@ inline void DriftCell(Cell &c, FLOAT driftfactor) {
 
 // Unlike DriftCell, this operator drifts a whole pencil at a time
 void DriftPencil(int slab, int j, FLOAT driftfactor){
-    FLOAT* pos = (FLOAT *) CP->PosCell(slab, j, node_z_start);
-    FLOAT* vel = (FLOAT *) CP->VelCell(slab, j, node_z_start);
+    FLOAT* __restrict__ pos = (FLOAT *) CP->PosCell(slab, j, node_z_start);
+    FLOAT* __restrict__ vel = (FLOAT *) CP->VelCell(slab, j, node_z_start);
 
     // no ghost drift (ghost would use PencilLenWithGhost)
     uint64 Npen = 3*CP->PencilLen(slab, j);

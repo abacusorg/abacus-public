@@ -170,7 +170,7 @@ class GroupFindingControl {
         cellgroups = new SlabAccum<CellGroup>[cpd];
         cellgroups_status = new int[cpd];
         for (int j=0;j<cpd;j++) cellgroups_status[j] = 0;
-        GLL = new GroupLinkList(cpd, np/cpd*linking_length/invcpd*3*15);  // TODO: 2D?
+        GLL = new GroupLinkList(cpd, np/cpd*linking_length/invcpd*3*15);  // TODO: does not appear to rescale for 1D or 2D
         STDLOG(1,"Allocated %.2f GB for GroupLinkList\n", sizeof(GroupLink)*GLL->maxlist/1024./1024./1024.);
         
         setupGGS();

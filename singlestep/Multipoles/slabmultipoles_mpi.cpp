@@ -194,28 +194,30 @@ void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos,
     wc.Start();
     // compute the cell-by-cell multipoles for this node's subslab
     NUMA_FOR(y,0,cpd)
+        double localMassSlabY = 0.;
         int64_t g = omp_get_thread_num();
         for(int64_t z = 0; z < node_z_size; z++) {
-            _kernel.Start();
+            //_kernel.Start();
             int64_t i = y*node_z_size + z;
             EvaluateCartesianMultipoles( &(spos[offset[i]]),
                                     count[i], cc[i], cartesian[g] );
-            _kernel.Stop();
+            //_kernel.Stop();
             
-            _c2r.Start();
+            //_c2r.Start();
             double *reducedcell = &reducedtmp[y*node_z_size*rml + z*rml];
             DispatchCartesian2Reduced(order, cartesian[g], reducedcell);
             
             double Mxyz = reducedcell[0];
             localMassSlabX[g] += Mxyz;
             localMassSlabZ[g*node_z_size + z] += Mxyz;
-            MassSlabY[y] += Mxyz;  // thread dimension, no race TODO: still false sharing
+            localMassSlabY += Mxyz;
             
             localdipole[g] += double3(reducedcell[rmap(1,0,0) ],
                                 reducedcell[rmap(0,1,0) ],
                                 reducedcell[rmap(0,0,1) ] );
-            _c2r.Stop();
+            //_c2r.Stop();
         }
+        MassSlabY[y] += localMassSlabY;
     }
     wc.Stop();
     
@@ -236,13 +238,14 @@ void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos,
     MakeSendRecvBufs(&sendbuf[x], &recvbuf[x], transposetmp);
     DoMPIAllToAll(x, &handle[x], sendbuf[x], recvbuf[x]);
 
-    double seq = _kernel.Elapsed() + _c2r.Elapsed();
+    /*double seq = _kernel.Elapsed() + _c2r.Elapsed();
     
     struct timespec seq_kernel = scale_timer(_kernel.Elapsed()/seq, wc.get_timer() );
     struct timespec seq_c2r = scale_timer(_c2r.Elapsed()/seq, wc.get_timer() );
 
     MultipoleKernel.increment(seq_kernel);
-    MultipoleC2R.increment(seq_c2r);
+    MultipoleC2R.increment(seq_c2r);*/
+    MultipoleKernel.increment(wc.get_timer());
 }
 
 

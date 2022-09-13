@@ -201,7 +201,7 @@ public:
 
     int ForceAuxDensity;  // Use densities from the aux in group finding, even if we have acc densities
 
-    // Return the L{tier} size in MB
+    // Return the L{tier} size in MiB
     double getCacheSize(int tier){
         int cache_size = 0;
         FILE *fp = NULL;
@@ -213,11 +213,11 @@ public:
             fp = fopen(fn, "r");
             if(fp == NULL)
                 break;
-            int nscan = fscanf(fp, "%dK", &cache_size);  // cache size in KB
+            int nscan = fscanf(fp, "%dK", &cache_size);  // cache size in KiB
             fclose(fp);
             assertf(nscan == 1, "Unexpected cache size file format (\"%s\")\n", fn);
         }
-        return cache_size/1024.0;    // to MB
+        return cache_size/1024.0;    // to MiB
     }
     
     // in MB
@@ -787,8 +787,9 @@ void Parameters::ValidateParameters(void) {
         if(!(strcasecmp(ICFormat, "Zeldovich") == 0 ||
             strcasecmp(ICFormat, "RVZel") == 0 ||
             strcasecmp(ICFormat, "RVdoubleZel") == 0)) {
-            fprintf(stderr, "ICFormat %s is not displacement-oriented and LagrangianPTOrder = %d\n",
+            fprintf(stderr, "Warning! ICFormat %s is not displacement-oriented and LagrangianPTOrder = %d. Forcing LagrangianPTOrder = 0.\n",
                     ICFormat, LagrangianPTOrder);
+            LagrangianPTOrder = 0;
         }
     }
 

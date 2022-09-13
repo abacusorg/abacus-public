@@ -330,8 +330,8 @@ def _get_all_acc(param, dtype):
         
     i = 0
     for fn in auxfns:
-        thisaux = np.fromfile(fn, dtype=np.uint64)
-        pid[i:i+len(thisaux)] = thisaux & pid_bitmask
+        thisaux = np.fromfile(fn, dtype=[('aux',np.uint64),('aux2',np.uint32)])
+        pid[i:i+len(thisaux)] = thisaux['aux'] & pid_bitmask
         i += len(thisaux)
     assert i == NP
     
