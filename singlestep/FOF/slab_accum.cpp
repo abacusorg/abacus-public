@@ -252,9 +252,7 @@ class PencilAccum {
     }
     // Provide [] to get to the Cell-based values
     inline CellPtr<T> operator[](int j) { 
-	CellPtr<T> v(data, cells[j]);
-    	return v;
-	// return CellPtr<T>(data,cells[j]);
+        return CellPtr<T>(data,cells[j]);
     }
 
     inline void StartPencil() {

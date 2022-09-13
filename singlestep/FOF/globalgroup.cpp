@@ -264,7 +264,7 @@ class GlobalGroupSlab {
     void HaloOutput();
     void WriteGroupHeaderFile(const char* fn);
     uint64 L0TimeSliceOutput(FLOAT unkick_factor);
-
+    void MarkL0(const std::vector<LinkID>&);
 };
 
 
@@ -448,6 +448,9 @@ void GlobalGroupSlab::ClearDeferrals() {
 }
 
 void GlobalGroupSlab::CreateGlobalGroups() {
+    // This function mostly doesn't touch particle data, but rather groups
+    // and links. It does however mark the L0 bit in the aux for 2D de-duped groups.
+
     // Given pstat[0,cpd)
     assertf(pstat!=NULL,"setup() not yet called\n");   // Setup not yet called!
     IndexLinks();
@@ -542,37 +545,44 @@ void GlobalGroupSlab::CreateGlobalGroups() {
 
                     // Time to build the GlobalGroup
                     // We only track the group if it has more than one particle
-                    if (ggsize>1 && !(dedup && !minz_in_primary)) {
-                        assertf(!touches_zedge, "Found global group that touches the far edge of the ghosts! Likely need to increase GroupRadius.\n");
+                    if (ggsize>1) {
+                        int belongs_to_neighbor = dedup && !minz_in_primary;
+                        assertf(belongs_to_neighbor || !touches_zedge,
+                            "Found global group that touches the far edge of the ghosts! Likely need to increase GroupRadius.\n");
 
-                        int start = gg_list->buffer->get_pencil_size();
-                        // We're going to sort the cellgroup list, so that
-                        // multiple groups within one cell are contiguous
-                        // But there's no point in doing this unless there are 3+ CG.
-                        if (cglist.size()>2) {
-                            std::sort(cglist.data(), cglist.data()+cglist.size());
-                            /*
-                            for (uint64 t = 1; t<cglist.size(); t++) 
-                                assertf(cglist[t-1].id <= cglist[t].id,
-                                    "Failed to sort propertly: %lld > %lld\n", 
-                                        cglist[t-1].id,
-                                        cglist[t].id);
-                            */
-                        }
+                        if(!belongs_to_neighbor){
+                            int start = gg_list->buffer->get_pencil_size();
+                            // We're going to sort the cellgroup list, so that
+                            // multiple groups within one cell are contiguous
+                            // But there's no point in doing this unless there are 3+ CG.
+                            if (cglist.size()>2) {
+                                std::sort(cglist.data(), cglist.data()+cglist.size());
+                                /*
+                                for (uint64 t = 1; t<cglist.size(); t++) 
+                                    assertf(cglist[t-1].id <= cglist[t].id,
+                                        "Failed to sort propertly: %lld > %lld\n", 
+                                            cglist[t-1].id,
+                                            cglist[t].id);
+                                */
+                            }
 
-                        for (uint64 t = 0; t<cglist.size(); t++) {
-                            //integer3 tmp = cglist[t].localcell();
-                            // printf("GGlist: %d %d %d %d\n",
-                                    // tmp.x, tmp.y, tmp.z, cglist[t].cellgroup());
-                            gg_list->append(cglist[t]);
+                            for (uint64 t = 0; t<cglist.size(); t++) {
+                                //integer3 tmp = cglist[t].localcell();
+                                // printf("GGlist: %d %d %d %d\n",
+                                        // tmp.x, tmp.y, tmp.z, cglist[t].cellgroup());
+                                gg_list->append(cglist[t]);
+                            }
+                            // printf("    GGpencil: %d %d %d %d\n", 
+                                    // (int)cglist.size(), start, ggsize, cumulative_np);
+                            gg_pencil->append(GlobalGroup(cglist.size(), start, ggsize, cumulative_np));
+                            cumulative_np += ggsize;
+                            L0stats[omp_get_thread_num()].push(ggsize);
+                            pstat[j].add((uint64)ggsize*(uint64)ggsize);
+                                // Track the later work, assuming scaling as N^2
+                        } else {
+                            // belongs to neighbor, mark L0 and discard
+                            MarkL0(cglist);
                         }
-                        // printf("    GGpencil: %d %d %d %d\n", 
-                                // (int)cglist.size(), start, ggsize, cumulative_np);
-                        gg_pencil->append(GlobalGroup(cglist.size(), start, ggsize, cumulative_np));
-                        cumulative_np += ggsize;
-                        L0stats[omp_get_thread_num()].push(ggsize);
-                        pstat[j].add((uint64)ggsize*(uint64)ggsize);
-                            // Track the later work, assuming scaling as N^2
                     }
                 } // End this group
                 gg_pencil->FinishCell();
@@ -603,6 +613,21 @@ void GlobalGroupSlab::CreateGlobalGroups() {
     return;
 }
 
+
+void GlobalGroupSlab::MarkL0(const std::vector<LinkID> &cglist){
+    // Given a list of LinkIDs, find the corresponding cell groups
+    // and mark the L0 bit on those particles
+
+    for(const LinkID &cglink : cglist){
+        integer3 cellijk = cglink.localcell();
+        cellijk.z += zstart;
+        auxstruct *cellaux = CP->AuxCell(cellijk);
+        CellGroup *cg = LinkToCellGroup(cglink);
+        for(int j = 0; j < cg->size(); j++){
+            cellaux[cg->start + j].set_L0();
+        }
+    }
+}
 
 
 /** Copy all of the particles from the disparate CellGroups into a single list,
