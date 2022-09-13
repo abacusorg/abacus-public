@@ -95,7 +95,8 @@ class PartitionBlock {
         while (1) {
             while (!is_high(list+a,args...)&&a<b) a++;    // So list[a] is high
             while (is_high(list+b,args...)&&a<b) b--;    // So list[b] is low
-            // TODO: If the boolean function call is slow and we want to code equality in-line
+            // If the boolean function call is slow and we want to code equality in-line.
+            // Tests suggest the call is inlined, though.
             // while (list[a]!=slab&&a<b) a++;    // So list[a]==slab
             // while (list[b]==slab&&a<b) b--;    // So list[b]!=slab
             if (a==b) break;

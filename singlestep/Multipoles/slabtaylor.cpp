@@ -156,7 +156,7 @@ void SlabTaylorLocal::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
     // FA: particle accelerations
 
     STimer wc;
-    PTimer _r2c, _tkernel, _zfft;
+    PTimer _r2c, _tkernel, _zfft, _kernel_r2c;
 
     InverseFFTY(transposetmp, TaylorCoefficients);
     wc.Start();
@@ -167,24 +167,26 @@ void SlabTaylorLocal::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
         InverseFFTZ( y, TaylorPencil[g], transposetmp);
         _zfft.Stop();
         
+        _kernel_r2c.Start();
         for(int z=0;z<cpd;z++) {
             int i = y*cpd + z;
-            _r2c.Start();
+            //_r2c.Start();
             CellTaylorFromPencil(z, cartesian[g], TaylorPencil[g]);
-            _r2c.Stop();
+            //_r2c.Stop();
             
-            _tkernel.Start();
+            //_tkernel.Start();
             FLOAT3 *aa = &(FA[offset[i]]);
             memset(aa, 0, sizeof(FLOAT3)*count[i]);
 
             EvaluateTaylor( cartesian[g], 
                                cc[i], count[i], (float3*) &spos[offset[i]], aa);
-            _tkernel.Stop();
+            //_tkernel.Stop();
         }
+        _kernel_r2c.Stop();
     }
     wc.Stop();
     
-    double seq = _r2c.Elapsed() + _tkernel.Elapsed() + _zfft.Elapsed();
+    /*double seq = _r2c.Elapsed() + _tkernel.Elapsed() + _zfft.Elapsed();
     double f_r2c = _r2c.Elapsed()/seq;
     double f_kernel = _tkernel.Elapsed()/seq;
     double f_zfft = _zfft.Elapsed()/seq;
@@ -195,5 +197,15 @@ void SlabTaylorLocal::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
 
     TaylorR2C.increment( seq_r2c  );
     TaylorKernel.increment( seq_tkernel );
+    FFTTaylor.increment( seq_zfft );*/
+
+    double seq = _kernel_r2c.Elapsed() + _zfft.Elapsed();
+    double f_kernel_r2c = _kernel_r2c.Elapsed()/seq;
+    double f_zfft = _zfft.Elapsed()/seq;
+
+    struct timespec  seq_kernel_r2c = scale_timer(f_kernel_r2c, wc.get_timer() );
+    struct timespec  seq_zfft = scale_timer(f_zfft, wc.get_timer() );
+
+    TaylorKernel.increment(seq_kernel_r2c);
     FFTTaylor.increment( seq_zfft );
 }

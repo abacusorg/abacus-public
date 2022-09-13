@@ -110,12 +110,17 @@ public:
     uint64 n_sorted;
     int clearLC;
 
-    STimer FinishPartition, FinishSort;
+    STimer FinishPartition, FinishSort, FinishCollectGaps;
+
+    size_t L2cache_bytes;
 
     InsertList(int cpd, uint64 maxilsize, int _clearLC)
             : grid(cpd), MultiAppendList<ilstruct>(maxilsize, P.InsertListGapElems)  { 
         n_sorted = 0;
         clearLC = _clearLC;  // LC bits used as vel bits in 2LPT
+
+        L2cache_bytes = (size_t) std::round(P.getCacheSize(2)*(1<<20));
+        STDLOG(2, "il sorting will use L2cache=%.3g MiB sublist size\n", (float)L2cache_bytes/(1<<20));
 
         assertf(cpd <= 0xFFFF, "CPD too large for ilstruct 16-bit indices\n");
         return;
@@ -247,10 +252,14 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     // from the InsertList.
 
     uint64 slablength = 0;
-    FinishPartition.Start();
+    
 
     // We've been pushing particles to spread-out locations in the MAL; now make them contiguous
+    FinishCollectGaps.Start();
     CollectGaps();
+    FinishCollectGaps.Stop();
+
+    FinishPartition.Start();
 
     uint64 mid = ParallelPartition(list, length, is_in_slab, slab);  // [0..mid-1] are not in slab, [mid..length-1] are in slab
 
@@ -278,14 +287,14 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
 
     FinishPartition.Stop();
     STDLOG(3, "Partition done, yielding %d particles; starting sort.\n", slablength);
-    FinishSort.Start();
 
     ilstruct *ilnew;
     assert(posix_memalign((void **)&ilnew, CACHE_LINE_SIZE, sizeof(ilstruct)*(slablength)) == 0);
 
+    FinishSort.Start();
     MultiMergeSort<ilstruct> mm;
-    //mm.mmsort(&(list[mid]), ilnew, slablength, cpd*cpd, 2e6, 16);
-    mm.mmsort(&(list[mid]), ilnew, slablength, cpd*0xFFFF, 2e6, 16);  // TODO: does the new ilstruct data model slow down the merge sort?
+    mm.mmsort(&(list[mid]), ilnew, slablength, cpd*0xFFFF, L2cache_bytes, 32);
+    FinishSort.Stop();
     /* VESTIGIAL
     // The following appears to be a superfluous check as well
     for(uint64 i = 1 ; i < slablength; i++)
@@ -315,7 +324,6 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     ShrinkMAL(length - slablength);
     *_slablength = slablength;
 
-    FinishSort.Stop();
     return ilnew;
 }
 

@@ -857,6 +857,9 @@ public:
     }
 
     void action(int slab) {
+        // Usually actions are log level 1, but let's put this at level 0
+        STDLOG(0, "Executing FinishParticles on slab %d\n", slab);
+        
         FinishFreeSlabs.Start();
 
         SB->report_current();

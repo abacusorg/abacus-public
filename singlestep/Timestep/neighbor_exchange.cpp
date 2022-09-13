@@ -150,8 +150,8 @@ private:
            far away from our domain that we will not need them as ghosts.
            Since we can only drift 1 cell under normal conditions, and
            MERGE_GHOST_RADIUS is usually 2, this usually cannot happen.
-           Common exceptions are the ICs (which have some disorder),
-           and MERGE_GHOST_RADIUS=0 (but we probably never do that).
+           Common exceptions are ingestion of ICs (which have some
+           disorder), and the displacement-flipping of 2LPT.
         */
 
         if(WriteState.FullStepNumber != 0 &&
@@ -339,7 +339,7 @@ void SetupNeighborExchange(int first, int nslab){
 }
 
 
-// Called immediately after drift
+// Called before Finish, after incoming Drifts
 void DoNeighborSend(int slab){
     if(neighbor_exchange_is_noop)
         return;

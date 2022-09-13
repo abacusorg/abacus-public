@@ -21,6 +21,7 @@
 #define PTIMER
 
 #include <cassert>
+#include <cstdint>
 #include <time.h>
 
 #ifndef CACHE_LINE_SIZE

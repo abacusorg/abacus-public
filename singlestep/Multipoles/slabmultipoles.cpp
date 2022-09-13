@@ -152,9 +152,10 @@ void SlabMultipolesLocal::ComputeMultipoleFFT( int x, FLOAT3 *spos,
                      int *count, int *offset, FLOAT3 *cc, MTCOMPLEX *out) {
     STimer wc;
     PTimer _kernel, _c2r, _fftz;
+    PTimer _kernel_c2r;
     pdouble localMassSlabX[nprocs];
-    padded<double3> localdipole[nprocs];
     double *localMassSlabZ = new double[nprocs*cpd];
+    padded<double3> localdipole[nprocs];
     
     // Init with OpenMP to preserve thread locality
     #pragma omp parallel for schedule(static)
@@ -168,28 +169,33 @@ void SlabMultipolesLocal::ComputeMultipoleFFT( int x, FLOAT3 *spos,
     wc.Start();
     NUMA_FOR(y,0,cpd)
         int g = omp_get_thread_num();
+        double localMassSlabY = 0;
+        _kernel_c2r.Start();
         for(int z=0;z<cpd;z++) {
-            _kernel.Start();
+            //_kernel.Start();
             int i = y*cpd + z;
             EvaluateCartesianMultipoles( &(spos[offset[i]]),
                                     count[i], cc[i], cartesian[g] );
-            _kernel.Stop();
+            //_kernel.Stop();
             
-            _c2r.Start();
+            //_c2r.Start();
             DispatchCartesian2Reduced(order, cartesian[g], &(rowmultipoles[g][z*rml]));
             double Mxyz = rowmultipoles[g][z*rml];
             localMassSlabX[g] += Mxyz;
             localMassSlabZ[g*cpd + z] += Mxyz;
-            MassSlabY[y] += Mxyz;  // thread dimension, no race TODO: still false sharing
+            localMassSlabY += Mxyz;
             
             localdipole[g] += double3(rowmultipoles[g][z*rml + rmap(1,0,0) ],
                                 rowmultipoles[g][z*rml + rmap(0,1,0) ],
                                 rowmultipoles[g][z*rml + rmap(0,0,1) ] );
-            _c2r.Stop();
+            //_c2r.Stop();
         }
+        _kernel_c2r.Stop();
         _fftz.Start();
         FFTZ( &(transposetmp[y*rml_cpdp1half_pad]), rowmultipoles[g]);
         _fftz.Stop();
+        
+        MassSlabY[y] += localMassSlabY;
     }
     
     for(int g = 0; g < nprocs; g++){
@@ -203,13 +209,17 @@ void SlabMultipolesLocal::ComputeMultipoleFFT( int x, FLOAT3 *spos,
     wc.Stop();
     FFTY(out, transposetmp);
     
-    double seq = _kernel.Elapsed() + _c2r.Elapsed() + _fftz.Elapsed();
+    //double seq = _kernel.Elapsed() + _c2r.Elapsed() + _fftz.Elapsed();
+    double seq = _kernel_c2r.Elapsed() + _fftz.Elapsed();
     
-    struct timespec  seq_kernel = scale_timer(_kernel.Elapsed()/seq, wc.get_timer() );
-    struct timespec  seq_c2r = scale_timer(_c2r.Elapsed()/seq, wc.get_timer() );
-    struct timespec  seq_fftz = scale_timer(_fftz.Elapsed()/seq, wc.get_timer() );
+    //struct timespec  seq_kernel = scale_timer(_kernel.Elapsed()/seq, wc.get_timer() );
+    //struct timespec  seq_c2r = scale_timer(_c2r.Elapsed()/seq, wc.get_timer() );
+    struct timespec seq_kernel_c2r = scale_timer(_kernel_c2r.Elapsed()/seq, wc.get_timer() );
+    struct timespec seq_fftz = scale_timer(_fftz.Elapsed()/seq, wc.get_timer() );
 
-    MultipoleKernel.increment(seq_kernel);
-    MultipoleC2R.increment(seq_c2r);
+    //MultipoleKernel.increment(seq_kernel);
+    //MultipoleC2R.increment(seq_c2r);
+
+    MultipoleKernel.increment(seq_kernel_c2r);
     FFTMultipole.increment(seq_fftz);
 }

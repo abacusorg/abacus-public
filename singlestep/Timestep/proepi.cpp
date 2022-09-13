@@ -42,9 +42,7 @@
 
 #include "numa_for.h"
 
-STimer FinishFreeSlabs; 
-STimer FinishPartition;
-STimer FinishSort;
+STimer FinishFreeSlabs;
 STimer FinishCellIndex;
 STimer FinishMerge;
 STimer ComputeMultipoles;
@@ -360,7 +358,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
         delete density; density = 0;
     }
 
-    SB->report_peak();
+    SB->report_peak(1);
     delete SB;
     SB = NULL;
     STDLOG(2,"Deleted SB\n");
