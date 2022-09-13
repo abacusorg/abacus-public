@@ -81,6 +81,43 @@ void BuildWriteState(double da){
 
     // carry forward
     WriteState.LPTVelScale = ReadState.LPTVelScale;
+
+    // Set the WriteState softening, will be used by the next time step
+
+    // Decrease the softening length if we are doing a 2LPT step
+    // This helps ensure that we are using the true 1/r^2 force
+    /*if(LPTStepNumber()>0){
+        WriteState.SofteningLengthNow = P.SofteningLength / 1e4;  // This might not be in the growing mode for this choice of softening, though
+        STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLengthNow);
+    }
+    else{
+        WriteState.SofteningLengthNow = P.SofteningLength;
+    }*/
+
+    // Is the softening fixed in proper coordinates?
+    if(P.ProperSoftening){
+        WriteState.SofteningLengthNow = min(P.SofteningLength/WriteState.ScaleFactor, P.SofteningMax);
+        STDLOG(1, "Adopting a comoving softening of %d, fixed in proper coordinates\n", WriteState.SofteningLengthNow);
+    }
+    else{
+        WriteState.SofteningLengthNow = P.SofteningLength;
+        STDLOG(1, "Adopting a comoving softening of %d, fixed in comoving coordinates\n", WriteState.SofteningLengthNow);
+    }
+
+    // Now scale the softening to match the minimum Plummer orbital period
+#if defined DIRECTCUBICSPLINE
+    strcpy(WriteState.SofteningType, "cubic_spline");
+    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 1.10064;
+#elif defined DIRECTSINGLESPLINE
+    strcpy(WriteState.SofteningType, "single_spline");
+    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 2.15517;
+#elif defined DIRECTCUBICPLUMMER
+    strcpy(WriteState.SofteningType, "cubic_plummer");
+    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 1.;
+#else
+    strcpy(WriteState.SofteningType, "plummer");
+    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow;
+#endif
 }
 
 void BuildOutputHeaders() {
