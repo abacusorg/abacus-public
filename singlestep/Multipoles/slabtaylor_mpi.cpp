@@ -7,7 +7,6 @@ to gather Z and execute the Z-FFT.
 
 */
 
-
 class SlabTaylorMPI : public SlabTaylor {
 public:
     SlabTaylorMPI(int order, int cpd);
@@ -24,11 +23,11 @@ public:
 
 private:
     int node_ky_size;  // size of ky on this node, after transpose with z
-    Complex *transposetmp;
-    Complex *ytmp;
+    mpi_complex_t *transposetmp;
+    mpi_complex_t *ytmp;
 
-    Complex **sendbuf;
-    Complex **recvbuf;
+    mpi_complex_t **sendbuf;
+    mpi_complex_t **recvbuf;
 
     MPI_Request *handle;
     int *mpi_status;  // 0 = waiting; 1 = send/recv; 2 = done
@@ -40,13 +39,12 @@ private:
     int *recvdispls;  // offset of chunk to send to rank i
 
 
-    void InverseFFTZ(Complex *out, const MTCOMPLEX *in);
-    void InverseFFTY(double *out, const Complex *in);
+    void InverseFFTZ(mpi_complex_t *out, const MTCOMPLEX *in);
+    void InverseFFTY(double *out, const mpi_complex_t *in);
 
-    void MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const Complex *in);
-    void DoMPIAllToAll(int slab, MPI_Request *handle, const Complex *sbuf, Complex *rbuf);
+    void MakeSendRecvBufs(mpi_complex_t **sbuf, mpi_complex_t **rbuf, const mpi_complex_t *in);
+    void DoMPIAllToAll(int slab, MPI_Request *handle, const mpi_complex_t *sbuf, mpi_complex_t *rbuf);
 
-    const MPI_Datatype mpi_dtype = MPI_C_DOUBLE_COMPLEX;
 };
 
 
@@ -71,11 +69,11 @@ SlabTaylorMPI::SlabTaylorMPI(int order, int cpd)
     
     node_ky_size = node_cpdp1half;
 
-    assert(posix_memalign((void **) &transposetmp, PAGE_SIZE, sizeof(Complex)*node_ky_size*rml*cpd) == 0);
-    assert(posix_memalign((void **) &ytmp, PAGE_SIZE, sizeof(Complex)*node_z_size*rml*cpdp1half) == 0);
+    assert(posix_memalign((void **) &transposetmp, PAGE_SIZE, sizeof(mpi_complex_t)*node_ky_size*rml*cpd) == 0);
+    assert(posix_memalign((void **) &ytmp, PAGE_SIZE, sizeof(mpi_complex_t)*node_z_size*rml*cpdp1half) == 0);
 
-    sendbuf = new Complex*[cpd]();  // sendbuf[x] will be allocated on-demand
-    recvbuf = new Complex*[cpd]();
+    sendbuf = new mpi_complex_t*[cpd]();  // sendbuf[x] will be allocated on-demand
+    recvbuf = new mpi_complex_t*[cpd]();
 
     handle = new MPI_Request[cpd];
     mpi_status = new int[cpd];
@@ -112,7 +110,7 @@ void SlabTaylorMPI::ComputeIFFTZAndMPI(int x, MTCOMPLEX *tslab){
 }
 
 
-void SlabTaylorMPI::DoMPIAllToAll(int slab, MPI_Request *handle, const Complex *sbuf, Complex *rbuf){
+void SlabTaylorMPI::DoMPIAllToAll(int slab, MPI_Request *handle, const mpi_complex_t *sbuf, mpi_complex_t *rbuf){
     AllToAll.Start();
     MPI_Ialltoallv((const void *) sbuf, sendcounts,
         senddispls, mpi_dtype,
@@ -150,15 +148,16 @@ int SlabTaylorMPI::IsMPIDone(int slab){
 }
 
 
-void SlabTaylorMPI::MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const Complex *in){
+void SlabTaylorMPI::MakeSendRecvBufs(mpi_complex_t **sbuf, mpi_complex_t **rbuf, const mpi_complex_t *in){
     // in: [node_ky_size, rml, cpd]
     // sbuf: [cpd, rml, node_ky_size]
 
     FillMPIBufs.Start();
     assert(posix_memalign((void **) sbuf, PAGE_SIZE,
-        sizeof(Complex) * node_ky_size * cpd * rml) == 0);  // all z, some ky
+        sizeof(mpi_complex_t) * node_ky_size * cpd * rml) == 0);  // all z, some ky
     assert(posix_memalign((void **) rbuf, PAGE_SIZE,
         sizeof(Complex) * cpdp1half * node_z_size * rml) == 0);  // all ky, some z
+        // N.B. rbuf is intentionally overallocated to type Complex so we can reuse it as tbuf
 
     #pragma omp parallel for schedule(static)
     for(int64_t z = 0; z < cpd; z++){
@@ -173,7 +172,7 @@ void SlabTaylorMPI::MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const Compl
 }
 
 
-void SlabTaylorMPI::InverseFFTZ(Complex *out, const MTCOMPLEX *in){
+void SlabTaylorMPI::InverseFFTZ(mpi_complex_t *out, const MTCOMPLEX *in){
     // in: [cpd, rml, node_ky_size]
     // out: [node_ky_size, rml, cpd]
     
@@ -189,13 +188,13 @@ void SlabTaylorMPI::InverseFFTZ(Complex *out, const MTCOMPLEX *in){
             fftw_execute( plan_backward_c2c_1d[g] );
             
             for(int64_t z = 0; z < cpd; z++)
-                out[y*rml*cpd + m*cpd + z] = out_1d[g][z];
+                out[y*rml*cpd + m*cpd + z] = (mpi_complex_t) out_1d[g][z];
         }
     }
     FFTZTaylor.Stop();
 }
 
-void SlabTaylorMPI::InverseFFTY(double *out, const Complex *in){
+void SlabTaylorMPI::InverseFFTY(double *out, const mpi_complex_t *in){
     // in: [node_z_size, rml, cpdp1half]
     // out: [node_z_size, rml, cpd]
 
@@ -204,7 +203,7 @@ void SlabTaylorMPI::InverseFFTY(double *out, const Complex *in){
         for(int64_t m = 0; m < rml; m++) {
             int g = omp_get_thread_num();
             for(int64_t ky = 0; ky < cpdp1half; ky++)
-                in_c2r[g][ky] = in[z*rml*cpdp1half + m*cpdp1half + ky];
+                in_c2r[g][ky] = (Complex) in[z*rml*cpdp1half + m*cpdp1half + ky];
             fftw_execute( plan_backward_c2r_1d[g] );
             for(int64_t y = 0; y < cpd; y++)
                 out[z*rml*cpd + m*cpd + y] = out_c2r[g][y];
@@ -219,7 +218,7 @@ void SlabTaylorMPI::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
     // FA: particle accelerations
 
     UnpackRecvBuf.Start();
-    Complex *rbuf = recvbuf[x];
+    mpi_complex_t *rbuf = recvbuf[x];
 
     // unpack the MPI rbuf into ytmp
     // rbuf: [MPI_size_z, node_z_size, rml, all_node_ky_size[node]]
@@ -240,7 +239,7 @@ void SlabTaylorMPI::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
     UnpackRecvBuf.Stop();
 
     FFTTaylor.Start();
-    double *tbuf = (double *) rbuf;  // reuse recvbuf
+    double *tbuf = (double *) rbuf;  // reuse recvbuf, was overallocated
     InverseFFTY(tbuf, ytmp);
     FFTTaylor.Stop();
 

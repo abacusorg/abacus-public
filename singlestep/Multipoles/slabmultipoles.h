@@ -47,7 +47,6 @@ protected:
     double **in_r2c;
     Complex **out_r2c;
     double **cartesian;
-    Complex *transposetmp;
     int nprocs;
 
     int rml_cpdp1half_pad;
@@ -63,6 +62,7 @@ public:
 
 private:
     double **rowmultipoles;
+    Complex *transposetmp;
 
     void FFTY(MTCOMPLEX *out, const Complex *in);
     void FFTZ(Complex *out, const double *in);

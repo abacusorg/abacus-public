@@ -1,4 +1,16 @@
 
+#ifdef MULTIPOLE_2D_MPI_USE_FLOAT
+// Precision of network transfers (Taylors and Multipoles)
+using mpi_complex_t = std::complex<float>;
+const MPI_Datatype mpi_dtype = MPI_C_FLOAT_COMPLEX;
+
+#else
+
+using mpi_complex_t = std::complex<double>;
+const MPI_Datatype mpi_dtype = MPI_C_DOUBLE_COMPLEX;
+
+#endif
+
 class SlabMultipolesMPI : public SlabMultipoles { 
 public:
     
@@ -14,10 +26,11 @@ private:
     int node_ky_size;  // size of ky on this node, after transpose with z
 
     double *reducedtmp;
-    Complex *ztmp;
+    mpi_complex_t *ztmp;
+    mpi_complex_t *transposetmp;
     
-    Complex **sendbuf;
-    Complex **recvbuf;
+    mpi_complex_t **sendbuf;
+    mpi_complex_t **recvbuf;
 
     MPI_Request *handle;
     int *mpi_status;  // 0 = waiting; 1 = send/recv; 2 = done
@@ -28,13 +41,11 @@ private:
     int *recvcounts;  // num elements to send to rank i
     int *recvdispls;  // offset of chunk to send to rank i
 
-    void FFTY(Complex *out, const double *in);
-    void FFTZ(MTCOMPLEX *out, const Complex *in);
+    void FFTY(mpi_complex_t *out, const double *in);
+    void FFTZ(MTCOMPLEX *out, const mpi_complex_t *in);
     
-    void MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const Complex *in);
-    void DoMPIAllToAll(int slab, MPI_Request *handle, const Complex *sbuf, Complex *rbuf);
-
-    const MPI_Datatype mpi_dtype = MPI_C_DOUBLE_COMPLEX;
+    void MakeSendRecvBufs(mpi_complex_t **sbuf, mpi_complex_t **rbuf, const mpi_complex_t *in);
+    void DoMPIAllToAll(int slab, MPI_Request *handle, const mpi_complex_t *sbuf, mpi_complex_t *rbuf);
 };
 
 SlabMultipolesMPI::~SlabMultipolesMPI(void) {
@@ -58,8 +69,8 @@ SlabMultipolesMPI::SlabMultipolesMPI(int order, int cpd)
 
     node_ky_size = node_cpdp1half;
 
-    sendbuf = new Complex*[cpd]();  // sendbuf[x] will be allocated on-demand
-    recvbuf = new Complex*[cpd]();
+    sendbuf = new mpi_complex_t*[cpd]();  // sendbuf[x] will be allocated on-demand
+    recvbuf = new mpi_complex_t*[cpd]();
 
     handle = new MPI_Request[cpd];
     mpi_status = new int[cpd];
@@ -83,14 +94,13 @@ SlabMultipolesMPI::SlabMultipolesMPI(int order, int cpd)
     }
 
     assert(posix_memalign((void **) &reducedtmp, PAGE_SIZE, sizeof(double) * cpd * node_z_size * rml) == 0);
-    // TODO: could halve MPI data if we use MTCOMPLEX
-    assert(posix_memalign((void **) &transposetmp, PAGE_SIZE, sizeof(Complex) * cpdp1half * rml * node_z_size) == 0);
+    assert(posix_memalign((void **) &transposetmp, PAGE_SIZE, sizeof(mpi_complex_t) * cpdp1half * rml * node_z_size) == 0);
     
     assert(posix_memalign((void **) &ztmp, PAGE_SIZE,
-        sizeof(Complex) * node_ky_size * cpd * rml) == 0);  // all z, some ky
+        sizeof(mpi_complex_t) * node_ky_size * cpd * rml) == 0);  // all z, some ky
 }
 
-void SlabMultipolesMPI::FFTY(Complex *out, const double *in) {
+void SlabMultipolesMPI::FFTY(mpi_complex_t *out, const double *in) {
     // in:  [cpd, node_z_size, rml]
     // out: [node_z_size, rml, (cpd+1)/2]
 
@@ -104,13 +114,13 @@ void SlabMultipolesMPI::FFTY(Complex *out, const double *in) {
             fftw_execute(plan_forward_r2c_1d[g]);
 
             for(int64_t y=0; y < cpdp1half; y++)
-                out[ z*cpdp1half*rml + m*cpdp1half + y]  = out_r2c[g][y];
+                out[ z*cpdp1half*rml + m*cpdp1half + y] = (mpi_complex_t) out_r2c[g][y];
         }
     }
     FFTMultipole.Stop();
 }
 
-void SlabMultipolesMPI::MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const Complex *in){
+void SlabMultipolesMPI::MakeSendRecvBufs(mpi_complex_t **sbuf, mpi_complex_t **rbuf, const mpi_complex_t *in){
     // in: [node_z_size, rml, (cpd+1)/2]
     // out: [(cpd+1)/2, rml, node_z_size]
 
@@ -118,9 +128,9 @@ void SlabMultipolesMPI::MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const C
 
     // TODO: could make these arenas, would get good reuse
     assert(posix_memalign((void **) sbuf, PAGE_SIZE,
-        sizeof(Complex) * cpdp1half * node_z_size * rml) == 0);  // all ky, some z
+        sizeof(mpi_complex_t) * cpdp1half * node_z_size * rml) == 0);  // all ky, some z
     assert(posix_memalign((void **) rbuf, PAGE_SIZE,
-        sizeof(Complex) * node_ky_size * cpd * rml) == 0);  // all z, some ky
+        sizeof(mpi_complex_t) * node_ky_size * cpd * rml) == 0);  // all z, some ky
 
     // fill sendbuf
     #pragma omp parallel for schedule(static)
@@ -135,7 +145,7 @@ void SlabMultipolesMPI::MakeSendRecvBufs(Complex **sbuf, Complex **rbuf, const C
     FillMPIBufs.Stop();
 }
 
-void SlabMultipolesMPI::DoMPIAllToAll(int slab, MPI_Request *handle, const Complex *sbuf, Complex *rbuf){
+void SlabMultipolesMPI::DoMPIAllToAll(int slab, MPI_Request *handle, const mpi_complex_t *sbuf, mpi_complex_t *rbuf){
     // FUTURE: MPI-4 supports MPI_Ialltoallv_c, with 64-bit counts.
     // But all HPC MPI-3 implementations seem to support > 2 GB data, as long as the counts are 32-bit.
     AllToAll.Start();
@@ -259,7 +269,7 @@ void SlabMultipolesMPI::ComputeFFTZ(int x, MTCOMPLEX *outslab){
 
     UnpackRecvBuf.Start();
 
-    Complex *rbuf = recvbuf[x];
+    mpi_complex_t *rbuf = recvbuf[x];
 
     // recvbuf: [MPI_size_z, node_ky_size, rml, all_node_z_size[node]]
     // ztmp: [node_ky_size, rml, cpd]
@@ -279,7 +289,6 @@ void SlabMultipolesMPI::ComputeFFTZ(int x, MTCOMPLEX *outslab){
 
     UnpackRecvBuf.Stop();
 
-    // TODO: decide if we're going to do MPI in complex<double> or not
     MTCOMPLEX *rbuf32 = (MTCOMPLEX *) recvbuf[x];
 
     // Now FFT from ztmp back into recvbuf[x]
@@ -307,7 +316,7 @@ void SlabMultipolesMPI::ComputeFFTZ(int x, MTCOMPLEX *outslab){
 }
 
 
-void SlabMultipolesMPI::FFTZ(MTCOMPLEX *out, const Complex *in) {
+void SlabMultipolesMPI::FFTZ(MTCOMPLEX *out, const mpi_complex_t *in) {
     // out: shape [node_ky_size, rml, cpd]
     // in: shape [node_ky_size, rml, cpd]
 
@@ -319,12 +328,12 @@ void SlabMultipolesMPI::FFTZ(MTCOMPLEX *out, const Complex *in) {
         for(int64_t m = 0; m < rml; m++) {
             int g = omp_get_thread_num();
             for(int64_t z = 0; z < cpd; z++)
-                in_1d[g][z] = in[y*rml*cpd + m*cpd + z];
+                in_1d[g][z] = (Complex) in[y*rml*cpd + m*cpd + z];
             
             fftw_execute( plan_forward_c2c_1d[g] );
 
             for(int64_t kz = 0; kz < cpd; kz++)
-                out[y*rml*cpd + m*cpd + kz] = out_1d[g][kz];
+                out[y*rml*cpd + m*cpd + kz] = (MTCOMPLEX) out_1d[g][kz];
         }
     }
 

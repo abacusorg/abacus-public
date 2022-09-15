@@ -407,6 +407,13 @@ if test x$enable_block_accum == xyes; then
     AC_DEFINE_UNQUOTED(BLOCK_ACCUM, [], "Enable GPU block-level intermediate acceleration accumulators")
 fi
 
+AC_ARG_ENABLE(2d-multipole-mpi-float,
+[AS_HELP_STRING([--enable-2d-multipole-mpi-float], [Use float instead of double for MPI multipole transposes in the 2D code [yes]])],
+    [], enable_2d_multipole_mpi_float="yes")
+if test x$enable_2d_multipole_mpi_float == xyes; then
+    AC_DEFINE_UNQUOTED(MULTIPOLE_2D_MPI_USE_FLOAT, [], "Use single-precision instead of double for MPI multipole transposes in the 2D code")
+fi
+
 # If the user is using Anaconda Python, we have to be careful
 # about how we build C/C++ libraries that will be loaded by Python.
 # Anaconda Python has the Python executable rpath set to find

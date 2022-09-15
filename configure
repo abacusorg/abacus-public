@@ -739,6 +739,7 @@ with_page_size
 enable_numa_for
 enable_multiple_comm
 enable_block_accum
+enable_2d_multipole_mpi_float
 with_ramdisk
 '
       ac_precious_vars='build_alias
@@ -1393,6 +1394,9 @@ Optional Features:
   --enable-multiple-comm  Enable multiple MPI communicators [yes]
   --enable-block-accum    Enable GPU block-level intermediate acceleration
                           accumulators [yes]
+  --enable-2d-multipole-mpi-float
+                          Use float instead of double for MPI multipole
+                          transposes in the 2D code [yes]
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -6818,6 +6822,21 @@ if test x$enable_block_accum == xyes; then
 
 cat >>confdefs.h <<_ACEOF
 #define BLOCK_ACCUM /**/
+_ACEOF
+
+fi
+
+# Check whether --enable-2d-multipole-mpi-float was given.
+if test "${enable_2d_multipole_mpi_float+set}" = set; then :
+  enableval=$enable_2d_multipole_mpi_float;
+else
+  enable_2d_multipole_mpi_float="yes"
+fi
+
+if test x$enable_2d_multipole_mpi_float == xyes; then
+
+cat >>confdefs.h <<_ACEOF
+#define MULTIPOLE_2D_MPI_USE_FLOAT /**/
 _ACEOF
 
 fi
