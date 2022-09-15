@@ -177,9 +177,6 @@ int main(int argc, char **argv) {
     SET_LOG_REFERENCE_TIME;  // Establish the base timestamp
         // but logging still not available until setup_log() below!
 
-    //Enable floating point exceptions
-    feenableexcept(FE_INVALID | FE_DIVBYZERO);
-
     WallClockDirect.Start();
     SingleStepSetup.Start();
 
@@ -191,6 +188,10 @@ int main(int argc, char **argv) {
 
     // Set up MPI
     StartMPI();  // call MPI_Init as early as possible
+
+    //Enable floating point exceptions
+    feenableexcept(FE_INVALID | FE_DIVBYZERO);
+    
     P.ReadParameters(argv[1],0);
 
     InitializeParallelTopology();  // MPI_rank now available

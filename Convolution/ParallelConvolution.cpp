@@ -347,7 +347,8 @@ void ParallelConvolution::AllocDerivs(){
 	// 2D: deriv files are [ky][m][kx], read a subset of ky (kx has length cpdp1half)
 	dfile_offset = MPI_size_z > 1 ? sizeof(DFLOAT)*rml*(cpd+1)/2*all_node_ky_start[MPI_rank_z] : 0;
 	
-    ramdisk_derivs = is_path_on_ramdisk(P.DerivativesDirectory);
+    ramdisk_derivs = is_path_on_ramdisk(P.DerivativesDirectory) &&
+						MPI_size_z == 1;  // TODO: need page padding for ramdisk mapping
 	
 	Ddisk = new DFLOAT*[znode];
 	for(int z = 0; z < znode; z++)
@@ -409,6 +410,8 @@ void ParallelConvolution::LoadDerivatives(int z) {
 		
 	    // map the shared memory fd to an address
 		// TODO 2D: deriv files may need padding such that dfile_offset is page-aligned
+		// Alternatively, map the whole thing (need to keep original pointers for munmap).
+		// But that's slower.
 	    Ddisk[z] = (DFLOAT *) mmap(NULL, Ddisk_bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, dfile_offset);
 	    int res = close(fd);
 	    assertf((void *) Ddisk[z] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, Ddisk_bytes);

@@ -60,6 +60,8 @@ def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False,
         Default: based on affinity mask
     '''
 
+    # TODO: stage 2D derivs to node-local storage
+
     # We will attempt to copy derivatives from the archive dir if they aren't found
     if search_dirs == True:
         search_dirs = []
@@ -69,6 +71,7 @@ def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False,
                 search_dirs += [Path(os.environ[var]) / sdir_name]
         if 'DerivativesSourceDirectory' in param:
             search_dirs += [param['DerivativesSourceDirectory']]
+            # TODO: if we create new derivs, copy them back to DerivativesSourceDirectory
 
     if type(search_dirs) is str:
         search_dirs = [search_dirs]
