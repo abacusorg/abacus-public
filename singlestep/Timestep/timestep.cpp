@@ -66,6 +66,10 @@ void InitializeForceRadius(int NoForces){
     FORCE_RADIUS = NoForces ? 0 : P.NearFieldRadius;
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
     STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
+
+    // The IL will use this to size itself
+    if(MPI_size_z > 1) NeighborRecvEvent::receive_ahead = 3;
+    else NeighborRecvEvent::receive_ahead = 0;
 }
 
 

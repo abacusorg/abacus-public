@@ -126,7 +126,7 @@ public:
         return;
     }
     ~InsertList(void) {
-        STDLOG(1, "Insert list peak usage was %.1f%%\n", 100.*longest/maxlist);
+        STDLOG(0, "Insert list peak usage was %.1f%%\n", 100.*longest/maxlist);
     }
 
     // Push to the end of the list and grow

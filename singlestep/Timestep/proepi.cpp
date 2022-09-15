@@ -252,18 +252,28 @@ void Prologue(Parameters &P, int MakeIC, int NoForces) {
 
     STDLOG(2,"Setting up insert list\n");
     // IC steps and LPT steps may need more IL slabs.  Their pipelines are not as long as full (i.e. group finding) steps
-    if(P.NumSlabsInsertListIC == 0) P.NumSlabsInsertListIC = 2*FINISH_WAIT_RADIUS + 12;
-    // IL can be filled from drift or neighbor recv. Multiply by 2x for manifest.
-    if(P.NumSlabsInsertList == 0) P.NumSlabsInsertList = 2*(DriftDep::drift_ahead + NeighborRecvEvent::receive_ahead);
-    double drift_efficiency = 0.5;  // conservative upper bound on rebinned frac, 0.8**3
+    if(P.NumSlabsInsertListIC == 0){
+        P.NumSlabsInsertListIC = 2*FINISH_WAIT_RADIUS + 12;
+    }
+    if(P.NumSlabsInsertList == 0) {
+        // IL can be filled from drift or neighbor recv. Multiply by 2x for manifest.
+        P.NumSlabsInsertList = 2*(DriftDep::drift_ahead + NeighborRecvEvent::receive_ahead);
+    }
 
     uint64 maxILsize = P.np+1;
-    int num_slab_il = 0;
-    num_slab_il = (MakeIC || LPTStepNumber() > 0) ? P.NumSlabsInsertListIC : P.NumSlabsInsertList;
+    int num_slab_il;
+    double drift_efficiency;
+    if(MakeIC || LPTStepNumber() > 0){
+        num_slab_il = P.NumSlabsInsertListIC;
+        drift_efficiency = 1.;
+    } else {
+        num_slab_il = P.NumSlabsInsertList;
+        drift_efficiency = 0.5;  // conservative estimate of rebinned frac, 0.8**3
+    }
     maxILsize = maxILsize*num_slab_il*(node_z_size*drift_efficiency + 2*MERGE_GHOST_RADIUS)/P.cpd/P.cpd + 1;
     int clearLC = LPTStepNumber() == 0;  // LC bits used as vel bits during 2LPT
+    STDLOG(2,"Maximum insert list size = %l, allocating %.3g GB\n", maxILsize, maxILsize*sizeof(ilstruct)/1e9);
     IL = new InsertList(cpd, maxILsize, clearLC);
-    STDLOG(2,"Maximum insert list size = %l, allocated %.3g GB\n", maxILsize, maxILsize*sizeof(ilstruct)/1e9);
 
     STDLOG(2,"Setting up IO\n");
 
