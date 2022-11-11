@@ -154,9 +154,10 @@ void PlanOutput(bool MakeIC) {
     // Just let later routines know that this is a valid epoch
     // for output, e.g., not a LPT IC epoch.
     ReadState.OutputIsAllowed = 1;
+    if(P.OutputEveryStep) ReadState.DoTimeSliceOutput = 1;
 
     // Now check whether we're asked to do a TimeSlice.
-	if (ReadState.DoTimeSliceOutput || P.OutputEveryStep == 1) {
+	if (ReadState.DoTimeSliceOutput) {
 	    STDLOG(0,"Planning to output a TimeSlice\n");
 	    char slicedir[128];
 	    sprintf(slicedir,"slice%5.3f", ReadState.Redshift);

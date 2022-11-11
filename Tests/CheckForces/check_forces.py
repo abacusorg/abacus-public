@@ -154,7 +154,7 @@ def run(ppd=None, cpd=None, order=DEFAULT_ORDER, dtype=np.float32, force_output_
 # We only return a single acc slab for plotting; all the accelerations might be too big!
 def analyze_storeforces(params, dtype, slabfns=None, silent=False, raw=False):
     if slabfns is None:
-        slabfns = sorted(Path(params['OutputDirectory']).glob("acc_*"))
+        slabfns = sorted((Path(params['OutputDirectory']) / 'acc' / 'Step0001').glob("acc_*"))
 
     n1d = int(round(params['NP']**(1./3)))
     
@@ -250,8 +250,8 @@ def analyze_forceoutputdebug(params, dtype):
     running_max = 0.
     running_min = np.inf
     running_min_nz = np.inf
-    for nearfn, farfn in zip(sorted(Path(params['OutputDirectory']).glob("nearacc_*")),
-                             sorted(Path(params['OutputDirectory']).glob("faracc_*"))):
+    for nearfn, farfn in zip(sorted((Path(params['OutputDirectory']) / 'acc' / 'Step0001').glob("nearacc_*")),
+                             sorted((Path(params['OutputDirectory']) / 'acc' / 'Step0001').glob("faracc_*"))):
         nacc = np.fromfile(nearfn, dtype=dtype)
         facc = np.fromfile(farfn, dtype=dtype)
         nacc *= rescale
@@ -308,7 +308,7 @@ def plot_storeforces(fmag, figfn='checkforces_storeforces_absolute.png'):
 
 def _get_all_acc(param, dtype):
     
-    accfns = sorted(Path(param['OutputDirectory']).glob('acc_*'))
+    accfns = sorted((Path(param['OutputDirectory']) / 'acc' / 'Step0001').glob('acc_*'))
     auxfns = sorted(Path(param.get('ReadStateDirectory', Path(param['LocalWorkingDirectory']) / 'read')).glob('aux*_*'))
     pid_bitmask=0x7fff7fff7fff
     

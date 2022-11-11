@@ -774,8 +774,14 @@ public:
 
         if(NFD){
             // We kept the accelerations until here because of third-order LPT
-            if (P.StoreForces == 1) {
+            if (P.StoreForces == 1 || (P.StoreForces == 3 && ReadState.DoTimeSliceOutput)) {
                 STDLOG(1,"Storing Forces in slab %d\n", slab);
+                if(this->raw_number_executed == 0){
+                    CreateSubDirectory(P.OutputDirectory, "acc");
+                    char dir[32];
+                    sprintf(dir, "Step%04d", ReadState.FullStepNumber);
+                    CreateSubDirectory((std::string(P.OutputDirectory) + "/acc").c_str(), dir);
+                }
                 SB->StoreArenaBlocking(AccSlab,slab);
             }
             else{

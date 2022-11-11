@@ -178,7 +178,7 @@ def check_storeforces(param, dtype=DEFAULT_DTYPE):
     
     acc = np.empty((NP,3), dtype=dtype)
     i = 0
-    for accfn in sorted(Path(param.get('OutputDirectory')).glob('acc_*')):
+    for accfn in sorted((Path(param.get('OutputDirectory')) / 'acc' / 'Step0001').glob('acc_*')):
         # TODO: better detection of acc3 or acc4
         thisacc = np.fromfile(accfn, dtype=dtype).reshape(-1,4)
         acc[i:i+len(thisacc)] = thisacc[:,:3]

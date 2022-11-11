@@ -398,9 +398,9 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         case MergePosSlab        : { ss << P.LocalWriteStateDirectory << "/position_"   << slabnum; break; }
         case MergeVelSlab        : { ss << P.LocalWriteStateDirectory << "/velocity_"   << slabnum; break; }
         case MergeAuxSlab        : { ss << P.LocalWriteStateDirectory << "/auxillary_"  << slabnum; break; }
-        case AccSlab             : { ss << P.OutputDirectory << "/acc_"            << slabnum; break; }
-        case NearAccSlab         : { ss << P.OutputDirectory << "/nearacc_"        << slabnum; break; }
-        case FarAccSlab          : { ss << P.OutputDirectory << "/faracc_"         << slabnum; break; }
+        case AccSlab             : { ss << P.OutputDirectory << "/acc/Step" << stepnum << "/acc_" << slabnum; break; }
+        case NearAccSlab         : { ss << P.OutputDirectory << "/acc/Step" << stepnum << "/nearacc_" << slabnum; break; }
+        case FarAccSlab          : { ss << P.OutputDirectory << "/acc/Step" << stepnum << "/faracc_" << slabnum; break; }
 
         case L1halosSlab           : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_info_"           << slabnum; break;}
 

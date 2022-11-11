@@ -134,7 +134,7 @@ public:
     int PowerSpectrumN1d; //1D number of bins to use in the powerspectrum
 
     int LogVerbosity;   // If 0, production-level log; higher numbers are more verbose
-    int StoreForces; // If 1, store the accelerations
+    int StoreForces; // If 1, store the accelerations. 2 = separate near and far forces. 3 = only on output steps
     int ForceOutputDebug; // If 1, output near and far forces seperately. 
 
     int MakeGlass; // Reverse the sign of the acceleration
