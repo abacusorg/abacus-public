@@ -86,8 +86,6 @@ second set of bits. That's 0x07ff 7fff 7fff 7fff.
 #define AUXPIDMASK 0x7fff7fff7fff
 
 #define NAUXPIDBITS 45  // total of 45 bits used for PIDs
-#define PIDBITGAP 1  // one bit in between each PID segment
-
 
 #define AUX_LPTVXZEROBIT 48
 #define AUX2_LPTVYZEROBIT 0
@@ -137,10 +135,16 @@ public:
     // Take a pid and distribute its values to the three segements used for PIDs
     void packpid(uint64 _pid){
         assert(_pid <= ((uint64) 1 << NAUXPIDBITS));
-        uint64 pid = (_pid & AUXXPID) | (_pid << PIDBITGAP & AUXYPID) | (_pid << 2*PIDBITGAP & AUXZPID);
+        uint64 pid = (_pid & AUXXPID) | (_pid << 1 & AUXYPID) | (_pid << 2 & AUXZPID);
         _setpidbits(pid);
     }
 
+    // Take a distributed PID and unpack the bits back into a contiguous convention.
+    // Not commonly used.
+    uint64 unpackpid(){
+        uint64 pidbits = aux & AUXPIDMASK;
+        return (pidbits & AUXXPID) | ((pidbits & AUXYPID) >> 1) | ((pidbits & AUXZPID) >> 2);
+    }
 
     // We will provide a group ID too; this may overwrite the PID.
     uint64 gid() { return pid(); }

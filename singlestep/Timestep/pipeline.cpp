@@ -742,7 +742,7 @@ public:
         // We can't move particles until they've been used as gravity sources
         // However, we only use PosXYZSlab as sources, so we're free to move PosSlab
 
-        if(Drift->raw_number_executed > FinishParticles->raw_number_executed + drift_ahead){
+        if(this->raw_number_executed > FinishParticles->raw_number_executed + drift_ahead){
             // Don't flood the IL
             return 0;
         }

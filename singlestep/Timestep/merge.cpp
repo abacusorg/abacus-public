@@ -405,7 +405,7 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
             // PID corruption
             if(P.MaxPID >= 0){
     			for (int j = 0; j < mc.count(); j++) {
-    				assertf(mc.aux[j].pid() < P.MaxPID, "PID %d bigger than MaxPID %d\n", mc.aux[j].pid(), P.MaxPID);
+    				assertf(mc.aux[j].unpackpid() < P.MaxPID, "PID %d bigger than MaxPID %d\n", mc.aux[j].unpackpid(), P.MaxPID);
     			}
             }
         }

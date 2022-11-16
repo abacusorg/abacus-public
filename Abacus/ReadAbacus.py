@@ -424,9 +424,10 @@ def read_packN(N, fn, return_pos=True, return_vel=True, zspace=False, return_pid
         NP = reader(data, data.nbytes, nthread, zspace, downsample, posout, velout, pidout)
         
     if N == 9 and return_pid:
+        pid_bitmask=np.uint64(0x7fff7fff7fff)
         pidfn = fn.replace('pack9.dat', 'pack9_pids.dat')
         npid = Path(pidfn).stat().st_size // pidout.dtype.itemsize  # no header
-        pidout[:npid] = np.fromfile(pidfn, dtype=pidout.dtype)
+        pidout[:npid] = np.fromfile(pidfn, dtype=pidout.dtype) & pid_bitmask
 
     _out.meta['read_time'] = timer.elapsed + _out.meta.get('read_time',0.)
     _out.meta['unpack_time'] = unpack_timer.elapsed + _out.meta.get('unpack_time',0.)
