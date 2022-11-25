@@ -130,6 +130,10 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     groupdir  = params.get('GroupDirectory', '')
     basedir = params['WorkingDirectory']
 
+    # might be global; might be local
+    multipoledir = params.get('MultipoleDirectory', '')
+    taylordir = params.get('TaylorDirectory', '')
+
     resumedir = ""
     if parallel:
         resumedir = pjoin(dirname(params['WorkingDirectory']), params['SimName'] + '_retrieved_state')
@@ -151,14 +155,19 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
 
     # If not resuming, erase old global dirs
     if clean:
-        clean_dir(basedir, preserve=icdir if not erase_ic else None)
-        clean_dir(outdir, preserve=icdir if not erase_ic else None)
-        clean_dir(logdir, preserve=icdir if not erase_ic else None)
-        clean_dir(groupdir, preserve=icdir if not erase_ic else None)
-        clean_dir(lcdir, preserve=icdir if not erase_ic else None)
+        clean_dirs( ( basedir,
+                      outdir,
+                      logdir,
+                      groupdir,
+                      lcdir,
+                      multipoledir,
+                      taylordir ),
+                    preserve=icdir if not erase_ic else None
+                  )
         #NAM make prettier.
         if parallel and path.exists(resumedir):
-            clean_dir(resumedir, preserve=icdir if not erase_ic else None)
+            clean_dirs([resumedir],
+                preserve=icdir if not erase_ic else None)
 
     os.makedirs(basedir, exist_ok=True)
 
@@ -220,33 +229,35 @@ def copy_contents(in_dir, out_dir, clean=True, ignore='*.py'):
         shutil.copy(fn, out_dir)
 
 
-def clean_dir(bd, preserve=None, rmdir_ifempty=True):
+def clean_dirs(dirs, preserve=None, rmdir_ifempty=True):
     '''
-    Remove the contents of a directory except for the path
+    Remove the contents of a list of directories, except for the path
     specified in the "preserve" argument.  Optionally remove
     the directory itself if it's empty.
     '''
-    if bd == None:
-        return 0
 
-    if path.exists(bd):
-        # Erase everything in basedir except the ICs
-        for d in os.listdir(bd):
-            d = pjoin(bd, d)
-            try:
-                if preserve and path.samefile(d, preserve):
-                    continue
-            except OSError:
-                pass  # icdir may not exist
-            try:
-                shutil.rmtree(d)
-            except OSError:
-                os.remove(d)  # may have been a file, not a dir
-        if rmdir_ifempty:
-            try:
-                os.rmdir(bd)
-            except OSError:
-                pass
+    for bd in dirs:
+        if bd == None:
+            return 0
+
+        if path.exists(bd):
+            # Erase everything in basedir except the ICs
+            for d in os.listdir(bd):
+                d = pjoin(bd, d)
+                try:
+                    if preserve and path.samefile(d, preserve):
+                        continue
+                except OSError:
+                    pass  # icdir may not exist
+                try:
+                    shutil.rmtree(d)
+                except OSError:
+                    os.remove(d)  # may have been a file, not a dir
+            if rmdir_ifempty:
+                try:
+                    os.rmdir(bd)
+                except OSError:
+                    pass
 
 
 def default_parser():
@@ -331,6 +342,17 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
             if 'TaylorDirectory2' not in params:
                 param_kwargs['TaylorDirectory2'] = pjoin(os.environ['ABACUS_SSD2'], params['SimName'], 'taylor2')
 
+    if not params.get('Parallel',False):
+        # In the parallel code, we don't know Multipole/TaylorDirectory until
+        # inside singlestep (the path uses the rank). So we should leave those
+        # dirs unset in Python. But when we switch to the serial code, we want
+        # to set the paths here so we can slosh or do other manipulations.
+        if not params.get('TaylorDirectory'):
+            param_kwargs['TaylorDirectory'] = pjoin(os.environ['ABACUS_SSD'], params['SimName'], 'taylor')
+        if not params.get('MultipoleDirectory'):
+            param_kwargs['MultipoleDirectory'] = pjoin(os.environ['ABACUS_SSD'], params['SimName'], 'multipole')
+
+
     params = GenParam.makeInput(output_parfile, parfn, **param_kwargs)
 
     return params
@@ -345,7 +367,7 @@ def check_multipole_taylor_done(param, state, kind):
     assert kind in ['Multipole', 'Taylor']
     rml = (param.Order+1)**2
     sizeof_Complex = 16 if state.DoublePrecision else 8
-    size = param.CPD*(param.CPD+1)/2*rml*sizeof_Complex
+    size = param.CPD*(param.CPD+1)//2*rml*sizeof_Complex
 
     even_dir = param[kind+'Directory']
     odd_dir = param.get(kind+'Directory2', param[kind+'Directory'])

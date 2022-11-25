@@ -7,6 +7,7 @@ LogDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@ + "/log"
 OutputDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@
 LightConeDirectory =  "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@ + "/lightcone"
 DerivativesDirectory = "$ABACUS_SSD$/Derivatives"
+DerivativesSourceDirectory = "$ABACUS_PERSIST$/Derivatives"
 BackupDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@
 GroupDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@ + "/group"
 ZeldovichDirectory = "$ABACUS$/external/zeldovich-PLT"

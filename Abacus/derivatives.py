@@ -7,41 +7,44 @@ This module can be invoked as an executable via:
 $ python -m Abacus.derivatives --help
 '''
 
-from pathlib import Path
-import shutil
-import os
 import multiprocessing
+import os
+import shlex
+import shutil
+from pathlib import Path
 
-import numpy as np
 import numba
+import numpy as np
 import tqdm
 
-from .Tools import call_subprocess
-from .abacus import abacuspath
 from . import convert_derivs_to_float32
+from .abacus import abacuspath
+from .Tools import call_subprocess
+
 abacuspath = Path(abacuspath)
 
 maxthreads = len(os.sched_getaffinity(0))
 
 
-def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False,
-                        nworker=None, nthread=None):
+def make_derivatives(param, floatprec=False, twoD=False,
+                        nworker=None, nthread=None, _stage=True):
     '''
     Main entry point to create derivatives (1D or 2D).
 
-    Look for the derivatives required for param and make them if they don't exist.
-    If derivatives for the 2D code are required, will first create the 1D
-    derivatives, and then reflect them into 2D.
+    Look for the derivatives required for param and make them if they don't
+    exist. If derivatives for the 2D code are required, will first create the
+    1D derivatives, and then reflect them into 2D.
+
+    Derivatives are copied from DerivativesSourceDirectory to
+    DerivativesDirectory if necessary.
+
+    DerivativesSourceDirectory must be globally accessible in the parallel
+    code.
 
     Parameters
     ----------
     param : dict
         The parameters dictionary
-
-    search_dirs : bool, path-like, or iterable of path-like (optional)
-        The directories to search. `True` (default) searches
-        param['DerivativesSourceDirectory'] if given, and
-        canonical dirs based on environment variables
 
     floatprec : bool (optional)
         Make the derivatives available in float32 precision.
@@ -58,31 +61,25 @@ def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False,
     nthread : int or None (optional)
         The number of threads to use for CPU work.
         Default: based on affinity mask
+
+    _stage : bool (optional)
+        Copy the result to DerivativesDirectory, which may be node-local.
+        This is used internally.
+        Default: True.
+
+    Returns
+    -------
+    source_paths: list of pathlib.Path
+        The paths to the derivative files in the global dir
     '''
 
-    # TODO: stage 2D derivs to node-local storage
-
-    # We will attempt to copy derivatives from the archive dir if they aren't found
-    if search_dirs == True:
-        search_dirs = []
-        for var in ('ABACUS_PERSIST', 'ABACUS_SSD', 'ABACUS_DERIVS'):
-            if var in os.environ:
-                sdir_name = 'Derivatives/2D' if twoD else 'Derivatives'
-                search_dirs += [Path(os.environ[var]) / sdir_name]
-        if 'DerivativesSourceDirectory' in param:
-            search_dirs += [param['DerivativesSourceDirectory']]
-            # TODO: if we create new derivs, copy them back to DerivativesSourceDirectory
-
-    if type(search_dirs) is str:
-        search_dirs = [search_dirs]
-    search_dirs = [Path(d) for d in search_dirs]
-
-    derivsdir = Path(param['DerivativesDirectory'])
+    source_dir = Path(param['DerivativesSourceDirectory'])
+    derivs_dir = Path(param['DerivativesDirectory'])
     if twoD:
-        derivsdir /= '2D'
-    derivsdir.mkdir(parents=True, exist_ok=True)
-
-    search_dirs = list(filter(lambda d: not (d.exists() and derivsdir.samefile(d)), search_dirs))
+        source_dir /= '2D'
+        derivs_dir /= '2D'
+    source_dir.mkdir(parents=True, exist_ok=True)
+    derivs_dir.mkdir(parents=True, exist_ok=True)
 
     CPD = param['CPD']
     order = param['Order']
@@ -92,56 +89,130 @@ def make_derivatives(param, search_dirs=True, floatprec=False, twoD=False,
     stem32 = '_float32' if floatprec else ''
     stem2D = '_2D' if twoD else ''
     zmax = CPD if twoD else (CPD//2 + 1)
-    dnames = [ f"fourierspace{stem32}{stem2D}_{CPD}_{order}_{NFR}_{DER}_{i}"
-                for i in range(zmax) ]
-    dpaths = [ derivsdir / dn for dn in dnames ]
+    dprefix = f"fourierspace{stem32}{stem2D}_{CPD}_{order}_{NFR}_{DER}"
+    dnames = [ f"{dprefix}_{i}" for i in range(zmax) ]
+    dpaths = [ derivs_dir / dn for dn in dnames ]
+    dpaths_source = [ source_dir / dn for dn in dnames ]
+
+    have_derivs = all( dpath.is_file() for dpath in dpaths )
+    have_derivs_in_source = all( p.is_file() for p in dpaths_source )
 
     nworker = nworker or param.get('PyIOConcurrency',1)
     nthread = nthread or maxthreads
 
-    # First check if the derivatives are in the DerivativesDirectory
-    if not all( dpath.is_file() for dpath in dpaths ):
-        # If not, maybe they exist elsewhere
-        for sdir in search_dirs:
-            if all( (sdir / dn).is_file() for dn in dnames ):
-                print(f'Found derivatives in "{sdir}". Copying to "{derivsdir}"')
-                for dn in dnames:
-                    shutil.copy(sdir / dn, derivsdir / dn)
-                break
+    if not have_derivs and not have_derivs_in_source:
+        # Going to have to make derivs
+        print(f'Could not find derivatives in DerivativesDirectory="{derivs_dir}"\n'
+                f'\tor DerivativesSourceDirectory="{source_dir}". Creating them...')
+
+        if twoD:
+            # Need to make 2D. First ensure 1D exists.
+            source_paths_1d = make_derivatives(param, twoD=False,
+                floatprec=floatprec, _stage=False)
+            make_2d(source_paths_1d[0].parent, param, floatprec=floatprec, nworker=nworker, nthread=nthread)
+            have_derivs_in_source = True
+
+        elif floatprec:
+            # first make sure the derivatives exist in double format
+            source_paths_64 = make_derivatives(param, twoD=False, floatprec=False, _stage=False)
+            # now make a 32-bit copy
+            for p in tqdm.tqdm(source_paths_64, desc='derivs 64-bit to 32-bit', unit='file'):
+                convert_derivs_to_float32.convert(p)
+            have_derivs_in_source = True
+
         else:
-            print(f'Could not find derivatives in "{derivsdir}" or search dirs "{search_dirs}". Creating them...')
+            # Call the exe to make 1D, double-precision derivs
 
-            if twoD:
-                # Need to make 2D. First ensure 1D exists.
-                make_derivatives(param, twoD=False, floatprec=floatprec)
-                make_2d(param, floatprec=floatprec, nworker=nworker, nthread=nthread)
+            create_derivs_cmd = [str(abacuspath / "Derivatives" / "CreateDerivatives"),
+                    str(CPD), str(order), str(NFR), str(DER)]
 
-            elif floatprec:
-                # first make sure the derivatives exist in double format
-                dpaths64 = make_derivatives(param, twoD=False, floatprec=False)
-                # now make a 32-bit copy
-                for dpath64 in tqdm.tqdm(dpaths64, desc='derivs 64-bit to 32-bit', unit='file'):
-                    convert_derivs_to_float32.convert(dpath64)
-
-            else:
-                # Call the exe to make 1D, double-precision derivs
-
-                create_derivs_cmd = [str(abacuspath / "Derivatives" / "CreateDerivatives"),
-                        str(CPD), str(order), str(NFR), str(DER)]
-
-                (derivsdir / 'farderivatives').unlink(missing_ok=True)
+            (derivs_dir / 'farderivatives').unlink(missing_ok=True)
+            
+            for a in list(range(1,9)) + [16]:
+                ADfn = f'AD32_{a:03d}.dat'
+                source_ADfn = abacuspath / "Derivatives" / ADfn
+                if not (derivs_dir / ADfn).is_file():
+                    shutil.copy(source_ADfn, derivs_dir)
                 
-                for a in list(range(1,9)) + [16]:
-                    ADfn = f'AD32_{a:03d}.dat'
-                    source_ADfn = abacuspath / "Derivatives" / ADfn
-                    if not (derivsdir / ADfn).is_file():
-                        shutil.copy(source_ADfn, derivsdir)
-                    
-                call_subprocess(create_derivs_cmd, cwd=derivsdir)
-                assert all( dpath.is_file() for dpath in dpaths )
+            call_subprocess(create_derivs_cmd, cwd=derivs_dir)
+            assert all( dpath.is_file() for dpath in dpaths )
 
-    return dpaths
+            # could create in either derivs_dir or source_dir,
+            # but maybe derivs_dir is faster because we do many appends
+            have_derivs = True
 
+    if derivs_dir.samefile(source_dir):
+        have_derivs = True
+        have_derivs_in_source = True
+
+    if not have_derivs_in_source:
+        print(f'Staging out derivatives from local to global')
+        # if we have local, stage out to global
+        assert have_derivs
+        for dn in dnames:
+            shutil.copy(derivs_dir / dn, source_dir / dn)
+
+    if _stage:
+        stage_derivs(source_dir, derivs_dir, dnames, param, have_derivs)
+
+    return dpaths_source
+
+
+def stage_derivs(source_dir, derivs_dir, dnames, params, have_derivs):
+    '''Copy the derivatives from global disk to local storage.
+
+    This will just be an ordinary copy in the serial code.
+
+    In the parallel code, this will invoke mpirun to have each node copy to
+    itself.  Each node will copy all derivs.  In a larger refactoring, this
+    could be improved (TODO).
+
+    Parameters
+    ----------
+    source_dir : pathlib.Path
+        The source directory. In the parallel code, all nodes must see this
+        directory.
+
+    derivs_dir : pathlib.Path
+        Destination directory. May be node-local.
+
+    dnames : iterable of path-like
+        File names to copy
+
+    params: dict
+        Simulation parameters
+
+    have_derivs: bool
+        Whether derivs_dir has the derivatives
+    '''
+
+    #CPD = params['CPD']
+    parallel = params.get('Parallel', False)
+    #twoD = params.get('NumZRanks',1) > 1
+
+    # Note the serial, have_derivs case is a no-op
+
+    if parallel:
+        if source_dir.samefile(derivs_dir):
+            # probably pure global
+            return
+
+        mpirun_cmd = shlex.split(params['mpirun_cmd'])
+
+        # stage in to local
+        mkdir_cmd = mpirun_cmd + ['mkdir', '-p', str(derivs_dir)]
+        cp_prefix = mpirun_cmd + ['cp', '-t', str(derivs_dir)]
+        spaths = [source_dir / dn for dn in dnames]
+        cp_cmd = cp_prefix + spaths
+        log_cmd = " ".join(cp_prefix) + f' {spaths[0]} ...'
+        print(f'Staging derivatives to nodes with command "{log_cmd}"')
+        call_subprocess(mkdir_cmd)
+        call_subprocess(cp_cmd)
+    elif not have_derivs:
+        print(f'Copying derivatives from "{source_dir}" to "{derivs_dir}"')
+        for dn in dnames:
+            shutil.copy(source_dir / dn, derivs_dir / dn)
+        
 
 # Helpers to create the 2D derivs
 
@@ -216,7 +287,7 @@ def reflect_z(fq):
     return newz
 
 
-def make_2d(param, floatprec=True, nworker=1, nthread=1):
+def make_2d(derivs_dir, param, floatprec=True, nworker=1, nthread=1):
     assert nthread >= nworker
     
     #nthread_per_worker = np.diff(nthread*np.arange(nworker+1)//nworker)
@@ -231,15 +302,15 @@ def make_2d(param, floatprec=True, nworker=1, nthread=1):
 
     rmap = rmapper(order)
 
-    derivsdir = Path(param['DerivativesDirectory'])
-    twoDdir = derivsdir / '2D'
+    derivs_dir = Path(derivs_dir)
+    twoDdir = derivs_dir / '2D'
     twoDdir.mkdir(exist_ok=True)
 
     f32 = '_float32' if floatprec else ''
     nfr = param['NearFieldRadius']
     der = param['DerivativeExpansionRadius']
 
-    state = dict(inprefix = derivsdir / f'fourierspace{f32}_{cpd}_{order}_{nfr}_{der}',
+    state = dict(inprefix = derivs_dir / f'fourierspace{f32}_{cpd}_{order}_{nfr}_{der}',
                  outprefix = twoDdir / f'fourierspace{f32}_2D_{cpd}_{order}_{nfr}_{der}',
                  rml=rml,
                  halfquadxy=halfquadxy,
