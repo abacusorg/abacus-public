@@ -21,7 +21,6 @@ OPT := -g
 # definitely not a preprocessor option, but it's the one flag we pass to gcc and g++:
 CPPFLAGS := @DEFS@ -m64 -I $(ROOT_DIR)/include $(OPT) $(LDFLAGS)
 #CPPFLAGS += -Wall  #TODO: clean up compiler warnings
-#CPPFLAGS += -fsanitize=address,undefined
 
 # We use bash syntax in some Makefiles
 SHELL := /bin/bash
@@ -101,7 +100,8 @@ FFTW_OMP_LIBS := -lfftw3_omp -lfftw3f_omp
 # But it might be easier to leave compiler customizations here for people to edit
 ifeq (@REAL_CXX@,g++)
     CXX_MAJOR_VER := $(shell $(CXX) -dumpversion | cut -f1 -d.)
-    CPPFLAGS += -O3
+    CPPFLAGS += -Ofast
+    #CPPFLAGS += -fsanitize=address,undefined
 
     ifeq (@ARCH@,powerpc)
         # powerpc does not accept -march=native
@@ -116,11 +116,11 @@ ifeq (@REAL_CXX@,g++)
         THREAD_CPPFLAGS += -foffload=disable
     endif
 else ifeq (@REAL_CXX@,icc)
-    CPPFLAGS += -O3 -xHost -fp-model precise -fbuiltin -ip -mkl -tbb #-ipo #-prof-use=weighted
-    NVCC_XCOMPILERFLAGS += -fp-model precise -ip -mkl -tbb
+    CPPFLAGS += -Ofast -xHost -qmkl -qtbb #-prof-use=weighted
+    NVCC_XCOMPILERFLAGS += -qmkl -qtbb
 
-    FFTW_LIBS := -mkl
-    FFTW_OMP_LIBS := -mkl
+    FFTW_LIBS := -qmkl
+    FFTW_OMP_LIBS := -qmkl
 
 else ifeq (@REAL_CXX@,xlc++)
     CPPFLAGS += -O5

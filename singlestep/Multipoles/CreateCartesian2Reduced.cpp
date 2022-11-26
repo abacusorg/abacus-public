@@ -282,10 +282,9 @@ void DumpCartesian2Reduced(FILE *fp, int order, int a, int b, int c) {
     for(int i=0;i<completemultipolelength;i++) {
         LLI p = rp[rmap(a,b,c)].C[i];
         if(p!=0) {
-            fprintf(fp,"s += %lld * cm[%d];\n", p, i);
+            fprintf(fp,"s += %lld * %lld * cm[%d];\n", ff[rmap(a,b,c)], p, i);
         }
     }
-    fprintf(fp,"s *= %lld;\n", ff[rmap(a,b,c)]);
     fprintf(fp,"return s;\n");
     fprintf(fp,"}\n");
 }
@@ -318,9 +317,9 @@ void CreateC2R(int order) {
     }
 
     fprintf(fp, "\ntemplate <int Order>\n"
-        "void Cartesian2Reduced(double *cm, double *rm);\n\n");
+        "void Cartesian2Reduced(double * __restrict__ cm, double * __restrict__ rm);\n\n");
 
-    fprintf(fp,"template <>\nvoid Cartesian2Reduced<%d>(double *cm, double *rm) { \n", order);
+    fprintf(fp,"template <>\nvoid Cartesian2Reduced<%d>(double * __restrict__ cm, double * __restrict__ rm) { \n", order);
     FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
         int rm = rmap(a,b,c);
         fprintf(fp," rm[%d] = Cartesian2Reduced%d_%d_%d_%d(cm); \n", rm, order,a,b,c);
@@ -346,7 +345,7 @@ void CreateDispatchFunction(){
         "   switch(order){\n"
     );
 
-    for(int i = 1; i <= MAXORDER; i++){
+    for(int i = 0; i <= MAXORDER; i++){
         fprintf(fp, "        case %d: Cartesian2Reduced<%d>(cartesian, reduced); break;\n", i, i);
     }
 

@@ -1,20 +1,19 @@
-# Script to build the python module "AbacusCosmo"
-# which is an interface to Abacus' Cosmology module.
+# Build the AbacusCosmo extension using pybind11
 
-# Build with the command:
-# python setup.py build_ext --inplace
-
-# See README for usage.
-
-from distutils.core import setup, Extension
 import os
+from setuptools import setup
+from pathlib import Path
 
-abacus = os.path.expandvars('$ABACUS')
+from pybind11.setup_helpers import Pybind11Extension, build_ext
 
-setup(ext_modules=[Extension('_AbacusCosmo',
-                    sources=['{abacus}/include/Cosmology.cpp'.format(abacus=abacus), 'AbacusCosmo.i'],
-                    include_dirs=['{abacus}/include'.format(abacus=abacus)],
-                    swig_opts=['-I{abacus}/include'.format(abacus=abacus), '-c++'],
-                    )
-                  ]
-      )
+ABACUS = Path(os.getenv('ABACUS'))
+
+ext_modules = [
+    Pybind11Extension(
+        "AbacusCosmo",
+        ['bind.cpp'],
+        include_dirs=[ABACUS/'include'],
+    ),
+]
+
+setup(ext_modules=ext_modules, cmdclass={"build_ext": build_ext})

@@ -170,6 +170,8 @@ class SOcell {
     long long numcg;     ///< Total number of cell groups considered
     long long numgroups; ///< Total number of groups defined (even if smaller than minmass)
 
+    int use_aux_dens;  ///< Densities from acc or aux?
+
     char pad[CACHE_LINE_SIZE];    // Just to ensure an array of these always fall on
         // a different cache line
 
@@ -283,6 +285,9 @@ class SOcell {
         assertf(sizeof(FOFparticle)==16, "FOFparticle is illegal size!");
     #endif
         assertf(sizeof(FOFgroup)%16==0, "FOFgroup is illegal size!");
+
+        use_aux_dens = GFC->use_aux_dens;
+
         return;
     }
 
@@ -925,7 +930,8 @@ int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, FLOAT3p1 *acc, in
     set_reference_cell(pos[0]);
     for (int j=0; j<np; j++) {
         p[j] = FOFparticle(pos[j],j);
-        density[j] = acc[j].w; 
+        if(use_aux_dens) density[j] = aux[j].get_density();
+        else density[j] = acc[j].w;
         cellindex[j] = compute_cellindex(pos[j]);
     }
     // Remove: Copy.Stop() was here

@@ -30,6 +30,16 @@ The particles in the pencils have been shifted to the cell-centered
 coordinate system of the central cell.  In this way, a sink and source
 pencils' coordinates differ only in a Y offset, which is added on
 the fly.
+
+2D:
+In the 2D code, the main differences are that we do not compute ghost
+accelerations (i.e. no ghost sinks), and the z-dimension is not periodic.
+The PencilPlans deal with this by setting the particle count to zero
+for cells outside this node's domain.
+
+Since the AccSlabs don't hold ghosts, the indexing is thus different
+from the PosXYZSlab. Each PencilPlan therefore holds an indexing offset
+to be applied on-the-fly when indexing positions instead of accels.
 */
 
 #ifndef __SIC_HH
@@ -61,7 +71,7 @@ of the periodic wrap of the coordinates.
 */
 class CellPencilPlan {
 public:
-    unsigned int start;   //< The starting position of the posXYZ for this cell
+    unsigned int start;   //< The starting position of the particles for this cell (no ghosts)
     int N;	//< The number of particles in this cell
 
     #ifdef GLOBAL_POS
@@ -81,16 +91,17 @@ class SinkPencilPlan {
     // we need access to Nslab to compute PosXYZ offsets
     // but we make a lot of these objects; let's let the SIC hold on to that instead
     // and pass it as an arg
-    int wrapcell;  //< The first cell that crosses the periodic wrap, or -1 if none
-    int contig;  //< The number of particles before the wrap
+    int wrapcell;  //< The first cell that crosses the periodic wrap, or 0 if none
     // The cells are not assumed to be contiguous (e.g., periodic wraps)
     // These arrays are sized to the max size in config.h
 
+    unsigned int ghostoffset;  //< 2D: offset between pos and acc indices, for this row
+
     void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total,
-    	void *SinkPosSlab, int NearFieldRadius, uint64 Nslab);
+    	FLOAT *SinkPosSlab, int NearFieldRadius, uint64 Nslab);
     void copy_from_pinned_memory(void *pinacc, int start, int total, 
     	void *SinkAccSlab, int sinkindex, int NearFieldRadius, uint64 Nslab);
-    int load(int x, int y, int z, int NearFieldRadius);
+    int load(int x, int y, int z, int NearFieldRadius, int truncate);
 };
 
 
@@ -105,7 +116,7 @@ class SourcePencilPlan {
     // These arrays are sized to the max size in config.h
 
     void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total,
-    	void **SourcePosSlab, int NearFieldRadius, uint64 *Nslab);
+    	FLOAT **SourcePosSlab, int NearFieldRadius, uint64 *Nslab);
     int load(int x, int y, int z, int NearFieldRadius);
 };
 
@@ -164,9 +175,9 @@ class SetInteractionCollection{
         static pthread_mutex_t GPUTimerMutex;
         static STimer GPUThroughputTimer;
 
-	void  *SinkPosSlab;    ///< Ptr to the start of the PosXYZ slab
-	void  *SourcePosSlab[2*NFRADIUS+1];    ///< Ptr to the start of the PosXYZ slabs for Sources
-	void *SinkAccSlab;  ///< Ptr to the start of the slab of accelerations for this sink slab
+	FLOAT  *SinkPosSlab;    ///< Ptr to the start of the PosXYZ slab
+	FLOAT  *SourcePosSlab[2*NFRADIUS+1];    ///< Ptr to the start of the PosXYZ slabs for Sources
+	accstruct *SinkAccSlab;  ///< Ptr to the start of the slab of accelerations for this sink slab
 
         int *           SinkSetStart; ///< The index in the Sink Pos/Acc lists where this set begins
         int *           SinkSetCount; ///< The number of particles in the SinkSet
@@ -183,6 +194,8 @@ class SetInteractionCollection{
         volatile int CompletionFlag;   ///< This gets set when the force calculation is done
 
         int         SlabId;	///< The X slab number
+        int         k_low;      ///< The minimum sink Z
+        int         k_high;     ///< The maximum sink Z
 	int	    Nk;		///< The number of Z cells
         int         j_low;	///< The minimum sink Y
         int         j_high;	///< The maximum sink Y+1 [j_low,j_high)
@@ -237,7 +250,7 @@ class SetInteractionCollection{
 	int PaddedSourceCount(int sourceindex);
 		///< Returns the padded length of the array for this pencil
 
-	int index_to_zcen(int j);
+	int index_to_zcen(int j, int twoD);
 		///< Returns the zcentral cell given the internal j indexing
 
 

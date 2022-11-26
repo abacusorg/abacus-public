@@ -2,22 +2,25 @@ class InCoreConvolution : public basemultipoles {
 private:
     Complex *_mcache,*_tcache;
     double *_dcache,*mfactor;
-    int cpd,cpd2pad,blocksize,nblocks,cpdhalf,CompressedMultipoleLengthXY;
+    int cpd,cpdky_pad,blocksize,nblocks,cpdhalf,CompressedMultipoleLengthXY;
     const int thread_padding = 1024;
     int bufsize, padblocksize, blocksize_even;
+    int twoD;  // Load the derivatives in the format expected by the 2D code
+    int kysize;  // 2D: each z-slab has [x: 0..cpd][y: 0..kysize]
 
 public:
-    InCoreConvolution(int order, int cpd, int blocksize, int _cpd2pad = 0) : 
-            basemultipoles(order), cpd(cpd), blocksize(blocksize) {
+    InCoreConvolution(int order, int cpd, int _kysize, int blocksize, int _twoD, int _cpdky_pad = 0) : 
+            basemultipoles(order), cpd(cpd), blocksize(blocksize), twoD(_twoD), kysize(_kysize) {
 				
 		STDLOG(3," Entering ICC constructor\n");
-		//in normal case, a set of x-y multipoles has cpd*cpd cells. in the parallel case, though, we pad out y to cpd2pad -- some number slightly bigger than cpd. 
+		// In the serial case, a set of x-y multipoles has cpd*cpd cells.
+        // In the parallel case, we pad out y to _cpdky_pad -- some number slightly bigger than cpd*node_ky_size.
 		
-		if (_cpd2pad == 0) cpd2pad = cpd * cpd; 
-		else cpd2pad = _cpd2pad; 
+		if (_cpdky_pad == 0) cpdky_pad = cpd * kysize; 
+		else cpdky_pad = _cpdky_pad;
 		
-        CompressedMultipoleLengthXY  = ((1+cpd)*(3+cpd))/8;
-        nblocks = (cpd*cpd)/blocksize;
+        CompressedMultipoleLengthXY  = ((1+cpd)*(3+cpd))/8;  // only 1D
+        nblocks = (cpd*kysize)/blocksize;
         cpdhalf = (cpd-1)/2;
 
         /* We're going to allocate a bunch of work arrays, three per thread.
@@ -227,10 +230,10 @@ inline void Set_Vector_to_Zero(Complex *t, int n) {
 // And now here's the main routine
 
 void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
-    // why is this 50% faster with dynamic?
 	
 	STDLOG(3, "Entering InCoreConvolve\n");
 
+    // why is this 50% faster with dynamic?
 	#pragma omp parallel for schedule(dynamic)
     for(int block=0;block<nblocks;block++) {
             
@@ -248,7 +251,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
         xyzbegin = block*blocksize;
         // Load the reduced multipoles into the cache
         FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
-            FM = &(FFTM[rmap(a,b,c) * cpd2pad + xyzbegin]);
+            FM = &(FFTM[rmap(a,b,c) * cpdky_pad + xyzbegin]);
             int m = cmap(a,b,c)*padblocksize;
             FOR(xyz,0,blocksize-1) mcache[m + xyz] = FM[xyz];
         }
@@ -272,51 +275,79 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
             // FOR(xyz,0,blocksize-1) FM[xyz] *= mf;
         }
 
-        // Load the derivatives.  This requires some care.
-        // The derivatives were only stored in one half-quadrant.
-        // Swapping (x,y) and (i,j) makes no change; that completes the quadrant.
-        // Then the other quadrants are related by parity.
-        
-        FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
+        if(twoD){
+            // Load the derivatives, stored as [ky: 0..kysize][m: 0..rml][kx: 0..cpdp1half]
+            // ky and kx are stored as a full quadrant, rather than half
 
-            int m = cmap(a,b,c)*padblocksize;
-            // Rather than unpacking the (x,y) by mod, we'll do 
-            // one and then increment
-            int y = xyzbegin%cpd;
-            int x = (xyzbegin-y)/cpd;
-            FOR(xyz,0,blocksize-1) {
-                /// int l = xyzbegin + xyz;
-                /// int y = l%cpd;
-                /// int x = (l-y)/cpd;
-                int xp = x; if(xp>cpdhalf) xp = cpd - x;
-                int yp = y; if(yp>cpdhalf) yp = cpd - y;
+            FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
 
-                double xR;
-                if(yp>=xp)  {
-                    int i = rmap(b,a,c)*CompressedMultipoleLengthXY;
-                    xR = (double) CompressedD[ i + (yp*(yp+1))/2 + xp ];
+                int m = cmap(a,b,c)*padblocksize;
+                // Rather than unpacking the (x,y) by mod, we'll do 
+                // one and then increment
+                int y = xyzbegin%kysize;
+                int x = xyzbegin/kysize;
+                FOR(xyz,0,blocksize-1) {
+                    int xp = x; if(xp>cpdhalf) xp = cpd - x;
+                    int yp = y; if(yp>cpdhalf) yp = cpd - y;  // kysize never exceeds cpdhalf in 2D
+
+                    double xR = (double) CompressedD[ yp*rml*(cpd+1)/2 + rmap(a,b,c)*(cpd+1)/2 + xp ];
+
+                    if( (yp!=y) && ((b&0x1)==1) ) xR *= -1;  // not triggered in 2D
+                    if( (xp!=x) && ((a&0x1)==1) ) xR *= -1;
+                    dcache[m + xyz] = xR;
+                    y++;
+                    if (y==kysize) { y = 0; x++; }  // Accomplish the mod wrap
                 }
-                else {
-                    int i = rmap(a,b,c)*CompressedMultipoleLengthXY;
-                    xR = (double) CompressedD[ i + (xp*(xp+1))/2 + yp ];
-                }
-
-                if( (yp!=y) && ((b&0x1)==1) ) xR *= -1;
-                if( (xp!=x) && ((a&0x1)==1) ) xR *= -1;
-                dcache[m + xyz] = xR;
-                y++;
-                if (y==cpd) { y = 0; x++; }  // Accomplish the mod wrap
             }
+
+        } else {  // 1D
+            
+            // Load the derivatives.  This requires some care.
+            // The derivatives were only stored in one half-quadrant.
+            // Swapping (x,y) and (i,j) makes no change; that completes the quadrant.
+            // Then the other quadrants are related by parity.
+            
+            FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
+
+                int m = cmap(a,b,c)*padblocksize;
+                // Rather than unpacking the (x,y) by mod, we'll do 
+                // one and then increment
+                int y = xyzbegin%kysize;
+                int x = xyzbegin/kysize;
+                FOR(xyz,0,blocksize-1) {
+                    /// int l = xyzbegin + xyz;
+                    /// int y = l%cpd;
+                    /// int x = (l-y)/cpd;
+                    int xp = x; if(xp>cpdhalf) xp = cpd - x;
+                    int yp = y; if(yp>cpdhalf) yp = cpd - y;
+
+                    double xR;
+                    if(yp>=xp)  {
+                        int i = rmap(b,a,c)*CompressedMultipoleLengthXY;
+                        xR = (double) CompressedD[ i + (yp*(yp+1))/2 + xp ];
+                    }
+                    else {
+                        int i = rmap(a,b,c)*CompressedMultipoleLengthXY;
+                        xR = (double) CompressedD[ i + (xp*(xp+1))/2 + yp ];
+                    }
+
+                    if( (yp!=y) && ((b&0x1)==1) ) xR *= -1;
+                    if( (xp!=x) && ((a&0x1)==1) ) xR *= -1;
+                    dcache[m + xyz] = xR;
+                    y++;
+                    if (y==kysize) { y = 0; x++; }  // Accomplish the mod wrap
+                }
+            }
+            /* TODO: In the above code, the completion of the first quadrant
+            results in a poor access pattern.  Is this really worth the speed
+            penalty to halve the size of the derivative file?  It would be 
+            1/8 of the Multipoles even if we didn't.  And even if we do
+            want that small size, is it wise to do the half-quadrant 
+            completion only on demand?  Perhaps a block-tranpose would be faster.
+            At present, we're filling half the plane with badly-ordered
+            accesses, whereas we could get away with only a half-quadrant.
+            */
         }
-        /* TODO: In the above code, the completion of the first quadrant
-        results in a poor access pattern.  Is this really worth the speed
-        penalty to halve the size of the derivative file?  It would be 
-        1/8 of the Multipoles even if we didn't.  And even if we do
-        want that small size, is it wise to do the half-quadrant 
-        completion only on demand?  Perhaps a block-tranpose would be faster.
-        At present, we're filling half the plane with badly-ordered
-        accesses, whereas we could get away with only a half-quadrant.
-        */
 
         // Recurse to restore the complete derivatives
         TRACEFREERECURSION(a,b,c,order) {
@@ -357,7 +388,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
                     FMAvector(tcache,FM, FD, blocksize_even); 
                 }
             }
-            Complex *FT = &(FFTM[rmap(a,b,c) * cpd2pad + xyzbegin]);
+            Complex *FT = &(FFTM[rmap(a,b,c) * cpdky_pad + xyzbegin]);
             // FOR(xyz,0,blocksize-1) FT[xyz] = tcache[xyz];
             memcpy(FT, tcache, blocksize*sizeof(Complex));
         }

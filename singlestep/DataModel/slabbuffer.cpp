@@ -37,36 +37,35 @@ enum SlabType { CellInfoSlab,           //0
                 FarAccSlab,             //14
                 FieldTimeSlice,         //15
                 FieldTimeSlicePIDs,     //16
-                VelLPTSlab,             //17
-                CellGroupArena,         //18
-                NearField_SIC_Slab,     //19
+                CellGroupArena,         //17
+                NearField_SIC_Slab,     //18
 
-                L1halosSlab,            //20
-                HaloRVSlabA,            //21
-                HaloRVSlabB,            //22
-                HaloPIDsSlabA,          //23
-                HaloPIDsSlabB,          //24
-                FieldRVSlabA,           //25
-				FieldRVSlabB,           //26
-                FieldPIDSlabA,          //27
-                FieldPIDSlabB,          //28
-                L0TimeSlice,            //29
-                L0TimeSlicePIDs,        //30
+                L1halosSlab,            //19
+                HaloRVSlabA,            //20
+                HaloRVSlabB,            //21
+                HaloPIDsSlabA,          //22
+                HaloPIDsSlabB,          //23
+                FieldRVSlabA,           //24
+				FieldRVSlabB,           //25
+                FieldPIDSlabA,          //26
+                FieldPIDSlabB,          //27
+                L0TimeSlice,            //28
+                L0TimeSlicePIDs,        //29
 
                 // Note: NUMLC better not be bigger than the number of Slabs defined
-                LightCone0RV,             //31
-                LightCone1RV,             //32
-                LightCone2RV,             //33
+                LightCone0RV,           //30
+                LightCone1RV,           //31
+                LightCone2RV,           //32
 
-                LightCone0PID,          //34
-                LightCone1PID,          //35
-                LightCone2PID,          //36
+                LightCone0PID,          //33
+                LightCone1PID,          //34
+                LightCone2PID,          //35
 
-                LightCone0Heal,          //37
-                LightCone1Heal,          //38
-                LightCone2Heal,          //39
+                LightCone0Heal,         //36
+                LightCone1Heal,         //37
+                LightCone2Heal,         //38
 
-                ICSlab,                 //40
+                ICSlab,                 //39
 
                 NUMTYPES
                 };
@@ -96,6 +95,8 @@ private:
 
     // Check if this slab type is supposed to be directly allocated in shared memory
     int IsRamdiskSlab(int type, int hint=RAMDISK_AUTO);
+
+    uint64 ReadOffset(int type, int slab);
 
 public:
 
@@ -209,8 +210,8 @@ public:
         *disposal_thread_munmap = AA->DisposalThreadMunmap.Elapsed();
     }
 
-    void report_peak(){
-        AA->report_peak();
+    void report_peak(int force=0){
+        AA->report_peak(force);
     }
 
     void report_current(){
@@ -361,7 +362,11 @@ int SlabBuffer::WantChecksum(int type){
 std::string SlabBuffer::WriteSlabPath(int type, int slab) {
     slab = Grid->WrapSlab(slab);
 
-    char slabnum[8]; sprintf(slabnum,"%04d",slab);
+    char slabnum[16];
+    if(P.NumZRanks > 1)
+        sprintf(slabnum,"%04d.%03d",slab,MPI_rank_z);
+    else
+        sprintf(slabnum,"%04d",slab);
     char stepnum[8]; sprintf(stepnum,"%04d",ReadState.FullStepNumber);
     char redshift[16]; sprintf(redshift, "%5.3f", ReadState.Redshift);
     std::stringstream ss;
@@ -393,9 +398,9 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         case MergePosSlab        : { ss << P.LocalWriteStateDirectory << "/position_"   << slabnum; break; }
         case MergeVelSlab        : { ss << P.LocalWriteStateDirectory << "/velocity_"   << slabnum; break; }
         case MergeAuxSlab        : { ss << P.LocalWriteStateDirectory << "/auxillary_"  << slabnum; break; }
-        case AccSlab             : { ss << P.OutputDirectory << "/acc_"            << slabnum; break; }
-        case NearAccSlab         : { ss << P.OutputDirectory << "/nearacc_"        << slabnum; break; }
-        case FarAccSlab          : { ss << P.OutputDirectory << "/faracc_"         << slabnum; break; }
+        case AccSlab             : { ss << P.OutputDirectory << "/acc/Step" << stepnum << "/acc_" << slabnum; break; }
+        case NearAccSlab         : { ss << P.OutputDirectory << "/acc/Step" << stepnum << "/nearacc_" << slabnum; break; }
+        case FarAccSlab          : { ss << P.OutputDirectory << "/acc/Step" << stepnum << "/faracc_" << slabnum; break; }
 
         case L1halosSlab           : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_info_"           << slabnum; break;}
 
@@ -435,7 +440,11 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
 std::string SlabBuffer::ReadSlabPath(int type, int slab) {
     slab = Grid->WrapSlab(slab);
 
-    char slabnum[8]; sprintf(slabnum,"%04d",slab);
+    char slabnum[16];
+    if(P.NumZRanks > 1)
+        sprintf(slabnum,"%04d.%03d",slab,MPI_rank_z);
+    else
+        sprintf(slabnum,"%04d",slab);
     std::stringstream ss;
     std::string s;
 
@@ -458,7 +467,6 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
 
         case VelSlab       : { ss << P.LocalReadStateDirectory << "/velocity_"   << slabnum; break; }
         case AuxSlab       : { ss << P.LocalReadStateDirectory << "/auxillary_"  << slabnum; break; }
-        case VelLPTSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
         
         // used for standalone FOF
         case FieldTimeSlice     : { ss << WriteSlabPath(type, slab); break; }
@@ -466,7 +474,14 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
         case FieldTimeSlicePIDs     : { ss << WriteSlabPath(type, slab); break; }
         case L0TimeSlicePIDs     : { ss << WriteSlabPath(type, slab); break; }
         
-        case ICSlab    : { ss << P.InitialConditionsDirectory << "/ic_" << slab; break; }
+        case ICSlab    : {
+            if (P.NumZRanks > 1){
+                ss << P.InitialConditionsDirectory << "/2D/ic2D_" << slab;
+            } else {
+                ss << P.InitialConditionsDirectory << "/ic_" << slab;
+            }
+            break;
+        }
 
         default:
             QUIT("Illegal type %d given to ReadSlabPath()\n", type);
@@ -481,25 +496,26 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
     uint64 lcpd = cpd;  // Just to assure that we don't spill 32-bits
 
     switch(type) {
-        case CellInfoSlab        : { return sizeof(cellinfo)*lcpd*lcpd; }
-        case MergeCellInfoSlab   : { return sizeof(cellinfo)*lcpd*lcpd; }
-        case InsertCellInfoSlab  : { return sizeof(cellinfo)*lcpd*lcpd; }
-        case MultipoleSlab  : { return lcpd*(lcpd+1)/2*rml*sizeof(MTCOMPLEX); }
-        case TaylorSlab     : { return lcpd*(lcpd+1)/2*rml*sizeof(MTCOMPLEX); }
+        case CellInfoSlab        : { return sizeof(cellinfo)*lcpd*node_z_size_with_ghost; }
+        case MergeCellInfoSlab   : { return sizeof(cellinfo)*lcpd*(node_z_size + 2*MERGE_GHOST_RADIUS); }
+        case InsertCellInfoSlab  : { return sizeof(cellinfo)*lcpd*(node_z_size + 2*MERGE_GHOST_RADIUS); }
+        case MultipoleSlab  : { return lcpd*node_cpdp1half*rml*sizeof(MTCOMPLEX); }
+        case TaylorSlab     : { return lcpd*node_cpdp1half*rml*sizeof(MTCOMPLEX); }
         case PosXYZSlab     :  // let these fall through to PosSlab
         case PosSlab        : {
-            return SS->size(slab)*sizeof(posstruct);
+            return SS->size_with_ghost(slab)*sizeof(posstruct);
         }
         case MergePosSlab   : {
-            return SS->size(slab)*sizeof(posstruct);
+            return SS->size_with_ghost(slab)*sizeof(posstruct);
         }
         case VelSlab        : {
-            return SS->size(slab)*sizeof(velstruct);
+            return SS->size_with_ghost(slab)*sizeof(velstruct);
         }
         case AuxSlab        : {
-            return SS->size(slab)*sizeof(auxstruct);
+            return SS->size_with_ghost(slab)*sizeof(auxstruct);
         }
         case AccSlab        : {
+            // no ghost for acc
             return SS->size(slab)*sizeof(accstruct);
         }
         case FarAccSlab     : {
@@ -509,10 +525,7 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
             return SS->size(slab)*sizeof(accstruct);
         }
         case ICSlab     : {
-            return fsize(ReadSlabPath(ICSlab,slab).c_str());
-        }
-        case VelLPTSlab : {
-            return ICFile::FromFormat(P.ICFormat, slab)->Npart*sizeof(velstruct);
+            return ICFile::FromFormat(P.ICFormat, slab)->fbytes;
         }
         case FieldTimeSlice : {
             return fsize(ReadSlabPath(FieldTimeSlice,slab).c_str());
@@ -526,27 +539,25 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
         case FieldTimeSlicePIDs : {
             return fsize(ReadSlabPath(FieldTimeSlicePIDs,slab).c_str());
         }
-
-        /* // Ideally this is how we would allocate group finding arenas
-                // but there's an annoying circular depdendency: we don't know about GFC yet, but GFC has fields that require slabbuffer.
-                // Not easily solved with a forward declaration.
-                // TODO: better way to do this?
-                case L1halosSlab           : { return GFC->globalslabs[slab]->L1halos.get_slab_bytes(); }
-        case TaggedPIDsSlab        : { return GFC->globalslabs[slab]->TaggedPIDs.get_slab_bytes(); }
-        case L1ParticlesSlab       : { return GFC->globalslabs[slab]->L1Particles.get_slab_bytes(); }
-        case HaloPIDsSlab            : { return GFC->globalslabs[slab]->L1PIDs.get_slab_bytes(); }
-        case TaggableFieldSlab     : {
-            uint64 maxsize = P.np*P.HaloTaggableFraction*1.05;  // TODO: better heuristic? what will happen in very small sims?  Also technically HaloTaggableFraction is only used in the IC step
-            return maxsize*sizeof(RVfloat);
-        }
-        case TaggableFieldPIDSlab  : {
-            uint64 maxsize = P.np*P.HaloTaggableFraction*1.05;
-            return maxsize*sizeof(TaggedPID);
-        }*/
-
         default            : QUIT("Illegal type %d given to ArenaSize()\n", type);
     }
     return -1; //should be unreachable
+}
+
+uint64 SlabBuffer::ReadOffset(int type, int slab) {
+    // Byte offset for file IO.
+    // Only used for the ICs in the 2D code.
+
+    switch(type) {
+        case ICSlab: {
+            if(MPI_size_z > 1){
+                return ICFile::FromFormat(P.ICFormat, slab)->foffset;
+            }
+            break;
+        }
+        default: break;
+    }
+    return 0;
 }
 
 char *SlabBuffer::AllocateArena(int type, int slab, int ramdisk) {
@@ -656,7 +667,8 @@ void SlabBuffer::LoadArenaBlocking(int type, int slab) {
     AllocateArena(type, slab, RAMDISK_AUTO_READSLAB);
     ReadArenaBlocking(type, slab);
 
-    assertf(SlabSizeBytes(type, slab) == fsize(ReadSlabPath(type,slab).c_str()),
+    if (type != ICSlab)
+        assertf(SlabSizeBytes(type, slab) == fsize(ReadSlabPath(type,slab).c_str()),
             "Unexpected file size for slab %d of type %d\n", slab, type);
 }
 
@@ -664,7 +676,8 @@ void SlabBuffer::LoadArenaNonBlocking(int type, int slab) {
     AllocateArena(type, slab, RAMDISK_AUTO_READSLAB);
     ReadArenaNonBlocking(type, slab);
 
-    assertf(SlabSizeBytes(type, slab) == fsize(ReadSlabPath(type,slab).c_str()),
+    if (type != ICSlab)
+        assertf(SlabSizeBytes(type, slab) == fsize(ReadSlabPath(type,slab).c_str()),
             "Unexpected file size for slab %d of type %d\n", slab, type);
 }
 
@@ -686,11 +699,13 @@ void SlabBuffer::ReadArena(int type, int slab, int blocking, const char *fn) {
         "File %s appears to be too small (%d bytes) compared to the arena (%d)\n",
             fn, fsize(fn), SlabSizeBytes(type,slab));
 
+    uint64 offset = ReadOffset(type, slab);
+
     ReadFile( GetSlabPtr(type,slab),
         SlabSizeBytes(type,slab),
         type, slab,
         fn,
-        0,      // No file offset
+        offset,
         blocking);
 }
 

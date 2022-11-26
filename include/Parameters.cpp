@@ -36,9 +36,9 @@ public:
 
     int  DerivativeExpansionRadius;
     int  MAXRAMMB;
-    float  ConvolutionCacheSizeMB; // Set to manually override the detected cache size; this is for L3
-    float  ConvolutionL1CacheSizeMB; // Set to manually override the detected cache size
-    int RamDisk;        // ==0 for a normal disk, ==1 for a ramdisk (which don't have DIO support)  // TODO: automatically detect this, or at least provide per-directory options
+    double  ConvolutionCacheSizeMB; // Set to manually override the detected cache size; this is for L3
+    double  ConvolutionL1CacheSizeMB; // Set to manually override the detected cache size
+    int AllowDirectIO;        // ==1 for a normal disk, ==0 for a ramdisk or sometimes network file system
     int ForceBlockingIO;   // ==1 if you want to force all IO to be blocking.
     char StateIOMode[64];  //  "normal", "slosh", "overwrite", "stripe"
     char Conv_IOMode[64];  //  "normal", "slosh", "overwrite", "stripe"
@@ -134,7 +134,7 @@ public:
     int PowerSpectrumN1d; //1D number of bins to use in the powerspectrum
 
     int LogVerbosity;   // If 0, production-level log; higher numbers are more verbose
-    int StoreForces; // If 1, store the accelerations
+    int StoreForces; // If 1, store the accelerations. 2 = separate near and far forces. 3 = only on output steps
     int ForceOutputDebug; // If 1, output near and far forces seperately. 
 
     int MakeGlass; // Reverse the sign of the acceleration
@@ -167,15 +167,15 @@ public:
     double FoFLinkingLength[3]; //Linking lengths for level 0,1,2 groupfinding in fractional interparticle spacing 
     double SODensity[2];  // Overdensities for SO groupfinding level 1 and 2
     int MinL1HaloNP; // minimum L1 halo size to output
-	float L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
-    float SO_RocheCoeff; 
-    float SO_alpha_eligible;   // New centers must be outside alpha*R_Delta
-    float SO_NPForMinDensity; 
+	double L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
+    double SO_RocheCoeff; 
+    double SO_alpha_eligible;   // New centers must be outside alpha*R_Delta
+    double SO_NPForMinDensity; 
     int SO_EvolvingThreshold; //allow evolving (redshift-dependent) density threshold 
 
     #define MAX_L1OUTPUT_REDSHIFTS 1024
     int nTimeSliceL1; 
-    float L1OutputRedshifts[MAX_L1OUTPUT_REDSHIFTS];
+    double L1OutputRedshifts[MAX_L1OUTPUT_REDSHIFTS];
     int OutputAllHaloParticles;  // ==0 normally, to output only taggable L1 particles.  If non-zero, output all particles
 
     double MicrostepTimeStep; // Timestep parameter that controls microstep refinement
@@ -195,8 +195,14 @@ public:
 
     int MunmapThreadCore;  // Core binding for disposal thread
 
-    // Return the L{tier} size in MB
-    float getCacheSize(int tier){
+    int NumZRanks;  // Number of ranks in the Z-dimension in the 2D domain decomposition
+
+    int InsertListGapElems;  // Size of the MAL gaps in the Insert List, in number of ilstruct elems
+
+    int ForceAuxDensity;  // Use densities from the aux in group finding, even if we have acc densities
+
+    // Return the L{tier} size in MiB
+    double getCacheSize(int tier){
         int cache_size = 0;
         FILE *fp = NULL;
         char fn[1024];
@@ -207,11 +213,11 @@ public:
             fp = fopen(fn, "r");
             if(fp == NULL)
                 break;
-            int nscan = fscanf(fp, "%dK", &cache_size);  // cache size in KB
+            int nscan = fscanf(fp, "%dK", &cache_size);  // cache size in KiB
             fclose(fp);
             assertf(nscan == 1, "Unexpected cache size file format (\"%s\")\n", fn);
         }
-        return (float)cache_size/1024.0;    // to MB
+        return cache_size/1024.0;    // to MiB
     }
     
     // in MB
@@ -236,8 +242,8 @@ public:
         installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB, DONT_CARE);
         ConvolutionL1CacheSizeMB = getCacheSize(1);
         installscalar("ConvolutionL1CacheSizeMB", ConvolutionL1CacheSizeMB, DONT_CARE);
-        RamDisk = 0;
-        installscalar("RamDisk",RamDisk,DONT_CARE);
+        AllowDirectIO = 1;
+        installscalar("AllowDirectIO",AllowDirectIO,DONT_CARE);
         ForceBlockingIO = 0;
         installscalar("ForceBlockingIO",ForceBlockingIO,DONT_CARE);
 
@@ -263,9 +269,9 @@ public:
         FlipZelDisp = 0;
         installscalar("FlipZelDisp",FlipZelDisp,DONT_CARE);   // Flip Zeldovich ICs
 
-        NumSlabsInsertList = 2.0;
+        NumSlabsInsertList = 0.;  // auto
         installscalar("NumSlabsInsertList",NumSlabsInsertList,DONT_CARE);   
-        NumSlabsInsertListIC = 4.0;
+        NumSlabsInsertListIC = 0.;
         installscalar("NumSlabsInsertListIC",NumSlabsInsertListIC,DONT_CARE);   
 
         sprintf(ReadStateDirectory,STRUNDEF);
@@ -347,7 +353,8 @@ public:
         installscalar("InitialRedshift",InitialRedshift,MUST_DEFINE);
         installscalar("LagrangianPTOrder",LagrangianPTOrder,MUST_DEFINE);  // =1 for Zel'dovich, =2 for 2LPT, =3 for 3LPT
 
-        installscalar("GroupRadius",GroupRadius,MUST_DEFINE);        // Maximum size of a group, in units of cell sizes
+        GroupRadius = 0;
+        installscalar("GroupRadius",GroupRadius,DONT_CARE);        // Maximum size of a group, in units of cell sizes
         installscalar("TimeStepAccel",TimeStepAccel,MUST_DEFINE);         // Time-step parameter based on accelerations
         installscalar("TimeStepDlna",TimeStepDlna,MUST_DEFINE);        // Maximum time step in d(ln a)
 
@@ -474,6 +481,15 @@ public:
 
         MunmapThreadCore = -1;
         installscalar("MunmapThreadCore", MunmapThreadCore, DONT_CARE);
+
+        NumZRanks = 1;
+        installscalar("NumZRanks", NumZRanks, DONT_CARE);
+
+        InsertListGapElems = PAGE_SIZE/40;
+        installscalar("InsertListGapElems", InsertListGapElems, DONT_CARE);
+
+        ForceAuxDensity = 0;
+        installscalar("ForceAuxDensity", ForceAuxDensity, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.
@@ -509,20 +525,34 @@ public:
     double FinishingRedshift() {
         // Return the redshift where the code should halt.
         // FinalRedshift is the controlling item, but if that's
-        // not set (value<=-1), then we will run to the minimum of the TimeSliceRedshifts list.
+        // not set (value<=-1), then we will the redshifts of
+        // the requested outputs.
         // If no TimeSlices are requested, then z=0.
         if (FinalRedshift>-1) return FinalRedshift;
-        double minz = 1e10;
-        for (int i=0; i<MAX_TIMESLICE_REDSHIFTS; i++)
-            if (TimeSliceRedshifts[i] <= -1) break; 
-            else if (TimeSliceRedshifts[i]<minz) minz = TimeSliceRedshifts[i];
-        return minz;
+        double minz = 1e100;
+        int have_minz = 0;
+        for (int i=0; i<nTimeSlice; i++){
+            minz = std::min(minz, TimeSliceRedshifts[i]);
+            have_minz = 1;
+        }
+
+        for (int i=0; i<nTimeSliceSubsample; i++){
+            minz = std::min(minz, TimeSliceRedshifts_Subsample[i]);
+            have_minz = 1;
+        }
+
+        for (int i=0; i<nTimeSliceL1; i++){
+            minz = std::min(minz, L1OutputRedshifts[i]);
+            have_minz = 1;
+        }
     
+        if(have_minz) return minz;
         return 0.0;
     }
 
-private:
     void ProcessStateDirectories();
+
+private:
     void CountTimeSlices();
 };
 
@@ -533,32 +563,35 @@ void strlower(char* str){
 }
 
 void Parameters::CountTimeSlices(){
-    nTimeSlice = -1; 
+    nTimeSlice = -1;
     for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++){
         if (TimeSliceRedshifts[i] <= -1) {
-            nTimeSlice = i; 
-            break; 
+            nTimeSlice = i;
+            break;
         }
-    }   
+    }
+    std::sort(TimeSliceRedshifts, TimeSliceRedshifts + nTimeSlice, greater<double>());
 
-    nTimeSliceSubsample = -1; 
+    nTimeSliceSubsample = -1;
     for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++){
         if (TimeSliceRedshifts_Subsample[i] <= -1) {
-            nTimeSliceSubsample = i; 
-            break; 
+            nTimeSliceSubsample = i;
+            break;
         }
-    } 
+    }
+    std::sort(TimeSliceRedshifts_Subsample, TimeSliceRedshifts_Subsample + nTimeSliceSubsample, greater<double>());
 
-    nTimeSliceL1 = -1; 
+    nTimeSliceL1 = -1;
     for (int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++){
         if (L1OutputRedshifts[i] <= -1) {
-            nTimeSliceL1 = i; 
-            break; 
+            nTimeSliceL1 = i;
+            break;
         }
-    } 
+    }
+    std::sort(L1OutputRedshifts, L1OutputRedshifts + nTimeSliceL1, greater<double>());
 
-    if (not (nTimeSlice > 0 || nTimeSliceSubsample > 0 || nTimeSliceL1 > 0 || OutputEveryStep))
-        printf("Warning! No output requested. Are you sure you want this?\n");  //must request at least one kind of output. 
+    if (! (nTimeSlice > 0 || nTimeSliceSubsample > 0 || nTimeSliceL1 > 0 || OutputEveryStep || StoreForces))
+        printf("Warning! No output requested. Are you sure you want this?\n");
 }
 void Parameters::ProcessStateDirectories(){
     strlower(StateIOMode);
@@ -580,8 +613,8 @@ void Parameters::ProcessStateDirectories(){
     if (strcmp(LocalWorkingDirectory,STRUNDEF) != 0){
         // append the rank to the LocalWorkingDirectory
         // LocalWorkingDirectory should not have a trailing slash
-        int ret = snprintf(LocalWorkingDirectory + strnlen(LocalWorkingDirectory, 1024), 1024, "%s", NodeString);
-        assert(ret >= 0 && ret < 1024);
+        assert(strnlen(LocalWorkingDirectory, 1024) + strnlen(NodeString,64) < 1024);
+        strncat(LocalWorkingDirectory, NodeString, 64);
     } else {
         int ret = snprintf(LocalWorkingDirectory, 1024, "%s%s",WorkingDirectory, NodeString);
         assert(ret >= 0 && ret < 1024);
@@ -616,7 +649,7 @@ void Parameters::ReadParameters(char *parameterfile, int icflag) {
     ReadHeader(*hs);
     hs->Close();
     CountTimeSlices();
-    ProcessStateDirectories();
+    // ProcessStateDirectories();  // this is now done in singlestep.cpp (after MPI)
     if(!icflag) ValidateParameters();
 }
 
@@ -665,13 +698,13 @@ void Parameters::ValidateParameters(void) {
         assert(1==0);
     }
 
-    if(GroupRadius<=0) {
-        fprintf(stderr, "[ERROR] GroupRadius = %d  must be greater than 0\n",
+    if(AllowGroupFinding && GroupRadius<0) {
+        fprintf(stderr, "[ERROR] GroupRadius = %d  must be >= 0\n",
             GroupRadius );
         assert(1==0);
     }
 
-    if(order>16 || order < 2 ) {
+    if(! (order <= 16 && order >= 0) ) {
         fprintf(stderr,
             "[ERROR] order = %d must be less than or equal to 16 and greater than 1\n",
             order);
@@ -717,16 +750,16 @@ void Parameters::ValidateParameters(void) {
         assert(1==0);
     }
 
-    if (NumSlabsInsertList<0.0 || NumSlabsInsertList>cpd) {
+    if (NumSlabsInsertList<0.0) {
         fprintf(stderr,
-            "[ERROR] NumslabsInsertList = %e must be in range [0..CPD]\n",
+            "[ERROR] NumslabsInsertList = %e must be >= 0\n",
                 NumSlabsInsertList);
         assert(1==0);
     }
 
-    if (NumSlabsInsertListIC<0.0 || NumSlabsInsertListIC>cpd) {
+    if (NumSlabsInsertListIC<0.0) {
         fprintf(stderr,
-            "[ERROR] NumslabsInsertListIC = %e must be in range [0..CPD]\n",
+            "[ERROR] NumslabsInsertListIC = %e must be >= 0\n",
                 NumSlabsInsertListIC);
         assert(1==0);
     }
@@ -754,8 +787,9 @@ void Parameters::ValidateParameters(void) {
         if(!(strcasecmp(ICFormat, "Zeldovich") == 0 ||
             strcasecmp(ICFormat, "RVZel") == 0 ||
             strcasecmp(ICFormat, "RVdoubleZel") == 0)) {
-            fprintf(stderr, "ICFormat %s is not displacement-oriented and LagrangianPTOrder = %d\n",
+            fprintf(stderr, "Warning! ICFormat %s is not displacement-oriented and LagrangianPTOrder = %d. Forcing LagrangianPTOrder = 0.\n",
                     ICFormat, LagrangianPTOrder);
+            LagrangianPTOrder = 0;
         }
     }
 
@@ -781,11 +815,6 @@ void Parameters::ValidateParameters(void) {
             StoreForces = 2;  // Output near and far separately
     }
 
-    if (LogVerbosity<0) {
-        fprintf(stderr,"LogVerbosity must be >=0\n");
-        assert(1==0);
-    }
-
     assert(nIODirs < MAX_IODIRS);
     for (int i = 0; i < nIODirs; i++)
         assert(IODirThreads[i] >= 1);
@@ -807,7 +836,24 @@ void Parameters::ValidateParameters(void) {
         "Conv_IOMode = \"%s\" must be one of normal, overwrite, slosh, stripe.",
         Conv_IOMode
         );
+
+#ifdef PARALLEL
+    if(NumZRanks < 1){
+        fprintf(stderr,"NumZRanks=%d must be >= 1!\n", NumZRanks);
+        assert(1==0);
+    }
+#else
+    if(NumZRanks > 1){
+        fprintf(stderr,"Warning: NumZRanks=%d will have no effect because code is not compiled for parallel. Forcing NumZRanks=1.\n", NumZRanks);
+        NumZRanks = 1;
+    }
+#endif
+
+    if(NumZRanks > 1){
+        strncat(DerivativesDirectory, "/2D", 1024);
+    }
 }
+
 Parameters P;
 
 #endif

@@ -10,16 +10,10 @@ $ ./check_forces.py --help
 '''
 
 import os
-import shutil
-import sys
-from glob import glob
 import argparse
 from pathlib import Path
 
 import numpy as np
-import matplotlib as mpl
-from matplotlib import ticker
-#mpl.use('Agg')  # no interactive plotting
 import matplotlib.pyplot as plt
 import asdf
 
@@ -29,7 +23,7 @@ from Abacus import Tools
     
 DEFAULT_ORDER = 8
 DEFAULT_PPD = 64
-DEFAULT_CPD = 15
+DEFAULT_CPD = 17
 
 def plt_log_hist(ax, a, label=r'$|a-b|/\sqrt{|a|^2 + |b|^2}$'):
     assert (a >= 0).all()
@@ -147,7 +141,8 @@ def run(ppd=None, cpd=None, order=DEFAULT_ORDER, dtype=np.float32, force_output_
             os.chdir(cwd)
             if plot:
                 plot_storeforces(fmag)
-                plot_cell(params, dtype)
+                if not params.get('Parallel',False):
+                    plot_cell(params, dtype)
                 if power:
                     plot_force_error_pk(params, dtype)
         return results
@@ -159,12 +154,12 @@ def run(ppd=None, cpd=None, order=DEFAULT_ORDER, dtype=np.float32, force_output_
 # We only return a single acc slab for plotting; all the accelerations might be too big!
 def analyze_storeforces(params, dtype, slabfns=None, silent=False, raw=False):
     if slabfns is None:
-        slabfns = sorted(Path(params.OutputDirectory).glob("acc_*"))
+        slabfns = sorted((Path(params['OutputDirectory']) / 'acc' / 'Step0001').glob("acc_*"))
 
-    n1d = int(round(params.NP**(1./3)))
+    n1d = int(round(params['NP']**(1./3)))
     
     # Apply the Zel'dovich approximation scaling of forces to displacements, in units of the interparticle spacing
-    rescale = 1/(1.5*params.Omega_M)*n1d
+    rescale = 1/(1.5*params['Omega_M'])*n1d
     
     running_sum = 0.
     running_sum_of_square = 0.
@@ -224,7 +219,7 @@ def analyze_storeforces(params, dtype, slabfns=None, silent=False, raw=False):
                }
 
     if not raw:
-        finalize_results(results, params.NP)
+        finalize_results(results, params['NP'])
     
     if not silent:
         print('Force statistics (equivalent ZA displacement in units of interparticle spacing):')
@@ -242,21 +237,21 @@ def finalize_results(results, NP):
 
     
 def analyze_forceoutputdebug(params, dtype):
-    n1d = int(round(params.NP**(1./3)))
+    n1d = int(round(params['NP']**(1./3)))
     
     # Need to do the Kick rescaling to put these forces in the same units as StoreForces
-    rescale = 3.0*params.Omega_M/(8.0*np.pi*params.NP)
+    rescale = 3.0*params['Omega_M']/(8.0*np.pi*params['NP'])
 
     # Additionally apply the Zel'dovich approximation scaling of forces to displacements, in units of the interparticle spacing
-    rescale *= 1/(1.5*params.Omega_M)*n1d
+    rescale *= 1/(1.5*params['Omega_M'])*n1d
     
     running_sum = 0.
     running_sum_of_square = 0.
     running_max = 0.
     running_min = np.inf
     running_min_nz = np.inf
-    for nearfn, farfn in zip(sorted(Path(params.OutputDirectory).glob("nearacc_*")),
-                             sorted(Path(params.OutputDirectory).glob("faracc_*"))):
+    for nearfn, farfn in zip(sorted((Path(params['OutputDirectory']) / 'acc' / 'Step0001').glob("nearacc_*")),
+                             sorted((Path(params['OutputDirectory']) / 'acc' / 'Step0001').glob("faracc_*"))):
         nacc = np.fromfile(nearfn, dtype=dtype)
         facc = np.fromfile(farfn, dtype=dtype)
         nacc *= rescale
@@ -286,10 +281,10 @@ def analyze_forceoutputdebug(params, dtype):
     
     results = {'Max':running_max,
                #'99%':np.sort(mag(tabs))[int(.99*len(tabs))],
-               'Mean':running_sum/params.NP,
+               'Mean':running_sum/params['NP'],
                'Min':running_min,
                'Min (nonzero)':running_min_nz,
-               'RMS':np.sqrt(running_sum_of_square/params.NP)
+               'RMS':np.sqrt(running_sum_of_square/params['NP'])
                }
     
     print('Force statistics (equivalent ZA displacement in units of interparticle spacing):')
@@ -313,8 +308,8 @@ def plot_storeforces(fmag, figfn='checkforces_storeforces_absolute.png'):
 
 def _get_all_acc(param, dtype):
     
-    accfns = sorted(Path(param['OutputDirectory']).glob('acc_*'))
-    auxfns = sorted(Path(param.get('ReadStateDirectory', Path(param['WorkingDirectory']) / 'read')).glob('aux*_*'))
+    accfns = sorted((Path(param['OutputDirectory']) / 'acc' / 'Step0001').glob('acc_*'))
+    auxfns = sorted(Path(param.get('ReadStateDirectory', Path(param['LocalWorkingDirectory']) / 'read')).glob('aux*_*'))
     pid_bitmask=0x7fff7fff7fff
     
     NP = param['NP']
@@ -335,8 +330,8 @@ def _get_all_acc(param, dtype):
         
     i = 0
     for fn in auxfns:
-        thisaux = np.fromfile(fn, dtype=np.uint64)
-        pid[i:i+len(thisaux)] = thisaux & pid_bitmask
+        thisaux = np.fromfile(fn, dtype=[('aux',np.uint64),('aux2',np.uint32)])
+        pid[i:i+len(thisaux)] = thisaux['aux'] & pid_bitmask
         i += len(thisaux)
     assert i == NP
     
@@ -517,7 +512,8 @@ def load_results(load, order=None, dtype=None):
         else:
             raise ValueError(order)
         raise NotImplementedError("cell results aren't stored in asdf, can't load")
-        plot_cell(res, dtype)
+        if not res['param']['Parallel']:
+            plot_cell(res, dtype)
     else:
         plot_orders(results)
 
@@ -527,7 +523,7 @@ if __name__ == '__main__':
     parser.add_argument('cpd', help='Cells per dimension', nargs='?', default=DEFAULT_CPD)
     parser.add_argument('--force-output-debug', help='Use ForceOutputDebug. Slow, but you get the near and far field separately',
                         action='store_true', default=False)
-    parser.add_argument('--no-analyze', help='Run singlestep so the forces are stored on disk but do not analyze them',
+    parser.add_argument('-n', '--no-analyze', help='Run singlestep so the forces are stored on disk but do not analyze them',
                         action='store_true', default=False)
     parser.add_argument('--dtype', help='The precision Abacus was compiled with (i.e. the precision of the forces)',
                         default='f4', choices=['f4','f8'])
@@ -550,4 +546,4 @@ if __name__ == '__main__':
                 save = args.pop('save')
                 run_orders(orders=range(2,order+1), run_kwargs=args, save=save)
             else:
-                run(**args)
+                run(order=order, **args)

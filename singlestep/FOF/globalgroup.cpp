@@ -66,7 +66,7 @@ class LinkIndex {     // These are the links for a given cell
 class LinkPencil {
   public:
     GroupLink *data;   ///< Where this pencil starts
-    LinkIndex *cells;         ///< [0,cpd)
+    LinkIndex *cells;         ///< [0,zwidth)
     // uint8_t pad[CACHE_LINE_SIZE];        // To fill up 64 bytes
 
     LinkPencil() { data = NULL; cells = NULL; }
@@ -74,11 +74,11 @@ class LinkPencil {
 
     inline void IndexPencil(LinkIndex *_cells, GroupLink *start, GroupLink *end, int slab, int j) {
         // GroupLinks for this Pencil begin at *start, end at *end
-        // cells is where we put results, external array [0,cpd)
+        // cells is where we put results, external array [0,zwidth)
         cells = _cells;  // Copy the external pointer
         data = start;    // Where we'll index this pencil from
         uint64 iptr = 0, iend = end-start;
-        for (int k=0; k<GFC->cpd; k++) {
+        for (int k=0; k<GFC->zwidth; k++) {  // local k
             GroupLink ref; 
             uint64 ibegin = iptr;
             cells[k].start = ibegin;
@@ -94,7 +94,7 @@ class LinkPencil {
 
 inline CellGroup *LinkToCellGroup(LinkID link) {
     // For this LinkID, return a pointer to the matching CellGroup
-    integer3 c = link.cell();
+    integer3 c = link.localcell();
     assertf(GFC->cellgroups_status[c.x] == 1, "Failed to find cellgroup in slab %d with status %d\n", c.x, GFC->cellgroups_status[c.x]);
     CellGroup *ret = GFC->cellgroups[c.x][c.y][c.z].ptr(link.cellgroup());
     assertf(ret != NULL, "Bad LinkToCellGroup?\n");
@@ -148,6 +148,12 @@ class GlobalGroupSlab {
     int diam, slabbias;
     int split;    ///< The pencil splitting
     int cpd;
+    int zstart;  ///< includes ghosts
+    int zwidth;
+    
+    int ghost_radius;  ///< for determining 2D ownership
+    int dedup;  ///< whether to de-duplicate 2D groups
+
     posstruct *pos;  ///< Big vectors of all of the pos/vel/aux for these global groups
     velstruct *vel;
     auxstruct *aux;
@@ -174,7 +180,11 @@ class GlobalGroupSlab {
         slab = GFC->WrapSlab(_slab); largest_group = 0;
 
         cpd = GFC->cpd;
-        rad = GFC->GroupRadius;        
+        zstart = GFC->zstart;
+        zwidth = GFC->zwidth;
+        ghost_radius = GHOST_RADIUS;
+        dedup = MPI_size_z > 1;
+        rad = GFC->GroupRadius;
         // We will split the work by pencils, and this means that
         // we have to reserve 2*r+1 in either direction.
         split = 4*rad+1;
@@ -192,19 +202,19 @@ class GlobalGroupSlab {
             slabbias = diam/2;
         #endif
 
-        int ret = posix_memalign((void **) &pstat, CACHE_LINE_SIZE, sizeof(PencilStats)*GFC->cpd);
+        int ret = posix_memalign((void **) &pstat, CACHE_LINE_SIZE, sizeof(PencilStats)*cpd);
         assert(ret==0);
-        for (int j=0; j<GFC->cpd; j++) pstat[j].reset(j);
+        for (int j=0; j<cpd; j++) pstat[j].reset(j);
 
         // These are counters for where the pencils start in the lists
-        pstart = new uint64[GFC->cpd];
-        pstart_cg = new uint64[GFC->cpd];  
+        pstart = new uint64[cpd];
+        pstart_cg = new uint64[cpd];  
 
         // How many global groups do we expect?  Let's guess 10% of the particles
         // The cellgroup list is modestly bigger, but not enough to care.
         int maxsize = GFC->particles_per_slab/10;
-        globalgroups.setup(GFC->cpd, maxsize);
-        globalgrouplist.setup(GFC->cpd, maxsize);
+        globalgroups.setup(cpd, zwidth, maxsize);
+        globalgrouplist.setup(cpd, zwidth, maxsize);
     }
     void destroy() {
         if (pos!=NULL) free(pos); pos = NULL;
@@ -254,7 +264,7 @@ class GlobalGroupSlab {
     void HaloOutput();
     void WriteGroupHeaderFile(const char* fn);
     uint64 L0TimeSliceOutput(FLOAT unkick_factor);
-
+    void MarkL0(const std::vector<LinkID>&);
 };
 
 
@@ -292,13 +302,12 @@ void GlobalGroupSlab::IndexLinks() {
     links = new LinkPencil*[diam];
 
     // int cpdpad = (cpd/8+1)*8;   // A LinkIndex is 8 bytes, so let's get each pencil onto a different cacheline
-    int cpdpad = cpd;
+    int zpad = zwidth;
     // Allocate space for the links[slab][y] LinkPencils.
     {int ret = posix_memalign((void **)&(links[0]), CACHE_LINE_SIZE, sizeof(LinkPencil)*diam*cpd); assert(ret==0);}
     for (int j=1; j<diam; j++) links[j] = links[j-1]+cpd;
     // Allocate space for the LinkIndex array, which is on a per-cell basis.
-    {int ret = posix_memalign((void **)&cells, CACHE_LINE_SIZE, sizeof(LinkIndex)*diam*cpd*cpdpad); assert(ret==0);}
-    // cells = (LinkIndex *)malloc(sizeof(LinkIndex)*diam*cpd*cpdpad);
+    {int ret = posix_memalign((void **)&cells, CACHE_LINE_SIZE, sizeof(LinkIndex)*diam*cpd*zpad); assert(ret==0);}
 
     // Now loop over slabs to construct the lookup tables
     for (int s=0; s<diam; s++) {
@@ -312,10 +321,10 @@ void GlobalGroupSlab::IndexLinks() {
             // Find the start for each Cell in the pencil
             // This step does dominate the time
             GFC->IndexLinksIndex.Start();
-            links[s][j].IndexPencil(cells+(s*cpd+j)*cpdpad, start, GFC->GLL->list+GFC->GLL->length, thisslab, j);
+            links[s][j].IndexPencil(cells+(s*cpd+j)*zpad, start, GFC->GLL->list+GFC->GLL->length, thisslab, j);
             GFC->IndexLinksIndex.Stop();
 
-            // for (int k=0; k<cpd; k++) 
+            // for (int k=0; k<zwidth; k++) 
                 // printf("%d %d %d starts at %d %d\n", thisslab, j, k, links[s][j].cells[k].start, links[s][j].cells[k].n);
 
         }
@@ -349,13 +358,13 @@ void GlobalGroupSlab::DeferGlobalGroups() {
             LinkPencil *slablp = links[0]+j;
             std::vector<LinkID> cglist;    // List of CellGroups in this GlobalGroup
             cglist.reserve(64);
-            for (int k=0; k<cpd; k++) {   // Loop over cells
+            for (int k=0; k<zwidth; k++) {   // Loop over cells, local k
                 GroupLink *gg; int t;
                 // Loop over links from this cell
                 for (gg = slablp->data + slablp->cells[k].start, t = 0;
                     t<slablp->cells[k].n; t++, gg++) {
                     // If the link doesn't point to S-1, skip to next
-                    integer3 linkcell = gg->b.cell();
+                    integer3 linkcell = gg->b.localcell();
                     if (linkcell.x != lastslab) continue;
                     // If this CellGroup is not open, we could skip the search
                     
@@ -367,7 +376,7 @@ void GlobalGroupSlab::DeferGlobalGroups() {
 
                     while (searching<cglist.size()) {
                         // We have an unresolved group to search
-                        integer3 thiscell = cglist[searching].cell();  
+                        integer3 thiscell = cglist[searching].localcell();  
                         CellGroup *thiscg = LinkToCellGroup(cglist[searching]);
                         // There's a chance we've already been here; if yes, skip
                         if (!(thiscg->is_open())) { searching++; continue; }
@@ -390,7 +399,7 @@ void GlobalGroupSlab::DeferGlobalGroups() {
                                 while (seek<cglist.size())
                                     if (g->b.id == cglist[seek++].id) goto FoundIt;
                                 // We didn't find the link in the list, but maybe we don't care.
-                                thatcell = g->b.cell();
+                                thatcell = g->b.localcell();
                                 if (thatcell.x==lastslab) goto IgnoreIt;
                                     // Cell is in the no-go slab
                                 thatcg = LinkToCellGroup(g->b);
@@ -426,7 +435,7 @@ void GlobalGroupSlab::ClearDeferrals() {
             for (int g=0; g<pencil._size; g++) pencil.data[g].clear_deferral();
 
             /*
-            for (int k=0; k<cpd; k++) { // Loop over cells
+            for (int k=0; k<zwidth; k++) { // Loop over cells
                 CellPtr<CellGroup> cg = GFC->cellgroups[thisslab][j][k];
                 for (int g=0; cg.size(); g++) cg[g].clear_deferral();
             }
@@ -439,6 +448,9 @@ void GlobalGroupSlab::ClearDeferrals() {
 }
 
 void GlobalGroupSlab::CreateGlobalGroups() {
+    // This function mostly doesn't touch particle data, but rather groups
+    // and links. It does however mark the L0 bit in the aux for 2D de-duped groups.
+
     // Given pstat[0,cpd)
     assertf(pstat!=NULL,"setup() not yet called\n");   // Setup not yet called!
     IndexLinks();
@@ -465,21 +477,25 @@ void GlobalGroupSlab::CreateGlobalGroups() {
             PencilAccum<LinkID> *gg_list = globalgrouplist.StartPencil(j);
             std::vector<LinkID> cglist;    // List of CellGroups in this GlobalGroup
             cglist.reserve(64);
-            for (int k=0; k<cpd; k++) {
+            for (int k=0; k<zwidth; k++) {  // local k
                 // Do this cell
                 CellPtr<CellGroup> c = GFC->cellgroups[slab][j][k];
                 for (int g=0; g<c.size(); g++) if (c[g].is_open()) {
                     // Loop over groups, skipping closed and deferred ones
-                    int ggsize = 0; 
+                    int ggsize = 0;
+                    int minzslab = k;  // to determine 2D ownership
+                    int touches_zedge = 0;  // to ensure no links past the ghosts
+
                     cglist.resize(0);   // Reset to null list
                     cglist.push_back(LinkID(slab, j, k, g));   // Prime the queue
                     uint64 searching = 0;
                     // printf("GG %d %d %d %d\n", slab, j, k, g);
                     while (searching<cglist.size()) {
                         // We have an unresolved group to search
-                        integer3 thiscell = cglist[searching].cell();  
+                        integer3 thiscell = cglist[searching].localcell();  
                         CellGroup *thiscg = LinkToCellGroup(cglist[searching]);
                         ggsize += thiscg->size();
+                        minzslab = std::min(minzslab, thiscell.z);
                         assertf(thiscg->is_open(), "Cellgroup in slab %d found to be closed while making groups in slab %d.  Likely need to increase GroupRadius!\n", thiscell.x, slab);
                                 // If this fails, probably a group has spanned
                                 // beyond 2*R+1 cells and something got closed
@@ -489,6 +505,13 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                             // printf("Link to %d %d %d %d\n",
                                     // thiscell.x, thiscell.y, thiscell.z, cglist[searching].cellgroup());
                         // }
+
+                        if(dedup){
+                            // actually nothing to do with de-dup, this is a generic 2D task
+                            if( (thiscell.z == 0 && thiscg->test(ZM_BIT)) ||  // local z
+                                (thiscell.z == zwidth - 1 && thiscg->test(ZP_BIT)) ) touches_zedge = 1;
+                        }
+
                         // Now get these links
                         int s = GFC->WrapSlab(thiscell.x-slab+slabbias);  // Map to [0,diam)
                         assertf(s < diam, "GroupLink points to slab offset %d which violates GroupDiameter %d.  Likely need to increase GroupRadius! (slab,j,k,g = %d,%d,%d,%d)\n",
@@ -517,37 +540,49 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                     } // End search over graph of cell groups
                     // printf("Closed with size %d\n", ggsize);
 
+                    // recall that we are using local z
+                    int minz_in_primary = minzslab >= ghost_radius && minzslab < zwidth - ghost_radius;
+
                     // Time to build the GlobalGroup
                     // We only track the group if it has more than one particle
                     if (ggsize>1) {
-                        int start = gg_list->buffer->get_pencil_size();
-                        // We're going to sort the cellgroup list, so that
-                        // multiple groups within one cell are contiguous
-                        // But there's no point in doing this unless there are 3+ CG.
-                        if (cglist.size()>2) {
-                            std::sort(cglist.data(), cglist.data()+cglist.size());
-                            /*
-                            for (uint64 t = 1; t<cglist.size(); t++) 
-                                assertf(cglist[t-1].id <= cglist[t].id,
-                                    "Failed to sort propertly: %lld > %lld\n", 
-                                        cglist[t-1].id,
-                                        cglist[t].id);
-                            */
-                        }
+                        int belongs_to_neighbor = dedup && !minz_in_primary;
+                        assertf(belongs_to_neighbor || !touches_zedge,
+                            "Found global group that touches the far edge of the ghosts! Likely need to increase GroupRadius.\n");
 
-                        for (uint64 t = 0; t<cglist.size(); t++) {
-                            //integer3 tmp = cglist[t].cell();
-                            // printf("GGlist: %d %d %d %d\n",
-                                    // tmp.x, tmp.y, tmp.z, cglist[t].cellgroup());
-                            gg_list->append(cglist[t]);
+                        if(!belongs_to_neighbor){
+                            int start = gg_list->buffer->get_pencil_size();
+                            // We're going to sort the cellgroup list, so that
+                            // multiple groups within one cell are contiguous
+                            // But there's no point in doing this unless there are 3+ CG.
+                            if (cglist.size()>2) {
+                                std::sort(cglist.data(), cglist.data()+cglist.size());
+                                /*
+                                for (uint64 t = 1; t<cglist.size(); t++) 
+                                    assertf(cglist[t-1].id <= cglist[t].id,
+                                        "Failed to sort propertly: %lld > %lld\n", 
+                                            cglist[t-1].id,
+                                            cglist[t].id);
+                                */
+                            }
+
+                            for (uint64 t = 0; t<cglist.size(); t++) {
+                                //integer3 tmp = cglist[t].localcell();
+                                // printf("GGlist: %d %d %d %d\n",
+                                        // tmp.x, tmp.y, tmp.z, cglist[t].cellgroup());
+                                gg_list->append(cglist[t]);
+                            }
+                            // printf("    GGpencil: %d %d %d %d\n", 
+                                    // (int)cglist.size(), start, ggsize, cumulative_np);
+                            gg_pencil->append(GlobalGroup(cglist.size(), start, ggsize, cumulative_np));
+                            cumulative_np += ggsize;
+                            L0stats[omp_get_thread_num()].push(ggsize);
+                            pstat[j].add((uint64)ggsize*(uint64)ggsize);
+                                // Track the later work, assuming scaling as N^2
+                        } else {
+                            // belongs to neighbor, mark L0 and discard
+                            MarkL0(cglist);
                         }
-                        // printf("    GGpencil: %d %d %d %d\n", 
-                                // (int)cglist.size(), start, ggsize, cumulative_np);
-                        gg_pencil->append(GlobalGroup(cglist.size(), start, ggsize, cumulative_np));
-                        cumulative_np += ggsize;
-                        L0stats[omp_get_thread_num()].push(ggsize);
-                        pstat[j].add(ggsize*ggsize);
-                            // Track the later work, assuming scaling as N^2
                     }
                 } // End this group
                 gg_pencil->FinishCell();
@@ -579,6 +614,21 @@ void GlobalGroupSlab::CreateGlobalGroups() {
 }
 
 
+void GlobalGroupSlab::MarkL0(const std::vector<LinkID> &cglist){
+    // Given a list of LinkIDs, find the corresponding cell groups
+    // and mark the L0 bit on those particles
+
+    for(const LinkID &cglink : cglist){
+        integer3 cellijk = cglink.localcell();
+        cellijk.z += zstart;
+        auxstruct *cellaux = CP->AuxCell(cellijk);
+        CellGroup *cg = LinkToCellGroup(cglink);
+        for(int j = 0; j < cg->size(); j++){
+            cellaux[cg->start + j].set_L0();
+        }
+    }
+}
+
 
 /** Copy all of the particles from the disparate CellGroups into a single list,
 so that each GlobalGroup is contiguous.  This also establishes an index
@@ -587,32 +637,34 @@ from each GlobalGroup into this slab-scale list.
 
 void GlobalGroupSlab::GatherGlobalGroups() {
     GFC->IndexGroups.Start();
-    assertf(GFC->cpd>=4*GFC->GroupRadius+1, "CPD is too small compared to GroupRadius\n");
+    assertf(cpd>=4*GFC->GroupRadius+1, "CPD is too small compared to GroupRadius\n");
+    assertf(zwidth>=4*GFC->GroupRadius+1, "zwidth=%d is too small compared to GroupRadius\n", zwidth);
     // This registers the periodic wrap using the cells.
     // However, this will misbehave if CPD is smaller than the group diameter,
     // because the LinkIDs have already been wrapped.
     // One just can't use a small CPD
-    uint64 *this_pencil = new uint64[GFC->cpd];
-    uint64 *this_pencil_cg = new uint64[GFC->cpd];
-    int *largest = new int[GFC->cpd];
+    uint64 *this_pencil = new uint64[cpd];
+    uint64 *this_pencil_cg = new uint64[cpd];
+    int *largest = new int[cpd];
 
     int nthread = omp_get_max_threads();
     pint64 local_ncellgroups[nthread];
     for(int i = 0; i < nthread; i++)
         local_ncellgroups[i] = 0;
 
-    NUMA_FOR(j,0,GFC->cpd)
+    NUMA_FOR(j,0,cpd)
         int g = omp_get_thread_num();
         uint64 local_this_pencil = 0;
         uint64 _local_ncellgroups = 0;
         int local_largest = 0;
-        for (int k=0; k<GFC->cpd; k++)
+        for (int k=0; k<zwidth; k++){  // local k
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 int size = globalgroups[j][k][n].np;
                 _local_ncellgroups += globalgroups[j][k][n].ncellgroups;
                 local_this_pencil += size;
                 local_largest = std::max(local_largest, size);
             }
+        }
         this_pencil[j] = local_this_pencil;
         this_pencil_cg[j] = _local_ncellgroups;
         local_ncellgroups[g] += _local_ncellgroups;
@@ -627,7 +679,7 @@ void GlobalGroupSlab::GatherGlobalGroups() {
     uint64 total_particles = 0;
     uint64 total_cg = 0;
     largest_group = 0;
-    for (int j=0; j<GFC->cpd; j++) {
+    for (int j=0; j<cpd; j++) {
         pstart[j] = total_particles;    // So we have the starting indices
         pstart_cg[j] = total_cg;        // So we have the starting indices
         total_particles += this_pencil[j];
@@ -644,8 +696,8 @@ void GlobalGroupSlab::GatherGlobalGroups() {
 
     GFC->GatherGroups.Start();
     // Now copy the particles into these structures
-    NUMA_FOR(j,0,GFC->cpd)
-        for (int k=0; k<GFC->cpd; k++){
+    NUMA_FOR(j,0,cpd)
+        for (int k=0; k<zwidth; k++){  // local k
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 // Process globalgroups[j][k][n]
                 // Compute where we'll put the particles, and update this starting point
@@ -655,11 +707,12 @@ void GlobalGroupSlab::GatherGlobalGroups() {
                 LinkID *cglink = globalgrouplist.pencils[j].data
                                     +globalgroups[j][k][n].cellgroupstart;
                     // This is where we'll find the CG LinkIDs for this GG
-                integer3 firstcell(slab,j,k);
+                integer3 firstcell(slab,j,k + zstart);
 
                 for (int c=0; c<globalgroups[j][k][n].ncellgroups; c++, cglink++) {
                     // Loop over CellGroups
-                    integer3 cellijk = cglink->cell();
+                    integer3 cellijk = cglink->localcell();
+                    cellijk.z += zstart;
                     CellGroup *cg = LinkToCellGroup(*cglink);
                     // printf("%d %d %d %d in %d %d %d n=%d\n", 
                         // j, k, n, c, cellijk.x, cellijk.y, cellijk.z, cg->size());
@@ -675,12 +728,12 @@ void GlobalGroupSlab::GatherGlobalGroups() {
                     if(cell.acc != NULL)
                         memcpy(acc+start, cell.acc+cg->start, sizeof(accstruct)*cg->size());
                     cellijk -= firstcell;
-                    if (cellijk.x> diam) cellijk.x-=GFC->cpd;
-                    if (cellijk.x<-diam) cellijk.x+=GFC->cpd;
-                    if (cellijk.y> diam) cellijk.y-=GFC->cpd;
-                    if (cellijk.y<-diam) cellijk.y+=GFC->cpd;
-                    if (cellijk.z> diam) cellijk.z-=GFC->cpd;
-                    if (cellijk.z<-diam) cellijk.z+=GFC->cpd;
+                    if (cellijk.x> diam) cellijk.x-=cpd;
+                    if (cellijk.x<-diam) cellijk.x+=cpd;
+                    if (cellijk.y> diam) cellijk.y-=cpd;
+                    if (cellijk.y<-diam) cellijk.y+=cpd;
+                    if (cellijk.z> diam) cellijk.z-=cpd;
+                    if (cellijk.z<-diam) cellijk.z+=cpd;
                     posstruct offset = GFC->invcpd*(cellijk);
                         // Ok to use single precision because this is only a few cells 
                         // (and L1 group finding is in limited precision too)
@@ -709,8 +762,8 @@ back only the AuxSlab information.
 void GlobalGroupSlab::ScatterGlobalGroupsAux() {
     GFC->ScatterAux.Start();
 
-    NUMA_FOR(j,0,GFC->cpd)
-        for (int k=0; k<GFC->cpd; k++){
+    NUMA_FOR(j,0,cpd)
+        for (int k=0; k<zwidth; k++){  // local k
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 // Process globalgroups[j][k][n]
                 // Recall where the particles start
@@ -721,7 +774,8 @@ void GlobalGroupSlab::ScatterGlobalGroupsAux() {
                     // This is where we'll find the CG LinkIDs for this GG
                 for (int c=0; c<globalgroups[j][k][n].ncellgroups; c++, cglink++) {
                     // Loop over CellGroups
-                    integer3 cellijk = cglink->cell();
+                    integer3 cellijk = cglink->localcell();
+                    cellijk.z += zstart;
                     CellGroup *cg = LinkToCellGroup(*cglink);
                     Cell cell = CP->GetCell(cellijk);
                     // Copy the aux back
@@ -749,8 +803,8 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
     GFC->ScatterGroups.Start();
 
     STDLOG(1,"Scattering global group pos/vel from slab %d\n", slab);
-    NUMA_FOR(j,0,GFC->cpd)
-        for (int k=0; k<GFC->cpd; k++){
+    NUMA_FOR(j,0,cpd)
+        for (int k=0; k<zwidth; k++){  // local k
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 // Process globalgroups[j][k][n]
                 // Recall where the particles start
@@ -759,10 +813,11 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
                 LinkID *cglink = globalgrouplist.pencils[j].data
                                     +globalgroups[j][k][n].cellgroupstart;
                     // This is where we'll find the CG LinkIDs for this GG
-                integer3 firstcell(slab,j,k);
+                integer3 firstcell(slab,j,k + zstart);
                 for (int c=0; c<globalgroups[j][k][n].ncellgroups; c++, cglink++) {
                     // Loop over CellGroups
-                    integer3 cellijk = cglink->cell();
+                    integer3 cellijk = cglink->localcell();
+                    cellijk.z += zstart;
                     CellGroup *cg = LinkToCellGroup(*cglink);
                     Cell cell = CP->GetCell(cellijk);
                     // Copy the particles, including changing positions to 
@@ -771,12 +826,12 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
                     memcpy(cell.vel+cg->start, vel+start, sizeof(velstruct)*cg->size());
                     //memcpy(cell.acc+cg->start, acc+start, sizeof(accstruct)*cg->size());
                     cellijk -= firstcell;
-                    if (cellijk.x> diam) cellijk.x-=GFC->cpd;
-                    if (cellijk.x<-diam) cellijk.x+=GFC->cpd;
-                    if (cellijk.y> diam) cellijk.y-=GFC->cpd;
-                    if (cellijk.y<-diam) cellijk.y+=GFC->cpd;
-                    if (cellijk.z> diam) cellijk.z-=GFC->cpd;
-                    if (cellijk.z<-diam) cellijk.z+=GFC->cpd;
+                    if (cellijk.x> diam) cellijk.x-=cpd;
+                    if (cellijk.x<-diam) cellijk.x+=cpd;
+                    if (cellijk.y> diam) cellijk.y-=cpd;
+                    if (cellijk.y<-diam) cellijk.y+=cpd;
+                    if (cellijk.z> diam) cellijk.z-=cpd;
+                    if (cellijk.z<-diam) cellijk.z+=cpd;
                     posstruct offset = GFC->invcpd*(cellijk);
                         // Ok to use single precision, because this is only a few cells
                     // printf("Using offset %f %f %f\n", offset.x, offset.y, offset.z);
@@ -834,13 +889,13 @@ void GlobalGroupSlab::FindSubGroups() {
     int maxthreads = omp_get_max_threads();
 
     // Guessing L1 halo count is 3% of particles, given minsize
-    L1halos.setup(GFC->cpd, GFC->particles_per_slab/30);    
+    L1halos.setup(cpd, zwidth, GFC->particles_per_slab/30);    
     // Guessing L1 Particles are 3% of total (taggable)
-    HaloRVA.setup(GFC->cpd, GFC->particles_per_slab/30);   
-    HaloRVB.setup(GFC->cpd, GFC->particles_per_slab/30);  
+    HaloRVA.setup(cpd, zwidth, GFC->particles_per_slab/30);   
+    HaloRVB.setup(cpd, zwidth, GFC->particles_per_slab/30);  
      
-    HaloPIDsA.setup(GFC->cpd, GFC->particles_per_slab/30);    
-    HaloPIDsB.setup(GFC->cpd, GFC->particles_per_slab/30);    
+    HaloPIDsA.setup(cpd, zwidth, GFC->particles_per_slab/30);    
+    HaloPIDsB.setup(cpd, zwidth, GFC->particles_per_slab/30);    
     posstruct **L1pos = new posstruct *[maxthreads];
     velstruct **L1vel = new velstruct *[maxthreads];
     auxstruct **L1aux = new auxstruct *[maxthreads];
@@ -883,7 +938,7 @@ void GlobalGroupSlab::FindSubGroups() {
     // It seems that the work between pencils is so heterogeneous that even the
     // dynamic scheduling can't smooth it out.  So we're going to try ordering the
     // pencils by the work estimate (largest first)
-    std::sort(pstat, pstat+GFC->cpd);
+    std::sort(pstat, pstat+cpd);
     
     int nthread = omp_get_max_threads();
     padded<int> local_np_subA[nthread];
@@ -894,11 +949,10 @@ void GlobalGroupSlab::FindSubGroups() {
     }
 
 
-    NUMA_FOR(jj,0,GFC->cpd)
-        int threadnum = omp_get_thread_num();
+    NUMA_FOR(jj,0,cpd)
         int j = pstat[jj].pnum;    // Get the pencil number from the list
         GFC->L1Tot.Start();
-        int g = omp_get_thread_num();
+        const int g = omp_get_thread_num();
         PencilAccum<HaloStat>  *pL1halos   =   L1halos.StartPencil(j);
         PencilAccum<RVfloat>   *pHaloRVA   =   HaloRVA.StartPencil(j);
         PencilAccum<RVfloat>   *pHaloRVB   =   HaloRVB.StartPencil(j);
@@ -909,11 +963,11 @@ void GlobalGroupSlab::FindSubGroups() {
         PencilAccum<RVfloat>   *  pHaloRVs[NUM_SUBSAMPLES] = {pHaloRVA,   pHaloRVB  }; 
 
 
-        for (int k=0; k<GFC->cpd; k++) {
-            // uint64 groupid = ((slab*GFC->cpd+j)*GFC->cpd+k)*4096;
-            uint64 groupidstart = (((uint64)slab*10000+(uint64)j)*10000+(uint64)k)*1000000;
+        for (int k=0; k<zwidth; k++){  // local k
+            // uint64 groupid = ((slab*cpd+j)*cpd+k)*4096;
+            uint64 groupidstart = (((uint64)slab*10000+(uint64)j)*10000+(uint64) (k + zstart))*1000000;
             uint64 nextid; 
-            posstruct offset = CP->CellCenter(slab, j, k);
+            posstruct offset = CP->CellCenter(slab, j, k + zstart);
                     // A basic label for this group
             for (int n=0; n<globalgroups[j][k].size(); n++) { //loop over L0 groups. 
                 nextid = groupidstart + n*1000;
@@ -921,8 +975,7 @@ void GlobalGroupSlab::FindSubGroups() {
                 velstruct *groupvel = vel+globalgroups[j][k][n].start;
                 auxstruct *groupaux = aux+globalgroups[j][k][n].start;
                 accstruct *groupacc = NULL;
-                if(acc != NULL)
-                    groupacc = acc+globalgroups[j][k][n].start;
+                if(acc != NULL) groupacc = acc+globalgroups[j][k][n].start;
                 int groupn = globalgroups[j][k][n].np;
 
                 if (groupn >= GFC->minhalosize){ //This L0 group is too small. Need to output its particles if we're doing subsampling, though. 
@@ -933,7 +986,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         FOFlevel1[g].assign_to_one_group(grouppos, NULL, NULL, groupacc, groupn);
                     else    // This grabs the findgroups statement!
                     #endif
-                    FOFlevel1[g].findgroups(grouppos, NULL, NULL, groupacc, groupn);
+                    FOFlevel1[g].findgroups(grouppos, NULL, groupaux, groupacc, groupn);
                     GFC->L1FOF.Stop();
                     // Now we've found the L1 groups
                     for (int a=0; a<FOFlevel1[g].ngroups; a++) {
@@ -960,7 +1013,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         }
 
                         GFC->L2FOF.Start();
-                        FOFlevel2[g].findgroups(L1pos[g], NULL, NULL, L1acc[g], size);
+                        FOFlevel2[g].findgroups(L1pos[g], NULL, L1aux[g], L1acc[g], size);
                         GFC->L2FOF.Stop();
 
                         // BOT
@@ -1004,7 +1057,7 @@ void GlobalGroupSlab::FindSubGroups() {
                                 else if (taggable == TAGGABLE_SUB_B) ntaggedB++;
                             }
 
-                            AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset, local_np_subA[threadnum].i, local_np_subB[threadnum].i);
+                            AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, index, offset, local_np_subA[g].i, local_np_subB[g].i);
                         }
 
                         HaloStat h = ComputeStats(size, L1pos[g], L1vel[g], L1aux[g], FOFlevel2[g], offset);
@@ -1023,7 +1076,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         h.SO_central_particle[0] = central_particle.x; 
                         h.SO_central_particle[1] = central_particle.y; 
                         h.SO_central_particle[2] = central_particle.z; 
-                        h.SO_central_density  = groupacc[idx].w / FOFlevel1[g].FOFunitdensity; 
+                        h.SO_central_density  = (GFC->use_aux_dens ? groupaux[idx].get_density() : groupacc[idx].w) / FOFlevel1[g].FOFunitdensity; 
                         h.SO_radius = sqrt(FOFlevel1[g].groups[a].halo_radius2) / FOF_RESCALE; 
 
                         //now repeat for the largest L2 halo.
@@ -1032,7 +1085,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         h.SO_L2max_central_particle[0] = L2max_central_particle.x;
                         h.SO_L2max_central_particle[1] = L2max_central_particle.y;
                         h.SO_L2max_central_particle[2] = L2max_central_particle.z;
-                        h.SO_L2max_central_density  =    L1acc[g][idx].w / FOFlevel2[g].FOFunitdensity; 
+                        h.SO_L2max_central_density  =    (GFC->use_aux_dens ? L1aux[g][idx].get_density() : L1acc[g][idx].w) / FOFlevel2[g].FOFunitdensity; 
                         h.SO_L2max_radius = sqrt(FOFlevel2[g].groups[0].halo_radius2) / FOF_RESCALE; 
 
                         #else
@@ -1060,7 +1113,7 @@ void GlobalGroupSlab::FindSubGroups() {
                                                     //if we're outputing the particle subsample, output all of its L0 particles. 
                     for (int b=0; b<groupn; b++) {
                         if (groupaux[b].is_L1()) continue;  // Already in the L1 set
-                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset, local_np_subA[threadnum].i, local_np_subB[threadnum].i); 
+                        AppendParticleToPencil(pHaloRVs, pHaloPIDs, grouppos, groupvel, groupacc, groupaux, b, offset, local_np_subA[g].i, local_np_subB[g].i); 
                     }
                 }
                 
@@ -1091,8 +1144,8 @@ void GlobalGroupSlab::FindSubGroups() {
     // Need to update the pL1halos.npstart values for their pencil starts!
     HaloRVA.build_pstart();
     HaloRVB.build_pstart();
-    for (int j=0; j<GFC->cpd; j++) 
-        for (int k=0; k<GFC->cpd; k++) 
+    for (int j=0; j<cpd; j++) 
+        for (int k=0; k<zwidth; k++)  // local k
             for (int n=0; n<L1halos[j][k].size(); n++) {
                 HaloStat *h = L1halos[j][k].ptr(n);
                 h->npstartA += HaloRVA.pstart[j];
@@ -1188,8 +1241,8 @@ void GlobalGroupSlab::SimpleOutput() {
     char fname[200];
     sprintf(fname, "/tmp/out.group.%03d", slab);
     FILE *fp = fopen(fname,"w");
-    for (int j=0; j<GFC->cpd; j++)
-        for (int k=0; k<GFC->cpd; k++)
+    for (int j=0; j<cpd; j++)
+        for (int k=0; k<zwidth; k++)  // local k
             for (int n=0; n<globalgroups[j][k].size(); n++)
                 fprintf(fp, "%d %d %d %d %d\n", (int)globalgroups[j][k][n].start,
                                 globalgroups[j][k][n].np, slab, j, k);
@@ -1197,8 +1250,8 @@ void GlobalGroupSlab::SimpleOutput() {
 
     sprintf(fname, "/tmp/out.halo.%03d", slab);
     fp = fopen(fname,"w");
-    for (int j=0; j<GFC->cpd; j++)
-        for (int k=0; k<GFC->cpd; k++)
+    for (int j=0; j<cpd; j++)
+        for (int k=0; k<zwidth; k++)  // local k
             for (int n=0; n<L1halos[j][k].size(); n++) {
                 HaloStat h = L1halos[j][k][n];
                 fprintf(fp, "%4d %7.4f %7.4f %7.4f %d %4d %3d %3d %7.4f %7.4f %7.4f %d %lu %u %u\n", 
@@ -1343,17 +1396,19 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
 
 
     SlabAccum<TaggedPID> TimeSlicePIDs;
-    TimeSlicePIDs.setup(GFC->cpd, GFC->particles_per_slab);    
+    TimeSlicePIDs.setup(cpd, zwidth, GFC->particles_per_slab);
 
     // Now scan through cell groups
     #pragma omp parallel for schedule(static) reduction(+:n_added)
-    for (int j=0; j<GFC->cpd; j++){
+    for (int j=0; j<cpd; j++){
 
         PencilAccum<TaggedPID> *pTimeSlicePIDs = TimeSlicePIDs.StartPencil(j);
         AA->start_pencil(j, pstart[j]*AA->sizeof_particle() + pstart_cg[j]*AA->sizeof_cell());
 
-        for (int k=0; k<GFC->cpd; k++){
-            integer3 firstcell(slab,j,k);
+        for (int k = 0; k < zwidth; k++){  // local k
+            // At this point, the only global groups are those that belong uniquely to this node,
+            // so it's okay to scan the ghost cells (a group may start there)
+            integer3 firstcell(slab,j,k + zstart);
             for (int n=0; n<globalgroups[j][k].size(); n++) {
                 // Process globalgroups[j][k][n]
                 // Recall where the particles start
@@ -1365,22 +1420,23 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
 
                 for (int c=0; c<globalgroups[j][k][n].ncellgroups; c++, cglink++) {
                     // Loop over CellGroups
-                    integer3 cellijk = cglink->cell();
+                    integer3 cellijk = cglink->localcell();
+                    cellijk.z += zstart;
                     CellGroup *cg = LinkToCellGroup(*cglink);
                     Cell _cell = CP->GetCell(cellijk);
                     // Convert pos back to global. Note periodic wrap.
                     cellijk -= firstcell;
                     /// TODO: Is this logic still correct??
-                    if (cellijk.x> diam) cellijk.x-=GFC->cpd;
-                    if (cellijk.x<-diam) cellijk.x+=GFC->cpd;
-                    if (cellijk.y> diam) cellijk.y-=GFC->cpd;
-                    if (cellijk.y<-diam) cellijk.y+=GFC->cpd;
-                    if (cellijk.z> diam) cellijk.z-=GFC->cpd;
-                    if (cellijk.z<-diam) cellijk.z+=GFC->cpd;
+                    if (cellijk.x> diam) cellijk.x-=cpd;
+                    if (cellijk.x<-diam) cellijk.x+=cpd;
+                    if (cellijk.y> diam) cellijk.y-=cpd;
+                    if (cellijk.y<-diam) cellijk.y+=cpd;
+                    if (cellijk.z> diam) cellijk.z-=cpd;
+                    if (cellijk.z<-diam) cellijk.z+=cpd;
                     posstruct offset = GFC->invcpd*cellijk;
 
                     // The max vel tracking happens in the kick, which operates on all particles, so it should be valid for L0 groups
-                    FLOAT vscale = _cell.ci->max_component_velocity/ReadState.VelZSpace_to_Canonical; 
+                    FLOAT vscale = _cell.ci->max_component_velocity/ReadState.VelZSpace_to_Canonical;
                     // Start the cell group
                     AA->addcell(j, _cell.ijk, vscale);
 

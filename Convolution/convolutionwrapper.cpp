@@ -22,8 +22,6 @@ STimer ConvolutionWallClock;
 #include "iolib.cpp"
 #endif
 
-char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
-int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
 int node_zstart = -1, node_zwidth = 1;
 int first_slab_on_node = 0, first_slab_finished = -1, total_slabs_on_node = -1;
 
@@ -112,11 +110,13 @@ void dumpstats(OutofCoreConvolution *OCC, char *fn) {
     e = OCC->CS.ReadMultipolesBytes/OCC->CS.ReadMultipoles/(1.0e+6);
     fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles [per thread]", OCC->CS.ReadMultipoles, e );
 	
+#ifdef PARALLEL
     e = OCC->CS.TransposeBufferingBytes/OCC->CS.TransposeBuffering/(1.0e+6);
     fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "Transpose Buffering", OCC->CS.TransposeBuffering, e );
 	
     e = OCC->CS.TransposeAlltoAllvBytes/OCC->CS.TransposeAlltoAllv/(1.0e+6);
     fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "Transpose MPI AlltoAllv", OCC->CS.TransposeAlltoAllv, e );
+#endif
     
     e = OCC->CS.WriteTaylorBytes/OCC->CS.WriteTaylor/(1.0e+6);
     fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor [per thread]", OCC->CS.WriteTaylor, e );
@@ -356,7 +356,7 @@ int main(int argc, char ** argv){
 	    CP.runtime_DerivativeExpansionRadius = P.DerivativeExpansionRadius;
 	    strcpy(CP.runtime_DerivativesDirectory,P.DerivativesDirectory);
 	    CP.runtime_DIOBufferSizeKB = 1LL<<11;
-	    CP.runtime_IsRamDisk = P.RamDisk;
+	    CP.runtime_AllowDIO = P.AllowDirectIO;
 	    CP.runtime_MaxConvolutionRAMMB = P.MAXRAMMB;
 	    strcpy(CP.runtime_MultipoleDirectory, P.MultipoleDirectory);
 

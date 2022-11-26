@@ -25,7 +25,16 @@ SubA: 59
 SubB: 60
 LightCone (3): 61-63
 
-When we store into the output TaggedPID format, we apply a bit mask to zero all of the second set of bits. That's 0x07ff 7fff 7fff 7fff.
+density: 64-95 (full-precision dens for group finding)
+
+For the LPT steps, we repurpose the following bits:
+vx: 48-63
+vy: 64-79
+vz: 80-95
+
+When we store into the output TaggedPID format, we only output
+from the first 64 bits, and apply a bit mask to zero all of the
+second set of bits. That's 0x07ff 7fff 7fff 7fff.
 
 */
 #include <bitset>
@@ -77,15 +86,26 @@ When we store into the output TaggedPID format, we apply a bit mask to zero all 
 #define AUXPIDMASK 0x7fff7fff7fff
 
 #define NAUXPIDBITS 45  // total of 45 bits used for PIDs
-#define PIDBITGAP 1  // one bit in between each PID segment
 
-class auxstruct {
-public:
+#define AUX_LPTVXZEROBIT 48
+#define AUX2_LPTVYZEROBIT 0
+#define AUX2_LPTVZZEROBIT 16
+#define AUX_LPTVX ((uint64) 0xFFFF << AUX_LPTVXZEROBIT)
+#define AUX2_LPTVY ((uint64) 0xFFFF << AUX2_LPTVYZEROBIT)
+#define AUX2_LPTVZ ((uint64) 0xFFFF << AUX2_LPTVZZEROBIT)
+
+class __attribute__((packed)) auxstruct {
+private:
     uint64 aux;
-    // unsigned char lightcones; //1 bit for each of 8 lightcones
 
-    // Methods to extact items, e.g.,
-   void clear() { aux = 0; }   // lightcones =0;}
+    union {
+        uint32 aux2;
+        float dens;
+    };
+
+public:
+
+   void clear() { aux = 0; aux2 = 0; }
 
     // We will provide at least one ID, suitable for the particles.
     // This is required for the LPT implementation.
@@ -100,33 +120,35 @@ public:
     }
 
     void setpid(integer3 _pid) { 
-        uint16 max = (uint16) AUXXPID; 
-            assert(_pid.x <= max and _pid.y <= max and _pid.z <= max);
-        uint16 pid[3] = {(uint16) _pid.x, (uint16) _pid.y, (uint16) _pid.z}; 
-        setpid(pid); 
+        assert(_pid.x <= AUXXPID && _pid.y <= AUXXPID && _pid.z <= AUXXPID);
+        _setpid(_pid.x, _pid.y, _pid.z);
     }
 
-    void setpid(uint16 _pid[3]) { 
-        uint16 max = (uint16) AUXXPID; 
-           assert(_pid[0] <= max and _pid[1] <= max and _pid[2] <= max);
-        setpid((uint64) _pid[0] | (uint64) _pid[1]<<16| (uint64) _pid[2] <<32);
+    void _setpid(uint64 px, uint64 py, uint64 pz) { 
+        _setpidbits(px | py<<16 | pz<<32);
     }
 
-    void setpid(uint64 _pid) {
-        aux = _pid | (aux &~ AUXPIDMASK); 
+    void _setpidbits(uint64 _pid) {
+        aux = _pid | (aux & ~AUXPIDMASK);
     }
 
     // Take a pid and distribute its values to the three segements used for PIDs
     void packpid(uint64 _pid){
         assert(_pid <= ((uint64) 1 << NAUXPIDBITS));
-        uint64 pid = (_pid & AUXXPID) | (_pid << PIDBITGAP & AUXYPID) | (_pid << 2*PIDBITGAP & AUXZPID);
-        setpid(pid);
+        uint64 pid = (_pid & AUXXPID) | (_pid << 1 & AUXYPID) | (_pid << 2 & AUXZPID);
+        _setpidbits(pid);
     }
 
+    // Take a distributed PID and unpack the bits back into a contiguous convention.
+    // Not commonly used.
+    uint64 unpackpid(){
+        uint64 pidbits = aux & AUXPIDMASK;
+        return (pidbits & AUXXPID) | ((pidbits & AUXYPID) >> 1) | ((pidbits & AUXZPID) >> 2);
+    }
 
     // We will provide a group ID too; this may overwrite the PID.
     uint64 gid() { return pid(); }
-    void setgid(uint64 gid) { setpid(gid); }
+    void setgid(uint64 gid) { _setpidbits(gid); }
 
     // We expose lightconemask() publicly because one might 
     // not want to construct for every particle.
@@ -181,17 +203,35 @@ public:
         return aux & ((uint64)1 << AUXTAGGEDBIT);
     }
 
-    // Set the density from the density value (in code units)
+    // Store a lossy compression of the density from the raw value (in code units)
     // There is a chance that a mismatch in precision between the GPU and CPU codes 
     // could lead to a negative value of the density when the only particle is the self-particle.
     // Hence, we take the absolute value.
-    inline void set_density(FLOAT rawdensity){
-        _pack_density((uint64) round(std::sqrt(fabs(rawdensity) * WriteState.invFOFunitdensity)));
+    inline void set_compressed_density(FLOAT rawdensity){
+        _pack_density((uint64) round(std::sqrt(std::abs(rawdensity) * WriteState.invFOFunitdensity)));
     }
 
     inline void _pack_density(uint64 _density){
         assert(_density < (AUXDENSITY >> AUXDENSITYZEROBIT)); 
         aux = ( (uint64) _density << AUXDENSITYZEROBIT )  | (aux &~ AUXDENSITY); 
+    }
+
+    inline FLOAT get_compressed_density(){
+        uint64 d = _unpack_density();
+        return d*d * WriteState.FOFunitdensity;
+    }
+
+    inline uint64 _unpack_density(){
+        return (aux | AUXDENSITY) >> AUXDENSITYZEROBIT;
+    }
+
+    // Routines to set/get the full-precision density for group finding
+    inline void set_density(FLOAT rawdensity){
+        dens = (float) rawdensity;
+    }
+
+    inline float get_density(){
+        return dens;
     }
     
     inline void reset_L01_bits() {
@@ -213,25 +253,80 @@ public:
         return aux & ((uint64)1 << AUXINL1BIT);
     }
 
-
-/* OLD CODE
-    bool lightconedone(int number) {
-    	assert (number < 8 && number >=0);
-    	unsigned char mask = 1<<number;
-    	return ((mask & lightcones) & mask);
+    inline uint64 get_aux_pid_dens_tagged(){
+        return aux & AUX_PID_TAG_DENS_MASK;
     }
-    void setlightconedone(int number){
-    	unsigned char mask = 1<<number;
-    	lightcones |= mask;
-    }
-*/
 
-    
+    // Routines to support 2LPT, where we save the velocity in the aux
+
+    inline void set_velocity(velstruct delta, FLOAT invscale){
+        // vel is the velocity to store, usually as an offset
+        uint16 vx = _pack_float(delta.x, invscale);
+        uint16 vy = _pack_float(delta.y, invscale);
+        uint16 vz = _pack_float(delta.z, invscale);
+        
+        aux = (aux & ~AUX_LPTVX) | ((uint64) vx << AUX_LPTVXZEROBIT);
+        aux2 = (aux2 & ~(AUX2_LPTVY | AUX2_LPTVZ)) |
+                ((uint64) vy << AUX2_LPTVYZEROBIT) |
+                ((uint64) vz << AUX2_LPTVZZEROBIT);
+    }
+
+    uint16 _pack_float(FLOAT f, FLOAT invfscale){
+        // packs f as a 16 bit int, stored as a ratio relative to scale
+        // f must be in [-scale,scale]
+        FLOAT ratio = f*invfscale; // [-1,1]
+        int iscale = (1<<15)-1;
+        int enc = (int) (ratio*iscale) + iscale;  // [0,1<<16-2]
+        
+        // clamp modest overflow
+        if(enc == -1) enc = 0;
+        if(enc == 2*iscale + 1) enc = 2*iscale;  // we could represent this overflow, but let's be symmetric
+        
+        assertf(enc >= 0 && enc < 1<<16, "Cannot pack float %g with invscale %g\n", f, invfscale);
+        return (uint16) enc;
+    }
+
+    inline void zero_velocity(){
+        aux &= ~AUX_LPTVX;
+        aux2 &= ~(AUX2_LPTVY | AUX2_LPTVZ);
+    }
+
+    inline velstruct get_velocity(FLOAT scale){
+        FLOAT vx = _unpack_float((aux & AUX_LPTVX) >> AUX_LPTVXZEROBIT, scale);
+        FLOAT vy = _unpack_float((aux2 & AUX2_LPTVY) >> AUX2_LPTVYZEROBIT, scale);
+        FLOAT vz = _unpack_float((aux2 & AUX2_LPTVZ) >> AUX2_LPTVZZEROBIT, scale);
+
+        return velstruct(vx, vy, vz);
+    }
+
+    FLOAT _unpack_float(uint16 enc, FLOAT fscale){
+        int iscale = (1<<15)-1;
+        FLOAT inviscale = 1.0/iscale;
+        FLOAT f = ((int) enc - iscale) * inviscale;
+        return f*fscale;
+    }
+
+    std::string tostring(){
+        std::stringstream stream;
+        stream << "0x" << std::hex << aux << std::hex << aux2;
+        return stream.str();
+    }    
 };
 
-class cellinfo { 
+static_assert(sizeof(auxstruct) == 12, "unexpected auxstruct size");
+
+class cellinfo {
+    /* With regard to ghost cells, our CellInfo slabs will always be sized to hold
+    ghosts.  But some of our slabs, like AccSlab, won't. So each cellinfo struct
+    has two counts: one for the starting offset in slabs with ghosts, and one
+    for the slabs without.
+
+    The alternatives would be to make a new CellInfoWithGhosts slab type, or
+    simply require all slabs to have ghosts, even if they are null.
+    */
 public:
     uint64 startindex;     // The particle-count offset in the slab list of particles
+    uint64 startindex_with_ghost;     // The offset in slabs that also hold ghost cells
     int count;          // The total number of particles in the cell
     int active;         // The number of active particles
     FLOAT mean_square_velocity;     // The mean of |vel|^2 (no adjustment for mean v)
@@ -241,35 +336,44 @@ public:
     void makenull() {
         memset(this,0,sizeof(cellinfo));
         startindex = 0;
+        startindex_with_ghost = 0;
         count = 0;
         active = 0;
         mean_square_velocity = 0;
         max_component_velocity  = 0;
         max_component_acceleration = 0;
     }
-    int legalvalue(uint64 slabsize) {
+    int legalvalue(uint64 slabsize, uint64 slabsize_with_ghost, int isghost) {
         // Do a sanity check on the cellinfo values; return 1 if ok, 0 if not.
         // slabsize is the number of particles in the slab.
-    if(count<0){
-        STDLOG(0, "Bad 'count' in cellinfo: %d\n", count);
-        return 0;
-    }
-    if(active<0){
-        STDLOG(0, "Bad 'active' in cellinfo: %u\n", active);
-        return 0;
-    }
-    if(mean_square_velocity<0){
-        STDLOG(0, "Bad 'mean_square_velocity' in cellinfo: %u\n", mean_square_velocity);
-        return 0;
-    }
-        if (startindex+count > slabsize){
-        STDLOG(0, "'startindex+count' (%u + %d = %d) > 'slabsize' (%u) in cellinfo\n", startindex, count, startindex+count, slabsize);
-        return 0;
-    }
+        if(count<0){
+            STDLOG(0, "Bad 'count' in cellinfo: %d\n", count);
+            return 0;
+        }
+        if(active<0){
+            STDLOG(0, "Bad 'active' in cellinfo: %u\n", active);
+            return 0;
+        }
+        if(mean_square_velocity<0){
+            STDLOG(0, "Bad 'mean_square_velocity' in cellinfo: %u\n", mean_square_velocity);
+            return 0;
+        }
+
+        // startindex is meaningless in ghost cells
+        if (!isghost && startindex+count > slabsize){
+            STDLOG(0, "'startindex+count' (%u + %d = %d) > 'slabsize' (%u) in cellinfo\n", startindex, count, startindex+count, slabsize);
+            return 0;
+        }
+        
+        if (startindex_with_ghost + count > slabsize_with_ghost){
+            STDLOG(0, "'startindex_with_ghost+count' (%u + %d = %d) > 'slabsize_with_ghost' (%u) in cellinfo\n",
+                startindex_with_ghost, count, startindex_with_ghost+count, slabsize_with_ghost);
+            return 0;
+        }
         if (active>count){
-        STDLOG(0, "'active' (%d) > 'count' (%d) in cellinfo\n", active, count);
-        return 0;
-    }
+            STDLOG(0, "'active' (%d) > 'count' (%d) in cellinfo\n", active, count);
+            return 0;
+        }
         return 1;
     }
 };

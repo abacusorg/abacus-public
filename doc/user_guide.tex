@@ -796,8 +796,6 @@ number of times that full forces have been computed.
 
 \param{LPTStepNumber}{int} How many steps into our Lagrangian Perturbation Theory computation we are.  0 if this is a normal time step; non-zero if this is an LPT step.
 
-\param{Do2LPTVelocityRereading}{int} Our 2LPT implementation overwrites the initial particle velocities which is fine if we are using the Zeldovich approximation (because they can be recomputed from the displacements).  If we are using PLT corrections (or any IC format that specifies a velocity), then we have to reread the IC files to restore the overwritten velocities.  This flag specifies whether that will happen during this step.
-
 \param{SofteningType}{string} The force law being employed.  Possible
 values are: ``plummer'', ``cubic\_plummer'', ``cubic\_spline'', ``single\_spline''.
 

@@ -51,50 +51,35 @@ Several parameters control IC processing. They are:
 
 // Unpack the particles in the arena and push them to the Insert List
 uint64 ICFile::unpack_to_IL(double convert_pos, double convert_vel){
-    return unpack(NULL, convert_pos, convert_vel);
-}
-
-// Unpack the particle velocities in the arena and store them in velslab
-uint64 ICFile::unpack_to_velslab(velstruct *velslab, double convert_pos, double convert_vel){
-    assertf(velslab != NULL, "Passed NULL velslab in unpack_to_velslab?\n");
-    return unpack(velslab, convert_pos, convert_vel);
-}
-
-void ICFile::read_vel_nonblocking(){
-    read_nonblocking(1);
+    return unpack(convert_pos, convert_vel);
 }
 
 // Start a read via SB
-void ICFile::read_nonblocking(int vel){
-    // Base implementation doesn't distinguish
-    // between regular reads and vel-only reads
+void ICFile::read_nonblocking(){
     SB->LoadArenaNonBlocking(ICSlab, slab);
 }
 
-int ICFile::check_vel_read_done(){
-    return check_read_done(1);
-}
-
 // If a read is in progress, return 0
-int ICFile::check_read_done(int vel){
+int ICFile::check_read_done(){
     if(!SB->IsIOCompleted(ICSlab, slab)){
         if(SB->IsSlabPresent(ICSlab, slab))
-            Dependency::NotifySpinning(WAITING_FOR_IO);
+            SlabDependency::NotifySpinning(WAITING_FOR_IO);
         return 0;
     }
     return 1;
 }
 
-ICFile::ICFile(int _slab){
+ICFile::ICFile(int _slab, int _zsplit){
     slab = _slab;
+    zsplit = _zsplit;
 
     // Subclasses should init this in the constructor
     Npart = 0;
-}
+    foffset = 0;
+    fbytes = 0;
 
-ICFile::~ICFile(void) {
+    lpt_vel_scale = 0.;
 }
-
 
 inline void ICFile::set_taggable_bits(auxstruct &aux, uint64 &sumA, uint64 &sumB){
     // Set the 'taggable' bit for particles as a function of their PID
@@ -116,18 +101,19 @@ uint64 ICFile::next_pid;  // static next_pid counter
 template<class T>
 class ICFile_OnDisk : public ICFile {
 public:
-    ICFile_OnDisk<T>(int _slab) : ICFile(_slab){
+    ICFile_OnDisk<T>(int _slab, int _zsplit) : ICFile(_slab, _zsplit){
         // SlabSizeBytes only works if ICSlab is already in memory
         // This avoids an extra file stat
-        uint64 b;
-        if(SB->IsSlabPresent(ICSlab,slab))
-            b = SB->SlabSizeBytes(ICSlab, slab);
-        else
-            b = fsize(SB->ReadSlabPath(ICSlab,slab).c_str());
+        /*if(SB->IsSlabPresent(ICSlab,slab))
+            fbytes = SB->SlabSizeBytes(ICSlab, slab);
+        else*/
+        fbytes = fsize(SB->ReadSlabPath(ICSlab,slab).c_str());
 
-        Npart = b/sizeof(typename T::ICparticle);
+        Npart = fbytes/sizeof(typename T::ICparticle);
+        foffset = 0;
         
-        assertf(Npart*sizeof(typename T::ICparticle) == b, "Size of IC slab %s not divisible by particle size %d!\n",
+        assertf(Npart*sizeof(typename T::ICparticle) == fbytes,
+            "Size of IC slab %s not divisible by particle size %d!\n",
             SB->ReadSlabPath(ICSlab, slab), sizeof(typename T::ICparticle));
     }
 };
@@ -149,9 +135,7 @@ public:
 
 private:
     // If velslab != NULL, unpack the velocities into there and do nothing else
-    uint64 unpack(velstruct *velslab, double convert_pos, double convert_vel) {
-        assertf(velslab == NULL, "Velocity unpacking should never be used with format RVdouble!\n");
-
+    uint64 unpack(double convert_pos, double convert_vel) {
         ICparticle *particles = (ICparticle *) SB->GetSlabPtr(ICSlab, slab);
 
         uint64 sumA = 0, sumB = 0;
@@ -181,7 +165,7 @@ private:
             aux.packpid(next_pid+i); // use packpid to pack our "linear" pid into the distributed aux format
             set_taggable_bits(aux, sumA, sumB);
 
-            IL->Push(&_pos, &vel, &aux, newcell);
+            IL->WrapAndPush(&_pos, &vel, &aux, newcell);
         }
 
         // Store the local reductions in the class variables
@@ -216,9 +200,7 @@ public:
 
 private:
     // If velslab != NULL, unpack the velocities into there and do nothing else
-    uint64 unpack(velstruct *velslab, double convert_pos, double convert_vel) {
-        assertf(velslab == NULL, "Velocity unpacking should never be used with format RVPID!\n");
-
+    uint64 unpack(double convert_pos, double convert_vel) {
         ICparticle *particles = (ICparticle *) SB->GetSlabPtr(ICSlab, this->slab);
 
         uint64 sumA = 0, sumB = 0;
@@ -251,7 +233,7 @@ private:
             aux.packpid(p.pid);
             this->set_taggable_bits(aux, sumA, sumB);
 
-            IL->Push(&_pos, &vel, &aux, newcell);
+            IL->WrapAndPush(&_pos, &vel, &aux, newcell);
         }
 
         // Store the local reductions in the class variables
@@ -273,6 +255,10 @@ A template class for RVZel and RVdoubleZel, which are typedef'd with the "using"
 */
 template<typename T>
 class ICFile_RVZelTemplate : public ICFile_OnDisk<ICFile_RVZelTemplate<T>> {
+private:
+    double Canonical_to_VelZSpace;
+    int prep_2lpt;
+
 public:
     class ICparticle {
     public:
@@ -281,32 +267,57 @@ public:
         T vel[3];
     };
 
-    using ICFile_OnDisk<ICFile_RVZelTemplate<T>>::ICFile_OnDisk;  // inherit the constructor
+    ICFile_RVZelTemplate(int _slab, int _zsplit)
+        : ICFile_OnDisk<ICFile_RVZelTemplate<T>>(_slab, _zsplit) {
+        
+        // Npart in the parent constructor is the total in the file
+        // but this constructor will set it to the per-zrank value.
+
+        uint64 ppd = WriteState.ippd;
+        uint64 xplanes = this->Npart / (ppd*ppd);
+        assertf(xplanes*ppd*ppd == this->Npart,
+            "IC file does not contain a whole number of ppd^2 particle planes?\n");
+        
+        if(MPI_size_z > 1){
+            uint64 zstart = MPI_rank_z*ppd/MPI_size_z;
+            uint64 znext = (MPI_rank_z + 1)*ppd/MPI_size_z;
+            this->Npart = xplanes*ppd*(znext - zstart);
+            this->fbytes = this->Npart*sizeof(ICparticle);
+            this->foffset = zstart*ppd*xplanes*sizeof(ICparticle);
+        } else {
+            this->foffset = 0;
+        }
+
+        Canonical_to_VelZSpace = 1./WriteState.VelZSpace_to_Canonical;
+        prep_2lpt = P.LagrangianPTOrder > 1;
+    }
 
 private:
     // If velslab != NULL, unpack the velocities into there and do nothing else
-    uint64 unpack(velstruct *velslab, double convert_pos, double convert_vel) {
+    uint64 unpack(double convert_pos, double convert_vel) {
 
         ICparticle *particles = (ICparticle *) SB->GetSlabPtr(ICSlab, this->slab);
 
         uint64 sumA = 0, sumB = 0;
-        #pragma omp parallel for schedule(static) reduction(+:sumA,sumB)
+        FLOAT max_vel_delta = 0.;
+        #pragma omp parallel for schedule(static) reduction(+:sumA,sumB) reduction(max:max_vel_delta)
         for(uint64 i = 0; i < this->Npart; i++){
             ICparticle p = particles[i];
 
             velstruct vel(p.vel[0], p.vel[1], p.vel[2]);
             vel *= convert_vel;
 
-            if(velslab != NULL){
-                // Fill the velslab; don't touch the pos,aux
-                velslab[i] = vel;
-                continue;
-            }
-
             double3 pos(p.pos[0], p.pos[1], p.pos[2]);
             auxstruct aux;
 
             pos *= convert_pos;
+
+            if(prep_2lpt){
+                // Track max(vel-linearvel)
+                // TODO: have we been neglecting f_growth in the zeldovich code?
+                velstruct delta = vel*Canonical_to_VelZSpace - pos;
+                max_vel_delta = std::max(delta.maxabscomponent(), max_vel_delta);
+            }
 
             integer3 ijk(p.i, p.j, p.k);
             assert(ijk.x >= 0 && ijk.y >= 0 && ijk.z >= 0);
@@ -328,12 +339,14 @@ private:
             aux.setpid(ijk); // Set aux too.
             this->set_taggable_bits(aux, sumA, sumB);
 
-            IL->Push(&_pos, &vel, &aux, newcell);
+            IL->WrapAndPush(&_pos, &vel, &aux, newcell);
         }
 
         // Store the local reductions in the class variables
         this->NsubsampleA = sumA;
         this->NsubsampleB = sumB;
+
+        this->lpt_vel_scale = max_vel_delta;
 
         // All done with these particles
         SB->DeAllocate(ICSlab, this->slab);
@@ -374,10 +387,7 @@ public:
     using ICFile_OnDisk<ICFile_Zeldovich>::ICFile_OnDisk;  // inherit the constructor
 
 private:
-    // If velslab != NULL, unpack the velocities into there and do nothing else
-    uint64 unpack(velstruct *velslab, double convert_pos, double convert_vel) {
-        assertf(velslab == NULL, "Velocity unpacking should never be used with format Zel!\n");
-
+    uint64 unpack(double convert_pos, double convert_vel) {
         ICparticle *particles = (ICparticle *) SB->GetSlabPtr(ICSlab, slab);
 
         uint64 sumA = 0, sumB = 0;
@@ -414,7 +424,7 @@ private:
             aux.setpid(ijk); // Set aux too.
             set_taggable_bits(aux, sumA, sumB);
 
-            IL->Push(&_pos, &_vel, &aux, newcell);
+            IL->WrapAndPush(&_pos, &_vel, &aux, newcell);
         }
 
         // Store the local reductions in the class variables
@@ -430,70 +440,79 @@ private:
 
 class ICFile_Lattice: public ICFile {
 private:
-    int64_t ppd;  // particles per dimension
-    int64_t ppd2;  // particles per dimension squared
+    int64_t ppdy,ppdz;  // particles per Y & Z dim
+    int64_t Npp;  // N per plane, ppdy*ppdz
 
-    int first_plane;  // first plane index in this slab
+    int firstx, firstz;  // first plane indices in this slab
+    int lastx, lastz;
     
 public:
-    ICFile_Lattice(int _slab) : ICFile(_slab) {
+    ICFile_Lattice(int _slab, int _zsplit) : ICFile(_slab, _zsplit) {
 
-        ppd = WriteState.ippd;
-        ppd2 = ppd*ppd;
-        double ppd_per_slab = (double) ppd / P.cpd;
+        ppdy = WriteState.ippd;
+        
+        double ppdx_per_slab = (double) WriteState.ippd / P.cpd;
+        double ppdz_per_split = (double) WriteState.ippd / MPI_size_z;
 
         // planes [first,last) are in this slab
-        first_plane = (int) ceil(ppd_per_slab*slab);
-        int last_plane = (int) ceil(ppd_per_slab*(slab+1));
+        firstx = (int) ceil(ppdx_per_slab*slab);
+        lastx = (int) ceil(ppdx_per_slab*(slab+1));
 
-        Npart = ppd2*(last_plane - first_plane);
+        // We'll assume the z splits are registered to the periodic wrap for simplicity
+        firstz = (int) ceil(ppdz_per_split*zsplit);
+        lastz = (int) ceil(ppdz_per_split*(zsplit+1));
+        ppdz = lastz - firstz;
+
+        Npp = ppdy*ppdz;
+        Npart = Npp*(lastx - firstx);
     }
 
-    void read_nonblocking(int vel){
+    void read_nonblocking(){
         // Lattice is in-memory; nothing to read!
         return;
     }
 
-    int check_read_done(int vel){
+    int check_read_done(){
         return 1;  // nothing to read!
     }
 
-    // If velslab != NULL, unpack the velocities into there and do nothing else
-    uint64 unpack(velstruct *velslab, double convert_pos, double convert_vel) {
-        assertf(velslab == NULL, "Velocity unpacking should never be used with format Lattice!\n");
-
+    uint64 unpack(double convert_pos, double convert_vel) {
         uint64 sumA = 0, sumB = 0;
+        double ppd = WriteState.ppd;
+        velstruct vel(convert_vel);  // inherit the vel from P.ICVelocity2Displacement
+        
         #pragma omp parallel for schedule(static) reduction(+:sumA,sumB)
-        for(uint64 i = 0; i < Npart; i++){
-            // Map the particle offset to an i,j,k tuple and add the plane offset
-            integer3 ijk;
-            ijk.x = i / ppd2;
-            ijk.y = (i - ppd2*ijk.x)/ppd;
-            ijk.z = (i - ppd2*ijk.x) - ppd*ijk.y;
-            ijk.x += first_plane;
+        for(int64 iy = 0; iy < ppdy; iy++){
+            double3 gpos;
+            gpos.y = (double)iy/ppd - 0.5;
+            for(int64 ix = firstx; ix < lastx; ix++){
+                gpos.x = (double)ix/ppd - 0.5;
+                for(int64 iz = firstz; iz < lastz; iz++){
+                    gpos.z = (double)iz/ppd - 0.5;
 
-            assert(ijk.x >= 0 && ijk.y >= 0 && ijk.z >= 0);
-            assert(ijk.x < WriteState.ppd && ijk.y < WriteState.ppd && ijk.z < WriteState.ppd);
+                    double3 pos(gpos);
+                    
+                    #ifdef GLOBALPOS
+                    integer3 newcell = CP->WrapPosition2Cell(&pos);
+                    #else
+                    // make pos cell-centered:
+                    integer3 newcell = CP->LocalPosition2Cell(&pos);
+                    #endif
 
-            double3 pos = ZelPos(ijk);  // probably safe to ignore convert_pos
-            velstruct vel(0.);
+                    // make pos float3
+                    posstruct _pos(pos);
 
-            #ifdef GLOBALPOS
-            integer3 newcell = CP->WrapPosition2Cell(&pos);
-            #else
-            // make pos cell-centered:
-            integer3 newcell = CP->LocalPosition2Cell(&pos);
-            #endif
+                    auxstruct aux;
+                    aux.clear();
+                    aux._setpid(ix, iy, iz); // Set aux too.
+                    set_taggable_bits(aux, sumA, sumB);
 
-            // make pos float3
-            posstruct _pos(pos);
-
-            auxstruct aux;
-            aux.clear();
-            aux.setpid(ijk); // Set aux too.
-            set_taggable_bits(aux, sumA, sumB);
-
-            IL->Push(&_pos, &vel, &aux, newcell);
+                    // One might expect to use Push() instead of WrapAndPush() here.
+                    // But LocalPosition2Cell() uses doubles, which may spill a cell
+                    // once converted to float.
+                    IL->WrapAndPush(&_pos, &vel, &aux, newcell);
+                }
+            }
         }
 
         // Store the local reductions in the class variables
@@ -532,7 +551,7 @@ void get_IC_unit_conversions(double &convert_pos, double &convert_vel){
 
 // An alternative to this macro approach would be a C++ type registry
 #define REGISTER_ICFORMAT(fmt) if(strcasecmp(format, #fmt) == 0){\
-    ic = unique_ptr<ICFile_##fmt>(new ICFile_##fmt(_slab));\
+    ic = unique_ptr<ICFile_##fmt>(new ICFile_##fmt(_slab, MPI_rank_z));\
 } else
 
 // This is a factory function to instantiate ICFile objects of a given format and slab number
@@ -576,6 +595,8 @@ uint64 UnpackICtoIL(int slab) {
 
     STDLOG(0,"Read %d particles from IC slab %d\n", count, slab);
     STDLOG(1,"Slab %d has %d subsample A particles, %d subsample B particles.\n", slab, ic->NsubsampleA, ic->NsubsampleB);
+
+    WriteState.LPTVelScale = std::max((double)std::abs(ic->lpt_vel_scale), WriteState.LPTVelScale);
 
     return count; 
 }

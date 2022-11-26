@@ -26,15 +26,20 @@
 class SkewerIndex {
 public:
     // We need to collect some items for one skewer's worth of indexing,
-    // so that we can multi-thread easily
+    // so that we can multi-thread easily.
+    // In the 2D code, a "skewer" spans the local z domain (with ghosts),
+    // rather than [0,cpd).
     uint64 ilskewerlength;    // How many items in this skewer
     uint64 ilskewerstart;     // Where the indexing in the full list starts
 
+    uint64 ilprimarystart;    // Where the indexing of the primary particles starts
+    uint64 ilprimarylength;   // How many items in this skewer, without ghosts
+
     uint64 activelength;    // How many active original particles in this skewer
-    uint64 activestart;     // Where the skewer starts
 
     uint64 mergelength;     // How many particles in the Merged skewer
     uint64 mergestart;      // Where the Merged skewer will start
+    uint64 mergestart_no_ghost;  // Indexing skipping ghosts
 
     // The stats to accumulate
     int maxcellsize, mincellsize;
@@ -110,15 +115,45 @@ public:
              "Error in IL index search; insert list was not sorted!");
         return high;
     }
+
+
     void search(ilstruct *list, uint64 len, int ygoal) {
         ilskewerstart = _search(list, len, ygoal);
+    }
+
+    uint64 search_forward(ilstruct *list, int zgoal) {
+        uint64 i;
+        for(i = ilskewerstart; i < ilskewerstart + ilskewerlength; i++){
+            if (list[i].local_cellz() >= zgoal){
+                break;
+            }
+        }
+        return i;
+    }
+
+    uint64 search_backward(ilstruct *list, int zgoal) {
+        int64_t i;  // using a signed i
+        for(i = (int64_t) ilskewerstart + (int64_t) ilskewerlength - 1; i >= (int64_t) ilskewerstart; i--){
+            if (list[i].local_cellz() < zgoal){
+                break;
+            }
+        }
+        return i + 1;  // one past the end, so end-start is size
     }
 };
 
 
-uint64 FillMergeSlab(int slab) {
+void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
     // This routine allocates the MergePos, MergeVel, MergeAux, 
     // and MergeCellInfo slabs.  They will be destroyed when written.
+
+    /* With regard to ghosts, all of the slabs built by this routine
+     * will hold MERGE_GHOST_RADIUS ghost columns.  This does not require
+     * special treatment, except that the cellinfos will record an extra count,
+     * so we know the particle offsets in slabs without ghosts
+     * (probably just for AccSlab).
+     */
+
     int cpd = P.cpd;
 
     // Sort the insert list
@@ -136,7 +171,8 @@ uint64 FillMergeSlab(int slab) {
     // Make the SkewerIndex objects
     SkewerIndex *skewer = new SkewerIndex[cpd];
     ilstruct *ilhead = ILnew;     // The start of the slab's IL 
-    uint64 inslab = 0;    // Total particles in the slab
+    uint64 inslab = ilslablength;    // Total particles to merge in the slab, primary + ghost
+    uint64 inslab_no_ghost = 0;  // Just primary
 
     // Search the insert list to find the start of each skewer
     skewer[0].ilskewerstart = 0;    // First one is obvious!
@@ -144,7 +180,26 @@ uint64 FillMergeSlab(int slab) {
     #pragma omp parallel for schedule(static)
     for (int y=1; y < cpd; y++) 
         skewer[y].search(ilhead, ilslablength, y);
-    
+
+    // Now find the bounds of each skewer's primary region.
+    // The bounds will be near the skewer ends, so we'll search from the front and back.
+    #pragma omp parallel for schedule(static)
+    for (int y=0; y < cpd; y++) {
+        // first establish the skewer length
+        skewer[y].ilskewerlength = (y<cpd-1) ?
+                (skewer[y+1].ilskewerstart - skewer[y].ilskewerstart)
+                : (ilslablength - skewer[y].ilskewerstart);
+
+        // now search from the front and back
+        // zgoal is relative to node_z_start - MERGE_GHOST_RADIUS
+        skewer[y].ilprimarystart = skewer[y].search_forward(ilhead, MERGE_GHOST_RADIUS);
+        uint64 ilprimaryend = skewer[y].search_backward(ilhead, MERGE_GHOST_RADIUS + node_z_size);
+        skewer[y].ilprimarylength = ilprimaryend - skewer[y].ilprimarystart;
+        
+        assertf(skewer[y].ilprimarylength <= skewer[y].ilskewerlength,
+            "Primary length (%d) must be <= primary + ghost length (%d)\n",
+            skewer[y].ilprimarylength, skewer[y].ilskewerlength);
+    }
 
     // Count the particles from CellInfo in each skewer, loading activelength
     // Use static scheduling because this is fixed work
@@ -153,27 +208,37 @@ uint64 FillMergeSlab(int slab) {
     #pragma omp parallel for schedule(static)
     for (int y=0; y < cpd; y++) {
         skewer[y].activelength = 0;
-        for (int z=0; z < cpd; z++) {
+        // We only consider primary particles from CellInfo; ghosts always come fresh from the IL.
+        // And more than that, we know we completely emptied the MERGE_GHOST_RADIUS boundary cells.
+        for (int z=node_z_start + MERGE_GHOST_RADIUS; z < node_z_start + node_z_size - MERGE_GHOST_RADIUS; z++) {
             cellinfo *ci =  CP->CellInfo(slab,y,z);
             skewer[y].activelength += ci->active;
         }
     }
 
     // Cumulate the SkewerIndex's, filling in start and length variables
-    // Scalar loop
+    // Serial loop
     for (int y=0; y < cpd; y++) {
-        inslab += skewer[y].activelength;   // Total active particles
-        skewer[y].activestart = (y>0)?
-                (skewer[y-1].activestart+skewer[y-1].activelength )
-                :0;
-        skewer[y].ilskewerlength = (y<cpd-1)?
-                (skewer[y+1].ilskewerstart-skewer[y].ilskewerstart)
-                : (ilslablength-skewer[y].ilskewerstart);
+        // inslab already has all IL primary + ghost from ilslablength.
+        // inslab_no_ghost must sum up the primary count skewer-by-skewer
+        inslab += skewer[y].activelength;
+        inslab_no_ghost += skewer[y].activelength + skewer[y].ilprimarylength;
+        
         skewer[y].mergelength = 
                 skewer[y].activelength + skewer[y].ilskewerlength;
-        skewer[y].mergestart = (y>0)?
-                (skewer[y-1].mergestart+skewer[y-1].mergelength )
-                :0;
+        
+        if(y == 0){
+            skewer[y].mergestart = 0;
+            skewer[y].mergestart_no_ghost = 0;
+        } else {
+            skewer[y].mergestart = 
+                skewer[y-1].mergestart + skewer[y-1].mergelength;
+
+            uint64 last_mergelength_no_ghost =
+                skewer[y-1].activelength + skewer[y-1].ilprimarylength;
+            skewer[y].mergestart_no_ghost =
+                skewer[y-1].mergestart_no_ghost + last_mergelength_no_ghost;
+        }
     }
 
     // Build the InsertCellInfo and MergeCellInfo indexing
@@ -184,41 +249,70 @@ uint64 FillMergeSlab(int slab) {
             // This pointer will walk along the insert list
         ilstruct *ilend = ilread + skewer[y].ilskewerlength;
             // The end of the insert list for this skewer
-        uint64 il_index = skewer[y].ilskewerstart;                
+        uint64 il_index = skewer[y].ilskewerstart;
         uint64 mci_index = skewer[y].mergestart;
+        uint64 mci_index_noghost = skewer[y].mergestart_no_ghost;
 
-        for(int z=0;z<cpd;z++) {
+        if(ilread < ilend){
+            assertf(ilread->local_cellz() < node_z_size + 2*MERGE_GHOST_RADIUS,
+                "First particle in insert list skewer falls outside z domain. Invalid ghost?\n"
+                );
+            assertf((ilend-1)->local_cellz() < node_z_size + 2*MERGE_GHOST_RADIUS,
+                "Last particle in insert list skewer falls outside z domain (global z %d). Invalid ghost?\n",
+                (ilend-1)->global_cellz()
+                );
+        }
+
+        for(int z = node_z_start - MERGE_GHOST_RADIUS; z < node_z_start + node_z_size + MERGE_GHOST_RADIUS; z++) {
             cellinfo *ici = CP->InsertCellInfo(slab,y,z);
             cellinfo *mci = CP->MergeCellInfo(slab,y,z);
-            cellinfo *ci =  CP->CellInfo(slab,y,z);
+
+            // The IL will bring in ghosts, but we'll only use the old CellInfos for primaries
+            int in_primary = (z >= node_z_start) && (z < node_z_start + node_z_size);
+
+            cellinfo *ci = NULL;
+            if(in_primary){
+                // Use the real cellinfo
+                ci = CP->CellInfo(slab,y,z);
+            }
 
             // Now count the particles on the insert list
             // Note that this requires the insert list sorted to be in y,z order
-            ici->startindex = il_index;
+            int zlocal = z - (node_z_start - MERGE_GHOST_RADIUS);
+            ici->startindex_with_ghost = il_index;
             ici->count=0;
-            // TODO: The x test is unneeded, since we 
-            // partitioned the slab to the end of the insert list.
-            while( ilread<ilend && ((ilread->newslab == slab) && 
-                    (ilread->celly() == y   ) && 
-                    (ilread->cellz() == z   )) ) {
+            while( ilread < ilend &&
+                   ilread->celly() == y && 
+                   ilread->local_cellz() == zlocal ) {
                 ici->count++;
                 il_index++; ilread++;    // Move along the insert list
             }
 
             // Setup the MergeCellInfo index
-            mci->startindex = mci_index;
-            mci->count = ci->active + ici->count;
+            mci->startindex = mci_index_noghost;
+            mci->startindex_with_ghost = mci_index;
+            if(in_primary)
+                assertf(mci->startindex <= mci->startindex_with_ghost,
+                    "mci->startindex (%d) must be <= mci->startindex_with_ghost (%d); cell (%d,%d,%d)\n",
+                    mci->startindex, mci->startindex_with_ghost, slab, y, z
+                    );
+            mci->count = ici->count + (in_primary ? ci->active : 0);
             mci->active = mci->count;
             mci_index += mci->count;
+            mci_index_noghost += in_primary ? mci->count : 0;
 
             // Copy the stats, just to have
-            mci->mean_square_velocity = ci->mean_square_velocity;
-            mci->max_component_velocity  = ci->max_component_velocity ;
-            mci->max_component_acceleration = ci->max_component_acceleration;
-            skewer[y].stats(ci, mci);    // Gather the skewer stats
+            if(in_primary){
+                mci->mean_square_velocity = ci->mean_square_velocity;
+                mci->max_component_velocity  = ci->max_component_velocity ;
+                mci->max_component_acceleration = ci->max_component_acceleration;
+                skewer[y].stats(ci, mci);    // Gather the skewer stats
+            }
         }
     }
-    STDLOG(2,"Slab %d contains %d old particles and %d new particles\n", slab, inslab, ilslablength);
+
+    STDLOG(2,"Merge slab %d will have %d old primary particles and %d new primaries and %d new ghosts\n",
+        slab, inslab - ilslablength, inslab_no_ghost - (inslab - ilslablength), inslab - inslab_no_ghost);
 
     // Accumulate the stats for the full slab
     // Scalar loop
@@ -248,74 +342,81 @@ uint64 FillMergeSlab(int slab) {
 
     // All done with the Cell indexing, now we're ready to copy the particles!
     FinishMerge.Start();
-    inslab += ilslablength;   
-            // This should be the total number of merged particles
 
     // Allocate the Merging Slabs to hold 'inslab' number of particles
-    SS->set(slab, inslab);
+    SS->set(slab, inslab_no_ghost, inslab);
     SB->AllocateSpecificSize(MergePosSlab, slab, inslab*sizeof(posstruct));
     SB->AllocateSpecificSize(MergeVelSlab, slab, inslab*sizeof(velstruct));
     SB->AllocateSpecificSize(MergeAuxSlab, slab, inslab*sizeof(auxstruct));
     STDLOG(2,"Allocating Merge Slabs to contain %d particles\n", inslab);
 
+    int nthread = omp_get_max_threads();
+    pint64 nwritten[nthread];
+    #pragma omp parallel for schedule(static)
+    for(int g = 0; g < nthread; g++){
+        nwritten[g] = 0;
+    }
+
     NUMA_FOR(y,0,cpd)
-        for(int z=0;z<cpd;z++) {
-            Cell c;
-            c = CP->GetCell(slab, y, z);
+        int g = omp_get_thread_num();
+        for(int z = node_z_start - MERGE_GHOST_RADIUS; z < node_z_start + node_z_size + MERGE_GHOST_RADIUS; z++) {
             Cell mc = CP->GetMergeCell(slab, y, z);
             cellinfo *ici = CP->InsertCellInfo(slab,y,z);
             int insert_count = ici->count;
             
-            assertf(insert_count + c.active() == mc.count(),
-                    "Predicted merge cell size doesn't match insert list plus old particles\n");
+            int written = 0;
+            if(z >= node_z_start + MERGE_GHOST_RADIUS && z < node_z_start + node_z_size - MERGE_GHOST_RADIUS) {
+                // Active particles only come from the primary zone; ghosts always come fresh from the IL.
+                // And more than that, we emptied MERGE_GHOST_RADIUS boundary cells in the drift.
 
+                Cell c = CP->GetCell(slab, y, z);
 
-            // Copy the active particles from the old cell
-            memcpy(mc.pos, c.pos, c.active()*sizeof(posstruct));
-            memcpy(mc.vel, c.vel, c.active()*sizeof(velstruct));
-            memcpy(mc.aux, c.aux, c.active()*sizeof(auxstruct));
-            mc.pos += c.active();
-            mc.vel += c.active();
-            mc.aux += c.active();
+                // Copy the active particles from the old cell
+                if(c.active() > 0){  // memcpy NULL is undefined, even with count 0
+                    memcpy(mc.pos, c.pos, c.active()*sizeof(posstruct));
+                    memcpy(mc.vel, c.vel, c.active()*sizeof(velstruct));
+                    memcpy(mc.aux, c.aux, c.active()*sizeof(auxstruct));
+                }
+                written += c.active();
+            }
 
             // Now copy the particles from the insert list
-            ilstruct *ilpart = ilhead+ici->startindex;
-            #pragma ivdep
+            ilstruct *ilpart = ilhead+ici->startindex_with_ghost;
             for (int j = 0; j < insert_count; j++) {
-                    mc.pos[j] = ilpart[j].pos;
-                    mc.vel[j] = ilpart[j].vel;
-                    mc.aux[j] = ilpart[j].aux;
+                    mc.pos[written+j] = ilpart[j].pos;
+                    mc.vel[written+j] = ilpart[j].vel;
+                    mc.aux[written+j] = ilpart[j].aux;
             }
+            written += insert_count;
+
+            assertf(written == mc.count(),
+                "Predicted merge cell size doesn't match insert list plus old particles\n");
+            nwritten[g] += written;
 
             // We should reset the L0/L1 bits, so they don't affect
             // future outputs on steps that don't involve group finding.
             if (GFC!=NULL) {  // Group finding happened
-                auxstruct *origaux = mc.aux-c.active();
                 for (int j = 0; j < mc.count(); j++) 
-                    origaux[j].reset_L01_bits();
+                    mc.aux[j].reset_L01_bits();
             }
 			
             // In the vast majority of cases, the PIDs are numbered [0,NP).
             // One could check this condition here; failure could indicate
             // PID corruption
             if(P.MaxPID >= 0){
-    			mc = CP->GetMergeCell(slab, y, z);
     			for (int j = 0; j < mc.count(); j++) {
-    				assertf(mc.aux[j].pid() < P.MaxPID, "PID %d bigger than MaxPID %d\n", mc.aux[j].pid(), P.MaxPID);
+    				assertf(mc.aux[j].unpackpid() < P.MaxPID, "PID %d bigger than MaxPID %d\n", mc.aux[j].unpackpid(), P.MaxPID);
     			}
             }
-            
-            //DoCellMultipoles(slab, y, z);
         }
-        //DoZRowMultipoles(slab, y);
     }
 
-    /*#pragma omp parallel for schedule(static)
-    for(int z=0;z<cpd;z++)
-        DoYRowMultipoles(slab, z);
-
-    // Do the final thread reductions
-    FinishSlabMultipoles(slab);*/
+    uint64 totwritten = 0;
+    for(int g = 0; g < nthread; g++){
+        totwritten += nwritten[g];
+    }
+    assertf(totwritten == inslab, "Wrote %d merge particles, expected %d. Indexing failure/invalid ghosts?\n",
+        totwritten, inslab);
 
     // Delete the particles from the insert list.
     free(ILnew);   // Need to free this space!
@@ -323,5 +424,7 @@ uint64 FillMergeSlab(int slab) {
     STDLOG(2,"After merge, insert list contains a total of %d particles.\n", IL->length);
     SB->DeAllocate(InsertCellInfoSlab, slab);
     FinishMerge.Stop();
-    return inslab;
+    
+    *nmerge = inslab_no_ghost;
+    *nmerge_with_ghost = inslab;
 }

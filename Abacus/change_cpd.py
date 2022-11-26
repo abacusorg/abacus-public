@@ -16,6 +16,8 @@ appended to the output name.
 
 Default command line arguments are chosen for the case
 of changing the CPD of standard Abacus ICs.
+
+TODO: need to construct the global IC position to rebin
 '''
 
 import argparse
@@ -28,7 +30,7 @@ from Abacus import Tools
 from Abacus import ReadAbacus
 from Abacus import WriteAbacus
 
-def main(input_directory, in_pat, in_fmt, out_fmt, new_cpd, box, flip=None, verbose=False):
+def main(input_directory, in_pat, in_fmt, out_fmt, new_cpd, box, flip=None, verbose=False, nreader=1):
     # Create the output directory, removing it if it exists.
     input_directory = abspath(input_directory)
     indirname = basename(input_directory)
@@ -40,7 +42,8 @@ def main(input_directory, in_pat, in_fmt, out_fmt, new_cpd, box, flip=None, verb
     writer = WriteAbacus.SlabWriter(NP=0, cpd=new_cpd, boxsize=box, outdir=outdir, format=out_fmt, verbose=True)
 
     files = sorted(glob(pjoin(input_directory, in_pat)))
-    for particles,fn in ReadAbacus.AsyncReader(files, return_fn=True, format=in_fmt, return_pid=True):
+    for particles,fn in ReadAbacus.AsyncReader(files, return_fn=True, return_pid=True,
+                                                format=in_fmt, nreaders=nreader):
         print('Processing file "{}"'.format(fn))
         # for now, PID is mandatory
         writer.NP += len(particles)  # writer will check that it wrote NP particles at the end
@@ -59,6 +62,7 @@ if __name__ == '__main__':
     parser.add_argument('--in_pat', help="The file globbing pattern in the input DIRECTORY", type=str, default='ic_*')
     parser.add_argument('--box', help="The box size of the input (and output) particles.  Outputs will be zero-centered.", type=float, default=1.)
     parser.add_argument('--flip', help='Interpret positions as displacements and reverse them.', action='store_true')
+    parser.add_argument('--nreader', help='Number of IO threads', type=int, default=1)
     
     args = parser.parse_args()
     args = vars(args)

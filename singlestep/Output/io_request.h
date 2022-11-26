@@ -91,7 +91,7 @@ class iorequest {
         if(_fp != NULL){
             io_method = IO_LIGHTCONE;
         } else {
-            if(is_path_on_ramdisk(filename) || io_ramdisk_global)
+            if(is_path_on_ramdisk(filename) || !allow_directio_global)
                 io_method = IO_FOPEN;
             else
                 io_method = IO_DIRECT;

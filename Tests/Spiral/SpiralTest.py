@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 '''
-'Runs the spiral test and compares the result to the analytic answer
-'
+Runs the spiral test and compares the result to the analytic answer
+
 '''
 
 import sys
@@ -12,14 +12,11 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as p
-from mpl_toolkits.mplot3d import Axes3D
-import ctypes as ct
 import subprocess
 
 from Abacus import abacus
 from Abacus import GenParam
 from Abacus import InputFile
-from Abacus import Tools
 abacuspath = abacus.abacuspath
 
 def run():

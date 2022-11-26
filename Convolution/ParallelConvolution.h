@@ -1,4 +1,4 @@
-#define CPD2PAD 1024    // Byte padding
+#define CPD2PADDING 1024    // Byte padding
 
 /// The ParallelConvolution class is responsible for performing the Fourier space convolution of the multipole moments with the derivatives tensor to obtain the Taylor coefficients required to compute the far field, in the use case where Abacus is running on multipole nodes. 
 /// ParallelConvolution:
@@ -56,8 +56,9 @@ private:
 	//int StripeConvState;
 	
     int64_t cpd;
-    int64_t cpd2p1;   // (CPD+1)/2 is the length of the z array
-    int64_t cpd2pad;  // We might want to pad CPD**2 to obtain better FFTW behavior
+	int64_t node_ky_size;  // length of ky, which is split over nodes in 2D
+	int64_t kz_size;  // length of kz, different in 1D and 2D
+    int64_t cpdky_pad;  // We might want to pad CPD*node_ky_size to obtain better FFTW behavior
     int order;    // multipole order
     int64_t rml;      // (order+1)**2
 	int64_t node_slab_elem;  // number of elements in each slab this node handles
@@ -85,6 +86,7 @@ private:
 
 	size_t Ddisk_bytes;  // bytes per derivatives slab
 	size_t MTdisk_bytes;  // MTdisk bytes
+	off_t dfile_offset;  // where to start reading the derivatives file (2D)
 
     #define M_TAG (100000)     // An offset for the multipole tags
     MPI_Request *Mrecv_requests;    // We'll set up a [CPD] array to receive one packet per x
@@ -103,6 +105,8 @@ private:
     AbacusMPILimiter mpi_limiter;
     int *TaylorSlabAllMPIDone;
     int *MultipoleSlabAllMPIDone;
+
+	ReadDirect *RD;
 	
 	
 	void MultipoleFN(int slab, char * const fn);

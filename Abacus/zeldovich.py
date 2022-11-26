@@ -50,20 +50,17 @@ $ ./zeldovich.py --help
 import os
 import os.path as path
 from os.path import join as pjoin
-import subprocess
-import sys
 import shutil
-import parser
 import argparse
 import shlex
 
 import numpy as np
 
-from Abacus.InputFile import InputFile
 from Abacus import GenParam
 from Abacus import abacus
 from Abacus.Tools import chdir
 import Abacus.Cosmology
+from Abacus import transpose_ic
 
 zeldovich_dir = pjoin(abacus.abacuspath, 'external', 'zeldovich-PLT')
 eigmodes_path = pjoin(zeldovich_dir, 'eigmodes128')
@@ -151,18 +148,35 @@ def setup_zeldovich_params(params):
     #    raise ValueError(f'fgrowth_from_fcluster = {fgrowth_from_fcluster} from EdS approximation does not match f_growth = {f_growth} computed from cosmology')
 
     return zd_params
-    
 
-def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=True):
+
+def ensure_2d(param, nthread=2):
+    '''
+    Create a copy of the ICs suitable for ingestion by the 2D code,
+    if one does not already exist.
+    '''
+
+    icdir = param['InitialConditionsDirectory']
+    if path.isdir(pjoin(icdir, '2D')):
+        return
+
+    transpose_ic.transpose(icdir, param['NP'], param['ICFormat'],
+        nthread=nthread)
+
+
+def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=True, white=False):
     '''
     Invokes the zeldovich executable with the given parameter file,
-    cleaning up any exisitng output directories first and also
+    cleaning up any existing output directories first and also
     copying the input power spectrum to the destination.
 
     If `allow_eigmodes_fn_override` is set, checks if
     the `ZD_PLT_filename` parameter is valid and sets
     it to the current eigmodes file if not.
     '''
+
+    if white:
+        raise NotImplementedError(white)
     paramfn = os.path.abspath(paramfn)
     params = GenParam.parseInput(paramfn)
 

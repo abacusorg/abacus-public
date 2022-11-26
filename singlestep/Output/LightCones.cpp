@@ -166,9 +166,9 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     // What fraction of a slab is the light cone?  It depends on geometry and the time step.
     // But for 1-2 Gpc boxes, it takes a few hundred time steps to cross the box.  We'll guess 1%.
     // That said, if the slab is tangent to the annulus, one can include >1% of the slab.
-    LightConeRV.setup(  CP->cpd, P.np/P.cpd*(P.ParticleSubsampleA+P.ParticleSubsampleB)/100);
-    LightConePIDs.setup(CP->cpd, P.np/P.cpd*(P.ParticleSubsampleA+P.ParticleSubsampleB)/100);
-    LightConeHealPix.setup(CP->cpd, P.np/P.cpd/100);
+    LightConeRV.setup(  CP->cpd, node_z_size, P.np/P.cpd*(P.ParticleSubsampleA+P.ParticleSubsampleB)/100);
+    LightConePIDs.setup(CP->cpd, node_z_size, P.np/P.cpd*(P.ParticleSubsampleA+P.ParticleSubsampleB)/100);
+    LightConeHealPix.setup(CP->cpd, node_z_size, P.np/P.cpd/100);
 
     LightCone LC(lcn);
     uint64 mask = auxstruct::lightconemask(lcn);
@@ -189,7 +189,7 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
         PencilAccum<TaggedPID> *pLightConePIDs = LightConePIDs.StartPencil(ijk.y);
         PencilAccum<unsigned int> *pLightConeHealPix = LightConeHealPix.StartPencil(ijk.y);
 
-        for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
+        for (ijk.z = node_z_start; ijk.z < node_z_start + node_z_size; ijk.z++) {
             // Check if the cell center is in the lightcone, with some wiggle room
             double3 cc = CP->CellCenter(ijk);
             if(!LC.isCellInLightCone(cc)) continue;  // Skip the rest if too far from the region
@@ -218,7 +218,7 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
                         if(c.aux[p].is_taggable() or P.OutputFullLightCones){
                             // Going to output; pack the density in the aux
-                            c.aux[p].set_density(acc[p].w);
+                            c.aux[p].set_compressed_density(acc[p].w);
                             
                             // These output routines take global positions and velocities in km/s
                             pLightConePIDs->append(TaggedPID(c.aux[p]));

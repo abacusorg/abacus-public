@@ -12,18 +12,19 @@ threads, while the latter is usually performed by the GPU thread.
 /// This requires that we convert from cell-centered coordinates to
 /// a coordinate system centered on the middle cell of the pencil.
 
-void SinkPencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total, void *SinkPosSlab, int NearFieldRadius, uint64 Nslab) {
+void SinkPencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total, FLOAT *SinkPosSlab, int NearFieldRadius, uint64 Nslab) {
     // This version uses the slab XYZ ordering
     // and copies the X and Y pencils in one big go, instead of cell-by-cell
 
     // Copy cells contiguously into pinpos->X[start..start+total), Y[), Z[)
     // where total is the padded number of particles.
     // start is the offset from the beginning of the buffers
-    int cumulative_number = 0;
+    int nwritten = 0;
     FLOAT dz;
     FLOAT cellsize = CP->invcpd;
-    for (int c=0; c<NearFieldRadius*2+1; c++) {
-        FLOAT *p = (FLOAT *)SinkPosSlab + cell[c].start + 2*Nslab;
+    int width = NearFieldRadius*2+1;
+    for (int c=0; c<width; c++) {
+        FLOAT *p = SinkPosSlab + cell[c].start + ghostoffset + 2*Nslab;
         int N = cell[c].N;
 
         #ifdef GLOBAL_POS
@@ -31,70 +32,97 @@ void SinkPencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, in
         #else
         dz = (c-NearFieldRadius)*cellsize;
         #endif
-        FLOAT *d = pinpos.Z+start+cumulative_number;
-        if (dz!=0) 
+        FLOAT *d = pinpos.Z+start+nwritten;
+        if (dz!=0){
             // TODO: maybe there'd be a small gain in precomputing offsets and merging some of these loops
-            #pragma simd assert
+            #pragma omp simd
             for (int i=0; i<N; i++)
                 d[i] = p[i]+dz;
-        else
+        }
+        else {
             memcpy(d, p, sizeof(FLOAT)*N);
-        cumulative_number+=N;
-    }
-    assertf(cumulative_number==total, "Pencil contents doesn't match space supplied: %d vs %d\n", cumulative_number, total);
+        }
 
-    // Now do xy in as few chunks as possible
-    FLOAT *p1 = (FLOAT *)SinkPosSlab + cell[0].start;
-    memcpy(pinpos.X+start, p1, sizeof(FLOAT)*contig);
-    if(wrapcell >= 0){
-        FLOAT *p2 = (FLOAT *)SinkPosSlab + cell[wrapcell].start;
-        memcpy(pinpos.X+start+contig, p2, sizeof(FLOAT)*(cumulative_number-contig));
-    }
+        /*// cell version of XY
+        p = SinkPosSlab + cell[c].start + ghostoffset;
+        d = pinpos.X + start + nwritten;
+        memcpy(d, p, sizeof(FLOAT)*N);
+        p = SinkPosSlab + cell[c].start + ghostoffset + Nslab;
+        d = pinpos.Y + start + nwritten;
+        memcpy(d, p, sizeof(FLOAT)*N);*/
 
-    p1 = (FLOAT *)SinkPosSlab + cell[0].start + Nslab;
-    memcpy(pinpos.Y+start, p1, sizeof(FLOAT)*contig);
-    if(wrapcell >= 0){
-        FLOAT *p2 = (FLOAT *)SinkPosSlab + cell[wrapcell].start + Nslab;
-        memcpy(pinpos.Y+start+contig, p2, sizeof(FLOAT)*(cumulative_number-contig));
+        nwritten+=N;
     }
+    assertf(nwritten==total, "Pencil contents doesn't match space supplied: %d vs %d\n",
+        nwritten, total);
+
+    // Now do xy in two chunks: before and after the wrap
+    int N1 = 0, N2 = 0;
+    if(wrapcell > 0){
+        N1 = cell[wrapcell-1].start + cell[wrapcell-1].N - cell[0].start;
+    } else {
+        N1 = 0;
+    }
+    N2 = cell[width-1].start + cell[width-1].N - cell[wrapcell].start;
+    assertf((N1 + N2) == total, "N1 (%d) + N2 (%d) != total (%d)\n", N1, N2, total);
+
+    memcpy(pinpos.X+start,    SinkPosSlab+cell[0].start+ghostoffset,        sizeof(FLOAT)*N1);
+    memcpy(pinpos.X+start+N1, SinkPosSlab+cell[wrapcell].start+ghostoffset, sizeof(FLOAT)*N2);
+
+    memcpy(pinpos.Y+start,    SinkPosSlab+Nslab+cell[0].start+ghostoffset,        sizeof(FLOAT)*N1);
+    memcpy(pinpos.Y+start+N1, SinkPosSlab+Nslab+cell[wrapcell].start+ghostoffset, sizeof(FLOAT)*N2);
 }
 
 /// This loads up the plan for a SinkPencil with pointers to the 
 /// primary PosXYZ data, as well as the needed coordinate offsets.
 
-int SinkPencilPlan::load(int x, int y, int z, int NearFieldRadius) {
+int SinkPencilPlan::load(int x, int y, int z, int nfradius, int truncate) {
     // Given the center cell index, load the cell information
     // Return the total number of particles in the cell (un-padded)
-    contig = 0;
-    wrapcell = -1;
+    wrapcell = 0;
+
+    cellinfo *startci = CP->CellInfo(x,y,node_z_start);
+    ghostoffset = startci->startindex_with_ghost - startci->startindex;
+    assert(ghostoffset >= 0);
 
     int total = 0;
     FLOAT cellsize = CP->invcpd;
-    const int width = NearFieldRadius*2+1;
+    const int width = nfradius*2+1;
     for (int c=0; c<width; c++) {
-        int zc = z+c-width/2;
-        cellinfo *info = CP->CellInfo(x,y,zc);
-        cell[c].start = info->startindex;
-        cell[c].N = info->count;
+        int zc = z + c - nfradius;
+
+        int rightdist = CP->WrapSlab(zc - node_z_start);
+
+        if( truncate && (rightdist >= node_z_size) ){
+            // Edge of the domain, load a no-op cell
+            cell[c].start = 0;
+            cell[c].N = 0;
+        } else {
+            // Regular cell
+            cellinfo *info = CP->CellInfo(x,y,zc);
+            cell[c].start = info->startindex;
+            cell[c].N = info->count;
+        }
+
+        // Identify if we cross the wrap, or leave the primary zone
+        if(CP->WrapSlab(zc - (node_z_start + node_z_size)) == 0 ||
+            CP->WrapSlab(zc) == node_z_start){
+            assert(wrapcell == 0);
+            wrapcell = c;
+        }
+
         total += (int) cell[c].N;
         #ifdef GLOBAL_POS
             // Can use the z cell number to do this.
             cell[c].offset = (zc-CP->WrapSlab(zc))*cellsize;
         #endif
-
-        // We could simply use the cell coords, but best to check cell continuity for sanity
-        if(c > 0 && cell[c].start != cell[c-1].start + cell[c-1].N){
-            assert(wrapcell == -1);
-            wrapcell = c;
-        } else if (wrapcell < 0) {
-            contig += cell[c].N;
-        }
     }
+
     return total;
 }
 
 void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start, 
-    int total, void *SinkAccSlab, int sinkindex, int NearFieldRadius, uint64 Nslab) {
+    int total, void *SinkAccSlab, int k, int NearFieldRadius, uint64 Nslab) {
 
     // Copy pinacc, which holds the padded list 
     // accstruct[start..start+total)
@@ -103,49 +131,55 @@ void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start,
     // start is the offset from the beginning of the buffers
     accstruct *pinacc = (accstruct *)_pinacc+start;
     int cumulative_number = 0;
-    int k = sinkindex%P.cpd;    // Reduce this to the Z index for this pencil
-    for(int c = 0; c < 2*NearFieldRadius + 1; c++)
+    int width = 2*NearFieldRadius + 1;
+    for(int c = 0; c < width; c++)
         cumulative_number += cell[c].N;
     assertf(cumulative_number==total, "Pencil contents doesn't match space supplied");
 
     accstruct *p = (accstruct *)SinkAccSlab+cell[0].start;
     accstruct *pin = pinacc;
     // At the beginning of the row, we get to set the whole thing
-    if(k == 0)
+    int nwritten = 0;
+    if(k == 0){
         memcpy(p, pin, sizeof(accstruct)*total);
+        nwritten += total;
+    }
     else {
-        // We have two to three segments to process:
-        // 1) Before the wrap [co-add]
-        // 2) Possibly: after the wrap [co-add]
-        // 3) and the last cell [set, unless past the wrap]
-        int last_N = cell[2*NearFieldRadius].N;
-        int coadd_contig = contig;
-        if (wrapcell < 0)
-            coadd_contig -= last_N;
+        int last_N;
+
+        // count how many particles before the wrap or the last cell
+        int coadd_contig;
+        if(wrapcell > 0){
+            coadd_contig = cell[wrapcell-1].start + cell[wrapcell-1].N - cell[0].start;
+        } else {
+            last_N = cell[2*NearFieldRadius].N;
+            coadd_contig = total - last_N;
+        }
         assert(coadd_contig >= 0);
 
-        // first segment
+        // up to the last cell, or the wrap: co-add
         for (int t=0; t<coadd_contig; t++)
             p[t] += pin[t];
         pin += coadd_contig;
+        nwritten += coadd_contig;
 
-        if (wrapcell >= 0 && wrapcell < 2*NearFieldRadius){
-            // second segment
+        if (wrapcell > 0){
+            // past the wrap: co-add
             p = (accstruct *) SinkAccSlab + cell[wrapcell].start;
-            coadd_contig = total - last_N - coadd_contig;
+            coadd_contig = total - coadd_contig;
             assert(coadd_contig >= 0);
             for(int t=0; t < coadd_contig; t++)
                 p[t] += pin[t];
-            pin += coadd_contig;
-        }
-        // third segment
-        p = (accstruct *) SinkAccSlab + cell[2*NearFieldRadius].start;
-        if(wrapcell >= 0)
-            for(int t=0; t < last_N; t++)
-                p[t] += pin[t];
-        else
+            nwritten += coadd_contig;
+        } else {
+            // last cell, not past the wrap: set
+            p = (accstruct *) SinkAccSlab + cell[2*NearFieldRadius].start;
             memcpy(p, pin, sizeof(accstruct)*last_N);
+            nwritten += last_N;
+        }
     }
+
+    assert(nwritten == total);
 
     // Check that all particles have finite accel
     /*for(int c = 0; c < 2*NearFieldRadius+1; c++){
@@ -162,7 +196,7 @@ void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc, int start,
 /// This requires that we convert from cell-centered coordinates to
 /// a coordinate system centered on the middle cell of the pencil.
 
-void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total, void **SourcePosSlab, int NearFieldRadius, uint64 *Nslab) {
+void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total, FLOAT **SourcePosSlab, int NearFieldRadius, uint64 *Nslab) {
     // Copy cells contiguously into pinpos->X[start..start+total), Y[), Z[)
     // where total is the padded number of particles.
     // start is the offset from the beginning of the buffers
@@ -172,7 +206,7 @@ void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, 
     int width = NearFieldRadius*2+1;
     for (int c=0; c<width; c++) {
         int N = cell[c].N;
-        FLOAT *p = (FLOAT *)SourcePosSlab[c] + cell[c].start;
+        FLOAT *p = SourcePosSlab[c] + cell[c].start;
         #ifdef GLOBAL_POS
             dx = cell[c].offset;
         #else 
@@ -181,7 +215,7 @@ void SourcePencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, 
 
         FLOAT *d = pinpos.X+start+cumulative_number;
         if (dx!=0) 
-            #pragma simd assert
+            #pragma omp simd
             for (int i=0; i<N; i++) d[i] = p[i]+dx;
         else memcpy(d, p, sizeof(FLOAT)*N);
         p+=Nslab[c]; memcpy(pinpos.Y+start+cumulative_number, p, sizeof(FLOAT)*N);
@@ -204,7 +238,7 @@ int SourcePencilPlan::load(int x, int y, int z, int NearFieldRadius) {
         int xc = x+c-width/2;
         
         cellinfo *info = CP->CellInfo(xc,y,z);
-        cell[c].start = info->startindex;
+        cell[c].start = info->startindex_with_ghost;
         cell[c].N = info->count;
 
         total += (int) cell[c].N;

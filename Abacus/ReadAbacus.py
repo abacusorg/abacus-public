@@ -424,9 +424,10 @@ def read_packN(N, fn, return_pos=True, return_vel=True, zspace=False, return_pid
         NP = reader(data, data.nbytes, nthread, zspace, downsample, posout, velout, pidout)
         
     if N == 9 and return_pid:
+        pid_bitmask=np.uint64(0x7fff7fff7fff)
         pidfn = fn.replace('pack9.dat', 'pack9_pids.dat')
         npid = Path(pidfn).stat().st_size // pidout.dtype.itemsize  # no header
-        pidout[:npid] = np.fromfile(pidfn, dtype=pidout.dtype)
+        pidout[:npid] = np.fromfile(pidfn, dtype=pidout.dtype) & pid_bitmask
 
     _out.meta['read_time'] = timer.elapsed + _out.meta.get('read_time',0.)
     _out.meta['unpack_time'] = unpack_timer.elapsed + _out.meta.get('unpack_time',0.)
@@ -705,7 +706,7 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
         Filename to read
     make_global: bool or 'auto', optional
         Whether to convert cell-offset positions into global positions by reading cellinfo
-        Default: True`
+        Default: True
     dtype_on_disk: np.dtype, optional
         The data type of the positions and cellinfo floats
     dtype: np.dtype, optional
@@ -741,15 +742,15 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
         raise NotImplementedError
         
     # cellinfo dtype
-    ci_dtype = np.dtype([('startindex',np.uint64),
+    ci_dtype = np.dtype([('startindex',np.uint64),('startindex_with_ghost',np.uint64),
                          ('count',np.int32), ('active',np.int32),
                          ('mean_square_velocity', dtype_on_disk), ('max_component_velocity', dtype_on_disk), ('max_component_acceleration', dtype_on_disk)],
                          align=True)
-    pos_fn = re.sub(r'\w+(?=_\d{4}$)', r'position', fn)
-    vel_fn = re.sub(r'\w+(?=_\d{4}$)', r'velocity', fn)
-    ci_fn = re.sub(r'\w+(?=_\d{4}$)', r'cellinfo', fn)
-    aux_fn = re.sub(r'\w+(?=_\d{4}$)', r'auxillary', fn)
-    slab = int(re.search(r'\d{4}$', fn).group(0))
+    pos_fn = re.sub(r'\w+(?=_\d{4})', r'position', fn)
+    vel_fn = re.sub(r'\w+(?=_\d{4})', r'velocity', fn)
+    ci_fn = re.sub(r'\w+(?=_\d{4})', r'cellinfo', fn)
+    aux_fn = re.sub(r'\w+(?=_\d{4})', r'auxillary', fn)
+    slab = int(re.search(r'_\d{4}', fn).group(0)[1:])
 
     if return_header:
         try:
@@ -800,14 +801,14 @@ def read_state(fn, make_global=True, dtype=np.float32, dtype_on_disk=np.float32,
             particles['vel'][:NP] = np.fromfile(vel_fn, dtype=(dtype_on_disk, 3))
     if return_aux:
         with read_timer:
-            particles['aux'][:NP] = np.fromfile(aux_fn, dtype=np.uint64)
+            particles['aux'][:NP] = np.fromfile(aux_fn, dtype=aux12_dtype)
     if return_pid:
         if return_aux:
             with unpack_timer:
-                particles['pid'][:NP] = particles['aux'][:NP] & pid_bitmask
+                particles['pid'][:NP] = particles['aux']['aux'][:NP] & pid_bitmask
         else:
             with read_timer:  # TODO: technically unpacking as well
-                particles['pid'][:NP] = np.fromfile(aux_fn, dtype=np.uint64) & pid_bitmask
+                particles['pid'][:NP] = np.fromfile(aux_fn, dtype=aux12_dtype)['aux'] & pid_bitmask
 
     # TODO: particles could be out, which is probably a new table object, so meta won't get propagated...
     particles.meta['read_time'] = read_timer.elapsed + particles.meta.get('read_time',0.)
@@ -1014,8 +1015,11 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
         _posout = _out['pos'] if return_pos else False
         _velout = _out['vel'] if return_vel else False
         if colname == 'rvint':
-            npos,nvel = bitpacked.unpack_rvint(data, header['BoxSize'], float_dtype=dtype, posout=_posout, velout=_velout,
-                                                         zspace=zspace, VelZSpace_to_kms=header['VelZSpace_to_kms'])
+            # TODO: on-the-fly zspace
+            npos,nvel = bitpacked.unpack_rvint(data, header['BoxSize'], float_dtype=dtype, posout=_posout, velout=_velout)
+            if zspace:
+                _posout += _velout*1./header['VelZSpace_to_kms']
+
             nread = max(npos,nvel)
         elif colname == 'pack9':
             p9_unpacker = packN_readers[9][dtype]
@@ -1134,7 +1138,7 @@ def allocate_table(N, return_pos=True, return_vel=True, return_pid=False, return
     if return_pid:
         ndt_list += [('pid', np.int64)]
     if return_aux:
-        ndt_list += [('aux', np.uint64)]
+        ndt_list += [('aux', aux12_dtype)]
     if return_pos:
         ndt_list += [('pos', (dtype, 3))]
     if return_vel:
@@ -1144,8 +1148,6 @@ def allocate_table(N, return_pos=True, return_vel=True, return_pid=False, return
     if pid_kwargs:
         if pid_kwargs.get('lagr_idx'):
             ndt_list += [('lagr_idx', (np.uint16, 3))]
-        
-    ndt = np.dtype(ndt_list, align=True)
 
     particles = Table()
     for field in ndt_list:
@@ -1252,7 +1254,7 @@ default_file_patterns = {'pack14':'*.dat',
                          'asdf_pack9':('field_pack9*/*.asdf','L0_pack9*/*.asdf'),
                          }
 fallback_file_pattern = '*.dat'
-                    
+
 default_box_on_disk = {'desi_hdf5':'box',
                 'pack14':1.,
                 'pack9':1.,
@@ -1264,6 +1266,8 @@ default_box_on_disk = {'desi_hdf5':'box',
                 'asdf':'box',
                 'asdf_pack9':1.,
 }
+
+aux12_dtype = np.dtype([('aux',np.uint64), ('aux2',np.uint32)], align=False)
 
 _nthreads_by_format = dict(asdf=BLOSC_THREADS)
 
@@ -1295,6 +1299,16 @@ def get_file_patterns(format, return_pos=True, return_vel=True, return_pid=False
             # TODO: read_asdf is designed to do this for us. But what if only one of rv/pid exist?
             pats += [f'field_pid_{AB}_*.asdf', f'field_pid_{AB}/field_pid_{AB}_*.asdf',
                      f'halo_pid_{AB}_*.asdf', f'halo_pid_{AB}/halo_pid_{AB}_*.asdf']
+        return pats
+
+    if format == 'asdf_pack9':
+        pats = []
+        if return_pos or return_vel:
+            pats += ['field_pack9/*.field.pack9.asdf']
+            pats += ['L0_pack9/*.L0.pack9.asdf']
+        if return_pid:
+            pats += ['field_pack9_pid/*.field.pack9.pid.asdf']
+            pats += ['L0_pack9_pid/*.L0.pack9.pid.asdf']
         return pats
 
     try:

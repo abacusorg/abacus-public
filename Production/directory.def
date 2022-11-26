@@ -1,12 +1,13 @@
 # Sets up default directory structure. Should be included in a parameter file *AFTER* setting simname.
 WorkingDirectory = "$ABACUS_TMP$/" + @SimName@ 
 InitialConditionsDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@ + "/ic"  # An underscore indicates an optional var
-MultipoleDirectory = "$ABACUS_SSD$/" + @SimName@ + "/multipole"
-TaylorDirectory = "$ABACUS_SSD$/" + @SimName@ + "/taylor"
+#MultipoleDirectory = "$ABACUS_SSD$/" + @SimName@ + "/multipole"
+#TaylorDirectory = "$ABACUS_SSD$/" + @SimName@ + "/taylor"
 LogDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@ + "/log"
 OutputDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@
 LightConeDirectory =  "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@ + "/lightcone"
 DerivativesDirectory = "$ABACUS_SSD$/Derivatives"
+DerivativesSourceDirectory = "$ABACUS_PERSIST$/Derivatives"
 BackupDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@
 GroupDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@ + "/group"
 ZeldovichDirectory = "$ABACUS$/external/zeldovich-PLT"

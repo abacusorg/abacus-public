@@ -116,7 +116,7 @@ void OutofCoreConvolution::BlockConvolve(void) {
 
     #endif
 
-    InCoreConvolution *ICC = new InCoreConvolution(order,cpd,blocksize);
+    InCoreConvolution *ICC = new InCoreConvolution(order,cpd,cpd,blocksize,0);
 
     CS.ops = ICC->ConvolutionArithmeticCount();
 
@@ -305,7 +305,7 @@ OutofCoreConvolution::OutofCoreConvolution(ConvolutionParameters &_CP) : CP(_CP)
 
     assert( (CP.runtime_DerivativeExpansionRadius>=1) && (CP.runtime_DerivativeExpansionRadius <= 8)
             || (CP.runtime_DerivativeExpansionRadius==16) );
-    assert( (CP.runtime_IsRamDisk == 1) || (CP.runtime_IsRamDisk==0) );
+    assert( (CP.runtime_AllowDIO == 1) || (CP.runtime_AllowDIO==0) );
     assert(CP.runtime_DIOBufferSizeKB>=1);
     assert(CP.runtime_ConvolutionCacheSizeMB > 0);
     assert(CP.runtime_ConvolutionL1CacheSizeMB > 0);
@@ -363,11 +363,11 @@ OutofCoreConvolution::OutofCoreConvolution(ConvolutionParameters &_CP) : CP(_CP)
     sdb *= 1024LLU;
 
     // the RamDisk flag is deprecated; we use finer-grain control over direct IO now
-    int direct = CP.runtime_IsRamDisk; 
+    int no_dio = !CP.runtime_AllowDIO; 
 
-    RD_RDD = new ReadDirect(direct,sdb);
-    RD_RDM = new ReadDirect(direct,sdb);
-    WD_WDT = new WriteDirect(direct,sdb);
+    RD_RDD = new ReadDirect(no_dio,sdb);
+    RD_RDM = new ReadDirect(no_dio,sdb);
+    WD_WDT = new WriteDirect(no_dio,sdb);
 } 
 
 void OutofCoreConvolution::Convolve() {    

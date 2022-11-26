@@ -83,7 +83,7 @@ class TaggedPID {
   public:
     uint64_t _pid;
     uint64_t pid() { return _pid; }
-    TaggedPID(auxstruct a) { _pid = a.aux & AUX_PID_TAG_DENS_MASK; }
+    TaggedPID(auxstruct a) { _pid = a.get_aux_pid_dens_tagged(); }
 };
 
 class RVfloatPID {

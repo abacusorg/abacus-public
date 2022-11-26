@@ -33,6 +33,7 @@ class NearFieldDriver{
         int NGPU;
         int DirectBPD;
         int NBuffers;
+        std::string GPUName;
         
         uint64 DirectInteractions_CPU;
         uint64 *DirectInteractions_GPU;
@@ -101,8 +102,8 @@ NFD creates the GPU threads.
 // This constructor calls GPUSetup() to start the GPU threads.
 // But first, it has to set up some configurations.
 NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
-        SofteningLength{WriteState.SofteningLengthNow/P.BoxSize},
-        SofteningLengthInternal{WriteState.SofteningLengthNowInternal/P.BoxSize},
+        SofteningLength{ReadState.SofteningLengthNow/P.BoxSize},
+        SofteningLengthInternal{ReadState.SofteningLengthNowInternal/P.BoxSize},
             
         #ifdef DIRECTCUBICSPLINE
         eps{(FLOAT) (1./SofteningLengthInternal)}
@@ -140,7 +141,7 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
 
 
     STDLOG(2, "Fetching device memory...\n");
-    GPUMemoryGB = GetDeviceMemory();
+    GetDeviceInfo(&GPUMemoryGB, GPUName);
     GPUMemoryGB /= DirectBPD;        // Nominal GB per buffer
     NBuffers = NGPU*DirectBPD;
     STDLOG(1, "Running with %d GPUs, each with %d Buffers of max size %f GB\n", NGPU, DirectBPD, GPUMemoryGB);
@@ -286,6 +287,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             for (int c=-RADIUS; c<=RADIUS; c++) 
                 thisSource += SourceBlocks[CP->WrapSlab(j-c)];
             NSplit++;
+            assertf(NSplit < 1024, "Too many splits! %d\n", NSplit);
         }
     }
     // And always end the last one
@@ -310,6 +312,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     // Now we need to make the NearField_SIC_Slab
     uint64 NSinkAlloc = 0;
     for (int s = -RADIUS; s <= RADIUS; s++){
+        // no ghost sinks
         NSinkAlloc = std::max(NSinkAlloc, SS->size(slabID+s));
     }
 
@@ -322,18 +325,12 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 
     CalcSplitDirects.Stop();
 
-    // Initialize the space -- This should no longer be needed
-    /*
-    FLOAT *p = (FLOAT *)SB->GetSlabPtr(AccSlab, slabID);
-    for (int j=0; j<SB->SlabSizeBytes(AccSlab,slabID)/sizeof(accstruct)*4; j++) p[j] = 0.0;
-    */
-
 
     if(P.ForceOutputDebug){
         // Make the accelerations invalid so we can detect improper co-adding
         #pragma omp parallel for schedule(static)
         for(int y = 0; y < P.cpd; y++){
-            for(int z = 0; z < P.cpd; z++){
+            for(int z = node_z_start; z < node_z_start + node_z_size; z++){
                 accstruct *acc = CP->NearAccCell(slabID, y, z);
                 int count = CP->NumberParticle(slabID,y,z);
                 

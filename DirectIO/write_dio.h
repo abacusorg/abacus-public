@@ -1,11 +1,11 @@
 class WriteDirect {
 public:
-    WriteDirect(int isramdisk, size_t buffersize) {
+    WriteDirect(int no_directio, size_t buffersize) {
         alignedbytes = 0;
         alignedbuffer = NULL;
-        ramdiskflag = isramdisk;
+        allow_directio = !no_directio;
 
-        if(!ramdiskflag){
+        if(allow_directio){
             alignedbytes = buffersize;
             int rv = posix_memalign( (void **) (&alignedbuffer), 4096, buffersize);
             assert(rv==0);
@@ -33,5 +33,5 @@ private:
     void BlockingAppendfwrite( char *fn, char *x, size_t length);
     void BlockingAppendPointer( FILE *f, char *x, size_t length);
 
-    int ramdiskflag;
+    int allow_directio;
 };

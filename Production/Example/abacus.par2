@@ -19,6 +19,11 @@ SofteningLength = @BoxSize@/@NP@**(1/3)/40  # ell/40, Plummer-equivalent
 SofteningMax = 0.3*@BoxSize@/@NP@**(1/3.)
 ProperSoftening = 1
 
+# MPI parallel parameters
+Parallel = 0  # Whether to run the MPI parallel code
+NumZRanks = 1  # Number of z-dimension ranks. 1 = 1D mode, >=2 = 2D mode
+mpirun_cmd = "srun"  # how to launch singlestep (srun for slurm)
+
 # Output parameters
 TimeSliceRedshifts = [0.1]
 TimeSliceRedshifts_Subsample = [1.1, 0.5, 0.1]
@@ -51,8 +56,8 @@ GroupRadius = 10
 LagrangianPTOrder = 2
 TimeStepAccel = .25
 TimeStepDlna = .03
-NumSlabsInsertList = 2
-NumSlabsInsertListIC = 8
+NumSlabsInsertList = 0  # auto
+NumSlabsInsertListIC = 0  # auto
 NearFieldRadius = 2
 Order = 8
 hMpc = 1

@@ -200,6 +200,10 @@
 /* "Enable multiple MPI communicators" */
 #undef MULTIPLE_MPI_COMM
 
+/* "Use single-precision instead of double for MPI multipole transposes in the
+   2D code" */
+#undef MULTIPOLE_2D_MPI_USE_FLOAT
+
 /* "Near field block size" */
 #undef NFBlockSize
 

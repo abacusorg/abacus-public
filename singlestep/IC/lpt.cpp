@@ -36,14 +36,17 @@ int LPTStepNumber() {
     else return 0;
 }
 
-double3 ZelPos(integer3 ijk) {
+inline double3 ZelPos(int64 ix, int64 iy, int64 iz) {
     // This will be the position, in code units, of the initial grid.
     double3 p;
-    //ijk = CP->WrapCell(ijk);
-    p.x = (double)(ijk.x)/WriteState.ppd -.5;
-    p.y = (double)(ijk.y)/WriteState.ppd -.5;
-    p.z = (double)(ijk.z)/WriteState.ppd -.5;
+    p.x = (double)ix/WriteState.ppd -.5;
+    p.y = (double)iy/WriteState.ppd -.5;
+    p.z = (double)iz/WriteState.ppd -.5;
     return p;
+}
+
+inline double3 ZelPos(integer3 ijk) {
+    return ZelPos(ijk.x, ijk.y, ijk.z);
 }
 
 // If we're doing Zel'dovich only, then no problems: the original
@@ -51,11 +54,34 @@ double3 ZelPos(integer3 ijk) {
 
 // If we're doing 2LPT, then we will overwrite those initial velocities.
 
-void KickCell_2LPT_1(Cell &c, FLOAT kick1, FLOAT kick2) {
-    // Just store the acceleration
+void KickCell_2LPT_1(Cell &c, FLOAT kick1, FLOAT kick2, int _set_aux_dens) {
     int N = c.count();
+    FLOAT Canonical_to_VelZSpace = 1.0/WriteState.VelZSpace_to_Canonical;
+    FLOAT invvscale = 1./ReadState.LPTVelScale;
+
+#ifdef GLOBALPOS
+    // Set cellcenter to zero to return to box-centered positions
+    double3 cellcenter = double3(0.0);
+#else
+    double3 cellcenter = CP->WrapCellCenter(c.ijk);
+#endif
+    
     for (int i = 0; i < N; i++) {
+        double3 displ = double3(c.pos[i]) - (ZelPos(c.aux[i].xyz()) - cellcenter);
+        displ -= displ.round();
+        velstruct linearvel = displ;
+        velstruct v = c.vel[i]*Canonical_to_VelZSpace;
+
+        // save the vel to the aux
+        c.aux[i].set_velocity(v - linearvel, invvscale);
+
+        // overwrite the vel with the acc
         c.vel[i] = TOFLOAT3(c.acc[i]);
+
+        // why move vel to aux instead of writing acc in aux?
+        // mostly because we were able to compute a strict upper
+        // bound on (vel - linearvel) during the IC step, which
+        // enables good use of the limited aux bits
     }
 }
 
@@ -73,63 +99,17 @@ void DriftCell_2LPT_1(Cell &c, FLOAT driftfactor) {
         // Flip the displacement: q = pos-grid; new = grid-q = grid*2-pos
         // Need to be careful in cell-centered case.  Now pos is cell-centered,
         // and grid is global.  We should subtract the cell-center from ZelPos.
-        c.pos[b] = 2.0*(ZelPos(c.aux[b].xyz())-cellcenter) - c.pos[b];
-        c.pos[b] -= c.pos[b].round();
+        double3 pos_g = 2.0*(ZelPos(c.aux[b].xyz())-cellcenter) - c.pos[b];
+        c.pos[b] = pos_g - pos_g.round();
     }
 }
 
-void KickCell_2LPT_2(Cell &c, FLOAT kick1, FLOAT kick2) {
+void KickCell_2LPT_2(Cell &c, FLOAT kick1, FLOAT kick2, int _set_aux_dens) {
     // Now we can co-add the first two kicks to isolate the second-order
     // part.  This will be stored in the velocity.
     for (int i=0;i<c.count();i++) {
         c.vel[i] += TOFLOAT3(c.acc[i]);
     }
-}
-
-// We have an arena with the full IC 
-// Extract the velocity field and fix the units
-void unpack_ic_vel_slab(int slab){
-    double convert_pos, convert_vel;
-    get_IC_unit_conversions(convert_pos, convert_vel);
-    unique_ptr<ICFile> ic_file = ICFile::FromFormat(P.ICFormat, slab);
-
-    // Initialize the arena
-    velstruct* velslab = (velstruct*) SB->AllocateArena(VelLPTSlab, slab);
-    
-    uint64 count = ic_file->unpack_to_velslab(velslab, convert_pos, convert_vel);
-    
-    assertf(count * sizeof(velstruct) == SB->SlabSizeBytes(VelLPTSlab, slab),
-        "The size of particle vel data (%d) read from slab %d did not match the arena size (%d)\n",
-        count*sizeof(velstruct), slab, SB->SlabSizeBytes(VelLPTSlab, slab));
-}
-
-// Returns the IC velocity of the particle with the given PID
-// This "random access" lookup can be slow, probably not much we can do though
-inline velstruct get_ic_vel(integer3 ijk, velstruct **velslabs, uint64 *velslab_sizes){
-    // TODO: can probably simplify math
-    int slab = ijk.x*P.cpd / WriteState.ippd;  // slab number
-    uint64 slab_offset = ijk.x - ceil(((double)slab)*WriteState.ippd/P.cpd);  // number of planes into slab
-    uint64 offset = ijk.z + WriteState.ippd*(ijk.y + WriteState.ippd*slab_offset);  // number of particles into slab
-    
-    if(velslabs[slab] == NULL){
-        assertf(SB->IsSlabPresent(VelLPTSlab, slab),
-            "IC vel slab %d not loaded.  Possibly an IC particle crossed more than FINISH_WAIT_RADIUS=%d slab boundaries?\n",
-            slab, FINISH_WAIT_RADIUS);
-        velslabs[slab] = (velstruct*) SB->GetSlabPtr(VelLPTSlab, slab);
-        velslab_sizes[slab] = SB->SlabSizeBytes(VelLPTSlab, slab)/sizeof(velstruct);
-    }
-
-    velstruct* velslab = velslabs[slab];
-    
-    // Ensure that we're not reading past the end of the slab
-    assertf(offset < velslab_sizes[slab],
-        "Tried to read particle %d from IC slab %d, which only has %d particles\n",
-        offset, slab, velslab_sizes[slab]);
-    velstruct vel = velslab[offset];
-    
-    assertf(vel.is_finite(), "vel bad value: (%f,%f,%f)\n", vel.x, vel.y, vel.z);
-
-    return vel;
 }
 
 void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
@@ -149,15 +129,6 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
 #else
     double3 cellcenter = CP->WrapCellCenter(c.ijk);
 #endif
-
-    // We don't want to be fetching the arena pointers for every particle, so cache them here
-    // TODO: do we really want to do this for every cell?
-    velstruct **velslabs = new velstruct*[P.cpd];
-    uint64 *velslab_sizes = new uint64[P.cpd];
-    for(int i = 0; i < P.cpd; i++){
-        velslabs[i] = NULL;
-        velslab_sizes[i] = 0;
-    }
     
     double H = 1;
     double fsmooth = P.Omega_Smooth/P.Omega_M;
@@ -165,49 +136,49 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
         // The second order displacement is vel/7H^2Omega_m
         // With a smooth component, the Omega_m remains the same, but the factor of 7
         // becomes 1+18 f_cluster - sqrt(1+24*f_cluster)
+    double vscale = ReadState.LPTVelScale;
 
     for (int b = 0; b<e; b++) {
         // The first order displacement
-        displ1 = ZelPos(c.aux[b].xyz())-cellcenter-c.pos[b];
-        // displ2 = c.vel[b]/7/H/H/P.Omega_M;
-        displ2 = c.vel[b]*vel_to_displacement;
+        // double3 until we ensure positions are wrapped
+        double3 displ1_g = ZelPos(c.aux[b].xyz())-cellcenter-c.pos[b];
+        double3 displ2_g = c.vel[b]*vel_to_displacement;
+            // displ2 = c.vel[b]/7/H/H/P.Omega_M;
         
         // Internally, everything is in a unit box, so we actually don't need to normalize by BoxSize before rounding
-        displ1 -= displ1.round();
-        displ2 -= displ2.round();
+        displ1 = displ1_g - displ1_g.round();
+        displ2 = displ2_g - displ2_g.round();
 
-        c.pos[b] = ZelPos(c.aux[b].xyz())-cellcenter + displ1+displ2;
-        c.pos[b] -= c.pos[b].round();
+        double3 pos_g = ZelPos(c.aux[b].xyz())-cellcenter + displ1+displ2;
+        c.pos[b] = pos_g - pos_g.round();
     
-        // If we were supplied with Zel'dovich velocities and displacements,
-        // we want to re-read the IC files to restore the velocities, which were overwritten in the 1st 2LPT step
-        velstruct vel1;
-        if(WriteState.Do2LPTVelocityRereading){
-            vel1 = get_ic_vel(c.aux[b].xyz(), velslabs, velslab_sizes);
-        }
+        // Reconstruct the first-order velocity from the linear velocity
+        // plus the correction stored in the aux
+        velstruct vel1 = (c.aux[b].get_velocity(vscale) + displ1)*convert_velocity;
+
+        // restore aux
+        c.aux[b].zero_velocity();
+        
+        uint64 _sumA = 0, _sumB = 0;
+        ICFile::set_taggable_bits(c.aux[b], _sumA, _sumB);
+        /*
         // If we were only supplied with Zel'dovich displacements, then construct the linear theory velocity
         // Or, if we're doing 3LPT, then we also want the ZA velocity for the next step
         else if(strcmp(P.ICFormat, "Zeldovich") == 0 || P.LagrangianPTOrder > 2){
+            // TODO: where are we applying f_growth in the RVZel path?
             vel1 = WriteState.f_growth*displ1*convert_velocity;
-        }
-        // Unexpected IC format; fail.
-        else {
-            QUIT("Unexpected ICformat \"%s\" in 2LPT code.  Must be one of: Zeldovich, RVdoubleZel, RVZel\n", P.ICFormat);
-        }
+        }*/
         
         // Here's where we add on the second-order velocity.
         // This factor of 2*f_growth is correct even for Smooth components
         // (where f_growth < 1) because the time dependence is still the square of first order.
         c.vel[b] = vel1 + WriteState.f_growth*2*displ2*convert_velocity;
     }
-
-    delete[] velslabs;
-    delete[] velslab_sizes;
 }
 
 // 3LPT kick and drift
 
-void KickCell_2LPT_3(Cell &c, FLOAT kick1, FLOAT kick2) {
+void KickCell_2LPT_3(Cell &c, FLOAT kick1, FLOAT kick2, int _set_aux_dens) {
     // We could update the 3LPT velocity from the acceleration here,
     // but then we'd be repeating the same calculations for the position update in the Drift
     return;
@@ -254,7 +225,7 @@ void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
         
         // If we were supplied with Zel'dovich velocities and displacements,
         // we want to re-read the 1st order velocity
-        if(WriteState.Do2LPTVelocityRereading){
+        if(1){
             velstruct vel1, vel1_ic, vel2;
             //vel1_ic = get_ic_vel(c.aux[b].xyz(), NULL, NULL);
             QUIT("3LPT needs update for new vel unpacking\n");

@@ -215,8 +215,8 @@ class Manifest {
     // Here's the prototypes for the main routines
     void QueueToSend(int finished_slab);
     void Send();
-    void FreeAfterSend();
-    void Check();
+    int FreeAfterSend();
+    int Check();
     void SetupToReceive();
     void Receive();
     void ImportData();
@@ -332,7 +332,6 @@ void Manifest::QueueToSend(int finished_slab) {
     	// We just determined that Drift has executed on begin, so
 	// the rebinning might have taken particles to begin-1.
     m.dep[m.numdep++].Load(Finish, finished_slab);
-    m.dep[m.numdep++].Load(LPTVelocityReRead, finished_slab);
     m.dep[m.numdep++].LoadCG(finished_slab);
     	// LoadCG() includes moving info into the CellGroupArenas
     assertf(m.numdep<MAXDEPENDENCY, "m.numdep has overflowed its MAX value");
@@ -450,7 +449,8 @@ void Manifest::Send() {
 
 /// This is the routine to call frequently to try to clean up 
 /// space after Send's have happened.
-inline void Manifest::FreeAfterSend() {
+inline int Manifest::FreeAfterSend() {
+    return 0;
 }
 
 
@@ -463,7 +463,7 @@ void Manifest::SetupToReceive() {
 /// This can be called in timestep.cpp to manually check (blocking)
 /// whether Receive is ready to run.
 // TODO: This may have a rather different meaning in MPI
-inline void Manifest::Check() {
+inline int Manifest::Check() {
     #ifndef PARALLEL
     return;	// If we're not doing PARALLEL, let this optimize to a no-op
     #endif
@@ -576,7 +576,6 @@ void Manifest::ImportData() {
         // insert list.
     m.dep[n++].Set(Drift);
     m.dep[n++].Set(Finish);
-    m.dep[n++].Set(LPTVelocityReRead);
     m.dep[n++].SetCG(m.remote_first_slab_finished);
     	// This will copy data back to GFC from CellGroupArenas
     assert(n==m.numdep);

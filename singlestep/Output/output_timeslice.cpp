@@ -74,15 +74,15 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     // Setup the Arena
     int headersize = 1024*1024;
     SB->AllocateSpecificSize(FieldTimeSlice, slab, 
-    	   SS->size(slab)*(AA->sizeof_particle())
-	+ CP->cpd*(CP->cpd)*(AA->sizeof_cell()) + headersize);
+    	   SS->size(slab) * AA->sizeof_particle()
+	+ CP->cpd * node_z_size * AA->sizeof_cell() + headersize);
 
     AA->initialize(FieldTimeSlice, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
 
     if (PID_AA != NULL) {
         SB->AllocateSpecificSize(FieldTimeSlicePIDs, slab, 
-           SS->size(slab)*(PID_AA->sizeof_particle())
-    + CP->cpd*(CP->cpd)*(PID_AA->sizeof_cell()) + headersize);
+           SS->size(slab) * PID_AA->sizeof_particle()
+    + CP->cpd * node_z_size * PID_AA->sizeof_cell() + headersize);
         
         PID_AA->initialize(FieldTimeSlicePIDs, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
     }
@@ -115,17 +115,19 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
     STDLOG(2,"Scanning through cells\n");
 
     // Now scan through the cells
-    integer3 ij(slab,0,0);
+    integer3 ij(slab,0,node_z_start);
     uint64 n_added = 0;
     #pragma omp parallel for schedule(static) reduction(+:n_added)
     for (int y=0; y<CP->cpd; y++) {
         integer3 ijk = ij; ijk.y = y;
         // We are required to provide an offset in bytes for this pencil's portion of the buffer.
+        // We can use CellInfo(ijk)->startindex, even though the position slabs have ghosts
+        // because we specifically want the cumulative counts without ghosts
     	long long int start = CP->CellInfo(ijk)->startindex;   // Assumes cells are packed in order in the slab
-        AA->start_pencil(y, start*AA->sizeof_particle() + AA->sizeof_cell()*(CP->cpd)*y);
+        AA->start_pencil(y, start*AA->sizeof_particle() + AA->sizeof_cell()*node_z_size*y);
         if (PID_AA!=NULL) PID_AA->start_pencil(y, start*PID_AA->sizeof_particle());
 
-        for (ijk.z=0;ijk.z<CP->cpd;ijk.z++) {
+        for (ijk.z = node_z_start; ijk.z < node_z_start + node_z_size; ijk.z++) {
             Cell c = CP->GetCell(ijk);
             // We sometimes use the maximum velocity to scale.
             // But we do not yet have the global velocity (slab max will be set in Finish,
@@ -143,7 +145,7 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
                 // Detail: we write particles with their L0 bits intact.  So if we want to run a non-group-finding step
                 // after a group-finding step (e.g. for debugging), we need to know that we can ignore the L0 bit
                 if(GFC == NULL || !c.aux[p].is_L0()){
-                    c.aux[p].set_density(acc[p].w);
+                    c.aux[p].set_compressed_density(acc[p].w);
                     AA->addparticle(y, c.pos[p], vel, c.aux[p]);
                     if (PID_AA != NULL) PID_AA->addparticle(y, c.pos[p], vel, c.aux[p]);
                     n_added++;

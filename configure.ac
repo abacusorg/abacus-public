@@ -44,7 +44,7 @@ AC_CONFIG_FILES([
 AC_MSG_CHECKING([underlying compiler])
 AC_SUBST(REAL_CXX)
 REAL_CXX=$($CXX --version) 
-if \grep -qP '\bicc\b' <<< "$REAL_CXX"; then
+if \grep -qP '\b(icc|ICC)\b' <<< "$REAL_CXX"; then
     REAL_CXX=icc
 elif \grep -qP '\bXL\b' <<< "$REAL_CXX"; then
     REAL_CXX=xlc++
@@ -101,7 +101,6 @@ fi
 AC_CHECK_PROGS(LEX, flex)
 AC_CHECK_PROGS(YACC, bison)
 AC_CHECK_PROGS(AR, ar)
-AC_CHECK_PROGS(SWIG, swig)
 
 # Check for AVX
 AX_EXT
@@ -369,7 +368,7 @@ if test x$enable_mkl != xyes; then
     #AC_SEARCH_LIBS(fftwf_init_threads, [fftw3f_omp], [], [AC_MSG_WARN([unable to find fftw3f_omp!])])
 fi
 
-AC_ARG_WITH(cache-line-size,
+AC_ARG_WITH(cache-line,
 [AS_HELP_STRING([--with-cache-line=N], [Cache line size in bytes [auto]])],
     [], with_cache_line="auto")
 if test "x$with_cache_line" == xauto; then
@@ -379,10 +378,11 @@ fi
 AC_DEFINE_UNQUOTED(CACHE_LINE_SIZE, $with_cache_line, "Cache line size in bytes")
 
 AC_ARG_WITH(page-size,
-[AS_HELP_STRING([--with-page-size=N], [Page size in bytes [auto]])],
+[AS_HELP_STRING([--with-page-size=N], [Page size in bytes [hugepage size]])],
     [], with_page_size="auto")
 if test "x$with_page_size" == xauto; then
-    with_page_size=$(getconf PAGESIZE)
+    #with_page_size=$(getconf PAGESIZE)
+    with_page_size=$(( $(\grep -Po 'Hugepagesize:\s+\K\d+' /proc/meminfo) * 1024 ))
 fi
 AC_DEFINE_UNQUOTED(PAGE_SIZE, $with_page_size, "Page size in bytes")
 
@@ -405,6 +405,13 @@ AC_ARG_ENABLE(block-accum,
     [], enable_block_accum="yes")
 if test x$enable_block_accum == xyes; then
     AC_DEFINE_UNQUOTED(BLOCK_ACCUM, [], "Enable GPU block-level intermediate acceleration accumulators")
+fi
+
+AC_ARG_ENABLE(2d-multipole-mpi-float,
+[AS_HELP_STRING([--enable-2d-multipole-mpi-float], [Use float instead of double for MPI multipole transposes in the 2D code [yes]])],
+    [], enable_2d_multipole_mpi_float="yes")
+if test x$enable_2d_multipole_mpi_float == xyes; then
+    AC_DEFINE_UNQUOTED(MULTIPOLE_2D_MPI_USE_FLOAT, [], "Use single-precision instead of double for MPI multipole transposes in the 2D code")
 fi
 
 # If the user is using Anaconda Python, we have to be careful

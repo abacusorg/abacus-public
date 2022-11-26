@@ -40,6 +40,9 @@ public:
     double invcpd3;	// Volume of a cell in sim units
     double halfinvcpd;	// Half the size of a cell in sim units
 
+    FLOAT pinvcpd;  // invcpd, in same precision as posstruct
+    FLOAT phalfinvcpd;
+
     grid(int _cpd) {
         assert(_cpd%2==1);  	// check it is odd 
         cpd     = _cpd;
@@ -47,22 +50,9 @@ public:
         invcpd  = BOXSIZE/((double) cpd);   
         invcpd3 = invcpd*invcpd*invcpd;
         halfinvcpd = 0.5*invcpd;
-    }
 
-
-    // Return 0 if a cell index is not in the primary zone; 1 if so.
-    int IsValidCell(integer3 ijk) {
-        if (   ijk.x>0 && ijk.x<cpd
-            && ijk.y>0 && ijk.y<cpd
-            && ijk.z>0 && ijk.z<cpd) return 1; else return 0;
-    }
-
-    // Return 0 if a slab index is not in the primary zone; 1 if so.
-    int IsValidSlab(integer3 ijk) {
-        if (ijk.x>0 && ijk.x<cpd) return 1; else return 0;
-    }
-    int IsValidSlab(int i) {
-        if (i>0 && i<cpd) return 1; else return 0;
+        pinvcpd = (FLOAT) invcpd;
+        phalfinvcpd = 0.5f * pinvcpd;
     }
 
     // These wrap the given cell index to the primary zone.
@@ -86,6 +76,16 @@ public:
     }
     int WrapSlab(integer3 ijk) {
         return WrapSlab(ijk.x);
+    }
+
+    // Compute the shortest distance between slabs `a` and `b`
+    // Result is positive if `a` is to the right of `b`; else negative.
+    // The magnitude will be <= (CPD-1)/2
+    int SlabDist(int a, int b) {
+        int res = a - b;
+        while(res>cpdhalf) res -= cpd;
+        while(res<-cpdhalf) res += cpd;
+        return res;
     }
 
 

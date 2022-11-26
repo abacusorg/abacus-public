@@ -24,15 +24,13 @@
 */
 
 
-    // TODO: Now that accstruct is not simply float3, we have do this
-    // explicitly, so we lose SIMD.  Any tricks needed?
-inline void KickCell(Cell &c, FLOAT kick1, FLOAT kick2) {
+inline void KickCell(Cell &c, FLOAT kick1, FLOAT kick2, int set_aux_dens) {
     FLOAT maxvel = 0.0;
     FLOAT maxacc = 0.0;
     FLOAT sumvel2 = 0.0;
 
     uint32_t N = c.count();
-    //#pragma simd assert reduction(max:maxvel) reduction(max:maxacc) reduction(+:sumvel2)
+    #pragma omp simd reduction(max:maxvel) reduction(max:maxacc) reduction(+:sumvel2)
     for (uint32_t i=0;i<N;i++) {
         // First half kick, to get synchronous
         c.vel[i] += TOFLOAT3(c.acc[i]) * kick1;
@@ -46,6 +44,8 @@ inline void KickCell(Cell &c, FLOAT kick1, FLOAT kick2) {
 	maxacc = std::max(maxacc, fabs(c.acc[i].z));
         // Second half kick, to advance to time i+1/2
 	c.vel[i] += TOFLOAT3(c.acc[i]) * kick2;
+
+        if(set_aux_dens) c.aux[i].set_density(c.acc[i].w);
     }
     if (c.count()>0) sumvel2/=c.count();  // Now this has the mean square velocity 
     c.ci->mean_square_velocity = sumvel2;
@@ -54,15 +54,15 @@ inline void KickCell(Cell &c, FLOAT kick1, FLOAT kick2) {
 }
 
 
-void KickSlab(int slab, FLOAT kick1, FLOAT kick2,
-void (*KickCell)(Cell &c, FLOAT kick1, FLOAT kick2)) {
+void KickSlab(int slab, FLOAT kick1, FLOAT kick2, int set_aux_dens,
+void (*KickCell)(Cell &c, FLOAT kick1, FLOAT kick2, int set_aux_dens)) {
     int cpd = CP->cpd;
     //#pragma omp parallel for schedule(static)
     //for (int y=0;y<cpd;y++) {
     NUMA_FOR(y,0,cpd)
-        for (int z=0;z<cpd;z++) {
+        for (int z = node_z_start; z < node_z_start + node_z_size; z++) {
             Cell c = CP->GetCell(slab, y, z);
-            (*KickCell)(c,kick1,kick2);
+            (*KickCell)(c,kick1,kick2,set_aux_dens);
         }
     }
 }
@@ -71,30 +71,36 @@ void RescaleAndCoAddAcceleration(int slab) {
     // The accelerations are computed with unit particle mass.
     // We need to rescale them to the correct cosmology.
     FLOAT rescale = -3.0*(P.Omega_M-P.Omega_Smooth)/(8.0*M_PI*P.np);
-    accstruct *nacc = (accstruct *) SB->GetSlabPtr(AccSlab,slab);
-    acc3struct *facc = (acc3struct *) SB->GetSlabPtr(FarAccSlab,slab);
+    accstruct * __restrict__ nacc = (accstruct *) SB->GetSlabPtr(AccSlab,slab);
+    acc3struct * __restrict__ facc = (acc3struct *) SB->GetSlabPtr(FarAccSlab,slab);
     
     // Reverse the sign of the acceleration if we are making glass
     if(P.MakeGlass)
         rescale *= -1;
-    
+
+    // no ghost kick
     uint64 N = SS->size(slab);
 
     #ifdef DIRECTSINGLESPLINE
     FLOAT inv_eps3 = 1./(NFD->SofteningLengthInternal*NFD->SofteningLengthInternal*NFD->SofteningLengthInternal);
     #endif
 
-    #pragma omp parallel for schedule(static)
-    for (uint64 j=0; j<N;j++) {
-        #ifdef DIRECTSINGLESPLINE
-        nacc[j] = (nacc[j]*inv_eps3+facc[j])*rescale;
-        #else
-        nacc[j] = (nacc[j]+facc[j] )*rescale;
-        #endif
+    #pragma omp parallel
+    {
+        // the nontemporal clause doesn't seem to help, although icc -qstreaming-stores does
+        //#pragma omp for simd schedule(static) nontemporal(nacc,facc)
+        #pragma omp for simd schedule(static)
+        for (uint64 j=0; j<N;j++) {
+            #ifdef DIRECTSINGLESPLINE
+            nacc[j] = (nacc[j]*inv_eps3+facc[j])*rescale;
+            #else
+            nacc[j] = (nacc[j]+facc[j] )*rescale;
+            #endif
 
-        #ifdef COMPUTE_FOF_DENSITY
-        nacc[j].w -= WriteState.DensityKernelRad2;
-        #endif
+            #ifdef COMPUTE_FOF_DENSITY
+            nacc[j].w -= WriteState.DensityKernelRad2;
+            #endif
+        }
     }
 }
 

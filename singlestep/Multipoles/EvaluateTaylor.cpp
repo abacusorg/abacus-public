@@ -62,7 +62,6 @@ Taylor::Taylor(int order) : basemultipoles(order) {
         rv = posix_memalign( (void **) &(Qx[g]), 256, 32768 ); assert(rv==0);
         rv = posix_memalign( (void **) &(Qy[g]), 256, 32768 ); assert(rv==0);
         rv = posix_memalign( (void **) &(Qz[g]), 256, 32768 ); assert(rv==0);
-        assert(rv == 0);
     }
 #endif
 

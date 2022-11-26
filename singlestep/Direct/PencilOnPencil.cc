@@ -31,9 +31,11 @@ inline int SetInteractionCollection::PaddedSourceCount(int sourceindex) {
 
 /// Given a (k) of the internal sink indexing, return
 /// the z of the central cell
-inline int SetInteractionCollection::index_to_zcen(int k) {
-    int kk = k+nfradius;    // The central cell
-    if (kk<0) kk+=cpd; if (kk>=cpd) kk-=cpd;  // Wrapped
+inline int SetInteractionCollection::index_to_zcen(int k, int twoD) {
+    // The first sink pencil is the first one with all cells in the primary region
+    int kk = k + k_low + nfradius;    // The central cell
+    int pad = twoD ? nfradius : 0;
+    if(kk >= node_z_start + node_z_size + pad) kk -= node_z_size + 2*pad;
     return kk;
 }
 
@@ -82,36 +84,50 @@ practice.
 **/
 
 /// Return the number of particles in this (i,j) skewer, summing over k.
-uint64 NumParticlesInSkewer(int slab, int j) {
-    uint64 np = CP->CellInfo(slab, j, 0)->startindex;
-    uint64 end = SS->size(slab);
-    if (j<P.cpd-1) end = CP->CellInfo(slab,j+1,0)->startindex;
-    return end-np;	// This is the number of particles in this skewer
+uint64 NumParticlesInSkewer(int slab, int j, int ghost) {
+    // Source skewers use ghost particles; sink skewers don't
+    uint64 start, end;
+    if(ghost){
+        start = CP->CellInfo(slab, j, node_z_start_ghost)->startindex_with_ghost;
+        if (j<P.cpd-1)
+            end = CP->CellInfo(slab, j+1, node_z_start_ghost)->startindex_with_ghost;
+        else
+            end = SS->size_with_ghost(slab);
+    }
+    else {
+        start = CP->CellInfo(slab, j, node_z_start)->startindex;
+        if (j<P.cpd-1)
+            end = CP->CellInfo(slab, j+1, node_z_start)->startindex;
+        else
+            end = SS->size(slab);
+    }
+
+    return end-start;	// This is the number of particles in this skewer
 }
 
 /// For one skewer, compute how many sink blocks will be incurred
 /// for this one Skewer in the worst case for all of the SIC.
 int ComputeSinkBlocks(int slab, int j, int NearFieldRadius) {
-    int np = NumParticlesInSkewer(slab, j);
+    int ghost = 0;
+    int np = NumParticlesInSkewer(slab, j, ghost);
     return (2*NearFieldRadius+1)*(np/NFBlockSize)+P.cpd;
 }
 /// For one skewer, compute how many source blocks will be incurred
 /// for this one Skewer in the worst case for all of the SIC.
 int ComputeSourceBlocks(int slab, int j, int NearFieldRadius) {
     int np = 0;
-    for (int c=-NearFieldRadius; c<=NearFieldRadius; c++) 
-	np += NumParticlesInSkewer(slab+c, j);
+    int ghost = 1;
+    for (int c=-NearFieldRadius; c<=NearFieldRadius; c++)
+        np += NumParticlesInSkewer(slab+c, j, ghost);
     return (np/NFBlockSize+P.cpd);
 }
-
-
 
 /// Compute a mildly conservative estimate of the space required
 /// for all SIC in a slab.
 uint64 ComputeSICSize(int cpd, int np, int WIDTH, int NSplit) {
     uint64 size = 0;
-    int64 NSinkSet = cpd*cpd;
-    int64 NSourceSet = cpd*(cpd + 4*NSplit);
+    int64 NSinkSet = cpd*node_z_size;
+    int64 NSourceSet = (cpd + (WIDTH-1)*NSplit)*node_z_size_with_ghost;
     int64 NPaddedSinks = (int64)WIDTH*np + NSinkSet*NFBlockSize;
     int64 NSinkBlocks = NPaddedSinks/NFBlockSize;
 
@@ -170,24 +186,30 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     b2 = _b2;
     bytes_to_device = 0, bytes_from_device = 0;
     AssignedDevice = 0;
-    
+
     //useful construction constants
     nfradius = NearFieldRadius;
     nfwidth = 2*NearFieldRadius+1;
     j_width = j_high-j_low;
-    Nk = cpd;
+
+    // k_low, k_high refer to the non-ghost sink cells
+    // But note we do need sink pencils that are centered on ghost cells!
+    k_low = node_z_start;
+    k_high = node_z_start + node_z_size;
+    Nk = (MPI_size_z > 1) ? (k_high - k_low + nfwidth - 1) : (k_high - k_low);
 
     // Load the Pointers to the PosXYZ Slabs
-    SinkPosSlab = (void *)SB->GetSlabPtr(PosXYZSlab,slab);
-    for (int c=0; c<2*nfradius+1; c++) {
-	SourcePosSlab[c] = (void *)SB->GetSlabPtr(PosXYZSlab,slab+c-nfradius);
+    SinkPosSlab = (FLOAT *)SB->GetSlabPtr(PosXYZSlab,slab);
+    for (int c=0; c<nfwidth; c++) {
+	SourcePosSlab[c] = (FLOAT *)SB->GetSlabPtr(PosXYZSlab,slab+c-nfradius);
 
-        Nslab[c] = SS->size(slab - nfradius + c);
+        // Nslab[] is used to compute the offset of X,Y,Z in PosXYZSlab, which always includes ghosts
+        Nslab[c] = SS->size_with_ghost(slab - nfradius + c);
     }
 
     // There is a slab that has the WIDTH Partial Acceleration fields.
     // Get a pointer to the appropriate segment of that.
-    SinkAccSlab = (void *)((accstruct *)SB->GetSlabPtr(AccSlab,slab));
+    SinkAccSlab = (accstruct *) SB->GetSlabPtr(AccSlab,slab);
 
     // Make a bunch of the SinkSet and SourceSet containers
     
@@ -200,21 +222,17 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetCount, PAGE_SIZE, sizeof(int) * NSinkSets) == 0);
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkPlan, PAGE_SIZE, sizeof(SinkPencilPlan) * NSinkSets) == 0);
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetIdMax, PAGE_SIZE, sizeof(int) * NSinkSets) == 0);
-    
-    int localSinkTotal = 0;
 
     assertf( (uint64)Nk * (j_width + nfwidth) < INT32_MAX,
         "The number of source sets will overflow a 32-bit signed int");
     NSourceSets = Nk * (j_width + nfwidth -1);
     
     assertf(NSourceSets <= MaxNSource, "NSourceSets (%d) larger than allocated space (MaxNSource = %d)\n", NSourceSets, MaxNSource);
-    assertf(NSourceSets <= P.cpd*(P.cpd+nfwidth), "NSourceSets (%d) exceeds SourceSet array allocation (%d)\n", NSourceSets, P.cpd*(P.cpd+nfwidth));
+    assertf(NSourceSets <= cpd*(cpd+nfwidth), "NSourceSets (%d) exceeds SourceSet array allocation (%d)\n", NSourceSets, cpd*(cpd+nfwidth));
     
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SourceSetStart, PAGE_SIZE, sizeof(int) * NSourceSets) == 0);  
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SourceSetCount, PAGE_SIZE, sizeof(int) * NSourceSets) == 0);
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SourcePlan, PAGE_SIZE, sizeof(SourcePencilPlan) * NSourceSets) == 0);
-    
-    int localSourceTotal = 0;
 
     DirectTotal = 0;
 
@@ -224,15 +242,17 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     uint64 skewer_blocks[j_width+nfwidth];   // Number of blocks in this k-skewer
             // This is oversized because we'll re-use for Sources
 
+    const int twoD = MPI_size_z > 1;  // Don't do a z-wrap in 2D
+    int localSinkTotal = 0;
     #pragma omp parallel for schedule(static) reduction(+:localSinkTotal)
     for(int j = 0; j < j_width; j++){
         int this_skewer_blocks = 0;   // Just to have a local variable
         for(int k = 0; k < Nk; k ++) {
-	    int zmid = index_to_zcen(k);
+	        int zmid = index_to_zcen(k, twoD);
             int sinkindex = j * Nk + k;
             // This loads all of the position pointers into the Plan,
             // but also returns the total size.
-            int pencilsize = SinkPlan[sinkindex].load(slab, j + j_low, zmid, nfradius);
+            int pencilsize = SinkPlan[sinkindex].load(slab, j + j_low, zmid, nfradius, twoD);
             SinkSetCount[sinkindex] = pencilsize;
             localSinkTotal += pencilsize;
             this_skewer_blocks += NumPaddedBlocks(pencilsize);
@@ -263,7 +283,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     //   SinkBlockParentPencil[block] points back to the (j,k) sinkset enumeration
     //
     
-    #pragma omp parallel for schedule(static) 
+    #pragma omp parallel for schedule(static)
     for(int j = 0; j < j_width; j++){
         // Figure out where to start the enumeration in this skewer
         int block_start = skewer_blocks_start[j];
@@ -300,11 +320,12 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     // We once again need to precompute the enumeration of the padded
     // blocks, totaled by skewer.  
 
+    int localSourceTotal = 0;
     #pragma omp parallel for schedule(static) reduction(+:localSourceTotal)
     for(int j = 0; j<j_width+nfwidth-1; j++) {
         int this_skewer_blocks = 0;   // Just to have a local variable
-        for(int k = 0; k < Nk; k ++) {
-	    int zmid = index_to_zcen(k);
+        for(int k = 0; k < Nk; k++) {
+	    int zmid = index_to_zcen(k, twoD);
             int sourceindex = j * Nk + k;
             // This loads the Plan and returns the length
             int sourcelength = SourcePlan[sourceindex].load(slab,
@@ -360,12 +381,13 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSourceYOffset, PAGE_SIZE, sizeof(FLOAT) * InteractionCount) == 0);
     FLOAT cellsize = CP->invcpd;
     
+    assertf(j_width*Nk <= NSinkSets, "SinkSetCount size %d would exceed allocation %d\n", j_width*Nk, NSinkSets);
+
     uint64 localDirectTotal = 0, localPaddedDirectTotal = 0;
     #pragma omp parallel for schedule(static) reduction(+:localDirectTotal) reduction(+:localPaddedDirectTotal)
     for(int j = 0; j < j_width; j++){
-        assertf(j*Nk + Nk <= NSinkSets, "SinkSetCount array access at %d would exceed allocation %d\n", j*Nk + Nk, NSinkSets);
         for(int k=0; k < Nk; k++) {
-	    int zmid = index_to_zcen(k);
+	    int zmid = index_to_zcen(k, twoD);
 
             int sinkindex = j*Nk + k;
             int l = nfwidth * sinkindex;
@@ -373,9 +395,9 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
 	    // these are packed sequentially
 
             assertf(l + nfwidth <= InteractionCount, "SinkSourceInteractionList array access at %d would exceed allocation %d\n", l + nfwidth, InteractionCount);
-            assertf((j + nfwidth)*(Nk) +  k <= P.cpd*(P.cpd+nfwidth), "SourceSetCount array access at %d would exceed allocation %d\n", (j + nfwidth)*(Nk), P.cpd*(P.cpd+nfwidth));
+            assertf((j + nfwidth)*Nk +  k <= cpd*(cpd+nfwidth), "SourceSetCount array access at %d would exceed allocation %d\n", (j + nfwidth)*(Nk), cpd*(cpd+nfwidth));
             for(int y=0;y<nfwidth;y++) {
-                int sourceindex = (j + y)*(Nk) +  k;
+                int sourceindex = (j + y)*Nk +  k;
                 SinkSourceInteractionList[l+y] = sourceindex;
                 #ifndef GLOBAL_POS
                     SinkSourceYOffset[l+y] = (y-nfradius)*cellsize;
@@ -384,8 +406,8 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
                     int tmpy = j_low+j+y-nfradius;
                     SinkSourceYOffset[l+y] = (tmpy-CP->WrapSlab(tmpy))*cellsize;
                 #endif
-                localDirectTotal += SinkSetCount[sinkindex] * SourceSetCount[sourceindex];
-                localPaddedDirectTotal += PaddedSinkCount(sinkindex) * SourceSetCount[sourceindex];
+                localDirectTotal += (uint64) SinkSetCount[sinkindex] * (uint64) SourceSetCount[sourceindex];
+                localPaddedDirectTotal += (uint64) PaddedSinkCount(sinkindex) * (uint64) SourceSetCount[sourceindex];
             }
         }
     }

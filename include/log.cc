@@ -14,7 +14,7 @@ using namespace std;
 // We will load this with the time at the beginning of the sim
 struct timespec log_global_zero = { 0, 0 };
 
-#define SETUP_LOG_REFERENCE_TIME do { \
+#define SET_LOG_REFERENCE_TIME do { \
 	assert(clock_gettime(CLOCK_MONOTONIC, &log_global_zero) == 0); \
     } while (0)
 
@@ -31,7 +31,7 @@ void _log(IO &out, const char *name, const char *s, Args... args) {
     else {
 	if (log_global_zero.tv_sec == 0) {
 	    // First time, so initialize the global time reference
-	    SETUP_LOG_REFERENCE_TIME;
+	    SET_LOG_REFERENCE_TIME;
 	}
 	struct timespec tnow, elapsed;
 	assert(clock_gettime(CLOCK_MONOTONIC, &tnow) == 0);
@@ -51,6 +51,7 @@ void _log(IO &out, const char *name, const char *s, Args... args) {
 }
 
 #define LOG(stream, ...) _log(stream, __func__, __VA_ARGS__)
+#define LOG_WITH_NAME(stream, name, ...) _log(stream, name, __VA_ARGS__)
 
 #endif	// INCLUDE_LOG
 

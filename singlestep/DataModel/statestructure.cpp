@@ -29,6 +29,7 @@ class State:public ParseHeader{
 public:
 
     long long int np_state;
+    long long int np_with_ghost_state;
     int np_subA_state;
     int np_subB_state;
     int cpd_state;
@@ -39,8 +40,10 @@ public:
     char OutputFormatVersion[1024];
     char RunTime[1024];
     char MachineName[1024];
-    int NodeRank;   // The MPI rank, 0 if serial
-    int NodeSize;   // The MPI size, 1 if serial
+    int NodeRankX;   // The MPI X rank, 0 if serial
+    int NodeRankZ;   // The MPI Z rank, 0 if serial or 1D
+    int NodeSizeX;   // The MPI X size, 1 if serial
+    int NodeSizeZ;   // The MPI Z size, 1 if serial or 1D
     double ppd;		// Particles per dimension
     int64 ippd;     // The closest integer value to NP^(1/3)
     int DoublePrecision;  // =1 if code is using double precision positions
@@ -127,8 +130,13 @@ public:
     int DoBinning;
     int DoGroupFindingOutput;
     int DoSubsampleOutput; 
+    int VelIsSynchronous;
+    int HaveAuxDensity;
+    int SetAuxDensity;          // Should the Kick store the density in the aux?
+    int DidGroupFindingOutput;  // did we already do group output on the positions in this state?
+    char GroupFindingDensitySource[128];
     
-    int Do2LPTVelocityRereading;
+    double LPTVelScale;  // normalization for the aux compression of the LPT vel
 
     int OverwriteState;
     int OverwriteConvState;
@@ -140,6 +148,8 @@ public:
     char LogDirectory[1024];  // step-numbered log directory
 
     int64 np_lightcone;
+
+    int GhostRadius;
 
     void read_from_file(const char *fn);
     void write_to_file(const char *dir, const char *fname);
@@ -156,7 +166,11 @@ public:
         // But we might want to load a file header as a state for analysis!
         // So make these optional, but they will fail validation against the Parameters if missing in a simulation context
     	installscalar("np_state",np_state,DONT_CARE);
+        np_with_ghost_state = 0;
+        installscalar("np_with_ghost_state",np_with_ghost_state,DONT_CARE);
+        np_subA_state = 0;
         installscalar("np_subA_state",np_subA_state,DONT_CARE);
+        np_subB_state = 0;
         installscalar("np_subB_state",np_subB_state,DONT_CARE);
     	installscalar("cpd_state",cpd_state,DONT_CARE);
     	installscalar("order_state",order_state,DONT_CARE);
@@ -165,8 +179,8 @@ public:
     	installscalar("ParameterFileName",ParameterFileName,DONT_CARE);
     	installscalar("ppd",ppd,DONT_CARE);
         installscalar("SofteningType", SofteningType,DONT_CARE);
-        installvector("SofteningLengthNow", &SofteningLengthNow, 2, 0, DONT_CARE);
-        installscalar("SofteningLengthNowInternal", SofteningLengthNowInternal,DONT_CARE);
+        installvector("SofteningLengthNow", &SofteningLengthNow, 2, 0, MUST_DEFINE);
+        installscalar("SofteningLengthNowInternal", SofteningLengthNowInternal,MUST_DEFINE);
 
     	sprintf(CodeVersion,"version_not_defined");
     	installscalar("CodeVersion",CodeVersion,DONT_CARE);
@@ -239,13 +253,38 @@ public:
         DirectsPerParticle = 0.0;
         installscalar("DirectsPerParticle",DirectsPerParticle,DONT_CARE);
 
+        GhostRadius = 0;
+        installscalar("GhostRadius",GhostRadius,DONT_CARE);
+
         // Initialize helper variables
         DoTimeSliceOutput = 0;
+        installscalar("DoTimeSliceOutput",DoTimeSliceOutput,DONT_CARE);
+
         OutputIsAllowed = 0;
-        DoGroupFindingOutput = 0;
-        DoSubsampleOutput = 0; 
         
-        Do2LPTVelocityRereading = 0;
+        DoGroupFindingOutput = 0;
+        installscalar("DoGroupFindingOutput",DoGroupFindingOutput,DONT_CARE);
+        
+        DoSubsampleOutput = 0;
+        installscalar("DoSubsampleOutput",DoSubsampleOutput,DONT_CARE);
+
+        VelIsSynchronous = 0;
+        installscalar("VelIsSynchronous",VelIsSynchronous,DONT_CARE);
+
+        HaveAuxDensity = 0;
+        installscalar("HaveAuxDensity",HaveAuxDensity,DONT_CARE);
+
+        SetAuxDensity = 0;
+        installscalar("SetAuxDensity",SetAuxDensity,DONT_CARE);
+
+        DidGroupFindingOutput = 0;
+        installscalar("DidGroupFindingOutput",DidGroupFindingOutput,DONT_CARE);
+
+        GroupFindingDensitySource[0] = '\0';
+        installscalar("GroupFindingDensitySource",GroupFindingDensitySource,DONT_CARE);
+
+        LPTVelScale = 0.;
+        installscalar("LPTVelScale",LPTVelScale,DONT_CARE);
 
         // These will be set in InitWriteState() based on StateIOMode and Conv_IOMode in the parameters file
         OverwriteState = 0;
@@ -274,8 +313,8 @@ void State::read_from_file(const char *fn) {
 
 
 #define PRQUOTEME(X) #X
-#define WPR(X,XSYM) {int ret = snprintf(tmp, 1024, PRQUOTEME(%22s = %XSYM\n), PRQUOTEME(X), X); assert(ret >= 0 && ret < 1024); ss << tmp;}
-#define WPRS(X,XSYM) {int ret = snprintf(tmp, 1024, "%22s = \"%s\" \n", PRQUOTEME(X), X); assert(ret >= 0 && ret < 1024); ss << tmp;}
+#define WPR(X,XSYM) {int ret = snprintf(tmp, 1024, PRQUOTEME(%26s = %XSYM\n), PRQUOTEME(X), X); assert(ret >= 0 && ret < 1024); ss << tmp;}
+#define WPRS(X,XSYM) {int ret = snprintf(tmp, 1024, "%26s = \"%s\" \n", PRQUOTEME(X), X); assert(ret >= 0 && ret < 1024); ss << tmp;}
 
 void State::make_output_header() {
     // We're going to output most, but not all of the fields, into a 
@@ -291,8 +330,10 @@ void State::make_output_header() {
     WPRS(OutputFormatVersion      , s);
     WPRS(RunTime                  , s);
     WPRS(MachineName              , s);
-    WPR(NodeRank                 , ISYM);
-    WPR(NodeSize                 , ISYM);
+    WPR(NodeRankX                , ISYM);
+    WPR(NodeRankZ                , ISYM);
+    WPR(NodeSizeX                , ISYM);
+    WPR(NodeSizeZ                , ISYM);
     WPR(DoublePrecision          , ISYM);
     WPR(ppd                      , FSYM);
 
@@ -337,19 +378,30 @@ void State::make_output_header() {
     WPR(LastHalfEtaKick          , ESYM);
     WPR(ScaleFactorHalf          , ESYM);
     
-    WPR(Do2LPTVelocityRereading  , ISYM);
     WPR(DensityKernelRad2        , FSYM);
     WPR(L0DensityThreshold       , FSYM);
     WPR(SODensityL1              , FSYM);
     WPR(SODensityL2              , FSYM);
+
+    WPR(GhostRadius              , ISYM);
+    
+    WPR(DoTimeSliceOutput        , ISYM);
+    WPR(DoSubsampleOutput        , ISYM);
+    WPR(VelIsSynchronous         , ISYM);
+    WPR(DoGroupFindingOutput     , ISYM);
+    WPR(HaveAuxDensity           , ISYM);
+    WPR(SetAuxDensity            , ISYM);
+    WPR(DidGroupFindingOutput    , ISYM);
+
+    WPRS(GroupFindingDensitySource, s);
 
     output_header = ss.str();
 }
 
 #undef WPR
 #undef WPRS
-#define WPR(X,XSYM) fprintf(statefp, PRQUOTEME(%22s = %XSYM\n), PRQUOTEME(X), X); 
-#define WPRS(X,XSYM) fprintf(statefp, "%22s = \"%s\" \n", PRQUOTEME(X), X); 
+#define WPR(X,XSYM) fprintf(statefp, PRQUOTEME(%26s = %XSYM\n), PRQUOTEME(X), X); 
+#define WPRS(X,XSYM) fprintf(statefp, "%26s = \"%s\" \n", PRQUOTEME(X), X); 
 // #define WPR(X,XSYM) fprintf(statefp, PRQUOTEME(X = %XSYM\n), X)
 // #define WPRS(X,XSYM) fprintf(statefp, PRQUOTEME(X) " = \"%s\" \n", X)
 
@@ -361,6 +413,7 @@ void State::write_to_file(const char *dir, const char *suffix) {
     assertf(statefp!=NULL, "Couldn't open file %s to write state\n", statefn);
 
     WPR(np_state                       , llu);
+    WPR(np_with_ghost_state            , llu);
     WPR(np_subA_state                  , ISYM);
     WPR(np_subB_state                  , ISYM);
     WPR(cpd_state                      , ISYM);
@@ -378,6 +431,7 @@ void State::write_to_file(const char *dir, const char *suffix) {
     WPR(MaxGroupDiameter         , ISYM); 
     WPR(MaxL0GroupSize           , ISYM); 
     WPR(DirectsPerParticle       , FSYM);
+    WPR(LPTVelScale              , ESYM);
 
     time_t now  = time(0);
     fprintf(statefp,"#State written:%s\n",asctime(localtime(&now)) );

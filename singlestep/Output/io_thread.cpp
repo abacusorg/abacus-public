@@ -43,10 +43,10 @@ public:
 
         iolog.open(_logfn); 	// TODO: Probably need an error check
 
-        int ramdisk = io_ramdisk_global;
+        int no_dio = !allow_directio_global;
         size_t diskbuffer = ((size_t) 128) << 10;  // 4 << 20 = 4 MB
-        RD = new ReadDirect(ramdisk, diskbuffer);
-        WD = new WriteDirect(ramdisk,diskbuffer);
+        RD = new ReadDirect(no_dio, diskbuffer);
+        WD = new WriteDirect(no_dio,diskbuffer);
 
         io_core = _io_core;
 
@@ -145,13 +145,13 @@ private:
         IOLOG(1,"Reading file %s\n", ior->filename);
 
         // Determine the ramdisk flag
-        int ramdisk = -1;
+        int no_dio = -1;
         switch(ior->io_method){
             case IO_DIRECT:
-                ramdisk = 0;
+                no_dio = 0;
                 break;
             case IO_FOPEN:
-                ramdisk = 1;
+                no_dio = 1;
                 break;
             default:
                 QUIT("Unknown IO method %d\n", ior->io_method);
@@ -169,7 +169,7 @@ private:
         }
 
         timer->Start();
-        RD->BlockingRead(ior->filename, ior->memory, ior->sizebytes, ior->fileoffset, ramdisk);
+        RD->BlockingRead(ior->filename, ior->memory, ior->sizebytes, ior->fileoffset, no_dio);
         timer->Stop();
 
         IOLOG(1,"Done reading file\n");
@@ -191,17 +191,17 @@ private:
             fclose(outfile);
         }
 
-        // Determine the ramdisk flag and if LightCone
-        int ramdisk = -1;
+        // Determine the dio flag and if LightCone
+        int no_dio = -1;
         switch(ior->io_method){
             case IO_DIRECT:
-                ramdisk = 0;
+                no_dio = 0;
                 break;
             case IO_FOPEN:
-                ramdisk = 1;
+                no_dio = 1;
                 break;
             case IO_LIGHTCONE:
-                ramdisk = 1;  // no-op, since we use the file pointer mechanism
+                no_dio = 1;  // no-op, since we use the file pointer mechanism
                 break;
             default:
                 QUIT("Unknown IO method %d\n", ior->io_method);
@@ -235,7 +235,7 @@ private:
         else
         {
             timer->Start();
-            WD->BlockingAppend(ior->filename, ior->memory, ior->sizebytes, ramdisk);
+            WD->BlockingAppend(ior->filename, ior->memory, ior->sizebytes, no_dio);
             timer->Stop();
         }
 

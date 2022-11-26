@@ -26,6 +26,7 @@ import asdf
 
 from Abacus import abacus
 from Abacus.Tools import scatter_density, add_tick
+from Abacus.ReadAbacus import aux12_dtype
 
 DEFAULT_CPD = 11
 DEFAULT_ORDER = 8
@@ -175,26 +176,31 @@ def check_storeforces(param, dtype=DEFAULT_DTYPE):
     NP = param['NP']
     rescale = 3.0*(param['Omega_M']-param.get('Omega_Smooth',0.))/(8.0*np.pi)
     
-    read = Path(param.get('ReadStateDirectory', Path(param['WorkingDirectory']) / 'read' ))
-    
     acc = np.empty((NP,3), dtype=dtype)
     i = 0
-    for accfn in sorted(Path(param.get('OutputDirectory')).glob('acc_*')):
+    for accfn in sorted((Path(param.get('OutputDirectory')) / 'acc' / 'Step0001').glob('acc_*')):
         # TODO: better detection of acc3 or acc4
         thisacc = np.fromfile(accfn, dtype=dtype).reshape(-1,4)
         acc[i:i+len(thisacc)] = thisacc[:,:3]
         i += len(thisacc)
     assert i == NP
-        
+
+    read = Path(param.get('ReadStateDirectory', Path(param['WorkingDirectory']) / 'read' ))
+    auxfns = sorted(read.glob('aux*_*'))
+    if not auxfns:
+        # aux might be on another node and thus inaccessible, but maybe we did it all on this node
+        auxfns = Path(param.get('LocalWorkingDirectory')).parent.glob(param['SimName'] + '*/read/aux*')
+        auxfns = sorted(auxfns, key=lambda p:p.name)
+    
     pid = np.empty(NP, dtype=np.int64)
     i = 0
-    for auxfn in sorted(read.glob('aux*_*')):
-        thisaux = np.fromfile(auxfn, dtype=np.uint64)
+    for auxfn in auxfns:
+        thisaux = np.fromfile(auxfn, dtype=aux12_dtype)
         # we spread out the PID bits into three chunks in the aux field
         # but since we only care about the order, we can ignore that and just sort
-        pid[i:i+len(thisaux)] = thisaux & np.uint64(0x7fff7fff7fff)
+        pid[i:i+len(thisaux)] = thisaux['aux'] & np.uint64(0x7fff7fff7fff)
         i += len(thisaux)
-    assert i == NP
+    assert i == NP, (i,NP)
         
     # put the acc back in the original order
     acc = acc[pid.argsort()]

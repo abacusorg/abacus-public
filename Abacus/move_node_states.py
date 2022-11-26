@@ -234,7 +234,7 @@ def retrieve_state(parfile, resumedir, verbose=True, delete_ics=False):
     past_deleting = past + '_DELETING'
     past_node = pjoin(past, 'rank_' + str(rank))
     
-    source = par['LocalWorkingDirectory']
+    source = par['LocalWorkingDirectory'] + f'.{rank:04d}'
     
     comm.Barrier() 
     

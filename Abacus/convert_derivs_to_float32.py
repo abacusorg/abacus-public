@@ -20,7 +20,9 @@ optional arguments:
 import argparse
 import os.path as path
 import sys
+
 import numpy as np
+
 
 def convert(dpath, from_dtype=np.float64, to_dtype=np.float32, tag="float32"):
     ddir = path.dirname(dpath)

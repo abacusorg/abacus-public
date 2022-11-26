@@ -40,11 +40,12 @@ the data when it is received.
 /// The information we're passing for a single arena
 class ManifestArena {
   public:
-    uint64 size;    ///< Arena size in bytes of usable space, not including guards
+    uint64 size_with_ghost;    ///< Arena size in bytes of usable space, not including guards
+    uint64 num_primary;    ///< number of primary particles, used to set SlabSize
     char *ptr;	///< The pointer to the space
     int type;    ///< The SlabType
     int slab; 	///< slab number
-    ManifestArena() { size = 0; type = slab = 0; ptr = NULL; }
+    ManifestArena() { size_with_ghost = 0; type = slab = 0; ptr = NULL; }
 };
 
 /// The information we're passing for a single dependency
@@ -58,13 +59,13 @@ class DependencyRecord {
     DependencyRecord() { begin = end = 0; }
 
     /// Load the status of this dependency 
-    void Load(Dependency &d, int finished_slab, const char label[]) {
+    void Load(SlabDependency *d, int finished_slab, const char label[]) {
         end = finished_slab;
 		
         // Don't look past the slabs this node owns
         for (begin=end-1; CP->WrapSlab(begin - first_slab_on_node) < total_slabs_on_node; begin--) {
-            if (!d.instantiated || d.notdone(begin)) break;
-            //// d.mark_to_repeat(begin);   // We're not going to unmark
+            if (d == NULL || d->notdone(begin)) break;
+            //// d->mark_to_repeat(begin);   // We're not going to unmark
         }
 		
         // We've found the first notdone slab
@@ -73,7 +74,7 @@ class DependencyRecord {
         // Now look for the last done slab
         // Don't look past the slabs this node owns
         for (; CP->WrapSlab(end - first_slab_on_node) < total_slabs_on_node; end++) {
-            if (!d.instantiated || d.notdone(end)) break;
+            if (d == NULL || d->notdone(end)) break;
         } end--;
         /* The manifest code is called in two different use cases:
            1) when the GlobalGroups have happened and we want to pass 
@@ -83,7 +84,7 @@ class DependencyRecord {
            The issue is that case (1) needs to indicate the existence of 
            data that hasn't yet been shipped.  In particular, that FindLinks has happened on forward slabs.
         */
-        if (Drift.notdone(finished_slab)) {
+        if (Drift->notdone(finished_slab)) {
             // We're in the first case; don't pass along anything ahead.
             STDLOG(3, "Changing end from %d to %d\n", end, finished_slab);
             end = finished_slab;
@@ -91,8 +92,8 @@ class DependencyRecord {
         STDLOG(2, "Load Dependency %s [%d,%d)\n", label, begin, end);
         return;
     }
-    void Set(Dependency &d, const char label[]) {
-        for (int s=begin; s<end; s++) d.force_done(s);
+    void Set(SlabDependency *d, const char label[]) {
+        for (int s=begin; s<end; s++) d->force_done(s);
         STDLOG(2, "Set Dependency %s [%d,%d)\n", label, begin, end);
         return;
     }
@@ -145,11 +146,9 @@ class DependencyRecord {
     }
 };
 
-int global_minslab_search;    // Used to pass an extra variable into partition
-
 // Need some new Partition functions, to get ranges of slabs
 // Will select things between [x,slab), where x=slab-CPD/2, handling the wrap
-inline bool is_below_slab(ilstruct *particle, int slab) {
+inline bool is_below_slab(ilstruct *particle, int slab, int global_minslab_search) {
     int x = particle->newslab-slab;  // We want x<0, but not too much.
     x = CP->WrapSlab(x);
     return x>=global_minslab_search;
@@ -159,7 +158,7 @@ inline bool is_below_slab(ilstruct *particle, int slab) {
 /// been closed in slab, so there are no GroupLinks that involve the 
 /// slab.  By definition, the two ends of the link can differ by at 
 /// most one slab.  So it is enough to test one end.
-inline bool link_below_slab(GroupLink *link, int slab) {
+inline bool link_below_slab(GroupLink *link, int slab, int global_minslab_search) {
     int sa = link->a.slab();
     sa = CP->WrapSlab(sa-slab);
     return sa>=global_minslab_search;
@@ -322,13 +321,17 @@ class Manifest {
     void done() { completed = MANIFEST_ALREADYIMPORTED; }
 
     void LoadArena(int type, int s) {
+        // SB->SlabSizeBytes() gives us the allocated size (minus guards), i.e. the size with ghost.
+        // But we also need to send the size of primary particles, hence we look at SS->size() too
+        
         ManifestArena *a = m.arenas+m.numarenas;
         a->type = type;
         a->slab = s;
-        a->size = SB->SlabSizeBytes(type, s);
+        a->size_with_ghost = SB->SlabSizeBytes(type, s);
+        a->num_primary = SS->size(s);
         a->ptr =  SB->GetSlabPtr(type, s);
         SB->MarkSlabUnavailable(type,s);   // Place this arena off limits
-        STDLOG(3, "Queuing slab %d of type %d, size %l\n", s, type, a->size);
+        STDLOG(3, "Queuing slab %d of type %d, size_with_ghost %d\n", s, type, a->size_with_ghost);
         m.numarenas++;
         assertf(m.numarenas<MAXMANIFEST, "numarenas has overflowed; increase MAXMANIFEST.");
         return;
@@ -337,8 +340,8 @@ class Manifest {
     // Here's the prototypes for the main routines
     void QueueToSend(int finished_slab);
     void Send();
-    void FreeAfterSend();
-    void Check();
+    int FreeAfterSend();
+    int Check();
     void SetupToReceive();
     void Receive();
     void ImportData();
@@ -365,7 +368,7 @@ void SetupManifest(int _nManifest) {
         ReceiveManifest[j].set_tag(j);
     }
     #ifdef PARALLEL
-        assertf(MPI_size>1, "Can't run MPI-based manifest code with only 1 process.\n"); 
+        assertf(MPI_size_x>1, "Can't run MPI-based manifest code with only 1 process.\n"); 
         // TODO: I don't see a way around this.  One ends up with the destination and source arenas being the same.
     #endif
     ReceiveManifest->SetupToReceive();
@@ -376,11 +379,6 @@ void FreeManifest() {
     delete[] _SendManifest;
     STDLOG(2,"Freeing ReceiveManifest\n");
     delete[] _ReceiveManifest;
-}
-
-void CheckSendManifest() {
-    for (int j=0; j<nManifest; j++) _SendManifest[j].FreeAfterSend();
-    return;
 }
 
 
@@ -411,6 +409,7 @@ void Manifest::QueueToSend(int finished_slab) {
     m.dep[m.numdep++].Load(FetchSlabs, finished_slab, "FetchSlabs");
     m.dep[m.numdep++].Load(TransposePos, finished_slab, "TransposePos");
     m.dep[m.numdep++].Load(NearForce, finished_slab, "NearForce");
+    m.dep[m.numdep++].Load(TaylorTranspose, finished_slab, "TaylorTranspose");
     m.dep[m.numdep++].Load(TaylorForce, finished_slab, "TaylorForce");
     m.dep[m.numdep++].Load(Kick, finished_slab, "Kick");
     m.dep[m.numdep++].Load(MakeCellGroups, finished_slab, "MakeCellGroups");
@@ -426,8 +425,9 @@ void Manifest::QueueToSend(int finished_slab) {
     int min_il_slab = m.dep[m.numdep-1].begin-FINISH_WAIT_RADIUS;
     	// We just determined that Drift has executed on begin, so
 	// the rebinning might have taken particles to begin-FINISH_WAIT_RADIUS.
-    m.dep[m.numdep++].Load(Finish, finished_slab, "Finish");
-    m.dep[m.numdep++].Load(UnpackLPTVelocity, finished_slab, "UnpackLPTVelocity");
+    m.dep[m.numdep++].Load(NeighborSend, finished_slab, "NeighborSend");
+    m.dep[m.numdep++].Load(FinishParticles, finished_slab, "FinishParticles");
+    m.dep[m.numdep++].Load(FinishMultipoles, finished_slab, "FinishMultipoles");
     m.dep[m.numdep++].LoadCG(finished_slab);
     	// LoadCG() includes moving info into the CellGroupArenas
     assertf(m.numdep<MAXDEPENDENCY, "m.numdep has overflowed its MAX value");
@@ -435,37 +435,54 @@ void Manifest::QueueToSend(int finished_slab) {
     STDLOG(2,"Queuing Arenas into the SendManifest\n");
     // Now load all of the arenas into the Manifest
     int min_slab = finished_slab;
+    int *clear_slabsize = new int[cpd];
+    for(int i = 0; i < cpd; i++) clear_slabsize[i] = 0;
+
     for (int type=0; type<NUMTYPES; type++) {
 	    // Loop over all SlabTypes
 	    for (int s=finished_slab-1; s>finished_slab-cpd; s--) {
 	        // Check each trailing slab; if present, load it up
 	        if (SB->IsSlabPresent(type,s) and not SB->IsOutputSlab(type) ) {
-	    	    LoadArena(type,s);
+	    	    LoadArena(type,s);  // needs SlabSize
 		        min_slab = std::min(min_slab, s);
                 if (type==PosSlab) {
                     // Zero out the SlabSize for all particles being sent
-                    SS->setold(s,0);
+                    clear_slabsize[Grid->WrapSlab(s)] = 1;
                 }
 	        }
 	        else if (s<min_slab) break;
-	        // Some slabs have been already been deallocated by the finish slab,            // but we need the ones that were waiting for the periodic wrap.
+	        // Some slabs have been already been deallocated by the finish slab,
+            // but we need the ones that were waiting for the periodic wrap.
 	        // This relies on the fact that the first SlabType, PosSlab, 
 	        // stretches back to the beginning.
 	    }
     }
+
+    // LoadArena needs to know the size with and without ghost,
+    // so it needs SlabSize. So we can't clear SS before all types have completed.
+    for(int s = 0; s < cpd; s++){
+        if(clear_slabsize[s])
+            SS->setold(s,0,0);
+    }
+    delete[] clear_slabsize;
+
     STDLOG(2,"Done Queuing Arenas, spanning [%d,%d)\n", min_slab, finished_slab);
 
     STDLOG(2,"Queuing Insert List into the SendManifest, extracting [%d,%d)\n",
     	min_il_slab, finished_slab);
     // Partition the Insert List, malloc *il, and save it off
     IL->CollectGaps();   // Want to assure no MALgaps
-    global_minslab_search = CP->WrapSlab(min_il_slab-finished_slab);
-    uint64 mid = ParallelPartition(IL->list, IL->length, finished_slab, is_below_slab);
+    int global_minslab_search = CP->WrapSlab(min_il_slab-finished_slab);
+    uint64 mid = ParallelPartition(IL->list, IL->length, is_below_slab, finished_slab, global_minslab_search);
 
     m.numil = IL->length-mid;
     int ret = posix_memalign((void **)&il, PAGE_SIZE, sizeof(ilstruct)*m.numil);
-    memcpy(il, IL->list+mid, sizeof(ilstruct)*m.numil);
-	// Possible TODO: Consider whether this copy should be multi-threaded
+    
+    #pragma omp parallel for schedule(static)
+    for(uint64 i = 0; i < m.numil; i++){
+        il[i] = IL->list[mid + i];
+    }
+    
     STDLOG(2, "Insert list had size %l, now size %l; sending %l\n", IL->length, mid, m.numil);
     IL->ShrinkMAL(mid);
 
@@ -474,18 +491,22 @@ void Manifest::QueueToSend(int finished_slab) {
     if (GFC!=NULL) {
         STDLOG(2,"Queuing GroupLink List into the SendManifest, extracting [%d,%d)\n", min_links_slab, finished_slab);
         global_minslab_search = CP->WrapSlab(min_links_slab-finished_slab);
-        mid = ParallelPartition(GFC->GLL->list, GFC->GLL->length, finished_slab, link_below_slab);
+        mid = ParallelPartition(GFC->GLL->list, GFC->GLL->length, link_below_slab, finished_slab, global_minslab_search);
         ret = posix_memalign((void **)&links, PAGE_SIZE, sizeof(GroupLink)*(GFC->GLL->length-mid));
         m.numlinks = GFC->GLL->length-mid;
-        memcpy(links, GFC->GLL->list+mid, sizeof(GroupLink)*m.numlinks);
-            // Possible TODO: Consider whether this copy should be multi-threaded
+        
+        #pragma omp parallel for schedule(static)
+        for(uint64 i = 0; i < m.numlinks; i++){
+            links[i] = GFC->GLL->list[mid + i];
+        }
+        
         STDLOG(2, "Grouplink list had size %l, now size %l; sending %l\n", GFC->GLL->length, mid, m.numlinks);
         GFC->GLL->ShrinkMAL(mid);
     }
     Load.Stop();
 
     this->Send(); 
-    // usleep(2e6);   // TODO: Don't forget to remove this
+    
     #endif
     return;
 }
@@ -496,17 +517,17 @@ void Manifest::Send() {
     #ifdef PARALLEL
     Transmit.Start();
     /// set_pending(m.numarenas+3);
-    int rank = MPI_rank;
-    rank--; if (rank<0) rank+=MPI_size;   // Now rank is the destination node
+    int rank = MPI_rank_x;
+    rank--; if (rank<0) rank+=MPI_size_x;   // Now rank is the destination node
     STDLOG(1,"Will send the SendManifest to node rank %d\n", rank);
     // Send the ManifestCore
     STDLOG(2,"Isend Manifest Core\n");
     do_MPI_Isend(&m, sizeof(ManifestCore), rank);
     // Send all the Arenas
     for (int n=0; n<m.numarenas; n++) {
-        STDLOG(2,"Isend Manifest Arena %d (slab %d of type %d) of size %d\n", 
-            n, m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size);
-        do_MPI_Isend(m.arenas[n].ptr, m.arenas[n].size, rank);
+        STDLOG(2,"Isend Manifest Arena %d (slab %d of type %d) of size_with_ghost %d\n", 
+            n, m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size_with_ghost);
+        do_MPI_Isend(m.arenas[n].ptr, m.arenas[n].size_with_ghost, rank);
     }
     // Send all the Insert List fragment
     STDLOG(2,"Isend Manifest Insert List of length %d\n", m.numil);
@@ -527,39 +548,24 @@ void Manifest::Send() {
 
 /// This is the routine to call frequently to try to clean up 
 /// space after Send's have happened.
-inline void Manifest::FreeAfterSend() {
+inline int Manifest::FreeAfterSend() {
+    int ret = 0;  // did something?
+    
     #ifdef PARALLEL
-    if (completed != MANIFEST_TRANSFERRING) return;   // No active Isend's yet
+    if (completed != MANIFEST_TRANSFERRING) return ret;   // No active Isend's yet
 
     // Has it been long enough since our last time querying MPI?
     if(!mpi_limiter.Try())
-        return;
+        return ret;
 
     CheckCompletion.Start();
-
-    /* OLDCODE
-    check_if_done(0);    // Manifest Core
-    if (check_if_done(1)) {
-        free(il);    // Insert List
-        STDLOG(1,"Freeing the Send Manifest Insert List, %d left\n", numpending);
-    }
-    if (check_if_done(2)) {
-        free(links);    // GroupLink List; won't get called if already marked_as_done
-        STDLOG(1,"Freeing the Send Manifest GroupLink List, %d left\n", numpending);
-    }
-    for (int n=0; n<m.numarenas; n++) 
-        if (check_if_done(n+3)) {  // Arenas
-            SB->DeAllocate(m.arenas[n].type, m.arenas[n].slab, 1);  // Deallocate, deleting any underlying file
-            STDLOG(1,"Freeing the Send Manifest Arena, slab %d of type %d, %d left\n",
-                m.arenas[n].slab, m.arenas[n].type, numpending);
-        }
-    END OLDCODE */
-
     for (int n=0; n<maxpending; n++) 
 	if (check_if_done(n)) {
 	    STDLOG(2,"Sent Manifest part %d, %d left\n", n, numpending);
 	}
     if (check_all_done()) {
+        ret = 1;
+        
         // At present, we don't know which MPI send fragment maps to which arena, 
         // so we have to wait until all are sent to delete.
         Communication.Stop();
@@ -572,12 +578,12 @@ inline void Manifest::FreeAfterSend() {
                 m.arenas[n].slab, m.arenas[n].type);
         }
         completed=MANIFEST_READY;
-        STDLOG(1,"Marking the Send Manifest as completely sent: %6.3f sec for %l bytes, %6.3f GB/sec\n", Communication.Elapsed(),
+        STDLOG(1,"Marking the Send Manifest as completely sent: %6.3f sec for %l bytes, %6.3f GiB/sec\n", Communication.Elapsed(),
             bytes, bytes/(Communication.Elapsed()+1e-15)/(1024.0*1024.0*1024.0));
     }
     CheckCompletion.Stop();
     #endif
-    return;
+    return ret;
 }
 
 
@@ -588,8 +594,8 @@ void Manifest::SetupToReceive() {
     #ifdef PARALLEL
     Transmit.Start();
     /// set_pending(1);
-    int rank = MPI_rank;
-    rank++; if (rank>=MPI_size) rank-=MPI_size;   // Now rank is the source node
+    int rank = MPI_rank_x;
+    rank++; if (rank>=MPI_size_x) rank-=MPI_size_x;   // Now rank is the source node
     STDLOG(2,"Ireceive the Manifest Core from node rank %d\n", rank);
     do_MPI_Irecv(&m, sizeof(ManifestCore), rank);
     Transmit.Stop();
@@ -599,13 +605,14 @@ void Manifest::SetupToReceive() {
 
 /// This can be called in timestep.cpp to manually check 
 /// whether Receive is ready to run.
-inline void Manifest::Check() {
+inline int Manifest::Check() {
+    int ret = 0;  // did something?
     #ifdef PARALLEL
-    if (completed >= MANIFEST_READY) return;   // Nothing's active now
+    if (completed >= MANIFEST_READY) return ret;   // Nothing's active now
 
     // Has it been long enough since our last time querying MPI?
     if(!mpi_limiter.Try())
-        return;
+        return ret;
     
     CheckCompletion.Start();
     for (int n=0; n<maxpending; n++) 
@@ -623,10 +630,11 @@ inline void Manifest::Check() {
             ReleaseFreeMemoryToKernel();
             Receive();
             completed = MANIFEST_TRANSFERRING;
+            ret = 1;
         } 
     }
     #endif
-    return;
+    return ret;
 }
 
 /* OLDCODE
@@ -663,31 +671,31 @@ void Manifest::Receive() {
     #ifdef PARALLEL
     Transmit.Start();
     /// set_pending(m.numarenas+2);
-    int rank = MPI_rank;
+    int rank = MPI_rank_x;
     MPI_Status retval;
-    rank++; if (rank>=MPI_size) rank-=MPI_size;   // Now rank is the source node
+    rank++; if (rank>=MPI_size_x) rank-=MPI_size_x;   // Now rank is the source node
     STDLOG(2,"Will receive the ReceiveManifest from node rank %d\n", rank);
     // Receive all the Arenas
     for (int n=0; n<m.numarenas; n++) {
-        // TODO: is it true that none of the manifest slabs should land on ramdisk?
-        SB->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size, RAMDISK_NO);
+        // None of the manifest slabs land on ramdisk
+        SB->AllocateSpecificSize(m.arenas[n].type, m.arenas[n].slab, m.arenas[n].size_with_ghost, RAMDISK_NO);
         m.arenas[n].ptr = SB->GetSlabPtr(m.arenas[n].type, m.arenas[n].slab);
-        //memset(m.arenas[n].ptr, 0, m.arenas[n].size);   // TODO remove
-        STDLOG(2,"Ireceive Manifest Arena %d (slab %d of type %d) of size %d\n", 
-            n, m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size);
-        do_MPI_Irecv(m.arenas[n].ptr, m.arenas[n].size, rank);
+        //memset(m.arenas[n].ptr, 0, m.arenas[n].size);   // for testing
+        STDLOG(2,"Ireceive Manifest Arena %d (slab %d of type %d) of size %d\n",
+            n, m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size_with_ghost);
+        do_MPI_Irecv(m.arenas[n].ptr, m.arenas[n].size_with_ghost, rank);
     }
     // Receive all the Insert List fragment
-    int ret = posix_memalign((void **)&il, 64, m.numil*sizeof(ilstruct));
+    int ret = posix_memalign((void **)&il, CACHE_LINE_SIZE, m.numil*sizeof(ilstruct));
     assertf(ret == 0, "Failed to allocate %d bytes for receive manifest insert list\n", m.numil*sizeof(ilstruct));
-    //memset(il, 0, sizeof(ilstruct)*m.numil);   // TODO remove
+    //memset(il, 0, sizeof(ilstruct)*m.numil);   // for testing
     STDLOG(2,"Ireceive Manifest Insert List of length %d\n", m.numil);
     do_MPI_Irecv(il, sizeof(ilstruct)*m.numil, rank);
     // Receive all the GroupLink List fragment
     if (GFC!=NULL) {
-        ret = posix_memalign((void **)&links, 64, m.numlinks*sizeof(GroupLink));
+        ret = posix_memalign((void **)&links, CACHE_LINE_SIZE, m.numlinks*sizeof(GroupLink));
         assertf(ret == 0, "Failed to allocate %d bytes for receive manifest group link list\n", m.numlinks*sizeof(GroupLink));
-        //memset(links, 0, sizeof(GroupLink)*m.numlinks);   // TODO remove
+        //memset(links, 0, sizeof(GroupLink)*m.numlinks);   // for testing
         STDLOG(2,"Ireceive Manifest GroupLink List of length %d\n", m.numlinks);
         do_MPI_Irecv(links, sizeof(GroupLink)*m.numlinks, rank);
     } 
@@ -720,16 +728,16 @@ void Manifest::ImportData() {
     assertf(completed==MANIFEST_READY, "ImportData has been called when completed==%d\n", completed);
 
     Communication.Stop();
-    STDLOG(1,"Importing ReceiveManifest of %l bytes into the flow; took %6.3f sec, %6.3f GB/sec\n", bytes,
+    STDLOG(1,"Importing ReceiveManifest of %l bytes into the flow; took %6.3f sec, %6.3f GiB/sec\n", bytes,
         Communication.Elapsed(), bytes/(Communication.Elapsed()+1e-15)/(1024.0*1024*1024));
     Load.Start();
     for (int n=0; n<m.numarenas; n++) {
 	    SB->SetIOCompleted(m.arenas[n].type, m.arenas[n].slab);
 	    STDLOG(3,"Completing Import of arena slab %d of type %d and size %l\n", 
-	    	m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size);
+	    	m.arenas[n].slab, m.arenas[n].type, m.arenas[n].size_with_ghost);
         if (m.arenas[n].type==PosSlab) {
             // Set the SlabSize based on the newly arrived PosSlab
-            SS->setold(m.arenas[n].slab, m.arenas[n].size/sizeof(posstruct));
+            SS->setold(m.arenas[n].slab, m.arenas[n].num_primary, m.arenas[n].size_with_ghost/sizeof(posstruct));
         }
     }
 
@@ -739,6 +747,7 @@ void Manifest::ImportData() {
     m.dep[n++].Set(FetchSlabs, "FetchSlabs");
     m.dep[n++].Set(TransposePos, "TransposePos");
     m.dep[n++].Set(NearForce, "NearForce");
+    m.dep[n++].Set(TaylorTranspose, "TaylorTranspose");
     m.dep[n++].Set(TaylorForce, "TaylorForce");
     m.dep[n++].Set(Kick, "Kick");
     m.dep[n++].Set(MakeCellGroups, "MakeCellGroups");
@@ -759,8 +768,9 @@ void Manifest::ImportData() {
         // as a precondition, and the particles incoming to Finish are on the
         // insert list.
     m.dep[n++].Set(Drift, "Drift");
-    m.dep[n++].Set(Finish, "Finish");
-    m.dep[n++].Set(UnpackLPTVelocity, "UnpackLPTVelocity");
+    m.dep[n++].Set(NeighborSend, "NeighborSend");
+    m.dep[n++].Set(FinishParticles, "FinishParticles");
+    m.dep[n++].Set(FinishMultipoles, "FinishMultipoles");
     m.dep[n++].SetCG(m.remote_first_slab_finished);
     	// This will copy data back to GFC from CellGroupArenas
     assert(n==m.numdep);
@@ -770,16 +780,24 @@ void Manifest::ImportData() {
     uint64 len = IL->length;
     IL->GrowMAL(len+m.numil);
     STDLOG(2, "Growing IL list from %d by %d = %l\n", len, m.numil, IL->length);
-    memcpy(IL->list+len, il, m.numil*sizeof(ilstruct));
-	// Possible TODO: Should this copy be multi-threaded?
+    
+    #pragma omp parallel for schedule(static)
+    for(uint64 i = 0; i < m.numil; i++){
+        IL->list[len + i] = il[i];
+    }
+	
     free(il);
 
     // Add *links to the GroupLink list
     if (GFC!=NULL) {
         len = GFC->GLL->length;
         GFC->GLL->GrowMAL(len+m.numlinks);
-        memcpy(GFC->GLL->list+len, links, m.numlinks*sizeof(GroupLink));
-        // Possible TODO: Should this copy be multi-threaded?
+
+        #pragma omp parallel for schedule(static)
+        for(uint64 i = 0; i < m.numlinks; i++){
+            GFC->GLL->list[len + i] = links[i];
+        }
+        
         free(links);
         STDLOG(2, "Growing GroupLink list from %d by %d = %l\n", len, m.numlinks, GFC->GLL->length);
     }

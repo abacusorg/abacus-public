@@ -260,7 +260,7 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
 
     assert(maxkey!=MM_MAX_UINT);    // Can't use the MM_MAX_UINT value!
     if (FIFO_SIZE==0) FIFO_SIZE = 16;
-    assert(FIFO_SIZE<257);   // Don't go crazy
+    assert(FIFO_SIZE<513);   // Don't go crazy
     if (sublistsize<1e4) sublistsize = 1e6;
         // The user has probably entered MB or objects instead of
         // bytes; give them a reasonable modern number.
@@ -452,29 +452,31 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
 class MyMergeType {
   private:
     unsigned int k;    // A valid user key must be less than MM_MAX_UINT.
-    float dat[11];
+    float dat[10];
 
   public:
     inline unsigned int key() { return k; }
     inline void set_max_key() { k = MM_MAX_UINT; }
     bool operator< (const MyMergeType& b) const { return (k<b.k); }
 
-    inline void set_key(unsigned int _k) { k = _k; }
+    inline void set_key(unsigned int y, unsigned int z) {
+        k = (((uint32_t) y) << 16) | ((uint32_t) z);
+    }
 };
 
 // ================================
 
 #include <sys/stat.h>
-#include "file.cpp"
+//#include "file.cpp"
 
 int main() {
-    unsigned int N = 19;
+    long long int N = (1llu)<<24;
     
     // or: read from a file
-    const char* fn = "ilparticles.dat";
-    N = fsize(fn)/sizeof(unsigned int);
-    
+    //const char* fn = "ilparticles.dat";
+    //N = fsize(fn)/sizeof(unsigned int);
     int Iter = 10;
+    
     MyMergeType *il = new MyMergeType[N];
     MyMergeType *out = new MyMergeType[N];
     STimer time;
@@ -482,13 +484,13 @@ int main() {
 
     for (int i=0;i<Iter;i++) {
         #pragma omp parallel for schedule(static)
-        for (int j=0;j<N;j++) il[j].set_key(floor(pow(drand48(),0.9)*1485*1485));
+        for (int j=0;j<N;j++) il[j].set_key(floor(pow(drand48(),0.9)*525), floor(pow(drand48(),0.9)*525));
             // Setting this up to be a little inhomogeneous, to see if the rebalancing is working.
-        il[N/3].set_key(0);   // Just to check if this is trouble
+        //il[N/3].set_key(0);   // Just to check if this is trouble
 
         printf("."); fflush(NULL);
         time.Start();
-        mm.mmsort(il, out, N, 1485*1485, 2e6, 16);
+        mm.mmsort(il, out, N, 525*0xFFFF, 1<<20, 256);
         time.Stop();
     
     }

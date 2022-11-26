@@ -31,7 +31,8 @@ void GatherTaggableFieldParticles(int slab, SlabAccum<RVfloat> * rv, SlabAccum<T
         pPIDsA = pid[0].StartPencil(j);
         pPIDsB = pid[1].StartPencil(j);
 
-        for (int k=0; k<GFC->cpd; k++) {
+        // The field output should not include ghosts
+        for (int k=node_z_start; k<node_z_start + node_z_size; k++){
             // Loop over cells
             posstruct offset = CP->CellCenter(slab, j, k);
             Cell c = CP->GetCell(slab, j, k);
@@ -45,7 +46,7 @@ void GatherTaggableFieldParticles(int slab, SlabAccum<RVfloat> * rv, SlabAccum<T
                         v -= unkickfactor*TOFLOAT3(c.acc[p]);
                         
                         // Going to output; pack the density in the aux
-                        c.aux[p].set_density(c.acc[p].w);
+                        c.aux[p].set_compressed_density(c.acc[p].w);
                     }
 
                     v *= vel_convert_units;  
@@ -90,10 +91,10 @@ void OutputNonL0Taggable(int slab) {
     SlabAccum<RVfloat>    rv[NUM_SUBSAMPLES];   
     SlabAccum<TaggedPID> pid[NUM_SUBSAMPLES];
 
-     rv[0].setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleA);   
-    pid[0].setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleA);   
-     rv[1].setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleB); 
-    pid[1].setup(CP->cpd, P.np/P.cpd*P.ParticleSubsampleB); 
+     rv[0].setup(CP->cpd, node_z_size, P.np/P.cpd*P.ParticleSubsampleA);   
+    pid[0].setup(CP->cpd, node_z_size, P.np/P.cpd*P.ParticleSubsampleA);   
+     rv[1].setup(CP->cpd, node_z_size, P.np/P.cpd*P.ParticleSubsampleB); 
+    pid[1].setup(CP->cpd, node_z_size, P.np/P.cpd*P.ParticleSubsampleB); 
 
     uint64 nfield[NUM_SUBSAMPLES] = {0, 0}; 
     

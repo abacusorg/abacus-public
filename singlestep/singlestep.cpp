@@ -12,6 +12,8 @@ void BuildWriteState(double da){
 	WriteState.order_state = P.order;
 	WriteState.ppd = P.ppd();
     WriteState.ippd = (int64) round(WriteState.ppd);
+    // DoTimeSliceOutput, DoSubsampleOutput set in ChooseTimeStep()
+    WriteState.VelIsSynchronous = da == 0;
         
 	// Fill in the logistical reporting fields
 #ifdef GITVERSION
@@ -26,8 +28,10 @@ void BuildWriteState(double da){
 	string now = string(asctime(localtime(&timet)));
 	sprintf(WriteState.RunTime,"%s",now.substr(0,now.length()-1).c_str());
 	gethostname(WriteState.MachineName,1024);
-    WriteState.NodeRank = MPI_rank;
-    WriteState.NodeSize = MPI_size;
+    WriteState.NodeRankX = MPI_rank_x;
+    WriteState.NodeRankZ = MPI_rank_z;
+    WriteState.NodeSizeX = MPI_size_x;
+    WriteState.NodeSizeZ = MPI_size_z;
 
 	WriteState.DoublePrecision = (sizeof(FLOAT)==8)?1:0;
 	STDLOG(0,"Bytes per float is %d\n", sizeof(FLOAT));
@@ -74,26 +78,57 @@ void BuildWriteState(double da){
 	WriteState.MaxAcceleration = 0.0;
 	WriteState.RMS_Velocity = 0.0;
 	WriteState.MinVrmsOnAmax = 1e10;
+
+    // carry forward
+    WriteState.LPTVelScale = ReadState.LPTVelScale;
+
+    // Set the WriteState softening, will be used by the next time step
+
+    // Decrease the softening length if we are doing a 2LPT step
+    // This helps ensure that we are using the true 1/r^2 force
+    /*if(LPTStepNumber()>0){
+        WriteState.SofteningLengthNow = P.SofteningLength / 1e4;  // This might not be in the growing mode for this choice of softening, though
+        STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLengthNow);
+    }
+    else{
+        WriteState.SofteningLengthNow = P.SofteningLength;
+    }*/
+
+    // Is the softening fixed in proper coordinates?
+    if(P.ProperSoftening){
+        WriteState.SofteningLengthNow = min(P.SofteningLength/WriteState.ScaleFactor, P.SofteningMax);
+        STDLOG(1, "Adopting a comoving softening of %d, fixed in proper coordinates\n", WriteState.SofteningLengthNow);
+    }
+    else{
+        WriteState.SofteningLengthNow = P.SofteningLength;
+        STDLOG(1, "Adopting a comoving softening of %d, fixed in comoving coordinates\n", WriteState.SofteningLengthNow);
+    }
+
+    // Now scale the softening to match the minimum Plummer orbital period
+#if defined DIRECTCUBICSPLINE
+    strcpy(WriteState.SofteningType, "cubic_spline");
+    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 1.10064;
+#elif defined DIRECTSINGLESPLINE
+    strcpy(WriteState.SofteningType, "single_spline");
+    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 2.15517;
+#elif defined DIRECTCUBICPLUMMER
+    strcpy(WriteState.SofteningType, "cubic_plummer");
+    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 1.;
+#else
+    strcpy(WriteState.SofteningType, "plummer");
+    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow;
+#endif
 }
 
-void BuildWriteStateOutput() {
-	// Build the output header.
-	// Note we actually will output from ReadState,
-	// but we build this to write the write/state file from the same code.
+void BuildOutputHeaders() {
+	// Build the output headers.
+	// Note that outputs at this epoch use the ReadState header
+    ReadState.make_output_header();
 	WriteState.make_output_header();
 }
 
-double EvolvingDelta(float z){
-    float omegaMz = P.Omega_M * pow(1.0 + z, 3.0) / (P.Omega_DE + P.Omega_M *  pow(1.0 + z, 3.0) );
-	// The Bryan & Norman (1998) threshold is in units of (redshift-dependent) critical density;
-	// the 1/omegaMz factor makes it relative to the mean density at that redshift
-    float Deltaz = (18.0*M_PI*M_PI + 82.0 * (omegaMz - 1.0) - 39.0 * pow(omegaMz - 1.0, 2.0) ) / omegaMz;
-    return Deltaz / (18.0*M_PI*M_PI); //Params are given at high-z, so divide by high-z asymptote to find rescaling.
-}
-
 void PlanOutput(bool MakeIC) {
-    // Check the time slice and decide whether to do output.
-    ReadState.DoTimeSliceOutput = 0;
+    // Set up some metadata for time slice output. The decision is made in ChooseTimeStep().
     ReadState.OutputIsAllowed = 0;
     ReadState.DoBinning = 0;
     density = 0;
@@ -110,64 +145,38 @@ void PlanOutput(bool MakeIC) {
     strncpy(ReadState.MachineName, WriteState.MachineName, 1024);
     strncpy(ReadState.RunTime,     WriteState.RunTime, 1024);
     ReadState.FullStepNumber = WriteState.FullStepNumber;
-
-
-    #ifdef SPHERICAL_OVERDENSITY
-    if (P.SO_EvolvingThreshold) {
-
-        float rescale = EvolvingDelta(ReadState.Redshift);
-
-        STDLOG(2, "Rescaling SO Delta as a function of redshift.\n\t\tL0: %f --> %f\n\t\tL1: %f --> %f\n\t\tL2: %f --> %f\n",
-                      P.L0DensityThreshold, rescale * P.L0DensityThreshold,
-                      P.SODensity[0], rescale * P.SODensity[0],
-                      P.SODensity[1], rescale * P.SODensity[1]);
-
-
-        P.SODensity[0] *= rescale;
-        P.SODensity[1] *= rescale;
-        P.L0DensityThreshold *= rescale;
-
-        ReadState.SODensityL1 = P.SODensity[0];
-        ReadState.SODensityL2 = P.SODensity[1];
-        ReadState.L0DensityThreshold = P.L0DensityThreshold;
-    }
-    else STDLOG(2, "Using constant SO Delta (no redshift-dependent rescaling).\n");
-    #endif
-
-
-    ReadState.make_output_header();
+    
+    ReadState.NodeRankX = WriteState.NodeRankX;
+    ReadState.NodeRankZ = WriteState.NodeRankZ;
+    ReadState.NodeSizeX = WriteState.NodeSizeX;
+    ReadState.NodeSizeZ = WriteState.NodeSizeZ;
 
     // Just let later routines know that this is a valid epoch
     // for output, e.g., not a LPT IC epoch.
     ReadState.OutputIsAllowed = 1;
+    if(P.OutputEveryStep) ReadState.DoTimeSliceOutput = 1;
 
     // Now check whether we're asked to do a TimeSlice.
-    for (int nn = 0; nn < P.nTimeSlice || P.OutputEveryStep == 1; nn++) {
-	if ((abs(ReadState.Redshift-P.TimeSliceRedshifts[nn])<1e-12) || P.OutputEveryStep == 1) {
-	    STDLOG(0,"Planning to output a TimeSlice, element %d\n", nn);
-	    ReadState.DoTimeSliceOutput = 1;
+	if (ReadState.DoTimeSliceOutput) {
+	    STDLOG(0,"Planning to output a TimeSlice\n");
 	    char slicedir[128];
 	    sprintf(slicedir,"slice%5.3f", ReadState.Redshift);
 	    CreateSubDirectory(P.OutputDirectory,slicedir);
-	    break;
 	}
-    }
 
     //check if we should bin
     if (P.PowerSpectrumStepInterval >0 && ReadState.FullStepNumber %P.PowerSpectrumStepInterval == 0){
     	density = new FLOAT[P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d];
     	ReadState.DoBinning = 1;
     }
-
 }
 
 
 int main(int argc, char **argv) {
-    SETUP_LOG_REFERENCE_TIME;  // Establish the base timestamp
-        // but logging still not available until setup_log() below!
+    //signal(SIGUSR1, graceful_exit_signal_handler);
 
-    //Enable floating point exceptions
-    feenableexcept(FE_INVALID | FE_DIVBYZERO);
+    SET_LOG_REFERENCE_TIME;  // Establish the base timestamp
+        // but logging still not available until setup_log() below!
 
     WallClockDirect.Start();
     SingleStepSetup.Start();
@@ -179,35 +188,35 @@ int main(int argc, char **argv) {
     }
 
     // Set up MPI
+    StartMPI();  // call MPI_Init as early as possible
 
-    InitializeParallel(MPI_size, MPI_rank);
-
-    int MakeIC = atoi(argv[2]);
+    //Enable floating point exceptions
+    feenableexcept(FE_INVALID | FE_DIVBYZERO);
+    
     P.ReadParameters(argv[1],0);
 
+    InitializeParallelTopology();  // MPI_rank now available
+    P.ProcessStateDirectories();  // needs MPI_rank
+
+    int MakeIC = atoi(argv[2]);
     load_read_state(MakeIC);  // Load the bare minimum (step num, etc) to get the log up and running
+    int Do2DGroupFinding = MPI_size_z > 1 && ReadState.DoGroupFindingOutput && ReadState.HaveAuxDensity && ReadState.VelIsSynchronous;
+    int NoForces = MakeIC || Do2DGroupFinding;
 
     setup_log(); // STDLOG and assertf now available
     STDLOG(0,"Read Parameter file %s\n", argv[1]);
     STDLOG(0,"MakeIC = %d\n", MakeIC);
-    #ifdef PARALLEL
-		//signal(SIGUSR1, graceful_exit_signal_handler);
-        STDLOG(0,"Initialized MPI.\n");
-        STDLOG(0,"Node rank %d of %d total\n", MPI_rank, MPI_size);
-    #endif
-    char hostname[1024];
-    gethostname(hostname,1024);
-    STDLOG(0,"Host machine name is %s\n", hostname);
+    STDLOG(0,"NoForces = %d\n", NoForces);
 
+    InitializeForceRadius(NoForces);
+    InitializeParallelDomain();  // needs ReadState
+    
     SetupLocalDirectories(MakeIC);
 
     // Set up OpenMP
     init_openmp();
 
-    // Decide what kind of step to do
-    double da = -1.0;   // If we set this to zero, it will skip the timestep choice
-
-    check_read_state(MakeIC, da);
+    check_read_state(MakeIC);
 
     // Initialize the Cosmology and set up the State epochs and the time step
     cosm = InitializeCosmology(ReadState.ScaleFactor);
@@ -218,16 +227,9 @@ int main(int argc, char **argv) {
     InitWriteState(MakeIC, "singlestep", argv[1]);
 
     // Set up the major classes (including NFD)
-    Prologue(P,MakeIC);
+    Prologue(P,MakeIC,NoForces);
 
-    // Check if WriteStateDirectory/state exists, and fail if it does
-    char wstatefn[1050];
-    int ret = snprintf(wstatefn, 1050, "%s/state", P.WriteStateDirectory);
-    assert(ret >= 0 && ret < 1050);
-    if(access(wstatefn,0) !=-1 && !WriteState.OverwriteState)
-        QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
-
-    if (da!=0) da = ChooseTimeStep();
+    double da = ChooseTimeStep(NoForces);
 
     // da *= -1;  // reverse the time step TODO: make parameter
     double dlna = da/ReadState.ScaleFactor;
@@ -243,18 +245,23 @@ int main(int argc, char **argv) {
     for(int i = 0; i < NUMLIGHTCONES; i++)
         LCOrigin[i] = ((double3*) P.LightConeOrigins)[i]/P.BoxSize;  // convert to unit-box units
 
-    // Make a plan for output
-    PlanOutput(MakeIC);
-
     // Set up the Group Finding concepts and decide if Group Finding output is requested.
     InitGroupFinding(MakeIC);
-    BuildWriteStateOutput();    // Have to delay this until after GFC is made
+
+    // Set up output metadata
+    PlanOutput(MakeIC);
+    
+    InitializePipelineWidths(MakeIC);  // needs to know if this step will do group finding
+    InitializeParallelMergeDomain();  // needs to know if the *next* step will do group finding
+    LogParallelTopology();
+
+    BuildOutputHeaders();    // needs group finding and merge domain
 
     SingleStepSetup.Stop();
 
     // Now execute the timestep
     if (MakeIC)  timestepIC();
-	    else timestep();
+	    else timestep(NoForces);
 
     fedisableexcept(FE_INVALID | FE_DIVBYZERO);
 
@@ -274,12 +281,13 @@ int main(int argc, char **argv) {
 
     delete cosm;
     free(LCOrigin);
+    free_dependencies();
 
     // Print out some final stats
     FinalizeWriteState();
 
     // The state should be written last, since that officially signals success.
-    if (WriteState.NodeRank==0) {
+    if (MPI_rank==0) {
         WriteState.write_to_file(P.WriteStateDirectory);
         STDLOG(0,"Wrote WriteState to %s\n",P.WriteStateDirectory);
     }

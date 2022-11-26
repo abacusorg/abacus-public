@@ -36,6 +36,7 @@ import signal
 from tempfile import mkstemp
 import warnings
 from warnings import warn
+import datetime
 
 import numpy as np
 
@@ -43,6 +44,8 @@ from .InputFile import InputFile
 from . import Tools
 from . import GenParam
 from . import zeldovich
+from . import derivatives
+from .Tools import call_subprocess
 
 
 NEEDS_INTERIM_BACKUP_MINS = 105  #minimum job runtime (in minutes) for which we'd like to do a backup halfway through the job. 
@@ -55,6 +58,9 @@ GF_BACKUP_INTERVAL = 2 * 60 * 60  #only backup b/w group finding steps if it's b
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
 directory_param_fn = pjoin(abacuspath, 'Production', 'directory.def')
 wall_timer = time.perf_counter  # monotonic wall clock time
+
+def timestamp():
+    return str(datetime.datetime.now().replace(microsecond=0))
 
 
 def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False, erase_ic=False, output_parfile=None, use_site_overrides=False, override_directories=False, just_params=False, param_kwargs=None):
@@ -124,6 +130,10 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     groupdir  = params.get('GroupDirectory', '')
     basedir = params['WorkingDirectory']
 
+    # might be global; might be local
+    multipoledir = params.get('MultipoleDirectory', '')
+    taylordir = params.get('TaylorDirectory', '')
+
     resumedir = ""
     if parallel:
         resumedir = pjoin(dirname(params['WorkingDirectory']), params['SimName'] + '_retrieved_state')
@@ -132,6 +142,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
 
     # If we requested a resume, but there is no state, assume we are starting fresh
     if not clean:
+        # TODO: in an interactive parallel session, the state may already exist on the remote nodes. How to check?
         if (parallel and path.exists(resumedir)) or (not parallel and path.exists(basedir)):
             print('Resuming from existing state.')
         else:
@@ -144,14 +155,19 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
 
     # If not resuming, erase old global dirs
     if clean:
-        clean_dir(basedir, preserve=icdir if not erase_ic else None)
-        clean_dir(outdir, preserve=icdir if not erase_ic else None)
-        clean_dir(logdir, preserve=icdir if not erase_ic else None)
-        clean_dir(groupdir, preserve=icdir if not erase_ic else None)
-        clean_dir(lcdir, preserve=icdir if not erase_ic else None)
+        clean_dirs( ( basedir,
+                      outdir,
+                      logdir,
+                      groupdir,
+                      lcdir,
+                      multipoledir,
+                      taylordir ),
+                    preserve=icdir if not erase_ic else None
+                  )
         #NAM make prettier.
         if parallel and path.exists(resumedir):
-            clean_dir(resumedir, preserve=icdir if not erase_ic else None)
+            clean_dirs([resumedir],
+                preserve=icdir if not erase_ic else None)
 
     os.makedirs(basedir, exist_ok=True)
 
@@ -181,8 +197,11 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     with Tools.chdir(basedir):
         # The parfile is directly stored in the basedir
         output_parfile = basename(output_parfile)
-        if clean and not path.exists(icdir) and not zeldovich.is_on_the_fly_format(params['ICFormat']):
-            zeldovich.run(output_parfile, allow_eigmodes_fn_override=override_directories)
+        if not zeldovich.is_on_the_fly_format(params['ICFormat']):
+            if clean and not path.exists(icdir):
+                zeldovich.run(output_parfile, allow_eigmodes_fn_override=override_directories)
+            if params.get('Parallel') and params.get('NumZRanks',1) > 1:
+                zeldovich.ensure_2d(params)  # might have switched from 1D to 2D
         elif clean:
             print('Reusing existing ICs')
 
@@ -210,111 +229,35 @@ def copy_contents(in_dir, out_dir, clean=True, ignore='*.py'):
         shutil.copy(fn, out_dir)
 
 
-def clean_dir(bd, preserve=None, rmdir_ifempty=True):
+def clean_dirs(dirs, preserve=None, rmdir_ifempty=True):
     '''
-    Remove the contents of a directory except for the path
+    Remove the contents of a list of directories, except for the path
     specified in the "preserve" argument.  Optionally remove
     the directory itself if it's empty.
     '''
-    if bd == None:
-        return 0
 
-    if path.exists(bd):
-        # Erase everything in basedir except the ICs
-        for d in os.listdir(bd):
-            d = pjoin(bd, d)
-            try:
-                if preserve and path.samefile(d, preserve):
-                    continue
-            except OSError:
-                pass  # icdir may not exist
-            try:
-                shutil.rmtree(d)
-            except OSError:
-                os.remove(d)  # may have been a file, not a dir
-        if rmdir_ifempty:
-            try:
-                os.rmdir(bd)
-            except OSError:
-                pass
+    for bd in dirs:
+        if bd == None:
+            return 0
 
-def MakeDerivatives(param, derivs_archive_dirs=True, floatprec=False):
-    '''
-    Look for the derivatives required for param and make them if they don't exist.
-    '''
-
-    # We will attempt to copy derivatives from the archive dir if they aren't found
-    if derivs_archive_dirs == True:
-        derivs_archive_dirs = []
-        for var in ['ABACUS_PERSIST', 'ABACUS_SSD', 'ABACUS_DERIVS']:
-            if var in os.environ:
-                derivs_archive_dirs += [pjoin(os.environ[var], 'Derivatives')]
-
-    if type(derivs_archive_dirs) is str:
-        derivs_archive_dirs = [derivs_archive_dirs]
-
-    os.makedirs(param.DerivativesDirectory, exist_ok=True)
-
-    #note! added this in to run Ewald test for far_radius 1-8,16
-    for ADnum in list(range(1,9)) + [16]:
-        ADfn = f'AD32_{ADnum:03d}.dat'
-        source_ADfn = pjoin(abacuspath, "Derivatives", ADfn)
-        if not path.isfile(pjoin(param.DerivativesDirectory, ADfn)):
-            shutil.copy(source_ADfn,param.DerivativesDirectory)
-
-    suffix = f"{param.CPD:d}_{param.Order:d}_{param.NearFieldRadius:d}_{param.DerivativeExpansionRadius:d}" + "_{slab:d}"
-    fnfmt32 = "fourierspace_float32_" + suffix
-    fnfmt64 = "fourierspace_" + suffix
-
-    derivativenames32, derivativenames64 = [], []
-    for i in range(0,param.CPD//2+1):
-        derivativenames32 += [fnfmt32.format(slab=i)]
-        derivativenames64 += [fnfmt64.format(slab=i)]
-    derivativenames = derivativenames32 if floatprec else derivativenames64
-    fnfmt = fnfmt32 if floatprec else fnfmt64
-
-    create_derivs_cmd = [pjoin(abacuspath, "Derivatives", "CreateDerivatives"),
-                        str(param.CPD),str(param.Order),str(param.NearFieldRadius),str(param.DerivativeExpansionRadius)]
-
-    parallel = param.get('Parallel', False)
-
-    # TODO: parallel CreateDerivs?
-    if False and parallel:
-        if 'Conv_mpirun_cmd' in param:
-            create_derivs_cmd = shlex.split(param['Conv_mpirun_cmd']) + create_derivs_cmd
-        else:
-            create_derivs_cmd = shlex.split(param['mpirun_cmd']) + create_derivs_cmd
-
-    # First check if the derivatives are in the DerivativesDirectory
-    if not all(path.isfile(pjoin(param.DerivativesDirectory, dn)) for dn in derivativenames):
-
-        # If not, check if they are in the canonical $ABACUS_PERSIST/Derivatives directory
-        for derivs_archive_dir in derivs_archive_dirs:
-            if all(path.isfile(pjoin(derivs_archive_dir, dn)) for dn in derivativenames):
-                print(f'Found derivatives in archive dir "{derivs_archive_dir}". Copying to DerivativesDirectory "{param.DerivativesDirectory}".')
-                for dn in derivativenames:
-                    shutil.copy(pjoin(derivs_archive_dir, dn), pjoin(param.DerivativesDirectory, dn))
-                break
-        else:
-            print(f'Could not find derivatives in "{param.DerivativesDirectory}" or archive dirs "{derivs_archive_dirs}". Creating them...')
-            print(f"Error was on file pattern '{fnfmt}'")
-
-            if floatprec:
-                # first make sure the derivatives exist in double format
-                MakeDerivatives(param, floatprec=False)
-                # now make a 32-bit copy
-                from . import convert_derivs_to_float32
-                for dpath in derivativenames64:
-                    convert_derivs_to_float32.convert(pjoin(param.DerivativesDirectory, dpath))
-            else:
-                with Tools.chdir(param.DerivativesDirectory):
-                    try:
-                        os.remove("./farderivatives")
-                    except OSError:
-                        pass
-                    if parallel:
-                        print('Dispatching CreateDerivatives with command "{}"'.format(' '.join(create_derivs_cmd)))
-                    call_subprocess(create_derivs_cmd)
+        if path.exists(bd):
+            # Erase everything in basedir except the ICs
+            for d in os.listdir(bd):
+                d = pjoin(bd, d)
+                try:
+                    if preserve and path.samefile(d, preserve):
+                        continue
+                except OSError:
+                    pass  # icdir may not exist
+                try:
+                    shutil.rmtree(d)
+                except OSError:
+                    os.remove(d)  # may have been a file, not a dir
+            if rmdir_ifempty:
+                try:
+                    os.rmdir(bd)
+                except OSError:
+                    pass
 
 
 def default_parser():
@@ -399,6 +342,17 @@ def preprocess_params(output_parfile, parfn, use_site_overrides=False, override_
             if 'TaylorDirectory2' not in params:
                 param_kwargs['TaylorDirectory2'] = pjoin(os.environ['ABACUS_SSD2'], params['SimName'], 'taylor2')
 
+    if not params.get('Parallel',False):
+        # In the parallel code, we don't know Multipole/TaylorDirectory until
+        # inside singlestep (the path uses the rank). So we should leave those
+        # dirs unset in Python. But when we switch to the serial code, we want
+        # to set the paths here so we can slosh or do other manipulations.
+        if not params.get('TaylorDirectory'):
+            param_kwargs['TaylorDirectory'] = pjoin(os.environ['ABACUS_SSD'], params['SimName'], 'taylor')
+        if not params.get('MultipoleDirectory'):
+            param_kwargs['MultipoleDirectory'] = pjoin(os.environ['ABACUS_SSD'], params['SimName'], 'multipole')
+
+
     params = GenParam.makeInput(output_parfile, parfn, **param_kwargs)
 
     return params
@@ -413,7 +367,7 @@ def check_multipole_taylor_done(param, state, kind):
     assert kind in ['Multipole', 'Taylor']
     rml = (param.Order+1)**2
     sizeof_Complex = 16 if state.DoublePrecision else 8
-    size = param.CPD*(param.CPD+1)/2*rml*sizeof_Complex
+    size = param.CPD*(param.CPD+1)//2*rml*sizeof_Complex
 
     even_dir = param[kind+'Directory']
     odd_dir = param.get(kind+'Directory2', param[kind+'Directory'])
@@ -814,6 +768,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     param = InputFile(paramfn)
 
     parallel = param.get('Parallel', False)
+    twoD = param.get('NumZRanks', 0) > 1 and parallel
 
     do_fake_convolve = param.get('FakeConvolve', False)
 
@@ -827,8 +782,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     run_time_secs = 60 * run_time_minutes
 
     start_time = wall_timer()
-    print("Beginning run at time", start_time, ", running for ", run_time_minutes, " minutes.\n")
-        
+    print(f"Beginning run at {timestamp()}, running for at most {run_time_minutes} minutes.\n")
 
     if parallel:
         backups_enabled = False
@@ -839,15 +793,12 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     ProfilingMode = param.get('ProfilingMode',False)
 
     # Set up OpenMP singlestep environment
-    # TODO: check that calling mpirun with this environment is equivalent to calling singlestep with the environment
     singlestep_env = setup_singlestep_env(param)
     convolution_env = setup_convolution_env(param)
 
     status_log = StatusLogWriter(pjoin(param.OutputDirectory, 'status.log'))
     conv_time = None
 
-    #wall_timer = time.perf_counter
-    #start_time = wall_timer()
     starting_time = time.time()
     starting_time_str = time.asctime(time.localtime())
 
@@ -858,7 +809,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     # floatprec=True effectively guarantees both precisions are available
     # TODO: how to tell if Abacus was compiled in double precision?
     if not do_fake_convolve:
-        MakeDerivatives(param, floatprec=True)
+        derivatives.make_derivatives(param, floatprec=True, twoD=twoD)
 
     if make_ic and not zeldovich.is_on_the_fly_format(param.ICFormat):
         print("Ingesting IC from "+param.InitialConditionsDirectory+" ... Skipping convolution")
@@ -915,7 +866,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     singlestep_cmd = [pjoin(abacuspath, "singlestep", "singlestep"), paramfn, str(int(make_ic))]
     if parallel:
         singlestep_cmd = mpirun_cmd + singlestep_cmd
-        print("Using singlestep_cmd ", singlestep_cmd)
+        print(f"Using invocation '{' '.join(singlestep_cmd)}'")
 
         # #if this job is longer than a set time (NEEDS_INTERIM_BACKUP_MINS), we'll need to do a backup halfway through the run.
         interim_backup_complete = run_time_minutes <= NEEDS_INTERIM_BACKUP_MINS
@@ -1091,7 +1042,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
         if parallel:
             # Merge all nodes' checksum files into one
-            merge_checksum_files(write_state.NodeSize, param)
+            merge_checksum_files(write_state.NodeSizeX * write_state.NodeSizeZ, param)
 
             # check if we need to gracefully exit and/or backup:
             #    is a group finding step next?          ---> backup to NVME and continue.   (group finding steps are more likely to crash!)
@@ -1218,7 +1169,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
         # This logic is deliberately consistent with singlestep.cpp
         # If this is an IC step then we won't have read_state
-        if not make_ic and np.abs(read_state.Redshift - finalz) < 1e-12 and read_state.LPTStepNumber == 0:
+        if (not make_ic and
+            np.abs(read_state.Redshift - finalz) < 1e-12 and
+            read_state.LPTStepNumber == 0 and
+            not (write_state.DoGroupFindingOutput == 1 and write_state.DidGroupFindingOutput == 0)
+            ):
             ending_time = time.time()
             ending_time_str = time.asctime(time.localtime())
             ending_time = (ending_time-starting_time)/3600.0    # Elapsed hours
@@ -1440,39 +1395,3 @@ def showwarning(message, category, filename, lineno, file=None, line=None):
     print(f'{filename}:{lineno}: {category.__name__}: {message}', file=file)
 
 warnings.showwarning = showwarning
-
-
-def reset_affinity(max_core_id=256):
-    '''
-    Resets the core affinity of the current process/thread.
-    Mainly used by `call_subprocess()`.
-    '''
-    # TODO: how to detect the maximum core id?
-    # The lowest allowable value we have seen is 256
-    os.sched_setaffinity(0, range(max_core_id))
-
-
-def call_subprocess(*args, **kwargs):
-    """
-    This is a wrapper to subprocess.check_call() that first resets CPU affinity.
-
-    Why do we need to do this?  The number of cores that OpenMP allows itself
-    to use is limited by the affinity mask of the process *at initialization*.
-    And the OMP_PLACES mechanism may have already limited Python's affinity
-    mask if we happened to load a shared object that uses OpenMP (say, an
-    analysis routine).
-
-    Why does OMP_PLACES affect the affinity mask of the master thread?
-    Because the master thread is actually the first member of the OpenMP
-    thread team!
-
-    Also, timeout arguments are interpreted as being in minutes, rather than
-    seconds.
-    """
-
-    timeout = kwargs.pop('timeout',None)
-    if timeout is not None:
-        timeout *= 60
-
-    # A TimeoutExpired error will be raised if we time out. Could catch it, but probably fine to crash
-    subprocess.run(*args, **kwargs, timeout=timeout, preexec_fn=reset_affinity, check=True)

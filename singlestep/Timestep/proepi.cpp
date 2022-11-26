@@ -42,9 +42,7 @@
 
 #include "numa_for.h"
 
-STimer FinishPreamble; 
-STimer FinishPartition;
-STimer FinishSort;
+STimer FinishFreeSlabs;
 STimer FinishCellIndex;
 STimer FinishMerge;
 STimer ComputeMultipoles;
@@ -72,8 +70,9 @@ STimer TaylorCompute;
 
 STimer AddAccel;
 STimer KickCellTimer;
+STimer KickDealloc;
 
-STimer DriftMove, DriftRebin, DriftInsert;
+STimer DriftMove, DriftRebin;
 
 STimer prologue;
 STimer epilogue;
@@ -92,9 +91,6 @@ uint64 naive_directinteractions = 0;
 #include "file.h"
 #include "grid.cpp"
 grid *Grid;
-
-char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
-int MPI_size = 1, MPI_rank = 0;     // We'll set these globally, so that we don't have to keep fetching them
 
 #include "Parameters.cpp"
 #include "statestructure.cpp"
@@ -168,6 +164,11 @@ SlabTaylor *TY;
 SlabMultipoles *MF;
 Redlack *RL;
 
+#ifdef PARALLEL
+#include "slabmultipoles_mpi.cpp"
+#include "slabtaylor_mpi.cpp"
+#endif
+
 #include "multipole_taylor.cpp"
 
 #include "check.cpp"
@@ -203,81 +204,16 @@ void init_fftw();
 void finish_fftw();
 
 #include "timestep.cpp"
+#include "parallel.cpp"
+#include "neighbor_exchange.cpp"
 #include "reporting.cpp"
 
 #include <fenv.h>
 
-void InitializeParallel(int &size, int &rank) {
-    // no STDLOG yet!
-
-    #ifdef PARALLEL
-        // Start up MPI
-        int init = 1;
-        MPI_Initialized(&init);
-        assertf(!init, "MPI was already initialized!\n");
-
-        int ret = -1;
-        MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
-        assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
-        MPI_Comm_size(MPI_COMM_WORLD, &size);
-        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-        sprintf(NodeString,".%04d",rank);
-
-        #ifdef MULTIPLE_MPI_COMM
-
-            // By using color = 0, we indicate that all ranks belong to all comms
-            int color = 0;
-            MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_taylors);
-            MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_multipoles);
-            MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_manifest);
-            MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_global);
-
-            // The following are just sanity checks that the global rank is the same as the new-comm rank
-            int comm_rank = -1;
-            MPI_Comm_rank(comm_taylors, &comm_rank);
-            assertf(comm_rank == rank, "Taylors comm_rank = %d, rank = %d, should match!\n", comm_rank, rank);
-            MPI_Comm_rank(comm_multipoles, &comm_rank);
-            assertf(comm_rank == rank, "Multipoles comm_rank = %d, rank = %d, should match!\n", comm_rank, rank);
-            MPI_Comm_rank(comm_manifest, &comm_rank);
-            assertf(comm_rank == rank, "Manifest comm_rank = %d, rank = %d, should match!\n", comm_rank, rank);
-            MPI_Comm_rank(comm_global, &comm_rank);
-            assertf(comm_rank == rank, "Global comm_rank = %d, rank = %d, should match!\n", comm_rank, rank);
-
-        #else
-
-            comm_taylors = MPI_COMM_WORLD;
-            comm_multipoles = MPI_COMM_WORLD;
-            comm_manifest = MPI_COMM_WORLD;
-            comm_global = MPI_COMM_WORLD;
-
-        #endif
-    #endif
-}
-
-void FinalizeParallel() {
-    #ifdef PARALLEL
-
-        #ifdef MULTIPLE_MPI_COMM
-
-        STDLOG(1, "MULTIPLE_MPI_COMM was used, tearing down communicators\n");
-
-        MPI_Comm_free(&comm_taylors);
-        MPI_Comm_free(&comm_multipoles);
-        MPI_Comm_free(&comm_manifest);
-        MPI_Comm_free(&comm_global);
-
-        #endif
-
-        // Finalize MPI
-        STDLOG(0,"Calling MPI_Finalize()\n");
-        MPI_Finalize();
-    #else
-    #endif
-}
 /*! \brief Initializes global objects
  *
  */
-void Prologue(Parameters &P, bool MakeIC) {
+void Prologue(Parameters &P, int MakeIC, int NoForces) {
     STDLOG(1,"Entering Prologue()\n");
     STDLOG(2,"Size of accstruct is %d bytes\n", sizeof(accstruct));
     prologue.Clear();
@@ -305,36 +241,68 @@ void Prologue(Parameters &P, bool MakeIC) {
     SB = new SlabBuffer(cpd, order);
     CP = new CellParticles(cpd, SB);
 
-    STDLOG(2,"Initializing Multipoles()\n");
-    MF  = new SlabMultipoles(order, cpd);
+    STDLOG(2,"Initializing Multipoles\n");
+    if(MPI_size_z > 1){
+        #ifdef PARALLEL
+        MF = new SlabMultipolesMPI(order, cpd);
+        #endif
+    } else {
+        MF = new SlabMultipolesLocal(order, cpd);
+    }
 
     STDLOG(2,"Setting up insert list\n");
-    uint64 maxILsize = P.np+1;
     // IC steps and LPT steps may need more IL slabs.  Their pipelines are not as long as full (i.e. group finding) steps
-    if (MakeIC || LPTStepNumber() > 0){
-        if (P.NumSlabsInsertListIC>0) maxILsize =(maxILsize* P.NumSlabsInsertListIC)/P.cpd+1;
-    } else {
-        if (P.NumSlabsInsertList>0) maxILsize   =(maxILsize* P.NumSlabsInsertList)/P.cpd+1;
+    if(P.NumSlabsInsertListIC == 0){
+        P.NumSlabsInsertListIC = 2*FINISH_WAIT_RADIUS + 12;
     }
-    IL = new InsertList(cpd, maxILsize);
-    STDLOG(2,"Maximum insert list size = %l, size %l MB\n", maxILsize, maxILsize*sizeof(ilstruct)/1024/1024);
+    if(P.NumSlabsInsertList == 0) {
+        // IL can be filled from drift or neighbor recv. Multiply by 2x for manifest.
+        P.NumSlabsInsertList = 2*(DriftDep::drift_ahead + NeighborRecvEvent::receive_ahead);
+    }
+
+    uint64 maxILsize = P.np+1;
+    int num_slab_il;
+    double drift_efficiency;
+    if(MakeIC || LPTStepNumber() > 0){
+        num_slab_il = P.NumSlabsInsertListIC;
+        drift_efficiency = 1.;
+    } else {
+        num_slab_il = P.NumSlabsInsertList;
+        drift_efficiency = 0.5;  // conservative estimate of rebinned frac, 0.8**3
+    }
+    maxILsize = maxILsize*num_slab_il*(node_z_size*drift_efficiency + 2*MERGE_GHOST_RADIUS)/P.cpd/P.cpd + 1;
+    int clearLC = LPTStepNumber() == 0;  // LC bits used as vel bits during 2LPT
+    STDLOG(2,"Maximum insert list size = %l, allocating %.3g GB\n", maxILsize, maxILsize*sizeof(ilstruct)/1e9);
+    IL = new InsertList(cpd, maxILsize, clearLC);
 
     STDLOG(2,"Setting up IO\n");
 
     char logfn[1050];
     sprintf(logfn,"%s/step%04d%s.iolog",
         WriteState.LogDirectory, WriteState.FullStepNumber, NodeString);
-    io_ramdisk_global = P.RamDisk;
-    STDLOG(0,"Setting RamDisk == %d\n", P.RamDisk);
+    allow_directio_global = P.AllowDirectIO;
+    STDLOG(1,"Setting global AllowDirectIO = %d\n", P.AllowDirectIO);
     IO_Initialize(logfn);
 
-    SS = new SlabSize(P.cpd);
+    SS = new SlabSize(P.cpd, MPI_size_z, MPI_rank_z);
     ReadNodeSlabs();
 
     if(!MakeIC) {
             // ReadMaxCellSize(P);
         SS->load_from_params(P);
-        TY  = new SlabTaylor(order,cpd);
+        
+        if(!NoForces){
+            if(MPI_size_z > 1){
+                #ifdef PARALLEL
+                TY = new SlabTaylorMPI(order,cpd);
+                #endif
+            } else {
+                TY = new SlabTaylorLocal(order,cpd);
+            }
+        } else {
+            TY = NULL;
+        }
+        
         RL = new Redlack(cpd);
 
         SlabForceTime = new STimer[cpd];
@@ -343,11 +311,15 @@ void Prologue(Parameters &P, bool MakeIC) {
 
 		RL->ReadInAuxiallaryVariables(P.ReadStateDirectory);
 
-        NFD = new NearFieldDriver(P.NearFieldRadius);
+        NFD = NoForces ? NULL : new NearFieldDriver(P.NearFieldRadius);
     } else {
         TY = NULL;
         RL = NULL;
         NFD = NULL;
+
+        SlabForceTime = NULL;
+        SlabForceLatency = NULL;
+        SlabFarForceTime = NULL;
     }
 
     prologue.Stop();
@@ -368,15 +340,17 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     if(SS != NULL){
         SS->store_from_params(P);
+        WriteState.np_with_ghost_state = SS->total_new_size_with_ghost();
    	}
 
 
     if(MF != NULL){ // Some pipelines, like standalone_fof, don't use multipoles
         MF->GatherRedlack();    // For the parallel code, we have to coadd the inputs
+        STDLOG(3, "globaldipole = (%g,%g,%g)\n", MF->globaldipole.x, MF->globaldipole.y, MF->globaldipole.z);
+
         if (MPI_rank==0) {
-            MF->ComputeRedlack();  // NB when we terminate SlabMultipoles we write out these
-            if (WriteState.NodeRank==0)
-                MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
+            MF->ComputeRedlack();
+            MF->WriteOutAuxiallaryVariables(P.WriteStateDirectory);
         }
         delete MF;
         MF = NULL;
@@ -394,7 +368,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
         delete density; density = 0;
     }
 
-    SB->report_peak();
+    SB->report_peak(1);
     delete SB;
     SB = NULL;
     STDLOG(2,"Deleted SB\n");
@@ -408,39 +382,40 @@ void Epilogue(Parameters &P, bool MakeIC) {
     Grid = NULL;
 	
 	FreeManifest();
+    TeardownNeighborExchange();
 
-    if(!MakeIC) {
-        if(0 and P.ForceOutputDebug){
-            #ifdef CUDADIRECT
-            STDLOG(1,"Direct Interactions: CPU (%lu) and GPU (%lu)\n",
-                        NFD->DirectInteractions_CPU,NFD->TotalDirectInteractions_GPU);
-            if(!(NFD->DirectInteractions_CPU == NFD->TotalDirectInteractions_GPU)){
-                printf("Error:\n\tDirect Interactions differ between CPU (%lu) and GPU (%lu)\n",
-                        NFD->DirectInteractions_CPU,NFD->TotalDirectInteractions_GPU);
-                //assert(NFD->DirectInteractions_CPU == NFD->TotalDirectInteractions_GPU);
-            }
-            #endif
+    if(0 and P.ForceOutputDebug){
+        #ifdef CUDADIRECT
+        STDLOG(1,"Direct Interactions: CPU (%lu) and GPU (%lu)\n",
+                    NFD->DirectInteractions_CPU,NFD->TotalDirectInteractions_GPU);
+        if(!(NFD->DirectInteractions_CPU == NFD->TotalDirectInteractions_GPU)){
+            printf("Error:\n\tDirect Interactions differ between CPU (%lu) and GPU (%lu)\n",
+                    NFD->DirectInteractions_CPU,NFD->TotalDirectInteractions_GPU);
+            //assert(NFD->DirectInteractions_CPU == NFD->TotalDirectInteractions_GPU);
         }
-        
+        #endif
+    }
+    
+    delete TY;
+    TY = NULL;
+    STDLOG(2,"Deleted TY\n");
+    delete RL;
+    RL = NULL;
+    delete[] SlabForceLatency;
+    SlabForceLatency = NULL;
+    delete[] SlabForceTime;
+    SlabForceTime = NULL;
+    delete[] SlabFarForceTime;
+    SlabFarForceTime = NULL;
+    delete GFC;
+    GFC = NULL;
+    if(NFD) {
         WriteState.DirectsPerParticle = (double)1.0e9*NFD->gdi_gpu/P.np;
-        delete TY;
-        TY = NULL;
-        STDLOG(2,"Deleted TY\n");
-        delete RL;
-        RL = NULL;
-        delete[] SlabForceLatency;
-        SlabForceLatency = NULL;
-        delete[] SlabForceTime;
-        SlabForceTime = NULL;
-        delete[] SlabFarForceTime;
-        SlabFarForceTime = NULL;
-        if (GFC!=NULL){
-            delete GFC;
-            GFC = NULL;
-        }
-        STDLOG(2,"Done with Epilogue; about to kill the GPUs\n");
+        STDLOG(2,"About to delete NFD/kill the GPUs\n");
         delete NFD;
         NFD = NULL;
+    } else {
+        WriteState.DirectsPerParticle = 0;
     }
 
     finish_fftw();
@@ -465,11 +440,50 @@ void init_fftw(){
 }
 
 void finish_fftw(){
+    if(MPI_rank_x == 0 && MPI_size_z > 1){
+        // TODO: only need to do this when we think we have new wisdom
+
+#ifdef PARALLEL
+        // Save wisdom for both possible values of node_ky_size
+        // Gather at rank 0, and write as a single file
+        
+        if(MPI_rank_z == MPI_size_z-1){
+            STDLOG(1, "Sending wisdom over MPI\n");
+            char *wis = fftw_export_wisdom_to_string();
+            if(wis != NULL){
+                size_t wislen = strlen(wis);
+                MPI_Send(wis, (int) wislen, MPI_CHAR, 0, 0, comm_1d_z);
+                free(wis);
+            } else {
+                // Some fftw implementations do not use wisdom
+                char dummywis = '\0';
+                MPI_Send(&dummywis, 0, MPI_CHAR, 0, 0, comm_1d_z);
+            }
+        } else if(MPI_rank_z == 0){
+            STDLOG(1, "Receiving wisdom over MPI\n");
+            MPI_Status stat;
+            MPI_Probe(MPI_size_z-1, 0, comm_1d_z, &stat);
+            int wislen;
+            MPI_Get_count(&stat, MPI_CHAR, &wislen);
+
+            char *wis = (char *) malloc(sizeof(char) * (wislen+1));
+            assert(wis != NULL);
+
+            MPI_Recv(wis, wislen, MPI_CHAR, MPI_size_z-1, 0,
+                    comm_1d_z, MPI_STATUS_IGNORE);
+            wis[wislen] = '\0';
+            fftw_import_wisdom_from_string(wis);
+            free(wis);
+        }
+#endif
+    }
+    
     if(MPI_rank == 0){
         int ret = fftw_export_wisdom_to_filename(wisdom_file);
         STDLOG(1, "Wisdom export to file \"%s\" returned %d.\n", wisdom_file, ret);
     }
-   fftw_cleanup();  // better not call this before exporting wisdom!
+
+    fftw_cleanup();  // all plans and wisdom invalidated after this
 }
 
 std::vector<std::vector<int>> free_cores;  // list of cores on each socket that are not assigned a thread (openmp, gpu, io, etc)
@@ -581,6 +595,9 @@ void load_read_state(int MakeIC){
 
         // We have to fill in a few items, just to bootstrap the rest of the code.
         ReadState.ScaleFactor = 1.0/(1+P.InitialRedshift);
+
+        // Probably not used, but this declares that the ReadState slabs have no ghosts
+        ReadState.GhostRadius = 0;
     } else {
         // We're doing a normal step
         // Check that the read state file exists
@@ -597,22 +614,15 @@ void load_read_state(int MakeIC){
     snprintf(WriteState.LogDirectory, 1024, "%s/step%04d", P.LogDirectory, WriteState.FullStepNumber);
 }
 
-void check_read_state(const int MakeIC, double &da){
+void check_read_state(const int MakeIC){
     // Check if ReadStateDirectory is accessible, or if we should
     // build a new state from the IC file
 
     if(MakeIC){
         STDLOG(0,"Generating initial State from initial conditions\n");
-        da = 0;
     } else {
         STDLOG(0,"Read ReadState from %s\n",P.ReadStateDirectory);
         ReadState.AssertStateLegal(P);
-
-        // Handle some special cases
-        if (P.ForceOutputDebug) {
-            STDLOG(0,"ForceOutputDebug option invoked; setting time step to 0.\n");
-            da = 0;
-        }
     }
 }
 
@@ -622,49 +632,6 @@ void InitWriteState(int MakeIC, const char *pipeline, const char *parfn){
     // available when we choose the time step.
     assert(WriteState.FullStepNumber == ReadState.FullStepNumber+1);  // already did this in load_read_state()
     WriteState.LPTStepNumber = LPTStepNumber();
-
-    // We generally want to do re-reading on the last LPT step
-    WriteState.Do2LPTVelocityRereading = 0;
-    if (LPTStepNumber() > 0 && LPTStepNumber() == P.LagrangianPTOrder
-        && (strcmp(P.ICFormat, "RVdoubleZel") == 0 || strcmp(P.ICFormat, "RVZel") == 0)){
-        WriteState.Do2LPTVelocityRereading = 1;
-    }
-
-    // Decrease the softening length if we are doing a 2LPT step
-    // This helps ensure that we are using the true 1/r^2 force
-    /*if(LPTStepNumber()>0){
-        WriteState.SofteningLengthNow = P.SofteningLength / 1e4;  // This might not be in the growing mode for this choice of softening, though
-        STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLengthNow);
-    }
-    else{
-        WriteState.SofteningLengthNow = P.SofteningLength;
-    }*/
-
-    // Is the softening fixed in proper coordinates?
-    if(P.ProperSoftening){
-        // TODO: use the ReadState or WriteState ScaleFactor?  We haven't chosen the timestep yet.
-        WriteState.SofteningLengthNow = min(P.SofteningLength/ReadState.ScaleFactor, P.SofteningMax);
-        STDLOG(1, "Adopting a comoving softening of %d, fixed in proper coordinates\n", WriteState.SofteningLengthNow);
-    }
-    else{
-        WriteState.SofteningLengthNow = P.SofteningLength;
-        STDLOG(1, "Adopting a comoving softening of %d, fixed in comoving coordinates\n", WriteState.SofteningLengthNow);
-    }
-
-    // Now scale the softening to match the minimum Plummer orbital period
-#if defined DIRECTCUBICSPLINE
-    strcpy(WriteState.SofteningType, "cubic_spline");
-    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 1.10064;
-#elif defined DIRECTSINGLESPLINE
-    strcpy(WriteState.SofteningType, "single_spline");
-    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 2.15517;
-#elif defined DIRECTCUBICPLUMMER
-    strcpy(WriteState.SofteningType, "cubic_plummer");
-    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 1.;
-#else
-    strcpy(WriteState.SofteningType, "plummer");
-    WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow;
-#endif
 
     if(strcmp(P.StateIOMode, "overwrite") == 0){
         WriteState.OverwriteState = 1;
@@ -686,10 +653,24 @@ void InitWriteState(int MakeIC, const char *pipeline, const char *parfn){
 
     strcpy(WriteState.Pipeline, pipeline);
     strcpy(WriteState.ParameterFileName, parfn);
+
+    // Check if WriteStateDirectory/state exists, and fail if it does
+    char wstatefn[1050];
+    int ret = snprintf(wstatefn, 1050, "%s/state", P.WriteStateDirectory);
+    assert(ret >= 0 && ret < 1050);
+    if(access(wstatefn,0) !=-1 && !WriteState.OverwriteState)
+        QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
 }
 
 
 void InitKernelDensity(){
+    /* N.B. we are opting to store these concepts in the WriteState,
+    even though they relate to the ReadState positions and cosmology.
+    We may revisit this choice, but at least it allows us to easily
+    log these values as part of the write state file, and avoids the
+    unseemly practice of modifying the ReadState.
+    */
+
     #ifdef COMPUTE_FOF_DENSITY
     #ifdef CUDADIRECT   // For now, the CPU doesn't compute FOF densities, so signal this by leaving Rad2=0.
     if (P.DensityKernelRad==0) {
@@ -718,8 +699,20 @@ void InitKernelDensity(){
     #endif
 }
 
+template<class C, typename T>
+bool contains(C *a, C *b, T e) { return std::find(a, b, e) != b; };
 
-void InitGroupFinding(bool MakeIC){
+
+double EvolvingDelta(float z){
+    float omegaMz = P.Omega_M * pow(1.0 + z, 3.0) / (P.Omega_DE + P.Omega_M *  pow(1.0 + z, 3.0) );
+	// The Bryan & Norman (1998) threshold is in units of (redshift-dependent) critical density;
+	// the 1/omegaMz factor makes it relative to the mean density at that redshift
+    float Deltaz = (18.0*M_PI*M_PI + 82.0 * (omegaMz - 1.0) - 39.0 * pow(omegaMz - 1.0, 2.0) ) / omegaMz;
+    return Deltaz / (18.0*M_PI*M_PI); //Params are given at high-z, so divide by high-z asymptote to find rescaling.
+}
+
+
+void InitGroupFinding(int MakeIC){
     /*
     Request output of L1 groups and halo/field subsamples if:
     - this redshift is a member of L1OutputRedshift; or
@@ -734,48 +727,134 @@ void InitGroupFinding(bool MakeIC){
     We need to enable group finding if:
     - We are doing microstepping
     - We are outputting groups
-     But we can't enable it if:
+    But we can't enable it if:
     - AllowGroupFinding is disabled
     - ForceOutputDebug is enabled
     - This is an IC or 2LPT step
     ForceOutputDebug outputs accelerations as soon as we compute them
     i.e. before GroupFinding has a chance to rearrange them
+
+    2D:
+    timestep (1): shorten timestep
+    timestep (2): do a da=0 timestep, with forces, to half-kick velocities to synchronicity (also send ghosts for group finding)
+    timestep (3): do a da=0, no-force, group-finding timestep (send ghosts)
+    timestep (4): resume timestepping with forces
+
+    // TODO: is there anyway to recycle ghosts? the only bits that need updating are groupfinding tags
+    // TODO: is it okay to locally tag particles whose groups we de-dup to another node?
     */
 
-    int do_grp_output;
-    do_grp_output = 0;
+    // Decide if the next step will do group finding
+    WriteState.DoGroupFindingOutput = 0;
 
-    for(int i = 0; i < P.nTimeSliceSubsample; i++){
-        double subsample_z = P.TimeSliceRedshifts_Subsample[i];
-        if(abs(ReadState.Redshift - subsample_z) < 1e-12){
-            STDLOG(0,"Subsample output (and group finding) at this redshift requested by TimeSliceRedshifts_Subsample[%d]\n", i);
-            ReadState.DoSubsampleOutput = 1;
+    for(int i = 0; i < P.nTimeSliceL1; i++){
+        double L1z = P.L1OutputRedshifts[i];
+        double L1a = 1.0/(1+L1z);
+
+        if(contains(P.TimeSliceRedshifts, P.TimeSliceRedshifts + P.nTimeSlice, L1z) || 
+            contains(P.TimeSliceRedshifts_Subsample, P.TimeSliceRedshifts_Subsample + P.nTimeSliceSubsample, L1z)
+         ) continue;
+
+
+        if(ReadState.DoGroupFindingOutput != (i+2) &&
+            ReadState.ScaleFactor < L1a && WriteState.ScaleFactor >= L1a){
+
+            // We don't shorten our timestep to land exactly on a merger tree redshift.
+            // Is the next time step going to take us further from the target z?
+            if(fabs(ReadState.ScaleFactor - L1a) > fabs(WriteState.ScaleFactor - L1a)){
+                WriteState.DoGroupFindingOutput = i+2;
+                STDLOG(0,"Group finding on the write state requested by L1OutputRedshifts[%d]\n", i);
+            } else {
+                ReadState.DoGroupFindingOutput = i+2;
+                STDLOG(0,"Group finding on the read state requested by L1OutputRedshifts[%d]\n", i);
+            }
+            
+            break;
         }
     }
+
+    if(WriteState.DoTimeSliceOutput && !WriteState.DoSubsampleOutput) WriteState.DoSubsampleOutput = 1;
+
+    if(WriteState.DoSubsampleOutput && !WriteState.DoGroupFindingOutput) WriteState.DoGroupFindingOutput = 1;
+
+    if(P.L1Output_dlna >= 0 && !WriteState.DoGroupFindingOutput){
+        WriteState.DoGroupFindingOutput = P.L1Output_dlna == 0 ||
+                    ( log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ) ||
+                    ( fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna) );
+        STDLOG(0,"Group finding at this redshift requested by L1Output_dlna\n");
+    }
+
+    if(ReadState.DoGroupFindingOutput && WriteState.DoGroupFindingOutput && WriteState.DeltaScaleFactor == 0){
+        WriteState.DoGroupFindingOutput = 0;
+        STDLOG(0,"Won't do group finding at the same redshift next step\n");
+    }
+
+    if(ReadState.DidGroupFindingOutput){
+        ReadState.DoGroupFindingOutput = 0;
+        STDLOG(0,"Won't do group finding at same redshift this step\n");
+    }
     
-    if(P.OutputAllHaloParticles){
-        ReadState.DoSubsampleOutput = 1;
+    if(P.OutputAllHaloParticles && !WriteState.DoSubsampleOutput){
+        WriteState.DoSubsampleOutput = 1;
         STDLOG(0,"OutputAllHaloParticles = 1; forcing subsample A = 100%% and B = 0%%\n");
     }
 
-
-    if ( ReadState.DoTimeSliceOutput ) ReadState.DoSubsampleOutput = 1;
-
-    if ( ReadState.DoGroupFindingOutput ) goto have_L1z; 
-
-
-    if(P.L1Output_dlna >= 0){
-        do_grp_output = log(WriteState.ScaleFactor) - log(ReadState.ScaleFactor) >= P.L1Output_dlna ||
-                    fmod(log(WriteState.ScaleFactor), P.L1Output_dlna) < fmod(log(ReadState.ScaleFactor), P.L1Output_dlna);
-        STDLOG(0,"Group finding at this redshift requested by L1Output_dlna\n");
-    }
-    else{
-        do_grp_output = 0;
+    if(MPI_size_z > 1 && ReadState.DoGroupFindingOutput && !ReadState.VelIsSynchronous){
+        WriteState.DoGroupFindingOutput = ReadState.DoGroupFindingOutput;
+        WriteState.DoSubsampleOutput = ReadState.DoSubsampleOutput;
+        ReadState.DoGroupFindingOutput = 0;
+        ReadState.DoSubsampleOutput = 0;
+        STDLOG(0, "Deferring 2D group finding to next step when vel is synchronous\n");
     }
 
-    have_L1z:
+    if(MPI_size_z > 1 && ReadState.DoGroupFindingOutput && !ReadState.HaveAuxDensity){
+        WriteState.DoGroupFindingOutput = ReadState.DoGroupFindingOutput;
+        WriteState.DoSubsampleOutput = ReadState.DoSubsampleOutput;
+        ReadState.DoGroupFindingOutput = 0;
+        ReadState.DoSubsampleOutput = 0;
+        STDLOG(0, "Deferring 2D group finding to next step when we have aux densities\n");
+    }
 
-    if (ReadState.DoTimeSliceOutput or ReadState.DoSubsampleOutput or ReadState.DoGroupFindingOutput) do_grp_output = 1;  //if any kind of output is requested, turn on group finding. 
+    if(!P.AllowGroupFinding){
+        ReadState.DoGroupFindingOutput = 0;
+        WriteState.DoGroupFindingOutput = 0;
+        STDLOG(0, "P.AllowGroupFinding does not allow group finding.\n");
+    }
+
+    // done modifying DoGroupFindingOutput. Now we can plan for densities and output.
+
+    #ifdef SPHERICAL_OVERDENSITY
+    if (P.SO_EvolvingThreshold) {
+
+        float rescale = EvolvingDelta(ReadState.Redshift);
+
+        STDLOG(2, "Rescaling SO Delta as a function of redshift.\n\t\tL0: %f --> %f\n\t\tL1: %f --> %f\n\t\tL2: %f --> %f\n",
+                      P.L0DensityThreshold, rescale * P.L0DensityThreshold,
+                      P.SODensity[0], rescale * P.SODensity[0],
+                      P.SODensity[1], rescale * P.SODensity[1]);
+
+
+        P.SODensity[0] *= rescale;
+        P.SODensity[1] *= rescale;
+        P.L0DensityThreshold *= rescale;
+
+        ReadState.SODensityL1 = P.SODensity[0];
+        ReadState.SODensityL2 = P.SODensity[1];
+        ReadState.L0DensityThreshold = P.L0DensityThreshold;
+    }
+    else STDLOG(2, "Using constant SO Delta (no redshift-dependent rescaling).\n");
+    #endif
+
+    // Will group finding use aux densities?
+    int use_aux_dens = !NFD || P.ForceAuxDensity;
+
+    ReadState.SetAuxDensity = NFD && !ReadState.HaveAuxDensity &&
+        ( (ReadState.DoGroupFindingOutput && use_aux_dens) || (WriteState.DoGroupFindingOutput && WriteState.DeltaEtaDrift == 0.) );
+
+    ReadState.HaveAuxDensity |= ReadState.SetAuxDensity;
+
+    // We might be eligible to reuse the densities if nothing is going to move
+    if (ReadState.HaveAuxDensity && WriteState.DeltaEtaDrift == 0.) WriteState.HaveAuxDensity = 1;
 
     // Set up the density kernel
     // This used to inform the group finding, but also might be output as part of lightcones even on non-group-finding steps
@@ -783,16 +862,17 @@ void InitGroupFinding(bool MakeIC){
     WriteState.DensityKernelRad2 = 0.0;   // Don't compute densities.  This is set in InitKernelDensity if we decide to compute densities
     WriteState.L0DensityThreshold = 0.0;  // Only has any effect if doing group finding
 
+    // done planning for WriteState. Does ReadState tell us to find groups?
+
     // Can we enable group finding?
-    if((P.MicrostepTimeStep > 0 || do_grp_output) &&
+    if((P.MicrostepTimeStep > 0 || ReadState.DoGroupFindingOutput) &&
         !(!P.AllowGroupFinding || P.ForceOutputDebug || MakeIC || LPTStepNumber())){
         STDLOG(1, "Setting up group finding\n");
 
-        ReadState.DoGroupFindingOutput = do_grp_output; // if any kind of output is requested, turn on group finding.
+        if(ReadState.DoGroupFindingOutput && WriteState.DeltaScaleFactor == 0.) WriteState.DidGroupFindingOutput = 1;
 
         STDLOG(2, "Group finding: %d, subsample output: %d, timeslice output: %d.\n",
             ReadState.DoGroupFindingOutput, ReadState.DoSubsampleOutput, ReadState.DoTimeSliceOutput);
-
 
         GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
                     #ifdef SPHERICAL_OVERDENSITY
@@ -801,7 +881,15 @@ void InitGroupFinding(bool MakeIC){
                     P.FoFLinkingLength[1]/pow(P.np,1./3),
                     P.FoFLinkingLength[2]/pow(P.np,1./3),
                     #endif
-                    P.cpd, P.GroupRadius, P.MinL1HaloNP, P.np);
+                    P.cpd, node_z_start_ghost, node_z_size_with_ghost,
+                    P.GroupRadius, P.MinL1HaloNP, P.np, use_aux_dens);
+
+        if(use_aux_dens){
+            sprintf(ReadState.GroupFindingDensitySource, "aux");
+        } else {
+            assertf(NFD, "Must have acc dens if not using aux dens!\n");
+            sprintf(ReadState.GroupFindingDensitySource, "acc");
+        }
 
         #ifdef SPHERICAL_OVERDENSITY
         WriteState.SODensityL1 = P.SODensity[0];
@@ -815,11 +903,27 @@ void InitGroupFinding(bool MakeIC){
         } else {
             STDLOG(1,"Using L0DensityThreshold = %f\n", WriteState.L0DensityThreshold);
         }
+
+        if(MPI_size_z > 1){
+            assertf(GHOST_RADIUS >= GROUP_RADIUS,
+                    "GHOST_RADIUS=%d not big enough for GROUP_RADIUS=%d\n",
+                    GHOST_RADIUS, GROUP_RADIUS);
+        }
     } else{
         GFC = NULL;  // be explicit
         ReadState.DoGroupFindingOutput = 0;
         ReadState.DoSubsampleOutput = 0;  // We currently do not support subsample outputs without group finding
         STDLOG(1, "Group finding not enabled for this step.\n");
+
+        /*
+        // The 2D code presently outputs all slice particles as field, rather than field & L0.
+        // It seems there's no harm in this, but one could uncomment the following
+        // if the 1D behavior were desired. This is untested, however.
+        if(WriteState.DoGroupFindingOutput && ReadState.DoTimeSliceOutput){
+            WriteState.DoTimeSliceOutput = ReadState.DoTimeSliceOutput;
+            ReadState.DoTimeSliceOutput = 0;
+            STDLOG(1, "Deferring time slice output until we have L0 group finding bits\n");
+        }*/
 
         // We aren't doing group finding, but we may be doing output, so init the kernel density anyway
         InitKernelDensity();
@@ -967,6 +1071,8 @@ void FinalizeWriteState() {
         MPI_REDUCE_TO_ZERO(&WriteState.np_subA_state, 1, MPI_INT, MPI_SUM);
         MPI_REDUCE_TO_ZERO(&WriteState.np_subB_state, 1, MPI_INT, MPI_SUM);
         MPI_REDUCE_TO_ZERO(&WriteState.np_lightcone, 1, MPI_INT64_T, MPI_SUM);
+
+        MPI_REDUCE_TO_ZERO(&WriteState.LPTVelScale, 1, MPI_DOUBLE, MPI_MAX);
 // #undef MPI_REDUCE_IN_PLACE
 
         // Note that we're not summing up any timing or group finding reporting;
