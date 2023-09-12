@@ -1068,8 +1068,8 @@ void FinalizeWriteState() {
         // Sum WriteState.DirectsPerParticle
         MPI_REDUCE_TO_ZERO(&WriteState.DirectsPerParticle, 1, MPI_DOUBLE, MPI_SUM);
         // sum subsample counts
-        MPI_REDUCE_TO_ZERO(&WriteState.np_subA_state, 1, MPI_INT, MPI_SUM);
-        MPI_REDUCE_TO_ZERO(&WriteState.np_subB_state, 1, MPI_INT, MPI_SUM);
+        MPI_REDUCE_TO_ZERO(&WriteState.np_subA_state, 1, MPI_INT64_T, MPI_SUM);
+        MPI_REDUCE_TO_ZERO(&WriteState.np_subB_state, 1, MPI_INT64_T, MPI_SUM);
         MPI_REDUCE_TO_ZERO(&WriteState.np_lightcone, 1, MPI_INT64_T, MPI_SUM);
 
         MPI_REDUCE_TO_ZERO(&WriteState.LPTVelScale, 1, MPI_DOUBLE, MPI_MAX);
@@ -1104,8 +1104,8 @@ void FinalizeWriteState() {
 
 
     // if (ReadState.DoSubsampleOutput){ 
-    //     assertf(WriteState.np_subA_state == (int) ( P.ParticleSubsampleA * P.np), "Subsample A contains %d particles, expected %d.\n", WriteState.np_subA_state, (int) (P.ParticleSubsampleA * P.np) ); 
-    //     assertf(WriteState.np_subB_state == (int) ( P.ParticleSubsampleB * P.np), "Subsample A contains %d particles, expected %d.\n", WriteState.np_subB_state, (int) (P.ParticleSubsampleB * P.np) ); 
+    //     assertf(WriteState.np_subA_state == (int64) ( P.ParticleSubsampleA * P.np), "Subsample A contains %d particles, expected %d.\n", WriteState.np_subA_state, (P.ParticleSubsampleA * P.np) ); 
+    //     assertf(WriteState.np_subB_state == (int64) ( P.ParticleSubsampleB * P.np), "Subsample A contains %d particles, expected %d.\n", WriteState.np_subB_state, (P.ParticleSubsampleB * P.np) ); 
     // }
 
 

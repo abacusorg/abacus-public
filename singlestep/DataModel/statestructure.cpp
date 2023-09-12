@@ -30,8 +30,8 @@ public:
 
     long long int np_state;
     long long int np_with_ghost_state;
-    int np_subA_state;
-    int np_subB_state;
+    long long int np_subA_state;
+    long long int np_subB_state;
     int cpd_state;
     int order_state;
     
