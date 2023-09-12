@@ -34,3 +34,5 @@ venv/
 .vscode/
 environment.sh
 env/
+build/
+*.code-workspace
