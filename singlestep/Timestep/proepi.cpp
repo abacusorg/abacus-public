@@ -929,6 +929,8 @@ void InitGroupFinding(int MakeIC){
         InitKernelDensity();
     }
 
+    if(ReadState.DoSubsampleOutput >= 2) WriteState.LastSubsampleOutput = ReadState.DoSubsampleOutput - 2;
+    
     STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
 
 }
