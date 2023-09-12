@@ -122,7 +122,7 @@ uint64_t unpack_packN(packN<N> *data, size_t datasize, int nthread, int zspace, 
                 if(return_pos){
                     posout[i] = pos;
                     if(zspace)
-                        posout[i][0] += vel[0];
+                        posout[i][2] += vel[2];
                 }
 
                 if(return_vel){
