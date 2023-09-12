@@ -846,7 +846,9 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             allow_new_nnode = param.get('AllowResumeToNewNNode',False)
             print('Distributing in order to resume...')
             dist_start = wall_timer()
-            distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', resume_dir]
+            distribute_state_cmd = [pjoin(abacuspath, 'Abacus', 'move_node_states.py'), paramfn, '--distribute', resume_dir, '--verbose']
+            if param.get('SafeCP', False):
+                distribute_state_cmd += ['--safe-cp']
             if allow_new_nnode:
                 distribute_state_cmd += ['--allow-new-nnode']
             call_subprocess(Conv_mpirun_cmd + distribute_state_cmd, timeout=param.get('checkpoint_timeout'))

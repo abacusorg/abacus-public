@@ -26,6 +26,7 @@ import shutil
 from os.path import join as pjoin, basename, dirname, normpath
 from glob import glob
 import re
+from pathlib import Path
 
 from mpi4py import MPI
 import numpy as np
@@ -33,7 +34,7 @@ import numpy as np
 from Abacus import Tools
 from Abacus import Reglob
 from Abacus.InputFile import InputFile
-      
+
 
 def distribute_from_serial(parfile, source_dir, verbose=True):
     par = InputFile(parfile)
@@ -120,7 +121,7 @@ def distribute_to_resume(parfile, resumedir, verbose=True, allow_new_nnode=False
         print(f'Distribute_to_resume state invoked on rank {rank} of {size}', file=sys.stderr)
     
     source = pjoin(resumedir, 'rank_' + str(rank))
-    dest = pjoin(par['LocalWorkingDirectory'])
+    dest = pjoin(par['LocalWorkingDirectory'] + f'.{rank:04d}')
 
     try:
         shutil.rmtree(dest)
@@ -163,7 +164,7 @@ def distribute_to_resume(parfile, resumedir, verbose=True, allow_new_nnode=False
             print('Will copy node {}s state from {} to {}'.format(rank, source, dest), file=sys.stderr)
         
         # write state can be a symlink, must use symlinks=True
-        shutil.copytree(source, dest, symlinks=True)
+        shutil.copytree(source, dest, symlinks=True, copy_function=shutil.copy)
     
     # The first rank will also copy the state file, etc, 
     if rank == 0:
@@ -263,7 +264,7 @@ def retrieve_state(parfile, resumedir, verbose=True, delete_ics=False):
     
     # TODO: make read-only after copy, then read-write after distribution to nodes
     # write state can be a symlink, must use symlinks=True
-    shutil.copytree(source, dest, symlinks=True)
+    shutil.copytree(source, dest, symlinks=True, copy_function=shutil.copy)
     
     #rank 0 will also back up the read directory misc. files, which are about to modified when we requeue during every consecutive timestep. 
     #We want to keep a copy of the set that corresponds to the backed up state we're retrieving. 
@@ -327,11 +328,15 @@ if __name__ == '__main__':
     parser.add_argument('--distribute', help="Distribute nodes' states from the global disk to the nodes", action='store_true')
     parser.add_argument('--allow-new-nnode', help="Allow distribution to a different number of nodes than was saved on disk", action='store_true')
     parser.add_argument('--delete-ics', help="Allow deletion of ICs once the first backup has completed", action='store_true')
+    parser.add_argument('--safe-cp', help="Use a slower but safer file copy (no os.sendfile())", action='store_true')
     
     parser.add_argument('resumedir', help="Global disk directory to redistribute from")
 
     args = parser.parse_args()
     args = vars(args)
+
+    if args['safe_cp']:
+        shutil._USE_CP_SENDFILE = False
 
     if args['distribute_from_serial']:
         distribute_from_serial(args['parfile'], args['sourcedir'], args['verbose'])
