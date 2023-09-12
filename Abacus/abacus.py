@@ -50,9 +50,8 @@ from .Tools import call_subprocess
 
 NEEDS_INTERIM_BACKUP_MINS = 105  #minimum job runtime (in minutes) for which we'd like to do a backup halfway through the job. 
 EXIT_REQUEUE = 200
-RUN_TIME_MINUTES = os.getenv("JOB_ACTION_WARNING_TIME")
 GF_BACKUP_INTERVAL = 2 * 60 * 60  #only backup b/w group finding steps if it's been more than two hours since the last backup.
-#BACKUP_EVERY_N_MINUTES = 90
+BACKUP_EVERY_N_MINUTES = 10000
 
 
 site_param_fn = pjoin(abacuspath, 'Production', 'site_files', 'site.def')
@@ -567,7 +566,7 @@ def move_state_dirs(read, write, past):
                 shutil.rmtree(read)
             except OSError:
                 # can't rmtree symlink! but we at least want to delete the contents
-                clean_dir(read, preserve=None, rmdir_ifempty=False)
+                clean_dirs(read, preserve=None, rmdir_ifempty=False)
     else:
         try:
             shutil.rmtree(past)
@@ -778,8 +777,10 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
     except:
         backups_enabled = False  # No BackupIntervalSteps parameter
     
-    run_time_minutes = int(os.getenv("JOB_ACTION_WARNING_TIME",'10000'))
-    run_time_secs = 60 * run_time_minutes
+    run_time_secs = int(os.getenv('SLURM_JOB_END_TIME', '600000')) - int(os.getenv('SLURM_JOB_START_TIME', '0'))
+    run_time_secs -= max(min(run_time_secs*0.1, 600), 120)
+    run_time_minutes = run_time_secs / 60
+    
 
     start_time = wall_timer()
     print(f"Beginning run at {timestamp()}, running for at most {run_time_minutes} minutes.\n")
@@ -1115,7 +1116,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             #save = exiting or interim_backup or pre_gf_backup
             save = exiting or pre_gf_backup or intermittent_backup
 
-            if save:
+            if save and param.get('SaveState',True):
                 if abandon_ship:
                     exit_message = 'EMERGENCY EXIT REQUESTED'
                 if out_of_time:
