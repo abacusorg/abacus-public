@@ -249,34 +249,34 @@ off_t fsize(const char *filename) {
 // Places the name of the immediate parent directory of `filename` in `dir`
 // We use this for recording the IO performance in different directories/filesystems
 // Special behavior: if the containing directory is "Step*", then the parent is returned.
-void containing_dirname(const char *filename, char dir[1024]){
+void containing_dirname(const char *filename, char dir[512]){
     // Believe it or not, dirname modifies its argument
-    char buffer[1024];
-    strncpy(buffer,filename,1024);
+    char buffer[512];
+    strncpy(buffer,filename,512);
     char *_dir = basename(dirname(buffer));
         if(strncmp(_dir, "Step", 4) == 0){
-                strncpy(buffer,filename,1024);
+                strncpy(buffer,filename,512);
                 _dir = basename(dirname(dirname(buffer)));
         }
-    strncpy(dir, _dir, 1024);
+    strncpy(dir, _dir, 512);
     
     // now append a trailing slash
     int len = strlen(dir);
-    assertf(len <= 1022, "Directory \"%s\" name too long!", dir);
+    assertf(len <= 510, "Directory \"%s\" name too long!", dir);
     dir[len] = '/'; dir[len+1] = '\0';
 }
 
 
 // Extract the dir and name components of the path
-void split_path(const char path[1024], char dir[1024], char name[1024]){
-    char buf[1024];
-    strncpy(buf, path, 1024);
+void split_path(const char path[512], char dir[512], char name[512]){
+    char buf[512];
+    strncpy(buf, path, 512);
     char *dn = dirname(buf);
-    strncpy(dir, dn, 1024);
+    strncpy(dir, dn, 512);
 
-    strncpy(buf, path, 1024);
+    strncpy(buf, path, 512);
     char *bn = basename(buf);
-    strncpy(name, bn, 1024);
+    strncpy(name, bn, 512);
 }
 
 

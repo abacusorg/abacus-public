@@ -35,10 +35,10 @@ class iorequest {
   public:
     char    *memory = NULL;		// Where the data is in memory
     uint64  sizebytes = 0;		// How much data
-    char    filename[1024] = "";	// File name
-    char    dir[1024] = "";	        // The name of the containing directory (i.e. not the full path)
-    char    fulldir[1024] = "";
-    char    justname[1024] = "";
+    char    filename[512] = "";	// File name
+    char    dir[512] = "";	        // The name of the containing directory (i.e. not the full path)
+    char    fulldir[512] = "";
+    char    justname[512] = "";
     int     command = 0; 		// use IO_READ, IO_WRITE, IO_QUIT
     int     arenaslab = 0;		// Which slab number this is
     int     arenatype = 0;		// Which slab type this is
@@ -86,7 +86,7 @@ class iorequest {
 
         memory = _memory;
         sizebytes = _sizebytes;
-        strncpy(filename, _filename, 1024);
+        strncpy(filename, _filename, 512);
 
         if(_fp != NULL){
             io_method = IO_LIGHTCONE;
