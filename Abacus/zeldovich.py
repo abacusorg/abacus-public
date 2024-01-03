@@ -201,7 +201,7 @@ def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=True, white=False
     #else:
     #    assert 'ZD_Pk_powerlaw_index' in params
 
-    ZD_cmd = [pjoin(zeldovich_dir, "zeldovich"), paramfn]
+    ZD_cmd = [pjoin(zeldovich_dir, 'build', "zeldovich"), paramfn]
 
     parallel = params.get('Parallel', False) and not no_parallel
 
