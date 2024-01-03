@@ -80,6 +80,8 @@ double ChooseTimeStep(int NoForces){
     // Also decide if the next step will do an output
     WriteState.DoTimeSliceOutput = 0;
     WriteState.DoSubsampleOutput = 0;
+    WriteState.LastTimeSliceOutput = ReadState.LastTimeSliceOutput;
+    WriteState.LastSubsampleOutput = ReadState.LastSubsampleOutput;
 
     // cosm has already been loaded with the ReadState.ScaleFactor.
     // Don't advance time if we are still doing LPT
@@ -166,7 +168,11 @@ double ChooseTimeStep(int NoForces){
     // Perhaps the next output is sooner than this?
     for (int i = 0; i < P.nTimeSlice; i ++){
         double tsa = 1.0/(1+P.TimeSliceRedshifts[i]);
-        if (ReadState.DoTimeSliceOutput != (i+2) && ReadState.ScaleFactor < tsa && ReadState.ScaleFactor + da >= tsa) {
+        if (ReadState.DoTimeSliceOutput != (i+2) &&
+            ReadState.LastTimeSliceOutput != i &&
+            ReadState.ScaleFactor < tsa &&
+            ReadState.ScaleFactor + da >= tsa
+            ) {
             da = tsa - ReadState.ScaleFactor;
             STDLOG(0,"da to reach next timeslice output is %f\n", da);
             WriteState.DoTimeSliceOutput = i+2;
@@ -184,7 +190,11 @@ double ChooseTimeStep(int NoForces){
         double L1z = P.TimeSliceRedshifts_Subsample[i];
         double L1a = 1.0/(1+L1z);
 
-        if(ReadState.DoSubsampleOutput != (i+2) && ReadState.ScaleFactor < L1a && ReadState.ScaleFactor + da >= L1a){
+        if (ReadState.DoSubsampleOutput != (i+2) &&
+            ReadState.LastSubsampleOutput != i &&
+            ReadState.ScaleFactor < L1a &&
+            ReadState.ScaleFactor + da >= L1a
+            ) {
             da = L1a - ReadState.ScaleFactor;
             STDLOG(0,"da to reach next timeslice subsample output is %f\n", da);
             WriteState.DoSubsampleOutput = i+2;
@@ -196,6 +206,8 @@ double ChooseTimeStep(int NoForces){
             break;
         }
     }
+
+    if(ReadState.DoTimeSliceOutput >= 2) WriteState.LastTimeSliceOutput = ReadState.DoTimeSliceOutput - 2;
 
     if(P.MicrostepTimeStep > 0)
         MicrostepEpochs = new MicrostepEpochTable(cosm, cosm->current.a, cosm->current.a + da, P.np);

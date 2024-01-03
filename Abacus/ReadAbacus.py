@@ -476,7 +476,7 @@ def read_rvint(fn, return_vel = True, return_pid=False, zspace=False, dtype=np.f
     unpack_rvint(data, header['BoxSize'], float_dtype=dtype, posout=_out['pos'], velout=_out['vel'] if return_vel else None)
 
     if zspace:
-        _out['pos'][:,0] += _out['vel'][:,0] / state['VelZSpace_to_kms']  # km/s * s Mpc/km /Mpc --> dimensionless box units. 
+        _out['pos'][:,2] += _out['vel'][:,2] / state['VelZSpace_to_kms']  # km/s * s Mpc/km /Mpc --> dimensionless box units.
 
     retval = (_out,) if out is None else (len(data),)
     if return_header:
@@ -540,7 +540,7 @@ def read_rv(fn, return_vel=True, return_pid=False, zspace=False, dtype=np.float3
     _out['pos'][:len(data)] = data['pos']
 
     if zspace:
-        _out['pos'][:len(data)] += data['vel']
+        _out['pos'][:len(data),2] += data['vel'][:,2]
     if return_vel:
         _out['vel'][:len(data)] = data['vel']
     if return_pid:
@@ -665,7 +665,7 @@ def read_rvzel(fn, return_pos=True, return_vel=True, return_zel=False, return_pi
                 grid = (1.*raw['zel'] / ppd - 0.5)*boxsize
                 particles['pos'][:len(raw)] += grid
             if zspace:
-                particles['pos'][:len(raw)] += raw['v']
+                particles['pos'][:len(raw),2] += raw['v'][:,2]
         if return_vel:
             particles['vel'][:len(raw)] = raw['v']
         if return_zel:
@@ -950,7 +950,7 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
     base = basename(fn)
     if return_pos == 'auto':
         return_pos = 'rv' in base
-    if return_vel == 'auto':
+    if return_vel == 'auto' or zspace:  # TODO
         return_vel = 'rv' in base
     if return_pid == 'auto':
         return_pid = 'pid' in base
@@ -1018,7 +1018,7 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
             # TODO: on-the-fly zspace
             npos,nvel = bitpacked.unpack_rvint(data, header['BoxSize'], float_dtype=dtype, posout=_posout, velout=_velout)
             if zspace:
-                _posout += _velout*1./header['VelZSpace_to_kms']
+                _posout[:,2] += _velout[:,2]*header['BoxSize']/header['VelZSpace_to_kms']
 
             nread = max(npos,nvel)
         elif colname == 'pack9':

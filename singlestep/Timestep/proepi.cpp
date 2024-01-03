@@ -885,10 +885,10 @@ void InitGroupFinding(int MakeIC){
                     P.GroupRadius, P.MinL1HaloNP, P.np, use_aux_dens);
 
         if(use_aux_dens){
-            sprintf(ReadState.GroupFindingDensitySource, "aux");
+            sprintf(WriteState.GroupFindingDensitySource, "aux");
         } else {
             assertf(NFD, "Must have acc dens if not using aux dens!\n");
-            sprintf(ReadState.GroupFindingDensitySource, "acc");
+            sprintf(WriteState.GroupFindingDensitySource, "acc");
         }
 
         #ifdef SPHERICAL_OVERDENSITY
@@ -929,6 +929,8 @@ void InitGroupFinding(int MakeIC){
         InitKernelDensity();
     }
 
+    if(ReadState.DoSubsampleOutput >= 2) WriteState.LastSubsampleOutput = ReadState.DoSubsampleOutput - 2;
+    
     STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
 
 }
@@ -1068,8 +1070,8 @@ void FinalizeWriteState() {
         // Sum WriteState.DirectsPerParticle
         MPI_REDUCE_TO_ZERO(&WriteState.DirectsPerParticle, 1, MPI_DOUBLE, MPI_SUM);
         // sum subsample counts
-        MPI_REDUCE_TO_ZERO(&WriteState.np_subA_state, 1, MPI_INT, MPI_SUM);
-        MPI_REDUCE_TO_ZERO(&WriteState.np_subB_state, 1, MPI_INT, MPI_SUM);
+        MPI_REDUCE_TO_ZERO(&WriteState.np_subA_state, 1, MPI_INT64_T, MPI_SUM);
+        MPI_REDUCE_TO_ZERO(&WriteState.np_subB_state, 1, MPI_INT64_T, MPI_SUM);
         MPI_REDUCE_TO_ZERO(&WriteState.np_lightcone, 1, MPI_INT64_T, MPI_SUM);
 
         MPI_REDUCE_TO_ZERO(&WriteState.LPTVelScale, 1, MPI_DOUBLE, MPI_MAX);
@@ -1104,8 +1106,8 @@ void FinalizeWriteState() {
 
 
     // if (ReadState.DoSubsampleOutput){ 
-    //     assertf(WriteState.np_subA_state == (int) ( P.ParticleSubsampleA * P.np), "Subsample A contains %d particles, expected %d.\n", WriteState.np_subA_state, (int) (P.ParticleSubsampleA * P.np) ); 
-    //     assertf(WriteState.np_subB_state == (int) ( P.ParticleSubsampleB * P.np), "Subsample A contains %d particles, expected %d.\n", WriteState.np_subB_state, (int) (P.ParticleSubsampleB * P.np) ); 
+    //     assertf(WriteState.np_subA_state == (int64) ( P.ParticleSubsampleA * P.np), "Subsample A contains %d particles, expected %d.\n", WriteState.np_subA_state, (P.ParticleSubsampleA * P.np) ); 
+    //     assertf(WriteState.np_subB_state == (int64) ( P.ParticleSubsampleB * P.np), "Subsample A contains %d particles, expected %d.\n", WriteState.np_subB_state, (P.ParticleSubsampleB * P.np) ); 
     // }
 
 

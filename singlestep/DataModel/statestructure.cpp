@@ -30,8 +30,8 @@ public:
 
     long long int np_state;
     long long int np_with_ghost_state;
-    int np_subA_state;
-    int np_subB_state;
+    long long int np_subA_state;
+    long long int np_subB_state;
     int cpd_state;
     int order_state;
     
@@ -134,6 +134,8 @@ public:
     int HaveAuxDensity;
     int SetAuxDensity;          // Should the Kick store the density in the aux?
     int DidGroupFindingOutput;  // did we already do group output on the positions in this state?
+    int LastTimeSliceOutput;  // index of the most recent time slice
+    int LastSubsampleOutput;  // index of the most recent time slice subsample
     char GroupFindingDensitySource[128];
     
     double LPTVelScale;  // normalization for the aux compression of the LPT vel
@@ -280,6 +282,12 @@ public:
         DidGroupFindingOutput = 0;
         installscalar("DidGroupFindingOutput",DidGroupFindingOutput,DONT_CARE);
 
+        LastTimeSliceOutput = -1;
+        installscalar("LastTimeSliceOutput",LastTimeSliceOutput,DONT_CARE);
+
+        LastSubsampleOutput = -1;
+        installscalar("LastSubsampleOutput",LastSubsampleOutput,DONT_CARE);
+
         GroupFindingDensitySource[0] = '\0';
         installscalar("GroupFindingDensitySource",GroupFindingDensitySource,DONT_CARE);
 
@@ -392,6 +400,8 @@ void State::make_output_header() {
     WPR(HaveAuxDensity           , ISYM);
     WPR(SetAuxDensity            , ISYM);
     WPR(DidGroupFindingOutput    , ISYM);
+    WPR(LastTimeSliceOutput      , ISYM);
+    WPR(LastSubsampleOutput      , ISYM);
 
     WPRS(GroupFindingDensitySource, s);
 

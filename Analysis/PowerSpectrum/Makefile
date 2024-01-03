@@ -10,8 +10,7 @@ unexport CPPFLAGS
 # We can't use SINGLESTEP_LIBS; may contain "unsafe" libraries like tcmalloc (see common.mk)
 LIBS = $(FFTW_OMP_LIBS) $(READABACUS_LIBS)
 
-PSLIB_SO = PowerSpectrum/pslib$(shell python-config --extension-suffix)
-
+PSLIB_SO = PowerSpectrum/pslib$(shell python -c 'import sysconfig; print(sysconfig.get_config_var("EXT_SUFFIX"))')
 all: lib/libpowerd.so lib/libpowerf.so $(PSLIB_SO)
 
 # TODO: pass the detected FFTW libs from configure to here

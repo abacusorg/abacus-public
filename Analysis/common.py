@@ -4,20 +4,22 @@
 A collection of file organization functions
 to standardize paths for analysis products.
 """
+import contextlib
 import os
 import os.path as path
-from os.path import join as pjoin
-import tarfile
 import shutil
+import tarfile
 from glob import glob
+from os.path import join as pjoin
+from pathlib import Path
 from warnings import warn
 
-import contextlib
+import asdf
 
-from Abacus import Tools
-from Abacus.Tools import ContextTimer
+from Abacus import ReadAbacus, Tools
 from Abacus.InputFile import InputFile
-from Abacus import ReadAbacus
+from Abacus.Tools import ContextTimer
+
 
 def get_output_dir(product_name, slice_dir, out_parent=None, **kwargs):
     """
@@ -89,7 +91,7 @@ def get_header(dir, retfn=False):
             continue
         break
     else:
-        for f in (get_desi_hdf5_header, get_gadget_header):
+        for f in (get_asdf_header, get_desi_hdf5_header, get_gadget_header):
             try:
                 header = f(dir)
                 header_fn = None  # safe to return None?
@@ -104,6 +106,15 @@ def get_header(dir, retfn=False):
     if retfn:
         return header, header_fn
     return header
+
+
+def get_asdf_header(dir):
+    fns = Path(dir).glob('*/*.asdf')
+    try:
+        with asdf.open(next(fns)) as af:
+            return dict(af['header'])
+    except StopIteration:
+        return None
 
 
 def get_gadget_prefix(dir):
@@ -138,6 +149,8 @@ def get_desi_hdf5_header(dir):
 
 
 import multiprocessing
+
+
 def make_tar(dir, pattern, tarfn, delete_source=False, nthreads=1, out_parent=''):
     """
     Makes a compressed tar file named `tarfn` inside each
@@ -295,6 +308,7 @@ def extract_slabs(dir, verbose=True, tarfn='slabs.tar.gz'):
         os.remove(path.join(dir,fn))
         
 import argparse
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Parallel tar utility', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('dir', help='The directories to process', nargs='+')

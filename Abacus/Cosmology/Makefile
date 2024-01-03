@@ -1,7 +1,7 @@
 ROOT_DIR := ../..
 include $(ROOT_DIR)/common.mk
 
-ABACUSCOSMO_SO = AbacusCosmo$(shell python-config --extension-suffix)
+ABACUSCOSMO_SO = AbacusCosmo$(shell python -c 'import sysconfig; print(sysconfig.get_config_var("EXT_SUFFIX"))')
 
 all: $(ABACUSCOSMO_SO)
 

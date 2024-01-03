@@ -82,7 +82,8 @@ def run_PS_on_dir(slicedir, **kwargs):
     just_density = kwargs.pop('just_density')
     product_name = 'power' if not just_density else 'density'
     out_parent = kwargs.pop('out_parent')
-    outdir = common.get_output_dir(product_name, slicedir, out_parent=out_parent, **kwargs)
+    if not (outdir := kwargs.pop('outdir')):
+        outdir = common.get_output_dir(product_name, slicedir, out_parent=out_parent, **kwargs)
     ps_fn = product_name + this_suffix
 
     header, header_fn = common.get_header(slicedir, retfn=True)
@@ -461,6 +462,7 @@ if __name__ == '__main__':
     parser.add_argument('--nreaders', help='Number of IO threads.', type=int, default=1)
     parser.add_argument('--verbose', help='Verbose status messages', action='store_true', default=True)
     parser.add_argument('--out-parent', help='Parent directory for output')
+    parser.add_argument('-o', '--outdir', help='Output directory manual override')
 
     bingroup = parser.add_mutually_exclusive_group()
     bingroup.add_argument('--nbins', help='Number of k bins.  Default: nfft//4.', type=int)
