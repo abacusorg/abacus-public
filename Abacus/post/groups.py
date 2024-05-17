@@ -3,8 +3,8 @@
 """
 Convert raw binary outputs from Abacus's on-the-fly halo/group finder
 into ASDF file format.  This is done once after completion of a
-simulation; thereafter, users will use abacus_halo_catalog.py to read the ASDF
-catalogs.  Thus, end users should not have to use this file.
+simulation; thereafter, users will use abacusutils.data.compaso_halo_catalog
+to read the ASDF catalogs.  Thus, end users should not have to use this file.
 
 For developers examining the raw binary catalogs, the Numpy dtype
 "halo_dt" defined in this file may be useful as well.

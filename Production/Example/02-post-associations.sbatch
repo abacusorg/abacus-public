@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Create merger tree asssociations
+# Depends on: post-groups
+
+#SBATCH -N 1
+#SBATCH --ntasks-per-node=1
+#SBATCH -c 32
+#SBATCH -t 0-8
+#SBATCH -C cpu
+#SBATCH -A desi
+#SBATCH -q regular
+#SBATCH -J post-associations
+#SBATCH --mem=0
+
+sim=$1
+
+#########
+
+set -e
+
+if [ -z "$sim" ]; then
+    echo "Usage: sbatch $0 simpath"
+    exit 1
+fi
+
+$HOME/abacus_mergertree/create_associations_slabwise.py \
+    -inputdir $PSCRATCH \
+    -simname $(basename $sim) \
+    -num_cores $SLURM_CPUS_PER_TASK \
+    -outputdir $PSCRATCH/merger/ \
+    -num_epochs 100

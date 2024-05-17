@@ -20,7 +20,8 @@ from Abacus.ReadAbacus import skip_header
 @click.argument('slabs', nargs=-1)
 @click.option('-o', 'out', required=True, help='Output ASDF filename', metavar='FN')
 @click.option('-t', '--nthread', default=4, help='Number of Blosc compression threads')
-def main(slabs, out, verbose=True, nthread=4):
+@click.option('--delete', is_flag=True, help='Delete input files after processing')
+def main(slabs, out, verbose=True, nthread=4, delete=False):
     slabs = [Path(s) for s in slabs]
     out = Path(out)
     if not slabs:
@@ -84,6 +85,10 @@ def main(slabs, out, verbose=True, nthread=4):
     with asdf.AsdfFile(tree) as af, CksumWriter(out) as fp:
         af.write_to(fp, all_array_compression='blsc', compression_kwargs=compression_kwargs)
     print(f'Wrote to {out}')
+
+    if delete:
+        for fn in slabs:
+            fn.unlink()
 
 
 if __name__ == '__main__':

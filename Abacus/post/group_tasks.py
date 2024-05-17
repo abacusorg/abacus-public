@@ -14,7 +14,7 @@ TASK = 'python -m Abacus.post.groups'
 @click.option('-c', '--chunk', default=50, help='Target number of slabs per superslab')
 @click.option('--delete', is_flag=True, help='Delete input files on success')
 @click.option('-w', '--nworkers', default=1, help='Number of subprocesses per task')
-@click.option('-l', '--logdir', default='post_log', help='Log directory')
+@click.option('-l', '--logdir', default='post_log', help='Log directory', metavar='DIR')
 def main(groups, chunk=10, nworkers=1, delete=False, logdir='post_log'):
     groups = [Path(s) for s in groups]
 

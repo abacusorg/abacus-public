@@ -6,7 +6,8 @@ from pathlib import Path
 
 import click
 
-TASK = 'python -m Abacus.Analysis.PowerSpectrum.run_PS'  # TODO: migrate to abacusutils power
+# TODO: migrate to abacusutils power
+TASK = 'python -m Abacus.Analysis.PowerSpectrum.run_PS'
 
 
 @click.command
@@ -14,14 +15,14 @@ TASK = 'python -m Abacus.Analysis.PowerSpectrum.run_PS'  # TODO: migrate to abac
 @click.option('--nfft', default=256, help='Density grid size')
 @click.option('-t', '--nthread', default=1, help='Number of processing threads')
 @click.option('-r', '--nreader', default=1, help='Number of IO threads')
-@click.option('-l', '--logdir', default='post_log', help='Log directory')
+@click.option('-l', '--logdir', default='post_log', help='Log directory', metavar='DIR')
 def main(inputs, nfft=256, nthread=1, nreader=1, logdir='post_log'):
     inputs = [Path(i).resolve(strict=True) for i in inputs]
 
     flags = f'--nfft {nfft} --nthreads {nthread} --nreaders {nreader} --nbins {nfft}'
 
     print(f'#DISBATCH PREFIX logdir={logdir}; (mkdir -p $logdir; {TASK} {flags} ')  # N.B. trailing space
-    print('#DISBATCH SUFFIX  ) &> $logdir/group-$DISBATCH_TASKID.log')
+    print('#DISBATCH SUFFIX  ) &> $logdir/power-$DISBATCH_TASKID.log')
 
     for i in inputs:
         if 'halos' in i.parent.name:

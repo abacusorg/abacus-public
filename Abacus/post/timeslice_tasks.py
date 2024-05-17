@@ -15,14 +15,16 @@ TASK = 'python -m Abacus.post.timeslice'
 @click.command
 @click.argument('slices', nargs=-1)
 @click.option('-c', '--chunk', default=10, help='Target number of slabs per superslab')
-@click.option('-l', '--logdir', default='post_log', help='Log directory')
-def main(slices, chunk=10, logdir='post_log'):
+@click.option('-l', '--logdir', default='post_log', help='Log directory', metavar='DIR')
+@click.option('--delete', is_flag=True, help='Delete input files after processing')
+def main(slices, chunk=10, logdir='post_log', delete=False):
     slices = [Path(s) for s in slices]
 
     for slice in slices:
         workdir = slice.parent
 
-        print(f'#DISBATCH PREFIX logdir={logdir}; (cd {workdir}; mkdir -p $logdir; {TASK} ')  # N.B. trailing space
+        # N.B. trailing space
+        print(f'#DISBATCH PREFIX logdir={logdir}; (cd {workdir}; mkdir -p $logdir; {TASK} {"--delete" if delete else ""} ')
         print('#DISBATCH SUFFIX  ) &> $logdir/slice-$DISBATCH_TASKID.log')
 
         header = dict(InputFile(slice / 'header'))

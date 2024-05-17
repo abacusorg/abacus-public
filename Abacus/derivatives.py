@@ -381,4 +381,4 @@ if __name__ == '__main__':
     if 'out' in args:
         param['DerivativesDirectory'] = args.pop('out')
 
-    make_derivatives(param, **args, floatprec=True, twoD=twoD)
+    make_derivatives(param, **args, floatprec=True, twoD=twoD, _stage=False)

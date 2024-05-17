@@ -58,3 +58,4 @@ LocalWorkingDirectory = "$ABACUS_SSD$/" + @SimName@
 # DerivativesDirectory = "$ABACUS_PERSIST$/Derivatives"
 #MultipoleDirectory = @WorkingDirectory@ + "/multipole"
 #TaylorDirectory = @WorkingDirectory@ + "/taylor"
+step_timeout = 20
