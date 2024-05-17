@@ -1233,7 +1233,9 @@ def get_alloc_np(fns, format, downsample=None):
 
 
 
-psize_on_disk = {'pack14': 14, 'pack14_lite':14, 'pack9': 9, 'rvint': 3*4, 'rvdouble': 6*8, 'state64':3*8, 'state':3*4, 'rvzel':32, 'rvtag':32, 'rvdoubletag':7*8}
+psize_on_disk = {'pack14': 14, 'pack14_lite':14, 'pack9': 9, 'rvint': 3*4, 'rvdouble': 6*8, 'state64':3*8, 'state':3*4, 'rvzel':32, 'rvtag':32, 'rvdoubletag':7*8,
+                 'gadget':32,  # just a guess
+                 }
 reader_functions = {'pack14':read_pack14, 'pack9':read_pack9, 'pack14_lite':read_pack14_lite,
                     'rvdouble':read_rvdouble, 'rvzel':read_rvzel, 'rvdoublezel':read_rvdoublezel, 'rvdoubletag':read_rvdoubletag, 'rvtag':read_rvtag, 'rv':read_rvtag,
                     'gadget':read_gadget,

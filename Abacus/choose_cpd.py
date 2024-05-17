@@ -58,8 +58,8 @@ if __name__ == "__main__":
     parser.add_argument('PPD', help='Particle-per-dimension of the simulation', type=int)
     parser.add_argument('--max-prime', help='Maximum prime factor to consider', type=int, default=13)
     parser.add_argument('--show-slow', help='Show all possibilities, even those that would be slow under FFTW and are hidden by default', action='store_true')
-    parser.add_argument('--max-ppc', help='Maximum particles per cell', type=int, default=200)
-    parser.add_argument('--min-ppc', help='Minimum particles per cell', type=int, default=10)
+    parser.add_argument('--max-ppc', help='Maximum particles per cell', type=int, default=400)
+    parser.add_argument('--min-ppc', help='Minimum particles per cell', type=int, default=20)
     
     args = parser.parse_args()
         
