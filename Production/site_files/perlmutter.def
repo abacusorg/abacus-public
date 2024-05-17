@@ -23,18 +23,6 @@ GPUThreadCoreStart = [60, 45, 29, 13]
 DirectBPD = 3  # threads per GPU
 GPUQueueAssignments = [0, 0, 0, 0]
 
-# smt2
-#OMP_NUM_THREADS = 118
-#OMP_PLACES = "{0}:15,{16}:15,{32}:15,{48}:14,{64}:15,{80}:15,{96}:15,{112}:14"
-#NGPUThreadCores = 1
-#MunmapThreadCore = 63
-#OMP_PROC_BIND = "spread"
-#IOCores = [63]
-##GPUThreadCoreStart = [15, 31, 47, 62]
-#GPUThreadCoreStart = [62, 47, 31, 15]
-#DirectBPD = 3  # 3 threads per GPU
-#GPUQueueAssignments = [0, 1, 2, 3]
-
 # Convolution OpenMP parameters, only for non-parallel convolution
 Conv_OMP_NUM_THREADS = 64
 Conv_OMP_PLACES = "{0}:64"
@@ -46,16 +34,12 @@ Parallel = 1
 #MultipoleDirectory = None
 #TaylorDirectory = None
 
-#if running with smt2, need -b rs.
 # mpirun_cmd = "srun --tasks-per-node=1 --gpus-per-node=4 --gpu-bind=per_task:4"
 mpirun_cmd = "srun --tasks-per-node=1 --gpus-per-task=4"
-# mpirun_cmd = "srun -n 2 --gpus-per-task=1"
-#mpirun_cmd = "srun -n2 -G4 --gpu-bind=single:1,1,1,1 -o 'cf%J-%t.out' valgrind"
-#Conv_mpirun_cmd = "jsrun -nALL_HOSTS -cALL_CPUS -a1 -r1 -b rs"
-#ZD_mpirun_cmd = "jsrun -n1 -cALL_CPUS -a1 -r1 -b rs"
 #WorkingDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@
 LocalWorkingDirectory = "$ABACUS_SSD$/" + @SimName@
 # DerivativesDirectory = "$ABACUS_PERSIST$/Derivatives"
 #MultipoleDirectory = @WorkingDirectory@ + "/multipole"
 #TaylorDirectory = @WorkingDirectory@ + "/taylor"
 step_timeout = 20
+SafeCP = True  # don't use sendfile on pscratch
