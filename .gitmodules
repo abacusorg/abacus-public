@@ -13,3 +13,9 @@
 [submodule "external/disBatch"]
 	path = external/disBatch
 	url = git@github.com:flatironinstitute/disBatch.git
+[submodule "external/oneTBB"]
+	path = external/oneTBB
+	url = git@github.com:oneapi-src/oneTBB.git
+[submodule "external/gperftools"]
+	path = external/gperftools
+	url = git@github.com:gperftools/gperftools.git

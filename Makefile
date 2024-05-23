@@ -3,7 +3,7 @@ HAVE_COMMON_MK := $(wildcard common.mk)
 
 # In most cases, the user must have run ./configure before make
 # But we want the user to be able to clean regardless!
-ifeq (,$(findstring clean,$(MAKECMDGOALS))$(findstring tcmalloc,$(MAKECMDGOALS)))
+ifeq (,$(findstring clean,$(MAKECMDGOALS)))
 	include common.mk
 endif
 
@@ -75,12 +75,4 @@ dist:
 	tar -C .dist -czf abacus.tar.gz --exclude='.*' abacus
 	$(RM) -rf .dist
 
-# Usually you do not need to invoke the following directly; it is used by ./configure
-tcmalloc: gperftools/lib/libtcmalloc_minimal.so
-gperftools/lib/libtcmalloc_minimal.so:
-	@echo "Building tcmalloc... this may take a minute but will only be done once"
-	@cd gperftools && \
-	./configure --enable-minimal --prefix=$(shell pwd)/gperftools --with-tcmalloc-pagesize=256 > /dev/null && \
-	make > /dev/null && make install > /dev/null
-
-.PHONY:all clean distclean external util tests analysis singlestep dist AbacusPython clibs convolution tcmalloc ParseHeader
+.PHONY:all clean distclean external util tests analysis singlestep dist AbacusPython clibs convolution ParseHeader

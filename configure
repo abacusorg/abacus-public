@@ -3449,7 +3449,7 @@ if \grep -qP '\b(icc|ICC)\b' <<< "$REAL_CXX"; then
     REAL_CXX=icc
 elif \grep -qP '\bXL\b' <<< "$REAL_CXX"; then
     REAL_CXX=xlc++
-elif \grep -qP '\b(g\+\+|GCC)\b' <<< "$REAL_CXX"; then
+elif \grep -qP '(g\+\+|GCC)' <<< "$REAL_CXX"; then
     REAL_CXX=g++
 else
     { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Could not determine REAL_CXX from --version" >&5
@@ -3756,11 +3756,6 @@ REAL_CC="$REAL_CXX -x c"
 # the "real" system libraries.
 #m4_include(Configuration/m4/gsl.m4)
 #AX_PATH_GSL(,[], AC_MSG_ERROR(could not find required version of GSL))
-
-# Calling make from configure... pretty sketchy!
-# But we want tcmalloc to be available for configure to find
-# This will only be run if libtcmalloc isn't already present
-make --quiet tcmalloc
 
 # These will automatically add the appropriate -L and -l flags to LIBS
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing cos" >&5
