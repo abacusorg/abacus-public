@@ -13,7 +13,7 @@ numba
 scipy
 matplotlib
 contexttimer
-table_logger
+git+https://github.com/AleksTk/table-logger.git
 cffi
 abacusutils
 scikit-learn
@@ -21,3 +21,5 @@ asdf
 click
 tqdm
 pybind11
+meson
+ninja
