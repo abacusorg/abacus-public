@@ -121,7 +121,7 @@ def run():
 
 from Abacus import ReadAbacus
 def check_pids(params, n1d):
-    particles = ReadAbacus.from_dir(pjoin(params['WorkingDirectory'], 'read'), pattern='position_*', return_pid=True, format='state')
+    particles = ReadAbacus.from_dir(pjoin(params.get('LocalWorkingDirectory', params['WorkingDirectory']), 'read'), pattern='position_*', return_pid=True, format='state')
     pids = particles['pid']
     pids.sort()
     assert (np.diff(pids) > 0).all()

@@ -15,16 +15,16 @@
 #SBATCH --mem=0
 #SBATCH --mail-type=ALL
 
-sim=$1
-
 #########
 
-if [ -z "$sim" ]; then
-    echo "Usage: sbatch $0 sim_config_dir"
+if [ $# -gt 0 ]; then
+    echo "Usage: sbatch $0"
     exit 1
 fi
 
-$ABACUS/Production/run_sim.py $1
+sim=.
+
+$ABACUS/Production/run_sim.py $sim
 abacus_exit=$?
 
 echo "Abacus exited with code $abacus_exit"

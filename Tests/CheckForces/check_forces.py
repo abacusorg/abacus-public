@@ -226,7 +226,7 @@ def analyze_storeforces(params, dtype, slabfns=None, silent=False, raw=False):
         for k in results:
             if k == 'param':
                 continue
-            print('{k}: {v}'.format(k=k, v=results[k]))
+            print('{k}: {v:.6g}'.format(k=k, v=results[k]))
     
     return acc_mag, results
     
