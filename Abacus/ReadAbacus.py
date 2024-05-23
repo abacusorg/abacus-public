@@ -40,7 +40,6 @@ from .InputFile import InputFile
 from .Tools import ndarray_arg, asciistring_arg
 from .Tools import wrap_zero_centered, wrap_zero_origin
 from .Tools import ContextTimer
-from .abacus_halo_catalog import unpack_rvint
 
 # blosc is the decompression underlying our ASDF files
 # No gain is likely beyond 4 threads
@@ -942,7 +941,7 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
     '''
     ASDF format used with AbacusSummit.  This interface is designed for the scenario where
     the distinction between halo and field is unimportant.  For halo-ortiented access, use
-    abacus_halo_catalog.
+    abacusutils.compaso_halo_catalog.
 
     TODO: maybe this can be our "backdoor pilot" to converting ReadAbacus to astropy tables
     '''
@@ -1400,3 +1399,104 @@ def get_box_on_disk(fn, format):
     box_on_disk = 'box' if isic else default_box_on_disk[format]
 
     return box_on_disk
+
+def unpack_rvint(intdata, boxsize, float_dtype=np.float32, posout=None, velout=None, zspace=False, VelZSpace_to_kms=None):
+    '''
+    Unpack rvint data into pos and vel.
+    
+    Parameters
+    ----------
+    intdata: ndarray of dtype np.int32
+        The rvint data
+    boxsize: float
+        The box size, used to scale the positions
+    float_dtype: np.dtype, optional
+        The precision in which to store the unpacked values.
+        Default: np.float32
+    posout: ndarray, None, or False; optional
+        The array in which to store the unpacked positions.
+        `None` can be given (the default), in which case an
+        array is constructed and retured as the first return value.
+        `False` can be given, in which case the positions are not unpacked.
+    velout: optional
+        Same as posout, but for the velocities
+        
+    Returns
+    -------
+    pos,vel: tuple
+        A tuple of the unpacked position and velocity arrays,
+        or the number of unpacked particles if an output array
+        was given.
+    
+    '''
+    if zspace:
+        if VelZSpace_to_kms is None:
+            raise ValueError('If zspace, must provide VelZSpace_to_kms!')
+    else:
+        VelZSpace_to_kms = None
+            
+    intdata = intdata.reshape(-1)
+    assert(intdata.dtype == np.int32)
+    N = len(intdata)
+    
+    if posout is None:
+        _posout = np.empty(N, dtype=float_dtype)
+    elif posout is False:
+        _posout = np.empty(0)
+    else:
+        _posout = posout.view()
+        _posout.shape = -1  # enforces no copy
+    
+    if velout is None:
+        _velout = np.empty(N, dtype=float_dtype)
+    elif velout is False:
+        _velout = np.empty(0)
+    else:
+        _velout = velout.view()
+        _velout.shape = -1  # enforces no copy
+    
+    _unpack_rvint(intdata, boxsize, _posout, _velout, VelZSpace_to_kms)
+    
+    ret = []
+    if posout is None:
+        ret += [_posout.reshape(N//3,3)]
+    elif posout is False:
+        ret += [0]
+    else:
+        ret += [N//3]
+        
+    if velout is None:
+        ret += [_velout.reshape(N//3,3)]
+    elif velout is False:
+        ret += [0]
+    else:
+        ret += [N//3]
+        
+    return tuple(ret)
+
+
+@numba.njit
+def _unpack_rvint(intdata, boxsize, posout, velout, VelZSpace_to_kms):
+    '''Helper for unpack_rvint'''
+    N = len(intdata)
+    posscale = boxsize*(2.**-12.)/1e6
+    velscale = 6000./2048
+    pmask = np.int32(0xfffff000)
+    vmask = np.int32(0xfff)
+    
+    lenp = len(posout)
+    lenv = len(velout)
+    
+    zspace = VelZSpace_to_kms is not None
+    if zspace:
+        kms_to_zspace = boxsize/VelZSpace_to_kms  # VelZSpace gets to unit box
+    
+    for i in range(N):
+        if lenv > 0 or zspace:
+            v = ((intdata[i]&vmask) - 2048)*velscale
+            if lenv > 0:
+                velout[i] = v  # hopefully copy is elided
+        if lenp > 0:
+            posout[i] = (intdata[i]&pmask)*posscale
+            if zspace and i%3==0:
+                posout[i] += v*kms_to_zspace

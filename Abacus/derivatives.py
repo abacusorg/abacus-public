@@ -146,7 +146,7 @@ def make_derivatives(param, floatprec=False, twoD=False,
         have_derivs_in_source = True
 
     if not have_derivs_in_source:
-        print(f'Staging out derivatives from local to global')
+        print('Staging out derivatives from local to global')
         # if we have local, stage out to global
         assert have_derivs
         for dn in dnames:

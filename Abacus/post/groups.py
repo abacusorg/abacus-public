@@ -109,13 +109,13 @@ def convert(group_dir_or_file, chunk=50, asdf_data_key='data', asdf_header_key='
     asdf_data_key: str, optional
         The name of the key to use for storing the halo catalog in the output ASDF file.
         The default choice of 'data' allows Astropy to read in the catalog without
-        additional user input.  This choice needs to be synchronized with abacus_halo_catalog.py.
+        additional user input.  This choice needs to be synchronized with abacusutils.
 
     asdf_header_key: str, optional
         The name of the key to use for storing the Abacus header in the output ASDF file.
         Astropy Tables use the name 'meta' instead of 'header', but this technically isn't
         an Table ASDF file, so they won't automatically read this field regardless.  So the
-        choice just needs to be synchronized with abacus_halo_catalog.py.
+        choice just needs to be synchronized with abacusutils.
         Default: 'header'
 
     asdf_compression: str, optional
