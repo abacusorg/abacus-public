@@ -1,7 +1,7 @@
 The New Ewald Test
 ==================
 
-The "Ewald" test has been our stock-standard Abacus force accuracy test since z~inf.
+The "Ewald" test has been our stock-standard Abacus force accuracy test since $z \approx \infty$.
 The New Ewald test is the same test, with a re-written top-level Python
 driver applying modern Abacus best practices.
 
