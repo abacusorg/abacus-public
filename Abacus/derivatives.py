@@ -372,13 +372,12 @@ if __name__ == '__main__':
 
     param = dict(InputFile(args.pop('param')))
 
-    if 'cpd' in args:
-        param['CPD'] = args.pop('cpd')
-    if '2d' in args:
-        twoD = args.pop('2d')
-    else:
+    # TODO: rewrite with click
+    if cpd := args.pop('cpd'):
+        param['CPD'] = cpd
+    if (twoD := args.pop('2d')) is None:
         twoD = param.get('NumZRanks',1) > 1
-    if 'out' in args:
-        param['DerivativesDirectory'] = args.pop('out')
+    if out := args.pop('out'):
+        param['DerivativesDirectory'] = out
 
     make_derivatives(param, **args, floatprec=True, twoD=twoD, _stage=False)
