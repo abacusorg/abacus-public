@@ -36,6 +36,7 @@ public:
 
     int  DerivativeExpansionRadius;
     int  MAXRAMMB;
+    double MemPerGPUBufferGB;  // Max allocation for each GPU buffer, of which there will be NGPU * DirectBPD
     double  ConvolutionCacheSizeMB; // Set to manually override the detected cache size; this is for L3
     double  ConvolutionL1CacheSizeMB; // Set to manually override the detected cache size
     int AllowDirectIO;        // ==1 for a normal disk, ==0 for a ramdisk or sometimes network file system
@@ -238,6 +239,8 @@ public:
         installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
         MAXRAMMB = getRAMSize();
         installscalar("MAXRAMMB", MAXRAMMB, DONT_CARE);
+        MemPerGPUBufferGB = 0.0;  // auto
+        installscalar("MemPerGPUBufferGB", MemPerGPUBufferGB, DONT_CARE);
         ConvolutionCacheSizeMB = getCacheSize(4);
         installscalar("ConvolutionCacheSizeMB", ConvolutionCacheSizeMB, DONT_CARE);
         ConvolutionL1CacheSizeMB = getCacheSize(1);
@@ -715,6 +718,13 @@ void Parameters::ValidateParameters(void) {
         fprintf(stderr,
             "[ERROR] MAXRAMMB = %d must be greater than 0 \n",
                 MAXRAMMB);
+        assert(1==0);
+    }
+
+    if(MemPerGPUBufferGB<0) {
+        fprintf(stderr,
+            "[ERROR] MemPerGPUBufferGB = %f must be greater than 0 \n",
+                MemPerGPUBufferGB);
         assert(1==0);
     }
 

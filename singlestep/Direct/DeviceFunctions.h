@@ -1,6 +1,6 @@
 #ifdef CUDADIRECT
 
-extern "C" void GetDeviceInfo(double *memGB, std::string &name);
+extern "C" void GetDeviceInfo(size_t *memGB, std::string &name);
 
 extern "C" int GetNGPU();
 extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,

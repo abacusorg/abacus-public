@@ -81,7 +81,6 @@ class NearFieldDriver{
         int WIDTH;
         int RADIUS;
         Direct *DD;
-        double GPUMemoryGB;
         int MaxSourceBlocks;
         int MaxSinkBlocks;
         int MinSplits;
@@ -138,13 +137,12 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
     NGPU = GetNGPU();
 
     DirectBPD = P.DirectBPD;
-
-
-    STDLOG(2, "Fetching device memory...\n");
-    GetDeviceInfo(&GPUMemoryGB, GPUName);
-    GPUMemoryGB /= DirectBPD;        // Nominal GB per buffer
     NBuffers = NGPU*DirectBPD;
-    STDLOG(1, "Running with %d GPUs, each with %d Buffers of max size %f GB\n", NGPU, DirectBPD, GPUMemoryGB);
+
+    size_t GPUMemory, MemPerGPUBuffer;
+    STDLOG(2, "Fetching device memory...\n");
+    GetDeviceInfo(&GPUMemory, GPUName);
+    STDLOG(1, "Running with %d GPUs (%.1f GB each), %d buffers per GPU\n", NGPU, GPUMemory/1e9, DirectBPD);
 
     // No need to go crazy if the problem is small.  But small 
     // problems can be highly clustered.
@@ -154,21 +152,27 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
     // Round up by a factor of 1.3 and an extra 4 MB, just to be generous
     // Use NP/MPI_size as an estimate of the number of particles that will actually be processed by this node
 
-    GPUMemoryGB = std::min(GPUMemoryGB, 1.*P.np/MPI_size*1e-9*sizeof(accstruct)*3*(2*NFRADIUS + 1)/NBuffers*1.3*2 + 0.004);
+    if(P.MemPerGPUBufferGB > 0)
+        MemPerGPUBuffer = P.MemPerGPUBufferGB * 1e9;
+    else {
+        // TODO: these heuristics fail for small problems
+        MemPerGPUBuffer = GPUMemory / DirectBPD;        // Nominal GB per buffer
+        MemPerGPUBuffer = std::min(MemPerGPUBuffer, (size_t) (1.*P.np/MPI_size*sizeof(accstruct)*3*(2*NFRADIUS + 1)/NBuffers*1.3*2 + 4e6));
 
-    // GPUMemoryGB = std::min(GPUMemoryGB, 5.0*P.np*1e-9*sizeof(FLOAT3)+0.004);
+        // MemPerGPUBuffer = std::min(MemPerGPUBuffer, 5.0*P.np*sizeof(FLOAT3)+0.004);
 
-    // Don't pin more than a given percentage of the host memory.
-    GPUMemoryGB = std::min(GPUMemoryGB, 0.05/(NBuffers)*P.MAXRAMMB/1024);  
+        // Don't pin more than a given percentage of the host memory.
+        MemPerGPUBuffer = std::min(MemPerGPUBuffer, (size_t) (0.05/NBuffers*P.MAXRAMMB*1e6));
+    }
 
-    STDLOG(1, "Using %f GB of GPU memory (per GPU thread)\n", GPUMemoryGB);
+    STDLOG(1, "Using %.2f GB of GPU memory (per GPU thread)\n", MemPerGPUBuffer/1e9);
     MinSplits = NBuffers;
     MaxNSplits = MinSplits;
 
     // Put a floor to insist on using all GPUs
     STDLOG(2,"MinSplits = %d\n", MinSplits);
 
-    GPUSetup(P.cpd, 1.0e9*GPUMemoryGB, NGPU, DirectBPD,
+    GPUSetup(P.cpd, MemPerGPUBuffer, NGPU, DirectBPD,
         P.GPUThreadCoreStart, P.NGPUThreadCores,
         P.GPUQueueAssignments,
         &MaxSinkBlocks, &MaxSourceBlocks, P.UsePinnedGPUMemory);

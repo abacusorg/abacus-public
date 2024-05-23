@@ -6,7 +6,8 @@ AllowDirectIO = 0
 #IODirs = ["multipole/", "taylor/", "multipole2/", "taylor2/"]
 #nIODirs = 4
 #IODirThreads = [2, 2, 3, 3]
-MAXRAMMB = 20000  # This will be automatically detected
+#MAXRAMMB = 20000  # This will be automatically detected
+MemPerGPUBufferGB = 2
 #ConvolutionCacheSizeMB = 32
 #ConvolutionL1CacheSizeMB = 0.015625
 
