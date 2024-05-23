@@ -31,7 +31,7 @@ Conv_OMP_PROC_BIND = "spread"
 Conv_IOCores = [0]
 Conv_zwidth = 0
 
-Parallel = 1
+# Parallel = 1
 #MultipoleDirectory = None
 #TaylorDirectory = None
 

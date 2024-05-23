@@ -80,7 +80,23 @@ $ export LD_LIBRARY_PATH=$ABACUS/external/gperftools/install/lib64:$LD_LIBRARY_P
 $ export CPATH=$ABACUS/external/gperftools/install/include:$CPATH
 ```
 
-The `$ABACUS` variable needs to point to the repo root.
+The `$ABACUS` variable needs to point to the repo root (see [Environment Setup](#environment-setup)).
+
+## Environment Setup
+### Prepare an environment script
+The `env` directory contains example environment files from different clusters. Copying and modifying one of them will probably be helpful in setting up a working environment. We recommend copying it to the repo root for convenient activation. For example:
+
+```console
+$ cp env/perlmutter.sh env.sh
+$ . env.sh
+```
+
+Remember to replace `perlmutter.sh` with the file relevant to your cluster.
+
+You'll very likely need to modify the environment file, as cluster software environments change regularly.
+
+> [!TIP]
+> Keeping the Abacus environment in its own file and activating it as needed is highly recommended, rather than putting it in your shell startup files (e.g. `~/.bashrc`).
 
 ### Symlink the site file
 We keep performance parameters and other options on a given system that are commonly shared between simulations in "site files". Users should create a symlink called `site.def` that links to the site file for the current system as follows (using perlmutter as an example):
@@ -91,6 +107,8 @@ $ ln -s perlmutter.def site.def
 ```
 
 Be sure to replace `perlmutter.def` with the appropriate site file! If one doesn't exist, you can copy and modify a site file for a similar system.
+
+Note that some site files have `Parallel = 1` or `Parallel = 0` to make running tests more convenient. But you will need to toggle this depending on whether Abacus was compiled with MPI or not.
 
 ## Building the Code
 To build the non-MPI version of the code, suitable for running on a single node:
@@ -143,6 +161,8 @@ Tests are in the `Tests` directory. See [`Tests/README.md`](Tests/README.md).
 * **Production**: various configurations used for major production runs
 
 * **util**: utilities to deal with the pack14 output format
+
+* **env**: example environment files
 
 ## Documentation Layout
 
