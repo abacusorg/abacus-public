@@ -15,6 +15,7 @@ cancellation of large near and far forces.
 import argparse
 from pathlib import Path
 import shutil
+import warnings
 
 import numpy as np
 import matplotlib
@@ -32,6 +33,16 @@ from Abacus.ReadAbacus import aux12_dtype
 DEFAULT_CPD = 11
 DEFAULT_ORDER = 8
 DEFAULT_DTYPE = 'f4'
+
+# Arbitary tolerances (order 8) before we return with an error
+TOL = {
+    8: {
+        'max': 1e-2,
+        '99%': 1e-3,
+        'median': 1e-4,
+        'min_nonzero': 1e-7,
+    }
+}
 
 POS_FN = Path(__file__).parent / 'reference_ewald_pos.double3'
 
@@ -292,6 +303,15 @@ def check_storeforces(param, dtype=DEFAULT_DTYPE):
     print(settings)
 
     plot_storeforces(param, acc, ref_acc)
+
+    if param['Order'] in TOL:
+        tol = TOL[param['Order']]
+        # check max, 99%, etc
+        for k, v in tol.items():
+            assert res[k] <= v, f'{k}: {res[k]:.4e} > {v:.4e}'
+        print('All tolerances passed.')
+    else:
+        warnings.warn('No tolerances for this order, test will always pass')
 
     return res
 
