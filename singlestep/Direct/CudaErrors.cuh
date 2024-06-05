@@ -7,22 +7,21 @@ inline void __checkCudaErrors( cudaError err, const char *file, const int line )
 {
     if( cudaSuccess != err) {
         int dev=0; cudaGetDevice(&dev);
-        fprintf(stderr, "%s(%i) : CUDA Runtime API error %d on device %d: %s.\n",
+        fprintf(stderr, "%s:%i : CUDA Runtime API error %d on device %d: %s.\n",
                 file, line, (int)err,dev,cudaGetErrorString( err ) );
         assert(cudaSuccess == err);//exit(-1);
     }
 }
 
 // This will output the proper error string when calling cudaGetLastError
-#define getLastCudaError(msg)      __getLastCudaError (msg, __FILE__, __LINE__)
-    
-inline void __getLastCudaError( const char *errorMessage, const char *file, const int line )
+#define checkLastCuda(msg)      __checkLastCuda (__FILE__, __LINE__)
+
+inline void __checkLastCuda(const char *file, const int line )
 {       
     cudaError_t err = cudaGetLastError(); 
     if( cudaSuccess != err) { 
-        fprintf(stderr, "%s(%i) : getLastCudaError() CUDA error : %s : (%d) %s.\n",
-                file, line, errorMessage, (int)err, cudaGetErrorString( err ) );
+        fprintf(stderr, "%s:%i : checkLastCuda() CUDA error code %d (%s).\n",
+                file, line, (int)err, cudaGetErrorString( err ) );
         assert(cudaSuccess == err);
     }
 }
-

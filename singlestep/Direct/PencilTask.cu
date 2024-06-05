@@ -203,6 +203,7 @@ void GPUPencilTask(void *item, int g){
     dim3 dimBlock(NFBlockSize);
     ComputeDirects<<<dimGrid,dimBlock,0,DeviceStreams[g]>>>(StreamData,task->eps);
     // Control should return immediately, as the CUDA streams are non-blocking
+    checkLastCuda();
     
     // Copy back results from GPU
     // If the memory is unpinned, this is blocking
