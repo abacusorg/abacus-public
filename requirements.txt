@@ -22,4 +22,5 @@ click
 tqdm
 pybind11
 meson
+cmake
 ninja
