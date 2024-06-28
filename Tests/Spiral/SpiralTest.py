@@ -4,7 +4,7 @@ Runs the spiral test and compares the result to the analytic answer
 
 '''
 
-import sys
+import argparse
 import os
 from os.path import join as pjoin
 import shutil
@@ -17,9 +17,10 @@ import subprocess
 from Abacus import abacus
 from Abacus import GenParam
 from Abacus import InputFile
+from Abacus import ReadAbacus
 abacuspath = abacus.abacuspath
 
-def run():
+def run(plot=True):
     kvec = (1,0,0)
     phase = (np.pi,0,0)
     n1d = 256
@@ -70,21 +71,23 @@ def run():
 
     xv = np.reshape(data, (-1,6))
     assert len(xv) == n1d**3
-    print(xv.shape)
-    print(analytic.shape)
-    #p.plot(analytic[:,0], analytic[:,1])
-    #p.scatter(xv[:,0],xv[:,3],marker=".",s = 10*(4 * np.abs(xv[0]) + 1), c= "r",linewidth=0 )
-    p.xlabel("X")
-    p.ylabel("Vx")
-    p.savefig("spiral.png", dpi=500)
-    p.figure()
-    p.xlim(-.1,.1)
-    p.ylim(-.05,.05)
-    #p.plot(analytic[:,0], analytic[:,1])
-    #p.scatter(xv[:,0],xv[:,3],marker=".",s = 10*(4 * np.abs(xv[0]) + 1), c= "r",linewidth=0 )
-    p.xlabel("X")
-    p.ylabel("Vx")
-    p.savefig("spiral-zoomed.png",dpi=500)
+    
+    if plot:
+        #p.plot(analytic[:,0], analytic[:,1])
+        #p.scatter(xv[:,0],xv[:,3],marker=".",s = 10*(4 * np.abs(xv[0]) + 1), c= "r",linewidth=0 )
+        p.xlabel("X")
+        p.ylabel("Vx")
+        p.savefig("spiral.png", dpi=500)
+        print("Saved plot to spiral.png")
+        p.figure()
+        p.xlim(-.1,.1)
+        p.ylim(-.05,.05)
+        #p.plot(analytic[:,0], analytic[:,1])
+        #p.scatter(xv[:,0],xv[:,3],marker=".",s = 10*(4 * np.abs(xv[0]) + 1), c= "r",linewidth=0 )
+        p.xlabel("X")
+        p.ylabel("Vx")
+        p.savefig("spiral-zoomed.png",dpi=500)
+        print("Saved plot to spiral-zoomed.png")
 
     if astop<across:
         # There's a skewer of particles that always starts at -0.50, but it might have wrapped to +0.5
@@ -111,15 +114,28 @@ def run():
         print("RMS of deviations from Zeldovich %e compared to rms Vx of %f." % (np.std(residual), np.std(xv[:,3])))
         print()
 
-    print("Vx: rms %f, max %f"%( np.std(xv[:,3]), np.max(np.absolute(xv[:,3])) ))
-    print("Vy: rms %e, max %e"%( np.std(xv[:,4]), np.max(np.absolute(xv[:,4])) ))
-    print("Vz: rms %e, max %e"%( np.std(xv[:,5]), np.max(np.absolute(xv[:,5])) ))
-    print("Ratio of max velocity (analytic/computed): %f"%(np.max(analytic[:,1])/np.max(xv[:,3])))
+    vx_max = np.max(np.absolute(xv[:,3]))
+    vx_std = np.std(xv[:,3])
+    vy_max = np.max(np.absolute(xv[:,4]))
+    vy_std = np.std(xv[:,4])
+    vz_max = np.max(np.absolute(xv[:,5]))
+    vz_std = np.std(xv[:,5])
+
+    print(f"Vx: rms {vx_std:g}, max {vx_max:g}")
+    print(f"Vy: rms {vy_std:g}, max {vy_max:g}")
+    print(f"Vz: rms {vz_std:g}, max {vz_max:g}")
+
+    ratio = np.max(analytic[:,1])/vx_max
+    print(f"Ratio of max velocity (analytic/computed): {ratio:f}")
+
+    assert np.abs(ratio - 1.0) < 0.001
+    assert vy_max < 1e-6 and vz_max < 1e-6
+    assert vy_std < 1e-8 and vz_std < 1e-8
+    print('All velocities are within tolerance.')
 
     check_pids(params, n1d)
 
 
-from Abacus import ReadAbacus
 def check_pids(params, n1d):
     particles = ReadAbacus.from_dir(pjoin(params.get('LocalWorkingDirectory', params['WorkingDirectory']), 'read'), pattern='position_*', return_pid=True, format='state')
     pids = particles['pid']
@@ -149,9 +165,9 @@ def animate_analytic(astart,astop,across,npoints):
 
 
 if __name__ == '__main__':
-    args = sys.argv
-    if len(args) == 1:
-        run()
-    else:
-        print("Usage: ./SpiralTest.py <directory to run test in>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--plot', action=argparse.BooleanOptionalAction, default=True)
+
+    args = parser.parse_args()
+    args = vars(args)
+    run(**args)

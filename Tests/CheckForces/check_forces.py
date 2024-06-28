@@ -25,6 +25,15 @@ DEFAULT_ORDER = 8
 DEFAULT_PPD = 64
 DEFAULT_CPD = 17
 
+TOL = {
+    8: {
+        'Max': 1e-4,
+        'Mean': 1e-5,
+        'RMS': 1e-5,
+        'Min (nonzero)': 1e-7,
+    }
+}
+
 def plt_log_hist(ax, a, label=r'$|a-b|/\sqrt{|a|^2 + |b|^2}$'):
     assert (a >= 0).all()
     a_nonz = a[a > 0]
@@ -49,7 +58,7 @@ def plt_err_scale(disp, diff, logy=True, alpha=.2 ):
     plt.tight_layout()
 
 
-def run_orders(orders, run_kwargs=None, save=None):
+def run_orders(orders, run_kwargs=None, save=None, plot=True):
     if run_kwargs is None:
         run_kwargs = {}
     
@@ -63,7 +72,8 @@ def run_orders(orders, run_kwargs=None, save=None):
         af = asdf.AsdfFile(dict(results=all_results))
         af.write_to(save)
         
-    plot_orders(all_results)
+    if plot:
+        plot_orders(all_results)
     
     
 def plot_orders(all_results, pltfn='lattice_all_orders.pdf'):
@@ -104,6 +114,7 @@ def plot_orders(all_results, pltfn='lattice_all_orders.pdf'):
 
     fig.tight_layout()
     fig.savefig(pltfn, bbox_inches='tight')
+    print(f'Plotted to {pltfn}')
 
 
 def run(ppd=None, cpd=None, order=DEFAULT_ORDER, dtype=np.float32, force_output_debug=False, no_analyze=False, plot=True, power=False, **config):
@@ -152,7 +163,7 @@ def run(ppd=None, cpd=None, order=DEFAULT_ORDER, dtype=np.float32, force_output_
 # StoreForces does not give the near/far split, but doesn't block on NearForce,
 # which may be useful for debugging
 # We only return a single acc slab for plotting; all the accelerations might be too big!
-def analyze_storeforces(params, dtype, slabfns=None, silent=False, raw=False):
+def analyze_storeforces(params, dtype, slabfns=None, silent=False, raw=False, check=True):
     if slabfns is None:
         slabfns = sorted((Path(params['OutputDirectory']) / 'acc' / 'Step0001').glob("acc_*"))
 
@@ -227,6 +238,17 @@ def analyze_storeforces(params, dtype, slabfns=None, silent=False, raw=False):
             if k == 'param':
                 continue
             print('{k}: {v:.6g}'.format(k=k, v=results[k]))
+
+    if check and not raw:
+        order = params['Order']
+        try:
+            tol = TOL[order]
+        except KeyError as e:
+            raise ValueError(f'No tolerances for order {order}') from e
+        # check max, 99%, etc
+        for k, v in tol.items():
+            assert results[k] <= v, f'{k}: {results[k]:.4e} > {v:.4e}'
+        print('All tolerances passed.')
     
     return acc_mag, results
     
@@ -304,12 +326,13 @@ def plot_storeforces(fmag, figfn='checkforces_storeforces_absolute.png'):
 
     fig.tight_layout()
     fig.savefig(figfn)
+    print(f'Plotted to {figfn}')
     
 
 def _get_all_acc(param, dtype):
     
     accfns = sorted((Path(param['OutputDirectory']) / 'acc' / 'Step0001').glob('acc_*'))
-    auxfns = sorted(Path(param.get('ReadStateDirectory', Path(param['LocalWorkingDirectory']) / 'read')).glob('aux*_*'))
+    auxfns = sorted(Path(param.get('ReadStateDirectory', Path(param.get('LocalWorkingDirectory', param['WorkingDirectory'])) / 'read')).glob('aux*_*'))
     pid_bitmask=0x7fff7fff7fff
     
     NP = param['NP']
@@ -406,6 +429,7 @@ def plot_cell(param, dtype):
     fig.tight_layout()
     
     fig.savefig(f'cell_residuals_{ppd}.pdf', bbox_inches='tight')
+    print(f'Plotted to cell_residuals_{ppd}.pdf')
     
     
 def plot_force_error_pk(param, dtype):
@@ -476,6 +500,7 @@ def plot_force_error_pk(param, dtype):
     
     fig.tight_layout()
     fig.savefig('force_err_pk.pdf', bbox_inches='tight')
+    print('Plotted to force_err_pk.pdf')
     
 
     
@@ -499,12 +524,13 @@ def plot_forceoutputdebug(diff, fmag):
 
     fig.tight_layout()
     fig.savefig(figfn)
+    print('Plotted to {}'.format(figfn))
     
     
-def load_results(load, order=None, dtype=None):
+def load_results(load, order=None, dtype=None, plot=True):
     with asdf.open(load, lazy_load=False, copy_arrays=True) as af:
         results = af.tree['results']
-        
+
     if order != None:
         for res in results:
             if res['param']['Order'] == order:
@@ -512,9 +538,9 @@ def load_results(load, order=None, dtype=None):
         else:
             raise ValueError(order)
         raise NotImplementedError("cell results aren't stored in asdf, can't load")
-        if not res['param']['Parallel']:
+        if not res['param']['Parallel'] and plot:
             plot_cell(res, dtype)
-    else:
+    elif plot:
         plot_orders(results)
 
 if __name__ == '__main__':
@@ -531,6 +557,7 @@ if __name__ == '__main__':
     parser.add_argument('--sweep', help='Run orders 2 through ORDER', action='store_true')
     parser.add_argument('--save', help='Save results to this filename', type=str)
     parser.add_argument('--load', help="Don't run anything and instead load these results", type=str)
+    parser.add_argument('--plot', action=argparse.BooleanOptionalAction, default=True)
 
     args = parser.parse_args()
     args = vars(args)
@@ -539,11 +566,13 @@ if __name__ == '__main__':
         load = args.pop('load')
         order = args.pop('order')
         dtype = args.get('dtype')
+        plot = args.get('plot')
         if load:
-            load_results(load, order, dtype=dtype)
+            load_results(load, order, dtype=dtype, plot=plot)
         else:
             if args.pop('sweep'):
                 save = args.pop('save')
-                run_orders(orders=range(2,order+1), run_kwargs=args, save=save)
+                plot = args.pop('plot')
+                run_orders(orders=range(2,order+1), run_kwargs=args, save=save, plot=plot)
             else:
                 run(order=order, **args)

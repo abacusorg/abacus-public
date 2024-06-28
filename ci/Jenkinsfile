@@ -2,8 +2,10 @@ pipeline {
     agent {
         dockerfile {
             filename 'ci/Dockerfile'
-            args '--gpus 1'
-            label 'docker && v100'
+            args '--gpus 1 --shm-size=4g'
+            label 'docker && v100 && jenkins'
+            // additionalBuildArgs '--cache-to=type=local,dest=/home/jenkins/abacus-cache --cache-from=type=local,src=/home/jenkins/abacus-cache --build-arg SPACK_INSTALL_PROCESSES=1 --build-arg SPACK_INSTALL_JOBS=16'
+            additionalBuildArgs '--build-arg SPACK_INSTALL_PROCESSES=1 --build-arg SPACK_INSTALL_JOBS=$PARALLEL'
         }
     }
     options {
@@ -11,78 +13,50 @@ pipeline {
     }
     environment {
         HOME = "$WORKSPACE"
-        // N.B. 4 threads is set via cgroup, so processes have to be informed about this manually
-        OMP_NUM_THREADS = "4"
-        // Technically this path doesn't exist yet, but it will be created by the venv step
-        PATH = "${WORKSPACE}/venv/bin:${env.PATH}"
+        // N.B. 4 threads is set via cgroup,
+        // so processes have to be informed about this limitation manually
+        OMP_NUM_THREADS = "${env.PARALLEL}"
         
         ABACUS = "$WORKSPACE"
         ABACUS_TMP = "/dev/shm/"
         ABACUS_PERSIST = "/dev/shm"
         ABACUS_SSD = "/dev/shm"
-        
-        // meson probably just needs the pkg-config path
-        LD_LIBRARY_PATH = "${WORKSPACE}/external/oneTBB/install/lib64:${WORKSPACE}/external/gperftools/install/lib64:${env.LD_LIBRARY_PATH}"
-        LIBRARY_PATH = "${WORKSPACE}/external/oneTBB/install/lib64:${WORKSPACE}/external/gperftools/install/lib64:${env.LIBRARY_PATH}"
-        CPATH = "${WORKSPACE}/external/oneTBB/install/include:$ABACUS/external/gperftools/install/include:${env.CPATH}"
-        TBBROOT="${WORKSPACE}/external/oneTBB"
-        PKG_CONFIG_PATH = "${WORKSPACE}/external/oneTBB/install/lib64/pkgconfig:${env.PKG_CONFIG_PATH}"
     }
     stages {
-        stage('Install Python dependencies') {
-            steps {
-                sh 'python3 -m venv venv'
-                sh 'which pip'
-                sh 'pip install -U pip'
-                sh 'pip install -vUr requirements.txt'
-            }
-        }
-        stage('Build zeldovich') {
-            steps {
-                dir('external/zeldovich') {
-                    sh 'mkdir build'
-                    sh 'meson setup build'
-                    sh 'meson compile -C build -j 4'
-                }
-            }
-        }
-        stage('Build oneTBB') {
-            steps {
-                dir('external/oneTBB') {
-                    sh 'cmake -B build -G Ninja --install-prefix=install -DTBB_TEST=OFF'
-                    sh 'cmake --build build'
-                    sh 'cmake --install build'
-                }
-            }
-        }
-        stage('Build tcmalloc') {
-            steps {
-                dir('external/gperftools') {
-                    sh 'cmake -B build -G Ninja --install-prefix=install -Dgperftools_build_minimal=TRUE -Dgperftools_tcmalloc_pagesize=256'
-                    sh 'cmake --build build'
-                    sh 'cmake --install build'
-                }
-            }
-        }
         stage('Build') {
             steps {
-                sh 'which python'
-                sh './configure'
-                sh 'make'
-            }
-        }
-        stage('Link site file') {
-            steps {
-                dir('Production/site_files'){
-                    sh 'ln -s jenkins.def site.def'
-                }
+                sh '''
+                    . /opt/spack-environment/activate.sh
+                    export PYTHONPATH=$ABACUS:$PYTHONPATH
+
+                    cd $ABACUS/external/zeldovich-PLT
+                    meson setup build
+                    meson compile -v -C build -j $PARALLEL
+
+                    cd $ABACUS
+                    ./configure
+                    make
+
+                    cd Production/site_files
+                    ln -s jenkins.def site.def
+                '''
             }
         }
         stage('Test') {
             steps {
-                dir('Tests/Ewald') {
-                    sh './run_ewald.py'
-                }
+                sh '''
+                    . /opt/spack-environment/activate.sh
+                    export PYTHONPATH=$ABACUS:$PYTHONPATH
+
+                    cd $ABACUS/Tests/Ewald
+                    ./run_ewald.py --no-plot
+
+                    cd $ABACUS/Tests/CheckForces
+                    ./check_forces.py 64 17 --no-plot
+
+                    cd $ABACUS/Tests/Spiral
+                    ./SpiralTest.py --no-plot
+                '''
             }
         }
     }

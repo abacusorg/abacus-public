@@ -15,7 +15,6 @@ cancellation of large near and far forces.
 import argparse
 from pathlib import Path
 import shutil
-import warnings
 
 import numpy as np
 import matplotlib
@@ -48,7 +47,7 @@ POS_FN = Path(__file__).parent / 'reference_ewald_pos.double3'
 
 
 def run(
-    cpd=DEFAULT_CPD, order=DEFAULT_ORDER, dtype=DEFAULT_DTYPE, fod=False, save=None
+    cpd=DEFAULT_CPD, order=DEFAULT_ORDER, dtype=DEFAULT_DTYPE, fod=False, save=None, plot=True,
 ):
     """Run the simulation and check the results"""
 
@@ -73,7 +72,7 @@ def run(
         raise NotImplementedError('fod not yet implemented')
         # results = check_fod(param, dtype=dtype)
     else:
-        results = check_storeforces(param, dtype=dtype)
+        results = check_storeforces(param, dtype=dtype, plot=plot)
 
     if save:
         print(f'Saving results to {save}')
@@ -83,7 +82,7 @@ def run(
     return results
 
 
-def run_orders(orders=[1, 2, 3, 4, 5, 6, 7, 8], run_kwargs=None, save=None):
+def run_orders(orders=[1, 2, 3, 4, 5, 6, 7, 8], run_kwargs=None, save=None, plot=True):
     if run_kwargs is None:
         run_kwargs = {}
 
@@ -97,7 +96,8 @@ def run_orders(orders=[1, 2, 3, 4, 5, 6, 7, 8], run_kwargs=None, save=None):
         af = asdf.AsdfFile(dict(results=all_results))
         af.write_to(save)
 
-    plot_orders(all_results)
+    if plot:
+        plot_orders(all_results)
 
 
 def plot_orders(all_results, pltfn='ewald_allorders.pdf', style='line'):
@@ -211,7 +211,7 @@ def load_results(load):
     plot_orders(results)
 
 
-def check_storeforces(param, dtype=DEFAULT_DTYPE):
+def check_storeforces(param, dtype=DEFAULT_DTYPE, check=True, plot=True):
     """Check the results, using StoreForces"""
 
     NP = param['NP']
@@ -302,16 +302,19 @@ def check_storeforces(param, dtype=DEFAULT_DTYPE):
     print(restxt)
     print(settings)
 
-    plot_storeforces(param, acc, ref_acc)
+    if plot:
+        plot_storeforces(param, acc, ref_acc)
 
-    if param['Order'] in TOL:
-        tol = TOL[param['Order']]
+    if check:
+        order = param['Order']
+        try:
+            tol = TOL[order]
+        except KeyError as e:
+            raise ValueError(f'No tolerances for order {order}') from e
         # check max, 99%, etc
         for k, v in tol.items():
             assert res[k] <= v, f'{k}: {res[k]:.4e} > {v:.4e}'
         print('All tolerances passed.')
-    else:
-        warnings.warn('No tolerances for this order, test will always pass')
 
     return res
 
@@ -469,6 +472,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '-load', help="Don't run anything and instead load these results", type=str
     )
+    parser.add_argument('--plot', action=argparse.BooleanOptionalAction, default=True)
 
     args = parser.parse_args()
     args = vars(args)
@@ -480,6 +484,7 @@ if __name__ == '__main__':
         if args.pop('sweep'):
             order = args.pop('order')
             save = args.pop('save')
-            run_orders(orders=range(2, order + 1), run_kwargs=args, save=save)
+            plot = args.pop('plot')
+            run_orders(orders=range(2, order + 1), run_kwargs=args, save=save, plot=plot)
         else:
             run(**args)

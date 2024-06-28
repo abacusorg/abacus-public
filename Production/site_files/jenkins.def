@@ -1,0 +1,35 @@
+# One GPU instance, 4 cores
+
+SiteName = "fi-jenkins"
+
+StateIOMode = "overwrite"
+Conv_IOMode = "overwrite"
+
+AllowDirectIO = 0
+#IODirs = ["multipole/", "taylor/", "multipole2/", "taylor2/"]
+#nIODirs = 4
+#IODirThreads = [2, 2, 3, 3]
+# MAXRAMMB = 50000  # This will be automatically detected
+MemPerGPUBufferGB = 1
+# ConvolutionCacheSizeMB = 30  # This will be automatically detected
+
+# OpenMP and thread parameters
+# Can't use CPU affinity because CPU access is mediated by cgroups
+OMP_NUM_THREADS = 4
+# OMP_PLACES = "cores"
+# OMP_PROC_BIND = "close"
+# GPUThreadCoreStart = [5,17]
+# NGPUThreadCores = 1
+DirectBPD = 2
+# GPUQueueAssignments = [0]
+# MunmapThreadCore = 11
+# IOCores = [23]
+
+# Convolution OpenMP parameters
+Conv_OMP_NUM_THREADS = 4
+# Conv_OMP_PLACES = "{0}:12"
+# Conv_OMP_PROC_BIND = "close"
+# Conv_IOCores = [0]
+
+MultipoleDirectory = "$ABACUS_SSD$/" + @SimName@ + "/multipole"
+TaylorDirectory = "$ABACUS_SSD$/" + @SimName@ + "/taylor"
