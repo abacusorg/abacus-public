@@ -239,11 +239,11 @@ int main(int argc, char **argv) {
     }
 
     BuildWriteState(da);
-    assertf(P.NLightCones<=NUMLIGHTCONES, "Parameter file requests %d light cones, but AUX data model supports only %d\n", P.NLightCones, NUMLIGHTCONES);
-    LCOrigin = (double3 *) malloc(NUMLIGHTCONES*sizeof(double3));  // max NUMLIGHTCONES light cones
-    // TODO: Why is this NUMLIGHTCONES instead of P.NLightCones?
-    for(int i = 0; i < NUMLIGHTCONES; i++)
+    assertf(P.NLightCones <= MAXLIGHTCONES, "Parameter file requests %d light cones, but AUX data model supports only %d\n", P.NLightCones, MAXLIGHTCONES);
+    LCOrigin = new double3[P.NLightCones];  // max MAXLIGHTCONES light cones
+    for(int i = 0; i < P.NLightCones; i++){
         LCOrigin[i] = ((double3*) P.LightConeOrigins)[i]/P.BoxSize;  // convert to unit-box units
+    }
 
     // Set up the Group Finding concepts and decide if Group Finding output is requested.
     InitGroupFinding(MakeIC);
@@ -280,7 +280,7 @@ int main(int argc, char **argv) {
     Epilogue(P,MakeIC);
 
     delete cosm;
-    free(LCOrigin);
+    delete LCOrigin;
     free_dependencies();
 
     // Print out some final stats

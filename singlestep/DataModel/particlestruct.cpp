@@ -77,7 +77,7 @@ second set of bits. That's 0x07ff 7fff 7fff 7fff.
 #define AUXTAGGABLE_A_BIT 59llu //Can this particle be tagged in subsample A? 
 #define AUXTAGGABLE_B_BIT 60llu //Can this particle be tagged in subsample B? 
 
-#define NUMLIGHTCONES 3
+#define MAXLIGHTCONES 3
 
 #define AUXLCZEROBIT 61llu		// The LC bits are 61,62,63.
 #define AUXLC  (uint64)0xe000000000000000	// The next three bits.
@@ -155,7 +155,7 @@ public:
 
     // Light cones need 1 byte
     inline static uint64 lightconemask(int number) {
-        assertf(number<NUMLIGHTCONES && number>=0, "Lightcone number lcn = %d must satisfy 0 <= lcn < %d.", number, NUMLIGHTCONES);
+        assertf(number<MAXLIGHTCONES && number>=0, "Lightcone number lcn = %d must satisfy 0 <= lcn < %d.", number, MAXLIGHTCONES);
         return (uint64)1 << (number+AUXLCZEROBIT);
     }
 
