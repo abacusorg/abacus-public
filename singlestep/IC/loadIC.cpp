@@ -442,8 +442,7 @@ private:
 
 class ICFile_Lattice: public ICFile {
 private:
-    int64_t ppdy,ppdz;  // particles per Y & Z dim
-    int64_t Npp;  // N per plane, ppdy*ppdz
+    int64_t ppdy;  // particles per Y dim
 
     int firstx, firstz;  // first plane indices in this slab
     int lastx, lastz;
@@ -453,20 +452,12 @@ public:
 
         ppdy = WriteState.ippd;
         
-        double ppdx_per_slab = (double) WriteState.ippd / P.cpd;
-        double ppdz_per_split = (double) WriteState.ippd / MPI_size_z;
+        firstx = slab*WriteState.ippd/P.cpd;
+        lastx = (slab+1)*WriteState.ippd/P.cpd;
+        firstz = zsplit*WriteState.ippd/MPI_size_z;
+        lastz = (zsplit+1)*WriteState.ippd/MPI_size_z;
 
-        // planes [first,last) are in this slab
-        firstx = (int) ceil(ppdx_per_slab*slab);
-        lastx = (int) ceil(ppdx_per_slab*(slab+1));
-
-        // We'll assume the z splits are registered to the periodic wrap for simplicity
-        firstz = (int) ceil(ppdz_per_split*zsplit);
-        lastz = (int) ceil(ppdz_per_split*(zsplit+1));
-        ppdz = lastz - firstz;
-
-        Npp = ppdy*ppdz;
-        Npart = Npp*(lastx - firstx);
+        Npart = ppdy*(lastz - firstz)*(lastx - firstx);
     }
 
     void read_nonblocking(){
