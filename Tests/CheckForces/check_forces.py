@@ -318,7 +318,6 @@ def analyze_forceoutputdebug(params, dtype):
 
 def plot_storeforces(fmag, figfn='checkforces_storeforces_absolute.png'):
     fig, ax = plt.subplots()
-    print(f'Plotting to {figfn}')
     
     #p.plot(force, diff, '.', markersize=1)
     plt_log_hist(ax, fmag, label='Force magnitude')
@@ -506,7 +505,6 @@ def plot_force_error_pk(param, dtype):
     
 def plot_forceoutputdebug(diff, fmag):
     figfn = 'checkforces_forceoutputdebug_near-far_cancellation.png'
-    print('Plotting to {}'.format(figfn))
     
     fig, ax = plt.subplots()
     plt_log_hist(ax, diff)
@@ -514,9 +512,9 @@ def plot_forceoutputdebug(diff, fmag):
 
     fig.tight_layout()
     fig.savefig(figfn)
+    print('Plotted to {}'.format(figfn))
     
     figfn = 'checkforces_forceoutputdebug_absolute.png'
-    print('Plotting to {}'.format(figfn))
     
     fig, ax = plt.subplots()
     plt_log_hist(ax, fmag, label='Force magnitude')

@@ -4,7 +4,7 @@ StateIOMode = "overwrite"
 Conv_IOMode = "overwrite"
 #IODirs = ["multipole/", "taylor/", "multipole2/", "taylor2/"]
 #IODirThreads = [2, 2, 3, 3]
-MAXRAMMB = 50000  # This will be automatically detected
+MemPerGPUBufferGB = 1  # This will be automatically detected
 # ConvolutionCacheSizeMB = 30  # This will be automatically detected
 AllowDirectIO = 0
 
@@ -34,5 +34,5 @@ DerivativesDirectory = "$ABACUS_SSD$/Derivatives"
 # Parallel options
 #mpirun_cmd = "mpirun --bind-to none"
 mpirun_cmd = "srun --mpi=pmix"
-Parallel = 1
+Parallel = 0
 NumZRanks = 1
