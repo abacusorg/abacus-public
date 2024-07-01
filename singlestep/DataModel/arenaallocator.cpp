@@ -307,7 +307,7 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
     lb_mutex.lock();
     
     assertf(arena[id].present==0, "Error: Asking for Allocation of arena %d that already exists!\n", id);   // This is always a bad idea
-    assert(id < maxids);
+    assertf(id < maxids, "Error: Asking for Allocation of arena %d, but maxids is %d\n", id, maxids);
     
     size_t ss;
     ss = sizeof(char);

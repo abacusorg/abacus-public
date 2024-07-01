@@ -438,7 +438,7 @@ void Manifest::QueueToSend(int finished_slab) {
     int *clear_slabsize = new int[cpd];
     for(int i = 0; i < cpd; i++) clear_slabsize[i] = 0;
 
-    for (int type=0; type<NUMTYPES; type++) {
+    for (int type=0; type<SB->NumTypes; type++) {
 	    // Loop over all SlabTypes
 	    for (int s=finished_slab-1; s>finished_slab-cpd; s--) {
 	        // Check each trailing slab; if present, load it up

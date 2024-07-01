@@ -339,7 +339,7 @@ void Manifest::QueueToSend(int finished_slab) {
     STDLOG(2,"Queuing Arenas into the SendManifest\n");
     // Now load all of the arenas into the Manifest
     int min_slab = finished_slab;
-    for (int type=0; type<NUMTYPES; type++) {
+    for (int type=0; type<SB->NumTypes; type++) {
 	    // Loop over all SlabTypes
 	    for (int s=finished_slab-1; s>finished_slab-cpd; s--) {
 	        // Check each trailing slab; if present, load it up

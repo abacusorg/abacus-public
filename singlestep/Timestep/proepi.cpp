@@ -238,7 +238,7 @@ void Prologue(Parameters &P, int MakeIC, int NoForces) {
     SetupManifest(2*P.GroupRadius+1);
 
     Grid = new grid(cpd);
-    SB = new SlabBuffer(cpd, order);
+    SB = new SlabBuffer(cpd, order, P.NLightCones);
     CP = new CellParticles(cpd, SB);
 
     STDLOG(2,"Initializing Multipoles\n");
@@ -282,7 +282,7 @@ void Prologue(Parameters &P, int MakeIC, int NoForces) {
         WriteState.LogDirectory, WriteState.FullStepNumber, NodeString);
     allow_directio_global = P.AllowDirectIO;
     STDLOG(1,"Setting global AllowDirectIO = %d\n", P.AllowDirectIO);
-    IO_Initialize(logfn);
+    IO_Initialize(logfn, SB->NumTypes);
 
     SS = new SlabSize(P.cpd, MPI_size_z, MPI_rank_z);
     ReadNodeSlabs();

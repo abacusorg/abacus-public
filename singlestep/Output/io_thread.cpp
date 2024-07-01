@@ -412,9 +412,16 @@ int niothreads;
 
 // Slab types, like light cones, may opt to append to a single file
 // We keep an array of open file pointers for those types.
-FILE *filepointers[NUMTYPES] = {NULL};
+FILE **filepointers;
+int nfilepointers;
 
-void IO_Initialize(char *logfn) {
+void IO_Initialize(char *logfn, int NumTypes) {
+    nfilepointers = NumTypes;
+    filepointers = new FILE*[nfilepointers];
+    for(int i = 0; i < nfilepointers; i++){
+        filepointers[i] = NULL;
+    }
+    
     // Count how many IO threads we need
     // IO thread numbers should be contiguous!
     niothreads = 1;
@@ -437,13 +444,14 @@ void IO_Terminate() {
 
     delete[] iothreads;
 
-    for(int i = 0; i < NUMTYPES; i++){
+    for(int i = 0; i < nfilepointers; i++){
         if(filepointers[i] != NULL){
             int ret = fclose(filepointers[i]);
             assertf(ret == 0, "Error closing file pointer for type %d\n", i);
             filepointers[i] = NULL;
         }
     }
+    delete[] filepointers;
 
     // Write the checksum files to their respective directories
     for(auto &diriter : FileChecksums){

@@ -52,22 +52,13 @@ enum SlabType { CellInfoSlab,           //0
                 L0TimeSlice,            //28
                 L0TimeSlicePIDs,        //29
 
-                // Note: NUMLC better not be bigger than the number of Slabs defined
-                LightCone0RV,           //30
-                LightCone1RV,           //31
-                LightCone2RV,           //32
-
-                LightCone0PID,          //33
-                LightCone1PID,          //34
-                LightCone2PID,          //35
-
-                LightCone0Heal,         //36
-                LightCone1Heal,         //37
-                LightCone2Heal,         //38
-
                 ICSlab,                 //39
 
-                NUMTYPES
+                // The start of the LC slabs
+                // SB->NumTypes is the total number of types
+                LightCone0RV,
+                LightCone0PID,
+                LightCone0Heal
                 };
 
 enum SlabIntent { READSLAB,
@@ -100,6 +91,8 @@ private:
 
 public:
 
+    int NumTypes;
+
     // The write and read names for the files of this SlabType.
     // The slab number will be wrapped.
     // Program will abort if one specifies a type not in this function;
@@ -107,16 +100,18 @@ public:
     std::string WriteSlabPath(int type, int slab);
     std::string ReadSlabPath(int type, int slab);
 
-    SlabBuffer(int _cpd, int _order) {
+    SlabBuffer(int _cpd, int _order, int num_lc) {
+        NumTypes = LightCone0RV + 3*num_lc;
+
         order = _order;
         cpd = _cpd;
 
-        AA = new ArenaAllocator((_cpd+1)*NUMTYPES, P.UseMunmapThread, P.MunmapThreadCore);
+        AA = new ArenaAllocator((_cpd+1)*NumTypes, P.UseMunmapThread, P.MunmapThreadCore);
     }
 
     ~SlabBuffer(void) {
         // Clean up the Reuse buffers
-        for (int t = 0; t < NUMTYPES; t++) {
+        for (int t = 0; t < NumTypes; t++) {
             int id = ReuseID(t);
             if (AA->IsArenaPresent(id)) {
                 AA->DeAllocateArena(id, id);
@@ -239,18 +234,14 @@ int SlabBuffer::IsRamdiskSlab(int type, int hint){
 
     // If not, compare the file path for the slab to the system ramdisk path
 
-    const int ReadHint = NUMTYPES;
-    const int WriteHint = NUMTYPES+1;
-
-    int intent_or_hint = GetSlabIntent(type);
-    assert(intent_or_hint < ReadHint);  // for sanity
+    int intent = GetSlabIntent(type);
 
     switch(hint){
         case RAMDISK_AUTO_READSLAB:
-            intent_or_hint = ReadHint;
+            intent = READSLAB;
             break;
         case RAMDISK_AUTO_WRITESLAB:
-            intent_or_hint = WriteHint;
+            intent = WRITESLAB;
             break;
         case RAMDISK_AUTO:
             break;
@@ -258,15 +249,13 @@ int SlabBuffer::IsRamdiskSlab(int type, int hint){
             QUIT("Did not understand ramdisk hint %d\n", hint);
     }
 
-    switch(intent_or_hint){
+    switch(intent){
         case READSLAB:
-        case ReadHint:
             if(is_path_on_ramdisk(ReadSlabPath(type, -1)))
                 return RAMDISK_READSLAB;
             break;
 
         case WRITESLAB:
-        case WriteHint:
             if(is_path_on_ramdisk(WriteSlabPath(type, -1)))
                 return RAMDISK_WRITESLAB;
             break;
@@ -317,6 +306,10 @@ int SlabBuffer::GetSlabIntent(int type){
  * output type that we do not want to send in the manifest.
 */
 int SlabBuffer::IsOutputSlab(int type){
+    if (type >= LightCone0RV && type < NumTypes){
+        return 1;
+    }
+
    switch(type){
         case L0TimeSlice:
         case FieldTimeSlice:
@@ -331,16 +324,6 @@ int SlabBuffer::IsOutputSlab(int type){
         case FieldPIDSlabB:
         case L0TimeSlicePIDs:
         case FieldTimeSlicePIDs:
-
-        case LightCone0RV:
-        case LightCone1RV:
-        case LightCone2RV:
-        case LightCone0PID:
-        case LightCone1PID:
-        case LightCone2PID:
-        case LightCone0Heal:
-        case LightCone1Heal:
-        case LightCone2Heal:
             return 1;
      }
      return 0;
@@ -371,6 +354,15 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
     char redshift[16]; sprintf(redshift, "%5.3f", ReadState.Redshift);
     std::stringstream ss;
     std::string s;
+
+    if (type >= LightCone0RV && type < NumTypes) {
+        int lcn = (type - LightCone0RV) / 3;
+        int lct = (type - LightCone0RV) % 3;
+        std::string lct_name = (lct == 0) ? "rv" : (lct == 1) ? "pid" : "heal";
+        ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone" << lcn << "_" << lct_name << "_" << slabnum;
+        s = ss.str();
+        return s;
+    }
 
     switch(type) {
 #ifdef PARALLEL
@@ -418,16 +410,6 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         case FieldTimeSlice            : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pack9.dat"; break; }
         case L0TimeSlicePIDs      : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".L0_pack9_pids.dat"; break; }
         case FieldTimeSlicePIDs        : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pack9_pids.dat"; break; }
-
-        case LightCone0RV: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone0_rv" << NodeString; break; }
-        case LightCone1RV: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone1_rv" << NodeString; break; }
-        case LightCone2RV: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone2_rv" << NodeString; break; }
-        case LightCone0PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone0_pid" << NodeString; break; }
-        case LightCone1PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone1_pid" << NodeString; break; }
-        case LightCone2PID: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone2_pid" << NodeString; break; }
-        case LightCone0Heal: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone0_heal" << NodeString; break; }
-        case LightCone1Heal: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone1_heal" << NodeString; break; }
-        case LightCone2Heal: { ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone2_heal" << NodeString; break; }
 
         default:
             QUIT("Illegal type %d given to WriteSlabPath()\n", type);
@@ -721,24 +703,7 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, c
     assertf(IsSlabPresent(type, slab),
         "Type %d and Slab %d doesn't exist\n", type, slab);
 
-    int use_fp = 0;
-
-    switch(type) {
-        case LightCone0RV:
-        case LightCone1RV:
-        case LightCone2RV:
-        case LightCone0PID:
-        case LightCone1PID:
-        case LightCone2PID:
-        case LightCone0Heal:
-        case LightCone1Heal:
-        case LightCone2Heal:
-            use_fp = 1;
-            break;
-        default:
-            use_fp = 0;
-            break;
-    }
+    int use_fp = type >= LightCone0RV && type < NumTypes;
     
     WriteFile( GetSlabPtr(type,slab),
         SlabSizeBytes(type,slab),
