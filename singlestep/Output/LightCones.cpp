@@ -156,6 +156,22 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
             // Nothing to be done, so don't risk divide by zero.
     STDLOG(4, "Making light cone %d for slab %d\n", lcn, slab);
 
+    LightCone LC(lcn);
+
+    // Before we start allocating memory, do a quick pass to see if any cells are in the LC
+    uint64_t slabtotalcell = 0;
+
+    #pragma omp parallel for schedule(static) reduction(+:slabtotalcell)
+    for (int y = 0; y < CP->cpd; y ++) {
+        for (int z = node_z_start; z < node_z_start + node_z_size; z++) {
+            // Check if the cell center is in the lightcone, with some wiggle room
+            double3 cc = CP->CellCenter(slab, y, z);
+            if(LC.isCellInLightCone(cc)) slabtotalcell++;
+        }
+    }
+
+    if(slabtotalcell == 0) return;
+
     SlabAccum<RVfloat>   LightConeRV;     ///< The taggable subset in each lightcone.
     SlabAccum<TaggedPID> LightConePIDs;   ///< The PIDS of the taggable subset in each lightcone.
     SlabAccum<unsigned int> LightConeHealPix;   ///< The Healpix of the particles in each lightcone.
@@ -170,18 +186,16 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     LightConePIDs.setup(CP->cpd, node_z_size, P.np/P.cpd*(P.ParticleSubsampleA+P.ParticleSubsampleB)/100);
     LightConeHealPix.setup(CP->cpd, node_z_size, P.np/P.cpd/100);
 
-    LightCone LC(lcn);
     uint64 mask = auxstruct::lightconemask(lcn);
     double vunits = ReadState.VelZSpace_to_kms/ReadState.VelZSpace_to_Canonical;  // Code to km/s
 
     integer3 ij(slab,0,0);
     uint64_t slabtotal = 0;
     uint64_t slabtotalsub = 0;
-    uint64_t slabtotalcell = 0;
     uint64_t doubletagged = 0;
     OutputLightConeSearch.Start();
 
-    #pragma omp parallel for schedule(dynamic,1) reduction(+:slabtotal) reduction (+:slabtotalsub) reduction(+:slabtotalcell) reduction(+:doubletagged)
+    #pragma omp parallel for schedule(dynamic,1) reduction(+:slabtotal) reduction (+:slabtotalsub) reduction(+:doubletagged)
     for (int y = 0; y < CP->cpd; y ++) {
         integer3 ijk = ij; ijk.y = y;
 
@@ -193,9 +207,6 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
             // Check if the cell center is in the lightcone, with some wiggle room
             double3 cc = CP->CellCenter(ijk);
             if(!LC.isCellInLightCone(cc)) continue;  // Skip the rest if too far from the region
-
-            // So you say there's a chance?
-            slabtotalcell++;
 
             Cell c = CP->GetCell(ijk);
             accstruct *acc = CP->AccCell(ijk);
@@ -278,8 +289,6 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
         LightConeHealPix.copy_to_ptr(arenaptr);
         tbb::parallel_sort(arenaptr, arenaptr+slabtotal);
         SB->StoreArenaNonBlocking(lightconeslab, slab);
-
-        // TODO: in a perfect world, we would *sort* the pixel numbers in the healpix slab before outputing
     }
 
     LightConeRV.destroy();
