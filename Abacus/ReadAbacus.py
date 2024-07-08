@@ -964,9 +964,9 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
     if blosc_threads is None:
         blosc_threads = get_nthreads_by_format('asdf')
 
-    import asdf.compression
+    import asdf._compression
     try:
-        asdf.compression.validate('blsc')
+        asdf._compression.validate('blsc')
     except:
         # Note: this is a temporary solution until blosc is integrated into ASDF, or until we package a pluggable decompressor
         raise RuntimeError('Error: Blosc compression not found. Abacus ASDF extension not loaded?"')

@@ -51,7 +51,6 @@ import warnings
 from pathlib import Path
 
 import asdf
-import asdf.compression
 import cffi
 import click
 import numpy as np
@@ -424,7 +423,6 @@ class ChunkConverter:
                 colname = 'packedpid'
 
             compression_kwargs = dict(typesize=Mway, shuffle='bitshuffle', compression_block_size=12*1024*1024, blosc_block_size=3*1024*1024, nthreads=4)
-            #asdf.compression.set_compression_options(**compression_kwargs)
             npart_catted = sum(_cfn.stat().st_size for _cfn in chunk_fns[name])/pdtype().itemsize
             assert int(npart_catted) == npart_catted
             npart_catted = int(npart_catted)
