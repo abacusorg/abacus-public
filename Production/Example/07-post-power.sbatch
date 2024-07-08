@@ -29,7 +29,7 @@ if [ -z "$sim" ]; then
 fi
 
 inputs=$(echo $sim/{halos,slices}/z*)
-workdir=$sim/post_log/$SLURM_JOBID-groups
+workdir=$sim/post_log/$SLURM_JOBID-power
 disBatch=$HOME/abacus/external/disBatch/disBatch
 
 mkdir -p $workdir
