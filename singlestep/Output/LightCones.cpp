@@ -270,20 +270,20 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
         // This will create the directory if it doesn't exist (and is parallel safe)
         char dir[32];
         sprintf(dir, "Step%04d", ReadState.FullStepNumber);
-        CreateSubDirectory(P.LightConeDirectory, dir);
+        CreateSubDirectory(P.LightConeDirectory, dir);  // TODO: could result in a lot of extra metadata ops
 
         SlabType lightconeslab;
-        lightconeslab = (SlabType)((int)(LightCone0RV + lcn));
+        lightconeslab = (SlabType)((int)(LightCone0RV + 3*lcn));
         SB->AllocateSpecificSize(lightconeslab, slab, LightConeRV.get_slab_bytes());
         LightConeRV.copy_to_ptr((RVfloat *)SB->GetSlabPtr(lightconeslab, slab));
         SB->StoreArenaNonBlocking(lightconeslab, slab);
 
-        lightconeslab = (SlabType)((int)LightCone0PID + lcn );
+        lightconeslab = (SlabType)((int)LightCone0PID + 3*lcn);
         SB->AllocateSpecificSize(lightconeslab, slab, LightConePIDs.get_slab_bytes());
         LightConePIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(lightconeslab, slab));
         SB->StoreArenaNonBlocking(lightconeslab, slab);
 
-        lightconeslab = (SlabType)((int)LightCone0Heal + lcn);
+        lightconeslab = (SlabType)((int)LightCone0Heal + 3*lcn);
         SB->AllocateSpecificSize(lightconeslab, slab, LightConeHealPix.get_slab_bytes());
         unsigned int *arenaptr = (unsigned int *) SB->GetSlabPtr(lightconeslab, slab);
         LightConeHealPix.copy_to_ptr(arenaptr);

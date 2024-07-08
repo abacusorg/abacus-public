@@ -359,7 +359,7 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         int lcn = (type - LightCone0RV) / 3;
         int lct = (type - LightCone0RV) % 3;
         std::string lct_name = (lct == 0) ? "rv" : (lct == 1) ? "pid" : "heal";
-        ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone" << lcn << "_" << lct_name << "_" << slabnum;
+        ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone" << lcn << "_" << lct_name << NodeString;
         s = ss.str();
         return s;
     }

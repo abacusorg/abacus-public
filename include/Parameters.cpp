@@ -127,7 +127,7 @@ public:
     int  NLightCones;
     int  OutputFullLightCones;
 
-    double LightConeOrigins[24];  // Same units as BoxSize
+    double LightConeOrigins[3*125];  // Same units as BoxSize
 
     char LightConeDirectory[1024];
 
@@ -314,7 +314,7 @@ public:
         installscalar("NLightCones",NLightCones,DONT_CARE); //if not set, we assume 0
         OutputFullLightCones = 0;
         installscalar("OutputFullLightCones",OutputFullLightCones,DONT_CARE); //if not set, we assume 0
-        installvector("LightConeOrigins",LightConeOrigins,24,1,DONT_CARE);
+        installvector("LightConeOrigins",LightConeOrigins,3*125,1,DONT_CARE);
 
         FinalRedshift = -2.0;        // If <-1, then we will cascade back to the minimum of the TimeSliceRedshifts list
         installscalar("FinalRedshift",FinalRedshift,DONT_CARE);
