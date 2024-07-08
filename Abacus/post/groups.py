@@ -85,7 +85,7 @@ fast_cksum_cat = Path(os.getenv('ABACUS')) / 'external' / 'fast-cksum' / 'bin' /
               help='Whether a catalog without any halo_info files will raise an error',
               )
 def convert(group_dir_or_file, chunk=50, asdf_data_key='data', asdf_header_key='header', asdf_compression='blsc', delete=False,
-            verbose=True, nworkers=1, empty_ok=False):
+            verbose=True, nworkers=1, empty_ok=True):
     """
     Convert the raw binary halo_info files in the given group directory into ASDF format.
     The ASDF files will consist of "super slabs" of approximately `chunk` slabs each.
@@ -220,8 +220,8 @@ def convert(group_dir_or_file, chunk=50, asdf_data_key='data', asdf_header_key='
         # Other consistency checks?
     index_files_timer.stop(report=True)
         
-    if not sum(len(chunk_fns) for chunk_fns in all_fns['halo_info']): # not empty_ok and
-        raise FileNotFoundError('Could not find any halo_info files matching ' + file_patterns['halo_info'])
+    if not empty_ok and not sum(len(chunk_fns) for chunk_fns in all_fns['halo_info']):
+        raise FileNotFoundError(f'Could not find any halo_info files matching {file_patterns["halo_info"]}')
 
     # We need to know if we have field subsamples because the halo files will cotain both L0 and L1 if so (TODO: is this right?)
     # TODO: more robust way to indicate this?  Field in header?
