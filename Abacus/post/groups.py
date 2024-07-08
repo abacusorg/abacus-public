@@ -47,6 +47,7 @@ import multiprocessing
 import os
 import shutil
 import sys
+import tempfile
 import warnings
 from pathlib import Path
 
@@ -589,7 +590,8 @@ def generate_halostat_dtype(halostat_cstruct_fn, add_int16_suffix=True):
     ffibuilder.cdef(s)
     
     # Trigger the compiler to make sure CFFI got it right
-    ffibuilder.verify(s)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ffibuilder.verify(s, tmpdir=tmpdir)
     
     ct = ffibuilder.typeof('struct HaloStat')
     dtype = ctype_to_dtype(ffibuilder, ct)
