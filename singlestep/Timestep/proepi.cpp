@@ -22,6 +22,8 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
+#include "ppqsort.h"
+
 #include "mpi_header.cpp"
 #include "header.cpp"
 #include "threevector.hh"

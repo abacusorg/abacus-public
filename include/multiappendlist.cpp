@@ -170,6 +170,7 @@ public:
         // of order NThreads * gap_size / 4 objects to copy.
 
         std::sort( MALgaps, MALgaps+Ngaps );
+        // ppqsort::sort(ppqsort::execution::seq, MALgaps, MALgaps+Ngaps);
             // Order the gaps by their end index
         int low = 0;          // low[next:end) is unfilled space
         int high = Ngaps-1;   // high[start:next) is filled space

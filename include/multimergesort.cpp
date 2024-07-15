@@ -175,9 +175,9 @@ class MergeFIFO {
     }
 
     // The NULL constructor is not useful; must overwrite with Setup()
-    MergeFIFO<MergeType>() { left = right = NULL; }
+    MergeFIFO() { left = right = NULL; }
 
-    ~MergeFIFO<MergeType>() { 
+    ~MergeFIFO() { 
         // Free the buffer space.
         // Note that we are not freeing the input branches!
             if (left!=NULL) free(buf); return; 
@@ -275,7 +275,8 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
 
     if (N<Nparts*4) {
         // Probably no point in doing multi-threaded stuff.  Just make this simple.
-        std::sort(a, a+N);
+        // std::sort(a, a+N);
+        ppqsort::sort(ppqsort::execution::seq, a, a+N);
         memcpy(out, a, sizeof(MergeType)*N);
         return;
     }
@@ -323,7 +324,8 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
 
         // Sort, moving the result into the work list
         MM_SortPart.Start();
-        std::sort(a+start, a+start+size);
+        // std::sort(a+start, a+start+size);
+        ppqsort::sort(ppqsort::execution::seq, a+start, a+start+size);
         MM_SortPart.Stop();
 
         if (size>0) assert(a[start+size-1].key()<=maxkey);

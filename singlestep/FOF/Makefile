@@ -3,7 +3,7 @@ include $(ROOT_DIR)/common.mk
 
 #CC = icc -xHost
 OMP :=  -fopenmp
-CPPFLAGS += $(PARSEHEADER_CPPFLAGS) $(OMP) -DOMP -DTBB -I../Timestep -I../Direct -I../DataModel -I../Output -I../../Convolution -std=c++17 -O0
+CPPFLAGS += $(PARSEHEADER_CPPFLAGS) $(OMP) -DOMP -DTBB -I../Timestep -I../Direct -I../DataModel -I../Output -I../../Convolution -std=c++20 -O0
 LIBS := $(PARSEHEADER_LIBS)
 
 BINARIES = test_driver fof_sublist slab_accum grouplink standalone_fof microstep_test.so

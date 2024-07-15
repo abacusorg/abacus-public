@@ -252,8 +252,6 @@ size_t MaxSinkSize, MaxSourceSize;
 int init = 0;
 int BPD;                 // Buffers per device
 
-static volatile uint64 host_alloc_bytes;
-
 void *QueueWatcher(void *);
 
 // Here is the routine that is called to configure the GPU threads
@@ -397,6 +395,7 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     else
         STDLOG(1, "Allocating host-side memory, but not pinning because this is a small problem\n");
 
+    size_t host_alloc_bytes = 0;
     pthread_barrier_t *thread_startup_barriers[NGPU];
     for(int g = 0; g < NBuf; g++){
         Buffers[g].size = MaxBufferSize;
@@ -611,7 +610,7 @@ void *QueueWatcher(void *arg){
 
 void CUDART_CB StartThroughputTimer(cudaStream_t stream, cudaError_t status, void *data){
     assert(pthread_mutex_lock(&SetInteractionCollection::GPUTimerMutex) == 0);
-    SetInteractionCollection::ActiveThreads++;
+    SetInteractionCollection::ActiveThreads = SetInteractionCollection::ActiveThreads + 1;
     if (SetInteractionCollection::ActiveThreads == 1)
         SetInteractionCollection::GPUThroughputTimer.Start();
     assert(pthread_mutex_unlock(&SetInteractionCollection::GPUTimerMutex) == 0);
@@ -621,7 +620,7 @@ void CUDART_CB MarkCompleted( cudaStream_t stream, cudaError_t status, void *dat
 #ifdef CUDADIRECT
     
     assert(pthread_mutex_lock(&SetInteractionCollection::GPUTimerMutex) == 0);
-    SetInteractionCollection::ActiveThreads--;
+    SetInteractionCollection::ActiveThreads = SetInteractionCollection::ActiveThreads - 1;
     if (SetInteractionCollection::ActiveThreads == 0)
         SetInteractionCollection::GPUThroughputTimer.Stop();
     assert(pthread_mutex_unlock(&SetInteractionCollection::GPUTimerMutex) == 0);

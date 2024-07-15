@@ -10,7 +10,6 @@ double3 *LCOrigin;
 #define c_kms 299792.0
 #define etaktoHMpc (c_kms/100.)
 
-#include "tbb/parallel_sort.h"
 #include "healpix_shortened.c"
 
 class LightCone {

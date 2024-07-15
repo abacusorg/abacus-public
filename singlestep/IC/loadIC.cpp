@@ -101,7 +101,7 @@ uint64 ICFile::next_pid;  // static next_pid counter
 template<class T>
 class ICFile_OnDisk : public ICFile {
 public:
-    ICFile_OnDisk<T>(int _slab, int _zsplit) : ICFile(_slab, _zsplit){
+    ICFile_OnDisk(int _slab, int _zsplit) : ICFile(_slab, _zsplit){
         // SlabSizeBytes only works if ICSlab is already in memory
         // This avoids an extra file stat
         /*if(SB->IsSlabPresent(ICSlab,slab))

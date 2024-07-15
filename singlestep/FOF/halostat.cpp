@@ -113,7 +113,9 @@ HaloStat ComputeStats(int size,
 		L2.d2_active[p] = L2.d2buffer[p];
     }	
 
-    std::sort(L2.d2_active, L2.d2_active+size);
+    // std::sort(L2.d2_active, L2.d2_active+size);
+    ppqsort::sort(ppqsort::execution::seq, L2.d2_active, L2.d2_active+size);
+
 
     float r90sq = L2.d2_active[size*9/10]; // radius with respect to which we compute the second moments
     float r50sq = L2.d2_active[size/2]; // radius with respect to which we compute the second moments

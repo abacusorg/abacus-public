@@ -451,7 +451,8 @@ FOFloat partial_search(int len, int mass, FOFloat shell_max_rad2, int &size_thre
     }
     
     // Sort the distances in increasing order
-    std::sort(d2_bin, d2_bin+len); 
+    // std::sort(d2_bin, d2_bin+len);
+    ppqsort::sort(ppqsort::execution::seq, d2_bin, d2_bin+len);
     numsorts += len;
     // Now sweep in from the center to find the threshold
     for (int j=0; j<len; j++) {
@@ -958,7 +959,8 @@ int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, FLOAT3p1 *acc, in
 
     Copy.Start();
     for (int g=0; g<ngroups; g++) {
-        std::sort(p+groups[g].start+1, p+groups[g].start+groups[g].n);
+        // std::sort(p+groups[g].start+1, p+groups[g].start+groups[g].n);
+        ppqsort::sort(ppqsort::execution::seq, p+groups[g].start+1, p+groups[g].start+groups[g].n);
     }
     numgroups += ngroups;
     Copy.Stop();

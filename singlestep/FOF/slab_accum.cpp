@@ -100,7 +100,7 @@ class SlabAccumBuffer {
     char padding[CACHE_LINE_SIZE-28];    // Just to make this cacheline safe
 
   public:
-    SlabAccumBuffer<T>() { 
+    SlabAccumBuffer() { 
 	// We use a null constructor, so don't forget to use setup()
     	data = NULL; previous = NULL; 
 	size = maxsize = start = 0;
@@ -121,7 +121,7 @@ class SlabAccumBuffer {
 	    previous = NULL;
 	}
     }
-    ~SlabAccumBuffer<T>() { 
+    ~SlabAccumBuffer() { 
         slabfree();
     }
 
@@ -218,7 +218,7 @@ class SlabAccumBuffer {
 //  a pencil.
 template <class T>
 class PencilAccum {
-    // These two variables are left in an ill-defined state after FinishPencil(0 is called.
+    // These two variables are left in an ill-defined state after FinishPencil() is called.
     CellAccum *thiscell;     // Point to the current cell
     int thisstart;	// Start index of current cell
 
@@ -232,9 +232,9 @@ class PencilAccum {
 			// use _size after
 
     // Null constructor, and nothing to destroy/free
-    PencilAccum<T>() {
+    PencilAccum() {
     }
-    ~PencilAccum<T>() {
+    ~PencilAccum() {
     }
 
     // Note that get_pencil_size() should only be used before FinishPencil
@@ -316,7 +316,7 @@ class SlabAccum {
     // Provide [] to get to the Pencil-based values
     inline PencilAccum<T> operator[](int j) { return pencils[j]; }
 
-    SlabAccum<T>() {
+    SlabAccum() {
         // Only have null constructor.
 	// This keeps this object lightweight until one actually calls setup()
 	pencils = NULL; cells = NULL; pstart = NULL; cpd = 0;
@@ -347,7 +347,7 @@ class SlabAccum {
 	cpd = maxthreads = 0;
 	SlabAccumFree.Stop();
     }
-    ~SlabAccum<T>() {
+    ~SlabAccum() {
 	destroy();
     }
 
