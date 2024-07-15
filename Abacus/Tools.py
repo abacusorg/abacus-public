@@ -413,7 +413,7 @@ if __name__ == '__main__':
     print(fm) 
     
 
-def reset_affinity(max_core_id=256):
+def _reset_affinity(max_core_id=256):
     '''
     Resets the core affinity of the current process/thread.
     Mainly used by `call_subprocess()`.
@@ -423,7 +423,7 @@ def reset_affinity(max_core_id=256):
     os.sched_setaffinity(0, range(max_core_id))
 
 
-def call_subprocess(*args, **kwargs):
+def call_subprocess(*args, reset_affinity=True, **kwargs):
     """
     This is a wrapper to subprocess.check_call() that first resets CPU affinity.
 
@@ -445,5 +445,7 @@ def call_subprocess(*args, **kwargs):
     if timeout is not None:
         timeout *= 60
 
+    preexec_fn = _reset_affinity if reset_affinity else None
+
     # A TimeoutExpired error will be raised if we time out. Could catch it, but probably fine to crash
-    subprocess.run(*args, **kwargs, timeout=timeout, preexec_fn=reset_affinity, check=True)
+    subprocess.run(*args, **kwargs, timeout=timeout, preexec_fn=preexec_fn, check=True)

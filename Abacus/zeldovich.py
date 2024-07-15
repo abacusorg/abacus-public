@@ -208,7 +208,7 @@ def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=True, white=False
     if parallel:
         ZD_cmd = shlex.split(params['ZD_mpirun_cmd']) + ZD_cmd
     with chdir(zeldovich_dir):
-        abacus.call_subprocess(ZD_cmd)
+        abacus.call_subprocess(ZD_cmd, reset_affinity=params.get('ResetAffinity', True))
 
     
 def run_override_dirs(parfn, out_parent, new_parfn='abacus_ic_fixdir.par', **kwargs):

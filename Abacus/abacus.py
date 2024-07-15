@@ -921,7 +921,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
             print(f"Performing convolution for step {stepnum:d}")
             with Tools.ContextTimer() as conv_timer:
-                call_subprocess(convolution_cmd, env=convolution_env, timeout=param.get('step_timeout'))
+                call_subprocess(convolution_cmd,
+                                env=convolution_env,
+                                timeout=param.get('step_timeout'),
+                                reset_affinity=param.get('ResetAffinity', True),
+                                )
             conv_time = conv_timer.elapsed
 
             if ProfilingMode == 2:
@@ -968,7 +972,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
         with Tools.ContextTimer() as ss_timer:
             try:
-                call_subprocess(singlestep_cmd, env=singlestep_env, timeout=param.get('step_timeout'))
+                call_subprocess(singlestep_cmd,
+                                env=singlestep_env,
+                                timeout=param.get('step_timeout'),
+                                reset_affinity=param.get('ResetAffinity', True),
+                                )
             except subprocess.CalledProcessError as cpe:
                 handle_singlestep_error(cpe)
                 raise

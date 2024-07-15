@@ -57,7 +57,9 @@ def standalone_fof(slicedir, output_paramfn='standalone_fof.par', use_site_overr
 
     with Tools.chdir(pjoin(abacus.abacuspath, 'singlestep')):
         abacus.call_subprocess(['make', 'standalone_fof'])
-        abacus.call_subprocess(['./standalone_fof', slicedir, pjoin(params['GroupDirectory'], output_paramfn)])
+        abacus.call_subprocess(['./standalone_fof', slicedir, pjoin(params['GroupDirectory'], output_paramfn)],
+                               reset_affinity=params.get('ResetAffinity', True),
+                               )
 
     return 
 

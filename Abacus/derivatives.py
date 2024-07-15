@@ -134,7 +134,10 @@ def make_derivatives(param, floatprec=False, twoD=False,
                 if not (derivs_dir / ADfn).is_file():
                     shutil.copy(source_ADfn, derivs_dir)
                 
-            call_subprocess(create_derivs_cmd, cwd=derivs_dir)
+            call_subprocess(create_derivs_cmd,
+                            cwd=derivs_dir,
+                            reset_affinity=param.get('ResetAffinity', True),
+                            )
             assert all( dpath.is_file() for dpath in dpaths )
 
             # could create in either derivs_dir or source_dir,
