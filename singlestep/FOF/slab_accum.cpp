@@ -438,25 +438,27 @@ class SlabAccum {
 	/// Also build the pstart[] array (so this will overwrite it
 	/// if build_pstart() was called first, usually harmless).
     void copy_to_ptr(T *destination) {
-	uint64 offset = 0;
+		build_pstart();
+
+	// #pragma omp parallel for schedule(dynamic)
 	for (int j=0; j<cpd; j++) {
-	    pstart[j] = offset;
+		size_t offset = pstart[j];
 	    memcpy(destination+offset, pencils[j].data, 
 	    	sizeof(T)*pencils[j]._size);
-	    offset += pencils[j]._size;
 	}
-	pstart[cpd] = offset;
     }
     
     
     /// Same as copy_to_ptr, but accepts a function to do e.g. unit conversion
     void copy_convert(T *destination, std::function< T(T) > const & conversion) {
-        uint64 offset = 0;
+		build_pstart();
+
+		// #pragma omp parallel for schedule(dynamic)
         for (int j=0; j<cpd; j++) {
+			size_t offset = pstart[j];
             for(int i = 0; i < pencils[j]._size; i++){
                 destination[offset + i] = conversion(pencils[j].data[i]);
             }
-            offset += pencils[j]._size;
         }
     }
 

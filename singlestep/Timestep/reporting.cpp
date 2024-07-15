@@ -481,8 +481,17 @@ void GatherTimings() {
                 REPORT_RATE(Output);
             REPORT(2, "Output Light Cone", OutputLightCone.Elapsed());
                 REPORT_RATE(Output);
-            REPORT(3, "Output Light Cone Search", OutputLightConeSearch.Elapsed());
+            denom = thistime;
+            REPORT(3, "Setup", OutputLightConeSetup.Elapsed());
                 REPORT_RATE(Output);
+            REPORT(3, "Search", OutputLightConeSearch.Elapsed());
+                REPORT_RATE(Output);
+            REPORT(3, "Teardown", OutputLightConeTeardown.Elapsed());
+                REPORT_RATE(Output);
+            REPORT(4, "Sort Healpix", OutputLightConeSortHealpix.Elapsed());
+                fprintf(reportfp,"---> %6.2f Mint/sec",thistime ? ((OutputDep *) Output)->np_lightcone/thistime/1e6 : 0.);
+            REPORT(4, "Free SlabAccum", OutputLightConeFreeSlabAccum.Elapsed());
+            denom = Output->Elapsed();
             REPORT(2, "Output Bin", OutputBin.Elapsed());
                 REPORT_RATE(Output);
     }

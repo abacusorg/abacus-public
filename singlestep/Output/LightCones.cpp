@@ -1,22 +1,6 @@
 /*
  * LightCones.cpp
- *
- *  Created on: Oct 1, 2012
- *      Author: dferrer
- *
- *
  *      Identify particles in the lightcone for a given set of origins and output them.
- *
- *      The particles are currently output in the following scheme:
- *      filename --"LCN/StepI/slabJ.lc"
- *      a
- *      da
- *      NCells
- *      cellheader (center, NP)
- *      *particles (pos, vel, z)*
- *      cellheader (center, NP)
- *      *particles (pos, vel, z)*
- *
  */
 
 #define LCTOLERANCE 0.0
@@ -150,10 +134,12 @@ more equal work in x slabs and y pencils, but only for a narrow range of z.
 */
 
 
-void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
+size_t makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     // Use the same format for the lightcones as for the particle subsamples
-    if (fabs(cosm->next.etaK-cosm->current.etaK)<1e-12) return;  
-            // Nothing to be done, so don't risk divide by zero.
+    if (fabs(cosm->next.etaK-cosm->current.etaK)<1e-12) return 0;
+          // Nothing to be done, so don't risk divide by zero.
+    
+    OutputLightConeSetup.Start();
     STDLOG(4, "Making light cone %d for slab %d\n", lcn, slab);
 
     LightCone LC(lcn);
@@ -170,7 +156,10 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
         }
     }
 
-    if(slabtotalcell == 0) return;
+    if(slabtotalcell == 0){
+        OutputLightConeSetup.Stop();
+        return 0;
+    }
 
     SlabAccum<RVfloat>   LightConeRV;     ///< The taggable subset in each lightcone.
     SlabAccum<TaggedPID> LightConePIDs;   ///< The PIDS of the taggable subset in each lightcone.
@@ -193,6 +182,7 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     uint64_t slabtotal = 0;
     uint64_t slabtotalsub = 0;
     uint64_t doubletagged = 0;
+    OutputLightConeSetup.Stop();
     OutputLightConeSearch.Start();
 
     #pragma omp parallel for schedule(dynamic,1) reduction(+:slabtotal) reduction (+:slabtotalsub) reduction(+:doubletagged)
@@ -262,36 +252,62 @@ void makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     }  // Done with this pencil
 
     OutputLightConeSearch.Stop();
+    OutputLightConeTeardown.Start();
 
-    STDLOG(1,"Lightcone %d opened %d cells and found %d particles (%d subsampled) in slab %d.  %d double tagged\n",
+    STDLOG(2,"Lightcone %d opened %d cells and found %d particles (%d subsampled) in slab %d.  %d double tagged\n",
             lcn,slabtotalcell,slabtotal,slabtotalsub,slab, doubletagged);
     WriteState.np_lightcone += slabtotal;
     if(slabtotal) {
         // This will create the directory if it doesn't exist (and is parallel safe)
-        char dir[32];
-        sprintf(dir, "Step%04d", ReadState.FullStepNumber);
-        CreateSubDirectory(P.LightConeDirectory, dir);  // TODO: could result in a lot of extra metadata ops
+        static int made_dir = 0;
+        if (!made_dir) {
+            made_dir = 1;
+            char dir[32];
+            sprintf(dir, "Step%04d", ReadState.FullStepNumber);
+            CreateSubDirectory(P.LightConeDirectory, dir);
+        }
 
-        SlabType lightconeslab;
-        lightconeslab = (SlabType)((int)(LightCone0RV + 3*lcn));
-        SB->AllocateSpecificSize(lightconeslab, slab, LightConeRV.get_slab_bytes());
-        LightConeRV.copy_to_ptr((RVfloat *)SB->GetSlabPtr(lightconeslab, slab));
-        SB->StoreArenaNonBlocking(lightconeslab, slab);
+        SlabType lcrvtype = (SlabType)((int)(LightCone0RV + 3*lcn));
+        SlabType lcpidtype = (SlabType)((int)(LightCone0PID + 3*lcn));
+        SlabType lchealtype = (SlabType)((int)(LightCone0Heal + 3*lcn));
 
-        lightconeslab = (SlabType)((int)LightCone0PID + 3*lcn);
-        SB->AllocateSpecificSize(lightconeslab, slab, LightConePIDs.get_slab_bytes());
-        LightConePIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(lightconeslab, slab));
-        SB->StoreArenaNonBlocking(lightconeslab, slab);
+        SB->AllocateSpecificSize(lcrvtype, slab, LightConeRV.get_slab_bytes());
+        SB->AllocateSpecificSize(lcpidtype, slab, LightConePIDs.get_slab_bytes());
+        SB->AllocateSpecificSize(lchealtype, slab, LightConeHealPix.get_slab_bytes());
 
-        lightconeslab = (SlabType)((int)LightCone0Heal + 3*lcn);
-        SB->AllocateSpecificSize(lightconeslab, slab, LightConeHealPix.get_slab_bytes());
-        unsigned int *arenaptr = (unsigned int *) SB->GetSlabPtr(lightconeslab, slab);
-        LightConeHealPix.copy_to_ptr(arenaptr);
-        tbb::parallel_sort(arenaptr, arenaptr+slabtotal);
-        SB->StoreArenaNonBlocking(lightconeslab, slab);
+        // TODO: we might want to parallelize the copies themselves, but that may
+        // require nested parallelism
+        #pragma omp parallel sections
+        {
+            #pragma omp section
+            LightConeRV.copy_to_ptr((RVfloat *)SB->GetSlabPtr(lcrvtype, slab));
+            #pragma omp section
+            LightConePIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(lcpidtype, slab));
+            #pragma omp section
+            LightConeHealPix.copy_to_ptr((unsigned int *)SB->GetSlabPtr(lchealtype, slab));
+        }
+
+        unsigned int *arenaptr = (unsigned int *) SB->GetSlabPtr(lchealtype, slab);
+        OutputLightConeSortHealpix.Start();
+        // mm.mmsort(arenaptr, out, slabtotal, UINT32_MAX, 1<<20, 32);
+        // tbb::parallel_sort(arenaptr, arenaptr+slabtotal);
+        // std::sort(arenaptr, arenaptr+slabtotal);
+        // __gnu_parallel::sort(arenaptr, arenaptr+slabtotal);
+        ppqsort::sort(ppqsort::execution::par, L2.d2_active, L2.d2_active+size, omp_get_max_threads());
+        OutputLightConeSortHealpix.Stop();
+
+        SB->StoreArenaNonBlocking(lcrvtype, slab);
+        SB->StoreArenaNonBlocking(lcpidtype, slab);
+        SB->StoreArenaNonBlocking(lchealtype, slab);
     }
 
+    OutputLightConeFreeSlabAccum.Start();
     LightConeRV.destroy();
     LightConePIDs.destroy();
     LightConeHealPix.destroy();
+    OutputLightConeFreeSlabAccum.Stop();
+
+    OutputLightConeTeardown.Stop();
+
+    return slabtotal;
 }

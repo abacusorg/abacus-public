@@ -52,6 +52,11 @@ STimer QueueMultipoleMPI;
 STimer ParallelConvolveDestructor;
 
 STimer OutputLightConeSearch;
+STimer OutputLightConeSetup;
+STimer OutputLightConeTeardown;
+STimer OutputLightConeFreeSlabAccum;
+STimer OutputLightConeSortHealpix;
+STimer FifoWriteTimer;
 STimer OutputTimeSlice;
 STimer OutputLightCone;
 STimer OutputBin;

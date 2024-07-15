@@ -620,6 +620,7 @@ public:
 class OutputDep : public SlabDependency {
 public:
     uint64 n_output = 0;
+    uint64 np_lightcone = 0;
 
     OutputDep(int cpd, int initialslab)
         : SlabDependency("Output", cpd, initialslab){ }
@@ -695,7 +696,7 @@ public:
                 // Start timing
                 // STimer lightConeTimer;
                 // lightConeTimer.Start();
-                makeLightCone(slab,i);
+                this->np_lightcone += makeLightCone(slab,i);
                 // lightConeTimer.Stop();
                 // STDLOG(2, "LightCone %d for slab %d creation took %f seconds\n", i, slab, lightConeTimer.Elapsed());
             }
