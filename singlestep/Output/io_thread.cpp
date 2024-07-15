@@ -10,6 +10,7 @@
 #include "iolib.cpp"
 #include "threadaffinity.h"
 
+#define NINSTRUCTIONS 65536
 
 #define IOLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
     LOG(iolog,__VA_ARGS__); iolog.flush(); } }
@@ -93,7 +94,10 @@ public:
     }
 
     void request(iorequest ior){
+        
+        FifoWriteTimer.Start();
         write(io_cmd, &ior, sizeof(iorequest));
+        FifoWriteTimer.Stop();
         if (ior.blocking) {
             wait_for_ioack(io_ack, ior.arenatype, ior.arenaslab);
             STDLOG(1,"Blocking IO returned\n");
@@ -245,7 +249,6 @@ private:
 
 
     // ================================================================
-    #define NINSTRUCTIONS 65536
     void *io_thread() {
         // This function runs as a stand-alone thread.
         // It must receive commands from the main program.

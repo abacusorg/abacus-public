@@ -627,6 +627,7 @@ void GatherTimings() {
     REPORT(0, "Free Arena Memory", arena_free);
     REPORT(0, "Munmap Thread", munmap_thread);
     REPORT(0, "Free SlabAccum Variables", SlabAccumFree.Elapsed());
+    REPORT(0, "Write to IO FIFO", FifoWriteTimer.Elapsed());
 
     fmt::print(reportfp,"\n\nMinCellSize = {:d}, MaxCellSize = {:d}, RMS Fractional Overdensity = {:10.4e}\n",
         WriteState.MinCellSize, WriteState.MaxCellSize, WriteState.StdDevCellSize);
