@@ -290,7 +290,7 @@ void ArenaAllocator::report_peak(int force){
     if(force || have_new_peak){
         STDLOG(0,"Peak arena allocations (regular + shared) was %.3g GB\n", peak_alloc/1024./1024/1024);
         STDLOG(0,"Peak arena allocations (shared only) was %.3g GB\n", peak_shm_alloc/1024./1024/1024);
-        STDLOG(2,"Executed %d arena fresh allocations, %d arena reuses\n", numalloc, numreuse);
+        STDLOG(0,"Executed %d arena fresh allocations, %d arena reuses\n", numalloc, numreuse);
         have_new_peak = 0;
     }
 }
