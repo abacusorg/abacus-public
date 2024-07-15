@@ -103,22 +103,40 @@ void OutputNonL0Taggable(int slab) {
     WriteState.np_subA_state += nfield[0]; 
     WriteState.np_subB_state += nfield[1]; 
 
-    if (P.ParticleSubsampleA > 0){
-        SB->AllocateSpecificSize(FieldRVSlabA, slab, rv[0].get_slab_bytes());
-        rv[0].copy_to_ptr((RVfloat *)SB->GetSlabPtr(FieldRVSlabA, slab));
-        SB->StoreArenaNonBlocking(FieldRVSlabA, slab); //NAM TODO: temporarily turned off nonblocking writes. 
+    #pragma omp parallel
+    {
+        #pragma omp single
+        {
+            if (P.ParticleSubsampleA > 0){
+                SB->AllocateSpecificSize(FieldRVSlabA, slab, rv[0].get_slab_bytes());
+                #pragma omp task
+                rv[0].copy_to_ptr((RVfloat *)SB->GetSlabPtr(FieldRVSlabA, slab));                
 
-        SB->AllocateSpecificSize(FieldPIDSlabA, slab, pid[0].get_slab_bytes());
-        pid[0].copy_to_ptr((TaggedPID *)SB->GetSlabPtr(FieldPIDSlabA, slab));
+                SB->AllocateSpecificSize(FieldPIDSlabA, slab, pid[0].get_slab_bytes());
+                #pragma omp task
+                pid[0].copy_to_ptr((TaggedPID *)SB->GetSlabPtr(FieldPIDSlabA, slab));
+            }
+            if (P.ParticleSubsampleB > 0) {
+                SB->AllocateSpecificSize(FieldRVSlabB, slab, rv[1].get_slab_bytes());
+                #pragma omp task
+                rv[1].copy_to_ptr((RVfloat *)SB->GetSlabPtr(FieldRVSlabB, slab));
+
+                SB->AllocateSpecificSize(FieldPIDSlabB, slab, pid[1].get_slab_bytes());
+                #pragma omp task
+                pid[1].copy_to_ptr((TaggedPID *)SB->GetSlabPtr(FieldPIDSlabB, slab));
+            }
+        }
+    }
+
+    // TODO: this could be part of the tasks if we had more confidence
+    // in the thread safety of SB
+    if(P.ParticleSubsampleA > 0){
+        SB->StoreArenaNonBlocking(FieldRVSlabA, slab);
         SB->StoreArenaNonBlocking(FieldPIDSlabA, slab);
     }
-    if (P.ParticleSubsampleB > 0) {
-        SB->AllocateSpecificSize(FieldRVSlabB, slab, rv[1].get_slab_bytes());
-        rv[1].copy_to_ptr((RVfloat *)SB->GetSlabPtr(FieldRVSlabB, slab));
-        SB->StoreArenaNonBlocking(FieldRVSlabB, slab);
 
-        SB->AllocateSpecificSize(FieldPIDSlabB, slab, pid[1].get_slab_bytes());
-        pid[1].copy_to_ptr((TaggedPID *)SB->GetSlabPtr(FieldPIDSlabB, slab));
+    if(P.ParticleSubsampleB > 0){
+        SB->StoreArenaNonBlocking(FieldRVSlabB, slab);
         SB->StoreArenaNonBlocking(FieldPIDSlabB, slab);
     }
 
