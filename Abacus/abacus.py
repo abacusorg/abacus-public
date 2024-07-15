@@ -33,7 +33,7 @@ import fnmatch
 import shlex
 import time
 import signal
-from tempfile import mkstemp
+from tempfile import mktemp, mkstemp
 import warnings
 from warnings import warn
 import datetime
@@ -109,9 +109,9 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     """
 
     parfn = pjoin(config_dir, parfn)
-    pardir = dirname(parfn)
     if not output_parfile:
-        output_parfile = pjoin(pardir, 'abacus.par')
+        # TODO: really we want a way to load the params to memory
+        output_parfile = mktemp(prefix='abacus', suffix='.par')
 
     # TODO: summit doesn't let us write files from the compute nodes.  Is that a problem?
     params = preprocess_params(output_parfile, parfn, use_site_overrides=use_site_overrides,
@@ -174,10 +174,8 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
         if d in params and params[d]:
             os.makedirs(params[d], exist_ok=True)
 
-    try:
-        shutil.copy(output_parfile, basedir)
-    except shutil.Error:
-        pass  # same file?
+    shutil.copy(output_parfile, pjoin(basedir, 'abacus.par'))
+    output_parfile = pjoin(basedir, 'abacus.par')
 
     info_out_path = pjoin(basedir, 'info')
     copy_contents(config_dir, info_out_path, clean=True)
