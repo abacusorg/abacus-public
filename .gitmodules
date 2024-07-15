@@ -19,3 +19,6 @@
 [submodule "external/gperftools"]
 	path = external/gperftools
 	url = git@github.com:gperftools/gperftools.git
+[submodule "external/PPQSort"]
+	path = external/PPQSort
+	url = https://github.com/GabTux/PPQSort.git
