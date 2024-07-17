@@ -130,13 +130,8 @@ public:
     // This sorts the whole list of GroupLinks.  
     void Sort() {
 	GroupSort.Start();
-	// Put in a parallel sort
 	#ifndef STANDALONE_FOF
-	// tbb::parallel_sort(list, list+length);
-    // pss::parallel_stable_sort( list, list+length, GroupLinkSortOperator() );
-    // ppqsort::sort(ppqsort::execution::par, list, list+length, omp_get_max_threads());
-    // TODO: parallel PPQSort is much slower
-    ppqsort::sort(ppqsort::execution::seq, list, list+length);
+    ips4o::parallel::sort(list, list+length);
 	#else
 	std::sort(list, list+length);
 	#endif

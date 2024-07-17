@@ -276,7 +276,7 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     if (N<Nparts*4) {
         // Probably no point in doing multi-threaded stuff.  Just make this simple.
         // std::sort(a, a+N);
-        ppqsort::sort(ppqsort::execution::seq, a, a+N);
+        ips4o::sort(a, a+N);
         memcpy(out, a, sizeof(MergeType)*N);
         return;
     }
@@ -325,7 +325,7 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
         // Sort, moving the result into the work list
         MM_SortPart.Start();
         // std::sort(a+start, a+start+size);
-        ppqsort::sort(ppqsort::execution::seq, a+start, a+start+size);
+        ips4o::sort(a+start, a+start+size);
         MM_SortPart.Stop();
 
         if (size>0) assert(a[start+size-1].key()<=maxkey);

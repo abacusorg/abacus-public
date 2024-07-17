@@ -292,7 +292,7 @@ size_t makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
         // tbb::parallel_sort(arenaptr, arenaptr+slabtotal);
         // std::sort(arenaptr, arenaptr+slabtotal);
         // __gnu_parallel::sort(arenaptr, arenaptr+slabtotal);
-        ppqsort::sort(ppqsort::execution::par, L2.d2_active, L2.d2_active+size, omp_get_max_threads());
+        // ips4o::parallel::sort(L2.d2_active, L2.d2_active+size, omp_get_max_threads());
         OutputLightConeSortHealpix.Stop();
 
         SB->StoreArenaNonBlocking(lcrvtype, slab);

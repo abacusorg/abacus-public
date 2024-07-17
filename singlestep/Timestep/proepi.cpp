@@ -22,7 +22,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
-#include "ppqsort.h"
+#include "ips4o.hpp"
 
 #include "mpi_header.cpp"
 #include "header.cpp"

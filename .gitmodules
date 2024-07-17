@@ -19,6 +19,6 @@
 [submodule "external/gperftools"]
 	path = external/gperftools
 	url = git@github.com:gperftools/gperftools.git
-[submodule "external/PPQSort"]
-	path = external/PPQSort
-	url = https://github.com/GabTux/PPQSort.git
+[submodule "external/ips4o"]
+	path = external/ips4o
+	url = git@github.com:ips4o/ips4o.git

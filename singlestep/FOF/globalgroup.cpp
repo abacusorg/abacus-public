@@ -558,7 +558,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                             // But there's no point in doing this unless there are 3+ CG.
                             if (cglist.size()>2) {
                                 // std::sort(cglist.data(), cglist.data()+cglist.size());
-                                ppqsort::sort(ppqsort::execution::seq, cglist.data(), cglist.data()+cglist.size());
+                                ips4o::sort(cglist.data(), cglist.data()+cglist.size());
                                 /*
                                 for (uint64 t = 1; t<cglist.size(); t++) 
                                     assertf(cglist[t-1].id <= cglist[t].id,
@@ -931,7 +931,7 @@ void GlobalGroupSlab::FindSubGroups() {
     // dynamic scheduling can't smooth it out.  So we're going to try ordering the
     // pencils by the work estimate (largest first)
     // std::sort(pstat, pstat+cpd);
-    ppqsort::sort(ppqsort::execution::seq, pstat, pstat+cpd);
+    ips4o::sort(pstat, pstat+cpd);
     
     int nthread = omp_get_max_threads();
     padded<int> local_np_subA[nthread];
@@ -1025,7 +1025,7 @@ void GlobalGroupSlab::FindSubGroups() {
                         uint32_t ntaggedB = 0;
                         if(FOFlevel2[g].ngroups > 0){
                             // std::sort(FOFlevel2[g].groups, FOFlevel2[g].groups+FOFlevel2[g].ngroups);
-                            ppqsort::sort(ppqsort::execution::seq, FOFlevel2[g].groups, FOFlevel2[g].groups+FOFlevel2[g].ngroups);
+                            ips4o::sort(FOFlevel2[g].groups, FOFlevel2[g].groups+FOFlevel2[g].ngroups);
                             // Groups now in descending order of multiplicity
                     
                             FOFparticle *L2start = FOFlevel2[g].p + FOFlevel2[g].groups[0].start;
