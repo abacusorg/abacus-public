@@ -25,7 +25,7 @@ The submodules are all located in `external/`.
 
 ## Dependencies
 Abacus requires:
-- A C++20 compiler
+- A C++17 compiler
 - CUDA Toolkit (for GPU directs)
 - GSL
 - tcmalloc (bundled in `external/gperftools/`)

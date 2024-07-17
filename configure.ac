@@ -85,6 +85,8 @@ AC_SEARCH_LIBS([cos],[m])
 AC_SEARCH_LIBS(cblas_dgemm, [gslcblas], [], [AC_MSG_ERROR([unable to find gslcblas!])])
 AC_SEARCH_LIBS(gsl_rng_uniform, [gsl], [], [AC_MSG_ERROR([unable to find gsl!])])
 AC_CHECK_LIB(numa, move_pages, [], [AC_MSG_WARN([unable to find numa!])])
+# for ips4o
+AC_CHECK_LIB(atomic, __atomic_fetch_add_16, [], [AC_MSG_ERROR([unable to find atomic!])])
 
 
 # With the Intel compiler, the builtin TBB is accessed via the -tbb flag (set in common.mk)

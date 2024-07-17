@@ -15,7 +15,7 @@ REAL_CXX := @REAL_CXX@
 CC := @CXX@ -x c
 # seems to help us avoid a lot of mischief:
 LDFLAGS := -Wl\,--as-needed @LDFLAGS@
-CXXFLAGS := -std=c++20
+CXXFLAGS := -std=c++17
 ROOT_DIR ?= .
 OPT := -g
 # definitely not a preprocessor option, but it's the one flag we pass to gcc and g++:

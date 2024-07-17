@@ -4605,6 +4605,54 @@ printf "%s\n" "$as_me: WARNING: unable to find numa!" >&2;} ;;
 esac
 fi
 
+# for ips4o
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for __atomic_fetch_add_16 in -latomic" >&5
+printf %s "checking for __atomic_fetch_add_16 in -latomic... " >&6; }
+if test ${ac_cv_lib_atomic___atomic_fetch_add_16+y}
+then :
+  printf %s "(cached) " >&6
+else case e in #(
+  e) ac_check_lib_save_LIBS=$LIBS
+LIBS="-latomic  $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+namespace conftest {
+  extern "C" int __atomic_fetch_add_16 ();
+}
+int
+main (void)
+{
+return conftest::__atomic_fetch_add_16 ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_cxx_try_link "$LINENO"
+then :
+  ac_cv_lib_atomic___atomic_fetch_add_16=yes
+else case e in #(
+  e) ac_cv_lib_atomic___atomic_fetch_add_16=no ;;
+esac
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS ;;
+esac
+fi
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_atomic___atomic_fetch_add_16" >&5
+printf "%s\n" "$ac_cv_lib_atomic___atomic_fetch_add_16" >&6; }
+if test "x$ac_cv_lib_atomic___atomic_fetch_add_16" = xyes
+then :
+  printf "%s\n" "#define HAVE_LIBATOMIC 1" >>confdefs.h
+
+  LIBS="-latomic $LIBS"
+
+else case e in #(
+  e) as_fn_error $? "unable to find atomic!" "$LINENO" 5 ;;
+esac
+fi
+
 
 
 # With the Intel compiler, the builtin TBB is accessed via the -tbb flag (set in common.mk)

@@ -280,7 +280,7 @@ int main(int argc, char **argv) {
     Epilogue(P,MakeIC);
 
     delete cosm;
-    delete LCOrigin;
+    delete[] LCOrigin;
     free_dependencies();
 
     // Print out some final stats
