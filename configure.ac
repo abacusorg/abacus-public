@@ -270,6 +270,7 @@ AC_ARG_ENABLE(gpu-directs,
 	[], enable_gpu_directs="check")
 if test x$enable_gpu_directs == xcheck -o x$enable_gpu_directs == xyes; then
 	AX_CHECK_CUDA
+    # CUDA_CFLAGS="$CUDA_CFLAGS -allow-unsupported-compiler"
 	if test x$enable_gpu_directs == xcheck; then
 		enable_gpu_directs=$VALID_CUDA
 	fi
@@ -471,8 +472,8 @@ else
 fi
 
 AC_ARG_WITH(ramdisk,
-    [AS_HELP_STRING([--with-ramdisk=PATH], [Path to ramdisk [/dev/shm/]])],
-    [], with_ramdisk="/dev/shm/")
+    [AS_HELP_STRING([--with-ramdisk=PATH], [Path to ramdisk [/dev/shm]])],
+    [], with_ramdisk="/dev/shm")
 AC_CHECK_FILE($with_ramdisk, [], [AC_MSG_WARN(Ramdisk path "$with_ramdisk" does not exist.)])
 AC_DEFINE_UNQUOTED(RAMDISK_PATH, "$with_ramdisk", "Path to the ramdisk")
 

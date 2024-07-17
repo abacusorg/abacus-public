@@ -69,10 +69,6 @@ SINGLESTEP_LIBS := @LIBS@ -lstdc++fs
 PARSEHEADER_LIBS := -L $(ROOT_DIR)/ParseHeader -lparseheader
 PARSEHEADER_CPPFLAGS := -I $(ROOT_DIR)/ParseHeader
 
-# pthread and openmp are of course separate, but in practice we often use them together
-THREAD_LIBS := -pthread
-THREAD_CPPFLAGS := -fopenmp
-
 GPU_CONVOLUTION_ENABLED = @GPU_CONVOLUTION_ENABLED@
 ifeq ($(GPU_CONVOLUTION_ENABLED),GPU_CONVOLUTION_ENABLED)
 	CUDA_LIBS += -lcufft
@@ -112,14 +108,18 @@ ifeq (@REAL_CXX@,g++)
         CPPFLAGS += -march=native
     endif
 
+    THREAD_CPPFLAGS := -fopenmp -pthread
+
     # offloading sends openmp to the GPU
     GNUC_GE_7 := $(shell [ $(CXX_MAJOR_VER) -ge 7 ] && echo true)
     ifeq ($(GNUC_GE_7),true)
         THREAD_CPPFLAGS += -foffload=disable
     endif
-else ifeq (@REAL_CXX@,icc)
-    CPPFLAGS += -Ofast -xHost -qmkl -qtbb #-prof-use=weighted
+else ifeq (@REAL_CXX@,icpx)
+    CPPFLAGS += -Ofast -xHost -qmkl -qtbb -Wno-vla-cxx-extension #-prof-use=weighted
     NVCC_XCOMPILERFLAGS += -qmkl -qtbb
+
+    THREAD_CPPFLAGS := -fiopenmp -pthread
 
     FFTW_LIBS := -qmkl
     FFTW_OMP_LIBS := -qmkl
@@ -127,11 +127,13 @@ else ifeq (@REAL_CXX@,icc)
 else ifeq (@REAL_CXX@,xlc++)
     CPPFLAGS += -O5
     CPPFLAGS += -qarch -qtune -qcache
+    THREAD_CPPFLAGS := -fopenmp -pthread
 
 else ifeq (@REAL_CXX@,clang++)
     # for debugging clang under gdb
     # clang refuses to catch exceptions. something to do with rtti?
     CPPFLAGS += -O3 -D_GLIBCXX_DEBUG -frtti -fexceptions -fcxx-exceptions
+    THREAD_CPPFLAGS := -fopenmp -pthread
 endif
 
 TCMALLOC_CPPFLAGS :=

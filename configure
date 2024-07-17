@@ -1445,7 +1445,7 @@ Optional Packages:
                           Near-force softening technique [single_spline]
   --with-cache-line=N     Cache line size in bytes [auto]
   --with-page-size=N      Page size in bytes [hugepage size]
-  --with-ramdisk=PATH     Path to ramdisk [/dev/shm/]
+  --with-ramdisk=PATH     Path to ramdisk [/dev/shm]
 
 Some influential environment variables:
   CXX         C++ compiler command
@@ -7489,6 +7489,7 @@ fi
 
 
 
+    # CUDA_CFLAGS="$CUDA_CFLAGS -allow-unsupported-compiler"
 	if test x$enable_gpu_directs == xcheck; then
 		enable_gpu_directs=$VALID_CUDA
 	fi
@@ -7935,7 +7936,7 @@ if test ${with_ramdisk+y}
 then :
   withval=$with_ramdisk;
 else case e in #(
-  e) with_ramdisk="/dev/shm/" ;;
+  e) with_ramdisk="/dev/shm" ;;
 esac
 fi
 

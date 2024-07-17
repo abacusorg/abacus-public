@@ -204,7 +204,7 @@ inline void Multiply_by_I(Complex *t, int blocksize) {
         }
     #else
         // Consider using SSE intrinsics to do this flip
-        __m128d neg = _mm_set_pd(0.0d, -0.0d);
+        __m128d neg = _mm_set_pd(0.0, -0.0);
         for (xyz=0; xyz<blocksize; xyz++) {
             __m128d tswap = _mm_load_pd((double *)(t+xyz));
             tswap = _mm_shuffle_pd(tswap,tswap,0x1);
