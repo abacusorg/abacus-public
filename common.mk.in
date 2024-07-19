@@ -28,7 +28,7 @@ SHELL := /bin/bash
 
 CUDA_ENABLED = @CUDA_ENABLED@
 ifeq (@CUDA_ENABLED@,CUDA_ENABLED)
-    NVCC_FLAGS := @CUDA_CFLAGS@ @DEFS@ $(OPT) -I $(ROOT_DIR)/include $(CXXFLAGS) -ccbin @CXX@
+    NVCC_FLAGS := --use_fast_math @CUDA_CFLAGS@ @DEFS@ $(OPT) -I $(ROOT_DIR)/include $(CXXFLAGS) -ccbin @CXX@
     NVCC_XCOMPILERFLAGS := 
     CUDA_LIBS := @CUDA_LDFLAGS@ -lcuda -lcudart
     NVCC := @NVCC@
@@ -102,6 +102,8 @@ FFTW_OMP_LIBS := -lfftw3_omp -lfftw3f_omp
 ifeq (@REAL_CXX@,g++)
     CXX_MAJOR_VER := $(shell $(CXX) -dumpversion | cut -f1 -d.)
     CPPFLAGS += -Ofast
+    # Most GPU HPC nodes run faster with AVX-512, but one may want to experiment with this
+    CPPFLAGS += -mprefer-vector-width=512
     #CPPFLAGS += -fsanitize=address,undefined
 
     ifeq (@ARCH@,powerpc)
