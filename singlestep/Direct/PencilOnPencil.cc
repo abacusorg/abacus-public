@@ -175,6 +175,8 @@ int posix_memalign_wrap(char * &buffer, size_t &bsize, void ** ptr,
 /// with the pointer to and size of the unused space.
 
 SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhigh, FLOAT _b2, char * &buffer, size_t &bsize, int NearFieldRadius){
+    Part1Timer.Start();
+
     eps = NFD->eps;
     
     //set known class variables
@@ -259,6 +261,9 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
             skewer_blocks[j] += NumPaddedBlocks(pencilsize);
         }
     }
+
+    Part1Timer.Stop();
+    Part2Timer.Start();
 
     // Cumulate the number of blocks in each skewer, so we know how 
     // to start enumerating.
@@ -362,6 +367,9 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     PaddedSourceTotal = NPaddedSources;  // for performance metrics, we always move around the padded amount 
     assertf(NPaddedSources <= MaxSourceSize, "NPaddedSources ({:d}) larger than allocated space (MaxSourceSize = {:d})\n", NPaddedSources, MaxSourceSize);
 
+    Part2Timer.Stop();
+    Part3Timer.Start();
+
     // Next, we have to pair up the Source and Sinks.  Each sink
     // will be acted on by 5 sources.
     // Fill the interaction lists for the sink sets
@@ -403,6 +411,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
             }
         }
     }
+    Part3Timer.Stop();
 }
 
 

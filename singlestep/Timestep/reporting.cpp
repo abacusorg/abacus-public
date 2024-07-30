@@ -356,6 +356,9 @@ void GatherTimings() {
             REPORT(2, "Precondition", NearForce->ElapsedPrecon());
             REPORT(2, "Calculate Splits", NFD->CalcSplitDirects.Elapsed());
             REPORT(2, "Construct Pencils", NFD->SICConstruction.Elapsed());
+            // REPORT(3, "Part 1", SetInteractionCollection::Part1Timer.Elapsed());
+            // REPORT(3, "Part 2", SetInteractionCollection::Part2Timer.Elapsed());
+            // REPORT(3, "Part 3", SetInteractionCollection::Part3Timer.Elapsed());
             REPORT(2, "Dispatch Interaction", NFD->SICExecute.Elapsed());
             REPORT(2, "CPU Fallback", NFD->CPUFallbackTimer.Elapsed());
                 fmt::print(reportfp,"---> {:6.2f} GDIPS, {:6.2f} Gdirects, {:6.2f} Mpart/sec\n", thistime ? gdi_cpu/thistime : 0., gdi_cpu, thistime ? NFD->NSink_CPU/thistime/1e6 : 0.);
