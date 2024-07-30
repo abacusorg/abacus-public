@@ -382,7 +382,8 @@ void GatherTimings() {
                 denom = NFD->GPUThroughputTime;
                 fprintf(reportfp,"\n\t\t\t\t---> %6.2f effective GDIPS, %6.2f Mpart/sec, %6.2f Msink/sec", thistime ? NFD->gdi_gpu/thistime : 0., thistime ? NearForce->num_particles/thistime/1e6 : 0., thistime ? NFD->total_sinks/thistime/1e6 : 0.);
                 fprintf(reportfp,"\n\t\t\t\t---> %6.2f Gdirects, %6.2f padded Gdirects", NFD->gdi_gpu, NFD->gdi_padded_gpu);
-                fprintf(reportfp,"\n\t\t\t\t---> with %d device threads, estimate %.1f%% thread concurrency", NFD->NBuffers, (NFD->DeviceThreadTimer - NFD->GPUThroughputTime)/(NFD->DeviceThreadTimer - NFD->DeviceThreadTimer/NFD->NBuffers)*100);
+                // The time at least one GPU thread is running, divided by the the ideal time, which is splitting the thread-seconds over all threads
+                fprintf(reportfp,"\n\t\t\t\t---> with %d device threads, estimate %.1f%% thread imbalance", NFD->NBuffers, (NFD->GPUThroughputTime/(NFD->DeviceThreadTimer/NFD->NBuffers) - 1)*100);
                 
             
             /*// Such detailed stats are not very useful

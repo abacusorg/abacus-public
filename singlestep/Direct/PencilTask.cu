@@ -9,6 +9,14 @@
  * SIC-supplied memory.
 */
 
+inline float4& operator +=(float4& a, const float4& b) {
+    a.x += b.x;
+    a.y += b.y;
+    a.z += b.z;
+    a.w += b.w;
+    return a;
+}
+
 // ======================== DeviceData =====================
 
 /// This is the structure that is actually passed to the GPU,
@@ -161,42 +169,38 @@ void GPUPencilTask(void *item, int g){
     StreamData.b2 = task->b2;
     StreamData.nfwidth = task->nfwidth;
 
-    // Need to load the particles to the PinnedBuffer.
-    // Copy the sinks into position
-    task->LaunchDeviceKernels.Stop();
-    task->FillSinks.Start();
-    for (int j=0; j<task->NSinkSets; j++) {
-        task->SinkPlan[j].copy_into_pinned_memory(PinnedBuffer.SinkSetPositions, task->SinkSetStart[j], task->SinkSetCount[j], task->SinkPosSlab, task->nfradius, task->Nslab[task->nfradius]);
-    }
-    task->FillSinks.Stop();
-    task->LaunchDeviceKernels.Start();
-    
-    // Now copy these to the GPU
-    CopyListToGPU(SinkSetPositions, X, sizeof(FLOAT) * task->NSinkBlocks * NFBlockSize);
-    CopyListToGPU(SinkSetPositions, Y, sizeof(FLOAT) * task->NSinkBlocks * NFBlockSize);
-    CopyListToGPU(SinkSetPositions, Z, sizeof(FLOAT) * task->NSinkBlocks * NFBlockSize);
-
-    task->LaunchDeviceKernels.Stop();
-
-    // Repeat this with the sources
-    task->FillSources.Start();
-    for (int j=0; j<task->NSourceSets; j++) {
-        task->SourcePlan[j].copy_into_pinned_memory(PinnedBuffer.SourceSetPositions, task->SourceSetStart[j], task->SourceSetCount[j], task->SourcePosSlab, task->nfradius, task->Nslab);
-    }
-    task->FillSources.Stop();
-    task->LaunchDeviceKernels.Start();
-    
-    CopyListToGPU(SourceSetPositions, X, sizeof(FLOAT) * task->NSourceBlocks * NFBlockSize);
-    CopyListToGPU(SourceSetPositions, Y, sizeof(FLOAT) * task->NSourceBlocks * NFBlockSize);
-    CopyListToGPU(SourceSetPositions, Z, sizeof(FLOAT) * task->NSourceBlocks * NFBlockSize);
-
-    // Now copy other information from the SIC to the GPU
+    // Copy indexing information from the SIC to the GPU
     CopyToGPU(SinkSetIdMax,                 sizeof(int)*task->NSinkSets);
     CopyToGPU(SinkBlockParentPencil,        sizeof(int)*task->NSinkBlocks);
     CopyToGPU(SourceSetStart,               sizeof(int)*task->NSourceSets);
     CopyToGPU(SourceSetCount,               sizeof(int)*task->NSourceSets);
     CopyToGPU(SinkSourceInteractionList,    sizeof(int)*task->InteractionCount);
     CopyToGPU(SinkSourceYOffset,            sizeof(FLOAT)*task->InteractionCount);
+
+    // Need to load the particles to the PinnedBuffer.
+    // Copy the sinks into position
+    task->LaunchDeviceKernels.Stop();
+    task->FillSinks.Start();
+    for (int j=0; j<task->NSinkSets; j++) task->SinkPlan[j].copy_into_pinned_memory<PENCIL_DIM::X>(PinnedBuffer.SinkSetPositions, task->SinkSetStart[j], task->SinkSetCount[j], task->SinkPosSlab, task->nfradius, task->Nslab[task->nfradius]);
+    CopyListToGPU(SinkSetPositions, X, sizeof(FLOAT) * task->NSinkBlocks * NFBlockSize);
+    for (int j=0; j<task->NSinkSets; j++) task->SinkPlan[j].copy_into_pinned_memory<PENCIL_DIM::Y>(PinnedBuffer.SinkSetPositions, task->SinkSetStart[j], task->SinkSetCount[j], task->SinkPosSlab, task->nfradius, task->Nslab[task->nfradius]);
+    CopyListToGPU(SinkSetPositions, Y, sizeof(FLOAT) * task->NSinkBlocks * NFBlockSize);
+    for (int j=0; j<task->NSinkSets; j++) task->SinkPlan[j].copy_into_pinned_memory<PENCIL_DIM::Z>(PinnedBuffer.SinkSetPositions, task->SinkSetStart[j], task->SinkSetCount[j], task->SinkPosSlab, task->nfradius, task->Nslab[task->nfradius]);
+    CopyListToGPU(SinkSetPositions, Z, sizeof(FLOAT) * task->NSinkBlocks * NFBlockSize);
+    task->FillSinks.Stop();
+
+    // Repeat this with the sources
+    task->FillSources.Start();
+    for (int j=0; j<task->NSourceSets; j++) task->SourcePlan[j].copy_into_pinned_memory<PENCIL_DIM::X>(PinnedBuffer.SourceSetPositions, task->SourceSetStart[j], task->SourceSetCount[j], task->SourcePosSlab, task->nfradius, task->Nslab);
+    CopyListToGPU(SourceSetPositions, X, sizeof(FLOAT) * task->NSourceBlocks * NFBlockSize);
+    for (int j=0; j<task->NSourceSets; j++) task->SourcePlan[j].copy_into_pinned_memory<PENCIL_DIM::Y>(PinnedBuffer.SourceSetPositions, task->SourceSetStart[j], task->SourceSetCount[j], task->SourcePosSlab, task->nfradius, task->Nslab);
+    CopyListToGPU(SourceSetPositions, Y, sizeof(FLOAT) * task->NSourceBlocks * NFBlockSize);
+    for (int j=0; j<task->NSourceSets; j++) task->SourcePlan[j].copy_into_pinned_memory<PENCIL_DIM::Z>(PinnedBuffer.SourceSetPositions, task->SourceSetStart[j], task->SourceSetCount[j], task->SourcePosSlab, task->nfradius, task->Nslab);
+    CopyListToGPU(SourceSetPositions, Z, sizeof(FLOAT) * task->NSourceBlocks * NFBlockSize);
+    task->FillSources.Stop();
+    task->LaunchDeviceKernels.Start();
+    
+    
 
     // Run the GPU kernel for this Interaction collection!
     dim3 dimGrid(task->NSinkBlocks);
@@ -222,9 +226,16 @@ void GPUPencilTask(void *item, int g){
 
     // Now copy the data from Pinned back to the SIC buffer
     task->CopyAccelFromPinned.Start();
+    int k = 0;
     for (int j=0; j<task->NSinkSets; j++) {
-        int rowindex = j % task->Nk;  // index of central sink cell in row
-        task->SinkPlan[j].copy_from_pinned_memory((void *)PinnedBuffer.SinkSetAccelerations, task->SinkSetStart[j], task->SinkSetCount[j], (void *) task->SinkAccSlab, rowindex, task->nfradius, task->Nslab[task->nfradius]);
+        task->SinkPlan[j].copy_from_pinned_memory(
+           (void *)(PinnedBuffer.SinkSetAccelerations + task->SinkSetStart[j]),
+           task->SinkSetCount[j],
+           (void *) task->SinkAccSlab,
+           k,
+           task->nfradius
+        );
+        if (++k == task->Nk) k = 0;
     }
 
     // Stop the timing

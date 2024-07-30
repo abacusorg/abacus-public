@@ -253,7 +253,7 @@ public:
     }
 
     friend padded operator+(const T& lhs, const padded& rhs) {
-        return pint64(lhs + rhs.i);
+        return padded(lhs + rhs.i);
     }
 
     friend padded operator+(const padded& lhs, const padded& rhs) {

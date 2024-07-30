@@ -177,6 +177,10 @@ cudaStream_t * DeviceStreams;        ///< The actual CUDA streams, one per threa
 GPUBuffer * Buffers;                 ///< The pointers to the allocated memory
 ThreadInfo *DeviceThreads;        ///< The threads!
 
+// Sometimes for profiling we want all the GPU threads to start at the same time.
+// One can set this flag to 0 and use the StartGPUBufferThreads() in that case.
+volatile int start_gpu_buffer_work = 1;
+
 
 // =============== Code to invoke execution on a SIC ============
 
@@ -440,6 +444,10 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     init = 1;
 }
 
+extern "C" void StartGPUBufferThreads(){
+    start_gpu_buffer_work = 1;
+}
+
 
 /// This is the routine to turn off the GPU threads,
 /// reset the device, and delete the host-side memory.
@@ -456,7 +464,7 @@ void GPUReset(){
         assert(work_queues[i].empty());
     }
 
-    cudaDeviceReset();
+    // cudaDeviceReset();
 
     delete[] Buffers;
     delete[] DeviceStreams;
@@ -551,6 +559,8 @@ void *QueueWatcher(void *arg){
 
     Buffers[n].ready = 1;
 
+    while(!start_gpu_buffer_work){}
+
     // Main work loop: watch the queue
     while(true){
         GPUQueueTask item;
@@ -570,7 +580,7 @@ void *QueueWatcher(void *arg){
     checkCudaErrors(cudaProfilerStop());
 
     // Free our memory
-    /* Leaking these saves some time, maybe a few seconds
+    // Leaking these sometimes saves time, but it seems better to do it in parallel if possible
     checkCudaErrors(cudaFree(Buffers[n].device));
     if (UsePinnedGPUMemory) {
         // The following cudaFreeHost lines cause this error on summitdev
@@ -582,7 +592,7 @@ void *QueueWatcher(void *arg){
     } else {
         free(Buffers[n].hostWC);
         free(Buffers[n].host);
-    }*/
+    }
     
     STDLOG(1, "Terminated GPU thread %d\n", n);
 
@@ -609,21 +619,16 @@ void *QueueWatcher(void *arg){
 /// That gives a global throughput number.
 
 void CUDART_CB StartThroughputTimer(cudaStream_t stream, cudaError_t status, void *data){
-    assert(pthread_mutex_lock(&SetInteractionCollection::GPUTimerMutex) == 0);
-    SetInteractionCollection::ActiveThreads = SetInteractionCollection::ActiveThreads + 1;
-    if (SetInteractionCollection::ActiveThreads == 1)
+    int n = ++SetInteractionCollection::ActiveThreads;
+    if (n == 1)
         SetInteractionCollection::GPUThroughputTimer.Start();
-    assert(pthread_mutex_unlock(&SetInteractionCollection::GPUTimerMutex) == 0);
 }
 
 void CUDART_CB MarkCompleted( cudaStream_t stream, cudaError_t status, void *data){
 #ifdef CUDADIRECT
-    
-    assert(pthread_mutex_lock(&SetInteractionCollection::GPUTimerMutex) == 0);
-    SetInteractionCollection::ActiveThreads = SetInteractionCollection::ActiveThreads - 1;
-    if (SetInteractionCollection::ActiveThreads == 0)
+    int n = --SetInteractionCollection::ActiveThreads;
+    if (n == 0)
         SetInteractionCollection::GPUThroughputTimer.Stop();
-    assert(pthread_mutex_unlock(&SetInteractionCollection::GPUTimerMutex) == 0);
 #endif
 }
 

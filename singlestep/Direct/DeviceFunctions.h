@@ -9,6 +9,7 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
 		int *GPUQueueAssignments,
 		int *maxsinkblocks, int *maxsourceblocks, int UsePinnedGPUMemory);
 extern "C" void GPUReset();
+extern "C" void StartGPUBufferThreads();
 
 extern "C" void print_gpu_mem_usage();
 

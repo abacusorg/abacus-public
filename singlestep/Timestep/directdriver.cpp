@@ -345,10 +345,10 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
         }
     }
 
-    int jl =0;
     for(int n = 0; n < NSplit; n++){
         SICConstruction.Start();
         // We may wish to make these in an order that will alter between GPUs
+        int jl = n > 0 ? SplitPoint[n-1] : 0;
         int jh = SplitPoint[n];
         // The construction and execution are timed internally in each SIC then reduced in Finalize(slab)
         // This is where the SetInteractionCollection is actually constructed
@@ -372,7 +372,6 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
         // This SIC is ready; send it to be executed
         SlabInteractionCollections[slabID][n]->GPUExecute(blocking);
         //SlabInteractionCollections[slabID][n]->CPUExecute();
-        jl = jh;
     SICExecute.Stop();
     }
 

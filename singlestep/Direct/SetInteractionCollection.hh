@@ -45,6 +45,7 @@ to be applied on-the-fly when indexing positions instead of accels.
 #ifndef __SIC_HH
 #define __SIC_HH
 
+#include <atomic>
 #include <vector>
 
 #ifdef CUDADIRECT
@@ -82,6 +83,8 @@ public:
     #endif
 };
 
+enum PENCIL_DIM { X, Y, Z, XYZ };
+
 /** These are the Plans for each sink pencil, containing the information
 on where to find the data for each of the component cells.
 */
@@ -95,12 +98,16 @@ class SinkPencilPlan {
     // The cells are not assumed to be contiguous (e.g., periodic wraps)
     // These arrays are sized to the max size in config.h
 
+#ifdef PARALLEL
+    // TODO: this is not needed for 1D parallel
     unsigned int ghostoffset;  //< 2D: offset between pos and acc indices, for this row
+#endif
 
+    template<PENCIL_DIM dim>
     void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total,
     	FLOAT *SinkPosSlab, int NearFieldRadius, uint64 Nslab);
-    void copy_from_pinned_memory(void *pinacc, int start, int total, 
-    	void *SinkAccSlab, int sinkindex, int NearFieldRadius, uint64 Nslab);
+    void copy_from_pinned_memory(void *pinacc, int total, 
+    	void *SinkAccSlab, int sinkindex, int NearFieldRadius);
     int load(int x, int y, int z, int NearFieldRadius, int truncate);
 };
 
@@ -115,6 +122,7 @@ class SourcePencilPlan {
     // The cells are not assumed to be contiguous (e.g., periodic wraps)
     // These arrays are sized to the max size in config.h
 
+    template<PENCIL_DIM dim>
     void copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, int total,
     	FLOAT **SourcePosSlab, int NearFieldRadius, uint64 *Nslab);
     int load(int x, int y, int z, int NearFieldRadius);
@@ -171,9 +179,13 @@ class SetInteractionCollection{
         uint64 bytes_to_device, bytes_from_device;
     
         // These are shared by all threads
-        static volatile int ActiveThreads;
-        static pthread_mutex_t GPUTimerMutex;
+        static std::atomic<int> ActiveThreads;
         static STimer GPUThroughputTimer;
+
+        // Constructor timers
+        static STimer Part1Timer;
+        static STimer Part2Timer;
+        static STimer Part3Timer;
 
 	FLOAT  *SinkPosSlab;    ///< Ptr to the start of the PosXYZ slab
 	FLOAT  *SourcePosSlab[2*NFRADIUS+1];    ///< Ptr to the start of the PosXYZ slabs for Sources

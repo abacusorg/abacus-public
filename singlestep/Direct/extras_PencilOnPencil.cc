@@ -20,7 +20,7 @@ void SetInteractionCollection::CPUExecute(){
     List3<FLOAT> *SinkSetPositions = new List3<FLOAT>(NSinkBlocks*NFBlockSize);
     #pragma omp parallel for schedule(dynamic,1)
     for (int j=0; j<NSinkSets; j++) {
-        SinkPlan[j].copy_into_pinned_memory(*SinkSetPositions, SinkSetStart[j], SinkSetCount[j], SinkPosSlab, nfradius, Nslab[nfradius]);
+        SinkPlan[j].copy_into_pinned_memory<PENCIL_DIM::XYZ>(*SinkSetPositions, SinkSetStart[j], SinkSetCount[j], SinkPosSlab, nfradius, Nslab[nfradius]);
     }
     FillSinks.Stop();
 
@@ -28,7 +28,7 @@ void SetInteractionCollection::CPUExecute(){
     List3<FLOAT> *SourceSetPositions = new List3<FLOAT>(NSourceBlocks*NFBlockSize);
     #pragma omp parallel for schedule(dynamic,1)
     for (int j=0; j<NSourceSets; j++) {
-        SourcePlan[j].copy_into_pinned_memory(*SourceSetPositions, SourceSetStart[j], SourceSetCount[j], SourcePosSlab, nfradius, Nslab);
+        SourcePlan[j].copy_into_pinned_memory<PENCIL_DIM::XYZ>(*SourceSetPositions, SourceSetStart[j], SourceSetCount[j], SourcePosSlab, nfradius, Nslab);
     }
     FillSources.Stop();
 
@@ -136,7 +136,7 @@ void SetInteractionCollection::CPUExecute(){
 	// We need each Y skewer to be done by one thread
 	for (int k=0; k<cpd; k++) {
 	    int idx = j*Nk+k;
-	    SinkPlan[idx].copy_from_pinned_memory(SinkSetAccelerations, SinkSetStart[idx], SinkSetCount[idx], SinkAccSlab, idx, nfradius, Nslab[nfradius]);
+	    SinkPlan[idx].copy_from_pinned_memory(SinkSetAccelerations + SinkSetStart[idx], SinkSetCount[idx], SinkAccSlab, idx, nfradius);
 	}
 
     }
