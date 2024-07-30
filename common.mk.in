@@ -21,6 +21,7 @@ OPT := -g
 # definitely not a preprocessor option, but it's the one flag we pass to gcc and g++:
 CPPFLAGS := @DEFS@ -m64 -I $(ROOT_DIR)/include $(OPT) $(LDFLAGS)
 #CPPFLAGS += -Wall  #TODO: clean up compiler warnings
+#CPPFLAGS += -fno-omit-frame-pointer -momit-leaf-frame-pointer -g3 -gdwarf-4
 
 # We use bash syntax in some Makefiles
 SHELL := /bin/bash
