@@ -38,7 +38,7 @@ void OutofCoreConvolution::SwizzleMultipoles(int z){
     // Swizzle does actually benefit from multithreading, so we don't want to do that in the IO thread
 
 	ArraySwizzle.Start();
-    #pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static) collapse(2)
     for(int m=0;m<rml;m++)
         for(int x=0;x<cpd;x++)
 			for(int y=0;y<cpd;y++)
@@ -52,7 +52,7 @@ void OutofCoreConvolution::SwizzleMultipoles(int z){
 void OutofCoreConvolution::SwizzleTaylors(int z){
     ArraySwizzle.Start();
     // These loops go from outer to inner for the destination array
-    #pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(static) collapse(2)
     for(int x=0;x<cpd;x++) {
         for(int m=0;m<rml;m++)
 		for(int y=0;y<cpd;y++) {
@@ -196,10 +196,10 @@ void OutofCoreConvolution::BlockConvolve(void) {
                 cudaStreamSynchronize(dev_stream[g]);
             }
             #else
-            #pragma omp parallel for schedule(static)
+            #pragma omp parallel for schedule(static) collapse(2)
             for(int m=0;m<rml;m++) {
-                int g = omp_get_thread_num();
                 for(int y=0;y<cpd;y++) {
+                    int g = omp_get_thread_num();
                     for(int x=0;x<cpd;x++)
                         in_1d[g][x] = Mtmp[m*cpd*cpd + x*cpd + y];
                     fftw_execute(plan_forward_1d[g]);
@@ -231,10 +231,10 @@ void OutofCoreConvolution::BlockConvolve(void) {
                 cudaStreamSynchronize(dev_stream[g]);
             }
             #else
-            #pragma omp parallel for schedule(static)
+            #pragma omp parallel for schedule(static) collapse(2)
             for(int m=0;m<rml;m++) {
-                int g = omp_get_thread_num();
                 for(int y=0;y<cpd;y++) {
+                    int g = omp_get_thread_num();
                     for(int x=0;x<cpd;x++)
                         in_1d[g][x] = Mtmp[m*cpd*cpd + x*cpd + y];
                     fftw_execute(plan_backward_1d[g]);

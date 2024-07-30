@@ -233,8 +233,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
 	
 	STDLOG(3, "Entering InCoreConvolve\n");
 
-    // why is this 50% faster with dynamic?
-	#pragma omp parallel for schedule(dynamic)
+	#pragma omp parallel for schedule(static)
     for(int block=0;block<nblocks;block++) {
             
         Complex *FM, *FMabc, *FMap2bcm2, *FMabp2cm2;
