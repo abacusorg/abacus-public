@@ -261,9 +261,10 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     // easy to pack these in.  But the problem is that we want to 
     // use all of the GPU buffers for efficiency, so that sets a 
     // minimum.
+    int NBuffers_per_SIC = NBuffers;
     STDLOG(2,"Found %d sink and %d source blocks in slab %d\n", totSinkBlocks, totSourceBlocks, slabID);
-    int useMaxSink = totSinkBlocks/NBuffers;
-    useMaxSink *= (1+1.1*NBuffers/P.cpd); 
+    int useMaxSink = totSinkBlocks/NBuffers_per_SIC;
+    useMaxSink *= (1+1.1*NBuffers_per_SIC/P.cpd); 
         // Trying to bias up to leave the last one short instead of long
     useMaxSink = std::min(useMaxSink, MaxSinkBlocks);
     int useMaxSource = MaxSourceBlocks;

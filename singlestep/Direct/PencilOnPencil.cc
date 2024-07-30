@@ -242,13 +242,12 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     // Next, fill in sink data
     // Count the Sinks
 
-    uint64 skewer_blocks[j_width+nfwidth];   // Number of blocks in this k-skewer
+    uint64_t skewer_blocks[j_width+nfwidth] = {0};   // Number of blocks in this k-skewer
             // This is oversized because we'll re-use for Sources
 
     const int twoD = MPI_size_z > 1;  // Don't do a z-wrap in 2D
     #pragma omp parallel for schedule(static) reduction(+:SinkTotal,skewer_blocks) collapse(2)
     for(int j = 0; j < j_width; j++){
-        int this_skewer_blocks = 0;   // Just to have a local variable
         for(int k = 0; k < Nk; k ++) {
 	        int zmid = index_to_zcen(k, twoD);
             int sinkindex = j * Nk + k;
@@ -259,11 +258,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
             SinkTotal += pencilsize;
             skewer_blocks[j] += NumPaddedBlocks(pencilsize);
         }
-        skewer_blocks[j] = this_skewer_blocks;
     }
-
-    Part1Timer.Stop();
-    Part2Timer.Start();
 
     // Cumulate the number of blocks in each skewer, so we know how 
     // to start enumerating.
@@ -290,7 +285,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     for(int j = 0; j < j_width; j++){
         // Figure out where to start the enumeration in this skewer
         int block_start = skewer_blocks_start[j];
-        int NPaddedSinks = NFBlockSize*block_start; 
+        int NPaddedSinks = NFBlockSize*block_start;
 
         for(int k = 0; k < Nk; k ++) {
             int sinkset = j * Nk + k;
@@ -325,7 +320,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
 
     #pragma omp parallel for schedule(static) reduction(+:SourceTotal,skewer_blocks) collapse(2)
     for(int j = 0; j<j_width+nfwidth-1; j++) {
-        int this_skewer_blocks = 0;   // Just to have a local variable
         for(int k = 0; k < Nk; k++) {
 	    int zmid = index_to_zcen(k, twoD);
             int sourceindex = j * Nk + k;
@@ -336,7 +330,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
             SourceTotal += sourcelength;
             skewer_blocks[j] += NumPaddedBlocks(sourcelength);
         }
-        skewer_blocks[j] = this_skewer_blocks;
     }
 
     // Cumulate the number of blocks in each skewer, so we know how 
@@ -351,7 +344,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
             "The number of padded source particles will overflow a 32-bit signed int");
 
     // SourceSetStart[set] holds the padded particle index
-    #pragma omp parallel for schedule(static) 
+    #pragma omp parallel for schedule(static)
     for(int j = 0; j<j_width+nfwidth-1; j++) {
         int block_start = skewer_blocks_start[j];
         int NPaddedSources = NFBlockSize*block_start; 
@@ -410,8 +403,6 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
             }
         }
     }
-
-    Part3Timer.Stop();
 }
 
 
@@ -444,4 +435,3 @@ void SetInteractionCollection::GPUExecute(int){
 volatile int SetInteractionCollection::ActiveThreads = 0;
 pthread_mutex_t SetInteractionCollection::GPUTimerMutex = PTHREAD_MUTEX_INITIALIZER;
 STimer SetInteractionCollection::GPUThroughputTimer;
-
