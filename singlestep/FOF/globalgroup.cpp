@@ -931,14 +931,6 @@ void GlobalGroupSlab::FindSubGroups() {
     // pencils by the work estimate (largest first)
     // std::sort(pstat, pstat+cpd);
     ips4o::sort(pstat, pstat+cpd);
-    
-    int nthread = omp_get_max_threads();
-    padded<int> local_np_subA[nthread];
-    padded<int> local_np_subB[nthread];
-    for(int i = 0; i < nthread; i++){
-        local_np_subA[i] = 0;
-        local_np_subB[i] = 0;
-    }
 
     int np_subA = 0, np_subB = 0;
     NUMA_FOR(jj,0,cpd, reduction(+:np_subA,np_subB), FALLBACK_DYNAMIC){
