@@ -105,7 +105,7 @@ public:
         SB->AllocateArena(PosXYZSlab, slab);
         int cpd = P.cpd;
 
-        NUMA_FOR(y,0,cpd)
+        NUMA_FOR(y,0,cpd, NO_CLAUSE, FALLBACK_DYNAMIC){
             // Execute the transpose in pencils
             posstruct *pos = CP->PosCell(slab, y, node_z_start_ghost);
             List3<FLOAT> posxyz = CP->PosXYZCell(slab, y, node_z_start_ghost);
@@ -117,6 +117,7 @@ public:
                 posxyz.Z[i] = pos[i].z;
             }
         }
+        NUMA_FOR_END;
     }
 };
 

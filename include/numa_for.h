@@ -26,31 +26,36 @@ for(int y = 0; y < cpd; y++){
 
 Replace the pragma and outer for loop with NUMA_FOR, as follows:
 
-NUMA_FOR(y,0,cpd)
+NUMA_FOR(y, 0, cpd, NO_CLAUSE, FALLBACK_STATIC){
     for(int z = 0; z < cpd; z++){
         ProcessCell(slab,y,z);
     }
 }
+NUMA_FOR_END;
 
-N.B. There is no open brace after NUMA_FOR (it must open the loop itself
-to set the iteration variable), but don't forget the usual close brace.
+The 4th argument is a clause that follows the "#omp pragma parallel" directive,
+or NO_CLAUSE if there is none. For example:
 
-Remember that this is still ultimately dynamic scheduling.  So one needs to keep
-in mind the scheduling overhead; don't use this if the loop iterations are ultra-fast.
+int sum = 0;
+NUMA_FOR(y, 0, cpd, reduction(+:sum), FALLBACK_STATIC){
+    for(int z = 0; z < cpd; z++){
+        sum += ProcessCell(slab,y,z);
+    }
+}
+NUMA_FOR_END;
 
-This scheduler is unlikely to help with memory-bandwidth-bound loops, like the kick
-or drift. It might help keep work within a NUMA node, but it probably wouldn't matter much.
+FALLBACK_[STATIC|DYNAMIC] governs the behavior when NUMA_FOR is not enabled.
+
+Remember that this is still ultimately dynamic scheduling with a small number of queues.
+So one needs to keep in mind the scheduling overhead; don't use this if the loop
+iterations are ultra-fast.
 
 Details
 -------
-We implement this using OpenMP tasks and atomic addition, so it should be fairly efficient.
+We implement this using OpenMP threads and atomic addition, so it should be fairly efficient.
 We take care to cache-line pad the ints that count iterations by defining an "pint64" class
-(aligned 64-bit int).  At the pencil level on summit, we haven't seen noticable scheduling
+(aligned 64-bit int).  At the pencil level, we haven't seen noticable scheduling
 overhead over static.
-
-This scheduler doesn't support any reduction clauses, partly because OpenMP tasks don't
-yet natively support reductions.  So one has to implement any reductions manually, unfortunately.
-The pint64 class may be useful for this.
 
 The scheduling tries to assign iterations to nodes based on the fraction of threads in that
 node.  The NUMA parts of the init function are pretty verbose, but boil down to counting
@@ -69,33 +74,35 @@ The original idea for implementing a custom scheduler came from: https://stackov
 
 #ifdef ENABLE_NUMA_FOR
 
-// This messy macro chain is used to generate unique variable names
-// in case NUMA_FOR is used more than one time in a context
-// From: https://stackoverflow.com/a/17624752
-#define PP_CAT(a, b) PP_CAT_I(a, b)
-#define PP_CAT_I(a, b) PP_CAT_II(~, a ## b)
-#define PP_CAT_II(p, res) res
-#define UNIQUE_NAME(base) PP_CAT(base, __LINE__)
+#define FALLBACK_DYNAMIC dynamic
+#define FALLBACK_STATIC static
+
+#define DO_PRAGMA(X) _Pragma (#X)
+#define OMP_PARALLEL(X) DO_PRAGMA(omp parallel X)
+
+#define NO_CLAUSE
 
 // This is the primary macro definition
-#define NUMA_FOR(I,START,END)\
-pint64 UNIQUE_NAME(_next_iter)[_N_numa_nodes];\
-int64_t UNIQUE_NAME(_last_iter)[_N_numa_nodes];\
+#define NUMA_FOR(I,START,END,CLAUSE,FALLBACK) { \
+pint64 _next_iter[_N_numa_nodes]; \
+int64_t _last_iter[_N_numa_nodes]; \
 \
-UNIQUE_NAME(_next_iter)[0] = (int64_t) (START);\
-UNIQUE_NAME(_last_iter)[_N_numa_nodes-1] = (int64_t) (END);\
-for(int _nn = _N_numa_nodes-1; _nn > 0; _nn--){\
-    UNIQUE_NAME(_next_iter)[_nn] = (int64_t) _numa_cumulative_nthread[_nn]*\
-    (UNIQUE_NAME(_last_iter)[_N_numa_nodes-1] - UNIQUE_NAME(_next_iter)[0])/_numa_cumulative_nthread[_N_numa_nodes];\
-    UNIQUE_NAME(_last_iter)[_nn-1] = UNIQUE_NAME(_next_iter)[_nn];\
-}\
-_Pragma("omp parallel")\
-    for(int64_t I; ; ){\
-        int _nn = _thread_numa_nodes[omp_get_thread_num()];\
-        _Pragma("omp atomic capture")\
-        I = UNIQUE_NAME(_next_iter)[_nn].i++;\
-        if(I >= UNIQUE_NAME(_last_iter)[_nn])\
-            break;\
+_next_iter[0] = static_cast<int64_t>(START); \
+_last_iter[_N_numa_nodes-1] = static_cast<int64_t>(END); \
+for(int _nn = _N_numa_nodes-1; _nn > 0; _nn--){ \
+    _next_iter[_nn] = static_cast<int64_t>(_numa_cumulative_nthread[_nn])* \
+    (_last_iter[_N_numa_nodes-1] - _next_iter[0])/_numa_cumulative_nthread[_N_numa_nodes]; \
+    _last_iter[_nn-1] = _next_iter[_nn]; \
+} \
+OMP_PARALLEL(CLAUSE) \
+    for(int64_t I; ; ) { \
+        int _nn = _thread_numa_nodes[omp_get_thread_num()]; \
+        _Pragma("omp atomic capture") \
+        I = _next_iter[_nn].i++; \
+        if(I >= _last_iter[_nn]) \
+            break;
+
+#define NUMA_FOR_END }}
 
 
 int *_thread_numa_nodes;
@@ -188,9 +195,11 @@ void finish_numa_for(){
 
 // If disabled, fall back to dynamic scheduling
 
-#define NUMA_FOR(I,START,END)\
-_Pragma("omp parallel for schedule(dynamic)")\
-for(int64_t I = START; I < END; I++){
+#define NUMA_FOR(I,START,END,CLAUSE,FALLBACK) \
+_Pragma("omp parallel for schedule("##FALLBACK##") " CLAUSE) \
+for(int64_t I = START; I < END; I++)
+
+#define NUMA_FOR_END
 
 #endif // ENABLE_NUMA_FOR
 
@@ -256,7 +265,7 @@ public:
         return i;
     }
 
-    friend ostream& operator<<(ostream &lhs, const padded& rhs){
+    friend std::ostream& operator<<(std::ostream &lhs, const padded& rhs){
         lhs << rhs.i;
         return lhs;
     }

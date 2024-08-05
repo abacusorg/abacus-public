@@ -153,21 +153,9 @@ void SlabMultipolesLocal::ComputeMultipoleFFT( int x, FLOAT3 *spos,
     STimer wc;
     PTimer _kernel, _c2r, _fftz;
     PTimer _kernel_c2r;
-    pdouble localMassSlabX[nprocs];
-    double *localMassSlabZ = new double[nprocs*cpd];
-    padded<double3> localdipole[nprocs];
-    
-    // Init with OpenMP to preserve thread locality
-    #pragma omp parallel for schedule(static)
-    for(int g = 0; g < nprocs; g++){
-        localMassSlabX[g] = 0.;
-        localdipole[g] = double3(0.);
-        for(int z = 0; z < cpd; z++)
-            localMassSlabZ[g*cpd + z] = 0.;
-    }
     
     wc.Start();
-    NUMA_FOR(y,0,cpd)
+    NUMA_FOR(y,0,cpd, reduction(+:MassSlabX[x]) reduction(+:globaldipole) reduction(+:MassSlabZ[:cpd]), FALLBACK_DYNAMIC){
         int g = omp_get_thread_num();
         double localMassSlabY = 0;
         _kernel_c2r.Start();
@@ -181,11 +169,11 @@ void SlabMultipolesLocal::ComputeMultipoleFFT( int x, FLOAT3 *spos,
             //_c2r.Start();
             DispatchCartesian2Reduced(order, cartesian[g], &(rowmultipoles[g][z*rml]));
             double Mxyz = rowmultipoles[g][z*rml];
-            localMassSlabX[g] += Mxyz;
-            localMassSlabZ[g*cpd + z] += Mxyz;
+            MassSlabX[x] += Mxyz;
+            MassSlabZ[z] += Mxyz;
             localMassSlabY += Mxyz;
             
-            localdipole[g] += double3(rowmultipoles[g][z*rml + rmap(1,0,0) ],
+            globaldipole += double3(rowmultipoles[g][z*rml + rmap(1,0,0) ],
                                 rowmultipoles[g][z*rml + rmap(0,1,0) ],
                                 rowmultipoles[g][z*rml + rmap(0,0,1) ] );
             //_c2r.Stop();
@@ -197,14 +185,7 @@ void SlabMultipolesLocal::ComputeMultipoleFFT( int x, FLOAT3 *spos,
         
         MassSlabY[y] += localMassSlabY;
     }
-    
-    for(int g = 0; g < nprocs; g++){
-        MassSlabX[x] += localMassSlabX[g];
-        globaldipole += localdipole[g];
-        for(int z = 0; z < cpd; z++)
-            MassSlabZ[z] += localMassSlabZ[g*cpd + z];
-    }
-    delete[] localMassSlabZ;
+    NUMA_FOR_END;
     
     wc.Stop();
     FFTY(out, transposetmp);

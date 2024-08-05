@@ -247,7 +247,7 @@ void SlabTaylorMPI::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
     PTimer _r2c, _tkernel;
     wc.Start();
 
-    NUMA_FOR(y,0,cpd)
+    NUMA_FOR(y,0,cpd, NO_CLAUSE, FALLBACK_DYNAMIC){
         int gh_off = ghost_offset[y];
         int g = omp_get_thread_num();
         for(int64_t z = 0; z < node_z_size; z++) {
@@ -266,6 +266,7 @@ void SlabTaylorMPI::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
 
         }
     }
+    NUMA_FOR_END;
 
     free(rbuf);
     

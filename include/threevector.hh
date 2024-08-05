@@ -328,4 +328,10 @@ typedef ThreeVector<double> double3;
 typedef ThreeVector<float> float3;
 typedef ThreeVector<int> integer3;
 
+#ifdef _OPENMP
+#pragma omp declare reduction(+:float3:omp_out += omp_in) initializer(omp_priv = float3())
+#pragma omp declare reduction(+:double3:omp_out += omp_in) initializer(omp_priv = double3())
+#pragma omp declare reduction(+:integer3:omp_out += omp_in) initializer(omp_priv = integer3())
+#endif
+
 #endif // __THREEVECTOR_CC__

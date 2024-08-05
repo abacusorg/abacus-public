@@ -243,7 +243,7 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
 
     // Build the InsertCellInfo and MergeCellInfo indexing
     // Use NUMA_FOR, not because we expect load imbalancing, but to get the merge slabs on the right NUMA nodes
-    NUMA_FOR(y,0,cpd)
+    NUMA_FOR(y,0,cpd, NO_CLAUSE, FALLBACK_STATIC){
         // For this skewer, set up pointers and counters
         ilstruct *ilread = ilhead + skewer[y].ilskewerstart;
             // This pointer will walk along the insert list
@@ -310,6 +310,7 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
             }
         }
     }
+    NUMA_FOR_END;
 
     STDLOG(2,"Merge slab %d will have %d old primary particles and %d new primaries and %d new ghosts\n",
         slab, inslab - ilslablength, inslab_no_ghost - (inslab - ilslablength), inslab - inslab_no_ghost);
@@ -350,21 +351,15 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
     SB->AllocateSpecificSize(MergeAuxSlab, slab, inslab*sizeof(auxstruct));
     STDLOG(2,"Allocating Merge Slabs to contain %d particles\n", inslab);
 
-    int nthread = omp_get_max_threads();
-    pint64 nwritten[nthread];
-    #pragma omp parallel for schedule(static)
-    for(int g = 0; g < nthread; g++){
-        nwritten[g] = 0;
-    }
-
-    NUMA_FOR(y,0,cpd)
+    int64_t nwritten = 0;
+    NUMA_FOR(y,0,cpd, reduction(+:nwritten), FALLBACK_DYNAMIC){
         int g = omp_get_thread_num();
         for(int z = node_z_start - MERGE_GHOST_RADIUS; z < node_z_start + node_z_size + MERGE_GHOST_RADIUS; z++) {
             Cell mc = CP->GetMergeCell(slab, y, z);
             cellinfo *ici = CP->InsertCellInfo(slab,y,z);
             int insert_count = ici->count;
             
-            int written = 0;
+            int cell_written = 0;
             if(z >= node_z_start + MERGE_GHOST_RADIUS && z < node_z_start + node_z_size - MERGE_GHOST_RADIUS) {
                 // Active particles only come from the primary zone; ghosts always come fresh from the IL.
                 // And more than that, we emptied MERGE_GHOST_RADIUS boundary cells in the drift.
@@ -377,21 +372,21 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
                     memcpy(mc.vel, c.vel, c.active()*sizeof(velstruct));
                     memcpy(mc.aux, c.aux, c.active()*sizeof(auxstruct));
                 }
-                written += c.active();
+                cell_written += c.active();
             }
 
             // Now copy the particles from the insert list
             ilstruct *ilpart = ilhead+ici->startindex_with_ghost;
             for (int j = 0; j < insert_count; j++) {
-                    mc.pos[written+j] = ilpart[j].pos;
-                    mc.vel[written+j] = ilpart[j].vel;
-                    mc.aux[written+j] = ilpart[j].aux;
+                    mc.pos[cell_written+j] = ilpart[j].pos;
+                    mc.vel[cell_written+j] = ilpart[j].vel;
+                    mc.aux[cell_written+j] = ilpart[j].aux;
             }
-            written += insert_count;
+            cell_written += insert_count;
 
-            assertf(written == mc.count(),
+            assertf(cell_written == mc.count(),
                 "Predicted merge cell size doesn't match insert list plus old particles\n");
-            nwritten[g] += written;
+            nwritten += cell_written;
 
             // We should reset the L0/L1 bits, so they don't affect
             // future outputs on steps that don't involve group finding.
@@ -410,13 +405,10 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
             }
         }
     }
+    NUMA_FOR_END;
 
-    uint64 totwritten = 0;
-    for(int g = 0; g < nthread; g++){
-        totwritten += nwritten[g];
-    }
-    assertf(totwritten == inslab, "Wrote %d merge particles, expected %d. Indexing failure/invalid ghosts?\n",
-        totwritten, inslab);
+    assertf(nwritten == inslab, "Wrote %d merge particles, expected %d. Indexing failure/invalid ghosts?\n",
+        nwritten, inslab);
 
     // Delete the particles from the insert list.
     free(ILnew);   // Need to free this space!

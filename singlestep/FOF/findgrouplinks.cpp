@@ -230,7 +230,7 @@ we only load the particles into cache once.
 void CreateFaces( CellFaceSlab &xm, CellFaceSlab &xp,
         CellFaceSlab &ym, CellFaceSlab &yp, CellFaceSlab &zm, CellFaceSlab &zp) {
 
-    NUMA_FOR(j,0,GFC->cpd)
+    NUMA_FOR(j,0,GFC->cpd, NO_CLAUSE, FALLBACK_DYNAMIC) {
         // The FaceSet holds the PencilAccum for this face.
         FaceSet fxm(&xm);
         FaceSet fxp(&xp);
@@ -270,6 +270,7 @@ void CreateFaces( CellFaceSlab &xm, CellFaceSlab &xp,
         fzm.FinishPencil();
         fzp.FinishPencil();
     }
+    NUMA_FOR_END;
     return;
 }
 
@@ -464,7 +465,7 @@ void FindGroupLinks(int slab) {
     GFC->FindLinkTime.Start();
     
     // Search each cell, putting the GroupLinks onto that insertlist.
-    NUMA_FOR(j,0,GFC->cpd)
+    NUMA_FOR(j,0,GFC->cpd, NO_CLAUSE, FALLBACK_DYNAMIC){
         for (int k=0; k<GFC->zwidth; k++) {  // local k
 			if(MPI_size_z == 1 || k > 0){
 				// The z dimension doesn't wrap in 2D
@@ -488,6 +489,7 @@ void FindGroupLinks(int slab) {
 			}
         }
     }
+    NUMA_FOR_END;
     GFC->GLL->CollectGaps();   // We've now found all of the links from this slab
     GFC->Ltot += GFC->GLL->length - Ltot_start;
 

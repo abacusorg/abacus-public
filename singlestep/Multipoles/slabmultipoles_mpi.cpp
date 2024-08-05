@@ -188,22 +188,10 @@ void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos,
                      int *count, int *offset, FLOAT3 *cc, MTCOMPLEX *_out_unused) {
     STimer wc;
     PTimer _kernel, _c2r;
-    pdouble localMassSlabX[nprocs];
-    padded<double3> localdipole[nprocs];
-    double *localMassSlabZ = new double[nprocs*node_z_size];
-    
-    // Init with OpenMP to preserve thread locality
-    #pragma omp parallel for schedule(static)
-    for(int64_t g = 0; g < nprocs; g++){
-        localMassSlabX[g] = 0.;
-        localdipole[g] = double3(0.);
-        for(int64_t z = 0; z < node_z_size; z++)
-            localMassSlabZ[g*node_z_size + z] = 0.;
-    }
     
     wc.Start();
     // compute the cell-by-cell multipoles for this node's subslab
-    NUMA_FOR(y,0,cpd)
+    NUMA_FOR(y,0,cpd, reduction(+:MassSlabX[x]) reduction(+:globaldipole) reduction(+:MassSlabZ[node_z_start:node_z_size]), FALLBACK_DYNAMIC){
         double localMassSlabY = 0.;
         int64_t g = omp_get_thread_num();
         for(int64_t z = 0; z < node_z_size; z++) {
@@ -218,29 +206,20 @@ void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos,
             DispatchCartesian2Reduced(order, cartesian[g], reducedcell);
             
             double Mxyz = reducedcell[0];
-            localMassSlabX[g] += Mxyz;
-            localMassSlabZ[g*node_z_size + z] += Mxyz;
+            MassSlabX[x] += Mxyz;
+            // MassSlabZ uses global z indices
+            MassSlabZ[node_z_start + z] += Mxyz;
             localMassSlabY += Mxyz;
             
-            localdipole[g] += double3(reducedcell[rmap(1,0,0) ],
+            globaldipole += double3(reducedcell[rmap(1,0,0) ],
                                 reducedcell[rmap(0,1,0) ],
                                 reducedcell[rmap(0,0,1) ] );
             //_c2r.Stop();
         }
         MassSlabY[y] += localMassSlabY;
     }
+    NUMA_FOR_END;
     wc.Stop();
-    
-    // do thread reductions
-    for(int64_t g = 0; g < nprocs; g++){
-        MassSlabX[x] += localMassSlabX[g];
-        globaldipole += localdipole[g];
-        for(int64_t z = 0; z < node_z_size; z++){
-            // MassSlabZ uses "global" z indices
-            MassSlabZ[z + node_z_start] += localMassSlabZ[g*node_z_size + z];
-        }
-    }
-    delete[] localMassSlabZ;
 
 
     FFTY(transposetmp, reducedtmp);

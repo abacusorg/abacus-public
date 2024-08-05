@@ -169,6 +169,8 @@ private:
         }
 
         // Store the local reductions in the class variables
+        // Curiously, although OpenMP usually supports reduction into class variables,
+        // it doesn't like something about the inheritance or templating here.
         NsubsampleA = sumA;
         NsubsampleB = sumB;
         next_pid += Npart;

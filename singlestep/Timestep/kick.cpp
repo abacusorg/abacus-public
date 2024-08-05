@@ -59,12 +59,13 @@ void (*KickCell)(Cell &c, FLOAT kick1, FLOAT kick2, int set_aux_dens)) {
     int cpd = CP->cpd;
     //#pragma omp parallel for schedule(static)
     //for (int y=0;y<cpd;y++) {
-    NUMA_FOR(y,0,cpd)
+    NUMA_FOR(y,0,cpd, NO_CLAUSE, FALLBACK_DYNAMIC){
         for (int z = node_z_start; z < node_z_start + node_z_size; z++) {
             Cell c = CP->GetCell(slab, y, z);
             (*KickCell)(c,kick1,kick2,set_aux_dens);
         }
     }
+    NUMA_FOR_END;
 }
 
 void RescaleAndCoAddAcceleration(int slab) {

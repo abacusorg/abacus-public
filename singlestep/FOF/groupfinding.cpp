@@ -318,16 +318,6 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     for (int g=0; g<nthread; g++) 
             doFOF[g].setup(linking_length, boundary);
 
-    padded<uint64> _local_CGactive[nthread];
-    padded<FLOAT> _local_maxFOFdensity[nthread];
-    padded<double> _local_meanFOFdensity[nthread];
-    #pragma omp parallel for schedule(static)
-    for(int i = 0; i < nthread; i++){
-        _local_CGactive[i] = 0;
-        _local_maxFOFdensity[i] = 0;
-        _local_meanFOFdensity[i] = 0;
-    }
-
     FLOAT DensityKernelRad2 = WriteState.DensityKernelRad2;
     FLOAT L0DensityThreshold = WriteState.L0DensityThreshold;
 
@@ -344,7 +334,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
         // Was DensityKernelRad2 but now the self-count has been subtracted.
     }
 
-    NUMA_FOR(j,0,cpd)
+    NUMA_FOR(j,0,cpd, reduction(+:CGactive) reduction(max:maxFOFdensity) reduction(+:meanFOFdensity), FALLBACK_DYNAMIC){
         int g = omp_get_thread_num();
         PencilAccum<CellGroup> *cg = cellgroups[slab].StartPencil(j);
         for (int k=zstart; k<zend; k++) {  // global z
@@ -365,13 +355,13 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
                         dens = c.acc[p].w;
                         c.aux[p].set_compressed_density(dens);
                     }
-                    _local_meanFOFdensity[g] += dens;
+                    meanFOFdensity += dens;
                         // This will be the mean over all particles, not just
                         // the active ones
 
                     if (dens>L0DensityThreshold) {
                         // Active particle; retain and accumulate stats
-                        _local_maxFOFdensity[g]=std::max(_local_maxFOFdensity[g].i, dens);
+                        maxFOFdensity = std::max(maxFOFdensity, dens);
                     } else {
                         // We found an inactive particle; swap to end.
                         active_particles--;
@@ -388,7 +378,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
             // singlet set.  So they will not be in the CellGroups and 
             // hence never considered further.
             #endif
-            _local_CGactive[g] += active_particles;
+            CGactive += active_particles;
 
             doFOF[g].findgroups(c.pos, c.vel, c.aux, c.acc, active_particles);
 
@@ -409,16 +399,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
         }
         cg->FinishPencil();
     }
-
-    uint64 _CGactive = 0;
-    FLOAT _maxFOFdensity = 0;
-    double _meanFOFdensity = 0;
-
-    for(int i = 0; i < nthread; i++){
-        _CGactive += _local_CGactive[i];
-        _maxFOFdensity = std::max(_maxFOFdensity, _local_maxFOFdensity[i].i);
-        _meanFOFdensity += _local_meanFOFdensity[i];
-    }
+    NUMA_FOR_END;
 
     // Best if we destroy on the same thread, for tcmalloc
     #pragma omp parallel for schedule(static,1)
@@ -427,9 +408,6 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     uint64 tot = cellgroups[slab].get_slab_size();
     CGtot += tot;
     cellgroups_status[slab] = 1;
-    CGactive += _CGactive;
-    meanFOFdensity += _meanFOFdensity;
-    maxFOFdensity = std::max(maxFOFdensity, _maxFOFdensity);
     STDLOG(2,"Found %d cell groups in slab %d\n", tot, slab);
     CellGroupTime.Stop();
     return;

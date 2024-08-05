@@ -161,7 +161,7 @@ void SlabTaylorLocal::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
     InverseFFTY(transposetmp, TaylorCoefficients);
     wc.Start();
 
-    NUMA_FOR(y,0,cpd)
+    NUMA_FOR(y,0,cpd, NO_CLAUSE, FALLBACK_DYNAMIC){
         int g = omp_get_thread_num();
         _zfft.Start();
         InverseFFTZ( y, TaylorPencil[g], transposetmp);
@@ -184,6 +184,7 @@ void SlabTaylorLocal::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
         }
         _kernel_r2c.Stop();
     }
+    NUMA_FOR_END;
     wc.Stop();
     
     /*double seq = _r2c.Elapsed() + _tkernel.Elapsed() + _zfft.Elapsed();

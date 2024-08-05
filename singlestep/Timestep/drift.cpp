@@ -154,7 +154,7 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
 
     uint64 ILbefore = IL->length;
 
-    NUMA_FOR(y,0,cpd)
+    NUMA_FOR(y,0,cpd, NO_CLAUSE, FALLBACK_DYNAMIC){
         for(int z = node_z_start; z < node_z_start + node_z_size; z++) {
             // We'll do the drifting and rebinning separately because
             // sometimes we'll want special rules for drifting.
@@ -172,6 +172,7 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
             rebin.Stop();
         }
     }
+    NUMA_FOR_END;
     wc.Stop();
 
     STDLOG(2,"Drifting slab %d has rebinned %d particles (%d - %d).\n",
@@ -210,14 +211,15 @@ void DriftPencilsAndCopy2InsertList(int slab, FLOAT driftfactor,
     // sometimes we'll want special rules for drifting.
     
     move.Start();
-    NUMA_FOR(y,0,cpd)
+    NUMA_FOR(y,0,cpd, NO_CLAUSE, FALLBACK_DYNAMIC){
         (*DriftPencil)(slab, y, driftfactor);
     }
+    NUMA_FOR_END;
     move.Stop();
 
     rebin.Start();
     
-    NUMA_FOR(y,0,cpd)
+    NUMA_FOR(y,0,cpd, NO_CLAUSE, FALLBACK_DYNAMIC){
         // primary cells within MERGE_GHOST_RADIUS of the edge get pushed entirely to the IL
         for(int z = node_z_start; z < node_z_start + MERGE_GHOST_RADIUS; z++) {
             Cell c = CP->GetCell(slab,y,z);
@@ -236,6 +238,7 @@ void DriftPencilsAndCopy2InsertList(int slab, FLOAT driftfactor,
             PushCellToIL(c, slab, y, z);
         }
     }
+    NUMA_FOR_END;
     rebin.Stop();
 
     STDLOG(2,"Drifting slab %d has rebinned %d particles (%d - %d).\n",
