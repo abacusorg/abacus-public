@@ -22,7 +22,6 @@ ProperSoftening = 1
 # MPI parallel parameters
 Parallel = 0  # Whether to run the MPI parallel code
 NumZRanks = 1  # Number of z-dimension ranks. 1 = 1D mode, >=2 = 2D mode
-mpirun_cmd = "srun"  # how to launch singlestep (srun for slurm)
 
 # Output parameters
 TimeSliceRedshifts = [0.1]
