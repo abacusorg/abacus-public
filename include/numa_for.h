@@ -72,15 +72,14 @@ The original idea for implementing a custom scheduler came from: https://stackov
 
 #include "numa.h"
 
-#ifdef ENABLE_NUMA_FOR
-
 #define FALLBACK_DYNAMIC dynamic
 #define FALLBACK_STATIC static
+#define NO_CLAUSE
 
 #define DO_PRAGMA(X) _Pragma (#X)
 #define OMP_PARALLEL(X) DO_PRAGMA(omp parallel X)
 
-#define NO_CLAUSE
+#ifdef ENABLE_NUMA_FOR
 
 // This is the primary macro definition
 #define NUMA_FOR(I,START,END,CLAUSE,FALLBACK) { \
@@ -193,11 +192,11 @@ void finish_numa_for(){
 
 #ifndef ENABLE_NUMA_FOR
 
-// If disabled, fall back to dynamic scheduling
+// If disabled, use the fallback scheduling
 
 #define NUMA_FOR(I,START,END,CLAUSE,FALLBACK) \
-_Pragma("omp parallel for schedule("##FALLBACK##") " CLAUSE) \
-for(int64_t I = START; I < END; I++)
+    OMP_PARALLEL(for schedule(FALLBACK) CLAUSE) \
+    for(int64_t I = START; I < END; I++)
 
 #define NUMA_FOR_END
 
