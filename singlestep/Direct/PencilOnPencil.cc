@@ -235,6 +235,9 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SourcePlan, PAGE_SIZE, sizeof(SourcePencilPlan) * NSourceSets) == 0);
 
     DirectTotal = 0;
+    SinkTotal = 0;
+    SourceTotal = 0;
+    PaddedDirectTotal = 0;
 
     // Next, fill in sink data
     // Count the Sinks
@@ -243,8 +246,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
             // This is oversized because we'll re-use for Sources
 
     const int twoD = MPI_size_z > 1;  // Don't do a z-wrap in 2D
-    int localSinkTotal = 0;
-    #pragma omp parallel for schedule(static) reduction(+:localSinkTotal)
+    #pragma omp parallel for schedule(static) reduction(+:SinkTotal) reduction(+:skewer_blocks) collapse(2)
     for(int j = 0; j < j_width; j++){
         int this_skewer_blocks = 0;   // Just to have a local variable
         for(int k = 0; k < Nk; k ++) {
@@ -254,13 +256,14 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
             // but also returns the total size.
             int pencilsize = SinkPlan[sinkindex].load(slab, j + j_low, zmid, nfradius, twoD);
             SinkSetCount[sinkindex] = pencilsize;
-            localSinkTotal += pencilsize;
-            this_skewer_blocks += NumPaddedBlocks(pencilsize);
+            SinkTotal += pencilsize;
+            skewer_blocks[j] += NumPaddedBlocks(pencilsize);
         }
         skewer_blocks[j] = this_skewer_blocks;
     }
 
-    SinkTotal = localSinkTotal;
+    Part1Timer.Stop();
+    Part2Timer.Start();
 
     // Cumulate the number of blocks in each skewer, so we know how 
     // to start enumerating.
@@ -320,8 +323,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     // We once again need to precompute the enumeration of the padded
     // blocks, totaled by skewer.  
 
-    int localSourceTotal = 0;
-    #pragma omp parallel for schedule(static) reduction(+:localSourceTotal)
+    #pragma omp parallel for schedule(static) reduction(+:SourceTotal) reduction(+:skewer_blocks) collapse(2)
     for(int j = 0; j<j_width+nfwidth-1; j++) {
         int this_skewer_blocks = 0;   // Just to have a local variable
         for(int k = 0; k < Nk; k++) {
@@ -331,13 +333,11 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
             int sourcelength = SourcePlan[sourceindex].load(slab,
                             j+j_low-nfradius, zmid, nfradius);
             SourceSetCount[sourceindex] = sourcelength;
-            localSourceTotal += sourcelength;
-            this_skewer_blocks += NumPaddedBlocks(sourcelength);
+            SourceTotal += sourcelength;
+            skewer_blocks[j] += NumPaddedBlocks(sourcelength);
         }
         skewer_blocks[j] = this_skewer_blocks;
     }
-
-    SourceTotal = localSourceTotal;
 
     // Cumulate the number of blocks in each skewer, so we know how 
     // to start enumerating.
@@ -383,8 +383,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     
     assertf(j_width*Nk <= NSinkSets, "SinkSetCount size %d would exceed allocation %d\n", j_width*Nk, NSinkSets);
 
-    uint64 localDirectTotal = 0, localPaddedDirectTotal = 0;
-    #pragma omp parallel for schedule(static) reduction(+:localDirectTotal) reduction(+:localPaddedDirectTotal)
+    #pragma omp parallel for schedule(static) reduction(+:DirectTotal) reduction(+:PaddedDirectTotal) collapse(2)
     for(int j = 0; j < j_width; j++){
         for(int k=0; k < Nk; k++) {
 	    int zmid = index_to_zcen(k, twoD);
@@ -406,13 +405,13 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
                     int tmpy = j_low+j+y-nfradius;
                     SinkSourceYOffset[l+y] = (tmpy-CP->WrapSlab(tmpy))*cellsize;
                 #endif
-                localDirectTotal += (uint64) SinkSetCount[sinkindex] * (uint64) SourceSetCount[sourceindex];
-                localPaddedDirectTotal += (uint64) PaddedSinkCount(sinkindex) * (uint64) SourceSetCount[sourceindex];
+                DirectTotal += (uint64) SinkSetCount[sinkindex] * (uint64) SourceSetCount[sourceindex];
+                PaddedDirectTotal += (uint64) PaddedSinkCount(sinkindex) * (uint64) SourceSetCount[sourceindex];
             }
         }
     }
-    DirectTotal = localDirectTotal;
-    PaddedDirectTotal = localPaddedDirectTotal;
+
+    Part3Timer.Stop();
 }
 
 
