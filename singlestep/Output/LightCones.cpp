@@ -104,11 +104,19 @@ inline int LightCone::isParticleInLightCone(double3 cellcenter, posstruct &pos, 
         // This is the fraction of the upcoming step when the particle meets the light cone
         // frac_step = 0 means r=rmax, =1 means r-rmin
 
+#ifdef USE_LC_AUX_BITS
     if (frac_step<-1.0e-6||frac_step>=1) return 0;
+
         // We accept the particle into the lightcone only if the two lines cross in
         // the domain of the step.
         // We are accepting a tiny fraction of cases outside the cone, 
-        // just in case of floating point math errors
+        // just in case of floating point math errors. The aux bits ensure
+        // we won't double count.
+#else
+    if (frac_step<0||frac_step>=1) return 0;
+
+    // But if we're not using aux bits, try to be more precise.
+#endif
 
     // The particle is in the light cone!
     // Update the pos and vel to the fractional step (for output).

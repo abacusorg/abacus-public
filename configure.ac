@@ -411,6 +411,13 @@ if test x$enable_2d_multipole_mpi_float == xyes; then
     AC_DEFINE_UNQUOTED(MULTIPOLE_2D_MPI_USE_FLOAT, [], "Use single-precision instead of double for MPI multipole transposes in the 2D code")
 fi
 
+AC_ARG_ENABLE(lc-aux-bits,
+[AS_HELP_STRING([--enable-lc-aux-bits], [Use bits in the aux to track light cone crossings, one bit per LC [yes]])],
+    [], enable_lc_aux_bits="yes")
+if test x$enable_lc_aux_bits == xyes; then
+    AC_DEFINE_UNQUOTED(USE_LC_AUX_BITS, [], Use bits in the aux to track light cone crossings, one bit per LC")
+fi
+
 # If the user is using Anaconda Python, we have to be careful
 # about how we build C/C++ libraries that will be loaded by Python.
 # Anaconda Python has the Python executable rpath set to find

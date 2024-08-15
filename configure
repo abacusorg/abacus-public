@@ -760,6 +760,7 @@ enable_numa_for
 enable_multiple_comm
 enable_block_accum
 enable_2d_multipole_mpi_float
+enable_lc_aux_bits
 with_ramdisk
 '
       ac_precious_vars='build_alias
@@ -1425,6 +1426,8 @@ Optional Features:
   --enable-2d-multipole-mpi-float
                           Use float instead of double for MPI multipole
                           transposes in the 2D code [yes]
+  --enable-lc-aux-bits    Use bits in the aux to track light cone crossings,
+                          one bit per LC [yes]
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -7862,6 +7865,21 @@ fi
 if test x$enable_2d_multipole_mpi_float == xyes; then
 
 printf "%s\n" "#define MULTIPOLE_2D_MPI_USE_FLOAT /**/" >>confdefs.h
+
+fi
+
+# Check whether --enable-lc-aux-bits was given.
+if test ${enable_lc_aux_bits+y}
+then :
+  enableval=$enable_lc_aux_bits;
+else case e in #(
+  e) enable_lc_aux_bits="yes" ;;
+esac
+fi
+
+if test x$enable_lc_aux_bits == xyes; then
+
+printf "%s\n" "#define USE_LC_AUX_BITS /**/" >>confdefs.h
 
 fi
 

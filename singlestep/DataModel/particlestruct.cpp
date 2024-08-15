@@ -42,8 +42,6 @@ second set of bits. That's 0x07ff 7fff 7fff 7fff.
 
 #include <bitset>
 
-#define NO_LC_BITS
-
 #define posstruct FLOAT3
 #define velstruct FLOAT3
 #define acc3struct FLOAT3
@@ -78,7 +76,7 @@ second set of bits. That's 0x07ff 7fff 7fff 7fff.
 #define AUXTAGGABLE_A_BIT 59llu //Can this particle be tagged in subsample A? 
 #define AUXTAGGABLE_B_BIT 60llu //Can this particle be tagged in subsample B? 
 
-#ifndef NO_LC_BITS
+#ifdef USE_LC_AUX_BITS
 #define MAXLIGHTCONES 3
 #else
 #define MAXLIGHTCONES UINT64_MAX
@@ -160,7 +158,7 @@ public:
 
     // Light cones need 1 byte
     inline static uint64 lightconemask(int number) {
-        #ifndef NO_LC_BITS
+        #ifdef USE_LC_AUX_BITS
         assertf(number<MAXLIGHTCONES && number>=0, "Lightcone number lcn = %d must satisfy 0 <= lcn < %d.", number, MAXLIGHTCONES);
         return (uint64)1 << (number+AUXLCZEROBIT);
         #else
@@ -169,7 +167,7 @@ public:
     }
 
     inline bool lightconedone(uint64 mask) {
-        #ifndef NO_LC_BITS
+        #ifdef USE_LC_AUX_BITS
         assert (mask<=AUXLC && mask >= AUXPIDMASK);  // better way to do this...
         return (aux&mask);
         #else
@@ -181,7 +179,7 @@ public:
     }
 
     inline void setlightconedone(uint64 mask) {
-        #ifndef NO_LC_BITS
+        #ifdef USE_LC_AUX_BITS
         aux |= mask;
         #endif
     }
@@ -190,7 +188,7 @@ public:
     }
 
     inline void clearLightCone() {
-        #ifndef NO_LC_BITS
+        #ifdef USE_LC_AUX_BITS
         uint64 mask = AUXLC;
         aux &= ~mask;
         #endif

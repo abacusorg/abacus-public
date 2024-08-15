@@ -260,5 +260,8 @@
 /* "Unrolled plain-C multipoles/Taylors" */
 #undef UNROLLEDMULTIPOLES
 
+/* Use bits in the aux to track light cone crossings */
+#undef USE_LC_AUX_BITS
+
 /* "VSX (PowerPC) multipoles/Taylors" */
 #undef VSXMULTIPOLES
