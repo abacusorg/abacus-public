@@ -530,7 +530,7 @@ void *QueueWatcher(void *arg){
     STDLOG(1,"GPU stream %d initiated\n", n);
 
     // Allocate CUDA memory
-    STDLOG(1,"About to CudaAllocate %llu bytes on GPU %d\n", Buffers[n].size,gpu);
+    STDLOG(1,"About to CudaAllocate %lu bytes on GPU %d\n", Buffers[n].size,gpu);
     //assertf((Buffers[n].size > (int64) 1e9) && (Buffers[n].size < (int64) 3e9), "Unexpected CudaAllocate size %d bytes for AbacusSummit\n", Buffers[n].size);
 
     CudaAllocate(Buffers[n].device,     Buffers[n].size);
@@ -619,17 +619,19 @@ void *QueueWatcher(void *arg){
 /// That gives a global throughput number.
 
 void CUDART_CB StartThroughputTimer(cudaStream_t stream, cudaError_t status, void *data){
-    int n = ++SetInteractionCollection::ActiveThreads;
-    if (n == 1)
+    assert(pthread_mutex_lock(&SetInteractionCollection::GPUTimerMutex) == 0);
+    if (++SetInteractionCollection::ActiveThreads == 1){
         SetInteractionCollection::GPUThroughputTimer.Start();
+    }
+    assert(pthread_mutex_unlock(&SetInteractionCollection::GPUTimerMutex) == 0);
 }
 
 void CUDART_CB MarkCompleted( cudaStream_t stream, cudaError_t status, void *data){
-#ifdef CUDADIRECT
-    int n = --SetInteractionCollection::ActiveThreads;
-    if (n == 0)
+    assert(pthread_mutex_lock(&SetInteractionCollection::GPUTimerMutex) == 0);
+    if (--SetInteractionCollection::ActiveThreads == 0){
         SetInteractionCollection::GPUThroughputTimer.Stop();
-#endif
+    }
+    assert(pthread_mutex_unlock(&SetInteractionCollection::GPUTimerMutex) == 0);
 }
 
 

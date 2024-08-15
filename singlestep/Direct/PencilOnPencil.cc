@@ -432,5 +432,10 @@ void SetInteractionCollection::GPUExecute(int){
 }
 #endif
 
-std::atomic<int> SetInteractionCollection::ActiveThreads{0};
+int SetInteractionCollection::ActiveThreads{0};
 STimer SetInteractionCollection::GPUThroughputTimer;
+pthread_mutex_t SetInteractionCollection::GPUTimerMutex = PTHREAD_MUTEX_INITIALIZER;
+
+STimer SetInteractionCollection::Part1Timer;
+STimer SetInteractionCollection::Part2Timer;
+STimer SetInteractionCollection::Part3Timer;

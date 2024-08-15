@@ -179,7 +179,8 @@ class SetInteractionCollection{
         uint64 bytes_to_device, bytes_from_device;
     
         // These are shared by all threads
-        static std::atomic<int> ActiveThreads;
+        static int ActiveThreads;
+        static pthread_mutex_t GPUTimerMutex;
         static STimer GPUThroughputTimer;
 
         // Constructor timers
